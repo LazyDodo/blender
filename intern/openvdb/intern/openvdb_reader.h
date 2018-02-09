@@ -49,6 +49,7 @@ public:
 
 	bool hasGrid(const openvdb::Name &name) const;
 	openvdb::GridBase::Ptr getGrid(const openvdb::Name &name) const;
+	openvdb::GridBase::Ptr getGrid(size_t index) const;
 	size_t numGrids() const;
 };
 

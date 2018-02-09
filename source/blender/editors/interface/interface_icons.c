@@ -1356,6 +1356,8 @@ int UI_idcode_icon_get(const int idcode)
 			return ICON_TEXT;
 		case ID_VF:
 			return ICON_FONT_DATA;
+		case ID_VO:
+			return ICON_VOLUME;
 		case ID_WO:
 			return ICON_WORLD_DATA;
 		default:

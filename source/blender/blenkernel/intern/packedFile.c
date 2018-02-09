@@ -46,6 +46,7 @@
 #include "DNA_ID.h"
 #include "DNA_packedFile_types.h"
 #include "DNA_sound_types.h"
+#include "DNA_volume_types.h"
 #include "DNA_vfont_types.h"
 
 #include "BLI_blenlib.h"
@@ -58,6 +59,7 @@
 #include "BKE_packedFile.h"
 #include "BKE_report.h"
 #include "BKE_sound.h"
+#include "BKE_volume.h"
 
 int seekPackedFile(PackedFile *pf, int offset, int whence)
 {
@@ -124,6 +126,7 @@ int countPackedFiles(Main *bmain)
 	Image *ima;
 	VFont *vf;
 	bSound *sound;
+	Volume *volume;
 	int count = 0;
 
 	/* let's check if there are packed files... */
@@ -137,6 +140,10 @@ int countPackedFiles(Main *bmain)
 
 	for (sound = bmain->sound.first; sound; sound = sound->id.next)
 		if (sound->packedfile)
+			count++;
+
+	for (volume = bmain->volume.first; volume; volume = volume->id.next)
+		if (volume->packedfile)
 			count++;
 
 	return count;
@@ -229,6 +236,7 @@ void packAll(Main *bmain, ReportList *reports, bool verbose)
 	Image *ima;
 	VFont *vfont;
 	bSound *sound;
+	Volume *volume;
 	int tot = 0;
 
 	for (ima = bmain->image.first; ima; ima = ima->id.next) {
@@ -254,6 +262,13 @@ void packAll(Main *bmain, ReportList *reports, bool verbose)
 	for (sound = bmain->sound.first; sound; sound = sound->id.next) {
 		if (sound->packedfile == NULL && !ID_IS_LINKED(sound)) {
 			sound->packedfile = newPackedFile(reports, sound->name, BKE_main_blendfile_path(bmain));
+			tot++;
+		}
+	}
+
+	for (volume = bmain->volume.first; volume; volume = volume->id.next) {
+		if (volume->packedfile == NULL && !ID_IS_LINKED(volume)) {
+			volume->packedfile = newPackedFile(reports, volume->filepath, bmain->name);
 			tot++;
 		}
 	}
@@ -524,6 +539,9 @@ static void unpack_generate_paths(
 		case ID_IM:
 			BLI_snprintf(r_relpath, relpathlen, "//textures/%s", tempname);
 			break;
+		case ID_VO:
+			BLI_snprintf(r_relpath, relpathlen, "//volumes/%s", tempname);
+			break;
 		default:
 			break;
 	}
@@ -628,6 +646,31 @@ int unpackImage(Main *bmain, ReportList *reports, Image *ima, int how)
 	return(ret_value);
 }
 
+int unpackVolume(Main *bmain, ReportList *reports, Volume *volume, int how)
+{
+	char localname[FILE_MAX], absname[FILE_MAX];
+	char *newfilepath;
+	int ret_value = RET_ERROR;
+
+	if (volume != NULL) {
+		unpack_generate_paths(volume->filepath, (ID *)volume, absname, localname, sizeof(absname), sizeof(localname));
+		newfilepath = unpackFile(reports, BKE_main_blendfile_path(bmain), absname, localname, volume->packedfile, how);
+		if (newfilepath != NULL) {
+			BLI_strncpy(volume->filepath, newfilepath, sizeof(volume->filepath));
+			MEM_freeN(newfilepath);
+
+			freePackedFile(volume->packedfile);
+			volume->packedfile = NULL;
+
+			BKE_volume_reload(bmain, volume);
+
+			ret_value = RET_OK;
+		}
+	}
+
+	return(ret_value);
+}
+
 int unpackLibraries(Main *bmain, ReportList *reports)
 {
 	Library *lib;
@@ -678,6 +721,7 @@ void unpackAll(Main *bmain, ReportList *reports, int how)
 	Image *ima;
 	VFont *vf;
 	bSound *sound;
+	Volume *volume;
 
 	for (ima = bmain->image.first; ima; ima = ima->id.next)
 		if (BKE_image_has_packedfile(ima))
@@ -690,6 +734,10 @@ void unpackAll(Main *bmain, ReportList *reports, int how)
 	for (sound = bmain->sound.first; sound; sound = sound->id.next)
 		if (sound->packedfile)
 			unpackSound(bmain, reports, sound, how);
+
+	for (volume = bmain->volume.first; volume; volume = volume->id.next)
+		if (volume->packedfile)
+			unpackVolume(bmain, reports, volume, how);
 }
 
 /* ID should be not NULL, return 1 if there's a packed file */
@@ -710,6 +758,11 @@ bool BKE_pack_check(ID *id)
 		{
 			bSound *snd = (bSound *)id;
 			return snd->packedfile != NULL;
+		}
+		case ID_VO:
+		{
+			Volume *volume = (Volume *)id;
+			return volume->packedfile != NULL;
 		}
 		case ID_LI:
 		{
@@ -747,6 +800,14 @@ void BKE_unpack_id(Main *bmain, ID *id, ReportList *reports, int how)
 			bSound *snd = (bSound *)id;
 			if (snd->packedfile) {
 				unpackSound(bmain, reports, snd, how);
+			}
+			break;
+		}
+		case ID_VO:
+		{
+			Volume *volume = (Volume *)id;
+			if (volume->packedfile) {
+				unpackVolume(bmain, reports, volume, how);
 			}
 			break;
 		}

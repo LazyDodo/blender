@@ -89,6 +89,7 @@ static IDType idtypes[] = {
 	{ ID_TE,   "Texture",            "textures",        BLT_I18NCONTEXT_ID_TEXTURE,            IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_TXT,  "Text",               "texts",           BLT_I18NCONTEXT_ID_TEXT,               IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_VF,   "VFont",              "fonts",           BLT_I18NCONTEXT_ID_VFONT,              IDTYPE_FLAGS_ISLINKABLE },
+	{ ID_VO,   "Volume",             "volumes",         BLT_I18NCONTEXT_ID_VOLUME,             IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_WO,   "World",              "worlds",          BLT_I18NCONTEXT_ID_WORLD,              IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_WM,   "WindowManager",      "window_managers", BLT_I18NCONTEXT_ID_WINDOWMANAGER,      0                       },
 
@@ -209,6 +210,7 @@ int BKE_idcode_to_idfilter(const short idcode)
 		CASE_IDFILTER(TE);
 		CASE_IDFILTER(TXT);
 		CASE_IDFILTER(VF);
+		CASE_IDFILTER(VO);
 		CASE_IDFILTER(WO);
 		default:
 			return 0;
@@ -253,6 +255,7 @@ short BKE_idcode_from_idfilter(const int idfilter)
 		CASE_IDFILTER(TE);
 		CASE_IDFILTER(TXT);
 		CASE_IDFILTER(VF);
+		CASE_IDFILTER(VO);
 		CASE_IDFILTER(WO);
 		default:
 			return 0;
@@ -301,6 +304,7 @@ int BKE_idcode_to_index(const short idcode)
 		CASE_IDINDEX(TE);
 		CASE_IDINDEX(TXT);
 		CASE_IDINDEX(VF);
+		CASE_IDINDEX(VO);
 		CASE_IDINDEX(WM);
 		CASE_IDINDEX(WO);
 	}

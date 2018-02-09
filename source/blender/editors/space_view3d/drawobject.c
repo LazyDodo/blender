@@ -2230,6 +2230,14 @@ static void drawspeaker(Scene *UNUSED(scene), View3D *UNUSED(v3d), RegionView3D 
 	glDisable(GL_BLEND);
 }
 
+/* flag similar to draw_object() */
+static void drawvolume(Scene *UNUSED(scene), View3D *UNUSED(v3d), RegionView3D *UNUSED(rv3d),
+                       Object *UNUSED(ob), int UNUSED(flag))
+{
+	drawcube_size(1.0f);
+}
+
+
 static void lattice_draw_verts(Lattice *lt, DispList *dl, BPoint *actbp, short sel)
 {
 	BPoint *bp = lt->def;
@@ -7765,6 +7773,9 @@ void draw_object(Main *bmain, Scene *scene, ARegion *ar, View3D *v3d, Base *base
 						empty_object = draw_armature(scene, v3d, ar, base, dt, dflag, ob_wire_col, false);
 					}
 				}
+				break;
+			case OB_VOLUME:
+				drawvolume(scene, v3d, rv3d, ob, dflag);
 				break;
 			default:
 				if (!render_override) {

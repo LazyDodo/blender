@@ -53,6 +53,7 @@
 #include "DNA_speaker_types.h"
 #include "DNA_object_types.h"
 #include "DNA_linestyle_types.h"
+#include "DNA_volume_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
@@ -880,6 +881,14 @@ static void outliner_add_id_contents(SpaceOops *soops, TreeElement *te, TreeStor
 				outliner_add_element(soops, &te->subtree, gpl, te, TSE_GP_LAYER, a);
 				a++;
 			}
+			break;
+		}
+		case ID_VO:
+		{
+			Volume *volume = (Volume *)id;
+
+			if (outliner_animdata_test(volume->adt))
+				outliner_add_element(soops, &te->subtree, volume, te, TSE_ANIM_DATA, 0);
 			break;
 		}
 		default:

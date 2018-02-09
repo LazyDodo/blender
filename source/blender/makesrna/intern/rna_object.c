@@ -140,6 +140,7 @@ const EnumPropertyItem rna_enum_object_type_items[] = {
 	OBTYPE_CU_SURF,
 	{OB_MBALL, "META", 0, "Meta", ""},
 	OBTYPE_CU_FONT,
+	{OB_VOLUME, "VOLUME", 0, "Volume", ""},
 	{0, "", 0, NULL, NULL},
 	{OB_ARMATURE, "ARMATURE", 0, "Armature", ""},
 	{OB_LATTICE, "LATTICE", 0, "Lattice", ""},
@@ -434,6 +435,7 @@ static StructRNA *rna_Object_data_typef(PointerRNA *ptr)
 		case OB_LATTICE: return &RNA_Lattice;
 		case OB_ARMATURE: return &RNA_Armature;
 		case OB_SPEAKER: return &RNA_Speaker;
+		case OB_VOLUME: return &RNA_Volume;
 		default: return &RNA_ID;
 	}
 }

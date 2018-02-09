@@ -399,6 +399,9 @@ BlendFileData *BLO_read_from_memfile(
 		/* make lookups of existing sound data in old main */
 		blo_make_sound_pointer_map(fd, oldmain);
 
+		/* make lookups of existing volume data in old main */
+		blo_make_volume_pointer_map(fd, oldmain);
+
 		/* removed packed data from this trick - it's internal data that needs saves */
 
 		bfd = blo_read_file_internal(fd, filename);
@@ -411,6 +414,9 @@ BlendFileData *BLO_read_from_memfile(
 
 		/* ensures relinked sounds are not freed */
 		blo_end_sound_pointer_map(fd, oldmain);
+
+		/* ensures relinked volumes are not freed */
+		blo_end_volume_pointer_map(fd, oldmain);
 
 		/* Still in-use libraries have already been moved from oldmain to new mainlist,
 		 * but oldmain itself shall *never* be 'transferred' to new mainlist! */

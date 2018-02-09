@@ -42,6 +42,7 @@ struct Main;
 struct PackedFile;
 struct ReportList;
 struct VFont;
+struct Volume;
 
 /* pack */
 struct PackedFile *dupPackedFile(const struct PackedFile *pf_src);
@@ -58,6 +59,7 @@ char *unpackFile(
 int unpackVFont(struct Main *bmain, struct ReportList *reports, struct VFont *vfont, int how);
 int unpackSound(struct Main *bmain, struct ReportList *reports, struct bSound *sound, int how);
 int unpackImage(struct Main *bmain, struct ReportList *reports, struct Image *ima, int how);
+int unpackVolume(struct Main *bmain, struct ReportList *reports, struct Volume *volume, int how);
 void unpackAll(struct Main *bmain, struct ReportList *reports, int how);
 int unpackLibraries(struct Main *bmain, struct ReportList *reports);
 

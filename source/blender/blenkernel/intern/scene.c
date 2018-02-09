@@ -1676,7 +1676,8 @@ static bool scene_need_update_objects(Main *bmain)
 		DAG_id_type_tagged(bmain, ID_CA)  ||  /* Camera */
 		DAG_id_type_tagged(bmain, ID_KE)  ||  /* KE */
 		DAG_id_type_tagged(bmain, ID_SPK) ||  /* Speaker */
-		DAG_id_type_tagged(bmain, ID_AR);     /* Armature */
+		DAG_id_type_tagged(bmain, ID_AR)  ||  /* Armature */
+		DAG_id_type_tagged(bmain, ID_VO);     /* Volume */
 }
 
 static void scene_update_objects(EvaluationContext *eval_ctx, Main *bmain, Scene *scene, Scene *scene_parent)

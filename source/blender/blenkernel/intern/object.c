@@ -117,6 +117,7 @@
 #include "BKE_material.h"
 #include "BKE_camera.h"
 #include "BKE_image.h"
+#include "BKE_volume.h"
 
 #ifdef WITH_MOD_FLUID
 #include "LBM_fluidsim.h"
@@ -558,6 +559,7 @@ static const char *get_obdata_defname(int type)
 		case OB_LATTICE: return DATA_("Lattice");
 		case OB_ARMATURE: return DATA_("Armature");
 		case OB_SPEAKER: return DATA_("Speaker");
+		case OB_VOLUME: return DATA_("Volume");
 		case OB_EMPTY: return DATA_("Empty");
 		default:
 			printf("get_obdata_defname: Internal error, bad type: %d\n", type);
@@ -582,6 +584,7 @@ void *BKE_object_obdata_add_from_type(Main *bmain, int type, const char *name)
 		case OB_LATTICE:   return BKE_lattice_add(bmain, name);
 		case OB_ARMATURE:  return BKE_armature_add(bmain, name);
 		case OB_SPEAKER:   return BKE_speaker_add(bmain, name);
+		case OB_VOLUME:    return BKE_volume_add(bmain, name);
 		case OB_EMPTY:     return NULL;
 		default:
 			printf("%s: Internal error, bad type: %d\n", __func__, type);

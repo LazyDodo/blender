@@ -644,6 +644,7 @@ typedef enum eDopeSheet_Flag {
 	ADS_FLAG_NO_DB_SORT         = (1 << 3),   /* do not sort datablocks (mostly objects) by name (NOTE: potentially expensive operation) */
 
 	/* NOTE: datablock filter flags continued (1 << 10) onwards... */
+	ADS_FILTER_NOVOLUME        = (1 << 10), /* TODO ADS_FILTER_NOOBDATA */
 } eDopeSheet_Flag;
 
 

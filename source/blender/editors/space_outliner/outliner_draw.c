@@ -1269,6 +1269,8 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_SURFACE); break;
 				case OB_SPEAKER:
 					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_SPEAKER); break;
+				case OB_VOLUME:
+					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_VOLUME); break;
 				case OB_EMPTY:
 					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_EMPTY); break;
 			}
@@ -1332,6 +1334,8 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 					tselem_draw_icon_uibut(&arg, ICON_SCRIPT); break;
 				case ID_GR:
 					tselem_draw_icon_uibut(&arg, ICON_GROUP); break;
+				case ID_VO:
+					tselem_draw_icon_uibut(&arg, ICON_VOLUME); break;
 				case ID_LI:
 					if (tselem->id->tag & LIB_TAG_MISSING) {
 						tselem_draw_icon_uibut(&arg, ICON_LIBRARY_DATA_BROKEN);

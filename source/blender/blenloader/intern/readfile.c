@@ -99,6 +99,7 @@
 #include "DNA_sound_types.h"
 #include "DNA_space_types.h"
 #include "DNA_vfont_types.h"
+#include "DNA_volume_types.h"
 #include "DNA_world_types.h"
 #include "DNA_movieclip_types.h"
 #include "DNA_mask_types.h"
@@ -1329,6 +1330,8 @@ void blo_freefiledata(FileData *fd)
 			oldnewmap_free(fd->movieclipmap);
 		if (fd->soundmap)
 			oldnewmap_free(fd->soundmap);
+		if (fd->volumemap)
+			oldnewmap_free(fd->volumemap);
 		if (fd->packedmap)
 			oldnewmap_free(fd->packedmap);
 		if (fd->libmap && !(fd->flags & FD_FLAGS_NOT_MY_LIBMAP))
@@ -1525,6 +1528,13 @@ static void *newsoundadr(FileData *fd, const void *adr)      /* used to restore 
 {
 	if (fd->soundmap && adr)
 		return oldnewmap_lookup_and_inc(fd->soundmap, adr, true);
+	return NULL;
+}
+
+static void *newvolumeadr(FileData *fd, const void *adr)      /* used to restore volume data after undo */
+{
+	if (fd->volumemap && adr)
+		return oldnewmap_lookup_and_inc(fd->volumemap, adr, true);
 	return NULL;
 }
 
@@ -1790,6 +1800,43 @@ void blo_end_sound_pointer_map(FileData *fd, Main *oldmain)
 	}
 }
 
+void blo_make_volume_pointer_map(FileData *fd, Main *oldmain)
+{
+	fd->volumemap = oldnewmap_new();
+
+	Volume *volume = oldmain->volume.first;
+	for (; volume; volume = volume->id.next) {
+		for (VolumeGrid *grid = volume->grids.first; grid; grid = grid->next) {
+			if (grid->openvdb_handle) {
+				oldnewmap_insert(fd->volumemap, grid->openvdb_handle, grid->openvdb_handle, 0);
+			}
+		}
+	}
+}
+
+/* set old main volume caches to zero if it has been restored */
+/* this works because freeing old main only happens after this call */
+void blo_end_volume_pointer_map(FileData *fd, Main *oldmain)
+{
+	OldNew *entry = fd->volumemap->entries;
+	Volume *volume = oldmain->volume.first;
+	int i;
+
+	/* used entries were restored, so we put them to zero */
+	for (i = 0; i < fd->volumemap->nentries; i++, entry++) {
+		if (entry->nr > 0)
+			entry->newp = NULL;
+	}
+
+	for (; volume; volume = volume->id.next) {
+		for (VolumeGrid *grid = volume->grids.first; grid; grid = grid->next) {
+			if (grid->openvdb_handle) {
+				grid->openvdb_handle = newvolumeadr(fd, grid->openvdb_handle);
+			}
+		}
+	}
+}
+
 /* XXX disabled this feature - packed files also belong in temp saves and quit.blend, to make restore work */
 
 static void insert_packedmap(FileData *fd, PackedFile *pf)
@@ -1803,6 +1850,7 @@ void blo_make_packed_pointer_map(FileData *fd, Main *oldmain)
 	Image *ima;
 	VFont *vfont;
 	bSound *sound;
+	Volume *volume;
 	Library *lib;
 
 	fd->packedmap = oldnewmap_new();
@@ -1826,6 +1874,10 @@ void blo_make_packed_pointer_map(FileData *fd, Main *oldmain)
 		if (sound->packedfile)
 			insert_packedmap(fd, sound->packedfile);
 
+	for (volume = oldmain->volume.first; volume; volume = volume->id.next)
+		if (volume->packedfile)
+			insert_packedmap(fd, volume->packedfile);
+
 	for (lib = oldmain->library.first; lib; lib = lib->id.next)
 		if (lib->packedfile)
 			insert_packedmap(fd, lib->packedfile);
@@ -1839,6 +1891,7 @@ void blo_end_packed_pointer_map(FileData *fd, Main *oldmain)
 	Image *ima;
 	VFont *vfont;
 	bSound *sound;
+	Volume *volume;
 	Library *lib;
 	OldNew *entry = fd->packedmap->entries;
 	int i;
@@ -1863,6 +1916,9 @@ void blo_end_packed_pointer_map(FileData *fd, Main *oldmain)
 
 	for (sound = oldmain->sound.first; sound; sound = sound->id.next)
 		sound->packedfile = newpackedadr(fd, sound->packedfile);
+
+	for (volume = oldmain->volume.first; volume; volume = volume->id.next)
+		volume->packedfile = newpackedadr(fd, volume->packedfile);
 
 	for (lib = oldmain->library.first; lib; lib = lib->id.next)
 		lib->packedfile = newpackedadr(fd, lib->packedfile);
@@ -8094,6 +8150,39 @@ static void direct_link_linestyle(FileData *fd, FreestyleLineStyle *linestyle)
 	}
 }
 
+/* ************ READ VOLUME ***************** */
+
+static void lib_link_volume(FileData *fd, Main *main)
+{
+	for (Volume *volume = main->volume.first; volume; volume = volume->id.next) {
+		if (volume->id.tag & LIB_TAG_NEED_LINK) {
+			IDP_LibLinkProperty(volume->id.properties, fd);
+			lib_link_animdata(fd, &volume->id, volume->adt);
+
+			volume->id.tag &= ~LIB_TAG_NEED_LINK;
+		}
+	}
+}
+
+static void direct_link_volume(FileData *fd, Volume *volume)
+{
+	volume->adt = newdataadr(fd, volume->adt);
+	direct_link_animdata(fd, volume->adt);
+
+	volume->packedfile = direct_link_packedfile(fd, volume->packedfile);
+
+	link_list(fd, &volume->grids);
+
+	for (VolumeGrid *grid = volume->grids.first; grid; grid = grid->next) {
+		if (fd->volumemap) {
+			grid->openvdb_handle = newvolumeadr(fd, grid->openvdb_handle);
+		}
+		else {
+			grid->openvdb_handle = NULL;
+		}
+	}
+}
+
 /* ************** GENERAL & MAIN ******************** */
 
 
@@ -8134,6 +8223,7 @@ static const char *dataname(short id_code)
 		case ID_MSK: return "Data from MSK";
 		case ID_LS: return "Data from LS";
 		case ID_CF: return "Data from CF";
+		case ID_VO: return "Data from VO";
 	}
 	return "Data from Lib Block";
 
@@ -8382,6 +8472,9 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 		case ID_CF:
 			direct_link_cachefile(fd, (CacheFile *)id);
 			break;
+		case ID_VO:
+			direct_link_volume(fd, (Volume *)id);
+			break;
 	}
 
 	oldnewmap_free_unused(fd->datamap);
@@ -8577,6 +8670,7 @@ static void lib_link_all(FileData *fd, Main *main)
 	lib_link_linestyle(fd, main);
 	lib_link_gpencil(fd, main);
 	lib_link_cachefiles(fd, main);
+	lib_link_volume(fd, main);
 
 	lib_link_library(fd, main);    /* only init users */
 }
@@ -9841,6 +9935,12 @@ static void expand_gpencil(FileData *fd, Main *mainvar, bGPdata *gpd)
 		expand_animdata(fd, mainvar, gpd->adt);
 }
 
+static void expand_volume(FileData *fd, Main *mainvar, Volume *volume)
+{
+	if (volume->adt)
+		expand_animdata(fd, mainvar, volume->adt);
+}
+
 /**
  * Set the callback func used over all ID data found by \a BLO_expand_main func.
  *
@@ -9954,6 +10054,9 @@ void BLO_expand_main(void *fdhandle, Main *mainvar)
 						break;
 					case ID_CF:
 						expand_cachefile(fd, mainvar, (CacheFile *)id);
+						break;
+					case ID_VO:
+						expand_volume(fd, mainvar, (Volume *)id);
 						break;
 					default:
 						break;

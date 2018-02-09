@@ -144,6 +144,7 @@
 #include "DNA_text_types.h"
 #include "DNA_view3d_types.h"
 #include "DNA_vfont_types.h"
+#include "DNA_volume_types.h"
 #include "DNA_world_types.h"
 #include "DNA_windowmanager_types.h"
 #include "DNA_movieclip_types.h"
@@ -3621,6 +3622,25 @@ static void write_cachefile(WriteData *wd, CacheFile *cache_file)
 	}
 }
 
+static void write_volume(WriteData *wd, Volume *volume)
+{
+	if (volume->id.us > 0 || wd->use_memfile) {
+		/* write LibData */
+		writestruct(wd, ID_VO, Volume, 1, volume);
+		write_iddata(wd, &volume->id);
+
+		if (volume->adt) {
+			write_animdata(wd, volume->adt);
+		}
+
+		if (volume->packedfile) {
+			PackedFile *pf = volume->packedfile;
+			writestruct(wd, DATA, PackedFile, 1, pf);
+			writedata(wd, DATA, pf->size, pf->data);
+		}
+	}
+}
+
 /* Keep it last of write_foodata functions. */
 static void write_libraries(WriteData *wd, Main *main)
 {
@@ -3894,6 +3914,9 @@ static bool write_file_handle(
 					break;
 				case ID_CF:
 					write_cachefile(wd, (CacheFile *)id);
+					break;
+				case ID_VO:
+					write_volume(wd, (Volume *)id);
 					break;
 				case ID_LI:
 					/* Do nothing, handled below - and should never be reached. */

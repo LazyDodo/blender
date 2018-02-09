@@ -134,6 +134,7 @@ void ANIM_set_active_channel(bAnimContext *ac, void *data, eAnimCont_Types datat
 			case ANIMTYPE_DSSPK:
 			case ANIMTYPE_DSGPENCIL:
 			case ANIMTYPE_DSMCLIP:
+			case ANIMTYPE_DSVOLUME:
 			{
 				/* need to verify that this data is valid for now */
 				if (ale->adt) {
@@ -192,6 +193,7 @@ void ANIM_set_active_channel(bAnimContext *ac, void *data, eAnimCont_Types datat
 			case ANIMTYPE_DSTEX:
 			case ANIMTYPE_DSGPENCIL:
 			case ANIMTYPE_DSMCLIP:
+			case ANIMTYPE_DSVOLUME:
 			{
 				/* need to verify that this data is valid for now */
 				if (ale && ale->adt) {
@@ -321,6 +323,7 @@ void ANIM_deselect_anim_channels(bAnimContext *ac, void *data, eAnimCont_Types d
 				case ANIMTYPE_DSSPK:
 				case ANIMTYPE_DSGPENCIL:
 				case ANIMTYPE_DSMCLIP:
+				case ANIMTYPE_DSVOLUME:
 				{
 					if ((ale->adt) && (ale->adt->flag & ADT_UI_SELECTED))
 						sel = ACHANNEL_SETFLAG_CLEAR;
@@ -418,6 +421,7 @@ void ANIM_deselect_anim_channels(bAnimContext *ac, void *data, eAnimCont_Types d
 			case ANIMTYPE_DSSPK:
 			case ANIMTYPE_DSGPENCIL:
 			case ANIMTYPE_DSMCLIP:
+			case ANIMTYPE_DSVOLUME:
 			{
 				/* need to verify that this data is valid for now */
 				if (ale->adt) {
@@ -2747,6 +2751,7 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 		case ANIMTYPE_DSSPK:
 		case ANIMTYPE_DSGPENCIL:
 		case ANIMTYPE_DSMCLIP:
+		case ANIMTYPE_DSVOLUME:
 		{
 			/* sanity checking... */
 			if (ale->adt) {

@@ -68,6 +68,7 @@
 #include "DNA_sound_types.h"
 #include "DNA_text_types.h"
 #include "DNA_vfont_types.h"
+#include "DNA_volume_types.h"
 #include "DNA_windowmanager_types.h"
 #include "DNA_world_types.h"
 
@@ -122,6 +123,7 @@
 #include "BKE_scene.h"
 #include "BKE_text.h"
 #include "BKE_texture.h"
+#include "BKE_volume.h"
 #include "BKE_world.h"
 
 #include "DEG_depsgraph.h"
@@ -469,6 +471,9 @@ bool id_make_local(Main *bmain, ID *id, const bool test, const bool lib_local)
 		case ID_CF:
 			if (!test) BKE_cachefile_make_local(bmain, (CacheFile *)id, lib_local);
 			return true;
+		case ID_VO:
+			if (!test) BKE_volume_make_local(bmain, (Volume *)id, lib_local);
+			return true;
 		case ID_SCR:
 		case ID_LI:
 		case ID_KE:
@@ -645,6 +650,9 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 			break;
 		case ID_VF:
 			BKE_vfont_copy_data(bmain, (VFont *)*r_newid, (VFont *)id, flag);
+			break;
+		case ID_VO:
+			BKE_volume_copy_data(bmain, (Volume *)*r_newid, (Volume *)id, flag);
 			break;
 		case ID_LI:
 		case ID_SCR:
@@ -878,6 +886,8 @@ ListBase *which_libbase(Main *mainlib, short type)
 			return &(mainlib->paintcurves);
 		case ID_CF:
 			return &(mainlib->cachefiles);
+		case ID_VO:
+			return &(mainlib->volume);
 	}
 	return NULL;
 }
@@ -1016,6 +1026,7 @@ int set_listbasepointers(Main *main, ListBase **lb)
 	lb[INDEX_ID_BR]  = &(main->brush);
 	lb[INDEX_ID_PA]  = &(main->particle);
 	lb[INDEX_ID_SPK] = &(main->speaker);
+	lb[INDEX_ID_VO]  = &(main->volume);
 
 	lb[INDEX_ID_WO]  = &(main->world);
 	lb[INDEX_ID_MC]  = &(main->movieclip);
@@ -1090,6 +1101,7 @@ size_t BKE_libblock_get_alloc_info(short type, const char **name)
 		CASE_RETURN(ID_PAL, Palette);
 		CASE_RETURN(ID_PC,  PaintCurve);
 		CASE_RETURN(ID_CF,  CacheFile);
+		CASE_RETURN(ID_VO,  Volume);
 	}
 	return 0;
 #undef CASE_RETURN
@@ -1256,6 +1268,9 @@ void BKE_libblock_init_empty(ID *id)
 			break;
 		case ID_CF:
 			BKE_cachefile_init((CacheFile *)id);
+			break;
+		case ID_VO:
+			BKE_volume_init((Volume *)id);
 			break;
 		case ID_KE:
 			/* Shapekeys are a complex topic too - they depend on their 'user' data type...

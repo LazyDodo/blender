@@ -93,6 +93,7 @@ set(DEFSRC
 	rna_ui.c
 	rna_userdef.c
 	rna_vfont.c
+	rna_volume.c
 	rna_wm.c
 	rna_world.c
 )

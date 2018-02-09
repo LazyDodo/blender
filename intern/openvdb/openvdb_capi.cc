@@ -240,3 +240,13 @@ void OpenVDBReader_get_meta_mat4(OpenVDBReader *reader, const char *name, float 
 {
 	reader->mat4sMeta(name, value);
 }
+
+size_t OpenVDBReader_num_grids(struct OpenVDBReader *reader)
+{
+	return reader->numGrids();
+}
+
+const char *OpenVDBReader_grid_name(struct OpenVDBReader *reader, size_t index)
+{
+	return reader->getGrid(index)->getName().c_str();
+}

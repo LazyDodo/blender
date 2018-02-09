@@ -190,6 +190,7 @@ class VIEW3D_PT_tools_add_object(View3DPanel, Panel):
     @staticmethod
     def draw_add_other(layout):
         layout.operator("object.text_add", text="Text", icon='OUTLINER_OB_FONT')
+        layout.operator("object.volume_add", text="Volume", icon='OUTLINER_OB_VOLUME')
         layout.operator("object.armature_add", text="Armature", icon='OUTLINER_OB_ARMATURE')
         layout.operator("object.add", text="Lattice", icon='OUTLINER_OB_LATTICE').type = 'LATTICE'
         layout.operator("object.empty_add", text="Empty", icon='OUTLINER_OB_EMPTY').type = 'PLAIN_AXES'

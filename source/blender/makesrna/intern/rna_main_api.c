@@ -84,6 +84,7 @@
 #include "BKE_mask.h"
 #include "BKE_gpencil.h"
 #include "BKE_linestyle.h"
+#include "BKE_volume.h"
 
 #include "DNA_armature_types.h"
 #include "DNA_camera_types.h"
@@ -106,6 +107,7 @@
 #include "DNA_movieclip_types.h"
 #include "DNA_mask_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_volume_types.h"
 
 #include "ED_screen.h"
 
@@ -226,6 +228,9 @@ static Object *rna_Main_objects_new(Main *bmain, ReportList *reports, const char
 				break;
 			case ID_AR:
 				type = OB_ARMATURE;
+				break;
+			case ID_VO:
+				type = OB_VOLUME;
 				break;
 			default:
 			{
@@ -574,6 +579,16 @@ static FreestyleLineStyle *rna_Main_linestyles_new(Main *bmain, const char *name
 	return linestyle;
 }
 
+static Volume *rna_Main_volumes_new(Main *bmain, const char *name)
+{
+	char safe_name[MAX_ID_NAME - 2];
+	rna_idname_validate(name, safe_name);
+
+	Volume *volume = BKE_volume_add(bmain, safe_name);
+	id_us_min(&volume->id);
+	return volume;
+}
+
 /* tag and is_updated functions, all the same */
 #define RNA_MAIN_ID_TAG_FUNCS_DEF(_func_name, _listbase_name, _id_type)            \
 	static void rna_Main_##_func_name##_tag(Main *bmain, bool value) {             \
@@ -616,6 +631,7 @@ RNA_MAIN_ID_TAG_FUNCS_DEF(masks, mask, ID_MSK)
 RNA_MAIN_ID_TAG_FUNCS_DEF(linestyle, linestyle, ID_LS)
 RNA_MAIN_ID_TAG_FUNCS_DEF(cachefiles, cachefiles, ID_CF)
 RNA_MAIN_ID_TAG_FUNCS_DEF(paintcurves, paintcurves, ID_PC)
+RNA_MAIN_ID_TAG_FUNCS_DEF(volumes, volume, ID_VO)
 
 #undef RNA_MAIN_ID_TAG_FUNCS_DEF
 
@@ -1926,6 +1942,49 @@ void RNA_def_main_linestyles(BlenderRNA *brna, PropertyRNA *cprop)
 	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_boolean_funcs(prop, "rna_Main_linestyle_is_updated_get", NULL);
+}
+
+void RNA_def_main_volumes(BlenderRNA *brna, PropertyRNA *cprop)
+{
+	StructRNA *srna;
+	FunctionRNA *func;
+	PropertyRNA *parm;
+	PropertyRNA *prop;
+
+	RNA_def_property_srna(cprop, "BlendDataVolumes");
+	srna = RNA_def_struct(brna, "BlendDataVolumes", NULL);
+	RNA_def_struct_sdna(srna, "Main");
+	RNA_def_struct_ui_text(srna, "Main Volumes", "Collection of volumes");
+
+	func = RNA_def_function(srna, "new", "rna_Main_volumes_new");
+	RNA_def_function_ui_description(func, "Add a new volume to the main database");
+	parm = RNA_def_string(func, "name", "Volume", 0, "", "New name for the data-block");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	/* return type */
+	parm = RNA_def_pointer(func, "volume", "Volume", "", "New volume data-block");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_ui_description(func, "Remove a volume from the current blendfile");
+	parm = RNA_def_pointer(func, "volume", "Volume", "", "Volume to remove");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
+	RNA_def_boolean(func, "do_unlink", true, "",
+	                "Unlink all usages of this volume before deleting it "
+	                "(WARNING: will also delete objects instancing that volume data)");
+	RNA_def_boolean(func, "do_id_user", true, "",
+	                "Decrement user counter of all datablocks used by this volume data");
+	RNA_def_boolean(func, "do_ui_user", true, "",
+	                "Make sure interface does not reference this volume data");
+
+	func = RNA_def_function(srna, "tag", "rna_Main_volumes_tag");
+	parm = RNA_def_boolean(func, "value", 0, "Value", "");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+
+	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_boolean_funcs(prop, "rna_Main_volumes_is_updated_get", NULL);
 }
 
 #endif

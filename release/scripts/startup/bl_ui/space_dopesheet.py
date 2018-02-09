@@ -88,6 +88,8 @@ def dopesheet_filter(layout, context, genericFiltersOnly=False):
                 row.prop(dopesheet, "show_curves", text="")
             if bpy.data.metaballs:
                 row.prop(dopesheet, "show_metaballs", text="")
+            if bpy.data.volumes:
+                row.prop(dopesheet, "show_volumes", text="")
             if bpy.data.lattices:
                 row.prop(dopesheet, "show_lattices", text="")
             if bpy.data.armatures:

@@ -59,6 +59,7 @@
 #include "DNA_sound_types.h"
 #include "DNA_text_types.h"
 #include "DNA_vfont_types.h"
+#include "DNA_volume_types.h"
 #include "DNA_windowmanager_types.h"
 #include "DNA_world_types.h"
 
@@ -106,6 +107,7 @@
 #include "BKE_scene.h"
 #include "BKE_text.h"
 #include "BKE_texture.h"
+#include "BKE_volume.h"
 #include "BKE_world.h"
 
 #ifdef WITH_PYTHON
@@ -856,6 +858,9 @@ void BKE_libblock_free_datablock(ID *id, const int UNUSED(flag))
 			break;
 		case ID_CF:
 			BKE_cachefile_free((CacheFile *)id);
+			break;
+		case ID_VO:
+			BKE_volume_free((Volume *)id);
 			break;
 	}
 }

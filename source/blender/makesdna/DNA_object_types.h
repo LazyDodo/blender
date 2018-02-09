@@ -366,6 +366,7 @@ enum {
 
 /* 23 and 24 are for life and sector (old file compat.) */
 	OB_ARMATURE   = 25,
+	OB_VOLUME     = 26,
 };
 
 /* check if the object type supports materials */
@@ -384,10 +385,10 @@ enum {
 
 /* is this ID type used as object data */
 #define OB_DATA_SUPPORT_ID(_id_type) \
-	(ELEM(_id_type, ID_ME, ID_CU, ID_MB, ID_LA, ID_SPK, ID_CA, ID_LT, ID_AR))
+	(ELEM(_id_type, ID_ME, ID_CU, ID_MB, ID_LA, ID_SPK, ID_CA, ID_LT, ID_AR, ID_VO))
 
 #define OB_DATA_SUPPORT_ID_CASE \
-	ID_ME: case ID_CU: case ID_MB: case ID_LA: case ID_SPK: case ID_CA: case ID_LT: case ID_AR
+	ID_ME: case ID_CU: case ID_MB: case ID_LA: case ID_SPK: case ID_CA: case ID_LT: case ID_AR: case ID_VO
 
 /* partype: first 4 bits: type */
 enum {

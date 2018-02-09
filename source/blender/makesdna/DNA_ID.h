@@ -257,6 +257,7 @@ typedef enum ID_Type {
 	ID_PAL  = MAKE_ID2('P', 'L'), /* Palette */
 	ID_PC   = MAKE_ID2('P', 'C'), /* PaintCurve  */
 	ID_CF   = MAKE_ID2('C', 'F'), /* CacheFile */
+	ID_VO   = MAKE_ID2('V', 'O'), /* Volume */
 } ID_Type;
 
 /* Only used as 'placeholder' in .blend files for directly linked datablocks. */
@@ -401,6 +402,7 @@ enum {
 	FILTER_ID_WO        = (1 << 26),
 	FILTER_ID_PA        = (1 << 27),
 	FILTER_ID_CF        = (1 << 28),
+	FILTER_ID_VO        = (1 << 29),
 };
 
 /* IMPORTANT: this enum matches the order currently use in set_lisbasepointers,
@@ -440,6 +442,7 @@ enum {
 	INDEX_ID_SCE,
 	INDEX_ID_WM,
 	INDEX_ID_MSK,
+	INDEX_ID_VO,
 	INDEX_ID_NULL,
 };
 

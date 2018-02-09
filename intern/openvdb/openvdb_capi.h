@@ -30,11 +30,18 @@
 extern "C" {
 #endif
 
-struct OpenVDBReader;
+#include <stdlib.h>
+
 struct OpenVDBWriter;
 struct OpenVDBFloatGrid;
 struct OpenVDBIntGrid;
 struct OpenVDBVectorGrid;
+
+typedef struct OpenVDBReader OpenVDBReader;
+typedef struct OpenVDBWrite OpenVDBWrite;
+typedef struct OpenVDBFloatGrid OpenVDBFloatGrid;
+typedef struct OpenVDBIntGrid OpenVDBIntGrid;
+typedef struct OpenVDBVectorGrid OpenVDBVectorGrid;
 
 int OpenVDB_getVersionHex(void);
 
@@ -98,6 +105,9 @@ void OpenVDBReader_get_meta_int(struct OpenVDBReader *reader, const char *name, 
 void OpenVDBReader_get_meta_v3(struct OpenVDBReader *reader, const char *name, float value[3]);
 void OpenVDBReader_get_meta_v3_int(struct OpenVDBReader *reader, const char *name, int value[3]);
 void OpenVDBReader_get_meta_mat4(struct OpenVDBReader *reader, const char *name, float value[4][4]);
+
+size_t OpenVDBReader_num_grids(struct OpenVDBReader *reader);
+const char *OpenVDBReader_grid_name(struct OpenVDBReader *reader, size_t index);
 
 #ifdef __cplusplus
 }

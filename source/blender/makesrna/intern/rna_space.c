@@ -3899,6 +3899,7 @@ static void rna_def_fileselect_params(BlenderRNA *brna)
 		{FILTER_ID_TE, "TEXTURE", ICON_TEXTURE_DATA, "Textures", "Show/hide Texture data-blocks"},
 		{FILTER_ID_TXT, "TEXT", ICON_TEXT, "Texts", "Show/hide Text data-blocks"},
 		{FILTER_ID_VF, "FONT", ICON_FONT_DATA, "Fonts", "Show/hide Font data-blocks"},
+		{FILTER_ID_VO, "VOLUME", ICON_VOLUME_DATA, "Volumes", "Show/hide Volume data-blocks"},
 		{FILTER_ID_WO, "WORLD", ICON_WORLD_DATA, "Worlds", "Show/hide World data-blocks"},
 		{0, NULL, 0, NULL, NULL}
 	};
@@ -3910,8 +3911,8 @@ static void rna_def_fileselect_params(BlenderRNA *brna)
 	     "ANIMATION", ICON_ANIM_DATA, "Animations", "Show/hide animation data"},
 		{FILTER_ID_OB | FILTER_ID_GR,
 	     "OBJECT", ICON_GROUP, "Objects & Groups", "Show/hide objects and groups"},
-		{FILTER_ID_AR | FILTER_ID_CU | FILTER_ID_LT | FILTER_ID_MB | FILTER_ID_ME,
-	     "GEOMETRY", ICON_MESH_DATA, "Geometry", "Show/hide meshes, curves, lattice, armatures and metaballs data"},
+		{FILTER_ID_AR | FILTER_ID_CU | FILTER_ID_LT | FILTER_ID_MB | FILTER_ID_ME | FILTER_ID_VO,
+	     "GEOMETRY", ICON_MESH_DATA, "Geometry", "Show/hide meshes, curves, lattice, armatures, metaballs and volume data"},
 		{FILTER_ID_LS | FILTER_ID_MA | FILTER_ID_NT | FILTER_ID_TE,
 	     "SHADING", ICON_MATERIAL_DATA, "Shading",
 	     "Show/hide materials, nodetrees, textures and Freestyle's linestyles"},

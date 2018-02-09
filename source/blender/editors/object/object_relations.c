@@ -91,6 +91,7 @@
 #include "BKE_speaker.h"
 #include "BKE_texture.h"
 #include "BKE_editmesh.h"
+#include "BKE_volume.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -1918,6 +1919,9 @@ static void single_obdata_users(Main *bmain, Scene *scene, const int flag)
 						break;
 					case OB_SPEAKER:
 						ob->data = ID_NEW_SET(ob->data, BKE_speaker_copy(bmain, ob->data));
+						break;
+					case OB_VOLUME:
+						ob->data = ID_NEW_SET(ob->data, BKE_volume_copy(bmain, ob->data));
 						break;
 					default:
 						if (G.debug & G_DEBUG)

@@ -90,6 +90,7 @@
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_speaker.h"
+#include "BKE_volume.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -1087,6 +1088,39 @@ void OBJECT_OT_speaker_add(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->exec = object_speaker_add_exec;
+	ot->poll = ED_operator_objectmode;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	ED_object_add_generic_props(ot, true);
+}
+
+/********************* Add Volume Operator ********************/
+
+static int object_volume_add_exec(bContext *C, wmOperator *op)
+{
+	Object *ob;
+	unsigned int layer;
+	float loc[3], rot[3];
+
+	if (!ED_object_add_generic_get_opts(C, op, 'Z', loc, rot, NULL, &layer, NULL))
+		return OPERATOR_CANCELLED;
+
+	ob = ED_object_add_type(C, OB_VOLUME, NULL, loc, rot, false, layer);
+
+	return OPERATOR_FINISHED;
+}
+
+void OBJECT_OT_volume_add(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Add volume";
+	ot->description = "Add a volume object to the scene";
+	ot->idname = "OBJECT_OT_volume_add";
+
+	/* api callbacks */
+	ot->exec = object_volume_add_exec;
 	ot->poll = ED_operator_objectmode;
 
 	/* flags */
@@ -2178,6 +2212,15 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, Base *base
 					ID_NEW_REMAP_US2(obn->data)
 					else {
 						obn->data = ID_NEW_SET(obn->data, BKE_speaker_copy(bmain, obn->data));
+						didit = 1;
+					}
+					id_us_min(id);
+				}
+			case OB_VOLUME:
+				if (dupflag != 0) {
+					ID_NEW_REMAP_US2(obn->data)
+					else {
+						obn->data = ID_NEW_SET(obn->data, BKE_volume_copy(bmain, obn->data));
 						didit = 1;
 					}
 					id_us_min(id);

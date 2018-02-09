@@ -61,6 +61,7 @@
 #include "DNA_sound_types.h"
 #include "DNA_text_types.h"
 #include "DNA_vfont_types.h"
+#include "DNA_volume_types.h"
 #include "DNA_world_types.h"
 
 #include "BLI_utildefines.h"
@@ -990,6 +991,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			case ID_PAL:
 			case ID_PC:
 			case ID_CF:
+			case ID_VO:
 				break;
 
 			/* Deprecated. */
@@ -1065,7 +1067,7 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 		case ID_OB:
 			/* Could be the following, but simpler to just always say 'yes' here. */
 #if 0
-			return ELEM(id_type_used, ID_ME, ID_CU, ID_MB, ID_LT, ID_SPK, ID_AR, ID_LA, ID_CA,  /* obdata */
+			return ELEM(id_type_used, ID_ME, ID_CU, ID_MB, ID_LT, ID_SPK, ID_AR, ID_LA, ID_CA, ID_VO,  /* obdata */
 			                          ID_OB, ID_MA, ID_GD, ID_GR, ID_TE, ID_PA, ID_TXT, ID_SO, ID_MC, ID_IM, ID_AC
 			                          /* + constraints, modifiers and game logic ID types... */);
 #else
@@ -1125,6 +1127,7 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 		case ID_PAL:
 		case ID_PC:
 		case ID_CF:
+		case ID_VO:
 			/* Those types never use/reference other IDs... */
 			return false;
 		case ID_IP:

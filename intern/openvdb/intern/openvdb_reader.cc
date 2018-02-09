@@ -122,6 +122,11 @@ openvdb::GridBase::Ptr OpenVDBReader::getGrid(const openvdb::Name &name) const
 	return m_file->readGrid(name);
 }
 
+openvdb::GridBase::Ptr OpenVDBReader::getGrid(size_t index) const
+{
+	return (*(m_file->getGrids()))[index];
+}
+
 size_t OpenVDBReader::numGrids() const
 {
 	return m_file->getGrids()->size();
