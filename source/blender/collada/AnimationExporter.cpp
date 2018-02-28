@@ -160,7 +160,7 @@ void AnimationExporter::export_keyframed_animation_set(Object *ob)
 	if (this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_MATRIX) {
 
 		std::vector<float> ctimes;
-		find_keyframes(ob, ctimes);
+		find_keyframes(action, ctimes);
 		if (ctimes.size() > 0)
 			export_sampled_matrix_animation(ob, ctimes);
 	}
@@ -206,7 +206,7 @@ void AnimationExporter::export_sampled_animation_set(Object *ob)
 	}
 
 	std::vector<float>ctimes;
-	find_sampleframes(ob, ctimes);
+	find_sampleframes(action, ctimes);
 	if (ctimes.size() > 0) {
 		if (this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_MATRIX)
 			export_sampled_matrix_animation(ob, ctimes);
@@ -437,9 +437,9 @@ void AnimationExporter::make_anim_frames_from_targets(Object *ob, std::vector<fl
 
 			for (ct = (bConstraintTarget *)targets.first; ct; ct = ct->next) {
 				obtar = ct->tar;
-
-				if (obtar)
-					find_keyframes(obtar, frames);
+				if (obtar) {
+					find_keyframes(getSceneObjectAction(obtar), frames);
+				}
 			}
 
 			if (cti->flush_constraint_targets)
@@ -736,11 +736,13 @@ void AnimationExporter::sample_and_write_bone_animation_matrix(Object *ob_arm, B
 	if (!pchan)
 		return;
 
-
-	if (this->export_settings->sampling_rate < 1)
-		find_keyframes(ob_arm, fra);
-	else
-		find_sampleframes(ob_arm, fra);
+	bAction *action = getSceneObjectAction(ob_arm);
+	if (action) {
+		if (this->export_settings->sampling_rate < 1)
+			find_keyframes(action, fra);
+		else
+			find_sampleframes(action, fra);
+	}
 
 	if (flag & ARM_RESTPOS) {
 		arm->flag &= ~ARM_RESTPOS;
@@ -1299,8 +1301,15 @@ std::string AnimationExporter::create_4x4_source(std::vector<float> &ctimes, std
 	return source_id;
 }
 
+/*
+ * Create a list of 4*4 Matrices from the current Scene Action.
+ * Important: This Function expects that ob has a valid scene action assigned.
+ * The caller must check for this!
+*/
 std::string AnimationExporter::create_4x4_source(std::vector<float> &frames, Object *ob, Bone *bone, const std::string &anim_id)
 {
+	bAction *action = getSceneObjectAction(ob);
+
 	bool is_bone_animation = ob->type == OB_ARMATURE && bone;
 
 	COLLADASW::InputSemantic::Semantics semantic = COLLADASW::InputSemantic::OUTPUT;
@@ -1328,7 +1337,7 @@ std::string AnimationExporter::create_4x4_source(std::vector<float> &frames, Obj
 
 		parchan = pchan->parent;
 
-		enable_fcurves(ob->adt->action, bone->name);
+		enable_fcurves(action, bone->name);
 	}
 
 	std::vector<float>::iterator it;
@@ -1342,7 +1351,7 @@ std::string AnimationExporter::create_4x4_source(std::vector<float> &frames, Obj
 		bc_update_scene(bmain, scene, ctime);
 		if (is_bone_animation) {
 			if (pchan->flag & POSE_CHAIN) {
-				enable_fcurves(ob->adt->action, NULL);
+				enable_fcurves(action, NULL);
 				BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, ctime, ADT_RECALC_ALL);
 				BKE_pose_where_is(scene, ob);
 			}
@@ -1398,8 +1407,8 @@ std::string AnimationExporter::create_4x4_source(std::vector<float> &frames, Obj
 		BIK_release_tree(scene, ob, ctime);
 	}
 
-	if (ob->adt) {
-		enable_fcurves(ob->adt->action, NULL);
+	if (action) {
+		enable_fcurves(action, NULL);
 	}
 
 	source.finish();
@@ -1745,20 +1754,22 @@ bool AnimationExporter::hasAnimations(Scene *sce)
 }
 
 //------------------------------- Not used in the new system.--------------------------------------------------------
-void AnimationExporter::find_rotation_frames(Object *ob, std::vector<float> &fra, const char *prefix, int rotmode)
+void AnimationExporter::find_rotation_frames(bAction *action, std::vector<float> &fra, const char *prefix, int rotmode)
 {
-	if (rotmode > 0)
-		find_keyframes(ob, fra, prefix, "rotation_euler");
-	else if (rotmode == ROT_MODE_QUAT)
-		find_keyframes(ob, fra, prefix, "rotation_quaternion");
-	/*else if (rotmode == ROT_MODE_AXISANGLE)
-	   ;*/
+	if (action) {
+		if (rotmode > 0)
+			find_keyframes(action, fra, prefix, "rotation_euler");
+		else if (rotmode == ROT_MODE_QUAT)
+			find_keyframes(action, fra, prefix, "rotation_quaternion");
+		/*else if (rotmode == ROT_MODE_AXISANGLE)
+		   ;*/
+	}
 }
 
 /* Take care to always have the first frame and the last frame in the animation
  * regardless of the sampling_rate setting
  */
-void AnimationExporter::find_sampleframes(Object *ob, std::vector<float> &fra)
+void AnimationExporter::find_sampleframes(bAction *action, std::vector<float> &fra)
 {
 	int frame = scene->r.sfra;
 	do {
@@ -1776,46 +1787,49 @@ void AnimationExporter::find_sampleframes(Object *ob, std::vector<float> &fra)
 /*
  * find keyframes of all the objects animations
  */
-void AnimationExporter::find_keyframes(Object *ob, std::vector<float> &fra)
+void AnimationExporter::find_keyframes(bAction *action, std::vector<float> &fra)
 {
-	if (ob->adt && ob->adt->action) {
-		FCurve *fcu = (FCurve *)ob->adt->action->curves.first;
+	if (action == NULL)
+		return;
 
-		for (; fcu; fcu = fcu->next) {
+	FCurve *fcu = (FCurve *)action->curves.first;
+
+	for (; fcu; fcu = fcu->next) {
+		for (unsigned int i = 0; i < fcu->totvert; i++) {
+			float f = fcu->bezt[i].vec[1][0];
+			if (std::find(fra.begin(), fra.end(), f) == fra.end())
+				fra.push_back(f);
+		}
+	}
+
+	// keep the keys in ascending order
+	std::sort(fra.begin(), fra.end());
+}
+
+void AnimationExporter::find_keyframes(bAction *action, std::vector<float> &fra, const char *prefix, const char *tm_name)
+{
+	if (action == NULL)
+		return;
+
+	FCurve *fcu = (FCurve *)action->curves.first;
+
+	for (; fcu; fcu = fcu->next) {
+		if (prefix && !STREQLEN(prefix, fcu->rna_path, strlen(prefix)))
+			continue;
+
+		char *name = extract_transform_name(fcu->rna_path);
+		if (STREQ(name, tm_name)) {
 			for (unsigned int i = 0; i < fcu->totvert; i++) {
 				float f = fcu->bezt[i].vec[1][0];
 				if (std::find(fra.begin(), fra.end(), f) == fra.end())
 					fra.push_back(f);
 			}
 		}
-
-		// keep the keys in ascending order
-		std::sort(fra.begin(), fra.end());
 	}
-}
 
-void AnimationExporter::find_keyframes(Object *ob, std::vector<float> &fra, const char *prefix, const char *tm_name)
-{
-	if (ob->adt && ob->adt->action) {
-		FCurve *fcu = (FCurve *)ob->adt->action->curves.first;
+	// keep the keys in ascending order
+	std::sort(fra.begin(), fra.end());
 
-		for (; fcu; fcu = fcu->next) {
-			if (prefix && !STREQLEN(prefix, fcu->rna_path, strlen(prefix)))
-				continue;
-
-			char *name = extract_transform_name(fcu->rna_path);
-			if (STREQ(name, tm_name)) {
-				for (unsigned int i = 0; i < fcu->totvert; i++) {
-					float f = fcu->bezt[i].vec[1][0];
-					if (std::find(fra.begin(), fra.end(), f) == fra.end())
-						fra.push_back(f);
-				}
-			}
-		}
-
-		// keep the keys in ascending order
-		std::sort(fra.begin(), fra.end());
-	}
 }
 
 void AnimationExporter::write_bone_animation(Object *ob_arm, Bone *bone)
@@ -1847,15 +1861,16 @@ void AnimationExporter::sample_and_write_bone_animation(Object *ob_arm, Bone *bo
 	if (!pchan)
 		return;
 	//Fill frame array with key frame values framed at \param:transform_type
+	bAction *action = getSceneObjectAction(ob_arm);
 	switch (transform_type) {
 		case 0:
-			find_rotation_frames(ob_arm, fra, prefix, pchan->rotmode);
+			find_rotation_frames(action, fra, prefix, pchan->rotmode);
 			break;
 		case 1:
-			find_keyframes(ob_arm, fra, prefix, "scale");
+			find_keyframes(action, fra, prefix, "scale");
 			break;
 		case 2:
-			find_keyframes(ob_arm, fra, prefix, "location");
+			find_keyframes(action, fra, prefix, "location");
 			break;
 		default:
 			return;
@@ -1914,7 +1929,7 @@ void AnimationExporter::sample_animation(float *v, std::vector<float> &frames, i
 
 	parchan = pchan->parent;
 
-	enable_fcurves(ob_arm->adt->action, bone->name);
+	enable_fcurves(action, bone->name);
 
 	std::vector<float>::iterator it;
 	for (it = frames.begin(); it != frames.end(); it++) {
@@ -1949,7 +1964,7 @@ void AnimationExporter::sample_animation(float *v, std::vector<float> &frames, i
 		v += 3;
 	}
 
-	enable_fcurves(ob_arm->adt->action, NULL);
+	enable_fcurves(action, NULL);
 }
 
 bool AnimationExporter::validateConstraints(bConstraint *con)

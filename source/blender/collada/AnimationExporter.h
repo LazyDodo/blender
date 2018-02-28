@@ -180,14 +180,13 @@ protected:
 	std::string get_light_param_sid(char *rna_path, int tm_type, const char *axis_name, bool append_axis);
 	std::string get_camera_param_sid(char *rna_path, int tm_type, const char *axis_name, bool append_axis);
 
-	void find_keyframes(Object *ob, std::vector<float> &fra, const char *prefix, const char *tm_name);
-	void find_keyframes(Object *ob, std::vector<float> &fra);
-	void find_sampleframes(Object *ob, std::vector<float> &fra);
-
+	
+	void find_keyframes(bAction *act, std::vector<float> &fra, const char *prefix, const char *tm_name);
+	void find_keyframes(bAction *act, std::vector<float> &fra);
+	void find_sampleframes(bAction *act, std::vector<float> &fra);
+	void find_rotation_frames(bAction *act, std::vector<float> &fra, const char *prefix, int rotmode);
 
 	void make_anim_frames_from_targets(Object *ob, std::vector<float> &frames );
-
-	void find_rotation_frames(Object *ob, std::vector<float> &fra, const char *prefix, int rotmode);
 
 	// enable fcurves driving a specific bone, disable all the rest
 	// if bone_name = NULL enable all fcurves
