@@ -154,7 +154,10 @@ char *bc_CustomData_get_active_layer_name(const CustomData *data, int type)
 	return bc_CustomData_get_layer_name(data, type, layer_index-1);
 }
 
-DocumentExporter::DocumentExporter(const ExportSettings *export_settings) : export_settings(export_settings) {
+DocumentExporter::DocumentExporter(bContext *C, EvaluationContext *eval_ctx, const ExportSettings *export_settings) :
+	mContext(C),
+	eval_ctx(eval_ctx),
+	export_settings(export_settings) {
 }
 
 static COLLADABU::NativeString make_temp_filepath(const char *name, const char *extension)
@@ -181,9 +184,9 @@ static COLLADABU::NativeString make_temp_filepath(const char *name, const char *
 // COLLADA allows this through multiple <channel>s in <animation>.
 // For this to work, we need to know objects that use a certain action.
 
-int DocumentExporter::exportCurrentScene(bContext *C, const EvaluationContext *eval_ctx, Scene *sce)
+int DocumentExporter::exportCurrentScene(Scene *sce)
 {
-	Main *bmain = CTX_data_main(C);
+	Main *bmain = CTX_data_main(mContext);
 	PointerRNA sceneptr, unit_settings;
 	PropertyRNA *system; /* unused , *scale; */
 
@@ -305,10 +308,10 @@ int DocumentExporter::exportCurrentScene(bContext *C, const EvaluationContext *e
 
 	if (this->export_settings->include_animations) {
 		// <library_animations>
-		AnimationExporter ae(writer, this->export_settings);
-		ae.exportAnimations(bmain, sce);
+		AnimationExporter ae(mContext, eval_ctx, writer, this->export_settings);
+		ae.exportAnimations(sce);
 	}
-	se.exportScene(C, sce);
+	se.exportScene(mContext, sce);
 
 	// <scene>
 	std::string scene_name(translate_id(id_name(sce)));

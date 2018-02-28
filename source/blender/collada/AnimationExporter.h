@@ -84,20 +84,23 @@ extern "C"
 class AnimationExporter: COLLADASW::LibraryAnimations
 {
 private:
-	Main *m_bmain;
+	bContext *mContext;
+	EvaluationContext * eval_ctx;
 	Scene *scene;
 	COLLADASW::StreamWriter *sw;
 
 public:
 
-	AnimationExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings):
+	AnimationExporter(bContext *C, EvaluationContext *eval_ctx, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings):
+		mContext(C),
+		eval_ctx(eval_ctx),
 		COLLADASW::LibraryAnimations(sw),
 		export_settings(export_settings)
 	{
 		this->sw = sw;
 	}
 
-	bool exportAnimations(Main *bmain, Scene *sce);
+	bool exportAnimations(Scene *sce);
 
 	// called for each exported object
 	void operator() (Object *ob);
