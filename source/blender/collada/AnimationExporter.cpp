@@ -147,9 +147,14 @@ void AnimationExporter::create_sampled_animation(int channel_count,
  */
 void AnimationExporter::export_keyframed_animation_set(Object *ob)
 {
-	FCurve *fcu = (FCurve *)ob->adt->action->curves.first;
+	bAction *action = getSceneObjectAction(ob);
+	if (!action) {
+		return; /* Object has no animation */
+	}
+
+	FCurve *fcu = (FCurve *)action->curves.first;
 	if (!fcu) {
-		return; /* object has no animation */
+		return; /* animation has no fcurves */
 	}
 
 	if (this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_MATRIX) {
@@ -195,6 +200,11 @@ void AnimationExporter::export_keyframed_animation_set(Object *ob)
  */
 void AnimationExporter::export_sampled_animation_set(Object *ob)
 {
+	bAction *action = getSceneObjectAction(ob);
+	if (!action) {
+		return; /* Object has no animation */
+	}
+
 	std::vector<float>ctimes;
 	find_sampleframes(ob, ctimes);
 	if (ctimes.size() > 0) {
@@ -292,7 +302,9 @@ void AnimationExporter::operator()(Object *ob)
 	/* bool isMatAnim = false; */ /* UNUSED */
 
 	//Export transform animations
-	if (ob->adt && ob->adt->action) {
+	bAction *action = getSceneObjectAction(ob);
+
+	if (action) {
 
 		if (ob->type == OB_ARMATURE) {
 			/* Export skeletal animation (if any)*/
@@ -316,8 +328,9 @@ void AnimationExporter::operator()(Object *ob)
 	//export_morph_animation(ob);
 
 	//Export Lamp parameter animations
-	if ( (ob->type == OB_LAMP) && ((Lamp *)ob->data)->adt && ((Lamp *)ob->data)->adt->action) {
-		FCurve *fcu = (FCurve *)(((Lamp *)ob->data)->adt->action->curves.first);
+	action = getSceneLampAction(ob);
+	if (action) {
+		FCurve *fcu = (FCurve *)action->curves.first;
 		while (fcu) {
 			transformName = extract_transform_name(fcu->rna_path);
 
@@ -331,8 +344,9 @@ void AnimationExporter::operator()(Object *ob)
 	}
 
 	//Export Camera parameter animations
-	if ( (ob->type == OB_CAMERA) && ((Camera *)ob->data)->adt && ((Camera *)ob->data)->adt->action) {
-		FCurve *fcu = (FCurve *)(((Camera *)ob->data)->adt->action->curves.first);
+	action = getSceneCameraAction(ob);
+	if (action) {
+		FCurve *fcu = (FCurve *)action->curves.first;
 		while (fcu) {
 			transformName = extract_transform_name(fcu->rna_path);
 
@@ -350,10 +364,10 @@ void AnimationExporter::operator()(Object *ob)
 	//Export Material parameter animations.
 	for (int a = 0; a < ob->totcol; a++) {
 		Material *ma = give_current_material(ob, a + 1);
-		if (!ma) continue;
-		if (ma->adt && ma->adt->action) {
+		action = getSceneMaterialAction(ma);
+		if (action) {
 			/* isMatAnim = true; */
-			FCurve *fcu = (FCurve *)ma->adt->action->curves.first;
+			FCurve *fcu = (FCurve *)action->curves.first;
 			while (fcu) {
 				transformName = extract_transform_name(fcu->rna_path);
 
@@ -434,11 +448,16 @@ void AnimationExporter::make_anim_frames_from_targets(Object *ob, std::vector<fl
 	}
 }
 
-//euler sources from quternion sources
+/* Euler sources from quternion sources 
+ * Important: We assume the object has a scene action.
+ * If it has not, then Blender will die
+*/
 float *AnimationExporter::get_eul_source_for_quat(Object *ob)
 {
-	FCurve *fcu = (FCurve *)ob->adt->action->curves.first;
-	const int keys = fcu->totvert;
+	bAction *action = getSceneObjectAction(ob);
+	FCurve *fcu = (FCurve *)action->curves.first;
+	const int keys = fcu->totvert;  
+
 	float *quat = (float *)MEM_callocN(sizeof(float) * fcu->totvert * 4, "quat output source values");
 	float *eul = (float *)MEM_callocN(sizeof(float) * fcu->totvert * 3, "quat output source values");
 	float temp_quat[4];
@@ -490,7 +509,10 @@ std::string AnimationExporter::getAnimationPathId(const FCurve *fcu)
 	return translate_id(rna_path);
 }
 
-/* convert f-curves to animation curves and write */
+/* convert f-curves to animation curves and write
+ * Important: We assume the object has a scene action.
+ * If it has not, then Blender will die!
+ */
 void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char *transformName, bool is_param, Material *ma)
 {
 	const char *axis_name = NULL;
@@ -660,7 +682,8 @@ void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char
 //write bone animations in transform matrix sources
 void AnimationExporter::write_bone_animation_matrix(Object *ob_arm, Bone *bone)
 {
-	if (!ob_arm->adt)
+	bAction *action = getSceneObjectAction(ob_arm);
+	if (!action)
 		return;
 
 	//This will only export animations of bones in deform group.
@@ -1689,17 +1712,16 @@ bool AnimationExporter::hasAnimations(Scene *sce)
 
 	for (node=this->export_settings->export_set; node; node=node->next) {
 		Object *ob = (Object *)node->link;
-
+		bAction *action = NULL;
 		FCurve *fcu = 0;
-		//Check for object transform animations
-		if (ob->adt && ob->adt->action)
-			fcu = (FCurve *)ob->adt->action->curves.first;
-		//Check for Lamp parameter animations
-		else if ( (ob->type == OB_LAMP) && ((Lamp *)ob->data)->adt && ((Lamp *)ob->data)->adt->action)
-			fcu = (FCurve *)(((Lamp *)ob->data)->adt->action->curves.first);
-		//Check for Camera parameter animations
-		else if ( (ob->type == OB_CAMERA) && ((Camera *)ob->data)->adt && ((Camera *)ob->data)->adt->action)
-			fcu = (FCurve *)(((Camera *)ob->data)->adt->action->curves.first);
+
+		/* Check for object,lamp and camera transform animations */
+		if (getSceneObjectAction(ob))
+			fcu = (FCurve *)getSceneObjectAction(ob)->curves.first;
+		else if (getSceneLampAction(ob))
+			fcu = (FCurve *)getSceneLampAction(ob)->curves.first;
+		else if (getSceneCameraAction(ob))
+			fcu = (FCurve *)getSceneCameraAction(ob)->curves.first;
 
 		//Check Material Effect parameter animations.
 		for (int a = 0; a < ob->totcol; a++) {
@@ -1877,6 +1899,11 @@ void AnimationExporter::sample_and_write_bone_animation(Object *ob_arm, Bone *bo
 
 void AnimationExporter::sample_animation(float *v, std::vector<float> &frames, int type, Bone *bone, Object *ob_arm, bPoseChannel *pchan)
 {
+	bAction *action = getSceneObjectAction(ob_arm);
+	if (!action) {
+		return;
+	}
+
 	bPoseChannel *parchan = NULL;
 	bPose *pose = ob_arm->pose;
 
