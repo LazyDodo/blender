@@ -133,15 +133,30 @@ int bc_set_parent(Object *ob, Object *par, bContext *C, bool is_parent_space)
 	return true;
 }
 
-EvaluationContext *bc_get_evaluation_context(Main *bmain)
+std::vector<bAction *> bc_getSceneActions(const bContext *C)
 {
+	std::vector<bAction *> actions;
+	Main *bmain = CTX_data_main(C);
+	ID *id;
+
+	for (id = (ID *)bmain->action.first; id; id = (ID *)(id->next)) {
+		bAction *act = (bAction *)id;
+		actions.push_back(act);
+	}
+	return actions;
+}
+
+EvaluationContext *bc_get_evaluation_context(const bContext *C)
+{
+	Main *bmain = CTX_data_main(C);
 	return bmain->eval_ctx;
 }
 
-void bc_update_scene(Main *bmain, Scene *scene, float ctime)
+void bc_update_scene(const bContext *C, Scene *scene, float ctime)
 {
 	BKE_scene_frame_set(scene, ctime);
-	EvaluationContext *ev_context = bc_get_evaluation_context(bmain);
+	EvaluationContext *ev_context = bc_get_evaluation_context(C);
+	Main *bmain = CTX_data_main(C);
 	BKE_scene_update_for_newframe(ev_context, bmain, scene, scene->lay);
 }
 

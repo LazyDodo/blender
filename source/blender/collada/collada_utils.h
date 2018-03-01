@@ -67,17 +67,19 @@ extern "C" {
 
 typedef std::map<COLLADAFW::TextureMapId, std::vector<MTex *> > TexIndexTextureArrayMap;
 
-extern EvaluationContext *bc_get_evaluation_context(Main *bmain);
-extern void bc_update_scene(Main *bmain, Scene *scene, float ctime);
+extern EvaluationContext *bc_get_evaluation_context(const bContext *C);
+extern void bc_update_scene(const bContext *C, Scene *scene, float ctime);
 
 /* Action helpers */
 
-inline bAction *getSceneObjectAction(Object *ob)
+std::vector<bAction *> bc_getSceneActions(const bContext *C);
+
+inline bAction *bc_getSceneObjectAction(Object *ob)
 {
 	return (ob->adt && ob->adt->action) ? ob->adt->action : NULL;
 }
 
-inline bAction *getSceneLampAction(Object *ob)
+inline bAction *bc_getSceneLampAction(Object *ob)
 {
 	if (ob->type != OB_LAMP)
 		return NULL;
@@ -86,7 +88,7 @@ inline bAction *getSceneLampAction(Object *ob)
 	return (lamp->adt && lamp->adt->action) ? lamp->adt->action : NULL;
 }
 
-inline bAction *getSceneCameraAction(Object *ob)
+inline bAction *bc_getSceneCameraAction(Object *ob)
 {
 	if (ob->type != OB_CAMERA)
 		return NULL;
@@ -95,13 +97,20 @@ inline bAction *getSceneCameraAction(Object *ob)
 	return (camera->adt && camera->adt->action) ? camera->adt->action : NULL;
 }
 
-inline bAction *getSceneMaterialAction(Material *ma)
+inline bAction *bc_getSceneMaterialAction(Material *ma)
 {
 	if (ma == NULL)
 		return NULL;
 
 	return (ma->adt && ma->adt->action) ? ma->adt->action : NULL;
 }
+
+inline void bc_setSceneObjectAction(bAction *action, Object *ob)
+{
+	if (ob->adt)
+		ob->adt->action = action;
+}
+
 
 extern float bc_get_float_value(const COLLADAFW::FloatOrDoubleArray& array, unsigned int index);
 extern int bc_test_parent_loop(Object *par, Object *ob);

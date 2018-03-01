@@ -147,7 +147,7 @@ void AnimationExporter::create_sampled_animation(int channel_count,
  */
 void AnimationExporter::export_keyframed_animation_set(Object *ob)
 {
-	bAction *action = getSceneObjectAction(ob);
+	bAction *action = bc_getSceneObjectAction(ob);
 	if (!action) {
 		return; /* Object has no animation */
 	}
@@ -200,7 +200,7 @@ void AnimationExporter::export_keyframed_animation_set(Object *ob)
  */
 void AnimationExporter::export_sampled_animation_set(Object *ob)
 {
-	bAction *action = getSceneObjectAction(ob);
+	bAction *action = bc_getSceneObjectAction(ob);
 	if (!action) {
 		return; /* Object has no animation */
 	}
@@ -223,8 +223,7 @@ void AnimationExporter::export_sampled_matrix_animation(Object *ob, std::vector<
 
 	for (std::vector<float>::iterator ctime = ctimes.begin(); ctime != ctimes.end(); ++ctime) {
 		float fmat[4][4];
-		struct Main *bmain = CTX_data_main(mContext);
-		bc_update_scene(bmain, scene, *ctime);
+		bc_update_scene(mContext, scene, *ctime);
 		BKE_object_matrix_local_get(ob, fmat);
 		if (this->export_settings->limit_precision)
 			bc_sanitize_mat(fmat, 6);
@@ -255,8 +254,7 @@ void AnimationExporter::export_sampled_transrotloc_animation(Object *ob, std::ve
 		float fquat[4];
 		float fsize[3];
 		float feul[3];
-		struct Main *bmain = CTX_data_main(mContext);
-		bc_update_scene(bmain, scene, *ctime);
+		bc_update_scene(mContext, scene, *ctime);
 		BKE_object_matrix_local_get(ob, fmat);
 		mat4_decompose(floc, fquat, fsize, fmat);
 		quat_to_eul(feul, fquat);
@@ -302,7 +300,7 @@ void AnimationExporter::operator()(Object *ob)
 	/* bool isMatAnim = false; */ /* UNUSED */
 
 	//Export transform animations
-	bAction *action = getSceneObjectAction(ob);
+	bAction *action = bc_getSceneObjectAction(ob);
 
 	if (action) {
 
@@ -328,7 +326,7 @@ void AnimationExporter::operator()(Object *ob)
 	//export_morph_animation(ob);
 
 	//Export Lamp parameter animations
-	action = getSceneLampAction(ob);
+	action = bc_getSceneLampAction(ob);
 	if (action) {
 		FCurve *fcu = (FCurve *)action->curves.first;
 		while (fcu) {
@@ -344,7 +342,7 @@ void AnimationExporter::operator()(Object *ob)
 	}
 
 	//Export Camera parameter animations
-	action = getSceneCameraAction(ob);
+	action = bc_getSceneCameraAction(ob);
 	if (action) {
 		FCurve *fcu = (FCurve *)action->curves.first;
 		while (fcu) {
@@ -364,7 +362,7 @@ void AnimationExporter::operator()(Object *ob)
 	//Export Material parameter animations.
 	for (int a = 0; a < ob->totcol; a++) {
 		Material *ma = give_current_material(ob, a + 1);
-		action = getSceneMaterialAction(ma);
+		action = bc_getSceneMaterialAction(ma);
 		if (action) {
 			/* isMatAnim = true; */
 			FCurve *fcu = (FCurve *)action->curves.first;
@@ -438,7 +436,7 @@ void AnimationExporter::make_anim_frames_from_targets(Object *ob, std::vector<fl
 			for (ct = (bConstraintTarget *)targets.first; ct; ct = ct->next) {
 				obtar = ct->tar;
 				if (obtar) {
-					find_keyframes(getSceneObjectAction(obtar), frames);
+					find_keyframes(bc_getSceneObjectAction(obtar), frames);
 				}
 			}
 
@@ -454,7 +452,7 @@ void AnimationExporter::make_anim_frames_from_targets(Object *ob, std::vector<fl
 */
 float *AnimationExporter::get_eul_source_for_quat(Object *ob)
 {
-	bAction *action = getSceneObjectAction(ob);
+	bAction *action = bc_getSceneObjectAction(ob);
 	FCurve *fcu = (FCurve *)action->curves.first;
 	const int keys = fcu->totvert;  
 
@@ -682,7 +680,7 @@ void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char
 //write bone animations in transform matrix sources
 void AnimationExporter::write_bone_animation_matrix(Object *ob_arm, Bone *bone)
 {
-	bAction *action = getSceneObjectAction(ob_arm);
+	bAction *action = bc_getSceneObjectAction(ob_arm);
 	if (!action)
 		return;
 
@@ -736,7 +734,7 @@ void AnimationExporter::sample_and_write_bone_animation_matrix(Object *ob_arm, B
 	if (!pchan)
 		return;
 
-	bAction *action = getSceneObjectAction(ob_arm);
+	bAction *action = bc_getSceneObjectAction(ob_arm);
 	if (action) {
 		if (this->export_settings->sampling_rate < 1)
 			find_keyframes(action, fra);
@@ -1308,7 +1306,7 @@ std::string AnimationExporter::create_4x4_source(std::vector<float> &ctimes, std
 */
 std::string AnimationExporter::create_4x4_source(std::vector<float> &frames, Object *ob, Bone *bone, const std::string &anim_id)
 {
-	bAction *action = getSceneObjectAction(ob);
+	bAction *action = bc_getSceneObjectAction(ob);
 
 	bool is_bone_animation = ob->type == OB_ARMATURE && bone;
 
@@ -1347,8 +1345,7 @@ std::string AnimationExporter::create_4x4_source(std::vector<float> &frames, Obj
 		float frame = *it;
 
 		float ctime = BKE_scene_frame_get_from_ctime(scene, frame);
-		struct Main *bmain = CTX_data_main(mContext);
-		bc_update_scene(bmain, scene, ctime);
+		bc_update_scene(mContext, scene, ctime);
 		if (is_bone_animation) {
 			if (pchan->flag & POSE_CHAIN) {
 				enable_fcurves(action, NULL);
@@ -1725,12 +1722,12 @@ bool AnimationExporter::hasAnimations(Scene *sce)
 		FCurve *fcu = 0;
 
 		/* Check for object,lamp and camera transform animations */
-		if (getSceneObjectAction(ob))
-			fcu = (FCurve *)getSceneObjectAction(ob)->curves.first;
-		else if (getSceneLampAction(ob))
-			fcu = (FCurve *)getSceneLampAction(ob)->curves.first;
-		else if (getSceneCameraAction(ob))
-			fcu = (FCurve *)getSceneCameraAction(ob)->curves.first;
+		if (bc_getSceneObjectAction(ob))
+			fcu = (FCurve *)bc_getSceneObjectAction(ob)->curves.first;
+		else if (bc_getSceneLampAction(ob))
+			fcu = (FCurve *)bc_getSceneLampAction(ob)->curves.first;
+		else if (bc_getSceneCameraAction(ob))
+			fcu = (FCurve *)bc_getSceneCameraAction(ob)->curves.first;
 
 		//Check Material Effect parameter animations.
 		for (int a = 0; a < ob->totcol; a++) {
@@ -1861,7 +1858,7 @@ void AnimationExporter::sample_and_write_bone_animation(Object *ob_arm, Bone *bo
 	if (!pchan)
 		return;
 	//Fill frame array with key frame values framed at \param:transform_type
-	bAction *action = getSceneObjectAction(ob_arm);
+	bAction *action = bc_getSceneObjectAction(ob_arm);
 	switch (transform_type) {
 		case 0:
 			find_rotation_frames(action, fra, prefix, pchan->rotmode);
@@ -1914,7 +1911,7 @@ void AnimationExporter::sample_and_write_bone_animation(Object *ob_arm, Bone *bo
 
 void AnimationExporter::sample_animation(float *v, std::vector<float> &frames, int type, Bone *bone, Object *ob_arm, bPoseChannel *pchan)
 {
-	bAction *action = getSceneObjectAction(ob_arm);
+	bAction *action = bc_getSceneObjectAction(ob_arm);
 	if (!action) {
 		return;
 	}
