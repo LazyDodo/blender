@@ -326,36 +326,39 @@ void AnimationExporter::operator()(Object *ob)
 	//export_morph_animation(ob);
 
 	//Export Lamp parameter animations
-	action = bc_getSceneLampAction(ob);
-	if (action) {
-		FCurve *fcu = (FCurve *)action->curves.first;
-		while (fcu) {
-			transformName = extract_transform_name(fcu->rna_path);
+	if (ob->type == OB_LAMP) {
+		action = bc_getSceneLampAction(ob);
+		if (action) {
+			FCurve *fcu = (FCurve *)action->curves.first;
+			while (fcu) {
+				transformName = extract_transform_name(fcu->rna_path);
 
-			if ((STREQ(transformName, "color")) || (STREQ(transformName, "spot_size")) ||
-			    (STREQ(transformName, "spot_blend")) || (STREQ(transformName, "distance")))
-			{
-				create_keyframed_animation(ob, fcu, transformName, true);
+				if ((STREQ(transformName, "color")) || (STREQ(transformName, "spot_size")) ||
+					(STREQ(transformName, "spot_blend")) || (STREQ(transformName, "distance")))
+				{
+					create_keyframed_animation(ob, fcu, transformName, true);
+				}
+				fcu = fcu->next;
 			}
-			fcu = fcu->next;
 		}
 	}
 
 	//Export Camera parameter animations
-	action = bc_getSceneCameraAction(ob);
-	if (action) {
-		FCurve *fcu = (FCurve *)action->curves.first;
-		while (fcu) {
-			transformName = extract_transform_name(fcu->rna_path);
-
-			if ((STREQ(transformName, "lens")) ||
-			    (STREQ(transformName, "ortho_scale")) ||
-			    (STREQ(transformName, "clip_end")) ||
-				(STREQ(transformName, "clip_start")))
-			{
-				create_keyframed_animation(ob, fcu, transformName, true);
+	if (ob->type == OB_CAMERA) {
+		action = bc_getSceneCameraAction(ob);
+		if (action) {
+			FCurve *fcu = (FCurve *)action->curves.first;
+			while (fcu) {
+				transformName = extract_transform_name(fcu->rna_path);
+				if ((STREQ(transformName, "lens")) ||
+					(STREQ(transformName, "ortho_scale")) ||
+					(STREQ(transformName, "clip_end")) ||
+					(STREQ(transformName, "clip_start")))
+				{
+					create_keyframed_animation(ob, fcu, transformName, true);
+				}
+				fcu = fcu->next;
 			}
-			fcu = fcu->next;
 		}
 	}
 
