@@ -165,21 +165,21 @@ void AnimationExporter::export_keyframed_animation_set(Object *ob)
 			export_sampled_matrix_animation(ob, ctimes);
 	}
 	else {
-		char *transformName;
+		char *channel_type;
 		while (fcu) {
 			//for armature animations as objects
 			if (ob->type == OB_ARMATURE)
-				transformName = fcu->rna_path;
+				channel_type = fcu->rna_path;
 			else
-				transformName = extract_transform_name(fcu->rna_path);
+				channel_type = extract_transform_name(fcu->rna_path);
 
 			if (
-				STREQ(transformName, "location") ||
-				STREQ(transformName, "scale") ||
-				(STREQ(transformName, "rotation_euler") && ob->rotmode == ROT_MODE_EUL) ||
-				STREQ(transformName, "rotation_quaternion"))
+				STREQ(channel_type, "location") ||
+				STREQ(channel_type, "scale") ||
+				(STREQ(channel_type, "rotation_euler") && ob->rotmode == ROT_MODE_EUL) ||
+				STREQ(channel_type, "rotation_quaternion"))
 			{
-				create_keyframed_animation(ob, fcu, transformName, false);
+				create_keyframed_animation(ob, fcu, channel_type, false);
 			}
 			fcu = fcu->next;
 		}
@@ -514,7 +514,7 @@ std::string AnimationExporter::getAnimationPathId(const FCurve *fcu)
  * Important: We assume the object has a scene action.
  * If it has not, then Blender will die!
  */
-void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char *transformName, bool is_param, Material *ma)
+void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char *channel_type, bool is_param, Material *ma)
 {
 	const char *axis_name = NULL;
 	char anim_id[200];
@@ -524,17 +524,17 @@ void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char
 
 	Object *obj = NULL;
 
-	if (STREQ(transformName, "rotation_quaternion") ) {
+	if (STREQ(channel_type, "rotation_quaternion") ) {
 		fprintf(stderr, "quaternion rotation curves are not supported. rotation curve will not be exported\n");
 		quatRotation = true;
 		return;
 	}
 
 	//axis names for colors
-	else if (STREQ(transformName, "color") ||
-	         STREQ(transformName, "specular_color") ||
-	         STREQ(transformName, "diffuse_color") ||
-	         STREQ(transformName, "alpha"))
+	else if (STREQ(channel_type, "color") ||
+	         STREQ(channel_type, "specular_color") ||
+	         STREQ(channel_type, "diffuse_color") ||
+	         STREQ(channel_type, "alpha"))
 	{
 		const char *axis_names[] = {"R", "G", "B"};
 		if (fcu->array_index < 3)
@@ -552,9 +552,9 @@ void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char
 	 */
 
 	else if (
-		STREQ(transformName, "scale") ||
-		STREQ(transformName, "location") ||
-		STREQ(transformName, "rotation_euler"))
+		STREQ(channel_type, "scale") ||
+		STREQ(channel_type, "location") ||
+		STREQ(channel_type, "rotation_euler"))
 	{
 		const char *axis_names[] = {"X", "Y", "Z"};
 		if (fcu->array_index < 3) {
@@ -577,7 +577,7 @@ void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char
 		        sizeof(anim_id),
 		        "%s_%s.%s",
 		        (char *)translate_id(ob_name).c_str(),
-		        (char *)translate_id(transformName).c_str(),
+		        (char *)translate_id(channel_type).c_str(),
 		        axis_name);
 	}
 	else {
@@ -614,7 +614,7 @@ void AnimationExporter::create_keyframed_animation(Object *ob, FCurve *fcu, char
 		MEM_freeN(eul);
 		MEM_freeN(eul_axis);
 	}
-	else if (STREQ(transformName, "lens") && (ob->type == OB_CAMERA)) {
+	else if (STREQ(channel_type, "lens") && (ob->type == OB_CAMERA)) {
 		output_id = create_lens_source_from_fcurve((Camera *) ob->data, COLLADASW::InputSemantic::OUTPUT, fcu, anim_id);
 	}
 	else {
