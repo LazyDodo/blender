@@ -159,7 +159,6 @@ void bc_copy_farray_m4(float *r, float a[4][4]);
 void bc_copy_darray_m4d(double *r, double a[4][4]);
 void bc_copy_m4d_v44(double(&r)[4][4], std::vector<std::vector<double>> &a);
 void bc_copy_v44_m4d(std::vector<std::vector<double>> &a, double(&r)[4][4]);
-void bc_append_darray_m4d(std::vector<double> &r, double a[4][4]);
 
 extern void bc_sanitize_mat(float mat[4][4], int precision);
 extern void bc_sanitize_mat(double mat[4][4], int precision);

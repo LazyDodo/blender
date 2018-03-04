@@ -950,13 +950,6 @@ void bc_copy_m4d_v44(double (&r)[4][4], std::vector<std::vector<double>> &a)
 	}
 }
 
-void bc_append_darray_m4d(std::vector<double> &r, double a[4][4])
-{
-	for (int i = 0; i < 4; i++)
-		for (int j = 0; j < 4; j++)
-			r.push_back(a[i][j]);
-}
-
 /*
 * Returns name of Active UV Layer or empty String if no active UV Layer defined.
 * Assuming the Object is of type MESH
