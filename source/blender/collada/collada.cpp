@@ -58,6 +58,9 @@ int collada_export(bContext *C,
 	if (export_settings->include_armatures) includeFilter |= OB_REL_MOD_ARMATURE;
 	if (export_settings->include_children) includeFilter |= OB_REL_CHILDREN_RECURSIVE;
 
+	/* Fetch the complete set of exported objects
+	 * ATTENTION: Invisible objects will not be exported
+	 */
 	eObjectSet objectSet = (export_settings->selected) ? OB_SET_SELECTED : OB_SET_ALL;
 	export_settings->export_set = BKE_object_relational_superset(sce, objectSet, (eObRelationTypes)includeFilter);
 	int export_count = BLI_linklist_count(export_settings->export_set);
