@@ -94,6 +94,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 
 	int include_animations;
 	int sample_animations;
+	int include_all_actions;
 	int sampling_rate;
 
 	int export_texture_type;
@@ -148,7 +149,8 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 
 	include_animations       = RNA_boolean_get(op->ptr, "include_animations");
 	sample_animations        = RNA_boolean_get(op->ptr, "sample_animations");
-	sampling_rate            = (sample_animations) ? RNA_int_get(op->ptr, "sampling_rate") : 0;
+	include_all_actions      = RNA_boolean_get(op->ptr, "include_all_actions");
+	sampling_rate            = (sample_animations)? RNA_int_get(op->ptr, "sampling_rate") : 0;
 
 	deform_bones_only        = RNA_boolean_get(op->ptr, "deform_bones_only");
 
@@ -184,7 +186,8 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	export_settings.include_armatures = include_armatures != 0;
 	export_settings.include_shapekeys = include_shapekeys != 0;
 	export_settings.deform_bones_only = deform_bones_only != 0;
-	export_settings.include_animations = include_animations;
+	export_settings.include_animations = include_animations != 0;
+	export_settings.include_all_actions = include_all_actions != 0;
 	export_settings.sampling_rate = sampling_rate;
 
 	export_settings.active_uv_only = active_uv_only != 0;
@@ -264,6 +267,8 @@ static void uiCollada_exportSettings(uiLayout *layout, PointerRNA *imfptr)
 	uiItemR(row, imfptr, "include_animations", 0, NULL, ICON_NONE);
 	row = uiLayoutRow(box, false);
 	if (include_animations) {
+		uiItemR(row, imfptr, "include_all_actions", 0, NULL, ICON_NONE);
+		row = uiLayoutColumn(box, false);
 		uiItemR(row, imfptr, "sample_animations", 0, NULL, ICON_NONE);
 		row = uiLayoutColumn(box, false);
 		uiItemR(row, imfptr, "sampling_rate", 0, NULL, ICON_NONE);
@@ -411,6 +416,9 @@ void WM_OT_collada_export(wmOperatorType *ot)
 
 	RNA_def_boolean(func, "include_animations", true,
 		"Include Animations", "Export Animations if available.\nExporting Animations will enforce the decomposition of node transforms\ninto  <translation> <rotation> and <scale> components");
+
+	RNA_def_boolean(func, "include_all_actions", true,
+		"Include all Actions", "Export also unassigned actions.\nThis allows you to export entire animation libraries for your charater(s)");
 
 	RNA_def_boolean(func, "sample_animations", 0,
 		"Sample Animations", "Auto-generate keyframes with a frame distance set by 'Sampling Rate'.\nWhen disabled, export only the keyframes defined in the animation f-curves (may be less accurate)");
