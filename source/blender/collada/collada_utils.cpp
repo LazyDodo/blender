@@ -133,16 +133,27 @@ int bc_set_parent(Object *ob, Object *par, bContext *C, bool is_parent_space)
 	return true;
 }
 
-std::vector<bAction *> bc_getSceneActions(const bContext *C)
+std::vector<bAction *> bc_getSceneActions(const bContext *C, Object *ob, bool all_actions)
 {
 	std::vector<bAction *> actions;
-	Main *bmain = CTX_data_main(C);
-	ID *id;
+	if (all_actions) {
+		Main *bmain = CTX_data_main(C);
+		ID *id;
 
-	for (id = (ID *)bmain->action.first; id; id = (ID *)(id->next)) {
-		bAction *act = (bAction *)id;
-		actions.push_back(act);
+		for (id = (ID *)bmain->action.first; id; id = (ID *)(id->next)) {
+			bAction *act = (bAction *)id;
+			/* XXX This currently creates too many actions.
+			   TODO Need to check if the action is compatible to the given object
+			*/
+			actions.push_back(act);
+		}
 	}
+	else
+	{
+		bAction *action = bc_getSceneObjectAction(ob);
+		actions.push_back(action);
+	}
+
 	return actions;
 }
 

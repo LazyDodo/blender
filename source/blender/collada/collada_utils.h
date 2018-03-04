@@ -72,7 +72,7 @@ extern void bc_update_scene(const bContext *C, Scene *scene, float ctime);
 
 /* Action helpers */
 
-std::vector<bAction *> bc_getSceneActions(const bContext *C);
+std::vector<bAction *> bc_getSceneActions(const bContext *C, Object *ob, bool all_actions);
 
 inline bAction *bc_getSceneObjectAction(Object *ob)
 {
