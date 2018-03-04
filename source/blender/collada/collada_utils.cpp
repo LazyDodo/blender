@@ -146,6 +146,16 @@ std::vector<bAction *> bc_getSceneActions(const bContext *C)
 	return actions;
 }
 
+std::string bc_get_action_id(std::string action_name, std::string ob_name, std::string channel_type, std::string axis_name, std::string axis_separator)
+{
+	std::string result = action_name + "_" + channel_type;
+	if (ob_name.length() > 0)
+		result = ob_name + "_" + result;
+	if (axis_name.length() > 0)
+		result += axis_separator + axis_name;
+	return translate_id(result);
+}
+
 EvaluationContext *bc_get_evaluation_context(const bContext *C)
 {
 	Main *bmain = CTX_data_main(C);
@@ -913,7 +923,38 @@ void bc_copy_farray_m4(float *r, float a[4][4])
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++)
 			*r++ = a[i][j];
+}
 
+void bc_copy_darray_m4d(double *r, double a[4][4])
+{
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++)
+			*r++ = a[i][j];
+}
+
+void bc_copy_v44_m4d(std::vector<std::vector<double>> &r, double(&a)[4][4])
+{
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			r[i][j] = a[i][j];
+		}
+	}
+}
+
+void bc_copy_m4d_v44(double (&r)[4][4], std::vector<std::vector<double>> &a)
+{
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			r[i][j] = a[i][j];
+		}
+	}
+}
+
+void bc_append_darray_m4d(std::vector<double> &r, double a[4][4])
+{
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++)
+			r.push_back(a[i][j]);
 }
 
 /*

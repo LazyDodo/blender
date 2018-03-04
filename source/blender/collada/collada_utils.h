@@ -111,6 +111,7 @@ inline void bc_setSceneObjectAction(bAction *action, Object *ob)
 		ob->adt->action = action;
 }
 
+std::string bc_get_action_id(std::string action_name, std::string ob_name, std::string channel_type, std::string axis_name, std::string axis_separator = "_");
 
 extern float bc_get_float_value(const COLLADAFW::FloatOrDoubleArray& array, unsigned int index);
 extern int bc_test_parent_loop(Object *par, Object *ob);
@@ -155,6 +156,10 @@ inline bool bc_in_range(float a, float b, float range) {
 }
 void bc_copy_m4_farray(float r[4][4], float *a);
 void bc_copy_farray_m4(float *r, float a[4][4]);
+void bc_copy_darray_m4d(double *r, double a[4][4]);
+void bc_copy_m4d_v44(double(&r)[4][4], std::vector<std::vector<double>> &a);
+void bc_copy_v44_m4d(std::vector<std::vector<double>> &a, double(&r)[4][4]);
+void bc_append_darray_m4d(std::vector<double> &r, double a[4][4]);
 
 extern void bc_sanitize_mat(float mat[4][4], int precision);
 extern void bc_sanitize_mat(double mat[4][4], int precision);
