@@ -89,6 +89,8 @@ private:
 	Scene *scene;
 	COLLADASW::StreamWriter *sw;
 
+	std::vector<std::vector<std::string>> anim_meta;
+
 public:
 
 	AnimationExporter(bContext *C, EvaluationContext *eval_ctx, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings):
@@ -103,11 +105,14 @@ public:
 	bool exportAnimations(Scene *sce);
 
 	// called for each exported object
-	void operator() (Object *ob);
+	void operator() (Object *ob); 
 
 protected:
 	const ExportSettings *export_settings;
+	void openAnimationWithClip(std::string id, std::string name);
 
+	bool open_animation_container(bool has_container, Object *ob);
+	void close_animation_container(bool has_container);
 
 	void export_object_constraint_animation(Object *ob);
 
@@ -149,6 +154,8 @@ protected:
 	float* get_eul_source_for_quat(Object *ob );
 
 	bool is_flat_line(std::vector<float> &values, int channel_count);
+	bool is_flat_line(std::vector<std::vector<std::vector<double>>> &values);
+
 	void export_keyframed_animation_set(Object *ob);
 	void create_keyframed_animation(Object *ob, FCurve *fcu, char *transformName, bool is_param, Material *ma = NULL);
 	void export_sampled_animation_set(Object *ob);

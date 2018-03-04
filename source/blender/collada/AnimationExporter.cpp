@@ -34,6 +34,22 @@ void forEachObjectInExportSet(Scene *sce, Functor &f, LinkNode *export_set)
 	}
 }
 
+bool AnimationExporter::open_animation_container(bool has_container, Object *ob)
+{
+	if (!has_container) {
+		char anim_id[200];
+		sprintf(anim_id, "action_container-%s", translate_id(id_name(ob)).c_str());
+		openAnimation(anim_id, id_name(ob));
+	}
+	return true;
+}
+void AnimationExporter::close_animation_container(bool has_container)
+{
+	if (has_container)
+		closeAnimation();
+}
+
+
 bool AnimationExporter::exportAnimations(Scene *sce)
 {
 	bool has_animations = hasAnimations(sce);
@@ -47,6 +63,24 @@ bool AnimationExporter::exportAnimations(Scene *sce)
 		closeLibrary();
 	}
 	return has_animations;
+}
+
+bool AnimationExporter::is_flat_line(std::vector<std::vector<std::vector<double>>> &values)
+{
+	if (values.size() < 2)
+		return true; // need at least 2 entries to be not flat
+
+	std::vector<std::vector<double>> refmat = values[0];
+	for (int index = 1; index < values.size(); index++) {
+		std::vector<std::vector<double>> mat = values[index];
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				if (!bc_in_range(refmat[i][j], mat[i][j], 0.000001))
+					return false;
+			}
+		}
+	}
+	return true;
 }
 
 bool AnimationExporter::is_flat_line(std::vector<float> &values, int channel_count)
@@ -295,6 +329,7 @@ void AnimationExporter::export_sampled_transrotloc_animation(Object *ob, std::ve
 /* called for each exported object */
 void AnimationExporter::operator()(Object *ob)
 {
+	bool has_container = false;
 	char *transformName;
 
 	/* bool isMatAnim = false; */ /* UNUSED */
@@ -329,6 +364,7 @@ void AnimationExporter::operator()(Object *ob)
 	if (ob->type == OB_LAMP) {
 		action = bc_getSceneLampAction(ob);
 		if (action) {
+			has_container = open_animation_container(has_container, ob);
 			FCurve *fcu = (FCurve *)action->curves.first;
 			while (fcu) {
 				transformName = extract_transform_name(fcu->rna_path);
@@ -344,9 +380,11 @@ void AnimationExporter::operator()(Object *ob)
 	}
 
 	//Export Camera parameter animations
+
 	if (ob->type == OB_CAMERA) {
 		action = bc_getSceneCameraAction(ob);
 		if (action) {
+			has_container = open_animation_container(has_container, ob);
 			FCurve *fcu = (FCurve *)action->curves.first;
 			while (fcu) {
 				transformName = extract_transform_name(fcu->rna_path);
@@ -367,6 +405,7 @@ void AnimationExporter::operator()(Object *ob)
 		Material *ma = give_current_material(ob, a + 1);
 		action = bc_getSceneMaterialAction(ma);
 		if (action) {
+			has_container = open_animation_container(has_container, ob);
 			/* isMatAnim = true; */
 			FCurve *fcu = (FCurve *)action->curves.first;
 			while (fcu) {
@@ -382,6 +421,8 @@ void AnimationExporter::operator()(Object *ob)
 			}
 		}
 	}
+
+	close_animation_container(has_container);
 }
 
 void AnimationExporter::export_object_constraint_animation(Object *ob)
@@ -1986,4 +2027,14 @@ bool AnimationExporter::validateConstraints(bConstraint *con)
 
 	/* validation passed */
 	return true;
+}
+
+void AnimationExporter::openAnimationWithClip(std::string action_id, std::string action_name)
+{
+	std::vector<std::string> anim_meta_entry;
+	anim_meta_entry.push_back(translate_id(action_id));
+	anim_meta_entry.push_back(action_name);
+	anim_meta.push_back(anim_meta_entry);
+
+	openAnimation(translate_id(action_id), action_name);
 }
