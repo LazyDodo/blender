@@ -59,8 +59,8 @@ class DocumentImporter : COLLADAFW::IWriter
 public:
 	//! Enumeration to denote the stage of import
 	enum ImportStage {
-		General,		//!< First pass to collect all data except controller
-		Controller,		//!< Second pass to collect controller data
+		Fetching_Scene_data, /* First pass to collect all data except controller */
+		Fetching_Controller_data, /* Second pass to collect controller data */
 	};
 	/** Constructor */
 	DocumentImporter(bContext *C, const ImportSettings *import_settings);
