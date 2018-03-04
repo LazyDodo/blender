@@ -91,6 +91,7 @@ void SceneExporter::writeNodes(bContext *C, Object *ob, Scene *sce)
 	// Add associated armature first if available
 	bool armature_exported = false;
 	Object *ob_arm = bc_get_assigned_armature(ob);
+
 	if (ob_arm != NULL) {
 		armature_exported = bc_is_in_Export_set(this->export_settings->export_set, ob_arm);
 		if (armature_exported && bc_is_marked(ob_arm)) {
@@ -184,10 +185,6 @@ void SceneExporter::writeNodes(bContext *C, Object *ob, Scene *sce)
 		}
 	}
 
-	if (ob->type == OB_ARMATURE) {
-		colladaNode.end();
-	}
-
 	if (BLI_listbase_is_empty(&ob->constraints) == false) {
 		bConstraint *con = (bConstraint *) ob->constraints.first;
 		while (con) {
@@ -239,6 +236,5 @@ void SceneExporter::writeNodes(bContext *C, Object *ob, Scene *sce)
 		}
 	}
 
-	if (ob->type != OB_ARMATURE)
-		colladaNode.end();
+	colladaNode.end();
 }
