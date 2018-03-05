@@ -135,10 +135,8 @@ protected:
 	// dae_bone_animation -> add_bone_animation
 	// (blend this into dae_bone_animation)
 	void dae_bone_animation(std::vector<float> &fra, float *v, int tm_type, int axis, std::string ob_name, std::string bone_name);
-
-	void dae_baked_animation(std::vector<float> &fra, Object *ob_arm, Bone *bone);
-
-	void dae_baked_object_animation(std::vector<float> &fra, Object *ob);
+	void dae_baked_animation(std::vector<float> &frames, Object *ob_arm, Bone *bone);
+	void dae_baked_object_animation(std::vector<float> &frames, Object *ob);
 
 	float convert_time(float frame);
 
@@ -147,7 +145,7 @@ protected:
 	std::string get_semantic_suffix(COLLADASW::InputSemantic::Semantics semantic);
 
 	void add_source_parameters(COLLADASW::SourceBase::ParameterNameList& param,
-	                           COLLADASW::InputSemantic::Semantics semantic, bool is_rot, const char *axis, bool transform);
+	COLLADASW::InputSemantic::Semantics semantic, bool is_rot, const char *axis, bool transform);
 
 	void get_source_values(BezTriple *bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values, int *length);
 
@@ -157,11 +155,17 @@ protected:
 	bool is_flat_line(std::vector<std::vector<std::vector<double>>> &values);
 
 	void export_keyframed_animation_set(Object *ob);
-	void create_keyframed_animation(Object *ob, FCurve *fcu, char *transformName, bool is_param, Material *ma = NULL);
+	void create_keyframed_animation(Object *ob, FCurve *fcu, char *channel_type, bool is_param, Material *ma = NULL);
 	void export_sampled_animation_set(Object *ob);
-	void export_sampled_transrotloc_animation(Object *ob, std::vector<float> &ctimes);
-	void export_sampled_matrix_animation(Object *ob, std::vector<float> &ctimes);
-	void create_sampled_animation(int channel_count, std::vector<float> &times, std::vector<float> &values, std::string, std::string label, std::string axis_name, bool is_rot);
+	void export_sampled_transrotloc_animation(Object *ob, std::vector<float> &frames);
+	void export_sampled_matrix_animation(Object *ob, std::vector<float> &frames);
+	void create_sampled_animation(int channel_count,
+		std::vector<float> &frames,
+		std::vector<float> &values,
+		std::string ob_name,
+		std::string channel_type,
+		std::string axis_name,
+		bool is_rot);
 
 	void evaluate_anim_with_constraints(Object *ob, float ctime);
 

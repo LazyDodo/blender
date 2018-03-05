@@ -119,10 +119,10 @@ bool AnimationExporter::is_flat_line(std::vector<float> &values, int channel_cou
  *		 See export_sampled_animation() further down.
  */
 void AnimationExporter::create_sampled_animation(int channel_count,
-	std::vector<float> &times,
+	std::vector<float> &frames,
 	std::vector<float> &values,
 	std::string ob_name,
-	std::string label,
+	std::string channel_type,
 	std::string axis_name,
 	bool is_rot)
 {
@@ -131,21 +131,21 @@ void AnimationExporter::create_sampled_animation(int channel_count,
 	if (is_flat_line(values, channel_count))
 		return;
 
-	BLI_snprintf(anim_id, sizeof(anim_id), "%s_%s_%s", (char *)translate_id(ob_name).c_str(), label.c_str(), axis_name.c_str());
+	BLI_snprintf(anim_id, sizeof(anim_id), "%s_%s_%s", (char *)translate_id(ob_name).c_str(), channel_type.c_str(), axis_name.c_str());
 
 	openAnimation(anim_id, COLLADABU::Utils::EMPTY_STRING);
 
 	/* create input source */
-	std::string input_id = create_source_from_vector(COLLADASW::InputSemantic::INPUT, times, false, anim_id, "");
+	std::string input_id = create_source_from_vector(COLLADASW::InputSemantic::INPUT, frames, false, anim_id, "");
 
 	/* create output source */
 	std::string output_id;
 	if (channel_count == 1)
 		output_id = create_source_from_array(COLLADASW::InputSemantic::OUTPUT, &values[0], values.size(), is_rot, anim_id, axis_name.c_str());
 	else if (channel_count == 3)
-		output_id = create_xyz_source(&values[0], times.size(), anim_id);
+		output_id = create_xyz_source(&values[0], frames.size(), anim_id);
 	else if (channel_count == 16)
-		output_id = create_4x4_source(times, values, anim_id);
+		output_id = create_4x4_source(frames, values, anim_id);
 
 	std::string sampler_id = std::string(anim_id) + SAMPLER_ID_SUFFIX;
 	COLLADASW::LibraryAnimations::Sampler sampler(sw, sampler_id);
@@ -154,14 +154,14 @@ void AnimationExporter::create_sampled_animation(int channel_count,
 	sampler.addInput(COLLADASW::InputSemantic::OUTPUT, COLLADABU::URI(empty, output_id));
 
 	/* TODO create in/out tangents source (LINEAR) */
-	std::string interpolation_id = fake_interpolation_source(times.size(), anim_id, "");
+	std::string interpolation_id = fake_interpolation_source(frames.size(), anim_id, "");
 
 	/* Create Sampler */
 	sampler.addInput(COLLADASW::InputSemantic::INTERPOLATION, COLLADABU::URI(empty, interpolation_id));
 	addSampler(sampler);
 
 	/* Create channel */
-	std::string target = translate_id(ob_name) + "/" + label + axis_name + ((is_rot) ? ".ANGLE" : "");
+	std::string target = translate_id(ob_name) + "/" + channel_type + axis_name + ((is_rot) ? ".ANGLE" : "");
 	addChannel(COLLADABU::URI(empty, sampler_id), target);
 
 	closeAnimation();
@@ -193,10 +193,10 @@ void AnimationExporter::export_keyframed_animation_set(Object *ob)
 
 	if (this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_MATRIX) {
 
-		std::vector<float> ctimes;
-		find_keyframes(action, ctimes);
-		if (ctimes.size() > 0)
-			export_sampled_matrix_animation(ob, ctimes);
+		std::vector<float> frames;
+		find_keyframes(action, frames);
+		if (frames.size() > 0)
+			export_sampled_matrix_animation(ob, frames);
 	}
 	else {
 		char *channel_type;
@@ -239,25 +239,25 @@ void AnimationExporter::export_sampled_animation_set(Object *ob)
 		return; /* Object has no animation */
 	}
 
-	std::vector<float>ctimes;
-	find_sampleframes(action, ctimes);
-	if (ctimes.size() > 0) {
+	std::vector<float>frames;
+	find_sampleframes(action, frames);
+	if (frames.size() > 0) {
 		if (this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_MATRIX)
-			export_sampled_matrix_animation(ob, ctimes);
+			export_sampled_matrix_animation(ob, frames);
 		else
-			export_sampled_transrotloc_animation(ob, ctimes);
+			export_sampled_transrotloc_animation(ob, frames);
 	}
 }
 
-void AnimationExporter::export_sampled_matrix_animation(Object *ob, std::vector<float> &ctimes)
+void AnimationExporter::export_sampled_matrix_animation(Object *ob, std::vector<float> &frames)
 {
 	UnitConverter converter;
 
 	std::vector<float> values;
 
-	for (std::vector<float>::iterator ctime = ctimes.begin(); ctime != ctimes.end(); ++ctime) {
+	for (std::vector<float>::iterator frame = frames.begin(); frame != frames.end(); ++frame) {
 		float fmat[4][4];
-		bc_update_scene(mContext, scene, *ctime);
+		bc_update_scene(mContext, scene, *frame);
 		BKE_object_matrix_local_get(ob, fmat);
 		if (this->export_settings->limit_precision)
 			bc_sanitize_mat(fmat, 6);
@@ -269,10 +269,10 @@ void AnimationExporter::export_sampled_matrix_animation(Object *ob, std::vector<
 
 	std::string ob_name = id_name(ob);
 
-	create_sampled_animation(16, ctimes, values, ob_name, "transform", "", false);
+	create_sampled_animation(16, frames, values, ob_name, "transform", "", false);
 }
 
-void AnimationExporter::export_sampled_transrotloc_animation(Object *ob, std::vector<float> &ctimes)
+void AnimationExporter::export_sampled_transrotloc_animation(Object *ob, std::vector<float> &frames)
 {
 	static int LOC   = 0;
 	static int EULX  = 1;
@@ -282,13 +282,15 @@ void AnimationExporter::export_sampled_transrotloc_animation(Object *ob, std::ve
 
 	std::vector<float> baked_curves[5];
 
-	for (std::vector<float>::iterator ctime = ctimes.begin(); ctime != ctimes.end(); ++ctime ) {
+	for (std::vector<float>::iterator frame = frames.begin(); frame != frames.end(); ++frame) {
+
 		float fmat[4][4];
 		float floc[3];
 		float fquat[4];
 		float fsize[3];
 		float feul[3];
-		bc_update_scene(mContext, scene, *ctime);
+
+		bc_update_scene(mContext, scene, *frame);
 		BKE_object_matrix_local_get(ob, fmat);
 		mat4_decompose(floc, fquat, fsize, fmat);
 		quat_to_eul(feul, fquat);
@@ -309,16 +311,16 @@ void AnimationExporter::export_sampled_transrotloc_animation(Object *ob, std::ve
 
 	std::string ob_name = id_name(ob);
 
-	create_sampled_animation(3, ctimes, baked_curves[SCALE], ob_name, "scale",   "", false);
-	create_sampled_animation(3, ctimes, baked_curves[LOC],  ob_name, "location", "", false);
+	create_sampled_animation(3, frames, baked_curves[SCALE], ob_name, "scale",   "", false);
+	create_sampled_animation(3, frames, baked_curves[LOC],  ob_name, "location", "", false);
 
 	/* Not sure how to export rotation as a 3channel animation,
 	 * so separate into 3 single animations for now:
 	 */
 
-	create_sampled_animation(1, ctimes, baked_curves[EULX], ob_name, "rotation", "X", true);
-	create_sampled_animation(1, ctimes, baked_curves[EULY], ob_name, "rotation", "Y", true);
-	create_sampled_animation(1, ctimes, baked_curves[EULZ], ob_name, "rotation", "Z", true);
+	create_sampled_animation(1, frames, baked_curves[EULX], ob_name, "rotation", "X", true);
+	create_sampled_animation(1, frames, baked_curves[EULY], ob_name, "rotation", "Y", true);
+	create_sampled_animation(1, frames, baked_curves[EULZ], ob_name, "rotation", "Z", true);
 
 	fprintf(stdout, "Animation Export: Baked %d frames for %s (sampling rate: %d)\n",
 		(int)baked_curves[0].size(),
