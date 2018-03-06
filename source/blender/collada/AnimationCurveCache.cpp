@@ -27,7 +27,8 @@ extern "C" {
 #include "BLI_listbase.h"
 }
 
-AnimationCurveCache::AnimationCurveCache()
+AnimationCurveCache::AnimationCurveCache(bContext *C):
+	mContext(C)
 {
 }
 
@@ -108,7 +109,7 @@ void AnimationCurveCache::sampleMain(Scene *scene, BC_export_transformation_type
 		int frame_index = frame->first;
 		std::vector<SamplePoint> sample_points = frame->second;
 
-		bc_update_scene(scene, frame_index);
+		bc_update_scene(mContext, scene, frame_index);
 
 		for (int spi = 0; spi < sample_points.size(); spi++) {
 			SamplePoint &point = sample_points[spi];

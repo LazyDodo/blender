@@ -56,6 +56,7 @@ extern "C" {
 #include "BKE_main.h"
 
 #include "ED_armature.h"
+#include "ED_screen.h"
 
 #include "WM_api.h" // XXX hrm, see if we can do without this
 #include "WM_types.h"
@@ -175,10 +176,15 @@ EvaluationContext *bc_get_evaluation_context(const bContext *C)
 
 void bc_update_scene(const bContext *C, Scene *scene, float ctime)
 {
-	BKE_scene_frame_set(scene, ctime);
-	EvaluationContext *ev_context = bc_get_evaluation_context(C);
 	Main *bmain = CTX_data_main(C);
-	BKE_scene_update_for_newframe(ev_context, bmain, scene, scene->lay);
+	EvaluationContext *ev_context = bc_get_evaluation_context(C);
+
+	/*
+	 * See remark in physics_fluid.c lines 395...)
+	 * BKE_scene_update_for_newframe(ev_context, bmain, scene, scene->lay);
+	*/
+	BKE_scene_frame_set(scene, ctime);
+	ED_update_for_newframe(bmain, scene, 1);
 }
 
 Object *bc_add_object(Main *bmain, Scene *scene, int type, const char *name)

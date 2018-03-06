@@ -97,9 +97,11 @@ private:
 	void enable_fcurves(bAction *act, char *bone_name);
 	bool bone_matrix_local_get(Object *ob, Bone *bone, float (&mat)[4][4], bool for_opensim);
 
+	bContext *mContext;
+
 public:
 
-	AnimationCurveCache();
+	AnimationCurveCache(bContext *C);
 	~AnimationCurveCache();
 
 	void addObject(Object *obj);
