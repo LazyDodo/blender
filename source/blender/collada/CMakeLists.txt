@@ -49,6 +49,7 @@ set(SRC
 	AnimationImporter.cpp
 	AnimationExporter.cpp
 	AnimationClipExporter.cpp
+	AnimationCurveCache.cpp
 	ArmatureExporter.cpp
 	ArmatureImporter.cpp
 	CameraExporter.cpp
@@ -78,6 +79,7 @@ set(SRC
 	AnimationImporter.h
 	AnimationExporter.h
 	AnimationClipExporter.h
+	AnimationCurveCache.h
 	ArmatureExporter.h
 	ArmatureImporter.h
 	CameraExporter.h
