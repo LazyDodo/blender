@@ -32,6 +32,7 @@
 #include "DNA_scene_types.h"
 
 #include "BKE_cdderivedmesh.h"
+#include "BKE_deform.h"
 #include "BKE_mesh.h"
 
 #include "BLI_math.h"
@@ -243,9 +244,9 @@ static void apply_weights_vertex_normal(
 
 			for (; ml_index < ml_index_end; ml_index++) {
 				const int mv_index = mloop[ml_index].v;
-				const bool vert_of_group = has_vgroup && dvert[mv_index].dw != NULL && dvert[mv_index].dw->def_nr == defgrp_index;
+				const bool vert_of_group = has_vgroup && defvert_find_index(&dvert[mv_index], defgrp_index) != NULL;
 
-				if ((vert_of_group ^ use_invert_vgroup) || !dvert) {
+				if (!has_vgroup || (vert_of_group && !use_invert_vgroup) || (!vert_of_group && use_invert_vgroup)) {
 					if (use_face_influence &&
 					    !check_strength(poly_strength[mp_index], &curr_vert_strength[mv_index],
 					                    &curr_vert_val[mv_index], &vert_loops_count[mv_index], &vert_normals[mv_index]))
@@ -281,9 +282,9 @@ static void apply_weights_vertex_normal(
 			float wnor[3];
 			const int ml_index = mode_pair[i].index;
 			const int mv_index = mloop[ml_index].v;
-			const bool vert_of_group = has_vgroup && dvert[mv_index].dw != NULL && dvert[mv_index].dw->def_nr == defgrp_index;
+			const bool vert_of_group = has_vgroup && defvert_find_index(&dvert[mv_index], defgrp_index) != NULL;
 
-			if ((vert_of_group ^ use_invert_vgroup) || !dvert) {
+			if (!has_vgroup || (vert_of_group && !use_invert_vgroup) || (!vert_of_group && use_invert_vgroup)) {
 				if (use_face_influence &&
 				    !check_strength(poly_strength[loop_to_poly[ml_index]], &curr_vert_strength[mv_index],
 				                    &curr_vert_val[mv_index], &vert_loops_count[mv_index], &vert_normals[mv_index]))
