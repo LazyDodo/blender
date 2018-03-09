@@ -2035,9 +2035,9 @@ enum {
 
 /* toolsettings->face_strength */
 enum {
-	FACE_STRENGTH_WEAK = 1,
+	FACE_STRENGTH_WEAK = -16384,
 	FACE_STRENGTH_MEDIUM = 0,
-	FACE_STRENGTH_STRONG = 2,
+	FACE_STRENGTH_STRONG = 16384,
 };
 
 /* object_vgroup.c */

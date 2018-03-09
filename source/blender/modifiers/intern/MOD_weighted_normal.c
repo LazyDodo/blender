@@ -134,9 +134,7 @@ static bool check_strength(WeightedNormalData *wn_data, const int mv_index, cons
 	int *vert_loops_count = wn_data->vert_loops_count;
 	float (*vert_normals)[3] = wn_data->vert_normals;
 
-	if ((mp_strength == FACE_STRENGTH_STRONG && curr_vert_strength[mv_index] != FACE_STRENGTH_STRONG) ||
-	    (mp_strength == FACE_STRENGTH_MEDIUM && curr_vert_strength[mv_index] == FACE_STRENGTH_WEAK))
-	{
+	if (mp_strength > curr_vert_strength[mv_index]) {
 		curr_vert_strength[mv_index] = mp_strength;
 		curr_vert_val[mv_index] = 0.0f;
 		vert_loops_count[mv_index] = 0;
