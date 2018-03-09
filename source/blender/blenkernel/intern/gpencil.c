@@ -591,7 +591,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->draw_random_sub = 0.0f;
 	copy_v3_v3(brush->curcolor, curcolor);
 	brush->icon_id = GPBRUSH_PENCIL;
-	brush->type = GP_BRUSH_TYPE_DRAW;
+	brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->lazy_radius = LAZY_RADIUS;
 	brush->lazy_factor = LAZY_FACTOR;
@@ -623,7 +623,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->draw_random_sub = 0.0f;
 	copy_v3_v3(brush->curcolor, curcolor);
 	brush->icon_id = GPBRUSH_PEN;
-	brush->type = GP_BRUSH_TYPE_DRAW;
+	brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->lazy_radius = LAZY_RADIUS;
 	brush->lazy_factor = LAZY_FACTOR;
@@ -653,7 +653,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->draw_random_sub = 0.0f;
 	copy_v3_v3(brush->curcolor, curcolor);
 	brush->icon_id = GPBRUSH_INK;
-	brush->type = GP_BRUSH_TYPE_DRAW;
+	brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->lazy_radius = LAZY_RADIUS;
 	brush->lazy_factor = LAZY_FACTOR;
@@ -689,7 +689,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->draw_random_sub = 0.0f;
 	copy_v3_v3(brush->curcolor, curcolor);
 	brush->icon_id = GPBRUSH_INKNOISE;
-	brush->type = GP_BRUSH_TYPE_DRAW;
+	brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->lazy_radius = LAZY_RADIUS;
 	brush->lazy_factor = LAZY_FACTOR;
@@ -726,7 +726,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->draw_random_sub = 0;
 	copy_v3_v3(brush->curcolor, curcolor);
 	brush->icon_id = GPBRUSH_BLOCK;
-	brush->type = GP_BRUSH_TYPE_DRAW;
+	brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->lazy_radius = LAZY_RADIUS;
 	brush->lazy_factor = LAZY_FACTOR;
@@ -756,7 +756,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->draw_random_sub = 0.0f;
 	copy_v3_v3(brush->curcolor, curcolor);
 	brush->icon_id = GPBRUSH_MARKER;
-	brush->type = GP_BRUSH_TYPE_DRAW;
+	brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->lazy_radius = LAZY_RADIUS;
 	brush->lazy_factor = LAZY_FACTOR;
@@ -770,7 +770,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->fill_threshold = 0.1f;
 	brush->fill_simplylvl = 1;
 	brush->icon_id = GPBRUSH_FILL;
-	brush->type = GP_BRUSH_TYPE_FILL;
+	brush->gpbrush_type = GP_BRUSH_TYPE_FILL;
 
 	brush->draw_smoothfac = 0.5f;
 	brush->draw_smoothlvl = 1;
@@ -789,7 +789,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->thickness = 30.0f;
 	brush->flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
 	brush->icon_id = GPBRUSH_ERASE_SOFT;
-	brush->type = GP_BRUSH_TYPE_ERASE;
+	brush->gpbrush_type = GP_BRUSH_TYPE_ERASE;
 	brush->eraser_mode = GP_BRUSH_ERASER_SOFT;
 	copy_v3_v3(brush->curcolor, curcolor);
 
@@ -798,7 +798,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->thickness = 30.0f;
 	brush->flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->icon_id = GPBRUSH_ERASE_HARD;
-	brush->type = GP_BRUSH_TYPE_ERASE;
+	brush->gpbrush_type = GP_BRUSH_TYPE_ERASE;
 	brush->eraser_mode = GP_BRUSH_ERASER_HARD;
 	copy_v3_v3(brush->curcolor, curcolor);
 
@@ -807,7 +807,7 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	brush->thickness = 30.0f;
 	brush->flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->icon_id = GPBRUSH_ERASE_STROKE;
-	brush->type = GP_BRUSH_TYPE_ERASE;
+	brush->gpbrush_type = GP_BRUSH_TYPE_ERASE;
 	brush->eraser_mode = GP_BRUSH_ERASER_STROKE;
 	copy_v3_v3(brush->curcolor, curcolor);
 }

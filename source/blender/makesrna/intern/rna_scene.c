@@ -552,7 +552,7 @@ static void rna_GPencil_brush_default_eraser(Main *UNUSED(bmain), Scene *scene, 
 
 	/* disable default eraser in all brushes */
 	for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
-		if ((brush != brush_cur) && (brush->type == GP_BRUSH_TYPE_ERASE)) {
+		if ((brush != brush_cur) && (brush->gpbrush_type == GP_BRUSH_TYPE_ERASE)) {
 			brush->flag &= ~GP_BRUSH_DEFAULT_ERASER;
 		}
 	}
@@ -723,10 +723,10 @@ static int gpencil_get_brush_icon(int type)
 		item_tmp.identifier = brush->info;
 		item_tmp.name = brush->info;
 		item_tmp.value = i;
-		if (brush->type == GP_BRUSH_TYPE_FILL) {
+		if (brush->gpbrush_type == GP_BRUSH_TYPE_FILL) {
 			item_tmp.icon = ICON_GPBRUSH_FILL;
 		}
-		else if(brush->type == GP_BRUSH_TYPE_ERASE) {
+		else if(brush->gpbrush_type == GP_BRUSH_TYPE_ERASE) {
 			switch (brush->eraser_mode) {
 				case GP_BRUSH_ERASER_SOFT:
 					item_tmp.icon = ICON_GPBRUSH_ERASE_SOFT;
@@ -2505,7 +2505,7 @@ static void rna_def_gpencil_brush(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Mode", "Mode to draw boundary limits");
 
 	prop = RNA_def_property(srna, "type", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "type");
+	RNA_def_property_enum_sdna(prop, NULL, "gpbrush_type");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_types_items);
 	RNA_def_property_ui_text(prop, "Type", "Category of the brush");
 

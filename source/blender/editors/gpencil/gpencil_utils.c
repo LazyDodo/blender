@@ -1387,7 +1387,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			}
 
 			/* eraser has special shape and use a different shader program */
-			if (paintbrush->type == GP_BRUSH_TYPE_ERASE) {
+			if (paintbrush->gpbrush_type == GP_BRUSH_TYPE_ERASE) {
 				ED_gpencil_brush_draw_eraser(C, paintbrush, x, y);
 				return;
 			}
@@ -1399,7 +1399,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			if ((palcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
 				((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 				((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-				(paintbrush->type == GP_BRUSH_TYPE_DRAW))
+				(paintbrush->gpbrush_type == GP_BRUSH_TYPE_DRAW))
 			{
 				radius = 2.0f;
 				copy_v3_v3(color, palcolor->rgb);
@@ -1441,7 +1441,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	if ((palcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
 		((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 		((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-		(paintbrush->type == GP_BRUSH_TYPE_DRAW))
+		(paintbrush->gpbrush_type == GP_BRUSH_TYPE_DRAW))
 	{
 		imm_draw_circle_fill_2d(pos, x, y, radius, 40);
 	}

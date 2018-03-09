@@ -1156,11 +1156,11 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 			ToolSettings *ts = scene->toolsettings;
 			for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
 				if (brush->flag & GP_BRUSH_FILL_ONLY) {
-					brush->type = GP_BRUSH_TYPE_FILL;
+					brush->gpbrush_type = GP_BRUSH_TYPE_FILL;
 					brush->flag &= ~GP_BRUSH_FILL_ONLY;
 				}
 				else {
-					brush->type = GP_BRUSH_TYPE_DRAW;
+					brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
 				}
 			}
 		}

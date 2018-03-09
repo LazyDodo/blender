@@ -1475,7 +1475,7 @@ static bGPDbrush *gp_get_default_eraser(ToolSettings *ts)
 {
 	bGPDbrush *brush_dft = NULL;
 	for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
-		if ((brush->type == GP_BRUSH_TYPE_ERASE)) {
+		if ((brush->gpbrush_type == GP_BRUSH_TYPE_ERASE)) {
 			/* save first eraser to use later if no default */
 			if (brush_dft == NULL) {
 				brush_dft = brush;
@@ -1498,7 +1498,7 @@ static bGPDbrush *gp_get_default_eraser(ToolSettings *ts)
 		brush_dft->thickness = 30.0f;
 		brush_dft->flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
 		brush_dft->icon_id = GPBRUSH_ERASE_SOFT;
-		brush_dft->type = GP_BRUSH_TYPE_ERASE;
+		brush_dft->gpbrush_type = GP_BRUSH_TYPE_ERASE;
 		brush_dft->eraser_mode = GP_BRUSH_ERASER_SOFT;
 
 		return brush_dft;
@@ -1527,7 +1527,7 @@ static void gp_init_drawing_brush(ToolSettings *ts, tGPsdata *p)
 
 	/* asign to temp tGPsdata */
 	p->brush = brush;
-	if (brush->type != GP_BRUSH_TYPE_ERASE) {
+	if (brush->gpbrush_type != GP_BRUSH_TYPE_ERASE) {
 		p->eraser = gp_get_default_eraser(ts);
 	}
 	else {
@@ -2202,7 +2202,7 @@ static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 	
 	/* if mode is draw and the brush is eraser, cancel */
 	if (paintmode != GP_PAINTMODE_ERASER) {
-		if ((brush) && (brush->type == GP_BRUSH_TYPE_ERASE)) {
+		if ((brush) && (brush->gpbrush_type == GP_BRUSH_TYPE_ERASE)) {
 			return 0;
 		}
 	}
@@ -2242,7 +2242,7 @@ static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 static void gpencil_draw_cursor_set(tGPsdata *p)
 {
 	bGPDbrush *brush = p->brush;
-	if ((p->paintmode == GP_PAINTMODE_ERASER) || (brush->type == GP_BRUSH_TYPE_ERASE)) {
+	if ((p->paintmode == GP_PAINTMODE_ERASER) || (brush->gpbrush_type == GP_BRUSH_TYPE_ERASE)) {
 		WM_cursor_modal_set(p->win, BC_CROSSCURSOR);  /* XXX need a better cursor */
 	}
 	else {
