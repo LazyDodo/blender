@@ -46,6 +46,8 @@
 #define INDEX_INVALID -1
 #define IS_EDGE_SHARP(_e2l) (ELEM((_e2l)[1], INDEX_UNSET, INDEX_INVALID))
 
+#define CLNORS_VALID_VEC_LEN (1e-4f)
+
 typedef struct ModePair {
 	float val;  /* Contains mode based value (face area / corner angle). */
 	int index;  /* Index value per poly or per loop. */
@@ -209,120 +211,134 @@ static void loop_split_worker(
 }
 
 static void apply_weights_vertex_normal(
-        WeightedNormalModifierData *wnmd, Object *UNUSED(ob), DerivedMesh *UNUSED(dm), short(*clnors)[2],
-        MVert *mvert, const int numVerts, MEdge *medge, const int numEdges, MLoop *mloop, const int numLoops,
-        MPoly *mpoly, const int numPoly, float(*polynors)[3], MDeformVert *dvert, int defgrp_index,
-        const bool use_invert_vgroup, const float weight, short mode, ModePair *mode_pair, int *strength)
+        WeightedNormalModifierData *wnmd,
+        MVert *mvert, const int numVerts,
+        MEdge *medge, const int numEdges,
+        MLoop *mloop, const int numLoops, short (*clnors)[2], int *loop_to_poly,
+        MPoly *mpoly, const int numPoly, float (*polynors)[3], int *poly_strength,
+        MDeformVert *dvert, const int defgrp_index, const bool use_invert_vgroup,
+        const float weight, short mode, ModePair *mode_pair)
 {
-	float(*custom_normal)[3] = MEM_callocN(sizeof(*custom_normal) * numVerts, __func__);
-	int *vertcount = MEM_callocN(sizeof(*vertcount) * numVerts, __func__);  /* Count number of loops using this vertex so far. */
-	float *cur_val = MEM_callocN(sizeof(*cur_val) * numVerts, __func__);  /* Current max val for this vertex. */
-	int *cur_strength = MEM_mallocN(sizeof(*cur_strength) * numVerts, __func__); /* Current max strength encountered for this vertex. */
-	int *loops_to_poly = MEM_mallocN(sizeof(*loops_to_poly) * numLoops, __func__);
-
-	for (int mp_index = 0; mp_index < numPoly; mp_index++) {
-		int ml_index = mpoly[mp_index].loopstart;
-		const int ml_index_end = ml_index + mpoly[mp_index].totloop;
-
-		for (; ml_index < ml_index_end; ml_index++) {
-			loops_to_poly[ml_index] = mp_index;
-		}
-	}
-	for (int i = 0; i < numVerts; i++) {
-		cur_strength[i] = FACE_STRENGTH_WEAK;
-	}
+	float (*vert_normals)[3] = MEM_callocN(sizeof(*vert_normals) * numVerts, __func__);
+	int *vert_loops_count = MEM_callocN(sizeof(*vert_loops_count) * numVerts, __func__);  /* Count number of loops using this vertex so far. */
+	float *curr_vert_val = MEM_callocN(sizeof(*curr_vert_val) * numVerts, __func__);  /* Current max val for this vertex. */
+	int *curr_vert_strength = NULL;  /* Current max strength encountered for this vertex. */
 
 	const bool keep_sharp = (wnmd->flag & MOD_WEIGHTEDNORMAL_KEEP_SHARP) != 0;
-	const bool face_influence = (wnmd->flag & MOD_WEIGHTEDNORMAL_FACE_INFLUENCE) != 0;
+	const bool use_face_influence = (wnmd->flag & MOD_WEIGHTEDNORMAL_FACE_INFLUENCE) != 0 && poly_strength != NULL;
 	const bool has_vgroup = dvert != NULL;
+
+	if (use_face_influence) {
+		curr_vert_strength = MEM_mallocN(sizeof(*curr_vert_strength) * numVerts, __func__);
+		for (int i = 0; i < numVerts; i++) {
+			curr_vert_strength[i] = FACE_STRENGTH_WEAK;
+		}
+	}
 
 	if (mode == MOD_WEIGHTEDNORMAL_MODE_FACE) {
 		for (int i = 0; i < numPoly; i++) {  /* Iterate through each pair in descending order. */
-			int ml_index = mpoly[mode_pair[i].index].loopstart;
-			const int ml_index_end = ml_index + mpoly[mode_pair[i].index].totloop;
+			const int mp_index = mode_pair[i].index;
+			int ml_index = mpoly[mp_index].loopstart;
+			const int ml_index_end = ml_index + mpoly[mp_index].totloop;
 
 			for (; ml_index < ml_index_end; ml_index++) {
-				int mv_index = mloop[ml_index].v;
+				const int mv_index = mloop[ml_index].v;
 				const bool vert_of_group = has_vgroup && dvert[mv_index].dw != NULL && dvert[mv_index].dw->def_nr == defgrp_index;
 
 				if ((vert_of_group ^ use_invert_vgroup) || !dvert) {
+					if (use_face_influence &&
+					    !check_strength(poly_strength[mp_index], &curr_vert_strength[mv_index],
+					                    &curr_vert_val[mv_index], &vert_loops_count[mv_index], &vert_normals[mv_index]))
+					{
+						continue;
+					}
+
+					const float mp_val = mode_pair[i].val;
 					float wnor[3];
-					bool do_loop = true;
 
-					if (face_influence && strength) {
-						do_loop = check_strength(strength[mode_pair[i].index], &cur_strength[mv_index], 
-						                         &cur_val[mv_index], &vertcount[mv_index], &custom_normal[mv_index]);
+					if (curr_vert_val[mv_index] == 0.0f) {  /* If cur_val is 0 init it to present value. */
+						curr_vert_val[mv_index] = mp_val;
 					}
-					if (do_loop) {
-						if (!cur_val[mv_index]) {  /* If cur_val is 0 init it to present value. */
-							cur_val[mv_index] = mode_pair[i].val;
-						}
-						if (!compare_ff(cur_val[mv_index], mode_pair[i].val, wnmd->thresh)) {
-							vertcount[mv_index]++;  /* cur_val and present value differ more than threshold, update. */
-							cur_val[mv_index] = mode_pair[i].val;
-						}
-						float n_weight = pow(weight, vertcount[mv_index]);  /* Exponentially divided weight for each normal. */
+					if (!compare_ff(curr_vert_val[mv_index], mp_val, wnmd->thresh)) {
+						vert_loops_count[mv_index]++;  /* cur_val and present value differ more than threshold, update. */
+						curr_vert_val[mv_index] = mp_val;
+					}
 
-						copy_v3_v3(wnor, polynors[mode_pair[i].index]);
-						mul_v3_fl(wnor, mode_pair[i].val * (1.0f / n_weight));
-						add_v3_v3(custom_normal[mv_index], wnor);
-					}
+					/* Exponentially divided weight for each normal. */
+					const float invert_n_weight = 1.0f / powf(weight, vert_loops_count[mv_index]);
+
+					copy_v3_v3(wnor, polynors[mp_index]);
+					mul_v3_fl(wnor, mp_val * invert_n_weight);
+					add_v3_v3(vert_normals[mv_index], wnor);
 				}
 			}
 		}
 	}
 	else if (ELEM(mode, MOD_WEIGHTEDNORMAL_MODE_ANGLE, MOD_WEIGHTEDNORMAL_MODE_FACE_ANGLE)) {
+		BLI_assert(loop_to_poly != NULL);
+
 		for (int i = 0; i < numLoops; i++) {
 			float wnor[3];
-			int ml_index = mode_pair[i].index;
-			int mv_index = mloop[ml_index].v;
+			const int ml_index = mode_pair[i].index;
+			const int mv_index = mloop[ml_index].v;
 			const bool vert_of_group = has_vgroup && dvert[mv_index].dw != NULL && dvert[mv_index].dw->def_nr == defgrp_index;
 
 			if ((vert_of_group ^ use_invert_vgroup) || !dvert) {
-				bool do_loop = true;
-
-				if (face_influence && strength) {
-					do_loop = check_strength(strength[loops_to_poly[ml_index]], &cur_strength[mv_index],
-					                         &cur_val[mv_index], &vertcount[mv_index], &custom_normal[mv_index]);
+				if (use_face_influence &&
+				    !check_strength(poly_strength[loop_to_poly[ml_index]], &curr_vert_strength[mv_index],
+				                    &curr_vert_val[mv_index], &vert_loops_count[mv_index], &vert_normals[mv_index]))
+				{
+					continue;
 				}
-				if (do_loop) {
-					if (!cur_val[mv_index]) {
-						cur_val[mv_index] = mode_pair[i].val;
-					}
-					if (!compare_ff(cur_val[mv_index], mode_pair[i].val, wnmd->thresh)) {
-						vertcount[mv_index]++;
-						cur_val[mv_index] = mode_pair[i].val;
-					}
-					float n_weight = pow(weight, vertcount[mv_index]);
 
-					copy_v3_v3(wnor, polynors[loops_to_poly[ml_index]]);
-					mul_v3_fl(wnor, mode_pair[i].val * (1.0f / n_weight));
-					add_v3_v3(custom_normal[mv_index], wnor);
+				const float ml_val = mode_pair[i].val;
+				if (!curr_vert_val[mv_index]) {
+					curr_vert_val[mv_index] = ml_val;
 				}
+				if (!compare_ff(curr_vert_val[mv_index], ml_val, wnmd->thresh)) {
+					vert_loops_count[mv_index]++;
+					curr_vert_val[mv_index] = ml_val;
+				}
+				const float invert_n_weight = 1.0f / powf(weight, vert_loops_count[mv_index]);
+
+				copy_v3_v3(wnor, polynors[loop_to_poly[ml_index]]);
+				mul_v3_fl(wnor, ml_val * invert_n_weight);
+				add_v3_v3(vert_normals[mv_index], wnor);
 			}
 		}
 	}
 	for (int mv_index = 0; mv_index < numVerts; mv_index++) {
-		normalize_v3(custom_normal[mv_index]);
+		if (normalize_v3(vert_normals[mv_index]) < CLNORS_VALID_VEC_LEN) {
+			zero_v3(vert_normals[mv_index]);
+		}
 	}
 
 	if (!keep_sharp && !has_vgroup) {
-		BKE_mesh_normals_loop_custom_from_vertices_set(mvert, custom_normal, numVerts, medge, numEdges,
+		BKE_mesh_normals_loop_custom_from_vertices_set(mvert, vert_normals, numVerts, medge, numEdges,
 		                                               mloop, numLoops, mpoly, polynors, numPoly, clnors);
 	}
 	else {
-		float(*loop_normal)[3] = MEM_callocN(sizeof(*loop_normal) * numLoops, "__func__");
+		float (*loop_normal)[3] = MEM_callocN(sizeof(*loop_normal) * numLoops, "__func__");
+		int *loop_to_poly_mem = NULL;
+
+		/* We need loop to poly mapping at this stage, but conviniently BKE_mesh_normals_loop_split
+		 * will generate it for us if we don't have it yet. */
+		if (loop_to_poly == NULL) {
+			loop_to_poly_mem = MEM_malloc_arrayN((size_t)numLoops, sizeof(*loop_to_poly_mem), __func__);
+			loop_to_poly = loop_to_poly_mem;
+		}
 
 		BKE_mesh_normals_loop_split(mvert, numVerts, medge, numEdges, mloop, loop_normal, numLoops, mpoly, polynors,
-		                            numPoly, true, (float)M_PI, NULL, clnors, loops_to_poly);
+		                            numPoly, true, (float)M_PI, NULL, clnors, loop_to_poly);
 
 		for (int mp_index = 0; mp_index < numPoly; mp_index++) {
-			int ml_index = mpoly[mp_index].loopstart;
+			const int ml_index = mpoly[mp_index].loopstart;
 			const int ml_index_end = ml_index + mpoly[mp_index].totloop;
 
 			for (int i = ml_index; i < ml_index_end; i++) {
-				if (!is_zero_v3(custom_normal[mloop[i].v])) {
-					copy_v3_v3(loop_normal[i], custom_normal[mloop[i].v]);
+				const int mv_index = mloop[i].v;
+				if (!is_zero_v3(vert_normals[mv_index])) {
+					copy_v3_v3(loop_normal[i], vert_normals[mv_index]);
 				}
 			}
 		}
@@ -381,13 +397,13 @@ static void apply_weights_vertex_normal(
 					if (IS_EDGE_SHARP(e2l_curr)) {
 						if (IS_EDGE_SHARP(e2l_curr) && IS_EDGE_SHARP(e2l_prev)) {
 							loop_split_worker(wnmd, mode_pair, ml_curr, ml_prev, ml_curr_index, -1, NULL,
-							                  mp_index, loop_normal, loops_to_poly, polynors, medge, mloop, mpoly,
-							                  edge_to_loops, weight, strength);
+							                  mp_index, loop_normal, loop_to_poly, polynors, medge, mloop, mpoly,
+							                  edge_to_loops, weight, poly_strength);
 						}
 						else {
 							loop_split_worker(wnmd, mode_pair, ml_curr, ml_prev, ml_curr_index, ml_prev_index, e2l_prev,
-							                  mp_index, loop_normal, loops_to_poly, polynors, medge, mloop, mpoly,
-							                  edge_to_loops, weight, strength);
+							                  mp_index, loop_normal, loop_to_poly, polynors, medge, mloop, mpoly,
+							                  edge_to_loops, weight, poly_strength);
 						}
 					}
 					ml_prev = ml_curr;
@@ -398,21 +414,24 @@ static void apply_weights_vertex_normal(
 		}
 		BKE_mesh_normals_loop_custom_set(mvert, numVerts, medge, numEdges,
 		                                 mloop, loop_normal, numLoops, mpoly, polynors, numPoly, clnors);
+
+		MEM_SAFE_FREE(loop_to_poly_mem);
 		MEM_freeN(loop_normal);
 	}
 
-	MEM_freeN(loops_to_poly);
-	MEM_freeN(cur_strength);
-	MEM_freeN(vertcount);
-	MEM_freeN(cur_val);
-	MEM_freeN(custom_normal);
+	MEM_SAFE_FREE(curr_vert_strength);
+	MEM_freeN(vert_loops_count);
+	MEM_freeN(curr_vert_val);
+	MEM_freeN(vert_normals);
 }
 
 static void wn_face_area(
-        WeightedNormalModifierData *wnmd, Object *ob, DerivedMesh *dm, short (*clnors)[2],
-        MVert *mvert, const int numVerts, MEdge *medge, const int numEdges, MLoop *mloop, const int numLoops,
-        MPoly *mpoly, const int numPoly, float (*polynors)[3],
-        MDeformVert *dvert, int defgrp_index, const bool use_invert_vgroup, const float weight, int *strength)
+        WeightedNormalModifierData *wnmd,
+        MVert *mvert, const int numVerts,
+        MEdge *medge, const int numEdges,
+        MLoop *mloop, const int numLoops, short (*clnors)[2],
+        MPoly *mpoly, const int numPoly, float (*polynors)[3], int *poly_strength,
+        MDeformVert *dvert, const int defgrp_index, const bool use_invert_vgroup, const float weight)
 {
 	MPoly *mp;
 	int mp_index;
@@ -426,21 +445,29 @@ static void wn_face_area(
 	}
 
 	qsort(face_area, numPoly, sizeof(*face_area), modepair_cmp_by_val_inverse);
-	apply_weights_vertex_normal(wnmd, ob, dm, clnors, mvert, numVerts, medge, numEdges, mloop, numLoops,
-	                            mpoly, numPoly, polynors, dvert, defgrp_index, use_invert_vgroup,
-	                            weight, MOD_WEIGHTEDNORMAL_MODE_FACE, face_area, strength);
+	apply_weights_vertex_normal(wnmd,
+	                            mvert, numVerts,
+	                            medge, numEdges,
+	                            mloop, numLoops, clnors, NULL,
+	                            mpoly, numPoly, polynors, poly_strength,
+	                            dvert, defgrp_index, use_invert_vgroup,
+	                            weight, MOD_WEIGHTEDNORMAL_MODE_FACE, face_area);
 
 	MEM_freeN(face_area);
 }
 
 static void wn_corner_angle(
-        WeightedNormalModifierData *wnmd, Object *ob, DerivedMesh *dm, short(*clnors)[2],
-        MVert *mvert, const int numVerts, MEdge *medge, const int numEdges, MLoop *mloop, const int numLoops,
-        MPoly *mpoly, const int numPoly, float (*polynors)[3],
-        MDeformVert *dvert, int defgrp_index, const bool use_invert_vgroup, const float weight, int *strength)
+        WeightedNormalModifierData *wnmd,
+        MVert *mvert, const int numVerts,
+        MEdge *medge, const int numEdges,
+        MLoop *mloop, const int numLoops, short (*clnors)[2],
+        MPoly *mpoly, const int numPoly, float (*polynors)[3], int *poly_strength,
+        MDeformVert *dvert, const int defgrp_index, const bool use_invert_vgroup, const float weight)
 {
 	MPoly *mp;
 	int mp_index;
+
+	int *loop_to_poly = MEM_malloc_arrayN((size_t)numLoops, sizeof(*loop_to_poly), __func__);
 
 	ModePair *corner_angle = MEM_mallocN(sizeof(*corner_angle) * numLoops, __func__);
 
@@ -455,26 +482,37 @@ static void wn_corner_angle(
 		for (int ml_index = mp->loopstart; ml_index < mp->loopstart + mp->totloop; ml_index++, c_angl++, angl++) {
 			c_angl->val = (float)M_PI - *angl;
 			c_angl->index = ml_index;
+
+			loop_to_poly[ml_index] = mp_index;
 		}
 		MEM_freeN(index_angle);
 	}
 
 	qsort(corner_angle, numLoops, sizeof(*corner_angle), modepair_cmp_by_val_inverse);
-	apply_weights_vertex_normal(wnmd, ob, dm, clnors, mvert, numVerts, medge, numEdges, mloop, numLoops,
-	                            mpoly, numPoly, polynors, dvert, defgrp_index, use_invert_vgroup,
-	                            weight, MOD_WEIGHTEDNORMAL_MODE_ANGLE, corner_angle, strength);
+	apply_weights_vertex_normal(wnmd,
+	                            mvert, numVerts,
+	                            medge, numEdges,
+	                            mloop, numLoops, clnors, loop_to_poly,
+	                            mpoly, numPoly, polynors, poly_strength,
+	                            dvert, defgrp_index, use_invert_vgroup,
+	                            weight, MOD_WEIGHTEDNORMAL_MODE_ANGLE, corner_angle);
 
 	MEM_freeN(corner_angle);
+	MEM_freeN(loop_to_poly);
 }
 
 static void wn_face_with_angle(
-        WeightedNormalModifierData *wnmd, Object *ob, DerivedMesh *dm, short(*clnors)[2],
-        MVert *mvert, const int numVerts, MEdge *medge, const int numEdges, MLoop *mloop, const int numLoops,
-        MPoly *mpoly, const int numPoly, float(*polynors)[3],
-        MDeformVert *dvert, int defgrp_index, const bool use_invert_vgroup, const float weight, int *strength)
+        WeightedNormalModifierData *wnmd,
+        MVert *mvert, const int numVerts,
+        MEdge *medge, const int numEdges,
+        MLoop *mloop, const int numLoops, short (*clnors)[2],
+        MPoly *mpoly, const int numPoly, float (*polynors)[3], int *poly_strength,
+        MDeformVert *dvert, const int defgrp_index, const bool use_invert_vgroup, const float weight)
 {
 	MPoly *mp;
 	int mp_index;
+
+	int *loop_to_poly = MEM_malloc_arrayN((size_t)numLoops, sizeof(*loop_to_poly), __func__);
 
 	ModePair *combined = MEM_mallocN(sizeof(*combined) * numLoops, __func__);
 
@@ -491,15 +529,22 @@ static void wn_face_with_angle(
 			/* In this case val is product of corner angle and face area. */
 			cmbnd->val = ((float)M_PI - *angl) * face_area;
 			cmbnd->index = ml_index;
+
+			loop_to_poly[ml_index] = mp_index;
 		}
 		MEM_freeN(index_angle);
 	}
 
 	qsort(combined, numLoops, sizeof(*combined), modepair_cmp_by_val_inverse);
-	apply_weights_vertex_normal(wnmd, ob, dm, clnors, mvert, numVerts, medge, numEdges, mloop, numLoops,
-	                            mpoly, numPoly, polynors, dvert, defgrp_index, use_invert_vgroup,
-	                            weight, MOD_WEIGHTEDNORMAL_MODE_FACE_ANGLE, combined, strength);
+	apply_weights_vertex_normal(wnmd,
+	                            mvert, numVerts,
+	                            medge, numEdges,
+	                            mloop, numLoops, clnors, loop_to_poly,
+	                            mpoly, numPoly, polynors, poly_strength,
+	                            dvert, defgrp_index, use_invert_vgroup,
+	                            weight, MOD_WEIGHTEDNORMAL_MODE_FACE_ANGLE, combined);
 
+	MEM_freeN(loop_to_poly);
 	MEM_freeN(combined);
 }
 
@@ -529,6 +574,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 	const bool use_invert_vgroup = (wnmd->flag & MOD_WEIGHTEDNORMAL_INVERT_VGROUP) != 0;
 	bool free_polynors = false;
 
+	/* Add some comment here about why this is needed? */
 	float weight = ((float)wnmd->weight) / 50.0f;
 	if (wnmd->weight == 100) {
 		weight = (float)SHRT_MAX;
@@ -554,22 +600,34 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 		clnors = dm->getLoopDataArray(dm, CD_CUSTOMLOOPNORMAL);
 	}
 
-	int *strength = CustomData_get_layer_named(&dm->polyData, CD_PROP_INT, MOD_WEIGHTEDNORMALS_FACEWEIGHT_CDLAYER_ID);
+	int *poly_strength = CustomData_get_layer_named(&dm->polyData, CD_PROP_INT, MOD_WEIGHTEDNORMALS_FACEWEIGHT_CDLAYER_ID);
 
 	modifier_get_vgroup(ob, dm, wnmd->defgrp_name, &dvert, &defgrp_index);
 
 	switch (wnmd->mode) {
 		case MOD_WEIGHTEDNORMAL_MODE_FACE:
-			wn_face_area(wnmd, ob, dm, clnors, mvert, numVerts, medge, numEdges, mloop, numLoops,
-			             mpoly, numPoly, polynors, dvert, defgrp_index, use_invert_vgroup, weight, strength);
+			wn_face_area(wnmd,
+			             mvert, numVerts,
+			             medge, numEdges,
+			             mloop, numLoops, clnors,
+			             mpoly, numPoly, polynors, poly_strength,
+			             dvert, defgrp_index, use_invert_vgroup, weight);
 			break;
 		case MOD_WEIGHTEDNORMAL_MODE_ANGLE:
-			wn_corner_angle(wnmd, ob, dm, clnors, mvert, numVerts, medge, numEdges, mloop, numLoops,
-			                mpoly, numPoly, polynors, dvert, defgrp_index, use_invert_vgroup, weight, strength);
+			wn_corner_angle(wnmd,
+			                mvert, numVerts,
+			                medge, numEdges,
+			                mloop, numLoops, clnors,
+			                mpoly, numPoly, polynors, poly_strength,
+			                dvert, defgrp_index, use_invert_vgroup, weight);
 			break;
 		case MOD_WEIGHTEDNORMAL_MODE_FACE_ANGLE:
-			wn_face_with_angle(wnmd, ob, dm, clnors, mvert, numVerts, medge, numEdges, mloop, numLoops,
-			                   mpoly, numPoly, polynors, dvert, defgrp_index, use_invert_vgroup, weight, strength);
+			wn_face_with_angle(wnmd,
+			                   mvert, numVerts,
+			                   medge, numEdges,
+			                   mloop, numLoops, clnors,
+			                   mpoly, numPoly, polynors, poly_strength,
+			                   dvert, defgrp_index, use_invert_vgroup, weight);
 			break;
 	}
 
