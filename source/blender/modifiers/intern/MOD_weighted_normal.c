@@ -276,7 +276,7 @@ static void loop_split_worker(
 			e2lfan_curr = edge_to_loops[mlfan_curr->e];
 		}
 
-		int *index = MEM_mallocN(sizeof(*index) * BLI_stack_count(loop_index), __func__);
+		int *index = MEM_malloc_arrayN((size_t)BLI_stack_count(loop_index), sizeof(*index), __func__);
 		int cur = 0;
 		while (!BLI_stack_is_empty(loop_index)) {
 			BLI_stack_pop(loop_index, &index[cur]);
@@ -366,9 +366,9 @@ static void apply_weights_vertex_normal(WeightedNormalModifierData *wnmd, Weight
 	const short mode = wn_data->mode;
 	ModePair *mode_pair = wn_data->mode_pair;
 
-	float (*vert_normals)[3] = MEM_callocN(sizeof(*vert_normals) * numVerts, __func__);
-	int *vert_loops_count = MEM_callocN(sizeof(*vert_loops_count) * numVerts, __func__);
-	float *curr_vert_val = MEM_callocN(sizeof(*curr_vert_val) * numVerts, __func__);
+	float (*vert_normals)[3] = MEM_calloc_arrayN((size_t)numVerts, sizeof(*vert_normals), __func__);
+	int *vert_loops_count = MEM_calloc_arrayN((size_t)numVerts, sizeof(*vert_loops_count), __func__);
+	float *curr_vert_val = MEM_calloc_arrayN((size_t)numVerts, sizeof(*curr_vert_val), __func__);
 	int *curr_vert_strength = NULL;
 
 	const bool keep_sharp = (wnmd->flag & MOD_WEIGHTEDNORMAL_KEEP_SHARP) != 0;
@@ -376,7 +376,7 @@ static void apply_weights_vertex_normal(WeightedNormalModifierData *wnmd, Weight
 	const bool has_vgroup = dvert != NULL;
 
 	if (use_face_influence) {
-		curr_vert_strength = MEM_mallocN(sizeof(*curr_vert_strength) * numVerts, __func__);
+		curr_vert_strength = MEM_malloc_arrayN((size_t)numVerts, sizeof(*curr_vert_strength), __func__);
 		for (int i = 0; i < numVerts; i++) {
 			curr_vert_strength[i] = FACE_STRENGTH_WEAK;
 		}
@@ -431,7 +431,7 @@ static void apply_weights_vertex_normal(WeightedNormalModifierData *wnmd, Weight
 		                                               mloop, numLoops, mpoly, polynors, numPolys, clnors);
 	}
 	else {
-		float (*loop_normal)[3] = MEM_callocN(sizeof(*loop_normal) * numLoops, "__func__");
+		float (*loop_normal)[3] = MEM_calloc_arrayN((size_t)numLoops, sizeof(*loop_normal), "__func__");
 		int *loop_to_poly_mem = NULL;
 
 		/* We need loop to poly mapping at this stage, but conviniently BKE_mesh_normals_loop_split
@@ -457,7 +457,7 @@ static void apply_weights_vertex_normal(WeightedNormalModifierData *wnmd, Weight
 		}
 
 		if (keep_sharp) {
-			int (*edge_to_loops)[2] = MEM_callocN(sizeof(*edge_to_loops) * numEdges, __func__);
+			int (*edge_to_loops)[2] = MEM_calloc_arrayN((size_t)numEdges, sizeof(*edge_to_loops), __func__);
 
 			if (wnmd->mode == MOD_WEIGHTEDNORMAL_MODE_FACE) {
 				qsort(mode_pair, numPolys, sizeof(*mode_pair), modepair_cmp_by_index);
@@ -541,7 +541,7 @@ static void wn_face_area(WeightedNormalModifierData *wnmd, WeightedNormalData *w
 	MPoly *mp;
 	int mp_index;
 
-	ModePair *face_area = MEM_mallocN(sizeof(*face_area) * numPolys, __func__);
+	ModePair *face_area = MEM_malloc_arrayN((size_t)numPolys, sizeof(*face_area), __func__);
 
 	ModePair *f_area = face_area;
 	for (mp_index = 0, mp = mpoly; mp_index < numPolys; mp_index++, mp++, f_area++) {
@@ -569,12 +569,12 @@ static void wn_corner_angle(WeightedNormalModifierData *wnmd, WeightedNormalData
 
 	int *loop_to_poly = MEM_malloc_arrayN((size_t)numLoops, sizeof(*loop_to_poly), __func__);
 
-	ModePair *corner_angle = MEM_mallocN(sizeof(*corner_angle) * numLoops, __func__);
+	ModePair *corner_angle = MEM_malloc_arrayN((size_t)numLoops, sizeof(*corner_angle), __func__);
 
 	for (mp_index = 0, mp = mpoly; mp_index < numPolys; mp_index++, mp++) {
 		MLoop *ml_start = &mloop[mp->loopstart];
 
-		float *index_angle = MEM_mallocN(sizeof(*index_angle) * mp->totloop, __func__);
+		float *index_angle = MEM_malloc_arrayN((size_t)mp->totloop, sizeof(*index_angle), __func__);
 		BKE_mesh_calc_poly_angles(mp, ml_start, mvert, index_angle);
 
 		ModePair *c_angl = &corner_angle[mp->loopstart];
@@ -609,13 +609,13 @@ static void wn_face_with_angle(WeightedNormalModifierData *wnmd, WeightedNormalD
 
 	int *loop_to_poly = MEM_malloc_arrayN((size_t)numLoops, sizeof(*loop_to_poly), __func__);
 
-	ModePair *combined = MEM_mallocN(sizeof(*combined) * numLoops, __func__);
+	ModePair *combined = MEM_malloc_arrayN((size_t)numLoops, sizeof(*combined), __func__);
 
 	for (mp_index = 0, mp = mpoly; mp_index < numPolys; mp_index++, mp++) {
 		MLoop *ml_start = &mloop[mp->loopstart];
 
 		float face_area = BKE_mesh_calc_poly_area(mp, ml_start, mvert);
-		float *index_angle = MEM_mallocN(sizeof(*index_angle) * mp->totloop, __func__);
+		float *index_angle = MEM_malloc_arrayN((size_t)mp->totloop, sizeof(*index_angle), __func__);
 		BKE_mesh_calc_poly_angles(mp, ml_start, mvert, index_angle);
 
 		ModePair *cmbnd = &combined[mp->loopstart];
@@ -674,7 +674,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 
 	float (*polynors)[3] = dm->getPolyDataArray(dm, CD_NORMAL);
 	if (!polynors) {
-		polynors = MEM_mallocN(sizeof(*polynors) * numPolys, __func__);
+		polynors = MEM_malloc_arrayN((size_t)numPolys, sizeof(*polynors), __func__);
 		BKE_mesh_calc_normals_poly(mvert, NULL, numVerts, mloop, mpoly, numLoops, numPolys, polynors, false);
 		free_polynors = true;
 	}
