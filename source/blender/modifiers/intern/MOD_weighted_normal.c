@@ -414,11 +414,15 @@ static void wn_face_area(
         MPoly *mpoly, const int numPoly, float (*polynors)[3],
         MDeformVert *dvert, int defgrp_index, const bool use_invert_vgroup, const float weight, int *strength)
 {
+	MPoly *mp;
+	int mp_index;
+
 	ModePair *face_area = MEM_mallocN(sizeof(*face_area) * numPoly, __func__);
 
-	for (int mp_index = 0; mp_index < numPoly; mp_index++) {
-		face_area[mp_index].val = BKE_mesh_calc_poly_area(&mpoly[mp_index], &mloop[mpoly[mp_index].loopstart], mvert);
-		face_area[mp_index].index = mp_index;
+	ModePair *f_area = face_area;
+	for (mp_index = 0, mp = mpoly; mp_index < numPoly; mp_index++, mp++, f_area++) {
+		f_area->val = BKE_mesh_calc_poly_area(mp, &mloop[mp->loopstart], mvert);
+		f_area->index = mp_index;
 	}
 
 	qsort(face_area, numPoly, sizeof(*face_area), modepair_cmp_by_val_inverse);
@@ -435,16 +439,22 @@ static void wn_corner_angle(
         MPoly *mpoly, const int numPoly, float (*polynors)[3],
         MDeformVert *dvert, int defgrp_index, const bool use_invert_vgroup, const float weight, int *strength)
 {
+	MPoly *mp;
+	int mp_index;
+
 	ModePair *corner_angle = MEM_mallocN(sizeof(*corner_angle) * numLoops, __func__);
 
-	for (int mp_index = 0; mp_index < numPoly; mp_index++) {
-		int l_start = mpoly[mp_index].loopstart;
-		float *index_angle = MEM_mallocN(sizeof(*index_angle) * mpoly[mp_index].totloop, __func__);
-		BKE_mesh_calc_poly_angles(&mpoly[mp_index], &mloop[l_start], mvert, index_angle);
+	for (mp_index = 0, mp = mpoly; mp_index < numPoly; mp_index++, mp++) {
+		MLoop *ml_start = &mloop[mp->loopstart];
 
-		for (int i = l_start; i < l_start + mpoly[mp_index].totloop; i++) {
-			corner_angle[i].val = (float)M_PI - index_angle[i - l_start];
-			corner_angle[i].index = i; 
+		float *index_angle = MEM_mallocN(sizeof(*index_angle) * mp->totloop, __func__);
+		BKE_mesh_calc_poly_angles(mp, ml_start, mvert, index_angle);
+
+		ModePair *c_angl = &corner_angle[mp->loopstart];
+		float *angl = index_angle;
+		for (int ml_index = mp->loopstart; ml_index < mp->loopstart + mp->totloop; ml_index++, c_angl++, angl++) {
+			c_angl->val = (float)M_PI - *angl;
+			c_angl->index = ml_index;
 		}
 		MEM_freeN(index_angle);
 	}
@@ -463,19 +473,24 @@ static void wn_face_with_angle(
         MPoly *mpoly, const int numPoly, float(*polynors)[3],
         MDeformVert *dvert, int defgrp_index, const bool use_invert_vgroup, const float weight, int *strength)
 {
+	MPoly *mp;
+	int mp_index;
+
 	ModePair *combined = MEM_mallocN(sizeof(*combined) * numLoops, __func__);
 
-	for (int mp_index = 0; mp_index < numPoly; mp_index++) {
-		int l_start = mpoly[mp_index].loopstart;
-		float face_area = BKE_mesh_calc_poly_area(&mpoly[mp_index], &mloop[l_start], mvert);
-		float *index_angle = MEM_mallocN(sizeof(*index_angle) * mpoly[mp_index].totloop, __func__);
+	for (mp_index = 0, mp = mpoly; mp_index < numPoly; mp_index++, mp++) {
+		MLoop *ml_start = &mloop[mp->loopstart];
 
-		BKE_mesh_calc_poly_angles(&mpoly[mp_index], &mloop[l_start], mvert, index_angle);
+		float face_area = BKE_mesh_calc_poly_area(mp, ml_start, mvert);
+		float *index_angle = MEM_mallocN(sizeof(*index_angle) * mp->totloop, __func__);
+		BKE_mesh_calc_poly_angles(mp, ml_start, mvert, index_angle);
 
-		for (int i = l_start; i < l_start + mpoly[mp_index].totloop; i++) {
+		ModePair *cmbnd = &combined[mp->loopstart];
+		float *angl = index_angle;
+		for (int ml_index = mp->loopstart; ml_index < mp->loopstart + mp->totloop; ml_index++, cmbnd++, angl++) {
 			/* In this case val is product of corner angle and face area. */
-			combined[i].val = ((float)M_PI - index_angle[i - l_start]) * face_area;
-			combined[i].index = i;
+			cmbnd->val = ((float)M_PI - *angl) * face_area;
+			cmbnd->index = ml_index;
 		}
 		MEM_freeN(index_angle);
 	}
@@ -515,7 +530,6 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 	bool free_polynors = false;
 
 	float weight = ((float)wnmd->weight) / 50.0f;
-
 	if (wnmd->weight == 100) {
 		weight = (float)SHRT_MAX;
 	}
@@ -527,7 +541,6 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 	}
 
 	float (*polynors)[3] = dm->getPolyDataArray(dm, CD_NORMAL);
-
 	if (!polynors) {
 		polynors = MEM_mallocN(sizeof(*polynors) * numPoly, __func__);
 		BKE_mesh_calc_normals_poly(mvert, NULL, numVerts, mloop, mpoly, numLoops, numPoly, polynors, false);
