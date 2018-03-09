@@ -2749,12 +2749,12 @@ static void gpencil_move_last_stroke_to_back(bContext *C)
 static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEvent *event, tGPsdata *p)
 {
 	bGPDbrush *brush = p->brush;
-	if (brush->input_samples == 0) {
+	if (brush->gp_input_samples == 0) {
 		return;
 	}
 	RegionView3D *rv3d = p->ar->regiondata;
 	float defaultpixsize = rv3d->pixsize * 1000.0f;
-	int samples = (GP_MAX_INPUT_SAMPLES - brush->input_samples + 1);
+	int samples = (GP_MAX_INPUT_SAMPLES - brush->gp_input_samples + 1);
 	float thickness = (float)brush->thickness;
 
 	float pt[2], a[2], b[2];

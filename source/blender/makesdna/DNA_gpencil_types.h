@@ -138,7 +138,7 @@ typedef struct bGPDbrush {
 	float lazy_factor;        /* factor of smooth */
 	
 	float uv_random;          /* random factor for UV rotation */
-	int   input_samples;      /* maximum distance before generate new point for very fast mouse movements */
+	int   gp_input_samples;   /* maximum distance before generate new point for very fast mouse movements */
 	int   gpbrush_type;       /* type of brush (draw, fill, erase, etc..) */
 	int   eraser_mode;        /* soft, hard or stroke */
 	float active_smooth;      /* smooth while drawing factor */
