@@ -49,6 +49,8 @@ void DRW_select_load_id(unsigned int id)
 }
 #endif
 
+struct GPUUniformBuffer *view_ubo;
+
 /* -------------------------------------------------------------------- */
 
 /** \name Draw State (DRW_state)
@@ -364,10 +366,10 @@ void DRW_state_invert_facing(void)
  * and if the shaders have support for it (see usage of gl_ClipDistance).
  * Be sure to call DRW_state_clip_planes_reset() after you finish drawing.
  **/
-void DRW_state_clip_planes_add(float plane_eq[4])
+void DRW_state_clip_planes_count_set(unsigned int plane_ct)
 {
-	BLI_assert(DST.num_clip_planes < MAX_CLIP_PLANES-1);
-	copy_v4_v4(DST.view_data.clip_planes_eq[DST.num_clip_planes++], plane_eq);
+	BLI_assert(plane_ct <= MAX_CLIP_PLANES);
+	DST.num_clip_planes = plane_ct;
 }
 
 void DRW_state_clip_planes_reset(void)
@@ -387,7 +389,6 @@ static void draw_clipping_setup_from_view(void)
 	if (DST.clipping.updated)
 		return;
 
-	float (*viewprojinv)[4] = DST.view_data.matstate.mat[DRW_MAT_PERSINV];
 	float (*viewinv)[4] = DST.view_data.matstate.mat[DRW_MAT_VIEWINV];
 	float (*projmat)[4] = DST.view_data.matstate.mat[DRW_MAT_WIN];
 	float (*projinv)[4] = DST.view_data.matstate.mat[DRW_MAT_WININV];
@@ -399,7 +400,9 @@ static void draw_clipping_setup_from_view(void)
 
 	/* Extract the 8 corners (world space). */
 	for (int i = 0; i < 8; i++) {
-		mul_project_m4_v3(viewprojinv, bbox.vec[i]);
+		/* Use separate matrix mul for more precision. */
+		mul_project_m4_v3(projinv, bbox.vec[i]);
+		mul_m4_v3(viewinv, bbox.vec[i]);
 	}
 
 	/* Compute clip planes using the world space frustum corners. */
@@ -458,9 +461,7 @@ static void draw_clipping_setup_from_view(void)
 
 		/* The goal is to get the smallest sphere,
 		 * not the sphere that passes through each corner */
-		if (fac > 1.0f) {
-			fac = 1.0f;
-		}
+		CLAMP(fac, 0.0f, 1.0f);
 
 		interp_v3_v3v3(bsphere->center, mid_min, mid_max, fac);
 
@@ -531,11 +532,15 @@ static void draw_clipping_setup_from_view(void)
 		/* Transform to world space. */
 		mul_m4_v3(viewinv, bsphere->center);
 	}
+
+	DST.clipping.updated = true;
 }
 
 /* Return True if the given BoundSphere intersect the current view frustum */
-static bool draw_culling_sphere_test(BoundSphere *bsphere)
+bool DRW_culling_sphere_test(BoundSphere *bsphere)
 {
+	draw_clipping_setup_from_view();
+
 	/* Bypass test if radius is negative. */
 	if (bsphere->radius < 0.0f)
 		return true;
@@ -551,6 +556,32 @@ static bool draw_culling_sphere_test(BoundSphere *bsphere)
 		float dist = plane_point_side_v3(DST.clipping.frustum_planes[p], bsphere->center);
 		if (dist < -bsphere->radius) {
 			return false;
+		}
+	}
+
+	return true;
+}
+
+/* Return True if the given BoundBox intersect the current view frustum.
+ * bbox must be in world space. */
+bool DRW_culling_box_test(BoundBox *bbox)
+{
+	draw_clipping_setup_from_view();
+
+	/* 6 view frustum planes */
+	for (int p = 0; p < 6; p++) {
+		/* 8 box vertices. */
+		for (int v = 0; v < 8 ; v++) {
+			float dist = plane_point_side_v3(DST.clipping.frustum_planes[p], bbox->vec[v]);
+			if (dist > 0.0f) {
+				/* At least one point in front of this plane.
+				 * Go to next plane. */
+				break;
+			}
+			else if (v == 7) {
+				/* 8 points behind this plane. */
+				return false;
+			}
 		}
 	}
 
@@ -573,7 +604,7 @@ static void draw_matrices_model_prepare(DRWCallState *st)
 		st->cache_id = DST.state_cache_id;
 	}
 
-	if (draw_culling_sphere_test(&st->bsphere)) {
+	if (DRW_culling_sphere_test(&st->bsphere)) {
 		st->flag &= ~DRW_CALL_CULLED;
 	}
 	else {
@@ -698,11 +729,20 @@ static void bind_texture(GPUTexture *tex)
 
 static void bind_ubo(GPUUniformBuffer *ubo)
 {
-	if (DST.RST.bind_ubo_inc < GPU_max_ubo_binds()) {
-		GPU_uniformbuffer_bind(ubo, DST.RST.bind_ubo_inc);
-		DST.RST.bind_ubo_inc++;
-	}
-	else {
+	int bind_num = GPU_uniformbuffer_bindpoint(ubo);
+	if (bind_num == -1) {
+		for (int i = 0; i < GPU_max_ubo_binds(); ++i) {
+			DST.RST.bind_ubo_inc = (DST.RST.bind_ubo_inc + 1) % GPU_max_ubo_binds();
+			if (DST.RST.bound_ubo_slots[DST.RST.bind_ubo_inc] == false) {
+				if (DST.RST.bound_ubos[DST.RST.bind_ubo_inc] != NULL) {
+					GPU_uniformbuffer_unbind(DST.RST.bound_ubos[DST.RST.bind_ubo_inc]);
+				}
+				GPU_uniformbuffer_bind(ubo, DST.RST.bind_ubo_inc);
+				DST.RST.bound_ubos[DST.RST.bind_ubo_inc] = ubo;
+				DST.RST.bound_ubo_slots[DST.RST.bind_ubo_inc] = true;
+				return;
+			}
+		}
 		/* This is not depending on user input.
 		 * It is our responsability to make sure there enough slots. */
 		BLI_assert(0 && "Not enough ubo slots! This should not happen!\n");
@@ -710,6 +750,7 @@ static void bind_ubo(GPUUniformBuffer *ubo)
 		/* printf so user can report bad behaviour */
 		printf("Not enough ubo slots! This should not happen!\n");
 	}
+	DST.RST.bound_ubo_slots[bind_num] = true;
 }
 
 static void release_texture_slots(void)
@@ -719,7 +760,7 @@ static void release_texture_slots(void)
 
 static void release_ubo_slots(void)
 {
-	DST.RST.bind_ubo_inc = 0;
+	memset(DST.RST.bound_ubo_slots, 0x0, sizeof(bool) * GPU_max_textures());
 }
 
 static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
@@ -735,10 +776,10 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 		if (DST.shader) GPU_shader_unbind();
 		GPU_shader_bind(shgroup->shader);
 		DST.shader = shgroup->shader;
-	}
 
-	release_texture_slots();
-	release_ubo_slots();
+		release_texture_slots();
+		release_ubo_slots();
+	}
 
 	drw_state_set((pass_state & shgroup->state_extra_disable) | shgroup->state_extra);
 	drw_stencil_set(shgroup->stencil_mask);
@@ -914,13 +955,13 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	DRW_state_reset();
 }
 
-static void drw_draw_pass_ex(DRWPass *pass, DRWShadingGroup *start_group, DRWShadingGroup *end_group)
+static void drw_update_view(void)
 {
-	DST.shader = NULL;
-
 	if (DST.dirty_mat) {
 		DST.state_cache_id++;
 		DST.dirty_mat = false;
+
+		DRW_uniformbuffer_update(view_ubo, &DST.view_data);
 
 		/* Catch integer wrap around. */
 		if (UNLIKELY(DST.state_cache_id == 0)) {
@@ -935,14 +976,19 @@ static void drw_draw_pass_ex(DRWPass *pass, DRWShadingGroup *start_group, DRWSha
 			}
 		}
 
-		DST.clipping.updated = false;
-
 		/* TODO dispatch threads to compute matrices/culling */
 	}
 
 	draw_clipping_setup_from_view();
+}
+
+static void drw_draw_pass_ex(DRWPass *pass, DRWShadingGroup *start_group, DRWShadingGroup *end_group)
+{
+	DST.shader = NULL;
 
 	BLI_assert(DST.buffer_finish_called && "DRW_render_instance_buffer_finish had not been called before drawing");
+
+	drw_update_view();
 
 	drw_state_set(pass->state);
 
@@ -961,6 +1007,14 @@ static void drw_draw_pass_ex(DRWPass *pass, DRWShadingGroup *start_group, DRWSha
 		if (DST.RST.bound_texs[i] != NULL) {
 			GPU_texture_unbind(DST.RST.bound_texs[i]);
 			DST.RST.bound_texs[i] = NULL;
+		}
+	}
+
+	/* Clear Bound Ubos */
+	for (int i = 0; i < GPU_max_ubo_binds(); i++) {
+		if (DST.RST.bound_ubos[i] != NULL) {
+			GPU_uniformbuffer_unbind(DST.RST.bound_ubos[i]);
+			DST.RST.bound_ubos[i] = NULL;
 		}
 	}
 

@@ -90,6 +90,8 @@ DRWManager DST = {NULL};
 
 ListBase DRW_engines = {NULL, NULL};
 
+extern struct GPUUniformBuffer *view_ubo; /* draw_manager_exec.c */
+
 /* -------------------------------------------------------------------- */
 
 void DRW_draw_callbacks_pre_scene(void)
@@ -436,9 +438,19 @@ static void drw_viewport_var_init(void)
 	if (DST.RST.bound_tex_slots == NULL) {
 		DST.RST.bound_tex_slots = MEM_callocN(sizeof(bool) * GPU_max_textures(), "Bound Texture Slots");
 	}
+	if (DST.RST.bound_ubos == NULL) {
+		DST.RST.bound_ubos = MEM_callocN(sizeof(GPUUniformBuffer *) * GPU_max_ubo_binds(), "Bound GPUUniformBuffer refs");
+	}
+	if (DST.RST.bound_ubo_slots == NULL) {
+		DST.RST.bound_ubo_slots = MEM_callocN(sizeof(bool) * GPU_max_textures(), "Bound Ubo Slots");
+	}
+
+	if (view_ubo == NULL) {
+		view_ubo = DRW_uniformbuffer_create(sizeof(ViewUboStorage), NULL);
+	}
 
 	DST.override_mat = 0;
-	DST.dirty_mat = false;
+	DST.dirty_mat = true;
 	DST.state_cache_id = 1;
 
 	DST.clipping.updated = false;
@@ -465,6 +477,7 @@ void DRW_viewport_matrix_override_set(float mat[4][4], DRWViewportMatrixType typ
 	copy_m4_m4(DST.view_data.matstate.mat[type], mat);
 	DST.override_mat |= (1 << type);
 	DST.dirty_mat = true;
+	DST.clipping.updated = false;
 }
 
 void DRW_viewport_matrix_override_unset(DRWViewportMatrixType type)
@@ -473,6 +486,7 @@ void DRW_viewport_matrix_override_unset(DRWViewportMatrixType type)
 	copy_m4_m4(DST.view_data.matstate.mat[type], DST.original_mat.mat[type]);
 	DST.override_mat &= ~(1 << type);
 	DST.dirty_mat = true;
+	DST.clipping.updated = false;
 }
 
 void DRW_viewport_matrix_override_set_all(DRWMatrixState *state)
@@ -480,6 +494,7 @@ void DRW_viewport_matrix_override_set_all(DRWMatrixState *state)
 	memcpy(DST.view_data.matstate.mat, state, sizeof(DRWMatrixState));
 	DST.override_mat = 0xFFFFFF;
 	DST.dirty_mat = true;
+	DST.clipping.updated = false;
 }
 
 void DRW_viewport_matrix_override_unset_all(void)
@@ -487,6 +502,7 @@ void DRW_viewport_matrix_override_unset_all(void)
 	memcpy(DST.view_data.matstate.mat, DST.original_mat.mat, sizeof(DRWMatrixState));
 	DST.override_mat = 0;
 	DST.dirty_mat = true;
+	DST.clipping.updated = false;
 }
 
 bool DRW_viewport_is_persp_get(void)
@@ -2043,11 +2059,14 @@ void DRW_engines_free(void)
 	}
 
 	DRW_UBO_FREE_SAFE(globals_ubo);
+	DRW_UBO_FREE_SAFE(view_ubo);
 	DRW_TEXTURE_FREE_SAFE(globals_ramp);
 	MEM_SAFE_FREE(g_pos_format);
 
 	MEM_SAFE_FREE(DST.RST.bound_texs);
 	MEM_SAFE_FREE(DST.RST.bound_tex_slots);
+	MEM_SAFE_FREE(DST.RST.bound_ubos);
+	MEM_SAFE_FREE(DST.RST.bound_ubo_slots);
 
 	DRW_opengl_context_disable();
 

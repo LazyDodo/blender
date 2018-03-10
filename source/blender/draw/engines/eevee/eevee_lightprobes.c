@@ -109,6 +109,7 @@ extern char datatoc_lightprobe_lib_glsl[];
 extern char datatoc_octahedron_lib_glsl[];
 extern char datatoc_bsdf_common_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
+extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_bsdf_sampling_lib_glsl[];
 
 extern GlobalsUboStorage ts;
@@ -205,8 +206,10 @@ static void lightprobe_shaders_init(void)
 	                             "#define NOISE_SIZE 64\n";
 
 	char *shader_str = NULL;
+	char *vert_str = NULL;
 
 	shader_str = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
 	        datatoc_bsdf_sampling_lib_glsl,
@@ -221,6 +224,7 @@ static void lightprobe_shaders_init(void)
 	MEM_freeN(shader_str);
 
 	shader_str = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
 	        datatoc_bsdf_sampling_lib_glsl,
@@ -231,6 +235,7 @@ static void lightprobe_shaders_init(void)
 	MEM_freeN(shader_str);
 
 	shader_str = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
 	        datatoc_bsdf_sampling_lib_glsl,
@@ -242,15 +247,20 @@ static void lightprobe_shaders_init(void)
 
 	shader_str = BLI_string_joinN(
 	        datatoc_octahedron_lib_glsl,
+	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
 	        datatoc_irradiance_lib_glsl,
 	        datatoc_lightprobe_lib_glsl,
 	        datatoc_lightprobe_grid_display_frag_glsl);
 
-	e_data.probe_grid_display_sh = DRW_shader_create(
-	        datatoc_lightprobe_grid_display_vert_glsl, NULL, shader_str, filter_defines);
+	vert_str = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
+	        datatoc_lightprobe_grid_display_vert_glsl);
 
+	e_data.probe_grid_display_sh = DRW_shader_create(vert_str, NULL, shader_str, filter_defines);
+
+	MEM_freeN(vert_str);
 	MEM_freeN(shader_str);
 
 	e_data.probe_grid_fill_sh = DRW_shader_create_fullscreen(
@@ -258,19 +268,33 @@ static void lightprobe_shaders_init(void)
 
 	shader_str = BLI_string_joinN(
 	        datatoc_octahedron_lib_glsl,
+	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
 	        datatoc_lightprobe_lib_glsl,
 	        datatoc_lightprobe_cube_display_frag_glsl);
 
-	e_data.probe_cube_display_sh = DRW_shader_create(
-	        datatoc_lightprobe_cube_display_vert_glsl, NULL, shader_str, NULL);
+	vert_str = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
+	        datatoc_lightprobe_cube_display_vert_glsl);
 
+	e_data.probe_cube_display_sh = DRW_shader_create(vert_str, NULL, shader_str, NULL);
+
+	MEM_freeN(vert_str);
 	MEM_freeN(shader_str);
 
-	e_data.probe_planar_display_sh = DRW_shader_create(
-	        datatoc_lightprobe_planar_display_vert_glsl, NULL,
-	        datatoc_lightprobe_planar_display_frag_glsl, NULL);
+	vert_str = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
+	        datatoc_lightprobe_planar_display_vert_glsl);
+
+	shader_str = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
+	        datatoc_lightprobe_planar_display_frag_glsl);
+
+	e_data.probe_planar_display_sh = DRW_shader_create(vert_str, NULL, shader_str, NULL);
+
+	MEM_freeN(vert_str);
+	MEM_freeN(shader_str);
 
 	e_data.probe_planar_downsample_sh = DRW_shader_create(
 	        datatoc_lightprobe_planar_downsample_vert_glsl,
@@ -564,12 +588,32 @@ void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 	LightProbe *probe = (LightProbe *)ob->data;
 
-	/* Step 1 find all lamps in the scene and setup them */
 	if ((probe->type == LIGHTPROBE_TYPE_CUBE && pinfo->num_cube >= MAX_PROBE) ||
-	    (probe->type == LIGHTPROBE_TYPE_GRID && pinfo->num_grid >= MAX_PROBE))
+	    (probe->type == LIGHTPROBE_TYPE_GRID && pinfo->num_grid >= MAX_PROBE) ||
+	    (probe->type == LIGHTPROBE_TYPE_PLANAR && pinfo->num_grid >= MAX_PLANAR))
 	{
 		printf("Too much probes in the scene !!!\n");
 		return;
+	}
+
+	if (probe->type == LIGHTPROBE_TYPE_PLANAR) {
+		/* See if this planar probe is inside the view frustum. If not, no need to update it. */
+		/* NOTE: this could be bypassed if we want feedback loop mirrors for rendering. */
+		BoundBox bbox; float tmp[4][4];
+		const float min[3] = {-1.0f, -1.0f, -1.0f};
+		const float max[3] = { 1.0f,  1.0f,  1.0f};
+		BKE_boundbox_init_from_minmax(&bbox, min, max);
+
+		copy_m4_m4(tmp, ob->obmat);
+		normalize_v3(tmp[2]);
+		mul_v3_fl(tmp[2], probe->distinf);
+
+		for (int v = 0; v < 8; ++v) {
+			mul_m4_v3(tmp, bbox.vec[v]);
+		}
+		if (!DRW_culling_box_test(&bbox)) {
+			return; /* Culled */
+		}
 	}
 
 	EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
@@ -605,18 +649,20 @@ void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
 
 	pinfo->do_cube_update |= ped->need_update;
 
-	if (probe->type == LIGHTPROBE_TYPE_CUBE) {
-		pinfo->probes_cube_ref[pinfo->num_cube] = ob;
-		pinfo->num_cube++;
-	}
-	else if (probe->type == LIGHTPROBE_TYPE_PLANAR) {
-		pinfo->probes_planar_ref[pinfo->num_planar] = ob;
-		pinfo->num_planar++;
-	}
-	else { /* GRID */
-		pinfo->probes_grid_ref[pinfo->num_grid] = ob;
-		pinfo->num_grid++;
-		pinfo->total_irradiance_samples += ped->num_cell;
+	switch (probe->type) {
+		case LIGHTPROBE_TYPE_CUBE:
+			pinfo->probes_cube_ref[pinfo->num_cube] = ob;
+			pinfo->num_cube++;
+			break;
+		case LIGHTPROBE_TYPE_PLANAR:
+			pinfo->probes_planar_ref[pinfo->num_planar] = ob;
+			pinfo->num_planar++;
+			break;
+		case LIGHTPROBE_TYPE_GRID:
+			pinfo->probes_grid_ref[pinfo->num_grid] = ob;
+			pinfo->num_grid++;
+			pinfo->total_irradiance_samples += ped->num_cell;
+			break;
 	}
 }
 
@@ -627,15 +673,34 @@ static void scale_m4_v3(float R[4][4], float v[3])
 		mul_v3_v3(R[i], v);
 }
 
-static void EEVEE_planar_reflections_updates(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl)
+static void EEVEE_planar_reflections_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl)
+{
+	EEVEE_LightProbesInfo *pinfo = sldata->probes;
+	Object *ob;
+
+	for (int i = 0; (ob = pinfo->probes_planar_ref[i]) && (i < MAX_PLANAR); i++) {
+		LightProbe *probe = (LightProbe *)ob->data;
+		EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
+
+		ped->probe_id = i;
+
+		/* Debug Display */
+		if (DRW_state_draw_support() &&
+		    (probe->flag & LIGHTPROBE_FLAG_SHOW_DATA))
+		{
+			DRW_shgroup_call_dynamic_add(stl->g_data->planar_display_shgrp, &ped->probe_id, ob->obmat);
+		}
+	}
+}
+
+static void EEVEE_planar_reflections_updates(EEVEE_ViewLayerData *sldata)
 {
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 	Object *ob;
 	float mtx[4][4], normat[4][4], imat[4][4], rangemat[4][4];
 
-	float viewmat[4][4], winmat[4][4];
+	float viewmat[4][4];
 	DRW_viewport_matrix_get(viewmat, DRW_MAT_VIEW);
-	DRW_viewport_matrix_get(winmat, DRW_MAT_WIN);
 
 	zero_m4(rangemat);
 	rangemat[0][0] = rangemat[1][1] = rangemat[2][2] = 0.5f;
@@ -647,25 +712,19 @@ static void EEVEE_planar_reflections_updates(EEVEE_ViewLayerData *sldata, EEVEE_
 		LightProbe *probe = (LightProbe *)ob->data;
 		EEVEE_PlanarReflection *eplanar = &pinfo->planar_data[i];
 		EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
-
 		/* Computing mtx : matrix that mirror position around object's XY plane. */
 		normalize_m4_m4(normat, ob->obmat);  /* object > world */
 		invert_m4_m4(imat, normat); /* world > object */
-
 		float reflect[3] = {1.0f, 1.0f, -1.0f}; /* XY reflection plane */
 		scale_m4_v3(imat, reflect); /* world > object > mirrored obj */
 		mul_m4_m4m4(mtx, normat, imat); /* world > object > mirrored obj > world */
-
 		/* Reflect Camera Matrix. */
 		mul_m4_m4m4(ped->mats.mat[DRW_MAT_VIEW], viewmat, mtx);
-
 		/* TODO FOV margin */
-		/* TODO temporal sampling jitter */
-		copy_m4_m4(ped->mats.mat[DRW_MAT_WIN], winmat);
-
-		/* Apply Perspective Matrix. */
+		/* Temporal sampling jitter should be already applied to the DRW_MAT_WIN. */
+		DRW_viewport_matrix_get(ped->mats.mat[DRW_MAT_WIN], DRW_MAT_WIN);
+		/* Apply Projection Matrix. */
 		mul_m4_m4m4(ped->mats.mat[DRW_MAT_PERS], ped->mats.mat[DRW_MAT_WIN], ped->mats.mat[DRW_MAT_VIEW]);
-
 		/* This is the matrix used to reconstruct texture coordinates.
 		 * We use the original view matrix because it does not create
 		 * visual artifacts if receiver is not perfectly aligned with
@@ -673,9 +732,6 @@ static void EEVEE_planar_reflections_updates(EEVEE_ViewLayerData *sldata, EEVEE_
 		mul_m4_m4m4(eplanar->reflectionmat, ped->mats.mat[DRW_MAT_WIN], viewmat); /* TODO FOV margin */
 		/* Convert from [-1, 1] to [0, 1] (NDC to Texture coord). */
 		mul_m4_m4m4(eplanar->reflectionmat, rangemat, eplanar->reflectionmat);
-
-		/* TODO frustum check. */
-		ped->need_update = true;
 
 		/* Compute clip plane equation / normal. */
 		float refpoint[3];
@@ -721,13 +777,6 @@ static void EEVEE_planar_reflections_updates(EEVEE_ViewLayerData *sldata, EEVEE_
 		float min_dist = min_ff(1.0f - 1e-8f, 1.0f - probe->falloff) * probe->distinf;
 		eplanar->attenuation_scale = -1.0f / max_ff(1e-8f, max_dist - min_dist);
 		eplanar->attenuation_bias = max_dist * -eplanar->attenuation_scale;
-
-		/* Debug Display */
-		if (DRW_state_draw_support() &&
-		    (probe->flag & LIGHTPROBE_FLAG_SHOW_DATA))
-		{
-			DRW_shgroup_call_dynamic_add(stl->g_data->planar_display_shgrp, &ped->probe_id, ob->obmat);
-		}
 	}
 }
 
@@ -965,12 +1014,12 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 		common_data->prb_num_render_grid = pinfo->num_grid;
 	}
 
+	EEVEE_planar_reflections_cache_finish(sldata, vedata->stl);
+
 	EEVEE_lightprobes_updates(sldata, vedata->psl, vedata->stl);
-	EEVEE_planar_reflections_updates(sldata, vedata->stl);
 
 	DRW_uniformbuffer_update(sldata->probe_ubo, &sldata->probes->probe_data);
 	DRW_uniformbuffer_update(sldata->grid_ubo, &sldata->probes->grid_data);
-	DRW_uniformbuffer_update(sldata->planar_ubo, &sldata->probes->planar_data);
 }
 
 static void downsample_planar(void *vedata, int level)
@@ -1268,8 +1317,10 @@ static void render_scene_to_planar(
 	/* Since we are rendering with an inverted view matrix, we need
 	 * to invert the facing for backface culling to be the same. */
 	DRW_state_invert_facing();
-
-	DRW_state_clip_planes_add(ped->planer_eq_offset);
+	/* Set clipping plan */
+	copy_v4_v4(sldata->clip_data.clip_planes[0], ped->planer_eq_offset);
+	DRW_uniformbuffer_update(sldata->clip_ubo, &sldata->clip_data);
+	DRW_state_clip_planes_count_set(1);
 
 	/* Attach depth here since it's a DRW_TEX_TEMP */
 	DRW_framebuffer_texture_layer_attach(fbl->planarref_fb, txl->planar_depth, 0, layer, 0);
@@ -1285,9 +1336,14 @@ static void render_scene_to_planar(
 	txl->planar_pool = e_data.planar_pool_placeholder;
 	txl->planar_depth = e_data.depth_array_placeholder;
 
+	/* Slight modification: we handle refraction as normal
+	 * shading and don't do SSRefraction. */
+
 	/* Depth prepass */
 	DRW_draw_pass(psl->depth_pass_clip);
 	DRW_draw_pass(psl->depth_pass_clip_cull);
+	DRW_draw_pass(psl->refract_depth_pass);
+	DRW_draw_pass(psl->refract_depth_pass_cull);
 
 	/* Background */
 	DRW_draw_pass(psl->probe_background);
@@ -1304,6 +1360,14 @@ static void render_scene_to_planar(
 	EEVEE_draw_default_passes(psl);
 	DRW_draw_pass(psl->material_pass);
 	DRW_draw_pass(psl->sss_pass); /* Only output standard pass */
+	DRW_draw_pass(psl->refract_pass);
+
+	/* Transparent */
+	if (DRW_state_is_image_render()) {
+		/* Do the reordering only for offline because it can be costly. */
+		DRW_pass_sort_shgroup_z(psl->transparent_pass);
+	}
+	DRW_draw_pass(psl->transparent_pass);
 
 	DRW_state_invert_facing();
 	DRW_state_clip_planes_reset();
@@ -1445,8 +1509,12 @@ void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *v
 	if (pinfo->num_planar == 0) {
 		/* Disable SSR if we cannot read previous frame */
 		common_data->ssr_toggle = vedata->stl->g_data->valid_double_buffer;
+		common_data->prb_num_planar = 0;
 		return;
 	}
+
+	EEVEE_planar_reflections_updates(sldata);
+	DRW_uniformbuffer_update(sldata->planar_ubo, &sldata->probes->planar_data);
 
 	/* We need to save the Matrices before overidding them */
 	DRW_viewport_matrix_get_all(&saved_mats);
@@ -1461,12 +1529,7 @@ void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *v
 
 	for (int i = 0; (ob = pinfo->probes_planar_ref[i]) && (i < MAX_PLANAR); i++) {
 		EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
-		if (!ped->need_update) {
-			continue;
-		}
 		render_scene_to_planar(sldata, vedata, i, ped);
-		ped->need_update = false;
-		ped->probe_id = i;
 	}
 
 	/* Restore */
@@ -1474,8 +1537,8 @@ void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *v
 	common_data->ssr_toggle = true;
 	common_data->sss_toggle = true;
 
-	/* If there is at least one planar probe */
-	if (pinfo->num_planar > 0 && (vedata->stl->effects->enabled_effects & EFFECT_SSR) != 0) {
+	/* Prefilter for SSR */
+	if ((vedata->stl->effects->enabled_effects & EFFECT_SSR) != 0) {
 		const int max_lod = 9;
 		DRW_stats_group_start("Planar Probe Downsample");
 		DRW_framebuffer_recursive_downsample(vedata->fbl->downsample_fb, txl->planar_pool, max_lod, &downsample_planar, vedata);
@@ -1485,6 +1548,11 @@ void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *v
 	}
 
 	DRW_viewport_matrix_override_set_all(&saved_mats);
+
+	if (DRW_state_is_image_render()) {
+		/* Sort transparents because planar reflections could have re-sorted them. */
+		DRW_pass_sort_shgroup_z(vedata->psl->transparent_pass);
+	}
 
 	/* Disable SSR if we cannot read previous frame */
 	common_data->ssr_toggle = vedata->stl->g_data->valid_double_buffer;

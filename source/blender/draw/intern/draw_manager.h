@@ -76,12 +76,6 @@
 
 #endif  /* USE_PROFILE */
 
-/* TODO Put it somewhere else? */
-typedef struct BoundSphere {
-	float center[3], radius;
-} BoundSphere;
-
-
 /* ------------ Data Structure --------------- */
 /**
  * Data structure containing all drawcalls organized by passes and materials.
@@ -252,6 +246,12 @@ struct DRWPass {
 	char name[MAX_PASS_NAME];
 };
 
+typedef struct ViewUboStorage {
+	DRWMatrixState matstate;
+	float viewcamtexcofac[4];
+	float clipplanes[2][4];
+} ViewUboStorage;
+
 /* ------------- DRAW MANAGER ------------ */
 
 #define MAX_CLIP_PLANES 6 /* GL_MAX_CLIP_PLANES is at least 6 */
@@ -310,11 +310,8 @@ typedef struct DRWManager {
 	int num_clip_planes;         /* Number of active clipplanes. */
 	bool dirty_mat;
 
-	struct {
-		DRWMatrixState matstate;
-		float viewcamtexcofac[4];
-		float clip_planes_eq[MAX_CLIP_PLANES][4];
-	} view_data;
+	/* keep in sync with viewBlock */
+	ViewUboStorage view_data;
 
 	struct {
 		float frustum_planes[6][4];
@@ -339,6 +336,8 @@ typedef struct DRWManager {
 		GPUTexture **bound_texs;
 		bool *bound_tex_slots;
 		int bind_tex_inc;
+		GPUUniformBuffer **bound_ubos;
+		bool *bound_ubo_slots;
 		int bind_ubo_inc;
 	} RST;
 } DRWManager;
