@@ -1375,19 +1375,19 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 		paintbrush = BKE_gpencil_brush_getactive(scene->toolsettings);
 		/* while drawing hide */
 		if ((gpd->sbuffer_size > 0) && 
-			(paintbrush) && ((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-			((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0))
+			(paintbrush) && ((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+			((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0))
 		{
 			return;
 		}
 
 		if (paintbrush) {
-			if ((paintbrush->flag & GP_BRUSH_ENABLE_CURSOR) == 0) {
+			if ((paintbrush->gp_flag & GP_BRUSH_ENABLE_CURSOR) == 0) {
 				return;
 			}
 
 			/* eraser has special shape and use a different shader program */
-			if (paintbrush->gpbrush_type == GP_BRUSH_TYPE_ERASE) {
+			if (paintbrush->gp_brush_type == GP_BRUSH_TYPE_ERASE) {
 				ED_gpencil_brush_draw_eraser(C, paintbrush, x, y);
 				return;
 			}
@@ -1397,9 +1397,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			 * The decision was to use a fix size, instead of paintbrush->thickness value. 
 			 */
 			if ((palcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
-				((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-				((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-				(paintbrush->gpbrush_type == GP_BRUSH_TYPE_DRAW))
+				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
+				(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
 			{
 				radius = 2.0f;
 				copy_v3_v3(color, palcolor->rgb);
@@ -1439,9 +1439,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	/* Inner Ring: Color from UI panel */
 	immUniformColor4f(color[0], color[1], color[2], 0.8f);
 	if ((palcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
-		((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-		((paintbrush->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-		(paintbrush->gpbrush_type == GP_BRUSH_TYPE_DRAW))
+		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
+		(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
 	{
 		imm_draw_circle_fill_2d(pos, x, y, radius, 40);
 	}

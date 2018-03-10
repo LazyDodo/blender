@@ -107,10 +107,10 @@ typedef struct bGPDbrush {
 
 	char info[64];            /* Brush name. Must be unique. */
 	short thickness;          /* thickness to apply to strokes */
-	short flag;
+	short gp_flag;
 	float draw_smoothfac;     /* amount of smoothing to apply to newly created strokes */
 	short draw_smoothlvl;     /* number of times to apply smooth factor to new strokes */
-	short subdivide;          /* number of times to subdivide new strokes */
+	short draw_subdivide;     /* number of times to subdivide new strokes */
 
 	float draw_sensitivity;   /* amount of sensivity to apply to newly created strokes */
 	float draw_strength;      /* amount of alpha strength to apply to newly created strokes */
@@ -125,29 +125,27 @@ typedef struct bGPDbrush {
 	struct CurveMapping *cur_jitter;
 
 	float curcolor[3];
-	float thick_smoothfac;    /* amount of thickness smoothing to apply to newly created strokes */
-	short thick_smoothlvl;    /* number of times to apply thickness smooth factor to new strokes */
+	float gp_thick_smoothfac; /* amount of thickness smoothing to apply to newly created strokes */
+	short gp_thick_smoothlvl; /* number of times to apply thickness smooth factor to new strokes */
 
-	short fill_leak;          /* number of pixel to consider the leak is too small (x 2) */
-	float fill_threshold;     /* factor for transparency */
-	int   fill_simplylvl;     /* number of simplify steps */
-	int   fill_draw_mode;     /* type of control lines drawing mode */
-	int   icon_id;            /* icon identifier */
+	short gp_fill_leak;       /* number of pixel to consider the leak is too small (x 2) */
+	float gp_fill_threshold;  /* factor for transparency */
+	int   gp_fill_simplylvl;  /* number of simplify steps */
+	int   gp_fill_draw_mode;  /* type of control lines drawing mode */
+	int   gp_icon_id;         /* icon identifier */
 
-	int   lazy_radius;        /* distance to last point to create new point */
-	float lazy_factor;        /* factor of smooth */
+	int   gp_lazy_radius;     /* distance to last point to create new point */
+	float gp_lazy_factor;     /* factor of smooth */
 	
-	float uv_random;          /* random factor for UV rotation */
+	float gp_uv_random;       /* random factor for UV rotation */
 	int   gp_input_samples;   /* maximum distance before generate new point for very fast mouse movements */
-	int   gpbrush_type;       /* type of brush (draw, fill, erase, etc..) */
-	int   eraser_mode;        /* soft, hard or stroke */
-	float active_smooth;      /* smooth while drawing factor */
+	int   gp_brush_type;      /* type of brush (draw, fill, erase, etc..) */
+	int   gp_eraser_mode;     /* soft, hard or stroke */
+	float gp_active_smooth;   /* smooth while drawing factor */
 
-	int   flag_group;         /* flag to enable/disable groups of options */
-	char pad[4];
 } bGPDbrush;
 
-/* bGPDbrush->flag */
+/* bGPDbrush->gp_flag */
 typedef enum eGPDbrush_Flag {
 	/* brush is active */
 	GP_BRUSH_ACTIVE = (1 << 0),
@@ -175,15 +173,11 @@ typedef enum eGPDbrush_Flag {
 	GP_BRUSH_STABILIZE_MOUSE_TEMP = (1 << 12),
 	/* default eraser brush for quick switch */
 	GP_BRUSH_DEFAULT_ERASER = (1 << 13),
-} eGPDbrush_Flag;
-
-/* bGPDbrush->flag_group */
-typedef enum eGPDbrush_FlagGroup {
 	/* settings group */
-	GP_BRUSH_GROUP_SETTINGS = (1 << 0),
+	GP_BRUSH_GROUP_SETTINGS = (1 << 14),
 	/* Random settings group */
-	GP_BRUSH_GROUP_RANDOM = (1 << 1),
-} eGPDbrush_FlagGroup;
+	GP_BRUSH_GROUP_RANDOM = (1 << 15)
+} eGPDbrush_Flag;
 
 /* ***************************************** */
 /* GP Palettes (Deprecated - 2.78 - 2.79 only) */
@@ -561,7 +555,7 @@ typedef enum eGP_BrushType {
 	GP_BRUSH_TYPE_ERASE = 2,
 } eGP_BrushType;
 
-/* bGPDbrush->eraser_mode */
+/* bGPDbrush->gp_eraser_mode */
 typedef enum eGP_BrushEraserMode {
 	GP_BRUSH_ERASER_SOFT = 0,
 	GP_BRUSH_ERASER_HARD = 1,
@@ -605,6 +599,6 @@ typedef enum eGP_BrushIcons {
 #define GPENCIL_PAINT_MODE(gpd) ((gpd) && (gpd->flag & (GP_DATA_STROKE_PAINTMODE))) 
 #define GPENCIL_SCULPT_OR_WEIGHT_MODE(gpd) ((gpd) && (gpd->flag & (GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE))) 
 #define GPENCIL_NONE_EDIT_MODE(gpd) ((gpd) && ((gpd->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)) == 0))
-#define GPENCIL_LAZY_MODE(brush, shift) ((brush) && ((brush->flag & GP_BRUSH_STABILIZE_MOUSE) && (shift == 0)) || (((brush->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) && (shift == 1))) 
+#define GPENCIL_LAZY_MODE(brush, shift) ((brush) && ((brush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) && (shift == 0)) || (((brush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) && (shift == 1))) 
 
 #endif /*  __DNA_GPENCIL_TYPES_H__ */

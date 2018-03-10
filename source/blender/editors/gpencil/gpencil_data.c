@@ -1673,8 +1673,8 @@ static int gp_brush_copy_exec(bContext *C, wmOperator *op)
 	newbrush->thickness = brush->thickness;
 	newbrush->draw_smoothfac = brush->draw_smoothfac;
 	newbrush->draw_smoothlvl = brush->draw_smoothlvl;
-	newbrush->subdivide = brush->subdivide;
-	newbrush->flag = brush->flag;
+	newbrush->draw_subdivide = brush->draw_subdivide;
+	newbrush->gp_flag = brush->gp_flag;
 	newbrush->draw_sensitivity = brush->draw_sensitivity;
 	newbrush->draw_strength = brush->draw_strength;
 	newbrush->draw_jitter = brush->draw_jitter;

@@ -973,11 +973,11 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 
 	/* save filling parameters */
 	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
-	tgpf->flag = brush->flag;
-	tgpf->fill_leak = brush->fill_leak;
-	tgpf->fill_threshold = brush->fill_threshold;
-	tgpf->fill_simplylvl = brush->fill_simplylvl;
-	tgpf->fill_draw_mode = brush->fill_draw_mode;
+	tgpf->flag = brush->gp_flag;
+	tgpf->fill_leak = brush->gp_fill_leak;
+	tgpf->fill_threshold = brush->gp_fill_threshold;
+	tgpf->fill_simplylvl = brush->gp_fill_simplylvl;
+	tgpf->fill_draw_mode = brush->gp_fill_draw_mode;
 
 	/* init undo */
 	gpencil_undo_init(tgpf->gpd);

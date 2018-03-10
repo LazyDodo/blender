@@ -2104,22 +2104,22 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
 
             if brush.type == 'FILL':
                 col = layout.column(align=True)
-                col.prop(brush, "fill_leak", text="Leak Size")
+                col.prop(brush, "gpencil_fill_leak", text="Leak Size")
                 col.prop(brush, "line_width", text="Thickness")
-                col.prop(brush, "fill_simplyfy_lvl", text="Simplify")
+                col.prop(brush, "gpencil_fill_simplyfy_lvl", text="Simplify")
 
                 col = layout.column(align=True)
                 col.label(text="Boundary Draw Mode:")
                 row = col.row(align=True)
-                row.prop(brush, "fill_draw_mode", text="")
-                row.prop(brush, "fill_show_boundary", text="", icon='GRID')
+                row.prop(brush, "gpencil_fill_draw_mode", text="")
+                row.prop(brush, "gpencil_fill_show_boundary", text="", icon='GRID')
 
                 col = layout.column(align=True)
-                col.enabled = brush.fill_draw_mode != "STROKE"
-                col.prop(brush, "fill_hide", text="Hide Transparent Lines")
+                col.enabled = brush.gpencil_fill_draw_mode != "STROKE"
+                col.prop(brush, "gpencil_fill_hide", text="Hide Transparent Lines")
                 sub = col.row(align=True)
-                sub.enabled = brush.fill_hide
-                sub.prop(brush, "fill_threshold", text="Threshold")
+                sub.enabled = brush.gpencil_fill_hide
+                sub.prop(brush, "gpencil_fill_threshold", text="Threshold")
 
             if brush.type == 'ERASE':
                 col = layout.column(align=True)
@@ -2223,7 +2223,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_mode(Panel):
         layout = self.layout
         brush = context.active_gpencil_brush
         if brush is not None:
-            layout.prop(brush, "type", expand=True)
+            layout.prop(brush, "gpencil_brush_type", expand=True)
 
 # Grease Pencil drawingcurves
 class VIEW3D_PT_tools_grease_pencil_brushcurves(Panel):

@@ -306,8 +306,8 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	 * (so it doesn't distract when moving between colors)
 	 */
 	tgpk->brush = BKE_gpencil_brush_getactive(ts);
-	tgpk->bflag = tgpk->brush->flag;
-	tgpk->brush->flag &= ~GP_BRUSH_ENABLE_CURSOR;
+	tgpk->bflag = tgpk->brush->gp_flag;
+	tgpk->brush->gp_flag &= ~GP_BRUSH_ENABLE_CURSOR;
 
 	tgpk->center[0] = event->mval[0];
 	tgpk->center[1] = event->mval[1];
@@ -438,7 +438,7 @@ static void gpencil_colorpick_exit(bContext *C, wmOperator *op)
 		MEM_SAFE_FREE(tgpk->colors);
 
 		/* reset brush flags */
-		tgpk->brush->flag = tgpk->bflag;
+		tgpk->brush->gp_flag = tgpk->bflag;
 
 		/* finally, free memory used by temp data */
 		MEM_freeN(tgpk);

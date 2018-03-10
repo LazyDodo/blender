@@ -1030,7 +1030,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 					/* drawing brushes */
 					ToolSettings *ts = scene->toolsettings;
 					for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
-						brush->flag |= GP_BRUSH_ENABLE_CURSOR;
+						brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
 						copy_v3_v3(brush->curcolor, curcolor);
 					}
 					/* sculpt brushes */
@@ -1155,12 +1155,12 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 			/* drawing brushes */
 			ToolSettings *ts = scene->toolsettings;
 			for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
-				if (brush->flag & GP_BRUSH_FILL_ONLY) {
-					brush->gpbrush_type = GP_BRUSH_TYPE_FILL;
-					brush->flag &= ~GP_BRUSH_FILL_ONLY;
+				if (brush->gp_flag & GP_BRUSH_FILL_ONLY) {
+					brush->gp_brush_type = GP_BRUSH_TYPE_FILL;
+					brush->gp_flag &= ~GP_BRUSH_FILL_ONLY;
 				}
 				else {
-					brush->gpbrush_type = GP_BRUSH_TYPE_DRAW;
+					brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 				}
 			}
 		}
