@@ -2089,10 +2089,10 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
         if brush is not None:
             row = layout.row()
             row.prop(brush, "name", text="")
-            if brush.type == 'ERASE':
+            if brush.gpencil_brush_type == 'ERASE':
                 row.prop(brush, "default_eraser", text="")
 
-            if brush.type == 'DRAW':
+            if brush.gpencil_brush_type == 'DRAW':
                 row = layout.row(align=True)
                 row.prop(brush, "use_random_pressure", text="", icon='RNDCURVE')
                 row.prop(brush, "line_width", text="Radius")
@@ -2102,7 +2102,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 row.prop(brush, "strength", slider=True)
                 row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
-            if brush.type == 'FILL':
+            if brush.gpencil_brush_type == 'FILL':
                 col = layout.column(align=True)
                 col.prop(brush, "gpencil_fill_leak", text="Leak Size")
                 col.prop(brush, "line_width", text="Thickness")
@@ -2121,7 +2121,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 sub.enabled = brush.gpencil_fill_hide
                 sub.prop(brush, "gpencil_fill_threshold", text="Threshold")
 
-            if brush.type == 'ERASE':
+            if brush.gpencil_brush_type == 'ERASE':
                 col = layout.column(align=True)
                 col.prop(brush, "line_width", text="Radius")
 
@@ -2129,7 +2129,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 row = col.row()
                 row.prop(brush, "eraser_mode", expand=True)
 
-            if brush.type != 'ERASE':
+            if brush.gpencil_brush_type != 'ERASE':
                 layout.separator()
                 layout.prop(context.tool_settings, "use_gpencil_draw_onback", text="Draw on Back")
 
@@ -2161,7 +2161,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
             row.prop(brush, "active_smooth_factor")
             col.separator()
 
-            if brush.type == 'DRAW':
+            if brush.gpencil_brush_type == 'DRAW':
                 col.prop(brush, "use_stabilizer", text="Stabilizer")
                 if brush.use_stabilizer:
                     col.separator()
@@ -2512,7 +2512,7 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
         workspace = context.workspace
         if context.active_object:
             brush = context.active_gpencil_brush
-            if brush and brush.type == 'ERASE':
+            if brush and brush.gpencil_brush_type == 'ERASE':
                 return False
 
             return workspace.object_mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
