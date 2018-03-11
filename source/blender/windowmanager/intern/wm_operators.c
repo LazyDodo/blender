@@ -920,7 +920,7 @@ static char *wm_prop_pystring_from_context(bContext *C, PointerRNA *ptr, Propert
 		switch (GS(((ID *)ptr->id.data)->name)) {
 			case ID_SCE:
 			{
-				CTX_TEST_PTR_DATA_TYPE(C, "active_gpencil_brush", RNA_GPencilBrush, ptr, CTX_data_active_gpencil_brush(C));
+				CTX_TEST_PTR_DATA_TYPE(C, "active_gpencil_brush", RNA_Brush, ptr, CTX_data_active_gpencil_brush(C));
 				CTX_TEST_PTR_ID(C, "scene", ptr->id.data);
 				break;
 			}

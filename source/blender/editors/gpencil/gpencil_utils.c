@@ -271,9 +271,13 @@ int gp_active_layer_poll(bContext *C)
 int gp_active_brush_poll(bContext *C)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
-
-	return (brush != NULL);
+	Paint *paint = &ts->gp_paint->paint;
+	if (paint) {
+		return (paint->brush != NULL);
+	}
+	else {
+		return false;
+	}
 }
 
 /* ******************************************************** */
@@ -970,7 +974,7 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
  * \param gps           Stroke data
  * \param brush         Brush data
  */
-void gp_randomize_stroke(bGPDstroke *gps, bGPDbrush *brush)
+void gp_randomize_stroke(bGPDstroke *gps, Brush *brush)
 {
 	bGPDspoint *pt1, *pt2, *pt3;
 	float v1[3];
@@ -1130,11 +1134,18 @@ void ED_gpencil_add_defaults(bContext *C)
 	/* ensure palettes, colors, and palette slots exist */
 	BKE_gpencil_paletteslot_validate(CTX_data_main(C), gpd);
 
-	/* create default brushes */
-	if (BLI_listbase_is_empty(&ts->gp_brushes)) {
-		BKE_brush_gpencil_presets(C);
-		BKE_gpencil_brush_init_presets(ts);
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
 	}
+
+	Paint *paint = &ts->gp_paint->paint;
+	/* if not exist, create a new one */
+	if (paint->brush == NULL) {
+		/* create new brushes */
+		BKE_brush_gpencil_presets(C);
+	}
+
 }
 
 
@@ -1292,7 +1303,7 @@ static bool gp_check_cursor_region(bContext *C, int mval[2])
 }
 
 /* draw eraser cursor */
-void ED_gpencil_brush_draw_eraser(bContext *C, bGPDbrush *brush, int x, int y)
+void ED_gpencil_brush_draw_eraser(bContext *C, Brush *brush, int x, int y)
 {
 	short radius = (short)brush->thickness;
 
@@ -1358,7 +1369,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	else {
 		brush = &gset->brush[gset->brushtype];
 	}
-	bGPDbrush *paintbrush;
+	Brush *paintbrush;
 
 	/* default radius and color */
 	float radius = 3.0f;
@@ -1374,7 +1385,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 	/* for paint use paint brush size and color */
 	if (gpd->flag & GP_DATA_STROKE_PAINTMODE) {
-		paintbrush = BKE_gpencil_brush_getactive(scene->toolsettings);
+		paintbrush = BKE_brush_getactive_gpencil(scene->toolsettings);
 		/* while drawing hide */
 		if ((gpd->sbuffer_size > 0) && 
 			(paintbrush) && ((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&

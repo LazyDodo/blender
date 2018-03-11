@@ -2683,19 +2683,6 @@ static void write_scene(WriteData *wd, Scene *sce)
 		writestruct(wd, DATA, GpPaint, 1, tos->gp_paint);
 		write_paint(wd, &tos->gp_paint->paint);
 	}
-	/* write grease-pencil drawing brushes to file */
-	writelist(wd, DATA, bGPDbrush, &tos->gp_brushes);
-	for (bGPDbrush *brush = tos->gp_brushes.first; brush; brush = brush->next) {
-		if (brush->cur_sensitivity) {
-			write_curvemapping(wd, brush->cur_sensitivity);
-		}
-		if (brush->cur_strength) {
-			write_curvemapping(wd, brush->cur_strength);
-		}
-		if (brush->cur_jitter) {
-			write_curvemapping(wd, brush->cur_jitter);
-		}
-	}
 	/* write grease-pencil custom ipo curve to file */
 	if (tos->gp_interpolate.custom_ipo) {
 		write_curvemapping(wd, tos->gp_interpolate.custom_ipo);

@@ -99,85 +99,6 @@ typedef struct bGPDtriangle {
 } bGPDtriangle;
 
 /* ***************************************** */
-/* GP Drawing Brush */
-
-/* GP brush (used for new strokes) */
-typedef struct bGPDbrush {
-	struct bGPDbrush *next, *prev;
-
-	char info[64];            /* Brush name. Must be unique. */
-	short thickness;          /* thickness to apply to strokes */
-	short gp_flag;
-	float draw_smoothfac;     /* amount of smoothing to apply to newly created strokes */
-	short draw_smoothlvl;     /* number of times to apply smooth factor to new strokes */
-	short draw_subdivide;     /* number of times to subdivide new strokes */
-
-	float draw_sensitivity;   /* amount of sensivity to apply to newly created strokes */
-	float draw_strength;      /* amount of alpha strength to apply to newly created strokes */
-	float draw_jitter;        /* amount of jitter to apply to newly created strokes */
-	float draw_angle;         /* angle when the brush has full thickness */
-	float draw_angle_factor;  /* factor to apply when angle change (only 90 degrees) */
-	float draw_random_press;  /* factor of randomness for sensitivity and strength */
-	float draw_random_sub;    /* factor of randomness for subdivision */
-
-	struct CurveMapping *cur_sensitivity;
-	struct CurveMapping *cur_strength;
-	struct CurveMapping *cur_jitter;
-
-	float curcolor[3];
-	float gp_thick_smoothfac; /* amount of thickness smoothing to apply to newly created strokes */
-	short gp_thick_smoothlvl; /* number of times to apply thickness smooth factor to new strokes */
-
-	short gp_fill_leak;       /* number of pixel to consider the leak is too small (x 2) */
-	float gp_fill_threshold;  /* factor for transparency */
-	int   gp_fill_simplylvl;  /* number of simplify steps */
-	int   gp_fill_draw_mode;  /* type of control lines drawing mode */
-	int   gp_icon_id;         /* icon identifier */
-
-	int   gp_lazy_radius;     /* distance to last point to create new point */
-	float gp_lazy_factor;     /* factor of smooth */
-	
-	float gp_uv_random;       /* random factor for UV rotation */
-	int   gp_input_samples;   /* maximum distance before generate new point for very fast mouse movements */
-	int   gp_brush_type;      /* type of brush (draw, fill, erase, etc..) */
-	int   gp_eraser_mode;     /* soft, hard or stroke */
-	float gp_active_smooth;   /* smooth while drawing factor */
-
-} bGPDbrush;
-
-/* bGPDbrush->gp_flag */
-typedef enum eGPDbrush_Flag {
-	/* brush is active */
-	GP_BRUSH_ACTIVE = (1 << 0),
-	/* brush use pressure */
-	GP_BRUSH_USE_PRESSURE = (1 << 1),
-	/* brush use pressure for alpha factor */
-	GP_BRUSH_USE_STENGTH_PRESSURE = (1 << 2),
-	/* brush use pressure for alpha factor */
-	GP_BRUSH_USE_JITTER_PRESSURE = (1 << 3),
-	/* brush use random for pressure */
-	GP_BRUSH_USE_RANDOM_PRESSURE = (1 << 4),
-	/* brush use random for strength */
-	GP_BRUSH_USE_RANDOM_STRENGTH = (1 << 5),
-	/* enable screen cursor */
-	GP_BRUSH_ENABLE_CURSOR = (1 << 6),
-	/* brush is only for filling */
-	GP_BRUSH_FILL_ONLY = (1 << 7), /* Deprecated */
-	/* fill hide transparent */
-	GP_BRUSH_FILL_HIDE = (1 << 8),
-	/* show fill help lines */
-	GP_BRUSH_FILL_SHOW_HELPLINES = (1 << 10),
-	/* lazy mouse */
-	GP_BRUSH_STABILIZE_MOUSE = (1 << 11),
-	/* lazy mouse override (internal only) */
-	GP_BRUSH_STABILIZE_MOUSE_TEMP = (1 << 12),
-	/* default eraser brush for quick switch */
-	GP_BRUSH_DEFAULT_ERASER = (1 << 13),
-	/* settings group */
-	GP_BRUSH_GROUP_SETTINGS = (1 << 14),
-	/* Random settings group */
-	GP_BRUSH_GROUP_RANDOM = (1 << 15)
-} eGPDbrush_Flag;
 
 /* ***************************************** */
 /* GP Palettes (Deprecated - 2.78 - 2.79 only) */
@@ -540,27 +461,6 @@ typedef enum eGP_OnionModes {
 	GP_ONION_MODE_RELATIVE = 1,
 	GP_ONION_MODE_SELECTED = 2,
 } eGP_OnionModes;
-
-/* gpd->fill draw modes */
-typedef enum eGP_FillDrawModes {
-	GP_FILL_DMODE_BOTH = 0,
-	GP_FILL_DMODE_STROKE = 1,
-	GP_FILL_DMODE_CONTROL = 2,
-} eGP_FillDrawModes;
-
-/* bGPDbrush->brush type */
-typedef enum eGP_BrushType {
-	GP_BRUSH_TYPE_DRAW = 0,
-	GP_BRUSH_TYPE_FILL = 1,
-	GP_BRUSH_TYPE_ERASE = 2,
-} eGP_BrushType;
-
-/* bGPDbrush->gp_eraser_mode */
-typedef enum eGP_BrushEraserMode {
-	GP_BRUSH_ERASER_SOFT = 0,
-	GP_BRUSH_ERASER_HARD = 1,
-	GP_BRUSH_ERASER_STROKE = 2,
-} eGP_BrushEraserMode;
 
 /* xray modes (Depth Ordering) */
 typedef enum eGP_DepthOrdering {

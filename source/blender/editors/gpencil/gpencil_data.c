@@ -58,6 +58,7 @@
 #include "DNA_workspace_types.h"
 
 #include "BKE_main.h"
+#include "BKE_brush.h"
 #include "BKE_animsys.h"
 #include "BKE_colortools.h"
 #include "BKE_context.h"
@@ -1407,226 +1408,10 @@ void GPENCIL_OT_palette_slot_remove(wmOperatorType *ot)
 /* ************************************************ */
 /* Drawing Brushes Operators */
 
-/* ******************* Add New Brush ************************ */
-
-/* add new brush - wrapper around API */
-static int gp_brush_add_exec(bContext *C, wmOperator *op)
-{
-	ToolSettings *ts = CTX_data_tool_settings(C);
-
-	/* if there's no existing container */
-	if (ts == NULL) {
-		BKE_report(op->reports, RPT_ERROR, "Nowhere for brush data to go");
-		return OPERATOR_CANCELLED;
-	}
-	/* add new brush now */
-	BKE_gpencil_brush_addnew(ts, DATA_("GP_Brush"), true);
-
-	/* notifiers */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_brush_add(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Add Brush";
-	ot->idname = "GPENCIL_OT_brush_add";
-	ot->description = "Add new Grease Pencil drawing brush for the active Grease Pencil data-block";
-
-	/* callbacks */
-	ot->exec = gp_brush_add_exec;
-	ot->poll = gp_add_poll;
-	
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-/* ******************* Remove Active Brush ************************* */
-
-static int gp_brush_remove_exec(bContext *C, wmOperator *op)
-{
-	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
-
-	/* sanity checks */
-	if (ELEM(NULL, ts, brush))
-		return OPERATOR_CANCELLED;
-
-	if (BLI_listbase_count_ex(&ts->gp_brushes, 2) < 2) {
-		BKE_report(op->reports, RPT_ERROR, "Grease Pencil needs a brush, unable to delete the last one");
-		return OPERATOR_CANCELLED;
-	}
-
-	/* make the brush before this the new active brush
-	 * - use the one after if this is the first
-	 * - if this is the only brush, this naturally becomes NULL
-	 */
-	if (brush->prev)
-		BKE_gpencil_brush_setactive(ts, brush->prev);
-	else
-		BKE_gpencil_brush_setactive(ts, brush->next);
-
-	/* delete the brush now... */
-	BKE_gpencil_brush_delete(ts, brush);
-
-	/* notifiers */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_brush_remove(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Remove Brush";
-	ot->idname = "GPENCIL_OT_brush_remove";
-	ot->description = "Remove active Grease Pencil drawing brush";
-
-	/* callbacks */
-	ot->exec = gp_brush_remove_exec;
-	ot->poll = gp_active_brush_poll;
-	
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-/* ********************** Change Brush ***************************** */
-
-static int gp_brush_change_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(evt))
-{
-	uiPopupMenu *pup;
-	uiLayout *layout;
-
-	/* call the menu, which will call this operator again, hence the canceled */
-	pup = UI_popup_menu_begin(C, op->type->name, ICON_NONE);
-	layout = UI_popup_menu_layout(pup);
-	uiItemsEnumO(layout, "GPENCIL_OT_brush_change", "brush");
-	UI_popup_menu_end(C, pup);
-
-	return OPERATOR_INTERFACE;
-}
-
-static int gp_brush_change_exec(bContext *C, wmOperator *op)
-{
-	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = NULL;
-	int brush_num = RNA_enum_get(op->ptr, "brush");
-
-	/* Get brush or create new one */
-	if (brush_num == -1) {
-		/* Create brush */
-		brush = BKE_gpencil_brush_addnew(ts, DATA_("GP_Brush"), true);
-	}
-	else {
-		/* Try to get brush */
-		brush = BLI_findlink(&ts->gp_brushes, brush_num);
-
-		if (brush == NULL) {
-			BKE_reportf(op->reports, RPT_ERROR, "Cannot change to non-existent brush (index = %d)", brush_num);
-			return OPERATOR_CANCELLED;
-		}
-	}
-
-	/* Set active brush */
-	BKE_gpencil_brush_setactive(ts, brush);
-
-	/* updates */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_brush_change(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Change Brush";
-	ot->idname = "GPENCIL_OT_brush_change";
-	ot->description = "Change active Grease Pencil drawing brush";
-
-	/* callbacks */
-	ot->invoke = gp_brush_change_invoke;
-	ot->exec = gp_brush_change_exec;
-	ot->poll = gp_active_brush_poll;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	/* gp brush to use (dynamic enum) */
-	ot->prop = RNA_def_enum(ot->srna, "brush", DummyRNA_DEFAULT_items, 0, "Grease Pencil Brush", "");
-	RNA_def_enum_funcs(ot->prop, rna_GPencilBrush_enum_itemf);
-}
-
-/* ******************* Move Brush Up/Down ************************** */
-
-enum {
-	GP_BRUSH_MOVE_UP = -1,
-	GP_BRUSH_MOVE_DOWN = 1
-};
-
-static int gp_brush_move_exec(bContext *C, wmOperator *op)
-{
-	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
-
-	int direction = RNA_enum_get(op->ptr, "type");
-
-	/* sanity checks */
-	if (ELEM(NULL, ts, brush)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	/* up or down? */
-	if (direction == GP_BRUSH_MOVE_UP) {
-		/* up */
-		BLI_remlink(&ts->gp_brushes, brush);
-		BLI_insertlinkbefore(&ts->gp_brushes, brush->prev, brush);
-	}
-	else if (direction == GP_BRUSH_MOVE_DOWN) {
-		/* down */
-		BLI_remlink(&ts->gp_brushes, brush);
-		BLI_insertlinkafter(&ts->gp_brushes, brush->next, brush);
-	}
-	else {
-		BLI_assert(0);
-	}
-
-	/* notifiers */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_brush_move(wmOperatorType *ot)
-{
-	static const EnumPropertyItem slot_move[] = {
-		{GP_BRUSH_MOVE_UP, "UP", 0, "Up", ""},
-		{GP_BRUSH_MOVE_DOWN, "DOWN", 0, "Down", ""},
-		{0, NULL, 0, NULL, NULL }
-	};
-
-	/* identifiers */
-	ot->name = "Move Brush";
-	ot->idname = "GPENCIL_OT_brush_move";
-	ot->description = "Move the active Grease Pencil drawing brush up/down in the list";
-
-	/* api callbacks */
-	ot->exec = gp_brush_move_exec;
-	ot->poll = gp_active_brush_poll;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	ot->prop = RNA_def_enum(ot->srna, "type", slot_move, GP_BRUSH_MOVE_UP, "Type", "");
-}
-
 /* ******************* Brush create presets ************************** */
-
 static int gp_brush_presets_create_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	ToolSettings *ts = CTX_data_tool_settings(C);
-	BKE_gpencil_brush_init_presets(ts);
+	BKE_brush_gpencil_presets(C);
 
 	/* notifiers */
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
@@ -1649,77 +1434,12 @@ void GPENCIL_OT_brush_presets_create(wmOperatorType *ot)
 
 }
 
-/* ***************** Copy Brush ************************ */
-
-static int gp_brush_copy_exec(bContext *C, wmOperator *op)
-{
-	ToolSettings *ts = CTX_data_tool_settings(C);
-
-	/* if there's no existing container */
-	if (ts == NULL) {
-		BKE_report(op->reports, RPT_ERROR, "Nowhere for brush data to go");
-		return OPERATOR_CANCELLED;
-	}
-
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
-	bGPDbrush *newbrush;
-
-	/* sanity checks */
-	if (ELEM(NULL, brush))
-		return OPERATOR_CANCELLED;
-
-	/* create a brush and duplicate data */
-	newbrush = BKE_gpencil_brush_addnew(ts, brush->info, true);
-	newbrush->thickness = brush->thickness;
-	newbrush->draw_smoothfac = brush->draw_smoothfac;
-	newbrush->draw_smoothlvl = brush->draw_smoothlvl;
-	newbrush->draw_subdivide = brush->draw_subdivide;
-	newbrush->gp_flag = brush->gp_flag;
-	newbrush->draw_sensitivity = brush->draw_sensitivity;
-	newbrush->draw_strength = brush->draw_strength;
-	newbrush->draw_jitter = brush->draw_jitter;
-	newbrush->draw_angle = brush->draw_angle;
-	newbrush->draw_angle_factor = brush->draw_angle_factor;
-	newbrush->draw_random_press = brush->draw_random_press;
-	newbrush->draw_random_sub = brush->draw_random_sub;
-
-	/* free automatic curves created by default (replaced by copy) */
-	curvemapping_free(newbrush->cur_sensitivity);
-	curvemapping_free(newbrush->cur_strength);
-	curvemapping_free(newbrush->cur_jitter);
-
-	/* make a copy of curves */
-	newbrush->cur_sensitivity = curvemapping_copy(brush->cur_sensitivity);
-	newbrush->cur_strength = curvemapping_copy(brush->cur_strength);
-	newbrush->cur_jitter = curvemapping_copy(brush->cur_jitter);
-
-	BKE_gpencil_brush_setactive(ts, newbrush);
-	/* notifiers */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_brush_copy(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Copy Brush";
-	ot->idname = "GPENCIL_OT_brush_copy";
-	ot->description = "Copy current Grease Pencil drawing brush";
-
-	/* callbacks */
-	ot->exec = gp_brush_copy_exec;
-	ot->poll = gp_active_brush_poll;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
 /* ***************** Select Brush ************************ */
 
 static int gp_brush_select_exec(bContext *C, wmOperator *op)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
+	Main *bmain = CTX_data_main(C);
 
 	/* if there's no existing container */
 	if (ts == NULL) {
@@ -1728,18 +1448,28 @@ static int gp_brush_select_exec(bContext *C, wmOperator *op)
 	}
 
 	const int index = RNA_int_get(op->ptr, "index");
-	bGPDbrush *brush = BLI_findlink(&ts->gp_brushes, index);
-	/* sanity checks */
-	if (ELEM(NULL, brush)) {
-		return OPERATOR_CANCELLED;
+	
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
 	}
 
-	BKE_gpencil_brush_setactive(ts, brush);
+	Paint *paint = &ts->gp_paint->paint;
+	int i = 0;
+	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
+		if (brush->ob_mode == OB_MODE_GPENCIL_PAINT) {
+			if (i == index) {
+				BKE_paint_brush_set(paint, brush);
 
-	/* notifiers */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+				/* notifiers */
+				WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+				return OPERATOR_FINISHED;
+			}
+			i++;
+		}
+	}
 
-	return OPERATOR_FINISHED;
+	return OPERATOR_CANCELLED;
 }
 
 void GPENCIL_OT_brush_select(wmOperatorType *ot)

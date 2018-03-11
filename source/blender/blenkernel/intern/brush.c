@@ -131,6 +131,23 @@ static void brush_defaults(Brush *brush)
 
 	brush->stencil_dimension[0] = 256;
 	brush->stencil_dimension[1] = 256;
+
+	/* grease pencil basic settings */
+	brush->thickness = 3;
+	brush->draw_smoothlvl = 1;
+	brush->gp_flag = 0;
+	brush->gp_flag |= GP_BRUSH_USE_PRESSURE;
+	brush->draw_sensitivity = 1.0f;
+	brush->draw_strength = 1.0f;
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+	brush->gp_icon_id = GPBRUSH_CUSTOM;
+	brush->id.icon_id = 0;
+
+	/* curves */
+	brush->cur_sensitivity = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+	brush->cur_strength = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+	brush->cur_jitter = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 }
 
 /* Datablock add/copy/free/make_local */
@@ -179,22 +196,6 @@ Brush *BKE_brush_add_gpencil(Main *bmain, ToolSettings *ts, const char *name)
 	Paint *paint = &ts->gp_paint->paint;
 
 	brush = BKE_brush_add(bmain, name, OB_MODE_GPENCIL_PAINT);
-
-	/* set basic settings */
-	brush->thickness = 3;
-	brush->draw_smoothlvl = 1;
-	brush->gp_flag = 0;
-	brush->gp_flag |= GP_BRUSH_USE_PRESSURE;
-	brush->draw_sensitivity = 1.0f;
-	brush->draw_strength = 1.0f;
-	brush->draw_jitter = 0.0f;
-	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
-	brush->gp_icon_id = GPBRUSH_CUSTOM;
-
-	/* curves */
-	brush->cur_sensitivity = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
-	brush->cur_strength = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
-	brush->cur_jitter = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 
 	BKE_paint_brush_set(paint, brush);
 
@@ -295,7 +296,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->draw_random_sub = 0.0f;
 	copy_v3_v3(brush->curcolor, curcolor);
 	brush->gp_icon_id = GPBRUSH_PENCIL;
-	brush->id.icon_id = 846;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->gp_lazy_radius = LAZY_RADIUS;
@@ -468,7 +468,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_lazy_factor = LAZY_FACTOR;
 
 	/* Fill brush */
-	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Fill");
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Fill Area");
 	brush->thickness = 1.0f;
 	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->draw_sensitivity = 1.0f;
@@ -520,6 +520,18 @@ void BKE_brush_gpencil_presets(bContext *C)
 	/* set defaut brush */
 	BKE_paint_brush_set(paint, deft);
 
+}
+
+/* get the active gp-brush for editing */
+Brush *BKE_brush_getactive_gpencil(ToolSettings *ts)
+{
+	/* error checking */
+	if (ELEM(NULL, ts, ts->gp_paint)) {
+		return NULL;
+	}
+	Paint *paint = &ts->gp_paint->paint;
+
+	return paint->brush;
 }
 
 struct Brush *BKE_brush_first_search(struct Main *bmain, const eObjectMode ob_mode)

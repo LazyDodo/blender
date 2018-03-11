@@ -40,7 +40,7 @@ struct bGPDlayer;
 struct bGPDframe;
 struct bGPDstroke;
 struct bGPDspoint;
-struct bGPDbrush;
+struct Brush;
 
 struct Main;
 struct bContext;
@@ -185,7 +185,7 @@ void ED_gpencil_parent_location(struct Object *obact, struct bGPdata *gpd, struc
 void ED_gpencil_reset_layers_parent(struct Object *obact, struct bGPdata *gpd);
 
 /* cursor utilities */
-void ED_gpencil_brush_draw_eraser(struct bContext *C, struct bGPDbrush *brush, int x, int y);
+void ED_gpencil_brush_draw_eraser(struct bContext *C, struct Brush *brush, int x, int y);
 
 /* ----------- Add Primitive Utilities -------------- */
 

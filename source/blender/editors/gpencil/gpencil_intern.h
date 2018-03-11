@@ -45,6 +45,7 @@ struct tGPspoint;
 
 struct GHash;
 
+struct Brush;
 struct Scene;
 struct ARegion;
 struct View3D;
@@ -143,7 +144,7 @@ typedef struct tGPDprimitive {
 	struct bGPdata *gpd;              /* current GP datablock */
 	struct Palette *palette;          /* current palette */
 	struct PaletteColor *palcolor;    /* current palette color */
-	struct bGPDbrush *brush;          /* current brush */ 
+	struct Brush *brush;              /* current brush */ 
 
 	int cframe;                       /* current frame number */
 	struct bGPDlayer *gpl;            /* layer */
@@ -242,7 +243,7 @@ bool gp_smooth_stroke(bGPDstroke *gps, int i, float inf, bool affect_pressure);
 bool gp_smooth_stroke_strength(bGPDstroke *gps, int i, float inf);
 bool gp_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf);
 void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide);
-void gp_randomize_stroke(bGPDstroke *gps, bGPDbrush *brush);
+void gp_randomize_stroke(bGPDstroke *gps, Brush *brush);
 
 /* Layers Enums -------------------------------------- */
 

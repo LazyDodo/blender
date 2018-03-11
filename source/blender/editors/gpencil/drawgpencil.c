@@ -46,6 +46,7 @@
 #include "BLF_api.h"
 #include "BLT_translation.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
@@ -55,6 +56,7 @@
 #include "DNA_object_types.h"
 
 #include "BKE_context.h"
+#include "BKE_brush.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_image.h"
@@ -1553,7 +1555,7 @@ void ED_gp_draw_fill(tGPDdraw *tgpw)
 
 /* loop over gpencil data layers, drawing them */
 static void gp_draw_data_layers(RegionView3D *rv3d,
-        const bGPDbrush *brush, float alpha, Object *ob, bGPdata *gpd,
+        const Brush *brush, float alpha, Object *ob, bGPdata *gpd,
         int offsx, int offsy, int winx, int winy, int cfra, int dflag)
 {
 	float diff_mat[4][4];
@@ -1721,7 +1723,7 @@ static void gp_draw_status_text(const bGPdata *gpd, ARegion *ar)
 
 /* draw grease-pencil datablock */
 static void gp_draw_data(RegionView3D *rv3d,
-        const bGPDbrush *brush, float alpha, Object *ob, bGPdata *gpd,
+        const Brush *brush, float alpha, Object *ob, bGPdata *gpd,
         int offsx, int offsy, int winx, int winy, int cfra, int dflag)
 {
 	/* turn on smooth lines (i.e. anti-aliasing) */
@@ -1751,15 +1753,10 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 {
 	bGPdata *gpd_source = NULL;
 	ToolSettings *ts = NULL;
-	bGPDbrush *brush = NULL;
+	Brush *brush = NULL;
 	if (scene) {
 		ts = scene->toolsettings;
-		brush = BKE_gpencil_brush_getactive(ts);
-		/* if no brushes, create default set */
-		if (brush == NULL) {
-			BKE_gpencil_brush_init_presets(ts);
-			brush = BKE_gpencil_brush_getactive(ts);
-		}
+		brush = BKE_brush_getactive_gpencil(ts);
 
 		if (spacetype == SPACE_VIEW3D) {
 			gpd_source = (scene->gpd ? scene->gpd : NULL);
@@ -2013,7 +2010,7 @@ void ED_gpencil_draw_view3d_object(wmWindowManager *wm, Scene *scene, const stru
 
 	/* draw it! */
 	ToolSettings *ts = scene->toolsettings;
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	if (brush != NULL) {
 		gp_draw_data(rv3d, brush, ts->gp_sculpt.alpha, ob, gpd,
 			offsx, offsy, winx, winy, CFRA, dflag);

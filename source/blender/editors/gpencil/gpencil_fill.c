@@ -38,12 +38,14 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_image_types.h"
 #include "DNA_object_types.h"
 #include "DNA_windowmanager_types.h"
 
 #include "BKE_main.h" 
+#include "BKE_brush.h" 
 #include "BKE_image.h" 
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
@@ -792,8 +794,8 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 {
 	Scene *scene = tgpf->scene;
 	ToolSettings *ts = tgpf->scene->toolsettings;
-	bGPDbrush *brush;
-	brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush;
+	brush = BKE_brush_getactive_gpencil(ts);
 	if (brush == NULL) {
 		return;
 	}
@@ -972,7 +974,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->depth_arr = NULL;
 
 	/* save filling parameters */
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	tgpf->flag = brush->gp_flag;
 	tgpf->fill_leak = brush->gp_fill_leak;
 	tgpf->fill_threshold = brush->gp_fill_threshold;

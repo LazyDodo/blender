@@ -44,6 +44,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -122,18 +123,24 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
-	bGPDbrush *brush;
+	Brush *brush;
 
 	/* if brush doesn't exist, create a new one */
-	if (BLI_listbase_is_empty(&ts->gp_brushes)) {
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+
+	Paint *paint = &ts->gp_paint->paint;
+	/* if not exist, create a new one */
+	if (paint->brush == NULL) {
 		/* create new brushes */
 		BKE_brush_gpencil_presets(C);
-		BKE_gpencil_brush_init_presets(ts);
-		brush = BKE_gpencil_brush_getactive(ts);
+		brush = BKE_brush_getactive_gpencil(ts);
 	}
 	else {
 		/* Use the current */
-		brush = BKE_gpencil_brush_getactive(ts);
+		brush = BKE_brush_getactive_gpencil(ts);
 	}
 	tgpi->brush = brush;
 

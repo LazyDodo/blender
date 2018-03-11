@@ -63,7 +63,6 @@ bool BKE_gpencil_free_layer_temp_data(struct bGPDlayer *gpl, struct bGPDframe *d
 void BKE_gpencil_free_frames(struct bGPDlayer *gpl);
 void BKE_gpencil_free_layers(struct ListBase *list);
 void BKE_gpencil_free_derived_frames(struct bGPdata *gpd);
-void BKE_gpencil_free_brushes(struct ListBase *list);
 void BKE_gpencil_free(struct bGPdata *gpd, bool free_all);
 
 void BKE_gpencil_batch_cache_dirty(struct bGPdata *gpd);
@@ -91,11 +90,6 @@ void BKE_gpencil_copy_palette_data(struct bGPdata *gpd_dst, const struct bGPdata
 void BKE_gpencil_make_local(struct Main *bmain, struct bGPdata *gpd, const bool lib_local);
 
 void BKE_gpencil_frame_delete_laststroke(struct bGPDlayer *gpl, struct bGPDframe *gpf);
-
-struct bGPDbrush *BKE_gpencil_brush_addnew(struct ToolSettings *ts, const char *name, bool setactive);
-struct bGPDbrush *BKE_gpencil_brush_duplicate(const struct bGPDbrush *brush_src);
-void BKE_gpencil_brush_init_presets(struct ToolSettings *ts);
-
 
 /* Utilities for creating and populating GP strokes */
 /* - Number of values defining each point in the built-in data 
@@ -139,10 +133,6 @@ bool BKE_gpencil_layer_delframe(struct bGPDlayer *gpl, struct bGPDframe *gpf);
 struct bGPDlayer *BKE_gpencil_layer_getactive(struct bGPdata *gpd);
 void BKE_gpencil_layer_setactive(struct bGPdata *gpd, struct bGPDlayer *active);
 void BKE_gpencil_layer_delete(struct bGPdata *gpd, struct bGPDlayer *gpl);
-
-struct bGPDbrush *BKE_gpencil_brush_getactive(struct ToolSettings *ts);
-void BKE_gpencil_brush_setactive(struct ToolSettings *ts, struct bGPDbrush *active);
-void BKE_gpencil_brush_delete(struct ToolSettings *ts, struct bGPDbrush *brush);
 
 /* Palette Slots */
 void BKE_gpencil_palette_slot_free(struct bGPdata *gpd, struct bGPDpaletteref *palslot);

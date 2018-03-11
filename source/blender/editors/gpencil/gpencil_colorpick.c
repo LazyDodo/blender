@@ -40,11 +40,13 @@
 #include "BLT_translation.h"
 
 #include "DNA_object_types.h"
+#include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_windowmanager_types.h"
 #include "DNA_userdef_types.h"
 
 #include "BKE_main.h" 
+#include "BKE_brush.h" 
 #include "BKE_image.h" 
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
@@ -99,7 +101,7 @@ typedef struct tGPDpick {
 	struct ScrArea *sa;                 /* area where painting originated */
 	struct ARegion *ar;                 /* region where painting originated */
 	struct Palette *palette;            /* current palette */
-	struct bGPDbrush *brush;            /* current brush */
+	struct Brush *brush;            /* current brush */
 	short bflag;                        /* previous brush flag */
 
 	int center[2];                      /* mouse center position */
@@ -305,7 +307,7 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	/* disable brush cursor
 	 * (so it doesn't distract when moving between colors)
 	 */
-	tgpk->brush = BKE_gpencil_brush_getactive(ts);
+	tgpk->brush = BKE_brush_getactive_gpencil(ts);
 	tgpk->bflag = tgpk->brush->gp_flag;
 	tgpk->brush->gp_flag &= ~GP_BRUSH_ENABLE_CURSOR;
 

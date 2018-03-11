@@ -1019,20 +1019,14 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 				}
 			}
 
-			if (!DNA_struct_elem_find(fd->filesdna, "bGPDbrush", "float", "curcolor[3]")) {
-				float curcolor[3], curcolor_add[3], curcolor_sub[3];
-				ARRAY_SET_ITEMS(curcolor, 1.0f, 1.0f, 1.0f);
+			{
+				float curcolor_add[3], curcolor_sub[3];
 				ARRAY_SET_ITEMS(curcolor_add, 1.0f, 0.6f, 0.6f);
 				ARRAY_SET_ITEMS(curcolor_sub, 0.6f, 0.6f, 1.0f);
 				GP_EditBrush_Data *gp_brush;
 
 				for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-					/* drawing brushes */
 					ToolSettings *ts = scene->toolsettings;
-					for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
-						brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
-						copy_v3_v3(brush->curcolor, curcolor);
-					}
 					/* sculpt brushes */
 					GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
 					for (int i = 0; i < TOT_GP_EDITBRUSH_TYPES; ++i) {
@@ -1150,22 +1144,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 
 	/* Hero open movie special code. This could removed later */
 	{
-		/* set brush modes */
-		for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-			/* drawing brushes */
-			ToolSettings *ts = scene->toolsettings;
-			for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
-				if (brush->gp_flag & GP_BRUSH_FILL_ONLY) {
-					brush->gp_brush_type = GP_BRUSH_TYPE_FILL;
-					brush->gp_flag &= ~GP_BRUSH_FILL_ONLY;
-				}
-				else {
-					brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
-				}
-			}
-		}
-
-
 		/* rescale old grease pencil pixel factor (needed for Hero open movie files) */
 		for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
 			/* old data was always bigger than 30 */

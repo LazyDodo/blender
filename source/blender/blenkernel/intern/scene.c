@@ -185,13 +185,6 @@ ToolSettings *BKE_toolsettings_copy(ToolSettings *toolsettings, const int flag)
 	ts->particle.scene = NULL;
 	ts->particle.object = NULL;
 
-	/* duplicate Grease Pencil Drawing Brushes */
-	BLI_listbase_clear(&ts->gp_brushes);
-	for (bGPDbrush *brush = toolsettings->gp_brushes.first; brush; brush = brush->next) {
-		bGPDbrush *newbrush = BKE_gpencil_brush_duplicate(brush);
-		BLI_addtail(&ts->gp_brushes, newbrush);
-	}
-
 	/* duplicate Grease Pencil interpolation curve */
 	ts->gp_interpolate.custom_ipo = curvemapping_copy(ts->gp_interpolate.custom_ipo);
 	/* duplicate Grease Pencil multiframe fallof */
@@ -225,10 +218,6 @@ void BKE_toolsettings_free(ToolSettings *toolsettings)
 		MEM_freeN(toolsettings->gp_paint);
 	}
 	BKE_paint_free(&toolsettings->imapaint.paint);
-
-	/* free Grease Pencil Drawing Brushes */
-	BKE_gpencil_free_brushes(&toolsettings->gp_brushes);
-	BLI_freelistN(&toolsettings->gp_brushes);
 
 	/* free Grease Pencil interpolation curve */
 	if (toolsettings->gp_interpolate.custom_ipo) {

@@ -6321,23 +6321,6 @@ static void direct_link_scene(FileData *fd, Scene *sce, Main *bmain)
 		sce->toolsettings->particle.object = NULL;
 		sce->toolsettings->gp_sculpt.paintcursor = NULL;
 		
-		/* relink grease pencil drawing brushes */
-		link_list(fd, &sce->toolsettings->gp_brushes);
-		for (bGPDbrush *brush = sce->toolsettings->gp_brushes.first; brush; brush = brush->next) {
-			brush->cur_sensitivity = newdataadr(fd, brush->cur_sensitivity);
-			if (brush->cur_sensitivity) {
-				direct_link_curvemapping(fd, brush->cur_sensitivity);
-			}
-			brush->cur_strength = newdataadr(fd, brush->cur_strength);
-			if (brush->cur_strength) {
-				direct_link_curvemapping(fd, brush->cur_strength);
-			}
-			brush->cur_jitter = newdataadr(fd, brush->cur_jitter);
-			if (brush->cur_jitter) {
-				direct_link_curvemapping(fd, brush->cur_jitter);
-			}
-		}
-		
 		/* relink grease pencil interpolation curves */
 		sce->toolsettings->gp_interpolate.custom_ipo = newdataadr(fd, sce->toolsettings->gp_interpolate.custom_ipo);
 		if (sce->toolsettings->gp_interpolate.custom_ipo) {

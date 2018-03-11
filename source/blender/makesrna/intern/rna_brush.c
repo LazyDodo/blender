@@ -649,7 +649,7 @@ static const EnumPropertyItem *rna_Brush_stroke_itemf(bContext *C, PointerRNA *U
 }
 
 /* Grease pencil Drawing Brushes */
-static void rna_GPencil_brush_default_eraser(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
+static void rna_brush_gpencil_default_eraser(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
 {
 	ToolSettings *ts = scene->toolsettings;
 	Paint *paint = &ts->gp_paint->paint;
@@ -657,7 +657,10 @@ static void rna_GPencil_brush_default_eraser(Main *bmain, Scene *scene, PointerR
 
 	/* disable default eraser in all brushes */
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
-		if ((brush != brush_cur) && (brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
+		if ((brush != brush_cur) && 
+			(brush->ob_mode == OB_MODE_GPENCIL_PAINT) &&
+			(brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) 
+		{
 			brush->gp_flag &= ~GP_BRUSH_DEFAULT_ERASER;
 		}
 	}
@@ -1780,7 +1783,7 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_icon(prop, ICON_UNPINNED, 1);
 	RNA_def_property_ui_text(prop, "Default Eraser", "Use this brush when enable eraser with fast switch key");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_brush_default_eraser");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_brush_gpencil_default_eraser");
 
 	prop = RNA_def_property(srna, "enable_settings", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", GP_BRUSH_GROUP_SETTINGS);

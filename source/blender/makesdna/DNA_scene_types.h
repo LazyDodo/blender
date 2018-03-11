@@ -64,7 +64,6 @@ struct AnimData;
 struct Editing;
 struct SceneStats;
 struct bGPdata;
-struct bGPDbrush;
 struct MovieClip;
 struct ColorSpace;
 struct SceneCollection;
@@ -1503,8 +1502,8 @@ typedef struct ToolSettings {
 	/* Grease Pencil Interpolation Tool(s) */
 	struct GP_Interpolate_Settings gp_interpolate;
 	
-	/* Grease Pencil Drawing Brushes (bGPDbrush) */
-	ListBase gp_brushes; 
+	/* Grease Pencil Drawing Brushes */
+	ListBase gp_brushes; /* Deprecated*/
 
 	/* Image Paint (8 byttse aligned please!) */
 	struct ImagePaintSettings imapaint;

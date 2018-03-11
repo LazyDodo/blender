@@ -54,6 +54,7 @@
 #include "DNA_workspace_types.h"
 
 #include "BKE_main.h"
+#include "BKE_brush.h"
 #include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
@@ -177,8 +178,8 @@ typedef struct tGPsdata {
 	Palette *palette;   /* current palette */
 	PaletteColor *palettecolor; /* current palette color */
 	
-	bGPDbrush *brush;    /* current drawing brush */
-	bGPDbrush *eraser;   /* default eraser brush */
+	Brush *brush;    /* current drawing brush */
+	Brush *eraser;   /* default eraser brush */
 	short straight[2];   /* 1: line horizontal, 2: line vertical, other: not defined, second element position */
 	int lock_axis;       /* lock drawing to one axis */
 	bool disable_fill;   /* the stroke is no fill mode */
@@ -284,7 +285,7 @@ static void gp_get_3d_reference(tGPsdata *p, float vec[3])
 /* check if the current mouse position is suitable for adding a new point */
 static bool gp_stroke_filtermval(tGPsdata *p, const int mval[2], int pmval[2])
 {
-	bGPDbrush *brush = p->brush;
+	Brush *brush = p->brush;
 	int dx = abs(mval[0] - pmval[0]);
 	int dy = abs(mval[1] - pmval[1]);
 	brush->gp_flag &= ~GP_BRUSH_STABILIZE_MOUSE_TEMP;
@@ -414,7 +415,7 @@ static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3]
 }
 
 /* apply jitter to stroke */
-static void gp_brush_jitter(bGPdata *gpd, bGPDbrush *brush, tGPspoint *pt, const int mval[2], int r_mval[2])
+static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int mval[2], int r_mval[2])
 {
 	float pressure = pt->pressure;
 	float tmp_pressure = pt->pressure;
@@ -453,7 +454,7 @@ static void gp_brush_jitter(bGPdata *gpd, bGPDbrush *brush, tGPspoint *pt, const
 }
 
 /* apply pressure change depending of the angle of the stroke to simulate a pen with shape */
-static void gp_brush_angle(bGPdata *gpd, bGPDbrush *brush, tGPspoint *pt, const int mval[2])
+static void gp_brush_angle(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int mval[2])
 {
 	float mvec[2];
 	float sen = brush->draw_angle_factor; /* sensitivity */;
@@ -554,7 +555,7 @@ static short gp_stroke_addpoint(
         tGPsdata *p, const int mval[2], float pressure, double curtime)
 {
 	bGPdata *gpd = p->gpd;
-	bGPDbrush *brush = p->brush;
+	Brush *brush = p->brush;
 	tGPspoint *pt;
 	ToolSettings *ts = p->scene->toolsettings;
 	Object *obact = (Object *)p->ownerPtr.data;
@@ -889,7 +890,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	bGPDstroke *gps;
 	bGPDspoint *pt;
 	tGPspoint *ptc;
-	bGPDbrush *brush = p->brush;
+	Brush *brush = p->brush;
 	ToolSettings *ts = p->scene->toolsettings;
 	Object *obact = (Object *)p->ownerPtr.data;
 
@@ -1242,7 +1243,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
                                       const int radius, const rcti *rect)
 {
 	Object *obact = (Object *)p->ownerPtr.data;
-	bGPDbrush *eraser = p->eraser;
+	Brush *eraser = p->eraser;
 	bGPDspoint *pt1, *pt2;
 	int pc1[2] = {0};
 	int pc2[2] = {0};
@@ -1443,7 +1444,7 @@ static void gp_stroke_doeraser(tGPsdata *p)
 static void gp_session_validatebuffer(tGPsdata *p)
 {
 	bGPdata *gpd = p->gpd;
-	bGPDbrush *brush = p->brush;
+	Brush *brush = p->brush;
 	
 	/* clear memory of buffer (or allocate it if starting a new session) */
 	if (gpd->sbuffer) {
@@ -1471,11 +1472,20 @@ static void gp_session_validatebuffer(tGPsdata *p)
 }
 
 /* helper to get default eraser and create one if no eraser brush */
-static bGPDbrush *gp_get_default_eraser(ToolSettings *ts)
+static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 {
-	bGPDbrush *brush_dft = NULL;
-	for (bGPDbrush *brush = ts->gp_brushes.first; brush; brush = brush->next) {
-		if ((brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
+	Brush *brush_dft = NULL;
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+
+	Paint *paint = &ts->gp_paint->paint;
+	Brush *brush_old = paint->brush;
+	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
+		if ((brush->ob_mode == OB_MODE_GPENCIL_PAINT) && 
+			(brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) 
+		{
 			/* save first eraser to use later if no default */
 			if (brush_dft == NULL) {
 				brush_dft = brush;
@@ -1486,7 +1496,6 @@ static bGPDbrush *gp_get_default_eraser(ToolSettings *ts)
 			}
 		}
 	}
-
 	/* if no default, but exist eraser brush, return this and set as default */
 	if (brush_dft) {
 		brush_dft->gp_flag |= GP_BRUSH_DEFAULT_ERASER;
@@ -1494,31 +1503,43 @@ static bGPDbrush *gp_get_default_eraser(ToolSettings *ts)
 	}
 	/* create a new soft eraser brush */
 	else {
-		brush_dft = BKE_gpencil_brush_addnew(ts, "Soft Eraser", false);
+		brush_dft = BKE_brush_add_gpencil(bmain, ts, "Soft Eraser");
 		brush_dft->thickness = 30.0f;
 		brush_dft->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
 		brush_dft->gp_icon_id = GPBRUSH_ERASE_SOFT;
 		brush_dft->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 		brush_dft->gp_eraser_mode = GP_BRUSH_ERASER_SOFT;
 
+		/* reset current brush */
+		BKE_paint_brush_set(paint, brush_old);
+
 		return brush_dft;
 	}
 }
 
 /* initialize a drawing brush */
-static void gp_init_drawing_brush(ToolSettings *ts, tGPsdata *p)
+static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 {
-	bGPDbrush *brush;
+	Brush *brush;
+	ToolSettings *ts = CTX_data_tool_settings(C);
+
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+
+	Paint *paint = &ts->gp_paint->paint;
+	Main *bmain = CTX_data_main(C);
 
 	/* if not exist, create a new one */
-	if (BLI_listbase_is_empty(&ts->gp_brushes)) {
+	if (paint->brush == NULL) {
 		/* create new brushes */
-		BKE_gpencil_brush_init_presets(ts);
-		brush = BKE_gpencil_brush_getactive(ts);
+		BKE_brush_gpencil_presets(C);
+		brush = BKE_brush_getactive_gpencil(ts);
 	}
 	else {
 		/* Use the current */
-		brush = BKE_gpencil_brush_getactive(ts);
+		brush = BKE_brush_getactive_gpencil(ts);
 	}
 	/* be sure curves are initializated */
 	curvemapping_initialize(brush->cur_sensitivity);
@@ -1528,7 +1549,7 @@ static void gp_init_drawing_brush(ToolSettings *ts, tGPsdata *p)
 	/* asign to temp tGPsdata */
 	p->brush = brush;
 	if (brush->gp_brush_type != GP_BRUSH_TYPE_ERASE) {
-		p->eraser = gp_get_default_eraser(ts);
+		p->eraser = gp_get_default_eraser(p->bmain, ts);
 	}
 	else {
 		p->eraser = brush;
@@ -1779,7 +1800,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 	gp_session_validatebuffer(p);
 	
 	/* set brush and create a new one if null */
-	gp_init_drawing_brush(ts, p);
+	gp_init_drawing_brush(C, p);
 
 	/* setup active palette */
 	if (curarea->spacetype == SPACE_VIEW3D) {
@@ -2198,7 +2219,7 @@ static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 	tGPsdata *p;
 	eGPencil_PaintModes paintmode = RNA_enum_get(op->ptr, "mode");
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	
 	/* if mode is draw and the brush is eraser, cancel */
 	if (paintmode != GP_PAINTMODE_ERASER) {
@@ -2241,7 +2262,7 @@ static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 /* ensure that the correct cursor icon is set */
 static void gpencil_draw_cursor_set(tGPsdata *p)
 {
-	bGPDbrush *brush = p->brush;
+	Brush *brush = p->brush;
 	if ((p->paintmode == GP_PAINTMODE_ERASER) || (brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
 		WM_cursor_modal_set(p->win, BC_CROSSCURSOR);  /* XXX need a better cursor */
 	}
@@ -2748,7 +2769,7 @@ static void gpencil_move_last_stroke_to_back(bContext *C)
 /* add events for missing mouse movements when the artist draw very fast */
 static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEvent *event, tGPsdata *p)
 {
-	bGPDbrush *brush = p->brush;
+	Brush *brush = p->brush;
 	if (brush->gp_input_samples == 0) {
 		return;
 	}

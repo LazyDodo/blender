@@ -43,6 +43,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_dynamicpaint_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_object_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
@@ -1247,7 +1248,48 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		}
 
 		/* reset the icon */
-		if (mode == OB_MODE_SCULPT) {
+		if (workspace->object_mode & OB_MODE_GPENCIL_PAINT) {
+			switch (br->gp_icon_id) {
+				case GPBRUSH_CUSTOM:
+					br->id.icon_id = ICON_GPBRUSH_CUSTOM;
+					break;
+				case GPBRUSH_PENCIL:
+					br->id.icon_id = ICON_GPBRUSH_PENCIL;
+					break;
+				case GPBRUSH_PEN:
+					br->id.icon_id = ICON_GPBRUSH_PEN;
+					break;
+				case GPBRUSH_INK:
+					br->id.icon_id = ICON_GPBRUSH_INK;
+					break;
+				case GPBRUSH_INKNOISE:
+					br->id.icon_id = ICON_GPBRUSH_INKNOISE;
+					break;
+				case GPBRUSH_BLOCK:
+					br->id.icon_id = ICON_GPBRUSH_BLOCK;
+					break;
+				case GPBRUSH_MARKER:
+					br->id.icon_id = ICON_GPBRUSH_MARKER;
+					break;
+				case GPBRUSH_FILL:
+					br->id.icon_id = ICON_GPBRUSH_FILL;
+					break;
+				case GPBRUSH_ERASE_SOFT:
+					br->id.icon_id = ICON_GPBRUSH_ERASE_SOFT;
+					break;
+				case GPBRUSH_ERASE_HARD:
+					br->id.icon_id = ICON_GPBRUSH_ERASE_HARD;
+					break;
+				case GPBRUSH_ERASE_STROKE:
+					br->id.icon_id = ICON_GPBRUSH_ERASE_STROKE;
+					break;
+				default:
+					br->id.icon_id = ICON_GPBRUSH_CUSTOM;
+					break;
+			}
+			return id->icon_id;
+		}
+		else if (mode == OB_MODE_SCULPT) {
 			items = rna_enum_brush_sculpt_tool_items;
 			tool = br->sculpt_tool;
 		}

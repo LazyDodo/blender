@@ -181,6 +181,61 @@ typedef struct Brush {
 	float gp_active_smooth;   /* smooth while drawing factor */
 } Brush;
 
+/* Brush->gp_flag */
+typedef enum eGPDbrush_Flag {
+	/* brush is active */
+	GP_BRUSH_ACTIVE = (1 << 0),
+	/* brush use pressure */
+	GP_BRUSH_USE_PRESSURE = (1 << 1),
+	/* brush use pressure for alpha factor */
+	GP_BRUSH_USE_STENGTH_PRESSURE = (1 << 2),
+	/* brush use pressure for alpha factor */
+	GP_BRUSH_USE_JITTER_PRESSURE = (1 << 3),
+	/* brush use random for pressure */
+	GP_BRUSH_USE_RANDOM_PRESSURE = (1 << 4),
+	/* brush use random for strength */
+	GP_BRUSH_USE_RANDOM_STRENGTH = (1 << 5),
+	/* enable screen cursor */
+	GP_BRUSH_ENABLE_CURSOR = (1 << 6),
+	/* brush is only for filling */
+	GP_BRUSH_FILL_ONLY = (1 << 7), /* Deprecated */
+	/* fill hide transparent */
+	GP_BRUSH_FILL_HIDE = (1 << 8),
+	/* show fill help lines */
+	GP_BRUSH_FILL_SHOW_HELPLINES = (1 << 10),
+	/* lazy mouse */
+	GP_BRUSH_STABILIZE_MOUSE = (1 << 11),
+	/* lazy mouse override (internal only) */
+	GP_BRUSH_STABILIZE_MOUSE_TEMP = (1 << 12),
+	/* default eraser brush for quick switch */
+	GP_BRUSH_DEFAULT_ERASER = (1 << 13),
+	/* settings group */
+	GP_BRUSH_GROUP_SETTINGS = (1 << 14),
+	/* Random settings group */
+	GP_BRUSH_GROUP_RANDOM = (1 << 15)
+} eGPDbrush_Flag;
+
+/* Brush->gp_fill_draw_mode */
+typedef enum eGP_FillDrawModes {
+	GP_FILL_DMODE_BOTH = 0,
+	GP_FILL_DMODE_STROKE = 1,
+	GP_FILL_DMODE_CONTROL = 2,
+} eGP_FillDrawModes;
+
+/* Brush->brush type */
+typedef enum eGP_BrushType {
+	GP_BRUSH_TYPE_DRAW = 0,
+	GP_BRUSH_TYPE_FILL = 1,
+	GP_BRUSH_TYPE_ERASE = 2,
+} eGP_BrushType;
+
+/* Brush->gp_eraser_mode */
+typedef enum eGP_BrushEraserMode {
+	GP_BRUSH_ERASER_SOFT = 0,
+	GP_BRUSH_ERASER_HARD = 1,
+	GP_BRUSH_ERASER_STROKE = 2,
+} eGP_BrushEraserMode;
+
 typedef struct PaletteColor {
 	struct PaletteColor *next, *prev;
 	struct Image *sima;      /* Texture image for strokes */

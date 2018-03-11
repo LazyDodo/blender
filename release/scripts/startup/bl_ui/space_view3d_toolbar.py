@@ -2077,32 +2077,13 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
         sub = col.column(align=True)
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
-        # Old code
-        row = layout.row()
-        col = row.column()
-        col.template_icon_view(ts, "gpencil_brushes_enum", show_labels=True)
-        col = row.column()
-        sub = col.column(align=True)
-        sub.operator("gpencil.brush_add", icon='ZOOMIN', text="")
-        sub.operator("gpencil.brush_remove", icon='ZOOMOUT', text="")
-        sub.menu("GPENCIL_MT_brush_specials", icon='DOWNARROW_HLT', text="")
-        # end old code
-
         brush = context.active_gpencil_brush
-        if brush:
-            if len(ts.gpencil_brushes) > 1:
-                col.separator()
-                sub = col.column(align=True)
-                sub.operator("gpencil.brush_move", icon='TRIA_UP', text="").type = 'UP'
-                sub.operator("gpencil.brush_move", icon='TRIA_DOWN', text="").type = 'DOWN'
+        if brush is not None:
+            if brush.gpencil_brush_type == 'ERASE':
+                sub.prop(brush, "default_eraser", text="")
 
         # Brush details
         if brush is not None:
-            row = layout.row()
-            row.prop(brush, "name", text="")
-            if brush.gpencil_brush_type == 'ERASE':
-                row.prop(brush, "default_eraser", text="")
-
             if brush.gpencil_brush_type == 'DRAW':
                 row = layout.row(align=True)
                 row.prop(brush, "use_random_pressure", text="", icon='RNDCURVE')
@@ -2110,7 +2091,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 row.prop(brush, "use_pressure", text="", icon='STYLUS_PRESSURE')
                 row = layout.row(align=True)
                 row.prop(brush, "use_random_strength", text="", icon='RNDCURVE')
-                row.prop(brush, "strength", slider=True)
+                row.prop(brush, "pen_strength", slider=True)
                 row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
             if brush.gpencil_brush_type == 'FILL':
@@ -2190,7 +2171,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
                 col.prop(brush, "random_press", slider=True)
 
                 row = col.row(align=True)
-                row.prop(brush, "jitter", slider=True)
+                row.prop(brush, "pen_jitter", slider=True)
                 row.prop(brush, "use_jitter_pressure", text="", icon='STYLUS_PRESSURE')
 
                 row = col.row(align=True)
@@ -2543,6 +2524,13 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
             col.prop(drawingbrush, "use_cursor", text="Show Brush")
             row = col.row(align=True)
             row.prop(drawingbrush, "cursor_color", text="Color")
+
+            col.separator()
+            col = col.column(align=True)
+            col.prop(drawingbrush, "use_custom_icon")
+            sub = col.column()
+            sub.active = drawingbrush.use_custom_icon
+            sub.prop(drawingbrush, "icon_filepath", text="")
 
         if workspace.object_mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
             col.prop(brush, "use_cursor", text="Show Brush")

@@ -26,6 +26,7 @@
 #include "DRW_engine.h"
 #include "DRW_render.h"
 
+#include "BKE_brush.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_image.h"
@@ -856,7 +857,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 {
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	bGPdata *gpd = ob->data;
 	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
 

@@ -1446,15 +1446,6 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 					brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
 				}
 			}
-			/* create a default grease pencil drawing brushes set */
-			if (!BLI_listbase_is_empty(&main->gpencil)) {
-				for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-					ToolSettings *ts = scene->toolsettings;
-					if (BLI_listbase_is_empty(&ts->gp_brushes)) {
-						BKE_gpencil_brush_init_presets(ts);
-					}
-				}
-			}
 			/* Convert Grease Pencil to new palettes/brushes
 			 * Loop all strokes and create the palette and all colors
 			 */

@@ -35,8 +35,10 @@
 #include "BLI_sys_types.h"
 
 #include "BKE_context.h"
+#include "BKE_brush.h"
 #include "BKE_gpencil.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_object_types.h"
 #include "DNA_screen_types.h"
@@ -118,7 +120,7 @@ static int gp_stroke_paintmode_draw_poll(bContext *C)
 	/* TODO: limit this to mode, but review 2D editors */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) && (brush->gp_brush_type == GP_BRUSH_TYPE_DRAW));
 }
 
@@ -128,7 +130,7 @@ static int gp_stroke_paintmode_erase_poll(bContext *C)
 	/* TODO: limit this to mode, but review 2D editors */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) && (brush->gp_brush_type == GP_BRUSH_TYPE_ERASE));
 }
 
@@ -138,7 +140,7 @@ static int gp_stroke_paintmode_fill_poll(bContext *C)
 	/* TODO: limit this to mode, but review 2D editors */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPDbrush *brush = BKE_gpencil_brush_getactive(ts);
+	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) && (brush->gp_brush_type == GP_BRUSH_TYPE_FILL));
 }
 
@@ -591,7 +593,7 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 
 	/* FKEY = Brush Size */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_brushes.active.line_width");
+	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_paint.brush.line_width");
 
 	/* CTRL + FKEY = Eraser Radius */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, KM_CTRL, 0);
@@ -818,12 +820,7 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_stroke_separate);
 	WM_operatortype_append(GPENCIL_OT_stroke_split);
 
-	WM_operatortype_append(GPENCIL_OT_brush_add);
-	WM_operatortype_append(GPENCIL_OT_brush_remove);
-	WM_operatortype_append(GPENCIL_OT_brush_change);
-	WM_operatortype_append(GPENCIL_OT_brush_move);
 	WM_operatortype_append(GPENCIL_OT_brush_presets_create);
-	WM_operatortype_append(GPENCIL_OT_brush_copy);
 	WM_operatortype_append(GPENCIL_OT_brush_select);
 
 	WM_operatortype_append(GPENCIL_OT_sculpt_select);

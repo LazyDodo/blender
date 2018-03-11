@@ -32,6 +32,7 @@
 
 #include "DNA_object_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_sequence_types.h"
 #include "DNA_scene_types.h"
@@ -42,6 +43,7 @@
 
 #include "BLI_utildefines.h"
 
+#include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_object.h"
 #include "BKE_action.h"
@@ -509,10 +511,10 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		}
 	}
 	else if (CTX_data_equals(member, "active_gpencil_brush")) {
-		bGPDbrush *brush = BKE_gpencil_brush_getactive(scene->toolsettings);
+		Brush *brush = BKE_brush_getactive_gpencil(scene->toolsettings);
 
 		if (brush) {
-			CTX_data_pointer_set(result, &scene->id, &RNA_GPencilBrush, brush);
+			CTX_data_pointer_set(result, &scene->id, &RNA_Brush, brush);
 			return 1;
 		}
 	}

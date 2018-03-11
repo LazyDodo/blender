@@ -234,8 +234,6 @@ const EnumPropertyItem *rna_TransformOrientation_itemf(struct bContext *C, struc
 const EnumPropertyItem *rna_Sensor_type_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
 const EnumPropertyItem *rna_Actuator_type_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
 
-const EnumPropertyItem *rna_GPencilBrush_enum_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
-
 /* Generic functions, return an enum from library data, index is the position
  * in the linked list can add more for different types as needed */
 const EnumPropertyItem *RNA_action_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
