@@ -267,6 +267,8 @@ static int rna_Brush_mode_poll(PointerRNA *ptr, PointerRNA value)
 		mode = OB_MODE_VERTEX_PAINT;
 	else if (ptr->data == ts->wpaint)
 		mode = OB_MODE_WEIGHT_PAINT;
+	else if (ptr->data == ts->gp_paint)
+		mode = OB_MODE_GPENCIL_PAINT;
 
 	return brush->ob_mode & mode;
 }
