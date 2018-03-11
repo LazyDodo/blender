@@ -90,6 +90,24 @@ int bc_test_parent_loop(Object *par, Object *ob)
 	return bc_test_parent_loop(par->parent, ob);
 }
 
+void bc_get_children(std::vector<Object *> &child_set, Object *ob, Scene *scene)
+{
+	for (Base *base = (Base*)(scene->base.first); base; base = base->next) {
+		Object *cob = base->object;
+		if (cob->parent == ob) {
+			switch (ob->type) {
+			case OB_MESH:
+			case OB_CAMERA:
+			case OB_LAMP:
+			case OB_EMPTY:
+			case OB_ARMATURE:
+				child_set.push_back(cob);
+			default: break;
+			}
+		}
+	}
+}
+
 // a shortened version of parent_set_exec()
 // if is_parent_space is true then ob->obmat will be multiplied by par->obmat before parenting
 int bc_set_parent(Object *ob, Object *par, bContext *C, bool is_parent_space)
