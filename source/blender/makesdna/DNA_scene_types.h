@@ -1126,6 +1126,11 @@ typedef struct UvSculpt {
 	Paint paint;
 } UvSculpt;
 
+/* grease pencil drawing brushes */
+typedef struct GpPaint {
+	Paint paint;
+} GpPaint;
+
 /* ------------------------------------------- */
 /* Vertex Paint */
 
@@ -1456,6 +1461,7 @@ typedef struct ToolSettings {
 	VPaint *wpaint;		/* weight paint */
 	Sculpt *sculpt;
 	UvSculpt *uvsculpt;	/* uv smooth */
+	GpPaint *gp_paint;  /* gpencil paint */
 	
 	/* Vertex group weight - used only for editmode, not weight
 	 * paint */

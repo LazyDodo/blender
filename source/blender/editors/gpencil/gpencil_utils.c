@@ -49,6 +49,7 @@
 #include "DNA_view3d_types.h"
 
 #include "BKE_main.h"
+#include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 #include "BKE_object.h"
@@ -1131,6 +1132,7 @@ void ED_gpencil_add_defaults(bContext *C)
 
 	/* create default brushes */
 	if (BLI_listbase_is_empty(&ts->gp_brushes)) {
+		BKE_brush_gpencil_presets(C);
 		BKE_gpencil_brush_init_presets(ts);
 	}
 }

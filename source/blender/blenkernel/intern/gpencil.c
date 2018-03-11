@@ -564,6 +564,11 @@ void BKE_gpencil_brush_init_presets(ToolSettings *ts)
 	CurveMapping *custom_curve;
 	float curcolor[3] = { 1.0f, 1.0f, 1.0f };
 
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+	
 	/* Pencil brush */
 	brush = BKE_gpencil_brush_addnew(ts, "Pencil", false);
 	brush->thickness = 25.0f;

@@ -195,6 +195,8 @@ Paint *BKE_paint_get_active_from_paintmode(Scene *sce, ePaintMode mode)
 				return &ts->imapaint.paint;
 			case ePaintSculptUV:
 				return &ts->uvsculpt->paint;
+			case ePaintGpencil:
+				return &ts->gp_paint->paint;
 			case ePaintInvalid:
 				return NULL;
 			default:
@@ -220,6 +222,8 @@ Paint *BKE_paint_get_active(Scene *sce, ViewLayer *view_layer, const eObjectMode
 					return &ts->wpaint->paint;
 				case OB_MODE_TEXTURE_PAINT:
 					return &ts->imapaint.paint;
+				case OB_MODE_GPENCIL_PAINT:
+					return &ts->gp_paint->paint;
 				case OB_MODE_EDIT:
 					if (ts->use_uv_sculpt)
 						return &ts->uvsculpt->paint;

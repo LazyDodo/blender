@@ -348,6 +348,11 @@ static char *rna_UvSculpt_path(PointerRNA *UNUSED(ptr))
 	return BLI_strdup("tool_settings.uv_sculpt");
 }
 
+static char *rna_GpPaint_path(PointerRNA *UNUSED(ptr))
+{
+	return BLI_strdup("tool_settings.gp_paint");
+}
+
 static char *rna_ParticleBrush_path(PointerRNA *UNUSED(ptr))
 {
 	return BLI_strdup("tool_settings.particle_edit.brush");
@@ -717,6 +722,14 @@ static void rna_def_uv_sculpt(BlenderRNA  *brna)
 	RNA_def_struct_ui_text(srna, "UV Sculpting", "");
 }
 
+static void rna_def_gp_paint(BlenderRNA  *brna)
+{
+	StructRNA *srna;
+
+	srna = RNA_def_struct(brna, "GpPaint", "Paint");
+	RNA_def_struct_path_func(srna, "rna_GpPaint_path");
+	RNA_def_struct_ui_text(srna, "Grease Pencil Paint", "");
+}
 
 /* use for weight paint too */
 static void rna_def_vertex_paint(BlenderRNA *brna)
@@ -1222,6 +1235,7 @@ void RNA_def_sculpt_paint(BlenderRNA *brna)
 	rna_def_paint(brna);
 	rna_def_sculpt(brna);
 	rna_def_uv_sculpt(brna);
+	rna_def_gp_paint(brna);
 	rna_def_vertex_paint(brna);
 	rna_def_image_paint(brna);
 	rna_def_particle_edit(brna);

@@ -129,6 +129,43 @@ static void BRUSH_OT_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
+static int brush_add_gpencil_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	/*int type = RNA_enum_get(op->ptr, "type");*/
+	ToolSettings *ts = CTX_data_tool_settings(C);
+	Paint *paint = &ts->gp_paint->paint;
+	Brush *br = BKE_paint_brush(paint);
+	Main *bmain = CTX_data_main(C);
+	ePaintMode mode = ePaintGpencil;
+
+	if (br) {
+		br = BKE_brush_copy(bmain, br);
+	}
+	else {
+		br = BKE_brush_add(bmain, "Brush", OB_MODE_GPENCIL_PAINT);
+		id_us_min(&br->id);  /* fake user only */
+	}
+
+	BKE_paint_brush_set(paint, br);
+
+	/* TODO init grease pencil specific data */
+
+	return OPERATOR_FINISHED;
+}
+
+static void BRUSH_OT_add_gpencil(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Add Drawing Brush";
+	ot->description = "Add brush for grease pencil";
+	ot->idname = "BRUSH_OT_add_gpencil";
+
+	/* api callbacks */
+	ot->exec = brush_add_gpencil_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
 
 static int brush_scale_size_exec(bContext *C, wmOperator *op)
 {
@@ -1628,6 +1665,7 @@ void ED_operatortypes_paint(void)
 
 	/* brush */
 	WM_operatortype_append(BRUSH_OT_add);
+	WM_operatortype_append(BRUSH_OT_add_gpencil);
 	WM_operatortype_append(BRUSH_OT_scale_size);
 	WM_operatortype_append(BRUSH_OT_curve_preset);
 	WM_operatortype_append(BRUSH_OT_reset);

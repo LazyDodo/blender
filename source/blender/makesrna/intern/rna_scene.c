@@ -445,18 +445,22 @@ EnumPropertyItem rna_enum_gpencil_drawing_brushes_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
+/* TODO: Moved to rna_brush.c (to be removed from here) */
 static EnumPropertyItem rna_enum_gpencil_fill_draw_modes_items[] = {
 	{ GP_FILL_DMODE_STROKE, "STROKE", 0, "Strokes", "Use visible strokes as fill boundary limits" },
 	{ GP_FILL_DMODE_CONTROL, "CONTROL", 0, "Control", "Use internal control lines as fill boundary limits" },
 	{ GP_FILL_DMODE_BOTH, "BOTH", 0, "Both", "Use visible strokes and control lines as fill boundary limits" },
 	{ 0, NULL, 0, NULL, NULL }
 };
+/* TODO: Moved to rna_brush.c (to be removed from here) */
 static EnumPropertyItem rna_enum_gpencil_brush_eraser_modes_items[] = {
 	{ GP_BRUSH_ERASER_SOFT, "SOFT", 0, "Soft", "Use soft eraser" },
 	{ GP_BRUSH_ERASER_HARD, "HARD", 0, "Hard", "Use hard eraser" },
 	{ GP_BRUSH_ERASER_STROKE, "STROKE", 0, "Stroke", "Use stroke eraser" },
 	{ 0, NULL, 0, NULL, NULL }
 };
+
+/* TODO: Moved to rna_brush.c (to be removed from here) */
 static EnumPropertyItem rna_enum_gpencil_brush_types_items[] = {
 	{ GP_BRUSH_TYPE_DRAW, "DRAW", 0, "Draw", "The brush is of type used for drawing strokes" },
 	{ GP_BRUSH_TYPE_FILL, "FILL", 0, "Fill", "The brush is of type used for filling areas" },
@@ -2708,6 +2712,10 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "uv_sculpt", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "uvsculpt");
 	RNA_def_property_ui_text(prop, "UV Sculpt", "");
+
+	prop = RNA_def_property(srna, "gpencil_paint", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "gp_paint");
+	RNA_def_property_ui_text(prop, "Grease Pencil Paint", "");
 
 	prop = RNA_def_property(srna, "particle_edit", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "particle");

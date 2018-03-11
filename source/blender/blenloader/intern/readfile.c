@@ -2342,12 +2342,27 @@ static void direct_link_brush(FileData *fd, Brush *brush)
 
 	/* fallof curve */
 	brush->curve = newdataadr(fd, brush->curve);
+
 	brush->gradient = newdataadr(fd, brush->gradient);
 
 	if (brush->curve)
 		direct_link_curvemapping(fd, brush->curve);
 	else
 		BKE_brush_curve_preset(brush, CURVE_PRESET_SHARP);
+
+	/* grease pencil curves */
+	brush->cur_sensitivity = newdataadr(fd, brush->cur_sensitivity);
+	brush->cur_strength = newdataadr(fd, brush->cur_strength);
+	brush->cur_jitter = newdataadr(fd, brush->cur_jitter);
+
+	if (brush->cur_sensitivity)
+		direct_link_curvemapping(fd, brush->cur_sensitivity);
+
+	if (brush->cur_strength)
+		direct_link_curvemapping(fd, brush->cur_strength);
+
+	if (brush->cur_jitter)
+		direct_link_curvemapping(fd, brush->cur_jitter);
 
 	brush->preview = NULL;
 	brush->icon_imbuf = NULL;
@@ -5942,6 +5957,7 @@ static void lib_link_scene(FileData *fd, Main *main)
 			link_paint(fd, sce, &sce->toolsettings->wpaint->paint);
 			link_paint(fd, sce, &sce->toolsettings->imapaint.paint);
 			link_paint(fd, sce, &sce->toolsettings->uvsculpt->paint);
+			link_paint(fd, sce, &sce->toolsettings->gp_paint->paint);
 
 			if (sce->toolsettings->sculpt)
 				sce->toolsettings->sculpt->gravity_object =
@@ -6294,7 +6310,8 @@ static void direct_link_scene(FileData *fd, Scene *sce, Main *bmain)
 		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->vpaint);
 		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->wpaint);
 		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->uvsculpt);
-		
+		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->gp_paint);
+
 		direct_link_paint(fd, &sce->toolsettings->imapaint.paint);
 
 		sce->toolsettings->imapaint.paintcursor = NULL;

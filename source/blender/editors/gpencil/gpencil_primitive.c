@@ -52,6 +52,7 @@
 #include "DNA_view3d_types.h"
 
 #include "BKE_main.h"
+#include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
@@ -126,6 +127,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	/* if brush doesn't exist, create a new one */
 	if (BLI_listbase_is_empty(&ts->gp_brushes)) {
 		/* create new brushes */
+		BKE_brush_gpencil_presets(C);
 		BKE_gpencil_brush_init_presets(ts);
 		brush = BKE_gpencil_brush_getactive(ts);
 	}

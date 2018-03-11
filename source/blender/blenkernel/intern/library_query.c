@@ -500,6 +500,9 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					if (toolsett->uvsculpt) {
 						library_foreach_paint(&data, &toolsett->uvsculpt->paint);
 					}
+					if (toolsett->gp_paint) {
+						library_foreach_paint(&data, &toolsett->gp_paint->paint);
+					}
 				}
 
 				if (scene->rigidbody_world) {

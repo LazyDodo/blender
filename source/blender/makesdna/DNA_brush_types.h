@@ -141,6 +141,44 @@ typedef struct Brush {
 
 	float mask_stencil_pos[2];
 	float mask_stencil_dimension[2];
+
+	/* grease pencil drawing brush data */
+	short thickness;          /* thickness to apply to strokes */
+	short gp_flag;
+	float draw_smoothfac;     /* amount of smoothing to apply to newly created strokes */
+	short draw_smoothlvl;     /* number of times to apply smooth factor to new strokes */
+	short draw_subdivide;     /* number of times to subdivide new strokes */
+
+	float draw_sensitivity;   /* amount of sensivity to apply to newly created strokes */
+	float draw_strength;      /* amount of alpha strength to apply to newly created strokes */
+	float draw_jitter;        /* amount of jitter to apply to newly created strokes */
+	float draw_angle;         /* angle when the brush has full thickness */
+	float draw_angle_factor;  /* factor to apply when angle change (only 90 degrees) */
+	float draw_random_press;  /* factor of randomness for sensitivity and strength */
+	float draw_random_sub;    /* factor of randomness for subdivision */
+
+	struct CurveMapping *cur_sensitivity;
+	struct CurveMapping *cur_strength;
+	struct CurveMapping *cur_jitter;
+
+	float curcolor[3];
+	float gp_thick_smoothfac; /* amount of thickness smoothing to apply to newly created strokes */
+	short gp_thick_smoothlvl; /* number of times to apply thickness smooth factor to new strokes */
+
+	short gp_fill_leak;       /* number of pixel to consider the leak is too small (x 2) */
+	float gp_fill_threshold;  /* factor for transparency */
+	int   gp_fill_simplylvl;  /* number of simplify steps */
+	int   gp_fill_draw_mode;  /* type of control lines drawing mode */
+	int   gp_icon_id;         /* icon identifier */
+
+	int   gp_lazy_radius;     /* distance to last point to create new point */
+	float gp_lazy_factor;     /* factor of smooth */
+
+	float gp_uv_random;       /* random factor for UV rotation */
+	int   gp_input_samples;   /* maximum distance before generate new point for very fast mouse movements */
+	int   gp_brush_type;      /* type of brush (draw, fill, erase, etc..) */
+	int   gp_eraser_mode;     /* soft, hard or stroke */
+	float gp_active_smooth;   /* smooth while drawing factor */
 } Brush;
 
 typedef struct PaletteColor {

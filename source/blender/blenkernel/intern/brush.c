@@ -29,6 +29,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
+#include "DNA_gpencil_types.h"
 
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
@@ -36,6 +37,7 @@
 
 #include "BKE_brush.h"
 #include "BKE_colortools.h"
+#include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
@@ -164,6 +166,362 @@ Brush *BKE_brush_add(Main *bmain, const char *name, const eObjectMode ob_mode)
 	return brush;
 }
 
+/* add a new gp-brush */
+Brush *BKE_brush_add_gpencil(Main *bmain, ToolSettings *ts, const char *name)
+{
+	Brush *brush;
+
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+
+	Paint *paint = &ts->gp_paint->paint;
+
+	brush = BKE_brush_add(bmain, name, OB_MODE_GPENCIL_PAINT);
+
+	/* set basic settings */
+	brush->thickness = 3;
+	brush->draw_smoothlvl = 1;
+	brush->gp_flag = 0;
+	brush->gp_flag |= GP_BRUSH_USE_PRESSURE;
+	brush->draw_sensitivity = 1.0f;
+	brush->draw_strength = 1.0f;
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+	brush->gp_icon_id = GPBRUSH_CUSTOM;
+
+	/* curves */
+	brush->cur_sensitivity = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+	brush->cur_strength = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+	brush->cur_jitter = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+
+	BKE_paint_brush_set(paint, brush);
+
+	/* return brush */
+	return brush;
+}
+/* grease pencil cumapping->preset */
+typedef enum eGPCurveMappingPreset {
+	GPCURVE_PRESET_PENCIL = 0,
+	GPCURVE_PRESET_INK = 1,
+	GPCURVE_PRESET_INKNOISE = 2,
+} eGPCurveMappingPreset;
+
+static void brush_gpencil_curvemap_reset(CurveMap *cuma, int preset)
+{
+	if (cuma->curve)
+		MEM_freeN(cuma->curve);
+
+	cuma->totpoint = 3;
+	cuma->curve = MEM_callocN(cuma->totpoint * sizeof(CurveMapPoint), __func__);
+
+	switch (preset) {
+		case GPCURVE_PRESET_PENCIL:
+			cuma->curve[0].x = 0.0f;
+			cuma->curve[0].y = 0.0f;
+			cuma->curve[1].x = 0.75115f;
+			cuma->curve[1].y = 0.25f;
+			cuma->curve[2].x = 1.0f;
+			cuma->curve[2].y = 1.0f;
+			break;
+		case GPCURVE_PRESET_INK:
+			cuma->curve[0].x = 0.0f;
+			cuma->curve[0].y = 0.0f;
+			cuma->curve[1].x = 0.63448f;
+			cuma->curve[1].y = 0.375f;
+			cuma->curve[2].x = 1.0f;
+			cuma->curve[2].y = 1.0f;
+			break;
+		case GPCURVE_PRESET_INKNOISE:
+			cuma->curve[0].x = 0.0f;
+			cuma->curve[0].y = 0.0f;
+			cuma->curve[1].x = 0.63134f;
+			cuma->curve[1].y = 0.3625f;
+			cuma->curve[2].x = 1.0f;
+			cuma->curve[2].y = 1.0f;
+			break;
+	}
+
+	if (cuma->table) {
+		MEM_freeN(cuma->table);
+		cuma->table = NULL;
+	}
+}
+
+/* create a set of grease pencil presets */
+void BKE_brush_gpencil_presets(bContext *C)
+{
+#define LAZY_RADIUS 40
+#define LAZY_FACTOR 0.9f
+
+	ToolSettings *ts = CTX_data_tool_settings(C);
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+
+	Paint *paint = &ts->gp_paint->paint;
+	Main *bmain = CTX_data_main(C);
+
+	Brush *brush, *deft;
+	CurveMapping *custom_curve;
+	float curcolor[3] = { 1.0f, 1.0f, 1.0f };
+
+	/* Pencil brush */
+	brush = BKE_brush_add_gpencil(bmain, ts, "Pencil");
+	brush->thickness = 25.0f;
+	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->draw_sensitivity = 1.0f;
+
+	brush->gp_flag |= GP_BRUSH_USE_RANDOM_STRENGTH;
+	brush->draw_strength = 0.6f;
+	brush->gp_flag |= GP_BRUSH_USE_STENGTH_PRESSURE;
+
+	brush->draw_random_press = 0.0f;
+
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+
+	brush->draw_angle = 0.0f;
+	brush->draw_angle_factor = 0.0f;
+
+	brush->gp_flag |= GP_BRUSH_GROUP_SETTINGS;
+	brush->draw_smoothfac = 0.5f;
+	brush->draw_smoothlvl = 1;
+	brush->gp_thick_smoothfac = 1.0f;
+	brush->gp_thick_smoothlvl = 3;
+	brush->draw_subdivide = 1;
+	brush->draw_random_sub = 0.0f;
+	copy_v3_v3(brush->curcolor, curcolor);
+	brush->gp_icon_id = GPBRUSH_PENCIL;
+	brush->id.icon_id = 846;
+	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
+
+	brush->gp_lazy_radius = LAZY_RADIUS;
+	brush->gp_lazy_factor = LAZY_FACTOR;
+
+	/* Pen brush */
+	brush = BKE_brush_add_gpencil(bmain, ts, "Pen");
+	deft = brush; /* save default brush */
+	brush->thickness = 30.0f;
+	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->draw_sensitivity = 1.0f;
+
+	brush->gp_flag |= GP_BRUSH_USE_RANDOM_STRENGTH;
+	brush->draw_strength = 1.0f;
+	brush->gp_flag |= GP_BRUSH_USE_STENGTH_PRESSURE;
+
+	brush->draw_random_press = 0.0f;
+
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+
+	brush->draw_angle = 0.0f;
+	brush->draw_angle_factor = 0.0f;
+
+	brush->gp_flag |= GP_BRUSH_GROUP_SETTINGS;
+	brush->draw_smoothfac = 0.5f;
+	brush->draw_smoothlvl = 1;
+	brush->draw_subdivide = 1;
+	brush->gp_thick_smoothfac = 1.0f;
+	brush->gp_thick_smoothlvl = 3;
+	brush->draw_random_sub = 0.0f;
+	copy_v3_v3(brush->curcolor, curcolor);
+	brush->gp_icon_id = GPBRUSH_PEN;
+	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
+
+	brush->gp_lazy_radius = LAZY_RADIUS;
+	brush->gp_lazy_factor = LAZY_FACTOR;
+
+	/* Ink brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Ink");
+	brush->thickness = 60.0f;
+	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->draw_sensitivity = 1.6f;
+
+	brush->draw_strength = 1.0f;
+
+	brush->draw_random_press = 0.0f;
+
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+
+	brush->draw_angle = 0.0f;
+	brush->draw_angle_factor = 0.0f;
+
+	brush->gp_flag |= GP_BRUSH_GROUP_SETTINGS;
+	brush->draw_smoothfac = 0.5f;
+	brush->draw_smoothlvl = 1;
+	brush->gp_thick_smoothfac = 1.0f;
+	brush->gp_thick_smoothlvl = 3;
+	brush->draw_subdivide = 1;
+	brush->draw_random_sub = 0.0f;
+	copy_v3_v3(brush->curcolor, curcolor);
+	brush->gp_icon_id = GPBRUSH_INK;
+	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
+
+	brush->gp_lazy_radius = LAZY_RADIUS;
+	brush->gp_lazy_factor = LAZY_FACTOR;
+
+	/* Curve */
+	custom_curve = brush->cur_sensitivity;
+	curvemapping_set_defaults(custom_curve, 0, 0.0f, 0.0f, 1.0f, 1.0f);
+	curvemapping_initialize(custom_curve);
+	brush_gpencil_curvemap_reset(custom_curve->cm, GPCURVE_PRESET_INK);
+
+	/* Ink Noise brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Ink noise");
+	brush->thickness = 60.0f;
+	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->draw_sensitivity = 1.0f;
+
+	brush->draw_strength = 1.0f;
+
+	brush->draw_random_press = 0.7f;
+
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+
+	brush->draw_angle = 0.0f;
+	brush->draw_angle_factor = 0.0f;
+
+	brush->gp_flag |= GP_BRUSH_GROUP_SETTINGS;
+	brush->draw_smoothfac = 1.0f;
+	brush->draw_smoothlvl = 2;
+	brush->gp_thick_smoothfac = 0.5f;
+	brush->gp_thick_smoothlvl = 2;
+	brush->draw_subdivide = 1;
+	brush->draw_random_sub = 0.0f;
+	copy_v3_v3(brush->curcolor, curcolor);
+	brush->gp_icon_id = GPBRUSH_INKNOISE;
+	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
+
+	brush->gp_lazy_radius = LAZY_RADIUS;
+	brush->gp_lazy_factor = LAZY_FACTOR;
+
+	/* Curve */
+	custom_curve = brush->cur_sensitivity;
+	curvemapping_set_defaults(custom_curve, 0, 0.0f, 0.0f, 1.0f, 1.0f);
+	curvemapping_initialize(custom_curve);
+	brush_gpencil_curvemap_reset(custom_curve->cm, GPCURVE_PRESET_INKNOISE);
+
+	/* Block Basic brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Block Basic");
+	brush->thickness = 150.0f;
+	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->draw_sensitivity = 1.0f;
+
+	brush->draw_strength = 0.7f;
+	brush->gp_flag |= GP_BRUSH_USE_STENGTH_PRESSURE;
+
+	brush->draw_random_press = 0.0f;
+
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+
+	brush->draw_angle = 0.0f;
+	brush->draw_angle_factor = 0.0f;
+
+	brush->gp_flag |= GP_BRUSH_GROUP_SETTINGS;
+	brush->draw_smoothfac = 0.0f;
+	brush->draw_smoothlvl = 1;
+	brush->gp_thick_smoothfac = 1.0f;
+	brush->gp_thick_smoothlvl = 3;
+	brush->draw_subdivide = 0;
+	brush->draw_random_sub = 0;
+	copy_v3_v3(brush->curcolor, curcolor);
+	brush->gp_icon_id = GPBRUSH_BLOCK;
+	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
+
+	brush->gp_lazy_radius = LAZY_RADIUS;
+	brush->gp_lazy_factor = LAZY_FACTOR;
+
+	/* Marker brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Marker");
+	brush->thickness = 80.0f;
+	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->draw_sensitivity = 1.0f;
+
+	brush->draw_strength = 1.0f;
+
+	brush->draw_random_press = 0.374f;
+
+	brush->draw_jitter = 0.0f;
+	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
+
+	brush->draw_angle = M_PI_4; /* 45 degrees */
+	brush->draw_angle_factor = 1.0f;
+
+	brush->gp_flag |= GP_BRUSH_GROUP_SETTINGS;
+	brush->draw_smoothfac = 0.5f;
+	brush->draw_smoothlvl = 1;
+	brush->gp_thick_smoothfac = 1.0f;
+	brush->gp_thick_smoothlvl = 3;
+	brush->draw_subdivide = 1;
+	brush->draw_random_sub = 0.0f;
+	copy_v3_v3(brush->curcolor, curcolor);
+	brush->gp_icon_id = GPBRUSH_MARKER;
+	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
+
+	brush->gp_lazy_radius = LAZY_RADIUS;
+	brush->gp_lazy_factor = LAZY_FACTOR;
+
+	/* Fill brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Fill");
+	brush->thickness = 1.0f;
+	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
+	brush->draw_sensitivity = 1.0f;
+	brush->gp_fill_leak = 3;
+	brush->gp_fill_threshold = 0.1f;
+	brush->gp_fill_simplylvl = 1;
+	brush->gp_icon_id = GPBRUSH_FILL;
+	brush->gp_brush_type = GP_BRUSH_TYPE_FILL;
+
+	brush->draw_smoothfac = 0.5f;
+	brush->draw_smoothlvl = 1;
+	brush->gp_thick_smoothfac = 1.0f;
+	brush->gp_thick_smoothlvl = 3;
+	brush->draw_subdivide = 1;
+
+	brush->gp_lazy_radius = LAZY_RADIUS;
+	brush->gp_lazy_factor = LAZY_FACTOR;
+
+	brush->draw_strength = 1.0f;
+	copy_v3_v3(brush->curcolor, curcolor);
+
+	/* Soft Eraser brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Soft Eraser");
+	brush->thickness = 30.0f;
+	brush->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
+	brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
+	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
+	brush->gp_eraser_mode = GP_BRUSH_ERASER_SOFT;
+	copy_v3_v3(brush->curcolor, curcolor);
+
+	/* Hard Eraser brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Hard Eraser");
+	brush->thickness = 30.0f;
+	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
+	brush->gp_icon_id = GPBRUSH_ERASE_HARD;
+	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
+	brush->gp_eraser_mode = GP_BRUSH_ERASER_HARD;
+	copy_v3_v3(brush->curcolor, curcolor);
+
+	/* Stroke Eraser brush */
+	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Stroke Eraser");
+	brush->thickness = 30.0f;
+	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
+	brush->gp_icon_id = GPBRUSH_ERASE_STROKE;
+	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
+	brush->gp_eraser_mode = GP_BRUSH_ERASER_STROKE;
+	copy_v3_v3(brush->curcolor, curcolor);
+
+	/* set defaut brush */
+	BKE_paint_brush_set(paint, deft);
+
+}
+
 struct Brush *BKE_brush_first_search(struct Main *bmain, const eObjectMode ob_mode)
 {
 	Brush *brush;
@@ -215,8 +573,10 @@ void BKE_brush_free(Brush *brush)
 	if (brush->icon_imbuf) {
 		IMB_freeImBuf(brush->icon_imbuf);
 	}
-
 	curvemapping_free(brush->curve);
+	curvemapping_free(brush->cur_sensitivity);
+	curvemapping_free(brush->cur_strength);
+	curvemapping_free(brush->cur_jitter);
 
 	MEM_SAFE_FREE(brush->gradient);
 

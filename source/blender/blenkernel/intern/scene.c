@@ -174,6 +174,10 @@ ToolSettings *BKE_toolsettings_copy(ToolSettings *toolsettings, const int flag)
 		ts->uvsculpt = MEM_dupallocN(ts->uvsculpt);
 		BKE_paint_copy(&ts->uvsculpt->paint, &ts->uvsculpt->paint, flag);
 	}
+	if (ts->gp_paint) {
+		ts->gp_paint = MEM_dupallocN(ts->gp_paint);
+		BKE_paint_copy(&ts->gp_paint->paint, &ts->gp_paint->paint, flag);
+	}
 
 	BKE_paint_copy(&ts->imapaint.paint, &ts->imapaint.paint, flag);
 	ts->imapaint.paintcursor = NULL;
@@ -215,6 +219,10 @@ void BKE_toolsettings_free(ToolSettings *toolsettings)
 	if (toolsettings->uvsculpt) {
 		BKE_paint_free(&toolsettings->uvsculpt->paint);
 		MEM_freeN(toolsettings->uvsculpt);
+	}
+	if (toolsettings->gp_paint) {
+		BKE_paint_free(&toolsettings->gp_paint->paint);
+		MEM_freeN(toolsettings->gp_paint);
 	}
 	BKE_paint_free(&toolsettings->imapaint.paint);
 
@@ -719,6 +727,9 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->imapaint.paint.flags |= PAINT_SHOW_BRUSH;
 	sce->toolsettings->imapaint.normal_angle = 80;
 	sce->toolsettings->imapaint.seam_bleed = 2;
+
+	/* alloc grease pencil drawing brushes */
+	sce->toolsettings->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
 
 	/* grease pencil multiframe falloff curve */
 	sce->toolsettings->gp_sculpt.cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);

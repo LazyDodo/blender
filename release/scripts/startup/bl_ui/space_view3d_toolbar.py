@@ -2066,17 +2066,28 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        ts = context.scene.tool_settings
+        settings = ts.gpencil_paint
+
         row = layout.row()
         col = row.column()
+        col.template_ID_preview(settings, "brush", new="brush.add_gpencil", rows=3, cols=8)
 
-        ts = context.scene.tool_settings
+        col = row.column()
+        sub = col.column(align=True)
+        sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
+
+        # Old code
+        row = layout.row()
+        col = row.column()
         col.template_icon_view(ts, "gpencil_brushes_enum", show_labels=True)
-
         col = row.column()
         sub = col.column(align=True)
         sub.operator("gpencil.brush_add", icon='ZOOMIN', text="")
         sub.operator("gpencil.brush_remove", icon='ZOOMOUT', text="")
         sub.menu("GPENCIL_MT_brush_specials", icon='DOWNARROW_HLT', text="")
+        # end old code
+
         brush = context.active_gpencil_brush
         if brush:
             if len(ts.gpencil_brushes) > 1:
