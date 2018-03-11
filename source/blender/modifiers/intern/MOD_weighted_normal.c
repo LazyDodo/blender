@@ -172,11 +172,15 @@ static void apply_weights_sharp_loops(
 		}
 	}
 
+	const bool has_face_influence = (wnmd->flag & MOD_WEIGHTEDNORMAL_FACE_INFLUENCE) != 0 && poly_strength != NULL;
+
 	zero_v3(wn_data->vert_normals[0]);
 	wn_data->vert_loops_count[0] = 0;
 	wn_data->curr_vert_val[0] = 0.0f;
-	wn_data->curr_vert_strength[0] = FACE_STRENGTH_WEAK;
-	const bool has_face_influence = (wnmd->flag & MOD_WEIGHTEDNORMAL_FACE_INFLUENCE) != 0 && poly_strength != NULL;
+
+	if (has_face_influence) {
+		wn_data->curr_vert_strength[0] = FACE_STRENGTH_WEAK;
+	}
 
 	float *vert_normals = wn_data->vert_normals[0];
 	int *vert_loops_count = &wn_data->vert_loops_count[0];
@@ -195,7 +199,7 @@ static void apply_weights_sharp_loops(
 			mp_index = loop_to_poly[j];
 		}
 
-		if (has_face_influence && poly_strength) {
+		if (has_face_influence) {
 			do_loop = check_strength(wn_data, 0, mp_index);
 		}
 		if (do_loop) {
@@ -312,7 +316,7 @@ static void aggregate_vertex_normal(
 	const bool has_vgroup = dvert != NULL;
 	const bool vert_of_group = has_vgroup && defvert_find_index(&dvert[mv_index], defgrp_index) != NULL;
 
-	if (has_vgroup && ((vert_of_group && use_invert_vgroup) || (!vert_of_group && !use_invert_vgroup))) {
+	if (has_vgroup && ((vert_of_group && !use_invert_vgroup) || (vert_of_group && !use_invert_vgroup))) {
 		return;
 	}
 
@@ -437,6 +441,7 @@ static void apply_weights_vertex_normal(WeightedNormalModifierData *wnmd, Weight
 		if (loop_to_poly == NULL) {
 			loop_to_poly_mem = MEM_malloc_arrayN((size_t)numLoops, sizeof(*loop_to_poly_mem), __func__);
 			loop_to_poly = loop_to_poly_mem;
+			wn_data->loop_to_poly = loop_to_poly;
 		}
 
 		BKE_mesh_normals_loop_split(mvert, numVerts, medge, numEdges, mloop, loop_normal, numLoops, mpoly, polynors,
@@ -505,14 +510,21 @@ static void apply_weights_vertex_normal(WeightedNormalModifierData *wnmd, Weight
 					int *e2l_curr = edge_to_loops[ml_curr->e];
 					int *e2l_prev = edge_to_loops[ml_prev->e];
 
-					if (IS_EDGE_SHARP(e2l_curr)) {
-						if (IS_EDGE_SHARP(e2l_curr) && IS_EDGE_SHARP(e2l_prev)) {
-							loop_split_worker(wnmd, wn_data, ml_curr, ml_prev, ml_curr_index, -1, NULL,
-							                  mp_index, loop_normal, edge_to_loops);
-						}
-						else {
-							loop_split_worker(wnmd, wn_data, ml_curr, ml_prev, ml_curr_index, ml_prev_index, e2l_prev,
-							                  mp_index, loop_normal, edge_to_loops);
+					const bool use_invert_vgroup = wn_data->use_invert_vgroup;
+					const int defgrp_index = wn_data->defgrp_index;
+					const bool vert_of_group = has_vgroup && defvert_find_index(&dvert[mloop[ml_curr_index].v], defgrp_index) != NULL;
+					/* Check for vertex groups before proceeding, not sure how to make this cleaner */
+
+					if (has_vgroup && ((vert_of_group && !use_invert_vgroup) || (!vert_of_group && use_invert_vgroup))) {
+						if (IS_EDGE_SHARP(e2l_curr)) {
+							if (IS_EDGE_SHARP(e2l_curr) && IS_EDGE_SHARP(e2l_prev)) {
+								loop_split_worker(wnmd, wn_data, ml_curr, ml_prev, ml_curr_index, -1, NULL,
+									mp_index, loop_normal, edge_to_loops);
+							}
+							else {
+								loop_split_worker(wnmd, wn_data, ml_curr, ml_prev, ml_curr_index, ml_prev_index, e2l_prev,
+									mp_index, loop_normal, edge_to_loops);
+							}
 						}
 					}
 					ml_prev = ml_curr;
@@ -658,7 +670,10 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 
 	bool free_polynors = false;
 
-	/* Add some comment here about why this is needed? */
+	/* Right now if wnmd->weight = 50 then all faces are given equal weight
+	   If weight > 50 then more weight given to faces with larger vals (face area / corner angle)
+	   If weight < 50 then more weight given to faces with lesser vals. However current calculation
+	   does not converge to min/max */
 	float weight = ((float)wnmd->weight) / 50.0f;
 	if (wnmd->weight == 100) {
 		weight = (float)SHRT_MAX;
