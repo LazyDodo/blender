@@ -58,6 +58,7 @@
 #include "BKE_main.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_brush.h"
 #include "BKE_gpencil.h"
 #include "BKE_paint.h"
 #include "BKE_library.h"
@@ -189,6 +190,8 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 
 	WorkSpace *workspace = CTX_wm_workspace(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	ToolSettings *ts = CTX_data_tool_settings(C);
+
 	bool is_object = false;
 	short mode;
 	/* if using a gpencil object, use this datablock */
@@ -218,6 +221,17 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 		}
 		workspace->object_mode_restore = workspace->object_mode;
 		workspace->object_mode = mode;
+	}
+
+	/* be sure we have brushes */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+
+	Paint *paint = &ts->gp_paint->paint;
+	/* if not exist, create a new one */
+	if (paint->brush == NULL) {
+		BKE_brush_gpencil_presets(C);
 	}
 
 	/* setup other modes */
