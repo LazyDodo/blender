@@ -2081,12 +2081,11 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
 
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
+        # Brush details
         if brush is not None:
             if brush.gpencil_brush_type == 'ERASE':
                 sub.prop(brush, "default_eraser", text="")
 
-        # Brush details
-        if brush is not None:
             if brush.gpencil_brush_type == 'DRAW':
                 row = layout.row(align=True)
                 row.prop(brush, "use_random_pressure", text="", icon='RNDCURVE')
