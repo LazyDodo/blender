@@ -665,6 +665,33 @@ static void rna_brush_gpencil_default_eraser(Main *bmain, Scene *scene, PointerR
 		}
 	}
 }
+
+static void rna_brush_gpencil_eraser_mode(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
+{
+	ToolSettings *ts = scene->toolsettings;
+	Paint *paint = &ts->gp_paint->paint;
+	Brush *brush = paint->brush;
+
+	/* set eraser icon */
+	if ((brush) && (brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
+		switch (brush->gp_eraser_mode) {
+			case GP_BRUSH_ERASER_SOFT:
+				brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
+				break;
+			case GP_BRUSH_ERASER_HARD:
+				brush->gp_icon_id = GPBRUSH_ERASE_HARD;
+				break;
+			case GP_BRUSH_ERASER_STROKE:
+				brush->gp_icon_id = GPBRUSH_ERASE_STROKE;
+				break;
+			default:
+				brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
+				break;
+		}
+	}
+
+}
+
 #else
 
 static void rna_def_brush_texture_slot(BlenderRNA *brna)
@@ -1753,6 +1780,7 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "gp_eraser_mode");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_eraser_modes_items);
 	RNA_def_property_ui_text(prop, "Mode", "Eraser Mode");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_brush_gpencil_eraser_mode");
 
 	prop = RNA_def_property(srna, "gpencil_fill_draw_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "gp_fill_draw_mode");

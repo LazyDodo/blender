@@ -144,7 +144,7 @@ typedef struct Brush {
 
 	/* grease pencil drawing brush data */
 	short thickness;          /* thickness to apply to strokes */
-	short gp_flag;            /* internal grease pecncil drawing flags */
+	short gp_flag;            /* internal grease pencil drawing flags */
 	float draw_smoothfac;     /* amount of smoothing to apply to newly created strokes */
 	short draw_smoothlvl;     /* number of times to apply smooth factor to new strokes */
 	short draw_subdivide;     /* number of times to subdivide new strokes */
