@@ -2077,7 +2077,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
         sub = col.column(align=True)
         brush = context.active_gpencil_brush
         if brush is not None:
-            sub.prop(brush, "gpencil_brush_type", text="")
+            sub.prop(brush, "gpencil_brush_type", text="", icon_only=True)
 
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
@@ -2150,9 +2150,10 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
         brush = context.active_gpencil_brush
         if brush is not None:
             col = layout.column(align=True)
-            row = col.row()
-            row.prop(brush, "input_samples")
-            row.prop(brush, "active_smooth_factor")
+            col.prop(brush, "input_samples")
+            col.separator()
+
+            col.prop(brush, "active_smooth_factor")
             col.separator()
 
             if brush.gpencil_brush_type == 'DRAW':
