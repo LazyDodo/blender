@@ -4821,8 +4821,8 @@ static void rna_def_modifier_weightednormal(BlenderRNA *brna)
 	static EnumPropertyItem prop_weighting_mode_items[] = {
 		{MOD_WEIGHTEDNORMAL_MODE_FACE, "FACE_AREA", 0, "Face Area", "Generate face area weighted normals"},
 		{MOD_WEIGHTEDNORMAL_MODE_ANGLE, "CORNER_ANGLE", 0, "Corner Angle", "Generate corner angle weighted normals"},
-		{MOD_WEIGHTEDNORMAL_MODE_FACE_ANGLE, "FACE_AREA_WITH_ANGLE", 0, "Face Area with Angle",
-		                                     "Generated normals weighted by both Face Area and Angle"},
+		{MOD_WEIGHTEDNORMAL_MODE_FACE_ANGLE, "FACE_AREA_WITH_ANGLE", 0, "Face Area And Angle",
+		                                     "Generated normals weighted by both face area and angle"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -4834,7 +4834,10 @@ static void rna_def_modifier_weightednormal(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "weight", PROP_INT, PROP_NONE);
 	RNA_def_property_range(prop, 1, 100);
 	RNA_def_property_ui_range(prop, 1, 100, 1, -1);
-	RNA_def_property_ui_text(prop, "Weight", "Weights given to Face Normal for each mode");
+	RNA_def_property_ui_text(prop, "Weight",
+	                         "Corrective factor applied to faces' weights, 50 is neutral, "
+	                         "lower values increase weight of weak faces, "
+	                         "higher values increase weight of strong faces");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
@@ -4850,7 +4853,9 @@ static void rna_def_modifier_weightednormal(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "keep_sharp", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_WEIGHTEDNORMAL_KEEP_SHARP);
-	RNA_def_property_ui_text(prop, "Keep Sharp Edges", "Do not edit normals of sharp edges");
+	RNA_def_property_ui_text(prop, "Keep Sharp",
+	                         "Keep sharp edges as computed for default split normals, "
+	                         "instead of setting a single weighted normal for each vertex.");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
