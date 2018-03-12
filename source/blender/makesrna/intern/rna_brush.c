@@ -126,15 +126,13 @@ const EnumPropertyItem rna_enum_brush_image_tool_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-/* TODO: duplicated from rna_scene.c (keep this copy after cleanup) */
 static EnumPropertyItem rna_enum_gpencil_brush_types_items[] = {
-	{ GP_BRUSH_TYPE_DRAW, "DRAW", 0, "Draw", "The brush is of type used for drawing strokes" },
-	{ GP_BRUSH_TYPE_FILL, "FILL", 0, "Fill", "The brush is of type used for filling areas" },
-	{ GP_BRUSH_TYPE_ERASE, "ERASE", 0, "Erase", "The brush is used for erasing strokes" },
+	{ GP_BRUSH_TYPE_DRAW, "DRAW", ICON_GREASEPENCIL, "", "The brush is of type used for drawing strokes" },
+	{ GP_BRUSH_TYPE_FILL, "FILL", ICON_COLOR, "", "The brush is of type used for filling areas" },
+	{ GP_BRUSH_TYPE_ERASE, "ERASE", ICON_PANEL_CLOSE, "", "The brush is used for erasing strokes" },
 	{ 0, NULL, 0, NULL, NULL }
 };
 
-/* TODO: duplicated from rna_scene.c (keep this copy after cleanup) */
 static EnumPropertyItem rna_enum_gpencil_brush_eraser_modes_items[] = {
 	{ GP_BRUSH_ERASER_SOFT, "SOFT", 0, "Soft", "Use soft eraser" },
 	{ GP_BRUSH_ERASER_HARD, "HARD", 0, "Hard", "Use hard eraser" },
@@ -142,7 +140,6 @@ static EnumPropertyItem rna_enum_gpencil_brush_eraser_modes_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
-/* TODO: duplicated from rna_scene.c (keep this copy after cleanup) */
 static EnumPropertyItem rna_enum_gpencil_fill_draw_modes_items[] = {
 	{ GP_FILL_DMODE_STROKE, "STROKE", 0, "Strokes", "Use visible strokes as fill boundary limits" },
 	{ GP_FILL_DMODE_CONTROL, "CONTROL", 0, "Control", "Use internal control lines as fill boundary limits" },

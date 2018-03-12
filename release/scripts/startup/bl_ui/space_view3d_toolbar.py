@@ -2075,9 +2075,12 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
 
         col = row.column()
         sub = col.column(align=True)
+        brush = context.active_gpencil_brush
+        if brush is not None:
+            sub.prop(brush, "gpencil_brush_type", text="")
+
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
-        brush = context.active_gpencil_brush
         if brush is not None:
             if brush.gpencil_brush_type == 'ERASE':
                 sub.prop(brush, "default_eraser", text="")
@@ -2193,29 +2196,6 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
                 col.prop(brush, "pen_subdivision_steps")
                 col.prop(brush, "random_subdiv", text="Randomness", slider=True)
 
-
-# Grease Pencil drawing brushes mode
-class VIEW3D_PT_tools_grease_pencil_brush_mode(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Brush Mode"
-    bl_category = "Tools"
-    bl_region_type = 'TOOLS'
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        return gpd.is_stroke_paint_mode and context.active_gpencil_brush
-
-    @staticmethod
-    def draw(self, context):
-        layout = self.layout
-        brush = context.active_gpencil_brush
-        if brush is not None:
-            layout.prop(brush, "gpencil_brush_type", expand=True)
 
 # Grease Pencil drawingcurves
 class VIEW3D_PT_tools_grease_pencil_brushcurves(Panel):
@@ -2571,7 +2551,6 @@ classes = (
     VIEW3D_PT_tools_add_object,
     VIEW3D_PT_tools_grease_pencil_brush,
     VIEW3D_PT_tools_grease_pencil_brush_option,
-    VIEW3D_PT_tools_grease_pencil_brush_mode,
     VIEW3D_PT_tools_grease_pencil_brushcurves,
     VIEW3D_PT_tools_grease_pencil_shapes,
     VIEW3D_PT_tools_grease_pencil_edit,
