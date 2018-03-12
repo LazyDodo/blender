@@ -267,7 +267,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	Brush *brush, *deft;
 	CurveMapping *custom_curve;
-	float curcolor[3] = { 1.0f, 1.0f, 1.0f };
 
 	/* Pencil brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Pencil");
@@ -294,7 +293,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	copy_v3_v3(brush->curcolor, curcolor);
 	brush->gp_icon_id = GPBRUSH_PENCIL;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
@@ -327,7 +325,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothfac = 1.0f;
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_random_sub = 0.0f;
-	copy_v3_v3(brush->curcolor, curcolor);
 	brush->gp_icon_id = GPBRUSH_PEN;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
@@ -357,7 +354,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	copy_v3_v3(brush->curcolor, curcolor);
 	brush->gp_icon_id = GPBRUSH_INK;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
@@ -393,7 +389,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 2;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	copy_v3_v3(brush->curcolor, curcolor);
 	brush->gp_icon_id = GPBRUSH_INKNOISE;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
@@ -430,7 +425,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 0;
 	brush->draw_random_sub = 0;
-	copy_v3_v3(brush->curcolor, curcolor);
 	brush->gp_icon_id = GPBRUSH_BLOCK;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
@@ -460,7 +454,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	copy_v3_v3(brush->curcolor, curcolor);
 	brush->gp_icon_id = GPBRUSH_MARKER;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
@@ -488,7 +481,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_lazy_factor = LAZY_FACTOR;
 
 	brush->draw_strength = 1.0f;
-	copy_v3_v3(brush->curcolor, curcolor);
 
 	/* Soft Eraser brush */
 	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Soft Eraser");
@@ -497,7 +489,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 	brush->gp_eraser_mode = GP_BRUSH_ERASER_SOFT;
-	copy_v3_v3(brush->curcolor, curcolor);
 
 	/* Hard Eraser brush */
 	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Hard Eraser");
@@ -506,7 +497,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_ERASE_HARD;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 	brush->gp_eraser_mode = GP_BRUSH_ERASER_HARD;
-	copy_v3_v3(brush->curcolor, curcolor);
 
 	/* Stroke Eraser brush */
 	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Stroke Eraser");
@@ -515,7 +505,6 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_ERASE_STROKE;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 	brush->gp_eraser_mode = GP_BRUSH_ERASER_STROKE;
-	copy_v3_v3(brush->curcolor, curcolor);
 
 	/* set defaut brush */
 	BKE_paint_brush_set(paint, deft);

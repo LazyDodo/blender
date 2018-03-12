@@ -1739,15 +1739,6 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Stabilizer",
 		"Draw lines with a delay to allow smooth strokes. Press Shift key to override while drawing");
 
-	/* Cursor Color */
-	static float default_1[3] = { 1.0f, 1.0f, 1.0f };
-	prop = RNA_def_property(srna, "cursor_color", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "curcolor");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_float_array_default(prop, default_1);
-	RNA_def_property_ui_text(prop, "Cursor Color", "Color for the cursor");
-
 	prop = RNA_def_property(srna, "use_cursor", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", GP_BRUSH_ENABLE_CURSOR);
 	RNA_def_property_boolean_default(prop, true);

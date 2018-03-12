@@ -1419,7 +1419,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			}
 			else {
 				radius = 5.0f;
-				copy_v3_v3(color, paintbrush->curcolor);
+				copy_v3_v3(color, paintbrush->add_col);
 			}
 		}
 	}
@@ -1474,7 +1474,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 		glEnable(GL_LINE_SMOOTH);
 		glEnable(GL_BLEND);
 
-		copy_v3_v3(color, paintbrush->curcolor);
+		copy_v3_v3(color, paintbrush->add_col);
 		immUniformColor4f(color[0], color[1], color[2], 0.8f);
 
 		immBegin(GWN_PRIM_LINES, 2);

@@ -144,7 +144,7 @@ typedef struct Brush {
 
 	/* grease pencil drawing brush data */
 	short thickness;          /* thickness to apply to strokes */
-	short gp_flag;
+	short gp_flag;            /* internal grease pecncil drawing flags */
 	float draw_smoothfac;     /* amount of smoothing to apply to newly created strokes */
 	short draw_smoothlvl;     /* number of times to apply smooth factor to new strokes */
 	short draw_subdivide;     /* number of times to subdivide new strokes */
@@ -161,7 +161,6 @@ typedef struct Brush {
 	struct CurveMapping *cur_strength;
 	struct CurveMapping *cur_jitter;
 
-	float curcolor[3];
 	float gp_thick_smoothfac; /* amount of thickness smoothing to apply to newly created strokes */
 	short gp_thick_smoothlvl; /* number of times to apply thickness smooth factor to new strokes */
 
@@ -179,40 +178,37 @@ typedef struct Brush {
 	int   gp_brush_type;      /* type of brush (draw, fill, erase, etc..) */
 	int   gp_eraser_mode;     /* soft, hard or stroke */
 	float gp_active_smooth;   /* smooth while drawing factor */
+	char pad_[4];
 } Brush;
 
 /* Brush->gp_flag */
 typedef enum eGPDbrush_Flag {
-	/* brush is active */
-	GP_BRUSH_ACTIVE = (1 << 0),
 	/* brush use pressure */
-	GP_BRUSH_USE_PRESSURE = (1 << 1),
+	GP_BRUSH_USE_PRESSURE = (1 << 0),
 	/* brush use pressure for alpha factor */
-	GP_BRUSH_USE_STENGTH_PRESSURE = (1 << 2),
+	GP_BRUSH_USE_STENGTH_PRESSURE = (1 << 1),
 	/* brush use pressure for alpha factor */
-	GP_BRUSH_USE_JITTER_PRESSURE = (1 << 3),
+	GP_BRUSH_USE_JITTER_PRESSURE = (1 << 2),
 	/* brush use random for pressure */
-	GP_BRUSH_USE_RANDOM_PRESSURE = (1 << 4),
+	GP_BRUSH_USE_RANDOM_PRESSURE = (1 << 3),
 	/* brush use random for strength */
-	GP_BRUSH_USE_RANDOM_STRENGTH = (1 << 5),
+	GP_BRUSH_USE_RANDOM_STRENGTH = (1 << 4),
 	/* enable screen cursor */
-	GP_BRUSH_ENABLE_CURSOR = (1 << 6),
-	/* brush is only for filling */
-	GP_BRUSH_FILL_ONLY = (1 << 7), /* Deprecated */
+	GP_BRUSH_ENABLE_CURSOR = (1 << 5),
 	/* fill hide transparent */
-	GP_BRUSH_FILL_HIDE = (1 << 8),
+	GP_BRUSH_FILL_HIDE = (1 << 6),
 	/* show fill help lines */
-	GP_BRUSH_FILL_SHOW_HELPLINES = (1 << 10),
+	GP_BRUSH_FILL_SHOW_HELPLINES = (1 << 7),
 	/* lazy mouse */
-	GP_BRUSH_STABILIZE_MOUSE = (1 << 11),
+	GP_BRUSH_STABILIZE_MOUSE = (1 << 8),
 	/* lazy mouse override (internal only) */
-	GP_BRUSH_STABILIZE_MOUSE_TEMP = (1 << 12),
+	GP_BRUSH_STABILIZE_MOUSE_TEMP = (1 << 9),
 	/* default eraser brush for quick switch */
-	GP_BRUSH_DEFAULT_ERASER = (1 << 13),
+	GP_BRUSH_DEFAULT_ERASER = (1 << 10),
 	/* settings group */
-	GP_BRUSH_GROUP_SETTINGS = (1 << 14),
+	GP_BRUSH_GROUP_SETTINGS = (1 << 11),
 	/* Random settings group */
-	GP_BRUSH_GROUP_RANDOM = (1 << 15)
+	GP_BRUSH_GROUP_RANDOM = (1 << 12)
 } eGPDbrush_Flag;
 
 /* Brush->gp_fill_draw_mode */

@@ -2523,7 +2523,7 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
             drawingbrush = context.active_gpencil_brush
             col.prop(drawingbrush, "use_cursor", text="Show Brush")
             row = col.row(align=True)
-            row.prop(drawingbrush, "cursor_color", text="Color")
+            row.prop(drawingbrush, "cursor_color_add", text="Color")
 
             col.separator()
             col = col.column(align=True)
