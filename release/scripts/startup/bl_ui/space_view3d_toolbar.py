@@ -2098,6 +2098,10 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
 
                 row = layout.row(align=True)
                 row.template_ID(brush, "palette")
+                if brush.palette is None:
+                    subrow = row.row(align=True)
+                    subrow.enabled = False
+                    subrow.operator("palette.new_gpencil", text="Unlinked")
                 if brush.palette:
                     row = layout.row(align=True)
                     row.prop_search(brush, "colorname", brush.palette, "colors", text="Color", icon="LAYER_ACTIVE")
