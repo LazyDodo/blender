@@ -23,8 +23,6 @@
  *  \ingroup modifiers
  */
 
-#include "limits.h"
-
 #include "MEM_guardedalloc.h"
 
 #include "DNA_mesh_types.h"
@@ -38,14 +36,8 @@
 #include "BLI_math.h"
 #include "BLI_linklist.h"
 
-#include "bmesh_class.h"
-
 #include "MOD_modifiertypes.h"
 #include "MOD_util.h"
-
-#define INDEX_UNSET INT_MIN
-#define INDEX_INVALID -1
-#define IS_EDGE_SHARP(_e2l) (ELEM((_e2l)[1], INDEX_UNSET, INDEX_INVALID))
 
 #define CLNORS_VALID_VEC_LEN (1e-4f)
 
