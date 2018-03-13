@@ -1425,6 +1425,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 				copy_v3_v3(color, paintbrush->add_col);
 			}
 		}
+		else {
+			return;
+		}
 	}
 
 	/* for sculpt use sculpt brush size */
