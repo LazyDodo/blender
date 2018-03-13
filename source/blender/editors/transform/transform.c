@@ -109,7 +109,7 @@ static void postInputRotation(TransInfo *t, float values[3]);
 static void ElementRotation(TransInfo *t, TransData *td, float mat[3][3], const short around);
 static void initSnapSpatial(TransInfo *t, float r_snap[3]);
 
-static void StoreCustomlnorValue(TransInfo *t, BMesh *bm);
+static void storeCustomLNorValue(TransInfo *t, BMesh *bm);
 
 /* Transform Callbacks */
 static void initBend(TransInfo *t);
@@ -2396,19 +2396,21 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	if ((prop = RNA_struct_find_property(op->ptr, "preserve_clnor"))) {
 		if (t->obedit && t->obedit->type == OB_MESH && (((Mesh *)(t->obedit->data))->flag & ME_AUTOSMOOTH)) {
 			BMEditMesh *em = BKE_editmesh_from_object(t->obedit);
-			bool all_select = false;
+			bool do_skip = false;
 
-			/* Currently only used for 3 most frequent transform ops, can include more ops. */
-			if (ELEM(t->mode, TFM_TRANSLATION, TFM_ROTATION, TFM_RESIZE)) {
+			/* Currently only used for two of three most frequent transform ops, can include more ops.
+			 * Note that scaling cannot be included here, non-uniform scaling will affect normals. */
+			if (ELEM(t->mode, TFM_TRANSLATION, TFM_ROTATION)) {
 				if (em->bm->totvertsel == em->bm->totvert) {
 					/* No need to invalidate if whole mesh is selected. */
-					all_select = true;
+					do_skip = true;
 				}
 			}
+
 			if (t->flag & T_MODAL) {
 				RNA_property_boolean_set(op->ptr, prop, false);
 			}
-			if (!all_select) {
+			else if (!do_skip) {
 				const bool preserve_clnor = RNA_property_boolean_get(op->ptr, prop);
 				if (preserve_clnor) {
 					BKE_editmesh_lnorspace_update(em);
@@ -4219,40 +4221,41 @@ static void applyTrackball(TransInfo *t, const int UNUSED(mval[2]))
 /** \name Transform Normal Rotation
 * \{ */
 
-static void StoreCustomlnorValue(TransInfo *t, BMesh *bm)
+static void storeCustomLNorValue(TransInfo *t, BMesh *bm)
 {
 	float mtx[3][3], smtx[3][3];
 
-	BMLoopNorEditDataArray *ld = BM_loop_normal_editdata_array_init(bm);
+	BMLoopNorEditDataArray *lnors_ed_arr = BM_loop_normal_editdata_array_init(bm);
 
 	copy_m3_m4(mtx, t->obedit->obmat);
 	pseudoinverse_m3_m3(smtx, mtx, PSEUDOINVERSE_EPSILON);
 
-	BMLoopNorEditData *tld = ld->lnor_editdata;
-	for (int i = 0; i < ld->totloop; i++, tld++) {
-		copy_m3_m3(tld->mtx, mtx);
-		copy_m3_m3(tld->smtx, smtx);
+	BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata;
+	for (int i = 0; i < lnors_ed_arr->totloop; i++, lnor_ed++) {
+		copy_m3_m3(lnor_ed->mtx, mtx);
+		copy_m3_m3(lnor_ed->smtx, smtx);
 	}
 
-	t->custom.mode.data = ld;
+	t->custom.mode.data = lnors_ed_arr;
 	t->custom.mode.free_cb = freeCustomNormalArray;
 }
 
 void freeCustomNormalArray(TransInfo *t, TransCustomData *custom_data)
 {
-	BMLoopNorEditDataArray *ld = custom_data->data;
+	BMLoopNorEditDataArray *lnors_ed_arr = custom_data->data;
 
 	if (t->state == TRANS_CANCEL) {
-		BMLoopNorEditData *tld = ld->lnor_editdata;
+		BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata;
 		BMEditMesh *em = BKE_editmesh_from_object(t->obedit);
 		BMesh *bm = em->bm;
 
-		for (int i = 0; i < ld->totloop; i++, tld++) {  /* Restore custom loop normal on cancel */
-			BKE_lnor_space_custom_normal_to_data(bm->lnor_spacearr->lspacearr[tld->loop_index], tld->niloc, tld->clnors_data);
+		for (int i = 0; i < lnors_ed_arr->totloop; i++, lnor_ed++) {  /* Restore custom loop normal on cancel */
+			BKE_lnor_space_custom_normal_to_data(
+			            bm->lnor_spacearr->lspacearr[lnor_ed->loop_index], lnor_ed->niloc, lnor_ed->clnors_data);
 		}
 	}
 
-	BM_loop_normal_editdata_array_free(ld);
+	BM_loop_normal_editdata_array_free(lnors_ed_arr);
 
 	t->custom.mode.data = NULL;
 	t->custom.mode.free_cb = NULL;
@@ -4282,8 +4285,8 @@ static void initNormalRotation(TransInfo *t)
 
 	BKE_editmesh_lnorspace_update(em);
 
-	StoreCustomlnorValue(t, bm);
-	
+	storeCustomLNorValue(t, bm);
+
 	negate_v3_v3(t->axis, t->viewinv[2]);
 	normalize_v3(t->axis);
 
@@ -4305,8 +4308,8 @@ static void applyNormalRotation(TransInfo *t, const int UNUSED(mval[2]))
 		copy_v3_v3(t->axis, t->axis_orig);
 	}
 
-	BMLoopNorEditDataArray *ld = t->custom.mode.data;
-	BMLoopNorEditData *tld = ld->lnor_editdata;
+	BMLoopNorEditDataArray *lnors_ed_arr = t->custom.mode.data;
+	BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata;
 
 	float axis[3];
 	float mat[3][3];
@@ -4323,23 +4326,24 @@ static void applyNormalRotation(TransInfo *t, const int UNUSED(mval[2]))
 
 	axis_angle_normalized_to_mat3(mat, axis, angle);
 
-	for (int i = 0; i < ld->totloop; i++, tld++) {
+	for (int i = 0; i < lnors_ed_arr->totloop; i++, lnor_ed++) {
 		float center[3];
 		float vec[3], totmat[3][3], smat[3][3];
 		zero_v3(center);
 
-		mul_m3_m3m3(totmat, mat, tld->mtx);
-		mul_m3_m3m3(smat, tld->smtx, totmat);
+		mul_m3_m3m3(totmat, mat, lnor_ed->mtx);
+		mul_m3_m3m3(smat, lnor_ed->smtx, totmat);
 
-		sub_v3_v3v3(vec, tld->niloc, center);
+		sub_v3_v3v3(vec, lnor_ed->niloc, center);
 		mul_m3_v3(smat, vec);
 
-		add_v3_v3v3(tld->nloc, vec, center);
+		add_v3_v3v3(lnor_ed->nloc, vec, center);
 
-		sub_v3_v3v3(vec, tld->nloc, tld->niloc);
-		add_v3_v3v3(tld->nloc, tld->niloc, vec);
+		sub_v3_v3v3(vec, lnor_ed->nloc, lnor_ed->niloc);
+		add_v3_v3v3(lnor_ed->nloc, lnor_ed->niloc, vec);
 
-		BKE_lnor_space_custom_normal_to_data(bm->lnor_spacearr->lspacearr[tld->loop_index], tld->nloc, tld->clnors_data);
+		BKE_lnor_space_custom_normal_to_data(
+		            bm->lnor_spacearr->lspacearr[lnor_ed->loop_index], lnor_ed->nloc, lnor_ed->clnors_data);
 	}
 
 	recalcData(t);

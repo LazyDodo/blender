@@ -1396,14 +1396,14 @@ BMLoopNorEditDataArray *BM_loop_normal_editdata_array_init(BMesh *bm)
 	}
 	else {  /* If multiple selection modes are inactive OR no such loop is found, fall back to editing all loops. */
 		totloopsel = BM_total_loop_select(bm);
-		BMLoopNorEditData *tld = lnors_ed_arr->lnor_editdata = MEM_mallocN(sizeof(*tld) * totloopsel, __func__);
+		BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata = MEM_mallocN(sizeof(*lnor_ed) * totloopsel, __func__);
 
 		BM_ITER_MESH(v, &viter, bm, BM_VERTS_OF_MESH) {
 			if (BM_elem_flag_test(v, BM_ELEM_SELECT)) {
 				BM_ITER_ELEM(l, &liter, v, BM_LOOPS_OF_VERT) {
-					loop_normal_editdata_init(bm, tld, v, l, cd_custom_normal_offset);
-					lnors_ed_arr->lidx_to_lnor_editdata[BM_elem_index_get(l)] = tld;
-					tld++;
+					loop_normal_editdata_init(bm, lnor_ed, v, l, cd_custom_normal_offset);
+					lnors_ed_arr->lidx_to_lnor_editdata[BM_elem_index_get(l)] = lnor_ed;
+					lnor_ed++;
 				}
 			}
 		}
