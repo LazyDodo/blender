@@ -1281,12 +1281,12 @@ bGPDpaletteref *BKE_gpencil_paletteslot_addnew(Main *bmain, bGPdata *gpd, const 
 	return BKE_gpencil_paletteslot_add(gpd, palette);
 }
 
-PaletteColor *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush)
+PaletteColor *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush, bool add)
 {
 	bGPDpaletteref *palslot = NULL;
 	PaletteColor *palcolor = NULL;
 
-	if ((brush->palette) && (brush->colorname)) {
+	if ((gpd) && (gpd->palette_slots.first) && (brush) && (brush->palette) && (brush->colorname)) {
 
 		/* verify paletteslots has this palette */
 		for (bGPDpaletteref *slot = gpd->palette_slots.first; slot; slot = slot->next) {
@@ -1297,6 +1297,9 @@ PaletteColor *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush)
 		}
 		/* add slot */
 		if (palslot == NULL) {
+			if (!add) {
+				return NULL;
+			}
 			palslot = BKE_gpencil_paletteslot_add(gpd, NULL);
 			palslot->palette = brush->palette;
 		}

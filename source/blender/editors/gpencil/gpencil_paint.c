@@ -1570,7 +1570,7 @@ static void gp_init_palette(tGPsdata *p)
 	PaletteColor *palcolor = NULL;
 	
 	/* if the brush has a palette and color defined, use these and not current defaults */
-	palcolor = BKE_gpencil_get_color_from_brush(gpd, brush);
+	palcolor = BKE_gpencil_get_color_from_brush(gpd, brush, true);
 
 	/* if no brush defaults, get palette and color info
 	 * NOTE: _validate() ensures that everything we need will exist...

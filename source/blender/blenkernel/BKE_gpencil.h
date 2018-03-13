@@ -150,7 +150,7 @@ void BKE_gpencil_paletteslot_set_palette(struct bGPdata *gpd, struct bGPDpalette
 struct bGPDpaletteref *BKE_gpencil_paletteslot_add(struct bGPdata *gpd, struct Palette *palette);
 struct bGPDpaletteref *BKE_gpencil_paletteslot_addnew(struct Main *bmain, struct bGPdata *gpd, const char name[]);
 struct bGPDpaletteref *BKE_gpencil_paletteslot_validate(struct Main *bmain, struct bGPdata *gpd);
-struct PaletteColor *BKE_gpencil_get_color_from_brush(struct bGPdata *gpd, struct Brush *brush);
+struct PaletteColor *BKE_gpencil_get_color_from_brush(struct bGPdata *gpd, struct Brush *brush, bool add);
 
 /* Palettes - Deprecated (2.78-2.79) */
 void BKE_gpencil_free_palettes(struct ListBase *list);

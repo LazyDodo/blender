@@ -1355,11 +1355,14 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	bGPDpaletteref *palslot = NULL;
 	Palette *palette = NULL;
 	PaletteColor *palcolor = NULL;
-	palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	if (palslot) {
-		palette = palslot->palette;
-		if (palette) {
-			palcolor = BKE_palette_color_get_active(palette);
+	palcolor = BKE_gpencil_get_color_from_brush(gpd, CTX_data_active_gpencil_brush(C), false);
+	if (palcolor == NULL) {
+		palslot = BKE_gpencil_paletteslot_get_active(gpd);
+		if (palslot) {
+			palette = palslot->palette;
+			if (palette) {
+				palcolor = BKE_palette_color_get_active(palette);
+			}
 		}
 	}
 
