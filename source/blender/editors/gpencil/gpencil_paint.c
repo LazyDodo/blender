@@ -1563,18 +1563,26 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 static void gp_init_palette(tGPsdata *p)
 {
 	bGPdata *gpd = p->gpd;
-	
-	bGPDpaletteref *palslot;
+	Brush *brush = p->brush;
+
+	bGPDpaletteref *palslot = NULL;
 	Palette *palette = NULL;
 	PaletteColor *palcolor = NULL;
 	
-	/* get palette and color info
+	/* if the brush has a palette and color defined, use these and not current defaults */
+	palcolor = BKE_gpencil_get_color_from_brush(gpd, brush);
+
+	/* if no brush defaults, get palette and color info
 	 * NOTE: _validate() ensures that everything we need will exist...
 	 */
-	palslot  = BKE_gpencil_paletteslot_validate(p->bmain, gpd);
-	palette  = palslot->palette;
-	palcolor = BKE_palette_color_get_active(palette);
-	
+	if (palcolor != NULL) {
+		palette = brush->palette;
+	}
+	else {
+		palslot = BKE_gpencil_paletteslot_validate(p->bmain, gpd);
+		palette = palslot->palette;
+		palcolor = BKE_palette_color_get_active(palette);
+	}
 	/* assign color to temp tGPsdata */
 	if (palcolor) {
 		p->palette = palette;

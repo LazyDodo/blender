@@ -179,6 +179,10 @@ typedef struct Brush {
 	int   gp_eraser_mode;     /* soft, hard or stroke */
 	float gp_active_smooth;   /* smooth while drawing factor */
 	char pad_[4];
+
+	/* optional link of palette and color to replace default color in context */	
+	struct Palette *palette;            /* palette linked */
+	char           colorname[64];       /* color name */
 } Brush;
 
 /* Brush->gp_flag */

@@ -2156,6 +2156,14 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
             col.prop(brush, "active_smooth_factor")
             col.separator()
 
+            col.label("Color Settings:")
+            col.template_ID(brush, "palette")
+            if brush.palette:
+                col.separator()
+                subcol = col.column()
+                subcol.prop_search(brush, "colorname", brush.palette, "colors", text="Color", icon="LAYER_ACTIVE")
+            col.separator()
+
             if brush.gpencil_brush_type == 'DRAW':
                 col.prop(brush, "use_stabilizer", text="Stabilizer")
                 if brush.use_stabilizer:

@@ -2331,6 +2331,9 @@ static void lib_link_brush(FileData *fd, Main *main)
 			brush->toggle_brush = newlibadr(fd, brush->id.lib, brush->toggle_brush);
 			brush->paint_curve = newlibadr_us(fd, brush->id.lib, brush->paint_curve);
 
+			/* link default grease pencil palette */
+			brush->palette = newlibadr(fd, brush->id.lib, brush->palette);
+
 			brush->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
 	}
@@ -8972,8 +8975,8 @@ static void lib_link_all(FileData *fd, Main *main)
 	lib_link_action(fd, main);
 	lib_link_vfont(fd, main);
 	lib_link_nodetree(fd, main);   /* has to be done after scene/materials, this will verify group nodes */
-	lib_link_brush(fd, main);
 	lib_link_palette(fd, main);
+	lib_link_brush(fd, main);
 	lib_link_paint_curve(fd, main);
 	lib_link_particlesettings(fd, main);
 	lib_link_movieclip(fd, main);

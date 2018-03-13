@@ -1281,6 +1281,32 @@ bGPDpaletteref *BKE_gpencil_paletteslot_addnew(Main *bmain, bGPdata *gpd, const 
 	return BKE_gpencil_paletteslot_add(gpd, palette);
 }
 
+PaletteColor *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush)
+{
+	bGPDpaletteref *palslot = NULL;
+	PaletteColor *palcolor = NULL;
+
+	if ((brush->palette) && (brush->colorname)) {
+
+		/* verify paletteslots has this palette */
+		for (bGPDpaletteref *slot = gpd->palette_slots.first; slot; slot = slot->next) {
+			if (slot->palette == brush->palette) {
+				palslot = slot;
+				break;
+			}
+		}
+		/* add slot */
+		if (palslot == NULL) {
+			palslot = BKE_gpencil_paletteslot_add(gpd, NULL);
+			palslot->palette = brush->palette;
+		}
+
+		palcolor = BKE_palette_color_getbyname(brush->palette, brush->colorname);
+	}
+
+	return palcolor;
+}
+
 /* Get active palette slot, and add all default settings if we don't find anything */
 bGPDpaletteref *BKE_gpencil_paletteslot_validate(Main *bmain, bGPdata *gpd)
 {

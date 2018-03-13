@@ -689,6 +689,27 @@ static void rna_brush_gpencil_eraser_mode(Main *bmain, Scene *scene, PointerRNA 
 
 }
 
+static void rna_BrushPalette_colorname_reset(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+{
+	/* reset colorname */
+	Brush *brush = ptr->data;
+	brush->colorname[0] = '\0';
+}
+
+/* check the current color is valid */
+static int rna_Brush_color_valid(PointerRNA *ptr)
+{
+	Brush *brush = ptr->data;
+	Palette *palette = brush->palette;
+	PaletteColor *palcolor = BKE_palette_color_getbyname(palette, brush->colorname);
+
+	if (palcolor) {
+		return true;
+	}
+
+	return false;
+}
+
 #else
 
 static void rna_def_brush_texture_slot(BlenderRNA *brna)
@@ -1783,6 +1804,25 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "gp_fill_draw_mode");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_fill_draw_modes_items);
 	RNA_def_property_ui_text(prop, "Mode", "Mode to draw boundary limits");
+
+	/* Palette */
+	prop = RNA_def_property(srna, "palette", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "Palette");
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_ui_text(prop, "Palette", "Palette used when enable this brush");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_BrushPalette_colorname_reset");
+
+	/* Color Name */
+	prop = RNA_def_property(srna, "colorname", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "colorname");
+	RNA_def_property_ui_text(prop, "Color", "Name of the color used when enable this brush");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
+
+	prop = RNA_def_property(srna, "is_color_valid", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_funcs(prop, "rna_Brush_color_valid", NULL);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Color valid", "Flag to check if color name exist in current palette");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA | NA_SELECTED, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_fill_show_boundary", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", GP_BRUSH_FILL_SHOW_HELPLINES);
