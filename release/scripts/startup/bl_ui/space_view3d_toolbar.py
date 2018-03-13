@@ -2508,8 +2508,10 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
         if workspace.object_mode == 'GPENCIL_PAINT':
             drawingbrush = context.active_gpencil_brush
             col.prop(drawingbrush, "use_cursor", text="Show Brush")
-            row = col.row(align=True)
-            row.prop(drawingbrush, "cursor_color_add", text="Color")
+
+            if drawingbrush.gpencil_brush_type == 'FILL':
+                row = col.row(align=True)
+                row.prop(drawingbrush, "cursor_color_add", text="Color")
 
             col.separator()
             col = col.column(align=True)
