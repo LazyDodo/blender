@@ -859,10 +859,16 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	bGPdata *gpd = ob->data;
+	PaletteColor *palcolor = NULL;
+
 	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
 
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	PaletteColor *palcolor = BKE_palette_color_get_active((palslot) ? palslot->palette : NULL);
+	/* if the brush has a palette and color defined, use these and not current defaults */
+	palcolor = BKE_gpencil_get_color_from_brush(gpd, brush);
+	if (palcolor == NULL) {
+		bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
+		palcolor = BKE_palette_color_get_active((palslot) ? palslot->palette : NULL);
+	}
 	
 	/* drawing strokes */
 	/* Check if may need to draw the active stroke cache, only if this layer is the active layer
