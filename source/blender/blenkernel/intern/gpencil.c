@@ -1302,6 +1302,7 @@ PaletteColor *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush, bool 
 			}
 			palslot = BKE_gpencil_paletteslot_add(gpd, NULL);
 			palslot->palette = brush->palette;
+			id_us_plus((ID *)brush->palette);
 		}
 
 		palcolor = BKE_palette_color_getbyname(brush->palette, brush->colorname);
