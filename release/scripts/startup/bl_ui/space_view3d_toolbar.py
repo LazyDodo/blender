@@ -2096,6 +2096,12 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 row.prop(brush, "pen_strength", slider=True)
                 row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
+                row = layout.row(align=True)
+                row.template_ID(brush, "palette")
+                if brush.palette:
+                    row = layout.row(align=True)
+                    row.prop_search(brush, "colorname", brush.palette, "colors", text="Color", icon="LAYER_ACTIVE")
+
             if brush.gpencil_brush_type == 'FILL':
                 col = layout.column(align=True)
                 col.prop(brush, "gpencil_fill_leak", text="Leak Size")
@@ -2154,14 +2160,6 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
             col.separator()
 
             col.prop(brush, "active_smooth_factor")
-            col.separator()
-
-            col.label("Color Settings:")
-            col.template_ID(brush, "palette")
-            if brush.palette:
-                col.separator()
-                subcol = col.column()
-                subcol.prop_search(brush, "colorname", brush.palette, "colors", text="Color", icon="LAYER_ACTIVE")
             col.separator()
 
             if brush.gpencil_brush_type == 'DRAW':
