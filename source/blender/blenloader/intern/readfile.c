@@ -6643,7 +6643,9 @@ static void lib_link_gpencil(FileData *fd, Main *main)
 	for (Palette *palette = main->palettes.first; palette; palette = palette->id.next, i++) {
 		gp_palettecolors_buffer[i] = BLI_ghash_str_new("GPencil Hash Colors");
 		for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-			BLI_ghash_insert(gp_palettecolors_buffer[i], palcolor->info, palcolor);
+			if (BLI_ghash_lookup(gp_palettecolors_buffer[i], palcolor->info) == NULL) {
+				BLI_ghash_insert(gp_palettecolors_buffer[i], palcolor->info, palcolor);
+			}
 		}
 	}
 
