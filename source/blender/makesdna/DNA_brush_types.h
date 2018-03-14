@@ -236,6 +236,21 @@ typedef enum eGP_BrushEraserMode {
 	GP_BRUSH_ERASER_STROKE = 2,
 } eGP_BrushEraserMode;
 
+/* default brush icons */
+typedef enum eGP_BrushIcons {
+	GPBRUSH_CUSTOM = 0,
+	GPBRUSH_PENCIL = 1,
+	GPBRUSH_PEN = 2,
+	GPBRUSH_INK = 3,
+	GPBRUSH_INKNOISE = 4,
+	GPBRUSH_BLOCK = 5,
+	GPBRUSH_MARKER = 6,
+	GPBRUSH_FILL = 7,
+	GPBRUSH_ERASE_SOFT = 8,
+	GPBRUSH_ERASE_HARD = 9,
+	GPBRUSH_ERASE_STROKE = 10
+} eGP_BrushIcons;
+
 typedef struct PaletteColor {
 	struct PaletteColor *next, *prev;
 	struct Image *sima;      /* Texture image for strokes */
