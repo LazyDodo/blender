@@ -2077,7 +2077,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
         sub = col.column(align=True)
         brush = context.active_gpencil_brush
         if brush is not None:
-            sub.prop(brush, "gpencil_brush_type", text="", icon_only=True)
+            sub.prop(brush, "gpencil_brush_type", text="", icon_only=True, expand=True)
 
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
