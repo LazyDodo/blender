@@ -2517,8 +2517,13 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
                 row = col.row(align=True)
                 row.prop(drawingbrush, "cursor_color_add", text="Color")
 
-            col.separator()
+            col.label("Icon:")
+            subcol = col.column(align=True)
+            subcol.enabled = drawingbrush.use_custom_icon is False and drawingbrush.gpencil_brush_type == 'DRAW'
+            subcol.prop(drawingbrush, "gp_icon", text="")
+
             col = col.column(align=True)
+            col.separator()
             col.prop(drawingbrush, "use_custom_icon")
             sub = col.column()
             sub.active = drawingbrush.use_custom_icon

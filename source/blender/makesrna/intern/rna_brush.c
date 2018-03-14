@@ -147,6 +147,21 @@ static EnumPropertyItem rna_enum_gpencil_fill_draw_modes_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
+static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
+	{ GPBRUSH_CUSTOM, "CUSTOM", ICON_GPBRUSH_CUSTOM, "Custom", "" },
+	{ GPBRUSH_PENCIL, "PENCIL", ICON_GPBRUSH_PENCIL, "Pencil", "" },
+	{ GPBRUSH_PEN, "PEN", ICON_GPBRUSH_PEN, "Pen", "" },
+	{ GPBRUSH_INK, "INK", ICON_GPBRUSH_INK, "Ink", "" },
+	{ GPBRUSH_INKNOISE, "INKNOISE", ICON_GPBRUSH_INKNOISE, "Ink Noise", "" },
+	{ GPBRUSH_BLOCK, "BLOCK", ICON_GPBRUSH_BLOCK, "Block", "" },
+	{ GPBRUSH_MARKER, "MARKER", ICON_GPBRUSH_MARKER, "Marker", "" },
+	{ GPBRUSH_FILL, "FILL", ICON_GPBRUSH_FILL, "Fill", "" },
+	{ GPBRUSH_ERASE_SOFT, "SOFT", ICON_GPBRUSH_ERASE_SOFT, "Eraser Soft", "" },
+	{ GPBRUSH_ERASE_HARD, "HARD", ICON_GPBRUSH_ERASE_HARD, "Eraser Hard", "" },
+	{ GPBRUSH_ERASE_STROKE, "STROKE", ICON_GPBRUSH_ERASE_STROKE, "Eraser Stroke", "" },
+	{ 0, NULL, 0, NULL, NULL }
+};
+
 #ifdef RNA_RUNTIME
 
 #include "MEM_guardedalloc.h"
@@ -1746,6 +1761,12 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Active Smooth",
 		"Amount of smoothing while drawing ");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
+
+	/* brush standard icon */
+	prop = RNA_def_property(srna, "gp_icon", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "gp_icon_id");
+	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_icons_items);
+	RNA_def_property_ui_text(prop, "Grease Pencil Icon", "");
 
 	/* Flags */
 	prop = RNA_def_property(srna, "use_pressure", PROP_BOOLEAN, PROP_NONE);
