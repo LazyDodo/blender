@@ -1122,7 +1122,7 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 			return true;
 #endif
 		case ID_BR:
-			return ELEM(id_type_used, ID_BR, ID_IM, ID_PC, ID_TE);
+			return ELEM(id_type_used, ID_BR, ID_IM, ID_PC, ID_TE, ID_PAL);
 		case ID_PA:
 			return ELEM(id_type_used, ID_OB, ID_GR, ID_TE);
 		case ID_MC:
@@ -1133,6 +1133,8 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 			return (ELEM(id_type_used, ID_TE, ID_OB));
 		case ID_LP:
 			return ELEM(id_type_used, ID_IM);
+		case ID_GD:
+			return ELEM(id_type_used, ID_PAL);
 		case ID_WS:
 		case ID_IM:
 		case ID_VF:
@@ -1140,7 +1142,6 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 		case ID_SO:
 		case ID_AR:
 		case ID_AC:
-		case ID_GD:
 		case ID_WM:
 		case ID_PAL:
 		case ID_PC:
