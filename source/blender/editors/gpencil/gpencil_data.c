@@ -1449,12 +1449,7 @@ static int gp_brush_select_exec(bContext *C, wmOperator *op)
 
 	const int index = RNA_int_get(op->ptr, "index");
 	
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	Paint *paint = &ts->gp_paint->paint;
+	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	int i = 0;
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
 		if (brush->ob_mode == OB_MODE_GPENCIL_PAINT) {

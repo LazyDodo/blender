@@ -186,14 +186,7 @@ Brush *BKE_brush_add(Main *bmain, const char *name, const eObjectMode ob_mode)
 Brush *BKE_brush_add_gpencil(Main *bmain, ToolSettings *ts, const char *name)
 {
 	Brush *brush;
-
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	Paint *paint = &ts->gp_paint->paint;
-
+	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	brush = BKE_brush_add(bmain, name, OB_MODE_GPENCIL_PAINT);
 
 	BKE_paint_brush_set(paint, brush);
@@ -201,6 +194,17 @@ Brush *BKE_brush_add_gpencil(Main *bmain, ToolSettings *ts, const char *name)
 	/* return brush */
 	return brush;
 }
+
+Paint *BKE_brush_get_gpencil_paint(ToolSettings *ts)
+{
+	/* alloc paint session */
+	if (ts->gp_paint == NULL) {
+		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
+	}
+
+	return &ts->gp_paint->paint;
+}
+
 /* grease pencil cumapping->preset */
 typedef enum eGPCurveMappingPreset {
 	GPCURVE_PRESET_PENCIL = 0,
@@ -256,12 +260,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 #define LAZY_FACTOR 0.9f
 
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	Paint *paint = &ts->gp_paint->paint;
+	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	Main *bmain = CTX_data_main(C);
 
 	Brush *brush, *deft;

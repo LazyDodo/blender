@@ -1134,12 +1134,7 @@ void ED_gpencil_add_defaults(bContext *C)
 	/* ensure palettes, colors, and palette slots exist */
 	BKE_gpencil_paletteslot_validate(CTX_data_main(C), gpd);
 
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	Paint *paint = &ts->gp_paint->paint;
+	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	/* if not exist, create a new one */
 	if (paint->brush == NULL) {
 		/* create new brushes */

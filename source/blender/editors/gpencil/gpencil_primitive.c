@@ -126,12 +126,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	Brush *brush;
 
 	/* if brush doesn't exist, create a new one */
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	Paint *paint = &ts->gp_paint->paint;
+	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	/* if not exist, create a new one */
 	if (paint->brush == NULL) {
 		/* create new brushes */

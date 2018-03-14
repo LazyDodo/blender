@@ -1475,12 +1475,7 @@ static void gp_session_validatebuffer(tGPsdata *p)
 static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 {
 	Brush *brush_dft = NULL;
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	Paint *paint = &ts->gp_paint->paint;
+	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	Brush *brush_old = paint->brush;
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
 		if ((brush->ob_mode == OB_MODE_GPENCIL_PAINT) && 
@@ -1523,12 +1518,7 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 	Brush *brush;
 	ToolSettings *ts = CTX_data_tool_settings(C);
 
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	Paint *paint = &ts->gp_paint->paint;
+	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	Main *bmain = CTX_data_main(C);
 
 	/* if not exist, create a new one */
