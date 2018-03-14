@@ -182,6 +182,7 @@ typedef enum {
 	DRW_TEX_RG_32,
 	DRW_TEX_R_8,
 	DRW_TEX_R_16,
+	DRW_TEX_R_16I,
 	DRW_TEX_R_32,
 	DRW_TEX_DEPTH_16,
 	DRW_TEX_DEPTH_24,
@@ -430,6 +431,7 @@ void DRW_viewport_matrix_override_unset(DRWViewportMatrixType type);
 void DRW_viewport_matrix_override_unset_all(void);
 
 const float *DRW_viewport_size_get(void);
+const float *DRW_viewport_invert_size_get(void);
 const float *DRW_viewport_screenvecs_get(void);
 const float *DRW_viewport_pixelsize_get(void);
 bool DRW_viewport_is_persp_get(void);
