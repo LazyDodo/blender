@@ -1235,7 +1235,6 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "view_layer", PROP_STRING, PROP_NONE);
 	RNA_def_property_ui_text(prop, "View Layer", 
 		"Include this layer only in this view layer when render (empty to include in all view layers)");
-	RNA_def_struct_name_property(srna, prop);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "invert_view_layer", PROP_BOOLEAN, PROP_NONE);
