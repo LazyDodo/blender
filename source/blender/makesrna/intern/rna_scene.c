@@ -492,7 +492,7 @@ static const EnumPropertyItem rna_enum_gpencil_interpolation_mode_items[] = {
 /* Grease Pencil update cache */
 static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
 {
-	BKE_gpencil_batch_cache_alldirty_main(bmain);
+	DEG_id_type_tag(bmain, ID_GD);
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
