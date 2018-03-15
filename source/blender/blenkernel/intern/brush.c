@@ -554,6 +554,9 @@ void BKE_brush_copy_data(Main *UNUSED(bmain), Brush *brush_dst, const Brush *bru
 	}
 
 	brush_dst->curve = curvemapping_copy(brush_src->curve);
+	brush_dst->cur_sensitivity = curvemapping_copy(brush_src->cur_sensitivity);
+	brush_dst->cur_strength = curvemapping_copy(brush_src->cur_strength);
+	brush_dst->cur_jitter = curvemapping_copy(brush_src->cur_jitter);
 
 	/* enable fake user by default */
 	id_fake_user_set(&brush_dst->id);
