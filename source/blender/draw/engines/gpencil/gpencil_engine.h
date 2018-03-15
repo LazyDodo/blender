@@ -173,6 +173,11 @@ typedef struct GPENCIL_Storage {
 	float render_pixsize;
 	int tonemapping;
 
+	/* simplify settings*/
+	bool simplify_fill;
+	bool simplify_modif;
+	bool simplify_vfx;
+
 	/* Render Matrices and data */
 	float persmat[4][4], persinv[4][4];
 	float viewmat[4][4], viewinv[4][4];

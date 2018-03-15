@@ -734,7 +734,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 
 	/* apply geometry modifiers */
 	if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
-		if (!GP_SIMPLIFY_MODIF(ts, playing)) {
+		if (!stl->storage->simplify_modif) {
 			if (BKE_gpencil_has_geometry_modifiers(ob)) {
 				BKE_gpencil_geometry_modifiers(&eval_ctx, ob, gpl, derived_gpf, stl->storage->is_render);
 			}
@@ -765,7 +765,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 		}
 
 		/* if the fill has any value, it's considered a fill and is not drawn if simplify fill is enabled */
-		if ((GP_SIMPLIFY_FILL(ts, playing)) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_REMOVE_LINE)) {
+		if ((stl->storage->simplify_fill) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_REMOVE_LINE)) {
 			if ((gps->palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || 
 			    (gps->palcolor->fill_style > FILL_STYLE_SOLID))
 			{
@@ -786,7 +786,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 		if ((gpl->actframe->framenum == derived_gpf->framenum) || (!is_multiedit) || ((gpd->flag & GP_DATA_STROKE_MULTIEDIT_LINES) == 0)) {
 			int id = stl->storage->shgroup_id;
 			if (gps->totpoints > 0) {
-				if ((gps->totpoints > 2) && (!GP_SIMPLIFY_FILL(ts, playing)) && 
+				if ((gps->totpoints > 2) && (!stl->storage->simplify_fill) &&
 					((gps->palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps->palcolor->fill_style > 0)) &&
 					((gps->flag & GP_STROKE_NOFILL) == 0))
 				{
@@ -813,13 +813,13 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 
 			/* apply modifiers (only modify geometry, but not create ) */
 			if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
-				if (!GP_SIMPLIFY_MODIF(ts, playing)) {
+				if (!stl->storage->simplify_modif) {
 					BKE_gpencil_stroke_modifiers(&eval_ctx, ob, gpl, derived_gpf, gps, stl->storage->is_render);
 				}
 			}
 
 			/* fill */
-			if ((fillgrp) && (!GP_SIMPLIFY_FILL(ts, playing))) {
+			if ((fillgrp) && (!stl->storage->simplify_fill)) {
 				gpencil_add_fill_shgroup(cache, fillgrp, ob, gpd, gpl, derived_gpf, gps, tintcolor, false, custonion);
 			}
 			/* stroke */
@@ -1160,7 +1160,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	cache->cache_idx = 0;
 
 	/* init general modifiers data */
-	if (!GP_SIMPLIFY_MODIF(ts, playing)) {
+	if (!stl->storage->simplify_modif) {
 		if ((cache->is_dirty) && (ob->modifiers.first)) {
 			BKE_gpencil_lattice_init(ob);
 		}

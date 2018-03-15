@@ -297,6 +297,11 @@ static void GPENCIL_cache_init(void *vedata)
 		/* save render state */
 		stl->storage->is_render = DRW_state_is_image_render();
 
+		/* save simplify flags (can change while drawing, so it's better to save) */
+		stl->storage->simplify_fill = GP_SIMPLIFY_FILL(ts, stl->storage->playing);
+		stl->storage->simplify_modif = GP_SIMPLIFY_MODIF(ts, stl->storage->playing);
+		stl->storage->simplify_vfx = GP_SIMPLIFY_VFX(ts, stl->storage->playing);
+
 		/* save pixsize */
 		stl->storage->pixsize = DRW_viewport_pixelsize_get();
 		if ((!DRW_state_is_opengl_render()) && (stl->storage->is_render)) {
@@ -484,7 +489,7 @@ static void GPENCIL_cache_populate(void *vedata, Object *ob)
 			/* generate instances as separate cache objects for array modifiers 
 			 * with the "Make as Objects" option enabled
 			 */
-			if (!GP_SIMPLIFY_MODIF(ts, playing)) {
+			if (!stl->storage->simplify_modif) {
 				gpencil_array_modifiers(stl, ob);
 			}
 		}
@@ -533,7 +538,7 @@ static void GPENCIL_cache_finish(void *vedata)
 					stl->g_data->gp_object_cache[i].init_grp, stl->g_data->gp_object_cache[i].end_grp);
 			}
 			/* VFX pass */
-			if (!GP_SIMPLIFY_VFX(ts, playing)) {
+			if (!stl->storage->simplify_vfx) {
 				cache = &stl->g_data->gp_object_cache[i];
 				if ((!is_multiedit) && (ob->modifiers.first)) {
 					DRW_gpencil_vfx_modifiers(i, &e_data, vedata, ob, cache);
@@ -807,7 +812,7 @@ static void GPENCIL_draw_scene(void *vedata)
 				/* vfx modifiers passes
 				 * if any vfx modifier exist, the init_vfx_wave_sh will be not NULL.
 				 */
-				if ((cache->vfx_wave_sh) && (!GP_SIMPLIFY_VFX(ts, playing))) {
+				if ((cache->vfx_wave_sh) && (!stl->storage->simplify_vfx)) {
 					/* add vfx passes */
 					gpencil_vfx_passes(vedata, cache);
 
