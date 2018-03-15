@@ -1347,7 +1347,7 @@ static const float data35[261 * GP_PRIM_DATABUF_SIZE] = {
 /* Monkey API */
 
 /* add a 2D Suzanne (original model created by Matias Mendiola) */
-void ED_gpencil_create_monkey(bContext *C, bGPdata *gpd)
+void ED_gpencil_create_monkey(bContext *C, bGPdata *gpd, float mat[4][4])
 {
 	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
@@ -1377,120 +1377,123 @@ void ED_gpencil_create_monkey(bContext *C, bGPdata *gpd)
 	ARRAY_SET_ITEMS(color_Pupils->fill, 0.153f, 0.057f, 0.063f, 1.0f);
 
 	/* layers */
+	// TODO: validate existence
 	bGPDlayer *Colors = BKE_gpencil_layer_addnew(gpd, "Colors", false);
 	bGPDlayer *Lines = BKE_gpencil_layer_addnew(gpd, "Lines", true);
 
 	/* frames */
+	// TODO: validate existence
 	bGPDframe *frameColor = BKE_gpencil_frame_addnew(Colors, CFRA);
 	bGPDframe *frameLines = BKE_gpencil_frame_addnew(Lines, CFRA);
 
+	/* generate strokes */
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin, 538, "Skin", 3);
-	BKE_gpencil_stroke_add_points(gps, data0, 538);
+	BKE_gpencil_stroke_add_points(gps, data0, 538, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Eyes, 136, "Eyes", 3);
-	BKE_gpencil_stroke_add_points(gps, data1, 136);
+	BKE_gpencil_stroke_add_points(gps, data1, 136, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin, 2, "Skin", 3);
-	BKE_gpencil_stroke_add_points(gps, data2, 2);
+	BKE_gpencil_stroke_add_points(gps, data2, 2, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 1, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data3, 1);
+	BKE_gpencil_stroke_add_points(gps, data3, 1, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 1, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data4, 1);
+	BKE_gpencil_stroke_add_points(gps, data4, 1, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 48, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data5, 48);
+	BKE_gpencil_stroke_add_points(gps, data5, 48, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 47, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data6, 47);
+	BKE_gpencil_stroke_add_points(gps, data6, 47, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 162, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data7, 162);
+	BKE_gpencil_stroke_add_points(gps, data7, 162, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 55, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data8, 55);
+	BKE_gpencil_stroke_add_points(gps, data8, 55, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 70, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data9, 70);
+	BKE_gpencil_stroke_add_points(gps, data9, 70, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 227, "Skin_Light", 3);
-	BKE_gpencil_stroke_add_points(gps, data10, 227);
+	BKE_gpencil_stroke_add_points(gps, data10, 227, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 1, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data11, 1);
+	BKE_gpencil_stroke_add_points(gps, data11, 1, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 123, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data12, 123);
+	BKE_gpencil_stroke_add_points(gps, data12, 123, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 125, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data13, 125);
+	BKE_gpencil_stroke_add_points(gps, data13, 125, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 45, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data14, 45);
+	BKE_gpencil_stroke_add_points(gps, data14, 45, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 44, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data15, 44);
+	BKE_gpencil_stroke_add_points(gps, data15, 44, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 84, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data16, 84);
+	BKE_gpencil_stroke_add_points(gps, data16, 84, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 56, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data17, 56);
+	BKE_gpencil_stroke_add_points(gps, data17, 56, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 59, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data18, 59);
+	BKE_gpencil_stroke_add_points(gps, data18, 59, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 100, "Skin_Shadow", 3);
-	BKE_gpencil_stroke_add_points(gps, data19, 100);
+	BKE_gpencil_stroke_add_points(gps, data19, 100, mat);
 
 	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Eyes, 136, "Eyes", 3);
-	BKE_gpencil_stroke_add_points(gps, data20, 136);
+	BKE_gpencil_stroke_add_points(gps, data20, 136, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 353, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data21, 353);
+	BKE_gpencil_stroke_add_points(gps, data21, 353, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 309, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data22, 309);
+	BKE_gpencil_stroke_add_points(gps, data22, 309, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 209, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data23, 209);
+	BKE_gpencil_stroke_add_points(gps, data23, 209, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 133, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data24, 133);
+	BKE_gpencil_stroke_add_points(gps, data24, 133, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 389, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data25, 389);
+	BKE_gpencil_stroke_add_points(gps, data25, 389, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 41, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data26, 41);
+	BKE_gpencil_stroke_add_points(gps, data26, 41, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 77, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data27, 77);
+	BKE_gpencil_stroke_add_points(gps, data27, 77, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 257, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data28, 257);
+	BKE_gpencil_stroke_add_points(gps, data28, 257, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 205, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data29, 205);
+	BKE_gpencil_stroke_add_points(gps, data29, 205, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 33, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data30, 33);
+	BKE_gpencil_stroke_add_points(gps, data30, 33, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 37, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data31, 37);
+	BKE_gpencil_stroke_add_points(gps, data31, 37, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 201, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data32, 201);
+	BKE_gpencil_stroke_add_points(gps, data32, 201, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Pupils, 69, "Pupils", 3);
-	BKE_gpencil_stroke_add_points(gps, data33, 69);
+	BKE_gpencil_stroke_add_points(gps, data33, 69, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Pupils, 57, "Pupils", 3);
-	BKE_gpencil_stroke_add_points(gps, data34, 57);
+	BKE_gpencil_stroke_add_points(gps, data34, 57, mat);
 
 	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 261, "Black", 3);
-	BKE_gpencil_stroke_add_points(gps, data35, 261);
+	BKE_gpencil_stroke_add_points(gps, data35, 261, mat);
 }
 
 

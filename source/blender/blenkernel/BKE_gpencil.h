@@ -98,7 +98,10 @@ void BKE_gpencil_frame_delete_laststroke(struct bGPDlayer *gpl, struct bGPDframe
  */
 #define GP_PRIM_DATABUF_SIZE  5
 
-void BKE_gpencil_stroke_add_points(struct bGPDstroke *gps, const float *array, const int totpoints);
+void BKE_gpencil_stroke_add_points(
+        struct bGPDstroke *gps,
+        const float *array, const int totpoints,
+        const float mat[4][4]);
 
 struct bGPDstroke *BKE_gpencil_add_stroke(
         struct bGPDframe *gpf, struct Palette *palette, struct PaletteColor *palcolor, int totpoints,

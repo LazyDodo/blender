@@ -521,8 +521,9 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
  * Populate stroke with point data from data buffers
  *
  * \param array Flat array of point data values. Each entry has GP_PRIM_DATABUF_SIZE values
+ * \param mat   4x4 transform matrix to transform points into the right coordinate space
  */
-void BKE_gpencil_stroke_add_points(bGPDstroke *gps, const float *array, const int totpoints)
+void BKE_gpencil_stroke_add_points(bGPDstroke *gps, const float *array, const int totpoints, const float mat[4][4])
 {
 	for (int i = 0; i < totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
@@ -531,6 +532,8 @@ void BKE_gpencil_stroke_add_points(bGPDstroke *gps, const float *array, const in
 		pt->x = array[x];
 		pt->y = array[x + 1];
 		pt->z = array[x + 2];
+		mul_m4_v3(mat, &pt->x);
+		
 		pt->pressure = array[x + 3];
 		pt->strength = array[x + 4];
 	}

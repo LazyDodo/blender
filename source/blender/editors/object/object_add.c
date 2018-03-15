@@ -1001,6 +1001,7 @@ void OBJECT_OT_drop_named_image(wmOperatorType *ot)
 
 static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 {
+	Object *obact = CTX_data_active_object(C);
 	Object *ob;
 	int type = RNA_enum_get(op->ptr, "type");
 	unsigned int layer;
@@ -1026,9 +1027,11 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 	switch (type) {
 		case GP_MONKEY:
 		{
-			ED_gpencil_create_monkey(C, ob->data);
-			ED_object_rotation_from_view(C, rot, 'Y');
-			copy_v3_v3(ob->rot, rot);
+			float mat[4][4];
+			unit_m4(mat); // XXX
+			
+			//ED_object_new_primitive_matrix(C, ob, loc, rot, mat);
+			ED_gpencil_create_monkey(C, ob->data, mat);
 			
 			ED_gpencil_add_defaults(C);
 			break;
