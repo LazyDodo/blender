@@ -1001,50 +1001,74 @@ void OBJECT_OT_drop_named_image(wmOperatorType *ot)
 
 static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 {
-	Object *obact = CTX_data_active_object(C);
-	Object *ob;
-	int type = RNA_enum_get(op->ptr, "type");
-	unsigned int layer;
+	Object *ob = CTX_data_active_object(C);
+	bGPdata *gpd = (ob && (ob->type == OB_GPENCIL)) ? ob->data : NULL;
+	
+	const int type = RNA_enum_get(op->ptr, "type");
+	
 	float loc[3], rot[3];
-
+	unsigned int layer;
+	bool view_align = true;
+	bool newob = false;
+	
+	/* Hack: Force view-align to be on by default
+	 * since it's not nice for adding shapes in 2D
+	 * for them to end up aligned oddly
+	 */
+	if (RNA_struct_property_is_set(op->ptr, "view_align") == false)
+		RNA_boolean_set(op->ptr, "view_align", true);
+	
+	/* Note: We use 'Y' here (not 'Z'), as */
 	WM_operator_view3d_unit_defaults(C, op);
-	if (!ED_object_add_generic_get_opts(C, op, 'Z', loc, rot, NULL, &layer, NULL))
+	if (!ED_object_add_generic_get_opts(C, op, 'Y', loc, rot, NULL, &layer, NULL))
 		return OPERATOR_CANCELLED;
-
-	switch (type) {
-		case GP_MONKEY:
-			ob = ED_object_add_type(C, OB_GPENCIL, "Suzanne", loc, rot, false, layer);
-			break;
-		default:
-			ob = ED_object_add_type(C, OB_GPENCIL, NULL, loc, rot, false, layer);
-			break;
-	}
-
-	BKE_object_obdata_size_init(ob, GP_OBGPENCIL_DEFAULT_SIZE);
+	
+	/* add new object if not currently editing a GP object,
+	 * or if "empty" was chosen (i.e. user wants a blank GP canvas)
+	 */
+	if ((gpd == NULL) || (GPENCIL_ANY_MODE(gpd) == false) || (type == GP_EMPTY)) {
+		const char *ob_name = (type == GP_MONKEY) ? "Suzanne" : NULL;
+		float radius = RNA_float_get(op->ptr, "radius");
 		
-	/* if type is monkey, create a 2D Suzanne */
-	// TODO: create with offset to cursor?
+		ob = ED_object_add_type(C, OB_GPENCIL, ob_name, loc, rot, true, layer);
+		gpd = ob->data;
+		newob = true;
+		
+		BKE_object_obdata_size_init(ob, GP_OBGPENCIL_DEFAULT_SIZE * radius);
+	}
+	else {
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL);
+	}
+	
+	/* create relevant geometry */
 	switch (type) {
 		case GP_MONKEY:
 		{
+			float radius = RNA_float_get(op->ptr, "radius");
 			float mat[4][4];
-			unit_m4(mat); // XXX
 			
-			//ED_object_new_primitive_matrix(C, ob, loc, rot, mat);
-			ED_gpencil_create_monkey(C, ob->data, mat);
+			ED_object_new_primitive_matrix(C, ob, loc, rot, mat);
+			mul_v3_fl(mat[0], radius);
+			mul_v3_fl(mat[1], radius);
+			mul_v3_fl(mat[2], radius);
 			
-			ED_gpencil_add_defaults(C);
+			ED_gpencil_create_monkey(C, gpd, mat);
 			break;
 		}
 		
 		case GP_EMPTY:
 			/* do nothing */
-			ED_gpencil_add_defaults(C);
 			break;
 		
 		default:
 			BKE_report(op->reports, RPT_WARNING, "Not implemented");
 			break;
+	}
+	
+	/* if this is a new object, initialise default stuff (colors, etc.) */
+	if (newob) {
+		ED_gpencil_add_defaults(C);
 	}
 
 	return OPERATOR_FINISHED;
@@ -1060,7 +1084,7 @@ void OBJECT_OT_gpencil_add(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->exec = object_gpencil_add_exec;
-	ot->poll = ED_operator_objectmode;
+	ot->poll = ED_operator_scene_editable;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
