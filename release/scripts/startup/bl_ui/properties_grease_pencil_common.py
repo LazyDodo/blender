@@ -1137,6 +1137,7 @@ class GreasePencilParentLayerPanel:
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        scene = context.scene
         gpl = context.active_gpencil_layer
         row = layout.row()
 
@@ -1150,6 +1151,12 @@ class GreasePencilParentLayerPanel:
         parent = gpl.parent
         if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
             sub.prop_search(gpl, "parent_bone", parent.data, "bones", text="")
+
+        row = layout.row()
+        row.label("Render Settings:")
+        row = layout.row(align=True)
+        row.prop_search(gpl, "view_layer", scene, "view_layers", text="View Layer")
+        row.prop(gpl, "invert_view_layer", text="", icon='ARROW_LEFTRIGHT')
 
 
 class GPENCIL_UL_vgroups(UIList):
