@@ -2332,7 +2332,7 @@ static void lib_link_brush(FileData *fd, Main *main)
 			brush->paint_curve = newlibadr_us(fd, brush->id.lib, brush->paint_curve);
 
 			/* link default grease pencil palette */
-			brush->palette = newlibadr(fd, brush->id.lib, brush->palette);
+			brush->palette = newlibadr_us(fd, brush->id.lib, brush->palette);
 
 			brush->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
@@ -9686,6 +9686,7 @@ static void expand_brush(FileData *fd, Main *mainvar, Brush *brush)
 	expand_doit(fd, mainvar, brush->mask_mtex.tex);
 	expand_doit(fd, mainvar, brush->clone.image);
 	expand_doit(fd, mainvar, brush->paint_curve);
+	expand_doit(fd, mainvar, brush->palette);
 }
 
 static void expand_material(FileData *fd, Main *mainvar, Material *ma)
