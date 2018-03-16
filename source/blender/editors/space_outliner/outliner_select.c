@@ -45,6 +45,7 @@
 #include "BLI_listbase.h"
 
 #include "BKE_context.h"
+#include "BKE_gpencil.h"
 #include "BKE_group.h"
 #include "BKE_object.h"
 #include "BKE_layer.h"
@@ -433,6 +434,29 @@ static eOLDrawState tree_element_active_defgroup(
 				return OL_DRAWSEL_NORMAL;
 			}
 	}
+	return OL_DRAWSEL_NONE;
+}
+
+static eOLDrawState tree_element_active_gplayer(
+        bContext *C, Scene *UNUSED(scene), ViewLayer *view_layer, TreeElement *te, TreeStoreElem *tselem, const eOLSetState set)
+{
+	bGPdata *gpd = (bGPdata *)tselem->id;
+	bGPDlayer *gpl = te->directdata;
+	
+	/* We can only have a single "active" layer at a time
+	 * and there must always be an active layer...
+	 */
+	if (set != OL_SETSEL_NONE) {
+		if (gpl) {
+			BKE_gpencil_layer_setactive(gpd, gpl);
+			WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_SELECTED, gpd);		
+		}
+	}
+	else {
+		return OL_DRAWSEL_NORMAL;
+	}
+	
+	
 	return OL_DRAWSEL_NONE;
 }
 
@@ -884,8 +908,7 @@ eOLDrawState tree_element_type_active(
 		case TSE_KEYMAP_ITEM:
 			return tree_element_active_keymap_item(C, scene, view_layer, te, tselem, set);
 		case TSE_GP_LAYER:
-			//return tree_element_active_gplayer(C, scene, s, te, tselem, set);
-			break;
+			return tree_element_active_gplayer(C, scene, view_layer, te, tselem, set);
 		case TSE_SCENE_COLLECTION:
 		case TSE_LAYER_COLLECTION:
 			return tree_element_active_collection(C, te, tselem, set);

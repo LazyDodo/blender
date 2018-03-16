@@ -49,6 +49,7 @@
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_fcurve.h"
+#include "BKE_gpencil.h"
 #include "BKE_global.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
@@ -394,12 +395,16 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 				}
 				case TSE_GP_LAYER:
 				{
-					bGPdata *gpd = (bGPdata *)tselem->id; // id = GP Datablock
+					bGPdata *gpd = (bGPdata *)tselem->id; /* id = GP Datablock */
 					bGPDlayer *gpl = te->directdata;
+					
+					/* always make layer active */
+					BKE_gpencil_layer_setactive(gpd, gpl);
 					
 					// XXX: name needs translation stuff
 					BLI_uniquename(&gpd->layers, gpl, "GP Layer", '.',
 					               offsetof(bGPDlayer, info), sizeof(gpl->info));
+					
 					WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, gpd);
 					break;
 				}
