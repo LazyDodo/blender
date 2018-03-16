@@ -708,7 +708,12 @@ static void rna_BrushPalette_colorname_reset(Main *UNUSED(bmain), Scene *UNUSED(
 {
 	/* reset colorname */
 	Brush *brush = ptr->data;
-	brush->colorname[0] = '\0';
+	Palette *palette = brush->palette;
+	PaletteColor *palcolor = BKE_palette_color_getbyname(palette, brush->colorname);
+
+	if (palcolor == NULL) {
+		brush->colorname[0] = '\0';
+	}
 }
 
 /* check the current color is valid */
