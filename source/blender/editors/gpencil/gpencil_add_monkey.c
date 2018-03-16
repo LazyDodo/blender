@@ -28,6 +28,7 @@
  */
 
 #include "BLI_blenlib.h"
+#include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "DNA_gpencil_types.h"
@@ -39,6 +40,50 @@
 #include "BKE_paint.h"
 
 #include "ED_gpencil.h"
+
+/* ***************************************************************** */
+/* Palette Validation API */
+/* TODO: Move this to the BKE_gpencil API if/when other code needs to do this */
+
+/* Definition of the most important info from a color */
+typedef struct PaletteColorTemplate {
+	char *name;
+	float line[4];
+	float fill[4];
+} PaletteColorTemplate;
+
+/* Ensure that a Palette Color exists matching the template (matched by name) */
+static PaletteColor *gpencil_palette_color_verify_template(Palette *palette, const PaletteColorTemplate *pct)
+{
+	BLI_assert((pal != NULL) && (pct != NULL));
+	
+	PaletteColor *palcolor = BKE_palette_color_getbyname(palette, pct->name);
+	if (palcolor == NULL) {
+		palcolor = BKE_palette_color_add_name(palette, pct->name);
+		BLI_assert(palcolor != NULL);
+		
+		copy_v4_v4(palcolor->rgb, pct->line);
+		copy_v4_v4(palcolor->fill, pct->fill);
+	}
+	
+	return palcolor;
+}
+
+/* Ensure that a Palette Slot exists with a similarly named palette */
+static bGPDpaletteref *gpencil_palette_slot_verify(Main *bmain, bGPdata *gpd, const char name[])
+{
+	BLI_assert((gpd != NULL) && (name != NULL));
+	
+	/* Try to find a matching palette */
+	for (bGPDpaletteref *slot = gpd->palette_slots.first; slot; slot = slot->next) {
+		if ((slot->palette) && STREQ(slot->palette->id.name + 2, name)) {
+			return slot;
+		}
+	}
+	
+	/* Not found, so make one */
+	return BKE_gpencil_paletteslot_addnew(bmain, gpd, name);
+}
 
 /* ***************************************************************** */
 /* Monkey Geometry */
@@ -1344,6 +1389,45 @@ static const float data35[261 * GP_PRIM_DATABUF_SIZE] = {
 };
 
 /* ***************************************************************** */
+/* Monkey Color Data */
+
+static const PaletteColorTemplate gp_monkey_pct_black = {
+	"Black",
+	{0.0f, 0.0f, 0.0f, 1.0f},
+	{0.0f, 0.0f, 0.0f, 0.0f},
+};
+
+static const PaletteColorTemplate gp_monkey_pct_skin = {
+	"Skin",
+	{0.553f, 0.39f, 0.266f, 0.0f},
+	{0.733f, 0.567f, 0.359f, 1.0f},
+};
+
+static const PaletteColorTemplate gp_monkey_pct_skin_light = {
+	"Skin Light",
+	{0.553f, 0.39f, 0.266f, 0.0f},
+	{0.913f, 0.828f, 0.637f, 1.0f},
+};
+
+static const PaletteColorTemplate gp_monkey_pct_skin_shadow = {
+	"Skin Shadow",
+	{0.553f, 0.39f, 0.266f, 0.0f},
+	{0.32f, 0.29f, 0.223f, 1.0f},
+};
+
+static const PaletteColorTemplate gp_monkey_pct_eyes = {
+	"Eyes",
+	{0.553f, 0.39f, 0.266f, 0.0f},
+	{0.773f, 0.762f, 0.73f, 1.0f},	
+};
+
+static const PaletteColorTemplate gp_monkey_pct_pupils = {
+	"Pupils",
+	{0.107f, 0.075f, 0.051f, 0.0f},
+	{0.153f, 0.057f, 0.063f, 1.0f},	
+};
+
+/* ***************************************************************** */
 /* Monkey API */
 
 /* add a 2D Suzanne (original model created by Matias Mendiola) */
@@ -1354,35 +1438,23 @@ void ED_gpencil_create_monkey(bContext *C, bGPdata *gpd, float mat[4][4])
 	bGPDstroke *gps;
 	
 	/* create palette and colors */
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_addnew(bmain, gpd, "Suzanne");
+	bGPDpaletteref *palslot = gpencil_palette_slot_verify(bmain, gpd, "Suzanne");
 	Palette *palette = palslot->palette;
-
-	PaletteColor *color_Black = BKE_palette_color_add_name(palette, "Black");
-	ARRAY_SET_ITEMS(color_Black->rgb, 0.0f, 0.0f, 0.0f, 1.0f);
-	ARRAY_SET_ITEMS(color_Black->fill, 0.0f, 0.0f, 0.0f, 0.0f);
-	PaletteColor *color_Skin = BKE_palette_color_add_name(palette, "Skin");
-	ARRAY_SET_ITEMS(color_Skin->rgb, 0.553f, 0.39f, 0.266f, 0.0f);
-	ARRAY_SET_ITEMS(color_Skin->fill, 0.733f, 0.567f, 0.359f, 1.0f);
-	PaletteColor *color_Skin_Light = BKE_palette_color_add_name(palette, "Skin_Light");
-	ARRAY_SET_ITEMS(color_Skin_Light->rgb, 0.553f, 0.39f, 0.266f, 0.0f);
-	ARRAY_SET_ITEMS(color_Skin_Light->fill, 0.913f, 0.828f, 0.637f, 1.0f);
-	PaletteColor *color_Skin_Shadow = BKE_palette_color_add_name(palette, "Skin_Shadow");
-	ARRAY_SET_ITEMS(color_Skin_Shadow->rgb, 0.553f, 0.39f, 0.266f, 0.0f);
-	ARRAY_SET_ITEMS(color_Skin_Shadow->fill, 0.32f, 0.29f, 0.223f, 1.0f);
-	PaletteColor *color_Eyes = BKE_palette_color_add_name(palette, "Eyes");
-	ARRAY_SET_ITEMS(color_Eyes->rgb, 0.553f, 0.39f, 0.266f, 0.0f);
-	ARRAY_SET_ITEMS(color_Eyes->fill, 0.773f, 0.762f, 0.73f, 1.0f);
-	PaletteColor *color_Pupils = BKE_palette_color_add_name(palette, "Pupils");
-	ARRAY_SET_ITEMS(color_Pupils->rgb, 0.107f, 0.075f, 0.051f, 0.0f);
-	ARRAY_SET_ITEMS(color_Pupils->fill, 0.153f, 0.057f, 0.063f, 1.0f);
+	
+	PaletteColor *color_Black = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_black);
+	PaletteColor *color_Skin = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_skin);
+	PaletteColor *color_Skin_Light = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_skin_light);
+	PaletteColor *color_Skin_Shadow = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_skin_shadow);
+	PaletteColor *color_Eyes = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_eyes);
+	PaletteColor *color_Pupils = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_pupils);
 
 	/* layers */
-	// TODO: validate existence
+	/* NOTE: For now, we just add new layers, to make it easier to separate out old/new instances */
 	bGPDlayer *Colors = BKE_gpencil_layer_addnew(gpd, "Colors", false);
 	bGPDlayer *Lines = BKE_gpencil_layer_addnew(gpd, "Lines", true);
 
 	/* frames */
-	// TODO: validate existence
+	/* NOTE: No need to check for existing, as this will tkae care of it for us */
 	bGPDframe *frameColor = BKE_gpencil_frame_addnew(Colors, CFRA);
 	bGPDframe *frameLines = BKE_gpencil_frame_addnew(Lines, CFRA);
 

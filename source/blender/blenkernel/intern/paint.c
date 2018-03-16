@@ -564,6 +564,7 @@ void BKE_palette_free(Palette *palette)
 	}
 }
 
+/* Add default set of colors for Grease Pencil */
 void BKE_palette_color_add_default_set(Palette *palette)
 {
 	PaletteColor *palcolor;
