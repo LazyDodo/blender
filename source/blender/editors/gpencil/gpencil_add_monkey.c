@@ -55,7 +55,7 @@ typedef struct PaletteColorTemplate {
 /* Ensure that a Palette Color exists matching the template (matched by name) */
 static PaletteColor *gpencil_palette_color_verify_template(Palette *palette, const PaletteColorTemplate *pct)
 {
-	BLI_assert((pal != NULL) && (pct != NULL));
+	BLI_assert((palette != NULL) && (pct != NULL));
 	
 	PaletteColor *palcolor = BKE_palette_color_getbyname(palette, pct->name);
 	if (palcolor == NULL) {
