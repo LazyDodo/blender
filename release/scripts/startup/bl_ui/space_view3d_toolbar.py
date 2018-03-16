@@ -2160,6 +2160,11 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
             col.prop(brush, "active_smooth_factor")
             col.separator()
 
+            row = col.row(align=True)
+            row.prop(brush, "angle", slider=True)
+            row.prop(brush, "angle_factor", text="Factor", slider=True)
+            col.separator()
+
             if brush.gpencil_brush_type == 'DRAW':
                 col.prop(brush, "use_stabilizer", text="Stabilizer")
                 if brush.use_stabilizer:
@@ -2183,10 +2188,6 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
                 row = col.row(align=True)
                 row.prop(brush, "pen_jitter", slider=True)
                 row.prop(brush, "use_jitter_pressure", text="", icon='STYLUS_PRESSURE')
-
-                row = col.row(align=True)
-                row.prop(brush, "angle", slider=True)
-                row.prop(brush, "angle_factor", text="Factor", slider=True)
                 col.separator()
 
             col.prop(brush, "enable_settings", text="Post-processing Settings")
