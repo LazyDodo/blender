@@ -1076,13 +1076,13 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 
 void OBJECT_OT_gpencil_add(wmOperatorType *ot)
 {
-
 	/* identifiers */
 	ot->name = "Add GPencil";
 	ot->description = "Add a grease pencil object to the scene";
 	ot->idname = "OBJECT_OT_gpencil_add";
 
 	/* api callbacks */
+	ot->invoke = WM_menu_invoke;
 	ot->exec = object_gpencil_add_exec;
 	ot->poll = ED_operator_scene_editable;
 
