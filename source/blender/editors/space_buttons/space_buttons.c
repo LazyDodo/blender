@@ -407,6 +407,13 @@ static void buttons_area_listener(
 					break;
 			}
 			break;
+		case NC_GPENCIL:
+			switch(wmn->data) {
+				case ND_DATA:
+					if (ELEM(wmn->action, NA_EDITED, NA_ADDED, NA_REMOVED))
+						ED_area_tag_redraw(sa);
+					break;
+			}
 		case NC_NODE:
 			if (wmn->action == NA_SELECTED) {
 				ED_area_tag_redraw(sa);

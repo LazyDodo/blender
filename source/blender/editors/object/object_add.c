@@ -1038,7 +1038,7 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 	}
 	else {
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL);
+		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_ADDED, NULL);
 	}
 	
 	/* create relevant geometry */
