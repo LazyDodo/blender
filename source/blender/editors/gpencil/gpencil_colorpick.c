@@ -80,6 +80,7 @@
 
 #define GP_BOX_SIZE (32 * U.ui_scale)
 #define GP_BOX_GAP (24 * U.ui_scale)
+#define GP_PICK_NAME_HEIGHT ((GP_BOX_GAP / 2) - (3 * U.ui_scale))
 
 /* Representation of a color displayed in the picker */
 typedef struct tGPDpickColor {
@@ -140,7 +141,7 @@ static void gp_draw_color_name(tGPDpick *tgpk, tGPDpickColor *col, const uiFontS
 	/* color name */
 	BLI_strncpy(drawstr, col->name, sizeof(drawstr));
 	UI_text_clip_middle_ex((uiFontStyle *)fstyle, drawstr, okwidth, minwidth, max_len, '\0');
-	UI_fontstyle_draw_simple(fstyle, col->rect.xmin, col->rect.ymin - (GP_BOX_GAP / 2) - (3 * U.ui_scale), 
+	UI_fontstyle_draw_simple(fstyle, col->rect.xmin, col->rect.ymin - GP_PICK_NAME_HEIGHT, 
 							 drawstr, text_col);
 }
 
@@ -230,7 +231,7 @@ static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 			/* TODO: How to get the menu gradient shading? */
 			rcti *cbox = &col->full_rect;
 			UI_draw_roundbox_4fv(true,
-			                     cbox->xmin, cbox->ymin,
+			                     cbox->xmin, cbox->ymin - GP_PICK_NAME_HEIGHT,
 			                     cbox->xmax, cbox->ymax,
 			                     0, selcolor);
 		}
