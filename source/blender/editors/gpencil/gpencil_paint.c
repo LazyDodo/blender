@@ -627,8 +627,7 @@ static short gp_stroke_addpoint(
 		}
 		/* apply randomness to pressure */
 		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && 
-			(brush->draw_random_press > 0.0f) && 
-			(brush->gp_flag & GP_BRUSH_USE_RANDOM_PRESSURE)) 
+			(brush->draw_random_press > 0.0f)) 
 		{
 			float curvef = curvemapping_evaluateF(brush->cur_sensitivity, 0, pressure);
 			float tmp_pressure = curvef * brush->draw_sensitivity;
@@ -674,14 +673,13 @@ static short gp_stroke_addpoint(
 
 		/* apply randomness to color strength */
 		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && 
-			(brush->draw_random_press > 0.0f) && 
-			(brush->gp_flag & GP_BRUSH_USE_RANDOM_STRENGTH)) 
+			(brush->draw_random_strength > 0.0f)) 
 		{
 			if (BLI_frand() > 0.5f) {
-				pt->strength -= pt->strength * brush->draw_random_press * BLI_frand();
+				pt->strength -= pt->strength * brush->draw_random_strength * BLI_frand();
 			}
 			else {
-				pt->strength += pt->strength * brush->draw_random_press * BLI_frand();
+				pt->strength += pt->strength * brush->draw_random_strength * BLI_frand();
 			}
 			CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 		}

@@ -154,8 +154,10 @@ typedef struct Brush {
 	float draw_jitter;        /* amount of jitter to apply to newly created strokes */
 	float draw_angle;         /* angle when the brush has full thickness */
 	float draw_angle_factor;  /* factor to apply when angle change (only 90 degrees) */
-	float draw_random_press;  /* factor of randomness for sensitivity and strength */
+	float draw_random_press;  /* factor of randomness for pressure */
+	float draw_random_strength;  /* factor of strength for strength */
 	float draw_random_sub;    /* factor of randomness for subdivision */
+	char pad2[4];
 
 	struct CurveMapping *cur_sensitivity;
 	struct CurveMapping *cur_strength;
@@ -193,10 +195,6 @@ typedef enum eGPDbrush_Flag {
 	GP_BRUSH_USE_STENGTH_PRESSURE = (1 << 1),
 	/* brush use pressure for alpha factor */
 	GP_BRUSH_USE_JITTER_PRESSURE = (1 << 2),
-	/* brush use random for pressure */
-	GP_BRUSH_USE_RANDOM_PRESSURE = (1 << 3),
-	/* brush use random for strength */
-	GP_BRUSH_USE_RANDOM_STRENGTH = (1 << 4),
 	/* enable screen cursor */
 	GP_BRUSH_ENABLE_CURSOR = (1 << 5),
 	/* fill hide transparent */

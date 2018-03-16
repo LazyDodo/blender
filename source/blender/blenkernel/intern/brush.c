@@ -269,10 +269,9 @@ void BKE_brush_gpencil_presets(bContext *C)
 	/* Pencil brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Pencil");
 	brush->thickness = 25.0f;
-	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
-	brush->gp_flag |= GP_BRUSH_USE_RANDOM_STRENGTH;
 	brush->draw_strength = 0.6f;
 	brush->gp_flag |= GP_BRUSH_USE_STENGTH_PRESSURE;
 
@@ -301,14 +300,14 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Pen");
 	deft = brush; /* save default brush */
 	brush->thickness = 30.0f;
-	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
-	brush->gp_flag |= GP_BRUSH_USE_RANDOM_STRENGTH;
 	brush->draw_strength = 1.0f;
 	brush->gp_flag |= GP_BRUSH_USE_STENGTH_PRESSURE;
 
 	brush->draw_random_press = 0.0f;
+	brush->draw_random_strength = 0.0f;
 
 	brush->draw_jitter = 0.0f;
 	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
@@ -367,12 +366,14 @@ void BKE_brush_gpencil_presets(bContext *C)
 	/* Ink Noise brush */
 	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Draw Noise");
 	brush->thickness = 60.0f;
-	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
 	brush->draw_strength = 1.0f;
 
+	brush->gp_flag |= GP_BRUSH_GROUP_RANDOM;
 	brush->draw_random_press = 0.7f;
+	brush->draw_random_strength = 0.0f;
 
 	brush->draw_jitter = 0.0f;
 	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
@@ -432,12 +433,14 @@ void BKE_brush_gpencil_presets(bContext *C)
 	/* Marker brush */
 	brush = brush = BKE_brush_add_gpencil(bmain, ts, "Draw Marker");
 	brush->thickness = 80.0f;
-	brush->gp_flag |= (GP_BRUSH_USE_RANDOM_PRESSURE | GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
+	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
 	brush->draw_strength = 1.0f;
 
+	brush->gp_flag |= GP_BRUSH_GROUP_RANDOM;
 	brush->draw_random_press = 0.374f;
+	brush->draw_random_strength = 0.0f;
 
 	brush->draw_jitter = 0.0f;
 	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;

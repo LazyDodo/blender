@@ -2088,11 +2088,9 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
 
             if brush.gpencil_brush_type == 'DRAW':
                 row = layout.row(align=True)
-                row.prop(brush, "use_random_pressure", text="", icon='RNDCURVE')
                 row.prop(brush, "line_width", text="Radius")
                 row.prop(brush, "use_pressure", text="", icon='STYLUS_PRESSURE')
                 row = layout.row(align=True)
-                row.prop(brush, "use_random_strength", text="", icon='RNDCURVE')
                 row.prop(brush, "pen_strength", slider=True)
                 row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
@@ -2172,12 +2170,15 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
 
             col.prop(brush, "enable_random", text="Random Settings")
             if brush.enable_random is True:
-                col.separator()
-                col.prop(brush, "uv_random", slider=True)
-
-                col.separator()
                 col.label(text="Settings:")
-                col.prop(brush, "random_press", slider=True)
+                col.prop(brush, "random_pressure", text="Pressure", slider=True)
+                col.separator()
+
+                col.prop(brush, "random_strength", text="Strength", slider=True)
+                col.separator()
+
+                col.prop(brush, "uv_random", text="UV", slider=True)
+                col.separator()
 
                 row = col.row(align=True)
                 row.prop(brush, "pen_jitter", slider=True)

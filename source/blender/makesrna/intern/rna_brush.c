@@ -1621,11 +1621,18 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Jitter", "Jitter factor for new strokes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
-	/* Randomnes factor for sensitivity and strength */
-	prop = RNA_def_property(srna, "random_press", PROP_FLOAT, PROP_NONE);
+	/* Randomnes factor for pressure */
+	prop = RNA_def_property(srna, "random_pressure", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "draw_random_press");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Randomness", "Randomness factor for pressure and strength in new strokes");
+	RNA_def_property_ui_text(prop, "Pressure Randomness", "Randomness factor for pressure in new strokes");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
+
+	/* Randomnes factor for strength */
+	prop = RNA_def_property(srna, "random_strength", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "draw_random_strength");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Strength Randomness", "Randomness factor strength in new strokes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Randomnes factor for subdivision */
@@ -1790,18 +1797,6 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", GP_BRUSH_USE_JITTER_PRESSURE);
 	RNA_def_property_ui_icon(prop, ICON_STYLUS_PRESSURE, 0);
 	RNA_def_property_ui_text(prop, "Use Pressure Jitter", "Use tablet pressure for jitter");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
-
-	prop = RNA_def_property(srna, "use_random_pressure", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", GP_BRUSH_USE_RANDOM_PRESSURE);
-	RNA_def_property_ui_icon(prop, ICON_PARTICLES, 0);
-	RNA_def_property_ui_text(prop, "Random Pressure", "Use random value for pressure");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
-
-	prop = RNA_def_property(srna, "use_random_strength", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", GP_BRUSH_USE_RANDOM_STRENGTH);
-	RNA_def_property_ui_icon(prop, ICON_PARTICLES, 0);
-	RNA_def_property_ui_text(prop, "Random Strength", "Use random value for strength");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "use_stabilizer", PROP_BOOLEAN, PROP_NONE);
