@@ -88,7 +88,7 @@
 /* Core/Shared Utilities */
 
 /* Poll callback for primitive operators */
-static int gpencil_view3d_poll(bContext *C)
+static int gpencil_primitive_add_poll(bContext *C)
 {
 	/* only 3D view */
 	ScrArea *sa = CTX_wm_area(C);
@@ -108,6 +108,16 @@ static int gpencil_view3d_poll(bContext *C)
 	 *   (similar to copy/paste), and also for consistency
 	 */
 	if ((gpd->flag & (GP_DATA_STROKE_PAINTMODE | GP_DATA_STROKE_EDITMODE)) == 0) {
+		CTX_wm_operator_poll_msg_set(C, "Primitives can only be added in Draw or Edit modes");
+		return 0;
+	}
+
+	/* don't allow operator to function if the active layer is locked/hidden
+	 * (BUT, if there isn't an active layer, we are free to add new layer when the time comes)
+	 */
+	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
+	if ((gpl) && (gpl->flag & (GP_LAYER_LOCKED | GP_LAYER_HIDE))) {
+		CTX_wm_operator_poll_msg_set(C, "Primitives cannot be added as active layer is locked or hidden");
 		return 0;
 	}
 
@@ -658,7 +668,7 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 	ot->invoke = gpencil_primitive_invoke;
 	ot->modal = gpencil_primitive_modal;
 	ot->cancel = gpencil_primitive_cancel;
-	ot->poll = gpencil_view3d_poll;
+	ot->poll = gpencil_primitive_add_poll;
 	
 	/* flags */
 	ot->flag = OPTYPE_UNDO | OPTYPE_BLOCKING;
