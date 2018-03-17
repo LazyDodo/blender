@@ -1619,6 +1619,12 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 		"Display onion keyframes with a fade in color transparency");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
+	prop = RNA_def_property(srna, "use_onion_loop", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "onion_flag", GP_ONION_LOOP);
+	RNA_def_property_ui_text(prop, "Loop",
+		"Display first onion keyframes using next frame color to show indication of loop start frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
 	prop = RNA_def_property(srna, "onion_factor", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "onion_factor");
 	RNA_def_property_float_default(prop, 0.5f);

@@ -456,6 +456,8 @@ typedef enum eGPD_OnionFlag {
 	GP_ONION_GHOST_ALWAYS = (1 << 2),
 	/* use fade color in onion skin */
 	GP_ONION_FADE = (1 << 3),
+	/* Loop showing first frame after last frame */
+	GP_ONION_LOOP = (1 << 4),
 } eGPD_OnionFlag;
 
 /* gpd->onion_mode */

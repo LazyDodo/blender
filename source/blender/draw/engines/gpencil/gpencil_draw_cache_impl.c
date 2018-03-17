@@ -958,6 +958,8 @@ static void gpencil_draw_onionskins(
 	int step = 0;
 	int mode = 0;
 	bool colflag = false;
+	bGPDframe *gpf_loop = NULL;
+	int last = gpf->framenum;
 	
 	if (gpl->onion_flag & GP_LAYER_ONION_OVERRIDE) {
 		if (gpl->onion_flag & GP_LAYER_GHOST_PREVCOL) {
@@ -1030,6 +1032,11 @@ static void gpencil_draw_onionskins(
 			color[3] = fac;
 		}
 
+		/* if loop option, save the frame to use later */
+		if ((mode == GP_ONION_MODE_SELECTED) && (gpd->onion_flag & GP_ONION_LOOP)) {
+			gpf_loop = gf;
+		}
+
 		gpencil_get_onion_alpha(color, gpd, gpl);
 		gpencil_draw_onion_strokes(cache, e_data, vedata, ob, gpd, gpl, gf, color[3], color, colflag);
 	}
@@ -1097,6 +1104,18 @@ static void gpencil_draw_onionskins(
 
 		gpencil_get_onion_alpha(color, gpd, gpl);
 		gpencil_draw_onion_strokes(cache, e_data, vedata, ob, gpd, gpl, gf, color[3], color, colflag);
+		if (last < gf->framenum) {
+			last = gf->framenum;
+		}
+	}
+
+	/* Draw first frame in blue for loop mode */
+	if ((gpd->onion_flag & GP_ONION_LOOP) && (gpf_loop != NULL)) {
+		if ((last == gpf->framenum) || (gpf->next == NULL)) {
+			gpencil_get_onion_alpha(color, gpd, gpl);
+			gpencil_draw_onion_strokes(cache, e_data, vedata, ob, gpd, gpl,
+				gpf_loop, color[3], color, colflag);
+		}
 	}
 }
 

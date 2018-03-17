@@ -1025,6 +1025,10 @@ class GreasePencilOnionPanel:
         row.active = gpd.use_onion_skinning
         row.prop(gpd, "onion_mode", expand=True)
 
+        row = layout.row(align=True)
+        row.active = gpd.use_onion_skinning
+        row.prop(gpd, "onion_factor", text="Opacity", slider=True)
+
         split = layout.split(percentage=0.5)
         split.active = gpd.use_onion_skinning
 
@@ -1048,14 +1052,13 @@ class GreasePencilOnionPanel:
         row.active = gpd.onion_mode in ('ABSOLUTE', 'RELATIVE')
         row.prop(gpd, "ghost_after_range", text="After")
 
-        # - fade
-        split = layout.split(percentage=0.5)
-        split.active = gpd.use_onion_skinning
-        sub = split.column(align=True)
-        sub.prop(gpd, "use_onion_fade", text="Fade")
-
-        sub = split.column(align=True)
-        sub.prop(gpd, "onion_factor", text="Opacity", slider=True)
+        # - fade and loop
+        row = layout.row()
+        row.active = gpd.use_onion_skinning
+        row.prop(gpd, "use_onion_fade", text="Fade")
+        subrow = row.row()
+        subrow.active = gpd.onion_mode == 'SELECTED'
+        subrow.prop(gpd, "use_onion_loop", text="Loop")
 
         # -----------------
         # layer override
