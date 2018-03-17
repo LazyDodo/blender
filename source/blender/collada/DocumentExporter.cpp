@@ -295,7 +295,7 @@ int DocumentExporter::exportCurrentScene(Scene *sce)
 	}
 
 	// <library_controllers>
-	ArmatureExporter arm_exporter(writer, this->export_settings);
+	ArmatureExporter arm_exporter(mContext, writer, this->export_settings);
 	ControllerExporter controller_exporter(writer, this->export_settings);
 	if (bc_has_object_type(export_set, OB_ARMATURE) || this->export_settings->include_shapekeys)
 	{
@@ -304,14 +304,14 @@ int DocumentExporter::exportCurrentScene(Scene *sce)
 
 	// <library_visual_scenes>
 
-	SceneExporter se(writer, &arm_exporter, this->export_settings);
+	SceneExporter se(mContext, writer, &arm_exporter, this->export_settings);
 
 	if (this->export_settings->include_animations) {
 		// <library_animations>
 		AnimationExporter ae(mContext, eval_ctx, writer, this->export_settings);
 		ae.exportAnimations(sce);
 	}
-	se.exportScene(mContext, sce);
+	se.exportScene(sce);
 
 	// <scene>
 	std::string scene_name(translate_id(id_name(sce)));
