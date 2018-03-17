@@ -78,10 +78,11 @@ private:
 	void generate_transform(Object *ob, std::string prep, std::string path, int index, BC_animation_curve_type type, BCAnimationCurves &curves);
 	void generate_transforms(Object *ob, std::string prep, BC_animation_curve_type type, BCAnimationCurves &curves);
 	void generate_transforms(Object *ob, Bone *bone, BCAnimationCurves &curves);
+	bContext *mContext;
 
 public:
 
-	BCAnimationCurveContainer();
+	BCAnimationCurveContainer(bContext *C);
 
 	void addObject(Object *obj);
 	

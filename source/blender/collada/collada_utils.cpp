@@ -38,6 +38,7 @@ extern "C" {
 #include "DNA_modifier_types.h"
 #include "DNA_customdata_types.h"
 #include "DNA_object_types.h"
+#include "DNA_constraint_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_armature_types.h"
@@ -47,6 +48,7 @@ extern "C" {
 
 #include "BKE_context.h"
 #include "BKE_customdata.h"
+#include "BKE_constraint.h"
 #include "BKE_depsgraph.h"
 #include "BKE_object.h"
 #include "BKE_global.h"
@@ -57,6 +59,8 @@ extern "C" {
 
 #include "ED_armature.h"
 #include "ED_screen.h"
+
+#include "MEM_guardedalloc.h"
 
 #include "WM_api.h" // XXX hrm, see if we can do without this
 #include "WM_types.h"
@@ -106,6 +110,28 @@ void bc_get_children(std::vector<Object *> &child_set, Object *ob, Scene *scene)
 			}
 		}
 	}
+}
+
+bool bc_validateConstraints(bConstraint *con)
+{
+	const bConstraintTypeInfo *cti = BKE_constraint_typeinfo_get(con);
+
+	/* these we can skip completely (invalid constraints...) */
+	if (cti == NULL)
+		return false;
+	if (con->flag & (CONSTRAINT_DISABLE | CONSTRAINT_OFF))
+		return false;
+
+	/* these constraints can't be evaluated anyway */
+	if (cti->evaluate_constraint == NULL)
+		return false;
+
+	/* influence == 0 should be ignored */
+	if (con->enforce == 0.0f)
+		return false;
+
+	/* validation passed */
+	return true;
 }
 
 // a shortened version of parent_set_exec()
@@ -1023,6 +1049,17 @@ std::string bc_get_uvlayer_name(Mesh *me, int layer)
 		}
 	}
 	return "";
+}
+
+std::string bc_find_bonename_in_path(std::string path, std::string probe)
+{
+	std::string result;
+	char *boneName = BLI_str_quoted_substrN(path.c_str(), probe.c_str());
+	if (boneName) {
+		result = std::string(boneName);
+		MEM_freeN(boneName);
+	}
+	return result;
 }
 
 /**********************************************************************

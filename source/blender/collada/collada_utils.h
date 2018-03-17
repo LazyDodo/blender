@@ -40,6 +40,7 @@
 extern "C" {
 #include "DNA_object_types.h"
 #include "DNA_anim_types.h"
+#include "DNA_constraint_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_camera_types.h"
@@ -115,6 +116,10 @@ std::string bc_get_action_id(std::string action_name, std::string ob_name, std::
 
 extern float bc_get_float_value(const COLLADAFW::FloatOrDoubleArray& array, unsigned int index);
 extern int bc_test_parent_loop(Object *par, Object *ob);
+
+extern void bc_get_children(std::vector<Object *> &child_set, Object *ob, Scene *scene);
+extern bool bc_validateConstraints(bConstraint *con);
+
 extern int bc_set_parent(Object *ob, Object *par, bContext *C, bool is_parent_space = true);
 extern Object *bc_add_object(Main *bmain, Scene *scene, int type, const char *name);
 extern Mesh *bc_get_mesh_copy(
@@ -136,6 +141,8 @@ extern char *bc_CustomData_get_active_layer_name(const CustomData *data, int typ
 extern void bc_bubble_sort_by_Object_name(LinkNode *export_set);
 extern bool bc_is_root_bone(Bone *aBone, bool deform_bones_only);
 extern int  bc_get_active_UVLayer(Object *ob);
+
+std::string bc_find_bonename_in_path(std::string path, std::string probe);
 
 inline std::string bc_string_after(const std::string& s, const char c) {
 

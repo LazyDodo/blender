@@ -1785,24 +1785,24 @@ bool AnimationImporter::evaluate_animation(COLLADAFW::Transformation *tm, float 
 		else if (is_translate)
 			dae_translate_to_v3(tm, vec);
 
-		for (unsigned int j = 0; j < bindings.getCount(); j++) {
-			const COLLADAFW::AnimationList::AnimationBinding& binding = bindings[j];
+		for (unsigned int index = 0; index < bindings.getCount(); index++) {
+			const COLLADAFW::AnimationList::AnimationBinding& binding = bindings[index];
 			std::vector<FCurve *>& curves = curve_map[binding.animation];
 			COLLADAFW::AnimationList::AnimationClass animclass = binding.animationClass;
 			char path[100];
 
 			switch (type) {
 				case COLLADAFW::Transformation::ROTATE:
-					BLI_snprintf(path, sizeof(path), "%s.rotate (binding %u)", node_id, j);
+					BLI_snprintf(path, sizeof(path), "%s.rotate (binding %u)", node_id, index);
 					break;
 				case COLLADAFW::Transformation::SCALE:
-					BLI_snprintf(path, sizeof(path), "%s.scale (binding %u)", node_id, j);
+					BLI_snprintf(path, sizeof(path), "%s.scale (binding %u)", node_id, index);
 					break;
 				case COLLADAFW::Transformation::TRANSLATE:
-					BLI_snprintf(path, sizeof(path), "%s.translate (binding %u)", node_id, j);
+					BLI_snprintf(path, sizeof(path), "%s.translate (binding %u)", node_id, index);
 					break;
 				case COLLADAFW::Transformation::MATRIX:
-					BLI_snprintf(path, sizeof(path), "%s.matrix (binding %u)", node_id, j);
+					BLI_snprintf(path, sizeof(path), "%s.matrix (binding %u)", node_id, index);
 					break;
 				default:
 					break;

@@ -46,7 +46,7 @@ void BCAnimationCurve::create_bezt(float frame, float output)
 	bez.ipo = U.ipo_new; /* use default interpolation mode here... */
 	bez.f1 = bez.f2 = bez.f3 = SELECT;
 	bez.h1 = bez.h2 = HD_AUTO;
-	insert_bezt_fcurve(fcu, &bez, 0);
+	insert_bezt_fcurve(fcu, &bez, INSERTKEY_NOFLAGS);
 	calchandles_fcurve(fcu);
 }
 
@@ -245,7 +245,7 @@ Bone *BCAnimationCurve::get_bone(Object *ob) const
 void BCAnimationCurve::add_value(const float val, const int frame)
 {
 	FCurve *fcu = get_edit_fcurve();
-	insert_vert_fcurve(fcu, frame, val, BEZT_IPO_BEZ, INSERTKEY_NO_USERPREF);
+	insert_vert_fcurve(fcu, frame, val, (eBezTriple_KeyframeType)BEZT_IPO_BEZ, INSERTKEY_NO_USERPREF);
 
 	sample_frames.push_back(frame);
 }

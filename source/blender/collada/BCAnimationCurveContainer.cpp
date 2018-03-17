@@ -41,7 +41,8 @@ static std::string EMPTY_STRING;
 static BCAnimationCurves BCEmptyAnimationCurves;
 
 
-BCAnimationCurveContainer::BCAnimationCurveContainer()
+BCAnimationCurveContainer::BCAnimationCurveContainer(bContext *C):
+	mContext(C)
 {
 }
 
@@ -111,7 +112,7 @@ void BCAnimationCurveContainer::sampleMain(Scene *scene,
 		int frame_index = frame->first;
 		std::vector<BCSamplePoint> &sample_points = frame->second;
 
-		bc_update_scene(scene, frame_index);
+		bc_update_scene(mContext, scene, frame_index);
 
 		for (int spi = 0; spi < sample_points.size(); spi++) {
 			BCSamplePoint &point = sample_points[spi];
