@@ -10281,8 +10281,17 @@ static void expand_gpencil(FileData *fd, Main *mainvar, bGPdata *gpd)
 
 static void expand_palette(FileData *fd, Main *mainvar, Palette *palette)
 {
-	if (palette->adt)
+	if (palette->adt) {
 		expand_animdata(fd, mainvar, palette->adt);
+	}
+	for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
+		if (palcolor->sima) {
+			expand_doit(fd, mainvar, palcolor->sima);
+		}
+		if (palcolor->ima) {
+			expand_doit(fd, mainvar, palcolor->ima);
+		}
+	}
 }
 
 static void expand_workspace(FileData *fd, Main *mainvar, WorkSpace *workspace)
