@@ -327,11 +327,6 @@ std::string get_light_id(Object *ob)
 	return translate_id(id_name(ob)) + "-light";
 }
 
-std::string get_joint_id(Object *ob, Bone *bone)
-{
-	return translate_id(id_name(ob) + "_" + bone->name);
-}
-
 std::string get_joint_sid(Bone *bone)
 {
 	return translate_id(bone->name);

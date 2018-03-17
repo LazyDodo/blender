@@ -67,11 +67,12 @@ bool ControllerExporter::is_skinned_mesh(Object *ob)
 	return bc_get_assigned_armature(ob) != NULL;
 }
 
-
 void ControllerExporter::write_bone_URLs(COLLADASW::InstanceController &ins, Object *ob_arm, Bone *bone)
 {
-	if (bc_is_root_bone(bone, this->export_settings->deform_bones_only))
-		ins.addSkeleton(COLLADABU::URI(COLLADABU::Utils::EMPTY_STRING, get_joint_id(ob_arm, bone)));
+	if (bc_is_root_bone(bone, this->export_settings->deform_bones_only)) {
+		std::string node_id = translate_id(id_name(ob_arm) + "_" + bone->name);
+		ins.addSkeleton(COLLADABU::URI(COLLADABU::Utils::EMPTY_STRING, node_id));
+	}
 	else {
 		for (Bone *child = (Bone *)bone->childbase.first; child; child = child->next) {
 			write_bone_URLs(ins, ob_arm, child);
