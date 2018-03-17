@@ -51,20 +51,20 @@ public:
 	const BCMatrix &set_matrix(BCMatrix &matrix);
 	const BCMatrix &set_matrix(float(&mat)[4][4]);
 	const BCMatrix &set_matrix(double(&mat)[4][4]);
+
 };
 
-typedef std::vector<BCAnimationCurve> BCAnimationCurves;
+
+typedef std::map<CurveKey, BCAnimationCurve> BCAnimationCurves;
 typedef std::map<Object *, BCAnimationCurves> BCAnimationObjectMap;
 typedef std::map<int, std::vector<BCSamplePoint>> BCSamplePointMap;
 
 class BCAnimationCurveContainer {
 private:
 
-	void clear_cache(); // remove all sampled FCurves
-	void clear_cache(Object *ob); //remove sampled FCurves for single object
 	void create_curves(Object *ob);
 
-	BCAnimationObjectMap cached_objects; // list of objects for caching
+	BCAnimationObjectMap animated_objects; // list of objects for animating
 	BCSamplePointMap sample_frames; // list of frames where objects need to be sampled
 
 	std::vector<BCSamplePoint> &getFrameInfos(int frame_index);
@@ -73,11 +73,15 @@ private:
 	bool bone_matrix_local_get(Object *ob, Bone *bone, float (&mat)[4][4], bool for_opensim);
 	bool is_flat_line(std::vector<BCMatrix> &matrices) const;
 	bool is_flat_line(std::vector<float> &values) const;
+	static bool is_animated_by_constraint(Object *ob, ListBase *conlist, std::set<Object *> &animated_objects);
+
+	void generate_transform(Object *ob, std::string prep, std::string path, int index, BC_animation_curve_type type, BCAnimationCurves &curves);
+	void generate_transforms(Object *ob, std::string prep, BC_animation_curve_type type, BCAnimationCurves &curves);
+	void generate_transforms(Object *ob, Bone *bone, BCAnimationCurves &curves);
 
 public:
 
 	BCAnimationCurveContainer();
-	~BCAnimationCurveContainer();
 
 	void addObject(Object *obj);
 	
@@ -107,6 +111,9 @@ public:
 	float get_value(const BCMatrix &mat, std::string &path, int array_index) const;
 
 	const BCAnimationCurves &get_curves(Object *ob) const;
+	static void get_animated_subset(std::set<Object *> &animated_objects, LinkNode *export_set);
+	static void find_indirect_animated(std::set<Object *> &animated_objects, std::set<Object *> &candidates );
+
 };
 
 

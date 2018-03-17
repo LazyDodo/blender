@@ -49,9 +49,11 @@ set(SRC
 	AnimationImporter.cpp
 	AnimationExporter.cpp
 	AnimationClipExporter.cpp
-	AnimationCurveCache.cpp
 	ArmatureExporter.cpp
 	ArmatureImporter.cpp
+	BCAnimationCurve.cpp
+	BCAnimationCurveContainer.cpp
+	BCMatrix.cpp
 	CameraExporter.cpp
 	ControllerExporter.cpp
 	DocumentExporter.cpp
@@ -79,9 +81,11 @@ set(SRC
 	AnimationImporter.h
 	AnimationExporter.h
 	AnimationClipExporter.h
-	AnimationCurveCache.h
 	ArmatureExporter.h
 	ArmatureImporter.h
+	BCAnimationCurve.h
+	BCAnimationCurveContainer.h
+	BCMatrix.h
 	CameraExporter.h
 	ControllerExporter.h
 	DocumentExporter.h

@@ -30,6 +30,7 @@ extern "C"
 {
 #include "MEM_guardedalloc.h"
 #include "BKE_fcurve.h"
+#include "BKE_armature.h"
 #include "ED_keyframing.h"
 }
 
@@ -44,36 +45,82 @@ typedef enum BC_animation_curve_type {
 
 } BC_animation_curve_type;
 
+class CurveKey {
+private:
+	std::string rna_path;
+	int array_index;
+
+public:
+
+	CurveKey()
+	{
+		rna_path = "";
+		array_index = -1;
+	}
+
+	CurveKey(std::string rna_path, int array_index)
+	{
+		this->init(rna_path, array_index);
+	}
+
+	void init(std::string rna_path, int array_index)
+	{
+		this->rna_path = rna_path;
+		this->array_index = array_index;
+	}
+
+	const std::string path() const
+	{
+		return this->rna_path;
+	}
+
+	const int index() const
+	{
+		return this->array_index;
+	}
+
+	bool operator< (const CurveKey& key) const
+	{
+		if (rna_path == key.rna_path) {
+			return key.array_index < this->array_index;
+		}
+		return ((rna_path < key.rna_path));
+	}
+};
 
 class BCAnimationCurve {
 private:
-	
 	BC_animation_curve_type type = BC_ANIMATION_CURVE_TYPE_UNKNOWN;
+	std::vector<int> sample_frames;
+	CurveKey curve_key;
 	bool curve_is_local_copy = false;
-	FCurve * fcurve;
-	Object *ob;
-	std::map<int, float> export_values;
+	FCurve *fcurve;
 
 	void delete_fcurve(FCurve *fcu);
 	FCurve *create_fcurve(int array_index, const char *rna_path);
 	void create_bezt(float frame, float output);
 
 public:
-	BCAnimationCurve(FCurve *fcu, Object *ob, BC_animation_curve_type type);
+	BCAnimationCurve();
 	~BCAnimationCurve();
 
 	const BC_animation_curve_type get_channel_type() const;
 	const std::string get_channel_target() const;
-	const std::string get_animation_name() const;
+	const std::string get_animation_name(Object *ob) const;
 	const int get_array_index() const;
+	const std::string get_rna_path() const;
+
 	const int size() const;
 	const int closest_index_above(float sample_frame, int start_at) const;
 	const int closest_index_below(float sample_frame) const;
 	const int get_ipo(float sample_frame) const;
-	const FCurve *get_fcurve() const;
-	FCurve *get_edit_fcurve();
-	Object *get_object() const;
+	Bone *get_bone(Object *ob) const;
+
 	void add_value(const float val, const int frame);
+	void init(Object *ob, BC_animation_curve_type type, std::string rna_path, int index);
+	void init(Object *ob, BC_animation_curve_type type, FCurve *fcu);
+	FCurve *get_edit_fcurve();
+	const FCurve *get_fcurve() const;
 
 	/*
 	Pick the value from the matrix accoridng to the definition of the FCurve
@@ -87,7 +134,6 @@ public:
 	returned vector is empty
 	*/
 	void get_frames(std::vector<float> &frames) const;
-
 	void get_frames(std::set<float> &frames) const;
 
 	/*
@@ -103,6 +149,7 @@ public:
 	returned vector is empty
 	*/
 	void get_values(std::vector<float> &values) const;
+	static bool is_flat_line(std::vector<float> &values);
 };
 
 

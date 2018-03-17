@@ -50,18 +50,35 @@ void BCAnimationCurve::create_bezt(float frame, float output)
 	calchandles_fcurve(fcu);
 }
 
-BCAnimationCurve::BCAnimationCurve(FCurve *fcu, Object *ob, BC_animation_curve_type type) // = BC_ANIMATION_CURVE_TYPE_OBJECT )
+BCAnimationCurve::BCAnimationCurve()
 {
-	this->ob = ob;
+	this->fcurve = nullptr;
+	this->type = BC_ANIMATION_CURVE_TYPE_UNKNOWN;
+	bool curve_is_local_copy = false;
+}
+
+void BCAnimationCurve::init(Object *ob, BC_animation_curve_type type, std::string path, int index)
+{
+	this->curve_key.init(path, index);
+	this->fcurve = nullptr; // create_fcurve(index, path.c_str());
+	this->type = type;
+	curve_is_local_copy = false;
+}
+
+void BCAnimationCurve::init(Object *ob, BC_animation_curve_type type, FCurve *fcu)
+{
+	this->curve_key.init(std::string(fcu->rna_path), fcu->array_index);
 	this->fcurve = fcu;
 	this->type = type;
+	curve_is_local_copy = false; // make sure the curve is destroyed later;
 }
 
 BCAnimationCurve::~BCAnimationCurve()
 {
 	if (curve_is_local_copy && fcurve) {
-		fprintf(stderr, "removed fcurve %s\n", fcurve->rna_path);
+		//fprintf(stderr, "removed fcurve %s\n", fcurve->rna_path);
 		delete_fcurve(fcurve);
+		this->fcurve = nullptr;
 	}
 }
 
@@ -72,13 +89,11 @@ const BC_animation_curve_type BCAnimationCurve::get_channel_type() const
 
 const std::string BCAnimationCurve::get_channel_target() const
 {
-	if (!fcurve || !fcurve->rna_path)
-		return "";
-
-	return bc_string_after(fcurve->rna_path, '.');
+	const std::string path = curve_key.path();
+	return bc_string_after(path, '.');
 }
 
-const std::string BCAnimationCurve::get_animation_name() const
+const std::string BCAnimationCurve::get_animation_name(Object *ob) const
 {
 	std::string name;
 
@@ -116,12 +131,17 @@ const std::string BCAnimationCurve::get_animation_name() const
 
 const int BCAnimationCurve::get_array_index() const
 {
-	return fcurve->array_index;
+	return curve_key.index();
+}
+
+const std::string BCAnimationCurve::get_rna_path() const
+{
+	return curve_key.path();
 }
 
 const int BCAnimationCurve::size() const
 {
-	return export_values.size();
+	return sample_frames.size();
 }
 
 const int BCAnimationCurve::closest_index_above(float sample_frame, int start_at) const
@@ -184,38 +204,60 @@ FCurve *BCAnimationCurve::get_edit_fcurve()
 {
 	if (!curve_is_local_copy) {
 
-		fcurve = copy_fcurve(fcurve);
+		if (fcurve) {
+			fcurve = copy_fcurve(fcurve);
+			//fprintf(stderr, "Copy to temporary fcurve %s (for editing)\n", fcurve->rna_path);
+		}
+		else {
+			int index = curve_key.index();
+			const std::string &path = curve_key.path();
+			fcurve = create_fcurve(index, path.c_str());
+			//fprintf(stderr, "Create temporary fcurve %s (for editing)\n", fcurve->rna_path);
+		}
 
 		/* Replacing the pointer here is OK because the original value
 		of FCurve was a const pointer into Blender territory. We do not
 		touch that! We use the local copy to prepare for export.
 		*/
 		curve_is_local_copy = true;
-		fprintf(stderr, "Copy fcurve %s (for editing)\n", fcurve->rna_path);
 	}
 	return fcurve;
 }
 
-Object *BCAnimationCurve::get_object() const
+Bone *BCAnimationCurve::get_bone(Object *ob) const
 {
-	return ob;
+	if (ob->type != OB_ARMATURE ||
+		type != BC_ANIMATION_CURVE_TYPE_BONE ||
+		!fcurve ||
+		!fcurve->rna_path)
+		return nullptr;
+
+	char *boneName = BLI_str_quoted_substrN(fcurve->rna_path, "pose.bones[");
+
+	if (!boneName)
+		return nullptr;
+
+	Bone *bone = BKE_armature_find_bone_name((bArmature *)ob->data, boneName);
+	return bone;
+
 }
 
 void BCAnimationCurve::add_value(const float val, const int frame)
 {
 	FCurve *fcu = get_edit_fcurve();
 	insert_vert_fcurve(fcu, frame, val, BEZT_IPO_BEZ, INSERTKEY_NO_USERPREF);
-	export_values[frame] = val;
+
+	sample_frames.push_back(frame);
 }
 
 /*
-Pick the value from the matrix accoridng to the definition of the FCurve
+Pick the value from the matrix according to the definition of the FCurve
 Note: This works only for "scale", "rotation", "rotation_euler" and "location"
 */
 void BCAnimationCurve::add_value(BCMatrix mat, int frame)
 {
 	std::string target = get_channel_target();
-	int array_index = fcurve->array_index;
+	const int array_index = curve_key.index();
 	float val;
 
 	if (target == "location") {
@@ -226,7 +268,9 @@ void BCAnimationCurve::add_value(BCMatrix mat, int frame)
 		const float(&size)[3] = mat.scale();
 		val = size[array_index];
 	}
-	else if (target == "rotation_euler") {
+	else if (
+		target == "rotation" ||
+		target == "rotation_euler") {
 		const float(&rot)[3] = mat.rotation();
 		val = rot[array_index];
 	}
@@ -246,18 +290,18 @@ returned vector is empty
 */
 void BCAnimationCurve::get_frames(std::vector<float> &frames) const
 {
-	std::map<int, float>::const_iterator it;
-	for (it = export_values.begin(); it != export_values.end(); ++it) {
-		frames.push_back(it->first);
+	std::vector<int>::const_iterator it;
+	for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
+		frames.push_back(*it);
 	}
 }
 
 void BCAnimationCurve::get_frames(std::set<float> &frames) const
 {
-	std::map<int, float>::const_iterator it;
-	for (it = export_values.begin(); it != export_values.end(); ++it) {
-		frames.insert(it->first);
-	}
+	std::vector<int>::const_iterator it;
+		for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
+			frames.insert(*it);
+		}
 }
 
 /*
@@ -267,11 +311,11 @@ returned vector is empty
 */
 void BCAnimationCurve::get_times(std::vector<float> &times, Scene *scene) const
 {
-	std::map<int, float>::const_iterator it;
-	for (it = export_values.begin(); it != export_values.end(); ++it) {
-		float time = FRA2TIME(it->first); // implicit use of scene
-		times.push_back(it->first);
-	}
+	std::vector<int>::const_iterator it;
+		for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
+			float time = FRA2TIME(*it); // implicit use of scene
+			times.push_back(*it);
+		}
 }
 
 /*
@@ -281,10 +325,28 @@ returned vector is empty
 */
 void BCAnimationCurve::get_values(std::vector<float> &values) const
 {
-	std::map<int, float>::const_iterator it;
-	for (it = export_values.begin(); it != export_values.end(); ++it) {
-		values.push_back(it->second);
+	std::vector<int>::const_iterator it;
+		for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
+			float val = evaluate_fcurve(fcurve, *it);
+			values.push_back(val);
+		}
+}
+
+bool BCAnimationCurve::is_flat_line(std::vector<float> &values)
+{
+	static float MIN_DISTANCE = 0.00001;
+
+	if (values.size() < 2)
+		return true; // need at least 2 entries to be not flat
+
+	float ref = values[0];
+	for (int index = 1; index < values.size(); index++) {
+		float val = values[index];
+		if (fabs(val - ref) > MIN_DISTANCE) {
+			return false;
+		}
 	}
+	return true;
 }
 
 
