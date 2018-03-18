@@ -1286,7 +1286,7 @@ static void object_transform_axis_target_cancel(bContext *C, wmOperator *op)
 static int object_transform_axis_target_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	ViewContext vc;
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	if (!object_is_target_compat(vc.obact)) {
 		/* Falls back to texture space transform. */
@@ -1343,9 +1343,9 @@ static int object_transform_axis_target_invoke(bContext *C, wmOperator *op, cons
 		CTX_DATA_END;
 
 		xfd->object_data = object_data;
-		xfd->object_data_len = BLI_array_count(object_data);
+		xfd->object_data_len = BLI_array_len(object_data);
 
-		if (xfd->object_data_len != BLI_array_count(object_data)) {
+		if (xfd->object_data_len != BLI_array_len(object_data)) {
 			xfd->object_data = MEM_reallocN(xfd->object_data, xfd->object_data_len * sizeof(*xfd->object_data));
 		}
 	}

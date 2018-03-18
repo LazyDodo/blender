@@ -3988,7 +3988,7 @@ static void add_lightgroup(Render *re, Group *group, int exclusive)
 #if 0
 	/* it's a bit too many loops in loops... but will survive */
 	/* note that 'exclusive' will remove it from the global list */
-	FOREACH_GROUP_BASE(group, base)
+	FOREACH_GROUP_BASE_BEGIN(group, base)
 	{
 		Object *object = base->object;
 
@@ -4016,7 +4016,7 @@ static void add_lightgroup(Render *re, Group *group, int exclusive)
 			}
 		}
 	}
-	FOREACH_GROUP_BASE_END
+	FOREACH_GROUP_BASE_END;
 #else
 	UNUSED_VARS(re, exclusive);
 #endif
@@ -4946,11 +4946,11 @@ static void dupli_render_particle_set(const EvaluationContext *eval_ctx, Render 
 
 	if (ob->dup_group == NULL) return;
 
-	FOREACH_GROUP_OBJECT(ob->dup_group, object)
+	FOREACH_GROUP_OBJECT_BEGIN(ob->dup_group, object)
 	{
 		dupli_render_particle_set(eval_ctx, re, object, timeoffset, level+1, enable);
 	}
-	FOREACH_GROUP_OBJECT_END
+	FOREACH_GROUP_OBJECT_END;
 }
 
 static int get_vector_viewlayers(Scene *UNUSED(sce))
@@ -4966,7 +4966,7 @@ static void add_group_render_dupli_obs(const EvaluationContext *eval_ctx, Render
 
 	/* Recursively go into dupligroups to find objects with OB_RENDER_DUPLI
 	 * that were not created yet. */
-	FOREACH_GROUP_OBJECT(group, ob)
+	FOREACH_GROUP_OBJECT_BEGIN(group, ob)
 	{
 		if (ob->flag & OB_DONE) {
 			if (ob->transflag & OB_RENDER_DUPLI) {
@@ -4981,7 +4981,7 @@ static void add_group_render_dupli_obs(const EvaluationContext *eval_ctx, Render
 			}
 		}
 	}
-	FOREACH_GROUP_OBJECT_END
+	FOREACH_GROUP_OBJECT_END;
 }
 
 static void database_init_objects(const EvaluationContext *eval_ctx, Render *re, unsigned int UNUSED(renderlay),

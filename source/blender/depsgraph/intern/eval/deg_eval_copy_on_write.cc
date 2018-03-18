@@ -614,6 +614,8 @@ void update_copy_on_write_scene(const Depsgraph *depsgraph,
 	BLI_strncpy(scene_cow->view_render.engine_id,
 	            scene_orig->view_render.engine_id,
 	            sizeof(scene_cow->view_render.engine_id));
+	BKE_toolsettings_free(scene_cow->toolsettings);
+	scene_cow->toolsettings = BKE_toolsettings_copy(scene_orig->toolsettings, 0);
 	/* TODO(sergey): What else do we need here? */
 }
 
@@ -866,6 +868,22 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 			{
 				World *world = (World *)id_cow;
 				gpumaterial_ptr = &world->gpumaterial;
+				break;
+			}
+			case ID_NT:
+			{
+				/* Node trees should try to preserve their socket pointers
+				 * as much as possible. This is due to UBOs code in GPU,
+				 * which references sockets from trees.
+				 *
+				 * These flags CURRENTLY don't need full datablock update,
+				 * everything is done by node tree update function which
+				 * only copies socket values.
+				 */
+				const int ignore_flag = (ID_RECALC_DRAW | ID_RECALC_ANIMATION);
+				if ((id_cow->recalc & ~ignore_flag) == 0) {
+					return id_cow;
+				}
 				break;
 			}
 			case ID_OB:

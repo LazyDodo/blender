@@ -451,8 +451,9 @@ static void *rna_idproperty_check_ex(PropertyRNA **prop, PointerRNA *ptr, const 
 
 			return idprop;
 		}
-		else
+		else {
 			return return_rnaprop ? *prop : NULL;
+		}
 	}
 
 	{
@@ -7149,10 +7150,13 @@ bool RNA_struct_equals(PointerRNA *ptr_a, PointerRNA *ptr_b, eRNACompareMode mod
  * When \a prop is given, \a prop_a and \a prop_b should always be NULL, and vice-versa.
  * This is necessary, because we cannot perform 'set/unset' checks on resolved properties
  * (unset IDProps would merely be NULL then).
+ *
+ * \note When there is no equality, but we cannot determine an order (greater than/lesser than), we return 1.
  */
 static int rna_property_override_diff(
-        PointerRNA *ptr_a, PointerRNA *ptr_b, PropertyRNA *prop, PropertyRNA *prop_a, PropertyRNA *prop_b, const char *rna_path,
-        eRNACompareMode mode, IDOverrideStatic *override, const int flags, eRNAOverrideMatchResult *r_report_flags)
+        PointerRNA *ptr_a, PointerRNA *ptr_b, PropertyRNA *prop, PropertyRNA *prop_a, PropertyRNA *prop_b,
+        const char *rna_path, eRNACompareMode mode,
+        IDOverrideStatic *override, const int flags, eRNAOverrideMatchResult *r_report_flags)
 {
 	if (prop != NULL) {
 		BLI_assert(prop_a == NULL && prop_b == NULL);
@@ -7678,29 +7682,30 @@ IDOverrideStaticPropertyOperation *RNA_property_override_property_operation_get(
 	return BKE_override_static_property_operation_get(op, operation, NULL, NULL, index, index, strict, r_strict, r_created);
 }
 
-void RNA_property_override_status(
-        PointerRNA *ptr, PropertyRNA *prop, const int index,
-        bool *r_overridable, bool *r_overridden, bool *r_mandatory, bool *r_locked)
+eRNAOverrideStatus RNA_property_override_status(PointerRNA *ptr, PropertyRNA *prop, const int index)
 {
-#define SET_RET(_name, _val) if (_name != NULL) *_name = (_val)
-
-	SET_RET(r_overridable, false);
-	SET_RET(r_overridden, false);
-	SET_RET(r_mandatory, false);
-	SET_RET(r_locked, false);
+	int override_status = 0;
 
 	if (!ptr || !prop || !ptr->id.data || !((ID *)ptr->id.data)->override_static) {
-		return;
+		return override_status;
 	}
 
-	SET_RET(r_overridable, (prop->flag & PROP_OVERRIDABLE_STATIC) && (prop->flag & PROP_EDITABLE));
-
-	if (r_overridden || r_mandatory || r_locked) {
-		IDOverrideStaticPropertyOperation *opop = RNA_property_override_property_operation_find(ptr, prop, index, false, NULL);
-		SET_RET(r_overridden, opop != NULL);
-		SET_RET(r_mandatory, (opop->flag & IDOVERRIDESTATIC_FLAG_MANDATORY) != 0);
-		SET_RET(r_locked, (opop->flag & IDOVERRIDESTATIC_FLAG_LOCKED) != 0);
+	if ((prop->flag & PROP_OVERRIDABLE_STATIC) && (prop->flag & PROP_EDITABLE)) {
+		override_status |= RNA_OVERRIDE_STATUS_OVERRIDABLE;
 	}
+
+	IDOverrideStaticPropertyOperation *opop = RNA_property_override_property_operation_find(ptr, prop, index, false, NULL);
+	if (opop != NULL) {
+		override_status |= RNA_OVERRIDE_STATUS_OVERRIDDEN;
+		if (opop->flag & IDOVERRIDESTATIC_FLAG_MANDATORY) {
+			override_status |= RNA_OVERRIDE_STATUS_MANDATORY;
+		}
+		if (opop->flag & IDOVERRIDESTATIC_FLAG_LOCKED) {
+			override_status |= RNA_OVERRIDE_STATUS_LOCKED;
+		}
+	}
+
+	return override_status;
 }
 
 
@@ -7722,4 +7727,23 @@ bool RNA_path_resolved_create(
 	else {
 		return false;
 	}
+}
+
+static char rna_struct_state_owner[64];
+void RNA_struct_state_owner_set(const char *name)
+{
+	if (name) {
+		BLI_strncpy(rna_struct_state_owner, name, sizeof(rna_struct_state_owner));
+	}
+	else {
+		rna_struct_state_owner[0] = '\0';
+	}
+}
+
+const char *RNA_struct_state_owner_get(void)
+{
+	if (rna_struct_state_owner[0]) {
+		return rna_struct_state_owner;
+	}
+	return NULL;
 }

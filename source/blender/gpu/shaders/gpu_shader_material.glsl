@@ -1,16 +1,9 @@
 
-uniform mat4 ModelViewMatrix;
-#ifndef EEVEE_ENGINE
-uniform mat4 ProjectionMatrix;
-uniform mat4 ViewMatrixInverse;
-uniform mat4 ViewMatrix;
-#endif
 uniform mat4 ModelMatrix;
 uniform mat4 ModelMatrixInverse;
+uniform mat4 ModelViewMatrix;
 uniform mat4 ModelViewMatrixInverse;
-uniform mat4 ProjectionMatrixInverse;
 uniform mat3 NormalMatrix;
-uniform vec4 CameraTexCoFactors;
 
 /* Old glsl mode compat. */
 
@@ -2697,7 +2690,6 @@ void node_bsdf_glossy(vec4 color, float roughness, vec3 N, float ssr_id, out Clo
 {
 #ifdef EEVEE_ENGINE
 	vec3 out_spec, ssr_spec;
-	roughness = sqrt(roughness);
 	eevee_closure_glossy(N, vec3(1.0), int(ssr_id), roughness, 1.0, out_spec, ssr_spec);
 	vec3 vN = normalize(mat3(ViewMatrix) * N);
 	result = CLOSURE_DEFAULT;
@@ -2719,7 +2711,8 @@ void node_bsdf_glossy(vec4 color, float roughness, vec3 N, float ssr_id, out Clo
 		vec3 light_specular = glLightSource[i].specular.rgb;
 
 		/* we mix in some diffuse so low roughness still shows up */
-		float bsdf = 0.5 * pow(max(dot(N, H), 0.0), 1.0 / roughness);
+		float r2 = roughness * roughness;
+		float bsdf = 0.5 * pow(max(dot(N, H), 0.0), 1.0 / r2);
 		bsdf += 0.5 * max(dot(N, light_position), 0.0);
 		L += light_specular * bsdf;
 	}
@@ -2739,7 +2732,6 @@ void node_bsdf_glass(vec4 color, float roughness, float ior, vec3 N, float ssr_i
 {
 #ifdef EEVEE_ENGINE
 	vec3 out_spec, out_refr, ssr_spec;
-	roughness = sqrt(roughness);
 	vec3 refr_color = (refractionDepth > 0.0) ? color.rgb * color.rgb : color.rgb; /* Simulate 2 transmission event */
 	eevee_closure_glass(N, vec3(1.0), int(ssr_id), roughness, 1.0, ior, out_spec, out_refr, ssr_spec);
 	out_refr *= refr_color;
@@ -2978,7 +2970,6 @@ void node_bsdf_refraction(vec4 color, float roughness, float ior, vec3 N, out Cl
 #ifdef EEVEE_ENGINE
 	vec3 out_refr;
 	color.rgb *= (refractionDepth > 0.0) ? color.rgb : vec3(1.0); /* Simulate 2 absorption event. */
-	roughness = sqrt(roughness);
 	eevee_closure_refraction(N, roughness, ior, out_refr);
 	vec3 vN = normalize(mat3(ViewMatrix) * N);
 	result = CLOSURE_DEFAULT;
@@ -3122,6 +3113,7 @@ void node_volume_principled(
 		vec3 scatter_color = color.rgb * color_attribute.rgb;
 
 		scatter_coeff = scatter_color * density;
+		absorption_color.rgb = sqrt(max(absorption_color.rgb, 0.0));
 		absorption_coeff = max(1.0 - scatter_color, 0.0) * max(1.0 - absorption_color.rgb, 0.0) * density;
 	}
 
@@ -3235,7 +3227,7 @@ void node_attribute_volume_color(sampler3D tex, out vec4 outcol, out vec3 outvec
 
 	vec4 value = texture(tex, cos).rgba;
 	/* Density is premultiplied for interpolation, divide it out here. */
-	if (value.a > 0.0)
+	if (value.a > 1e-8)
 		value.rgb /= value.a;
 
 	outvec = value.rgb;

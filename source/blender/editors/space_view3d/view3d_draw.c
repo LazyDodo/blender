@@ -1922,6 +1922,9 @@ void view3d_main_region_draw(const bContext *C, ARegion *ar)
 	BLI_rcti_translate(&rect, -ar->winrct.xmin, -ar->winrct.ymin);
 	GPU_viewport_draw_to_screen(rv3d->viewport, &rect);
 
+	GPU_free_images_old();
+	GPU_pass_cache_garbage_collect();
+
 	v3d->flag |= V3D_INVALID_BACKBUF;
 }
 
@@ -2021,15 +2024,6 @@ void ED_view3d_draw_offscreen(
 	gpuLoadIdentity();
 	gpuPushMatrix();
 	gpuLoadIdentity();
-
-	/* clear opengl buffers */
-	if (do_sky) {
-		view3d_main_region_clear(scene, v3d, ar);
-	}
-	else {
-		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	}
 
 	if ((viewname != NULL && viewname[0] != '\0') && (viewmat == NULL) && rv3d->persp == RV3D_CAMOB && v3d->camera)
 		view3d_stereo3d_setup_offscreen(eval_ctx, scene, v3d, ar, winmat, viewname);
@@ -2235,7 +2229,6 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(
 			/* don't free data owned by 'ofs' */
 			GPU_viewport_clear_from_offscreen(viewport);
 			GPU_viewport_free(viewport);
-			MEM_freeN(viewport);
 		}
 
 		if (ibuf->rect_float == NULL) {

@@ -48,9 +48,10 @@ static struct {
 	/* Theses are just references, not actually allocated */
 	struct GPUTexture *depth_src;
 	struct GPUTexture *color_src;
-} e_data = {NULL}; /* Engine data */
+} e_data = {{NULL}}; /* Engine data */
 
 extern char datatoc_ambient_occlusion_lib_glsl[];
+extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
 extern char datatoc_bsdf_common_lib_glsl[];
 extern char datatoc_bsdf_sampling_lib_glsl[];
@@ -63,6 +64,7 @@ static struct GPUShader *eevee_effects_screen_raytrace_shader_get(int options)
 {
 	if (e_data.ssr_sh[options] == NULL) {
 		char *ssr_shader_str = BLI_string_joinN(
+		        datatoc_common_view_lib_glsl,
 		        datatoc_common_uniforms_lib_glsl,
 		        datatoc_bsdf_common_lib_glsl,
 		        datatoc_bsdf_sampling_lib_glsl,

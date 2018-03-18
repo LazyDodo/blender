@@ -246,7 +246,7 @@ static void make_child_duplis(const DupliContext *ctx, void *userdata, MakeChild
 
 	if (ctx->group) {
 		int groupid = 0;
-		FOREACH_GROUP_BASE(ctx->group, base)
+		FOREACH_GROUP_BASE_BEGIN(ctx->group, base)
 		{
 			Object *ob = base->object;
 			if ((base->flag & BASE_VISIBLED) && ob != ctx->obedit && is_child(ob, parent)) {
@@ -932,12 +932,12 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 					totgroup += dw->count;
 			}
 			else {
-				FOREACH_GROUP_OBJECT(part->dup_group, object)
+				FOREACH_GROUP_OBJECT_BEGIN(part->dup_group, object)
 				{
 					(void) object;
 					totgroup++;
 				}
-				FOREACH_GROUP_OBJECT_END
+				FOREACH_GROUP_OBJECT_END;
 			}
 
 			/* we also copy the actual objects to restore afterwards, since
@@ -957,7 +957,7 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 			}
 			else {
 				a = 0;
-				FOREACH_GROUP_OBJECT(part->dup_group, object)
+				FOREACH_GROUP_OBJECT_BEGIN(part->dup_group, object)
 				{
 					oblist[a] = object;
 					obcopylist[a] = *object;
@@ -967,7 +967,7 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 						continue;
 					}
 				}
-				FOREACH_GROUP_OBJECT_END
+				FOREACH_GROUP_OBJECT_END;
 			}
 		}
 		else {
@@ -1057,7 +1057,7 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 
 			if (part->ren_as == PART_DRAW_GR && psys->part->draw & PART_DRAW_WHOLE_GR) {
 				b = 0;
-				FOREACH_GROUP_OBJECT(part->dup_group, object)
+				FOREACH_GROUP_OBJECT_BEGIN(part->dup_group, object)
 				{
 					copy_m4_m4(tmat, oblist[b]->obmat);
 
@@ -1082,7 +1082,7 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 
 					b++;
 				}
-				FOREACH_GROUP_OBJECT_END
+				FOREACH_GROUP_OBJECT_END;
 			}
 			else {
 				/* to give ipos in object correct offset */

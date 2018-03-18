@@ -77,6 +77,11 @@ typedef struct DRWInterface DRWInterface;
 typedef struct DRWPass DRWPass;
 typedef struct DRWShadingGroup DRWShadingGroup;
 
+/* TODO Put it somewhere else? */
+typedef struct BoundSphere {
+	float center[3], radius;
+} BoundSphere;
+
 /* declare members as empty (unused) */
 typedef char DRWViewportEmptyList;
 
@@ -177,6 +182,7 @@ typedef enum {
 	DRW_TEX_RG_32,
 	DRW_TEX_R_8,
 	DRW_TEX_R_16,
+	DRW_TEX_R_16I,
 	DRW_TEX_R_32,
 	DRW_TEX_DEPTH_16,
 	DRW_TEX_DEPTH_24,
@@ -268,6 +274,14 @@ struct GPUShader *DRW_shader_create_2D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_fullscreen(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D_depth_only(void);
+struct GPUMaterial *DRW_shader_find_from_world(struct World *wo, const void *engine_type, int options);
+struct GPUMaterial *DRW_shader_find_from_material(struct Material *ma, const void *engine_type, int options);
+struct GPUMaterial *DRW_shader_create_from_world(
+        struct Scene *scene, struct World *wo, const void *engine_type, int options,
+        const char *vert, const char *geom, const char *frag_lib, const char *defines);
+struct GPUMaterial *DRW_shader_create_from_material(
+        struct Scene *scene, struct Material *ma, const void *engine_type, int options,
+        const char *vert, const char *geom, const char *frag_lib, const char *defines);
 void DRW_shader_free(struct GPUShader *shader);
 #define DRW_SHADER_FREE_SAFE(shader) do { \
 	if (shader != NULL) { \
@@ -288,7 +302,7 @@ typedef enum {
 	DRW_STATE_CULL_BACK     = (1 << 6),
 	DRW_STATE_CULL_FRONT    = (1 << 7),
 	DRW_STATE_WIRE          = (1 << 8),
-	DRW_STATE_WIRE_LARGE    = (1 << 9),
+//	DRW_STATE_WIRE_LARGE    = (1 << 9), /* Removed from ogl in 3.0 */
 	DRW_STATE_POINT         = (1 << 10),
 	DRW_STATE_STIPPLE_2     = (1 << 11),
 	DRW_STATE_STIPPLE_3     = (1 << 12),
@@ -347,6 +361,11 @@ void DRW_shgroup_instance_batch(DRWShadingGroup *shgroup, struct Gwn_Batch *batc
 void DRW_shgroup_free(struct DRWShadingGroup *shgroup);
 void DRW_shgroup_call_add(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4]);
 void DRW_shgroup_call_object_add(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob);
+/* Used for drawing a batch with instancing without instance attribs. */
+void DRW_shgroup_call_instances_add(
+        DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4], unsigned int *count);
+void DRW_shgroup_call_object_instances_add(
+        DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob, unsigned int *count);
 void DRW_shgroup_call_sculpt_add(DRWShadingGroup *shgroup, struct Object *ob, float (*obmat)[4]);
 void DRW_shgroup_call_generate_add(
         DRWShadingGroup *shgroup, DRWCallGenerateFn *geometry_fn, void *user_data, float (*obmat)[4]);
@@ -355,8 +374,7 @@ void DRW_shgroup_call_dynamic_add_array(DRWShadingGroup *shgroup, const void *at
 	const void *array[] = {__VA_ARGS__}; \
 	DRW_shgroup_call_dynamic_add_array(shgroup, array, (sizeof(array) / sizeof(*array))); \
 } while (0)
-/* Use this to set a high number of instances. */
-void DRW_shgroup_set_instance_count(DRWShadingGroup *shgroup, unsigned int count);
+
 unsigned int DRW_shgroup_get_instance_count(const DRWShadingGroup *shgroup);
 
 void DRW_shgroup_state_enable(DRWShadingGroup *shgroup, DRWState state);
@@ -364,7 +382,9 @@ void DRW_shgroup_state_disable(DRWShadingGroup *shgroup, DRWState state);
 void DRW_shgroup_stencil_mask(DRWShadingGroup *shgroup, unsigned int mask);
 
 void DRW_shgroup_uniform_texture(DRWShadingGroup *shgroup, const char *name, const struct GPUTexture *tex);
+void DRW_shgroup_uniform_texture_persistent(DRWShadingGroup *shgroup, const char *name, const struct GPUTexture *tex);
 void DRW_shgroup_uniform_block(DRWShadingGroup *shgroup, const char *name, const struct GPUUniformBuffer *ubo);
+void DRW_shgroup_uniform_block_persistent(DRWShadingGroup *shgroup, const char *name, const struct GPUUniformBuffer *ubo);
 void DRW_shgroup_uniform_buffer(DRWShadingGroup *shgroup, const char *name, struct GPUTexture **tex);
 void DRW_shgroup_uniform_float(DRWShadingGroup *shgroup, const char *name, const float *value, int arraysize);
 void DRW_shgroup_uniform_vec2(DRWShadingGroup *shgroup, const char *name, const float *value, int arraysize);
@@ -394,13 +414,24 @@ typedef enum {
 	DRW_MAT_VIEWINV,
 	DRW_MAT_WIN,
 	DRW_MAT_WININV,
+
+	DRW_MAT_COUNT, // Don't use this.
 } DRWViewportMatrixType;
+
+typedef struct DRWMatrixState {
+	float mat[DRW_MAT_COUNT][4][4];
+} DRWMatrixState;
 
 void DRW_viewport_init(const bContext *C);
 void DRW_viewport_matrix_get(float mat[4][4], DRWViewportMatrixType type);
+void DRW_viewport_matrix_get_all(DRWMatrixState *state);
 void DRW_viewport_matrix_override_set(float mat[4][4], DRWViewportMatrixType type);
+void DRW_viewport_matrix_override_set_all(DRWMatrixState *state);
 void DRW_viewport_matrix_override_unset(DRWViewportMatrixType type);
+void DRW_viewport_matrix_override_unset_all(void);
+
 const float *DRW_viewport_size_get(void);
+const float *DRW_viewport_invert_size_get(void);
 const float *DRW_viewport_screenvecs_get(void);
 const float *DRW_viewport_pixelsize_get(void);
 bool DRW_viewport_is_persp_get(void);
@@ -451,11 +482,16 @@ void DRW_draw_region_engine_info(void);
 
 void DRW_state_reset_ex(DRWState state);
 void DRW_state_reset(void);
+void DRW_state_lock(DRWState state);
 
 void DRW_state_invert_facing(void);
 
-void DRW_state_clip_planes_add(float plane_eq[4]);
+void DRW_state_clip_planes_count_set(unsigned int plane_ct);
 void DRW_state_clip_planes_reset(void);
+
+/* Culling, return true if object is inside view frustum. */
+bool DRW_culling_sphere_test(BoundSphere *bsphere);
+bool DRW_culling_box_test(BoundBox *bbox);
 
 /* Selection */
 void DRW_select_load_id(unsigned int id);

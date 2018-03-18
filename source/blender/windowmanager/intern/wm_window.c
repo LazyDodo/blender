@@ -495,12 +495,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	
 	ghostwin = GHOST_CreateWindow(g_system, title,
 	                              win->posx, posy, win->sizex, win->sizey,
-#ifdef __APPLE__
-	                              /* we agreed to not set any fullscreen or iconized state on startup */
-	                              GHOST_kWindowStateNormal,
-#else
 	                              (GHOST_TWindowState)win->windowstate,
-#endif
 	                              GHOST_kDrawingContextTypeOpenGL,
 	                              glSettings);
 
@@ -556,7 +551,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 }
 
 /**
- * Initialize #wmWindows without ghostwin, open these and clear.
+ * Initialize #wmWindow without ghostwin, open these and clear.
  *
  * window size is read from window, if 0 it uses prefsize
  * called in #WM_check, also inits stuff after file read.
@@ -766,7 +761,11 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 		WM_window_set_active_layout(win, workspace, layout);
 	}
 
-	if (WM_window_get_active_scene(win) != scene) {
+	if (win->scene == NULL) {
+		win->scene = scene;
+	}
+	/* In case we reuse an already existing temp window (see win lookup above). */
+	else if (WM_window_get_active_scene(win) != scene) {
 		WM_window_change_active_scene(bmain, C, win, scene);
 	}
 
@@ -2004,10 +2003,9 @@ Scene *WM_window_get_active_scene(const wmWindow *win)
 void WM_window_change_active_scene(Main *bmain, bContext *C, wmWindow *win, Scene *scene_new)
 {
 	const bScreen *screen = WM_window_get_active_screen(win);
+	Scene *scene_old = win->scene;
 
-	ED_scene_exit(C);
-	win->scene = scene_new;
-	ED_scene_changed_update(bmain, C, scene_new, screen);
+	ED_scene_change_update(bmain, C, win, screen, scene_old, scene_new);
 }
 
 WorkSpace *WM_window_get_active_workspace(const wmWindow *win)
@@ -2072,6 +2070,11 @@ void wm_window_IME_end(wmWindow *win)
 
 void *WM_opengl_context_create(void)
 {
+	/* On Windows there is a problem creating contexts that share lists
+	 * from one context that is current in another thread.
+	 * So we should call this function only on the main thread.
+	 */
+	BLI_assert(BLI_thread_is_main());
 	return GHOST_CreateOpenGLContext(g_system);
 }
 

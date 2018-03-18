@@ -70,6 +70,7 @@ typedef enum GPUTextureFormat {
 	GPU_RG16I,
 	GPU_R32F,
 	GPU_R16F,
+	GPU_R16I,
 	GPU_RG8,
 	GPU_R8,
 #if 0
@@ -88,7 +89,6 @@ typedef enum GPUTextureFormat {
 	GPU_RG8UI,
 	GPU_R32I,
 	GPU_R32UI,
-	GPU_R16I,
 	GPU_R16UI,
 	GPU_R16,
 	GPU_R8I,
@@ -197,6 +197,7 @@ int GPU_texture_target(const GPUTexture *tex);
 int GPU_texture_width(const GPUTexture *tex);
 int GPU_texture_height(const GPUTexture *tex);
 int GPU_texture_format(const GPUTexture *tex);
+int GPU_texture_samples(const GPUTexture *tex);
 bool GPU_texture_depth(const GPUTexture *tex);
 bool GPU_texture_stencil(const GPUTexture *tex);
 int GPU_texture_opengl_bindcode(const GPUTexture *tex);

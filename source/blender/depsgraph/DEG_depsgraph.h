@@ -230,6 +230,11 @@ void DEG_evaluation_context_init_from_view_layer_for_render(
         struct Scene *scene,
         struct ViewLayer *view_layer);
 
+void DEG_evaluation_context_init_from_depsgraph(
+        struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
+        eEvaluationMode mode);
+
 /* Free evaluation context. */
 void DEG_evaluation_context_free(struct EvaluationContext *eval_ctx);
 
@@ -274,6 +279,32 @@ typedef void (*DEG_EditorUpdateSceneCb)(
 /* Set callbacks which are being called when depsgraph changes. */
 void DEG_editors_set_update_cb(DEG_EditorUpdateIDCb id_func,
                                DEG_EditorUpdateSceneCb scene_func);
+
+/* Evaluation Debug ------------------------------ */
+
+void DEG_debug_print_eval(const char* function_name,
+                          const char* object_name,
+                          const void* object_address);
+
+void DEG_debug_print_eval_subdata(const char *function_name,
+                                  const char *object_name,
+                                  const void *object_address,
+                                  const char *subdata_comment,
+                                  const char *subdata_name,
+                                  const void *subdata_address);
+
+void DEG_debug_print_eval_subdata_index(const char *function_name,
+                                        const char *object_name,
+                                        const void *object_address,
+                                        const char *subdata_comment,
+                                        const char *subdata_name,
+                                        const void *subdata_address,
+                                        const int subdata_index);
+
+void DEG_debug_print_eval_time(const char* function_name,
+                               const char* object_name,
+                               const void* object_address,
+                               float time);
 
 #ifdef __cplusplus
 } /* extern "C" */

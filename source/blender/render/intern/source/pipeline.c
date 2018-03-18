@@ -261,6 +261,11 @@ RenderLayer *RE_GetRenderLayer(RenderResult *rr, const char *name)
 	}
 }
 
+bool RE_HasSingleLayer(Render *re)
+{
+	return (re->r.scemode & R_SINGLE_LAYER);
+}
+
 RenderResult *RE_MultilayerConvert(void *exrhandle, const char *colorspace, bool predivide, int rectx, int recty)
 {
 	return render_result_new_from_exr(exrhandle, colorspace, predivide, rectx, recty);
@@ -268,12 +273,19 @@ RenderResult *RE_MultilayerConvert(void *exrhandle, const char *colorspace, bool
 
 RenderLayer *render_get_active_layer(Render *re, RenderResult *rr)
 {
-	RenderLayer *rl = BLI_findlink(&rr->layers, re->active_view_layer);
-	
-	if (rl)
-		return rl;
-	else 
-		return rr->layers.first;
+	ViewLayer *view_layer = BLI_findlink(&re->view_layers, re->active_view_layer);
+
+	if (view_layer) {
+		RenderLayer *rl = BLI_findstring(&rr->layers,
+		                                 view_layer->name,
+		                                 offsetof(RenderLayer, name));
+
+		if (rl) {
+			return rl;
+		}
+	}
+
+	return rr->layers.first;
 }
 
 static int UNUSED_FUNCTION(render_scene_needs_vector)(Render *re)
@@ -1981,7 +1993,7 @@ bool RE_allow_render_generic_object(Object *ob)
 #ifdef DEPSGRAPH_WORKAROUND_HACK
 static void tag_dependend_objects_for_render(Scene *scene, int UNUSED(renderlay))
 {
-	FOREACH_OBJECT_RENDERABLE(scene, object)
+	FOREACH_OBJECT_RENDERABLE_BEGIN(scene, object)
 	{
 		if (object->type == OB_MESH) {
 			if (RE_allow_render_generic_object(object)) {
@@ -2043,7 +2055,7 @@ static void tag_dependend_objects_for_render(Scene *scene, int UNUSED(renderlay)
 			}
 		}
 	}
-	FOREACH_OBJECT_RENDERABLE_END
+	FOREACH_OBJECT_RENDERABLE_END;
 }
 #endif
 

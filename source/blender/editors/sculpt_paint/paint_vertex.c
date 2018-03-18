@@ -55,6 +55,8 @@
 #include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
+#include "BKE_global.h"
+#include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
 #include "BKE_object_deform.h"
@@ -1089,6 +1091,8 @@ static void ed_vwpaintmode_enter_generic(
 	}
 
 	vertex_paint_init_session(eval_ctx, scene, ob);
+
+	ED_workspace_object_mode_sync_from_object(wm, workspace, ob);
 }
 
 void ED_object_vpaintmode_enter_ex(
@@ -1161,7 +1165,7 @@ static void ed_vwpaintmode_exit_generic(
 	}
 
 	/* If the cache is not released by a cancel or a done, free it now. */
-	if (ob->sculpt->cache) {
+	if (ob->sculpt && ob->sculpt->cache) {
 		sculpt_cache_free(ob->sculpt->cache);
 		ob->sculpt->cache = NULL;
 	}
@@ -1174,6 +1178,8 @@ static void ed_vwpaintmode_exit_generic(
 		ED_mesh_mirror_spatial_table(NULL, NULL, NULL, NULL, 'e');
 		ED_mesh_mirror_topo_table(NULL, NULL, 'e');
 	}
+
+	ED_workspace_object_mode_sync_from_object(G.main->wm.first, workspace, ob);
 }
 
 void ED_object_vpaintmode_exit_ex(WorkSpace *workspace, Object *ob)
@@ -1475,7 +1481,7 @@ static bool wpaint_stroke_test_start(bContext *C, wmOperator *op, const float mo
 	/* make mode data storage */
 	wpd = MEM_callocN(sizeof(struct WPaintData), "WPaintData");
 	paint_stroke_set_mode_data(stroke, wpd);
-	view3d_set_viewcontext(C, &wpd->vc);
+	ED_view3d_viewcontext_init(C, &wpd->vc);
 	view_angle_limits_init(&wpd->normal_angle_precalc, vp->paint.brush->falloff_angle,
 	                       (vp->paint.brush->flag & BRUSH_FRONTFACE_FALLOFF) != 0);
 
@@ -2475,7 +2481,7 @@ static bool vpaint_stroke_test_start(bContext *C, struct wmOperator *op, const f
 	/* make mode data storage */
 	vpd = MEM_callocN(sizeof(*vpd), "VPaintData");
 	paint_stroke_set_mode_data(stroke, vpd);
-	view3d_set_viewcontext(C, &vpd->vc);
+	ED_view3d_viewcontext_init(C, &vpd->vc);
 	view_angle_limits_init(&vpd->normal_angle_precalc, vp->paint.brush->falloff_angle,
 	                       (vp->paint.brush->flag & BRUSH_FRONTFACE_FALLOFF) != 0);
 

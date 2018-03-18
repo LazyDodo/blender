@@ -211,7 +211,7 @@ static GLuint batch_vao_get(Gwn_Batch *batch)
 		batch->context = GWN_context_active_get();
 		gwn_context_add_batch(batch->context, batch);
 		}
-#if TRUST_NO_ONE && 0 // disabled until we use a separate single context for UI.
+#if TRUST_NO_ONE
 	else // Make sure you are not trying to draw this batch in another context.
 		assert(batch->context == GWN_context_active_get());
 #endif
@@ -489,6 +489,27 @@ void GWN_batch_uniform_4fv(Gwn_Batch* batch, const char* name, const float data[
 	glUniform4fv(uniform->location, 1, data);
 	}
 
+static void primitive_restart_enable(const Gwn_IndexBuf *el)
+{
+	// TODO(fclem) Replace by GL_PRIMITIVE_RESTART_FIXED_INDEX when we have ogl 4.3
+	glEnable(GL_PRIMITIVE_RESTART);
+	GLuint restart_index = (GLuint)0xFFFFFFFF;
+
+#if GWN_TRACK_INDEX_RANGE
+	if (el->index_type == GWN_INDEX_U8)
+		restart_index = (GLuint)0xFF;
+	else if (el->index_type == GWN_INDEX_U16)
+		restart_index = (GLuint)0xFFFF;
+#endif
+
+	glPrimitiveRestartIndex(restart_index);
+}
+
+static void primitive_restart_disable(void)
+{
+	glDisable(GL_PRIMITIVE_RESTART);
+}
+
 void GWN_batch_draw(Gwn_Batch* batch)
 	{
 #if TRUST_NO_ONE
@@ -508,9 +529,10 @@ void GWN_batch_draw_range_ex(Gwn_Batch* batch, int v_first, int v_count, bool fo
 #if TRUST_NO_ONE
 	assert(!(force_instance && (batch->inst == NULL)) || v_count > 0); // we cannot infer length if force_instance
 #endif
+	const bool do_instance = (force_instance || batch->inst);
 
 	// If using offset drawing, use the default VAO and redo bindings.
-	if (v_first != 0)
+	if (v_first != 0 && (do_instance || batch->elem))
 		{
 		glBindVertexArray(GWN_vao_default());
 		batch_update_program_bindings(batch, v_first);
@@ -518,7 +540,7 @@ void GWN_batch_draw_range_ex(Gwn_Batch* batch, int v_first, int v_count, bool fo
 	else
 		glBindVertexArray(batch->vao_id);
 
-	if (force_instance || batch->inst)
+	if (do_instance)
 		{
 		// Infer length if vertex count is not given
 		if (v_count == 0)
@@ -528,11 +550,16 @@ void GWN_batch_draw_range_ex(Gwn_Batch* batch, int v_first, int v_count, bool fo
 			{
 			const Gwn_IndexBuf* el = batch->elem;
 
+			if (el->use_prim_restart)
+				primitive_restart_enable(el);
+
 #if GWN_TRACK_INDEX_RANGE
 			glDrawElementsInstancedBaseVertex(batch->gl_prim_type, el->index_ct, el->gl_index_type, 0, v_count, el->base_index);
 #else
 			glDrawElementsInstanced(batch->gl_prim_type, el->index_ct, GL_UNSIGNED_INT, 0, v_count);
 #endif
+			if (el->use_prim_restart)
+				primitive_restart_disable();
 			}
 		else
 			glDrawArraysInstanced(batch->gl_prim_type, 0, batch->verts[0]->vertex_ct, v_count);
@@ -547,6 +574,9 @@ void GWN_batch_draw_range_ex(Gwn_Batch* batch, int v_first, int v_count, bool fo
 			{
 			const Gwn_IndexBuf* el = batch->elem;
 
+			if (el->use_prim_restart)
+				primitive_restart_enable(el);
+
 #if GWN_TRACK_INDEX_RANGE
 			if (el->base_index)
 				glDrawRangeElementsBaseVertex(batch->gl_prim_type, el->min_index, el->max_index, v_count, el->gl_index_type, 0, el->base_index);
@@ -555,13 +585,16 @@ void GWN_batch_draw_range_ex(Gwn_Batch* batch, int v_first, int v_count, bool fo
 #else
 			glDrawElements(batch->gl_prim_type, v_count, GL_UNSIGNED_INT, 0);
 #endif
+			if (el->use_prim_restart)
+				primitive_restart_disable();
 			}
 		else
-			glDrawArrays(batch->gl_prim_type, 0, v_count);
+			glDrawArrays(batch->gl_prim_type, v_first, v_count);
 		}
 
-
-	glBindVertexArray(0);
+	// Performance hog if you are drawing with the same vao multiple time.
+	// Only activate for debugging.
+	// glBindVertexArray(0);
 	}
 
 // just draw some vertices and let shader place them where we want.
@@ -573,5 +606,7 @@ void GWN_draw_primitive(Gwn_PrimType prim_type, int v_count)
 	GLenum type = convert_prim_type_to_gl(prim_type);
 	glDrawArrays(type, 0, v_count);
 
-	glBindVertexArray(0);
+	// Performance hog if you are drawing with the same vao multiple time.
+	// Only activate for debugging.
+	// glBindVertexArray(0);
 	}

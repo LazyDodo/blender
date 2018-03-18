@@ -77,6 +77,8 @@
 
 #include "atomic_ops.h"
 
+#include "DEG_depsgraph.h"
+
 /* ***************************************** */
 /* AnimData API */
 
@@ -245,7 +247,7 @@ void BKE_animdata_free(ID *id, const bool do_id_user)
 			}
 				
 			/* free nla data */
-			free_nladata(&adt->nla_tracks);
+			BKE_nla_tracks_free(&adt->nla_tracks);
 			
 			/* free drivers - stored as a list of F-Curves */
 			free_fcurves(&adt->drivers);
@@ -284,7 +286,7 @@ AnimData *BKE_animdata_copy(Main *bmain, AnimData *adt, const bool do_action)
 	}
 
 	/* duplicate NLA data */
-	copy_nladata(&dadt->nla_tracks, &adt->nla_tracks);
+	BKE_nla_tracks_copy(&dadt->nla_tracks, &adt->nla_tracks);
 	
 	/* duplicate drivers (F-Curves) */
 	copy_fcurves(&dadt->drivers, &adt->drivers);
@@ -366,7 +368,7 @@ void BKE_animdata_merge_copy(ID *dst_id, ID *src_id, eAnimData_MergeCopy_Modes a
 	if (src->nla_tracks.first) {
 		ListBase tracks = {NULL, NULL};
 		
-		copy_nladata(&tracks, &src->nla_tracks);
+		BKE_nla_tracks_copy(&tracks, &src->nla_tracks);
 		BLI_movelisttolist(&dst->nla_tracks, &tracks);
 	}
 	
@@ -2879,16 +2881,32 @@ void BKE_animsys_evaluate_all_animation(Main *main, Scene *scene, float ctime)
 /* ************** */
 /* Evaluation API */
 
-#define DEBUG_PRINT if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) printf
-
 void BKE_animsys_eval_animdata(const EvaluationContext *eval_ctx, ID *id)
 {
 	AnimData *adt = BKE_animdata_from_id(id);
 	Scene *scene = NULL; /* XXX: this is only needed for flushing RNA updates,
 	                      * which should get handled as part of the dependency graph instead...
 	                      */
-	DEBUG_PRINT("%s on %s, time=%f\n\n", __func__, id->name, (double)eval_ctx->ctime);
+	DEG_debug_print_eval_time(__func__, id->name, id, eval_ctx->ctime);
 	BKE_animsys_evaluate_animdata(scene, id, adt, eval_ctx->ctime, ADT_RECALC_ANIM);
+}
+
+/* TODO(sergey): This is slow lookup of driver from CoW datablock.
+ * Keep this for until we've got something smarter for depsgraph
+ * building.\
+ */
+static FCurve *find_driver_from_evaluated_id(ID *id, FCurve *fcu)
+{
+	/* We've got non-CoW datablock, can use f-curve as-is. */
+	if (id->orig_id == NULL) {
+		return fcu;
+	}
+	/*const*/ ID *id_orig = id->orig_id;
+	const AnimData *adt_orig = BKE_animdata_from_id(id_orig);
+	const AnimData *adt_cow = BKE_animdata_from_id(id);
+	const int fcu_index = BLI_findindex(&adt_orig->drivers, fcu);
+	BLI_assert(fcu_index != -1);
+	return BLI_findlink(&adt_cow->drivers, fcu_index);
 }
 
 void BKE_animsys_eval_driver(const EvaluationContext *eval_ctx,
@@ -2900,11 +2918,10 @@ void BKE_animsys_eval_driver(const EvaluationContext *eval_ctx,
 	PointerRNA id_ptr;
 	bool ok = false;
 
-	DEBUG_PRINT("%s on %s (%s[%d])\n",
-	            __func__,
-	            id->name,
-	            fcu->rna_path,
-	            fcu->array_index);
+	fcu = find_driver_from_evaluated_id(id, fcu);
+
+	DEG_debug_print_eval_subdata_index(
+	        __func__, id->name, id, "fcu", fcu->rna_path, fcu, fcu->array_index);
 
 	RNA_id_pointer_create(id, &id_ptr);
 
@@ -2937,5 +2954,3 @@ void BKE_animsys_eval_driver(const EvaluationContext *eval_ctx,
 		}
 	}
 }
-
-#undef DEBUG_PRINT

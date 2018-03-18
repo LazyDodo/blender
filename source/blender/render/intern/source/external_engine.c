@@ -1,11 +1,10 @@
 /*
-
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -754,7 +753,7 @@ int RE_engine_render(Render *re, int do_all)
 	}
 
 	if (type->render_to_image) {
-		FOREACH_VIEW_LAYER_TO_RENDER(re, view_layer_iter)
+		FOREACH_VIEW_LAYER_TO_RENDER_BEGIN(re, view_layer_iter)
 		{
 			EvaluationContext *eval_ctx = DEG_evaluation_context_new(DAG_EVAL_RENDER);
 			Depsgraph *depsgraph = DEG_graph_new();
@@ -772,7 +771,7 @@ int RE_engine_render(Render *re, int do_all)
 			DEG_graph_free(depsgraph);
 			DEG_evaluation_context_free(eval_ctx);
 		}
-		FOREACH_VIEW_LAYER_TO_RENDER_END
+		FOREACH_VIEW_LAYER_TO_RENDER_END;
 	}
 
 	engine->tile_x = 0;

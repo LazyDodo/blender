@@ -351,7 +351,7 @@ void psys_check_group_weights(ParticleSettings *part)
 		}
 
 		/* then add objects in the group to new list */
-		FOREACH_GROUP_OBJECT(part->dup_group, object)
+		FOREACH_GROUP_OBJECT_BEGIN(part->dup_group, object)
 		{
 			dw = part->dupliweights.first;
 			while (dw && dw->ob != object) {
@@ -365,7 +365,7 @@ void psys_check_group_weights(ParticleSettings *part)
 				BLI_addtail(&part->dupliweights, dw);
 			}
 		}
-		FOREACH_GROUP_OBJECT_END
+		FOREACH_GROUP_OBJECT_END;
 
 		dw = part->dupliweights.first;
 		for (; dw; dw = dw->next) {

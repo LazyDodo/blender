@@ -506,11 +506,11 @@ static void add_collision_object(Object ***objs, unsigned int *numobj, unsigned 
 		Group *group= ob->dup_group;
 
 		/* add objects */
-		FOREACH_GROUP_OBJECT(group, object)
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
 		{
 			add_collision_object(objs, numobj, maxobj, object, self, level+1, modifier_type);
 		}
-		FOREACH_GROUP_OBJECT_END
+		FOREACH_GROUP_OBJECT_END;
 	}
 }
 
@@ -527,11 +527,11 @@ Object **get_collisionobjects_ext(Scene *scene, Object *self, Group *group, unsi
 	/* gather all collision objects */
 	if (group) {
 		/* use specified group */
-		FOREACH_GROUP_OBJECT(group, object)
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
 		{
 			add_collision_object(&objs, &numobj, &maxobj, object, self, level, modifier_type);
 		}
-		FOREACH_GROUP_OBJECT_END
+		FOREACH_GROUP_OBJECT_END;
 	}
 	else {
 		Scene *sce_iter;
@@ -584,11 +584,11 @@ static void add_collider_cache_object(ListBase **objs, Object *ob, Object *self,
 		Group *group= ob->dup_group;
 
 		/* add objects */
-		FOREACH_GROUP_OBJECT(group, object)
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
 		{
 			add_collider_cache_object(objs, object, self, level+1);
 		}
-		FOREACH_GROUP_OBJECT_END
+		FOREACH_GROUP_OBJECT_END;
 	}
 }
 
@@ -598,11 +598,11 @@ ListBase *get_collider_cache(Scene *scene, Object *self, Group *group)
 	
 	/* add object in same layer in scene */
 	if (group) {
-		FOREACH_GROUP_OBJECT(group, object)
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
 		{
 			add_collider_cache_object(&objs, object, self, 0);
 		}
-		FOREACH_GROUP_OBJECT_END
+		FOREACH_GROUP_OBJECT_END;
 	}
 	else {
 		Scene *sce_iter;

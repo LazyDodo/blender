@@ -861,6 +861,45 @@ void view3d_opengl_select_cache_end(void)
 	GPU_select_cache_end();
 }
 
+#ifndef WITH_OPENGL_LEGACY
+struct DrawSelectLoopUserData {
+	uint  pass;
+	uint  hits;
+	uint *buffer;
+	uint  buffer_len;
+	const rcti *rect;
+	char gpu_select_mode;
+};
+
+static bool drw_select_loop_pass(eDRWSelectStage stage, void *user_data)
+{
+	bool continue_pass = false;
+	struct DrawSelectLoopUserData *data = user_data;
+	if (stage == DRW_SELECT_PASS_PRE) {
+		GPU_select_begin(data->buffer, data->buffer_len, data->rect, data->gpu_select_mode, data->hits);
+		/* always run POST after PRE. */
+		continue_pass = true;
+	}
+	else if (stage == DRW_SELECT_PASS_POST) {
+		int hits = GPU_select_end();
+		if (data->pass == 0) {
+			/* quirk of GPU_select_end, only take hits value from first call. */
+			data->hits = hits;
+		}
+		if (data->gpu_select_mode == GPU_SELECT_NEAREST_FIRST_PASS) {
+			data->gpu_select_mode = GPU_SELECT_NEAREST_SECOND_PASS;
+			continue_pass = (hits > 0);
+		}
+		data->pass += 1;
+	}
+	else {
+		BLI_assert(0);
+	}
+	return continue_pass;
+
+}
+#endif /* WITH_OPENGL_LEGACY */
+
 /**
  * \warning be sure to account for a negative return value
  * This is an error, "Too many objects in select buffer"
@@ -922,11 +961,6 @@ int view3d_opengl_select(
 	UI_Theme_Store(&theme_state);
 	UI_SetTheme(SPACE_VIEW3D, RGN_TYPE_WINDOW);
 
-#ifndef WITH_OPENGL_LEGACY
-	/* All of the queries need to be perform on the drawing context. */
-	DRW_opengl_context_enable();
-#endif
-
 	/* Re-use cache (rect must be smaller then the cached)
 	 * other context is assumed to be unchanged */
 	if (GPU_select_is_cached()) {
@@ -935,6 +969,11 @@ int view3d_opengl_select(
 		hits = GPU_select_end();
 		goto finally;
 	}
+
+#ifndef WITH_OPENGL_LEGACY
+	/* All of the queries need to be perform on the drawing context. */
+	DRW_opengl_context_enable();
+#endif
 
 	G.f |= G_PICKSEL;
 
@@ -950,42 +989,39 @@ int view3d_opengl_select(
 	if (vc->rv3d->rflag & RV3D_CLIPPING)
 		ED_view3d_clipping_set(vc->rv3d);
 	
-	GPU_select_begin(buffer, bufsize, &rect, gpu_select_mode, 0);
 
 #ifdef WITH_OPENGL_LEGACY
 	if (IS_VIEWPORT_LEGACY(vc->v3d)) {
+		GPU_select_begin(buffer, bufsize, &rect, gpu_select_mode, 0);
 		ED_view3d_draw_select_loop(vc, scene, sl, v3d, ar, use_obedit_skip, use_nearest);
+		hits = GPU_select_end();
+
+		if (do_passes && (hits > 0)) {
+			GPU_select_begin(buffer, bufsize, &rect, GPU_SELECT_NEAREST_SECOND_PASS, hits);
+			ED_view3d_draw_select_loop(vc, scene, sl, v3d, ar, use_obedit_skip, use_nearest);
+			GPU_select_end();
+		}
 	}
 	else
 #else
 	{
+		/* We need to call "GPU_select_*" API's inside DRW_draw_select_loop
+		 * because the OpenGL context created & destroyed inside this function. */
+		struct DrawSelectLoopUserData drw_select_loop_user_data = {
+			.pass = 0,
+			.hits = 0,
+			.buffer = buffer,
+			.buffer_len = bufsize,
+			.rect = &rect,
+			.gpu_select_mode = gpu_select_mode,
+		};
 		DRW_draw_select_loop(
 		        graph, ar, v3d, eval_ctx->object_mode,
-		        use_obedit_skip, use_nearest, &rect);
+		        use_obedit_skip, use_nearest, &rect,
+		        drw_select_loop_pass, &drw_select_loop_user_data);
+		hits = drw_select_loop_user_data.hits;
 	}
 #endif /* WITH_OPENGL_LEGACY */
-
-	hits = GPU_select_end();
-	
-	/* second pass, to get the closest object to camera */
-	if (do_passes && (hits > 0)) {
-		GPU_select_begin(buffer, bufsize, &rect, GPU_SELECT_NEAREST_SECOND_PASS, hits);
-
-#ifdef WITH_OPENGL_LEGACY
-		if (IS_VIEWPORT_LEGACY(vc->v3d)) {
-			ED_view3d_draw_select_loop(vc, scene, sl, v3d, ar, use_obedit_skip, use_nearest);
-		}
-		else
-#else
-		{
-			DRW_draw_select_loop(
-			        graph, ar, v3d, eval_ctx->object_mode,
-			        use_obedit_skip, use_nearest, &rect);
-		}
-#endif /* WITH_OPENGL_LEGACY */
-
-		GPU_select_end();
-	}
 
 	G.f &= ~G_PICKSEL;
 	ED_view3d_draw_setup_view(vc->win, eval_ctx, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
@@ -998,11 +1034,11 @@ int view3d_opengl_select(
 	if (vc->rv3d->rflag & RV3D_CLIPPING)
 		ED_view3d_clipping_disable();
 
-finally:
-
 #ifndef WITH_OPENGL_LEGACY
 	DRW_opengl_context_disable();
 #endif
+
+finally:
 
 	if (hits < 0) printf("Too many objects in select buffer\n");  /* XXX make error message */
 
