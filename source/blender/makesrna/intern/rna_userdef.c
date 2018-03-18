@@ -4707,7 +4707,7 @@ void RNA_def_userdef(BlenderRNA *brna)
 		{0, "", 0, "Workspaces", ""},
 		{USER_SECTION_WORKSPACE_CONFIG, "WORKSPACE_CONFIG", 0, "Configuration File", ""},
 		{USER_SECTION_WORKSPACE_ADDONS, "WORKSPACE_ADDONS", 0, "Add-on Overrides", ""},
-		{USER_SECTION_WORKSPACE_KEYMAPS, "WORKSPACE_KEYMAPS", 0, "Key-map Overrides", ""},
+		{USER_SECTION_WORKSPACE_KEYMAPS, "WORKSPACE_KEYMAPS", 0, "Keymap Overrides", ""},
 		{0, "", 0, "System", ""},
 		{USER_SECTION_SYSTEM_GENERAL, "SYSTEM_GENERAL", 0, "General", ""},
 		{USER_SECTION_SYSTEM_DRAWING, "SYSTEM_DRAWING", 0, "Drawing", ""},

@@ -296,7 +296,7 @@ void BKE_spacedata_copylist(ListBase *lb1, ListBase *lb2);
 void BKE_spacedata_draw_locks(int set);
 
 struct ARegion *BKE_spacedata_find_region_type(
-        const struct SpaceLink *slink, const struct ScrArea *area,
+        const struct SpaceLink *slink, const struct ScrArea *sa,
         int region_type) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL();
 
 void BKE_spacedata_callback_id_remap_set(void (*func)(struct ScrArea *, struct SpaceLink *, struct ID *, struct ID *));

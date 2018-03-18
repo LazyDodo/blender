@@ -225,7 +225,7 @@ void ED_spacetype_userpref(void)
 	/* regions: navigation window */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype userpref region");
 	art->regionid = RGN_TYPE_UI;
-	art->prefsizex = UI_COMPACT_PANEL_WIDTH;
+	art->prefsizex = UI_NAVIGATION_REGION_WIDTH;
 	art->init = userpref_navigation_region_init;
 	art->draw = userpref_navigation_region_draw;
 	art->listener = userpref_navigation_region_listener;

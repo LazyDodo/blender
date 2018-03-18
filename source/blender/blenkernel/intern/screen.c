@@ -279,26 +279,26 @@ void BKE_spacedata_draw_locks(int set)
 }
 
 /**
- * Version of #BKE_area_find_region_type that also works if \a slink is not the active space of \a area.
+ * Version of #BKE_area_find_region_type that also works if \a slink is not the active space of \a sa.
  */
-ARegion *BKE_spacedata_find_region_type(const SpaceLink *slink, const ScrArea *area, int region_type)
+ARegion *BKE_spacedata_find_region_type(const SpaceLink *slink, const ScrArea *sa, int region_type)
 {
-	const bool is_slink_active = slink == area->spacedata.first;
+	const bool is_slink_active = slink == sa->spacedata.first;
 	const ListBase *regionbase = (is_slink_active) ?
-	                           &area->regionbase : &slink->regionbase;
-	ARegion *region = NULL;
+	                           &sa->regionbase : &slink->regionbase;
+	ARegion *ar = NULL;
 
-	BLI_assert(BLI_findindex(&area->spacedata, slink) != -1);
-	for (region = regionbase->first; region; region = region->next) {
-		if (region->regiontype == region_type) {
+	BLI_assert(BLI_findindex(&sa->spacedata, slink) != -1);
+	for (ar = regionbase->first; ar; ar = ar->next) {
+		if (ar->regiontype == region_type) {
 			break;
 		}
 	}
 
 	/* Should really unit test this instead. */
-	BLI_assert(!is_slink_active || region == BKE_area_find_region_type(area, region_type));
+	BLI_assert(!is_slink_active || ar == BKE_area_find_region_type(sa, region_type));
 
-	return region;
+	return ar;
 }
 
 
@@ -480,17 +480,17 @@ unsigned int BKE_screen_visible_layers(bScreen *screen, Scene *scene)
 /* ***************** Utilities ********************** */
 
 /**
- * Find a region of type \a region_type in the currently active space of \a area.
+ * Find a region of type \a region_type in the currently active space of \a sa.
  *
  * \note This does __not__ work if the region to look up is not in the active
  *       space. Use #BKE_spacedata_find_region_type if that may be the case.
  */
-ARegion *BKE_area_find_region_type(const ScrArea *area, int region_type)
+ARegion *BKE_area_find_region_type(const ScrArea *sa, int region_type)
 {
-	if (area) {
-		for (ARegion *region = area->regionbase.first; region; region = region->next) {
-			if (region->regiontype == region_type)
-				return region;
+	if (sa) {
+		for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
+			if (ar->regiontype == region_type)
+				return ar;
 		}
 	}
 

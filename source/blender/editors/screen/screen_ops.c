@@ -4021,8 +4021,8 @@ static void SCREEN_OT_back_to_previous(struct wmOperatorType *ot)
 
 static int settings_show_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
-	const int sizex = 800 * UI_DPI_FAC;
-	const int sizey = 480 * UI_DPI_FAC;
+	const int sizex = (800 + UI_NAVIGATION_REGION_WIDTH) * UI_DPI_FAC;
+	const int sizey = 500 * UI_DPI_FAC;
 
 	/* changes context! */
 	if (WM_window_open_temp(C, event->x, event->y, sizex, sizey, WM_WINDOW_SETTINGS) != NULL) {
@@ -4039,10 +4039,9 @@ static void SCREEN_OT_settings_show(struct wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Show Blender Settings";
-	ot->description = "Show window for global Blender settings (user preferences, "
-	                  "workspace configurations, system settings)";
+	ot->description = "Edit user preferences, workspaces and system settings";
 	ot->idname = "SCREEN_OT_settings_show";
-	
+
 	/* api callbacks */
 	ot->invoke = settings_show_invoke;
 	ot->poll = ED_operator_screenactive;
