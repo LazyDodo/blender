@@ -203,7 +203,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 		/* calculate parent position */
 		ED_gpencil_parent_location(ob, gpd, gpl, tgpw.diff_mat);
 
-		/* don't draw layer if hidden */
+		/* do not draw layer if hidden */
 		if (gpl->flag & GP_LAYER_HIDE)
 			continue;
 
@@ -370,7 +370,7 @@ static void set_pixel(ImBuf *ibuf, int idx, const float col[4])
 
 /* check if the size of the leak is narrow to determine if the stroke is closed
  * this is used for strokes with small gaps between them to get a full fill
- * and don't get a full screen fill.
+ * and do not get a full screen fill.
  *
  * \param ibuf      Image pixel data
  * \param maxpixel  Maximum index
@@ -389,7 +389,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
 	/* Horizontal leak (check vertical pixels) 
 	 *     X
 	 *	   X
-	 *	==>·
+	 *	   xB7
 	 *	   X
 	 *	   X
 	 */
@@ -428,9 +428,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
 
 	/* Vertical leak (check horizontal pixels) 
 	 *
-	 *  XXX·XXX
-	 *     ^
-	 *     |
+	 *  XXXxB7XX
 	 *
 	 */
 	if (type == LEAK_VERT) {
@@ -465,7 +463,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
 				}
 			}
 			else {
-				t_b = true; /* edge of image*/
+				t_b = true; /* edge of image */
 				break;
 			}
 		}
@@ -560,7 +558,7 @@ static void gpencil_boundaryfill_area(tGPDfill *tgpf)
 	}
 
 	tgpf->ima->id.tag |= LIB_TAG_DOIT;
-	/* free temp stack data*/
+	/* free temp stack data */
 	BLI_stack_free(stack);
 }
 
@@ -659,7 +657,7 @@ static  void gpencil_get_outline_points(tGPDfill *tgpf)
 			if (backtracked_offset[0][0] == offset[i][0] &&
 				backtracked_offset[0][1] == offset[i][1])
 			{
-				/* Finding the bracktracked pixel's offset index */
+				/* Finding the bracktracked pixel offset index */
 				cur_back_offset = i;
 				break;
 			}
@@ -1130,7 +1128,7 @@ static int gpencil_fill_modal(bContext *C, wmOperator *op, const wmEvent *event)
 						tgpf->center[0] = event->mval[0];
 						tgpf->center[1] = event->mval[1];
 
-						/* save size (don't sub minsize data to get right mouse click position) */
+						/* save size (do not sub minsize data to get right mouse click position) */
 						tgpf->sizex = region_rect.xmax;
 						tgpf->sizey = region_rect.ymax;
 
@@ -1180,7 +1178,7 @@ static int gpencil_fill_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	switch (estate) {
 		case OPERATOR_FINISHED:
 			gpencil_fill_exit(C, op);
-			/* TODO: Removed for debug: WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL); */
+			WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 			break;
 		
 		case OPERATOR_CANCELLED:
