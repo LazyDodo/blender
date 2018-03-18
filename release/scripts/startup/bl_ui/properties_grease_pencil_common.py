@@ -1057,7 +1057,7 @@ class GreasePencilOnionPanel:
         row.active = gpd.use_onion_skinning
         row.prop(gpd, "use_onion_fade", text="Fade")
         subrow = row.row()
-        subrow.active = gpd.onion_mode == 'SELECTED'
+        subrow.active = gpd.onion_mode in ('RELATIVE', 'SELECTED')
         subrow.prop(gpd, "use_onion_loop", text="Loop")
 
         # -----------------

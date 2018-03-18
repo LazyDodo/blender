@@ -1033,7 +1033,7 @@ static void gpencil_draw_onionskins(
 		}
 
 		/* if loop option, save the frame to use later */
-		if ((mode == GP_ONION_MODE_SELECTED) && (gpd->onion_flag & GP_ONION_LOOP)) {
+		if ((mode != GP_ONION_MODE_ABSOLUTE) && (gpd->onion_flag & GP_ONION_LOOP)) {
 			gpf_loop = gf;
 		}
 
