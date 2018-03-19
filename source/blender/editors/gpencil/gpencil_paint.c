@@ -2535,7 +2535,7 @@ static int gpencil_draw_exec(bContext *C, wmOperator *op)
 	
 	/* try to initialize context data needed while drawing */
 	if (!gpencil_draw_init(C, op, NULL)) {
-		if (op->customdata) MEM_freeN(op->customdata);
+		MEM_SAFE_FREE(op->customdata);
 		/* printf("\tGP - no valid data\n"); */
 		return OPERATOR_CANCELLED;
 	}

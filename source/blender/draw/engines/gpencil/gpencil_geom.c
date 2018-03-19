@@ -558,9 +558,9 @@ static void gp_triangulate_stroke_fill(bGPDstroke *gps)
 	}
 
 	/* clear memory */
-	if (tmp_triangles) MEM_freeN(tmp_triangles);
-	if (points2d) MEM_freeN(points2d);
-	if (uv) MEM_freeN(uv);
+	MEM_SAFE_FREE(tmp_triangles);
+	MEM_SAFE_FREE(points2d);
+	MEM_SAFE_FREE(uv);
 }
 
 /* add a new fill point and texture coordinates to vertex buffer */

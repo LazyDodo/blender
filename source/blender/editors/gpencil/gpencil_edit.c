@@ -721,7 +721,7 @@ void ED_gpencil_strokes_copybuf_free(void)
 			BKE_gpencil_free_stroke_weights(gps);
 			MEM_freeN(gps->points);
 		}
-		if (gps->triangles) MEM_freeN(gps->triangles);
+		MEM_SAFE_FREE(gps->triangles);
 
 		BLI_freelinkN(&gp_strokes_copypastebuf, gps);
 	}
@@ -1408,7 +1408,7 @@ static int gp_delete_selected_strokes(bContext *C)
 							BKE_gpencil_free_stroke_weights(gps);
 							MEM_freeN(gps->points);
 						}
-						if (gps->triangles) MEM_freeN(gps->triangles);
+						MEM_SAFE_FREE(gps->triangles);
 						BLI_freelinkN(&gpf->strokes, gps);
 
 						changed = true;
