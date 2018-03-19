@@ -581,7 +581,7 @@ static void ui_item_enum_expand_handle(bContext *C, void *arg1, void *arg2)
 }
 static void ui_item_enum_expand(
         uiLayout *layout, uiBlock *block, PointerRNA *ptr, PropertyRNA *prop,
-        const char *uiname, int h, bool icon_only, bool group)
+        const char *uiname, int h, bool icon_only)
 {
 	/* XXX The way this function currently handles uiname parameter is insane and inconsistent with general UI API:
 	 *     * uiname is the *enum property* label.
@@ -628,11 +628,15 @@ static void ui_item_enum_expand(
 		const bool is_first = item == item_array;
 
 		if (!item->identifier[0]) {
-			if (group && name) {
+			if (name) {
+				size_t group_name_len = strlen(item->name) + 2;
+				char *group_name = alloca(group_name_len);
+
 				if (!is_first) {
 					uiItemS(block->curlayout);
 				}
-				uiItemL(block->curlayout, item->name, ICON_NONE);
+				BLI_snprintf(group_name, group_name_len, "%s:", item->name);
+				uiItemL(block->curlayout, group_name, ICON_NONE);
 			}
 			else if (radial && layout_radial) {
 				uiItemS(layout_radial);
@@ -1390,7 +1394,7 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 	PropertyType type;
 	char namestr[UI_MAX_NAME_STR];
 	int len, w, h;
-	bool slider, toggle, expand, icon_only, no_bg, group;
+	bool slider, toggle, expand, icon_only, no_bg;
 	bool is_array;
 
 	UI_block_layout_set_current(block, layout);
@@ -1451,7 +1455,6 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 	expand = (flag & UI_ITEM_R_EXPAND) != 0;
 	icon_only = (flag & UI_ITEM_R_ICON_ONLY) != 0;
 	no_bg = (flag & UI_ITEM_R_NO_BG) != 0;
-	group = expand && ((flag & UI_ITEM_R_GROUP) != 0);
 
 	/* get size */
 	ui_item_rna_size(layout, name, icon, ptr, prop, index, icon_only, &w, &h);
@@ -1473,7 +1476,7 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 	}
 	/* expanded enum */
 	else if (type == PROP_ENUM && (expand || RNA_property_flag(prop) & PROP_ENUM_FLAG))
-		ui_item_enum_expand(layout, block, ptr, prop, name, h, icon_only, group);
+		ui_item_enum_expand(layout, block, ptr, prop, name, h, icon_only);
 	/* property with separate label */
 	else if (type == PROP_ENUM || type == PROP_STRING || type == PROP_POINTER) {
 		but = ui_item_with_label(layout, block, name, icon, ptr, prop, index, 0, 0, w, h, flag);
