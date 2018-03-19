@@ -440,13 +440,13 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 
 				CALLBACK_INVOKE(scene->gpd, IDWALK_CB_USER);
 
-				FOREACH_SCENE_COLLECTION(scene, sc)
+				FOREACH_SCENE_COLLECTION_BEGIN(scene, sc)
 				{
 					for (LinkData *link = sc->objects.first; link; link = link->next) {
 						CALLBACK_INVOKE_ID(link->data, IDWALK_CB_USER);
 					}
 				}
-				FOREACH_SCENE_COLLECTION_END
+				FOREACH_SCENE_COLLECTION_END;
 
 				ViewLayer *view_layer;
 				for (view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
@@ -765,7 +765,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			case ID_GR:
 			{
 				Group *group = (Group *) id;
-				FOREACH_GROUP_BASE(group, base)
+				FOREACH_GROUP_BASE_BEGIN(group, base)
 				{
 					CALLBACK_INVOKE(base->object, IDWALK_CB_USER_ONE);
 				}

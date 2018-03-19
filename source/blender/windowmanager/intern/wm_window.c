@@ -79,6 +79,7 @@
 
 #include "PIL_time.h"
 
+#include "GPU_batch.h"
 #include "GPU_draw.h"
 #include "GPU_extensions.h"
 #include "GPU_init_exit.h"
@@ -86,6 +87,8 @@
 #include "BLF_api.h"
 
 #include "UI_resources.h"
+
+#include "../../../intern/gawain/gawain/gwn_context.h"
 
 /* for assert */
 #ifndef NDEBUG
@@ -169,11 +172,23 @@ static void wm_window_check_position(rcti *rect)
 }
 
 
-static void wm_ghostwindow_destroy(wmWindow *win) 
+static void wm_ghostwindow_destroy(wmWindowManager *wm, wmWindow *win)
 {
 	if (win->ghostwin) {
+		/* We need this window's opengl context active to discard it. */
+		GHOST_ActivateWindowDrawingContext(win->ghostwin);
+		GWN_context_active_set(win->gwnctx);
+
+		/* Delete local gawain objects.  */
+		GWN_context_discard(win->gwnctx);
+
 		GHOST_DisposeWindow(g_system, win->ghostwin);
 		win->ghostwin = NULL;
+		win->gwnctx = NULL;
+
+		/* prevents non-drawable state of main windows (bugs #22967 and #25071, possibly #22477 too) */
+		wm->windrawable = NULL;
+		wm->winactive = NULL;
 	}
 }
 
@@ -204,11 +219,6 @@ void wm_window_free(bContext *C, wmWindowManager *wm, wmWindow *win)
 		BLI_freelinkN(&win->global_areas, sa);
 	}
 
-	/* always set drawable and active to NULL,
-	 * prevents non-drawable state of main windows (bugs #22967 and #25071, possibly #22477 too) */
-	wm->windrawable = NULL;
-	wm->winactive = NULL;
-
 	/* end running jobs, a job end also removes its timer */
 	for (wt = wm->timers.first; wt; wt = wtnext) {
 		wtnext = wt->next;
@@ -229,7 +239,7 @@ void wm_window_free(bContext *C, wmWindowManager *wm, wmWindow *win)
 
 	wm_draw_data_free(win);
 
-	wm_ghostwindow_destroy(win);
+	wm_ghostwindow_destroy(wm, win);
 
 	BKE_workspace_instance_hook_free(G.main, win->workspace_hook);
 	MEM_freeN(win->stereo3d_format);
@@ -383,9 +393,21 @@ void wm_window_close(bContext *C, wmWindowManager *wm, wmWindow *win)
 		if (screen) {
 			ED_screen_exit(C, win, screen);
 		}
-		
+
+		if (tmpwin) {
+			gpu_batch_presets_reset();
+			immDeactivate();
+		}
+
 		wm_window_free(C, wm, win);
-	
+
+		/* keep imediatemode active before the next `wm_window_make_drawable` call */
+		if (tmpwin) {
+			GHOST_ActivateWindowDrawingContext(tmpwin->ghostwin);
+			GWN_context_active_set(tmpwin->gwnctx);
+			immActivate();
+		}
+
 		/* if temp screen, delete it after window free (it stops jobs that can access it) */
 		if (screen && screen->temp) {
 			Main *bmain = CTX_data_main(C);
@@ -486,17 +508,14 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	
 	ghostwin = GHOST_CreateWindow(g_system, title,
 	                              win->posx, posy, win->sizex, win->sizey,
-#ifdef __APPLE__
-	                              /* we agreed to not set any fullscreen or iconized state on startup */
-	                              GHOST_kWindowStateNormal,
-#else
 	                              (GHOST_TWindowState)win->windowstate,
-#endif
 	                              GHOST_kDrawingContextTypeOpenGL,
 	                              glSettings);
-	
+
 	if (ghostwin) {
 		GHOST_RectangleHandle bounds;
+
+		win->gwnctx = GWN_context_create();
 		
 		/* the new window has already been made drawable upon creation */
 		wm->windrawable = win;
@@ -545,7 +564,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 }
 
 /**
- * Initialize #wmWindows without ghostwin, open these and clear.
+ * Initialize #wmWindow without ghostwin, open these and clear.
  *
  * window size is read from window, if 0 it uses prefsize
  * called in #WM_check, also inits stuff after file read.
@@ -755,7 +774,11 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 		WM_window_set_active_layout(win, workspace, layout);
 	}
 
-	if (WM_window_get_active_scene(win) != scene) {
+	if (win->scene == NULL) {
+		win->scene = scene;
+	}
+	/* In case we reuse an already existing temp window (see win lookup above). */
+	else if (WM_window_get_active_scene(win) != scene) {
 		WM_window_change_active_scene(bmain, C, win, scene);
 	}
 
@@ -1015,18 +1038,40 @@ void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 {
 	if (win != wm->windrawable && win->ghostwin) {
 //		win->lmbut = 0;	/* keeps hanging when mousepressed while other window opened */
-		
+
 		wm->windrawable = win;
 		if (G.debug & G_DEBUG_EVENTS) {
 			printf("%s: set drawable %d\n", __func__, win->winid);
 		}
 
+		gpu_batch_presets_reset();
 		immDeactivate();
 		GHOST_ActivateWindowDrawingContext(win->ghostwin);
+		GWN_context_active_set(win->gwnctx);
 		immActivate();
 
 		/* this can change per window */
 		WM_window_set_dpi(win);
+	}
+}
+
+/* Reset active the current window opengl drawing context. */
+void wm_window_reset_drawable(void)
+{
+	BLI_assert(BLI_thread_is_main());
+	wmWindowManager *wm = G.main->wm.first;
+
+	if (wm == NULL)
+		return;
+
+	wmWindow *win = wm->windrawable;
+
+	if (win && win->ghostwin) {
+		gpu_batch_presets_reset();
+		immDeactivate();
+		GHOST_ActivateWindowDrawingContext(win->ghostwin);
+		GWN_context_active_set(win->gwnctx);
+		immActivate();
 	}
 }
 
@@ -1799,7 +1844,6 @@ void wm_window_raise(wmWindow *win)
 
 void wm_window_swap_buffers(wmWindow *win)
 {
-	
 #ifdef WIN32
 	glDisable(GL_SCISSOR_TEST);
 	GHOST_SwapWindowBuffers(win->ghostwin);
@@ -1990,10 +2034,9 @@ Scene *WM_window_get_active_scene(const wmWindow *win)
 void WM_window_change_active_scene(Main *bmain, bContext *C, wmWindow *win, Scene *scene_new)
 {
 	const bScreen *screen = WM_window_get_active_screen(win);
+	Scene *scene_old = win->scene;
 
-	ED_scene_exit(C);
-	win->scene = scene_new;
-	ED_scene_changed_update(bmain, C, scene_new, screen);
+	ED_scene_change_update(bmain, C, win, screen, scene_old, scene_new);
 }
 
 WorkSpace *WM_window_get_active_workspace(const wmWindow *win)
@@ -2053,3 +2096,30 @@ void wm_window_IME_end(wmWindow *win)
 	win->ime_data = NULL;
 }
 #endif  /* WITH_INPUT_IME */
+
+/* ****** direct opengl context management ****** */
+
+void *WM_opengl_context_create(void)
+{
+	/* On Windows there is a problem creating contexts that share lists
+	 * from one context that is current in another thread.
+	 * So we should call this function only on the main thread.
+	 */
+	BLI_assert(BLI_thread_is_main());
+	return GHOST_CreateOpenGLContext(g_system);
+}
+
+void WM_opengl_context_dispose(void *context)
+{
+	GHOST_DisposeOpenGLContext(g_system, (GHOST_ContextHandle)context);
+}
+
+void WM_opengl_context_activate(void *context)
+{
+	GHOST_ActivateOpenGLContext((GHOST_ContextHandle)context);
+}
+
+void WM_opengl_context_release(void *context)
+{
+	GHOST_ReleaseOpenGLContext((GHOST_ContextHandle)context);
+}

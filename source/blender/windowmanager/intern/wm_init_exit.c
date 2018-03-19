@@ -116,6 +116,7 @@
 #include "BLF_api.h"
 #include "BLT_lang.h"
 
+#include "GPU_material.h"
 #include "GPU_buffers.h"
 #include "GPU_draw.h"
 #include "GPU_init_exit.h"
@@ -124,6 +125,8 @@
 #include "COM_compositor.h"
 
 #include "DEG_depsgraph.h"
+
+#include "DRW_engine.h"
 
 #ifdef WITH_OPENSUBDIV
 #  include "BKE_subsurf.h"
@@ -207,6 +210,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 		/* sets 3D mouse deadzone */
 		WM_ndof_deadzone_set(U.ndof_deadzone);
 #endif
+		DRW_opengl_context_create();
 
 		GPU_init();
 
@@ -520,6 +524,17 @@ void WM_exit_ext(bContext *C, const bool do_python)
 #ifdef WITH_COMPOSITOR
 	COM_deinitialize();
 #endif
+
+	if (!G.background) {
+#ifdef WITH_OPENSUBDIV
+		BKE_subsurf_osd_cleanup();
+#endif
+
+		GPU_global_buffer_pool_free();
+		GPU_free_unused_buffers();
+
+		GPU_exit();
+	}
 	
 	BKE_blender_free();  /* blender.c, does entire library and spacetypes */
 //	free_matcopybuf();
@@ -537,6 +552,11 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	wm_manipulatortype_free();
 
 	BLF_exit();
+
+	if (!G.background) {
+		GPU_pass_cache_free();
+		DRW_opengl_context_destroy();
+	}
 
 #ifdef WITH_INTERNATIONAL
 	BLF_free_unifont();
@@ -564,17 +584,6 @@ void WM_exit_ext(bContext *C, const bool do_python)
 #else
 	(void)do_python;
 #endif
-
-	if (!G.background) {
-#ifdef WITH_OPENSUBDIV
-		BKE_subsurf_osd_cleanup();
-#endif
-
-		GPU_global_buffer_pool_free();
-		GPU_free_unused_buffers();
-
-		GPU_exit();
-	}
 
 	BKE_undo_reset();
 	

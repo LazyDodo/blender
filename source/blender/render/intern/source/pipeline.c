@@ -81,6 +81,8 @@
 #include "BKE_object.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #include "PIL_time.h"
 #include "IMB_colormanagement.h"
@@ -259,6 +261,11 @@ RenderLayer *RE_GetRenderLayer(RenderResult *rr, const char *name)
 	}
 }
 
+bool RE_HasSingleLayer(Render *re)
+{
+	return (re->r.scemode & R_SINGLE_LAYER);
+}
+
 RenderResult *RE_MultilayerConvert(void *exrhandle, const char *colorspace, bool predivide, int rectx, int recty)
 {
 	return render_result_new_from_exr(exrhandle, colorspace, predivide, rectx, recty);
@@ -266,15 +273,22 @@ RenderResult *RE_MultilayerConvert(void *exrhandle, const char *colorspace, bool
 
 RenderLayer *render_get_active_layer(Render *re, RenderResult *rr)
 {
-	RenderLayer *rl = BLI_findlink(&rr->layers, re->active_view_layer);
-	
-	if (rl)
-		return rl;
-	else 
-		return rr->layers.first;
+	ViewLayer *view_layer = BLI_findlink(&re->view_layers, re->active_view_layer);
+
+	if (view_layer) {
+		RenderLayer *rl = BLI_findstring(&rr->layers,
+		                                 view_layer->name,
+		                                 offsetof(RenderLayer, name));
+
+		if (rl) {
+			return rl;
+		}
+	}
+
+	return rr->layers.first;
 }
 
-static int render_scene_needs_vector(Render *re)
+static int UNUSED_FUNCTION(render_scene_needs_vector)(Render *re)
 {
 	ViewLayer *view_layer;
 	for (view_layer = re->view_layers.first; view_layer; view_layer = view_layer->next)
@@ -352,15 +366,6 @@ Scene *RE_GetScene(Render *re)
 {
 	if (re)
 		return re->scene;
-	return NULL;
-}
-
-EvaluationContext *RE_GetEvalCtx(Render *re)
-{
-	if (re) {
-		return re->eval_ctx;
-	}
-
 	return NULL;
 }
 
@@ -515,7 +520,6 @@ Render *RE_NewRender(const char *name)
 		BLI_strncpy(re->name, name, RE_MAXNAME);
 		BLI_rw_mutex_init(&re->resultmutex);
 		BLI_rw_mutex_init(&re->partsmutex);
-		re->eval_ctx = DEG_evaluation_context_new(DAG_EVAL_RENDER);
 	}
 	
 	RE_InitRenderCB(re);
@@ -592,7 +596,6 @@ void RE_FreeRender(Render *re)
 	/* main dbase can already be invalid now, some database-free code checks it */
 	re->main = NULL;
 	re->scene = NULL;
-	re->depsgraph = NULL;
 	
 	RE_Database_Free(re);	/* view render can still have full database */
 	free_sample_tables(re);
@@ -601,7 +604,6 @@ void RE_FreeRender(Render *re)
 	render_result_free(re->pushedresult);
 	
 	BLI_remlink(&RenderGlobal.renderlist, re);
-	MEM_freeN(re->eval_ctx);
 	MEM_freeN(re);
 }
 
@@ -862,12 +864,11 @@ void RE_InitState(Render *re, Render *source, RenderData *rd,
 		re->result->recty = re->recty;
 		render_result_view_new(re->result, "");
 	}
-	
-	if (re->r.scemode & R_VIEWPORT_PREVIEW)
-		re->eval_ctx->mode = DAG_EVAL_PREVIEW;
-	else
-		re->eval_ctx->mode = DAG_EVAL_RENDER;
-	
+
+	eEvaluationMode mode = (re->r.scemode & R_VIEWPORT_PREVIEW) ? DAG_EVAL_PREVIEW : DAG_EVAL_RENDER;
+	/* If we had a consistent EvaluationContext now would be the time to update it. */
+	(void)mode;
+
 	/* ensure renderdatabase can use part settings correct */
 	RE_parts_clamp(re);
 
@@ -1353,7 +1354,7 @@ static void *do_render_thread(void *thread_v)
 	return NULL;
 }
 
-static void main_render_result_end(Render *re)
+static void UNUSED_FUNCTION(main_render_result_end)(Render *re)
 {
 	if (re->result->do_exr_tile) {
 		BLI_rw_mutex_lock(&re->resultmutex, THREAD_LOCK_WRITE);
@@ -1559,81 +1560,10 @@ void RE_TileProcessor(Render *re)
 
 static void do_render_3d(Render *re)
 {
-	RenderView *rv;
-
 	re->current_scene_update(re->suh, re->scene);
 
-	/* try external */
-	if (RE_engine_render(re, 0))
-		return;
-
-	/* internal */
-	RE_parts_clamp(re);
-	
-	/* add motion blur and fields offset to frames */
-	const int cfra_backup = re->scene->r.cfra;
-	const float subframe_backup = re->scene->r.subframe;
-
-	BKE_scene_frame_set(
-	        re->scene, (double)re->scene->r.cfra + (double)re->scene->r.subframe +
-	        (double)re->mblur_offs + (double)re->field_offs);
-
-	/* init main render result */
-	main_render_result_new(re);
-	if (re->result == NULL) {
-		BKE_report(re->reports, RPT_ERROR, "Failed allocate render result, out of memory");
-		G.is_break = true;
-		return;
-	}
-
-#ifdef WITH_FREESTYLE
-	if (re->r.mode & R_EDGE_FRS) {
-		init_freestyle(re);
-	}
-#endif
-
-	/* we need a new database for each view */
-	for (rv = re->result->views.first; rv; rv = rv->next) {
-		RE_SetActiveRenderView(re, rv->name);
-
-		/* lock drawing in UI during data phase */
-		if (re->draw_lock)
-			re->draw_lock(re->dlh, 1);
-
-		/* make render verts/faces/halos/lamps */
-		if (render_scene_needs_vector(re))
-			RE_Database_FromScene_Vectors(re, re->main, re->scene, re->lay);
-		else {
-			RE_Database_FromScene(re, re->main, re->scene, re->lay, 1);
-			RE_Database_Preprocess(re);
-		}
-	
-		/* clear UI drawing locks */
-		if (re->draw_lock)
-			re->draw_lock(re->dlh, 0);
-	
-		threaded_tile_processor(re);
-	
-#ifdef WITH_FREESTYLE
-		/* Freestyle */
-		if (re->r.mode & R_EDGE_FRS)
-			if (!re->test_break(re->tbh))
-				add_freestyle(re, 1);
-#endif
-	
-		/* do left-over 3d post effects (flares) */
-		if (re->flag & R_HALO)
-			if (!re->test_break(re->tbh))
-				add_halo_flare(re);
-
-		/* free all render verts etc */
-		RE_Database_Free(re);
-	}
-
-	main_render_result_end(re);
-
-	re->scene->r.cfra = cfra_backup;
-	re->scene->r.subframe = subframe_backup;
+	/* All the rendering pipeline goes through "external" render engines. */
+	RE_engine_render(re, 0);
 }
 
 /* called by blur loop, accumulate RGBA key alpha */
@@ -1747,11 +1677,6 @@ static void do_render_blur_3d(Render *re)
 	
 	re->mblur_offs = 0.0f;
 	re->i.curblur = 0;   /* stats */
-	
-	/* make sure motion blur changes get reset to current frame */
-	if ((re->r.scemode & (R_NO_FRAME_UPDATE|R_BUTS_PREVIEW|R_VIEWPORT_PREVIEW))==0) {
-		BKE_scene_graph_update_for_newframe(re->eval_ctx, re->depsgraph, re->main, re->scene, NULL);
-	}
 	
 	/* weak... the display callback wants an active renderlayer pointer... */
 	re->result->renlay = render_get_active_layer(re, re->result);
@@ -1986,7 +1911,6 @@ static void render_scene(Render *re, Scene *sce, int cfra)
 
 	/* still unsure entity this... */
 	resc->main = re->main;
-	resc->depsgraph = re->depsgraph;
 	resc->scene = sce;
 	resc->lay = sce->lay;
 	resc->scene_color_manage = BKE_scene_check_color_management_enabled(sce);
@@ -2069,7 +1993,7 @@ bool RE_allow_render_generic_object(Object *ob)
 #ifdef DEPSGRAPH_WORKAROUND_HACK
 static void tag_dependend_objects_for_render(Scene *scene, int UNUSED(renderlay))
 {
-	FOREACH_OBJECT_RENDERABLE(scene, object)
+	FOREACH_OBJECT_RENDERABLE_BEGIN(scene, object)
 	{
 		if (object->type == OB_MESH) {
 			if (RE_allow_render_generic_object(object)) {
@@ -2131,7 +2055,7 @@ static void tag_dependend_objects_for_render(Scene *scene, int UNUSED(renderlay)
 			}
 		}
 	}
-	FOREACH_OBJECT_RENDERABLE_END
+	FOREACH_OBJECT_RENDERABLE_END;
 }
 #endif
 
@@ -2696,8 +2620,9 @@ static void do_render_composite_fields_blur_3d(Render *re)
 				R.i.starttime = re->i.starttime;
 				R.i.cfra = re->i.cfra;
 				
-				if (update_newframe)
-					BKE_scene_graph_update_for_newframe(re->eval_ctx, re->depsgraph, re->main, re->scene, NULL);
+				if (update_newframe) {
+					/* If we have consistent depsgraph now would be a time to update them. */
+				}
 				
 				if (re->r.scemode & R_FULL_SAMPLE)
 					do_merge_fullsample(re, ntree);
@@ -2807,9 +2732,10 @@ static void do_render_seq(Render *re)
 
 	tot_views = BKE_scene_multiview_num_views_get(&re->r);
 	ibuf_arr = MEM_mallocN(sizeof(ImBuf *) * tot_views, "Sequencer Views ImBufs");
+	EvaluationContext *eval_ctx = DEG_evaluation_context_new(DAG_EVAL_RENDER);
 
 	BKE_sequencer_new_render_data(
-	        re->eval_ctx, re->main, re->scene,
+	        eval_ctx, re->main, re->scene,
 	        re_x, re_y, 100,
 	        &context);
 
@@ -2830,6 +2756,8 @@ static void do_render_seq(Render *re)
 			ibuf_arr[view_id] = NULL;
 		}
 	}
+
+	DEG_evaluation_context_free(eval_ctx);
 
 	rr = re->result;
 
@@ -3399,7 +3327,7 @@ void RE_RenderFreestyleExternal(Render *re)
 		for (rv = re->result->views.first; rv; rv = rv->next) {
 			RE_SetActiveRenderView(re, rv->name);
 			RE_Database_FromScene(re, re->main, re->scene, re->lay, 1);
-			RE_Database_Preprocess(re);
+			RE_Database_Preprocess(NULL, re);
 			add_freestyle(re, 1);
 			RE_Database_Free(re);
 		}
@@ -3772,8 +3700,7 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 			                            NULL, camera_override, lay_override, 1, 0);
 
 			if (nfra != scene->r.cfra) {
-				/* Skip this frame, but update for physics and particles system. */
-				BKE_scene_graph_update_for_newframe(re->eval_ctx, re->depsgraph, bmain, scene, NULL);
+				/* Skip this frame, but could update for physics and particles system. */
 				continue;
 			}
 			else
@@ -3922,7 +3849,6 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 void RE_PreviewRender(Render *re, Main *bmain, Scene *sce, ViewRender *view_render)
 {
 	Object *camera;
-	ViewLayer *view_layer = BKE_view_layer_from_scene_get(sce);
 	int winx, winy;
 
 	winx = (sce->r.size * sce->r.xsch) / 100;
@@ -3936,8 +3862,6 @@ void RE_PreviewRender(Render *re, Main *bmain, Scene *sce, ViewRender *view_rend
 	re->scene = sce;
 	re->scene_color_manage = BKE_scene_check_color_management_enabled(sce);
 	re->lay = sce->lay;
-	re->depsgraph = BKE_scene_get_depsgraph(sce, view_layer, false);
-	re->eval_ctx->view_layer = view_layer;
 
 	camera = RE_GetCamera(re);
 	RE_SetCamera(re, camera);

@@ -1346,13 +1346,13 @@ static void write_particlesettings(WriteData *wd, ParticleSettings *part)
 			if (dw->ob != NULL) {
 				dw->index = 0;
 				if (part->dup_group) { /* can be NULL if lining fails or set to None */
-					FOREACH_GROUP_OBJECT(part->dup_group, object)
+					FOREACH_GROUP_OBJECT_BEGIN(part->dup_group, object)
 					{
 						if (object != dw->ob) {
 							dw->index++;
 						}
 					}
-					FOREACH_GROUP_OBJECT_END
+					FOREACH_GROUP_OBJECT_END;
 				}
 			}
 			writestruct(wd, DATA, ParticleDupliWeight, 1, dw);
@@ -3796,6 +3796,7 @@ static void write_workspace(WriteData *wd, WorkSpace *workspace)
 	writelist(wd, DATA, WorkSpaceLayout, layouts);
 	writelist(wd, DATA, WorkSpaceDataRelation, &workspace->hook_layout_relations);
 	writelist(wd, DATA, WorkSpaceDataRelation, &workspace->scene_viewlayer_relations);
+	writelist(wd, DATA, wmOwnerID, &workspace->owner_ids);
 	writelist(wd, DATA, TransformOrientation, transform_orientations);
 }
 

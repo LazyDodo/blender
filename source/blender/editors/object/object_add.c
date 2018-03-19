@@ -1157,8 +1157,8 @@ static int object_speaker_add_exec(bContext *C, wmOperator *op)
 	{
 		/* create new data for NLA hierarchy */
 		AnimData *adt = BKE_animdata_add_id(&ob->id);
-		NlaTrack *nlt = add_nlatrack(adt, NULL);
-		NlaStrip *strip = add_nla_soundstrip(scene, ob->data);
+		NlaTrack *nlt = BKE_nlatrack_add(adt, NULL);
+		NlaStrip *strip = BKE_nla_add_soundstrip(scene, ob->data);
 		strip->start = CFRA;
 		strip->end += strip->start;
 
@@ -1719,7 +1719,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	/* don't forget multiple users! */
 
 	{
-		FOREACH_SCENE_OBJECT(scene, ob)
+		FOREACH_SCENE_OBJECT_BEGIN(scene, ob)
 		{
 			ob->flag &= ~OB_DONE;
 
@@ -1739,7 +1739,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 				}
 			}
 		}
-		FOREACH_SCENE_OBJECT_END
+		FOREACH_SCENE_OBJECT_END;
 	}
 
 	ListBase selected_editable_bases = CTX_data_collection_get(C, "selected_editable_bases");
@@ -2009,7 +2009,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 
 	if (!keep_original) {
 		if (mballConverted) {
-			FOREACH_SCENE_OBJECT(scene, ob_mball)
+			FOREACH_SCENE_OBJECT_BEGIN(scene, ob_mball)
 			{
 				if (ob_mball->type == OB_MBALL) {
 					if (ob_mball->flag & OB_DONE) {
@@ -2022,7 +2022,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 					}
 				}
 			}
-			FOREACH_SCENE_OBJECT_END
+			FOREACH_SCENE_OBJECT_END;
 		}
 
 		/* delete object should renew depsgraph */

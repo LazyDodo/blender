@@ -137,7 +137,6 @@ void ED_keymap_armature(struct wmKeyConfig *keyconf);
 void ED_armature_from_edit(struct bArmature *arm);
 void ED_armature_to_edit(struct bArmature *arm);
 void ED_armature_edit_free(struct bArmature *arm);
-void ED_armature_ebone_listbase_temp_clear(struct ListBase *lb);
 
 void ED_armature_deselect_all(struct Object *obedit);
 void ED_armature_deselect_all_visible(struct Object *obedit);
@@ -186,7 +185,7 @@ void create_vgroups_from_armature(
 /* if bone is already in list, pass it as param to ignore it */
 void unique_editbone_name(struct ListBase *ebones, char *name, EditBone *bone);
 void ED_armature_bone_rename(struct bArmature *arm, const char *oldnamep, const char *newnamep);
-void ED_armature_bones_flip_names(struct bArmature *arm, struct ListBase *bones_names);
+void ED_armature_bones_flip_names(struct bArmature *arm, struct ListBase *bones_names, const bool do_strip_numbers);
 
 void undo_push_armature(struct bContext *C, const char *name);
 
@@ -196,6 +195,11 @@ void ED_armature_ebone_selectflag_set(EditBone *ebone, int flag);
 void ED_armature_ebone_select_set(EditBone *ebone, bool select);
 void ED_armature_ebone_selectflag_enable(EditBone *ebone, int flag);
 void ED_armature_ebone_selectflag_disable(EditBone *ebone, int flag);
+
+/* armature_utils.c */
+void ED_armature_ebone_listbase_temp_clear(struct ListBase *lb);
+void ED_armature_ebone_listbase_free(struct ListBase *lb);
+void ED_armature_ebone_listbase_copy(struct ListBase *lb_dst, struct ListBase *lb_src);
 
 /* poseobject.c */
 void ED_armature_exit_posemode(struct bContext *C, struct Base *base);

@@ -78,6 +78,9 @@ static void eevee_engine_init(void *ved)
 	if (sldata->common_ubo == NULL) {
 		sldata->common_ubo = DRW_uniformbuffer_create(sizeof(sldata->common_data), &sldata->common_data);
 	}
+	if (sldata->clip_ubo == NULL) {
+		sldata->clip_ubo = DRW_uniformbuffer_create(sizeof(sldata->clip_data), &sldata->clip_data);
+	}
 
 	/* EEVEE_effects_init needs to go first for TAA */
 	EEVEE_effects_init(sldata, vedata, camera);
@@ -87,24 +90,20 @@ static void eevee_engine_init(void *ved)
 
 	if ((stl->effects->taa_current_sample > 1) && !DRW_state_is_image_render()) {
 		/* XXX otherwise it would break the other engines. */
-		DRW_viewport_matrix_override_unset(DRW_MAT_PERS);
-		DRW_viewport_matrix_override_unset(DRW_MAT_PERSINV);
-		DRW_viewport_matrix_override_unset(DRW_MAT_WIN);
-		DRW_viewport_matrix_override_unset(DRW_MAT_WININV);
+		DRW_viewport_matrix_override_unset_all();
 	}
 }
 
 static void eevee_cache_init(void *vedata)
 {
-	EEVEE_PassList *psl = ((EEVEE_Data *)vedata)->psl;
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 
 	EEVEE_bloom_cache_init(sldata, vedata);
 	EEVEE_depth_of_field_cache_init(sldata, vedata);
 	EEVEE_effects_cache_init(sldata, vedata);
 	EEVEE_lightprobes_cache_init(sldata, vedata);
-	EEVEE_lights_cache_init(sldata, psl);
-	EEVEE_materials_cache_init(vedata);
+	EEVEE_lights_cache_init(sldata, vedata);
+	EEVEE_materials_cache_init(sldata, vedata);
 	EEVEE_motion_blur_cache_init(sldata, vedata);
 	EEVEE_occlusion_cache_init(sldata, vedata);
 	EEVEE_screen_raytrace_cache_init(sldata, vedata);
@@ -180,9 +179,10 @@ static void eevee_draw_background(void *vedata)
 	/* Sort transparents before the loop. */
 	DRW_pass_sort_shgroup_z(psl->transparent_pass);
 
-	/* Number of iteration: needed for all temporal effect (SSR, TAA)
+	/* Number of iteration: needed for all temporal effect (SSR, volumetrics)
 	 * when using opengl render. */
-	int loop_ct = DRW_state_is_image_render() ? 4 : 1;
+	int loop_ct = (DRW_state_is_image_render() &&
+	               (stl->effects->enabled_effects & (EFFECT_VOLUMETRIC | EFFECT_SSR)) != 0) ? 4 : 1;
 
 	while (loop_ct--) {
 		unsigned int primes[3] = {2, 3, 7};
@@ -197,10 +197,26 @@ static void eevee_draw_background(void *vedata)
 			EEVEE_volumes_set_jitter(sldata, stl->effects->taa_current_sample - 1);
 			EEVEE_materials_init(sldata, stl, fbl);
 		}
+		/* Copy previous persmat to UBO data */
+		copy_m4_m4(sldata->common_data.prev_persmat, stl->effects->prev_persmat);
+
+		if (((stl->effects->enabled_effects & EFFECT_TAA) != 0) &&
+		    (stl->effects->taa_current_sample > 1) &&
+		    !DRW_state_is_image_render())
+		{
+			DRW_viewport_matrix_override_set(stl->effects->overide_persmat, DRW_MAT_PERS);
+			DRW_viewport_matrix_override_set(stl->effects->overide_persinv, DRW_MAT_PERSINV);
+			DRW_viewport_matrix_override_set(stl->effects->overide_winmat, DRW_MAT_WIN);
+			DRW_viewport_matrix_override_set(stl->effects->overide_wininv, DRW_MAT_WININV);
+		}
 
 		/* Refresh Probes */
 		DRW_stats_group_start("Probes Refresh");
 		EEVEE_lightprobes_refresh(sldata, vedata);
+		/* Probes refresh can have reset the current sample. */
+		if (stl->effects->taa_current_sample == 1) {
+			DRW_viewport_matrix_override_unset_all();
+		}
 		EEVEE_lightprobes_refresh_planar(sldata, vedata);
 		DRW_stats_group_end();
 
@@ -223,16 +239,6 @@ static void eevee_draw_background(void *vedata)
 			/* We need to clear the alpha chanel in this case. */
 			float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 			DRW_framebuffer_clear(true, true, true, clear_col, 1.0f);
-		}
-
-		if (((stl->effects->enabled_effects & EFFECT_TAA) != 0) &&
-		    (stl->effects->taa_current_sample > 1) &&
-		    !DRW_state_is_image_render())
-		{
-			DRW_viewport_matrix_override_set(stl->effects->overide_persmat, DRW_MAT_PERS);
-			DRW_viewport_matrix_override_set(stl->effects->overide_persinv, DRW_MAT_PERSINV);
-			DRW_viewport_matrix_override_set(stl->effects->overide_winmat, DRW_MAT_WIN);
-			DRW_viewport_matrix_override_set(stl->effects->overide_wininv, DRW_MAT_WININV);
 		}
 
 		/* Depth prepass */
@@ -285,10 +291,7 @@ static void eevee_draw_background(void *vedata)
 		DRW_stats_group_end();
 
 		if ((stl->effects->taa_current_sample > 1) && !DRW_state_is_image_render()) {
-			DRW_viewport_matrix_override_unset(DRW_MAT_PERS);
-			DRW_viewport_matrix_override_unset(DRW_MAT_PERSINV);
-			DRW_viewport_matrix_override_unset(DRW_MAT_WIN);
-			DRW_viewport_matrix_override_unset(DRW_MAT_WININV);
+			DRW_viewport_matrix_override_unset_all();
 		}
 	}
 
@@ -377,7 +380,7 @@ static void eevee_id_update(void *vedata, ID *id)
 	}
 }
 
-static void eevee_render_to_image(void *vedata, RenderEngine *engine, struct RenderResult *render_result, struct RenderLayer *render_layer)
+static void eevee_render_to_image(void *vedata, RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	EEVEE_render_init(vedata, engine, draw_ctx->depsgraph);
@@ -385,7 +388,7 @@ static void eevee_render_to_image(void *vedata, RenderEngine *engine, struct Ren
 	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, EEVEE_render_cache);
 
 	/* Actually do the rendering. */
-	EEVEE_render_draw(vedata, engine, render_result, render_layer);
+	EEVEE_render_draw(vedata, engine, render_layer, rect);
 }
 
 static void eevee_engine_free(void)
@@ -502,7 +505,7 @@ DrawEngineType draw_engine_eevee_type = {
 
 RenderEngineType DRW_engine_viewport_eevee_type = {
 	NULL, NULL,
-	EEVEE_ENGINE, N_("Eevee"), RE_INTERNAL | RE_USE_SHADING_NODES,
+	EEVEE_ENGINE, N_("Eevee"), RE_INTERNAL | RE_USE_SHADING_NODES | RE_USE_PREVIEW,
 	NULL, &DRW_render_to_image, NULL, NULL, NULL, NULL,
 	&EEVEE_render_update_passes,
 	&eevee_layer_collection_settings_create,

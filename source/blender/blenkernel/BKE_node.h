@@ -575,7 +575,6 @@ void            BKE_node_preview_set_pixel(struct bNodePreview *preview, const f
 
 /** \} */
 
-
 /* -------------------------------------------------------------------- */
 /** \name Node Type Access
  * \{ */
@@ -605,6 +604,7 @@ void            node_type_gpu(struct bNodeType *ntype, NodeGPUExecFunction gpufu
 void            node_type_internal_links(struct bNodeType *ntype, void (*update_internal_links)(struct bNodeTree *, struct bNode *));
 void            node_type_compatibility(struct bNodeType *ntype, short compatibility);
 
+/** \} */
 
 /* -------------------------------------------------------------------- */
 /** \name Node Generic Functions
@@ -701,7 +701,7 @@ void BKE_nodetree_remove_layer_n(struct bNodeTree *ntree, struct Scene *scene, c
 
 /* -------------------------------------------------------------------- */
 /** \name Shader Nodes
- */
+ * \{ */
 struct ShadeInput;
 struct ShadeResult;
 
@@ -802,6 +802,7 @@ struct ShadeResult;
 #define SH_NODE_BEVEL                   197
 #define SH_NODE_DISPLACEMENT            198
 #define SH_NODE_VECTOR_DISPLACEMENT     199
+#define SH_NODE_VOLUME_PRINCIPLED       200
 
 /* custom defines options for Material node */
 #define SH_NODE_MAT_DIFF   1
@@ -826,7 +827,7 @@ void            ntreeGPUMaterialDomain(struct bNodeTree *ntree, bool *has_surfac
 
 /* -------------------------------------------------------------------- */
 /** \name Composite Nodes
- */
+ * \{ */
 
 /* output socket defines */
 #define RRES_OUT_IMAGE					0
@@ -1010,7 +1011,7 @@ void ntreeCompositColorBalanceSyncFromCDL(bNodeTree *ntree, bNode *node);
 
 /* -------------------------------------------------------------------- */
 /** \name Texture Nodes
- */
+ * \{ */
 
 struct TexResult;
 

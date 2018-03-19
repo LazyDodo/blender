@@ -65,6 +65,7 @@ static struct {
 extern char datatoc_bsdf_common_lib_glsl[];
 extern char datatoc_bsdf_direct_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
+extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_octahedron_lib_glsl[];
 extern char datatoc_irradiance_lib_glsl[];
 extern char datatoc_lamps_lib_glsl[];
@@ -80,11 +81,13 @@ extern char datatoc_gpu_shader_fullscreen_vert_glsl[];
 static void eevee_create_shader_volumes(void)
 {
 	e_data.volumetric_common_lib = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
 	        datatoc_volumetric_lib_glsl);
 
 	e_data.volumetric_common_lamps_lib = BLI_string_joinN(
+	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
 	        datatoc_bsdf_direct_lib_glsl,
@@ -360,7 +363,7 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	if ((effects->enabled_effects & EFFECT_VOLUMETRIC) != 0) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		Scene *scene = draw_ctx->scene;
-		DRWShadingGroup *grp;
+		DRWShadingGroup *grp = NULL;
 
 		/* Quick breakdown of the Volumetric rendering:
 		 *
@@ -404,7 +407,8 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 				DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
 			}
 		}
-		else {
+
+		if (grp == NULL) {
 			/* If no world or volume material is present just clear the buffer with this drawcall */
 			grp = DRW_shgroup_empty_tri_batch_create(e_data.volumetric_clear_sh,
 				                                     psl->volumetric_world_ps,
@@ -468,17 +472,20 @@ void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 
 	DRWShadingGroup *grp = DRW_shgroup_material_empty_tri_batch_create(mat, vedata->psl->volumetric_objects_ps, sldata->common_data.vol_tex_size[2]);
 
+	/* If shader failed to compile or is currently compiling. */
+	if (grp == NULL) {
+		return;
+	}
+
 	/* Making sure it's updated. */
 	invert_m4_m4(ob->imat, ob->obmat);
 
 	BKE_mesh_texspace_get_reference((struct Mesh *)ob->data, NULL, &texcoloc, NULL, &texcosize);
 
-	if (grp) {
-		DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
-		DRW_shgroup_uniform_mat4(grp, "volumeObjectMatrix", (float *)ob->imat);
-		DRW_shgroup_uniform_vec3(grp, "volumeOrcoLoc", texcoloc, 1);
-		DRW_shgroup_uniform_vec3(grp, "volumeOrcoSize", texcosize, 1);
-	}
+	DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
+	DRW_shgroup_uniform_mat4(grp, "volumeObjectMatrix", (float *)ob->imat);
+	DRW_shgroup_uniform_vec3(grp, "volumeOrcoLoc", texcoloc, 1);
+	DRW_shgroup_uniform_vec3(grp, "volumeOrcoSize", texcosize, 1);
 
 	/* Smoke Simulation */
 	if (((ob->base_flag & BASE_FROMDUPLI) == 0) &&
@@ -506,6 +513,9 @@ void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 		if (sds->tex_flame != NULL) {
 			DRW_shgroup_uniform_buffer(grp, "sampflame", &sds->tex_flame);
 		}
+
+		/* Output is such that 0..1 maps to 0..1000K */
+		DRW_shgroup_uniform_vec2(grp, "unftemperature", &sds->flame_ignition, 1);
 	}
 }
 

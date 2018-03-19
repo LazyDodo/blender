@@ -180,6 +180,7 @@ typedef struct wmWindow {
 	struct wmWindow *next, *prev;
 
 	void *ghostwin;             /* don't want to include ghost.h stuff */
+	void *gwnctx;               /* don't want to include gawin stuff */
 
 	struct Scene *scene;     /* The scene displayed in this window. */
 	struct Scene *new_scene; /* temporary when switching */
@@ -315,13 +316,16 @@ typedef struct wmKeyMap {
 	char idname[64];  /* global editor keymaps, or for more per space/region */
 	short spaceid;    /* same IDs as in DNA_space_types.h */
 	short regionid;   /* see above */
+	char owner_id[64];  /* optional, see: #wmOwnerID */
 
 	short flag;       /* general flags */
 	short kmi_id;     /* last kmi id */
 
 	/* runtime */
-	int (*poll)(struct bContext *);  /* verify if enabled in the current context */
-	const void *modal_items;         /* for modal, EnumPropertyItem for now */
+	/** Verify if enabled in the current context, use #WM_keymap_poll instead of direct calls. */
+	int (*poll)(struct bContext *);
+	/** For modal, #EnumPropertyItem for now. */
+	const void *modal_items;
 } wmKeyMap;
 
 /* wmKeyMap.flag */

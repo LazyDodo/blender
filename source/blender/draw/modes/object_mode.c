@@ -214,10 +214,19 @@ typedef struct OBJECT_PrivateData {
 	DRWShadingGroup *wire_select;
 	DRWShadingGroup *wire_select_group;
 	DRWShadingGroup *wire_transform;
+
+	/* Points */
+	DRWShadingGroup *points;
+	DRWShadingGroup *points_active;
+	DRWShadingGroup *points_active_group;
+	DRWShadingGroup *points_select;
+	DRWShadingGroup *points_select_group;
+	DRWShadingGroup *points_transform;
 } OBJECT_PrivateData; /* Transient data */
 
 static struct {
 	/* Instance Data format */
+	struct Gwn_VertFormat *particle_format;
 	struct Gwn_VertFormat *empty_image_format;
 	struct Gwn_VertFormat *empty_image_wire_format;
 
@@ -537,6 +546,7 @@ static void OBJECT_engine_init(void *vedata)
 
 static void OBJECT_engine_free(void)
 {
+	MEM_SAFE_FREE(e_data.particle_format);
 	MEM_SAFE_FREE(e_data.empty_image_format);
 	MEM_SAFE_FREE(e_data.empty_image_wire_format);
 	DRW_SHADER_FREE_SAFE(e_data.outline_resolve_sh);
@@ -562,6 +572,15 @@ static DRWShadingGroup *shgroup_outline(DRWPass *pass, const float col[4], GPUSh
 
 /* currently same as 'shgroup_outline', new function to avoid confustion */
 static DRWShadingGroup *shgroup_wire(DRWPass *pass, const float col[4], GPUShader *sh)
+{
+	DRWShadingGroup *grp = DRW_shgroup_create(sh, pass);
+	DRW_shgroup_uniform_vec4(grp, "color", col, 1);
+
+	return grp;
+}
+
+/* currently same as 'shgroup_outline', new function to avoid confustion */
+static DRWShadingGroup *shgroup_points(DRWPass *pass, const float col[4], GPUShader *sh)
 {
 	DRWShadingGroup *grp = DRW_shgroup_create(sh, pass);
 	DRW_shgroup_uniform_vec4(grp, "color", col, 1);
@@ -598,6 +617,23 @@ static DRWShadingGroup *shgroup_theme_id_to_wire_or(
 			return stl->g_data->wire_select_group;
 		case TH_TRANSFORM:
 			return stl->g_data->wire_transform;
+		default:
+			return fallback;
+	}
+}
+
+static DRWShadingGroup *shgroup_theme_id_to_point_or(
+        OBJECT_StorageList *stl, int theme_id, DRWShadingGroup *fallback)
+{
+	switch (theme_id) {
+		case TH_ACTIVE:
+			return stl->g_data->points_active;
+		case TH_SELECT:
+			return stl->g_data->points_select;
+		case TH_GROUP_ACTIVE:
+			return stl->g_data->points_select_group;
+		case TH_TRANSFORM:
+			return stl->g_data->points_transform;
 		default:
 			return fallback;
 	}
@@ -977,6 +1013,25 @@ static void OBJECT_cache_init(void *vedata)
 		/* Active */
 		stl->g_data->wire_active = shgroup_wire(psl->non_meshes, ts.colorActive, sh);
 		stl->g_data->wire_active_group = shgroup_wire(psl->non_meshes, ts.colorGroupActive, sh);
+	}
+
+
+	{
+		GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_POINT_FIXED_SIZE_UNIFORM_COLOR);
+
+		/* Unselected */
+		stl->g_data->points = shgroup_points(psl->non_meshes, ts.colorWire, sh);
+
+		/* Select */
+		stl->g_data->points_select = shgroup_points(psl->non_meshes, ts.colorSelect, sh);
+		stl->g_data->points_select_group = shgroup_points(psl->non_meshes, ts.colorGroupActive, sh);
+
+		/* Transform */
+		stl->g_data->points_transform = shgroup_points(psl->non_meshes, ts.colorTransform, sh);
+
+		/* Active */
+		stl->g_data->points_active = shgroup_points(psl->non_meshes, ts.colorActive, sh);
+		stl->g_data->points_active_group = shgroup_points(psl->non_meshes, ts.colorGroupActive, sh);
 	}
 
 	{
@@ -1492,6 +1547,7 @@ typedef struct OBJECT_LightProbeEngineData {
 	float increment_y[3];
 	float increment_z[3];
 	float corner[3];
+	unsigned int cell_count;
 } OBJECT_LightProbeEngineData;
 
 static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl, Object *ob, ViewLayer *view_layer)
@@ -1545,9 +1601,8 @@ static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl
 			mul_m4_v3(ob->obmat, prb_data->increment_z);
 			sub_v3_v3(prb_data->increment_z, prb_data->corner);
 
-			DRWShadingGroup *grp = DRW_shgroup_instance_create(e_data.lightprobe_grid_sh, psl->lightprobes,
-			                                                   DRW_cache_sphere_get(), NULL);
-			DRW_shgroup_set_instance_count(grp, prb->grid_resolution_x * prb->grid_resolution_y * prb->grid_resolution_z);
+			prb_data->cell_count = prb->grid_resolution_x * prb->grid_resolution_y * prb->grid_resolution_z;
+			DRWShadingGroup *grp = DRW_shgroup_create(e_data.lightprobe_grid_sh, psl->lightprobes);
 			DRW_shgroup_uniform_vec4(grp, "color", color, 1);
 			DRW_shgroup_uniform_vec3(grp, "corner", prb_data->corner, 1);
 			DRW_shgroup_uniform_vec3(grp, "increment_x", prb_data->increment_x, 1);
@@ -1555,6 +1610,7 @@ static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl
 			DRW_shgroup_uniform_vec3(grp, "increment_z", prb_data->increment_z, 1);
 			DRW_shgroup_uniform_ivec3(grp, "grid_resolution", &prb->grid_resolution_x, 1);
 			DRW_shgroup_uniform_float(grp, "sphere_size", &prb->data_draw_size, 1);
+			DRW_shgroup_call_instances_add(grp, DRW_cache_sphere_get(), NULL, &prb_data->cell_count);
 		}
 		else if (prb->type == LIGHTPROBE_TYPE_CUBE) {
 			prb_data->draw_size = prb->data_draw_size * 0.1f;
@@ -1752,6 +1808,9 @@ static void OBJECT_cache_populate_particles(Object *ob,
 				static float def_prim_col[3] = {0.5f, 0.5f, 0.5f};
 				static float def_sec_col[3] = {1.0f, 1.0f, 1.0f};
 
+				/* Dummy particle format for instancing to work. */
+				DRW_shgroup_instance_format(e_data.particle_format, {{"dummy", DRW_ATTRIB_FLOAT, 1}});
+
 				Material *ma = give_current_material(ob, part->omat);
 
 				switch (draw_as) {
@@ -1766,21 +1825,24 @@ static void OBJECT_cache_populate_particles(Object *ob,
 						break;
 					case PART_DRAW_CROSS:
 						shgrp = DRW_shgroup_instance_create(
-						        e_data.part_prim_sh, psl->particle, DRW_cache_particles_get_prim(PART_DRAW_CROSS), NULL);
+						        e_data.part_prim_sh, psl->particle, DRW_cache_particles_get_prim(PART_DRAW_CROSS),
+						        e_data.particle_format);
 						DRW_shgroup_uniform_texture(shgrp, "ramp", globals_ramp);
 						DRW_shgroup_uniform_vec3(shgrp, "color", ma ? &ma->r : def_prim_col, 1);
 						DRW_shgroup_uniform_int(shgrp, "screen_space", &screen_space[0], 1);
 						break;
 					case PART_DRAW_CIRC:
 						shgrp = DRW_shgroup_instance_create(
-						        e_data.part_prim_sh, psl->particle, DRW_cache_particles_get_prim(PART_DRAW_CIRC), NULL);
+						        e_data.part_prim_sh, psl->particle, DRW_cache_particles_get_prim(PART_DRAW_CIRC),
+						        e_data.particle_format);
 						DRW_shgroup_uniform_texture(shgrp, "ramp", globals_ramp);
 						DRW_shgroup_uniform_vec3(shgrp, "color", ma ? &ma->r : def_prim_col, 1);
 						DRW_shgroup_uniform_int(shgrp, "screen_space", &screen_space[1], 1);
 						break;
 					case PART_DRAW_AXIS:
 						shgrp = DRW_shgroup_instance_create(
-						        e_data.part_axis_sh, psl->particle, DRW_cache_particles_get_prim(PART_DRAW_AXIS), NULL);
+						        e_data.part_axis_sh, psl->particle, DRW_cache_particles_get_prim(PART_DRAW_AXIS),
+						        e_data.particle_format);
 						DRW_shgroup_uniform_int(shgrp, "screen_space", &screen_space[0], 1);
 						break;
 					default:
@@ -1828,7 +1890,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 				theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
 				DRWShadingGroup *shgroup = shgroup_theme_id_to_outline_or(stl, theme_id, NULL);
 				if (shgroup != NULL) {
-					DRW_shgroup_call_add(shgroup, geom, ob->obmat);
+					DRW_shgroup_call_object_add(shgroup, geom, ob);
 				}
 			}
 		}
@@ -1837,17 +1899,30 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 	switch (ob->type) {
 		case OB_MESH:
 		{
-			Mesh *me = ob->data;
-			if (me->totpoly == 0) {
-				if (ob != draw_ctx->object_edit) {
-					struct Gwn_Batch *geom = DRW_cache_mesh_edges_get(ob);
-					if (geom) {
-						if (theme_id == TH_UNDEFINED) {
-							theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
-						}
+			if (ob != draw_ctx->object_edit) {
+				Mesh *me = ob->data;
+				if (me->totpoly == 0) {
+					if (me->totedge == 0) {
+						struct Gwn_Batch *geom = DRW_cache_mesh_verts_get(ob);
+						if (geom) {
+							if (theme_id == TH_UNDEFINED) {
+								theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
+							}
 
-						DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(stl, theme_id, stl->g_data->wire);
-						DRW_shgroup_call_add(shgroup, geom, ob->obmat);
+							DRWShadingGroup *shgroup = shgroup_theme_id_to_point_or(stl, theme_id, stl->g_data->points);
+							DRW_shgroup_call_object_add(shgroup, geom, ob);
+						}
+					}
+					else {
+						struct Gwn_Batch *geom = DRW_cache_mesh_edges_get(ob);
+						if (geom) {
+							if (theme_id == TH_UNDEFINED) {
+								theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
+							}
+
+							DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(stl, theme_id, stl->g_data->wire);
+							DRW_shgroup_call_object_add(shgroup, geom, ob);
+						}
 					}
 				}
 			}
@@ -1864,7 +1939,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 				}
 
 				DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(stl, theme_id, stl->g_data->wire);
-				DRW_shgroup_call_add(shgroup, geom, ob->obmat);
+				DRW_shgroup_call_object_add(shgroup, geom, ob);
 			}
 			break;
 		}
@@ -1877,7 +1952,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 					theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
 				}
 				DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(stl, theme_id, stl->g_data->wire);
-				DRW_shgroup_call_add(shgroup, geom, ob->obmat);
+				DRW_shgroup_call_object_add(shgroup, geom, ob);
 			}
 			break;
 		}

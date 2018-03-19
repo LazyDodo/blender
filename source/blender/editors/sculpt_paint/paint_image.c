@@ -760,7 +760,7 @@ static PaintOperation *texture_paint_init(bContext *C, wmOperator *op, const flo
 	PaintOperation *pop = MEM_callocN(sizeof(PaintOperation), "PaintOperation"); /* caller frees */
 	Brush *brush = BKE_paint_brush(&settings->imapaint.paint);
 	int mode = RNA_enum_get(op->ptr, "mode");
-	view3d_set_viewcontext(C, &pop->vc);
+	ED_view3d_viewcontext_init(C, &pop->vc);
 
 	copy_v2_v2(pop->prevmouse, mouse);
 	copy_v2_v2(pop->startmouse, mouse);
@@ -1376,6 +1376,7 @@ static int texture_paint_toggle_poll(bContext *C)
 
 static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 {
+	wmWindowManager *wm = CTX_wm_manager(C);
 	WorkSpace *workspace = CTX_wm_workspace(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
@@ -1449,6 +1450,8 @@ static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 
 		toggle_paint_cursor(C, 1);
 	}
+
+	ED_workspace_object_mode_sync_from_object(wm, workspace, ob);
 
 	GPU_drawobject_free(ob->derivedFinal);
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);

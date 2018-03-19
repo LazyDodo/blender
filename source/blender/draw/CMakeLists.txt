@@ -64,7 +64,12 @@ set(SRC
 	intern/draw_common.c
 	intern/draw_instance_data.c
 	intern/draw_manager.c
+	intern/draw_manager_data.c
+	intern/draw_manager_exec.c
+	intern/draw_manager_framebuffer.c
+	intern/draw_manager_shader.c
 	intern/draw_manager_text.c
+	intern/draw_manager_texture.c
 	intern/draw_manager_profiling.c
 	intern/draw_view.c
 	modes/edit_armature_mode.c
@@ -108,6 +113,7 @@ set(SRC
 	intern/draw_cache_impl.h
 	intern/draw_common.h
 	intern/draw_instance_data.h
+	intern/draw_manager.h
 	intern/draw_manager_text.h
 	intern/draw_manager_profiling.h
 	intern/draw_view.h
@@ -126,6 +132,9 @@ if(WITH_CLAY_ENGINE)
 endif()
 
 data_to_c_simple(engines/clay/shaders/clay_frag.glsl SRC)
+data_to_c_simple(engines/clay/shaders/clay_fxaa.glsl SRC)
+data_to_c_simple(engines/clay/shaders/clay_copy.glsl SRC)
+data_to_c_simple(engines/clay/shaders/clay_prepass_frag.glsl SRC)
 data_to_c_simple(engines/clay/shaders/clay_vert.glsl SRC)
 data_to_c_simple(engines/clay/shaders/clay_particle_vert.glsl SRC)
 data_to_c_simple(engines/clay/shaders/clay_particle_strand_frag.glsl SRC)
@@ -197,6 +206,7 @@ data_to_c_simple(engines/eevee/shaders/volumetric_scatter_frag.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/volumetric_integration_frag.glsl SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
+data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fxaa_lib.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_vert.glsl SRC)

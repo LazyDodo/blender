@@ -158,7 +158,7 @@ void BIF_makeListTemplates(const bContext *C)
 	TEMPLATES_HASH = BLI_ghash_int_new("makeListTemplates gh");
 	TEMPLATES_CURRENT = 0;
 
-	FOREACH_OBJECT(view_layer, ob)
+	FOREACH_OBJECT_BEGIN(view_layer, ob)
 	{
 		if (ob != obedit && ob->type == OB_ARMATURE) {
 			index++;
@@ -169,7 +169,7 @@ void BIF_makeListTemplates(const bContext *C)
 			}
 		}
 	}
-	FOREACH_OBJECT_END
+	FOREACH_OBJECT_END;
 }
 
 #if 0  /* UNUSED */
@@ -1932,7 +1932,7 @@ static bool sk_selectStroke(bContext *C, SK_Sketch *sketch, const int mval[2], c
 	short hits;
 
 	CTX_data_eval_ctx(C, &eval_ctx);
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	BLI_rcti_init_pt_radius(&rect, mval, 5);
 

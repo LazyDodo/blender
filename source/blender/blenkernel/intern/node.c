@@ -75,6 +75,8 @@
 #include "NOD_shader.h"
 #include "NOD_texture.h"
 
+#include "DEG_depsgraph.h"
+
 #define NODE_DEFAULT_MAX_WIDTH 700
 
 /* Fallback types for undefined tree, nodes, sockets */
@@ -3616,6 +3618,7 @@ static void registerShaderNodes(void)
 	register_node_type_sh_holdout();
 	register_node_type_sh_volume_absorption();
 	register_node_type_sh_volume_scatter();
+	register_node_type_sh_volume_principled();
 	register_node_type_sh_subsurface_scattering();
 	register_node_type_sh_mix_shader();
 	register_node_type_sh_add_shader();
@@ -3870,8 +3873,6 @@ void BKE_nodetree_shading_params_eval(const struct EvaluationContext *UNUSED(eva
                                       bNodeTree *ntree_dst,
                                       const bNodeTree *ntree_src)
 {
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
-		printf("%s on %s (%p)\n", __func__, ntree_src->id.name, ntree_dst);
-	}
+	DEG_debug_print_eval(__func__, ntree_src->id.name, ntree_dst);
 	BKE_nodetree_copy_default_values(ntree_dst, ntree_src);
 }

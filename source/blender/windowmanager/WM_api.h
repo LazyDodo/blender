@@ -121,6 +121,11 @@ struct bScreen *WM_window_get_active_screen(const struct wmWindow *win) ATTR_NON
 void            WM_window_set_active_screen(struct wmWindow *win, struct WorkSpace *workspace, struct bScreen *screen) ATTR_NONNULL(1);
 bool WM_window_is_temp_screen(const struct wmWindow *win) ATTR_WARN_UNUSED_RESULT;
 
+void *WM_opengl_context_create(void);
+void WM_opengl_context_dispose(void *context);
+void WM_opengl_context_activate(void *context);
+void WM_opengl_context_release(void *context);
+
 /* defines for 'type' WM_window_open_temp */
 enum {
 	WM_WINDOW_RENDER = 1,
@@ -418,6 +423,7 @@ struct MenuType    *WM_menutype_find(const char *idname, bool quiet);
 bool                WM_menutype_add(struct MenuType *mt);
 void                WM_menutype_freelink(struct MenuType *mt);
 void                WM_menutype_free(void);
+bool                WM_menutype_poll(struct bContext *C, struct MenuType *mt);
 
 /* wm_gesture_ops.c */
 int			WM_gesture_border_invoke	(struct bContext *C, struct wmOperator *op, const struct wmEvent *event);
@@ -500,6 +506,7 @@ enum {
 	WM_JOB_TYPE_POINTCACHE,
 	WM_JOB_TYPE_DPAINT_BAKE,
 	WM_JOB_TYPE_ALEMBIC,
+	WM_JOB_TYPE_SHADER_COMPILATION,
 	/* add as needed, screencast, seq proxy build
 	 * if having hard coded values is a problem */
 };

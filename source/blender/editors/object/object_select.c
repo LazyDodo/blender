@@ -124,78 +124,49 @@ void ED_object_base_activate(bContext *C, Base *base)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 
+	wmWindowManager *wm = CTX_wm_manager(C);
+	wmWindow *win = CTX_wm_window(C);
 	WorkSpace *workspace = CTX_wm_workspace(C);
 
-	bool reset = true;
-	if (base) {
-		Object *ob_prev = OBACT(view_layer);
-		Object *ob_curr = base->object;
-		if (ob_prev != NULL) {
-			if (ob_prev->type == ob_curr->type) {
-				reset = false;
-			}
-		}
-	}
-
 	eObjectMode object_mode = workspace->object_mode;
+	eObjectMode object_mode_set = OB_MODE_OBJECT;
 
+	if (base && ED_workspace_object_mode_in_other_window(
+	            wm, win, base->object,
+	            &object_mode_set))
 	{
+		/* Sync existing object mode with workspace. */
+		workspace->object_mode = object_mode_set;
+		view_layer->basact = base;
+	}
+	else {
+		/* Apply the workspaces mode to the object (when possible). */
 		Scene *scene = CTX_data_scene(C);
+		Object *obact = base ? base->object : NULL;
 		/* We don't know the previous active object in update.
 		 *
 		 * Not correct because it's possible other work-spaces use these.
 		 * although that's a corner case. */
-		if (workspace->object_mode & OB_MODE_EDIT) {
-			FOREACH_OBJECT(view_layer, ob) {
-				if (ob != base->object) {
-					if (BKE_object_is_in_editmode(ob)) {
-						ED_object_editmode_exit_ex(NULL, workspace, scene, ob, EM_FREEDATA);
-					}
-				}
-			}
-			FOREACH_OBJECT_END;
-		}
-		else if (workspace->object_mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_SCULPT)) {
+		if (workspace->object_mode & OB_MODE_ALL_MODE_DATA) {
 			EvaluationContext eval_ctx;
 			CTX_data_eval_ctx(C, &eval_ctx);
-			FOREACH_OBJECT(view_layer, ob) {
-				if (ob != base->object) {
-					if (ob->sculpt) {
-						switch (ob->sculpt->mode_type) {
-							case OB_MODE_VERTEX_PAINT:
-							{
-								ED_object_vpaintmode_exit_ex(workspace, ob);
-								break;
-							}
-							case OB_MODE_WEIGHT_PAINT:
-							{
-								ED_object_wpaintmode_exit_ex(workspace, ob);
-								break;
-							}
-							case OB_MODE_SCULPT:
-							{
-								ED_object_sculptmode_exit_ex(&eval_ctx, workspace, scene, ob);
-								break;
-							}
-						}
+			FOREACH_OBJECT_BEGIN(view_layer, ob) {
+				if (ob != obact) {
+					if (ED_object_mode_generic_has_data(&eval_ctx, ob) &&
+					    ED_workspace_object_mode_in_other_window(wm, win, ob, NULL) == false)
+					{
+						ED_object_mode_generic_exit(&eval_ctx, workspace, scene, ob);
 					}
 				}
 			}
 			FOREACH_OBJECT_END;
 		}
-	}
 
-	workspace->object_mode = OB_MODE_OBJECT;
+		workspace->object_mode = OB_MODE_OBJECT;
 
-	view_layer->basact = base;
+		view_layer->basact = base;
 
-	if (reset == false) {
-		wmOperatorType *ot = WM_operatortype_find("OBJECT_OT_mode_set", false);
-		PointerRNA ptr;
-		WM_operator_properties_create_ptr(&ptr, ot);
-		RNA_enum_set(&ptr, "mode", object_mode);
-		WM_operator_name_call_ptr(C, ot, WM_OP_INVOKE_DEFAULT, &ptr);
-		WM_operator_properties_free(&ptr);
+		ED_object_mode_generic_enter(C, object_mode);
 	}
 
 	if (base) {

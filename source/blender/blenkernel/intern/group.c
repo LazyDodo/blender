@@ -55,7 +55,7 @@
 #include "BKE_object.h"
 #include "BKE_scene.h"
 
-#define DEBUG_PRINT if (G.debug & G_DEBUG_DEPSGRAPH) printf
+#include "DEG_depsgraph.h"
 
 /** Free (or release) any data used by this group (does not free the group itself). */
 void BKE_group_free(Group *group)
@@ -213,13 +213,13 @@ static bool group_object_cyclic_check_internal(Object *object, Group *group)
 		if (dup_group == group)
 			return true;
 		else {
-			FOREACH_GROUP_OBJECT(dup_group, group_object)
+			FOREACH_GROUP_OBJECT_BEGIN(dup_group, group_object)
 			{
 				if (group_object_cyclic_check_internal(group_object, dup_group)) {
 					return true;
 				}
 			}
-			FOREACH_GROUP_OBJECT_END
+			FOREACH_GROUP_OBJECT_END;
 		}
 
 		/* un-flag the object, it's allowed to have the same group multiple times in parallel */
@@ -278,13 +278,13 @@ Group *BKE_group_object_find(Group *group, Object *ob)
 
 bool BKE_group_is_animated(Group *group, Object *UNUSED(parent))
 {
-	FOREACH_GROUP_OBJECT(group, object)
+	FOREACH_GROUP_OBJECT_BEGIN(group, object)
 	{
 		if (object->proxy) {
 			return true;
 		}
 	}
-	FOREACH_GROUP_OBJECT_END
+	FOREACH_GROUP_OBJECT_END;
 	return false;
 }
 
@@ -369,13 +369,13 @@ void BKE_group_handle_recalc_and_update(const struct EvaluationContext *eval_ctx
 #endif
 	{
 		/* only do existing tags, as set by regular depsgraph */
-		FOREACH_GROUP_OBJECT(group, object)
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
 		{
 			if (object->id.recalc & ID_RECALC_ALL) {
 				BKE_object_handle_update(eval_ctx, scene, object);
 			}
 		}
-		FOREACH_GROUP_OBJECT_END
+		FOREACH_GROUP_OBJECT_END;
 	}
 }
 
@@ -403,7 +403,7 @@ static void group_eval_layer_collections(
 void BKE_group_eval_view_layers(const struct EvaluationContext *eval_ctx,
                                 Group *group)
 {
-	DEBUG_PRINT("%s on %s (%p)\n", __func__, group->id.name, group);
+	DEG_debug_print_eval(__func__, group->id.name, group);
 	BKE_layer_eval_layer_collection_pre(eval_ctx, &group->id, group->view_layer);
 	group_eval_layer_collections(eval_ctx,
 	                             group,

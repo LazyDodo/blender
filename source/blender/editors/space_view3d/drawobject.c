@@ -6622,7 +6622,7 @@ static void draw_update_ptcache_edit(
         const EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer, Object *ob, PTCacheEdit *edit)
 {
 	if (edit->psys && edit->psys->flag & PSYS_HAIR_UPDATED)
-		PE_update_object(eval_ctx, scene, view_layer, ob, 0);
+		PE_update_object(eval_ctx, scene, ob, 0);
 
 	/* create path and child path cache if it doesn't exist already */
 	if (edit->pathcache == NULL) {
@@ -9623,7 +9623,7 @@ static void bbs_mesh_face(BMEditMesh *em, DerivedMesh *UNUSED(dm), const bool us
 		GPU_select_index_get(0, &selcol);
 		batch = DRW_mesh_batch_cache_get_triangles_with_select_mask(me, true);
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_3D_UNIFORM_COLOR_U32);
-		GWN_batch_uniform_1i(batch, "color", selcol);
+		GWN_batch_uniform_1ui(batch, "color", selcol);
 		GWN_batch_draw(batch);
 	}
 }
@@ -9753,7 +9753,7 @@ static void bbs_mesh_solid_verts(const EvaluationContext *UNUSED(eval_ctx), Scen
 		GPU_select_index_get(0, &selcol);
 		batch = DRW_mesh_batch_cache_get_triangles_with_select_mask(me, true);
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_3D_UNIFORM_COLOR_U32);
-		GWN_batch_uniform_1i(batch, "color", selcol);
+		GWN_batch_uniform_1ui(batch, "color", selcol);
 		GWN_batch_draw(batch);
 	}
 

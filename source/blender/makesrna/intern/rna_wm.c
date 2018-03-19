@@ -785,11 +785,10 @@ static void rna_Window_view_layer_update(struct bContext *C, PointerRNA *ptr)
 	Scene *scene = WM_window_get_active_scene(win);
 	WorkSpace *workspace = WM_window_get_active_workspace(win);
 	ViewLayer *view_layer = BKE_workspace_view_layer_get(workspace, scene);
-	Object *obedit = CTX_data_edit_object(C);
-
+	Object *obact = OBACT(view_layer);
 	eObjectMode object_mode = workspace->object_mode;
-	if (obedit) {
-		ED_object_editmode_exit(C, EM_FREEDATA);
+	if (obact && (object_mode & OB_MODE_EDIT)) {
+		ED_object_editmode_exit_ex(NULL, workspace, scene, obact, EM_FREEDATA);
 	}
 	workspace->object_mode = object_mode;
 	ED_object_base_activate(C, view_layer->basact);
@@ -2253,6 +2252,10 @@ static void rna_def_keyconfig(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Name", "Name of the key map");
 	RNA_def_struct_name_property(srna, prop);
+
+	prop = RNA_def_property(srna, "bl_owner_id", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "owner_id");
+	RNA_def_property_ui_text(prop, "Owner", "Internal owner");
 
 	prop = RNA_def_property(srna, "space_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "spaceid");

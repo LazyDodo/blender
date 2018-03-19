@@ -1,16 +1,9 @@
 
-uniform mat4 ModelViewMatrix;
-#ifndef EEVEE_ENGINE
-uniform mat4 ProjectionMatrix;
-uniform mat4 ViewMatrixInverse;
-uniform mat4 ViewMatrix;
-#endif
 uniform mat4 ModelMatrix;
 uniform mat4 ModelMatrixInverse;
+uniform mat4 ModelViewMatrix;
 uniform mat4 ModelViewMatrixInverse;
-uniform mat4 ProjectionMatrixInverse;
 uniform mat3 NormalMatrix;
-uniform vec4 CameraTexCoFactors;
 
 /* Old glsl mode compat. */
 
@@ -2697,7 +2690,6 @@ void node_bsdf_glossy(vec4 color, float roughness, vec3 N, float ssr_id, out Clo
 {
 #ifdef EEVEE_ENGINE
 	vec3 out_spec, ssr_spec;
-	roughness = sqrt(roughness);
 	eevee_closure_glossy(N, vec3(1.0), int(ssr_id), roughness, 1.0, out_spec, ssr_spec);
 	vec3 vN = normalize(mat3(ViewMatrix) * N);
 	result = CLOSURE_DEFAULT;
@@ -2719,7 +2711,8 @@ void node_bsdf_glossy(vec4 color, float roughness, vec3 N, float ssr_id, out Clo
 		vec3 light_specular = glLightSource[i].specular.rgb;
 
 		/* we mix in some diffuse so low roughness still shows up */
-		float bsdf = 0.5 * pow(max(dot(N, H), 0.0), 1.0 / roughness);
+		float r2 = roughness * roughness;
+		float bsdf = 0.5 * pow(max(dot(N, H), 0.0), 1.0 / r2);
 		bsdf += 0.5 * max(dot(N, light_position), 0.0);
 		L += light_specular * bsdf;
 	}
@@ -2739,7 +2732,6 @@ void node_bsdf_glass(vec4 color, float roughness, float ior, vec3 N, float ssr_i
 {
 #ifdef EEVEE_ENGINE
 	vec3 out_spec, out_refr, ssr_spec;
-	roughness = sqrt(roughness);
 	vec3 refr_color = (refractionDepth > 0.0) ? color.rgb * color.rgb : color.rgb; /* Simulate 2 transmission event */
 	eevee_closure_glass(N, vec3(1.0), int(ssr_id), roughness, 1.0, ior, out_spec, out_refr, ssr_spec);
 	out_refr *= refr_color;
@@ -2978,7 +2970,6 @@ void node_bsdf_refraction(vec4 color, float roughness, float ior, vec3 N, out Cl
 #ifdef EEVEE_ENGINE
 	vec3 out_refr;
 	color.rgb *= (refractionDepth > 0.0) ? color.rgb : vec3(1.0); /* Simulate 2 absorption event. */
-	roughness = sqrt(roughness);
 	eevee_closure_refraction(N, roughness, ior, out_refr);
 	vec3 vN = normalize(mat3(ViewMatrix) * N);
 	result = CLOSURE_DEFAULT;
@@ -3075,6 +3066,86 @@ void node_volume_absorption(vec4 color, float density, out Closure result)
 #endif
 }
 
+void node_blackbody(float temperature, sampler2D spectrummap, out vec4 color)
+{
+    if(temperature >= 12000.0) {
+        color = vec4(0.826270103, 0.994478524, 1.56626022, 1.0);
+    }
+    else if(temperature < 965.0) {
+        color = vec4(4.70366907, 0.0, 0.0, 1.0);
+    }
+	else {
+		float t = (temperature - 965.0) / (12000.0 - 965.0);
+		color = vec4(texture(spectrummap, vec2(t, 0.0)).rgb, 1.0);
+	}
+}
+
+void node_volume_principled(
+	vec4 color,
+	float density,
+	float anisotropy,
+	vec4 absorption_color,
+	float emission_strength,
+	vec4 emission_color,
+	float blackbody_intensity,
+	vec4 blackbody_tint,
+	float temperature,
+	float density_attribute,
+	vec4 color_attribute,
+	float temperature_attribute,
+	sampler2D spectrummap,
+	out Closure result)
+{
+#ifdef VOLUMETRICS
+	vec3 absorption_coeff = vec3(0.0);
+	vec3 scatter_coeff = vec3(0.0);
+	vec3 emission_coeff = vec3(0.0);
+
+	/* Compute density. */
+	density = max(density, 0.0);
+
+	if(density > 1e-5) {
+		density = max(density * density_attribute, 0.0);
+	}
+
+	if(density > 1e-5) {
+		/* Compute scattering and absorption coefficients. */
+		vec3 scatter_color = color.rgb * color_attribute.rgb;
+
+		scatter_coeff = scatter_color * density;
+		absorption_color.rgb = sqrt(max(absorption_color.rgb, 0.0));
+		absorption_coeff = max(1.0 - scatter_color, 0.0) * max(1.0 - absorption_color.rgb, 0.0) * density;
+	}
+
+	/* Compute emission. */
+	emission_strength = max(emission_strength, 0.0);
+
+	if(emission_strength > 1e-5) {
+		emission_coeff += emission_strength * emission_color.rgb;
+	}
+
+	if(blackbody_intensity > 1e-3) {
+		/* Add temperature from attribute. */
+		float T = max(temperature * max(temperature_attribute, 0.0), 0.0);
+
+		/* Stefan-Boltzman law. */
+		float T4 = (T * T) * (T * T);
+		float sigma = 5.670373e-8 * 1e-6 / M_PI;
+		float intensity = sigma * mix(1.0, T4, blackbody_intensity);
+
+		if(intensity > 1e-5) {
+			vec4 bb;
+			node_blackbody(T, spectrummap, bb);
+			emission_coeff += bb.rgb * blackbody_tint.rgb * intensity;
+		}
+	}
+
+	result = Closure(absorption_coeff, scatter_coeff, emission_coeff, anisotropy);
+#else
+	result = CLOSURE_DEFAULT;
+#endif
+}
+
 /* closures */
 
 void node_mix_shader(float fac, Closure shader1, Closure shader2, out Closure shader)
@@ -3153,7 +3224,13 @@ void node_attribute_volume_color(sampler3D tex, out vec4 outcol, out vec3 outvec
 #else
 	vec3 cos = vec3(0.0);
 #endif
-	outvec = texture(tex, cos).rgb;
+
+	vec4 value = texture(tex, cos).rgba;
+	/* Density is premultiplied for interpolation, divide it out here. */
+	if (value.a > 1e-8)
+		value.rgb /= value.a;
+
+	outvec = value.rgb;
 	outcol = vec4(outvec, 1.0);
 	outf = dot(vec3(1.0 / 3.0), outvec);
 }
@@ -3165,9 +3242,23 @@ void node_attribute_volume_flame(sampler3D tex, out vec4 outcol, out vec3 outvec
 #else
 	vec3 cos = vec3(0.0);
 #endif
-	outvec = texture(tex, cos).rrr;
-	outcol = vec4(outvec, 1.0);
-	outf = dot(vec3(1.0 / 3.0), outvec);
+	outf = texture(tex, cos).r;
+	outvec = vec3(outf, outf, outf);
+	outcol = vec4(outf, outf, outf, 1.0);
+}
+
+void node_attribute_volume_temperature(sampler3D tex, vec2 temperature, out vec4 outcol, out vec3 outvec, out float outf)
+{
+#if defined(EEVEE_ENGINE) && defined(MESH_SHADER) && defined(VOLUMETRICS)
+	vec3 cos = volumeObjectLocalCoord;
+#else
+	vec3 cos = vec3(0.0);
+#endif
+	float flame = texture(tex, cos).r;
+
+	outf = (flame > 0.01) ? temperature.x + flame * (temperature.y - temperature.x): 0.0;
+	outvec = vec3(outf, outf, outf);
+	outcol = vec4(outf, outf, outf, 1.0);
 }
 
 void node_attribute(vec3 attr, out vec4 outcol, out vec3 outvec, out float outf)

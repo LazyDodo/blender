@@ -150,7 +150,7 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 		BMEditMesh *em;
 
 		EDBM_mesh_load(obedit);
-		EDBM_mesh_make(scene->toolsettings, obedit, true);
+		EDBM_mesh_make(obedit, scene->toolsettings->selectmode, true);
 
 		DEG_id_tag_update(obedit->data, 0);
 
@@ -400,13 +400,13 @@ static const EnumPropertyItem *proxy_group_object_itemf(bContext *C, PointerRNA 
 		return DummyRNA_DEFAULT_items;
 
 	/* find the object to affect */
-	FOREACH_GROUP_OBJECT(ob->dup_group, object)
+	FOREACH_GROUP_OBJECT_BEGIN(ob->dup_group, object)
 	{
 		item_tmp.identifier = item_tmp.name = object->id.name + 2;
 		item_tmp.value = i++;
 		RNA_enum_item_add(&item, &totitem, &item_tmp);
 	}
-	FOREACH_GROUP_OBJECT_END
+	FOREACH_GROUP_OBJECT_END;
 
 	RNA_enum_item_end(&item, &totitem);
 	*r_free = true;
@@ -1632,33 +1632,30 @@ void OBJECT_OT_make_links_data(wmOperatorType *ot)
 
 static Object *single_object_users_object(Main *bmain, Scene *scene, Object *ob, const bool copy_groups)
 {
-	if (!ID_IS_LINKED(ob) && ob->id.us > 1) {
-		/* base gets copy of object */
-		Object *obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
+	/* base gets copy of object */
+	Object *obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
 
-		if (copy_groups) {
-			if (ob->flag & OB_FROMGROUP) {
-				obn->flag |= OB_FROMGROUP;
-			}
+	if (copy_groups) {
+		if (ob->flag & OB_FROMGROUP) {
+			obn->flag |= OB_FROMGROUP;
 		}
-		else {
-			/* copy already clears */
-		}
-		/* remap gpencil parenting */
-
-		if (scene->gpd) {
-			bGPdata *gpd = scene->gpd;
-			for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-				if (gpl->parent == ob) {
-					gpl->parent = obn;
-				}
-			}
-		}
-
-		id_us_min(&ob->id);
-		return obn;
 	}
-	return NULL;
+	else {
+		/* copy already clears */
+	}
+	/* remap gpencil parenting */
+
+	if (scene->gpd) {
+		bGPdata *gpd = scene->gpd;
+		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+			if (gpl->parent == ob) {
+				gpl->parent = obn;
+			}
+		}
+	}
+
+	id_us_min(&ob->id);
+	return obn;
 }
 
 static void libblock_relink_scene_collection(SceneCollection *sc)
@@ -1678,7 +1675,9 @@ static void single_object_users_scene_collection(Main *bmain, Scene *scene, Scen
 		Object *ob = link->data;
 		/* an object may be in more than one collection */
 		if ((ob->id.newid == NULL) && ((ob->flag & flag) == flag)) {
-			link->data = single_object_users_object(bmain, scene, link->data, copy_groups);
+			if (!ID_IS_LINKED(ob) && ob->id.us > 1) {
+				link->data = single_object_users_object(bmain, scene, link->data, copy_groups);
+			}
 		}
 	}
 
@@ -1710,19 +1709,19 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 		if (copy_groups && group->view_layer->object_bases.first) {
 			bool all_duplicated = true;
 
-			FOREACH_GROUP_OBJECT(group, object)
+			FOREACH_GROUP_OBJECT_BEGIN(group, object)
 			{
 				if (object->id.newid == NULL) {
 					all_duplicated = false;
 					break;
 				}
 			}
-			FOREACH_GROUP_OBJECT_END
+			FOREACH_GROUP_OBJECT_END;
 
 			if (all_duplicated) {
 				groupn = ID_NEW_SET(group, BKE_group_copy(bmain, group));
 
-				FOREACH_GROUP_BASE(groupn, base)
+				FOREACH_GROUP_BASE_BEGIN(groupn, base)
 				{
 					base->object = (Object *)base->object->id.newid;
 				}
@@ -1747,11 +1746,11 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
  * button can be functional.*/
 void ED_object_single_user(Main *bmain, Scene *scene, Object *ob)
 {
-	FOREACH_SCENE_OBJECT(scene, ob_iter)
+	FOREACH_SCENE_OBJECT_BEGIN(scene, ob_iter)
 	{
 		ob_iter->flag &= ~OB_DONE;
 	}
-	FOREACH_SCENE_OBJECT_END
+	FOREACH_SCENE_OBJECT_END;
 
 	/* tag only the one object */
 	ob->flag |= OB_DONE;
@@ -1791,7 +1790,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 	ID *id;
 	int a;
 
-	FOREACH_OBJECT_FLAG(scene, view_layer, flag, ob)
+	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
 	{
 		if (!ID_IS_LINKED(ob)) {
 			id = ob->data;
@@ -1849,7 +1848,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 						printf("ERROR %s: can't copy %s\n", __func__, id->name);
 						BLI_assert(!"This should never happen.");
 
-						/* We need to end the FOREACH_OBJECT_FLAG iterator to prevent memory leak. */
+						/* We need to end the FOREACH_OBJECT_FLAG_BEGIN iterator to prevent memory leak. */
 						BKE_scene_objects_iterator_end(&iter_macro);
 						return;
 				}
@@ -1865,7 +1864,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 			}
 		}
 	}
-	FOREACH_OBJECT_FLAG_END
+	FOREACH_OBJECT_FLAG_END;
 
 	me = bmain->mesh.first;
 	while (me) {
@@ -1876,12 +1875,14 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 
 static void single_object_action_users(Scene *scene, ViewLayer *view_layer, const int flag)
 {
-	FOREACH_OBJECT_FLAG(scene, view_layer, flag, ob)
+	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
+	{
 		if (!ID_IS_LINKED(ob)) {
 			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			BKE_animdata_copy_id_action(&ob->id, false);
 		}
-	FOREACH_OBJECT_FLAG_END
+	}
+	FOREACH_OBJECT_FLAG_END;
 }
 
 static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag, const bool do_textures)
@@ -1890,7 +1891,8 @@ static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, c
 	Tex *tex;
 	int a, b;
 
-	FOREACH_OBJECT_FLAG(scene, view_layer, flag, ob)
+	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
+	{
 		if (!ID_IS_LINKED(ob)) {
 			for (a = 1; a <= ob->totcol; a++) {
 				ma = give_current_material(ob, a);
@@ -1920,7 +1922,8 @@ static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, c
 				}
 			}
 		}
-	FOREACH_OBJECT_FLAG_END
+	}
+	FOREACH_OBJECT_FLAG_END;
 }
 
 static void do_single_tex_user(Main *bmain, Tex **from)
@@ -2045,13 +2048,13 @@ void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bo
 	{
 		IDP_RelinkProperty(scene->id.properties);
 
-		FOREACH_SCENE_OBJECT(scene, ob)
+		FOREACH_SCENE_OBJECT_BEGIN(scene, ob)
 		{
 			if (!ID_IS_LINKED(ob)) {
 				IDP_RelinkProperty(ob->id.properties);
 			}
 		}
-		FOREACH_SCENE_OBJECT_END
+		FOREACH_SCENE_OBJECT_END;
 
 		if (scene->nodetree) {
 			IDP_RelinkProperty(scene->nodetree->id.properties);
@@ -2425,7 +2428,7 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		/* Then, we tag our 'main' object and its detected dependencies to be also overridden. */
 		obact->id.tag |= LIB_TAG_DOIT;
 
-		FOREACH_GROUP_OBJECT(obgroup->dup_group, ob)
+		FOREACH_GROUP_OBJECT_BEGIN(obgroup->dup_group, ob)
 		{
 			make_override_static_tag_object(obact, ob);
 		}
