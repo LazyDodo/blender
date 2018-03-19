@@ -69,32 +69,9 @@
 
 #include "UI_resources.h"
 
+#include "particle_edit_utildefines.h"
+
 #include "physics_intern.h"
-
-extern void PE_create_particle_edit(const bContext *C, Scene *scene, ViewLayer *view_layer, Object *ob, PointCache *cache, ParticleSystem *psys);
-extern void PTCacheUndo_clear(PTCacheEdit *edit);
-extern void recalc_lengths(PTCacheEdit *edit);
-extern void recalc_emitter_field(Object *ob, ParticleSystem *psys);
-extern void update_world_cos(Object *ob, PTCacheEdit *edit);
-
-#define KEY_K					PTCacheEditKey *key; int k
-#define POINT_P					PTCacheEditPoint *point; int p
-#define LOOP_POINTS				for (p=0, point=edit->points; p<edit->totpoint; p++, point++)
-#if 0
-#define LOOP_VISIBLE_POINTS		for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (!(point->flag & PEP_HIDE))
-#define LOOP_SELECTED_POINTS	for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (point_is_selected(point))
-#define LOOP_UNSELECTED_POINTS	for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (!point_is_selected(point))
-#define LOOP_EDITED_POINTS		for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (point->flag & PEP_EDIT_RECALC)
-#define LOOP_TAGGED_POINTS		for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (point->flag & PEP_TAG)
-#endif
-#define LOOP_KEYS				for (k=0, key=point->keys; k<point->totkey; k++, key++)
-#if 0
-#define LOOP_VISIBLE_KEYS		for (k=0, key=point->keys; k<point->totkey; k++, key++) if (!(key->flag & PEK_HIDE))
-#define LOOP_SELECTED_KEYS		for (k=0, key=point->keys; k<point->totkey; k++, key++) if ((key->flag & PEK_SELECT) && !(key->flag & PEK_HIDE))
-#define LOOP_TAGGED_KEYS		for (k=0, key=point->keys; k<point->totkey; k++, key++) if (key->flag & PEK_TAG)
-
-#define KEY_WCO					(key->flag & PEK_USE_WCO ? key->world_co : key->co)
-#endif
 
 static float I[4][4] = {{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}};
 
@@ -618,7 +595,7 @@ static void disconnect_hair(
 	if (ELEM(pset->brushtype, PE_BRUSH_ADD, PE_BRUSH_PUFF))
 		pset->brushtype = PE_BRUSH_NONE;
 
-	PE_update_object(eval_ctx, scene, view_layer, ob, 0);
+	PE_update_object(eval_ctx, scene, ob, 0);
 }
 
 static int disconnect_hair_exec(bContext *C, wmOperator *op)
@@ -855,7 +832,7 @@ static bool remap_hair_emitter(
 
 	psys_free_path_cache(target_psys, target_edit);
 
-	PE_update_object(eval_ctx, scene, view_layer, target_ob, 0);
+	PE_update_object(eval_ctx, scene, target_ob, 0);
 
 	return true;
 }
@@ -987,7 +964,7 @@ static void copy_particle_edit(
 	
 	recalc_lengths(edit);
 	recalc_emitter_field(ob, psys);
-	PE_update_object(eval_ctx, scene, view_layer, ob, true);
+	PE_update_object(eval_ctx, scene, ob, true);
 	
 	PTCacheUndo_clear(edit);
 	PE_undo_push(scene, view_layer, "Original");
