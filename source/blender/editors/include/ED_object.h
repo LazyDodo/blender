@@ -57,6 +57,8 @@ struct PropertyRNA;
 struct EnumPropertyItem;
 struct EvaluationContext;
 struct WorkSpace;
+struct wmWindow;
+struct wmWindowManager;
 
 #include "DNA_object_enums.h"
 
@@ -117,20 +119,44 @@ struct Base *ED_object_add_duplicate(struct Main *bmain, struct Scene *scene, st
 
 void ED_object_parent(struct Object *ob, struct Object *parent, const int type, const char *substr);
 
-bool ED_object_mode_compat_set(struct bContext *C, struct WorkSpace *workspace, eObjectMode mode, struct ReportList *reports);
-void ED_object_toggle_modes(struct bContext *C, eObjectMode mode);
-
 /* bitflags for enter/exit editmode */
 #define EM_FREEDATA     1
 #define EM_FREEUNDO     2
 #define EM_WAITCURSOR   4
 #define EM_DO_UNDO      8
 #define EM_IGNORE_LAYER 16
+void ED_object_editmode_exit_ex(
+        struct bContext *C, struct WorkSpace *workspace, struct Scene *scene, struct Object *obedit, int flag);
 void ED_object_editmode_exit(struct bContext *C, int flag);
 void ED_object_editmode_enter(struct bContext *C, int flag);
 bool ED_object_editmode_load(struct Object *obedit);
 
 bool ED_object_editmode_calc_active_center(struct Object *obedit, const bool select_only, float r_center[3]);
+
+
+void ED_object_vpaintmode_enter_ex(
+        const struct EvaluationContext *eval_ctx, struct wmWindowManager *wm,
+        struct WorkSpace *workspace, struct Scene *scene, struct Object *ob);
+void ED_object_vpaintmode_enter(struct bContext *C);
+void ED_object_wpaintmode_enter_ex(
+        const struct EvaluationContext *eval_ctx, struct wmWindowManager *wm,
+        struct WorkSpace *workspace, struct Scene *scene, struct Object *ob);
+void ED_object_wpaintmode_enter(struct bContext *C);
+
+void ED_object_vpaintmode_exit_ex(struct WorkSpace *workspace, struct Object *ob);
+void ED_object_vpaintmode_exit(struct bContext *C);
+void ED_object_wpaintmode_exit_ex(struct WorkSpace *workspace, struct Object *ob);
+void ED_object_wpaintmode_exit(struct bContext *C);
+
+void ED_object_sculptmode_enter_ex(
+        const struct EvaluationContext *eval_ctx,
+        struct WorkSpace *workspace, struct Scene *scene, struct Object *ob,
+        struct ReportList *reports);
+void ED_object_sculptmode_enter(struct bContext *C, struct ReportList *reports);
+void ED_object_sculptmode_exit_ex(
+        const struct EvaluationContext *eval_ctx,
+        struct WorkSpace *workspace, struct Scene *scene, struct Object *ob);
+void ED_object_sculptmode_exit(struct bContext *C);
 
 void ED_object_location_from_view(struct bContext *C, float loc[3]);
 void ED_object_rotation_from_view(struct bContext *C, float rot[3], const char align_axis);
@@ -184,6 +210,32 @@ void undo_push_lattice(struct bContext *C, const char *name);
 /* object_lattice.c */
 
 void ED_lattice_flags_set(struct Object *obedit, int flag);
+
+/* object_modes.c */
+bool ED_object_mode_compat_test(const struct Object *ob, eObjectMode mode);
+bool ED_object_mode_compat_set(struct bContext *C, struct WorkSpace *workspace, eObjectMode mode, struct ReportList *reports);
+void ED_object_mode_toggle(struct bContext *C, eObjectMode mode);
+
+bool ED_object_mode_generic_enter(
+        struct bContext *C,
+        eObjectMode object_mode);
+void ED_object_mode_generic_exit(
+        const struct EvaluationContext *eval_ctx,
+        struct WorkSpace *workspace, struct Scene *scene, struct Object *ob);
+bool ED_object_mode_generic_has_data(
+        const struct EvaluationContext *eval_ctx,
+        struct Object *ob);
+
+bool ED_object_mode_generic_enter_or_other_window(
+        struct bContext *C, const struct wmWindow *win_compare,
+        eObjectMode object_mode);
+void ED_object_mode_generic_exit_or_other_window(
+        const struct EvaluationContext *eval_ctx, struct wmWindowManager *wm,
+        struct WorkSpace *workspace, struct Scene *scene, struct Object *ob);
+
+bool ED_object_mode_generic_exists(
+        struct wmWindowManager *wm, struct Object *ob,
+        eObjectMode object_mode);
 
 /* object_modifier.c */
 enum {

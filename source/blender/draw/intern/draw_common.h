@@ -100,6 +100,7 @@ typedef struct GlobalsUboStorage {
 /* Keep in sync with globalsBlock in shaders */
 
 void DRW_globals_update(void);
+void DRW_globals_free(void);
 
 struct DRWShadingGroup *shgroup_dynlines_uniform_color(struct DRWPass *pass, float color[4]);
 struct DRWShadingGroup *shgroup_dynpoints_uniform_color(struct DRWPass *pass, float color[4], float *size);
@@ -118,7 +119,7 @@ struct DRWShadingGroup *shgroup_distance_lines_instance(struct DRWPass *pass, st
 struct DRWShadingGroup *shgroup_spot_instance(struct DRWPass *pass, struct Gwn_Batch *geom);
 struct DRWShadingGroup *shgroup_instance_bone_envelope_wire(struct DRWPass *pass, struct Gwn_Batch *geom);
 struct DRWShadingGroup *shgroup_instance_bone_envelope_solid(struct DRWPass *pass, struct Gwn_Batch *geom);
-struct DRWShadingGroup *shgroup_instance_mball_helpers(struct DRWPass *pass, struct Gwn_Batch *geom);
+struct DRWShadingGroup *shgroup_instance_mball_handles(struct DRWPass *pass, struct Gwn_Batch *geom);
 
 int DRW_object_wire_theme_get(
         struct Object *ob, struct ViewLayer *view_layer, float **r_color);

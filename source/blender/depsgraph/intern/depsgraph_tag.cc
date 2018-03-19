@@ -440,8 +440,8 @@ void deg_ensure_scene_view_layer(Depsgraph *graph,
 void deg_id_tag_update(Main *bmain, ID *id, int flag)
 {
 	deg_graph_id_tag_update(bmain, NULL, id, flag);
-	BLI_LISTBASE_FOREACH (Scene *, scene, &bmain->scene) {
-		BLI_LISTBASE_FOREACH (ViewLayer *, view_layer, &scene->view_layers) {
+	LISTBASE_FOREACH (Scene *, scene, &bmain->scene) {
+		LISTBASE_FOREACH (ViewLayer *, view_layer, &scene->view_layers) {
 			Depsgraph *depsgraph =
 			        (Depsgraph *)BKE_scene_get_depsgraph(scene,
 			                                             view_layer,
@@ -508,7 +508,9 @@ void DEG_id_tag_update_ex(Main *bmain, ID *id, int flag)
 		/* Ideally should not happen, but old depsgraph allowed this. */
 		return;
 	}
-	DEG_DEBUG_PRINTF("%s: id=%s flag=%d\n", __func__, id->name, flag);
+	if (G.debug & G_DEBUG_DEPSGRAPH_TAG) {
+		printf("%s: id=%s flag=%d\n", __func__, id->name, flag);
+	}
 	DEG::deg_id_tag_update(bmain, id, flag);
 }
 
@@ -555,8 +557,8 @@ void DEG_graph_on_visible_update(Main *bmain, Depsgraph *depsgraph)
 
 void DEG_on_visible_update(Main *bmain, const bool UNUSED(do_time))
 {
-	BLI_LISTBASE_FOREACH (Scene *, scene, &bmain->scene) {
-		BLI_LISTBASE_FOREACH (ViewLayer *, view_layer, &scene->view_layers) {
+	LISTBASE_FOREACH (Scene *, scene, &bmain->scene) {
+		LISTBASE_FOREACH (ViewLayer *, view_layer, &scene->view_layers) {
 			Depsgraph *depsgraph =
 			        (Depsgraph *)BKE_scene_get_depsgraph(scene,
 			                                             view_layer,

@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "intern/builder/deg_builder_map.h"
 #include "intern/depsgraph_types.h"
 
 #include "DEG_depsgraph.h"  /* used for DEG_depsgraph_use_copy_on_write() */
@@ -112,7 +113,7 @@ struct DepsgraphNodeBuilder {
 	void begin_build();
 	void end_build();
 
-	IDDepsNode *add_id_node(ID *id, bool do_tag = true);
+	IDDepsNode *add_id_node(ID *id);
 	IDDepsNode *find_id_node(ID *id);
 	TimeSourceDepsNode *add_time_source();
 
@@ -138,6 +139,13 @@ struct DepsgraphNodeBuilder {
 	                                      eDepsOperation_Code opcode,
 	                                      const char *name = "",
 	                                      int name_tag = -1);
+
+	OperationDepsNode *ensure_operation_node(ID *id,
+	                                         eDepsNode_Type comp_type,
+	                                         const DepsEvalOperationCb& op,
+	                                         eDepsOperation_Code opcode,
+	                                         const char *name = "",
+	                                         int name_tag = -1);
 
 	bool has_operation_node(ID *id,
 	                        eDepsNode_Type comp_type,
@@ -178,7 +186,9 @@ struct DepsgraphNodeBuilder {
 	void build_particle_settings(ParticleSettings *part);
 	void build_cloth(Object *object);
 	void build_animdata(ID *id);
-	OperationDepsNode *build_driver(ID *id, FCurve *fcurve);
+	void build_driver(ID *id, FCurve *fcurve);
+	void build_driver_variables(ID *id, FCurve *fcurve);
+	void build_driver_id_property(ID *id, const char *rna_path);
 	void build_ik_pose(Object *object,
 	                   bPoseChannel *pchan,
 	                   bConstraint *con);
@@ -231,6 +241,7 @@ protected:
 	Scene *scene_;
 
 	GHash *cow_id_hash_;
+	BuilderMap built_map_;
 };
 
 }  // namespace DEG

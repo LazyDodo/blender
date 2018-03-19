@@ -214,7 +214,7 @@ void flush_engine_data_update(ID *id)
 		return;
 	}
 	Object *object = (Object *)id;
-	BLI_LISTBASE_FOREACH(ObjectEngineData *, engine_data, &object->drawdata) {
+	LISTBASE_FOREACH(ObjectEngineData *, engine_data, &object->drawdata) {
 		engine_data->recalc |= id->recalc;
 	}
 }
@@ -248,7 +248,7 @@ void flush_editors_id_update(Main *bmain,
 			id_cow->recalc |= factory->id_recalc_tag();
 		}
 		GHASH_FOREACH_END();
-		DEG_DEBUG_PRINTF("Accumulated recalc bits for %s: %u\n",
+		DEG_DEBUG_PRINTF(EVAL, "Accumulated recalc bits for %s: %u\n",
 		                 id_orig->name, (unsigned int)id_cow->recalc);
 		/* Inform editors. */
 		if (deg_copy_on_write_is_expanded(id_cow)) {
@@ -271,7 +271,7 @@ void deg_graph_flush_updates(Main *bmain, Depsgraph *graph)
 	BLI_assert(bmain != NULL);
 	BLI_assert(graph != NULL);
 	/* Nothing to update, early out. */
-	if (BLI_gset_size(graph->entry_tags) == 0) {
+	if (BLI_gset_len(graph->entry_tags) == 0) {
 		return;
 	}
 	/* Reset all flags, get ready for the flush. */

@@ -77,6 +77,7 @@
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
 #include "BKE_object.h"
+#include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_property.h"
 #include "BKE_sca.h"
@@ -84,6 +85,7 @@
 #include "BKE_modifier.h"
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
+#include "BKE_object.h"
 #include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
@@ -259,18 +261,20 @@ bool ED_object_editmode_load(Object *obedit)
 	return ED_object_editmode_load_ex(G.main, obedit, false);
 }
 
-void ED_object_editmode_exit(bContext *C, int flag)
+/**
+ * \param C: Can be NULL, only if #EM_DO_UNDO isn't set.
+ * \param flag:
+ * - Only in exceptional cases should #EM_DO_UNDO NOT be in the flag.
+ * - If #EM_FREEDATA isn't in the flag, use ED_object_editmode_load directly.
+ */
+void ED_object_editmode_exit_ex(bContext *C, WorkSpace *workspace, Scene *scene, Object *obedit, int flag)
 {
-	/* Note! only in exceptional cases should 'EM_DO_UNDO' NOT be in the flag */
-	/* Note! if 'EM_FREEDATA' isn't in the flag, use ED_object_editmode_load directly */
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	Scene *scene = CTX_data_scene(C);
-	Object *obedit = CTX_data_edit_object(C);
+	BLI_assert(C || !(flag & EM_DO_UNDO));
 	const bool freedata = (flag & EM_FREEDATA) != 0;
 
 	if (flag & EM_WAITCURSOR) waitcursor(1);
 
-	if (ED_object_editmode_load_ex(CTX_data_main(C), obedit, freedata) == false) {
+	if (ED_object_editmode_load_ex(G.main, obedit, freedata) == false) {
 		/* in rare cases (background mode) its possible active object
 		 * is flagged for editmode, without 'obedit' being set [#35489] */
 		workspace->object_mode &= ~OB_MODE_EDIT;
@@ -282,9 +286,6 @@ void ED_object_editmode_exit(bContext *C, int flag)
 	if (freedata) {
 		ListBase pidlist;
 		PTCacheID *pid;
-
-		/* for example; displist make is different in editmode */
-		scene->obedit = NULL; // XXX for context
 
 		/* flag object caches as outdated */
 		BKE_ptcache_ids_from_object(&pidlist, obedit, scene, 0);
@@ -298,14 +299,21 @@ void ED_object_editmode_exit(bContext *C, int flag)
 
 		/* also flush ob recalc, doesn't take much overhead, but used for particles */
 		DEG_id_tag_update(&obedit->id, OB_RECALC_OB | OB_RECALC_DATA);
+
+		workspace->object_mode &= ~OB_MODE_EDIT;
 	
 		if (flag & EM_DO_UNDO)
 			ED_undo_push(C, "Editmode");
 
-		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
-
-		workspace->object_mode &= ~OB_MODE_EDIT;
+		if (C != NULL) {
+			WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
+		}
+		else {
+			WM_main_add_notifier(NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
+		}
 	}
+
+	ED_workspace_object_mode_sync_from_object(G.main->wm.first, workspace, obedit);
 
 	if (flag & EM_WAITCURSOR) waitcursor(0);
 
@@ -313,6 +321,13 @@ void ED_object_editmode_exit(bContext *C, int flag)
 	DEG_id_tag_update(&scene->id, 0);
 }
 
+void ED_object_editmode_exit(bContext *C, int flag)
+{
+	WorkSpace *workspace = CTX_wm_workspace(C);
+	Scene *scene = CTX_data_scene(C);
+	Object *obedit = CTX_data_edit_object(C);
+	ED_object_editmode_exit_ex(C, workspace, scene, obedit, flag);
+}
 
 void ED_object_editmode_enter(bContext *C, int flag)
 {
@@ -351,18 +366,16 @@ void ED_object_editmode_enter(bContext *C, int flag)
 	/* note, when switching scenes the object can have editmode data but
 	 * not be scene->obedit: bug 22954, this avoids calling self eternally */
 	if ((workspace->object_mode_restore & OB_MODE_EDIT) == 0)
-		ED_object_toggle_modes(C, workspace->object_mode);
+		ED_object_mode_toggle(C, workspace->object_mode);
 
 	workspace->object_mode = OB_MODE_EDIT;
 
 	if (ob->type == OB_MESH) {
 		BMEditMesh *em;
 		ok = 1;
-		scene->obedit = ob;  /* context sees this */
-
 		const bool use_key_index = mesh_needs_keyindex(ob->data);
 
-		EDBM_mesh_make(scene->toolsettings, ob, use_key_index);
+		EDBM_mesh_make(ob, scene->toolsettings->selectmode, use_key_index);
 
 		em = BKE_editmesh_from_object(ob);
 		if (LIKELY(em)) {
@@ -389,7 +402,6 @@ void ED_object_editmode_enter(bContext *C, int flag)
 			return;
 		}
 		ok = 1;
-		scene->obedit = ob;
 		ED_armature_to_edit(arm);
 		/* to ensure all goes in restposition and without striding */
 		DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME); /* XXX: should this be OB_RECALC_DATA? */
@@ -397,21 +409,18 @@ void ED_object_editmode_enter(bContext *C, int flag)
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_EDITMODE_ARMATURE, scene);
 	}
 	else if (ob->type == OB_FONT) {
-		scene->obedit = ob; /* XXX for context */
 		ok = 1;
 		ED_curve_editfont_make(ob);
 
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_EDITMODE_TEXT, scene);
 	}
 	else if (ob->type == OB_MBALL) {
-		scene->obedit = ob; /* XXX for context */
 		ok = 1;
 		ED_mball_editmball_make(ob);
 
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_EDITMODE_MBALL, scene);
 	}
 	else if (ob->type == OB_LATTICE) {
-		scene->obedit = ob; /* XXX for context */
 		ok = 1;
 		ED_lattice_editlatt_make(ob);
 
@@ -419,7 +428,6 @@ void ED_object_editmode_enter(bContext *C, int flag)
 	}
 	else if (ob->type == OB_SURF || ob->type == OB_CURVE) {
 		ok = 1;
-		scene->obedit = ob; /* XXX for context */
 		ED_curve_editnurb_make(ob);
 
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_EDITMODE_CURVE, scene);
@@ -431,10 +439,11 @@ void ED_object_editmode_enter(bContext *C, int flag)
 		DEG_id_tag_update(&scene->id, 0);
 	}
 	else {
-		scene->obedit = NULL; /* XXX for context */
 		workspace->object_mode &= ~OB_MODE_EDIT;
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
 	}
+
+	ED_workspace_object_mode_sync_from_object(G.main->wm.first, workspace, ob);
 
 	if (flag & EM_DO_UNDO) ED_undo_push(C, "Enter Editmode");
 	if (flag & EM_WAITCURSOR) waitcursor(0);
@@ -501,6 +510,7 @@ void OBJECT_OT_editmode_toggle(wmOperatorType *ot)
 
 static int posemode_exec(bContext *C, wmOperator *op)
 {
+	wmWindowManager *wm = CTX_wm_manager(C);
 	WorkSpace *workspace = CTX_wm_workspace(C);
 	Base *base = CTX_data_active_base(C);
 	Object *ob = base->object;
@@ -522,7 +532,9 @@ static int posemode_exec(bContext *C, wmOperator *op)
 			ED_armature_exit_posemode(C, base);
 		else
 			ED_armature_enter_posemode(C, base);
-		
+
+		ED_workspace_object_mode_sync_from_object(wm, workspace, ob);
+
 		return OPERATOR_FINISHED;
 	}
 	
@@ -703,7 +715,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, short ev
 
 	if (!(ob = OBACT(view_layer))) return;
 	
-	if (scene->obedit) { // XXX get from context
+	if (BKE_object_is_in_editmode(ob)) {
 		/* obedit_copymenu(); */
 		return;
 	}
@@ -900,7 +912,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, short ev
 				}
 				else if (event == 26) {
 #if 0 // XXX old animation system
-					copy_nlastrips(&base->object->nlastrips, &ob->nlastrips);
+					BKE_nlastrip_copy(s(&base->object->nlastrips, &ob->nlastrips);
 #endif // XXX old animation system
 				}
 				else if (event == 27) {   /* autosmooth */
@@ -942,7 +954,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, short ev
 		DEG_relations_tag_update(bmain);
 }
 
-static void UNUSED_FUNCTION(copy_attr_menu) (Main *bmain, Scene *scene, ViewLayer *view_layer)
+static void UNUSED_FUNCTION(copy_attr_menu) (Main *bmain, Scene *scene, ViewLayer *view_layer, Object *obedit)
 {
 	Object *ob;
 	short event;
@@ -950,7 +962,7 @@ static void UNUSED_FUNCTION(copy_attr_menu) (Main *bmain, Scene *scene, ViewLaye
 	
 	if (!(ob = OBACT(view_layer))) return;
 	
-	if (scene->obedit) { /* XXX get from context */
+	if (obedit) {
 /*		if (ob->type == OB_MESH) */
 /* XXX			mesh_copy_menu(); */
 		return;
@@ -1367,7 +1379,7 @@ void OBJECT_OT_shade_smooth(wmOperatorType *ot)
 
 /* ********************** */
 
-static void UNUSED_FUNCTION(image_aspect) (Scene *scene, ViewLayer *view_layer)
+static void UNUSED_FUNCTION(image_aspect) (Scene *scene, ViewLayer *view_layer, Object *obedit)
 {
 	/* all selected objects with an image map: scale in image aspect */
 	Base *base;
@@ -1377,7 +1389,7 @@ static void UNUSED_FUNCTION(image_aspect) (Scene *scene, ViewLayer *view_layer)
 	float x, y, space;
 	int a, b, done;
 	
-	if (scene->obedit) return;  // XXX get from context
+	if (obedit) return;
 	if (ID_IS_LINKED(scene)) return;
 	
 	for (base = FIRSTBASE(view_layer); base; base = base->next) {
@@ -1479,92 +1491,6 @@ static const EnumPropertyItem *object_mode_set_itemsf(
 	return item;
 }
 
-static const char *object_mode_op_string(eObjectMode mode)
-{
-	if (mode & OB_MODE_EDIT)
-		return "OBJECT_OT_editmode_toggle";
-	if (mode == OB_MODE_SCULPT)
-		return "SCULPT_OT_sculptmode_toggle";
-	if (mode == OB_MODE_VERTEX_PAINT)
-		return "PAINT_OT_vertex_paint_toggle";
-	if (mode == OB_MODE_WEIGHT_PAINT)
-		return "PAINT_OT_weight_paint_toggle";
-	if (mode == OB_MODE_TEXTURE_PAINT)
-		return "PAINT_OT_texture_paint_toggle";
-	if (mode == OB_MODE_PARTICLE_EDIT)
-		return "PARTICLE_OT_particle_edit_toggle";
-	if (mode == OB_MODE_POSE)
-		return "OBJECT_OT_posemode_toggle";
-	if (mode == OB_MODE_GPENCIL)
-		return "GPENCIL_OT_editmode_toggle";
-	return NULL;
-}
-
-/* checks the mode to be set is compatible with the object
- * should be made into a generic function
- */
-static bool object_mode_compat_test(Object *ob, eObjectMode mode)
-{
-	if (ob) {
-		if (mode == OB_MODE_OBJECT)
-			return true;
-		else if (mode == OB_MODE_GPENCIL)
-			return true; /* XXX: assume this is the case for now... */
-
-		switch (ob->type) {
-			case OB_MESH:
-				if (mode & (OB_MODE_EDIT | OB_MODE_SCULPT | OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT |
-				            OB_MODE_TEXTURE_PAINT | OB_MODE_PARTICLE_EDIT))
-				{
-					return true;
-				}
-				break;
-			case OB_CURVE:
-			case OB_SURF:
-			case OB_FONT:
-			case OB_MBALL:
-				if (mode & (OB_MODE_EDIT))
-					return true;
-				break;
-			case OB_LATTICE:
-				if (mode & (OB_MODE_EDIT | OB_MODE_WEIGHT_PAINT))
-					return true;
-				break;
-			case OB_ARMATURE:
-				if (mode & (OB_MODE_EDIT | OB_MODE_POSE))
-					return true;
-				break;
-		}
-	}
-
-	return false;
-}
-
-/**
- * Sets the mode to a compatible state (use before entering the mode).
- *
- * This is so each mode's exec function can call
- */
-bool ED_object_mode_compat_set(bContext *C, WorkSpace *workspace, eObjectMode mode, ReportList *reports)
-{
-	bool ok;
-	if (!ELEM(workspace->object_mode, mode, OB_MODE_OBJECT)) {
-		const char *opstring = object_mode_op_string(workspace->object_mode);
-
-		WM_operator_name_call(C, opstring, WM_OP_EXEC_REGION_WIN, NULL);
-		ok = ELEM(workspace->object_mode, mode, OB_MODE_OBJECT);
-		if (!ok) {
-			wmOperatorType *ot = WM_operatortype_find(opstring, false);
-			BKE_reportf(reports, RPT_ERROR, "Unable to execute '%s', error changing modes", ot->name);
-		}
-	}
-	else {
-		ok = true;
-	}
-
-	return ok;
-}
-
 static int object_mode_set_poll(bContext *C)
 {
 	/* Since Grease Pencil editmode is also handled here,
@@ -1605,7 +1531,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 		}
 	}
 	
-	if (!ob || !object_mode_compat_test(ob, mode))
+	if (!ob || !ED_object_mode_compat_test(ob, mode))
 		return OPERATOR_PASS_THROUGH;
 
 	if (workspace->object_mode != mode) {
@@ -1616,7 +1542,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 	/* Exit current mode if it's not the mode we're setting */
 	if (mode != OB_MODE_OBJECT && (workspace->object_mode != mode || toggle)) {
 		/* Enter new mode */
-		ED_object_toggle_modes(C, mode);
+		ED_object_mode_toggle(C, mode);
 	}
 
 	if (toggle) {
@@ -1625,14 +1551,14 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 		    (restore_mode == OB_MODE_OBJECT) &&
 		    (workspace->object_mode_restore != OB_MODE_OBJECT))
 		{
-			ED_object_toggle_modes(C, workspace->object_mode_restore);
+			ED_object_mode_toggle(C, workspace->object_mode_restore);
 		}
 		else if (workspace->object_mode == mode) {
 			/* For toggling, store old mode so we know what to go back to */
 			workspace->object_mode_restore = restore_mode;
 		}
 		else if (!ELEM(workspace->object_mode_restore, mode, OB_MODE_OBJECT)) {
-			ED_object_toggle_modes(C, workspace->object_mode_restore);
+			ED_object_mode_toggle(C, workspace->object_mode_restore);
 		}
 	}
 
@@ -1662,17 +1588,6 @@ void OBJECT_OT_mode_set(wmOperatorType *ot)
 
 	prop = RNA_def_boolean(ot->srna, "toggle", 0, "Toggle", "");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
-}
-
-void ED_object_toggle_modes(bContext *C, eObjectMode mode)
-{
-	if (mode != OB_MODE_OBJECT) {
-		const char *opstring = object_mode_op_string(mode);
-
-		if (opstring) {
-			WM_operator_name_call(C, opstring, WM_OP_EXEC_REGION_WIN, NULL);
-		}
-	}
 }
 
 /************************ Game Properties ***********************/
@@ -2061,8 +1976,6 @@ void OBJECT_OT_game_physics_copy(struct wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
-
-/* generic utility function */
 
 bool ED_object_editmode_calc_active_center(Object *obedit, const bool select_only, float r_center[3])
 {

@@ -2321,7 +2321,7 @@ void BKE_object_apply_mat4(Object *ob, float mat[4][4], const bool use_compat, c
 BoundBox *BKE_boundbox_alloc_unit(void)
 {
 	BoundBox *bb;
-	const float min[3] = {-1.0f, -1.0f, -1.0f}, max[3] = {-1.0f, -1.0f, -1.0f};
+	const float min[3] = {-1.0f, -1.0f, -1.0f}, max[3] = {1.0f, 1.0f, 1.0f};
 
 	bb = MEM_callocN(sizeof(BoundBox), "OB-BoundBox");
 	BKE_boundbox_init_from_minmax(bb, min, max);
@@ -2770,7 +2770,7 @@ void BKE_object_handle_update_ex(const EvaluationContext *eval_ctx,
 	 * which is only in BKE_object_where_is_calc now */
 	/* XXX: should this case be OB_RECALC_OB instead? */
 	if (recalc_object || recalc_data) {
-		if (G.debug & G_DEBUG_DEPSGRAPH) {
+		if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) {
 			printf("recalcob %s\n", ob->id.name + 2);
 		}
 		/* Handle proxy copy for target. */

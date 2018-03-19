@@ -428,26 +428,6 @@ static void arg_py_context_restore(
 
 /** \} */
 
-static void render_set_depgraph(bContext *C, Render *re)
-{
-	/* TODO(sergey): For until we make depsgraph to be created and
-	 * handled by render pipeline.
-	 */
-	Main *bmain = CTX_data_main(C);
-	Scene *scene = CTX_data_scene(C);
-	/* NOTE: This is STUPID to use first layer, but is ok for now
-	 * (at least for until depsgraph becomes per-layer).
-	 * Apparently, CTX_data_layer is crashing here (context's layer
-	 * is NULL for old files, and there is no workspace).
-	 */
-	ViewLayer *view_layer = scene->view_layers.first;
-	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
-	DEG_graph_relations_update(depsgraph, bmain, scene, view_layer);
-	DEG_graph_on_visible_update(bmain, depsgraph);
-
-	RE_SetDepsgraph(re, depsgraph);
-}
-
 /* -------------------------------------------------------------------- */
 
 /** \name Handle Argument Callbacks
@@ -524,7 +504,7 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	printf("\n");
 	printf("Window Options:\n");
 	BLI_argsPrintArgDoc(ba, "--window-border");
-	BLI_argsPrintArgDoc(ba, "--window-borderless");
+	BLI_argsPrintArgDoc(ba, "--window-fullscreen");
 	BLI_argsPrintArgDoc(ba, "--window-geometry");
 	BLI_argsPrintArgDoc(ba, "--start-console");
 	BLI_argsPrintArgDoc(ba, "--no-native-pixels");
@@ -570,6 +550,9 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--debug-jobs");
 	BLI_argsPrintArgDoc(ba, "--debug-python");
 	BLI_argsPrintArgDoc(ba, "--debug-depsgraph");
+	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-eval");
+	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-build");
+	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-tag");
 	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-no-threads");
 
 	BLI_argsPrintArgDoc(ba, "--debug-gpumem");
@@ -765,9 +748,19 @@ static const char arg_handle_debug_mode_generic_set_doc_jobs[] =
 static const char arg_handle_debug_mode_generic_set_doc_gpu[] =
 "\n\tEnable gpu debug context and information for OpenGL 4.3+.";
 static const char arg_handle_debug_mode_generic_set_doc_depsgraph[] =
-"\n\tEnable debug messages from dependency graph.";
+"\n\tEnable all debug messages from dependency graph.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_build[] =
+"\n\tEnable debug messages from dependency graph related on graph construction.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_tag[] =
+"\n\tEnable debug messages from dependency graph related on tagging.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_time[] =
+"\n\tEnable debug messages from dependency graph related on timing.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_eval[] =
+"\n\tEnable debug messages from dependency graph related on evaluation.";
 static const char arg_handle_debug_mode_generic_set_doc_depsgraph_no_threads[] =
 "\n\tSwitch dependency graph to a single threaded evaluation.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_pretty[] =
+"\n\tEnable colors for dependency graph debug messages.";
 static const char arg_handle_debug_mode_generic_set_doc_gpumem[] =
 "\n\tEnable GPU memory stats in status bar.";
 
@@ -981,7 +974,7 @@ static int arg_handle_with_borders(int UNUSED(argc), const char **UNUSED(argv), 
 }
 
 static const char arg_handle_without_borders_doc[] =
-"\n\tForce opening without borders."
+"\n\tForce opening in fullscreen mode."
 ;
 static int arg_handle_without_borders(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
 {
@@ -1373,10 +1366,9 @@ static int arg_handle_render_frame(int argc, const char **argv, void *data)
 			}
 
 			re = RE_NewSceneRender(scene);
-			BLI_begin_threaded_malloc();
+			BLI_threaded_malloc_begin();
 			BKE_reports_init(&reports, RPT_STORE);
 			RE_SetReports(re, &reports);
-			render_set_depgraph(C, re);
 			for (int i = 0; i < frames_range_len; i++) {
 				/* We could pass in frame ranges,
 				 * but prefer having exact behavior as passing in multiple frames */
@@ -1390,7 +1382,7 @@ static int arg_handle_render_frame(int argc, const char **argv, void *data)
 			}
 			RE_SetReports(re, NULL);
 			BKE_reports_clear(&reports);
-			BLI_end_threaded_malloc();
+			BLI_threaded_malloc_end();
 			MEM_freeN(frame_range_arr);
 			return 1;
 		}
@@ -1416,14 +1408,13 @@ static int arg_handle_render_animation(int UNUSED(argc), const char **UNUSED(arg
 		Main *bmain = CTX_data_main(C);
 		Render *re = RE_NewSceneRender(scene);
 		ReportList reports;
-		BLI_begin_threaded_malloc();
+		BLI_threaded_malloc_begin();
 		BKE_reports_init(&reports, RPT_STORE);
 		RE_SetReports(re, &reports);
-		render_set_depgraph(C, re);
 		RE_BlenderAnim(re, bmain, scene, NULL, scene->lay, scene->r.sfra, scene->r.efra, scene->r.frame_step);
 		RE_SetReports(re, NULL);
 		BKE_reports_clear(&reports);
-		BLI_end_threaded_malloc();
+		BLI_threaded_malloc_end();
 	}
 	else {
 		printf("\nError: no blend loaded. cannot use '-a'.\n");
@@ -1855,8 +1846,18 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	            CB_EX(arg_handle_debug_mode_generic_set, gpu), (void *)G_DEBUG_GPU);
 	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph",
 	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph), (void *)G_DEBUG_DEPSGRAPH);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-build",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_build), (void *)G_DEBUG_DEPSGRAPH_BUILD);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-eval",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_eval), (void *)G_DEBUG_DEPSGRAPH_EVAL);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-tag",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_tag), (void *)G_DEBUG_DEPSGRAPH_TAG);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-time",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_time), (void *)G_DEBUG_DEPSGRAPH_TIME);
 	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-no-threads",
 	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_no_threads), (void *)G_DEBUG_DEPSGRAPH_NO_THREADS);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-pretty",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_pretty), (void *)G_DEBUG_DEPSGRAPH_PRETTY);
 	BLI_argsAdd(ba, 1, NULL, "--debug-gpumem",
 	            CB_EX(arg_handle_debug_mode_generic_set, gpumem), (void *)G_DEBUG_GPU_MEM);
 	BLI_argsAdd(ba, 1, NULL, "--debug-gpu-shaders",
@@ -1876,7 +1877,7 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	/* second pass: custom window stuff */
 	BLI_argsAdd(ba, 2, "-p", "--window-geometry", CB(arg_handle_window_geometry), NULL);
 	BLI_argsAdd(ba, 2, "-w", "--window-border", CB(arg_handle_with_borders), NULL);
-	BLI_argsAdd(ba, 2, "-W", "--window-borderless", CB(arg_handle_without_borders), NULL);
+	BLI_argsAdd(ba, 2, "-W", "--window-fullscreen", CB(arg_handle_without_borders), NULL);
 	BLI_argsAdd(ba, 2, "-con", "--start-console", CB(arg_handle_start_with_console), NULL);
 	BLI_argsAdd(ba, 2, "-R", NULL, CB(arg_handle_register_extension), NULL);
 	BLI_argsAdd(ba, 2, "-r", NULL, CB_EX(arg_handle_register_extension, silent), ba);

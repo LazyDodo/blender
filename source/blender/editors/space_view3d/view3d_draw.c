@@ -35,7 +35,7 @@
 #include "BLI_rect.h"
 #include "BLI_string.h"
 #include "BLI_threads.h"
-#include "BLI_jitter.h"
+#include "BLI_jitter_2d.h"
 
 #include "BIF_gl.h"
 #include "BIF_glutil.h"
@@ -268,28 +268,28 @@ static void view3d_stereo3d_setup(
 		data = (Camera *)v3d->camera->data;
 		shiftx = data->shiftx;
 
-		BLI_lock_thread(LOCK_VIEW3D);
+		BLI_thread_lock(LOCK_VIEW3D);
 		data->shiftx = BKE_camera_multiview_shift_x(&scene->r, v3d->camera, viewname);
 
 		BKE_camera_multiview_view_matrix(&scene->r, v3d->camera, is_left, viewmat);
 		view3d_main_region_setup_view(eval_ctx, scene, v3d, ar, viewmat, NULL, rect);
 
 		data->shiftx = shiftx;
-		BLI_unlock_thread(LOCK_VIEW3D);
+		BLI_thread_unlock(LOCK_VIEW3D);
 	}
 	else { /* SCE_VIEWS_FORMAT_MULTIVIEW */
 		float viewmat[4][4];
 		Object *view_ob = v3d->camera;
 		Object *camera = BKE_camera_multiview_render(scene, v3d->camera, viewname);
 
-		BLI_lock_thread(LOCK_VIEW3D);
+		BLI_thread_lock(LOCK_VIEW3D);
 		v3d->camera = camera;
 
 		BKE_camera_multiview_view_matrix(&scene->r, camera, false, viewmat);
 		view3d_main_region_setup_view(eval_ctx, scene, v3d, ar, viewmat, NULL, rect);
 
 		v3d->camera = view_ob;
-		BLI_unlock_thread(LOCK_VIEW3D);
+		BLI_thread_unlock(LOCK_VIEW3D);
 	}
 }
 
@@ -494,7 +494,7 @@ static void drawviewborder(Scene *scene, const Depsgraph *depsgraph, ARegion *ar
 			float alpha = 1.0f;
 
 			if (ca->passepartalpha != 1.0f) {
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 				glEnable(GL_BLEND);
 				alpha = ca->passepartalpha;
 			}
@@ -1455,7 +1455,7 @@ static void draw_view_axis(RegionView3D *rv3d, const rcti *rect)
 	glLineWidth(2.0f);
 	glEnable(GL_LINE_SMOOTH);
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -1498,7 +1498,7 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 	negate_v3_v3(o, rv3d->ofs);
 
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glDepthMask(GL_FALSE);  /* don't overwrite zbuf */
 
 	Gwn_VertFormat *format = immVertexFormat();
@@ -1918,6 +1918,13 @@ void view3d_main_region_draw(const bContext *C, ARegion *ar)
 	view3d_draw_view(C, ar);
 	GPU_viewport_unbind(rv3d->viewport);
 
+	rcti rect = ar->winrct;
+	BLI_rcti_translate(&rect, -ar->winrct.xmin, -ar->winrct.ymin);
+	GPU_viewport_draw_to_screen(rv3d->viewport, &rect);
+
+	GPU_free_images_old();
+	GPU_pass_cache_garbage_collect();
+
 	v3d->flag |= V3D_INVALID_BACKBUF;
 }
 
@@ -2018,23 +2025,12 @@ void ED_view3d_draw_offscreen(
 	gpuPushMatrix();
 	gpuLoadIdentity();
 
-	/* clear opengl buffers */
-	if (do_sky) {
-		view3d_main_region_clear(scene, v3d, ar);
-	}
-	else {
-		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	}
-
 	if ((viewname != NULL && viewname[0] != '\0') && (viewmat == NULL) && rv3d->persp == RV3D_CAMOB && v3d->camera)
 		view3d_stereo3d_setup_offscreen(eval_ctx, scene, v3d, ar, winmat, viewname);
 	else
 		view3d_main_region_setup_view(eval_ctx, scene, v3d, ar, viewmat, winmat, NULL);
 
-	/* XXX, should take depsgraph as arg */
-	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, false);
-	BLI_assert(depsgraph != NULL);
+	Depsgraph *depsgraph = eval_ctx->depsgraph;
 
 	/* main drawing call */
 	RenderEngineType *engine_type = eval_ctx->engine_type;
@@ -2127,11 +2123,13 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(
 	}
 
 	const bool own_ofs = (ofs == NULL);
+	DRW_opengl_context_enable();
 
 	if (own_ofs) {
 		/* bind */
-		ofs = GPU_offscreen_create(sizex, sizey, use_full_sample ? 0 : samples, false, err_out);
+		ofs = GPU_offscreen_create(sizex, sizey, use_full_sample ? 0 : samples, true, false, err_out);
 		if (ofs == NULL) {
+			DRW_opengl_context_disable();
 			return NULL;
 		}
 	}
@@ -2231,7 +2229,6 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(
 			/* don't free data owned by 'ofs' */
 			GPU_viewport_clear_from_offscreen(viewport);
 			GPU_viewport_free(viewport);
-			MEM_freeN(viewport);
 		}
 
 		if (ibuf->rect_float == NULL) {
@@ -2262,6 +2259,8 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(
 	if (own_ofs) {
 		GPU_offscreen_free(ofs);
 	}
+
+	DRW_opengl_context_disable();
 
 	if (ibuf->rect_float && ibuf->rect)
 		IMB_rect_from_float(ibuf);

@@ -1304,9 +1304,9 @@ static void skin_fix_hole_no_good_verts(BMesh *bm, Frame *frame, BMFace *split_f
 	else if (split_face->len > 4) {
 		/* Maintain a dynamic vert array containing the split_face's
 		 * vertices, avoids frequent allocs in collapse_face_corners() */
-		if (BLI_array_count(vert_buf) < split_face->len) {
+		if (BLI_array_len(vert_buf) < split_face->len) {
 			BLI_array_grow_items(vert_buf, (split_face->len -
-			                                BLI_array_count(vert_buf)));
+			                                BLI_array_len(vert_buf)));
 		}
 
 		/* Get split face's verts */
@@ -1470,7 +1470,7 @@ static void hull_merge_triangles(SkinOutput *so, const SkinModifierData *smd)
 	while (!BLI_heap_is_empty(heap)) {
 		BMFace *adj[2];
 
-		e = BLI_heap_popmin(heap);
+		e = BLI_heap_pop_min(heap);
 
 		if (BM_edge_face_pair(e, &adj[0], &adj[1])) {
 			/* If both triangles still free, and if they don't already

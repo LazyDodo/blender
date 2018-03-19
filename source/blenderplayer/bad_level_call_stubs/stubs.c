@@ -153,7 +153,6 @@ struct wmManipulatorMap;
 #include "../../intern/elbeem/extern/elbeem.h"
 #include "../blender/blenkernel/BKE_modifier.h"
 #include "../blender/blenkernel/BKE_paint.h"
-#include "../blender/collada/collada.h"
 #include "../blender/compositor/COM_compositor.h"
 #include "../blender/editors/include/ED_armature.h"
 #include "../blender/editors/include/ED_anim_api.h"
@@ -240,10 +239,12 @@ bool BPY_string_is_keyword(const char *str) { return false; }
 /* -------------------------------------------------------------------- */
 /* Stubs */
 
+void DRW_deferred_shader_remove(struct GPUMaterial *mat) RET_NONE
+
 /*new render funcs */
 void EDBM_selectmode_set(struct BMEditMesh *em) RET_NONE
 void EDBM_mesh_load(struct Object *ob) RET_NONE
-void EDBM_mesh_make(struct ToolSettings *ts, struct Object *ob, const bool use_key_index) RET_NONE
+void EDBM_mesh_make(struct Object *ob, const int select_mode, const bool use_key_index) RET_NONE
 void EDBM_mesh_normals_update(struct BMEditMesh *em) RET_NONE
 void *g_system;
 bool EDBM_uv_check(struct BMEditMesh *em) RET_ZERO
@@ -282,7 +283,7 @@ int	multitex_ext(struct Tex *tex, float texvec[3], float dxt[3], float dyt[3], i
 int multitex_ext_safe(struct Tex *tex, float texvec[3], struct TexResult *texres, struct ImagePool *pool, bool scene_color_manage, const bool skip_load_image) RET_ZERO
 int multitex_nodes(struct Tex *tex, float texvec[3], float dxt[3], float dyt[3], int osatex, struct TexResult *texres, const short thread, short which_output, struct ShadeInput *shi, struct MTex *mtex, struct ImagePool *pool) RET_ZERO
 
-struct Material *RE_sample_material_init(struct Material *orig_mat, struct Scene *scene) RET_NULL
+struct Material *RE_sample_material_init(const struct EvaluationContext *eval_ctx, struct Material *orig_mat, struct Scene *scene) RET_NULL
 void RE_sample_material_free(struct Material *mat) RET_NONE
 void RE_sample_material_color(
         struct Material *mat, float color[3], float *alpha, const float volume_co[3], const float surface_co[3],
@@ -557,6 +558,7 @@ void ED_screen_animation_timer_update(struct bScreen *screen, int redraws, int r
 struct bScreen *ED_screen_animation_playing(const struct wmWindowManager *wm) RET_NULL
 struct Scene *ED_screen_scene_find(const struct bScreen *screen, const struct wmWindowManager *wm) RET_NULL
 struct Scene *ED_screen_scene_find_with_window(const struct bScreen *screen, const struct wmWindowManager *wm, struct wmWindow **r_window) RET_NULL
+struct wmWindow *ED_screen_window_find(const struct bScreen *screen, const struct wmWindowManager *wm) RET_NULL;
 bool ED_scene_view_layer_delete(struct Main *bmain, Scene *scene, ViewLayer *layer, ReportList *reports) RET_ZERO
 void ED_object_base_select(struct Base *base, eObjectSelect_Mode mode) RET_NONE
 void ED_object_base_activate(struct bContext *C, struct Base *base) RET_NONE
@@ -565,6 +567,7 @@ struct ModifierData *ED_object_modifier_add(struct ReportList *reports, struct M
 void ED_object_modifier_clear(struct Main *bmain, struct Object *ob) RET_NONE
 void ED_object_editmode_enter(struct bContext *C, int flag) RET_NONE
 void ED_object_editmode_exit(struct bContext *C, int flag) RET_NONE
+void ED_object_editmode_exit_ex(struct bContext *C, struct WorkSpace *workspace, struct Scene *scene, struct Object *obedit, int flag) RET_NONE
 bool ED_object_editmode_load(struct Object *obedit) RET_ZERO
 void ED_object_check_force_modifiers(struct Main *bmain, struct Scene *scene, struct Object *object, eObjectMode object_mode) RET_NONE
 bool uiLayoutGetActive(struct uiLayout *layout) RET_ZERO
@@ -768,16 +771,14 @@ void RE_engine_update_memory_stats(struct RenderEngine *engine, float mem_used, 
 struct RenderEngine *RE_engine_create(struct RenderEngineType *type) RET_NULL
 void RE_engine_frame_set(struct RenderEngine *engine, int frame, float subframe) RET_NONE
 void RE_FreePersistentData(void) RET_NONE
-void RE_point_density_cache(struct Scene *scene, struct ViewLayer *view_layer, struct PointDensity *pd, const bool use_render_params) RET_NONE
-void RE_point_density_minmax(struct Scene *scene, struct ViewLayer *view_layer, struct PointDensity *pd, const bool use_render_params, float r_min[3], float r_max[3]) RET_NONE
-void RE_point_density_sample(struct Scene *scene, struct ViewLayer *view_layer, struct PointDensity *pd, const int resolution, const bool use_render_params, float *values) RET_NONE
+void RE_point_density_cache(const struct EvaluationContext *eval_ctx, struct PointDensity *pd) RET_NONE
+void RE_point_density_minmax(const struct EvaluationContext *eval_ctx, struct PointDensity *pd, float r_min[3], float r_max[3]) RET_NONE
+void RE_point_density_sample(const struct EvaluationContext *eval_ctx, struct PointDensity *pd, const int resolution, float *values) RET_NONE
 void RE_point_density_free(struct PointDensity *pd) RET_NONE
-void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3]) RET_NONE
+void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *random, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3]) RET_NONE
 void RE_FreeAllPersistentData(void) RET_NONE
 float RE_fresnel_dielectric(float incoming[3], float normal[3], float eta) RET_ZERO
 void RE_engine_register_pass(struct RenderEngine *engine, struct Scene *scene, struct ViewLayer *view_layer, const char *name, int channels, const char *chanid, int type) RET_NONE
-struct ViewLayer *RE_engine_get_view_layer(struct Render *re) RET_NULL
-void RE_SetDepsgraph(struct Render *re, struct Depsgraph *graph) RET_NONE
 
 /* Draw */
 void OBJECT_collection_settings_create(struct IDProperty *properties) RET_NONE
@@ -825,33 +826,6 @@ void UI_pie_menu_end(struct bContext *C, uiPieMenu *pie) RET_NONE
 struct uiLayout *uiLayoutRadial(struct uiLayout *layout) RET_NULL
 int UI_pie_menu_invoke_from_operator_enum(struct bContext *C, const char *title, const char *opname,
                              const char *propname, const struct wmEvent *event) RET_ZERO
-
-/* RNA COLLADA dependency */
-int collada_export(const struct EvaluationContext *eval_ctx,
-                   struct Scene *sce,
-                   struct ViewLayer *view_layer,
-                   const char *filepath,
-                   int apply_modifiers,
-                   BC_export_mesh_type export_mesh_type,
-
-                   int selected,
-                   int include_children,
-                   int include_armatures,
-                   int include_shapekeys,
-                   int deform_bones_only,
-
-                   int active_uv_only,
-                   int include_material_textures,
-                   int use_texture_copies,
-
-                   int triangulate,
-                   int use_object_instantiation,
-                   int use_blender_profile,
-                   int sort_by_name,
-                   BC_export_transformation_type export_transformation_type,
-                   int open_sim,
-                   int limit_precision,
-                   int keep_bind_info) RET_ZERO
 
 void ED_mesh_calc_tessface(struct Mesh *mesh, bool free_mpoly) RET_NONE
 

@@ -183,7 +183,6 @@ static bool wm_test_duplicate_notifier(wmWindowManager *wm, unsigned int type, v
 /* XXX: in future, which notifiers to send to other windows? */
 void WM_event_add_notifier(const bContext *C, unsigned int type, void *reference)
 {
-	ARegion *ar;
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmNotifier *note;
 
@@ -196,10 +195,6 @@ void WM_event_add_notifier(const bContext *C, unsigned int type, void *reference
 	BLI_addtail(&note->wm->queue, note);
 	
 	note->window = CTX_wm_window(C);
-	
-	ar = CTX_wm_region(C);
-	if (ar)
-		note->swinid = ar->swinid;
 	
 	note->category = type & NOTE_CATEGORY;
 	note->data = type & NOTE_DATA;
@@ -1210,8 +1205,8 @@ static int wm_operator_invoke(
 		}
 
 		if ((G.debug & G_DEBUG_HANDLERS) && ((event == NULL) || (event->type != MOUSEMOVE))) {
-			printf("%s: handle evt %d win %d op %s\n",
-			       __func__, event ? event->type : 0, CTX_wm_screen(C)->subwinactive, ot->idname);
+			printf("%s: handle evt %d region %p op %s\n",
+			       __func__, event ? event->type : 0, CTX_wm_screen(C)->active_region, ot->idname);
 		}
 		
 		if (op->type->invoke && event) {
@@ -1348,6 +1343,8 @@ static int wm_operator_call_internal(
 		switch (context) {
 			case WM_OP_INVOKE_DEFAULT:
 			case WM_OP_INVOKE_REGION_WIN:
+			case WM_OP_INVOKE_REGION_PREVIEW:
+			case WM_OP_INVOKE_REGION_CHANNELS:
 			case WM_OP_INVOKE_AREA:
 			case WM_OP_INVOKE_SCREEN:
 				/* window is needed for invoke, cancel operator */
@@ -2184,7 +2181,7 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 
 				PRINT("%s:   checking '%s' ...", __func__, keymap->idname);
 
-				if (!keymap->poll || keymap->poll(C)) {
+				if (WM_keymap_poll(C, keymap)) {
 
 					PRINT("pass\n");
 
@@ -2768,7 +2765,7 @@ void wm_event_do_handlers(bContext *C)
 				/* Note: setting subwin active should be done here, after modal handlers have been done */
 				if (event->type == MOUSEMOVE) {
 					/* state variables in screen, cursors. Also used in wm_draw.c, fails for modal handlers though */
-					ED_screen_set_subwinactive(C, event);
+					ED_screen_set_active_region(C, event);
 					/* for regions having custom cursors */
 					wm_paintcursor_test(C, event);
 				}

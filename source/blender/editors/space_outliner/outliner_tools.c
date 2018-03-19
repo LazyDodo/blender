@@ -542,7 +542,7 @@ static void group_linkobs2scene_cb(
 	Group *group = (Group *)tselem->id;
 	Base *base;
 
-	FOREACH_GROUP_OBJECT(group, object)
+	FOREACH_GROUP_OBJECT_BEGIN(group, object)
 	{
 		base = BKE_view_layer_base_find(view_layer, object);
 		if (!base) {
@@ -554,7 +554,7 @@ static void group_linkobs2scene_cb(
 
 		base->flag |= BASE_SELECTED;
 	}
-	FOREACH_GROUP_OBJECT_END
+	FOREACH_GROUP_OBJECT_END;
 }
 
 static void group_instance_cb(

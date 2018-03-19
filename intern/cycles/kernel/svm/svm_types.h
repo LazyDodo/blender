@@ -135,6 +135,7 @@ typedef enum ShaderNodeType {
 	NODE_BEVEL,
 	NODE_DISPLACEMENT,
 	NODE_VECTOR_DISPLACEMENT,
+	NODE_PRINCIPLED_VOLUME,
 } ShaderNodeType;
 
 typedef enum NodeAttributeType {
@@ -161,6 +162,7 @@ typedef enum NodeObjectInfo {
 
 typedef enum NodeParticleInfo {
 	NODE_INFO_PAR_INDEX,
+	NODE_INFO_PAR_RANDOM,
 	NODE_INFO_PAR_AGE,
 	NODE_INFO_PAR_LIFETIME,
 	NODE_INFO_PAR_LOCATION,
@@ -176,7 +178,8 @@ typedef enum NodeHairInfo {
 	NODE_INFO_CURVE_THICKNESS,
 	/*fade for minimum hair width transpency*/
 	/*NODE_INFO_CURVE_FADE,*/
-	NODE_INFO_CURVE_TANGENT_NORMAL
+	NODE_INFO_CURVE_TANGENT_NORMAL,
+	NODE_INFO_CURVE_RANDOM,
 } NodeHairInfo;
 
 typedef enum NodeLightPath {

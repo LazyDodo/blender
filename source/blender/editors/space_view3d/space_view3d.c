@@ -68,6 +68,8 @@
 #include "GPU_viewport.h"
 #include "GPU_matrix.h"
 
+#include "DRW_engine.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
@@ -576,8 +578,9 @@ static void view3d_main_region_exit(wmWindowManager *wm, ARegion *ar)
 	}
 
 	if (rv3d->viewport) {
+		DRW_opengl_context_enable();
 		GPU_viewport_free(rv3d->viewport);
-		MEM_freeN(rv3d->viewport);
+		DRW_opengl_context_disable();
 		rv3d->viewport = NULL;
 	}
 }
@@ -811,8 +814,9 @@ static void view3d_main_region_free(ARegion *ar)
 			GPU_fx_compositor_destroy(rv3d->compositor);
 		}
 		if (rv3d->viewport) {
+			DRW_opengl_context_enable();
 			GPU_viewport_free(rv3d->viewport);
-			MEM_freeN(rv3d->viewport);
+			DRW_opengl_context_disable();
 		}
 
 		MEM_freeN(rv3d);
@@ -969,10 +973,10 @@ static void view3d_main_region_listener(
 				case ND_SELECT:
 				{
 					WM_manipulatormap_tag_refresh(mmap);
-					if (scene->obedit) {
-						Object *ob = scene->obedit;
+					Object *obedit = OBEDIT_FROM_WINDOW(wmn->window);
+					if (obedit) {
 						/* TODO(sergey): Notifiers shouldn't really be doing DEG tags. */
-						DEG_id_tag_update((ID *)ob->data, DEG_TAG_SELECT_UPDATE);
+						DEG_id_tag_update((ID *)obedit->data, DEG_TAG_SELECT_UPDATE);
 					}
 					ATTR_FALLTHROUGH;
 				}
@@ -1122,7 +1126,7 @@ static void view3d_main_region_message_subscribe(
 	 *
 	 * For other space types we might try avoid this, keep the 3D view as an exceptional case! */
 	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-	wmMsgParams_RNA msg_key_params = {0};
+	wmMsgParams_RNA msg_key_params = {{{0}}};
 
 	/* Only subscribe to types. */
 	StructRNA *type_array[] = {

@@ -119,6 +119,11 @@ struct bScreen *WM_window_get_active_screen(const struct wmWindow *win) ATTR_NON
 void            WM_window_set_active_screen(struct wmWindow *win, struct WorkSpace *workspace, struct bScreen *screen) ATTR_NONNULL(1);
 bool WM_window_is_temp_screen(const struct wmWindow *win) ATTR_WARN_UNUSED_RESULT;
 
+void *WM_opengl_context_create(void);
+void WM_opengl_context_dispose(void *context);
+void WM_opengl_context_activate(void *context);
+void WM_opengl_context_release(void *context);
+
 /* defines for 'type' WM_window_open_temp */
 enum {
 	WM_WINDOW_RENDER = 1,
@@ -141,7 +146,7 @@ void		WM_file_autoexec_init(const char *filepath);
 bool		WM_file_read(struct bContext *C, const char *filepath, struct ReportList *reports);
 void		WM_autosave_init(struct wmWindowManager *wm);
 void		WM_recover_last_session(struct bContext *C, struct ReportList *reports);
-void		WM_file_tag_modified(const struct bContext *C);
+void		WM_file_tag_modified(void);
 
 void        WM_lib_reload(struct Library *lib, struct bContext *C, struct ReportList *reports);
 
@@ -416,6 +421,7 @@ struct MenuType    *WM_menutype_find(const char *idname, bool quiet);
 bool                WM_menutype_add(struct MenuType *mt);
 void                WM_menutype_freelink(struct MenuType *mt);
 void                WM_menutype_free(void);
+bool                WM_menutype_poll(struct bContext *C, struct MenuType *mt);
 
 /* wm_gesture_ops.c */
 int			WM_gesture_border_invoke	(struct bContext *C, struct wmOperator *op, const struct wmEvent *event);
@@ -457,15 +463,17 @@ struct wmDropBox	*WM_dropbox_add(ListBase *lb, const char *idname, int (*poll)(s
                                     void (*copy)(struct wmDrag *, struct wmDropBox *));
 ListBase	*WM_dropboxmap_find(const char *idname, int spaceid, int regionid);
 
-			/* Set a subwindow active in pixelspace view, with optional scissor subset */
-void		wmSubWindowSet			(struct wmWindow *win, int swinid);
-void		wmSubWindowScissorSet	(struct wmWindow *win, int swinid, const struct rcti *srct, bool srct_pad);
+			/* Set OpenGL viewport and scissor */
+void		wmViewport(const struct rcti *rect);
+void		wmPartialViewport(rcti *drawrct, const rcti *winrct, const rcti *partialrct);
+void		wmWindowViewport(struct wmWindow *win);
 
 			/* OpenGL utilities with safety check */
 void		wmOrtho2			(float x1, float x2, float y1, float y2);
 			/* use for conventions (avoid hard-coded offsets all over) */
 void		wmOrtho2_region_pixelspace(const struct ARegion *ar);
 void		wmOrtho2_pixelspace(const float x, const float y);
+void		wmGetProjectionMatrix(float mat[4][4], const struct rcti *winrct);
 
 			/* threaded Jobs Manager */
 enum {
@@ -496,6 +504,7 @@ enum {
 	WM_JOB_TYPE_POINTCACHE,
 	WM_JOB_TYPE_DPAINT_BAKE,
 	WM_JOB_TYPE_ALEMBIC,
+	WM_JOB_TYPE_SHADER_COMPILATION,
 	WM_JOB_TYPE_ASSET_UPDATECHECK,
 	/* add as needed, screencast, seq proxy build
 	 * if having hard coded values is a problem */

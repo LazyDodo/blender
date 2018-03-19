@@ -182,7 +182,7 @@ static void wm_window_match_init(bContext *C, ListBase *wmlist)
 static void wm_window_substitute_old(wmWindowManager *wm, wmWindow *oldwin, wmWindow *win)
 {
 	win->ghostwin = oldwin->ghostwin;
-	win->multisamples = oldwin->multisamples;
+	win->gwnctx = oldwin->gwnctx;
 	win->active = oldwin->active;
 	if (win->active)
 		wm->winactive = win;
@@ -191,7 +191,7 @@ static void wm_window_substitute_old(wmWindowManager *wm, wmWindow *oldwin, wmWi
 		GHOST_SetWindowUserData(win->ghostwin, win);    /* pointer back */
 
 	oldwin->ghostwin = NULL;
-	oldwin->multisamples = 0;
+	oldwin->gwnctx = NULL;
 
 	win->eventstate = oldwin->eventstate;
 	oldwin->eventstate = NULL;
@@ -497,6 +497,8 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 		BPY_python_reset(C);
 		addons_loaded = true;
 	}
+#else
+	UNUSED_VARS(use_userdef);
 #endif  /* WITH_PYTHON */
 
 	WM_operatortype_last_properties_clear_all();
@@ -1376,13 +1378,13 @@ void wm_open_init_use_scripts(wmOperator *op, bool use_prefs)
 
 /** \} */
 
-void WM_file_tag_modified(const bContext *C)
+void WM_file_tag_modified(void)
 {
-	wmWindowManager *wm = CTX_wm_manager(C);
+	wmWindowManager *wm = G.main->wm.first;
 	if (wm->file_saved) {
 		wm->file_saved = 0;
 		/* notifier that data changed, for save-over warning or header */
-		WM_event_add_notifier(C, NC_WM | ND_DATACHANGED, NULL);
+		WM_main_add_notifier(NC_WM | ND_DATACHANGED, NULL);
 	}
 }
 
@@ -2207,11 +2209,13 @@ static int wm_save_mainfile_invoke(bContext *C, wmOperator *op, const wmEvent *U
 		char path[FILE_MAX];
 
 		RNA_string_get(op->ptr, "filepath", path);
-		if (BLI_exists(path)) {
+		if (RNA_boolean_get(op->ptr, "check_existing") && BLI_exists(path)) {
 			ret = WM_operator_confirm_message_ex(C, op, IFACE_("Save Over?"), ICON_QUESTION, path);
 		}
 		else {
 			ret = wm_save_as_mainfile_exec(C, op);
+			/* Without this there is no feedback the file was saved. */
+			BKE_reportf(op->reports, RPT_INFO, "Saved \"%s\"", BLI_path_basename(path));
 		}
 	}
 	else {

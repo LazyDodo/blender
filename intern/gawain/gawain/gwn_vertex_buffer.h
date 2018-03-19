@@ -13,6 +13,7 @@
 
 #include "gwn_vertex_format.h"
 
+#define VRAM_USAGE 1
 // How to create a Gwn_VertBuf:
 // 1) verts = GWN_vertbuf_create() or GWN_vertbuf_init(verts)
 // 2) GWN_vertformat_attr_add(verts->format, ...)
@@ -21,26 +22,38 @@
 
 // Is Gwn_VertBuf always used as part of a Gwn_Batch?
 
+typedef enum {
+	// can be extended to support more types
+	GWN_USAGE_STREAM,
+	GWN_USAGE_STATIC, // do not keep data in memory
+	GWN_USAGE_DYNAMIC
+} Gwn_UsageType;
+
 typedef struct Gwn_VertBuf {
 	Gwn_VertFormat format;
 	unsigned vertex_ct;
-	bool own_data; // does gawain own the data an is able to free it
-	GLubyte* data; // NULL indicates data in VRAM (unmapped) or not yet allocated
-	GLuint vbo_id; // 0 indicates not yet sent to VRAM
+	bool dirty;
+	GLubyte* data; // NULL indicates data in VRAM (unmapped)
+	GLuint vbo_id; // 0 indicates not yet allocated
+	Gwn_UsageType usage; // usage hint for GL optimisation
 } Gwn_VertBuf;
 
-Gwn_VertBuf* GWN_vertbuf_create(void);
-Gwn_VertBuf* GWN_vertbuf_create_with_format(const Gwn_VertFormat*);
+Gwn_VertBuf* GWN_vertbuf_create(Gwn_UsageType);
+Gwn_VertBuf* GWN_vertbuf_create_with_format_ex(const Gwn_VertFormat*, Gwn_UsageType);
 
-void GWN_vertbuf_clear(Gwn_VertBuf* verts);
+#define GWN_vertbuf_create_with_format(format) \
+	GWN_vertbuf_create_with_format_ex(format, GWN_USAGE_STATIC)
+
 void GWN_vertbuf_discard(Gwn_VertBuf*);
 
-void GWN_vertbuf_init(Gwn_VertBuf*);
-void GWN_vertbuf_init_with_format(Gwn_VertBuf*, const Gwn_VertFormat*);
+void GWN_vertbuf_init(Gwn_VertBuf*, Gwn_UsageType);
+void GWN_vertbuf_init_with_format_ex(Gwn_VertBuf*, const Gwn_VertFormat*, Gwn_UsageType);
+
+#define GWN_vertbuf_init_with_format(verts, format) \
+	GWN_vertbuf_init_with_format_ex(verts, format, GWN_USAGE_STATIC)
 
 unsigned GWN_vertbuf_size_get(const Gwn_VertBuf*);
 void GWN_vertbuf_data_alloc(Gwn_VertBuf*, unsigned v_ct);
-void GWN_vertbuf_data_set(Gwn_VertBuf*, unsigned v_ct, void* data, bool pass_ownership);
 void GWN_vertbuf_data_resize(Gwn_VertBuf*, unsigned v_ct);
 
 // The most important set_attrib variant is the untyped one. Get it right first.

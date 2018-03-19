@@ -87,6 +87,9 @@ struct GPUViewport {
 	struct DRWInstanceDataList *idatalist; /* Used for rendering data structure. */
 
 	ListBase tex_pool;  /* ViewportTempTexture list : Temporary textures shared across draw engines */
+
+	/* Profiling data */
+	double cache_time;
 };
 
 enum {
@@ -97,6 +100,7 @@ static void gpu_viewport_buffers_free(FramebufferList *fbl, int fbl_len, Texture
 static void gpu_viewport_storage_free(StorageList *stl, int stl_len);
 static void gpu_viewport_passes_free(PassList *psl, int psl_len);
 static void gpu_viewport_texture_pool_free(GPUViewport *viewport);
+static void gpu_viewport_default_fb_create(GPUViewport *viewport);
 
 void GPU_viewport_tag_update(GPUViewport *viewport)
 {
@@ -125,9 +129,26 @@ GPUViewport *GPU_viewport_create(void)
 GPUViewport *GPU_viewport_create_from_offscreen(struct GPUOffScreen *ofs)
 {
 	GPUViewport *viewport = GPU_viewport_create();
-	GPU_offscreen_viewport_data_get(ofs, &viewport->fbl->default_fb, &viewport->txl->color, &viewport->txl->depth);
+	GPUTexture *color, *depth;
+	GPUFrameBuffer *fb;
 	viewport->size[0] = GPU_offscreen_width(ofs);
 	viewport->size[1] = GPU_offscreen_height(ofs);
+
+	GPU_offscreen_viewport_data_get(ofs, &fb, &color, &depth);
+
+	if (GPU_texture_samples(color)) {
+		viewport->txl->multisample_color = color;
+		viewport->txl->multisample_depth = depth;
+		viewport->fbl->multisample_fb = fb;
+		gpu_viewport_default_fb_create(viewport);
+		GPU_framebuffer_slots_bind(viewport->fbl->default_fb, 0);
+	}
+	else {
+		viewport->fbl->default_fb = fb;
+		viewport->txl->color = color;
+		viewport->txl->depth = depth;
+	}
+
 	return viewport;
 }
 /**
@@ -135,9 +156,23 @@ GPUViewport *GPU_viewport_create_from_offscreen(struct GPUOffScreen *ofs)
  */
 void GPU_viewport_clear_from_offscreen(GPUViewport *viewport)
 {
-	viewport->fbl->default_fb = NULL;
-	viewport->txl->color = NULL;
-	viewport->txl->depth = NULL;
+	DefaultFramebufferList *dfbl = viewport->fbl;
+	DefaultTextureList *dtxl = viewport->txl;
+
+	if (dfbl->multisample_fb) {
+		/* GPUViewport expect the final result to be in default_fb but
+		 * GPUOffscreen wants it in its multisample_fb, so we sync it back. */
+		GPU_framebuffer_blit(dfbl->default_fb, 0, dfbl->multisample_fb, 0, false, false);
+		GPU_framebuffer_blit(dfbl->default_fb, 0, dfbl->multisample_fb, 0, true, false);
+		dfbl->multisample_fb = NULL;
+		dtxl->multisample_color = NULL;
+		dtxl->multisample_depth = NULL;
+	}
+	else {
+		viewport->fbl->default_fb = NULL;
+		dtxl->color = NULL;
+		dtxl->depth = NULL;
+	}
 }
 
 void *GPU_viewport_engine_data_create(GPUViewport *viewport, void *engine_type)
@@ -243,6 +278,11 @@ void GPU_viewport_size_set(GPUViewport *viewport, const int size[2])
 	viewport->size[1] = size[1];
 }
 
+double *GPU_viewport_cache_time_get(GPUViewport *viewport)
+{
+	return &viewport->cache_time;
+}
+
 /**
  * Try to find a texture coresponding to params into the texture pool.
  * If no texture was found, create one and add it to the pool.
@@ -335,6 +375,65 @@ void GPU_viewport_cache_release(GPUViewport *viewport)
 	}
 }
 
+static void gpu_viewport_default_fb_create(GPUViewport *viewport)
+{
+	DefaultFramebufferList *dfbl = viewport->fbl;
+	DefaultTextureList *dtxl = viewport->txl;
+	int *size = viewport->size;
+	bool ok = true;
+
+	dfbl->default_fb = GPU_framebuffer_create();
+	if (!dfbl->default_fb) {
+		ok = false;
+		goto cleanup;
+	}
+
+	/* Color */
+	dtxl->color = GPU_texture_create_2D(size[0], size[1], NULL, NULL);
+	if (!dtxl->color) {
+		ok = false;
+		goto cleanup;
+	}
+
+	if (!GPU_framebuffer_texture_attach(dfbl->default_fb, dtxl->color, 0, 0)) {
+		ok = false;
+		goto cleanup;
+	}
+
+	/* Depth */
+	dtxl->depth = GPU_texture_create_depth_with_stencil(size[0], size[1], NULL);
+
+	if (dtxl->depth) {
+		/* Define texture parameters */
+		GPU_texture_bind(dtxl->depth, 0);
+		GPU_texture_compare_mode(dtxl->depth, false);
+		GPU_texture_filter_mode(dtxl->depth, true);
+		GPU_texture_unbind(dtxl->depth);
+	}
+	else {
+		ok = false;
+		goto cleanup;
+	}
+
+	if (!GPU_framebuffer_texture_attach(dfbl->default_fb, dtxl->depth, 0, 0)) {
+		ok = false;
+		goto cleanup;
+	}
+	else if (!GPU_framebuffer_check_valid(dfbl->default_fb, NULL)) {
+		ok = false;
+		goto cleanup;
+	}
+
+cleanup:
+	if (!ok) {
+		GPU_viewport_free(viewport);
+		DRW_opengl_context_disable();
+		return;
+	}
+
+	GPU_framebuffer_restore();
+}
+
 void GPU_viewport_bind(GPUViewport *viewport, const rcti *rect)
 {
 	DefaultFramebufferList *dfbl = viewport->fbl;
@@ -344,6 +443,8 @@ void GPU_viewport_bind(GPUViewport *viewport, const rcti *rect)
 	/* add one pixel because of scissor test */
 	int rect_w = BLI_rcti_size_x(rect) + 1;
 	int rect_h = BLI_rcti_size_y(rect) + 1;
+
+	DRW_opengl_context_enable();
 
 	if (dfbl->default_fb) {
 		if (rect_w != viewport->size[0] || rect_h != viewport->size[1] || U.ogl_multisamples != viewport->samples) {
@@ -360,6 +461,9 @@ void GPU_viewport_bind(GPUViewport *viewport, const rcti *rect)
 			gpu_viewport_texture_pool_free(viewport);
 		}
 	}
+
+	viewport->size[0] = rect_w;
+	viewport->size[1] = rect_h;
 
 	gpu_viewport_texture_pool_clear_users(viewport);
 
@@ -408,73 +512,19 @@ void GPU_viewport_bind(GPUViewport *viewport, const rcti *rect)
 cleanup_multisample:
 			if (!ok) {
 				GPU_viewport_free(viewport);
-				MEM_freeN(viewport);
 				return;
 			}
 		}
 	}
 
 	if (!dfbl->default_fb) {
-		bool ok = true;
-		viewport->size[0] = rect_w;
-		viewport->size[1] = rect_h;
-
-		dfbl->default_fb = GPU_framebuffer_create();
-		if (!dfbl->default_fb) {
-			ok = false;
-			goto cleanup;
-		}
-
-		/* Color */
-		dtxl->color = GPU_texture_create_2D(rect_w, rect_h, NULL, NULL);
-		if (!dtxl->color) {
-			ok = false;
-			goto cleanup;
-		}
-
-		if (!GPU_framebuffer_texture_attach(dfbl->default_fb, dtxl->color, 0, 0)) {
-			ok = false;
-			goto cleanup;
-		}
-
-		/* Depth */
-		dtxl->depth = GPU_texture_create_depth_with_stencil(rect_w, rect_h, NULL);
-
-		if (dtxl->depth) {
-			/* Define texture parameters */
-			GPU_texture_bind(dtxl->depth, 0);
-			GPU_texture_compare_mode(dtxl->depth, false);
-			GPU_texture_filter_mode(dtxl->depth, true);
-			GPU_texture_unbind(dtxl->depth);
-		}
-		else {
-			ok = false;
-			goto cleanup;
-		}
-
-		if (!GPU_framebuffer_texture_attach(dfbl->default_fb, dtxl->depth, 0, 0)) {
-			ok = false;
-			goto cleanup;
-		}
-		else if (!GPU_framebuffer_check_valid(dfbl->default_fb, NULL)) {
-			ok = false;
-			goto cleanup;
-		}
-
-cleanup:
-		if (!ok) {
-			GPU_viewport_free(viewport);
-			MEM_freeN(viewport);
-			return;
-		}
-
-		GPU_framebuffer_restore();
+		gpu_viewport_default_fb_create(viewport);
 	}
 
 	GPU_framebuffer_slots_bind(dfbl->default_fb, 0);
 }
 
-static void draw_ofs_to_screen(GPUViewport *viewport)
+static void draw_ofs_to_screen(GPUViewport *viewport, const rcti *rect)
 {
 	DefaultTextureList *dtxl = viewport->txl;
 
@@ -482,6 +532,9 @@ static void draw_ofs_to_screen(GPUViewport *viewport)
 
 	const float w = (float)GPU_texture_width(color);
 	const float h = (float)GPU_texture_height(color);
+
+	BLI_assert(w == BLI_rcti_size_x(rect) + 1);
+	BLI_assert(h == BLI_rcti_size_y(rect) + 1);
 
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int texcoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -495,16 +548,16 @@ static void draw_ofs_to_screen(GPUViewport *viewport)
 	immBegin(GWN_PRIM_TRI_STRIP, 4);
 
 	immAttrib2f(texcoord, 0.0f, 0.0f);
-	immVertex2f(pos, 0.0f, 0.0f);
+	immVertex2f(pos, rect->xmin, rect->ymin);
 
 	immAttrib2f(texcoord, 1.0f, 0.0f);
-	immVertex2f(pos, w, 0.0f);
+	immVertex2f(pos, rect->xmin + w, rect->ymin);
 
 	immAttrib2f(texcoord, 0.0f, 1.0f);
-	immVertex2f(pos, 0.0f, h);
+	immVertex2f(pos, rect->xmin, rect->ymin + h);
 
 	immAttrib2f(texcoord, 1.0f, 1.0f);
-	immVertex2f(pos, w, h);
+	immVertex2f(pos, rect->xmin + w, rect->ymin + h);
 
 	immEnd();
 
@@ -520,12 +573,23 @@ void GPU_viewport_unbind(GPUViewport *viewport)
 	if (dfbl->default_fb) {
 		GPU_framebuffer_texture_unbind(NULL, NULL);
 		GPU_framebuffer_restore();
+	}
 
+	DRW_opengl_context_disable();
+
+	if (dfbl->default_fb) {
 		glEnable(GL_SCISSOR_TEST);
 		glDisable(GL_DEPTH_TEST);
+	}
+}
 
+void GPU_viewport_draw_to_screen(GPUViewport *viewport, const rcti *rect)
+{
+	DefaultFramebufferList *dfbl = viewport->fbl;
+
+	if (dfbl->default_fb) {
 		/* This might be bandwidth limiting */
-		draw_ofs_to_screen(viewport);
+		draw_ofs_to_screen(viewport, rect);
 	}
 }
 
@@ -571,6 +635,7 @@ static void gpu_viewport_passes_free(PassList *psl, int psl_len)
 	}
 }
 
+/* Must be executed inside Drawmanager Opengl Context. */
 void GPU_viewport_free(GPUViewport *viewport)
 {
 	gpu_viewport_engines_data_free(viewport);
@@ -587,8 +652,8 @@ void GPU_viewport_free(GPUViewport *viewport)
 	if (viewport->vmempool.calls != NULL) {
 		BLI_mempool_destroy(viewport->vmempool.calls);
 	}
-	if (viewport->vmempool.calls_generate != NULL) {
-		BLI_mempool_destroy(viewport->vmempool.calls_generate);
+	if (viewport->vmempool.states != NULL) {
+		BLI_mempool_destroy(viewport->vmempool.states);
 	}
 	if (viewport->vmempool.shgroups != NULL) {
 		BLI_mempool_destroy(viewport->vmempool.shgroups);
@@ -604,6 +669,8 @@ void GPU_viewport_free(GPUViewport *viewport)
 	MEM_freeN(viewport->idatalist);
 
 	GPU_viewport_debug_depth_free(viewport);
+
+	MEM_freeN(viewport);
 }
 
 /****************** debug ********************/

@@ -35,6 +35,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_armature_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 #include "DNA_screen_types.h"
@@ -59,6 +60,8 @@
 #include "BKE_packedFile.h"
 #include "BKE_paint.h"
 #include "BKE_screen.h"
+#include "BKE_workspace.h"
+#include "BKE_layer.h"
 
 #include "ED_armature.h"
 #include "ED_buttons.h"
@@ -89,7 +92,6 @@
 void ED_editors_init(bContext *C)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
-	Scene *sce = CTX_data_scene(C);
 
 	/* This is called during initialization, so we don't want to store any reports */
 	ReportList *reports = CTX_wm_reports(C);
@@ -97,9 +99,45 @@ void ED_editors_init(bContext *C)
 
 	SWAP(int, reports->flag, reports_flag_prev);
 
+
+	/* toggle on modes for objects that were saved with these enabled. for
+	 * e.g. linked objects we have to ensure that they are actually the
+	 * active object in this scene. */
+	{
+		wmWindow *win_orig = CTX_wm_window(C);
+		CTX_wm_window_set(C, NULL);
+		for (wmWindow *win = wm->windows.first; win; win = win->next) {
+			WorkSpace *workspace = WM_window_get_active_workspace(win);
+			Scene *scene = WM_window_get_active_scene(win);
+			ViewLayer *view_layer = BKE_view_layer_from_workspace_get(scene, workspace);
+			Object *obact = view_layer ? OBACT(view_layer) : NULL;
+			eObjectMode object_mode = workspace->object_mode;
+			workspace->object_mode = OB_MODE_OBJECT;
+			if (view_layer && obact) {
+				const ID *data = obact->data;
+				if (!ELEM(object_mode, OB_MODE_OBJECT, OB_MODE_POSE)) {
+					if (!ID_IS_LINKED(obact) && !(data && ID_IS_LINKED(data))) {
+						CTX_wm_window_set(C, win);
+						ED_object_mode_toggle(C, object_mode);
+						CTX_wm_window_set(C, NULL);
+					}
+				}
+				else if (object_mode == OB_MODE_POSE) {
+					if (!ID_IS_LINKED(obact) && (obact->type == OB_ARMATURE)) {
+						workspace->object_mode = object_mode;
+					}
+				}
+			}
+		}
+		CTX_wm_window_set(C, win_orig);
+	}
+
 	/* image editor paint mode */
-	if (sce) {
-		ED_space_image_paint_update(wm, sce);
+	{
+		Scene *sce = CTX_data_scene(C);
+		if (sce) {
+			ED_space_image_paint_update(wm, sce);
+		}
 	}
 
 	SWAP(int, reports->flag, reports_flag_prev);
@@ -109,7 +147,6 @@ void ED_editors_init(bContext *C)
 void ED_editors_exit(bContext *C)
 {
 	Main *bmain = CTX_data_main(C);
-	Scene *sce;
 
 	if (!bmain)
 		return;
@@ -117,23 +154,20 @@ void ED_editors_exit(bContext *C)
 	/* frees all editmode undos */
 	undo_editmode_clear();
 	ED_undo_paint_free();
-	
-	for (sce = bmain->scene.first; sce; sce = sce->id.next) {
-		if (sce->obedit) {
-			Object *ob = sce->obedit;
-		
-			if (ob) {
-				if (ob->type == OB_MESH) {
-					Mesh *me = ob->data;
-					if (me->edit_btmesh) {
-						EDBM_mesh_free(me->edit_btmesh);
-						MEM_freeN(me->edit_btmesh);
-						me->edit_btmesh = NULL;
-					}
-				}
-				else if (ob->type == OB_ARMATURE) {
-					ED_armature_edit_free(ob->data);
-				}
+
+	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+		if (ob->type == OB_MESH) {
+			Mesh *me = ob->data;
+			if (me->edit_btmesh) {
+				EDBM_mesh_free(me->edit_btmesh);
+				MEM_freeN(me->edit_btmesh);
+				me->edit_btmesh = NULL;
+			}
+		}
+		else if (ob->type == OB_ARMATURE) {
+			bArmature *arm = ob->data;
+			if (arm->edbo) {
+				ED_armature_edit_free(ob->data);
 			}
 		}
 	}

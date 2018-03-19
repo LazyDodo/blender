@@ -856,9 +856,8 @@ static void non_recursive_bvh_div_nodes_task_cb(
 		else {
 			break;
 		}
-
-		parent->totnode = (char)(k + 1);
 	}
+	parent->totnode = (char)k;
 }
 
 /**
@@ -1147,7 +1146,7 @@ void BLI_bvhtree_update_tree(BVHTree *tree)
  * Number of times #BLI_bvhtree_insert has been called.
  * mainly useful for asserts functions to check we added the correct number.
  */
-int BLI_bvhtree_get_size(const BVHTree *tree)
+int BLI_bvhtree_get_len(const BVHTree *tree)
 {
 	return tree->totleaf;
 }
@@ -1924,6 +1923,7 @@ void BLI_bvhtree_ray_cast_all(
 	BLI_bvhtree_ray_cast_all_ex(tree, co, dir, radius, hit_dist, callback, userdata, BVH_RAYCAST_DEFAULT);
 }
 
+/** \} */
 
 /* -------------------------------------------------------------------- */
 

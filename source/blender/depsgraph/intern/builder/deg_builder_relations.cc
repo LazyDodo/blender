@@ -194,7 +194,7 @@ static bool particle_system_depends_on_time(ParticleSystem *psys)
 
 static bool object_particles_depends_on_time(Object *object)
 {
-	BLI_LISTBASE_FOREACH (ParticleSystem *, psys, &object->particlesystem) {
+	LISTBASE_FOREACH (ParticleSystem *, psys, &object->particlesystem) {
 		if (particle_system_depends_on_time(psys)) {
 			return true;
 		}
@@ -283,7 +283,7 @@ void DepsgraphRelationBuilder::add_time_relation(TimeSourceDepsNode *timesrc,
 		graph_->add_new_relation(timesrc, node_to, description, check_unique);
 	}
 	else {
-		DEG_DEBUG_PRINTF("add_time_relation(%p = %s, %p = %s, %s) Failed\n",
+		DEG_DEBUG_PRINTF(BUILD, "add_time_relation(%p = %s, %p = %s, %s) Failed\n",
 		                 timesrc,   (timesrc) ? timesrc->identifier().c_str() : "<None>",
 		                 node_to,   (node_to) ? node_to->identifier().c_str() : "<None>",
 		                 description);
@@ -300,7 +300,7 @@ void DepsgraphRelationBuilder::add_operation_relation(
 		graph_->add_new_relation(node_from, node_to, description, check_unique);
 	}
 	else {
-		DEG_DEBUG_PRINTF("add_operation_relation(%p = %s, %p = %s, %s) Failed\n",
+		DEG_DEBUG_PRINTF(BUILD, "add_operation_relation(%p = %s, %p = %s, %s) Failed\n",
 		                 node_from, (node_from) ? node_from->identifier().c_str() : "<None>",
 		                 node_to,   (node_to)   ? node_to->identifier().c_str() : "<None>",
 		                 description);
@@ -347,7 +347,7 @@ void DepsgraphRelationBuilder::add_forcefield_relations(
 {
 	ListBase *effectors = pdInitEffectors(NULL, scene, object, psys, eff, false);
 	if (effectors != NULL) {
-		BLI_LISTBASE_FOREACH (EffectorCache *, eff, effectors) {
+		LISTBASE_FOREACH (EffectorCache *, eff, effectors) {
 			if (eff->ob != object) {
 				ComponentKey eff_key(&eff->ob->id, DEG_NODE_TYPE_TRANSFORM);
 				add_relation(eff_key, key, name);
@@ -403,37 +403,21 @@ Depsgraph *DepsgraphRelationBuilder::getGraph()
 
 void DepsgraphRelationBuilder::begin_build()
 {
-	/* LIB_TAG_DOIT is used to indicate whether node for given ID was already
-	 * created or not.
-	 */
-	BKE_main_id_tag_all(bmain_, LIB_TAG_DOIT, false);
-	/* XXX nested node trees are notr included in tag-clearing above,
-	 * so we need to do this manually.
-	 */
-	FOREACH_NODETREE(bmain_, nodetree, id)
-	{
-		if (id != (ID *)nodetree) {
-			nodetree->id.tag &= ~LIB_TAG_DOIT;
-		}
-	}
-	FOREACH_NODETREE_END
 }
 
 void DepsgraphRelationBuilder::build_group(Object *object, Group *group)
 {
-	ID *group_id = &group->id;
-	bool group_done = (group_id->tag & LIB_TAG_DOIT) != 0;
+	const bool group_done = built_map_.checkIsBuiltAndTag(group);
 	OperationKey object_local_transform_key(object != NULL ? &object->id : NULL,
 	                                        DEG_NODE_TYPE_TRANSFORM,
 	                                        DEG_OPCODE_TRANSFORM_LOCAL);
 	if (!group_done) {
-		BLI_LISTBASE_FOREACH (Base *, base, &group->view_layer->object_bases) {
+		LISTBASE_FOREACH (Base *, base, &group->view_layer->object_bases) {
 			build_object(NULL, base->object);
 		}
-		group_id->tag |= LIB_TAG_DOIT;
 	}
 	if (object != NULL) {
-		BLI_LISTBASE_FOREACH (Base *, base, &group->view_layer->object_bases) {
+		LISTBASE_FOREACH (Base *, base, &group->view_layer->object_bases) {
 			ComponentKey dupli_transform_key(&base->object->id, DEG_NODE_TYPE_TRANSFORM);
 			add_relation(dupli_transform_key, object_local_transform_key, "Dupligroup");
 		}
@@ -442,13 +426,12 @@ void DepsgraphRelationBuilder::build_group(Object *object, Group *group)
 
 void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 {
-	if (object->id.tag & LIB_TAG_DOIT) {
+	if (built_map_.checkIsBuiltAndTag(object)) {
 		if (base != NULL) {
 			build_object_flags(base, object);
 		}
 		return;
 	}
-	object->id.tag |= LIB_TAG_DOIT;
 	/* Object Transforms */
 	eDepsOperation_Code base_op = (object->parent) ? DEG_OPCODE_TRANSFORM_PARENT
 	                                               : DEG_OPCODE_TRANSFORM_LOCAL;
@@ -776,7 +759,7 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 		else if (cti->get_constraint_targets) {
 			ListBase targets = {NULL, NULL};
 			cti->get_constraint_targets(con, &targets);
-			BLI_LISTBASE_FOREACH (bConstraintTarget *, ct, &targets) {
+			LISTBASE_FOREACH (bConstraintTarget *, ct, &targets) {
 				if (ct->tar == NULL) {
 					continue;
 				}
@@ -953,7 +936,7 @@ void DepsgraphRelationBuilder::build_animdata_curves(ID *id)
 	                              operation_from,
 	                              &adt->action->curves);
 	}
-	BLI_LISTBASE_FOREACH(NlaTrack *, nlt, &adt->nla_tracks) {
+	LISTBASE_FOREACH(NlaTrack *, nlt, &adt->nla_tracks) {
 		build_animdata_nlastrip_targets(id, adt_key,
 		                                operation_from,
 		                                &nlt->strips);
@@ -968,7 +951,7 @@ void DepsgraphRelationBuilder::build_animdata_curves_targets(
 	/* Iterate over all curves and build relations. */
 	PointerRNA id_ptr;
 	RNA_id_pointer_create(id, &id_ptr);
-	BLI_LISTBASE_FOREACH(FCurve *, fcu, curves) {
+	LISTBASE_FOREACH(FCurve *, fcu, curves) {
 		PointerRNA ptr;
 		PropertyRNA *prop;
 		int index;
@@ -1016,7 +999,7 @@ void DepsgraphRelationBuilder::build_animdata_nlastrip_targets(
         OperationDepsNode *operation_from,
         ListBase *strips)
 {
-	BLI_LISTBASE_FOREACH(NlaStrip *, strip, strips) {
+	LISTBASE_FOREACH(NlaStrip *, strip, strips) {
 		if (strip->act != NULL) {
 			build_animdata_curves_targets(id, adt_key,
 			                              operation_from,
@@ -1037,7 +1020,7 @@ void DepsgraphRelationBuilder::build_animdata_drivers(ID *id)
 		return;
 	}
 	ComponentKey adt_key(id, DEG_NODE_TYPE_ANIMATION);
-	BLI_LISTBASE_FOREACH (FCurve *, fcu, &adt->drivers) {
+	LISTBASE_FOREACH (FCurve *, fcu, &adt->drivers) {
 		OperationKey driver_key(id,
 		                        DEG_NODE_TYPE_PARAMETERS,
 		                        DEG_OPCODE_DRIVER,
@@ -1060,7 +1043,7 @@ void DepsgraphRelationBuilder::build_animdata_drivers(ID *id)
 		 */
 		if (fcu->array_index > 0) {
 			FCurve *fcu_prev = NULL;
-			BLI_LISTBASE_FOREACH (FCurve *, fcu_candidate, &adt->drivers) {
+			LISTBASE_FOREACH (FCurve *, fcu_candidate, &adt->drivers) {
 				/* Writing to different RNA paths is  */
 				const char *rna_path = fcu->rna_path ? fcu->rna_path : "";
 				if (!STREQ(fcu_candidate->rna_path, rna_path)) {
@@ -1195,6 +1178,26 @@ void DepsgraphRelationBuilder::build_driver_data(ID *id, FCurve *fcu)
 				}
 			}
 		}
+		if (RNA_pointer_is_null(&target_key.ptr)) {
+			/* TODO(sergey): This would only mean that driver is broken.
+			 * so we can't create relation anyway. However, we need to avoid
+			 * adding drivers which are known to be buggy to a dependency
+			 * graph, in order to save computational power.
+			 */
+		}
+		else {
+			if (target_key.prop != NULL &&
+			    RNA_property_is_idprop(target_key.prop))
+			{
+				OperationKey parameters_key(id,
+				                            DEG_NODE_TYPE_PARAMETERS,
+				                            DEG_OPCODE_PARAMETERS_EVAL);
+				add_relation(target_key,
+				             parameters_key,
+				             "Driver Target -> Properties");
+			}
+			add_relation(driver_key, target_key, "Driver -> Target");
+		}
 	}
 }
 
@@ -1209,7 +1212,7 @@ void DepsgraphRelationBuilder::build_driver_variables(ID *id, FCurve *fcu)
 	const char *rna_path = fcu->rna_path ? fcu->rna_path : "";
 	const RNAPathKey self_key(id, rna_path);
 
-	BLI_LISTBASE_FOREACH (DriverVar *, dvar, &driver->variables) {
+	LISTBASE_FOREACH (DriverVar *, dvar, &driver->variables) {
 		/* Only used targets. */
 		DRIVER_TARGETS_USED_LOOPER(dvar)
 		{
@@ -1284,24 +1287,18 @@ void DepsgraphRelationBuilder::build_driver_variables(ID *id, FCurve *fcu)
 
 void DepsgraphRelationBuilder::build_world(World *world)
 {
-	ID *world_id = &world->id;
-	if (world_id->tag & LIB_TAG_DOIT) {
+	if (built_map_.checkIsBuiltAndTag(world)) {
 		return;
 	}
-	world_id->tag |= LIB_TAG_DOIT;
-
-	build_animdata(world_id);
-
+	build_animdata(&world->id);
 	/* TODO: other settings? */
-
 	/* textures */
 	build_texture_stack(world->mtex);
-
 	/* world's nodetree */
 	if (world->nodetree != NULL) {
 		build_nodetree(world->nodetree);
 		ComponentKey ntree_key(&world->nodetree->id, DEG_NODE_TYPE_SHADING);
-		ComponentKey world_key(world_id, DEG_NODE_TYPE_SHADING);
+		ComponentKey world_key(&world->id, DEG_NODE_TYPE_SHADING);
 		add_relation(ntree_key, world_key, "NTree->World Shading Update");
 	}
 }
@@ -1324,7 +1321,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
-		BLI_LISTBASE_FOREACH (Base *, base, &rbw->group->view_layer->object_bases) {
+		LISTBASE_FOREACH (Base *, base, &rbw->group->view_layer->object_bases) {
 			Object *object = base->object;
 			if (object == NULL || object->type != OB_MESH) {
 				continue;
@@ -1378,7 +1375,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 	/* constraints */
 	if (rbw->constraints) {
-		BLI_LISTBASE_FOREACH (Base *, base, &rbw->constraints->view_layer->object_bases) {
+		LISTBASE_FOREACH (Base *, base, &rbw->constraints->view_layer->object_bases) {
 			Object *object = base->object;
 			if (object == NULL || !object->rigidbody_constraint) {
 				continue;
@@ -1414,7 +1411,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 	                           DEG_OPCODE_PARTICLE_SYSTEM_EVAL_INIT);
 
 	/* Particle systems. */
-	BLI_LISTBASE_FOREACH (ParticleSystem *, psys, &object->particlesystem) {
+	LISTBASE_FOREACH (ParticleSystem *, psys, &object->particlesystem) {
 		ParticleSettings *part = psys->part;
 
 		/* Build particle settings relations.
@@ -1482,8 +1479,8 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 		                         "Particle Field");
 		/* Boids .*/
 		if (part->boids) {
-			BLI_LISTBASE_FOREACH (BoidState *, state, &part->boids->states) {
-				BLI_LISTBASE_FOREACH (BoidRule *, rule, &state->rules) {
+			LISTBASE_FOREACH (BoidState *, state, &part->boids->states) {
+				LISTBASE_FOREACH (BoidRule *, rule, &state->rules) {
 					Object *ruleob = NULL;
 					if (rule->type == eBoidRuleType_Avoid) {
 						ruleob = ((BoidRuleGoalAvoid *)rule)->ob;
@@ -1513,7 +1510,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
 					build_group(NULL, part->dup_group);
-					BLI_LISTBASE_FOREACH (GroupObject *, go, &part->dup_group->gobject) {
+					LISTBASE_FOREACH (GroupObject *, go, &part->dup_group->gobject) {
 						build_particles_visualization_object(object,
 						                                     psys,
 						                                     go->ob);
@@ -1541,19 +1538,16 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 
 void DepsgraphRelationBuilder::build_particle_settings(ParticleSettings *part)
 {
-	ID *part_id = &part->id;
-	if (part_id->tag & LIB_TAG_DOIT) {
+	if (built_map_.checkIsBuiltAndTag(part)) {
 		return;
 	}
-	part_id->tag |= LIB_TAG_DOIT;
-
 	/* Animation data relations. */
 	build_animdata(&part->id);
 
-	OperationKey eval_key(part_id,
+	OperationKey eval_key(&part->id,
 	                      DEG_NODE_TYPE_PARAMETERS,
 	                      DEG_OPCODE_PARTICLE_SETTINGS_EVAL);
-	OperationKey recalc_clear_key(part_id,
+	OperationKey recalc_clear_key(&part->id,
 	                             DEG_NODE_TYPE_PARAMETERS,
 	                             DEG_OPCODE_PARTICLE_SETTINGS_RECALC_CLEAR);
 	add_relation(eval_key, recalc_clear_key, "Particle Settings Clear Recalc");
@@ -1668,16 +1662,16 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 
 	/* Modifiers */
 	if (object->modifiers.first != NULL) {
-		BLI_LISTBASE_FOREACH (ModifierData *, md, &object->modifiers) {
+		ModifierUpdateDepsgraphContext ctx = {};
+		ctx.scene = scene_;
+		ctx.object = object;
+
+		LISTBASE_FOREACH (ModifierData *, md, &object->modifiers) {
 			const ModifierTypeInfo *mti = modifierType_getInfo((ModifierType)md->type);
 			if (mti->updateDepsgraph) {
 				DepsNodeHandle handle = create_node_handle(obdata_ubereval_key);
-				mti->updateDepsgraph(
-				        md,
-				        bmain_,
-				        scene_,
-				        object,
-				        reinterpret_cast< ::DepsNodeHandle* >(&handle));
+				ctx.node = reinterpret_cast< ::DepsNodeHandle* >(&handle);
+				mti->updateDepsgraph(md, &ctx);
 			}
 			if (BKE_object_modifier_use_time(object, md)) {
 				TimeSourceKey time_src_key;
@@ -1722,10 +1716,9 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 		add_relation(geom_init_key, obdata_ubereval_key, "Object Geometry UberEval");
 	}
 
-	if (obdata->tag & LIB_TAG_DOIT) {
+	if (built_map_.checkIsBuiltAndTag(obdata)) {
 		return;
 	}
-	obdata->tag |= LIB_TAG_DOIT;
 
 	/* Link object data evaluation node to exit operation. */
 	OperationKey obdata_geom_eval_key(obdata, DEG_NODE_TYPE_GEOMETRY, DEG_OPCODE_PLACEHOLDER, "Geometry Eval");
@@ -1821,22 +1814,20 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 // TODO: Link scene-camera links in somehow...
 void DepsgraphRelationBuilder::build_camera(Object *object)
 {
-	Camera *cam = (Camera *)object->data;
-	ID *camera_id = &cam->id;
-	if (camera_id->tag & LIB_TAG_DOIT) {
+	Camera *camera = (Camera *)object->data;
+	if (built_map_.checkIsBuiltAndTag(camera)) {
 		return;
 	}
-	camera_id->tag |= LIB_TAG_DOIT;
 
 	ComponentKey object_parameters_key(&object->id, DEG_NODE_TYPE_PARAMETERS);
-	ComponentKey camera_parameters_key(camera_id, DEG_NODE_TYPE_PARAMETERS);
+	ComponentKey camera_parameters_key(&camera->id, DEG_NODE_TYPE_PARAMETERS);
 
 	add_relation(camera_parameters_key, object_parameters_key,
 	             "Camera -> Object");
 
 	/* DOF */
-	if (cam->dof_ob != NULL) {
-		ComponentKey dof_ob_key(&cam->dof_ob->id, DEG_NODE_TYPE_TRANSFORM);
+	if (camera->dof_ob != NULL) {
+		ComponentKey dof_ob_key(&camera->dof_ob->id, DEG_NODE_TYPE_TRANSFORM);
 		add_relation(dof_ob_key, object_parameters_key, "Camera DOF");
 	}
 }
@@ -1844,27 +1835,25 @@ void DepsgraphRelationBuilder::build_camera(Object *object)
 /* Lamps */
 void DepsgraphRelationBuilder::build_lamp(Object *object)
 {
-	Lamp *la = (Lamp *)object->data;
-	ID *lamp_id = &la->id;
-	if (lamp_id->tag & LIB_TAG_DOIT) {
+	Lamp *lamp = (Lamp *)object->data;
+	if (built_map_.checkIsBuiltAndTag(lamp)) {
 		return;
 	}
-	lamp_id->tag |= LIB_TAG_DOIT;
 
 	ComponentKey object_parameters_key(&object->id, DEG_NODE_TYPE_PARAMETERS);
-	ComponentKey lamp_parameters_key(lamp_id, DEG_NODE_TYPE_PARAMETERS);
+	ComponentKey lamp_parameters_key(&lamp->id, DEG_NODE_TYPE_PARAMETERS);
 
 	add_relation(lamp_parameters_key, object_parameters_key,
 	             "Lamp -> Object");
 
 	/* lamp's nodetree */
-	if (la->nodetree != NULL) {
-		build_nodetree(la->nodetree);
-		ComponentKey nodetree_key(&la->nodetree->id, DEG_NODE_TYPE_SHADING);
+	if (lamp->nodetree != NULL) {
+		build_nodetree(lamp->nodetree);
+		ComponentKey nodetree_key(&lamp->nodetree->id, DEG_NODE_TYPE_SHADING);
 		add_relation(nodetree_key, lamp_parameters_key, "NTree->Lamp Parameters");
 	}
 	/* textures */
-	build_texture_stack(la->mtex);
+	build_texture_stack(lamp->mtex);
 
 	if (DEG_depsgraph_use_copy_on_write()) {
 		/* Make sure copy on write of lamp data is always properly updated for
@@ -1873,7 +1862,7 @@ void DepsgraphRelationBuilder::build_lamp(Object *object)
 		OperationKey ob_copy_on_write_key(&object->id,
 		                                  DEG_NODE_TYPE_COPY_ON_WRITE,
 		                                  DEG_OPCODE_COPY_ON_WRITE);
-		OperationKey lamp_copy_on_write_key(lamp_id,
+		OperationKey lamp_copy_on_write_key(&lamp->id,
 		                                    DEG_NODE_TYPE_COPY_ON_WRITE,
 		                                    DEG_OPCODE_COPY_ON_WRITE);
 		add_relation(lamp_copy_on_write_key, ob_copy_on_write_key, "Eval Order");
@@ -1885,11 +1874,13 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 	if (ntree == NULL) {
 		return;
 	}
-	ID *ntree_id = &ntree->id;
-	build_animdata(ntree_id);
-	ComponentKey shading_key(ntree_id, DEG_NODE_TYPE_SHADING);
+	if (built_map_.checkIsBuiltAndTag(ntree)) {
+		return;
+	}
+	build_animdata(&ntree->id);
+	ComponentKey shading_key(&ntree->id, DEG_NODE_TYPE_SHADING);
 	/* nodetree's nodes... */
-	BLI_LISTBASE_FOREACH (bNode *, bnode, &ntree->nodes) {
+	LISTBASE_FOREACH (bNode *, bnode, &ntree->nodes) {
 		ID *id = bnode->id;
 		if (id == NULL) {
 			continue;
@@ -1917,10 +1908,7 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 		}
 		else if (bnode->type == NODE_GROUP) {
 			bNodeTree *group_ntree = (bNodeTree *)id;
-			if ((group_ntree->id.tag & LIB_TAG_DOIT) == 0) {
-				build_nodetree(group_ntree);
-				group_ntree->id.tag |= LIB_TAG_DOIT;
-			}
+			build_nodetree(group_ntree);
 			ComponentKey group_shading_key(&group_ntree->id,
 			                               DEG_NODE_TYPE_SHADING);
 			add_relation(group_shading_key, shading_key, "Group Node");
@@ -1930,37 +1918,32 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 		}
 	}
 
-	OperationKey shading_update_key(ntree_id,
+	OperationKey shading_update_key(&ntree->id,
 	                                DEG_NODE_TYPE_SHADING,
 	                                DEG_OPCODE_MATERIAL_UPDATE);
-	OperationKey shading_parameters_key(ntree_id,
+	OperationKey shading_parameters_key(&ntree->id,
 	                                    DEG_NODE_TYPE_SHADING_PARAMETERS,
 	                                    DEG_OPCODE_MATERIAL_UPDATE);
 	add_relation(shading_parameters_key, shading_update_key, "NTree Shading Parameters");
 }
 
 /* Recursively build graph for material */
-void DepsgraphRelationBuilder::build_material(Material *ma)
+void DepsgraphRelationBuilder::build_material(Material *material)
 {
-	ID *ma_id = &ma->id;
-	if (ma_id->tag & LIB_TAG_DOIT) {
+	if (built_map_.checkIsBuiltAndTag(material)) {
 		return;
 	}
-	ma_id->tag |= LIB_TAG_DOIT;
-
 	/* animation */
-	build_animdata(ma_id);
-
+	build_animdata(&material->id);
 	/* textures */
-	build_texture_stack(ma->mtex);
-
+	build_texture_stack(material->mtex);
 	/* material's nodetree */
-	if (ma->nodetree != NULL) {
-		build_nodetree(ma->nodetree);
-		OperationKey ntree_key(&ma->nodetree->id,
+	if (material->nodetree != NULL) {
+		build_nodetree(material->nodetree);
+		OperationKey ntree_key(&material->nodetree->id,
 		                       DEG_NODE_TYPE_SHADING,
 		                       DEG_OPCODE_MATERIAL_UPDATE);
-		OperationKey material_key(&ma->id,
+		OperationKey material_key(&material->id,
 		                          DEG_NODE_TYPE_SHADING,
 		                          DEG_OPCODE_MATERIAL_UPDATE);
 		add_relation(ntree_key, material_key, "Material's NTree");
@@ -1968,28 +1951,22 @@ void DepsgraphRelationBuilder::build_material(Material *ma)
 }
 
 /* Recursively build graph for texture */
-void DepsgraphRelationBuilder::build_texture(Tex *tex)
+void DepsgraphRelationBuilder::build_texture(Tex *texture)
 {
-	ID *tex_id = &tex->id;
-	if (tex_id->tag & LIB_TAG_DOIT) {
+	if (built_map_.checkIsBuiltAndTag(texture)) {
 		return;
 	}
-	tex_id->tag |= LIB_TAG_DOIT;
-
 	/* texture itself */
-	build_animdata(tex_id);
-
+	build_animdata(&texture->id);
 	/* texture's nodetree */
-	build_nodetree(tex->nodetree);
+	build_nodetree(texture->nodetree);
 }
 
 /* Texture-stack attached to some shading datablock */
 void DepsgraphRelationBuilder::build_texture_stack(MTex **texture_stack)
 {
-	int i;
-
 	/* for now assume that all texture-stacks have same number of max items */
-	for (i = 0; i < MAX_MTEX; i++) {
+	for (int i = 0; i < MAX_MTEX; i++) {
 		MTex *mtex = texture_stack[i];
 		if (mtex && mtex->tex)
 			build_texture(mtex->tex);
@@ -2041,14 +2018,12 @@ void DepsgraphRelationBuilder::build_movieclip(MovieClip *clip)
 void DepsgraphRelationBuilder::build_lightprobe(Object *object)
 {
 	LightProbe *probe = (LightProbe *)object->data;
-	ID *probe_id = &probe->id;
-	if (probe_id->tag & LIB_TAG_DOIT) {
+	if (built_map_.checkIsBuiltAndTag(probe)) {
 		return;
 	}
-	probe_id->tag |= LIB_TAG_DOIT;
 	build_animdata(&probe->id);
 
-	OperationKey probe_key(probe_id,
+	OperationKey probe_key(&probe->id,
 	                       DEG_NODE_TYPE_PARAMETERS,
 	                       DEG_OPCODE_PLACEHOLDER,
 	                       "LightProbe Eval");

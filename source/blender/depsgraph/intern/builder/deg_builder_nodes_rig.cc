@@ -135,7 +135,6 @@ void DepsgraphNodeBuilder::build_splineik_pose(Object *object,
 void DepsgraphNodeBuilder::build_rig(Object *object)
 {
 	bArmature *armature = (bArmature *)object->data;
-	const short armature_tag = armature->id.tag;
 	Scene *scene_cow;
 	Object *object_cow;
 	bArmature *armature_cow;
@@ -163,9 +162,8 @@ void DepsgraphNodeBuilder::build_rig(Object *object)
 	 *       mechanism in-between here to ensure that we can use same rig
 	 *       multiple times in same scene.
 	 */
-	if ((armature_tag & LIB_TAG_DOIT) == 0) {
+	if (!built_map_.checkIsBuilt(armature)) {
 		build_animdata(&armature->id);
-
 		/* Make sure pose is up-to-date with armature updates. */
 		add_operation_node(&armature->id,
 		                   DEG_NODE_TYPE_PARAMETERS,
@@ -247,7 +245,7 @@ void DepsgraphNodeBuilder::build_rig(Object *object)
 	op_node->set_as_exit();
 
 	/* bones */
-	BLI_LISTBASE_FOREACH (bPoseChannel *, pchan, &object_cow->pose->chanbase) {
+	LISTBASE_FOREACH (bPoseChannel *, pchan, &object_cow->pose->chanbase) {
 		/* Node for bone evaluation. */
 		op_node = add_operation_node(&object->id, DEG_NODE_TYPE_BONE, pchan->name, NULL,
 		                             DEG_OPCODE_BONE_LOCAL);
@@ -293,7 +291,7 @@ void DepsgraphNodeBuilder::build_rig(Object *object)
 		 *   as in ik-tree building
 		 * - Animated chain-lengths are a problem.
 		 */
-		BLI_LISTBASE_FOREACH (bConstraint *, con, &pchan->constraints) {
+		LISTBASE_FOREACH (bConstraint *, con, &pchan->constraints) {
 			switch (con->type) {
 				case CONSTRAINT_TYPE_KINEMATIC:
 					build_ik_pose(object, pchan, con);
@@ -348,7 +346,7 @@ void DepsgraphNodeBuilder::build_proxy_rig(Object *object)
 	                             DEG_OPCODE_POSE_INIT);
 	op_node->set_as_entry();
 
-	BLI_LISTBASE_FOREACH (bPoseChannel *, pchan, &object->pose->chanbase) {
+	LISTBASE_FOREACH (bPoseChannel *, pchan, &object->pose->chanbase) {
 		op_node = add_operation_node(&object->id,
 		                             DEG_NODE_TYPE_BONE,
 		                             pchan->name,

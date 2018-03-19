@@ -88,15 +88,13 @@ static SceneCollection *collection_add(ID *owner_id, SceneCollection *sc_parent,
 		else {
 			const int number = BLI_listbase_count(&sc_parent->scene_collections) + 1;
 			const int digits = integer_digits_i(number);
-			const int max_len = sizeof(sc_parent->name)
-			                    - 1 /* NULL terminator */
-			                    - (1 + digits) /* " %d" */;
+			const int max_len = sizeof(sc_parent->name) - 1 /* NULL terminator */ - (1 + digits) /* " %d" */;
 			name = BLI_sprintfN("%.*s %d", max_len, sc_parent->name, number);
 		}
 	}
 
 	BLI_addtail(&sc_parent->scene_collections, sc);
-	BKE_collection_rename((Scene *)owner_id, sc, name);
+	BKE_collection_rename(owner_id, sc, name);
 
 	if (name != name_custom) {
 		MEM_freeN((char *)name);
@@ -220,7 +218,7 @@ bool BKE_collection_remove(ID *owner_id, SceneCollection *sc)
 	ListBase collection_objects;
 	BLI_duplicatelist(&collection_objects, &sc->objects);
 
-	FOREACH_SCENE_COLLECTION(owner_id, scene_collection_iter)
+	FOREACH_SCENE_COLLECTION_BEGIN(owner_id, scene_collection_iter)
 	{
 		if (scene_collection_iter == sc) {
 			continue;
@@ -238,7 +236,7 @@ bool BKE_collection_remove(ID *owner_id, SceneCollection *sc)
 			link = link_next;
 		}
 	}
-	FOREACH_SCENE_COLLECTION_END
+	FOREACH_SCENE_COLLECTION_END;
 
 	for (LinkData *link = collection_objects.first; link; link = link->next) {
 		BKE_collection_object_add(owner_id, sc_master, link->data);
@@ -347,9 +345,9 @@ static void collection_rename(const ID *owner_id, SceneCollection *sc, const cha
 	BLI_uniquename(&sc_parent->scene_collections, sc, DATA_("Collection"), '.', offsetof(SceneCollection, name), sizeof(sc->name));
 }
 
-void BKE_collection_rename(const Scene *scene, SceneCollection *sc, const char *name)
+void BKE_collection_rename(const ID *owner_id, SceneCollection *sc, const char *name)
 {
-	collection_rename(&scene->id, sc, name);
+	collection_rename(owner_id, sc, name);
 }
 
 /**
@@ -407,13 +405,13 @@ bool BKE_collection_object_add(const ID *owner_id, SceneCollection *sc, Object *
  */
 void BKE_collection_object_add_from(Scene *scene, Object *ob_src, Object *ob_dst)
 {
-	FOREACH_SCENE_COLLECTION(scene, sc)
+	FOREACH_SCENE_COLLECTION_BEGIN(scene, sc)
 	{
 		if (BLI_findptr(&sc->objects, ob_src, offsetof(LinkData, data))) {
 			collection_object_add(&scene->id, sc, ob_dst);
 		}
 	}
-	FOREACH_SCENE_COLLECTION_END
+	FOREACH_SCENE_COLLECTION_END;
 
 	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
 		Base *base_src = BKE_view_layer_base_find(view_layer, ob_src);
@@ -482,11 +480,11 @@ bool BKE_collections_object_remove(Main *bmain, ID *owner_id, Object *ob, const 
 		BLI_assert(GS(owner_id->name) == ID_GR);
 	}
 
-	FOREACH_SCENE_COLLECTION(owner_id, sc)
+	FOREACH_SCENE_COLLECTION_BEGIN(owner_id, sc)
 	{
 		removed |= BKE_collection_object_remove(bmain, owner_id, sc, ob, free_us);
 	}
-	FOREACH_SCENE_COLLECTION_END
+	FOREACH_SCENE_COLLECTION_END;
 	return removed;
 }
 
@@ -554,11 +552,11 @@ Group *BKE_collection_group_create(Main *bmain, Scene *scene, LayerCollection *l
 
 	sc_dst = BKE_collection_add(&group->id, NULL, COLLECTION_TYPE_GROUP_INTERNAL, sc_src->name);
 	BKE_collection_copy_data(sc_dst, sc_src, 0);
-	FOREACH_SCENE_COLLECTION(&group->id, sc_group)
+	FOREACH_SCENE_COLLECTION_BEGIN(&group->id, sc_group)
 	{
 		sc_group->type = COLLECTION_TYPE_GROUP_INTERNAL;
 	}
-	FOREACH_SCENE_COLLECTION_END
+	FOREACH_SCENE_COLLECTION_END;
 
 	lc_dst = BKE_collection_link(group->view_layer, sc_dst);
 	layer_collection_sync(lc_dst, lc_src);

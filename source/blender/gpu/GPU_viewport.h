@@ -46,7 +46,7 @@ typedef struct GPUViewport GPUViewport;
 /* Contains memory pools informations */
 typedef struct ViewportMemoryPool {
 	struct BLI_mempool *calls;
-	struct BLI_mempool *calls_generate;
+	struct BLI_mempool *states;
 	struct BLI_mempool *shgroups;
 	struct BLI_mempool *uniforms;
 	struct BLI_mempool *passes;
@@ -83,7 +83,6 @@ typedef struct ViewportEngineData {
 
 	/* Profiling data */
 	double init_time;
-	double cache_time;
 	double render_time;
 	double background_time;
 } ViewportEngineData;
@@ -98,6 +97,7 @@ typedef struct ViewportEngineData_Info {
 GPUViewport *GPU_viewport_create(void);
 void GPU_viewport_bind(GPUViewport *viewport, const rcti *rect);
 void GPU_viewport_unbind(GPUViewport *viewport);
+void GPU_viewport_draw_to_screen(GPUViewport *viewport, const rcti *rect);
 void GPU_viewport_free(GPUViewport *viewport);
 
 GPUViewport *GPU_viewport_create_from_offscreen(struct GPUOffScreen *ofs);
@@ -112,6 +112,9 @@ void *GPU_viewport_framebuffer_list_get(GPUViewport *viewport);
 void *GPU_viewport_texture_list_get(GPUViewport *viewport);
 void  GPU_viewport_size_get(const GPUViewport *viewport, int size[2]);
 void  GPU_viewport_size_set(GPUViewport *viewport, const int size[2]);
+
+/* Profiling */
+double *GPU_viewport_cache_time_get(GPUViewport *viewport);
 
 void GPU_viewport_tag_update(GPUViewport *viewport);
 bool GPU_viewport_do_update(GPUViewport *viewport);

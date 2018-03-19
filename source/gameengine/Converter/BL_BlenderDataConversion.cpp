@@ -1688,6 +1688,7 @@ struct parentChildLink {
 	SG_Node* m_gamechildnode;
 };
 
+#if 0
 static bPoseChannel *get_active_posechannel2(Object *ob)
 {
 	bArmature *arm= (bArmature*)ob->data;
@@ -1701,6 +1702,7 @@ static bPoseChannel *get_active_posechannel2(Object *ob)
 	
 	return NULL;
 }
+#endif
 
 static ListBase *get_active_constraints2(Object *ob)
 {
@@ -2057,7 +2059,7 @@ void BL_ConvertBlenderObjects(struct Main* maggie,
 			for (git=tempglist.begin(); git!=tempglist.end(); git++)
 			{
 				Group* group = *git;
-				FOREACH_GROUP_OBJECT(group, blenderobject)
+				FOREACH_GROUP_OBJECT_BEGIN(group, blenderobject)
 				{
 					if (converter->FindGameObject(blenderobject) == NULL)
 					{
@@ -2093,7 +2095,7 @@ void BL_ConvertBlenderObjects(struct Main* maggie,
 						}
 					}
 				}
-				FOREACH_GROUP_OBJECT_END
+				FOREACH_GROUP_OBJECT_END;
 			}
 		}
 	}

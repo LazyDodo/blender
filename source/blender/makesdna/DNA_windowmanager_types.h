@@ -180,6 +180,7 @@ typedef struct wmWindow {
 	struct wmWindow *next, *prev;
 
 	void *ghostwin;             /* don't want to include ghost.h stuff */
+	void *gwnctx;               /* don't want to include gawin stuff */
 
 	struct Scene *scene;     /* The scene displayed in this window. */
 	struct Scene *new_scene; /* temporary when switching */
@@ -197,8 +198,7 @@ typedef struct wmWindow {
 	short modalcursor;  /* the current modal cursor */
 	short grabcursor;           /* cursor grab mode */
 	short addmousemove; /* internal: tag this for extra mousemove event, makes cursors/buttons active on UI switching */
-	short multisamples; /* amount of samples for OpenGL FSA the ghost window was created with, if zero no FSA */
-	short pad[3];
+	short pad[4];
 
 	int winid;                  /* winid also in screens, is for retrieving this window after read */
 
@@ -207,8 +207,6 @@ typedef struct wmWindow {
 	                            * that spawn a new pie right after destruction of last pie */
 
 	struct wmEvent *eventstate;   /* storage for event system */
-
-	struct wmSubWindow *curswin;  /* internal for wm_subwindow.c only */
 
 	struct wmGesture *tweak;      /* internal for wm_operators.c */
 
@@ -223,7 +221,6 @@ typedef struct wmWindow {
 	ListBase handlers;            /* window+screen handlers, handled last */
 	ListBase modalhandlers;       /* priority handlers, handled first */
 
-	ListBase subwindows;          /* opengl stuff for sub windows, see notes in wm_subwindow.c */
 	ListBase gesture;             /* gesture stuff */
 
 	struct Stereo3dFormat *stereo3d_format; /* properties for stereoscopic displays */
@@ -315,13 +312,16 @@ typedef struct wmKeyMap {
 	char idname[64];  /* global editor keymaps, or for more per space/region */
 	short spaceid;    /* same IDs as in DNA_space_types.h */
 	short regionid;   /* see above */
+	char owner_id[64];  /* optional, see: #wmOwnerID */
 
 	short flag;       /* general flags */
 	short kmi_id;     /* last kmi id */
 
 	/* runtime */
-	int (*poll)(struct bContext *);  /* verify if enabled in the current context */
-	const void *modal_items;         /* for modal, EnumPropertyItem for now */
+	/** Verify if enabled in the current context, use #WM_keymap_poll instead of direct calls. */
+	int (*poll)(struct bContext *);
+	/** For modal, #EnumPropertyItem for now. */
+	const void *modal_items;
 } wmKeyMap;
 
 /* wmKeyMap.flag */

@@ -31,8 +31,10 @@
 #include "DRW_render.h"
 
 #include "DNA_node_types.h"
+#include "DNA_object_types.h"
 
 #include "BLI_rand.h"
+#include "BLI_rect.h"
 
 #include "DEG_depsgraph_query.h"
 
@@ -46,7 +48,6 @@
 void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *depsgraph)
 {
 	EEVEE_Data *vedata = (EEVEE_Data *)ved;
-	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_StorageList *stl = vedata->stl;
 	EEVEE_TextureList *txl = vedata->txl;
 	EEVEE_FramebufferList *fbl = vedata->fbl;
@@ -84,6 +85,9 @@ void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *
 	if (sldata->common_ubo == NULL) {
 		sldata->common_ubo = DRW_uniformbuffer_create(sizeof(sldata->common_data), &sldata->common_data);
 	}
+	if (sldata->clip_ubo == NULL) {
+		sldata->clip_ubo = DRW_uniformbuffer_create(sizeof(sldata->clip_data), &sldata->clip_data);
+	}
 
 	/* Set the pers & view matrix. */
 	struct Object *camera = RE_GetCamera(engine->re);
@@ -114,8 +118,8 @@ void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *
 	EEVEE_depth_of_field_cache_init(sldata, vedata);
 	EEVEE_effects_cache_init(sldata, vedata);
 	EEVEE_lightprobes_cache_init(sldata, vedata);
-	EEVEE_lights_cache_init(sldata, psl);
-	EEVEE_materials_cache_init(vedata);
+	EEVEE_lights_cache_init(sldata, vedata);
+	EEVEE_materials_cache_init(sldata, vedata);
 	EEVEE_motion_blur_cache_init(sldata, vedata);
 	EEVEE_occlusion_cache_init(sldata, vedata);
 	EEVEE_screen_raytrace_cache_init(sldata, vedata);
@@ -126,9 +130,13 @@ void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *
 
 void EEVEE_render_cache(
         void *vedata, struct Object *ob,
-        struct RenderEngine *UNUSED(engine), struct Depsgraph *UNUSED(depsgraph))
+        struct RenderEngine *engine, struct Depsgraph *UNUSED(depsgraph))
 {
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
+
+	char info[42];
+	BLI_snprintf(info, sizeof(info), "Syncing %s", ob->id.name + 2);
+	RE_engine_update_stats(engine, NULL, info);
 
 	if (DRW_check_object_visible_within_active_context(ob) == false) {
 		return;
@@ -152,19 +160,18 @@ void EEVEE_render_cache(
 }
 
 static void eevee_render_result_combined(
-        RenderResult *rr, const char *viewname,
+        RenderLayer *rl, const char *viewname, const rcti *rect,
         EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata))
 {
-	RenderLayer *rl = rr->layers.first;
 	RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_COMBINED, viewname);
 
 	DRW_framebuffer_bind(vedata->stl->effects->final_fb);
-	DRW_framebuffer_read_data(rr->xof, rr->yof, rr->rectx, rr->recty, 4, 0, rp->rect);
+	DRW_framebuffer_read_data(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 4, 0, rp->rect);
 }
 
 static void eevee_render_result_subsurface(
-        RenderResult *rr, const char *viewname,
-        EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata))
+        RenderLayer *rl, const char *viewname, const rcti *rect,
+        EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata), int render_samples)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
@@ -175,34 +182,26 @@ static void eevee_render_result_subsurface(
 	}
 
 	if ((view_layer->passflag & SCE_PASS_SUBSURFACE_COLOR) != 0) {
-		RenderLayer *rl = rr->layers.first;
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_SUBSURFACE_COLOR, viewname);
 
-		IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
-		float render_samples = (float)BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
-
 		DRW_framebuffer_bind(vedata->fbl->sss_accum_fb);
-		DRW_framebuffer_read_data(rr->xof, rr->yof, rr->rectx, rr->recty, 3, 1, rp->rect);
+		DRW_framebuffer_read_data(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 3, 1, rp->rect);
 
 		/* This is the accumulated color. Divide by the number of samples. */
-		for (int i = 0; i < rr->rectx * rr->recty * 3; i++) {
-			rp->rect[i] /= render_samples;
+		for (int i = 0; i < rp->rectx * rp->recty * 3; i++) {
+			rp->rect[i] /= (float)render_samples;
 		}
 	}
 
 	if ((view_layer->passflag & SCE_PASS_SUBSURFACE_DIRECT) != 0) {
-		RenderLayer *rl = rr->layers.first;
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_SUBSURFACE_DIRECT, viewname);
 
-		IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
-		float render_samples = (float)BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
-
 		DRW_framebuffer_bind(vedata->fbl->sss_accum_fb);
-		DRW_framebuffer_read_data(rr->xof, rr->yof, rr->rectx, rr->recty, 3, 0, rp->rect);
+		DRW_framebuffer_read_data(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 3, 0, rp->rect);
 
 		/* This is the accumulated color. Divide by the number of samples. */
-		for (int i = 0; i < rr->rectx * rr->recty * 3; i++) {
-			rp->rect[i] /= render_samples;
+		for (int i = 0; i < rp->rectx * rp->recty * 3; i++) {
+			rp->rect[i] /= (float)render_samples;
 		}
 	}
 
@@ -213,7 +212,7 @@ static void eevee_render_result_subsurface(
 }
 
 static void eevee_render_result_normal(
-        RenderResult *rr, const char *viewname,
+        RenderLayer *rl, const char *viewname, const rcti *rect,
         EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata))
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -226,14 +225,13 @@ static void eevee_render_result_normal(
 		return;
 
 	if ((view_layer->passflag & SCE_PASS_NORMAL) != 0) {
-		RenderLayer *rl = rr->layers.first;
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_NORMAL, viewname);
 
-		DRW_framebuffer_read_data(rr->xof, rr->yof, rr->rectx, rr->recty, 3, 1, rp->rect);
+		DRW_framebuffer_read_data(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 3, 1, rp->rect);
 
 		/* Convert Eevee encoded normals to Blender normals. */
-		for (int i = 0; i < rr->rectx * rr->recty * 3; i += 3) {
-			if (rp->rect[i] == 0.0f && rp->rect[i+1] == 0.0f) {
+		for (int i = 0; i < rp->rectx * rp->recty * 3; i += 3) {
+			if (rp->rect[i] == 0.0f && rp->rect[i + 1] == 0.0f) {
 				/* If normal is not correct then do not produce NANs.  */
 				continue;
 			}
@@ -245,9 +243,9 @@ static void eevee_render_result_normal(
 			float f = dot_v2v2(fenc, fenc);
 			float g = sqrtf(1.0f - f / 4.0f);
 
-			rp->rect[i+0] = fenc[0] * g;
-			rp->rect[i+1] = fenc[1] * g;
-			rp->rect[i+2] = 1.0f - f / 2.0f;
+			rp->rect[i + 0] = fenc[0] * g;
+			rp->rect[i + 1] = fenc[1] * g;
+			rp->rect[i + 2] = 1.0f - f / 2.0f;
 
 			mul_mat3_m4_v3(g_data->viewinv, &rp->rect[i]);
 		}
@@ -255,7 +253,7 @@ static void eevee_render_result_normal(
 }
 
 static void eevee_render_result_z(
-        RenderResult *rr, const char *viewname,
+        RenderLayer *rl, const char *viewname, const rcti *rect,
         EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -269,15 +267,14 @@ static void eevee_render_result_z(
 		return;
 
 	if ((view_layer->passflag & SCE_PASS_Z) != 0) {
-		RenderLayer *rl = rr->layers.first;
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_Z, viewname);
 
-		DRW_framebuffer_read_depth(rr->xof, rr->yof, rr->rectx, rr->recty, rp->rect);
+		DRW_framebuffer_read_depth(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), rp->rect);
 
 		bool is_persp = DRW_viewport_is_persp_get();
 
 		/* Convert ogl depth [0..1] to view Z [near..far] */
-		for (int i = 0; i < rr->rectx * rr->recty; ++i) {
+		for (int i = 0; i < rp->rectx * rp->recty; ++i) {
 			if (rp->rect[i] == 1.0f ) {
 				rp->rect[i] = 1e10f; /* Background */
 			}
@@ -295,32 +292,28 @@ static void eevee_render_result_z(
 }
 
 static void eevee_render_result_mist(
-        RenderResult *rr, const char *viewname,
-        EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata))
+        RenderLayer *rl, const char *viewname, const rcti *rect,
+        EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata), int render_samples)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
 
 	if ((view_layer->passflag & SCE_PASS_MIST) != 0) {
-		RenderLayer *rl = rr->layers.first;
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_MIST, viewname);
 
-		IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
-		float render_samples = (float)BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
-
 		DRW_framebuffer_bind(vedata->fbl->mist_accum_fb);
-		DRW_framebuffer_read_data(rr->xof, rr->yof, rr->rectx, rr->recty, 1, 0, rp->rect);
+		DRW_framebuffer_read_data(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 1, 0, rp->rect);
 
 		/* This is the accumulated color. Divide by the number of samples. */
-		for (int i = 0; i < rr->rectx * rr->recty; i++) {
-			rp->rect[i] /= render_samples;
+		for (int i = 0; i < rp->rectx * rp->recty; i++) {
+			rp->rect[i] /= (float)render_samples;
 		}
 	}
 }
 
 static void eevee_render_result_occlusion(
-        RenderResult *rr, const char *viewname,
-        EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata))
+        RenderLayer *rl, const char *viewname, const rcti *rect,
+        EEVEE_Data *vedata, EEVEE_ViewLayerData *UNUSED(sldata), int render_samples)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
@@ -331,18 +324,14 @@ static void eevee_render_result_occlusion(
 	}
 
 	if ((view_layer->passflag & SCE_PASS_AO) != 0) {
-		RenderLayer *rl = rr->layers.first;
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_AO, viewname);
 
-		IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
-		float render_samples = (float)BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
-
 		DRW_framebuffer_bind(vedata->fbl->ao_accum_fb);
-		DRW_framebuffer_read_data(rr->xof, rr->yof, rr->rectx, rr->recty, 3, 0, rp->rect);
+		DRW_framebuffer_read_data(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 3, 0, rp->rect);
 
 		/* This is the accumulated color. Divide by the number of samples. */
-		for (int i = 0; i < rr->rectx * rr->recty * 3; i += 3) {
-			rp->rect[i] = rp->rect[i+1] = rp->rect[i+2] = min_ff(1.0f, rp->rect[i] / render_samples);
+		for (int i = 0; i < rp->rectx * rp->recty * 3; i += 3) {
+			rp->rect[i] = rp->rect[i + 1] = rp->rect[i+2] = min_ff(1.0f, rp->rect[i] / (float)render_samples);
 		}
 	}
 }
@@ -375,10 +364,11 @@ static void eevee_render_draw_background(EEVEE_Data *vedata)
 	DRW_framebuffer_bind(fbl->main);
 }
 
-void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct Depsgraph *UNUSED(depsgraph))
+void EEVEE_render_draw(EEVEE_Data *vedata, RenderEngine *engine, RenderLayer *rl, const rcti *rect)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
+	const char *viewname = RE_GetActiveRenderView(engine->re);
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_StorageList *stl = vedata->stl;
 	EEVEE_FramebufferList *fbl = vedata->fbl;
@@ -393,6 +383,9 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 
 	/* Sort transparents before the loop. */
 	DRW_pass_sort_shgroup_z(psl->transparent_pass);
+
+	/* Push instances attribs to the GPU. */
+	DRW_render_instance_buffer_finish();
 
 	if ((view_layer->passflag & (SCE_PASS_SUBSURFACE_COLOR |
 	                             SCE_PASS_SUBSURFACE_DIRECT |
@@ -409,16 +402,15 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 		EEVEE_occlusion_output_init(sldata, vedata);
 	}
 
-	/* Init render result. */
-	const char *viewname = RE_GetActiveRenderView(engine->re);
-	const float *render_size = DRW_viewport_size_get();
-
-	RenderResult *rr = RE_engine_begin_result(engine, 0, 0, (int)render_size[0], (int)render_size[1], NULL, viewname);
-
 	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
-	unsigned int render_samples = BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
+	unsigned int tot_sample = BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
+	unsigned int render_samples = 0;
 
-	while (render_samples-- > 0) {
+	if (RE_engine_test_break(engine)) {
+		return;
+	}
+
+	while (render_samples < tot_sample && !RE_engine_test_break(engine)) {
 		float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		unsigned int primes[3] = {2, 3, 7};
 		double offset[3] = {0.0, 0.0, 0.0};
@@ -426,6 +418,8 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 
 		/* Restore winmat before jittering again. */
 		copy_m4_m4(stl->effects->overide_winmat, g_data->winmat);
+		/* Copy previous persmat to UBO data */
+		copy_m4_m4(sldata->common_data.prev_persmat, stl->effects->prev_persmat);
 
 		BLI_halton_3D(primes, offset, stl->effects->taa_current_sample, r);
 		EEVEE_update_noise(psl, fbl, r);
@@ -433,12 +427,6 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 		EEVEE_volumes_set_jitter(sldata, stl->effects->taa_current_sample - 1);
 		EEVEE_materials_init(sldata, stl, fbl);
 
-		/* Refresh Probes */
-		while (EEVEE_lightprobes_all_probes_ready(sldata, vedata) == false) {
-			EEVEE_lightprobes_refresh(sldata, vedata);
-		}
-		EEVEE_lightprobes_refresh_planar(sldata, vedata);
-		DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
 		/* Set matrices. */
 		DRW_viewport_matrix_override_set(stl->effects->overide_persmat, DRW_MAT_PERS);
 		DRW_viewport_matrix_override_set(stl->effects->overide_persinv, DRW_MAT_PERSINV);
@@ -446,6 +434,23 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 		DRW_viewport_matrix_override_set(stl->effects->overide_wininv, DRW_MAT_WININV);
 		DRW_viewport_matrix_override_set(g_data->viewmat, DRW_MAT_VIEW);
 		DRW_viewport_matrix_override_set(g_data->viewinv, DRW_MAT_VIEWINV);
+
+		/* Refresh Probes */
+		while (EEVEE_lightprobes_all_probes_ready(sldata, vedata) == false) {
+			RE_engine_update_stats(engine, NULL, "Updating Probes");
+			EEVEE_lightprobes_refresh(sldata, vedata);
+			/* Refreshing probes can take some times, allow exit. */
+			if (RE_engine_test_break(engine)) {
+				return;
+			}
+		}
+		EEVEE_lightprobes_refresh_planar(sldata, vedata);
+		DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
+
+		char info[42];
+		BLI_snprintf(info, sizeof(info), "Rendering %u / %u samples", render_samples+1, tot_sample);
+		RE_engine_update_stats(engine, NULL, info);
+
 		/* Refresh Shadows */
 		EEVEE_draw_shadows(sldata, psl);
 
@@ -479,7 +484,7 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 		/* Occlusion output */
 		EEVEE_occlusion_output_accumulate(sldata, vedata);
 		/* Result NORMAL */
-		eevee_render_result_normal(rr, viewname, vedata, sldata);
+		eevee_render_result_normal(rl, viewname, rect, vedata, sldata);
 		/* Volumetrics Resolve Opaque */
 		EEVEE_volumes_resolve(sldata, vedata);
 		/* Mist output */
@@ -487,17 +492,17 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 		/* Transparent */
 		DRW_draw_pass(psl->transparent_pass);
 		/* Result Z */
-		eevee_render_result_z(rr, viewname, vedata, sldata);
+		eevee_render_result_z(rl, viewname, rect, vedata, sldata);
 		/* Post Process */
 		EEVEE_draw_effects(sldata, vedata);
+
+		RE_engine_update_progress(engine, (float)(render_samples++) / (float)tot_sample);
 	}
 
-	eevee_render_result_combined(rr, viewname, vedata, sldata);
-	eevee_render_result_subsurface(rr, viewname, vedata, sldata);
-	eevee_render_result_mist(rr, viewname, vedata, sldata);
-	eevee_render_result_occlusion(rr, viewname, vedata, sldata);
-
-	RE_engine_end_result(engine, rr, false, false, false);
+	eevee_render_result_combined(rl, viewname, rect, vedata, sldata);
+	eevee_render_result_subsurface(rl, viewname, rect, vedata, sldata, render_samples);
+	eevee_render_result_mist(rl, viewname, rect, vedata, sldata, render_samples);
+	eevee_render_result_occlusion(rl, viewname, rect, vedata, sldata, render_samples);
 }
 
 void EEVEE_render_update_passes(RenderEngine *engine, Scene *scene, ViewLayer *view_layer)

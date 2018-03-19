@@ -1344,19 +1344,22 @@ static void write_particlesettings(WriteData *wd, ParticleSettings *part)
 		if (part->roughcurve) {
 			write_curvemapping(wd, part->roughcurve);
 		}
+		if (part->twistcurve) {
+			write_curvemapping(wd, part->twistcurve);
+		}
 
 		for (ParticleDupliWeight *dw = part->dupliweights.first; dw; dw = dw->next) {
 			/* update indices, but only if dw->ob is set (can be NULL after loading e.g.) */
 			if (dw->ob != NULL) {
 				dw->index = 0;
 				if (part->dup_group) { /* can be NULL if lining fails or set to None */
-					FOREACH_GROUP_OBJECT(part->dup_group, object)
+					FOREACH_GROUP_OBJECT_BEGIN(part->dup_group, object)
 					{
 						if (object != dw->ob) {
 							dw->index++;
 						}
 					}
-					FOREACH_GROUP_OBJECT_END
+					FOREACH_GROUP_OBJECT_END;
 				}
 			}
 			writestruct(wd, DATA, ParticleDupliWeight, 1, dw);
@@ -2930,7 +2933,7 @@ static void write_soops(WriteData *wd, SpaceOops *so)
 	if (ts) {
 		SpaceOops so_flat = *so;
 
-		int elems = BLI_mempool_count(ts);
+		int elems = BLI_mempool_len(ts);
 		/* linearize mempool to array */
 		TreeStoreElem *data = elems ? BLI_mempool_as_arrayN(ts, "TreeStoreElem") : NULL;
 
@@ -3785,6 +3788,7 @@ static void write_workspace(WriteData *wd, WorkSpace *workspace)
 	writelist(wd, DATA, WorkSpaceLayout, layouts);
 	writelist(wd, DATA, WorkSpaceDataRelation, &workspace->hook_layout_relations);
 	writelist(wd, DATA, WorkSpaceDataRelation, &workspace->scene_viewlayer_relations);
+	writelist(wd, DATA, wmOwnerID, &workspace->owner_ids);
 	writelist(wd, DATA, TransformOrientation, transform_orientations);
 }
 

@@ -924,7 +924,7 @@ static void do_outliner_item_activate_tree_element(
 
 			if (extend) {
 				int sel = BA_SELECT;
-				FOREACH_GROUP_BASE(gr, base)
+				FOREACH_GROUP_BASE_BEGIN(gr, base)
 				{
 					if (base->flag & BASE_SELECTED) {
 						sel = BA_DESELECT;
@@ -933,16 +933,16 @@ static void do_outliner_item_activate_tree_element(
 				}
 				FOREACH_GROUP_BASE_END
 
-				FOREACH_GROUP_OBJECT(gr, object)
+				FOREACH_GROUP_OBJECT_BEGIN(gr, object)
 				{
 					ED_object_base_select(BKE_view_layer_base_find(view_layer, object), sel);
 				}
-				FOREACH_GROUP_OBJECT_END
+				FOREACH_GROUP_OBJECT_END;
 			}
 			else {
 				BKE_view_layer_base_deselect_all(view_layer);
 
-				FOREACH_GROUP_OBJECT(gr, object)
+				FOREACH_GROUP_OBJECT_BEGIN(gr, object)
 				{
 					Base *base = BKE_view_layer_base_find(view_layer, object);
 					/* Object may not be in this scene */
@@ -952,7 +952,7 @@ static void do_outliner_item_activate_tree_element(
 						}
 					}
 				}
-				FOREACH_GROUP_OBJECT_END
+				FOREACH_GROUP_OBJECT_END;
 			}
 			
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);

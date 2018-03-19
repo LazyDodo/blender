@@ -38,6 +38,7 @@
 #include "BKE_main.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
+#include "BKE_object.h"
 #include "BKE_workspace.h"
 
 #include "DNA_object_types.h"
@@ -168,6 +169,7 @@ void BKE_workspace_free(WorkSpace *workspace)
 	BKE_workspace_relations_free(&workspace->hook_layout_relations);
 	BKE_workspace_relations_free(&workspace->scene_viewlayer_relations);
 
+	BLI_freelistN(&workspace->owner_ids);
 	BLI_freelistN(&workspace->layouts);
 	BLI_freelistN(&workspace->transform_orientations);
 
@@ -355,22 +357,22 @@ WorkSpaceLayout *BKE_workspace_layout_iter_circular(
 	WorkSpaceLayout *iter_layout;
 
 	if (iter_backward) {
-		BLI_LISTBASE_CIRCULAR_BACKWARD_BEGIN(&workspace->layouts, iter_layout, start)
+		LISTBASE_CIRCULAR_BACKWARD_BEGIN(&workspace->layouts, iter_layout, start)
 		{
 			if (!callback(iter_layout, arg)) {
 				return iter_layout;
 			}
 		}
-		BLI_LISTBASE_CIRCULAR_BACKWARD_END(&workspace->layouts, iter_layout, start);
+		LISTBASE_CIRCULAR_BACKWARD_END(&workspace->layouts, iter_layout, start);
 	}
 	else {
-		BLI_LISTBASE_CIRCULAR_FORWARD_BEGIN(&workspace->layouts, iter_layout, start)
+		LISTBASE_CIRCULAR_FORWARD_BEGIN(&workspace->layouts, iter_layout, start)
 		{
 			if (!callback(iter_layout, arg)) {
 				return iter_layout;
 			}
 		}
-		BLI_LISTBASE_CIRCULAR_FORWARD_END(&workspace->layouts, iter_layout, start)
+		LISTBASE_CIRCULAR_FORWARD_END(&workspace->layouts, iter_layout, start)
 	}
 
 	return NULL;
@@ -517,4 +519,33 @@ void BKE_workspace_update_object_mode(
 	 * for now without this 'bmain->eval_ctx' is never set. */
 
 	eval_ctx->object_mode = workspace->object_mode;
+}
+
+Object *BKE_workspace_edit_object(WorkSpace *workspace, Scene *scene)
+{
+	if (workspace->object_mode & OB_MODE_EDIT) {
+		ViewLayer *view_layer = BKE_workspace_view_layer_get(workspace, scene);
+		if (view_layer) {
+			Object *obedit = OBACT(view_layer);
+			if (obedit) {
+				BLI_assert(BKE_object_is_in_editmode(obedit));
+				return obedit;
+			}
+		}
+	}
+	return NULL;
+}
+
+bool BKE_workspace_owner_id_check(
+        const WorkSpace *workspace, const char *owner_id)
+{
+	if ((*owner_id == '\0') ||
+	    ((workspace->flags & WORKSPACE_USE_FILTER_BY_ORIGIN) == 0))
+	{
+		return true;
+	}
+	else {
+		/* we could use hash lookup, for now this list is highly under < ~16 items. */
+		return BLI_findstring(&workspace->owner_ids, owner_id, offsetof(wmOwnerID, name)) != NULL;
+	}
 }

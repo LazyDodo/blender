@@ -73,6 +73,7 @@ const EnumPropertyItem rna_enum_collection_type_items[] = {
 #include "BKE_node.h"
 #include "BKE_scene.h"
 #include "BKE_mesh.h"
+#include "BKE_object.h"
 #include "BKE_workspace.h"
 
 #include "DEG_depsgraph_build.h"
@@ -96,7 +97,7 @@ static void rna_SceneCollection_name_set(PointerRNA *ptr, const char *value)
 {
 	Scene *scene = (Scene *)ptr->id.data;
 	SceneCollection *sc = (SceneCollection *)ptr->data;
-	BKE_collection_rename(scene, sc, value);
+	BKE_collection_rename(&scene->id, sc, value);
 }
 
 static PointerRNA rna_SceneCollection_objects_get(CollectionPropertyIterator *iter)
@@ -654,9 +655,9 @@ static int rna_LayerCollection_name_length(PointerRNA *ptr)
 
 static void rna_LayerCollection_name_set(PointerRNA *ptr, const char *value)
 {
-	Scene *scene = (Scene *)ptr->id.data;
+	ID *owner_id = (ID *)ptr->id.data;
 	SceneCollection *sc = ((LayerCollection *)ptr->data)->scene_collection;
-	BKE_collection_rename(scene, sc, value);
+	BKE_collection_rename(owner_id, sc, value);
 }
 
 static PointerRNA rna_LayerCollection_objects_get(CollectionPropertyIterator *iter)
@@ -845,11 +846,7 @@ static void rna_LayerObjects_active_object_update(struct bContext *C, PointerRNA
 	if (scene != ptr->id.data) {
 		return;
 	}
-
 	ViewLayer *view_layer = (ViewLayer *)ptr->data;
-	if (scene->obedit) {
-		ED_object_editmode_exit(C, EM_FREEDATA);
-	}
 	ED_object_base_activate(C, view_layer->basact);
 }
 
@@ -914,18 +911,19 @@ static void rna_LayerObjects_selected_begin(CollectionPropertyIterator *iter, Po
 static void rna_ViewLayer_update_tagged(ViewLayer *UNUSED(view_layer), bContext *C)
 {
 	Depsgraph *graph = CTX_data_depsgraph(C);
-	DEG_OBJECT_ITER(graph, ob, DEG_ITER_OBJECT_MODE_VIEWPORT,
-	                DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
-	                DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
-	                DEG_ITER_OBJECT_FLAG_LINKED_INDIRECTLY |
-	                DEG_ITER_OBJECT_FLAG_VISIBLE |
-	                DEG_ITER_OBJECT_FLAG_DUPLI)
+	DEG_OBJECT_ITER_BEGIN(
+	        graph, ob, DEG_ITER_OBJECT_MODE_VIEWPORT,
+	        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
+	        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
+	        DEG_ITER_OBJECT_FLAG_LINKED_INDIRECTLY |
+	        DEG_ITER_OBJECT_FLAG_VISIBLE |
+	        DEG_ITER_OBJECT_FLAG_DUPLI)
 	{
 		/* Don't do anything, we just need to run the iterator to flush
 		 * the base info to the objects. */
 		UNUSED_VARS(ob);
 	}
-	DEG_OBJECT_ITER_END
+	DEG_OBJECT_ITER_END;
 }
 
 static void rna_ObjectBase_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -937,7 +935,7 @@ static void rna_ObjectBase_select_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 
 static char *rna_ViewRenderSettings_path(PointerRNA *UNUSED(ptr))
 {
-	return BLI_sprintfN("viewport_render");
+	return BLI_sprintfN("view_render");
 }
 
 static void rna_ViewRenderSettings_engine_set(PointerRNA *ptr, int value)

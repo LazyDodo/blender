@@ -1157,8 +1157,8 @@ static int object_speaker_add_exec(bContext *C, wmOperator *op)
 	{
 		/* create new data for NLA hierarchy */
 		AnimData *adt = BKE_animdata_add_id(&ob->id);
-		NlaTrack *nlt = add_nlatrack(adt, NULL);
-		NlaStrip *strip = add_nla_soundstrip(scene, ob->data);
+		NlaTrack *nlt = BKE_nlatrack_add(adt, NULL);
+		NlaStrip *strip = BKE_nla_add_soundstrip(scene, ob->data);
 		strip->start = CFRA;
 		strip->end += strip->start;
 
@@ -1673,7 +1673,7 @@ static int convert_poll(bContext *C)
 	Base *base_act = CTX_data_active_base(C);
 	Object *obact = base_act ? base_act->object : NULL;
 
-	return (!ID_IS_LINKED(scene) && obact && scene->obedit != obact &&
+	return (!ID_IS_LINKED(scene) && obact && (BKE_object_is_in_editmode(obact) == false) &&
 	        (base_act->flag & BASE_SELECTED) && !ID_IS_LINKED(obact));
 }
 
@@ -1719,7 +1719,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	/* don't forget multiple users! */
 
 	{
-		FOREACH_SCENE_OBJECT(scene, ob)
+		FOREACH_SCENE_OBJECT_BEGIN(scene, ob)
 		{
 			ob->flag &= ~OB_DONE;
 
@@ -1739,7 +1739,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 				}
 			}
 		}
-		FOREACH_SCENE_OBJECT_END
+		FOREACH_SCENE_OBJECT_END;
 	}
 
 	ListBase selected_editable_bases = CTX_data_collection_get(C, "selected_editable_bases");
@@ -2009,7 +2009,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 
 	if (!keep_original) {
 		if (mballConverted) {
-			FOREACH_SCENE_OBJECT(scene, ob_mball)
+			FOREACH_SCENE_OBJECT_BEGIN(scene, ob_mball)
 			{
 				if (ob_mball->type == OB_MBALL) {
 					if (ob_mball->flag & OB_DONE) {
@@ -2022,7 +2022,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 					}
 				}
 			}
-			FOREACH_SCENE_OBJECT_END
+			FOREACH_SCENE_OBJECT_END;
 		}
 
 		/* delete object should renew depsgraph */
@@ -2529,10 +2529,10 @@ static int join_poll(bContext *C)
 
 static int join_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
+	const WorkSpace *workspace = CTX_wm_workspace(C);
 	Object *ob = CTX_data_active_object(C);
 
-	if (scene->obedit) {
+	if (workspace->object_mode & OB_MODE_EDIT) {
 		BKE_report(op->reports, RPT_ERROR, "This data does not support joining in edit mode");
 		return OPERATOR_CANCELLED;
 	}
@@ -2583,10 +2583,10 @@ static int join_shapes_poll(bContext *C)
 
 static int join_shapes_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
+	const WorkSpace *workspace = CTX_wm_workspace(C);
 	Object *ob = CTX_data_active_object(C);
 
-	if (scene->obedit) {
+	if (workspace->object_mode & OB_MODE_EDIT) {
 		BKE_report(op->reports, RPT_ERROR, "This data does not support joining in edit mode");
 		return OPERATOR_CANCELLED;
 	}

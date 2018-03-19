@@ -409,7 +409,8 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 				case TSE_LAYER_COLLECTION:
 				{
 					SceneCollection *sc = outliner_scene_collection_from_tree_element(te);
-					BKE_collection_rename(scene, sc, te->name);
+					BKE_collection_rename(tselem->id, sc, te->name);
+					WM_event_add_notifier(C, NC_SCENE | ND_LAYER, scene);
 					break;
 				}
 			}
@@ -1805,7 +1806,7 @@ static void outliner_draw_tree(
 	TreeElement *te_floating = NULL;
 	int starty, startx;
 
-	glBlendFunc(GL_SRC_ALPHA,  GL_ONE_MINUS_SRC_ALPHA); // only once
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // only once
 
 	if (soops->outlinevis == SO_DATABLOCKS) {
 		/* struct marks */

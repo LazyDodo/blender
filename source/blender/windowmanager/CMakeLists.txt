@@ -35,6 +35,7 @@ set(INC
 	../compositor
 	../depsgraph
 	../editors/include
+	../draw
 	../gpu
 	../imbuf
 	../makesdna
@@ -93,7 +94,6 @@ set(SRC
 	wm_event_system.h
 	wm_event_types.h
 	wm_files.h
-	wm_subwindow.h
 	wm_window.h
 	manipulators/WM_manipulator_api.h
 	manipulators/WM_manipulator_types.h

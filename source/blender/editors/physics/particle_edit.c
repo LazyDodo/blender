@@ -46,7 +46,7 @@
 #include "DNA_workspace_types.h"
 
 #include "BLI_math.h"
-#include "BLI_lasso.h"
+#include "BLI_lasso_2d.h"
 #include "BLI_listbase.h"
 #include "BLI_string.h"
 #include "BLI_kdtree.h"
@@ -72,6 +72,7 @@
 #include "ED_physics.h"
 #include "ED_mesh.h"
 #include "ED_particle.h"
+#include "ED_screen.h"
 #include "ED_view3d.h"
 
 #include "GPU_immediate.h"
@@ -315,7 +316,7 @@ PTCacheEdit *PE_get_current(Scene *scene, ViewLayer *view_layer, Object *ob)
 
 PTCacheEdit *PE_create_current(const EvaluationContext *eval_ctx, Scene *scene, Object *ob)
 {
-	return pe_get_current(eval_ctx, scene, NULL, ob, 1);
+	return pe_get_current(eval_ctx, scene, eval_ctx->view_layer, ob, 1);
 }
 
 void PE_current_changed(const EvaluationContext *eval_ctx, Scene *scene, Object *ob)
@@ -411,7 +412,7 @@ static void PE_set_view3d_data(bContext *C, PEData *data)
 {
 	PE_set_data(C, data);
 
-	view3d_set_viewcontext(C, &data->vc);
+	ED_view3d_viewcontext_init(C, &data->vc);
 
 	if (V3D_IS_ZBUF(data->vc.v3d)) {
 		if (data->vc.v3d->flag & V3D_INVALID_BACKBUF) {
@@ -1315,6 +1316,8 @@ void PE_update_object(const EvaluationContext *eval_ctx, Scene *scene, ViewLayer
 
 	if (edit->psys)
 		edit->psys->flag &= ~PSYS_HAIR_UPDATED;
+
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 }
 
 /************************************************/
@@ -3869,6 +3872,7 @@ static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
 	     (sqrtf(dx * dx + dy * dy) > pset->brush[PE_BRUSH_ADD].step) : (dx != 0 || dy != 0)) || bedit->first)
 	{
 		PEData data= bedit->data;
+		data.context = C; // TODO(mai): why isnt this set in bedit->data?
 
 		view3d_operator_needs_opengl(C);
 		selected= (short)count_selected_keys(scene, edit);
@@ -4783,6 +4787,7 @@ static int particle_edit_toggle_poll(bContext *C)
 
 static int particle_edit_toggle_exec(bContext *C, wmOperator *op)
 {
+	wmWindowManager *wm = CTX_wm_manager(C);
 	struct WorkSpace *workspace = CTX_wm_workspace(C);
 	EvaluationContext eval_ctx;
 	CTX_data_eval_ctx(C, &eval_ctx);
@@ -4790,9 +4795,6 @@ static int particle_edit_toggle_exec(bContext *C, wmOperator *op)
 	Object *ob = CTX_data_active_object(C);
 	const int mode_flag = OB_MODE_PARTICLE_EDIT;
 	const bool is_mode_set = (eval_ctx.object_mode & mode_flag) != 0;
-
-	BKE_report(op->reports, RPT_INFO, "Particles are changing, editing is not possible");
-	return OPERATOR_CANCELLED;
 
 	if (!is_mode_set) {
 		if (!ED_object_mode_compat_set(C, workspace, mode_flag, op->reports)) {
@@ -4819,6 +4821,8 @@ static int particle_edit_toggle_exec(bContext *C, wmOperator *op)
 		toggle_particle_cursor(C, 0);
 		WM_event_add_notifier(C, NC_SCENE|ND_MODE|NS_MODE_OBJECT, NULL);
 	}
+
+	ED_workspace_object_mode_sync_from_object(wm, workspace, ob);
 
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 

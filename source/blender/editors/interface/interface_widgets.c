@@ -729,7 +729,7 @@ static void widgetbase_draw(uiWidgetBase *wtb, uiWidgetColors *wcol)
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 				immUniformColor4ubv((unsigned char *)wcol->inner);
 
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 				for (a = 0; a < wtb->totvert; a++) {
 					x_mid += wtb->inner_v[a][0];
@@ -1591,6 +1591,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		rcti temp = *rect;
 		temp.xmin = rect->xmax - BLI_rcti_size_y(rect) - 1;
 		widget_draw_icon(but, ICON_LAYER_USED, alpha, &temp, false);
+		rect->xmax = temp.xmin;
 	}
 
 	/* If there's an icon too (made with uiDefIconTextBut) then draw the icon

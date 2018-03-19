@@ -324,6 +324,27 @@ MINLINE size_t max_zz(size_t a, size_t b)
 	return (b < a) ? a : b;
 }
 
+MINLINE int clamp_i(int value, int min, int max)
+{
+	return min_ii(max_ii(value, min), max);
+}
+
+MINLINE float clamp_f(float value, float min, float max)
+{
+	if (value > max) {
+		return max;
+	}
+	else if (value < min) {
+		return min;
+	}
+	return value;
+}
+
+MINLINE size_t clamp_z(size_t value, size_t min, size_t max)
+{
+	return min_zz(max_zz(value, min), max);
+}
+
 /**
  * Almost-equal for IEEE floats, using absolute difference method.
  *
@@ -347,10 +368,8 @@ MINLINE int compare_ff_relative(float a, float b, const float max_diff, const in
 {
 	union {float f; int i;} ua, ub;
 
-#if 0  /* No BLI_assert in INLINE :/ */
 	BLI_assert(sizeof(float) == sizeof(int));
 	BLI_assert(max_ulps < (1 << 22));
-#endif
 
 	if (fabsf(a - b) <= max_diff) {
 		return 1;

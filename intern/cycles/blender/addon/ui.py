@@ -753,7 +753,7 @@ class CYCLES_PT_context_material(CyclesButtonsPanel, Panel):
                 col.operator("object.material_slot_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("object.material_slot_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
 
-            if ob.mode == 'EDIT':
+            if context.workspace.object_mode == 'EDIT':
                 row = layout.row(align=True)
                 row.operator("object.material_slot_assign", text="Assign")
                 row.operator("object.material_slot_select", text="Select")
@@ -783,7 +783,7 @@ class CYCLES_OBJECT_PT_motion_blur(CyclesButtonsPanel, Panel):
     def poll(cls, context):
         ob = context.object
         if CyclesButtonsPanel.poll(context) and ob:
-            if ob.type in {'MESH', 'CURVE', 'CURVE', 'SURFACE', 'FONT', 'META'}:
+            if ob.type in {'MESH', 'CURVE', 'CURVE', 'SURFACE', 'FONT', 'META', 'CAMERA'}:
                 return True
             if ob.dupli_type == 'GROUP' and ob.dupli_group:
                 return True
@@ -815,11 +815,9 @@ class CYCLES_OBJECT_PT_motion_blur(CyclesButtonsPanel, Panel):
         layout.active = (rd.use_motion_blur and cob.use_motion_blur)
 
         row = layout.row()
-        row.prop(cob, "use_deform_motion", text="Deformation")
-
-        sub = row.row()
-        sub.active = cob.use_deform_motion
-        sub.prop(cob, "motion_steps", text="Steps")
+        if ob.type != 'CAMERA':
+            row.prop(cob, "use_deform_motion", text="Deformation")
+        row.prop(cob, "motion_steps", text="Steps")
 
 
 class CYCLES_OBJECT_PT_cycles_settings(CyclesButtonsPanel, Panel):

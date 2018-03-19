@@ -730,7 +730,7 @@ static void draw_empty_image(Object *ob, const short dflag, const unsigned char 
 
 		if (use_blend) {
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
 		Gwn_VertFormat *format = immVertexFormat();
@@ -780,7 +780,7 @@ static void draw_empty_image(Object *ob, const short dflag, const unsigned char 
 
 		if (!use_blend) {
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
 		imm_draw_box_wire_2d(pos, rect.xmin, rect.ymin, rect.xmax, rect.ymax);
@@ -1187,7 +1187,7 @@ static void draw_transp_spot_volume(Lamp *la, float x, float z, unsigned pos)
 	draw_spot_cone(la, x, z, pos);
 
 	/* restore state */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_CULL_FACE);
@@ -1231,7 +1231,7 @@ static void draw_transp_sun_volume(Lamp *la, unsigned pos)
 	imm_draw_box(box, true, pos);
 
 	/* restore state */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_CULL_FACE);
@@ -1327,7 +1327,7 @@ void drawlamp(View3D *v3d, RegionView3D *rv3d, Base *base,
 
 			GPU_enable_program_point_size();
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_OUTLINE_AA);
 			immUniform1f("size", lampdot_size);
@@ -5978,6 +5978,8 @@ static void draw_new_particle_system(
 		curvemapping_changed_all(psys->part->clumpcurve);
 	if ((psys->part->child_flag & PART_CHILD_USE_ROUGH_CURVE) && psys->part->roughcurve)
 		curvemapping_changed_all(psys->part->roughcurve);
+	if ((psys->part->child_flag & PART_CHILD_USE_TWIST_CURVE) && psys->part->twistcurve)
+		curvemapping_changed_all(psys->part->twistcurve);
 
 /* 2. */
 	sim.eval_ctx = eval_ctx;
@@ -8696,7 +8698,7 @@ void draw_object(
 	/* no return after this point, otherwise leaks */
 
 	/* only once set now, will be removed too, should become a global standard */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	/* reset here to avoid having to call all over */
 	glLineWidth(1.0f);
 
@@ -9621,7 +9623,7 @@ static void bbs_mesh_face(BMEditMesh *em, DerivedMesh *UNUSED(dm), const bool us
 		GPU_select_index_get(0, &selcol);
 		batch = DRW_mesh_batch_cache_get_triangles_with_select_mask(me, true);
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_3D_UNIFORM_COLOR_U32);
-		GWN_batch_uniform_1i(batch, "color", selcol);
+		GWN_batch_uniform_1ui(batch, "color", selcol);
 		GWN_batch_draw(batch);
 	}
 }
@@ -9751,7 +9753,7 @@ static void bbs_mesh_solid_verts(const EvaluationContext *UNUSED(eval_ctx), Scen
 		GPU_select_index_get(0, &selcol);
 		batch = DRW_mesh_batch_cache_get_triangles_with_select_mask(me, true);
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_3D_UNIFORM_COLOR_U32);
-		GWN_batch_uniform_1i(batch, "color", selcol);
+		GWN_batch_uniform_1ui(batch, "color", selcol);
 		GWN_batch_draw(batch);
 	}
 
@@ -9990,7 +9992,7 @@ void ED_draw_object_facemap(
 		immUniformColor4fv(col);
 
 		/* XXX, alpha isn't working yet, not sure why. */
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_BLEND);
 
 		MVert *mvert;

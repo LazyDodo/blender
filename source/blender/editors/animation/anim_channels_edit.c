@@ -2683,8 +2683,10 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 		}
 		case ANIMTYPE_OBJECT:
 		{
+#if 0
 			bDopeSheet *ads = (bDopeSheet *)ac->data;
 			Scene *sce = (Scene *)ads->source;
+#endif
 			ViewLayer *view_layer = ac->view_layer;
 			Base *base = (Base *)ale->data;
 			Object *ob = base->object;
@@ -2723,7 +2725,7 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 					adt->flag |= ADT_UI_ACTIVE;
 
 				/* ensure we exit editmode on whatever object was active before to avoid getting stuck there - T48747 */
-				if (ob != sce->obedit)
+				if (ob != CTX_data_edit_object(C))
 					ED_object_editmode_exit(C, EM_FREEDATA | EM_FREEUNDO | EM_WAITCURSOR | EM_DO_UNDO);
 
 				notifierFlags |= (ND_ANIMCHAN | NA_SELECTED);
@@ -3088,7 +3090,7 @@ static bool select_anim_channel_keys(bAnimContext *ac, int channel_index, bool e
 			for (ale = anim_data.first; ale; ale = ale->next) {
 				FCurve *fcu_inner = (FCurve *)ale->key_data;
 
-				if (fcu_inner) {
+				if (fcu_inner != NULL && fcu_inner->bezt != NULL) {
 					for (i = 0, bezt = fcu_inner->bezt; i < fcu_inner->totvert; i++, bezt++) {
 						bezt->f2 = bezt->f1 = bezt->f3 = 0;
 					}

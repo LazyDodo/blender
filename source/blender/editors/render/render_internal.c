@@ -297,7 +297,6 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	RenderEngineType *re_type = RE_engines_find(scene->view_render.engine_id);
 	ViewLayer *view_layer = NULL;
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Render *re;
 	Image *ima;
 	View3D *v3d = CTX_wm_view3d(C);
@@ -321,7 +320,6 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 	}
 
 	re = RE_NewSceneRender(scene);
-	RE_SetDepsgraph(re, CTX_data_depsgraph(C));
 	lay_override = (v3d && v3d->lay != scene->lay) ? v3d->lay : 0;
 
 	G.is_break = false;
@@ -339,17 +337,17 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 
 	RE_SetReports(re, op->reports);
 
-	BLI_begin_threaded_malloc();
+	BLI_threaded_malloc_begin();
 	if (is_animation)
 		RE_BlenderAnim(re, mainp, scene, camera_override, lay_override, scene->r.sfra, scene->r.efra, scene->r.frame_step);
 	else
 		RE_BlenderFrame(re, mainp, scene, view_layer, camera_override, lay_override, scene->r.cfra, is_write_still);
-	BLI_end_threaded_malloc();
+	BLI_threaded_malloc_end();
 
 	RE_SetReports(re, NULL);
 
 	// no redraw needed, we leave state as we entered it
-	ED_update_for_newframe(mainp, scene, view_layer, depsgraph);
+	ED_update_for_newframe(mainp, scene, view_layer, CTX_data_depsgraph(C));
 
 	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_RESULT, scene);
 
@@ -538,10 +536,8 @@ static void render_image_update_pass_and_layer(RenderJob *rj, RenderResult *rr, 
 			int layer = BLI_findstringindex(&main_rr->layers,
 			                                (char *)rr->renlay->name,
 			                                offsetof(RenderLayer, name));
-			if (layer != rj->last_layer) {
-				sima->iuser.layer = layer;
-				rj->last_layer = layer;
-			}
+			sima->iuser.layer = layer;
+			rj->last_layer = layer;
 		}
 
 		iuser->pass = sima->iuser.pass;
@@ -639,7 +635,21 @@ static void render_image_restore_layer(RenderJob *rj)
 				if (sa == rj->sa) {
 					if (sa->spacetype == SPACE_IMAGE) {
 						SpaceImage *sima = sa->spacedata.first;
-						sima->iuser.layer = rj->orig_layer;
+
+						if (RE_HasSingleLayer(rj->re)) {
+							/* For single layer renders keep the active layer
+							 * visible, or show the compositing result. */
+							RenderResult *rr = RE_AcquireResultRead(rj->re);
+							if(RE_HasCombinedLayer(rr)) {
+								sima->iuser.layer = 0;
+							}
+							RE_ReleaseResult(rj->re);
+						}
+						else {
+							/* For multiple layer render, set back the layer
+							 * that was set at the start of rendering. */
+							sima->iuser.layer = rj->orig_layer;
+						}
 					}
 					return;
 				}
@@ -869,15 +879,6 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 		return OPERATOR_CANCELLED;
 	}
 
-	/* XXX FIXME If engine is an OpenGL engine do not run modal.
-	 * This is a problem for animation rendering since you cannot abort them.
-	 * This also does not open an image editor space. */
-	if (RE_engine_is_opengl(re_type)) {
-		/* ensure at least 1 area shows result */
-		render_view_open(C, event->x, event->y, op->reports);
-		return screen_render_exec(C, op);
-	}
-	
 	/* only one render job at a time */
 	if (WM_jobs_test(CTX_wm_manager(C), scene, WM_JOB_TYPE_RENDER))
 		return OPERATOR_CANCELLED;
@@ -1017,7 +1018,6 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	RE_current_scene_update_cb(re, rj, current_scene_update);
 	RE_stats_draw_cb(re, rj, image_renderinfo_cb);
 	RE_progress_cb(re, rj, render_progress_update);
-	RE_SetDepsgraph(re, CTX_data_depsgraph(C));
 
 	rj->re = re;
 	G.is_break = false;
@@ -1088,6 +1088,7 @@ typedef struct RenderPreview {
 	wmJob *job;
 	
 	Scene *scene;
+	EvaluationContext *eval_ctx;
 	Depsgraph *depsgraph;
 	ScrArea *sa;
 	ARegion *ar;
@@ -1336,7 +1337,7 @@ static void render_view3d_startjob(void *customdata, short *stop, short *do_upda
 		WM_job_main_thread_lock_release(rp->job);
 
 		/* do preprocessing like building raytree, shadows, volumes, SSS */
-		RE_Database_Preprocess(re);
+		RE_Database_Preprocess(rp->eval_ctx, re);
 
 		/* conversion not completed, need to do it again */
 		if (!rstats->convertdone) {
@@ -1402,6 +1403,7 @@ static void render_view3d_startjob(void *customdata, short *stop, short *do_upda
 static void render_view3d_free(void *customdata)
 {
 	RenderPreview *rp = customdata;
+	DEG_evaluation_context_free(rp->eval_ctx);
 	
 	MEM_freeN(rp);
 }
@@ -1444,8 +1446,10 @@ static bool render_view3d_flag_changed(RenderEngine *engine, const bContext *C)
 		job_update_flag |= PR_UPDATE_DATABASE;
 
 		/* load editmesh */
-		if (scene->obedit)
-			ED_object_editmode_load(scene->obedit);
+		Object *obedit = CTX_data_edit_object(C);
+		if (obedit) {
+			ED_object_editmode_load(obedit);
+		}
 	}
 	
 	engine->update_flag = 0;
@@ -1515,6 +1519,8 @@ static void render_view3d_do(RenderEngine *engine, const bContext *C)
 	/* customdata for preview thread */
 	rp->scene = scene;
 	rp->depsgraph = depsgraph;
+	rp->eval_ctx = DEG_evaluation_context_new(DAG_EVAL_PREVIEW);
+	CTX_data_eval_ctx(C, rp->eval_ctx);
 	rp->engine = engine;
 	rp->sa = CTX_wm_area(C);
 	rp->ar = CTX_wm_region(C);

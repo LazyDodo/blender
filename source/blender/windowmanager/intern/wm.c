@@ -339,6 +339,22 @@ void WM_menutype_free(void)
 	menutypes_hash = NULL;
 }
 
+bool WM_menutype_poll(bContext *C, MenuType *mt)
+{
+	/* If we're tagged, only use compatible. */
+	if (mt->owner_id[0] != '\0') {
+		const WorkSpace *workspace = CTX_wm_workspace(C);
+		if (BKE_workspace_owner_id_check(workspace, mt->owner_id) == false) {
+			return false;
+		}
+	}
+
+	if (mt->poll != NULL) {
+		return mt->poll(C, mt);
+	}
+	return true;
+}
+
 /* ****************************************** */
 
 void WM_keymap_init(bContext *C)

@@ -3675,7 +3675,7 @@ void render_realtime_texture(ShadeInput *shi, Image *ima)
 	if (R.r.scemode & R_NO_TEX) return;
 
 	if (firsttime) {
-		BLI_lock_thread(LOCK_IMAGE);
+		BLI_thread_lock(LOCK_IMAGE);
 		if (firsttime) {
 			const int num_threads = BLI_system_thread_count();
 			for (a = 0; a < num_threads; a++) {
@@ -3686,7 +3686,7 @@ void render_realtime_texture(ShadeInput *shi, Image *ima)
 
 			firsttime= 0;
 		}
-		BLI_unlock_thread(LOCK_IMAGE);
+		BLI_thread_unlock(LOCK_IMAGE);
 	}
 	
 	tex= &imatex[shi->thread];
@@ -3745,7 +3745,7 @@ static void textured_face_generate_uv(
 }
 
 /* Generate an updated copy of material to use for color sampling. */
-Material *RE_sample_material_init(Material *orig_mat, Scene *scene)
+Material *RE_sample_material_init(const EvaluationContext *eval_ctx, Material *orig_mat, Scene *scene)
 {
 	Tex *tex = NULL;
 	Material *mat;
@@ -3821,7 +3821,7 @@ Material *RE_sample_material_init(Material *orig_mat, Scene *scene)
 				unit_m4(dummy_re.viewmat);
 				unit_m4(dummy_re.winmat);
 				dummy_re.winx = dummy_re.winy = 128;
-				cache_pointdensity(&dummy_re, tex->pd);
+				cache_pointdensity(eval_ctx, &dummy_re, tex->pd);
 			}
 
 			/* update image sequences and movies */

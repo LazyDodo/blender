@@ -51,7 +51,7 @@ bool BKE_collection_remove(struct ID *owner_id, struct SceneCollection *sc);
 void BKE_collection_copy_data(struct SceneCollection *sc_dst, struct SceneCollection *sc_src, const int flag);
 struct SceneCollection *BKE_collection_duplicate(struct ID *owner_id, struct SceneCollection *scene_collection);
 struct SceneCollection *BKE_collection_master(const struct ID *owner_id);
-void BKE_collection_rename(const struct Scene *scene, struct SceneCollection *sc, const char *name);
+void BKE_collection_rename(const struct ID *owner_id, struct SceneCollection *sc, const char *name);
 void BKE_collection_master_free(struct ID *owner_id, const bool do_id_user);
 bool BKE_collection_object_add(const struct ID *owner_id, struct SceneCollection *sc, struct Object *object);
 void BKE_collection_object_add_from(struct Scene *scene, struct Object *ob_src, struct Object *ob_dst);
@@ -83,7 +83,7 @@ void BKE_scene_objects_iterator_begin(struct BLI_Iterator *iter, void *data_in);
 void BKE_scene_objects_iterator_next(struct BLI_Iterator *iter);
 void BKE_scene_objects_iterator_end(struct BLI_Iterator *iter);
 
-#define FOREACH_SCENE_COLLECTION(_id, _instance)                              \
+#define FOREACH_SCENE_COLLECTION_BEGIN(_id, _instance)                        \
 	ITER_BEGIN(BKE_scene_collections_iterator_begin,                          \
 	           BKE_scene_collections_iterator_next,                           \
 	           BKE_scene_collections_iterator_end,                            \
@@ -92,7 +92,7 @@ void BKE_scene_objects_iterator_end(struct BLI_Iterator *iter);
 #define FOREACH_SCENE_COLLECTION_END                                          \
 	ITER_END
 
-#define FOREACH_SCENE_OBJECT(scene, _instance)                                \
+#define FOREACH_SCENE_OBJECT_BEGIN(scene, _instance)                          \
 	ITER_BEGIN(BKE_scene_objects_iterator_begin,                              \
 	           BKE_scene_objects_iterator_next,                               \
 	           BKE_scene_objects_iterator_end,                                \

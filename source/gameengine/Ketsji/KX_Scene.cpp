@@ -738,7 +738,7 @@ void KX_Scene::DupliGroupRecurse(CValue* obj, int level)
 	m_groupGameObjects.clear();
 
 	group = blgroupobj->dup_group;
-	FOREACH_GROUP_BASE(group, base)
+	FOREACH_GROUP_BASE_BEGIN(group, base)
 	{
 		Object *blenderobj = base->object;
 		if (blgroupobj == blenderobj)
@@ -761,7 +761,7 @@ void KX_Scene::DupliGroupRecurse(CValue* obj, int level)
 		}
 		m_groupGameObjects.insert(gameobj);
 	}
-	FOREACH_GROUP_BASE_END
+	FOREACH_GROUP_BASE_END;
 
 	set<CValue*>::iterator oit;
 	for (oit=m_groupGameObjects.begin(); oit != m_groupGameObjects.end(); oit++)

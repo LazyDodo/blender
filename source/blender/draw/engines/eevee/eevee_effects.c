@@ -132,7 +132,7 @@ void EEVEE_effects_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object 
 
 	/* Force normal buffer creation. */
 	if (DRW_state_is_image_render() &&
-		(view_layer->passflag & SCE_PASS_NORMAL) != 0)
+	    (view_layer->passflag & SCE_PASS_NORMAL) != 0)
 	{
 		effects->enabled_effects |= EFFECT_NORMAL_BUFFER;
 	}
@@ -240,12 +240,13 @@ void EEVEE_effects_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 	{
 		static int zero = 0;
+		static unsigned int six = 6;
 		psl->color_downsample_cube_ps = DRW_pass_create("Downsample Cube", DRW_STATE_WRITE_COLOR);
-		DRWShadingGroup *grp = DRW_shgroup_instance_create(e_data.downsample_cube_sh, psl->color_downsample_cube_ps, quad);
+		DRWShadingGroup *grp = DRW_shgroup_create(e_data.downsample_cube_sh, psl->color_downsample_cube_ps);
 		DRW_shgroup_uniform_buffer(grp, "source", &e_data.color_src);
 		DRW_shgroup_uniform_float(grp, "texelSize", &e_data.cube_texel_size, 1);
 		DRW_shgroup_uniform_int(grp, "Layer", &zero, 1);
-		DRW_shgroup_set_instance_count(grp, 6);
+		DRW_shgroup_call_instances_add(grp, quad, NULL, &six);
 	}
 
 	{
@@ -406,7 +407,7 @@ void EEVEE_downsample_cube_buffer(EEVEE_Data *vedata, struct GPUFrameBuffer *fb_
 	DRW_stats_group_end();
 }
 
-void EEVEE_draw_effects(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
+void EEVEE_draw_effects(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *vedata)
 {
 	EEVEE_TextureList *txl = vedata->txl;
 	EEVEE_FramebufferList *fbl = vedata->fbl;
@@ -449,7 +450,7 @@ void EEVEE_draw_effects(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	}
 
 	/* Record pers matrix for the next frame. */
-	DRW_viewport_matrix_get(sldata->common_data.prev_persmat, DRW_MAT_PERS);
+	DRW_viewport_matrix_get(stl->effects->prev_persmat, DRW_MAT_PERS);
 
 	/* Update double buffer status if render mode. */
 	if (DRW_state_is_image_render()) {

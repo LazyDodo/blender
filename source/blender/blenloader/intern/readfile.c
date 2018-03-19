@@ -2913,6 +2913,7 @@ static void direct_link_workspace(FileData *fd, WorkSpace *workspace, const Main
 	link_list(fd, &workspace->hook_layout_relations);
 	link_list(fd, &workspace->scene_viewlayer_relations);
 	link_list(fd, BKE_workspace_transform_orientations_get(workspace));
+	link_list(fd, &workspace->owner_ids);
 
 	for (WorkSpaceDataRelation *relation = workspace->hook_layout_relations.first;
 	     relation;
@@ -4415,6 +4416,9 @@ static void direct_link_particlesettings(FileData *fd, ParticleSettings *part)
 	part->roughcurve = newdataadr(fd, part->roughcurve);
 	if (part->roughcurve)
 		direct_link_curvemapping(fd, part->roughcurve);
+	part->twistcurve = newdataadr(fd, part->twistcurve);
+	if (part->twistcurve)
+		direct_link_curvemapping(fd, part->twistcurve);
 
 	part->effector_weights = newdataadr(fd, part->effector_weights);
 	if (!part->effector_weights)
@@ -5293,6 +5297,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				smd->domain->shadow = NULL;
 				smd->domain->tex = NULL;
 				smd->domain->tex_shadow = NULL;
+				smd->domain->tex_flame = NULL;
 				smd->domain->tex_wt = NULL;
 				smd->domain->coba = newdataadr(fd, smd->domain->coba);
 				
@@ -6225,7 +6230,6 @@ static void direct_link_scene(FileData *fd, Scene *sce, Main *bmain)
 	SceneRenderLayer *srl;
 	
 	sce->depsgraph_hash = NULL;
-	sce->obedit = NULL;
 	sce->fps_info = NULL;
 	sce->customdata_mask_modal = 0;
 	sce->lay_updated = 0;
@@ -6503,8 +6507,8 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		oldnewmap_insert(fd->globmap, hook, win->workspace_hook, 0);
 
 		win->ghostwin = NULL;
+		win->gwnctx = NULL;
 		win->eventstate = NULL;
-		win->curswin = NULL;
 		win->tweak = NULL;
 #ifdef WIN32
 		win->ime_data = NULL;
@@ -6513,7 +6517,6 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		BLI_listbase_clear(&win->queue);
 		BLI_listbase_clear(&win->handlers);
 		BLI_listbase_clear(&win->modalhandlers);
-		BLI_listbase_clear(&win->subwindows);
 		BLI_listbase_clear(&win->gesture);
 		BLI_listbase_clear(&win->drawdata);
 		
@@ -6526,7 +6529,6 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		win->modalcursor  = 0;
 		win->grabcursor   = 0;
 		win->addmousemove = true;
-		win->multisamples = 0;
 		win->stereo3d_format = newdataadr(fd, win->stereo3d_format);
 
 		/* multiview always fallback to anaglyph at file opening
@@ -7316,7 +7318,7 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 	BLI_listbase_clear(&ar->handlers);
 	BLI_listbase_clear(&ar->uiblocks);
 	ar->headerstr = NULL;
-	ar->swinid = 0;
+	ar->visible = 0;
 	ar->type = NULL;
 	ar->swap = 0;
 	ar->do_draw = 0;
@@ -7363,8 +7365,7 @@ static bool direct_link_screen(FileData *fd, bScreen *sc)
 	link_list(fd, &(sc->areabase));
 	sc->regionbase.first = sc->regionbase.last= NULL;
 	sc->context = NULL;
-	
-	sc->mainwin = sc->subwinactive= 0;	/* indices */
+	sc->active_region = NULL;
 	sc->swap = 0;
 
 	sc->preview = direct_link_preview_image(fd, sc->preview);
@@ -7664,12 +7665,20 @@ static void direct_link_library(FileData *fd, Library *lib, Main *main)
 				
 				BLI_remlink(&main->library, lib);
 				MEM_freeN(lib);
-				
-				
+
+				/* Now, since Blender always expect **latest** Main pointer from fd->mainlist to be the active library
+				 * Main pointer, where to add all non-library data-blocks found in file next, we have to switch that
+				 * 'dupli' found Main to latest position in the list!
+				 * Otherwise, you get weird disappearing linked data on a rather unconsistant basis.
+				 * See also T53977 for reproducible case. */
+				BLI_remlink(fd->mainlist, newmain);
+				BLI_addtail(fd->mainlist, newmain);
+
 				return;
 			}
 		}
 	}
+
 	/* make sure we have full path in lib->filepath */
 	BLI_strncpy(lib->filepath, lib->name, sizeof(lib->name));
 	BLI_cleanup_path(fd->relabase, lib->filepath);
@@ -8536,6 +8545,7 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 	id->icon_id = 0;
 	id->newid = NULL;  /* Needed because .blend may have been saved with crap value here... */
 	id->orig_id = NULL;
+	id->recalc = 0;
 	
 	/* this case cannot be direct_linked: it's just the ID part */
 	if (bhead->code == ID_ID) {
@@ -10866,6 +10876,7 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 	Main *mainl = mainlist->first;
 	Main *mainptr;
 	ListBase *lbarray[MAX_LIBARRAY];
+	GHash *loaded_ids = BLI_ghash_str_new(__func__);
 	int a;
 	bool do_it = true;
 	
@@ -10879,7 +10890,7 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 		mainptr= mainl->next;
 		while (mainptr) {
 			if (mainvar_id_tag_any_check(mainptr, LIB_TAG_READ)) {
-				// printf("found LIB_TAG_READ %s\n", mainptr->curlib->name);
+				// printf("found LIB_TAG_READ %s (%s)\n", mainptr->curlib->id.name, mainptr->curlib->name);
 
 				FileData *fd = mainptr->curlib->filedata;
 				
@@ -10977,30 +10988,43 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 				a = set_listbasepointers(mainptr, lbarray);
 				while (a--) {
 					ID *id = lbarray[a]->first;
+					ListBase pending_free_ids = {NULL};
 
 					while (id) {
 						ID *idn = id->next;
 						if (id->tag & LIB_TAG_READ) {
-							ID *realid = NULL;
 							BLI_remlink(lbarray[a], id);
 
-							link_id_part(basefd->reports, fd, mainptr, id, &realid);
+							/* When playing with lib renaming and such, you may end with cases where you have
+							 * more than one linked ID of the same data-block from same library.
+							 * This is absolutely horrible, hence we use a ghash to ensure we go back to a single
+							 * linked data when loading the file... */
+							ID **realid = NULL;
+							if (!BLI_ghash_ensure_p(loaded_ids, id->name, (void ***)&realid)) {
+								link_id_part(basefd->reports, fd, mainptr, id, realid);
+							}
 
 							/* realid shall never be NULL - unless some source file/lib is broken
 							 * (known case: some directly linked shapekey from a missing lib...). */
-							/* BLI_assert(realid != NULL); */
+							/* BLI_assert(*realid != NULL); */
 
-							if (realid && id->uuid) {
+							if (*realid && id->uuid) {
 								/* we can give ownership of that pointer to new ID. */
-								realid->uuid = id->uuid;
+								(*realid)->uuid = id->uuid;
 							}
 
-							change_idid_adr(mainlist, basefd, id, realid);
+							change_idid_adr(mainlist, basefd, id, *realid);
 
-							MEM_freeN(id);
+							/* We cannot free old lib-ref placeholder ID here anymore, since we use its name
+							 * as key in loaded_ids hass. */
+							BLI_addtail(&pending_free_ids, id);
 						}
 						id = idn;
 					}
+
+					/* Clear GHash and free all lib-ref placeholders IDs of that type now. */
+					BLI_ghash_clear(loaded_ids, NULL, NULL);
+					BLI_freelistN(&pending_free_ids);
 				}
 				BLO_expand_main(fd, mainptr);
 			}
@@ -11008,7 +11032,10 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 			mainptr = mainptr->next;
 		}
 	}
-	
+
+	BLI_ghash_free(loaded_ids, NULL, NULL);
+	loaded_ids = NULL;
+
 	/* test if there are unread libblocks */
 	/* XXX This code block is kept for 2.77, until we are sure it never gets reached anymore. Can be removed later. */
 	for (mainptr = mainl->next; mainptr; mainptr = mainptr->next) {

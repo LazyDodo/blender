@@ -385,6 +385,13 @@ bool GPU_framebuffer_check_valid(GPUFrameBuffer *fb, char err_out[256])
 	glBindFramebuffer(GL_FRAMEBUFFER, fb->object);
 	GG.currentfb = fb->object;
 
+	/* On macOS glDrawBuffer must be set when checking completeness,
+	 * otherwise it will return GL_FRAMEBUFFER_UNSUPPORTED when only a
+	 * color buffer without depth is used. */
+	if (fb->colortex[0]) {
+		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	}
+
 	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
@@ -641,7 +648,7 @@ struct GPUOffScreen {
 	GPUTexture *depth;
 };
 
-GPUOffScreen *GPU_offscreen_create(int width, int height, int samples, bool high_bitdepth, char err_out[256])
+GPUOffScreen *GPU_offscreen_create(int width, int height, int samples, bool depth, bool high_bitdepth, char err_out[256])
 {
 	GPUOffScreen *ofs;
 
@@ -663,15 +670,17 @@ GPUOffScreen *GPU_offscreen_create(int width, int height, int samples, bool high
 		}
 	}
 
-	ofs->depth = GPU_texture_create_depth_with_stencil_multisample(width, height, samples, err_out);
-	if (!ofs->depth) {
-		GPU_offscreen_free(ofs);
-		return NULL;
-	}
+	if (depth) {
+		ofs->depth = GPU_texture_create_depth_with_stencil_multisample(width, height, samples, err_out);
+		if (!ofs->depth) {
+			GPU_offscreen_free(ofs);
+			return NULL;
+		}
 
-	if (!GPU_framebuffer_texture_attach(ofs->fb, ofs->depth, 0, 0)) {
-		GPU_offscreen_free(ofs);
-		return NULL;
+		if (!GPU_framebuffer_texture_attach(ofs->fb, ofs->depth, 0, 0)) {
+			GPU_offscreen_free(ofs);
+			return NULL;
+		}
 	}
 
 	if (high_bitdepth) {
@@ -729,6 +738,24 @@ void GPU_offscreen_unbind(GPUOffScreen *ofs, bool restore)
 		GPU_framebuffer_texture_unbind(ofs->fb, ofs->color);
 	GPU_framebuffer_restore();
 	glEnable(GL_SCISSOR_TEST);
+}
+
+void GPU_offscreen_blit(GPUOffScreen *ofs, int x, int y)
+{
+	const int w = GPU_texture_width(ofs->color);
+	const int h = GPU_texture_height(ofs->color);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, ofs->fb->object);
+	GLenum status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+
+	if (status == GL_FRAMEBUFFER_COMPLETE) {
+		glBlitFramebuffer(0, 0, w, h, x, y, x + w, y + h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	}
+	else {
+		gpu_print_framebuffer_error(status, NULL);
+	}
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
 
 void GPU_offscreen_read_pixels(GPUOffScreen *ofs, int type, void *pixels)
@@ -818,9 +845,9 @@ int GPU_offscreen_height(const GPUOffScreen *ofs)
 	return GPU_texture_height(ofs->color);
 }
 
-int GPU_offscreen_color_texture(const GPUOffScreen *ofs)
+GPUTexture *GPU_offscreen_color_texture(const GPUOffScreen *ofs)
 {
-	return GPU_texture_opengl_bindcode(ofs->color);
+	return ofs->color;
 }
 
 /* only to be used by viewport code! */

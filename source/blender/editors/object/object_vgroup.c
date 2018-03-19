@@ -1192,7 +1192,7 @@ static int *getSurroundingVerts(Mesh *me, int vert, int *count)
 				}
 
 				/* Append a and b verts to array, if not yet present. */
-				k = BLI_array_count(verts);
+				k = BLI_array_len(verts);
 				/* XXX Maybe a == b is enough? */
 				while (k-- && !(a == b && a == -1)) {
 					if (verts[k] == a)
@@ -1214,7 +1214,7 @@ static int *getSurroundingVerts(Mesh *me, int vert, int *count)
 	}
 
 	/* Do not free the array! */
-	*count = BLI_array_count(verts);
+	*count = BLI_array_len(verts);
 	return verts;
 }
 
@@ -3360,7 +3360,7 @@ static int vertex_group_copy_to_linked_exec(bContext *C, wmOperator *UNUSED(op))
 	Object *ob_active = ED_object_context(C);
 	int retval = OPERATOR_CANCELLED;
 
-	FOREACH_SCENE_OBJECT(scene, ob_iter)
+	FOREACH_SCENE_OBJECT_BEGIN(scene, ob_iter)
 	{
 		if (ob_iter->type == ob_active->type) {
 			if (ob_iter != ob_active && ob_iter->data == ob_active->data) {
@@ -3376,7 +3376,7 @@ static int vertex_group_copy_to_linked_exec(bContext *C, wmOperator *UNUSED(op))
 			}
 		}
 	}
-	FOREACH_SCENE_OBJECT_END
+	FOREACH_SCENE_OBJECT_END;
 
 	return retval;
 }
