@@ -2074,11 +2074,9 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
         col.template_ID_preview(settings, "brush", new="brush.add_gpencil", rows=3, cols=8)
 
         col = row.column()
-        sub = col.column(align=True)
         brush = context.active_gpencil_brush
-        if brush is not None:
-            sub.prop(brush, "gpencil_brush_type", text="", icon_only=True, expand=True)
 
+        sub = col.column(align=True)
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
         # Brush details
@@ -2509,6 +2507,10 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
         col = layout.column()
         if workspace.object_mode == 'GPENCIL_PAINT':
             drawingbrush = context.active_gpencil_brush
+            col.label("Brush Type:")
+            col.prop(drawingbrush, "gpencil_brush_type", text="")
+            col.separator()
+
             col.prop(drawingbrush, "use_cursor", text="Show Brush")
 
             if drawingbrush.gpencil_brush_type == 'FILL':
