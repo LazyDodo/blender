@@ -912,6 +912,12 @@ static void gpencil_draw_boundary_lines(const bContext *UNUSED(C), tGPDfill *tgp
 static void gpencil_fill_draw_3d(const bContext *C, ARegion *UNUSED(ar), void *arg)
 {
 	tGPDfill *tgpf = (tGPDfill *)arg;
+	/* draw only in the region that originated operator. This is required for multiwindow */
+	ARegion *ar = CTX_wm_region(C);
+	if (ar != tgpf->ar) {
+		return;
+	}
+
 	gpencil_draw_boundary_lines(C, tgpf); 
 }
 
