@@ -60,6 +60,8 @@ typedef struct ExportSettings {
 	bool include_animations;
 	bool include_all_actions;
 	int sampling_rate;
+	bool keep_smooth_curves;
+	bool keep_keyframes;
 
 	bool active_uv_only;
 	BC_export_texture_type export_texture_type;

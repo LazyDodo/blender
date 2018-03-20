@@ -96,6 +96,8 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	int sample_animations;
 	int include_all_actions;
 	int sampling_rate;
+	int keep_smooth_curves;
+	int keep_keyframes;
 
 	int export_texture_type;
 	int use_texture_copies;
@@ -151,6 +153,8 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	sample_animations        = RNA_boolean_get(op->ptr, "sample_animations");
 	include_all_actions      = RNA_boolean_get(op->ptr, "include_all_actions");
 	sampling_rate            = (sample_animations)? RNA_int_get(op->ptr, "sampling_rate") : 0;
+	keep_smooth_curves       = RNA_boolean_get(op->ptr, "keep_smooth_curves");
+	keep_keyframes           = RNA_boolean_get(op->ptr, "keep_keyframes");
 
 	deform_bones_only        = RNA_boolean_get(op->ptr, "deform_bones_only");
 
@@ -189,6 +193,8 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	export_settings.include_animations = include_animations != 0;
 	export_settings.include_all_actions = include_all_actions != 0;
 	export_settings.sampling_rate = sampling_rate;
+	export_settings.keep_smooth_curves = keep_smooth_curves != 0;
+	export_settings.keep_keyframes = keep_keyframes != 0;
 
 	export_settings.active_uv_only = active_uv_only != 0;
 	export_settings.export_texture_type = export_texture_type;
@@ -265,15 +271,28 @@ static void uiCollada_exportSettings(uiLayout *layout, PointerRNA *imfptr)
 
 	row = uiLayoutRow(box, false);
 	uiItemR(row, imfptr, "include_animations", 0, NULL, ICON_NONE);
-	row = uiLayoutRow(box, false);
+
 	if (include_animations) {
-		uiItemR(row, imfptr, "include_all_actions", 0, NULL, ICON_NONE);
+		bool sampling = RNA_boolean_get(imfptr, "sample_animations");
+
+		row = uiLayoutColumn(box, false);
+		uiItemR(row, imfptr, "keep_smooth_curves", 0, NULL, ICON_NONE);
+
 		row = uiLayoutColumn(box, false);
 		uiItemR(row, imfptr, "sample_animations", 0, NULL, ICON_NONE);
+
 		row = uiLayoutColumn(box, false);
 		uiItemR(row, imfptr, "sampling_rate", 0, NULL, ICON_NONE);
-		uiLayoutSetEnabled(row, RNA_boolean_get(imfptr, "sample_animations"));
+		uiLayoutSetEnabled(row, sampling);
+
+		row = uiLayoutColumn(box, false);
+		uiItemR(row, imfptr, "keep_keyframes", 0, NULL, ICON_NONE);
+		uiLayoutSetEnabled(row, sampling);
+
+		row = uiLayoutRow(box, false);
+		uiItemR(row, imfptr, "include_all_actions", 0, NULL, ICON_NONE);
 	}
+
 
 	/* Texture options */
 	box = uiLayoutBox(layout);
@@ -414,6 +433,8 @@ void WM_OT_collada_export(wmOperatorType *ot)
 	RNA_def_boolean(func, "deform_bones_only", false, "Deform Bones only",
 	            	"Only export deforming bones with armatures");
 
+
+
 	RNA_def_boolean(func, "include_animations", true,
 		"Include Animations", "Export Animations if available.\nExporting Animations will enforce the decomposition of node transforms\ninto  <translation> <rotation> and <scale> components");
 
@@ -425,6 +446,17 @@ void WM_OT_collada_export(wmOperatorType *ot)
 
 	RNA_def_int(func, "sampling_rate", 1, 1, INT_MAX,
 		"Sampling Rate", "The distance between 2 keyframes. 1 means: Every frame is keyed", 1, INT_MAX);
+
+	RNA_def_boolean(func, "sample_animations", 0,
+		"Sample Animations", "Auto-generate keyframes with a frame distance set by 'Sampling Rate'.\nWhen disabled, export only the keyframes defined in the animation f-curves (may be less accurate)");
+
+	RNA_def_boolean(func, "keep_smooth_curves", 0,
+		"Keep Smooth curves", "Export also the curve handles (if available).\nThis does only work when the inverse parent matrix is the Unity matrix\nOtherwise you may end up with odd results\n");
+
+	RNA_def_boolean(func, "keep_keyframes", 0,
+		"Keep Keyframes", "Use existing keyframes as additional sample points.\nThis helps when you want to keep manual tweeks");
+
+
 
 	RNA_def_boolean(func, "active_uv_only", 0, "Only Selected UV Map",
 	                "Export only the selected UV Map");
