@@ -2480,7 +2480,6 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
     bl_label = "Appearance"
     bl_category = "Options"
     bl_region_type = 'TOOLS'
-    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
