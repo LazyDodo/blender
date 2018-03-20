@@ -1516,7 +1516,8 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 			bGPdata *gpd = (bGPdata *)ob->data;
 			/* restore status */
 			if ((workspace->object_mode == OB_MODE_OBJECT) &&
-				((workspace->object_mode != mode) || (mode == OB_MODE_OBJECT)))
+				((workspace->object_mode != mode) || (mode == OB_MODE_OBJECT)) &&
+				(mode != OB_MODE_EDIT))
 			{
 				if (gpd->flag & GP_DATA_STROKE_EDITMODE) {
 					workspace->object_mode = OB_MODE_GPENCIL_EDIT;
@@ -1543,7 +1544,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 			/* set status */
 			if (ELEM(mode, OB_MODE_OBJECT, OB_MODE_EDIT, OB_MODE_POSE)) {
 				workspace->object_mode_restore = OB_MODE_OBJECT;
-				if (ELEM(workspace->object_mode, OB_MODE_EDIT, OB_MODE_GPENCIL_EDIT)) {
+				if (ELEM(workspace->object_mode, OB_MODE_EDIT, OB_MODE_GPENCIL_EDIT) || (mode == OB_MODE_EDIT)) {
 					WM_operator_name_call(C, "GPENCIL_OT_editmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
 				}
 				if (workspace->object_mode == OB_MODE_GPENCIL_PAINT) {
