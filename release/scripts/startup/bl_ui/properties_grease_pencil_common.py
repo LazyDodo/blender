@@ -685,19 +685,6 @@ class GPENCIL_MT_gpencil_vertex_group(Menu):
             layout.operator("gpencil.vertex_group_deselect", text="Deselect Points")
 
 
-class GPENCIL_UL_brush(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        # assert(isinstance(item, bpy.types.GPencilBrush)
-        brush = item
-
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            row = layout.row(align=True)
-            row.prop(brush, "name", text="", emboss=False, icon='BRUSH_DATA')
-        elif self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-            layout.label(text="", icon_value=icon)
-
-
 class GPENCIL_UL_palettecolor(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # assert(isinstance(item, bpy.types.PaletteColor)
@@ -1331,7 +1318,6 @@ classes = (
     GPENCIL_MT_gpencil_sculpt_specials,
     GPENCIL_MT_gpencil_draw_specials,
     GPENCIL_MT_gpencil_vertex_group,
-    GPENCIL_UL_brush,
     GPENCIL_UL_palettecolor,
     GPENCIL_UL_layer,
     GPENCIL_MT_layer_specials,
