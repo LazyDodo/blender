@@ -190,6 +190,7 @@ Brush *BKE_brush_add_gpencil(Main *bmain, ToolSettings *ts, const char *name)
 	brush = BKE_brush_add(bmain, name, OB_MODE_GPENCIL_PAINT);
 
 	BKE_paint_brush_set(paint, brush);
+	id_us_min(&brush->id);
 
 	/* return brush */
 	return brush;
