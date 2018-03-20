@@ -2477,7 +2477,7 @@ class VIEW3D_PT_tools_grease_pencil_falloff(Panel):
 # Grease Pencil drawing brushes
 class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
     bl_space_type = 'VIEW_3D'
-    bl_label = "Appearance"
+    bl_label = "Brush Appearance"
     bl_category = "Options"
     bl_region_type = 'TOOLS'
 
@@ -2499,41 +2499,48 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
-        settings = context.tool_settings.gpencil_sculpt
-        brush = settings.brush
         workspace = context.workspace
 
-        col = layout.column()
         if workspace.object_mode == 'GPENCIL_PAINT':
-            drawingbrush = context.active_gpencil_brush
+            brush = context.active_gpencil_brush
+            
+            col = layout.column(align=True)
             col.label("Brush Type:")
-            col.prop(drawingbrush, "gpencil_brush_type", text="")
-            col.separator()
+            col.prop(brush, "gpencil_brush_type", text="")
+            
+            layout.separator()
+            layout.separator()
 
-            col.prop(drawingbrush, "use_cursor", text="Show Brush")
-
-            if drawingbrush.gpencil_brush_type == 'FILL':
-                row = col.row(align=True)
-                row.prop(drawingbrush, "cursor_color_add", text="Color")
-
+            col = layout.column(align=True)
             col.label("Icon:")
-            subcol = col.column(align=True)
-            subcol.enabled = drawingbrush.use_custom_icon is False and drawingbrush.gpencil_brush_type == 'DRAW'
-            subcol.prop(drawingbrush, "gp_icon", text="")
+            sub = col.column(align=True)
+            sub.enabled = brush.use_custom_icon is False and brush.gpencil_brush_type == 'DRAW'
+            sub.prop(brush, "gp_icon", text="")
 
-            col = col.column(align=True)
             col.separator()
-            col.prop(drawingbrush, "use_custom_icon")
+            col.prop(brush, "use_custom_icon")
             sub = col.column()
-            sub.active = drawingbrush.use_custom_icon
-            sub.prop(drawingbrush, "icon_filepath", text="")
+            sub.active = brush.use_custom_icon
+            sub.prop(brush, "icon_filepath", text="")
 
-        if workspace.object_mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
+            layout.separator()
+            layout.separator()
+            
+            col = layout.column(align=True)
             col.prop(brush, "use_cursor", text="Show Brush")
-            row = col.row(align=True)
-            row.prop(brush, "cursor_color_add", text="Add")
-            row = col.row(align=True)
-            row.prop(brush, "cursor_color_sub", text="Subtract")
+
+            if brush.gpencil_brush_type == 'FILL':
+                row = col.row(align=True)
+                row.prop(brush, "cursor_color_add", text="Color")
+
+        elif workspace.object_mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
+            settings = context.tool_settings.gpencil_sculpt
+            brush = settings.brush
+
+            col = layout.column(align=True)
+            col.prop(brush, "use_cursor", text="Show Brush")
+            col.row().prop(brush, "cursor_color_add", text="Add")
+            col.row().prop(brush, "cursor_color_sub", text="Subtract")
 
 
 # Note: moved here so that it's always in last position in 'Tools' panels!
