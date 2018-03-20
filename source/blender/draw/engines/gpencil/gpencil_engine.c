@@ -681,8 +681,12 @@ static void gpencil_prepare_fast_drawing(GPENCIL_StorageList *stl, DefaultFrameb
 
 static void gpencil_free_obj_list(GPENCIL_StorageList *stl)
 {
-	/* free memory */
-	/* clear temp objects created for display only */
+	/* Clear temp objects created for display arrays only. These objects are created
+	 * while the draw manager draw the scene, but only to hold the strokes data.
+	 * see: gp_array_modifier_make_instances()
+	 *
+	 * the normal objects are not freed because they are not tagged with NO_MAIN
+	 */
 	for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
 		Object *ob = stl->g_data->gp_object_cache[i].ob;
 		if (((ob->id.tag & LIB_TAG_COPY_ON_WRITE) == 0) &&
@@ -691,6 +695,8 @@ static void gpencil_free_obj_list(GPENCIL_StorageList *stl)
 			MEM_SAFE_FREE(ob);
 		}
 	}
+
+	/* free the cache itself */
 	MEM_SAFE_FREE(stl->g_data->gp_object_cache);
 }
 
