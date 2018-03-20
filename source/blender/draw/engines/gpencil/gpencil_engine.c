@@ -685,7 +685,9 @@ static void gpencil_free_obj_list(GPENCIL_StorageList *stl)
 	/* clear temp objects created for display only */
 	for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
 		Object *ob = stl->g_data->gp_object_cache[i].ob;
-		if (ob->id.tag & LIB_TAG_NO_MAIN) {
+		if (((ob->id.tag & LIB_TAG_COPY_ON_WRITE) == 0) &&
+			(ob->id.tag & LIB_TAG_NO_MAIN))
+		{
 			MEM_SAFE_FREE(ob);
 		}
 	}
