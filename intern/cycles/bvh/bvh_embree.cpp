@@ -76,15 +76,14 @@ void rtc_filter_func(void*, RTCRay& ray_)
 			ray.isect_to_ccl(isect);
 			int prim = kernel_tex_fetch(__prim_index, isect->prim);
 			int shader = 0;
-			if(kernel_tex_fetch(__prim_type, isect->prim) & PRIMITIVE_ALL_TRIANGLE)
-			{
+			if(kernel_tex_fetch(__prim_type, isect->prim) & PRIMITIVE_ALL_TRIANGLE) {
 				shader = kernel_tex_fetch(__tri_shader, prim);
 			}
 			else {
 				float4 str = kernel_tex_fetch(__curves, prim);
 				shader = __float_as_int(str.z);
 			}
-			int flag = kernel_tex_fetch(__shader_flag, (shader & SHADER_MASK)*SHADER_SIZE);
+			int flag = kernel_tex_fetch(__shaders, shader & SHADER_MASK).flags;
 			/* If no transparent shadows, all light is blocked. */
 			if(flag & (SD_HAS_TRANSPARENT_SHADOW)) {
 				/* This tells Embree to continue tracing. */
@@ -400,13 +399,12 @@ unsigned BVHEmbree::add_instance(Object *ob, int i)
 		instance_bvh->top_level = this;
 	}
 
-	const size_t num_motion_steps = ob->use_motion ? 3 : 1;
+	const size_t num_motion_steps = ob->use_motion() ? ob->motion.size() : 1;
 	unsigned geom_id = rtcNewInstance3(scene, instance_bvh->scene, num_motion_steps, i*2);
 
-	if(ob->use_motion) {
-		rtcSetTransform2(scene, geom_id, RTC_MATRIX_ROW_MAJOR, (const float*)&ob->motion.pre, 0);
-		rtcSetTransform2(scene, geom_id, RTC_MATRIX_ROW_MAJOR, (const float*)&ob->tfm, 1);
-		rtcSetTransform2(scene, geom_id, RTC_MATRIX_ROW_MAJOR, (const float*)&ob->motion.post, 2);
+	if(ob->use_motion()) {
+		for(size_t step = 0; step < num_motion_steps; ++step)
+		rtcSetTransform2(scene, geom_id, RTC_MATRIX_ROW_MAJOR, (const float*)&ob->motion[step], step);
 	} else {
 		rtcSetTransform2(scene, geom_id, RTC_MATRIX_ROW_MAJOR, (const float*)&ob->tfm);
 	}

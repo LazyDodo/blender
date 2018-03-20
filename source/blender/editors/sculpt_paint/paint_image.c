@@ -50,6 +50,7 @@
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
 
+#include "BKE_colorband.h"
 #include "BKE_context.h"
 #include "BKE_depsgraph.h"
 #include "BKE_DerivedMesh.h"
@@ -59,7 +60,6 @@
 #include "BKE_material.h"
 #include "BKE_node.h"
 #include "BKE_paint.h"
-#include "BKE_texture.h"
 
 #include "UI_interface.h"
 #include "UI_view2d.h"
@@ -665,17 +665,17 @@ void paint_brush_color_get(struct Scene *scene, struct Brush *br, bool color_cor
 			float color_gr[4];
 			switch (br->gradient_stroke_mode) {
 				case BRUSH_GRADIENT_PRESSURE:
-					do_colorband(br->gradient, pressure, color_gr);
+					BKE_colorband_evaluate(br->gradient, pressure, color_gr);
 					break;
 				case BRUSH_GRADIENT_SPACING_REPEAT:
 				{
 					float coord = fmod(distance / br->gradient_spacing, 1.0);
-					do_colorband(br->gradient, coord, color_gr);
+					BKE_colorband_evaluate(br->gradient, coord, color_gr);
 					break;
 				}
 				case BRUSH_GRADIENT_SPACING_CLAMP:
 				{
-					do_colorband(br->gradient, distance / br->gradient_spacing, color_gr);
+					BKE_colorband_evaluate(br->gradient, distance / br->gradient_spacing, color_gr);
 					break;
 				}
 			}
@@ -741,7 +741,7 @@ static PaintOperation *texture_paint_init(bContext *C, wmOperator *op, const flo
 	PaintOperation *pop = MEM_callocN(sizeof(PaintOperation), "PaintOperation"); /* caller frees */
 	Brush *brush = BKE_paint_brush(&settings->imapaint.paint);
 	int mode = RNA_enum_get(op->ptr, "mode");
-	view3d_set_viewcontext(C, &pop->vc);
+	ED_view3d_viewcontext_init(C, &pop->vc);
 
 	copy_v2_v2(pop->prevmouse, mouse);
 	copy_v2_v2(pop->startmouse, mouse);

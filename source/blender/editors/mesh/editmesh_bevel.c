@@ -58,8 +58,7 @@
 
 #define MVAL_PIXEL_MARGIN  5.0f
 
-/* until implement profile = 0 case, need to clamp somewhat above zero */
-#define PROFILE_HARD_MIN 0.15f
+#define PROFILE_HARD_MIN 0.0f
 
 #define SEGMENTS_HARD_MAX 1000
 
@@ -138,6 +137,10 @@ static bool edbm_bevel_init(bContext *C, wmOperator *op, const bool is_modal)
 
 	if (em->bm->totvertsel == 0) {
 		return false;
+	}
+
+	if (is_modal) {
+		RNA_float_set(op->ptr, "offset", 0.0f);
 	}
 
 	op->customdata = opdata = MEM_mallocN(sizeof(BevelData), "beveldata_mesh_operator");

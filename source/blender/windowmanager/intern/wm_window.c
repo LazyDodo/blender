@@ -448,12 +448,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	
 	ghostwin = GHOST_CreateWindow(g_system, title,
 	                              win->posx, posy, win->sizex, win->sizey,
-#ifdef __APPLE__
-	                              /* we agreed to not set any fullscreen or iconized state on startup */
-	                              GHOST_kWindowStateNormal,
-#else
 	                              (GHOST_TWindowState)win->windowstate,
-#endif
 	                              GHOST_kDrawingContextTypeOpenGL,
 	                              glSettings);
 	
@@ -510,7 +505,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 }
 
 /**
- * Initialize #wmWindows without ghostwin, open these and clear.
+ * Initialize #wmWindow without ghostwin, open these and clear.
  *
  * window size is read from window, if 0 it uses prefsize
  * called in #WM_check, also inits stuff after file read.
@@ -1466,6 +1461,7 @@ wmTimer *WM_event_add_timer_notifier(wmWindowManager *wm, wmWindow *win, unsigne
 	wt->timestep = timestep;
 	wt->win = win;
 	wt->customdata = SET_UINT_IN_POINTER(type);
+	wt->flags |= WM_TIMER_NO_FREE_CUSTOM_DATA;
 
 	BLI_addtail(&wm->timers, wt);
 
@@ -1487,8 +1483,9 @@ void WM_event_remove_timer(wmWindowManager *wm, wmWindow *UNUSED(win), wmTimer *
 			wm->reports.reporttimer = NULL;
 		
 		BLI_remlink(&wm->timers, wt);
-		if (wt->customdata)
+		if (wt->customdata != NULL && (wt->flags & WM_TIMER_NO_FREE_CUSTOM_DATA) == 0) {
 			MEM_freeN(wt->customdata);
+		}
 		MEM_freeN(wt);
 		
 		/* there might be events in queue with this timer as customdata */

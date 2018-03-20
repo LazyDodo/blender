@@ -171,7 +171,7 @@ void *get_nearest_bone(bContext *C, const int xy[2], bool findunsel)
 	unsigned int buffer[MAXPICKBUF];
 	short hits;
 	
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 	
 	// rect.xmin = ... mouseco!
 	rect.xmin = rect.xmax = xy[0];
@@ -486,7 +486,7 @@ bool ED_armature_select_pick(bContext *C, const int mval[2], bool extend, bool d
 	EditBone *nearBone = NULL;
 	int selmask;
 
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 	
 	if (BIF_sk_selectStroke(C, mval, extend)) {
 		return true;
@@ -801,6 +801,7 @@ enum {
 	SIMEDBONE_PREFIX,
 	SIMEDBONE_SUFFIX,
 	SIMEDBONE_LAYER,
+	SIMEDBONE_GROUP,
 	SIMEDBONE_SHAPE,
 };
 
@@ -813,6 +814,7 @@ static const EnumPropertyItem prop_similar_types[] = {
 	{SIMEDBONE_PREFIX, "PREFIX", 0, "Prefix", ""},
 	{SIMEDBONE_SUFFIX, "SUFFIX", 0, "Suffix", ""},
 	{SIMEDBONE_LAYER, "LAYER", 0, "Layer", ""},
+	{SIMEDBONE_GROUP, "GROUP", 0, "Group", ""},
 	{SIMEDBONE_SHAPE, "SHAPE", 0, "Shape", ""},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -1003,6 +1005,9 @@ static int armature_select_similar_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
+#define STRUCT_SIZE_AND_OFFSET(_struct, _member) \
+	sizeof(((_struct *)NULL)->_member), offsetof(_struct, _member)
+
 	switch (type) {
 		case SIMEDBONE_CHILDREN:
 			select_similar_children(arm, ebone_act);
@@ -1028,12 +1033,19 @@ static int armature_select_similar_exec(bContext *C, wmOperator *op)
 		case SIMEDBONE_LAYER:
 			select_similar_layer(arm, ebone_act);
 			break;
+		case SIMEDBONE_GROUP:
+			select_similar_data_pchan(
+			        arm, obedit, ebone_act,
+			        STRUCT_SIZE_AND_OFFSET(bPoseChannel, agrp_index));
+			break;
 		case SIMEDBONE_SHAPE:
 			select_similar_data_pchan(
 			        arm, obedit, ebone_act,
-			        sizeof(void *), offsetof(bPoseChannel, custom));
+			        STRUCT_SIZE_AND_OFFSET(bPoseChannel, custom));
 			break;
 	}
+
+#undef STRUCT_SIZE_AND_OFFSET
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_BONE_SELECT, obedit);
 

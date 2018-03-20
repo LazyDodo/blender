@@ -236,6 +236,8 @@ void RE_render_result_rect_from_ibuf(
 struct RenderLayer *RE_GetRenderLayer(struct RenderResult *rr, const char *name);
 float *RE_RenderLayerGetPass(volatile struct RenderLayer *rl, const char *name, const char *viewname);
 
+bool RE_HasSingleLayer(struct Render *re);
+
 /* add passes for grease pencil */
 struct RenderPass *RE_create_gp_pass(struct RenderResult *rr, const char *layername, const char *viewname);
 
@@ -388,6 +390,7 @@ void RE_updateRenderInstances(Render *re, int flag);
 /******* defined in render_result.c *********/
 
 bool RE_HasCombinedLayer(RenderResult *res);
+bool RE_HasFloatPixels(RenderResult *res);
 bool RE_RenderResult_is_stereo(RenderResult *res);
 struct RenderView *RE_RenderViewGetById(struct RenderResult *res, const int view_id);
 struct RenderView *RE_RenderViewGetByName(struct RenderResult *res, const char *viewname);

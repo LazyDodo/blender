@@ -222,9 +222,7 @@ void BlenderSync::sync_data(BL::RenderSettings& b_render,
 
 void BlenderSync::sync_integrator()
 {
-#ifdef __CAMERA_MOTION__
 	BL::RenderSettings r = b_scene.render();
-#endif
 	PointerRNA cscene = RNA_pointer_get(&b_scene.ptr, "cycles");
 
 	experimental = (get_enum(cscene, "feature_set") != 0);
@@ -269,7 +267,6 @@ void BlenderSync::sync_integrator()
 
 	integrator->sample_clamp_direct = get_float(cscene, "sample_clamp_direct");
 	integrator->sample_clamp_indirect = get_float(cscene, "sample_clamp_indirect");
-#ifdef __CAMERA_MOTION__
 	if(!preview) {
 		if(integrator->motion_blur != r.use_motion_blur()) {
 			scene->object_manager->tag_update(scene);
@@ -278,7 +275,6 @@ void BlenderSync::sync_integrator()
 
 		integrator->motion_blur = r.use_motion_blur();
 	}
-#endif
 
 	integrator->method = (Integrator::Method)get_enum(cscene,
 	                                                  "progressive",
@@ -646,11 +642,6 @@ SceneParams BlenderSync::get_scene_params(BL::Scene& b_scene,
 	params.use_bvh_spatial_split = RNA_boolean_get(&cscene, "debug_use_spatial_splits");
 	params.use_bvh_unaligned_nodes = RNA_boolean_get(&cscene, "debug_use_hair_bvh");
 	params.num_bvh_time_steps = RNA_int_get(&cscene, "debug_bvh_time_steps");
-#ifdef WITH_EMBREE
-	params.use_bvh_embree = RNA_boolean_get(&cscene, "use_bvh_embree");
-#else
-	params.use_bvh_embree = false;
-#endif
 
 	if(background && params.shadingsystem != SHADINGSYSTEM_OSL)
 		params.persistent_data = r.use_persistent_data();
@@ -671,8 +662,10 @@ SceneParams BlenderSync::get_scene_params(BL::Scene& b_scene,
 		params.texture_limit = 0;
 	}
 
-	params.use_qbvh = DebugFlags().cpu.qbvh;
-
+	params.bvh_layout = DebugFlags().cpu.bvh_layout;
+#ifdef WITH_EMBREE
+	params.bvh_layout = RNA_boolean_get(&cscene, "use_bvh_embree") ? BVH_LAYOUT_EMBREE : params.bvh_layout;
+#endif
 	return params;
 }
 
