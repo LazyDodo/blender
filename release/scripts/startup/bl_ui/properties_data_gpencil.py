@@ -18,16 +18,14 @@
 
 # <pep8 compliant>
 import bpy
-from bpy.types import Panel
+from bpy.types import Panel, UIList
 from .properties_grease_pencil_common import (
         GreasePencilDataPanel,
-        GreasePencilLayerOptionPanel,
         GreasePencilOnionPanel,
-        GreasePencilParentLayerPanel,
-        GreasePencilVertexGroupPanel,
-        GreasePencilInfoPanel,
         )
 
+###############################
+# Base-Classes (for shared stuff - e.g. poll, attributes, etc.)
 
 class DataButtonsPanel:
     bl_space_type = 'PROPERTIES'
@@ -37,7 +35,22 @@ class DataButtonsPanel:
     @classmethod
     def poll(cls, context):
         return context.object and context.object.type == 'GPENCIL'
+        
 
+class LayerDataButtonsPanel:
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "data"
+    
+    @classmethod
+    def poll(cls, context):
+        return (context.object and
+                context.object.type == 'GPENCIL' and
+                context.active_gpencil_layer)
+
+
+###############################
+# GP Object Properties Panels and Helper Classes
 
 class DATA_PT_gpencil(DataButtonsPanel, Panel):
     bl_label = ""
@@ -62,14 +75,41 @@ class DATA_PT_gpencil_datapanel(GreasePencilDataPanel, Panel):
     # NOTE: this is just a wrapper around the generic GP Panel
 
 
-class DATA_PT_gpencil_layeroptionpanel(GreasePencilLayerOptionPanel, Panel):
+class DATA_PT_gpencil_layeroptionpanel(LayerDataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_label = "Layer Adjustments"
     bl_options = {'DEFAULT_CLOSED'}
 
-    # NOTE: this is just a wrapper around the generic GP Panel
+    def draw(self, context):
+        layout = self.layout
+        gpl = context.active_gpencil_layer
+        ts = context.scene.tool_settings
+
+        # Layer options
+        split = layout.split(percentage=0.5)
+        split.active = not gpl.lock
+        split.prop(gpl, "show_points")
+
+        split = layout.split(percentage=0.5)
+        split.active = not gpl.lock
+
+        # Offsets - Color Tint
+        col = split.column()
+        subcol = col.column(align=True)
+        subcol.enabled = not gpl.lock
+        subcol.prop(gpl, "tint_color", text="")
+        subcol.prop(gpl, "tint_factor", text="Factor", slider=True)
+
+        # Offsets - Thickness
+        col = split.column(align=True)
+        row = col.row(align=True)
+        row.prop(gpl, "line_change", text="Thickness Change")
+        row.operator("gpencil.stroke_apply_thickness", icon='STYLUS_PRESSURE', text="")
+
+        row = layout.row(align=True)
+        row.prop(gpl, "use_stroke_location", text="Draw on Stroke Location")
 
 
 class DATA_PT_gpencil_onionpanel(GreasePencilOnionPanel, Panel):
@@ -82,32 +122,113 @@ class DATA_PT_gpencil_onionpanel(GreasePencilOnionPanel, Panel):
     # NOTE: this is just a wrapper around the generic GP Panel
 
 
-class DATA_PT_gpencilparentpanel(GreasePencilParentLayerPanel, Panel):
+class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_label = "Layer Relations"
     bl_options = {'DEFAULT_CLOSED'}
 
-    # NOTE: this is just a wrapper around the generic GP Panel
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        gpl = context.active_gpencil_layer
+        row = layout.row()
+
+        col = row.column(align=True)
+        col.active = not gpl.lock
+        col.label(text="Parent:")
+        col.prop(gpl, "parent", text="")
+
+        sub = col.column()
+        sub.prop(gpl, "parent_type", text="")
+        parent = gpl.parent
+        if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
+            sub.prop_search(gpl, "parent_bone", parent.data, "bones", text="")
+
+        row = layout.row()
+        row.label("Render Settings:")
+        row = layout.row(align=True)
+        row.prop_search(gpl, "view_layer", scene, "view_layers", text="View Layer")
+        row.prop(gpl, "invert_view_layer", text="", icon='ARROW_LEFTRIGHT')
 
 
-class DATA_PT_gpencilvertexpanel(GreasePencilVertexGroupPanel, Panel):
+class GPENCIL_UL_vgroups(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        vgroup = item
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.prop(vgroup, "name", text="", emboss=False, icon_value=icon)
+            # icon = 'LOCKED' if vgroup.lock_weight else 'UNLOCKED'
+            # layout.prop(vgroup, "lock_weight", text="", icon=icon, emboss=False)
+        elif self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+            layout.label(text="", icon_value=icon)
+
+
+class DATA_PT_gpencil_vertexpanel(DataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_label = "Vertex Groups"
     bl_options = {'DEFAULT_CLOSED'}
+    
+    def draw(self, context):
+        layout = self.layout
+
+        ob = context.object
+        group = ob.vertex_groups.active
+
+        rows = 2
+        if group:
+            rows = 4
+
+        row = layout.row()
+        row.template_list("GPENCIL_UL_vgroups", "", ob, "vertex_groups", ob.vertex_groups, "active_index", rows=rows)
+
+        col = row.column(align=True)
+        col.operator("object.vertex_group_add", icon='ZOOMIN', text="")
+        col.operator("object.vertex_group_remove", icon='ZOOMOUT', text="").all = False
+
+        if ob.vertex_groups:
+            row = layout.row()
+
+            sub = row.row(align=True)
+            sub.operator("gpencil.vertex_group_assign", text="Assign")
+            sub.operator("gpencil.vertex_group_remove_from", text="Remove")
+
+            sub = row.row(align=True)
+            sub.operator("gpencil.vertex_group_select", text="Select")
+            sub.operator("gpencil.vertex_group_deselect", text="Deselect")
+
+            layout.prop(context.tool_settings, "vertex_group_weight", text="Weight")
 
 
-class DATA_PT_gpencil_infopanel(GreasePencilInfoPanel, Panel):
+class DATA_PT_gpencil_infopanel(DataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_label = "Information"
     bl_options = {'DEFAULT_CLOSED'}
 
-    # NOTE: this is just a wrapper around the generic GP Panel
+    def draw(self, context):
+        layout = self.layout
+        gpd = context.gpencil_data
+
+        split = layout.split(percentage=0.5)
+
+        col = split.column(align=True)
+        col.label("Layers:", icon="LAYER_ACTIVE")
+        col.label("Frames:", icon="LAYER_ACTIVE")
+        col.label("Strokes:", icon="LAYER_ACTIVE")
+        col.label("Points:", icon="LAYER_ACTIVE")
+        col.label("Palettes:", icon="LAYER_ACTIVE")
+
+        col = split.column(align=True)
+        col.label(str(gpd.info_total_layers))
+        col.label(str(gpd.info_total_frames))
+        col.label(str(gpd.info_total_strokes))
+        col.label(str(gpd.info_total_points))
+        col.label(str(gpd.info_total_palettes))
 
 
 class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
@@ -149,15 +270,19 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         col.prop(gpd, "show_multiedit_line_only", text="Only Lines in MultiEdit")
 
 
+###############################
+
 classes = (
     DATA_PT_gpencil,
     DATA_PT_gpencil_datapanel,
     DATA_PT_gpencil_onionpanel,
     DATA_PT_gpencil_layeroptionpanel,
-    DATA_PT_gpencilvertexpanel,
-    DATA_PT_gpencilparentpanel,
+    DATA_PT_gpencil_vertexpanel,
+    DATA_PT_gpencil_parentpanel,
     DATA_PT_gpencil_display,
     DATA_PT_gpencil_infopanel,
+
+    GPENCIL_UL_vgroups,
 )
 
 if __name__ == "__main__":  # only for live edit.
