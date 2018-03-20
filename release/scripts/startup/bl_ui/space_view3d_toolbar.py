@@ -2489,9 +2489,6 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
         workspace = context.workspace
         if context.active_object:
             brush = context.active_gpencil_brush
-            if brush and brush.gpencil_brush_type == 'ERASE':
-                return False
-
             return workspace.object_mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
             
         return False
@@ -2514,7 +2511,7 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
             col = layout.column(align=True)
             col.label("Icon:")
             sub = col.column(align=True)
-            sub.enabled = brush.use_custom_icon is False and brush.gpencil_brush_type == 'DRAW'
+            sub.enabled = not brush.use_custom_icon
             sub.prop(brush, "gp_icon", text="")
 
             col.separator()
