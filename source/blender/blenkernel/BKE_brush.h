@@ -52,7 +52,6 @@ struct Brush *BKE_brush_first_search(struct Main *bmain, const eObjectMode ob_mo
 void BKE_brush_copy_data(struct Main *bmain, struct Brush *brush_dst, const struct Brush *brush_src, const int flag);
 struct Brush *BKE_brush_copy(struct Main *bmain, const struct Brush *brush);
 void BKE_brush_make_local(struct Main *bmain, struct Brush *brush, const bool lib_local);
-void BKE_brush_unlink(struct Main *bmain, struct Brush *brush);
 void BKE_brush_free(struct Brush *brush);
 
 void BKE_brush_sculpt_reset(struct Brush *brush);
