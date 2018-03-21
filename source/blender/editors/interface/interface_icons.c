@@ -439,7 +439,6 @@ static void init_brush_icons(void)
 	INIT_BRUSH_ICON(ICON_GPBRUSH_INKNOISE, gp_brush_inknoise);
 	INIT_BRUSH_ICON(ICON_GPBRUSH_BLOCK, gp_brush_block);
 	INIT_BRUSH_ICON(ICON_GPBRUSH_MARKER, gp_brush_marker);
-	INIT_BRUSH_ICON(ICON_GPBRUSH_CUSTOM, gp_brush_custom);
 	INIT_BRUSH_ICON(ICON_GPBRUSH_FILL, gp_brush_fill);
 	INIT_BRUSH_ICON(ICON_GPBRUSH_ERASE_SOFT, gp_brush_erase_soft);
 	INIT_BRUSH_ICON(ICON_GPBRUSH_ERASE_HARD, gp_brush_erase_hard);
@@ -1249,9 +1248,6 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		/* reset the icon */
 		if (workspace->object_mode & OB_MODE_GPENCIL_PAINT) {
 			switch (br->gp_icon_id) {
-				case GPBRUSH_CUSTOM:
-					br->id.icon_id = ICON_GPBRUSH_CUSTOM;
-					break;
 				case GPBRUSH_PENCIL:
 					br->id.icon_id = ICON_GPBRUSH_PENCIL;
 					break;
@@ -1283,7 +1279,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 					br->id.icon_id = ICON_GPBRUSH_ERASE_STROKE;
 					break;
 				default:
-					br->id.icon_id = ICON_GPBRUSH_CUSTOM;
+					br->id.icon_id = ICON_GPBRUSH_PEN;
 					break;
 			}
 			return id->icon_id;

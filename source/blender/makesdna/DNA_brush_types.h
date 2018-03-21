@@ -236,7 +236,6 @@ typedef enum eGP_BrushEraserMode {
 
 /* default brush icons */
 typedef enum eGP_BrushIcons {
-	GPBRUSH_CUSTOM = 0,
 	GPBRUSH_PENCIL = 1,
 	GPBRUSH_PEN = 2,
 	GPBRUSH_INK = 3,

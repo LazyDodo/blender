@@ -289,9 +289,6 @@ extern char datatoc_gp_brush_block_png[];
 extern int datatoc_gp_brush_marker_png_size;
 extern char datatoc_gp_brush_marker_png[];
 
-extern int datatoc_gp_brush_custom_png_size;
-extern char datatoc_gp_brush_custom_png[];
-
 extern int datatoc_gp_brush_fill_png_size;
 extern char datatoc_gp_brush_fill_png[];
 

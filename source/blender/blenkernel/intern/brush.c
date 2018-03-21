@@ -141,7 +141,7 @@ static void brush_defaults(Brush *brush)
 	brush->draw_strength = 1.0f;
 	brush->draw_jitter = 0.0f;
 	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
-	brush->gp_icon_id = GPBRUSH_CUSTOM;
+	brush->gp_icon_id = GPBRUSH_PEN;
 
 	/* curves */
 	brush->cur_sensitivity = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);

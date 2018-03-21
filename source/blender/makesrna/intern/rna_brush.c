@@ -148,7 +148,6 @@ static EnumPropertyItem rna_enum_gpencil_fill_draw_modes_items[] = {
 };
 
 static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
-	{ GPBRUSH_CUSTOM, "CUSTOM", ICON_GPBRUSH_CUSTOM, "Custom", "" },
 	{ GPBRUSH_PENCIL, "PENCIL", ICON_GPBRUSH_PENCIL, "Pencil", "" },
 	{ GPBRUSH_PEN, "PEN", ICON_GPBRUSH_PEN, "Pen", "" },
 	{ GPBRUSH_INK, "INK", ICON_GPBRUSH_INK, "Ink", "" },
