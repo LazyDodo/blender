@@ -640,6 +640,8 @@ if(WITH_BLENDER)
 		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_custom.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_fill.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_erase_soft.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_erase_hard.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_erase_stroke.png SRC)
 
 	endif()
 
