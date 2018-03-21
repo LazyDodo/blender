@@ -490,7 +490,7 @@ static int palettecolor_isolate_exec(bContext *C, wmOperator *op)
 	}
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_alldirty_main(bmain);
+	DEG_id_tag_update(&palette->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
