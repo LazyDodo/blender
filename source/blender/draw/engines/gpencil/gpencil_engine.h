@@ -126,8 +126,8 @@ typedef struct tGPencilObjectCache {
 	DRWShadingGroup *vfx_flip_sh;
 
 	DRWShadingGroup *vfx_light_sh;
-	float zdepth;
-	bool temp;
+	float zdepth;  /* z-depth value to sort gp object */
+	bool temp_ob;  /* flag to tag temporary objects that must be removed after drawing loop */
 } tGPencilObjectCache;
 
   /* *********** LISTS *********** */
@@ -351,7 +351,7 @@ struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height);
 bool gpencil_can_draw_stroke(const struct bGPDstroke *gps, const bool onion);
 
 struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used);
-void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *ob, bool temp, int *gp_cache_used);
+void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *ob, bool is_temp, int *gp_cache_used);
 
 void gpencil_array_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 

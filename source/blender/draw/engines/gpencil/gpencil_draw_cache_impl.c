@@ -75,7 +75,7 @@ tGPencilObjectCache *gpencil_object_cache_allocate(tGPencilObjectCache *cache, i
 }
 
 /* add a gpencil object to cache to defer drawing */
-void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, bool temp, int *gp_cache_used)
+void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, bool is_temp, int *gp_cache_used)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	tGPencilObjectCache *cache = &cache_array[*gp_cache_used];
@@ -86,7 +86,7 @@ void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, bool
 	
 	/* save object */
 	cache->ob = ob;
-	cache->temp = temp;
+	cache->temp_ob = is_temp;
 
 	cache->init_grp = 0;
 	cache->end_grp = -1;

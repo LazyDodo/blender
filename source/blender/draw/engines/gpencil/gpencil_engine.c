@@ -689,7 +689,7 @@ static void gpencil_free_obj_list(GPENCIL_StorageList *stl)
 	 */
 	for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
 		Object *ob = stl->g_data->gp_object_cache[i].ob;
-		if (stl->g_data->gp_object_cache[i].temp) {
+		if (stl->g_data->gp_object_cache[i].temp_ob) {
 			MEM_SAFE_FREE(ob);
 		}
 	}
