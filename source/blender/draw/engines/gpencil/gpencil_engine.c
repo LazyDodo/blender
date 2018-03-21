@@ -484,7 +484,7 @@ static void GPENCIL_cache_populate(void *vedata, Object *ob)
 			stl->g_data->gp_object_cache = gpencil_object_cache_allocate(stl->g_data->gp_object_cache, &stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
 			
 			/* add for drawing later */
-			gpencil_object_cache_add(stl->g_data->gp_object_cache, ob, &stl->g_data->gp_cache_used);
+			gpencil_object_cache_add(stl->g_data->gp_object_cache, ob, false, &stl->g_data->gp_cache_used);
 			
 			/* generate instances as separate cache objects for array modifiers 
 			 * with the "Make as Objects" option enabled
@@ -685,13 +685,11 @@ static void gpencil_free_obj_list(GPENCIL_StorageList *stl)
 	 * while the draw manager draw the scene, but only to hold the strokes data.
 	 * see: gp_array_modifier_make_instances()
 	 *
-	 * the normal objects are not freed because they are not tagged with NO_MAIN
+	 * the normal objects are not freed because they are not tagged as temp objects
 	 */
 	for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
 		Object *ob = stl->g_data->gp_object_cache[i].ob;
-		if (((ob->id.tag & LIB_TAG_COPY_ON_WRITE) == 0) &&
-			(ob->id.tag & LIB_TAG_NO_MAIN))
-		{
+		if (stl->g_data->gp_object_cache[i].temp) {
 			MEM_SAFE_FREE(ob);
 		}
 	}

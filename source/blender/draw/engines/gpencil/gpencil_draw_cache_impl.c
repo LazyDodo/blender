@@ -75,7 +75,7 @@ tGPencilObjectCache *gpencil_object_cache_allocate(tGPencilObjectCache *cache, i
 }
 
 /* add a gpencil object to cache to defer drawing */
-void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, int *gp_cache_used)
+void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, bool temp, int *gp_cache_used)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	tGPencilObjectCache *cache = &cache_array[*gp_cache_used];
@@ -86,7 +86,8 @@ void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, int 
 	
 	/* save object */
 	cache->ob = ob;
-	
+	cache->temp = temp;
+
 	cache->init_grp = 0;
 	cache->end_grp = -1;
 	
@@ -1340,7 +1341,6 @@ static void gp_array_modifier_make_instances(GPENCIL_StorageList *stl, Object *o
 
 				/* add object to cache */
 				newob = MEM_dupallocN(ob);
-				newob->id.tag |= LIB_TAG_NO_MAIN; /* use this mark to delete later */
 				mul_m4_m4m4(newob->obmat, ob->obmat, mat);
 				
 				/* apply scale */
@@ -1358,7 +1358,7 @@ static void gp_array_modifier_make_instances(GPENCIL_StorageList *stl, Object *o
 				
 				/* add temp object to cache */
 				stl->g_data->gp_object_cache = gpencil_object_cache_allocate(stl->g_data->gp_object_cache, &stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
-				gpencil_object_cache_add(stl->g_data->gp_object_cache, newob, &stl->g_data->gp_cache_used);
+				gpencil_object_cache_add(stl->g_data->gp_object_cache, newob, true, &stl->g_data->gp_cache_used);
 			}
 		}
 	}
