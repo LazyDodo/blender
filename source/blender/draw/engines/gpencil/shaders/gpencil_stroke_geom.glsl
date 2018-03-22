@@ -48,6 +48,7 @@ float getZdepth(vec4 point)
 void main(void)
 {
 	float MiterLimit = 0.75;
+	uvfac = 0;
 
 	/* receive 4 points */
 	vec4 P0 = gl_in[0].gl_Position;
@@ -101,19 +102,16 @@ void main(void)
 		if (dot(v0, n1) > 0) {
 			mTexCoord = vec2(0, 0);
 			mColor = finalColor[1];
-			uvfac = 0;
 			gl_Position = vec4((sp1 + finalThickness[1] * n0) / Viewport, getZdepth(P1), 1.0);
 			EmitVertex();
 
 			mTexCoord = vec2(0, 0);
 			mColor = finalColor[1];
-			uvfac = 0;
 			gl_Position = vec4((sp1 + finalThickness[1] * n1) / Viewport, getZdepth(P1), 1.0);
 			EmitVertex();
 
 			mTexCoord = vec2(0, 0.5);
 			mColor = finalColor[1];
-			uvfac = 0;
 			gl_Position = vec4(sp1 / Viewport,  getZdepth(P1), 1.0);
 			EmitVertex();
 
@@ -122,19 +120,16 @@ void main(void)
 		else {
 			mTexCoord = vec2(0, 1);
 			mColor = finalColor[1];
-			uvfac = 0;
 			gl_Position = vec4((sp1 - finalThickness[1] * n1) / Viewport, getZdepth(P1), 1.0);
 			EmitVertex();
 
 			mTexCoord = vec2(0, 1);
 			mColor = finalColor[1];
-			uvfac = 0;
 			gl_Position = vec4((sp1 - finalThickness[1] * n0) / Viewport, getZdepth(P1), 1.0);
 			EmitVertex();
 
 			mTexCoord = vec2(0, 0.5);
 			mColor = finalColor[1];
-			uvfac = 0;
 			gl_Position = vec4(sp1 / Viewport, getZdepth(P1), 1.0);
 			EmitVertex();
 
@@ -151,66 +146,39 @@ void main(void)
 	if ((P0 == P2) && (color_type == GPENCIL_COLOR_SOLID)){
 		mTexCoord = vec2(2, 1);
 		mColor = vec4(finalColor[1].rgb, finalColor[1].a * -1.0) ;
-		uvfac = 0;
 		vec2 svn1 =  normalize(sp1 - sp2) * length_a * 4.0;
 		gl_Position = vec4((sp1 + svn1) / Viewport, getZdepth(P1), 1.0);
 		EmitVertex();	
 
 		mTexCoord = vec2(0, 0);
 		mColor = vec4(finalColor[1].rgb, finalColor[1].a * -1.0) ;
-		uvfac = 0;
 		gl_Position = vec4((sp1 - (length_a * 2.0) * miter_a) / Viewport, getZdepth(P1), 1.0);
 		EmitVertex();
 
 		mTexCoord = vec2(0, 2);
 		mColor = vec4(finalColor[1].rgb, finalColor[1].a * -1.0) ;
-		uvfac = 0;
 		gl_Position = vec4((sp1 + (length_a * 2.0) * miter_a) / Viewport, getZdepth(P1), 1.0);
 		EmitVertex();
 	}
 
 	/* generate the triangle strip */
-	if (color_type == GPENCIL_COLOR_SOLID) {
-		mTexCoord = vec2(0, 0);
-	}
-	else {
-		mTexCoord = vec2(finaluvdata[1].x, 0);
-	}
+	mTexCoord = (color_type == GPENCIL_COLOR_SOLID) ? vec2(0, 0) : vec2(finaluvdata[1].x, 0);
 	mColor = finalColor[1];
-	uvfac = 0;
 	gl_Position = vec4((sp1 + length_a * miter_a) / Viewport, getZdepth(P1), 1.0);
 	EmitVertex();
 
-	if (color_type == GPENCIL_COLOR_SOLID) {
-		mTexCoord = vec2(0, 1);
-	}
-	else {
-		mTexCoord = vec2(finaluvdata[1].x, 1);
-	}
+	mTexCoord = (color_type == GPENCIL_COLOR_SOLID) ? vec2(0, 1) : vec2(finaluvdata[1].x, 1);
 	mColor = finalColor[1];
-	uvfac = 0;
 	gl_Position = vec4((sp1 - length_a * miter_a) / Viewport, getZdepth(P1), 1.0);
 	EmitVertex();
 
-	if (color_type == GPENCIL_COLOR_SOLID) {
-		mTexCoord = vec2(1, 0);
-	}
-	else {
-		mTexCoord = vec2(finaluvdata[2].x, 0);
-	}
+	mTexCoord = (color_type == GPENCIL_COLOR_SOLID) ? vec2(1, 0) : vec2(finaluvdata[2].x, 0);
 	mColor = finalColor[2];
-	uvfac = 0;
 	gl_Position = vec4((sp2 + length_b * miter_b) / Viewport, getZdepth(P2), 1.0);
 	EmitVertex();
 
-	if (color_type == GPENCIL_COLOR_SOLID) {
-		mTexCoord = vec2(1, 1);
-	}
-	else {
-		mTexCoord = vec2(finaluvdata[2].x, 1);
-	}
+	mTexCoord = (color_type == GPENCIL_COLOR_SOLID) ? vec2(1, 1) : vec2(finaluvdata[2].x, 1);
 	mColor = finalColor[2];
-	uvfac = 0;
 	gl_Position = vec4((sp2 - length_b * miter_b) / Viewport, getZdepth(P2), 1.0);
 	EmitVertex();
 
