@@ -602,6 +602,9 @@ static short gp_stroke_addpoint(
 			gpd->sbuffer_size = 2;
 		}
 		
+		/* tag depsgraph to update object */
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
 		/* can keep carrying on this way :) */
 		return GP_STROKEADD_NORMAL;
 	}
@@ -732,6 +735,9 @@ static short gp_stroke_addpoint(
 			}
 		}
 
+		/* tag depsgraph to update object */
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
 		/* check if another operation can still occur */
 		if (gpd->sbuffer_size == GP_STROKE_BUFFER_MAX)
 			return GP_STROKEADD_FULL;
@@ -803,7 +809,10 @@ static short gp_stroke_addpoint(
 		/* increment counters */
 		if (gpd->sbuffer_size == 0)
 			gpd->sbuffer_size++;
-		
+
+		/* tag depsgraph to update object */
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
 		return GP_STROKEADD_NORMAL;
 	}
 
