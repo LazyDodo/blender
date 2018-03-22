@@ -200,6 +200,14 @@ typedef struct tGPsdata {
 /* minimum length of new segment before new point can be added */
 #define MIN_EUCLIDEAN_PX    (U.gp_euclideandist)
 
+static void gp_update_cache(bGPdata *gpd)
+{
+	if (gpd) {
+		BKE_gpencil_batch_cache_dirty(gpd);
+		gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+	}
+}
+
 static bool gp_stroke_added_check(tGPsdata *p)
 {
 	return (p->gpf && p->gpf->strokes.last && p->flags & GP_PAINTFLAG_STROKEADDED);
@@ -211,8 +219,7 @@ static void gp_stroke_added_enable(tGPsdata *p)
 	p->flags |= GP_PAINTFLAG_STROKEADDED;
 
 	/* drawing batch cache is dirty now */
-	BKE_gpencil_batch_cache_dirty(p->gpd);
-	p->gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+	gp_update_cache(p->gpd);
 }
 
 /* ------ */
@@ -790,8 +797,7 @@ static short gp_stroke_addpoint(
 			/* force fill recalc */
 			gps->flag |= GP_STROKE_RECALC_CACHES;
 			/* drawing batch cache is dirty now */
-			BKE_gpencil_batch_cache_dirty(p->gpd);
-			p->gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+			gp_update_cache(p->gpd);
 		}
 		
 		/* increment counters */
@@ -945,8 +951,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 	gps->tot_triangles = 0;
 	/* drawing batch cache is dirty now */
-	BKE_gpencil_batch_cache_dirty(p->gpd);
-	p->gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+	gp_update_cache(p->gpd);
 	/* set pointer to first non-initialized point */
 	pt = gps->points + (gps->totpoints - totelem);
 	
@@ -1230,7 +1235,7 @@ static void gp_free_stroke(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps)
 	if (gps->triangles)
 		MEM_freeN(gps->triangles);
 	BLI_freelinkN(&gpf->strokes, gps);
-	BKE_gpencil_batch_cache_dirty(gpd);
+	gp_update_cache(gpd);
 }
 
 /* eraser tool - evaluation per stroke */
@@ -1378,7 +1383,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 		if (do_cull) {
 			gp_stroke_delete_tagged_points(gpf, gps, gps->next, GP_SPOINT_TAG, false);
 		}
-		BKE_gpencil_batch_cache_dirty(p->gpd);
+		gp_update_cache(p->gpd);
 	}
 }
 
@@ -1944,8 +1949,8 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, cons
 			
 		p->gpf = BKE_gpencil_layer_getframe(p->gpl, CFRA, add_frame_mode);
 		/* set as dirty draw manager cache */
-		BKE_gpencil_batch_cache_dirty(p->gpd);
-		
+		gp_update_cache(p->gpd);
+
 		if (p->gpf == NULL) {
 			p->status = GP_STATUS_ERROR;
 			if (G.debug & G_DEBUG)
@@ -2170,8 +2175,7 @@ static void gpencil_draw_exit(bContext *C, wmOperator *op)
 		}
 		/* drawing batch cache is dirty now */
 		if (gpd) {
-			BKE_gpencil_batch_cache_dirty(gpd);
-			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+			gp_update_cache(gpd);
 		}
 
 	}
@@ -2975,8 +2979,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 					}
 				}
 				/* drawing batch cache is dirty now */
-				BKE_gpencil_batch_cache_dirty(p->gpd);
-				p->gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+				gp_update_cache(p->gpd);
 
 				p->status = GP_STATUS_DONE;
 				estate = OPERATOR_FINISHED;
