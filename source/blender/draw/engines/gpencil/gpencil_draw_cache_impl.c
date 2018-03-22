@@ -786,7 +786,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 				else {
 					stl->shgroups[id].shgrps_fill = NULL;
 				}
-				if (gps->palcolor->mode == PAC_MODE_LINE) {
+				if ((gps->palcolor->mode == PAC_MODE_LINE) && (gps->totpoints > 1)) {
 					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gps->palcolor, id, false);
 				}
 				else {
