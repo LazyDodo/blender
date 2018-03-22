@@ -63,6 +63,8 @@
 #include "BKE_object.h"
 #include "BKE_paint.h"
 
+#include "DEG_depsgraph.h"
+
 /* ************************************************** */
 /* Draw Engine */
 
@@ -72,6 +74,7 @@ void(*BKE_gpencil_batch_cache_free_cb)(bGPdata *gpd) = NULL;
 void BKE_gpencil_batch_cache_dirty(bGPdata *gpd)
 {
 	if (gpd) {
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 		BKE_gpencil_batch_cache_dirty_cb(gpd);
 	}
 }
