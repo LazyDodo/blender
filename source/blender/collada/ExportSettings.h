@@ -48,6 +48,19 @@ typedef enum BC_export_texture_type {
 	BC_TEXTURE_TYPE_UV
 } BC_export_texture_type;
 
+typedef enum BC_export_animation_type {
+	BC_ANIMATION_TYPE_SAMPLE,
+	BC_ANIMATION_TYPE_KEYS
+} BC_export_animation_type;
+
+typedef enum BC_ui_export_section {
+	BC_UI_SECTION_MAIN,
+	BC_UI_SECTION_GEOMETRY,
+	BC_UI_SECTION_ARMATURE,
+	BC_UI_SECTION_ANIMATION,
+	BC_UI_SECTION_COLLADA
+} BC_ui_export_section;
+
 typedef struct ExportSettings {
 	bool apply_modifiers;
 	BC_export_mesh_type export_mesh_type;
@@ -65,6 +78,7 @@ typedef struct ExportSettings {
 
 	bool active_uv_only;
 	BC_export_texture_type export_texture_type;
+	BC_export_animation_type export_animation_type;
 	bool use_texture_copies;
 
 	bool triangulate;

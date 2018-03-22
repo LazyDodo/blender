@@ -299,11 +299,12 @@ Object *bc_get_assigned_armature(Object *ob)
 	return ob_arm;
 }
 
-// Returns the highest selected ancestor
-// returns NULL if no ancestor is selected
-// IMPORTANT: This function expects that
-// all exported objects have set:
-// ob->id.tag & LIB_TAG_DOIT
+/*
+* Returns the highest selected ancestor
+* returns NULL if no ancestor is selected
+* IMPORTANT: This function expects that all exported objects have set:
+* ob->id.tag & LIB_TAG_DOIT
+*/
 Object *bc_get_highest_selected_ancestor_or_self(LinkNode *export_set, Object *ob)
 {
 	Object *ancestor = ob;
@@ -314,16 +315,31 @@ Object *bc_get_highest_selected_ancestor_or_self(LinkNode *export_set, Object *o
 	return ancestor;
 }
 
-
 bool bc_is_base_node(LinkNode *export_set, Object *ob)
 {
 	Object *root = bc_get_highest_selected_ancestor_or_self(export_set, ob);
 	return (root == ob);
 }
 
-bool bc_is_in_Export_set(LinkNode *export_set, Object *ob)
+bool bc_is_in_Export_set(LinkNode *export_set, Object *ob, Scene *sce)
 {
-	return (BLI_linklist_index(export_set, ob) != -1);
+	bool to_export = (BLI_linklist_index(export_set, ob) != -1);
+
+	if (!to_export)
+	{
+		/* Mark this object as to_export even if it is not in the 
+		export list, but it contains children to export */
+
+		std::vector<Object *> children;
+		bc_get_children(children, ob, sce);
+		for (int i = 0; i < children.size(); i++) {
+			if (bc_is_in_Export_set(export_set, children[i], sce)) {
+				to_export = true;
+				break;
+			}
+		}
+	}
+	return to_export;
 }
 
 bool bc_has_object_type(LinkNode *export_set, short obtype)

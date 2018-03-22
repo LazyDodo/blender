@@ -22,7 +22,12 @@
 #ifndef __BC_MATRIX_H__
 #define __BC_MATRIX_H__
 
-class BCMatrix {
+class BCSample {
+private:
+public:
+};
+
+class BCMatrix: public BCSample {
 private:
 	mutable bool decomposed = false;
 	float matrix[4][4];

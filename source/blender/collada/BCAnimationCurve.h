@@ -32,9 +32,47 @@ extern "C"
 #include "BKE_fcurve.h"
 #include "BKE_armature.h"
 #include "ED_keyframing.h"
+#include "ED_keyframes_edit.h"
 }
+typedef enum BC_animation_transform_type {
+	BC_ANIMATION_TYPE_UNKNOWN = -1,
+
+	BC_ANIMATION_TYPE_ROTATION_EULER = 0,
+	BC_ANIMATION_TYPE_ROTATION_QUAT = 1,
+	BC_ANIMATION_TYPE_SCALE = 2,
+	BC_ANIMATION_TYPE_LOCATION = 3,
+
+	/* Materials */
+	BC_ANIMATION_TYPE_SPECULAR_HARDNESS = 4,
+	BC_ANIMATION_TYPE_SPECULAR_COLOR = 5,
+	BC_ANIMATION_TYPE_DIFFUSE_COLOR = 6,
+	BC_ANIMATION_TYPE_ALPHA = 7,
+	BC_ANIMATION_TYPE_IOR = 8,
+
+	/* Lamps */
+	BC_ANIMATION_TYPE_COLOR,
+	BC_ANIMATION_TYPE_FALL_OFF_ANGLE,
+	BC_ANIMATION_TYPE_FALL_OFF_EXPONENT,
+	BC_ANIMATION_TYPE_BLENDER_DIST,
+
+	/* Cameras */
+	BC_ANIMATION_TYPE_XFOV,
+	BC_ANIMATION_TYPE_XMAG,
+	BC_ANIMATION_TYPE_ZFAR,
+	BC_ANIMATION_TYPE_ZNEAR,
+
+	BC_ANIMATION_TYPE_ROTATION
+} BC_animation_transform_type;
+
+
+typedef std::set<float> BCFrameSet;
+typedef std::vector<float> BCFrames;
+typedef std::vector<float> BCValues;
+typedef std::vector<float> BCTimes;
+typedef std::map<int, float> BCValueMap;
 
 typedef enum BC_animation_curve_type {
+	
 	BC_ANIMATION_CURVE_TYPE_UNKNOWN = -1,
 
 	BC_ANIMATION_CURVE_TYPE_OBJECT,
@@ -58,15 +96,15 @@ public:
 		array_index = -1;
 	}
 
-	CurveKey(std::string rna_path, int array_index)
+	CurveKey(const std::string rna_path, const int index)
 	{
-		this->init(rna_path, array_index);
+		this->init(rna_path, index);
 	}
 
-	void init(std::string rna_path, int array_index)
+	void init(const std::string rna_path, const int index)
 	{
 		this->rna_path = rna_path;
-		this->array_index = array_index;
+		this->array_index = index;
 	}
 
 	const std::string path() const
@@ -91,7 +129,10 @@ public:
 class BCAnimationCurve {
 private:
 	BC_animation_curve_type type = BC_ANIMATION_CURVE_TYPE_UNKNOWN;
-	std::vector<int> sample_frames;
+	BCValueMap samples;
+	float min = 0;
+	float max = 0;
+
 	CurveKey curve_key;
 	bool curve_is_local_copy = false;
 	FCurve *fcurve;
@@ -102,55 +143,66 @@ private:
 
 public:
 	BCAnimationCurve();
+	BCAnimationCurve(const BC_animation_curve_type type, FCurve *fcu);
 	~BCAnimationCurve();
 
 	const BC_animation_curve_type get_channel_type() const;
+	const BC_animation_transform_type get_transform_type() const;
+	const std::string get_sid(const std::string axis_name) const;
+
 	const std::string get_channel_target() const;
 	const std::string get_animation_name(Object *ob) const;
 	const int get_array_index() const;
 	const std::string get_rna_path() const;
 
 	const int size() const;
-	const int closest_index_above(float sample_frame, int start_at) const;
-	const int closest_index_below(float sample_frame) const;
+	const int closest_index_above(const float sample_frame, const int start_at) const;
+	const int closest_index_below(const float sample_frame) const;
 	const int get_ipo(float sample_frame) const;
 	Bone *get_bone(Object *ob) const;
 
+	void calchandles();
 	void add_value(const float val, const int frame);
-	void init(Object *ob, BC_animation_curve_type type, std::string rna_path, int index);
-	void init(Object *ob, BC_animation_curve_type type, FCurve *fcu);
+	void init(const BC_animation_curve_type type, const std::string rna_path, const int index);
+	void init(const BC_animation_curve_type type, FCurve *fcu);
 	FCurve *get_edit_fcurve();
 	const FCurve *get_fcurve() const;
 
 	/*
 	Pick the value from the matrix accoridng to the definition of the FCurve
-	Note: This works only for "scale", "rotation", "rotation_euler" and "location"
+	Note: This works only for "scale", "rotation_quaternion", "rotation_euler" and "location"
 	*/
 	void add_value(BCMatrix mat, int frame);
+	void remove_unused_keyframes();
 
 	/*
 	Return the frames of the sampled curve;
 	Note: If the curve was not sampled, the
 	returned vector is empty
 	*/
-	void get_frames(std::vector<float> &frames) const;
-	void get_frames(std::set<float> &frames) const;
+	void get_frames(BCFrames &frames) const;
+	void get_frames(BCFrameSet &frames) const;
 
 	/*
 	Return the ctimes of the sampled curve;
 	Note: If the curve was not sampled, the
 	returned vector is empty
 	*/
-	void get_times(std::vector<float> &times, Scene *scene) const;
+	void get_times(BCTimes &times, Scene *scene) const;
 
 	/*
 	Return the ctimes of the sampled curve;
 	Note: If the curve was not sampled, the
 	returned vector is empty
 	*/
-	void get_values(std::vector<float> &values) const;
-	static bool is_flat_line(std::vector<float> &values);
+	void get_values(BCValues &values) const;
+	bool is_flat();
+	bool is_rot() const;
+	bool is_keyframe(int frame);
+
+	/* For convenience, maybe no longer needed */
+	static bool is_flat_line(BCValues &values);
+
 };
-
 
 #endif

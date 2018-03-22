@@ -74,49 +74,24 @@ extern "C"
 #include "COLLADASWBaseInputElement.h"
 
 #include "EffectExporter.h"
-
+#include "BCAnimationCurveContainer.h"
 #include "collada_internal.h"
 
 #include "IK_solver.h"
 
 #include <vector>
+#include <map>
 #include <algorithm> // std::find
-
-typedef enum BC_animation_transform_type {
-	BC_ANIMATION_TYPE_UNKNOWN = -1,
-	BC_ANIMATION_TYPE_ROTATION_EULER = 0,
-	BC_ANIMATION_TYPE_ROTATION_QUAT = 1,
-	BC_ANIMATION_TYPE_SCALE = 2,
-	BC_ANIMATION_TYPE_LOCATION = 3,
-
-	/* Materials */
-	BC_ANIMATION_TYPE_SPECULAR_HARDNESS = 4,
-	BC_ANIMATION_TYPE_SPECULAR_COLOR = 5,
-	BC_ANIMATION_TYPE_DIFFUSE_COLOR = 6,
-	BC_ANIMATION_TYPE_ALPHA = 7,
-	BC_ANIMATION_TYPE_IOR = 8,
-
-	/* Lamps */
-	BC_ANIMATION_TYPE_COLOR,
-	BC_ANIMATION_TYPE_FALL_OFF_ANGLE,
-	BC_ANIMATION_TYPE_FALL_OFF_EXPONENT,
-	BC_ANIMATION_TYPE_BLENDER_DIST,
-
-	/* Cameras */
-	BC_ANIMATION_TYPE_XFOV,
-	BC_ANIMATION_TYPE_XMAG,
-	BC_ANIMATION_TYPE_ZFAR,
-	BC_ANIMATION_TYPE_ZNEAR,
-
-} BC_animation_transform_type;
 
 class AnimationExporter: COLLADASW::LibraryAnimations
 {
 private:
 	bContext *mContext;
+	const ExportSettings *export_settings;
 	EvaluationContext * eval_ctx;
 	Scene *scene;
 	COLLADASW::StreamWriter *sw;
+	//AnimationCurveCache cache;
 
 	std::vector<std::vector<std::string>> anim_meta;
 
@@ -133,116 +108,120 @@ public:
 
 	bool exportAnimations(Scene *sce);
 
-	// called for each exported object
-	void operator() (Object *ob); 
+	// Main entry point into Animation export (called for each exported object)
+	void exportObjectAnimation(Object *ob, BCAnimationSampler &sampler);
 
 protected:
-	const ExportSettings *export_settings;
-	void openAnimationWithClip(std::string id, std::string name);
 
+	void export_curve_animation_set(
+		Object *ob,
+		BCAnimationSampler &sampler);
+
+	void export_curve_animation(
+		Object *ob,
+		const BCAnimationCurve &curve,
+		Material *ma=nullptr);
+
+	void export_collada_curve_animation(
+		std::string id,
+		std::string name,
+		std::string target,
+		std::string axis,
+		const BCAnimationCurve &curve);
+
+	void export_matrix_animation_set(
+		Object *ob,
+		BCAnimationSampler &sampler);
+
+	void export_matrix_animation (
+		Object *ob,
+		BCFrames &frames,
+		BCMatrixMap &outmats,
+		BCAnimationSampler &sampler);
+
+	void export_bone_animation_recursive(
+		Object *ob_arm, 
+		Bone *bone, 
+		BCAnimationSampler &sampler);
+
+	void export_bone_animation(
+		Object *ob,
+		Bone *bone,
+		BCFrames &frames,
+		BCMatrixMap &outmats);
+
+	void export_collada_matrix_animation(
+		std::string id,
+		std::string name,
+		std::string target,
+		BCFrames &frames,
+		BCMatrixMap &outmats);
+
+	/* Helper functions */
+	void openAnimationWithClip(std::string id, std::string name);
 	bool open_animation_container(bool has_container, Object *ob);
 	void close_animation_container(bool has_container);
 
-	void export_object_constraint_animation(Object *ob);
+	std::string create_source_from_values(COLLADASW::InputSemantic::Semantics semantic, std::vector<float> &values, bool is_rot, const std::string& anim_id, const std::string axis_name);
+	std::string create_4x4_source_from_values(
+		BCMatrixMap &cache, 
+		const std::string& anim_id);
 
-	void export_morph_animation(Object *ob);
-
-	void write_bone_animation_matrix(Object *ob_arm, Bone *bone);
-
-	void write_bone_animation(Object *ob_arm, Bone *bone);
-
-	void sample_and_write_bone_animation(Object *ob_arm, Bone *bone, int transform_type);
-
-	bool is_bone_deform_group(Bone * bone);
-
-	void sample_and_write_bone_animation_matrix(Object *ob_arm, Bone *bone);
-
-	void sample_animation(float *v, std::vector<float> &frames, int type, Bone *bone, Object *ob_arm, bPoseChannel *pChan);
-
-	void sample_animation(std::vector<float[4][4]> &mats, std::vector<float> &frames, Bone *bone, Object *ob_arm, bPoseChannel *pChan);
-
-	// dae_bone_animation -> add_bone_animation
-	// (blend this into dae_bone_animation)
-	void dae_bone_animation(std::vector<float> &fra, float *v, int tm_type, int axis, std::string ob_name, std::string bone_name);
-	void dae_baked_animation(std::vector<float> &frames, Object *ob_arm, Bone *bone);
-	void dae_baked_object_animation(std::vector<float> &frames, Object *ob);
-
-	float convert_time(float frame);
-
-	float convert_angle(float angle);
+	std::string create_linear_interpolation_source(int tot, const std::string& anim_id);
 
 	std::string get_semantic_suffix(COLLADASW::InputSemantic::Semantics semantic);
 
 	void add_source_parameters(COLLADASW::SourceBase::ParameterNameList& param,
-	COLLADASW::InputSemantic::Semantics semantic, bool is_rot, const char *axis, bool transform);
+		COLLADASW::InputSemantic::Semantics semantic,
+		bool is_rot,
+		const std::string axis,
+		bool transform);
 
-	void get_source_values(BezTriple *bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values, int *length);
+	float convert_angle(float angle);
 
-	float* get_eul_source_for_quat(Object *ob );
+	// Now we get into the mess ...
 
-	bool is_flat_line(std::vector<float> &values, int channel_count);
-	bool is_flat_line(std::vector<std::vector<std::vector<double>>> &values);
+	void export_morph_animation(
+		Object *ob, 
+		BCAnimationSampler &sampler);
 
-	void export_keyframed_animation_set(Object *ob);
-	void create_keyframed_animation(Object *ob, FCurve *fcu, char *channel_type, bool is_param, Material *ma = NULL);
-	void export_sampled_animation_set(Object *ob);
-	void export_sampled_transrotloc_animation(Object *ob, std::vector<float> &frames);
-	void export_sampled_matrix_animation(Object *ob, std::vector<float> &frames);
-	void create_sampled_animation(int channel_count,
-		std::vector<float> &frames,
-		std::vector<float> &values,
-		std::string ob_name,
-		std::string channel_type,
-		std::string axis_name,
-		bool is_rot);
+	bool is_bone_deform_group(Bone * bone);
 
-	void evaluate_anim_with_constraints(Object *ob, float ctime);
+	int get_source_values(BezTriple *bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values);
+	int get_source_values(const BCAnimationCurve &curve, float sample_frame, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values);
 
-	std::string create_source_from_fcurve(COLLADASW::InputSemantic::Semantics semantic, FCurve *fcu, const std::string& anim_id, const char *axis_name);
-	std::string create_source_from_fcurve(COLLADASW::InputSemantic::Semantics semantic, FCurve *fcu, const std::string& anim_id, const char *axis_name, Object *ob);
+	void get_eul_source_for_quat(std::vector<float> &cache, Object *ob );
 
-	std::string create_lens_source_from_fcurve(Camera *cam, COLLADASW::InputSemantic::Semantics semantic, FCurve *fcu, const std::string& anim_id);
+	void create_keyframed_animation(
+		Object *ob, 
+		FCurve *fcu, 
+		BC_animation_transform_type mt_type,
+		bool is_param, 
+		BCAnimationSampler &sampler, 
+		Material *ma = NULL);
 
-	std::string create_source_from_array(COLLADASW::InputSemantic::Semantics semantic, float *v, int tot, bool is_rot, const std::string& anim_id, const char *axis_name);
-
-	std::string create_source_from_vector(COLLADASW::InputSemantic::Semantics semantic, std::vector<float> &fra, bool is_rot, const std::string& anim_id, const char *axis_name);
-
-	std::string create_xyz_source(float *v, int tot, const std::string& anim_id);
-	std::string create_4x4_source(std::vector<float> &times, std::vector<float> &values, const std::string& anim_id);
-	std::string create_4x4_source(std::vector<float> &frames, Object * ob_arm, Bone *bone, const std::string& anim_id);
-
-	std::string create_interpolation_source(FCurve *fcu, const std::string& anim_id, const char *axis_name, bool *has_tangents);
-
-	std::string fake_interpolation_source(int tot, const std::string& anim_id, const char *axis_name);
-
-	// for rotation, axis name is always appended and the value of append_axis is ignored
-	std::string get_transform_sid(char *rna_path, int tm_type, const char *axis_name, bool append_axis);
-	std::string get_light_param_sid(char *rna_path, int tm_type, const char *axis_name, bool append_axis);
-	std::string get_camera_param_sid(char *rna_path, int tm_type, const char *axis_name, bool append_axis);
-
+	std::string create_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, std::vector<float>frames, const std::string& anim_id, const std::string axis_name);
+	std::string create_lens_source_from_fcurve(Camera *cam, COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, const std::string& anim_id);
+	std::string create_interpolation_source(const BCAnimationCurve &curve, const std::string& anim_id, std::string axis_name, bool *has_tangents);
 	
-	void find_keyframes(bAction *act, std::vector<float> &fra, const char *prefix, const char *tm_name);
-	void find_keyframes(bAction *act, std::vector<float> &fra);
-	void find_sampleframes(bAction *act, std::vector<float> &fra);
-	void find_rotation_frames(bAction *act, std::vector<float> &fra, const char *prefix, int rotmode);
-
-	void make_anim_frames_from_targets(Object *ob, std::vector<float> &frames );
+	// for rotation, axis name is always appended and the value of append_axis is ignored
+	std::string get_transform_sid(const std::string path, const std::string axis_name);
+	std::string get_param_sid(BC_animation_transform_type mt_type, const std::string axis_name);
+	std::string get_param_sid(const std::string path, const std::string axis_name);
+	BC_animation_transform_type get_transform_type(const std::string path);
 
 	// enable fcurves driving a specific bone, disable all the rest
 	// if bone_name = NULL enable all fcurves
 	void enable_fcurves(bAction *act, char *bone_name);
 
 	bool hasAnimations(Scene *sce);
+	
+	inline const std::string extract_transform_name(const std::string path)
+	{
+		return bc_string_after(path, '.');
+	}
 
-	char *extract_transform_name(char *rna_path);
-
-	std::string getObjectBoneName(Object *ob, const FCurve * fcu);
-	std::string getAnimationPathId(const FCurve *fcu);
-
-	void getBakedPoseData(Object *obarm, int startFrame, int endFrame, bool ActionBake, bool ActionBakeFirstFrame);
-
-	bool validateConstraints(bConstraint *con);
-
+	std::string get_subchannel(std::string channel, int id);
 
 };
 

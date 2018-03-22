@@ -77,33 +77,36 @@ std::vector<bAction *> bc_getSceneActions(const bContext *C, Object *ob, bool al
 
 inline bAction *bc_getSceneObjectAction(Object *ob)
 {
-	return (ob->adt && ob->adt->action) ? ob->adt->action : NULL;
+	return (ob->adt && ob->adt->action) ? ob->adt->action : nullptr;
 }
 
+/* Returns Lamp Action or nullptr */
 inline bAction *bc_getSceneLampAction(Object *ob)
 {
 	if (ob->type != OB_LAMP)
-		return NULL;
+		return nullptr;
 
 	Lamp *lamp = (Lamp *)ob->data;
-	return (lamp->adt && lamp->adt->action) ? lamp->adt->action : NULL;
+	return (lamp->adt && lamp->adt->action) ? lamp->adt->action : nullptr;
 }
 
+/* Return Camera Action or nullptr */
 inline bAction *bc_getSceneCameraAction(Object *ob)
 {
 	if (ob->type != OB_CAMERA)
-		return NULL;
+		return nullptr;
 
 	Camera *camera = (Camera *)ob->data;
-	return (camera->adt && camera->adt->action) ? camera->adt->action : NULL;
+	return (camera->adt && camera->adt->action) ? camera->adt->action : nullptr;
 }
 
+/* returns material action or nullptr */
 inline bAction *bc_getSceneMaterialAction(Material *ma)
 {
-	if (ma == NULL)
-		return NULL;
+	if (ma == nullptr)
+		return nullptr;
 
-	return (ma->adt && ma->adt->action) ? ma->adt->action : NULL;
+	return (ma->adt && ma->adt->action) ? ma->adt->action : nullptr;
 }
 
 inline void bc_setSceneObjectAction(bAction *action, Object *ob)
@@ -128,7 +131,7 @@ extern Mesh *bc_get_mesh_copy(
 extern Object *bc_get_assigned_armature(Object *ob);
 extern Object *bc_get_highest_selected_ancestor_or_self(LinkNode *export_set, Object *ob);
 extern bool bc_is_base_node(LinkNode *export_set, Object *ob);
-extern bool bc_is_in_Export_set(LinkNode *export_set, Object *ob);
+extern bool bc_is_in_Export_set(LinkNode *export_set, Object *ob, Scene *sce);
 extern bool bc_has_object_type(LinkNode *export_set, short obtype);
 
 extern int bc_is_marked(Object *ob);
@@ -144,8 +147,8 @@ extern int  bc_get_active_UVLayer(Object *ob);
 
 std::string bc_find_bonename_in_path(std::string path, std::string probe);
 
-inline std::string bc_string_after(const std::string& s, const char c) {
-
+inline std::string bc_string_after(const std::string& s, const char c)
+{
 	size_t i = s.rfind(c, s.length());
 	if (i != std::string::npos) {
 		return(s.substr(i + 1, s.length() - i));

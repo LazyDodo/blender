@@ -108,14 +108,14 @@ void SceneExporter::writeNodes(Object *ob, Scene *sce)
 {
 	std::vector<Object *> child_objects;
 	bc_get_children(child_objects, ob, sce);
-	bool can_export = bc_is_in_Export_set(this->export_settings->export_set, ob);
+	bool can_export = bc_is_in_Export_set(this->export_settings->export_set, ob, sce);
 
 	// Add associated armature first if available
 	bool armature_exported = false;
 	Object *ob_arm = bc_get_assigned_armature(ob);
 
 	if (ob_arm != NULL) {
-		armature_exported = bc_is_in_Export_set(this->export_settings->export_set, ob_arm);
+		armature_exported = bc_is_in_Export_set(this->export_settings->export_set, ob_arm, sce);
 		if (armature_exported && bc_is_marked(ob_arm)) {
 			bc_remove_mark(ob_arm);
 			writeNodes(ob_arm, sce);
