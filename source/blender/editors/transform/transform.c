@@ -84,6 +84,7 @@
 #include "ED_mesh.h"
 #include "ED_clip.h"
 #include "ED_node.h"
+#include "ED_gpencil.h"
 
 #include "WM_types.h"
 #include "WM_api.h"
@@ -99,6 +100,8 @@
 #include "BLT_translation.h"
 
 #include "transform.h"
+
+#include "DEG_depsgraph.h"
 
 /* Disabling, since when you type you know what you are doing, and being able to set it to zero is handy. */
 // #define USE_NUM_NO_ZERO
@@ -568,6 +571,10 @@ void removeAspectRatio(TransInfo *t, float vec[2])
 static void viewRedrawForce(const bContext *C, TransInfo *t)
 {
 	if (t->options & CTX_GPENCIL_STROKES) {
+		bGPdata *gpd = ED_gpencil_data_get_active(C);
+		if (gpd) {
+			DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+		}
 		WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	}
 	else if (t->spacetype == SPACE_VIEW3D) {
