@@ -774,16 +774,6 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			}
 		}
 
-#if 0   /* if we use the reallocate the shading group is doing weird thing, so disable while find a solution 
-		   and allocate the max size on cache_init */
-		   /* realloc memory */
-		GPENCIL_shgroup *p = NULL;
-		int size = stl->storage->shgroup_id + 1;
-		p = MEM_recallocN(stl->shgroups, sizeof(struct GPENCIL_shgroup) * size);
-		if (p != NULL) {
-			stl->shgroups = p;
-		}
-#endif
 		if ((gpl->actframe->framenum == derived_gpf->framenum) || (!is_multiedit) || ((gpd->flag & GP_DATA_STROKE_MULTIEDIT_LINES) == 0)) {
 			int id = stl->storage->shgroup_id;
 			if (gps->totpoints > 0) {
