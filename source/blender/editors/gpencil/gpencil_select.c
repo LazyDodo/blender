@@ -63,6 +63,8 @@
 
 #include "ED_gpencil.h"
 
+#include "DEG_depsgraph.h"
+
 #include "gpencil_intern.h"
 
 /* ********************************************** */
@@ -186,6 +188,7 @@ static int gpencil_select_all_exec(bContext *C, wmOperator *op)
 	}
 	
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -239,6 +242,7 @@ static int gpencil_select_linked_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 	
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -311,6 +315,7 @@ static int gpencil_select_alternate_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -456,6 +461,7 @@ static int gpencil_select_grouped_exec(bContext *C, wmOperator *op)
 	}
 	
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -526,6 +532,7 @@ static int gpencil_select_first_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 	
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -592,6 +599,7 @@ static int gpencil_select_last_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 	
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -674,6 +682,7 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_END;
 	
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -751,6 +760,7 @@ static int gpencil_select_less_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_END;
 	
 	/* updates */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -914,6 +924,7 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
 
 	/* updates */
 	if (changed) {
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	
@@ -1029,6 +1040,7 @@ static int gpencil_border_select_exec(bContext *C, wmOperator *op)
 
 	/* updates */
 	if (changed) {
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	
@@ -1145,6 +1157,7 @@ static int gpencil_lasso_select_exec(bContext *C, wmOperator *op)
 
 	/* updates */
 	if (changed) {
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	
@@ -1176,7 +1189,8 @@ void GPENCIL_OT_select_lasso(wmOperatorType *ot)
 static int gpencil_select_exec(bContext *C, wmOperator *op)
 {
 	ScrArea *sa = CTX_wm_area(C);
-	
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+
 	/* "radius" is simply a threshold (screen space) to make it easier to test with a tolerance */
 	const float radius = 0.75f * U.widget_unit;
 	const int radius_squared = (int)(radius * radius);
@@ -1307,6 +1321,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 	
 	/* updates */
 	if (hit_point != NULL) {
+		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	

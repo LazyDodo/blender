@@ -80,6 +80,8 @@
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 
+#include "DEG_depsgraph.h"
+
 #include "gpencil_intern.h"
 
 /* ************************************************ */
@@ -1693,6 +1695,7 @@ static void gpsculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itempt
 	
 	/* Updates */
 	if (changed) {
+		DEG_id_tag_update(&gso->gpd->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	}
 	
@@ -2016,6 +2019,7 @@ static int gpsculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *even
 	
 	/* Redraw toolsettings (brush settings)? */
 	if (redraw_toolsettings) {
+		DEG_id_tag_update(&gso->gpd->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_SCENE | ND_TOOLSETTINGS, NULL);
 	}
 	
