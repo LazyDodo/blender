@@ -29,7 +29,7 @@
 #define __BCANIMATION_CURVE_H__
 
 #include "collada_utils.h"
-#include "BCMatrix.h"
+#include "BCSampleData.h"
 
 extern "C"
 {

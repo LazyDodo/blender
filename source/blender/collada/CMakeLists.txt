@@ -53,7 +53,7 @@ set(SRC
 	ArmatureImporter.cpp
 	BCAnimationCurve.cpp
 	BCAnimationCurveContainer.cpp
-	BCMatrix.cpp
+	BCSampleData.cpp
 	CameraExporter.cpp
 	ControllerExporter.cpp
 	DocumentExporter.cpp
@@ -85,7 +85,7 @@ set(SRC
 	ArmatureImporter.h
 	BCAnimationCurve.h
 	BCAnimationCurveContainer.h
-	BCMatrix.h
+	BCSampleData.h
 	CameraExporter.h
 	ControllerExporter.h
 	DocumentExporter.h

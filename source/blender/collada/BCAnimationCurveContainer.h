@@ -29,7 +29,7 @@
 #define __ANIMATION_CURVE_CONTAINER_H__
 
 #include "BCAnimationCurve.h"
-#include "BCMatrix.h"
+#include "BCSampleData.h"
 
 extern "C" {
 #include "BKE_action.h"

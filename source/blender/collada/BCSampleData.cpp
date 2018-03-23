@@ -25,7 +25,7 @@
 * ***** END GPL LICENSE BLOCK *****
 */
 
-#include "BCMatrix.h"
+#include "BCSampleData.h"
 #include "collada_utils.h"
 
 BCMatrix::BCMatrix()
