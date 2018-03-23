@@ -15,7 +15,12 @@
 * along with this program; if not, write to the Free Software Foundation,
 * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
-* Contributor(s): Chingiz Dyussenov, Arystanbek Dyussenov, Jan Diederich, Tod Liverseed.
+* The Original Code is Copyright (C) 2008 Blender Foundation.
+* All rights reserved.
+*
+* See also: https://wiki.blender.org/index.php/BlenderWiki:Copyrights
+*
+* Contributor(s): Blender Foundation
 *
 * ***** END GPL LICENSE BLOCK *****
 */
