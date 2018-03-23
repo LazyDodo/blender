@@ -20,8 +20,8 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-#ifndef __ANIMATION_EXPORTER_H__
-#define __ANIMATION_EXPORTER_H__
+#ifndef __BC_ANIMATION_EXPORTER_H__
+#define __BC_ANIMATION_EXPORTER_H__
 
 #include <stdlib.h>
 #include <stdio.h>

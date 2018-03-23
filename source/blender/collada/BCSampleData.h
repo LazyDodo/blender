@@ -23,8 +23,9 @@
 * ***** END GPL LICENSE BLOCK *****
 */
 
-#ifndef __BC_MATRIX_H__
-#define __BC_MATRIX_H__
+#ifndef __BC_SAMPLE_H__
+#define __BC_SAMPLE_H__
+
 
 class BCSample {
 private:

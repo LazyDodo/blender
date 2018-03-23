@@ -23,8 +23,8 @@
 * ***** END GPL LICENSE BLOCK *****
 */
 
-#ifndef __BCANIMATION_CURVE_H__
-#define __BCANIMATION_CURVE_H__
+#ifndef __BC_ANIMATION_CURVE_H__
+#define __BC_ANIMATION_CURVE_H__
 
 #include "collada_utils.h"
 #include "BCSampleData.h"
