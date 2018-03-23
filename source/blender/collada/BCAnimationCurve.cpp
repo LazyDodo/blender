@@ -173,6 +173,7 @@ const std::string BCAnimationCurve::get_sid(const std::string axis_name) const
 	BC_animation_transform_type tm_type = get_transform_type();
 	std::map<BC_animation_transform_type, std::string>::iterator name_it = BC_ANIMATION_NAME_FROM_TYPE.find(tm_type);
 	tm_name = name_it->second;
+
 	if (axis_name != "")
 		tm_name += '.' + axis_name;
 
@@ -428,15 +429,35 @@ Return the frames of the sampled curve;
 Note: If the curve was not sampled, the
 returned vector is empty
 */
-void BCAnimationCurve::get_frames(BCFrames &frames) const
+
+void BCAnimationCurve::get_key_frames(BCFrames &frames) const
 {
-	BCValueMap::const_iterator it;
-	for (it = samples.begin(); it != samples.end(); ++it) {
-		frames.push_back(it->first);
+	if (fcurve) {
+		for (int i = 0; i < fcurve->totvert; i++) {
+			const float val = fcurve->bezt[i].vec[1][0];
+			frames.push_back(val);
+		}
 	}
 }
 
-void BCAnimationCurve::get_frames(BCFrameSet &frames) const
+void BCAnimationCurve::get_sampled_frames(BCFrames &frames, bool fallback) const
+{
+	frames.clear();
+	if (samples.size() == 0 && fallback) {
+		return get_key_frames(frames);
+	}
+	else if (samples.size() > 0) {
+		BCValueMap::const_iterator it;
+		for (it = samples.begin(); it != samples.end(); ++it) {
+			//float val = evaluate_fcurve(fcurve, *it);
+			const int val = it->first;
+			frames.push_back(val);
+		}
+	}
+}
+
+
+void BCAnimationCurve::get_sampled_frames(BCFrameSet &frames) const
 {
 	BCValueMap::const_iterator it;
 		for (it = samples.begin(); it != samples.end(); ++it) {
@@ -464,15 +485,32 @@ Return the ctimes of the sampled curve;
 Note: If the curve was not sampled, the
 returned vector is empty
 */
-void BCAnimationCurve::get_values(BCValues &values) const
+void BCAnimationCurve::get_key_values(BCValues &values) const
 {
-	BCValueMap::const_iterator it;
+	if (fcurve) {
+		for (int i = 0; i < fcurve->totvert; i++) {
+			const float val = fcurve->bezt[i].vec[1][1];
+			values.push_back(val);
+		}
+	}
+}
+
+void BCAnimationCurve::get_sampled_values(BCValues &values, bool fallback) const
+{
+	values.clear();
+	if (samples.size() == 0 && fallback) {
+		return get_key_values(values);
+	}
+	else if (samples.size() > 0) {
+		BCValueMap::const_iterator it;
 		for (it = samples.begin(); it != samples.end(); ++it) {
 			//float val = evaluate_fcurve(fcurve, *it);
 			const float val = it->second;
 			values.push_back(val);
 		}
+	}
 }
+
 
 bool BCAnimationCurve::is_flat()
 {

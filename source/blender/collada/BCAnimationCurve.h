@@ -180,8 +180,7 @@ public:
 	Note: If the curve was not sampled, the
 	returned vector is empty
 	*/
-	void get_frames(BCFrames &frames) const;
-	void get_frames(BCFrameSet &frames) const;
+	void get_sampled_frames(BCFrameSet &frames) const;
 
 	/*
 	Return the ctimes of the sampled curve;
@@ -195,7 +194,10 @@ public:
 	Note: If the curve was not sampled, the
 	returned vector is empty
 	*/
-	void get_values(BCValues &values) const;
+	void get_key_values(BCValues &values) const;
+	void get_sampled_values(BCValues &values, bool fallback = true) const;
+	void get_key_frames(BCFrames &frames) const;
+	void get_sampled_frames(BCFrames &frames, bool fallback = true) const;
 	bool is_flat();
 	bool is_rot() const;
 	bool is_keyframe(int frame);

@@ -466,8 +466,8 @@ void AnimationExporter::export_collada_curve_animation(
 {
 	BCFrames frames;
 	BCValues values;
-	curve.get_frames(frames);
-	curve.get_values(values);
+	curve.get_sampled_frames(frames);
+	curve.get_sampled_values(values);
 
 	fprintf(stdout, "Export animation curve %s (%d control points)\n", id.c_str(), int(frames.size()));
 	openAnimation(id, name);
@@ -712,7 +712,7 @@ std::string AnimationExporter::create_tangent_from_curve(COLLADASW::InputSemanti
 	source.prepareToAppendValues();
 
 	std::vector<float> values;
-	curve.get_values(values);
+	curve.get_sampled_values(values);
 
 	const FCurve *fcu = curve.get_fcurve(); // need this to get the original tangents
 
@@ -861,7 +861,7 @@ std::string AnimationExporter::create_interpolation_source(const BCAnimationCurv
 
 	const FCurve *fcu = curve.get_fcurve();
 	std::vector<float>frames;
-	curve.get_frames(frames);
+	curve.get_sampled_frames(frames);
 
 	for (unsigned int i = 0; i < curve.size(); i++) {
 		float frame = frames[i];

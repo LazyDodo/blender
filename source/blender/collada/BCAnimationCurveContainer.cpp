@@ -381,7 +381,7 @@ void BCAnimationSampler::get_frame_set(BCFrames &frames, Object *ob, Bone *bone)
 
 void BCAnimationSampler::get_frame_set(BCFrames &frames, Object *ob, const BCAnimationCurve &curve)
 {
-	curve.get_frames(frames); // TODO: get frames from curve...
+	curve.get_sampled_frames(frames);
 }
 
 bool BCAnimationSampler::get_matrix_set(BCMatrixMap &matrices, Object *ob, Bone *bone)
@@ -456,7 +456,7 @@ void BCAnimationSampler::add_value_set(
 const bool BCAnimationSampler::get_value_set(BCValues &values, BCFrames &frames, BCAnimationCurve &curve)
 {
 	values.clear();
-	curve.get_values(values);
+	curve.get_sampled_values(values);
 	return is_flat_line(values);
 }
 
