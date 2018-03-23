@@ -28,12 +28,7 @@
 
 #include <string>
 
-class BCSample {
-public:
-	virtual const bool get_value_for(const std::string &target, const int array_index, float *val) const = 0;
-};
-
-class BCMatrix: public BCSample {
+class BCSample{
 private:
 	mutable bool decomposed = false;
 	float matrix[4][4];
@@ -47,18 +42,18 @@ private:
 	void copy(float(&r)[4][4], float(&a)[4][4]);
 
 public:
-	BCMatrix();
-	~BCMatrix();
-	BCMatrix(double(&mat)[4][4]);
-	BCMatrix(float(&mat)[4][4]);
+	BCSample();
+	~BCSample();
+	BCSample(double(&mat)[4][4]);
+	BCSample(float(&mat)[4][4]);
 	void set_matrix(double(&mat)[4][4]);
 	void set_matrix(float(&mat)[4][4]);
-	void set_matrix(BCMatrix &other);
+	void set_matrix(BCSample &other);
 	void get_matrix(double(&mat)[4][4], const bool transposed = false, const int precision = -1) const;
 	void get_matrix(float(&mat)[4][4]) const;
 	static void sanitize(float(&mat)[4][4], int precision);
 	static void transpose(float(&mat)[4][4]);
-	bool in_range(const BCMatrix &other, const float distance) const;
+	bool in_range(const BCSample &other, const float distance) const;
 	const bool get_value_for(const std::string &target, const int array_index, float *val) const;
 
 	const float(&location() const)[3];

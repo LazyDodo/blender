@@ -26,27 +26,27 @@
 #include "BCSampleData.h"
 #include "collada_utils.h"
 
-BCMatrix::BCMatrix()
+BCSample::BCSample()
 {
 	unit();
 }
 
-BCMatrix::BCMatrix(double(&mat)[4][4])
+BCSample::BCSample(double(&mat)[4][4])
 {
 	set_matrix(mat);
 }
 
-BCMatrix::BCMatrix(float(&mat)[4][4])
+BCSample::BCSample(float(&mat)[4][4])
 {
 	set_matrix(mat);
 }
 
-BCMatrix::~BCMatrix()
+BCSample::~BCSample()
 {
 	int x = 0;
 }
 
-const bool BCMatrix::get_value_for(const std::string &target, const int array_index, float *val) const
+const bool BCSample::get_value_for(const std::string &target, const int array_index, float *val) const
 {
 	if (target == "location") {
 		const float(&floc)[3] = location();
@@ -75,40 +75,40 @@ const bool BCMatrix::get_value_for(const std::string &target, const int array_in
 	return true;
 }
 
-void BCMatrix::copy(float(&r)[4][4], float(&a)[4][4])
+void BCSample::copy(float(&r)[4][4], float(&a)[4][4])
 {
 	/* destination comes first: */
 	memcpy(r, a, sizeof(float[4][4]));
 }
 
-void BCMatrix::transpose(float(&mat)[4][4])
+void BCSample::transpose(float(&mat)[4][4])
 {
 	transpose_m4(mat);
 }
 
-void BCMatrix::sanitize(float(&matrix)[4][4], int precision)
+void BCSample::sanitize(float(&matrix)[4][4], int precision)
 {
 	bc_sanitize_mat(matrix, precision);
 }
 
-void BCMatrix::unit()
+void BCSample::unit()
 {
 	unit_m4(matrix);
 }
 
-void BCMatrix::set_matrix(double(&mat)[4][4])
+void BCSample::set_matrix(double(&mat)[4][4])
 {
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++)
 			matrix[i][j] = mat[i][j];
 }
 
-void BCMatrix::set_matrix(float(&mat)[4][4])
+void BCSample::set_matrix(float(&mat)[4][4])
 {
 	copy_m4_m4(matrix, mat);
 }
 
-void BCMatrix::set_matrix(BCMatrix &other)
+void BCSample::set_matrix(BCSample &other)
 {
 	set_matrix(other.matrix);
 }
@@ -117,7 +117,7 @@ void BCMatrix::set_matrix(BCMatrix &other)
 We need double here because the OpenCollada API needs it.
 precision = -1 indicates to not limit the precision
 */
-void BCMatrix::get_matrix(double(&mat)[4][4], const bool transposed, const int precision) const
+void BCSample::get_matrix(double(&mat)[4][4], const bool transposed, const int precision) const
 {
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++) {
@@ -128,7 +128,7 @@ void BCMatrix::get_matrix(double(&mat)[4][4], const bool transposed, const int p
 		}
 }
 
-void BCMatrix::get_matrix(float(&mat)[4][4]) const
+void BCSample::get_matrix(float(&mat)[4][4]) const
 {
 	// copy_m4_m4(mat, matrix);  // does not work because copy_m4_m4 does not declare 2nd parameter as const
 
@@ -137,7 +137,7 @@ void BCMatrix::get_matrix(float(&mat)[4][4]) const
 			mat[i][j] = matrix[i][j];
 }
 
-bool BCMatrix::in_range(const BCMatrix &other, float distance) const
+bool BCSample::in_range(const BCSample &other, float distance) const
 {
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 4; j++) {
@@ -149,7 +149,7 @@ bool BCMatrix::in_range(const BCMatrix &other, float distance) const
 	return true;
 }
 
-void BCMatrix::decompose() const
+void BCSample::decompose() const
 {
 	float mat[4][4];
 	get_matrix(mat);
@@ -158,7 +158,7 @@ void BCMatrix::decompose() const
 	decomposed = true;
 }
 
-const float(&BCMatrix::location() const)[3]
+const float(&BCSample::location() const)[3]
 {
 	if (!decomposed)
 	decompose();
@@ -166,7 +166,7 @@ const float(&BCMatrix::location() const)[3]
 return loc;
 }
 
-const float(&BCMatrix::rotation() const)[3]
+const float(&BCSample::rotation() const)[3]
 {
 	if (!decomposed)
 	decompose();
@@ -175,7 +175,7 @@ return rot;
 
 }
 
-const float(&BCMatrix::scale() const)[3]
+const float(&BCSample::scale() const)[3]
 {
 	if (!decomposed)
 	decompose();
@@ -183,7 +183,7 @@ const float(&BCMatrix::scale() const)[3]
 return size;
 }
 
-const float(&BCMatrix::quat() const)[4]
+const float(&BCSample::quat() const)[4]
 {
 	if (!decomposed)
 	decompose();

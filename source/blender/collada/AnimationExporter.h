@@ -136,7 +136,7 @@ protected:
 	void export_matrix_animation (
 		Object *ob,
 		BCFrames &frames,
-		BCMatrixMap &outmats,
+		BCSampleMap &outmats,
 		BCAnimationSampler &sampler);
 
 	void export_bone_animation_recursive(
@@ -148,14 +148,14 @@ protected:
 		Object *ob,
 		Bone *bone,
 		BCFrames &frames,
-		BCMatrixMap &outmats);
+		BCSampleMap &outmats);
 
 	void export_collada_matrix_animation(
 		std::string id,
 		std::string name,
 		std::string target,
 		BCFrames &frames,
-		BCMatrixMap &outmats);
+		BCSampleMap &outmats);
 
 	/* Helper functions */
 	void openAnimationWithClip(std::string id, std::string name);
@@ -164,7 +164,7 @@ protected:
 
 	std::string create_source_from_values(COLLADASW::InputSemantic::Semantics semantic, std::vector<float> &values, bool is_rot, const std::string& anim_id, const std::string axis_name);
 	std::string create_4x4_source_from_values(
-		BCMatrixMap &cache, 
+		BCSampleMap &cache,
 		const std::string& anim_id);
 
 	std::string create_linear_interpolation_source(int tot, const std::string& anim_id);

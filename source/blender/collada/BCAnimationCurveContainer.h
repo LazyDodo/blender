@@ -36,7 +36,7 @@ extern "C" {
 
 /* Usefull typedefs ============================================== */
 typedef std::map<Object *, BCFrameSet> BCAnimatedObjectMap;
-typedef std::map<int, const BCMatrix *> BCMatrixMap;
+typedef std::map<int, const BCSample *> BCSampleMap;
 typedef std::map<CurveKey, BCAnimationCurve> BCAnimationCurveMap;
 typedef std::map<Object *, BCAnimationCurveMap> BCAnimationObjectMap;
 
@@ -80,7 +80,7 @@ public:
 };
 
 /* ============================================================== */
-typedef std::map<BCSampleKey, BCMatrix> BCSamplesMap;
+typedef std::map<BCSampleKey, BCSample> BCSamplesMap;
 
 class BCSampleFrame {
 
@@ -102,19 +102,19 @@ private:
 public:
 
 	/* Add a new Object to this map with the given Matrix*/
-	void add(Object *ob, BCMatrix &matrix);
+	void add(Object *ob, BCSample &matrix);
 
 	/* Add a new Bone to this map with the given Matrix*/
-	void add(Object *ob, Bone *bone, BCMatrix &matrix);
+	void add(Object *ob, Bone *bone, BCSample &matrix);
 
 	/* Get the matrix for the given key, returns Unity when the key does not exist */
-	const BCMatrix &get_sample(const BCSampleKey key) const;
+	const BCSample &get_sample(const BCSampleKey key) const;
 
 	/* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
-	const BCMatrix &get_sample(Object *ob) const;
+	const BCSample &get_sample(Object *ob) const;
 
 	/* Get the matrix for the given Bone, returns Unity when the Objewct is not sampled */
-	const BCMatrix &get_sample(Object *ob, Bone *bone) const;
+	const BCSample &get_sample(Object *ob, Bone *bone) const;
 
 	/* Check if the key is in this BCSampleFrame */
 	const bool contains(const BCSampleKey &key) const;
@@ -168,8 +168,8 @@ public:
 
 	/* Add object for frame. Creates a new BCSampleFrame if it does not yet exist */
 	/* Add object+bone for frame. Creates a new BCSampleFrame if it does not yet exist */
-	BCSampleFrame & add(Object *ob, BCMatrix &matrix, int frame_index);
-	BCSampleFrame &add(Object *ob, Bone *bone, BCMatrix &matrix, int frame_index);
+	BCSampleFrame & add(Object *ob, BCSample &matrix, int frame_index);
+	BCSampleFrame &add(Object *ob, Bone *bone, BCSample &matrix, int frame_index);
 
 	/* ====================================================== */
 	/* Below are the getters which we need to export the data */
@@ -182,13 +182,13 @@ public:
 	const int get_frames(std::vector<int> &frames) const;
 	const int get_frames(BCSampleKey &key, std::vector<int> &frames) const;
 	const int get_frames(BCSampleKey &key, BCFrames &frames) const;
-	const int get_matrices(const BCSampleKey &key, BCMatrixMap &matrices) const;
+	const int get_matrices(const BCSampleKey &key, BCSampleMap &matrices) const;
 
 	/* For convenience */
 	const int get_frames(Object *ob, std::vector<int> &frames) const;
 	const int get_frames(Object *ob, Bone *bone, std::vector<int> &frames) const;
-	const int get_matrices(Object *ob, BCMatrixMap &matrices) const;
-	const int get_matrices(Object *ob, Bone *bone, BCMatrixMap &matrices) const;
+	const int get_matrices(Object *ob, BCSampleMap &matrices) const;
+	const int get_matrices(Object *ob, Bone *bone, BCSampleMap &matrices) const;
 
 };
 
@@ -232,7 +232,7 @@ public:
 		bool keep_keyframes,
 		BC_export_animation_type export_animation_type);
 
-	bool is_flat_line(BCMatrixMap &values) const;
+	bool is_flat_line(BCSampleMap &values) const;
 	bool is_flat_line(std::vector<float> &values) const;
 
 	/* =========================================================================== */
@@ -242,10 +242,10 @@ public:
 	void get_frame_set(BCFrames &frames, Object *ob);
 	void get_frame_set(BCFrames &frames, Object *ob, Bone *bone);
 	void get_frame_set(BCFrames &frames, Object *ob, const BCAnimationCurve &curve);
-	bool get_matrix_set(BCMatrixMap &matrices, Object *ob, Bone *bone);
-	bool get_matrix_set(BCMatrixMap &matrices, Object *ob);
+	bool get_matrix_set(BCSampleMap &matrices, Object *ob, Bone *bone);
+	bool get_matrix_set(BCSampleMap &matrices, Object *ob);
 
-	void add_value_set(BCMatrixMap &matrices, BCAnimationCurve &curve, BC_export_animation_type animation_type);
+	void add_value_set(BCSampleMap &matrices, BCAnimationCurve &curve, BC_export_animation_type animation_type);
 	const bool get_value_set(BCValues &values, BCFrames &frames, BCAnimationCurve &curve);
 	void get_curves(BCAnimationCurveMap &curves, Object *ob);
 

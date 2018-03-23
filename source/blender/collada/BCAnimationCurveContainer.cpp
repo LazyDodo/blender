@@ -43,7 +43,7 @@ extern "C" {
 
 static std::string EMPTY_STRING;
 static BCAnimationCurveMap BCEmptyAnimationCurves;
-static const BCMatrix UNIT_MATRIX;
+static const BCSample UNIT_SAMPLE;
 
 /* 
     BCAnimationSampler
@@ -301,7 +301,7 @@ void BCAnimationSampler::sample_scene(
 
 				float mat[4][4];
 				BKE_object_matrix_local_get(ob, mat);
-				BCMatrix ob_mat(mat);
+				BCSample ob_mat(mat);
 				sample_data.add(ob, ob_mat, frame_index);
 
 				if (ob->type == OB_ARMATURE) {
@@ -309,7 +309,7 @@ void BCAnimationSampler::sample_scene(
 					for (pchan = (bPoseChannel *)ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 						Bone *bone = pchan->bone;
 						if (bone_matrix_local_get(ob, bone, mat, for_opensim)) {
-							BCMatrix bone_mat(mat);
+							BCSample bone_mat(mat);
 							sample_data.add(ob, bone, bone_mat, frame_index);
 						}
 					}
@@ -342,17 +342,17 @@ void BCAnimationSampler::sample_scene(
 }
 
 
-bool BCAnimationSampler::is_flat_line(BCMatrixMap &values) const
+bool BCAnimationSampler::is_flat_line(BCSampleMap &values) const
 {
 	static float MIN_DISTANCE = 0.00001;
 
 	if (values.size() < 2)
 		return true; // need at least 2 entries to be not flat
 
-	BCMatrixMap::iterator it;
-	const BCMatrix *refmat = nullptr;
+	BCSampleMap::iterator it;
+	const BCSample *refmat = nullptr;
 	for (it = values.begin(); it != values.end(); ++it) {
-		const BCMatrix *matrix = it->second;
+		const BCSample *matrix = it->second;
 
 		if (refmat == nullptr) {
 			refmat = matrix;
@@ -387,14 +387,14 @@ void BCAnimationSampler::get_frame_set(BCFrames &frames, Object *ob, const BCAni
 	curve.get_sampled_frames(frames);
 }
 
-bool BCAnimationSampler::get_matrix_set(BCMatrixMap &matrices, Object *ob, Bone *bone)
+bool BCAnimationSampler::get_matrix_set(BCSampleMap &matrices, Object *ob, Bone *bone)
 {
 	const BCSampleKey key(ob, bone);
 	sample_data.get_matrices(key, matrices);
 	return is_flat_line(matrices);
 }
 
-bool BCAnimationSampler::get_matrix_set(BCMatrixMap &matrices, Object *ob)
+bool BCAnimationSampler::get_matrix_set(BCSampleMap &matrices, Object *ob)
 {
 	const BCSampleKey key(ob);
 	sample_data.get_matrices(key, matrices);
@@ -408,19 +408,19 @@ bool BCAnimationSampler::get_matrix_set(BCMatrixMap &matrices, Object *ob)
    BCAnimationSampler is removed (by its destructor)
 */
 void BCAnimationSampler::add_value_set(
-	BCMatrixMap &matrices, 
+	BCSampleMap &matrices, 
 	BCAnimationCurve &curve, 
 	BC_export_animation_type animation_type)
 {
 	int array_index = curve.get_array_index();
 	std::string target = curve.get_channel_target();
 
-	BCMatrixMap::iterator it;
+	BCSampleMap::iterator it;
 	for (it = matrices.begin(); it != matrices.end(); ++it) {
 		const int frame_index = it->first;
 		if (animation_type == BC_ANIMATION_TYPE_SAMPLE || curve.is_keyframe(frame_index)) {
 
-			const BCMatrix *matrix = it->second;
+			const BCSample *matrix = it->second;
 			float val = 0;
 
 			bool good = matrix->get_value_for(target, array_index, &val);
@@ -539,36 +539,36 @@ void BCAnimationSampler::get_curves(BCAnimationCurveMap &curves, Object *ob)
 
 /* ==================================================================== */
 
-void BCSampleFrame::add(Object *ob, BCMatrix &matrix)
+void BCSampleFrame::add(Object *ob, BCSample &matrix)
 {
 	sampleMap[BCSampleKey(ob)] = matrix;
 }
 
 /* Add a new Bone to this map with the given Matrix*/
-void BCSampleFrame::add(Object *ob, Bone *bone, BCMatrix &matrix)
+void BCSampleFrame::add(Object *ob, Bone *bone, BCSample &matrix)
 {
 	sampleMap[BCSampleKey(ob, bone)] = matrix;
 }
 
 /* Get the matrix for the given key, returns Unity when the key does not exist */
-const BCMatrix &BCSampleFrame::get_sample(const BCSampleKey key) const
+const BCSample &BCSampleFrame::get_sample(const BCSampleKey key) const
 {
 	BCSamplesMap::const_iterator it = sampleMap.find(key);
 	if (it == sampleMap.end()) {
-		return UNIT_MATRIX;
+		return UNIT_SAMPLE;
 	}
 	return it->second;
 }
 
 /* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
-const BCMatrix &BCSampleFrame::get_sample(Object *ob) const
+const BCSample &BCSampleFrame::get_sample(Object *ob) const
 {
 	const BCSampleKey key(ob);
 	return get_sample(key);
 }
 
 /* Get the matrix for the given Bone, returns Unity when the Objewct is not sampled */
-const BCMatrix &BCSampleFrame::get_sample(Object *ob, Bone *bone) const
+const BCSample &BCSampleFrame::get_sample(Object *ob, Bone *bone) const
 {
 	const BCSampleKey key(ob, bone);
 	return get_sample(key);
@@ -603,7 +603,7 @@ const BCSamplesMap &BCSampleFrame::get_samples() const
 /* ==================================================================== */
 
 /* Add object for frame. Creates a new BCSampleFrame if it does not yet exist */
-BCSampleFrame &BCSampleFrames::add(Object *ob, BCMatrix &matrix, int frame_index)
+BCSampleFrame &BCSampleFrames::add(Object *ob, BCSample &matrix, int frame_index)
 {
 	BCSampleFrame &frame = sample_frames[frame_index];
 	frame.add(ob, matrix);
@@ -612,7 +612,7 @@ BCSampleFrame &BCSampleFrames::add(Object *ob, BCMatrix &matrix, int frame_index
 
 
 /* Add object+bone for frame. Creates a new BCSampleFrame if it does not yet exist */
-BCSampleFrame &BCSampleFrames::add(Object *ob, Bone *bone, BCMatrix &matrix, int frame_index)
+BCSampleFrame &BCSampleFrames::add(Object *ob, Bone *bone, BCSample &matrix, int frame_index)
 {
 	BCSampleFrame &frame = sample_frames[frame_index];
 	frame.add(ob, bone, matrix);
@@ -668,14 +668,14 @@ const int BCSampleFrames::get_frames(BCSampleKey &key, BCFrames &frames) const
 	return frames.size();
 }
 
-const int BCSampleFrames::get_matrices(const BCSampleKey &key, BCMatrixMap &matrices) const
+const int BCSampleFrames::get_matrices(const BCSampleKey &key, BCSampleMap &matrices) const
 {
 	matrices.clear(); // safety;
 	BCSampleFrameMap::const_iterator it;
 	for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
 		const BCSampleFrame &frame = it->second;
 		if (frame.contains(key)) {
-			const BCMatrix &matrix = frame.get_sample(key);
+			const BCSample &matrix = frame.get_sample(key);
 			matrices[it->first] = &matrix;
 		}
 	}
@@ -696,13 +696,13 @@ const int BCSampleFrames::get_frames(Object *ob, Bone *bone, std::vector<int> &f
 }
 
 
-const int BCSampleFrames::get_matrices(Object *ob, BCMatrixMap &matrices) const
+const int BCSampleFrames::get_matrices(Object *ob, BCSampleMap &matrices) const
 {
 	BCSampleKey key(ob);
 	return get_matrices(key, matrices);
 }
 
-const int BCSampleFrames::get_matrices(Object *ob, Bone *bone, BCMatrixMap &matrices) const
+const int BCSampleFrames::get_matrices(Object *ob, Bone *bone, BCSampleMap &matrices) const
 {
 	BCSampleKey key(ob, bone);
 	return get_matrices(key, matrices);
