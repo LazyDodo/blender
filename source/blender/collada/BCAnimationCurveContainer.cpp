@@ -18,8 +18,6 @@
 * The Original Code is Copyright (C) 2008 Blender Foundation.
 * All rights reserved.
 *
-* See also: https://wiki.blender.org/index.php/BlenderWiki:Copyrights
-*
 * Contributor(s): Blender Foundation
 *
 * ***** END GPL LICENSE BLOCK *****
