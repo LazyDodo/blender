@@ -394,37 +394,22 @@ void BCAnimationCurve::add_value(const float val, const int frame_index)
 	}
 }
 
+
 /*
 Pick the value from the matrix according to the definition of the FCurve
 Note: This works only for "scale", "rotation", "rotation_euler" and "location"
 */
-void BCAnimationCurve::add_value(BCMatrix mat, int frame)
+bool BCAnimationCurve::add_value(const BCSample &sample, int frame)
 {
 	std::string target = get_channel_target();
 	const int array_index = curve_key.index();
-	float val=0;
+	float val = 0;
 
-	if (target == "location") {
-		const float(&loc)[3] = mat.location();
-		val = loc[array_index];
+	bool good = sample.get_value_for(target, array_index, &val);
+	if (good) {
+		add_value(val, frame);
 	}
-	else if (target == "scale") {
-		const float(&size)[3] = mat.scale();
-		val = size[array_index];
-	}
-	else if (
-		target == "rotation" ||
-		target == "rotation_euler") {
-		const float(&rot)[3] = mat.rotation();
-		val = rot[array_index];
-	}
-	else
-	{
-		const float(&quat)[4] = mat.quat();
-		val = quat[array_index];
-	}
-
-	add_value(val, frame);
+	return good;
 }
 
 /*

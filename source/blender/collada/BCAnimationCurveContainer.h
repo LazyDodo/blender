@@ -23,8 +23,8 @@
 * ***** END GPL LICENSE BLOCK *****
 */
 
-#ifndef __ANIMATION_CURVE_CONTAINER_H__
-#define __ANIMATION_CURVE_CONTAINER_H__
+#ifndef __BC_ANIMATION_CURVE_CONTAINER_H__
+#define __BC_ANIMATION_CURVE_CONTAINER_H__
 
 #include "BCAnimationCurve.h"
 #include "BCSampleData.h"
@@ -108,13 +108,13 @@ public:
 	void add(Object *ob, Bone *bone, BCMatrix &matrix);
 
 	/* Get the matrix for the given key, returns Unity when the key does not exist */
-	const BCMatrix &matrix(const BCSampleKey key) const;
+	const BCMatrix &get_sample(const BCSampleKey key) const;
 
 	/* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
-	const BCMatrix &matrix(Object *ob) const;
+	const BCMatrix &get_sample(Object *ob) const;
 
 	/* Get the matrix for the given Bone, returns Unity when the Objewct is not sampled */
-	const BCMatrix &matrix(Object *ob, Bone *bone) const;
+	const BCMatrix &get_sample(Object *ob, Bone *bone) const;
 
 	/* Check if the key is in this BCSampleFrame */
 	const bool contains(const BCSampleKey &key) const;
@@ -245,7 +245,6 @@ public:
 	bool get_matrix_set(BCMatrixMap &matrices, Object *ob, Bone *bone);
 	bool get_matrix_set(BCMatrixMap &matrices, Object *ob);
 
-	const float get_value(const BCMatrix &matrix, const std::string &path, const int array_index) const;
 	void add_value_set(BCMatrixMap &matrices, BCAnimationCurve &curve, BC_export_animation_type animation_type);
 	const bool get_value_set(BCValues &values, BCFrames &frames, BCAnimationCurve &curve);
 	void get_curves(BCAnimationCurveMap &curves, Object *ob);

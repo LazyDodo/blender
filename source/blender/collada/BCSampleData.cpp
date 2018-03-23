@@ -46,6 +46,35 @@ BCMatrix::~BCMatrix()
 	int x = 0;
 }
 
+const bool BCMatrix::get_value_for(const std::string &target, const int array_index, float *val) const
+{
+	if (target == "location") {
+		const float(&floc)[3] = location();
+		*val = floc[array_index];
+	}
+	else if (target == "scale") {
+		const float(&fsize)[3] = scale();
+		*val = fsize[array_index];
+	}
+	else if (
+		target == "rotation" ||
+		target == "rotation_euler") {
+		const float(&frot)[3] = rotation();
+		*val = frot[array_index];
+	}
+	else if (
+		target == "rotation_quaternion") {
+		const float(&qt)[4] = quat();
+		*val = qt[array_index];
+	}
+	else
+	{
+		*val = 0;
+		return false;
+	}
+	return true;
+}
+
 void BCMatrix::copy(float(&r)[4][4], float(&a)[4][4])
 {
 	/* destination comes first: */
@@ -108,7 +137,7 @@ void BCMatrix::get_matrix(float(&mat)[4][4]) const
 			mat[i][j] = matrix[i][j];
 }
 
-bool BCMatrix::in_range(BCMatrix other, float distance) const
+bool BCMatrix::in_range(const BCMatrix &other, float distance) const
 {
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 4; j++) {

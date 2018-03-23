@@ -401,29 +401,6 @@ bool BCAnimationSampler::get_matrix_set(BCMatrixMap &matrices, Object *ob)
 	return is_flat_line(matrices);
 }
 
-const float BCAnimationSampler::get_value(const BCMatrix &mat, const std::string &path, const int array_index) const
-{
-	std::string channel = bc_string_after(path, '.');
-
-	if (channel == "location") {
-		const float(&loc)[3] = mat.location();
-		return loc[array_index];
-	}
-	else if (channel == "scale") {
-		const float(&size)[3] = mat.scale();
-		return size[array_index];
-	}
-	else if (channel == "rotation_euler") {
-		const float(&rot)[3] = mat.rotation();
-		return rot[array_index];
-	}
-	else
-	{
-		const float(&quat)[4] = mat.quat();
-		return quat[array_index];
-	}
-}
-
 /*
    Add sampled values to FCurve 
    If no FCurve exists, create a temporary FCurve;
@@ -435,16 +412,21 @@ void BCAnimationSampler::add_value_set(
 	BCAnimationCurve &curve, 
 	BC_export_animation_type animation_type)
 {
-	std::string rna_path = curve.get_rna_path();
 	int array_index = curve.get_array_index();
+	std::string target = curve.get_channel_target();
 
 	BCMatrixMap::iterator it;
 	for (it = matrices.begin(); it != matrices.end(); ++it) {
 		const int frame_index = it->first;
 		if (animation_type == BC_ANIMATION_TYPE_SAMPLE || curve.is_keyframe(frame_index)) {
+
 			const BCMatrix *matrix = it->second;
-			float val = get_value(*matrix, rna_path, array_index);
-			curve.add_value(val, frame_index);
+			float val = 0;
+
+			bool good = matrix->get_value_for(target, array_index, &val);
+			if (good) {
+				curve.add_value(val, frame_index);
+			}
 		}
 	}
 	curve.remove_unused_keyframes();
@@ -569,7 +551,7 @@ void BCSampleFrame::add(Object *ob, Bone *bone, BCMatrix &matrix)
 }
 
 /* Get the matrix for the given key, returns Unity when the key does not exist */
-const BCMatrix &BCSampleFrame::matrix(const BCSampleKey key) const
+const BCMatrix &BCSampleFrame::get_sample(const BCSampleKey key) const
 {
 	BCSamplesMap::const_iterator it = sampleMap.find(key);
 	if (it == sampleMap.end()) {
@@ -579,17 +561,17 @@ const BCMatrix &BCSampleFrame::matrix(const BCSampleKey key) const
 }
 
 /* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
-const BCMatrix &BCSampleFrame::matrix(Object *ob) const
+const BCMatrix &BCSampleFrame::get_sample(Object *ob) const
 {
 	const BCSampleKey key(ob);
-	return matrix(key);
+	return get_sample(key);
 }
 
 /* Get the matrix for the given Bone, returns Unity when the Objewct is not sampled */
-const BCMatrix &BCSampleFrame::matrix(Object *ob, Bone *bone) const
+const BCMatrix &BCSampleFrame::get_sample(Object *ob, Bone *bone) const
 {
 	const BCSampleKey key(ob, bone);
-	return matrix(key);
+	return get_sample(key);
 }
 
 /* Check if the key is in this BCSampleFrame */
@@ -693,7 +675,7 @@ const int BCSampleFrames::get_matrices(const BCSampleKey &key, BCMatrixMap &matr
 	for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
 		const BCSampleFrame &frame = it->second;
 		if (frame.contains(key)) {
-			const BCMatrix &matrix = frame.matrix(key);
+			const BCMatrix &matrix = frame.get_sample(key);
 			matrices[it->first] = &matrix;
 		}
 	}

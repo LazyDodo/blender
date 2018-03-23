@@ -165,17 +165,13 @@ public:
 	Bone *get_bone(Object *ob) const;
 
 	void calchandles();
+	bool add_value(const BCSample &sample, int frame);
 	void add_value(const float val, const int frame);
 	void init(const BC_animation_curve_type type, const std::string rna_path, const int index);
 	void init(const BC_animation_curve_type type, FCurve *fcu);
 	FCurve *get_edit_fcurve();
 	const FCurve *get_fcurve() const;
 
-	/*
-	Pick the value from the matrix accoridng to the definition of the FCurve
-	Note: This works only for "scale", "rotation_quaternion", "rotation_euler" and "location"
-	*/
-	void add_value(BCMatrix mat, int frame);
 	void remove_unused_keyframes();
 
 	/*

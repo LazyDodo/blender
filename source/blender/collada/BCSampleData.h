@@ -26,10 +26,11 @@
 #ifndef __BC_SAMPLE_H__
 #define __BC_SAMPLE_H__
 
+#include <string>
 
 class BCSample {
-private:
 public:
+	virtual const bool get_value_for(const std::string &target, const int array_index, float *val) const = 0;
 };
 
 class BCMatrix: public BCSample {
@@ -57,7 +58,8 @@ public:
 	void get_matrix(float(&mat)[4][4]) const;
 	static void sanitize(float(&mat)[4][4], int precision);
 	static void transpose(float(&mat)[4][4]);
-	bool in_range(BCMatrix other, float distance) const;
+	bool in_range(const BCMatrix &other, const float distance) const;
+	const bool get_value_for(const std::string &target, const int array_index, float *val) const;
 
 	const float(&location() const)[3];
 	const float(&rotation() const)[3];
