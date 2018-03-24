@@ -44,34 +44,178 @@ BCSample::BCSample(float(&mat)[4][4])
 BCSample::~BCSample()
 {
 	int x = 0;
+	BCMaterialMap::iterator it;
+	for (it = materials.begin(); it != materials.end(); ++it) {
+		delete it->second;
+	}
+	materials.clear();
 }
 
-const bool BCSample::get_value_for(const std::string &target, const int array_index, float *val) const
+void BCSample::set_material(Material *ma)
 {
-	if (target == "location") {
-		const float(&floc)[3] = location();
-		*val = floc[array_index];
+	BCMaterial *material;
+	BCMaterialMap::const_iterator it = materials.find(ma->index);
+	if (it == materials.end()) {
+		material = new BCMaterial();
+		materials[ma->index] = material;
 	}
-	else if (target == "scale") {
-		const float(&fsize)[3] = scale();
-		*val = fsize[array_index];
+	else {
+		material = it->second;
 	}
-	else if (
-		target == "rotation" ||
-		target == "rotation_euler") {
-		const float(&frot)[3] = rotation();
-		*val = frot[array_index];
+
+	material->diffuse_color[0] = ma->r;
+	material->diffuse_color[1] = ma->g;
+	material->diffuse_color[2] = ma->b;
+	material->specular_color[0] = ma->specr;
+	material->specular_color[1] = ma->specg;
+	material->specular_color[2] = ma->specb;
+	material->alpha = ma->alpha;
+	material->ior = ma->refrac;
+}
+
+/* Set single float vaules */
+const bool BCSample::set_value(BC_animation_transform_type channel, const int array_index, float val)
+{
+	switch (channel) {
+
+	/* Light animation */
+	case BC_ANIMATION_TYPE_FALL_OFF_ANGLE:
+		falloff_angle = val;
+		break;
+	case BC_ANIMATION_TYPE_FALL_OFF_EXPONENT:
+		falloff_exponent = val;
+		break;
+	case BC_ANIMATION_TYPE_BLENDER_DIST:
+		blender_dist = val;
+		break;
+
+	/* Camera animation */
+	case BC_ANIMATION_TYPE_XFOV:
+		xfov = val;
+		break;
+	case BC_ANIMATION_TYPE_XMAG:
+		xmag = val;
+		break;
+	case BC_ANIMATION_TYPE_ZFAR:
+		zfar = val;
+		break;
+	case BC_ANIMATION_TYPE_ZNEAR:
+		znear = val;
+		break;
+
+	default:
+		return false;
 	}
-	else if (
-		target == "rotation_quaternion") {
-		const float(&qt)[4] = quat();
-		*val = qt[array_index];
+
+	return true;
+
+}
+
+/* Set vector values */
+const bool BCSample::set_vector(BC_animation_transform_type channel, float val[3])
+{
+	float *vp;
+	switch (channel) {
+	/* Lamp animation */
+	case BC_ANIMATION_TYPE_LIGHT_COLOR:
+		vp = light_color;
+		break;
+	default:
+		return false;
 	}
-	else
-	{
+
+	for (int i = 0; i < 3; ++i)
+		vp[i] = val[i];
+
+	return true;
+}
+
+/* Get channel value */
+const bool BCSample::get_value(int ma_index, BC_animation_transform_type channel, const int array_index, float *val) const
+{
+	BCMaterialMap::const_iterator it = materials.find(ma_index);
+	if (it != materials.end()) {
+		BCMaterial *material = it->second;
+		switch (channel) {
+			/* Material animation*/
+		case BC_ANIMATION_TYPE_SPECULAR_HARDNESS:
+			*val = material->specular_hardness;
+			break;
+		case BC_ANIMATION_TYPE_SPECULAR_COLOR:
+			*val = material->specular_color[array_index];
+			break;
+		case BC_ANIMATION_TYPE_DIFFUSE_COLOR:
+			*val = material->diffuse_color[array_index];
+			break;
+		case BC_ANIMATION_TYPE_ALPHA:
+			*val = material->alpha;
+			break;
+		case BC_ANIMATION_TYPE_IOR:
+			*val = material->ior;
+		default:
+			*val = 0;
+			return false;
+		}
+		return true;
+	}
+	return false;
+}
+
+/* Get channel value */
+const bool BCSample::get_value(BC_animation_transform_type channel, const int array_index, float *val) const
+{
+	switch (channel) {
+
+	/* Object animation */
+	case BC_ANIMATION_TYPE_LOCATION:
+		*val = location()[array_index];
+		break;
+	case BC_ANIMATION_TYPE_SCALE:
+		*val = scale()[array_index];
+		break;
+	case BC_ANIMATION_TYPE_ROTATION:
+	case BC_ANIMATION_TYPE_ROTATION_EULER:
+		*val = rotation()[array_index];
+		break;
+	case BC_ANIMATION_TYPE_ROTATION_QUAT:
+		*val = quat()[array_index];
+		break;
+
+
+	/* Lamp animation */
+	case BC_ANIMATION_TYPE_LIGHT_COLOR:
+		*val = light_color[array_index];
+		break;
+	case BC_ANIMATION_TYPE_FALL_OFF_ANGLE:
+		*val = falloff_angle;
+		break;
+	case BC_ANIMATION_TYPE_FALL_OFF_EXPONENT:
+		*val = falloff_exponent;
+		break;
+	case BC_ANIMATION_TYPE_BLENDER_DIST:
+		*val = blender_dist;
+		break;
+
+	/* Camera animation */
+	case BC_ANIMATION_TYPE_XFOV:
+		*val = xfov;
+		break;
+	case BC_ANIMATION_TYPE_XMAG:
+		*val = xmag;
+		break;
+	case BC_ANIMATION_TYPE_ZFAR:
+		*val = zfar;
+		break;
+	case BC_ANIMATION_TYPE_ZNEAR:
+		*val = znear;
+		break;
+
+	case BC_ANIMATION_TYPE_UNKNOWN:
+	default:
 		*val = 0;
 		return false;
 	}
+
 	return true;
 }
 

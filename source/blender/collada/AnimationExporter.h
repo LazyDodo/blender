@@ -110,6 +110,7 @@ public:
 
 	// Main entry point into Animation export (called for each exported object)
 	void exportObjectAnimation(Object *ob, BCAnimationSampler &sampler);
+	bool exportObjectDataAnimation(Object *ob, BCAnimationSampler &sampler, bool has_container);
 
 protected:
 
@@ -119,8 +120,7 @@ protected:
 
 	void export_curve_animation(
 		Object *ob,
-		const BCAnimationCurve &curve,
-		Material *ma=nullptr);
+		const BCAnimationCurve &curve);
 
 	void export_collada_curve_animation(
 		std::string id,
@@ -136,7 +136,7 @@ protected:
 	void export_matrix_animation (
 		Object *ob,
 		BCFrames &frames,
-		BCSampleMap &outmats,
+		BCFrameSampleMap &outmats,
 		BCAnimationSampler &sampler);
 
 	void export_bone_animation_recursive(
@@ -148,14 +148,14 @@ protected:
 		Object *ob,
 		Bone *bone,
 		BCFrames &frames,
-		BCSampleMap &outmats);
+		BCFrameSampleMap &outmats);
 
 	void export_collada_matrix_animation(
 		std::string id,
 		std::string name,
 		std::string target,
 		BCFrames &frames,
-		BCSampleMap &outmats);
+		BCFrameSampleMap &outmats);
 
 	/* Helper functions */
 	void openAnimationWithClip(std::string id, std::string name);
@@ -164,7 +164,7 @@ protected:
 
 	std::string create_source_from_values(COLLADASW::InputSemantic::Semantics semantic, std::vector<float> &values, bool is_rot, const std::string& anim_id, const std::string axis_name);
 	std::string create_4x4_source_from_values(
-		BCSampleMap &cache,
+		BCFrameSampleMap &cache,
 		const std::string& anim_id);
 
 	std::string create_linear_interpolation_source(int tot, const std::string& anim_id);
@@ -213,8 +213,6 @@ protected:
 	// enable fcurves driving a specific bone, disable all the rest
 	// if bone_name = NULL enable all fcurves
 	void enable_fcurves(bAction *act, char *bone_name);
-
-	bool hasAnimations(Scene *sce);
 	
 	inline const std::string extract_transform_name(const std::string path)
 	{

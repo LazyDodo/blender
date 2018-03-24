@@ -40,7 +40,7 @@ std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE =
 { BC_ANIMATION_TYPE_ALPHA, "alpha" },
 
 /* Lamps */
-{ BC_ANIMATION_TYPE_COLOR, "color" },
+{ BC_ANIMATION_TYPE_LIGHT_COLOR, "color" },
 { BC_ANIMATION_TYPE_FALL_OFF_ANGLE, "fall_off_angle" },
 { BC_ANIMATION_TYPE_FALL_OFF_EXPONENT, "fall_off_exponent" },
 { BC_ANIMATION_TYPE_BLENDER_DIST, "blender/blender_dist" },
@@ -69,7 +69,7 @@ std::map<std::string, BC_animation_transform_type> BC_ANIMATION_TYPE_FROM_NAME =
 { "ior", BC_ANIMATION_TYPE_IOR },
 
 /* Lamps */
-{ "color", BC_ANIMATION_TYPE_COLOR },
+{ "color", BC_ANIMATION_TYPE_LIGHT_COLOR },
 { "fall_off_angle", BC_ANIMATION_TYPE_FALL_OFF_ANGLE },
 { "fall_off_exponent", BC_ANIMATION_TYPE_FALL_OFF_EXPONENT },
 { "blender/blender_dist", BC_ANIMATION_TYPE_BLENDER_DIST },
@@ -139,12 +139,13 @@ void BCAnimationCurve::init(const BC_animation_curve_type type, const std::strin
 	this->curve_is_local_copy = false;
 }
 
-void BCAnimationCurve::init(const BC_animation_curve_type type, FCurve *fcu)
+void BCAnimationCurve::init(const BC_animation_curve_type type, FCurve *fcu, int tag)
 {
 	this->curve_key.init(std::string(fcu->rna_path), fcu->array_index);
 	this->fcurve = fcu;
 	this->type = type;
 	this->curve_is_local_copy = false; // make sure the curve is destroyed later;
+	this->tag = tag;
 }
 
 BCAnimationCurve::~BCAnimationCurve()
@@ -396,16 +397,15 @@ void BCAnimationCurve::add_value(const float val, const int frame_index)
 
 
 /*
-Pick the value from the matrix according to the definition of the FCurve
-Note: This works only for "scale", "rotation", "rotation_euler" and "location"
+Pick the value from the sample according to the definition of the FCurve
 */
 bool BCAnimationCurve::add_value(const BCSample &sample, int frame)
 {
-	std::string target = get_channel_target();
+	const BC_animation_transform_type tm_type = get_transform_type();
 	const int array_index = curve_key.index();
 	float val = 0;
 
-	bool good = sample.get_value_for(target, array_index, &val);
+	bool good = sample.get_value(tm_type, array_index, &val);
 	if (good) {
 		add_value(val, frame);
 	}
@@ -526,6 +526,11 @@ bool BCAnimationCurve::is_flat_line(BCValues &values)
 bool BCAnimationCurve::is_rot() const
 {
 	return bc_startswith(get_channel_target(), "rotation");
+}
+
+const int BCAnimationCurve::get_tag() const
+{
+	return tag;
 }
 
 bool BCAnimationCurve::is_keyframe(int frame) {

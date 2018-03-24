@@ -82,11 +82,8 @@ void AnimationExporter::close_animation_container(bool has_container)
 
 bool AnimationExporter::exportAnimations(Scene *sce)
 {
-	bool has_animations = false;
-
-	has_animations = hasAnimations(sce);
-
-	if (has_animations) {
+	bool has_anim_data = BCAnimationSampler::has_animations(sce, this->export_settings->export_set);
+	if (has_anim_data) {
 		BCAnimationSampler sampler(mContext);
 
 		this->scene = sce;
@@ -99,7 +96,7 @@ bool AnimationExporter::exportAnimations(Scene *sce)
 			Object *ob = (Object *)node->link;
 			if (animated_subset.find(ob) != animated_subset.end()) {
 				//curve_container.addObject(ob);
-				sampler.addObject(ob);
+				sampler.add_object(ob);
 			}
 		}
 
@@ -132,23 +129,16 @@ bool AnimationExporter::exportAnimations(Scene *sce)
 		}
 #endif
 	}
-	return has_animations;
+	return has_anim_data;
 }
 
 /* called for each exported object */
 void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sampler)
 {
-	bool has_container = false;
+	bool container_is_open = false;
 
 	//Transform animations (trans, rot, scale)
-	has_container = open_animation_container(has_container, ob);
-
-	if (ob->type == OB_ARMATURE) {
-		/* Export skeletal animation (if any) */
-		bArmature *arm = (bArmature *)ob->data;			
-		for (Bone *root_bone = (Bone *)arm->bonebase.first; root_bone; root_bone = root_bone->next)
-			export_bone_animation_recursive(ob, root_bone, sampler);
-	}
+	container_is_open = open_animation_container(container_is_open, ob);
 
 	/* Now take care of the Object Animations
 	 * Note: For Armatures the skeletal animation has already been exported (see above)
@@ -161,20 +151,36 @@ void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sa
 		export_curve_animation_set(ob, sampler); // each curve might have different frames
 	}
 
-	/* TODO: This needs to be handled by extra profiles, postponed for now
-	 * export_morph_animation(ob);
-	 */
+	/* Do no longer need this. The curves are now all exported in the same way */
+	// container_is_open = exportObjectDataAnimation(ob, sampler, container_is_open);
 
-	 /* Export Lamp parameter animations */
-	if (ob->type == OB_LAMP) {
+	close_animation_container(container_is_open);
+}
+
+bool AnimationExporter::exportObjectDataAnimation(Object *ob, BCAnimationSampler &sampler, bool has_container)
+{
+	/* TODO: This needs to be handled by extra profiles, postponed for now
+	* export_morph_animation(ob);
+	*/
+
+	if (ob->type == OB_ARMATURE) {
+		/* Export skeletal animation (if any) */
+		bArmature *arm = (bArmature *)ob->data;
+		for (Bone *root_bone = (Bone *)arm->bonebase.first; root_bone; root_bone = root_bone->next)
+			export_bone_animation_recursive(ob, root_bone, sampler);
+	}
+
+	else if (ob->type == OB_LAMP) {
+		/* Export Lamp parameter animations */
 		bAction *action = bc_getSceneLampAction(ob);
 		if (action) {
 			has_container = open_animation_container(has_container, ob);
+
 			FCurve *fcu = (FCurve *)action->curves.first;
 			while (fcu) {
 				BC_animation_transform_type tm_type = get_transform_type(fcu->rna_path);
 
-				if (tm_type == BC_ANIMATION_TYPE_COLOR ||
+				if (tm_type == BC_ANIMATION_TYPE_LIGHT_COLOR ||
 					tm_type == BC_ANIMATION_TYPE_FALL_OFF_ANGLE ||
 					tm_type == BC_ANIMATION_TYPE_FALL_OFF_EXPONENT ||
 					tm_type == BC_ANIMATION_TYPE_BLENDER_DIST)
@@ -186,8 +192,8 @@ void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sa
 		}
 	}
 
-	/* Export Camera parameter animations */
-	if (ob->type == OB_CAMERA) {
+	else if (ob->type == OB_CAMERA) {
+		/* Export Camera parameter animations */
 		bAction *action = bc_getSceneCameraAction(ob);
 		if (action) {
 			has_container = open_animation_container(has_container, ob);
@@ -207,31 +213,33 @@ void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sa
 		}
 	}
 
-	/* Export Material parameter animations. */
-	for (int a = 0; a < ob->totcol; a++) {
-		Material *ma = give_current_material(ob, a + 1);
-		bAction *action = bc_getSceneMaterialAction(ma);
-		if (action) {
-			has_container = open_animation_container(has_container, ob);
-			/* isMatAnim = true; */
-			FCurve *fcu = (FCurve *)action->curves.first;
-			while (fcu) {
-				BC_animation_transform_type tm_type = get_transform_type(fcu->rna_path);
+	else if (ob->type == OB_MESH) {
+		for (int a = 0; a < ob->totcol; a++) {
+			/* Export Material parameter animations. */
+			Material *ma = give_current_material(ob, a + 1);
+			bAction *action = bc_getSceneMaterialAction(ma);
+			if (action) {
+				has_container = open_animation_container(has_container, ob);
+				/* isMatAnim = true; */
+				FCurve *fcu = (FCurve *)action->curves.first;
+				while (fcu) {
+					BC_animation_transform_type tm_type = get_transform_type(fcu->rna_path);
 
-				if (tm_type == BC_ANIMATION_TYPE_SPECULAR_HARDNESS ||
-					tm_type == BC_ANIMATION_TYPE_SPECULAR_COLOR ||
-					tm_type == BC_ANIMATION_TYPE_DIFFUSE_COLOR ||
-					tm_type == BC_ANIMATION_TYPE_ALPHA ||
-					tm_type == BC_ANIMATION_TYPE_IOR)
-				{
-					create_keyframed_animation(ob, fcu, tm_type, true, sampler, ma);
+					if (tm_type == BC_ANIMATION_TYPE_SPECULAR_HARDNESS ||
+						tm_type == BC_ANIMATION_TYPE_SPECULAR_COLOR ||
+						tm_type == BC_ANIMATION_TYPE_DIFFUSE_COLOR ||
+						tm_type == BC_ANIMATION_TYPE_ALPHA ||
+						tm_type == BC_ANIMATION_TYPE_IOR)
+					{
+						create_keyframed_animation(ob, fcu, tm_type, true, sampler);
+					}
+					fcu = fcu->next;
 				}
-				fcu = fcu->next;
 			}
 		}
 	}
 
-	close_animation_container(has_container);
+	return has_container;
 }
 
 /*
@@ -247,11 +255,11 @@ void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sa
  */
 void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSampler &sampler)
 {
-	BCSampleMap matrices;
+	BCFrameSampleMap samples;
 	BCAnimationCurveMap curves;
 
 	sampler.get_curves(curves, ob);
-	bool is_flat = sampler.get_matrix_set(matrices, ob);
+	bool is_flat = sampler.get_samples(samples, ob);
 
 	if (is_flat)
 		return;
@@ -268,7 +276,7 @@ void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSample
 			continue;
 		}
 
-		sampler.add_value_set(matrices, curve, this->export_settings->export_animation_type);  // prepare curve
+		sampler.add_value_set(curve, samples, this->export_settings->export_animation_type);  // prepare curve
 		if (curve.is_flat())
 			continue;
 
@@ -281,10 +289,10 @@ void AnimationExporter::export_matrix_animation_set(Object *ob, BCAnimationSampl
 	std::vector<float> frames;
 	sampler.get_frame_set(frames, ob);
 	if (frames.size() > 0) {
-		BCSampleMap outmats;
-		bool is_flat = sampler.get_matrix_set(outmats, ob);
+		BCFrameSampleMap samples;
+		bool is_flat = sampler.get_samples(samples, ob);
 		if (!is_flat) {
-			export_matrix_animation(ob, frames, outmats, sampler); // there is just one curve to export here
+			export_matrix_animation(ob, frames, samples, sampler); // there is just one curve to export here
 		}
 	}
 }
@@ -292,7 +300,7 @@ void AnimationExporter::export_matrix_animation_set(Object *ob, BCAnimationSampl
 void AnimationExporter::export_matrix_animation(
 	Object *ob, 
 	BCFrames &frames, 
-	BCSampleMap &outmats,
+	BCFrameSampleMap &samples,
 	BCAnimationSampler &sampler)
 {
 	bAction *action = bc_getSceneObjectAction(ob);
@@ -304,7 +312,7 @@ void AnimationExporter::export_matrix_animation(
 
 	std::string target = translate_id(name) + '/' + channel_type;
 
-	export_collada_matrix_animation( id, name, target, frames, outmats);
+	export_collada_matrix_animation( id, name, target, frames, samples);
 }
 
 //write bone animations in transform matrix sources
@@ -314,10 +322,10 @@ void AnimationExporter::export_bone_animation_recursive(Object *ob, Bone *bone, 
 	sampler.get_frame_set(frames, ob, bone);
 	
 	if (frames.size()) {
-		BCSampleMap outmats;
-		bool is_flat = sampler.get_matrix_set(outmats, ob, bone);
+		BCFrameSampleMap samples;
+		bool is_flat = sampler.get_samples(samples, ob, bone);
 		if (!is_flat) {
-			export_bone_animation(ob, bone, frames, outmats);
+			export_bone_animation(ob, bone, frames, samples);
 		}
 	}
 
@@ -392,14 +400,14 @@ void AnimationExporter::create_keyframed_animation(
 	Material *ma)
 {
 	BCAnimationCurve curve(BC_ANIMATION_CURVE_TYPE_MATERIAL, fcu);
-	export_curve_animation(ob, curve, ma);
+	export_curve_animation(ob, curve);
 }
 
 /* convert f-curves to animation curves and write
 * Important: We assume the object has a scene action.
 * If it has not, then Blender will die!
 */
-void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurve &curve, Material *ma)
+void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurve &curve)
 {
 	std::string channel = curve.get_channel_target();
 	BC_animation_curve_type channel_type = curve.get_channel_type();
@@ -419,7 +427,11 @@ void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurv
 		target += "/" + get_param_sid(channel, axis);
 	}
 	else if (channel_type == BC_ANIMATION_CURVE_TYPE_MATERIAL) {
-		target = id_name(ma) + "-effect/common/" + curve.get_sid(axis);
+		int material_index = curve.get_tag();
+		Material *ma = give_current_material(ob, material_index + 1);
+		if (ma) {
+			target = id_name(ma) + "-effect/common/" + curve.get_sid(axis);
+		}
 	}
 
 	else {
@@ -429,7 +441,7 @@ void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurv
 	export_collada_curve_animation(id, curve_name, target, axis, curve);
 }
 
-void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &frames, BCSampleMap &outmats)
+void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &frames, BCFrameSampleMap &samples)
 {
 	bAction* action = bc_getSceneObjectAction(ob);
 	std::string bone_name(bone->name);
@@ -437,7 +449,7 @@ void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &
 	std::string id = bc_get_action_id(id_name(action), name, bone_name, "pose_matrix");
 	std::string target = translate_id(id_name(ob) + "_" + bone_name) + "/transform";
 
-	export_collada_matrix_animation(id, name, target, frames, outmats);
+	export_collada_matrix_animation(id, name, target, frames, samples);
 }
 
 bool AnimationExporter::is_bone_deform_group(Bone *bone)
@@ -508,14 +520,14 @@ void AnimationExporter::export_collada_curve_animation(
 	closeAnimation();
 }
 
-void AnimationExporter::export_collada_matrix_animation(std::string id, std::string name, std::string target, BCFrames &frames, BCSampleMap &outmats)
+void AnimationExporter::export_collada_matrix_animation(std::string id, std::string name, std::string target, BCFrames &frames, BCFrameSampleMap &samples)
 {
 	fprintf(stdout, "Export animation matrix %s (%d control points)\n", id.c_str(), int(frames.size()));
 
 	openAnimationWithClip(id, name);
 
 	std::string input_id = create_source_from_values(COLLADASW::InputSemantic::INPUT, frames, false, id, "");
-	std::string output_id = create_4x4_source_from_values(outmats, id);
+	std::string output_id = create_4x4_source_from_values(samples, id);
 	std::string interpolation_id = create_linear_interpolation_source(frames.size(), id);
 
 	std::string sampler_id = std::string(id) + SAMPLER_ID_SUFFIX;
@@ -808,9 +820,9 @@ std::string AnimationExporter::create_source_from_values(COLLADASW::InputSemanti
 }
 
 /*
- * Create a collada matrix source for a set of matrix entries
+ * Create a collada matrix source for a set of samples
 */
-std::string AnimationExporter::create_4x4_source_from_values(BCSampleMap &matrices, const std::string &anim_id)
+std::string AnimationExporter::create_4x4_source_from_values(BCFrameSampleMap &samples, const std::string &anim_id)
 {
 	COLLADASW::InputSemantic::Semantics semantic = COLLADASW::InputSemantic::OUTPUT;
 	std::string source_id = anim_id + get_semantic_suffix(semantic);
@@ -818,7 +830,7 @@ std::string AnimationExporter::create_4x4_source_from_values(BCSampleMap &matric
 	COLLADASW::Float4x4Source source(mSW);
 	source.setId(source_id);
 	source.setArrayId(source_id + ARRAY_ID_SUFFIX);
-	source.setAccessorCount(matrices.size());
+	source.setAccessorCount(samples.size());
 	source.setAccessorStride(16);
 
 	COLLADASW::SourceBase::ParameterNameList &param = source.getParameterNameList();
@@ -826,13 +838,13 @@ std::string AnimationExporter::create_4x4_source_from_values(BCSampleMap &matric
 
 	source.prepareToAppendValues();
 
-	BCSampleMap::iterator it;
+	BCFrameSampleMap::iterator it;
 	int j = 0;
 	int precision = (this->export_settings->limit_precision) ? 6 : -1; // could be made configurable
-	for (it = matrices.begin(); it != matrices.end(); it++) {
-		const BCSample *matrix = it->second;
+	for (it = samples.begin(); it != samples.end(); it++) {
+		const BCSample *sample = it->second;
 		double daemat[4][4];
-		matrix->get_matrix(daemat, true, precision);
+		sample->get_matrix(daemat, true, precision);
 		source.appendValues(daemat);
 	}
 
@@ -999,32 +1011,4 @@ void AnimationExporter::enable_fcurves(bAction *act, char *bone_name)
 			fcu->flag &= ~FCURVE_DISABLED;
 		}
 	}
-}
-
-bool AnimationExporter::hasAnimations(Scene *sce)
-{
-	LinkNode *node;
-
-	for (node=this->export_settings->export_set; node; node=node->next) {
-		Object *ob = (Object *)node->link;
-
-		/* Check for object,lamp and camera transform animations */
-		if ((bc_getSceneObjectAction(ob) && bc_getSceneObjectAction(ob)->curves.first) ||
-			(bc_getSceneLampAction(ob)   && bc_getSceneLampAction(ob)->curves.first) ||
-			(bc_getSceneCameraAction(ob) && bc_getSceneCameraAction(ob)->curves.first))
-			return true;
-
-		//Check Material Effect parameter animations.
-		for (int a = 0; a < ob->totcol; a++) {
-			Material *ma = give_current_material(ob, a + 1);
-			if (!ma) continue;
-			if (ma->adt && ma->adt->action && ma->adt->action->curves.first)
-				return true;
-		}
-
-		Key *key = BKE_key_from_object(ob);
-		if ((key && key->adt && key->adt->action) && key->adt->action->curves.first)
-			return true;
-	}
-	return false;
 }

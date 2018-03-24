@@ -34,9 +34,12 @@
 extern "C" {
 #include "BKE_action.h"
 #include "BKE_constraint.h"
+#include "BKE_key.h"
 #include "BKE_material.h"
 #include "BLI_listbase.h"
+#include "DNA_anim_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_key_types.h"
 #include "DNA_constraint_types.h"
 #include "ED_object.h"
 }
@@ -55,10 +58,136 @@ BCAnimationSampler::BCAnimationSampler(bContext *C):
 	// nothing todo here
 }
 
-void BCAnimationSampler::addObject(Object *ob)
+void BCAnimationSampler::add_object(Object *ob)
 {
 	BCFrameSet &keyframes = objects[ob];
 	get_keyframes(ob, keyframes);
+}
+
+static void get_sample_frames(BCFrameSet &sample_frames, int sampling_rate, bool keyframe_at_end, Scene *scene)
+{
+	sample_frames.clear();
+
+	if (sampling_rate < 1)
+		return; // no sample frames in this case
+
+	float sfra = scene->r.sfra;
+	float efra = scene->r.efra;
+
+	int frame_index;
+	for (frame_index = int(sfra); frame_index < efra; frame_index += sampling_rate) {
+		sample_frames.insert(frame_index);
+	}
+
+	if (frame_index >= efra && keyframe_at_end)
+	{
+		sample_frames.insert(efra);
+	}
+}
+
+static bool is_object_keyframe(Object *ob, int frame_index)
+{
+	return false;
+}
+
+static void add_keyframes_from(bAction *action, BCFrameSet &frameset)
+{
+	if (action) {
+		FCurve *fcu = nullptr;
+		for (fcu = (FCurve *)action->curves.first; fcu; fcu = fcu->next) {
+			BezTriple  *bezt = fcu->bezt;
+			for (int i = 0; i < fcu->totvert; bezt++, i++) {
+				int frame_index = bezt->vec[1][0];
+				frameset.insert(frame_index);
+			}
+		}
+	}
+}
+
+void BCAnimationSampler::sample_scene(
+	Scene *scene,
+	int sampling_rate,
+	int keyframe_at_end,
+	bool for_opensim,
+	bool keep_keyframes,
+	BC_export_animation_type export_animation_type)
+{
+	BCFrameSet scene_sample_frames;
+	get_sample_frames(scene_sample_frames, sampling_rate, keyframe_at_end, scene);
+	BCFrameSet::iterator it;
+
+	int startframe = scene->r.sfra;
+	int endframe = scene->r.efra;
+
+	for (int frame_index = startframe; frame_index <= endframe; ++frame_index) {
+		/* Loop over all frames and decide for each frame if sampling is necessary */
+		bool is_scene_sample_frame = false;
+		bool needs_update = true;
+		if (scene_sample_frames.find(frame_index) != scene_sample_frames.end()) {
+			bc_update_scene(mContext, scene, frame_index);
+			needs_update = false;
+			is_scene_sample_frame = true;
+		}
+
+		bool needs_sampling = is_scene_sample_frame || keep_keyframes || export_animation_type == BC_ANIMATION_TYPE_KEYS;
+		if (!needs_sampling) {
+			continue;
+		}
+
+		BCAnimatedObjectMap::iterator obit;
+		for (obit = objects.begin(); obit != objects.end(); ++obit) {
+			Object *ob = obit->first;
+			BCFrameSet &object_keyframes = obit->second;
+			if (is_scene_sample_frame || object_keyframes.find(frame_index) != object_keyframes.end()) {
+
+				if (needs_update) {
+					bc_update_scene(mContext, scene, frame_index);
+					needs_update = false;
+				}
+
+				BCMatrix mat;
+				if (ob->type == OB_ARMATURE) {
+					bPoseChannel *pchan;
+					for (pchan = (bPoseChannel *)ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+						Bone *bone = pchan->bone;
+						if (bone_matrix_local_get(ob, bone, mat, for_opensim)) {
+							sample_data.add(ob, bone, mat, frame_index);
+						}
+					}
+				}
+
+				BKE_object_matrix_local_get(ob, mat);
+				BCSample &ob_sample = sample_data.add(ob, mat, frame_index);
+
+				if (ob->type == OB_CAMERA) {
+					Camera *camera = (Camera *)ob->data;
+					ob_sample.set_value(BC_ANIMATION_TYPE_XFOV, 0, camera->lens);
+					ob_sample.set_value(BC_ANIMATION_TYPE_XMAG, 0, camera->ortho_scale);
+					ob_sample.set_value(BC_ANIMATION_TYPE_ZFAR, 0, camera->clipend);
+					ob_sample.set_value(BC_ANIMATION_TYPE_ZNEAR, 0, camera->clipsta);
+				}
+				else if (ob->type == OB_LAMP) {
+					Lamp *lamp = (Lamp *)ob->data;
+					ob_sample.set_value(BC_ANIMATION_TYPE_LIGHT_COLOR, 0, lamp->r);
+					ob_sample.set_value(BC_ANIMATION_TYPE_LIGHT_COLOR, 1, lamp->g);
+					ob_sample.set_value(BC_ANIMATION_TYPE_LIGHT_COLOR, 2, lamp->b);
+					ob_sample.set_value(BC_ANIMATION_TYPE_FALL_OFF_ANGLE, 0, 0);    //TODO from where to get this
+					ob_sample.set_value(BC_ANIMATION_TYPE_FALL_OFF_EXPONENT, 0, 0); // TODO from where to get this
+					ob_sample.set_value(BC_ANIMATION_TYPE_BLENDER_DIST, 0, lamp->dist);
+				}
+
+				for (int a = 0; a < ob->totcol; a++) {
+					Material *ma = give_current_material(ob, a + 1);
+					if (ma) {
+						/* TODO: Maybe add a list of materials to the ob_sample node (see above)
+						* instead of adding extra nodes for each material ?
+						*/
+						ob_sample.set_material(ma);
+					}
+				}
+			}
+		}
+	}
 }
 
 void BCAnimationSampler::enable_fcurves(bAction *act, char *bone_name)
@@ -144,8 +273,9 @@ void BCAnimationSampler::get_animated_subset(std::set<Object *> &animated_object
 	LinkNode *node;
 	for (node = export_set; node; node = node->next) {
 		Object *cob = (Object *)node->link;
-		if (bc_getSceneObjectAction(cob))
+		if (has_animations(cob)) {
 			animated_objects.insert(cob);
+		}
 		else {
 			ListBase conlist = cob->constraints;
 			if (conlist.first)
@@ -154,6 +284,7 @@ void BCAnimationSampler::get_animated_subset(std::set<Object *> &animated_object
 	}
 	find_depending_animated(animated_objects, candidates);
 }
+
 bool BCAnimationSampler::bone_matrix_local_get(Object *ob, Bone *bone, float(&mat)[4][4], bool for_opensim)
 {
 
@@ -200,46 +331,6 @@ bool BCAnimationSampler::bone_matrix_local_get(Object *ob, Bone *bone, float(&ma
 	return true;
 }
 
-static void get_sample_frames(BCFrameSet &sample_frames, int sampling_rate, bool keyframe_at_end, Scene *scene)
-{
-	sample_frames.clear();
-
-	if (sampling_rate < 1)
-		return; // no sample frames in this case
-
-	float sfra = scene->r.sfra;
-	float efra = scene->r.efra;
-
-	int frame_index;
-	for (frame_index = int(sfra); frame_index < efra; frame_index += sampling_rate) {
-		sample_frames.insert(frame_index);
-	}
-	
-	if (frame_index >= efra && keyframe_at_end)
-	{
-		sample_frames.insert(efra);
-	}
-}
-
-static bool is_object_keyframe(Object *ob, int frame_index)
-{
-	return false;
-}
-
-static void add_keyframes_from(bAction *action, BCFrameSet &frameset)
-{
-	if (action) {
-		FCurve *fcu = nullptr;
-		for (fcu = (FCurve *)action->curves.first; fcu; fcu = fcu->next) {
-			BezTriple  *bezt = fcu->bezt;
-			for (int i = 0; i < fcu->totvert; bezt++, i++) {
-				int frame_index = bezt->vec[1][0];
-				frameset.insert(frame_index);
-			}
-		}
-	}
-}
-
 /*
  * Collect all keyframes from all animation curves related to the object 
  * The bc_get... functions check for nullptr and correct object type
@@ -258,98 +349,14 @@ void BCAnimationSampler::get_keyframes(Object *ob, BCFrameSet &frameset)
 	}
 }
 
-void BCAnimationSampler::sample_scene(
-	Scene *scene,
-	int sampling_rate,
-	int keyframe_at_end,
-	bool for_opensim,
-	bool keep_keyframes,
-	BC_export_animation_type export_animation_type)
-{
-	BCFrameSet scene_sample_frames;
-	get_sample_frames(scene_sample_frames, sampling_rate, keyframe_at_end, scene);
-	BCFrameSet::iterator it;
-
-	int startframe = scene->r.sfra;
-	int endframe = scene->r.efra;
-
-	for (int frame_index = startframe; frame_index <= endframe; ++frame_index) {
-		/* Loop over all frames and decide for each frame if sampling is necessary */
-		bool is_scene_sample_frame = false;
-		bool needs_update = true;
-		if (scene_sample_frames.find(frame_index) != scene_sample_frames.end()) {
-			bc_update_scene(mContext, scene, frame_index);
-			needs_update = false;
-			is_scene_sample_frame = true;
-		}
-
-		bool needs_sampling = is_scene_sample_frame || keep_keyframes || export_animation_type == BC_ANIMATION_TYPE_KEYS;
-		if (!needs_sampling) {
-			continue;
-		}
-
-		BCAnimatedObjectMap::iterator obit;
-		for (obit = objects.begin(); obit != objects.end(); ++obit) {
-			Object *ob = obit->first;
-			BCFrameSet &object_keyframes = obit->second;
-			if (is_scene_sample_frame || object_keyframes.find(frame_index) != object_keyframes.end() ) {
-
-				if (needs_update) {
-					bc_update_scene(mContext, scene, frame_index);
-					needs_update = false;
-				}
-
-				float mat[4][4];
-				BKE_object_matrix_local_get(ob, mat);
-				BCSample ob_mat(mat);
-				sample_data.add(ob, ob_mat, frame_index);
-
-				if (ob->type == OB_ARMATURE) {
-					bPoseChannel *pchan;
-					for (pchan = (bPoseChannel *)ob->pose->chanbase.first; pchan; pchan = pchan->next) {
-						Bone *bone = pchan->bone;
-						if (bone_matrix_local_get(ob, bone, mat, for_opensim)) {
-							BCSample bone_mat(mat);
-							sample_data.add(ob, bone, bone_mat, frame_index);
-						}
-					}
-				}
-
-				// TODO ...
-				bAction *action;
-				if (ob->type == OB_CAMERA) {
-					action = bc_getSceneCameraAction(ob);
-				}
-				else if (ob->type == OB_LAMP) {
-					action = bc_getSceneLampAction(ob);
-				}
-				if (action) {
-					// TODO add curves to sample list...
-				}
-
-				for (int a = 0; a < ob->totcol; a++) {
-					Material *ma = give_current_material(ob, a + 1);
-					if (ma) {
-						action = bc_getSceneMaterialAction(ma);
-						if (action) {
-							// TODO add curves to sample list...
-						}
-					}	    
-				}
-			}
-		}
-	}
-}
-
-
-bool BCAnimationSampler::is_flat_line(BCSampleMap &values) const
+bool BCAnimationSampler::is_flat_line(BCFrameSampleMap &values) const
 {
 	static float MIN_DISTANCE = 0.00001;
 
 	if (values.size() < 2)
 		return true; // need at least 2 entries to be not flat
 
-	BCSampleMap::iterator it;
+	BCFrameSampleMap::iterator it;
 	const BCSample *refmat = nullptr;
 	for (it = values.begin(); it != values.end(); ++it) {
 		const BCSample *matrix = it->second;
@@ -387,43 +394,57 @@ void BCAnimationSampler::get_frame_set(BCFrames &frames, Object *ob, const BCAni
 	curve.get_sampled_frames(frames);
 }
 
-bool BCAnimationSampler::get_matrix_set(BCSampleMap &matrices, Object *ob, Bone *bone)
+bool BCAnimationSampler::get_samples(BCFrameSampleMap &samples, Object *ob, Bone *bone)
 {
 	const BCSampleKey key(ob, bone);
-	sample_data.get_matrices(key, matrices);
-	return is_flat_line(matrices);
+	sample_data.get_matrices(key, samples);
+	return is_flat_line(samples);
 }
 
-bool BCAnimationSampler::get_matrix_set(BCSampleMap &matrices, Object *ob)
+bool BCAnimationSampler::get_samples(BCFrameSampleMap &samples, Object *ob)
 {
 	const BCSampleKey key(ob);
-	sample_data.get_matrices(key, matrices);
-	return is_flat_line(matrices);
+	sample_data.get_matrices(key, samples);
+	return is_flat_line(samples);
 }
 
 /*
    Add sampled values to FCurve 
    If no FCurve exists, create a temporary FCurve;
-   Note: The temporary FCureve will later be removed when the
+   Note: The temporary FCurve will later be removed when the
    BCAnimationSampler is removed (by its destructor)
+
+   curve: The curve to whioch the data is added
+   matrices: The set of matrix values from where the data is taken
+   animation_type BC_ANIMATION_TYPE_SAMPLE: Use all matrix data
+   animation_type BC_ANIMATION_TYPE_KEYS: Only take data from matrices for keyframes
 */
+
 void BCAnimationSampler::add_value_set(
-	BCSampleMap &matrices, 
-	BCAnimationCurve &curve, 
+	BCAnimationCurve &curve,
+	BCFrameSampleMap &samples,
 	BC_export_animation_type animation_type)
 {
 	int array_index = curve.get_array_index();
-	std::string target = curve.get_channel_target();
+	const BC_animation_transform_type tm_type = curve.get_transform_type();
 
-	BCSampleMap::iterator it;
-	for (it = matrices.begin(); it != matrices.end(); ++it) {
+	BCFrameSampleMap::iterator it;
+	for (it = samples.begin(); it != samples.end(); ++it) {
 		const int frame_index = it->first;
 		if (animation_type == BC_ANIMATION_TYPE_SAMPLE || curve.is_keyframe(frame_index)) {
 
-			const BCSample *matrix = it->second;
+			const BCSample *sample = it->second;
 			float val = 0;
 
-			bool good = matrix->get_value_for(target, array_index, &val);
+			int tag = curve.get_tag();
+			bool good;
+			if (tag == -1) {
+				good = sample->get_value(tm_type, array_index, &val);
+			}
+			else {
+				good = sample->get_value(tag, tm_type, array_index, &val);
+			}
+			
 			if (good) {
 				curve.add_value(val, frame_index);
 			}
@@ -501,7 +522,7 @@ void BCAnimationSampler::get_curves(BCAnimationCurveMap &curves, Object *ob)
 				}
 			}
 
-			/* Adding action curves */
+			/* Adding action curves on object */
 			CurveKey key(fcu->rna_path, fcu->array_index);
 			curves[key].init(curve_type, fcu);
 		}
@@ -516,7 +537,7 @@ void BCAnimationSampler::get_curves(BCAnimationCurveMap &curves, Object *ob)
 			generate_transforms(root_bone, curves);
 	}
 
-
+	/* Add curves on Object->data actions */
 	action = NULL;
 	if (ob->type == OB_CAMERA) {
 		action = bc_getSceneCameraAction(ob);
@@ -535,29 +556,87 @@ void BCAnimationSampler::get_curves(BCAnimationCurveMap &curves, Object *ob)
 			curves[key].init(curve_type, fcu);
 		}
 	}
+
+	/* Add curves on Object->material actions*/
+	curve_type = BC_ANIMATION_CURVE_TYPE_MATERIAL;
+	for (int a = 0; a < ob->totcol; a++) {
+		/* Export Material parameter animations. */
+		Material *ma = give_current_material(ob, a + 1);
+		if (ma) {
+			action = bc_getSceneMaterialAction(ma);
+			if (action) {
+				/* isMatAnim = true; */
+				FCurve *fcu = (FCurve *)action->curves.first;
+				for (; fcu; fcu = fcu->next) {
+					CurveKey key(fcu->rna_path, fcu->array_index);
+					curves[key].init(curve_type, fcu, /*tag=*/ ma->index);
+				}
+			}
+		}
+	}
 }
 
+bool BCAnimationSampler::has_animations(Object *ob)
+{
+	/* Check for object,lamp and camera transform animations */
+	if ((bc_getSceneObjectAction(ob) && bc_getSceneObjectAction(ob)->curves.first) ||
+		(bc_getSceneLampAction(ob) && bc_getSceneLampAction(ob)->curves.first) ||
+		(bc_getSceneCameraAction(ob) && bc_getSceneCameraAction(ob)->curves.first))
+		return true;
+
+	//Check Material Effect parameter animations.
+	for (int a = 0; a < ob->totcol; a++) {
+		Material *ma = give_current_material(ob, a + 1);
+		if (!ma) continue;
+		if (ma->adt && ma->adt->action && ma->adt->action->curves.first)
+			return true;
+	}
+
+	Key *key = BKE_key_from_object(ob);
+	if ((key && key->adt && key->adt->action) && key->adt->action->curves.first)
+		return true;
+
+	return false;
+}
+
+
+bool BCAnimationSampler::has_animations(Scene *sce, LinkNode *export_set)
+{
+	LinkNode *node;
+
+	for (node = export_set; node; node = node->next) {
+		Object *ob = (Object *)node->link;
+
+		if (has_animations(ob))
+			return true;
+	}
+	return false;
+}
 /* ==================================================================== */
 
-void BCSampleFrame::add(Object *ob, BCSample &matrix)
+BCSample &BCSampleFrame::add(Object *ob, BCMatrix &mat)
 {
-	sampleMap[BCSampleKey(ob)] = matrix;
+	BCSample *sample = new BCSample(mat);
+	sampleMap[BCSampleKey(ob)] = sample;
+	return *sample;
 }
 
 /* Add a new Bone to this map with the given Matrix*/
-void BCSampleFrame::add(Object *ob, Bone *bone, BCSample &matrix)
+BCSample &BCSampleFrame::add(Object *ob, Bone *bone, BCMatrix &mat)
 {
-	sampleMap[BCSampleKey(ob, bone)] = matrix;
+	BCSample *sample = new BCSample(mat);
+	sampleMap[BCSampleKey(ob, bone)] = sample;
+	return *sample;
 }
 
 /* Get the matrix for the given key, returns Unity when the key does not exist */
 const BCSample &BCSampleFrame::get_sample(const BCSampleKey key) const
 {
-	BCSamplesMap::const_iterator it = sampleMap.find(key);
+	BCSampleKeysMap::const_iterator it = sampleMap.find(key);
 	if (it == sampleMap.end()) {
 		return UNIT_SAMPLE;
 	}
-	return it->second;
+	return *it->second;
 }
 
 /* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
@@ -571,6 +650,13 @@ const BCSample &BCSampleFrame::get_sample(Object *ob) const
 const BCSample &BCSampleFrame::get_sample(Object *ob, Bone *bone) const
 {
 	const BCSampleKey key(ob, bone);
+	return get_sample(key);
+}
+
+/* Get the matrix for the given Bone, returns Unity when the Objewct is not sampled */
+const BCSample &BCSampleFrame::get_sample(Object *ob, Material *mat) const
+{
+	const BCSampleKey key(ob, mat);
 	return get_sample(key);
 }
 
@@ -594,8 +680,15 @@ const bool BCSampleFrame::contains(Object *ob, Bone *bone) const
 	return contains(key);
 }
 
+/* Check if the Bone is in this BCSampleFrame */
+const bool BCSampleFrame::contains(Object *ob, Material *mat) const
+{
+	const BCSampleKey key(ob, mat);
+	return contains(key);
+}
+
 /* Return the BCSampleMap for this BCSampleFrame */
-const BCSamplesMap &BCSampleFrame::get_samples() const
+const BCSampleKeysMap &BCSampleFrame::get_samples() const
 {
 	return sampleMap;
 }
@@ -603,20 +696,18 @@ const BCSamplesMap &BCSampleFrame::get_samples() const
 /* ==================================================================== */
 
 /* Add object for frame. Creates a new BCSampleFrame if it does not yet exist */
-BCSampleFrame &BCSampleFrames::add(Object *ob, BCSample &matrix, int frame_index)
+BCSample &BCSampleFrames::add(Object *ob, BCMatrix &mat, int frame_index)
 {
 	BCSampleFrame &frame = sample_frames[frame_index];
-	frame.add(ob, matrix);
-	return frame;
+	return frame.add(ob, mat);
 }
 
 
 /* Add object+bone for frame. Creates a new BCSampleFrame if it does not yet exist */
-BCSampleFrame &BCSampleFrames::add(Object *ob, Bone *bone, BCSample &matrix, int frame_index)
+BCSample &BCSampleFrames::add(Object *ob, Bone *bone, BCMatrix &mat, int frame_index)
 {
 	BCSampleFrame &frame = sample_frames[frame_index];
-	frame.add(ob, bone, matrix);
-	return frame;
+	return frame.add(ob, bone, mat);
 }
 
 /* ====================================================== */
@@ -642,19 +733,6 @@ const int BCSampleFrames::get_frames(std::vector<int> &frames) const
 	return frames.size();
 }
 
-const int BCSampleFrames::get_frames(BCSampleKey &key, std::vector<int> &frames) const
-{
-	frames.clear(); // safety;
-	BCSampleFrameMap::const_iterator it;
-	for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
-		const BCSampleFrame &frame = it->second;
-		if (frame.contains(key)) {
-			frames.push_back(it->first);
-		}
-	}
-	return frames.size();
-}
-
 const int BCSampleFrames::get_frames(BCSampleKey &key, BCFrames &frames) const
 {
 	frames.clear(); // safety;
@@ -668,42 +746,16 @@ const int BCSampleFrames::get_frames(BCSampleKey &key, BCFrames &frames) const
 	return frames.size();
 }
 
-const int BCSampleFrames::get_matrices(const BCSampleKey &key, BCSampleMap &matrices) const
+const int BCSampleFrames::get_matrices(const BCSampleKey &key, BCFrameSampleMap &samples) const
 {
-	matrices.clear(); // safety;
+	samples.clear(); // safety;
 	BCSampleFrameMap::const_iterator it;
 	for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
 		const BCSampleFrame &frame = it->second;
 		if (frame.contains(key)) {
 			const BCSample &matrix = frame.get_sample(key);
-			matrices[it->first] = &matrix;
+			samples[it->first] = &matrix;
 		}
 	}
-	return matrices.size();
-}
-
-/* For convenience */
-const int BCSampleFrames::get_frames(Object *ob, std::vector<int> &frames) const
-{
-	BCSampleKey key(ob);
-	return get_frames(key, frames);
-}
-
-const int BCSampleFrames::get_frames(Object *ob, Bone *bone, std::vector<int> &frames) const
-{
-	BCSampleKey key(ob, bone);
-	return get_frames(key, frames);
-}
-
-
-const int BCSampleFrames::get_matrices(Object *ob, BCSampleMap &matrices) const
-{
-	BCSampleKey key(ob);
-	return get_matrices(key, matrices);
-}
-
-const int BCSampleFrames::get_matrices(Object *ob, Bone *bone, BCSampleMap &matrices) const
-{
-	BCSampleKey key(ob, bone);
-	return get_matrices(key, matrices);
+	return samples.size();
 }

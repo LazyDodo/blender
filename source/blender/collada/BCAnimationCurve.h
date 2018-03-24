@@ -37,40 +37,8 @@ extern "C"
 #include "ED_keyframing.h"
 #include "ED_keyframes_edit.h"
 }
-typedef enum BC_animation_transform_type {
 
-	/* Translation channels */
-	BC_ANIMATION_TYPE_ROTATION_EULER = 0,
-	BC_ANIMATION_TYPE_ROTATION_QUAT = 1,
-	BC_ANIMATION_TYPE_SCALE = 2,
-	BC_ANIMATION_TYPE_LOCATION = 3,
-
-	/* Material channels */
-	BC_ANIMATION_TYPE_SPECULAR_HARDNESS = 4,
-	BC_ANIMATION_TYPE_SPECULAR_COLOR = 5,
-	BC_ANIMATION_TYPE_DIFFUSE_COLOR = 6,
-	BC_ANIMATION_TYPE_ALPHA = 7,
-	BC_ANIMATION_TYPE_IOR = 8,
-
-	/* Lamp channels */
-	BC_ANIMATION_TYPE_COLOR,
-	BC_ANIMATION_TYPE_FALL_OFF_ANGLE,
-	BC_ANIMATION_TYPE_FALL_OFF_EXPONENT,
-	BC_ANIMATION_TYPE_BLENDER_DIST,
-
-	/* Camera channels */
-	BC_ANIMATION_TYPE_XFOV,
-	BC_ANIMATION_TYPE_XMAG,
-	BC_ANIMATION_TYPE_ZFAR,
-	BC_ANIMATION_TYPE_ZNEAR,
-
-	/* other */
-	BC_ANIMATION_TYPE_ROTATION,
-	BC_ANIMATION_TYPE_UNKNOWN = -1,
-
-} BC_animation_transform_type;
-
-
+typedef float(BCMatrix)[4][4];
 typedef std::set<float> BCFrameSet;
 typedef std::vector<float> BCFrames;
 typedef std::vector<float> BCValues;
@@ -83,9 +51,9 @@ typedef enum BC_animation_curve_type {
 
 	BC_ANIMATION_CURVE_TYPE_OBJECT,
 	BC_ANIMATION_CURVE_TYPE_BONE,
-	BC_ANIMATION_CURVE_TYPE_CAMERA,
+	BC_ANIMATION_CURVE_TYPE_CAMERA, // not needed, data in BC_ANIMATION_CURVE_TYPE_OBJECT
 	BC_ANIMATION_CURVE_TYPE_MATERIAL,
-	BC_ANIMATION_CURVE_TYPE_LIGHT
+	BC_ANIMATION_CURVE_TYPE_LIGHT // not needed, data in BC_ANIMATION_CURVE_TYPE_OBJECT
 
 } BC_animation_curve_type;
 
@@ -138,6 +106,7 @@ private:
 	BCValueMap samples;
 	float min = 0;
 	float max = 0;
+	int tag = -1;
 
 	CurveKey curve_key;
 	bool curve_is_local_copy = false;
@@ -171,7 +140,7 @@ public:
 	bool add_value(const BCSample &sample, int frame);
 	void add_value(const float val, const int frame);
 	void init(const BC_animation_curve_type type, const std::string rna_path, const int index);
-	void init(const BC_animation_curve_type type, FCurve *fcu);
+	void init(const BC_animation_curve_type type, FCurve *fcu, int material_index=-1);
 	FCurve *get_edit_fcurve();
 	const FCurve *get_fcurve() const;
 
@@ -190,6 +159,7 @@ public:
 	returned vector is empty
 	*/
 	void get_times(BCTimes &times, Scene *scene) const;
+	const int get_tag() const;
 
 	/*
 	Return the ctimes of the sampled curve;
