@@ -654,11 +654,11 @@ const BCSample &BCSampleFrame::get_sample(Object *ob, Bone *bone) const
 }
 
 /* Get the matrix for the given Bone, returns Unity when the Objewct is not sampled */
-const BCSample &BCSampleFrame::get_sample(Object *ob, Material *mat) const
-{
-	const BCSampleKey key(ob, mat);
-	return get_sample(key);
-}
+//const BCSample &BCSampleFrame::get_sample(Object *ob, Material *mat) const
+//{
+//	const BCSampleKey key(ob, mat);
+//	return get_sample(key);
+//}
 
 /* Check if the key is in this BCSampleFrame */
 const bool BCSampleFrame::contains(const BCSampleKey &key) const
@@ -680,12 +680,12 @@ const bool BCSampleFrame::contains(Object *ob, Bone *bone) const
 	return contains(key);
 }
 
-/* Check if the Bone is in this BCSampleFrame */
-const bool BCSampleFrame::contains(Object *ob, Material *mat) const
-{
-	const BCSampleKey key(ob, mat);
-	return contains(key);
-}
+///* Check if the Bone is in this BCSampleFrame */
+//const bool BCSampleFrame::contains(Object *ob, Material *mat) const
+//{
+//	const BCSampleKey key(ob, mat);
+//	return contains(key);
+//}
 
 /* Return the BCSampleMap for this BCSampleFrame */
 const BCSampleKeysMap &BCSampleFrame::get_samples() const

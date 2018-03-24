@@ -88,7 +88,7 @@ public:
 	const BCSample &get_sample(const BCSampleKey key) const;
 	const BCSample &get_sample(Object *ob) const;
 	const BCSample &get_sample(Object *ob, Bone *bone) const;
-	const BCSample &get_sample(Object *ob, Material *mat) const;
+	//const BCSample &get_sample(Object *ob, Material *mat) const;
 
 	/* Check if the key is in this BCSampleFrame */
 	/* Check if the Object is in this BCSampleFrame */
@@ -97,7 +97,7 @@ public:
 	const bool contains(const BCSampleKey &key) const;
 	const bool contains(Object *ob) const;
 	const bool contains(Object *ob, Bone *bone) const;
-	const bool contains(Object *ob, Material *mat) const;
+	//const bool contains(Object *ob, Material *mat) const;
 
 	/* Return the BCSampleMap for this BCSampleFrame */
 	const BCSampleKeysMap &get_samples() const;

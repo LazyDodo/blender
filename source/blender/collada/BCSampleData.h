@@ -103,10 +103,10 @@ public:
 		this->key = std::string(ob->id.name) + ".pose.bones[" + std::string(bone->name) + "]";
 	}
 
-	BCSampleKey(const Object *ob, Material *ma)
-	{
-		this->key = std::string(ob->id.name) + ".material[" + std::string(ma->id.name) + "]";
-	}
+	//BCSampleKey(const Object *ob, Material *ma)
+	//{
+	//	this->key = std::string(ob->id.name) + ".material[" + std::string(ma->id.name) + "]";
+	//}
 
 	const bool operator<(const BCSampleKey &other) const
 	{
