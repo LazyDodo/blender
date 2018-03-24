@@ -45,19 +45,47 @@ BCSample::~BCSample()
 {
 	int x = 0;
 	BCMaterialMap::iterator it;
-	for (it = materials.begin(); it != materials.end(); ++it) {
+	for (it = material_map.begin(); it != material_map.end(); ++it) {
 		delete it->second;
 	}
-	materials.clear();
+	material_map.clear();
+}
+
+void BCSample::set_bone(Bone *bone, Matrix &mat)
+{
+	BCMatrix *matrix;
+	BCBoneMatrixMap::const_iterator it = bone_matrix_map.find(bone);
+	if (it == bone_matrix_map.end()) {
+		matrix = new BCMatrix();
+		bone_matrix_map[bone] = matrix;
+	}
+	else {
+		matrix = it->second;
+	}
+	copy_m4_m4(matrix->matrix, mat);
+}
+
+const BCMatrix *BCSample::get_sampled_matrix(Bone *bone) const
+{
+	BCBoneMatrixMap::const_iterator it = bone_matrix_map.find(bone);
+	if (it == bone_matrix_map.end()) {
+		return nullptr;
+	}
+	return it->second;
+}
+
+const BCMatrix *BCSample::get_sampled_matrix() const
+{
+	return &matrix;
 }
 
 void BCSample::set_material(Material *ma)
 {
 	BCMaterial *material;
-	BCMaterialMap::const_iterator it = materials.find(ma->index);
-	if (it == materials.end()) {
+	BCMaterialMap::const_iterator it = material_map.find(ma->index);
+	if (it == material_map.end()) {
 		material = new BCMaterial();
-		materials[ma->index] = material;
+		material_map[ma->index] = material;
 	}
 	else {
 		material = it->second;
@@ -133,8 +161,8 @@ const bool BCSample::set_vector(BC_animation_transform_type channel, float val[3
 /* Get channel value */
 const bool BCSample::get_value(int ma_index, BC_animation_transform_type channel, const int array_index, float *val) const
 {
-	BCMaterialMap::const_iterator it = materials.find(ma_index);
-	if (it != materials.end()) {
+	BCMaterialMap::const_iterator it = material_map.find(ma_index);
+	if (it != material_map.end()) {
 		BCMaterial *material = it->second;
 		switch (channel) {
 			/* Material animation*/
@@ -237,31 +265,31 @@ void BCSample::sanitize(float(&matrix)[4][4], int precision)
 
 void BCSample::unit()
 {
-	unit_m4(matrix);
+	unit_m4(matrix.matrix);
 }
 
 void BCSample::set_matrix(double(&mat)[4][4])
 {
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++)
-			matrix[i][j] = mat[i][j];
+			matrix.matrix[i][j] = mat[i][j];
 }
 
 void BCSample::set_matrix(float(&mat)[4][4])
 {
-	copy_m4_m4(matrix, mat);
+	copy_m4_m4(matrix.matrix, mat);
 }
 
 void BCSample::set_matrix(BCSample &other)
 {
-	set_matrix(other.matrix);
+	set_matrix(other.matrix.matrix);
 }
 
 /*
 We need double here because the OpenCollada API needs it.
 precision = -1 indicates to not limit the precision
 */
-void BCSample::get_matrix(double(&mat)[4][4], const bool transposed, const int precision) const
+void BCMatrix::get_matrix(double(&mat)[4][4], const bool transposed, const int precision) const
 {
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++) {
@@ -278,10 +306,22 @@ void BCSample::get_matrix(float(&mat)[4][4]) const
 
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++)
-			mat[i][j] = matrix[i][j];
+			mat[i][j] = matrix.matrix[i][j];
 }
 
 bool BCSample::in_range(const BCSample &other, float distance) const
+{
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (fabs(other.matrix.matrix[i][j] - matrix.matrix[i][j]) > distance) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+const bool BCMatrix::in_range(const BCMatrix &other, float distance) const
 {
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 4; j++) {

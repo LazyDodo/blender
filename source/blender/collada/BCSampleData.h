@@ -37,6 +37,7 @@ extern "C"
 #include "DNA_material_types.h"
 }
 
+
 typedef enum BC_animation_transform_type {
 
 	/* Translation channels */
@@ -103,11 +104,6 @@ public:
 		this->key = std::string(ob->id.name) + ".pose.bones[" + std::string(bone->name) + "]";
 	}
 
-	//BCSampleKey(const Object *ob, Material *ma)
-	//{
-	//	this->key = std::string(ob->id.name) + ".material[" + std::string(ma->id.name) + "]";
-	//}
-
 	const bool operator<(const BCSampleKey &other) const
 	{
 		return this->key < other.key;
@@ -124,13 +120,25 @@ public:
 	float ior;
 };
 
+typedef float(Matrix)[4][4];
+
+class BCMatrix {
+public:
+	Matrix matrix;
+
+	void get_matrix(double(&mat)[4][4], const bool transposed = false, const int precision = -1) const;
+	const bool in_range(const BCMatrix &other, float distance) const;
+};
+
 typedef std::map<int, BCMaterial *> BCMaterialMap;
+typedef std::map<int, BCMatrix *> BCMatrixMap;
+typedef std::map<Bone *, BCMatrix *> BCBoneMatrixMap;
 
 class BCSample{
 private:
 	
 	/* For Object Transformations */
-	float matrix[4][4];
+	BCMatrix matrix;
 	mutable float size[3];
 	mutable float rot[3];
 	mutable float loc[3];
@@ -138,7 +146,8 @@ private:
 	mutable bool decomposed = false;
 
 	/* For Material channels */
-	BCMaterialMap materials;
+	BCMaterialMap material_map;
+	BCBoneMatrixMap bone_matrix_map;
 
     /* For Lamp channels */
 	float light_color[3];
@@ -172,11 +181,13 @@ public:
 	void set_matrix(float(&mat)[4][4]);
 	void set_matrix(BCSample &other);
 	void set_material(Material *ma);
+	void set_bone(Bone *bone, Matrix &mat);
+	const BCMatrix *get_sampled_matrix() const;
+	const BCMatrix *get_sampled_matrix(Bone *bone) const;
 
 	const bool set_vector(BC_animation_transform_type channel, float val[3]);
 	const bool set_value(BC_animation_transform_type channel, const int array_index, float val);
 
-	void get_matrix(double(&mat)[4][4], const bool transposed = false, const int precision = -1) const;
 	void get_matrix(float(&mat)[4][4]) const;
 	const bool get_value(BC_animation_transform_type channel, const int array_index, float *val) const;
 	const bool get_value(int ma_index, BC_animation_transform_type channel, const int array_index, float *val) const;

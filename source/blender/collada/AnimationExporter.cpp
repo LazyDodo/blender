@@ -221,7 +221,7 @@ void AnimationExporter::export_matrix_animation_set(Object *ob, BCAnimationSampl
 	std::vector<float> frames;
 	sampler.get_frame_set(frames, ob);
 	if (frames.size() > 0) {
-		BCFrameSampleMap samples;
+		BCMatrixSampleMap samples;
 		bool is_flat = sampler.get_samples(samples, ob);
 		if (!is_flat) {
 			export_matrix_animation(ob, frames, samples, sampler); // there is just one curve to export here
@@ -232,7 +232,7 @@ void AnimationExporter::export_matrix_animation_set(Object *ob, BCAnimationSampl
 void AnimationExporter::export_matrix_animation(
 	Object *ob, 
 	BCFrames &frames, 
-	BCFrameSampleMap &samples,
+	BCMatrixSampleMap &samples,
 	BCAnimationSampler &sampler)
 {
 	bAction *action = bc_getSceneObjectAction(ob);
@@ -254,7 +254,7 @@ void AnimationExporter::export_bone_animation_recursive(Object *ob, Bone *bone, 
 	sampler.get_frame_set(frames, ob, bone);
 	
 	if (frames.size()) {
-		BCFrameSampleMap samples;
+		BCMatrixSampleMap samples;
 		bool is_flat = sampler.get_samples(samples, ob, bone);
 		if (!is_flat) {
 			export_bone_animation(ob, bone, frames, samples);
@@ -373,7 +373,7 @@ void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurv
 	export_collada_curve_animation(id, curve_name, target, axis, curve);
 }
 
-void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &frames, BCFrameSampleMap &samples)
+void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &frames, BCMatrixSampleMap &samples)
 {
 	bAction* action = bc_getSceneObjectAction(ob);
 	std::string bone_name(bone->name);
@@ -452,7 +452,7 @@ void AnimationExporter::export_collada_curve_animation(
 	closeAnimation();
 }
 
-void AnimationExporter::export_collada_matrix_animation(std::string id, std::string name, std::string target, BCFrames &frames, BCFrameSampleMap &samples)
+void AnimationExporter::export_collada_matrix_animation(std::string id, std::string name, std::string target, BCFrames &frames, BCMatrixSampleMap &samples)
 {
 	fprintf(stdout, "Export animation matrix %s (%d control points)\n", id.c_str(), int(frames.size()));
 
@@ -754,7 +754,7 @@ std::string AnimationExporter::create_source_from_values(COLLADASW::InputSemanti
 /*
  * Create a collada matrix source for a set of samples
 */
-std::string AnimationExporter::create_4x4_source_from_values(BCFrameSampleMap &samples, const std::string &anim_id)
+std::string AnimationExporter::create_4x4_source_from_values(BCMatrixSampleMap &samples, const std::string &anim_id)
 {
 	COLLADASW::InputSemantic::Semantics semantic = COLLADASW::InputSemantic::OUTPUT;
 	std::string source_id = anim_id + get_semantic_suffix(semantic);
@@ -770,11 +770,11 @@ std::string AnimationExporter::create_4x4_source_from_values(BCFrameSampleMap &s
 
 	source.prepareToAppendValues();
 
-	BCFrameSampleMap::iterator it;
+	BCMatrixSampleMap::iterator it;
 	int j = 0;
 	int precision = (this->export_settings->limit_precision) ? 6 : -1; // could be made configurable
 	for (it = samples.begin(); it != samples.end(); it++) {
-		const BCSample *sample = it->second;
+		const BCMatrix *sample = it->second;
 		double daemat[4][4];
 		sample->get_matrix(daemat, true, precision);
 		source.appendValues(daemat);

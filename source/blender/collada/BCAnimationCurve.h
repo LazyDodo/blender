@@ -38,7 +38,6 @@ extern "C"
 #include "ED_keyframes_edit.h"
 }
 
-typedef float(BCMatrix)[4][4];
 typedef std::set<float> BCFrameSet;
 typedef std::vector<float> BCFrames;
 typedef std::vector<float> BCValues;
