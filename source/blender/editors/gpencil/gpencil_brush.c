@@ -359,13 +359,12 @@ static bool gp_brush_strength_apply(
 	float inf;
 
 	/* Compute strength of effect
-	 * - We divide the strength by 10, so that users can set "sane" values.
+	 * - We divide the strength, so that users can set "sane" values.
 	 *   Otherwise, good default values are in the range of 0.093
 	 */
-	inf = gp_brush_influence_calc(gso, radius, co) / 10.0f;
+	inf = gp_brush_influence_calc(gso, radius, co) / 20.0f;
 
 	/* apply */
-	// XXX: this is much too strong, and it should probably do some smoothing with the surrounding stuff
 	if (gp_brush_invert_check(gso)) {
 		/* make line more transparent - reduce alpha factor */
 		pt->strength -= inf;
@@ -374,6 +373,8 @@ static bool gp_brush_strength_apply(
 		/* make line more opaque - increase stroke strength */
 		pt->strength += inf;
 	}
+	/* smooth the strength */
+	BKE_gp_smooth_stroke_strength(gps, pt_index, inf);
 
 	/* Strength should stay within [0.0, 1.0] */
 	CLAMP(pt->strength, 0.0f, 1.0f);
