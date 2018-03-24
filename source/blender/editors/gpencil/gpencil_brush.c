@@ -367,11 +367,11 @@ static bool gp_brush_strength_apply(
 	/* apply */
 	// XXX: this is much too strong, and it should probably do some smoothing with the surrounding stuff
 	if (gp_brush_invert_check(gso)) {
-		/* make line thinner - reduce stroke pressure */
+		/* make line more transparent - reduce alpha factor */
 		pt->strength -= inf;
 	}
 	else {
-		/* make line thicker - increase stroke pressure */
+		/* make line more opaque - increase stroke strength */
 		pt->strength += inf;
 	}
 
