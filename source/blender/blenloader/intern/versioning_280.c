@@ -668,19 +668,6 @@ void do_versions_after_linking_280(Main *main)
 			BKE_gpencil_batch_cache_dirty(ob->data);
 		}
 	}
-	/* init grease pencil grids and paper */
-	for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
-		for (ScrArea *area = screen->areabase.first; area; area = area->next) {
-			for (SpaceLink *sl = area->spacedata.first; sl; sl = sl->next) {
-				if (sl->spacetype == SPACE_VIEW3D) {
-					View3D *v3d = (View3D *)sl;
-					v3d->gpencil_grid_size[0] = GP_DEFAULT_GRID_SIZE;
-					v3d->gpencil_grid_size[1] = GP_DEFAULT_GRID_SIZE;
-					ARRAY_SET_ITEMS(v3d->gpencil_paper_color, 1.0f, 1.0f, 1.0f, 0.7f);
-				}
-			}
-		}
-	}
 
 	/* Handle object-linked grease pencil datablocks */
 	for (Object *ob = main->object.first; ob; ob = ob->id.next) {
@@ -1098,6 +1085,22 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 		for (Group *group = main->group.first; group; group = group->id.next) {
 			if (group->view_layer != NULL){
 				do_version_view_layer_visibility(group->view_layer);
+			}
+		}
+
+		/* init grease pencil grids and paper */
+		if (!DNA_struct_elem_find(fd->filesdna, "gp_paper_opacity", "float", "gpencil_paper_color[3]")) {
+			for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *area = screen->areabase.first; area; area = area->next) {
+					for (SpaceLink *sl = area->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->gpencil_grid_size[0] = GP_DEFAULT_GRID_SIZE;
+							v3d->gpencil_grid_size[1] = GP_DEFAULT_GRID_SIZE;
+							ARRAY_SET_ITEMS(v3d->gpencil_paper_color, 1.0f, 1.0f, 1.0f, 0.7f);
+						}
+					}
+				}
 			}
 		}
 	}
