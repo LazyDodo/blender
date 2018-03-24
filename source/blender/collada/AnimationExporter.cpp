@@ -151,7 +151,27 @@ void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sa
 		export_curve_animation_set(ob, sampler); // each curve might have different frames
 	}
 
+	if (ob->type == OB_ARMATURE) {
+		container_is_open = exportArmatureAnimation(ob, sampler, container_is_open);
+	}
+
 	close_animation_container(container_is_open);
+}
+
+bool AnimationExporter::exportArmatureAnimation(Object *ob, BCAnimationSampler &sampler, bool has_container)
+{
+	/* TODO: This needs to be handled by extra profiles, postponed for now
+	* export_morph_animation(ob);
+	*/
+
+	if (ob->type == OB_ARMATURE) {
+		/* Export skeletal animation (if any) */
+		bArmature *arm = (bArmature *)ob->data;
+		for (Bone *root_bone = (Bone *)arm->bonebase.first; root_bone; root_bone = root_bone->next)
+			export_bone_animation_recursive(ob, root_bone, sampler);
+	}
+
+	return has_container;
 }
 
 /*
