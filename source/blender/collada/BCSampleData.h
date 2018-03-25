@@ -102,25 +102,10 @@ public:
 
 
 /*
-* BCMatrix is a neat helper class to handle float matrix[4][4] items
-* in a convenient way.
-* Actually i could not figure out how to make BCMatrix an equivalent
-* of a float matrix[4][4] That is why i added the Matrix typedef
-* below. 
-*
-* As the code stands now, i must do this for example:
-*
-* float mat[4][4];
-* BCMatrix obmat;
-* copy_m4_m4(obmat.matrix, mat);
-*
-* I would prefer if i had only BCMatrix and do:
-*
-* float mat[4][4];
-* BCMatrix obmat;
-* copy_m4_m4(obmat, mat);
-*
-* Can this be achieved ?
+Matrix is a convenience typedef for float[4][4]
+BCMatrix is the class version of it. I tried to get away
+without the typedef but then i get into trouble with the
+matrix math functions of blender
 */
 
 typedef float(Matrix)[4][4];
