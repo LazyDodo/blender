@@ -39,6 +39,41 @@ std::map<std::string, std::vector<std::string>> BC_CHANNEL_NAME_FROM_TYPE = {
 	{ "rotation_euler", { "X", "Y", "Z" } }
 };
 
+/*
+ * Translation table to map FCurve animation types to Collada animation.
+ * Todo: Maybe we can keep the names from the fcurves here instead of
+ * mapping. However this is what i found in the old code. So keep
+ * this map for now.
+ */
+std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE = {
+	{ BC_ANIMATION_TYPE_ROTATION, "rotation" },
+	{ BC_ANIMATION_TYPE_ROTATION_EULER, "rotation_euler" },
+	{ BC_ANIMATION_TYPE_ROTATION_QUAT, "rotation_quaternion" },
+	{ BC_ANIMATION_TYPE_SCALE, "scale" },
+	{ BC_ANIMATION_TYPE_LOCATION, "location" },
+
+	/* Materials */
+	{ BC_ANIMATION_TYPE_SPECULAR_COLOR, "specular" },
+	{ BC_ANIMATION_TYPE_DIFFUSE_COLOR, "diffuse" },
+	{ BC_ANIMATION_TYPE_IOR, "index_of_refraction" },
+	{ BC_ANIMATION_TYPE_SPECULAR_HARDNESS, "specular_hardness" },
+	{ BC_ANIMATION_TYPE_ALPHA, "alpha" },
+
+	/* Lamps */
+	{ BC_ANIMATION_TYPE_LIGHT_COLOR, "color" },
+	{ BC_ANIMATION_TYPE_FALL_OFF_ANGLE, "fall_off_angle" },
+	{ BC_ANIMATION_TYPE_FALL_OFF_EXPONENT, "fall_off_exponent" },
+	{ BC_ANIMATION_TYPE_BLENDER_DIST, "blender/blender_dist" },
+
+	/* Cameras */
+	{ BC_ANIMATION_TYPE_XFOV, "xfov" },
+	{ BC_ANIMATION_TYPE_XMAG, "xmag" },
+	{ BC_ANIMATION_TYPE_ZFAR, "zfar" },
+	{ BC_ANIMATION_TYPE_ZNEAR, "znear" },
+
+	{ BC_ANIMATION_TYPE_UNKNOWN, "" }
+};
+
 std::string EMPTY_STRING;
 
 std::string AnimationExporter::get_subchannel(std::string channel, int id)
@@ -362,7 +397,7 @@ void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurv
 		int material_index = curve.get_tag();
 		Material *ma = give_current_material(ob, material_index + 1);
 		if (ma) {
-			target = id_name(ma) + "-effect/common/" + curve.get_sid(axis);
+			target = id_name(ma) + "-effect/common/" + get_sid(curve, axis);
 		}
 	}
 
@@ -372,6 +407,20 @@ void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurv
 
 	export_collada_curve_animation(id, curve_name, target, axis, curve);
 }
+
+const std::string AnimationExporter::get_sid(const BCAnimationCurve &curve, const std::string axis_name) const
+{
+	std::string tm_name;
+	BC_animation_transform_type tm_type = curve.get_transform_type();
+	std::map<BC_animation_transform_type, std::string>::iterator name_it = BC_ANIMATION_NAME_FROM_TYPE.find(tm_type);
+	tm_name = name_it->second;
+
+	if (axis_name != "")
+		tm_name += '.' + axis_name;
+
+	return tm_name;
+}
+
 
 void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &frames, BCMatrixSampleMap &samples)
 {

@@ -25,35 +25,6 @@
 
 #include "BCAnimationCurve.h"
 
-std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE = {
-{ BC_ANIMATION_TYPE_ROTATION, "rotation" },
-{ BC_ANIMATION_TYPE_ROTATION_EULER, "rotation_euler" },
-{ BC_ANIMATION_TYPE_ROTATION_QUAT, "rotation_quaternion" },
-{ BC_ANIMATION_TYPE_SCALE, "scale" },
-{ BC_ANIMATION_TYPE_LOCATION, "location" },
-
-/* Materials */
-{ BC_ANIMATION_TYPE_SPECULAR_COLOR, "specular" },
-{ BC_ANIMATION_TYPE_DIFFUSE_COLOR, "diffuse" },
-{ BC_ANIMATION_TYPE_IOR, "index_of_refraction" },
-{ BC_ANIMATION_TYPE_SPECULAR_HARDNESS, "specular_hardness" },
-{ BC_ANIMATION_TYPE_ALPHA, "alpha" },
-
-/* Lamps */
-{ BC_ANIMATION_TYPE_LIGHT_COLOR, "color" },
-{ BC_ANIMATION_TYPE_FALL_OFF_ANGLE, "fall_off_angle" },
-{ BC_ANIMATION_TYPE_FALL_OFF_EXPONENT, "fall_off_exponent" },
-{ BC_ANIMATION_TYPE_BLENDER_DIST, "blender/blender_dist" },
-
-/* Cameras */
-{ BC_ANIMATION_TYPE_XFOV, "xfov" },
-{ BC_ANIMATION_TYPE_XMAG, "xmag" },
-{ BC_ANIMATION_TYPE_ZFAR, "zfar" },
-{ BC_ANIMATION_TYPE_ZNEAR, "znear" },
-
-{ BC_ANIMATION_TYPE_UNKNOWN, "" }
-};
-
 std::map<std::string, BC_animation_transform_type> BC_ANIMATION_TYPE_FROM_NAME = {
 	{ "rotation", BC_ANIMATION_TYPE_ROTATION },
 { "rotation_euler", BC_ANIMATION_TYPE_ROTATION_EULER },
@@ -171,18 +142,6 @@ const BC_animation_transform_type BCAnimationCurve::get_transform_type() const
 	return tm_type;
 }
 
-const std::string BCAnimationCurve::get_sid(const std::string axis_name) const
-{
-	std::string tm_name;
-	BC_animation_transform_type tm_type = get_transform_type();
-	std::map<BC_animation_transform_type, std::string>::iterator name_it = BC_ANIMATION_NAME_FROM_TYPE.find(tm_type);
-	tm_name = name_it->second;
-
-	if (axis_name != "")
-		tm_name += '.' + axis_name;
-
-	return tm_name;
-}
 
 const std::string BCAnimationCurve::get_channel_target() const
 {

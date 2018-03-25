@@ -122,7 +122,6 @@ public:
 
 	const BC_animation_curve_type get_channel_type() const;
 	const BC_animation_transform_type get_transform_type() const;
-	const std::string get_sid(const std::string axis_name) const;
 
 	const std::string get_channel_target() const;
 	const std::string get_animation_name(Object *ob) const;
