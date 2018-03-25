@@ -26,14 +26,9 @@
 #include "BCSampleData.h"
 #include "collada_utils.h"
 
-BCSample::BCSample(double(&mat)[4][4])
+BCSample::BCSample(Matrix &mat)
 {
-	set_matrix(mat);
-}
-
-BCSample::BCSample(float(&mat)[4][4])
-{
-	set_matrix(mat);
+	copy_m4_m4(matrix.matrix, mat);
 }
 
 BCSample::~BCSample()
@@ -261,23 +256,6 @@ void BCSample::sanitize(float(&matrix)[4][4], int precision)
 void BCMatrix::unit()
 {
 	unit_m4(matrix);
-}
-
-void BCSample::set_matrix(double(&mat)[4][4])
-{
-	for (int i = 0; i < 4; i++)
-		for (int j = 0; j < 4; j++)
-			matrix.matrix[i][j] = mat[i][j];
-}
-
-void BCSample::set_matrix(float(&mat)[4][4])
-{
-	copy_m4_m4(matrix.matrix, mat);
-}
-
-void BCSample::set_matrix(BCSample &other)
-{
-	set_matrix(other.matrix.matrix);
 }
 
 /*

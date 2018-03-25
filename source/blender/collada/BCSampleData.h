@@ -171,15 +171,11 @@ private:
 	BCLamp lamp; /* For Lamp channels */
 	BCCamera camera; /* For Camera channels */
 
-
 public:
-	BCSample(double(&mat)[4][4]);
-	BCSample(float(&mat)[4][4]);
+
+	BCSample(Matrix &mat);
 	~BCSample();
 
-	void set_matrix(double(&mat)[4][4]);
-	void set_matrix(float(&mat)[4][4]);
-	void set_matrix(BCSample &other);
 	void set_material(Material *ma);
 	void set_bone(Bone *bone, Matrix &mat);
 	const BCMatrix *get_sampled_matrix() const;
