@@ -46,8 +46,6 @@ extern "C" {
 
 static std::string EMPTY_STRING;
 static BCAnimationCurveMap BCEmptyAnimationCurves;
-static const BCSample UNIT_SAMPLE;
-static const BCMatrix UNIT_MATRIX;
 
 /* 
     BCAnimationSampler

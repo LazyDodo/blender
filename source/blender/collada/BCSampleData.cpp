@@ -26,11 +26,6 @@
 #include "BCSampleData.h"
 #include "collada_utils.h"
 
-BCSample::BCSample()
-{
-	unit();
-}
-
 BCSample::BCSample(double(&mat)[4][4])
 {
 	set_matrix(mat);
@@ -196,17 +191,17 @@ const bool BCSample::get_value(BC_animation_transform_type channel, const int ar
 
 	/* Object animation */
 	case BC_ANIMATION_TYPE_LOCATION:
-		*val = location()[array_index];
+		*val = matrix.location()[array_index];
 		break;
 	case BC_ANIMATION_TYPE_SCALE:
-		*val = scale()[array_index];
+		*val = matrix.scale()[array_index];
 		break;
 	case BC_ANIMATION_TYPE_ROTATION:
 	case BC_ANIMATION_TYPE_ROTATION_EULER:
-		*val = rotation()[array_index];
+		*val = matrix.rotation()[array_index];
 		break;
 	case BC_ANIMATION_TYPE_ROTATION_QUAT:
-		*val = quat()[array_index];
+		*val = matrix.quat()[array_index];
 		break;
 
 
@@ -247,7 +242,7 @@ const bool BCSample::get_value(BC_animation_transform_type channel, const int ar
 	return true;
 }
 
-void BCSample::copy(float(&r)[4][4], float(&a)[4][4])
+void BCMatrix::copy(float(&r)[4][4], float(&a)[4][4])
 {
 	/* destination comes first: */
 	memcpy(r, a, sizeof(float[4][4]));
@@ -263,9 +258,9 @@ void BCSample::sanitize(float(&matrix)[4][4], int precision)
 	bc_sanitize_mat(matrix, precision);
 }
 
-void BCSample::unit()
+void BCMatrix::unit()
 {
-	unit_m4(matrix.matrix);
+	unit_m4(matrix);
 }
 
 void BCSample::set_matrix(double(&mat)[4][4])
@@ -300,13 +295,9 @@ void BCMatrix::get_matrix(double(&mat)[4][4], const bool transposed, const int p
 		}
 }
 
-void BCSample::get_matrix(float(&mat)[4][4]) const
+const float(&BCSample::get_matrix() const)[4][4]
 {
-	// copy_m4_m4(mat, matrix);  // does not work because copy_m4_m4 does not declare 2nd parameter as const
-
-	for (int i = 0; i < 4; i++)
-		for (int j = 0; j < 4; j++)
-			mat[i][j] = matrix.matrix[i][j];
+	return matrix.matrix;
 }
 
 bool BCSample::in_range(const BCSample &other, float distance) const
@@ -333,16 +324,14 @@ const bool BCMatrix::in_range(const BCMatrix &other, float distance) const
 	return true;
 }
 
-void BCSample::decompose() const
+void BCMatrix::decompose() const
 {
-	float mat[4][4];
-	get_matrix(mat);
-	mat4_decompose(loc, q, size, mat);
+	mat4_decompose(loc, q, size, matrix);
 	quat_to_eul(rot, q);
 	decomposed = true;
 }
 
-const float(&BCSample::location() const)[3]
+float(&BCMatrix::location() const)[3]
 {
 	if (!decomposed)
 	decompose();
@@ -350,7 +339,7 @@ const float(&BCSample::location() const)[3]
 return loc;
 }
 
-const float(&BCSample::rotation() const)[3]
+float(&BCMatrix::rotation() const)[3]
 {
 	if (!decomposed)
 	decompose();
@@ -359,7 +348,7 @@ return rot;
 
 }
 
-const float(&BCSample::scale() const)[3]
+float(&BCMatrix::scale() const)[3]
 {
 	if (!decomposed)
 	decompose();
@@ -367,7 +356,7 @@ const float(&BCSample::scale() const)[3]
 return size;
 }
 
-const float(&BCSample::quat() const)[4]
+float(&BCMatrix::quat() const)[4]
 {
 	if (!decomposed)
 	decompose();

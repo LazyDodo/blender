@@ -100,18 +100,60 @@ public:
 	float znear;
 };
 
+
+/*
+* BCMatrix is a neat helper class to handle float matrix[4][4] items
+* in a convenient way.
+* Actually i could not figure out how to make BCMatrix an equivalent
+* of a float matrix[4][4] That is why i added the Matrix typedef
+* below. 
+*
+* As the code stands now, i must do this for example:
+*
+* float mat[4][4];
+* BCMatrix obmat;
+* copy_m4_m4(obmat.matrix, mat);
+*
+* I would prefer if i had only BCMatrix and do:
+*
+* float mat[4][4];
+* BCMatrix obmat;
+* copy_m4_m4(obmat, mat);
+*
+* Can this be achieved ?
+*/
+
 typedef float(Matrix)[4][4];
-
 class BCMatrix {
-public:
-	Matrix matrix;
 
+	mutable float size[3];
+	mutable float rot[3];
+	mutable float loc[3];
+	mutable float q[4];
+	mutable bool decomposed = false;
+
+	/* Private methods */
+	void decompose() const;
+	void unit();
+	void copy(float(&r)[4][4], float(&a)[4][4]);
+
+public:
+	mutable float matrix[4][4];
+
+	float(&location() const)[3];
+	float(&rotation() const)[3];
+	float(&scale() const)[3];
+	float(&quat() const)[4];
+
+	BCMatrix()
+	{
+		unit();
+	}
 	void get_matrix(double(&mat)[4][4], const bool transposed = false, const int precision = -1) const;
 	const bool in_range(const BCMatrix &other, float distance) const;
 };
 
 typedef std::map<int, BCMaterial *> BCMaterialMap;
-typedef std::map<int, BCMatrix *> BCMatrixMap;
 typedef std::map<Bone *, BCMatrix *> BCBoneMatrixMap;
 
 class BCSample{
@@ -119,11 +161,6 @@ private:
 	
 	/* For Object Transformations */
 	BCMatrix matrix;
-	mutable float size[3];
-	mutable float rot[3];
-	mutable float loc[3];
-	mutable float q[4];
-	mutable bool decomposed = false;
 
 	/* XXX: The following parts are exclusive, each BCSample has 
 	   at most one of those filled with data. 
@@ -134,18 +171,8 @@ private:
 	BCLamp lamp; /* For Lamp channels */
 	BCCamera camera; /* For Camera channels */
 
-	/* Private methods */
-	void decompose() const;
-	void unit();
-	void copy(float(&r)[4][4], float(&a)[4][4]);
-
-	const float(&location() const)[3];
-	const float(&rotation() const)[3];
-	const float(&scale() const)[3];
-	const float(&quat() const)[4];
 
 public:
-	BCSample();
 	BCSample(double(&mat)[4][4]);
 	BCSample(float(&mat)[4][4]);
 	~BCSample();
@@ -161,7 +188,7 @@ public:
 	const bool set_vector(BC_animation_transform_type channel, float val[3]);
 	const bool set_value(BC_animation_transform_type channel, const int array_index, float val);
 
-	void get_matrix(float(&mat)[4][4]) const;
+	const float(&get_matrix() const)[4][4];
 	const bool get_value(BC_animation_transform_type channel, const int array_index, float *val) const;
 	const bool get_value(int ma_index, BC_animation_transform_type channel, const int array_index, float *val) const;
 
