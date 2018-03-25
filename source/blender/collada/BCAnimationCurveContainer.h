@@ -86,16 +86,15 @@ public:
 	/* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
 	/* Get the matrix for the given Bone, returns Unity when the Object is not sampled */
 	/* Get the matrix for the given Material, returns Unity when the Object is not sampled */
-	const BCSample &get_sample(const BCSampleKey key) const;
-	const BCMatrix &get_sample_matrix(const BCSampleKey key) const;
-	const BCSample &get_sample(Object *ob) const;
+	const BCSample *get_sample(Object *ob) const;
+	const BCMatrix *get_sample_matrix(Object *ob) const;
 	const BCMatrix *get_sample_matrix(Object *ob, Bone *bone) const;
 
 	/* Check if the key is in this BCSampleFrame */
 	/* Check if the Object is in this BCSampleFrame */
 	/* Check if the Bone is in this BCSampleFrame */
 	/* Check if the Material is in this BCSampleFrame */
-	const bool contains(const BCSampleKey &key) const;
+	const bool contains(const Object *ob) const;
 	const bool contains(Object *ob) const;
 	const bool contains(Object *ob, Bone *bone) const;
 
@@ -159,9 +158,10 @@ public:
 
 	/* Return a list of all frames that need to be sampled */
 	const int get_frames(std::vector<int> &frames) const;
-	const int get_frames(BCSampleKey &key, BCFrames &frames) const;
-	const int get_matrices(const BCSampleKey &key, BCFrameSampleMap &matrices) const;
-	const int get_matrices(const BCSampleKey &key, BCMatrixSampleMap &matrices) const;
+	const int get_frames(Object *ob, BCFrames &frames) const;
+	const int get_frames(Object *ob, Bone *bone, BCFrames &frames) const;
+	const int get_matrices(Object *ob, BCFrameSampleMap &matrices) const;
+	const int get_matrices(Object *ob, BCMatrixSampleMap &matrices) const;
 	const int get_matrices(Object *ob, Bone *bone, BCMatrixSampleMap &bones) const;
 };
 

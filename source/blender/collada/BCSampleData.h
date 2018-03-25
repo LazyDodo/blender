@@ -39,7 +39,7 @@ extern "C"
 
 /*
  * The list of currently supported animation types
- * TODO: Maybe this can be made more general
+ * TODO: Maybe this can be made more general.
 */
 typedef enum BC_animation_transform_type {
 
@@ -74,45 +74,6 @@ typedef enum BC_animation_transform_type {
 
 } BC_animation_transform_type;
 
-class BCSampleKey {
-
-	/*
-	Whenever an Object or a bone is sampled
-	somewhere in the timeline we need to record the
-	local matrix for the Object or the bone. This information is then
-	stored in a BCSamplesMap with a key of type BCSampleKey.
-
-	The main purpose of this class is to have a nice way to define the keys.
-	Of course we just could feed in strings, but this looks more clean to me.
-	*/
-
-private:
-
-	std::string key; // like the rna string in fcurves but with object name prepended
-
-public:
-
-	BCSampleKey(const std::string key)
-	{
-		this->key = key;
-	}
-
-	BCSampleKey(const Object *ob)
-	{
-		this->key = std::string(ob->id.name);
-	}
-
-	BCSampleKey(const Object *ob, Bone *bone)
-	{
-		this->key = std::string(ob->id.name) + ".pose.bones[" + std::string(bone->name) + "]";
-	}
-
-	const bool operator<(const BCSampleKey &other) const
-	{
-		return this->key < other.key;
-	}
-
-};
 
 class BCMaterial {
 public:
