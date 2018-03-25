@@ -37,7 +37,10 @@ extern "C"
 #include "DNA_material_types.h"
 }
 
-
+/*
+ * The list of currently supported animation types
+ * TODO: Maybe this can be made more general
+*/
 typedef enum BC_animation_transform_type {
 
 	/* Translation channels */
