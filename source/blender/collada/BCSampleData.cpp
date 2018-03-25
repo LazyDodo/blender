@@ -108,27 +108,27 @@ const bool BCSample::set_value(BC_animation_transform_type channel, const int ar
 
 	/* Light animation */
 	case BC_ANIMATION_TYPE_FALL_OFF_ANGLE:
-		falloff_angle = val;
+		lamp.falloff_angle = val;
 		break;
 	case BC_ANIMATION_TYPE_FALL_OFF_EXPONENT:
-		falloff_exponent = val;
+		lamp.falloff_exponent = val;
 		break;
 	case BC_ANIMATION_TYPE_BLENDER_DIST:
-		blender_dist = val;
+		lamp.blender_dist = val;
 		break;
 
 	/* Camera animation */
 	case BC_ANIMATION_TYPE_XFOV:
-		xfov = val;
+		camera.xfov = val;
 		break;
 	case BC_ANIMATION_TYPE_XMAG:
-		xmag = val;
+		camera.xmag = val;
 		break;
 	case BC_ANIMATION_TYPE_ZFAR:
-		zfar = val;
+		camera.zfar = val;
 		break;
 	case BC_ANIMATION_TYPE_ZNEAR:
-		znear = val;
+		camera.znear = val;
 		break;
 
 	default:
@@ -146,7 +146,7 @@ const bool BCSample::set_vector(BC_animation_transform_type channel, float val[3
 	switch (channel) {
 	/* Lamp animation */
 	case BC_ANIMATION_TYPE_LIGHT_COLOR:
-		vp = light_color;
+		vp = lamp.light_color;
 		break;
 	default:
 		return false;
@@ -212,30 +212,30 @@ const bool BCSample::get_value(BC_animation_transform_type channel, const int ar
 
 	/* Lamp animation */
 	case BC_ANIMATION_TYPE_LIGHT_COLOR:
-		*val = light_color[array_index];
+		*val = lamp.light_color[array_index];
 		break;
 	case BC_ANIMATION_TYPE_FALL_OFF_ANGLE:
-		*val = falloff_angle;
+		*val = lamp.falloff_angle;
 		break;
 	case BC_ANIMATION_TYPE_FALL_OFF_EXPONENT:
-		*val = falloff_exponent;
+		*val = lamp.falloff_exponent;
 		break;
 	case BC_ANIMATION_TYPE_BLENDER_DIST:
-		*val = blender_dist;
+		*val = lamp.blender_dist;
 		break;
 
 	/* Camera animation */
 	case BC_ANIMATION_TYPE_XFOV:
-		*val = xfov;
+		*val = camera.xfov;
 		break;
 	case BC_ANIMATION_TYPE_XMAG:
-		*val = xmag;
+		*val = camera.xmag;
 		break;
 	case BC_ANIMATION_TYPE_ZFAR:
-		*val = zfar;
+		*val = camera.zfar;
 		break;
 	case BC_ANIMATION_TYPE_ZNEAR:
-		*val = znear;
+		*val = camera.znear;
 		break;
 
 	case BC_ANIMATION_TYPE_UNKNOWN:

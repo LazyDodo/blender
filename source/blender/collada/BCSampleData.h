@@ -84,6 +84,22 @@ public:
 	float ior;
 };
 
+class BCLamp {
+public:
+	float light_color[3];
+	float falloff_angle;
+	float falloff_exponent;
+	float blender_dist;
+};
+
+class BCCamera {
+public:
+	float xfov;
+	float xmag;
+	float zfar;
+	float znear;
+};
+
 typedef float(Matrix)[4][4];
 
 class BCMatrix {
@@ -109,21 +125,14 @@ private:
 	mutable float q[4];
 	mutable bool decomposed = false;
 
-	/* For Material channels */
-	BCMaterialMap material_map;
-	BCBoneMatrixMap bone_matrix_map;
-
-    /* For Lamp channels */
-	float light_color[3];
-	float falloff_angle;
-	float falloff_exponent;
-	float blender_dist;
-
-	/* For Camera channels */
-	float xfov;
-	float xmag;
-	float zfar;
-	float znear;
+	/* XXX: The following parts are exclusive, each BCSample has 
+	   at most one of those filled with data. 
+	   Maybe we can make a union here?
+	*/
+	BCMaterialMap material_map; /* For Material animation */
+	BCBoneMatrixMap bone_matrix_map; /* For Armature animation */
+	BCLamp lamp; /* For Lamp channels */
+	BCCamera camera; /* For Camera channels */
 
 	/* Private methods */
 	void decompose() const;

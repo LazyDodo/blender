@@ -45,7 +45,7 @@ typedef std::map<Object *, BCAnimationCurveMap> BCAnimationObjectMap;
 
 
 /* ============================================================== */
-typedef std::map<BCSampleKey, BCSample *> BCSampleKeysMap;
+typedef std::map<Object *, BCSample *> BCSampleKeysMap;
 
 class BCSampleFrame {
 
