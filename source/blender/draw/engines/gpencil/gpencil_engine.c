@@ -44,6 +44,8 @@
 
 #include "RE_pipeline.h"
 
+#include "GPU_texture.h"
+
 #include "gpencil_engine.h"
 
 #include "ED_screen.h"
@@ -903,6 +905,27 @@ static float get_render_pixelsize(float persmat[4][4], int winx, int winy)
 	return len_px / len_sc;
 }
 
+/* create a multisample buffer if not present */
+static void DRW_framebuffer_multisample_ensure(DefaultFramebufferList *dfbl, DefaultTextureList *dtxl, int rect_w, int rect_h)
+{
+	if (U.ogl_multisamples > 0) {
+		if (!dfbl->multisample_fb) {
+			dfbl->multisample_fb = GPU_framebuffer_create();
+			if (dfbl->multisample_fb) {
+				dtxl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, NULL, U.ogl_multisamples, NULL);
+				dtxl->multisample_depth = GPU_texture_create_depth_with_stencil_multisample(rect_w, rect_h, U.ogl_multisamples, NULL);
+				GPU_framebuffer_ensure_config(&dfbl->multisample_fb, {
+					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_depth),
+					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_color)
+					});
+				if (!GPU_framebuffer_check_valid(dfbl->multisample_fb, NULL)) {
+					GPU_framebuffer_free(dfbl->multisample_fb);
+				}
+			}
+		}
+	}
+}
+
 /* init render data */
 void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgraph *depsgraph)
 {
@@ -925,13 +948,12 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 	if (U.ogl_multisamples > 0) {
 		int rect_w = (int)viewport_size[0];
 		int rect_h = (int)viewport_size[1];
-		/* TODO: Fix after DRW refactoring */
-//		DRW_framebuffer_create_multisample(dfbl, dtxl, rect_w, rect_h);
+		DRW_framebuffer_multisample_ensure(dfbl, dtxl, rect_w, rect_h);
 	}
 
 	e_data.render_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 		&draw_engine_object_type);
-	e_data.render_color_tx = DRW_texture_pool_query_2D(size[1], size[1], DRW_TEX_RGBA_32,
+	e_data.render_color_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_32,
 		&draw_engine_object_type);
 	GPU_framebuffer_ensure_config(&fbl->main, {
 		GPU_ATTACHMENT_TEXTURE(e_data.render_depth_tx),
