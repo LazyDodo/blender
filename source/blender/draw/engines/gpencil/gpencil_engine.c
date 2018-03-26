@@ -88,7 +88,7 @@ static void GPENCIL_engine_init(void *vedata)
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
-		e_data.temp_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+		e_data.temp_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 														 &draw_engine_object_type);
 		e_data.temp_color_tx = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
 														 &draw_engine_object_type);
@@ -97,7 +97,7 @@ static void GPENCIL_engine_init(void *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx)
 		});
 		/* vfx */
-		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 			&draw_engine_object_type);
 		e_data.vfx_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
 			&draw_engine_object_type);
@@ -106,7 +106,7 @@ static void GPENCIL_engine_init(void *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_a)
 		});
 
-		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 			&draw_engine_object_type);
 		e_data.vfx_color_tx_b = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
 			&draw_engine_object_type);
@@ -116,7 +116,7 @@ static void GPENCIL_engine_init(void *vedata)
 		});
 
 		/* painting framebuffer to speed up drawing process (always 16 bits) */
-		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 			&draw_engine_object_type);
 		e_data.painting_color_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_16,
 			&draw_engine_object_type);
@@ -929,7 +929,7 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 //		DRW_framebuffer_create_multisample(dfbl, dtxl, rect_w, rect_h);
 	}
 
-	e_data.render_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+	e_data.render_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 		&draw_engine_object_type);
 	e_data.render_color_tx = DRW_texture_pool_query_2D(size[1], size[1], DRW_TEX_RGBA_32,
 		&draw_engine_object_type);
