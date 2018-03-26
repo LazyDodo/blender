@@ -86,45 +86,44 @@ static void GPENCIL_engine_init(void *vedata)
 
 	if (DRW_state_is_fbo()) {
 		const float *viewport_size = DRW_viewport_size_get();
+		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
-		DRWFboTexture tex_color[2] = {
-			{&e_data.temp_depth_tx, DRW_TEX_DEPTH_24_STENCIL_8, DRW_TEX_TEMP},
-			{&e_data.temp_color_tx, fb_format, DRW_TEX_TEMP}
-		};
-		/* init temp framebuffer */
-		DRW_framebuffer_init(
-		        &fbl->temp_fb, &draw_engine_gpencil_type,
-		        (int)viewport_size[0], (int)viewport_size[1],
-		        tex_color, ARRAY_SIZE(tex_color));
-
+		e_data.temp_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+														 &draw_engine_object_type);
+		e_data.temp_color_tx = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+														 &draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->temp_fb, {
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx),
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx)
+		});
 		/* vfx */
-		DRWFboTexture vfx_color_a[2] = {
-			{&e_data.vfx_depth_tx_a, DRW_TEX_DEPTH_24_STENCIL_8, DRW_TEX_TEMP},
-			{&e_data.vfx_color_tx_a, fb_format, DRW_TEX_TEMP}
-		};
-		DRW_framebuffer_init(
-		        &fbl->vfx_fb_a, &draw_engine_gpencil_type,
-		        (int)viewport_size[0], (int)viewport_size[1],
-		        vfx_color_a, ARRAY_SIZE(vfx_color_a));
+		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+			&draw_engine_object_type);
+		e_data.vfx_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->vfx_fb_a, {
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_a),
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_a)
+		});
 
-		DRWFboTexture vfx_color_b[2] = {
-			{&e_data.vfx_depth_tx_b, DRW_TEX_DEPTH_24_STENCIL_8, DRW_TEX_TEMP},
-			{&e_data.vfx_color_tx_b, fb_format, DRW_TEX_TEMP}
-		};
-		DRW_framebuffer_init(
-		        &fbl->vfx_fb_b, &draw_engine_gpencil_type,
-		        (int)viewport_size[0], (int)viewport_size[1],
-		        vfx_color_b, ARRAY_SIZE(vfx_color_b));
+		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+			&draw_engine_object_type);
+		e_data.vfx_color_tx_b = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->vfx_fb_b, {
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_b),
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_b)
+		});
 
 		/* painting framebuffer to speed up drawing process (always 16 bits) */
-		DRWFboTexture tex_painting[2] = {
-			{&e_data.painting_depth_tx, DRW_TEX_DEPTH_24_STENCIL_8, DRW_TEX_TEMP},
-			{&e_data.painting_color_tx, DRW_TEX_RGBA_16, DRW_TEX_TEMP}
-		};
-		DRW_framebuffer_init(
-		        &fbl->painting_fb, &draw_engine_gpencil_type,
-		        (int)viewport_size[0], (int)viewport_size[1],
-		        tex_painting, ARRAY_SIZE(tex_painting));
+		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+			&draw_engine_object_type);
+		e_data.painting_color_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_16,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->painting_fb, {
+			GPU_ATTACHMENT_TEXTURE(e_data.painting_depth_tx),
+			GPU_ATTACHMENT_TEXTURE(e_data.painting_color_tx)
+		});
 	}
 	/* normal fill shader */
 	if (!e_data.gpencil_fill_sh) {
@@ -370,8 +369,8 @@ static void GPENCIL_cache_init(void *vedata)
 		DRWShadingGroup *mix_shgrp = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(mix_shgrp, quad, NULL);
-		DRW_shgroup_uniform_buffer(mix_shgrp, "strokeColor", &e_data.input_color_tx);
-		DRW_shgroup_uniform_buffer(mix_shgrp, "strokeDepth", &e_data.input_depth_tx);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp, "strokeColor", &e_data.input_color_tx);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp, "strokeDepth", &e_data.input_depth_tx);
 		DRW_shgroup_uniform_int(mix_shgrp, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* mix pass no blend */
@@ -380,8 +379,8 @@ static void GPENCIL_cache_init(void *vedata)
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(mix_shgrp_noblend, quad_noblend, NULL);
-		DRW_shgroup_uniform_buffer(mix_shgrp_noblend, "strokeColor", &e_data.input_color_tx);
-		DRW_shgroup_uniform_buffer(mix_shgrp_noblend, "strokeDepth", &e_data.input_depth_tx);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.input_color_tx);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.input_depth_tx);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* vfx copy pass from txtb to txta */
@@ -390,8 +389,8 @@ static void GPENCIL_cache_init(void *vedata)
 		DRWShadingGroup *vfx_copy_shgrp = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->vfx_copy_pass);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(vfx_copy_shgrp, vfxquad, NULL);
-		DRW_shgroup_uniform_buffer(vfx_copy_shgrp, "strokeColor", &e_data.vfx_color_tx_b);
-		DRW_shgroup_uniform_buffer(vfx_copy_shgrp, "strokeDepth", &e_data.vfx_depth_tx_b);
+		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeColor", &e_data.vfx_color_tx_b);
+		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeDepth", &e_data.vfx_depth_tx_b);
 		DRW_shgroup_uniform_int(vfx_copy_shgrp, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* VFX pass */
@@ -416,8 +415,8 @@ static void GPENCIL_cache_init(void *vedata)
 		DRWShadingGroup *painting_shgrp = DRW_shgroup_create(e_data.gpencil_painting_sh, psl->painting_pass);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(painting_shgrp, paintquad, NULL);
-		DRW_shgroup_uniform_buffer(painting_shgrp, "strokeColor", &e_data.painting_color_tx);
-		DRW_shgroup_uniform_buffer(painting_shgrp, "strokeDepth", &e_data.painting_depth_tx);
+		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeColor", &e_data.painting_color_tx);
+		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeDepth", &e_data.painting_depth_tx);
 
 		/* pass for current stroke drawing in front of all */
 		struct Gwn_Batch *frontquad = DRW_cache_fullscreen_quad_get();
@@ -425,7 +424,7 @@ static void GPENCIL_cache_init(void *vedata)
 		DRWShadingGroup *mix_front_shgrp = DRW_shgroup_create(e_data.gpencil_front_depth_sh, psl->mix_pass_front);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(mix_front_shgrp, frontquad, NULL);
-		DRW_shgroup_uniform_buffer(mix_front_shgrp, "strokeColor", &e_data.temp_color_tx);
+		DRW_shgroup_uniform_texture_ref(mix_front_shgrp, "strokeColor", &e_data.temp_color_tx);
 
 		/* pass for drawing paper (only if viewport)
 		 * In render, the v3d is null
@@ -569,13 +568,13 @@ static void gpencil_draw_vfx_pass(DRWPass *vfxpass, DRWPass *copypass,
 {
 	float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	DRW_framebuffer_bind(fbl->vfx_fb_b);
-	DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+	GPU_framebuffer_bind(fbl->vfx_fb_b);
+	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
 	/* flip pass */
 	DRW_draw_pass_subset(vfxpass, shgrp, shgrp);
 	/* copy pass from b to a */
-	DRW_framebuffer_bind(fbl->vfx_fb_a);
-	DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+	GPU_framebuffer_bind(fbl->vfx_fb_a);
+	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
 	DRW_draw_pass(copypass);
 }
 
@@ -593,8 +592,8 @@ static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 
-	DRW_framebuffer_bind(fbl->vfx_fb_a);
-	DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+	GPU_framebuffer_bind(fbl->vfx_fb_a);
+	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
 
 	/* create a wave pass or if this modifier is not used, copy the original texture
 	* to tx_a to be used by all following vfx modifiers.
@@ -610,24 +609,24 @@ static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
 	 * Blur passes (use several passes to get better quality)
 	 * --------------*/
 	if (cache->vfx_blur_sh_1) {
-		DRW_framebuffer_bind(fbl->vfx_fb_b);
-		DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+		GPU_framebuffer_bind(fbl->vfx_fb_b);
+		GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
 		/* pass 1 */
 		DRW_draw_pass_subset(psl->vfx_blur_pass_1,
 			cache->vfx_blur_sh_1,
 			cache->vfx_blur_sh_1);
 		/* pass 2 */
-		DRW_framebuffer_bind(fbl->vfx_fb_a);
+		GPU_framebuffer_bind(fbl->vfx_fb_a);
 		DRW_draw_pass_subset(psl->vfx_blur_pass_2,
 			cache->vfx_blur_sh_2,
 			cache->vfx_blur_sh_2);
 		/* pass 3 */
-		DRW_framebuffer_bind(fbl->vfx_fb_b);
+		GPU_framebuffer_bind(fbl->vfx_fb_b);
 		DRW_draw_pass_subset(psl->vfx_blur_pass_3,
 			cache->vfx_blur_sh_3,
 			cache->vfx_blur_sh_3);
 		/* pass 4 */
-		DRW_framebuffer_bind(fbl->vfx_fb_a);
+		GPU_framebuffer_bind(fbl->vfx_fb_a);
 		DRW_draw_pass_subset(psl->vfx_blur_pass_4,
 			cache->vfx_blur_sh_4,
 			cache->vfx_blur_sh_4);
@@ -666,16 +665,16 @@ static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
 static void gpencil_prepare_fast_drawing(GPENCIL_StorageList *stl, DefaultFramebufferList *dfbl, GPENCIL_FramebufferList *fbl, DRWPass *pass, float clearcol[4])
 {
 	if (stl->g_data->session_flag & (GP_DRW_PAINT_IDLE | GP_DRW_PAINT_FILLING)) {
-		DRW_framebuffer_bind(fbl->painting_fb);
+		GPU_framebuffer_bind(fbl->painting_fb);
 		/* clean only in first loop cycle */
 		if (stl->g_data->session_flag & GP_DRW_PAINT_IDLE) {
-			DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+			GPU_framebuffer_clear_color_depth(fbl->painting_fb, clearcol, 1.0f);
 			stl->g_data->session_flag = GP_DRW_PAINT_FILLING;
 		}
 		/* repeat pass to fill temp texture */
 		DRW_draw_pass(pass);
 		/* set default framebuffer again */
-		DRW_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(dfbl->default_fb);
 	}
 }
 
@@ -728,7 +727,7 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	/* if we have a painting session, we use fast viewport drawing method */
 	if ((!is_render) && (stl->g_data->session_flag & GP_DRW_PAINT_PAINTING)) {
-		DRW_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(dfbl->default_fb);
 
 		MULTISAMPLE_SYNC_ENABLE(dfbl);
 		
@@ -737,11 +736,11 @@ static void GPENCIL_draw_scene(void *vedata)
 		MULTISAMPLE_SYNC_DISABLE(dfbl);
 
 		/* Current stroke must pass through the temp framebuffer to get same alpha values in blend */
-		DRW_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_depth_tx, 0, 0);
-		DRW_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_color_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_depth_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_color_tx, 0, 0);
 
-		DRW_framebuffer_bind(fbl->temp_fb);
-		DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+		GPU_framebuffer_bind(fbl->temp_fb);
+		GPU_framebuffer_clear_color_depth(fbl->temp_fb, clearcol, 1.0f);
 		MULTISAMPLE_GP_SYNC_ENABLE(dfbl, fbl);
 
 		DRW_draw_pass(psl->drawing_pass);
@@ -749,14 +748,14 @@ static void GPENCIL_draw_scene(void *vedata)
 		MULTISAMPLE_GP_SYNC_DISABLE(dfbl, fbl);
 
 		/* send to default framebuffer */
-		DRW_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(dfbl->default_fb);
 		DRW_draw_pass(psl->mix_pass_front);
 
-		DRW_framebuffer_texture_detach(e_data.temp_depth_tx);
-		DRW_framebuffer_texture_detach(e_data.temp_color_tx);
+		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_depth_tx);
+		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_color_tx);
 
 		/* attach again default framebuffer after detach textures */
-		DRW_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(dfbl->default_fb);
 
 		/* free memory */
 		gpencil_free_obj_list(stl);
@@ -765,17 +764,17 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	if (DRW_state_is_fbo()) {
 		/* attach temp textures */
-		DRW_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_depth_tx, 0, 0);
-		DRW_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_color_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_depth_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_color_tx, 0, 0);
 
-		DRW_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_depth_tx_a, 0, 0);
-		DRW_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_color_tx_a, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_depth_tx_a, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_color_tx_a, 0, 0);
 
-		DRW_framebuffer_texture_attach(fbl->vfx_fb_b, e_data.vfx_depth_tx_b, 0, 0);
-		DRW_framebuffer_texture_attach(fbl->vfx_fb_b, e_data.vfx_color_tx_b, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->vfx_fb_b, e_data.vfx_depth_tx_b, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->vfx_fb_b, e_data.vfx_color_tx_b, 0, 0);
 
-		DRW_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_depth_tx, 0, 0);
-		DRW_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_color_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_depth_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_color_tx, 0, 0);
 
 		/* Draw all pending objects */
 		if (stl->g_data->gp_cache_used > 0) {
@@ -791,8 +790,8 @@ static void GPENCIL_draw_scene(void *vedata)
 				init_grp = cache->init_grp;
 				end_grp = cache->end_grp;
 				/* Render stroke in separated framebuffer */
-				DRW_framebuffer_bind(fbl->temp_fb);
-				DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+				GPU_framebuffer_bind(fbl->temp_fb);
+				GPU_framebuffer_clear_color_depth(fbl->temp_fb, clearcol, 1.0f);
 
 				/* Stroke Pass: DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH
 				 * draw only a subset that usually start with a fill and end with stroke because the
@@ -831,10 +830,10 @@ static void GPENCIL_draw_scene(void *vedata)
 				}
 				/* Combine with scene buffer */
 				if ((!is_render) || (fbl->main == NULL)) {
-					DRW_framebuffer_bind(dfbl->default_fb);
+					GPU_framebuffer_bind(dfbl->default_fb);
 				}
 				else {
-					DRW_framebuffer_bind(fbl->main);
+					GPU_framebuffer_bind(fbl->main);
 				}
 				/* tonemapping */
 				stl->storage->tonemapping = stl->storage->is_render ? 1 : 0;
@@ -857,21 +856,21 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	/* detach temp textures */
 	if (DRW_state_is_fbo()) {
-		DRW_framebuffer_texture_detach(e_data.temp_depth_tx);
-		DRW_framebuffer_texture_detach(e_data.temp_color_tx);
+		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_depth_tx);
+		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_color_tx);
 
-		DRW_framebuffer_texture_detach(e_data.vfx_depth_tx_a);
-		DRW_framebuffer_texture_detach(e_data.vfx_color_tx_a);
+		GPU_framebuffer_texture_detach(fbl->vfx_fb_a, e_data.vfx_depth_tx_a);
+		GPU_framebuffer_texture_detach(fbl->vfx_fb_a, e_data.vfx_color_tx_a);
 
-		DRW_framebuffer_texture_detach(e_data.vfx_depth_tx_b);
-		DRW_framebuffer_texture_detach(e_data.vfx_color_tx_b);
+		GPU_framebuffer_texture_detach(fbl->vfx_fb_b, e_data.vfx_depth_tx_b);
+		GPU_framebuffer_texture_detach(fbl->vfx_fb_b, e_data.vfx_color_tx_b);
 
-		DRW_framebuffer_texture_detach(e_data.painting_depth_tx);
-		DRW_framebuffer_texture_detach(e_data.painting_color_tx);
+		GPU_framebuffer_texture_detach(fbl->painting_fb, e_data.painting_depth_tx);
+		GPU_framebuffer_texture_detach(fbl->painting_fb, e_data.painting_color_tx);
 
 		/* attach again default framebuffer after detach textures */
 		if (!is_render) {
-			DRW_framebuffer_bind(dfbl->default_fb);
+			GPU_framebuffer_bind(dfbl->default_fb);
 		}
 
 		/* the temp texture is ready. Now we can use fast screen drawing */
@@ -913,6 +912,7 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	const float *viewport_size = DRW_viewport_size_get();
+	const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
 	/* In render mode the default framebuffer is not generated
 	* because there is no viewport. So we need to manually create one 
@@ -925,18 +925,18 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 	if (U.ogl_multisamples > 0) {
 		int rect_w = (int)viewport_size[0];
 		int rect_h = (int)viewport_size[1];
-		DRW_framebuffer_create_multisample(dfbl, dtxl, rect_w, rect_h);
+		/* TODO: Fix after DRW refactoring */
+//		DRW_framebuffer_create_multisample(dfbl, dtxl, rect_w, rect_h);
 	}
 
-	DRWFboTexture tex_color[2] = {
-		{ &e_data.render_depth_tx, DRW_TEX_DEPTH_24_STENCIL_8, DRW_TEX_TEMP },
-		{ &e_data.render_color_tx, DRW_TEX_RGBA_32, DRW_TEX_TEMP }
-	};
-	/* init main framebuffer */
-	DRW_framebuffer_init(
-		&fbl->main, &draw_engine_gpencil_type,
-		(int)viewport_size[0], (int)viewport_size[1],
-		tex_color, ARRAY_SIZE(tex_color));
+	e_data.render_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24,
+		&draw_engine_object_type);
+	e_data.render_color_tx = DRW_texture_pool_query_2D(size[1], size[1], DRW_TEX_RGBA_32,
+		&draw_engine_object_type);
+	GPU_framebuffer_ensure_config(&fbl->main, {
+		GPU_ATTACHMENT_TEXTURE(e_data.render_depth_tx),
+		GPU_ATTACHMENT_TEXTURE(e_data.render_color_tx)
+		});
 
 	/* Alloc transient data. */
 	if (!stl->g_data) {
@@ -1045,7 +1045,7 @@ static void GPENCIL_render_result_z(struct RenderLayer *rl, const char *viewname
 	if ((view_layer->passflag & SCE_PASS_Z) != 0) {
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_Z, viewname);
 
-		DRW_framebuffer_read_depth(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), rp->rect);
+		GPU_framebuffer_read_depth(vedata->fbl->main, rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), rp->rect);
 
 		bool is_persp = DRW_viewport_is_persp_get();
 
@@ -1075,8 +1075,8 @@ static void GPENCIL_render_result_combined(struct RenderLayer *rl, const char *v
 	RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_COMBINED, viewname);
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 
-	DRW_framebuffer_bind(fbl->main);
-	DRW_framebuffer_read_data(rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 4, 0, rp->rect);
+	GPU_framebuffer_bind(fbl->main);
+	GPU_framebuffer_read_color(vedata->fbl->main, rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 4, 0, rp->rect);
 }
 
 /* render grease pencil to image */
@@ -1105,12 +1105,12 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	if (fbl->main) {
-		DRW_framebuffer_texture_attach(fbl->main, e_data.render_depth_tx, 0, 0);
-		DRW_framebuffer_texture_attach(fbl->main, e_data.render_color_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->main, e_data.render_depth_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->main, e_data.render_color_tx, 0, 0);
 		/* clean first time the buffer */
 		float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-		DRW_framebuffer_bind(fbl->main);
-		DRW_framebuffer_clear(true, true, false, clearcol, 1.0f);
+		GPU_framebuffer_bind(fbl->main);
+		GPU_framebuffer_clear_color_depth(fbl->main, clearcol, 1.0f);
 	}
 
 	/* loop all objects and draw */
@@ -1126,8 +1126,8 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 	
 	/* detach textures */
 	if (fbl->main) {
-		DRW_framebuffer_texture_detach(e_data.render_depth_tx);
-		DRW_framebuffer_texture_detach(e_data.render_color_tx);
+		GPU_framebuffer_texture_detach(fbl->main, e_data.render_depth_tx);
+		GPU_framebuffer_texture_detach(fbl->main, e_data.render_color_tx);
 	}
 
 	/* merge previous render image with new GP image */ 
