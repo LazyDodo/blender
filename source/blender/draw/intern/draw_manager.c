@@ -744,6 +744,10 @@ static void drw_engines_draw_scene(void)
 		if (engine->draw_scene) {
 			DRW_stats_group_start(engine->idname);
 			engine->draw_scene(data);
+			/* Restore for next engine */
+			if (DRW_state_is_fbo()) {
+				GPU_framebuffer_bind(DST.default_framebuffer);
+			}
 			DRW_stats_group_end();
 		}
 
@@ -1134,6 +1138,9 @@ void DRW_draw_render_loop_ex(
 	/* Update ubos */
 	DRW_globals_update();
 
+	/* No framebuffer allowed before drawing. */
+	BLI_assert(GPU_framebuffer_current_get() == 0);
+
 	/* Init engines */
 	drw_engines_init();
 
@@ -1159,6 +1166,8 @@ void DRW_draw_render_loop_ex(
 	}
 
 	DRW_stats_begin();
+
+	GPU_framebuffer_bind(DST.default_framebuffer);
 
 	/* Start Drawing */
 	DRW_state_reset();
@@ -1225,6 +1234,8 @@ void DRW_draw_render_loop_ex(
 		glEnable(GL_DEPTH_TEST);
 	}
 
+	GPU_framebuffer_restore();
+
 	DRW_state_reset();
 	drw_engines_disable();
 
@@ -1269,6 +1280,8 @@ void DRW_draw_render_loop_offscreen(
 			rv3d->viewport = viewport;
 		}
 	}
+
+	GPU_framebuffer_restore();
 
 	/* Reset before using it. */
 	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
@@ -1421,8 +1434,6 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 	ViewportEngineData *data = drw_viewport_engine_data_ensure(draw_engine_type);
 
 	/* set default viewport */
-	gpuPushAttrib(GPU_ENABLE_BIT | GPU_VIEWPORT_BIT);
-	glDisable(GL_SCISSOR_TEST);
 	glViewport(0, 0, size[0], size[1]);
 
 	/* Main rendering. */
@@ -1461,16 +1472,6 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 	drw_viewport_cache_resize();
 
 	GPU_viewport_free(DST.viewport);
-
-	DRW_state_reset();
-	/* FIXME GL_DEPTH_TEST is enabled by default but it seems
-	 * to trigger some bad behaviour / artifacts if it's turned
-	 * on at this point. */
-	glDisable(GL_DEPTH_TEST);
-
-	/* Restore Drawing area. */
-	gpuPopAttrib();
-	glEnable(GL_SCISSOR_TEST);
 	GPU_framebuffer_restore();
 
 	/* Changing Context */
@@ -1571,19 +1572,11 @@ void DRW_draw_select_loop(
 		}
 	}
 
-	gpuPushAttrib(GPU_ENABLE_BIT | GPU_VIEWPORT_BIT);
-	glDisable(GL_SCISSOR_TEST);
-
 	struct GPUViewport *viewport = GPU_viewport_create();
 	GPU_viewport_size_set(viewport, (const int[2]){BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)});
 
 	DST.viewport = viewport;
 	v3d->zbuf = true;
-
-	/* Setup framebuffer */
-	draw_select_framebuffer_setup(rect);
-	GPU_framebuffer_bind(g_select_buffer.framebuffer);
-	DRW_framebuffer_clear(false, true, false, NULL, 1.0f);
 
 	DST.options.is_select = true;
 
@@ -1638,10 +1631,14 @@ void DRW_draw_select_loop(
 		DRW_render_instance_buffer_finish();
 	}
 
+	/* Setup framebuffer */
+	draw_select_framebuffer_setup(rect);
+	GPU_framebuffer_bind(g_select_buffer.framebuffer);
+	GPU_framebuffer_clear_depth(g_select_buffer.framebuffer, 1.0f);
+
 	/* Start Drawing */
 	DRW_state_reset();
 	DRW_draw_callbacks_pre_scene();
-
 
 	DRW_state_lock(
 	        DRW_STATE_WRITE_DEPTH |
@@ -1679,10 +1676,6 @@ void DRW_draw_select_loop(
 
 	/* Cleanup for selection state */
 	GPU_viewport_free(viewport);
-
-	/* Restore Drawing area. */
-	gpuPopAttrib();
-	glEnable(GL_SCISSOR_TEST);
 
 	/* restore */
 	rv3d->viewport = backup_viewport;
@@ -1746,16 +1739,13 @@ void DRW_draw_depth_loop(
 	/* Reset before using it. */
 	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
 
-	gpuPushAttrib(GPU_ENABLE_BIT | GPU_VIEWPORT_BIT);
-	glDisable(GL_SCISSOR_TEST);
-
 	struct GPUViewport *viewport = GPU_viewport_create();
 	GPU_viewport_size_set(viewport, (const int[2]){ar->winx, ar->winy});
 
 	/* Setup framebuffer */
 	draw_select_framebuffer_setup(&ar->winrct);
 	GPU_framebuffer_bind(g_select_buffer.framebuffer);
-	DRW_framebuffer_clear(false, true, false, NULL, 1.0f);
+	GPU_framebuffer_clear_depth(g_select_buffer.framebuffer, 1.0f);
 
 	bool cache_is_dirty;
 	DST.viewport = viewport;
@@ -1823,10 +1813,6 @@ void DRW_draw_depth_loop(
 
 	/* Cleanup for selection state */
 	GPU_viewport_free(viewport);
-
-	/* Restore Drawing area. */
-	gpuPopAttrib();
-	glEnable(GL_SCISSOR_TEST);
 
 	/* Changin context */
 	DRW_opengl_context_disable();
@@ -2056,7 +2042,7 @@ void DRW_engines_free(void)
 	DRW_opengl_context_enable();
 
 	DRW_TEXTURE_FREE_SAFE(g_select_buffer.texture_depth);
-	DRW_FRAMEBUFFER_FREE_SAFE(g_select_buffer.framebuffer);
+	GPU_FRAMEBUFFER_FREE_SAFE(g_select_buffer.framebuffer);
 
 	DRW_shape_cache_free();
 	DRW_stats_free();
