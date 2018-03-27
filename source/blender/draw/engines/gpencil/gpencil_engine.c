@@ -90,6 +90,9 @@ static void GPENCIL_engine_init(void *vedata)
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
+		/* temp framebuffer to store all stroke drawing before sending to default or used
+		 * by vfx shaders as initial input
+		 */
 		e_data.temp_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 														 &draw_engine_object_type);
 		e_data.temp_color_tx = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
@@ -98,7 +101,8 @@ static void GPENCIL_engine_init(void *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx),
 			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx)
 		});
-		/* vfx */
+
+		/* vfx (ping-pong textures) */
 		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 			&draw_engine_object_type);
 		e_data.vfx_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
@@ -134,7 +138,7 @@ static void GPENCIL_engine_init(void *vedata)
 		        datatoc_gpencil_fill_frag_glsl, NULL);
 	}
 
-	/* normal stroke shader using geometry to display lines */
+	/* normal stroke shader using geometry to display lines (line mode) */
 	if (!e_data.gpencil_stroke_sh) {
 		e_data.gpencil_stroke_sh = DRW_shader_create(
 		        datatoc_gpencil_stroke_vert_glsl,
@@ -142,6 +146,8 @@ static void GPENCIL_engine_init(void *vedata)
 		        datatoc_gpencil_stroke_frag_glsl,
 		        NULL);
 	}
+	
+	/* dot/rectangle mode for normal strokes using geometry */
 	if (!e_data.gpencil_point_sh) {
 		e_data.gpencil_point_sh = DRW_shader_create(
 		        datatoc_gpencil_point_vert_glsl,
@@ -257,6 +263,7 @@ static void GPENCIL_cache_init(void *vedata)
 	if (!e_data.gpencil_simple_fullscreen_sh) {
 		e_data.gpencil_simple_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_simple_mix_frag_glsl, NULL);
 	}
+	/* vfx shaders (all in screen space) */
 	if (!e_data.gpencil_vfx_blur_sh) {
 		e_data.gpencil_vfx_blur_sh = DRW_shader_create_fullscreen(datatoc_gpencil_gaussian_blur_frag_glsl, NULL);
 	}
@@ -394,7 +401,7 @@ static void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeColor", &e_data.vfx_color_tx_b);
 		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeDepth", &e_data.vfx_depth_tx_b);
 
-		/* VFX pass */
+		/* VFX passes */
 		psl->vfx_wave_pass = DRW_pass_create("GPencil VFX Wave Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
 		psl->vfx_blur_pass_1 = DRW_pass_create("GPencil VFX Blur Pass 1", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
@@ -448,7 +455,7 @@ static void GPENCIL_cache_init(void *vedata)
 
 static void GPENCIL_cache_populate(void *vedata, Object *ob)
 {
-	/* object must be visisible */
+	/* object must be visible */
 	if (!DRW_check_object_visible_within_active_context(ob)) {
 		return;
 	}
@@ -563,9 +570,11 @@ static void gpencil_draw_vfx_pass(DRWPass *vfxpass, DRWPass *copypass,
 
 	GPU_framebuffer_bind(fbl->vfx_fb_b);
 	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
-	/* flip pass */
+	
+	/* draw effect pass */
 	DRW_draw_pass_subset(vfxpass, shgrp, shgrp);
-	/* copy pass from b to a */
+	
+	/* copy pass from b to a for ping-pong frame buffers */
 	GPU_framebuffer_bind(fbl->vfx_fb_a);
 	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
 	DRW_draw_pass(copypass);
