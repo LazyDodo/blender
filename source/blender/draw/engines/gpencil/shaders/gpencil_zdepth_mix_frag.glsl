@@ -28,6 +28,10 @@ void main()
 	float stroke_depth = texelFetch(strokeDepth, uv, 0).r;
 	vec4 stroke_color =  texelFetch(strokeColor, uv, 0).rgba;
 
+	if (stroke_color.a > 0) {
+		stroke_color = vec4(vec3(stroke_color.rgb / stroke_color.a), stroke_color.a);
+	}
+	
 	if (tonemapping == 1) {
 		FragColor.r = srgb_to_linearrgb(stroke_color.r);
 		FragColor.g = srgb_to_linearrgb(stroke_color.g);

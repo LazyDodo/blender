@@ -197,7 +197,6 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *drawing_pass;
 	struct DRWPass *mix_pass;
 	struct DRWPass *mix_pass_noblend;
-	struct DRWPass *mix_pass_front;
 	struct DRWPass *vfx_copy_pass;
 	struct DRWPass *vfx_wave_pass;
 	struct DRWPass *vfx_blur_pass_1;
@@ -272,6 +271,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_line_sh;
 	struct GPUShader *gpencil_drawing_fill_sh;
 	struct GPUShader *gpencil_fullscreen_sh;
+	struct GPUShader *gpencil_simple_fullscreen_sh;
 	struct GPUShader *gpencil_vfx_blur_sh;
 	struct GPUShader *gpencil_vfx_wave_sh;
 	struct GPUShader *gpencil_vfx_pixel_sh;
@@ -279,7 +279,6 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_vfx_flip_sh;
 	struct GPUShader *gpencil_vfx_light_sh;
 	struct GPUShader *gpencil_painting_sh;
-	struct GPUShader *gpencil_front_depth_sh;
 	struct GPUShader *gpencil_paper_sh;
 	/* temp depth texture */
 	struct GPUTexture *temp_depth_tx;

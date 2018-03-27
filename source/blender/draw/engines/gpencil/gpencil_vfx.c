@@ -99,12 +99,11 @@ static void DRW_gpencil_vfx_copy(
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
-	DRWShadingGroup *vfx_shgrp = DRW_shgroup_create(e_data->gpencil_fullscreen_sh, psl->vfx_wave_pass);
+	DRWShadingGroup *vfx_shgrp = DRW_shgroup_create(e_data->gpencil_simple_fullscreen_sh, psl->vfx_wave_pass);
 	++stl->g_data->tot_sh;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->temp_color_tx);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->temp_depth_tx);
-	DRW_shgroup_uniform_int(vfx_shgrp, "tonemapping", &stl->storage->tonemapping, 1);
 
 	cache->vfx_wave_sh = vfx_shgrp;
 }

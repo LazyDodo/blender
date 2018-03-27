@@ -57,7 +57,7 @@ extern char datatoc_gpencil_stroke_vert_glsl[];
 extern char datatoc_gpencil_stroke_geom_glsl[];
 extern char datatoc_gpencil_stroke_frag_glsl[];
 extern char datatoc_gpencil_zdepth_mix_frag_glsl[];
-extern char datatoc_gpencil_front_depth_mix_frag_glsl[];
+extern char datatoc_gpencil_simple_mix_frag_glsl[];
 extern char datatoc_gpencil_point_vert_glsl[];
 extern char datatoc_gpencil_point_geom_glsl[];
 extern char datatoc_gpencil_point_frag_glsl[];
@@ -187,6 +187,7 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_point_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_edit_point_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_fullscreen_sh);
+	DRW_SHADER_FREE_SAFE(e_data.gpencil_simple_fullscreen_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_blur_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_wave_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_pixel_sh);
@@ -194,7 +195,6 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_flip_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_light_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_painting_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_front_depth_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_paper_sh);
 
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
@@ -254,6 +254,9 @@ static void GPENCIL_cache_init(void *vedata)
 	if (!e_data.gpencil_fullscreen_sh) {
 		e_data.gpencil_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_zdepth_mix_frag_glsl, NULL);
 	}
+	if (!e_data.gpencil_simple_fullscreen_sh) {
+		e_data.gpencil_simple_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_simple_mix_frag_glsl, NULL);
+	}
 	if (!e_data.gpencil_vfx_blur_sh) {
 		e_data.gpencil_vfx_blur_sh = DRW_shader_create_fullscreen(datatoc_gpencil_gaussian_blur_frag_glsl, NULL);
 	}
@@ -274,9 +277,6 @@ static void GPENCIL_cache_init(void *vedata)
 	}
 	if (!e_data.gpencil_painting_sh) {
 		e_data.gpencil_painting_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_front_depth_sh) {
-		e_data.gpencil_front_depth_sh = DRW_shader_create_fullscreen(datatoc_gpencil_front_depth_mix_frag_glsl, NULL);
 	}
 	if (!e_data.gpencil_paper_sh) {
 		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
@@ -388,12 +388,11 @@ static void GPENCIL_cache_init(void *vedata)
 		/* vfx copy pass from txtb to txta */
 		struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 		psl->vfx_copy_pass = DRW_pass_create("GPencil VFX Copy b to a Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		DRWShadingGroup *vfx_copy_shgrp = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->vfx_copy_pass);
+		DRWShadingGroup *vfx_copy_shgrp = DRW_shgroup_create(e_data.gpencil_simple_fullscreen_sh, psl->vfx_copy_pass);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(vfx_copy_shgrp, vfxquad, NULL);
 		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeColor", &e_data.vfx_color_tx_b);
 		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeDepth", &e_data.vfx_depth_tx_b);
-		DRW_shgroup_uniform_int(vfx_copy_shgrp, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* VFX pass */
 		psl->vfx_wave_pass = DRW_pass_create("GPencil VFX Wave Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
@@ -419,14 +418,6 @@ static void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_call_add(painting_shgrp, paintquad, NULL);
 		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeColor", &e_data.painting_color_tx);
 		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeDepth", &e_data.painting_depth_tx);
-
-		/* pass for current stroke drawing in front of all */
-		struct Gwn_Batch *frontquad = DRW_cache_fullscreen_quad_get();
-		psl->mix_pass_front = DRW_pass_create("GPencil Mix Front Depth Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		DRWShadingGroup *mix_front_shgrp = DRW_shgroup_create(e_data.gpencil_front_depth_sh, psl->mix_pass_front);
-		stl->g_data->tot_sh++;
-		DRW_shgroup_call_add(mix_front_shgrp, frontquad, NULL);
-		DRW_shgroup_uniform_texture_ref(mix_front_shgrp, "strokeColor", &e_data.temp_color_tx);
 
 		/* pass for drawing paper (only if viewport)
 		 * In render, the v3d is null
@@ -734,30 +725,9 @@ static void GPENCIL_draw_scene(void *vedata)
 		MULTISAMPLE_SYNC_ENABLE(dfbl);
 		
 		DRW_draw_pass(psl->painting_pass);
-		
-		MULTISAMPLE_SYNC_DISABLE(dfbl);
-
-		/* Current stroke must pass through the temp framebuffer to get same alpha values in blend */
-		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_depth_tx, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_color_tx, 0, 0);
-
-		GPU_framebuffer_bind(fbl->temp_fb);
-		GPU_framebuffer_clear_color_depth(fbl->temp_fb, clearcol, 1.0f);
-		MULTISAMPLE_GP_SYNC_ENABLE(dfbl, fbl);
-
 		DRW_draw_pass(psl->drawing_pass);
 
-		MULTISAMPLE_GP_SYNC_DISABLE(dfbl, fbl);
-
-		/* send to default framebuffer */
-		GPU_framebuffer_bind(dfbl->default_fb);
-		DRW_draw_pass(psl->mix_pass_front);
-
-		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_depth_tx);
-		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_color_tx);
-
-		/* attach again default framebuffer after detach textures */
-		GPU_framebuffer_bind(dfbl->default_fb);
+		MULTISAMPLE_SYNC_DISABLE(dfbl);
 
 		/* free memory */
 		gpencil_free_obj_list(stl);
@@ -839,9 +809,9 @@ static void GPENCIL_draw_scene(void *vedata)
 				}
 				/* tonemapping */
 				stl->storage->tonemapping = stl->storage->is_render ? 1 : 0;
+
 				DRW_draw_pass(psl->mix_pass);
 
-				stl->storage->tonemapping = 0;
 				/* prepare for fast drawing */
 				if (!is_render) {
 					gpencil_prepare_fast_drawing(stl, dfbl, fbl, psl->mix_pass_noblend, clearcol);
