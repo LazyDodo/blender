@@ -218,12 +218,6 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_resolve_sh);
 
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
-
-	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_down_near);
-	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_down_far);
-	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_coc);
-	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_far_blur);
-	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_near_blur);
 }
 
 static void GPENCIL_cache_init(void *vedata)
