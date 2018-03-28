@@ -830,9 +830,15 @@ static void GPENCIL_draw_scene(void *vedata)
 					e_data.input_color_tx = e_data.temp_color_tx;
 				}
 
-				/* depth of field */
+				/* depth of field effect
+				 * send always to tx_b because other textures can be in use. Remap input
+				 * textures too.
+				 */
 				if ((GP_IS_CAMERAVIEW) || (is_render)) {
 					GPENCIL_depth_of_field_draw(&e_data, vedata);
+
+					e_data.input_depth_tx = e_data.vfx_depth_tx_b;
+					e_data.input_color_tx = e_data.vfx_color_tx_b;
 				}
 
 				/* Combine with scene buffer */

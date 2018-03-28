@@ -81,9 +81,9 @@ int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCI
 		/* Setup buffers */
 		e_data->gpencil_dof_down_near = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGB_11_11_10,
 														   draw_engine_gpencil_type);
-		e_data->gpencil_dof_down_far =  DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGB_11_11_10,
+		e_data->gpencil_dof_down_far = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGB_11_11_10,
 														   draw_engine_gpencil_type);
-		e_data->gpencil_dof_coc =       DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RG_16,
+		e_data->gpencil_dof_coc = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RG_16,
 														   draw_engine_gpencil_type);
 		e_data->gpencil_dof_alpha = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_R_16,
 														   draw_engine_gpencil_type);
@@ -195,13 +195,14 @@ void GPENCIL_depth_of_field_cache_init(GPENCIL_e_data *e_data, GPENCIL_Data *ved
 		DRW_shgroup_uniform_vec2(grp, "layerSelection", stl->storage->dof_layer_select, 1);
 		DRW_shgroup_uniform_vec4(grp, "bokehParams", stl->storage->dof_bokeh, 1);
 
-		psl->dof_resolve = DRW_pass_create("DoF Resolve", DRW_STATE_WRITE_COLOR);
+		psl->dof_resolve = DRW_pass_create("DoF Resolve", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
 		grp = DRW_shgroup_create(e_data->gpencil_dof_resolve_sh, psl->dof_resolve);
 		DRW_shgroup_uniform_texture_ref(grp, "colorBuffer", &e_data->input_color_tx);
 		DRW_shgroup_uniform_texture_ref(grp, "nearBuffer", &e_data->gpencil_dof_near_blur);
 		DRW_shgroup_uniform_texture_ref(grp, "farBuffer", &e_data->gpencil_dof_far_blur);
 		DRW_shgroup_uniform_texture_ref(grp, "depthBuffer", &e_data->input_depth_tx);
+		DRW_shgroup_uniform_texture_ref(grp, "alphaBuffer", &e_data->gpencil_dof_alpha);
 		DRW_shgroup_uniform_vec2(grp, "nearFar", stl->storage->dof_near_far, 1);
 		DRW_shgroup_uniform_vec3(grp, "dofParams", stl->storage->dof_params, 1);
 		DRW_shgroup_call_add(grp, quad, NULL);
@@ -239,13 +240,9 @@ void GPENCIL_depth_of_field_draw(GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
 		GPU_framebuffer_clear_color(fbl->dof_scatter_near_fb, clear_col);
 		DRW_draw_pass(psl->dof_scatter);
 
-		/* Resolve to default pass */
-		if ((!is_render) || (fbl->main == NULL)) {
-			GPU_framebuffer_bind(dfbl->default_fb);
-		}
-		else {
-			GPU_framebuffer_bind(fbl->main);
-		}
+		/* Resolve to temp texture pass */
+		GPU_framebuffer_bind(fbl->vfx_fb_b);
+		GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clear_col, 1.0f);
 
 		DRW_draw_pass(psl->dof_resolve);
 	}

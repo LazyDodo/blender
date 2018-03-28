@@ -48,7 +48,7 @@ void step_scatter()
 	}
 	else {
 		color = vec4(0.0);
-		weight = 0;
+		weight = texelFetch(colorBuffer, texelco, 0).a;
 	}
 
 	/* Generate Triangle : less memory fetches from a VBO */

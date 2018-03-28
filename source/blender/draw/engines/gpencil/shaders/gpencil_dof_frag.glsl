@@ -138,6 +138,7 @@ void step_downsample(void)
 	float max_far_coc = max(max4(coc_far), 0.0);
 
 	fragData2 = vec4(max_near_coc, max_far_coc, 0.0, 1.0);
+	fragData3 = weight;
 }
 
 /* coordinate used for calculating radius et al set in geometry shader */
@@ -170,12 +171,14 @@ void step_scatter(void)
 	}
 
 	fragData0 = color;
+	fragData3 = weight;
 }
 
 #define MERGE_THRESHOLD 4.0
 
 uniform sampler2D farBuffer;
 uniform sampler2D nearBuffer;
+uniform sampler2D alphaBuffer;
 
 vec4 upsample_filter_high(sampler2D tex, vec2 uv, vec2 texelSize)
 {
@@ -217,6 +220,8 @@ void step_resolve(void)
 {
 	/* Recompute Near / Far CoC */
 	float depth = textureLod(depthBuffer, uvcoord, 0.0).r;
+	float alpha = textureLod(alphaBuffer, uvcoord, 0.0).r;
+
 	float zdepth = linear_depth(depth);
 	float coc_signed = calculate_coc(zdepth);
 	float coc_far = max(-coc_signed, 0.0);
@@ -251,7 +256,10 @@ void step_resolve(void)
 		fragData0 = mix(finalcolor, nearcolor, nearweight / totalweight);
 	}
 	
-	fragData3 = weight;
+	/* apply alpha TODO */
+	fragData0.a = alpha;
+	
+	gl_FragDepth = depth;
 }
 
 void main()
