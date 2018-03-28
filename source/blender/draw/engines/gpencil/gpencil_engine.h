@@ -31,6 +31,7 @@
 struct tGPspoint;
 struct ModifierData;
 struct GPENCIL_StorageList;
+struct Object;
 
  /* TODO: these could be system parameter in userprefs screen */
 #define GPENCIL_MAX_GP_OBJ 256 
@@ -48,6 +49,8 @@ struct GPENCIL_StorageList;
 #define GP_SIMPLIFY_FILL(ts, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(ts)) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_VIEW_FILL))) 
 #define GP_SIMPLIFY_MODIF(ts, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(ts)) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_VIEW_MODIF))) 
 #define GP_SIMPLIFY_VFX(ts, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(ts)) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_VIEW_VFX)))
+
+#define GP_IS_CAMERAVIEW ((rv3d != NULL) && (rv3d->persp == RV3D_CAMOB && v3d->camera))
 
  /* anti aliasing macros using MSAA */
 #define MULTISAMPLE_GP_SYNC_ENABLE(dfbl, fbl) { \
@@ -182,6 +185,15 @@ typedef struct GPENCIL_Storage {
 	float viewmat[4][4], viewinv[4][4];
 	float winmat[4][4], wininv[4][4];
 	float view_vecs[2][4]; /* vec4[2] */
+
+	/* Depth Of Field */
+	bool enable_dof;
+	float dof_near_far[2];
+	float dof_params[3];
+	float dof_bokeh[4];
+	float dof_layer_select[2];
+	int dof_target_size[2];
+	struct GPUTexture *unf_source_buffer;   /* pointer copy */
 } GPENCIL_Storage;
 
 typedef struct GPENCIL_StorageList {
@@ -209,6 +221,10 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *vfx_light_pass;
 	struct DRWPass *painting_pass;
 	struct DRWPass *paper_pass;
+
+	struct DRWPass *dof_down;
+	struct DRWPass *dof_scatter;
+	struct DRWPass *dof_resolve;
 } GPENCIL_PassList;
 
 typedef struct GPENCIL_FramebufferList {
@@ -217,6 +233,10 @@ typedef struct GPENCIL_FramebufferList {
 	struct GPUFrameBuffer *vfx_fb_a;
 	struct GPUFrameBuffer *vfx_fb_b;
 	struct GPUFrameBuffer *painting_fb;
+
+	struct GPUFrameBuffer *dof_down_fb;
+	struct GPUFrameBuffer *dof_scatter_far_fb;
+	struct GPUFrameBuffer *dof_scatter_near_fb;
 } GPENCIL_FramebufferList;
 
 typedef struct GPENCIL_TextureList {
@@ -280,6 +300,11 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_vfx_light_sh;
 	struct GPUShader *gpencil_painting_sh;
 	struct GPUShader *gpencil_paper_sh;
+
+	struct GPUShader *gpencil_dof_downsample_sh;
+	struct GPUShader *gpencil_dof_scatter_sh;
+	struct GPUShader *gpencil_dof_resolve_sh;
+
 	/* temp depth texture */
 	struct GPUTexture *temp_depth_tx;
 	struct GPUTexture *temp_color_tx;
@@ -301,6 +326,15 @@ typedef struct GPENCIL_e_data {
 	/* runtime pointers texture */
 	struct GPUTexture *input_depth_tx;
 	struct GPUTexture *input_color_tx;
+
+	/* depth of field */	
+	struct GPUTexture *gpencil_dof_down_near; /* R16_G16_B16_A16 */
+	struct GPUTexture *gpencil_dof_down_far; /* R16_G16_B16_A16 */
+	struct GPUTexture *gpencil_dof_coc; /* R16_G16 */
+	struct GPUTexture *gpencil_dof_near_blur; /* R16_G16_B16_A16 */
+	struct GPUTexture *gpencil_dof_far_blur; /* R16_G16_B16_A16 */
+	struct GPUTexture *gpencil_dof_alpha; 
+
 } GPENCIL_e_data; /* Engine data */
 
 /* Gwn_Batch Cache */
@@ -353,5 +387,10 @@ void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *
 void gpencil_array_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
 void DRW_gpencil_vfx_modifiers(int ob_idx, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *ob, struct tGPencilObjectCache *cache);
+
+/* depth of field */
+int GPENCIL_depth_of_field_init(struct DrawEngineType *draw_engine_gpencil_type, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *camera);
+void GPENCIL_depth_of_field_cache_init(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata);
+void GPENCIL_depth_of_field_draw(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata);
 
 #endif /* __GPENCIL_ENGINE_H__ */

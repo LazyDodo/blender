@@ -72,6 +72,8 @@ extern char datatoc_gpencil_paper_frag_glsl[];
 extern char datatoc_gpencil_edit_point_vert_glsl[];
 extern char datatoc_gpencil_edit_point_geom_glsl[];
 extern char datatoc_gpencil_edit_point_frag_glsl[];
+extern char datatoc_gpencil_dof_vert_glsl[];
+extern char datatoc_gpencil_dof_frag_glsl[];
 
 /* *********** STATIC *********** */
 static GPENCIL_e_data e_data = {NULL}; /* Engine data */
@@ -82,6 +84,9 @@ static void GPENCIL_engine_init(void *vedata)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
+	RegionView3D *rv3d = draw_ctx->rv3d;
 
 	/* Go full 32bits for rendering */
 	DRWTextureFormat fb_format = DRW_state_is_image_render() ? DRW_TEX_RGBA_32 : DRW_TEX_RGBA_16;
@@ -183,6 +188,11 @@ static void GPENCIL_engine_init(void *vedata)
 	if (!e_data.gpencil_blank_texture) {
 		e_data.gpencil_blank_texture = DRW_gpencil_create_blank_texture(16, 16);
 	}
+	/* init depth of field */ 
+	if (!DRW_state_is_image_render()) {
+		Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+		GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
+	}
 }
 
 static void GPENCIL_engine_free(void)
@@ -203,7 +213,17 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_painting_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_paper_sh);
 
+	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_downsample_sh);
+	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_scatter_sh);
+	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_resolve_sh);
+
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
+
+	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_down_near);
+	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_down_far);
+	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_coc);
+	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_far_blur);
+	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_dof_near_blur);
 }
 
 static void GPENCIL_cache_init(void *vedata)
@@ -220,6 +240,7 @@ static void GPENCIL_cache_init(void *vedata)
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
+	RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *obact = draw_ctx->obact;
 
 	if (!stl->g_data) {
@@ -450,6 +471,10 @@ static void GPENCIL_cache_init(void *vedata)
 			}
 			DRW_shgroup_uniform_int(paper_shgrp, "uselines", &stl->storage->uselines, 1);
 		}
+
+		/* depth of field (TODO: UI) */
+		stl->storage->enable_dof = GP_IS_CAMERAVIEW;
+		GPENCIL_depth_of_field_cache_init(&e_data, vedata);
 	}
 }
 
@@ -714,6 +739,7 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
+	RegionView3D *rv3d = draw_ctx->rv3d;
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 	Object *obact = draw_ctx->obact;
@@ -809,6 +835,12 @@ static void GPENCIL_draw_scene(void *vedata)
 					e_data.input_depth_tx = e_data.temp_depth_tx;
 					e_data.input_color_tx = e_data.temp_color_tx;
 				}
+
+				/* depth of field */
+				if ((GP_IS_CAMERAVIEW) || (is_render)) {
+					GPENCIL_depth_of_field_draw(&e_data, vedata);
+				}
+
 				/* Combine with scene buffer */
 				if ((!is_render) || (fbl->main == NULL)) {
 					GPU_framebuffer_bind(dfbl->default_fb);
@@ -1103,6 +1135,10 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 
 	GPENCIL_engine_init(vedata);
 	GPENCIL_render_init(vedata, engine, draw_ctx->depsgraph);
+
+	/* depth of field */
+	Object *camera = DEG_get_evaluated_object(draw_ctx->depsgraph, RE_GetCamera(engine->re));
+	GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
 
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	if (fbl->main) {

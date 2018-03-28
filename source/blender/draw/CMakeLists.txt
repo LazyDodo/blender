@@ -110,6 +110,7 @@ set(SRC
 	engines/gpencil/gpencil_draw_cache_impl.c
 	engines/gpencil/gpencil_geom.c
 	engines/gpencil/gpencil_vfx.c
+	engines/gpencil/gpencil_depth_of_field.c
 
 	DRW_engine.h
 	intern/DRW_render.h
@@ -268,6 +269,8 @@ data_to_c_simple(engines/gpencil/shaders/gpencil_paper_frag.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_vert.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_geom.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_dof_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_dof_frag.glsl SRC)
 
 list(APPEND INC
 )
