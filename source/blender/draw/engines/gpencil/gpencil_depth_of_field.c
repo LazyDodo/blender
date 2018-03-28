@@ -176,8 +176,8 @@ void GPENCIL_depth_of_field_cache_init(GPENCIL_e_data *e_data, GPENCIL_Data *ved
 		psl->dof_down = DRW_pass_create("DoF Downsample", DRW_STATE_WRITE_COLOR);
 
 		grp = DRW_shgroup_create(e_data->gpencil_dof_downsample_sh, psl->dof_down);
-		DRW_shgroup_uniform_texture(grp, "colorBuffer", e_data->input_color_tx);
-		DRW_shgroup_uniform_texture(grp, "depthBuffer", e_data->input_depth_tx);
+		DRW_shgroup_uniform_texture_ref(grp, "colorBuffer", &e_data->input_color_tx);
+		DRW_shgroup_uniform_texture_ref(grp, "depthBuffer", &e_data->input_depth_tx);
 		DRW_shgroup_uniform_vec2(grp, "nearFar", stl->storage->dof_near_far, 1);
 		DRW_shgroup_uniform_vec3(grp, "dofParams", stl->storage->dof_params, 1);
 		DRW_shgroup_call_add(grp, quad, NULL);
@@ -190,18 +190,18 @@ void GPENCIL_depth_of_field_cache_init(GPENCIL_e_data *e_data, GPENCIL_Data *ved
 		const int sprite_ct = ((int)viewport_size[0] / 2) * ((int)viewport_size[1] / 2); /* brackets matters */
 		grp = DRW_shgroup_empty_tri_batch_create(e_data->gpencil_dof_scatter_sh, psl->dof_scatter, sprite_ct);
 
-		DRW_shgroup_uniform_texture(grp, "colorBuffer", stl->storage->unf_source_buffer);
-		DRW_shgroup_uniform_texture(grp, "cocBuffer", e_data->gpencil_dof_coc);
+		DRW_shgroup_uniform_texture_ref(grp, "colorBuffer", &stl->storage->unf_source_buffer);
+		DRW_shgroup_uniform_texture_ref(grp, "cocBuffer", &e_data->gpencil_dof_coc);
 		DRW_shgroup_uniform_vec2(grp, "layerSelection", stl->storage->dof_layer_select, 1);
 		DRW_shgroup_uniform_vec4(grp, "bokehParams", stl->storage->dof_bokeh, 1);
 
 		psl->dof_resolve = DRW_pass_create("DoF Resolve", DRW_STATE_WRITE_COLOR);
 
 		grp = DRW_shgroup_create(e_data->gpencil_dof_resolve_sh, psl->dof_resolve);
-		DRW_shgroup_uniform_texture(grp, "colorBuffer", e_data->input_color_tx);
-		DRW_shgroup_uniform_texture(grp, "nearBuffer", e_data->gpencil_dof_near_blur);
-		DRW_shgroup_uniform_texture(grp, "farBuffer", e_data->gpencil_dof_far_blur);
-		DRW_shgroup_uniform_texture(grp, "depthBuffer", e_data->input_depth_tx);
+		DRW_shgroup_uniform_texture_ref(grp, "colorBuffer", &e_data->input_color_tx);
+		DRW_shgroup_uniform_texture_ref(grp, "nearBuffer", &e_data->gpencil_dof_near_blur);
+		DRW_shgroup_uniform_texture_ref(grp, "farBuffer", &e_data->gpencil_dof_far_blur);
+		DRW_shgroup_uniform_texture_ref(grp, "depthBuffer", &e_data->input_depth_tx);
 		DRW_shgroup_uniform_vec2(grp, "nearFar", stl->storage->dof_near_far, 1);
 		DRW_shgroup_uniform_vec3(grp, "dofParams", stl->storage->dof_params, 1);
 		DRW_shgroup_call_add(grp, quad, NULL);
