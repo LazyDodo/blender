@@ -349,29 +349,6 @@ void BCAnimationSampler::get_keyframes(Object *ob, BCFrameSet &frameset)
 	}
 }
 
-bool BCAnimationSampler::is_flat_line(BCFrameSampleMap &values) const
-{
-	static float MIN_DISTANCE = 0.00001;
-
-	if (values.size() < 2)
-		return true; // need at least 2 entries to be not flat
-
-	BCFrameSampleMap::iterator it;
-	const BCSample *refmat = nullptr;
-	for (it = values.begin(); it != values.end(); ++it) {
-		const BCSample *matrix = it->second;
-
-		if (refmat == nullptr) {
-			refmat = matrix;
-			continue;
-		}
-
-		if (!matrix->in_range(*refmat, MIN_DISTANCE))
-			return false;
-	}
-	return true;
-}
-
 bool BCAnimationSampler::is_flat_line(BCMatrixSampleMap &values) const
 {
 	static float MIN_DISTANCE = 0.00001;
@@ -421,10 +398,9 @@ bool BCAnimationSampler::get_samples(BCMatrixSampleMap &samples, Object *ob, Bon
 	return is_flat_line(samples);
 }
 
-bool BCAnimationSampler::get_samples(BCFrameSampleMap &samples, Object *ob)
+void BCAnimationSampler::get_samples(BCFrameSampleMap &samples, Object *ob)
 {
-	sample_data.get_matrices(ob, samples);
-	return is_flat_line(samples);
+	sample_data.get_samples(ob, samples);
 }
 
 bool BCAnimationSampler::get_samples(BCMatrixSampleMap &samples, Object *ob)
@@ -772,7 +748,7 @@ const int BCSampleFrames::get_frames(Object *ob, Bone *bone, BCFrames &frames) c
 	return frames.size();
 }
 
-const int BCSampleFrames::get_matrices(Object *ob, BCFrameSampleMap &samples) const
+const int BCSampleFrames::get_samples(Object *ob, BCFrameSampleMap &samples) const
 {
 	samples.clear(); // safety;
 	BCSampleFrameMap::const_iterator it;

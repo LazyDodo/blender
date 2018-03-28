@@ -226,10 +226,7 @@ void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSample
 	BCAnimationCurveMap curves;
 
 	sampler.get_curves(curves, ob);
-	bool is_flat = sampler.get_samples(samples, ob);
-
-	if (is_flat)
-		return;
+	sampler.get_samples(samples, ob);
 
 	BCAnimationCurveMap::iterator it;
 	for (it = curves.begin(); it != curves.end(); ++it) {

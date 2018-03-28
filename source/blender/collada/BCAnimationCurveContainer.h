@@ -31,6 +31,7 @@
 
 extern "C" {
 #include "BKE_action.h"
+#include "BLI_math_rotation.h"
 #include "DNA_action_types.h"
 }
 
@@ -160,7 +161,7 @@ public:
 	const int get_frames(std::vector<int> &frames) const;
 	const int get_frames(Object *ob, BCFrames &frames) const;
 	const int get_frames(Object *ob, Bone *bone, BCFrames &frames) const;
-	const int get_matrices(Object *ob, BCFrameSampleMap &matrices) const;
+	const int get_samples(Object *ob, BCFrameSampleMap &samples) const;
 	const int get_matrices(Object *ob, BCMatrixSampleMap &matrices) const;
 	const int get_matrices(Object *ob, Bone *bone, BCMatrixSampleMap &bones) const;
 };
@@ -210,7 +211,6 @@ public:
 		bool keep_keyframes,
 		BC_export_animation_type export_animation_type);
 
-	bool is_flat_line(BCFrameSampleMap &values) const;
 	bool is_flat_line(BCMatrixSampleMap &values) const;
 	bool is_flat_line(std::vector<float> &values) const;
 
@@ -222,8 +222,8 @@ public:
 	void get_frame_set(BCFrames &frames, Object *ob, Bone *bone);
 	void get_frame_set(BCFrames &frames, Object *ob, const BCAnimationCurve &curve);
 	bool get_samples(BCMatrixSampleMap &samples, Object *ob, Bone *bone);
-	bool get_samples(BCFrameSampleMap &samples, Object *ob);
 	bool get_samples(BCMatrixSampleMap &samples, Object *ob);
+	void get_samples(BCFrameSampleMap &samples, Object *ob);
 
 
 	static void get_keyframes(Object *ob, BCFrameSet &frameset);
