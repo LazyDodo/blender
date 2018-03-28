@@ -50,12 +50,12 @@ std::map<std::string, BC_animation_transform_type> BC_ANIMATION_TYPE_FROM_NAME =
 { "distance", BC_ANIMATION_TYPE_BLENDER_DIST },
 
 /* Cameras */
+{ "lens", BC_ANIMATION_TYPE_LENS },
 { "xfov", BC_ANIMATION_TYPE_XFOV },
 { "xmag", BC_ANIMATION_TYPE_XMAG },
 { "zfar", BC_ANIMATION_TYPE_ZFAR },
 { "znear", BC_ANIMATION_TYPE_ZNEAR },
 /* Camera RNA to animation type */
-{ "lens", BC_ANIMATION_TYPE_XFOV },
 { "ortho_scale", BC_ANIMATION_TYPE_XMAG },
 { "clip_end", BC_ANIMATION_TYPE_ZFAR },
 { "clip_start", BC_ANIMATION_TYPE_ZNEAR }
@@ -95,6 +95,22 @@ BCAnimationCurve::BCAnimationCurve()
 	this->fcurve = nullptr;
 	this->type = BC_ANIMATION_CURVE_TYPE_UNKNOWN;
 	this->curve_is_local_copy = false;
+}
+
+BCAnimationCurve::BCAnimationCurve(const BCAnimationCurve &other)
+{
+	this->fcurve = other.fcurve;
+	this->type = other.type;
+	this->samples = other.samples;
+	this->min = other.min;
+	this->max = other.max;
+	this->tag = other.tag;
+	this->curve_is_local_copy = false;
+	this->curve_key = other.curve_key;
+
+	/* The fcurve of the new instance is a copy and can be modified */
+
+	get_edit_fcurve();
 }
 
 BCAnimationCurve::BCAnimationCurve(const BC_animation_curve_type type, FCurve *fcu)
@@ -142,6 +158,10 @@ const BC_animation_transform_type BCAnimationCurve::get_transform_type() const
 	return tm_type;
 }
 
+const void BCAnimationCurve::set_transform_type(std::string path, int axis_index)
+{
+	this->curve_key = CurveKey(path, axis_index);
+}
 
 const std::string BCAnimationCurve::get_channel_target() const
 {
@@ -324,7 +344,47 @@ void BCAnimationCurve::remove_unused_keyframes()
 	}
 }
 
-void BCAnimationCurve::add_value(const float val, const int frame_index)
+void BCAnimationCurve::clean_handles()
+{
+	if (fcurve == nullptr)
+		return;
+
+	/* Keep old bezt data for copy)*/
+	BezTriple *old_bezts = fcurve->bezt;
+	int totvert = fcurve->totvert;
+	fcurve->bezt = NULL;
+	fcurve->totvert = 0;
+
+	/* now insert first keyframe, as it should be ok */
+
+	for (int i = 0; i < totvert; i++) {
+		BezTriple *bezt = &old_bezts[i];
+		float x = bezt->vec[1][0];
+		float y = bezt->vec[1][1];
+		insert_vert_fcurve(fcurve, x, y, (eBezTriple_KeyframeType)BEZKEYTYPE(bezt), INSERTKEY_NOFLAGS);
+		BezTriple *lastb = fcurve->bezt + (fcurve->totvert - 1);
+		lastb->f1 = lastb->f2 = lastb->f3 = 0;
+	}
+
+	/* now free the memory used by the old BezTriples */
+	if (old_bezts)
+		MEM_freeN(old_bezts);
+}
+
+
+const bool BCAnimationCurve::is_transform_curve() const
+{
+	BC_animation_transform_type tm_type = this->get_transform_type();
+	return (
+		tm_type == BC_ANIMATION_TYPE_ROTATION ||
+		tm_type == BC_ANIMATION_TYPE_ROTATION_EULER ||
+		tm_type == BC_ANIMATION_TYPE_ROTATION_QUAT ||
+		tm_type == BC_ANIMATION_TYPE_SCALE ||
+		tm_type == BC_ANIMATION_TYPE_LOCATION
+		);
+}
+
+void BCAnimationCurve::add_value(const float val, const int frame_index, bool modify_curve)
 {
 	FCurve *fcu = get_edit_fcurve();
 	if (fcu) {
@@ -336,11 +396,15 @@ void BCAnimationCurve::add_value(const float val, const int frame_index)
 		* into a separate value_map <frame, value>
 		*
 		* Reason: we need the Fcurve handles later when we want to export the values as a Bezier curve
-		* XXX: This is actually not correct. But sometimes it works nicely. this needs more
-		* experimenting
+		* You can call the method fix_modified_curve() when all curve points have been added
 		*/
+		int key_index = insert_vert_fcurve(
+			fcu, 
+			frame_index, 
+			(modify_curve) ? val:eval, 
+			(eBezTriple_KeyframeType)BEZT_IPO_BEZ,
+			INSERTKEY_NO_USERPREF);
 
-		insert_vert_fcurve(fcu, frame_index, eval, (eBezTriple_KeyframeType)BEZT_IPO_BEZ, INSERTKEY_NO_USERPREF);
 		samples[frame_index] = val;
 
 		if (samples.size() == 1)
@@ -442,6 +506,18 @@ void BCAnimationCurve::get_key_values(BCValues &values) const
 	}
 }
 
+void BCAnimationCurve::reset_values()
+{
+	samples.clear();
+	min = max = 0;
+}
+
+BCValueMap &BCAnimationCurve::get_value_map()
+{
+	return samples;
+}
+
+
 void BCAnimationCurve::get_sampled_values(BCValues &values, bool fallback) const
 {
 	values.clear();
@@ -451,12 +527,12 @@ void BCAnimationCurve::get_sampled_values(BCValues &values, bool fallback) const
 	else if (samples.size() > 0) {
 		BCValueMap::const_iterator it;
 		for (it = samples.begin(); it != samples.end(); ++it) {
-			//float val = evaluate_fcurve(fcurve, *it);
 			const float val = it->second;
 			values.push_back(val);
 		}
 	}
 }
+
 
 
 bool BCAnimationCurve::is_flat()
@@ -497,13 +573,53 @@ bool BCAnimationCurve::is_keyframe(int frame) {
 		return false;
 
 	for (int i = 0; i < fcurve->totvert; ++i) {
-		const int cframe = fcurve->bezt[i].vec[1][0];
+		const int cframe = nearbyint(fcurve->bezt[i].vec[1][0]);
 		if (cframe == frame)
 			return true;
 		if (cframe > frame)
 			break;
 	}
 	return false;
+}
+
+float BCAnimationCurve::get_time(BezTriple *bezt, Scene *scene)
+{
+	return FRA2TIME(bezt->vec[1][0]);
+}
+
+float BCAnimationCurve::get_value(BezTriple *bezt, bool as_angle)
+{
+	float val = bezt->vec[1][1];
+	if (as_angle) {
+		val = RAD2DEGF(val);
+	}
+	return val;
+}
+
+void BCAnimationCurve::get_in_tangent(BezTriple *bezt, Scene *scene, float point[2], bool as_angle)
+{
+	get_tangent(bezt, scene, point, as_angle, 0);
+}
+
+void BCAnimationCurve::get_out_tangent(BezTriple *bezt, Scene *scene, float point[2], bool as_angle)
+{
+	get_tangent(bezt, scene, point, as_angle, 2);
+}
+
+void BCAnimationCurve::get_tangent(BezTriple *bezt, Scene *scene, float point[2], bool as_angle, int index)
+{
+	point[0] = FRA2TIME(bezt->vec[index][0]);
+	if (bezt->ipo != BEZT_IPO_BEZ) {
+		/* We're in a mixed interpolation scenario, set zero as it's irrelevant but value might contain unused data */
+		point[0] = 0;
+		point[1] = 0;
+	}
+	else if (as_angle) {
+		point[1] = RAD2DEGF(bezt->vec[index][1]);
+	}
+	else {
+		point[1] = bezt->vec[index][1];
+	}
 }
 
 /* Needed for adding a BCAnimationCurve into a BCAnimationCurveSet */

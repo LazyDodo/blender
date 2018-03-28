@@ -32,9 +32,12 @@
 
 extern "C"
 {
+#include "BLI_math_rotation.h"
 #include "DNA_object_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_material_types.h"
+#include "DNA_lamp_types.h"
+#include "DNA_camera_types.h"
 }
 
 /*
@@ -63,7 +66,10 @@ typedef enum BC_animation_transform_type {
 	BC_ANIMATION_TYPE_BLENDER_DIST,
 
 	/* Camera channels */
+	BC_ANIMATION_TYPE_LENS,
 	BC_ANIMATION_TYPE_XFOV,
+	BC_ANIMATION_TYPE_SENSOR_X,
+	BC_ANIMATION_TYPE_SENSOR_Y,
 	BC_ANIMATION_TYPE_XMAG,
 	BC_ANIMATION_TYPE_ZFAR,
 	BC_ANIMATION_TYPE_ZNEAR,
@@ -71,7 +77,7 @@ typedef enum BC_animation_transform_type {
 	/* other */
 	BC_ANIMATION_TYPE_ROTATION,
 	BC_ANIMATION_TYPE_UNKNOWN = -1,
-
+	BC_ANIMATION_TYPE_TIMEFRAME = -2
 } BC_animation_transform_type;
 
 
@@ -94,7 +100,10 @@ public:
 
 class BCCamera {
 public:
+	float lens;
 	float xfov;
+	float xsensor;
+	float ysensor;
 	float xmag;
 	float zfar;
 	float znear;
@@ -120,7 +129,7 @@ class BCMatrix {
 	/* Private methods */
 	void decompose() const;
 	void unit();
-	void copy(float(&r)[4][4], float(&a)[4][4]);
+	void copy(Matrix &r, Matrix &a);
 
 public:
 	mutable float matrix[4][4];
@@ -136,6 +145,10 @@ public:
 	}
 	void get_matrix(double(&mat)[4][4], const bool transposed = false, const int precision = -1) const;
 	const bool in_range(const BCMatrix &other, float distance) const;
+	/* Convenient helper functions */
+	static void sanitize(Matrix &matrix, int precision);
+	static void transpose(Matrix &matrix);
+
 };
 
 typedef std::map<int, BCMaterial *> BCMaterialMap;
@@ -151,32 +164,37 @@ private:
 	   at most one of those filled with data. 
 	   Maybe we can make a union here?
 	*/
+
 	BCMaterialMap material_map; /* For Material animation */
 	BCBoneMatrixMap bone_matrix_map; /* For Armature animation */
 	BCLamp lamp; /* For Lamp channels */
 	BCCamera camera; /* For Camera channels */
 
 public:
-
-	BCSample(Matrix &mat);
+	BCSample(Matrix &mat); // Every sample has a transformation matrix
 	~BCSample();
 
-	void set_material(Material *ma);
-	void set_bone(Bone *bone, Matrix &mat);
-	const BCMatrix *get_sampled_matrix() const;
-	const BCMatrix *get_sampled_matrix(Bone *bone) const;
+	// Add sampled data for animated channels (see BC_animation_transform_type above)
+
+	void set_material(Material *ma); // add an animated material
+	void set_lamp(Lamp *lamp);
+	void set_camera(Camera *camera);
+	const BCCamera &get_camera() const;
+	const BCLamp &get_lamp() const;
+	const BCMaterial &get_material(int index);
+
+	void set_bone(Bone *bone, Matrix &mat); // add an animated bone pose matrix
 
 	const bool set_vector(BC_animation_transform_type channel, float val[3]);
 	const bool set_value(BC_animation_transform_type channel, const int array_index, float val);
 
-	const float(&get_matrix() const)[4][4];
+	// used for exporting all other channels
 	const bool get_value(BC_animation_transform_type channel, const int array_index, float *val) const;
-	const bool get_value(int ma_index, BC_animation_transform_type channel, const int array_index, float *val) const;
+	const bool get_value(BC_animation_transform_type channel, const int array_index, float *val, int ma_index) const;
 
-	/* Convenient helper functions */
-	static void sanitize(float(&matrix)[4][4], int precision);
-	static void transpose(float(&matrix)[4][4]);
-	bool in_range(const BCSample &other, const float distance) const;
+	// used for export as Matrixdata (note: Bone animation always uses this export type!)
+	const BCMatrix *get_matrix() const; // always returns a matrix
+	const BCMatrix *get_matrix(Bone *bone) const; // returns nullptr if bone is not animated
 
 };
 

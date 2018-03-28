@@ -47,8 +47,8 @@ std::map<std::string, std::vector<std::string>> BC_CHANNEL_NAME_FROM_TYPE = {
  */
 std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE = {
 	{ BC_ANIMATION_TYPE_ROTATION, "rotation" },
-	{ BC_ANIMATION_TYPE_ROTATION_EULER, "rotation_euler" },
-	{ BC_ANIMATION_TYPE_ROTATION_QUAT, "rotation_quaternion" },
+	{ BC_ANIMATION_TYPE_ROTATION_EULER, "rotation" },
+	{ BC_ANIMATION_TYPE_ROTATION_QUAT, "rotation" },
 	{ BC_ANIMATION_TYPE_SCALE, "scale" },
 	{ BC_ANIMATION_TYPE_LOCATION, "location" },
 
@@ -66,6 +66,7 @@ std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE =
 	{ BC_ANIMATION_TYPE_BLENDER_DIST, "blender/blender_dist" },
 
 	/* Cameras */
+	{ BC_ANIMATION_TYPE_LENS, "xfov" },
 	{ BC_ANIMATION_TYPE_XFOV, "xfov" },
 	{ BC_ANIMATION_TYPE_XMAG, "xmag" },
 	{ BC_ANIMATION_TYPE_ZFAR, "zfar" },
@@ -76,7 +77,7 @@ std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE =
 
 std::string EMPTY_STRING;
 
-std::string AnimationExporter::get_subchannel(std::string channel, int id)
+std::string AnimationExporter::get_axis_name(std::string channel, int id)
 {
 	std::map<std::string, std::vector<std::string>>::const_iterator it;
 	it = BC_CHANNEL_NAME_FROM_TYPE.find(channel);
@@ -119,7 +120,7 @@ bool AnimationExporter::exportAnimations(Scene *sce)
 {
 	bool has_anim_data = BCAnimationSampler::has_animations(sce, this->export_settings->export_set);
 	if (has_anim_data) {
-		BCAnimationSampler sampler(mContext);
+		animation_sampler = new BCAnimationSampler(mContext);
 
 		this->scene = sce;
 
@@ -130,12 +131,11 @@ bool AnimationExporter::exportAnimations(Scene *sce)
 		for (node = this->export_settings->export_set; node; node = node->next) {
 			Object *ob = (Object *)node->link;
 			if (animated_subset.find(ob) != animated_subset.end()) {
-				//curve_container.addObject(ob);
-				sampler.add_object(ob);
+				animation_sampler->add_object(ob);
 			}
 		}
 
-		sampler.sample_scene(scene,
+		animation_sampler->sample_scene(scene,
 			export_settings->sampling_rate,
 			/*keyframe_at_end = */ true,
 			export_settings->open_sim,
@@ -144,13 +144,14 @@ bool AnimationExporter::exportAnimations(Scene *sce)
 			);
 
 		openLibrary();
-		
+
 		std::set<Object *>::iterator it;
 		for (it = animated_subset.begin(); it != animated_subset.end(); ++it) {
 			Object *ob = *it;
-			exportObjectAnimation(ob, sampler);
+			exportAnimation(ob, *animation_sampler);
 		}
 
+		delete animation_sampler;
 		closeLibrary();
 
 #if 0
@@ -168,7 +169,7 @@ bool AnimationExporter::exportAnimations(Scene *sce)
 }
 
 /* called for each exported object */
-void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sampler)
+void AnimationExporter::exportAnimation(Object *ob, BCAnimationSampler &sampler)
 {
 	bool container_is_open = false;
 
@@ -179,34 +180,27 @@ void AnimationExporter::exportObjectAnimation(Object *ob, BCAnimationSampler &sa
 	 * Note: For Armatures the skeletal animation has already been exported (see above)
 	 * However Armatures also can have Object animation.
 	 */
-	if (this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_MATRIX) {
-		export_matrix_animation_set(ob, sampler); // actually one matrix curve
+	bool export_tm_curves = this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_TRANSROTLOC;
+	if (!export_tm_curves) {
+		export_matrix_animation(ob, sampler); // export all transform_curves as one single matrix animation
 	}
-	else {
-		export_curve_animation_set(ob, sampler); // each curve might have different frames
-	}
+
+	export_curve_animation_set(ob, sampler, export_tm_curves);
 
 	if (ob->type == OB_ARMATURE) {
-		container_is_open = exportArmatureAnimation(ob, sampler, container_is_open);
-	}
 
-	close_animation_container(container_is_open);
-}
+#ifdef WITH_MORPH_ANIMATION
+		/* TODO: This needs to be handled by extra profiles, postponed for now */
+		export_morph_animation(ob);
+#endif
 
-bool AnimationExporter::exportArmatureAnimation(Object *ob, BCAnimationSampler &sampler, bool has_container)
-{
-	/* TODO: This needs to be handled by extra profiles, postponed for now
-	* export_morph_animation(ob);
-	*/
-
-	if (ob->type == OB_ARMATURE) {
 		/* Export skeletal animation (if any) */
 		bArmature *arm = (bArmature *)ob->data;
 		for (Bone *root_bone = (Bone *)arm->bonebase.first; root_bone; root_bone = root_bone->next)
-			export_bone_animation_recursive(ob, root_bone, sampler);
+			export_bone_animations_recursive(ob, root_bone, sampler);
 	}
 
-	return has_container;
+	close_animation_container(container_is_open);
 }
 
 /*
@@ -220,7 +214,7 @@ bool AnimationExporter::exportArmatureAnimation(Object *ob, BCAnimationSampler &
  * object hierarchies)
  *
  */
-void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSampler &sampler)
+void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSampler &sampler, bool export_tm_curves)
 {
 	BCFrameSampleMap samples;
 	BCAnimationCurveMap curves;
@@ -240,6 +234,13 @@ void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSample
 			continue;
 		}
 
+		if (!export_tm_curves && curve.is_transform_curve()) {
+			/* The transform curves will be eported as single matrix animation
+			 * So no need to export the curves here again.
+			 */
+			continue;
+		}
+
 		sampler.add_value_set(curve, samples, this->export_settings->export_animation_type);  // prepare curve
 		if (curve.is_flat())
 			continue;
@@ -248,7 +249,7 @@ void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSample
 	}
 }
 
-void AnimationExporter::export_matrix_animation_set(Object *ob, BCAnimationSampler &sampler)
+void AnimationExporter::export_matrix_animation(Object *ob, BCAnimationSampler &sampler)
 {
 	std::vector<float> frames;
 	sampler.get_frame_set(frames, ob);
@@ -256,31 +257,22 @@ void AnimationExporter::export_matrix_animation_set(Object *ob, BCAnimationSampl
 		BCMatrixSampleMap samples;
 		bool is_flat = sampler.get_samples(samples, ob);
 		if (!is_flat) {
-			export_matrix_animation(ob, frames, samples, sampler); // there is just one curve to export here
+			bAction *action = bc_getSceneObjectAction(ob);
+			std::string name = id_name(ob);
+			std::string action_name = (action == nullptr) ? name + "-action" : id_name(action);
+			std::string channel_type = "transform";
+			std::string axis = "";
+			std::string id = bc_get_action_id(action_name, name, channel_type, axis);
+
+			std::string target = translate_id(name) + '/' + channel_type;
+
+			export_collada_matrix_animation(id, name, target, frames, samples);
 		}
 	}
 }
 
-void AnimationExporter::export_matrix_animation(
-	Object *ob, 
-	BCFrames &frames, 
-	BCMatrixSampleMap &samples,
-	BCAnimationSampler &sampler)
-{
-	bAction *action = bc_getSceneObjectAction(ob);
-	std::string name = id_name(ob);
-	std::string action_name = (action == nullptr) ? name+"-action" : id_name(action);
-	std::string channel_type = "transform";
-	std::string axis = "";
-	std::string id = bc_get_action_id(action_name, name, channel_type, axis);
-
-	std::string target = translate_id(name) + '/' + channel_type;
-
-	export_collada_matrix_animation( id, name, target, frames, samples);
-}
-
 //write bone animations in transform matrix sources
-void AnimationExporter::export_bone_animation_recursive(Object *ob, Bone *bone, BCAnimationSampler &sampler)
+void AnimationExporter::export_bone_animations_recursive(Object *ob, Bone *bone, BCAnimationSampler &sampler)
 {
 	std::vector<float> frames;
 	sampler.get_frame_set(frames, ob, bone);
@@ -294,9 +286,13 @@ void AnimationExporter::export_bone_animation_recursive(Object *ob, Bone *bone, 
 	}
 
 	for (Bone *child = (Bone *)bone->childbase.first; child; child = child->next)
-		export_bone_animation_recursive(ob, child, sampler);
+		export_bone_animations_recursive(ob, child, sampler);
 }
 
+#ifdef WITH_MORPH_ANIMATION
+/* TODO: This function needs to be implemented similar to the material animation export
+   So we have to update BCSample for this to work.
+*/
 void AnimationExporter::export_morph_animation(Object *ob, BCAnimationSampler &sampler)
 {
 	FCurve *fcu;
@@ -314,6 +310,7 @@ void AnimationExporter::export_morph_animation(Object *ob, BCAnimationSampler &s
 	}
 
 }
+#endif
 
 /* Euler sources from quternion sources 
  * Important: We assume the object has a scene action.
@@ -331,7 +328,7 @@ void AnimationExporter::get_eul_source_for_quat(std::vector<float> &values, Obje
 
 	int curve_count = 0;
 	while (fcu) {
-		std::string transformName = extract_transform_name(fcu->rna_path);
+		std::string transformName = bc_string_after(fcu->rna_path, '.');
 
 		if (transformName == "rotation_quaternion" ) {
 			curve_count += 1;
@@ -355,28 +352,71 @@ void AnimationExporter::get_eul_source_for_quat(std::vector<float> &values, Obje
 	}
 }
 
-void AnimationExporter::create_keyframed_animation(
-	Object *ob, 
-	FCurve *fcu, 
-	BC_animation_transform_type tm_type,
-	bool is_param, 
-	BCAnimationSampler &sampler, 
-	Material *ma)
+/*
+* In some special cases the exported Curve needs to be replaced
+* by a modified curve (for collada purposes)
+* This method checks if a conversion is necessary and if applicable
+* returns a pointer to the modified BCAnimationCurve.
+* IMPORTANT: the modified curve must be deleted by the caller when no longer needed
+* if no conversion is needed this method returns a nullptr;
+*/
+BCAnimationCurve *AnimationExporter::get_modified_export_curve(Object *ob, BCAnimationCurve curve)
 {
-	BCAnimationCurve curve(BC_ANIMATION_CURVE_TYPE_MATERIAL, fcu);
-	export_curve_animation(ob, curve);
+	BC_animation_transform_type tm_type = curve.get_transform_type();
+	BCAnimationCurve *mcurve = nullptr;
+	if (tm_type == BC_ANIMATION_TYPE_LENS) {
+
+		/* Create an xfov curve */
+
+		BCFrameSampleMap sample_map;
+		animation_sampler->get_samples(sample_map, ob);
+		mcurve = new BCAnimationCurve(curve);
+		mcurve->set_transform_type("xfov", 0);
+		mcurve->reset_values();
+		// now tricky part: transform the fcurve
+		const BCValueMap &value_map = curve.get_value_map();
+		BCValueMap::const_iterator it;
+		for (it = value_map.begin(); it != value_map.end(); ++it) {
+			int frame = it->first;
+			float value = it->second;
+			const BCSample *sample = sample_map[frame];
+			if (sample)
+			{
+				/* recalculate the value of xfov in degrees */
+				const BCCamera &camera = sample->get_camera();
+				float lens = camera.lens;
+				float sensor = camera.xsensor;
+				value = RAD2DEGF(focallength_to_fov(lens, sensor));
+				mcurve->add_value(value, frame, /*modify_curve=*/true);
+			}
+		}
+		mcurve->clean_handles(); // to reset the handles
+	}
+	return mcurve;
 }
 
 /* convert f-curves to animation curves and write
 * Important: We assume the object has a scene action.
 * If it has not, then Blender will die!
 */
-void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurve &curve)
+void AnimationExporter::export_curve_animation(
+	Object *ob,
+	BCAnimationCurve &icurve)
 {
-	std::string channel = curve.get_channel_target();
-	BC_animation_curve_type channel_type = curve.get_channel_type();
+	std::string channel = icurve.get_channel_target();
+	BC_animation_curve_type channel_type = icurve.get_channel_type();
+
+	/*
+	 * Some curves can not be exported as is and need some conversion
+	 * For more information see implementation oif get_modified_export_curve()
+	 * note: if mcurve is not nullptr then it must be deleted at end of this method;
+	 */
+
+	BCAnimationCurve *mcurve = get_modified_export_curve(ob, icurve);
+	BCAnimationCurve &curve = (mcurve) ? *mcurve : icurve;
+
 	int array_index = curve.get_array_index();
-	std::string axis = get_subchannel(channel, array_index); // RGB or XYZ
+	std::string axis = get_axis_name(channel, array_index); // RGB or XYZ
 
 	std::string action_name;
 	bAction *action = bc_getSceneObjectAction(ob);
@@ -387,37 +427,23 @@ void AnimationExporter::export_curve_animation(Object *ob, const BCAnimationCurv
 	
 	std::string target = translate_id(curve_name);
 
-	if (channel_type == BC_ANIMATION_CURVE_TYPE_LIGHT || channel_type == BC_ANIMATION_CURVE_TYPE_CAMERA) {
-		target += "/" + get_param_sid(channel, axis);
-	}
-	else if (channel_type == BC_ANIMATION_CURVE_TYPE_MATERIAL) {
+	if (channel_type == BC_ANIMATION_CURVE_TYPE_MATERIAL) {
 		int material_index = curve.get_tag();
 		Material *ma = give_current_material(ob, material_index + 1);
 		if (ma) {
-			target = id_name(ma) + "-effect/common/" + get_sid(curve, axis);
+			target = id_name(ma) + "-effect/common/" + get_collada_sid(curve, axis);
 		}
 	}
-
 	else {
-		target += "/" + get_transform_sid(channel, axis);
+		target += "/" + get_collada_sid(curve, axis);
 	}
 
-	export_collada_curve_animation(id, curve_name, target, axis, curve);
+	export_collada_curve_animation( id, curve_name, target, axis, curve);
+
+	if (mcurve) {
+		delete mcurve; // The modified curve is no longer needed
+	}
 }
-
-const std::string AnimationExporter::get_sid(const BCAnimationCurve &curve, const std::string axis_name) const
-{
-	std::string tm_name;
-	BC_animation_transform_type tm_type = curve.get_transform_type();
-	std::map<BC_animation_transform_type, std::string>::iterator name_it = BC_ANIMATION_NAME_FROM_TYPE.find(tm_type);
-	tm_name = name_it->second;
-
-	if (axis_name != "")
-		tm_name += '.' + axis_name;
-
-	return tm_name;
-}
-
 
 void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &frames, BCMatrixSampleMap &samples)
 {
@@ -447,6 +473,7 @@ bool AnimationExporter::is_bone_deform_group(Bone *bone)
 	return false;
 }
 
+
 void AnimationExporter::export_collada_curve_animation(
 	std::string id,
 	std::string name,
@@ -458,6 +485,7 @@ void AnimationExporter::export_collada_curve_animation(
 	BCValues values;
 	curve.get_sampled_frames(frames);
 	curve.get_sampled_values(values);
+	BC_animation_transform_type tm_type = curve.get_transform_type();
 
 	fprintf(stdout, "Export animation curve %s (%d control points)\n", id.c_str(), int(frames.size()));
 	openAnimation(id, name);
@@ -466,18 +494,18 @@ void AnimationExporter::export_collada_curve_animation(
 	bool has_tangents = false;
 	bool is_rot = curve.is_rot();
 
-	std::string input_id = create_source_from_values(COLLADASW::InputSemantic::INPUT, frames, false, id, axis);
-	std::string output_id = create_source_from_values(COLLADASW::InputSemantic::OUTPUT, values, is_rot, id, axis);
+	std::string input_id = collada_source_from_values(BC_ANIMATION_TYPE_TIMEFRAME, COLLADASW::InputSemantic::INPUT, frames, false, id, axis);
+	std::string output_id = collada_source_from_values(tm_type, COLLADASW::InputSemantic::OUTPUT, values, is_rot, id, axis);
 
 	std::string interpolation_id;
 	if (this->export_settings->keep_smooth_curves)
-		interpolation_id = create_interpolation_source(curve, id, axis, &has_tangents);
+		interpolation_id = collada_interpolation_source(curve, id, axis, &has_tangents);
 	else
-		interpolation_id = create_linear_interpolation_source(frames.size(), id);
+		interpolation_id = collada_linear_interpolation_source(frames.size(), id);
 
 	if (has_tangents) {
-		intangent_id = create_tangent_from_curve(COLLADASW::InputSemantic::IN_TANGENT, curve, frames, id, axis);
-		outtangent_id = create_tangent_from_curve(COLLADASW::InputSemantic::OUT_TANGENT, curve, frames, id, axis);
+		intangent_id = collada_tangent_from_curve(COLLADASW::InputSemantic::IN_TANGENT, curve, frames, id, axis);
+		outtangent_id = collada_tangent_from_curve(COLLADASW::InputSemantic::OUT_TANGENT, curve, frames, id, axis);
 	}
 
 	std::string sampler_id = std::string(id) + SAMPLER_ID_SUFFIX;
@@ -504,9 +532,9 @@ void AnimationExporter::export_collada_matrix_animation(std::string id, std::str
 
 	openAnimationWithClip(id, name);
 
-	std::string input_id = create_source_from_values(COLLADASW::InputSemantic::INPUT, frames, false, id, "");
-	std::string output_id = create_4x4_source_from_values(samples, id);
-	std::string interpolation_id = create_linear_interpolation_source(frames.size(), id);
+	std::string input_id = collada_source_from_values(BC_ANIMATION_TYPE_TIMEFRAME, COLLADASW::InputSemantic::INPUT, frames, false, id, "");
+	std::string output_id = collada_source_from_values(samples, id);
+	std::string interpolation_id = collada_linear_interpolation_source(frames.size(), id);
 
 	std::string sampler_id = std::string(id) + SAMPLER_ID_SUFFIX;
 	COLLADASW::LibraryAnimations::Sampler sampler(sw, sampler_id);
@@ -521,12 +549,6 @@ void AnimationExporter::export_collada_matrix_animation(std::string id, std::str
 	addChannel(COLLADABU::URI(EMPTY_STRING, sampler_id), target);
 
 	closeAnimation();
-}
-
-
-float AnimationExporter::convert_angle(float angle)
-{
-	return COLLADABU::Math::Utils::radToDegF(angle);
 }
 
 std::string AnimationExporter::get_semantic_suffix(COLLADASW::InputSemantic::Semantics semantic)
@@ -588,100 +610,51 @@ void AnimationExporter::add_source_parameters(COLLADASW::SourceBase::ParameterNa
 }
 
 /*
-Experimental stuff: try to find a tangent that lies between the closest fcurve points.
-if the sample_point hits a function point, then the tangents of the function point are preserved.
-Cool eh?
+Use this when the curve has different keyframes than the underlaying FCurve.
+This can happen when the curve contains sample points. However
+currently the BCAnimationSampler makes sure that sampled points
+are added to the FCurve, hence this function will always find a matching
+keyframe;
 */
-int AnimationExporter::get_source_values(const BCAnimationCurve &curve, float val, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values)
+int AnimationExporter::get_point_in_curve(const BCAnimationCurve &curve, float val, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values)
 {
 	const FCurve *fcu = curve.get_fcurve();
-
 	int lower_index = curve.closest_index_below(val);
-	int upper_index = curve.closest_index_above(val, lower_index);
-	if (lower_index==upper_index)
-		return get_source_values(&fcu->bezt[lower_index], semantic, is_angle, values);
-
-	/* This actually does not work */
-	float lower[2];
-	float upper[2];
-
-	lower[0] = fcu->bezt[lower_index].vec[1][0]; // ctime
-	lower[1] = fcu->bezt[lower_index].vec[1][1]; // value
-	upper[0] = fcu->bezt[upper_index].vec[1][0]; // ctime
-	upper[1] = fcu->bezt[upper_index].vec[1][1]; // value
-
-	float fraction = (val-lower[1]) / (upper[1]-lower[1]);
-
-	float lower_values[3];
-	float upper_values[3];
-
-	int length = get_source_values(&fcu->bezt[lower_index], semantic, is_angle, lower_values);
-	             get_source_values(&fcu->bezt[upper_index], semantic, is_angle, upper_values);
-
-	for (int i = 0; i < 2; i++) {
-		values[i] = lower_values[i] + (upper_values[i] - lower_values[i]) * fraction;
-	}
-
-	return length;
+	return get_point_in_curve(&fcu->bezt[lower_index], semantic, is_angle, values);
 }
 
-int AnimationExporter::get_source_values(BezTriple *bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values)
+
+int AnimationExporter::get_point_in_curve(BezTriple *bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values)
 {
 	int length;
 	switch (semantic) {
-		case COLLADASW::InputSemantic::INPUT:
-			length = 1;
-			values[0] = FRA2TIME(bezt->vec[1][0]);
-			break;
-		case COLLADASW::InputSemantic::OUTPUT:
-			length = 1;
-			if (is_angle) {
-				values[0] = RAD2DEGF(bezt->vec[1][1]);
-			}
-			else {
-				values[0] = bezt->vec[1][1];
-			}
-			break;
+	case COLLADASW::InputSemantic::INPUT:
+		length = 1;
+		values[0] = BCAnimationCurve::get_time(bezt, scene);
+		break;
+	case COLLADASW::InputSemantic::OUTPUT:
+		length = 1;
+		values[0] = BCAnimationCurve::get_value(bezt, is_angle);
+		break;
 
-		case COLLADASW::InputSemantic::IN_TANGENT:
-			length = 2;
-			values[0] = FRA2TIME(bezt->vec[0][0]);
-			if (bezt->ipo != BEZT_IPO_BEZ) {
-				// We're in a mixed interpolation scenario, set zero as it's irrelevant but value might contain unused data
-				values[0] = 0;
-				values[1] = 0;
-			}
-			else if (is_angle) {
-				values[1] = RAD2DEGF(bezt->vec[0][1]);
-			}
-			else {
-				values[1] = bezt->vec[0][1];
-			}
-			break;
+	case COLLADASW::InputSemantic::IN_TANGENT:
+		length = 2;
+		BCAnimationCurve::get_in_tangent(bezt, scene, values, is_angle);
+		break;
 
-		case COLLADASW::InputSemantic::OUT_TANGENT:
-			length = 2;
-			values[0] = FRA2TIME(bezt->vec[2][0]);
-			if (bezt->ipo != BEZT_IPO_BEZ) {
-				// We're in a mixed interpolation scenario, set zero as it's irrelevant but value might contain unused data
-				values[0] = 0;
-				values[1] = 0;
-			}
-			else if (is_angle) {
-				values[1] = RAD2DEGF(bezt->vec[2][1]);
-			}
-			else {
-				values[1] = bezt->vec[2][1];
-			}
-			break;
-		default:
-			length = 0;
-			break;
+	case COLLADASW::InputSemantic::OUT_TANGENT:
+		length = 2;
+		BCAnimationCurve::get_out_tangent(bezt, scene, values, is_angle);
+		break;
+
+	default:
+		length = 0;
+		break;
 	}
 	return length;
 }
 
-std::string AnimationExporter::create_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, std::vector<float>frames, const std::string& anim_id, std::string axis_name)
+std::string AnimationExporter::collada_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, std::vector<float>frames, const std::string& anim_id, std::string axis_name)
 {
 	std::string channel = curve.get_channel_target();
 
@@ -714,10 +687,10 @@ std::string AnimationExporter::create_tangent_from_curve(COLLADASW::InputSemanti
 		}
 
 		float vals[3]; // be careful!
-		int length = get_source_values(curve, frames[frame_index], semantic, is_angle, vals);
+		int length = get_point_in_curve(curve, frames[frame_index], semantic, is_angle, vals);
 		float offset = 0;
 		float bases[3];
-		int len = get_source_values(curve, frames[frame_index], COLLADASW::InputSemantic::OUTPUT, is_angle, bases);
+		int len = get_point_in_curve(curve, frames[frame_index], COLLADASW::InputSemantic::OUTPUT, is_angle, bases);
 		sampled_val += vals[1] - bases[0];
 
 		source.appendValues(vals[0]);
@@ -732,7 +705,7 @@ std::string AnimationExporter::create_tangent_from_curve(COLLADASW::InputSemanti
  * Similar to create_source_from_fcurve, but adds conversion of lens
  * animation data from focal length to FOV.
  */
-std::string AnimationExporter::create_lens_source_from_fcurve(Camera *cam, COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, const std::string& anim_id)
+std::string AnimationExporter::collada_lens_source_from_fcurve(Camera *cam, COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, const std::string& anim_id)
 {
 	std::string source_id = anim_id + get_semantic_suffix(semantic);
 
@@ -751,7 +724,7 @@ std::string AnimationExporter::create_lens_source_from_fcurve(Camera *cam, COLLA
 	const FCurve *fcu = curve.get_fcurve();
 	for (unsigned int i = 0; i < curve.size(); i++) {
 		float values[3]; // be careful!
-		int length = get_source_values(&fcu->bezt[i], semantic, false, values);
+		int length = get_point_in_curve(&fcu->bezt[i], semantic, false, values);
 		for (int j = 0; j < length; j++)
 		{
 			float val = RAD2DEGF(focallength_to_fov(values[j], cam->sensor_x));
@@ -764,7 +737,13 @@ std::string AnimationExporter::create_lens_source_from_fcurve(Camera *cam, COLLA
 	return source_id;
 }
 
-std::string AnimationExporter::create_source_from_values(COLLADASW::InputSemantic::Semantics semantic, std::vector<float> &values, bool is_rot, const std::string& anim_id, const std::string axis_name)
+std::string AnimationExporter::collada_source_from_values(
+	BC_animation_transform_type tm_type,
+	COLLADASW::InputSemantic::Semantics semantic,
+	std::vector<float> &values,
+	bool is_rot,
+	const std::string& anim_id,
+	const std::string axis_name)
 {
 	/* T can be float, int or double */
 
@@ -785,10 +764,16 @@ std::string AnimationExporter::create_source_from_values(COLLADASW::InputSemanti
 
 	for (int i = 0; i < entry_count; i++) {
 		float val = values[i];
-		if (semantic == COLLADASW::InputSemantic::INPUT)
+		switch (tm_type) {
+		case BC_ANIMATION_TYPE_TIMEFRAME:
 			val = FRA2TIME(val);
-		if (is_rot)
+			break;
+		case BC_ANIMATION_TYPE_ROTATION_EULER:
+		case BC_ANIMATION_TYPE_ROTATION:
 			val = RAD2DEGF(val);
+			break;
+		default: break;
+		}
 		source.appendValues(val);
 	}
 
@@ -800,7 +785,7 @@ std::string AnimationExporter::create_source_from_values(COLLADASW::InputSemanti
 /*
  * Create a collada matrix source for a set of samples
 */
-std::string AnimationExporter::create_4x4_source_from_values(BCMatrixSampleMap &samples, const std::string &anim_id)
+std::string AnimationExporter::collada_source_from_values(BCMatrixSampleMap &samples, const std::string &anim_id)
 {
 	COLLADASW::InputSemantic::Semantics semantic = COLLADASW::InputSemantic::OUTPUT;
 	std::string source_id = anim_id + get_semantic_suffix(semantic);
@@ -830,7 +815,7 @@ std::string AnimationExporter::create_4x4_source_from_values(BCMatrixSampleMap &
 	return source_id;
 }
 
-std::string AnimationExporter::create_interpolation_source(const BCAnimationCurve &curve, 
+std::string AnimationExporter::collada_interpolation_source(const BCAnimationCurve &curve,
 	const std::string& anim_id, 
 	const std::string axis,
 	bool *has_tangents)
@@ -875,7 +860,7 @@ std::string AnimationExporter::create_interpolation_source(const BCAnimationCurv
 	return source_id;
 }
 
-std::string AnimationExporter::create_linear_interpolation_source(int tot, const std::string& anim_id)
+std::string AnimationExporter::collada_linear_interpolation_source(int tot, const std::string& anim_id)
 {
 	std::string source_id = anim_id + get_semantic_suffix(COLLADASW::InputSemantic::INTERPOLATION);
 
@@ -899,94 +884,51 @@ std::string AnimationExporter::create_linear_interpolation_source(int tot, const
 	return source_id;
 }
 
-extern std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE;
 extern std::map<std::string, BC_animation_transform_type> BC_ANIMATION_TYPE_FROM_NAME;
 
 BC_animation_transform_type AnimationExporter::get_transform_type(std::string path)
 {
 	BC_animation_transform_type tm_type;
 	// when given rna_path, overwrite tm_type from it
-	std::string name = extract_transform_name(path);
+	std::string name = bc_string_after(path, '.');
 	std::map<std::string, BC_animation_transform_type>::iterator type_it = BC_ANIMATION_TYPE_FROM_NAME.find(name);
 	tm_type = (type_it != BC_ANIMATION_TYPE_FROM_NAME.end()) ? type_it->second : BC_ANIMATION_TYPE_UNKNOWN;
 
 	return tm_type;
 }
 
-std::string AnimationExporter::get_param_sid(BC_animation_transform_type tm_type, const std::string axis_name)
+const std::string AnimationExporter::get_collada_name(BC_animation_transform_type tm_type) const
 {
-	std::string tm_name;
 	std::map<BC_animation_transform_type, std::string>::iterator name_it = BC_ANIMATION_NAME_FROM_TYPE.find(tm_type);
-	tm_name = name_it->second;
-
+	std::string tm_name = name_it->second;
 	return tm_name;
 }
 
-std::string AnimationExporter::get_param_sid(std::string path, const std::string axis_name)
-{
-	BC_animation_transform_type tm_type = get_transform_type(path);
-	return get_param_sid(tm_type, axis_name);
-}
-
 /*
-* Assign sid of the animated parameter or transform for rotation,
-* axis name is always appended and the value of append_axis is ignored
-*/
-std::string AnimationExporter::get_transform_sid(const std::string channel, const std::string axis_name)
+ * Assign sid of the animated parameter or transform for rotation,
+ * axis name is always appended and the value of append_axis is ignored
+ */
+std::string AnimationExporter::get_collada_sid(const BCAnimationCurve &curve, const std::string axis_name)
 {
-	std::string tm_name;
-	BC_animation_transform_type tm_type = get_transform_type(channel);
-
-	if (
-		tm_type == BC_ANIMATION_TYPE_ROTATION_EULER ||
-		tm_type == BC_ANIMATION_TYPE_ROTATION_QUAT
-		)
-	{
-		tm_type = BC_ANIMATION_TYPE_ROTATION;
-	}
+	BC_animation_transform_type tm_type = curve.get_transform_type();
+	std::string tm_name = get_collada_name(tm_type);
 
 	bool is_angle = (
-		tm_type == BC_ANIMATION_TYPE_ROTATION ||
 		tm_type == BC_ANIMATION_TYPE_ROTATION_EULER ||
-		tm_type == BC_ANIMATION_TYPE_ROTATION_QUAT);
+		tm_type == BC_ANIMATION_TYPE_ROTATION_QUAT ||
+		tm_type == BC_ANIMATION_TYPE_ROTATION
+		);
 
-	std::map<BC_animation_transform_type, std::string>::iterator name_it = BC_ANIMATION_NAME_FROM_TYPE.find(tm_type);
-	tm_name = name_it->second;
 
 	if (tm_name.size()) {
 		if (is_angle)
 			return tm_name + std::string(axis_name) + ".ANGLE";
 		else
-			if (axis_name[0])
+			if (axis_name != "")
 				return tm_name + "." + std::string(axis_name);
 			else
 				return tm_name;
 	}
 
 	return tm_name;
-}
-
-/*
- * enable fcurves driving a specific bone, disable all the rest
- * if bone_name = NULL enable all fcurves
- */
-void AnimationExporter::enable_fcurves(bAction *act, char *bone_name)
-{
-	FCurve *fcu;
-	char prefix[200];
-
-	if (bone_name)
-		BLI_snprintf(prefix, sizeof(prefix), "pose.bones[\"%s\"]", bone_name);
-
-	for (fcu = (FCurve *)act->curves.first; fcu; fcu = fcu->next) {
-		if (bone_name) {
-			if (STREQLEN(fcu->rna_path, prefix, strlen(prefix)))
-				fcu->flag &= ~FCURVE_DISABLED;
-			else
-				fcu->flag |= FCURVE_DISABLED;
-		}
-		else {
-			fcu->flag &= ~FCURVE_DISABLED;
-		}
-	}
 }

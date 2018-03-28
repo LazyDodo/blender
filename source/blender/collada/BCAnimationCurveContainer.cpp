@@ -74,7 +74,7 @@ static void get_sample_frames(BCFrameSet &sample_frames, int sampling_rate, bool
 	float efra = scene->r.efra;
 
 	int frame_index;
-	for (frame_index = int(sfra); frame_index < efra; frame_index += sampling_rate) {
+	for (frame_index = nearbyint(sfra); frame_index < efra; frame_index += sampling_rate) {
 		sample_frames.insert(frame_index);
 	}
 
@@ -96,7 +96,7 @@ static void add_keyframes_from(bAction *action, BCFrameSet &frameset)
 		for (fcu = (FCurve *)action->curves.first; fcu; fcu = fcu->next) {
 			BezTriple  *bezt = fcu->bezt;
 			for (int i = 0; i < fcu->totvert; bezt++, i++) {
-				int frame_index = bezt->vec[1][0];
+				int frame_index = nearbyint(bezt->vec[1][0]);
 				frameset.insert(frame_index);
 			}
 		}
@@ -154,26 +154,18 @@ void BCAnimationSampler::sample_scene(
 						Bone *bone = pchan->bone;
 						if (bone_matrix_local_get(ob, bone, mat, for_opensim)) {
 							ob_sample.set_bone(bone, mat);
-							sample_data.add(ob, bone, mat, frame_index);
+							//sample_data.add(ob, bone, mat, frame_index);
 						}
 					}
 				}
 
 				if (ob->type == OB_CAMERA) {
 					Camera *camera = (Camera *)ob->data;
-					ob_sample.set_value(BC_ANIMATION_TYPE_XFOV, 0, camera->lens);
-					ob_sample.set_value(BC_ANIMATION_TYPE_XMAG, 0, camera->ortho_scale);
-					ob_sample.set_value(BC_ANIMATION_TYPE_ZFAR, 0, camera->clipend);
-					ob_sample.set_value(BC_ANIMATION_TYPE_ZNEAR, 0, camera->clipsta);
+					ob_sample.set_camera(camera);
 				}
 				else if (ob->type == OB_LAMP) {
 					Lamp *lamp = (Lamp *)ob->data;
-					ob_sample.set_value(BC_ANIMATION_TYPE_LIGHT_COLOR, 0, lamp->r);
-					ob_sample.set_value(BC_ANIMATION_TYPE_LIGHT_COLOR, 1, lamp->g);
-					ob_sample.set_value(BC_ANIMATION_TYPE_LIGHT_COLOR, 2, lamp->b);
-					ob_sample.set_value(BC_ANIMATION_TYPE_FALL_OFF_ANGLE, 0, 0);    //TODO from where to get this
-					ob_sample.set_value(BC_ANIMATION_TYPE_FALL_OFF_EXPONENT, 0, 0); // TODO from where to get this
-					ob_sample.set_value(BC_ANIMATION_TYPE_BLENDER_DIST, 0, lamp->dist);
+					ob_sample.set_lamp(lamp);
 				}
 
 				for (int a = 0; a < ob->totcol; a++) {
@@ -431,7 +423,7 @@ void BCAnimationSampler::add_value_set(
 
 	BCFrameSampleMap::iterator it;
 	for (it = samples.begin(); it != samples.end(); ++it) {
-		const int frame_index = it->first;
+		const int frame_index = nearbyint(it->first);
 		if (animation_type == BC_ANIMATION_TYPE_SAMPLE || curve.is_keyframe(frame_index)) {
 
 			const BCSample *sample = it->second;
@@ -443,7 +435,7 @@ void BCAnimationSampler::add_value_set(
 				good = sample->get_value(tm_type, array_index, &val);
 			}
 			else {
-				good = sample->get_value(tag, tm_type, array_index, &val);
+				good = sample->get_value(tm_type, array_index, &val, tag);
 			}
 			
 			if (good) {
@@ -556,6 +548,7 @@ void BCAnimationSampler::get_curves(BCAnimationCurveMap &curves, Object *ob)
 			CurveKey key(fcu->rna_path, fcu->array_index);
 			curves[key].init(curve_type, fcu);
 		}
+
 	}
 
 	/* Add curves on Object->material actions*/
@@ -647,7 +640,7 @@ const BCMatrix *BCSampleFrame::get_sample_matrix(Object *ob) const
 		return nullptr;
 	}
 	BCSample *sample = it->second;
-	return sample->get_sampled_matrix();
+	return sample->get_matrix();
 }
 
 /* Get the matrix for the given Bone, returns Unity when the Objewct is not sampled */
@@ -659,7 +652,7 @@ const BCMatrix *BCSampleFrame::get_sample_matrix(Object *ob, Bone *bone) const
 	}
 
 	BCSample *sample = it->second;
-	const BCMatrix *bc_bone = sample->get_sampled_matrix(bone);
+	const BCMatrix *bc_bone = sample->get_matrix(bone);
 	return bc_bone;
 }
 

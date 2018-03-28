@@ -34,9 +34,12 @@ extern "C"
 #include "MEM_guardedalloc.h"
 #include "BKE_fcurve.h"
 #include "BKE_armature.h"
+#include "ED_anim_api.h"
 #include "ED_keyframing.h"
 #include "ED_keyframes_edit.h"
 }
+
+typedef float(TangentPoint)[2];
 
 typedef std::set<float> BCFrameSet;
 typedef std::vector<float> BCFrames;
@@ -99,6 +102,35 @@ public:
 	}
 };
 
+typedef enum BCBeztDataType {
+	BCBeztInTangent = 0,
+	BCBeztOutTangent = 2,
+	BCBeztValue = 1
+} BCBeztDataType;
+
+class BCBezTriple {
+public:
+	BezTriple & bezt;
+
+	BCBezTriple(BezTriple bezt):
+		bezt(bezt){}
+
+	float get_frame()
+	{
+		return bezt.vec[1][0];
+	}
+
+	float get_value(BCBeztDataType type, float val[2] = nullptr)
+	{
+		if (val) {
+			val[0] = bezt.vec[type][0];
+			val[1] = bezt.vec[type][1];
+		}
+		return bezt.vec[type][1];
+	}
+
+};
+
 class BCAnimationCurve {
 private:
 	BC_animation_curve_type type = BC_ANIMATION_CURVE_TYPE_UNKNOWN;
@@ -111,17 +143,21 @@ private:
 	bool curve_is_local_copy = false;
 	FCurve *fcurve;
 
+	float(*convert)(BCSample *); // conversion function for values
+
 	void delete_fcurve(FCurve *fcu);
 	FCurve *create_fcurve(int array_index, const char *rna_path);
 	void create_bezt(float frame, float output);
 
 public:
 	BCAnimationCurve();
+	BCAnimationCurve(const BCAnimationCurve &other);
 	BCAnimationCurve(const BC_animation_curve_type type, FCurve *fcu);
 	~BCAnimationCurve();
 
 	const BC_animation_curve_type get_channel_type() const;
 	const BC_animation_transform_type get_transform_type() const;
+	const void set_transform_type(std::string path, int axis_index);
 
 	const std::string get_channel_target() const;
 	const std::string get_animation_name(Object *ob) const;
@@ -136,14 +172,20 @@ public:
 
 	void calchandles();
 	bool add_value(const BCSample &sample, int frame);
-	void add_value(const float val, const int frame);
+	void add_value(const float val, const int frame, bool modify_curve=false);
 	void init(const BC_animation_curve_type type, const std::string rna_path, const int index);
 	void init(const BC_animation_curve_type type, FCurve *fcu, int material_index=-1);
+	void reset_values();
 	FCurve *get_edit_fcurve();
 	const FCurve *get_fcurve() const;
 
-	void remove_unused_keyframes();
+	float get_vertical_span()
+	{
+		return max - min;
+	}
 
+	void remove_unused_keyframes();
+	void clean_handles();
 	/*
 	Return the frames of the sampled curve;
 	Note: If the curve was not sampled, the
@@ -164,6 +206,7 @@ public:
 	Note: If the curve was not sampled, the
 	returned vector is empty
 	*/
+	BCValueMap &get_value_map();
 	void get_key_values(BCValues &values) const;
 	void get_sampled_values(BCValues &values, bool fallback = true) const;
 	void get_key_frames(BCFrames &frames) const;
@@ -172,8 +215,14 @@ public:
 	bool is_rot() const;
 	bool is_keyframe(int frame);
 
-	/* For convenience, maybe no longer needed */
+	/* For convenience */
 	static bool is_flat_line(BCValues &values);
+	const bool is_transform_curve() const;
+	static float get_time(BezTriple *bezt, Scene *scene);
+	static float get_value(BezTriple *bezt, bool as_angle = false);
+	static void get_in_tangent(BezTriple *bezt, Scene *scene, float point[2], bool as_angle = false);
+	static void get_out_tangent(BezTriple *bezt, Scene *scene, float point[2], bool as_angle = false);
+	static void get_tangent(BezTriple *bezt, Scene *scene, float point[2], bool as_angle, int index);
 
 };
 

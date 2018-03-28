@@ -55,7 +55,7 @@ void BCSample::set_bone(Bone *bone, Matrix &mat)
 	copy_m4_m4(matrix->matrix, mat);
 }
 
-const BCMatrix *BCSample::get_sampled_matrix(Bone *bone) const
+const BCMatrix *BCSample::get_matrix(Bone *bone) const
 {
 	BCBoneMatrixMap::const_iterator it = bone_matrix_map.find(bone);
 	if (it == bone_matrix_map.end()) {
@@ -64,9 +64,46 @@ const BCMatrix *BCSample::get_sampled_matrix(Bone *bone) const
 	return it->second;
 }
 
-const BCMatrix *BCSample::get_sampled_matrix() const
+const BCMatrix *BCSample::get_matrix() const
 {
 	return &matrix;
+}
+
+const BCLamp &BCSample::get_lamp() const
+{
+	return this->lamp;
+}
+
+void BCSample::set_lamp(Lamp *lamp)
+{
+	this->lamp.light_color[0] = lamp->r;
+	this->lamp.light_color[1] = lamp->g;
+	this->lamp.light_color[2] = lamp->b;
+	this->lamp.falloff_angle = 0;    //TODO from where to get this
+	this->lamp.falloff_exponent = 0; // TODO from where to get this
+	this->lamp.blender_dist = lamp->dist;
+}
+
+const BCCamera &BCSample::get_camera() const
+{
+	return this->camera;
+}
+
+void BCSample::set_camera(Camera *camera)
+{
+	this->camera.lens = camera->lens;
+	this->camera.xsensor = camera->sensor_x;
+	this->camera.xfov = RAD2DEGF(focallength_to_fov(camera->lens, camera->sensor_x));
+	this->camera.ysensor = camera->sensor_y;
+	this->camera.xmag = camera->ortho_scale; // TODO: check this
+	this->camera.zfar = camera->clipend;
+	this->camera.znear = camera->clipsta;
+}
+
+const BCMaterial &BCSample::get_material(int index)
+{
+	const BCMaterial *mat = this->material_map[index];
+	return *mat;
 }
 
 void BCSample::set_material(Material *ma)
@@ -108,8 +145,8 @@ const bool BCSample::set_value(BC_animation_transform_type channel, const int ar
 		break;
 
 	/* Camera animation */
-	case BC_ANIMATION_TYPE_XFOV:
-		camera.xfov = val;
+	case BC_ANIMATION_TYPE_LENS:
+		camera.lens = val;
 		break;
 	case BC_ANIMATION_TYPE_XMAG:
 		camera.xmag = val;
@@ -149,7 +186,7 @@ const bool BCSample::set_vector(BC_animation_transform_type channel, float val[3
 }
 
 /* Get channel value */
-const bool BCSample::get_value(int ma_index, BC_animation_transform_type channel, const int array_index, float *val) const
+const bool BCSample::get_value(BC_animation_transform_type channel, const int array_index, float *val, int ma_index) const
 {
 	BCMaterialMap::const_iterator it = material_map.find(ma_index);
 	if (it != material_map.end()) {
@@ -215,8 +252,8 @@ const bool BCSample::get_value(BC_animation_transform_type channel, const int ar
 		break;
 
 	/* Camera animation */
-	case BC_ANIMATION_TYPE_XFOV:
-		*val = camera.xfov;
+	case BC_ANIMATION_TYPE_LENS:
+		*val = camera.lens;
 		break;
 	case BC_ANIMATION_TYPE_XMAG:
 		*val = camera.xmag;
@@ -237,20 +274,20 @@ const bool BCSample::get_value(BC_animation_transform_type channel, const int ar
 	return true;
 }
 
-void BCMatrix::copy(float(&r)[4][4], float(&a)[4][4])
+void BCMatrix::copy(Matrix &r, Matrix &a)
 {
 	/* destination comes first: */
-	memcpy(r, a, sizeof(float[4][4]));
+	memcpy(r, a, sizeof(Matrix));
 }
 
-void BCSample::transpose(float(&mat)[4][4])
+void BCMatrix::transpose(Matrix &mat)
 {
 	transpose_m4(mat);
 }
 
-void BCSample::sanitize(float(&matrix)[4][4], int precision)
+void BCMatrix::sanitize(Matrix &mat, int precision)
 {
-	bc_sanitize_mat(matrix, precision);
+	bc_sanitize_mat(mat, precision);
 }
 
 void BCMatrix::unit()
@@ -271,23 +308,6 @@ void BCMatrix::get_matrix(double(&mat)[4][4], const bool transposed, const int p
 				val = floor((val * pow(10, precision) + 0.5)) / pow(10, precision);
 			mat[i][j] = val;
 		}
-}
-
-const float(&BCSample::get_matrix() const)[4][4]
-{
-	return matrix.matrix;
-}
-
-bool BCSample::in_range(const BCSample &other, float distance) const
-{
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			if (fabs(other.matrix.matrix[i][j] - matrix.matrix[i][j]) > distance) {
-				return false;
-			}
-		}
-	}
-	return true;
 }
 
 const bool BCMatrix::in_range(const BCMatrix &other, float distance) const
