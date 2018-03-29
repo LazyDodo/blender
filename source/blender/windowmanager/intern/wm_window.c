@@ -82,6 +82,7 @@
 #include "GPU_batch.h"
 #include "GPU_draw.h"
 #include "GPU_extensions.h"
+#include "GPU_framebuffer.h"
 #include "GPU_init_exit.h"
 #include "GPU_immediate.h"
 #include "BLF_api.h"
@@ -334,11 +335,158 @@ wmWindow *wm_window_copy_test(bContext *C, wmWindow *win_src, const bool duplica
 	}
 }
 
+
+/* -------------------------------------------------------------------- */
+/** \name Quit Confirmation Dialog
+ * \{ */
+
+/** Cancel quitting and close the dialog */
+static void wm_block_confirm_quit_cancel(bContext *C, void *arg_block, void *UNUSED(arg))
+{
+	wmWindow *win = CTX_wm_window(C);
+	UI_popup_block_close(C, win, arg_block);
+}
+
+/** Discard the file changes and quit */
+static void wm_block_confirm_quit_discard(bContext *C, void *arg_block, void *UNUSED(arg))
+{
+	wmWindow *win = CTX_wm_window(C);
+	UI_popup_block_close(C, win, arg_block);
+	WM_exit(C);
+}
+
+/* Save changes and quit */
+static void wm_block_confirm_quit_save(bContext *C, void *arg_block, void *UNUSED(arg))
+{
+	PointerRNA props_ptr;
+	wmWindow *win = CTX_wm_window(C);
+
+	UI_popup_block_close(C, win, arg_block);
+
+	wmOperatorType *ot = WM_operatortype_find("WM_OT_save_mainfile", false);
+
+	WM_operator_properties_create_ptr(&props_ptr, ot);
+	RNA_boolean_set(&props_ptr, "exit", true);
+	/* No need for second confirmation popup. */
+	RNA_boolean_set(&props_ptr, "check_existing", false);
+	WM_operator_name_call_ptr(C, ot, WM_OP_INVOKE_DEFAULT, &props_ptr);
+	WM_operator_properties_free(&props_ptr);
+}
+
+
+/* Build the confirm dialog UI */
+static uiBlock *block_create_confirm_quit(struct bContext *C, struct ARegion *ar, void *UNUSED(arg1))
+{
+
+	uiStyle *style = UI_style_get();
+	uiBlock *block = UI_block_begin(C, ar, "confirm_quit_popup", UI_EMBOSS);
+
+	UI_block_flag_enable(block, UI_BLOCK_KEEP_OPEN | UI_BLOCK_LOOP | UI_BLOCK_NO_WIN_CLIP );
+	UI_block_emboss_set(block, UI_EMBOSS);
+
+	uiLayout *layout = UI_block_layout(
+	        block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 10, 2, U.pixelsize * 480, U.pixelsize * 110, 0, style);
+
+	/* Text and some vertical space */
+	{
+		char *message;
+		if (G.main->name[0] == '\0') {
+			message = BLI_strdup(IFACE_("This file has not been saved yet. Save before closing?"));
+		}
+		else {
+			const char *basename = BLI_path_basename(G.main->name);
+			message = BLI_sprintfN(IFACE_("Save changes to \"%s\" before closing?"), basename);
+		}
+		uiItemL(layout, message, ICON_ERROR);
+		MEM_freeN(message);
+	}
+
+	uiItemS(layout);
+	uiItemS(layout);
+
+
+	/* Buttons */
+	uiBut *but;
+
+	uiLayout *split = uiLayoutSplit(layout, 0.0f, true);
+
+	uiLayout *col = uiLayoutColumn(split, false);
+
+	but = uiDefIconTextBut(
+	        block, UI_BTYPE_BUT, 0, ICON_SCREEN_BACK, IFACE_("Cancel"), 0, 0, 0, UI_UNIT_Y,
+	        NULL, 0, 0, 0, 0, TIP_("Do not quit"));
+	UI_but_func_set(but, wm_block_confirm_quit_cancel, block, NULL);
+
+	/* empty space between buttons */
+	col = uiLayoutColumn(split, false);
+	uiItemS(col);
+
+	col = uiLayoutColumn(split, 1);
+	but = uiDefIconTextBut(
+	        block, UI_BTYPE_BUT, 0, ICON_CANCEL, IFACE_("Discard Changes"), 0, 0, 50, UI_UNIT_Y,
+	        NULL, 0, 0, 0, 0, TIP_("Discard changes and quit"));
+	UI_but_func_set(but, wm_block_confirm_quit_discard, block, NULL);
+
+	col = uiLayoutColumn(split, 1);
+	but = uiDefIconTextBut(
+	        block, UI_BTYPE_BUT, 0, ICON_FILE_TICK, IFACE_("Save & Quit"), 0, 0, 50, UI_UNIT_Y,
+	        NULL, 0, 0, 0, 0, TIP_("Save and quit"));
+	UI_but_func_set(but, wm_block_confirm_quit_save, block, NULL);
+
+	UI_block_bounds_set_centered(block, 10);
+
+	return block;
+}
+
+
+/**
+ * Call the confirm dialog on quitting. It's displayed in the context window so
+ * caller should set it as desired.
+ */
+static void wm_confirm_quit(bContext *C)
+{
+	wmWindow *win = CTX_wm_window(C);
+
+	if (GHOST_SupportsNativeDialogs() == 0) {
+		UI_popup_block_invoke(C, block_create_confirm_quit, NULL);
+	}
+	else if (GHOST_confirmQuit(win->ghostwin)) {
+		wm_exit_schedule_delayed(C);
+	}
+}
+
+/**
+ * Call the quit confirmation prompt or exit directly if needed. The use can
+ * still cancel via the confirmation popup. Also, this may not quit Blender
+ * immediately, but rather schedule the closing.
+ *
+ * \param win The window to show the confirmation popup/window in.
+ */
+void wm_quit_with_optional_confirmation_prompt(bContext *C, wmWindow *win)
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+	wmWindow *win_ctx = CTX_wm_window(C);
+
+	/* The popup will be displayed in the context window which may not be set
+	 * here (this function gets called outside of normal event handling loop). */
+	CTX_wm_window_set(C, win);
+
+	if ((U.uiflag & USER_QUIT_PROMPT) && !wm->file_saved && !G.background) {
+		wm_confirm_quit(C);
+	}
+	else {
+		wm_exit_schedule_delayed(C);
+	}
+
+	CTX_wm_window_set(C, win_ctx);
+}
+
+/** \} */
+
 /* this is event from ghost, or exit-blender op */
 void wm_window_close(bContext *C, wmWindowManager *wm, wmWindow *win)
 {
 	wmWindow *tmpwin;
-	bool do_exit = false;
 	
 	/* first check if we have to quit (there are non-temp remaining windows) */
 	for (tmpwin = wm->windows.first; tmpwin; tmpwin = tmpwin->next) {
@@ -348,19 +496,8 @@ void wm_window_close(bContext *C, wmWindowManager *wm, wmWindow *win)
 			break;
 	}
 
-	if (tmpwin == NULL)
-		do_exit = 1;
-	
-	if ((U.uiflag & USER_QUIT_PROMPT) && !wm->file_saved && !G.background) {
-		if (do_exit) {
-			if (!GHOST_confirmQuit(win->ghostwin))
-				return;
-		}
-	}
-
-	/* let WM_exit do all freeing, for correct quit.blend save */
-	if (do_exit) {
-		WM_exit(C);
+	if (tmpwin == NULL) {
+		wm_quit_with_optional_confirmation_prompt(C, win);
 	}
 	else {
 		bScreen *screen = WM_window_get_active_screen(win);
@@ -1021,6 +1158,8 @@ static int query_qual(modifierKeyType qual)
 
 void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win) 
 {
+	BLI_assert(GPU_framebuffer_current_get() == 0);
+
 	if (win != wm->windrawable && win->ghostwin) {
 //		win->lmbut = 0;	/* keeps hanging when mousepressed while other window opened */
 
@@ -1044,6 +1183,7 @@ void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 void wm_window_reset_drawable(void)
 {
 	BLI_assert(BLI_thread_is_main());
+	BLI_assert(GPU_framebuffer_current_get() == 0);
 	wmWindowManager *wm = G.main->wm.first;
 
 	if (wm == NULL)
@@ -2075,20 +2215,24 @@ void *WM_opengl_context_create(void)
 	 * So we should call this function only on the main thread.
 	 */
 	BLI_assert(BLI_thread_is_main());
+	BLI_assert(GPU_framebuffer_current_get() == 0);
 	return GHOST_CreateOpenGLContext(g_system);
 }
 
 void WM_opengl_context_dispose(void *context)
 {
+	BLI_assert(GPU_framebuffer_current_get() == 0);
 	GHOST_DisposeOpenGLContext(g_system, (GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_activate(void *context)
 {
+	BLI_assert(GPU_framebuffer_current_get() == 0);
 	GHOST_ActivateOpenGLContext((GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_release(void *context)
 {
+	BLI_assert(GPU_framebuffer_current_get() == 0);
 	GHOST_ReleaseOpenGLContext((GHOST_ContextHandle)context);
 }

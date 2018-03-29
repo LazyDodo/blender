@@ -33,9 +33,9 @@ mat4(vec4(1.0, 0.0, 0.0, 0.0), \
      vec4(0.0, 0.0, -(farClip + nearClip) / (farClip - nearClip), -1.0), \
      vec4(0.0, 0.0, (-2.0 * farClip * nearClip) / (farClip - nearClip), 0.0))
 
-#define ViewMatrixInverse             invert(ViewMatrix)
-#define ViewProjectionMatrixInverse   invert(ViewProjectionMatrix)
-#define ProjectionMatrixInverse       invert(ProjectionMatrix)
+#define ViewMatrixInverse             inverse(ViewMatrix)
+#define ViewProjectionMatrixInverse   inverse(ViewProjectionMatrix)
+#define ProjectionMatrixInverse       inverse(ProjectionMatrix)
 #define CameraTexCoFactors            vec4(1.0f, 1.0f, 0.0f, 0.0f)
 #endif
 
@@ -760,20 +760,13 @@ Closure closure_add(Closure cl1, Closure cl2)
 
 #  if defined(MESH_SHADER) && !defined(USE_ALPHA_HASH) && !defined(USE_ALPHA_CLIP) && !defined(SHADOW_SHADER) && !defined(USE_MULTIPLY)
 layout(location = 0) out vec4 fragColor;
-#    ifdef USE_SSS
-#      ifdef USE_SSS_ALBEDO
-layout(location = 1) out vec4 sssData;
-layout(location = 2) out vec4 sssAlbedo;
-layout(location = 3) out vec4 ssrNormals;
-layout(location = 4) out vec4 ssrData;
-#      else
-layout(location = 1) out vec4 sssData;
-layout(location = 2) out vec4 ssrNormals;
-layout(location = 3) out vec4 ssrData;
-#      endif /* USE_SSS_ALBEDO */
-#    else
 layout(location = 1) out vec4 ssrNormals;
 layout(location = 2) out vec4 ssrData;
+#    ifdef USE_SSS
+layout(location = 3) out vec4 sssData;
+#      ifdef USE_SSS_ALBEDO
+layout(location = 4) out vec4 sssAlbedo;
+#      endif /* USE_SSS_ALBEDO */
 #    endif /* USE_SSS */
 
 Closure nodetree_exec(void); /* Prototype */

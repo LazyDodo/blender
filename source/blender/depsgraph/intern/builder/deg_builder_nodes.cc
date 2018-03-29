@@ -155,6 +155,7 @@ void free_copy_on_write_datablock(void *id_v)
 {
 	ID *id = (ID *)id_v;
 	deg_free_copy_on_write_datablock(id);
+	MEM_freeN(id);
 }
 
 }  /* namespace */
@@ -374,6 +375,9 @@ void DepsgraphNodeBuilder::begin_build() {
 		cow_id_hash_ = BLI_ghash_ptr_new("Depsgraph id hash");
 		foreach (IDDepsNode *id_node, graph_->id_nodes) {
 			if (deg_copy_on_write_is_expanded(id_node->id_cow)) {
+				if (id_node->id_orig == id_node->id_cow) {
+					continue;
+				}
 				BLI_ghash_insert(cow_id_hash_,
 				                 id_node->id_orig,
 				                 id_node->id_cow);
@@ -495,6 +499,11 @@ void DepsgraphNodeBuilder::build_object(Base *base,
 	 * on object's level animation, for example in case of rebuilding
 	 * pose for proxy.
 	 */
+	OperationDepsNode *op_node = add_operation_node(&object->id,
+	                                                DEG_NODE_TYPE_PARAMETERS,
+	                                                NULL,
+	                                                DEG_OPCODE_PARAMETERS_EVAL);
+	op_node->set_as_exit();
 	build_animdata(&object->id);
 	/* Particle systems. */
 	if (object->particlesystem.first != NULL) {
@@ -892,13 +901,6 @@ void DepsgraphNodeBuilder::build_particles(Object *object)
 		 * NOTE: The call itself ensures settings are only build once.
 		 */
 		build_particle_settings(part);
-		/* Update on particle settings change. */
-		add_operation_node(psys_comp,
-		                   function_bind(BKE_particle_system_settings_eval,
-		                                 _1,
-		                                 psys),
-		                   DEG_OPCODE_PARTICLE_SETTINGS_EVAL,
-		                   psys->name);
 		/* Particle system evaluation. */
 		add_operation_node(psys_comp,
 		                   NULL,
@@ -942,12 +944,6 @@ void DepsgraphNodeBuilder::build_particle_settings(ParticleSettings *part) {
 	                   DEG_NODE_TYPE_PARAMETERS,
 	                   NULL,
 	                   DEG_OPCODE_PARTICLE_SETTINGS_EVAL);
-	add_operation_node(&part->id,
-	                   DEG_NODE_TYPE_PARAMETERS,
-	                   function_bind(BKE_particle_system_settings_recalc_clear,
-	                                 _1,
-	                                 part),
-	                   DEG_OPCODE_PARTICLE_SETTINGS_RECALC_CLEAR);
 }
 
 void DepsgraphNodeBuilder::build_cloth(Object *object)
@@ -980,17 +976,6 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 	OperationDepsNode *op_node;
 	Scene *scene_cow = get_cow_datablock(scene_);
 	Object *object_cow = get_cow_datablock(object);
-
-	/* TODO(sergey): This way using this object's properties as driver target
-	 * works fine.
-	 *
-	 * Does this depend on other nodes?
-	 */
-	op_node = add_operation_node(&object->id,
-	                             DEG_NODE_TYPE_PARAMETERS,
-	                             NULL,
-	                             DEG_OPCODE_PARAMETERS_EVAL);
-	op_node->set_as_exit();
 
 	/* Temporary uber-update node, which does everything.
 	 * It is for the being we're porting old dependencies into the new system.
@@ -1179,12 +1164,6 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 /* Cameras */
 void DepsgraphNodeBuilder::build_camera(Object *object)
 {
-	/* Object itself. */
-	add_operation_node(&object->id,
-	                   DEG_NODE_TYPE_PARAMETERS,
-	                   NULL,
-	                   DEG_OPCODE_PARAMETERS_EVAL,
-	                   "Camera Parameters");
 	/* Object data. */
 	/* TODO: Link scene-camera links in somehow... */
 	Camera *camera = (Camera *)object->data;
@@ -1201,12 +1180,6 @@ void DepsgraphNodeBuilder::build_camera(Object *object)
 /* Lamps */
 void DepsgraphNodeBuilder::build_lamp(Object *object)
 {
-	/* Object itself. */
-	add_operation_node(&object->id,
-	                   DEG_NODE_TYPE_PARAMETERS,
-	                   NULL,
-	                   DEG_OPCODE_PARAMETERS_EVAL,
-	                   "Lamp Parameters");
 	/* Object data. */
 	Lamp *lamp = (Lamp *)object->data;
 	if (built_map_.checkIsBuiltAndTag(lamp)) {

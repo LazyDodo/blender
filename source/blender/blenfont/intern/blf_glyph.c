@@ -56,7 +56,7 @@
 #include "BLF_api.h"
 
 #ifndef BLF_STANDALONE
-#include "GPU_immediate.h"
+#  include "GPU_immediate.h"
 #endif
 
 #include "blf_internal_types.h"
@@ -207,7 +207,7 @@ GlyphBLF *blf_glyph_add(FontBLF *font, unsigned int index, unsigned int c)
 	GlyphBLF *g;
 	FT_Error err;
 	FT_Bitmap bitmap, tempbitmap;
-	const bool is_sharp = (U.text_render & USER_TEXT_DISABLE_AA) != 0;
+	const bool is_sharp = !BLF_antialias_get();
 	int flags = FT_LOAD_TARGET_NORMAL | FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP;
 	FT_BBox bbox;
 	unsigned int key;
@@ -409,6 +409,8 @@ void blf_glyph_render(FontBLF *font, GlyphBLF *g, float x, float y)
 
 	if ((!g->width) || (!g->height))
 		return;
+
+	glActiveTexture(GL_TEXTURE0);
 
 	if (g->build_tex == 0) {
 		GlyphCacheBLF *gc = font->glyph_cache;

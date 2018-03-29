@@ -2315,13 +2315,20 @@ static void WM_OT_window_fullscreen_toggle(wmOperatorType *ot)
 	ot->poll = WM_operator_winactive;
 }
 
-static int wm_exit_blender_exec(bContext *C, wmOperator *op)
+static int wm_exit_blender_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	WM_operator_free(op);
-	
-	WM_exit(C);
-	
+	wm_quit_with_optional_confirmation_prompt(C, CTX_wm_window(C));
 	return OPERATOR_FINISHED;
+}
+
+static int wm_exit_blender_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+{
+	if (U.uiflag & USER_QUIT_PROMPT) {
+		return wm_exit_blender_exec(C, op);
+	}
+	else {
+		return WM_operator_confirm(C, op, event);
+	}
 }
 
 static void WM_OT_quit_blender(wmOperatorType *ot)
@@ -2330,7 +2337,7 @@ static void WM_OT_quit_blender(wmOperatorType *ot)
 	ot->idname = "WM_OT_quit_blender";
 	ot->description = "Quit Blender";
 
-	ot->invoke = WM_operator_confirm;
+	ot->invoke = wm_exit_blender_invoke;
 	ot->exec = wm_exit_blender_exec;
 }
 
@@ -2508,6 +2515,7 @@ static void radial_control_set_tex(RadialControl *rc)
 				glBindTexture(GL_TEXTURE_2D, rc->gltex);
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, ibuf->x, ibuf->y, 0,
 				             GL_RED, GL_FLOAT, ibuf->rect_float);
+				glBindTexture(GL_TEXTURE_2D, 0);
 				MEM_freeN(ibuf->rect_float);
 				MEM_freeN(ibuf);
 			}
@@ -2548,6 +2556,7 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 
 		unsigned int texCoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
+		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rc->gltex);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -2559,7 +2568,7 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 		immBindBuiltinProgram(GPU_SHADER_2D_IMAGE_MASK_UNIFORM_COLOR);
 
 		immUniformColor3fvAlpha(col, alpha);
-		immUniform1i("image", GL_TEXTURE0);
+		immUniform1i("image", 0);
 
 		/* set up rotation if available */
 		if (rc->rot_prop) {

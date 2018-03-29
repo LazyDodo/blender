@@ -37,7 +37,6 @@
 
 #include "DNA_space_types.h"
 
-#include "GPU_compositing.h"
 #include "GPU_extensions.h"
 #include "GPU_matrix.h"
 #include "GPU_shader.h"
@@ -66,6 +65,7 @@ extern char datatoc_gpu_shader_2D_flat_color_vert_glsl[];
 extern char datatoc_gpu_shader_2D_smooth_color_vert_glsl[];
 extern char datatoc_gpu_shader_2D_smooth_color_frag_glsl[];
 extern char datatoc_gpu_shader_2D_image_vert_glsl[];
+extern char datatoc_gpu_shader_2D_image_rect_vert_glsl[];
 
 extern char datatoc_gpu_shader_3D_image_vert_glsl[];
 extern char datatoc_gpu_shader_image_frag_glsl[];
@@ -145,21 +145,9 @@ extern char datatoc_gpu_shader_vsm_store_vert_glsl[];
 extern char datatoc_gpu_shader_vsm_store_frag_glsl[];
 extern char datatoc_gpu_shader_sep_gaussian_blur_vert_glsl[];
 extern char datatoc_gpu_shader_sep_gaussian_blur_frag_glsl[];
-extern char datatoc_gpu_shader_fullscreen_vert_glsl[];
-extern char datatoc_gpu_shader_fx_ssao_frag_glsl[];
-extern char datatoc_gpu_shader_fx_dof_frag_glsl[];
-extern char datatoc_gpu_shader_fx_dof_vert_glsl[];
-extern char datatoc_gpu_shader_fx_dof_hq_frag_glsl[];
-extern char datatoc_gpu_shader_fx_dof_hq_vert_glsl[];
-extern char datatoc_gpu_shader_fx_dof_hq_geo_glsl[];
-extern char datatoc_gpu_shader_fx_depth_resolve_glsl[];
-extern char datatoc_gpu_shader_fx_lib_glsl[];
 
 /* cache of built-in shaders (each is created on first use) */
 static GPUShader *builtin_shaders[GPU_NUM_BUILTIN_SHADERS] = { NULL };
-
-/* cache for shader fx. Those can exist in combinations so store them here */
-static GPUShader *fx_shaders[MAX_FX_SHADERS * 2] = { NULL };
 
 typedef struct {
 	const char *vert;
@@ -543,9 +531,6 @@ void GPU_shader_free(GPUShader *shader)
 	if (shader->program)
 		glDeleteProgram(shader->program);
 
-	if (shader->uniform_interface)
-		MEM_freeN(shader->uniform_interface);
-
 	if (shader->interface)
 		GWN_shaderinterface_discard(shader->interface);
 
@@ -574,11 +559,6 @@ int GPU_shader_get_uniform_block(GPUShader *shader, const char *name)
 	return ubo ? ubo->location : -1;
 }
 
-void *GPU_fx_shader_get_interface(GPUShader *shader)
-{
-	return shader->uniform_interface;
-}
-
 void *GPU_shader_get_interface(GPUShader *shader)
 {
 	return shader->interface;
@@ -588,11 +568,6 @@ void *GPU_shader_get_interface(GPUShader *shader)
 int GPU_shader_get_program(GPUShader *shader)
 {
 	return (int)shader->program;
-}
-
-void GPU_fx_shader_set_interface(GPUShader *shader, void *interface)
-{
-	shader->uniform_interface = interface;
 }
 
 void GPU_shader_uniform_vector(GPUShader *UNUSED(shader), int location, int length, int arraysize, const float *value)
@@ -641,32 +616,17 @@ void GPU_shader_uniform_buffer(GPUShader *shader, int location, GPUUniformBuffer
 void GPU_shader_uniform_texture(GPUShader *UNUSED(shader), int location, GPUTexture *tex)
 {
 	int number = GPU_texture_bound_number(tex);
-	int bindcode = GPU_texture_opengl_bindcode(tex);
-	int target = GPU_texture_target(tex);
 
-	if (number >= GPU_max_textures()) {
-		fprintf(stderr, "Not enough texture slots.\n");
+	if (number == -1) {
+		fprintf(stderr, "Texture is not bound.\n");
+		BLI_assert(0);
 		return;
 	}
-		
-	if (number == -1)
-		return;
 
 	if (location == -1)
 		return;
 
-	if (number != 0)
-		glActiveTexture(GL_TEXTURE0 + number);
-
-	if (bindcode != 0)
-		glBindTexture(target, bindcode);
-	else
-		GPU_invalid_tex_bind(target);
-
 	glUniform1i(location, number);
-
-	if (number != 0)
-		glActiveTexture(GL_TEXTURE0);
 }
 
 int GPU_shader_get_attribute(GPUShader *shader, const char *name)
@@ -739,6 +699,9 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		                                datatoc_gpu_shader_image_modulate_alpha_frag_glsl },
 		[GPU_SHADER_2D_IMAGE_SHUFFLE_COLOR] = { datatoc_gpu_shader_2D_image_vert_glsl,
 		                                        datatoc_gpu_shader_image_shuffle_color_frag_glsl },
+		[GPU_SHADER_2D_IMAGE_RECT_COLOR] = { datatoc_gpu_shader_2D_image_rect_vert_glsl,
+		                                     datatoc_gpu_shader_image_color_frag_glsl },
+
 		[GPU_SHADER_3D_UNIFORM_COLOR] = { datatoc_gpu_shader_3D_vert_glsl, datatoc_gpu_shader_uniform_color_frag_glsl },
 		[GPU_SHADER_3D_UNIFORM_COLOR_U32] = { datatoc_gpu_shader_3D_vert_glsl, datatoc_gpu_shader_uniform_color_frag_glsl },
 		[GPU_SHADER_3D_FLAT_COLOR] = { datatoc_gpu_shader_3D_flat_color_vert_glsl,
@@ -885,95 +848,12 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 
 #define MAX_DEFINES 100
 
-GPUShader *GPU_shader_get_builtin_fx_shader(int effect, bool persp)
-{
-	int offset;
-	char defines[MAX_DEFINES] = "";
-	/* avoid shaders out of range */
-	if (effect >= MAX_FX_SHADERS)
-		return NULL;
-
-	offset = 2 * effect;
-
-	if (persp) {
-		offset += 1;
-		strcat(defines, "#define PERSP_MATRIX\n");
-	}
-
-	if (!fx_shaders[offset]) {
-		GPUShader *shader = NULL;
-
-		switch (effect) {
-			case GPU_SHADER_FX_SSAO:
-				shader = GPU_shader_create(datatoc_gpu_shader_fullscreen_vert_glsl, datatoc_gpu_shader_fx_ssao_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_PASS_ONE:
-				strcat(defines, "#define FIRST_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_vert_glsl, datatoc_gpu_shader_fx_dof_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_PASS_TWO:
-				strcat(defines, "#define SECOND_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_vert_glsl, datatoc_gpu_shader_fx_dof_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_PASS_THREE:
-				strcat(defines, "#define THIRD_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_vert_glsl, datatoc_gpu_shader_fx_dof_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_PASS_FOUR:
-				strcat(defines, "#define FOURTH_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_vert_glsl, datatoc_gpu_shader_fx_dof_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_PASS_FIVE:
-				strcat(defines, "#define FIFTH_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_vert_glsl, datatoc_gpu_shader_fx_dof_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_HQ_PASS_ONE:
-				strcat(defines, "#define FIRST_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_hq_vert_glsl, datatoc_gpu_shader_fx_dof_hq_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_HQ_PASS_TWO:
-				strcat(defines, "#define SECOND_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_hq_vert_glsl, datatoc_gpu_shader_fx_dof_hq_frag_glsl, datatoc_gpu_shader_fx_dof_hq_geo_glsl, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_OF_FIELD_HQ_PASS_THREE:
-				strcat(defines, "#define THIRD_PASS\n");
-				shader = GPU_shader_create(datatoc_gpu_shader_fx_dof_hq_vert_glsl, datatoc_gpu_shader_fx_dof_hq_frag_glsl, NULL, datatoc_gpu_shader_fx_lib_glsl, defines);
-				break;
-
-			case GPU_SHADER_FX_DEPTH_RESOLVE:
-				shader = GPU_shader_create(datatoc_gpu_shader_fullscreen_vert_glsl, datatoc_gpu_shader_fx_depth_resolve_glsl, NULL, NULL, defines);
-				break;
-		}
-
-		fx_shaders[offset] = shader;
-		GPU_fx_shader_init_interface(shader, effect);
-	}
-
-	return fx_shaders[offset];
-}
-
-
 void GPU_shader_free_builtin_shaders(void)
 {
 	for (int i = 0; i < GPU_NUM_BUILTIN_SHADERS; ++i) {
 		if (builtin_shaders[i]) {
 			GPU_shader_free(builtin_shaders[i]);
 			builtin_shaders[i] = NULL;
-		}
-	}
-
-	for (int i = 0; i < 2 * MAX_FX_SHADERS; ++i) {
-		if (fx_shaders[i]) {
-			GPU_shader_free(fx_shaders[i]);
-			fx_shaders[i] = NULL;
 		}
 	}
 }

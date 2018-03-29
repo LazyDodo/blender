@@ -755,8 +755,6 @@ static void draw_empty_image(Object *ob, const short dflag, const unsigned char 
 		immEnd();
 
 		immUnbindProgram();
-
-		glBindTexture(GL_TEXTURE_2D, 0); /* necessary? */
 	}
 
 	/* Draw the image outline */
@@ -6619,10 +6617,10 @@ static void draw_new_particle_system(
 }
 
 static void draw_update_ptcache_edit(
-        const EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer, Object *ob, PTCacheEdit *edit)
+        const EvaluationContext *eval_ctx, Scene *scene, Object *ob, PTCacheEdit *edit)
 {
 	if (edit->psys && edit->psys->flag & PSYS_HAIR_UPDATED)
-		PE_update_object(eval_ctx, scene, view_layer, ob, 0);
+		PE_update_object(eval_ctx, scene, ob, 0);
 
 	/* create path and child path cache if it doesn't exist already */
 	if (edit->pathcache == NULL) {
@@ -8976,7 +8974,7 @@ afterdraw:
 			if (eval_ctx->object_mode & OB_MODE_PARTICLE_EDIT && is_obact) {
 				PTCacheEdit *edit = PE_create_current(eval_ctx, scene, ob);
 				if (edit && edit->psys == psys)
-					draw_update_ptcache_edit(eval_ctx, scene, view_layer, ob, edit);
+					draw_update_ptcache_edit(eval_ctx, scene, ob, edit);
 			}
 
 			draw_new_particle_system(eval_ctx, scene, v3d, rv3d, base, psys, dt, dflag);
@@ -8998,7 +8996,7 @@ afterdraw:
 			PTCacheEdit *edit = PE_create_current(eval_ctx, scene, ob);
 			if (edit) {
 				gpuLoadMatrix(rv3d->viewmat);
-				draw_update_ptcache_edit(eval_ctx, scene, view_layer, ob, edit);
+				draw_update_ptcache_edit(eval_ctx, scene, ob, edit);
 				draw_ptcache_edit(scene, v3d, edit);
 				gpuMultMatrix(ob->obmat);
 			}

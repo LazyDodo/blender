@@ -5396,8 +5396,7 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
 
 	scene->toolsettings->imapaint.flag |= IMAGEPAINT_DRAWING;
 
-	ED_undo_paint_push_begin(UNDO_PAINT_IMAGE, op->type->name,
-	                         ED_image_undo_restore, ED_image_undo_free, NULL);
+	ED_image_undo_push_begin(op->type->name);
 
 	/* allocate and initialize spatial data structures */
 	project_paint_begin(C, &ps, false, 0);
@@ -5478,7 +5477,7 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	ibuf = ED_view3d_draw_offscreen_imbuf(
 	        &eval_ctx, scene, view_layer, CTX_wm_view3d(C), CTX_wm_region(C),
 	        w, h, IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
-	        NULL, NULL, err_out);
+	        NULL, err_out);
 	if (!ibuf) {
 		/* Mostly happens when OpenGL offscreen buffer was failed to create, */
 		/* but could be other reasons. Should be handled in the future. nazgul */

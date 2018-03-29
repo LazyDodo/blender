@@ -69,32 +69,9 @@
 
 #include "UI_resources.h"
 
+#include "particle_edit_utildefines.h"
+
 #include "physics_intern.h"
-
-extern void PE_create_particle_edit(const bContext *C, Scene *scene, ViewLayer *view_layer, Object *ob, PointCache *cache, ParticleSystem *psys);
-extern void PTCacheUndo_clear(PTCacheEdit *edit);
-extern void recalc_lengths(PTCacheEdit *edit);
-extern void recalc_emitter_field(Object *ob, ParticleSystem *psys);
-extern void update_world_cos(Object *ob, PTCacheEdit *edit);
-
-#define KEY_K					PTCacheEditKey *key; int k
-#define POINT_P					PTCacheEditPoint *point; int p
-#define LOOP_POINTS				for (p=0, point=edit->points; p<edit->totpoint; p++, point++)
-#if 0
-#define LOOP_VISIBLE_POINTS		for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (!(point->flag & PEP_HIDE))
-#define LOOP_SELECTED_POINTS	for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (point_is_selected(point))
-#define LOOP_UNSELECTED_POINTS	for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (!point_is_selected(point))
-#define LOOP_EDITED_POINTS		for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (point->flag & PEP_EDIT_RECALC)
-#define LOOP_TAGGED_POINTS		for (p=0, point=edit->points; p<edit->totpoint; p++, point++) if (point->flag & PEP_TAG)
-#endif
-#define LOOP_KEYS				for (k=0, key=point->keys; k<point->totkey; k++, key++)
-#if 0
-#define LOOP_VISIBLE_KEYS		for (k=0, key=point->keys; k<point->totkey; k++, key++) if (!(key->flag & PEK_HIDE))
-#define LOOP_SELECTED_KEYS		for (k=0, key=point->keys; k<point->totkey; k++, key++) if ((key->flag & PEK_SELECT) && !(key->flag & PEK_HIDE))
-#define LOOP_TAGGED_KEYS		for (k=0, key=point->keys; k<point->totkey; k++, key++) if (key->flag & PEK_TAG)
-
-#define KEY_WCO					(key->flag & PEK_USE_WCO ? key->world_co : key->co)
-#endif
 
 static float I[4][4] = {{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}};
 
@@ -571,7 +548,7 @@ void PARTICLE_OT_dupliob_move_down(wmOperatorType *ot)
 /************************ connect/disconnect hair operators *********************/
 
 static void disconnect_hair(
-        const EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer,
+        const EvaluationContext *eval_ctx, Scene *scene,
         Object *ob, ParticleSystem *psys)
 {
 	ParticleSystemModifierData *psmd = psys_get_modifier(ob, psys);
@@ -618,13 +595,12 @@ static void disconnect_hair(
 	if (ELEM(pset->brushtype, PE_BRUSH_ADD, PE_BRUSH_PUFF))
 		pset->brushtype = PE_BRUSH_NONE;
 
-	PE_update_object(eval_ctx, scene, view_layer, ob, 0);
+	PE_update_object(eval_ctx, scene, ob, 0);
 }
 
 static int disconnect_hair_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene= CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob= ED_object_context(C);
 	ParticleSystem *psys= NULL;
 	const bool all = RNA_boolean_get(op->ptr, "all");
@@ -637,12 +613,12 @@ static int disconnect_hair_exec(bContext *C, wmOperator *op)
 
 	if (all) {
 		for (psys=ob->particlesystem.first; psys; psys=psys->next) {
-			disconnect_hair(&eval_ctx, scene, view_layer, ob, psys);
+			disconnect_hair(&eval_ctx, scene, ob, psys);
 		}
 	}
 	else {
 		psys = psys_get_current(ob);
-		disconnect_hair(&eval_ctx, scene, view_layer, ob, psys);
+		disconnect_hair(&eval_ctx, scene, ob, psys);
 	}
 
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
@@ -669,7 +645,7 @@ void PARTICLE_OT_disconnect_hair(wmOperatorType *ot)
  * from/to_mat : additional transform for from/to particles (e.g. for using object space copying)
  */
 static bool remap_hair_emitter(
-        const EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer, Object *ob, ParticleSystem *psys,
+        const EvaluationContext *eval_ctx, Scene *scene, Object *ob, ParticleSystem *psys,
         Object *target_ob, ParticleSystem *target_psys, PTCacheEdit *target_edit,
         float from_mat[4][4], float to_mat[4][4], bool from_global, bool to_global)
 {
@@ -855,13 +831,13 @@ static bool remap_hair_emitter(
 
 	psys_free_path_cache(target_psys, target_edit);
 
-	PE_update_object(eval_ctx, scene, view_layer, target_ob, 0);
+	PE_update_object(eval_ctx, scene, target_ob, 0);
 
 	return true;
 }
 
 static bool connect_hair(
-        const EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer,
+        const EvaluationContext *eval_ctx, Scene *scene,
         Object *ob, ParticleSystem *psys)
 {
 	bool ok;
@@ -870,7 +846,7 @@ static bool connect_hair(
 		return false;
 	
 	ok = remap_hair_emitter(
-	         eval_ctx, scene, view_layer, ob, psys, ob, psys, psys->edit,
+	         eval_ctx, scene, ob, psys, ob, psys, psys->edit,
 	         ob->obmat, ob->obmat, psys->flag & PSYS_GLOBAL_HAIR, false);
 	psys->flag &= ~PSYS_GLOBAL_HAIR;
 	
@@ -881,7 +857,6 @@ static int connect_hair_exec(bContext *C, wmOperator *op)
 {
 	EvaluationContext eval_ctx;
 	Scene *scene= CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob= ED_object_context(C);
 	ParticleSystem *psys= NULL;
 	const bool all = RNA_boolean_get(op->ptr, "all");
@@ -894,12 +869,12 @@ static int connect_hair_exec(bContext *C, wmOperator *op)
 
 	if (all) {
 		for (psys=ob->particlesystem.first; psys; psys=psys->next) {
-			any_connected |= connect_hair(&eval_ctx, scene, view_layer, ob, psys);
+			any_connected |= connect_hair(&eval_ctx, scene, ob, psys);
 		}
 	}
 	else {
 		psys = psys_get_current(ob);
-		any_connected |= connect_hair(&eval_ctx, scene, view_layer, ob, psys);
+		any_connected |= connect_hair(&eval_ctx, scene, ob, psys);
 	}
 
 	if (!any_connected) {
@@ -987,7 +962,7 @@ static void copy_particle_edit(
 	
 	recalc_lengths(edit);
 	recalc_emitter_field(ob, psys);
-	PE_update_object(eval_ctx, scene, view_layer, ob, true);
+	PE_update_object(eval_ctx, scene, ob, true);
 	
 	PTCacheUndo_clear(edit);
 	PE_undo_push(scene, view_layer, "Original");
@@ -1141,7 +1116,7 @@ static bool copy_particle_systems_to_object(const bContext *C,
 		}
 		if (ob_from != ob_to) {
 			remap_hair_emitter(
-			        &eval_ctx, scene, view_layer, ob_from, psys_from, ob_to, psys, psys->edit,
+			        &eval_ctx, scene, ob_from, psys_from, ob_to, psys, psys->edit,
 			        from_mat, to_mat, psys_from->flag & PSYS_GLOBAL_HAIR, psys->flag & PSYS_GLOBAL_HAIR);
 		}
 		
