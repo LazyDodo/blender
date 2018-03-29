@@ -220,6 +220,8 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_logic_bricks_copy);
 	WM_operatortype_append(OBJECT_OT_game_physics_copy);
 
+	WM_operatortype_append(OBJECT_OT_move_to_collection);
+
 	WM_operatortype_append(OBJECT_OT_shape_key_add);
 	WM_operatortype_append(OBJECT_OT_shape_key_remove);
 	WM_operatortype_append(OBJECT_OT_shape_key_clear);
@@ -424,6 +426,8 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 		kmi = WM_keymap_add_item(keymap, "OBJECT_OT_subdivision_set", ZEROKEY + i, KM_PRESS, KM_CTRL, 0);
 		RNA_int_set(kmi->ptr, "level", i);
 	}
+
+	WM_keymap_add_item(keymap, "OBJECT_OT_move_to_collection", MKEY, KM_PRESS, 0, 0);
 }
 
 void ED_keymap_proportional_cycle(struct wmKeyConfig *UNUSED(keyconf), struct wmKeyMap *keymap)
