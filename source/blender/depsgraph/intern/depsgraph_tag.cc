@@ -206,13 +206,7 @@ void depsgraph_tag_to_component_opcode(const ID *id,
 				 *   component. Will be nice to get this unified with object,
 				 *   but we can survive for now with single exception here.
 				 *   Particles needs reconsideration anyway,
-				 * - We do direct injection of particle settings recalc flag
-				 *   here. This is what we need to do for until particles
-				 *   are switched away from own recalc flag and are using
-				 *   ID->recalc flags instead.
 				 */
-				ParticleSettings *particle_settings = (ParticleSettings *)id;
-				particle_settings->recalc |= (tag & DEG_TAG_PSYS_ALL);
 				*component_type = DEG_NODE_TYPE_PARAMETERS;
 			}
 			else {
@@ -416,6 +410,7 @@ void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
 		}
 		deg_graph_id_tag_legacy_compat(bmain, id, (eDepsgraph_Tag)0);
 	}
+	id->recalc |= flag;
 	int current_flag = flag;
 	while (current_flag != 0) {
 		eDepsgraph_Tag tag =

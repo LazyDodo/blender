@@ -172,6 +172,8 @@ typedef enum GPUBuiltinShader {
 	/* grease pencil drawing */
 	GPU_SHADER_GPENCIL_STROKE,
 	GPU_SHADER_GPENCIL_FILL,
+	/* specialized for widget drawing */
+	GPU_SHADER_2D_WIDGET_BASE,
 
 	GPU_SHADER_3D_INSTANCE_BONE_ENVELOPE_SOLID,
 	GPU_SHADER_3D_INSTANCE_BONE_ENVELOPE_WIRE,

@@ -92,6 +92,22 @@ ListBase DRW_engines = {NULL, NULL};
 
 extern struct GPUUniformBuffer *view_ubo; /* draw_manager_exec.c */
 
+static void drw_state_prepare_clean_for_draw(DRWManager *dst)
+{
+	memset(dst, 0x0, offsetof(DRWManager, ogl_context));
+}
+
+/* This function is used to reset draw manager to a state
+ * where we don't re-use data by accident across different
+ * draw calls.
+ */
+#ifdef DEBUG
+static void drw_state_ensure_not_reused(DRWManager *dst)
+{
+	memset(dst, 0xff, offsetof(DRWManager, ogl_context));
+}
+#endif
+
 /* -------------------------------------------------------------------- */
 
 void DRW_draw_callbacks_pre_scene(void)
@@ -332,6 +348,17 @@ static void drw_viewport_cache_resize(void)
 	DRW_instance_data_list_resize(DST.idatalist);
 }
 
+static void drw_state_eval_ctx_init(DRWManager *dst)
+{
+	DRWContextState *draw_ctx = &dst->draw_ctx;
+	DEG_evaluation_context_init_from_scene(
+	        &draw_ctx->eval_ctx,
+	        draw_ctx->scene,
+	        draw_ctx->view_layer,
+	        draw_ctx->engine_type,
+	        draw_ctx->object_mode,
+	        DST.options.is_scene_render ? DAG_EVAL_RENDER : DAG_EVAL_VIEWPORT);
+}
 
 /* Not a viewport variable, we could split this out. */
 static void drw_context_state_init(void)
@@ -354,6 +381,8 @@ static void drw_context_state_init(void)
 	else {
 		DST.draw_ctx.object_pose = NULL;
 	}
+
+	drw_state_eval_ctx_init(&DST);
 }
 
 /* It also stores viewport variable to an immutable place: DST
@@ -1010,12 +1039,14 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 	BLI_mutex_lock(&DST.ogl_context_mutex);
 
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 
 	DST.viewport = rv3d->viewport;
 	DST.draw_ctx = (DRWContextState){
-		ar, rv3d, v3d, scene, view_layer, OBACT(view_layer), engine_type, depsgraph, OB_MODE_OBJECT,
-		NULL,
+		.ar = ar, .rv3d = rv3d, .v3d = v3d,
+		.scene = scene, .view_layer = view_layer, .obact = OBACT(view_layer),
+		.engine_type = engine_type,
+		.depsgraph = depsgraph, .object_mode = OB_MODE_OBJECT,
 	};
 
 	drw_engines_enable(view_layer, engine_type);
@@ -1060,10 +1091,13 @@ void DRW_notify_id_update(const DRWUpdateContext *update_ctx, ID *id)
 		return;
 	}
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 	DST.viewport = rv3d->viewport;
 	DST.draw_ctx = (DRWContextState){
-		ar, rv3d, v3d, scene, view_layer, OBACT(view_layer), engine_type, depsgraph, OB_MODE_OBJECT, NULL,
+		.ar = ar, .rv3d = rv3d, .v3d = v3d,
+		.scene = scene, .view_layer = view_layer, .obact = OBACT(view_layer),
+		.engine_type = engine_type,
+		.depsgraph = depsgraph, .object_mode = OB_MODE_OBJECT,
 	};
 	drw_engines_enable(view_layer, engine_type);
 	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
@@ -1096,7 +1130,7 @@ void DRW_draw_view(const bContext *C)
 	View3D *v3d = CTX_wm_view3d(C);
 
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 	DRW_draw_render_loop_ex(eval_ctx.depsgraph, engine_type, ar, v3d, eval_ctx.object_mode, C);
 }
 
@@ -1124,10 +1158,13 @@ void DRW_draw_render_loop_ex(
 	GPU_viewport_engines_data_validate(DST.viewport, DRW_engines_get_hash());
 
 	DST.draw_ctx = (DRWContextState){
-	    ar, rv3d, v3d, scene, view_layer, OBACT(view_layer), engine_type, depsgraph, object_mode,
+	    .ar = ar, .rv3d = rv3d, .v3d = v3d,
+	    .scene = scene, .view_layer = view_layer, .obact = OBACT(view_layer),
+	    .engine_type = engine_type,
+	    .depsgraph = depsgraph, .object_mode = object_mode,
 
 	    /* reuse if caller sets */
-	    DST.draw_ctx.evil_C,
+	    .evil_C = DST.draw_ctx.evil_C,
 	};
 	drw_context_state_init();
 	drw_viewport_var_init();
@@ -1243,7 +1280,7 @@ void DRW_draw_render_loop_ex(
 
 #ifdef DEBUG
 	/* Avoid accidental reuse. */
-	memset(&DST, 0xFF, offsetof(DRWManager, ogl_context));
+	drw_state_ensure_not_reused(&DST);
 #endif
 }
 
@@ -1252,7 +1289,7 @@ void DRW_draw_render_loop(
         ARegion *ar, View3D *v3d, const eObjectMode object_mode)
 {
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
@@ -1284,7 +1321,7 @@ void DRW_draw_render_loop_offscreen(
 	GPU_framebuffer_restore();
 
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 	DST.options.is_image_render = true;
 	DST.options.draw_background = draw_background;
 	DRW_draw_render_loop_ex(depsgraph, engine_type, ar, v3d, object_mode, NULL);
@@ -1415,13 +1452,15 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 	 * multiple threads. */
 
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 	DST.options.is_image_render = true;
 	DST.options.is_scene_render = true;
 	DST.options.draw_background = scene->r.alphamode == R_ADDSKY;
 
 	DST.draw_ctx = (DRWContextState){
-	    NULL, NULL, NULL, scene, view_layer, NULL, engine_type, depsgraph, OB_MODE_OBJECT, NULL,
+	    .scene = scene, .view_layer = view_layer,
+	    .engine_type = engine_type,
+	    .depsgraph = depsgraph, .object_mode = OB_MODE_OBJECT,
 	};
 	drw_context_state_init();
 
@@ -1479,7 +1518,7 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 
 #ifdef DEBUG
 	/* Avoid accidental reuse. */
-	memset(&DST, 0xFF, offsetof(DRWManager, ogl_context));
+	drw_state_ensure_not_reused(&DST);
 #endif
 }
 
@@ -1553,7 +1592,7 @@ void DRW_draw_select_loop(
 	RegionView3D *rv3d = ar->regiondata;
 
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 
 	/* backup (_never_ use rv3d->viewport) */
 	void *backup_viewport = rv3d->viewport;
@@ -1593,8 +1632,10 @@ void DRW_draw_select_loop(
 
 	/* Instead of 'DRW_context_state_init(C, &DST.draw_ctx)', assign from args */
 	DST.draw_ctx = (DRWContextState){
-		ar, rv3d, v3d, scene, view_layer, obact, engine_type, depsgraph, object_mode,
-		(bContext *)NULL,
+		.ar = ar, .rv3d = rv3d, .v3d = v3d,
+		.scene = scene, .view_layer = view_layer, .obact = obact,
+		.engine_type = engine_type,
+		.depsgraph = depsgraph, .object_mode = object_mode,
 	};
 	drw_context_state_init();
 	drw_viewport_var_init();
@@ -1670,7 +1711,7 @@ void DRW_draw_select_loop(
 
 #ifdef DEBUG
 	/* Avoid accidental reuse. */
-	memset(&DST, 0xFF, offsetof(DRWManager, ogl_context));
+	drw_state_ensure_not_reused(&DST);
 #endif
 	GPU_framebuffer_restore();
 
@@ -1737,7 +1778,7 @@ void DRW_draw_depth_loop(
 	rv3d->viewport = NULL;
 
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 
 	struct GPUViewport *viewport = GPU_viewport_create();
 	GPU_viewport_size_set(viewport, (const int[2]){ar->winx, ar->winy});
@@ -1764,8 +1805,10 @@ void DRW_draw_depth_loop(
 
 	/* Instead of 'DRW_context_state_init(C, &DST.draw_ctx)', assign from args */
 	DST.draw_ctx = (DRWContextState){
-		ar, rv3d, v3d, scene, view_layer, OBACT(view_layer), engine_type, depsgraph, object_mode,
-		(bContext *)NULL,
+		.ar = ar, .rv3d = rv3d, .v3d = v3d,
+		.scene = scene, .view_layer = view_layer, .obact = OBACT(view_layer),
+		.engine_type = engine_type,
+		.depsgraph = depsgraph, .object_mode = object_mode,
 	};
 	drw_context_state_init();
 	drw_viewport_var_init();
@@ -1804,7 +1847,7 @@ void DRW_draw_depth_loop(
 
 #ifdef DEBUG
 	/* Avoid accidental reuse. */
-	memset(&DST, 0xFF, offsetof(DRWManager, ogl_context));
+	drw_state_ensure_not_reused(&DST);
 #endif
 
 	/* TODO: Reading depth for operators should be done here. */
