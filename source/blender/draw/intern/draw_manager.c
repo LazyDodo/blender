@@ -1391,7 +1391,9 @@ void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph
 	DST.buffer_finish_called = true;
 
 	DST.draw_ctx = (DRWContextState) {
-		NULL, NULL, NULL, scene, view_layer, NULL, engine_type, depsgraph, OB_MODE_OBJECT, NULL,
+		.scene = scene, .view_layer = view_layer,
+		.engine_type = engine_type,
+		.depsgraph = depsgraph, .object_mode = OB_MODE_OBJECT,
 	};
 	drw_context_state_init();
 
