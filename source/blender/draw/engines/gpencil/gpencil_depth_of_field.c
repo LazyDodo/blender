@@ -79,21 +79,20 @@ int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCI
 		int buffer_size[2] = { (int)viewport_size[0] / 2, (int)viewport_size[1] / 2 };
 
 		/* Setup buffers */
-		e_data->gpencil_dof_down_near = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGB_11_11_10,
+		e_data->gpencil_dof_down_near = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGBA_16,
 														   draw_engine_gpencil_type);
-		e_data->gpencil_dof_down_far = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGB_11_11_10,
+		e_data->gpencil_dof_down_far = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGBA_16,
 														   draw_engine_gpencil_type);
 		e_data->gpencil_dof_coc = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RG_16,
 														   draw_engine_gpencil_type);
-		e_data->gpencil_dof_alpha = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_R_16,
+		e_data->gpencil_dof_weight = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_R_16,
 														   draw_engine_gpencil_type);
 
 		GPU_framebuffer_ensure_config(&fbl->dof_down_fb, {
 			GPU_ATTACHMENT_NONE,
 			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_down_near),
 			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_down_far),
-			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_coc),
-			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_alpha)
+			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_coc)
 		});
 			
 		/* Go full 32bits for rendering and reduce the color artifacts. */
@@ -104,6 +103,7 @@ int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCI
 		GPU_framebuffer_ensure_config(&fbl->dof_scatter_far_fb, {
 			GPU_ATTACHMENT_NONE,
 			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_far_blur),
+			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_weight)
 		});
 
 		e_data->gpencil_dof_near_blur = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], fb_format,
@@ -111,7 +111,8 @@ int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCI
 		GPU_framebuffer_ensure_config(&fbl->dof_scatter_near_fb, {
 			GPU_ATTACHMENT_NONE,
 			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_near_blur),
-			});
+			GPU_ATTACHMENT_TEXTURE(e_data->gpencil_dof_weight)
+		});
 
 		/* Parameters */
 		/* TODO UI Options */
@@ -202,7 +203,7 @@ void GPENCIL_depth_of_field_cache_init(GPENCIL_e_data *e_data, GPENCIL_Data *ved
 		DRW_shgroup_uniform_texture_ref(grp, "nearBuffer", &e_data->gpencil_dof_near_blur);
 		DRW_shgroup_uniform_texture_ref(grp, "farBuffer", &e_data->gpencil_dof_far_blur);
 		DRW_shgroup_uniform_texture_ref(grp, "depthBuffer", &e_data->input_depth_tx);
-		DRW_shgroup_uniform_texture_ref(grp, "alphaBuffer", &e_data->gpencil_dof_alpha);
+		DRW_shgroup_uniform_texture_ref(grp, "weightBuffer", &e_data->gpencil_dof_weight);
 		DRW_shgroup_uniform_vec2(grp, "nearFar", stl->storage->dof_near_far, 1);
 		DRW_shgroup_uniform_vec3(grp, "dofParams", stl->storage->dof_params, 1);
 		DRW_shgroup_call_add(grp, quad, NULL);

@@ -41,14 +41,12 @@ void step_scatter()
 	if (coc >= 1.0) {
 		color = texelFetch(colorBuffer, texelco, 0);
 		/* find the area the pixel will cover and divide the color by it */
-		float alpha = 1.0 / (coc * coc * M_PI);
-		weight = alpha;
-		color *= alpha;
-		color.a = alpha;
+		weight = 1.0 / (coc * coc * M_PI);
+		color *= weight; /* apply weight to all components */
 	}
 	else {
 		color = vec4(0.0);
-		weight = texelFetch(colorBuffer, texelco, 0).a;
+		weight = 0.0;
 	}
 
 	/* Generate Triangle : less memory fetches from a VBO */

@@ -333,7 +333,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *gpencil_dof_coc; /* R16_G16 */
 	struct GPUTexture *gpencil_dof_near_blur; /* R16_G16_B16_A16 */
 	struct GPUTexture *gpencil_dof_far_blur; /* R16_G16_B16_A16 */
-	struct GPUTexture *gpencil_dof_alpha; 
+	struct GPUTexture *gpencil_dof_weight; 
 
 } GPENCIL_e_data; /* Engine data */
 

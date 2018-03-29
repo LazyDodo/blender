@@ -178,7 +178,7 @@ void step_scatter(void)
 
 uniform sampler2D farBuffer;
 uniform sampler2D nearBuffer;
-uniform sampler2D alphaBuffer;
+uniform sampler2D weightBuffer;
 
 vec4 upsample_filter_high(sampler2D tex, vec2 uv, vec2 texelSize)
 {
@@ -220,7 +220,7 @@ void step_resolve(void)
 {
 	/* Recompute Near / Far CoC */
 	float depth = textureLod(depthBuffer, uvcoord, 0.0).r;
-	float alpha = textureLod(alphaBuffer, uvcoord, 0.0).r;
+	float alpha = textureLod(weightBuffer, uvcoord, 0.0).r;
 
 	float zdepth = linear_depth(depth);
 	float coc_signed = calculate_coc(zdepth);
@@ -255,9 +255,6 @@ void step_resolve(void)
 		vec4 finalcolor = mix(srccolor, farcolor, mixfac);
 		fragData0 = mix(finalcolor, nearcolor, nearweight / totalweight);
 	}
-	
-	/* apply alpha TODO */
-	fragData0.a = alpha;
 	
 	gl_FragDepth = depth;
 }
