@@ -220,8 +220,6 @@ void step_resolve(void)
 {
 	/* Recompute Near / Far CoC */
 	float depth = textureLod(depthBuffer, uvcoord, 0.0).r;
-	float alpha = textureLod(weightBuffer, uvcoord, 0.0).r;
-
 	float zdepth = linear_depth(depth);
 	float coc_signed = calculate_coc(zdepth);
 	float coc_far = max(-coc_signed, 0.0);
