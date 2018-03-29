@@ -57,8 +57,11 @@ static void gpencil_create_shader_depth_of_field(GPENCIL_e_data *e_data)
 int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCIL_e_data *e_data, GPENCIL_Data *vedata, Object *camera)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
+	if (stl->storage->enable_dof == false) {
+		return 0;
+	}
 
+	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 
 	Scene *scene = draw_ctx->scene;

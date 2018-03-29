@@ -188,10 +188,21 @@ static void GPENCIL_engine_init(void *vedata)
 	if (!e_data.gpencil_blank_texture) {
 		e_data.gpencil_blank_texture = DRW_gpencil_create_blank_texture(16, 16);
 	}
+
 	/* init depth of field */ 
-	if (!DRW_state_is_image_render()) {
-		Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-		GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
+	ViewLayer *view_layer = draw_ctx->view_layer;
+	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+	if ((DRW_state_is_opengl_render()) || (!DRW_state_is_image_render())) {
+		/* viewport and opengl render */
+		stl->storage->enable_dof = GP_IS_CAMERAVIEW && BKE_collection_engine_property_value_get_bool(props, "dof_enable");
+		if (stl->storage->enable_dof == true) {
+			Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+			GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
+		}
+	}
+	else {
+		/* render F12 */
+		stl->storage->enable_dof = BKE_collection_engine_property_value_get_bool(props, "dof_enable");
 	}
 }
 
@@ -466,8 +477,7 @@ static void GPENCIL_cache_init(void *vedata)
 			DRW_shgroup_uniform_int(paper_shgrp, "uselines", &stl->storage->uselines, 1);
 		}
 
-		/* depth of field (TODO: UI) */
-		stl->storage->enable_dof = GP_IS_CAMERAVIEW;
+		/* depth of field */
 		GPENCIL_depth_of_field_cache_init(&e_data, vedata);
 	}
 }
@@ -834,7 +844,7 @@ static void GPENCIL_draw_scene(void *vedata)
 				 * send always to tx_b because other textures can be in use. Remap input
 				 * textures too.
 				 */
-				if ((GP_IS_CAMERAVIEW) || (is_render)) {
+				if (stl->storage->enable_dof == true) {
 					GPENCIL_depth_of_field_draw(&e_data, vedata);
 
 					e_data.input_depth_tx = e_data.vfx_depth_tx_b;
