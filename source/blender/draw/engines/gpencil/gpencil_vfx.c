@@ -161,8 +161,8 @@ static void DRW_gpencil_vfx_blur(
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	DRWShadingGroup *vfx_shgrp;
 	const float *viewport_size = DRW_viewport_size_get();
-	stl->vfx[ob_idx].vfx_blur.x = mmd->radius[0];
-	stl->vfx[ob_idx].vfx_blur.y = mmd->radius[1] * (viewport_size[1] / viewport_size[0]);
+	stl->vfx[ob_idx].vfx_blur.radius[0] = mmd->radius[0];
+	stl->vfx[ob_idx].vfx_blur.radius[1] = mmd->radius[1] * (viewport_size[1] / viewport_size[0]);
 	stl->vfx[ob_idx].vfx_blur.samples = mmd->samples;
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
@@ -172,8 +172,7 @@ static void DRW_gpencil_vfx_blur(
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->input_color_tx);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->input_depth_tx);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blurx", &stl->vfx[ob_idx].vfx_blur.x, 1);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blury", &stl->vfx[ob_idx].vfx_blur.y, 1);
+	DRW_shgroup_uniform_vec2(vfx_shgrp, "blur", &stl->vfx[ob_idx].vfx_blur.radius[0], 1);
 	cache->vfx_blur_sh = vfx_shgrp;
 
 }

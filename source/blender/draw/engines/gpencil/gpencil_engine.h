@@ -87,8 +87,7 @@ typedef struct GPencilVFXPixel {
 } GPencilVFXPixel;
 
 typedef struct GPencilVFXBlur {
-	float x;
-	float y;
+	float radius[2];
 	int samples;
 } GPencilVFXBlur;
 
