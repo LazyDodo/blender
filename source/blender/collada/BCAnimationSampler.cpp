@@ -29,7 +29,7 @@
 
 #include "ExportSettings.h"
 #include "BCAnimationCurve.h"
-#include "BCAnimationCurveContainer.h"
+#include "BCAnimationSampler.h"
 
 extern "C" {
 #include "BKE_action.h"

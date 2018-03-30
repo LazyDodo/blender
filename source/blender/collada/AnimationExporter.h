@@ -77,7 +77,7 @@ extern "C"
 #include "COLLADASWBaseInputElement.h"
 
 #include "EffectExporter.h"
-#include "BCAnimationCurveContainer.h"
+#include "BCAnimationSampler.h"
 #include "collada_internal.h"
 
 #include "IK_solver.h"

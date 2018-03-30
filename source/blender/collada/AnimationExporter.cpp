@@ -23,7 +23,7 @@
 #include "GeometryExporter.h"
 #include "AnimationExporter.h"
 #include "AnimationClipExporter.h"
-#include "BCAnimationCurveContainer.h"
+#include "BCAnimationSampler.h"
 #include "MaterialExporter.h"
 #include "collada_utils.h"
 
