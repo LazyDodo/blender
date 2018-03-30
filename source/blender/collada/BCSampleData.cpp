@@ -77,6 +77,8 @@ void BCMatrix::set_transform(Object *ob)
 	Matrix lmat;
 
 	BKE_object_matrix_local_get(ob, lmat);
+	copy_m4_m4(matrix, lmat);
+
 	mat4_decompose(this->loc, this->q, this->size, lmat);
 	quat_to_compatible_eul(this->rot, ob->rot, this->q);
 }
