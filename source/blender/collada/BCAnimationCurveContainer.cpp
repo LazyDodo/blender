@@ -610,7 +610,7 @@ bool BCAnimationSampler::has_animations(Scene *sce, LinkNode *export_set)
 
 BCSample &BCSampleFrame::add(Object *ob, Matrix &mat)
 {
-	BCSample *sample = new BCSample(mat);
+	BCSample *sample = new BCSample(ob);
 	sampleMap[ob] = sample;
 	return *sample;
 }

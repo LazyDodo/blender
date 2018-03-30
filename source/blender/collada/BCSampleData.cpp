@@ -26,10 +26,9 @@
 #include "BCSampleData.h"
 #include "collada_utils.h"
 
-BCSample::BCSample(Matrix &mat)
-{
-	copy_m4_m4(matrix.matrix, mat);
-}
+BCSample::BCSample(Object *ob):
+	matrix(ob)
+{}
 
 BCSample::~BCSample()
 {
@@ -46,13 +45,40 @@ void BCSample::set_bone(Bone *bone, Matrix &mat)
 	BCMatrix *matrix;
 	BCBoneMatrixMap::const_iterator it = bone_matrix_map.find(bone);
 	if (it == bone_matrix_map.end()) {
-		matrix = new BCMatrix();
+		matrix = new BCMatrix(mat);
 		bone_matrix_map[bone] = matrix;
 	}
 	else {
+		/*xxx: not sure if this is ever called (keep for now) */
 		matrix = it->second;
+		matrix->set_transform(mat);
 	}
-	copy_m4_m4(matrix->matrix, mat);
+}
+
+BCMatrix::BCMatrix(Matrix &mat)
+{
+	set_transform(mat);
+}
+
+BCMatrix::BCMatrix(Object *ob)
+{
+	set_transform(ob);
+}
+
+void BCMatrix::set_transform(Matrix &mat)
+{
+	copy_m4_m4(matrix, mat);
+	mat4_decompose(this->loc, this->q, this->size, mat);
+	quat_to_eul(this->rot, this->q);
+}
+
+void BCMatrix::set_transform(Object *ob)
+{
+	Matrix lmat;
+
+	BKE_object_matrix_local_get(ob, lmat);
+	mat4_decompose(this->loc, this->q, this->size, lmat);
+	quat_to_compatible_eul(this->rot, ob->rot, this->q);
 }
 
 const BCMatrix *BCSample::get_matrix(Bone *bone) const
@@ -322,43 +348,24 @@ const bool BCMatrix::in_range(const BCMatrix &other, float distance) const
 	return true;
 }
 
-void BCMatrix::decompose() const
-{
-	mat4_decompose(loc, q, size, matrix);
-	quat_to_eul(rot, q);
-	decomposed = true;
-}
-
 float(&BCMatrix::location() const)[3]
 {
-	if (!decomposed)
-	decompose();
-
-return loc;
+	return loc;
 }
 
 float(&BCMatrix::rotation() const)[3]
 {
-	if (!decomposed)
-	decompose();
-
-return rot;
-
+	return rot;
 }
 
 float(&BCMatrix::scale() const)[3]
 {
-	if (!decomposed)
-	decompose();
-
-return size;
+	return size;
 }
 
 float(&BCMatrix::quat() const)[4]
 {
-	if (!decomposed)
-	decompose();
-
-return q;
+	return q;
 }
+
 

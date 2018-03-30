@@ -131,12 +131,11 @@ private:
 	mutable float rot[3];
 	mutable float loc[3];
 	mutable float q[4];
-	mutable bool decomposed = false;
 
 	/* Private methods */
-	void decompose() const;
 	void unit();
 	void copy(Matrix &r, Matrix &a);
+	void set_transform(Object *ob);
 
 public:
 	mutable float matrix[4][4];
@@ -146,16 +145,15 @@ public:
 	float(&scale() const)[3];
 	float(&quat() const)[4];
 
-	BCMatrix()
-	{
-		unit();
-	}
+	BCMatrix(Matrix &mat);
+	BCMatrix(Object *ob);
+	void set_transform(Matrix &mat);
+
 	void get_matrix(double(&mat)[4][4], const bool transposed = false, const int precision = -1) const;
 	const bool in_range(const BCMatrix &other, float distance) const;
 	/* Convenient helper functions */
 	static void sanitize(Matrix &matrix, int precision);
 	static void transpose(Matrix &matrix);
-
 };
 
 typedef std::map<int, BCMaterial *> BCMaterialMap;
@@ -178,7 +176,7 @@ private:
 	BCCamera camera; /* For Camera channels */
 
 public:
-	BCSample(Matrix &mat); // Every sample has a transformation matrix
+	BCSample(Object *ob); // calculate object transforms from object
 	~BCSample();
 
 	// Add sampled data for animated channels (see BC_animation_transform_type above)
