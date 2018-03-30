@@ -126,6 +126,7 @@ typedef float(BCLocation)[3];
 
 class BCMatrix {
 
+private:
 	mutable float size[3];
 	mutable float rot[3];
 	mutable float loc[3];
