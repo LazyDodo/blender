@@ -644,20 +644,34 @@ static void gpencil_vfx_passes(int ob_idx, void *vedata, tGPencilObjectCache *ca
 			samples++;
 		}
 
+		/* save radius to avoid shift when apply several times the same effect */
+		float bx = stl->vfx[ob_idx].vfx_blur.radius[0];
+		float by = stl->vfx[ob_idx].vfx_blur.radius[1];
+
 		for (int b = 0; b < samples; b++) {
-			/* make a pin-pong change of framebuffer to acumulate */
+			/* make a pin-pong change of framebuffer to acumulate 
+			 * first horizontal blur and next a vertical blur.
+			 * if we try to make both at the same time, the image is shifted to top
+			 */
 			if (b % 2 == 0) {
 				GPU_framebuffer_bind(fbl->vfx_fb_b);
+				/* clean only firt time */
 				if (b == 0) {
 					GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
 				}
 				e_data.input_depth_tx = e_data.vfx_depth_tx_a;
 				e_data.input_color_tx = e_data.vfx_color_tx_a;
+				/* horizontal */
+				stl->vfx[ob_idx].vfx_blur.radius[0] = bx;
+				stl->vfx[ob_idx].vfx_blur.radius[1] = 0;
 			}
 			else {
 				e_data.input_depth_tx = e_data.vfx_depth_tx_b;
 				e_data.input_color_tx = e_data.vfx_color_tx_b;
 				GPU_framebuffer_bind(fbl->vfx_fb_a);
+				/* vertical */
+				stl->vfx[ob_idx].vfx_blur.radius[0] = 0;
+				stl->vfx[ob_idx].vfx_blur.radius[1] = by;
 			}
 			DRW_draw_pass_subset(psl->vfx_blur_pass,
 				cache->vfx_blur_sh,
