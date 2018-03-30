@@ -163,47 +163,19 @@ static void DRW_gpencil_vfx_blur(
 	const float *viewport_size = DRW_viewport_size_get();
 	stl->vfx[ob_idx].vfx_blur.x = mmd->radius[0];
 	stl->vfx[ob_idx].vfx_blur.y = mmd->radius[1] * (viewport_size[1] / viewport_size[0]);
+	stl->vfx[ob_idx].vfx_blur.samples = mmd->samples;
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
-	/* === Pass 1 === */
-	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_blur_sh, psl->vfx_blur_pass_1);
-	++stl->g_data->tot_sh;
-	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blurx", &stl->vfx[ob_idx].vfx_blur.x, 1);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blury", &stl->vfx[ob_idx].vfx_blur.y, 1);
-	cache->vfx_blur_sh_1 = vfx_shgrp;
 
-	/* === Pass 2 === */
-	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_blur_sh, psl->vfx_blur_pass_2);
+	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_blur_sh, psl->vfx_blur_pass);
 	++stl->g_data->tot_sh;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_b);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_b);
+	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->input_color_tx);
+	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->input_depth_tx);
 	DRW_shgroup_uniform_float(vfx_shgrp, "blurx", &stl->vfx[ob_idx].vfx_blur.x, 1);
 	DRW_shgroup_uniform_float(vfx_shgrp, "blury", &stl->vfx[ob_idx].vfx_blur.y, 1);
-	cache->vfx_blur_sh_2 = vfx_shgrp;
+	cache->vfx_blur_sh = vfx_shgrp;
 
-	/* === Pass 3 === */
-	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_blur_sh, psl->vfx_blur_pass_3);
-	++stl->g_data->tot_sh;
-	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blurx", &stl->vfx[ob_idx].vfx_blur.x, 1);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blury", &stl->vfx[ob_idx].vfx_blur.y, 1);
-	cache->vfx_blur_sh_3 = vfx_shgrp;
-
-	/* === Pass 4 === */
-	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_blur_sh, psl->vfx_blur_pass_4);
-	++stl->g_data->tot_sh;
-	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_b);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_b);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blurx", &stl->vfx[ob_idx].vfx_blur.x, 1);
-	DRW_shgroup_uniform_float(vfx_shgrp, "blury", &stl->vfx[ob_idx].vfx_blur.y, 1);
-	cache->vfx_blur_sh_4 = vfx_shgrp;
 }
 
 /* Pixelate VFX */

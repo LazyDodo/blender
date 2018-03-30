@@ -89,6 +89,7 @@ typedef struct GPencilVFXPixel {
 typedef struct GPencilVFXBlur {
 	float x;
 	float y;
+	int samples;
 } GPencilVFXBlur;
 
 typedef struct GPencilVFXWave {
@@ -115,10 +116,7 @@ typedef struct tGPencilObjectCache {
 	int init_grp, end_grp;
 	DRWShadingGroup *vfx_wave_sh;
 
-	DRWShadingGroup *vfx_blur_sh_1;
-	DRWShadingGroup *vfx_blur_sh_2;
-	DRWShadingGroup *vfx_blur_sh_3;
-	DRWShadingGroup *vfx_blur_sh_4;
+	DRWShadingGroup *vfx_blur_sh;
 
 	DRWShadingGroup *vfx_pixel_sh;
 
@@ -211,10 +209,7 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *mix_pass_noblend;
 	struct DRWPass *vfx_copy_pass;
 	struct DRWPass *vfx_wave_pass;
-	struct DRWPass *vfx_blur_pass_1;
-	struct DRWPass *vfx_blur_pass_2;
-	struct DRWPass *vfx_blur_pass_3;
-	struct DRWPass *vfx_blur_pass_4;
+	struct DRWPass *vfx_blur_pass;
 	struct DRWPass *vfx_pixel_pass;
 	struct DRWPass *vfx_swirl_pass;
 	struct DRWPass *vfx_flip_pass;

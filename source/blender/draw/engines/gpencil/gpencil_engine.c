@@ -430,10 +430,7 @@ static void GPENCIL_cache_init(void *vedata)
 		/* VFX passes */
 		psl->vfx_wave_pass = DRW_pass_create("GPencil VFX Wave Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
-		psl->vfx_blur_pass_1 = DRW_pass_create("GPencil VFX Blur Pass 1", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		psl->vfx_blur_pass_2 = DRW_pass_create("GPencil VFX Blur Pass 2", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		psl->vfx_blur_pass_3 = DRW_pass_create("GPencil VFX Blur Pass 3", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		psl->vfx_blur_pass_4 = DRW_pass_create("GPencil VFX Blur Pass 4", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		psl->vfx_blur_pass = DRW_pass_create("GPencil VFX Blur Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
 		psl->vfx_pixel_pass = DRW_pass_create("GPencil VFX Pixel Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
@@ -616,10 +613,11 @@ static void gpencil_draw_vfx_pass(DRWPass *vfxpass, DRWPass *copypass,
  * vfx modifier. This use one pass more but allows to create a stack of vfx
  * modifiers and add more modifiers in the future using the same structure.
 */
-static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
+static void gpencil_vfx_passes(int ob_idx, void *vedata, tGPencilObjectCache *cache)
 {
 	float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 
@@ -639,28 +637,28 @@ static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
 	/* --------------
 	 * Blur passes (use several passes to get better quality)
 	 * --------------*/
-	if (cache->vfx_blur_sh_1) {
-		GPU_framebuffer_bind(fbl->vfx_fb_b);
-		GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
-		/* pass 1 */
-		DRW_draw_pass_subset(psl->vfx_blur_pass_1,
-			cache->vfx_blur_sh_1,
-			cache->vfx_blur_sh_1);
-		/* pass 2 */
-		GPU_framebuffer_bind(fbl->vfx_fb_a);
-		DRW_draw_pass_subset(psl->vfx_blur_pass_2,
-			cache->vfx_blur_sh_2,
-			cache->vfx_blur_sh_2);
-		/* pass 3 */
-		GPU_framebuffer_bind(fbl->vfx_fb_b);
-		DRW_draw_pass_subset(psl->vfx_blur_pass_3,
-			cache->vfx_blur_sh_3,
-			cache->vfx_blur_sh_3);
-		/* pass 4 */
-		GPU_framebuffer_bind(fbl->vfx_fb_a);
-		DRW_draw_pass_subset(psl->vfx_blur_pass_4,
-			cache->vfx_blur_sh_4,
-			cache->vfx_blur_sh_4);
+	if (cache->vfx_blur_sh) {
+		int samples = stl->vfx[ob_idx].vfx_blur.samples >= 2 ? stl->vfx[ob_idx].vfx_blur.samples : 2;
+		
+		for (int b = 0; b < samples; b++) {
+			/* make a pin-pong change of framebuffer to acumulate */
+			if (b % 2 == 0) {
+				GPU_framebuffer_bind(fbl->vfx_fb_b);
+				if (b == 0) {
+					GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
+				}
+				e_data.input_depth_tx = e_data.vfx_depth_tx_a;
+				e_data.input_color_tx = e_data.vfx_color_tx_a;
+			}
+			else {
+				e_data.input_depth_tx = e_data.vfx_depth_tx_b;
+				e_data.input_color_tx = e_data.vfx_color_tx_b;
+				GPU_framebuffer_bind(fbl->vfx_fb_a);
+			}
+			DRW_draw_pass_subset(psl->vfx_blur_pass,
+				cache->vfx_blur_sh,
+				cache->vfx_blur_sh);
+		}
 	}
 	/* --------------
 	 * Pixelate pass 
@@ -830,7 +828,7 @@ static void GPENCIL_draw_scene(void *vedata)
 				 */
 				if ((cache->vfx_wave_sh) && (!stl->storage->simplify_vfx)) {
 					/* add vfx passes */
-					gpencil_vfx_passes(vedata, cache);
+					gpencil_vfx_passes(i, vedata, cache);
 
 					e_data.input_depth_tx = e_data.vfx_depth_tx_a;
 					e_data.input_color_tx = e_data.vfx_color_tx_a;
