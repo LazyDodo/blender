@@ -118,6 +118,12 @@ matrix math functions of blender
 */
 
 typedef float(Matrix)[4][4];
+typedef float(BCEuler)[3];
+typedef float(BCScale)[3];
+typedef float(BCQuat)[4];
+typedef float(BCSize)[3];
+typedef float(BCLocation)[3];
+
 class BCMatrix {
 
 	mutable float size[3];
