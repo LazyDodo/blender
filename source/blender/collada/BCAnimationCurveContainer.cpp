@@ -759,11 +759,12 @@ const int BCSampleFrames::get_matrices(Object *ob, BCMatrixSampleMap &samples) c
 {
 	samples.clear(); // safety;
 	BCSampleFrameMap::const_iterator it;
+	float *qref = nullptr; // needed only when decomposing
 	for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
 		const BCSampleFrame &frame = it->second;
-		const BCMatrix *sample = frame.get_sample_matrix(ob);
-		if (sample) {
-			samples[it->first] = sample;
+		const BCMatrix *matrix = frame.get_sample_matrix(ob);
+		if (matrix) {
+			samples[it->first] = matrix;
 		}
 	}
 	return samples.size();
