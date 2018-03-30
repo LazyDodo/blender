@@ -80,8 +80,7 @@ public:
 	/* Add a new Object to this map with the given Matrix*/
 	/* Add a new Bone to this map with the given Matrix*/
 	/* Add a new Material to this map with the given Matrix*/
-	BCSample &add(Object *ob, Matrix &mat);
-	BCSample &add(Object *ob, Bone *bone, Matrix &mat);
+	BCSample &add(Object *ob);
 
 	/* Get the matrix for the given key, returns Unity when the key does not exist */
 	/* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
@@ -147,8 +146,7 @@ public:
 
 	/* Add object for frame. Creates a new BCSampleFrame if it does not yet exist */
 	/* Add object+bone for frame. Creates a new BCSampleFrame if it does not yet exist */
-	BCSample &add(Object *ob, Matrix &mat, int frame_index);
-	BCSample &add(Object *ob, Bone *bone, Matrix &mat, int frame_index);
+	BCSample &add(Object *ob, int frame_index);
 
 	/* ====================================================== */
 	/* Below are the getters which we need to export the data */

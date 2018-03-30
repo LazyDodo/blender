@@ -144,17 +144,15 @@ void BCAnimationSampler::sample_scene(
 					needs_update = false;
 				}
 
-				Matrix mat;
-				BKE_object_matrix_local_get(ob, mat);
-				BCSample &ob_sample = sample_data.add(ob, mat, frame_index);
+				BCSample &ob_sample = sample_data.add(ob, frame_index);
 
 				if (ob->type == OB_ARMATURE) {
 					bPoseChannel *pchan;
 					for (pchan = (bPoseChannel *)ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 						Bone *bone = pchan->bone;
-						if (bone_matrix_local_get(ob, bone, mat, for_opensim)) {
-							ob_sample.set_bone(bone, mat);
-							//sample_data.add(ob, bone, mat, frame_index);
+						Matrix bmat;
+						if (bone_matrix_local_get(ob, bone, bmat, for_opensim)) {
+							ob_sample.set_bone(bone, bmat);
 						}
 					}
 				}
@@ -608,18 +606,10 @@ bool BCAnimationSampler::has_animations(Scene *sce, LinkNode *export_set)
 }
 /* ==================================================================== */
 
-BCSample &BCSampleFrame::add(Object *ob, Matrix &mat)
+BCSample &BCSampleFrame::add(Object *ob)
 {
 	BCSample *sample = new BCSample(ob);
 	sampleMap[ob] = sample;
-	return *sample;
-}
-
-/* Add a new Bone to this map with the given Matrix*/
-BCSample &BCSampleFrame::add(Object *ob, Bone *bone, Matrix &mat)
-{
-	BCSample *sample = sampleMap[ob];
-	sample->set_bone(bone, mat);
 	return *sample;
 }
 
@@ -677,20 +667,12 @@ const BCSampleKeysMap &BCSampleFrame::get_samples() const
 
 /* ==================================================================== */
 
-/* Add object for frame. Creates a new BCSampleFrame if it does not yet exist */
-BCSample &BCSampleFrames::add(Object *ob, Matrix &mat, int frame_index)
+BCSample &BCSampleFrames::add(Object *ob, int frame_index)
 {
 	BCSampleFrame &frame = sample_frames[frame_index];
-	return frame.add(ob, mat);
+	return frame.add(ob);
 }
 
-
-/* Add object+bone for frame. Creates a new BCSampleFrame if it does not yet exist */
-BCSample &BCSampleFrames::add(Object *ob, Bone *bone, Matrix &mat, int frame_index)
-{
-	BCSampleFrame &frame = sample_frames[frame_index];
-	return frame.add(ob, bone, mat);
-}
 
 /* ====================================================== */
 /* Below are the getters which we need to export the data */
@@ -759,7 +741,6 @@ const int BCSampleFrames::get_matrices(Object *ob, BCMatrixSampleMap &samples) c
 {
 	samples.clear(); // safety;
 	BCSampleFrameMap::const_iterator it;
-	float *qref = nullptr; // needed only when decomposing
 	for (it = sample_frames.begin(); it != sample_frames.end(); ++it) {
 		const BCSampleFrame &frame = it->second;
 		const BCMatrix *matrix = frame.get_sample_matrix(ob);
