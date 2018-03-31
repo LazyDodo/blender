@@ -61,9 +61,9 @@ std::map<BC_animation_transform_type, std::string> BC_ANIMATION_NAME_FROM_TYPE =
 
 	/* Lamps */
 	{ BC_ANIMATION_TYPE_LIGHT_COLOR, "color" },
-	{ BC_ANIMATION_TYPE_FALL_OFF_ANGLE, "fall_off_angle" },
-	{ BC_ANIMATION_TYPE_FALL_OFF_EXPONENT, "fall_off_exponent" },
-	{ BC_ANIMATION_TYPE_BLENDER_DIST, "blender/blender_dist" },
+	{ BC_ANIMATION_TYPE_LIGHT_FALLOFF_ANGLE, "falloff_angle" },
+	{ BC_ANIMATION_TYPE_LIGHT_FALLOFF_EXPONENT, "falloff_exponent" },
+	{ BC_ANIMATION_TYPE_LIGHT_BLENDER_DIST, "blender/blender_dist" }, // special blender profile (todo: make this more elegant)
 
 	/* Cameras */
 	{ BC_ANIMATION_TYPE_LENS, "xfov" },

@@ -26,39 +26,42 @@
 #include "BCAnimationCurve.h"
 
 std::map<std::string, BC_animation_transform_type> BC_ANIMATION_TYPE_FROM_NAME = {
+
 	{ "rotation", BC_ANIMATION_TYPE_ROTATION },
-{ "rotation_euler", BC_ANIMATION_TYPE_ROTATION_EULER },
-{ "rotation_quaternion", BC_ANIMATION_TYPE_ROTATION_QUAT },
-{ "scale", BC_ANIMATION_TYPE_SCALE },
-{ "location", BC_ANIMATION_TYPE_LOCATION },
+	{ "rotation_euler", BC_ANIMATION_TYPE_ROTATION_EULER },
+	{ "rotation_quaternion", BC_ANIMATION_TYPE_ROTATION_QUAT },
+	{ "scale", BC_ANIMATION_TYPE_SCALE },
+	{ "location", BC_ANIMATION_TYPE_LOCATION },
 
-/* Materials */
-{ "specular_hardness", BC_ANIMATION_TYPE_SPECULAR_HARDNESS },
-{ "specular_color", BC_ANIMATION_TYPE_SPECULAR_COLOR },
-{ "diffuse_color", BC_ANIMATION_TYPE_DIFFUSE_COLOR },
-{ "alpha", BC_ANIMATION_TYPE_ALPHA },
-{ "ior", BC_ANIMATION_TYPE_IOR },
+	/* Materials */
+	{ "specular_hardness", BC_ANIMATION_TYPE_SPECULAR_HARDNESS },
+	{ "specular_color", BC_ANIMATION_TYPE_SPECULAR_COLOR },
+	{ "diffuse_color", BC_ANIMATION_TYPE_DIFFUSE_COLOR },
+	{ "alpha", BC_ANIMATION_TYPE_ALPHA },
+	{ "ior", BC_ANIMATION_TYPE_IOR },
 
-/* Lamps */
-{ "color", BC_ANIMATION_TYPE_LIGHT_COLOR },
-{ "fall_off_angle", BC_ANIMATION_TYPE_FALL_OFF_ANGLE },
-{ "fall_off_exponent", BC_ANIMATION_TYPE_FALL_OFF_EXPONENT },
-{ "blender/blender_dist", BC_ANIMATION_TYPE_BLENDER_DIST },
-/* Lamp  RNA to animation type */
-{ "spot_size", BC_ANIMATION_TYPE_FALL_OFF_ANGLE },
-{ "spot_blend", BC_ANIMATION_TYPE_FALL_OFF_EXPONENT },
-{ "distance", BC_ANIMATION_TYPE_BLENDER_DIST },
+	/* Lamps */
+	{ "color", BC_ANIMATION_TYPE_LIGHT_COLOR },
+	{ "fall_off_angle", BC_ANIMATION_TYPE_LIGHT_FALLOFF_ANGLE },
+	{ "fall_off_exponent", BC_ANIMATION_TYPE_LIGHT_FALLOFF_EXPONENT },
+	{ "blender/blender_dist", BC_ANIMATION_TYPE_LIGHT_BLENDER_DIST },
 
-/* Cameras */
-{ "lens", BC_ANIMATION_TYPE_LENS },
-{ "xfov", BC_ANIMATION_TYPE_XFOV },
-{ "xmag", BC_ANIMATION_TYPE_XMAG },
-{ "zfar", BC_ANIMATION_TYPE_ZFAR },
-{ "znear", BC_ANIMATION_TYPE_ZNEAR },
-/* Camera RNA to animation type */
-{ "ortho_scale", BC_ANIMATION_TYPE_XMAG },
-{ "clip_end", BC_ANIMATION_TYPE_ZFAR },
-{ "clip_start", BC_ANIMATION_TYPE_ZNEAR }
+	/* Lamp  RNA to animation type */
+	{ "spot_size", BC_ANIMATION_TYPE_LIGHT_FALLOFF_ANGLE },
+	{ "spot_blend", BC_ANIMATION_TYPE_LIGHT_FALLOFF_EXPONENT },
+	{ "distance", BC_ANIMATION_TYPE_LIGHT_BLENDER_DIST },
+
+	/* Cameras */
+	{ "lens", BC_ANIMATION_TYPE_LENS },
+	{ "xfov", BC_ANIMATION_TYPE_XFOV },
+	{ "xmag", BC_ANIMATION_TYPE_XMAG },
+	{ "zfar", BC_ANIMATION_TYPE_ZFAR },
+	{ "znear", BC_ANIMATION_TYPE_ZNEAR },
+
+	/* Camera RNA to animation type */
+	{ "ortho_scale", BC_ANIMATION_TYPE_XMAG },
+	{ "clip_end", BC_ANIMATION_TYPE_ZFAR },
+	{ "clip_start", BC_ANIMATION_TYPE_ZNEAR }
 
 };
 

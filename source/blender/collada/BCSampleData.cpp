@@ -156,19 +156,22 @@ void BCSample::set_material(Material *ma)
 	material->ior = ma->refrac;
 }
 
-/* Set single float vaules */
+/* Set single float vaules 
+ * TODO: replace this by a std::map<rna_path, float>
+ * so we can store values more freely
+*/
 const bool BCSample::set_value(BC_animation_transform_type channel, const int array_index, float val)
 {
 	switch (channel) {
 
 	/* Light animation */
-	case BC_ANIMATION_TYPE_FALL_OFF_ANGLE:
+	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_ANGLE:
 		lamp.falloff_angle = val;
 		break;
-	case BC_ANIMATION_TYPE_FALL_OFF_EXPONENT:
+	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_EXPONENT:
 		lamp.falloff_exponent = val;
 		break;
-	case BC_ANIMATION_TYPE_BLENDER_DIST:
+	case BC_ANIMATION_TYPE_LIGHT_BLENDER_DIST:
 		lamp.blender_dist = val;
 		break;
 
@@ -269,15 +272,16 @@ const bool BCSample::get_value(BC_animation_transform_type channel, const int ar
 	case BC_ANIMATION_TYPE_LIGHT_COLOR:
 		*val = lamp.light_color[array_index];
 		break;
-	case BC_ANIMATION_TYPE_FALL_OFF_ANGLE:
+	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_ANGLE:
 		*val = lamp.falloff_angle;
 		break;
-	case BC_ANIMATION_TYPE_FALL_OFF_EXPONENT:
+	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_EXPONENT:
 		*val = lamp.falloff_exponent;
 		break;
-	case BC_ANIMATION_TYPE_BLENDER_DIST:
+	case BC_ANIMATION_TYPE_LIGHT_BLENDER_DIST:
 		*val = lamp.blender_dist;
 		break;
+
 
 	/* Camera animation */
 	case BC_ANIMATION_TYPE_LENS:
