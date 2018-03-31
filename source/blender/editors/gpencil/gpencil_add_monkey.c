@@ -1404,13 +1404,13 @@ static const PaletteColorTemplate gp_monkey_pct_skin = {
 };
 
 static const PaletteColorTemplate gp_monkey_pct_skin_light = {
-	"Skin Light",
+	"Skin_Light",
 	{0.553f, 0.39f, 0.266f, 0.0f},
 	{0.913f, 0.828f, 0.637f, 1.0f},
 };
 
 static const PaletteColorTemplate gp_monkey_pct_skin_shadow = {
-	"Skin Shadow",
+	"Skin_Shadow",
 	{0.553f, 0.39f, 0.266f, 0.0f},
 	{0.32f, 0.29f, 0.223f, 1.0f},
 };
