@@ -47,6 +47,7 @@ void BLF_exit(void);
 void BLF_default_dpi(int dpi);
 void BLF_default_set(int fontid);
 int BLF_default(void); /* get default font ID so we can pass it to other functions */
+void BLF_batch_reset(void); /* call when changing opengl context. */
 
 void BLF_antialias_set(bool enabled);
 bool BLF_antialias_get(void);
@@ -93,6 +94,11 @@ void BLF_color3fv_alpha(int fontid, const float rgb[3], float alpha);
  *
  */
 void BLF_matrix(int fontid, const float m[16]);
+
+/* Batch drawcalls together as long as
+ * the modelview matrix and the font remain unchanged. */
+void BLF_batching_start(void);
+void BLF_batching_end(void);
 
 /* Draw the string using the default font, size and dpi. */
 void BLF_draw_default(float x, float y, float z, const char *str, size_t len) ATTR_NONNULL();

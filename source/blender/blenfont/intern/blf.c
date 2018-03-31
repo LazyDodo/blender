@@ -132,6 +132,11 @@ void BLF_exit(void)
 	blf_font_exit();
 }
 
+void BLF_batch_reset(void)
+{
+	blf_batching_vao_clear();
+}
+
 void BLF_cache_clear(void)
 {
 	FontBLF *font;
@@ -535,6 +540,19 @@ void BLF_color3f(int fontid, float r, float g, float b)
 	BLF_color4fv(fontid, rgba);
 }
 
+void BLF_batching_start(void)
+{
+	BLI_assert(g_batch.enabled == false);
+	g_batch.enabled = true;
+}
+
+void BLF_batching_end(void)
+{
+	BLI_assert(g_batch.enabled == true);
+	blf_batching_draw(); /* Draw remaining glyphs */
+	g_batch.enabled = false;
+}
+
 void BLF_draw_default(float x, float y, float z, const char *str, size_t len)
 {
 	ASSERT_DEFAULT_SET;
@@ -561,8 +579,11 @@ static void blf_draw_gl__start(FontBLF *font)
 	 * in BLF_position (old ui_rasterpos_safe).
 	 */
 
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	/* always bind the texture for the first glyph */
+	font->tex_bind_state = 0;
+
+	if ((font->flags & (BLF_ROTATION | BLF_MATRIX | BLF_ASPECT)) == 0)
+		return; /* glyphs will be translated individually and batched. */
 
 	gpuPushMatrix();
 
@@ -576,35 +597,12 @@ static void blf_draw_gl__start(FontBLF *font)
 
 	if (font->flags & BLF_ROTATION)
 		gpuRotate2D(RAD2DEG(font->angle));
-
-#ifndef BLF_STANDALONE
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-	unsigned int texCoord = GWN_vertformat_attr_add(format, "tex", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "col", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
-
-	BLI_assert(pos == BLF_POS_ID);
-	BLI_assert(texCoord == BLF_COORD_ID);
-	BLI_assert(color == BLF_COLOR_ID);
-
-	UNUSED_VARS_NDEBUG(pos, texCoord, color);
-
-	immBindBuiltinProgram(GPU_SHADER_TEXT);
-#endif
-
-	/* always bind the texture for the first glyph */
-	font->tex_bind_state = -1;
 }
 
-static void blf_draw_gl__end(void)
+static void blf_draw_gl__end(FontBLF *font)
 {
-	gpuPopMatrix();
-
-#ifndef BLF_STANDALONE
-	immUnbindProgram();
-#endif
-
-	glDisable(GL_BLEND);
+	if ((font->flags & (BLF_ROTATION | BLF_MATRIX | BLF_ASPECT)) != 0)
+		gpuPopMatrix();
 }
 
 void BLF_draw_ex(
@@ -623,7 +621,7 @@ void BLF_draw_ex(
 		else {
 			blf_font_draw(font, str, len, r_info);
 		}
-		blf_draw_gl__end();
+		blf_draw_gl__end(font);
 	}
 }
 void BLF_draw(int fontid, const char *str, size_t len)
@@ -652,7 +650,7 @@ void BLF_draw_ascii_ex(
 		else {
 			blf_font_draw_ascii(font, str, len, r_info);
 		}
-		blf_draw_gl__end();
+		blf_draw_gl__end(font);
 	}
 }
 void BLF_draw_ascii(int fontid, const char *str, size_t len)
@@ -676,7 +674,7 @@ int BLF_draw_mono(int fontid, const char *str, size_t len, int cwidth)
 	if (font && font->glyph_cache) {
 		blf_draw_gl__start(font);
 		columns = blf_font_draw_mono(font, str, len, cwidth);
-		blf_draw_gl__end();
+		blf_draw_gl__end(font);
 	}
 
 	return columns;
