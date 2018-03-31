@@ -40,6 +40,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "CLG_log.h"
+
 #include "DNA_genfile.h"
 #include "DNA_scene_types.h"
 #include "DNA_userdef_types.h"
@@ -126,6 +128,11 @@
 #ifdef WITH_OPENSUBDIV
 #  include "BKE_subsurf.h"
 #endif
+
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_OPERATORS, "wm.operator");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_HANDLERS, "wm.handler");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_EVENTS, "wm.event");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_KEYMAPS, "wm.keymap");
 
 static void wm_init_reports(bContext *C)
 {
@@ -434,6 +441,29 @@ static void wait_for_console_key(void)
 }
 #endif
 
+static int wm_exit_handler(bContext *C, const wmEvent *event, void *userdata)
+{
+	WM_exit(C);
+
+	UNUSED_VARS(event, userdata);
+	return WM_UI_HANDLER_BREAK;
+}
+
+/**
+ * Cause a delayed WM_exit() call to avoid leaking memory when trying to exit from within operators.
+ */
+void wm_exit_schedule_delayed(const bContext *C)
+{
+	/* What we do here is a little bit hacky, but quite simple and doesn't require bigger
+	 * changes: Add a handler wrapping WM_exit() to cause a delayed call of it. */
+
+	wmWindow *win = CTX_wm_window(C);
+
+	/* Use modal UI handler for now. Could add separate WM handlers or so, but probably not worth it. */
+	WM_event_add_ui_handler(C, &win->modalhandlers, wm_exit_handler, NULL, NULL, 0);
+	WM_event_add_mousemove(C); /* ensure handler actually gets called */
+}
+
 /**
  * \note doesn't run exit() call #WM_exit() for that.
  */
@@ -590,6 +620,8 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	 * see also T50676. */
 	BKE_sound_exit();
 
+	CLG_exit();
+
 	BKE_blender_atexit();
 
 	if (MEM_get_memory_blocks_in_use() != 0) {
@@ -604,6 +636,10 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	BKE_tempdir_session_purge();
 }
 
+/**
+ * \brief Main exit function to close Blender ordinarily.
+ * \note Use #wm_exit_schedule_delayed() to close Blender from an operator. Might leak memory otherwise.
+ */
 void WM_exit(bContext *C)
 {
 	WM_exit_ext(C, 1);

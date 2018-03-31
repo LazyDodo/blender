@@ -1107,7 +1107,6 @@ typedef struct PathState {
 #ifdef __VOLUME__
 	int volume_bounce;
 	int volume_bounds_bounce;
-	uint rng_congruential;
 	VolumeStack volume_stack[VOLUME_STACK_SIZE];
 #endif
 } PathState;
@@ -1462,6 +1461,7 @@ typedef struct KernelSpotLight {
 	float spot_angle;
 	float spot_smooth;
 	float dir[3];
+	float pad;
 } KernelSpotLight;
 
 /* PointLight is SpotLight with only radius and invarea being used. */
@@ -1470,13 +1470,16 @@ typedef struct KernelAreaLight {
 	float axisu[3];
 	float invarea;
 	float axisv[3];
+	float pad1;
 	float dir[3];
+	float pad2;
 } KernelAreaLight;
 
 typedef struct KernelDistantLight {
 	float radius;
 	float cosangle;
 	float invarea;
+	float pad;
 } KernelDistantLight;
 
 typedef struct KernelLight {
