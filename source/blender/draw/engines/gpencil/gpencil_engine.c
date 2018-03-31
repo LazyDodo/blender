@@ -178,6 +178,39 @@ static void GPENCIL_engine_init(void *vedata)
 		e_data.gpencil_drawing_fill_sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_SMOOTH_COLOR);
 	}
 
+	/* full screen for mix zdepth*/
+	if (!e_data.gpencil_fullscreen_sh) {
+		e_data.gpencil_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_zdepth_mix_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_simple_fullscreen_sh) {
+		e_data.gpencil_simple_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_simple_mix_frag_glsl, NULL);
+	}
+	/* vfx shaders (all in screen space) */
+	if (!e_data.gpencil_vfx_blur_sh) {
+		e_data.gpencil_vfx_blur_sh = DRW_shader_create_fullscreen(datatoc_gpencil_gaussian_blur_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_wave_sh) {
+		e_data.gpencil_vfx_wave_sh = DRW_shader_create_fullscreen(datatoc_gpencil_wave_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_pixel_sh) {
+		e_data.gpencil_vfx_pixel_sh = DRW_shader_create_fullscreen(datatoc_gpencil_pixel_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_swirl_sh) {
+		e_data.gpencil_vfx_swirl_sh = DRW_shader_create_fullscreen(datatoc_gpencil_swirl_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_flip_sh) {
+		e_data.gpencil_vfx_flip_sh = DRW_shader_create_fullscreen(datatoc_gpencil_flip_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_light_sh) {
+		e_data.gpencil_vfx_light_sh = DRW_shader_create_fullscreen(datatoc_gpencil_light_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_painting_sh) {
+		e_data.gpencil_painting_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_paper_sh) {
+		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
+	}
+
 	if (!stl->storage) {
 		stl->storage = MEM_callocN(sizeof(GPENCIL_Storage), "GPENCIL_Storage");
 	}
@@ -281,39 +314,6 @@ static void GPENCIL_cache_init(void *vedata)
 	stl->g_data->gp_cache_used = 0;
 	stl->g_data->gp_cache_size = 0;
 	stl->g_data->gp_object_cache = NULL;
-
-	/* full screen for mix zdepth*/
-	if (!e_data.gpencil_fullscreen_sh) {
-		e_data.gpencil_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_zdepth_mix_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_simple_fullscreen_sh) {
-		e_data.gpencil_simple_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_simple_mix_frag_glsl, NULL);
-	}
-	/* vfx shaders (all in screen space) */
-	if (!e_data.gpencil_vfx_blur_sh) {
-		e_data.gpencil_vfx_blur_sh = DRW_shader_create_fullscreen(datatoc_gpencil_gaussian_blur_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_wave_sh) {
-		e_data.gpencil_vfx_wave_sh = DRW_shader_create_fullscreen(datatoc_gpencil_wave_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_pixel_sh) {
-		e_data.gpencil_vfx_pixel_sh = DRW_shader_create_fullscreen(datatoc_gpencil_pixel_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_swirl_sh) {
-		e_data.gpencil_vfx_swirl_sh = DRW_shader_create_fullscreen(datatoc_gpencil_swirl_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_flip_sh) {
-		e_data.gpencil_vfx_flip_sh = DRW_shader_create_fullscreen(datatoc_gpencil_flip_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_light_sh) {
-		e_data.gpencil_vfx_light_sh = DRW_shader_create_fullscreen(datatoc_gpencil_light_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_painting_sh) {
-		e_data.gpencil_painting_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_paper_sh) {
-		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
-	}
 
 	{
 		/* Stroke pass */
