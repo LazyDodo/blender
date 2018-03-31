@@ -701,42 +701,6 @@ std::string AnimationExporter::collada_tangent_from_curve(COLLADASW::InputSemant
 	return source_id;
 }
 
-/*
- * Similar to create_source_from_fcurve, but adds conversion of lens
- * animation data from focal length to FOV.
- */
-std::string AnimationExporter::collada_lens_source_from_fcurve(Camera *cam, COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, const std::string& anim_id)
-{
-	std::string source_id = anim_id + get_semantic_suffix(semantic);
-
-	COLLADASW::FloatSourceF source(mSW);
-	source.setId(source_id);
-	source.setArrayId(source_id + ARRAY_ID_SUFFIX);
-	source.setAccessorCount(curve.size());
-
-	source.setAccessorStride(1);
-
-	COLLADASW::SourceBase::ParameterNameList &param = source.getParameterNameList();
-	add_source_parameters(param, semantic, false, "", false);
-
-	source.prepareToAppendValues();
-
-	const FCurve *fcu = curve.get_fcurve();
-	for (unsigned int i = 0; i < curve.size(); i++) {
-		float values[3]; // be careful!
-		int length = get_point_in_curve(&fcu->bezt[i], semantic, false, values);
-		for (int j = 0; j < length; j++)
-		{
-			float val = RAD2DEGF(focallength_to_fov(values[j], cam->sensor_x));
-			source.appendValues(val);
-		}
-	}
-
-	source.finish();
-
-	return source_id;
-}
-
 std::string AnimationExporter::collada_source_from_values(
 	BC_animation_transform_type tm_type,
 	COLLADASW::InputSemantic::Semantics semantic,

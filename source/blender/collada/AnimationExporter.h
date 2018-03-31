@@ -186,7 +186,6 @@ private:
 	int get_point_in_curve(const BCAnimationCurve &curve, float sample_frame, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values);
 
 	std::string collada_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, std::vector<float>frames, const std::string& anim_id, const std::string axis_name);
-	std::string collada_lens_source_from_fcurve(Camera *cam, COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, const std::string& anim_id);
 	std::string collada_interpolation_source(const BCAnimationCurve &curve, const std::string& anim_id, std::string axis_name, bool *has_tangents);
 		
 	std::string get_axis_name(std::string channel, int id);
