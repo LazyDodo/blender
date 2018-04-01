@@ -1588,13 +1588,9 @@ static bool ed_object_select_pick(
 #if 0
 			if (((oldbasact) && oldbasact->object->type == OB_GPENCIL) || (basact->object->type == OB_GPENCIL)) {
 				/* set cursor */
-				if (basact->object->mode == OB_MODE_GPENCIL_PAINT) {
-					ED_gpencil_toggle_brush_cursor(C, true, NULL);
-				}
-				else if (basact->object->mode == OB_MODE_GPENCIL_SCULPT) {
-					ED_gpencil_toggle_brush_cursor(C, true, NULL);
-				}
-				else if (basact->object->mode == OB_MODE_GPENCIL_WEIGHT) {
+				if (ELEM(basact->object->mode == OB_MODE_GPENCIL_PAINT, 
+												OB_MODE_GPENCIL_SCULPT, 
+												OB_MODE_GPENCIL_WEIGHT)) {
 					ED_gpencil_toggle_brush_cursor(C, true, NULL);
 				}
 				else {
