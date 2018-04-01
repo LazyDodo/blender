@@ -149,6 +149,7 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 
 		/* Set special modes for grease pencil */
 		if (sa && (sa->spacetype == SPACE_VIEW3D)) {
+			Object *obact = CTX_data_active_object(C);
 			if (obact && (obact->type == OB_GPENCIL)) {
 				WorkSpace *workspace = CTX_wm_workspace(C);
 				/* set cursor */
