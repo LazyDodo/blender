@@ -134,7 +134,7 @@ void BLF_exit(void)
 
 void BLF_batch_reset(void)
 {
-	blf_batching_vao_clear();
+	blf_batch_draw_vao_clear();
 }
 
 void BLF_cache_clear(void)
@@ -144,8 +144,10 @@ void BLF_cache_clear(void)
 
 	for (i = 0; i < BLF_MAX_FONT; i++) {
 		font = global_font[i];
-		if (font)
+		if (font) {
 			blf_glyph_cache_clear(font);
+			blf_kerning_cache_clear(font);
+		}
 	}
 }
 
@@ -540,16 +542,16 @@ void BLF_color3f(int fontid, float r, float g, float b)
 	BLF_color4fv(fontid, rgba);
 }
 
-void BLF_batching_start(void)
+void BLF_batch_draw_begin(void)
 {
 	BLI_assert(g_batch.enabled == false);
 	g_batch.enabled = true;
 }
 
-void BLF_batching_end(void)
+void BLF_batch_draw_end(void)
 {
 	BLI_assert(g_batch.enabled == true);
-	blf_batching_draw(); /* Draw remaining glyphs */
+	blf_batch_draw(); /* Draw remaining glyphs */
 	g_batch.enabled = false;
 }
 
@@ -808,7 +810,7 @@ int BLF_height_max(int fontid)
 	FontBLF *font = blf_get(fontid);
 
 	if (font && font->glyph_cache) {
-		return font->glyph_cache->max_glyph_height;
+		return font->glyph_cache->glyph_height_max;
 	}
 
 	return 0;
@@ -819,7 +821,7 @@ float BLF_width_max(int fontid)
 	FontBLF *font = blf_get(fontid);
 
 	if (font && font->glyph_cache) {
-		return font->glyph_cache->max_glyph_width;
+		return font->glyph_cache->glyph_width_max;
 	}
 
 	return 0.0f;

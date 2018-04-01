@@ -64,6 +64,7 @@
 #include "BLT_translation.h"
 
 #include "UI_interface.h"
+#include "UI_interface_icons.h"
 
 #include "IMB_imbuf.h"
 
@@ -1426,7 +1427,8 @@ void UI_block_draw(const bContext *C, uiBlock *block)
 	else if (block->panel)
 		ui_draw_aligned_panel(&style, block, &rect, UI_panel_category_is_visible(ar));
 
-	BLF_batching_start();
+	BLF_batch_draw_begin();
+	UI_icon_draw_cache_begin();
 
 	/* widgets */
 	for (but = block->buttons.first; but; but = but->next) {
@@ -1440,7 +1442,8 @@ void UI_block_draw(const bContext *C, uiBlock *block)
 		}
 	}
 
-	BLF_batching_end();
+	UI_icon_draw_cache_end();
+	BLF_batch_draw_end();
 	
 	/* restore matrix */
 	gpuPopProjectionMatrix();
