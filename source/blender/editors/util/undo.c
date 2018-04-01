@@ -117,6 +117,8 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 	wmWindow *win = CTX_wm_window(C);
 	// Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	Object *obact = CTX_data_active_object(C);
+	ScrArea *sa = CTX_wm_area(C);
 
 	/* undo during jobs are running can easily lead to freeing data using by jobs,
 	 * or they can just lead to freezing job in some other cases */
@@ -144,28 +146,28 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 		else {
 			BKE_undosys_step_undo_compat_only(wm->undo_stack, C, step);
 		}
-	
-	/* Set special modes for grease pencil */
-	if (sa && (sa->spacetype == SPACE_VIEW3D)) {
-		obact = CTX_data_active_object(C);
-		if (obact && (obact->type == OB_GPENCIL)) {
-			WorkSpace *workspace = CTX_wm_workspace(C);
-			/* set cursor */
-			if (workspace->object_mode == OB_MODE_GPENCIL_PAINT) {
-				ED_gpencil_toggle_brush_cursor(C, true, NULL);
+
+		/* Set special modes for grease pencil */
+		if (sa && (sa->spacetype == SPACE_VIEW3D)) {
+			if (obact && (obact->type == OB_GPENCIL)) {
+				WorkSpace *workspace = CTX_wm_workspace(C);
+				/* set cursor */
+				if (workspace->object_mode == OB_MODE_GPENCIL_PAINT) {
+					ED_gpencil_toggle_brush_cursor(C, true, NULL);
+				}
+				else if (workspace->object_mode == OB_MODE_GPENCIL_SCULPT) {
+					ED_gpencil_toggle_brush_cursor(C, true, NULL);
+				}
+				else if (workspace->object_mode == OB_MODE_GPENCIL_WEIGHT) {
+					ED_gpencil_toggle_brush_cursor(C, true, NULL);
+				}
+				else {
+					ED_gpencil_toggle_brush_cursor(C, false, NULL);
+				}
+				/* set workspace mode */
+				Base *basact = CTX_data_active_base(C);
+				ED_object_base_activate(C, basact);
 			}
-			else if (workspace->object_mode == OB_MODE_GPENCIL_SCULPT) {
-				ED_gpencil_toggle_brush_cursor(C, true, NULL);
-			}
-			else if (workspace->object_mode == OB_MODE_GPENCIL_WEIGHT) {
-				ED_gpencil_toggle_brush_cursor(C, true, NULL);
-			}
-			else {
-				ED_gpencil_toggle_brush_cursor(C, false, NULL);
-			}
-			/* set workspace mode */
-			Base *basact = CTX_data_active_base(C);
-			ED_object_base_activate(C, basact);
 		}
 	}
 
