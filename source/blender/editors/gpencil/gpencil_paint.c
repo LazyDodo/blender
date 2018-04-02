@@ -971,10 +971,6 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
 			gp_stroke_convertcoords(p, &ptc->x, &pt->x, NULL);
-			/* reproject to plane (only in 3d space) */
-			gp_reproject_toplane(p, gps);
-			/* if parented change position relative to parent object */
-			gp_apply_parent_point(obact, gpd, gpl, pt);
 			/* copy pressure and time */
 			pt->pressure = ptc->pressure;
 			pt->strength = ptc->strength;
@@ -992,11 +988,6 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
 			gp_stroke_convertcoords(p, &ptc->x, &pt->x, NULL);
-			/* reproject to plane (only in 3d space) */
-			gp_reproject_toplane(p, gps);
-			/* if parented change position relative to parent object */
-			gp_apply_parent_point(obact, gpd, gpl, pt);
-
 			/* copy pressure and time */
 			pt->pressure = ptc->pressure;
 			pt->strength = ptc->strength;
@@ -1005,6 +996,15 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			pt->totweight = 0;
 			pt->weights = NULL;
 
+		}
+
+		/* reproject to plane (only in 3d space) */
+		gp_reproject_toplane(p, gps);
+		pt = gps->points;
+		int i;
+		for (i = 0; i < gps->totpoints; i++, pt++) {
+			/* if parented change position relative to parent object */
+			gp_apply_parent_point(obact, gpd, gpl, pt);
 		}
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW_POLY) {
