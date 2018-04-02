@@ -34,6 +34,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_scene_types.h"
+#include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
 
 #include "BLI_utildefines.h"
@@ -50,6 +51,7 @@
 
 #include "ED_gpencil.h"
 #include "ED_render.h"
+#include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_undo.h"
 
