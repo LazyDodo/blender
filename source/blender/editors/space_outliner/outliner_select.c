@@ -61,6 +61,7 @@
 #include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_sequencer.h"
+#include "ED_undo.h"
 #include "ED_util.h"
 #include "ED_gpencil.h"
 

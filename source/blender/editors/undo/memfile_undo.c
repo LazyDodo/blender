@@ -19,9 +19,9 @@
  */
 
 /** \file blender/editors/util/memfile_undo.c
- *  \ingroup edutil
+ *  \ingroup edundo
  *
- * Wrapper between 'BKE_undo.h' and 'BKE_undo_system.h'
+ * Wrapper between 'ED_undo.h' and 'BKE_undo_system.h' API's.
  */
 
 #include "BLI_utildefines.h"
@@ -37,21 +37,46 @@
 #include "WM_types.h"
 
 #include "ED_object.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 #include "ED_render.h"
 
 
 #include "../blenloader/BLO_undofile.h"
 
-#include "util_intern.h"
+#include "undo_intern.h"
+
+/** Store workspace modes in undo steps, this may be removed if find a better way to handle. */
+#define USE_WORKSPACE_OBJECT_MODE_HACK
+
+#ifdef USE_WORKSPACE_OBJECT_MODE_HACK
+#include "MEM_guardedalloc.h"
+#include "BLI_string.h"
+#include "BLI_listbase.h"
+#include "BKE_main.h"
+#include "DNA_workspace_types.h"
+#endif
+
 
 /* -------------------------------------------------------------------- */
 /** \name Implements ED Undo System
  * \{ */
 
+#ifdef USE_WORKSPACE_OBJECT_MODE_HACK
+typedef struct WorkSpaceData {
+	struct WorkSpaceData *next, *prev;
+	char name[MAX_ID_NAME - 2];
+	eObjectMode object_mode, object_mode_restore;
+	/* TODO, view_layer? */
+} WorkSpaceData;
+#endif /* USE_WORKSPACE_OBJECT_MODE_HACK */
+
 typedef struct MemFileUndoStep {
 	UndoStep step;
 	MemFileUndoData *data;
+
+#ifdef USE_WORKSPACE_OBJECT_MODE_HACK
+	ListBase workspace_data;
+#endif
 } MemFileUndoStep;
 
 static bool memfile_undosys_poll(bContext *UNUSED(C))
@@ -75,6 +100,19 @@ static bool memfile_undosys_step_encode(struct bContext *C, UndoStep *us_p)
 	MemFileUndoStep *us_prev = (MemFileUndoStep *)BKE_undosys_step_same_type_prev(us_p);
 	us->data = BKE_memfile_undo_encode(bmain, us_prev ? us_prev->data : NULL);
 	us->step.data_size = us->data->undo_size;
+
+#ifdef USE_WORKSPACE_OBJECT_MODE_HACK
+	{
+		for (WorkSpace *workspace = bmain->workspaces.first; workspace != NULL; workspace = workspace->id.next) {
+			WorkSpaceData *wsd = MEM_mallocN(sizeof(*wsd), __func__);
+			BLI_strncpy(wsd->name, workspace->id.name + 2, sizeof(wsd->name));
+			wsd->object_mode = workspace->object_mode;
+			wsd->object_mode_restore = workspace->object_mode_restore;
+			BLI_addtail(&us->workspace_data, wsd);
+		}
+	}
+#endif
+
 	return true;
 }
 
@@ -89,6 +127,19 @@ static void memfile_undosys_step_decode(struct bContext *C, UndoStep *us_p, int 
 	BKE_memfile_undo_decode(us->data, C);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_LAYER_CONTENT, CTX_data_scene(C));
+
+#ifdef USE_WORKSPACE_OBJECT_MODE_HACK
+	{
+		struct Main *bmain = CTX_data_main(C);
+		for (WorkSpaceData *wsd = us->workspace_data.first; wsd != NULL; wsd = wsd->next) {
+			WorkSpace *workspace = BLI_findstring(&bmain->workspaces, wsd->name, offsetof(ID, name));
+			if (workspace) {
+				workspace->object_mode = wsd->object_mode;
+				workspace->object_mode_restore = wsd->object_mode_restore;
+			}
+		}
+	}
+#endif
 }
 
 static void memfile_undosys_step_free(UndoStep *us_p)
@@ -104,6 +155,10 @@ static void memfile_undosys_step_free(UndoStep *us_p)
 	}
 
 	BKE_memfile_undo_free(us->data);
+
+#ifdef USE_WORKSPACE_OBJECT_MODE_HACK
+	BLI_freelistN(&us->workspace_data);
+#endif
 }
 
 /* Export for ED_undo_sys. */
