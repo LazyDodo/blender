@@ -5852,9 +5852,9 @@ static void rna_def_modifier_gpencilblur(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "samples", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "samples");
-	RNA_def_property_range(prop, 2, 32);
-	RNA_def_property_ui_range(prop, 2, 32, 2, -1);
-	RNA_def_property_ui_text(prop, "Samples", "Number of Blur Samples");
+	RNA_def_property_range(prop, 0, 32);
+	RNA_def_property_ui_range(prop, 0, 32, 2, -1);
+	RNA_def_property_ui_text(prop, "Samples", "Number of Blur Samples (zero, disable blur)");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 

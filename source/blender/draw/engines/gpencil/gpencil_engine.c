@@ -638,7 +638,7 @@ static void gpencil_vfx_passes(int ob_idx, void *vedata, tGPencilObjectCache *ca
 	 * Blur passes (use several passes to get better quality)
 	 * --------------*/
 	if (cache->vfx_blur_sh) {
-		int samples = stl->vfx[ob_idx].vfx_blur.samples >= 2 ? stl->vfx[ob_idx].vfx_blur.samples : 2;
+		int samples = stl->vfx[ob_idx].vfx_blur.samples;
 		/* be sure is even */
 		if (samples % 2 != 0) {
 			samples++;
