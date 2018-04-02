@@ -339,7 +339,6 @@ static void gp_reproject_toplane(tGPsdata *p, bGPDstroke *gps)
 	Object *obact = (Object *)p->ownerPtr.data;
 
 	float origin[3];
-	float cursor[3];
 	RegionView3D *rv3d = p->ar->regiondata;
 
 	/* verify the stroke mode is CURSOR 3d space mode */
@@ -353,9 +352,8 @@ static void gp_reproject_toplane(tGPsdata *p, bGPDstroke *gps)
 		return;
 	}
 
-	/* get drawing origin and copy */
-	gp_get_3d_reference(p, cursor);
-	copy_v3_v3(origin, cursor);
+	/* get drawing origin */
+	gp_get_3d_reference(p, origin);
 	ED_gp_project_stroke_to_plane(obact, rv3d, gps, origin, p->lock_axis - 1, p->scene->toolsettings->gpencil_src);
 }
 
