@@ -2128,7 +2128,9 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	if (is_new) {
-		scene_collection = BKE_collection_add(&scene->id, scene_collection, COLLECTION_TYPE_NONE, NULL);
+		char new_collection_name[MAX_NAME];
+		RNA_string_get(op->ptr, "new_collection_name", new_collection_name);
+		scene_collection = BKE_collection_add(&scene->id, scene_collection, COLLECTION_TYPE_NONE, new_collection_name);
 	}
 
 	if ((single_object != NULL) &&
@@ -2194,15 +2196,26 @@ static int move_to_collection_menus_create(wmOperator *op, MoveToCollectionData 
 	return index;
 }
 
-static void move_to_collection_menus_free(MoveToCollectionData *menu)
+static void move_to_collection_menus_free_recursive(MoveToCollectionData *menu)
 {
 	for (MoveToCollectionData *submenu = menu->submenus.first;
 	     submenu != NULL;
 	     submenu = submenu->next)
 	{
-		move_to_collection_menus_free(submenu);
+		move_to_collection_menus_free_recursive(submenu);
 	}
 	BLI_freelistN(&menu->submenus);
+}
+
+static void move_to_collection_menus_free(MoveToCollectionData **menu)
+{
+	if (*menu == NULL) {
+		return;
+	}
+
+	move_to_collection_menus_free_recursive(*menu);
+	MEM_freeN(*menu);
+	*menu = NULL;
 }
 
 static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout, void *menu_v)
@@ -2260,11 +2273,33 @@ static void move_to_collection_menus_items(uiLayout *layout, MoveToCollectionDat
 	}
 }
 
+/* This is allocated statically because we need this available for the menus creation callback. */
+static MoveToCollectionData *master_collection_menu = NULL;
+
 static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
-	PropertyRNA *prop = RNA_struct_find_property(op->ptr, "collection_index");
+	/* Reset the menus data for the current master collection, and free previously allocated data. */
+	move_to_collection_menus_free(&master_collection_menu);
+
+	PropertyRNA *prop;
+	prop = RNA_struct_find_property(op->ptr, "collection_index");
 	if (RNA_property_is_set(op->ptr, prop)) {
+		int collection_index = RNA_property_int_get(op->ptr, prop);
 		RNA_boolean_set(op->ptr, "is_add", event->ctrl);
+
+		if (RNA_boolean_get(op->ptr, "is_new")) {
+			prop = RNA_struct_find_property(op->ptr, "new_collection_name");
+			if (!RNA_property_is_set(op->ptr, prop)) {
+				char name[MAX_NAME];
+				SceneCollection *scene_collection;
+
+				scene_collection = BKE_collection_from_index(CTX_data_scene(C), collection_index);
+				BKE_collection_new_name_get(&CTX_data_scene(C)->id, scene_collection, name);
+
+				RNA_property_string_set(op->ptr, prop, name);
+				return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 5 * UI_UNIT_Y);
+			}
+		}
 		return move_to_collection_exec(C, op);
 	}
 
@@ -2275,15 +2310,10 @@ static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent 
 	 * called to an operator that exit with OPERATOR_INTERFACE to launch a menu.
 	 *
 	 * So we are left with a memory that will necessarily leak. It's a small leak though.*/
-	static MoveToCollectionData *master_collection_menu = NULL;
-
 	if (master_collection_menu == NULL) {
 		master_collection_menu = MEM_callocN(sizeof(MoveToCollectionData),
-		                                     "MoveToCollectionData menu - expected memleak");
+		                                     "MoveToCollectionData menu - expected eventual memleak");
 	}
-
-	/* Reset the menus data for the current master collection, and free previously allocated data. */
-	move_to_collection_menus_free(master_collection_menu);
 
 	master_collection_menu->collection = master_collection;
 	master_collection_menu->ot = op->type;
@@ -2325,10 +2355,13 @@ void OBJECT_OT_move_to_collection(wmOperatorType *ot)
 
 	prop = RNA_def_int(ot->srna, "collection_index", COLLECTION_INVALID_INDEX, COLLECTION_INVALID_INDEX, INT_MAX,
 	                   "Collection Index", "Index of the collection to move to", 0, INT_MAX);
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
 	prop = RNA_def_boolean(ot->srna, "is_add", false, "Add", "Keep object in original collections as well");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
 	prop = RNA_def_boolean(ot->srna, "is_new", false, "New", "Move objects to a new collection");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
+	prop = RNA_def_string(ot->srna, "new_collection_name", NULL, MAX_NAME, "Name",
+	                      "Name of the newly added collection");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
