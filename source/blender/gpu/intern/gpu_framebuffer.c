@@ -427,7 +427,7 @@ unsigned int GPU_framebuffer_current_get(void)
 
 bool GPU_framebuffer_check_valid(GPUFrameBuffer *fb, char err_out[256])
 {
-	if (g_currentfb != fb->object)
+	if (!GPU_framebuffer_bound(fb))
 		GPU_framebuffer_bind(fb);
 
 	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -615,6 +615,8 @@ void GPU_framebuffer_recursive_downsample(
 				gpu_framebuffer_attachment_attach(&attachment, type);
 			}
 		}
+
+		BLI_assert(GL_FRAMEBUFFER_COMPLETE == glCheckFramebufferStatus(GL_FRAMEBUFFER));
 
 		glViewport(0, 0, current_dim[0], current_dim[1]);
 		callback(userData, i);

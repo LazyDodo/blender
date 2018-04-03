@@ -418,7 +418,9 @@ void GWN_batch_program_use_end(Gwn_Batch* batch)
 	{
 	if (batch->program_in_use)
 		{
+#if PROGRAM_NO_OPTI
 		glUseProgram(0);
+#endif
 		batch->program_in_use = false;
 		}
 	}
@@ -487,6 +489,12 @@ void GWN_batch_uniform_4fv(Gwn_Batch* batch, const char* name, const float data[
 	{
 	GET_UNIFORM
 	glUniform4fv(uniform->location, 1, data);
+	}
+
+void GWN_batch_uniform_4fv_array(Gwn_Batch* batch, const char* name, const int len, const float *data)
+	{
+	GET_UNIFORM
+	glUniform4fv(uniform->location, len, data);
 	}
 
 static void primitive_restart_enable(const Gwn_IndexBuf *el)

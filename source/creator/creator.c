@@ -42,6 +42,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "CLG_log.h"
+
 #include "DNA_genfile.h"
 
 #include "BLI_args.h"
@@ -49,6 +51,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_callbacks.h"
 #include "BLI_string.h"
+#include "BLI_system.h"
 
 #include "RNA_define.h"
 
@@ -181,6 +184,11 @@ static void callback_main_atexit(void *user_data)
 #endif
 }
 
+static void callback_clg_fatal(void *fp)
+{
+	BLI_system_backtrace(fp);
+}
+
 /** \} */
 
 
@@ -304,6 +312,10 @@ int main(
 #ifdef WITH_SDL_DYNLOAD
 	sdlewInit();
 #endif
+
+	/* Initialize logging */
+	CLG_init();
+	CLG_fatal_fn_set(callback_clg_fatal);
 
 	C = CTX_create();
 

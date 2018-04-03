@@ -52,6 +52,8 @@
 
 #include "BLT_translation.h"
 
+#include "BLF_api.h"
+
 #include "IMB_imbuf_types.h"
 
 #include "DNA_userdef_types.h"
@@ -610,6 +612,8 @@ void file_draw_list(const bContext *C, ARegion *ar)
 		}
 	}
 
+	BLF_batch_draw_begin();
+
 	for (i = offset; (i < numfiles) && (i < offset + numfiles_layout); i++) {
 		unsigned int file_selflag;
 		char path[FILE_MAX_LIBEXTRA];
@@ -760,6 +764,8 @@ void file_draw_list(const bContext *C, ARegion *ar)
 			sx += (int)layout->column_widths[COLUMN_SIZE] + column_space;
 		}
 	}
+
+	BLF_batch_draw_end();
 
 	UI_block_end(C, block);
 	UI_block_draw(C, block);

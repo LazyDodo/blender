@@ -140,8 +140,9 @@ void immUnbindProgram(void)
 #if TRUST_NO_ONE
 	assert(imm.bound_program != 0);
 #endif
-
+#if PROGRAM_NO_OPTI
 	glUseProgram(0);
+#endif
 	imm.bound_program = 0;
 	}
 
@@ -707,6 +708,12 @@ void immVertex2f(unsigned attrib_id, float x, float y)
 void immVertex3f(unsigned attrib_id, float x, float y, float z)
 	{
 	immAttrib3f(attrib_id, x, y, z);
+	immEndVertex();
+	}
+
+void immVertex4f(unsigned attrib_id, float x, float y, float z, float w)
+	{
+	immAttrib4f(attrib_id, x, y, z, w);
 	immEndVertex();
 	}
 

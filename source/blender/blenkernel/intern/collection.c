@@ -68,6 +68,28 @@ static SceneCollection *collection_master_from_id(const ID *owner_id)
 }
 
 /**
+ * The automatic/fallback name of a new collection.
+ */
+void BKE_collection_new_name_get(ID *owner_id, SceneCollection *sc_parent, char *rname)
+{
+	SceneCollection *sc_master = collection_master_from_id(owner_id);
+	char *name;
+
+	if (sc_parent == sc_master) {
+		name = BLI_sprintfN("Collection %d", BLI_listbase_count(&sc_master->scene_collections) + 1);
+	}
+	else {
+		const int number = BLI_listbase_count(&sc_parent->scene_collections) + 1;
+		const int digits = integer_digits_i(number);
+		const int max_len = sizeof(sc_parent->name) - 1 /* NULL terminator */ - (1 + digits) /* " %d" */;
+		name = BLI_sprintfN("%.*s %d", max_len, sc_parent->name, number);
+	}
+
+	BLI_strncpy(rname, name, MAX_NAME);
+	MEM_freeN(name);
+}
+
+/**
  * Add a new collection, but don't handle syncing with layer collections
  */
 static SceneCollection *collection_add(ID *owner_id, SceneCollection *sc_parent, const int type, const char *name_custom)
@@ -75,30 +97,21 @@ static SceneCollection *collection_add(ID *owner_id, SceneCollection *sc_parent,
 	SceneCollection *sc_master = collection_master_from_id(owner_id);
 	SceneCollection *sc = MEM_callocN(sizeof(SceneCollection), "New Collection");
 	sc->type = type;
-	const char *name = name_custom;
+	char name[MAX_NAME];
 
 	if (!sc_parent) {
 		sc_parent = sc_master;
 	}
 
-	if (!name) {
-		if (sc_parent == sc_master) {
-			name = BLI_sprintfN("Collection %d", BLI_listbase_count(&sc_master->scene_collections) + 1);
-		}
-		else {
-			const int number = BLI_listbase_count(&sc_parent->scene_collections) + 1;
-			const int digits = integer_digits_i(number);
-			const int max_len = sizeof(sc_parent->name) - 1 /* NULL terminator */ - (1 + digits) /* " %d" */;
-			name = BLI_sprintfN("%.*s %d", max_len, sc_parent->name, number);
-		}
+	if (name_custom != NULL) {
+		BLI_strncpy(name, name_custom, MAX_NAME);
+	}
+	else {
+		BKE_collection_new_name_get(owner_id, sc_parent, name);
 	}
 
 	BLI_addtail(&sc_parent->scene_collections, sc);
 	BKE_collection_rename(owner_id, sc, name);
-
-	if (name != name_custom) {
-		MEM_freeN((char *)name);
-	}
 
 	return sc;
 }
@@ -390,7 +403,7 @@ static void collection_object_add(const ID *owner_id, SceneCollection *sc, Objec
  */
 bool BKE_collection_object_add(const ID *owner_id, SceneCollection *sc, Object *ob)
 {
-	if (BLI_findptr(&sc->objects, ob, offsetof(LinkData, data))) {
+	if (BKE_collection_object_exists(sc, ob)) {
 		/* don't add the same object twice */
 		return false;
 	}
@@ -512,6 +525,49 @@ void BKE_collection_object_move(ID *owner_id, SceneCollection *sc_dst, SceneColl
 	}
 }
 
+/**
+ * Whether the object is directly inside the collection.
+ */
+bool BKE_collection_object_exists(struct SceneCollection *scene_collection, struct Object *ob)
+{
+	if (BLI_findptr(&scene_collection->objects, ob, offsetof(LinkData, data))) {
+		return true;
+	}
+	return false;
+}
+
+static SceneCollection *scene_collection_from_index_recursive(SceneCollection *scene_collection, const int index, int *index_current)
+{
+	if (index == (*index_current)) {
+		return scene_collection;
+	}
+
+	(*index_current)++;
+
+	for (SceneCollection *scene_collection_iter = scene_collection->scene_collections.first;
+	     scene_collection_iter != NULL;
+	     scene_collection_iter = scene_collection_iter->next)
+	{
+		SceneCollection *nested = scene_collection_from_index_recursive(scene_collection_iter, index, index_current);
+		if (nested != NULL) {
+			return nested;
+		}
+	}
+	return NULL;
+}
+
+/**
+ * Return Scene Collection for a given index.
+ *
+ * The index is calculated from top to bottom counting the children before the siblings.
+ */
+SceneCollection *BKE_collection_from_index(Scene *scene, const int index)
+{
+	int index_current = 0;
+	SceneCollection *master_collection = BKE_collection_master(&scene->id);
+	return scene_collection_from_index_recursive(master_collection, index, &index_current);
+}
+
 static void layer_collection_sync(LayerCollection *lc_dst, LayerCollection *lc_src)
 {
 	lc_dst->flag = lc_src->flag;
@@ -527,6 +583,33 @@ static void layer_collection_sync(LayerCollection *lc_dst, LayerCollection *lc_s
 	     lc_dst_nested = lc_dst_nested->next, lc_src_nested = lc_src_nested->next)
 	{
 		layer_collection_sync(lc_dst_nested, lc_src_nested);
+	}
+}
+
+/**
+ * Select all the objects in this SceneCollection (and its nested collections) for this ViewLayer.
+ * Return true if any object was selected.
+ */
+bool BKE_collection_objects_select(ViewLayer *view_layer, SceneCollection *scene_collection)
+{
+	LayerCollection *layer_collection = BKE_layer_collection_first_from_scene_collection(view_layer, scene_collection);
+	if (layer_collection != NULL) {
+		BKE_layer_collection_objects_select(layer_collection);
+		return true;
+	}
+	else {
+		/* Slower approach, we need to iterate over all the objects and for each one we see if there is a base. */
+		bool changed = false;
+		for (LinkData *link = scene_collection->objects.first; link; link = link->next) {
+			Base *base = BKE_view_layer_base_find(view_layer, link->data);
+			if (base != NULL) {
+				if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
+					base->flag |= BASE_SELECTED;
+					changed = true;
+				}
+			}
+		}
+		return changed;
 	}
 }
 

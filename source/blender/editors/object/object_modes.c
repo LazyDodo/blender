@@ -152,6 +152,17 @@ void ED_object_mode_toggle(bContext *C, eObjectMode mode)
 	}
 }
 
+
+/* Wrapper for operator  */
+void ED_object_mode_set(bContext *C, eObjectMode mode)
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+	wm->op_undo_depth++;
+	/* needed so we don't do undo pushes. */
+	ED_object_mode_generic_enter(C, mode);
+	wm->op_undo_depth--;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
