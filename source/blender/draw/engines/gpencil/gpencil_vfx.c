@@ -38,6 +38,19 @@
 
 #include "gpencil_engine.h"
 
+/* verify if the object use vfx modifiers */
+bool gpencil_object_use_vfx(Object *ob)
+{
+	for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+		if (ELEM(md->type, eModifierType_GpencilWave, eModifierType_GpencilBlur, 
+						   eModifierType_GpencilPixel, eModifierType_GpencilSwirl,
+						   eModifierType_GpencilFlip, eModifierType_GpencilLight)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* verify if this modifier is  available in the context, return NULL if not available */
 static ModifierData *modifier_available(Object *ob, ModifierType type, bool is_render)
 {
@@ -90,24 +103,6 @@ static bool modifier_is_active(Object *ob, ModifierData *md, bool is_render)
 	return false;
 }
 
-/* Copy image as is to fill vfx texture */
-static void DRW_gpencil_vfx_copy(
-        int UNUSED(ob_idx), GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-        Object *UNUSED(ob), tGPencilObjectCache *cache)
-{
-	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-
-	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
-	DRWShadingGroup *vfx_shgrp = DRW_shgroup_create(e_data->gpencil_simple_fullscreen_sh, psl->vfx_wave_pass);
-	++stl->g_data->tot_sh;
-	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->temp_color_tx);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->temp_depth_tx);
-
-	cache->vfx_wave_sh = vfx_shgrp;
-}
-
 /* Wave Distorsion VFX */
 static void DRW_gpencil_vfx_wave(
         ModifierData *md, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
@@ -131,9 +126,8 @@ static void DRW_gpencil_vfx_wave(
 	DRWShadingGroup *vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_wave_sh, psl->vfx_wave_pass);
 	++stl->g_data->tot_sh;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->temp_color_tx);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->temp_depth_tx);
-
+	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
+	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
 	DRW_shgroup_uniform_float(vfx_shgrp, "amplitude", &stl->vfx[ob_idx].vfx_wave.amplitude, 1);
 	DRW_shgroup_uniform_float(vfx_shgrp, "period", &stl->vfx[ob_idx].vfx_wave.period, 1);
 	DRW_shgroup_uniform_float(vfx_shgrp, "phase", &stl->vfx[ob_idx].vfx_wave.phase, 1);
@@ -170,8 +164,8 @@ static void DRW_gpencil_vfx_blur(
 	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_blur_sh, psl->vfx_blur_pass);
 	++stl->g_data->tot_sh;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->input_color_tx);
-	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->input_depth_tx);
+	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
+	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
 	DRW_shgroup_uniform_vec2(vfx_shgrp, "blur", &stl->vfx[ob_idx].vfx_blur.radius[0], 1);
 	cache->vfx_blur_sh = vfx_shgrp;
 
@@ -398,64 +392,32 @@ void DRW_gpencil_vfx_modifiers(
         struct Object *ob, struct tGPencilObjectCache *cache)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	bool ready = false;
-	ModifierData *md_wave = modifier_available(ob, eModifierType_GpencilWave, stl->storage->is_render);
 
-	if (md_wave) {
-		DRW_gpencil_vfx_wave(md_wave, ob_idx, e_data, vedata, ob, cache);
-		ready = true;
-	}
-
-	/* loop VFX modifiers 
+	/* loop VFX modifiers
 	 * copy the original texture if wave modifier did not copy before
 	 */
 	for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
-		switch (md->type) {
-			case eModifierType_GpencilBlur:
-				if (modifier_is_active(ob, md, stl->storage->is_render)) {
-					if (!ready) {
-						DRW_gpencil_vfx_copy(ob_idx, e_data, vedata, ob, cache);
-						ready = true;
-					}
+		if (modifier_is_active(ob, md, stl->storage->is_render)) {
+			switch (md->type) {
+				case eModifierType_GpencilWave:
+					DRW_gpencil_vfx_wave(md, ob_idx, e_data, vedata, ob, cache);
+					break;
+				case eModifierType_GpencilBlur:
 					DRW_gpencil_vfx_blur(md, ob_idx, e_data, vedata, ob, cache);
-				}
-				break;
-			case eModifierType_GpencilPixel:
-				if (modifier_is_active(ob, md, stl->storage->is_render)) {
-					if (!ready) {
-						DRW_gpencil_vfx_copy(ob_idx, e_data, vedata, ob, cache);
-						ready = true;
-					}
+					break;
+				case eModifierType_GpencilPixel:
 					DRW_gpencil_vfx_pixel(md, ob_idx, e_data, vedata, ob, cache);
-				}
-				break;
-			case eModifierType_GpencilSwirl:
-				if (modifier_is_active(ob, md, stl->storage->is_render)) {
-					if (!ready) {
-						DRW_gpencil_vfx_copy(ob_idx, e_data, vedata, ob, cache);
-						ready = true;
-					}
+					break;
+				case eModifierType_GpencilSwirl:
 					DRW_gpencil_vfx_swirl(md, ob_idx, e_data, vedata, ob, cache);
-				}
-				break;
-			case eModifierType_GpencilFlip:
-				if (modifier_is_active(ob, md, stl->storage->is_render)) {
-					if (!ready) {
-						DRW_gpencil_vfx_copy(ob_idx, e_data, vedata, ob, cache);
-						ready = true;
-					}
+					break;
+				case eModifierType_GpencilFlip:
 					DRW_gpencil_vfx_flip(md, ob_idx, e_data, vedata, ob, cache);
-				}
-				break;
-			case eModifierType_GpencilLight:
-				if (modifier_is_active(ob, md, stl->storage->is_render)) {
-					if (!ready) {
-						DRW_gpencil_vfx_copy(ob_idx, e_data, vedata, ob, cache);
-						ready = true;
-					}
+					break;
+				case eModifierType_GpencilLight:
 					DRW_gpencil_vfx_light(md, ob_idx, e_data, vedata, ob, cache);
-				}
-				break;
+					break;
+			}
 		}
 	}
 

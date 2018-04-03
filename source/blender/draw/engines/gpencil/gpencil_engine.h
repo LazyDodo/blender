@@ -113,6 +113,7 @@ typedef struct GPencilVFXLight {
 typedef struct tGPencilObjectCache {
 	struct Object *ob;
 	int init_grp, end_grp;
+	int idx;  /*original index, can change after sort */
 	DRWShadingGroup *vfx_wave_sh;
 
 	DRWShadingGroup *vfx_blur_sh;
@@ -206,6 +207,7 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *drawing_pass;
 	struct DRWPass *mix_pass;
 	struct DRWPass *mix_pass_noblend;
+	struct DRWPass *vfx_setup_pass;
 	struct DRWPass *vfx_copy_pass;
 	struct DRWPass *vfx_wave_pass;
 	struct DRWPass *vfx_blur_pass;
@@ -381,6 +383,7 @@ void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *
 void gpencil_array_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
 void DRW_gpencil_vfx_modifiers(int ob_idx, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *ob, struct tGPencilObjectCache *cache);
+bool gpencil_object_use_vfx(struct Object *ob);
 
 /* depth of field */
 int GPENCIL_depth_of_field_init(struct DrawEngineType *draw_engine_gpencil_type, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *camera);

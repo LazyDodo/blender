@@ -87,6 +87,7 @@ void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, bool
 	/* save object */
 	cache->ob = ob;
 	cache->temp_ob = is_temp;
+	cache->idx = *gp_cache_used;
 
 	cache->init_grp = 0;
 	cache->end_grp = -1;

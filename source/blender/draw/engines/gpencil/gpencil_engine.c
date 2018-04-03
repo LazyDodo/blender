@@ -418,8 +418,17 @@ static void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.input_depth_tx);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
 
-		/* vfx copy pass from txtb to txta */
+		/* vfx setup pass to prepare txta */
 		struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
+		psl->vfx_setup_pass = DRW_pass_create("GPencil VFX setup Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		DRWShadingGroup *vfx_setup_shgrp = DRW_shgroup_create(e_data.gpencil_simple_fullscreen_sh, psl->vfx_setup_pass);
+		stl->g_data->tot_sh++;
+		DRW_shgroup_call_add(vfx_setup_shgrp, vfxquad, NULL);
+		DRW_shgroup_uniform_texture_ref(vfx_setup_shgrp, "strokeColor", &e_data.temp_color_tx);
+		DRW_shgroup_uniform_texture_ref(vfx_setup_shgrp, "strokeDepth", &e_data.temp_depth_tx);
+		
+		/* vfx copy pass from txtb to txta */
+		vfxquad = DRW_cache_fullscreen_quad_get();
 		psl->vfx_copy_pass = DRW_pass_create("GPencil VFX Copy b to a Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *vfx_copy_shgrp = DRW_shgroup_create(e_data.gpencil_simple_fullscreen_sh, psl->vfx_copy_pass);
 		stl->g_data->tot_sh++;
@@ -613,27 +622,30 @@ static void gpencil_draw_vfx_pass(DRWPass *vfxpass, DRWPass *copypass,
  * vfx modifier. This use one pass more but allows to create a stack of vfx
  * modifiers and add more modifiers in the future using the same structure.
 */
-static void gpencil_vfx_passes(int ob_idx, void *vedata, tGPencilObjectCache *cache)
+static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
 {
 	float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
+	int ob_idx = cache->idx;
 
 	GPU_framebuffer_bind(fbl->vfx_fb_a);
 	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
 
-	/* create a wave pass or if this modifier is not used, copy the original texture
-	* to tx_a to be used by all following vfx modifiers.
-	* At the end of this pass, we can be sure the vfx_fbcolor_color_tx_a texture has 
+	/* Copy the original texture to tx_a to be used by all following vfx modifiers.
+	* At the end of this passes, we can be sure the vfx_fbcolor_color_tx_a texture has 
 	* the final image.
-	*
-	* Wave pass is always evaluated first.
 	*/
-	DRW_draw_pass_subset(psl->vfx_wave_pass,
-		cache->vfx_wave_sh,
-		cache->vfx_wave_sh);
+	DRW_draw_pass(psl->vfx_setup_pass);
+	/* --------------
+	* Wave pass 
+	* --------------*/
+	if (cache->vfx_wave_sh) {
+		gpencil_draw_vfx_pass(psl->vfx_wave_pass, psl->vfx_copy_pass,
+			fbl, cache->vfx_wave_sh);
+	}
 	/* --------------
 	 * Blur passes (use several passes to get better quality)
 	 * --------------*/
@@ -644,38 +656,20 @@ static void gpencil_vfx_passes(int ob_idx, void *vedata, tGPencilObjectCache *ca
 			samples++;
 		}
 
-		/* save radius to avoid shift when apply several times the same effect */
 		float bx = stl->vfx[ob_idx].vfx_blur.radius[0];
 		float by = stl->vfx[ob_idx].vfx_blur.radius[1];
 
 		for (int b = 0; b < samples; b++) {
-			/* make a pin-pong change of framebuffer to acumulate 
-			 * first horizontal blur and next a vertical blur.
-			 * if we try to make both at the same time, the image is shifted to top
-			 */
-			if (b % 2 == 0) {
-				GPU_framebuffer_bind(fbl->vfx_fb_b);
-				/* clean only firt time */
-				if (b == 0) {
-					GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
-				}
-				e_data.input_depth_tx = e_data.vfx_depth_tx_a;
-				e_data.input_color_tx = e_data.vfx_color_tx_a;
-				/* horizontal */
-				stl->vfx[ob_idx].vfx_blur.radius[0] = bx;
-				stl->vfx[ob_idx].vfx_blur.radius[1] = 0;
-			}
-			else {
-				e_data.input_depth_tx = e_data.vfx_depth_tx_b;
-				e_data.input_color_tx = e_data.vfx_color_tx_b;
-				GPU_framebuffer_bind(fbl->vfx_fb_a);
-				/* vertical */
-				stl->vfx[ob_idx].vfx_blur.radius[0] = 0;
-				stl->vfx[ob_idx].vfx_blur.radius[1] = by;
-			}
-			DRW_draw_pass_subset(psl->vfx_blur_pass,
-				cache->vfx_blur_sh,
-				cache->vfx_blur_sh);
+			/* horizontal */
+			stl->vfx[ob_idx].vfx_blur.radius[0] = bx;
+			stl->vfx[ob_idx].vfx_blur.radius[1] = 0;
+			gpencil_draw_vfx_pass(psl->vfx_blur_pass, psl->vfx_copy_pass,
+				fbl, cache->vfx_blur_sh);
+			/* vertical */
+			stl->vfx[ob_idx].vfx_blur.radius[0] = 0;
+			stl->vfx[ob_idx].vfx_blur.radius[1] = by;
+			gpencil_draw_vfx_pass(psl->vfx_blur_pass, psl->vfx_copy_pass,
+				fbl, cache->vfx_blur_sh);
 		}
 	}
 	/* --------------
@@ -841,12 +835,10 @@ static void GPENCIL_draw_scene(void *vedata)
 					DRW_draw_pass(psl->drawing_pass);
 				}
 
-				/* vfx modifiers passes
-				 * if any vfx modifier exist, the init_vfx_wave_sh will be not NULL.
-				 */
-				if ((cache->vfx_wave_sh) && (!stl->storage->simplify_vfx)) {
+				/* vfx modifiers passes */
+				if ((gpencil_object_use_vfx(ob)) && (!stl->storage->simplify_vfx)) {
 					/* add vfx passes */
-					gpencil_vfx_passes(i, vedata, cache);
+					gpencil_vfx_passes(vedata, cache);
 
 					e_data.input_depth_tx = e_data.vfx_depth_tx_a;
 					e_data.input_color_tx = e_data.vfx_color_tx_a;
@@ -856,6 +848,7 @@ static void GPENCIL_draw_scene(void *vedata)
 					e_data.input_color_tx = e_data.temp_color_tx;
 				}
 
+#if 0 /* the reult is very low quality, disable while find a solution */
 				/* depth of field effect
 				 * send always to tx_b because other textures can be in use. Remap input
 				 * textures too.
@@ -866,7 +859,7 @@ static void GPENCIL_draw_scene(void *vedata)
 					e_data.input_depth_tx = e_data.vfx_depth_tx_b;
 					e_data.input_color_tx = e_data.vfx_color_tx_b;
 				}
-
+#endif
 				/* Combine with scene buffer */
 				if ((!is_render) || (fbl->main == NULL)) {
 					GPU_framebuffer_bind(dfbl->default_fb);
