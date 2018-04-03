@@ -1879,6 +1879,12 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.separator()
         col.prop(md, "samples", text="Samples")
 
+        col.separator()
+        col.prop(md, "use_dof_mode")
+        if md.use_dof_mode:
+            col.prop(md, "coc")
+
+
     def GP_WAVE(self, layout, ob, md):
         row = layout.row(align=True)
         row.prop(md, "orientation", expand=True)

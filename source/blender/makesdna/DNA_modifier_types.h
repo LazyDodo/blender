@@ -1925,8 +1925,14 @@ typedef struct GpencilBlurModifierData {
 	ModifierData modifier;
 	int radius[2];
 	int flag;                    /* flags */
-	int samples;
+	int samples;                 /* number of samples */
+	float coc;                   /* circle of confusion */
+	char pad[4];
 } GpencilBlurModifierData;
+
+typedef enum eGpencilBlur_Flag {
+	GP_BLUR_DOF_MODE = (1 << 0)
+} eGpencilBlur_Flag;
 
 typedef struct GpencilWaveModifierData {
 	ModifierData modifier;

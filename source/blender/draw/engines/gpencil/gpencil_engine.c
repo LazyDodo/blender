@@ -1157,6 +1157,8 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 
 	/* depth of field */
 	Object *camera = DEG_get_evaluated_object(draw_ctx->depsgraph, RE_GetCamera(engine->re));
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	stl->storage->camera = camera; /* save current camera */
 	GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
 
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;

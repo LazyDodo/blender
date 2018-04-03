@@ -53,6 +53,36 @@ static void gpencil_create_shader_depth_of_field(GPENCIL_e_data *e_data)
 	                                          datatoc_gpencil_dof_frag_glsl, "#define STEP_RESOLVE\n");
 }
 
+/* helper to get near and far depth of filed values */
+void GPENCIL_dof_nearfar(Object *camera, float coc, float nearfar[2])
+{
+	if (camera == NULL) {
+		return;
+	}
+
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = draw_ctx->scene;
+	Camera *cam = (Camera *)camera->data;
+
+	float fstop = cam->gpu_dof.fstop;
+	float focus_dist = BKE_camera_object_dof_distance(camera);
+	float focal_len = cam->lens;
+
+	/* this is factor that converts to the scene scale. focal length and sensor are expressed in mm
+	* unit.scale_length is how many meters per blender unit we have. We want to convert to blender units though
+	* because the shader reads coordinates in world space, which is in blender units.
+	* Note however that focus_distance is already in blender units and shall not be scaled here (see T48157). */
+	float scale = (scene->unit.system) ? scene->unit.scale_length : 1.0f;
+	float scale_camera = 0.001f / scale;
+	/* we want radius here for the aperture number  */
+	float aperture_scaled = 0.5f * scale_camera * focal_len / fstop;
+	float focal_len_scaled = scale_camera * focal_len;
+
+	float hyperfocal = (focal_len_scaled * focal_len_scaled) / (aperture_scaled * coc);
+	nearfar[0] = (hyperfocal * focus_dist) / (hyperfocal + focal_len);
+	nearfar[1] = (hyperfocal * focus_dist) / (hyperfocal - focal_len);
+}
+
 /* init depth of field effect */
 int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCIL_e_data *e_data, GPENCIL_Data *vedata, Object *camera)
 {

@@ -191,6 +191,7 @@ typedef struct GPENCIL_Storage {
 	float dof_bokeh[4];
 	float dof_layer_select[2];
 	int dof_target_size[2];
+	Object *camera; /* camera pointer for render mode */
 	struct GPUTexture *unf_source_buffer;   /* pointer copy */
 } GPENCIL_Storage;
 
@@ -389,5 +390,6 @@ bool gpencil_object_use_vfx(struct Object *ob);
 int GPENCIL_depth_of_field_init(struct DrawEngineType *draw_engine_gpencil_type, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *camera);
 void GPENCIL_depth_of_field_cache_init(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata);
 void GPENCIL_depth_of_field_draw(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata);
+void GPENCIL_dof_nearfar(struct Object *camera, float coc, float nearfar[2]);
 
 #endif /* __GPENCIL_ENGINE_H__ */

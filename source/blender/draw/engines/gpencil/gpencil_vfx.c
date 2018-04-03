@@ -32,6 +32,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_screen_types.h"
+#include "DNA_view3d_types.h"
 
 #include "ED_view3d.h"
 #include "ED_gpencil.h"
@@ -153,11 +154,57 @@ static void DRW_gpencil_vfx_blur(
 
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
+	RegionView3D *rv3d = draw_ctx->rv3d;
 	DRWShadingGroup *vfx_shgrp;
 	const float *viewport_size = DRW_viewport_size_get();
+
 	stl->vfx[ob_idx].vfx_blur.radius[0] = mmd->radius[0];
 	stl->vfx[ob_idx].vfx_blur.radius[1] = mmd->radius[1] * (viewport_size[1] / viewport_size[0]);
 	stl->vfx[ob_idx].vfx_blur.samples = mmd->samples;
+
+	/* init weight */
+	if (mmd->flag & GP_BLUR_DOF_MODE) {
+		/* viewport and opengl render */
+		Object *camera = NULL;
+		if (rv3d) {
+			if (rv3d->persp == RV3D_CAMOB) {
+				camera = v3d->camera;
+			}
+		}
+		else {
+			camera = stl->storage->camera;
+		}
+		
+		if (camera) {
+			float nearfar[2];
+			GPENCIL_dof_nearfar(camera, mmd->coc, nearfar);
+			float zdepth = stl->g_data->gp_object_cache[ob_idx].zdepth;
+			/* the object is on focus area */
+			if ((zdepth >= nearfar[0]) && (zdepth <= nearfar[1])) {
+				stl->vfx[ob_idx].vfx_blur.radius[0] = 0;
+				stl->vfx[ob_idx].vfx_blur.radius[1] = 0;
+			}
+			else {
+				float f;
+				if (zdepth < nearfar[0]) {
+					f = nearfar[0] - zdepth;
+				}
+				else {
+					f = zdepth - nearfar[1];
+				}
+				stl->vfx[ob_idx].vfx_blur.radius[0] = f;
+				stl->vfx[ob_idx].vfx_blur.radius[1] = f;
+				CLAMP2(&stl->vfx[ob_idx].vfx_blur.radius[0], 0, mmd->radius[0]);
+			}
+		}
+		else {
+			/* if not camera view, the blur is disabled */
+			stl->vfx[ob_idx].vfx_blur.radius[0] = 0;
+			stl->vfx[ob_idx].vfx_blur.radius[1] = 0;
+		}
+	}
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 

@@ -5854,7 +5854,20 @@ static void rna_def_modifier_gpencilblur(BlenderRNA *brna)
 	RNA_def_property_int_sdna(prop, NULL, "samples");
 	RNA_def_property_range(prop, 0, 32);
 	RNA_def_property_ui_range(prop, 0, 32, 2, -1);
+	RNA_def_property_int_default(prop, 4);
 	RNA_def_property_ui_text(prop, "Samples", "Number of Blur Samples (zero, disable blur)");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	prop = RNA_def_property(srna, "coc", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "coc");
+	RNA_def_property_range(prop, 0.001f, 1.0f);
+	RNA_def_property_float_default(prop, 0.025f);
+	RNA_def_property_ui_text(prop, "Precision", "Define circle of confusion for depth of field");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	prop = RNA_def_property(srna, "use_dof_mode", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BLUR_DOF_MODE);
+	RNA_def_property_ui_text(prop, "Lock Focal Plane", "Blur using focal plane distance as factor to simulate depth of field effect (only in camera view)");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 
