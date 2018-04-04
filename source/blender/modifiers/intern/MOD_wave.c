@@ -78,14 +78,6 @@ static void initData(ModifierData *md)
 	wmd->defgrp_name[0] = 0;
 }
 
-static void freeData(ModifierData *md)
-{
-	WaveModifierData *wmd = (WaveModifierData *) md;
-	if (wmd->texture) {
-		id_us_min(&wmd->texture->id);
-	}
-}
-
 static void copyData(ModifierData *md, ModifierData *target)
 {
 #if 0
@@ -369,7 +361,7 @@ ModifierTypeInfo modifierType_Wave = {
 	/* bakeModifierGP */    NULL,
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
-	/* freeData */          freeData,
+	/* freeData */          NULL,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     dependsOnTime,
