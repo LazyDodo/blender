@@ -435,11 +435,11 @@ static void DRW_gpencil_vfx_light(
 }
 
 void DRW_gpencil_vfx_modifiers(
-        int ob_idx, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata,
+        struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata,
         struct Object *ob, struct tGPencilObjectCache *cache)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-
+	int ob_idx = cache->idx;
 	/* loop VFX modifiers
 	 * copy the original texture if wave modifier did not copy before
 	 */

@@ -598,7 +598,7 @@ static void GPENCIL_cache_finish(void *vedata)
 			if (!stl->storage->simplify_vfx) {
 				cache = &stl->g_data->gp_object_cache[i];
 				if ((!is_multiedit) && (ob->modifiers.first)) {
-					DRW_gpencil_vfx_modifiers(i, &e_data, vedata, ob, cache);
+					DRW_gpencil_vfx_modifiers(&e_data, vedata, ob, cache);
 				}
 			}
 			/* if render set to dirty to refresh viewport */
