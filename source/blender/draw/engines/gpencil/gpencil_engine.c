@@ -79,6 +79,85 @@ extern char datatoc_gpencil_dof_frag_glsl[];
 static GPENCIL_e_data e_data = {NULL}; /* Engine data */
 
 /* *********** FUNCTIONS *********** */
+static void GPENCIL_create_shaders(void)
+{
+	/* normal fill shader */
+	if (!e_data.gpencil_fill_sh) {
+		e_data.gpencil_fill_sh = DRW_shader_create(
+			datatoc_gpencil_fill_vert_glsl, NULL,
+			datatoc_gpencil_fill_frag_glsl, NULL);
+	}
+
+	/* normal stroke shader using geometry to display lines (line mode) */
+	if (!e_data.gpencil_stroke_sh) {
+		e_data.gpencil_stroke_sh = DRW_shader_create(
+			datatoc_gpencil_stroke_vert_glsl,
+			datatoc_gpencil_stroke_geom_glsl,
+			datatoc_gpencil_stroke_frag_glsl,
+			NULL);
+	}
+
+	/* dot/rectangle mode for normal strokes using geometry */
+	if (!e_data.gpencil_point_sh) {
+		e_data.gpencil_point_sh = DRW_shader_create(
+			datatoc_gpencil_point_vert_glsl,
+			datatoc_gpencil_point_geom_glsl,
+			datatoc_gpencil_point_frag_glsl,
+			NULL);
+	}
+	/* used for edit points or strokes with one point only */
+	if (!e_data.gpencil_edit_point_sh) {
+		e_data.gpencil_edit_point_sh = DRW_shader_create(
+			datatoc_gpencil_edit_point_vert_glsl,
+			datatoc_gpencil_edit_point_geom_glsl,
+			datatoc_gpencil_edit_point_frag_glsl, NULL);
+	}
+
+	/* used for edit lines for edit modes */
+	if (!e_data.gpencil_line_sh) {
+		e_data.gpencil_line_sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_FLAT_COLOR);
+	}
+
+	/* used to filling during drawing */
+	if (!e_data.gpencil_drawing_fill_sh) {
+		e_data.gpencil_drawing_fill_sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_SMOOTH_COLOR);
+	}
+
+	/* full screen for mix zdepth*/
+	if (!e_data.gpencil_fullscreen_sh) {
+		e_data.gpencil_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_zdepth_mix_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_simple_fullscreen_sh) {
+		e_data.gpencil_simple_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_simple_mix_frag_glsl, NULL);
+	}
+	/* vfx shaders (all in screen space) */
+	if (!e_data.gpencil_vfx_blur_sh) {
+		e_data.gpencil_vfx_blur_sh = DRW_shader_create_fullscreen(datatoc_gpencil_gaussian_blur_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_wave_sh) {
+		e_data.gpencil_vfx_wave_sh = DRW_shader_create_fullscreen(datatoc_gpencil_wave_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_pixel_sh) {
+		e_data.gpencil_vfx_pixel_sh = DRW_shader_create_fullscreen(datatoc_gpencil_pixel_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_swirl_sh) {
+		e_data.gpencil_vfx_swirl_sh = DRW_shader_create_fullscreen(datatoc_gpencil_swirl_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_flip_sh) {
+		e_data.gpencil_vfx_flip_sh = DRW_shader_create_fullscreen(datatoc_gpencil_flip_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_vfx_light_sh) {
+		e_data.gpencil_vfx_light_sh = DRW_shader_create_fullscreen(datatoc_gpencil_light_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_painting_sh) {
+		e_data.gpencil_painting_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
+	}
+	if (!e_data.gpencil_paper_sh) {
+		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
+	}
+
+}
+
 
 static void GPENCIL_engine_init(void *vedata)
 {
@@ -136,80 +215,9 @@ static void GPENCIL_engine_init(void *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.painting_color_tx)
 		});
 	}
-	/* normal fill shader */
-	if (!e_data.gpencil_fill_sh) {
-		e_data.gpencil_fill_sh = DRW_shader_create(
-		        datatoc_gpencil_fill_vert_glsl, NULL,
-		        datatoc_gpencil_fill_frag_glsl, NULL);
-	}
 
-	/* normal stroke shader using geometry to display lines (line mode) */
-	if (!e_data.gpencil_stroke_sh) {
-		e_data.gpencil_stroke_sh = DRW_shader_create(
-		        datatoc_gpencil_stroke_vert_glsl,
-		        datatoc_gpencil_stroke_geom_glsl,
-		        datatoc_gpencil_stroke_frag_glsl,
-		        NULL);
-	}
-	
-	/* dot/rectangle mode for normal strokes using geometry */
-	if (!e_data.gpencil_point_sh) {
-		e_data.gpencil_point_sh = DRW_shader_create(
-		        datatoc_gpencil_point_vert_glsl,
-		        datatoc_gpencil_point_geom_glsl,
-		        datatoc_gpencil_point_frag_glsl,
-		        NULL);
-	}
-	/* used for edit points or strokes with one point only */
-	if (!e_data.gpencil_edit_point_sh) {
-		e_data.gpencil_edit_point_sh = DRW_shader_create(
-			datatoc_gpencil_edit_point_vert_glsl,
-			datatoc_gpencil_edit_point_geom_glsl,
-			datatoc_gpencil_edit_point_frag_glsl, NULL);
-	}
-
-	/* used for edit lines for edit modes */
-	if (!e_data.gpencil_line_sh) {
-		e_data.gpencil_line_sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_FLAT_COLOR);
-	}
-
-	/* used to filling during drawing */
-	if (!e_data.gpencil_drawing_fill_sh) {
-		e_data.gpencil_drawing_fill_sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_SMOOTH_COLOR);
-	}
-
-	/* full screen for mix zdepth*/
-	if (!e_data.gpencil_fullscreen_sh) {
-		e_data.gpencil_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_zdepth_mix_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_simple_fullscreen_sh) {
-		e_data.gpencil_simple_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_simple_mix_frag_glsl, NULL);
-	}
-	/* vfx shaders (all in screen space) */
-	if (!e_data.gpencil_vfx_blur_sh) {
-		e_data.gpencil_vfx_blur_sh = DRW_shader_create_fullscreen(datatoc_gpencil_gaussian_blur_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_wave_sh) {
-		e_data.gpencil_vfx_wave_sh = DRW_shader_create_fullscreen(datatoc_gpencil_wave_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_pixel_sh) {
-		e_data.gpencil_vfx_pixel_sh = DRW_shader_create_fullscreen(datatoc_gpencil_pixel_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_swirl_sh) {
-		e_data.gpencil_vfx_swirl_sh = DRW_shader_create_fullscreen(datatoc_gpencil_swirl_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_flip_sh) {
-		e_data.gpencil_vfx_flip_sh = DRW_shader_create_fullscreen(datatoc_gpencil_flip_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_light_sh) {
-		e_data.gpencil_vfx_light_sh = DRW_shader_create_fullscreen(datatoc_gpencil_light_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_painting_sh) {
-		e_data.gpencil_painting_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_paper_sh) {
-		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
-	}
+	/* create shaders */
+	GPENCIL_create_shaders();
 
 	if (!stl->storage) {
 		stl->storage = MEM_callocN(sizeof(GPENCIL_Storage), "GPENCIL_Storage");
