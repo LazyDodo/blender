@@ -107,7 +107,7 @@ static bool modifier_is_active(Object *ob, ModifierData *md, bool is_render)
 /* Wave Distorsion VFX */
 static void DRW_gpencil_vfx_wave(
         ModifierData *md, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-        Object *UNUSED(ob), tGPencilObjectCache *cache)
+        tGPencilObjectCache *cache)
 {
 	if (md == NULL) {
 		return;
@@ -144,7 +144,7 @@ static void DRW_gpencil_vfx_wave(
  */
 static void DRW_gpencil_vfx_blur(
         ModifierData *md, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-        Object *UNUSED(ob), tGPencilObjectCache *cache)
+        tGPencilObjectCache *cache)
 {
 	if (md == NULL) {
 		return;
@@ -221,12 +221,12 @@ static void DRW_gpencil_vfx_blur(
 /* Pixelate VFX */
 static void DRW_gpencil_vfx_pixel(
         ModifierData *md, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-        Object *ob, tGPencilObjectCache *cache)
+        tGPencilObjectCache *cache)
 {
 	if (md == NULL) {
 		return;
 	}
-
+	Object *ob = cache->ob;
 	GpencilPixelModifierData *mmd = (GpencilPixelModifierData *)md;
 
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
@@ -261,12 +261,12 @@ static void DRW_gpencil_vfx_pixel(
 /* Swirl VFX */
 static void DRW_gpencil_vfx_swirl(
         ModifierData *md, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-        Object *ob, tGPencilObjectCache *cache)
+       tGPencilObjectCache *cache)
 {
 	if (md == NULL) {
 		return;
 	}
-
+	Object *ob = cache->ob;
 	GpencilSwirlModifierData *mmd = (GpencilSwirlModifierData *)md;
 	if (mmd->object == NULL) {
 		return;
@@ -307,12 +307,12 @@ static void DRW_gpencil_vfx_swirl(
 /* Flip VFX */
 static void DRW_gpencil_vfx_flip(
 	ModifierData *md, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-	Object *ob, tGPencilObjectCache *cache)
+	tGPencilObjectCache *cache)
 {
 	if (md == NULL) {
 		return;
 	}
-
+	Object *ob = cache->ob;
 	GpencilFlipModifierData *mmd = (GpencilFlipModifierData *)md;
 
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
@@ -378,12 +378,12 @@ static bool get_normal_vector(bGPdata *gpd, float r_point[3], float r_normal[3])
 /* Light VFX */
 static void DRW_gpencil_vfx_light(
 	ModifierData *md, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-	Object *ob, tGPencilObjectCache *cache)
+	tGPencilObjectCache *cache)
 {
 	if (md == NULL) {
 		return;
 	}
-
+	Object *ob = cache->ob;
 	GpencilLightModifierData *mmd = (GpencilLightModifierData *)md;
 
 	if (mmd->object == NULL) {
@@ -436,9 +436,10 @@ static void DRW_gpencil_vfx_light(
 
 void DRW_gpencil_vfx_modifiers(
         struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata,
-        struct Object *ob, struct tGPencilObjectCache *cache)
+        struct tGPencilObjectCache *cache)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	Object *ob = cache->ob;
 	int ob_idx = cache->idx;
 	/* loop VFX modifiers
 	 * copy the original texture if wave modifier did not copy before
@@ -447,22 +448,22 @@ void DRW_gpencil_vfx_modifiers(
 		if (modifier_is_active(ob, md, stl->storage->is_render)) {
 			switch (md->type) {
 				case eModifierType_GpencilWave:
-					DRW_gpencil_vfx_wave(md, ob_idx, e_data, vedata, ob, cache);
+					DRW_gpencil_vfx_wave(md, ob_idx, e_data, vedata, cache);
 					break;
 				case eModifierType_GpencilBlur:
-					DRW_gpencil_vfx_blur(md, ob_idx, e_data, vedata, ob, cache);
+					DRW_gpencil_vfx_blur(md, ob_idx, e_data, vedata, cache);
 					break;
 				case eModifierType_GpencilPixel:
-					DRW_gpencil_vfx_pixel(md, ob_idx, e_data, vedata, ob, cache);
+					DRW_gpencil_vfx_pixel(md, ob_idx, e_data, vedata, cache);
 					break;
 				case eModifierType_GpencilSwirl:
-					DRW_gpencil_vfx_swirl(md, ob_idx, e_data, vedata, ob, cache);
+					DRW_gpencil_vfx_swirl(md, ob_idx, e_data, vedata, cache);
 					break;
 				case eModifierType_GpencilFlip:
-					DRW_gpencil_vfx_flip(md, ob_idx, e_data, vedata, ob, cache);
+					DRW_gpencil_vfx_flip(md, ob_idx, e_data, vedata, cache);
 					break;
 				case eModifierType_GpencilLight:
-					DRW_gpencil_vfx_light(md, ob_idx, e_data, vedata, ob, cache);
+					DRW_gpencil_vfx_light(md, ob_idx, e_data, vedata, cache);
 					break;
 			}
 		}
