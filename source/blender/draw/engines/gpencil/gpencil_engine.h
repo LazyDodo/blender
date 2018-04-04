@@ -380,6 +380,8 @@ bool gpencil_can_draw_stroke(const struct bGPDstroke *gps, const bool onion);
 
 struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used);
 void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *ob, bool is_temp, int *gp_cache_used);
+void gpencil_batch_cache_check_free_slots(struct Object *ob);
+struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
 
 void gpencil_array_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
