@@ -81,11 +81,7 @@ static GPENCIL_e_data e_data = {NULL}; /* Engine data */
 /* *********** FUNCTIONS *********** */
 static void GPENCIL_create_framebuffers(void *vedata)
 {
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
 
 	/* Go full 32bits for rendering */
 	DRWTextureFormat fb_format = DRW_state_is_image_render() ? DRW_TEX_RGBA_32 : DRW_TEX_RGBA_16;
@@ -215,34 +211,16 @@ static void GPENCIL_create_shaders(void)
 	}
 }
 
-static void GPENCIL_engine_init(void *vedata)
+static void GPENCIL_init_dof(void *vedata)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
+
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
-	
-	/* create framebuffers */
-	GPENCIL_create_framebuffers(vedata);
-
-	/* create shaders */
-	GPENCIL_create_shaders();
-
-	if (!stl->storage) {
-		stl->storage = MEM_callocN(sizeof(GPENCIL_Storage), "GPENCIL_Storage");
-	}
-
-	unit_m4(stl->storage->unit_matrix);
-
-	/* blank texture used if no texture defined for fill shader */
-	if (!e_data.gpencil_blank_texture) {
-		e_data.gpencil_blank_texture = DRW_gpencil_create_blank_texture(16, 16);
-	}
-
-	/* init depth of field */ 
 	ViewLayer *view_layer = draw_ctx->view_layer;
 	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+
 	if ((DRW_state_is_opengl_render()) || (!DRW_state_is_image_render())) {
 		/* viewport and opengl render */
 		stl->storage->enable_dof = GP_IS_CAMERAVIEW && BKE_collection_engine_property_value_get_bool(props, "dof_enable");
@@ -255,6 +233,33 @@ static void GPENCIL_engine_init(void *vedata)
 		/* render F12 */
 		stl->storage->enable_dof = BKE_collection_engine_property_value_get_bool(props, "dof_enable");
 	}
+}
+
+static void GPENCIL_engine_init(void *vedata)
+{
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	
+	/* create framebuffers */
+	GPENCIL_create_framebuffers(vedata);
+
+	/* create shaders */
+	GPENCIL_create_shaders();
+
+	/* init storage */
+	if (!stl->storage) {
+		stl->storage = MEM_callocN(sizeof(GPENCIL_Storage), "GPENCIL_Storage");
+	}
+
+	/* unit matrix */
+	unit_m4(stl->storage->unit_matrix);
+
+	/* blank texture used if no texture defined for fill shader */
+	if (!e_data.gpencil_blank_texture) {
+		e_data.gpencil_blank_texture = DRW_gpencil_create_blank_texture(16, 16);
+	}
+
+	/* init depth of field */ 
+	GPENCIL_init_dof(vedata);
 }
 
 static void GPENCIL_engine_free(void)
