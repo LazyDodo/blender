@@ -16,6 +16,8 @@ out vec4 FragColor;
 
 float defaultpixsize = pixsize * pixelsize * (1000.0 / pixfactor);
 
+#define height   loc.w
+
 /* project 3d point to 2d on screen space */
 vec2 toScreenSpace(vec4 vertex)
 {
@@ -44,7 +46,7 @@ void main()
 	/* the height over plane is received in the w component of the loc 
 	 * and needs a factor to adapt to pixels
 	 */
-	float peak = loc.w * 10.0 * pxscale;
+	float peak = height * 10.0 * pxscale;
 	vec3 light3d = vec3(light2d.x, light2d.y, peak); 
 	
 	vec2 uv = vec2(gl_FragCoord.xy);
