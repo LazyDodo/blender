@@ -470,3 +470,96 @@ void DRW_gpencil_vfx_modifiers(
 	}
 
 }
+
+/* helper to draw VFX pass */
+static void gpencil_draw_vfx_pass(DRWPass *vfxpass, DRWPass *copypass,
+	GPENCIL_FramebufferList *fbl, DRWShadingGroup *shgrp)
+{
+	float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	GPU_framebuffer_bind(fbl->vfx_fb_b);
+	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_b, clearcol, 1.0f);
+
+	/* draw effect pass */
+	DRW_draw_pass_subset(vfxpass, shgrp, shgrp);
+
+	/* copy pass from b to a for ping-pong frame buffers */
+	GPU_framebuffer_bind(fbl->vfx_fb_a);
+	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
+	DRW_draw_pass(copypass);
+}
+
+/* draw all vfx passes */
+void DRW_gpencil_vfx_draw(struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache)
+{
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
+	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
+	Object *ob = cache->ob;
+	int ob_idx = cache->idx;
+
+	/* loop VFX modifiers */
+	for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+		if (modifier_is_active(ob, md, stl->storage->is_render)) {
+			switch (md->type) {
+				case eModifierType_GpencilWave:
+					if (cache->vfx_wave_sh) {
+						gpencil_draw_vfx_pass(psl->vfx_wave_pass, psl->vfx_copy_pass,
+							fbl, cache->vfx_wave_sh);
+					}
+					break;
+				case eModifierType_GpencilBlur:
+					if (cache->vfx_blur_sh) {
+						int samples = stl->vfx[ob_idx].vfx_blur.samples;
+						/* be sure is even */
+						if (samples % 2 != 0) {
+							samples++;
+						}
+
+						float bx = stl->vfx[ob_idx].vfx_blur.radius[0];
+						float by = stl->vfx[ob_idx].vfx_blur.radius[1];
+
+						for (int b = 0; b < samples; b++) {
+							/* horizontal */
+							stl->vfx[ob_idx].vfx_blur.radius[0] = bx;
+							stl->vfx[ob_idx].vfx_blur.radius[1] = 0;
+							gpencil_draw_vfx_pass(psl->vfx_blur_pass, psl->vfx_copy_pass,
+								fbl, cache->vfx_blur_sh);
+							/* vertical */
+							stl->vfx[ob_idx].vfx_blur.radius[0] = 0;
+							stl->vfx[ob_idx].vfx_blur.radius[1] = by;
+							gpencil_draw_vfx_pass(psl->vfx_blur_pass, psl->vfx_copy_pass,
+								fbl, cache->vfx_blur_sh);
+						}
+					}
+					break;
+				case eModifierType_GpencilPixel:
+					if (cache->vfx_pixel_sh) {
+						gpencil_draw_vfx_pass(psl->vfx_pixel_pass, psl->vfx_copy_pass,
+							fbl, cache->vfx_pixel_sh);
+					}
+					break;
+				case eModifierType_GpencilSwirl:
+					if (cache->vfx_swirl_sh) {
+						gpencil_draw_vfx_pass(psl->vfx_swirl_pass, psl->vfx_copy_pass,
+							fbl, cache->vfx_swirl_sh);
+					}
+					break;
+				case eModifierType_GpencilFlip:
+					if (cache->vfx_flip_sh) {
+						gpencil_draw_vfx_pass(psl->vfx_flip_pass, psl->vfx_copy_pass,
+							fbl, cache->vfx_flip_sh);
+					}
+					break;
+				case eModifierType_GpencilLight:
+					if (cache->vfx_light_sh) {
+						gpencil_draw_vfx_pass(psl->vfx_light_pass, psl->vfx_copy_pass,
+							fbl, cache->vfx_light_sh);
+					}
+					break;
+			}
+		}
+	}
+
+}
+
