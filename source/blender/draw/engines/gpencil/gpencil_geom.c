@@ -115,7 +115,7 @@ Gwn_Batch *DRW_gpencil_get_point_geom(bGPDstroke *gps, short thickness, const fl
 		GWN_vertbuf_attr_set(vbo, uvdata_id, idx, uvdata);
 
 		GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-		++idx;
+		idx++;
 	}
 
 	return GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, NULL, GWN_BATCH_OWNS_VBO);
@@ -150,29 +150,29 @@ Gwn_Batch *DRW_gpencil_get_stroke_geom(bGPDframe *gpf, bGPDstroke *gps, short th
 			if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
 				gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[totpoints - 1], idx, 
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-				++idx;
+				idx++;
 			}
 			else {
 				gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[1], idx, 
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-				++idx;
+				idx++;
 			}
 		}
 		/* set point */
 		gpencil_set_stroke_point(vbo, gpf->viewmatrix, pt, idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-		++idx;
+		idx++;
 	}
 
 	if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
 		/* draw line to first point to complete the cycle */
 		gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[0], idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-		++idx;
+		idx++;
 		/* now add adjacency point (not drawn) */
 		gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[1], idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-		++idx;
+		idx++;
 	}
 	/* last adjacency point (not drawn) */
 	else {
@@ -299,7 +299,7 @@ Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], s
 		/* set point */
 		gpencil_set_stroke_point(vbo, matrix, &pt, idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
-		++idx;
+		idx++;
 	}
 
 	return GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, NULL, GWN_BATCH_OWNS_VBO);
@@ -625,7 +625,7 @@ Gwn_Batch *DRW_gpencil_get_fill_geom(bGPDstroke *gps, const float color[4])
 			gpencil_set_fill_point(
 			        vbo, idx, &gps->points[stroke_triangle->verts[j]], color, stroke_triangle->uv[j],
 			        pos_id, color_id, text_id);
-			++idx;
+			idx++;
 		}
 	}
 
@@ -722,7 +722,7 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 		GWN_vertbuf_attr_set(vbo, color_id, idx, fcolor);
 		GWN_vertbuf_attr_set(vbo, size_id, idx, &fsize);
 		GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-		++idx;
+		idx++;
 	}
 
 	return GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, NULL, GWN_BATCH_OWNS_VBO);
@@ -782,7 +782,7 @@ Gwn_Batch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED
 
 		GWN_vertbuf_attr_set(vbo, color_id, idx, fcolor);
 		GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-		++idx;
+		idx++;
 	}
 
 	return GWN_batch_create_ex(GWN_PRIM_LINE_STRIP, vbo, NULL, GWN_BATCH_OWNS_VBO);

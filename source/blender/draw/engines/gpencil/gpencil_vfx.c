@@ -125,7 +125,7 @@ static void DRW_gpencil_vfx_wave(
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 
 	DRWShadingGroup *vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_wave_sh, psl->vfx_wave_pass);
-	++stl->g_data->tot_sh;
+	stl->g_data->tot_sh++;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
@@ -209,7 +209,7 @@ static void DRW_gpencil_vfx_blur(
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 
 	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_blur_sh, psl->vfx_blur_pass);
-	++stl->g_data->tot_sh;
+	stl->g_data->tot_sh++;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
@@ -241,7 +241,7 @@ static void DRW_gpencil_vfx_pixel(
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_pixel_sh, psl->vfx_pixel_pass);
-	++stl->g_data->tot_sh;
+	stl->g_data->tot_sh++;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
@@ -283,7 +283,7 @@ static void DRW_gpencil_vfx_swirl(
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_swirl_sh, psl->vfx_swirl_pass);
-	++stl->g_data->tot_sh;
+	stl->g_data->tot_sh++;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
@@ -333,7 +333,7 @@ static void DRW_gpencil_vfx_flip(
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_flip_sh, psl->vfx_flip_pass);
-	++stl->g_data->tot_sh;
+	stl->g_data->tot_sh++;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
@@ -395,7 +395,7 @@ static void DRW_gpencil_vfx_light(
 
 	struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 	vfx_shgrp = DRW_shgroup_create(e_data->gpencil_vfx_light_sh, psl->vfx_light_pass);
-	++stl->g_data->tot_sh;
+	stl->g_data->tot_sh++;
 	DRW_shgroup_call_add(vfx_shgrp, vfxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeColor", &e_data->vfx_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(vfx_shgrp, "strokeDepth", &e_data->vfx_depth_tx_a);
