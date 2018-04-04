@@ -24,7 +24,7 @@
  */
 
 /** \file draw/engines/gpencil/gpencil_geom.c
- *  \ingroup edgpencil
+ *  \ingroup draw
  */
 
 

@@ -20,7 +20,7 @@
  */
 
 /** \file blender/draw/engines/gpencil/gpencil_engine.h
- *  \ingroup edgpencil
+ *  \ingroup draw
  */
 
 #ifndef __GPENCIL_ENGINE_H__
@@ -219,6 +219,7 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *painting_pass;
 	struct DRWPass *paper_pass;
 
+	/* passes for depth of field */
 	struct DRWPass *dof_down;
 	struct DRWPass *dof_scatter;
 	struct DRWPass *dof_resolve;
@@ -231,6 +232,7 @@ typedef struct GPENCIL_FramebufferList {
 	struct GPUFrameBuffer *vfx_fb_b;
 	struct GPUFrameBuffer *painting_fb;
 
+	/* framebuffers for depth of field */
 	struct GPUFrameBuffer *dof_down_fb;
 	struct GPUFrameBuffer *dof_scatter_far_fb;
 	struct GPUFrameBuffer *dof_scatter_near_fb;
@@ -259,19 +261,20 @@ typedef struct g_data {
 	Gwn_Batch *batch_buffer_stroke;
 	Gwn_Batch *batch_buffer_fill;
 
-	int gp_cache_used;
-	int gp_cache_size;
+	int gp_cache_used; /* total objects in cache */
+	int gp_cache_size; /* size of the cache */
 	struct tGPencilObjectCache *gp_object_cache;
 
 	int session_flag;
 
 	/* number of shading groups */
-	int tot_sh;
-	int tot_sh_stroke;
-	int tot_sh_fill;
-	int tot_sh_point;
+	int tot_sh;         /* total shading groups */
+	int tot_sh_stroke;  /* total strokes groups */
+	int tot_sh_fill;    /* total fill groups */
+	int tot_sh_point;   /* total point groups */
 } g_data; /* Transient data */
 
+/* flags for fast drawing support */
 typedef enum eGPsession_Flag {
 	GP_DRW_PAINT_HOLD     = (1 << 0),
 	GP_DRW_PAINT_IDLE     = (1 << 1),
@@ -281,6 +284,7 @@ typedef enum eGPsession_Flag {
 } eGPsession_Flag;
 
 typedef struct GPENCIL_e_data {
+	/* general drawing shaders */
 	struct GPUShader *gpencil_fill_sh;
 	struct GPUShader *gpencil_stroke_sh;
 	struct GPUShader *gpencil_point_sh;
@@ -298,6 +302,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_painting_sh;
 	struct GPUShader *gpencil_paper_sh;
 
+	/* depth of field shaders */
 	struct GPUShader *gpencil_dof_downsample_sh;
 	struct GPUShader *gpencil_dof_scatter_sh;
 	struct GPUShader *gpencil_dof_resolve_sh;
@@ -306,6 +311,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *temp_depth_tx;
 	struct GPUTexture *temp_color_tx;
 	
+	/* textures for ping-pong vfx effects */
 	struct GPUTexture *vfx_depth_tx_a;
 	struct GPUTexture *vfx_color_tx_a;
 	struct GPUTexture *vfx_depth_tx_b;
@@ -325,11 +331,11 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *input_color_tx;
 
 	/* depth of field */	
-	struct GPUTexture *gpencil_dof_down_near; /* R16_G16_B16_A16 */
-	struct GPUTexture *gpencil_dof_down_far; /* R16_G16_B16_A16 */
-	struct GPUTexture *gpencil_dof_coc; /* R16_G16 */
-	struct GPUTexture *gpencil_dof_near_blur; /* R16_G16_B16_A16 */
-	struct GPUTexture *gpencil_dof_far_blur; /* R16_G16_B16_A16 */
+	struct GPUTexture *gpencil_dof_down_near;
+	struct GPUTexture *gpencil_dof_down_far;
+	struct GPUTexture *gpencil_dof_coc;
+	struct GPUTexture *gpencil_dof_near_blur;
+	struct GPUTexture *gpencil_dof_far_blur;
 	struct GPUTexture *gpencil_dof_weight; 
 
 } GPENCIL_e_data; /* Engine data */
@@ -358,11 +364,12 @@ typedef struct GpencilBatchCache {
 
 struct DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct DRWPass *pass, struct GPUShader *shader, struct Object *ob,
 	                                                      struct bGPdata *gpd, struct PaletteColor *palcolor, int id, bool onion);
-
+/* general drawing functions */
 void DRW_gpencil_populate_datablock(struct GPENCIL_e_data *e_data, void *vedata, struct Scene *scene, struct Object *ob, struct ToolSettings *ts, struct bGPdata *gpd);
 void DRW_gpencil_populate_buffer_strokes(struct GPENCIL_e_data *e_data, void *vedata, struct ToolSettings *ts, struct Object *ob);
 void DRW_gpencil_populate_multiedit(struct GPENCIL_e_data *e_data, void *vedata, struct Scene *scene, struct Object *ob, struct ToolSettings *ts, struct bGPdata *gpd);
 
+/* create geometry functions */
 struct Gwn_Batch *DRW_gpencil_get_point_geom(struct bGPDstroke *gps, short thickness, const float ink[4]);
 struct Gwn_Batch *DRW_gpencil_get_stroke_geom(struct bGPDframe *gpf, struct bGPDstroke *gps, short thickness, const float ink[4]);
 struct Gwn_Batch *DRW_gpencil_get_fill_geom(struct bGPDstroke *gps, const float color[4]);
@@ -378,16 +385,19 @@ struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height);
 
 bool gpencil_can_draw_stroke(const struct bGPDstroke *gps, const bool onion);
 
+/* object cache functions */
 struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used);
 void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *ob, bool is_temp, int *gp_cache_used);
+
+/* geometry batch cache functions */
 void gpencil_batch_cache_check_free_slots(struct Object *ob);
 struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
 
-void gpencil_array_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
-
+/* vfx and modifiers functions */
 void DRW_gpencil_vfx_modifiers(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache);
 void DRW_gpencil_vfx_draw(struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache);
 bool gpencil_object_use_vfx(struct Object *ob);
+void gpencil_array_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
 /* depth of field */
 int GPENCIL_depth_of_field_init(struct DrawEngineType *draw_engine_gpencil_type, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *camera);
