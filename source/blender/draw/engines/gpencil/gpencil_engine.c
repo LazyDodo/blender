@@ -79,6 +79,64 @@ extern char datatoc_gpencil_dof_frag_glsl[];
 static GPENCIL_e_data e_data = {NULL}; /* Engine data */
 
 /* *********** FUNCTIONS *********** */
+static void GPENCIL_create_framebuffers(void *vedata)
+{
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
+	RegionView3D *rv3d = draw_ctx->rv3d;
+
+	/* Go full 32bits for rendering */
+	DRWTextureFormat fb_format = DRW_state_is_image_render() ? DRW_TEX_RGBA_32 : DRW_TEX_RGBA_16;
+
+	if (DRW_state_is_fbo()) {
+		const float *viewport_size = DRW_viewport_size_get();
+		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
+
+		/* temp framebuffer to store all stroke drawing before sending to default or used
+		* by vfx shaders as initial input
+		*/
+		e_data.temp_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+			&draw_engine_object_type);
+		e_data.temp_color_tx = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->temp_fb, {
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx),
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx)
+			});
+
+		/* vfx (ping-pong textures) */
+		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+			&draw_engine_object_type);
+		e_data.vfx_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->vfx_fb_a, {
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_a),
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_a)
+			});
+
+		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+			&draw_engine_object_type);
+		e_data.vfx_color_tx_b = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->vfx_fb_b, {
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_b),
+			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_b)
+			});
+
+		/* painting framebuffer to speed up drawing process (always 16 bits) */
+		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+			&draw_engine_object_type);
+		e_data.painting_color_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_16,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->painting_fb, {
+			GPU_ATTACHMENT_TEXTURE(e_data.painting_depth_tx),
+			GPU_ATTACHMENT_TEXTURE(e_data.painting_color_tx)
+			});
+	}
+}
+
 static void GPENCIL_create_shaders(void)
 {
 	/* normal fill shader */
@@ -155,9 +213,7 @@ static void GPENCIL_create_shaders(void)
 	if (!e_data.gpencil_paper_sh) {
 		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
 	}
-
 }
-
 
 static void GPENCIL_engine_init(void *vedata)
 {
@@ -166,55 +222,9 @@ static void GPENCIL_engine_init(void *vedata)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
-
-	/* Go full 32bits for rendering */
-	DRWTextureFormat fb_format = DRW_state_is_image_render() ? DRW_TEX_RGBA_32 : DRW_TEX_RGBA_16;
-
-	if (DRW_state_is_fbo()) {
-		const float *viewport_size = DRW_viewport_size_get();
-		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
-
-		/* temp framebuffer to store all stroke drawing before sending to default or used
-		 * by vfx shaders as initial input
-		 */
-		e_data.temp_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
-														 &draw_engine_object_type);
-		e_data.temp_color_tx = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
-														 &draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->temp_fb, {
-			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx),
-			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx)
-		});
-
-		/* vfx (ping-pong textures) */
-		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
-			&draw_engine_object_type);
-		e_data.vfx_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
-			&draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->vfx_fb_a, {
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_a),
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_a)
-		});
-
-		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
-			&draw_engine_object_type);
-		e_data.vfx_color_tx_b = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
-			&draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->vfx_fb_b, {
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_b),
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_b)
-		});
-
-		/* painting framebuffer to speed up drawing process (always 16 bits) */
-		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
-			&draw_engine_object_type);
-		e_data.painting_color_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_16,
-			&draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->painting_fb, {
-			GPU_ATTACHMENT_TEXTURE(e_data.painting_depth_tx),
-			GPU_ATTACHMENT_TEXTURE(e_data.painting_color_tx)
-		});
-	}
+	
+	/* create framebuffers */
+	GPENCIL_create_framebuffers(vedata);
 
 	/* create shaders */
 	GPENCIL_create_shaders();
