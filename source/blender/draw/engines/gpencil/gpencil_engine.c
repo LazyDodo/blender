@@ -1075,6 +1075,17 @@ static void GPENCIL_render_result_combined(struct RenderLayer *rl, const char *v
 	GPU_framebuffer_read_color(vedata->fbl->main, rect->xmin, rect->ymin, BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), 4, 0, rp->rect);
 }
 
+/* helper to blend pixels */
+static void blend_pixel(float src[4], float dst[4])
+{
+	float alpha = src[3];
+
+	/* use blend: GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA */
+	dst[0] = (src[0] * alpha) + (dst[0] * (1.0f - alpha));
+	dst[1] = (src[1] * alpha) + (dst[1] * (1.0f - alpha));
+	dst[2] = (src[2] * alpha) + (dst[2] * (1.0f - alpha));
+}
+
 /* render grease pencil to image */
 static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect)
 {
@@ -1138,29 +1149,36 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 		RenderPass *rp_depth_gp = RE_pass_find_by_name(render_layer, RE_PASSNAME_Z, viewname);
 		float *rect_color_gp = rp_color_gp->rect;
 		float *rect_depth_gp = rp_depth_gp->rect;
+		float *gp_rgba;
+		float *gp_depth;
+		float *src_rgba;
+		float *src_depth;
+		float tmp[4];
 
 		for (int i = 0; i < imgsize; i++) {
-			float *gp_rgba = &rect_color_gp[i * 4];
-			float *gp_depth = &rect_depth_gp[i];
-			float *src_rgba = &rect_color_src[i * 4];
-			float *src_depth = &rect_depth_src[i];
-			float tmp[4];
-			/* check transparency */
+			gp_rgba = &rect_color_gp[i * 4];
+			gp_depth = &rect_depth_gp[i];
+			src_rgba = &rect_color_src[i * 4];
+			src_depth = &rect_depth_src[i];
+
+			/* check grease pencil render transparency */
 			if (gp_rgba[3] > 0.0f) {
 				copy_v4_v4(tmp, gp_rgba);
-				/* grease pencil is on back of source render */
-				if (gp_depth[0] >= src_depth[0]) {
-					/* copy source color on top of grease pencil */
+				if (src_rgba[3] > 0.0f) {
+					/* copy source color on back */
 					copy_v4_v4(gp_rgba, src_rgba);
-					interp_v3_v3v3(gp_rgba, tmp, gp_rgba, src_rgba[3]);
-					/* copy source z-depth */
-					gp_depth[0] = src_depth[0];
-				}
-				else {
-					if (src_rgba[3] > 0.0f) {
-						copy_v4_v4(gp_rgba, src_rgba);
-						/* interpolate background with grease pencil */
-						interp_v3_v3v3(gp_rgba, gp_rgba, tmp, tmp[3]);
+					/* check z-depth */
+					if (gp_depth[0] > src_depth[0]) {
+						/* copy source z-depth */
+						gp_depth[0] = src_depth[0];
+						/* blend gp render */
+						blend_pixel(tmp, gp_rgba);
+						/* blend object on top */
+						blend_pixel(src_rgba, gp_rgba);
+					}
+					else {
+						/* blend gp render */
+						blend_pixel(tmp, gp_rgba);
 					}
 				}
 			}
