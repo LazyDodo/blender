@@ -4223,18 +4223,8 @@ static void applyTrackball(TransInfo *t, const int UNUSED(mval[2]))
 
 static void storeCustomLNorValue(TransInfo *t, BMesh *bm)
 {
-	float mtx[3][3], smtx[3][3];
-
 	BMLoopNorEditDataArray *lnors_ed_arr = BM_loop_normal_editdata_array_init(bm);
-
-	copy_m3_m4(mtx, t->obedit->obmat);
-	pseudoinverse_m3_m3(smtx, mtx, PSEUDOINVERSE_EPSILON);
-
 	BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata;
-	for (int i = 0; i < lnors_ed_arr->totloop; i++, lnor_ed++) {
-		copy_m3_m3(lnor_ed->mtx, mtx);
-		copy_m3_m3(lnor_ed->smtx, smtx);
-	}
 
 	t->custom.mode.data = lnors_ed_arr;
 	t->custom.mode.free_cb = freeCustomNormalArray;
@@ -4327,20 +4317,7 @@ static void applyNormalRotation(TransInfo *t, const int UNUSED(mval[2]))
 	axis_angle_normalized_to_mat3(mat, axis, angle);
 
 	for (int i = 0; i < lnors_ed_arr->totloop; i++, lnor_ed++) {
-		float center[3];
-		float vec[3], totmat[3][3], smat[3][3];
-		zero_v3(center);
-
-		mul_m3_m3m3(totmat, mat, lnor_ed->mtx);
-		mul_m3_m3m3(smat, lnor_ed->smtx, totmat);
-
-		sub_v3_v3v3(vec, lnor_ed->niloc, center);
-		mul_m3_v3(smat, vec);
-
-		add_v3_v3v3(lnor_ed->nloc, vec, center);
-
-		sub_v3_v3v3(vec, lnor_ed->nloc, lnor_ed->niloc);
-		add_v3_v3v3(lnor_ed->nloc, lnor_ed->niloc, vec);
+        mul_v3_m3v3(lnor_ed->nloc, mat, lnor_ed->niloc);
 
 		BKE_lnor_space_custom_normal_to_data(
 		            bm->lnor_spacearr->lspacearr[lnor_ed->loop_index], lnor_ed->nloc, lnor_ed->clnors_data);

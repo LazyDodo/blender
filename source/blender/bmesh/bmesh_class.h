@@ -271,8 +271,6 @@ enum {
 typedef struct BMLoopNorEditData {
 	int loop_index;
 	BMLoop *loop;
-	float mtx[3][3];
-	float smtx[3][3];
 	float niloc[3];
 	float nloc[3];
 	float *loc;
