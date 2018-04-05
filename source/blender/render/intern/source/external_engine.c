@@ -789,6 +789,9 @@ int RE_engine_render(Render *re, int do_all)
 
 			type->render_to_image(engine, engine->depsgraph);
 
+			/* grease pencil render over previous render result */
+			DRW_render_gpencil(engine, engine->depsgraph);
+
 			engine_depsgraph_free(engine);
 		}
 		FOREACH_VIEW_LAYER_TO_RENDER_END;
