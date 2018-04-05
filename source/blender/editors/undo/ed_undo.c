@@ -33,6 +33,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "CLG_log.h"
+
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -65,6 +67,9 @@
 #include "UI_interface.h"
 #include "UI_resources.h"
 
+/** We only need this locally. */
+static CLG_LogRef LOG = {"ed.undo"};
+
 /* -------------------------------------------------------------------- */
 /** \name Generic Undo System Access
  *
@@ -73,9 +78,8 @@
 
 void ED_undo_push(bContext *C, const char *str)
 {
-	if (G.debug & G_DEBUG) {
-		printf("%s: %s\n", __func__, str);
-	}
+	CLOG_INFO(&LOG, 1, "name='%s'", str);
+
 	const int steps = U.undosteps;
 
 	if (steps <= 0) {
@@ -102,6 +106,7 @@ void ED_undo_push(bContext *C, const char *str)
 /* note: also check undo_history_exec() in bottom if you change notifiers */
 static int ed_undo_step(bContext *C, int step, const char *undoname)
 {
+	CLOG_INFO(&LOG, 1, "name='%s', step=%d", undoname, step);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
 	// Main *bmain = CTX_data_main(C);
@@ -337,6 +342,7 @@ int ED_undo_operator_repeat(bContext *C, struct wmOperator *op)
 	int ret = 0;
 
 	if (op) {
+		CLOG_INFO(&LOG, 1, "idname='%s'", op->type->idname);
 		wmWindowManager *wm = CTX_wm_manager(C);
 		struct Scene *scene = CTX_data_scene(C);
 
@@ -397,9 +403,7 @@ int ED_undo_operator_repeat(bContext *C, struct wmOperator *op)
 		CTX_wm_region_set(C, ar);
 	}
 	else {
-		if (G.debug & G_DEBUG) {
-			printf("redo_cb: ED_undo_operator_repeat called with NULL 'op'\n");
-		}
+		CLOG_WARN(&LOG, "called with NULL 'op'");
 	}
 
 	return ret;
