@@ -158,10 +158,9 @@ static void DRW_gpencil_vfx_blur(
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	DRWShadingGroup *vfx_shgrp;
-	const float *viewport_size = DRW_viewport_size_get();
 
 	stl->vfx[ob_idx].vfx_blur.radius[0] = mmd->radius[0];
-	stl->vfx[ob_idx].vfx_blur.radius[1] = mmd->radius[1] * (viewport_size[1] / viewport_size[0]);
+	stl->vfx[ob_idx].vfx_blur.radius[1] = mmd->radius[1];
 	stl->vfx[ob_idx].vfx_blur.samples = mmd->samples;
 
 	/* init weight */
