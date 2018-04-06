@@ -317,9 +317,7 @@ BLI_INLINE bool check_datablock_expanded(const ID *id_cow)
 static bool check_datablock_expanded_at_construction(const ID *id_orig)
 {
 	const ID_Type id_type = GS(id_orig->name);
-	return (id_type == ID_SCE) ||
-	       (id_type == ID_OB && ((Object *)id_orig)->type == OB_ARMATURE) ||
-	       (id_type == ID_AR);
+	return (id_type == ID_SCE);
 }
 
 /* Those are datablocks which are not covered by dependency graph and hence
@@ -437,9 +435,11 @@ void update_special_pointers(const Depsgraph *depsgraph,
 			 * new copy of the object.
 			 */
 			Object *object_cow = (Object *)id_cow;
+			const Object *object_orig = (const Object *)id_orig;
 			(void) object_cow;  /* Ignored for release builds. */
 			BLI_assert(object_cow->derivedFinal == NULL);
 			BLI_assert(object_cow->derivedDeform == NULL);
+			object_cow->mode = object_orig->mode;
 			break;
 		}
 		case ID_ME:
@@ -634,6 +634,7 @@ void update_copy_on_write_object(const Depsgraph * /*depsgraph*/,
 	extract_pose_from_pose(pose_cow, pose_orig);
 	/* Update object itself. */
 	BKE_object_transform_copy(object_cow, object_orig);
+	object_cow->mode = object_orig->mode;
 }
 
 /* Update copy-on-write version of datablock from it's original ID without re-building

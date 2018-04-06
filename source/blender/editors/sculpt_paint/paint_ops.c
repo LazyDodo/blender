@@ -44,8 +44,6 @@
 #include "BKE_main.h"
 #include "BKE_report.h"
 
-#include "DEG_depsgraph.h"
-
 #include "ED_paint.h"
 #include "ED_screen.h"
 #include "ED_image.h"
@@ -895,9 +893,7 @@ static void PALETTE_OT_palettecolor_duplicate(wmOperatorType *ot)
 
 
 static int brush_reset_exec(bContext *C, wmOperator *UNUSED(op))
-
 {
-	const WorkSpace *workspace = CTX_wm_workspace(C);
 	Paint *paint = BKE_paint_get_active_from_context(C);
 	Brush *brush = BKE_paint_brush(paint);
 	Object *ob = CTX_data_active_object(C);
@@ -905,7 +901,7 @@ static int brush_reset_exec(bContext *C, wmOperator *UNUSED(op))
 	if (!ob || !brush) return OPERATOR_CANCELLED;
 
 	/* TODO: other modes */
-	if (workspace->object_mode & OB_MODE_SCULPT) {
+	if (ob->mode & OB_MODE_SCULPT) {
 		BKE_brush_sculpt_reset(brush);
 	}
 	else {
@@ -1038,7 +1034,6 @@ static int brush_generic_tool_set(Main *bmain, Paint *paint, const int tool,
 
 static int brush_select_exec(bContext *C, wmOperator *op)
 {
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	Main *bmain = CTX_data_main(C);
 	ToolSettings *toolsettings = CTX_data_tool_settings(C);
 	Paint *paint = NULL;
@@ -1052,7 +1047,7 @@ static int brush_select_exec(bContext *C, wmOperator *op)
 		Object *ob = CTX_data_active_object(C);
 		if (ob) {
 			/* select current paint mode */
-			paint_mode = workspace->object_mode & OB_MODE_ALL_PAINT;
+			paint_mode = ob->mode & OB_MODE_ALL_PAINT;
 		}
 		else {
 			return OPERATOR_CANCELLED;
