@@ -65,9 +65,8 @@ def draw_vpaint_symmetry(layout, vpaint):
 
 # Most of these panels should not be visible in GP edit modes
 def is_not_gpencil_edit_mode(context):
-    workspace = context.workspace
     is_gpmode = context.active_object and \
-                workspace.object_mode in {'GPENCIL_EDIT', 'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
+                context.active_object.mode in {'GPENCIL_EDIT', 'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
     return not is_gpmode
 
 
@@ -2279,12 +2278,11 @@ class VIEW3D_PT_tools_grease_pencil_animation(Panel):
 
     @classmethod
     def poll(cls, context):
-        workspace = context.workspace
         if context.gpencil_data is None:
             return False
         elif context.space_data.type != 'VIEW_3D':
             return False
-        elif workspace.object_mode == 'OBJECT':
+        elif context.active_object.mode == 'OBJECT':
             return False
 
         return True
@@ -2490,7 +2488,7 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
         workspace = context.workspace
         if context.active_object:
             brush = context.active_gpencil_brush
-            return workspace.object_mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
+            return context.active_object.mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
             
         return False
 
@@ -2499,7 +2497,7 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
         layout = self.layout
         workspace = context.workspace
 
-        if workspace.object_mode == 'GPENCIL_PAINT':
+        if context.active_object.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
             
             col = layout.column(align=True)
@@ -2531,7 +2529,7 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
                 row = col.row(align=True)
                 row.prop(brush, "cursor_color_add", text="Color")
 
-        elif workspace.object_mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
+        elif context.active_object.mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
             settings = context.tool_settings.gpencil_sculpt
             brush = settings.brush
 
