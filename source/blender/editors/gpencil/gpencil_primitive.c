@@ -78,7 +78,7 @@
 
 #include "gpencil_intern.h"
 
-#define MIN_EDGES 3
+#define MIN_EDGES 2
 #define MAX_EDGES 100
 
 #define IDLE 0
@@ -207,7 +207,10 @@ static void gpencil_primitive_status_indicators(tGPDprimitive *tgpi)
 	char msg_str[UI_MAX_DRAW_STR];
 	
 	if (tgpi->type == GP_STROKE_BOX) {
-		BLI_strncpy(msg_str, IFACE_("GP Primitive: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Shift to square"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Rectangle: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Shift to square"), UI_MAX_DRAW_STR);
+	}
+	else if (tgpi->type == GP_STROKE_LINE) {
+		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm"), UI_MAX_DRAW_STR);
 	}
 	else {
 		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL to adjust edge number, Shift to square"), UI_MAX_DRAW_STR);
@@ -264,6 +267,18 @@ static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
 	points2D[3].y = tgpi->bottom[1];
 }
 
+/* create a line */
+static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
+{
+	BLI_assert(tgpi->tot_edges == 2);
+
+	points2D[0].x = tgpi->top[0];
+	points2D[0].y = tgpi->top[1];
+
+	points2D[1].x = tgpi->bottom[0];
+	points2D[1].y = tgpi->bottom[1];
+}
+
 /* create a circle */
 static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
@@ -305,6 +320,9 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
 			gp_primitive_rectangle(tgpi, points2D);
+			break;
+		case GP_STROKE_LINE:
+			gp_primitive_line(tgpi, points2D);
 			break;
 		case GP_STROKE_CIRCLE:
 			gp_primitive_circle(tgpi, points2D);
@@ -440,8 +458,11 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	if (tgpi->type == GP_STROKE_CIRCLE) {
 		RNA_int_set(op->ptr, "edges", 32);
 	}
-	else /* if (tgpi->type == GP_STROKE_RECTANGLE) */ {
+	else if(tgpi->type == GP_STROKE_BOX) {
 		RNA_int_set(op->ptr, "edges", 4);
+	}
+	else { /* LINE */
+		RNA_int_set(op->ptr, "edges", 2);
 	}
 
 	tgpi->tot_edges = RNA_int_get(op->ptr, "edges");
@@ -655,6 +676,7 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 {
 	static EnumPropertyItem primitive_type[] = {
 		{ GP_STROKE_BOX, "BOX", 0, "Box", "" },
+		{ GP_STROKE_LINE, "LINE", 0, "Line", "" },
 		{ GP_STROKE_CIRCLE, "CIRCLE", 0, "Circle", "" },
 		{ 0, NULL, 0, NULL, NULL }
 	};

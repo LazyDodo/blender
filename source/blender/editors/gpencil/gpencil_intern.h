@@ -362,7 +362,8 @@ enum {
 
 enum {
 	GP_STROKE_BOX = -1,
-	GP_STROKE_CIRCLE = 1
+	GP_STROKE_LINE = 1,
+	GP_STROKE_CIRCLE = 2
 };
 
 

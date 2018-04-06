@@ -2258,6 +2258,7 @@ class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
         layout = self.layout
 
         col = layout.column(align=True)
+        col.operator("gpencil.primitive", text="Line", icon='IPO_CONSTANT').type = 'LINE'
         col.operator("gpencil.primitive", text="Rectangle", icon='UV_FACESEL').type = 'BOX'
         col.operator("gpencil.primitive", text="Circle", icon='ANTIALIASED').type = 'CIRCLE'
         

@@ -651,6 +651,7 @@ class GPENCIL_MT_gpencil_draw_specials(Menu):
         layout.operator("gpencil.frame_clean_fill", text="Clean Boundary Strokes all Frames").mode = 'ALL'
 
         layout.separator()
+        layout.operator("gpencil.primitive", text="Line", icon='IPO_CONSTANT').type = 'LINE'
         layout.operator("gpencil.primitive", text="Rectangle", icon='UV_FACESEL').type = 'BOX'
         layout.operator("gpencil.primitive", text="Circle", icon='ANTIALIASED').type = 'CIRCLE'
 
