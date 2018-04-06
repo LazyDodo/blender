@@ -51,7 +51,6 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_windowmanager_types.h"
-#include "DNA_workspace_types.h"
 
 #include "BKE_main.h"
 #include "BKE_brush.h"
@@ -2673,7 +2672,6 @@ static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event
 	/* enable paint mode */
 	if (p->sa->spacetype == SPACE_VIEW3D) {
 		Object *ob = CTX_data_active_object(C);
-		WorkSpace *workspace = CTX_wm_workspace(C);
 		if (ob && (ob->type == OB_GPENCIL) && ((p->gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0)) {
 			/* Just set paintmode flag... */
 			p->gpd->flag |= GP_DATA_STROKE_PAINTMODE;

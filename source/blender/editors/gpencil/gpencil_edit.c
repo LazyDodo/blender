@@ -53,7 +53,6 @@
 #include "DNA_space_types.h"
 #include "DNA_view3d_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_workspace_types.h"
 
 #include "BKE_main.h"
 #include "BKE_context.h"
@@ -106,7 +105,6 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 {
 	const int back = RNA_int_get(op->ptr, "back");
 
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bool is_object = false;
 	short mode;
@@ -188,7 +186,6 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 {
 	const int back = RNA_int_get(op->ptr, "back");
 
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 
@@ -274,7 +271,6 @@ static int gpencil_sculptmode_toggle_exec(bContext *C, wmOperator *op)
 {
 	const int back = RNA_int_get(op->ptr, "back");
 
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bool is_object = false;
 	short mode;
@@ -351,7 +347,6 @@ static int gpencil_weightmode_toggle_exec(bContext *C, wmOperator *op)
 {
 	const int back = RNA_int_get(op->ptr, "back");
 
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bool is_object = false;
 	short mode;
