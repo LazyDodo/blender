@@ -1154,8 +1154,7 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Object *ob = CTX_data_active_object(C);
 	
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	const bool is_weight_mode = (workspace->object_mode == OB_MODE_GPENCIL_WEIGHT);
+	const bool is_weight_mode = ob->mode == OB_MODE_GPENCIL_WEIGHT;
 
 	tGP_BrushEditData *gso;
 	

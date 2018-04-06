@@ -1622,9 +1622,7 @@ static int gpencil_vertex_group_poll(bContext *C)
 
 	if ((ob) && (ob->type == OB_GPENCIL)) {
 		if (!ID_IS_LINKED(ob) && !ID_IS_LINKED(ob->data) && ob->defbase.first) {
-			WorkSpace *workspace = CTX_wm_workspace(C);
-			if (workspace && 
-				ELEM(workspace->object_mode,
+			if (ELEM(ob->mode,
 				     OB_MODE_GPENCIL_EDIT,
 				     OB_MODE_GPENCIL_SCULPT))
 			{
@@ -1642,9 +1640,7 @@ static int gpencil_vertex_group_weight_poll(bContext *C)
 
 	if ((ob) && (ob->type == OB_GPENCIL)) {
 		if (!ID_IS_LINKED(ob) && !ID_IS_LINKED(ob->data) && ob->defbase.first) {
-			WorkSpace *workspace = CTX_wm_workspace(C);
-			if (workspace && 
-				(workspace->object_mode == OB_MODE_GPENCIL_WEIGHT))
+			if (ob->mode == OB_MODE_GPENCIL_WEIGHT)
 			{
 				return true;	
 			}

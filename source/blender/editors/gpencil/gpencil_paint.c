@@ -2682,8 +2682,8 @@ static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event
 			p->gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
 			p->gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
 			/* set workspace mode */
-			workspace->object_mode_restore = workspace->object_mode;
-			workspace->object_mode = OB_MODE_GPENCIL_PAINT;
+			ob->restore_mode = ob->mode;
+			ob->mode = OB_MODE_GPENCIL_PAINT;
 			/* redraw mode on screen */
 			WM_event_add_notifier(C, NC_SCENE | ND_MODE, NULL);
 		}

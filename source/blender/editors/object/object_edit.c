@@ -1501,7 +1501,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 	
 	if (!ob || !ED_object_mode_compat_test(ob, mode))
 		return OPERATOR_PASS_THROUGH;
-
+#if 0
 	/* if type is OB_GPENCIL, select mode for grease pencil strokes */
 	if ((ob) && (ob->type == OB_GPENCIL)) {
 		if (ob->data) {
@@ -1572,9 +1572,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 			}
 		}
 	}
-	
-	if (!ob || !ED_object_mode_compat_test(ob, mode))
-		return OPERATOR_PASS_THROUGH;
+#endif
 
 	if (ob->mode != mode) {
 		/* we should be able to remove this call, each operator calls  */

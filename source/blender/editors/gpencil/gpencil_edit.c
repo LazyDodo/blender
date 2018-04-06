@@ -136,11 +136,11 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 
 	if (is_object) {
 		/* try to back previous mode */
-		if ((workspace->object_mode_restore) && ((gpd->flag & GP_DATA_STROKE_EDITMODE) == 0) && (back == 1)) {
-			mode = workspace->object_mode_restore;
+		if ((ob->restore_mode) && ((gpd->flag & GP_DATA_STROKE_EDITMODE) == 0) && (back == 1)) {
+			mode = ob->restore_mode;
 		}
-		workspace->object_mode_restore = workspace->object_mode;
-		workspace->object_mode = mode;
+		ob->restore_mode = ob->mode;
+		ob->mode = mode;
 	}
 
 	/* setup other modes */
@@ -216,11 +216,11 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 
 	if (is_object) {
 		/* try to back previous mode */
-		if ((workspace->object_mode_restore) && ((gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0) && (back == 1)) {
-			mode = workspace->object_mode_restore;
+		if ((ob->restore_mode) && ((gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0) && (back == 1)) {
+			mode = ob->restore_mode;
 		}
-		workspace->object_mode_restore = workspace->object_mode;
-		workspace->object_mode = mode;
+		ob->restore_mode = ob->mode;
+		ob->mode = mode;
 	}
 
 	/* be sure we have brushes */
@@ -300,11 +300,11 @@ static int gpencil_sculptmode_toggle_exec(bContext *C, wmOperator *op)
 
 	if (is_object) {
 		/* try to back previous mode */
-		if ((workspace->object_mode_restore) && ((gpd->flag & GP_DATA_STROKE_SCULPTMODE) == 0) && (back == 1)) {
-			mode = workspace->object_mode_restore;
+		if ((ob->restore_mode) && ((gpd->flag & GP_DATA_STROKE_SCULPTMODE) == 0) && (back == 1)) {
+			mode = ob->restore_mode;
 		}
-		workspace->object_mode_restore = workspace->object_mode;
-		workspace->object_mode = mode;
+		ob->restore_mode = ob->mode;
+		ob->mode = mode;
 	}
 
 	/* setup other modes */
@@ -377,11 +377,11 @@ static int gpencil_weightmode_toggle_exec(bContext *C, wmOperator *op)
 
 	if (is_object) {
 		/* try to back previous mode */
-		if ((workspace->object_mode_restore) && ((gpd->flag & GP_DATA_STROKE_WEIGHTMODE) == 0) && (back == 1)) {
-			mode = workspace->object_mode_restore;
+		if ((ob->restore_mode) && ((gpd->flag & GP_DATA_STROKE_WEIGHTMODE) == 0) && (back == 1)) {
+			mode = ob->restore_mode;
 		}
-		workspace->object_mode_restore = workspace->object_mode;
-		workspace->object_mode = mode;
+		ob->restore_mode = ob->mode;
+		ob->mode = mode;
 	}
 
 	/* setup other modes */
