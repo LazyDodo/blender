@@ -245,7 +245,8 @@ void AnimationImporter::add_fcurves_to_object(Main *bmain, Object *ob, std::vect
 	}
 }
 
-AnimationImporter::AnimationImporter(UnitConverter *conv, ArmatureImporter *arm, Scene *scene) :
+AnimationImporter::AnimationImporter(bContext *C, UnitConverter *conv, ArmatureImporter *arm, Scene *scene) :
+	mContext(C),
 	TransformReader(conv), armature_importer(arm), scene(scene) {
 }
 
@@ -724,7 +725,7 @@ void AnimationImporter::Assign_lens_animations(const COLLADAFW::UniqueId& listid
 	}
 }
 
-void AnimationImporter::apply_matrix_curves(Main *bmain, Object *ob, std::vector<FCurve *>& animcurves, COLLADAFW::Node *root, COLLADAFW::Node *node,
+void AnimationImporter::apply_matrix_curves(Object *ob, std::vector<FCurve *>& animcurves, COLLADAFW::Node *root, COLLADAFW::Node *node,
                                             COLLADAFW::Transformation *tm)
 {
 	bool is_joint = node->getType() == COLLADAFW::Node::JOINT;
@@ -839,6 +840,7 @@ void AnimationImporter::apply_matrix_curves(Main *bmain, Object *ob, std::vector
 				add_bezt(newcu[i], fra, scale[i - 7]);
 		}
 	}
+	Main *bmain = CTX_data_main(mContext);
 	verify_adt_action(bmain, (ID *)&ob->id, 1);
 
 	ListBase *curves = &ob->adt->action->curves;
@@ -907,7 +909,7 @@ static ListBase &get_animation_curves(Main *bmain, Material *ma)
 	return act->curves;
 }
 
-void AnimationImporter::translate_Animations(Main *bmain, COLLADAFW::Node *node,
+void AnimationImporter::translate_Animations(COLLADAFW::Node *node,
                                              std::map<COLLADAFW::UniqueId, COLLADAFW::Node *>& root_map,
                                              std::multimap<COLLADAFW::UniqueId, Object *>& object_map,
                                              std::map<COLLADAFW::UniqueId, const COLLADAFW::Object *> FW_object_map,
@@ -931,6 +933,7 @@ void AnimationImporter::translate_Animations(Main *bmain, COLLADAFW::Node *node,
 
 	AnimationImporter::AnimMix *animType = get_animation_type(node, FW_object_map);
 	bAction *act;
+	Main *bmain = CTX_data_main(mContext);
 
 	if ( (animType->transform) != 0) {
 		/* const char *bone_name = is_joint ? bc_get_joint_name(node) : NULL; */ /* UNUSED */
@@ -972,11 +975,11 @@ void AnimationImporter::translate_Animations(Main *bmain, COLLADAFW::Node *node,
 				for (unsigned int j = 0; j < bindings.getCount(); j++) {
 					animcurves = curve_map[bindings[j].animation];
 					if (is_matrix) {
-						apply_matrix_curves(bmain, ob, animcurves, root, node,  transform);
+						apply_matrix_curves(ob, animcurves, root, node,  transform);
 					}
 					else {
 						if (is_joint) {
-							add_bone_animation_sampled(bmain, ob, animcurves, root, node, transform);
+							add_bone_animation_sampled(ob, animcurves, root, node, transform);
 						}
 						else {
 							//calculate rnapaths and array index of fcurves according to transformation and animation class
@@ -1146,7 +1149,7 @@ void AnimationImporter::translate_Animations(Main *bmain, COLLADAFW::Node *node,
 	delete animType;
 }
 
-void AnimationImporter::add_bone_animation_sampled(Main *bmain, Object *ob, std::vector<FCurve *>& animcurves, COLLADAFW::Node *root, COLLADAFW::Node *node, COLLADAFW::Transformation *tm)
+void AnimationImporter::add_bone_animation_sampled(Object *ob, std::vector<FCurve *>& animcurves, COLLADAFW::Node *root, COLLADAFW::Node *node, COLLADAFW::Transformation *tm)
 {
 	const char *bone_name = bc_get_joint_name(node);
 	char joint_path[200];
@@ -1269,6 +1272,7 @@ void AnimationImporter::add_bone_animation_sampled(Main *bmain, Object *ob, std:
 				add_bezt(newcu[i], fra, scale[i - 7]);
 		}
 	}
+	Main *bmain = CTX_data_main(mContext);
 	verify_adt_action(bmain, (ID *)&ob->id, 1);
 
 	// add curves
@@ -1445,7 +1449,7 @@ void AnimationImporter::find_frames_old(std::vector<float> *frames, COLLADAFW::N
 // prerequisites:
 // animlist_map - map animlist id -> animlist
 // curve_map - map anim id -> curve(s)
-Object *AnimationImporter::translate_animation_OLD(Main *bmain, COLLADAFW::Node *node,
+Object *AnimationImporter::translate_animation_OLD(COLLADAFW::Node *node,
                                                    std::map<COLLADAFW::UniqueId, Object *>& object_map,
                                                    std::map<COLLADAFW::UniqueId, COLLADAFW::Node *>& root_map,
                                                    COLLADAFW::Transformation::TransformationType tm_type,
@@ -1667,7 +1671,7 @@ Object *AnimationImporter::translate_animation_OLD(Main *bmain, COLLADAFW::Node 
 		}
 #endif
 	}
-
+	Main *bmain = CTX_data_main(mContext);
 	verify_adt_action(bmain, (ID *)&ob->id, 1);
 
 	ListBase *curves = &ob->adt->action->curves;

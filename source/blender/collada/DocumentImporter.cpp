@@ -106,7 +106,7 @@ DocumentImporter::DocumentImporter(bContext *C, const ImportSettings *import_set
 	mContext(C),
 	armature_importer(&unit_converter, &mesh_importer, CTX_data_main(C), CTX_data_scene(C), import_settings),
 	mesh_importer(&unit_converter, &armature_importer, CTX_data_main(C), CTX_data_scene(C)),
-	anim_importer(&unit_converter, &armature_importer, CTX_data_scene(C))
+	anim_importer(C, &unit_converter, &armature_importer, CTX_data_scene(C))
 {
 }
 
@@ -318,7 +318,7 @@ void DocumentImporter::translate_anim_recursive(COLLADAFW::Node *node, COLLADAFW
 		translate_anim_recursive(node, node, parob);
 	}
 	else {
-		anim_importer.translate_Animations(bmain, node, root_map, object_map, FW_object_map, uid_material_map);
+		anim_importer.translate_Animations(node, root_map, object_map, FW_object_map, uid_material_map);
 		COLLADAFW::NodePointerArray &children = node->getChildNodes();
 		for (i = 0; i < children.getCount(); i++) {
 			translate_anim_recursive(children[i], node, NULL);
