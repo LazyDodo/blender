@@ -1501,78 +1501,6 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 	
 	if (!ob || !ED_object_mode_compat_test(ob, mode))
 		return OPERATOR_PASS_THROUGH;
-#if 0
-	/* if type is OB_GPENCIL, select mode for grease pencil strokes */
-	if ((ob) && (ob->type == OB_GPENCIL)) {
-		if (ob->data) {
-			bGPdata *gpd = (bGPdata *)ob->data;
-			/* restore status */
-			if ((workspace->object_mode == OB_MODE_OBJECT) &&
-				((workspace->object_mode != mode) || (mode == OB_MODE_OBJECT)) &&
-				(mode != OB_MODE_EDIT))
-			{
-				if (gpd->flag & GP_DATA_STROKE_EDITMODE) {
-					workspace->object_mode = OB_MODE_GPENCIL_EDIT;
-					ED_gpencil_setup_modes(C, gpd, workspace->object_mode);
-					return OPERATOR_FINISHED;
-				}
-				else if (gpd->flag & GP_DATA_STROKE_PAINTMODE) {
-					workspace->object_mode = OB_MODE_GPENCIL_PAINT;
-					ED_gpencil_setup_modes(C, gpd, workspace->object_mode);
-					return OPERATOR_FINISHED;
-				}
-				else if (gpd->flag & GP_DATA_STROKE_SCULPTMODE) {
-					workspace->object_mode = OB_MODE_GPENCIL_SCULPT;
-					ED_gpencil_setup_modes(C, gpd, workspace->object_mode);
-					return OPERATOR_FINISHED;
-				}
-				else if (gpd->flag & GP_DATA_STROKE_WEIGHTMODE) {
-					workspace->object_mode = OB_MODE_GPENCIL_WEIGHT;
-					ED_gpencil_setup_modes(C, gpd, workspace->object_mode);
-					return OPERATOR_FINISHED;
-				}
-			}
-
-			/* set status */
-			if (ELEM(mode, OB_MODE_OBJECT, OB_MODE_EDIT, OB_MODE_POSE)) {
-				workspace->object_mode_restore = OB_MODE_OBJECT;
-				if (ELEM(workspace->object_mode, OB_MODE_EDIT, OB_MODE_GPENCIL_EDIT) || (mode == OB_MODE_EDIT)) {
-					WM_operator_name_call(C, "GPENCIL_OT_editmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				}
-				if (workspace->object_mode == OB_MODE_GPENCIL_PAINT) {
-					WM_operator_name_call(C, "GPENCIL_OT_paintmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				}
-				if (workspace->object_mode == OB_MODE_GPENCIL_SCULPT) {
-					WM_operator_name_call(C, "GPENCIL_OT_sculptmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				}
-				if (workspace->object_mode == OB_MODE_GPENCIL_WEIGHT) {
-					WM_operator_name_call(C, "GPENCIL_OT_weightmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				}
-				return OPERATOR_FINISHED;
-			}
-			else if (mode == OB_MODE_GPENCIL_EDIT) {
-				workspace->object_mode_restore = workspace->object_mode;
-				WM_operator_name_call(C, "GPENCIL_OT_editmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				return OPERATOR_FINISHED;
-			}
-			else if (mode == OB_MODE_GPENCIL_PAINT) {
-				workspace->object_mode_restore = workspace->object_mode;
-				WM_operator_name_call(C, "GPENCIL_OT_paintmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				return OPERATOR_FINISHED;
-			}
-			else if (mode == OB_MODE_GPENCIL_SCULPT) {
-				workspace->object_mode_restore = workspace->object_mode;
-				WM_operator_name_call(C, "GPENCIL_OT_sculptmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				return OPERATOR_FINISHED;
-			}
-			else if (mode == OB_MODE_GPENCIL_WEIGHT) {
-				workspace->object_mode_restore = workspace->object_mode;
-				WM_operator_name_call(C, "GPENCIL_OT_weightmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-				return OPERATOR_FINISHED;
-			}
-		}
-	}
-#endif
 
 	if (ob->mode != mode) {
 		/* we should be able to remove this call, each operator calls  */
@@ -1596,6 +1524,14 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 		}
 		else if (ob->restore_mode != OB_MODE_OBJECT && ob->restore_mode != mode) {
 			ED_object_mode_toggle(C, ob->restore_mode);
+		}
+	}
+
+	/* if type is OB_GPENCIL, set cursor mode */
+	if ((ob) && (ob->type == OB_GPENCIL)) {
+		if (ob->data) {
+			bGPdata *gpd = (bGPdata *)ob->data;
+			ED_gpencil_setup_modes(C, gpd, ob->mode);
 		}
 	}
 
