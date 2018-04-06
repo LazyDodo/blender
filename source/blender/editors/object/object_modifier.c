@@ -588,7 +588,7 @@ static int modifier_apply_shape(ReportList *reports, const EvaluationContext *ev
 	return 1;
 }
 
-static int modifier_apply_obdata(ReportList *reports, const EvaluationContext *eval_ctx, Scene *scene, Object *ob, ModifierData *md)
+static int modifier_apply_obdata(ReportList *reports, bContext *C, const EvaluationContext *eval_ctx, Scene *scene, Object *ob, ModifierData *md)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 
@@ -688,7 +688,7 @@ static int modifier_apply_obdata(ReportList *reports, const EvaluationContext *e
 }
 
 int ED_object_modifier_apply(
-        ReportList *reports, const EvaluationContext *eval_ctx,
+        ReportList *reports, bContext *C, const EvaluationContext *eval_ctx,
         Scene *scene, Object *ob, ModifierData *md, int mode)
 {
 	int prev_mode;
@@ -734,7 +734,7 @@ int ED_object_modifier_apply(
 		}
 	}
 	else {
-		if (!modifier_apply_obdata(reports, eval_ctx, scene, ob, md)) {
+		if (!modifier_apply_obdata(reports, C, eval_ctx, scene, ob, md)) {
 			md->mode = prev_mode;
 			return 0;
 		}
@@ -1040,7 +1040,7 @@ static int modifier_apply_exec(bContext *C, wmOperator *op)
 	EvaluationContext eval_ctx;
 	CTX_data_eval_ctx(C, &eval_ctx);
 
-	if (!md || !ED_object_modifier_apply(op->reports, &eval_ctx, scene, ob, md, apply_as)) {
+	if (!md || !ED_object_modifier_apply(op->reports, C, &eval_ctx, scene, ob, md, apply_as)) {
 		return OPERATOR_CANCELLED;
 	}
 
