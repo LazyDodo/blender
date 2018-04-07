@@ -780,6 +780,9 @@ void BKE_gpencil_copy_palette_data(bGPdata *gpd_dst, const bGPdata *gpd_src)
  */
 void BKE_gpencil_copy_data(Main *UNUSED(bmain), bGPdata *gpd_dst, const bGPdata *gpd_src, const int UNUSED(flag))
 {
+	/* cache data is not duplicated */
+	gpd_dst->batch_cache_data = NULL;
+
 	/* copy layers */
 	BLI_listbase_clear(&gpd_dst->layers);
 	for (const bGPDlayer *gpl_src = gpd_src->layers.first; gpl_src; gpl_src = gpl_src->next) {
