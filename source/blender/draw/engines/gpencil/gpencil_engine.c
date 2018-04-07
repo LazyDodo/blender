@@ -807,7 +807,6 @@ static void GPENCIL_draw_scene(void *vedata)
 				/* Combine with scene buffer */
 				if ((!is_render) || (fbl->main == NULL)) {
 					GPU_framebuffer_bind(dfbl->default_fb);
-					MULTISAMPLE_SYNC_ENABLE(dfbl);
 				}
 				else {
 					GPU_framebuffer_bind(fbl->main);
@@ -816,10 +815,6 @@ static void GPENCIL_draw_scene(void *vedata)
 				stl->storage->tonemapping = stl->storage->is_render ? 1 : 0;
 
 				DRW_draw_pass(psl->mix_pass);
-
-				if ((!is_render) || (fbl->main == NULL)) {
-					MULTISAMPLE_SYNC_DISABLE(dfbl);
-				}
 
 				/* prepare for fast drawing */
 				if (!is_render) {
