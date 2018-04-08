@@ -90,18 +90,6 @@ static void GPENCIL_create_framebuffers(void *vedata)
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
-		/* temp framebuffer to store all stroke drawing before sending to default or used
-		* by vfx shaders as initial input
-		*/
-		e_data.temp_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
-			&draw_engine_object_type);
-		e_data.temp_color_tx = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
-			&draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->temp_fb, {
-			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx),
-			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx)
-			});
-
 		/* vfx (ping-pong textures) */
 		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
 			&draw_engine_object_type);
@@ -437,21 +425,12 @@ static void GPENCIL_cache_init(void *vedata)
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(mix_shgrp_noblend, quad_noblend, NULL);
-		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.input_color_tx);
-		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.input_depth_tx);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.vfx_color_tx_a);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.vfx_depth_tx_a);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
 
-		/* vfx setup pass to prepare txta */
-		struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
-		psl->vfx_setup_pass = DRW_pass_create("GPencil VFX setup Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		DRWShadingGroup *vfx_setup_shgrp = DRW_shgroup_create(e_data.gpencil_simple_fullscreen_sh, psl->vfx_setup_pass);
-		stl->g_data->tot_sh++;
-		DRW_shgroup_call_add(vfx_setup_shgrp, vfxquad, NULL);
-		DRW_shgroup_uniform_texture_ref(vfx_setup_shgrp, "strokeColor", &e_data.temp_color_tx);
-		DRW_shgroup_uniform_texture_ref(vfx_setup_shgrp, "strokeDepth", &e_data.temp_depth_tx);
-		
 		/* vfx copy pass from txtb to txta */
-		vfxquad = DRW_cache_fullscreen_quad_get();
+		struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
 		psl->vfx_copy_pass = DRW_pass_create("GPencil VFX Copy b to a Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *vfx_copy_shgrp = DRW_shgroup_create(e_data.gpencil_simple_fullscreen_sh, psl->vfx_copy_pass);
 		stl->g_data->tot_sh++;
@@ -629,19 +608,6 @@ static int gpencil_object_cache_compare_zdepth(const void *a1, const void *a2)
 */
 static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
 {
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
-	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
-
-	/* Copy the original texture to tx_a to be used by all following vfx modifiers.
-	* At the end of this passes, we can be sure the vfx_fbcolor_color_tx_a texture has 
-	* the final image.
-	*/
-	float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	GPU_framebuffer_bind(fbl->vfx_fb_a);
-	GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
-	DRW_draw_pass(psl->vfx_setup_pass);
-
 	/* draw all vfx passes */
 	DRW_gpencil_vfx_draw(vedata, cache);
 }
@@ -729,9 +695,6 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	if (DRW_state_is_fbo()) {
 		/* attach temp textures */
-		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_depth_tx, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->temp_fb, e_data.temp_color_tx, 0, 0);
-
 		GPU_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_depth_tx_a, 0, 0);
 		GPU_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_color_tx_a, 0, 0);
 
@@ -755,8 +718,8 @@ static void GPENCIL_draw_scene(void *vedata)
 				init_grp = cache->init_grp;
 				end_grp = cache->end_grp;
 				/* Render stroke in separated framebuffer */
-				GPU_framebuffer_bind(fbl->temp_fb);
-				GPU_framebuffer_clear_color_depth(fbl->temp_fb, clearcol, 1.0f);
+				GPU_framebuffer_bind(fbl->vfx_fb_a);
+				GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
 
 				/* Stroke Pass: DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH
 				 * draw only a subset that usually start with a fill and end with stroke because the
@@ -781,18 +744,12 @@ static void GPENCIL_draw_scene(void *vedata)
 
 				/* vfx modifiers passes */
 				if ((gpencil_object_use_vfx(ob)) && (!stl->storage->simplify_vfx)) {
-					/* add vfx passes */
 					gpencil_vfx_passes(vedata, cache);
-
-					e_data.input_depth_tx = e_data.vfx_depth_tx_a;
-					e_data.input_color_tx = e_data.vfx_color_tx_a;
 				}
-				else {
-					e_data.input_depth_tx = e_data.temp_depth_tx;
-					e_data.input_color_tx = e_data.temp_color_tx;
-				}
+				e_data.input_depth_tx = e_data.vfx_depth_tx_a;
+				e_data.input_color_tx = e_data.vfx_color_tx_a;
 
-#if 0 /* the reult is very low quality, disable while find a solution */
+#if 0 /* the result is very low quality, disable while find a solution */
 				/* depth of field effect
 				 * send always to tx_b because other textures can be in use. Remap input
 				 * textures too.
@@ -832,9 +789,6 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	/* detach temp textures */
 	if (DRW_state_is_fbo()) {
-		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_depth_tx);
-		GPU_framebuffer_texture_detach(fbl->temp_fb, e_data.temp_color_tx);
-
 		GPU_framebuffer_texture_detach(fbl->vfx_fb_a, e_data.vfx_depth_tx_a);
 		GPU_framebuffer_texture_detach(fbl->vfx_fb_a, e_data.vfx_color_tx_a);
 

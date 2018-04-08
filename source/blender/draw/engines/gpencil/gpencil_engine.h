@@ -56,7 +56,7 @@ struct Object;
 #define MULTISAMPLE_GP_SYNC_ENABLE(dfbl, fbl) { \
 	if ((U.ogl_multisamples > 0) && (dfbl->multisample_fb != NULL)) { \
 		DRW_stats_query_start("GP Multisample Blit"); \
-		GPU_framebuffer_blit(fbl->temp_fb, 0, dfbl->multisample_fb, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
+		GPU_framebuffer_blit(fbl->vfx_fb_a, 0, dfbl->multisample_fb, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
 		GPU_framebuffer_bind(dfbl->multisample_fb); \
 		DRW_stats_query_end(); \
 	} \
@@ -65,8 +65,8 @@ struct Object;
 #define MULTISAMPLE_GP_SYNC_DISABLE(dfbl, fbl) { \
 	if ((U.ogl_multisamples > 0) && (dfbl->multisample_fb != NULL)) { \
 		DRW_stats_query_start("GP Multisample Resolve"); \
-		GPU_framebuffer_blit(dfbl->multisample_fb, 0, fbl->temp_fb, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
-		GPU_framebuffer_bind(fbl->temp_fb); \
+		GPU_framebuffer_blit(dfbl->multisample_fb, 0, fbl->vfx_fb_a, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
+		GPU_framebuffer_bind(fbl->vfx_fb_a); \
 		DRW_stats_query_end(); \
 	} \
 }
@@ -208,7 +208,6 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *drawing_pass;
 	struct DRWPass *mix_pass;
 	struct DRWPass *mix_pass_noblend;
-	struct DRWPass *vfx_setup_pass;
 	struct DRWPass *vfx_copy_pass;
 	struct DRWPass *vfx_wave_pass;
 	struct DRWPass *vfx_blur_pass;
@@ -227,7 +226,6 @@ typedef struct GPENCIL_PassList {
 
 typedef struct GPENCIL_FramebufferList {
 	struct GPUFrameBuffer *main;
-	struct GPUFrameBuffer *temp_fb;
 	struct GPUFrameBuffer *vfx_fb_a;
 	struct GPUFrameBuffer *vfx_fb_b;
 	struct GPUFrameBuffer *painting_fb;
@@ -307,10 +305,6 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_dof_scatter_sh;
 	struct GPUShader *gpencil_dof_resolve_sh;
 
-	/* temp depth texture */
-	struct GPUTexture *temp_depth_tx;
-	struct GPUTexture *temp_color_tx;
-	
 	/* textures for ping-pong vfx effects */
 	struct GPUTexture *vfx_depth_tx_a;
 	struct GPUTexture *vfx_color_tx_a;
