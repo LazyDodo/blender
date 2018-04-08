@@ -66,7 +66,6 @@ set(SRC
 	intern/draw_manager.c
 	intern/draw_manager_data.c
 	intern/draw_manager_exec.c
-	intern/draw_manager_framebuffer.c
 	intern/draw_manager_shader.c
 	intern/draw_manager_text.c
 	intern/draw_manager_texture.c
@@ -208,6 +207,7 @@ data_to_c_simple(engines/eevee/shaders/volumetric_integration_frag.glsl SRC)
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fxaa_lib.glsl SRC)
+data_to_c_simple(modes/shaders/common_fullscreen_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_geom_tri.glsl SRC)

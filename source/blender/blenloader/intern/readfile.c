@@ -2287,6 +2287,10 @@ static void direct_link_id(FileData *fd, ID *id)
 	}
 	id->py_instance = NULL;
 
+	/* That way datablock reading not going through main read_libblock() function are still in a clear tag state.
+	 * (glowering at certain nodetree fake datablock here...). */
+	id->tag = 0;
+
 	/* Link direct data of overrides. */
 	if (id->override_static) {
 		id->override_static = newdataadr(fd, id->override_static);
@@ -3861,15 +3865,11 @@ static void lib_link_text(FileData *fd, Main *main)
 static void direct_link_text(FileData *fd, Text *text)
 {
 	TextLine *ln;
-	
+
 	text->name = newdataadr(fd, text->name);
-	
-	text->undo_pos = -1;
-	text->undo_len = TXT_INIT_UNDO;
-	text->undo_buf = MEM_mallocN(text->undo_len, "undo buf");
-	
+
 	text->compiled = NULL;
-	
+
 #if 0
 	if (text->flags & TXT_ISEXT) {
 		BKE_text_reload(text);
@@ -4944,7 +4944,8 @@ static void lib_link_object(FileData *fd, Main *main)
 #else
 					MEM_freeN(ob->pose);
 #endif
-					ob->pose = NULL;
+					ob->pose= NULL;
+					ob->mode &= ~OB_MODE_POSE;
 				}
 			}
 			for (a=0; a < ob->totcol; a++) 
@@ -5181,6 +5182,7 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 	link_list(fd, &pose->agroups);
 
 	pose->chanhash = NULL;
+	pose->chan_array = NULL;
 
 	for (pchan = pose->chanbase.first; pchan; pchan=pchan->next) {
 		pchan->bone = NULL;
@@ -5552,6 +5554,19 @@ static void direct_link_object(FileData *fd, Object *ob)
 
 	/* XXX This should not be needed - but seems like it can happen in some cases, so for now play safe... */
 	ob->proxy_from = NULL;
+
+	/* loading saved files with editmode enabled works, but for undo we like
+	 * to stay in object mode during undo presses so keep editmode disabled.
+	 *
+	 * Also when linking in a file don't allow edit and pose modes.
+	 * See [#34776, #42780] for more information.
+	 */
+	if (fd->memfile || (ob->id.tag & (LIB_TAG_EXTERN | LIB_TAG_INDIRECT))) {
+		ob->mode &= ~(OB_MODE_EDIT | OB_MODE_PARTICLE_EDIT);
+		if (!fd->memfile) {
+			ob->mode &= ~OB_MODE_POSE;
+		}
+	}
 	
 	ob->adt = newdataadr(fd, ob->adt);
 	direct_link_animdata(fd, ob->adt);
@@ -5846,6 +5861,18 @@ static void lib_link_scene_collection(FileData *fd, Library *lib, SceneCollectio
 	}
 }
 
+static void lib_link_layer_collection(FileData *fd, LayerCollection *layer_collection)
+{
+	IDP_LibLinkProperty(layer_collection->properties, fd);
+
+	for (LayerCollection *layer_collection_nested = layer_collection->layer_collections.first;
+	     layer_collection_nested != NULL;
+	     layer_collection_nested = layer_collection_nested->next)
+	{
+		lib_link_layer_collection(fd, layer_collection_nested);
+	}
+}
+
 static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_layer)
 {
 	/* tag scene layer to update for collection tree evaluation */
@@ -5866,6 +5893,16 @@ static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_laye
 		base->flag |= BASE_DIRTY_ENGINE_SETTINGS;
 		base->collection_properties = NULL;
 	}
+
+	for (LayerCollection *layer_collection = view_layer->layer_collections.first;
+	     layer_collection != NULL;
+	     layer_collection = layer_collection->next)
+	{
+		lib_link_layer_collection(fd, layer_collection);
+	}
+
+	IDP_LibLinkProperty(view_layer->properties, fd);
+	IDP_LibLinkProperty(view_layer->id_properties, fd);
 }
 
 static void lib_link_scene(FileData *fd, Main *main)
@@ -6252,7 +6289,6 @@ static void direct_link_scene(FileData *fd, Scene *sce, Main *bmain)
 		sce->toolsettings->imapaint.paintcursor = NULL;
 		sce->toolsettings->particle.paintcursor = NULL;
 		sce->toolsettings->particle.scene = NULL;
-		sce->toolsettings->particle.view_layer = NULL;
 		sce->toolsettings->particle.object = NULL;
 		sce->toolsettings->gp_sculpt.paintcursor = NULL;
 		
@@ -7125,7 +7161,8 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 	wm->defaultconf = NULL;
 	wm->addonconf = NULL;
 	wm->userconf = NULL;
-	
+	wm->undo_stack = NULL;
+
 	wm->message_bus = NULL;
 
 	BLI_listbase_clear(&wm->jobs);
@@ -8408,7 +8445,7 @@ static const char *dataname(short id_code)
 		case ID_WO: return "Data from WO";
 		case ID_SCR: return "Data from SCR";
 		case ID_VF: return "Data from VF";
-		case ID_TXT	: return "Data from TXT";
+		case ID_TXT: return "Data from TXT";
 		case ID_SPK: return "Data from SPK";
 		case ID_LP: return "Data from LP";
 		case ID_SO: return "Data from SO";
@@ -8552,11 +8589,11 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 	
 	/* this case cannot be direct_linked: it's just the ID part */
 	if (bhead->code == ID_ID) {
+		/* That way, we know which datablock needs do_versions (required currently for linking). */
+		id->tag = tag | LIB_TAG_NEED_LINK | LIB_TAG_NEW;
+
 		return blo_nextbhead(fd, bhead);
 	}
-
-	/* That way, we know which datablock needs do_versions (required currently for linking). */
-	id->tag |= LIB_TAG_NEW;
 
 	/* need a name for the mallocN, just for debugging and sane prints on leaks */
 	allocname = dataname(GS(id->name));
@@ -8566,7 +8603,11 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 	
 	/* init pointers direct data */
 	direct_link_id(fd, id);
-	
+
+	/* That way, we know which datablock needs do_versions (required currently for linking). */
+	/* Note: doing this after driect_link_id(), which resets that field. */
+	id->tag = tag | LIB_TAG_NEED_LINK | LIB_TAG_NEW;
+
 	switch (GS(id->name)) {
 		case ID_WM:
 			direct_link_windowmanager(fd, (wmWindowManager *)id);
@@ -9528,15 +9569,15 @@ static void expand_nodetree(FileData *fd, Main *mainvar, bNodeTree *ntree)
 		expand_idprops(fd, mainvar, node->prop);
 
 		for (sock = node->inputs.first; sock; sock = sock->next)
-			expand_doit(fd, mainvar, sock->prop);
+			expand_idprops(fd, mainvar, sock->prop);
 		for (sock = node->outputs.first; sock; sock = sock->next)
-			expand_doit(fd, mainvar, sock->prop);
+			expand_idprops(fd, mainvar, sock->prop);
 	}
 
 	for (sock = ntree->inputs.first; sock; sock = sock->next)
-		expand_doit(fd, mainvar, sock->prop);
+		expand_idprops(fd, mainvar, sock->prop);
 	for (sock = ntree->outputs.first; sock; sock = sock->next)
-		expand_doit(fd, mainvar, sock->prop);
+		expand_idprops(fd, mainvar, sock->prop);
 }
 
 static void expand_texture(FileData *fd, Main *mainvar, Tex *tex)
@@ -9937,6 +9978,18 @@ static void expand_scene_collection(FileData *fd, Main *mainvar, SceneCollection
 	}
 }
 
+static void expand_layer_collection(FileData *fd, Main *mainvar, LayerCollection *layer_collection)
+{
+	expand_idprops(fd, mainvar, layer_collection->properties);
+
+	for (LayerCollection *layer_collection_nested = layer_collection->layer_collections.first;
+	     layer_collection_nested != NULL;
+	     layer_collection_nested = layer_collection_nested->next)
+	{
+		expand_layer_collection(fd, mainvar, layer_collection_nested);
+	}
+}
+
 static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 {
 	SceneRenderLayer *srl;
@@ -9973,6 +10026,9 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 	}
 
 	for (ViewLayer *view_layer = sce->view_layers.first; view_layer; view_layer = view_layer->next) {
+		expand_idprops(fd, mainvar, view_layer->properties);
+		expand_idprops(fd, mainvar, view_layer->id_properties);
+
 		for (module = view_layer->freestyle_config.modules.first; module; module = module->next) {
 			if (module->script) {
 				expand_doit(fd, mainvar, module->script);
@@ -9984,6 +10040,13 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 				expand_doit(fd, mainvar, lineset->group);
 			}
 			expand_doit(fd, mainvar, lineset->linestyle);
+		}
+
+		for (LayerCollection *layer_collection = view_layer->layer_collections.first;
+		     layer_collection != NULL;
+		     layer_collection = layer_collection->next)
+		{
+			expand_layer_collection(fd, mainvar, layer_collection);
 		}
 	}
 
@@ -10476,6 +10539,7 @@ static void link_object_postprocess(ID *id, Scene *scene, ViewLayer *view_layer,
 		SceneCollection *sc;
 
 		ob = (Object *)id;
+		ob->mode = OB_MODE_OBJECT;
 
 		sc =  get_scene_collection_active_or_create(scene, view_layer, flag);
 		BKE_collection_object_add(&scene->id, sc, ob);
@@ -10518,6 +10582,8 @@ void BLO_library_link_copypaste(Main *mainl, BlendHandle *bh)
 			if (bhead->code == ID_OB) {
 				/* Instead of instancing Base's directly, postpone until after groups are loaded
 				 * otherwise the base's flag is set incorrectly when groups are used */
+				Object *ob = (Object *)id;
+				ob->mode = OB_MODE_OBJECT;
 				/* ensure give_base_to_objects runs on this object */
 				BLI_assert(id->us == 0);
 			}

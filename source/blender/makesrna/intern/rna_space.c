@@ -64,30 +64,40 @@
 const EnumPropertyItem rna_enum_space_type_items[] = {
 	/* empty must be here for python, is skipped for UI */
 	{SPACE_EMPTY, "EMPTY", ICON_NONE, "Empty", ""},
+
+	/* General */
+	{0, "", ICON_NONE, "General", ""},
 	{SPACE_VIEW3D, "VIEW_3D", ICON_VIEW3D, "3D View", "3D viewport"},
-	{0, "", ICON_NONE, NULL, NULL},
+	{SPACE_IMAGE, "IMAGE_EDITOR", ICON_IMAGE_COL, "UV/Image Editor", "View and edit images and UV Maps"},
+	{SPACE_NODE, "NODE_EDITOR", ICON_NODETREE, "Node Editor", "Editor for node-based shading and compositing tools"},
+	{SPACE_SEQ, "SEQUENCE_EDITOR", ICON_SEQUENCE, "Video Sequencer", "Video editing tools"},
+	{SPACE_CLIP, "CLIP_EDITOR", ICON_CLIP, "Movie Clip Editor", "Motion tracking tools"},
+
+	/* Animation */
+	{0, "", ICON_NONE, "Animation", ""},
 	{SPACE_TIME, "TIMELINE", ICON_TIME, "Timeline", "Timeline and playback controls"},
 	{SPACE_IPO, "GRAPH_EDITOR", ICON_IPO, "Graph Editor", "Edit drivers and keyframe interpolation"},
 	{SPACE_ACTION, "DOPESHEET_EDITOR", ICON_ACTION, "Dope Sheet", "Adjust timing of keyframes"},
 	{SPACE_NLA, "NLA_EDITOR", ICON_NLA, "NLA Editor", "Combine and layer Actions"},
-	{0, "", ICON_NONE, NULL, NULL},
-	{SPACE_IMAGE, "IMAGE_EDITOR", ICON_IMAGE_COL, "UV/Image Editor", "View and edit images and UV Maps"},
-	{SPACE_CLIP, "CLIP_EDITOR", ICON_CLIP, "Movie Clip Editor", "Motion tracking tools"},
-	{SPACE_SEQ, "SEQUENCE_EDITOR", ICON_SEQUENCE, "Video Sequence Editor", "Video editing tools"},
-	{SPACE_NODE, "NODE_EDITOR", ICON_NODETREE, "Node Editor", "Editor for node-based shading and compositing tools"},
+
+	/* Scripting */
+	{0, "", ICON_NONE, "Scripting", ""},
 	{SPACE_TEXT, "TEXT_EDITOR", ICON_TEXT, "Text Editor", "Edit scripts and in-file documentation"},
 	{SPACE_LOGIC, "LOGIC_EDITOR", ICON_LOGIC, "Logic Editor", "Game logic editing"},
-	{0, "", ICON_NONE, NULL, NULL},
-	{SPACE_BUTS, "PROPERTIES", ICON_BUTS, "Properties", "Edit properties of active object and related data-blocks"},
-	{SPACE_OUTLINER, "OUTLINER", ICON_OOPS, "Outliner", "Overview of scene graph and all available data-blocks"},
-	{SPACE_USERPREF, "USER_PREFERENCES", ICON_PREFERENCES, "User Preferences", "Edit persistent configuration settings"},
-	{SPACE_INFO, "INFO", ICON_INFO, "Info", "Main menu bar and list of error messages (drag down to expand and display)"},
+	{SPACE_CONSOLE, "CONSOLE", ICON_CONSOLE, "Python Console", "Interactive programmatic console for "
+	                "advanced editing and script development"},
+	{SPACE_INFO, "INFO", ICON_INFO, "Info", "Main menu bar and list of error messages "
+	             "(drag down to expand and display)"},
 	/* TODO: topbar shouldn't be selectable through menu. */
 	{SPACE_TOPBAR, "TOPBAR", ICON_NONE, "Top Bar", "Global bar at the top of the screen for global per-window settings"},
-	{0, "", ICON_NONE, NULL, NULL},
+
+	/* Data */
+	{0, "", ICON_NONE, "Data", ""},
+	{SPACE_OUTLINER, "OUTLINER", ICON_OOPS, "Outliner", "Overview of scene graph and all available data-blocks"},
+	{SPACE_BUTS, "PROPERTIES", ICON_BUTS, "Properties", "Edit properties of active object and related data-blocks"},
 	{SPACE_FILE, "FILE_BROWSER", ICON_FILESEL, "File Browser", "Browse for files and assets"},
-	{0, "", ICON_NONE, NULL, NULL},
-	{SPACE_CONSOLE, "CONSOLE", ICON_CONSOLE, "Python Console", "Interactive programmatic console for advanced editing and script development"},
+	{SPACE_USERPREF, "USER_PREFERENCES", ICON_PREFERENCES, "User Preferences",
+	                 "Edit persistent configuration settings"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -860,8 +870,8 @@ static int rna_SpaceImageEditor_show_uvedit_get(PointerRNA *ptr)
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
 	wmWindow *win = ED_screen_window_find(sc, G.main->wm.first);
-	Object *obedit = OBEDIT_FROM_WINDOW(win);
-
+	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
+	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 	return ED_space_image_show_uvedit(sima, obedit);
 }
 
@@ -869,11 +879,9 @@ static int rna_SpaceImageEditor_show_maskedit_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
-	wmWindow *window = NULL;
-	Scene *scene = ED_screen_scene_find_with_window(sc, G.main->wm.first, &window);
-	ViewLayer *view_layer = BKE_view_layer_context_active_PLACEHOLDER(scene);
-	const WorkSpace *workspace = WM_window_get_active_workspace(window);
-	return ED_space_image_check_show_maskedit(sima, workspace, view_layer);
+	wmWindow *win = ED_screen_window_find(sc, G.main->wm.first);
+	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
+	return ED_space_image_check_show_maskedit(sima, view_layer);
 }
 
 static void rna_SpaceImageEditor_image_set(PointerRNA *ptr, PointerRNA value)
@@ -882,7 +890,8 @@ static void rna_SpaceImageEditor_image_set(PointerRNA *ptr, PointerRNA value)
 	bScreen *sc = (bScreen *)ptr->id.data;
 	wmWindow *win;
 	Scene *scene = ED_screen_scene_find_with_window(sc, G.main->wm.first, &win);
-	Object *obedit = OBEDIT_FROM_WINDOW(win);
+	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
+	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 	ED_space_image_set(sima, scene, obedit, (Image *)value.data);
 }
 

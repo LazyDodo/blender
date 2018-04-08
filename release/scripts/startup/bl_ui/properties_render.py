@@ -395,6 +395,7 @@ class RENDER_PT_stamp(RenderButtonsPanel, Panel):
         col.prop(rd, "use_stamp_camera", text="Camera")
         col.prop(rd, "use_stamp_lens", text="Lens")
         col.prop(rd, "use_stamp_filename", text="Filename")
+        col.prop(rd, "use_stamp_frame_range", text="Frame range")
         col.prop(rd, "use_stamp_marker", text="Marker")
         col.prop(rd, "use_stamp_sequencer_strip", text="Seq. Strip")
 
@@ -469,7 +470,8 @@ class RENDER_PT_encoding(RenderButtonsPanel, Panel):
             layout.prop(ffmpeg, "use_lossless_output")
 
         # Output quality
-        if needs_codec and ffmpeg.codec in {'H264', 'MPEG4'}:
+        use_crf = needs_codec and ffmpeg.codec in {'H264', 'MPEG4'}
+        if use_crf:
             layout.prop(ffmpeg, "constant_rate_factor")
 
         # Encoding speed
@@ -483,7 +485,7 @@ class RENDER_PT_encoding(RenderButtonsPanel, Panel):
         pbox.prop(ffmpeg, "max_b_frames", text="")
         pbox.enabled = ffmpeg.use_max_b_frames
 
-        if ffmpeg.constant_rate_factor == 'NONE':
+        if not use_crf or ffmpeg.constant_rate_factor == 'NONE':
             split = layout.split()
             col = split.column()
             col.label(text="Rate:")

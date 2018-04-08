@@ -48,7 +48,7 @@ class VIEW3D_HT_header(Header):
         layout.template_header_3D()
 
         if obj:
-            mode = context.workspace.object_mode
+            mode = obj.mode
             # Particle edit
             if mode == 'PARTICLE_EDIT':
                 row.prop(toolsettings.particle_edit, "select_mode", text="", expand=True)
@@ -317,9 +317,8 @@ class VIEW3D_MT_transform_armature(VIEW3D_MT_transform_base):
         VIEW3D_MT_transform_base.draw(self, context)
 
         # armature specific extensions follow...
-        workspace = context.workspace
         obj = context.object
-        if obj.type == 'ARMATURE' and workspace.object_mode in {'EDIT', 'POSE'}:
+        if obj.type == 'ARMATURE' and obj.mode in {'EDIT', 'POSE'}:
             if obj.data.draw_type == 'BBONE':
                 layout.separator()
 
@@ -1956,10 +1955,7 @@ class VIEW3D_MT_vertex_group(Menu):
         layout.operator("object.vertex_group_assign_new")
 
         ob = context.active_object
-        workspace = context.workspace
-        if ((workspace.object_mode == 'EDIT') or
-            (workspace.object_mode == 'WEIGHT_PAINT' and ob.type == 'MESH' and ob.data.use_paint_mask_vertex)
-        ):
+        if ob.mode == 'EDIT' or (ob.mode == 'WEIGHT_PAINT' and ob.type == 'MESH' and ob.data.use_paint_mask_vertex):
             if ob.vertex_groups.active:
                 layout.separator()
 
@@ -2662,8 +2658,8 @@ class VIEW3D_MT_edit_mesh_vertices(Menu):
         layout.operator("object.vertex_parent_set")
 
 
-class VIEW3D_MT_edit_mesh_edges(Menu):
-    bl_label = "Edges"
+class VIEW3D_MT_edit_mesh_edges_data(Menu):
+    bl_label = "Edge Data"
 
     def draw(self, context):
         layout = self.layout
@@ -2671,13 +2667,6 @@ class VIEW3D_MT_edit_mesh_edges(Menu):
         with_freestyle = bpy.app.build_options.freestyle
 
         layout.operator_context = 'INVOKE_REGION_WIN'
-
-        layout.operator("mesh.edge_face_add")
-        layout.operator("mesh.subdivide")
-        layout.operator("mesh.subdivide_edgering")
-        layout.operator("mesh.unsubdivide")
-
-        layout.separator()
 
         layout.operator("transform.edge_crease")
         layout.operator("transform.edge_bevelweight")
@@ -2698,6 +2687,26 @@ class VIEW3D_MT_edit_mesh_edges(Menu):
             layout.operator("mesh.mark_freestyle_edge").clear = False
             layout.operator("mesh.mark_freestyle_edge", text="Clear Freestyle Edge").clear = True
             layout.separator()
+
+
+class VIEW3D_MT_edit_mesh_edges(Menu):
+    bl_label = "Edges"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator_context = 'INVOKE_REGION_WIN'
+
+        layout.operator("mesh.edge_face_add")
+        layout.operator("mesh.subdivide")
+        layout.operator("mesh.subdivide_edgering")
+        layout.operator("mesh.unsubdivide")
+
+        layout.separator()
+
+        layout.menu("VIEW3D_MT_edit_mesh_edges_data")
+
+        layout.separator()
 
         layout.operator("mesh.edge_rotate", text="Rotate Edge CW").use_ccw = False
         layout.operator("mesh.edge_rotate", text="Rotate Edge CCW").use_ccw = True
@@ -3392,7 +3401,7 @@ class VIEW3D_PT_view3d_properties(Panel):
         if lock_object:
             if lock_object.type == 'ARMATURE':
                 col.prop_search(view, "lock_bone", lock_object.data,
-                                "edit_bones" if context.mode == 'EDIT_ARMATURE'
+                                "edit_bones" if lock_object.mode == 'EDIT'
                                 else "bones",
                                 text="")
         else:
@@ -3445,13 +3454,12 @@ class VIEW3D_PT_view3d_name(Panel):
     def draw(self, context):
         layout = self.layout
 
-        workspace = context.workspace
         ob = context.active_object
         row = layout.row()
         row.label(text="", icon='OBJECT_DATA')
         row.prop(ob, "name", text="")
 
-        if ob.type == 'ARMATURE' and workspace.object_mode in {'EDIT', 'POSE'}:
+        if ob.type == 'ARMATURE' and ob.mode in {'EDIT', 'POSE'}:
             bone = context.active_bone
             if bone:
                 row = layout.row()
@@ -3769,8 +3777,7 @@ class VIEW3D_PT_etch_a_ton(Panel):
     def poll(cls, context):
         scene = context.space_data
         ob = context.active_object
-        workspace = context.workspace
-        return scene and ob and (ob.type == 'ARMATURE') and (workspace.object_mode == 'EDIT')
+        return scene and ob and ob.type == 'ARMATURE' and ob.mode == 'EDIT'
 
     def draw_header(self, context):
         layout = self.layout
@@ -3826,8 +3833,7 @@ class VIEW3D_PT_context_properties(Panel):
     def _active_context_member(context):
         obj = context.object
         if obj:
-            workspace = context.workspace
-            mode = workspace.object_mode
+            mode = obj.mode
             if mode == 'POSE':
                 return "active_pose_bone"
             elif mode == 'EDIT' and obj.type == 'ARMATURE':
@@ -3954,6 +3960,7 @@ classes = (
     VIEW3D_MT_edit_mesh_extrude,
     VIEW3D_MT_edit_mesh_vertices,
     VIEW3D_MT_edit_mesh_edges,
+    VIEW3D_MT_edit_mesh_edges_data,
     VIEW3D_MT_edit_mesh_faces,
     VIEW3D_MT_edit_mesh_normals,
     VIEW3D_MT_edit_mesh_clean,

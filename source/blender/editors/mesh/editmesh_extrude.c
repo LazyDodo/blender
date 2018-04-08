@@ -36,8 +36,6 @@
 #include "BLI_listbase.h"
 
 #include "BKE_context.h"
-#include "BKE_global.h"
-#include "BKE_main.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_editmesh.h"
@@ -63,7 +61,7 @@
 
 #ifdef USE_MANIPULATOR
 #include "ED_manipulator_library.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 #endif
 
 /* -------------------------------------------------------------------- */

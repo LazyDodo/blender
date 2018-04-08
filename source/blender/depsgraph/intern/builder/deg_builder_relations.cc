@@ -123,12 +123,24 @@ struct BuilderWalkUserData {
 
 void modifier_walk(void *user_data,
                    struct Object * /*object*/,
-                   struct Object **obpoin,
+                   struct ID **idpoin,
                    int /*cb_flag*/)
 {
 	BuilderWalkUserData *data = (BuilderWalkUserData *)user_data;
-	if (*obpoin) {
-		data->builder->build_object(NULL, *obpoin);
+	ID *id = *idpoin;
+	if (id == NULL) {
+		return;
+	}
+	switch (GS(id->name)) {
+		case ID_OB:
+			data->builder->build_object(NULL, (Object *)id);
+			break;
+		case ID_TE:
+			data->builder->build_texture((Tex *)id);
+			break;
+		default:
+			/* pass */
+			break;
 	}
 }
 
@@ -463,7 +475,7 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	if (object->modifiers.first != NULL) {
 		BuilderWalkUserData data;
 		data.builder = this;
-		modifiers_foreachObjectLink(object, modifier_walk, &data);
+		modifiers_foreachIDLink(object, modifier_walk, &data);
 	}
 	/* Constraints. */
 	if (object->constraints.first != NULL) {
@@ -1430,19 +1442,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 		OperationKey particle_settings_key(&part->id,
 		                                   DEG_NODE_TYPE_PARAMETERS,
 		                                   DEG_OPCODE_PARTICLE_SETTINGS_EVAL);
-		OperationKey particle_settings_recalc_clear_key(
-		        &part->id,
-		        DEG_NODE_TYPE_PARAMETERS,
-		        DEG_OPCODE_PARTICLE_SETTINGS_RECALC_CLEAR);
-		OperationKey psys_settings_key(&object->id,
-		                               DEG_NODE_TYPE_EVAL_PARTICLES,
-		                               DEG_OPCODE_PARTICLE_SETTINGS_EVAL,
-		                               psys->name);
-		add_relation(particle_settings_key, psys_settings_key, "Particle Settings Change");
-		add_relation(psys_settings_key, psys_key, "Particle Settings Update");
-		add_relation(psys_key,
-		             particle_settings_recalc_clear_key,
-		             "Particle Settings Recalc Clear");
+		add_relation(particle_settings_key, eval_init_key, "Particle Settings Change");
 		add_relation(eval_init_key, psys_key, "Init -> PSys");
 		/* TODO(sergey): Currently particle update is just a placeholder,
 		 * hook it to the ubereval node so particle system is getting updated
@@ -1543,14 +1543,6 @@ void DepsgraphRelationBuilder::build_particle_settings(ParticleSettings *part)
 	}
 	/* Animation data relations. */
 	build_animdata(&part->id);
-
-	OperationKey eval_key(&part->id,
-	                      DEG_NODE_TYPE_PARAMETERS,
-	                      DEG_OPCODE_PARTICLE_SETTINGS_EVAL);
-	OperationKey recalc_clear_key(&part->id,
-	                             DEG_NODE_TYPE_PARAMETERS,
-	                             DEG_OPCODE_PARTICLE_SETTINGS_RECALC_CLEAR);
-	add_relation(eval_key, recalc_clear_key, "Particle Settings Clear Recalc");
 }
 
 void DepsgraphRelationBuilder::build_particles_visualization_object(
@@ -2081,18 +2073,18 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 				graph_->add_new_relation(op_cow, op_node, "CoW Dependency");
 			}
 			else {
-				bool has_same_id_dependency = false;
+				bool has_same_comp_dependency = false;
 				foreach (DepsRelation *rel, op_node->inlinks) {
 					if (rel->from->type != DEG_NODE_TYPE_OPERATION) {
 						continue;
 					}
 					OperationDepsNode *op_node_from = (OperationDepsNode *)rel->from;
-					if (op_node_from->owner->owner == op_node->owner->owner) {
-						has_same_id_dependency = true;
+					if (op_node_from->owner == op_node->owner) {
+						has_same_comp_dependency = true;
 						break;
 					}
 				}
-				if (!has_same_id_dependency) {
+				if (!has_same_comp_dependency) {
 					graph_->add_new_relation(op_cow, op_node, "CoW Dependency");
 				}
 			}

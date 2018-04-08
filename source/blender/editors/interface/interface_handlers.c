@@ -46,7 +46,6 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
-#include "DNA_workspace_types.h"
 
 #include "BLI_math.h"
 #include "BLI_listbase.h"
@@ -74,10 +73,8 @@
 #include "BKE_unit.h"
 #include "BKE_paint.h"
 
-#include "DEG_depsgraph.h"
-
 #include "ED_screen.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 #include "ED_keyframing.h"
 
 #include "UI_interface.h"
@@ -5275,10 +5272,9 @@ static int ui_do_but_COLOR(
 			if ((int)(but->a1) == UI_PALETTE_COLOR) {
 				if (!event->ctrl) {
 					float color[3];
-					const WorkSpace *workspace = CTX_wm_workspace(C);
 					Scene *scene = CTX_data_scene(C);
 					ViewLayer *view_layer = CTX_data_view_layer(C);
-					Paint *paint = BKE_paint_get_active(scene, view_layer, workspace->object_mode);
+					Paint *paint = BKE_paint_get_active(scene, view_layer);
 					Brush *brush = BKE_paint_brush(paint);
 
 					if (brush->flag & BRUSH_USE_GRADIENT) {
@@ -6194,7 +6190,6 @@ static int ui_do_but_CURVE(
 {
 	int mx, my, a;
 	bool changed = false;
-
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 
@@ -6311,7 +6306,6 @@ static int ui_do_but_CURVE(
 		}
 		else if (event->type == LEFTMOUSE && event->val != KM_PRESS) {
 			if (data->dragsel != -1) {
-				const WorkSpace *workspace = CTX_wm_workspace(C);
 				CurveMapping *cumap = (CurveMapping *)but->poin;
 				CurveMap *cuma = cumap->cm + cumap->cur;
 				CurveMapPoint *cmp = cuma->curve;
@@ -6326,7 +6320,7 @@ static int ui_do_but_CURVE(
 				}
 				else {
 					curvemapping_changed(cumap, true);  /* remove doubles */
-					BKE_paint_invalidate_cursor_overlay(scene, view_layer, cumap, workspace->object_mode);
+					BKE_paint_invalidate_cursor_overlay(scene, view_layer, cumap);
 				}
 			}
 
@@ -7828,7 +7822,10 @@ static void button_activate_state(bContext *C, uiBut *but, uiHandleButtonState s
 
 	/* highlight has timers for tooltips and auto open */
 	if (state == BUTTON_STATE_HIGHLIGHT) {
-		but->flag &= ~UI_SELECT;
+		/* for list-items (that are not drawn with regular emboss), don't change selection based on hovering */
+		if (((but->flag & UI_BUT_LIST_ITEM) == 0) && (but->dragflag & UI_EMBOSS_NONE)) {
+			but->flag &= ~UI_SELECT;
+		}
 
 		button_tooltip_timer_reset(C, but);
 
