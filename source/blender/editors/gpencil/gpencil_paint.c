@@ -694,8 +694,8 @@ static short gp_stroke_addpoint(
 		/* point time */
 		pt->time = (float)(curtime - p->inittime);
 		
-		/* point uv */
-		if (gpd->sbuffer_size > 1) {
+		/* point uv (only 3d view) */
+		if ((p->sa->spacetype == SPACE_VIEW3D) && (gpd->sbuffer_size > 1)) {
 			float pixsize = palcolor->t_pixsize / 1000000.0f;
 			tGPspoint *ptb = (tGPspoint *)gpd->sbuffer + gpd->sbuffer_size - 2;
 			bGPDspoint spt, spt2;
