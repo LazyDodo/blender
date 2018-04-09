@@ -1211,10 +1211,10 @@ static void step_to_grid(float *step, int *power, int unit)
  * - Units + clamping args will be checked, to make sure they are valid values that can be used
  *   so it is very possible that we won't return grid at all!
  *
- * - xunits,yunits	= V2D_UNIT_*  grid steps in seconds or frames
- * - xclamp,yclamp	= V2D_CLAMP_* only show whole-number intervals
- * - winx			= width of region we're drawing to, note: not used but keeping for completeness.
- * - winy			= height of region we're drawing into
+ * - xunits,yunits = V2D_UNIT_*  grid steps in seconds or frames
+ * - xclamp,yclamp = V2D_CLAMP_* only show whole-number intervals
+ * - winx          = width of region we're drawing to, note: not used but keeping for completeness.
+ * - winy          = height of region we're drawing into
  */
 View2DGrid *UI_view2d_grid_calc(
         Scene *scene, View2D *v2d,
@@ -1892,7 +1892,9 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 			/* draw numbers in the appropriate range */
 			if (dfac > 0.0f) {
 				float h = 0.1f * UI_UNIT_Y + (float)(hor.ymin);
-				
+
+				BLF_batch_draw_begin();
+
 				for (; fac < hor.xmax - 0.5f * U.widget_unit; fac += dfac, val += grid->dx) {
 					
 					/* make prints look nicer for scrollers */
@@ -1919,6 +1921,8 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 							break;
 					}
 				}
+
+				BLF_batch_draw_end();
 			}
 		}
 	}

@@ -43,6 +43,7 @@
  */
 #include <string>
 #include <vector>
+#include <algorithm>
 
 struct bAction;
 struct ChannelDriver;
@@ -239,7 +240,6 @@ typedef enum eDepsOperation_Code {
 	DEG_OPCODE_PARTICLE_SYSTEM_EVAL_INIT,
 	DEG_OPCODE_PARTICLE_SYSTEM_EVAL,
 	DEG_OPCODE_PARTICLE_SETTINGS_EVAL,
-	DEG_OPCODE_PARTICLE_SETTINGS_RECALC_CLEAR,
 
 	/* Point Cache. ------------------------------------- */
 	DEG_OPCODE_POINT_CACHE_RESET,

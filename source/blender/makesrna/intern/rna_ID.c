@@ -793,12 +793,12 @@ static int rna_ID_is_updated_data_get(PointerRNA *ptr)
 	return ((data->recalc & ID_RECALC_ALL) != 0);
 }
 
-static PointerRNA rna_ID_override_reference_get(PointerRNA *ptr)
+static IDProperty *rna_IDPropertyWrapPtr_idprops(PointerRNA *ptr, bool UNUSED(create))
 {
-	ID *id = (ID *)ptr->data;
-	ID *reference = (id && id->override_static) ? id->override_static->reference : NULL;
-
-	return reference ? rna_pointer_inherit_refine(ptr, ID_code_to_RNA_type(GS(reference->name)), reference) : PointerRNA_NULL;
+	if (ptr == NULL) {
+		return NULL;
+	}
+	return ptr->data;
 }
 
 #else
@@ -997,6 +997,33 @@ static void rna_def_image_preview(BlenderRNA *brna)
 	RNA_def_function_ui_description(func, "Reload the preview from its source path");
 }
 
+static void rna_def_ID_override_static_property(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "IDOverrideStaticProperty", NULL);
+	RNA_def_struct_ui_text(srna, "ID Static Override Property", "Description of an overridden property");
+
+	prop = RNA_def_string(srna, "rna_path", NULL, INT_MAX, "RNA Path", "RNA path leading to that property, from owning ID");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);  /* For now. */
+}
+
+	static void rna_def_ID_override_static(BlenderRNA *brna)
+{
+	StructRNA *srna;
+
+	srna = RNA_def_struct(brna, "IDOverrideStatic", NULL);
+	RNA_def_struct_ui_text(srna, "ID Static Override", "Struct gathering all data needed by statically overridden IDs");
+
+	RNA_def_pointer(srna, "reference", "ID", "Reference ID", "Linked ID used as reference by this override");
+
+	RNA_def_collection(srna, "properties", "IDOverrideStaticProperty", "Properties",
+	                   "List of overridden properties");
+
+	rna_def_ID_override_static_property(brna);
+}
+
 static void rna_def_ID(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1063,11 +1090,8 @@ static void rna_def_ID(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Library", "Library file the data-block is linked from");
 
-	prop = RNA_def_pointer(srna, "override_static_reference", "ID",
-	                       "Override Reference", "Reference linked data-block overridden by this one");
-	RNA_def_property_pointer_sdna(prop, NULL, "override_static->reference");
+	prop = RNA_def_pointer(srna, "override_static", "IDOverrideStatic", "Static Override", "Static override data");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_pointer_funcs(prop, "rna_ID_override_reference_get", NULL, NULL, NULL);
 
 	prop = RNA_def_pointer(srna, "preview", "ImagePreview", "Preview",
 	                       "Preview image and icon of this data-block (None if not supported for this type of data)");
@@ -1164,6 +1188,20 @@ static void rna_def_library(BlenderRNA *brna)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS | FUNC_USE_CONTEXT);
 	RNA_def_function_ui_description(func, "Reload this library and all its linked data-blocks");
 }
+
+/**
+ * \attention This is separate from the above. It allows for RNA functions to
+ * return an IDProperty *. See MovieClip.metadata for a usage example.
+ **/
+static void rna_def_idproperty_wrap_ptr(BlenderRNA *brna)
+{
+	StructRNA *srna;
+
+	srna = RNA_def_struct(brna, "IDPropertyWrapPtr", NULL);
+	RNA_def_struct_idprops_func(srna, "rna_IDPropertyWrapPtr_idprops");
+	RNA_def_struct_flag(srna, STRUCT_NO_DATABLOCK_IDPROPERTIES);
+}
+
 void RNA_def_ID(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1177,10 +1215,12 @@ void RNA_def_ID(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Any Type", "RNA type used for pointers to any possible data");
 
 	rna_def_ID(brna);
+	rna_def_ID_override_static(brna);
 	rna_def_image_preview(brna);
 	rna_def_ID_properties(brna);
 	rna_def_ID_materials(brna);
 	rna_def_library(brna);
+	rna_def_idproperty_wrap_ptr(brna);
 }
 
 #endif

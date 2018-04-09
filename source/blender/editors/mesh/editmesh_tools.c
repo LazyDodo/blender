@@ -1126,7 +1126,7 @@ static bool bm_vert_connect_select_history(BMesh *bm)
 	 * - Otherwise connect faces.
 	 * - If all edges have been created already, closed the loop.
 	 */
-	if (BLI_listbase_count_ex(&bm->selected, 2) == 2 && (bm->totvertsel > 2)) {
+	if (BLI_listbase_count_at_most(&bm->selected, 2) == 2 && (bm->totvertsel > 2)) {
 		BMEditSelection *ese;
 		int tot = 0;
 		bool changed = false;
@@ -1947,7 +1947,7 @@ static int edbm_do_smooth_laplacian_vertex_exec(bContext *C, wmOperator *op)
 	BMIter fiter;
 	BMFace *f;
 
-	/* Check if select faces are triangles	*/
+	/* Check if select faces are triangles */
 	BM_ITER_MESH (f, &fiter, em->bm, BM_FACES_OF_MESH) {
 		if (BM_elem_flag_test(f, BM_ELEM_SELECT)) {
 			if (f->len > 4) {
@@ -3762,7 +3762,7 @@ static void edbm_fill_grid_prepare(BMesh *bm, int offset, int *r_span, bool span
 			 *
 			 * note: we may have already checked 'edbm_fill_grid_vert_tag_angle()' on each
 			 * vert, but advantage of de-duplicating is minimal. */
-			struct SortPointerByFloat *ele_sort = MEM_mallocN(sizeof(*ele_sort) * verts_len, __func__);
+			struct SortPtrByFloat *ele_sort = MEM_mallocN(sizeof(*ele_sort) * verts_len, __func__);
 			LinkData *v_link;
 			for (v_link = verts->first, i = 0; v_link; v_link = v_link->next, i++) {
 				BMVert *v = v_link->data;

@@ -230,16 +230,17 @@ static void schedule_children(TaskPool *pool,
 void deg_evaluate_on_refresh(EvaluationContext *eval_ctx,
                              Depsgraph *graph)
 {
+	/* Set time for the current graph evaluation context. */
+	TimeSourceDepsNode *time_src = graph->find_time_source();
+	eval_ctx->ctime = time_src->cfra;
+	eval_ctx->depsgraph = (::Depsgraph *)graph;
+	eval_ctx->view_layer = DEG_get_evaluated_view_layer((::Depsgraph *)graph);
 	/* Nothing to update, early out. */
 	if (BLI_gset_len(graph->entry_tags) == 0) {
 		return;
 	}
 	const bool do_time_debug = ((G.debug & G_DEBUG_DEPSGRAPH_TIME) != 0);
-	/* Set time for the current graph evaluation context. */
-	TimeSourceDepsNode *time_src = graph->find_time_source();
-	eval_ctx->depsgraph = (::Depsgraph *)graph;
-	eval_ctx->view_layer = DEG_get_evaluated_view_layer((::Depsgraph *)graph);
-	eval_ctx->ctime = time_src->cfra;
+	const double start_time = do_time_debug ? PIL_check_seconds_timer() : 0;
 	/* Set up evaluation context for depsgraph itself. */
 	DepsgraphEvalState state;
 	state.eval_ctx = eval_ctx;
@@ -274,6 +275,10 @@ void deg_evaluate_on_refresh(EvaluationContext *eval_ctx,
 	deg_graph_clear_tags(graph);
 	if (need_free_scheduler) {
 		BLI_task_scheduler_free(task_scheduler);
+	}
+	if (do_time_debug) {
+		printf("Depsgraph updated in %f seconds.\n",
+		       PIL_check_seconds_timer() - start_time);
 	}
 }
 

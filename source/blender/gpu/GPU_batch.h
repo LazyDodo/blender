@@ -40,6 +40,7 @@ struct rctf;
 // #include "gawain/batch.h"
 
 #include "BLI_compiler_attrs.h"
+#include "BLI_sys_types.h"
 
 #include "GPU_shader.h"
 
@@ -66,6 +67,7 @@ Gwn_Batch *GPU_batch_preset_sphere(int lod) ATTR_WARN_UNUSED_RESULT;
 Gwn_Batch *GPU_batch_preset_sphere_wire(int lod) ATTR_WARN_UNUSED_RESULT;
 
 void gpu_batch_presets_init(void);
+void gpu_batch_presets_register(Gwn_Batch *preset_batch);
 void gpu_batch_presets_reset(void);
 void gpu_batch_presets_exit(void);
 

@@ -50,7 +50,7 @@ class CyclesButtonsPanel:
 
     @classmethod
     def poll(cls, context):
-        return context.scene.view_render.engine in cls.COMPAT_ENGINES
+        return context.engine in cls.COMPAT_ENGINES
 
 
 def get_device_type(context):
@@ -753,7 +753,7 @@ class CYCLES_PT_context_material(CyclesButtonsPanel, Panel):
                 col.operator("object.material_slot_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("object.material_slot_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
 
-            if context.workspace.object_mode == 'EDIT':
+            if ob.mode == 'EDIT':
                 row = layout.row(align=True)
                 row.operator("object.material_slot_assign", text="Assign")
                 row.operator("object.material_slot_select", text="Select")

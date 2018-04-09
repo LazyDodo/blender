@@ -76,7 +76,7 @@ extern char datatoc_volumetric_resolve_frag_glsl[];
 extern char datatoc_volumetric_scatter_frag_glsl[];
 extern char datatoc_volumetric_integration_frag_glsl[];
 extern char datatoc_volumetric_lib_glsl[];
-extern char datatoc_gpu_shader_fullscreen_vert_glsl[];
+extern char datatoc_common_fullscreen_vert_glsl[];
 
 static void eevee_create_shader_volumes(void)
 {
@@ -126,7 +126,7 @@ static void eevee_create_shader_volumes(void)
 	        datatoc_volumetric_integration_frag_glsl,
 	        e_data.volumetric_common_lib, NULL);
 	e_data.volumetric_resolve_sh = DRW_shader_create_with_lib(
-	        datatoc_gpu_shader_fullscreen_vert_glsl, NULL,
+	        datatoc_common_fullscreen_vert_glsl, NULL,
 	        datatoc_volumetric_resolve_frag_glsl,
 	        e_data.volumetric_common_lib, NULL);
 }
@@ -195,9 +195,9 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			DRW_TEXTURE_FREE_SAFE(txl->volume_transmittance);
 			DRW_TEXTURE_FREE_SAFE(txl->volume_scatter_history);
 			DRW_TEXTURE_FREE_SAFE(txl->volume_transmittance_history);
-			DRW_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_fb);
-			DRW_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_scat_fb);
-			DRW_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_integ_fb);
+			GPU_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_fb);
+			GPU_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_scat_fb);
+			GPU_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_integ_fb);
 			common_data->vol_tex_size[0] = tex_size[0];
 			common_data->vol_tex_size[1] = tex_size[1];
 			common_data->vol_tex_size[2] = tex_size[2];
@@ -268,28 +268,23 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		EEVEE_volumes_set_jitter(sldata, current_sample);
 
 		/* Framebuffer setup */
-		DRWFboTexture tex_vol[4] = {{&txl->volume_prop_scattering, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER},
-		                            {&txl->volume_prop_extinction, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER},
-		                            {&txl->volume_prop_emission, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER},
-		                            {&txl->volume_prop_phase, DRW_TEX_RG_16, DRW_TEX_FILTER}};
-
-		DRW_framebuffer_init(&fbl->volumetric_fb, &draw_engine_eevee_type,
-		                     (int)tex_size[0], (int)tex_size[1],
-		                     tex_vol, 4);
-
-		DRWFboTexture tex_vol_scat[2] = {{&txl->volume_scatter, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER},
-		                                 {&txl->volume_transmittance, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER}};
-
-		DRW_framebuffer_init(&fbl->volumetric_scat_fb, &draw_engine_eevee_type,
-		                     (int)tex_size[0], (int)tex_size[1],
-		                     tex_vol_scat, 2);
-
-		DRWFboTexture tex_vol_integ[2] = {{&txl->volume_scatter_history, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER},
-		                                  {&txl->volume_transmittance_history, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER}};
-
-		DRW_framebuffer_init(&fbl->volumetric_integ_fb, &draw_engine_eevee_type,
-		                     (int)tex_size[0], (int)tex_size[1],
-		                     tex_vol_integ, 2);
+		GPU_framebuffer_ensure_config(&fbl->volumetric_fb, {
+			GPU_ATTACHMENT_NONE,
+			GPU_ATTACHMENT_TEXTURE(txl->volume_prop_scattering),
+			GPU_ATTACHMENT_TEXTURE(txl->volume_prop_extinction),
+			GPU_ATTACHMENT_TEXTURE(txl->volume_prop_emission),
+			GPU_ATTACHMENT_TEXTURE(txl->volume_prop_phase)
+		});
+		GPU_framebuffer_ensure_config(&fbl->volumetric_scat_fb, {
+			GPU_ATTACHMENT_NONE,
+			GPU_ATTACHMENT_TEXTURE(txl->volume_scatter),
+			GPU_ATTACHMENT_TEXTURE(txl->volume_transmittance)
+		});
+		GPU_framebuffer_ensure_config(&fbl->volumetric_integ_fb, {
+			GPU_ATTACHMENT_NONE,
+			GPU_ATTACHMENT_TEXTURE(txl->volume_scatter_history),
+			GPU_ATTACHMENT_TEXTURE(txl->volume_transmittance_history)
+		});
 
 		float integration_start = BKE_collection_engine_property_value_get_float(props, "volumetric_start");
 		float integration_end = BKE_collection_engine_property_value_get_float(props, "volumetric_end");
@@ -345,9 +340,9 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	DRW_TEXTURE_FREE_SAFE(txl->volume_transmittance);
 	DRW_TEXTURE_FREE_SAFE(txl->volume_scatter_history);
 	DRW_TEXTURE_FREE_SAFE(txl->volume_transmittance_history);
-	DRW_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_fb);
-	DRW_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_scat_fb);
-	DRW_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_integ_fb);
+	GPU_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_fb);
+	GPU_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_scat_fb);
+	GPU_FRAMEBUFFER_FREE_SAFE(fbl->volumetric_integ_fb);
 
 	return 0;
 }
@@ -426,14 +421,14 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		psl->volumetric_scatter_ps = DRW_pass_create("Volumetric Scattering", DRW_STATE_WRITE_COLOR);
 		grp = DRW_shgroup_empty_tri_batch_create(scatter_sh, psl->volumetric_scatter_ps,
 		                                         common_data->vol_tex_size[2]);
-		DRW_shgroup_uniform_buffer(grp, "irradianceGrid", &sldata->irradiance_pool);
-		DRW_shgroup_uniform_buffer(grp, "shadowTexture", &sldata->shadow_pool);
-		DRW_shgroup_uniform_buffer(grp, "volumeScattering", &txl->volume_prop_scattering);
-		DRW_shgroup_uniform_buffer(grp, "volumeExtinction", &txl->volume_prop_extinction);
-		DRW_shgroup_uniform_buffer(grp, "volumeEmission", &txl->volume_prop_emission);
-		DRW_shgroup_uniform_buffer(grp, "volumePhase", &txl->volume_prop_phase);
-		DRW_shgroup_uniform_buffer(grp, "historyScattering", &txl->volume_scatter_history);
-		DRW_shgroup_uniform_buffer(grp, "historyTransmittance", &txl->volume_transmittance_history);
+		DRW_shgroup_uniform_texture_ref(grp, "irradianceGrid", &sldata->irradiance_pool);
+		DRW_shgroup_uniform_texture_ref(grp, "shadowTexture", &sldata->shadow_pool);
+		DRW_shgroup_uniform_texture_ref(grp, "volumeScattering", &txl->volume_prop_scattering);
+		DRW_shgroup_uniform_texture_ref(grp, "volumeExtinction", &txl->volume_prop_extinction);
+		DRW_shgroup_uniform_texture_ref(grp, "volumeEmission", &txl->volume_prop_emission);
+		DRW_shgroup_uniform_texture_ref(grp, "volumePhase", &txl->volume_prop_phase);
+		DRW_shgroup_uniform_texture_ref(grp, "historyScattering", &txl->volume_scatter_history);
+		DRW_shgroup_uniform_texture_ref(grp, "historyTransmittance", &txl->volume_transmittance_history);
 		DRW_shgroup_uniform_block(grp, "light_block", sldata->light_ubo);
 		DRW_shgroup_uniform_block(grp, "shadow_block", sldata->shadow_ubo);
 		DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
@@ -442,16 +437,16 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		grp = DRW_shgroup_empty_tri_batch_create(e_data.volumetric_integration_sh,
 		                                         psl->volumetric_integration_ps,
 		                                         common_data->vol_tex_size[2]);
-		DRW_shgroup_uniform_buffer(grp, "volumeScattering", &txl->volume_scatter);
-		DRW_shgroup_uniform_buffer(grp, "volumeExtinction", &txl->volume_transmittance);
+		DRW_shgroup_uniform_texture_ref(grp, "volumeScattering", &txl->volume_scatter);
+		DRW_shgroup_uniform_texture_ref(grp, "volumeExtinction", &txl->volume_transmittance);
 		DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
 
 		psl->volumetric_resolve_ps = DRW_pass_create("Volumetric Resolve", DRW_STATE_WRITE_COLOR);
 		grp = DRW_shgroup_create(e_data.volumetric_resolve_sh, psl->volumetric_resolve_ps);
-		DRW_shgroup_uniform_buffer(grp, "inScattering", &txl->volume_scatter);
-		DRW_shgroup_uniform_buffer(grp, "inTransmittance", &txl->volume_transmittance);
-		DRW_shgroup_uniform_buffer(grp, "inSceneColor", &e_data.color_src);
-		DRW_shgroup_uniform_buffer(grp, "inSceneDepth", &e_data.depth_src);
+		DRW_shgroup_uniform_texture_ref(grp, "inScattering", &txl->volume_scatter);
+		DRW_shgroup_uniform_texture_ref(grp, "inTransmittance", &txl->volume_transmittance);
+		DRW_shgroup_uniform_texture_ref(grp, "inSceneColor", &e_data.color_src);
+		DRW_shgroup_uniform_texture_ref(grp, "inSceneDepth", &e_data.depth_src);
 		DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 	}
@@ -508,10 +503,10 @@ void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 		}
 
 		if (sds->tex != NULL) {
-			DRW_shgroup_uniform_buffer(grp, "sampdensity", &sds->tex);
+			DRW_shgroup_uniform_texture_ref(grp, "sampdensity", &sds->tex);
 		}
 		if (sds->tex_flame != NULL) {
-			DRW_shgroup_uniform_buffer(grp, "sampflame", &sds->tex_flame);
+			DRW_shgroup_uniform_texture_ref(grp, "sampflame", &sds->tex_flame);
 		}
 
 		/* Output is such that 0..1 maps to 0..1000K */
@@ -530,16 +525,16 @@ void EEVEE_volumes_compute(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *veda
 		DRW_stats_group_start("Volumetrics");
 
 		/* Step 1: Participating Media Properties */
-		DRW_framebuffer_bind(fbl->volumetric_fb);
+		GPU_framebuffer_bind(fbl->volumetric_fb);
 		DRW_draw_pass(psl->volumetric_world_ps);
 		DRW_draw_pass(psl->volumetric_objects_ps);
 
 		/* Step 2: Scatter Light */
-		DRW_framebuffer_bind(fbl->volumetric_scat_fb);
+		GPU_framebuffer_bind(fbl->volumetric_scat_fb);
 		DRW_draw_pass(psl->volumetric_scatter_ps);
 
 		/* Step 3: Integration */
-		DRW_framebuffer_bind(fbl->volumetric_integ_fb);
+		GPU_framebuffer_bind(fbl->volumetric_integ_fb);
 		DRW_draw_pass(psl->volumetric_integration_ps);
 
 		/* Swap volume history buffers */
@@ -548,7 +543,7 @@ void EEVEE_volumes_compute(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *veda
 		SWAP(GPUTexture *, txl->volume_transmittance, txl->volume_transmittance_history);
 
 		/* Restore */
-		DRW_framebuffer_bind(fbl->main);
+		GPU_framebuffer_bind(fbl->main_fb);
 
 		DRW_stats_group_end();
 	}
@@ -569,14 +564,14 @@ void EEVEE_volumes_resolve(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *veda
 		e_data.depth_src = dtxl->depth;
 
 		/* Step 4: Apply for opaque */
-		DRW_framebuffer_bind(fbl->effect_fb);
+		GPU_framebuffer_bind(fbl->effect_color_fb);
 		DRW_draw_pass(psl->volumetric_resolve_ps);
 
 		/* Swap the buffers and rebind depth to the current buffer */
-		DRW_framebuffer_texture_detach(dtxl->depth);
-		SWAP(struct GPUFrameBuffer *, fbl->main, fbl->effect_fb);
+		SWAP(GPUFrameBuffer *, fbl->main_fb, fbl->effect_fb);
+		SWAP(GPUFrameBuffer *, fbl->main_color_fb, fbl->effect_color_fb);
 		SWAP(GPUTexture *, txl->color, txl->color_post);
-		DRW_framebuffer_texture_attach(fbl->main, dtxl->depth, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->main_fb, dtxl->depth, 0, 0);
 	}
 }
 

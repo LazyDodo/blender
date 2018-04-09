@@ -138,9 +138,9 @@ static struct GPUTexture *create_ggx_lut_texture(int UNUSED(w), int UNUSED(h))
 	tex = DRW_texture_create_2D(w, h, DRW_TEX_RG_16, DRW_TEX_FILTER, (float *)texels);
 
 	DRWFboTexture tex_filter = {&tex, DRW_TEX_RG_16, DRW_TEX_FILTER};
-	DRW_framebuffer_init(&fb, &draw_engine_eevee_type, w, h, &tex_filter, 1);
+	GPU_framebuffer_init(&fb, &draw_engine_eevee_type, w, h, &tex_filter, 1);
 
-	DRW_framebuffer_bind(fb);
+	GPU_framebuffer_bind(fb);
 	DRW_draw_pass(pass);
 
 	float *data = MEM_mallocN(sizeof(float[3]) * w * h, "lut");
@@ -200,9 +200,9 @@ static struct GPUTexture *create_ggx_refraction_lut_texture(int w, int h)
 	tex = DRW_texture_create_2D(w, h, DRW_TEX_R_16, DRW_TEX_FILTER, (float *)texels);
 
 	DRWFboTexture tex_filter = {&tex, DRW_TEX_R_16, DRW_TEX_FILTER};
-	DRW_framebuffer_init(&fb, &draw_engine_eevee_type, w, h, &tex_filter, 1);
+	GPU_framebuffer_init(&fb, &draw_engine_eevee_type, w, h, &tex_filter, 1);
 
-	DRW_framebuffer_bind(fb);
+	GPU_framebuffer_bind(fb);
 
 	float *data = MEM_mallocN(sizeof(float[3]) * w * h, "lut");
 
@@ -216,7 +216,7 @@ static struct GPUTexture *create_ggx_refraction_lut_texture(int w, int h)
 		a2 = powf(roughness, 4.0f);
 		DRW_draw_pass(pass);
 
-		DRW_framebuffer_read_data(0, 0, w, h, 3, 0, data);
+		GPU_framebuffer_read_data(0, 0, w, h, 3, 0, data);
 
 #if 1
 		fprintf(f, "\t{\n\t\t");
@@ -370,42 +370,42 @@ static void add_standard_uniforms(
 	/* TODO if glossy or diffuse bsdf */
 	if (true) {
 		DRW_shgroup_uniform_texture(shgrp, "utilTex", e_data.util_tex);
-		DRW_shgroup_uniform_buffer(shgrp, "shadowTexture", &sldata->shadow_pool);
-		DRW_shgroup_uniform_buffer(shgrp, "maxzBuffer", &vedata->txl->maxzbuffer);
+		DRW_shgroup_uniform_texture_ref(shgrp, "shadowTexture", &sldata->shadow_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "maxzBuffer", &vedata->txl->maxzbuffer);
 
 		if ((vedata->stl->effects->enabled_effects & EFFECT_GTAO) != 0) {
-			DRW_shgroup_uniform_buffer(shgrp, "horizonBuffer", &vedata->txl->gtao_horizons);
+			DRW_shgroup_uniform_texture_ref(shgrp, "horizonBuffer", &vedata->stl->effects->gtao_horizons);
 		}
 		else {
 			/* Use maxzbuffer as fallback to avoid sampling problem on certain platform, see: T52593 */
-			DRW_shgroup_uniform_buffer(shgrp, "horizonBuffer", &vedata->txl->maxzbuffer);
+			DRW_shgroup_uniform_texture_ref(shgrp, "horizonBuffer", &vedata->txl->maxzbuffer);
 		}
 	}
 
 	/* TODO if diffuse bsdf */
 	if (true) {
-		DRW_shgroup_uniform_buffer(shgrp, "irradianceGrid", &sldata->irradiance_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "irradianceGrid", &sldata->irradiance_pool);
 	}
 
 	/* TODO if glossy bsdf */
 	if (true) {
-		DRW_shgroup_uniform_buffer(shgrp, "probeCubes", &sldata->probe_pool);
-		DRW_shgroup_uniform_buffer(shgrp, "probePlanars", &vedata->txl->planar_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "probeCubes", &sldata->probe_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "probePlanars", &vedata->txl->planar_pool);
 		DRW_shgroup_uniform_int(shgrp, "outputSsrId", ssr_id, 1);
 	}
 
 	if (use_ssrefraction) {
 		BLI_assert(refract_depth != NULL);
 		DRW_shgroup_uniform_float(shgrp, "refractionDepth", refract_depth, 1);
-		DRW_shgroup_uniform_buffer(shgrp, "colorBuffer", &vedata->txl->refract_color);
+		DRW_shgroup_uniform_texture_ref(shgrp, "colorBuffer", &vedata->txl->refract_color);
 	}
 
 	if ((vedata->stl->effects->enabled_effects & EFFECT_VOLUMETRIC) != 0 &&
 	     use_alpha_blend)
 	{
 		/* Do not use history buffers as they already have been swapped */
-		DRW_shgroup_uniform_buffer(shgrp, "inScattering", &vedata->txl->volume_scatter);
-		DRW_shgroup_uniform_buffer(shgrp, "inTransmittance", &vedata->txl->volume_transmittance);
+		DRW_shgroup_uniform_texture_ref(shgrp, "inScattering", &vedata->txl->volume_scatter);
+		DRW_shgroup_uniform_texture_ref(shgrp, "inTransmittance", &vedata->txl->volume_transmittance);
 	}
 }
 
@@ -482,10 +482,8 @@ void EEVEE_update_noise(EEVEE_PassList *psl, EEVEE_FramebufferList *fbl, const d
 
 	/* Attach & detach because we don't currently support multiple FB per texture,
 	 * and this would be the case for multiple viewport. */
-	DRW_framebuffer_texture_layer_attach(fbl->update_noise_fb, e_data.util_tex, 0, 2, 0);
-	DRW_framebuffer_bind(fbl->update_noise_fb);
+	GPU_framebuffer_bind(fbl->update_noise_fb);
 	DRW_draw_pass(psl->update_noise_pass);
-	DRW_framebuffer_texture_detach(e_data.util_tex);
 }
 
 static void EEVEE_update_viewvecs(float invproj[4][4], float winmat[4][4], float (*r_viewvecs)[4])
@@ -623,9 +621,10 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 
 	{
 		/* Update noise Framebuffer. */
-		if (fbl->update_noise_fb == NULL) {
-			fbl->update_noise_fb = DRW_framebuffer_create();
-		}
+		GPU_framebuffer_ensure_config(&fbl->update_noise_fb, {
+			GPU_ATTACHMENT_NONE,
+			GPU_ATTACHMENT_TEXTURE_LAYER(e_data.util_tex, 2)
+		});
 	}
 }
 

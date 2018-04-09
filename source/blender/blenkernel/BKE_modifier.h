@@ -332,6 +332,7 @@ const ModifierTypeInfo *modifierType_getInfo(ModifierType type);
  * default values if pointer is optional.
  */
 struct ModifierData  *modifier_new(int type);
+void          modifier_free_ex(struct ModifierData *md, const int flag);
 void          modifier_free(struct ModifierData *md);
 
 bool          modifier_unique_name(struct ListBase *modifiers, struct ModifierData *md);
@@ -375,8 +376,7 @@ struct Object *modifiers_isDeformedByArmature(struct Object *ob);
 struct Object *modifiers_isDeformedByLattice(struct Object *ob);
 struct Object *modifiers_isDeformedByCurve(struct Object *ob);
 bool          modifiers_usesArmature(struct Object *ob, struct bArmature *arm);
-bool          modifiers_isCorrectableDeformed(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob);
+bool          modifiers_isCorrectableDeformed(struct Scene *scene, struct Object *ob);
 void          modifier_freeTemporaryData(struct ModifierData *md);
 bool          modifiers_isPreview(struct Object *ob);
 

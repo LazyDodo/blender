@@ -42,7 +42,6 @@
 #include "DNA_space_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_packedFile_types.h"
-#include "DNA_workspace_types.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_string.h"
@@ -62,6 +61,7 @@
 #include "BKE_screen.h"
 #include "BKE_workspace.h"
 #include "BKE_layer.h"
+#include "BKE_undo_system.h"
 
 #include "ED_armature.h"
 #include "ED_buttons.h"
@@ -73,8 +73,6 @@
 #include "ED_paint.h"
 #include "ED_space_api.h"
 #include "ED_util.h"
-
-#include "DEG_depsgraph.h"
 
 #include "GPU_immediate.h"
 
@@ -91,7 +89,12 @@
 
 void ED_editors_init(bContext *C)
 {
+	Main *bmain = CTX_data_main(C);
 	wmWindowManager *wm = CTX_wm_manager(C);
+
+	if (wm->undo_stack == NULL) {
+		wm->undo_stack = BKE_undosys_stack_create();
+	}
 
 	/* This is called during initialization, so we don't want to store any reports */
 	ReportList *reports = CTX_wm_reports(C);
@@ -99,37 +102,25 @@ void ED_editors_init(bContext *C)
 
 	SWAP(int, reports->flag, reports_flag_prev);
 
-
 	/* toggle on modes for objects that were saved with these enabled. for
 	 * e.g. linked objects we have to ensure that they are actually the
 	 * active object in this scene. */
-	{
-		wmWindow *win_orig = CTX_wm_window(C);
-		CTX_wm_window_set(C, NULL);
-		for (wmWindow *win = wm->windows.first; win; win = win->next) {
-			WorkSpace *workspace = WM_window_get_active_workspace(win);
-			Scene *scene = WM_window_get_active_scene(win);
-			ViewLayer *view_layer = BKE_view_layer_from_workspace_get(scene, workspace);
-			Object *obact = view_layer ? OBACT(view_layer) : NULL;
-			eObjectMode object_mode = workspace->object_mode;
-			workspace->object_mode = OB_MODE_OBJECT;
-			if (view_layer && obact) {
-				const ID *data = obact->data;
-				if (!ELEM(object_mode, OB_MODE_OBJECT, OB_MODE_POSE)) {
-					if (!ID_IS_LINKED(obact) && !(data && ID_IS_LINKED(data))) {
-						CTX_wm_window_set(C, win);
-						ED_object_mode_toggle(C, object_mode);
-						CTX_wm_window_set(C, NULL);
-					}
-				}
-				else if (object_mode == OB_MODE_POSE) {
-					if (!ID_IS_LINKED(obact) && (obact->type == OB_ARMATURE)) {
-						workspace->object_mode = object_mode;
-					}
+	Object *obact = CTX_data_active_object(C);
+	if (obact != NULL) {
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			int mode = ob->mode;
+
+			if (mode == OB_MODE_OBJECT) {
+				/* pass */
+			}
+			else {
+				ID *data = ob->data;
+				ob->mode = OB_MODE_OBJECT;
+				if ((ob == obact) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
+					ED_object_mode_toggle(C, mode);
 				}
 			}
 		}
-		CTX_wm_window_set(C, win_orig);
 	}
 
 	/* image editor paint mode */
@@ -150,10 +141,16 @@ void ED_editors_exit(bContext *C)
 
 	if (!bmain)
 		return;
-	
+
 	/* frees all editmode undos */
-	undo_editmode_clear();
-	ED_undo_paint_free();
+	if (G.main->wm.first) {
+		wmWindowManager *wm = G.main->wm.first;
+		/* normally we don't check for NULL undo stack, do here since it may run in different context. */
+		if (wm->undo_stack) {
+			BKE_undosys_stack_destroy(wm->undo_stack);
+			wm->undo_stack = NULL;
+		}
+	}
 
 	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->type == OB_MESH) {
@@ -185,16 +182,11 @@ bool ED_editors_flush_edits(const bContext *C, bool for_render)
 	Object *ob;
 	Main *bmain = CTX_data_main(C);
 
-	eObjectMode object_mode = WM_windows_object_mode_get(bmain->wm.first);
-	if ((object_mode & (OB_MODE_SCULPT | OB_MODE_EDIT)) == 0) {
-		return has_edited;
-	}
-
 	/* loop through all data to find edit mode or object mode, because during
 	 * exiting we might not have a context for edit object and multiple sculpt
 	 * objects can exist at the same time */
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
-		if (object_mode & OB_MODE_SCULPT) {
+		if (ob->mode & OB_MODE_SCULPT) {
 			/* Don't allow flushing while in the middle of a stroke (frees data in use).
 			 * Auto-save prevents this from happening but scripts may cause a flush on saving: T53986. */
 			if ((ob->sculpt && ob->sculpt->cache) == 0) {
@@ -213,7 +205,7 @@ bool ED_editors_flush_edits(const bContext *C, bool for_render)
 				}
 			}
 		}
-		else if (object_mode & OB_MODE_EDIT) {
+		else if (ob->mode & OB_MODE_EDIT) {
 			/* get editmode results */
 			has_edited = true;
 			ED_object_editmode_load(ob);

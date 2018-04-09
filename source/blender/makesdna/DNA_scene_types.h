@@ -1086,7 +1086,6 @@ typedef struct ParticleEditSettings {
 	int draw_step, fade_frames;
 
 	struct Scene *scene;
-	struct ViewLayer *view_layer;
 	struct Object *object;
 	struct Object *shape_object;
 } ParticleEditSettings;
@@ -1835,10 +1834,11 @@ enum {
 #define R_STAMP_STRIPMETA	0x1000
 #define R_STAMP_MEMORY		0x2000
 #define R_STAMP_HIDE_LABELS	0x4000
+#define R_STAMP_FRAME_RANGE	0x8000
 #define R_STAMP_ALL (R_STAMP_TIME|R_STAMP_FRAME|R_STAMP_DATE|R_STAMP_CAMERA|R_STAMP_SCENE| \
                      R_STAMP_NOTE|R_STAMP_MARKER|R_STAMP_FILENAME|R_STAMP_SEQSTRIP|        \
                      R_STAMP_RENDERTIME|R_STAMP_CAMERALENS|R_STAMP_MEMORY|                 \
-                     R_STAMP_HIDE_LABELS)
+                     R_STAMP_HIDE_LABELS|R_STAMP_FRAME_RANGE)
 
 /* RenderData.alphamode */
 #define R_ADDSKY		0
@@ -1947,11 +1947,10 @@ extern const char *RE_engine_id_CYCLES;
 
 #define OBEDIT_FROM_WORKSPACE(workspace, _view_layer) \
 	(((workspace)->object_mode & OD_MODE_EDIT) ? OBACT(_view_layer) : NULL)
-#define OBEDIT_FROM_EVAL_CTX(eval_ctx) \
-	(((eval_ctx)->object_mode & OB_MODE_EDIT) ? OBACT((eval_ctx)->view_layer) : NULL)
-
-#define OBEDIT_FROM_WINDOW(window) \
-	BKE_workspace_edit_object(WM_window_get_active_workspace(window), WM_window_get_active_scene(window))
+#define OBEDIT_FROM_OBACT(ob) \
+	((ob) ? (((ob)->mode & OB_MODE_EDIT) ? ob : NULL) : NULL)
+#define OBEDIT_FROM_VIEW_LAYER(view_layer) \
+	OBEDIT_FROM_OBACT(OBACT(view_layer))
 
 #define V3D_CAMERA_LOCAL(v3d) ((!(v3d)->scenelock && (v3d)->camera) ? (v3d)->camera : NULL)
 #define V3D_CAMERA_SCENE(scene, v3d) ((!(v3d)->scenelock && (v3d)->camera) ? (v3d)->camera : (scene)->camera)

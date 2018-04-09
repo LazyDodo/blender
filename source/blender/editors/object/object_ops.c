@@ -94,6 +94,7 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_select_random);
 	WM_operatortype_append(OBJECT_OT_select_all);
 	WM_operatortype_append(OBJECT_OT_select_same_group);
+	WM_operatortype_append(OBJECT_OT_select_same_collection);
 	WM_operatortype_append(OBJECT_OT_select_by_type);
 	WM_operatortype_append(OBJECT_OT_select_linked);
 	WM_operatortype_append(OBJECT_OT_select_grouped);
@@ -219,6 +220,8 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_logic_bricks_copy);
 	WM_operatortype_append(OBJECT_OT_game_physics_copy);
 
+	WM_operatortype_append(OBJECT_OT_move_to_collection);
+
 	WM_operatortype_append(OBJECT_OT_shape_key_add);
 	WM_operatortype_append(OBJECT_OT_shape_key_remove);
 	WM_operatortype_append(OBJECT_OT_shape_key_clear);
@@ -283,9 +286,8 @@ void ED_operatormacros_object(void)
 
 static int object_mode_poll(bContext *C)
 {
-	const WorkSpace *workspace = CTX_wm_workspace(C);
 	Object *ob = CTX_data_active_object(C);
-	return (!ob || workspace->object_mode == OB_MODE_OBJECT);
+	return (!ob || ob->mode == OB_MODE_OBJECT);
 }
 
 void ED_keymap_object(wmKeyConfig *keyconf)
@@ -423,6 +425,8 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 		kmi = WM_keymap_add_item(keymap, "OBJECT_OT_subdivision_set", ZEROKEY + i, KM_PRESS, KM_CTRL, 0);
 		RNA_int_set(kmi->ptr, "level", i);
 	}
+
+	WM_keymap_add_item(keymap, "OBJECT_OT_move_to_collection", MKEY, KM_PRESS, 0, 0);
 }
 
 void ED_keymap_proportional_cycle(struct wmKeyConfig *UNUSED(keyconf), struct wmKeyMap *keymap)

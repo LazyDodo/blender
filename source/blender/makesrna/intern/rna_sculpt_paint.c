@@ -39,7 +39,6 @@
 #include "DNA_brush_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
-#include "DNA_workspace_types.h"
 
 #include "BKE_paint.h"
 #include "BKE_material.h"
@@ -160,7 +159,7 @@ static void rna_ParticleEdit_redo(bContext *C, PointerRNA *UNUSED(ptr))
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob = OBACT(view_layer);
-	PTCacheEdit *edit = PE_get_current(scene, view_layer, ob);
+	PTCacheEdit *edit = PE_get_current(scene, ob);
 
 	if (!edit)
 		return;
@@ -181,8 +180,8 @@ static void rna_ParticleEdit_tool_set(PointerRNA *ptr, int value)
 	ParticleEditSettings *pset = (ParticleEditSettings *)ptr->data;
 	
 	/* redraw hair completely if weight brush is/was used */
-	if ((pset->brushtype == PE_BRUSH_WEIGHT || value == PE_BRUSH_WEIGHT) && pset->view_layer) {
-		Object *ob = (pset->view_layer->basact) ? pset->view_layer->basact->object : NULL;
+	if ((pset->brushtype == PE_BRUSH_WEIGHT || value == PE_BRUSH_WEIGHT) && pset->object) {
+		Object *ob = pset->object;
 		if (ob) {
 			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			WM_main_add_notifier(NC_OBJECT | ND_PARTICLE | NA_EDITED, NULL);
@@ -223,14 +222,14 @@ static int rna_ParticleEdit_editable_get(PointerRNA *ptr)
 {
 	ParticleEditSettings *pset = (ParticleEditSettings *)ptr->data;
 
-	return (pset->object && pset->scene && PE_get_current(pset->scene, pset->view_layer, pset->object));
+	return (pset->object && pset->scene && PE_get_current(pset->scene, pset->object));
 }
 static int rna_ParticleEdit_hair_get(PointerRNA *ptr)
 {
 	ParticleEditSettings *pset = (ParticleEditSettings *)ptr->data;
 
 	if (pset->scene) {
-		PTCacheEdit *edit = PE_get_current(pset->scene, pset->view_layer, pset->object);
+		PTCacheEdit *edit = PE_get_current(pset->scene, pset->object);
 
 		return (edit && edit->psys);
 	}
@@ -393,12 +392,11 @@ static void rna_ImaPaint_stencil_update(bContext *C, PointerRNA *UNUSED(ptr))
 
 static void rna_ImaPaint_canvas_update(bContext *C, PointerRNA *UNUSED(ptr))
 {
-	const WorkSpace *workspace = CTX_wm_workspace(C);
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob = OBACT(view_layer);
-	Object *obedit = ((workspace->object_mode & OB_MODE_EDIT) && BKE_object_is_in_editmode(ob)) ? ob : NULL;
+	Object *obedit = OBEDIT_FROM_OBACT(ob);
 	bScreen *sc;
 	Image *ima = scene->toolsettings->imapaint.canvas;
 	

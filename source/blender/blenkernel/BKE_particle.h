@@ -301,8 +301,7 @@ void psys_set_current_num(Object *ob, int index);
 
 struct LatticeDeformData *psys_create_lattice_deform_data(struct ParticleSimulationData *sim);
 
-bool psys_in_edit_mode(
-        const struct EvaluationContext *eval_ctx, struct ViewLayer *view_layer, struct ParticleSystem *psys);
+bool psys_in_edit_mode(struct ViewLayer *view_layer, struct ParticleSystem *psys);
 bool psys_check_enabled(struct Object *ob, struct ParticleSystem *psys, const bool use_render_params);
 bool psys_check_edited(struct ParticleSystem *psys);
 
@@ -484,11 +483,6 @@ typedef struct ParticleRenderData {
 /* **** Depsgraph evaluation **** */
 
 struct EvaluationContext;
-
-void BKE_particle_system_settings_eval(const struct EvaluationContext *eval_ctx,
-                                       struct ParticleSystem *psys);
-void BKE_particle_system_settings_recalc_clear(struct EvaluationContext *UNUSED(eval_ctx),
-                                               struct ParticleSettings *particle_settings);
 
 void BKE_particle_system_eval_init(const struct EvaluationContext *eval_ctx,
                                    struct Scene *scene,

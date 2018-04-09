@@ -73,7 +73,7 @@
 #include "ED_scene.h"
 #include "ED_screen.h"
 #include "ED_sequencer.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -1855,7 +1855,7 @@ void OUTLINER_OT_modifier_operation(wmOperatorType *ot)
 static EnumPropertyItem prop_collection_op_types[] = {
 	{OL_COLLECTION_OP_OBJECTS_ADD, "OBJECTS_ADD", ICON_ZOOMIN, "Add Selected", "Add selected objects to collection"},
 	{OL_COLLECTION_OP_OBJECTS_REMOVE, "OBJECTS_REMOVE", ICON_X, "Remove Selected", "Remove selected objects from collection"},
-	{OL_COLLECTION_OP_OBJECTS_SELECT, "OBJECTS_SELECT", ICON_RESTRICT_SELECT_OFF, "Select Objects", "Selected collection objects"},
+	{OL_COLLECTION_OP_OBJECTS_SELECT, "OBJECTS_SELECT", ICON_RESTRICT_SELECT_OFF, "Select Objects", "Select collection objects"},
 	{OL_COLLECTION_OP_COLLECTION_NEW, "COLLECTION_NEW", ICON_NEW, "New Collection", "Add a new nested collection"},
 	{OL_COLLECTION_OP_COLLECTION_COPY, "COLLECTION_DUPLI", ICON_NONE, "Duplicate Collection", "Duplicate the collection"},
 	{OL_COLLECTION_OP_COLLECTION_UNLINK, "COLLECTION_UNLINK", ICON_UNLINKED, "Unlink", "Unlink collection"},

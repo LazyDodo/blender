@@ -294,6 +294,8 @@ extern StructRNA RNA_HemiLamp;
 extern StructRNA RNA_Histogram;
 extern StructRNA RNA_HookModifier;
 extern StructRNA RNA_ID;
+extern StructRNA RNA_IDOverrideStatic;
+extern StructRNA RNA_IDOverrideStaticProperty;
 extern StructRNA RNA_IKParam;
 extern StructRNA RNA_Image;
 extern StructRNA RNA_ImageFormatSettings;
@@ -898,6 +900,9 @@ bool RNA_property_editable_index(PointerRNA *ptr, PropertyRNA *prop, int index);
 bool RNA_property_editable_flag(PointerRNA *ptr, PropertyRNA *prop); /* without lib check, only checks the flag */
 bool RNA_property_animateable(PointerRNA *ptr, PropertyRNA *prop);
 bool RNA_property_animated(PointerRNA *ptr, PropertyRNA *prop);
+bool RNA_property_overridable(PointerRNA *ptr, PropertyRNA *prop);
+bool RNA_property_overridden(PointerRNA *ptr, PropertyRNA *prop);
+bool RNA_property_comparable(PointerRNA *ptr, PropertyRNA *prop);
 bool RNA_property_path_from_ID_check(PointerRNA *ptr, PropertyRNA *prop); /* slow, use with care */
 
 void RNA_property_update(struct bContext *C, PointerRNA *ptr, PropertyRNA *prop);

@@ -1501,15 +1501,16 @@ static int project_paint_undo_subtiles(const TileInfo *tinf, int tx, int ty)
 
 
 	if (generate_tile) {
+		ListBase *undo_tiles = ED_image_undo_get_tiles();
 		volatile void *undorect;
 		if (tinf->masked) {
 			undorect = image_undo_push_tile(
-			        pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
+			        undo_tiles, pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
 			        tx, ty, &pjIma->maskRect[tile_index], &pjIma->valid[tile_index], true, false);
 		}
 		else {
 			undorect = image_undo_push_tile(
-			        pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
+			        undo_tiles, pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
 			        tx, ty, NULL, &pjIma->valid[tile_index], true, false);
 		}
 
@@ -5396,8 +5397,7 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
 
 	scene->toolsettings->imapaint.flag |= IMAGEPAINT_DRAWING;
 
-	ED_undo_paint_push_begin(UNDO_PAINT_IMAGE, op->type->name,
-	                         ED_image_undo_restore, ED_image_undo_free, NULL);
+	ED_image_undo_push_begin(op->type->name);
 
 	/* allocate and initialize spatial data structures */
 	project_paint_begin(C, &ps, false, 0);
@@ -5478,7 +5478,7 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	ibuf = ED_view3d_draw_offscreen_imbuf(
 	        &eval_ctx, scene, view_layer, CTX_wm_view3d(C), CTX_wm_region(C),
 	        w, h, IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
-	        NULL, NULL, err_out);
+	        NULL, err_out);
 	if (!ibuf) {
 		/* Mostly happens when OpenGL offscreen buffer was failed to create, */
 		/* but could be other reasons. Should be handled in the future. nazgul */
@@ -5941,9 +5941,9 @@ static int add_simple_uvs_exec(bContext *C, wmOperator *UNUSED(op))
 
 static int add_simple_uvs_poll(bContext *C)
 {
-	const WorkSpace *workspace = CTX_wm_workspace(C);
 	Object *ob = CTX_data_active_object(C);
-	if (!ob || (ob->type != OB_MESH) || (workspace->object_mode != OB_MODE_TEXTURE_PAINT)) {
+
+	if (!ob || ob->type != OB_MESH || ob->mode != OB_MODE_TEXTURE_PAINT) {
 		return false;
 	}
 	return true;

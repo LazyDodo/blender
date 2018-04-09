@@ -76,7 +76,6 @@
 #include "BKE_effect.h"
 #include "BKE_library_query.h"
 #include "BKE_particle.h"
-#include "BKE_global.h"
 
 #include "BKE_collection.h"
 #include "BKE_DerivedMesh.h"
@@ -2912,11 +2911,8 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 	if ((psys->part->childtype && psys->totchild != psys_get_tot_child(sim->scene, psys)) || psys->recalc&PSYS_RECALC_RESET)
 		alloc=1;
 
-	if (alloc || psys->recalc&PSYS_RECALC_CHILD ||
-	    (psys->vgroup[PSYS_VG_DENSITY] && (sim->ob && sim->eval_ctx->object_mode & OB_MODE_WEIGHT_PAINT)))
-	{
+	if (alloc || psys->recalc&PSYS_RECALC_CHILD || (psys->vgroup[PSYS_VG_DENSITY] && (sim->ob && sim->ob->mode & OB_MODE_WEIGHT_PAINT)))
 		distr=1;
-	}
 
 	if (distr) {
 		if (alloc)
@@ -2946,7 +2942,7 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 			skip = 1; /* no need to cache paths while baking dynamics */
 
 #if 0 /* TODO(mai): something is very wrong with these conditionals, they dont make sense and the cache isnt updating */
-		else if (psys_in_edit_mode(sim->eval_ctx, sim->eval_ctx->view_layer, psys)) {
+		else if (psys_in_edit_mode(sim->eval_ctx->view_layer, psys)) {
 			if ((pset->flag & PE_DRAW_PART)==0)
 				skip = 1;
 			else if (part->childtype==0 && (psys->flag & PSYS_HAIR_DYNAMICS && psys->pointcache->flag & PTCACHE_BAKED)==0)
@@ -4417,24 +4413,16 @@ void BKE_particlesystem_id_loop(ParticleSystem *psys, ParticleSystemIDFunc func,
 
 /* **** Depsgraph evaluation **** */
 
-void BKE_particle_system_settings_eval(const struct EvaluationContext *UNUSED(eval_ctx),
-                                       ParticleSystem *psys)
-{
-	DEG_debug_print_eval(__func__, psys->name, psys);
-	psys->recalc |= psys->part->recalc;
-}
-
-void BKE_particle_system_settings_recalc_clear(struct EvaluationContext *UNUSED(eval_ctx),
-                                               ParticleSettings *particle_settings)
-{
-	DEG_debug_print_eval(__func__, particle_settings->id.name, particle_settings);
-	particle_settings->recalc = 0;
-}
-
 void BKE_particle_system_eval_init(const struct EvaluationContext *UNUSED(eval_ctx),
                                    Scene *scene,
                                    Object *ob)
 {
 	DEG_debug_print_eval(__func__, ob->id.name, ob);
+	for (ParticleSystem *psys = ob->particlesystem.first;
+	     psys != NULL;
+	     psys = psys->next)
+	{
+		psys->recalc |= (psys->part->id.recalc & DEG_TAG_PSYS_ALL);
+	}
 	BKE_ptcache_object_reset(scene, ob, PTCACHE_RESET_DEPSGRAPH);
 }

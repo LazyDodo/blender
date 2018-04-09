@@ -58,6 +58,8 @@ struct WorkSpace;
 /* Buffer and textures used by the viewport by default */
 typedef struct DefaultFramebufferList {
 	struct GPUFrameBuffer *default_fb;
+	struct GPUFrameBuffer *color_only_fb;
+	struct GPUFrameBuffer *depth_only_fb;
 	struct GPUFrameBuffer *multisample_fb;
 } DefaultFramebufferList;
 
@@ -99,26 +101,26 @@ void DRW_draw_view(const struct bContext *C);
 void DRW_draw_render_loop_ex(
         struct Depsgraph *depsgraph,
         struct RenderEngineType *engine_type,
-        struct ARegion *ar, struct View3D *v3d, const eObjectMode object_mode,
+        struct ARegion *ar, struct View3D *v3d,
         const struct bContext *evil_C);
 void DRW_draw_render_loop(
         struct Depsgraph *depsgraph,
-        struct ARegion *ar, struct View3D *v3d, const eObjectMode object_mode);
+        struct ARegion *ar, struct View3D *v3d);
 void DRW_draw_render_loop_offscreen(
         struct Depsgraph *depsgraph,
         struct RenderEngineType *engine_type,
-        struct ARegion *ar, struct View3D *v3d, const eObjectMode object_mode,
+        struct ARegion *ar, struct View3D *v3d,
         const bool draw_background,
         struct GPUOffScreen *ofs,
         struct GPUViewport *viewport);
 void DRW_draw_select_loop(
         struct Depsgraph *depsgraph,
-        struct ARegion *ar, struct View3D *v3d, const eObjectMode object_mode,
+        struct ARegion *ar, struct View3D *v3d,
         bool use_obedit_skip, bool use_nearest, const struct rcti *rect,
         DRW_SelectPassFn select_pass_fn, void *select_pass_user_data);
 void DRW_draw_depth_loop(
         struct Depsgraph *depsgraph,
-        struct ARegion *ar, struct View3D *v3d, const eObjectMode object_mode);
+        struct ARegion *ar, struct View3D *v3d);
 
 /* This is here because GPUViewport needs it */
 void DRW_pass_free(struct DRWPass *pass);

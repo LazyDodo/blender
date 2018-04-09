@@ -64,7 +64,6 @@ struct Image;
 struct ImageUser;
 struct wmKeyConfig;
 struct wmOperatorType;
-struct uiWidgetColors;
 struct MTex;
 struct ImBuf;
 struct bNodeTree;
@@ -1168,5 +1167,10 @@ void UI_tooltip_free(struct bContext *C, struct bScreen *sc, struct ARegion *ar)
 #define UI_FSTYLE_WIDGET (const uiFontStyle *)&(UI_style_get()->widget)
 
 int UI_calc_float_precision(int prec, double value);
+
+/* widget batched drawing */
+void UI_widgetbase_draw_cache_begin(void);
+void UI_widgetbase_draw_cache_flush(void);
+void UI_widgetbase_draw_cache_end(void);
 
 #endif  /* __UI_INTERFACE_H__ */
