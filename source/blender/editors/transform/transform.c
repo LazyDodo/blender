@@ -1718,7 +1718,19 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 		float cent[2];
 		float mval[3] = { x, y, 0.0f };
 
-		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
+		Object *ob = t->obedit;
+
+		if ((t->flag & T_POINTS) && (t->options & CTX_GPENCIL_STROKES) &&
+			(ob) && (ob->type == OB_GPENCIL))
+		{
+			float vecrot[3];
+			copy_v3_v3(vecrot, t->center);
+			mul_m4_v3(ob->obmat, vecrot);
+			projectFloatViewEx(t, vecrot, cent, V3D_PROJ_TEST_CLIP_ZERO);
+		}
+		else {
+			projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
+		}
 
 		gpuPushMatrix();
 
