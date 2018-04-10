@@ -2290,6 +2290,10 @@ static void direct_link_id(FileData *fd, ID *id)
 	}
 	id->py_instance = NULL;
 
+	/* That way datablock reading not going through main read_libblock() function are still in a clear tag state.
+	 * (glowering at certain nodetree fake datablock here...). */
+	id->tag = 0;
+
 	/* Link direct data of overrides. */
 	if (id->override_static) {
 		id->override_static = newdataadr(fd, id->override_static);
@@ -3870,15 +3874,11 @@ static void lib_link_text(FileData *fd, Main *main)
 static void direct_link_text(FileData *fd, Text *text)
 {
 	TextLine *ln;
-	
+
 	text->name = newdataadr(fd, text->name);
-	
-	text->undo_pos = -1;
-	text->undo_len = TXT_INIT_UNDO;
-	text->undo_buf = MEM_mallocN(text->undo_len, "undo buf");
-	
+
 	text->compiled = NULL;
-	
+
 #if 0
 	if (text->flags & TXT_ISEXT) {
 		BKE_text_reload(text);
@@ -4953,7 +4953,8 @@ static void lib_link_object(FileData *fd, Main *main)
 #else
 					MEM_freeN(ob->pose);
 #endif
-					ob->pose = NULL;
+					ob->pose= NULL;
+					ob->mode &= ~OB_MODE_POSE;
 				}
 			}
 			for (a=0; a < ob->totcol; a++) 
@@ -5190,6 +5191,7 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 	link_list(fd, &pose->agroups);
 
 	pose->chanhash = NULL;
+	pose->chan_array = NULL;
 
 	for (pchan = pose->chanbase.first; pchan; pchan=pchan->next) {
 		pchan->bone = NULL;
@@ -5561,6 +5563,19 @@ static void direct_link_object(FileData *fd, Object *ob)
 
 	/* XXX This should not be needed - but seems like it can happen in some cases, so for now play safe... */
 	ob->proxy_from = NULL;
+
+	/* loading saved files with editmode enabled works, but for undo we like
+	 * to stay in object mode during undo presses so keep editmode disabled.
+	 *
+	 * Also when linking in a file don't allow edit and pose modes.
+	 * See [#34776, #42780] for more information.
+	 */
+	if (fd->memfile || (ob->id.tag & (LIB_TAG_EXTERN | LIB_TAG_INDIRECT))) {
+		ob->mode &= ~(OB_MODE_EDIT | OB_MODE_PARTICLE_EDIT);
+		if (!fd->memfile) {
+			ob->mode &= ~OB_MODE_POSE;
+		}
+	}
 	
 	ob->adt = newdataadr(fd, ob->adt);
 	direct_link_animdata(fd, ob->adt);
@@ -8557,11 +8572,11 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 		*r_id = id;
 	if (!id)
 		return blo_nextbhead(fd, bhead);
-	
-	id->tag = tag | LIB_TAG_NEED_LINK;
+
 #ifdef DEBUG_LIBRARY
 	printf("id: %s (%p, %p), lib: %p\n", id->name, id, id->uuid, main->curlib);
 #endif
+
 	id->lib = main->curlib;
 	id->us = ID_FAKE_USERS(id);
 	id->icon_id = 0;
@@ -8571,6 +8586,9 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 	
 	/* this case cannot be direct_linked: it's just the ID part */
 	if (bhead->code == ID_ID) {
+		/* That way, we know which datablock needs do_versions (required currently for linking). */
+		id->tag = tag | LIB_TAG_NEED_LINK | LIB_TAG_NEW;
+
 		if (id->uuid) {
 			/* read all data into fd->datamap */
 			bhead = read_data_into_oldnewmap(fd, bhead, __func__);
@@ -8593,9 +8611,6 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 		id->tag |= LIB_TAG_EXTERN;
 	}
 
-	/* That way, we know which datablock needs do_versions (required currently for linking). */
-	id->tag |= LIB_TAG_NEW;
-
 	/* need a name for the mallocN, just for debugging and sane prints on leaks */
 	allocname = dataname(GS(id->name));
 	
@@ -8604,7 +8619,11 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 	
 	/* init pointers direct data */
 	direct_link_id(fd, id);
-	
+
+	/* That way, we know which datablock needs do_versions (required currently for linking). */
+	/* Note: doing this after driect_link_id(), which resets that field. */
+	id->tag = tag | LIB_TAG_NEED_LINK | LIB_TAG_NEW;
+
 	switch (GS(id->name)) {
 		case ID_WM:
 			direct_link_windowmanager(fd, (wmWindowManager *)id);
@@ -10538,6 +10557,7 @@ static void link_object_postprocess(ID *id, Scene *scene, ViewLayer *view_layer,
 		SceneCollection *sc;
 
 		ob = (Object *)id;
+		ob->mode = OB_MODE_OBJECT;
 
 		sc =  get_scene_collection_active_or_create(scene, view_layer, flag);
 		BKE_collection_object_add(&scene->id, sc, ob);
@@ -10580,6 +10600,8 @@ void BLO_library_link_copypaste(Main *mainl, BlendHandle *bh)
 			if (bhead->code == ID_OB) {
 				/* Instead of instancing Base's directly, postpone until after groups are loaded
 				 * otherwise the base's flag is set incorrectly when groups are used */
+				Object *ob = (Object *)id;
+				ob->mode = OB_MODE_OBJECT;
 				/* ensure give_base_to_objects runs on this object */
 				BLI_assert(id->us == 0);
 			}

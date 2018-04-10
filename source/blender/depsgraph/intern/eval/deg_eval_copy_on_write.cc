@@ -317,9 +317,7 @@ BLI_INLINE bool check_datablock_expanded(const ID *id_cow)
 static bool check_datablock_expanded_at_construction(const ID *id_orig)
 {
 	const ID_Type id_type = GS(id_orig->name);
-	return (id_type == ID_SCE) ||
-	       (id_type == ID_OB && ((Object *)id_orig)->type == OB_ARMATURE) ||
-	       (id_type == ID_AR);
+	return (id_type == ID_SCE);
 }
 
 /* Those are datablocks which are not covered by dependency graph and hence
@@ -373,49 +371,50 @@ int foreach_libblock_remap_callback(void *user_data_v,
                                     ID **id_p,
                                     int /*cb_flag*/)
 {
+	if (*id_p == NULL) {
+		return IDWALK_RET_NOP;
+	}
 	RemapCallbackUserData *user_data = (RemapCallbackUserData *)user_data_v;
 	const Depsgraph *depsgraph = user_data->depsgraph;
-	if (*id_p != NULL) {
-		ID *id_orig = *id_p;
-		if (id_orig == user_data->temp_id) {
-			DEG_COW_PRINT("    Remapping datablock for %s: id_temp=%p id_cow=%p\n",
-			              id_orig->name, id_orig, user_data->real_id);
-			*id_p = user_data->real_id;
-		}
-		else if (check_datablocks_copy_on_writable(id_orig)) {
-			ID *id_cow;
-			if (user_data->create_placeholders) {
-				/* Special workaround to stop creating temp datablocks for
-				 * objects which are coming from scene's collection and which
-				 * are never linked to any of layers.
-				 *
-				 * TODO(sergey): Ideally we need to tell ID looper to ignore
-				 * those or at least make it more reliable check where the
-				 * pointer is coming from.
-				 */
-				const ID_Type id_type = GS(id_orig->name);
-				const ID_Type id_type_self = GS(id_self->name);
-				if (id_type == ID_OB && id_type_self == ID_SCE) {
-					IDDepsNode *id_node = depsgraph->find_id_node(id_orig);
-					if (id_node == NULL) {
-						id_cow = id_orig;
-					}
-					else {
-						id_cow = id_node->id_cow;
-					}
+	ID *id_orig = *id_p;
+	if (id_orig == user_data->temp_id) {
+		DEG_COW_PRINT("    Remapping datablock for %s: id_temp=%p id_cow=%p\n",
+		              id_orig->name, id_orig, user_data->real_id);
+		*id_p = user_data->real_id;
+	}
+	else if (check_datablocks_copy_on_writable(id_orig)) {
+		ID *id_cow;
+		if (user_data->create_placeholders) {
+			/* Special workaround to stop creating temp datablocks for
+			 * objects which are coming from scene's collection and which
+			 * are never linked to any of layers.
+			 *
+			 * TODO(sergey): Ideally we need to tell ID looper to ignore
+			 * those or at least make it more reliable check where the
+			 * pointer is coming from.
+			 */
+			const ID_Type id_type = GS(id_orig->name);
+			const ID_Type id_type_self = GS(id_self->name);
+			if (id_type == ID_OB && id_type_self == ID_SCE) {
+				IDDepsNode *id_node = depsgraph->find_id_node(id_orig);
+				if (id_node == NULL) {
+					id_cow = id_orig;
 				}
 				else {
-					id_cow = user_data->node_builder->ensure_cow_id(id_orig);
+					id_cow = id_node->id_cow;
 				}
 			}
 			else {
-				id_cow = depsgraph->get_cow_id(id_orig);
+				id_cow = user_data->node_builder->ensure_cow_id(id_orig);
 			}
-			BLI_assert(id_cow != NULL);
-			DEG_COW_PRINT("    Remapping datablock for %s: id_orig=%p id_cow=%p\n",
-			              id_orig->name, id_orig, id_cow);
-			*id_p = id_cow;
 		}
+		else {
+			id_cow = depsgraph->get_cow_id(id_orig);
+		}
+		BLI_assert(id_cow != NULL);
+		DEG_COW_PRINT("    Remapping datablock for %s: id_orig=%p id_cow=%p\n",
+		              id_orig->name, id_orig, id_cow);
+		*id_p = id_cow;
 	}
 	return IDWALK_RET_NOP;
 }
@@ -436,9 +435,11 @@ void update_special_pointers(const Depsgraph *depsgraph,
 			 * new copy of the object.
 			 */
 			Object *object_cow = (Object *)id_cow;
+			const Object *object_orig = (const Object *)id_orig;
 			(void) object_cow;  /* Ignored for release builds. */
 			BLI_assert(object_cow->derivedFinal == NULL);
 			BLI_assert(object_cow->derivedDeform == NULL);
+			object_cow->mode = object_orig->mode;
 			break;
 		}
 		case ID_ME:
@@ -633,6 +634,7 @@ void update_copy_on_write_object(const Depsgraph * /*depsgraph*/,
 	extract_pose_from_pose(pose_cow, pose_orig);
 	/* Update object itself. */
 	BKE_object_transform_copy(object_cow, object_orig);
+	object_cow->mode = object_orig->mode;
 }
 
 /* Update copy-on-write version of datablock from it's original ID without re-building

@@ -1341,7 +1341,7 @@ static int render_new_particle_system(const EvaluationContext *eval_ctx, Render 
 	if (part->ren_as==PART_DRAW_OB || part->ren_as==PART_DRAW_GR || part->ren_as==PART_DRAW_NOT)
 		return 1;
 
-	if ((re->r.scemode & R_VIEWPORT_PREVIEW) && (eval_ctx->object_mode & OB_MODE_PARTICLE_EDIT))
+	if ((re->r.scemode & R_VIEWPORT_PREVIEW) && (ob->mode & OB_MODE_PARTICLE_EDIT))
 		return 0;
 
 	if (part->ren_as == PART_DRAW_BB && part->bb_ob == NULL && RE_GetCamera(re) == NULL)
@@ -5176,6 +5176,33 @@ static void database_init_objects(const EvaluationContext *eval_ctx, Render *re,
 
 	if (!re->test_break(re->tbh))
 		RE_makeRenderInstances(re);
+}
+
+void RE_Database_CameraOnly(Render *re, Main *bmain, Scene *scene, unsigned int lay, int use_camera_view)
+{
+	Object *camera;
+	float mat[4][4];
+
+	re->main= bmain;
+	re->scene= scene;
+	re->lay= lay;
+
+	/* scene needs to be set to get camera */
+	camera= RE_GetCamera(re);
+
+	/* if no camera, viewmat should have been set! */
+	if (use_camera_view && camera) {
+		/* called before but need to call again in case of lens animation from the
+		 * above call to BKE_scene_graph_update_for_newframe, fixes bug. [#22702].
+		 * following calls don't depend on 'RE_SetCamera' */
+		RE_SetCamera(re, camera);
+		RE_GetCameraModelMatrix(re, camera, mat);
+		invert_m4(mat);
+		RE_SetView(re, mat);
+
+		/* force correct matrix for scaled cameras */
+		DEG_id_tag_update_ex(re->main, &camera->id, OB_RECALC_OB);
+	}
 }
 
 /* used to be 'rotate scene' */

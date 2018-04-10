@@ -88,6 +88,7 @@
 #include "IMB_colormanagement.h"
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
+#include "IMB_metadata.h"
 
 #include "RE_engine.h"
 #include "RE_pipeline.h"
@@ -3326,10 +3327,8 @@ void RE_RenderFreestyleExternal(Render *re)
 
 		for (rv = re->result->views.first; rv; rv = rv->next) {
 			RE_SetActiveRenderView(re, rv->name);
-			RE_Database_FromScene(re, re->main, re->scene, re->lay, 1);
-			RE_Database_Preprocess(NULL, re);
+			RE_Database_CameraOnly(re, re->main, re->scene, re->lay, 1);
 			add_freestyle(re, 1);
-			RE_Database_Free(re);
 		}
 	}
 }
@@ -3343,7 +3342,7 @@ bool RE_WriteRenderViewsImage(ReportList *reports, RenderResult *rr, Scene *scen
 	if (!rr)
 		return false;
 
-	bool is_mono = BLI_listbase_count_ex(&rr->views, 2) < 2;
+	bool is_mono = BLI_listbase_count_at_most(&rr->views, 2) < 2;
 	bool is_exr_rr = ELEM(rd->im_format.imtype, R_IMF_IMTYPE_OPENEXR, R_IMF_IMTYPE_MULTILAYER) &&
 	                 RE_HasFloatPixels(rr);
 
@@ -3460,7 +3459,7 @@ bool RE_WriteRenderViewsMovie(
 	if (!rr)
 		return false;
 
-	is_mono = BLI_listbase_count_ex(&rr->views, 2) < 2;
+	is_mono = BLI_listbase_count_at_most(&rr->views, 2) < 2;
 
 	if (is_mono || (scene->r.im_format.views_format == R_IMF_VIEWS_INDIVIDUAL)) {
 		int view_id;
@@ -4050,7 +4049,7 @@ bool RE_WriteEnvmapResult(struct ReportList *reports, Scene *scene, EnvMap *env,
 /* Used in the interface to decide whether to show layers or passes. */
 bool RE_layers_have_name(struct RenderResult *rr)
 {
-	switch (BLI_listbase_count_ex(&rr->layers, 2)) {
+	switch (BLI_listbase_count_at_most(&rr->layers, 2)) {
 		case 0:
 			return false;
 		case 1:
