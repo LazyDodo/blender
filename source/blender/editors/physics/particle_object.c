@@ -911,10 +911,7 @@ static void copy_particle_edit(Scene *scene, Object *ob, ParticleSystem *psys, P
 	
 	edit->emitter_field = NULL;
 	edit->emitter_cosnos = NULL;
-	
-	BLI_listbase_clear(&edit->undo);
-	edit->curundo = NULL;
-	
+
 	edit->points = MEM_dupallocN(edit_from->points);
 	pa = psys->particles;
 	LOOP_POINTS {
@@ -943,9 +940,6 @@ static void copy_particle_edit(Scene *scene, Object *ob, ParticleSystem *psys, P
 	recalc_lengths(edit);
 	recalc_emitter_field(ob, psys);
 	PE_update_object(scene, ob, true);
-	
-	PTCacheUndo_clear(edit);
-	PE_undo_push(scene, "Original");
 }
 
 static void remove_particle_systems_from_object(Object *ob_to)

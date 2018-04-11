@@ -49,6 +49,7 @@ struct Scene;
 struct ViewContext;
 struct wmKeyConfig;
 struct wmOperator;
+struct UndoType;
 
 typedef struct EditBone {
 	struct EditBone *next, *prev;
@@ -139,7 +140,7 @@ bool ED_armature_select_pick(struct bContext *C, const int mval[2], bool extend,
 int join_armature_exec(struct bContext *C, struct wmOperator *op);
 struct Bone *get_indexed_bone(struct Object *ob, int index);
 float ED_rollBoneToVector(EditBone *bone, const float new_up_axis[3], const bool axis_only);
-EditBone *ED_armature_bone_find_name(const ListBase *edbo, const char *name);
+EditBone *ED_armature_bone_find_name(const struct ListBase *edbo, const char *name);
 EditBone *ED_armature_bone_get_mirrored(const struct ListBase *edbo, EditBone *ebo);
 void ED_armature_sync_selection(struct ListBase *edbo);
 void ED_armature_validate_active(struct bArmature *arm);
@@ -178,8 +179,6 @@ void unique_editbone_name(struct ListBase *ebones, char *name, EditBone *bone);
 void ED_armature_bone_rename(struct bArmature *arm, const char *oldnamep, const char *newnamep);
 void ED_armature_bones_flip_names(struct bArmature *arm, struct ListBase *bones_names, const bool do_strip_numbers);
 
-void undo_push_armature(struct bContext *C, const char *name);
-
 /* low level selection functions which handle */
 int  ED_armature_ebone_selectflag_get(const EditBone *ebone);
 void ED_armature_ebone_selectflag_set(EditBone *ebone, int flag);
@@ -187,14 +186,19 @@ void ED_armature_ebone_select_set(EditBone *ebone, bool select);
 void ED_armature_ebone_selectflag_enable(EditBone *ebone, int flag);
 void ED_armature_ebone_selectflag_disable(EditBone *ebone, int flag);
 
+/* editarmature_undo.c */
+void ED_armature_undosys_type(struct UndoType *ut);
+
 /* armature_utils.c */
 void ED_armature_ebone_listbase_temp_clear(struct ListBase *lb);
 void ED_armature_ebone_listbase_free(struct ListBase *lb);
 void ED_armature_ebone_listbase_copy(struct ListBase *lb_dst, struct ListBase *lb_src);
 
 /* poseobject.c */
-void ED_armature_exit_posemode(struct bContext *C, struct Base *base);
-void ED_armature_enter_posemode(struct bContext *C, struct Base *base);
+bool ED_object_posemode_exit_ex(struct Object *ob);
+bool ED_object_posemode_exit(struct bContext *C, struct Object *ob);
+bool ED_object_posemode_enter_ex(struct Object *ob);
+bool ED_object_posemode_enter(struct bContext *C, struct Object *ob);
 void ED_pose_de_selectall(struct Object *ob, int select_mode, const bool ignore_visibility);
 void ED_pose_bone_select(struct Object *ob, struct bPoseChannel *pchan, bool select);
 void ED_pose_recalculate_paths(struct Scene *scene, struct Object *ob);

@@ -126,8 +126,6 @@ void PE_free_ptcache_edit(PTCacheEdit *edit)
 
 	if (edit==0) return;
 
-	PTCacheUndo_clear(edit);
-
 	if (edit->points) {
 		LOOP_POINTS {
 			if (point->keys)
@@ -4379,9 +4377,6 @@ void PE_create_particle_edit(Scene *scene, Object *ob, PointCache *cache, Partic
 		if (psys && !cache)
 			recalc_emitter_field(ob, psys);
 		PE_update_object(scene, ob, 1);
-
-		PTCacheUndo_clear(edit);
-		PE_undo_push(scene, "Original");
 	}
 }
 
