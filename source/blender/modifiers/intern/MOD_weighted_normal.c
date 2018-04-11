@@ -491,9 +491,15 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 	const int numLoops = dm->getNumLoops(dm);
 	const int numPolys = dm->getNumPolys(dm);
 
+	MEdge *medge = dm->getEdgeArray(dm);
+	if (me->medge == medge) {
+		/* We need to duplicate data here, otherwise setting custom normals (which may also affect sharp edges) could
+		 * modify org mesh. */
+		dm = CDDM_copy(dm);
+		medge = dm->getEdgeArray(dm);
+	}
 	MPoly *mpoly = dm->getPolyArray(dm);
 	MVert *mvert = dm->getVertArray(dm);
-	MEdge *medge = dm->getEdgeArray(dm);
 	MLoop *mloop = dm->getLoopArray(dm);
 
 	bool free_polynors = false;
