@@ -216,6 +216,8 @@ void BKE_view_layer_free_ex(ViewLayer *view_layer, const bool do_id_user)
 		MEM_freeN(view_layer->id_properties);
 	}
 
+	MEM_SAFE_FREE(view_layer->object_bases_array);
+
 	MEM_freeN(view_layer);
 }
 
@@ -503,6 +505,8 @@ void BKE_view_layer_copy_data(
 			view_layer_dst->basact = base_dst;
 		}
 	}
+
+	view_layer_dst->object_bases_array = NULL;
 }
 
 /**
@@ -2253,8 +2257,7 @@ static void idproperty_reset(IDProperty **props, IDProperty *props_ref)
 	}
 }
 
-void BKE_layer_eval_layer_collection_pre(const struct EvaluationContext *UNUSED(eval_ctx),
-                                         ID *owner_id, ViewLayer *view_layer)
+static void layer_eval_layer_collection_pre(ID *owner_id, ViewLayer *view_layer)
 {
 	DEG_debug_print_eval(__func__, view_layer->name, view_layer);
 	Scene *scene = (GS(owner_id->name) == ID_SCE) ? (Scene *)owner_id : NULL;
@@ -2296,9 +2299,9 @@ static bool layer_collection_visible_get(const EvaluationContext *eval_ctx, Laye
 	}
 }
 
-void BKE_layer_eval_layer_collection(const EvaluationContext *eval_ctx,
-                                     LayerCollection *layer_collection,
-                                     LayerCollection *parent_layer_collection)
+static void layer_eval_layer_collection(const EvaluationContext *eval_ctx,
+                                        LayerCollection *layer_collection,
+                                        LayerCollection *parent_layer_collection)
 {
 	if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) {
 		/* TODO)sergey): Try to make it more generic and handled by depsgraph messaging. */
@@ -2356,16 +2359,63 @@ void BKE_layer_eval_layer_collection(const EvaluationContext *eval_ctx,
 	}
 }
 
-void BKE_layer_eval_layer_collection_post(const struct EvaluationContext *UNUSED(eval_ctx),
-                                          ViewLayer *view_layer)
+static void layer_eval_layer_collection_post(ViewLayer *view_layer)
 {
 	DEG_debug_print_eval(__func__, view_layer->name, view_layer);
-	/* if base is not selectabled, clear select */
+	/* Create array of bases, for fast index-based lookup. */
+	const int num_object_bases = BLI_listbase_count(&view_layer->object_bases);
+	MEM_SAFE_FREE(view_layer->object_bases_array);
+	view_layer->object_bases_array = MEM_malloc_arrayN(
+	        num_object_bases, sizeof(Base *), "view_layer->object_bases_array");
+	int base_index = 0;
 	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+		/* if base is not selectabled, clear select. */
 		if ((base->flag & BASE_SELECTABLED) == 0) {
 			base->flag &= ~BASE_SELECTED;
 		}
+		/* Store base in the array. */
+		view_layer->object_bases_array[base_index++] = base;
 	}
+}
+
+static void layer_eval_collections_recurse(const EvaluationContext *eval_ctx,
+                                           ListBase *layer_collections,
+                                           LayerCollection *parent_layer_collection)
+{
+	for (LayerCollection *layer_collection = layer_collections->first;
+	     layer_collection != NULL;
+	     layer_collection = layer_collection->next)
+	{
+		layer_eval_layer_collection(eval_ctx,
+		                            layer_collection,
+		                            parent_layer_collection);
+		layer_eval_collections_recurse(eval_ctx,
+		                               &layer_collection->layer_collections,
+		                               layer_collection);
+	}
+}
+
+void BKE_layer_eval_view_layer(const struct EvaluationContext *eval_ctx,
+                               struct ID *owner_id,
+                               ViewLayer *view_layer)
+{
+	layer_eval_layer_collection_pre(owner_id, view_layer);
+	layer_eval_collections_recurse(eval_ctx,
+	                               &view_layer->layer_collections,
+	                               NULL);
+	layer_eval_layer_collection_post(view_layer);
+}
+
+void BKE_layer_eval_view_layer_indexed(const struct EvaluationContext *eval_ctx,
+                                       struct ID *owner_id,
+                                       int view_layer_index)
+{
+	BLI_assert(GS(owner_id->name) == ID_SCE);
+	BLI_assert(view_layer_index >= 0);
+	Scene *scene = (Scene *)owner_id;
+	ViewLayer *view_layer = BLI_findlink(&scene->view_layers, view_layer_index);
+	BLI_assert(view_layer != NULL);
+	BKE_layer_eval_view_layer(eval_ctx, owner_id, view_layer);
 }
 
 /**
