@@ -39,7 +39,7 @@
 #include "MOD_modifiertypes.h"
 #include "MOD_util.h"
 
-#define CLNORS_VALID_VEC_LEN (1e-4f)
+#define CLNORS_VALID_VEC_LEN (1e-6f)
 
 typedef struct ModePair {
 	float val;  /* Contains mode based value (face area / corner angle). */
