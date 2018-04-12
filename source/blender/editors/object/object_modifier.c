@@ -662,7 +662,7 @@ static int modifier_apply_obdata(ReportList *reports, bContext *C, const Evaluat
 			return 0;
 		}
 		
-		mti->bakeModifierGP(C, &eval_ctx, md, ob);
+		mti->bakeModifierGP(C, eval_ctx, md, ob);
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	}
 	else {
