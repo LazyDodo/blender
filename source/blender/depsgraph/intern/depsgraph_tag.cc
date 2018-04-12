@@ -143,7 +143,7 @@ void depsgraph_select_tag_to_component_opcode(
 		 * road.
 		 */
 		*component_type = DEG_NODE_TYPE_LAYER_COLLECTIONS;
-		*operation_code = DEG_OPCODE_VIEW_LAYER_DONE;
+		*operation_code = DEG_OPCODE_VIEW_LAYER_EVAL;
 	}
 	else if (id_type == ID_OB) {
 		*component_type = DEG_NODE_TYPE_LAYER_COLLECTIONS;
@@ -163,7 +163,7 @@ void depsgraph_base_flags_tag_to_component_opcode(
 	const ID_Type id_type = GS(id->name);
 	if (id_type == ID_SCE) {
 		*component_type = DEG_NODE_TYPE_LAYER_COLLECTIONS;
-		*operation_code = DEG_OPCODE_VIEW_LAYER_INIT;
+		*operation_code = DEG_OPCODE_VIEW_LAYER_EVAL;
 	}
 	else if (id_type == ID_OB) {
 		*component_type = DEG_NODE_TYPE_LAYER_COLLECTIONS;
@@ -286,6 +286,13 @@ void depsgraph_tag_component(Depsgraph *graph,
 		if (operation_node != NULL) {
 			operation_node->tag_update(graph);
 		}
+	}
+	/* If component depends on copy-on-write, tag it as well. */
+	if (DEG_depsgraph_use_copy_on_write() && component_node->depends_on_cow()) {
+		ComponentDepsNode *cow_comp =
+		        id_node->find_component(DEG_NODE_TYPE_COPY_ON_WRITE);
+		cow_comp->tag_update(graph);
+		id_node->id_orig->recalc |= ID_RECALC_COPY_ON_WRITE;
 	}
 }
 
