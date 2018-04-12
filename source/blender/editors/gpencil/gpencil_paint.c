@@ -1670,7 +1670,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 					Base *base = BKE_view_layer_base_find(view_layer, obact);
 					if (base) {
 						if (CTX_data_edit_object(C)) 
-							ED_object_editmode_exit(C, EM_FREEDATA | EM_FREEUNDO | EM_WAITCURSOR | EM_DO_UNDO);  /* freedata, and undo */
+							ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR | EM_DO_UNDO);  /* freedata, and undo */
 						
 						view_layer->basact = base;
 						ED_object_base_activate(C, base);
