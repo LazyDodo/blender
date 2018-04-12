@@ -642,18 +642,21 @@ void BKE_gpencil_frame_copy_strokes(bGPDframe *gpf_src, struct bGPDframe *gpf_ds
 }
 
 /* fix any null value in palettes (this must be removed in the future) */
-static void gpencil_fix_null_palette(const bContext *C, bGPDstroke *gps_src)
+static void gpencil_fix_null_palette(const bContext *C, bGPdata *gpd, bGPDstroke *gps_src)
 {
-	bGPdata *gpd = CTX_data_gpencil_data(C);
 	Palette *tmp_palette = NULL;
-
+	printf("Fixing wrong color pointer:%s\n", gps_src->colorname);
 	tmp_palette = BKE_palette_get_active_from_context(C);
 	if (!tmp_palette) {
 		bGPDpaletteref *palslot;
 		
-		palslot = BKE_gpencil_paletteslot_addnew(CTX_data_main(C), gpd,
-			                                     "Auto-Generated Palette");
-		tmp_palette = palslot->palette;
+		if (BLI_listbase_count(&gpd->palette_slots) > 0) {
+			palslot = BLI_findlink(&gpd->palette_slots, 0);
+		}
+		else {
+			palslot = BKE_gpencil_paletteslot_addnew(CTX_data_main(C), gpd,
+				"Auto-Generated Palette");
+		}		tmp_palette = palslot->palette;
 	}
 
 	gps_src->palette = tmp_palette;
@@ -669,7 +672,7 @@ static void gpencil_fix_null_palette(const bContext *C, bGPDstroke *gps_src)
 }
 
 /* make a copy of a given gpencil frame and copy colors too */
-bGPDframe *BKE_gpencil_frame_color_duplicate(const bContext *C, const bGPDframe *gpf_src)
+bGPDframe *BKE_gpencil_frame_color_duplicate(const bContext *C, bGPdata *gpd, const bGPDframe *gpf_src)
 {
 	bGPDstroke *gps_dst;
 	bGPDframe *gpf_dst;
@@ -685,17 +688,17 @@ bGPDframe *BKE_gpencil_frame_color_duplicate(const bContext *C, const bGPDframe 
 	/* copy strokes */
 	BLI_listbase_clear(&gpf_dst->strokes);
 	for (bGPDstroke *gps_src = gpf_src->strokes.first; gps_src; gps_src = gps_src->next) {
+		/* antoniov XXX: The palette never must be null, but this avoid crash after open if NULL */
+		if (gps_src->palette == NULL) {
+			gpencil_fix_null_palette(C, gpd, gps_src);
+		}
+
 		/* make copy of source stroke */
 		gps_dst = MEM_dupallocN(gps_src);
 		gps_dst->points = MEM_dupallocN(gps_src->points);
 		BKE_gpencil_stroke_weights_duplicate(gps_src, gps_dst);
 
 		gps_dst->triangles = MEM_dupallocN(gps_src->triangles);
-		/* antoniov XXX: The palette never must be null, but this avoid crash after open if NULL */
-		if (gps_src->palette == NULL) {
-			gpencil_fix_null_palette(C, gps_src);
-		}
-
 		gps_dst->palcolor = MEM_dupallocN(gps_src->palcolor);
 
 		BLI_addtail(&gpf_dst->strokes, gps_dst);
