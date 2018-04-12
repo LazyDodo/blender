@@ -82,8 +82,10 @@
 #include "BKE_sca.h"
 #include "BKE_softbody.h"
 #include "BKE_modifier.h"
+#include "BKE_editlattice.h"
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
+#include "BKE_undo_system.h"
 
 #include "ED_armature.h"
 #include "ED_curve.h"
@@ -92,7 +94,7 @@
 #include "ED_lattice.h"
 #include "ED_object.h"
 #include "ED_screen.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 #include "ED_image.h"
 
 #include "RNA_access.h"
@@ -416,9 +418,9 @@ static bool ED_object_editmode_load_ex(Main *bmain, Object *obedit, const bool f
 		if (lt->editlatt == NULL) {
 			return false;
 		}
-		ED_lattice_editlatt_load(obedit);
+		BKE_editlattice_load(obedit);
 		if (freedata) {
-			ED_lattice_editlatt_free(obedit);
+			BKE_editlattice_free(obedit);
 		}
 	}
 	else if (obedit->type == OB_MBALL) {
@@ -615,7 +617,7 @@ void ED_object_editmode_enter(bContext *C, int flag)
 	else if (ob->type == OB_LATTICE) {
 		scene->obedit = ob; /* XXX for context */
 		ok = 1;
-		ED_lattice_editlatt_make(ob);
+		BKE_editlattice_make(ob);
 
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_EDITMODE_LATTICE, scene);
 	}
@@ -656,7 +658,7 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 	if (!is_mode_set)
 		ED_object_editmode_enter(C, EM_WAITCURSOR);
 	else
-		ED_object_editmode_exit(C, EM_FREEDATA | EM_FREEUNDO | EM_WAITCURSOR);  /* had EM_DO_UNDO but op flag calls undo too [#24685] */
+		ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);  /* had EM_DO_UNDO but op flag calls undo too [#24685] */
 	
 	ED_space_image_uv_sculpt_update(CTX_wm_manager(C), scene);
 
@@ -701,7 +703,7 @@ static int posemode_exec(bContext *C, wmOperator *op)
 	Base *base = CTX_data_active_base(C);
 	Object *ob = base->object;
 	const int mode_flag = OB_MODE_POSE;
-	const bool is_mode_set = (ob->mode & mode_flag) != 0;
+	bool is_mode_set = (ob->mode & mode_flag) != 0;
 	
 	if (!is_mode_set) {
 		if (!ED_object_mode_compat_set(C, ob, mode_flag, op->reports)) {
@@ -712,12 +714,15 @@ static int posemode_exec(bContext *C, wmOperator *op)
 	if (ob->type == OB_ARMATURE) {
 		if (ob == CTX_data_edit_object(C)) {
 			ED_object_editmode_exit(C, EM_FREEDATA | EM_DO_UNDO);
-			ED_armature_enter_posemode(C, base);
+			is_mode_set = false;
 		}
-		else if (is_mode_set)
-			ED_armature_exit_posemode(C, base);
-		else
-			ED_armature_enter_posemode(C, base);
+
+		if (is_mode_set) {
+			ED_object_posemode_exit(C, ob);
+		}
+		else {
+			ED_object_posemode_enter(C, ob);
+		}
 		
 		return OPERATOR_FINISHED;
 	}

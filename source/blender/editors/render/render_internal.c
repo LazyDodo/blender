@@ -65,6 +65,7 @@
 #include "BKE_sequencer.h"
 #include "BKE_screen.h"
 #include "BKE_scene.h"
+#include "BKE_undo_system.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -73,6 +74,7 @@
 #include "ED_render.h"
 #include "ED_screen.h"
 #include "ED_util.h"
+#include "ED_undo.h"
 #include "ED_view3d.h"
 
 #include "RE_pipeline.h"
@@ -88,6 +90,7 @@
 #include "RNA_access.h"
 #include "RNA_define.h"
 
+#include "BLO_undofile.h"
 
 #include "render_intern.h"
 
@@ -624,7 +627,7 @@ static void render_image_restore_layer(RenderJob *rj)
 							/* For single layer renders keep the active layer
 							 * visible, or show the compositing result. */
 							RenderResult *rr = RE_AcquireResultRead(rj->re);
-							if(RE_HasCombinedLayer(rr)) {
+							if (RE_HasCombinedLayer(rr)) {
 								sima->iuser.layer = 0;
 							}
 							RE_ReleaseResult(rj->re);
@@ -866,7 +869,8 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	/* get main */
 	if (G.debug_value == 101) {
 		/* thread-safety experiment, copy main from the undo buffer */
-		mainp = BKE_undo_get_main(&scene);
+		struct MemFile *memfile = ED_undosys_stack_memfile_get_active(CTX_wm_manager(C)->undo_stack);
+		mainp = BLO_memfile_main_get(memfile, CTX_data_main(C), &scene);
 	}
 	else
 		mainp = CTX_data_main(C);
