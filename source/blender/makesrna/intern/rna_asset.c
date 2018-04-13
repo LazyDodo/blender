@@ -1550,7 +1550,7 @@ static void rna_def_asset_engine(BlenderRNA *brna)
 	/* Ensure (pre-load) callback */
 	func = RNA_def_function(srna, "ensure_uuids", NULL);
 	RNA_def_function_ui_description(func, "Ensure given UUIDs are really available "
-	                                      "(download or generate to local cahe, etc.)");
+	                                      "(download or generate to local cache, etc.)");
 	RNA_def_function_flag(func, FUNC_REGISTER_OPTIONAL | FUNC_ALLOW_WRITE);
 	RNA_def_int(func, "job_id", AE_JOB_ID_UNSET, AE_JOB_ID_INVALID, INT_MAX, "",
 	            "Job ID (JOB_ID_UNSET to start a new one)", AE_JOB_ID_INVALID, INT_MAX);
