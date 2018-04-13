@@ -1423,17 +1423,12 @@ static void prepare_mesh_for_viewport_render(
 /* TODO(sergey): This actually should become view_layer_graph or so.
  * Same applies to update_for_newframe.
  */
-void BKE_scene_graph_update_tagged(EvaluationContext *eval_ctx,
-                                   Depsgraph *depsgraph,
-                                   Main *bmain,
-                                   Scene *scene,
-                                   ViewLayer *view_layer)
+void BKE_scene_graph_update_tagged(Depsgraph *depsgraph,
+                                   Main *bmain)
 {
-	/* TODO(sergey): Temporary solution for until pipeline.c is ported. */
-	if (view_layer == NULL) {
-		view_layer = DEG_get_evaluated_view_layer(depsgraph);
-		BLI_assert(view_layer != NULL);
-	}
+	Scene *scene = DEG_get_input_scene(depsgraph);
+	ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
+
 	/* TODO(sergey): Some functions here are changing global state,
 	 * for example, clearing update tags from bmain.
 	 */
@@ -1448,7 +1443,7 @@ void BKE_scene_graph_update_tagged(EvaluationContext *eval_ctx,
 	/* Update all objects: drivers, matrices, displists, etc. flags set
 	 * by depgraph or manual, no layer check here, gets correct flushed.
 	 */
-	DEG_evaluate_on_refresh(eval_ctx, depsgraph);
+	DEG_evaluate_on_refresh(depsgraph);
 	/* Update sound system animation (TODO, move to depsgraph). */
 	BKE_sound_update_scene(bmain, scene);
 	/* Inform editors about possible changes. */
@@ -1458,12 +1453,12 @@ void BKE_scene_graph_update_tagged(EvaluationContext *eval_ctx,
 }
 
 /* applies changes right away, does all sets too */
-void BKE_scene_graph_update_for_newframe(EvaluationContext *eval_ctx,
-                                         Depsgraph *depsgraph,
-                                         Main *bmain,
-                                         Scene *scene,
-                                         ViewLayer *view_layer)
+void BKE_scene_graph_update_for_newframe(Depsgraph *depsgraph,
+                                         Main *bmain)
 {
+	Scene *scene = DEG_get_input_scene(depsgraph);
+	ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
+
 	/* TODO(sergey): Some functions here are changing global state,
 	 * for example, clearing update tags from bmain.
 	 */
@@ -1488,7 +1483,7 @@ void BKE_scene_graph_update_for_newframe(EvaluationContext *eval_ctx,
 	/* Update all objects: drivers, matrices, displists, etc. flags set
 	 * by depgraph or manual, no layer check here, gets correct flushed.
 	 */
-	DEG_evaluate_on_framechange(eval_ctx, bmain, depsgraph, ctime);
+	DEG_evaluate_on_framechange(bmain, depsgraph, ctime);
 	/* Update sound system animation (TODO, move to depsgraph). */
 	BKE_sound_update_scene(bmain, scene);
 	/* Notify editors and python about recalc. */
@@ -2229,7 +2224,7 @@ Depsgraph *BKE_scene_get_depsgraph(Scene *scene,
 		{
 			*key_ptr = MEM_mallocN(sizeof(DepsgraphKey), __func__);
 			**key_ptr = key;
-			*depsgraph_ptr = DEG_graph_new();
+			*depsgraph_ptr = DEG_graph_new(scene, view_layer, DAG_EVAL_VIEWPORT);
 		}
 		depsgraph = *depsgraph_ptr;
 	}
