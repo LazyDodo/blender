@@ -31,8 +31,9 @@ class FILEBROWSER_HT_header(Header):
         params = st.params
         is_lib_browser = params and params.use_library_browsing
 
-        layout.template_header()
-        layout.separator()
+        if st.active_operator is None:
+            layout.template_header()
+            layout.separator()
 
         if is_lib_browser:
             row = layout.row()
