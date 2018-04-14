@@ -526,17 +526,6 @@ void do_versions_after_linking_280(Main *main)
 			}
 			BLI_freelistN(&scene->r.layers);
 		}
-
-		/* Avoid including ED_ stuff here. */
-		extern void ED_screen_global_topbar_area_create(const struct bContext *, wmWindow *, const bScreen *);
-
-		for (wmWindowManager *wm = main->wm.first; wm; wm = wm->id.next) {
-			for (wmWindow *win = wm->windows.first; win; win = win->next) {
-				const bScreen *screen = BKE_workspace_active_screen_get(win->workspace_hook);
-				/* Not sure if passing NULL as context is so great... */
-				ED_screen_global_topbar_area_create(NULL, win, screen);
-			}
-		}
 	}
 
 	if (!MAIN_VERSION_ATLEAST(main, 280, 3)) {

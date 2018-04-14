@@ -424,7 +424,7 @@ void WM_check(bContext *C)
 	/* case: fileread */
 	/* note: this runs in bg mode to set the screen context cb */
 	if ((wm->initialized & WM_WINDOW_IS_INITIALIZED) == 0) {
-		ED_screens_initialize(C, wm);
+		ED_screens_initialize(wm);
 		wm->initialized |= WM_WINDOW_IS_INITIALIZED;
 	}
 }
@@ -468,7 +468,7 @@ void wm_add_default(Main *bmain, bContext *C)
 	WM_window_set_active_workspace(win, workspace);
 	WM_window_set_active_layout(win, workspace, layout);
 	screen->winid = win->winid;
-	ED_screen_global_areas_create(C, win);
+	ED_screen_global_areas_create(win);
 
 	wm->winactive = win;
 	wm->file_saved = 1;

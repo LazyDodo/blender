@@ -112,11 +112,9 @@ void    ED_area_initialize(struct wmWindowManager *wm, struct wmWindow *win, str
 void    ED_area_exit(struct bContext *C, struct ScrArea *sa);
 int     ED_screen_area_active(const struct bContext *C);
 void    ED_screen_global_topbar_area_create(
-            const struct bContext *C,
             struct wmWindow *win,
             const struct bScreen *screen);
 void    ED_screen_global_areas_create(
-            const struct bContext *C,
             struct wmWindow *win);
 void    ED_area_do_listen(struct bScreen *sc, ScrArea *sa, struct wmNotifier *note, Scene *scene,
                           struct WorkSpace *workspace);
@@ -143,7 +141,7 @@ int     ED_region_global_size_y(void);
 	     area_name = (area_name == (win)->global_areas.areabase.last) ? (screen)->areabase.first : area_name->next)
 
 /* screens */
-void    ED_screens_initialize(const struct bContext *C, struct wmWindowManager *wm);
+void    ED_screens_initialize(struct wmWindowManager *wm);
 void    ED_screen_draw_edges(struct wmWindow *win);
 void    ED_screen_draw_join_shape(struct ScrArea *sa1, struct ScrArea *sa2);
 void    ED_screen_draw_split_preview(struct ScrArea *sa, const int dir, const float fac);

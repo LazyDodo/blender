@@ -848,7 +848,7 @@ static void screen_refresh_region_sizes_only(
 }
 
 /* file read, set all screens, ... */
-void ED_screens_initialize(const bContext *C, wmWindowManager *wm)
+void ED_screens_initialize(wmWindowManager *wm)
 {
 	wmWindow *win;
 	
@@ -858,7 +858,7 @@ void ED_screens_initialize(const bContext *C, wmWindowManager *wm)
 		}
 
 		if (BLI_listbase_is_empty(&win->global_areas.areabase)) {
-			ED_screen_global_areas_create(C, win);
+			ED_screen_global_areas_create(win);
 		}
 		ED_screen_refresh(wm, win);
 	}
@@ -1105,11 +1105,11 @@ int ED_screen_area_active(const bContext *C)
 	return 0;
 }
 
-void ED_screen_global_topbar_area_create(const bContext *C, wmWindow *win, const bScreen *screen)
+void ED_screen_global_topbar_area_create(wmWindow *win, const bScreen *screen)
 {
 	if (screen->temp == 0) {
 		SpaceType *st = BKE_spacetype_from_id(SPACE_TOPBAR);
-		SpaceLink *sl = st->new(C);
+		SpaceLink *sl = st->new(NULL);
 		ScrArea *sa;
 		const short size_y = 2 * HEADERY;
 
@@ -1131,13 +1131,13 @@ void ED_screen_global_topbar_area_create(const bContext *C, wmWindow *win, const
 		BLI_addhead(&sa->spacedata, sl);
 		BLI_listbase_clear(&sl->regionbase);
 	}
-	/* Do not create more area types here! Function is called in versioning code (versioning_280.c). */
+	/* Do not create more area types here! Function is called on file load (wm_window_ghostwindows_ensure). TODO */
 }
 
-void ED_screen_global_areas_create(const bContext *C, wmWindow *win)
+void ED_screen_global_areas_create(wmWindow *win)
 {
 	const bScreen *screen = BKE_workspace_active_screen_get(win->workspace_hook);
-	ED_screen_global_topbar_area_create(C, win, screen);
+	ED_screen_global_topbar_area_create(win, screen);
 }
 
 

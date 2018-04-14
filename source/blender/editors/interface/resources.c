@@ -2925,7 +2925,7 @@ void init_userdef_do_versions(void)
 		U.uiflag |= USER_LOCK_CURSOR_ADJUST;
 	}
 
-	if (!USER_VERSION_ATLEAST(280, 2)) {
+	if (!USER_VERSION_ATLEAST(280, 9)) {
 		/* interface_widgets.c */
 		struct uiWidgetColors wcol_tab = {
 			{60, 60, 60, 255},

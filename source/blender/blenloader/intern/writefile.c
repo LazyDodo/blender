@@ -2911,6 +2911,11 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 	write_iddata(wd, &wm->id);
 
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+#ifndef WITH_TOPBAR_WRITING
+		/* Don't write global areas yet, while we make changes to them. */
+		ScrAreaMap global_areas = win->global_areas;
+		memset(&win->global_areas, 0, sizeof(win->global_areas));
+#endif
 
 		/* update deprecated screen member (for so loading in 2.7x uses the correct screen) */
 		win->screen = BKE_workspace_active_screen_get(win->workspace_hook);
@@ -2921,6 +2926,8 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 
 #ifdef WITH_TOPBAR_WRITING
 		write_area_map(wd, &win->global_areas);
+#else
+		win->global_areas = global_areas;
 #endif
 
 		/* data is written, clear deprecated data again */
