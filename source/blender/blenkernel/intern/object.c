@@ -519,7 +519,7 @@ void BKE_object_free(Object *ob)
 }
 
 /* actual check for internal data, not context or flags */
-bool BKE_object_is_in_editmode(Object *ob)
+bool BKE_object_is_in_editmode(const Object *ob)
 {
 	if (ob->data == NULL)
 		return false;
@@ -562,7 +562,7 @@ bool BKE_object_is_in_editmode(Object *ob)
 	return false;
 }
 
-bool BKE_object_is_in_editmode_vgroup(Object *ob)
+bool BKE_object_is_in_editmode_vgroup(const Object *ob)
 {
 	return (OB_TYPE_SUPPORT_VGROUP(ob->type) &&
 	        BKE_object_is_in_editmode(ob));
@@ -610,7 +610,7 @@ bool BKE_object_is_visible(Object *ob, const eObjectVisibilityCheck mode)
 	}
 }
 
-bool BKE_object_exists_check(Object *obtest)
+bool BKE_object_exists_check(const Object *obtest)
 {
 	Object *ob;
 	
@@ -1219,7 +1219,7 @@ static void copy_object_lod(Object *obn, const Object *ob, const int UNUSED(flag
 	obn->currentlod = (LodLevel *)obn->lodlevels.first;
 }
 
-bool BKE_object_pose_context_check(Object *ob)
+bool BKE_object_pose_context_check(const Object *ob)
 {
 	if ((ob) &&
 	    (ob->type == OB_ARMATURE) &&
@@ -1425,13 +1425,13 @@ void BKE_object_make_local(Main *bmain, Object *ob, const bool lib_local)
 }
 
 /* Returns true if the Object is from an external blend file (libdata) */
-bool BKE_object_is_libdata(Object *ob)
+bool BKE_object_is_libdata(const Object *ob)
 {
 	return (ob && ID_IS_LINKED(ob));
 }
 
 /* Returns true if the Object data is from an external blend file (libdata) */
-bool BKE_object_obdata_is_libdata(Object *ob)
+bool BKE_object_obdata_is_libdata(const Object *ob)
 {
 	/* Linked objects with local obdata are forbidden! */
 	BLI_assert(!ob || !ob->data || (ID_IS_LINKED(ob) ? ID_IS_LINKED(ob->data) : true));
@@ -3216,7 +3216,7 @@ bool BKE_object_flag_test_recursive(const Object *ob, short flag)
 	}
 }
 
-bool BKE_object_is_child_recursive(Object *ob_parent, Object *ob_child)
+bool BKE_object_is_child_recursive(const Object *ob_parent, const Object *ob_child)
 {
 	for (ob_child = ob_child->parent; ob_child; ob_child = ob_child->parent) {
 		if (ob_child == ob_parent) {
