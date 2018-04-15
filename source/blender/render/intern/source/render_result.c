@@ -266,9 +266,7 @@ RenderResult *render_result_new(Render *re, rcti *partrct, int crop, int savebuf
 	RenderResult *rr;
 	RenderLayer *rl;
 	RenderView *rv;
-	ViewLayer *view_layer;
 	int rectx, recty;
-	int nr;
 	
 	rectx = BLI_rcti_size_x(partrct);
 	recty = BLI_rcti_size_y(partrct);
@@ -296,23 +294,14 @@ RenderResult *render_result_new(Render *re, rcti *partrct, int crop, int savebuf
 	render_result_views_new(rr, &re->r);
 
 	/* check renderdata for amount of layers */
-	for (nr = 0, view_layer = re->view_layers.first; view_layer; view_layer = view_layer->next, nr++) {
-
-		if (layername && layername[0])
-			if (!STREQ(view_layer->name, layername))
-				continue;
-
-		if (re->r.scemode & R_SINGLE_LAYER) {
-			if (nr != re->active_view_layer) {
+	FOREACH_VIEW_LAYER_TO_RENDER_BEGIN(re, view_layer)
+	{
+		if (layername && layername[0]) {
+			if (!STREQ(view_layer->name, layername)) {
 				continue;
 			}
 		}
-		else {
-			if ((view_layer->flag & VIEW_LAYER_RENDER) == 0) {
-				continue;
-			}
-		}
-		
+
 		rl = MEM_callocN(sizeof(RenderLayer), "new render layer");
 		BLI_addtail(&rr->layers, rl);
 		
@@ -417,6 +406,8 @@ RenderResult *render_result_new(Render *re, rcti *partrct, int crop, int savebuf
 #undef RENDER_LAYER_ADD_PASS_SAFE
 		}
 	}
+	FOREACH_VIEW_LAYER_TO_RENDER_END;
+
 	/* sss, previewrender and envmap don't do layers, so we make a default one */
 	if (BLI_listbase_is_empty(&rr->layers) && !(layername && layername[0])) {
 		rl = MEM_callocN(sizeof(RenderLayer), "new render layer");
@@ -749,7 +740,7 @@ void render_result_views_new(RenderResult *rr, RenderData *rd)
 	}
 
 	/* we always need at least one view */
-	if (BLI_listbase_count_ex(&rr->views, 1) == 0) {
+	if (BLI_listbase_count_at_most(&rr->views, 1) == 0) {
 		render_result_view_new(rr, "");
 	}
 }
@@ -1037,7 +1028,7 @@ static void save_render_result_tile(RenderResult *rr, RenderResult *rrpart, cons
 	RenderPass *rpassp;
 	int offs, partx, party;
 	
-	BLI_lock_thread(LOCK_IMAGE);
+	BLI_thread_lock(LOCK_IMAGE);
 	
 	for (rlp = rrpart->layers.first; rlp; rlp = rlp->next) {
 		rl = RE_GetRenderLayer(rr, rlp->name);
@@ -1086,7 +1077,7 @@ static void save_render_result_tile(RenderResult *rr, RenderResult *rrpart, cons
 		IMB_exrtile_write_channels(rl->exrhandle, partx, party, 0, viewname, false);
 	}
 
-	BLI_unlock_thread(LOCK_IMAGE);
+	BLI_thread_unlock(LOCK_IMAGE);
 }
 
 void render_result_save_empty_result_tiles(Render *re)

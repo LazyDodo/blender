@@ -234,9 +234,8 @@ static void get_tex_mapping(TextureMapping *mapping,
 static ShaderNode *add_node(Scene *scene,
                             BL::RenderEngine& b_engine,
                             BL::BlendData& b_data,
+                            BL::Depsgraph& b_depsgraph,
                             BL::Scene& b_scene,
-                            BL::ViewLayer b_view_layer,
-                            const bool background,
                             ShaderGraph *graph,
                             BL::ShaderNodeTree& b_ntree,
                             BL::ShaderNode& b_node)
@@ -427,6 +426,9 @@ static ShaderNode *add_node(Scene *scene,
 			case BL::ShaderNodeSubsurfaceScattering::falloff_BURLEY:
 				subsurface->falloff = CLOSURE_BSSRDF_BURLEY_ID;
 				break;
+			case BL::ShaderNodeSubsurfaceScattering::falloff_RANDOM_WALK:
+				subsurface->falloff = CLOSURE_BSSRDF_RANDOM_WALK_ID;
+				break;
 		}
 
 		node = subsurface;
@@ -526,6 +528,14 @@ static ShaderNode *add_node(Scene *scene,
 				principled->distribution = CLOSURE_BSDF_MICROFACET_MULTI_GGX_GLASS_ID;
 				break;
 		}
+		switch (b_principled_node.subsurface_method()) {
+			case BL::ShaderNodeBsdfPrincipled::subsurface_method_BURLEY:
+				principled->subsurface_method = CLOSURE_BSSRDF_PRINCIPLED_ID;
+				break;
+			case BL::ShaderNodeBsdfPrincipled::subsurface_method_RANDOM_WALK:
+				principled->subsurface_method = CLOSURE_BSSRDF_PRINCIPLED_RANDOM_WALK_ID;
+				break;
+		}
 		node = principled;
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeBsdfTranslucent)) {
@@ -548,6 +558,10 @@ static ShaderNode *add_node(Scene *scene,
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeVolumeAbsorption)) {
 		node = new AbsorptionVolumeNode();
+	}
+	else if(b_node.is_a(&RNA_ShaderNodeVolumePrincipled)) {
+		PrincipledVolumeNode *principled = new PrincipledVolumeNode();
+		node = principled;
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeNewGeometry)) {
 		node = new GeometryNode();
@@ -820,6 +834,7 @@ static ShaderNode *add_node(Scene *scene,
 		node = uvm;
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeTexPointDensity)) {
+		/* TODO: fix point density to work with new view layer depsgraph */
 		BL::ShaderNodeTexPointDensity b_point_density_node(b_node);
 		PointDensityTextureNode *point_density = new PointDensityTextureNode();
 		point_density->filename = b_point_density_node.name();
@@ -827,12 +842,9 @@ static ShaderNode *add_node(Scene *scene,
 		point_density->interpolation = get_image_interpolation(b_point_density_node);
 		point_density->builtin_data = b_point_density_node.ptr.data;
 
-		/* 1 - render settings, 0 - vewport settings. */
-		int settings = background ? 1 : 0;
-
 		/* TODO(sergey): Use more proper update flag. */
 		if(true) {
-			b_point_density_node.cache_point_density(b_scene, b_view_layer, settings);
+			b_point_density_node.cache_point_density(b_depsgraph);
 			scene->image_manager->tag_reload_image(
 			        point_density->filename.string(),
 			        point_density->builtin_data,
@@ -850,9 +862,8 @@ static ShaderNode *add_node(Scene *scene,
 		BL::Object b_ob(b_point_density_node.object());
 		if(b_ob) {
 			float3 loc, size;
-			point_density_texture_space(b_scene, b_view_layer,
+			point_density_texture_space(b_depsgraph,
 			                            b_point_density_node,
-			                            settings,
 			                            loc,
 			                            size);
 			point_density->tfm =
@@ -867,7 +878,17 @@ static ShaderNode *add_node(Scene *scene,
 		node = bevel;
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeDisplacement)) {
-		node = new DisplacementNode();
+		BL::ShaderNodeDisplacement b_disp_node(b_node);
+		DisplacementNode *disp = new DisplacementNode();
+		disp->space = (NodeNormalMapSpace)b_disp_node.space();
+		node = disp;
+	}
+	else if(b_node.is_a(&RNA_ShaderNodeVectorDisplacement)) {
+		BL::ShaderNodeVectorDisplacement b_disp_node(b_node);
+		VectorDisplacementNode *disp = new VectorDisplacementNode();
+		disp->space = (NodeNormalMapSpace)b_disp_node.space();
+		disp->attribute = "";
+		node = disp;
 	}
 
 	if(node) {
@@ -980,9 +1001,8 @@ static BL::ShaderNode find_output_node(BL::ShaderNodeTree& b_ntree)
 static void add_nodes(Scene *scene,
                       BL::RenderEngine& b_engine,
                       BL::BlendData& b_data,
+                      BL::Depsgraph& b_depsgraph,
                       BL::Scene& b_scene,
-                      BL::ViewLayer& b_view_layer,
-                      const bool background,
                       ShaderGraph *graph,
                       BL::ShaderNodeTree& b_ntree,
                       const ProxyMap &proxy_input_map,
@@ -1007,6 +1027,10 @@ static void add_nodes(Scene *scene,
 			for(b_node->internal_links.begin(b_link); b_link != b_node->internal_links.end(); ++b_link) {
 				BL::NodeSocket to_socket(b_link->to_socket());
 				SocketType::Type to_socket_type = convert_socket_type(to_socket);
+				if (to_socket_type == SocketType::UNDEFINED) {
+					continue;
+				}
+
 				ConvertNode *proxy = new ConvertNode(to_socket_type, to_socket_type, true);
 
 				input_map[b_link->from_socket().ptr.data] = proxy->inputs[0];
@@ -1030,6 +1054,10 @@ static void add_nodes(Scene *scene,
 			 */
 			for(b_node->inputs.begin(b_input); b_input != b_node->inputs.end(); ++b_input) {
 				SocketType::Type input_type = convert_socket_type(*b_input);
+				if (input_type == SocketType::UNDEFINED) {
+					continue;
+				}
+
 				ConvertNode *proxy = new ConvertNode(input_type, input_type, true);
 				graph->add(proxy);
 
@@ -1042,6 +1070,10 @@ static void add_nodes(Scene *scene,
 			}
 			for(b_node->outputs.begin(b_output); b_output != b_node->outputs.end(); ++b_output) {
 				SocketType::Type output_type = convert_socket_type(*b_output);
+				if (output_type == SocketType::UNDEFINED) {
+					continue;
+				}
+
 				ConvertNode *proxy = new ConvertNode(output_type, output_type, true);
 				graph->add(proxy);
 
@@ -1055,9 +1087,8 @@ static void add_nodes(Scene *scene,
 				add_nodes(scene,
 				          b_engine,
 				          b_data,
+				          b_depsgraph,
 				          b_scene,
-				          b_view_layer,
-				          background,
 				          graph,
 				          b_group_ntree,
 				          group_proxy_input_map,
@@ -1103,9 +1134,8 @@ static void add_nodes(Scene *scene,
 				node = add_node(scene,
 				                b_engine,
 				                b_data,
+				                b_depsgraph,
 				                b_scene,
-				                b_view_layer,
-				                background,
 				                graph,
 				                b_ntree,
 				                b_shader_node);
@@ -1167,9 +1197,8 @@ static void add_nodes(Scene *scene,
 static void add_nodes(Scene *scene,
                       BL::RenderEngine& b_engine,
                       BL::BlendData& b_data,
+                      BL::Depsgraph& b_depsgraph,
                       BL::Scene& b_scene,
-                      BL::ViewLayer& b_view_layer,
-                      const bool background,
                       ShaderGraph *graph,
                       BL::ShaderNodeTree& b_ntree)
 {
@@ -1177,9 +1206,8 @@ static void add_nodes(Scene *scene,
 	add_nodes(scene,
 	          b_engine,
 	          b_data,
+	          b_depsgraph,
 	          b_scene,
-	          b_view_layer,
-	          background,
 	          graph,
 	          b_ntree,
 	          empty_proxy_map,
@@ -1188,7 +1216,7 @@ static void add_nodes(Scene *scene,
 
 /* Sync Materials */
 
-void BlenderSync::sync_materials(bool update_all)
+void BlenderSync::sync_materials(BL::Depsgraph& b_depsgraph, bool update_all)
 {
 	shader_map.set_default(scene->default_surface);
 
@@ -1217,7 +1245,7 @@ void BlenderSync::sync_materials(bool update_all)
 			if(b_mat->use_nodes() && b_mat->node_tree()) {
 				BL::ShaderNodeTree b_ntree(b_mat->node_tree());
 
-				add_nodes(scene, b_engine, b_data, b_scene, b_view_layer, !preview, graph, b_ntree);
+				add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, graph, b_ntree);
 			}
 			else {
 				DiffuseBsdfNode *diffuse = new DiffuseBsdfNode();
@@ -1235,7 +1263,7 @@ void BlenderSync::sync_materials(bool update_all)
 			shader->heterogeneous_volume = !get_boolean(cmat, "homogeneous_volume");
 			shader->volume_sampling_method = get_volume_sampling(cmat);
 			shader->volume_interpolation_method = get_volume_interpolation(cmat);
-			shader->displacement_method = (experimental) ? get_displacement_method(cmat) : DISPLACE_BUMP;
+			shader->displacement_method = get_displacement_method(cmat);
 
 			shader->set_graph(graph);
 
@@ -1273,7 +1301,7 @@ void BlenderSync::sync_materials(bool update_all)
 
 /* Sync World */
 
-void BlenderSync::sync_world(bool update_all)
+void BlenderSync::sync_world(BL::Depsgraph& b_depsgraph, bool update_all)
 {
 	Background *background = scene->background;
 	Background prevbackground = *background;
@@ -1288,7 +1316,7 @@ void BlenderSync::sync_world(bool update_all)
 		if(b_world && b_world.use_nodes() && b_world.node_tree()) {
 			BL::ShaderNodeTree b_ntree(b_world.node_tree());
 
-			add_nodes(scene, b_engine, b_data, b_scene, b_view_layer, !preview, graph, b_ntree);
+			add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, graph, b_ntree);
 
 			/* volume */
 			PointerRNA cworld = RNA_pointer_get(&b_world.ptr, "cycles");
@@ -1365,7 +1393,7 @@ void BlenderSync::sync_world(bool update_all)
 
 /* Sync Lamps */
 
-void BlenderSync::sync_lamps(bool update_all)
+void BlenderSync::sync_lamps(BL::Depsgraph& b_depsgraph, bool update_all)
 {
 	shader_map.set_default(scene->default_light);
 
@@ -1390,7 +1418,7 @@ void BlenderSync::sync_lamps(bool update_all)
 
 				BL::ShaderNodeTree b_ntree(b_lamp->node_tree());
 
-				add_nodes(scene, b_engine, b_data, b_scene, b_view_layer, !preview, graph, b_ntree);
+				add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, graph, b_ntree);
 			}
 			else {
 				float strength = 1.0f;
@@ -1417,7 +1445,7 @@ void BlenderSync::sync_lamps(bool update_all)
 	}
 }
 
-void BlenderSync::sync_shaders()
+void BlenderSync::sync_shaders(BL::Depsgraph& b_depsgraph)
 {
 	/* for auto refresh images */
 	bool auto_refresh_update = false;
@@ -1430,9 +1458,9 @@ void BlenderSync::sync_shaders()
 
 	shader_map.pre_sync();
 
-	sync_world(auto_refresh_update);
-	sync_lamps(auto_refresh_update);
-	sync_materials(auto_refresh_update);
+	sync_world(b_depsgraph, auto_refresh_update);
+	sync_lamps(b_depsgraph, auto_refresh_update);
+	sync_materials(b_depsgraph, auto_refresh_update);
 
 	/* false = don't delete unused shaders, not supported */
 	shader_map.post_sync(false);

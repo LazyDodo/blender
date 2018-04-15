@@ -160,7 +160,7 @@ bool draw_glsl_material(Scene *scene, struct ViewLayer *view_layer, struct Objec
 void draw_object_instance(const struct EvaluationContext *eval_ctx, Scene *scene, struct ViewLayer *view_layer, View3D *v3d, RegionView3D *rv3d, struct Object *ob, const char dt, int outline, const float wire_col[4]);
 void draw_object_backbufsel(const struct EvaluationContext *eval_ctx, Scene *scene, View3D *v3d, RegionView3D *rv3d, struct Object *ob);
 
-void draw_object_wire_color(Scene *scene, struct ViewLayer *, Base *base, unsigned char r_ob_wire_col[4]);
+void draw_object_wire_color(struct ViewLayer *, Base *base, unsigned char r_ob_wire_col[4]);
 void drawaxes(const float viewmat_local[4][4], float size, char drawtype, const unsigned char color[4]);
 void drawlamp(View3D *v3d, RegionView3D *rv3d, Base *base,
               const char dt, const short dflag, const unsigned char ob_wire_col[4],
@@ -368,8 +368,8 @@ extern bool view3d_camera_border_hack_test;
 
 /* temporary for legacy viewport to work */
 void VP_legacy_drawcursor(Scene *scene, struct ViewLayer *view_layer, ARegion *ar, View3D *v3d);
-void VP_legacy_draw_view_axis(RegionView3D *rv3d, rcti *rect);
-void VP_legacy_draw_viewport_name(ARegion *ar, View3D *v3d, rcti *rect);
+void VP_legacy_draw_view_axis(RegionView3D *rv3d, const rcti *rect);
+void VP_legacy_draw_viewport_name(ARegion *ar, View3D *v3d, const rcti *rect);
 void VP_legacy_draw_selected_name(Scene *scene, struct Object *ob, rcti *rect);
 void VP_legacy_drawgrid(UnitSettings *unit, ARegion *ar, View3D *v3d, const char **grid_unit);
 void VP_legacy_drawfloor(Scene *scene, View3D *v3d, const char **grid_unit, bool write_depth);
@@ -377,7 +377,7 @@ void VP_legacy_view3d_main_region_setup_view(const struct EvaluationContext *eva
 bool VP_legacy_view3d_stereo3d_active(struct wmWindow *win, Scene *scene, View3D *v3d, RegionView3D *rv3d);
 void VP_legacy_view3d_stereo3d_setup(const struct EvaluationContext *eval_ctx, Scene *scene, View3D *v3d, ARegion *ar);
 void draw_dupli_objects(const struct EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer, ARegion *ar, View3D *v3d, Base *base);
-bool VP_legacy_use_depth(Scene *scene, View3D *v3d);
+bool VP_legacy_use_depth(View3D *v3d, struct Object *obedit);
 void VP_drawviewborder(Scene *scene, const struct Depsgraph *depsgraph, ARegion *ar, View3D *v3d);
 void VP_drawrenderborder(ARegion *ar, View3D *v3d);
 void VP_view3d_draw_background_none(void);
@@ -391,6 +391,6 @@ void VP_deprecated_view3d_draw_objects(
         const struct EvaluationContext *eval_ctx,
         Scene *scene, View3D *v3d, ARegion *ar,
         const char **grid_unit,
-        const bool do_bgpic, const bool draw_offscreen, struct GPUFX *fx);
+        const bool do_bgpic, const bool draw_offscreen);
 
 #endif /* __VIEW3D_INTERN_H__ */

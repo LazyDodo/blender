@@ -48,7 +48,7 @@
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_object_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_scene_types.h"
@@ -58,7 +58,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_edgehash.h"
 #include "BLI_rand.h"
-#include "BLI_jitter.h"
+#include "BLI_jitter_2d.h"
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
 #include "BLI_kdtree.h"
@@ -76,7 +76,6 @@
 #include "BKE_effect.h"
 #include "BKE_library_query.h"
 #include "BKE_particle.h"
-#include "BKE_global.h"
 
 #include "BKE_collection.h"
 #include "BKE_DerivedMesh.h"
@@ -91,6 +90,7 @@
 #include "BKE_bvhutils.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "PIL_time.h"
 
@@ -98,7 +98,7 @@
 
 /* fluid sim particle import */
 #ifdef WITH_MOD_FLUID
-#include "DNA_object_fluidsim.h"
+#include "DNA_object_fluidsim_types.h"
 #include "LBM_fluidsim.h"
 #include <zlib.h>
 #include <string.h>
@@ -122,11 +122,11 @@ static int particles_are_dynamic(ParticleSystem *psys)
 		return ELEM(psys->part->phystype, PART_PHYS_NEWTON, PART_PHYS_BOIDS, PART_PHYS_FLUID);
 }
 
-float psys_get_current_display_percentage(ParticleSystem *psys)
+float psys_get_current_display_percentage(ParticleSystem *psys, const bool use_render_params)
 {
 	ParticleSettings *part=psys->part;
 
-	if ((psys->renderdata && !particles_are_dynamic(psys)) ||  /* non-dynamic particles can be rendered fully */
+	if ((use_render_params && !particles_are_dynamic(psys)) ||  /* non-dynamic particles can be rendered fully */
 	    (part->child_nbr && part->childtype)  ||    /* display percentage applies to children */
 	    (psys->pointcache->flag & PTCACHE_BAKING))  /* baking is always done with full amount */
 	{
@@ -286,24 +286,24 @@ static void realloc_particles(ParticleSimulationData *sim, int new_totpart)
 	}
 }
 
-int psys_get_child_number(Scene *scene, ParticleSystem *psys)
+int psys_get_child_number(Scene *scene, ParticleSystem *psys, const bool use_render_params)
 {
 	int nbr;
 
 	if (!psys->part->childtype)
 		return 0;
 
-	if (psys->renderdata)
+	if (use_render_params)
 		nbr= psys->part->ren_child_nbr;
 	else
 		nbr= psys->part->child_nbr;
 
-	return get_render_child_particle_number(&scene->r, nbr, psys->renderdata != NULL);
+	return get_render_child_particle_number(&scene->r, nbr, use_render_params);
 }
 
-int psys_get_tot_child(Scene *scene, ParticleSystem *psys)
+int psys_get_tot_child(Scene *scene, ParticleSystem *psys, const bool use_render_params)
 {
-	return psys->totpart*psys_get_child_number(scene, psys);
+	return psys->totpart*psys_get_child_number(scene, psys, use_render_params);
 }
 
 /************************************************/
@@ -499,6 +499,8 @@ void psys_thread_context_free(ParticleThreadContext *ctx)
 		MEM_freeN(ctx->vg_rough2);
 	if (ctx->vg_roughe)
 		MEM_freeN(ctx->vg_roughe);
+	if (ctx->vg_twist)
+		MEM_freeN(ctx->vg_twist);
 
 	if (ctx->sim.psys->lattice_deform_data) {
 		end_latt_deform(ctx->sim.psys->lattice_deform_data);
@@ -510,7 +512,6 @@ void psys_thread_context_free(ParticleThreadContext *ctx)
 	if (ctx->jitoff) MEM_freeN(ctx->jitoff);
 	if (ctx->weight) MEM_freeN(ctx->weight);
 	if (ctx->index) MEM_freeN(ctx->index);
-	if (ctx->skip) MEM_freeN(ctx->skip);
 	if (ctx->seams) MEM_freeN(ctx->seams);
 	//if (ctx->vertpart) MEM_freeN(ctx->vertpart);
 	BLI_kdtree_free(ctx->tree);
@@ -520,6 +521,9 @@ void psys_thread_context_free(ParticleThreadContext *ctx)
 	}
 	if (ctx->roughcurve != NULL) {
 		curvemapping_free(ctx->roughcurve);
+	}
+	if (ctx->twistcurve != NULL) {
+		curvemapping_free(ctx->twistcurve);
 	}
 }
 
@@ -2898,10 +2902,12 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 {
 	ParticleSystem *psys = sim->psys;
 	ParticleSettings *part = psys->part;
+#if 0
 	ParticleEditSettings *pset = &sim->scene->toolsettings->particle;
+#endif
 	int distr=0, alloc=0, skip=0;
 
-	if ((psys->part->childtype && psys->totchild != psys_get_tot_child(sim->scene, psys)) || psys->recalc&PSYS_RECALC_RESET)
+	if ((psys->part->childtype && psys->totchild != psys_get_tot_child(sim->scene, psys, use_render_params)) || psys->recalc&PSYS_RECALC_RESET)
 		alloc=1;
 
 	if (alloc || psys->recalc&PSYS_RECALC_CHILD || (psys->vgroup[PSYS_VG_DENSITY] && (sim->ob && sim->ob->mode & OB_MODE_WEIGHT_PAINT)))
@@ -2911,7 +2917,7 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 		if (alloc)
 			realloc_particles(sim, sim->psys->totpart);
 
-		if (psys_get_tot_child(sim->scene, psys)) {
+		if (psys_get_tot_child(sim->scene, psys, use_render_params)) {
 			/* don't generate children while computing the hair keys */
 			if (!(psys->part->type == PART_HAIR) || (psys->flag & PSYS_HAIR_DONE)) {
 				distribute_particles(sim, PART_FROM_CHILD);
@@ -2928,22 +2934,25 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 		skip = 1; /* only hair, keyed and baked stuff can have paths */
 	else if (part->ren_as != PART_DRAW_PATH && !(part->type==PART_HAIR && ELEM(part->ren_as, PART_DRAW_OB, PART_DRAW_GR)))
 		skip = 1; /* particle visualization must be set as path */
-	else if (!psys->renderdata) {
+	else {
 		if (part->draw_as != PART_DRAW_REND)
 			skip = 1; /* draw visualization */
 		else if (psys->pointcache->flag & PTCACHE_BAKING)
 			skip = 1; /* no need to cache paths while baking dynamics */
-		else if (psys_in_edit_mode(sim->eval_ctx->view_layer, psys)) {
+
+#if 0 /* TODO(mai): something is very wrong with these conditionals, they dont make sense and the cache isnt updating */
+		else if (psys_in_edit_mode(sim->eval_ctx->depsgraph, psys)) {
 			if ((pset->flag & PE_DRAW_PART)==0)
 				skip = 1;
 			else if (part->childtype==0 && (psys->flag & PSYS_HAIR_DYNAMICS && psys->pointcache->flag & PTCACHE_BAKED)==0)
 				skip = 1; /* in edit mode paths are needed for child particles and dynamic hair */
 		}
+#endif
 	}
 
 
 	/* particle instance modifier with "path" option need cached paths even if particle system doesn't */
-	FOREACH_SCENE_OBJECT(sim->scene, ob)
+	FOREACH_SCENE_OBJECT_BEGIN(sim->scene, ob)
 	{
 		ModifierData *md = modifiers_findByType(ob, eModifierType_ParticleInstance);
 		if (md) {
@@ -2954,7 +2963,7 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 			}
 		}
 	}
-	FOREACH_SCENE_OBJECT_END
+	FOREACH_SCENE_OBJECT_END;
 
 	if (!skip) {
 		psys_cache_paths(sim, cfra, use_render_params);
@@ -3214,7 +3223,7 @@ static void hair_step(ParticleSimulationData *sim, float cfra, const bool use_re
 	ParticleSystem *psys = sim->psys;
 	ParticleSettings *part = psys->part;
 	PARTICLE_P;
-	float disp = psys_get_current_display_percentage(psys);
+	float disp = psys_get_current_display_percentage(psys, use_render_params);
 
 	LOOP_PARTICLES {
 		pa->size = part->size;
@@ -3730,13 +3739,13 @@ static void dynamics_step(ParticleSimulationData *sim, float cfra)
 	free_collider_cache(&sim->colliders);
 	BLI_rng_free(rng);
 }
-static void update_children(ParticleSimulationData *sim)
+static void update_children(ParticleSimulationData *sim, const bool use_render_params)
 {
 	if ((sim->psys->part->type == PART_HAIR) && (sim->psys->flag & PSYS_HAIR_DONE)==0)
 	/* don't generate children while growing hair - waste of time */
 		psys_free_children(sim->psys);
 	else if (sim->psys->part->childtype) {
-		if (sim->psys->totchild != psys_get_tot_child(sim->scene, sim->psys))
+		if (sim->psys->totchild != psys_get_tot_child(sim->scene, sim->psys, use_render_params))
 			distribute_particles(sim, PART_FROM_CHILD);
 		else {
 			/* Children are up to date, nothing to do. */
@@ -3746,7 +3755,7 @@ static void update_children(ParticleSimulationData *sim)
 		psys_free_children(sim->psys);
 }
 /* updates cached particles' alive & other flags etc..*/
-static void cached_step(ParticleSimulationData *sim, float cfra)
+static void cached_step(ParticleSimulationData *sim, float cfra, const bool use_render_params)
 {
 	ParticleSystem *psys = sim->psys;
 	ParticleSettings *part = psys->part;
@@ -3756,7 +3765,7 @@ static void cached_step(ParticleSimulationData *sim, float cfra)
 
 	psys_update_effectors(sim);
 	
-	disp= psys_get_current_display_percentage(psys);
+	disp= psys_get_current_display_percentage(psys, use_render_params);
 
 	LOOP_PARTICLES {
 		psys_get_texture(sim, pa, &ptex, PAMAP_SIZE, cfra);
@@ -3978,8 +3987,8 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 		int cache_result = BKE_ptcache_read(pid, cache_cfra, true);
 
 		if (ELEM(cache_result, PTCACHE_READ_EXACT, PTCACHE_READ_INTERPOLATED)) {
-			cached_step(sim, cfra);
-			update_children(sim);
+			cached_step(sim, cfra, use_render_params);
+			update_children(sim, use_render_params);
 			psys_update_path_cache(sim, cfra, use_render_params);
 
 			BKE_ptcache_validate(cache, (int)cache_cfra);
@@ -3996,7 +4005,7 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 		}
 		else if (cache_result == PTCACHE_READ_OLD) {
 			psys->cfra = (float)cache->simframe;
-			cached_step(sim, psys->cfra);
+			cached_step(sim, psys->cfra, use_render_params);
 		}
 
 		/* if on second frame, write cache for first frame */
@@ -4008,7 +4017,7 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 
 /* 3. do dynamics */
 	/* set particles to be not calculated TODO: can't work with pointcache */
-	disp= psys_get_current_display_percentage(psys);
+	disp= psys_get_current_display_percentage(psys, use_render_params);
 
 	LOOP_PARTICLES {
 		if (psys_frand(psys, p) > disp)
@@ -4064,7 +4073,7 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 			BKE_ptcache_write(pid, (int)cache_cfra);
 	}
 
-	update_children(sim);
+	update_children(sim, use_render_params);
 
 /* cleanup */
 	if (psys->lattice_deform_data) {
@@ -4307,7 +4316,7 @@ void particle_system_update(const struct EvaluationContext *eval_ctx, Scene *sce
 				case PART_PHYS_KEYED:
 				{
 					PARTICLE_P;
-					float disp = psys_get_current_display_percentage(psys);
+					float disp = psys_get_current_display_percentage(psys, use_render_params);
 					bool free_unexisting = false;
 
 					/* Particles without dynamics haven't been reset yet because they don't use pointcache */
@@ -4369,8 +4378,7 @@ void particle_system_update(const struct EvaluationContext *eval_ctx, Scene *sce
 	psys->recalc = 0;
 
 	/* save matrix for duplicators, at rendertime the actual dupliobject's matrix is used so don't update! */
-	if (psys->renderdata==0)
-		invert_m4_m4(psys->imat, ob->obmat);
+	invert_m4_m4(psys->imat, ob->obmat);
 
 	BKE_particle_batch_cache_dirty(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
 }
@@ -4403,30 +4411,16 @@ void BKE_particlesystem_id_loop(ParticleSystem *psys, ParticleSystemIDFunc func,
 
 /* **** Depsgraph evaluation **** */
 
-void BKE_particle_system_settings_eval(const struct EvaluationContext *UNUSED(eval_ctx),
-                                       ParticleSystem *psys)
-{
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
-		printf("%s on %s (%p)\n", __func__, psys->name, psys);
-	}
-	psys->recalc |= psys->part->recalc;
-}
-
-void BKE_particle_system_settings_recalc_clear(struct EvaluationContext *UNUSED(eval_ctx),
-                                               ParticleSettings *particle_settings)
-{
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
-		printf("%s on %s (%p)\n", __func__, particle_settings->id.name, particle_settings);
-	}
-	particle_settings->recalc = 0;
-}
-
 void BKE_particle_system_eval_init(const struct EvaluationContext *UNUSED(eval_ctx),
                                    Scene *scene,
                                    Object *ob)
 {
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
-		printf("%s on %s (%p)\n", __func__, ob->id.name, ob);
+	DEG_debug_print_eval(__func__, ob->id.name, ob);
+	for (ParticleSystem *psys = ob->particlesystem.first;
+	     psys != NULL;
+	     psys = psys->next)
+	{
+		psys->recalc |= (psys->part->id.recalc & DEG_TAG_PSYS_ALL);
 	}
 	BKE_ptcache_object_reset(scene, ob, PTCACHE_RESET_DEPSGRAPH);
 }

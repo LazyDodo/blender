@@ -53,6 +53,7 @@
 #include "BIF_glutil.h"
 
 #include "GPU_draw.h"
+#include "GPU_batch.h"
 #include "GPU_immediate.h"
 #include "GPU_matrix.h"
 
@@ -986,7 +987,7 @@ static void node_shader_buts_normal_map(uiLayout *layout, bContext *C, PointerRN
 {
 	uiItemR(layout, ptr, "space", 0, "", 0);
 
-	if (RNA_enum_get(ptr, "space") == SHD_NORMAL_MAP_TANGENT) {
+	if (RNA_enum_get(ptr, "space") == SHD_SPACE_TANGENT) {
 		PointerRNA obptr = CTX_data_pointer_get(C, "active_object");
 
 		if (obptr.data && RNA_enum_get(&obptr, "type") == OB_MESH) {
@@ -996,6 +997,11 @@ static void node_shader_buts_normal_map(uiLayout *layout, bContext *C, PointerRN
 		else
 			uiItemR(layout, ptr, "uv_map", 0, "", 0);
 	}
+}
+
+static void node_shader_buts_displacement(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
+{
+	uiItemR(layout, ptr, "space", 0, "", 0);
 }
 
 static void node_shader_buts_tangent(uiLayout *layout, bContext *C, PointerRNA *ptr)
@@ -1025,6 +1031,12 @@ static void node_shader_buts_tangent(uiLayout *layout, bContext *C, PointerRNA *
 static void node_shader_buts_glossy(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
 	uiItemR(layout, ptr, "distribution", 0, "", ICON_NONE);
+}
+
+static void node_shader_buts_principled(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
+{
+	uiItemR(layout, ptr, "distribution", 0, "", ICON_NONE);
+	uiItemR(layout, ptr, "subsurface_method", 0, "", ICON_NONE);
 }
 
 static void node_shader_buts_anisotropic(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -1189,14 +1201,20 @@ static void node_shader_set_butfunc(bNodeType *ntype)
 		case SH_NODE_NORMAL_MAP:
 			ntype->draw_buttons = node_shader_buts_normal_map;
 			break;
+		case SH_NODE_DISPLACEMENT:
+		case SH_NODE_VECTOR_DISPLACEMENT:
+			ntype->draw_buttons = node_shader_buts_displacement;
+			break;
 		case SH_NODE_TANGENT:
 			ntype->draw_buttons = node_shader_buts_tangent;
 			break;
 		case SH_NODE_BSDF_GLOSSY:
 		case SH_NODE_BSDF_GLASS:
 		case SH_NODE_BSDF_REFRACTION:
-		case SH_NODE_BSDF_PRINCIPLED:
 			ntype->draw_buttons = node_shader_buts_glossy;
+			break;
+		case SH_NODE_BSDF_PRINCIPLED:
+			ntype->draw_buttons = node_shader_buts_principled;
 			break;
 		case SH_NODE_BSDF_ANISOTROPIC:
 			ntype->draw_buttons = node_shader_buts_anisotropic;
@@ -2999,7 +3017,7 @@ static const float std_node_socket_colors[][4] = {
 	{0.70, 0.65, 0.19, 1.0},    /* SOCK_BOOLEAN */
 	{0.0, 0.0, 0.0, 1.0},       /*__SOCK_MESH (deprecated) */
 	{0.06, 0.52, 0.15, 1.0},    /* SOCK_INT */
-	{1.0, 1.0, 1.0, 1.0},       /* SOCK_STRING */
+	{0.39, 0.39, 0.39, 1.0},    /* SOCK_STRING */
 };
 
 /* common color callbacks for standard types */
@@ -3086,20 +3104,11 @@ static void std_node_socket_draw(bContext *C, uiLayout *layout, PointerRNA *ptr,
 			uiTemplateComponentMenu(layout, ptr, "default_value", text);
 			break;
 		case SOCK_RGBA:
-		{
-			uiLayout *row = uiLayoutRow(layout, false);
-			uiLayoutSetAlignment(row, UI_LAYOUT_ALIGN_LEFT);
-			/* draw the socket name right of the actual button */
-			uiItemR(row, ptr, "default_value", 0, "", 0);
-			uiItemL(row, text, 0);
-			break;
-		}
 		case SOCK_STRING:
 		{
-			uiLayout *row = uiLayoutRow(layout, true);
-			/* draw the socket name right of the actual button */
-			uiItemR(row, ptr, "default_value", 0, "", 0);
+			uiLayout *row = uiLayoutSplit(layout, 0.5f, false);
 			uiItemL(row, text, 0);
+			uiItemR(row, ptr, "default_value", 0, "", 0);
 			break;
 		}
 		default:
@@ -3133,11 +3142,6 @@ static void std_node_socket_interface_draw(bContext *UNUSED(C), uiLayout *layout
 			uiItemR(row, ptr, "max_value", 0, IFACE_("Max"), 0);
 			break;
 		}
-		case SOCK_BOOLEAN:
-		{
-			uiItemR(layout, ptr, "default_value", 0, NULL, 0);
-			break;
-		}
 		case SOCK_VECTOR:
 		{
 			uiLayout *row;
@@ -3147,11 +3151,8 @@ static void std_node_socket_interface_draw(bContext *UNUSED(C), uiLayout *layout
 			uiItemR(row, ptr, "max_value", 0, IFACE_("Max"), 0);
 			break;
 		}
+		case SOCK_BOOLEAN:
 		case SOCK_RGBA:
-		{
-			uiItemR(layout, ptr, "default_value", 0, NULL, 0);
-			break;
-		}
 		case SOCK_STRING:
 		{
 			uiItemR(layout, ptr, "default_value", 0, NULL, 0);
@@ -3205,8 +3206,6 @@ void draw_nodespace_back_pix(const bContext *C, ARegion *ar, SpaceNode *snode, b
 		gpuPushMatrix();
 
 		/* somehow the offset has to be calculated inverse */
-		
-		glaDefine2DArea(&ar->winrct);
 		wmOrtho2_region_pixelspace(ar);
 		
 		x = (ar->winx - snode->zoom * ibuf->x) / 2 + snode->xof;
@@ -3239,7 +3238,7 @@ void draw_nodespace_back_pix(const bContext *C, ARegion *ar, SpaceNode *snode, b
 			}
 			else if (snode->flag & SNODE_USE_ALPHA) {
 				glEnable(GL_BLEND);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 				glaDrawImBuf_glsl_ctx(C, ibuf, x, y, GL_NEAREST, snode->zoom, snode->zoom);
 
@@ -3294,11 +3293,10 @@ void draw_nodespace_back_pix(const bContext *C, ARegion *ar, SpaceNode *snode, b
 	BKE_image_release_ibuf(ima, ibuf, lock);
 }
 
-
-/* if v2d not NULL, it clips and returns 0 if not visible */
-bool node_link_bezier_points(View2D *v2d, SpaceNode *snode, bNodeLink *link, float coord_array[][2], int resol)
+/* return quadratic beziers points for a given nodelink and clip if v2d is not NULL. */
+static bool node_link_bezier_handles(View2D *v2d, SpaceNode *snode, bNodeLink *link, float vec[4][2])
 {
-	float dist, vec[4][2];
+	float dist;
 	float deltax, deltay;
 	float cursor[2] = {0.0f, 0.0f};
 	int toreroute, fromreroute;
@@ -3366,13 +3364,23 @@ bool node_link_bezier_points(View2D *v2d, SpaceNode *snode, bNodeLink *link, flo
 		vec[2][0] = vec[3][0] - dist;
 		vec[2][1] = vec[3][1];
 	}
+
 	if (v2d && min_ffff(vec[0][0], vec[1][0], vec[2][0], vec[3][0]) > v2d->cur.xmax) {
-		/* clipped */
+		return 0; /* clipped */
 	}
 	else if (v2d && max_ffff(vec[0][0], vec[1][0], vec[2][0], vec[3][0]) < v2d->cur.xmin) {
-		/* clipped */
+		return 0; /* clipped */
 	}
-	else {
+
+	return 1;
+}
+
+/* if v2d not NULL, it clips and returns 0 if not visible */
+bool node_link_bezier_points(View2D *v2d, SpaceNode *snode, bNodeLink *link, float coord_array[][2], int resol)
+{
+	float vec[4][2];
+
+	if (node_link_bezier_handles(v2d, snode, link, vec)) {
 		/* always do all three, to prevent data hanging around */
 		BKE_curve_forward_diff_bezier(vec[0][0], vec[1][0], vec[2][0], vec[3][0],
 		                              coord_array[0] + 0, resol, sizeof(float) * 2);
@@ -3384,135 +3392,242 @@ bool node_link_bezier_points(View2D *v2d, SpaceNode *snode, bNodeLink *link, flo
 	return 0;
 }
 
+#define NODELINK_GROUP_SIZE 256
 #define LINK_RESOL  24
-#define LINK_ARROW  12  /* position of arrow on the link, LINK_RESOL/2 */
-#define ARROW_SIZE (7 * UI_DPI_FAC)
-void node_draw_link_bezier(View2D *v2d, SpaceNode *snode, bNodeLink *link,
-                           int th_col1, bool do_shaded, int th_col2, bool do_triple, int th_col3)
+#define LINK_WIDTH  (2.5f * UI_DPI_FAC)
+#define ARROW_SIZE  (7 * UI_DPI_FAC)
+
+static float arrow_verts[3][2] = {{-1.0f, 1.0f}, {0.0f, 0.0f}, {-1.0f, -1.0f}};
+static float arrow_expand_axis[3][2] = {{0.7071f, 0.7071f}, {M_SQRT2, 0.0f}, {0.7071f, -0.7071f}};
+
+struct {
+	Gwn_Batch *batch; /* for batching line together */
+	Gwn_Batch *batch_single; /* for single line */
+	Gwn_VertBuf *inst_vbo;
+	unsigned int p0_id, p1_id, p2_id, p3_id;
+	unsigned int colid_id;
+	Gwn_VertBufRaw p0_step, p1_step, p2_step, p3_step;
+	Gwn_VertBufRaw colid_step;
+	unsigned int count;
+	bool enabled;
+} g_batch_link = {0};
+
+static void nodelink_batch_reset(void)
 {
-	float coord_array[LINK_RESOL + 1][2];
-	
-	if (node_link_bezier_points(v2d, snode, link, coord_array, LINK_RESOL)) {
-		float dist, spline_step = 0.0f;
-		int i;
-		int drawarrow;
-		/* store current linewidth */
-		float linew;
-		float arrow[2], arrow1[2], arrow2[2];
-		glGetFloatv(GL_LINE_WIDTH, &linew);
-		unsigned int pos;
-		
-		/* we can reuse the dist variable here to increment the GL curve eval amount*/
-		dist = 1.0f / (float)LINK_RESOL;
-		
-		glEnable(GL_LINE_SMOOTH);
-		
-		drawarrow = ((link->tonode && (link->tonode->type == NODE_REROUTE)) &&
-		             (link->fromnode && (link->fromnode->type == NODE_REROUTE)));
+	GWN_vertbuf_attr_get_raw_data(g_batch_link.inst_vbo, g_batch_link.p0_id, &g_batch_link.p0_step);
+	GWN_vertbuf_attr_get_raw_data(g_batch_link.inst_vbo, g_batch_link.p1_id, &g_batch_link.p1_step);
+	GWN_vertbuf_attr_get_raw_data(g_batch_link.inst_vbo, g_batch_link.p2_id, &g_batch_link.p2_step);
+	GWN_vertbuf_attr_get_raw_data(g_batch_link.inst_vbo, g_batch_link.p3_id, &g_batch_link.p3_step);
+	GWN_vertbuf_attr_get_raw_data(g_batch_link.inst_vbo, g_batch_link.colid_id, &g_batch_link.colid_step);
+	g_batch_link.count = 0;
+}
 
-		if (drawarrow) {
-			/* draw arrow in line segment LINK_ARROW */
-			float d_xy[2], len;
+static void set_nodelink_vertex(
+        Gwn_VertBuf *vbo,
+        unsigned int uv_id, unsigned int pos_id, unsigned int exp_id, unsigned int v,
+        const unsigned char uv[2], const float pos[2], const float exp[2])
+{
+	GWN_vertbuf_attr_set(vbo, uv_id, v, uv);
+	GWN_vertbuf_attr_set(vbo, pos_id, v, pos);
+	GWN_vertbuf_attr_set(vbo, exp_id, v, exp);
+}
 
-			sub_v2_v2v2(d_xy, coord_array[LINK_ARROW], coord_array[LINK_ARROW - 1]);
-			len = len_v2(d_xy);
-			mul_v2_fl(d_xy, ARROW_SIZE / len);
-			arrow1[0] = coord_array[LINK_ARROW][0] - d_xy[0] + d_xy[1];
-			arrow1[1] = coord_array[LINK_ARROW][1] - d_xy[1] - d_xy[0];
-			arrow2[0] = coord_array[LINK_ARROW][0] - d_xy[0] - d_xy[1];
-			arrow2[1] = coord_array[LINK_ARROW][1] - d_xy[1] + d_xy[0];
-			arrow[0] = coord_array[LINK_ARROW][0];
-			arrow[1] = coord_array[LINK_ARROW][1];
+static void nodelink_batch_init(void)
+{
+	Gwn_VertFormat format = {0};
+	unsigned int uv_id = GWN_vertformat_attr_add(&format, "uv", GWN_COMP_U8, 2, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	unsigned int pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	unsigned int expand_id = GWN_vertformat_attr_add(&format, "expand", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format_ex(&format, GWN_USAGE_STATIC);
+	int vcount = LINK_RESOL * 2; /* curve */
+	vcount += 2; /* restart strip */
+	vcount += 3*2; /* arrow */
+	vcount *= 2; /* shadow */
+	vcount += 2; /* restart strip */
+	GWN_vertbuf_data_alloc(vbo, vcount);
+	int v = 0;
+
+	for (int k = 0; k < 2; ++k) {
+		unsigned char uv[2] = {0, 0};
+		float pos[2] = {0.0f, 0.0f};
+		float exp[2] = {0.0f, 1.0f};
+
+		/* restart */
+		if (k == 1)
+			set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
+
+		/* curve strip */
+		for (int i = 0; i < LINK_RESOL; ++i) {
+			uv[0] = 255 * (i / (float)(LINK_RESOL-1));
+			uv[1] = 0;
+			set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
+			uv[1] = 255;
+			set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
+		}
+		/* restart */
+		set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
+
+		uv[0] = 127;
+		uv[1] = 0;
+		copy_v2_v2(pos, arrow_verts[0]);
+		copy_v2_v2(exp, arrow_expand_axis[0]);
+		set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
+		/* arrow */
+		for (int i = 0; i < 3; ++i) {
+			uv[1] = 0;
+			copy_v2_v2(pos, arrow_verts[i]);
+			copy_v2_v2(exp, arrow_expand_axis[i]);
+			set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
+
+			uv[1] = 255;
+			set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
 		}
 
-		if (do_triple || drawarrow || (!do_shaded)) {
-			pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+		/* restart */
+		if (k == 0)
+			set_nodelink_vertex(vbo, uv_id, pos_id, expand_id, v++, uv, pos, exp);
+	}
+
+	g_batch_link.batch = GWN_batch_create_ex(GWN_PRIM_TRI_STRIP, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	gpu_batch_presets_register(g_batch_link.batch);
+
+	g_batch_link.batch_single = GWN_batch_create_ex(GWN_PRIM_TRI_STRIP, vbo, NULL, 0);
+	gpu_batch_presets_register(g_batch_link.batch_single);
+
+	/* Instances data */
+	Gwn_VertFormat format_inst = {0};
+	g_batch_link.p0_id = GWN_vertformat_attr_add(&format_inst, "P0", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	g_batch_link.p1_id = GWN_vertformat_attr_add(&format_inst, "P1", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	g_batch_link.p2_id = GWN_vertformat_attr_add(&format_inst, "P2", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	g_batch_link.p3_id = GWN_vertformat_attr_add(&format_inst, "P3", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	g_batch_link.colid_id = GWN_vertformat_attr_add(&format_inst, "colid_doarrow", GWN_COMP_U8, 4, GWN_FETCH_INT);
+	g_batch_link.inst_vbo = GWN_vertbuf_create_with_format_ex(&format_inst, GWN_USAGE_STREAM);
+	GWN_vertbuf_data_alloc(g_batch_link.inst_vbo, NODELINK_GROUP_SIZE); /* Alloc max count but only draw the range we need. */
+
+	GWN_batch_instbuf_set(g_batch_link.batch, g_batch_link.inst_vbo, true);
+
+	nodelink_batch_reset();
+}
+
+static char nodelink_get_color_id(int th_col)
+{
+	switch (th_col) {
+		case TH_WIRE:        return 1;
+		case TH_WIRE_INNER:  return 2;
+		case TH_ACTIVE:      return 3;
+		case TH_EDGE_SELECT: return 4;
+		case TH_REDALERT:    return 5;
+	}
+	return 0;
+}
+
+static void nodelink_batch_draw(SpaceNode *snode)
+{
+	if (g_batch_link.count == 0)
+		return;
+
+	glEnable(GL_BLEND);
+
+	float colors[6][4] = {{0.0f}};
+	UI_GetThemeColor4fv(TH_WIRE_INNER,  colors[nodelink_get_color_id(TH_WIRE_INNER)]);
+	UI_GetThemeColor4fv(TH_WIRE,        colors[nodelink_get_color_id(TH_WIRE)]);
+	UI_GetThemeColor4fv(TH_ACTIVE,      colors[nodelink_get_color_id(TH_ACTIVE)]);
+	UI_GetThemeColor4fv(TH_EDGE_SELECT, colors[nodelink_get_color_id(TH_EDGE_SELECT)]);
+	UI_GetThemeColor4fv(TH_REDALERT,    colors[nodelink_get_color_id(TH_REDALERT)]);
+
+	GWN_vertbuf_vertex_count_set(g_batch_link.inst_vbo, g_batch_link.count);
+	GWN_vertbuf_use(g_batch_link.inst_vbo); /* force update. */
+
+	GWN_batch_program_set_builtin(g_batch_link.batch, GPU_SHADER_2D_NODELINK_INST);
+	GWN_batch_uniform_4fv_array(g_batch_link.batch, "colors", 6, (float *)colors);
+	GWN_batch_uniform_1f(g_batch_link.batch, "expandSize", snode->aspect * LINK_WIDTH);
+	GWN_batch_uniform_1f(g_batch_link.batch, "arrowSize", ARROW_SIZE);
+	GWN_batch_draw(g_batch_link.batch);
+
+	nodelink_batch_reset();
+
+	glDisable(GL_BLEND);
+}
+
+void nodelink_batch_start(SpaceNode *UNUSED(snode))
+{
+	g_batch_link.enabled = true;
+}
+
+void nodelink_batch_end(SpaceNode *snode)
+{
+	nodelink_batch_draw(snode);
+	g_batch_link.enabled = false;
+}
+
+static void nodelink_batch_add_link(
+        SpaceNode *snode,
+        const float p0[2], const float p1[2], const float p2[2], const float p3[2],
+        int th_col1, int th_col2, int th_col3, bool drawarrow)
+{
+	/* Only allow these colors. If more is needed, you need to modify the shader accordingly. */
+	BLI_assert(ELEM(th_col1, TH_WIRE_INNER, TH_WIRE, TH_ACTIVE, TH_EDGE_SELECT, TH_REDALERT));
+	BLI_assert(ELEM(th_col2, TH_WIRE_INNER, TH_WIRE, TH_ACTIVE, TH_EDGE_SELECT, TH_REDALERT));
+	BLI_assert(ELEM(th_col3, TH_WIRE, -1));
+
+	g_batch_link.count++;
+	copy_v2_v2(GWN_vertbuf_raw_step(&g_batch_link.p0_step), p0);
+	copy_v2_v2(GWN_vertbuf_raw_step(&g_batch_link.p1_step), p1);
+	copy_v2_v2(GWN_vertbuf_raw_step(&g_batch_link.p2_step), p2);
+	copy_v2_v2(GWN_vertbuf_raw_step(&g_batch_link.p3_step), p3);
+	char *colid = GWN_vertbuf_raw_step(&g_batch_link.colid_step);
+	colid[0] = nodelink_get_color_id(th_col1);
+	colid[1] = nodelink_get_color_id(th_col2);
+	colid[2] = nodelink_get_color_id(th_col3);
+	colid[3] = drawarrow;
+
+	if (g_batch_link.count == NODELINK_GROUP_SIZE) {
+		nodelink_batch_draw(snode);
+	}
+}
+
+/* don't do shadows if th_col3 is -1. */
+void node_draw_link_bezier(View2D *v2d, SpaceNode *snode, bNodeLink *link,
+                           int th_col1, int th_col2, int th_col3)
+{
+	float vec[4][2];
+
+	if (node_link_bezier_handles(v2d, snode, link, vec)) {
+		int drawarrow = ((link->tonode && (link->tonode->type == NODE_REROUTE)) &&
+		                 (link->fromnode && (link->fromnode->type == NODE_REROUTE)));
+
+		if (g_batch_link.batch == NULL) {
+			nodelink_batch_init();
 		}
 
-		if (do_triple) {
-			immUniformThemeColorShadeAlpha(th_col3, -80, -120);
-			glLineWidth(4.0f);
-
-			immBegin(GWN_PRIM_LINE_STRIP, (LINK_RESOL + 1));
-
-			for (i = 0; i <= LINK_RESOL; i++) {
-				immVertex2fv(pos, coord_array[i]);
+		if (g_batch_link.enabled) {
+			/* Add link to batch. */
+			nodelink_batch_add_link(snode, vec[0], vec[1], vec[2], vec[3], th_col1, th_col2, th_col3, drawarrow);
+		}
+		else {
+			/* Draw single link. */
+			float colors[3][4] = {{0.0f}};
+			if (th_col3 != -1) {
+				UI_GetThemeColor4fv(th_col3, colors[0]);
 			}
+			UI_GetThemeColor4fv(th_col1, colors[1]);
+			UI_GetThemeColor4fv(th_col2, colors[2]);
 
-			immEnd();
-
-			if (drawarrow) {
-				immBegin(GWN_PRIM_LINE_STRIP, 3);
-				immVertex2fv(pos, arrow1);
-				immVertex2fv(pos, arrow);
-				immVertex2fv(pos, arrow2);
-				immEnd();
-			}
+			Gwn_Batch *batch = g_batch_link.batch_single;
+			GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_NODELINK);
+			GWN_batch_uniform_2fv_array(batch, "bezierPts", 4, (float *)vec);
+			GWN_batch_uniform_4fv_array(batch, "colors", 3, (float *)colors);
+			GWN_batch_uniform_1f(batch, "expandSize", snode->aspect * LINK_WIDTH);
+			GWN_batch_uniform_1f(batch, "arrowSize", ARROW_SIZE);
+			GWN_batch_uniform_1i(batch, "doArrow", drawarrow);
+			GWN_batch_draw(batch);
 		}
-
-		glLineWidth(1.5f);
-
-		if (drawarrow) {
-			immUniformThemeColorBlend(th_col1, th_col2, 0.5f);
-
-			immBegin(GWN_PRIM_LINE_STRIP, 3);
-			immVertex2fv(pos, arrow1);
-			immVertex2fv(pos, arrow);
-			immVertex2fv(pos, arrow2);
-			immEnd();
-		}
-
-		if (!do_shaded) {
-			immUniformThemeColor(th_col1);
-
-			immBegin(GWN_PRIM_LINE_STRIP, (LINK_RESOL + 1));
-
-			for (i = 0; i <= LINK_RESOL; i++) {
-				immVertex2fv(pos, coord_array[i]);
-			}
-
-			immEnd();
-		}
-
-		if (do_triple || drawarrow || (!do_shaded)) {
-			immUnbindProgram();
-		}
-
-		if (do_shaded) {
-			unsigned char col[3];
-
-			Gwn_VertFormat *format = immVertexFormat();
-			pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-			unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
-
-			immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
-
-			immBegin(GWN_PRIM_LINE_STRIP, (LINK_RESOL + 1));
-
-			for (i = 0; i <= LINK_RESOL; i++) {
-				UI_GetThemeColorBlend3ubv(th_col1, th_col2, spline_step, col);
-				immAttrib3ubv(color, col);
-
-				immVertex2fv(pos, coord_array[i]);
-
-				spline_step += dist;
-			}
-
-			immEnd();
-
-			immUnbindProgram();
-		}
-		
-		glDisable(GL_LINE_SMOOTH);
 	}
 }
 
 /* note; this is used for fake links in groups too */
 void node_draw_link(View2D *v2d, SpaceNode *snode, bNodeLink *link)
 {
-	bool do_shaded = false;
-	bool do_triple = false;
 	int th_col1 = TH_WIRE_INNER, th_col2 = TH_WIRE_INNER, th_col3 = TH_WIRE;
 	
 	if (link->fromsock == NULL && link->tosock == NULL)
@@ -3520,8 +3635,7 @@ void node_draw_link(View2D *v2d, SpaceNode *snode, bNodeLink *link)
 	
 	/* new connection */
 	if (!link->fromsock || !link->tosock) {
-		th_col1 = TH_ACTIVE;
-		do_triple = true;
+		th_col1 = th_col2 = TH_ACTIVE;
 	}
 	else {
 		/* going to give issues once... */
@@ -3542,15 +3656,14 @@ void node_draw_link(View2D *v2d, SpaceNode *snode, bNodeLink *link)
 				if (link->tonode && link->tonode->flag & SELECT)
 					th_col2 = TH_EDGE_SELECT;
 			}
-			do_shaded = true;
-			do_triple = true;
 		}
 		else {
-			th_col1 = TH_REDALERT;
+			th_col1 = th_col2 = TH_REDALERT;
+			// th_col3 = -1; /* no shadow */
 		}
 	}
 
-	node_draw_link_bezier(v2d, snode, link, th_col1, do_shaded, th_col2, do_triple, th_col3);
+	node_draw_link_bezier(v2d, snode, link, th_col1, th_col2, th_col3);
 //	node_draw_link_straight(v2d, snode, link, th_col1, do_shaded, th_col2, do_triple, th_col3);
 }
 

@@ -280,7 +280,7 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 				/* only push down if action is more than 1-2 frames long */
 				calc_action_range(adt->action, &astart, &aend, 1);
 				if (aend > astart + 2.0f) {
-					NlaStrip *strip = add_nlastrip_to_stack(adt, adt->action);
+					NlaStrip *strip = BKE_nlastack_add_strip(adt, adt->action);
 					
 					/* clear reference to action now that we've pushed it onto the stack */
 					id_us_min(&adt->action->id);
@@ -715,9 +715,6 @@ static void recalcData_spaceclip(TransInfo *t)
 static void recalcData_objects(TransInfo *t)
 {
 	Base *base = t->view_layer->basact;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(t->context, &eval_ctx);
 
 	if (t->obedit) {
 		if (ELEM(t->obedit->type, OB_CURVE, OB_SURF)) {
@@ -907,9 +904,11 @@ static void recalcData_objects(TransInfo *t)
 			BIK_clear_data(ob->pose);
 		}
 		else
-			BKE_pose_where_is(&eval_ctx, t->scene, ob);
+			BKE_pose_where_is(&t->eval_ctx, t->scene, ob);
 	}
-	else if (base && (base->object->mode & OB_MODE_PARTICLE_EDIT) && PE_get_current(t->scene, t->view_layer, base->object)) {
+	else if (base && (base->object->mode & OB_MODE_PARTICLE_EDIT) &&
+	         PE_get_current(t->scene, base->object))
+	{
 		if (t->state != TRANS_CANCEL) {
 			applyProject(t);
 		}
@@ -1120,6 +1119,7 @@ static int initTransInfo_edit_pet_to_flag(const int proportional)
  */
 void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *event)
 {
+	CTX_data_eval_ctx(C, &t->eval_ctx);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *sce = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
@@ -1921,14 +1921,6 @@ void calculateCenter(TransInfo *t)
 	
 	if (t->spacetype == SPACE_VIEW3D) {
 		/* ED_view3d_calc_zfac() defines a factor for perspective depth correction, used in ED_view3d_win_to_delta() */
-		float vec[3];
-		if (t->flag & (T_EDIT | T_POSE)) {
-			Object *ob = t->obedit ? t->obedit : t->poseobj;
-			mul_v3_m4v3(vec, ob->obmat, t->center);
-		}
-		else {
-			copy_v3_v3(vec, t->center);
-		}
 
 		/* zfac is only used convertViewVec only in cases operator was invoked in RGN_TYPE_WINDOW
 		 * and never used in other cases.
@@ -1937,7 +1929,7 @@ void calculateCenter(TransInfo *t)
 		 * for a region different from RGN_TYPE_WINDOW.
 		 */
 		if (t->ar->regiontype == RGN_TYPE_WINDOW) {
-			t->zfac = ED_view3d_calc_zfac(t->ar->regiondata, vec, NULL);
+			t->zfac = ED_view3d_calc_zfac(t->ar->regiondata, t->center_global, NULL);
 		}
 		else {
 			t->zfac = 0.0f;

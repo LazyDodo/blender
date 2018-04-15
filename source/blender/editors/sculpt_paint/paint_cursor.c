@@ -338,6 +338,7 @@ static int load_tex(Brush *br, ViewContext *vc, float zoom, bool col, bool prima
 		size = target->old_size;
 	}
 
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, target->overlay_texture);
 
 	if (refresh) {
@@ -464,6 +465,7 @@ static int load_tex_cursor(Brush *br, ViewContext *vc, float zoom)
 		size = cursor_snap.size;
 	}
 
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, cursor_snap.overlay_texture);
 
 	if (refresh) {
@@ -767,7 +769,7 @@ static void paint_draw_cursor_overlay(UnifiedPaintSettings *ups, Brush *brush,
 		/* draw textured quad */
 
 		/* draw textured quad */
-		immUniform1i("image", GL_TEXTURE0);
+		immUniform1i("image", 0);
 
 		immBegin(GWN_PRIM_TRI_FAN, 4);
 		immAttrib2f(texCoord, 0.0f, 0.0f);
@@ -1033,7 +1035,7 @@ static void paint_draw_cursor(bContext *C, int x, int y, void *UNUSED(unused))
 	/* can't use stroke vc here because this will be called during
 	 * mouse over too, not just during a stroke */
 	ViewContext vc;
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	if (vc.rv3d && (vc.rv3d->rflag & RV3D_NAVIGATING)) {
 		return;

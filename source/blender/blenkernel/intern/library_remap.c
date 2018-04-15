@@ -281,6 +281,26 @@ static void libblock_remap_data_preprocess_scene_object_unlink(
 	}
 }
 
+static void libblock_remap_data_preprocess_group_unlink(
+        IDRemap *r_id_remap_data, Object *ob, const bool skip_indirect, const bool is_indirect)
+{
+	Main *bmain = r_id_remap_data->bmain;
+	for (Group *group = bmain->group.first; group; group = group->id.next) {
+		if (BKE_group_object_exists(group, ob)) {
+			if (skip_indirect && is_indirect) {
+				r_id_remap_data->skipped_indirect++;
+				r_id_remap_data->skipped_refcounted++;
+			}
+			else {
+				BKE_collections_object_remove(bmain, &group->id, ob, false);
+				if (!is_indirect) {
+					r_id_remap_data->status |= ID_REMAP_IS_LINKED_DIRECT;
+				}
+			}
+		}
+	}
+}
+
 static void libblock_remap_data_preprocess(IDRemap *r_id_remap_data)
 {
 	switch (GS(r_id_remap_data->id->name)) {
@@ -295,19 +315,24 @@ static void libblock_remap_data_preprocess(IDRemap *r_id_remap_data)
 				/* In case we are unlinking... */
 				if (!r_id_remap_data->old_id) {
 					/* ... everything from scene. */
-					FOREACH_SCENE_OBJECT(sce, ob_iter)
+					FOREACH_SCENE_OBJECT_BEGIN(sce, ob_iter)
 					{
 						libblock_remap_data_preprocess_scene_object_unlink(
 						            r_id_remap_data, sce, ob_iter, skip_indirect, is_indirect);
+						libblock_remap_data_preprocess_group_unlink(
+						            r_id_remap_data, ob_iter, skip_indirect, is_indirect);
 					}
-					FOREACH_SCENE_OBJECT_END
+					FOREACH_SCENE_OBJECT_END;
 				}
 				else if (GS(r_id_remap_data->old_id->name) == ID_OB) {
 					/* ... a specific object from scene. */
 					Object *old_ob = (Object *)r_id_remap_data->old_id;
 					libblock_remap_data_preprocess_scene_object_unlink(
 					            r_id_remap_data, sce, old_ob, skip_indirect, is_indirect);
+					libblock_remap_data_preprocess_group_unlink(
+					            r_id_remap_data, old_ob, skip_indirect, is_indirect);
 				}
+
 			}
 			break;
 		}
@@ -368,7 +393,7 @@ static void libblock_remap_data_postprocess_group_scene_unlink(Main *UNUSED(bmai
 {
 	/* Note that here we assume no object has no base (i.e. all objects are assumed instanced
 	 * in one scene...). */
-	FOREACH_SCENE_OBJECT(sce, ob)
+	FOREACH_SCENE_OBJECT_BEGIN(sce, ob)
 	{
 		if (ob->flag & OB_FROMGROUP) {
 			Group *grp = BKE_group_object_find(NULL, ob);
@@ -382,7 +407,7 @@ static void libblock_remap_data_postprocess_group_scene_unlink(Main *UNUSED(bmai
 			}
 		}
 	}
-	FOREACH_SCENE_OBJECT_END
+	FOREACH_SCENE_OBJECT_END;
 }
 
 static void libblock_remap_data_postprocess_obdata_relink(Main *UNUSED(bmain), Object *ob, ID *new_id)

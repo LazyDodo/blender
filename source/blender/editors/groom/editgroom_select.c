@@ -324,7 +324,7 @@ static void groom_set_section_select_flags(Groom *groom, int flag)
 bool ED_groom_select_pick(bContext *C, const int mval[2], bool extend, bool deselect, bool toggle)
 {
 	ViewContext vc;
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 	Groom *groom = vc.obedit->data;
 
 	struct

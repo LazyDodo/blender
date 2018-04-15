@@ -53,6 +53,8 @@
 #include "BKE_sequencer.h"
 #include "BKE_workspace.h"
 
+#include "DEG_depsgraph.h"
+
 #include "RNA_access.h"
 
 #include "ED_armature.h"
@@ -90,8 +92,8 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	Scene *scene = WM_window_get_active_scene(win);
 	WorkSpace *workspace = BKE_workspace_active_get(win->workspace_hook);
 	ViewLayer *view_layer = BKE_view_layer_from_workspace_get(scene, workspace);
-	Object *obedit = scene->obedit;
 	Object *obact = (view_layer && view_layer->basact) ? view_layer->basact->object : NULL;
+	Object *obedit = view_layer ? OBEDIT_FROM_VIEW_LAYER(view_layer) : NULL;
 
 	if (CTX_data_dir(member)) {
 		CTX_data_dir_set(result, screen_context_dir);
@@ -102,11 +104,11 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		return 1;
 	}
 	else if (CTX_data_equals(member, "visible_objects")) {
-		FOREACH_VISIBLE_OBJECT(view_layer, ob)
+		FOREACH_VISIBLE_OBJECT_BEGIN(view_layer, ob)
 		{
 			CTX_data_id_list_add(result, &ob->id);
 		}
-		FOREACH_VISIBLE_BASE_END
+		FOREACH_VISIBLE_BASE_END;
 		CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
 		return 1;
 	}
@@ -120,43 +122,43 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		return 1;
 	}
 	else if (CTX_data_equals(member, "selected_objects")) {
-		FOREACH_SELECTED_OBJECT(view_layer, ob)
+		FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
 		{
 			CTX_data_id_list_add(result, &ob->id);
 		}
-		FOREACH_SELECTED_OBJECT_END
+		FOREACH_SELECTED_OBJECT_END;
 		CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
 		return 1;
 	}
 	else if (CTX_data_equals(member, "selected_editable_objects")) {
-		FOREACH_SELECTED_OBJECT(view_layer, ob)
+		FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
 		{
 			if (0 == BKE_object_is_libdata(ob)) {
 				CTX_data_id_list_add(result, &ob->id);
 			}
 		}
-		FOREACH_SELECTED_OBJECT_END
+		FOREACH_SELECTED_OBJECT_END;
 		CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
 		return 1;
 	}
 	else if (CTX_data_equals(member, "editable_objects")) {
 		/* Visible + Editable, but not necessarily selected */
-		FOREACH_VISIBLE_OBJECT(view_layer, ob)
+		FOREACH_VISIBLE_OBJECT_BEGIN(view_layer, ob)
 		{
 			if (0 == BKE_object_is_libdata(ob)) {
 				CTX_data_id_list_add(result, &ob->id);
 			}
 		}
-		FOREACH_VISIBLE_OBJECT_END
+		FOREACH_VISIBLE_OBJECT_END;
 		CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
 		return 1;
 	}
 	else if ( CTX_data_equals(member, "visible_bases")) {
-		FOREACH_VISIBLE_BASE(view_layer, base)
+		FOREACH_VISIBLE_BASE_BEGIN(view_layer, base)
 		{
 			CTX_data_list_add(result, &scene->id, &RNA_ObjectBase, base);
 		}
-		FOREACH_VISIBLE_BASE_END
+		FOREACH_VISIBLE_BASE_END;
 		CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
 		return 1;
 	}

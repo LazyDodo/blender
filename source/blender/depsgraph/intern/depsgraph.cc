@@ -35,6 +35,8 @@
 #include "MEM_guardedalloc.h"
 
 #include "BLI_utildefines.h"
+#include "BLI_console.h"
+#include "BLI_hash.h"
 #include "BLI_ghash.h"
 #include "BLI_listbase.h"
 
@@ -47,6 +49,8 @@ extern "C" {
 #include "DNA_sequence_types.h"
 
 #include "RNA_access.h"
+
+#include "BKE_scene.h"
 }
 
 #include <algorithm>
@@ -90,11 +94,15 @@ static void remove_from_vector(vector<T> *vector, const T& value)
 	              vector->end());
 }
 
-Depsgraph::Depsgraph()
+Depsgraph::Depsgraph(Scene *scene,
+                     ViewLayer *view_layer,
+                     eEvaluationMode mode)
   : time_source(NULL),
     need_update(true),
-    scene(NULL),
-    view_layer(NULL)
+    scene(scene),
+    view_layer(view_layer),
+    mode(mode),
+    ctime(BKE_scene_frame_get(scene))
 {
 	BLI_spin_init(&lock);
 	id_hash = BLI_ghash_ptr_new("Depsgraph id hash");
@@ -140,7 +148,7 @@ static bool pointer_to_component_node_criteria(
 			*type = DEG_NODE_TYPE_PARAMETERS;
 			*subdata = "";
 			*operation_code = DEG_OPCODE_PARAMETERS_EVAL;
-			*operation_name = pchan->name;;
+			*operation_name = pchan->name;
 		}
 		else {
 			/* Bone - generally, we just want the bone component. */
@@ -161,16 +169,20 @@ static bool pointer_to_component_node_criteria(
 		Object *object = (Object *)ptr->id.data;
 		bConstraint *con = (bConstraint *)ptr->data;
 		/* Check whether is object or bone constraint. */
+		/* NOTE: Currently none of the area can address transform of an object
+		 * at a given constraint, but for rigging one might use constraint
+		 * influence to be used to drive some corrective shape keys or so.
+		 */
 		if (BLI_findindex(&object->constraints, con) != -1) {
-			/* Constraint is defining object transform. */
 			*type = DEG_NODE_TYPE_TRANSFORM;
+			*operation_code = DEG_OPCODE_TRANSFORM_LOCAL;
 			return true;
 		}
 		else if (object->pose != NULL) {
-			BLI_LISTBASE_FOREACH(bPoseChannel *, pchan, &object->pose->chanbase) {
+			LISTBASE_FOREACH(bPoseChannel *, pchan, &object->pose->chanbase) {
 				if (BLI_findindex(&pchan->constraints, con) != -1) {
-					/* bone transforms */
 					*type = DEG_NODE_TYPE_BONE;
+					*operation_code = DEG_OPCODE_BONE_LOCAL;
 					*subdata = pchan->name;
 					return true;
 				}
@@ -220,12 +232,24 @@ static bool pointer_to_component_node_criteria(
 		*subdata = seq->name; // xxx?
 		return true;
 	}
+	else if (RNA_struct_is_a(ptr->type, &RNA_NodeSocket)) {
+		*type = DEG_NODE_TYPE_SHADING;
+		return true;
+	}
 	if (prop != NULL) {
 		/* All unknown data effectively falls under "parameter evaluation". */
-		*type = DEG_NODE_TYPE_PARAMETERS;
-		*operation_code = DEG_OPCODE_PARAMETERS_EVAL;
-		*operation_name = "";
-		*operation_name_tag = -1;
+		if (RNA_property_is_idprop(prop)) {
+			*type = DEG_NODE_TYPE_PARAMETERS;
+			*operation_code = DEG_OPCODE_ID_PROPERTY;
+			*operation_name = RNA_property_identifier((PropertyRNA *)prop);
+			*operation_name_tag = -1;
+		}
+		else {
+			*type = DEG_NODE_TYPE_PARAMETERS;
+			*operation_code = DEG_OPCODE_PARAMETERS_EVAL;
+			*operation_name = "";
+			*operation_name_tag = -1;
+		}
 		return true;
 	}
 	return false;
@@ -286,7 +310,7 @@ IDDepsNode *Depsgraph::find_id_node(const ID *id) const
 	return reinterpret_cast<IDDepsNode *>(BLI_ghash_lookup(id_hash, id));
 }
 
-IDDepsNode *Depsgraph::add_id_node(ID *id, bool do_tag, ID *id_cow_hint)
+IDDepsNode *Depsgraph::add_id_node(ID *id, ID *id_cow_hint)
 {
 	BLI_assert((id->tag & LIB_TAG_COPY_ON_WRITE) == 0);
 	IDDepsNode *id_node = find_id_node(id);
@@ -294,9 +318,6 @@ IDDepsNode *Depsgraph::add_id_node(ID *id, bool do_tag, ID *id_cow_hint)
 		DepsNodeFactory *factory = deg_type_get_factory(DEG_NODE_TYPE_ID_REF);
 		id_node = (IDDepsNode *)factory->create_node(id, "", id->name);
 		id_node->init_copy_on_write(id_cow_hint);
-		if (do_tag) {
-			id->tag |= LIB_TAG_DOIT;
-		}
 		/* Register node in ID hash.
 		 *
 		 * NOTE: We address ID nodes by the original ID pointer they are
@@ -304,9 +325,6 @@ IDDepsNode *Depsgraph::add_id_node(ID *id, bool do_tag, ID *id_cow_hint)
 		 */
 		BLI_ghash_insert(id_hash, id, id_node);
 		id_nodes.push_back(id_node);
-	}
-	else if (do_tag) {
-		id->tag |= LIB_TAG_DOIT;
 	}
 	return id_node;
 }
@@ -516,15 +534,45 @@ void deg_editors_scene_update(const DEGEditorUpdateContext *update_ctx,
 	}
 }
 
+bool deg_terminal_do_color(void)
+{
+	return (G.debug & G_DEBUG_DEPSGRAPH_PRETTY) != 0;
+}
+
+string deg_color_for_pointer(const void *pointer)
+{
+	if (!deg_terminal_do_color()) {
+		return "";
+	}
+	int r, g, b;
+	BLI_hash_pointer_to_color(pointer, &r, &g, &b);
+	char buffer[64];
+	BLI_snprintf(buffer, sizeof(buffer), TRUECOLOR_ANSI_COLOR_FORMAT, r, g, b);
+	return string(buffer);
+}
+
+string deg_color_end(void)
+{
+	if (!deg_terminal_do_color()) {
+		return "";
+	}
+	return string(TRUECOLOR_ANSI_COLOR_FINISH);
+}
+
 }  // namespace DEG
 
 /* **************** */
 /* Public Graph API */
 
 /* Initialize a new Depsgraph */
-Depsgraph *DEG_graph_new()
+Depsgraph *DEG_graph_new(Scene *scene,
+                         ViewLayer *view_layer,
+                         eEvaluationMode mode)
 {
-	DEG::Depsgraph *deg_depsgraph = OBJECT_GUARDED_NEW(DEG::Depsgraph);
+	DEG::Depsgraph *deg_depsgraph = OBJECT_GUARDED_NEW(DEG::Depsgraph,
+	                                                   scene,
+	                                                   view_layer,
+	                                                   mode);
 	return reinterpret_cast<Depsgraph *>(deg_depsgraph);
 }
 
@@ -542,4 +590,94 @@ void DEG_editors_set_update_cb(DEG_EditorUpdateIDCb id_func,
 {
 	DEG::deg_editor_update_id_cb = id_func;
 	DEG::deg_editor_update_scene_cb = scene_func;
+}
+
+/* Evaluation and debug */
+
+void DEG_debug_print_eval(const char *function_name,
+                          const char *object_name,
+                          const void *object_address)
+{
+	if ((G.debug & G_DEBUG_DEPSGRAPH_EVAL) == 0) {
+		return;
+	}
+	fprintf(stdout,
+	        "%s on %s %s(%p)%s\n",
+	        function_name,
+	        object_name,
+	        DEG::deg_color_for_pointer(object_address).c_str(),
+	        object_address,
+	        DEG::deg_color_end().c_str());
+	fflush(stdout);
+}
+
+void DEG_debug_print_eval_subdata(const char *function_name,
+                                  const char *object_name,
+                                  const void *object_address,
+                                  const char *subdata_comment,
+                                  const char *subdata_name,
+                                  const void *subdata_address)
+{
+	if ((G.debug & G_DEBUG_DEPSGRAPH_EVAL) == 0) {
+		return;
+	}
+	fprintf(stdout,
+	        "%s on %s %s(%p)%s %s %s %s(%p)%s\n",
+	        function_name,
+	        object_name,
+	        DEG::deg_color_for_pointer(object_address).c_str(),
+	        object_address,
+	        DEG::deg_color_end().c_str(),
+	        subdata_comment,
+	        subdata_name,
+	        DEG::deg_color_for_pointer(subdata_address).c_str(),
+	        subdata_address,
+	        DEG::deg_color_end().c_str());
+	fflush(stdout);
+}
+
+void DEG_debug_print_eval_subdata_index(const char *function_name,
+                                        const char *object_name,
+                                        const void *object_address,
+                                        const char *subdata_comment,
+                                        const char *subdata_name,
+                                        const void *subdata_address,
+                                        const int subdata_index)
+{
+	if ((G.debug & G_DEBUG_DEPSGRAPH_EVAL) == 0) {
+		return;
+	}
+	fprintf(stdout,
+	        "%s on %s %s(%p)^%s %s %s[%d] %s(%p)%s\n",
+	        function_name,
+	        object_name,
+	        DEG::deg_color_for_pointer(object_address).c_str(),
+	        object_address,
+	        DEG::deg_color_end().c_str(),
+	        subdata_comment,
+	        subdata_name,
+	        subdata_index,
+	        DEG::deg_color_for_pointer(subdata_address).c_str(),
+	        subdata_address,
+	        DEG::deg_color_end().c_str());
+	fflush(stdout);
+}
+
+void DEG_debug_print_eval_time(const char *function_name,
+                               const char *object_name,
+                               const void *object_address,
+                               float time)
+{
+	if ((G.debug & G_DEBUG_DEPSGRAPH_EVAL) == 0) {
+		return;
+	}
+	fprintf(stdout,
+	        "%s on %s %s(%p)%s at time %f\n",
+	        function_name,
+	        object_name,
+	        DEG::deg_color_for_pointer(object_address).c_str(),
+	        object_address,
+	        DEG::deg_color_end().c_str(),
+	        time);
+	fflush(stdout);
 }

@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "intern/builder/deg_builder_map.h"
 #include "intern/depsgraph_types.h"
 
 #include "DEG_depsgraph.h"  /* used for DEG_depsgraph_use_copy_on_write() */
@@ -89,16 +90,6 @@ struct DepsgraphNodeBuilder {
 		return (T *)get_cow_id(&orig->id);
 	}
 
-	/* Get fully expanded (ready for use) copy-on-write datablock for the given
-	 * original datablock.
-	 */
-	ID *expand_cow_id(IDDepsNode *id_node);
-	ID *expand_cow_id(ID *id_orig);
-	template<typename T>
-	T *expand_cow_datablock(T *orig) {
-		return (T *)expand_cow_id(&orig->id);
-	}
-
 	/* For a given COW datablock get corresponding original one. */
 	template<typename T>
 	T *get_orig_datablock(const T *cow) const {
@@ -113,7 +104,7 @@ struct DepsgraphNodeBuilder {
 	void begin_build();
 	void end_build();
 
-	IDDepsNode *add_id_node(ID *id, bool do_tag = true);
+	IDDepsNode *add_id_node(ID *id);
 	IDDepsNode *find_id_node(ID *id);
 	TimeSourceDepsNode *add_time_source();
 
@@ -140,6 +131,13 @@ struct DepsgraphNodeBuilder {
 	                                      const char *name = "",
 	                                      int name_tag = -1);
 
+	OperationDepsNode *ensure_operation_node(ID *id,
+	                                         eDepsNode_Type comp_type,
+	                                         const DepsEvalOperationCb& op,
+	                                         eDepsOperation_Code opcode,
+	                                         const char *name = "",
+	                                         int name_tag = -1);
+
 	bool has_operation_node(ID *id,
 	                        eDepsNode_Type comp_type,
 	                        const char *comp_name,
@@ -164,22 +162,24 @@ struct DepsgraphNodeBuilder {
 	                       ViewLayer *view_layer,
 	                       eDepsNode_LinkedState_Type linked_state);
 	void build_group(Group *group);
-	void build_object(Base *base,
+	void build_object(int base_index,
 	                  Object *object,
 	                  eDepsNode_LinkedState_Type linked_state);
-	void build_object_flags(Base *base,
+	void build_object_flags(int base_index,
 	                        Object *object,
 	                        eDepsNode_LinkedState_Type linked_state);
 	void build_object_data(Object *object);
 	void build_object_transform(Object *object);
 	void build_object_constraints(Object *object);
-	void build_pose_constraints(Object *object, bPoseChannel *pchan);
+	void build_pose_constraints(Object *object, bPoseChannel *pchan, int pchan_index);
 	void build_rigidbody(Scene *scene);
 	void build_particles(Object *object);
 	void build_particle_settings(ParticleSettings *part);
 	void build_cloth(Object *object);
 	void build_animdata(ID *id);
-	OperationDepsNode *build_driver(ID *id, FCurve *fcurve);
+	void build_driver(ID *id, FCurve *fcurve);
+	void build_driver_variables(ID *id, FCurve *fcurve);
+	void build_driver_id_property(ID *id, const char *rna_path);
 	void build_ik_pose(Object *object,
 	                   bPoseChannel *pchan,
 	                   bConstraint *con);
@@ -205,17 +205,6 @@ struct DepsgraphNodeBuilder {
 	void build_movieclip(MovieClip *clip);
 	void build_lightprobe(Object *object);
 
-	struct LayerCollectionState {
-		int index;
-		LayerCollection *parent;
-	};
-	void build_layer_collection(ID *owner_id,
-	                            LayerCollection *layer_collection,
-	                            LayerCollectionState *state);
-	void build_layer_collections(ID *owner_id,
-	                             ListBase *layer_collections,
-	                             LayerCollectionState *state);
-	void build_view_layer_collections(ID *owner_id, ViewLayer *view_layer);
 protected:
 	struct SavedEntryTag {
 		ID *id;
@@ -224,14 +213,30 @@ protected:
 	};
 	vector<SavedEntryTag> saved_entry_tags_;
 
+	struct BuilderWalkUserData {
+		DepsgraphNodeBuilder *builder;
+	};
+
+	static void modifier_walk(void *user_data,
+	                          struct Object *object,
+	                          struct ID **idpoin,
+	                          int cb_flag);
+
+	static void constraint_walk(bConstraint *constraint,
+	                            ID **idpoin,
+	                            bool is_reference,
+	                            void *user_data);
+
 	/* State which never changes, same for the whole builder time. */
 	Main *bmain_;
 	Depsgraph *graph_;
 
 	/* State which demotes currently built entities. */
 	Scene *scene_;
+	ViewLayer *view_layer_;
 
 	GHash *cow_id_hash_;
+	BuilderMap built_map_;
 };
 
 }  // namespace DEG

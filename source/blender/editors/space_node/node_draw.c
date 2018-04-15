@@ -359,6 +359,8 @@ static void node_update_basis(const bContext *C, bNodeTree *ntree, bNode *node)
 		dy -= NODE_DYS / 2;
 	
 	/* output sockets */
+	bool add_output_space = false;
+
 	for (nsock = node->outputs.first; nsock; nsock = nsock->next) {
 		if (nodeSocketIsHidden(nsock))
 			continue;
@@ -391,6 +393,12 @@ static void node_update_basis(const bContext *C, bNodeTree *ntree, bNode *node)
 		dy = buty;
 		if (nsock->next)
 			dy -= NODE_SOCKDY;
+
+		add_output_space = true;
+	}
+
+	if (add_output_space) {
+		dy -= NODE_DY / 4;
 	}
 
 	node->prvr.xmin = locx + NODE_DYS;
@@ -613,13 +621,11 @@ static void node_draw_mute_line(View2D *v2d, SpaceNode *snode, bNode *node)
 	bNodeLink *link;
 
 	glEnable(GL_BLEND);
-	glEnable(GL_LINE_SMOOTH);
 
 	for (link = node->internal_links.first; link; link = link->next)
-		node_draw_link_bezier(v2d, snode, link, TH_REDALERT, 0, TH_WIRE, 0, TH_WIRE);
+		node_draw_link_bezier(v2d, snode, link, TH_REDALERT, TH_REDALERT, -1);
 
 	glDisable(GL_BLEND);
-	glDisable(GL_LINE_SMOOTH);
 }
 
 static void node_socket_circle_draw(const bContext *C, bNodeTree *ntree, PointerRNA node_ptr, bNodeSocket *sock, unsigned pos, unsigned col)
@@ -705,7 +711,7 @@ static void node_draw_preview(bNodePreview *preview, rctf *prv)
 	node_draw_preview_background(BLI_rctf_size_x(prv) / 10.0f, &draw_rect);
 	
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  /* premul graphics */
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);  /* premul graphics */
 	
 	IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_COLOR);
 	immDrawPixelsTex(&state, draw_rect.xmin, draw_rect.ymin, preview->xsize, preview->ysize, GL_RGBA, GL_UNSIGNED_BYTE, GL_LINEAR, preview->rect,
@@ -1238,12 +1244,12 @@ void node_draw_nodetree(const bContext *C, ARegion *ar, SpaceNode *snode, bNodeT
 	
 	/* node lines */
 	glEnable(GL_BLEND);
-	glEnable(GL_LINE_SMOOTH);
+	nodelink_batch_start(snode);
 	for (link = ntree->links.first; link; link = link->next) {
 		if (!nodeLinkIsHidden(link))
 			node_draw_link(&ar->v2d, snode, link);
 	}
-	glDisable(GL_LINE_SMOOTH);
+	nodelink_batch_end(snode);
 	glDisable(GL_BLEND);
 	
 	/* draw foreground nodes, last nodes in front */
@@ -1336,7 +1342,7 @@ void drawnodespace(const bContext *C, ARegion *ar)
 	ED_region_draw_cb_draw(C, ar, REGION_DRAW_PRE_VIEW);
 
 	/* only set once */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	
 	/* nodes */
 	snode_set_context(C);
@@ -1404,7 +1410,6 @@ void drawnodespace(const bContext *C, ARegion *ar)
 				gpuPushMatrix();
 				gpuLoadIdentity();
 
-				glaDefine2DArea(&ar->winrct);
 				wmOrtho2_pixelspace(ar->winx, ar->winy);
 
 				WM_manipulatormap_draw(ar->manipulator_map, C, WM_MANIPULATORMAP_DRAWSTEP_2D);

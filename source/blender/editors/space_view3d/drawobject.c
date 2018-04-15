@@ -727,7 +727,7 @@ static void draw_empty_image(Object *ob, const short dflag, const unsigned char 
 
 		if (use_blend) {
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
 		Gwn_VertFormat *format = immVertexFormat();
@@ -752,8 +752,6 @@ static void draw_empty_image(Object *ob, const short dflag, const unsigned char 
 		immEnd();
 
 		immUnbindProgram();
-
-		glBindTexture(GL_TEXTURE_2D, 0); /* necessary? */
 	}
 
 	/* Draw the image outline */
@@ -777,7 +775,7 @@ static void draw_empty_image(Object *ob, const short dflag, const unsigned char 
 
 		if (!use_blend) {
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
 		imm_draw_box_wire_2d(pos, rect.xmin, rect.ymin, rect.xmax, rect.ymax);
@@ -1184,7 +1182,7 @@ static void draw_transp_spot_volume(Lamp *la, float x, float z, unsigned pos)
 	draw_spot_cone(la, x, z, pos);
 
 	/* restore state */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_CULL_FACE);
@@ -1228,7 +1226,7 @@ static void draw_transp_sun_volume(Lamp *la, unsigned pos)
 	imm_draw_box(box, true, pos);
 
 	/* restore state */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_CULL_FACE);
@@ -1324,7 +1322,7 @@ void drawlamp(View3D *v3d, RegionView3D *rv3d, Base *base,
 
 			GPU_enable_program_point_size();
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_OUTLINE_AA);
 			immUniform1f("size", lampdot_size);
@@ -4567,7 +4565,7 @@ static bool draw_mesh_object(
         const char dt, const unsigned char ob_wire_col[4], const short dflag)
 {
 	Object *ob = base->object;
-	Object *obedit = scene->obedit;
+	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 	Mesh *me = ob->data;
 	BMEditMesh *em = me->edit_btmesh;
 	bool do_alpha_after = false, drawlinked = false, retval = false;
@@ -4707,8 +4705,10 @@ static void make_color_variations(const unsigned char base_ubyte[4], float low[4
 	high[3] = base[3];
 }
 
-static void draw_mesh_fancy_new(EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer, ARegion *ar, View3D *v3d, RegionView3D *rv3d, Base *base,
-                                const char dt, const unsigned char ob_wire_col[4], const short dflag, const bool other_obedit)
+static void draw_mesh_fancy_new(
+        const EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer,
+        ARegion *ar, View3D *v3d, RegionView3D *rv3d, Base *base,
+        const char dt, const unsigned char ob_wire_col[4], const short dflag, const bool other_obedit)
 {
 	if (dflag & (DRAW_PICKING | DRAW_CONSTCOLOR)) {
 		/* too complicated! use existing methods */
@@ -5025,22 +5025,20 @@ static void draw_mesh_fancy_new(EvaluationContext *eval_ctx, Scene *scene, ViewL
 	dm->release(dm);
 }
 
-static bool UNUSED_FUNCTION(draw_mesh_object_new)(const bContext *C, Scene *scene, ViewLayer *view_layer, ARegion *ar, View3D *v3d, RegionView3D *rv3d, Base *base,
-                                 const char dt, const unsigned char ob_wire_col[4], const short dflag)
+static bool UNUSED_FUNCTION(draw_mesh_object_new)(
+        const EvaluationContext *eval_ctx, Scene *scene, ARegion *ar, View3D *v3d, RegionView3D *rv3d, Base *base,
+        const char dt, const unsigned char ob_wire_col[4], const short dflag)
 {
-	EvaluationContext eval_ctx;
 	Object *ob = base->object;
-	Object *obedit = scene->obedit;
 	Mesh *me = ob->data;
 	BMEditMesh *em = me->edit_btmesh;
 	bool do_alpha_after = false, drawlinked = false, retval = false;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (v3d->flag2 & V3D_RENDER_SHADOW) {
 		/* TODO: handle shadow pass separately */
 		return true;
 	}
+	Object *obedit = OBEDIT_FROM_VIEW_LAYER(eval_ctx->view_layer);
 	
 	if (obedit && ob != obedit && ob->data == obedit->data) {
 		if (BKE_key_from_object(ob) || BKE_key_from_object(obedit)) {}
@@ -5066,7 +5064,7 @@ static bool UNUSED_FUNCTION(draw_mesh_object_new)(const bContext *C, Scene *scen
 		}
 		else {
 			cageDM = editbmesh_get_derived_cage_and_final(
-			        &eval_ctx, scene, ob, em, scene->customdata_mask,
+			        eval_ctx, scene, ob, em, scene->customdata_mask,
 			        &finalDM);
 		}
 
@@ -5085,9 +5083,9 @@ static bool UNUSED_FUNCTION(draw_mesh_object_new)(const bContext *C, Scene *scen
 				DM_update_materials(cageDM, ob);
 			}
 
-			const bool glsl = draw_glsl_material(scene, view_layer, ob, v3d, dt);
+			const bool glsl = draw_glsl_material(scene, eval_ctx->view_layer, ob, v3d, dt);
 
-			GPU_begin_object_materials(v3d, rv3d, scene, view_layer, ob, glsl, NULL);
+			GPU_begin_object_materials(v3d, rv3d, scene, eval_ctx->view_layer, ob, glsl, NULL);
 		}
 
 		draw_em_fancy_new(scene, ar, v3d, ob, me, em, cageDM, finalDM, dt);
@@ -5103,18 +5101,18 @@ static bool UNUSED_FUNCTION(draw_mesh_object_new)(const bContext *C, Scene *scen
 		/* ob->bb was set by derived mesh system, do NULL check just to be sure */
 		if (me->totpoly <= 4 || (!ob->bb || ED_view3d_boundbox_clip(rv3d, ob->bb))) {
 			if (solid) {
-				const bool glsl = draw_glsl_material(scene, view_layer, ob, v3d, dt);
+				const bool glsl = draw_glsl_material(scene, eval_ctx->view_layer, ob, v3d, dt);
 
 				if (dt == OB_SOLID || glsl) {
 					const bool check_alpha = check_alpha_pass(base);
-					GPU_begin_object_materials(v3d, rv3d, scene, view_layer, ob, glsl,
+					GPU_begin_object_materials(v3d, rv3d, scene, eval_ctx->view_layer, ob, glsl,
 					                           (check_alpha) ? &do_alpha_after : NULL);
 				}
 			}
 
 			const bool other_obedit = obedit && (obedit != ob);
 
-			draw_mesh_fancy_new(&eval_ctx, scene, view_layer, ar, v3d, rv3d, base, dt, ob_wire_col, dflag, other_obedit);
+			draw_mesh_fancy_new(eval_ctx, scene, eval_ctx->view_layer, ar, v3d, rv3d, base, dt, ob_wire_col, dflag, other_obedit);
 
 			GPU_end_object_materials();
 
@@ -5939,7 +5937,7 @@ static void draw_new_particle_system(
 	if (pars == NULL) return;
 
 	/* don't draw normal paths in edit mode */
-	if (psys_in_edit_mode(eval_ctx->view_layer, psys) && (pset->flag & PE_DRAW_PART) == 0)
+	if (psys_in_edit_mode(eval_ctx->depsgraph, psys) && (pset->flag & PE_DRAW_PART) == 0)
 		return;
 
 	if (part->draw_as == PART_DRAW_REND)
@@ -5955,6 +5953,8 @@ static void draw_new_particle_system(
 		curvemapping_changed_all(psys->part->clumpcurve);
 	if ((psys->part->child_flag & PART_CHILD_USE_ROUGH_CURVE) && psys->part->roughcurve)
 		curvemapping_changed_all(psys->part->roughcurve);
+	if ((psys->part->child_flag & PART_CHILD_USE_TWIST_CURVE) && psys->part->twistcurve)
+		curvemapping_changed_all(psys->part->twistcurve);
 
 /* 2. */
 	sim.eval_ctx = eval_ctx;
@@ -6594,10 +6594,10 @@ static void draw_new_particle_system(
 }
 
 static void draw_update_ptcache_edit(
-        const EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer, Object *ob, PTCacheEdit *edit)
+        const EvaluationContext *eval_ctx, Scene *scene, Object *ob, PTCacheEdit *edit)
 {
 	if (edit->psys && edit->psys->flag & PSYS_HAIR_UPDATED)
-		PE_update_object(eval_ctx, scene, view_layer, ob, 0);
+		PE_update_object(eval_ctx, scene, ob, 0);
 
 	/* create path and child path cache if it doesn't exist already */
 	if (edit->pathcache == NULL) {
@@ -8322,7 +8322,8 @@ static void draw_object_selected_outline(
 	glDepthMask(GL_TRUE);
 }
 
-static void draw_wire_extra(Scene *scene, RegionView3D *rv3d, Object *ob, const unsigned char ob_wire_col[4])
+static void draw_wire_extra(
+        RegionView3D *rv3d, Object *ob, const bool is_obedit, const unsigned char ob_wire_col[4])
 {
 	if (ELEM(ob->type, OB_FONT, OB_CURVE, OB_SURF, OB_MBALL)) {
 		unsigned char wire_edit_col[4];
@@ -8339,13 +8340,13 @@ static void draw_wire_extra(Scene *scene, RegionView3D *rv3d, Object *ob, const 
 					drawCurveDMWired(ob);
 				}
 				else {
-					drawDispListwire(&ob->curve_cache->disp, ob->type, (scene->obedit == ob) ? wire_edit_col : ob_wire_col);
+					drawDispListwire(&ob->curve_cache->disp, ob->type, is_obedit ? wire_edit_col : ob_wire_col);
 				}
 			}
 		}
 		else if (ob->type == OB_MBALL) {
 			if (BKE_mball_is_basis(ob)) {
-				drawDispListwire(&ob->curve_cache->disp, ob->type, (scene->obedit == ob) ? wire_edit_col : ob_wire_col);
+				drawDispListwire(&ob->curve_cache->disp, ob->type, is_obedit ? wire_edit_col : ob_wire_col);
 			}
 		}
 
@@ -8423,7 +8424,7 @@ static void draw_rigid_body_pivot(bRigidBodyJointConstraint *data,
 	immUnbindProgram();
 }
 
-void draw_object_wire_color(Scene *scene, ViewLayer *view_layer, Base *base, unsigned char r_ob_wire_col[4])
+void draw_object_wire_color(ViewLayer *view_layer, Base *base, unsigned char r_ob_wire_col[4])
 {
 	Object *ob = base->object;
 	int colindex = 0;
@@ -8435,7 +8436,7 @@ void draw_object_wire_color(Scene *scene, ViewLayer *view_layer, Base *base, uns
 	int theme_id = is_edit ? TH_WIRE_EDIT : TH_WIRE;
 	int theme_shade = 0;
 
-	if ((scene->obedit == NULL) &&
+	if (((ob->mode & OB_MODE_EDIT) == 0) &&
 	    (G.moving & G_TRANSFORM_OBJ) &&
 	    ((base->flag & BASE_SELECTED) || (base->flag_legacy & BA_WAS_SEL)))
 	{
@@ -8578,14 +8579,17 @@ void draw_object(
 	unsigned char _ob_wire_col[4];            /* dont initialize this */
 	const unsigned char *ob_wire_col = NULL;  /* dont initialize this, use NULL crashes as a way to find invalid use */
 	bool zbufoff = false, is_paint = false, empty_object = false;
-	const bool is_obact = (ob == OBACT(view_layer));
+	Object *ob_active = OBACT(view_layer);
+	const bool is_obact = (ob == ob_active);
+	/* this could be moved to a 'dflag'. */
+	const bool is_obedit = (is_obact && (ob == OBEDIT_FROM_OBACT(ob_active)));
 	const bool render_override = (v3d->flag2 & V3D_RENDER_OVERRIDE) != 0;
 	const bool is_picking = (G.f & G_PICKSEL) != 0;
 	const bool has_particles = (ob->particlesystem.first != NULL);
 	bool skip_object = false;  /* Draw particles but not their emitter object. */
 	SmokeModifierData *smd = NULL;
 
-	if (ob != scene->obedit) {
+	if (is_obedit == false) {
 		if (ob->restrictflag & OB_RESTRICT_VIEW)
 			return;
 		
@@ -8666,7 +8670,7 @@ void draw_object(
 	/* no return after this point, otherwise leaks */
 
 	/* only once set now, will be removed too, should become a global standard */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	/* reset here to avoid having to call all over */
 	glLineWidth(1.0f);
 
@@ -8695,7 +8699,7 @@ void draw_object(
 
 		ED_view3d_project_base(ar, base);
 
-		draw_object_wire_color(scene, view_layer, base, _ob_wire_col);
+		draw_object_wire_color(view_layer, base, _ob_wire_col);
 		ob_wire_col = _ob_wire_col;
 
 		//glColor3ubv(ob_wire_col);
@@ -8929,7 +8933,7 @@ afterdraw:
 
 	/* code for new particle system */
 	if ((ob->particlesystem.first) &&
-	    (ob != scene->obedit))
+	    (is_obedit == false))
 	{
 		ParticleSystem *psys;
 
@@ -8944,7 +8948,7 @@ afterdraw:
 			if (ob->mode & OB_MODE_PARTICLE_EDIT && is_obact) {
 				PTCacheEdit *edit = PE_create_current(eval_ctx, scene, ob);
 				if (edit && edit->psys == psys)
-					draw_update_ptcache_edit(eval_ctx, scene, view_layer, ob, edit);
+					draw_update_ptcache_edit(eval_ctx, scene, ob, edit);
 			}
 
 			draw_new_particle_system(eval_ctx, scene, v3d, rv3d, base, psys, dt, dflag);
@@ -8959,14 +8963,14 @@ afterdraw:
 
 	/* draw edit particles last so that they can draw over child particles */
 	if ((dflag & DRAW_PICKING) == 0 &&
-	    (!scene->obedit))
+	    (is_obedit == false))
 	{
 
 		if (ob->mode & OB_MODE_PARTICLE_EDIT && is_obact) {
 			PTCacheEdit *edit = PE_create_current(eval_ctx, scene, ob);
 			if (edit) {
 				gpuLoadMatrix(rv3d->viewmat);
-				draw_update_ptcache_edit(eval_ctx, scene, view_layer, ob, edit);
+				draw_update_ptcache_edit(eval_ctx, scene, ob, edit);
 				draw_ptcache_edit(scene, v3d, edit);
 				gpuMultMatrix(ob->obmat);
 			}
@@ -9108,7 +9112,7 @@ afterdraw:
 			}
 			if ((dtx & OB_DRAWWIRE) && dt >= OB_SOLID) {
 				if ((dflag & DRAW_CONSTCOLOR) == 0) {
-					draw_wire_extra(scene, rv3d, ob, ob_wire_col);
+					draw_wire_extra(rv3d, ob, is_obedit, ob_wire_col);
 				}
 			}
 		}
@@ -9212,11 +9216,11 @@ afterdraw:
 		immUniformColor3ubv(ob_wire_col);
 
 		/* draw hook center and offset line */
-		if (ob != scene->obedit)
+		if (is_obedit == false)
 			draw_hooks(ob, pos);
 
 		/* help lines and so */
-		if (ob != scene->obedit && ob->parent) {
+		if ((is_obedit == false) && ob->parent) {
 			const eObjectVisibilityCheck mode = eval_ctx->mode != DAG_EVAL_VIEWPORT ?
 			                                                 OB_VISIBILITY_CHECK_FOR_RENDER :
 			                                                 OB_VISIBILITY_CHECK_FOR_VIEWPORT;
@@ -9591,7 +9595,7 @@ static void bbs_mesh_face(BMEditMesh *em, DerivedMesh *UNUSED(dm), const bool us
 		GPU_select_index_get(0, &selcol);
 		batch = DRW_mesh_batch_cache_get_triangles_with_select_mask(me, true);
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_3D_UNIFORM_COLOR_U32);
-		GWN_batch_uniform_1i(batch, "color", selcol);
+		GWN_batch_uniform_1ui(batch, "color", selcol);
 		GWN_batch_draw(batch);
 	}
 }
@@ -9721,7 +9725,7 @@ static void bbs_mesh_solid_verts(const EvaluationContext *UNUSED(eval_ctx), Scen
 		GPU_select_index_get(0, &selcol);
 		batch = DRW_mesh_batch_cache_get_triangles_with_select_mask(me, true);
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_3D_UNIFORM_COLOR_U32);
-		GWN_batch_uniform_1i(batch, "color", selcol);
+		GWN_batch_uniform_1ui(batch, "color", selcol);
 		GWN_batch_draw(batch);
 	}
 
@@ -9960,7 +9964,7 @@ void ED_draw_object_facemap(
 		immUniformColor4fv(col);
 
 		/* XXX, alpha isn't working yet, not sure why. */
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_BLEND);
 
 		MVert *mvert;

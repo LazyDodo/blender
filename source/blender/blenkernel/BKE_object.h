@@ -50,6 +50,8 @@ struct RigidBodyWorld;
 struct HookModifierData;
 struct ModifierData;
 
+#include "DNA_object_enums.h"
+
 void BKE_object_workob_clear(struct Object *workob);
 void BKE_object_workob_calc_parent(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, struct Object *workob);
 
@@ -70,18 +72,18 @@ void BKE_object_free_caches(struct Object *object);
 
 void BKE_object_modifier_hook_reset(struct Object *ob, struct HookModifierData *hmd);
 
-bool BKE_object_support_modifier_type_check(struct Object *ob, int modifier_type);
+bool BKE_object_support_modifier_type_check(const struct Object *ob, int modifier_type);
 
 void BKE_object_link_modifiers(struct Object *ob_dst, const struct Object *ob_src);
-void BKE_object_free_modifiers(struct Object *ob);
+void BKE_object_free_modifiers(struct Object *ob, const int flag);
 
 void BKE_object_make_proxy(struct Object *ob, struct Object *target, struct Object *gob);
 void BKE_object_copy_proxy_drivers(struct Object *ob, struct Object *target);
 
-bool BKE_object_exists_check(struct Object *obtest);
-bool BKE_object_is_in_editmode(struct Object *ob);
-bool BKE_object_is_in_editmode_vgroup(struct Object *ob);
-bool BKE_object_is_in_wpaint_select_vert(struct Object *ob);
+bool BKE_object_exists_check(const struct Object *obtest);
+bool BKE_object_is_in_editmode(const struct Object *ob);
+bool BKE_object_is_in_editmode_vgroup(const struct Object *ob);
+bool BKE_object_is_in_wpaint_select_vert(const struct Object *ob);
 
 typedef enum eObjectVisibilityCheck {
 	OB_VISIBILITY_CHECK_FOR_VIEWPORT,
@@ -121,8 +123,8 @@ void BKE_object_copy_data(struct Main *bmain, struct Object *ob_dst, const struc
 struct Object *BKE_object_copy(struct Main *bmain, const struct Object *ob);
 void BKE_object_make_local(struct Main *bmain, struct Object *ob, const bool lib_local);
 void BKE_object_make_local_ex(struct Main *bmain, struct Object *ob, const bool lib_local, const bool clear_proxy);
-bool BKE_object_is_libdata(struct Object *ob);
-bool BKE_object_obdata_is_libdata(struct Object *ob);
+bool BKE_object_is_libdata(const struct Object *ob);
+bool BKE_object_obdata_is_libdata(const struct Object *ob);
 
 void BKE_object_obdata_size_init(struct Object *ob, const float scale);
 
@@ -134,16 +136,23 @@ void BKE_object_to_mat4(struct Object *ob, float mat[4][4]);
 void BKE_object_apply_mat4(struct Object *ob, float mat[4][4], const bool use_compat, const bool use_parent);
 void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4]);
 
-bool BKE_object_pose_context_check(struct Object *ob);
+bool BKE_object_pose_context_check(const struct Object *ob);
 struct Object *BKE_object_pose_armature_get(struct Object *ob);
+struct Object *BKE_object_pose_armature_get_visible(struct Object *ob, struct ViewLayer *view_layer);
 
-void BKE_object_get_parent_matrix(struct Scene *scene, struct Object *ob,
-                                  struct Object *par, float parentmat[4][4]);
-void BKE_object_where_is_calc(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob);
-void BKE_object_where_is_calc_ex(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct RigidBodyWorld *rbw, struct Object *ob, float r_originmat[3][3]);
-void BKE_object_where_is_calc_time(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, float ctime);
-void BKE_object_where_is_calc_time_ex(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, float ctime,
-                                      struct RigidBodyWorld *rbw, float r_originmat[3][3]);
+void BKE_object_get_parent_matrix(
+        struct Scene *scene, struct Object *ob,
+        struct Object *par, float parentmat[4][4]);
+void BKE_object_where_is_calc(
+        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob);
+void BKE_object_where_is_calc_ex(
+        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct RigidBodyWorld *rbw,
+        struct Object *ob, float r_originmat[3][3]);
+void BKE_object_where_is_calc_time(
+        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, float ctime);
+void BKE_object_where_is_calc_time_ex(
+        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, float ctime,
+        struct RigidBodyWorld *rbw, float r_originmat[3][3]);
 void BKE_object_where_is_calc_mat4(struct Scene *scene, struct Object *ob, float obmat[4][4]);
 
 /* possibly belong in own moduke? */
@@ -159,14 +168,17 @@ void BKE_object_dimensions_set(struct Object *ob, const float value[3]);
 void BKE_object_empty_draw_type_set(struct Object *ob, const int value);
 void BKE_object_boundbox_flag(struct Object *ob, int flag, const bool set);
 void BKE_object_minmax(struct Object *ob, float r_min[3], float r_max[3], const bool use_hidden);
-bool BKE_object_minmax_dupli(struct Scene *scene, struct Object *ob, float r_min[3], float r_max[3], const bool use_hidden);
+bool BKE_object_minmax_dupli(
+        struct Scene *scene, struct Object *ob, float r_min[3], float r_max[3], const bool use_hidden);
 
 /* sometimes min-max isn't enough, we need to loop over each point */
-void BKE_object_foreach_display_point(struct Object *ob, float obmat[4][4],
-                                      void (*func_cb)(const float[3], void *), void *user_data);
-void BKE_scene_foreach_display_point(struct Scene *scene,
-                                     struct ViewLayer *view_layer,
-                                     void (*func_cb)(const float[3], void *), void *user_data);
+void BKE_object_foreach_display_point(
+        struct Object *ob, float obmat[4][4],
+        void (*func_cb)(const float[3], void *), void *user_data);
+void BKE_scene_foreach_display_point(
+        struct Scene *scene,
+        struct ViewLayer *view_layer,
+        void (*func_cb)(const float[3], void *), void *user_data);
 
 bool BKE_object_parent_loop_check(const struct Object *parent, const struct Object *ob);
 
@@ -182,48 +194,61 @@ typedef struct ObjectTfmProtectedChannels {
 	float rotAngle,   drotAngle;
 } ObjectTfmProtectedChannels;
 
-void BKE_object_tfm_protected_backup(const struct Object *ob,
-                                     ObjectTfmProtectedChannels *obtfm);
+void BKE_object_tfm_protected_backup(
+        const struct Object *ob,
+        ObjectTfmProtectedChannels *obtfm);
 
-void BKE_object_tfm_protected_restore(struct Object *ob,
-                                      const ObjectTfmProtectedChannels *obtfm,
-                                      const short protectflag);
+void BKE_object_tfm_protected_restore(
+        struct Object *ob,
+        const ObjectTfmProtectedChannels *obtfm,
+        const short protectflag);
 
 /* Dependency graph evaluation callbacks. */
-void BKE_object_eval_local_transform(const struct EvaluationContext *eval_ctx,
-                                     struct Object *ob);
-void BKE_object_eval_parent(const struct EvaluationContext *eval_ctx,
-                            struct Scene *scene,
-                            struct Object *ob);
-void BKE_object_eval_constraints(const struct EvaluationContext *eval_ctx,
-                                 struct Scene *scene,
-                                 struct Object *ob);
+void BKE_object_eval_local_transform(
+        const struct EvaluationContext *eval_ctx,
+        struct Object *ob);
+void BKE_object_eval_parent(
+        const struct EvaluationContext *eval_ctx,
+        struct Scene *scene,
+        struct Object *ob);
+void BKE_object_eval_constraints(
+        const struct EvaluationContext *eval_ctx,
+        struct Scene *scene,
+        struct Object *ob);
 void BKE_object_eval_done(const struct EvaluationContext *eval_ctx, struct Object *ob);
 
-bool BKE_object_eval_proxy_copy(const struct EvaluationContext *eval_ct,
-                                struct Object *object);
-void BKE_object_eval_uber_transform(const struct EvaluationContext *eval_ctx,
-                                    struct Object *ob);
-void BKE_object_eval_uber_data(const struct EvaluationContext *eval_ctx,
-                               struct Scene *scene,
-                               struct Object *ob);
+bool BKE_object_eval_proxy_copy(
+        const struct EvaluationContext *eval_ctx,
+        struct Object *object);
+void BKE_object_eval_uber_transform(
+        const struct EvaluationContext *eval_ctx,
+        struct Object *ob);
+void BKE_object_eval_uber_data(
+        const struct EvaluationContext *eval_ctx,
+        struct Scene *scene,
+        struct Object *ob);
 
-void BKE_object_eval_cloth(const struct EvaluationContext *eval_ctx,
-                           struct Scene *scene,
-                           struct Object *object);
+void BKE_object_eval_cloth(
+        const struct EvaluationContext *eval_ctx,
+        struct Scene *scene,
+        struct Object *object);
 
-void BKE_object_eval_transform_all(const struct EvaluationContext *eval_ctx,
-                                   struct Scene *scene,
-                                   struct Object *object);
+void BKE_object_eval_transform_all(
+        const struct EvaluationContext *eval_ctx,
+        struct Scene *scene,
+        struct Object *object);
 
-void BKE_object_eval_update_shading(const struct EvaluationContext *eval_ctx,
-                                    struct Object *object);
-void BKE_object_data_select_update(const struct EvaluationContext *eval_ctx,
-                                   struct ID *object_data);
+void BKE_object_eval_update_shading(
+        const struct EvaluationContext *eval_ctx,
+        struct Object *object);
+void BKE_object_data_select_update(
+        const struct EvaluationContext *eval_ctx,
+        struct ID *object_data);
 
-void BKE_object_eval_flush_base_flags(const struct EvaluationContext *eval_ctx,
-                                      struct Object *object, struct Base *base,
-                                      const bool is_from_set);
+void BKE_object_eval_flush_base_flags(
+        const struct EvaluationContext *eval_ctx,
+        struct Object *object, int base_index,
+        const bool is_from_set);
 
 void BKE_object_handle_data_update(
         const struct EvaluationContext *eval_ctx,
@@ -237,7 +262,6 @@ void BKE_object_handle_update_ex(
         struct Scene *scene, struct Object *ob,
         struct RigidBodyWorld *rbw,
         const bool do_proxy_update);
-
 void BKE_object_sculpt_modifiers_changed(struct Object *ob);
 
 int BKE_object_obdata_texspace_get(struct Object *ob, short **r_texflag, float **r_loc, float **r_size, float **r_rot);
@@ -250,7 +274,7 @@ bool BKE_object_shapekey_free(struct Main *bmain, struct Object *ob);
 
 bool BKE_object_flag_test_recursive(const struct Object *ob, short flag);
 
-bool BKE_object_is_child_recursive(struct Object *ob_parent, struct Object *ob_child);
+bool BKE_object_is_child_recursive(const struct Object *ob_parent, const struct Object *ob_child);
 bool BKE_object_is_animated(struct Scene *scene, struct Object *ob);
 
 /* return ModifierMode flag */
@@ -280,7 +304,8 @@ typedef enum eObjectSet {
 	OB_SET_ALL       /* All Objects      */
 } eObjectSet;
 
-struct LinkNode *BKE_object_relational_superset(struct ViewLayer *view_layer, eObjectSet objectSet, eObRelationTypes includeFilter);
+struct LinkNode *BKE_object_relational_superset(
+        struct ViewLayer *view_layer, eObjectSet objectSet, eObRelationTypes includeFilter);
 struct LinkNode *BKE_object_groups(struct Object *ob);
 void             BKE_object_groups_clear(struct Object *object);
 
@@ -288,8 +313,9 @@ struct KDTree *BKE_object_as_kdtree(struct Object *ob, int *r_tot);
 
 bool BKE_object_modifier_use_time(struct Object *ob, struct ModifierData *md);
 
-bool BKE_object_modifier_update_subframe(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob,
-                                         bool update_mesh, int parent_recursion, float frame, int type);
+bool BKE_object_modifier_update_subframe(
+        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob,
+        bool update_mesh, int parent_recursion, float frame, int type);
 
 #ifdef __cplusplus
 }

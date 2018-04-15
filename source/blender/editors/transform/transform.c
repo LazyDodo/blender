@@ -1707,20 +1707,10 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 	TransInfo *t = (TransInfo *)customdata;
 
 	if (t->helpline != HLP_NONE) {
-		float vecrot[3], cent[2];
+		float cent[2];
 		float mval[3] = { x, y, 0.0f };
 
-		copy_v3_v3(vecrot, t->center);
-		if (t->flag & T_EDIT) {
-			Object *ob = t->obedit;
-			if (ob) mul_m4_v3(ob->obmat, vecrot);
-		}
-		else if (t->flag & T_POSE) {
-			Object *ob = t->poseobj;
-			if (ob) mul_m4_v3(ob->obmat, vecrot);
-		}
-
-		projectFloatViewEx(t, vecrot, cent, V3D_PROJ_TEST_CLIP_ZERO);
+		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
 
 		gpuPushMatrix();
 
@@ -1890,7 +1880,7 @@ static void drawAutoKeyWarning(TransInfo *UNUSED(t), ARegion *ar)
 #endif
 	
 	/* autokey recording icon... */
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 	
 	xco -= U.widget_unit;
@@ -2624,9 +2614,6 @@ static void constraintTransLim(TransInfo *t, TransData *td)
 	if (td->con) {
 		const bConstraintTypeInfo *ctiLoc = BKE_constraint_typeinfo_from_type(CONSTRAINT_TYPE_LOCLIMIT);
 		const bConstraintTypeInfo *ctiDist = BKE_constraint_typeinfo_from_type(CONSTRAINT_TYPE_DISTLIMIT);
-		EvaluationContext eval_ctx;
-
-		CTX_data_eval_ctx(t->context, &eval_ctx);
 		
 		bConstraintOb cob = {NULL};
 		bConstraint *con;
@@ -2676,7 +2663,7 @@ static void constraintTransLim(TransInfo *t, TransData *td)
 				}
 				
 				/* get constraint targets if needed */
-				BKE_constraint_targets_for_solving_get(&eval_ctx, con, &cob, &targets, ctime);
+				BKE_constraint_targets_for_solving_get(&t->eval_ctx, con, &cob, &targets, ctime);
 				
 				/* do constraint */
 				cti->evaluate_constraint(con, &cob, &targets);
@@ -6883,7 +6870,7 @@ static void drawEdgeSlide(TransInfo *t)
 				glDisable(GL_DEPTH_TEST);
 
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 			gpuPushMatrix();
 			gpuMultMatrix(t->obedit->obmat);
@@ -7495,7 +7482,7 @@ static void drawVertSlide(TransInfo *t)
 				glDisable(GL_DEPTH_TEST);
 
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 			gpuPushMatrix();
 			gpuMultMatrix(t->obedit->obmat);

@@ -33,17 +33,19 @@
 #include "DNA_group_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_object_types.h"
 #include "DNA_property_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_meta_types.h"
+#include "DNA_workspace_types.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 
 #include "BKE_camera.h"
 #include "BKE_paint.h"
+#include "BKE_editlattice.h"
 #include "BKE_editmesh.h"
 #include "BKE_group.h" /* needed for BKE_group_object_exists() */
 #include "BKE_object_deform.h"
@@ -218,6 +220,12 @@ static void rna_Object_internal_update(Main *UNUSED(bmain), Scene *UNUSED(scene)
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_OB);
 }
 
+static void rna_Object_internal_update_draw(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+{
+	DEG_id_tag_update(ptr->id.data, OB_RECALC_OB);
+	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ptr->id.data);
+}
+
 static void rna_Object_matrix_world_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	/* don't use compat so we get predictable rotation */
@@ -295,16 +303,18 @@ void rna_Object_internal_update_data(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ptr->id.data);
 }
 
-static void rna_Object_active_shape_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_Object_active_shape_update(bContext *C, PointerRNA *ptr)
 {
 	Object *ob = ptr->id.data;
+	Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
 
-	if (scene->obedit == ob) {
+	if (CTX_data_edit_object(C) == ob) {
 		/* exit/enter editmode to get new shape */
 		switch (ob->type) {
 			case OB_MESH:
 				EDBM_mesh_load(ob);
-				EDBM_mesh_make(scene->toolsettings, ob, true);
+				EDBM_mesh_make(ob, scene->toolsettings->selectmode, true);
 
 				DEG_id_tag_update(ob->data, 0);
 
@@ -317,8 +327,8 @@ static void rna_Object_active_shape_update(Main *bmain, Scene *scene, PointerRNA
 				ED_curve_editnurb_make(ob);
 				break;
 			case OB_LATTICE:
-				ED_lattice_editlatt_load(ob);
-				ED_lattice_editlatt_make(ob);
+				BKE_editlattice_load(ob);
+				BKE_editlattice_make(ob);
 				break;
 		}
 	}
@@ -2756,7 +2766,7 @@ static void rna_def_object(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_sdna(prop, NULL, "index");
 	RNA_def_property_ui_text(prop, "Pass Index", "Index number for the \"Object Index\" render pass");
-	RNA_def_property_update(prop, NC_OBJECT, "rna_Object_internal_update");
+	RNA_def_property_update(prop, NC_OBJECT, "rna_Object_internal_update_draw");
 	
 	prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR);
 	RNA_def_property_float_sdna(prop, NULL, "col");
@@ -2831,6 +2841,7 @@ static void rna_def_object(BlenderRNA *brna)
 	                                  NULL,
 	                                  NULL);
 	RNA_def_property_struct_type(prop, "LayerCollectionSettings");
+	RNA_def_property_flag(prop, PROP_NO_COMPARISON);  /* XXX see T53800. */
 	RNA_def_property_ui_text(prop, "Collection Settings",
 	                         "Engine specific render settings to be overridden by collections");
 
@@ -2917,11 +2928,6 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0, 1500, 1, -1);
 	RNA_def_property_ui_text(prop, "Dupli Frames Off", "Recurring frames to exclude from the Dupliframes");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
-
-	prop = RNA_def_property(srna, "dupli_list", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "duplilist", NULL);
-	RNA_def_property_struct_type(prop, "DupliObject");
-	RNA_def_property_ui_text(prop, "Dupli list", "Object duplis");
 
 	prop = RNA_def_property(srna, "is_duplicator", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transflag", OB_DUPLI);
@@ -3023,6 +3029,7 @@ static void rna_def_object(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "active_shape_key_index", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "shapenr");
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE); /* XXX this is really unpredictable... */
 	RNA_def_property_int_funcs(prop, "rna_Object_active_shape_key_index_get", "rna_Object_active_shape_key_index_set",
 	                           "rna_Object_active_shape_key_index_range");

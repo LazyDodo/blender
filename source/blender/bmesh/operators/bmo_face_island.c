@@ -99,7 +99,7 @@ void bmo_face_island_boundary_exec(BMesh *bm, BMOperator *op)
 	
 	{
 		BMOpSlot *slot = BMO_slot_get(op->slots_out, "boundary");
-		BMO_slot_buffer_from_array(op, slot, (BMHeader **)boundary, BLI_array_count(boundary));
+		BMO_slot_buffer_from_array(op, slot, (BMHeader **)boundary, BLI_array_len(boundary));
 		BLI_array_free(boundary);
 	}
 	

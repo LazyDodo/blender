@@ -395,26 +395,23 @@ static void rna_userdef_autosave_update(Main *bmain, Scene *scene, PointerRNA *p
 
 static bAddon *rna_userdef_addon_new(void)
 {
-	bAddon *bext = MEM_callocN(sizeof(bAddon), "bAddon");
-	BLI_addtail(&U.addons, bext);
-	return bext;
+	ListBase *addons_list = &U.addons;
+	bAddon *addon = BKE_addon_new();
+	BLI_addtail(addons_list, addon);
+	return addon;
 }
 
-static void rna_userdef_addon_remove(ReportList *reports, PointerRNA *path_cmp_ptr)
+static void rna_userdef_addon_remove(ReportList *reports, PointerRNA *addon_ptr)
 {
-	bAddon *bext = path_cmp_ptr->data;
-	if (BLI_findindex(&U.addons, bext) == -1) {
+	ListBase *addons_list = &U.addons;
+	bAddon *addon = addon_ptr->data;
+	if (BLI_findindex(addons_list, addon) == -1) {
 		BKE_report(reports, RPT_ERROR, "Add-on is no longer valid");
 		return;
 	}
-
-	if (bext->prop) {
-		IDP_FreeProperty(bext->prop);
-		MEM_freeN(bext->prop);
-	}
-
-	BLI_freelinkN(&U.addons, bext);
-	RNA_POINTER_INVALIDATE(path_cmp_ptr);
+	BLI_remlink(addons_list, addon);
+	BKE_addon_free(addon);
+	RNA_POINTER_INVALIDATE(addon_ptr);
 }
 
 static bPathCompare *rna_userdef_pathcompare_new(void)
@@ -445,6 +442,12 @@ static void rna_userdef_text_update(Main *UNUSED(bmain), Scene *UNUSED(scene), P
 {
 	BLF_cache_clear();
 	WM_main_add_notifier(NC_WINDOW, NULL);
+}
+
+static void rna_userdef_text_antialiasing_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+	BLF_antialias_set((U.text_render & USER_TEXT_DISABLE_AA) == 0);
+	rna_userdef_text_update(bmain, scene, ptr);
 }
 
 static PointerRNA rna_Theme_space_generic_get(PointerRNA *ptr)
@@ -3493,12 +3496,12 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Global Pivot", "Lock the same rotation/scaling pivot in all 3D Views");
 
 	prop = RNA_def_property(srna, "use_mouse_depth_navigate", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_ZBUF_ORBIT);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_NAVIGATE);
 	RNA_def_property_ui_text(prop, "Auto Depth",
 	                         "Use the depth under the mouse to improve view pan/rotate/zoom functionality");
 
 	prop = RNA_def_property(srna, "use_mouse_depth_cursor", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_ZBUF_CURSOR);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_CURSOR);
 	RNA_def_property_ui_text(prop, "Cursor Depth",
 	                         "Use the depth under the mouse when placing the cursor");
 
@@ -4216,7 +4219,7 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_text_antialiasing", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "text_render", USER_TEXT_DISABLE_AA);
 	RNA_def_property_ui_text(prop, "Text Anti-aliasing", "Draw user interface text anti-aliased");
-	RNA_def_property_update(prop, 0, "rna_userdef_text_update");
+	RNA_def_property_update(prop, 0, "rna_userdef_text_antialiasing_update");
 
 	prop = RNA_def_property(srna, "select_method", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "gpu_select_method");

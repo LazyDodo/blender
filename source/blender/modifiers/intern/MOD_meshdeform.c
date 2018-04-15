@@ -49,6 +49,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DEG_depsgraph.h"
+
 #include "MOD_util.h"
 
 #ifdef __SSE2__
@@ -120,16 +122,12 @@ static void foreachObjectLink(
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
 }
 
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *UNUSED(ob),
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *)md;
 	if (mmd->object != NULL) {
 		/* TODO(sergey): Do we need transform component here? */
-		DEG_add_object_relation(node, mmd->object, DEG_OB_COMP_GEOMETRY, "Mesh Deform Modifier");
+		DEG_add_object_relation(ctx->node, mmd->object, DEG_OB_COMP_GEOMETRY, "Mesh Deform Modifier");
 	}
 }
 
@@ -300,7 +298,7 @@ static void meshdeformModifier_do(
 	 *
 	 * We'll support this case once granular dependency graph is landed.
 	 */
-	if (mmd->object == md->scene->obedit) {
+	if (mmd->object->mode & OB_MODE_EDIT) {
 		BMEditMesh *em = BKE_editmesh_from_object(mmd->object);
 		tmpdm = editbmesh_get_derived_cage_and_final(eval_ctx, md->scene, mmd->object, em, 0, &cagedm);
 		if (tmpdm)

@@ -59,11 +59,12 @@
 #include "ED_screen.h"
 #include "ED_transform.h"
 
-#include "GPU_compositing.h"
 #include "GPU_framebuffer.h"
 #include "GPU_material.h"
 #include "GPU_viewport.h"
 #include "GPU_matrix.h"
+
+#include "DRW_engine.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -296,7 +297,7 @@ void ED_view3d_stop_render_preview(wmWindowManager *wm, ARegion *ar)
 	}
 }
 
-void ED_view3d_shade_update(Main *bmain, Scene *scene, View3D *v3d, ScrArea *sa)
+void ED_view3d_shade_update(Main *bmain, View3D *v3d, ScrArea *sa)
 {
 	wmWindowManager *wm = bmain->wm.first;
 
@@ -307,10 +308,6 @@ void ED_view3d_shade_update(Main *bmain, Scene *scene, View3D *v3d, ScrArea *sa)
 			if (ar->regiondata)
 				ED_view3d_stop_render_preview(wm, ar);
 		}
-	}
-	else if (scene->obedit != NULL && scene->obedit->type == OB_MESH) {
-		/* Tag mesh to load edit data. */
-		DEG_id_tag_update(scene->obedit->data, 0);
 	}
 }
 
@@ -573,14 +570,10 @@ static void view3d_main_region_exit(wmWindowManager *wm, ARegion *ar)
 		rv3d->gpuoffscreen = NULL;
 	}
 	
-	if (rv3d->compositor) {
-		GPU_fx_compositor_destroy(rv3d->compositor);
-		rv3d->compositor = NULL;
-	}
-
 	if (rv3d->viewport) {
+		DRW_opengl_context_enable();
 		GPU_viewport_free(rv3d->viewport);
-		MEM_freeN(rv3d->viewport);
+		DRW_opengl_context_disable();
 		rv3d->viewport = NULL;
 	}
 }
@@ -760,12 +753,10 @@ static void view3d_main_region_free(ARegion *ar)
 		if (rv3d->gpuoffscreen) {
 			GPU_offscreen_free(rv3d->gpuoffscreen);
 		}
-		if (rv3d->compositor) {
-			GPU_fx_compositor_destroy(rv3d->compositor);
-		}
 		if (rv3d->viewport) {
+			DRW_opengl_context_enable();
 			GPU_viewport_free(rv3d->viewport);
-			MEM_freeN(rv3d->viewport);
+			DRW_opengl_context_disable();
 		}
 
 		MEM_freeN(rv3d);
@@ -922,10 +913,16 @@ static void view3d_main_region_listener(
 				case ND_SELECT:
 				{
 					WM_manipulatormap_tag_refresh(mmap);
-					if (scene->obedit) {
-						Object *ob = scene->obedit;
+
+					ID *ob_data = wmn->reference;
+					if (ob_data == NULL) {
+						BLI_assert(wmn->window); // Use `WM_event_add_notifier` instead of `WM_main_add_notifier`
+						ViewLayer *view_layer = WM_window_get_active_view_layer(wmn->window);
+						ob_data = OBEDIT_FROM_VIEW_LAYER(view_layer)->data;
+					}
+					if (ob_data) {
 						/* TODO(sergey): Notifiers shouldn't really be doing DEG tags. */
-						DEG_id_tag_update((ID *)ob->data, DEG_TAG_SELECT_UPDATE);
+						DEG_id_tag_update(ob_data, DEG_TAG_SELECT_UPDATE);
 					}
 					ATTR_FALLTHROUGH;
 				}
@@ -1075,7 +1072,7 @@ static void view3d_main_region_message_subscribe(
 	 *
 	 * For other space types we might try avoid this, keep the 3D view as an exceptional case! */
 	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-	wmMsgParams_RNA msg_key_params = {0};
+	wmMsgParams_RNA msg_key_params = {{{0}}};
 
 	/* Only subscribe to types. */
 	StructRNA *type_array[] = {
@@ -1139,9 +1136,9 @@ static void view3d_main_region_message_subscribe(
 /* concept is to retrieve cursor type context-less */
 static void view3d_main_region_cursor(wmWindow *win, ScrArea *UNUSED(sa), ARegion *UNUSED(ar))
 {
-	const Scene *scene = WM_window_get_active_scene(win);
-
-	if (scene->obedit) {
+	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
+	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
+	if (obedit) {
 		WM_cursor_set(win, CURSOR_EDIT);
 	}
 	else {

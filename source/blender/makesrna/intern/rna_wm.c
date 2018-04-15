@@ -760,9 +760,8 @@ static void rna_workspace_screen_update(bContext *C, PointerRNA *ptr)
 static PointerRNA rna_Window_view_layer_get(PointerRNA *ptr)
 {
 	wmWindow *win = ptr->data;
-	Scene *scene = WM_window_get_active_scene(win);
-	WorkSpace *workspace = WM_window_get_active_workspace(win);
-	ViewLayer *view_layer = BKE_workspace_view_layer_get(workspace, scene);
+	Scene *scene;
+	ViewLayer *view_layer = WM_window_get_active_view_layer_ex(win, &scene);
 	PointerRNA scene_ptr;
 
 	RNA_id_pointer_create(&scene->id, &scene_ptr);
@@ -777,28 +776,6 @@ static void rna_Window_view_layer_set(PointerRNA *ptr, PointerRNA value)
 
 	BKE_workspace_view_layer_set(workspace, value.data, scene);
 }
-
-#ifdef USE_WORKSPACE_MODE
-
-static int rna_Window_object_mode_get(PointerRNA *ptr)
-{
-	wmWindow *win = ptr->data;
-	Scene *scene = WM_window_get_active_scene(win);
-	WorkSpace *workspace = WM_window_get_active_workspace(win);
-
-	return (int)BKE_workspace_object_mode_get(workspace, scene);
-}
-
-static void rna_Window_object_mode_set(PointerRNA *ptr, int value)
-{
-	wmWindow *win = ptr->data;
-	Scene *scene = WM_window_get_active_scene(win);
-	WorkSpace *workspace = WM_window_get_active_workspace(win);
-
-	BKE_workspace_object_mode_set(workspace, scene, value);
-}
-
-#endif /* USE_WORKSPACE_MODE */
 
 static PointerRNA rna_KeyMapItem_properties_get(PointerRNA *ptr)
 {
@@ -2086,13 +2063,6 @@ static void rna_def_window(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_NULL);
 	RNA_def_property_update(prop, NC_SCREEN | ND_LAYER, NULL);
 
-#ifdef USE_WORKSPACE_MODE
-	prop = RNA_def_property(srna, "object_mode", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, rna_enum_object_mode_items);
-	RNA_def_property_enum_funcs(prop, "rna_Window_object_mode_get", "rna_Window_object_mode_set", NULL);
-	RNA_def_property_ui_text(prop, "Mode", "Object interaction mode used in this window");
-#endif
-
 	prop = RNA_def_property(srna, "x", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "posx");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
@@ -2265,6 +2235,10 @@ static void rna_def_keyconfig(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Name", "Name of the key map");
 	RNA_def_struct_name_property(srna, prop);
+
+	prop = RNA_def_property(srna, "bl_owner_id", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "owner_id");
+	RNA_def_property_ui_text(prop, "Owner", "Internal owner");
 
 	prop = RNA_def_property(srna, "space_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "spaceid");

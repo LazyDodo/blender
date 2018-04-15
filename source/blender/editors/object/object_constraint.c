@@ -684,6 +684,8 @@ static bConstraint *edit_constraint_property_get(wmOperator *op, Object *ob, int
 
 static int stretchto_reset_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_STRETCHTO);
 	bStretchToConstraint *data = (con) ? (bStretchToConstraint *)con->data : NULL;
@@ -730,6 +732,8 @@ void CONSTRAINT_OT_stretchto_reset(wmOperatorType *ot)
 
 static int limitdistance_reset_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_DISTLIMIT);
 	bDistLimitConstraint *data = (con) ? (bDistLimitConstraint *)con->data : NULL;
@@ -866,6 +870,8 @@ static void child_get_inverse_matrix(const bContext *C, Scene *scene, Object *ob
 /* ChildOf Constraint - set inverse callback */
 static int childof_set_inverse_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_CHILDOF);
@@ -917,6 +923,8 @@ void CONSTRAINT_OT_childof_set_inverse(wmOperatorType *ot)
 static int childof_clear_inverse_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = ED_object_active_context(C);
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_CHILDOF);
 	bChildOfConstraint *data = (con) ? (bChildOfConstraint *)con->data : NULL;
 	
@@ -964,6 +972,8 @@ void CONSTRAINT_OT_childof_clear_inverse(wmOperatorType *ot)
 
 static int followpath_path_animate_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_FOLLOWPATH);
 	bFollowPathConstraint *data = (con) ? (bFollowPathConstraint *)con->data : NULL;
@@ -1088,6 +1098,8 @@ void CONSTRAINT_OT_followpath_path_animate(wmOperatorType *ot)
 
 static int objectsolver_set_inverse_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_OBJECTSOLVER);
@@ -1137,6 +1149,8 @@ void CONSTRAINT_OT_objectsolver_set_inverse(wmOperatorType *ot)
 
 static int objectsolver_clear_inverse_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_OBJECTSOLVER);
 	bObjectSolverConstraint *data = (con) ? (bObjectSolverConstraint *)con->data : NULL;
@@ -1306,6 +1320,8 @@ void CONSTRAINT_OT_delete(wmOperatorType *ot)
 
 static int constraint_move_down_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, 0);
 	
@@ -1355,6 +1371,8 @@ void CONSTRAINT_OT_move_down(wmOperatorType *ot)
 
 static int constraint_move_up_exec(bContext *C, wmOperator *op)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Object *ob = ED_object_active_context(C);
 	bConstraint *con = edit_constraint_property_get(op, ob, 0);
 	
@@ -1575,6 +1593,8 @@ void OBJECT_OT_constraints_copy(wmOperatorType *ot)
 /* get the Object and/or PoseChannel to use as target */
 static bool get_new_constraint_target(bContext *C, int con_type, Object **tar_ob, bPoseChannel **tar_pchan, bool add)
 {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 	Object *obact = ED_object_active_context(C);
 	bPoseChannel *pchanact = BKE_pose_channel_active(obact);
 	bool only_curve = false, only_mesh = false, only_ob = false;
@@ -1653,7 +1673,7 @@ static bool get_new_constraint_target(bContext *C, int con_type, Object **tar_ob
 				/* for armatures in pose mode, look inside the armature for the active bone
 				 * so that we set up cross-armature constraints with less effort
 				 */
-				if ((ob->type == OB_ARMATURE) && (ob->mode & OB_MODE_POSE) && 
+				if ((ob->type == OB_ARMATURE) && (eval_ctx.mode & OB_MODE_POSE) &&
 				    (!only_curve && !only_mesh))
 				{
 					/* just use the active bone, and assume that it is visible + usable */

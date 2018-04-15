@@ -57,6 +57,8 @@
 
 #include "DEG_depsgraph.h"
 
+#include "DRW_engine.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
 
@@ -72,7 +74,6 @@
 #include "RNA_access.h"
 #include "RNA_define.h"
 
-#include "GPU_compositing.h"
 #include "GPU_framebuffer.h"
 #include "GPU_glew.h"
 #include "GPU_matrix.h"
@@ -120,7 +121,6 @@ typedef struct OGLRender {
 	GPUOffScreen *ofs;
 	int ofs_samples;
 	bool ofs_full_samples;
-	GPUFX *fx;
 	int sizex, sizey;
 	int write_still;
 
@@ -323,6 +323,7 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 			unsigned char *gp_rect;
 			unsigned char *render_rect = (unsigned char *)RE_RenderViewGetById(rr, oglrender->view_id)->rect32;
 
+			DRW_opengl_context_enable();
 			GPU_offscreen_bind(oglrender->ofs, true);
 
 			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -342,6 +343,7 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 				blend_color_mix_byte(&render_rect[i], &render_rect[i], &gp_rect[i]);
 			}
 			GPU_offscreen_unbind(oglrender->ofs, true);
+			DRW_opengl_context_disable();
 
 			MEM_freeN(gp_rect);
 		}
@@ -351,6 +353,7 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 		char err_out[256] = "unknown";
 		ImBuf *ibuf_view;
 		const int alpha_mode = (draw_sky) ? R_ADDSKY : R_ALPHAPREMUL;
+		struct RenderEngineType *engine_type = CTX_data_engine_type(C);
 
 		unsigned int draw_flags = V3D_OFSDRAW_NONE;
 		draw_flags |= (oglrender->ofs_full_samples) ? V3D_OFSDRAW_USE_FULL_SAMPLE : 0;
@@ -359,9 +362,10 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 			draw_flags |= (draw_bgpic) ? V3D_OFSDRAW_USE_BACKGROUND : 0;
 
 			ibuf_view = ED_view3d_draw_offscreen_imbuf(
-			       &eval_ctx, scene, view_layer, v3d, ar, sizex, sizey,
+			       &eval_ctx, scene, view_layer, engine_type,
+			       v3d, ar, sizex, sizey,
 			       IB_rectfloat, draw_flags, alpha_mode, oglrender->ofs_samples, viewname,
-			       oglrender->fx, oglrender->ofs, err_out);
+			       oglrender->ofs, err_out);
 
 			/* for stamp only */
 			if (rv3d->persp == RV3D_CAMOB && v3d->camera) {
@@ -371,10 +375,11 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 		else {
 			draw_flags |= (V3D_OFSDRAW_USE_GPENCIL | V3D_OFSDRAW_USE_BACKGROUND);
 			ibuf_view = ED_view3d_draw_offscreen_imbuf_simple(
-			        &eval_ctx, scene, view_layer, scene->camera, oglrender->sizex, oglrender->sizey,
+			        &eval_ctx, scene, view_layer, engine_type,
+			        scene->camera, oglrender->sizex, oglrender->sizey,
 			        IB_rectfloat, draw_flags, OB_SOLID,
 			        alpha_mode, oglrender->ofs_samples, viewname,
-			        oglrender->fx, oglrender->ofs, err_out);
+			        oglrender->ofs, err_out);
 			camera = scene->camera;
 		}
 
@@ -541,7 +546,6 @@ static void screen_opengl_render_apply(const bContext *C, OGLRender *oglrender)
 		for (view_id = 0; view_id < oglrender->views_len; view_id++) {
 			context.view_id = view_id;
 			context.gpu_offscreen = oglrender->ofs;
-			context.gpu_fx = oglrender->fx;
 			context.gpu_full_samples = oglrender->ofs_full_samples;
 
 			oglrender->seq_data.ibufs_arr[view_id] = BKE_sequencer_give_ibuf(&context, CFRA, chanshown);
@@ -652,7 +656,9 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 	sizey = (scene->r.size * scene->r.ysch) / 100;
 
 	/* corrects render size with actual size, not every card supports non-power-of-two dimensions */
-	ofs = GPU_offscreen_create(sizex, sizey, full_samples ? 0 : samples, true, err_out);
+	DRW_opengl_context_enable(); /* Offscreen creation needs to be done in DRW context. */
+	ofs = GPU_offscreen_create(sizex, sizey, full_samples ? 0 : samples, true, true, err_out);
+	DRW_opengl_context_disable();
 
 	if (!ofs) {
 		BKE_reportf(op->reports, RPT_ERROR, "Failed to create OpenGL off-screen buffer, %s", err_out);
@@ -700,19 +706,6 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 		/* apply immediately in case we're rendering from a script,
 		 * running notifiers again will overwrite */
 		oglrender->scene->customdata_mask |= oglrender->scene->customdata_mask_modal;
-
-		if (oglrender->v3d->fx_settings.fx_flag & (GPU_FX_FLAG_DOF | GPU_FX_FLAG_SSAO)) {
-			oglrender->fx = GPU_fx_compositor_create();
-		}
-	}
-	else if (is_sequencer) {
-		/* NOTE: We allow animation of DoF setting for flexibility in edits, so
-		 * we can't check in advance whether we need FX compositor or not.
-		 * We just always allocated it and make sure it doesn't add extra
-		 * overhead rather than memory allocation here if it's not really
-		 * needed.
-		 */
-		oglrender->fx = GPU_fx_compositor_create();
 	}
 
 	/* create render */
@@ -827,9 +820,8 @@ static void screen_opengl_render_end(bContext *C, OGLRender *oglrender)
 
 	if (oglrender->timer) { /* exec will not have a timer */
 		Depsgraph *depsgraph = oglrender->depsgraph;
-		ViewLayer *view_layer = oglrender->view_layer;
 		scene->r.cfra = oglrender->cfrao;
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 		WM_event_remove_timer(oglrender->wm, oglrender->win, oglrender->timer);
 	}
@@ -838,10 +830,9 @@ static void screen_opengl_render_end(bContext *C, OGLRender *oglrender)
 
 	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_RESULT, oglrender->scene);
 
-	if (oglrender->fx)
-		GPU_fx_compositor_destroy(oglrender->fx);
-
+	DRW_opengl_context_enable();
 	GPU_offscreen_free(oglrender->ofs);
+	DRW_opengl_context_disable();
 
 	if (oglrender->is_sequencer) {
 		MEM_freeN(oglrender->seq_data.ibufs_arr);
@@ -1029,7 +1020,6 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 	Main *bmain = CTX_data_main(C);
 	OGLRender *oglrender = op->customdata;
 	Scene *scene = oglrender->scene;
-	ViewLayer *view_layer = oglrender->view_layer;
 	Depsgraph *depsgraph = oglrender->depsgraph;
 	char name[FILE_MAX];
 	bool ok = false;
@@ -1041,7 +1031,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 	if (CFRA < oglrender->nfra)
 		CFRA++;
 	while (CFRA < oglrender->nfra) {
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 		CFRA++;
 	}
 
@@ -1063,7 +1053,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 
 	WM_cursor_time(oglrender->win, scene->r.cfra);
 
-	BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 	if (view_context) {
 		if (oglrender->rv3d->persp == RV3D_CAMOB && oglrender->v3d->camera && oglrender->v3d->scenelock) {

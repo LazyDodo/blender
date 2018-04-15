@@ -50,7 +50,7 @@ class CyclesButtonsPanel:
 
     @classmethod
     def poll(cls, context):
-        return context.scene.view_render.engine in cls.COMPAT_ENGINES
+        return context.engine in cls.COMPAT_ENGINES
 
 
 def get_device_type(context):
@@ -442,8 +442,10 @@ class CYCLES_RENDER_PT_layer_options(CyclesButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        with_freestyle = bpy.app.build_options.freestyle
 
         scene = context.scene
+        rd = scene.render
         view_layer = scene.view_layers.active
 
         col = layout.column()
@@ -451,6 +453,10 @@ class CYCLES_RENDER_PT_layer_options(CyclesButtonsPanel, Panel):
         col.prop(view_layer, "use_ao", "Use AO")
         col.prop(view_layer, "use_solid", "Use Surfaces")
         col.prop(view_layer, "use_strand", "Use Hair")
+        if with_freestyle:
+            row = col.row()
+            row.prop(view_layer, "use_freestyle", "Use Freestyle")
+            row.active = rd.use_freestyle
 
 
 class CYCLES_RENDER_PT_layer_passes(CyclesButtonsPanel, Panel):
@@ -777,7 +783,7 @@ class CYCLES_OBJECT_PT_motion_blur(CyclesButtonsPanel, Panel):
     def poll(cls, context):
         ob = context.object
         if CyclesButtonsPanel.poll(context) and ob:
-            if ob.type in {'MESH', 'CURVE', 'CURVE', 'SURFACE', 'FONT', 'META'}:
+            if ob.type in {'MESH', 'CURVE', 'CURVE', 'SURFACE', 'FONT', 'META', 'CAMERA'}:
                 return True
             if ob.dupli_type == 'GROUP' and ob.dupli_group:
                 return True
@@ -809,11 +815,9 @@ class CYCLES_OBJECT_PT_motion_blur(CyclesButtonsPanel, Panel):
         layout.active = (rd.use_motion_blur and cob.use_motion_blur)
 
         row = layout.row()
-        row.prop(cob, "use_deform_motion", text="Deformation")
-
-        sub = row.row()
-        sub.active = cob.use_deform_motion
-        sub.prop(cob, "motion_steps", text="Steps")
+        if ob.type != 'CAMERA':
+            row.prop(cob, "use_deform_motion", text="Deformation")
+        row.prop(cob, "motion_steps", text="Steps")
 
 
 class CYCLES_OBJECT_PT_cycles_settings(CyclesButtonsPanel, Panel):
@@ -1267,13 +1271,9 @@ class CYCLES_MATERIAL_PT_settings(CyclesButtonsPanel, Panel):
         col.prop(cmat, "sample_as_light", text="Multiple Importance")
         col.prop(cmat, "use_transparent_shadow")
 
-        if context.scene.cycles.feature_set == 'EXPERIMENTAL':
-            col.separator()
-            col.label(text="Geometry:")
-            col.prop(cmat, "displacement_method", text="")
-        else:
-            col.separator()
-            col.prop(mat, "pass_index")
+        col.separator()
+        col.label(text="Geometry:")
+        col.prop(cmat, "displacement_method", text="")
 
         col = split.column()
         col.label(text="Volume:")
@@ -1283,9 +1283,8 @@ class CYCLES_MATERIAL_PT_settings(CyclesButtonsPanel, Panel):
         col.prop(cmat, "volume_interpolation", text="")
         col.prop(cmat, "homogeneous_volume", text="Homogeneous")
 
-        if context.scene.cycles.feature_set == 'EXPERIMENTAL':
-            col.separator()
-            col.prop(mat, "pass_index")
+        col.separator()
+        col.prop(mat, "pass_index")
 
 
 class CYCLES_MATERIAL_PT_viewport(CyclesButtonsPanel, Panel):

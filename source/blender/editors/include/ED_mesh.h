@@ -36,7 +36,6 @@ extern "C" {
 #endif
 
 struct ID;
-struct EvaluationContext;
 struct View3D;
 struct ARegion;
 struct bContext;
@@ -63,6 +62,7 @@ struct UvMapVert;
 struct ToolSettings;
 struct Object;
 struct rcti;
+struct UndoType;
 
 /* editmesh_utils.c */
 void           EDBM_verts_mirror_cache_begin_ex(struct BMEditMesh *em, const int axis,
@@ -81,7 +81,7 @@ void EDBM_mesh_normals_update(struct BMEditMesh *em);
 void EDBM_mesh_clear(struct BMEditMesh *em);
 
 void EDBM_selectmode_to_scene(struct bContext *C);
-void EDBM_mesh_make(struct ToolSettings *ts, struct Object *ob, const bool add_key_index);
+void EDBM_mesh_make(struct Object *ob, const int select_mode, const bool add_key_index);
 void EDBM_mesh_free(struct BMEditMesh *em);
 void EDBM_mesh_load(struct Object *ob);
 struct DerivedMesh *EDBM_mesh_deform_dm_get(struct BMEditMesh *em);
@@ -99,8 +99,6 @@ void EDBM_selectmode_flush(struct BMEditMesh *em);
 void EDBM_deselect_flush(struct BMEditMesh *em);
 void EDBM_select_flush(struct BMEditMesh *em);
 
-void undo_push_mesh(struct bContext *C, const char *name);
-
 bool EDBM_vert_color_check(struct BMEditMesh *em);
 
 void EDBM_mesh_hide(struct BMEditMesh *em, bool swap);
@@ -115,7 +113,8 @@ void                 BM_uv_element_map_free(struct UvElementMap *vmap);
 struct UvElement    *BM_uv_element_get(struct UvElementMap *map, struct BMFace *efa, struct BMLoop *l);
 
 bool           EDBM_uv_check(struct BMEditMesh *em);
-struct BMFace *EDBM_uv_active_face_get(struct BMEditMesh *em, const bool sloppy, const bool selected);
+struct BMFace *EDBM_uv_active_face_get(
+        struct BMEditMesh *em, const bool sloppy, const bool selected);
 
 void              BM_uv_vert_map_free(struct UvVertMap *vmap);
 struct UvMapVert *BM_uv_vert_map_at_index(struct UvVertMap *vmap, unsigned int v);
@@ -129,6 +128,9 @@ void EDBM_flag_disable_all(struct BMEditMesh *em, const char hflag);
 bool BMBVH_EdgeVisible(struct BMBVHTree *tree, struct BMEdge *e,
                        const struct Depsgraph *depsgraph,
                        struct ARegion *ar, struct View3D *v3d, struct Object *obedit);
+
+/* editmesh_undo.c */
+void ED_mesh_undosys_type(struct UndoType *ut);
 
 /* editmesh_select.c */
 void EDBM_select_mirrored(
@@ -219,12 +221,14 @@ typedef struct MirrTopoStore_t {
 	intptr_t *index_lookup;
 	int prev_vert_tot;
 	int prev_edge_tot;
-	int prev_ob_mode;
+	bool prev_is_editmode;
 } MirrTopoStore_t;
 
-bool ED_mesh_mirrtopo_recalc_check(struct Mesh *me, struct DerivedMesh *dm, const int ob_mode, MirrTopoStore_t *mesh_topo_store);
-void ED_mesh_mirrtopo_init(struct Mesh *me, struct DerivedMesh *dm, const int ob_mode, MirrTopoStore_t *mesh_topo_store,
-                           const bool skip_em_vert_array_init);
+bool ED_mesh_mirrtopo_recalc_check(
+        struct Mesh *me, struct DerivedMesh *dm, MirrTopoStore_t *mesh_topo_store);
+void ED_mesh_mirrtopo_init(
+        struct Mesh *me, struct DerivedMesh *dm, MirrTopoStore_t *mesh_topo_store,
+        const bool skip_em_vert_array_init);
 void ED_mesh_mirrtopo_free(MirrTopoStore_t *mesh_topo_store);
 
 

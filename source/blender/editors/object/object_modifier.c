@@ -40,7 +40,7 @@
 #include "DNA_key_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
 
 #include "BLI_bitmap.h"
@@ -524,12 +524,9 @@ int ED_object_modifier_convert(ReportList *UNUSED(reports), Main *bmain, Scene *
 	return 1;
 }
 
-static int modifier_apply_shape(ReportList *reports, const bContext *C, Scene *scene, Object *ob, ModifierData *md)
+static int modifier_apply_shape(ReportList *reports, const EvaluationContext *eval_ctx, Scene *scene, Object *ob, ModifierData *md)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	md->scene = scene;
 
@@ -560,7 +557,7 @@ static int modifier_apply_shape(ReportList *reports, const bContext *C, Scene *s
 			return 0;
 		}
 		
-		dm = mesh_create_derived_for_modifier(&eval_ctx, scene, ob, md, 0);
+		dm = mesh_create_derived_for_modifier(eval_ctx, scene, ob, md, 0);
 		if (!dm) {
 			BKE_report(reports, RPT_ERROR, "Modifier is disabled or returned error, skipping apply");
 			return 0;
@@ -587,12 +584,9 @@ static int modifier_apply_shape(ReportList *reports, const bContext *C, Scene *s
 	return 1;
 }
 
-static int modifier_apply_obdata(ReportList *reports, const bContext *C, Scene *scene, Object *ob, ModifierData *md)
+static int modifier_apply_obdata(ReportList *reports, const EvaluationContext *eval_ctx, Scene *scene, Object *ob, ModifierData *md)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	md->scene = scene;
 
@@ -616,13 +610,13 @@ static int modifier_apply_obdata(ReportList *reports, const bContext *C, Scene *
 			multires_force_update(ob);
 
 		if (mmd && mmd->totlvl && mti->type == eModifierTypeType_OnlyDeform) {
-			if (!multiresModifier_reshapeFromDeformMod(&eval_ctx, scene, mmd, ob, md)) {
+			if (!multiresModifier_reshapeFromDeformMod(eval_ctx, scene, mmd, ob, md)) {
 				BKE_report(reports, RPT_ERROR, "Multires modifier returned error, skipping apply");
 				return 0;
 			}
 		}
 		else {
-			dm = mesh_create_derived_for_modifier(&eval_ctx, scene, ob, md, 1);
+			dm = mesh_create_derived_for_modifier(eval_ctx, scene, ob, md, 1);
 			if (!dm) {
 				BKE_report(reports, RPT_ERROR, "Modifier returned error, skipping apply");
 				return 0;
@@ -648,7 +642,7 @@ static int modifier_apply_obdata(ReportList *reports, const bContext *C, Scene *
 		BKE_report(reports, RPT_INFO, "Applied modifier only changed CV points, not tessellated/bevel vertices");
 
 		vertexCos = BKE_curve_nurbs_vertexCos_get(&cu->nurb, &numVerts);
-		mti->deformVerts(md, &eval_ctx, ob, NULL, vertexCos, numVerts, 0);
+		mti->deformVerts(md, eval_ctx, ob, NULL, vertexCos, numVerts, 0);
 		BK_curve_nurbs_vertexCos_apply(&cu->nurb, vertexCos);
 
 		MEM_freeN(vertexCos);
@@ -670,18 +664,20 @@ static int modifier_apply_obdata(ReportList *reports, const bContext *C, Scene *
 			if (psys->part->type != PART_HAIR)
 				continue;
 
-			psys_apply_hair_lattice(&eval_ctx, scene, ob, psys);
+			psys_apply_hair_lattice(eval_ctx, scene, ob, psys);
 		}
 	}
 
 	return 1;
 }
 
-int ED_object_modifier_apply(ReportList *reports, const bContext *C, Scene *scene, Object *ob, ModifierData *md, int mode)
+int ED_object_modifier_apply(
+        ReportList *reports, const EvaluationContext *eval_ctx,
+        Scene *scene, Object *ob, ModifierData *md, int mode)
 {
 	int prev_mode;
 
-	if (scene->obedit) {
+	if (BKE_object_is_in_editmode(ob)) {
 		BKE_report(reports, RPT_ERROR, "Modifiers cannot be applied in edit mode");
 		return 0;
 	}
@@ -705,13 +701,13 @@ int ED_object_modifier_apply(ReportList *reports, const bContext *C, Scene *scen
 	md->mode |= eModifierMode_Realtime;
 
 	if (mode == MODIFIER_APPLY_SHAPE) {
-		if (!modifier_apply_shape(reports, C, scene, ob, md)) {
+		if (!modifier_apply_shape(reports, eval_ctx, scene, ob, md)) {
 			md->mode = prev_mode;
 			return 0;
 		}
 	}
 	else {
-		if (!modifier_apply_obdata(reports, C, scene, ob, md)) {
+		if (!modifier_apply_obdata(reports, eval_ctx, scene, ob, md)) {
 			md->mode = prev_mode;
 			return 0;
 		}
@@ -895,11 +891,13 @@ static int modifier_remove_exec(bContext *C, wmOperator *op)
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 
 	/* if cloth/softbody was removed, particle mode could be cleared */
-	if (mode_orig & OB_MODE_PARTICLE_EDIT)
-		if ((ob->mode & OB_MODE_PARTICLE_EDIT) == 0)
-			if (view_layer->basact && view_layer->basact->object == ob)
+	if (mode_orig & OB_MODE_PARTICLE_EDIT) {
+		if ((ob->mode & OB_MODE_PARTICLE_EDIT) == 0) {
+			if (ob == OBACT(view_layer)) {
 				WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, NULL);
-	
+			}
+		}
+	}
 	return OPERATOR_FINISHED;
 }
 
@@ -1013,7 +1011,10 @@ static int modifier_apply_exec(bContext *C, wmOperator *op)
 	ModifierData *md = edit_modifier_property_get(op, ob, 0);
 	int apply_as = RNA_enum_get(op->ptr, "apply_as");
 
-	if (!md || !ED_object_modifier_apply(op->reports, C, scene, ob, md, apply_as)) {
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
+
+	if (!md || !ED_object_modifier_apply(op->reports, &eval_ctx, scene, ob, md, apply_as)) {
 		return OPERATOR_CANCELLED;
 	}
 
@@ -1240,10 +1241,7 @@ static int multires_reshape_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = ED_object_active_context(C), *secondob = NULL;
 	Scene *scene = CTX_data_scene(C);
-	EvaluationContext eval_ctx;
 	MultiresModifierData *mmd = (MultiresModifierData *)edit_modifier_property_get(op, ob, eModifierType_Multires);
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (!mmd)
 		return OPERATOR_CANCELLED;
@@ -1266,6 +1264,9 @@ static int multires_reshape_exec(bContext *C, wmOperator *op)
 		BKE_report(op->reports, RPT_ERROR, "Second selected mesh object required to copy shape from");
 		return OPERATOR_CANCELLED;
 	}
+
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (!multiresModifier_reshape(&eval_ctx, scene, mmd, ob, secondob)) {
 		BKE_report(op->reports, RPT_ERROR, "Objects do not have the same number of vertices");
@@ -1700,10 +1701,8 @@ static void skin_armature_bone_create(Object *skin_ob,
 	}
 }
 
-static Object *modifier_skin_armature_create(const bContext *C, Scene *scene, ViewLayer *view_layer, Object *skin_ob)
+static Object *modifier_skin_armature_create(const EvaluationContext *eval_ctx, Main *bmain, Scene *scene, Object *skin_ob)
 {
-	Main *bmain = CTX_data_main(C);
-	EvaluationContext eval_ctx;
 	BLI_bitmap *edges_visited;
 	DerivedMesh *deform_dm;
 	MVert *mvert;
@@ -1715,9 +1714,7 @@ static Object *modifier_skin_armature_create(const bContext *C, Scene *scene, Vi
 	int *emap_mem;
 	int v;
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	deform_dm = mesh_get_derived_deform(&eval_ctx, scene, skin_ob, CD_MASK_BAREMESH);
+	deform_dm = mesh_get_derived_deform(eval_ctx, scene, skin_ob, CD_MASK_BAREMESH);
 	mvert = deform_dm->getVertArray(deform_dm);
 
 	/* add vertex weights to original mesh */
@@ -1727,7 +1724,7 @@ static Object *modifier_skin_armature_create(const bContext *C, Scene *scene, Vi
 	                     NULL,
 	                     me->totvert);
 	
-	arm_ob = BKE_object_add(bmain, scene, view_layer, OB_ARMATURE, NULL);
+	arm_ob = BKE_object_add(bmain, scene, eval_ctx->view_layer, OB_ARMATURE, NULL);
 	BKE_object_transform_copy(arm_ob, skin_ob);
 	arm = arm_ob->data;
 	arm->layer = 1;
@@ -1786,7 +1783,6 @@ static int skin_armature_create_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob = CTX_data_active_object(C), *arm_ob;
 	Mesh *me = ob->data;
 	ModifierData *skin_md;
@@ -1797,8 +1793,11 @@ static int skin_armature_create_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
+	EvaluationContext eval_ctx;
+	CTX_data_eval_ctx(C, &eval_ctx);
+
 	/* create new armature */
-	arm_ob = modifier_skin_armature_create(C, scene, view_layer, ob);
+	arm_ob = modifier_skin_armature_create(&eval_ctx, bmain, scene, ob);
 
 	/* add a modifier to connect the new armature to the mesh */
 	arm_md = (ArmatureModifierData *)modifier_new(eModifierType_Armature);

@@ -54,7 +54,7 @@
 
 #include "BKE_animsys.h"
 #include "BKE_armature.h"
-#include "BKE_bvhutils.h"   /* bvh tree	*/
+#include "BKE_bvhutils.h"   /* bvh tree */
 #include "BKE_colorband.h"
 #include "BKE_cdderivedmesh.h"
 #include "BKE_constraint.h"
@@ -3348,7 +3348,7 @@ typedef struct BrushMaterials {
 /* Initialize materials for brush object:
  *  Calculates inverse matrices for linked objects, updates
  *  volume caches etc. */
-static void dynamicPaint_updateBrushMaterials(Object *brushOb, Material *ui_mat, Scene *scene, BrushMaterials *bMats)
+static void dynamicPaint_updateBrushMaterials(const EvaluationContext *eval_ctx, Object *brushOb, Material *ui_mat, Scene *scene, BrushMaterials *bMats)
 {
 	/* Calculate inverse transformation matrix
 	 *  for this object */
@@ -3363,13 +3363,13 @@ static void dynamicPaint_updateBrushMaterials(Object *brushOb, Material *ui_mat,
 		if (tot) {
 			bMats->ob_mats = MEM_callocN(sizeof(Material *) * (tot), "BrushMaterials");
 			for (i = 0; i < tot; i++) {
-				bMats->ob_mats[i] = RE_sample_material_init(give_current_material(brushOb, (i + 1)), scene);
+				bMats->ob_mats[i] = RE_sample_material_init(eval_ctx, give_current_material(brushOb, (i + 1)), scene);
 			}
 		}
 		bMats->tot = tot;
 	}
 	else {
-		bMats->mat = RE_sample_material_init(ui_mat, scene);
+		bMats->mat = RE_sample_material_init(eval_ctx, ui_mat, scene);
 	}
 }
 
@@ -4516,7 +4516,7 @@ static int dynamicPaint_paintParticles(DynamicPaintSurface *surface,
 	 */
 	tree = BLI_kdtree_new(psys->totpart);
 
-	/* loop through particles and insert valid ones	to the tree	*/
+	/* loop through particles and insert valid ones to the tree */
 	p = 0;
 	for (ParticleData *pa = psys->particles; p < psys->totpart; p++, pa++) {
 		/* Proceed only if particle is active	*/
@@ -4555,7 +4555,7 @@ static int dynamicPaint_paintParticles(DynamicPaintSurface *surface,
 	}
 
 	/* begin thread safe malloc */
-	BLI_begin_threaded_malloc();
+	BLI_threaded_malloc_begin();
 
 	/* only continue if particle bb is close enough to canvas bb */
 	if (boundsIntersectDist(&grid->grid_bounds, &part_bb, range)) {
@@ -4590,7 +4590,7 @@ static int dynamicPaint_paintParticles(DynamicPaintSurface *surface,
 			                        &settings);
 		}
 	}
-	BLI_end_threaded_malloc();
+	BLI_threaded_malloc_end();
 	BLI_kdtree_free(tree);
 
 	return 1;
@@ -6087,7 +6087,7 @@ static int dynamicPaint_doStep(const struct EvaluationContext *eval_ctx, Scene *
 					}
 					/* Prepare materials if required	*/
 					if (brush_usesMaterial(brush, scene))
-						dynamicPaint_updateBrushMaterials(brushObj, brush->mat, scene, &bMats);
+						dynamicPaint_updateBrushMaterials(eval_ctx, brushObj, brush->mat, scene, &bMats);
 
 					/* Apply brush on the surface depending on it's collision type */
 						if (brush->psys && brush->psys->part &&

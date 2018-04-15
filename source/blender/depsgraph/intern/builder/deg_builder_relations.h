@@ -43,6 +43,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_string.h"
 
+#include "intern/builder/deg_builder_map.h"
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_component.h"
 #include "intern/nodes/deg_node_operation.h"
@@ -67,13 +68,13 @@ struct bNodeTree;
 struct Object;
 struct bPoseChannel;
 struct bConstraint;
+struct ParticleSystem;
+struct ParticleSettings;
 struct Scene;
 struct ViewLayer;
 struct Tex;
 struct World;
 struct EffectorWeights;
-struct ParticleSystem;
-struct ParticleSettings;
 struct Groom;
 
 struct PropertyRNA;
@@ -206,7 +207,14 @@ struct DepsgraphRelationBuilder
 	                       RootPChanMap *root_map);
 	void build_animdata(ID *id);
 	void build_animdata_curves(ID *id);
-	void build_animdata_curves_targets(ID *id);
+	void build_animdata_curves_targets(ID *id,
+	                                   ComponentKey &adt_key,
+	                                   OperationDepsNode *operation_from,
+	                                   ListBase *curves);
+	void build_animdata_nlastrip_targets(ID *id,
+	                                     ComponentKey &adt_key,
+	                                     OperationDepsNode *operation_from,
+	                                     ListBase *strips);
 	void build_animdata_drivers(ID *id);
 	void build_driver(ID *id, FCurve *fcurve);
 	void build_driver_data(ID *id, FCurve *fcurve);
@@ -215,6 +223,9 @@ struct DepsgraphRelationBuilder
 	void build_rigidbody(Scene *scene);
 	void build_particles(Object *object);
 	void build_particle_settings(ParticleSettings *part);
+	void build_particles_visualization_object(Object *object,
+	                                          ParticleSystem *psys,
+	                                          Object *draw_object);
 	void build_cloth(Object *object, ModifierData *md);
 	void build_ik_pose(Object *object,
 	                   bPoseChannel *pchan,
@@ -253,20 +264,6 @@ struct DepsgraphRelationBuilder
 	                              ParticleSystem *psys,
 	                              EffectorWeights *eff,
 	                              bool add_absorption, const char *name);
-
-	struct LayerCollectionState {
-		int index;
-		OperationKey init_key;
-		OperationKey done_key;
-		OperationKey prev_key;
-	};
-	void build_layer_collection(ID *owner_id,
-	                            LayerCollection *layer_collection,
-	                            LayerCollectionState *state);
-	void build_layer_collections(ID *owner_id,
-	                             ListBase *layer_collections,
-	                             LayerCollectionState *state);
-	void build_view_layer_collections(struct ID *owner_id, ViewLayer *view_layer);
 
 	void build_copy_on_write_relations();
 	void build_copy_on_write_relations(IDDepsNode *id_node);
@@ -324,12 +321,28 @@ protected:
 	                                 const KeyTo& key_to);
 
 private:
+	struct BuilderWalkUserData {
+		DepsgraphRelationBuilder *builder;
+	};
+
+	static void modifier_walk(void *user_data,
+	                          struct Object *object,
+	                          struct ID **idpoin,
+	                          int cb_flag);
+
+	static void constraint_walk(bConstraint *con,
+	                            ID **idpoin,
+	                            bool is_reference,
+	                            void *user_data);
+
 	/* State which never changes, same for the whole builder time. */
 	Main *bmain_;
 	Depsgraph *graph_;
 
 	/* State which demotes currently built entities. */
 	Scene *scene_;
+
+	BuilderMap built_map_;
 };
 
 struct DepsNodeHandle

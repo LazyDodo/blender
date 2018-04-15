@@ -37,6 +37,9 @@ struct DerivedMesh;
 
 void DRW_shape_cache_free(void);
 
+/* 3D cursor */
+struct Gwn_Batch *DRW_cache_cursor_get(void);
+
 /* Common Shapes */
 struct Gwn_Batch *DRW_cache_fullscreen_quad_get(void);
 struct Gwn_Batch *DRW_cache_quad_get(void);
@@ -171,7 +174,7 @@ struct Gwn_Batch *DRW_cache_groom_vert_overlay_get(struct Object *ob, int mode);
 
 /* Particles */
 struct Gwn_Batch *DRW_cache_particles_get_hair(struct ParticleSystem *psys, struct ModifierData *md);
-struct Gwn_Batch *DRW_cache_particles_get_dots(struct ParticleSystem *psys);
+struct Gwn_Batch *DRW_cache_particles_get_dots(struct Object *object, struct ParticleSystem *psys);
 struct Gwn_Batch *DRW_cache_particles_get_prim(int type);
 
 /* Hair */

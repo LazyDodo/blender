@@ -195,7 +195,7 @@ static void EDIT_GROOM_cache_populate(void *vedata, Object *ob)
 	EDIT_GROOM_StorageList *stl = ((EDIT_GROOM_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	Object *obedit = scene->obedit;
+	Object *obedit = draw_ctx->object_edit;
 	GroomEditSettings *editsettings = &scene->toolsettings->groom_edit_settings;
 
 	UNUSED_VARS(psl);

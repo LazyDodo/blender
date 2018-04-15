@@ -52,6 +52,8 @@
 
 #include "BLT_translation.h"
 
+#include "BLF_api.h"
+
 #include "IMB_imbuf_types.h"
 
 #include "DNA_userdef_types.h"
@@ -375,7 +377,7 @@ static void file_draw_preview(
 	xco = sx + (int)dx;
 	yco = sy - layout->prv_h + (int)dy;
 
-	glBlendFunc(GL_SRC_ALPHA,  GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	/* shadow */
 	if (use_dropshadow) {
@@ -607,6 +609,8 @@ void file_draw_list(const bContext *C, ARegion *ar)
 		}
 	}
 
+	BLF_batch_draw_begin();
+
 	for (i = offset; (i < numfiles) && (i < offset + numfiles_layout); i++) {
 		unsigned int file_selflag;
 		char path[FILE_MAX_LIBEXTRA];
@@ -626,7 +630,7 @@ void file_draw_list(const bContext *C, ARegion *ar)
 				int colorid = (file_selflag & FILE_SEL_SELECTED) ? TH_HILITE : TH_BACK;
 				int shade = (params->highlight_file == i) || (file_selflag & FILE_SEL_HIGHLIGHTED) ? 35 : 0;
 
-				BLI_assert(i > 0 || FILENAME_IS_CURRPAR(file->relpath));
+				BLI_assert(i == 0 || !FILENAME_IS_CURRPAR(file->relpath));
 
 				draw_tile(sx, sy - 1, layout->tile_w + 4, sfile->layout->tile_h + layout->tile_border_y, colorid, shade);
 			}
@@ -735,6 +739,8 @@ void file_draw_list(const bContext *C, ARegion *ar)
 			sx += (int)layout->column_widths[COLUMN_SIZE] + column_space;
 		}
 	}
+
+	BLF_batch_draw_end();
 
 	UI_block_end(C, block);
 	UI_block_draw(C, block);

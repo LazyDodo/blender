@@ -46,7 +46,6 @@
 
 #include "PIL_time.h"
 
-#include "BKE_main.h"
 #include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
@@ -1862,7 +1861,7 @@ static void gpencil_draw_eraser(bContext *UNUSED(C), int x, int y, void *p_ptr)
 
 		glEnable(GL_LINE_SMOOTH);
 		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 		immUniformColor4ub(255, 100, 100, 20);
 		imm_draw_circle_fill_2d(shdr_pos, x, y, p->radius, 40);

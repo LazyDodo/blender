@@ -53,12 +53,14 @@
 #include "NOD_texture.h"
 #include "node_texture_util.h"
 
+#include "DEG_depsgraph.h"
+
 #include "RNA_access.h"
 
 #include "RE_shader_ext.h"
 
-
-static void texture_get_from_context(const bContext *C, bNodeTreeType *UNUSED(treetype), bNodeTree **r_ntree, ID **r_id, ID **r_from)
+static void texture_get_from_context(
+        const bContext *C, bNodeTreeType *UNUSED(treetype), bNodeTree **r_ntree, ID **r_id, ID **r_from)
 {
 	SpaceNode *snode = CTX_wm_space_node(C);
 	Scene *scene = CTX_data_scene(C);
@@ -346,10 +348,10 @@ int ntreeTexExecTree(
 	
 	/* ensure execdata is only initialized once */
 	if (!exec) {
-		BLI_lock_thread(LOCK_NODES);
+		BLI_thread_lock(LOCK_NODES);
 		if (!nodes->execdata)
 			ntreeTexBeginExecTree(nodes);
-		BLI_unlock_thread(LOCK_NODES);
+		BLI_thread_unlock(LOCK_NODES);
 
 		exec = nodes->execdata;
 	}

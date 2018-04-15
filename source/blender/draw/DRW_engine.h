@@ -26,6 +26,8 @@
 #ifndef __DRW_ENGINE_H__
 #define __DRW_ENGINE_H__
 
+#include "BLI_sys_types.h"  /* for bool */
+
 struct ARegion;
 struct CollectionEngineSettings;
 struct Depsgraph;
@@ -44,16 +46,20 @@ struct ViewContext;
 struct ViewportEngineData;
 struct View3D;
 struct rcti;
+struct GPUMaterial;
 struct GPUOffScreen;
 struct GPUViewport;
+struct RenderEngine;
 struct RenderEngineType;
 struct WorkSpace;
 
-#include "BLI_sys_types.h"  /* for bool */
+#include "DNA_object_enums.h"
 
 /* Buffer and textures used by the viewport by default */
 typedef struct DefaultFramebufferList {
 	struct GPUFrameBuffer *default_fb;
+	struct GPUFrameBuffer *color_only_fb;
+	struct GPUFrameBuffer *depth_only_fb;
 	struct GPUFrameBuffer *multisample_fb;
 } DefaultFramebufferList;
 
@@ -67,6 +73,7 @@ typedef struct DefaultTextureList {
 void DRW_engines_register(void);
 void DRW_engines_free(void);
 
+bool DRW_engine_render_support(struct DrawEngineType *draw_engine_type);
 void DRW_engine_register(struct DrawEngineType *draw_engine_type);
 void DRW_engine_viewport_data_size_get(
         const void *engine_type,
@@ -83,6 +90,11 @@ typedef struct DRWUpdateContext {
 } DRWUpdateContext;
 void DRW_notify_view_update(const DRWUpdateContext *update_ctx);
 void DRW_notify_id_update(const DRWUpdateContext *update_ctx, struct ID *id);
+
+
+typedef enum eDRWSelectStage { DRW_SELECT_PASS_PRE = 1, DRW_SELECT_PASS_POST, } eDRWSelectStage;
+typedef bool (*DRW_SelectPassFn)(
+        eDRWSelectStage stage, void *user_data);
 
 void DRW_draw_view(const struct bContext *C);
 
@@ -104,7 +116,8 @@ void DRW_draw_render_loop_offscreen(
 void DRW_draw_select_loop(
         struct Depsgraph *depsgraph,
         struct ARegion *ar, struct View3D *v3d,
-        bool use_obedit_skip, bool use_nearest, const struct rcti *rect);
+        bool use_obedit_skip, bool use_nearest, const struct rcti *rect,
+        DRW_SelectPassFn select_pass_fn, void *select_pass_user_data);
 void DRW_draw_depth_loop(
         struct Depsgraph *depsgraph,
         struct ARegion *ar, struct View3D *v3d);
@@ -120,5 +133,12 @@ void EDIT_MESH_collection_settings_create(struct IDProperty *properties);
 void EDIT_ARMATURE_collection_settings_create(struct IDProperty *properties);
 void PAINT_WEIGHT_collection_settings_create(struct IDProperty *properties);
 void PAINT_VERTEX_collection_settings_create(struct IDProperty *properties);
+
+void DRW_opengl_context_create(void);
+void DRW_opengl_context_destroy(void);
+void DRW_opengl_context_enable(void);
+void DRW_opengl_context_disable(void);
+
+void DRW_deferred_shader_remove(struct GPUMaterial *mat);
 
 #endif /* __DRW_ENGINE_H__ */

@@ -1469,11 +1469,11 @@ static void rna_Scene_use_nodes_update(bContext *C, PointerRNA *ptr)
 static void rna_Physics_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Scene *scene = (Scene *)ptr->id.data;
-	FOREACH_SCENE_OBJECT(scene, ob)
+	FOREACH_SCENE_OBJECT_BEGIN(scene, ob)
 	{
 		BKE_ptcache_object_reset(scene, ob, PTCACHE_RESET_DEPSGRAPH);
 	}
-	FOREACH_SCENE_OBJECT_END
+	FOREACH_SCENE_OBJECT_END;
 }
 
 static void rna_Scene_editmesh_select_mode_set(PointerRNA *ptr, const int *value)
@@ -1507,8 +1507,10 @@ static void rna_Scene_editmesh_select_mode_update(bContext *C, PointerRNA *UNUSE
 			me = NULL;
 	}
 
-	WM_main_add_notifier(NC_GEOM | ND_SELECT, me);
-	WM_main_add_notifier(NC_SCENE | ND_TOOLSETTINGS, NULL);
+	if (me) {
+		DEG_id_tag_update(&me->id, DEG_TAG_SELECT_UPDATE);
+		WM_main_add_notifier(NC_SCENE | ND_TOOLSETTINGS, NULL);
+	}
 }
 
 static void object_simplify_update(Object *ob)
@@ -1545,11 +1547,11 @@ static void rna_Scene_use_simplify_update(Main *UNUSED(bmain), Scene *UNUSED(sce
 	Scene *sce_iter;
 	Base *base;
 
-	FOREACH_SCENE_OBJECT(sce, ob)
+	FOREACH_SCENE_OBJECT_BEGIN(sce, ob)
 	{
 		object_simplify_update(ob);
 	}
-	FOREACH_SCENE_OBJECT_END
+	FOREACH_SCENE_OBJECT_END;
 
 	for (SETLOOPER_SET_ONLY(sce, sce_iter, base)) {
 		object_simplify_update(base->object);
@@ -1922,13 +1924,6 @@ char *rna_GPUDOF_path(PointerRNA *ptr)
 	}
 
 	return BLI_strdup("");
-}
-
-static void rna_GPUFXSettings_fx_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
-{
-	GPUFXSettings *fx_settings = ptr->data;
-
-	BKE_screen_gpu_fx_validate(fx_settings);
 }
 
 static void rna_GPUDOFSettings_blades_set(PointerRNA *ptr, const int value)
@@ -4842,7 +4837,7 @@ static void rna_def_gpu_fx(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "fx_flag", GPU_FX_FLAG_DOF);
 	RNA_def_property_ui_text(prop, "Depth Of Field",
 	                         "Use depth of field on viewport using the values from active camera");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPUFXSettings_fx_update");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 
 	prop = RNA_def_property(srna, "ssao", PROP_POINTER, PROP_NONE);
@@ -4853,7 +4848,7 @@ static void rna_def_gpu_fx(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_ssao", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "fx_flag", GPU_FX_FLAG_SSAO);
 	RNA_def_property_ui_text(prop, "SSAO", "Use screen space ambient occlusion of field on viewport");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPUFXSettings_fx_update");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 }
 
 static void rna_def_view_layers(BlenderRNA *brna, PropertyRNA *cprop)
@@ -5232,8 +5227,6 @@ static void rna_def_scene_ffmpeg_settings(BlenderRNA *brna)
 		{FFMPEG_AVI, "AVI", 0, "AVI", ""},
 		{FFMPEG_MOV, "QUICKTIME", 0, "Quicktime", ""},
 		{FFMPEG_DV, "DV", 0, "DV", ""},
-//		{FFMPEG_H264, "H264", 0, "H.264", ""},  not a container
-//		{FFMPEG_XVID, "XVID", 0, "Xvid", ""},   not a container
 		{FFMPEG_OGG, "OGG", 0, "Ogg", ""},
 		{FFMPEG_MKV, "MKV", 0, "Matroska", ""},
 		{FFMPEG_FLV, "FLASH", 0, "Flash", ""},
@@ -5241,38 +5234,37 @@ static void rna_def_scene_ffmpeg_settings(BlenderRNA *brna)
 	};
 
 	static const EnumPropertyItem ffmpeg_codec_items[] = {
-		{AV_CODEC_ID_NONE, "NONE", 0, "None", ""},
+		{AV_CODEC_ID_NONE, "NONE", 0, "No Video", "Disables video output, for audio-only renders"},
+		{AV_CODEC_ID_DNXHD, "DNXHD", 0, "DNxHD", ""},
+		{AV_CODEC_ID_DVVIDEO, "DV", 0, "DV", ""},
+		{AV_CODEC_ID_FFV1, "FFV1", 0, "FFmpeg video codec #1", ""},
+		{AV_CODEC_ID_FLV1, "FLASH", 0, "Flash Video", ""},
+		{AV_CODEC_ID_H264, "H264", 0, "H.264", ""},
+		{AV_CODEC_ID_HUFFYUV, "HUFFYUV", 0, "HuffYUV", ""},
 		{AV_CODEC_ID_MPEG1VIDEO, "MPEG1", 0, "MPEG-1", ""},
 		{AV_CODEC_ID_MPEG2VIDEO, "MPEG2", 0, "MPEG-2", ""},
-		{AV_CODEC_ID_MPEG4, "MPEG4", 0, "MPEG-4(divx)", ""},
-		{AV_CODEC_ID_HUFFYUV, "HUFFYUV", 0, "HuffYUV", ""},
-		{AV_CODEC_ID_DVVIDEO, "DV", 0, "DV", ""},
-		{AV_CODEC_ID_H264, "H264", 0, "H.264", ""},
-		{AV_CODEC_ID_THEORA, "THEORA", 0, "Theora", ""},
-		{AV_CODEC_ID_FLV1, "FLASH", 0, "Flash Video", ""},
-		{AV_CODEC_ID_FFV1, "FFV1", 0, "FFmpeg video codec #1", ""},
-		{AV_CODEC_ID_QTRLE, "QTRLE", 0, "QT rle / QT Animation", ""},
-		{AV_CODEC_ID_DNXHD, "DNXHD", 0, "DNxHD", ""},
+		{AV_CODEC_ID_MPEG4, "MPEG4", 0, "MPEG-4 (divx)", ""},
 		{AV_CODEC_ID_PNG, "PNG", 0, "PNG", ""},
+		{AV_CODEC_ID_QTRLE, "QTRLE", 0, "QT rle / QT Animation", ""},
+		{AV_CODEC_ID_THEORA, "THEORA", 0, "Theora", ""},
+		{AV_CODEC_ID_VP9, "WEBM", 0, "WEBM / VP9", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
+	/* Recommendations come from the FFmpeg wiki, https://trac.ffmpeg.org/wiki/Encode/VP9.
+	 * The label for BEST has been changed to "Slowest" so that it fits the "Encoding Speed"
+	 * property label in the UI. */
 	static const EnumPropertyItem ffmpeg_preset_items[] = {
-		{FFM_PRESET_ULTRAFAST, "ULTRAFAST", 0, "Ultra fast; biggest file", ""},
-		{FFM_PRESET_SUPERFAST, "SUPERFAST", 0, "Super fast", ""},
-		{FFM_PRESET_VERYFAST, "VERYFAST", 0, "Very fast", ""},
-		{FFM_PRESET_FASTER, "FASTER", 0, "Faster", ""},
-		{FFM_PRESET_FAST, "FAST", 0, "Fast", ""},
-		{FFM_PRESET_MEDIUM, "MEDIUM", 0, "Medium speed", ""},
-		{FFM_PRESET_SLOW, "SLOW", 0, "Slow", ""},
-		{FFM_PRESET_SLOWER, "SLOWER", 0, "Slower", ""},
-		{FFM_PRESET_VERYSLOW, "VERYSLOW", 0, "Very slow; smallest file", ""},
+		{FFM_PRESET_BEST, "BEST", 0, "Slowest",
+		 "Recommended if you have lots of time and want the best compression efficiency"},
+		{FFM_PRESET_GOOD, "GOOD", 0, "Good", "The default and recommended for most applications"},
+		{FFM_PRESET_REALTIME, "REALTIME", 0, "Realtime", "Recommended for fast encoding"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
 	static const EnumPropertyItem ffmpeg_crf_items[] = {
-		{FFM_CRF_NONE, "NONE", 0, "None; use custom bitrate",
-		 "Use constant bit rate, rather than constant output quality"},
+		{FFM_CRF_NONE, "NONE", 0, "Constant Bitrate",
+		 "Configure constant bit rate, rather than constant output quality"},
 		{FFM_CRF_LOSSLESS, "LOSSLESS", 0, "Lossless", ""},
 		{FFM_CRF_PERC_LOSSLESS, "PERC_LOSSLESS", 0, "Perceptually lossless", ""},
 		{FFM_CRF_HIGH, "HIGH", 0, "High quality", ""},
@@ -5284,14 +5276,14 @@ static void rna_def_scene_ffmpeg_settings(BlenderRNA *brna)
 	};
 
 	static const EnumPropertyItem ffmpeg_audio_codec_items[] = {
-		{AV_CODEC_ID_NONE, "NONE", 0, "None", ""},
+		{AV_CODEC_ID_NONE, "NONE", 0, "No Audio", "Disables audio output, for video-only renders"},
+		{AV_CODEC_ID_AAC, "AAC", 0, "AAC", ""},
+		{AV_CODEC_ID_AC3, "AC3", 0, "AC3", ""},
+		{AV_CODEC_ID_FLAC, "FLAC", 0, "FLAC", ""},
 		{AV_CODEC_ID_MP2, "MP2", 0, "MP2", ""},
 		{AV_CODEC_ID_MP3, "MP3", 0, "MP3", ""},
-		{AV_CODEC_ID_AC3, "AC3", 0, "AC3", ""},
-		{AV_CODEC_ID_AAC, "AAC", 0, "AAC", ""},
-		{AV_CODEC_ID_VORBIS, "VORBIS", 0, "Vorbis", ""},
-		{AV_CODEC_ID_FLAC, "FLAC", 0, "FLAC", ""},
 		{AV_CODEC_ID_PCM_S16LE, "PCM", 0, "PCM", ""},
+		{AV_CODEC_ID_VORBIS, "VORBIS", 0, "Vorbis", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 #endif
@@ -5323,7 +5315,7 @@ static void rna_def_scene_ffmpeg_settings(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_enum_items(prop, ffmpeg_codec_items);
 	RNA_def_property_enum_default(prop, AV_CODEC_ID_H264);
-	RNA_def_property_ui_text(prop, "Codec", "FFmpeg codec to use");
+	RNA_def_property_ui_text(prop, "Video Codec", "FFmpeg codec to use for video output");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_FFmpegSettings_codec_settings_update");
 
 	prop = RNA_def_property(srna, "video_bitrate", PROP_INT, PROP_NONE);
@@ -5402,7 +5394,7 @@ static void rna_def_scene_ffmpeg_settings(BlenderRNA *brna)
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "ffmpeg_preset");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_enum_items(prop, ffmpeg_preset_items);
-	RNA_def_property_enum_default(prop, FFM_PRESET_MEDIUM);
+	RNA_def_property_enum_default(prop, FFM_PRESET_GOOD);
 	RNA_def_property_ui_text(prop, "Encoding speed",
 	                         "Tradeoff between encoding speed and compression ratio");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
@@ -5724,7 +5716,8 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "filter_size", PROP_FLOAT, PROP_PIXEL);
 	RNA_def_property_float_sdna(prop, NULL, "gauss");
-	RNA_def_property_range(prop, 0.5f, 1.5f);
+	RNA_def_property_range(prop, 0.0f, 500.0f);
+	RNA_def_property_ui_range(prop, 0.01f, 10.0f, 1, 2);
 	RNA_def_property_ui_text(prop, "Filter Size", "Width over which the reconstruction filter combines samples");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 	
@@ -6146,7 +6139,7 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "use_stamp_date", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_DATE);
-	RNA_def_property_ui_text(prop, "Stamp Date", "Include the current date in image metadata");
+	RNA_def_property_ui_text(prop, "Stamp Date", "Include the current date in image/video metadata");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 	
 	prop = RNA_def_property(srna, "use_stamp_frame", PROP_BOOLEAN, PROP_NONE);
@@ -6154,6 +6147,11 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Stamp Frame", "Include the frame number in image metadata");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 	
+	prop = RNA_def_property(srna, "use_stamp_frame_range", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_FRAME_RANGE);
+	RNA_def_property_ui_text(prop, "Stamp Frame", "Include the rendered frame range in image/video metadata");
+	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
+
 	prop = RNA_def_property(srna, "use_stamp_camera", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_CAMERA);
 	RNA_def_property_ui_text(prop, "Stamp Camera", "Include the name of the active camera in image metadata");
@@ -6166,12 +6164,12 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "use_stamp_scene", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_SCENE);
-	RNA_def_property_ui_text(prop, "Stamp Scene", "Include the name of the active scene in image metadata");
+	RNA_def_property_ui_text(prop, "Stamp Scene", "Include the name of the active scene in image/video metadata");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 	
 	prop = RNA_def_property(srna, "use_stamp_note", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_NOTE);
-	RNA_def_property_ui_text(prop, "Stamp Note", "Include a custom note in image metadata");
+	RNA_def_property_ui_text(prop, "Stamp Note", "Include a custom note in image/video metadata");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 	
 	prop = RNA_def_property(srna, "use_stamp_marker", PROP_BOOLEAN, PROP_NONE);
@@ -6181,7 +6179,7 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "use_stamp_filename", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_FILENAME);
-	RNA_def_property_ui_text(prop, "Stamp Filename", "Include the .blend filename in image metadata");
+	RNA_def_property_ui_text(prop, "Stamp Filename", "Include the .blend filename in image/video metadata");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 	
 	prop = RNA_def_property(srna, "use_stamp_sequencer_strip", PROP_BOOLEAN, PROP_NONE);

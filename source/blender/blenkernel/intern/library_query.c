@@ -52,7 +52,7 @@
 #include "DNA_movieclip_types.h"
 #include "DNA_mask_types.h"
 #include "DNA_node_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_lightprobe_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
@@ -422,10 +422,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					/* nodetree **are owned by IDs**, treat them as mere sub-data and not real ID! */
 					library_foreach_ID_as_subdata_link((ID **)&scene->nodetree, callback, user_data, flag, &data);
 				}
-				/* DO NOT handle scene->basact here, it's doubling with the loop over whole scene->base later,
-				 * since basact is just a pointer to one of those items. */
-				CALLBACK_INVOKE(scene->obedit, IDWALK_CB_NOP);
-
 				if (scene->ed) {
 					Sequence *seq;
 					SEQP_BEGIN(scene->ed, seq)
@@ -445,13 +441,13 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 
 				CALLBACK_INVOKE(scene->gpd, IDWALK_CB_USER);
 
-				FOREACH_SCENE_COLLECTION(scene, sc)
+				FOREACH_SCENE_COLLECTION_BEGIN(scene, sc)
 				{
 					for (LinkData *link = sc->objects.first; link; link = link->next) {
 						CALLBACK_INVOKE_ID(link->data, IDWALK_CB_USER);
 					}
 				}
-				FOREACH_SCENE_COLLECTION_END
+				FOREACH_SCENE_COLLECTION_END;
 
 				ViewLayer *view_layer;
 				for (view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
@@ -685,6 +681,9 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				}
 				CALLBACK_INVOKE(material->group, IDWALK_CB_USER);
 				CALLBACK_INVOKE(material->edit_image, IDWALK_CB_USER);
+				if (material->texpaintslot != NULL) {
+					CALLBACK_INVOKE(material->texpaintslot->ima, IDWALK_CB_NOP);
+				}
 				break;
 			}
 
@@ -777,7 +776,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			case ID_GR:
 			{
 				Group *group = (Group *) id;
-				FOREACH_GROUP_BASE(group, base)
+				FOREACH_GROUP_BASE_BEGIN(group, base)
 				{
 					CALLBACK_INVOKE(base->object, IDWALK_CB_USER_ONE);
 				}

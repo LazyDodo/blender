@@ -38,6 +38,8 @@
 
 #include "BLI_threads.h"  /* for SpinLock */
 
+#include "DEG_depsgraph.h"
+
 #include "intern/depsgraph_types.h"
 
 struct ID;
@@ -100,7 +102,9 @@ struct Depsgraph {
 	typedef vector<OperationDepsNode *> OperationNodes;
 	typedef vector<IDDepsNode *> IDDepsNodes;
 
-	Depsgraph();
+	Depsgraph(Scene *scene,
+	          ViewLayer *view_layer,
+	          eEvaluationMode mode);
 	~Depsgraph();
 
 	/**
@@ -119,7 +123,7 @@ struct Depsgraph {
 	TimeSourceDepsNode *find_time_source() const;
 
 	IDDepsNode *find_id_node(const ID *id) const;
-	IDDepsNode *add_id_node(ID *id, bool do_tag = true, ID *id_cow_hint = NULL);
+	IDDepsNode *add_id_node(ID *id, ID *id_cow_hint = NULL);
 	void clear_id_nodes();
 
 	/* Add new relationship between two nodes. */
@@ -187,9 +191,13 @@ struct Depsgraph {
 	 */
 	SpinLock lock;
 
-	/* Scene and layer this dependency graph is built for. */
+	/* Scene, layer, mode this dependency graph is built for. */
 	Scene *scene;
 	ViewLayer *view_layer;
+	eEvaluationMode mode;
+
+	/* Time at which dependency graph is being or was last evaluated. */
+	float ctime;
 };
 
 }  // namespace DEG

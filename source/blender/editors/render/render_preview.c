@@ -455,8 +455,17 @@ static Scene *preview_prepare_scene(Main *bmain, Scene *scene, ID *id, int id_ty
 				}
 				else {
 					/* use current scene world to light sphere */
-					if (mat->pr_type == MA_SPHERE_A) {
+					if (mat->pr_type == MA_SPHERE_A && sp->pr_method == PR_BUTS_RENDER) {
+						/* Use current scene world to light sphere. */
 						sce->world = preview_get_localized_world(sp, scene->world);
+					}
+					else if (sce->world) {
+						/* Use a default world color. Using the current
+						 * scene world can be slow if it has big textures. */
+						sce->world->use_nodes = false;
+						sce->world->horr = 0.5f;
+						sce->world->horg = 0.5f;
+						sce->world->horb = 0.5f;
 					}
 				}
 				
@@ -466,10 +475,6 @@ static Scene *preview_prepare_scene(Main *bmain, Scene *scene, ID *id, int id_ty
 					}
 					else {
 						set_preview_layer(view_layer, MA_SPHERE_A);
-
-						/* same as above, use current scene world to light sphere */
-						if (BKE_scene_use_new_shading_nodes(scene))
-							sce->world = preview_get_localized_world(sp, scene->world);
 					}
 				}
 				else {
@@ -569,6 +574,14 @@ static Scene *preview_prepare_scene(Main *bmain, Scene *scene, ID *id, int id_ty
 			}
 			else {
 				set_preview_layer(view_layer, MA_LAMP);
+
+				if (sce->world) {
+					/* Only use lighting from the lamp. */
+					sce->world->use_nodes = false;
+					sce->world->horr = 0.0f;
+					sce->world->horg = 0.0f;
+					sce->world->horb = 0.0f;
+				}
 			}
 				
 			for (Base *base = view_layer->object_bases.first; base; base = base->next) {
@@ -607,7 +620,7 @@ static Scene *preview_prepare_scene(Main *bmain, Scene *scene, ID *id, int id_ty
 		/* TODO(sergey): Use proper flag for tagging here. */
 		DEG_graph_id_tag_update(pr_main, depsgraph, &sce->id, 0);
 		DEG_relations_tag_update(pr_main);
-		BKE_scene_graph_update_tagged(pr_main->eval_ctx, depsgraph, pr_main, sce, view_layer);
+		BKE_scene_graph_update_tagged(depsgraph, pr_main);
 
 		return sce;
 	}
@@ -1363,7 +1376,7 @@ void ED_preview_shader_job(const bContext *C, void *owner, ID *id, ID *parent, M
 	sp->bmain = CTX_data_main(C);
 	sp->view_render = view_render;
 
-	/* hardcoded preview .blend for cycles/internal, this should be solved
+	/* hardcoded preview .blend for Eevee + cycles/internal, this should be solved
 	 * once with custom preview .blend path for external engines */
 	if ((method != PR_NODE_RENDER) && id_type != ID_TE && use_new_shading) {
 		sp->pr_main = G_pr_main_cycles;

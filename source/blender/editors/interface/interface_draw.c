@@ -64,6 +64,7 @@
 /* own include */
 #include "interface_intern.h"
 
+
 static int roundboxtype = UI_CNR_ALL;
 
 void UI_draw_roundbox_corner_set(int type)
@@ -101,12 +102,58 @@ void UI_draw_roundbox_3fvAlpha(bool filled, float minx, float miny, float maxx, 
 	UI_draw_roundbox_4fv(filled, minx, miny, maxx, maxy, rad, colv);
 }
 
+void UI_draw_roundbox_aa(bool filled, float minx, float miny, float maxx, float maxy, float rad, const float color[4])
+{
+	uiWidgetBaseParameters widget_params = {
+		.recti.xmin = minx, .recti.ymin = miny,
+		.recti.xmax = maxx, .recti.ymax = maxy,
+		.radi = rad,
+		.round_corners[0] = (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 1.0f : 0.0f,
+		.round_corners[1] = (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[2] = (roundboxtype & UI_CNR_TOP_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[3] = (roundboxtype & UI_CNR_TOP_LEFT) ? 1.0f : 0.0f,
+		.color_inner1[0] = color[0], .color_inner2[0] = color[0],
+		.color_inner1[1] = color[1], .color_inner2[1] = color[1],
+		.color_inner1[2] = color[2], .color_inner2[2] = color[2],
+		.color_inner1[3] = color[3], .color_inner2[3] = color[3],
+	};
+
+	glEnable(GL_BLEND);
+
+	if (filled) {
+		/* plain antialiased filled box */
+		widget_params.color_inner1[3] *= 0.125f;
+		widget_params.color_inner2[3] *= 0.125f;
+
+		/* WATCH: This is assuming the ModelViewProjectionMatrix is area pixel space.
+		 * If it has been scaled, then it's no longer valid. */
+		Gwn_Batch *batch = ui_batch_roundbox_get(filled, true);
+		GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_BASE);
+		GWN_batch_uniform_4fv_array(batch, "parameters", 11, (float *)&widget_params);
+		GWN_batch_draw(batch);
+	}
+	else {
+		/* plain antialiased unfilled box */
+		glEnable(GL_LINE_SMOOTH);
+
+		Gwn_Batch *batch = ui_batch_roundbox_get(filled, false);
+		GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_BASE);
+		GWN_batch_uniform_4fv_array(batch, "parameters", 11, (float *)&widget_params);
+		GWN_batch_draw(batch);
+
+		glDisable(GL_LINE_SMOOTH);
+	}
+
+	glDisable(GL_BLEND);
+}
+
 void UI_draw_roundbox_4fv(bool filled, float minx, float miny, float maxx, float maxy, float rad, const float col[4])
 {
+#if 0
 	float vec[7][2] = {{0.195, 0.02}, {0.383, 0.067}, {0.55, 0.169}, {0.707, 0.293},
 	                   {0.831, 0.45}, {0.924, 0.617}, {0.98, 0.805}};
 	int a;
-	
+
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
@@ -175,8 +222,29 @@ void UI_draw_roundbox_4fv(bool filled, float minx, float miny, float maxx, float
 	
 	immEnd();
 	immUnbindProgram();
+#endif
+
+	uiWidgetBaseParameters widget_params = {
+		.recti.xmin = minx, .recti.ymin = miny,
+		.recti.xmax = maxx, .recti.ymax = maxy,
+		.radi = rad,
+		.round_corners[0] = (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 1.0f : 0.0f,
+		.round_corners[1] = (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[2] = (roundboxtype & UI_CNR_TOP_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[3] = (roundboxtype & UI_CNR_TOP_LEFT) ? 1.0f : 0.0f,
+		.color_inner1[0] = col[0], .color_inner2[0] = col[0],
+		.color_inner1[1] = col[1], .color_inner2[1] = col[1],
+		.color_inner1[2] = col[2], .color_inner2[2] = col[2],
+		.color_inner1[3] = col[3], .color_inner2[3] = col[3],
+	};
+
+	Gwn_Batch *batch = ui_batch_roundbox_get(filled, false);
+	GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_BASE);
+	GWN_batch_uniform_4fv_array(batch, "parameters", 11, (float *)&widget_params);
+	GWN_batch_draw(batch);
 }
 
+#if 0
 static void round_box_shade_col(unsigned attrib, const float col1[3], float const col2[3], const float fac)
 {
 	float col[4] = {
@@ -187,6 +255,7 @@ static void round_box_shade_col(unsigned attrib, const float col1[3], float cons
 	};
 	immAttrib4fv(attrib, col);
 }
+#endif
 
 /* linear horizontal shade within button or in outline */
 /* view2d scrollers use it */
@@ -194,6 +263,7 @@ void UI_draw_roundbox_shade_x(
         bool filled, float minx, float miny, float maxx, float maxy,
         float rad, float shadetop, float shadedown, const float col[4])
 {
+#if 0
 	float vec[7][2] = {{0.195, 0.02}, {0.383, 0.067}, {0.55, 0.169}, {0.707, 0.293},
 	                   {0.831, 0.45}, {0.924, 0.617}, {0.98, 0.805}};
 	const float div = maxy - miny;
@@ -305,6 +375,30 @@ void UI_draw_roundbox_shade_x(
 
 	immEnd();
 	immUnbindProgram();
+#endif
+
+	uiWidgetBaseParameters widget_params = {
+		.recti.xmin = minx, .recti.ymin = miny,
+		.recti.xmax = maxx, .recti.ymax = maxy,
+		.radi = rad,
+		.round_corners[0] = (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 1.0f : 0.0f,
+		.round_corners[1] = (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[2] = (roundboxtype & UI_CNR_TOP_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[3] = (roundboxtype & UI_CNR_TOP_LEFT) ? 1.0f : 0.0f,
+		.color_inner1[0] = min_ff(1.0f, col[0] + shadetop),
+		.color_inner2[0] = max_ff(0.0f, col[0] + shadedown),
+		.color_inner1[1] = min_ff(1.0f, col[1] + shadetop),
+		.color_inner2[1] = max_ff(0.0f, col[1] + shadedown),
+		.color_inner1[2] = min_ff(1.0f, col[2] + shadetop),
+		.color_inner2[2] = max_ff(0.0f, col[2] + shadedown),
+		.color_inner1[3] = 1.0f,
+		.color_inner2[3] = 1.0f,
+	};
+
+	Gwn_Batch *batch = ui_batch_roundbox_get(filled, false);
+	GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_BASE);
+	GWN_batch_uniform_4fv_array(batch, "parameters", 11, (float *)&widget_params);
+	GWN_batch_draw(batch);
 }
 
 #if 0 /* unused */
@@ -615,7 +709,7 @@ static void draw_scope_end(const rctf *rect, GLint *scissor)
 	/* restore scissortest */
 	glScissor(scissor[0], scissor[1], scissor[2], scissor[3]);
 
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	/* outline */
 	UI_draw_roundbox_corner_set(UI_CNR_ALL);
@@ -635,7 +729,7 @@ static void histogram_draw_one(
 		return;
 
 	glEnable(GL_LINE_SMOOTH);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ONE);
 
 	immUniformColor4fv(color);
 
@@ -665,7 +759,7 @@ static void histogram_draw_one(
 		/* curve outline */
 		immUniformColor4f(0.0f, 0.0f, 0.0f, 0.25f);
 
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		immBegin(GWN_PRIM_LINE_STRIP, res);
 		for (int i = 0; i < res; i++) {
 			float x2 = x + i * (w / (float)res);
@@ -696,7 +790,7 @@ void ui_draw_but_HISTOGRAM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol)
 	float h = BLI_rctf_size_y(&rect) * hist->ymax;
 	
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	float color[4];
 	UI_GetThemeColor4fv(TH_PREVIEW_BACK, color);
@@ -705,7 +799,7 @@ void ui_draw_but_HISTOGRAM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol)
 
 	/* need scissor test, histogram can draw outside of boundary */
 	GLint scissor[4];
-	glGetIntegerv(GL_VIEWPORT, scissor);
+	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	glScissor(ar->winrct.xmin + (rect.xmin - 1),
 	          ar->winrct.ymin + (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
@@ -816,8 +910,11 @@ void ui_draw_but_WAVEFORM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol),
 		}
 	}
 
+	/* Flush text cache before changing scissors. */
+	BLF_batch_draw_flush();
+
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	float color[4];
 	UI_GetThemeColor4fv(TH_PREVIEW_BACK, color);
@@ -825,7 +922,7 @@ void ui_draw_but_WAVEFORM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol),
 	UI_draw_roundbox_4fv(true, rect.xmin - 1, rect.ymin - 1, rect.xmax + 1, rect.ymax + 1, 3.0f, color);
 
 	/* need scissor test, waveform can draw outside of boundary */
-	glGetIntegerv(GL_VIEWPORT, scissor);
+	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	glScissor(ar->winrct.xmin + (rect.xmin - 1),
 	          ar->winrct.ymin + (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
@@ -840,8 +937,11 @@ void ui_draw_but_WAVEFORM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol),
 		BLF_draw_default(rect.xmin + 1, yofs - 5 + (i * 0.2f) * h, 0, str, sizeof(str) - 1);
 	}
 
+	/* Flush text cache before drawing things on top. */
+	BLF_batch_draw_flush();
+
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -1085,7 +1185,7 @@ void ui_draw_but_VECTORSCOPE(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wco
 	float alpha = scopes->vecscope_alpha * scopes->vecscope_alpha * scopes->vecscope_alpha;
 
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	float color[4];
 	UI_GetThemeColor4fv(TH_PREVIEW_BACK, color);
@@ -1094,7 +1194,7 @@ void ui_draw_but_VECTORSCOPE(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wco
 
 	/* need scissor test, hvectorscope can draw outside of boundary */
 	GLint scissor[4];
-	glGetIntegerv(GL_VIEWPORT, scissor);
+	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	glScissor(ar->winrct.xmin + (rect.xmin - 1),
 	          ar->winrct.ymin + (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
@@ -1520,7 +1620,7 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 
 	/* need scissor test, curve can draw outside of boundary */
 	GLint scissor[4];
-	glGetIntegerv(GL_VIEWPORT, scissor);
+	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	rcti scissor_new = {
 		.xmin = ar->winrct.xmin + rect->xmin,
 		.ymin = ar->winrct.ymin + rect->ymin,
@@ -1564,7 +1664,7 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 	if (but->a1 == UI_GRAD_H) {
 		/* grid, hsv uses different grid */
 		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		immUniformColor4ub(0, 0, 0, 48);
 		ui_draw_but_curve_grid(pos, rect, zoomx, zoomy, offsx, offsy, 0.1666666f);
 		glDisable(GL_BLEND);
@@ -1738,11 +1838,11 @@ void ui_draw_but_TRACKPREVIEW(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wc
 	int height = BLI_rctf_size_y(&rect);
 
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 	/* need scissor test, preview image can draw outside of boundary */
 	GLint scissor[4];
-	glGetIntegerv(GL_VIEWPORT, scissor);
+	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	glScissor(ar->winrct.xmin + (rect.xmin - 1),
 	          ar->winrct.ymin + (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
@@ -1874,7 +1974,7 @@ void ui_draw_but_NODESOCKET(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol
 	GLint scissor[4];
 	
 	/* need scissor test, can draw outside of boundary */
-	glGetIntegerv(GL_VIEWPORT, scissor);
+	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	
 	rcti scissor_new = {
 		.xmin = ar->winrct.xmin + recti->xmin,
@@ -2031,16 +2131,40 @@ void ui_draw_dropshadow(const rctf *rct, float radius, float aspect, float alpha
 	}
 	
 	glEnable(GL_BLEND);
-
 	const float dalpha = alpha * 2.0f / 255.0f;
 	float calpha = dalpha;
-	for (; i--; a -= aspect) {
+	float visibility = 1.0f;
+	for (; i--;) {
 		/* alpha ranges from 2 to 20 or so */
+#if 0 /* Old Method (pre 2.8) */
 		float color[4] = {0.0f, 0.0f, 0.0f, calpha};
 		UI_draw_roundbox_4fv(true, rct->xmin - a, rct->ymin - a, rct->xmax + a, rct->ymax - 10.0f + a, rad + a, color);
+#endif
+		/* Compute final visibility to match old method result. */
+		/* TODO we could just find a better fit function inside the shader instead of this. */
+		visibility = visibility * (1.0f - calpha);
 		calpha += dalpha;
 	}
 	
+	uiWidgetBaseParameters widget_params = {
+		.recti.xmin = rct->xmin, .recti.ymin = rct->ymin,
+		.recti.xmax = rct->xmax, .recti.ymax = rct->ymax - 10.0f,
+		.rect.xmin = rct->xmin - a, .rect.ymin = rct->ymin - a,
+		.rect.xmax = rct->xmax + a, .rect.ymax = rct->ymax - 10.0f + a,
+		.radi = rad,
+		.rad = rad + a,
+		.round_corners[0] = (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 1.0f : 0.0f,
+		.round_corners[1] = (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[2] = (roundboxtype & UI_CNR_TOP_RIGHT) ? 1.0f : 0.0f,
+		.round_corners[3] = (roundboxtype & UI_CNR_TOP_LEFT) ? 1.0f : 0.0f,
+	};
+
+	Gwn_Batch *batch = ui_batch_roundbox_shadow_get();
+	GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_SHADOW);
+	GWN_batch_uniform_4fv_array(batch, "parameters", 4, (float *)&widget_params);
+	GWN_batch_uniform_1f(batch, "alpha", 1.0f - visibility);
+	GWN_batch_draw(batch);
+
 	/* outline emphasis */
 	glEnable(GL_LINE_SMOOTH);
 	float color[4] = {0.0f, 0.0f, 0.0f, 0.4f};

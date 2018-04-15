@@ -134,7 +134,7 @@ void ED_pose_bone_select(Object *ob, bPoseChannel *pchan, bool select)
 /* called from editview.c, for mode-less pose selection */
 /* assumes scene obact and basact is still on old situation */
 bool ED_do_pose_selectbuffer(
-        Scene *scene, ViewLayer *view_layer, Base *base, const unsigned int *buffer, short hits,
+        ViewLayer *view_layer, Base *base, const unsigned int *buffer, short hits,
         bool extend, bool deselect, bool toggle, bool do_nearest)
 {
 	Object *ob = base->object;
@@ -142,11 +142,13 @@ bool ED_do_pose_selectbuffer(
 	
 	if (!ob || !ob->pose) return 0;
 
-	nearBone = get_bone_from_selectbuffer(scene, base, buffer, hits, 1, do_nearest);
+	Object *ob_act = OBACT(view_layer);
+	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
+
+	nearBone = get_bone_from_selectbuffer(base, obedit, buffer, hits, 1, do_nearest);
 	
 	/* if the bone cannot be affected, don't do anything */
 	if ((nearBone) && !(nearBone->flag & BONE_UNSELECTABLE)) {
-		Object *ob_act = OBACT(view_layer);
 		bArmature *arm = ob->data;
 		
 		/* since we do unified select, we don't shift+select a bone if the
@@ -228,7 +230,7 @@ void ED_pose_de_selectall(Object *ob, int select_mode, const bool ignore_visibil
 		return;
 	}
 	
-	/*	Determine if we're selecting or deselecting	*/
+	/* Determine if we're selecting or deselecting */
 	if (select_mode == SEL_TOGGLE) {
 		select_mode = SEL_SELECT;
 		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {

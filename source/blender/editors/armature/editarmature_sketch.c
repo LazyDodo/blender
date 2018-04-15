@@ -158,7 +158,7 @@ void BIF_makeListTemplates(const bContext *C)
 	TEMPLATES_HASH = BLI_ghash_int_new("makeListTemplates gh");
 	TEMPLATES_CURRENT = 0;
 
-	FOREACH_OBJECT(view_layer, ob)
+	FOREACH_OBJECT_BEGIN(view_layer, ob)
 	{
 		if (ob != obedit && ob->type == OB_ARMATURE) {
 			index++;
@@ -169,7 +169,7 @@ void BIF_makeListTemplates(const bContext *C)
 			}
 		}
 	}
-	FOREACH_OBJECT_END
+	FOREACH_OBJECT_END;
 }
 
 #if 0  /* UNUSED */
@@ -178,7 +178,7 @@ const char *BIF_listTemplates(const bContext *UNUSED(C))
 	GHashIterator ghi;
 	const char *menu_header = IFACE_("Template %t|None %x0|");
 	char *p;
-	const size_t template_size = (BLI_ghash_size(TEMPLATES_HASH) * 32 + 30);
+	const size_t template_size = (BLI_ghash_len(TEMPLATES_HASH) * 32 + 30);
 
 	if (TEMPLATES_MENU != NULL) {
 		MEM_freeN(TEMPLATES_MENU);
@@ -998,7 +998,7 @@ static int sk_getStrokeSnapPoint(bContext *C, SK_Point *pt, SK_Sketch *sketch, S
 	 * the ideal would be to call this function only at the beginning of the snap operation,
 	 * or at the beginning of the operator itself */
 	struct SnapObjectContext *snap_context = ED_transform_snap_object_context_create_view3d(
-	        CTX_data_main(C), CTX_data_scene(C), CTX_data_view_layer(C), CTX_data_engine_type(C), 0,
+	        CTX_data_main(C), CTX_data_scene(C), CTX_data_view_layer(C), 0,
 	        CTX_wm_region(C), CTX_wm_view3d(C));
 
 	float mvalf[2] = {UNPACK2(dd->mval)};
@@ -1932,7 +1932,7 @@ static bool sk_selectStroke(bContext *C, SK_Sketch *sketch, const int mval[2], c
 	short hits;
 
 	CTX_data_eval_ctx(C, &eval_ctx);
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	BLI_rcti_init_pt_radius(&rect, mval, 5);
 
@@ -2031,7 +2031,7 @@ static void sk_drawSketch(Scene *scene, View3D *UNUSED(v3d), SK_Sketch *sketch, 
 				gpuPushMatrix();
 
 				glEnable(GL_BLEND);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
 				switch (sketch->next_point.mode) {
 					case PT_SNAP:

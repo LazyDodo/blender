@@ -48,7 +48,6 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
-#include "wm_subwindow.h"
 
 #include "UI_interface.h"
 
@@ -303,18 +302,35 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 
 static void ui_block_region_draw(const bContext *C, ARegion *ar)
 {
+	ScrArea *ctx_area = CTX_wm_area(C);
+	ARegion *ctx_region = CTX_wm_region(C);
 	uiBlock *block;
 
 	if (ar->do_draw & RGN_DRAW_REFRESH_UI) {
+		ScrArea *handle_ctx_area;
+		ARegion *handle_ctx_region;
 		uiBlock *block_next;
+
 		ar->do_draw &= ~RGN_DRAW_REFRESH_UI;
 		for (block = ar->uiblocks.first; block; block = block_next) {
 			block_next = block->next;
 			if (block->handle->can_refresh) {
+				handle_ctx_area = block->handle->ctx_area;
+				handle_ctx_region = block->handle->ctx_region;
+
+				if (handle_ctx_area) {
+					CTX_wm_area_set((bContext *)C, handle_ctx_area);
+				}
+				if (handle_ctx_region) {
+					CTX_wm_region_set((bContext *)C, handle_ctx_region);
+				}
 				ui_popup_block_refresh((bContext *)C, block->handle, NULL, NULL);
 			}
 		}
 	}
+
+	CTX_wm_area_set((bContext *)C, ctx_area);
+	CTX_wm_region_set((bContext *)C, ctx_region);
 
 	for (block = ar->uiblocks.first; block; block = block->next)
 		UI_block_draw(C, block);
@@ -589,9 +605,7 @@ uiBlock *ui_popup_block_refresh(
 	ED_region_init(C, ar);
 
 	/* get winmat now that we actually have the subwindow */
-	wmSubWindowSet(window, ar->swinid);
-
-	wm_subwindow_matrix_get(window, ar->swinid, block->winmat);
+	wmGetProjectionMatrix(block->winmat, &ar->winrct);
 
 	/* notify change and redraw */
 	ED_region_tag_redraw(ar);

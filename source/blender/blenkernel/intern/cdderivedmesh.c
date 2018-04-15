@@ -3307,7 +3307,7 @@ void CDDM_calc_edges_tessface(DerivedMesh *dm)
 		}
 	}
 
-	numEdges = BLI_edgeset_size(eh);
+	numEdges = BLI_edgeset_len(eh);
 
 	/* write new edges into a temporary CustomData */
 	CustomData_reset(&edgeData);
@@ -3376,7 +3376,7 @@ void CDDM_calc_edges(DerivedMesh *dm)
 		}
 	}
 
-	numEdges = BLI_edgehash_size(eh);
+	numEdges = BLI_edgehash_len(eh);
 
 	/* write new edges into a temporary CustomData */
 	CustomData_reset(&edgeData);

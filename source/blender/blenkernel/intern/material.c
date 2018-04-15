@@ -72,6 +72,7 @@
 #include "BKE_editmesh.h"
 #include "BKE_font.h"
 
+#include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
 
 #include "GPU_material.h"
@@ -98,6 +99,9 @@ void BKE_material_free(Material *ma)
 	
 	MEM_SAFE_FREE(ma->ramp_col);
 	MEM_SAFE_FREE(ma->ramp_spec);
+
+	/* Free gpu material before the ntree */
+	GPU_material_free(&ma->gpumaterial);
 	
 	/* is no lib link block, but material extension */
 	if (ma->nodetree) {
@@ -107,8 +111,6 @@ void BKE_material_free(Material *ma)
 	}
 
 	MEM_SAFE_FREE(ma->texpaintslot);
-
-	GPU_material_free(&ma->gpumaterial);
 
 	BKE_icon_id_delete((ID *)ma);
 	BKE_previewimg_free(&ma->preview);
@@ -257,6 +259,10 @@ void BKE_material_copy_data(Main *bmain, Material *ma_dst, const Material *ma_sr
 	}
 	else {
 		ma_dst->preview = NULL;
+	}
+
+	if (ma_src->texpaintslot != NULL) {
+		ma_dst->texpaintslot = MEM_dupallocN(ma_src->texpaintslot);
 	}
 
 	BLI_listbase_clear(&ma_dst->gpumaterial);
@@ -1709,12 +1715,13 @@ void paste_matcopybuf(Material *ma)
 			MEM_freeN(mtex);
 	}
 
+	/* Free gpu material before the ntree */
+	GPU_material_free(&ma->gpumaterial);
+
 	if (ma->nodetree) {
 		ntreeFreeTree(ma->nodetree);
 		MEM_freeN(ma->nodetree);
 	}
-
-	GPU_material_free(&ma->gpumaterial);
 
 	id = (ma->id);
 	memcpy(ma, &matcopybuf, sizeof(Material));
@@ -1772,9 +1779,7 @@ bool BKE_object_material_edit_image_set(Object *ob, short mat_nr, Image *image)
 
 void BKE_material_eval(const struct EvaluationContext *UNUSED(eval_ctx), Material *material)
 {
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
-		printf("%s on %s (%p)\n", __func__, material->id.name, material);
-	}
+	DEG_debug_print_eval(__func__, material->id.name, material);
 	if ((BLI_listbase_is_empty(&material->gpumaterial) == false)) {
 		GPU_material_uniform_buffer_tag_dirty(&material->gpumaterial);
 	}

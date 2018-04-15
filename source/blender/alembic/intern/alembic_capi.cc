@@ -265,8 +265,7 @@ static void export_startjob(void *customdata, short *stop, short *do_update, flo
 
 	try {
 		Scene *scene = data->scene;
-		ViewLayer *view_layer = data->view_layer;
-		AbcExporter exporter(data->bmain, &data->eval_ctx, scene, view_layer, data->depsgraph, data->filename, data->settings);
+		AbcExporter exporter(data->bmain, &data->eval_ctx, scene, data->depsgraph, data->filename, data->settings);
 
 		const int orig_frame = CFRA;
 
@@ -276,7 +275,7 @@ static void export_startjob(void *customdata, short *stop, short *do_update, flo
 		if (CFRA != orig_frame) {
 			CFRA = orig_frame;
 
-			BKE_scene_graph_update_for_newframe(data->bmain->eval_ctx, data->depsgraph, data->bmain, scene, data->view_layer);
+			BKE_scene_graph_update_for_newframe(data->depsgraph, data->bmain);
 		}
 
 		data->export_ok = !data->was_canceled;
@@ -843,7 +842,7 @@ static void import_endjob(void *user_data)
 
 		lc = BKE_layer_collection_get_active(view_layer);
 		if (lc == NULL) {
-			BLI_assert(BLI_listbase_count_ex(&view_layer->layer_collections, 1) == 0);
+			BLI_assert(BLI_listbase_count_at_most(&view_layer->layer_collections, 1) == 0);
 			/* when there is no collection linked to this ViewLayer, create one */
 			SceneCollection *sc = BKE_collection_add(&data->scene->id, NULL, COLLECTION_TYPE_NONE, NULL);
 			lc = BKE_collection_link(view_layer, sc);
@@ -858,9 +857,11 @@ static void import_endjob(void *user_data)
 			base = BKE_view_layer_base_find(view_layer, ob);
 			BKE_view_layer_base_select(view_layer, base);
 
-			DEG_id_tag_update_ex(data->bmain, &ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+			DEG_id_tag_update_ex(data->bmain, &ob->id,
+			                     OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | DEG_TAG_BASE_FLAGS_UPDATE);
 		}
 
+		DEG_id_tag_update(&data->scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
 		DEG_relations_tag_update(data->bmain);
 	}
 

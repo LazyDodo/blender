@@ -34,9 +34,10 @@
 
 #include "rna_internal.h"
 
-#include "DEG_depsgraph.h"
-
 #include "DNA_object_types.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #define STATS_MAX_SIZE 16384
 
@@ -78,6 +79,14 @@ static PointerRNA rna_DepsgraphIter_parent_get(PointerRNA *ptr)
 		dupli_parent = deg_iter->dupli_parent;
 	}
 	return rna_pointer_inherit_refine(ptr, &RNA_Object, dupli_parent);
+}
+
+static PointerRNA rna_DepsgraphIter_particle_system_get(PointerRNA *ptr)
+{
+	BLI_Iterator *iterator = ptr->data;
+	DEGObjectIterData *deg_iter = (DEGObjectIterData *)iterator->data;
+	return rna_pointer_inherit_refine(ptr, &RNA_ParticleSystem,
+		deg_iter->dupli_object_current->particle_system);
 }
 
 static void rna_DepsgraphIter_persistent_id_get(PointerRNA *ptr, int *persistent_id)
@@ -240,6 +249,13 @@ static ID *rna_Depsgraph_evaluated_id_get(Depsgraph *depsgraph, ID *id_orig)
 	return DEG_get_evaluated_id(depsgraph, id_orig);
 }
 
+static PointerRNA rna_Depsgraph_view_layer_get(PointerRNA *ptr)
+{
+	Depsgraph *depsgraph = (Depsgraph *)ptr->data;
+	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
+	return rna_pointer_inherit_refine(ptr, &RNA_ViewLayer, view_layer);
+}
+
 #else
 
 static void rna_def_depsgraph_iter(BlenderRNA *brna)
@@ -268,6 +284,12 @@ static void rna_def_depsgraph_iter(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Parent", "Parent of the duplication list");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE | PROP_EDITABLE);
 	RNA_def_property_pointer_funcs(prop, "rna_DepsgraphIter_parent_get", NULL, NULL, NULL);
+
+	prop = RNA_def_property(srna, "particle_system", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "ParticleSystem");
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE | PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Particle System", "Particle system that this object was instanced from");
+	RNA_def_property_pointer_funcs(prop, "rna_DepsgraphIter_particle_system_get", NULL, NULL, NULL);
 
 	prop = RNA_def_property(srna, "persistent_id", PROP_INT, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Persistent ID",
@@ -358,6 +380,11 @@ static void rna_def_depsgraph(BlenderRNA *brna)
 	                                  "rna_Depsgraph_duplis_end",
 	                                  "rna_Depsgraph_duplis_get",
 	                                  NULL, NULL, NULL, NULL);
+
+	prop = RNA_def_property(srna, "view_layer", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "ViewLayer");
+	RNA_def_property_pointer_funcs(prop, "rna_Depsgraph_view_layer_get", NULL, NULL, NULL);
+	RNA_def_property_ui_text(prop, "Scene layer", "");
 }
 
 void RNA_def_depsgraph(BlenderRNA *brna)

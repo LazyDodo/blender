@@ -44,6 +44,8 @@
 
 #include "IMB_imbuf_types.h"
 
+#include "DEG_depsgraph.h"
+
 #include "ED_image.h"  /* own include */
 #include "ED_mesh.h"
 #include "ED_screen.h"
@@ -374,7 +376,7 @@ bool ED_space_image_show_uvedit(SpaceImage *sima, Object *obedit)
 }
 
 /* matches clip function */
-bool ED_space_image_check_show_maskedit(ViewLayer *view_layer, SpaceImage *sima)
+bool ED_space_image_check_show_maskedit(SpaceImage *sima, ViewLayer *view_layer)
 {
 	/* check editmode - this is reserved for UV editing */
 	Object *ob = OBACT(view_layer);
@@ -391,7 +393,7 @@ int ED_space_image_maskedit_poll(bContext *C)
 
 	if (sima) {
 		ViewLayer *view_layer = CTX_data_view_layer(C);
-		return ED_space_image_check_show_maskedit(view_layer, sima);
+		return ED_space_image_check_show_maskedit(sima, view_layer);
 	}
 
 	return false;

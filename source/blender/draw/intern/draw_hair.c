@@ -55,7 +55,7 @@ void DRW_hair_shader_uniforms(DRWShadingGroup *shgrp, Scene *UNUSED(scene),
 	static float test = 2.5f;
 	DRW_shgroup_uniform_float(shgrp, "ribbon_width", &test, 1);
 	
-	DRW_shgroup_uniform_buffer(shgrp, "fiber_data", fibertex);
+	DRW_shgroup_uniform_texture_ref(shgrp, "fiber_data", fibertex);
 	DRW_shgroup_uniform_int(shgrp, "strand_map_start", &texbuffer->strand_map_start, 1);
 	DRW_shgroup_uniform_int(shgrp, "strand_vertex_start", &texbuffer->strand_vertex_start, 1);
 	DRW_shgroup_uniform_int(shgrp, "fiber_start", &texbuffer->fiber_start, 1);

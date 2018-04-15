@@ -31,6 +31,11 @@
 
 #include "BLI_utildefines.h"
 #include "BLI_math.h"
+#include "BLI_threads.h"
+#include "BLI_listbase.h"
+#include "MEM_guardedalloc.h"
+
+#include "UI_interface.h"
 
 #include "GPU_batch.h"
 #include "gpu_shader_private.h"
@@ -50,13 +55,23 @@ static struct {
 	struct {
 		uint pos, nor;
 	} attr_id;
-} g_presets_3d = {0};
+} g_presets_3d = {{0}};
 
-/* We may want 2D presets later. */
+static ListBase presets_list = {NULL, NULL};
 
 /* -------------------------------------------------------------------- */
 /** \name 3D Primitives
  * \{ */
+
+static Gwn_VertFormat *preset_3D_format(void)
+{
+	if (g_presets_3d.format.attrib_ct == 0) {
+		Gwn_VertFormat *format = &g_presets_3d.format;
+		g_presets_3d.attr_id.pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		g_presets_3d.attr_id.nor = GWN_vertformat_attr_add(format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	}
+	return &g_presets_3d.format;
+}
 
 static void batch_sphere_lat_lon_vert(
         Gwn_VertBufRaw *pos_step, Gwn_VertBufRaw *nor_step,
@@ -71,13 +86,13 @@ static void batch_sphere_lat_lon_vert(
 }
 
 /* Replacement for gluSphere */
-static Gwn_Batch *batch_sphere(int lat_res, int lon_res)
+Gwn_Batch *gpu_batch_sphere(int lat_res, int lon_res)
 {
 	const float lon_inc = 2 * M_PI / lon_res;
 	const float lat_inc = M_PI / lat_res;
 	float lon, lat;
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&g_presets_3d.format);
+	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(preset_3D_format());
 	const uint vbo_len = (lat_res - 1) * lon_res * 6;
 	GWN_vertbuf_data_alloc(vbo, vbo_len);
 
@@ -115,7 +130,7 @@ static Gwn_Batch *batch_sphere_wire(int lat_res, int lon_res)
 	const float lat_inc = M_PI / lat_res;
 	float lon, lat;
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&g_presets_3d.format);
+	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(preset_3D_format());
 	const uint vbo_len = (lat_res * lon_res * 2) + ((lat_res - 1) * lon_res * 2);
 	GWN_vertbuf_data_alloc(vbo, vbo_len);
 
@@ -146,6 +161,7 @@ static Gwn_Batch *batch_sphere_wire(int lat_res, int lon_res)
 Gwn_Batch *GPU_batch_preset_sphere(int lod)
 {
 	BLI_assert(lod >= 0 && lod <= 2);
+	BLI_assert(BLI_thread_is_main());
 
 	if (lod == 0) {
 		return g_presets_3d.batch.sphere_low;
@@ -161,6 +177,7 @@ Gwn_Batch *GPU_batch_preset_sphere(int lod)
 Gwn_Batch *GPU_batch_preset_sphere_wire(int lod)
 {
 	BLI_assert(lod >= 0 && lod <= 1);
+	BLI_assert(BLI_thread_is_main());
 
 	if (lod == 0) {
 		return g_presets_3d.batch.sphere_wire_low;
@@ -175,26 +192,45 @@ Gwn_Batch *GPU_batch_preset_sphere_wire(int lod)
 
 void gpu_batch_presets_init(void)
 {
-	if (g_presets_3d.format.attrib_ct == 0) {
-		Gwn_VertFormat *format = &g_presets_3d.format;
-		g_presets_3d.attr_id.pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		g_presets_3d.attr_id.nor = GWN_vertformat_attr_add(format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	}
-
 	/* Hard coded resolution */
-	g_presets_3d.batch.sphere_low = batch_sphere(8, 16);
-	g_presets_3d.batch.sphere_med = batch_sphere(16, 10);
-	g_presets_3d.batch.sphere_high = batch_sphere(32, 24);
+	g_presets_3d.batch.sphere_low = gpu_batch_sphere(8, 16);
+	gpu_batch_presets_register(g_presets_3d.batch.sphere_low);
+
+	g_presets_3d.batch.sphere_med = gpu_batch_sphere(16, 10);
+	gpu_batch_presets_register(g_presets_3d.batch.sphere_med);
+
+	g_presets_3d.batch.sphere_high = gpu_batch_sphere(32, 24);
+	gpu_batch_presets_register(g_presets_3d.batch.sphere_high);
 
 	g_presets_3d.batch.sphere_wire_low = batch_sphere_wire(6, 8);
+	gpu_batch_presets_register(g_presets_3d.batch.sphere_wire_low);
+
 	g_presets_3d.batch.sphere_wire_med = batch_sphere_wire(8, 16);
+	gpu_batch_presets_register(g_presets_3d.batch.sphere_wire_med);
+}
+
+void gpu_batch_presets_register(Gwn_Batch *preset_batch)
+{
+	BLI_addtail(&presets_list, BLI_genericNodeN(preset_batch));
+}
+
+void gpu_batch_presets_reset(void)
+{
+	/* Reset vao caches for these every time we switch opengl context.
+	 * This way they will draw correctly for each window. */
+	LinkData *link = presets_list.first;
+	for (link = presets_list.first; link; link = link->next) {
+		Gwn_Batch *preset = link->data;
+		gwn_batch_vao_cache_clear(preset);
+	}
 }
 
 void gpu_batch_presets_exit(void)
 {
-	GWN_batch_discard(g_presets_3d.batch.sphere_low);
-	GWN_batch_discard(g_presets_3d.batch.sphere_med);
-	GWN_batch_discard(g_presets_3d.batch.sphere_high);
-	GWN_batch_discard(g_presets_3d.batch.sphere_wire_low);
-	GWN_batch_discard(g_presets_3d.batch.sphere_wire_med);
+	LinkData *link;
+	while ((link = BLI_pophead(&presets_list))) {
+		Gwn_Batch *preset = link->data;
+		GWN_batch_discard(preset);
+		MEM_freeN(link);
+	}
 }

@@ -35,6 +35,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_armature_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 #include "DNA_screen_types.h"
@@ -58,6 +59,9 @@
 #include "BKE_packedFile.h"
 #include "BKE_paint.h"
 #include "BKE_screen.h"
+#include "BKE_workspace.h"
+#include "BKE_layer.h"
+#include "BKE_undo_system.h"
 
 #include "ED_armature.h"
 #include "ED_buttons.h"
@@ -85,12 +89,12 @@
 
 void ED_editors_init(bContext *C)
 {
-	wmWindowManager *wm = CTX_wm_manager(C);
 	Main *bmain = CTX_data_main(C);
-	Scene *sce = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
-	Object *ob, *obact = (view_layer && view_layer->basact) ? view_layer->basact->object : NULL;
-	ID *data;
+	wmWindowManager *wm = CTX_wm_manager(C);
+
+	if (wm->undo_stack == NULL) {
+		wm->undo_stack = BKE_undosys_stack_create();
+	}
 
 	/* This is called during initialization, so we don't want to store any reports */
 	ReportList *reports = CTX_wm_reports(C);
@@ -101,24 +105,30 @@ void ED_editors_init(bContext *C)
 	/* toggle on modes for objects that were saved with these enabled. for
 	 * e.g. linked objects we have to ensure that they are actually the
 	 * active object in this scene. */
-	for (ob = bmain->object.first; ob; ob = ob->id.next) {
-		int mode = ob->mode;
+	Object *obact = CTX_data_active_object(C);
+	if (obact != NULL) {
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			int mode = ob->mode;
 
-		if (mode == OB_MODE_OBJECT) {
-			/* pass */
-		}
-		else {
-			data = ob->data;
-			ob->mode = OB_MODE_OBJECT;
-			if ((ob == obact) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
-				ED_object_toggle_modes(C, mode);
+			if (mode == OB_MODE_OBJECT) {
+				/* pass */
+			}
+			else {
+				ID *data = ob->data;
+				ob->mode = OB_MODE_OBJECT;
+				if ((ob == obact) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
+					ED_object_mode_toggle(C, mode);
+				}
 			}
 		}
 	}
 
 	/* image editor paint mode */
-	if (sce) {
-		ED_space_image_paint_update(wm, sce);
+	{
+		Scene *sce = CTX_data_scene(C);
+		if (sce) {
+			ED_space_image_paint_update(wm, sce);
+		}
 	}
 
 	SWAP(int, reports->flag, reports_flag_prev);
@@ -128,31 +138,33 @@ void ED_editors_init(bContext *C)
 void ED_editors_exit(bContext *C)
 {
 	Main *bmain = CTX_data_main(C);
-	Scene *sce;
 
 	if (!bmain)
 		return;
-	
+
 	/* frees all editmode undos */
-	undo_editmode_clear();
-	ED_undo_paint_free();
-	
-	for (sce = bmain->scene.first; sce; sce = sce->id.next) {
-		if (sce->obedit) {
-			Object *ob = sce->obedit;
-		
-			if (ob) {
-				if (ob->type == OB_MESH) {
-					Mesh *me = ob->data;
-					if (me->edit_btmesh) {
-						EDBM_mesh_free(me->edit_btmesh);
-						MEM_freeN(me->edit_btmesh);
-						me->edit_btmesh = NULL;
-					}
-				}
-				else if (ob->type == OB_ARMATURE) {
-					ED_armature_edit_free(ob->data);
-				}
+	if (G.main->wm.first) {
+		wmWindowManager *wm = G.main->wm.first;
+		/* normally we don't check for NULL undo stack, do here since it may run in different context. */
+		if (wm->undo_stack) {
+			BKE_undosys_stack_destroy(wm->undo_stack);
+			wm->undo_stack = NULL;
+		}
+	}
+
+	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+		if (ob->type == OB_MESH) {
+			Mesh *me = ob->data;
+			if (me->edit_btmesh) {
+				EDBM_mesh_free(me->edit_btmesh);
+				MEM_freeN(me->edit_btmesh);
+				me->edit_btmesh = NULL;
+			}
+		}
+		else if (ob->type == OB_ARMATURE) {
+			bArmature *arm = ob->data;
+			if (arm->edbo) {
+				ED_armature_edit_free(ob->data);
 			}
 		}
 	}
@@ -175,18 +187,22 @@ bool ED_editors_flush_edits(const bContext *C, bool for_render)
 	 * objects can exist at the same time */
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->mode & OB_MODE_SCULPT) {
-			/* flush multires changes (for sculpt) */
-			multires_force_update(ob);
-			has_edited = true;
+			/* Don't allow flushing while in the middle of a stroke (frees data in use).
+			 * Auto-save prevents this from happening but scripts may cause a flush on saving: T53986. */
+			if ((ob->sculpt && ob->sculpt->cache) == 0) {
+				/* flush multires changes (for sculpt) */
+				multires_force_update(ob);
+				has_edited = true;
 
-			if (for_render) {
-				/* flush changes from dynamic topology sculpt */
-				BKE_sculptsession_bm_to_me_for_render(ob);
-			}
-			else {
-				/* Set reorder=false so that saving the file doesn't reorder
-				 * the BMesh's elements */
-				BKE_sculptsession_bm_to_me(ob, false);
+				if (for_render) {
+					/* flush changes from dynamic topology sculpt */
+					BKE_sculptsession_bm_to_me_for_render(ob);
+				}
+				else {
+					/* Set reorder=false so that saving the file doesn't reorder
+					 * the BMesh's elements */
+					BKE_sculptsession_bm_to_me(ob, false);
+				}
 			}
 		}
 		else if (ob->mode & OB_MODE_EDIT) {

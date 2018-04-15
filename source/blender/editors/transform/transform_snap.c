@@ -70,6 +70,8 @@
 #include "ED_view3d.h"
 #include "ED_transform_snap_object_context.h"
 
+#include "DEG_depsgraph.h"
+
 #include "UI_resources.h"
 #include "UI_view2d.h"
 
@@ -582,8 +584,7 @@ static void initSnappingMode(TransInfo *t)
 	if (t->spacetype == SPACE_VIEW3D) {
 		if (t->tsnap.object_context == NULL) {
 			t->tsnap.object_context = ED_transform_snap_object_context_create_view3d(
-			        G.main, t->scene, t->view_layer, t->engine_type, 0,
-			        t->ar, t->view);
+			        G.main, t->scene, t->view_layer, 0, t->ar, t->view);
 
 			ED_transform_snap_object_context_set_editmesh_callbacks(
 			        t->tsnap.object_context,

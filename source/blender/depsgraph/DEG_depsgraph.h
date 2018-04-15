@@ -86,7 +86,6 @@ typedef struct EvaluationContext {
 
 	struct Depsgraph *depsgraph;
 	struct ViewLayer *view_layer;
-	struct RenderEngineType *engine_type;
 } EvaluationContext;
 
 /* DagNode->eval_flags */
@@ -118,7 +117,9 @@ void DEG_depsgraph_enable_copy_on_write(void);
 
 /* Create new Depsgraph instance */
 // TODO: what args are needed here? What's the building-graph entry point?
-Depsgraph *DEG_graph_new(void);
+Depsgraph *DEG_graph_new(struct Scene *scene,
+                         struct ViewLayer *view_layer,
+                         eEvaluationMode mode);
 
 /* Free Depsgraph itself and all its data */
 void DEG_graph_free(Depsgraph *graph);
@@ -213,11 +214,22 @@ struct EvaluationContext *DEG_evaluation_context_new(eEvaluationMode mode);
  */
 void DEG_evaluation_context_init(struct EvaluationContext *eval_ctx,
                                  eEvaluationMode mode);
-void DEG_evaluation_context_init_from_scene(struct EvaluationContext *eval_ctx,
-                                            struct Scene *scene,
-                                            struct ViewLayer *view_layer,
-                                            struct RenderEngineType *engine_type,
-                                            eEvaluationMode mode);
+void DEG_evaluation_context_init_from_scene(
+        struct EvaluationContext *eval_ctx,
+        struct Scene *scene,
+        struct ViewLayer *view_layer,
+        eEvaluationMode mode);
+
+void DEG_evaluation_context_init_from_view_layer_for_render(
+        struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
+        struct Scene *scene,
+        struct ViewLayer *view_layer);
+
+void DEG_evaluation_context_init_from_depsgraph(
+        struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
+        eEvaluationMode mode);
 
 /* Free evaluation context. */
 void DEG_evaluation_context_free(struct EvaluationContext *eval_ctx);
@@ -228,16 +240,14 @@ void DEG_evaluation_context_free(struct EvaluationContext *eval_ctx);
  * < context_type: context to perform evaluation for
  * < ctime: (frame) new frame to evaluate values on
  */
-void DEG_evaluate_on_framechange(struct EvaluationContext *eval_ctx,
-                                 struct Main *bmain,
+void DEG_evaluate_on_framechange(struct Main *bmain,
                                  Depsgraph *graph,
                                  float ctime);
 
 /* Data changed recalculation entry point.
  * < context_type: context to perform evaluation for
  */
-void DEG_evaluate_on_refresh(struct EvaluationContext *eval_ctx,
-                             Depsgraph *graph);
+void DEG_evaluate_on_refresh(Depsgraph *graph);
 
 bool DEG_needs_eval(Depsgraph *graph);
 
@@ -263,6 +273,32 @@ typedef void (*DEG_EditorUpdateSceneCb)(
 /* Set callbacks which are being called when depsgraph changes. */
 void DEG_editors_set_update_cb(DEG_EditorUpdateIDCb id_func,
                                DEG_EditorUpdateSceneCb scene_func);
+
+/* Evaluation Debug ------------------------------ */
+
+void DEG_debug_print_eval(const char* function_name,
+                          const char* object_name,
+                          const void* object_address);
+
+void DEG_debug_print_eval_subdata(const char *function_name,
+                                  const char *object_name,
+                                  const void *object_address,
+                                  const char *subdata_comment,
+                                  const char *subdata_name,
+                                  const void *subdata_address);
+
+void DEG_debug_print_eval_subdata_index(const char *function_name,
+                                        const char *object_name,
+                                        const void *object_address,
+                                        const char *subdata_comment,
+                                        const char *subdata_name,
+                                        const void *subdata_address,
+                                        const int subdata_index);
+
+void DEG_debug_print_eval_time(const char* function_name,
+                               const char* object_name,
+                               const void* object_address,
+                               float time);
 
 #ifdef __cplusplus
 } /* extern "C" */

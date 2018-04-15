@@ -94,7 +94,7 @@ static void rna_SceneCollection_name_set(PointerRNA *ptr, const char *value)
 {
 	Scene *scene = (Scene *)ptr->id.data;
 	SceneCollection *sc = (SceneCollection *)ptr->data;
-	BKE_collection_rename(scene, sc, value);
+	BKE_collection_rename(&scene->id, sc, value);
 }
 
 static PointerRNA rna_SceneCollection_objects_get(CollectionPropertyIterator *iter)
@@ -139,6 +139,23 @@ static int rna_SceneCollection_move_into(ID *id, SceneCollection *sc_src, Main *
 	WM_main_add_notifier(NC_SCENE | ND_LAYER, NULL);
 
 	return 1;
+}
+
+static SceneCollection *rna_SceneCollection_duplicate(
+        ID *id, SceneCollection *scene_collection, Main *bmain, bContext *C, ReportList *reports)
+{
+	if (scene_collection == BKE_collection_master(id)) {
+		BKE_report(reports, RPT_ERROR, "The master collection can't be duplicated");
+		return NULL;
+	}
+
+	SceneCollection *scene_collection_new = BKE_collection_duplicate(id, scene_collection);
+
+	DEG_relations_tag_update(bmain);
+	/* Don't use id here, since the layer collection may come from a group. */
+	WM_event_add_notifier(C, NC_SCENE | ND_LAYER, CTX_data_scene(C));
+
+	return scene_collection_new;
 }
 
 static SceneCollection *rna_SceneCollection_new(
@@ -384,6 +401,7 @@ RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(shadow_method)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(shadow_size)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_BOOL(shadow_high_bitdepth)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(taa_samples)
+RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(taa_render_samples)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(gi_diffuse_bounces)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(gi_cubemap_resolution)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(gi_visibility_resolution)
@@ -634,9 +652,9 @@ static int rna_LayerCollection_name_length(PointerRNA *ptr)
 
 static void rna_LayerCollection_name_set(PointerRNA *ptr, const char *value)
 {
-	Scene *scene = (Scene *)ptr->id.data;
+	ID *owner_id = (ID *)ptr->id.data;
 	SceneCollection *sc = ((LayerCollection *)ptr->data)->scene_collection;
-	BKE_collection_rename(scene, sc, value);
+	BKE_collection_rename(owner_id, sc, value);
 }
 
 static PointerRNA rna_LayerCollection_objects_get(CollectionPropertyIterator *iter)
@@ -714,6 +732,23 @@ static Group *rna_LayerCollection_create_group(
 	DEG_id_tag_update(&scene->id, 0);
 	WM_event_add_notifier(C, NC_SCENE | ND_LAYER, scene);
 	return group;
+}
+
+static LayerCollection *rna_LayerCollection_duplicate(
+        ID *id, LayerCollection *layer_collection, Main *bmain, bContext *C, ReportList *reports)
+{
+	if (layer_collection->scene_collection == BKE_collection_master(id)) {
+		BKE_report(reports, RPT_ERROR, "The master collection can't be duplicated");
+		return NULL;
+	}
+
+	LayerCollection *layer_collection_new = BKE_layer_collection_duplicate(id, layer_collection);
+
+	DEG_relations_tag_update(bmain);
+	/* Don't use id here, since the layer collection may come from a group. */
+	WM_event_add_notifier(C, NC_SCENE | ND_LAYER, CTX_data_scene(C));
+
+	return layer_collection_new;
 }
 
 static int rna_LayerCollections_active_collection_index_get(PointerRNA *ptr)
@@ -842,10 +877,14 @@ static int rna_ViewLayer_objects_selected_skip(CollectionPropertyIterator *iter,
 
 static PointerRNA rna_ViewLayer_depsgraph_get(PointerRNA *ptr)
 {
-	Scene *scene = (Scene *)ptr->id.data;
-	ViewLayer *view_layer = (ViewLayer *)ptr->data;
-	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, false);
-	return rna_pointer_inherit_refine(ptr, &RNA_Depsgraph, depsgraph);
+	ID *id = ptr->id.data;
+	if (GS(id->name) == ID_SCE) {
+		Scene *scene = (Scene *)id;
+		ViewLayer *view_layer = (ViewLayer *)ptr->data;
+		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, false);
+		return rna_pointer_inherit_refine(ptr, &RNA_Depsgraph, depsgraph);
+	}
+	return PointerRNA_NULL;
 }
 
 static void rna_LayerObjects_selected_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
@@ -857,18 +896,19 @@ static void rna_LayerObjects_selected_begin(CollectionPropertyIterator *iter, Po
 static void rna_ViewLayer_update_tagged(ViewLayer *UNUSED(view_layer), bContext *C)
 {
 	Depsgraph *graph = CTX_data_depsgraph(C);
-	DEG_OBJECT_ITER(graph, ob, DEG_ITER_OBJECT_MODE_VIEWPORT,
-	                DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
-	                DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
-	                DEG_ITER_OBJECT_FLAG_LINKED_INDIRECTLY |
-	                DEG_ITER_OBJECT_FLAG_VISIBLE |
-	                DEG_ITER_OBJECT_FLAG_DUPLI)
+	DEG_OBJECT_ITER_BEGIN(
+	        graph, ob, DEG_ITER_OBJECT_MODE_VIEWPORT,
+	        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
+	        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
+	        DEG_ITER_OBJECT_FLAG_LINKED_INDIRECTLY |
+	        DEG_ITER_OBJECT_FLAG_VISIBLE |
+	        DEG_ITER_OBJECT_FLAG_DUPLI)
 	{
 		/* Don't do anything, we just need to run the iterator to flush
 		 * the base info to the objects. */
 		UNUSED_VARS(ob);
 	}
-	DEG_OBJECT_ITER_END
+	DEG_OBJECT_ITER_END;
 }
 
 static void rna_ObjectBase_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -880,7 +920,7 @@ static void rna_ObjectBase_select_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 
 static char *rna_ViewRenderSettings_path(PointerRNA *UNUSED(ptr))
 {
-	return BLI_sprintfN("viewport_render");
+	return BLI_sprintfN("view_render");
 }
 
 static void rna_ViewRenderSettings_engine_set(PointerRNA *ptr, int value)
@@ -1079,6 +1119,12 @@ static void rna_def_scene_collection(BlenderRNA *brna)
 	parm = RNA_def_pointer(func, "sc_dst", "SceneCollection", "Collection", "Collection to insert into");
 	parm = RNA_def_boolean(func, "result", false, "Result", "Whether the operation succeded");
 	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "duplicate", "rna_SceneCollection_duplicate");
+	RNA_def_function_ui_description(func, "Create a copy of the collection");
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
+	parm = RNA_def_pointer(func, "result", "SceneCollection", "", "Newly created collection");
+	RNA_def_function_return(func, parm);
 }
 
 static void rna_def_layer_collection_override(BlenderRNA *brna)
@@ -1199,9 +1245,16 @@ static void rna_def_view_layer_engine_settings_eevee(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "taa_samples", PROP_INT, PROP_NONE);
 	RNA_def_property_int_funcs(prop, "rna_LayerEngineSettings_Eevee_taa_samples_get",
 	                               "rna_LayerEngineSettings_Eevee_taa_samples_set", NULL);
-	RNA_def_property_ui_text(prop, "Viewport Samples", "Number of temporal samples, unlimited if 0, "
-	                                                   "disabled if 1");
+	RNA_def_property_ui_text(prop, "Viewport Samples", "Number of samples, unlimited if 0");
 	RNA_def_property_range(prop, 0, INT_MAX);
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
+
+	prop = RNA_def_property(srna, "taa_render_samples", PROP_INT, PROP_NONE);
+	RNA_def_property_int_funcs(prop, "rna_LayerEngineSettings_Eevee_taa_render_samples_get",
+	                               "rna_LayerEngineSettings_Eevee_taa_render_samples_set", NULL);
+	RNA_def_property_ui_text(prop, "Render Samples", "Number of samples per pixels for rendering");
+	RNA_def_property_range(prop, 1, INT_MAX);
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
 
@@ -1984,6 +2037,12 @@ static void rna_def_layer_collection(BlenderRNA *brna)
 	RNA_def_function_ui_description(func, "Enable or disable a collection");
 	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "result", "Group", "", "Newly created Group");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "duplicate", "rna_LayerCollection_duplicate");
+	RNA_def_function_ui_description(func, "Create a copy of the collection");
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
+	parm = RNA_def_pointer(func, "result", "LayerCollection", "", "Newly created collection");
 	RNA_def_function_return(func, parm);
 
 	/* Flags */

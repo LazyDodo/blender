@@ -49,6 +49,22 @@ struct ViewLayer;
 extern "C" {
 #endif
 
+/* *********************** DEG input data ********************* */
+
+/* Get scene that depsgraph was built for. */
+struct Scene *DEG_get_input_scene(const Depsgraph *graph);
+
+/* Get view layer that depsgraph was built for. */
+struct ViewLayer *DEG_get_input_view_layer(const Depsgraph *graph);
+
+/* Get evaluation mode that depsgraph was built for. */
+eEvaluationMode DEG_get_mode(const Depsgraph *graph);
+
+/* Get time that depsgraph is being evaluated or was last evaluated at. */
+float DEG_get_ctime(const Depsgraph *graph);
+
+/* ********************* DEG evaluated data ******************* */
+
 /* Check if given ID type was tagged for update. */
 bool DEG_id_type_tagged(struct Main *bmain, short id_type);
 
@@ -86,11 +102,13 @@ typedef enum eDepsObjectIteratorMode {
 
 typedef struct DEGObjectIterData {
 	struct Depsgraph *graph;
+	eDepsObjectIteratorMode mode;
+	int flag;
+
 	struct Scene *scene;
 	struct EvaluationContext eval_ctx;
 
-	int flag;
-	eDepsObjectIteratorMode mode;
+	int visibility_check; /* eObjectVisibilityCheck. */
 
 	/* **** Iteration over dupli-list. *** */
 
@@ -123,12 +141,12 @@ void DEG_iterator_objects_end(struct BLI_Iterator *iter);
  * Although they are available they have no overrides (collection_properties)
  * and will crash if you try to access it.
  */
-#define DEG_OBJECT_ITER(graph_, instance_, mode_, flag_)                          \
+#define DEG_OBJECT_ITER_BEGIN(graph_, instance_, mode_, flag_)                    \
 	{                                                                             \
 		DEGObjectIterData data_ = {                                               \
-			.graph = (graph_),                                                    \
-			.mode = (mode_),                                                      \
-			.flag = (flag_),                                                      \
+			graph_,                                                               \
+			mode_,                                                                \
+			flag_                                                                 \
 		};                                                                        \
                                                                                   \
 		ITER_BEGIN(DEG_iterator_objects_begin,                                    \
@@ -137,20 +155,20 @@ void DEG_iterator_objects_end(struct BLI_Iterator *iter);
 		           &data_, Object *, instance_)
 
 #define DEG_OBJECT_ITER_END                                                       \
-		ITER_END                                                                  \
+		ITER_END;                                                                 \
 	}
 
 /**
   * Depsgraph objects iterator for draw manager and final render
   */
-#define DEG_OBJECT_ITER_FOR_RENDER_ENGINE(graph_, instance_, mode_) \
-	DEG_OBJECT_ITER(graph_, instance_, mode_,                \
-	        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY  |          \
-	        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |            \
-	        DEG_ITER_OBJECT_FLAG_VISIBLE |                   \
+#define DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(graph_, instance_, mode_) \
+	DEG_OBJECT_ITER_BEGIN(graph_, instance_, mode_,                       \
+	        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |                        \
+	        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |                         \
+	        DEG_ITER_OBJECT_FLAG_VISIBLE |                                \
 	        DEG_ITER_OBJECT_FLAG_DUPLI)
 
-#define DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END                \
+#define DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END                             \
 	DEG_OBJECT_ITER_END
 
 /* ************************ DEG traversal ********************* */

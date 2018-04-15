@@ -849,6 +849,7 @@ void BKE_libblock_management_main_add(Main *bmain, void *idv)
 	new_id(lb, id, NULL);
 	/* alphabetic insertion: is in new_id */
 	id->tag &= ~(LIB_TAG_NO_MAIN | LIB_TAG_NO_USER_REFCOUNT);
+	bmain->is_memfile_undo_written = false;
 	BKE_main_unlock(bmain);
 }
 
@@ -868,6 +869,7 @@ void BKE_libblock_management_main_remove(Main *bmain, void *idv)
 	BKE_main_lock(bmain);
 	BLI_remlink(lb, id);
 	id->tag |= LIB_TAG_NO_MAIN;
+	bmain->is_memfile_undo_written = false;
 	BKE_main_unlock(bmain);
 }
 
@@ -1244,6 +1246,7 @@ void *BKE_libblock_alloc(Main *bmain, short type, const char *name, const int fl
 			BKE_main_lock(bmain);
 			BLI_addtail(lb, id);
 			new_id(lb, id, name);
+			bmain->is_memfile_undo_written = false;
 			/* alphabetic insertion: is in new_id */
 			BKE_main_unlock(bmain);
 
@@ -2144,7 +2147,7 @@ void BKE_library_make_local(
 	GSet *loop_tags = BLI_gset_ptr_new(__func__);
 	for (LinkNode *it = todo_ids; it; it = it->next) {
 		library_make_local_copying_check(it->link, loop_tags, bmain->relations, done_ids);
-		BLI_assert(BLI_gset_size(loop_tags) == 0);
+		BLI_assert(BLI_gset_len(loop_tags) == 0);
 	}
 	BLI_gset_free(loop_tags, NULL);
 	BLI_gset_free(done_ids, NULL);

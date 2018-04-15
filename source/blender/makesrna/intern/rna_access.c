@@ -451,8 +451,9 @@ static void *rna_idproperty_check_ex(PropertyRNA **prop, PointerRNA *ptr, const 
 
 			return idprop;
 		}
-		else
+		else {
 			return return_rnaprop ? *prop : NULL;
+		}
 	}
 
 	{
@@ -1842,7 +1843,7 @@ bool RNA_property_editable(PointerRNA *ptr, PropertyRNA *prop)
 	return ((flag & PROP_EDITABLE) &&
 	        (flag & PROP_REGISTER) == 0 &&
 	        (!id || ((!ID_IS_LINKED(id) || (prop->flag & PROP_LIB_EXCEPTION)) &&
-	                 (!id->override_static || (prop->flag & PROP_OVERRIDABLE_STATIC)))));
+	                 (!id->override_static || RNA_property_overridable(ptr, prop)))));
 }
 
 /**
@@ -1863,7 +1864,7 @@ bool RNA_property_editable_info(PointerRNA *ptr, PropertyRNA *prop, const char *
 	else {
 		flag = prop->flag;
 		if ((flag & PROP_EDITABLE) == 0 || (flag & PROP_REGISTER)) {
-			*r_info = "This property is for internal use only and can't be edited.";
+			*r_info = N_("This property is for internal use only and can't be edited");
 		}
 	}
 
@@ -1871,13 +1872,13 @@ bool RNA_property_editable_info(PointerRNA *ptr, PropertyRNA *prop, const char *
 	if (id) {
 		if (ID_IS_LINKED(id) && (prop->flag & PROP_LIB_EXCEPTION) == 0) {
 			if (!(*r_info)[0]) {
-				*r_info = "Can't edit this property from a linked data-block.";
+				*r_info = N_("Can't edit this property from a linked data-block.");
 			}
 			return false;
 		}
-		if (id->override_static != NULL && (prop->flag & PROP_OVERRIDABLE_STATIC) == 0) {
+		if (id->override_static != NULL && !RNA_property_overridable(ptr, prop)) {
 			if (!(*r_info)[0]) {
-				*r_info = "Can't edit this property from an override data-block.";
+				*r_info = N_("Can't edit this property from an override data-block.");
 			}
 			return false;
 		}
@@ -1952,6 +1953,34 @@ bool RNA_property_animated(PointerRNA *ptr, PropertyRNA *prop)
 	}
 
 	return false;
+}
+
+/** \note Does not take into account editable status, this has to be checked separately
+ * (using RNA_property_edtiable_flag() usually). */
+bool RNA_property_overridable(PointerRNA *UNUSED(ptr), PropertyRNA *prop)
+{
+	prop = rna_ensure_property(prop);
+
+	return !(prop->flag & PROP_NO_COMPARISON) && (prop->flag & PROP_OVERRIDABLE_STATIC);
+}
+
+bool RNA_property_overridden(PointerRNA *ptr, PropertyRNA *prop)
+{
+	char *rna_path = RNA_path_from_ID_to_property(ptr, prop);
+	ID *id = ptr->id.data;
+
+	if (rna_path == NULL || id == NULL || id->override_static == NULL) {
+		return false;
+	}
+
+	return (BKE_override_static_property_find(id->override_static, rna_path) != NULL);
+}
+
+bool RNA_property_comparable(PointerRNA *UNUSED(ptr), PropertyRNA *prop)
+{
+	prop = rna_ensure_property(prop);
+
+	return !(prop->flag & PROP_NO_COMPARISON);
 }
 
 /* this function is to check if its possible to create a valid path from the ID
@@ -7053,8 +7082,21 @@ bool RNA_property_copy(PointerRNA *ptr, PointerRNA *fromptr, PropertyRNA *prop, 
 	prop_dst = rna_ensure_property_realdata(&prop_dst, ptr);
 	prop_src = rna_ensure_property_realdata(&prop_src, fromptr);
 
+	/* IDprops: destination may not exist, if source does and is set, try to create it. */
+	/* Note: this is sort of quick hack/bandage to fix the issue, we need to rethink how IDProps are handled
+	 * in 'diff' RNA code completely, imho... */
+	if (prop_src != NULL && prop_dst == NULL && RNA_property_is_set(fromptr, prop)) {
+		BLI_assert(prop_src->magic != RNA_MAGIC);
+		IDProperty *idp_dst = RNA_struct_idprops(ptr, true);
+		IDProperty *prop_idp_dst = IDP_CopyProperty((IDProperty *)prop_src);
+		IDP_AddToGroup(idp_dst, prop_idp_dst);
+		rna_idproperty_touch(prop_idp_dst);
+		/* Nothing else to do here... */
+		return true;
+	}
+
 	if (ELEM(NULL, prop_dst, prop_src)) {
-		false;
+		return false;
 	}
 
 	IDOverrideStaticPropertyOperation opop = {
@@ -7136,10 +7178,13 @@ bool RNA_struct_equals(PointerRNA *ptr_a, PointerRNA *ptr_b, eRNACompareMode mod
  * When \a prop is given, \a prop_a and \a prop_b should always be NULL, and vice-versa.
  * This is necessary, because we cannot perform 'set/unset' checks on resolved properties
  * (unset IDProps would merely be NULL then).
+ *
+ * \note When there is no equality, but we cannot determine an order (greater than/lesser than), we return 1.
  */
 static int rna_property_override_diff(
-        PointerRNA *ptr_a, PointerRNA *ptr_b, PropertyRNA *prop, PropertyRNA *prop_a, PropertyRNA *prop_b, const char *rna_path,
-        eRNACompareMode mode, IDOverrideStatic *override, const int flags, eRNAOverrideMatchResult *r_report_flags)
+        PointerRNA *ptr_a, PointerRNA *ptr_b, PropertyRNA *prop, PropertyRNA *prop_a, PropertyRNA *prop_b,
+        const char *rna_path, eRNACompareMode mode,
+        IDOverrideStatic *override, const int flags, eRNAOverrideMatchResult *r_report_flags)
 {
 	if (prop != NULL) {
 		BLI_assert(prop_a == NULL && prop_b == NULL);
@@ -7149,6 +7194,10 @@ static int rna_property_override_diff(
 
 	if (ELEM(NULL, prop_a, prop_b)) {
 		return (prop_a == prop_b) ? 0 : 1;
+	}
+
+	if (!RNA_property_comparable(ptr_a, prop_a) || !RNA_property_comparable(ptr_b, prop_b)) {
+		return 0;
 	}
 
 	if (mode == RNA_EQ_UNSET_MATCH_ANY) {
@@ -7228,7 +7277,7 @@ static int rna_property_override_diff(
 
 	bool override_changed = false;
 	int diff_flags = flags;
-	if ((RNA_property_flag(prop_a) & PROP_OVERRIDABLE_STATIC) == 0) {
+	if (!RNA_property_overridable(ptr_a, prop_a)) {
 		diff_flags &= ~RNA_OVERRIDE_COMPARE_CREATE;
 	}
 	const int diff = override_diff(
@@ -7414,7 +7463,7 @@ bool RNA_struct_override_matches(
 			continue;
 		}
 
-		if (ignore_non_overridable && !(prop_local->flag & PROP_OVERRIDABLE_STATIC)) {
+		if (ignore_non_overridable && !RNA_property_overridable(ptr_local, prop_local)) {
 			continue;
 		}
 
@@ -7665,29 +7714,30 @@ IDOverrideStaticPropertyOperation *RNA_property_override_property_operation_get(
 	return BKE_override_static_property_operation_get(op, operation, NULL, NULL, index, index, strict, r_strict, r_created);
 }
 
-void RNA_property_override_status(
-        PointerRNA *ptr, PropertyRNA *prop, const int index,
-        bool *r_overridable, bool *r_overridden, bool *r_mandatory, bool *r_locked)
+eRNAOverrideStatus RNA_property_override_status(PointerRNA *ptr, PropertyRNA *prop, const int index)
 {
-#define SET_RET(_name, _val) if (_name != NULL) *_name = (_val)
-
-	SET_RET(r_overridable, false);
-	SET_RET(r_overridden, false);
-	SET_RET(r_mandatory, false);
-	SET_RET(r_locked, false);
+	int override_status = 0;
 
 	if (!ptr || !prop || !ptr->id.data || !((ID *)ptr->id.data)->override_static) {
-		return;
+		return override_status;
 	}
 
-	SET_RET(r_overridable, (prop->flag & PROP_OVERRIDABLE_STATIC) && (prop->flag & PROP_EDITABLE));
-
-	if (r_overridden || r_mandatory || r_locked) {
-		IDOverrideStaticPropertyOperation *opop = RNA_property_override_property_operation_find(ptr, prop, index, false, NULL);
-		SET_RET(r_overridden, opop != NULL);
-		SET_RET(r_mandatory, (opop->flag & IDOVERRIDESTATIC_FLAG_MANDATORY) != 0);
-		SET_RET(r_locked, (opop->flag & IDOVERRIDESTATIC_FLAG_LOCKED) != 0);
+	if (RNA_property_overridable(ptr, prop) && RNA_property_editable_flag(ptr, prop)) {
+		override_status |= RNA_OVERRIDE_STATUS_OVERRIDABLE;
 	}
+
+	IDOverrideStaticPropertyOperation *opop = RNA_property_override_property_operation_find(ptr, prop, index, false, NULL);
+	if (opop != NULL) {
+		override_status |= RNA_OVERRIDE_STATUS_OVERRIDDEN;
+		if (opop->flag & IDOVERRIDESTATIC_FLAG_MANDATORY) {
+			override_status |= RNA_OVERRIDE_STATUS_MANDATORY;
+		}
+		if (opop->flag & IDOVERRIDESTATIC_FLAG_LOCKED) {
+			override_status |= RNA_OVERRIDE_STATUS_LOCKED;
+		}
+	}
+
+	return override_status;
 }
 
 
@@ -7709,4 +7759,23 @@ bool RNA_path_resolved_create(
 	else {
 		return false;
 	}
+}
+
+static char rna_struct_state_owner[64];
+void RNA_struct_state_owner_set(const char *name)
+{
+	if (name) {
+		BLI_strncpy(rna_struct_state_owner, name, sizeof(rna_struct_state_owner));
+	}
+	else {
+		rna_struct_state_owner[0] = '\0';
+	}
+}
+
+const char *RNA_struct_state_owner_get(void)
+{
+	if (rna_struct_state_owner[0]) {
+		return rna_struct_state_owner;
+	}
+	return NULL;
 }

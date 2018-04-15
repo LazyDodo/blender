@@ -69,6 +69,8 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
+#include "DEG_depsgraph.h"
+
 #include "ED_armature.h"
 #include "ED_clip.h"
 #include "ED_image.h"
@@ -78,6 +80,7 @@
 #include "ED_screen_types.h"
 #include "ED_sequencer.h"
 #include "ED_util.h"
+#include "ED_undo.h"
 #include "ED_view3d.h"
 
 #include "RNA_access.h"
@@ -137,7 +140,7 @@ int ED_operator_screen_mainwinactive(bContext *C)
 	if (CTX_wm_window(C) == NULL) return 0;
 	screen = CTX_wm_screen(C);
 	if (screen == NULL) return 0;
-	if (screen->subwinactive != screen->mainwin) return 0;
+	if (screen->active_region != NULL) return 0;
 	return 1;
 }
 
@@ -556,7 +559,7 @@ int ED_operator_mask(bContext *C)
 			{
 				SpaceImage *sima = sa->spacedata.first;
 				ViewLayer *view_layer = CTX_data_view_layer(C);
-				return ED_space_image_check_show_maskedit(view_layer, sima);
+				return ED_space_image_check_show_maskedit(sima, view_layer);
 			}
 		}
 	}
@@ -887,23 +890,23 @@ static void SCREEN_OT_actionzone(wmOperatorType *ot)
 /** \name Swap Area Operator
  * \{ */
 
-/* operator state vars used:  
- * sa1		start area
- * sa2		area to swap with
- * 
+/* operator state vars used:
+ * sa1      start area
+ * sa2      area to swap with
+ *
  * functions:
- * 
+ *
  * init()   set custom data for operator, based on actionzone event custom data
- * 
- * cancel()	cancel the operator
- * 
- * exit()	cleanup, send notifier
- * 
+ *
+ * cancel() cancel the operator
+ *
+ * exit()   cleanup, send notifier
+ *
  * callbacks:
- * 
+ *
  * invoke() gets called on shift+lmb drag in actionzone
  * call init(), add handler
- * 
+ *
  * modal()  accept modal events while doing it
  */
 
@@ -1444,35 +1447,35 @@ static void SCREEN_OT_area_move(wmOperatorType *ot)
 /** \name Split Area Operator
  * \{ */
 
-/* 
- * operator state vars:  
+/*
+ * operator state vars:
  * fac              spit point
  * dir              direction 'v' or 'h'
- * 
+ *
  * operator customdata:
  * area             pointer to (active) area
- * x, y			last used mouse pos
+ * x, y             last used mouse pos
  * (more, see below)
- * 
+ *
  * functions:
- * 
+ *
  * init()   set default property values, find area based on context
- * 
- * apply()	split area based on state vars
- * 
- * exit()	cleanup, send notifier
- * 
+ *
+ * apply()  split area based on state vars
+ *
+ * exit()   cleanup, send notifier
+ *
  * cancel() remove duplicated area
- * 
+ *
  * callbacks:
- * 
+ *
  * exec()   execute without any user interaction, based on state vars
  * call init(), apply(), exit()
- * 
+ *
  * invoke() gets called on mouse click in action-widget
  * call init(), add modal handler
  * call apply() with initial motion
- * 
+ *
  * modal()  accept modal events while doing it
  * call move-areas code with delta motion
  * call exit() or cancel() and remove handler
@@ -3570,7 +3573,6 @@ static int screen_animation_step(bContext *C, wmOperator *UNUSED(op), const wmEv
 	if (screen->animtimer && screen->animtimer == event->customdata) {
 		Main *bmain = CTX_data_main(C);
 		Scene *scene = CTX_data_scene(C);
-		ViewLayer *view_layer = CTX_data_view_layer(C);
 		struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		wmTimer *wt = screen->animtimer;
 		ScreenAnimData *sad = wt->customdata;
@@ -3682,7 +3684,7 @@ static int screen_animation_step(bContext *C, wmOperator *UNUSED(op), const wmEv
 		}
 		
 		/* since we follow drawflags, we can't send notifier but tag regions ourselves */
-		ED_update_for_newframe(bmain, scene, view_layer, depsgraph);
+		ED_update_for_newframe(bmain, depsgraph);
 
 		for (window = wm->windows.first; window; window = window->next) {
 			const bScreen *win_screen = WM_window_get_active_screen(window);

@@ -33,6 +33,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+
 #include "MEM_guardedalloc.h"
 
 #include "DNA_world_types.h"
@@ -196,7 +197,7 @@ void BKE_world_make_local(Main *bmain, World *wrld, const bool lib_local)
 
 void BKE_world_eval(const struct EvaluationContext *UNUSED(eval_ctx), World *world)
 {
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
+	if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) {
 		printf("%s on %s (%p)\n", __func__, world->id.name, world);
 	}
 	if (!BLI_listbase_is_empty(&world->gpumaterial)) {

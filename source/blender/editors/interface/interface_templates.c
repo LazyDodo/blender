@@ -36,7 +36,7 @@
 #include "DNA_node_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_texture_types.h"
 
@@ -79,7 +79,7 @@
 #include "ED_screen.h"
 #include "ED_object.h"
 #include "ED_render.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 
 #include "RNA_access.h"
 
@@ -351,11 +351,11 @@ static void id_search_cb_objects_from_scene(const bContext *C, void *arg_templat
 
 	BKE_main_id_flag_listbase(lb, LIB_TAG_DOIT, false);
 
-	FOREACH_SCENE_OBJECT(scene, ob_iter)
+	FOREACH_SCENE_OBJECT_BEGIN(scene, ob_iter)
 	{
 		ob_iter->id.tag |= LIB_TAG_DOIT;
 	}
-	FOREACH_SCENE_OBJECT_END
+	FOREACH_SCENE_OBJECT_END;
 	id_search_cb_tagged(C, arg_template, str, items);
 }
 

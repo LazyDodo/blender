@@ -137,7 +137,7 @@ void DRW_mesh_cache_sculpt_coords_ensure(struct Mesh *me);
 
 /* Particles */
 struct Gwn_Batch *DRW_particles_batch_cache_get_hair(struct ParticleSystem *psys, struct ModifierData *md);
-struct Gwn_Batch *DRW_particles_batch_cache_get_dots(struct ParticleSystem *psys);
+struct Gwn_Batch *DRW_particles_batch_cache_get_dots(struct Object *object, struct ParticleSystem *psys);
 
 /* Hair */
 struct Gwn_Batch *DRW_hair_batch_cache_get_fibers(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv,

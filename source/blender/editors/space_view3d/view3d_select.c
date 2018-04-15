@@ -49,7 +49,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "BLI_math.h"
-#include "BLI_lasso.h"
+#include "BLI_lasso_2d.h"
 #include "BLI_rect.h"
 #include "BLI_linklist.h"
 #include "BLI_listbase.h"
@@ -85,6 +85,7 @@
 
 #include "ED_armature.h"
 #include "ED_curve.h"
+#include "ED_lattice.h"
 #include "ED_particle.h"
 #include "ED_mesh.h"
 #include "ED_object.h"
@@ -109,7 +110,7 @@ float ED_view3d_select_dist_px(void)
 }
 
 /* TODO: should return whether there is valid context to continue */
-void view3d_set_viewcontext(bContext *C, ViewContext *vc)
+void ED_view3d_viewcontext_init(bContext *C, ViewContext *vc)
 {
 	memset(vc, 0, sizeof(ViewContext));
 	vc->ar = CTX_wm_region(C);
@@ -226,9 +227,10 @@ typedef struct LassoSelectUserData {
 	bool is_changed;
 } LassoSelectUserData;
 
-static void view3d_userdata_lassoselect_init(LassoSelectUserData *r_data,
-                                             ViewContext *vc, const rcti *rect, const int (*mcords)[2],
-                                             const int moves, const bool select)
+static void view3d_userdata_lassoselect_init(
+        LassoSelectUserData *r_data,
+        ViewContext *vc, const rcti *rect, const int (*mcords)[2],
+        const int moves, const bool select)
 {
 	r_data->vc = vc;
 
@@ -303,7 +305,8 @@ static bool edge_inside_rect(const rctf *rect, const float v1[2], const float v2
 	return 1;
 }
 
-static void do_lasso_select_pose__doSelectBone(void *userData, struct bPoseChannel *pchan, const float screen_co_a[2], const float screen_co_b[2])
+static void do_lasso_select_pose__doSelectBone(
+        void *userData, struct bPoseChannel *pchan, const float screen_co_a[2], const float screen_co_b[2])
 {
 	LassoSelectUserData *data = userData;
 	bArmature *arm = data->vc->obact->data;
@@ -390,8 +393,9 @@ static void object_deselect_all_visible(ViewLayer *view_layer)
 	}
 }
 
-static void do_lasso_select_objects(ViewContext *vc, const int mcords[][2], const short moves,
-                                    const bool extend, const bool select)
+static void do_lasso_select_objects(
+        ViewContext *vc, const int mcords[][2], const short moves,
+        const bool extend, const bool select)
 {
 	Base *base;
 	
@@ -423,7 +427,8 @@ static void do_lasso_select_mesh__doSelectVert(void *userData, BMVert *eve, cons
 		BM_vert_select_set(data->vc->em->bm, eve, data->select);
 	}
 }
-static void do_lasso_select_mesh__doSelectEdge(void *userData, BMEdge *eed, const float screen_co_a[2], const float screen_co_b[2], int index)
+static void do_lasso_select_mesh__doSelectEdge(
+        void *userData, BMEdge *eed, const float screen_co_a[2], const float screen_co_b[2], int index)
 {
 	LassoSelectUserData *data = userData;
 
@@ -846,9 +851,10 @@ static void do_lasso_select_node(int mcords[][2], short moves, const bool select
 }
 #endif
 
-static void view3d_lasso_select(bContext *C, ViewContext *vc,
-                                const int mcords[][2], short moves,
-                                bool extend, bool select)
+static void view3d_lasso_select(
+        bContext *C, ViewContext *vc,
+        const int mcords[][2], short moves,
+        bool extend, bool select)
 {
 	Object *ob = CTX_data_active_object(C);
 
@@ -917,7 +923,7 @@ static int view3d_lasso_select_exec(bContext *C, wmOperator *op)
 		view3d_operator_needs_opengl(C);
 		
 		/* setup view context for argument to callbacks */
-		view3d_set_viewcontext(C, &vc);
+		ED_view3d_viewcontext_init(C, &vc);
 		
 		extend = RNA_boolean_get(op->ptr, "extend");
 		select = !RNA_boolean_get(op->ptr, "deselect");
@@ -949,60 +955,7 @@ void VIEW3D_OT_select_lasso(wmOperatorType *ot)
 	WM_operator_properties_gesture_lasso_select(ot);
 }
 
-
-/* ************************************************* */
-
-#if 0
-/* smart function to sample a rect spiralling outside, nice for backbuf selection */
-static unsigned int samplerect(unsigned int *buf, int size, unsigned int dontdo)
-{
-	Base *base;
-	unsigned int *bufmin, *bufmax;
-	int a, b, rc, tel, len, dirvec[4][2], maxob;
-	unsigned int retval = 0;
-	
-	base = LASTBASE;
-	if (base == 0) return 0;
-	maxob = base->object->select_color;
-
-	len = (size - 1) / 2;
-	rc = 0;
-
-	dirvec[0][0] = 1;
-	dirvec[0][1] = 0;
-	dirvec[1][0] = 0;
-	dirvec[1][1] = -size;
-	dirvec[2][0] = -1;
-	dirvec[2][1] = 0;
-	dirvec[3][0] = 0;
-	dirvec[3][1] = size;
-
-	bufmin = buf;
-	bufmax = buf + size * size;
-	buf += len * size + len;
-
-	for (tel = 1; tel <= size; tel++) {
-
-		for (a = 0; a < 2; a++) {
-			for (b = 0; b < tel; b++) {
-
-				if (*buf && *buf <= maxob && *buf != dontdo) return *buf;
-				if (*buf == dontdo) retval = dontdo;  /* if only color dontdo is available, still return dontdo */
-				
-				buf += (dirvec[rc][0] + dirvec[rc][1]);
-
-				if (buf < bufmin || buf >= bufmax) return retval;
-			}
-			rc++;
-			rc &= 3;
-		}
-	}
-	return retval;
-}
-#endif
-
 /* ************************** mouse select ************************* */
-
 
 /* The max number of menu items in an object select menu */
 typedef struct SelMenuItemF {
@@ -1014,7 +967,8 @@ typedef struct SelMenuItemF {
 static SelMenuItemF object_mouse_select_menu_data[SEL_MENU_SIZE];
 
 /* special (crappy) operator only for menu select */
-static const EnumPropertyItem *object_select_menu_enum_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *object_select_menu_enum_itemf(
+        bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem *item = NULL, item_tmp = {0};
 	int totitem = 0;
@@ -1199,7 +1153,7 @@ static Base *object_mouse_select_menu(
 	}
 }
 
-static bool selectbuffer_has_bones(const unsigned int *buffer, const unsigned int hits)
+static bool selectbuffer_has_bones(const uint *buffer, const uint hits)
 {
 	unsigned int i;
 	for (i = 0; i < hits; i++) {
@@ -1320,8 +1274,9 @@ finally:
 }
 
 /* returns basact */
-static Base *mouse_select_eval_buffer(ViewContext *vc, unsigned int *buffer, int hits,
-                                      Base *startbase, bool has_bones, bool do_nearest)
+static Base *mouse_select_eval_buffer(
+        ViewContext *vc, const uint *buffer, int hits,
+        Base *startbase, bool has_bones, bool do_nearest)
 {
 	ViewLayer *view_layer = vc->view_layer;
 	Base *base, *basact = NULL;
@@ -1417,7 +1372,7 @@ Base *ED_view3d_give_base_under_cursor(bContext *C, const int mval[2])
 	view3d_operator_needs_opengl(C);
 
 	CTX_data_eval_ctx(C, &eval_ctx);
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 	
 	hits = mixed_bones_object_selectbuffer(&eval_ctx, &vc, buffer, mval, false, false, &do_nearest);
 	
@@ -1468,7 +1423,7 @@ static bool ed_object_select_pick(
 	
 	/* setup view context for argument to callbacks */
 	CTX_data_eval_ctx(C, &eval_ctx);
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	is_obedit = (vc.obedit != NULL);
 	if (object) {
@@ -1493,8 +1448,9 @@ static bool ed_object_select_pick(
 			while (base) {
 				if (BASE_SELECTABLE(base)) {
 					float screen_co[2];
-					if (ED_view3d_project_float_global(ar, base->object->obmat[3], screen_co,
-					                                   V3D_PROJ_TEST_CLIP_BB | V3D_PROJ_TEST_CLIP_WIN | V3D_PROJ_TEST_CLIP_NEAR) == V3D_PROJ_RET_OK)
+					if (ED_view3d_project_float_global(
+					            ar, base->object->obmat[3], screen_co,
+					            V3D_PROJ_TEST_CLIP_BB | V3D_PROJ_TEST_CLIP_WIN | V3D_PROJ_TEST_CLIP_NEAR) == V3D_PROJ_RET_OK)
 					{
 						float dist_temp = len_manhattan_v2v2(mval_fl, screen_co);
 						if (base == BASACT(view_layer)) dist_temp += 10.0f;
@@ -1593,7 +1549,7 @@ static bool ed_object_select_pick(
 						}
 					}
 				}
-				else if (ED_do_pose_selectbuffer(scene, view_layer, basact, buffer, hits, extend, deselect, toggle, do_nearest)) {
+				else if (ED_do_pose_selectbuffer(view_layer, basact, buffer, hits, extend, deselect, toggle, do_nearest)) {
 					/* then bone is found */
 				
 					/* we make the armature selected: 
@@ -1680,8 +1636,9 @@ typedef struct BoxSelectUserData {
 	bool is_changed;
 } BoxSelectUserData;
 
-static void view3d_userdata_boxselect_init(BoxSelectUserData *r_data,
-                                           ViewContext *vc, const rcti *rect, const bool select)
+static void view3d_userdata_boxselect_init(
+        BoxSelectUserData *r_data,
+        ViewContext *vc, const rcti *rect, const bool select)
 {
 	r_data->vc = vc;
 
@@ -1795,7 +1752,8 @@ static int do_paintvert_box_select(
 	return OPERATOR_FINISHED;
 }
 
-static void do_nurbs_box_select__doSelect(void *userData, Nurb *UNUSED(nu), BPoint *bp, BezTriple *bezt, int beztindex, const float screen_co[2])
+static void do_nurbs_box_select__doSelect(
+        void *userData, Nurb *UNUSED(nu), BPoint *bp, BezTriple *bezt, int beztindex, const float screen_co[2])
 {
 	BoxSelectUserData *data = userData;
 	Object *obedit = data->vc->obedit;
@@ -1914,7 +1872,8 @@ static void do_mesh_box_select__doSelectVert(void *userData, BMVert *eve, const 
 		BM_vert_select_set(data->vc->em->bm, eve, data->select);
 	}
 }
-static void do_mesh_box_select__doSelectEdge(void *userData, BMEdge *eed, const float screen_co_a[2], const float screen_co_b[2], int index)
+static void do_mesh_box_select__doSelectEdge(
+        void *userData, BMEdge *eed, const float screen_co_a[2], const float screen_co_b[2], int index)
 {
 	BoxSelectUserData *data = userData;
 
@@ -2131,8 +2090,8 @@ static int do_object_pose_box_select(bContext *C, ViewContext *vc, rcti *rect, b
 	EvaluationContext eval_ctx;
 	Bone *bone;
 	Object *ob = vc->obact;
-	unsigned int *vbuffer = NULL; /* selection buffer	*/
-	unsigned int *col;          /* color in buffer	*/
+	unsigned int *vbuffer = NULL; /* selection buffer */
+	unsigned int *col;            /* color in buffer */
 	int bone_only;
 	int bone_selected = 0;
 	int totobj = MAXPICKBUF; /* XXX solve later */
@@ -2180,7 +2139,7 @@ static int do_object_pose_box_select(bContext *C, ViewContext *vc, rcti *rect, b
 		qsort(vbuffer, hits, sizeof(uint[4]), opengl_select_buffer_cmp);
 
 		/*
-		 * Even though 'DRW_draw_select_loop' uses 'DEG_OBJECT_ITER',
+		 * Even though 'DRW_draw_select_loop' uses 'DEG_OBJECT_ITER_BEGIN',
 		 * we can be sure the order remains the same between both.
 		 */
 		for (base = vc->view_layer->object_bases.first; base && hits; base = base->next) {
@@ -2248,7 +2207,7 @@ static int view3d_borderselect_exec(bContext *C, wmOperator *op)
 
 	/* setup view context for argument to callbacks */
 	CTX_data_eval_ctx(C, &eval_ctx);
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 	
 	select = !RNA_boolean_get(op->ptr, "deselect");
 	extend = RNA_boolean_get(op->ptr, "extend");
@@ -2513,8 +2472,9 @@ typedef struct CircleSelectUserData {
 	bool is_changed;
 } CircleSelectUserData;
 
-static void view3d_userdata_circleselect_init(CircleSelectUserData *r_data,
-                                              ViewContext *vc, const bool select, const int mval[2], const float rad)
+static void view3d_userdata_circleselect_init(
+        CircleSelectUserData *r_data,
+        ViewContext *vc, const bool select, const int mval[2], const float rad)
 {
 	r_data->vc = vc;
 	r_data->select = select;
@@ -2537,7 +2497,8 @@ static void mesh_circle_doSelectVert(void *userData, BMVert *eve, const float sc
 		BM_vert_select_set(data->vc->em->bm, eve, data->select);
 	}
 }
-static void mesh_circle_doSelectEdge(void *userData, BMEdge *eed, const float screen_co_a[2], const float screen_co_b[2], int UNUSED(index))
+static void mesh_circle_doSelectEdge(
+        void *userData, BMEdge *eed, const float screen_co_a[2], const float screen_co_b[2], int UNUSED(index))
 {
 	CircleSelectUserData *data = userData;
 
@@ -2655,7 +2616,8 @@ static void paint_vertsel_circle_select(const struct EvaluationContext *eval_ctx
 }
 
 
-static void nurbscurve_circle_doSelect(void *userData, Nurb *UNUSED(nu), BPoint *bp, BezTriple *bezt, int beztindex, const float screen_co[2])
+static void nurbscurve_circle_doSelect(
+        void *userData, Nurb *UNUSED(nu), BPoint *bp, BezTriple *bezt, int beztindex, const float screen_co[2])
 {
 	CircleSelectUserData *data = userData;
 	Object *obedit = data->vc->obedit;
@@ -2766,7 +2728,8 @@ static bool pchan_circle_doSelectJoint(void *userData, bPoseChannel *pchan, cons
 	}
 	return 0;
 }
-static void do_circle_select_pose__doSelectBone(void *userData, struct bPoseChannel *pchan, const float screen_co_a[2], const float screen_co_b[2])
+static void do_circle_select_pose__doSelectBone(
+        void *userData, struct bPoseChannel *pchan, const float screen_co_a[2], const float screen_co_b[2])
 {
 	CircleSelectUserData *data = userData;
 	bArmature *arm = data->vc->obact->data;
@@ -2852,7 +2815,8 @@ static bool armature_circle_doSelectJoint(void *userData, EditBone *ebone, const
 	}
 	return 0;
 }
-static void do_circle_select_armature__doSelectBone(void *userData, struct EditBone *ebone, const float screen_co_a[2], const float screen_co_b[2])
+static void do_circle_select_armature__doSelectBone(
+        void *userData, struct EditBone *ebone, const float screen_co_a[2], const float screen_co_b[2])
 {
 	CircleSelectUserData *data = userData;
 	bArmature *arm = data->vc->obedit->data;
@@ -2977,8 +2941,9 @@ static bool object_circle_select(ViewContext *vc, const bool select, const int m
 	for (base = FIRSTBASE(view_layer); base; base = base->next) {
 		if (BASE_SELECTABLE(base) && ((base->flag & BASE_SELECTED) != select_flag)) {
 			float screen_co[2];
-			if (ED_view3d_project_float_global(vc->ar, base->object->obmat[3], screen_co,
-			                                   V3D_PROJ_TEST_CLIP_BB | V3D_PROJ_TEST_CLIP_WIN | V3D_PROJ_TEST_CLIP_NEAR) == V3D_PROJ_RET_OK)
+			if (ED_view3d_project_float_global(
+			            vc->ar, base->object->obmat[3], screen_co,
+			            V3D_PROJ_TEST_CLIP_BB | V3D_PROJ_TEST_CLIP_WIN | V3D_PROJ_TEST_CLIP_NEAR) == V3D_PROJ_RET_OK)
 			{
 				if (len_squared_v2v2(mval_fl, screen_co) <= radius_squared) {
 					ED_object_base_select(base, select ? BA_SELECT : BA_DESELECT);
@@ -3010,7 +2975,7 @@ static int view3d_circle_select_exec(bContext *C, wmOperator *op)
 		view3d_operator_needs_opengl(C);
 		
 		CTX_data_eval_ctx(C, &eval_ctx);
-		view3d_set_viewcontext(C, &vc);
+		ED_view3d_viewcontext_init(C, &vc);
 
 		if (CTX_data_edit_object(C)) {
 			obedit_circle_select(&eval_ctx, &vc, select, mval, (float)radius);
@@ -3034,7 +2999,7 @@ static int view3d_circle_select_exec(bContext *C, wmOperator *op)
 	}
 	else {
 		ViewContext vc;
-		view3d_set_viewcontext(C, &vc);
+		ED_view3d_viewcontext_init(C, &vc);
 
 		if (object_circle_select(&vc, select, mval, (float)radius)) {
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);

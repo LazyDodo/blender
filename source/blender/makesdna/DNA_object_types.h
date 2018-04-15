@@ -33,6 +33,8 @@
 #ifndef __DNA_OBJECT_TYPES_H__
 #define __DNA_OBJECT_TYPES_H__
 
+#include "DNA_object_enums.h"
+
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
 #include "DNA_ID.h"
@@ -75,11 +77,19 @@ typedef struct bFaceMap {
 } bFaceMap;
 
 /* Object Runtime display data */
+struct ObjectEngineData;
+typedef void (*ObjectEngineDataInitCb)(struct ObjectEngineData *engine_data);
+typedef void (*ObjectEngineDataFreeCb)(struct ObjectEngineData *engine_data);
+
+#
+#
 typedef struct ObjectEngineData {
 	struct ObjectEngineData *next, *prev;
 	struct DrawEngineType *engine_type;
-	void *storage;
-	void (*free)(void *storage);
+	/* Only nested data, NOT the engine data itself. */
+	ObjectEngineDataFreeCb free;
+	/* Accumulated recalc flags, which corresponds to ID->recalc flags. */
+	int recalc;
 } ObjectEngineData;
 
 #define MAX_VGROUP_NAME 64
@@ -161,9 +171,9 @@ typedef struct Object {
 	ListBase defbase;   /* list of bDeformGroup (vertex groups) names and flag only */
 	ListBase modifiers; /* list of ModifierData structures */
 	ListBase fmaps;     /* list of facemaps */
-	
+
 	int mode;           /* Local object mode */
-	int restore_mode;   /* Keep track of what mode to return to after toggling a mode */
+	int restore_mode;
 
 	/* materials */
 	struct Material **mat;	/* material slots */
@@ -311,14 +321,12 @@ typedef struct Object {
 
 	ListBase gpulamp;		/* runtime, for glsl lamp display only */
 	ListBase pc_ids;
-	ListBase *duplilist;	/* for temporary dupli list storage, only for use by RNA API */
 	
 	struct RigidBodyOb *rigidbody_object;		/* settings for Bullet rigid body */
 	struct RigidBodyCon *rigidbody_constraint;	/* settings for Bullet constraint */
 
 	float ima_ofs[2];		/* offset for image empties */
 	ImageUser *iuser;		/* must be non-null when oject is an empty image */
-	void *pad4;
 
 	ListBase lodlevels;		/* contains data for levels of detail */
 	LodLevel *currentlod;
@@ -703,25 +711,6 @@ enum {
 	OB_DUPLI_FLAG_VIEWPORT = 1 << 0,
 	OB_DUPLI_FLAG_RENDER   = 1 << 1,
 };
-
-/* ob->mode */
-typedef enum eObjectMode {
-	OB_MODE_OBJECT        = 0,
-	OB_MODE_EDIT          = 1 << 0,
-	OB_MODE_SCULPT        = 1 << 1,
-	OB_MODE_VERTEX_PAINT  = 1 << 2,
-	OB_MODE_WEIGHT_PAINT  = 1 << 3,
-	OB_MODE_TEXTURE_PAINT = 1 << 4,
-	OB_MODE_PARTICLE_EDIT = 1 << 5,
-	OB_MODE_POSE          = 1 << 6,
-	OB_MODE_GPENCIL       = 1 << 7,  /* NOTE: Just a dummy to make the UI nicer */
-} eObjectMode;
-
-/* any mode where the brush system is used */
-#define OB_MODE_ALL_PAINT (OB_MODE_SCULPT | OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)
-
-/* any mode that uses ob->sculpt */
-#define OB_MODE_ALL_SCULPT (OB_MODE_SCULPT | OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT)
 
 #define MAX_DUPLI_RECUR 8
 

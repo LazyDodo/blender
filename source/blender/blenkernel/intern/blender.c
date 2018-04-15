@@ -45,6 +45,7 @@
 #include "IMB_imbuf.h"
 #include "IMB_moviecache.h"
 
+#include "BKE_addon.h"
 #include "BKE_blender.h"  /* own include */
 #include "BKE_blender_version.h"  /* own include */
 #include "BKE_blendfile.h"
@@ -83,6 +84,10 @@ void BKE_blender_free(void)
 	/* samples are in a global list..., also sets G.main->sound->sample NULL */
 	BKE_main_free(G.main);
 	G.main = NULL;
+
+	if (G.log.file != NULL) {
+		fclose(G.log.file);
+	}
 
 	BKE_spacetypes_free();      /* after free main, it uses space callbacks */
 	
@@ -133,6 +138,8 @@ void BKE_blender_globals_init(void)
 #else
 	G.f &= ~G_SCRIPT_AUTOEXEC;
 #endif
+
+	G.log.level = 1;
 }
 
 void BKE_blender_globals_clear(void)
@@ -202,11 +209,7 @@ static void userdef_free_addons(UserDef *userdef)
 {
 	for (bAddon *addon = userdef->addons.first, *addon_next; addon; addon = addon_next) {
 		addon_next = addon->next;
-		if (addon->prop) {
-			IDP_FreeProperty(addon->prop);
-			MEM_freeN(addon->prop);
-		}
-		MEM_freeN(addon);
+		BKE_addon_free(addon);
 	}
 	BLI_listbase_clear(&userdef->addons);
 }

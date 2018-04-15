@@ -229,12 +229,11 @@ static void EDIT_CURVE_cache_populate(void *vedata, Object *ob)
 	EDIT_CURVE_StorageList *stl = ((EDIT_CURVE_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	const Scene *scene = draw_ctx->scene;
-	const Object *obedit = scene->obedit;
 
 	UNUSED_VARS(psl, stl);
 
 	if (ob->type == OB_CURVE) {
-		if (ob == obedit) {
+		if (ob == draw_ctx->object_edit) {
 			Curve *cu = ob->data;
 			/* Get geometry cache */
 			struct Gwn_Batch *geom;
@@ -346,5 +345,6 @@ DrawEngineType draw_engine_edit_curve_type = {
 	&EDIT_CURVE_cache_finish,
 	NULL, /* draw_background but not needed by mode engines */
 	&EDIT_CURVE_draw_scene,
+	NULL,
 	NULL,
 };

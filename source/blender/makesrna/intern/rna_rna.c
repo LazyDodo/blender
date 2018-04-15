@@ -638,7 +638,7 @@ static const EnumPropertyItem *rna_Property_tags_itemf(
 	int totitem = 0;
 
 	for (const EnumPropertyItem *struct_tags = RNA_struct_property_tag_defines(srna);
-	     struct_tags->identifier;
+	     struct_tags != NULL && struct_tags->identifier != NULL;
 	     struct_tags++)
 	{
 		memcpy(&tmp, struct_tags, sizeof(tmp));
@@ -1444,6 +1444,12 @@ int rna_property_override_diff_default(PointerRNA *ptr_a, PointerRNA *ptr_b,
 					equals = false;
 					continue;
 				}
+				else if (iter_a.ptr.type == NULL) {
+					/* NULL RNA pointer... */
+					BLI_assert(iter_a.ptr.data == NULL);
+					BLI_assert(iter_b.ptr.data == NULL);
+					continue;
+				}
 
 				PropertyRNA *propname = RNA_struct_name_property(iter_a.ptr.type);
 				char propname_buff_a[256], propname_buff_b[256];
@@ -1452,6 +1458,10 @@ int rna_property_override_diff_default(PointerRNA *ptr_a, PointerRNA *ptr_b,
 				if (propname != NULL) {
 					propname_a = RNA_property_string_get_alloc(&iter_a.ptr, propname, propname_buff_a, sizeof(propname_buff_a), NULL);
 					propname_b = RNA_property_string_get_alloc(&iter_b.ptr, propname, propname_buff_b, sizeof(propname_buff_b), NULL);
+				}
+				/* There may be a propname defined in some cases, while no actual name set
+				 * (e.g. happens with point cache), in that case too we want to fall back to index. */
+				if ((propname_a != NULL && propname_a[0] != '\0') || (propname_b != NULL && propname_b[0] != '\0')) {
 					if (!STREQ(propname_a, propname_b)) {
 						/* Same as above, not same structs. */
 						equals = false;
@@ -1466,7 +1476,7 @@ int rna_property_override_diff_default(PointerRNA *ptr_a, PointerRNA *ptr_b,
 					}
 				}
 
-				if (equals) {
+				if (equals || do_create) {
 					const bool no_ownership = (RNA_property_flag(prop_a) & PROP_PTR_NO_OWNERSHIP) != 0;
 					const int eq = rna_property_override_diff_propptr(
 					              &iter_a.ptr, &iter_b.ptr, mode, no_ownership,
@@ -1475,10 +1485,10 @@ int rna_property_override_diff_default(PointerRNA *ptr_a, PointerRNA *ptr_b,
 				}
 
 				if (propname_a != propname_buff_a) {
-					MEM_freeN(propname_a);
+					MEM_SAFE_FREE(propname_a);
 				}
 				if (propname_b != propname_buff_b) {
-					MEM_freeN(propname_b);
+					MEM_SAFE_FREE(propname_b);
 				}
 				MEM_SAFE_FREE(extended_rna_path);
 

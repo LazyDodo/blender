@@ -696,7 +696,7 @@ static TaskPool *task_pool_create_ex(TaskScheduler *scheduler,
 	 * and malloc could be non-thread safe at this point because
 	 * no other jobs are running.
 	 */
-	BLI_begin_threaded_malloc();
+	BLI_threaded_malloc_begin();
 
 	return pool;
 }
@@ -763,7 +763,7 @@ void BLI_task_pool_free(TaskPool *pool)
 
 	MEM_freeN(pool);
 
-	BLI_end_threaded_malloc();
+	BLI_threaded_malloc_end();
 }
 
 BLI_INLINE bool task_can_use_local_queues(TaskPool *pool, int thread_id)
@@ -1310,11 +1310,11 @@ static void parallel_mempool_func(
 /**
  * This function allows to parallelize for loops over Mempool items.
  *
- * \param pool The iterable BLI_mempool to loop over.
- * \param userdata Common userdata passed to all instances of \a func.
- * \param func Callback function.
- * \param use_threading If \a true, actually split-execute loop in threads, else just do a sequential forloop
- *                      (allows caller to use any kind of test to switch on parallelization or not).
+ * \param mempool: The iterable BLI_mempool to loop over.
+ * \param userdata: Common userdata passed to all instances of \a func.
+ * \param func: Callback function.
+ * \param use_threading: If \a true, actually split-execute loop in threads, else just do a sequential for loop
+ * (allows caller to use any kind of test to switch on parallelization or not).
  *
  * \note There is no static scheduling here.
  */
@@ -1329,7 +1329,7 @@ void BLI_task_parallel_mempool(
 	ParallelMempoolState state;
 	int i, num_threads, num_tasks;
 
-	if (BLI_mempool_count(mempool) == 0) {
+	if (BLI_mempool_len(mempool) == 0) {
 		return;
 	}
 

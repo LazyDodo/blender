@@ -88,7 +88,7 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_nla_types.h"
 #include "DNA_node_types.h"
-#include "DNA_object_fluidsim.h" // NT
+#include "DNA_object_fluidsim_types.h"
 #include "DNA_object_types.h"
 #include "DNA_packedFile_types.h"
 #include "DNA_particle_types.h"
@@ -2289,6 +2289,10 @@ static void direct_link_id(FileData *fd, ID *id)
 	}
 	id->py_instance = NULL;
 
+	/* That way datablock reading not going through main read_libblock() function are still in a clear tag state.
+	 * (glowering at certain nodetree fake datablock here...). */
+	id->tag = 0;
+
 	/* Link direct data of overrides. */
 	if (id->override_static) {
 		id->override_static = newdataadr(fd, id->override_static);
@@ -2906,6 +2910,7 @@ static void direct_link_workspace(FileData *fd, WorkSpace *workspace, const Main
 	link_list(fd, &workspace->hook_layout_relations);
 	link_list(fd, &workspace->scene_viewlayer_relations);
 	link_list(fd, BKE_workspace_transform_orientations_get(workspace));
+	link_list(fd, &workspace->owner_ids);
 
 	for (WorkSpaceDataRelation *relation = workspace->hook_layout_relations.first;
 	     relation;
@@ -3862,15 +3867,11 @@ static void lib_link_text(FileData *fd, Main *main)
 static void direct_link_text(FileData *fd, Text *text)
 {
 	TextLine *ln;
-	
+
 	text->name = newdataadr(fd, text->name);
-	
-	text->undo_pos = -1;
-	text->undo_len = TXT_INIT_UNDO;
-	text->undo_buf = MEM_mallocN(text->undo_len, "undo buf");
-	
+
 	text->compiled = NULL;
-	
+
 #if 0
 	if (text->flags & TXT_ISEXT) {
 		BKE_text_reload(text);
@@ -4408,6 +4409,9 @@ static void direct_link_particlesettings(FileData *fd, ParticleSettings *part)
 	part->roughcurve = newdataadr(fd, part->roughcurve);
 	if (part->roughcurve)
 		direct_link_curvemapping(fd, part->roughcurve);
+	part->twistcurve = newdataadr(fd, part->twistcurve);
+	if (part->twistcurve)
+		direct_link_curvemapping(fd, part->twistcurve);
 
 	part->effector_weights = newdataadr(fd, part->effector_weights);
 	if (!part->effector_weights)
@@ -4524,7 +4528,6 @@ static void direct_link_particlesystems(FileData *fd, ListBase *particles)
 		BLI_listbase_clear(&psys->pathcachebufs);
 		BLI_listbase_clear(&psys->childcachebufs);
 		psys->pdd = NULL;
-		psys->renderdata = NULL;
 		
 		if (psys->clmd) {
 			psys->clmd = newdataadr(fd, psys->clmd);
@@ -4961,7 +4964,6 @@ static void lib_link_object(FileData *fd, Main *main)
 			}
 			
 			ob->gpd = newlibadr_us(fd, ob->id.lib, ob->gpd);
-			ob->duplilist = NULL;
 			
 			ob->id.tag &= ~LIB_TAG_NEED_LINK;
 			/* if id.us==0 a new base will be created later on */
@@ -5180,6 +5182,7 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 	link_list(fd, &pose->agroups);
 
 	pose->chanhash = NULL;
+	pose->chan_array = NULL;
 
 	for (pchan = pose->chanbase.first; pchan; pchan=pchan->next) {
 		pchan->bone = NULL;
@@ -5306,6 +5309,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				smd->domain->shadow = NULL;
 				smd->domain->tex = NULL;
 				smd->domain->tex_shadow = NULL;
+				smd->domain->tex_flame = NULL;
 				smd->domain->tex_wt = NULL;
 				smd->domain->coba = newdataadr(fd, smd->domain->coba);
 				
@@ -5884,6 +5888,18 @@ static void lib_link_scene_collection(FileData *fd, Library *lib, SceneCollectio
 	}
 }
 
+static void lib_link_layer_collection(FileData *fd, LayerCollection *layer_collection)
+{
+	IDP_LibLinkProperty(layer_collection->properties, fd);
+
+	for (LayerCollection *layer_collection_nested = layer_collection->layer_collections.first;
+	     layer_collection_nested != NULL;
+	     layer_collection_nested = layer_collection_nested->next)
+	{
+		lib_link_layer_collection(fd, layer_collection_nested);
+	}
+}
+
 static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_layer)
 {
 	/* tag scene layer to update for collection tree evaluation */
@@ -5904,6 +5920,16 @@ static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_laye
 		base->flag |= BASE_DIRTY_ENGINE_SETTINGS;
 		base->collection_properties = NULL;
 	}
+
+	for (LayerCollection *layer_collection = view_layer->layer_collections.first;
+	     layer_collection != NULL;
+	     layer_collection = layer_collection->next)
+	{
+		lib_link_layer_collection(fd, layer_collection);
+	}
+
+	IDP_LibLinkProperty(view_layer->properties, fd);
+	IDP_LibLinkProperty(view_layer->id_properties, fd);
 }
 
 static void lib_link_scene(FileData *fd, Main *main)
@@ -6218,6 +6244,7 @@ static void direct_link_view_layer(FileData *fd, ViewLayer *view_layer)
 	view_layer->properties_evaluated = NULL;
 
 	BLI_listbase_clear(&view_layer->drawdata);
+	view_layer->object_bases_array = NULL;
 }
 
 /**
@@ -6259,7 +6286,6 @@ static void direct_link_scene(FileData *fd, Scene *sce, Main *bmain)
 	SceneRenderLayer *srl;
 	
 	sce->depsgraph_hash = NULL;
-	sce->obedit = NULL;
 	sce->fps_info = NULL;
 	sce->customdata_mask_modal = 0;
 	sce->lay_updated = 0;
@@ -6291,7 +6317,6 @@ static void direct_link_scene(FileData *fd, Scene *sce, Main *bmain)
 		sce->toolsettings->imapaint.paintcursor = NULL;
 		sce->toolsettings->particle.paintcursor = NULL;
 		sce->toolsettings->particle.scene = NULL;
-		sce->toolsettings->particle.view_layer = NULL;
 		sce->toolsettings->particle.object = NULL;
 		sce->toolsettings->gp_sculpt.paintcursor = NULL;
 		
@@ -6537,8 +6562,8 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		oldnewmap_insert(fd->globmap, hook, win->workspace_hook, 0);
 
 		win->ghostwin = NULL;
+		win->gwnctx = NULL;
 		win->eventstate = NULL;
-		win->curswin = NULL;
 		win->tweak = NULL;
 #ifdef WIN32
 		win->ime_data = NULL;
@@ -6547,7 +6572,6 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		BLI_listbase_clear(&win->queue);
 		BLI_listbase_clear(&win->handlers);
 		BLI_listbase_clear(&win->modalhandlers);
-		BLI_listbase_clear(&win->subwindows);
 		BLI_listbase_clear(&win->gesture);
 		BLI_listbase_clear(&win->drawdata);
 		
@@ -6560,7 +6584,6 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		win->modalcursor  = 0;
 		win->grabcursor   = 0;
 		win->addmousemove = true;
-		win->multisamples = 0;
 		win->stereo3d_format = newdataadr(fd, win->stereo3d_format);
 
 		/* multiview always fallback to anaglyph at file opening
@@ -6580,7 +6603,8 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 	wm->defaultconf = NULL;
 	wm->addonconf = NULL;
 	wm->userconf = NULL;
-	
+	wm->undo_stack = NULL;
+
 	wm->message_bus = NULL;
 
 	BLI_listbase_clear(&wm->jobs);
@@ -7350,7 +7374,7 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 	BLI_listbase_clear(&ar->handlers);
 	BLI_listbase_clear(&ar->uiblocks);
 	ar->headerstr = NULL;
-	ar->swinid = 0;
+	ar->visible = 0;
 	ar->type = NULL;
 	ar->swap = 0;
 	ar->do_draw = 0;
@@ -7397,8 +7421,7 @@ static bool direct_link_screen(FileData *fd, bScreen *sc)
 	link_list(fd, &(sc->areabase));
 	sc->regionbase.first = sc->regionbase.last= NULL;
 	sc->context = NULL;
-	
-	sc->mainwin = sc->subwinactive= 0;	/* indices */
+	sc->active_region = NULL;
 	sc->swap = 0;
 
 	sc->preview = direct_link_preview_image(fd, sc->preview);
@@ -7694,12 +7717,20 @@ static void direct_link_library(FileData *fd, Library *lib, Main *main)
 				
 				BLI_remlink(&main->library, lib);
 				MEM_freeN(lib);
-				
-				
+
+				/* Now, since Blender always expect **latest** Main pointer from fd->mainlist to be the active library
+				 * Main pointer, where to add all non-library data-blocks found in file next, we have to switch that
+				 * 'dupli' found Main to latest position in the list!
+				 * Otherwise, you get weird disappearing linked data on a rather unconsistant basis.
+				 * See also T53977 for reproducible case. */
+				BLI_remlink(fd->mainlist, newmain);
+				BLI_addtail(fd->mainlist, newmain);
+
 				return;
 			}
 		}
 	}
+
 	/* make sure we have full path in lib->filepath */
 	BLI_strncpy(lib->filepath, lib->name, sizeof(lib->name));
 	BLI_cleanup_path(fd->relabase, lib->filepath);
@@ -8462,7 +8493,7 @@ static const char *dataname(short id_code)
 		case ID_WO: return "Data from WO";
 		case ID_SCR: return "Data from SCR";
 		case ID_VF: return "Data from VF";
-		case ID_TXT	: return "Data from TXT";
+		case ID_TXT: return "Data from TXT";
 		case ID_SPK: return "Data from SPK";
 		case ID_LP: return "Data from LP";
 		case ID_SO: return "Data from SO";
@@ -8596,20 +8627,20 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 	if (!id)
 		return blo_nextbhead(fd, bhead);
 	
-	id->tag = tag | LIB_TAG_NEED_LINK;
 	id->lib = main->curlib;
 	id->us = ID_FAKE_USERS(id);
 	id->icon_id = 0;
 	id->newid = NULL;  /* Needed because .blend may have been saved with crap value here... */
 	id->orig_id = NULL;
+	id->recalc = 0;
 	
 	/* this case cannot be direct_linked: it's just the ID part */
 	if (bhead->code == ID_ID) {
+		/* That way, we know which datablock needs do_versions (required currently for linking). */
+		id->tag = tag | LIB_TAG_NEED_LINK | LIB_TAG_NEW;
+
 		return blo_nextbhead(fd, bhead);
 	}
-
-	/* That way, we know which datablock needs do_versions (required currently for linking). */
-	id->tag |= LIB_TAG_NEW;
 
 	/* need a name for the mallocN, just for debugging and sane prints on leaks */
 	allocname = dataname(GS(id->name));
@@ -8619,7 +8650,11 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 	
 	/* init pointers direct data */
 	direct_link_id(fd, id);
-	
+
+	/* That way, we know which datablock needs do_versions (required currently for linking). */
+	/* Note: doing this after driect_link_id(), which resets that field. */
+	id->tag = tag | LIB_TAG_NEED_LINK | LIB_TAG_NEW;
+
 	switch (GS(id->name)) {
 		case ID_WM:
 			direct_link_windowmanager(fd, (wmWindowManager *)id);
@@ -9590,15 +9625,15 @@ static void expand_nodetree(FileData *fd, Main *mainvar, bNodeTree *ntree)
 		expand_idprops(fd, mainvar, node->prop);
 
 		for (sock = node->inputs.first; sock; sock = sock->next)
-			expand_doit(fd, mainvar, sock->prop);
+			expand_idprops(fd, mainvar, sock->prop);
 		for (sock = node->outputs.first; sock; sock = sock->next)
-			expand_doit(fd, mainvar, sock->prop);
+			expand_idprops(fd, mainvar, sock->prop);
 	}
 
 	for (sock = ntree->inputs.first; sock; sock = sock->next)
-		expand_doit(fd, mainvar, sock->prop);
+		expand_idprops(fd, mainvar, sock->prop);
 	for (sock = ntree->outputs.first; sock; sock = sock->next)
-		expand_doit(fd, mainvar, sock->prop);
+		expand_idprops(fd, mainvar, sock->prop);
 }
 
 static void expand_texture(FileData *fd, Main *mainvar, Tex *tex)
@@ -9999,6 +10034,18 @@ static void expand_scene_collection(FileData *fd, Main *mainvar, SceneCollection
 	}
 }
 
+static void expand_layer_collection(FileData *fd, Main *mainvar, LayerCollection *layer_collection)
+{
+	expand_idprops(fd, mainvar, layer_collection->properties);
+
+	for (LayerCollection *layer_collection_nested = layer_collection->layer_collections.first;
+	     layer_collection_nested != NULL;
+	     layer_collection_nested = layer_collection_nested->next)
+	{
+		expand_layer_collection(fd, mainvar, layer_collection_nested);
+	}
+}
+
 static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 {
 	SceneRenderLayer *srl;
@@ -10035,6 +10082,9 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 	}
 
 	for (ViewLayer *view_layer = sce->view_layers.first; view_layer; view_layer = view_layer->next) {
+		expand_idprops(fd, mainvar, view_layer->properties);
+		expand_idprops(fd, mainvar, view_layer->id_properties);
+
 		for (module = view_layer->freestyle_config.modules.first; module; module = module->next) {
 			if (module->script) {
 				expand_doit(fd, mainvar, module->script);
@@ -10046,6 +10096,13 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 				expand_doit(fd, mainvar, lineset->group);
 			}
 			expand_doit(fd, mainvar, lineset->linestyle);
+		}
+
+		for (LayerCollection *layer_collection = view_layer->layer_collections.first;
+		     layer_collection != NULL;
+		     layer_collection = layer_collection->next)
+		{
+			expand_layer_collection(fd, mainvar, layer_collection);
 		}
 	}
 
@@ -10882,6 +10939,7 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 	Main *mainl = mainlist->first;
 	Main *mainptr;
 	ListBase *lbarray[MAX_LIBARRAY];
+	GHash *loaded_ids = BLI_ghash_str_new(__func__);
 	int a;
 	bool do_it = true;
 	
@@ -10895,7 +10953,7 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 		mainptr= mainl->next;
 		while (mainptr) {
 			if (mainvar_id_tag_any_check(mainptr, LIB_TAG_READ)) {
-				// printf("found LIB_TAG_READ %s\n", mainptr->curlib->name);
+				// printf("found LIB_TAG_READ %s (%s)\n", mainptr->curlib->id.name, mainptr->curlib->name);
 
 				FileData *fd = mainptr->curlib->filedata;
 				
@@ -10993,25 +11051,38 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 				a = set_listbasepointers(mainptr, lbarray);
 				while (a--) {
 					ID *id = lbarray[a]->first;
+					ListBase pending_free_ids = {NULL};
 
 					while (id) {
 						ID *idn = id->next;
 						if (id->tag & LIB_TAG_READ) {
-							ID *realid = NULL;
 							BLI_remlink(lbarray[a], id);
 
-							link_id_part(basefd->reports, fd, mainptr, id, &realid);
+							/* When playing with lib renaming and such, you may end with cases where you have
+							 * more than one linked ID of the same data-block from same library.
+							 * This is absolutely horrible, hence we use a ghash to ensure we go back to a single
+							 * linked data when loading the file... */
+							ID **realid = NULL;
+							if (!BLI_ghash_ensure_p(loaded_ids, id->name, (void ***)&realid)) {
+								link_id_part(basefd->reports, fd, mainptr, id, realid);
+							}
 
 							/* realid shall never be NULL - unless some source file/lib is broken
 							 * (known case: some directly linked shapekey from a missing lib...). */
-							/* BLI_assert(realid != NULL); */
+							/* BLI_assert(*realid != NULL); */
 
-							change_idid_adr(mainlist, basefd, id, realid);
+							change_idid_adr(mainlist, basefd, id, *realid);
 
-							MEM_freeN(id);
+							/* We cannot free old lib-ref placeholder ID here anymore, since we use its name
+							 * as key in loaded_ids hass. */
+							BLI_addtail(&pending_free_ids, id);
 						}
 						id = idn;
 					}
+
+					/* Clear GHash and free all lib-ref placeholders IDs of that type now. */
+					BLI_ghash_clear(loaded_ids, NULL, NULL);
+					BLI_freelistN(&pending_free_ids);
 				}
 				BLO_expand_main(fd, mainptr);
 			}
@@ -11019,7 +11090,10 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 			mainptr = mainptr->next;
 		}
 	}
-	
+
+	BLI_ghash_free(loaded_ids, NULL, NULL);
+	loaded_ids = NULL;
+
 	/* test if there are unread libblocks */
 	/* XXX This code block is kept for 2.77, until we are sure it never gets reached anymore. Can be removed later. */
 	for (mainptr = mainl->next; mainptr; mainptr = mainptr->next) {

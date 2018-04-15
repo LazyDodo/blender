@@ -32,6 +32,7 @@ set(INC
 	../blenkernel
 	../blenlib
 	../blentranslation
+	../depsgraph
 	../gpu
 	../imbuf
 	../makesdna
@@ -195,6 +196,7 @@ set(SRC
 	shader/nodes/node_shader_tangent.c
 	shader/nodes/node_shader_bevel.c
 	shader/nodes/node_shader_displacement.c
+	shader/nodes/node_shader_vector_displacement.c
 	shader/nodes/node_shader_tex_brick.c
 	shader/nodes/node_shader_tex_checker.c
 	shader/nodes/node_shader_tex_coord.c
@@ -210,6 +212,7 @@ set(SRC
 	shader/nodes/node_shader_tex_wave.c
 	shader/nodes/node_shader_volume_scatter.c
 	shader/nodes/node_shader_volume_absorption.c
+	shader/nodes/node_shader_volume_principled.c
 	shader/nodes/node_shader_uvAlongStroke.c
 	shader/nodes/node_shader_uvmap.c
 	shader/node_shader_tree.c

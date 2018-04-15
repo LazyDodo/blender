@@ -58,7 +58,7 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_nla_types.h"
 #include "DNA_node_types.h"
-#include "DNA_object_fluidsim.h" // NT
+#include "DNA_object_fluidsim_types.h"
 #include "DNA_object_types.h"
 #include "DNA_property_types.h"
 #include "DNA_view3d_types.h"
@@ -2770,13 +2770,6 @@ void blo_do_versions_pre250(FileData *fd, Library *lib, Main *main)
 		for (part = main->particle.first; part; part = part->id.next) {
 			if (part->ren_child_nbr == 0)
 				part->ren_child_nbr = part->child_nbr;
-
-			if (part->simplify_refsize == 0) {
-				part->simplify_refsize = 1920;
-				part->simplify_rate = 1.0f;
-				part->simplify_transition = 0.1f;
-				part->simplify_viewport = 0.8f;
-			}
 		}
 
 		for (wrld = main->world.first; wrld; wrld = wrld->id.next) {

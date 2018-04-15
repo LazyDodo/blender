@@ -63,6 +63,8 @@
 
 #include "BIF_gl.h"
 
+#include "DEG_depsgraph.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
@@ -973,7 +975,7 @@ static int calc_manipulator_stats(
 		/* pass */
 	}
 	else if (ob && ob->mode & OB_MODE_PARTICLE_EDIT) {
-		PTCacheEdit *edit = PE_get_current(scene, view_layer, ob);
+		PTCacheEdit *edit = PE_get_current(scene, ob);
 		PTCacheEditPoint *point;
 		PTCacheEditKey *ek;
 		int k;
@@ -1065,7 +1067,7 @@ static void manipulator_prepare_mat(
 			bGPdata *gpd = CTX_data_gpencil_data(C);
 			Object *ob = OBACT(view_layer);
 
-			if (((v3d->around == V3D_AROUND_ACTIVE) && (scene->obedit == NULL)) &&
+			if (((v3d->around == V3D_AROUND_ACTIVE) && (OBEDIT_FROM_OBACT(ob) == NULL)) &&
 			    ((gpd == NULL) || !(gpd->flag & GP_DATA_STROKE_EDITMODE)) &&
 			    (!(ob->mode & OB_MODE_POSE)))
 			{

@@ -66,6 +66,7 @@
 #include "BKE_editmesh.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 /* Define for cases when you want extra validation of mesh
  * after certain modifications.
@@ -1044,7 +1045,7 @@ static void make_edges_mdata_extend(MEdge **r_alledge, int *r_totedge,
 		BKE_mesh_poly_edgehash_insert(eh, mp, mloop + mp->loopstart);
 	}
 
-	totedge_new = BLI_edgehash_size(eh);
+	totedge_new = BLI_edgehash_len(eh);
 
 #ifdef DEBUG
 	/* ensure that theres no overlap! */
@@ -2205,6 +2206,8 @@ static int split_faces_prepare_new_verts(
 	MLoop *ml = mloop;
 	MLoopNorSpace **lnor_space = lnors_spacearr->lspacearr;
 
+	BLI_assert(lnors_spacearr->data_type == MLNOR_SPACEARR_LOOP_INDEX);
+
 	for (int loop_idx = 0; loop_idx < num_loops; loop_idx++, ml++, lnor_space++) {
 		if (!BLI_BITMAP_TEST(done_loops, loop_idx)) {
 			const int vert_idx = ml->v;
@@ -2214,20 +2217,21 @@ static int split_faces_prepare_new_verts(
 
 			BLI_assert(*lnor_space);
 
-			if ((*lnor_space)->loops) {
+			if ((*lnor_space)->flags & MLNOR_SPACE_IS_SINGLE) {
+				/* Single loop in this fan... */
+				BLI_assert(GET_INT_FROM_POINTER((*lnor_space)->loops) == loop_idx);
+				BLI_BITMAP_ENABLE(done_loops, loop_idx);
+				if (vert_used) {
+					ml->v = new_vert_idx;
+				}
+			}
+			else {
 				for (LinkNode *lnode = (*lnor_space)->loops; lnode; lnode = lnode->next) {
 					const int ml_fan_idx = GET_INT_FROM_POINTER(lnode->link);
 					BLI_BITMAP_ENABLE(done_loops, ml_fan_idx);
 					if (vert_used) {
 						mloop[ml_fan_idx].v = new_vert_idx;
 					}
-				}
-			}
-			else {
-				/* Single loop in this fan... */
-				BLI_BITMAP_ENABLE(done_loops, loop_idx);
-				if (vert_used) {
-					ml->v = new_vert_idx;
 				}
 			}
 
@@ -2425,12 +2429,12 @@ void BKE_mesh_split_faces(Mesh *mesh, bool free_loop_normals)
 /* settings: 1 - preview, 2 - render */
 Mesh *BKE_mesh_new_from_object(
         const EvaluationContext *eval_ctx, Main *bmain, Scene *sce, Object *ob,
-        int apply_modifiers, int settings, int calc_tessface, int calc_undeformed)
+        int apply_modifiers, int calc_tessface, int calc_undeformed)
 {
 	Mesh *tmpmesh;
 	Curve *tmpcu = NULL, *copycu;
 	int i;
-	const bool render = (settings == eModifierMode_Render);
+	const bool render = (DEG_get_mode(eval_ctx->depsgraph) == DAG_EVAL_RENDER);
 	const bool cage = !apply_modifiers;
 	bool do_mat_id_data_us = true;
 
@@ -2466,7 +2470,7 @@ Mesh *BKE_mesh_new_from_object(
 
 			/* if getting the original caged mesh, delete object modifiers */
 			if (cage)
-				BKE_object_free_modifiers(tmpobj);
+				BKE_object_free_modifiers(tmpobj, 0);
 
 			/* copies the data */
 			copycu = tmpobj->data = BKE_curve_copy(bmain, (Curve *) ob->data);
@@ -2667,9 +2671,7 @@ Mesh *BKE_mesh_new_from_object(
 void BKE_mesh_eval_geometry(const EvaluationContext *UNUSED(eval_ctx),
                             Mesh *mesh)
 {
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
-		printf("%s on %s\n", __func__, mesh->id.name);
-	}
+	DEG_debug_print_eval(__func__, mesh->id.name, mesh);
 	if (mesh->bb == NULL || (mesh->bb->flag & BOUNDBOX_DIRTY)) {
 		BKE_mesh_texspace_calc(mesh);
 	}

@@ -350,7 +350,7 @@ void DM_init(
 	dm->numPolyData = numPolys;
 
 	DM_init_funcs(dm);
-
+	
 	dm->needsFree = 1;
 	dm->auto_bump_scale = -1.0f;
 	dm->dirty = 0;
@@ -410,7 +410,6 @@ int DM_release(DerivedMesh *dm)
 	if (dm->needsFree) {
 		bvhcache_free(&dm->bvhCache);
 		GPU_drawobject_free(dm);
-
 		CustomData_free(&dm->vertData, dm->numVertData);
 		CustomData_free(&dm->edgeData, dm->numEdgeData);
 		CustomData_free(&dm->faceData, dm->numTessFaceData);
@@ -1660,7 +1659,7 @@ static void shapekey_layers_to_keyblocks(DerivedMesh *dm, Mesh *me, int actshape
 		cos = CustomData_get_layer_n(&dm->vertData, CD_SHAPEKEY, i);
 		kb->totelem = dm->numVertData;
 
-		kb->data = kbcos = MEM_malloc_arrayN(kb->totelem, sizeof(float), "kbcos DerivedMesh.c");
+		kb->data = kbcos = MEM_malloc_arrayN(kb->totelem, 3 * sizeof(float), "kbcos DerivedMesh.c");
 		if (kb->uid == actshape_uid) {
 			MVert *mvert = dm->getVertArray(dm);
 			
@@ -3483,17 +3482,25 @@ void DM_draw_attrib_vertex_uniforms(const DMVertexAttribs *attribs)
 {
 	int i;
 	if (attribs->totorco) {
-		glUniform1i(attribs->orco.gl_info_index, 0);
+		if (attribs->orco.gl_info_index != -1) {
+			glUniform1i(attribs->orco.gl_info_index, 0);
+		}
 	}
 	for (i = 0; i < attribs->tottface; i++) {
-		glUniform1i(attribs->tface[i].gl_info_index, 0);
+		if (attribs->tface[i].gl_info_index != -1) {
+			glUniform1i(attribs->tface[i].gl_info_index, 0);
+		}
 	}
 	for (i = 0; i < attribs->totmcol; i++) {
-		glUniform1i(attribs->mcol[i].gl_info_index, GPU_ATTR_INFO_SRGB);
+		if (attribs->mcol[i].gl_info_index != -1) {
+			glUniform1i(attribs->mcol[i].gl_info_index, GPU_ATTR_INFO_SRGB);
+		}
 	}
 
 	for (i = 0; i < attribs->tottang; i++) {
-		glUniform1i(attribs->tang[i].gl_info_index, 0);
+		if (attribs->tang[i].gl_info_index != -1) {
+			glUniform1i(attribs->tang[i].gl_info_index, 0);
+		}
 	}
 }
 
@@ -3719,7 +3726,7 @@ void DM_init_origspace(DerivedMesh *dm)
 			BKE_mesh_calc_poly_normal(mp, l, mv, p_nor);
 			axis_dominant_v3_to_m3(mat, p_nor);
 
-			BLI_array_empty(vcos_2d);
+			BLI_array_clear(vcos_2d);
 			BLI_array_reserve(vcos_2d, mp->totloop);
 			for (j = 0; j < mp->totloop; j++, l++) {
 				mul_v3_m3v3(co, mat, mv[l->v].co);

@@ -90,11 +90,7 @@ static void rna_Scene_frame_set(Scene *scene, Main *bmain, int frame, float subf
 	     view_layer = view_layer->next)
 	{
 		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx,
-		                                    depsgraph,
-		                                    bmain,
-		                                    scene,
-		                                    view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 
 #ifdef WITH_PYTHON
@@ -140,11 +136,7 @@ static void rna_Scene_update_tagged(Scene *scene, Main *bmain)
 	     view_layer = view_layer->next)
 	{
 		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
-		BKE_scene_graph_update_tagged(bmain->eval_ctx,
-		                              depsgraph,
-		                              bmain,
-		                              scene,
-		                              view_layer);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
 	}
 
 #ifdef WITH_PYTHON
@@ -171,24 +163,15 @@ static void rna_SceneRender_get_frame_path(RenderData *rd, int frame, int previe
 }
 
 static void rna_Scene_ray_cast(
-        Scene *scene, ViewLayer *view_layer, const char *engine_id,
+        Scene *scene, ViewLayer *view_layer,
         float origin[3], float direction[3], float ray_dist,
         int *r_success, float r_location[3], float r_normal[3], int *r_index,
         Object **r_ob, float r_obmat[16])
 {
-	RenderEngineType *engine_type;
-
-	if (engine_id == NULL || engine_id[0] == '\0') {
-		engine_type = RE_engines_find(scene->view_render.engine_id);
-	}
-	else {
-		engine_type = RE_engines_find(engine_id);
-	}
-
 	normalize_v3(direction);
 
 	SnapObjectContext *sctx = ED_transform_snap_object_context_create(
-	        G.main, scene, view_layer, engine_type, 0);
+	        G.main, scene, view_layer, 0);
 
 	bool ret = ED_transform_snap_object_project_ray_ex(
 	        sctx,
@@ -290,70 +273,6 @@ static void rna_Scene_alembic_export(
 
 #endif
 
-#ifdef WITH_COLLADA
-/* don't remove this, as COLLADA exporting cannot be done through operators in render() callback. */
-#include "../../collada/collada.h"
-
-/* Note: This definition must match to the generated function call */
-static void rna_Scene_collada_export(
-        Scene *scene,
-        bContext *C,
-        const char *filepath, 
-        int apply_modifiers,
-
-        int export_mesh_type,
-        int selected,
-        int include_children,
-        int include_armatures,
-        int include_shapekeys,
-        int deform_bones_only,
-        int active_uv_only,
-        int include_material_textures,
-        int use_texture_copies,
-        int triangulate,
-        int use_object_instantiation,
-        int use_blender_profile,
-        int sort_by_name,
-        int export_transformation_type,
-        int open_sim,
-        int limit_precision,
-        int keep_bind_info)
-{
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	collada_export(&eval_ctx,
-		scene,
-		CTX_data_view_layer(C),
-		filepath,
-
-		apply_modifiers,
-		export_mesh_type,
-
-		selected,
-		include_children,
-		include_armatures,
-		include_shapekeys,
-		deform_bones_only,
-
-		active_uv_only,
-		include_material_textures,
-		use_texture_copies,
-
-		triangulate,
-		use_object_instantiation,
-		use_blender_profile,
-		sort_by_name,
-
-		export_transformation_type,
-		open_sim,
-		limit_precision,
-		keep_bind_info);
-}
-
-#endif
-
 #else
 
 void RNA_api_scene(StructRNA *srna)
@@ -386,7 +305,6 @@ void RNA_api_scene(StructRNA *srna)
 	RNA_def_function_ui_description(func, "Cast a ray onto in object space");
 	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "Scene Layer");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
-	parm = RNA_def_string(func, "engine", NULL, MAX_NAME, "Engine", "Render engine, use scene one by default");
 	/* ray start and end */
 	parm = RNA_def_float_vector(func, "origin", 3, NULL, -FLT_MAX, FLT_MAX, "", "", -1e4, 1e4);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -412,67 +330,6 @@ void RNA_api_scene(StructRNA *srna)
 	parm = RNA_def_float_matrix(func, "matrix", 4, 4, NULL, 0.0f, 0.0f, "", "Matrix", 0.0f, 0.0f);
 	RNA_def_function_output(func, parm);
 
-#ifdef WITH_COLLADA
-	/* don't remove this, as COLLADA exporting cannot be done through operators in render() callback. */
-	func = RNA_def_function(srna, "collada_export", "rna_Scene_collada_export");
-	parm = RNA_def_string(func, "filepath", NULL, FILE_MAX, "File Path", "File path to write Collada file");
-	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	RNA_def_property_subtype(parm, PROP_FILEPATH); /* allow non utf8 */
-
-	RNA_def_boolean(func, "apply_modifiers", false,
-	                "Apply Modifiers", "Apply modifiers to exported mesh (non destructive))");
-
-	RNA_def_int(func, "export_mesh_type", 0, INT_MIN, INT_MAX,
-	            "Resolution", "Modifier resolution for export", INT_MIN, INT_MAX);
-
-	RNA_def_boolean(func, "selected", false, "Selection Only", "Export only selected elements");
-
-	RNA_def_boolean(func, "include_children", false,
-	                "Include Children", "Export all children of selected objects (even if not selected)");
-
-	RNA_def_boolean(func, "include_armatures", false,
-	                "Include Armatures", "Export related armatures (even if not selected)");
-
-	RNA_def_boolean(func, "include_shapekeys", true, "Include Shape Keys", "Export all Shape Keys from Mesh Objects");
-
-	RNA_def_boolean(func, "deform_bones_only", false,
-	                "Deform Bones only", "Only export deforming bones with armatures");
-
-	RNA_def_boolean(func, "active_uv_only", false, "Only Selected UV Map", "Export only the selected UV Map");
-
-	RNA_def_boolean(func, "include_material_textures", false,
-	                "Include Material Textures", "Export textures assigned to the object Materials");
-
-	RNA_def_boolean(func, "use_texture_copies", true,
-	                "Copy", "Copy textures to same folder where the .dae file is exported");
-
-	RNA_def_boolean(func, "triangulate", true, "Triangulate", "Export Polygons (Quads & NGons) as Triangles");
-
-	RNA_def_boolean(func, "use_object_instantiation", true,
-	                "Use Object Instances", "Instantiate multiple Objects from same Data");
-
-	RNA_def_boolean(func, "use_blender_profile", true, "Use Blender Profile",
-	                "Export additional Blender specific information (for material, shaders, bones, etc.)");
-
-	RNA_def_boolean(func, "sort_by_name", false, "Sort by Object name", "Sort exported data by Object name");
-
-	RNA_def_int(func, "export_transformation_type", 0, INT_MIN, INT_MAX,
-	            "Transform", "Transformation type for translation, scale and rotation", INT_MIN, INT_MAX);
-
-	RNA_def_boolean(func, "open_sim", false,
-	                "Export to SL/OpenSim", "Compatibility mode for SL, OpenSim and other compatible online worlds");
-
-	RNA_def_boolean(func, "limit_precision", false,
-	                "Limit Precision",
-	                "Reduce the precision of the exported data to 6 digits");
-
-	RNA_def_boolean(func, "keep_bind_info", false,
-	                "Keep Bind Info",
-	                "Store bind pose information in custom bone properties for later use during Collada export");
-
-	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
-
-#endif
 
 #ifdef WITH_ALEMBIC
 	/* XXX Deprecated, will be removed in 2.8 in favour of calling the export operator. */
@@ -491,7 +348,7 @@ void RNA_api_scene(StructRNA *srna)
 	RNA_def_float(func, "shutter_close", 1.0f, -1.0f, 1.0f, "Shutter close", "", -1.0f, 1.0f);
 	RNA_def_boolean(func, "selected_only"	, 0, "Selected only", "Export only selected objects");
 	RNA_def_boolean(func, "uvs"			, 1, "UVs", "Export UVs");
-	RNA_def_boolean(func, "normals"		, 1, "Normals", "Export cormals");
+	RNA_def_boolean(func, "normals"		, 1, "Normals", "Export normals");
 	RNA_def_boolean(func, "vcolors"		, 0, "Vertex colors", "Export vertex colors");
 	RNA_def_boolean(func, "apply_subdiv"	, 1, "Subsurfs as meshes", "Export subdivision surfaces as meshes");
 	RNA_def_boolean(func, "flatten"		, 0, "Flatten hierarchy", "Flatten hierarchy");

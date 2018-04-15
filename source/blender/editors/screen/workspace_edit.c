@@ -36,6 +36,7 @@
 #include "BKE_context.h"
 #include "BKE_idcode.h"
 #include "BKE_main.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
@@ -55,6 +56,9 @@
 #include "MEM_guardedalloc.h"
 
 #include "RNA_access.h"
+#include "RNA_define.h"
+
+#include "DEG_depsgraph.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -79,14 +83,9 @@ WorkSpace *ED_workspace_add(
 	BKE_workspace_view_layer_set(workspace, act_view_layer, scene);
 	BKE_viewrender_copy(&workspace->view_render, view_render);
 
-#ifdef USE_WORKSPACE_MODE
-	BKE_workspace_object_mode_set(workspace, scene, OB_MODE_OBJECT);
-#endif
-
 	return workspace;
 }
 
-#ifdef USE_WORKSPACE_MODE
 /**
  * Changes the object mode (if needed) to the one set in \a workspace_new.
  * Object mode is still stored on object level. In future it should all be workspace level instead.
@@ -95,16 +94,17 @@ static void workspace_change_update_mode(
         const WorkSpace *workspace_old, const WorkSpace *workspace_new,
         bContext *C, Object *ob_act, ReportList *reports)
 {
-	const Scene *scene = CTX_data_scene(C);
-	eObjectMode mode_old = BKE_workspace_object_mode_get(workspace_old, scene);
-	eObjectMode mode_new = BKE_workspace_object_mode_get(workspace_new, scene);
+	UNUSED_VARS(workspace_old, workspace_new, C, ob_act, reports);
+#if 0
+	eObjectMode mode_old = workspace_old->object_mode;
+	eObjectMode mode_new = workspace_new->object_mode;
 
 	if (mode_old != mode_new) {
 		ED_object_mode_compat_set(C, ob_act, mode_new, reports);
-		ED_object_toggle_modes(C, mode_new);
+		ED_object_mode_toggle(C, mode_new);
 	}
-}
 #endif
+}
 
 static void workspace_change_update_view_layer(
         WorkSpace *workspace_new, const WorkSpace *workspace_old,
@@ -121,11 +121,7 @@ static void workspace_change_update(
 {
 	/* needs to be done before changing mode! (to ensure right context) */
 	workspace_change_update_view_layer(workspace_new, workspace_old, CTX_data_scene(C));
-#ifdef USE_WORKSPACE_MODE
 	workspace_change_update_mode(workspace_old, workspace_new, C, CTX_data_active_object(C), &wm->reports);
-#else
-	UNUSED_VARS(C, wm);
-#endif
 }
 
 static bool workspace_change_find_new_layout_cb(const WorkSpaceLayout *layout, void *UNUSED(arg))
@@ -198,8 +194,9 @@ bool ED_workspace_change(
 		WM_window_set_active_layout(win, workspace_new, layout_new);
 		WM_window_set_active_workspace(win, workspace_new);
 
-		/* update screen *after* changing workspace - which also causes the actual screen change */
-		screen_changed_update(C, win, screen_new);
+		/* update screen *after* changing workspace - which also causes the
+		 * actual screen change and updates context (including CTX_wm_workspace) */
+		screen_change_update(C, win, screen_new);
 		workspace_change_update(workspace_new, workspace_old, C, wm);
 
 		BLI_assert(BKE_workspace_view_layer_get(workspace_new, CTX_data_scene(C)) != NULL);
@@ -231,9 +228,6 @@ WorkSpace *ED_workspace_duplicate(
 	ListBase *transform_orientations_old = BKE_workspace_transform_orientations_get(workspace_old);
 	ListBase *transform_orientations_new = BKE_workspace_transform_orientations_get(workspace_new);
 
-#ifdef USE_WORKSPACE_MODE
-	BKE_workspace_object_mode_set(workspace_new, scene, BKE_workspace_object_mode_get(workspace_old, scene));
-#endif
 	BLI_duplicatelist(transform_orientations_new, transform_orientations_old);
 
 	workspace_new->tool = workspace_old->tool;
@@ -345,6 +339,66 @@ static void WORKSPACE_OT_workspace_delete(wmOperatorType *ot)
 	ot->exec = workspace_delete_exec;
 }
 
+static int workspace_append(bContext *C, const char *directory, const char *idname)
+{
+	wmOperatorType *ot = WM_operatortype_find("WM_OT_append", false);
+	PointerRNA opptr;
+	int retval;
+
+	WM_operator_properties_create_ptr(&opptr, ot);
+	RNA_string_set(&opptr, "directory", directory);
+	RNA_string_set(&opptr, "filename", idname);
+	RNA_boolean_set(&opptr, "autoselect", false);
+
+	retval = WM_operator_name_call_ptr(C, ot, WM_OP_EXEC_DEFAULT, &opptr);
+
+	WM_operator_properties_free(&opptr);
+
+	return retval;
+}
+
+static int workspace_append_activate_exec(bContext *C, wmOperator *op)
+{
+	Main *bmain = CTX_data_main(C);
+	char idname[MAX_ID_NAME - 2], directory[FILE_MAX];
+
+	if (!RNA_struct_property_is_set(op->ptr, "idname") ||
+	    !RNA_struct_property_is_set(op->ptr, "directory"))
+	{
+		return OPERATOR_CANCELLED;
+	}
+	RNA_string_get(op->ptr, "idname", idname);
+	RNA_string_get(op->ptr, "directory", directory);
+
+	if (workspace_append(C, directory, idname) != OPERATOR_CANCELLED) {
+		WorkSpace *appended_workspace = BLI_findstring(&bmain->workspaces, idname, offsetof(ID, name) + 2);
+
+		BLI_assert(appended_workspace != NULL);
+		/* Changing workspace changes context. Do delayed! */
+		WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, appended_workspace);
+
+		return OPERATOR_FINISHED;
+	}
+
+	return OPERATOR_CANCELLED;
+}
+
+static void WORKSPACE_OT_append_activate(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Append and Activate Workspace";
+	ot->description = "Append a workspace and make it the active one in the current window";
+	ot->idname = "WORKSPACE_OT_append_activate";
+
+	/* api callbacks */
+	ot->exec = workspace_append_activate_exec;
+
+	RNA_def_string(ot->srna, "idname", NULL, MAX_ID_NAME - 2, "Identifier",
+	               "Name of the workspace to append and activate");
+	RNA_def_string(ot->srna, "directory", NULL, FILE_MAX, "Directory",
+	               "Path to the library");
+}
+
 static void workspace_config_file_path_from_folder_id(
         const Main *bmain, int folder_id, char *r_path)
 {
@@ -390,13 +444,12 @@ static void workspace_append_button(
 	BLI_path_join(
 	        lib_path, sizeof(lib_path), from_main->name, BKE_idcode_to_name(GS(id->name)), NULL);
 
-	BLI_assert(STREQ(ot_append->idname, "WM_OT_append"));
+	BLI_assert(STREQ(ot_append->idname, "WORKSPACE_OT_append_activate"));
 	uiItemFullO_ptr(
 	        layout, ot_append, workspace->id.name + 2, ICON_NONE, NULL,
 	        WM_OP_EXEC_DEFAULT, 0, &opptr);
+	RNA_string_set(&opptr, "idname", id->name + 2);
 	RNA_string_set(&opptr, "directory", lib_path);
-	RNA_string_set(&opptr, "filename", id->name + 2);
-	RNA_boolean_set(&opptr, "autoselect", false);
 }
 
 ATTR_NONNULL(1, 2)
@@ -406,7 +459,7 @@ static void workspace_config_file_append_buttons(
 	WorkspaceConfigFileData *workspace_config = workspace_config_file_read(bmain, reports);
 
 	if (workspace_config) {
-		wmOperatorType *ot_append = WM_operatortype_find("WM_OT_append", true);
+		wmOperatorType *ot_append = WM_operatortype_find("WORKSPACE_OT_append_activate", true);
 
 		for (WorkSpace *workspace = workspace_config->workspaces.first; workspace; workspace = workspace->id.next) {
 			workspace_append_button(layout, ot_append, workspace, workspace_config->main);
@@ -449,6 +502,7 @@ void ED_operatortypes_workspace(void)
 	WM_operatortype_append(WORKSPACE_OT_workspace_duplicate);
 	WM_operatortype_append(WORKSPACE_OT_workspace_delete);
 	WM_operatortype_append(WORKSPACE_OT_workspace_add_menu);
+	WM_operatortype_append(WORKSPACE_OT_append_activate);
 }
 
 /** \} Workspace Operators */

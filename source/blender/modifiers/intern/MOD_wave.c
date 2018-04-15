@@ -78,14 +78,6 @@ static void initData(ModifierData *md)
 	wmd->defgrp_name[0] = 0;
 }
 
-static void freeData(ModifierData *md)
-{
-	WaveModifierData *wmd = (WaveModifierData *) md;
-	if (wmd->texture) {
-		id_us_min(&wmd->texture->id);
-	}
-}
-
 static void copyData(ModifierData *md, ModifierData *target)
 {
 #if 0
@@ -127,18 +119,14 @@ static void foreachTexLink(ModifierData *md, Object *ob,
 	walk(userData, ob, md, "texture");
 }
 
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *UNUSED(ob),
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	WaveModifierData *wmd = (WaveModifierData *)md;
 	if (wmd->objectcenter != NULL) {
-		DEG_add_object_relation(node, wmd->objectcenter, DEG_OB_COMP_TRANSFORM, "Wave Modifier");
+		DEG_add_object_relation(ctx->node, wmd->objectcenter, DEG_OB_COMP_TRANSFORM, "Wave Modifier");
 	}
 	if (wmd->map_object != NULL) {
-		DEG_add_object_relation(node, wmd->map_object, DEG_OB_COMP_TRANSFORM, "Wave Modifier");
+		DEG_add_object_relation(ctx->node, wmd->map_object, DEG_OB_COMP_TRANSFORM, "Wave Modifier");
 	}
 }
 
@@ -370,7 +358,7 @@ ModifierTypeInfo modifierType_Wave = {
 	/* applyModifierEM */   NULL,
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
-	/* freeData */          freeData,
+	/* freeData */          NULL,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     dependsOnTime,

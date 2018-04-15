@@ -92,13 +92,15 @@ const EnumPropertyItem rna_enum_ramp_blend_items[] = {
 #include "BKE_texture.h"
 #include "BKE_node.h"
 #include "BKE_paint.h"
+#include "BKE_scene.h"
+#include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
 
 #include "ED_node.h"
 #include "ED_image.h"
-#include "BKE_scene.h"
+#include "ED_screen.h"
 
 static void rna_Material_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
@@ -201,15 +203,27 @@ static void rna_Material_active_paint_texture_index_update(Main *bmain, Scene *s
 	if (ma->texpaintslot) {
 		Image *image = ma->texpaintslot[ma->paint_active_slot].ima;
 		for (sc = bmain->screen.first; sc; sc = sc->id.next) {
+			wmWindow *win = ED_screen_window_find(sc, bmain->wm.first);
+			if (win == NULL) {
+				continue;
+			}
+
+			Object *obedit = NULL;
+			{
+				WorkSpace *workspace = WM_window_get_active_workspace(win);
+				ViewLayer *view_layer = BKE_workspace_view_layer_get(workspace, scene);
+				obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
+			}
+
 			ScrArea *sa;
 			for (sa = sc->areabase.first; sa; sa = sa->next) {
 				SpaceLink *sl;
 				for (sl = sa->spacedata.first; sl; sl = sl->next) {
 					if (sl->spacetype == SPACE_IMAGE) {
 						SpaceImage *sima = (SpaceImage *)sl;
-						
-						if (!sima->pin)
-							ED_space_image_set(sima, scene, scene->obedit, image);
+						if (!sima->pin) {
+							ED_space_image_set(sima, scene, obedit, image);
+						}
 					}
 				}
 			}

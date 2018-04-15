@@ -2,9 +2,11 @@
 uniform mat4 ModelViewProjectionMatrix;
 uniform mat4 ModelMatrix;
 uniform mat4 ModelViewMatrix;
-#ifdef CLIP_PLANES
-uniform vec4 ClipPlanes[1];
-#endif
+
+/* keep in sync with DRWManager.view_data */
+layout(std140) uniform clip_block {
+	vec4 ClipPlanes[1];
+};
 
 #ifndef HAIR_SHADER_FIBERS
 in vec3 pos;
@@ -28,7 +30,7 @@ void main()
 
 #ifdef CLIP_PLANES
 	vec4 worldPosition = (ModelMatrix * vec4(pos, 1.0));
-	gl_ClipDistance[0] = dot(worldPosition, ClipPlanes[0]);
+	gl_ClipDistance[0] = dot(vec4(worldPosition.xyz, 1.0), ClipPlanes[0]);
 #endif
 	/* TODO motion vectors */
 }

@@ -78,7 +78,7 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 	 * passed to the evaluation functions. During relations builder we only
 	 * do NULL-pointer check of the base, so it's fine to pass original one.
 	 */
-	BLI_LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
+	LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
 		build_object(base, base->object);
 	}
 	if (scene->camera != NULL) {
@@ -105,15 +105,13 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 		build_gpencil(scene->gpd);
 	}
 	/* Masks. */
-	BLI_LISTBASE_FOREACH (Mask *, mask, &bmain_->mask) {
+	LISTBASE_FOREACH (Mask *, mask, &bmain_->mask) {
 		build_mask(mask);
 	}
 	/* Movie clips. */
-	BLI_LISTBASE_FOREACH (MovieClip *, clip, &bmain_->movieclip) {
+	LISTBASE_FOREACH (MovieClip *, clip, &bmain_->movieclip) {
 		build_movieclip(clip);
 	}
-	/* Collections. */
-	build_view_layer_collections(&scene_->id, view_layer);
 	/* TODO(sergey): Do this flush on CoW object? */
 	foreach (OperationDepsNode *node, graph_->operations) {
 		IDDepsNode *id_node = node->owner->owner;
@@ -129,8 +127,8 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 		build_view_layer(scene->set, set_view_layer);
 	}
 
-	graph_->scene = scene;
-	graph_->view_layer = view_layer;
+	BLI_assert(graph_->scene == scene);
+	BLI_assert(graph_->view_layer == view_layer);
 }
 
 }  // namespace DEG

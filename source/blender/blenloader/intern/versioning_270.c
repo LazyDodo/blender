@@ -45,7 +45,7 @@
 #include "DNA_sequence_types.h"
 #include "DNA_space_types.h"
 #include "DNA_screen_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_object_types.h"
 #include "DNA_mask_types.h"
 #include "DNA_mesh_types.h"
@@ -1756,6 +1756,24 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 		}
 	}
 
+	if (!MAIN_VERSION_ATLEAST(main, 279, 3)) {
+		if (!DNA_struct_elem_find(fd->filesdna, "SmokeDomainSettings", "float", "clipping")) {
+			Object *ob;
+			ModifierData *md;
+
+			for (ob = main->object.first; ob; ob = ob->id.next) {
+				for (md = ob->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Smoke) {
+						SmokeModifierData *smd = (SmokeModifierData *)md;
+						if (smd->domain) {
+							smd->domain->clipping = 1e-3f;
+						}
+					}
+				}
+			}
+		}
+	}
+
 	{
 		/* Fix for invalid state of screen due to bug in older versions. */
 		for (bScreen *sc = main->screen.first; sc; sc = sc->id.next) {
@@ -1798,6 +1816,23 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 					}
 				}
 			}
+		}
+
+		for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+			int preset = scene->r.ffcodecdata.ffmpeg_preset;
+			if (preset == FFM_PRESET_NONE || preset >= FFM_PRESET_GOOD) {
+				continue;
+			}
+			if (preset <= FFM_PRESET_FAST) {
+				preset = FFM_PRESET_REALTIME;
+			}
+			else if (preset >= FFM_PRESET_SLOW) {
+				preset = FFM_PRESET_BEST;
+			}
+			else {
+				preset = FFM_PRESET_GOOD;
+			}
+			scene->r.ffcodecdata.ffmpeg_preset = preset;
 		}
 	}
 }

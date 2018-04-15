@@ -299,6 +299,8 @@ extern StructRNA RNA_HemiLamp;
 extern StructRNA RNA_Histogram;
 extern StructRNA RNA_HookModifier;
 extern StructRNA RNA_ID;
+extern StructRNA RNA_IDOverrideStatic;
+extern StructRNA RNA_IDOverrideStaticProperty;
 extern StructRNA RNA_IKParam;
 extern StructRNA RNA_Image;
 extern StructRNA RNA_ImageFormatSettings;
@@ -724,6 +726,7 @@ extern StructRNA RNA_WipeSequence;
 extern StructRNA RNA_WireframeModifier;
 extern StructRNA RNA_WoodTexture;
 extern StructRNA RNA_WorkSpace;
+extern StructRNA RNA_wmOwnerIDs;
 extern StructRNA RNA_World;
 extern StructRNA RNA_WorldAmbientOcclusion;
 extern StructRNA RNA_WorldLighting;
@@ -902,6 +905,9 @@ bool RNA_property_editable_index(PointerRNA *ptr, PropertyRNA *prop, int index);
 bool RNA_property_editable_flag(PointerRNA *ptr, PropertyRNA *prop); /* without lib check, only checks the flag */
 bool RNA_property_animateable(PointerRNA *ptr, PropertyRNA *prop);
 bool RNA_property_animated(PointerRNA *ptr, PropertyRNA *prop);
+bool RNA_property_overridable(PointerRNA *ptr, PropertyRNA *prop);
+bool RNA_property_overridden(PointerRNA *ptr, PropertyRNA *prop);
+bool RNA_property_comparable(PointerRNA *ptr, PropertyRNA *prop);
 bool RNA_property_path_from_ID_check(PointerRNA *ptr, PropertyRNA *prop); /* slow, use with care */
 
 void RNA_property_update(struct bContext *C, PointerRNA *ptr, PropertyRNA *prop);
@@ -1282,6 +1288,13 @@ typedef enum eRNAOverrideMatchResult {
 	RNA_OVERRIDE_MATCH_RESULT_RESTORED = 1 << 1,
 } eRNAOverrideMatchResult;
 
+typedef enum eRNAOverrideStatus {
+	RNA_OVERRIDE_STATUS_OVERRIDABLE = 1 << 0,  /* The property is overridable. */
+	RNA_OVERRIDE_STATUS_OVERRIDDEN = 1 << 1,  /* The property is overridden. */
+	RNA_OVERRIDE_STATUS_MANDATORY = 1 << 2,  /* Overriding this property is mandatory when creating an override. */
+	RNA_OVERRIDE_STATUS_LOCKED = 1 << 3,  /* The override status of this property is locked. */
+} eRNAOverrideStatus;
+
 bool RNA_struct_override_matches(
         struct PointerRNA *ptr_local, struct PointerRNA *ptr_reference, const char *root_path,
         struct IDOverrideStatic *override, const eRNAOverrideMatch flags,
@@ -1304,9 +1317,11 @@ struct IDOverrideStaticPropertyOperation *RNA_property_override_property_operati
         PointerRNA *ptr, PropertyRNA *prop, const short operation, const int index,
         const bool strict, bool *r_strict, bool *r_created);
 
-void RNA_property_override_status(
-        PointerRNA *ptr, PropertyRNA *prop, const int index,
-        bool *r_overridable, bool *r_overridden, bool *r_mandatory, bool *r_locked);
+eRNAOverrideStatus RNA_property_override_status(PointerRNA *ptr, PropertyRNA *prop, const int index);
+
+void        RNA_struct_state_owner_set(const char *name);
+const char *RNA_struct_state_owner_get(void);
+
 
 #ifdef __cplusplus
 }

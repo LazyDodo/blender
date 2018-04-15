@@ -62,6 +62,10 @@
 
 #include "transform.h"
 
+/* -------------------------------------------------------------------- */
+/** Internal Data Types
+ * \{ */
+
 enum eViewProj {
 	VIEW_PROJ_NONE = -1,
 	VIEW_PROJ_ORTHO = 0,
@@ -137,10 +141,8 @@ struct SnapObjectContext {
 
 /** \} */
 
-
 /* -------------------------------------------------------------------- */
-
-/** Common utilities
+/** Common Utilities
  * \{ */
 
 
@@ -260,9 +262,7 @@ static int dm_looptri_to_poly_index(DerivedMesh *dm, const MLoopTri *lt);
 
 /** \} */
 
-
 /* -------------------------------------------------------------------- */
-
 /** \name Ray Cast Funcs
  * \{ */
 
@@ -789,7 +789,6 @@ static void raycast_obj_cb(SnapObjectContext *sctx, bool is_obedit, Object *ob, 
  * Walks through all objects in the scene to find the `hit` on object surface.
  *
  * \param sctx: Snap context to store data.
- * \param snapdata: struct generated in `set_snapdata`.
  * \param snap_select : from enum eSnapSelect.
  * \param use_object_edit_cage : Uses the coordinates of BMesh(if any) to do the snapping.
  * \param obj_list: List with objects to snap (created in `create_object_list`).
@@ -822,7 +821,7 @@ static bool raycastObjects(
         Object **r_ob, float r_obmat[4][4],
         ListBase *r_hit_list)
 {
-	Object *obedit = use_object_edit_cage ? sctx->scene->obedit : NULL;
+	Object *obedit = use_object_edit_cage ? OBEDIT_FROM_VIEW_LAYER(sctx->eval_ctx.view_layer) : NULL;
 
 	struct RaycastObjUserData data = {
 		.ray_start = ray_start,
@@ -846,9 +845,7 @@ static bool raycastObjects(
 
 /** \} */
 
-
 /* -------------------------------------------------------------------- */
-
 /** Snap Nearest utilities
  * \{ */
 
@@ -1158,9 +1155,7 @@ static float dist_squared_to_projected_aabb_simple(
 
 /** \} */
 
-
 /* -------------------------------------------------------------------- */
-
 /** Walk DFS
  * \{ */
 
@@ -1256,7 +1251,6 @@ static bool cb_nearest_walk_order(const BVHTreeAxisRange *UNUSED(bounds), char a
 /** \} */
 
 /* -------------------------------------------------------------------- */
-
 /** \name Internal Object Snapping API
  * \{ */
 
@@ -1358,7 +1352,7 @@ static bool snapArmature(
 
 static bool snapCurve(
         SnapData *snapdata,
-        Object *ob, Curve *cu, float obmat[4][4],
+        Curve *cu, float obmat[4][4], bool use_obedit,
         /* read/write args */
         float *ray_depth, float *dist_px,
         /* return args */
@@ -1376,12 +1370,12 @@ static bool snapCurve(
 	mul_m4_m4m4(lpmat, snapdata->pmat, obmat);
 	dist_px_sq = SQUARE(*dist_px);
 
-	for (Nurb *nu = (ob->mode == OB_MODE_EDIT ? cu->editnurb->nurbs.first : cu->nurb.first); nu; nu = nu->next) {
+	for (Nurb *nu = (use_obedit ? cu->editnurb->nurbs.first : cu->nurb.first); nu; nu = nu->next) {
 		for (int u = 0; u < nu->pntsu; u++) {
 			switch (snapdata->snap_to) {
 				case SCE_SNAP_MODE_VERTEX:
 				{
-					if (ob->mode == OB_MODE_EDIT) {
+					if (use_obedit) {
 						if (nu->bezt) {
 							/* don't snap to selected (moving) or hidden */
 							if (nu->bezt[u].f2 & SELECT || nu->bezt[u].hide != 0) {
@@ -1966,7 +1960,7 @@ static bool snapObject(
 		else if (ob->type == OB_CURVE) {
 			retval = snapCurve(
 			        snapdata,
-			        ob, ob->data, obmat,
+			        ob->data, obmat, use_obedit,
 			        ray_depth, dist_px,
 			        r_loc, r_no);
 		}
@@ -2060,7 +2054,7 @@ static bool snapObjectsRay(
         float r_loc[3], float r_no[3],
         Object **r_ob, float r_obmat[4][4])
 {
-	Object *obedit = use_object_edit_cage ? sctx->scene->obedit : NULL;
+	Object *obedit = use_object_edit_cage ? OBEDIT_FROM_VIEW_LAYER(sctx->eval_ctx.view_layer) : NULL;
 
 	struct SnapObjUserData data = {
 		.snapdata = snapdata,
@@ -2080,14 +2074,12 @@ static bool snapObjectsRay(
 
 /** \} */
 
-
 /* -------------------------------------------------------------------- */
-
 /** \name Public Object Snapping API
  * \{ */
 
 SnapObjectContext *ED_transform_snap_object_context_create(
-        Main *bmain, Scene *scene, ViewLayer *view_layer, RenderEngineType *engine_type, int flag)
+        Main *bmain, Scene *scene, ViewLayer *view_layer, int flag)
 {
 	SnapObjectContext *sctx = MEM_callocN(sizeof(*sctx), __func__);
 
@@ -2096,7 +2088,8 @@ SnapObjectContext *ED_transform_snap_object_context_create(
 	sctx->bmain = bmain;
 	sctx->scene = scene;
 
-	DEG_evaluation_context_init_from_scene(&sctx->eval_ctx, scene, view_layer, engine_type, DAG_EVAL_VIEWPORT);
+	DEG_evaluation_context_init_from_scene(
+	        &sctx->eval_ctx, scene, view_layer, DAG_EVAL_VIEWPORT);
 
 	sctx->cache.object_map = BLI_ghash_ptr_new(__func__);
 	sctx->cache.mem_arena = BLI_memarena_new(BLI_MEMARENA_STD_BUFSIZE, __func__);
@@ -2105,11 +2098,11 @@ SnapObjectContext *ED_transform_snap_object_context_create(
 }
 
 SnapObjectContext *ED_transform_snap_object_context_create_view3d(
-        Main *bmain, Scene *scene, ViewLayer *view_layer, RenderEngineType *engine_type, int flag,
+        Main *bmain, Scene *scene, ViewLayer *view_layer, int flag,
         /* extra args for view3d */
         const ARegion *ar, const View3D *v3d)
 {
-	SnapObjectContext *sctx = ED_transform_snap_object_context_create(bmain, scene, view_layer, engine_type, flag);
+	SnapObjectContext *sctx = ED_transform_snap_object_context_create(bmain, scene, view_layer, flag);
 
 	sctx->use_v3d = true;
 	sctx->v3d_data.ar = ar;
