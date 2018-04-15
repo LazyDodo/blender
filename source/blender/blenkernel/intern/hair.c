@@ -228,7 +228,10 @@ void BKE_hair_set_guide_curve(HairSystem *hsys, int index, const MeshSample *mes
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
-void BKE_hair_guide_curves_end(HairSystem *hsys)
+/* Calculate vertex start indices on all curves based on length.
+ * Returns the total number of vertices.
+ */
+static int hair_guide_calc_vertstart(HairSystem *hsys)
 {
 	/* Recalculate vertex count and start offsets in curves */
 	int vertstart = 0;
@@ -237,11 +240,18 @@ void BKE_hair_guide_curves_end(HairSystem *hsys)
 		hsys->guides.curves[i].vertstart = vertstart;
 		vertstart += hsys->guides.curves[i].numverts;
 	}
+	
+	return vertstart;
+}
 
-	if (vertstart != hsys->guides.totverts)
+void BKE_hair_guide_curves_end(HairSystem *hsys)
+{
+	const int totverts = hair_guide_calc_vertstart(hsys);
+
+	if (totverts != hsys->guides.totverts)
 	{
-		hsys->guides.verts = MEM_reallocN(hsys->guides.verts, sizeof(HairGuideVertex) * vertstart);
-		hsys->guides.totverts = vertstart;
+		hsys->guides.verts = MEM_reallocN(hsys->guides.verts, sizeof(HairGuideVertex) * totverts);
+		hsys->guides.totverts = totverts;
 
 		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	}
@@ -255,6 +265,29 @@ void BKE_hair_set_guide_vertex(HairSystem *hsys, int index, int flag, const floa
 	vertex->flag = flag;
 	copy_v3_v3(vertex->co, co);
 	
+	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
+}
+
+void BKE_hair_set_hair_guides(HairSystem *hsys, HairGuideData *guides)
+{
+	if (hsys->guides.curves)
+	{
+		MEM_freeN(hsys->guides.curves);
+	}
+	hsys->guides.curves = MEM_dupallocN(hsys->guides.curves);
+	hsys->guides.totcurves = guides->totcurves;
+
+	if (hsys->guides.verts)
+	{
+		MEM_freeN(hsys->guides.verts);
+	}
+	hsys->guides.verts = MEM_dupallocN(hsys->guides.verts);
+	hsys->guides.totverts = guides->totverts;
+
+	const int vertcount = hair_guide_calc_vertstart(hsys);
+	BLI_assert(vertcount <= hsys->guides.totverts);
+
+	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 

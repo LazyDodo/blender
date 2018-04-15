@@ -75,6 +75,10 @@ void BKE_hair_guide_curves_end(struct HairSystem *hsys);
  */
 void BKE_hair_set_guide_vertex(struct HairSystem *hsys, int index, int flag, const float co[3]);
 
+/* Set the hair guide data used by the hair system.
+ */
+void BKE_hair_set_hair_guides(struct HairSystem *hsys, struct HairGuideData *guides);
+
 /* === Follicles === */
 
 /* Calculate surface area of a scalp mesh */
