@@ -538,7 +538,7 @@ static void groom_generate_guide_curves(
 	
 	for (int i = 0; i < num_guides; ++i)
 	{
-		BKE_hair_set_guide_curve(hsys, i, &guide_samples[i], );
+//		BKE_hair_set_guide_curve(hsys, i, &guide_samples[i], );
 	}
 	
 	BKE_hair_guide_curves_end(hsys);
@@ -560,7 +560,12 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, 
 	BKE_hair_generate_follicles(hsys, scalp, seed, hair_count);
 	
 	unsigned int guide_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom guide curves"));
-	groom_bundle_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count);
+	groom_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count);
+}
+
+void BKE_groom_hair_update_guide_curves(Groom *groom)
+{
+	UNUSED_VARS(groom);
 }
 
 
