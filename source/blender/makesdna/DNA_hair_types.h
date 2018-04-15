@@ -68,13 +68,9 @@ typedef struct HairGuideVertex {
 	float co[3];
 } HairGuideVertex;
 
-typedef struct HairSystem {
-	int flag;
-	int pad;
-	
-	/* Set of hair follicles on the scalp mesh */
-	struct HairPattern *pattern;
-	
+/* Guide curve data */
+typedef struct HairGuideData
+{
 	/* Curves for guiding hair fibers */
 	struct HairGuideCurve *curves;
 	/* Control vertices on guide curves */
@@ -83,6 +79,17 @@ typedef struct HairSystem {
 	int totcurves;
 	/* Number of guide curve vertices */
 	int totverts;
+} HairGuideData;
+
+typedef struct HairSystem {
+	int flag;
+	int pad;
+	
+	/* Set of hair follicles on the scalp mesh */
+	struct HairPattern *pattern;
+	
+	/* Guide curve data */
+	HairGuideData guides;
 	
 	/* Material used for drawing and rendering hair fibers */
 	int material_index;

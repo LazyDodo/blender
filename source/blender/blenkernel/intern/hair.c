@@ -74,13 +74,13 @@ HairSystem* BKE_hair_copy(HairSystem *hsys)
 		nhsys->pattern->follicles = MEM_dupallocN(hsys->pattern->follicles);
 	}
 	
-	if (hsys->curves)
+	if (hsys->guides.curves)
 	{
-		nhsys->curves = MEM_dupallocN(hsys->curves);
+		nhsys->guides.curves = MEM_dupallocN(hsys->guides.curves);
 	}
-	if (hsys->verts)
+	if (hsys->guides.verts)
 	{
-		nhsys->verts = MEM_dupallocN(hsys->verts);
+		nhsys->guides.verts = MEM_dupallocN(hsys->guides.verts);
 	}
 	
 	nhsys->draw_batch_cache = NULL;
@@ -93,13 +93,13 @@ void BKE_hair_free(HairSystem *hsys)
 {
 	BKE_hair_batch_cache_free(hsys);
 	
-	if (hsys->curves)
+	if (hsys->guides.curves)
 	{
-		MEM_freeN(hsys->curves);
+		MEM_freeN(hsys->guides.curves);
 	}
-	if (hsys->verts)
+	if (hsys->guides.verts)
 	{
-		MEM_freeN(hsys->verts);
+		MEM_freeN(hsys->guides.verts);
 	}
 	
 	if (hsys->pattern)
@@ -206,10 +206,10 @@ void BKE_hair_generate_follicles(
 
 void BKE_hair_guide_curves_begin(HairSystem *hsys, int totcurves)
 {
-	if (totcurves != hsys->totcurves)
+	if (totcurves != hsys->guides.totcurves)
 	{
-		hsys->curves = MEM_reallocN(hsys->curves, sizeof(HairGuideCurve) * totcurves);
-		hsys->totcurves = totcurves;
+		hsys->guides.curves = MEM_reallocN(hsys->guides.curves, sizeof(HairGuideCurve) * totcurves);
+		hsys->guides.totcurves = totcurves;
 
 		hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
@@ -218,9 +218,9 @@ void BKE_hair_guide_curves_begin(HairSystem *hsys, int totcurves)
 
 void BKE_hair_set_guide_curve(HairSystem *hsys, int index, const MeshSample *mesh_sample, int numverts)
 {
-	BLI_assert(index <= hsys->totcurves);
+	BLI_assert(index <= hsys->guides.totcurves);
 	
-	HairGuideCurve *curve = &hsys->curves[index];
+	HairGuideCurve *curve = &hsys->guides.curves[index];
 	memcpy(&curve->mesh_sample, mesh_sample, sizeof(MeshSample));
 	curve->numverts = numverts;
 	
@@ -232,16 +232,16 @@ void BKE_hair_guide_curves_end(HairSystem *hsys)
 {
 	/* Recalculate vertex count and start offsets in curves */
 	int vertstart = 0;
-	for (int i = 0; i < hsys->totcurves; ++i)
+	for (int i = 0; i < hsys->guides.totcurves; ++i)
 	{
-		hsys->curves[i].vertstart = vertstart;
-		vertstart += hsys->curves[i].numverts;
+		hsys->guides.curves[i].vertstart = vertstart;
+		vertstart += hsys->guides.curves[i].numverts;
 	}
 
-	if (vertstart != hsys->totverts)
+	if (vertstart != hsys->guides.totverts)
 	{
-		hsys->verts = MEM_reallocN(hsys->verts, sizeof(HairGuideVertex) * vertstart);
-		hsys->totverts = vertstart;
+		hsys->guides.verts = MEM_reallocN(hsys->guides.verts, sizeof(HairGuideVertex) * vertstart);
+		hsys->guides.totverts = vertstart;
 
 		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	}
@@ -249,9 +249,9 @@ void BKE_hair_guide_curves_end(HairSystem *hsys)
 
 void BKE_hair_set_guide_vertex(HairSystem *hsys, int index, int flag, const float co[3])
 {
-	BLI_assert(index <= hsys->totverts);
+	BLI_assert(index <= hsys->guides.totverts);
 	
-	HairGuideVertex *vertex = &hsys->verts[index];
+	HairGuideVertex *vertex = &hsys->guides.verts[index];
 	vertex->flag = flag;
 	copy_v3_v3(vertex->co, co);
 	
@@ -353,7 +353,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	
 	HairPattern *pattern = hsys->pattern;
-	const int num_strands = hsys->totcurves;
+	const int num_strands = hsys->guides.totcurves;
 	if (num_strands == 0 || !pattern)
 		return;
 	
@@ -361,7 +361,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	{
 		for (int i = 0; i < num_strands; ++i) {
 			float nor[3], tang[3];
-			if (!BKE_mesh_sample_eval(scalp, &hsys->curves[i].mesh_sample, strandloc[i], nor, tang)) {
+			if (!BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
 				zero_v3(strandloc[i]);
 			}
 		}

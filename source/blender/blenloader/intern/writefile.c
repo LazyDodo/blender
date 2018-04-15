@@ -1775,8 +1775,8 @@ static void write_hair(WriteData *wd, HairSystem *hsys)
 		writestruct(wd, DATA, HairFollicle, hsys->pattern->num_follicles, hsys->pattern->follicles);
 	}
 	
-	writestruct(wd, DATA, HairGuideCurve, hsys->totcurves, hsys->curves);
-	writestruct(wd, DATA, HairGuideVertex, hsys->totverts, hsys->verts);
+	writestruct(wd, DATA, HairGuideCurve, hsys->guides.totcurves, hsys->guides.curves);
+	writestruct(wd, DATA, HairGuideVertex, hsys->guides.totverts, hsys->guides.verts);
 }
 
 static void write_modifiers(WriteData *wd, ListBase *modbase)
