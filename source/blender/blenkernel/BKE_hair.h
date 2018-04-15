@@ -53,10 +53,27 @@ void BKE_hair_free(struct HairSystem *hsys);
 
 /* === Guide Strands === */
 
-void BKE_hair_guide_curves_begin(struct HairSystem *hsys, int totcurves, int totverts);
+/* Allocate buffers for defining guide curves
+ * \param totcurves Number of guide curves to allocate
+ */
+void BKE_hair_guide_curves_begin(struct HairSystem *hsys, int totcurves);
+
+/* Set properties of a guide curve
+ * \param index Index of the guide guide curve
+ * \param mesh_sample Origin of the guide curve on the scalp mesh.
+ * \param numverts Number of vertices in this guide curve
+ */
 void BKE_hair_set_guide_curve(struct HairSystem *hsys, int index, const struct MeshSample *mesh_sample, int numverts);
-void BKE_hair_set_guide_vertex(struct HairSystem *hsys, int index, int flag, const float co[3]);
+
+/* Finalize guide curve update */
 void BKE_hair_guide_curves_end(struct HairSystem *hsys);
+
+/* Set properties of a guide curve vertex
+ * \param index Index of the guide curve vertex.
+ * \param flag Flags to set on the vertex.
+ * \param co Location of the vertex in object space.
+ */
+void BKE_hair_set_guide_vertex(struct HairSystem *hsys, int index, int flag, const float co[3]);
 
 /* === Follicles === */
 

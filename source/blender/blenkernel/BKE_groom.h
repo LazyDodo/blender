@@ -71,7 +71,11 @@ void BKE_groom_bundle_unbind(struct GroomBundle *bundle);
 
 /* === Hair System === */
 
-void BKE_groom_distribute_follicles(struct Groom *groom, unsigned int seed, int count);
+/* Create follicles and guide curve origins on the scalp surface for hair fiber rendering */
+void BKE_groom_hair_distribute(struct Groom *groom, unsigned int seed, int hair_count, int guide_curve_count);
+
+/* Calculate guide curve shapes based on groom bundle deformation */
+void BKE_groom_hair_update_guide_curves(struct Groom *groom);
 
 
 /* === Depsgraph evaluation === */

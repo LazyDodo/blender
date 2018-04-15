@@ -72,7 +72,8 @@ static int hair_distribute_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = ED_object_context(C);
 	Groom *groom = ob->data;
-	int count = RNA_int_get(op->ptr, "count");
+	int hair_count = RNA_int_get(op->ptr, "hair_count");
+	int guide_curve_count = RNA_int_get(op->ptr, "guide_curve_count");
 	unsigned int seed = (unsigned int)RNA_int_get(op->ptr, "seed");
 
 	if (!groom->scalp_object)
@@ -81,7 +82,7 @@ static int hair_distribute_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	BKE_groom_distribute_follicles(groom, seed, count);
+	BKE_groom_hair_distribute(groom, seed, hair_count, guide_curve_count);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
@@ -104,8 +105,10 @@ void GROOM_OT_hair_distribute(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	RNA_def_int(ot->srna, "count", 1000, 0, INT_MAX,
-	            "Count", "Number of follicles to generate", 1, 1e6);
+	RNA_def_int(ot->srna, "hair_count", 1000, 0, INT_MAX,
+	            "Hair Count", "Number of hairs to generate", 1, 1e6);
+	RNA_def_int(ot->srna, "guide_curve_count", 10, 0, INT_MAX,
+	            "Guide Curve Count", "Number of guide curves to generate", 1, 1e4);
 	RNA_def_int(ot->srna, "seed", 0, 0, INT_MAX,
 	            "Seed", "Seed value for randomized follicle distribution", 0, INT_MAX);
 }

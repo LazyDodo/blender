@@ -204,21 +204,14 @@ void BKE_hair_generate_follicles(
 
 /* ================================= */
 
-void BKE_hair_guide_curves_begin(HairSystem *hsys, int totcurves, int totverts)
+void BKE_hair_guide_curves_begin(HairSystem *hsys, int totcurves)
 {
 	if (totcurves != hsys->totcurves)
 	{
 		hsys->curves = MEM_reallocN(hsys->curves, sizeof(HairGuideCurve) * totcurves);
 		hsys->totcurves = totcurves;
 
-		hsys->flag |= HAIR_SYSTEM_UPDATE_GUIDE_VERT_OFFSET | HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
-		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
-	}
-	if (totverts != hsys->totverts)
-	{
-		hsys->verts = MEM_reallocN(hsys->verts, sizeof(HairGuideVertex) * totverts);
-		hsys->totverts = totverts;
-
+		hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	}
 }
@@ -231,8 +224,27 @@ void BKE_hair_set_guide_curve(HairSystem *hsys, int index, const MeshSample *mes
 	memcpy(&curve->mesh_sample, mesh_sample, sizeof(MeshSample));
 	curve->numverts = numverts;
 	
-	hsys->flag |= HAIR_SYSTEM_UPDATE_GUIDE_VERT_OFFSET | HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
+	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
+}
+
+void BKE_hair_guide_curves_end(HairSystem *hsys)
+{
+	/* Recalculate vertex count and start offsets in curves */
+	int vertstart = 0;
+	for (int i = 0; i < hsys->totcurves; ++i)
+	{
+		hsys->curves[i].vertstart = vertstart;
+		vertstart += hsys->curves[i].numverts;
+	}
+
+	if (vertstart != hsys->totverts)
+	{
+		hsys->verts = MEM_reallocN(hsys->verts, sizeof(HairGuideVertex) * vertstart);
+		hsys->totverts = vertstart;
+
+		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
+	}
 }
 
 void BKE_hair_set_guide_vertex(HairSystem *hsys, int index, int flag, const float co[3])
@@ -244,23 +256,6 @@ void BKE_hair_set_guide_vertex(HairSystem *hsys, int index, int flag, const floa
 	copy_v3_v3(vertex->co, co);
 	
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
-}
-
-void BKE_hair_guide_curves_end(HairSystem *hsys)
-{
-	/* Recalculate vertex offsets */
-	if (!(hsys->flag & HAIR_SYSTEM_UPDATE_GUIDE_VERT_OFFSET))
-	{
-		return;
-	}
-	hsys->flag &= ~HAIR_SYSTEM_UPDATE_GUIDE_VERT_OFFSET;
-	
-	int vertstart = 0;
-	for (int i = 0; i < hsys->totcurves; ++i)
-	{
-		hsys->curves[i].vertstart = vertstart;
-		vertstart += hsys->curves[i].numverts;
-	}
 }
 
 /* ================================= */

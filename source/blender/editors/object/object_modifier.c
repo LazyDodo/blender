@@ -2387,29 +2387,34 @@ static void fur_create_guide_curves(struct HairSystem *hsys, unsigned int seed, 
 	{
 		MeshSample *buffer = MEM_mallocN(sizeof(MeshSample) * count, "mesh sample buffer");
 		int totguides = BKE_mesh_sample_generate_batch(gen, buffer, count);
-		int totverts = 2 * totguides; // TODO
 		
-		BKE_hair_guide_curves_begin(hsys, totguides, totverts);
-		
-		MeshSample *sample = buffer;
-		int vertstart = 0;
-		for (int i = 0; i < totguides; ++i, ++sample)
 		{
-			int numverts = 2; // TODO
+			BKE_hair_guide_curves_begin(hsys, totguides);
 			
-			BKE_hair_set_guide_curve(hsys, i, sample, numverts);
+			MeshSample *sample = buffer;
+			for (int i = 0; i < totguides; ++i, ++sample)
+			{
+				BKE_hair_set_guide_curve(hsys, i, sample, 2);
+			}
 			
-			float co[3], nor[3], tang[3];
-			BKE_mesh_sample_eval(scalp, sample, co, nor, tang);
-			BKE_hair_set_guide_vertex(hsys, vertstart, 0, co);
-			
-			madd_v3_v3fl(co, nor, 0.1f);
-			BKE_hair_set_guide_vertex(hsys, vertstart + 1, 0, co);
-			
-			vertstart += numverts;
+			BKE_hair_guide_curves_end(hsys);
 		}
 		
-		BKE_hair_guide_curves_end(hsys);
+		{
+			int vertstart = 0;
+			MeshSample *sample = buffer;
+			for (int i = 0; i < totguides; ++i, ++sample)
+			{
+				float co[3], nor[3], tang[3];
+				BKE_mesh_sample_eval(scalp, sample, co, nor, tang);
+				BKE_hair_set_guide_vertex(hsys, vertstart, 0, co);
+				
+				madd_v3_v3fl(co, nor, 0.1f);
+				BKE_hair_set_guide_vertex(hsys, vertstart + 1, 0, co);
+				
+				vertstart += 2;
+			}
+		}
 		
 		MEM_freeN(buffer);
 	}

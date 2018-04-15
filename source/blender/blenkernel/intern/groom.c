@@ -495,8 +495,61 @@ void BKE_groom_bundle_unbind(GroomBundle *bundle)
 
 /* === Hair System === */
 
-void BKE_groom_distribute_follicles(Groom *groom, unsigned int seed, int count)
+/* Distribute points on the scalp to use as guide curve origins,
+ * then interpolate guide curves from bundles
+ */
+static void groom_generate_guide_curves(
+        Groom *groom,
+        DerivedMesh *scalp,
+        unsigned int seed,
+        int guide_curve_count)
 {
+	struct HairSystem *hsys = groom->hair_system;
+
+	MeshSample *guide_samples = MEM_mallocN(sizeof(*guide_samples) * guide_curve_count, "guide samples");
+	int num_guides;
+	{
+		/* Random distribution of points on the scalp mesh */
+		
+		float scalp_area = BKE_hair_calc_surface_area(scalp);
+		float density = BKE_hair_calc_density_from_count(scalp_area, guide_curve_count);
+		float min_distance = BKE_hair_calc_min_distance_from_density(density);
+		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(
+		            seed,
+		            min_distance,
+		            guide_curve_count,
+		            NULL,
+		            NULL);
+		
+		BKE_mesh_sample_generator_bind(gen, scalp);
+		
+		static const bool use_threads = false;
+		num_guides = BKE_mesh_sample_generate_batch_ex(
+		                 gen,
+		                 guide_samples,
+		                 sizeof(MeshSample),
+		                 guide_curve_count,
+		                 use_threads);
+		
+		BKE_mesh_sample_free_generator(gen);
+	}
+	
+	BKE_hair_guide_curves_begin(hsys, num_guides);
+	
+	for (int i = 0; i < num_guides; ++i)
+	{
+		BKE_hair_set_guide_curve(hsys, i, &guide_samples[i], );
+	}
+	
+	BKE_hair_guide_curves_end(hsys);
+	
+	MEM_freeN(guide_samples);
+}
+
+void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, int guide_curve_count)
+{
+	struct HairSystem *hsys = groom->hair_system;
+	
 	BLI_assert(groom->scalp_object);
 	DerivedMesh *scalp = object_get_derived_final(groom->scalp_object, false);
 	if (!scalp)
@@ -504,7 +557,10 @@ void BKE_groom_distribute_follicles(Groom *groom, unsigned int seed, int count)
 		return;
 	}
 	
-	BKE_hair_generate_follicles(groom->hair_system, scalp, seed, count);
+	BKE_hair_generate_follicles(hsys, scalp, seed, hair_count);
+	
+	unsigned int guide_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom guide curves"));
+	groom_bundle_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count);
 }
 
 
@@ -768,7 +824,11 @@ void BKE_groom_eval_geometry(const EvaluationContext *UNUSED(eval_ctx), Groom *g
 		printf("%s on %s\n", __func__, groom->id.name);
 	}
 	
+	/* calculate curves for interpolating shapes */
 	BKE_groom_curve_cache_update(groom);
+	
+	/* generate actual guide curves for hair */
+	BKE_groom_hair_update_guide_curves(groom);
 	
 	if (groom->bb == NULL || (groom->bb->flag & BOUNDBOX_DIRTY)) {
 		BKE_groom_boundbox_calc(groom, NULL, NULL);
