@@ -1703,6 +1703,12 @@ static bool ui_but_contains_point_px_icon(uiBut *but, ARegion *ar, const wmEvent
 	return BLI_rcti_isect_pt(&rect, x, y);
 }
 
+static void ui_but_drop_handler(wmDrag *drag, const wmEvent *event);
+struct uiButDrag {
+	uiBut *dragged_but;
+	uiButStore *but_store;
+	int drag_start_xy[2];
+};
 static bool ui_but_drag_init(
         bContext *C, uiBut *but,
         uiHandleButtonData *data, const wmEvent *event)
@@ -1775,6 +1781,22 @@ static bool ui_but_drag_init(
 				MEM_freeN(drag_info);
 				return false;
 			}
+		}
+		/* Allow reordering buttons via drag & drop */
+		else if (but->group) {
+			ListBase *dropbox_list = WM_dropboxmap_find("User Interface", 0, 0);
+			struct uiButDrag *but_drag = MEM_mallocN(sizeof(*but_drag), "uiButDrag");
+
+			but_drag->dragged_but = but;
+			but_drag->but_store = UI_butstore_create(but->block);
+			copy_v2_v2_int(but_drag->drag_start_xy, &event->x);
+
+			UI_butstore_register(but_drag->but_store, &but_drag->dragged_but);
+			WM_event_start_drag(C, but->icon, but->dragtype, but_drag, ui_but_value_get(but),
+			                    WM_DRAG_FREE_DATA | WM_DRAG_NOP);
+			WM_dropbox_add_custom_drop_handler(dropbox_list, ui_but_drop_handler);
+
+			return true;
 		}
 		else {
 			wmDrag *drag = WM_event_start_drag(
@@ -2219,6 +2241,98 @@ static void ui_apply_but(bContext *C, uiBlock *block, uiBut *but, uiHandleButton
 }
 
 /* ******************* drop event ********************  */
+
+enum ReinsertPosition {
+	BUT_REINSERT_BEFORE,
+	BUT_REINSERT_AFTER,
+};
+static void ui_but_find_to_reinsert_next_to(
+        const wmEvent *event, const uiBut *dragged_but, const int drag_start_xy[2],
+        uiBut **r_but, enum ReinsertPosition *r_reinsert_position)
+{
+	uiBut *but_candidate = NULL;
+
+	if (event->x < drag_start_xy[0]) {
+		for (uiBut *but_iter = dragged_but->prev; but_iter; but_iter = but_iter->prev) {
+			if ((but_iter->group == dragged_but->group) && (event->x < BLI_rctf_cent_x(&but_iter->rect))) {
+				but_candidate = but_iter;
+			}
+		}
+
+		*r_reinsert_position = BUT_REINSERT_BEFORE;
+	}
+	else {
+		for (uiBut *but_iter = dragged_but->next; but_iter; but_iter = but_iter->next) {
+			if ((but_iter->group == dragged_but->group) && (event->x > BLI_rctf_cent_x(&but_iter->rect))) {
+				but_candidate = but_iter;
+			}
+		}
+
+		*r_reinsert_position = BUT_REINSERT_AFTER;
+	}
+
+	*r_but = but_candidate;
+}
+
+static uiButtonGroupItemInfo *ui_block_button_group_find_item_from_data(
+        const uiButtonGroup *group,
+        const void *data)
+{
+	return BLI_findptr(&group->items, data, offsetof(uiButtonGroupItemInfo, data));
+}
+
+static void ui_but_drop_handler(wmDrag *drag, const wmEvent *event)
+{
+	if (drag->type == WM_DRAG_BUT_REORDER) {
+		struct uiButDrag *but_drag = drag->poin;
+		uiBut *dragged_but = but_drag->dragged_but;
+		uiBut *drop_neighbor;
+		enum ReinsertPosition reinsert_pos;
+
+		ui_but_find_to_reinsert_next_to(event, dragged_but, but_drag->drag_start_xy,
+		                                &drop_neighbor, &reinsert_pos);
+		if (drop_neighbor) {
+			uiButtonGroup *group = dragged_but->group;
+			uiButtonGroupItemInfo *dragged_item = ui_block_button_group_find_item_from_data(
+			                                          group, dragged_but->custom_data);
+			uiButtonGroupItemInfo *drop_neighbor_item = ui_block_button_group_find_item_from_data(
+			                                                group, drop_neighbor->custom_data);
+			/* New index of the dragged item is the old reorder index of the neighbor */
+			const int item_new_index = group->reordered_indices[drop_neighbor_item->position_index];
+
+			BLI_assert(!ELEM(NULL, dragged_item, drop_neighbor_item));
+
+			if (reinsert_pos == BUT_REINSERT_AFTER) {
+				/* modify the reorder index of all items in a certain range */
+				const int min = group->reordered_indices[dragged_item->position_index] + 1;
+				const int max = group->reordered_indices[drop_neighbor_item->position_index];
+
+				for (int i = 0; i < group->tot_items; i++) {
+					if (IN_RANGE_INCL(group->reordered_indices[i], min, max)) {
+						group->reordered_indices[i]--;
+					}
+				}
+			}
+			else if (reinsert_pos == BUT_REINSERT_BEFORE) {
+				const int min = group->reordered_indices[drop_neighbor_item->position_index];
+				const int max = group->reordered_indices[dragged_item->position_index] - 1;
+
+				for (int i = 0; i < group->tot_items; i++) {
+					if (IN_RANGE_INCL(group->reordered_indices[i], min, max)) {
+						group->reordered_indices[i]++;
+					}
+				}
+			}
+			else {
+				BLI_assert(0);
+			}
+			group->reordered_indices[dragged_item->position_index] = item_new_index;
+		}
+
+		UI_butstore_free(but_drag->dragged_but->block, but_drag->but_store);
+		ED_region_tag_redraw(drag->init_region);
+	}
+}
 
 /* only call if event type is EVT_DROP */
 static void ui_but_drop(bContext *C, const wmEvent *event, uiBut *but, uiHandleButtonData *data)
@@ -3910,8 +4024,14 @@ static bool ui_but_is_mouse_over_icon_extra(const ARegion *region, uiBut *but, c
 static int ui_do_but_TAB(bContext *C, uiBlock *block, uiBut *but, uiHandleButtonData *data, const wmEvent *event)
 {
 	if (data->state == BUTTON_STATE_HIGHLIGHT) {
-		if ((event->type == LEFTMOUSE) &&
-		    ((event->val == KM_DBL_CLICK) || event->ctrl))
+		if (event->type == LEFTMOUSE && but->dragpoin && event->val == KM_PRESS) {
+			button_activate_state(C, but, BUTTON_STATE_WAIT_DRAG);
+			data->dragstartx = event->x;
+			data->dragstarty = event->y;
+			return WM_UI_HANDLER_BREAK;
+		}
+		else if ((event->type == LEFTMOUSE) &&
+		         ((event->val == KM_DBL_CLICK) || event->ctrl))
 		{
 			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
 			return WM_UI_HANDLER_BREAK;
@@ -3931,6 +4051,9 @@ static int ui_do_but_TAB(bContext *C, uiBlock *block, uiBut *but, uiHandleButton
 			button_activate_state(C, but, BUTTON_STATE_EXIT);
 			return WM_UI_HANDLER_BREAK;
 		}
+	}
+	else if (data->state == BUTTON_STATE_WAIT_DRAG) {
+		return ui_do_but_EXIT(C, but, data, event);
 	}
 	else if (data->state == BUTTON_STATE_TEXT_EDITING) {
 		ui_do_but_textedit(C, block, but, data, event);

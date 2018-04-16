@@ -58,6 +58,9 @@ struct wmWindowManager;
 struct WorkSpace;
 struct GPUFXSettings;
 struct wmMsgBus;
+struct uiBlock;
+struct uiButtonGroup;
+struct uiButtonGroupItemInfo;
 
 #include "BLI_compiler_attrs.h"
 
@@ -236,6 +239,18 @@ typedef struct uiListType {
 	/* RNA integration */
 	ExtensionRNA ext;
 } uiListType;
+
+typedef bool (*uiButtonGroupIdentifyFunc)(struct uiButtonGroup *, void *);
+typedef void (*uiButtonGroupItemsFunc)(struct uiButtonGroup *, void *, ListBase *);
+typedef void (*uiButtonGroupItemDrawFunc)(struct uiBlock *, void *, struct uiButtonGroupItemInfo *);
+
+typedef struct uiButtonGroupType {
+	const char *idname;
+
+	uiButtonGroupIdentifyFunc identify;
+	uiButtonGroupItemsFunc items;
+	uiButtonGroupItemDrawFunc item_draw;
+} uiButtonGroupType;
 
 /* header types */
 

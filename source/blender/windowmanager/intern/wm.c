@@ -285,6 +285,44 @@ void WM_uilisttype_free(void)
 	uilisttypes_hash = NULL;
 }
 
+/* ************ uiButtonGroupType handling ************** */
+
+static GHash *uibuttongrouptypes_hash = NULL;
+
+void WM_uibuttongrouptype_init(void)
+{
+	uibuttongrouptypes_hash = BLI_ghash_str_new("uibuttongrouptypes_hash");
+}
+
+void WM_uibuttongrouptype_add(uiButtonGroupType *group_type)
+{
+	BLI_ghash_insert(uibuttongrouptypes_hash, (void *)group_type->idname, group_type);
+}
+
+uiButtonGroupType *WM_uibuttongrouptype_find(const char *idname, bool quiet)
+{
+	uiButtonGroupType *group_type;
+
+	if (idname[0]) {
+		group_type = BLI_ghash_lookup(uibuttongrouptypes_hash, idname);
+		if (group_type) {
+			return group_type;
+		}
+	}
+
+	if (!quiet) {
+		printf("search for unknown uibuttongrouptype%s\n", idname);
+	}
+
+	return NULL;
+}
+
+void WM_uibuttongrouptype_free(void)
+{
+	BLI_ghash_free(uibuttongrouptypes_hash, NULL, MEM_freeN);
+	uibuttongrouptypes_hash = NULL;
+}
+
 /* ************ MenuType handling ************** */
 
 static GHash *menutypes_hash = NULL;

@@ -2241,16 +2241,27 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 							wmDrag *drag;
 							
 							for (drag = lb->first; drag; drag = drag->next) {
-								if (drop->poll(C, drag, event)) {
-									drop->copy(drag, drop);
+								if (!drop->poll || drop->poll(C, drag, event)) {
+									if (drop->copy) {
+										drop->copy(drag, drop);
+									}
 									
-									/* free the drags before calling operator */
-									WM_drag_free_list(lb);
-
 									event->customdata = NULL;
 									event->custom = 0;
 									
-									WM_operator_name_call_ptr(C, drop->ot, drop->opcontext, drop->ptr);
+									if (drop->ot) {
+										/* free the drags before calling operator */
+										WM_drag_free_list(lb);
+
+										WM_operator_name_call_ptr(C, drop->ot, drop->opcontext, drop->ptr);
+									}
+									else if (drop->drop_handler) {
+										drop->drop_handler(drag, event);
+										WM_drag_free_list(lb);
+									}
+									else {
+										BLI_assert(0);
+									}
 									action |= WM_HANDLER_BREAK;
 									
 									/* XXX fileread case */

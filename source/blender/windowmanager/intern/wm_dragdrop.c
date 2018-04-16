@@ -119,6 +119,17 @@ wmDropBox *WM_dropbox_add(ListBase *lb, const char *idname, int (*poll)(bContext
 	return drop;
 }
 
+wmDropBox *WM_dropbox_add_custom_drop_handler(
+        ListBase *dropbox_list, void (*drop_handler)(wmDrag *, const wmEvent *))
+{
+	wmDropBox *drop = MEM_callocN(sizeof(wmDropBox), "wmDropBox");
+
+	drop->drop_handler = drop_handler;
+	BLI_addtail(dropbox_list, drop);
+
+	return drop;
+}
+
 void wm_dropbox_free(void)
 {
 	wmDropBoxMap *dm;
@@ -150,6 +161,7 @@ wmDrag *WM_event_start_drag(struct bContext *C, int icon, int type, void *poin, 
 	/* if multiple drags are added, they're drawn as list */
 	
 	BLI_addtail(&wm->drags, drag);
+	drag->init_region = CTX_wm_region(C);
 	drag->flags = flags;
 	drag->icon = icon;
 	drag->type = type;
@@ -194,7 +206,7 @@ static const char *dropbox_active(bContext *C, ListBase *handlers, wmDrag *drag,
 		if (handler->dropboxes) {
 			wmDropBox *drop = handler->dropboxes->first;
 			for (; drop; drop = drop->next) {
-				if (drop->poll(C, drag, event))
+				if (drop->poll && drop->poll(C, drag, event))
 					/* XXX Doing translation here might not be ideal, but later we have no more
 					 *     access to ot (and hence op context)... */
 					return RNA_struct_ui_name(drop->ot->srna);
@@ -276,19 +288,44 @@ static void wm_drop_operator_draw(const char *name, int x, int y)
 	UI_fontstyle_draw_simple_backdrop(fstyle, x, y, name, col_fg, col_bg);
 }
 
-static const char *wm_drag_name(wmDrag *drag)
+/* XXX copied from interface_handlers.c */
+struct uiButDrag {
+	uiBut *dragged_but;
+	uiButStore *but_store;
+	int drag_start_xy[2];
+};
+static void wm_drag_name(bContext *C, wmDrag *drag, char (*r_name)[UI_MAX_NAME_STR])
 {
+	char *name;
+	bool free_name = false;
+
 	switch (drag->type) {
 		case WM_DRAG_ID:
 		{
 			ID *id = drag->poin;
-			return id->name + 2;
+			name = id->name + 2;
+			break;
 		}
 		case WM_DRAG_PATH:
 		case WM_DRAG_NAME:
-			return drag->path;
+			name = drag->path;
+			break;
+		case WM_DRAG_BUT_REORDER:
+		{
+			struct uiButDrag *but_drag = drag->poin;
+			uiStringInfo but_label = {BUT_GET_VALUE, NULL};
+
+			UI_but_string_info_get(C, but_drag->dragged_but, &but_label, NULL);
+			name = but_label.strinfo;
+			free_name = true;
+			break;
+		}
 	}
-	return "";
+
+	BLI_strncpy(*r_name, name, sizeof(*r_name));
+	if (free_name) {
+		MEM_freeN(name);
+	}
 }
 
 static void drag_rect_minmax(rcti *rect, int x1, int y1, int x2, int y2)
@@ -312,6 +349,7 @@ void wm_drags_draw(bContext *C, wmWindow *win, rcti *rect)
 	wmDrag *drag;
 	const int winsize_y = WM_window_pixels_y(win);
 	int cursorx, cursory, x, y;
+	char drag_name[UI_MAX_NAME_STR];
 	
 	cursorx = win->eventstate->x;
 	cursory = win->eventstate->y;
@@ -325,7 +363,9 @@ void wm_drags_draw(bContext *C, wmWindow *win, rcti *rect)
 	for (drag = wm->drags.first; drag; drag = drag->next) {
 		int iconsize = UI_DPI_ICON_SIZE;
 		int padding = 4 * UI_DPI_FAC;
-		
+
+		wm_drag_name(C, drag, &drag_name);
+
 		/* image or icon */
 		if (drag->imb) {
 			x = cursorx - drag->sx / 2;
@@ -359,14 +399,14 @@ void wm_drags_draw(bContext *C, wmWindow *win, rcti *rect)
 			x = cursorx + 10 * UI_DPI_FAC;
 			y = cursory + 1 * UI_DPI_FAC;
 		}
-		
+
 		if (rect) {
-			int w =  UI_fontstyle_string_width(fstyle, wm_drag_name(drag));
+			int w =  UI_fontstyle_string_width(fstyle, drag_name);
 			drag_rect_minmax(rect, x, y, x + w, y + iconsize);
 		}
 		else {
 			const unsigned char col[] = {255, 255, 255, 255};
-			UI_fontstyle_draw_simple(fstyle, x, y, wm_drag_name(drag), col);
+			UI_fontstyle_draw_simple(fstyle, x, y, drag_name, col);
 		}
 		
 		/* operator name with roundbox */
@@ -391,7 +431,7 @@ void wm_drags_draw(bContext *C, wmWindow *win, rcti *rect)
 			}
 			
 			if (rect) {
-				int w =  UI_fontstyle_string_width(fstyle, wm_drag_name(drag));
+				int w =  UI_fontstyle_string_width(fstyle, drag_name);
 				drag_rect_minmax(rect, x, y, x + w, y + iconsize);
 			}
 			else 

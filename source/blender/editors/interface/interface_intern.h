@@ -331,6 +331,7 @@ struct uiBut {
 	
 	/* pointer back */
 	uiBlock *block;
+	uiButtonGroup *group;
 };
 
 typedef struct uiButTab {
@@ -369,6 +370,7 @@ struct uiBlock {
 	ListBase buttons;
 	Panel *panel;
 	uiBlock *oldblock;
+	uiButtonGroup *current_group;
 
 	ListBase butstore;  /* UI_butstore_* runtime function */
 
@@ -776,6 +778,13 @@ void ui_resources_free(void);
 void ui_layout_add_but(uiLayout *layout, uiBut *but);
 void ui_but_add_search(uiBut *but, PointerRNA *ptr, PropertyRNA *prop, PointerRNA *searchptr, PropertyRNA *searchprop);
 void ui_layout_list_set_labels_active(uiLayout *layout);
+
+/* interface_templates.c */
+struct uiButtonGroupType *UI_BGT_sortable_id_tabs(void);
+
+/* interface_init_exit.c */
+void ui_init_button_group_types(void);
+void ui_exit_button_group_types(void);
 
 /* interface_align.c */
 bool ui_but_can_align(const uiBut *but) ATTR_WARN_UNUSED_RESULT;

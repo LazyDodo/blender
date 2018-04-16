@@ -507,6 +507,7 @@ static int ui_but_calc_float_precision(uiBut *but, double value)
 	return UI_calc_float_precision(prec, value);
 }
 
+
 /* ************** LINK LINE DRAWING  ************* */
 
 /* link line drawing is not part of buttons or theme.. so we stick with it here */
@@ -3369,8 +3370,12 @@ static uiBut *ui_def_but(
 
 	BLI_addtail(&block->buttons, but);
 	
-	if (block->curlayout)
+	if (block->curlayout) {
 		ui_layout_add_but(block->curlayout, but);
+	}
+	if (block->current_group) {
+		but->group = block->current_group;
+	}
 
 #ifdef WITH_PYTHON
 	/* if the 'UI_OT_editsource' is running, extract the source info from the button  */
@@ -4239,6 +4244,12 @@ void UI_but_drag_set_value(uiBut *but)
 	but->dragtype = WM_DRAG_VALUE;
 }
 
+void UI_but_drag_set_reorder(uiBut *but)
+{
+	but->dragtype = WM_DRAG_BUT_REORDER;
+	but->dragpoin = but; /* Assign the button itself, later wmDrag can access it then. */
+}
+
 void UI_but_drag_set_image(uiBut *but, const char *path, int icon, struct ImBuf *imb, float scale, const bool use_free)
 {
 	but->dragtype = WM_DRAG_PATH;
@@ -4658,21 +4669,23 @@ void UI_but_string_info_get(bContext *C, uiBut *but, ...)
 		int type = si->type;
 		char *tmp = NULL;
 
-		if (type == BUT_GET_LABEL) {
-			if (but->str) {
+		if (ELEM(type, BUT_GET_LABEL, BUT_GET_VALUE)) {
+			char *but_str = (type == BUT_GET_LABEL) ? but->str : but->drawstr;
+
+			if (but_str && but_str[0]) {
 				const char *str_sep;
 				size_t str_len;
 
 				if ((but->flag & UI_BUT_HAS_SEP_CHAR) &&
-				    (str_sep = strrchr(but->str, UI_SEP_CHAR)))
+				    (str_sep = strrchr(but_str, UI_SEP_CHAR)))
 				{
-					str_len = (str_sep - but->str);
+					str_len = (str_sep - but_str);
 				}
 				else {
-					str_len = strlen(but->str);
+					str_len = strlen(but_str);
 				}
 
-				tmp = BLI_strdupn(but->str, str_len);
+				tmp = BLI_strdupn(but_str, str_len);
 			}
 			else {
 				type = BUT_GET_RNA_LABEL;  /* Fail-safe solution... */
@@ -4833,11 +4846,22 @@ void UI_but_string_info_get(bContext *C, uiBut *but, ...)
 	}
 }
 
+void UI_block_button_group_begin(uiBlock *block, uiButtonGroup *group)
+{
+	BLI_assert(block->current_group == NULL);
+	block->current_group = group;
+}
+void UI_block_button_group_end(uiBlock *block)
+{
+	block->current_group = NULL;
+}
+
 /* Program Init/Exit */
 
 void UI_init(void)
 {
 	ui_resources_init();
+	ui_init_button_group_types();
 }
 
 /* after reading userdef file */
@@ -4857,5 +4881,6 @@ void UI_exit(void)
 {
 	ui_resources_free();
 	ui_but_clipboard_free();
+	ui_exit_button_group_types();
 }
 

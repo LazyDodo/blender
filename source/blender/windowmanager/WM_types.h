@@ -657,12 +657,16 @@ typedef struct wmReport {
 
 /* *************** Drag and drop *************** */
 
-#define WM_DRAG_ID		0
-#define WM_DRAG_RNA		1
-#define WM_DRAG_PATH	2
-#define WM_DRAG_NAME	3
-#define WM_DRAG_VALUE	4
-#define WM_DRAG_COLOR	5
+enum wmDragType {
+	WM_DRAG_ID,
+	WM_DRAG_RNA,
+	WM_DRAG_PATH,
+	WM_DRAG_NAME,
+	WM_DRAG_VALUE,
+	WM_DRAG_COLOR,
+	/* Drag the entire button for button drag & drop reordering */
+	WM_DRAG_BUT_REORDER,
+};
 
 typedef enum wmDragFlags {
 	WM_DRAG_NOP         = 0,
@@ -673,8 +677,10 @@ typedef enum wmDragFlags {
 
 typedef struct wmDrag {
 	struct wmDrag *next, *prev;
-	
-	int icon, type;					/* type, see WM_DRAG defines above */
+
+	struct ARegion *init_region; /* Region in which we started dragging */
+
+	int icon, type;					/* type, see wmDragType defines above */
 	void *poin;
 	char path[1024]; /* FILE_MAX */
 	double value;
@@ -697,7 +703,10 @@ typedef struct wmDropBox {
 
 	/* before exec, this copies drag info to wmDrop properties */
 	void (*copy)(struct wmDrag *, struct wmDropBox *);
-	
+
+	/* XXX */
+	void (*drop_handler)(struct wmDrag *, const wmEvent *);
+
 	/* if poll survives, operator is called */
 	wmOperatorType *ot;				/* not saved in file, so can be pointer */
 

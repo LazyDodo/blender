@@ -793,6 +793,9 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 		{
 			ListBase *lb = WM_dropboxmap_find("Window", 0, 0);
 			WM_event_add_dropbox_handler(&win->handlers, lb);
+
+			lb = WM_dropboxmap_find("User Interface", 0, 0);
+			WM_event_add_dropbox_handler(&win->handlers, lb);
 		}
 		wm_window_title(wm, win);
 	}

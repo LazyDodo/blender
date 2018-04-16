@@ -1508,4 +1508,6 @@ void ED_keymap_ui(wmKeyConfig *keyconf)
 
 	eyedropper_modal_keymap(keyconf);
 	eyedropper_colorband_modal_keymap(keyconf);
+
+	WM_dropboxmap_find("User Interface", 0, 0);
 }

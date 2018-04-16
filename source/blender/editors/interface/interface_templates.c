@@ -104,6 +104,199 @@ void UI_template_fix_linking(void)
 {
 }
 
+
+typedef struct TemplateID {
+	PointerRNA ptr;
+	PropertyRNA *prop;
+
+	wmOperatorType *unlink_ot; // XXX tmp!
+	PointerRNA active_ptr;
+
+	ListBase *idlb;
+	short idcode;
+	short filter;
+	int prv_rows, prv_cols;
+	bool preview;
+} TemplateID;
+
+static uiButtonGroup *ui_button_group_ensure(ARegion *region, const char *name, void *custom_data)
+{
+	uiButtonGroup *group;
+
+	for (group = region->button_groups.first; group; group = group->next) {
+		if (STREQ(group->type->idname, name) && group->type->identify(group, custom_data)) {
+			return group;
+		}
+	}
+
+	group = MEM_callocN(sizeof(uiButtonGroup), __func__);
+	group->type = WM_uibuttongrouptype_find(name, false);
+	BLI_addtail(&region->button_groups, group);
+
+	return group;
+}
+
+static int ui_button_group_items_cmp(const void *a, const void *b)
+{
+	const uiButtonGroupItemInfo *item_a = a, *item_b = b;
+	return item_a->position_index > item_b->position_index ? 1 : 0;
+}
+
+static void ui_button_group_sort(
+        const uiButtonGroup *group, const ListBase *items,
+        ListBase *r_sorted_items)
+{
+	int i = 0;
+	for (uiButtonGroupItemInfo *item = items->first; item; item = item->next, i++) {
+		uiButtonGroupItemInfo *sort_item = MEM_dupallocN(item);
+
+		sort_item->position_index = group->reordered_indices[i];
+		BLI_addtail(r_sorted_items, sort_item);
+	}
+	BLI_listbase_sort(r_sorted_items, ui_button_group_items_cmp);
+}
+
+static void ui_button_group_find_new_items(
+        const uiButtonGroup *group, const ListBase *current_items, const int prev_tot_items,
+        ListBase *r_new_items)
+{
+	const int difference = group->tot_items - prev_tot_items;
+
+	if (difference == 0) {
+		return;
+	}
+
+	if (difference > 0) {
+		for (uiButtonGroupItemInfo *item = current_items->first; item; item = item->next) {
+			const bool has_item = BLI_findptr(&group->items, item->data,
+			                                  offsetof(uiButtonGroupItemInfo, data)) != NULL;
+			if (!has_item) {
+				uiButtonGroupItemInfo *item_new = MEM_dupallocN(item);
+				BLI_addtail(r_new_items, item_new);
+			}
+		}
+	}
+}
+
+
+/* XXX split this up into generic and sortable_id_tabs functions */
+static void ui_template_sortable_id_tabs(
+        ARegion *region, uiBlock *block, TemplateID *template_ui, wmOperatorType *unlink_ot)
+{
+	uiButtonGroup *group = ui_button_group_ensure(region, "UI_BGT_sortable_id_tabs", template_ui);
+	const int old_tot_items = group->tot_items;
+	ListBase items = {NULL, NULL};
+
+	template_ui->unlink_ot = unlink_ot;
+	template_ui->active_ptr = RNA_property_pointer_get(&template_ui->ptr, template_ui->prop);
+
+	group->type->items(group, template_ui, &items);
+
+	if (!group->reordered_indices || (group->tot_items != old_tot_items)) {
+		ListBase new_items = {NULL, NULL};
+
+		group->reordered_indices = MEM_recallocN(
+		                               group->reordered_indices, sizeof(*group->reordered_indices) * group->tot_items);
+		ui_button_group_find_new_items(group, &items, old_tot_items, &new_items);
+		/* Add new items at the end of the list. */
+		const int tot_new_items = ABS(group->tot_items - old_tot_items);
+		int i = 0;
+		for (uiButtonGroupItemInfo *new_item = new_items.first; new_item; new_item = new_item->next, i++) {
+			group->reordered_indices[new_item->position_index] = group->tot_items - tot_new_items + i;
+		}
+		BLI_freelistN(&new_items);
+
+		/* TODO support removing items */
+	}
+
+	ListBase sorted_items = {NULL, NULL};
+	ui_button_group_sort(group, &items, &sorted_items);
+
+	UI_block_button_group_begin(block, group);
+	for (uiButtonGroupItemInfo *item = sorted_items.first; item; item = item->next) {
+		group->type->item_draw(block, template_ui, item);
+	}
+	UI_block_button_group_end(block);
+
+	BLI_freelistN(&sorted_items);
+	BLI_freelistN(&group->items);
+	group->items = items;
+}
+
+static void ui_buttong_group_item_add(void *data, ListBase *items)
+{
+	uiButtonGroupItemInfo *item = MEM_callocN(sizeof(*item), __func__);
+	BLI_addtail(items, item);
+	item->data = data;
+	item->position_index = item->prev ? ((uiButtonGroupItemInfo *)item->prev)->position_index + 1 : 0;
+}
+
+/* TODO After file read, we need to be able to identify button groups. That's what should later happen here. */
+static bool ui_sortable_id_tabs_button_group_identify(uiButtonGroup *group, void *UNUSED(custom_data))
+{
+	if (STREQ(group->type->idname, "UI_BGT_sortable_id_tabs")) {
+		// XXX
+		return true;
+	}
+
+	return false;
+}
+
+static void ui_sortable_id_tabs_items(
+        uiButtonGroup *group, void *custom_data,
+        ListBase *r_items)
+{
+	TemplateID *template_ui = custom_data;
+
+	group->tot_items = BLI_listbase_count(template_ui->idlb);
+
+	for (ID *id = template_ui->idlb->first; id; id = id->next) {
+		ui_buttong_group_item_add(id, r_items);
+	}
+}
+
+static void template_ID_set_property_cb(bContext *C, void *arg_template, void *item);
+
+static void ui_sortable_id_tab_draw(
+        uiBlock *block, void *custom_data, uiButtonGroupItemInfo *item)
+{
+	ID *id = item->data;
+	TemplateID *template_ui = custom_data;
+
+	uiStyle *style = UI_style_get_dpi();
+	const bool is_active = template_ui->active_ptr.data == id;
+	const unsigned int but_width = UI_fontstyle_string_width(&style->widgetlabel, id->name + 2) + UI_UNIT_X +
+	                               (is_active ? ICON_DEFAULT_WIDTH_SCALE : 0);
+//	const int but_align = (region->alignment == RGN_ALIGN_TOP) ? UI_BUT_ALIGN_DOWN : UI_BUT_ALIGN_TOP;
+
+
+	uiButTab *tab = (uiButTab *)uiDefButR_prop(
+	                    block, UI_BTYPE_TAB, 0, "", 0, 0, but_width, UI_UNIT_Y,
+	                    &template_ui->ptr, template_ui->prop, 0, 0.0f,
+	                    sizeof(id->name) - 2, 0.0f, 0.0f, "");
+	UI_but_funcN_set(&tab->but, template_ID_set_property_cb, MEM_dupallocN(template_ui), id);
+	UI_but_drawflag_enable(&tab->but, UI_BUT_ALIGN_DOWN); /* TODO fixed alignment - should be based on region alignment */
+	UI_but_drag_set_reorder(&tab->but);
+	tab->but.custom_data = (void *)id;
+	tab->unlink_ot = template_ui->unlink_ot;
+	if (is_active) {
+		UI_but_flag_enable(&tab->but, UI_BUT_VALUE_CLEAR);
+	}
+}
+
+uiButtonGroupType *UI_BGT_sortable_id_tabs(void)
+{
+	uiButtonGroupType *group_type = MEM_callocN(sizeof(uiButtonGroupType), __func__);
+
+	group_type->idname = "UI_BGT_sortable_id_tabs"; // TODO not needed?
+	group_type->identify = ui_sortable_id_tabs_button_group_identify;
+	group_type->items = ui_sortable_id_tabs_items;
+	group_type->item_draw = ui_sortable_id_tab_draw;
+
+	return group_type;
+}
+
+
 /**
  * Add a block button for the search menu for templateID and templateSearch.
  */
@@ -228,17 +421,6 @@ void uiTemplateHeader(uiLayout *layout, bContext *C)
 }
 
 /********************** Search Callbacks *************************/
-
-typedef struct TemplateID {
-	PointerRNA ptr;
-	PropertyRNA *prop;
-
-	ListBase *idlb;
-	short idcode;
-	short filter;
-	int prv_rows, prv_cols;
-	bool preview;
-} TemplateID;
 
 /* Search browse menu, assign  */
 static void template_ID_set_property_cb(bContext *C, void *arg_template, void *item)
@@ -809,34 +991,14 @@ static void template_ID_tabs(
         bContext *C, uiLayout *layout, TemplateID *template, StructRNA *type, int flag,
         const char *newop, const char *UNUSED(openop), const char *unlinkop)
 {
-	const ARegion *region = CTX_wm_region(C);
+	ARegion *region = CTX_wm_region(C);
 	const PointerRNA active_ptr = RNA_property_pointer_get(&template->ptr, template->prop);
 	const int but_align = (region->alignment == RGN_ALIGN_TOP) ? UI_BUT_ALIGN_DOWN : UI_BUT_ALIGN_TOP;
+	wmOperatorType *unlink_ot = WM_operatortype_find(unlinkop, false);
 
 	uiBlock *block = uiLayoutGetBlock(layout);
-	uiStyle *style = UI_style_get_dpi();
 
-
-	for (ID *id = template->idlb->first; id; id = id->next) {
-		wmOperatorType *unlink_ot = WM_operatortype_find(unlinkop, false);
-		const bool is_active = active_ptr.data == id;
-		const unsigned int but_width = UI_fontstyle_string_width(&style->widgetlabel, id->name + 2) + UI_UNIT_X +
-		                               (is_active ? ICON_DEFAULT_WIDTH_SCALE : 0);
-		uiButTab *tab;
-
-		tab = (uiButTab *)uiDefButR_prop(
-		        block, UI_BTYPE_TAB, 0, "", 0, 0, but_width, UI_UNIT_Y,
-		        &template->ptr, template->prop, 0, 0.0f,
-		        sizeof(id->name) - 2, 0.0f, 0.0f, "");
-		UI_but_funcN_set(&tab->but, template_ID_set_property_cb, MEM_dupallocN(template), id);
-		tab->but.custom_data = (void *)id;
-		tab->unlink_ot = unlink_ot;
-
-		if (is_active) {
-			UI_but_flag_enable(&tab->but, UI_BUT_VALUE_CLEAR);
-		}
-		UI_but_drawflag_enable(&tab->but, but_align);
-	}
+	ui_template_sortable_id_tabs(region, block, template, unlink_ot);
 
 	if (flag & UI_ID_ADD_NEW) {
 		const bool editable = RNA_property_editable(&template->ptr, template->prop);

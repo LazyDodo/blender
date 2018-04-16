@@ -378,10 +378,16 @@ void BKE_area_region_free(SpaceType *st, ARegion *ar)
 		}
 	}
 
+	for (uiButtonGroup *group = ar->button_groups.first; group; group = group->next) {
+		BLI_freelistN(&group->items);
+		MEM_SAFE_FREE(group->reordered_indices);
+	}
+
 	if (ar->manipulator_map != NULL) {
 		region_free_manipulatormap_callback(ar->manipulator_map);
 	}
 
+	BLI_freelistN(&ar->button_groups);
 	BLI_freelistN(&ar->ui_lists);
 	BLI_freelistN(&ar->ui_previews);
 	BLI_freelistN(&ar->panels_category);

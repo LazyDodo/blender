@@ -369,6 +369,7 @@ static int workspace_append_activate_exec(bContext *C, wmOperator *op)
 	RNA_string_get(op->ptr, "directory", directory);
 
 	if (workspace_append(C, directory, idname) != OPERATOR_CANCELLED) {
+		/* XXX broken, name may have been changed */
 		WorkSpace *appended_workspace = BLI_findstring(&bmain->workspaces, idname, offsetof(ID, name) + 2);
 
 		BLI_assert(appended_workspace != NULL);

@@ -196,6 +196,29 @@ typedef struct uiList {           /* some list UI data need to be saved in file 
 	uiListDyn *dyn_data;
 } uiList;
 
+/* These two Lines with # tell makesdna this struct can be excluded. */
+#
+#
+typedef struct uiButtonGroupItemInfo {
+	struct uiButtonGroupItemInfo *next, *prev;
+
+	int position_index;
+	int pad;
+	void *data;
+} uiButtonGroupItemInfo;
+
+typedef struct uiButtonGroup {
+	struct uiButtonGroup *next, *prev;
+
+	struct uiButtonGroupType *type;
+
+	ListBase items; /* uiButtonGroupItemInfo */
+//	uiButtonGroupItemInfo *items;
+	int tot_items;
+	int pad;
+	int *reordered_indices;
+} uiButtonGroup;
+
 typedef struct TransformOrientation {
 	struct TransformOrientation *next, *prev;
 	char name[64];	/* MAX_NAME */
@@ -280,6 +303,7 @@ typedef struct ARegion {
 	ListBase ui_previews;		/* uiPreview */
 	ListBase handlers;			/* wmEventHandler */
 	ListBase panels_category;	/* Panel categories runtime */
+	ListBase button_groups;		/* uiButtonGroup */
 
 	struct wmManipulatorMap *manipulator_map; /* manipulator-map of this region */
 	struct wmTimer *regiontimer; /* blend in/out */

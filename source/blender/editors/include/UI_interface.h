@@ -74,6 +74,7 @@ struct wmDrag;
 struct wmEvent;
 struct wmManipulator;
 struct wmMsgBus;
+struct uiButtonGroup;
 
 typedef struct uiBut uiBut;
 typedef struct uiBlock uiBlock;
@@ -512,6 +513,7 @@ void    UI_but_drag_set_rna(uiBut *but, struct PointerRNA *ptr);
 void    UI_but_drag_set_path(uiBut *but, const char *path, const bool use_free);
 void    UI_but_drag_set_name(uiBut *but, const char *name);
 void    UI_but_drag_set_value(uiBut *but);
+void    UI_but_drag_set_reorder(uiBut *but);
 void    UI_but_drag_set_image(
                 uiBut *but, const char *path, int icon, struct ImBuf *ima, float scale, const bool use_free);
 
@@ -625,6 +627,7 @@ enum {
 	BUT_GET_RNA_LABEL,
 	BUT_GET_RNAENUM_LABEL,
 	BUT_GET_RNA_LABEL_CONTEXT, /* Context specified in CTX_XXX_ macros are just unreachable! */
+	BUT_GET_VALUE,
 	BUT_GET_TIP,
 	BUT_GET_RNA_TIP,
 	BUT_GET_RNAENUM_TIP,
@@ -777,6 +780,9 @@ bool UI_textbutton_activate_but(const struct bContext *C, uiBut *but);
 void UI_but_focus_on_enter_event(struct wmWindow *win, uiBut *but);
 
 void UI_but_func_hold_set(uiBut *but, uiButHandleHoldFunc func, void *argN);
+
+void UI_block_button_group_begin(uiBlock *block, struct uiButtonGroup *group);
+void UI_block_button_group_end(uiBlock *block);
 
 /* Autocomplete
  *

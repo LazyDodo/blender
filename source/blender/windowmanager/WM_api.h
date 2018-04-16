@@ -68,6 +68,7 @@ struct ScrArea;
 struct Main;
 struct bToolDef;
 struct ViewLayer;
+struct uiButtonGroupType;
 
 #ifdef WITH_INPUT_NDOF
 struct wmNDOFMotionData;
@@ -419,6 +420,12 @@ bool                WM_uilisttype_add(struct uiListType *ult);
 void                WM_uilisttype_freelink(struct uiListType *ult);
 void                WM_uilisttype_free(void);
 
+/* *************** button group types ******************** */
+void WM_uibuttongrouptype_init(void);
+void WM_uibuttongrouptype_add(struct uiButtonGroupType *group_type);
+struct uiButtonGroupType *WM_uibuttongrouptype_find(const char *idname, bool quiet);
+void WM_uibuttongrouptype_free(void);
+
 /* *************** menu types ******************** */
 void                WM_menutype_init(void);
 struct MenuType    *WM_menutype_find(const char *idname, bool quiet);
@@ -463,8 +470,11 @@ void				WM_event_drag_image(struct wmDrag *, struct ImBuf *, float scale, int sx
 void                WM_drag_free(struct wmDrag *drag);
 void                WM_drag_free_list(struct ListBase *lb);
 
-struct wmDropBox	*WM_dropbox_add(ListBase *lb, const char *idname, int (*poll)(struct bContext *, struct wmDrag *, const struct wmEvent *event),
-                                    void (*copy)(struct wmDrag *, struct wmDropBox *));
+struct wmDropBox *WM_dropbox_add(
+        ListBase *lb, const char *idname, int (*poll)(struct bContext *, struct wmDrag *, const struct wmEvent *event),
+        void (*copy)(struct wmDrag *, struct wmDropBox *));
+struct wmDropBox *WM_dropbox_add_custom_drop_handler(
+        ListBase *dropbox_list, void (*drop_handler)(struct wmDrag *, const struct wmEvent *));
 ListBase	*WM_dropboxmap_find(const char *idname, int spaceid, int regionid);
 
 			/* Set OpenGL viewport and scissor */
