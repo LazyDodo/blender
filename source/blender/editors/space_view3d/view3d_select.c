@@ -56,6 +56,10 @@
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
 
+#ifdef __BIG_ENDIAN__
+#  include "BLI_endian_switch.h"
+#endif
+
 /* vertex box select */
 #include "IMB_imbuf_types.h"
 #include "IMB_imbuf.h"
@@ -1928,7 +1932,6 @@ static int do_armature_box_select(
         const rcti *rect, bool select, bool extend)
 {
 	bArmature *arm = vc->obedit->data;
-	EditBone *ebone;
 	int a;
 
 	unsigned int buffer[MAXPICKBUF];
@@ -1937,7 +1940,7 @@ static int do_armature_box_select(
 	hits = view3d_opengl_select(eval_ctx, vc, buffer, MAXPICKBUF, rect, VIEW3D_SELECT_ALL);
 	
 	/* clear flag we use to detect point was affected */
-	for (ebone = arm->edbo->first; ebone; ebone = ebone->next)
+	for (EditBone *ebone = arm->edbo->first; ebone; ebone = ebone->next)
 		ebone->flag &= ~BONE_DONE;
 	
 	if (extend == false && select)
@@ -1947,17 +1950,17 @@ static int do_armature_box_select(
 	for (a = 0; a < hits; a++) {
 		int index = buffer[(4 * a) + 3];
 		if (index != -1) {
-			ebone = BLI_findlink(arm->edbo, index & ~(BONESEL_ANY));
 			if ((index & 0xFFFF0000) == 0) {
 				continue;
 			}
+			EditBone *ebone = BLI_findlink(arm->edbo, index & ~(BONESEL_ANY));
 			if ((select == false) || ((ebone->flag & BONE_UNSELECTABLE) == 0)) {
 				if (index & BONESEL_TIP) {
 					ebone->flag |= BONE_DONE;
 					if (select) ebone->flag |= BONE_TIPSEL;
 					else ebone->flag &= ~BONE_TIPSEL;
 				}
-				
+
 				if (index & BONESEL_ROOT) {
 					ebone->flag |= BONE_DONE;
 					if (select) ebone->flag |= BONE_ROOTSEL;
@@ -1966,27 +1969,30 @@ static int do_armature_box_select(
 			}
 		}
 	}
-	
+
 	/* now we have to flush tag from parents... */
-	for (ebone = arm->edbo->first; ebone; ebone = ebone->next) {
+	for (EditBone *ebone = arm->edbo->first; ebone; ebone = ebone->next) {
 		if (ebone->parent && (ebone->flag & BONE_CONNECTED)) {
-			if (ebone->parent->flag & BONE_DONE)
+			if (ebone->parent->flag & BONE_DONE) {
 				ebone->flag |= BONE_DONE;
+			}
 		}
 	}
-	
+
 	/* only select/deselect entire bones when no points where in the rect */
 	for (a = 0; a < hits; a++) {
 		int index = buffer[(4 * a) + 3];
 		if (index != -1) {
-			ebone = BLI_findlink(arm->edbo, index & ~(BONESEL_ANY));
 			if (index & BONESEL_BONE) {
+				EditBone *ebone = BLI_findlink(arm->edbo, index & ~(BONESEL_ANY));
 				if ((select == false) || ((ebone->flag & BONE_UNSELECTABLE) == 0)) {
 					if (!(ebone->flag & BONE_DONE)) {
-						if (select)
+						if (select) {
 							ebone->flag |= (BONE_ROOTSEL | BONE_TIPSEL | BONE_SELECTED);
-						else
+						}
+						else {
 							ebone->flag &= ~(BONE_ROOTSEL | BONE_TIPSEL | BONE_SELECTED);
+						}
 					}
 				}
 			}
@@ -2002,11 +2008,16 @@ static int do_armature_box_select(
  * Compare result of 'GPU_select': 'uint[4]',
  * needed for when we need to align with object draw-order.
  */
-static int opengl_select_buffer_cmp(const void *sel_a_p, const void *sel_b_p)
+static int opengl_bone_select_buffer_cmp(const void *sel_a_p, const void *sel_b_p)
 {
 	/* 4th element is select id */
-	const uint sel_a = ((uint *)sel_a_p)[3];
-	const uint sel_b = ((uint *)sel_b_p)[3];
+	uint sel_a = ((uint *)sel_a_p)[3];
+	uint sel_b = ((uint *)sel_b_p)[3];
+
+#ifdef __BIG_ENDIAN__
+	BLI_endian_switch_uint32(&sel_a);
+	BLI_endian_switch_uint32(&sel_b);
+#endif
 
 	if (sel_a < sel_b) {
 		return -1;
@@ -2070,7 +2081,7 @@ static int do_object_pose_box_select(bContext *C, ViewContext *vc, rcti *rect, b
 		col = vbuffer + 3;
 
 		/* The draw order doesn't always match the order we populate the engine, see: T51695. */
-		qsort(vbuffer, hits, sizeof(uint[4]), opengl_select_buffer_cmp);
+		qsort(vbuffer, hits, sizeof(uint[4]), opengl_bone_select_buffer_cmp);
 
 		/*
 		 * Even though 'DRW_draw_select_loop' uses 'DEG_OBJECT_ITER_BEGIN',
