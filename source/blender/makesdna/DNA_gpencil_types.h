@@ -481,14 +481,26 @@ typedef enum eGP_DepthOrdering {
 #define GPENCIL_SKETCH_SESSIONS_ON(scene) ((scene)->toolsettings->gpencil_flags & GP_TOOL_FLAG_PAINTSESSIONS_ON)
 
 /* Check if 'multiedit sessions' is enabled */
-#define GPENCIL_MULTIEDIT_SESSIONS_ON(gpd) ((gpd) && (gpd->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)) && (gpd->flag & GP_DATA_STROKE_MULTIEDIT)) 
+#define GPENCIL_MULTIEDIT_SESSIONS_ON(gpd) \
+	((gpd) && (gpd->flag & \
+	           (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)) && \
+	 (gpd->flag & GP_DATA_STROKE_MULTIEDIT))
 
 /* Macros to check grease pencil modes */
-#define GPENCIL_ANY_MODE(gpd) ((gpd) && (gpd->flag & (GP_DATA_STROKE_PAINTMODE | GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE))) 
-#define GPENCIL_ANY_EDIT_MODE(gpd) ((gpd) && (gpd->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE))) 
-#define GPENCIL_PAINT_MODE(gpd) ((gpd) && (gpd->flag & (GP_DATA_STROKE_PAINTMODE))) 
-#define GPENCIL_SCULPT_OR_WEIGHT_MODE(gpd) ((gpd) && (gpd->flag & (GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE))) 
-#define GPENCIL_NONE_EDIT_MODE(gpd) ((gpd) && ((gpd->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)) == 0))
-#define GPENCIL_LAZY_MODE(brush, shift) ((brush) && ((brush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) && (shift == 0)) || (((brush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) && (shift == 1))) 
+#define GPENCIL_ANY_MODE(gpd) \
+	((gpd) && (gpd->flag & \
+	           (GP_DATA_STROKE_PAINTMODE | GP_DATA_STROKE_EDITMODE | \
+	            GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)))
+#define GPENCIL_ANY_EDIT_MODE(gpd) \
+	((gpd) && (gpd->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)))
+#define GPENCIL_PAINT_MODE(gpd) \
+	((gpd) && (gpd->flag & (GP_DATA_STROKE_PAINTMODE)))
+#define GPENCIL_SCULPT_OR_WEIGHT_MODE(gpd) \
+	((gpd) && (gpd->flag & (GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)))
+#define GPENCIL_NONE_EDIT_MODE(gpd) \
+	((gpd) && ((gpd->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)) == 0))
+#define GPENCIL_LAZY_MODE(brush, shift) \
+	(((brush) && ((brush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) && (shift == 0))) || \
+	 (((brush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) && (shift == 1)))
 
 #endif /*  __DNA_GPENCIL_TYPES_H__ */
