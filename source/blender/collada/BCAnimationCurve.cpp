@@ -237,7 +237,7 @@ const int BCAnimationCurve::closest_index_above(const float sample_frame, const 
 
 const int BCAnimationCurve::closest_index_below(const float sample_frame) const
 {
-	if (fcurve == nullptr)
+	if (fcurve == NULL)
 		return -1;
 
 	float lower_frame = sample_frame;
@@ -349,7 +349,7 @@ void BCAnimationCurve::remove_unused_keyframes()
 
 void BCAnimationCurve::clean_handles()
 {
-	if (fcurve == nullptr)
+	if (fcurve == NULL)
 		return;
 
 	/* Keep old bezt data for copy)*/

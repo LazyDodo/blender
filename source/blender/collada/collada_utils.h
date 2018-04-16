@@ -77,36 +77,36 @@ std::vector<bAction *> bc_getSceneActions(const bContext *C, Object *ob, bool al
 
 inline bAction *bc_getSceneObjectAction(Object *ob)
 {
-	return (ob->adt && ob->adt->action) ? ob->adt->action : nullptr;
+	return (ob->adt && ob->adt->action) ? ob->adt->action : NULL;
 }
 
-/* Returns Lamp Action or nullptr */
+/* Returns Lamp Action or NULL */
 inline bAction *bc_getSceneLampAction(Object *ob)
 {
 	if (ob->type != OB_LAMP)
-		return nullptr;
+		return NULL;
 
 	Lamp *lamp = (Lamp *)ob->data;
-	return (lamp->adt && lamp->adt->action) ? lamp->adt->action : nullptr;
+	return (lamp->adt && lamp->adt->action) ? lamp->adt->action : NULL;
 }
 
-/* Return Camera Action or nullptr */
+/* Return Camera Action or NULL */
 inline bAction *bc_getSceneCameraAction(Object *ob)
 {
 	if (ob->type != OB_CAMERA)
-		return nullptr;
+		return NULL;
 
 	Camera *camera = (Camera *)ob->data;
-	return (camera->adt && camera->adt->action) ? camera->adt->action : nullptr;
+	return (camera->adt && camera->adt->action) ? camera->adt->action : NULL;
 }
 
-/* returns material action or nullptr */
+/* returns material action or NULL */
 inline bAction *bc_getSceneMaterialAction(Material *ma)
 {
-	if (ma == nullptr)
-		return nullptr;
+	if (ma == NULL)
+		return NULL;
 
-	return (ma->adt && ma->adt->action) ? ma->adt->action : nullptr;
+	return (ma->adt && ma->adt->action) ? ma->adt->action : NULL;
 }
 
 inline void bc_setSceneObjectAction(bAction *action, Object *ob)
