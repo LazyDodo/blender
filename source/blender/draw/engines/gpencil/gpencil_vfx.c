@@ -53,6 +53,7 @@ bool gpencil_object_use_vfx(Object *ob)
 }
 
 /* verify if this modifier is  available in the context, return NULL if not available */
+#if 0 /* UNUSED */
 static ModifierData *modifier_available(Object *ob, ModifierType type, bool is_render)
 {
 	ModifierData *md = modifiers_findByType(ob, type);
@@ -77,6 +78,7 @@ static ModifierData *modifier_available(Object *ob, ModifierType type, bool is_r
 
 	return NULL;
 }
+#endif
 
 /* verify if this modifier is active */
 static bool modifier_is_active(Object *ob, ModifierData *md, bool is_render)
@@ -311,7 +313,7 @@ static void DRW_gpencil_vfx_flip(
 	if (md == NULL) {
 		return;
 	}
-	Object *ob = cache->ob;
+	// Object *ob = cache->ob;
 	GpencilFlipModifierData *mmd = (GpencilFlipModifierData *)md;
 
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;

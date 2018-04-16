@@ -136,7 +136,7 @@ static int brush_add_gpencil_exec(bContext *C, wmOperator *UNUSED(op))
 	Paint *paint = &ts->gp_paint->paint;
 	Brush *br = BKE_paint_brush(paint);
 	Main *bmain = CTX_data_main(C);
-	ePaintMode mode = ePaintGpencil;
+	// ePaintMode mode = ePaintGpencil;
 
 	if (br) {
 		br = BKE_brush_copy(bmain, br);
@@ -439,7 +439,6 @@ static void PALETTE_OT_color_delete(wmOperatorType *ot)
 
 static int palettecolor_isolate_exec(bContext *C, wmOperator *op)
 {
-	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Palette *palette = BKE_palette_get_active_from_context(C);
 

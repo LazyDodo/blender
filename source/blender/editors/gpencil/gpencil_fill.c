@@ -611,7 +611,7 @@ static  void gpencil_get_outline_points(tGPDfill *tgpf)
 	int current_check_co[2];
 	int prev_check_co[2];
 	int backtracked_offset[1][2] = { { 0,0 } };
-	bool boundary_found = false;
+	// bool boundary_found = false;
 	bool start_found = false;
 	const int NEIGHBOR_COUNT = 8;
 
@@ -692,7 +692,7 @@ static  void gpencil_get_outline_points(tGPDfill *tgpf)
 			boundary_co[1] == start_co[1])
 		{
 			BLI_stack_pop(tgpf->stack, &v);
-			boundary_found = true;
+			// boundary_found = true;
 			break;
 		}
 	}

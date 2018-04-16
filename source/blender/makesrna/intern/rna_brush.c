@@ -145,6 +145,7 @@ static EnumPropertyItem rna_enum_gpencil_fill_draw_modes_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
+#if 0
 static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
 	{ GPBRUSH_PENCIL, "PENCIL", ICON_GPBRUSH_PENCIL, "Pencil", "" },
 	{ GPBRUSH_PEN, "PEN", ICON_GPBRUSH_PEN, "Pen", "" },
@@ -158,6 +159,7 @@ static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
 	{ GPBRUSH_ERASE_STROKE, "STROKE", ICON_GPBRUSH_ERASE_STROKE, "Eraser Stroke", "" },
 	{ 0, NULL, 0, NULL, NULL }
 };
+#endif
 
 #ifdef RNA_RUNTIME
 
@@ -671,7 +673,7 @@ static void rna_brush_gpencil_default_eraser(Main *bmain, Scene *scene, PointerR
 	}
 }
 
-static void rna_brush_gpencil_eraser_mode(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
+static void rna_brush_gpencil_eraser_mode(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
 {
 	ToolSettings *ts = scene->toolsettings;
 	Paint *paint = &ts->gp_paint->paint;

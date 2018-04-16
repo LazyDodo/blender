@@ -1298,7 +1298,7 @@ static bool gp_check_cursor_region(bContext *C, int mval[2])
 }
 
 /* draw eraser cursor */
-void ED_gpencil_brush_draw_eraser(bContext *C, Brush *brush, int x, int y)
+void ED_gpencil_brush_draw_eraser(Brush *brush, int x, int y)
 {
 	short radius = (short)brush->thickness;
 
@@ -1399,7 +1399,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 			/* eraser has special shape and use a different shader program */
 			if (paintbrush->gp_brush_type == GP_BRUSH_TYPE_ERASE) {
-				ED_gpencil_brush_draw_eraser(C, paintbrush, x, y);
+				ED_gpencil_brush_draw_eraser(paintbrush, x, y);
 				return;
 			}
 

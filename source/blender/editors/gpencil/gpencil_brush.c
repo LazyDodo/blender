@@ -278,13 +278,14 @@ static bool gp_brush_smooth_apply(
         tGP_BrushEditData *gso, bGPDstroke *gps, int pt_index,
         const int radius, const int co[2])
 {
-	GP_EditBrush_Data *brush = gso->brush;
+	// GP_EditBrush_Data *brush = gso->brush;
 	float inf = gp_brush_influence_calc(gso, radius, co);
 	/* need one flag enabled by default */
-	if ((gso->settings->flag & (GP_BRUSHEDIT_FLAG_APPLY_POSITION |
-	                            GP_BRUSHEDIT_FLAG_APPLY_STRENGTH |
-	                            GP_BRUSHEDIT_FLAG_APPLY_THICKNESS |
-								GP_BRUSHEDIT_FLAG_APPLY_UV)) == 0)
+	if ((gso->settings->flag &
+	     (GP_BRUSHEDIT_FLAG_APPLY_POSITION |
+	      GP_BRUSHEDIT_FLAG_APPLY_STRENGTH |
+	      GP_BRUSHEDIT_FLAG_APPLY_THICKNESS |
+	      GP_BRUSHEDIT_FLAG_APPLY_UV)) == 0)
 	{
 		gso->settings->flag |= GP_BRUSHEDIT_FLAG_APPLY_POSITION;
 	}

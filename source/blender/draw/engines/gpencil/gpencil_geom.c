@@ -322,7 +322,6 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 	Scene *scene = draw_ctx->scene;
 	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
-	RegionView3D *rv3d = draw_ctx->rv3d;
 	ToolSettings *ts = scene->toolsettings;
 	Object *ob = draw_ctx->obact;
 

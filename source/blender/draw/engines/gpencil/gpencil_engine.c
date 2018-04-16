@@ -289,7 +289,7 @@ static void GPENCIL_cache_init(void *vedata)
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
+	// RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *obact = draw_ctx->obact;
 
 	if (!stl->g_data) {
@@ -501,7 +501,7 @@ static void GPENCIL_cache_populate(void *vedata, Object *ob)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
-	bool playing = (bool)stl->storage->playing;
+	// bool playing = (bool)stl->storage->playing;
 
 	/* object datablock (this is not draw now) */
 	if (ob->type == OB_GPENCIL && ob->data) {
@@ -511,7 +511,7 @@ static void GPENCIL_cache_populate(void *vedata, Object *ob)
 			}
 
 			/* if render set as dirty */
-	        if (stl->storage->is_render == true) {
+			if (stl->storage->is_render == true) {
 				bGPdata *gpd = (bGPdata *)ob->data;
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
@@ -542,7 +542,7 @@ static void GPENCIL_cache_finish(void *vedata)
 	ToolSettings *ts = scene->toolsettings;
 	tGPencilObjectCache *cache;
 	bool is_multiedit = false; 
-	bool playing = (bool)stl->storage->playing;
+	// bool playing = (bool)stl->storage->playing;
 
 	/* if painting session, don't need to do more */
 	if (stl->g_data->session_flag & GP_DRW_PAINT_PAINTING) {
@@ -663,9 +663,9 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
-	Scene *scene = draw_ctx->scene;
-	ToolSettings *ts = scene->toolsettings;
+	// RegionView3D *rv3d = draw_ctx->rv3d;
+	// Scene *scene = draw_ctx->scene;
+	// ToolSettings *ts = scene->toolsettings;
 	Object *obact = draw_ctx->obact;
 	bool playing = (bool)stl->storage->playing;
 	bool is_render = stl->storage->is_render;
@@ -855,7 +855,7 @@ static void DRW_framebuffer_multisample_ensure(DefaultFramebufferList *dfbl, Def
 }
 
 /* init render data */
-void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgraph *depsgraph)
+static void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgraph *depsgraph)
 {
 	GPENCIL_Data *vedata = (GPENCIL_Data *)ved;
 	GPENCIL_StorageList *stl = vedata->stl;
@@ -918,7 +918,7 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 }
 
 /* render all objects and select only grease pencil */
-void GPENCIL_render_cache(
+static void GPENCIL_render_cache(
 	void *vedata, struct Object *ob,
 	struct RenderEngine *UNUSED(engine), struct Depsgraph *UNUSED(depsgraph))
 {

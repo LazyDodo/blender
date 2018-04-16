@@ -191,7 +191,7 @@ typedef struct tStrokeBuildDetails {
 
 
 /* Sequential - Show strokes one after the other */
-static void build_sequential(GpencilBuildModifierData *mmd, bGPDlayer *gpl, bGPDframe *gpf, float fac, int modifier_index)
+static void build_sequential(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac, int modifier_index)
 {
 	const size_t tot_strokes = BLI_listbase_count(&gpf->strokes);
 	bGPDstroke *gps;
@@ -294,7 +294,7 @@ static void build_sequential(GpencilBuildModifierData *mmd, bGPDlayer *gpl, bGPD
 /* Concurrent - Show multiple strokes at once */
 // TODO: Allow random offsets to start times
 // TODO: Allow varying speeds? Scaling of progress?
-static void build_concurrent(GpencilBuildModifierData *mmd, bGPDlayer *gpl, bGPDframe *gpf, float fac, int modifier_index)
+static void build_concurrent(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac, int modifier_index)
 {
 	bGPDstroke *gps, *gps_next;
 	int max_points = 0;
@@ -495,11 +495,11 @@ static void generateStrokes(ModifierData *md, const EvaluationContext *eval_ctx,
 	/* Time management mode */
 	switch (mmd->mode) {
 		case GP_BUILD_MODE_SEQUENTIAL:
-			build_sequential(mmd, gpl, gpf, fac, modifier_index);
+			build_sequential(mmd, gpf, fac, modifier_index);
 			break;
 			
 		case GP_BUILD_MODE_CONCURRENT:
-			build_concurrent(mmd, gpl, gpf, fac, modifier_index);
+			build_concurrent(mmd, gpf, fac, modifier_index);
 			break;
 			
 		default:

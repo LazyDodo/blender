@@ -1528,7 +1528,6 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 	ToolSettings *ts = CTX_data_tool_settings(C);
 
 	Paint *paint = BKE_brush_get_gpencil_paint(ts);
-	Main *bmain = CTX_data_main(C);
 
 	/* if not exist, create a new one */
 	if (paint->brush == NULL) {
@@ -2123,12 +2122,12 @@ static void gp_paint_cleanup(tGPsdata *p)
 /* ------------------------------- */
 
 /* Helper callback for drawing the cursor itself */
-static void gpencil_draw_eraser(bContext *C, int x, int y, void *p_ptr)
+static void gpencil_draw_eraser(bContext *UNUSED(C), int x, int y, void *p_ptr)
 {
 	tGPsdata *p = (tGPsdata *)p_ptr;
 
 	if ((p) && (p->paintmode == GP_PAINTMODE_ERASER)) {
-		ED_gpencil_brush_draw_eraser(C, p->eraser, x, y);
+		ED_gpencil_brush_draw_eraser(p->eraser, x, y);
 	}
 }
 
@@ -2143,9 +2142,10 @@ static void gpencil_draw_toggle_eraser_cursor(bContext *C, tGPsdata *p, short en
 	else if (enable && !p->erasercursor) {
 		ED_gpencil_toggle_brush_cursor(p->C, false, NULL);
 		/* enable cursor */
-		p->erasercursor = WM_paint_cursor_activate(CTX_wm_manager(C),
-		                                           NULL, /* XXX */
-		                                           gpencil_draw_eraser, p);
+		p->erasercursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        NULL, /* XXX */
+		        gpencil_draw_eraser, p);
 	}
 }
 

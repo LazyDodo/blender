@@ -251,8 +251,8 @@ void GPENCIL_depth_of_field_draw(GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
-	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
-	bool is_render = stl->storage->is_render;
+	// DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	// bool is_render = stl->storage->is_render;
 
 	/* Depth Of Field */
 	if (stl->storage->enable_dof == true) {

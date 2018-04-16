@@ -1008,7 +1008,6 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 	
 	float loc[3], rot[3];
 	unsigned int layer;
-	bool view_align = true;
 	bool newob = false;
 	
 	/* Hack: Force view-align to be on by default

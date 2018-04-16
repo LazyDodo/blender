@@ -1385,7 +1385,7 @@ void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	RenderEngineType *engine_type = engine->type;
-	DrawEngineType *draw_engine_type = engine_type->draw_engine;
+	// DrawEngineType *draw_engine_type = engine_type->draw_engine;
 	RenderData *r = &scene->r;
 	Render *render = engine->re;
 	/* Changing Context */

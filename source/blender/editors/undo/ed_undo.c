@@ -111,7 +111,6 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 	wmWindow *win = CTX_wm_window(C);
 	// Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *obact = CTX_data_active_object(C);
 	ScrArea *sa = CTX_wm_area(C);
 
 	/* undo during jobs are running can easily lead to freeing data using by jobs,
@@ -126,6 +125,7 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 		return ED_undo_gpencil_step(C, step, undoname);
 	}
 	if (sa && (sa->spacetype == SPACE_VIEW3D)) {
+		Object *obact = CTX_data_active_object(C);
 		if (obact && (obact->type == OB_GPENCIL)) {
 			ED_gpencil_toggle_brush_cursor(C, false, NULL);
 		}
@@ -145,7 +145,6 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 		if (sa && (sa->spacetype == SPACE_VIEW3D)) {
 			Object *obact = CTX_data_active_object(C);
 			if (obact && (obact->type == OB_GPENCIL)) {
-				WorkSpace *workspace = CTX_wm_workspace(C);
 				/* set cursor */
 				if (ELEM(obact->mode, OB_MODE_GPENCIL_PAINT, OB_MODE_GPENCIL_SCULPT, OB_MODE_GPENCIL_WEIGHT)) {
 					ED_gpencil_toggle_brush_cursor(C, true, NULL);

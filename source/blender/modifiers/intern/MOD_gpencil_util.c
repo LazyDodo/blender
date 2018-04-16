@@ -50,6 +50,7 @@
 #include "BKE_modifier.h"
 #include "BKE_colortools.h"
 
+#include "MOD_gpencil_util.h"
 
 /* fill an array with random numbers */
 void gp_mod_fill_random_array(float *ar, int count)
