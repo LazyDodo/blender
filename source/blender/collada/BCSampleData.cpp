@@ -27,32 +27,26 @@
 #include "collada_utils.h"
 
 BCSample::BCSample(Object *ob):
-	matrix(ob)
+	obmat(ob)
 {}
 
 BCSample::~BCSample()
 {
-	int x = 0;
-	BCMaterialMap::iterator it;
-	for (it = material_map.begin(); it != material_map.end(); ++it) {
+	BCBoneMatrixMap::iterator it;
+	for (it = bonemats.begin(); it != bonemats.end(); ++it) {
 		delete it->second;
 	}
-	material_map.clear();
 }
 
-void BCSample::set_bone(Bone *bone, Matrix &mat)
+void BCSample::add_bone_matrix(Bone *bone, Matrix &mat)
 {
 	BCMatrix *matrix;
-	BCBoneMatrixMap::const_iterator it = bone_matrix_map.find(bone);
-	if (it == bone_matrix_map.end()) {
-		matrix = new BCMatrix(mat);
-		bone_matrix_map[bone] = matrix;
+	BCBoneMatrixMap::const_iterator it = bonemats.find(bone);
+	if (it != bonemats.end()) {
+		throw std::invalid_argument("bone " + std::string(bone->name) + " already defined before");
 	}
-	else {
-		/*xxx: not sure if this is ever called (keep for now) */
-		matrix = it->second;
-		matrix->set_transform(mat);
-	}
+	matrix = new BCMatrix(mat);
+	bonemats[bone] = matrix;
 }
 
 BCMatrix::BCMatrix(Matrix &mat)
@@ -85,220 +79,37 @@ void BCMatrix::set_transform(Object *ob)
 
 const BCMatrix *BCSample::get_matrix(Bone *bone) const
 {
-	BCBoneMatrixMap::const_iterator it = bone_matrix_map.find(bone);
-	if (it == bone_matrix_map.end()) {
-		return nullptr;
+	BCBoneMatrixMap::const_iterator it = bonemats.find(bone);
+	if (it == bonemats.end()) {
+		return NULL;
 	}
 	return it->second;
 }
 
-const BCMatrix *BCSample::get_matrix() const
+const BCMatrix &BCSample::get_matrix() const
 {
-	return &matrix;
+	return obmat;
 }
 
-const BCLamp &BCSample::get_lamp() const
-{
-	return this->lamp;
-}
 
-void BCSample::set_lamp(Lamp *lamp)
+/* Get channel value */
+const bool BCSample::get_value(std::string channel_target, const int array_index, float *val) const
 {
-	this->lamp.light_color[0] = lamp->r;
-	this->lamp.light_color[1] = lamp->g;
-	this->lamp.light_color[2] = lamp->b;
-	this->lamp.falloff_angle = 0;    //TODO from where to get this
-	this->lamp.falloff_exponent = 0; // TODO from where to get this
-	this->lamp.blender_dist = lamp->dist;
-}
-
-const BCCamera &BCSample::get_camera() const
-{
-	return this->camera;
-}
-
-void BCSample::set_camera(Camera *camera)
-{
-	this->camera.lens = camera->lens;
-	this->camera.xsensor = camera->sensor_x;
-	this->camera.xfov = RAD2DEGF(focallength_to_fov(camera->lens, camera->sensor_x));
-	this->camera.ysensor = camera->sensor_y;
-	this->camera.xmag = camera->ortho_scale; // TODO: check this
-	this->camera.zfar = camera->clipend;
-	this->camera.znear = camera->clipsta;
-}
-
-const BCMaterial &BCSample::get_material(int index)
-{
-	const BCMaterial *mat = this->material_map[index];
-	return *mat;
-}
-
-void BCSample::set_material(Material *ma)
-{
-	BCMaterial *material;
-	BCMaterialMap::const_iterator it = material_map.find(ma->index);
-	if (it == material_map.end()) {
-		material = new BCMaterial();
-		material_map[ma->index] = material;
+	if (channel_target == "location") {
+		*val = obmat.location()[array_index];
+	}
+	else if (channel_target == "scale") {
+		*val = obmat.scale()[array_index];
+	}
+	else if (
+		channel_target == "rotation" ||
+		channel_target == "rotation_euler") {
+		*val = obmat.rotation()[array_index];
+	}
+	else if (channel_target == "rotation_quat") {
+		*val = obmat.quat()[array_index];
 	}
 	else {
-		material = it->second;
-	}
-
-	material->diffuse_color[0] = ma->r;
-	material->diffuse_color[1] = ma->g;
-	material->diffuse_color[2] = ma->b;
-	material->specular_color[0] = ma->specr;
-	material->specular_color[1] = ma->specg;
-	material->specular_color[2] = ma->specb;
-	material->alpha = ma->alpha;
-	material->ior = ma->refrac;
-}
-
-/* Set single float vaules 
- * TODO: replace this by a std::map<rna_path, float>
- * so we can store values more freely
-*/
-const bool BCSample::set_value(BC_animation_transform_type channel, const int array_index, float val)
-{
-	switch (channel) {
-
-	/* Light animation */
-	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_ANGLE:
-		lamp.falloff_angle = val;
-		break;
-	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_EXPONENT:
-		lamp.falloff_exponent = val;
-		break;
-	case BC_ANIMATION_TYPE_LIGHT_BLENDER_DIST:
-		lamp.blender_dist = val;
-		break;
-
-	/* Camera animation */
-	case BC_ANIMATION_TYPE_LENS:
-		camera.lens = val;
-		break;
-	case BC_ANIMATION_TYPE_XMAG:
-		camera.xmag = val;
-		break;
-	case BC_ANIMATION_TYPE_ZFAR:
-		camera.zfar = val;
-		break;
-	case BC_ANIMATION_TYPE_ZNEAR:
-		camera.znear = val;
-		break;
-
-	default:
-		return false;
-	}
-
-	return true;
-
-}
-
-/* Set vector values */
-const bool BCSample::set_vector(BC_animation_transform_type channel, float val[3])
-{
-	float *vp;
-	switch (channel) {
-	/* Lamp animation */
-	case BC_ANIMATION_TYPE_LIGHT_COLOR:
-		vp = lamp.light_color;
-		break;
-	default:
-		return false;
-	}
-
-	for (int i = 0; i < 3; ++i)
-		vp[i] = val[i];
-
-	return true;
-}
-
-/* Get channel value */
-const bool BCSample::get_value(BC_animation_transform_type channel, const int array_index, float *val, int ma_index) const
-{
-	BCMaterialMap::const_iterator it = material_map.find(ma_index);
-	if (it != material_map.end()) {
-		BCMaterial *material = it->second;
-		switch (channel) {
-			/* Material animation*/
-		case BC_ANIMATION_TYPE_SPECULAR_HARDNESS:
-			*val = material->specular_hardness;
-			break;
-		case BC_ANIMATION_TYPE_SPECULAR_COLOR:
-			*val = material->specular_color[array_index];
-			break;
-		case BC_ANIMATION_TYPE_DIFFUSE_COLOR:
-			*val = material->diffuse_color[array_index];
-			break;
-		case BC_ANIMATION_TYPE_ALPHA:
-			*val = material->alpha;
-			break;
-		case BC_ANIMATION_TYPE_IOR:
-			*val = material->ior;
-		default:
-			*val = 0;
-			return false;
-		}
-		return true;
-	}
-	return false;
-}
-
-/* Get channel value */
-const bool BCSample::get_value(BC_animation_transform_type channel, const int array_index, float *val) const
-{
-	switch (channel) {
-
-	/* Object animation */
-	case BC_ANIMATION_TYPE_LOCATION:
-		*val = matrix.location()[array_index];
-		break;
-	case BC_ANIMATION_TYPE_SCALE:
-		*val = matrix.scale()[array_index];
-		break;
-	case BC_ANIMATION_TYPE_ROTATION:
-	case BC_ANIMATION_TYPE_ROTATION_EULER:
-		*val = matrix.rotation()[array_index];
-		break;
-	case BC_ANIMATION_TYPE_ROTATION_QUAT:
-		*val = matrix.quat()[array_index];
-		break;
-
-
-	/* Lamp animation */
-	case BC_ANIMATION_TYPE_LIGHT_COLOR:
-		*val = lamp.light_color[array_index];
-		break;
-	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_ANGLE:
-		*val = lamp.falloff_angle;
-		break;
-	case BC_ANIMATION_TYPE_LIGHT_FALLOFF_EXPONENT:
-		*val = lamp.falloff_exponent;
-		break;
-	case BC_ANIMATION_TYPE_LIGHT_BLENDER_DIST:
-		*val = lamp.blender_dist;
-		break;
-
-
-	/* Camera animation */
-	case BC_ANIMATION_TYPE_LENS:
-		*val = camera.lens;
-		break;
-	case BC_ANIMATION_TYPE_XMAG:
-		*val = camera.xmag;
-		break;
-	case BC_ANIMATION_TYPE_ZFAR:
-		*val = camera.zfar;
-		break;
-	case BC_ANIMATION_TYPE_ZNEAR:
-		*val = camera.znear;
-		break;
-
-	case BC_ANIMATION_TYPE_UNKNOWN:
-	default:
 		*val = 0;
 		return false;
 	}
@@ -306,10 +117,10 @@ const bool BCSample::get_value(BC_animation_transform_type channel, const int ar
 	return true;
 }
 
-void BCMatrix::copy(Matrix &r, Matrix &a)
+void BCMatrix::copy(Matrix &out, Matrix &in)
 {
 	/* destination comes first: */
-	memcpy(r, a, sizeof(Matrix));
+	memcpy(out, in, sizeof(Matrix));
 }
 
 void BCMatrix::transpose(Matrix &mat)

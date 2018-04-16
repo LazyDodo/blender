@@ -36,14 +36,27 @@ extern "C" {
 }
 
 /* Usefull typedefs ============================================== */
-typedef std::map<Object *, BCFrameSet> BCAnimatedObjectMap;
 typedef std::map<int, const BCSample *> BCFrameSampleMap;
 typedef std::map<int, const BCMatrix *> BCMatrixSampleMap;
-typedef std::map<CurveKey, BCAnimationCurve> BCAnimationCurveMap;
-typedef std::map<Object *, BCAnimationCurveMap> BCAnimationObjectMap;
+typedef std::map<CurveKey, BCAnimationCurve *> BCAnimationCurveMap;
 
-/* =============================================================== */
+class BCAnimation {
+public:
+	BCFrameSet frame_set;
+	BCAnimationCurveMap curve_map;
+	Object *reference = NULL;
 
+	~BCAnimation()
+	{
+		BCAnimationCurveMap::iterator it;
+		for (it = curve_map.begin(); it != curve_map.end(); ++it) {
+			delete it->second;
+		}
+		curve_map.clear();
+	}
+};
+
+typedef std::map<Object *, BCAnimation> BCAnimationObjectMap;
 
 /* ============================================================== */
 typedef std::map<Object *, BCSample *> BCSampleKeysMap;
@@ -57,9 +70,7 @@ class BCSampleFrame {
 	Those elements are stored in a BCSampleMap which uses
 	a BCSampleKey to identify the sampled item and a BCMatrix which contains
 	the transform data for the item. Note that one item can have
-	multiple FCurves. However all those FCurves can be feeded by the BCMatrix.
-
-	TODO: expand this to Materials, Lights, Cameras...
+	multiple Transformation FCurves. However all those FCurves can be feeded by the BCMatrix.
 	*/
 
 private:
@@ -77,37 +88,24 @@ public:
 		sampleMap.clear();
 	}
 
-	/* Add a new Object to this map with the given Matrix*/
-	/* Add a new Bone to this map with the given Matrix*/
-	/* Add a new Material to this map with the given Matrix*/
 	BCSample &add(Object *ob);
 
-	/* Get the matrix for the given key, returns Unity when the key does not exist */
-	/* Get the matrix for the given Object, returns Unity when the Objewct is not sampled */
-	/* Get the matrix for the given Bone, returns Unity when the Object is not sampled */
-	/* Get the matrix for the given Material, returns Unity when the Object is not sampled */
-	const BCSample *get_sample(Object *ob) const;
-	const BCMatrix *get_sample_matrix(Object *ob) const;
-	const BCMatrix *get_sample_matrix(Object *ob, Bone *bone) const;
+	/* Following methods can return NULL */
+	const BCSample *get_sample(Object *ob) const; // NULL if object is not sampled
+	const BCMatrix *get_sample_matrix(Object *ob) const; // NULL if object is not sampled
+	const BCMatrix *get_sample_matrix(Object *ob, Bone *bone) const; // NULL if object or bone not sampled
 
-	/* Check if the key is in this BCSampleFrame */
-	/* Check if the Object is in this BCSampleFrame */
-	/* Check if the Bone is in this BCSampleFrame */
-	/* Check if the Material is in this BCSampleFrame */
-	const bool contains(const Object *ob) const;
-	const bool contains(Object *ob) const;
-	const bool contains(Object *ob, Bone *bone) const;
-
-	/* Return the BCSampleMap for this BCSampleFrame */
-	const BCSampleKeysMap &get_samples() const;
+	const bool has_sample_for(Object *ob) const;
+	const bool has_sample_for(Object *ob, Bone *bone) const;
 };
 
 typedef std::map<int, BCSampleFrame> BCSampleFrameMap;
+typedef std::set<Object *> BCObjectSet;
 
 class BCSampleFrames {
 
 	/*
-	An Animation is made of multiple keyframes or sample frames 
+	An Animation is made of multiple FCurve keyframes or sample frames 
 	within a timeline.  When we want to export the animation we
 	first need to resample it fully to resolve things like:
 
@@ -115,7 +113,7 @@ class BCSampleFrames {
 	- animations by drivers
 	- resampled animations
 
-	For this ourpose we need to step through the entire animation and
+	For this purpose we need to step through the entire animation and
 	then sample each frame that contains at least one keyFrame or 
 	sampleFrame. Then for each frame we have to store the transform
 	information for all exported objects.
@@ -144,21 +142,13 @@ public:
 		int x = 0;
 	}
 
-	/* Add object for frame. Creates a new BCSampleFrame if it does not yet exist */
-	/* Add object+bone for frame. Creates a new BCSampleFrame if it does not yet exist */
 	BCSample &add(Object *ob, int frame_index);
+	BCSampleFrame * get_frame(int frame_index); // returns NULL if frame does not exist
 
-	/* ====================================================== */
-	/* Below are the getters which we need to export the data */
-	/* ====================================================== */
-
-	/* Return either the BCSampleFrame or nullptr if frame does not exist*/
-	BCSampleFrame * get_frame(int frame_index);
-
-	/* Return a list of all frames that need to be sampled */
 	const int get_frames(std::vector<int> &frames) const;
 	const int get_frames(Object *ob, BCFrames &frames) const;
 	const int get_frames(Object *ob, Bone *bone, BCFrames &frames) const;
+
 	const int get_samples(Object *ob, BCFrameSampleMap &samples) const;
 	const int get_matrices(Object *ob, BCMatrixSampleMap &matrices) const;
 	const int get_matrices(Object *ob, Bone *bone, BCMatrixSampleMap &bones) const;
@@ -168,22 +158,29 @@ class BCAnimationSampler {
 private:
 	bContext *mContext;
 	BCSampleFrames sample_data;
-	BCAnimatedObjectMap objects;
-
+	BCAnimationObjectMap objects;
 
 	void generate_transform(
-		const std::string prep,
-		const std::string path,
-		const int index,
-		const BC_animation_curve_type type,
+		Object *ob,
+		const CurveKey &key,
 		BCAnimationCurveMap &curves);
 
 	void generate_transforms(
+		Object *ob,
 		const std::string prep,
-		const BC_animation_curve_type type,
+		const BC_animation_type type,
 		BCAnimationCurveMap &curves);
 
-	void generate_transforms(Bone *bone, BCAnimationCurveMap &curves);
+	void generate_transforms(
+		Object *ob,
+		Bone *bone,
+		BCAnimationCurveMap &curves);
+
+	void initialize_curves(BCAnimationCurveMap &curves, Object *ob);
+	void initialize_keyframes(BCFrameSet &frameset, Object *ob);
+
+	void update_animation_curves(BCAnimation &animation, Object *ob, int frame_index);
+	void check_property_is_animated(BCAnimation &animation, float *ref, float *val, std::string data_path, int length);
 
 	/* Helper methods */
 	static void enable_fcurves(bAction *act, char *bone_name);
@@ -195,12 +192,10 @@ private:
 public:
 
 	BCAnimationSampler(bContext *C);
-	~BCAnimationSampler()
-	{
-		int x = 0;
-	}
+	~BCAnimationSampler();
 
 	void add_object(Object *ob);
+	void add_objects(BCObjectSet &animated_subset);
 
 	void sample_scene(Scene *scene,
 		int sampling_rate,
@@ -209,34 +204,23 @@ public:
 		bool keep_keyframes,
 		BC_export_animation_type export_animation_type);
 
-	bool is_flat_line(BCMatrixSampleMap &values) const;
-	bool is_flat_line(std::vector<float> &values) const;
+	bool is_animated(BCMatrixSampleMap &values) const;
 
-	/* =========================================================================== */
-	/* The Getters ... */
-	/* =========================================================================== */
+	BCAnimationCurveMap *get_curves(Object *ob);
 
-	void get_frame_set(BCFrames &frames, Object *ob);
-	void get_frame_set(BCFrames &frames, Object *ob, Bone *bone);
-	void get_frame_set(BCFrames &frames, Object *ob, const BCAnimationCurve &curve);
-	bool get_samples(BCMatrixSampleMap &samples, Object *ob, Bone *bone);
-	bool get_samples(BCMatrixSampleMap &samples, Object *ob);
-	void get_samples(BCFrameSampleMap &samples, Object *ob);
+	void get_object_frames(BCFrames &frames, Object *ob);
+	bool get_object_samples(BCMatrixSampleMap &samples, Object *ob);
+	void get_bone_frames(BCFrames &frames, Object *ob, Bone *bone);
+	bool get_bone_samples(BCMatrixSampleMap &samples, Object *ob, Bone *bone);
 
 
-	static void get_keyframes(Object *ob, BCFrameSet &frameset);
-	static void get_animated_subset(std::set<Object *> &animated_objects, LinkNode *export_set);
+	static void get_animated_from_export_set(std::set<Object *> &animated_objects, LinkNode &export_set);
 	static void find_depending_animated(std::set<Object *> &animated_objects, std::set<Object *> &candidates);
-
-	/* Possibly do not belong to this class ? */
-
 	static bool is_animated_by_constraint(Object *ob, ListBase *conlist, std::set<Object *> &animated_objects);
-	static bool has_animations(Scene *sce, LinkNode *node);
+
+	static bool has_animations(Scene *sce, LinkNode &node);
 	static bool has_animations(Object *ob);
 
-	void add_value_set(BCAnimationCurve &curve, BCFrameSampleMap &matrices, BC_export_animation_type animation_type);
-	const bool get_value_set(BCValues &values, BCFrames &frames, BCAnimationCurve &curve);
-	void get_curves(BCAnimationCurveMap &curves, Object *ob);
 
 };
 

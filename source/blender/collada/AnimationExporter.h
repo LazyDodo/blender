@@ -86,6 +86,12 @@ extern "C"
 #include <map>
 #include <algorithm> // std::find
 
+typedef enum BC_animation_source_type {
+	BC_SOURCE_TYPE_VALUE,
+	BC_SOURCE_TYPE_ANGLE,
+	BC_SOURCE_TYPE_TIMEFRAME
+} BC_animation_source_type;
+
 class AnimationExporter: COLLADASW::LibraryAnimations
 {
 private:
@@ -146,7 +152,7 @@ private:
 		BCFrames &frames,
 		BCMatrixSampleMap &outmats);
 
-	BCAnimationCurve *get_modified_export_curve(Object *ob, BCAnimationCurve curve);
+	BCAnimationCurve *get_modified_export_curve(Object *ob, BCAnimationCurve &curve, BCAnimationCurveMap &curves);
 
 	/* Helper functions */
 	void openAnimationWithClip(std::string id, std::string name);
@@ -155,10 +161,9 @@ private:
 
 	/* Input and Output sources (single valued) */
 	std::string collada_source_from_values(
-		BC_animation_transform_type tm_channel,
+		BC_animation_source_type tm_channel,
 		COLLADASW::InputSemantic::Semantics semantic,
-		std::vector<float> &values, 
-		bool is_rot, 
+		std::vector<float> &values,  
 		const std::string& anim_id, 
 		const std::string axis_name);
 	
@@ -182,23 +187,26 @@ private:
 		const std::string axis,
 		bool transform);
 
-	int get_point_in_curve(BezTriple *bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values);
+	int get_point_in_curve(BCBezTriple &bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values);
 	int get_point_in_curve(const BCAnimationCurve &curve, float sample_frame, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values);
 
 	std::string collada_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, std::vector<float>frames, const std::string& anim_id, const std::string axis_name);
 	std::string collada_interpolation_source(const BCAnimationCurve &curve, const std::string& anim_id, std::string axis_name, bool *has_tangents);
 		
 	std::string get_axis_name(std::string channel, int id);
-	BC_animation_transform_type get_transform_type(const std::string path);
-	const std::string get_collada_name(BC_animation_transform_type tm_type) const;
+	const std::string get_collada_name(std::string channel_target) const;
 	std::string get_collada_sid(const BCAnimationCurve &curve, const std::string axis_name);
 
 	/* ===================================== */
 	/* Currently unused or not (yet?) needed */
 	/* ===================================== */
 
-	void get_eul_source_for_quat(std::vector<float> &cache, Object *ob);
 	bool is_bone_deform_group(Bone * bone);
+
+#if 0
+	BC_animation_transform_type _get_transform_type(const std::string path);
+	void get_eul_source_for_quat(std::vector<float> &cache, Object *ob);
+#endif
 
 #ifdef WITH_MORPH_ANIMATION
 	void export_morph_animation(
@@ -217,7 +225,7 @@ private:
 			this->sw = sw;
 		}
 
-		bool exportAnimations(Scene *sce);
+		int exportAnimations(Scene *sce);
 
 };
 
