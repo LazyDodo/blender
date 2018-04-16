@@ -3304,7 +3304,7 @@ class VIEW3D_MT_edit_armature_delete(Menu):
 
 
 class VIEW3D_MT_edit_gpencil(Menu):
-    bl_label = "Grease Pencil"
+    bl_label = "Strokes"
 
     def draw(self, context):
         toolsettings = context.tool_settings
