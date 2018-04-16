@@ -357,7 +357,6 @@ static void drw_state_eval_ctx_init(DRWManager *dst)
 	        &draw_ctx->eval_ctx,
 	        draw_ctx->scene,
 	        draw_ctx->view_layer,
-	        draw_ctx->engine_type,
 	        DST.options.is_scene_render ? DAG_EVAL_RENDER : DAG_EVAL_VIEWPORT);
 }
 
@@ -518,7 +517,7 @@ void DRW_viewport_matrix_get_all(DRWMatrixState *state)
 	memcpy(state, DST.view_data.matstate.mat, sizeof(DRWMatrixState));
 }
 
-void DRW_viewport_matrix_override_set(float mat[4][4], DRWViewportMatrixType type)
+void DRW_viewport_matrix_override_set(const float mat[4][4], DRWViewportMatrixType type)
 {
 	BLI_assert(type < DRW_MAT_COUNT);
 	copy_m4_m4(DST.view_data.matstate.mat[type], mat);

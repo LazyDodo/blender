@@ -386,11 +386,11 @@ void DRW_state_clip_planes_reset(void)
 
 /* Extract the 8 corners (world space).
  * Although less accurate, this solution can be simplified as follows:
- *
  * BKE_boundbox_init_from_minmax(&bbox, (const float[3]){-1.0f, -1.0f, -1.0f}, (const float[3]){1.0f, 1.0f, 1.0f});
  * for (int i = 0; i < 8; i++) {mul_project_m4_v3(viewprojinv, bbox.vec[i]);}
  */
-static void draw_frustum_boundbox_calc(const float (*projmat)[4], const float (*viewinv)[4], BoundBox *r_bbox)
+static void draw_frustum_boundbox_calc(
+        const float (*projmat)[4], const float (*viewinv)[4], BoundBox *r_bbox)
 {
 	float screenvecs[3][3], loc[3], near, far, w_half, h_half;
 	bool is_persp = projmat[3][3] == 0.0f;
@@ -425,8 +425,8 @@ static void draw_frustum_boundbox_calc(const float (*projmat)[4], const float (*
 		madd_v3_v3fl(mid, ver, projmat[2][1]);
 	}
 	else {
-		madd_v3_v3fl(mid, hor, projmat[3][0]);
-		madd_v3_v3fl(mid, ver, projmat[3][1]);
+		madd_v3_v3fl(mid, hor, -projmat[3][0]);
+		madd_v3_v3fl(mid, ver, -projmat[3][1]);
 	}
 
 	r_bbox->vec[0][0] = mid[0] - ver[0] - hor[0];
@@ -459,8 +459,8 @@ static void draw_frustum_boundbox_calc(const float (*projmat)[4], const float (*
 		madd_v3_v3v3fl(mid, loc, screenvecs[2], -far);
 
 		/* Non-symmetric frustum. */
-		madd_v3_v3fl(mid, hor, projmat[3][0]);
-		madd_v3_v3fl(mid, ver, projmat[3][1]);
+		madd_v3_v3fl(mid, hor, -projmat[3][0]);
+		madd_v3_v3fl(mid, ver, -projmat[3][1]);
 	}
 
 	r_bbox->vec[1][0] = mid[0] - ver[0] - hor[0];
@@ -492,7 +492,14 @@ static void draw_clipping_setup_from_view(void)
 
 	/* Extract Clipping Planes */
 	BoundBox bbox;
+#if 0 /* It has accuracy problems. */
+	BKE_boundbox_init_from_minmax(&bbox, (const float[3]){-1.0f, -1.0f, -1.0f}, (const float[3]){1.0f, 1.0f, 1.0f});
+	for (int i = 0; i < 8; i++) {
+		mul_project_m4_v3(DST.view_data.matstate.mat[DRW_MAT_PERSINV], bbox.vec[i]);
+	}
+#else
 	draw_frustum_boundbox_calc(projmat, viewinv, &bbox);
+#endif
 
 	/* Compute clip planes using the world space frustum corners. */
 	for (int p = 0; p < 6; p++) {
