@@ -261,7 +261,7 @@ void BKE_object_modifier_gpencil_hook_reset(Object *ob, GpencilHookModifierData 
 	}
 }
 
-bool BKE_object_support_modifier_type_check(Object *ob, int modifier_type)
+bool BKE_object_support_modifier_type_check(const Object *ob, int modifier_type)
 {
 	const ModifierTypeInfo *mti;
 
