@@ -610,7 +610,7 @@ bool BKE_palette_is_empty(const struct Palette *palette)
 }
 
 /* get the palettecolor looking by name */
-PaletteColor *BKE_palette_color_getbyname(Palette *palette, char *name)
+PaletteColor *BKE_palette_color_getbyname(Palette *palette, const char *name)
 {
 	/* error checking */
 	if (ELEM(NULL, palette, name)) {

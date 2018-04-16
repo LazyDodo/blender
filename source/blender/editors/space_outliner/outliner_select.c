@@ -438,7 +438,7 @@ static eOLDrawState tree_element_active_defgroup(
 }
 
 static eOLDrawState tree_element_active_gplayer(
-        bContext *C, Scene *UNUSED(scene), ViewLayer *view_layer, TreeElement *te, TreeStoreElem *tselem, const eOLSetState set)
+        bContext *C, Scene *UNUSED(scene), TreeElement *te, TreeStoreElem *tselem, const eOLSetState set)
 {
 	bGPdata *gpd = (bGPdata *)tselem->id;
 	bGPDlayer *gpl = te->directdata;
@@ -449,7 +449,7 @@ static eOLDrawState tree_element_active_gplayer(
 	if (set != OL_SETSEL_NONE) {
 		if (gpl) {
 			BKE_gpencil_layer_setactive(gpd, gpl);
-			WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_SELECTED, gpd);		
+			WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_SELECTED, gpd);
 		}
 	}
 	else {
@@ -908,7 +908,7 @@ eOLDrawState tree_element_type_active(
 		case TSE_KEYMAP_ITEM:
 			return tree_element_active_keymap_item(C, scene, view_layer, te, tselem, set);
 		case TSE_GP_LAYER:
-			return tree_element_active_gplayer(C, scene, view_layer, te, tselem, set);
+			return tree_element_active_gplayer(C, scene, te, tselem, set);
 		case TSE_SCENE_COLLECTION:
 		case TSE_LAYER_COLLECTION:
 			return tree_element_active_collection(C, te, tselem, set);

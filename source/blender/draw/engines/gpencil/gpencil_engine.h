@@ -29,6 +29,7 @@
 #include "GPU_batch.h"
 
 struct tGPspoint;
+struct bGPDstroke;
 struct ModifierData;
 struct GPENCIL_StorageList;
 struct Object;

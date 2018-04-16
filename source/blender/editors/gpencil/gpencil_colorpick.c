@@ -132,10 +132,10 @@ static void gp_draw_color_name(tGPDpick *tgpk, tGPDpickColor *col, const uiFontS
 
 	unsigned char text_col[4];
 	if (focus) {
-		copy_v4_v4_char(text_col, menuBack.text_sel);
+		copy_v4_v4_char((char *)text_col, menuBack.text_sel);
 	}
 	else {
-		copy_v4_v4_char(text_col, menuBack.text);
+		copy_v4_v4_char((char *)text_col, menuBack.text);
 	}
 
 	/* color name */
@@ -190,9 +190,9 @@ static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 	uiWidgetColors menuBack = btheme->tui.wcol_menu_back;
 	uiWidgetColors menuItem = btheme->tui.wcol_menu_item;
 
-	rgba_uchar_to_float(line, menuBack.outline);
-	rgba_uchar_to_float(background, menuBack.inner);
-	rgba_uchar_to_float(selcolor, menuItem.inner_sel);
+	rgba_uchar_to_float(line, (const uchar *)menuBack.outline);
+	rgba_uchar_to_float(background, (const uchar *)menuBack.inner);
+	rgba_uchar_to_float(selcolor, (const uchar *)menuItem.inner_sel);
 
 	/* draw panel background */
 	/* TODO: Draw soft drop shadow behind this (like standard menus)? */

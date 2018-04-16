@@ -124,6 +124,7 @@ const EnumPropertyItem rna_enum_brush_image_tool_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
+#ifndef RNA_RUNTIME
 static EnumPropertyItem rna_enum_gpencil_brush_types_items[] = {
 	{ GP_BRUSH_TYPE_DRAW, "DRAW", ICON_GREASEPENCIL_STROKE_PAINT, "Draw", "The brush is of type used for drawing strokes" },
 	{ GP_BRUSH_TYPE_FILL, "FILL", ICON_COLOR, "Fill", "The brush is of type used for filling areas" },
@@ -145,7 +146,6 @@ static EnumPropertyItem rna_enum_gpencil_fill_draw_modes_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
-#if 0
 static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
 	{ GPBRUSH_PENCIL, "PENCIL", ICON_GPBRUSH_PENCIL, "Pencil", "" },
 	{ GPBRUSH_PEN, "PEN", ICON_GPBRUSH_PEN, "Pen", "" },
@@ -160,6 +160,7 @@ static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 #endif
+
 
 #ifdef RNA_RUNTIME
 

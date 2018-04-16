@@ -35,6 +35,7 @@ struct ImBuf;
 struct ImagePool;
 struct Main;
 struct Scene;
+struct ToolSettings;
 struct UnifiedPaintSettings;
 // enum eCurveMappingPreset;
 

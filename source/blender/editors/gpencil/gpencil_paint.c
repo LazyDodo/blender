@@ -1000,7 +1000,6 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		/* reproject to plane (only in 3d space) */
 		gp_reproject_toplane(p, gps);
 		pt = gps->points;
-		int i;
 		for (i = 0; i < gps->totpoints; i++, pt++) {
 			/* if parented change position relative to parent object */
 			gp_apply_parent_point(obact, gpd, gpl, pt);

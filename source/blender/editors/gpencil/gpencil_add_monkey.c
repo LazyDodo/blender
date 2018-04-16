@@ -47,7 +47,7 @@
 
 /* Definition of the most important info from a color */
 typedef struct PaletteColorTemplate {
-	char *name;
+	const char *name;
 	float line[4];
 	float fill[4];
 } PaletteColorTemplate;

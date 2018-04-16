@@ -175,11 +175,11 @@ static void gp_draw_basic_stroke(bGPDstroke *gps, const float diff_mat[4][4],
 /* loop all layers */
 static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 {
-	/* duplicated */
-	typedef enum etempFlags {
+	/* duplicated: etempFlags */
+	enum {
 		GP_DRAWFILLS_NOSTATUS = (1 << 0),   /* don't draw status info */
 		GP_DRAWFILLS_ONLY3D = (1 << 1),   /* only draw 3d-strokes */
-	} etempFlags;
+	};
 
 	Scene *scene = tgpf->scene;
 	Object *ob = tgpf->ob;
@@ -356,7 +356,7 @@ static void set_pixel(ImBuf *ibuf, int idx, const float col[4])
 {
 	if (ibuf->rect) {
 		unsigned int *rrect = &ibuf->rect[idx];
-		char ccol[4];
+		uchar ccol[4];
 
 		rgba_float_to_uchar(ccol, col);
 		*rrect = *((unsigned int *)ccol);
@@ -512,7 +512,7 @@ static void gpencil_boundaryfill_area(tGPDfill *tgpf)
 
 		get_pixel(ibuf, v, rgba);
 
-		if (rgba) {
+		if (true) { /* Was: 'rgba' */
 			/* check if no border(red) or already filled color(green) */
 			if ((rgba[0] != 1.0f) && (rgba[1] != 1.0f))
 			{

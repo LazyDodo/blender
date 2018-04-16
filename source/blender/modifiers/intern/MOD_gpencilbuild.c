@@ -161,7 +161,7 @@ static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eG
 		}
 		
 		default:
-			printf("ERROR: Unknown transition %d in %s()\n", transition, __func__);
+			printf("ERROR: Unknown transition %d in %s()\n", (int)transition, __func__);
 			break;
 	}
 	

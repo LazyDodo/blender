@@ -35,6 +35,8 @@
 
 #include "gpencil_engine.h"
 
+#include "draw_cache_impl.h"
+
  /* allocate cache to store GP objects */
 tGPencilObjectCache *gpencil_object_cache_allocate(tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used)
 {
