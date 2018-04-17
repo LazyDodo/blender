@@ -156,7 +156,6 @@ private:
 	void check_property_is_animated(BCAnimation &animation, float *ref, float *val, std::string data_path, int length);
 
 public:
-
 	BCAnimationSampler(bContext *C);
 	~BCAnimationSampler();
 
