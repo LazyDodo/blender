@@ -1112,8 +1112,7 @@ void ED_gpencil_reset_layers_parent(Object *obact, bGPdata *gpd)
 /* Helper function to create new OB_GPENCIL Object */
 Object *ED_add_gpencil_object(bContext *C, Scene *scene, const float loc[3])
 {
-	float rot[3];
-	zero_v3(rot);
+	float rot[3] = {0.0f};
 
 	Object *ob = ED_object_add_type(C, OB_GPENCIL, NULL, loc, rot, false, scene->lay);
 
@@ -1169,18 +1168,21 @@ tGPencilSort *ED_gpencil_allocate_cache(tGPencilSort *cache, int *gp_cache_size,
 /* add gp object to the temporary cache for sorting */
 void ED_gpencil_add_to_cache(tGPencilSort *cache, RegionView3D *rv3d, Base *base, int *gp_cache_used)
 {
+	tGPencilSort *cache_item = &cache[*gp_cache_used];
+	Object *ob = base->object;
+	
 	/* save object */
-	cache[*gp_cache_used].base = base;
+	cache_item->base = base;
 
 	/* calculate zdepth from point of view */
 	float zdepth = 0.0;
 	if (rv3d->is_persp) {
-		zdepth = ED_view3d_calc_zfac(rv3d, base->object->loc, NULL);
+		zdepth = ED_view3d_calc_zfac(rv3d, ob->loc, NULL);
 	}
 	else {
-		zdepth = -dot_v3v3(rv3d->viewinv[2], base->object->loc);
+		zdepth = -dot_v3v3(rv3d->viewinv[2], ob->loc);
 	}
-	cache[*gp_cache_used].zdepth = zdepth;
+	cache_item->zdepth = zdepth;
 
 	/* increase slots used in cache */
 	(*gp_cache_used)++;
@@ -1370,12 +1372,11 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	}
 
 	/* default radius and color */
+	float color[3] = {1.0f, 1.0f, 1.0f};
+	float darkcolor[3];
 	float radius = 3.0f;
-	float color[3], darkcolor[3];
-	ARRAY_SET_ITEMS(color, 1.0f, 1.0f, 1.0f);
 
-	int mval[2];
-	ARRAY_SET_ITEMS(mval, x, y);
+	int mval[2] = {x, y};
 	/* check if cursor is in drawing region and has valid datablock */
 	if ((!gp_check_cursor_region(C, mval)) || (gpd == NULL)) {
 		return;
@@ -1462,6 +1463,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	else {
 		imm_draw_circle_wire_2d(pos, x, y, radius, 40);
 	}
+
 	/* Outer Ring: Dark color for contrast on light backgrounds (e.g. gray on white) */
 	mul_v3_v3fl(darkcolor, color, 0.40f);
 	immUniformColor4f(darkcolor[0], darkcolor[1], darkcolor[2], 0.8f);
@@ -1511,8 +1513,9 @@ void ED_gpencil_toggle_brush_cursor(bContext *C, bool enable, void *customdata)
 		}
 		/* enable cursor */
 		gset->paintcursor = WM_paint_cursor_activate(CTX_wm_manager(C),
-			NULL,
-			gp_brush_drawcursor, (lastpost) ? customdata : NULL);
+		                                             NULL,
+		                                             gp_brush_drawcursor,
+		                                             (lastpost) ? customdata : NULL);
 	}
 }
 
@@ -1523,20 +1526,20 @@ static void gpencil_verify_brush_type(bContext *C, int newmode)
 	GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
 
 	switch (newmode) {
-	case OB_MODE_GPENCIL_SCULPT:
-		gset->flag &= ~GP_BRUSHEDIT_FLAG_WEIGHT_MODE;
-		if ((gset->brushtype < 0) || (gset->brushtype >= GP_EDITBRUSH_TYPE_WEIGHT)) {
-			gset->brushtype = GP_EDITBRUSH_TYPE_PUSH;
-		}
-		break;
-	case OB_MODE_GPENCIL_WEIGHT:
-		gset->flag |= GP_BRUSHEDIT_FLAG_WEIGHT_MODE;
-		if ((gset->weighttype < GP_EDITBRUSH_TYPE_WEIGHT) || (gset->weighttype >= TOT_GP_EDITBRUSH_TYPES)) {
-			gset->weighttype = GP_EDITBRUSH_TYPE_WEIGHT;
-		}
-		break;
-	default:
-		break;
+		case OB_MODE_GPENCIL_SCULPT:
+			gset->flag &= ~GP_BRUSHEDIT_FLAG_WEIGHT_MODE;
+			if ((gset->brushtype < 0) || (gset->brushtype >= GP_EDITBRUSH_TYPE_WEIGHT)) {
+				gset->brushtype = GP_EDITBRUSH_TYPE_PUSH;
+			}
+			break;
+		case OB_MODE_GPENCIL_WEIGHT:
+			gset->flag |= GP_BRUSHEDIT_FLAG_WEIGHT_MODE;
+			if ((gset->weighttype < GP_EDITBRUSH_TYPE_WEIGHT) || (gset->weighttype >= TOT_GP_EDITBRUSH_TYPES)) {
+				gset->weighttype = GP_EDITBRUSH_TYPE_WEIGHT;
+			}
+			break;
+		default:
+			break;
 	}
 }
 
