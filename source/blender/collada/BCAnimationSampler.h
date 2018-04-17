@@ -151,8 +151,8 @@ private:
 
 	void initialize_curves(BCAnimationCurveMap &curves, Object *ob);
 	void initialize_keyframes(BCFrameSet &frameset, Object *ob);
-
-	void update_animation_curves(BCAnimation &animation, Object *ob, int frame_index);
+	BCSample &sample_object(Object *ob, int frame_index, bool for_opensim);
+	void update_animation_curves(BCAnimation &animation, BCSample &sample, Object *ob, int frame_index);
 	void check_property_is_animated(BCAnimation &animation, float *ref, float *val, std::string data_path, int length);
 
 public:

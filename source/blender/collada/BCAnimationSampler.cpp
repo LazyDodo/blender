@@ -149,12 +149,8 @@ void BCAnimationSampler::check_property_is_animated(BCAnimation &animation, floa
 	}
 }
 
-void BCAnimationSampler::update_animation_curves(BCAnimation &animation, Object *ob, int frame)
+void BCAnimationSampler::update_animation_curves(BCAnimation &animation, BCSample &sample, Object *ob, int frame)
 {
-	check_property_is_animated(animation, animation.reference->col, ob->col, "color", 4);
-
-	BCSample sample(ob);
-
 	BCAnimationCurveMap::iterator it;
 	for (it = animation.curve_map.begin(); it != animation.curve_map.end(); ++it) {
 		const BCCurveKey &key = it->first;
@@ -166,6 +162,23 @@ void BCAnimationSampler::update_animation_curves(BCAnimation &animation, Object 
 			curve->add_value_from_rna(frame);
 		}
 	}
+}
+
+BCSample &BCAnimationSampler::sample_object(Object *ob, int frame_index, bool for_opensim)
+{
+	BCSample &ob_sample = sample_data.add(ob, frame_index);
+
+	if (ob->type == OB_ARMATURE) {
+		bPoseChannel *pchan;
+		for (pchan = (bPoseChannel *)ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+			Bone *bone = pchan->bone;
+			Matrix bmat;
+			if (bc_bone_matrix_local_get(ob, bone, bmat, for_opensim)) {
+				ob_sample.add_bone_matrix(bone, bmat);
+			}
+		}
+	}
+	return ob_sample;
 }
 
 void BCAnimationSampler::sample_scene(
@@ -210,19 +223,8 @@ void BCAnimationSampler::sample_scene(
 					needs_update = false;
 				}
 
-				update_animation_curves(animation, ob, frame_index);
-				BCSample &ob_sample = sample_data.add(ob, frame_index);
-
-				if (ob->type == OB_ARMATURE) {
-					bPoseChannel *pchan;
-					for (pchan = (bPoseChannel *)ob->pose->chanbase.first; pchan; pchan = pchan->next) {
-						Bone *bone = pchan->bone;
-						Matrix bmat;
-						if (bc_bone_matrix_local_get(ob, bone, bmat, for_opensim)) {
-							ob_sample.add_bone_matrix(bone, bmat);
-						}
-					}
-				}
+				BCSample &sample = sample_object(ob, frame_index, for_opensim);
+				update_animation_curves(animation, sample, ob, frame_index);
 			}
 		}
 	}
