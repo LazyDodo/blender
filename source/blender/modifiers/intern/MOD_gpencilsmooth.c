@@ -78,7 +78,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 
 	/* smooth stroke */
 	if (mmd->factor > 0.0f) {
-		for (int r = 0; r < mmd->step; ++r) {
+		for (int r = 0; r < mmd->step; r++) {
 			for (int i = 0; i < gps->totpoints; i++) {
 				pt = &gps->points[i];
 				/* verify vertex group */
@@ -97,7 +97,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 				}
 				if ((mmd->flag & GP_SMOOTH_MOD_THICKNESS)  && (val > 0)) {
 					/* thickness need to repeat process several times */
-					for (int r2 = 0; r2 < r * 10; ++r2) {
+					for (int r2 = 0; r2 < r * 10; r2++) {
 						BKE_gp_smooth_stroke_thickness(gps, i, val);
 					}
 				}
@@ -117,7 +117,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				deformStroke(md, eval_ctx, ob, gpl, gps);
+				deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}

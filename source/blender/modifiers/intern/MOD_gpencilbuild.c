@@ -44,6 +44,7 @@
 #include "BKE_gpencil.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
@@ -407,7 +408,7 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	GpencilBuildModifierData *mmd = (GpencilBuildModifierData *)md;
 	const bool reverse = (mmd->transition != GP_BUILD_TRANSITION_GROW);
 	
-	const float ctime = depsgraph->ctime;
+	const float ctime = DEG_get_ctime(depsgraph);
 	//printf("GP Build Modifier - %f\n", ctime);
 	
 	/* Early exit if it's an empty frame */

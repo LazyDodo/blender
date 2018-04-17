@@ -127,7 +127,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 
 }
 
-static void bakeModifierGP(const bContext *UNUSED(C), const EvaluationContext *eval_ctx,
+static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
@@ -135,7 +135,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), const EvaluationContext *e
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				deformStroke(md, eval_ctx, ob, gpl, gps);
+				deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}

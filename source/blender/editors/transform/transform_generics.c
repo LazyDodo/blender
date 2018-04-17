@@ -1767,13 +1767,15 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 	}
 	else if (t->options & CTX_GPENCIL_STROKES) {
 		/* move cursor in local space */
-		Object *ob = t->obedit;
-		float mat[3][3], imat[3][3];
+		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+			Object *ob = tc->obedit;
+			float mat[3][3], imat[3][3];
 
-		sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
-		copy_m3_m4(mat, ob->obmat);
-		invert_m3_m3(imat, mat);
-		mul_m3_v3(imat, r_center);
+			sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
+			copy_m3_m4(mat, ob->obmat);
+			invert_m3_m3(imat, mat);
+			mul_m3_v3(imat, r_center);
+		}
 	}
 }
 

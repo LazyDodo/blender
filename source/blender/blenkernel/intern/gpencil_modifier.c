@@ -353,7 +353,7 @@ bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 }
 
 /* apply stroke modifiers */
-void BKE_gpencil_stroke_modifiers(EvaluationContext *eval_ctx, Object *ob, bGPDlayer *gpl, bGPDframe *UNUSED(gpf), bGPDstroke *gps, bool is_render)
+void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *gpl, bGPDframe *UNUSED(gpf), bGPDstroke *gps, bool is_render)
 {
 	ModifierData *md;
 	bGPdata *gpd = ob->data;
@@ -370,14 +370,14 @@ void BKE_gpencil_stroke_modifiers(EvaluationContext *eval_ctx, Object *ob, bGPDl
 			}
 			
 			if (mti && mti->deformStroke) {
-				mti->deformStroke(md, eval_ctx, ob, gpl, gps);
+				mti->deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
 }
 
 /* apply stroke geometry modifiers */
-void BKE_gpencil_geometry_modifiers(EvaluationContext *eval_ctx, Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bool is_render)
+void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bool is_render)
 {
 	ModifierData *md;
 	bGPdata *gpd = ob->data;
@@ -395,7 +395,7 @@ void BKE_gpencil_geometry_modifiers(EvaluationContext *eval_ctx, Object *ob, bGP
 			}
 
 			if (mti->generateStrokes) {
-				mti->generateStrokes(md, eval_ctx, ob, gpl, gpf, id);
+				mti->generateStrokes(md, depsgraph, ob, gpl, gpf, id);
 			}
 		}
 		id++;
@@ -404,7 +404,7 @@ void BKE_gpencil_geometry_modifiers(EvaluationContext *eval_ctx, Object *ob, bGP
 
 /* *************************************************** */
 
-void BKE_gpencil_eval_geometry(const EvaluationContext *UNUSED(eval_ctx),
+void BKE_gpencil_eval_geometry(const Depsgraph *UNUSED(depsgraph),
                                bGPdata *UNUSED(gpd))
 {
 	/* TODO: Move "derived_gpf" logic here from DRW_gpencil_populate_datablock()?

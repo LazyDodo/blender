@@ -100,9 +100,15 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 }
 
 // FIXME: Shares code with hook modifier...
-static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
+static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
+	(void)C;
+	(void)depsgraph;
+	(void)md;
+	(void)ob;
+	
+#if 0 // FIXME
 	GpencilLatticeModifierData *mmd = (GpencilLatticeModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = md->scene;
@@ -146,6 +152,7 @@ static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
 	/* return frame state and DB to original state */
 	CFRA = oldframe;
 	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
+#endif
 }
 
 static void freeData(ModifierData *md)

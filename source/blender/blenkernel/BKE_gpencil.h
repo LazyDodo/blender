@@ -33,7 +33,7 @@
 
 struct CurveMapping;
 struct bContext;
-struct EvaluationContext;
+struct Depsgraph;
 struct ToolSettings;
 struct ListBase;
 struct bGPdata;
@@ -191,16 +191,16 @@ bool BKE_gpencil_vgroup_remove_point_weight(struct bGPDspoint *pt, int index);
 void BKE_gpencil_stroke_weights_duplicate(struct bGPDstroke *gps_src, struct bGPDstroke *gps_dst);
 
 /* GPencil geometry evaluation */
-void BKE_gpencil_eval_geometry(const struct EvaluationContext *eval_ctx, struct bGPdata *gpd);
+void BKE_gpencil_eval_geometry(const struct Depsgraph *depsgraph, struct bGPdata *gpd);
 
 /* modifiers */
 bool BKE_gpencil_has_geometry_modifiers(struct Object *ob);
 
 void BKE_gpencil_stroke_modifiers(
-		struct EvaluationContext *eval_ctx, struct Object *ob, 
+		struct Depsgraph *depsgraph, struct Object *ob, 
 		struct bGPDlayer *gpl, struct bGPDframe *gpf, struct bGPDstroke *gps, bool is_render);
 void BKE_gpencil_geometry_modifiers(
-		struct EvaluationContext *eval_ctx, struct Object *ob, 
+		struct Depsgraph *depsgraph, struct Object *ob, 
 		struct bGPDlayer *gpl, struct bGPDframe *gpf, bool is_render);
 
 void BKE_gpencil_array_modifier_instance_tfm(struct GpencilArrayModifierData *mmd, const int elem_idx[3], float r_mat[4][4]);

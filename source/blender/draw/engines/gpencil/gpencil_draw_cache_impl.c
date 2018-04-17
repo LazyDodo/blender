@@ -470,18 +470,6 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 }
 
 
-/* Construct eval_ctx from draw_ctx state
- * Note: This function copies CTX_data_eval_ctx() / DEG_evaluation_context_init_from_scene()
- */
-static void gpencil_init_evalctx_from_drawctx(const DRWContextState *draw_ctx, EvaluationContext *eval_ctx)
-{
-	Scene *scene = draw_ctx->scene;
-	
-	eval_ctx->depsgraph = BKE_scene_get_depsgraph(scene, draw_ctx->view_layer, false);
-	eval_ctx->ctime = BKE_scene_frame_get(scene);
-	eval_ctx->view_layer = draw_ctx->view_layer;
-}
-
 /* main function to draw strokes */
 static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_data, void *vedata, ToolSettings *ts, Object *ob,
 	bGPdata *gpd, bGPDlayer *gpl, bGPDframe *src_gpf, bGPDframe *derived_gpf,
@@ -502,15 +490,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 	 * (i.e. the thumbnail offscreen rendering fails) 
 	 */
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	const bContext *C = draw_ctx->evil_C;
-
-	EvaluationContext eval_ctx = {0};
-	if (C) {
-		CTX_data_eval_ctx(C, &eval_ctx);
-	}
-	else {
-		gpencil_init_evalctx_from_drawctx(draw_ctx, &eval_ctx);
-	}
+	Depsgraph *depsgraph = draw_ctx->depsgraph;
 
 	/* get parent matrix and save as static data */
 	ED_gpencil_parent_location(ob, gpd, gpl, viewmatrix);
@@ -520,7 +500,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 	if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
 		if (!stl->storage->simplify_modif) {
 			if (BKE_gpencil_has_geometry_modifiers(ob)) {
-				BKE_gpencil_geometry_modifiers(&eval_ctx, ob, gpl, derived_gpf, stl->storage->is_render);
+				BKE_gpencil_geometry_modifiers(depsgraph, ob, gpl, derived_gpf, stl->storage->is_render);
 			}
 		}
 	}
@@ -588,7 +568,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			/* apply modifiers (only modify geometry, but not create ) */
 			if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
 				if (!stl->storage->simplify_modif) {
-					BKE_gpencil_stroke_modifiers(&eval_ctx, ob, gpl, derived_gpf, gps, stl->storage->is_render);
+					BKE_gpencil_stroke_modifiers(depsgraph, ob, gpl, derived_gpf, gps, stl->storage->is_render);
 				}
 			}
 

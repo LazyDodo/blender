@@ -1869,7 +1869,7 @@ static void gp_session_cleanup(tGPsdata *p)
 }
 
 /* init new stroke */
-static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, const Depsgraph *depsgraph)
+static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Depsgraph *depsgraph)
 {
 	Scene *scene = p->scene;
 	ToolSettings *ts = scene->toolsettings;
@@ -2321,7 +2321,7 @@ static void gpencil_draw_status_indicators(tGPsdata *p)
 /* ------------------------------- */
 
 /* create a new stroke point at the point indicated by the painting context */
-static void gpencil_draw_apply(bContext *C, wmOperator *op, tGPsdata *p, const Depsgraph *depsgraph)
+static void gpencil_draw_apply(bContext *C, wmOperator *op, tGPsdata *p, Depsgraph *depsgraph)
 {
 	bGPdata *gpd = p->gpd;
 	tGPspoint *pt = NULL;
