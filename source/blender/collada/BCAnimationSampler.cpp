@@ -206,7 +206,7 @@ void BCAnimationSampler::sample_scene(
 			is_scene_sample_frame = true;
 		}
 
-		bool needs_sampling = is_scene_sample_frame || keep_keyframes || export_animation_type == BC_ANIMATION_TYPE_KEYS;
+		bool needs_sampling = is_scene_sample_frame || keep_keyframes || export_animation_type == BC_ANIMATION_EXPORT_KEYS;
 		if (!needs_sampling) {
 			continue;
 		}
@@ -335,8 +335,8 @@ bool BCAnimationSampler::get_object_samples(BCMatrixSampleMap &samples, Object *
 
    curve: The curve to whioch the data is added
    matrices: The set of matrix values from where the data is taken
-   animation_type BC_ANIMATION_TYPE_SAMPLE: Use all matrix data
-   animation_type BC_ANIMATION_TYPE_KEYS: Only take data from matrices for keyframes
+   animation_type BC_ANIMATION_EXPORT_SAMPLES: Use all matrix data
+   animation_type BC_ANIMATION_EXPORT_KEYS: Only take data from matrices for keyframes
 */
 
 void BCAnimationSampler::add_value_set(
@@ -350,7 +350,7 @@ void BCAnimationSampler::add_value_set(
 	BCFrameSampleMap::iterator it;
 	for (it = samples.begin(); it != samples.end(); ++it) {
 		const int frame_index = nearbyint(it->first);
-		if (animation_type == BC_ANIMATION_TYPE_SAMPLE || curve.is_keyframe(frame_index)) {
+		if (animation_type == BC_ANIMATION_EXPORT_SAMPLES || curve.is_keyframe(frame_index)) {
 
 			const BCSample *sample = it->second;
 			float val = 0;

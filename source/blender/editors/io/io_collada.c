@@ -153,7 +153,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	include_animations       = RNA_boolean_get(op->ptr, "include_animations");
 	include_all_actions      = RNA_boolean_get(op->ptr, "include_all_actions");
 	export_animation_type    = RNA_enum_get(op->ptr, "export_animation_type_selection");
-	sample_animations        = (export_animation_type == BC_ANIMATION_TYPE_SAMPLE);
+	sample_animations        = (export_animation_type == BC_ANIMATION_EXPORT_SAMPLES);
 	sampling_rate            = (sample_animations)? RNA_int_get(op->ptr, "sampling_rate") : 0;
 	keep_smooth_curves       = RNA_boolean_get(op->ptr, "keep_smooth_curves");
 	keep_keyframes           = RNA_boolean_get(op->ptr, "keep_keyframes");
@@ -207,7 +207,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	export_settings.use_blender_profile = use_blender_profile != 0;
 	export_settings.sort_by_name = sort_by_name != 0;
 
-	if (export_animation_type == BC_ANIMATION_TYPE_SAMPLE) {
+	if (export_animation_type == BC_ANIMATION_EXPORT_SAMPLES) {
 		export_settings.export_transformation_type = export_transformation_type;
 	}
 	else {
@@ -263,7 +263,7 @@ static void uiCollada_exportSettings(uiLayout *layout, PointerRNA *imfptr)
 	BC_export_animation_type animation_type = RNA_enum_get(imfptr, "export_animation_type_selection");
 	BC_export_transformation_type transformation_type = RNA_enum_get(imfptr, "export_transformation_type_selection");
 
-	bool sampling = animation_type == BC_ANIMATION_TYPE_SAMPLE;
+	bool sampling = animation_type == BC_ANIMATION_EXPORT_SAMPLES;
 
 	/* Export Options: */
 	box = uiLayoutBox(layout);
@@ -349,12 +349,12 @@ static void uiCollada_exportSettings(uiLayout *layout, PointerRNA *imfptr)
 		split = uiLayoutSplit(row, 0.6f, UI_LAYOUT_ALIGN_RIGHT);
 		uiItemL(split, IFACE_("Transformation Type"), ICON_NONE);
 		uiItemR(split, imfptr, "export_transformation_type_selection", 0, "", ICON_NONE);
-		uiLayoutSetEnabled(row, animation_type == BC_ANIMATION_TYPE_SAMPLE);
+		uiLayoutSetEnabled(row, animation_type == BC_ANIMATION_EXPORT_SAMPLES);
 
 		row = uiLayoutColumn(box, false);
 		uiItemR(row, imfptr, "keep_smooth_curves", 0, NULL, ICON_NONE);
 		uiLayoutSetEnabled(row, include_animations && 
-			(transformation_type == BC_TRANSFORMATION_TYPE_TRANSROTLOC || animation_type == BC_ANIMATION_TYPE_KEYS));
+			(transformation_type == BC_TRANSFORMATION_TYPE_TRANSROTLOC || animation_type == BC_ANIMATION_EXPORT_KEYS));
 
 		row = uiLayoutColumn(box, false);
 		uiItemR(row, imfptr, "sampling_rate", 0, NULL, ICON_NONE);
@@ -436,8 +436,8 @@ void WM_OT_collada_export(wmOperatorType *ot)
 	};
 
 	static const EnumPropertyItem prop_bc_export_animation_type[] = {
-	{ BC_ANIMATION_TYPE_SAMPLE, "sample", 0, "Samples", "Export Sampled points guided by sampling rate" },
-	{ BC_ANIMATION_TYPE_KEYS, "keys", 0, "Curves", "Export Curves\n Note: guided by curve keys" },
+	{ BC_ANIMATION_EXPORT_SAMPLES, "sample", 0, "Samples", "Export Sampled points guided by sampling rate" },
+	{ BC_ANIMATION_EXPORT_KEYS, "keys", 0, "Curves", "Export Curves\n Note: guided by curve keys" },
 	{ 0, NULL, 0, NULL, NULL }
 	};
 

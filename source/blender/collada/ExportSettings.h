@@ -49,8 +49,8 @@ typedef enum BC_export_texture_type {
 } BC_export_texture_type;
 
 typedef enum BC_export_animation_type {
-	BC_ANIMATION_TYPE_SAMPLE,
-	BC_ANIMATION_TYPE_KEYS
+	BC_ANIMATION_EXPORT_SAMPLES,
+	BC_ANIMATION_EXPORT_KEYS
 } BC_export_animation_type;
 
 typedef enum BC_ui_export_section {
