@@ -1089,6 +1089,11 @@ rna_use_soft_limits = BoolProperty(
         name="Use Soft Limits",
         )
 
+rna_is_overridable_static = BoolProperty(
+        name="Is Statically Overridable",
+        default=False,
+        )
+
 
 class WM_OT_properties_edit(Operator):
     bl_idname = "wm.properties_edit"
@@ -1102,6 +1107,7 @@ class WM_OT_properties_edit(Operator):
     min = rna_min
     max = rna_max
     use_soft_limits = rna_use_soft_limits
+    is_overridable_static = rna_is_overridable_static
     soft_min = rna_min
     soft_max = rna_max
     description = StringProperty(
@@ -1152,6 +1158,9 @@ class WM_OT_properties_edit(Operator):
         # Reassign
         exec_str = "item[%r] = %s" % (prop, repr(value_eval))
         # print(exec_str)
+        exec(exec_str)
+
+        exec_str = "item.property_overridable_static_set('[\"%s\"]', %s)" % (prop, self.is_overridable_static)
         exec(exec_str)
 
         rna_idprop_ui_prop_update(item, prop)
@@ -1281,7 +1290,9 @@ class WM_OT_properties_edit(Operator):
         row.prop(self, "min")
         row.prop(self, "max")
 
-        layout.prop(self, "use_soft_limits")
+        row = layout.row()
+        row.prop(self, "use_soft_limits")
+        row.prop(self, "is_overridable_static")
 
         row = layout.row(align=True)
         row.enabled = self.use_soft_limits
@@ -1490,54 +1501,6 @@ class WM_OT_copy_prev_settings(Operator):
             return {'FINISHED'}
 
         return {'CANCELLED'}
-
-
-class WM_OT_blenderplayer_start(Operator):
-    """Launch the blender-player with the current blend-file"""
-    bl_idname = "wm.blenderplayer_start"
-    bl_label = "Start Game In Player"
-
-    def execute(self, context):
-        import os
-        import sys
-        import subprocess
-
-        gs = context.scene.game_settings
-
-        # these remain the same every execution
-        blender_bin_path = bpy.app.binary_path
-        blender_bin_dir = os.path.dirname(blender_bin_path)
-        ext = os.path.splitext(blender_bin_path)[-1]
-        player_path = os.path.join(blender_bin_dir, "blenderplayer" + ext)
-        # done static vars
-
-        if sys.platform == "darwin":
-            player_path = os.path.join(blender_bin_dir, "../../../blenderplayer.app/Contents/MacOS/blenderplayer")
-
-        if not os.path.exists(player_path):
-            self.report({'ERROR'}, "Player path: %r not found" % player_path)
-            return {'CANCELLED'}
-
-        filepath = bpy.data.filepath + '~' if bpy.data.is_saved else os.path.join(bpy.app.tempdir, "game.blend")
-        bpy.ops.wm.save_as_mainfile('EXEC_DEFAULT', filepath=filepath, copy=True)
-
-        # start the command line call with the player path
-        args = [player_path]
-
-        # handle some UI options as command line arguments
-        args.extend([
-            "-g", "show_framerate", "=", "%d" % gs.show_framerate_profile,
-            "-g", "show_profile", "=", "%d" % gs.show_framerate_profile,
-            "-g", "show_properties", "=", "%d" % gs.show_debug_properties,
-            "-g", "ignore_deprecation_warnings", "=", "%d" % (not gs.use_deprecation_warnings),
-        ])
-
-        # finish the call with the path to the blend file
-        args.append(filepath)
-
-        subprocess.call(args)
-        os.remove(filepath)
-        return {'FINISHED'}
 
 
 class WM_OT_keyconfig_test(Operator):
@@ -2375,7 +2338,6 @@ classes = (
     WM_OT_app_template_install,
     WM_OT_appconfig_activate,
     WM_OT_appconfig_default,
-    WM_OT_blenderplayer_start,
     WM_OT_context_collection_boolean_set,
     WM_OT_context_cycle_array,
     WM_OT_context_cycle_enum,

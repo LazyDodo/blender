@@ -242,10 +242,6 @@ data_to_c_simple(shaders/gpu_shader_gpencil_fill_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_gpencil_fill_frag.glsl SRC)
 
 
-if(WITH_GAMEENGINE)
-	add_definitions(-DWITH_GAMEENGINE)
-endif()
-
 if(WITH_MOD_SMOKE)
 	add_definitions(-DWITH_SMOKE)
 endif()

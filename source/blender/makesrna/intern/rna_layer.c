@@ -309,6 +309,9 @@ static void rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_set(PointerRNA *ptr,
 #define RNA_LAYER_ENGINE_EEVEE_GET_SET_BOOL(_NAME_) \
 	RNA_LAYER_ENGINE_GET_SET(bool, Eevee, COLLECTION_MODE_NONE, _NAME_)
 
+#define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(_NAME_, _LEN_) \
+	RNA_LAYER_ENGINE_GET_SET_ARRAY(float, Workbench, COLLECTION_MODE_NONE, _NAME_, _LEN_)
+
 /* mode engines */
 
 #define RNA_LAYER_MODE_OBJECT_GET_SET_FLOAT(_NAME_) \
@@ -352,6 +355,10 @@ RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(ssao_distance)
 RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(ssao_attenuation)
 RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(hair_brightness_randomness)
 #endif /* WITH_CLAY_ENGINE */
+
+/* workbench engine */
+/* LayerCollection settings. */
+RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(object_color, 3)
 
 /* eevee engine */
 /* ViewLayer settings. */
@@ -578,6 +585,9 @@ static StructRNA *rna_LayerCollectionSettings_refine(PointerRNA *ptr)
 				return &RNA_LayerCollectionEngineSettingsClay;
 			}
 #endif
+			if (STREQ(props->name, RE_engine_id_BLENDER_WORKBENCH)) {
+				return &RNA_LayerCollectionEngineSettingsWorkbench;
+			}
 			if (STREQ(props->name, RE_engine_id_BLENDER_EEVEE)) {
 				/* printf("Mode not fully implemented\n"); */
 				return &RNA_LayerCollectionSettings;
@@ -988,18 +998,6 @@ static int rna_ViewRenderSettings_use_spherical_stereo_get(PointerRNA *ptr)
 {
 	ViewRender *view_render = (ViewRender *)ptr->data;
 	return BKE_viewrender_use_spherical_stereo(view_render);
-}
-
-static int rna_ViewRenderSettings_use_game_engine_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	RenderEngineType *type;
-
-	for (type = R_engines.first; type; type = type->next)
-		if (STREQ(type->idname, view_render->engine_id))
-			return (type->flag & RE_GAME) != 0;
-
-	return 0;
 }
 
 #else
@@ -1736,6 +1734,25 @@ static void rna_def_layer_collection_engine_settings_clay(BlenderRNA *brna)
 }
 #endif /* WITH_CLAY_ENGINE */
 
+static void rna_def_layer_collection_engine_settings_workbench(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+	
+	srna = RNA_def_struct(brna, "LayerCollectionEngineSettingsWorkbench", "LayerCollectionSettings");
+	RNA_def_struct_ui_text(srna, "Collections Workbench Engine Settings", "Engine specific settings for this collection");
+
+	RNA_define_verify_sdna(0); /* not in sdna */
+
+	prop = RNA_def_property(srna, "object_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_Workbench_object_color_get",
+	                             "rna_LayerEngineSettings_Workbench_object_color_set", NULL);
+	RNA_def_property_ui_text(prop, "Object Color", "Color for Drawing Objects");
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
+}
+
 static void rna_def_layer_collection_mode_settings_object(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1958,6 +1975,7 @@ static void rna_def_layer_collection_settings(BlenderRNA *brna)
 	rna_def_layer_collection_engine_settings_clay(brna);
 #endif
 
+	rna_def_layer_collection_engine_settings_workbench(brna);
 	rna_def_layer_collection_mode_settings_object(brna);
 	rna_def_layer_collection_mode_settings_edit(brna);
 	rna_def_layer_collection_mode_settings_paint_weight(brna);
@@ -2203,11 +2221,6 @@ static void rna_def_scene_view_render(BlenderRNA *brna)
 	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_use_spherical_stereo_get", NULL);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Use Spherical Stereo", "Active render engine supports spherical stereo rendering");
-
-	prop = RNA_def_property(srna, "use_game_engine", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_use_game_engine_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Use Game Engine", "Current rendering engine is a game engine");
 }
 
 void RNA_def_view_layer(BlenderRNA *brna)

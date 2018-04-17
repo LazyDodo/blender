@@ -170,7 +170,6 @@ static eSpace_Type rna_Space_refine_reverse(StructRNA *srna)
 	if (srna == &RNA_SpaceNLA)              return SPACE_NLA;
 	if (srna == &RNA_SpaceTimeline)         return SPACE_TIME;
 	if (srna == &RNA_SpaceNodeEditor)       return SPACE_NODE;
-	if (srna == &RNA_SpaceLogicEditor)      return SPACE_LOGIC;
 	if (srna == &RNA_SpaceConsole)          return SPACE_CONSOLE;
 	if (srna == &RNA_SpaceUserPreferences)  return SPACE_USERPREF;
 	if (srna == &RNA_SpaceClipEditor)       return SPACE_CLIP;
@@ -189,7 +188,7 @@ PyObject *pyrna_callback_classmethod_add(PyObject *UNUSED(self), PyObject *args)
 	StructRNA *srna;
 
 	if (PyTuple_GET_SIZE(args) < 2) {
-		PyErr_SetString(PyExc_ValueError, "handler_add(handle): expected at least 2 args");
+		PyErr_SetString(PyExc_ValueError, "handler_add(handler): expected at least 2 args");
 		return NULL;
 	}
 
@@ -252,7 +251,7 @@ PyObject *pyrna_callback_classmethod_remove(PyObject *UNUSED(self), PyObject *ar
 	int cb_regiontype;
 
 	if (PyTuple_GET_SIZE(args) < 2) {
-		PyErr_SetString(PyExc_ValueError, "callback_remove(handle): expected at least 2 args");
+		PyErr_SetString(PyExc_ValueError, "callback_remove(handler): expected at least 2 args");
 		return NULL;
 	}
 
@@ -263,7 +262,7 @@ PyObject *pyrna_callback_classmethod_remove(PyObject *UNUSED(self), PyObject *ar
 	py_handle = PyTuple_GET_ITEM(args, 1);
 	handle = PyCapsule_GetPointer(py_handle, RNA_CAPSULE_ID);
 	if (handle == NULL) {
-		PyErr_SetString(PyExc_ValueError, "callback_remove(handle): NULL handle given, invalid or already removed");
+		PyErr_SetString(PyExc_ValueError, "callback_remove(handler): NULL handler given, invalid or already removed");
 		return NULL;
 	}
 

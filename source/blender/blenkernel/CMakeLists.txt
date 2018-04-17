@@ -83,7 +83,6 @@ set(SRC
 	intern/boids.c
 	intern/bpath.c
 	intern/brush.c
-	intern/bullet.c
 	intern/bvhutils.c
 	intern/cachefile.c
 	intern/camera.c
@@ -167,13 +166,11 @@ set(SRC
 	intern/pbvh.c
 	intern/pbvh_bmesh.c
 	intern/pointcache.c
-	intern/property.c
 	intern/layer.c
 	intern/layer_utils.c
 	intern/lightprobe.c
 	intern/report.c
 	intern/rigidbody.c
-	intern/sca.c
 	intern/scene.c
 	intern/screen.c
 	intern/seqcache.c
@@ -223,7 +220,6 @@ set(SRC
 	BKE_boids.h
 	BKE_bpath.h
 	BKE_brush.h
-	BKE_bullet.h
 	BKE_bvhutils.h
 	BKE_cachefile.h
 	BKE_camera.h
@@ -294,12 +290,10 @@ set(SRC
 	BKE_particle.h
 	BKE_pbvh.h
 	BKE_pointcache.h
-	BKE_property.h
 	BKE_layer.h
 	BKE_lightprobe.h
 	BKE_report.h
 	BKE_rigidbody.h
-	BKE_sca.h
 	BKE_scene.h
 	BKE_screen.h
 	BKE_sequencer.h
@@ -489,18 +483,6 @@ if(WITH_LZMA)
 		../../../extern/lzma
 	)
 	add_definitions(-DWITH_LZMA)
-endif()
-
-if(WITH_GAMEENGINE)
-	list(APPEND INC_SYS
-		../../../extern/recastnavigation
-	)
-	list(APPEND SRC
-		intern/navmesh_conversion.c
-		BKE_navmesh_conversion.h
-	)
-
-	add_definitions(-DWITH_GAMEENGINE)
 endif()
 
 if(WITH_LIBMV)
