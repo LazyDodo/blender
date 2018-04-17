@@ -36,6 +36,7 @@ extern "C" {
 #include "DNA_action_types.h"
 }
 
+/* Collection of animation curves */
 class BCAnimation {
 public:
 	BCFrameSet frame_set;
@@ -58,10 +59,9 @@ class BCSampleFrame {
 
 	/*
 	Each frame on the timeline that needs to be sampled will have
-	one BCSampleFrame where we collect all elements that need to be sampled.
-	This can be Objects or Bones.
-	Those elements are stored in a BCSampleMap which uses
-	a BCSampleKey to identify the sampled item and a BCMatrix which contains
+	one BCSampleFrame where we collect all objects that need to be sampled
+	for the frame. The BCSampleFrame objects are stored in a BCSampleMap which uses
+	a BCSampleKey to identify the sampled object and a BCMatrix which contains
 	the transform data for the item. Note that one item can have
 	multiple Transformation FCurves. However all those FCurves can be feeded by the BCMatrix.
 	*/
