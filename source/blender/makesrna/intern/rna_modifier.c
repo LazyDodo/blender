@@ -5262,7 +5262,7 @@ static void rna_def_modifier_gpenciloffset(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilThickModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilOffsetModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_NONE);

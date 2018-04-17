@@ -1344,6 +1344,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	GP_EditBrush_Data *brush = NULL;
+	Brush *paintbrush = NULL;
 	int *last_mouse_position = customdata;
 
 	/* get current color */
@@ -1367,7 +1368,6 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	else {
 		brush = &gset->brush[gset->brushtype];
 	}
-	Brush *paintbrush;
 
 	/* default radius and color */
 	float radius = 3.0f;

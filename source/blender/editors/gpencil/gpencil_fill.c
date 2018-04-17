@@ -342,12 +342,20 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 	GPU_offscreen_unbind(offscreen, true);
 	GPU_offscreen_free(offscreen);
 }
+
 /* return pixel data (rgba) at index */
 static void get_pixel(ImBuf *ibuf, int idx, float r_col[4])
 {
 	if (ibuf->rect_float) {
 		float *frgba = &ibuf->rect_float[idx * 4];
 		copy_v4_v4(r_col, frgba);
+	}
+	else {
+		/* XXX: This case probably doesn't happen, as we only write to the float buffer,
+		 * but we get compiler warnings about uninitialised vars otherwise
+		 */
+		BLI_assert(!"gpencil_fill.c - get_pixel() non-float case is used!");
+		zero_v4(r_col);
 	}
 }
 

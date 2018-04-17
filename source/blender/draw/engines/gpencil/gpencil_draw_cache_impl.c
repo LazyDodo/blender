@@ -312,7 +312,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data,
 
 /* add fill shading group to pass */
 static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *fillgrp, 
-	Object *ob, bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
+	Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const float tintcolor[4], const bool onion, const bool custonion)
 {
 	if (gps->totpoints >= 3) {
@@ -345,7 +345,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 
 /* add stroke shading group to pass */
 static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup *strokegrp,
-	Object *ob, bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
+	Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const float opacity, const float tintcolor[4], const bool onion, const bool custonion)
 {
 	float tcolor[4];
@@ -462,7 +462,7 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 		}
 
 		/* stroke */
-		gpencil_add_stroke_shgroup(cache, stl->shgroups[id].shgrps_stroke, ob, gpd, gpl, gpf, gps, opacity, tintcolor, true, custonion);
+		gpencil_add_stroke_shgroup(cache, stl->shgroups[id].shgrps_stroke, ob, gpl, gpf, gps, opacity, tintcolor, true, custonion);
 
 		stl->storage->shgroup_id++;
 		cache->cache_idx++;
@@ -594,11 +594,11 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 
 			/* fill */
 			if ((fillgrp) && (!stl->storage->simplify_fill)) {
-				gpencil_add_fill_shgroup(cache, fillgrp, ob, gpd, gpl, derived_gpf, gps, tintcolor, false, custonion);
+				gpencil_add_fill_shgroup(cache, fillgrp, ob, gpl, derived_gpf, gps, tintcolor, false, custonion);
 			}
 			/* stroke */
 			if (strokegrp) {
-				gpencil_add_stroke_shgroup(cache, strokegrp, ob, gpd, gpl, derived_gpf, gps, opacity, tintcolor, false, custonion);
+				gpencil_add_stroke_shgroup(cache, strokegrp, ob, gpl, derived_gpf, gps, opacity, tintcolor, false, custonion);
 			}
 		}
 
