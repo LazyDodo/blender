@@ -94,4 +94,8 @@ public:
 
 };
 
+typedef std::map<Object *, BCSample *> BCSampleKeysMap;
+typedef std::map<int, const BCSample *> BCFrameSampleMap;
+typedef std::map<int, const BCMatrix *> BCMatrixSampleMap;
+
 #endif

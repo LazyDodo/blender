@@ -150,4 +150,6 @@ public:
 
 };
 
+typedef std::map<CurveKey, BCAnimationCurve *> BCAnimationCurveMap;
+
 #endif

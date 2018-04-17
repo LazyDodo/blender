@@ -35,11 +35,6 @@ extern "C" {
 #include "DNA_action_types.h"
 }
 
-/* Usefull typedefs ============================================== */
-typedef std::map<int, const BCSample *> BCFrameSampleMap;
-typedef std::map<int, const BCMatrix *> BCMatrixSampleMap;
-typedef std::map<CurveKey, BCAnimationCurve *> BCAnimationCurveMap;
-
 class BCAnimation {
 public:
 	BCFrameSet frame_set;
@@ -57,9 +52,6 @@ public:
 };
 
 typedef std::map<Object *, BCAnimation> BCAnimationObjectMap;
-
-/* ============================================================== */
-typedef std::map<Object *, BCSample *> BCSampleKeysMap;
 
 class BCSampleFrame {
 
@@ -100,7 +92,6 @@ public:
 };
 
 typedef std::map<int, BCSampleFrame> BCSampleFrameMap;
-typedef std::set<Object *> BCObjectSet;
 
 class BCSampleFrames {
 
