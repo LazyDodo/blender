@@ -94,20 +94,27 @@ typedef std::map<int, BCSampleFrame> BCSampleFrameMap;
 class BCSampleFrameContainer {
 
 	/*
-	An Animation is made of multiple FCurve where each FCurve can have multiple
-	keyframes. When we want to export the animation we
-	first need to resample it fully to resolve things like:
-
-	- animations by constraints
-	- animations by drivers
-	- resampled animations
-
-	For this purpose we need to step through the entire animation and
-	then sample each frame that contains at least one keyFrame or 
-	sampleFrame. Then for each frame we have to store the transform
-	information for all exported objects.
-
-	This is HERE! The BCSampleFrames object stores a map of BCSampleFrame objects with the timline frame as key.
+	* The BCSampleFrameContainer stores a map of BCSampleFrame objects
+	* with the timeline frame as key.
+	*
+	* Some details on the purpose:
+	* An Animation is made of multiple FCurves where each FCurve can 
+	* have multiple keyframes. When we want to export the animation we
+	* also can decide whether we want to export the keyframes or a set
+	* of sample frames at equidistant locations (sample period). 
+	* In any case we must resample first need to resample it fully 
+	* to resolve things like:
+	*
+	* - animations by constraints
+	* - animations by drivers
+	*
+	* For this purpose we need to step through the entire animation and
+	* then sample each frame that contains at least one keyFrame or 
+	* sampleFrame. Then for each frame we have to store the transform
+	* information for all exported objects in a BCSampleframe
+	*
+	* The entire set of BCSampleframes is finally collected into 
+	* a BCSampleframneContainer
 	*/
 
 private:
@@ -163,10 +170,7 @@ public:
 		bool keep_keyframes,
 		BC_export_animation_type export_animation_type);
 
-	bool is_animated(BCMatrixSampleMap &values) const;
-
 	BCAnimationCurveMap *get_curves(Object *ob);
-
 	void get_object_frames(BCFrames &frames, Object *ob);
 	bool get_object_samples(BCMatrixSampleMap &samples, Object *ob);
 	void get_bone_frames(BCFrames &frames, Object *ob, Bone *bone);
@@ -175,9 +179,6 @@ public:
 	static void get_animated_from_export_set(std::set<Object *> &animated_objects, LinkNode &export_set);
 	static void find_depending_animated(std::set<Object *> &animated_objects, std::set<Object *> &candidates);
 	static bool is_animated_by_constraint(Object *ob, ListBase *conlist, std::set<Object *> &animated_objects);
-
-	static bool has_animations(Scene *sce, LinkNode &node);
-	static bool has_animations(Object *ob);
 
 };
 

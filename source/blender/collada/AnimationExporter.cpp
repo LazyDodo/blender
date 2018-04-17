@@ -81,7 +81,7 @@ void AnimationExporter::close_animation_container(bool has_container)
 int AnimationExporter::exportAnimations(Scene *sce)
 {
 	LinkNode &export_set = *this->export_settings->export_set;
-	bool has_anim_data = BCAnimationSampler::has_animations(sce, export_set);
+	bool has_anim_data = bc_has_animations(sce, export_set);
 	int animation_count = 0;
 	if (has_anim_data) {
 

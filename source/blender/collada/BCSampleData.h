@@ -29,7 +29,6 @@
 #include <string>
 #include <map>
 #include <algorithm>
-#include "collada_utils.h"
 
 extern "C"
 {
@@ -41,6 +40,8 @@ extern "C"
 #include "DNA_lamp_types.h"
 #include "DNA_camera_types.h"
 }
+
+typedef float(Matrix)[4][4];
 
 class BCMatrix {
 
@@ -71,6 +72,7 @@ public:
 	const bool in_range(const BCMatrix &other, float distance) const;
 	static void sanitize(Matrix &matrix, int precision);
 	static void transpose(Matrix &matrix);
+
 };
 
 typedef std::map<Bone *, BCMatrix *> BCBoneMatrixMap;

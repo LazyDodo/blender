@@ -290,7 +290,7 @@ void BCAnimationSampler::get_animated_from_export_set(std::set<Object *> &animat
 	LinkNode *node;
 	for (node = &export_set; node; node = node->next) {
 		Object *cob = (Object *)node->link;
-		if (has_animations(cob)) {
+		if (bc_has_animations(cob)) {
 			animated_objects.insert(cob);
 		}
 		else {
@@ -300,29 +300,6 @@ void BCAnimationSampler::get_animated_from_export_set(std::set<Object *> &animat
 		}
 	}
 	find_depending_animated(animated_objects, candidates);
-}
-
-bool BCAnimationSampler::is_animated(BCMatrixSampleMap &values) const
-{
-	static float MIN_DISTANCE = 0.00001;
-
-	if (values.size() < 2)
-		return false; // need at least 2 entries to be not flat
-
-	BCMatrixSampleMap::iterator it;
-	const BCMatrix *refmat = NULL;
-	for (it = values.begin(); it != values.end(); ++it) {
-		const BCMatrix *matrix = it->second;
-
-		if (refmat == NULL) {
-			refmat = matrix;
-			continue;
-		}
-
-		if (!matrix->in_range(*refmat, MIN_DISTANCE))
-			return true;
-	}
-	return false;
 }
 
 void BCAnimationSampler::get_object_frames(BCFrames &frames, Object *ob)
@@ -338,13 +315,13 @@ void BCAnimationSampler::get_bone_frames(BCFrames &frames, Object *ob, Bone *bon
 bool BCAnimationSampler::get_bone_samples(BCMatrixSampleMap &samples, Object *ob, Bone *bone)
 {
 	sample_data.get_matrices(ob, bone, samples);
-	return is_animated(samples);
+	return bc_is_animated(samples);
 }
 
 bool BCAnimationSampler::get_object_samples(BCMatrixSampleMap &samples, Object *ob)
 {
 	sample_data.get_matrices(ob, samples);
-	return is_animated(samples);
+	return bc_is_animated(samples);
 }
 
 #if 0
@@ -521,42 +498,6 @@ void BCAnimationSampler::initialize_curves(BCAnimationCurveMap &curves, Object *
 	}
 }
 
-bool BCAnimationSampler::has_animations(Object *ob)
-{
-	/* Check for object,lamp and camera transform animations */
-	if ((bc_getSceneObjectAction(ob) && bc_getSceneObjectAction(ob)->curves.first) ||
-		(bc_getSceneLampAction(ob) && bc_getSceneLampAction(ob)->curves.first) ||
-		(bc_getSceneCameraAction(ob) && bc_getSceneCameraAction(ob)->curves.first))
-		return true;
-
-	//Check Material Effect parameter animations.
-	for (int a = 0; a < ob->totcol; a++) {
-		Material *ma = give_current_material(ob, a + 1);
-		if (!ma) continue;
-		if (ma->adt && ma->adt->action && ma->adt->action->curves.first)
-			return true;
-	}
-
-	Key *key = BKE_key_from_object(ob);
-	if ((key && key->adt && key->adt->action) && key->adt->action->curves.first)
-		return true;
-
-	return false;
-}
-
-
-bool BCAnimationSampler::has_animations(Scene *sce, LinkNode &export_set)
-{
-	LinkNode *node;
-
-	for (node = &export_set; node; node = node->next) {
-		Object *ob = (Object *)node->link;
-
-		if (has_animations(ob))
-			return true;
-	}
-	return false;
-}
 /* ==================================================================== */
 
 BCSample &BCSampleFrame::add(Object *ob)
