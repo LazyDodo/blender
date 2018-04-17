@@ -138,7 +138,7 @@ void BCAnimationSampler::check_property_is_animated(BCAnimation &animation, floa
 			BCCurveKey key(BC_ANIMATION_TYPE_OBJECT, data_path, array_index);
 			BCAnimationCurveMap::iterator it = animation.curve_map.find(key);
 			if (it == animation.curve_map.end()) {
-				animation.curve_map[key] = new BCAnimationCurve(animation.reference, key);
+				animation.curve_map[key] = new BCAnimationCurve(key, animation.reference);
 			}
 		}
 	}
@@ -376,7 +376,7 @@ void BCAnimationSampler::generate_transform(
 {
 	BCAnimationCurveMap::const_iterator it = curves.find(key);
 	if (it == curves.end()) {
-		curves[key] = new BCAnimationCurve(ob, key);
+		curves[key] = new BCAnimationCurve(key, ob);
 	}
 }
 
@@ -443,7 +443,7 @@ void BCAnimationSampler::initialize_curves(BCAnimationCurveMap &curves, Object *
 
 			/* Adding action curves on object */
 			BCCurveKey key(object_type, fcu->rna_path, fcu->array_index);
-			curves[key] = new BCAnimationCurve(ob, key);
+			curves[key] = new BCAnimationCurve(key, ob, fcu);
 		}
 	}
 
@@ -472,7 +472,7 @@ void BCAnimationSampler::initialize_curves(BCAnimationCurveMap &curves, Object *
 		FCurve *fcu = (FCurve *)action->curves.first;
 		for (; fcu; fcu = fcu->next) {
 			BCCurveKey key(object_type, fcu->rna_path, fcu->array_index);
-			curves[key] = new BCAnimationCurve(ob, key);
+			curves[key] = new BCAnimationCurve(key, ob, fcu);
 		}
 	}
 
@@ -488,7 +488,7 @@ void BCAnimationSampler::initialize_curves(BCAnimationCurveMap &curves, Object *
 				FCurve *fcu = (FCurve *)action->curves.first;
 				for (; fcu; fcu = fcu->next) {
 					BCCurveKey key(object_type, fcu->rna_path, fcu->array_index, a);
-					curves[key] = new BCAnimationCurve(ob, key);
+					curves[key] = new BCAnimationCurve(key, ob, fcu);
 				}
 			}
 		}

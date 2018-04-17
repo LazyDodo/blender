@@ -34,10 +34,10 @@ BCAnimationCurve::BCAnimationCurve()
 
 BCAnimationCurve::BCAnimationCurve(const BCAnimationCurve &other)
 {
-	this->fcurve = other.fcurve;
-	this->samples = other.samples;
 	this->min = other.min;
 	this->max = other.max;
+	this->fcurve = other.fcurve;
+	this->samples = other.samples;
 	this->curve_key = other.curve_key;
 	this->curve_is_local_copy = false;
 	this->id_ptr = other.id_ptr;
@@ -47,12 +47,26 @@ BCAnimationCurve::BCAnimationCurve(const BCAnimationCurve &other)
 	get_edit_fcurve();
 }
 
-BCAnimationCurve::BCAnimationCurve(Object *ob, const BCCurveKey &key)
+BCAnimationCurve::BCAnimationCurve(BCCurveKey key, Object *ob, FCurve *fcu)
+{
+	this->min = 0;
+	this->max = 0;
+	this->curve_key = key;
+	this->fcurve = fcu;
+	this->curve_is_local_copy = false;
+	init_pointer_rna(ob);
+}
+
+BCAnimationCurve::BCAnimationCurve(const BCCurveKey &key, Object *ob)
 {
 	this->curve_key = key;
 	this->fcurve = NULL;
 	this->curve_is_local_copy = false;
+	init_pointer_rna(ob);
+}
 
+void BCAnimationCurve::init_pointer_rna(Object *ob)
+{
 	switch (this->curve_key.get_animation_type()) {
 	case BC_ANIMATION_TYPE_BONE:
 	{
@@ -353,6 +367,36 @@ const float BCAnimationCurve::get_value(const float frame)
 	return eval; // TODO: handle case where neither sample nor fcu exist
 }
 
+void BCAnimationCurve::update_range(float val)
+{
+	if (val < min) {
+			min = val;
+	}
+	if (val > max) {
+		max = val;
+	}
+}
+
+void BCAnimationCurve::init_range(float val)
+{
+	min = max = val;
+}
+
+void BCAnimationCurve::adjust_range(const int frame_index)
+{
+	if (fcurve && fcurve->totvert > 1) {
+		const float eval = evaluate_fcurve(fcurve, frame_index);
+
+		int first_frame = fcurve->bezt[0].vec[1][0];
+		if (first_frame == frame_index) {
+			init_range(eval);
+		}
+		else {
+			update_range(eval);
+		}
+	}
+}
+
 void BCAnimationCurve::add_value(const float val, const int frame_index, bool modify_curve)
 {
 	FCurve *fcu = get_edit_fcurve();
@@ -376,13 +420,11 @@ void BCAnimationCurve::add_value(const float val, const int frame_index, bool mo
 
 		samples[frame_index] = val;
 
-		if (samples.size() == 1)
-			min = max = val;
+		if (samples.size() == 1) {
+			init_range(eval);
+		}
 		else {
-			if (val < min)
-				min = val;
-			if (val > max)
-				max = val;
+			update_range(eval);
 		}
 	}
 }

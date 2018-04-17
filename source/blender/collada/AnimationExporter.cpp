@@ -269,7 +269,7 @@ BCAnimationCurve *AnimationExporter::get_modified_export_curve(Object *ob, BCAni
 		/* Create an xfov curve */
 
 		BCCurveKey key(BC_ANIMATION_TYPE_CAMERA, "xfov", 0);
-		mcurve = new BCAnimationCurve(ob, key);
+		mcurve = new BCAnimationCurve(key, ob);
 
 		// now tricky part: transform the fcurve
 		const BCValueMap &lens_values = curve.get_value_map();

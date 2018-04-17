@@ -103,15 +103,18 @@ private:
 	bool curve_is_local_copy = false;
 	FCurve *fcurve;
 	PointerRNA id_ptr;
-
+	void init_pointer_rna(Object *ob);
 	void delete_fcurve(FCurve *fcu);
 	FCurve *create_fcurve(int array_index, const char *rna_path);
 	void create_bezt(float frame, float output);
+	void update_range(float val);
+	void init_range(float val);
 
 public:
 	BCAnimationCurve();
 	BCAnimationCurve(const BCAnimationCurve &other);
-	BCAnimationCurve(Object *ob, const BCCurveKey &key);
+	BCAnimationCurve(const BCCurveKey &key, Object *ob);
+	BCAnimationCurve(BCCurveKey key, Object *ob, FCurve *fcu);
 	~BCAnimationCurve();
 
 	const bool is_of_animation_type(BC_animation_type type) const;
@@ -120,6 +123,7 @@ public:
 	const bool is_transform_curve() const;
 	const bool is_rotation_curve() const;
 	bool is_keyframe(int frame);
+	void adjust_range(int frame);
 
 	const std::string get_animation_name(Object *ob) const; /* xxx: this is collada specific */
 	const std::string get_channel_target() const;
