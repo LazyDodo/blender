@@ -411,15 +411,13 @@ static void ignore_parent_tx(const bContext *C, Main *bmain, Scene *scene, Objec
 {
 	Object workob;
 	Object *ob_child;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	
 	/* a change was made, adjust the children to compensate */
 	for (ob_child = bmain->object.first; ob_child; ob_child = ob_child->id.next) {
 		if (ob_child->parent == ob) {
 			BKE_object_apply_mat4(ob_child, ob_child->obmat, true, false);
-			BKE_object_workob_calc_parent(&eval_ctx, scene, ob_child, &workob);
+			BKE_object_workob_calc_parent(depsgraph, scene, ob_child, &workob);
 			invert_m4_m4(ob_child->parentinv, workob.obmat);
 		}
 	}
@@ -432,12 +430,10 @@ static int apply_objects_internal(
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	float rsmat[3][3], obmat[3][3], iobmat[3][3], mat[4][4], scale;
 	bool changed = true;
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-	
 	/* first check if we can execute */
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
@@ -571,7 +567,7 @@ static int apply_objects_internal(
 			Mesh *me = ob->data;
 
 			if (apply_scale)
-				multiresModifier_scale_disp(&eval_ctx, scene, ob);
+				multiresModifier_scale_disp(depsgraph, scene, ob);
 			
 			/* adjust data */
 			BKE_mesh_transform(me, mat, true);
@@ -665,9 +661,9 @@ static int apply_objects_internal(
 			unit_axis_angle(ob->rotAxis, &ob->rotAngle);
 		}
 
-		BKE_object_where_is_calc(&eval_ctx, scene, ob);
+		BKE_object_where_is_calc(depsgraph, scene, ob);
 		if (ob->type == OB_ARMATURE) {
-			BKE_pose_where_is(&eval_ctx, scene, ob); /* needed for bone parents */
+			BKE_pose_where_is(depsgraph, scene, ob); /* needed for bone parents */
 		}
 
 		ignore_parent_tx(C, bmain, scene, ob);
@@ -690,16 +686,14 @@ static int apply_objects_internal(
 static int visual_transform_apply_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	bool changed = false;
-	
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
-		BKE_object_where_is_calc(&eval_ctx, scene, ob);
+		BKE_object_where_is_calc(depsgraph, scene, ob);
 		BKE_object_apply_mat4(ob, ob->obmat, true, true);
-		BKE_object_where_is_calc(&eval_ctx, scene, ob);
+		BKE_object_where_is_calc(depsgraph, scene, ob);
 
 		/* update for any children that may get moved */
 		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
@@ -783,7 +777,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	Object *obact = CTX_data_active_object(C);
 	Object *obedit = CTX_data_edit_object(C);
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *tob;
 	float cursor[3], cent[3], cent_neg[3], centn[3];
 	int centermode = RNA_enum_get(op->ptr, "type");
@@ -792,8 +786,6 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 	ListBase ctx_data_list;
 	CollectionPointerLink *ctx_ob;
 	CollectionPointerLink *ctx_ob_act = NULL;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	/* keep track of what is changed */
 	int tot_change = 0, tot_lib_error = 0, tot_multiuser_arm_error = 0;
@@ -910,7 +902,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 							float min[3], max[3];
 							/* only bounds support */
 							INIT_MINMAX(min, max);
-							BKE_object_minmax_dupli(scene, ob, min, max, true);
+							BKE_object_minmax_dupli(depsgraph, scene, ob, min, max, true);
 							mid_v3_v3v3(cent, min, max);
 							invert_m4_m4(ob->imat, ob->obmat);
 							mul_m4_v3(ob->imat, cent);
@@ -1027,8 +1019,8 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 					arm->id.tag |= LIB_TAG_DOIT;
 					/* do_inverse_offset = true; */ /* docenter_armature() handles this */
 
-					BKE_object_where_is_calc(&eval_ctx, scene, ob);
-					BKE_pose_where_is(&eval_ctx, scene, ob); /* needed for bone parents */
+					BKE_object_where_is_calc(depsgraph, scene, ob);
+					BKE_pose_where_is(depsgraph, scene, ob); /* needed for bone parents */
 
 					ignore_parent_tx(C, bmain, scene, ob);
 
@@ -1149,9 +1141,9 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 
 				add_v3_v3(ob->loc, centn);
 
-				BKE_object_where_is_calc(&eval_ctx, scene, ob);
+				BKE_object_where_is_calc(depsgraph, scene, ob);
 				if (ob->type == OB_ARMATURE) {
-					BKE_pose_where_is(&eval_ctx, scene, ob); /* needed for bone parents */
+					BKE_pose_where_is(depsgraph, scene, ob); /* needed for bone parents */
 				}
 
 				ignore_parent_tx(C, bmain, scene, ob);
@@ -1178,9 +1170,9 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 						mul_v3_mat3_m4v3(centn, ob_other->obmat, cent); /* omit translation part */
 						add_v3_v3(ob_other->loc, centn);
 
-						BKE_object_where_is_calc(&eval_ctx, scene, ob_other);
+						BKE_object_where_is_calc(depsgraph, scene, ob_other);
 						if (ob_other->type == OB_ARMATURE) {
-							BKE_pose_where_is(&eval_ctx, scene, ob_other); /* needed for bone parents */
+							BKE_pose_where_is(depsgraph, scene, ob_other); /* needed for bone parents */
 						}
 						ignore_parent_tx(C, bmain, scene, ob_other);
 					}
@@ -1394,11 +1386,7 @@ static int object_transform_axis_target_invoke(bContext *C, wmOperator *op, cons
 		return OPERATOR_PASS_THROUGH;
 	}
 
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	ED_view3d_autodist_init(&eval_ctx, vc.depsgraph, vc.ar, vc.v3d, 0);
+	ED_view3d_autodist_init(vc.depsgraph, vc.ar, vc.v3d, 0);
 
 	if (vc.rv3d->depths != NULL) {
 		vc.rv3d->depths->damaged = true;

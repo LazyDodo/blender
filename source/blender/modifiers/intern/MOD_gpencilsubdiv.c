@@ -61,7 +61,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 }
 
 /* subdivide stroke to get more control points */
-static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_ctx),
+static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilSubdivModifierData *mmd = (GpencilSubdivModifierData *)md;
@@ -143,7 +143,7 @@ static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_
 	}
 }
 
-static void bakeModifierGP(const bContext *UNUSED(C), const EvaluationContext *eval_ctx,
+static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
@@ -151,7 +151,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), const EvaluationContext *e
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				deformStroke(md, eval_ctx, ob, gpl, gps);
+				deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}

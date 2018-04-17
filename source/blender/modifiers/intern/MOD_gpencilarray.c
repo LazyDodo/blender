@@ -132,7 +132,7 @@ void BKE_gpencil_array_modifier_instance_tfm(GpencilArrayModifierData *mmd, cons
 
 /* array modifier - generate geometry callback (for viewport/rendering) */
 /* TODO: How to skip this for the simplify options?   -->  !GP_SIMPLIFY_MODIF(ts, playing) */
-static void generate_geometry(ModifierData *md, const EvaluationContext *UNUSED(eval_ctx),
+static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf,
 	                          int modifier_index)
 {
@@ -242,14 +242,14 @@ static void generate_geometry(ModifierData *md, const EvaluationContext *UNUSED(
 }
 
 /* bakeModifierGP - "Bake to Data" Mode */
-static void bakeModifierGP_strokes(const bContext *UNUSED(C), const EvaluationContext *eval_ctx,
+static void bakeModifierGP_strokes(const bContext *UNUSED(C), Depsgraph *depsgraph,
                                       ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 	
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			generate_geometry(md, eval_ctx, ob, gpl, gpf, -1);
+			generate_geometry(md, depsgraph, ob, gpl, gpf, -1);
 		}
 	}
 }
@@ -344,7 +344,7 @@ static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *
 /* -------------------------------- */
 
 /* Generic "generateStrokes" callback */
-static void generateStrokes(ModifierData *md, const EvaluationContext *eval_ctx,
+static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	                        Object *ob, bGPDlayer *gpl, bGPDframe *gpf,
 	                        int modifier_index)
 {
@@ -359,12 +359,12 @@ static void generateStrokes(ModifierData *md, const EvaluationContext *eval_ctx,
 	 *        working functionality
 	 */
 	if ((mmd->flag & GP_ARRAY_MAKE_OBJECTS) == 0) {
-		generate_geometry(md, eval_ctx, ob, gpl, gpf, modifier_index);
+		generate_geometry(md, depsgraph, ob, gpl, gpf, modifier_index);
 	}
 }
 
 /* Generic "bakeModifierGP" callback */
-static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
+static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	GpencilArrayModifierData *mmd = (GpencilArrayModifierData *)md;
@@ -376,7 +376,7 @@ static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
 		bakeModifierGP_objects(C, md, ob);
 	}
 	else {
-		bakeModifierGP_strokes(C, eval_ctx, md, ob);
+		bakeModifierGP_strokes(C, depsgraph, md, ob);
 	}
 }
 

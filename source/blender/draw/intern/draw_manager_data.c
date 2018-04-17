@@ -211,6 +211,12 @@ void DRW_shgroup_uniform_mat4(DRWShadingGroup *shgroup, const char *name, const 
 	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_FLOAT, value, 16, 1);
 }
 
+/* Stores the int instead of a pointer. */
+void DRW_shgroup_uniform_int_copy(DRWShadingGroup *shgroup, const char *name, const int value)
+{
+	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_INT_COPY, SET_INT_IN_POINTER(value), 1, 1);
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -498,6 +504,7 @@ static void drw_shgroup_init(DRWShadingGroup *shgroup, GPUShader *shader)
 	shgroup->normalworld = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_WORLDNORMAL);
 	shgroup->orcotexfac = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_ORCO);
 	shgroup->eye = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_EYE);
+	shgroup->callid = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_CALLID);
 
 	shgroup->matflag = 0;
 	if (shgroup->modelinverse > -1)

@@ -63,7 +63,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 }
 
 /* opacity strokes */
-static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_ctx),
+static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilOpacityModifierData *mmd = (GpencilOpacityModifierData *)md;

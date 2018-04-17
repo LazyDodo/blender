@@ -55,7 +55,7 @@
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
 
- /* temp struct to hold data */
+/* temp struct to hold data */
 struct GPHookData_cb {
 	struct CurveMapping *curfalloff;
 
@@ -187,7 +187,7 @@ static void gp_hook_co_apply(struct GPHookData_cb *tData, float weight, bGPDspoi
 }
 
 /* deform stroke */
-static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_ctx),
+static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilHookModifierData *mmd = (GpencilHookModifierData *)md;
@@ -251,7 +251,8 @@ static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_
 	}
 }
 
-static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
+// FIXME: Shares code with lattice modifier...
+static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	GpencilHookModifierData *mmd = (GpencilHookModifierData *)md;

@@ -69,7 +69,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 	modifier_copyData_generic(md, target);
 }
 
-static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_ctx),
+static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilLatticeModifierData *mmd = (GpencilLatticeModifierData *)md;
@@ -99,6 +99,7 @@ static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_
 	}
 }
 
+// FIXME: Shares code with hook modifier...
 static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
                            ModifierData *md, Object *ob)
 {

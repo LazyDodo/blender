@@ -2000,6 +2000,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object  *obact = CTX_data_active_object(C);
 	bGPdata *gpd_dst = NULL;
 	bool ok = false;
@@ -2058,7 +2059,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				for (ModifierData *md = base->object->modifiers.first; md; md = md->next) {
 					const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 					if (mti->bakeModifierGP) {
-						mti->bakeModifierGP(C, bmain->eval_ctx, md, base->object);
+						mti->bakeModifierGP(C, depsgraph, md, base->object);
 					}
 				}
 

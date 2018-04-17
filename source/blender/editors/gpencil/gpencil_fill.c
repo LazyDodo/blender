@@ -85,7 +85,6 @@ typedef struct tGPDfill {
 	struct wmWindow *win;               /* window where painting originated */
 	struct Scene *scene;                /* current scene from context */
 	struct Object *ob;                  /* current active gp object */
-	struct EvaluationContext *eval_ctx; /* eval context */
 	struct ScrArea *sa;                 /* area where painting originated */
 	struct RegionView3D *rv3d;          /* region where painting originated */
 	struct View3D *v3d;                 /* view3 where painting originated */
@@ -304,7 +303,7 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	ED_view3d_update_viewmat(tgpf->eval_ctx, tgpf->scene, tgpf->v3d, tgpf->ar,
+	ED_view3d_update_viewmat(tgpf->depsgraph, tgpf->scene, tgpf->v3d, tgpf->ar,
 							NULL, winmat, NULL);
 	/* set for opengl */
 	gpuLoadProjectionMatrix(tgpf->rv3d->winmat);
@@ -729,7 +728,7 @@ static void gpencil_get_depth_array(tGPDfill *tgpf)
 	if (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_VIEW) {
 		/* need to restore the original projection settings before packing up */
 		view3d_region_operator_needs_opengl(tgpf->win, tgpf->ar);
-		ED_view3d_autodist_init(tgpf->eval_ctx, tgpf->depsgraph, tgpf->ar, tgpf->v3d, 0);
+		ED_view3d_autodist_init(tgpf->depsgraph, tgpf->ar, tgpf->v3d, 0);
 
 		/* since strokes are so fine, when using their depth we need a margin otherwise they might get missed */
 		int depth_margin = 0;
@@ -963,7 +962,6 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->ob = CTX_data_active_object(C);
 	tgpf->sa = CTX_wm_area(C);
 	tgpf->ar = CTX_wm_region(C);
-	tgpf->eval_ctx = bmain->eval_ctx;
 	tgpf->rv3d = tgpf->ar->regiondata;
 	tgpf->v3d = tgpf->sa->spacedata.first;
 	tgpf->depsgraph = CTX_data_depsgraph(C);

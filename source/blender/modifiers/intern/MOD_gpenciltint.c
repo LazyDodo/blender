@@ -65,7 +65,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 }
 
 /* tint strokes */
-static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_ctx),
+static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
@@ -101,7 +101,7 @@ static void deformStroke(ModifierData *md, const EvaluationContext *UNUSED(eval_
 	}
 }
 
-static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
+static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
@@ -143,7 +143,7 @@ static void bakeModifierGP(const bContext *C, const EvaluationContext *eval_ctx,
 					}
 					BLI_ghash_insert(gh_color, gps->palcolor->info, newpalcolor);
 
-					deformStroke(md, eval_ctx, ob, gpl, gps);
+					deformStroke(md, depsgraph, ob, gpl, gps);
 				}
 				else {
 					gps->palcolor = newpalcolor;
