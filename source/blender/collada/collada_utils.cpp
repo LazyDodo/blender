@@ -46,6 +46,7 @@ extern "C" {
 #include "BLI_math.h"
 #include "BLI_linklist.h"
 
+#include "BKE_action.h"
 #include "BKE_context.h"
 #include "BKE_customdata.h"
 #include "BKE_constraint.h"
@@ -911,6 +912,73 @@ static bool has_custom_props(Bone *bone, bool enabled, std::string key)
 		||	bc_get_IDProperty(bone, key + "_y")
 		||	bc_get_IDProperty(bone, key + "_z"));
 
+}
+
+void bc_enable_fcurves(bAction *act, char *bone_name)
+{
+	FCurve *fcu;
+	char prefix[200];
+
+	if (bone_name)
+		BLI_snprintf(prefix, sizeof(prefix), "pose.bones[\"%s\"]", bone_name);
+
+	for (fcu = (FCurve *)act->curves.first; fcu; fcu = fcu->next) {
+		if (bone_name) {
+			if (STREQLEN(fcu->rna_path, prefix, strlen(prefix)))
+				fcu->flag &= ~FCURVE_DISABLED;
+			else
+				fcu->flag |= FCURVE_DISABLED;
+		}
+		else {
+			fcu->flag &= ~FCURVE_DISABLED;
+		}
+	}
+}
+
+bool bc_bone_matrix_local_get(Object *ob, Bone *bone, Matrix &mat, bool for_opensim)
+{
+
+	/* Ok, lets be super cautious and check if the bone exists */
+	bPose *pose = ob->pose;
+	bPoseChannel *pchan = BKE_pose_channel_find_name(pose, bone->name);
+	if (!pchan) {
+		return false;
+	}
+
+	bAction *action = bc_getSceneObjectAction(ob);
+	bPoseChannel *parchan = pchan->parent;
+
+	bc_enable_fcurves(action, bone->name);
+	float ipar[4][4];
+
+	if (bone->parent) {
+		invert_m4_m4(ipar, parchan->pose_mat);
+		mul_m4_m4m4(mat, ipar, pchan->pose_mat);
+	}
+	else
+		copy_m4_m4(mat, pchan->pose_mat);
+
+	/* OPEN_SIM_COMPATIBILITY
+	* AFAIK animation to second life is via BVH, but no
+	* reason to not have the collada-animation be correct
+	*/
+	if (for_opensim) {
+		float temp[4][4];
+		copy_m4_m4(temp, bone->arm_mat);
+		temp[3][0] = temp[3][1] = temp[3][2] = 0.0f;
+		invert_m4(temp);
+
+		mul_m4_m4m4(mat, mat, temp);
+
+		if (bone->parent) {
+			copy_m4_m4(temp, bone->parent->arm_mat);
+			temp[3][0] = temp[3][1] = temp[3][2] = 0.0f;
+
+			mul_m4_m4m4(mat, temp, mat);
+		}
+	}
+	bc_enable_fcurves(action, NULL);
+	return true;
 }
 
 /**

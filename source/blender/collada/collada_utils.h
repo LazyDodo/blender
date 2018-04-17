@@ -68,6 +68,7 @@ extern "C" {
 
 typedef std::map<COLLADAFW::TextureMapId, std::vector<MTex *> > TexIndexTextureArrayMap;
 typedef std::set<Object *> BCObjectSet;
+typedef float(Matrix)[4][4];
 
 extern EvaluationContext *bc_get_evaluation_context(const bContext *C);
 extern void bc_update_scene(const bContext *C, Scene *scene, float ctime);
@@ -203,6 +204,9 @@ extern void bc_set_IDPropertyMatrix(EditBone *ebone, const char *key, float mat[
 extern float bc_get_property(Bone *bone, std::string key, float def);
 extern void bc_get_property_vector(Bone *bone, std::string key, float val[3], const float def[3]);
 extern bool bc_get_property_matrix(Bone *bone, std::string key, float mat[4][4]);
+
+extern void bc_enable_fcurves(bAction *act, char *bone_name);
+extern bool bc_bone_matrix_local_get(Object *ob, Bone *bone, Matrix &mat, bool for_opensim);
 
 extern void bc_create_restpose_mat(const ExportSettings *export_settings, Bone *bone, float to_mat[4][4], float world[4][4], bool use_local_space);
 

@@ -28,6 +28,7 @@
 
 #include "BCAnimationCurve.h"
 #include "BCSampleData.h"
+#include "collada_utils.h"
 
 extern "C" {
 #include "BKE_action.h"
@@ -160,10 +161,6 @@ private:
 
 	void update_animation_curves(BCAnimation &animation, Object *ob, int frame_index);
 	void check_property_is_animated(BCAnimation &animation, float *ref, float *val, std::string data_path, int length);
-
-	/* Helper methods */
-	static void enable_fcurves(bAction *act, char *bone_name);
-	static bool bone_matrix_local_get(Object *ob, Bone *bone, Matrix &mat, bool for_opensim);
 
 public:
 
