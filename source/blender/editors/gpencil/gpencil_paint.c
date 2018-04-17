@@ -2822,7 +2822,7 @@ static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEven
 		sub_v2_v2v2(pt, b, pt);
 		/* create fake event */
 		gpencil_draw_apply_event(C, op, event, CTX_data_depsgraph(C),
-			(int)pt[0], (int)pt[1]);
+		                         (int)pt[0], (int)pt[1]);
 	}
 	else if (dist >= factor) {
 		int slices = 2 + (int)((dist - 1.0) / factor);
@@ -2832,7 +2832,7 @@ static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEven
 			sub_v2_v2v2(pt, b, pt);
 			/* create fake event */
 			gpencil_draw_apply_event(C, op, event, CTX_data_depsgraph(C),
-									(int)pt[0], (int)pt[1]);
+			                         (int)pt[0], (int)pt[1]);
 		}
 	}
 }

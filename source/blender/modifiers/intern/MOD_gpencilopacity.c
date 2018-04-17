@@ -67,9 +67,8 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilOpacityModifierData *mmd = (GpencilOpacityModifierData *)md;
+	PaletteColor *palcolor = gps->palcolor;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
-	bGPDspoint *pt;
-	float weight;
 
 	if (!is_stroke_affected_by_modifier(
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
@@ -78,26 +77,26 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 		return;
 	}
 	
-	gps->palcolor->fill[3] = gps->palcolor->fill[3] * mmd->factor;
+	palcolor->fill[3]*= mmd->factor;
 
 	/* if factor is > 1, then force opacity */
 	if (mmd->factor > 1.0f) {
-		gps->palcolor->rgb[3] += mmd->factor - 1.0f;
-		if (gps->palcolor->fill[3] > 1e-5) {
-			gps->palcolor->fill[3] += mmd->factor - 1.0f;
+		palcolor->rgb[3] += mmd->factor - 1.0f;
+		if (palcolor->fill[3] > 1e-5) {
+			palcolor->fill[3] += mmd->factor - 1.0f;
 		}
 	}
 
-	CLAMP(gps->palcolor->rgb[3], 0.0f, 1.0f);
-	CLAMP(gps->palcolor->fill[3], 0.0f, 1.0f);
+	CLAMP(palcolor->rgb[3], 0.0f, 1.0f);
+	CLAMP(palcolor->fill[3], 0.0f, 1.0f);
 
 	/* if opacity > 1.0, affect the strength of the stroke */
 	if (mmd->factor > 1.0f) {
 		for (int i = 0; i < gps->totpoints; i++) {
-			pt = &gps->points[i];
+			bGPDspoint *pt = &gps->points[i];
 			
 			/* verify vertex group */
-			weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OPACITY_INVERSE_VGROUP) == 0), vindex);
+			float weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OPACITY_INVERSE_VGROUP) == 0), vindex);
 			if (weight < 0) {
 				pt->strength += mmd->factor - 1.0f;
 			}
@@ -109,14 +108,14 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 	else {
 		for (int i = 0; i < gps->totpoints; i++) {
-			pt = &gps->points[i];
+			bGPDspoint *pt = &gps->points[i];
 
 			/* verify vertex group */
 			if (mmd->vgname == NULL) {
 				pt->strength *= mmd->factor;
 			}
 			else {
-				weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OPACITY_INVERSE_VGROUP) == 0), vindex);
+				float weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OPACITY_INVERSE_VGROUP) == 0), vindex);
 				if (weight >= 0) {
 					pt->strength *= mmd->factor * weight;
 				}
