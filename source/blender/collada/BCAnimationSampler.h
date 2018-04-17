@@ -156,11 +156,10 @@ private:
 	void check_property_is_animated(BCAnimation &animation, float *ref, float *val, std::string data_path, int length);
 
 public:
-	BCAnimationSampler(bContext *C);
+	BCAnimationSampler(bContext *C, BCObjectSet &animated_subset);
 	~BCAnimationSampler();
 
 	void add_object(Object *ob);
-	void add_objects(BCObjectSet &animated_subset);
 
 	void sample_scene(Scene *scene,
 		int sampling_rate,

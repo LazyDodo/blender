@@ -86,15 +86,14 @@ int AnimationExporter::exportAnimations(Scene *sce)
 	if (has_anim_data) {
 
 		this->scene = sce;
-		this->animation_sampler = new BCAnimationSampler(mContext);
 
 		BCObjectSet animated_subset;
 		BCAnimationSampler::get_animated_from_export_set(animated_subset, export_set);
 		animation_count = animated_subset.size();
-		animation_sampler->add_objects(animated_subset);
+		BCAnimationSampler animation_sampler(mContext, animated_subset);
 
 		try {
-			animation_sampler->sample_scene(scene,
+			animation_sampler.sample_scene(scene,
 				export_settings->sampling_rate,
 				/*keyframe_at_end = */ true,
 				export_settings->open_sim,
@@ -107,7 +106,7 @@ int AnimationExporter::exportAnimations(Scene *sce)
 			BCObjectSet::iterator it;
 			for (it = animated_subset.begin(); it != animated_subset.end(); ++it) {
 				Object *ob = *it;
-				exportAnimation(ob, *animation_sampler);
+				exportAnimation(ob, animation_sampler);
 			}
 		}
 		catch (std::invalid_argument &iae)
@@ -116,7 +115,6 @@ int AnimationExporter::exportAnimations(Scene *sce)
 			fprintf(stderr, "Exception was: %s", iae.what());
 		}
 
-		delete animation_sampler;
 		closeLibrary();
 
 #if 0
