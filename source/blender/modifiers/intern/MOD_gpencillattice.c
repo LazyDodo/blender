@@ -99,30 +99,21 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-// FIXME: Shares code with hook modifier...
+/* FIXME: Ideally we be doing this on a copy of the main depsgraph
+ * (i.e. one where we don't have to worry about restoring state)
+ */
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
-	(void)C;
-	(void)depsgraph;
-	(void)md;
-	(void)ob;
-	
-#if 0 // FIXME
 	GpencilLatticeModifierData *mmd = (GpencilLatticeModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = md->scene;
 	LatticeDeformData *ldata = NULL;
 	bGPdata *gpd = ob->data;
 	int oldframe = CFRA;
-	/* Get depsgraph and scene layer */
-	ViewLayer *view_layer = BKE_view_layer_from_scene_get(scene);
-	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, false);
 
 	if (mmd->object == NULL)
 		return;
-
-	struct EvaluationContext eval_ctx_copy = *eval_ctx;
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
@@ -137,7 +128,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 			
 			/* compute lattice effects on this frame */
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				deformStroke(md, &eval_ctx_copy, ob, gpl, gps);
+				deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
@@ -152,7 +143,6 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	/* return frame state and DB to original state */
 	CFRA = oldframe;
 	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
-#endif
 }
 
 static void freeData(ModifierData *md)
