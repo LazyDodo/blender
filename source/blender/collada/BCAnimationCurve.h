@@ -56,7 +56,7 @@ typedef enum BC_animation_type {
 	BC_ANIMATION_TYPE_LIGHT
 } BC_animation_type;
 
-class CurveKey {
+class BCCurveKey {
 private:
 	BC_animation_type key_type;
 	std::string rna_path;
@@ -65,16 +65,16 @@ private:
 
 public:
 
-	CurveKey();
-	CurveKey(const BC_animation_type type, const std::string path, const int array_index, const int subindex = -1);
-	void operator=(const CurveKey &other);
+	BCCurveKey();
+	BCCurveKey(const BC_animation_type type, const std::string path, const int array_index, const int subindex = -1);
+	void operator=(const BCCurveKey &other);
 	const std::string get_full_path() const;
 	const std::string get_path() const;
 	const int get_array_index() const;
 	const int get_subindex() const;
 	void set_object_type(BC_animation_type object_type);
 	const BC_animation_type get_animation_type() const;
-	const bool operator<(const CurveKey &other) const;
+	const bool operator<(const BCCurveKey &other) const;
 
 };
 
@@ -95,7 +95,7 @@ public:
 
 class BCAnimationCurve {
 private:
-	CurveKey curve_key;
+	BCCurveKey curve_key;
 	BCValueMap samples;
 	float min = 0;
 	float max = 0;
@@ -111,7 +111,7 @@ private:
 public:
 	BCAnimationCurve();
 	BCAnimationCurve(const BCAnimationCurve &other);
-	BCAnimationCurve(Object *ob, const CurveKey &key);
+	BCAnimationCurve(Object *ob, const BCCurveKey &key);
 	~BCAnimationCurve();
 
 	const bool is_of_animation_type(BC_animation_type type) const;
@@ -150,6 +150,6 @@ public:
 
 };
 
-typedef std::map<CurveKey, BCAnimationCurve *> BCAnimationCurveMap;
+typedef std::map<BCCurveKey, BCAnimationCurve *> BCAnimationCurveMap;
 
 #endif

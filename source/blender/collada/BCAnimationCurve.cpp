@@ -47,7 +47,7 @@ BCAnimationCurve::BCAnimationCurve(const BCAnimationCurve &other)
 	get_edit_fcurve();
 }
 
-BCAnimationCurve::BCAnimationCurve(Object *ob, const CurveKey &key)
+BCAnimationCurve::BCAnimationCurve(Object *ob, const BCCurveKey &key)
 {
 	this->curve_key = key;
 	this->fcurve = NULL;
@@ -573,7 +573,7 @@ inline bool operator< (const BCAnimationCurve& lhs, const BCAnimationCurve& rhs)
 		return lhtgt < rhtgt;
 }
 
-CurveKey::CurveKey()
+BCCurveKey::BCCurveKey()
 {
 	this->key_type = BC_ANIMATION_TYPE_OBJECT;
 	this->rna_path = "";
@@ -581,7 +581,7 @@ CurveKey::CurveKey()
 	this->curve_subindex = -1;
 }
 
-CurveKey::CurveKey(const BC_animation_type type, const std::string path, const int array_index, const int subindex)
+BCCurveKey::BCCurveKey(const BC_animation_type type, const std::string path, const int array_index, const int subindex)
 {
 	this->key_type = type;
 	this->rna_path = path;
@@ -589,7 +589,7 @@ CurveKey::CurveKey(const BC_animation_type type, const std::string path, const i
 	this->curve_subindex = subindex;
 }
 
-void CurveKey::operator=(const CurveKey &other)
+void BCCurveKey::operator=(const BCCurveKey &other)
 {
 	this->key_type = other.key_type;
 	this->rna_path = other.rna_path;
@@ -597,37 +597,37 @@ void CurveKey::operator=(const CurveKey &other)
 	this->curve_subindex = other.curve_subindex;
 }
 
-const std::string CurveKey::get_full_path() const
+const std::string BCCurveKey::get_full_path() const
 {
 	return this->rna_path + '[' + std::to_string(this->curve_array_index) + ']';
 }
 
-const std::string CurveKey::get_path() const
+const std::string BCCurveKey::get_path() const
 {
 	return this->rna_path;
 }
 
-const int CurveKey::get_array_index() const
+const int BCCurveKey::get_array_index() const
 {
 	return this->curve_array_index;
 }
 
-const int CurveKey::get_subindex() const
+const int BCCurveKey::get_subindex() const
 {
 	return this->curve_subindex;
 }
 
-void CurveKey::set_object_type(BC_animation_type object_type)
+void BCCurveKey::set_object_type(BC_animation_type object_type)
 {
 	this->key_type = object_type;
 }
 
-const BC_animation_type CurveKey::get_animation_type() const
+const BC_animation_type BCCurveKey::get_animation_type() const
 {
 	return this->key_type;
 }
 
-const bool CurveKey::operator<(const CurveKey &other) const
+const bool BCCurveKey::operator<(const BCCurveKey &other) const
 {
 	/* needed for using this class as key in maps and sets */
 	if (this->key_type != other.key_type)

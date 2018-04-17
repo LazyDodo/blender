@@ -59,21 +59,18 @@ class BCSampleFrame {
 
 	/*
 	Each frame on the timeline that needs to be sampled will have
-	one BCSampleFrame where we collect all objects that need to be sampled
-	for the frame. The BCSampleFrame objects are stored in a BCSampleMap which uses
-	a BCSampleKey to identify the sampled object and a BCMatrix which contains
-	the transform data for the item. Note that one item can have
-	multiple Transformation FCurves. However all those FCurves can be feeded by the BCMatrix.
+	one BCSampleFrame where we collect sample information about all objects
+	that need to be sampled for that frame.
 	*/
 
 private:
-	BCSampleKeysMap sampleMap;
+	BCSampleMap sampleMap;
 
 public:
 
 	~BCSampleFrame()
 	{
-		BCSampleKeysMap::iterator it;
+		BCSampleMap::iterator it;
 		for (it = sampleMap.begin(); it != sampleMap.end(); ++it) {
 			BCSample *sample = it->second;
 			delete sample;
@@ -83,10 +80,10 @@ public:
 
 	BCSample &add(Object *ob);
 
-	/* Following methods can return NULL */
-	const BCSample *get_sample(Object *ob) const; // NULL if object is not sampled
-	const BCMatrix *get_sample_matrix(Object *ob) const; // NULL if object is not sampled
-	const BCMatrix *get_sample_matrix(Object *ob, Bone *bone) const; // NULL if object or bone not sampled
+	/* Following methods return NULL if object is not in the sampleMap*/
+	const BCSample *get_sample(Object *ob) const;
+	const BCMatrix *get_sample_matrix(Object *ob) const;
+	const BCMatrix *get_sample_matrix(Object *ob, Bone *bone) const;
 
 	const bool has_sample_for(Object *ob) const;
 	const bool has_sample_for(Object *ob, Bone *bone) const;
@@ -94,11 +91,11 @@ public:
 
 typedef std::map<int, BCSampleFrame> BCSampleFrameMap;
 
-class BCSampleFrames {
+class BCSampleFrameContainer {
 
 	/*
-	An Animation is made of multiple FCurve keyframes or sample frames 
-	within a timeline.  When we want to export the animation we
+	An Animation is made of multiple FCurve where each FCurve can have multiple
+	keyframes. When we want to export the animation we
 	first need to resample it fully to resolve things like:
 
 	- animations by constraints
@@ -110,18 +107,7 @@ class BCSampleFrames {
 	sampleFrame. Then for each frame we have to store the transform
 	information for all exported objects.
 
-	This is HERE! The BCSampleFrames class is a collector for all that information.
-	The basic idea is:
-
-	for each frame in the scene action:
-	    for each object(and bone) that needs to be sampled in this frame:
-			sample_frames.add(ob, matrix, frame_index)
-			for each bone (when its an armature):
-				sample_frames.add(object, bone, matrix, frame_index)
-	
-	Once the scene is fully sampled, we can get all export data from the
-	BCSampleFrames instance without need to reevaluate things over and
-	over again.
+	This is HERE! The BCSampleFrames object stores a map of BCSampleFrame objects with the timline frame as key.
 	*/
 
 private:
@@ -129,7 +115,7 @@ private:
 
 public:
 
-	~BCSampleFrames()
+	~BCSampleFrameContainer()
 	{
 		int x = 0;
 	}
@@ -149,10 +135,10 @@ public:
 class BCAnimationSampler {
 private:
 	bContext *mContext;
-	BCSampleFrames sample_data;
+	BCSampleFrameContainer sample_data;
 	BCAnimationObjectMap objects;
 
-	void generate_transform(Object *ob, const CurveKey &key, BCAnimationCurveMap &curves);
+	void generate_transform(Object *ob, const BCCurveKey &key, BCAnimationCurveMap &curves);
 	void generate_transforms(Object *ob, const std::string prep, const BC_animation_type type, BCAnimationCurveMap &curves);
 	void generate_transforms(Object *ob, Bone *bone, BCAnimationCurveMap &curves);
 

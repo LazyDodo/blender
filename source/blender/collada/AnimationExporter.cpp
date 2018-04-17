@@ -270,14 +270,14 @@ BCAnimationCurve *AnimationExporter::get_modified_export_curve(Object *ob, BCAni
 
 		/* Create an xfov curve */
 
-		CurveKey key(BC_ANIMATION_TYPE_CAMERA, "xfov", 0);
+		BCCurveKey key(BC_ANIMATION_TYPE_CAMERA, "xfov", 0);
 		mcurve = new BCAnimationCurve(ob, key);
 
 		// now tricky part: transform the fcurve
 		const BCValueMap &lens_values = curve.get_value_map();
 
 		BCAnimationCurve *sensor_curve = NULL;
-		CurveKey sensor_key(BC_ANIMATION_TYPE_CAMERA, "sensor_width", 0);
+		BCCurveKey sensor_key(BC_ANIMATION_TYPE_CAMERA, "sensor_width", 0);
 		BCAnimationCurveMap::iterator cit = curves.find(sensor_key);
 		if (cit != curves.end()) {
 			sensor_curve = cit->second;
