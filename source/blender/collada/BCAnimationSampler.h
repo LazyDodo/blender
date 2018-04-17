@@ -160,21 +160,9 @@ private:
 	BCSampleFrames sample_data;
 	BCAnimationObjectMap objects;
 
-	void generate_transform(
-		Object *ob,
-		const CurveKey &key,
-		BCAnimationCurveMap &curves);
-
-	void generate_transforms(
-		Object *ob,
-		const std::string prep,
-		const BC_animation_type type,
-		BCAnimationCurveMap &curves);
-
-	void generate_transforms(
-		Object *ob,
-		Bone *bone,
-		BCAnimationCurveMap &curves);
+	void generate_transform(Object *ob, const CurveKey &key, BCAnimationCurveMap &curves);
+	void generate_transforms(Object *ob, const std::string prep, const BC_animation_type type, BCAnimationCurveMap &curves);
+	void generate_transforms(Object *ob, Bone *bone, BCAnimationCurveMap &curves);
 
 	void initialize_curves(BCAnimationCurveMap &curves, Object *ob);
 	void initialize_keyframes(BCFrameSet &frameset, Object *ob);
@@ -184,10 +172,7 @@ private:
 
 	/* Helper methods */
 	static void enable_fcurves(bAction *act, char *bone_name);
-	static bool bone_matrix_local_get(Object *ob,
-		Bone *bone,
-		float(&mat)[4][4],
-		bool for_opensim);
+	static bool bone_matrix_local_get(Object *ob, Bone *bone, Matrix &mat, bool for_opensim);
 
 public:
 
@@ -213,14 +198,12 @@ public:
 	void get_bone_frames(BCFrames &frames, Object *ob, Bone *bone);
 	bool get_bone_samples(BCMatrixSampleMap &samples, Object *ob, Bone *bone);
 
-
 	static void get_animated_from_export_set(std::set<Object *> &animated_objects, LinkNode &export_set);
 	static void find_depending_animated(std::set<Object *> &animated_objects, std::set<Object *> &candidates);
 	static bool is_animated_by_constraint(Object *ob, ListBase *conlist, std::set<Object *> &animated_objects);
 
 	static bool has_animations(Scene *sce, LinkNode &node);
 	static bool has_animations(Object *ob);
-
 
 };
 
