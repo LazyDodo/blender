@@ -61,6 +61,8 @@
 #include "BKE_gpencil.h"
 #include "BKE_image.h"
 
+#include "DEG_depsgraph.h"
+
 #include "WM_api.h"
 
 #include "BIF_glutil.h"
@@ -1959,7 +1961,7 @@ void ED_gpencil_draw_view3d(wmWindowManager *wm,
 /* draw grease-pencil sketches to specified 3d-view for gp object
  * assuming that matrices are already set correctly 
  */
-void ED_gpencil_draw_view3d_object(wmWindowManager *wm, Scene *scene, const struct Depsgraph *depsgraph, Object *ob, View3D *v3d, ARegion *ar, bool only3d)
+void ED_gpencil_draw_view3d_object(wmWindowManager *wm, Scene *scene, Depsgraph *depsgraph, Object *ob, View3D *v3d, ARegion *ar, bool only3d)
 {
 	int dflag = 0;
 	RegionView3D *rv3d = ar->regiondata;

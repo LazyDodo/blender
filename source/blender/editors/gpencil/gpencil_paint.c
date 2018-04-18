@@ -2401,7 +2401,7 @@ static void gpencil_draw_apply(bContext *C, wmOperator *op, tGPsdata *p, Depsgra
 }
 
 /* handle draw event */
-static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent *event, const Depsgraph *depsgraph, int x, int y)
+static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent *event, Depsgraph *depsgraph, int x, int y)
 {
 	tGPsdata *p = op->customdata;
 	PointerRNA itemptr;

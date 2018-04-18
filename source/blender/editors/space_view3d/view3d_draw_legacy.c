@@ -1488,7 +1488,7 @@ CustomDataMask ED_view3d_screen_datamask(const Scene *scene, const bScreen *scre
 /**
 * Draw grease pencil object strokes
 */
-static void draw_gpencil_object_strokes(const bContext *C, Scene *scene, const struct Depsgraph *depsgraph, View3D *v3d, ARegion *ar, Base *base)
+static void draw_gpencil_object_strokes(const bContext *C, Scene *scene, Depsgraph *depsgraph, View3D *v3d, ARegion *ar, Base *base)
 {
 	const bool render_override = (v3d->flag2 & V3D_RENDER_OVERRIDE) != 0;
 	Object *ob = base->object;
@@ -1524,7 +1524,7 @@ static int compare_gpencil_zdepth(const void *a1, const void *a2)
 }
 
 /* draw objects in cache from back to from */
-static void gpencil_draw_objects(const bContext *C,	Scene *scene, const struct Depsgraph *depsgraph, View3D *v3d, ARegion *ar, tGPencilSort *cache, int gp_cache_used)
+static void gpencil_draw_objects(const bContext *C,	Scene *scene, Depsgraph *depsgraph, View3D *v3d, ARegion *ar, tGPencilSort *cache, int gp_cache_used)
 {
 	if (gp_cache_used > 0) {
 		/* sort by zdepth */
