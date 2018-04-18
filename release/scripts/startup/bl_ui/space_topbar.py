@@ -71,11 +71,6 @@ class TOPBAR_HT_upper_bar(Header):
         layout = self.layout
 
         window = context.window
-        workspace = context.workspace
-        view_render = workspace.view_render
-
-        if view_render.has_multiple_engines:
-            layout.prop(view_render, "engine", text="")
 
         layout.template_ID(window, "scene", new="scene.new", unlink="scene.delete")
 
@@ -128,14 +123,9 @@ class TOPBAR_MT_editor_menus(Menu):
 
     @staticmethod
     def draw_menus(layout, context):
-        view_render = context.view_render
-
         layout.menu("TOPBAR_MT_file")
 
-        if view_render.use_game_engine:
-            layout.menu("TOPBAR_MT_game")
-        else:
-            layout.menu("TOPBAR_MT_render")
+        layout.menu("TOPBAR_MT_render")
 
         layout.menu("TOPBAR_MT_window")
         layout.menu("TOPBAR_MT_help")
