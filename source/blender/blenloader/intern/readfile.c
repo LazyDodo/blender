@@ -5564,6 +5564,8 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 			direct_link_hair(fd, fmd->hair_system);
 			
 			fmd->draw_settings = newdataadr(fd, fmd->draw_settings);
+
+			BLI_listbase_clear(&fmd->guide_curves); // runtime
 		}
 	}
 }

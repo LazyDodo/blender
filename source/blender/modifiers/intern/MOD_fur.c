@@ -35,6 +35,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "BLI_utildefines.h"
+#include "BLI_listbase.h"
 
 #include "DNA_object_types.h"
 #include "DNA_hair_types.h"
@@ -99,6 +100,14 @@ static void freeData(ModifierData *md)
 	{
 		BKE_hair_draw_settings_free(fmd->draw_settings);
 	}
+	for (FurModifierGuideCurve *curve = fmd->guide_curves.first; curve; curve = curve->next)
+	{
+		if (curve->verts)
+		{
+			MEM_freeN(curve->verts);
+		}
+	}
+	BLI_freelistN(&fmd->guide_curves);
 }
 
 static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx),

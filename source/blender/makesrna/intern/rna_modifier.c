@@ -281,12 +281,17 @@ const EnumPropertyItem rna_enum_axis_flag_xyz_items[] = {
 
 #ifdef RNA_RUNTIME
 
+#include "BLI_listbase.h"
+
 #include "DNA_particle_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_smoke_types.h"
+#include "DNA_hair_types.h"
+#include "DNA_meshdata_types.h"
 
 #include "BKE_cachefile.h"
 #include "BKE_context.h"
+#include "BKE_hair.h"
 #include "BKE_library.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
@@ -1158,6 +1163,53 @@ static void rna_MeshSequenceCache_object_path_update(Main *bmain, Scene *scene, 
 #endif
 
 	rna_Modifier_update(bmain, scene, ptr);
+}
+
+static void rna_Fur_guide_curves_clear(FurModifierData *fmd)
+{
+	for (FurModifierGuideCurve* curve = fmd->guide_curves.first; curve; curve = curve->next)
+	{
+		if (curve->verts)
+		{
+			MEM_freeN(curve->verts);
+		}
+	}
+	BLI_freelistN(&fmd->guide_curves);
+}
+
+static void rna_Fur_guide_curves_new(FurModifierData *fmd, ReportList *UNUSED(reports), int numverts)
+{
+	FurModifierGuideCurve *curve = MEM_callocN(sizeof(FurModifierGuideCurve), "fur guide curve");
+	curve->numverts = numverts;
+	curve->verts = MEM_callocN(sizeof(HairGuideVertex) * numverts, "fur guide curve vertices");
+	
+	BLI_addtail(&fmd->guide_curves, curve);
+}
+
+static void rna_Fur_guide_curves_apply(FurModifierData *fmd, ReportList *UNUSED(reports))
+{
+	const int totcurves = BLI_listbase_count(&fmd->guide_curves);
+	int i = 0;
+	
+	MeshSample msample;
+	memset(&msample, 0, sizeof(msample));
+	
+	BKE_hair_guide_curves_begin(fmd->hair_system, totcurves);
+	i = 0;
+	for (FurModifierGuideCurve *curve = fmd->guide_curves.first; curve; curve = curve->next, ++i)
+	{
+		BKE_hair_set_guide_curve(fmd->hair_system, i, &msample, curve->numverts);
+	}
+	BKE_hair_guide_curves_end(fmd->hair_system);
+	
+	i = 0;
+	for (FurModifierGuideCurve *curve = fmd->guide_curves.first; curve; curve = curve->next)
+	{
+		for (int j = 0; j < curve->numverts; ++j, ++i)
+		{
+			BKE_hair_set_guide_vertex(fmd->hair_system, i, curve->verts[j].flag, curve->verts[j].co);
+		}
+	}
 }
 
 #else
@@ -4809,6 +4861,52 @@ static void rna_def_modifier_surfacedeform(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 }
 
+static void rna_def_modifier_fur_guide_curve(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+	
+	srna = RNA_def_struct(brna, "FurModifierGuideCurve", NULL);
+	RNA_def_struct_ui_text(srna, "Fur Modifier Guide Curve", "");
+	RNA_def_struct_sdna(srna, "FurModifierGuideCurve");
+	
+	prop = RNA_def_property(srna, "vertices", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "verts", "numverts");
+	RNA_def_property_struct_type(prop, "FurModifierGuideVertex");
+	RNA_def_property_ui_text(prop, "Vertices", "Guide vertices");
+
+
+	srna = RNA_def_struct(brna, "FurModifierGuideVertex", NULL);
+	RNA_def_struct_ui_text(srna, "Fur Modifier Guide Vertex", "");
+	RNA_def_struct_sdna(srna, "HairGuideVertex");
+	
+	prop = RNA_def_property(srna, "location", PROP_FLOAT, PROP_TRANSLATION);
+	RNA_def_property_float_sdna(prop, NULL, "co");
+	RNA_def_property_ui_text(prop, "Location", "Location of the vertex relative to the root");
+}
+
+static void rna_def_modifier_fur_guide_curves_api(BlenderRNA *brna, PropertyRNA *cprop)
+{
+	StructRNA *srna;
+	FunctionRNA *func;
+	PropertyRNA *parm;
+	
+	RNA_def_property_srna(cprop, "FurModifierGuideCurves");
+	srna = RNA_def_struct(brna, "FurModifierGuideCurves", NULL);
+	RNA_def_struct_ui_text(srna, "Fur Modifier Guide Curves", "");
+	RNA_def_struct_sdna(srna, "FurModifierData");
+	
+	/*func =*/ RNA_def_function(srna, "clear", "rna_Fur_guide_curves_clear");
+	
+	func = RNA_def_function(srna, "new", "rna_Fur_guide_curves_new");
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	parm = RNA_def_int(func, "vertex_count", 2, 0, INT_MAX, "Vertex Count", "Number of vertices", 2, 1000);
+	RNA_def_property_flag(parm, PARM_REQUIRED);
+	
+	func = RNA_def_function(srna, "apply", "rna_Fur_guide_curves_apply");
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+}
+
 static void rna_def_modifier_fur(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -4842,6 +4940,14 @@ static void rna_def_modifier_fur(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "draw_settings", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Draw Settings", "Hair draw settings");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+
+	prop = RNA_def_property(srna, "guide_curves", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "guide_curves", NULL);
+	RNA_def_property_struct_type(prop, "FurModifierGuideCurve");
+	RNA_def_property_ui_text(prop, "Guide Curves", "Guide curve data");
+	rna_def_modifier_fur_guide_curves_api(brna, prop);
+
+	rna_def_modifier_fur_guide_curve(brna);
 }
 
 void RNA_def_modifier(BlenderRNA *brna)

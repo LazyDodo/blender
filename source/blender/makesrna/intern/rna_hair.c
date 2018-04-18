@@ -208,7 +208,7 @@ static void rna_def_hair_draw_settings(BlenderRNA *brna)
 	    {HAIR_DRAW_FOLLICLE_NONE, "NONE", 0, "None", ""},
 	    {HAIR_DRAW_FOLLICLE_POINTS, "POINTS", 0, "Points", "Draw a point for each follicle"},
 	    {HAIR_DRAW_FOLLICLE_AXES, "AXES", 0, "Axes", "Draw direction of hair for each follicle"},
-		{0, NULL, 0, NULL, NULL}
+	    {0, NULL, 0, NULL, NULL}
 	};
 	
 	srna = RNA_def_struct(brna, "HairDrawSettings", NULL);

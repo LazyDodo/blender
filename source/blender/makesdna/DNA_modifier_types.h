@@ -1624,6 +1624,17 @@ enum {
 	(MOD_MESHSEQ_READ_VERT | MOD_MESHSEQ_READ_POLY | MOD_MESHSEQ_READ_UV | MOD_MESHSEQ_READ_COLOR)
 
 /* Fur modifier */
+typedef struct FurModifierGuideCurve {
+	struct FurModifierGuideCurve *next, *prev;
+	
+	/* Index for the mesh sample buffer */
+	int mesh_sample_index;
+	/* Number of vertices in the curve */
+	int numverts;
+	/* Vertex array */
+	struct HairGuideVertex *verts;
+} FurModifierGuideCurve;
+
 typedef struct FurModifierData {
 	ModifierData modifier;
 	
@@ -1639,6 +1650,8 @@ typedef struct FurModifierData {
 
 	int guides_count;
 	int pad2;
+
+	ListBase guide_curves;
 } FurModifierData;
 
 #endif  /* __DNA_MODIFIER_TYPES_H__ */
