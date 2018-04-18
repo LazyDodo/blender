@@ -951,6 +951,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 	}
 
 	if (!DNA_struct_find(fd->filesdna, "SpaceTopBar")) {
+#ifdef WITH_REDO_REGION_REMOVAL
 		for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
 			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
 				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
@@ -969,6 +970,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 				}
 			}
 		}
+#endif
 
 		for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
 			int win_width = 0, win_height = 0;

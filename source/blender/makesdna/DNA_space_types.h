@@ -67,6 +67,11 @@ struct MovieClipScopes;
 struct Mask;
 struct BLI_mempool;
 
+/* TODO 2.8: Remove the operator redo panel/region from the 3D View and Clip
+ * Editor toolshelf. Leaving this ifdef'ed out for until new tool system and
+ * topbar design is more clear. */
+#define WITH_REDO_REGION_REMOVAL
+
 
 /* SpaceLink (Base) ==================================== */
 
@@ -1342,16 +1347,6 @@ typedef struct SpaceClip {
 	MaskSpaceInfo mask_info;
 } SpaceClip;
 
-/* Top Bar ======================================= */
-
-typedef struct SpaceTopBar {
-	SpaceLink *next, *prev;
-	ListBase regionbase;        /* storage of regions for inactive spaces */
-	int spacetype;
-
-	int pad;
-} SpaceTopBar;
-
 
 /* SpaceClip->flag */
 typedef enum eSpaceClip_Flag {
@@ -1400,6 +1395,18 @@ typedef enum eSpaceClip_GPencil_Source {
 	SC_GPENCIL_SRC_CLIP = 0,
 	SC_GPENCIL_SRC_TRACK = 1,
 } eSpaceClip_GPencil_Source;
+
+
+/* Top Bar ======================================= */
+
+typedef struct SpaceTopBar {
+	SpaceLink *next, *prev;
+	ListBase regionbase;        /* storage of regions for inactive spaces */
+	int spacetype;
+
+	int pad;
+} SpaceTopBar;
+
 
 /* **************** SPACE DEFINES ********************* */
 
