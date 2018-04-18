@@ -2492,8 +2492,7 @@ static bool IsectPoly2Df_twoside(const float pt[2], float uv[][2], const int tot
 static void project_paint_face_init(
         const ProjPaintState *ps,
         const int thread_index, const int bucket_index, const int tri_index, const int image_index,
-        const rctf *clip_rect, const rctf *bucket_bounds, ImBuf *ibuf, ImBuf **tmpibuf,
-        const bool clamp_u, const bool clamp_v)
+        const rctf *clip_rect, const rctf *bucket_bounds, ImBuf *ibuf, ImBuf **tmpibuf)
 {
 	/* Projection vars, to get the 3D locations into screen space  */
 	MemArena *arena = ps->arena_mt[thread_index];
@@ -2600,17 +2599,6 @@ static void project_paint_face_init(
 #endif
 
 		if (pixel_bounds_array(uv_clip, &bounds_px, ibuf->x, ibuf->y, uv_clip_tot)) {
-
-			if (clamp_u) {
-				CLAMP(bounds_px.xmin, 0, ibuf->x);
-				CLAMP(bounds_px.xmax, 0, ibuf->x);
-			}
-
-			if (clamp_v) {
-				CLAMP(bounds_px.ymin, 0, ibuf->y);
-				CLAMP(bounds_px.ymax, 0, ibuf->y);
-			}
-
 #if 0
 			project_paint_undo_tiles_init(&bounds_px, ps->projImages + image_index, tmpibuf,
 			                              tile_width, threaded, ps->do_masking);
@@ -2927,19 +2915,16 @@ static void project_bucket_init(
 	int tri_index, image_index = 0;
 	ImBuf *ibuf = NULL;
 	Image *tpage_last = NULL, *tpage;
-	Image *ima = NULL;
 	ImBuf *tmpibuf = NULL;
 
 	if (ps->image_tot == 1) {
 		/* Simple loop, no context switching */
 		ibuf = ps->projImages[0].ibuf;
-		ima = ps->projImages[0].ima;
 
 		for (node = ps->bucketFaces[bucket_index]; node; node = node->next) {
 			project_paint_face_init(
 			        ps, thread_index, bucket_index, GET_INT_FROM_POINTER(node->link), 0,
-			        clip_rect, bucket_bounds, ibuf, &tmpibuf,
-			        (ima->tpageflag & IMA_CLAMP_U) != 0, (ima->tpageflag & IMA_CLAMP_V) != 0);
+			        clip_rect, bucket_bounds, ibuf, &tmpibuf);
 		}
 	}
 	else {
@@ -2956,7 +2941,6 @@ static void project_bucket_init(
 				for (image_index = 0; image_index < ps->image_tot; image_index++) {
 					if (ps->projImages[image_index].ima == tpage_last) {
 						ibuf = ps->projImages[image_index].ibuf;
-						ima = ps->projImages[image_index].ima;
 						break;
 					}
 				}
@@ -2965,8 +2949,7 @@ static void project_bucket_init(
 
 			project_paint_face_init(
 			        ps, thread_index, bucket_index, tri_index, image_index,
-			        clip_rect, bucket_bounds, ibuf, &tmpibuf,
-			        (ima->tpageflag & IMA_CLAMP_U) != 0, (ima->tpageflag & IMA_CLAMP_V) != 0);
+			        clip_rect, bucket_bounds, ibuf, &tmpibuf);
 		}
 	}
 
@@ -5453,11 +5436,12 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	ImBuf *ibuf;
 	char filename[FILE_MAX];
 
-	struct RenderEngineType *engine_type = CTX_data_engine_type(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	ToolSettings *settings = scene->toolsettings;
+	View3D *v3d = CTX_wm_view3d(C);
+	RegionView3D *rv3d = CTX_wm_region_view3d(C);
 	int w = settings->imapaint.screen_grab_size[0];
 	int h = settings->imapaint.screen_grab_size[1];
 	int maxsize;
@@ -5471,8 +5455,8 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	if (h > maxsize) h = maxsize;
 
 	ibuf = ED_view3d_draw_offscreen_imbuf(
-	        depsgraph, scene, view_layer, engine_type,
-	        CTX_wm_view3d(C), CTX_wm_region(C),
+	        depsgraph, scene, view_layer, v3d->drawtype,
+	        v3d, CTX_wm_region(C),
 	        w, h, IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
 	        NULL, err_out);
 	if (!ibuf) {
@@ -5490,9 +5474,6 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	if (image) {
 		/* now for the trickiness. store the view projection here!
 		 * re-projection will reuse this */
-		View3D *v3d = CTX_wm_view3d(C);
-		RegionView3D *rv3d = CTX_wm_region_view3d(C);
-
 		IDPropertyTemplate val;
 		IDProperty *idgroup = IDP_GetProperties(&image->id, 1);
 		IDProperty *view_data;
@@ -5693,7 +5674,7 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 	Object *ob = CTX_data_active_object(C);
 	Scene *scene = CTX_data_scene(C);
 	Material *ma;
-	bool is_bi = BKE_scene_uses_blender_internal(scene) || BKE_scene_uses_blender_game(scene);
+	bool is_bi = BKE_scene_uses_blender_internal(scene);
 	Image *ima = NULL;
 
 	if (!ob)
@@ -5846,7 +5827,7 @@ static int texture_paint_delete_texture_paint_slot_exec(bContext *C, wmOperator 
 	Object *ob = CTX_data_active_object(C);
 	Scene *scene = CTX_data_scene(C);
 	Material *ma;
-	bool is_bi = BKE_scene_uses_blender_internal(scene) || BKE_scene_uses_blender_game(scene);
+	bool is_bi = BKE_scene_uses_blender_internal(scene);
 	TexPaintSlot *slot;
 	
 	/* not supported for node-based engines */

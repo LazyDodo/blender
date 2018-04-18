@@ -197,7 +197,7 @@ typedef struct View3D {
 	char gridflag;
 
 	/* transform manipulator info */
-	char twtype, twmode, twflag;
+	char twtype, _pad5, twflag;
 	
 	short flag3;
 
@@ -211,9 +211,7 @@ typedef struct View3D {
 
 	char multiview_eye;				/* multiview current eye - for internal use */
 
-	/* The active custom transform orientation of this 3D view. */
-	short custom_orientation_index;
-	char pad3[2];
+	char pad3[4];
 
 	/* note, 'fx_settings.dof' is currently _not_ allocated,
 	 * instead set (temporarily) from camera */
@@ -238,8 +236,12 @@ typedef struct View3D {
 	 * Runtime-only, set in the rendered viewport toggle operator.
 	 */
 	short prev_drawtype;
-	short pad1;
-	float pad2;
+	/* drawtype subtype (visibility) used when drawtype == OB_WIRE */
+	short drawtype_wireframe;
+	/* drawtype subtype (lighting) used when drawtype == OB_SOLID */
+	short drawtype_solid;
+	/* drawtype subtype (lighting) used when drawtype == OB_TEXTURE */
+	short drawtype_texture;
 	View3DDebug debug;
 } View3D;
 
@@ -270,7 +272,7 @@ typedef struct View3D {
 #define RV3D_CLIPPING				4
 #define RV3D_NAVIGATING				8
 #define RV3D_GPULIGHT_UPDATE		16
-#define RV3D_IS_GAME_ENGINE			32  /* runtime flag, used to check if LoD's should be used */
+/*#define RV3D_IS_GAME_ENGINE			32 *//* UNUSED */
 /**
  * Disable zbuffer offset, skip calls to #ED_view3d_polygon_offset.
  * Use when precise surface depth is needed and picking bias isn't, see T45434).
@@ -359,7 +361,7 @@ enum {
 #define V3D_MANIP_ROTATE		2
 #define V3D_MANIP_SCALE			4
 
-/* View3d->twmode */
+/* Scene.orientation_type */
 #define V3D_MANIP_GLOBAL		0
 #define V3D_MANIP_LOCAL			1
 #define V3D_MANIP_NORMAL		2

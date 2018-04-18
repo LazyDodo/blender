@@ -791,14 +791,6 @@ struct SpaceNode *CTX_wm_space_node(const bContext *C)
 	return NULL;
 }
 
-struct SpaceLogic *CTX_wm_space_logic(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_LOGIC)
-		return sa->spacedata.first;
-	return NULL;
-}
-
 struct SpaceIpo *CTX_wm_space_graph(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
@@ -946,24 +938,10 @@ ViewLayer *CTX_data_view_layer(const bContext *C)
 	}
 }
 
-ViewRender *CTX_data_view_render(const bContext *C)
-{
-	ViewRender *view_render;
-
-	if (ctx_data_pointer_verify(C, "view_render", (void *)&view_render)) {
-		return view_render;
-	}
-	else {
-		Scene *scene = CTX_data_scene(C);
-		WorkSpace *workspace = CTX_wm_workspace(C);
-		return BKE_viewrender_get(scene, workspace);
-	}
-}
-
 RenderEngineType *CTX_data_engine_type(const bContext *C)
 {
-	ViewRender *view_render = CTX_data_view_render(C);
-	return RE_engines_find(view_render->engine_id);
+	Scene *scene = CTX_data_scene(C);
+	return RE_engines_find(scene->r.engine);
 }
 
 /**

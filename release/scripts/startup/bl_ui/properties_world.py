@@ -41,8 +41,7 @@ class WORLD_PT_context_world(WorldButtonsPanel, Panel):
 
     @classmethod
     def poll(cls, context):
-        view_render = context.scene.view_render
-        return view_render.engine in cls.COMPAT_ENGINES
+        return (context.engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -271,7 +270,7 @@ class EEVEE_WORLD_PT_mist(WorldButtonsPanel, Panel):
 
 
 class WORLD_PT_custom_props(WorldButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
     _context_path = "world"
     _property_type = bpy.types.World
 

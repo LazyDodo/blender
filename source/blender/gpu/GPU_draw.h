@@ -49,15 +49,12 @@ struct DupliObject;
 
 #include "DNA_object_enums.h"
 
-/* OpenGL drawing functions related to shading. These are also
- * shared with the game engine, where there were previously
- * duplicates of some of these functions. */
+/* OpenGL drawing functions related to shading. */
 
 /* Initialize
  * - sets the default Blender opengl state, if in doubt, check
  *   the contents of this function
- * - this is called when starting Blender, for opengl rendering,
- *   and for switching back from the game engine for example. */
+ * - this is called when starting Blender, for opengl rendering. */
 
 void GPU_state_init(void);
 
@@ -103,14 +100,6 @@ int GPU_default_lights(void);
 int GPU_scene_object_lights(
         struct ViewLayer *view_layer, float viewmat[4][4], int ortho);
 
-/* Text render
- * - based on moving uv coordinates */
-
-void GPU_render_text(
-        int mode, const char *textstr, int textlen, unsigned int *col,
-        const float *v_quad[4], const float *uv_quad[4],
-        int glattrib);
-
 /* Mipmap settings
  * - these will free textures on changes */
 
@@ -132,11 +121,9 @@ void GPU_set_gpu_mipmapping(int gpu_mipmap);
  * - these deal with images bound as opengl textures */
 
 void GPU_paint_update_image(struct Image *ima, struct ImageUser *iuser, int x, int y, int w, int h);
-void GPU_update_images_framechange(void);
-int GPU_update_image_time(struct Image *ima, double time);
 int GPU_verify_image(
         struct Image *ima, struct ImageUser *iuser,
-        int textarget, int tftile, bool compare, bool mipmap, bool is_data);
+        int textarget, bool compare, bool mipmap, bool is_data);
 void GPU_create_gl_tex(
         unsigned int *bind, unsigned int *rect, float *frect, int rectw, int recth,
         int textarget, bool mipmap, bool use_hight_bit_depth, struct Image *ima);

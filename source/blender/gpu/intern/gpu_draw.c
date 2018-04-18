@@ -31,8 +31,8 @@
  * Utility functions for dealing with OpenGL texture & material context,
  * mipmap generation and light objects.
  *
- * These are some obscure rendering functions shared between the
- * game engine and the blender, in this module to avoid duplication
+ * These are some obscure rendering functions shared between the game engine (not anymore)
+ * and the blender, in this module to avoid duplication
  * and abstract them away from the rest a bit.
  */
 
@@ -70,9 +70,6 @@
 #include "BKE_node.h"
 #include "BKE_scene.h"
 #include "BKE_DerivedMesh.h"
-#ifdef WITH_GAMEENGINE
-#  include "BKE_object.h"
-#endif
 
 #include "GPU_basic_shader.h"
 #include "GPU_buffers.h"
@@ -98,131 +95,7 @@
 
 extern Material defmaterial; /* from material.c */
 
-/* Text Rendering */
-
-static void gpu_mcol(unsigned int ucol)
-{
-	/* mcol order is swapped */
-	const char *cp = (char *)&ucol;
-	glColor3ub(cp[3], cp[2], cp[1]);
-}
-
-void GPU_render_text(
-        int mode, const char *textstr, int textlen, unsigned int *col,
-        const float *v_quad[4], const float *uv_quad[4],
-        int glattrib)
-{
-	/* XXX, 2.8 removes texface */
-#if 0
-	Image *ima = mtexpoly->tpage;
-#else
-	Image *ima = NULL;
-#endif
-	if ((mode & GEMAT_TEXT) && (textlen > 0) && ima) {
-		const float *v1 = v_quad[0];
-		const float *v2 = v_quad[1];
-		const float *v3 = v_quad[2];
-		const float *v4 = v_quad[3];
-		const size_t textlen_st = textlen;
-		float centerx, centery, sizex, sizey, transx, transy, movex, movey, advance;
-
-		/* multiline */
-		float line_start = 0.0f, line_height;
-
-		if (v4)
-			line_height = max_ffff(v1[1], v2[1], v3[1], v4[2]) - min_ffff(v1[1], v2[1], v3[1], v4[2]);
-		else
-			line_height = max_fff(v1[1], v2[1], v3[1]) - min_fff(v1[1], v2[1], v3[1]);
-		line_height *= 1.2f; /* could be an option? */
-		/* end multiline */
-
-
-		/* color has been set */
-		if (!col)
-			glColor3f(1.0f, 1.0f, 1.0f);
-
-		gpuPushMatrix();
-
-		/* get the tab width */
-		ImBuf *first_ibuf = BKE_image_get_first_ibuf(ima);
-		matrixGlyph(first_ibuf, ' ', &centerx, &centery,
-		    &sizex, &sizey, &transx, &transy, &movex, &movey, &advance);
-
-		float advance_tab = advance * 4; /* tab width could also be an option */
-
-
-		for (size_t index = 0; index < textlen_st; ) {
-			unsigned int character;
-			float uv[4][2];
-
-			/* lets calculate offset stuff */
-			character = BLI_str_utf8_as_unicode_and_size_safe(textstr + index, &index);
-
-			if (character == '\n') {
-				gpuTranslate2f(line_start, -line_height);
-				line_start = 0.0f;
-				continue;
-			}
-			else if (character == '\t') {
-				gpuTranslate2f(advance_tab, 0.0f);
-				line_start -= advance_tab; /* so we can go back to the start of the line */
-				continue;
-
-			}
-			else if (character > USHRT_MAX) {
-				/* not much we can do here bmfonts take ushort */
-				character = '?';
-			}
-
-			/* space starts at offset 1 */
-			/* character = character - ' ' + 1; */
-			matrixGlyph(first_ibuf, character, & centerx, &centery,
-			    &sizex, &sizey, &transx, &transy, &movex, &movey, &advance);
-
-			uv[0][0] = (uv_quad[0][0] - centerx) * sizex + transx;
-			uv[0][1] = (uv_quad[0][1] - centery) * sizey + transy;
-			uv[1][0] = (uv_quad[1][0] - centerx) * sizex + transx;
-			uv[1][1] = (uv_quad[1][1] - centery) * sizey + transy;
-			uv[2][0] = (uv_quad[2][0] - centerx) * sizex + transx;
-			uv[2][1] = (uv_quad[2][1] - centery) * sizey + transy;
-
-			glBegin(GL_POLYGON);
-			if (glattrib >= 0) glVertexAttrib2fv(glattrib, uv[0]);
-			else glTexCoord2fv(uv[0]);
-			if (col) gpu_mcol(col[0]);
-			glVertex3f(sizex * v1[0] + movex, sizey * v1[1] + movey, v1[2]);
-
-			if (glattrib >= 0) glVertexAttrib2fv(glattrib, uv[1]);
-			else glTexCoord2fv(uv[1]);
-			if (col) gpu_mcol(col[1]);
-			glVertex3f(sizex * v2[0] + movex, sizey * v2[1] + movey, v2[2]);
-
-			if (glattrib >= 0) glVertexAttrib2fv(glattrib, uv[2]);
-			else glTexCoord2fv(uv[2]);
-			if (col) gpu_mcol(col[2]);
-			glVertex3f(sizex * v3[0] + movex, sizey * v3[1] + movey, v3[2]);
-
-			if (v4) {
-				uv[3][0] = (uv_quad[3][0] - centerx) * sizex + transx;
-				uv[3][1] = (uv_quad[3][1] - centery) * sizey + transy;
-
-				if (glattrib >= 0) glVertexAttrib2fv(glattrib, uv[3]);
-				else glTexCoord2fv(uv[3]);
-				if (col) gpu_mcol(col[3]);
-				glVertex3f(sizex * v4[0] + movex, sizey * v4[1] + movey, v4[2]);
-			}
-			glEnd();
-
-			gpuTranslate2f(advance, 0.0f);
-			line_start -= advance; /* so we can go back to the start of the line */
-		}
-		gpuPopMatrix();
-
-		BKE_image_release_ibuf(ima, first_ibuf, NULL);
-	}
-}
-
-/* Checking powers of two for images since OpenGL ES requires it */
+//* Checking powers of two for images since OpenGL ES requires it */
 #ifdef WITH_DDS
 static bool is_power_of_2_resolution(int w, int h)
 {
@@ -255,10 +128,6 @@ static int smaller_power_of_2_limit(int num)
 /* Current OpenGL state caching for GPU_set_tpage */
 
 static struct GPUTextureState {
-	int curtile, tile;
-	int curtilemode, tilemode;
-	int curtileXRep, tileXRep;
-	int curtileYRep, tileYRep;
 	Image *ima, *curima;
 
 	/* also controls min/mag filtering */
@@ -271,7 +140,7 @@ static struct GPUTextureState {
 	int alphablend;
 	float anisotropic;
 	int gpu_mipmap;
-} GTS = {0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, 1, 0, 0, -1, 1.0f, 0};
+} GTS = {NULL, NULL, 1, 0, 0, -1, 1.0f, 0};
 
 /* Mipmap settings */
 
@@ -358,28 +227,6 @@ float GPU_get_anisotropic(void)
 }
 
 /* Set OpenGL state for an MTFace */
-
-static void gpu_make_repbind(Image *ima)
-{
-	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, NULL, NULL);
-	if (ibuf == NULL)
-		return;
-
-	if (ima->repbind) {
-		glDeleteTextures(ima->totbind, (GLuint *)ima->repbind);
-		MEM_freeN(ima->repbind);
-		ima->repbind = NULL;
-		ima->tpageflag &= ~IMA_MIPMAP_COMPLETE;
-	}
-
-	ima->totbind = ima->xrep * ima->yrep;
-
-	if (ima->totbind > 1) {
-		ima->repbind = MEM_callocN(sizeof(int) * ima->totbind, "repbind");
-	}
-
-	BKE_image_release_ibuf(ima, ibuf, NULL);
-}
 
 static unsigned int *gpu_get_image_bindcode(Image *ima, GLenum textarget)
 {
@@ -477,7 +324,7 @@ static void gpu_verify_high_bit_srgb_buffer(float *srgb_frect,
 
 int GPU_verify_image(
         Image *ima, ImageUser *iuser,
-        int textarget, int tftile, bool compare, bool mipmap, bool is_data)
+        int textarget, bool compare, bool mipmap, bool is_data)
 {
 	unsigned int *bind = NULL;
 	int tpx = 0, tpy = 0;
@@ -487,30 +334,9 @@ int GPU_verify_image(
 	/* flag to determine whether deep format is used */
 	bool use_high_bit_depth = false, do_color_management = false;
 
-	/* initialize tile mode and number of repeats */
 	GTS.ima = ima;
-	GTS.tilemode = (ima && (ima->tpageflag & (IMA_TILES | IMA_TWINANIM)));
-	GTS.tileXRep = 0;
-	GTS.tileYRep = 0;
 
-	/* setting current tile according to frame */
-	if (ima && (ima->tpageflag & IMA_TWINANIM))
-		GTS.tile = ima->lastframe;
-	else
-		GTS.tile = tftile;
-
-	GTS.tile = MAX2(0, GTS.tile);
-
-	if (ima) {
-		GTS.tileXRep = ima->xrep;
-		GTS.tileYRep = ima->yrep;
-	}
-
-	/* if same image & tile, we're done */
-	if (compare && ima == GTS.curima && GTS.curtile == GTS.tile &&
-	    GTS.tilemode == GTS.curtilemode && GTS.curtileXRep == GTS.tileXRep &&
-	    GTS.curtileYRep == GTS.tileYRep)
-	{
+	if (compare && ima == GTS.curima) {
 		return (ima != NULL);
 	}
 
@@ -550,47 +376,7 @@ int GPU_verify_image(
 		ima->tpageflag &= ~IMA_TPAGE_REFRESH;
 	}
 
-	if (GTS.tilemode) {
-		/* tiled mode */
-		if (ima->repbind == NULL) gpu_make_repbind(ima);
-		if (GTS.tile >= ima->totbind) GTS.tile = 0;
-
-		/* this happens when you change repeat buttons */
-		if (ima->repbind && textarget == GL_TEXTURE_2D) bind = &ima->repbind[GTS.tile];
-		else bind = gpu_get_image_bindcode(ima, textarget);
-
-		if (*bind == 0) {
-			short texwindx = ibuf->x / ima->xrep;
-			short texwindy = ibuf->y / ima->yrep;
-
-			if (GTS.tile >= ima->xrep * ima->yrep)
-				GTS.tile = ima->xrep * ima->yrep - 1;
-
-			short texwinsy = GTS.tile / ima->xrep;
-			short texwinsx = GTS.tile - texwinsy * ima->xrep;
-
-			texwinsx *= texwindx;
-			texwinsy *= texwindy;
-
-			tpx = texwindx;
-			tpy = texwindy;
-
-			if (use_high_bit_depth) {
-				if (do_color_management) {
-					srgb_frect = MEM_mallocN(ibuf->x * ibuf->y * sizeof(float) * 4, "floar_buf_col_cor");
-					gpu_verify_high_bit_srgb_buffer(srgb_frect, ibuf);
-					frect = srgb_frect + (4 * (texwinsy * ibuf->x + texwinsx));
-				}
-				else {
-					frect = ibuf->rect_float + (ibuf->channels * (texwinsy * ibuf->x + texwinsx));
-				}
-			}
-			else {
-				rect = ibuf->rect + texwinsy * ibuf->x + texwinsx;
-			}
-		}
-	}
-	else {
+	{
 		/* regular image mode */
 		bind = gpu_get_image_bindcode(ima, textarget);
 
@@ -619,37 +405,6 @@ int GPU_verify_image(
 	const int rectw = tpx;
 	const int recth = tpy;
 
-	unsigned *tilerect = NULL;
-	float *ftilerect = NULL;
-
-	/* for tiles, copy only part of image into buffer */
-	if (GTS.tilemode) {
-		if (use_high_bit_depth) {
-			ftilerect = MEM_mallocN(rectw * recth * sizeof(*ftilerect), "tilerect");
-
-			for (int y = 0; y < recth; y++) {
-				const float *frectrow = &frect[y * ibuf->x];
-				float *ftilerectrow = &ftilerect[y * rectw];
-
-				memcpy(ftilerectrow, frectrow, tpx * sizeof(*frectrow));
-			}
-
-			frect = ftilerect;
-		}
-		else {
-			tilerect = MEM_mallocN(rectw * recth * sizeof(*tilerect), "tilerect");
-
-			for (int y = 0; y < recth; y++) {
-				const unsigned *rectrow = &rect[y * ibuf->x];
-				unsigned *tilerectrow = &tilerect[y * rectw];
-
-				memcpy(tilerectrow, rectrow, tpx * sizeof(*rectrow));
-			}
-
-			rect = tilerect;
-		}
-	}
-
 #ifdef WITH_DDS
 	if (ibuf->ftype == IMB_FTYPE_DDS)
 		GPU_create_gl_tex_compressed(bind, rect, rectw, recth, textarget, mipmap, ima, ibuf);
@@ -666,10 +421,6 @@ int GPU_verify_image(
 	}
 
 	/* clean up */
-	if (tilerect)
-		MEM_freeN(tilerect);
-	if (ftilerect)
-		MEM_freeN(ftilerect);
 	if (srgb_frect)
 		MEM_freeN(srgb_frect);
 
@@ -1092,8 +843,7 @@ void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, i
 {
 	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, iuser, NULL);
 
-	if (ima->repbind ||
-	    (!GTS.gpu_mipmap && GPU_get_mipmap()) ||
+	if ((!GTS.gpu_mipmap && GPU_get_mipmap()) ||
 	    (ima->bindcode[TEXTARGET_TEXTURE_2D] == 0) ||
 	    (ibuf == NULL) ||
 	    (w == 0) || (h == 0))
@@ -1169,61 +919,6 @@ void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, i
 
 	BKE_image_release_ibuf(ima, ibuf, NULL);
 }
-
-void GPU_update_images_framechange(void)
-{
-	for (Image *ima = G.main->image.first; ima; ima = ima->id.next) {
-		if (ima->tpageflag & IMA_TWINANIM) {
-			if (ima->twend >= ima->xrep * ima->yrep)
-				ima->twend = ima->xrep * ima->yrep - 1;
-
-			/* check: is bindcode not in the array? free. (to do) */
-
-			ima->lastframe++;
-			if (ima->lastframe > ima->twend)
-				ima->lastframe = ima->twsta;
-		}
-	}
-}
-
-int GPU_update_image_time(Image *ima, double time)
-{
-	if (!ima)
-		return 0;
-
-	if (ima->lastupdate < 0)
-		ima->lastupdate = 0;
-
-	if (ima->lastupdate > (float)time)
-		ima->lastupdate = (float)time;
-
-	int inc = 0;
-
-	if (ima->tpageflag & IMA_TWINANIM) {
-		if (ima->twend >= ima->xrep * ima->yrep) ima->twend = ima->xrep * ima->yrep - 1;
-
-		/* check: is the bindcode not in the array? Then free. (still to do) */
-
-		float diff = (float)((float)time - ima->lastupdate);
-		inc = (int)(diff * (float)ima->animspeed);
-
-		ima->lastupdate += ((float)inc / (float)ima->animspeed);
-
-		int newframe = ima->lastframe + inc;
-
-		if (newframe > (int)ima->twend) {
-			if (ima->twend - ima->twsta != 0)
-				newframe = (int)ima->twsta - 1 + (newframe - ima->twend) % (ima->twend - ima->twsta);
-			else
-				newframe = ima->twsta;
-		}
-
-		ima->lastframe = newframe;
-	}
-
-	return inc;
-}
-
 
 void GPU_free_smoke(SmokeModifierData *smd)
 {
@@ -1369,14 +1064,6 @@ void GPU_free_image(Image *ima)
 		}
 	}
 
-	/* free repeated image binding */
-	if (ima->repbind) {
-		glDeleteTextures(ima->totbind, (GLuint *)ima->repbind);
-
-		MEM_freeN(ima->repbind);
-		ima->repbind = NULL;
-	}
-
 	ima->tpageflag &= ~(IMA_MIPMAP_COMPLETE | IMA_GLBIND_IS_DATA);
 }
 
@@ -1420,7 +1107,7 @@ void GPU_free_images_old(void)
 		if ((ima->flag & IMA_NOCOLLECT) == 0 && ctime - ima->lastused > U.textimeout) {
 			/* If it's in GL memory, deallocate and set time tag to current time
 			 * This gives textures a "second chance" to be used before dying. */
-			if (BKE_image_has_bindcode(ima) || ima->repbind) {
+			if (BKE_image_has_bindcode(ima)) {
 				GPU_free_image(ima);
 				ima->lastused = ctime;
 			}
@@ -1553,7 +1240,7 @@ void GPU_end_dupli_object(void)
 }
 
 void GPU_begin_object_materials(
-        View3D *v3d, RegionView3D *rv3d, Scene *scene, ViewLayer *view_layer, Object *ob,
+        View3D *v3d, RegionView3D *rv3d, Scene *scene, ViewLayer *UNUSED(view_layer), Object *ob,
         bool glsl, bool *do_alpha_after)
 {
 	Material *ma;
@@ -1588,14 +1275,6 @@ void GPU_begin_object_materials(
 			use_opensubdiv = ccgdm->useGpuBackend;
 		}
 	}
-#endif
-
-#ifdef WITH_GAMEENGINE
-	if (rv3d->rflag & RV3D_IS_GAME_ENGINE) {
-		ob = BKE_object_lod_matob_get(ob, view_layer);
-	}
-#else
-	UNUSED_VARS(view_layer);
 #endif
 
 	/* initialize state */
@@ -1843,18 +1522,10 @@ int GPU_object_material_bind(int nr, void *attribs)
 			GPU_material_bind_uniforms(gpumat, GMS.gob->obmat, GMS.gviewmat, GMS.gob->col, auto_bump_scale, &partile_info, object_info);
 			GMS.gboundmat = mat;
 
-			/* for glsl use alpha blend mode, unless it's set to solid and
-			 * we are already drawing in an alpha pass */
-			if (mat->game.alpha_blend != GPU_BLEND_SOLID)
-				alphablend = mat->game.alpha_blend;
-
 			if (GMS.is_alpha_pass) glDepthMask(1);
 
 			if (GMS.backface_culling) {
-				if (mat->game.flag)
-					glEnable(GL_CULL_FACE);
-				else
-					glDisable(GL_CULL_FACE);
+				glDisable(GL_CULL_FACE);
 			}
 
 			if (GMS.use_matcaps)
@@ -2120,8 +1791,8 @@ static void gpu_disable_multisample(void)
 
 /* Default OpenGL State
  *
- * This is called on startup, for opengl offscreen render and to restore state
- * for the game engine. Generally we should always return to this state when
+ * This is called on startup, for opengl offscreen render.
+ * Generally we should always return to this state when
  * temporarily modifying the state for drawing, though that are (undocumented)
  * exceptions that we should try to get rid of. */
 

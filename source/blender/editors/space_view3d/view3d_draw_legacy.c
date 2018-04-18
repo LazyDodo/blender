@@ -990,12 +990,6 @@ static void draw_dupli_objects_color(
 		/* Make sure lod is updated from dupli's position */
 		savedlod = dob->ob->currentlod;
 
-#ifdef WITH_GAMEENGINE
-		if (rv3d->rflag & RV3D_IS_GAME_ENGINE) {
-			BKE_object_lod_update(dob->ob, rv3d->viewinv[3]);
-		}
-#endif
-
 		/* extra service: draw the duplicator in drawtype of parent, minimum taken
 		 * to allow e.g. boundbox box objects in groups for LOD */
 		dt = tbase.object->dt;
@@ -1423,11 +1417,9 @@ static void gpu_update_lamps_shadows_world(Depsgraph *depsgraph, Scene *scene, V
 		mul_m4_m4m4(rv3d.persmat, rv3d.winmat, rv3d.viewmat);
 		invert_m4_m4(rv3d.persinv, rv3d.viewinv);
 
-		RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
-
 		/* no need to call ED_view3d_draw_offscreen_init since shadow buffers were already updated */
 		ED_view3d_draw_offscreen(
-		            depsgraph, scene, view_layer, engine_type,
+		            depsgraph, scene, view_layer, v3d->drawtype,
 		            v3d, &ar, winsize, winsize, viewmat, winmat,
 		            false, false, true,
 		            NULL, NULL, NULL, NULL);
@@ -1467,9 +1459,7 @@ CustomDataMask ED_view3d_datamask(const Scene *scene, const View3D *v3d)
 				mask |= CD_MASK_ORCO;
 		}
 		else {
-			if ((scene->gm.matmode == GAME_MAT_GLSL && drawtype == OB_TEXTURE) || 
-			    (drawtype == OB_MATERIAL))
-			{
+			if (drawtype == OB_MATERIAL) {
 				mask |= CD_MASK_ORCO;
 			}
 		}
@@ -1766,7 +1756,7 @@ void ED_scene_draw_fps(Scene *scene, const rcti *rect)
 
 static bool view3d_main_region_do_render_draw(const Scene *scene)
 {
-	RenderEngineType *type = RE_engines_find(scene->view_render.engine_id);
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
 	return (type && type->view_update && type->render_to_view);
 }
 
@@ -1827,7 +1817,7 @@ static bool view3d_main_region_draw_engine(
 	/* create render engine */
 	if (!rv3d->render_engine) {
 		RenderEngine *engine;
-		type = RE_engines_find(scene->view_render.engine_id);
+		type = RE_engines_find(scene->r.engine);
 
 		if (!(type->view_update && type->render_to_view))
 			return false;
@@ -1925,19 +1915,6 @@ static void view3d_main_region_draw_engine_info(View3D *v3d, RegionView3D *rv3d,
 	ED_region_info_draw(ar, rv3d->render_engine->text, fill_color, true);
 }
 
-#ifdef WITH_GAMEENGINE
-static void update_lods(Scene *scene, float camera_pos[3])
-{
-	Scene *sce_iter;
-	Base *base;
-
-	for (SETLOOPER(scene, sce_iter, base)) {
-		Object *ob = base->object;
-		BKE_object_lod_update(ob, camera_pos);
-	}
-}
-#endif
-
 static void view3d_main_region_draw_objects(const bContext *C, Scene *scene, ViewLayer *view_layer, View3D *v3d,
                                           ARegion *ar, const char **grid_unit)
 {
@@ -1964,16 +1941,6 @@ static void view3d_main_region_draw_objects(const bContext *C, Scene *scene, Vie
 		VP_legacy_view3d_main_region_setup_view(depsgraph, scene, v3d, ar, NULL, NULL);
 	}
 
-	rv3d->rflag &= ~RV3D_IS_GAME_ENGINE;
-#ifdef WITH_GAMEENGINE
-	if (STREQ(scene->view_render.engine_id, RE_engine_id_BLENDER_GAME)) {
-		rv3d->rflag |= RV3D_IS_GAME_ENGINE;
-
-		/* Make sure LoDs are up to date */
-		update_lods(scene, rv3d->viewinv[3]);
-	}
-#endif
-	
 	/* main drawing call */
 	view3d_draw_objects(C, depsgraph, scene, v3d, ar, grid_unit, true, false);
 

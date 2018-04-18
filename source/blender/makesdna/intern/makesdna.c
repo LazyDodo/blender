@@ -100,10 +100,6 @@ static const char *includefiles[] = {
 	"DNA_sequence_types.h",
 	"DNA_effect_types.h",
 	"DNA_outliner_types.h",
-	"DNA_property_types.h",
-	"DNA_sensor_types.h",
-	"DNA_controller_types.h",
-	"DNA_actuator_types.h",
 	"DNA_sound_types.h",
 	"DNA_group_types.h",
 	"DNA_armature_types.h",
@@ -468,7 +464,7 @@ static int preprocess_include(char *maindata, int len)
 		if (cp[0] == '/' && cp[1] == '/') {
 			comment = 1;
 		}
-		else if (*cp < 32) {
+		else if (*cp == '\n') {
 			comment = 0;
 		}
 		if (comment || *cp < 32 || *cp > 128) *cp = 32;
@@ -1327,10 +1323,6 @@ int main(int argc, char **argv)
 #include "DNA_sequence_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_outliner_types.h"
-#include "DNA_property_types.h"
-#include "DNA_sensor_types.h"
-#include "DNA_controller_types.h"
-#include "DNA_actuator_types.h"
 #include "DNA_sound_types.h"
 #include "DNA_group_types.h"
 #include "DNA_armature_types.h"

@@ -109,6 +109,9 @@ enum {
 
 /*->flag*/
 enum {
+	/* This IDProp may be statically overridden. Should only be used/be relevant for custom properties. */
+	IDP_FLAG_OVERRIDABLE_STATIC = 1 << 0,
+
 	IDP_FLAG_GHOST       = 1 << 7,  /* this means the property is set but RNA will return false when checking
 	                                 * 'RNA_property_is_set', currently this is a runtime flag */
 };
@@ -384,6 +387,10 @@ typedef enum ID_Type {
 #define ID_IS_STATIC_OVERRIDE_TEMPLATE(_id) (((ID *)(_id))->override_static != NULL && \
                                              ((ID *)(_id))->override_static->reference == NULL)
 
+#define ID_IS_STATIC_OVERRIDE_AUTO(_id) (!ID_IS_LINKED((_id)) && \
+                                         ID_IS_STATIC_OVERRIDE((_id)) && \
+                                         (((ID *)(_id))->flag & LIB_OVERRIDE_STATIC_AUTO))
+
 #ifdef GS
 #  undef GS
 #endif
@@ -432,7 +439,9 @@ enum {
 	LIB_TAG_MISSING         = 1 << 6,
 
 	/* RESET_NEVER tag datablock as being up-to-date regarding its reference. */
-	LIB_TAG_OVERRIDESTATIC_OK = 1 << 9,
+	LIB_TAG_OVERRIDESTATIC_REFOK = 1 << 9,
+	/* RESET_NEVER tag datablock as needing an auto-override execution, if enabled. */
+	LIB_TAG_OVERRIDESTATIC_AUTOREFRESH = 1 << 17,
 
 	/* tag datablock has having an extra user. */
 	LIB_TAG_EXTRAUSER       = 1 << 2,
@@ -460,6 +469,7 @@ enum {
 	LIB_TAG_NOT_ALLOCATED     = 1 << 16,
 };
 
+/* WARNING - when adding flags check on PSYS_RECALC */
 enum {
 	/* RESET_AFTER_USE, used by update code (depsgraph). */
 	ID_RECALC_NONE  = 0,

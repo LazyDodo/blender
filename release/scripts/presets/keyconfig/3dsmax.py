@@ -33,9 +33,6 @@ kmi = km.keymap_items.new('wm.call_menu', 'NDOF_BUTTON_MENU', 'PRESS')
 kmi.properties.name = 'USERPREF_MT_ndof_settings'
 kmi = km.keymap_items.new('wm.context_set_enum', 'F2', 'PRESS', shift=True)
 kmi.properties.data_path = 'area.type'
-kmi.properties.value = 'LOGIC_EDITOR'
-kmi = km.keymap_items.new('wm.context_set_enum', 'F3', 'PRESS', shift=True, ctrl=True)
-kmi.properties.data_path = 'area.type'
 kmi.properties.value = 'NODE_EDITOR'
 kmi = km.keymap_items.new('wm.context_set_enum', 'F4', 'PRESS', shift=True)
 kmi.properties.data_path = 'area.type'
@@ -294,7 +291,6 @@ kmi = km.keymap_items.new('wm.context_cycle_enum', 'O', 'PRESS', shift=True)
 kmi.properties.data_path = 'tool_settings.proportional_edit_falloff'
 kmi = km.keymap_items.new('wm.context_toggle', 'O', 'PRESS')
 kmi.properties.data_path = 'tool_settings.use_proportional_edit_objects'
-kmi = km.keymap_items.new('view3d.game_start', 'P', 'PRESS', shift=True, ctrl=True, alt=True)
 kmi = km.keymap_items.new('object.select_all', 'A', 'PRESS', ctrl=True)
 kmi.properties.action = 'INVERT'
 kmi = km.keymap_items.new('object.select_linked', 'L', 'PRESS', shift=True)

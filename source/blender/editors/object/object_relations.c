@@ -89,7 +89,6 @@
 #include "BKE_node.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
-#include "BKE_sca.h"
 #include "BKE_scene.h"
 #include "BKE_speaker.h"
 #include "BKE_texture.h"
@@ -1681,8 +1680,6 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 {
 	Group *group, *groupn;
 
-	clear_sca_new_poins();  /* BGE logic */
-
 	/* duplicate all the objects of the scene */
 	SceneCollection *msc = BKE_collection_master(&scene->id);
 	single_object_users_scene_collection(bmain, scene, msc, flag, copy_groups);
@@ -1728,8 +1725,6 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 
 	/* object and group pointers */
 	libblock_relink_scene_collection(msc);
-
-	set_sca_new_poins();
 }
 
 /* not an especially efficient function, only added so the single user
@@ -2442,6 +2437,12 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 					base = BKE_view_layer_base_find(view_layer, new_ob);
 					BKE_view_layer_base_select(view_layer, base);
 				}
+				else {
+					/* Disable auto-override tags for non-active objects, will help with performaces... */
+					new_ob->id.flag &= ~LIB_OVERRIDE_STATIC_AUTO;
+				}
+				/* We still want to store all objects' current override status (i.e. change of parent). */
+				BKE_override_static_operations_create(&new_ob->id, true);
 			}
 		}
 		FOREACH_GROUP_OBJECT_END;

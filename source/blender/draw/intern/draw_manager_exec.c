@@ -873,7 +873,12 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 			case DRW_UNIFORM_SHORT_TO_INT:
 				val = (int)*((short *)uni->value);
 				GPU_shader_uniform_vector_int(
-				        shgroup->shader, uni->location, uni->length, uni->arraysize, (int *)&val);
+				        shgroup->shader, uni->location, uni->length, uni->arraysize, &val);
+				break;
+			case DRW_UNIFORM_INT_COPY:
+				val = GET_INT_FROM_POINTER(uni->value);
+				GPU_shader_uniform_vector_int(
+				        shgroup->shader, uni->location, uni->length, uni->arraysize, &val);
 				break;
 			case DRW_UNIFORM_SHORT_TO_FLOAT:
 				fval = (float)*((short *)uni->value);
@@ -1081,6 +1086,9 @@ static void drw_update_view(void)
 
 static void drw_draw_pass_ex(DRWPass *pass, DRWShadingGroup *start_group, DRWShadingGroup *end_group)
 {
+	if (start_group == NULL)
+		return;
+
 	DST.shader = NULL;
 
 	BLI_assert(DST.buffer_finish_called && "DRW_render_instance_buffer_finish had not been called before drawing");

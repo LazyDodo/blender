@@ -174,8 +174,7 @@ struct WorkSpace *ED_workspace_add(
         struct Main *bmain,
         const char *name,
         Scene *scene,
-        ViewLayer *act_render_layer,
-        struct ViewRender *view_render) ATTR_NONNULL();
+        ViewLayer *act_render_layer) ATTR_NONNULL();
 bool ED_workspace_change(
         struct WorkSpace *workspace_new,
         struct bContext *C,
@@ -250,7 +249,6 @@ int     ED_operator_sequencer_active(struct bContext *C);
 int     ED_operator_sequencer_active_editable(struct bContext *C);
 int     ED_operator_image_active(struct bContext *C);
 int     ED_operator_nla_active(struct bContext *C);
-int     ED_operator_logic_active(struct bContext *C);
 int     ED_operator_info_active(struct bContext *C);
 int     ED_operator_console_active(struct bContext *C);
 

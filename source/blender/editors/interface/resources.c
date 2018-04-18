@@ -162,9 +162,6 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case SPACE_NODE:
 					ts = &btheme->tnode;
 					break;
-				case SPACE_LOGIC:
-					ts = &btheme->tlogic;
-					break;
 				case SPACE_CLIP:
 					ts = &btheme->tclip;
 					break;
@@ -1213,10 +1210,6 @@ void ui_theme_init_default(void)
 	rgba_char_args_set(btheme->tnode.console_output, 223, 202, 53, 255);  /* interface nodes */
 	btheme->tnode.noodle_curving = 5;
 
-	/* space logic */
-	btheme->tlogic = btheme->tv3d;
-	rgba_char_args_set(btheme->tlogic.back, 100, 100, 100, 255);
-	
 	/* space clip */
 	btheme->tclip = btheme->tv3d;
 
@@ -2115,13 +2108,6 @@ void init_userdef_do_versions(void)
 
 			if (btheme->tui.wcol_num.outline[3] == 0)
 				ui_widget_color_init(&btheme->tui);
-			
-			/* Logic editor theme, check for alpha==0 is safe, then color was never set */
-			if (btheme->tlogic.syntaxn[3] == 0) {
-				/* re-uses syntax color storage */
-				btheme->tlogic = btheme->tv3d;
-				rgba_char_args_set(btheme->tlogic.back, 100, 100, 100, 255);
-			}
 
 			rgba_char_args_set_fl(btheme->tinfo.back, 0.45, 0.45, 0.45, 1.0);
 			rgba_char_args_set_fl(btheme->tuserpref.back, 0.45, 0.45, 0.45, 1.0);
@@ -2935,9 +2921,6 @@ void init_userdef_do_versions(void)
 		U.transopts &= ~(
 		    USER_TR_DEPRECATED_2 | USER_TR_DEPRECATED_3 | USER_TR_DEPRECATED_4 |
 		    USER_TR_DEPRECATED_6 | USER_TR_DEPRECATED_7);
-		U.gameflags &= ~(
-		    USER_GL_RENDER_DEPRECATED_0 | USER_GL_RENDER_DEPRECATED_1 |
-		    USER_GL_RENDER_DEPRECATED_3 | USER_GL_RENDER_DEPRECATED_4);
 
 		U.uiflag |= USER_LOCK_CURSOR_ADJUST;
 	}

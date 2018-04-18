@@ -1439,10 +1439,6 @@ class VIEW3D_MT_object(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_object_game")
-
-        layout.separator()
-
         layout.operator_menu_enum("object.convert", "target")
 
 
@@ -1551,7 +1547,7 @@ class VIEW3D_MT_object_specials(Menu):
             lamp = obj.data
 
             layout.operator_context = 'INVOKE_REGION_WIN'
-            use_shading_nodes = context.view_render.use_shading_nodes
+            use_shading_nodes = scene.render.use_shading_nodes
 
             if use_shading_nodes:
                 emission_node = None
@@ -1807,26 +1803,6 @@ class VIEW3D_MT_make_links(Menu):
         layout.operator_enum("object.make_links_data", "type")  # inline
 
         layout.operator("object.join_uvs")  # stupid place to add this!
-
-
-class VIEW3D_MT_object_game(Menu):
-    bl_label = "Game"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator("object.logic_bricks_copy", text="Copy Logic Bricks")
-        layout.operator("object.game_physics_copy", text="Copy Physics Properties")
-
-        layout.separator()
-
-        layout.operator("object.game_property_copy", text="Replace Properties").operation = 'REPLACE'
-        layout.operator("object.game_property_copy", text="Merge Properties").operation = 'MERGE'
-        layout.operator_menu_enum("object.game_property_copy", "property", text="Copy Properties...")
-
-        layout.separator()
-
-        layout.operator("object.game_property_clear")
 
 
 class VIEW3D_MT_brush(Menu):
@@ -3754,11 +3730,11 @@ class VIEW3D_PT_transform_orientations(Panel):
     def draw(self, context):
         layout = self.layout
 
-        view = context.space_data
-        orientation = view.current_orientation
+        scene = context.scene
+        orientation = scene.current_orientation
 
         row = layout.row(align=True)
-        row.prop(view, "transform_orientation", text="")
+        row.prop(scene, "transform_orientation", text="")
         row.operator("transform.create_orientation", text="", icon='ZOOMIN')
 
         if orientation:
@@ -3926,7 +3902,6 @@ classes = (
     VIEW3D_MT_object_quick_effects,
     VIEW3D_MT_make_single_user,
     VIEW3D_MT_make_links,
-    VIEW3D_MT_object_game,
     VIEW3D_MT_brush,
     VIEW3D_MT_brush_paint_modes,
     VIEW3D_MT_paint_vertex,
