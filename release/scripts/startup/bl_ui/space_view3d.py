@@ -42,7 +42,10 @@ class VIEW3D_HT_header(Header):
         # Contains buttons like Mode, Pivot, Manipulator, Layer, Mesh Select Mode...
         row = layout
         layout.template_header_3D()
-        row.prop(view, "viewport_shade")
+        row.prop(view, "viewport_shade", text="", icon_only=True)
+
+        if view.viewport_shade == "SOLID":
+            row.prop(view, "viewport_shade_solid", text="")
 
         if obj:
             mode = obj.mode
@@ -3794,11 +3797,11 @@ class VIEW3D_PT_transform_orientations(Panel):
     def draw(self, context):
         layout = self.layout
 
-        view = context.space_data
-        orientation = view.current_orientation
+        scene = context.scene
+        orientation = scene.current_orientation
 
         row = layout.row(align=True)
-        row.prop(view, "transform_orientation", text="")
+        row.prop(scene, "transform_orientation", text="")
         row.operator("transform.create_orientation", text="", icon='ZOOMIN')
 
         if orientation:

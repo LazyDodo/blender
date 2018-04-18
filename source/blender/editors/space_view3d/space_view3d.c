@@ -334,6 +334,8 @@ static SpaceLink *view3d_new(const bContext *C)
 	v3d->gridlines = 16;
 	v3d->gridsubdiv = 10;
 	v3d->drawtype = OB_SOLID;
+	v3d->drawtype_solid = OB_LIGHTING_STUDIO;
+	v3d->drawtype_texture = OB_LIGHTING_STUDIO;
 
 	v3d->gridflag = V3D_SHOW_X | V3D_SHOW_Y | V3D_SHOW_FLOOR;
 	
@@ -351,7 +353,7 @@ static SpaceLink *view3d_new(const bContext *C)
 	v3d->twflag |= U.manipulator_flag & V3D_MANIPULATOR_DRAW;
 	v3d->twtype = V3D_MANIP_TRANSLATE;
 	v3d->around = V3D_AROUND_CENTER_MEAN;
-	v3d->custom_orientation_index = -1;
+	scene->orientation_index_custom = -1;
 	
 	v3d->bundle_size = 0.2f;
 	v3d->bundle_drawtype = OB_PLAINAXES;
