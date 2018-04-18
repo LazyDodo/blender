@@ -3476,11 +3476,10 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 
 		/* scale stroke thickness */
 		if (td->val) {
-			float ratio = t->values[0];
-			snapGridIncrement(t, &ratio);
-			applyNumInput(&t->num, &ratio);
-			t->values[0] = ratio;
+			snapGridIncrement(t, t->values);
+			applyNumInput(&t->num, t->values);
 
+			float ratio = t->values[0];
 			*td->val = td->ival * ratio * gps->falloff;
 			CLAMP_MIN(*td->val, 0.001f);
 		}
