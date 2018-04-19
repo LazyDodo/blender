@@ -2922,9 +2922,11 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 			}
 			writestruct(wd, DATA, SpaceConsole, 1, sl);
 		}
+#ifdef WITH_TOPAR_WRITING
 		else if (sl->spacetype == SPACE_TOPBAR) {
 			writestruct(wd, DATA, SpaceTopBar, 1, sl);
 		}
+#endif
 		else if (sl->spacetype == SPACE_USERPREF) {
 			writestruct(wd, DATA, SpaceUserPref, 1, sl);
 		}

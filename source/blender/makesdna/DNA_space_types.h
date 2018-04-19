@@ -71,6 +71,9 @@ struct BLI_mempool;
  * Editor toolshelf. Leaving this ifdef'ed out for until new tool system and
  * topbar design is more clear. */
 #define WITH_REDO_REGION_REMOVAL
+/* TODO 2.8: We don't write the topbar to files currently. Uncomment this
+ * define to enable writing (should become the default in a bit). */
+//#define WITH_TOPAR_WRITING
 
 
 /* SpaceLink (Base) ==================================== */
@@ -1399,6 +1402,10 @@ typedef enum eSpaceClip_GPencil_Source {
 
 /* Top Bar ======================================= */
 
+/* These two lines with # tell makesdna this struct can be excluded.
+ * Should be: #ifndef WITH_TOPAR_WRITING */
+//#
+//#
 typedef struct SpaceTopBar {
 	SpaceLink *next, *prev;
 	ListBase regionbase;        /* storage of regions for inactive spaces */
