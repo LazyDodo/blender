@@ -83,13 +83,13 @@ public:
 	BezTriple & bezt;
 
 	BCBezTriple(BezTriple bezt);
-	float get_frame();
-	float get_time(Scene *scene);
-	float get_value();
-	float get_angle();
-	void get_in_tangent(Scene *scene, float point[2], bool as_angle);
-	void get_out_tangent(Scene *scene, float point[2], bool as_angle);
-	void get_tangent(Scene *scene, float point[2], bool as_angle, int index);
+	const float get_frame() const;
+	const float get_time(Scene *scene) const;
+	const float get_value() const;
+	const float get_angle() const;
+	void get_in_tangent(Scene *scene, float point[2], bool as_angle) const;
+	void get_out_tangent(Scene *scene, float point[2], bool as_angle) const;
+	void get_tangent(Scene *scene, float point[2], bool as_angle, int index) const;
 
 };
 

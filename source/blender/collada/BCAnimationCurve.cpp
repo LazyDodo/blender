@@ -687,37 +687,37 @@ const bool BCCurveKey::operator<(const BCCurveKey &other) const
 BCBezTriple::BCBezTriple(BezTriple bezt) :
 	bezt(bezt) {}
 
-float BCBezTriple::get_frame()
+const float BCBezTriple::get_frame() const
 {
 	return bezt.vec[1][0];
 }
 
-float BCBezTriple::get_time(Scene *scene)
+const float BCBezTriple::get_time(Scene *scene) const
 {
 	return FRA2TIME(bezt.vec[1][0]);
 }
 
-float BCBezTriple::get_value()
+const float BCBezTriple::get_value() const
 {
 	return bezt.vec[1][1];
 }
 
-float BCBezTriple::get_angle()
+const float BCBezTriple::get_angle() const
 {
 	return RAD2DEGF(get_value());
 }
 
-void BCBezTriple::get_in_tangent(Scene *scene, float point[2], bool as_angle)
+void BCBezTriple::get_in_tangent(Scene *scene, float point[2], bool as_angle) const
 {
 	get_tangent(scene, point, as_angle, 0);
 }
 
-void BCBezTriple::get_out_tangent(Scene *scene, float point[2], bool as_angle)
+void BCBezTriple::get_out_tangent(Scene *scene, float point[2], bool as_angle) const
 {
 	get_tangent(scene, point, as_angle, 2);
 }
 
-void BCBezTriple::get_tangent(Scene *scene, float point[2], bool as_angle, int index)
+void BCBezTriple::get_tangent(Scene *scene, float point[2], bool as_angle, int index) const
 {
 	point[0] = FRA2TIME(bezt.vec[index][0]);
 	if (bezt.ipo != BEZT_IPO_BEZ) {
