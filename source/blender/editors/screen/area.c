@@ -2258,7 +2258,7 @@ int ED_area_global_size_y(const wmWindow *win, const ScrArea *area)
 
 bool ED_area_is_global(const wmWindow *win, const ScrArea *area)
 {
-	return BLI_findindex(&win->global_areas, area) != -1;
+	return BLI_findindex(&win->global_areas.areabase, area) != -1;
 }
 
 /**

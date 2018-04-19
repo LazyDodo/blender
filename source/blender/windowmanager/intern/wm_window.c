@@ -208,7 +208,7 @@ void wm_window_free(bContext *C, wmWindowManager *wm, wmWindow *win)
 			CTX_wm_window_set(C, NULL);
 	}
 
-	for (ScrArea *sa = win->global_areas.first, *sa_next; sa; sa = sa_next) {
+	for (ScrArea *sa = win->global_areas.areabase.first, *sa_next; sa; sa = sa_next) {
 		sa_next = sa->next;
 
 		MEM_freeN(sa->v1);
@@ -217,7 +217,7 @@ void wm_window_free(bContext *C, wmWindowManager *wm, wmWindow *win)
 		MEM_freeN(sa->v4);
 
 		BKE_screen_area_free(sa);
-		BLI_freelinkN(&win->global_areas, sa);
+		BLI_freelinkN(&win->global_areas.areabase, sa);
 	}
 
 	/* end running jobs, a job end also removes its timer */
@@ -2113,7 +2113,7 @@ int WM_window_screen_pixels_y(const wmWindow *win)
 {
 	short screen_size_y = WM_window_pixels_y(win);
 
-	for (ScrArea *sa = win->global_areas.first; sa; sa = sa->next) {
+	for (ScrArea *sa = win->global_areas.areabase.first; sa; sa = sa->next) {
 		screen_size_y -= ED_area_global_size_y(win, sa);
 	}
 

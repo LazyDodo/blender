@@ -6909,8 +6909,8 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		/* we need to restore a pointer to this later when reading workspaces, so store in global oldnew-map */
 		oldnewmap_insert(fd->globmap, hook, win->workspace_hook, 0);
 
-		link_list(fd, &win->global_areas);
-		for (ScrArea *area = win->global_areas.first; area; area = area->next) {
+		link_list(fd, &win->global_areas.areabase);
+		for (ScrArea *area = win->global_areas.areabase.first; area; area = area->next) {
 			direct_link_area(fd, area);
 		}
 
@@ -6986,7 +6986,7 @@ static void lib_link_windowmanager(FileData *fd, Main *main)
 				/* deprecated, but needed for versioning (will be NULL'ed then) */
 				win->screen = newlibadr(fd, NULL, win->screen);
 	
-				for (ScrArea *area = win->global_areas.first; area; area = area->next) {
+				for (ScrArea *area = win->global_areas.areabase.first; area; area = area->next) {
 					lib_link_area(fd, &wm->id, area);
 				}
 			}

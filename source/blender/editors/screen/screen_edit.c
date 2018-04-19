@@ -686,7 +686,7 @@ static void screen_vertices_scale(
 
 	/* Global areas have a fixed size that only changes with the DPI. Here we ensure that exactly this size is set.
 	 * TODO Assumes global area to be top-aligned. Should be made more generic */
-	for (ScrArea *area = win->global_areas.first; area; area = area->next) {
+	for (ScrArea *area = win->global_areas.areabase.first; area; area = area->next) {
 		/* width */
 		area->v1->vec.x = area->v2->vec.x = 0;
 		area->v3->vec.x = area->v4->vec.x = window_size_x - 1;
@@ -928,7 +928,7 @@ void ED_screen_exit(bContext *C, wmWindow *window, bScreen *screen)
 	for (sa = screen->areabase.first; sa; sa = sa->next) {
 		ED_area_exit(C, sa);
 	}
-	for (sa = window->global_areas.first; sa; sa = sa->next) {
+	for (sa = window->global_areas.areabase.first; sa; sa = sa->next) {
 		ED_area_exit(C, sa);
 	}
 
@@ -1101,7 +1101,7 @@ void ED_screen_global_topbar_area_create(const bContext *C, wmWindow *win, const
 		sa->fixed_height = size_y;
 		sa->headertype = HEADERTOP;
 
-		BLI_addhead(&win->global_areas, sa);
+		BLI_addhead(&win->global_areas.areabase, sa);
 
 		BLI_addhead(&sa->spacedata, sl);
 		sa->regionbase = sl->regionbase;

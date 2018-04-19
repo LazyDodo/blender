@@ -136,9 +136,11 @@ int     ED_region_global_size_y(void);
 
 /** Iterate over all areas visible in the screen (screen as in everything visible in the window, not just bScreen) */
 #define ED_screen_areas_iter(win, screen, area_name)     \
-	for (ScrArea *area_name = (win)->global_areas.first ? (win)->global_areas.first : screen->areabase.first; \
+	for (ScrArea *area_name = (win)->global_areas.areabase.first ? \
+	                                  (win)->global_areas.areabase.first : \
+	                                  screen->areabase.first; \
 	     area_name != NULL;                              \
-	     area_name = (area_name == (win)->global_areas.last) ? (screen)->areabase.first : area_name->next)
+	     area_name = (area_name == (win)->global_areas.areabase.last) ? (screen)->areabase.first : area_name->next)
 
 /* screens */
 void    ED_screens_initialize(struct wmWindowManager *wm);

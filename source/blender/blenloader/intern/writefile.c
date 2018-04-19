@@ -2967,7 +2967,7 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 		writestruct(wd, DATA, WorkSpaceInstanceHook, 1, win->workspace_hook);
 		writestruct(wd, DATA, Stereo3dFormat, 1, win->stereo3d_format);
 
-		write_global_areas(wd, &win->global_areas);
+		write_global_areas(wd, &win->global_areas.areabase);
 
 		/* data is written, clear deprecated data again */
 		win->screen = NULL;

@@ -50,7 +50,8 @@ struct wmTooltipState;
 
 typedef struct bScreen {
 	ID id;
-	
+
+	/* TODO Should become ScrAreaMap now. */
 	ListBase vertbase;					/* screens have vertices/edges to define areas */
 	ListBase edgebase;
 	ListBase areabase;
@@ -97,6 +98,12 @@ typedef struct ScrEdge {
 	short flag;
 	int pad;
 } ScrEdge;
+
+typedef struct ScrAreaMap {
+	ListBase vertbase;  /* ScrVert - screens have vertices/edges to define areas */
+	ListBase edgebase;  /* ScrEdge */
+	ListBase areabase;  /* ScrArea */
+} ScrAreaMap;
 
 typedef struct Panel {		/* the part from uiBlock that needs saved in file */
 	struct Panel *next, *prev;

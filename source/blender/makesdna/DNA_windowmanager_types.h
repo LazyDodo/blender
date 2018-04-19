@@ -32,6 +32,7 @@
 #define __DNA_WINDOWMANAGER_TYPES_H__
 
 #include "DNA_listBase.h"
+#include "DNA_screen_types.h"
 #include "DNA_vec_types.h"
 #include "DNA_userdef_types.h"
 
@@ -228,7 +229,7 @@ typedef struct wmWindow {
 
 	/** Global areas aren't part of the screen, but part of the window directly.
 	 * \note Code assumes global areas with fixed height, fixed width not supported yet */
-	ListBase global_areas;
+	ScrAreaMap global_areas;
 
 	struct Stereo3dFormat *stereo3d_format; /* properties for stereoscopic displays */
 
