@@ -136,10 +136,22 @@ static int rna_Screen_fullscreen_get(PointerRNA *ptr)
 /* UI compatible list: should not be needed, but for now we need to keep EMPTY
  * at least in the static version of this enum for python scripts. */
 static const EnumPropertyItem *rna_Area_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr),
-                                             PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
+                                             PropertyRNA *UNUSED(prop), bool *r_free)
 {
+	EnumPropertyItem *item = NULL;
+	int totitem = 0;
+
 	/* +1 to skip SPACE_EMPTY */
-	return rna_enum_space_type_items + 1;
+	for (const EnumPropertyItem *item_from = rna_enum_space_type_items + 1; item_from->identifier; item_from++) {
+		if (ELEM(item_from->value, SPACE_TOPBAR)) {
+			continue;
+		}
+		RNA_enum_item_add(&item, &totitem, item_from);
+	}
+	RNA_enum_item_end(&item, &totitem);
+	*r_free = true;
+
+	return item;
 }
 
 static int rna_Area_type_get(PointerRNA *ptr)
@@ -151,6 +163,13 @@ static int rna_Area_type_get(PointerRNA *ptr)
 
 static void rna_Area_type_set(PointerRNA *ptr, int value)
 {
+	if (ELEM(value, SPACE_TOPBAR)) {
+		/* Special case: An area can not be set to show the top-bar editor (or
+		 * other global areas). However it should still be possible to identify
+		 * its type from Python. */
+		return;
+	}
+
 	ScrArea *sa = (ScrArea *)ptr->data;
 	sa->butspacetype = value;
 }
