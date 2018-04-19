@@ -42,10 +42,6 @@ class VIEW3D_HT_header(Header):
         # Contains buttons like Mode, Pivot, Manipulator, Layer, Mesh Select Mode...
         row = layout
         layout.template_header_3D()
-        row.prop(view, "viewport_shade", text="", icon_only=True)
-
-        if view.viewport_shade == "SOLID":
-            row.prop(view, "viewport_shade_solid", text="")
 
         if obj:
             mode = obj.mode
@@ -1592,7 +1588,7 @@ class VIEW3D_MT_object_specials(Menu):
             lamp = obj.data
 
             layout.operator_context = 'INVOKE_REGION_WIN'
-            use_shading_nodes = context.view_render.use_shading_nodes
+            use_shading_nodes = scene.render.use_shading_nodes
 
             if use_shading_nodes:
                 emission_node = None

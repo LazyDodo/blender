@@ -84,7 +84,6 @@
 #include "BKE_editlattice.h"
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
-#include "BKE_object.h"
 #include "BKE_workspace.h"
 #include "BKE_layer.h"
 
@@ -470,9 +469,7 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
 			{
 				if ((ob != obact) && (ob->type == obact->type)) {
-					if (ob->flag & SELECT) {
-						ED_object_editmode_enter_ex(scene, ob, EM_WAITCURSOR | EM_NO_CONTEXT);
-					}
+					ED_object_editmode_enter_ex(scene, ob, EM_WAITCURSOR | EM_NO_CONTEXT);
 				}
 			}
 			FOREACH_SELECTED_OBJECT_END;
@@ -484,9 +481,7 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
 			{
 				if ((ob != obact) && (ob->type == obact->type)) {
-					if (ob->flag & SELECT) {
-						ED_object_editmode_exit_ex(NULL, scene, ob, EM_FREEDATA | EM_WAITCURSOR);
-					}
+					ED_object_editmode_exit_ex(NULL, scene, ob, EM_FREEDATA | EM_WAITCURSOR);
 				}
 			}
 			FOREACH_SELECTED_OBJECT_END;
@@ -562,9 +557,7 @@ static int posemode_exec(bContext *C, wmOperator *op)
 					    (ob->type == OB_ARMATURE) &&
 					    (ob->mode & mode_flag))
 					{
-						if (ob->flag & SELECT) {
-							ED_object_posemode_exit_ex(bmain, ob);
-						}
+						ED_object_posemode_exit_ex(bmain, ob);
 					}
 				}
 				FOREACH_SELECTED_OBJECT_END;
@@ -582,9 +575,7 @@ static int posemode_exec(bContext *C, wmOperator *op)
 					    (ob->mode == OB_MODE_OBJECT) &&
 					    (!ID_IS_LINKED(ob)))
 					{
-						if (ob->flag & SELECT) {
-							ED_object_posemode_enter_ex(bmain, ob);
-						}
+						ED_object_posemode_enter_ex(bmain, ob);
 					}
 				}
 				FOREACH_SELECTED_OBJECT_END;
@@ -1687,16 +1678,16 @@ static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout
 	MoveToCollectionData *menu = menu_v;
 
 	uiItemIntO(layout,
-			   menu->collection->name,
-			   ICON_NONE,
-			   "OBJECT_OT_move_to_collection",
-			   "collection_index",
-			   menu->index);
+	           menu->collection->name,
+	           ICON_NONE,
+	           "OBJECT_OT_move_to_collection",
+	           "collection_index",
+	           menu->index);
 	uiItemS(layout);
 
 	for (MoveToCollectionData *submenu = menu->submenus.first;
-		 submenu != NULL;
-		 submenu = submenu->next)
+	     submenu != NULL;
+	     submenu = submenu->next)
 	{
 		move_to_collection_menus_items(layout, submenu);
 	}

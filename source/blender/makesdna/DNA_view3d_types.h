@@ -74,6 +74,11 @@ typedef struct View3DDebug {
 } View3DDebug;
 
 /* ********************************* */
+enum {
+	V3D_LIGHTING_FLAT   = 0,
+	V3D_LIGHTING_STUDIO = 1,
+	V3D_LIGHTING_SCENE  = 2
+};
 
 typedef struct RegionView3D {
 	
@@ -244,6 +249,7 @@ typedef struct View3D {
 	short drawtype_solid;
 	/* drawtype subtype (lighting) used when drawtype == OB_TEXTURE */
 	short drawtype_texture;
+
 	View3DDebug debug;
 } View3D;
 

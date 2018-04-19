@@ -182,16 +182,10 @@ const EnumPropertyItem rna_enum_viewport_shade_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-const EnumPropertyItem rna_enum_viewport_shade_solid_items[] = {
-	{OB_LIGHTING_FLAT, "FLAT", ICON_SOLID, "Flat Lighting", "Display using flat lighting"},
-	{OB_LIGHTING_STUDIO, "STUDIO", ICON_SOLID, "Studio Lighting", "Display using studio lighting"},
-	// {OB_LIGHTING_SCENE, "SCENE", ICON_SOLID, "Scene Lighting", "Display using scene lighting"},
-	{0, NULL, 0, NULL, NULL}
-};
-const EnumPropertyItem rna_enum_viewport_shade_texture_items[] = {
-	{OB_LIGHTING_FLAT, "FLAT", ICON_POTATO, "Flat Lighting", "Display using flat lighting"},
-	{OB_LIGHTING_STUDIO, "STUDIO", ICON_POTATO, "Studio Lighting", "Display using studio lighting"},
-	// {OB_LIGHTING_SCENE, "SCENE", ICON_POTATO, "Scene Lighting", "Display using scene lighting"},
+const EnumPropertyItem rna_enum_viewport_lighting_items[] = {
+	{V3D_LIGHTING_FLAT,   "FLAT",   0, "Flat Lighting",   "Display using flat lighting"},
+	{V3D_LIGHTING_STUDIO, "STUDIO", 0, "Studio Lighting", "Display using studio lighting"},
+	/* {V3D_LIGHTING_SCENE, "SCENE", 0, "Scene Lighting", "Display using scene lighting"}, */
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -668,9 +662,23 @@ static void rna_RegionView3D_view_matrix_set(PointerRNA *ptr, const float *value
 
 static int rna_SpaceView3D_viewport_shade_get(PointerRNA *ptr)
 {
+	bScreen *screen = ptr->id.data;
+	Scene *scene = WM_windows_scene_get_from_screen(G.main->wm.first, screen);
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
 	View3D *v3d = (View3D *)ptr->data;
-	int drawtype = v3d->drawtype;
-	return drawtype;
+
+	if (BKE_scene_uses_blender_eevee(scene)) {
+		if (v3d->drawtype == OB_MATERIAL) {
+			return OB_RENDER;
+		}
+	}
+	else if (v3d->drawtype == OB_RENDER) {
+		if (!(type && type->render_to_view)) {
+			return OB_MATERIAL;
+		}
+	}
+
+	return v3d->drawtype;
 }
 
 static void rna_SpaceView3D_viewport_shade_set(PointerRNA *ptr, int value)
@@ -683,14 +691,27 @@ static void rna_SpaceView3D_viewport_shade_set(PointerRNA *ptr, int value)
 }
 
 static const EnumPropertyItem *rna_SpaceView3D_viewport_shade_itemf(
-        bContext *UNUSED(C), PointerRNA *UNUSED(ptr),
+        bContext *C, PointerRNA *UNUSED(ptr),
         PropertyRNA *UNUSED(prop), bool *r_free)
 {
+	wmWindow *win = CTX_wm_window(C);
+	Scene *scene = WM_window_get_active_scene(win);
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
+
 	EnumPropertyItem *item = NULL;
 	int totitem = 0;
 
 	RNA_enum_items_add_value(&item, &totitem, rna_enum_viewport_shade_items, OB_SOLID);
-	RNA_enum_items_add_value(&item, &totitem, rna_enum_viewport_shade_items, OB_RENDER);
+
+	if (BKE_scene_uses_blender_eevee(scene)) {
+		RNA_enum_items_add_value(&item, &totitem, rna_enum_viewport_shade_items, OB_RENDER);
+	}
+	else {
+		RNA_enum_items_add_value(&item, &totitem, rna_enum_viewport_shade_items, OB_MATERIAL);
+		if (type && type->render_to_view) {
+			RNA_enum_items_add_value(&item, &totitem, rna_enum_viewport_shade_items, OB_RENDER);
+		}
+	}
 
 	RNA_enum_item_end(&item, &totitem);
 	*r_free = true;
@@ -2305,13 +2326,13 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "viewport_shade_solid", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "drawtype_solid");
-	RNA_def_property_enum_items(prop, rna_enum_viewport_shade_solid_items);
+	RNA_def_property_enum_items(prop, rna_enum_viewport_lighting_items);
 	RNA_def_property_ui_text(prop, "Viewport Lighting (Solid)", "Lighting Method for Solid Viewport Shading");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_SpaceView3D_viewport_shade_update");
 
 	prop = RNA_def_property(srna, "viewport_shade_texture", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "drawtype_texture");
-	RNA_def_property_enum_items(prop, rna_enum_viewport_shade_texture_items);
+	RNA_def_property_enum_items(prop, rna_enum_viewport_lighting_items);
 	RNA_def_property_ui_text(prop, "Viewport Lighting (Texture)", "Lighting Method for Texture Viewport Shading");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_SpaceView3D_viewport_shade_update");
 

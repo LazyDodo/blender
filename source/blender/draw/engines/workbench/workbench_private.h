@@ -28,6 +28,7 @@
 
 
 #include "DRW_render.h"
+#include "DNA_view3d_types.h"
 
 #define WORKBENCH_ENGINE "BLENDER_WORKBENCH"
 
@@ -51,10 +52,11 @@ typedef struct WORKBENCH_Data {
 
 typedef struct WORKBENCH_PrivateData {
 	DRWShadingGroup *depth_shgrp;
-	
+
 	DRWShadingGroup *shadeless_shgrp;
-	
+
 	struct GHash *material_hash;
+	short drawtype_lighting;
 } WORKBENCH_PrivateData; /* Transient data */
 
 typedef struct WORKBENCH_MaterialData {
@@ -62,25 +64,23 @@ typedef struct WORKBENCH_MaterialData {
 	float color[3];
 	
 	/* Linked shgroup for drawing */
-	DRWShadingGroup * shgrp;
+	DRWShadingGroup *shgrp;
 } WORKBENCH_MaterialData;
 
 
 /* workbench_engine.c */
 void workbench_solid_materials_init(void);
-void workbench_solid_materials_cache_init(WORKBENCH_Data* vedata);
-void workbench_solid_materials_cache_populate(WORKBENCH_Data* vedata, Object* ob);
-void workbench_solid_materials_cache_finish(WORKBENCH_Data* vedata);
-void workbench_solid_materials_draw_scene(WORKBENCH_Data* vedata);
+void workbench_solid_materials_cache_init(WORKBENCH_Data *vedata);
+void workbench_solid_materials_cache_populate(WORKBENCH_Data *vedata, Object *ob);
+void workbench_solid_materials_cache_finish(WORKBENCH_Data *vedata);
+void workbench_solid_materials_draw_scene(WORKBENCH_Data *vedata);
 void workbench_solid_materials_free(void);
 
 /* workbench_materials.c */
 void workbench_materials_engine_init(void);
-void workbench_materials_engine_finish(void);
+void workbench_materials_engine_free(void);
+void workbench_materials_draw_scene_finish(WORKBENCH_Data *vedata);
 void workbench_materials_cache_init(WORKBENCH_Data *vedata);
-WORKBENCH_MaterialData* workbench_get_or_create_solid_flat_material_data(WORKBENCH_Data *vedata, const float color[3]);
-WORKBENCH_MaterialData* workbench_get_or_create_solid_studio_material_data(WORKBENCH_Data *vedata, const float color[3]);
-void workbench_materials_cache_finish(WORKBENCH_Data *vedata);
-
+void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob);
 
 #endif
