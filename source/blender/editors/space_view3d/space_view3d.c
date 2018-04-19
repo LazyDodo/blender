@@ -304,8 +304,6 @@ void ED_view3d_stop_render_preview(wmWindowManager *wm, ARegion *ar)
 		BPy_END_ALLOW_THREADS;
 #endif
 
-		if (rv3d->render_engine->re)
-			RE_Database_Free(rv3d->render_engine->re);
 		RE_engine_free(rv3d->render_engine);
 		rv3d->render_engine = NULL;
 	}
@@ -347,8 +345,8 @@ static SpaceLink *view3d_new(const bContext *C)
 	v3d->gridlines = 16;
 	v3d->gridsubdiv = 10;
 	v3d->drawtype = OB_SOLID;
-	v3d->drawtype_solid = OB_LIGHTING_STUDIO;
-	v3d->drawtype_texture = OB_LIGHTING_STUDIO;
+	v3d->drawtype_solid = V3D_LIGHTING_STUDIO;
+	v3d->drawtype_texture = V3D_LIGHTING_STUDIO;
 
 	v3d->gridflag = V3D_SHOW_X | V3D_SHOW_Y | V3D_SHOW_FLOOR;
 	

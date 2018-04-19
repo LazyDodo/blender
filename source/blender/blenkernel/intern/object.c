@@ -132,8 +132,6 @@
 #include "CCGSubSurf.h"
 #include "atomic_ops.h"
 
-#include "GPU_lamp.h"
-
 /* Vertex parent modifies original BMesh which is not safe for threading.
  * Ideally such a modification should be handled as a separate DAG update
  * callback for mesh datablock, but for until it is actually supported use
@@ -435,7 +433,6 @@ void BKE_object_free(Object *ob)
 		sbFree(ob->soft);
 		ob->soft = NULL;
 	}
-	GPU_lamp_free(ob);
 
 	for (ObjectEngineData *oed = ob->drawdata.first; oed; oed = oed->next) {
 		if (oed->free != NULL) {
@@ -511,7 +508,7 @@ bool BKE_object_is_in_editmode(const Object *ob)
 
 bool BKE_object_is_in_editmode_and_selected(const Object *ob)
 {
-	if ((ob->flag & SELECT) && (BKE_object_is_in_editmode(ob))) {
+	if ((ob->base_flag & BASE_SELECTED) && (BKE_object_is_in_editmode(ob))) {
 		return true;
 	}
 	return false;

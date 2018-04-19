@@ -195,7 +195,6 @@ struct DepsgraphNodeBuilder {
 	void build_nodetree(bNodeTree *ntree);
 	void build_material(Material *ma);
 	void build_texture(Tex *tex);
-	void build_texture_stack(MTex **texture_stack);
 	void build_image(Image *image);
 	void build_world(World *world);
 	void build_compositor(Scene *scene);
@@ -234,6 +233,7 @@ protected:
 	/* State which demotes currently built entities. */
 	Scene *scene_;
 	ViewLayer *view_layer_;
+	int view_layer_index_;
 
 	GHash *cow_id_hash_;
 	BuilderMap built_map_;
