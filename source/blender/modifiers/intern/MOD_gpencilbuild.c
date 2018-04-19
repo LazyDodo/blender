@@ -89,16 +89,9 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
  * - All strokes present are fully visible (i.e. we don't have to ignore any)
  */
 
-/* Remove a particular stroke, freeing the palcolor too, since it is a local copy */
+/* Remove a particular stroke */
 static void clear_stroke(bGPDframe *gpf, bGPDstroke *gps, int modifier_index)
 {
-	if (modifier_index > -1) {
-		/* This is part of the modifier stack, meaning that we're working on
-		 * "derived data" with local copies of the palcolors that we need to free
-		 */
-		MEM_SAFE_FREE(gps->palcolor);
-	}
-	
 	BLI_remlink(&gpf->strokes, gps);
 	BKE_gpencil_free_stroke(gps);
 }

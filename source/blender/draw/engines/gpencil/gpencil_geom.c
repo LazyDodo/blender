@@ -35,6 +35,7 @@
 #include "DNA_screen_types.h"
 #include "DNA_view3d_types.h"
 
+#include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_action.h"
 
@@ -393,11 +394,12 @@ bool gpencil_can_draw_stroke(const bGPDstroke *gps, const bool onion)
 	if ((gps->points == NULL) || (gps->totpoints < 1))
 		return false;
 
+	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+
 	/* check if the color is visible */
-	PaletteColor *palcolor = gps->palcolor;
-	if ((gps->palette == NULL) || (palcolor == NULL) ||
-	    (palcolor->flag & PC_COLOR_HIDE) ||
-	    (onion && (palcolor->flag & PC_COLOR_ONIONSKIN)))
+	if ((gps->palette == NULL) || (gps_palcolor == NULL) ||
+	    (gps_palcolor->flag & PC_COLOR_HIDE) ||
+	    (onion && (gps_palcolor->flag & PC_COLOR_ONIONSKIN)))
 	{
 		return false;
 	}
@@ -575,10 +577,12 @@ static void gpencil_set_fill_point(
 /* recalc the internal geometry caches for fill and uvs */
 void DRW_gpencil_recalc_geometry_caches(bGPDstroke *gps) {
 	if (gps->flag & GP_STROKE_RECALC_CACHES) {
+		PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+
 		/* Calculate triangles cache for filling area (must be done only after changes) */
 		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {
 			if ((gps->totpoints > 2) && 
-				((gps->palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps->palcolor->fill_style > 0))) 
+				((gps_palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps_palcolor->fill_style > 0))) 
 			{
 				gp_triangulate_stroke_fill(gps);
 			}
@@ -661,7 +665,7 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 
 	/* for now, we assume that the base color of the points is not too close to the real color */
 	/* set color using palette */
-	PaletteColor *palcolor = gps->palcolor;
+	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 
 	float selectColor[4];
 	UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);

@@ -192,7 +192,6 @@ typedef struct bGPDstroke {
 	char colorname[128];    /* color name */
 	
 	Palette      *palette;  /* current palette */
-	PaletteColor *palcolor; /* current palette color */
 	
 	/* temporary layer name only used during copy/paste to put the stroke in the original layer */
 	char tmp_layerinfo[128];

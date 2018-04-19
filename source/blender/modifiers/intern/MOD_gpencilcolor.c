@@ -69,6 +69,8 @@ static void copyData(ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
 {
+#if 0
+
 	GpencilColorModifierData *mmd = (GpencilColorModifierData *)md;
 	PaletteColor *palcolor;
 	float hsv[3], factor[3];
@@ -98,6 +100,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	add_v3_v3(hsv, factor);
 	CLAMP3(hsv, 0.0f, 1.0f);
 	hsv_to_rgb_v(hsv, palcolor->fill);
+#endif
 }
 
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
@@ -108,9 +111,9 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	bGPdata *gpd = ob->data;
 	Palette *newpalette = NULL;
 	
+#if 0
 	GHash *gh_layer = BLI_ghash_str_new("GP_Color Layer modifier");
 	GHash *gh_color;
-
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
@@ -166,6 +169,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 		BLI_ghash_free(gh_layer, NULL, NULL);
 		gh_layer = NULL;
 	}
+#endif
 }
 
 ModifierTypeInfo modifierType_GpencilColor = {

@@ -366,7 +366,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 		/* assign color to stroke */
 		BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
 		gps->palette = palette;
-		gps->palcolor = palcolor;
 		BLI_addtail(&gpf->strokes, gps);
 		changed = true;
 	}

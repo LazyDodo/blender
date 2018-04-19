@@ -68,6 +68,8 @@ static void copyData(ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
 {
+#if 0
+
 	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
 
 	if (!is_stroke_affected_by_modifier(
@@ -99,11 +101,14 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 			CLAMP(pt->strength, 0.0f, 1.0f);
 		}
 	}
+#endif
 }
 
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
+#if 0
+
 	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ob->data;
@@ -127,26 +132,20 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 				}
 
 				/* look for color */
-				PaletteColor *newpalcolor = (PaletteColor *)BLI_ghash_lookup(gh_color, gps->palcolor->info);
+				PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+				PaletteColor *newpalcolor = (PaletteColor *)BLI_ghash_lookup(gh_color, gps->colorname);
 				if (newpalcolor == NULL) {
 					if (mmd->flag & GP_TINT_CREATE_COLORS) {
 						if (!newpalette) {
 							bGPDpaletteref *palslot = BKE_gpencil_paletteslot_addnew(bmain, gpd, "Tinted Colors");
 							newpalette = palslot->palette;
 						}
-						newpalcolor = BKE_palette_color_copy(newpalette, gps->palcolor);
+						newpalcolor = BKE_palette_color_copy(newpalette, gps_palcolor);
 						BLI_strncpy(gps->colorname, newpalcolor->info, sizeof(gps->colorname));
-						gps->palcolor = newpalcolor;
 					}
-					else {
-						newpalcolor = gps->palcolor;
-					}
-					BLI_ghash_insert(gh_color, gps->palcolor->info, newpalcolor);
+					BLI_ghash_insert(gh_color, gps_palcolor->info, newpalcolor);
 
 					deformStroke(md, depsgraph, ob, gpl, gps);
-				}
-				else {
-					gps->palcolor = newpalcolor;
 				}
 			}
 		}
@@ -167,6 +166,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 		BLI_ghash_free(gh_layer, NULL, NULL);
 		gh_layer = NULL;
 	}
+#endif
 }
 
 ModifierTypeInfo modifierType_GpencilTint = {

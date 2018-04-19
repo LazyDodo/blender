@@ -124,6 +124,7 @@ static void gp_draw_basic_stroke(bGPDstroke *gps, const float diff_mat[4][4],
 								bool cyclic, float ink[4], int flag, float thershold)
 {
 	bGPDspoint *points = gps->points;
+	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 	int totpoints = gps->totpoints;
 	float fpt[3];
 	float col[4];
@@ -147,7 +148,7 @@ static void gp_draw_basic_stroke(bGPDstroke *gps, const float diff_mat[4][4],
 	for (int i = 0; i < totpoints; i++, pt++) {
 
 		if (flag & GP_BRUSH_FILL_HIDE) {
-			float alpha = gps->palcolor->rgb[3] * pt->strength;
+			float alpha = gps_palcolor->rgb[3] * pt->strength;
 			CLAMP(alpha, 0.0f, 1.0f);
 			col[3] = alpha <= thershold ? 0.0f : 1.0f;
 		}
@@ -217,7 +218,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 				continue;
 			}
 			/* check if the color is visible */
-			PaletteColor *palcolor = gps->palcolor;
+			PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 			if ((palcolor == NULL) || (palcolor->flag & PC_COLOR_HIDE))
 			{
 				continue;
@@ -825,7 +826,6 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	gps->flag |= GP_STROKE_3DSPACE;
 
 	gps->palette = tgpf->palette;
-	gps->palcolor = tgpf->palcolor;
 	if (tgpf->palcolor)
 		BLI_strncpy(gps->colorname, tgpf->palcolor->info, sizeof(gps->colorname));
 

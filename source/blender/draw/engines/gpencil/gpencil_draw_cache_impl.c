@@ -315,12 +315,13 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 	Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const float tintcolor[4], const bool onion, const bool custonion)
 {
+	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 	if (gps->totpoints >= 3) {
 		float tfill[4];
 		/* set color using palette, tint color and opacity */
-		interp_v3_v3v3(tfill, gps->palcolor->fill, tintcolor, tintcolor[3]);
-		tfill[3] = gps->palcolor->fill[3] * gpl->opacity;
-		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps->palcolor->fill_style > 0)) {
+		interp_v3_v3v3(tfill, gps_palcolor->fill, tintcolor, tintcolor[3]);
+		tfill[3] = gps_palcolor->fill[3] * gpl->opacity;
+		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps_palcolor->fill_style > 0)) {
 			const float *color;
 			if (!onion) {
 				color = tfill;
@@ -330,7 +331,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 					color = tintcolor;
 				}
 				else {
-					ARRAY_SET_ITEMS(tfill, UNPACK3(gps->palcolor->fill), tintcolor[3]);
+					ARRAY_SET_ITEMS(tfill, UNPACK3(gps_palcolor->fill), tintcolor[3]);
 					color = tfill;
 				}
 			}
@@ -351,17 +352,18 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	float tcolor[4];
 	float ink[4];
 	short sthickness;
+	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 
 	/* set color using palette, tint color and opacity */
 	if (!onion) {
 		/* if special stroke, use fill color as stroke color */
 		if (gps->flag & GP_STROKE_NOFILL) {
-			interp_v3_v3v3(tcolor, gps->palcolor->fill, tintcolor, tintcolor[3]);
-			tcolor[3] = gps->palcolor->fill[3] * opacity;
+			interp_v3_v3v3(tcolor, gps_palcolor->fill, tintcolor, tintcolor[3]);
+			tcolor[3] = gps_palcolor->fill[3] * opacity;
 		}
 		else {
-			interp_v3_v3v3(tcolor, gps->palcolor->rgb, tintcolor, tintcolor[3]);
-			tcolor[3] = gps->palcolor->rgb[3] * opacity;
+			interp_v3_v3v3(tcolor, gps_palcolor->rgb, tintcolor, tintcolor[3]);
+			tcolor[3] = gps_palcolor->rgb[3] * opacity;
 		}
 		copy_v4_v4(ink, tcolor);
 	}
@@ -370,7 +372,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 			copy_v4_v4(ink, tintcolor);
 		}
 		else {
-			ARRAY_SET_ITEMS(tcolor, gps->palcolor->rgb[0], gps->palcolor->rgb[1], gps->palcolor->rgb[2], opacity);
+			ARRAY_SET_ITEMS(tcolor, gps_palcolor->rgb[0], gps_palcolor->rgb[1], gps_palcolor->rgb[2], opacity);
 			copy_v4_v4(ink, tcolor);
 		}
 	}
@@ -379,7 +381,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	CLAMP_MIN(sthickness, 1);
 	if (cache->is_dirty) {
 		gpencil_batch_cache_check_free_slots(ob);
-		if ((gps->totpoints > 1) && (gps->palcolor->mode  == PAC_MODE_LINE)) {
+		if ((gps->totpoints > 1) && (gps_palcolor->mode  == PAC_MODE_LINE)) {
 			cache->batch_stroke[cache->cache_idx] = DRW_gpencil_get_stroke_geom(gpf, gps, sthickness, ink);
 		}
 		else {
@@ -394,6 +396,8 @@ static void gpencil_add_editpoints_shgroup(
 		GPENCIL_StorageList *stl, GpencilBatchCache *cache,ToolSettings *ts, Object *ob, 
 		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
+	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+
 	if (GPENCIL_ANY_EDIT_MODE(gpd)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		Object *obact = draw_ctx->obact;
@@ -414,7 +418,7 @@ static void gpencil_add_editpoints_shgroup(
 		}
 		/* edit points */
 		if ((gps->flag & GP_STROKE_SELECT) || (is_weight_paint)) {
-			if ((gpl->flag & GP_LAYER_UNLOCK_COLOR) || ((gps->palcolor->flag & PC_COLOR_LOCKED) == 0)) {
+			if ((gpl->flag & GP_LAYER_UNLOCK_COLOR) || ((gps_palcolor->flag & PC_COLOR_LOCKED) == 0)) {
 				if (cache->is_dirty) {
 					gpencil_batch_cache_check_free_slots(ob);
 					cache->batch_edit[cache->cache_idx] = DRW_gpencil_get_edit_geom(gps, ts->gp_sculpt.alpha, gpd->flag);
@@ -443,6 +447,9 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 	copy_m4_m4(gpf->viewmatrix, viewmatrix);
 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+		
+		PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+
 		int id = stl->storage->shgroup_id;
 		/* check if stroke can be drawn */
 		if (gpencil_can_draw_stroke(gps, true) == false) {
@@ -454,11 +461,11 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 		}
 
 		stl->shgroups[id].shgrps_fill = NULL;
-		if ((gps->totpoints > 1) && (gps->palcolor->mode == PAC_MODE_LINE)) {
-			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gps->palcolor, id, true);
+		if ((gps->totpoints > 1) && (gps_palcolor->mode == PAC_MODE_LINE)) {
+			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gps_palcolor, id, true);
 		}
 		else {
-			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gps->palcolor, id, true);
+			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gps_palcolor, id, true);
 		}
 
 		/* stroke */
@@ -522,6 +529,8 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			continue;
 		}
 
+		PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+		
 		/* be sure recalc all chache in source stroke to avoid recalculation when frame change 
 		 * and improve fps */
 		if (src_gps) {
@@ -530,8 +539,8 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 
 		/* if the fill has any value, it's considered a fill and is not drawn if simplify fill is enabled */
 		if ((stl->storage->simplify_fill) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_REMOVE_LINE)) {
-			if ((gps->palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || 
-			    (gps->palcolor->fill_style > FILL_STYLE_SOLID))
+			if ((gps_palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || 
+			    (gps_palcolor->fill_style > FILL_STYLE_SOLID))
 			{
 				continue;
 			}
@@ -541,19 +550,19 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			int id = stl->storage->shgroup_id;
 			if (gps->totpoints > 0) {
 				if ((gps->totpoints > 2) && (!stl->storage->simplify_fill) &&
-					((gps->palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps->palcolor->fill_style > 0)) &&
+					((gps_palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps_palcolor->fill_style > 0)) &&
 					((gps->flag & GP_STROKE_NOFILL) == 0))
 				{
-					stl->shgroups[id].shgrps_fill = DRW_gpencil_shgroup_fill_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh, gpd, gps->palcolor, id);
+					stl->shgroups[id].shgrps_fill = DRW_gpencil_shgroup_fill_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh, gpd, gps_palcolor, id);
 				}
 				else {
 					stl->shgroups[id].shgrps_fill = NULL;
 				}
-				if ((gps->palcolor->mode == PAC_MODE_LINE) && (gps->totpoints > 1)) {
-					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gps->palcolor, id, false);
+				if ((gps_palcolor->mode == PAC_MODE_LINE) && (gps->totpoints > 1)) {
+					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gps_palcolor, id, false);
 				}
 				else {
-					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gps->palcolor, id, false);
+					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gps_palcolor, id, false);
 				}
 			}
 			else {

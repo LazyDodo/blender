@@ -207,12 +207,6 @@ static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 					if (valid_strokes[idx]) {
 						/* Duplicate stroke */
 						bGPDstroke *gps_dst = MEM_dupallocN(gps);
-						if (modifier_index > -1) {
-							/* in these cases, we're operating on data stored in the
-							 * derived caches, so copies will get freed
-							 */
-							gps_dst->palcolor = MEM_dupallocN(gps->palcolor);
-						}
 						gps_dst->points = MEM_dupallocN(gps->points);
 						BKE_gpencil_stroke_weights_duplicate(gps, gps_dst);
 						

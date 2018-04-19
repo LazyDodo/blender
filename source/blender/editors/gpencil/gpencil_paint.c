@@ -1146,9 +1146,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	
 	/* Save palette color */
 	gps->palette = p->palette;
-	gps->palcolor = p->palettecolor;
-	if (p->palettecolor)
-		BLI_strncpy(gps->colorname, p->palettecolor->info, sizeof(gps->colorname));
+	BLI_strncpy(gps->colorname, p->palettecolor->info, sizeof(gps->colorname));
 
 	/* calculate UVs along the stroke */
 	ED_gpencil_calc_stroke_uv(gps);

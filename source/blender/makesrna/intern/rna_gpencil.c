@@ -529,7 +529,6 @@ static bGPDstroke *rna_GPencil_stroke_new(bGPDframe *frame, const char *colornam
 	if (colorname) {
 		BLI_strncpy(stroke->colorname, colorname, sizeof(stroke->colorname));
 	}
-	stroke->palcolor = NULL;
 	stroke->flag |= GP_STROKE_RECALC_COLOR;
 	BLI_addtail(&frame->strokes, stroke);
 
@@ -957,13 +956,6 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
 	RNA_def_property_pointer_sdna(prop, NULL, "palette");
 	RNA_def_property_ui_text(prop, "Palette", "Palette that stroke's color comes from");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-
-	/* Color */
-	prop = RNA_def_property(srna, "color", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "PaletteColor");
-	RNA_def_property_pointer_sdna(prop, NULL, "palcolor");
-	RNA_def_property_ui_text(prop, "Palette Color", "Color from palette used in stroke");
-	RNA_def_property_update(prop, 0, "rna_GPencil_update");
 
 	/* Settings */
 	prop = RNA_def_property(srna, "draw_mode", PROP_ENUM, PROP_NONE);

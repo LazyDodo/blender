@@ -40,6 +40,7 @@
 
 #include "BKE_context.h"
 #include "BKE_deform.h"
+#include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_modifier.h"
 
@@ -67,7 +68,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilOpacityModifierData *mmd = (GpencilOpacityModifierData *)md;
-	PaletteColor *palcolor = gps->palcolor;
+	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(

@@ -1038,10 +1038,10 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 			
 			/* Fix color references */
 			BLI_assert(new_stroke->colorname[0] != '\0');
-			new_stroke->palcolor = BLI_ghash_lookup(data->new_colors, new_stroke->colorname);
+			PaletteColor *palcolor = BLI_ghash_lookup(data->new_colors, new_stroke->colorname);
 			
-			BLI_assert(new_stroke->palcolor != NULL);
-			BLI_strncpy(new_stroke->colorname, new_stroke->palcolor->info, sizeof(new_stroke->colorname));
+			BLI_assert(palcolor != NULL);
+			BLI_strncpy(new_stroke->colorname, palcolor->info, sizeof(new_stroke->colorname));
 			
 			/* Adjust all the stroke's points, so that the strokes
 			 * get pasted relative to where the cursor is now

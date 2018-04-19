@@ -839,11 +839,11 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 		
 		for (bGPDstroke *gps = gp_strokes_copypastebuf.first; gps; gps = gps->next) {
 			if (ED_gpencil_stroke_can_use(C, gps)) {
-				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, gps->colorname) == false) {
-					PaletteColor *color = MEM_dupallocN(gps->palcolor);
-					
+				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, gps->colorname) == false)
+				{
+					PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+					PaletteColor *color = MEM_dupallocN(gps_palcolor);
 					BLI_ghash_insert(gp_strokes_copypastebuf_colors, gps->colorname, color);
-					gps->palcolor = color;
 				}
 			}
 		}
@@ -993,15 +993,6 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 				
 				new_stroke->next = new_stroke->prev = NULL;
 				BLI_addtail(&gpf->strokes, new_stroke);
-				
-				/* Fix color references */
-				BLI_assert(new_stroke->colorname[0] != '\0');
-				new_stroke->palcolor = BLI_ghash_lookup(new_colors, new_stroke->colorname);
-				
-				BLI_assert(new_stroke->palcolor != NULL);
-				BLI_strncpy(new_stroke->colorname, new_stroke->palcolor->info, sizeof(new_stroke->colorname));
-				
-				/*new_stroke->flag |= GP_STROKE_RECALC_COLOR; */
 			}
 		}
 	}
@@ -2223,7 +2214,7 @@ static int gp_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
 			continue;
 			
 		for (bGPDstroke *gps = gpl->actframe->strokes.last; gps; gps = gps->prev) {
-			PaletteColor *palcolor = gps->palcolor;
+			PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 			
 			/* skip strokes that are not selected or invalid for current view */
 			if (((gps->flag & GP_STROKE_SELECT) == 0) || ED_gpencil_stroke_can_use(C, gps) == false)
@@ -2483,7 +2474,6 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 						
 						/* if new, set current color */
 						if (type == GP_STROKE_JOINCOPY) {
-							new_stroke->palcolor = palcolor;
 							BLI_strncpy(new_stroke->colorname, palcolor->info, sizeof(new_stroke->colorname));
 						}
 					}

@@ -58,6 +58,7 @@
 #include "BKE_context.h"
 #include "BKE_brush.h"
 #include "BKE_global.h"
+#include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_image.h"
 
@@ -624,7 +625,7 @@ static void gp_draw_stroke_fill(
         int offsx, int offsy, int winx, int winy, const float diff_mat[4][4], const float color[4])
 {
 	BLI_assert(gps->totpoints >= 3);
-	PaletteColor *palcolor = gps->palcolor;
+	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 
 	/* Calculate triangles cache for filling area (must be done only after changes) */
 	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
@@ -1024,7 +1025,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			continue;
 		}
 		/* check if the color is visible */
-		PaletteColor *palcolor = gps->palcolor;
+		PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 		if ((palcolor == NULL) ||
 		    (palcolor->flag & PC_COLOR_HIDE) ||
 		    /* if onion and ghost flag do not draw*/
@@ -1235,7 +1236,7 @@ static void gp_draw_strokes_edit(
 
 		/* verify palette color lock */
 		{
-			PaletteColor *palcolor = gps->palcolor;
+			PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 			if (palcolor != NULL) {
 				if (palcolor->flag & PC_COLOR_HIDE) {
 					continue;
@@ -1263,7 +1264,7 @@ static void gp_draw_strokes_edit(
 
 		/* for now, we assume that the base color of the points is not too close to the real color */
 		/* set color using palette */
-		PaletteColor *palcolor = gps->palcolor;
+		PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 
 		float selectColor[4];
 		UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);

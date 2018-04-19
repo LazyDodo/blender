@@ -171,8 +171,7 @@ struct bGPDpalettecolor *BKE_gpencil_palettecolor_getactive(struct bGPDpalette *
 void BKE_gpencil_palettecolor_setactive(struct bGPDpalette *palette, struct bGPDpalettecolor *active);
 void BKE_gpencil_palettecolor_delete(struct bGPDpalette *palette, struct bGPDpalettecolor *palcolor);
 struct bGPDpalettecolor *BKE_gpencil_palettecolor_getbyname(struct bGPDpalette *palette, char *name);
-void BKE_gpencil_palettecolor_allnames(struct PaletteColor *palcolor, const char *newname);
-void BKE_gpencil_palettecolor_changename(struct PaletteColor *palcolor, struct bGPdata *gpd, const char *newname);
+void BKE_gpencil_palettecolor_allnames(struct PaletteColor *palcolor, const char *oldname, const char *newname);
 void BKE_gpencil_palettecolor_delete_allstrokes(struct Main *bmain, struct PaletteColor *palcolor);
 
 /* object boundbox */

@@ -1131,18 +1131,18 @@ static int gp_stroke_change_palette_exec(bContext *C, wmOperator *op)
 				/* if the color does not exist, create a new one to keep stroke */
 				if (palcolor == NULL) {
 					palcolor = BKE_palette_color_add_name(palette, gps->colorname);
-					copy_v4_v4(palcolor->rgb, gps->palcolor->rgb);
-					copy_v4_v4(palcolor->fill, gps->palcolor->fill);
+					PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+					copy_v4_v4(palcolor->rgb, gps_palcolor->rgb);
+					copy_v4_v4(palcolor->fill, gps_palcolor->fill);
 					/* duplicate flags */
-					palcolor->flag = gps->palcolor->flag;
-					palcolor->stroke_style = gps->palcolor->stroke_style;
-					palcolor->fill_style = gps->palcolor->fill_style;
+					palcolor->flag = gps_palcolor->flag;
+					palcolor->stroke_style = gps_palcolor->stroke_style;
+					palcolor->fill_style = gps_palcolor->fill_style;
 				}
 
 				/* asign new color */
 				BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
 				gps->palette = palette;
-				gps->palcolor = palcolor;
 			}
 		}
 	}
@@ -1226,10 +1226,9 @@ static int gp_stroke_change_color_exec(bContext *C, wmOperator *UNUSED(op))
 							continue;
 
 						/* asign new color (only if different) */
-						if ((STREQ(gps->colorname, color->info) == false) || (gps->palcolor != color)) {
+						if (STREQ(gps->colorname, color->info) == false) {
 							BLI_strncpy(gps->colorname, color->info, sizeof(gps->colorname));
 							gps->palette = palette;
-							gps->palcolor = color;
 						}
 					}
 				}
@@ -1292,9 +1291,10 @@ static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 					if (ED_gpencil_stroke_can_use(C, gps) == false) {
 						continue;
 					}
+					PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 					/* unlock color */
-					if (gps->palcolor != NULL) {
-						gps->palcolor->flag &= ~PC_COLOR_LOCKED;
+					if (gps_palcolor != NULL) {
+						gps_palcolor->flag &= ~PC_COLOR_LOCKED;
 					}
 				}
 			}

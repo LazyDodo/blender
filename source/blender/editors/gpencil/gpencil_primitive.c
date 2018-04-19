@@ -171,7 +171,6 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	gps->flag |= GP_STROKE_3DSPACE;
 
 	gps->palette = tgpi->palette;
-	gps->palcolor = tgpi->palcolor;
 	if (tgpi->palcolor)
 		BLI_strncpy(gps->colorname, tgpi->palcolor->info, sizeof(gps->colorname));
 

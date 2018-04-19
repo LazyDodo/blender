@@ -302,6 +302,7 @@ static int palette_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Palette *palette;
+	PaletteColor *gps_palcolor = NULL;
 
 	/* sanity checks */
 	if (ELEM(NULL, gpd))
@@ -326,10 +327,11 @@ static int palette_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
 				if (ED_gpencil_stroke_can_use(C, gps) == false)
 					continue;
 
+				gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 				/* unlock/unhide color if not unlocked before */
-				if (gps->palcolor != NULL) {
-					gps->palcolor->flag &= ~PC_COLOR_LOCKED;
-					gps->palcolor->flag &= ~PC_COLOR_HIDE;
+				if (gps_palcolor != NULL) {
+					gps_palcolor->flag &= ~PC_COLOR_LOCKED;
+					gps_palcolor->flag &= ~PC_COLOR_HIDE;
 				}
 			}
 		}

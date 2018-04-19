@@ -147,7 +147,7 @@ static void rna_PaletteColor_info_set(PointerRNA *ptr, const char *value)
 		sizeof(palcolor->info));
 
 	/* rename all for gp datablocks */
-	BKE_gpencil_palettecolor_allnames(palcolor, palcolor->info);
+	BKE_gpencil_palettecolor_allnames(palcolor, oldname, palcolor->info);
 
 	/* now fix animation paths */
 	BKE_animdata_fix_paths_rename_all(&palette->id, "colors", oldname, palcolor->info);

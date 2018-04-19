@@ -445,7 +445,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 		gps->thickness = 3;
 		/* assign color to stroke */
 		BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
-		gps->palcolor = palcolor;
 		BLI_addtail(&gpf->strokes, gps);
 		changed = true;
 	}

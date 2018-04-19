@@ -46,6 +46,7 @@
 #include "BKE_global.h"
 #include "BKE_object.h"
 #include "BKE_lattice.h"
+#include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_modifier.h"
 #include "BKE_colortools.h"
@@ -65,6 +66,8 @@ bool is_stroke_affected_by_modifier(
         char *mlayername, int mpassindex, int minpoints,
         bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2)
 {
+	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+
 	/* omit if filter by layer */
 	if (mlayername[0] != '\0') {
 		if (inv1 == false) {
@@ -81,12 +84,12 @@ bool is_stroke_affected_by_modifier(
 	/* verify pass */
 	if (mpassindex > 0) {
 		if (inv2 == false) {
-			if (gps->palcolor->index != mpassindex) {
+			if (gps_palcolor->index != mpassindex) {
 				return false;
 			}
 		}
 		else {
-			if (gps->palcolor->index == mpassindex) {
+			if (gps_palcolor->index == mpassindex) {
 				return false;
 			}
 		}

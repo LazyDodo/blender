@@ -929,15 +929,11 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 							newpalette->active_color = 0;
 						}
 					}
-					/* second, assign the palette and the color (always to first palette) */
+					/* second, assign the palette (always to first palette) */
 					for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 						for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 							for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-								Palette *palette = first;
-								PaletteColor *palcolor = BKE_palette_color_getbyname(first, gps->colorname);
-
-								gps->palette = palette;
-								gps->palcolor = palcolor;
+								gps->palette = first;
 							}
 						}
 					}

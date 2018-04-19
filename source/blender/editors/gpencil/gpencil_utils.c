@@ -437,7 +437,7 @@ bool ED_gpencil_stroke_can_use(const bContext *C, const bGPDstroke *gps)
 bool ED_gpencil_stroke_color_use(const bGPDlayer *gpl, const bGPDstroke *gps)
 {
 	/* check if the color is editable */
-	PaletteColor *palcolor = gps->palcolor;
+	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 	if ((gps->palette) && (palcolor != NULL)) {
 		if (palcolor->flag & PC_COLOR_HIDE)
 			return false;
@@ -1629,7 +1629,7 @@ void ED_gpencil_calc_stroke_uv(bGPDstroke *gps)
 	if (gps == NULL) {
 		return;
 	}
-	PaletteColor *palcolor = gps->palcolor;
+	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 	float pixsize;
 	if (palcolor) {
 		pixsize = palcolor->t_pixsize / 1000000.0f;

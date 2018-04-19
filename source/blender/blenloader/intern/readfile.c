@@ -6390,18 +6390,8 @@ static void lib_link_gpencil(FileData *fd, Main *main)
 {
 	/* Build up hash of colors to assign later to strokes, for faster lookups */
 	int palette_count = BLI_listbase_count(&main->palettes);
-	GHash **gp_palettecolors_buffer = MEM_mallocN(sizeof(struct GHash *) * palette_count, "Hash Palettes Array");
 	int i = 0;
 	
-	for (Palette *palette = main->palettes.first; palette; palette = palette->id.next, i++) {
-		gp_palettecolors_buffer[i] = BLI_ghash_str_new("GPencil Hash Colors");
-		for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-			if (BLI_ghash_lookup(gp_palettecolors_buffer[i], palcolor->info) == NULL) {
-				BLI_ghash_insert(gp_palettecolors_buffer[i], palcolor->info, palcolor);
-			}
-		}
-	}
-
 	/* Relink all datablock linked by GP datablock */
 	for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
 		if (gpd->id.tag & LIB_TAG_NEED_LINK) {
@@ -6419,27 +6409,6 @@ static void lib_link_gpencil(FileData *fd, Main *main)
 					for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 						/* Relink palette */
 						gps->palette = newlibadr(fd, gpd->id.lib, gps->palette);
-						
-						/* Relink color
-						 * The Palette colors are pointers to a listbase inside the Palette datablock.
-						 * The pointers have to be re-assigned on file open. We use a hash to do this faster.
-						 */
-						/* XXX: Usually, we'd relink the actual colours in direct_link_*() instead, but since
-						 * these pointers actually come from the Palette datablock (which we only resolve here),
-						 * it's probably better to do this here 
-						 */
-						i = BLI_findindex(&main->palettes, gps->palette);
-						if (i > -1) {
-							gps->palcolor = BLI_ghash_lookup(gp_palettecolors_buffer[i], gps->colorname);
-							if (gps->palcolor == NULL) {
-								gps->palcolor = BKE_palette_color_add_name(gps->palette, gps->colorname);
-								/* Set to a different color. */
-								ARRAY_SET_ITEMS(gps->palcolor->rgb, 1.0f, 0.0f, 1.0f, 1.0f);
-								/* add to hash for avoiding create again */
-								BLI_ghash_insert(gp_palettecolors_buffer[i], gps->palcolor->info, gps->palcolor);
-							}
-						}
-						
 						
 						/* XXX: Temporary version-patching code for early 2.8 files without any palette slots */
 						if (i >= 0) palettes_needed[i] = true;
@@ -6471,15 +6440,6 @@ static void lib_link_gpencil(FileData *fd, Main *main)
 			gpd->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
 	}
-
-	/* Free palette-color hash buffer */
-	for (i = 0; i < palette_count; ++i) {
-		if (gp_palettecolors_buffer[i]) {
-			BLI_ghash_free(gp_palettecolors_buffer[i], NULL, NULL);
-			gp_palettecolors_buffer[i] = NULL;
-		}
-	}
-	MEM_SAFE_FREE(gp_palettecolors_buffer);
 }
 
 /* relinks grease-pencil data - used for direct_link and old file linkage */
