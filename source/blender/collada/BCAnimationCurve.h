@@ -145,7 +145,7 @@ public:
 	FCurve *get_edit_fcurve();
 	bool add_value_from_rna(const int frame);
 	bool add_value_from_matrix(const BCSample &sample, const int frame);
-	void add_value(const float val, const int frame, bool modify_curve=false);
+	void add_value(const float val, const int frame);
 	void clean_handles();
 
 	/* experimental stuff */

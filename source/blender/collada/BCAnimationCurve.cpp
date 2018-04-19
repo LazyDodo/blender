@@ -397,7 +397,7 @@ void BCAnimationCurve::adjust_range(const int frame_index)
 	}
 }
 
-void BCAnimationCurve::add_value(const float val, const int frame_index, bool modify_curve)
+void BCAnimationCurve::add_value(const float val, const int frame_index)
 {
 	FCurve *fcu = get_edit_fcurve();
 	if (fcu) {
@@ -514,7 +514,7 @@ bool BCAnimationCurve::add_value_from_rna(const int frame_index)
 		return false;
 	}
 
-	add_value(value, frame_index, /*modify_curve=*/ false);
+	add_value(value, frame_index);
 	return true;
 }
 
