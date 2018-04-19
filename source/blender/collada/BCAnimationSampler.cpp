@@ -65,27 +65,23 @@ BCAnimationSampler::~BCAnimationSampler()
 	BCAnimationObjectMap::iterator it;
 	Main *bmain = CTX_data_main(mContext);
 	for (it = objects.begin(); it != objects.end(); ++it) {
-		BCAnimation &animation = it->second;
-		if (animation.reference)
-		{
-			BKE_libblock_delete(bmain, &animation.reference->id); // is this the correct way to remove a temporary object ?
-		}
+		BCAnimation *animation = it->second;
+		delete animation;
 	}
 }
 
 void BCAnimationSampler::add_object(Object *ob)
 {
-	BCAnimation &animation = objects[ob];
-	Main *bmain = CTX_data_main(mContext);
-	animation.reference = BKE_object_copy(bmain, ob); // must be removed in deconstructor (see above)
+	BCAnimation *animation = new BCAnimation(mContext, ob);
+	objects[ob] = animation;
 
-	initialize_keyframes(animation.frame_set, ob);
-	initialize_curves(animation.curve_map, ob);
+	initialize_keyframes(animation->frame_set, ob);
+	initialize_curves(animation->curve_map, ob);
 }
 
 BCAnimationCurveMap *BCAnimationSampler::get_curves(Object *ob)
 {
-	BCAnimation &animation = objects[ob];
+	BCAnimation &animation = *objects[ob];
 	if (animation.curve_map.size() == 0)
 		initialize_curves(animation.curve_map, ob);
 	return &animation.curve_map;
@@ -138,7 +134,7 @@ void BCAnimationSampler::check_property_is_animated(BCAnimation &animation, floa
 			BCCurveKey key(BC_ANIMATION_TYPE_OBJECT, data_path, array_index);
 			BCAnimationCurveMap::iterator it = animation.curve_map.find(key);
 			if (it == animation.curve_map.end()) {
-				animation.curve_map[key] = new BCAnimationCurve(key, animation.reference);
+				animation.curve_map[key] = new BCAnimationCurve(key, animation.get_reference());
 			}
 		}
 	}
@@ -209,8 +205,8 @@ void BCAnimationSampler::sample_scene(
 		BCAnimationObjectMap::iterator obit;
 		for (obit = objects.begin(); obit != objects.end(); ++obit) {
 			Object *ob = obit->first;
-			BCAnimation &animation = obit->second;
-			BCFrameSet &object_keyframes = animation.frame_set;
+			BCAnimation *animation = obit->second;
+			BCFrameSet &object_keyframes = animation->frame_set;
 			if (is_scene_sample_frame || object_keyframes.find(frame_index) != object_keyframes.end()) {
 
 				if (needs_update) {
@@ -219,7 +215,7 @@ void BCAnimationSampler::sample_scene(
 				}
 
 				BCSample &sample = sample_object(ob, frame_index, for_opensim);
-				update_animation_curves(animation, sample, ob, frame_index);
+				update_animation_curves(*animation, sample, ob, frame_index);
 			}
 		}
 	}

@@ -32,16 +32,27 @@
 
 extern "C" {
 #include "BKE_action.h"
+#include "BKE_library.h"
 #include "BLI_math_rotation.h"
 #include "DNA_action_types.h"
 }
 
 /* Collection of animation curves */
 class BCAnimation {
+private:
+	Object *reference = NULL;
+	bContext *mContext;
+
 public:
 	BCFrameSet frame_set;
 	BCAnimationCurveMap curve_map;
-	Object *reference = NULL;
+
+	BCAnimation(bContext *C, Object *ob):
+		mContext(C)
+	{
+		Main *bmain = CTX_data_main(mContext);
+		reference = BKE_object_copy(bmain, ob);
+	}
 
 	~BCAnimation()
 	{
@@ -49,11 +60,22 @@ public:
 		for (it = curve_map.begin(); it != curve_map.end(); ++it) {
 			delete it->second;
 		}
+
+		if (reference)
+		{
+			Main *bmain = CTX_data_main(mContext);
+			BKE_libblock_delete(bmain, &reference->id);
+		}
 		curve_map.clear();
+	}
+
+	Object *get_reference()
+	{
+		return reference;
 	}
 };
 
-typedef std::map<Object *, BCAnimation> BCAnimationObjectMap;
+typedef std::map<Object *, BCAnimation *> BCAnimationObjectMap;
 
 class BCSampleFrame {
 
