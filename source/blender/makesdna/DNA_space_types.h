@@ -73,7 +73,7 @@ struct BLI_mempool;
 //#define WITH_REDO_REGION_REMOVAL
 /* TODO 2.8: We don't write the topbar to files currently. Uncomment this
  * define to enable writing (should become the default in a bit). */
-//#define WITH_TOPAR_WRITING
+//#define WITH_TOPBAR_WRITING
 
 
 /* SpaceLink (Base) ==================================== */
@@ -1403,7 +1403,7 @@ typedef enum eSpaceClip_GPencil_Source {
 /* Top Bar ======================================= */
 
 /* These two lines with # tell makesdna this struct can be excluded.
- * Should be: #ifndef WITH_TOPAR_WRITING */
+ * Should be: #ifndef WITH_TOPBAR_WRITING */
 //#
 //#
 typedef struct SpaceTopBar {

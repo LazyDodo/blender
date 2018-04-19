@@ -2922,7 +2922,7 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 			}
 			writestruct(wd, DATA, SpaceConsole, 1, sl);
 		}
-#ifdef WITH_TOPAR_WRITING
+#ifdef WITH_TOPBAR_WRITING
 		else if (sl->spacetype == SPACE_TOPBAR) {
 			writestruct(wd, DATA, SpaceTopBar, 1, sl);
 		}
@@ -2963,7 +2963,7 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 		writestruct(wd, DATA, WorkSpaceInstanceHook, 1, win->workspace_hook);
 		writestruct(wd, DATA, Stereo3dFormat, 1, win->stereo3d_format);
 
-#ifdef WITH_TOPAR_WRITING
+#ifdef WITH_TOPBAR_WRITING
 		write_area_map(wd, &win->global_areas);
 #endif
 
