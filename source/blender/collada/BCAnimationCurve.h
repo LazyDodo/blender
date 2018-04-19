@@ -93,6 +93,72 @@ public:
 
 };
 
+class BCKeyPoint {
+private:
+	float inTangent[2];
+	float val;
+	int frame;
+	float outTangent[2];
+	bool hasHandles;
+
+public:
+
+	BCKeyPoint()
+	{
+		val = 0;
+		frame = 0;
+		inTangent[0] = inTangent[1] = 0;
+		outTangent[0] = outTangent[1] = 0;
+		hasHandles = false;
+	}
+
+	BCKeyPoint(const float value, const int frame_index)
+	{
+		frame = frame_index;
+		val = value;
+		hasHandles = false;
+	}
+
+	BCKeyPoint(const BezTriple &bezt)
+	{
+		frame = bezt.vec[1][0];
+		val = bezt.vec[1][1];
+
+		inTangent[0] = bezt.vec[0][0];
+		inTangent[1] = bezt.vec[0][1];
+		outTangent[0] = bezt.vec[2][0];
+		outTangent[1] = bezt.vec[2][1];
+		hasHandles = true;
+	}
+
+	const float(&get_in_tangent() const)[2]
+	{
+		return inTangent;
+	}
+
+	const float(&get_out_tangent()const )[2]
+	{
+		return outTangent;
+	}
+
+	const float get_value() const
+	{
+		return val;
+	}
+
+	const float get_frame() const
+	{
+		return frame;
+	}
+
+	const bool has_handles() const
+	{
+		return hasHandles;
+	}
+
+};
+
+
 class BCAnimationCurve {
 private:
 	BCCurveKey curve_key;
