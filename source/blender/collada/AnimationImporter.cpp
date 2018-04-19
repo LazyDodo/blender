@@ -107,11 +107,9 @@ void AnimationImporter::animation_to_fcurves(COLLADAFW::AnimationCurve *curve)
 				FCurve *fcu = (FCurve *)MEM_callocN(sizeof(FCurve), "FCurve");
 
 				fcu->flag = (FCURVE_VISIBLE | FCURVE_AUTO_HANDLES | FCURVE_SELECTED);
-				// fcu->rna_path = BLI_strdupn(path, strlen(path));
 				fcu->array_index = 0;
-				//fcu->totvert = curve->getKeyCount();
+				fcu->auto_smoothing = FCURVE_SMOOTH_CONT_ACCEL;
 
-				// create beztriple for each key
 				for (unsigned int j = 0; j < curve->getKeyCount(); j++) {
 					BezTriple bez;
 					memset(&bez, 0, sizeof(BezTriple));
@@ -120,7 +118,7 @@ void AnimationImporter::animation_to_fcurves(COLLADAFW::AnimationCurve *curve)
 					// input, output
 					bez.vec[1][0] = bc_get_float_value(input, j) * fps;
 					bez.vec[1][1] = bc_get_float_value(output, j * dim + i);
-
+					bez.h1 = bez.h2 = HD_AUTO;
 
 					if (curve->getInterpolationType() == COLLADAFW::AnimationCurve::INTERPOLATION_BEZIER ||
 					    curve->getInterpolationType() == COLLADAFW::AnimationCurve::INTERPOLATION_STEP)
@@ -135,14 +133,15 @@ void AnimationImporter::animation_to_fcurves(COLLADAFW::AnimationCurve *curve)
 						// outtangent
 						bez.vec[2][0] = bc_get_float_value(outtan, (j * 2 * dim) + (2 * i)) * fps;
 						bez.vec[2][1] = bc_get_float_value(outtan, (j * 2 * dim) + (2 * i) + 1);
-						if (curve->getInterpolationType() == COLLADAFW::AnimationCurve::INTERPOLATION_BEZIER)
+						if (curve->getInterpolationType() == COLLADAFW::AnimationCurve::INTERPOLATION_BEZIER) {
 							bez.ipo = BEZT_IPO_BEZ;
-						else
+							bez.h1 = bez.h2 = HD_AUTO_ANIM;
+						}
+						else {
 							bez.ipo = BEZT_IPO_CONST;
-						//bez.h1 = bez.h2 = HD_AUTO;
+						}
 					}
 					else {
-						bez.h1 = bez.h2 = HD_AUTO;
 						bez.ipo = BEZT_IPO_LIN;
 					}
 					// bez.ipo = U.ipo_new; /* use default interpolation mode here... */
