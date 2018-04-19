@@ -985,14 +985,15 @@ void modifier_deformVerts_DM_deprecated(struct ModifierData *md, struct Depsgrap
 		mti->deformVerts_DM(md, depsgraph, ob, dm, vertexCos, numVerts, flag);
 	}
 	else {
-		struct Mesh mesh;
-		BKE_mesh_init(&mesh);
+		struct Mesh *mesh = ob->data;
+		BLI_assert(BLI_findindex(&G.main->mesh, mesh) == -1); /* This should be a CoW mesh */
 
-		DM_to_mesh(dm, &mesh, ob, CD_MASK_EVERYTHING, false);
+		if (dm != NULL) {
+			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
+		}
 
-		mti->deformVerts(md, depsgraph, ob, &mesh, vertexCos, numVerts, flag);
-
-		BKE_mesh_free(&mesh);
+		BLI_assert(mesh->emd == NULL);
+		mti->deformVerts(md, depsgraph, ob, mesh, vertexCos, numVerts, flag);
 	}
 }
 
@@ -1028,14 +1029,15 @@ void modifier_deformVertsEM_DM_deprecated(struct ModifierData *md, struct Depsgr
 		mti->deformVertsEM_DM(md, depsgraph, ob, editData, dm, vertexCos, numVerts);
 	}
 	else {
-		struct Mesh mesh;
-		BKE_mesh_init(&mesh);
+		struct Mesh *mesh = ob->data;
+		BLI_assert(BLI_findindex(&G.main->mesh, mesh) == -1); /* This should be a CoW mesh */
 
-		DM_to_mesh(dm, &mesh, ob, CD_MASK_EVERYTHING, false);
+		if (dm != NULL) {
+			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
+		}
 
-		mti->deformVertsEM(md, depsgraph, ob, editData, &mesh, vertexCos, numVerts);
-
-		BKE_mesh_free(&mesh);
+		BLI_assert(mesh->emd == NULL);
+		mti->deformVertsEM(md, depsgraph, ob, editData, mesh, vertexCos, numVerts);
 	}
 }
 
