@@ -2939,16 +2939,12 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 	}
 }
 
-static void write_global_areas(WriteData *wd, ListBase *areas)
+static void write_area_map(WriteData *wd, ScrAreaMap *area_map)
 {
-	for (ScrArea *area = areas->first; area; area = area->next) {
+	writelist(wd, DATA, ScrVert, &area_map->vertbase);
+	writelist(wd, DATA, ScrEdge, &area_map->edgebase);
+	for (ScrArea *area = area_map->areabase.first; area; area = area->next) {
 		writestruct(wd, DATA, ScrArea, 1, area);
-
-		writestruct(wd, DATA, ScrVert, 1, area->v1);
-		writestruct(wd, DATA, ScrVert, 1, area->v2);
-		writestruct(wd, DATA, ScrVert, 1, area->v3);
-		writestruct(wd, DATA, ScrVert, 1, area->v4);
-
 		write_area_regions(wd, area);
 	}
 }
@@ -2967,7 +2963,9 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 		writestruct(wd, DATA, WorkSpaceInstanceHook, 1, win->workspace_hook);
 		writestruct(wd, DATA, Stereo3dFormat, 1, win->stereo3d_format);
 
-		write_global_areas(wd, &win->global_areas.areabase);
+#ifdef WITH_TOPAR_WRITING
+		write_area_map(wd, &win->global_areas);
+#endif
 
 		/* data is written, clear deprecated data again */
 		win->screen = NULL;
@@ -2984,19 +2982,7 @@ static void write_screen(WriteData *wd, bScreen *sc)
 	write_previews(wd, sc->preview);
 
 	/* direct data */
-	for (ScrVert *sv = sc->vertbase.first; sv; sv = sv->next) {
-		writestruct(wd, DATA, ScrVert, 1, sv);
-	}
-
-	for (ScrEdge *se = sc->edgebase.first; se; se = se->next) {
-		writestruct(wd, DATA, ScrEdge, 1, se);
-	}
-
-	for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
-		writestruct(wd, DATA, ScrArea, 1, sa);
-
-		write_area_regions(wd, sa);
-	}
+	write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
 }
 
 static void write_bone(WriteData *wd, Bone *bone)

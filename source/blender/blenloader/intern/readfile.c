@@ -6893,6 +6893,34 @@ static void lib_link_area(FileData *fd, ID *parent_id, ScrArea *area)
 	}
 }
 
+/**
+ * \return false on error.
+ */
+static bool direct_link_area_map(FileData *fd, ScrAreaMap *area_map)
+{
+	link_list(fd, &area_map->vertbase);
+	link_list(fd, &area_map->edgebase);
+	link_list(fd, &area_map->areabase);
+	for (ScrArea *area = area_map->areabase.first; area; area = area->next) {
+		direct_link_area(fd, area);
+	}
+
+	/* edges */
+	for (ScrEdge *se = area_map->edgebase.first; se; se = se->next) {
+		se->v1 = newdataadr(fd, se->v1);
+		se->v2 = newdataadr(fd, se->v2);
+		BKE_screen_sort_scrvert(&se->v1, &se->v2);
+
+		if (se->v1 == NULL) {
+			BLI_remlink(&area_map->edgebase, se);
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /* ************ READ WM ***************** */
 
 static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
@@ -6909,10 +6937,7 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		/* we need to restore a pointer to this later when reading workspaces, so store in global oldnew-map */
 		oldnewmap_insert(fd->globmap, hook, win->workspace_hook, 0);
 
-		link_list(fd, &win->global_areas.areabase);
-		for (ScrArea *area = win->global_areas.areabase.first; area; area = area->next) {
-			direct_link_area(fd, area);
-		}
+		direct_link_area_map(fd, &win->global_areas);
 
 		win->ghostwin = NULL;
 		win->gwnctx = NULL;
@@ -7443,14 +7468,8 @@ void blo_do_versions_view3d_split_250(View3D *v3d, ListBase *regions)
 
 static bool direct_link_screen(FileData *fd, bScreen *sc)
 {
-	ScrArea *sa;
-	ScrVert *sv;
-	ScrEdge *se;
 	bool wrong_id = false;
 	
-	link_list(fd, &(sc->vertbase));
-	link_list(fd, &(sc->edgebase));
-	link_list(fd, &(sc->areabase));
 	sc->regionbase.first = sc->regionbase.last= NULL;
 	sc->context = NULL;
 	sc->active_region = NULL;
@@ -7458,28 +7477,10 @@ static bool direct_link_screen(FileData *fd, bScreen *sc)
 
 	sc->preview = direct_link_preview_image(fd, sc->preview);
 
-	/* edges */
-	for (se = sc->edgebase.first; se; se = se->next) {
-		se->v1 = newdataadr(fd, se->v1);
-		se->v2 = newdataadr(fd, se->v2);
-		if ((intptr_t)se->v1 > (intptr_t)se->v2) {
-			sv = se->v1;
-			se->v1 = se->v2;
-			se->v2 = sv;
-		}
-		
-		if (se->v1 == NULL) {
-			printf("Error reading Screen %s... removing it.\n", sc->id.name+2);
-			BLI_remlink(&sc->edgebase, se);
-			wrong_id = true;
-		}
+	if (!direct_link_area_map(fd, AREAMAP_FROM_SCREEN(sc))) {
+		wrong_id = true;
 	}
-	
-	/* areas */
-	for (sa = sc->areabase.first; sa; sa = sa->next) {
-		direct_link_area(fd, sa);
-	}
-	
+
 	return wrong_id;
 }
 

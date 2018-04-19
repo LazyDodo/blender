@@ -143,7 +143,7 @@ int     ED_region_global_size_y(void);
 	     area_name = (area_name == (win)->global_areas.areabase.last) ? (screen)->areabase.first : area_name->next)
 
 /* screens */
-void    ED_screens_initialize(struct wmWindowManager *wm);
+void    ED_screens_initialize(const struct bContext *C, struct wmWindowManager *wm);
 void    ED_screen_draw_edges(struct wmWindow *win);
 void    ED_screen_draw_join_shape(struct ScrArea *sa1, struct ScrArea *sa2);
 void    ED_screen_draw_split_preview(struct ScrArea *sa, const int dir, const float fac);

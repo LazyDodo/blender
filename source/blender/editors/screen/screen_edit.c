@@ -76,17 +76,21 @@
 
 /* ******************* screen vert, edge, area managing *********************** */
 
-static ScrVert *screen_addvert(bScreen *sc, short x, short y)
+static ScrVert *screen_addvert_ex(ScrAreaMap *area_map, short x, short y)
 {
 	ScrVert *sv = MEM_callocN(sizeof(ScrVert), "addscrvert");
 	sv->vec.x = x;
 	sv->vec.y = y;
 	
-	BLI_addtail(&sc->vertbase, sv);
+	BLI_addtail(&area_map->vertbase, sv);
 	return sv;
 }
+static ScrVert *screen_addvert(bScreen *sc, short x, short y)
+{
+	return screen_addvert_ex(AREAMAP_FROM_SCREEN(sc), x, y);
+}
 
-static ScrEdge *screen_addedge(bScreen *sc, ScrVert *v1, ScrVert *v2)
+static ScrEdge *screen_addedge_ex(ScrAreaMap *area_map, ScrVert *v1, ScrVert *v2)
 {
 	ScrEdge *se = MEM_callocN(sizeof(ScrEdge), "addscredge");
 
@@ -94,10 +98,13 @@ static ScrEdge *screen_addedge(bScreen *sc, ScrVert *v1, ScrVert *v2)
 	se->v1 = v1;
 	se->v2 = v2;
 
-	BLI_addtail(&sc->edgebase, se);
+	BLI_addtail(&area_map->edgebase, se);
 	return se;
 }
-
+static ScrEdge *screen_addedge(bScreen *sc, ScrVert *v1, ScrVert *v2)
+{
+	return screen_addedge_ex(AREAMAP_FROM_SCREEN(sc), v1, v2);
+}
 
 bool scredge_is_horizontal(ScrEdge *se)
 {
@@ -143,19 +150,31 @@ ScrEdge *screen_find_active_scredge(const bScreen *sc,
 
 
 /* adds no space data */
-static ScrArea *screen_addarea(bScreen *sc, ScrVert *v1, ScrVert *v2, ScrVert *v3, ScrVert *v4, short headertype, short spacetype)
+static ScrArea *screen_addarea_ex(
+        ScrAreaMap *area_map,
+        ScrVert *bottom_left, ScrVert *top_left, ScrVert *top_right, ScrVert *bottom_right,
+        short headertype, short spacetype)
 {
 	ScrArea *sa = MEM_callocN(sizeof(ScrArea), "addscrarea");
-	sa->v1 = v1;
-	sa->v2 = v2;
-	sa->v3 = v3;
-	sa->v4 = v4;
+
+	sa->v1 = bottom_left;
+	sa->v2 = top_left;
+	sa->v3 = top_right;
+	sa->v4 = bottom_right;
 	sa->headertype = headertype;
 	sa->spacetype = sa->butspacetype = spacetype;
-	
-	BLI_addtail(&sc->areabase, sa);
-	
+
+	BLI_addtail(&area_map->areabase, sa);
+
 	return sa;
+}
+static ScrArea *screen_addarea(
+        bScreen *sc,
+        ScrVert *left_bottom, ScrVert *left_top, ScrVert *right_top, ScrVert *right_bottom,
+        short headertype, short spacetype)
+{
+	return screen_addarea_ex(AREAMAP_FROM_SCREEN(sc), left_bottom, left_top, right_top, right_bottom,
+	                         headertype, spacetype);
 }
 
 static void screen_delarea(bContext *C, bScreen *sc, ScrArea *sa)
@@ -829,7 +848,7 @@ static void screen_refresh_region_sizes_only(
 }
 
 /* file read, set all screens, ... */
-void ED_screens_initialize(wmWindowManager *wm)
+void ED_screens_initialize(const bContext *C, wmWindowManager *wm)
 {
 	wmWindow *win;
 	
@@ -838,6 +857,9 @@ void ED_screens_initialize(wmWindowManager *wm)
 			WM_window_set_active_workspace(win, G.main->workspaces.first);
 		}
 
+		if (BLI_listbase_is_empty(&win->global_areas.areabase)) {
+			ED_screen_global_areas_create(C, win);
+		}
 		ED_screen_refresh(wm, win);
 	}
 }
@@ -1086,25 +1108,27 @@ int ED_screen_area_active(const bContext *C)
 void ED_screen_global_topbar_area_create(const bContext *C, wmWindow *win, const bScreen *screen)
 {
 	if (screen->temp == 0) {
-		ScrArea *sa = MEM_callocN(sizeof(*sa), "top bar area");
 		SpaceType *st = BKE_spacetype_from_id(SPACE_TOPBAR);
 		SpaceLink *sl = st->new(C);
+		ScrArea *sa;
 		const short size_y = 2 * HEADERY;
 
-		sa->v1 = MEM_callocN(sizeof(*sa->v1), __func__);
-		sa->v2 = MEM_callocN(sizeof(*sa->v2), __func__);
-		sa->v3 = MEM_callocN(sizeof(*sa->v3), __func__);
-		sa->v4 = MEM_callocN(sizeof(*sa->v4), __func__);
 		/* Actual coordinates of area verts are set later (screen_vertices_scale) */
+		ScrVert *bottom_left  = screen_addvert_ex(&win->global_areas, 0, 0);
+		ScrVert *top_left     = screen_addvert_ex(&win->global_areas, 0, 0);
+		ScrVert *top_right    = screen_addvert_ex(&win->global_areas, 0, 0);
+		ScrVert *bottom_right = screen_addvert_ex(&win->global_areas, 0, 0);
+		screen_addedge_ex(&win->global_areas, bottom_left, top_left);
+		screen_addedge_ex(&win->global_areas, top_left, top_right);
+		screen_addedge_ex(&win->global_areas, top_right, bottom_right);
+		screen_addedge_ex(&win->global_areas, bottom_right, bottom_left);
 
-		sa->spacetype = sa->butspacetype = SPACE_TOPBAR;
+		sa = screen_addarea_ex(&win->global_areas, bottom_left, top_left, top_right, bottom_right,
+		                       HEADERTOP, SPACE_TOPBAR);
 		sa->fixed_height = size_y;
-		sa->headertype = HEADERTOP;
-
-		BLI_addhead(&win->global_areas.areabase, sa);
+		sa->regionbase = sl->regionbase;
 
 		BLI_addhead(&sa->spacedata, sl);
-		sa->regionbase = sl->regionbase;
 		BLI_listbase_clear(&sl->regionbase);
 	}
 	/* Do not create more area types here! Function is called in versioning code (versioning_280.c). */

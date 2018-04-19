@@ -191,6 +191,10 @@ typedef struct wmWindow {
 
 	struct WorkSpaceInstanceHook *workspace_hook;
 
+	/** Global areas aren't part of the screen, but part of the window directly.
+	 * \note Code assumes global areas with fixed height, fixed width not supported yet */
+	ScrAreaMap global_areas;
+
 	struct bScreen *screen DNA_DEPRECATED;
 
 	short posx, posy, sizex, sizey;  /* window coords */
@@ -226,10 +230,6 @@ typedef struct wmWindow {
 	ListBase modalhandlers;       /* priority handlers, handled first */
 
 	ListBase gesture;             /* gesture stuff */
-
-	/** Global areas aren't part of the screen, but part of the window directly.
-	 * \note Code assumes global areas with fixed height, fixed width not supported yet */
-	ScrAreaMap global_areas;
 
 	struct Stereo3dFormat *stereo3d_format; /* properties for stereoscopic displays */
 

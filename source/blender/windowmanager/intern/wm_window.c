@@ -208,17 +208,7 @@ void wm_window_free(bContext *C, wmWindowManager *wm, wmWindow *win)
 			CTX_wm_window_set(C, NULL);
 	}
 
-	for (ScrArea *sa = win->global_areas.areabase.first, *sa_next; sa; sa = sa_next) {
-		sa_next = sa->next;
-
-		MEM_freeN(sa->v1);
-		MEM_freeN(sa->v2);
-		MEM_freeN(sa->v3);
-		MEM_freeN(sa->v4);
-
-		BKE_screen_area_free(sa);
-		BLI_freelinkN(&win->global_areas.areabase, sa);
-	}
+	BKE_screen_area_map_free(&win->global_areas);
 
 	/* end running jobs, a job end also removes its timer */
 	for (wt = wm->timers.first; wt; wt = wtnext) {

@@ -48,13 +48,19 @@ struct wmTimer;
 struct wmTooltipState;
 
 
+/* TODO Doing this is quite ugly :)
+ * Once the top-bar is merged bScreen should be refactored to use ScrAreaMap. */
+#define AREAMAP_FROM_SCREEN(screen) ((ScrAreaMap *)&(screen)->vertbase)
+
 typedef struct bScreen {
 	ID id;
 
-	/* TODO Should become ScrAreaMap now. */
+	/* TODO Should become ScrAreaMap now.
+	 * ** NOTE: KEEP ORDER IN SYNC WITH ScrAreaMap! (see AREAMAP_FROM_SCREEN macro above) ** */
 	ListBase vertbase;					/* screens have vertices/edges to define areas */
 	ListBase edgebase;
 	ListBase areabase;
+
 	ListBase regionbase;				/* screen level regions (menus), runtime only */
 
 	struct Scene *scene DNA_DEPRECATED;
@@ -100,6 +106,8 @@ typedef struct ScrEdge {
 } ScrEdge;
 
 typedef struct ScrAreaMap {
+	/* ** NOTE: KEEP ORDER IN SYNC WITH LISTBASES IN bScreen! ** */
+
 	ListBase vertbase;  /* ScrVert - screens have vertices/edges to define areas */
 	ListBase edgebase;  /* ScrEdge */
 	ListBase areabase;  /* ScrArea */
