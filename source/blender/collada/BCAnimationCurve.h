@@ -46,6 +46,7 @@ typedef std::set<float> BCFrameSet;
 typedef std::vector<float> BCFrames;
 typedef std::vector<float> BCValues;
 typedef std::vector<float> BCTimes;
+typedef std::map<int, float> BCValueMap;
 
 typedef enum BC_animation_type {
 	BC_ANIMATION_TYPE_OBJECT,
@@ -92,77 +93,9 @@ public:
 
 };
 
-class BCKeyPoint {
-private:
-	float inTangent[2];
-	float val;
-	int frame;
-	float outTangent[2];
-	bool hasHandles;
-
-public:
-
-	BCKeyPoint()
-	{
-		val = 0;
-		frame = 0;
-		inTangent[0] = inTangent[1] = 0;
-		outTangent[0] = outTangent[1] = 0;
-		hasHandles = false;
-	}
-
-	BCKeyPoint(const float value, const int frame_index)
-	{
-		frame = frame_index;
-		val = value;
-		hasHandles = false;
-	}
-
-	BCKeyPoint(const BezTriple &bezt)
-	{
-		frame = bezt.vec[1][0];
-		val = bezt.vec[1][1];
-
-		inTangent[0] = bezt.vec[0][0];
-		inTangent[1] = bezt.vec[0][1];
-		outTangent[0] = bezt.vec[2][0];
-		outTangent[1] = bezt.vec[2][1];
-		hasHandles = true;
-	}
-
-	const float(&get_in_tangent() const)[2]
-	{
-		return inTangent;
-	}
-
-	const float(&get_out_tangent()const )[2]
-	{
-		return outTangent;
-	}
-
-	const float get_value() const
-	{
-		return val;
-	}
-
-	const float get_frame() const
-	{
-		return frame;
-	}
-
-	const bool has_handles() const
-	{
-		return hasHandles;
-	}
-
-};
-
-typedef std::map<int, BCKeyPoint> BCValueMap;
-
 class BCAnimationCurve {
 private:
 	BCCurveKey curve_key;
-	BCValueMap samples;
 	float min = 0;
 	float max = 0;
 
@@ -196,16 +129,14 @@ public:
 	const int get_channel_index() const;
 	const int get_subindex() const;
 	const std::string get_rna_path() const;
-	FCurve *get_fcurve() const;
+	const FCurve *get_fcurve() const;
 	const int sample_count() const;
 
-	BCValueMap &get_value_map();
 	const float get_value(const float frame);
+	void get_values(BCValues &values) const;
+	void get_value_map(BCValueMap &value_map);
 
-	void get_key_values(BCValues &values) const;
-	void get_sampled_values(BCValues &values) const;
-	void get_key_frames(BCFrames &frames) const;
-	void get_sampled_frames(BCFrames &frames) const;
+	void get_frames(BCFrames &frames) const;
 
 	/* Curve edit functions create a copy of the underlaying FCurve */
 	FCurve *get_edit_fcurve();

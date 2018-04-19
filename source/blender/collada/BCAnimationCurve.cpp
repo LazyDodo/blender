@@ -37,7 +37,6 @@ BCAnimationCurve::BCAnimationCurve(const BCAnimationCurve &other)
 	this->min = other.min;
 	this->max = other.max;
 	this->fcurve = other.fcurve;
-	this->samples = other.samples;
 	this->curve_key = other.curve_key;
 	this->curve_is_local_copy = false;
 	this->id_ptr = other.id_ptr;
@@ -220,7 +219,9 @@ const std::string BCAnimationCurve::get_rna_path() const
 
 const int BCAnimationCurve::sample_count() const
 {
-	return samples.size();
+	if (fcurve == NULL)
+		return 0;
+	return fcurve->totvert;
 }
 
 const int BCAnimationCurve::closest_index_above(const float sample_frame, const int start_at) const
@@ -274,7 +275,7 @@ const int BCAnimationCurve::get_interpolation_type(float sample_frame) const
 	return fcurve->bezt[index].ipo;
 }
 
-FCurve *BCAnimationCurve::get_fcurve() const
+const FCurve *BCAnimationCurve::get_fcurve() const
 {
 	return fcurve;
 }
@@ -282,22 +283,16 @@ FCurve *BCAnimationCurve::get_fcurve() const
 FCurve *BCAnimationCurve::get_edit_fcurve()
 {
 	if (!curve_is_local_copy) {
+		const int index = curve_key.get_array_index();
+		const std::string &path = curve_key.get_path();
+		fcurve = create_fcurve(index, path.c_str());
 
-		if (fcurve) {
-			fcurve = copy_fcurve(fcurve);
-			//fprintf(stderr, "Copy to temporary fcurve %s (for editing)\n", fcurve->rna_path);
-		}
-		else {
-			const int index = curve_key.get_array_index();
-			const std::string &path = curve_key.get_path();
-			fcurve = create_fcurve(index, path.c_str());
-			//fprintf(stderr, "Create temporary fcurve %s (for editing)\n", fcurve->rna_path);
-		}
-
-		/* Replacing the pointer here is OK because the original value
+		/* Caution here:
+		Replacing the pointer here is OK only because the original value
 		of FCurve was a const pointer into Blender territory. We do not
-		touch that! We use the local copy to prepare for export.
+		touch that! We use the local copy to prepare data for export.
 		*/
+
 		curve_is_local_copy = true;
 	}
 	return fcurve;
@@ -350,19 +345,10 @@ const bool BCAnimationCurve::is_rotation_curve() const
 
 const float BCAnimationCurve::get_value(const float frame)
 {
-	float eval;
-
-	BCValueMap::iterator it = samples.find(frame);
-	if (it != samples.end()) {
-		BCKeyPoint &keypoint = it->second;
-		eval = keypoint.get_value();
+	if (fcurve) {
+		return evaluate_fcurve(fcurve, frame);
 	}
-
-	FCurve *fcu = get_fcurve();
-	if (fcu) {
-		eval = evaluate_fcurve(fcu, frame);
-	}
-	return eval; // TODO: handle case where neither sample nor fcu exist
+	return 0; // TODO: handle case where neither sample nor fcu exist
 }
 
 void BCAnimationCurve::update_range(float val)
@@ -404,9 +390,8 @@ void BCAnimationCurve::add_value(const float val, const int frame_index)
 		frame_index, val, 
 		BEZT_KEYTYPE_KEYFRAME,
 		INSERTKEY_NOFLAGS);
-	samples[frame_index] = BCKeyPoint(fcu->bezt[key_index]);
 
-	if (samples.size() == 1) {
+	if (fcu->totvert == 1) {
 		init_range(val);
 	}
 	else {
@@ -503,14 +488,23 @@ bool BCAnimationCurve::add_value_from_rna(const int frame_index)
 	return true;
 }
 
-/*
-Return the frames of the sampled curve;
-Note: If the curve was not sampled, the
-returned vector is empty
-*/
-
-void BCAnimationCurve::get_key_frames(BCFrames &frames) const
+void BCAnimationCurve::get_value_map(BCValueMap &value_map)
 {
+	value_map.clear();
+	if (fcurve == NULL) {
+		return;
+	}
+
+	for (int i = 0; i < fcurve->totvert; i++) {
+		const float frame = fcurve->bezt[i].vec[1][0];
+		const float val = fcurve->bezt[i].vec[1][1];
+		value_map[frame] = val;
+	}
+}
+
+void BCAnimationCurve::get_frames(BCFrames &frames) const
+{
+	frames.clear();
 	if (fcurve) {
 		for (int i = 0; i < fcurve->totvert; i++) {
 			const float val = fcurve->bezt[i].vec[1][0];
@@ -519,47 +513,12 @@ void BCAnimationCurve::get_key_frames(BCFrames &frames) const
 	}
 }
 
-void BCAnimationCurve::get_sampled_frames(BCFrames &frames) const
+void BCAnimationCurve::get_values(BCValues &values) const
 {
-	frames.clear();
-	if (samples.size() == 0) {
-		return get_key_frames(frames);
-	}
-	else if (samples.size() > 0) {
-		BCValueMap::const_iterator it;
-		for (it = samples.begin(); it != samples.end(); ++it) {
-			//float val = evaluate_fcurve(fcurve, *it);
-			const int val = it->first;
-			frames.push_back(val);
-		}
-	}
-}
-
-void BCAnimationCurve::get_key_values(BCValues &values) const
-{
+	values.clear();
 	if (fcurve) {
 		for (int i = 0; i < fcurve->totvert; i++) {
 			const float val = fcurve->bezt[i].vec[1][1];
-			values.push_back(val);
-		}
-	}
-}
-
-BCValueMap &BCAnimationCurve::get_value_map()
-{
-	return samples;
-}
-
-void BCAnimationCurve::get_sampled_values(BCValues &values) const
-{
-	values.clear();
-	if (samples.size() == 0) {
-		get_key_values(values);
-	}
-	else if (samples.size() > 0) {
-		BCValueMap::const_iterator it;
-		for (it = samples.begin(); it != samples.end(); ++it) {
-			const float val = it->second.get_value();
 			values.push_back(val);
 		}
 	}

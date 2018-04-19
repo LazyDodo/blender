@@ -276,7 +276,8 @@ BCAnimationCurve *AnimationExporter::get_modified_export_curve(Object *ob, BCAni
 		mcurve = new BCAnimationCurve(key, ob);
 
 		// now tricky part: transform the fcurve
-		const BCValueMap &lens_values = curve.get_value_map();
+		BCValueMap lens_values;
+		curve.get_value_map(lens_values);
 
 		BCAnimationCurve *sensor_curve = NULL;
 		BCCurveKey sensor_key(BC_ANIMATION_TYPE_CAMERA, "sensor_width", 0);
@@ -288,7 +289,7 @@ BCAnimationCurve *AnimationExporter::get_modified_export_curve(Object *ob, BCAni
 		BCValueMap::const_iterator vit;
 		for (vit = lens_values.begin(); vit != lens_values.end(); ++vit) {
 			int frame = vit->first;
-			float lens_value = vit->second.get_value();
+			float lens_value = vit->second;
 
 			float sensor_value;
 			if (sensor_curve) {
@@ -382,8 +383,8 @@ void AnimationExporter::export_collada_curve_animation(
 {
 	BCFrames frames;
 	BCValues values;
-	curve.get_sampled_frames(frames);
-	curve.get_sampled_values(values);
+	curve.get_frames(frames);
+	curve.get_values(values);
 	std::string channel_target = curve.get_channel_target();
 
 	fprintf(stdout, "Export animation curve %s (%d control points)\n", id.c_str(), int(frames.size()));
@@ -508,56 +509,7 @@ void AnimationExporter::add_source_parameters(COLLADASW::SourceBase::ParameterNa
 	}
 }
 
-/*
-Use this when the curve has different keyframes than the underlaying FCurve.
-This can happen when the curve contains sample points. However
-currently the BCAnimationSampler makes sure that sampled points
-are added to the FCurve, hence this function will always find a matching
-keyframe;
-*/
-int AnimationExporter::get_point_in_curve(const BCAnimationCurve &curve, float val, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values)
-{
-	const FCurve *fcu = curve.get_fcurve();
-	int lower_index = curve.closest_index_below(val);
-	return get_point_in_curve(BCBezTriple(fcu->bezt[lower_index]), semantic, is_angle, values);
-}
-
-
-int AnimationExporter::get_point_in_curve(BCBezTriple &bezt, COLLADASW::InputSemantic::Semantics semantic, bool is_angle, float *values)
-{
-	int length;
-	switch (semantic) {
-	case COLLADASW::InputSemantic::INPUT:
-		length = 1;
-		values[0] = bezt.get_time(scene);
-		break;
-	case COLLADASW::InputSemantic::OUTPUT:
-		length = 1;
-		values[0] = (is_angle) ? bezt.get_angle() : bezt.get_value();
-		break;
-
-	case COLLADASW::InputSemantic::IN_TANGENT:
-		length = 2;
-		bezt.get_in_tangent(scene, values, is_angle);
-		break;
-
-	case COLLADASW::InputSemantic::OUT_TANGENT:
-		length = 2;
-		bezt.get_out_tangent(scene, values, is_angle);
-		break;
-
-	default:
-		length = 0;
-		break;
-	}
-	return length;
-}
-
-std::string AnimationExporter::collada_tangent_from_curve(
-	COLLADASW::InputSemantic::Semantics semantic,
-	BCAnimationCurve &curve,
-	const std::string& anim_id,
-	const std::string axis_name)
+std::string AnimationExporter::collada_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, BCAnimationCurve &curve, const std::string& anim_id, std::string axis_name)
 {
 	std::string channel = curve.get_channel_target();
 
@@ -577,30 +529,14 @@ std::string AnimationExporter::collada_tangent_from_curve(
 
 	source.prepareToAppendValues();
 
-	BCValueMap &value_map = curve.get_value_map();
-	BCValueMap::iterator it;
-	for (it = value_map.begin(); it != value_map.end(); ++it) {
+	const FCurve *fcu = curve.get_fcurve();
+	int tangent = (semantic == COLLADASW::InputSemantic::IN_TANGENT) ? 0 : 2;
 
-		int frame_index = it->first;
-		BCKeyPoint &point = it->second;
-		float sampled_time;
-		float sampled_val;
+	for (int i = 0; i < fcu->totvert; ++i) {
+		BezTriple &bezt = fcu->bezt[i];
 
-		if (point.has_handles()) {
-
-			if (semantic == COLLADASW::InputSemantic::IN_TANGENT) {
-				sampled_val = point.get_in_tangent()[1];
-				sampled_time = point.get_in_tangent()[0];
-			}
-			else {
-				sampled_val = point.get_out_tangent()[1];
-				sampled_time = point.get_out_tangent()[0];
-			}
-		}
-		else {
-			sampled_val = point.get_value();
-			sampled_time = point.get_frame();
-		}
+		float sampled_time = bezt.vec[tangent][0];
+		float sampled_val = bezt.vec[tangent][1];
 
 		if (is_angle) {
 			sampled_val = RAD2DEGF(sampled_val);
@@ -712,7 +648,7 @@ std::string AnimationExporter::collada_interpolation_source(const BCAnimationCur
 
 	const FCurve *fcu = curve.get_fcurve();
 	std::vector<float>frames;
-	curve.get_sampled_frames(frames);
+	curve.get_frames(frames);
 
 	for (unsigned int i = 0; i < curve.sample_count(); i++) {
 		float frame = frames[i];
