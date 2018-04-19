@@ -201,6 +201,10 @@ void AnimationExporter::export_curve_animation_set(Object *ob, BCAnimationSample
 			continue;
 		}
 
+		if (!curve.is_animated()) {
+			continue;
+		}
+
 		BCAnimationCurve *mcurve = get_modified_export_curve(ob, curve, *curves);
 		if (mcurve) {
 			export_curve_animation(ob, *mcurve);
@@ -313,32 +317,31 @@ void AnimationExporter::export_curve_animation(
 	 * note: if mcurve is not NULL then it must be deleted at end of this method;
 	 */
 
-	if (curve.is_animated()) {
-		int channel_index = curve.get_channel_index();
-		std::string axis = get_axis_name(channel_target, channel_index); // RGB or XYZ or ""
+	int channel_index = curve.get_channel_index();
+	std::string axis = get_axis_name(channel_target, channel_index); // RGB or XYZ or ""
 
-		std::string action_name;
-		bAction *action = bc_getSceneObjectAction(ob);
-		action_name = (action) ? id_name(action) : "constraint_anim";
+	std::string action_name;
+	bAction *action = bc_getSceneObjectAction(ob);
+	action_name = (action) ? id_name(action) : "constraint_anim";
 
-		const std::string curve_name = curve.get_animation_name(ob);
-		std::string id = bc_get_action_id(action_name, curve_name, channel_target, axis, ".");
+	const std::string curve_name = curve.get_animation_name(ob);
+	std::string id = bc_get_action_id(action_name, curve_name, channel_target, axis, ".");
 
-		std::string collada_target = translate_id(curve_name);
+	std::string collada_target = translate_id(curve_name);
 
-		if (curve.is_of_animation_type(BC_ANIMATION_TYPE_MATERIAL)) {
-			int material_index = curve.get_subindex();
-			Material *ma = give_current_material(ob, material_index + 1);
-			if (ma) {
-				collada_target = translate_id(id_name(ma)) + "-effect/common/" + get_collada_sid(curve, axis);
-			}
+	if (curve.is_of_animation_type(BC_ANIMATION_TYPE_MATERIAL)) {
+		int material_index = curve.get_subindex();
+		Material *ma = give_current_material(ob, material_index + 1);
+		if (ma) {
+			collada_target = translate_id(id_name(ma)) + "-effect/common/" + get_collada_sid(curve, axis);
 		}
-		else {
-			collada_target += "/" + get_collada_sid(curve, axis);
-		}
-
-		export_collada_curve_animation(id, curve_name, collada_target, axis, curve);
 	}
+	else {
+		collada_target += "/" + get_collada_sid(curve, axis);
+	}
+
+	export_collada_curve_animation(id, curve_name, collada_target, axis, curve);
+
 }
 
 void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &frames, BCMatrixSampleMap &samples)
