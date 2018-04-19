@@ -46,7 +46,6 @@ typedef std::set<float> BCFrameSet;
 typedef std::vector<float> BCFrames;
 typedef std::vector<float> BCValues;
 typedef std::vector<float> BCTimes;
-typedef std::map<int, float> BCValueMap;
 
 typedef enum BC_animation_type {
 	BC_ANIMATION_TYPE_OBJECT,
@@ -158,6 +157,7 @@ public:
 
 };
 
+typedef std::map<int, BCKeyPoint> BCValueMap;
 
 class BCAnimationCurve {
 private:

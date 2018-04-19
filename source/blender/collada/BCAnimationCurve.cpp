@@ -306,15 +306,13 @@ FCurve *BCAnimationCurve::get_edit_fcurve()
 void BCAnimationCurve::clean_handles()
 {
 	if (fcurve == NULL)
-		return;
+		fcurve = get_edit_fcurve();
 
 	/* Keep old bezt data for copy)*/
 	BezTriple *old_bezts = fcurve->bezt;
 	int totvert = fcurve->totvert;
 	fcurve->bezt = NULL;
 	fcurve->totvert = 0;
-
-	/* now insert first keyframe, as it should be ok */
 
 	for (int i = 0; i < totvert; i++) {
 		BezTriple *bezt = &old_bezts[i];
@@ -352,12 +350,12 @@ const bool BCAnimationCurve::is_rotation_curve() const
 
 const float BCAnimationCurve::get_value(const float frame)
 {
-	float eval = 0;
+	float eval;
 
 	BCValueMap::iterator it = samples.find(frame);
 	if (it != samples.end()) {
-		eval = it->second;
-		return eval;
+		BCKeyPoint &keypoint = it->second;
+		eval = keypoint.get_value();
 	}
 
 	FCurve *fcu = get_fcurve();
@@ -400,32 +398,19 @@ void BCAnimationCurve::adjust_range(const int frame_index)
 void BCAnimationCurve::add_value(const float val, const int frame_index)
 {
 	FCurve *fcu = get_edit_fcurve();
-	if (fcu) {
-		const float eval = evaluate_fcurve(fcu, frame_index);
+	fcu->auto_smoothing = FCURVE_SMOOTH_CONT_ACCEL;
+	int key_index = insert_vert_fcurve(
+		fcu, 
+		frame_index, val, 
+		BEZT_KEYTYPE_KEYFRAME,
+		INSERTKEY_NOFLAGS);
+	samples[frame_index] = BCKeyPoint(fcu->bezt[key_index]);
 
-		/*
-		* This is a bit tricky here. We actually only insert a keyframe into the FCurve
-		* Preserving the current value. Then we add the frame index and the "true" value
-		* into a separate value_map <frame, value>
-		*
-		* Reason: we need the Fcurve handles later when we want to export the values as a Bezier curve
-		* You can call the method fix_modified_curve() when all curve points have been added
-		*/
-		int key_index = insert_vert_fcurve(
-			fcu, 
-			frame_index, 
-			(modify_curve) ? val:eval, 
-			(eBezTriple_KeyframeType)BEZT_IPO_BEZ,
-			INSERTKEY_NO_USERPREF);
-
-		samples[frame_index] = val;
-
-		if (samples.size() == 1) {
-			init_range(eval);
-		}
-		else {
-			update_range(eval);
-		}
+	if (samples.size() == 1) {
+		init_range(val);
+	}
+	else {
+		update_range(val);
 	}
 }
 
@@ -574,7 +559,7 @@ void BCAnimationCurve::get_sampled_values(BCValues &values) const
 	else if (samples.size() > 0) {
 		BCValueMap::const_iterator it;
 		for (it = samples.begin(); it != samples.end(); ++it) {
-			const float val = it->second;
+			const float val = it->second.get_value();
 			values.push_back(val);
 		}
 	}

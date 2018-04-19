@@ -284,7 +284,7 @@ BCAnimationCurve *AnimationExporter::get_modified_export_curve(Object *ob, BCAni
 		BCValueMap::const_iterator vit;
 		for (vit = lens_values.begin(); vit != lens_values.end(); ++vit) {
 			int frame = vit->first;
-			float lens_value = vit->second;
+			float lens_value = vit->second.get_value();
 
 			float sensor_value;
 			if (sensor_curve) {
@@ -294,7 +294,7 @@ BCAnimationCurve *AnimationExporter::get_modified_export_curve(Object *ob, BCAni
 				sensor_value = ((Camera *)ob->data)->sensor_x;
 			}
 			float value = RAD2DEGF(focallength_to_fov(lens_value, sensor_value));
-			mcurve->add_value(value, frame, /*modify_curve=*/true);
+			mcurve->add_value(value, frame);
 		}
 		mcurve->clean_handles(); // to reset the handles
 	}
@@ -549,8 +549,12 @@ int AnimationExporter::get_point_in_curve(BCBezTriple &bezt, COLLADASW::InputSem
 	}
 	return length;
 }
-
-std::string AnimationExporter::collada_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, const BCAnimationCurve &curve, std::vector<float>frames, const std::string& anim_id, std::string axis_name)
+std::string AnimationExporter::collada_tangent_from_curve(
+	COLLADASW::InputSemantic::Semantics semantic,
+	const BCAnimationCurve &curve,
+	std::vector<float>frames,
+	const std::string& anim_id,
+	std::string axis_name)
 {
 	std::string channel = curve.get_channel_target();
 
