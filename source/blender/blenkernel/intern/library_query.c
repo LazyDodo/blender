@@ -777,6 +777,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				CALLBACK_INVOKE(brush->toggle_brush, IDWALK_CB_NOP);
 				CALLBACK_INVOKE(brush->clone.image, IDWALK_CB_NOP);
 				CALLBACK_INVOKE(brush->paint_curve, IDWALK_CB_USER);
+			    CALLBACK_INVOKE(brush->palette, IDWALK_CB_USER);
 				library_foreach_mtex(&data, &brush->mtex);
 				library_foreach_mtex(&data, &brush->mask_mtex);
 				break;
@@ -958,8 +959,14 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			{
 				bGPdata *gpencil = (bGPdata *) id;
 
+				/* relink palette for all strokes */
 				for (bGPDlayer *gp_layer = gpencil->layers.first; gp_layer; gp_layer = gp_layer->next) {
 					CALLBACK_INVOKE(gp_layer->parent, IDWALK_CB_NOP);
+					for (bGPDframe *gpf = gp_layer->frames.first; gpf; gpf = gpf->next) {
+						for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+							CALLBACK_INVOKE(gps->palette, IDWALK_CB_NOP);
+						}
+					}
 				}
 				break;
 			}
