@@ -378,7 +378,7 @@ void AnimationExporter::export_collada_curve_animation(
 	std::string name,
 	std::string collada_target,
 	std::string axis,
-	const BCAnimationCurve &curve)
+	BCAnimationCurve &curve)
 {
 	BCFrames frames;
 	BCValues values;
@@ -403,8 +403,8 @@ void AnimationExporter::export_collada_curve_animation(
 	std::string intangent_id;
 	std::string outtangent_id;
 	if (has_tangents) {
-		intangent_id = collada_tangent_from_curve(COLLADASW::InputSemantic::IN_TANGENT, curve, frames, id, axis);
-		outtangent_id = collada_tangent_from_curve(COLLADASW::InputSemantic::OUT_TANGENT, curve, frames, id, axis);
+		intangent_id = collada_tangent_from_curve(COLLADASW::InputSemantic::IN_TANGENT, curve, id, axis);
+		outtangent_id = collada_tangent_from_curve(COLLADASW::InputSemantic::OUT_TANGENT, curve, id, axis);
 	}
 
 	std::string sampler_id = std::string(id) + SAMPLER_ID_SUFFIX;
@@ -552,12 +552,12 @@ int AnimationExporter::get_point_in_curve(BCBezTriple &bezt, COLLADASW::InputSem
 	}
 	return length;
 }
+
 std::string AnimationExporter::collada_tangent_from_curve(
 	COLLADASW::InputSemantic::Semantics semantic,
-	const BCAnimationCurve &curve,
-	std::vector<float>frames,
+	BCAnimationCurve &curve,
 	const std::string& anim_id,
-	std::string axis_name)
+	const std::string axis_name)
 {
 	std::string channel = curve.get_channel_target();
 
@@ -577,26 +577,36 @@ std::string AnimationExporter::collada_tangent_from_curve(
 
 	source.prepareToAppendValues();
 
-	std::vector<float> values;
-	curve.get_sampled_values(values);
+	BCValueMap &value_map = curve.get_value_map();
+	BCValueMap::iterator it;
+	for (it = value_map.begin(); it != value_map.end(); ++it) {
 
-	const FCurve *fcu = curve.get_fcurve(); // need this to get the original tangents
+		int frame_index = it->first;
+		BCKeyPoint &point = it->second;
+		float sampled_time;
+		float sampled_val;
 
-	for (unsigned int frame_index = 0; frame_index < values.size(); frame_index++) {
-		float sampled_val = values[frame_index];
+		if (point.has_handles()) {
+
+			if (semantic == COLLADASW::InputSemantic::IN_TANGENT) {
+				sampled_val = point.get_in_tangent()[1];
+				sampled_time = point.get_in_tangent()[0];
+			}
+			else {
+				sampled_val = point.get_out_tangent()[1];
+				sampled_time = point.get_out_tangent()[0];
+			}
+		}
+		else {
+			sampled_val = point.get_value();
+			sampled_time = point.get_frame();
+		}
 
 		if (is_angle) {
 			sampled_val = RAD2DEGF(sampled_val);
 		}
 
-		float vals[3]; // be careful!
-		int length = get_point_in_curve(curve, frames[frame_index], semantic, is_angle, vals);
-		float offset = 0;
-		float bases[3];
-		int len = get_point_in_curve(curve, frames[frame_index], COLLADASW::InputSemantic::OUTPUT, is_angle, bases);
-		sampled_val += vals[1] - bases[0];
-
-		source.appendValues(vals[0]);
+		source.appendValues(FRA2TIME(sampled_time));
 		source.appendValues(sampled_val);
 
 	}

@@ -141,7 +141,7 @@ private:
 		std::string name,
 		std::string target,
 		std::string axis,
-		const BCAnimationCurve &curve);
+		BCAnimationCurve &curve);
 
 	/* call to the low level collada exporter */
 	void export_collada_matrix_animation(
@@ -191,8 +191,7 @@ private:
 
 	std::string collada_tangent_from_curve(
 		COLLADASW::InputSemantic::Semantics semantic,
-		const BCAnimationCurve &curve,
-		std::vector<float>frames,
+		BCAnimationCurve &curve,
 		const std::string& anim_id,
 		const std::string axis_name);
 
