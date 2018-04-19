@@ -7397,6 +7397,7 @@ static bool direct_link_screen(FileData *fd, bScreen *sc)
 	sc->preview = direct_link_preview_image(fd, sc->preview);
 
 	if (!direct_link_area_map(fd, AREAMAP_FROM_SCREEN(sc))) {
+		printf("Error reading Screen %s... removing it.\n", sc->id.name + 2);
 		wrong_id = true;
 	}
 
