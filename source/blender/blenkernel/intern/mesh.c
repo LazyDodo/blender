@@ -388,6 +388,32 @@ void BKE_mesh_ensure_skin_customdata(Mesh *me)
 	}
 }
 
+bool BKE_mesh_ensure_edit_data(struct Mesh *me)
+{
+	if (me->emd != NULL) {
+		return false;
+	}
+
+	me->emd = MEM_callocN(sizeof(EditMeshData), "EditMeshData");
+	return true;
+}
+
+bool BKE_mesh_clear_edit_data(struct Mesh *me)
+{
+	if (me->emd == NULL) {
+		return false;
+	}
+
+	MEM_SAFE_FREE(me->emd->polyCos);
+	MEM_SAFE_FREE(me->emd->polyNos);
+	MEM_SAFE_FREE(me->emd->vertexCos);
+	MEM_SAFE_FREE(me->emd->vertexNos);
+	MEM_SAFE_FREE(me->emd);
+	BLI_assert(me->emd == NULL);
+	return true;
+}
+
+
 bool BKE_mesh_ensure_facemap_customdata(struct Mesh *me)
 {
 	BMesh *bm = me->edit_btmesh ? me->edit_btmesh->bm : NULL;
@@ -481,6 +507,7 @@ void BKE_mesh_free(Mesh *me)
 	BKE_animdata_free(&me->id, false);
 
 	BKE_mesh_batch_cache_free(me);
+	BKE_mesh_clear_edit_data(me);
 
 	CustomData_free(&me->vdata, me->totvert);
 	CustomData_free(&me->edata, me->totedge);

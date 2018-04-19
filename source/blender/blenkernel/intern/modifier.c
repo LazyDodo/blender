@@ -986,15 +986,18 @@ void modifier_deformVerts_DM_deprecated(struct ModifierData *md, struct Depsgrap
 	}
 	else {
 		struct Mesh *mesh = ob->data;
-		BLI_assert(BLI_findindex(&G.main->mesh, mesh) == -1); /* This should be a CoW mesh */
-
+		BLI_assert(DEG_depsgraph_use_copy_on_write());
+//		BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); /* This should be a CoW mesh */
+		printf("modifier_deformVerts_DM_deprecated(%s)\n", md->name);
+		if ((mesh->id.tag & LIB_TAG_COPY_ON_WRITE) == 0) {
+			printf("   WARNING, operating on real Mesh %s = %p\n", mesh->id.name, mesh);
+		}
 		if (dm != NULL) {
+			BKE_mesh_free(mesh);
 			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
 		}
 
-		BLI_assert(mesh->emd == NULL);
 		mti->deformVerts(md, depsgraph, ob, mesh, vertexCos, numVerts, flag);
-//		BLI_assert(mesh->emd == NULL);
 	}
 }
 
@@ -1031,13 +1034,18 @@ void modifier_deformVertsEM_DM_deprecated(struct ModifierData *md, struct Depsgr
 	}
 	else {
 		struct Mesh *mesh = ob->data;
-		BLI_assert(BLI_findindex(&G.main->mesh, mesh) == -1); /* This should be a CoW mesh */
+		printf("modifier_deformVertsEM_DM_deprecated(%s)\n", md->name);
+		BLI_assert(DEG_depsgraph_use_copy_on_write());
+//		BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); /* This should be a CoW mesh */
+		if ((mesh->id.tag & LIB_TAG_COPY_ON_WRITE) == 0) {
+			printf("   WARNING, operating on real Mesh %s = %p\n", mesh->id.name, mesh);
+		}
 
 		if (dm != NULL) {
+			BKE_mesh_free(mesh);
 			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
 		}
 
-		BLI_assert(mesh->emd == NULL);
 		mti->deformVertsEM(md, depsgraph, ob, editData, mesh, vertexCos, numVerts);
 	}
 }

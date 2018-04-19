@@ -2470,6 +2470,12 @@ static void editbmesh_calc_modifiers(
 				*r_cage = dm;
 			}
 			else {
+				struct Mesh *mesh = ob->data;
+				if (mesh->id.tag & LIB_TAG_COPY_ON_WRITE) {
+					BKE_mesh_ensure_edit_data(mesh);
+					printf("Saving cage deformed verts in CoW mesh %p\n", mesh);
+					mesh->emd->vertexCos = MEM_dupallocN(deformedVerts);
+				}
 				*r_cage = getEditDerivedBMesh(
 				        em, ob, mask,
 				        deformedVerts ? MEM_dupallocN(deformedVerts) : NULL);
@@ -2507,6 +2513,12 @@ static void editbmesh_calc_modifiers(
 	}
 	else {
 		/* this is just a copy of the editmesh, no need to calc normals */
+		struct Mesh *mesh = ob->data;
+		if (mesh->id.tag & LIB_TAG_COPY_ON_WRITE) {
+			BKE_mesh_ensure_edit_data(mesh);
+			mesh->emd->vertexCos = MEM_dupallocN(deformedVerts);
+			printf("Saving final deformed verts in CoW mesh %p\n", mesh);
+		}
 		*r_final = getEditDerivedBMesh(em, ob, dataMask, deformedVerts);
 
 		deformedVerts = NULL;
