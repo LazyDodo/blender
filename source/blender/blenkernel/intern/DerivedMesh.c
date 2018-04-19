@@ -2508,6 +2508,7 @@ static void editbmesh_calc_modifiers(
 	else {
 		/* this is just a copy of the editmesh, no need to calc normals */
 		*r_final = getEditDerivedBMesh(em, ob, dataMask, deformedVerts);
+
 		deformedVerts = NULL;
 
 		/* In this case, we should never have weight-modifying modifiers in stack... */

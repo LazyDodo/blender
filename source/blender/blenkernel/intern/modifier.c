@@ -994,6 +994,7 @@ void modifier_deformVerts_DM_deprecated(struct ModifierData *md, struct Depsgrap
 
 		BLI_assert(mesh->emd == NULL);
 		mti->deformVerts(md, depsgraph, ob, mesh, vertexCos, numVerts, flag);
+//		BLI_assert(mesh->emd == NULL);
 	}
 }
 

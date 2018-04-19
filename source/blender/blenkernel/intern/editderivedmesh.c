@@ -56,6 +56,7 @@
 
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
+#include "DNA_mesh_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -71,14 +72,7 @@ typedef struct EditDerivedBMesh {
 
 	BMEditMesh *em;
 
-	/** when set, \a vertexNos, polyNos are lazy initialized */
-	const float (*vertexCos)[3];
-
-	/** lazy initialize (when \a vertexCos is set) */
-	float const (*vertexNos)[3];
-	float const (*polyNos)[3];
-	/** also lazy init but dont depend on \a vertexCos */
-	const float (*polyCos)[3];
+	EditMeshData emd;
 } EditDerivedBMesh;
 
 /* -------------------------------------------------------------------- */
@@ -88,7 +82,7 @@ static void emDM_ensurePolyNormals(EditDerivedBMesh *bmdm);
 
 static void emDM_ensureVertNormals(EditDerivedBMesh *bmdm)
 {
-	if (bmdm->vertexCos && (bmdm->vertexNos == NULL)) {
+	if (bmdm->emd.vertexCos && (bmdm->emd.vertexNos == NULL)) {
 
 		BMesh *bm = bmdm->em->bm;
 		const float (*vertexCos)[3], (*polyNos)[3];
@@ -99,19 +93,19 @@ static void emDM_ensureVertNormals(EditDerivedBMesh *bmdm)
 
 		BM_mesh_elem_index_ensure(bm, BM_FACE);
 
-		polyNos = bmdm->polyNos;
-		vertexCos = bmdm->vertexCos;
+		polyNos = bmdm->emd.polyNos;
+		vertexCos = bmdm->emd.vertexCos;
 		vertexNos = MEM_callocN(sizeof(*vertexNos) * bm->totvert, __func__);
 
 		BM_verts_calc_normal_vcos(bm, polyNos, vertexCos, vertexNos);
 
-		bmdm->vertexNos = (const float (*)[3])vertexNos;
+		bmdm->emd.vertexNos = (const float (*)[3])vertexNos;
 	}
 }
 
 static void emDM_ensurePolyNormals(EditDerivedBMesh *bmdm)
 {
-	if (bmdm->vertexCos && (bmdm->polyNos == NULL)) {
+	if (bmdm->emd.vertexCos && (bmdm->emd.polyNos == NULL)) {
 		BMesh *bm = bmdm->em->bm;
 		const float (*vertexCos)[3];
 		float (*polyNos)[3];
@@ -124,7 +118,7 @@ static void emDM_ensurePolyNormals(EditDerivedBMesh *bmdm)
 
 		polyNos = MEM_mallocN(sizeof(*polyNos) * bm->totface, __func__);
 
-		vertexCos = bmdm->vertexCos;
+		vertexCos = bmdm->emd.vertexCos;
 
 		BM_ITER_MESH_INDEX (efa, &fiter, bm, BM_FACES_OF_MESH, i) {
 			BM_elem_index_set(efa, i); /* set_inline */
@@ -132,13 +126,13 @@ static void emDM_ensurePolyNormals(EditDerivedBMesh *bmdm)
 		}
 		bm->elem_index_dirty &= ~BM_FACE;
 
-		bmdm->polyNos = (const float (*)[3])polyNos;
+		bmdm->emd.polyNos = (const float (*)[3])polyNos;
 	}
 }
 
 static void emDM_ensurePolyCenters(EditDerivedBMesh *bmdm)
 {
-	if (bmdm->polyCos == NULL) {
+	if (bmdm->emd.polyCos == NULL) {
 		BMesh *bm = bmdm->em->bm;
 		float (*polyCos)[3];
 
@@ -148,9 +142,9 @@ static void emDM_ensurePolyCenters(EditDerivedBMesh *bmdm)
 
 		polyCos = MEM_mallocN(sizeof(*polyCos) * bm->totface, __func__);
 
-		if (bmdm->vertexCos) {
+		if (bmdm->emd.vertexCos) {
 			const float (*vertexCos)[3];
-			vertexCos = bmdm->vertexCos;
+			vertexCos = bmdm->emd.vertexCos;
 
 			BM_mesh_elem_index_ensure(bm, BM_VERT);
 
@@ -164,7 +158,7 @@ static void emDM_ensurePolyCenters(EditDerivedBMesh *bmdm)
 			}
 		}
 
-		bmdm->polyCos = (const float (*)[3])polyCos;
+		bmdm->emd.polyCos = (const float (*)[3])polyCos;
 	}
 }
 
@@ -200,9 +194,9 @@ static void emDM_calcLoopNormalsSpaceArray(
 	emDM_ensurePolyNormals(bmdm);
 	dm->dirty &= ~DM_DIRTY_NORMALS;
 
-	vertexCos = bmdm->vertexCos;
-	vertexNos = bmdm->vertexNos;
-	polyNos = bmdm->polyNos;
+	vertexCos = bmdm->emd.vertexCos;
+	vertexNos = bmdm->emd.vertexNos;
+	polyNos = bmdm->emd.polyNos;
 
 	loopNos = dm->getLoopDataArray(dm, CD_NORMAL);
 	if (!loopNos) {
@@ -254,7 +248,7 @@ static void emDM_calc_loop_tangents(
 		return;
 	}
 
-	const float (*poly_normals)[3] = bmdm->polyNos;
+	const float (*poly_normals)[3] = bmdm->emd.polyNos;
 	const float (*loop_normals)[3] = CustomData_get_layer(&dm->loopData, CD_NORMAL);
 	const float (*vert_orco)[3] = dm->getVertDataArray(dm, CD_ORCO);  /* can be NULL */
 	BKE_editmesh_loop_tangent_calc(
@@ -318,13 +312,13 @@ static void emDM_foreachMappedVert(
 	BMIter iter;
 	int i;
 
-	if (bmdm->vertexCos) {
-		const float (*vertexCos)[3] = bmdm->vertexCos;
+	if (bmdm->emd.vertexCos) {
+		const float (*vertexCos)[3] = bmdm->emd.vertexCos;
 		const float (*vertexNos)[3];
 
 		if (flag & DM_FOREACH_USE_NORMAL) {
 			emDM_ensureVertNormals(bmdm);
-			vertexNos = bmdm->vertexNos;
+			vertexNos = bmdm->emd.vertexNos;
 		}
 		else {
 			vertexNos = NULL;
@@ -353,14 +347,14 @@ static void emDM_foreachMappedEdge(
 	BMIter iter;
 	int i;
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 
 		BM_mesh_elem_index_ensure(bm, BM_VERT);
 
 		BM_ITER_MESH_INDEX (eed, &iter, bm, BM_EDGES_OF_MESH, i) {
 			func(userData, i,
-			     bmdm->vertexCos[BM_elem_index_get(eed->v1)],
-			     bmdm->vertexCos[BM_elem_index_get(eed->v2)]);
+			     bmdm->emd.vertexCos[BM_elem_index_get(eed->v1)],
+			     bmdm->emd.vertexCos[BM_elem_index_get(eed->v2)]);
 		}
 	}
 	else {
@@ -381,15 +375,15 @@ static void emDM_drawMappedEdges(
 	BMIter iter;
 	int i;
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 
 		BM_mesh_elem_index_ensure(bm, BM_VERT);
 
 		glBegin(GL_LINES);
 		BM_ITER_MESH_INDEX (eed, &iter, bm, BM_EDGES_OF_MESH, i) {
 			if (!setDrawOptions || (setDrawOptions(userData, i) != DM_DRAW_OPTION_SKIP)) {
-				glVertex3fv(bmdm->vertexCos[BM_elem_index_get(eed->v1)]);
-				glVertex3fv(bmdm->vertexCos[BM_elem_index_get(eed->v2)]);
+				glVertex3fv(bmdm->emd.vertexCos[BM_elem_index_get(eed->v1)]);
+				glVertex3fv(bmdm->emd.vertexCos[BM_elem_index_get(eed->v2)]);
 			}
 		}
 		glEnd();
@@ -425,7 +419,7 @@ static void emDM_drawMappedEdgesInterp(
 	BMIter iter;
 	int i;
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 
 		BM_mesh_elem_index_ensure(bm, BM_VERT);
 
@@ -433,9 +427,9 @@ static void emDM_drawMappedEdgesInterp(
 		BM_ITER_MESH_INDEX (eed, &iter, bm, BM_EDGES_OF_MESH, i) {
 			if (!setDrawOptions || (setDrawOptions(userData, i) != DM_DRAW_OPTION_SKIP)) {
 				setDrawInterpOptions(userData, i, 0.0);
-				glVertex3fv(bmdm->vertexCos[BM_elem_index_get(eed->v1)]);
+				glVertex3fv(bmdm->emd.vertexCos[BM_elem_index_get(eed->v1)]);
 				setDrawInterpOptions(userData, i, 1.0);
-				glVertex3fv(bmdm->vertexCos[BM_elem_index_get(eed->v2)]);
+				glVertex3fv(bmdm->emd.vertexCos[BM_elem_index_get(eed->v2)]);
 			}
 		}
 		glEnd();
@@ -469,7 +463,7 @@ static void emDM_foreachMappedLoop(
 	BMFace *efa;
 	BMIter iter;
 
-	const float (*vertexCos)[3] = bmdm->vertexCos;
+	const float (*vertexCos)[3] = bmdm->emd.vertexCos;
 	int f_idx;
 
 	BM_mesh_elem_index_ensure(bm, BM_VERT);
@@ -502,11 +496,11 @@ static void emDM_foreachMappedFaceCenter(
 	int i;
 
 	emDM_ensurePolyCenters(bmdm);
-	polyCos = bmdm->polyCos;  /* always set */
+	polyCos = bmdm->emd.polyCos;  /* always set */
 
 	if (flag & DM_FOREACH_USE_NORMAL) {
 		emDM_ensurePolyNormals(bmdm);
-		polyNos = bmdm->polyNos;  /* maybe NULL */
+		polyNos = bmdm->emd.polyNos;  /* maybe NULL */
 	}
 	else {
 		polyNos = NULL;
@@ -570,11 +564,11 @@ static void emDM_drawMappedFaces(
 		setMaterial = NULL;
 	}
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 		short prev_mat_nr = -1;
 
 		/* add direct access */
-		const float (*vertexCos)[3] = bmdm->vertexCos;
+		const float (*vertexCos)[3] = bmdm->emd.vertexCos;
 		const float (*vertexNos)[3];
 		const float (*polyNos)[3];
 
@@ -585,8 +579,8 @@ static void emDM_drawMappedFaces(
 		else {
 			emDM_ensureVertNormals(bmdm);
 			emDM_ensurePolyNormals(bmdm);
-			vertexNos = bmdm->vertexNos;
-			polyNos = bmdm->polyNos;
+			vertexNos = bmdm->emd.vertexNos;
+			polyNos = bmdm->emd.polyNos;
 		}
 
 		BM_mesh_elem_index_ensure(bm, lnors ? BM_VERT | BM_FACE | BM_LOOP : BM_VERT | BM_FACE);
@@ -887,7 +881,7 @@ static void emDM_drawMappedFacesGLSL(
 	BMesh *bm = em->bm;
 	struct BMLoop *(*looptris)[3] = em->looptris;
 	/* add direct access */
-	const float (*vertexCos)[3] = bmdm->vertexCos;
+	const float (*vertexCos)[3] = bmdm->emd.vertexCos;
 	const float (*vertexNos)[3];
 	const float (*polyNos)[3];
 	const float (*lnors)[3] = dm->getLoopDataArray(dm, CD_NORMAL);
@@ -906,8 +900,8 @@ static void emDM_drawMappedFacesGLSL(
 
 	emDM_ensureVertNormals(bmdm);
 	emDM_ensurePolyNormals(bmdm);
-	vertexNos = bmdm->vertexNos;
-	polyNos = bmdm->polyNos;
+	vertexNos = bmdm->emd.vertexNos;
+	polyNos = bmdm->emd.polyNos;
 
 	BM_mesh_elem_index_ensure(bm, (BM_VERT | BM_FACE) | (lnors ? BM_LOOP : 0));
 
@@ -1002,7 +996,7 @@ static void emDM_drawMappedFacesMat(
 	BMEditMesh *em = bmdm->em;
 	BMesh *bm = em->bm;
 	struct BMLoop *(*looptris)[3] = em->looptris;
-	const float (*vertexCos)[3] = bmdm->vertexCos;
+	const float (*vertexCos)[3] = bmdm->emd.vertexCos;
 	const float (*vertexNos)[3];
 	const float (*polyNos)[3];
 	const float (*lnors)[3] = dm->getLoopDataArray(dm, CD_NORMAL);
@@ -1016,8 +1010,8 @@ static void emDM_drawMappedFacesMat(
 	emDM_ensureVertNormals(bmdm);
 	emDM_ensurePolyNormals(bmdm);
 
-	vertexNos = bmdm->vertexNos;
-	polyNos = bmdm->polyNos;
+	vertexNos = bmdm->emd.vertexNos;
+	polyNos = bmdm->emd.polyNos;
 
 	BM_mesh_elem_index_ensure(bm, (BM_VERT | BM_FACE) | (lnors ? BM_LOOP : 0));
 
@@ -1100,9 +1094,9 @@ static void emDM_getMinMax(DerivedMesh *dm, float r_min[3], float r_max[3])
 	int i;
 
 	if (bm->totvert) {
-		if (bmdm->vertexCos) {
+		if (bmdm->emd.vertexCos) {
 			BM_ITER_MESH_INDEX (eve, &iter, bm, BM_VERTS_OF_MESH, i) {
-				minmax_v3v3_v3(r_min, r_max, bmdm->vertexCos[i]);
+				minmax_v3v3_v3(r_min, r_max, bmdm->emd.vertexCos[i]);
 			}
 		}
 		else {
@@ -1182,8 +1176,8 @@ static void emDM_getVert(DerivedMesh *dm, int index, MVert *r_vert)
 	// ev = BM_vert_at_index(bm, index); /* warning, does list loop, _not_ ideal */
 
 	bmvert_to_mvert(bm, ev, r_vert);
-	if (bmdm->vertexCos)
-		copy_v3_v3(r_vert->co, bmdm->vertexCos[index]);
+	if (bmdm->emd.vertexCos)
+		copy_v3_v3(r_vert->co, bmdm->emd.vertexCos[index]);
 }
 
 static void emDM_getVertCo(DerivedMesh *dm, int index, float r_co[3])
@@ -1196,8 +1190,8 @@ static void emDM_getVertCo(DerivedMesh *dm, int index, float r_co[3])
 		return;
 	}
 
-	if (bmdm->vertexCos) {
-		copy_v3_v3(r_co, bmdm->vertexCos[index]);
+	if (bmdm->emd.vertexCos) {
+		copy_v3_v3(r_co, bmdm->emd.vertexCos[index]);
 	}
 	else {
 		BMVert *ev;
@@ -1220,9 +1214,9 @@ static void emDM_getVertNo(DerivedMesh *dm, int index, float r_no[3])
 	}
 
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 		emDM_ensureVertNormals(bmdm);
-		copy_v3_v3(r_no, bmdm->vertexNos[index]);
+		copy_v3_v3(r_no, bmdm->emd.vertexNos[index]);
 	}
 	else {
 		BMVert *ev;
@@ -1244,9 +1238,9 @@ static void emDM_getPolyNo(DerivedMesh *dm, int index, float r_no[3])
 		return;
 	}
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 		emDM_ensurePolyNormals(bmdm);
-		copy_v3_v3(r_no, bmdm->polyNos[index]);
+		copy_v3_v3(r_no, bmdm->emd.polyNos[index]);
 	}
 	else {
 		BMFace *efa;
@@ -1321,11 +1315,11 @@ static void emDM_copyVertArray(DerivedMesh *dm, MVert *r_vert)
 	BMIter iter;
 	const int cd_vert_bweight_offset = CustomData_get_offset(&bm->vdata, CD_BWEIGHT);
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 		int i;
 
 		BM_ITER_MESH_INDEX (eve, &iter, bm, BM_VERTS_OF_MESH, i) {
-			copy_v3_v3(r_vert->co, bmdm->vertexCos[i]);
+			copy_v3_v3(r_vert->co, bmdm->emd.vertexCos[i]);
 			normal_float_to_short_v3(r_vert->no, eve->no);
 			r_vert->flag = BM_vert_flag_to_mflag(eve);
 
@@ -1529,9 +1523,9 @@ static void emDM_getVertCos(DerivedMesh *dm, float (*r_cos)[3])
 	BMIter iter;
 	int i;
 
-	if (bmdm->vertexCos) {
+	if (bmdm->emd.vertexCos) {
 		BM_ITER_MESH_INDEX (eve, &iter, bm, BM_VERTS_OF_MESH, i) {
-			copy_v3_v3(r_cos[i], bmdm->vertexCos[i]);
+			copy_v3_v3(r_cos[i], bmdm->emd.vertexCos[i]);
 		}
 	}
 	else {
@@ -1546,18 +1540,18 @@ static void emDM_release(DerivedMesh *dm)
 	EditDerivedBMesh *bmdm = (EditDerivedBMesh *)dm;
 
 	if (DM_release(dm)) {
-		if (bmdm->vertexCos) {
-			MEM_freeN((void *)bmdm->vertexCos);
-			if (bmdm->vertexNos) {
-				MEM_freeN((void *)bmdm->vertexNos);
+		if (bmdm->emd.vertexCos) {
+			MEM_freeN((void *)bmdm->emd.vertexCos);
+			if (bmdm->emd.vertexNos) {
+				MEM_freeN((void *)bmdm->emd.vertexNos);
 			}
-			if (bmdm->polyNos) {
-				MEM_freeN((void *)bmdm->polyNos);
+			if (bmdm->emd.polyNos) {
+				MEM_freeN((void *)bmdm->emd.polyNos);
 			}
 		}
 
-		if (bmdm->polyCos) {
-			MEM_freeN((void *)bmdm->polyCos);
+		if (bmdm->emd.polyCos) {
+			MEM_freeN((void *)bmdm->emd.polyCos);
 		}
 
 		MEM_freeN(bmdm);
@@ -1670,7 +1664,7 @@ DerivedMesh *getEditDerivedBMesh(
 
 	bmdm->dm.release = emDM_release;
 
-	bmdm->vertexCos = (const float (*)[3])vertexCos;
+	bmdm->emd.vertexCos = (const float (*)[3])vertexCos;
 	bmdm->dm.deformedOnly = (vertexCos != NULL);
 
 	const int cd_dvert_offset = (data_mask & CD_MASK_MDEFORMVERT) ?
@@ -2098,7 +2092,7 @@ void BKE_editmesh_statvis_calc(
 		{
 			BKE_editmesh_color_ensure(em, BM_FACE);
 			statvis_calc_overhang(
-			            em, bmdm ? bmdm->polyNos : NULL,
+			            em, bmdm ? bmdm->emd.polyNos : NULL,
 			            statvis->overhang_min / (float)M_PI,
 			            statvis->overhang_max / (float)M_PI,
 			            statvis->overhang_axis,
@@ -2110,7 +2104,7 @@ void BKE_editmesh_statvis_calc(
 			const float scale = 1.0f / mat4_to_scale(em->ob->obmat);
 			BKE_editmesh_color_ensure(em, BM_FACE);
 			statvis_calc_thickness(
-			            em, bmdm ? bmdm->vertexCos : NULL,
+			            em, bmdm ? bmdm->emd.vertexCos : NULL,
 			            statvis->thickness_min * scale,
 			            statvis->thickness_max * scale,
 			            statvis->thickness_samples,
@@ -2121,7 +2115,7 @@ void BKE_editmesh_statvis_calc(
 		{
 			BKE_editmesh_color_ensure(em, BM_FACE);
 			statvis_calc_intersect(
-			            em, bmdm ? bmdm->vertexCos : NULL,
+			            em, bmdm ? bmdm->emd.vertexCos : NULL,
 			            em->derivedFaceColor);
 			break;
 		}
@@ -2133,7 +2127,7 @@ void BKE_editmesh_statvis_calc(
 				emDM_ensurePolyNormals(bmdm);
 
 			statvis_calc_distort(
-			        em, bmdm ? bmdm->vertexCos : NULL, bmdm ? bmdm->polyNos : NULL,
+			        em, bmdm ? bmdm->emd.vertexCos : NULL, bmdm ? bmdm->emd.polyNos : NULL,
 			        statvis->distort_min,
 			        statvis->distort_max,
 			        em->derivedFaceColor);
@@ -2143,7 +2137,7 @@ void BKE_editmesh_statvis_calc(
 		{
 			BKE_editmesh_color_ensure(em, BM_VERT);
 			statvis_calc_sharp(
-			        em, bmdm ? bmdm->vertexCos : NULL,
+			        em, bmdm ? bmdm->emd.vertexCos : NULL,
 			        statvis->sharp_min,
 			        statvis->sharp_max,
 			        /* in this case they are vertex colors */
