@@ -2206,6 +2206,10 @@ void CustomData_copy_data(const CustomData *source, CustomData *dest,
 {
 	int src_i, dest_i;
 
+//	printf("Copying custom data %p -> %p (totlayer = %d -> %d) source_index=%d  dest_index=%d  count=%d\n",
+//	       source, dest, source->totlayer, dest->totlayer,
+//	       source_index, dest_index, count);
+
 	/* copies a layer at a time */
 	dest_i = 0;
 	for (src_i = 0; src_i < source->totlayer; ++src_i) {
@@ -2222,6 +2226,8 @@ void CustomData_copy_data(const CustomData *source, CustomData *dest,
 
 		/* if we found a matching layer, copy the data */
 		if (dest->layers[dest_i].type == source->layers[src_i].type) {
+//			printf("    CustomData_copy_data_layer(%p, %p, %d, %d, %d, %d, %d)\n",
+//			       source, dest, src_i, dest_i, source_index, dest_index, count);
 			CustomData_copy_data_layer(source, dest, src_i, dest_i, source_index, dest_index, count);
 			
 			/* if there are multiple source & dest layers of the same type,

@@ -543,7 +543,6 @@ void BKE_mesh_init(Mesh *me)
 	me->size[0] = me->size[1] = me->size[2] = 1.0;
 	me->smoothresh = DEG2RADF(30);
 	me->texflag = ME_AUTOSPACE;
-//	me->emd = NULL;
 
 	/* disable because its slow on many GPU's, see [#37518] */
 #if 0
@@ -606,6 +605,53 @@ void BKE_mesh_copy_data(Main *bmain, Mesh *me_dst, const Mesh *me_src, const int
 	if (me_src->key) {
 		BKE_id_copy_ex(bmain, &me_src->key->id, (ID **)&me_dst->key, flag, false);
 	}
+}
+
+Mesh *BKE_mesh_from_template_ex(
+        Mesh *me_src,
+        int numVerts, int numEdges, int numTessFaces,
+        int numLoops, int numPolys,
+        CustomDataMask mask)
+{
+	const bool do_tessface = ((me_src->totface != 0) && (me_src->totpoly == 0)); /* only do tessface if we have no polys */
+
+	Mesh *me_dst = MEM_callocN(sizeof(struct Mesh), "Mesh");
+	BKE_mesh_init(me_dst);
+
+	me_dst->mat = MEM_dupallocN(me_src->mat);
+	me_dst->mselect = MEM_dupallocN(me_dst->mselect);
+//	me_dst->bb = MEM_dupallocN(me_dst->bb);
+
+	me_dst->totvert = numVerts;
+	me_dst->totedge = numEdges;
+	me_dst->totloop = numLoops;
+	me_dst->totpoly = numPolys;
+
+	CustomData_copy(&me_src->vdata, &me_dst->vdata, mask, CD_CALLOC, numVerts);
+	CustomData_copy(&me_src->edata, &me_dst->edata, mask, CD_CALLOC, numEdges);
+	CustomData_copy(&me_src->ldata, &me_dst->ldata, mask, CD_CALLOC, numLoops);
+	CustomData_copy(&me_src->pdata, &me_dst->pdata, mask, CD_CALLOC, numPolys);
+	if (do_tessface) {
+		CustomData_copy(&me_src->fdata, &me_dst->fdata, mask, CD_CALLOC, numTessFaces);
+	}
+	else {
+		mesh_tessface_clear_intern(me_dst, false);
+	}
+
+	BKE_mesh_update_customdata_pointers(me_dst, false);
+
+	return me_dst;
+}
+
+Mesh * BKE_mesh_from_template(Mesh *me_src,
+                              int numVerts, int numEdges, int numTessFaces,
+                              int numLoops, int numPolys)
+{
+	printf("BKE_mesh_from_template(%p, %d, %d, %d, %d, %d)\n", me_src, numVerts, numEdges, numTessFaces, numLoops, numPolys);
+	return BKE_mesh_from_template_ex(me_src,
+	                                 numVerts, numEdges, numTessFaces,
+	                                 numLoops, numPolys,
+	                                 CD_MASK_EVERYTHING);
 }
 
 Mesh *BKE_mesh_copy(Main *bmain, const Mesh *me)

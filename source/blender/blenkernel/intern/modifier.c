@@ -1005,6 +1005,7 @@ void modifier_deformVerts_DM_deprecated(struct ModifierData *md, struct Depsgrap
 		mti->deformVerts_DM(md, depsgraph, ob, dm, vertexCos, numVerts, flag);
 	}
 	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
 		struct Mesh *mesh = ob->data;
 		BLI_assert(DEG_depsgraph_use_copy_on_write());
 		BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); /* This should be a CoW mesh */
@@ -1097,20 +1098,25 @@ struct DerivedMesh *modifier_applyModifier_DM_deprecated(struct ModifierData *md
 		return mti->applyModifier_DM(md, depsgraph, ob, dm, flag);
 	}
 	else {
-		struct Mesh mesh;
-		BKE_mesh_init(&mesh);
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
+		struct Mesh *mesh = ob->data;
+		BLI_assert(DEG_depsgraph_use_copy_on_write());
+		BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); /* This should be a CoW mesh */
+//		if (dm != NULL) {
+////			BKE_mesh_free(mesh);
+//			printf("Converting DM_to_mesh(dm=%p, mesh=%s=%p)\n", dm, mesh->id.name, mesh);
+//			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
+//		}
 
-		DM_to_mesh(dm, &mesh, ob, CD_MASK_EVERYTHING, false);
-
-		struct Mesh *new_mesh = mti->applyModifier(md, depsgraph, ob, &mesh, flag);
+		struct Mesh *new_mesh = mti->applyModifier(md, depsgraph, ob, mesh, flag);
+		printf("    created new mesh %s=%p\n", new_mesh->id.name, new_mesh);
 
 		DerivedMesh *ndm = CDDM_from_mesh(new_mesh);
 
-		if(new_mesh != &mesh) {
-			BKE_mesh_free(&mesh);
-
-			/* XXX free new_mesh? */
-		}
+//		if(new_mesh != mesh) {
+//			BKE_mesh_free(new_mesh);
+//			MEM_freeN(new_mesh);
+//		}
 
 		return ndm;
 	}
