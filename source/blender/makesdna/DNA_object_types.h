@@ -442,14 +442,6 @@ enum {
 	OB_MATERIAL  = 4,
 	OB_TEXTURE   = 5,
 	OB_RENDER    = 6,
-
-	OB_PAINT     = 100,  /* temporary used in draw code */
-};
-
-enum {
-	OB_LIGHTING_FLAT   = 0,
-	OB_LIGHTING_STUDIO = 1,
-	OB_LIGHTING_SCENE  = 2
 };
 
 /* dtx: flags (short) */

@@ -37,13 +37,12 @@ class PhysicButtonsPanel:
     @classmethod
     def poll(cls, context):
         ob = context.object
-        view_render = context.scene.view_render
-        return (ob and ob.type == 'MESH') and view_render.engine in cls.COMPAT_ENGINES and (context.fluid)
+        return (ob and ob.type == 'MESH') and context.engine in cls.COMPAT_ENGINES and (context.fluid)
 
 
 class PHYSICS_PT_fluid(PhysicButtonsPanel, Panel):
     bl_label = "Fluid"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
@@ -206,13 +205,12 @@ class PHYSICS_PT_fluid(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_domain_gravity(PhysicButtonsPanel, Panel):
     bl_label = "Fluid World"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.fluid
-        view_render = context.scene.view_render
-        return md and md.settings and (md.settings.type == 'DOMAIN') and view_render.engine in cls.COMPAT_ENGINES
+        return md and md.settings and (md.settings.type == 'DOMAIN') and context.engine in cls.COMPAT_ENGINES
 
     def draw(self, context):
         layout = self.layout
@@ -260,13 +258,12 @@ class PHYSICS_PT_domain_gravity(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_domain_boundary(PhysicButtonsPanel, Panel):
     bl_label = "Fluid Boundary"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.fluid
-        view_render = context.scene.view_render
-        return md and md.settings and (md.settings.type == 'DOMAIN') and view_render.engine in cls.COMPAT_ENGINES
+        return md and md.settings and (md.settings.type == 'DOMAIN') and context.engine in cls.COMPAT_ENGINES
 
     def draw(self, context):
         layout = self.layout
@@ -291,13 +288,12 @@ class PHYSICS_PT_domain_boundary(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_domain_particles(PhysicButtonsPanel, Panel):
     bl_label = "Fluid Particles"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.fluid
-        view_render = context.scene.view_render
-        return md and md.settings and (md.settings.type == 'DOMAIN') and view_render.engine in cls.COMPAT_ENGINES
+        return md and md.settings and (md.settings.type == 'DOMAIN') and context.engine in cls.COMPAT_ENGINES
 
     def draw(self, context):
         layout = self.layout

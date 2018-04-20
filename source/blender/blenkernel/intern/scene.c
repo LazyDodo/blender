@@ -111,7 +111,6 @@
 
 #include "bmesh.h"
 
-const char *RE_engine_id_BLENDER_RENDER = "BLENDER_RENDER";
 const char *RE_engine_id_BLENDER_CLAY = "BLENDER_CLAY";
 const char *RE_engine_id_BLENDER_EEVEE = "BLENDER_EEVEE";
 const char *RE_engine_id_BLENDER_WORKBENCH = "BLENDER_WORKBENCH";
@@ -554,7 +553,7 @@ void BKE_scene_init(Scene *sce)
 
 	sce->lay = sce->layact = 1;
 	
-	sce->r.mode = R_GAMMA | R_OSA | R_SHADOW | R_SSS | R_ENVMAP | R_RAYTRACE;
+	sce->r.mode = R_OSA;
 	sce->r.cfra = 1;
 	sce->r.sfra = 1;
 	sce->r.efra = 250;
@@ -565,8 +564,6 @@ void BKE_scene_init(Scene *sce)
 	sce->r.yasp = 1;
 	sce->r.tilex = 256;
 	sce->r.tiley = 256;
-	sce->r.mblur_samples = 1;
-	sce->r.filtertype = R_FILTER_MITCH;
 	sce->r.size = 50;
 
 	sce->r.im_format.planes = R_IMF_PLANES_RGBA;
@@ -582,8 +579,6 @@ void BKE_scene_init(Scene *sce)
 	sce->r.blurfac = 0.5;
 	sce->r.frs_sec = 24;
 	sce->r.frs_sec_base = 1;
-	sce->r.edgeint = 10;
-	sce->r.ocres = 128;
 
 	/* OCIO_TODO: for forwards compatibility only, so if no tonecurve are used,
 	 *            images would look in the same way as in current blender
@@ -592,18 +587,9 @@ void BKE_scene_init(Scene *sce)
 	 */
 	sce->r.color_mgt_flag |= R_COLOR_MANAGEMENT;
 
-	sce->r.gauss = 1.5f;
-	
-	/* deprecated but keep for upwards compat */
-	sce->r.postgamma = 1.0;
-	sce->r.posthue = 0.0;
-	sce->r.postsat = 1.0;
-
-	sce->r.bake_mode = 1;    /* prevent to include render stuff here */
+	sce->r.bake_mode = 0;
 	sce->r.bake_filter = 16;
-	sce->r.bake_osa = 5;
 	sce->r.bake_flag = R_BAKE_CLEAR;
-	sce->r.bake_normal_space = R_BAKE_SPACE_TANGENT;
 	sce->r.bake_samples = 256;
 	sce->r.bake_biasdist = 0.001;
 
@@ -631,7 +617,6 @@ void BKE_scene_init(Scene *sce)
 	sce->r.fg_stamp[3] = 1.0f;
 	sce->r.bg_stamp[0] = sce->r.bg_stamp[1] = sce->r.bg_stamp[2] = 0.0f;
 	sce->r.bg_stamp[3] = 0.25f;
-	sce->r.raytrace_options = R_RAYTRACE_USE_INSTANCES;
 
 	sce->r.seq_prev_type = OB_SOLID;
 	sce->r.seq_rend_type = OB_SOLID;
@@ -641,8 +626,6 @@ void BKE_scene_init(Scene *sce)
 
 	sce->r.simplify_subsurf = 6;
 	sce->r.simplify_particles = 1.0f;
-	sce->r.simplify_shadowsamples = 16;
-	sce->r.simplify_aosss = 1.0f;
 
 	sce->r.border.xmin = 0.0f;
 	sce->r.border.ymin = 0.0f;
@@ -744,7 +727,7 @@ void BKE_scene_init(Scene *sce)
 	sce->r.ffcodecdata.audio_bitrate = 192;
 	sce->r.ffcodecdata.audio_channels = 2;
 
-	BKE_viewrender_init(&sce->view_render);
+	BLI_strncpy(sce->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(sce->r.engine));
 
 	sce->audio.distance_model = 2.0f;
 	sce->audio.doppler_factor = 1.0f;
@@ -1280,21 +1263,19 @@ static bool check_rendered_viewport_visible(Main *bmain)
 	wmWindow *window;
 	for (window = wm->windows.first; window != NULL; window = window->next) {
 		const bScreen *screen = BKE_workspace_active_screen_get(window->workspace_hook);
-		WorkSpace *workspace = BKE_workspace_active_get(window->workspace_hook);
 		Scene *scene = window->scene;
-		ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-		ScrArea *area;
-		RenderEngineType *type = RE_engines_find(view_render->engine_id);
-		if ((type->draw_engine != NULL) || (type->render_to_view == NULL)) {
+		RenderEngineType *type = RE_engines_find(scene->r.engine);
+
+		if (type->draw_engine || !type->render_to_view) {
 			continue;
 		}
-		const bool use_legacy = (type->flag & RE_USE_LEGACY_PIPELINE) != 0;
-		for (area = screen->areabase.first; area != NULL; area = area->next) {
+
+		for (ScrArea *area = screen->areabase.first; area != NULL; area = area->next) {
 			View3D *v3d = area->spacedata.first;
 			if (area->spacetype != SPACE_VIEW3D) {
 				continue;
 			}
-			if (v3d->drawtype == OB_RENDER || !use_legacy) {
+			if (v3d->drawtype == OB_RENDER) {
 				return true;
 			}
 		}
@@ -1474,22 +1455,6 @@ int get_render_child_particle_number(const RenderData *r, int num, bool for_rend
 	}
 }
 
-int get_render_shadow_samples(const RenderData *r, int samples)
-{
-	if ((r->mode & R_SIMPLIFY) && samples > 0)
-		return min_ii(r->simplify_shadowsamples, samples);
-	else
-		return samples;
-}
-
-float get_render_aosss_error(const RenderData *r, float error)
-{
-	if (r->mode & R_SIMPLIFY)
-		return ((1.0f - r->simplify_aosss) * 10.0f + 1.0f) * error;
-	else
-		return error;
-}
-
 /**
   * Helper function for the SETLOOPER and SETLOOPER_VIEW_LAYER macros
   *
@@ -1527,36 +1492,26 @@ next_set:
 	return NULL;
 }
 
-bool BKE_scene_use_new_shading_nodes(const Scene *scene)
-{
-	return BKE_viewrender_use_new_shading_nodes(&scene->view_render);
-}
-
 bool BKE_scene_use_shading_nodes_custom(Scene *scene)
 {
-	return BKE_viewrender_use_shading_nodes_custom(&scene->view_render);
-}
-
-bool BKE_scene_use_world_space_shading(Scene *scene)
-{
-	RenderEngineType *type = RE_engines_find(scene->view_render.engine_id);
-	return ((scene->r.mode & R_USE_WS_SHADING) ||
-	        (type && (type->flag & RE_USE_SHADING_NODES)));
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
+	return (type && type->flag & RE_USE_SHADING_NODES_CUSTOM);
 }
 
 bool BKE_scene_use_spherical_stereo(Scene *scene)
 {
-	return BKE_viewrender_use_spherical_stereo(&scene->view_render);
-}
-
-bool BKE_scene_uses_blender_internal(const Scene *scene)
-{
-	return BKE_viewrender_uses_blender_internal(&scene->view_render);
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
+	return (type && type->flag & RE_USE_SPHERICAL_STEREO);
 }
 
 bool BKE_scene_uses_blender_eevee(const Scene *scene)
 {
-	return BKE_viewrender_uses_blender_eevee(&scene->view_render);
+	return STREQ(scene->r.engine, RE_engine_id_BLENDER_EEVEE);
+}
+
+bool BKE_scene_uses_cycles(const Scene *scene)
+{
+	return STREQ(scene->r.engine, RE_engine_id_CYCLES);
 }
 
 void BKE_scene_base_flag_to_objects(ViewLayer *view_layer)
@@ -1660,75 +1615,6 @@ int BKE_render_preview_pixel_size(const RenderData *r)
 	}
 	return r->preview_pixel_size;
 }
-
-/* ***************************************************** */
-/* render engine settings */
-
-ViewRender *BKE_viewrender_get(Scene *scene, WorkSpace *workspace)
-{
-	if (workspace == NULL || BKE_workspace_use_scene_settings_get(workspace)) {
-		return &scene->view_render;
-	}
-	return BKE_workspace_view_render_get(workspace);
-}
-
-/**
- * Initialize a static created struct for WorkSpace and Scene to store the viewport
- * related drawing data.
- */
-void BKE_viewrender_init(ViewRender *view_render)
-{
-	BLI_strncpy(view_render->engine_id, RE_engine_id_BLENDER_EEVEE, sizeof(view_render->engine_id));
-}
-
-/**
- * Do not free ViewRender itself since it's not even allocated.
- */
-void BKE_viewrender_free(ViewRender *UNUSED(view_render))
-{
-	/* Do nothing. */
-}
-
-/**
- * Copy used by libblock copying.
- */
-void BKE_viewrender_copy(ViewRender *to, const ViewRender *from)
-{
-	*to = *from;
-}
-
-bool BKE_viewrender_use_new_shading_nodes(const ViewRender *view_render)
-{
-	RenderEngineType *type = RE_engines_find(view_render->engine_id);
-	return (type && type->flag & RE_USE_SHADING_NODES);
-}
-
-bool BKE_viewrender_use_shading_nodes_custom(const ViewRender *view_render)
-{
-	RenderEngineType *type = RE_engines_find(view_render->engine_id);
-	return (type && type->flag & RE_USE_SHADING_NODES_CUSTOM);
-}
-
-bool BKE_viewrender_use_spherical_stereo(const ViewRender *view_render)
-{
-	const char *engine_id = view_render->engine_id;
-	RenderEngineType *type = RE_engines_find(engine_id);
-	return (type && type->flag & RE_USE_SPHERICAL_STEREO);
-}
-
-bool BKE_viewrender_uses_blender_internal(const ViewRender *view_render)
-{
-	const char *engine_id = view_render->engine_id;
-	return STREQ(engine_id, RE_engine_id_BLENDER_RENDER);
-}
-
-bool BKE_viewrender_uses_blender_eevee(const ViewRender *view_render)
-{
-	const char *engine_id = view_render->engine_id;
-	return STREQ(engine_id, RE_engine_id_BLENDER_EEVEE);
-}
-
-/* ***************************************************** */
 
 /* Apply the needed correction factor to value, based on unit_type (only length-related are affected currently)
  * and unit->scale_length.

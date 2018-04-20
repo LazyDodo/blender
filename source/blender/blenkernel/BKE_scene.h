@@ -151,16 +151,12 @@ bool BKE_scene_remove_render_view(struct Scene *scene, struct SceneRenderView *s
 /* render profile */
 int get_render_subsurf_level(const struct RenderData *r, int level, bool for_render);
 int get_render_child_particle_number(const struct RenderData *r, int num, bool for_render);
-int get_render_shadow_samples(const struct RenderData *r, int samples);
-float get_render_aosss_error(const struct RenderData *r, float error);
 
-bool BKE_scene_use_new_shading_nodes(const struct Scene *scene);
 bool BKE_scene_use_shading_nodes_custom(struct Scene *scene);
-bool BKE_scene_use_world_space_shading(struct Scene *scene);
 bool BKE_scene_use_spherical_stereo(struct Scene *scene);
 
-bool BKE_scene_uses_blender_internal(const struct Scene *scene);
 bool BKE_scene_uses_blender_eevee(const struct Scene *scene);
+bool BKE_scene_uses_cycles(const struct Scene *scene);
 
 void BKE_scene_disable_color_management(struct Scene *scene);
 bool BKE_scene_check_color_management_enabled(const struct Scene *scene);
@@ -170,19 +166,6 @@ int BKE_scene_num_threads(const struct Scene *scene);
 int BKE_render_num_threads(const struct RenderData *r);
 
 int BKE_render_preview_pixel_size(const struct RenderData *r);
-
-/**********************************/
-
-struct ViewRender *BKE_viewrender_get(struct Scene *scene, struct WorkSpace *workspace);
-void BKE_viewrender_init(struct ViewRender *view_render);
-void BKE_viewrender_free(struct ViewRender *view_render);
-void BKE_viewrender_copy(struct ViewRender *view_render_dst, const struct ViewRender *view_render_src);
-bool BKE_viewrender_use_new_shading_nodes(const struct ViewRender *view_render);
-bool BKE_viewrender_use_shading_nodes_custom(const struct ViewRender *view_render);
-bool BKE_viewrender_use_world_space_shading(const struct ViewRender *view_render);
-bool BKE_viewrender_use_spherical_stereo(const struct ViewRender *view_render);
-bool BKE_viewrender_uses_blender_internal(const struct ViewRender *view_render);
-bool BKE_viewrender_uses_blender_eevee(const struct ViewRender *view_render);
 
 /**********************************/
 

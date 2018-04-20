@@ -270,7 +270,6 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 {
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = oglrender->scene;
-	ViewLayer *view_layer = oglrender->view_layer;
 	ARegion *ar = oglrender->ar;
 	View3D *v3d = oglrender->v3d;
 	RegionView3D *rv3d = oglrender->rv3d;
@@ -278,7 +277,6 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 	int sizex = oglrender->sizex;
 	int sizey = oglrender->sizey;
 	const short view_context = (v3d != NULL);
-	bool draw_bgpic = true;
 	bool draw_sky = (scene->r.alphamode == R_ADDSKY);
 	float *rectf = NULL;
 	const char *viewname = RE_GetActiveRenderView(oglrender->re);
@@ -351,16 +349,13 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 		char err_out[256] = "unknown";
 		ImBuf *ibuf_view;
 		const int alpha_mode = (draw_sky) ? R_ADDSKY : R_ALPHAPREMUL;
-		struct RenderEngineType *engine_type = CTX_data_engine_type(C);
 
 		unsigned int draw_flags = V3D_OFSDRAW_NONE;
 		draw_flags |= (oglrender->ofs_full_samples) ? V3D_OFSDRAW_USE_FULL_SAMPLE : 0;
 
 		if (view_context) {
-			draw_flags |= (draw_bgpic) ? V3D_OFSDRAW_USE_BACKGROUND : 0;
-
 			ibuf_view = ED_view3d_draw_offscreen_imbuf(
-			       depsgraph, scene, view_layer, engine_type,
+			       depsgraph, scene, v3d->drawtype,
 			       v3d, ar, sizex, sizey,
 			       IB_rectfloat, draw_flags, alpha_mode, oglrender->ofs_samples, viewname,
 			       oglrender->ofs, err_out);
@@ -371,11 +366,11 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 			}
 		}
 		else {
-			draw_flags |= (V3D_OFSDRAW_USE_GPENCIL | V3D_OFSDRAW_USE_BACKGROUND);
+			draw_flags |= V3D_OFSDRAW_USE_GPENCIL;
 			ibuf_view = ED_view3d_draw_offscreen_imbuf_simple(
-			        depsgraph, scene, view_layer, engine_type,
+			        depsgraph, scene, OB_SOLID,
 			        scene->camera, oglrender->sizex, oglrender->sizey,
-			        IB_rectfloat, draw_flags, OB_SOLID,
+			        IB_rectfloat, draw_flags,
 			        alpha_mode, oglrender->ofs_samples, viewname,
 			        oglrender->ofs, err_out);
 			camera = scene->camera;
@@ -708,8 +703,6 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 
 	/* create render */
 	oglrender->re = RE_NewSceneRender(scene);
-	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-	RE_SetEngineByID(oglrender->re, view_render->engine_id);
 
 	/* create image and image user */
 	oglrender->ima = BKE_image_verify_viewer(IMA_TYPE_R_RESULT, "Render Result");
@@ -720,7 +713,7 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 	oglrender->iuser.ok = 1;
 
 	/* create render result */
-	RE_InitState(oglrender->re, NULL, &scene->r, &scene->view_layers, scene->active_view_layer, view_render, NULL, sizex, sizey, NULL);
+	RE_InitState(oglrender->re, NULL, &scene->r, &scene->view_layers, scene->active_view_layer, NULL, sizex, sizey, NULL);
 
 	/* create render views */
 	screen_opengl_views_setup(oglrender);

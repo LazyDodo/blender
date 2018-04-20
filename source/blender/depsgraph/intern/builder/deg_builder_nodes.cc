@@ -526,13 +526,16 @@ void DepsgraphNodeBuilder::build_object_flags(
 	if (base_index == -1) {
 		return;
 	}
-	/* TODO(sergey): Is this really best component to be used? */
+	Scene *scene_cow = get_cow_datablock(scene_);
 	Object *object_cow = get_cow_datablock(object);
 	const bool is_from_set = (linked_state == DEG_ID_LINKED_VIA_SET);
+	/* TODO(sergey): Is this really best component to be used? */
 	add_operation_node(&object->id,
 	                   DEG_NODE_TYPE_LAYER_COLLECTIONS,
 	                   function_bind(BKE_object_eval_flush_base_flags,
 	                                 _1,
+	                                 scene_cow,
+	                                 view_layer_index_,
 	                                 object_cow, base_index,
 	                                 is_from_set),
 	                   DEG_OPCODE_OBJECT_BASE_FLAGS);
@@ -783,8 +786,6 @@ void DepsgraphNodeBuilder::build_world(World *world)
 	                                 _1,
 	                                 get_cow_datablock(world)),
 	                   DEG_OPCODE_WORLD_UPDATE);
-	/* textures */
-	build_texture_stack(world->mtex);
 	/* world's nodetree */
 	if (world->nodetree != NULL) {
 		build_nodetree(world->nodetree);
@@ -1189,8 +1190,6 @@ void DepsgraphNodeBuilder::build_lamp(Object *object)
 	                   DEG_OPCODE_PARAMETERS_EVAL);
 	/* lamp's nodetree */
 	build_nodetree(lamp->nodetree);
-	/* textures */
-	build_texture_stack(lamp->mtex);
 }
 
 void DepsgraphNodeBuilder::build_nodetree(bNodeTree *ntree)
@@ -1278,22 +1277,8 @@ void DepsgraphNodeBuilder::build_material(Material *material)
 	                   DEG_OPCODE_MATERIAL_UPDATE);
 	/* Material animation. */
 	build_animdata(&material->id);
-	/* Textures. */
-	build_texture_stack(material->mtex);
 	/* Material's nodetree. */
 	build_nodetree(material->nodetree);
-}
-
-/* Texture-stack attached to some shading datablock */
-void DepsgraphNodeBuilder::build_texture_stack(MTex **texture_stack)
-{
-	/* for now assume that all texture-stacks have same number of max items */
-	for (int i = 0; i < MAX_MTEX; i++) {
-		MTex *mtex = texture_stack[i];
-		if (mtex && mtex->tex) {
-			build_texture(mtex->tex);
-		}
-	}
 }
 
 /* Recursively build graph for texture */

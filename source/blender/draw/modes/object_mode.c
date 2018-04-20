@@ -826,10 +826,10 @@ static void DRW_shgroup_empty_image(
 
 		if (tex) {
 			DRW_shgroup_instance_format(e_data.empty_image_format, {
-				{"objectColor"         , DRW_ATTRIB_FLOAT, 4},
-				{"size"                , DRW_ATTRIB_FLOAT, 1},
-				{"offset"              , DRW_ATTRIB_FLOAT, 2},
-				{"InstanceModelMatrix" , DRW_ATTRIB_FLOAT, 16},
+				{"objectColor",         DRW_ATTRIB_FLOAT, 4},
+				{"size",                DRW_ATTRIB_FLOAT, 1},
+				{"offset",              DRW_ATTRIB_FLOAT, 2},
+				{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
 			});
 
 			struct Gwn_Batch *geom = DRW_cache_image_plane_get();
@@ -846,10 +846,10 @@ static void DRW_shgroup_empty_image(
 
 		{
 			DRW_shgroup_instance_format(e_data.empty_image_wire_format, {
-				{"objectColor"         , DRW_ATTRIB_FLOAT, 4},
-				{"size"                , DRW_ATTRIB_FLOAT, 1},
-				{"offset"              , DRW_ATTRIB_FLOAT, 2},
-				{"InstanceModelMatrix" , DRW_ATTRIB_FLOAT, 16}
+				{"objectColor",         DRW_ATTRIB_FLOAT, 4},
+				{"size",                DRW_ATTRIB_FLOAT, 1},
+				{"offset",              DRW_ATTRIB_FLOAT, 2},
+				{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 			});
 
 			struct Gwn_Batch *geom = DRW_cache_image_plane_wire_get();
@@ -1367,11 +1367,9 @@ static void DRW_shgroup_lamp(OBJECT_StorageList *stl, Object *ob, ViewLayer *vie
 	/* First circle */
 	DRW_shgroup_call_dynamic_add(stl->g_data->lamp_circle, ob->obmat[3], color);
 
-	/* draw dashed outer circle if shadow is on. remember some lamps can't have certain shadows! */
+	/* draw dashed outer circle for shadow */
 	if (la->type != LA_HEMI) {
-		if ((la->mode & LA_SHAD_RAY) || ((la->mode & LA_SHAD_BUF) && (la->type == LA_SPOT))) {
-			DRW_shgroup_call_dynamic_add(stl->g_data->lamp_circle_shadow, ob->obmat[3], color);
-		}
+		DRW_shgroup_call_dynamic_add(stl->g_data->lamp_circle_shadow, ob->obmat[3], color);
 	}
 
 	/* Distance */

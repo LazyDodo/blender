@@ -26,6 +26,7 @@
 
 #include "DNA_scene_types.h"
 #include "DNA_layer_types.h"
+#include "DNA_view3d_types.h"
 
 #include "BLI_math.h"
 #include "BLI_string_utils.h"
@@ -312,6 +313,9 @@ static void rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_set(PointerRNA *ptr,
 #define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(_NAME_, _LEN_) \
 	RNA_LAYER_ENGINE_GET_SET_ARRAY(float, Workbench, COLLECTION_MODE_NONE, _NAME_, _LEN_)
 
+#define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_INT(_NAME_) \
+	RNA_LAYER_ENGINE_GET_SET(int, Workbench, COLLECTION_MODE_NONE, _NAME_)
+
 /* mode engines */
 
 #define RNA_LAYER_MODE_OBJECT_GET_SET_FLOAT(_NAME_) \
@@ -355,10 +359,6 @@ RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(ssao_distance)
 RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(ssao_attenuation)
 RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(hair_brightness_randomness)
 #endif /* WITH_CLAY_ENGINE */
-
-/* workbench engine */
-/* LayerCollection settings. */
-RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(object_color, 3)
 
 /* eevee engine */
 /* ViewLayer settings. */
@@ -926,78 +926,6 @@ static void rna_ObjectBase_select_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 	Base *base = (Base *)ptr->data;
 	short mode = (base->flag & BASE_SELECTED) ? BA_SELECT : BA_DESELECT;
 	ED_object_base_select(base, mode);
-}
-
-static char *rna_ViewRenderSettings_path(PointerRNA *UNUSED(ptr))
-{
-	return BLI_sprintfN("view_render");
-}
-
-static void rna_ViewRenderSettings_engine_set(PointerRNA *ptr, int value)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	RenderEngineType *type = BLI_findlink(&R_engines, value);
-
-	if (type) {
-		BLI_strncpy_utf8(view_render->engine_id, type->idname, sizeof(view_render->engine_id));
-		DEG_id_tag_update(ptr->id.data, DEG_TAG_COPY_ON_WRITE);
-	}
-}
-
-static const EnumPropertyItem *rna_ViewRenderSettings_engine_itemf(
-        bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
-{
-	RenderEngineType *type;
-	EnumPropertyItem *item = NULL;
-	EnumPropertyItem tmp = {0, "", 0, "", ""};
-	int a = 0, totitem = 0;
-
-	for (type = R_engines.first; type; type = type->next, a++) {
-		tmp.value = a;
-		tmp.identifier = type->idname;
-		tmp.name = type->name;
-		RNA_enum_item_add(&item, &totitem, &tmp);
-	}
-
-	RNA_enum_item_end(&item, &totitem);
-	*r_free = true;
-
-	return item;
-}
-
-static int rna_ViewRenderSettings_engine_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	RenderEngineType *type;
-	int a = 0;
-
-	for (type = R_engines.first; type; type = type->next, a++)
-		if (STREQ(type->idname, view_render->engine_id))
-			return a;
-
-	return 0;
-}
-
-static void rna_ViewRenderSettings_engine_update(Main *bmain, Scene *UNUSED(unused), PointerRNA *UNUSED(ptr))
-{
-	ED_render_engine_changed(bmain);
-}
-
-static int rna_ViewRenderSettings_multiple_engines_get(PointerRNA *UNUSED(ptr))
-{
-	return (BLI_listbase_count(&R_engines) > 1);
-}
-
-static int rna_ViewRenderSettings_use_shading_nodes_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	return BKE_viewrender_use_new_shading_nodes(view_render);
-}
-
-static int rna_ViewRenderSettings_use_spherical_stereo_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	return BKE_viewrender_use_spherical_stereo(view_render);
 }
 
 #else
@@ -1734,23 +1662,15 @@ static void rna_def_layer_collection_engine_settings_clay(BlenderRNA *brna)
 }
 #endif /* WITH_CLAY_ENGINE */
 
+/* Workbench engine */
 static void rna_def_layer_collection_engine_settings_workbench(BlenderRNA *brna)
 {
 	StructRNA *srna;
-	PropertyRNA *prop;
-	
+
 	srna = RNA_def_struct(brna, "LayerCollectionEngineSettingsWorkbench", "LayerCollectionSettings");
-	RNA_def_struct_ui_text(srna, "Collections Workbench Engine Settings", "Engine specific settings for this collection");
+	RNA_def_struct_ui_text(srna, "Collections Workbench Engine Settings", "Workbench specific settings for this collection");
 
 	RNA_define_verify_sdna(0); /* not in sdna */
-
-	prop = RNA_def_property(srna, "object_color", PROP_FLOAT, PROP_COLOR);
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_Workbench_object_color_get",
-	                             "rna_LayerEngineSettings_Workbench_object_color_set", NULL);
-	RNA_def_property_ui_text(prop, "Object Color", "Color for Drawing Objects");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
 }
 
 static void rna_def_layer_collection_mode_settings_object(BlenderRNA *brna)
@@ -2183,46 +2103,6 @@ static void rna_def_object_base(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_ObjectBase_select_update");
 }
 
-static void rna_def_scene_view_render(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	static const EnumPropertyItem engine_items[] = {
-		{0, "BLENDER_RENDER", 0, "Blender Render", "Use the Blender internal rendering engine for rendering"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
-	srna = RNA_def_struct(brna, "ViewRenderSettings", NULL);
-	RNA_def_struct_sdna(srna, "ViewRender");
-	RNA_def_struct_path_func(srna, "rna_ViewRenderSettings_path");
-	RNA_def_struct_ui_text(srna, "View Render", "Rendering settings related to viewport drawing/rendering");
-
-	/* engine */
-	prop = RNA_def_property(srna, "engine", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, engine_items);
-	RNA_def_property_enum_funcs(prop, "rna_ViewRenderSettings_engine_get", "rna_ViewRenderSettings_engine_set",
-	                            "rna_ViewRenderSettings_engine_itemf");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_ui_text(prop, "Engine", "Engine to use for rendering");
-	RNA_def_property_update(prop, NC_WINDOW, "rna_ViewRenderSettings_engine_update");
-
-	prop = RNA_def_property(srna, "has_multiple_engines", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_multiple_engines_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Multiple Engines", "More than one rendering engine is available");
-
-	prop = RNA_def_property(srna, "use_shading_nodes", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_use_shading_nodes_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Use Shading Nodes", "Active render engine uses new shading nodes system");
-
-	prop = RNA_def_property(srna, "use_spherical_stereo", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_use_spherical_stereo_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Use Spherical Stereo", "Active render engine supports spherical stereo rendering");
-}
-
 void RNA_def_view_layer(BlenderRNA *brna)
 {
 	FunctionRNA *func;
@@ -2302,7 +2182,6 @@ void RNA_def_view_layer(BlenderRNA *brna)
 	/* *** Animated *** */
 	rna_def_view_layer_settings(brna);
 	rna_def_layer_collection_settings(brna);
-	rna_def_scene_view_render(brna);
 }
 
 #endif

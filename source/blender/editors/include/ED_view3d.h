@@ -78,7 +78,6 @@ typedef struct ViewContext {
 	struct Depsgraph *depsgraph;
 	struct Scene *scene;
 	struct ViewLayer *view_layer;
-	struct RenderEngineType *engine_type;
 	struct Object *obact;
 	struct Object *obedit;
 	struct ARegion *ar;
@@ -380,16 +379,14 @@ void                    ED_view3d_mats_rv3d_restore(struct RegionView3D *rv3d, s
 
 void  ED_draw_object_facemap(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, const float col[4], const int facemap);
 
+struct RenderEngineType *ED_view3d_engine_type(struct Scene *scene, int drawtype);
+
 bool ED_view3d_context_activate(struct bContext *C);
-void ED_view3d_draw_offscreen_init(
-        struct Depsgraph *depsgraph, struct Scene *scene,
-        struct ViewLayer *view_layer, struct RenderEngineType *engine_type,
-        struct View3D *v3d);
 void ED_view3d_draw_offscreen(
         struct Depsgraph *depsgraph, struct Scene *scene,
-        struct ViewLayer *view_layer, struct RenderEngineType *engine_type,
+        int drawtype,
         struct View3D *v3d, struct ARegion *ar, int winx, int winy, float viewmat[4][4],
-        float winmat[4][4], bool do_bgpic, bool do_sky, bool is_persp, const char *viewname,
+        float winmat[4][4], bool do_sky, bool is_persp, const char *viewname,
         struct GPUFXSettings *fx_settings,
         struct GPUOffScreen *ofs, struct GPUViewport *viewport);
 void ED_view3d_draw_setup_view(
@@ -399,27 +396,26 @@ void ED_view3d_draw_setup_view(
 enum {
 	V3D_OFSDRAW_NONE             = (0),
 
-	V3D_OFSDRAW_USE_BACKGROUND   = (1 << 0),
-	V3D_OFSDRAW_USE_FULL_SAMPLE  = (1 << 1),
+	V3D_OFSDRAW_USE_FULL_SAMPLE  = (1 << 0),
 
 	/* Only works with ED_view3d_draw_offscreen_imbuf_simple(). */
-	V3D_OFSDRAW_USE_GPENCIL      = (1 << 2),
+	V3D_OFSDRAW_USE_GPENCIL      = (1 << 1),
 	V3D_OFSDRAW_USE_SOLID_TEX    = (1 << 2),
 	V3D_OFSDRAW_USE_CAMERA_DOF   = (1 << 3),
 };
 
 struct ImBuf *ED_view3d_draw_offscreen_imbuf(
         struct Depsgraph *depsgraph, struct Scene *scene,
-        struct ViewLayer *view_layer, struct RenderEngineType *engine_type,
+        int drawtype,
         struct View3D *v3d, struct ARegion *ar,
         int sizex, int sizey, unsigned int flag, unsigned int draw_flags,
         int alpha_mode, int samples, const char *viewname,
         struct GPUOffScreen *ofs, char err_out[256]);
 struct ImBuf *ED_view3d_draw_offscreen_imbuf_simple(
         struct Depsgraph *depsgraph, struct Scene *scene,
-        struct ViewLayer *view_layer, struct RenderEngineType *engine_type,
+        int drawtype,
         struct Object *camera, int width, int height,
-        unsigned int flag, unsigned int draw_flags, int drawtype, int alpha_mode,
+        unsigned int flag, unsigned int draw_flags, int alpha_mode,
         int samples, const char *viewname,
         struct GPUOffScreen *ofs, char err_out[256]);
 
