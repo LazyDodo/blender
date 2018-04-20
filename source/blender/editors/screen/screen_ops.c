@@ -1136,8 +1136,8 @@ static void area_move_set_limits(
 	if (use_bigger_smaller_snap != NULL) {
 		*use_bigger_smaller_snap = false;
 		for (ScrArea *area = win->global_areas.areabase.first; area; area = area->next) {
-			const int size_min = round_fl_to_int(area->size_min * UI_DPI_FAC);
-			const int size_max = round_fl_to_int(area->size_max * UI_DPI_FAC);
+			const int size_min = round_fl_to_int(area->global->size_min * UI_DPI_FAC);
+			const int size_max = round_fl_to_int(area->global->size_max * UI_DPI_FAC);
 
 			/* logic here is only tested for lower edge :) */
 			/* left edge */
@@ -1346,8 +1346,8 @@ static void area_move_apply_do(
 		bool redraw_all = false;
 		ED_screen_areas_iter(win, sc, sa) {
 			if (sa->v1->editflag || sa->v2->editflag || sa->v3->editflag || sa->v4->editflag) {
-				if (ED_area_is_global(win, sa)) {
-					sa->cur_fixed_height = round_fl_to_int((sa->v2->vec.y - sa->v1->vec.y) / UI_DPI_FAC);
+				if (ED_area_is_global(sa)) {
+					sa->global->cur_fixed_height = round_fl_to_int((sa->v2->vec.y - sa->v1->vec.y) / UI_DPI_FAC);
 					sc->do_refresh = true;
 					redraw_all = true;
 				}

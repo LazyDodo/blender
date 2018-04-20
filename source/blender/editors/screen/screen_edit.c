@@ -726,7 +726,7 @@ static void screen_vertices_scale(
 		area->v3->vec.x = area->v4->vec.x = window_size_x - 1;
 		/* height */
 		area->v2->vec.y = area->v3->vec.y = window_size_y - 1;
-		area->v1->vec.y = area->v4->vec.y = area->v2->vec.y - ED_area_global_size_y(win, area);
+		area->v1->vec.y = area->v4->vec.y = area->v2->vec.y - ED_area_global_size_y(area);
 	}
 }
 
@@ -1138,10 +1138,13 @@ void ED_screen_global_topbar_area_create(wmWindow *win, const bScreen *screen)
 
 		sa = screen_addarea_ex(&win->global_areas, bottom_left, top_left, top_right, bottom_right,
 		                       HEADERTOP, SPACE_TOPBAR);
-		sa->cur_fixed_height = size_y;
-		sa->size_max = size_y;
-		sa->size_min = HEADERY;
 		sa->regionbase = sl->regionbase;
+
+		/* Data specific to global areas. */
+		sa->global = MEM_callocN(sizeof(*sa->global), __func__);
+		sa->global->cur_fixed_height = size_y;
+		sa->global->size_max = size_y;
+		sa->global->size_min = HEADERY;
 
 		BLI_addhead(&sa->spacedata, sl);
 		BLI_listbase_clear(&sl->regionbase);

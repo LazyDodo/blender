@@ -2901,6 +2901,11 @@ static void write_area_map(WriteData *wd, ScrAreaMap *area_map)
 	writelist(wd, DATA, ScrEdge, &area_map->edgebase);
 	for (ScrArea *area = area_map->areabase.first; area; area = area->next) {
 		writestruct(wd, DATA, ScrArea, 1, area);
+
+#ifdef WITH_TOPBAR_WRITING
+		writestruct(wd, DATA, ScrGlobalAreaData, 1, area->global);
+#endif
+
 		write_area_regions(wd, area);
 	}
 }

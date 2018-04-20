@@ -2109,7 +2109,7 @@ int WM_window_screen_pixels_y(const wmWindow *win)
 	short screen_size_y = WM_window_pixels_y(win);
 
 	for (ScrArea *sa = win->global_areas.areabase.first; sa; sa = sa->next) {
-		screen_size_y -= ED_area_global_size_y(win, sa);
+		screen_size_y -= ED_area_global_size_y(sa);
 	}
 
 	return screen_size_y;

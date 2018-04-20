@@ -1203,7 +1203,7 @@ static void region_rect_recursive(wmWindow *win, ScrArea *sa, ARegion *ar, rcti 
 	if (ar->regiontype == RGN_TYPE_HEADER) {
 		prefsizey = ED_area_headersize();
 	}
-	else if (ED_area_is_global(win, sa)) {
+	else if (ED_area_is_global(sa)) {
 		prefsizey = ED_region_global_size_y();
 	}
 	else if (ar->regiontype == RGN_TYPE_UI && sa->spacetype == SPACE_FILE) {
@@ -2248,17 +2248,15 @@ int ED_area_headersize(void)
 /**
  * \return the final height of a global \a area, accounting for DPI.
  */
-int ED_area_global_size_y(const wmWindow *win, const ScrArea *area)
+int ED_area_global_size_y(const ScrArea *area)
 {
-	BLI_assert(ED_area_is_global(win, area));
-	UNUSED_VARS_NDEBUG(win);
-
-	return round_fl_to_int(area->cur_fixed_height * UI_DPI_FAC);
+	BLI_assert(ED_area_is_global(area));
+	return round_fl_to_int(area->global->cur_fixed_height * UI_DPI_FAC);
 }
 
-bool ED_area_is_global(const wmWindow *win, const ScrArea *area)
+bool ED_area_is_global(const ScrArea *area)
 {
-	return BLI_findindex(&win->global_areas.areabase, area) != -1;
+	return area->global != NULL;
 }
 
 /**

@@ -6395,6 +6395,8 @@ static void direct_link_area(FileData *fd, ScrArea *area)
 	area->type = NULL;	/* spacetype callbacks */
 	area->region_active_win = -1;
 
+	area->global = newdataadr(fd, area->global);
+
 	/* if we do not have the spacetype registered we cannot
 	 * free it, so don't allocate any new memory for such spacetypes. */
 	if (!BKE_spacetype_exists(area->spacetype)) {

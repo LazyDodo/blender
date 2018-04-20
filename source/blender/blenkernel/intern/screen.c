@@ -397,6 +397,7 @@ void BKE_screen_area_free(ScrArea *sa)
 	for (ar = sa->regionbase.first; ar; ar = ar->next)
 		BKE_area_region_free(st, ar);
 
+	MEM_SAFE_FREE(sa->global);
 	BLI_freelistN(&sa->regionbase);
 	
 	BKE_spacedata_freelist(&sa->spacedata);

@@ -226,6 +226,23 @@ typedef struct uiPreview {           /* some preview UI data need to be saved in
 	short pad1[3];
 } uiPreview;
 
+/* These two lines with # tell makesdna this struct can be excluded.
+ * Should be: #ifndef WITH_TOPBAR_WRITING */
+#
+#
+typedef struct ScrGlobalAreaData {
+	/* Global areas have a non-dynamic size. That means, changing the window
+	 * size doesn't affect their size at all. However, they can still be
+	 * 'collapsed', by changing this value. Ignores DPI (ED_area_global_size_y
+	 * and winx/winy don't) */
+	short cur_fixed_height;
+	/* For global areas, this is the min and max size they can use depending on
+	 * if they are 'collapsed' or not. Value is set on area creation and not
+	 * touched afterwards. */
+	short size_min, size_max;
+	short pad;
+} ScrGlobalAreaData;
+
 typedef struct ScrArea {
 	struct ScrArea *next, *prev;
 	
@@ -236,16 +253,6 @@ typedef struct ScrArea {
 
 	char spacetype, butspacetype;	/* SPACE_..., butspacetype is button arg  */
 	short winx, winy;				/* size */
-	/* Global areas have a non-dynamic size. That means, changing the window
-	 * size doesn't affect their size at all. However, they can still be
-	 * 'collapsed', by changing this value. Ignores DPI (ED_area_global_size_y
-	 * and winx/winy don't) */
-	short cur_fixed_height;
-	/* For global areas, this is the min and max size they can use depending on
-	 * if they are 'collapsed' or not. Value is set on area creation and not
-	 * touched afterwards. */
-	short size_min, size_max;
-	short pad2;
 
 	short headertype;				/* OLD! 0=no header, 1= down, 2= up */
 	short do_refresh;				/* private, for spacetype refresh callback */
@@ -255,6 +262,9 @@ typedef struct ScrArea {
 	char temp, pad;
 	
 	struct SpaceType *type;		/* callbacks for this space type */
+
+	/* Non-NULL if this area is global. */
+	ScrGlobalAreaData *global;
 
 	/* A list of space links (editors) that were open in this area before. When
 	 * changing the editor type, we try to reuse old editor data from this list.
