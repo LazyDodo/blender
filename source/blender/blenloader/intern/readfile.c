@@ -562,6 +562,10 @@ void blo_split_main(ListBase *mainlist, Main *main)
 	ListBase *lbarray[MAX_LIBARRAY];
 	i = set_listbasepointers(main, lbarray);
 	while (i--) {
+		ID *id = lbarray[i]->first;
+		if (id == NULL || GS(id->name) == ID_LI) {
+			continue;  /* no ID_LI datablock should ever be linked anyway, but just in case, better be explicit. */
+		}
 		split_libdata(lbarray[i], lib_main_array, lib_main_array_len);
 	}
 
@@ -3556,7 +3560,6 @@ static void direct_link_armature(FileData *fd, bArmature *arm)
 	
 	link_list(fd, &arm->bonebase);
 	arm->edbo = NULL;
-	arm->sketch = NULL;
 	
 	arm->adt = newdataadr(fd, arm->adt);
 	direct_link_animdata(fd, arm->adt);
@@ -5680,8 +5683,6 @@ static void lib_link_scene(FileData *fd, Main *main)
 				sce->toolsettings->imapaint.canvas =
 				        newlibadr_us(fd, sce->id.lib, sce->toolsettings->imapaint.canvas);
 			
-			sce->toolsettings->skgen_template = newlibadr(fd, sce->id.lib, sce->toolsettings->skgen_template);
-			
 			sce->toolsettings->particle.shape_object = newlibadr(fd, sce->id.lib, sce->toolsettings->particle.shape_object);
 			
 			for (Base *base_legacy_next, *base_legacy = sce->base.first; base_legacy; base_legacy = base_legacy_next) {
@@ -7381,8 +7382,6 @@ void blo_do_versions_view3d_split_250(View3D *v3d, ListBase *regions)
 	}
 	
 	/* this was not initialized correct always */
-	if (v3d->twtype == 0)
-		v3d->twtype = V3D_MANIP_TRANSLATE;
 	if (v3d->gridsubdiv == 0)
 		v3d->gridsubdiv = 10;
 }

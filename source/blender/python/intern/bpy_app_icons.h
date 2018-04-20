@@ -15,40 +15,16 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * The Original Code is Copyright (C) 2001-2002 by NaN Holding BV.
- * All rights reserved.
- *
- * The Original Code is: all of this file.
- *
- * Contributor(s): none yet.
- *
  * ***** END GPL LICENSE BLOCK *****
- * 
  */
 
-#ifndef __BLO_RUNTIME_H__
-#define __BLO_RUNTIME_H__
-
-/** \file BLO_runtime.h
- *  \ingroup blenloader
+/** \file blender/python/intern/bpy_app_icons.h
+ *  \ingroup pythonintern
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef __BPY_APP_ICONS_H__
+#define __BPY_APP_ICONS_H__
 
-struct BlendFileData;
-struct Main;
-struct ReportList;
+PyObject *BPY_app_icons_module(void);
 
-int BLO_is_a_runtime(const char *file);
-struct BlendFileData *BLO_read_runtime(const char *file, struct ReportList *reports);
-
-bool BLO_main_validate_libraries(struct Main *bmain, struct ReportList *reports);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* __BLO_RUNTIME_H__ */
-
+#endif /* __BPY_APP_ICONS_H__ */
