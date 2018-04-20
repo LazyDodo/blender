@@ -236,9 +236,16 @@ typedef struct ScrArea {
 
 	char spacetype, butspacetype;	/* SPACE_..., butspacetype is button arg  */
 	short winx, winy;				/* size */
-	/* Fixed height for global areas. Ignores DPI (winy and ED_area_global_size_y don't) */
-	short fixed_height;
-	short pad2[3];
+	/* Global areas have a non-dynamic size. That means, changing the window
+	 * size doesn't affect their size at all. However, they can still be
+	 * 'collapsed', by changing this value. Ignores DPI (ED_area_global_size_y
+	 * and winx/winy don't) */
+	short cur_fixed_height;
+	/* For global areas, this is the min and max size they can use depending on
+	 * if they are 'collapsed' or not. Value is set on area creation and not
+	 * touched afterwards. */
+	short size_min, size_max;
+	short pad2;
 
 	short headertype;				/* OLD! 0=no header, 1= down, 2= up */
 	short do_refresh;				/* private, for spacetype refresh callback */

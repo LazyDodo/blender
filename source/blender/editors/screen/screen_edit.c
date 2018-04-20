@@ -112,16 +112,16 @@ bool scredge_is_horizontal(ScrEdge *se)
 }
 
 /* need win size to make sure not to include edges along screen edge */
-ScrEdge *screen_find_active_scredge(const bScreen *sc,
-                                    const int winsize_x, const int winsize_y,
-                                    const int mx, const int my)
+ScrEdge *screen_area_map_find_active_scredge(
+        const ScrAreaMap *area_map,
+        const int winsize_x, const int winsize_y,
+        const int mx, const int my)
 {
-	ScrEdge *se;
 	int safety = U.widget_unit / 10;
-	
-	if (safety < 2) safety = 2;
-	
-	for (se = sc->edgebase.first; se; se = se->next) {
+
+	CLAMP_MIN(safety, 2);
+
+	for (ScrEdge *se = area_map->edgebase.first; se; se = se->next) {
 		if (scredge_is_horizontal(se)) {
 			if (se->v1->vec.y > 0 && se->v1->vec.y < winsize_y - 1) {
 				short min, max;
@@ -143,8 +143,25 @@ ScrEdge *screen_find_active_scredge(const bScreen *sc,
 			}
 		}
 	}
-	
+
 	return NULL;
+}
+
+/* need win size to make sure not to include edges along screen edge */
+ScrEdge *screen_find_active_scredge(
+        const wmWindow *win, const bScreen *screen,
+        const int mx, const int my)
+{
+	/* Use layout size (screen excluding global areas) for screen-layout area edges */
+	const int screen_x = WM_window_screen_pixels_x(win), screen_y = WM_window_screen_pixels_y(win);
+	ScrEdge *se = screen_area_map_find_active_scredge(AREAMAP_FROM_SCREEN(screen), screen_x, screen_y, mx, my);
+
+	if (!se) {
+		/* Use entire window size (screen including global areas) for global area edges */
+		const int win_x = WM_window_pixels_x(win), win_y = WM_window_pixels_y(win);
+		se = screen_area_map_find_active_scredge(&win->global_areas, win_x, win_y, mx, my);
+	}
+	return se;
 }
 
 
@@ -481,10 +498,10 @@ int screen_area_join(bContext *C, bScreen *scr, ScrArea *sa1, ScrArea *sa2)
 	return 1;
 }
 
-void select_connected_scredge(bScreen *sc, ScrEdge *edge)
+void select_connected_scredge(const wmWindow *win, ScrEdge *edge)
 {
+	bScreen *sc = WM_window_get_active_screen(win);
 	ScrEdge *se;
-	ScrVert *sv;
 	int oneselected;
 	char dir;
 	
@@ -494,12 +511,10 @@ void select_connected_scredge(bScreen *sc, ScrEdge *edge)
 	if (edge->v1->vec.x == edge->v2->vec.x) dir = 'v';
 	else dir = 'h';
 	
-	sv = sc->vertbase.first;
-	while (sv) {
+	ED_screen_verts_iter(win, sc, sv) {
 		sv->flag = 0;
-		sv = sv->next;
 	}
-	
+
 	edge->v1->flag = 1;
 	edge->v2->flag = 1;
 	
@@ -634,7 +649,7 @@ static void screen_vertices_scale(
 				const int yval = sa->v2->vec.y - headery_init;
 				se = BKE_screen_find_edge(sc, sa->v4, sa->v1);
 				if (se != NULL) {
-					select_connected_scredge(sc, se);
+					select_connected_scredge(win, se);
 				}
 				for (sv = sc->vertbase.first; sv; sv = sv->next) {
 					if (sv != sa->v2 && sv != sa->v3) {
@@ -649,7 +664,7 @@ static void screen_vertices_scale(
 				const int yval = sa->v1->vec.y + headery_init;
 				se = BKE_screen_find_edge(sc, sa->v2, sa->v3);
 				if (se != NULL) {
-					select_connected_scredge(sc, se);
+					select_connected_scredge(win, se);
 				}
 				for (sv = sc->vertbase.first; sv; sv = sv->next) {
 					if (sv != sa->v1 && sv != sa->v4) {
@@ -687,7 +702,7 @@ static void screen_vertices_scale(
 			if (se && sa->v1 != sa->v2) {
 				int yval;
 				
-				select_connected_scredge(sc, se);
+				select_connected_scredge(win, se);
 				
 				/* all selected vertices get the right offset */
 				yval = sa->v2->vec.y - headery + 1;
@@ -723,7 +738,7 @@ static void region_cursor_set(wmWindow *win, bool swin_changed)
 {
 	bScreen *screen = WM_window_get_active_screen(win);
 
-	for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+	ED_screen_areas_iter(win, screen, sa) {
 		for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
 			if (ar == screen->active_region) {
 				if (swin_changed || (ar->type && ar->type->event_cursor)) {
@@ -974,9 +989,6 @@ void ED_screen_exit(bContext *C, wmWindow *window, bScreen *screen)
 static void screen_cursor_set(wmWindow *win, const wmEvent *event)
 {
 	const bScreen *screen = WM_window_get_active_screen(win);
-	const int screen_size_x = WM_window_screen_pixels_x(win);
-	const int screen_size_y = WM_window_screen_pixels_y(win);
-
 	AZone *az = NULL;
 	ScrArea *sa;
 	
@@ -995,8 +1007,8 @@ static void screen_cursor_set(wmWindow *win, const wmEvent *event)
 		}
 	}
 	else {
-		ScrEdge *actedge = screen_find_active_scredge(screen, screen_size_x, screen_size_y, event->x, event->y);
-		
+		ScrEdge *actedge = screen_find_active_scredge(win, screen, event->x, event->y);
+
 		if (actedge) {
 			if (scredge_is_horizontal(actedge))
 				WM_cursor_set(win, CURSOR_Y_MOVE);
@@ -1112,12 +1124,13 @@ void ED_screen_global_topbar_area_create(wmWindow *win, const bScreen *screen)
 		SpaceLink *sl = st->new(NULL);
 		ScrArea *sa;
 		const short size_y = 2 * HEADERY;
+		const int minx = 0, maxx = WM_window_pixels_x(win) - 1;
+		const int maxy = WM_window_pixels_y(win) - 1, miny = maxy - size_y;
 
-		/* Actual coordinates of area verts are set later (screen_vertices_scale) */
-		ScrVert *bottom_left  = screen_addvert_ex(&win->global_areas, 0, 0);
-		ScrVert *top_left     = screen_addvert_ex(&win->global_areas, 0, 0);
-		ScrVert *top_right    = screen_addvert_ex(&win->global_areas, 0, 0);
-		ScrVert *bottom_right = screen_addvert_ex(&win->global_areas, 0, 0);
+		ScrVert *bottom_left  = screen_addvert_ex(&win->global_areas, minx, miny);
+		ScrVert *top_left     = screen_addvert_ex(&win->global_areas, minx, maxy);
+		ScrVert *top_right    = screen_addvert_ex(&win->global_areas, maxx, maxy);
+		ScrVert *bottom_right = screen_addvert_ex(&win->global_areas, maxx, miny);
 		screen_addedge_ex(&win->global_areas, bottom_left, top_left);
 		screen_addedge_ex(&win->global_areas, top_left, top_right);
 		screen_addedge_ex(&win->global_areas, top_right, bottom_right);
@@ -1125,7 +1138,9 @@ void ED_screen_global_topbar_area_create(wmWindow *win, const bScreen *screen)
 
 		sa = screen_addarea_ex(&win->global_areas, bottom_left, top_left, top_right, bottom_right,
 		                       HEADERTOP, SPACE_TOPBAR);
-		sa->fixed_height = size_y;
+		sa->cur_fixed_height = size_y;
+		sa->size_max = size_y;
+		sa->size_min = HEADERY;
 		sa->regionbase = sl->regionbase;
 
 		BLI_addhead(&sa->spacedata, sl);

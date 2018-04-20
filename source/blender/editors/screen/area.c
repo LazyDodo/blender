@@ -2253,7 +2253,7 @@ int ED_area_global_size_y(const wmWindow *win, const ScrArea *area)
 	BLI_assert(ED_area_is_global(win, area));
 	UNUSED_VARS_NDEBUG(win);
 
-	return area->fixed_height * UI_DPI_FAC;
+	return round_fl_to_int(area->cur_fixed_height * UI_DPI_FAC);
 }
 
 bool ED_area_is_global(const wmWindow *win, const ScrArea *area)

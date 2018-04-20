@@ -56,12 +56,16 @@ bScreen    *screen_change_prepare(bScreen *screen_old, bScreen *screen_new, stru
 ScrArea    *area_split(bScreen *sc, ScrArea *sa, char dir, float fac, int merge);
 int         screen_area_join(struct bContext *C, bScreen *scr, ScrArea *sa1, ScrArea *sa2);
 int         area_getorientation(ScrArea *sa, ScrArea *sb);
-void        select_connected_scredge(bScreen *sc, ScrEdge *edge);
+void        select_connected_scredge(const wmWindow *win, ScrEdge *edge);
 
 bool        scredge_is_horizontal(ScrEdge *se);
-ScrEdge    *screen_find_active_scredge(const bScreen *sc,
-                                       const int winsize_x, const int winsize_y,
-                                       const int mx, const int my);
+ScrEdge     *screen_area_map_find_active_scredge(
+        const struct ScrAreaMap *area_map,
+        const int winsize_x, const int winsize_y,
+        const int mx, const int my);
+ScrEdge    *screen_find_active_scredge(
+        const wmWindow *win, const bScreen *screen,
+        const int mx, const int my);
 
 struct AZone *is_in_area_actionzone(ScrArea *sa, const int xy[2]);
 
