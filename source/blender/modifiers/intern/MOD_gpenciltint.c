@@ -68,8 +68,6 @@ static void copyData(ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
 {
-#if 0
-
 	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
 
 	if (!is_stroke_affected_by_modifier(
@@ -79,19 +77,19 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 		return;
 	}
 
-	interp_v3_v3v3(gps->palcolor->rgb, gps->palcolor->rgb, mmd->rgb, mmd->factor);
-	interp_v3_v3v3(gps->palcolor->fill, gps->palcolor->fill, mmd->rgb, mmd->factor);
+	interp_v3_v3v3(gps->tmp_rgb, gps->tmp_rgb, mmd->rgb, mmd->factor);
+	interp_v3_v3v3(gps->tmp_fill, gps->tmp_fill, mmd->rgb, mmd->factor);
 
 	/* if factor is > 1, the alpha must be changed to get full tint */
 	if (mmd->factor > 1.0f) {
-		gps->palcolor->rgb[3] += mmd->factor - 1.0f;
-		if (gps->palcolor->fill[3] > 1e-5) {
-			gps->palcolor->fill[3] += mmd->factor - 1.0f;
+		gps->tmp_rgb[3] += mmd->factor - 1.0f;
+		if (gps->tmp_fill[3] > 1e-5) {
+			gps->tmp_fill[3] += mmd->factor - 1.0f;
 		}
 	}
 
-	CLAMP4(gps->palcolor->rgb, 0.0f, 1.0f);
-	CLAMP4(gps->palcolor->fill, 0.0f, 1.0f);
+	CLAMP4(gps->tmp_rgb, 0.0f, 1.0f);
+	CLAMP4(gps->tmp_fill, 0.0f, 1.0f);
 	
 	/* if factor > 1.0, affect the strength of the stroke */
 	if (mmd->factor > 1.0f) {
@@ -101,38 +99,37 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 			CLAMP(pt->strength, 0.0f, 1.0f);
 		}
 	}
-#endif
 }
 
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
-#if 0
-
 	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ob->data;
 	Palette *newpalette = NULL;
-	
+
 	GHash *gh_layer = BLI_ghash_str_new("GP_Tint Layer modifier");
 	GHash *gh_color;
-
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				/* skip stroke if it doesn't have color info */
-				if (ELEM(NULL, gps->palette, gps->palcolor))
+				if (ELEM(NULL, gps->palette, gps->colorname))
 					continue;
-				
+
+				PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+				copy_v4_v4(gps->tmp_rgb, gps_palcolor->rgb);
+				copy_v4_v4(gps->tmp_fill, gps_palcolor->fill);
+
 				/* look for palette */
 				gh_color = (GHash *)BLI_ghash_lookup(gh_layer, gps->palette->id.name);
 				if (gh_color == NULL) {
-					gh_color = BLI_ghash_str_new("GP_Tint Color modifier");
+					gh_color = BLI_ghash_str_new("GP_Color Tint modifier");
 					BLI_ghash_insert(gh_layer, gps->palette->id.name, gh_color);
 				}
 
 				/* look for color */
-				PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 				PaletteColor *newpalcolor = (PaletteColor *)BLI_ghash_lookup(gh_color, gps->colorname);
 				if (newpalcolor == NULL) {
 					if (mmd->flag & GP_TINT_CREATE_COLORS) {
@@ -143,9 +140,21 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 						newpalcolor = BKE_palette_color_copy(newpalette, gps_palcolor);
 						BLI_strncpy(gps->colorname, newpalcolor->info, sizeof(gps->colorname));
 					}
-					BLI_ghash_insert(gh_color, gps_palcolor->info, newpalcolor);
+					BLI_ghash_insert(gh_color, gps->colorname, newpalcolor);
 
 					deformStroke(md, depsgraph, ob, gpl, gps);
+
+					/* update palette */
+					if ((newpalette) && (mmd->flag & GP_COLOR_CREATE_COLORS)) {
+						copy_v4_v4(newpalcolor->rgb, gps->tmp_rgb);
+						copy_v4_v4(newpalcolor->fill, gps->tmp_fill);
+						gps->palette = newpalette;
+					}
+					else {
+						/* reuse existing color */
+						copy_v4_v4(gps_palcolor->rgb, gps->tmp_rgb);
+						copy_v4_v4(gps_palcolor->fill, gps->tmp_fill);
+					}
 				}
 			}
 		}
@@ -166,7 +175,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 		BLI_ghash_free(gh_layer, NULL, NULL);
 		gh_layer = NULL;
 	}
-#endif
+
 }
 
 ModifierTypeInfo modifierType_GpencilTint = {

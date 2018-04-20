@@ -192,7 +192,11 @@ typedef struct bGPDstroke {
 	char colorname[128];    /* color name */
 	
 	Palette      *palette;  /* current palette */
-	
+
+	/* runtime final colors (result of original colors and modifiers) */
+	float tmp_rgb[4];
+	float tmp_fill[4];
+
 	/* temporary layer name only used during copy/paste to put the stroke in the original layer */
 	char tmp_layerinfo[128];
 

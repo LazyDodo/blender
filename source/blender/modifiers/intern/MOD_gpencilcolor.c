@@ -69,10 +69,8 @@ static void copyData(ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
 {
-#if 0
 
 	GpencilColorModifierData *mmd = (GpencilColorModifierData *)md;
-	PaletteColor *palcolor;
 	float hsv[3], factor[3];
 
 	if (!is_stroke_affected_by_modifier(
@@ -82,25 +80,18 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 		return;
 	}
 	
-	if (ELEM(NULL, gps->palette, gps->palcolor)) {
-		/* sometimes palette/color info is missing */
-		return;
-	}
-
-	palcolor = gps->palcolor;
 	copy_v3_v3(factor, mmd->hsv);
 	add_v3_fl(factor, -1.0f);
 
-	rgb_to_hsv_v(palcolor->rgb, hsv);
+	rgb_to_hsv_v(gps->tmp_rgb, hsv);
 	add_v3_v3(hsv, factor);
 	CLAMP3(hsv, 0.0f, 1.0f);
-	hsv_to_rgb_v(hsv, palcolor->rgb);
+	hsv_to_rgb_v(hsv, gps->tmp_rgb);
 
-	rgb_to_hsv_v(palcolor->fill, hsv);
+	rgb_to_hsv_v(gps->tmp_fill, hsv);
 	add_v3_v3(hsv, factor);
 	CLAMP3(hsv, 0.0f, 1.0f);
-	hsv_to_rgb_v(hsv, palcolor->fill);
-#endif
+	hsv_to_rgb_v(hsv, gps->tmp_fill);
 }
 
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
@@ -111,16 +102,19 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	bGPdata *gpd = ob->data;
 	Palette *newpalette = NULL;
 	
-#if 0
 	GHash *gh_layer = BLI_ghash_str_new("GP_Color Layer modifier");
 	GHash *gh_color;
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				/* skip stroke if it doesn't have color info */
-				if (ELEM(NULL, gps->palette, gps->palcolor))
+				if (ELEM(NULL, gps->palette, gps->colorname))
 					continue;
-				
+
+				PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+				copy_v4_v4(gps->tmp_rgb, gps_palcolor->rgb);
+				copy_v4_v4(gps->tmp_fill, gps_palcolor->fill);
+
 				/* look for palette */
 				gh_color = (GHash *)BLI_ghash_lookup(gh_layer, gps->palette->id.name);
 				if (gh_color == NULL) {
@@ -129,26 +123,31 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 				}
 
 				/* look for color */
-				PaletteColor *newpalcolor = (PaletteColor *)BLI_ghash_lookup(gh_color, gps->palcolor->info);
+				PaletteColor *newpalcolor = (PaletteColor *)BLI_ghash_lookup(gh_color, gps->colorname);
 				if (newpalcolor == NULL) {
 					if (mmd->flag & GP_COLOR_CREATE_COLORS) {
 						if (!newpalette) {
 							bGPDpaletteref *palslot = BKE_gpencil_paletteslot_addnew(bmain, gpd, "Tinted Colors");
 							newpalette = palslot->palette;
 						}
-						newpalcolor = BKE_palette_color_copy(newpalette, gps->palcolor);
+						newpalcolor = BKE_palette_color_copy(newpalette, gps_palcolor);
 						BLI_strncpy(gps->colorname, newpalcolor->info, sizeof(gps->colorname));
-						gps->palcolor = newpalcolor;
 					}
-					else {
-						newpalcolor = gps->palcolor;
-					}
-					BLI_ghash_insert(gh_color, gps->palcolor->info, newpalcolor);
+					BLI_ghash_insert(gh_color, gps->colorname, newpalcolor);
 					
 					deformStroke(md, depsgraph, ob, gpl, gps);
-				}
-				else {
-					gps->palcolor = newpalcolor;
+
+					/* update palette */
+					if ((newpalette) && (mmd->flag & GP_COLOR_CREATE_COLORS)) {
+						copy_v4_v4(newpalcolor->rgb, gps->tmp_rgb);
+						copy_v4_v4(newpalcolor->fill, gps->tmp_fill);
+						gps->palette = newpalette;
+					}
+					else {
+						/* reuse existing color */
+						copy_v4_v4(gps_palcolor->rgb, gps->tmp_rgb);
+						copy_v4_v4(gps_palcolor->fill, gps->tmp_fill);
+					}
 				}
 			}
 		}
@@ -169,7 +168,6 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 		BLI_ghash_free(gh_layer, NULL, NULL);
 		gh_layer = NULL;
 	}
-#endif
 }
 
 ModifierTypeInfo modifierType_GpencilColor = {
