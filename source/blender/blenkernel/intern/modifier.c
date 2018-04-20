@@ -1102,21 +1102,24 @@ struct DerivedMesh *modifier_applyModifier_DM_deprecated(struct ModifierData *md
 		struct Mesh *mesh = ob->data;
 		BLI_assert(DEG_depsgraph_use_copy_on_write());
 		BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); /* This should be a CoW mesh */
-//		if (dm != NULL) {
-////			BKE_mesh_free(mesh);
-//			printf("Converting DM_to_mesh(dm=%p, mesh=%s=%p)\n", dm, mesh->id.name, mesh);
-//			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
-//		}
+		if (dm != NULL) {
+//			BKE_mesh_free(mesh);
+			mesh = MEM_callocN(sizeof(struct Mesh), "Mesh");
+//			MEMSET_STRUCT_OFS(mesh, 0, id);
+			BKE_mesh_init(mesh);
+			printf("Converting DM_to_mesh(dm=%p, mesh=%s=%p)\n", dm, mesh->id.name, mesh);
+			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
+		}
 
 		struct Mesh *new_mesh = mti->applyModifier(md, depsgraph, ob, mesh, flag);
 		printf("    created new mesh %s=%p\n", new_mesh->id.name, new_mesh);
 
 		DerivedMesh *ndm = CDDM_from_mesh(new_mesh);
 
-//		if(new_mesh != mesh) {
+		if(new_mesh != mesh) {
 //			BKE_mesh_free(new_mesh);
 //			MEM_freeN(new_mesh);
-//		}
+		}
 
 		return ndm;
 	}

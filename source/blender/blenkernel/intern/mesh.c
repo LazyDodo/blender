@@ -607,7 +607,7 @@ void BKE_mesh_copy_data(Main *bmain, Mesh *me_dst, const Mesh *me_src, const int
 	}
 }
 
-Mesh *BKE_mesh_from_template_ex(
+static Mesh *mesh_from_template_ex(
         Mesh *me_src,
         int numVerts, int numEdges, int numTessFaces,
         int numLoops, int numPolys,
@@ -648,10 +648,11 @@ Mesh * BKE_mesh_from_template(Mesh *me_src,
                               int numLoops, int numPolys)
 {
 	printf("BKE_mesh_from_template(%p, %d, %d, %d, %d, %d)\n", me_src, numVerts, numEdges, numTessFaces, numLoops, numPolys);
-	return BKE_mesh_from_template_ex(me_src,
-	                                 numVerts, numEdges, numTessFaces,
-	                                 numLoops, numPolys,
-	                                 CD_MASK_EVERYTHING);
+	return mesh_from_template_ex(
+	            me_src,
+	            numVerts, numEdges, numTessFaces,
+	            numLoops, numPolys,
+	            CD_MASK_EVERYTHING);
 }
 
 Mesh *BKE_mesh_copy(Main *bmain, const Mesh *me)
