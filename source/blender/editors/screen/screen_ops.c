@@ -871,7 +871,11 @@ static void SCREEN_OT_actionzone(wmOperatorType *ot)
 	RNA_def_int(ot->srna, "modifier", 0, 0, 2, "Modifier", "Modifier state", 0, 2);
 }
 
-/* ************** swap area operator *********************************** */
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Swap Area Operator
+ * \{ */
 
 /* operator state vars used:
  * sa1      start area
@@ -991,7 +995,13 @@ static void SCREEN_OT_area_swap(wmOperatorType *ot)
 	ot->flag = OPTYPE_BLOCKING;
 }
 
-/* *********** Duplicate area as new window operator ****************** */
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Area Duplicate Operator
+ *
+ * Create new window from area.
+ * \{ */
 
 /* operator callback */
 static int area_dupli_invoke(bContext *C, wmOperator *op, const wmEvent *event)
@@ -1073,8 +1083,11 @@ static void SCREEN_OT_area_dupli(wmOperatorType *ot)
 	ot->poll = ED_operator_areaactive;
 }
 
+/** \} */
 
-/* ************** move area edge operator *********************************** */
+/* -------------------------------------------------------------------- */
+/** \name Move Area Edge Operator
+ * \{ */
 
 /* operator state vars used:  
  * x, y             mouse coord near edge
