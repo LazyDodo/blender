@@ -949,30 +949,10 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 	}
 
 	if (!DNA_struct_find(fd->filesdna, "SpaceTopBar")) {
-#ifdef WITH_REDO_REGION_REMOVAL
+		/* Remove info editor, but only if at the top of the window. */
 		for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
-			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-					if (ELEM(sl->spacetype, SPACE_VIEW3D, SPACE_CLIP)) {
-						ListBase *regionbase = (sl == sa->spacedata.first) ? &sa->regionbase : &sl->regionbase;
-
-						for (ARegion *region = regionbase->first, *region_next; region; region = region_next) {
-							region_next = region->next;
-
-							if (region->regiontype == RGN_TYPE_TOOL_PROPS) {
-								BKE_area_region_free(NULL, region);
-								BLI_freelinkN(regionbase, region);
-							}
-						}
-					}
-				}
-			}
-		}
-#endif
-
-		for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
-			int win_width = 0, win_height = 0;
 			/* Calculate window width/height from screen vertices */
+			int win_width = 0, win_height = 0;
 			for (ScrVert *vert = screen->vertbase.first; vert; vert = vert->next) {
 				win_width  = MAX2(win_width, vert->vec.x);
 				win_height = MAX2(win_height, vert->vec.y);
@@ -999,4 +979,28 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 			}
 		}
 	}
+
+#ifdef WITH_REDO_REGION_REMOVAL
+	if (!MAIN_VERSION_ATLEAST(main, 280, TO_BE_DETERMINED)) {
+		/* Remove tool property regions. */
+		for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (ELEM(sl->spacetype, SPACE_VIEW3D, SPACE_CLIP)) {
+						ListBase *regionbase = (sl == sa->spacedata.first) ? &sa->regionbase : &sl->regionbase;
+
+						for (ARegion *region = regionbase->first, *region_next; region; region = region_next) {
+							region_next = region->next;
+
+							if (region->regiontype == RGN_TYPE_TOOL_PROPS) {
+								BKE_area_region_free(NULL, region);
+								BLI_freelinkN(regionbase, region);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+#endif
 }

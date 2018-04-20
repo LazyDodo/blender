@@ -36,8 +36,6 @@
 struct bContext;
 struct wmOperatorType;
 
-typedef struct OperatorRepeatContextHandle OperatorRepeatContextHandle;
-
 /* ed_util.c */
 
 void    ED_editors_init(struct bContext *C);

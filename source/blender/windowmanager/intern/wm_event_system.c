@@ -944,6 +944,7 @@ int WM_operator_call_notest(bContext *C, wmOperator *op)
  */
 int WM_operator_repeat(bContext *C, wmOperator *op)
 {
+#ifdef WITH_REDO_REGION_REMOVAL
 	const OperatorRepeatContextHandle *context_info;
 	int retval;
 
@@ -952,6 +953,9 @@ int WM_operator_repeat(bContext *C, wmOperator *op)
 	ED_operator_repeat_reset_context(C, context_info);
 
 	return retval;
+#else
+	return wm_operator_exec(C, op, true, true);
+#endif
 }
 /**
  * \return true if #WM_operator_repeat can run

@@ -1531,6 +1531,7 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 
 /************************ Redo Buttons Template *************************/
 
+#ifdef WITH_REDO_REGION_REMOVAL
 static bool template_operator_redo_property_buts_poll(PointerRNA *UNUSED(ptr), PropertyRNA *prop)
 {
 	return (RNA_property_tags(prop) & OP_PROP_TAG_ADVANCED) == 0;
@@ -1582,7 +1583,7 @@ void uiTemplateOperatorRedoProperties(uiLayout *layout, bContext *C)
 		}
 	}
 }
-
+#endif
 
 /************************ Constraint Template *************************/
 
