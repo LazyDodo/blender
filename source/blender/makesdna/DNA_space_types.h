@@ -1392,8 +1392,8 @@ typedef enum eSpaceClip_GPencil_Source {
 
 /* These two lines with # tell makesdna this struct can be excluded.
  * Should be: #ifndef WITH_TOPBAR_WRITING */
-//#
-//#
+#
+#
 typedef struct SpaceTopBar {
 	SpaceLink *next, *prev;
 	ListBase regionbase;        /* storage of regions for inactive spaces */
