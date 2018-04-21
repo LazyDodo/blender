@@ -1223,7 +1223,7 @@ static void rna_Fur_guide_curves_new(FurModifierData *fmd, ReportList *UNUSED(re
 	BLI_addtail(&fmd->guide_curves, curve);
 }
 
-static void rna_Fur_guide_curves_apply(FurModifierData *fmd, ReportList *UNUSED(reports))
+static void rna_Fur_guide_curves_apply(ID *id, FurModifierData *fmd, bContext *C, ReportList *UNUSED(reports))
 {
 	const int totcurves = BLI_listbase_count(&fmd->guide_curves);
 	int i = 0;
@@ -1246,6 +1246,11 @@ static void rna_Fur_guide_curves_apply(FurModifierData *fmd, ReportList *UNUSED(
 		{
 			BKE_hair_set_guide_vertex(fmd->hair_system, i, curve->verts[j].flag, curve->verts[j].co);
 		}
+	}
+	
+	{
+		DerivedMesh *scalp = mesh_get_derived_final(CTX_data_depsgraph(C), CTX_data_scene(C), (Object*)id, CD_MASK_BAREMESH);
+		BKE_hair_bind_follicles(fmd->hair_system, scalp);
 	}
 }
 
@@ -4990,7 +4995,7 @@ static void rna_def_modifier_fur_guide_curves_api(BlenderRNA *brna, PropertyRNA 
 	RNA_def_property_flag(parm, PARM_REQUIRED);
 	
 	func = RNA_def_function(srna, "apply", "rna_Fur_guide_curves_apply");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
 }
 
 static void rna_def_modifier_fur(BlenderRNA *brna)

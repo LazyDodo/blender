@@ -123,6 +123,9 @@ static void hair_batch_cache_init(HairSystem *hsys)
 
 static HairBatchCache *hair_batch_cache_get(HairSystem *hsys)
 {
+	// Hair follicle binding needs to be updated after changes
+	BLI_assert(!(hsys->flag & HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING));
+	
 	if (!hair_batch_cache_valid(hsys)) {
 		hair_batch_cache_clear(hsys);
 		hair_batch_cache_init(hsys);
