@@ -49,6 +49,7 @@
 #include "BKE_idprop.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
+#include "BKE_layer.h"
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
@@ -73,10 +74,8 @@
 /* helper for apply_armature_pose2bones - fixes parenting of objects that are bone-parented to armature */
 static void applyarmature_fix_boneparents(const bContext *C, Scene *scene, Object *armob)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object workob, *ob;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 	
 	/* go through all objects in database */
 	for (ob = G.main->object.first; ob; ob = ob->id.next) {
@@ -87,7 +86,7 @@ static void applyarmature_fix_boneparents(const bContext *C, Scene *scene, Objec
 			 */
 			BKE_object_apply_mat4(ob, ob->obmat, false, false);
 			
-			BKE_object_workob_calc_parent(&eval_ctx, scene, ob, &workob);
+			BKE_object_workob_calc_parent(depsgraph, scene, ob, &workob);
 			invert_m4_m4(ob->parentinv, workob.obmat);
 		}
 	}
@@ -96,16 +95,14 @@ static void applyarmature_fix_boneparents(const bContext *C, Scene *scene, Objec
 /* set the current pose as the restpose */
 static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C)); // must be active object, not edit-object
-	EvaluationContext eval_ctx;
 	bArmature *arm = BKE_armature_from_object(ob);
 	bPose *pose;
 	bPoseChannel *pchan;
 	EditBone *curbone;
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-	
 	/* don't check if editmode (should be done by caller) */
 	if (ob->type != OB_ARMATURE)
 		return OPERATOR_CANCELLED;
@@ -128,7 +125,7 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 	pose = ob->pose;
 	
 	for (pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
-		curbone = ED_armature_bone_find_name(arm->edbo, pchan->name);
+		curbone = ED_armature_ebone_find_name(arm->edbo, pchan->name);
 		
 		/* simply copy the head/tail values from pchan over to curbone */
 		copy_v3_v3(curbone->head, pchan->pose_head);
@@ -196,7 +193,7 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 	ED_armature_edit_free(arm);
 	
 	/* flush positions of posebones */
-	BKE_pose_where_is(&eval_ctx, scene, ob);
+	BKE_pose_where_is(depsgraph, scene, ob);
 	
 	/* fix parenting of objects which are bone-parented */
 	applyarmature_fix_boneparents(C, scene, ob);
@@ -761,57 +758,72 @@ static int pose_clear_transform_generic_exec(bContext *C, wmOperator *op,
                                              void (*clear_func)(bPoseChannel *), const char default_ksName[])
 {
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
-	short autokey = 0;
-	
+
 	/* sanity checks */
 	if (ELEM(NULL, clear_func, default_ksName)) {
 		BKE_report(op->reports, RPT_ERROR, "Programming error: missing clear transform function or keying set name");
 		return OPERATOR_CANCELLED;
 	}
-	
+
+	bool changed_multi = false;
+
 	/* only clear relevant transforms for selected bones */
-	CTX_DATA_BEGIN(C, bPoseChannel *, pchan, selected_pose_bones)
-	{
-		/* run provided clearing function */
-		clear_func(pchan);
-		
-		/* do auto-keyframing as appropriate */
-		if (autokeyframe_cfra_can_key(scene, &ob->id)) {
-			/* clear any unkeyed tags */
-			if (pchan->bone)
-				pchan->bone->flag &= ~BONE_UNKEYED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, OB_MODE_POSE, ob_iter) {
 
-			/* tag for autokeying later */
-			autokey = 1;
-		}
-		else {
-			/* add unkeyed tags */
-			if (pchan->bone)
-				pchan->bone->flag |= BONE_UNKEYED;
-		}
-	}
-	CTX_DATA_END;
-	
-	/* perform autokeying on the bones if needed */
-	if (autokey) {
-		/* get KeyingSet to use */
-		KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, default_ksName);
-		
-		/* insert keyframes */
-		ANIM_apply_keyingset(C, NULL, NULL, ks, MODIFYKEY_MODE_INSERT, (float)CFRA);
-		
-		/* now recalculate paths */
-		if ((ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS))
-			ED_pose_recalculate_paths(C, scene, ob);
-	}
-	
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		ListBase dsources = {NULL, NULL};
 
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
-	
-	return OPERATOR_FINISHED;
+		bool changed = false;
+		FOREACH_PCHAN_SELECTED_IN_OBJECT_BEGIN (ob_iter, pchan) {
+
+			/* run provided clearing function */
+			clear_func(pchan);
+			changed = true;
+
+			/* do auto-keyframing as appropriate */
+			if (autokeyframe_cfra_can_key(scene, &ob_iter->id)) {
+				/* clear any unkeyed tags */
+				if (pchan->bone) {
+					pchan->bone->flag &= ~BONE_UNKEYED;
+				}
+				/* tag for autokeying later */
+				ANIM_relative_keyingset_add_source(&dsources, &ob_iter->id, &RNA_PoseBone, pchan);
+			}
+			else {
+				/* add unkeyed tags */
+				if (pchan->bone) {
+					pchan->bone->flag |= BONE_UNKEYED;
+				}
+			}
+		} FOREACH_PCHAN_SELECTED_IN_OBJECT_END;
+
+		if (changed) {
+			changed_multi = true;
+
+			/* perform autokeying on the bones if needed */
+			if (!BLI_listbase_is_empty(&dsources)) {
+				/* get KeyingSet to use */
+				KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, default_ksName);
+
+				/* insert keyframes */
+				ANIM_apply_keyingset(C, &dsources, NULL, ks, MODIFYKEY_MODE_INSERT, (float)CFRA);
+
+				/* now recalculate paths */
+				if ((ob_iter->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
+					ED_pose_recalculate_paths(C, scene, ob_iter);
+				}
+
+				BLI_freelistN(&dsources);
+			}
+
+			DEG_id_tag_update(&ob_iter->id, OB_RECALC_DATA);
+
+			/* note, notifier might evolve */
+			WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob_iter);
+		}
+	} FOREACH_OBJECT_IN_MODE_END;
+
+	return changed_multi ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
 }
 
 /* --------------- */

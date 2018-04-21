@@ -80,15 +80,7 @@ NodeGroup *BlenderFileLoader::Load()
 	}
 
 	ViewLayer *view_layer = (ViewLayer*)BLI_findstring(&_re->scene->view_layers, _view_layer->name, offsetof(ViewLayer, name));
-
-	EvaluationContext *eval_ctx = DEG_evaluation_context_new(DAG_EVAL_RENDER);
 	Depsgraph *depsgraph = DEG_graph_new(_re->scene, view_layer, DAG_EVAL_RENDER);
-
-	DEG_evaluation_context_init_from_view_layer_for_render(
-		eval_ctx,
-		depsgraph,
-		_re->scene,
-		view_layer);
 
 	BKE_scene_graph_update_tagged(depsgraph, _re->main);
 
@@ -116,7 +108,7 @@ NodeGroup *BlenderFileLoader::Load()
 		bool apply_modifiers = true;
 		bool calc_undeformed = false;
 		bool calc_tessface = false;
-		Mesh *mesh = BKE_mesh_new_from_object(eval_ctx,
+		Mesh *mesh = BKE_mesh_new_from_object(depsgraph,
 		                                      _re->main,
 		                                      _re->scene,
 		                                      ob,
@@ -132,7 +124,6 @@ NodeGroup *BlenderFileLoader::Load()
 	DEG_OBJECT_ITER_END;
 
 	DEG_graph_free(depsgraph);
-	DEG_evaluation_context_free(eval_ctx);
 
 	// Return the built scene.
 	return _Scene;
@@ -434,19 +425,8 @@ void BlenderFileLoader::insertShapeNode(Object *ob, Mesh *me, int id)
 	float v1[3], v2[3], v3[3];
 	float n1[3], n2[3], n3[3], facenormal[3];
 	int clip[3];
-	int wire_material = 0;
 	for (int a = 0; a < tottri; a++) {
 		const MLoopTri *lt = &mlooptri[a];
-		const MPoly *mp = &mpoly[lt->poly];
-		Material *mat = give_current_material(ob, mp->mat_nr + 1);
-
-		if (mat && mat->mode & MA_ONLYCAST) {
-			continue;
-		}
-		if (mat && mat->material_type == MA_TYPE_WIRE) {
-			wire_material = 1;
-			continue;
-		}
 
 		copy_v3_v3(v1, mvert[mloop[lt->tri[0]].v].co);
 		copy_v3_v3(v2, mvert[mloop[lt->tri[1]].v].co);
@@ -461,11 +441,6 @@ void BlenderFileLoader::insertShapeNode(Object *ob, Mesh *me, int id)
 		v3[2] += _z_offset;
 
 		numFaces += countClippedFaces(v1, v2, v3, clip);
-	}
-	if (wire_material) {
-		if (G.debug & G_DEBUG_FREESTYLE) {
-			cout << "Warning: Object " << name << " has wire materials (ignored)" << endl;
-		}
 	}
 #if 0
 	if (G.debug & G_DEBUG_FREESTYLE) {
@@ -523,9 +498,6 @@ void BlenderFileLoader::insertShapeNode(Object *ob, Mesh *me, int id)
 		const MPoly *mp = &mpoly[lt->poly];
 		Material *mat = give_current_material(ob, mp->mat_nr + 1);
 
-		if (mat && ((mat->mode & MA_ONLYCAST) || mat->material_type == MA_TYPE_WIRE))
-			continue;
-
 		copy_v3_v3(v1, mvert[mloop[lt->tri[0]].v].co);
 		copy_v3_v3(v2, mvert[mloop[lt->tri[1]].v].co);
 		copy_v3_v3(v3, mvert[mloop[lt->tri[2]].v].co);
@@ -575,11 +547,8 @@ void BlenderFileLoader::insertShapeNode(Object *ob, Mesh *me, int id)
 		if (mat) {
 			tmpMat.setLine(mat->line_col[0], mat->line_col[1], mat->line_col[2], mat->line_col[3]);
 			tmpMat.setDiffuse(mat->r, mat->g, mat->b, mat->alpha);
-			tmpMat.setSpecular(mat->specr, mat->specg, mat->specb, mat->spectra);
-			float s = 1.0 * (mat->har + 1) / 4 ; // in Blender: [1;511] => in OpenGL: [0;128]
-			if (s > 128.f)
-				s = 128.f;
-			tmpMat.setShininess(s);
+			tmpMat.setSpecular(mat->specr, mat->specg, mat->specb, 1.0f);
+			tmpMat.setShininess(128.f);
 			tmpMat.setPriority(mat->line_priority);
 		}
 

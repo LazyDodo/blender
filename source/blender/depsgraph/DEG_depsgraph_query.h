@@ -85,6 +85,13 @@ struct Object *DEG_get_evaluated_object(const struct Depsgraph *depsgraph,
 struct ID *DEG_get_evaluated_id(const struct Depsgraph *depsgraph,
                                 struct ID *id);
 
+
+/* Get original version of object for given evaluated one. */
+struct Object *DEG_get_original_object(struct Object *object);
+
+/* Get original version of given evaluated ID datablock. */
+struct ID *DEG_get_original_id(struct ID *id);
+
 /* ************************ DEG iterators ********************* */
 
 enum {
@@ -106,7 +113,6 @@ typedef struct DEGObjectIterData {
 	int flag;
 
 	struct Scene *scene;
-	struct EvaluationContext eval_ctx;
 
 	int visibility_check; /* eObjectVisibilityCheck. */
 

@@ -187,6 +187,7 @@ typedef enum {
 	DRW_TEX_R_8,
 	DRW_TEX_R_16,
 	DRW_TEX_R_16I,
+	DRW_TEX_R_16U,
 	DRW_TEX_R_32,
 	DRW_TEX_DEPTH_16,
 	DRW_TEX_DEPTH_24,
@@ -376,8 +377,10 @@ void DRW_shgroup_uniform_bool(DRWShadingGroup *shgroup, const char *name, const 
 void DRW_shgroup_uniform_int(DRWShadingGroup *shgroup, const char *name, const int *value, int arraysize);
 void DRW_shgroup_uniform_ivec2(DRWShadingGroup *shgroup, const char *name, const int *value, int arraysize);
 void DRW_shgroup_uniform_ivec3(DRWShadingGroup *shgroup, const char *name, const int *value, int arraysize);
-void DRW_shgroup_uniform_mat3(DRWShadingGroup *shgroup, const char *name, const float *value);
-void DRW_shgroup_uniform_mat4(DRWShadingGroup *shgroup, const char *name, const float *value);
+void DRW_shgroup_uniform_mat3(DRWShadingGroup *shgroup, const char *name, const float (*value)[3]);
+void DRW_shgroup_uniform_mat4(DRWShadingGroup *shgroup, const char *name, const float (*value)[4]);
+/* Store value instead of referencing it. */
+void DRW_shgroup_uniform_int_copy(DRWShadingGroup *shgroup, const char *name, const int value);
 
 /* Passes */
 DRWPass *DRW_pass_create(const char *name, DRWState state);
@@ -404,7 +407,7 @@ typedef struct DRWMatrixState {
 void DRW_viewport_init(const bContext *C);
 void DRW_viewport_matrix_get(float mat[4][4], DRWViewportMatrixType type);
 void DRW_viewport_matrix_get_all(DRWMatrixState *state);
-void DRW_viewport_matrix_override_set(float mat[4][4], DRWViewportMatrixType type);
+void DRW_viewport_matrix_override_set(const float mat[4][4], DRWViewportMatrixType type);
 void DRW_viewport_matrix_override_set_all(DRWMatrixState *state);
 void DRW_viewport_matrix_override_unset(DRWViewportMatrixType type);
 void DRW_viewport_matrix_override_unset_all(void);
@@ -506,7 +509,6 @@ typedef struct DRWContextState {
 
 	struct RenderEngineType *engine_type;
 
-	EvaluationContext eval_ctx;
 	struct Depsgraph *depsgraph;
 
 	eObjectMode object_mode;

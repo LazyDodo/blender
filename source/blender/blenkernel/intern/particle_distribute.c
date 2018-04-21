@@ -240,10 +240,12 @@ static void distribute_grid(DerivedMesh *dm, ParticleSystem *psys)
 						if (mface->v4 && (!intersects_tri || from==PART_FROM_VOLUME)) {
 							copy_v3_v3(v4, mvert[mface->v4].co);
 
-							if (isect_ray_tri_watertight_v3(co1,
-							                                &isect_precalc,
-							                                v1, v3, v4,
-							                                &lambda, NULL)) {
+							if (isect_ray_tri_watertight_v3(
+							            co1,
+							            &isect_precalc,
+							            v1, v3, v4,
+							            &lambda, NULL))
+							{
 								if (from==PART_FROM_FACE)
 									(pa+(int)(lambda*size[a])*a0mul)->flag &= ~PARS_UNEXIST;
 								else
@@ -572,7 +574,7 @@ static void distribute_from_volume_exec(ParticleTask *thread, ParticleData *pa, 
 	/* experimental */
 	tot=dm->getNumTessFaces(dm);
 	
-	psys_interpolate_face(mvert,mface,0,0,pa->fuv,co,nor,0,0,0,0);
+	psys_interpolate_face(mvert,mface,0,0,pa->fuv,co,nor,0,0,0);
 	
 	normalize_v3(nor);
 	negate_v3(nor);
@@ -659,7 +661,7 @@ static void distribute_children_exec(ParticleTask *thread, ChildParticle *cpa, i
 		int parent[10];
 		float pweight[10];
 		
-		psys_particle_on_dm(dm,cfrom,cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,co1,nor1,NULL,NULL,orco1,NULL);
+		psys_particle_on_dm(dm,cfrom,cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,co1,nor1,NULL,NULL,orco1);
 		BKE_mesh_orco_verts_transform((Mesh*)ob->data, &orco1, 1, 1);
 		maxw = BLI_kdtree_find_nearest_n(ctx->tree,orco1,ptn,3);
 		
@@ -772,7 +774,7 @@ static void distribute_invalid(ParticleSimulationData *sim, int from)
 {
 	Scene *scene = sim->scene;
 	ParticleSystem *psys = sim->psys;
-	const bool use_render_params = (DEG_get_mode(sim->eval_ctx->depsgraph) == DAG_EVAL_RENDER);
+	const bool use_render_params = (DEG_get_mode(sim->depsgraph) == DAG_EVAL_RENDER);
 
 	if (from == PART_FROM_CHILD) {
 		ChildParticle *cpa;
@@ -840,7 +842,7 @@ static int psys_thread_context_init_distribute(ParticleThreadContext *ctx, Parti
 
 	psys_thread_context_init(ctx, sim);
 
-	const bool use_render_params = (DEG_get_mode(sim->eval_ctx->depsgraph) == DAG_EVAL_RENDER);
+	const bool use_render_params = (DEG_get_mode(sim->depsgraph) == DAG_EVAL_RENDER);
 	
 	/* First handle special cases */
 	if (from == PART_FROM_CHILD) {
@@ -888,7 +890,7 @@ static int psys_thread_context_init_distribute(ParticleThreadContext *ctx, Parti
 		tree=BLI_kdtree_new(totpart);
 
 		for (p=0,pa=psys->particles; p<totpart; p++,pa++) {
-			psys_particle_on_dm(dm,part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,co,nor,0,0,orco,NULL);
+			psys_particle_on_dm(dm,part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,co,nor,0,0,orco);
 			BKE_mesh_orco_verts_transform((Mesh*)ob->data, &orco, 1, 1);
 			BLI_kdtree_insert(tree, p, orco);
 		}

@@ -147,8 +147,14 @@ static GLenum gpu_texture_get_format(
 	}
 	else {
 		/* Integer formats */
-		if (ELEM(data_type, GPU_RG16I, GPU_R16I)) {
-			*data_format = GL_INT;
+		if (ELEM(data_type, GPU_RG16I, GPU_R16I, GPU_R16UI)) {
+			if (ELEM(data_type, GPU_R16UI)) {
+				*data_format = GL_UNSIGNED_INT;
+			}
+			else {
+				*data_format = GL_INT;
+			}
+
 			*format_flag |= GPU_FORMAT_INTEGER;
 
 			switch (components) {
@@ -224,6 +230,7 @@ static GLenum gpu_texture_get_format(
 		case GPU_R32F: return GL_R32F;
 		case GPU_R16F: return GL_R16F;
 		case GPU_R16I: return GL_R16I;
+		case GPU_R16UI: return GL_R16UI;
 		case GPU_RG8: return GL_RG8;
 		case GPU_R8: return GL_R8;
 		/* Special formats texture & renderbuffer */
@@ -464,8 +471,8 @@ static GPUTexture *GPU_texture_create_nD(
 
 	/* Texture Parameters */
 	if (GPU_texture_stencil(tex) || /* Does not support filtering */
-		GPU_texture_integer(tex) || /* Does not support filtering */
-		GPU_texture_depth(tex))
+	    GPU_texture_integer(tex) || /* Does not support filtering */
+	    GPU_texture_depth(tex))
 	{
 		glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -575,12 +582,11 @@ static GPUTexture *GPU_texture_cube_create(
 	return tex;
 }
 
-GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget, bool is_data, double time, int mipmap)
+GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget, bool is_data, double UNUSED(time), int mipmap)
 {
 	int gputt;
 	/* this binds a texture, so that's why to restore it to 0 */
-	GLint bindcode = GPU_verify_image(ima, iuser, textarget, 0, 0, mipmap, is_data);
-	GPU_update_image_time(ima, time);
+	GLint bindcode = GPU_verify_image(ima, iuser, textarget, 0, mipmap, is_data);
 
 	/* see GPUInput::textarget: it can take two values - GL_TEXTURE_2D and GL_TEXTURE_CUBE_MAP
 	 * these values are correct for glDisable, so textarget can be safely used in

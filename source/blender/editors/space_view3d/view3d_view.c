@@ -64,15 +64,6 @@
 
 #include "DEG_depsgraph_query.h"
 
-#ifdef WITH_GAMEENGINE
-#  include "BLI_listbase.h"
-#  include "BLI_callbacks.h"
-
-#  include "GPU_draw.h"
-
-#  include "BL_System.h"
-#endif
-
 #include "view3d_intern.h"  /* own include */
 
 /* -------------------------------------------------------------------- */
@@ -403,9 +394,6 @@ void ED_view3d_smooth_view_force_finish(
         View3D *v3d, ARegion *ar)
 {
 	RegionView3D *rv3d = ar->regiondata;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (rv3d && rv3d->sms) {
 		rv3d->sms->time_allowed = 0.0;  /* force finishing */
@@ -413,8 +401,9 @@ void ED_view3d_smooth_view_force_finish(
 
 		/* force update of view matrix so tools that run immediately after
 		 * can use them without redrawing first */
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		Scene *scene = CTX_data_scene(C);
-		ED_view3d_update_viewmat(&eval_ctx, scene, v3d, ar, NULL, NULL, NULL);
+		ED_view3d_update_viewmat(depsgraph, scene, v3d, ar, NULL, NULL, NULL);
 	}
 }
 
@@ -512,6 +501,7 @@ void VIEW3D_OT_camera_to_view(wmOperatorType *ot)
  * meant to take into account vertex/bone selection for eg. */
 static int view3d_camera_to_view_selected_exec(bContext *C, wmOperator *op)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	View3D *v3d = CTX_wm_view3d(C);  /* can be NULL */
@@ -526,7 +516,7 @@ static int view3d_camera_to_view_selected_exec(bContext *C, wmOperator *op)
 	}
 
 	/* this function does all the important stuff */
-	if (BKE_camera_view_frame_fit_to_scene(scene, view_layer, camera_ob, r_co, &r_scale)) {
+	if (BKE_camera_view_frame_fit_to_scene(depsgraph, scene, view_layer, camera_ob, r_co, &r_scale)) {
 		ObjectTfmProtectedChannels obtfm;
 		float obmat_new[4][4];
 
@@ -698,7 +688,7 @@ void VIEW3D_OT_object_as_camera(wmOperatorType *ot)
 /**
  * \param rect optional for picking (can be NULL).
  */
-void view3d_winmatrix_set(const Depsgraph *depsgraph, ARegion *ar, const View3D *v3d, const rcti *rect)
+void view3d_winmatrix_set(Depsgraph *depsgraph, ARegion *ar, const View3D *v3d, const rcti *rect)
 {
 	RegionView3D *rv3d = ar->regiondata;
 	rctf viewplane;
@@ -750,7 +740,7 @@ static void obmat_to_viewmat(RegionView3D *rv3d, Object *ob)
 /**
  * Sets #RegionView3D.viewmat
  *
- * \param eval_ctx: Context.
+ * \param depsgraph: Depsgraph.
  * \param scene: Scene for camera and cursor location.
  * \param v3d: View 3D space data.
  * \param rv3d: 3D region which stores the final matrices.
@@ -760,14 +750,13 @@ static void obmat_to_viewmat(RegionView3D *rv3d, Object *ob)
  * \note don't set windows active in here, is used by renderwin too.
  */
 void view3d_viewmatrix_set(
-        const EvaluationContext *eval_ctx, Scene *scene,
+        Depsgraph *depsgraph, Scene *scene,
         const View3D *v3d, RegionView3D *rv3d, const float rect_scale[2])
 {
 	if (rv3d->persp == RV3D_CAMOB) {      /* obs/camera */
 		if (v3d->camera) {
-			const Depsgraph *depsgraph = eval_ctx->depsgraph;
 			Object *camera_object = DEG_get_evaluated_object(depsgraph, v3d->camera);
-			BKE_object_where_is_calc(eval_ctx, scene, camera_object);
+			BKE_object_where_is_calc(depsgraph, scene, camera_object);
 			obmat_to_viewmat(rv3d, camera_object);
 		}
 		else {
@@ -908,7 +897,7 @@ static bool drw_select_loop_pass(eDRWSelectStage stage, void *user_data)
  * \note (vc->obedit == NULL) can be set to explicitly skip edit-object selection.
  */
 int view3d_opengl_select(
-        const EvaluationContext *eval_ctx, ViewContext *vc, unsigned int *buffer, unsigned int bufsize, const rcti *input,
+        ViewContext *vc, unsigned int *buffer, unsigned int bufsize, const rcti *input,
         eV3DSelectMode select_mode)
 {
 	struct bThemeState theme_state;
@@ -979,7 +968,7 @@ int view3d_opengl_select(
 
 	/* Important we use the 'viewmat' and don't re-calculate since
 	 * the object & bone view locking takes 'rect' into account, see: T51629. */
-	ED_view3d_draw_setup_view(vc->win, eval_ctx, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
+	ED_view3d_draw_setup_view(vc->win, graph, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
 
 	if (v3d->drawtype > OB_WIRE) {
 		v3d->zbuf = true;
@@ -1024,7 +1013,7 @@ int view3d_opengl_select(
 #endif /* WITH_OPENGL_LEGACY */
 
 	G.f &= ~G_PICKSEL;
-	ED_view3d_draw_setup_view(vc->win, eval_ctx, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
+	ED_view3d_draw_setup_view(vc->win, graph, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
 	
 	if (v3d->drawtype > OB_WIRE) {
 		v3d->zbuf = 0;
@@ -1089,216 +1078,6 @@ int ED_view3d_view_layer_set(int lay, const int *values, int *active)
 	}
 	
 	return lay;
-}
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Game Engine Operator
- *
- * Start the game engine (handles context switching).
- * \{ */
-
-#ifdef WITH_GAMEENGINE
-
-static ListBase queue_back;
-static void game_engine_save_state(bContext *C, wmWindow *win)
-{
-	Object *obact = CTX_data_active_object(C);
-
-	glPushAttrib(GL_ALL_ATTRIB_BITS);
-
-	if (obact && obact->mode & OB_MODE_TEXTURE_PAINT) {
-		GPU_paint_set_mipmap(1);
-	}
-
-	queue_back = win->queue;
-
-	BLI_listbase_clear(&win->queue);
-}
-
-static void game_engine_restore_state(bContext *C, wmWindow *win)
-{
-	Object *obact = CTX_data_active_object(C);
-
-	if (obact && obact->mode & OB_MODE_TEXTURE_PAINT) {
-		GPU_paint_set_mipmap(0);
-	}
-	/* check because closing win can set to NULL */
-	if (win) {
-		win->queue = queue_back;
-	}
-
-	GPU_state_init();
-
-	glPopAttrib();
-}
-
-/* was space_set_commmandline_options in 2.4x */
-static void game_set_commmandline_options(GameData *gm)
-{
-	SYS_SystemHandle syshandle;
-	int test;
-
-	if ((syshandle = SYS_GetSystem())) {
-		/* User defined settings */
-		test = (U.gameflags & USER_DISABLE_MIPMAP);
-		GPU_set_mipmap(!test);
-		SYS_WriteCommandLineInt(syshandle, "nomipmap", test);
-
-		/* File specific settings: */
-		/* Only test the first one. These two are switched
-		 * simultaneously. */
-		test = (gm->flag & GAME_SHOW_FRAMERATE);
-		SYS_WriteCommandLineInt(syshandle, "show_framerate", test);
-		SYS_WriteCommandLineInt(syshandle, "show_profile", test);
-
-		test = (gm->flag & GAME_SHOW_DEBUG_PROPS);
-		SYS_WriteCommandLineInt(syshandle, "show_properties", test);
-
-		test = (gm->flag & GAME_SHOW_PHYSICS);
-		SYS_WriteCommandLineInt(syshandle, "show_physics", test);
-
-		test = (gm->flag & GAME_ENABLE_ALL_FRAMES);
-		SYS_WriteCommandLineInt(syshandle, "fixedtime", test);
-
-		test = (gm->flag & GAME_ENABLE_ANIMATION_RECORD);
-		SYS_WriteCommandLineInt(syshandle, "animation_record", test);
-
-		test = (gm->flag & GAME_IGNORE_DEPRECATION_WARNINGS);
-		SYS_WriteCommandLineInt(syshandle, "ignore_deprecation_warnings", test);
-
-		test = (gm->matmode == GAME_MAT_MULTITEX);
-		SYS_WriteCommandLineInt(syshandle, "blender_material", test);
-		test = (gm->matmode == GAME_MAT_GLSL);
-		SYS_WriteCommandLineInt(syshandle, "blender_glsl_material", test);
-	}
-}
-
-#endif /* WITH_GAMEENGINE */
-
-static int game_engine_poll(bContext *C)
-{
-	const wmWindow *win = CTX_wm_window(C);
-	const Scene *scene = WM_window_get_active_scene(win);
-
-	/* we need a context and area to launch BGE
-	 * it's a temporary solution to avoid crash at load time
-	 * if we try to auto run the BGE. Ideally we want the
-	 * context to be set as soon as we load the file. */
-
-	if (win == NULL) return 0;
-	if (CTX_wm_screen(C) == NULL) return 0;
-
-	if (CTX_data_mode_enum(C) != CTX_MODE_OBJECT)
-		return 0;
-
-	if (!BKE_scene_uses_blender_game(scene))
-		return 0;
-
-	return 1;
-}
-
-static int game_engine_exec(bContext *C, wmOperator *op)
-{
-#ifdef WITH_GAMEENGINE
-	Scene *startscene = CTX_data_scene(C);
-	Main *bmain = CTX_data_main(C);
-	ScrArea /* *sa, */ /* UNUSED */ *prevsa = CTX_wm_area(C);
-	ARegion *ar, *prevar = CTX_wm_region(C);
-	wmWindow *prevwin = CTX_wm_window(C);
-	RegionView3D *rv3d;
-	rcti cam_frame;
-
-	UNUSED_VARS(op);
-
-	/* bad context switch .. */
-	if (!ED_view3d_context_activate(C))
-		return OPERATOR_CANCELLED;
-
-	/* redraw to hide any menus/popups, we don't go back to
-	 * the window manager until after this operator exits */
-	WM_redraw_windows(C);
-
-	BLI_callback_exec(bmain, &startscene->id, BLI_CB_EVT_GAME_PRE);
-
-	rv3d = CTX_wm_region_view3d(C);
-	/* sa = CTX_wm_area(C); */ /* UNUSED */
-	ar = CTX_wm_region(C);
-
-	view3d_operator_needs_opengl(C);
-
-	game_set_commmandline_options(&startscene->gm);
-
-	if ((rv3d->persp == RV3D_CAMOB) &&
-	    (startscene->gm.framing.type == SCE_GAMEFRAMING_BARS) &&
-	    (startscene->gm.stereoflag != STEREO_DOME))
-	{
-		const Depsgraph *depsgraph = CTX_data_depsgraph(C);
-		/* Letterbox */
-		rctf cam_framef;
-		ED_view3d_calc_camera_border(startscene, depsgraph, ar, CTX_wm_view3d(C), rv3d, &cam_framef, false);
-		cam_frame.xmin = cam_framef.xmin + ar->winrct.xmin;
-		cam_frame.xmax = cam_framef.xmax + ar->winrct.xmin;
-		cam_frame.ymin = cam_framef.ymin + ar->winrct.ymin;
-		cam_frame.ymax = cam_framef.ymax + ar->winrct.ymin;
-		BLI_rcti_isect(&ar->winrct, &cam_frame, &cam_frame);
-	}
-	else {
-		cam_frame.xmin = ar->winrct.xmin;
-		cam_frame.xmax = ar->winrct.xmax;
-		cam_frame.ymin = ar->winrct.ymin;
-		cam_frame.ymax = ar->winrct.ymax;
-	}
-
-
-	game_engine_save_state(C, prevwin);
-
-	StartKetsjiShell(C, ar, &cam_frame, 1);
-
-	/* window wasnt closed while the BGE was running */
-	if (BLI_findindex(&CTX_wm_manager(C)->windows, prevwin) == -1) {
-		prevwin = NULL;
-		CTX_wm_window_set(C, NULL);
-	}
-
-	ED_area_tag_redraw(CTX_wm_area(C));
-
-	if (prevwin) {
-		/* restore context, in case it changed in the meantime, for
-		 * example by working in another window or closing it */
-		CTX_wm_region_set(C, prevar);
-		CTX_wm_window_set(C, prevwin);
-		CTX_wm_area_set(C, prevsa);
-	}
-
-	game_engine_restore_state(C, prevwin);
-
-	//XXX restore_all_scene_cfra(scene_cfra_store);
-	BKE_scene_set_background(CTX_data_main(C), startscene);
-	//XXX BKE_scene_graph_update_for_newframe(bmain->eval_ctx, bmain, scene, depsgraph);
-
-	BLI_callback_exec(bmain, &startscene->id, BLI_CB_EVT_GAME_POST);
-
-	return OPERATOR_FINISHED;
-#else
-	UNUSED_VARS(C);
-	BKE_report(op->reports, RPT_ERROR, "Game engine is disabled in this build");
-	return OPERATOR_CANCELLED;
-#endif
-}
-
-void VIEW3D_OT_game_start(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Start Game Engine";
-	ot->description = "Start game engine";
-	ot->idname = "VIEW3D_OT_game_start";
-
-	/* api callbacks */
-	ot->exec = game_engine_exec;
-
-	ot->poll = game_engine_poll;
 }
 
 /** \} */

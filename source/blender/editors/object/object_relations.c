@@ -90,7 +90,6 @@
 #include "BKE_node.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
-#include "BKE_sca.h"
 #include "BKE_scene.h"
 #include "BKE_speaker.h"
 #include "BKE_texture.h"
@@ -130,9 +129,9 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *obedit = CTX_data_edit_object(C);
-	EvaluationContext eval_ctx;
 	BMVert *eve;
 	BMIter iter;
 	Curve *cu;
@@ -141,8 +140,6 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 	BPoint *bp;
 	Object *par;
 	int a, v1 = 0, v2 = 0, v3 = 0, v4 = 0, nr = 1;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	/* we need 1 to 3 selected vertices */
 
@@ -162,7 +159,7 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 
 		/* derivedMesh might be needed for solving parenting,
 		 * so re-create it here */
-		makeDerivedMesh(&eval_ctx, scene, obedit, em, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX, false);
+		makeDerivedMesh(depsgraph, scene, obedit, em, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX, false);
 
 		BM_ITER_MESH (eve, &iter, em->bm, BM_VERTS_OF_MESH) {
 			if (BM_elem_flag_test(eve, BM_ELEM_SELECT)) {
@@ -258,7 +255,7 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 					ob->par3 = v3 - 1;
 
 					/* inverse parent matrix */
-					BKE_object_workob_calc_parent(&eval_ctx, scene, ob, &workob);
+					BKE_object_workob_calc_parent(depsgraph, scene, ob, &workob);
 					invert_m4_m4(ob->parentinv, workob.obmat);
 				}
 				else {
@@ -266,7 +263,7 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 					ob->par1 = v1 - 1;
 
 					/* inverse parent matrix */
-					BKE_object_workob_calc_parent(&eval_ctx, scene, ob, &workob);
+					BKE_object_workob_calc_parent(depsgraph, scene, ob, &workob);
 					invert_m4_m4(ob->parentinv, workob.obmat);
 				}
 			}
@@ -620,11 +617,9 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
                           int partype, const bool xmirror, const bool keep_transform, const int vert_par[3])
 {
 	Main *bmain = CTX_data_main(C);
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	bPoseChannel *pchan = NULL;
 	const bool pararm = ELEM(partype, PAR_ARMATURE, PAR_ARMATURE_NAME, PAR_ARMATURE_ENVELOPE, PAR_ARMATURE_AUTO);
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	DEG_id_tag_update(&par->id, OB_RECALC_OB);
 
@@ -637,7 +632,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 
 			if ((cu->flag & CU_PATH) == 0) {
 				cu->flag |= CU_PATH | CU_FOLLOW;
-				BKE_displist_make_curveTypes(&eval_ctx, scene, par, 0);  /* force creation of path data */
+				BKE_displist_make_curveTypes(depsgraph, scene, par, 0);  /* force creation of path data */
 			}
 			else {
 				cu->flag |= CU_FOLLOW;
@@ -779,32 +774,32 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 				data = con->data;
 				data->tar = par;
 
-				BKE_constraint_target_matrix_get(&eval_ctx, scene, con, 0, CONSTRAINT_OBTYPE_OBJECT, NULL, cmat, scene->r.cfra);
+				BKE_constraint_target_matrix_get(depsgraph, scene, con, 0, CONSTRAINT_OBTYPE_OBJECT, NULL, cmat, scene->r.cfra);
 				sub_v3_v3v3(vec, ob->obmat[3], cmat[3]);
 
 				copy_v3_v3(ob->loc, vec);
 			}
 			else if (pararm && (ob->type == OB_MESH) && (par->type == OB_ARMATURE)) {
 				if (partype == PAR_ARMATURE_NAME) {
-					create_vgroups_from_armature(reports, &eval_ctx, scene, ob, par, ARM_GROUPS_NAME, false);
+					ED_object_vgroup_calc_from_armature(reports, depsgraph, scene, ob, par, ARM_GROUPS_NAME, false);
 				}
 				else if (partype == PAR_ARMATURE_ENVELOPE) {
-					create_vgroups_from_armature(reports, &eval_ctx, scene, ob, par, ARM_GROUPS_ENVELOPE, xmirror);
+					ED_object_vgroup_calc_from_armature(reports, depsgraph, scene, ob, par, ARM_GROUPS_ENVELOPE, xmirror);
 				}
 				else if (partype == PAR_ARMATURE_AUTO) {
 					WM_cursor_wait(1);
-					create_vgroups_from_armature(reports, &eval_ctx, scene, ob, par, ARM_GROUPS_AUTO, xmirror);
+					ED_object_vgroup_calc_from_armature(reports, depsgraph, scene, ob, par, ARM_GROUPS_AUTO, xmirror);
 					WM_cursor_wait(0);
 				}
 				/* get corrected inverse */
 				ob->partype = PAROBJECT;
-				BKE_object_workob_calc_parent(&eval_ctx, scene, ob, &workob);
+				BKE_object_workob_calc_parent(depsgraph, scene, ob, &workob);
 
 				invert_m4_m4(ob->parentinv, workob.obmat);
 			}
 			else {
 				/* calculate inverse parent matrix */
-				BKE_object_workob_calc_parent(&eval_ctx, scene, ob, &workob);
+				BKE_object_workob_calc_parent(depsgraph, scene, ob, &workob);
 				invert_m4_m4(ob->parentinv, workob.obmat);
 			}
 
@@ -978,7 +973,7 @@ static void parent_set_ui(bContext *C, wmOperator *op)
 	RNA_pointer_create(&wm->id, op->type->srna, op->properties, &ptr);
 
 	/* Main auto-draw call. */
-	uiDefAutoButsRNA(layout, &ptr, parent_set_draw_check_prop, '\0');
+	uiDefAutoButsRNA(layout, &ptr, parent_set_draw_check_prop, UI_BUT_LABEL_ALIGN_NONE, false);
 }
 
 void OBJECT_OT_parent_set(wmOperatorType *ot)
@@ -1062,17 +1057,15 @@ void OBJECT_OT_parent_no_inverse_set(wmOperatorType *ot)
 
 static int object_slow_parent_clear_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
 		if (ob->parent) {
 			if (ob->partype & PARSLOW) {
 				ob->partype -= PARSLOW;
-				BKE_object_where_is_calc(&eval_ctx, scene, ob);
+				BKE_object_where_is_calc(depsgraph, scene, ob);
 				ob->partype |= PARSLOW;
 				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 			}
@@ -1688,8 +1681,6 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 {
 	Group *group, *groupn;
 
-	clear_sca_new_poins();  /* BGE logic */
-
 	/* duplicate all the objects of the scene */
 	SceneCollection *msc = BKE_collection_master(&scene->id);
 	single_object_users_scene_collection(bmain, scene, msc, flag, copy_groups);
@@ -1735,8 +1726,6 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 
 	/* object and group pointers */
 	libblock_relink_scene_collection(msc);
-
-	set_sca_new_poins();
 }
 
 /* not an especially efficient function, only added so the single user
@@ -1785,7 +1774,6 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 	Mesh *me;
 	Lattice *lat;
 	ID *id;
-	int a;
 
 	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
 	{
@@ -1798,11 +1786,6 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 				switch (ob->type) {
 					case OB_LAMP:
 						ob->data = la = ID_NEW_SET(ob->data, BKE_lamp_copy(bmain, ob->data));
-						for (a = 0; a < MAX_MTEX; a++) {
-							if (la->mtex[a]) {
-								ID_NEW_REMAP(la->mtex[a]->object);
-							}
-						}
 						break;
 					case OB_CAMERA:
 						ob->data = ID_NEW_SET(ob->data, BKE_camera_copy(bmain, ob->data));
@@ -1885,11 +1868,10 @@ static void single_object_action_users(Scene *scene, ViewLayer *view_layer, cons
 	FOREACH_OBJECT_FLAG_END;
 }
 
-static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag, const bool do_textures)
+static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag)
 {
 	Material *ma, *man;
-	Tex *tex;
-	int a, b;
+	int a;
 
 	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
 	{
@@ -1905,85 +1887,12 @@ static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, c
 
 						man->id.us = 0;
 						assign_material(ob, man, a, BKE_MAT_ASSIGN_USERPREF);
-
-						if (do_textures) {
-							for (b = 0; b < MAX_MTEX; b++) {
-								if (ma->mtex[b] && (tex = ma->mtex[b]->tex)) {
-									if (tex->id.us > 1) {
-										id_us_min(&tex->id);
-										tex = BKE_texture_copy(bmain, tex);
-										BKE_animdata_copy_id_action(&tex->id, false);
-										man->mtex[b]->tex = tex;
-									}
-								}
-							}
-						}
 					}
 				}
 			}
 		}
 	}
 	FOREACH_OBJECT_FLAG_END;
-}
-
-static void do_single_tex_user(Main *bmain, Tex **from)
-{
-	Tex *tex, *texn;
-
-	tex = *from;
-	if (tex == NULL) return;
-
-	if (tex->id.newid) {
-		*from = (Tex *)tex->id.newid;
-		id_us_plus(tex->id.newid);
-		id_us_min(&tex->id);
-	}
-	else if (tex->id.us > 1) {
-		texn = ID_NEW_SET(tex, BKE_texture_copy(bmain, tex));
-		BKE_animdata_copy_id_action(&texn->id, false);
-		tex->id.newid = (ID *)texn;
-		id_us_min(&tex->id);
-		*from = texn;
-	}
-}
-
-static void single_tex_users_expand(Main *bmain)
-{
-	/* only when 'parent' blocks are LIB_TAG_NEW */
-	Material *ma;
-	Lamp *la;
-	World *wo;
-	int b;
-
-	for (ma = bmain->mat.first; ma; ma = ma->id.next) {
-		if (ma->id.tag & LIB_TAG_NEW) {
-			for (b = 0; b < MAX_MTEX; b++) {
-				if (ma->mtex[b] && ma->mtex[b]->tex) {
-					do_single_tex_user(bmain, &(ma->mtex[b]->tex));
-				}
-			}
-		}
-	}
-
-	for (la = bmain->lamp.first; la; la = la->id.next) {
-		if (la->id.tag & LIB_TAG_NEW) {
-			for (b = 0; b < MAX_MTEX; b++) {
-				if (la->mtex[b] && la->mtex[b]->tex) {
-					do_single_tex_user(bmain, &(la->mtex[b]->tex));
-				}
-			}
-		}
-	}
-
-	for (wo = bmain->world.first; wo; wo = wo->id.next) {
-		if (wo->id.tag & LIB_TAG_NEW) {
-			for (b = 0; b < MAX_MTEX; b++) {
-				if (wo->mtex[b] && wo->mtex[b]->tex) {
-					do_single_tex_user(bmain, &(wo->mtex[b]->tex));
-				}
-			}
-		}
-	}
 }
 
 static void single_mat_users_expand(Main *bmain)
@@ -1993,8 +1902,6 @@ static void single_mat_users_expand(Main *bmain)
 	Mesh *me;
 	Curve *cu;
 	MetaBall *mb;
-	Material *ma;
-	int a;
 
 	for (ob = bmain->object.first; ob; ob = ob->id.next)
 		if (ob->id.tag & LIB_TAG_NEW)
@@ -2011,13 +1918,6 @@ static void single_mat_users_expand(Main *bmain)
 	for (mb = bmain->mball.first; mb; mb = mb->id.next)
 		if (mb->id.tag & LIB_TAG_NEW)
 			new_id_matar(bmain, mb->mat, mb->totcol);
-
-	/* material imats  */
-	for (ma = bmain->mat.first; ma; ma = ma->id.next)
-		if (ma->id.tag & LIB_TAG_NEW)
-			for (a = 0; a < MAX_MTEX; a++)
-				if (ma->mtex[a])
-					ID_NEW_REMAP(ma->mtex[a]->object);
 }
 
 /* used for copying scenes */
@@ -2029,7 +1929,6 @@ void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bo
 		single_obdata_users(bmain, scene, NULL, 0);
 		single_object_action_users(scene, NULL, 0);
 		single_mat_users_expand(bmain);
-		single_tex_users_expand(bmain);
 	}
 
 	/* Relink nodetrees' pointers that have been duplicated. */
@@ -2216,12 +2115,6 @@ static void make_local_material_tag(Material *ma)
 		make_local_animdata_tag(BKE_animdata_from_id(&ma->id));
 
 		/* About nodetrees: root one is made local together with material, others we keep linked for now... */
-
-		for (int a = 0; a < MAX_MTEX; a++) {
-			if (ma->mtex[a] && ma->mtex[a]->tex) {
-				ma->mtex[a]->tex->id.tag &= ~LIB_TAG_PRE_EXISTING;
-			}
-		}
 	}
 }
 
@@ -2231,7 +2124,6 @@ static int make_local_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	ParticleSystem *psys;
 	Material *ma, ***matarar;
-	Lamp *la;
 	const int mode = RNA_enum_get(op->ptr, "type");
 	int a;
 
@@ -2279,16 +2171,6 @@ static int make_local_exec(bContext *C, wmOperator *op)
 						ma = (*matarar)[a];
 						if (ma) {
 							make_local_material_tag(ma);
-						}
-					}
-				}
-
-				if (ob->type == OB_LAMP) {
-					BLI_assert(ob->data != NULL);
-					la = ob->data;
-					for (a = 0; a < MAX_MTEX; a++) {
-						if (la->mtex[a] && la->mtex[a]->tex) {
-							la->id.tag &= ~LIB_TAG_PRE_EXISTING;
 						}
 					}
 				}
@@ -2421,40 +2303,53 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		Base *base = BLI_findlink(&obact->dup_group->view_layer->object_bases, RNA_enum_get(op->ptr, "object"));
 		Object *obgroup = obact;
 		obact = base->object;
+		Group *group = obgroup->dup_group;
 
 		/* First, we make a static override of the linked group itself. */
-		obgroup->dup_group->id.tag |= LIB_TAG_DOIT;
+		group->id.tag |= LIB_TAG_DOIT;
 
-		/* Then, we tag our 'main' object and its detected dependencies to be also overridden. */
-		obact->id.tag |= LIB_TAG_DOIT;
-
-		FOREACH_GROUP_OBJECT_BEGIN(obgroup->dup_group, ob)
+		/* Then, we make static override of the whole set of objects in the group. */
+		FOREACH_GROUP_OBJECT_BEGIN(group, ob)
 		{
-			make_override_static_tag_object(obact, ob);
+			ob->id.tag |= LIB_TAG_DOIT;
 		}
 		FOREACH_GROUP_OBJECT_END;
 
 		success = BKE_override_static_create_from_tag(bmain);
 
-		/* Intantiate our 'main' newly overridden object in scene, if not yet done. */
+		/* Intantiate our newly overridden objects in scene, if not yet done. */
 		Scene *scene = CTX_data_scene(C);
 		ViewLayer *view_layer = CTX_data_view_layer(C);
-		Object *new_obact = (Object *)obact->id.newid;
-		if (new_obact != NULL && (base = BKE_view_layer_base_find(view_layer, new_obact)) == NULL) {
-			BKE_collection_object_add_from(scene, obgroup, new_obact);
-			base = BKE_view_layer_base_find(view_layer, new_obact);
-			BKE_view_layer_base_select(view_layer, base);
+		Group *new_group = (Group *)group->id.newid;
+		FOREACH_GROUP_OBJECT_BEGIN(new_group, new_ob)
+		{
+			if (new_ob != NULL && (base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL) {
+				BKE_collection_object_add_from(scene, obgroup, new_ob);
+				DEG_id_tag_update_ex(bmain, &new_ob->id, OB_RECALC_OB | DEG_TAG_BASE_FLAGS_UPDATE);
+				/* parent to 'group' empty */
+				if (new_ob->parent == NULL) {
+					new_ob->parent = obgroup;
+				}
+				if (new_ob == (Object *)obact->id.newid) {
+					base = BKE_view_layer_base_find(view_layer, new_ob);
+					BKE_view_layer_base_select(view_layer, base);
+				}
+				else {
+					/* Disable auto-override tags for non-active objects, will help with performaces... */
+					new_ob->id.flag &= ~LIB_OVERRIDE_STATIC_AUTO;
+				}
+				/* We still want to store all objects' current override status (i.e. change of parent). */
+				BKE_override_static_operations_create(&new_ob->id, true);
+			}
 		}
+		FOREACH_GROUP_OBJECT_END;
 
-		/* Parent the group instantiating object to the new overridden one, or vice-versa, if possible. */
-		if (obgroup->parent == NULL) {
-			obgroup->parent = new_obact;
-		}
-		else if (new_obact->parent == NULL) {
-			new_obact->parent = obgroup;
-		}
+		/* obgroup is no more dupligroup-ing, it merely parents whole group of overriding instantiated objects. */
+		obgroup->dup_group = NULL;
 
 		/* Also, we'd likely want to lock by default things like transformations of implicitly overriden objects? */
+
+		DEG_id_tag_update(&scene->id, 0);
 
 		/* Cleanup. */
 		BKE_main_id_clear_newpoins(bmain);
@@ -2478,7 +2373,7 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		BKE_main_id_clear_newpoins(bmain);
 		BKE_main_id_tag_listbase(&bmain->object, LIB_TAG_DOIT, false);
 	}
-	/* TODO: probably more cases where we want ot do automated smart things in the future! */
+	/* TODO: probably more cases where we want to do automated smart things in the future! */
 	else {
 		success = (BKE_override_static_create_from_id(bmain, &obact->id) != NULL);
 	}
@@ -2555,13 +2450,9 @@ static int make_single_user_exec(bContext *C, wmOperator *op)
 	}
 
 	if (RNA_boolean_get(op->ptr, "material")) {
-		single_mat_users(bmain, scene, view_layer, flag, RNA_boolean_get(op->ptr, "texture"));
+		single_mat_users(bmain, scene, view_layer, flag);
 	}
 
-#if 0 /* can't do this separate from materials */
-	if (RNA_boolean_get(op->ptr, "texture"))
-		single_mat_users(scene, flag, true);
-#endif
 	if (RNA_boolean_get(op->ptr, "animation")) {
 		single_object_action_users(scene, view_layer, flag);
 	}
@@ -2603,8 +2494,6 @@ void OBJECT_OT_make_single_user(wmOperatorType *ot)
 	RNA_def_boolean(ot->srna, "object", 0, "Object", "Make single user objects");
 	RNA_def_boolean(ot->srna, "obdata", 0, "Object Data", "Make single user object data");
 	RNA_def_boolean(ot->srna, "material", 0, "Materials", "Make materials local to each data-block");
-	RNA_def_boolean(ot->srna, "texture", 0, "Textures",
-	                "Make textures local to each material (needs 'Materials' to be set too)");
 	RNA_def_boolean(ot->srna, "animation", 0, "Object Animation", "Make animation data local to each object");
 }
 

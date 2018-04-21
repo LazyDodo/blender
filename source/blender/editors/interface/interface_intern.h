@@ -270,9 +270,6 @@ struct uiBut {
 	uiButHandleHoldFunc hold_func;
 	void *hold_argN;
 
-	uiLink *link;
-	short linkto[2];  /* region relative coords */
-	
 	const char *tip;
 	uiButToolTipFunc tip_func;
 	void *tip_argN;
@@ -332,6 +329,11 @@ struct uiBut {
 	/* pointer back */
 	uiBlock *block;
 };
+
+typedef struct uiButTab {
+	uiBut but;
+	struct wmOperatorType *unlink_ot;
+} uiButTab;
 
 typedef struct ColorPicker {
 	struct ColorPicker *next, *prev;
@@ -450,8 +452,6 @@ typedef struct uiSafetyRct {
 } uiSafetyRct;
 
 /* interface.c */
-
-extern void ui_linkline_remove(uiLinkLine *line, uiBut *but);
 
 void ui_fontscale(short *points, float aspect);
 
@@ -721,6 +721,7 @@ enum {
 	ROUNDBOX_TRIA_SCROLL,
 	ROUNDBOX_TRIA_MENU,
 	ROUNDBOX_TRIA_CHECK,
+	ROUNDBOX_TRIA_HOLD_ACTION_ARROW,
 
 	ROUNDBOX_TRIA_MAX, /* don't use */
 };
@@ -753,6 +754,9 @@ void ui_draw_preview_item(struct uiFontStyle *fstyle, rcti *rect, const char *na
 /* margin at top of screen for popups */
 #define UI_POPUP_MENU_TOP (int)(8 * UI_DPI_FAC)
 
+#define UI_PIXEL_AA_JITTER 8
+const float ui_pixel_jitter[UI_PIXEL_AA_JITTER][2];
+
 /* interface_style.c */
 void uiStyleInit(void);
 
@@ -774,7 +778,7 @@ void ui_layout_list_set_labels_active(uiLayout *layout);
 
 /* interface_align.c */
 bool ui_but_can_align(const uiBut *but) ATTR_WARN_UNUSED_RESULT;
-void ui_block_align_calc(uiBlock *block);
+void ui_block_align_calc(uiBlock *block, const ARegion *region);
 
 /* interface_anim.c */
 void ui_but_anim_flag(uiBut *but, float cfra);

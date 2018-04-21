@@ -109,13 +109,11 @@
 
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
-#include "DNA_actuator_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_cachefile_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cloth_types.h"
 #include "DNA_constraint_types.h"
-#include "DNA_controller_types.h"
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_genfile.h"
 #include "DNA_groom_types.h"
@@ -138,12 +136,10 @@
 #include "DNA_packedFile_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_lightprobe_types.h"
-#include "DNA_property_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_sdna_types.h"
 #include "DNA_sequence_types.h"
-#include "DNA_sensor_types.h"
 #include "DNA_smoke_types.h"
 #include "DNA_space_types.h"
 #include "DNA_screen_types.h"
@@ -192,6 +188,7 @@
 
 #include "BLO_writefile.h"
 #include "BLO_readfile.h"
+#include "BLO_runtime.h"
 #include "BLO_undofile.h"
 #include "BLO_blend_defs.h"
 
@@ -1468,180 +1465,6 @@ static void write_particlesystems(WriteData *wd, ListBase *particles)
 	}
 }
 
-static void write_properties(WriteData *wd, ListBase *lb)
-{
-	bProperty *prop;
-
-	prop = lb->first;
-	while (prop) {
-		writestruct(wd, DATA, bProperty, 1, prop);
-
-		if (prop->poin && prop->poin != &prop->data) {
-			writedata(wd, DATA, MEM_allocN_len(prop->poin), prop->poin);
-		}
-
-		prop = prop->next;
-	}
-}
-
-static void write_sensors(WriteData *wd, ListBase *lb)
-{
-	bSensor *sens;
-
-	sens = lb->first;
-	while (sens) {
-		writestruct(wd, DATA, bSensor, 1, sens);
-
-		writedata(wd, DATA, sizeof(void *) * sens->totlinks, sens->links);
-
-		switch (sens->type) {
-			case SENS_NEAR:
-				writestruct(wd, DATA, bNearSensor, 1, sens->data);
-				break;
-			case SENS_MOUSE:
-				writestruct(wd, DATA, bMouseSensor, 1, sens->data);
-				break;
-			case SENS_KEYBOARD:
-				writestruct(wd, DATA, bKeyboardSensor, 1, sens->data);
-				break;
-			case SENS_PROPERTY:
-				writestruct(wd, DATA, bPropertySensor, 1, sens->data);
-				break;
-			case SENS_ARMATURE:
-				writestruct(wd, DATA, bArmatureSensor, 1, sens->data);
-				break;
-			case SENS_ACTUATOR:
-				writestruct(wd, DATA, bActuatorSensor, 1, sens->data);
-				break;
-			case SENS_DELAY:
-				writestruct(wd, DATA, bDelaySensor, 1, sens->data);
-				break;
-			case SENS_COLLISION:
-				writestruct(wd, DATA, bCollisionSensor, 1, sens->data);
-				break;
-			case SENS_RADAR:
-				writestruct(wd, DATA, bRadarSensor, 1, sens->data);
-				break;
-			case SENS_RANDOM:
-				writestruct(wd, DATA, bRandomSensor, 1, sens->data);
-				break;
-			case SENS_RAY:
-				writestruct(wd, DATA, bRaySensor, 1, sens->data);
-				break;
-			case SENS_MESSAGE:
-				writestruct(wd, DATA, bMessageSensor, 1, sens->data);
-				break;
-			case SENS_JOYSTICK:
-				writestruct(wd, DATA, bJoystickSensor, 1, sens->data);
-				break;
-			default:
-				; /* error: don't know how to write this file */
-		}
-
-		sens = sens->next;
-	}
-}
-
-static void write_controllers(WriteData *wd, ListBase *lb)
-{
-	bController *cont;
-
-	cont = lb->first;
-	while (cont) {
-		writestruct(wd, DATA, bController, 1, cont);
-
-		writedata(wd, DATA, sizeof(void *) * cont->totlinks, cont->links);
-
-		switch (cont->type) {
-			case CONT_EXPRESSION:
-				writestruct(wd, DATA, bExpressionCont, 1, cont->data);
-				break;
-			case CONT_PYTHON:
-				writestruct(wd, DATA, bPythonCont, 1, cont->data);
-				break;
-			default:
-				; /* error: don't know how to write this file */
-		}
-
-		cont = cont->next;
-	}
-}
-
-static void write_actuators(WriteData *wd, ListBase *lb)
-{
-	bActuator *act;
-
-	act = lb->first;
-	while (act) {
-		writestruct(wd, DATA, bActuator, 1, act);
-
-		switch (act->type) {
-			case ACT_ACTION:
-			case ACT_SHAPEACTION:
-				writestruct(wd, DATA, bActionActuator, 1, act->data);
-				break;
-			case ACT_SOUND:
-				writestruct(wd, DATA, bSoundActuator, 1, act->data);
-				break;
-			case ACT_OBJECT:
-				writestruct(wd, DATA, bObjectActuator, 1, act->data);
-				break;
-			case ACT_PROPERTY:
-				writestruct(wd, DATA, bPropertyActuator, 1, act->data);
-				break;
-			case ACT_CAMERA:
-				writestruct(wd, DATA, bCameraActuator, 1, act->data);
-				break;
-			case ACT_CONSTRAINT:
-				writestruct(wd, DATA, bConstraintActuator, 1, act->data);
-				break;
-			case ACT_EDIT_OBJECT:
-				writestruct(wd, DATA, bEditObjectActuator, 1, act->data);
-				break;
-			case ACT_SCENE:
-				writestruct(wd, DATA, bSceneActuator, 1, act->data);
-				break;
-			case ACT_GROUP:
-				writestruct(wd, DATA, bGroupActuator, 1, act->data);
-				break;
-			case ACT_RANDOM:
-				writestruct(wd, DATA, bRandomActuator, 1, act->data);
-				break;
-			case ACT_MESSAGE:
-				writestruct(wd, DATA, bMessageActuator, 1, act->data);
-				break;
-			case ACT_GAME:
-				writestruct(wd, DATA, bGameActuator, 1, act->data);
-				break;
-			case ACT_VISIBILITY:
-				writestruct(wd, DATA, bVisibilityActuator, 1, act->data);
-				break;
-			case ACT_2DFILTER:
-				writestruct(wd, DATA, bTwoDFilterActuator, 1, act->data);
-				break;
-			case ACT_PARENT:
-				writestruct(wd, DATA, bParentActuator, 1, act->data);
-				break;
-			case ACT_STATE:
-				writestruct(wd, DATA, bStateActuator, 1, act->data);
-				break;
-			case ACT_ARMATURE:
-				writestruct(wd, DATA, bArmatureActuator, 1, act->data);
-				break;
-			case ACT_STEERING:
-				writestruct(wd, DATA, bSteeringActuator, 1, act->data);
-				break;
-			case ACT_MOUSE:
-				writestruct(wd, DATA, bMouseActuator, 1, act->data);
-				break;
-			default:
-				; /* error: don't know how to write this file */
-		}
-
-		act = act->next;
-	}
-}
-
 static void write_motionpath(WriteData *wd, bMotionPath *mpath)
 {
 	/* sanity checks */
@@ -1980,10 +1803,6 @@ static void write_object(WriteData *wd, Object *ob)
 		writedata(wd, DATA, sizeof(void *) * ob->totcol, ob->mat);
 		writedata(wd, DATA, sizeof(char) * ob->totcol, ob->matbits);
 		/* write_effects(wd, &ob->effect); */ /* not used anymore */
-		write_properties(wd, &ob->prop);
-		write_sensors(wd, &ob->sensors);
-		write_controllers(wd, &ob->controllers);
-		write_actuators(wd, &ob->actuators);
 
 		if (ob->type == OB_ARMATURE) {
 			bArmature *arm = ob->data;
@@ -2004,7 +1823,6 @@ static void write_object(WriteData *wd, Object *ob)
 			write_pointcaches(wd, &ob->soft->ptcaches);
 			writestruct(wd, DATA, EffectorWeights, 1, ob->soft->effector_weights);
 		}
-		writestruct(wd, DATA, BulletSoftBody, 1, ob->bsoft);
 
 		if (ob->rigidbody_object) {
 			/* TODO: if any extra data is added to handle duplis, will need separate function then */
@@ -2486,24 +2304,6 @@ static void write_texture(WriteData *wd, Tex *tex)
 		if (tex->coba) {
 			writestruct(wd, DATA, ColorBand, 1, tex->coba);
 		}
-		if (tex->type == TEX_ENVMAP && tex->env) {
-			writestruct(wd, DATA, EnvMap, 1, tex->env);
-		}
-		if (tex->type == TEX_POINTDENSITY && tex->pd) {
-			writestruct(wd, DATA, PointDensity, 1, tex->pd);
-			if (tex->pd->coba) {
-				writestruct(wd, DATA, ColorBand, 1, tex->pd->coba);
-			}
-			if (tex->pd->falloff_curve) {
-				write_curvemapping(wd, tex->pd->falloff_curve);
-			}
-		}
-		if (tex->type == TEX_VOXELDATA) {
-			writestruct(wd, DATA, VoxelData, 1, tex->vd);
-		}
-		if (tex->type == TEX_OCEAN && tex->ot) {
-			writestruct(wd, DATA, OceanTex, 1, tex->ot);
-		}
 
 		/* nodetree is integral part of texture, no libdata */
 		if (tex->nodetree) {
@@ -2524,19 +2324,6 @@ static void write_material(WriteData *wd, Material *ma)
 
 		if (ma->adt) {
 			write_animdata(wd, ma->adt);
-		}
-
-		for (int a = 0; a < MAX_MTEX; a++) {
-			if (ma->mtex[a]) {
-				writestruct(wd, DATA, MTex, 1, ma->mtex[a]);
-			}
-		}
-
-		if (ma->ramp_col) {
-			writestruct(wd, DATA, ColorBand, 1, ma->ramp_col);
-		}
-		if (ma->ramp_spec) {
-			writestruct(wd, DATA, ColorBand, 1, ma->ramp_spec);
 		}
 
 		/* nodetree is integral part of material, no libdata */
@@ -2560,12 +2347,6 @@ static void write_world(WriteData *wd, World *wrld)
 			write_animdata(wd, wrld->adt);
 		}
 
-		for (int a = 0; a < MAX_MTEX; a++) {
-			if (wrld->mtex[a]) {
-				writestruct(wd, DATA, MTex, 1, wrld->mtex[a]);
-			}
-		}
-
 		/* nodetree is integral part of world, no libdata */
 		if (wrld->nodetree) {
 			writestruct(wd, DATA, bNodeTree, 1, wrld->nodetree);
@@ -2585,13 +2366,6 @@ static void write_lamp(WriteData *wd, Lamp *la)
 
 		if (la->adt) {
 			write_animdata(wd, la->adt);
-		}
-
-		/* direct data */
-		for (int a = 0; a < MAX_MTEX; a++) {
-			if (la->mtex[a]) {
-				writestruct(wd, DATA, MTex, 1, la->mtex[a]);
-			}
 		}
 
 		if (la->curfalloff) {
@@ -2857,6 +2631,11 @@ static void write_scene(WriteData *wd, Scene *sce)
 		writestruct(wd, DATA, TimeMarker, 1, marker);
 	}
 
+	/* writing dynamic list of TransformOrientations to the blend file */
+	for (TransformOrientation *ts = sce->transform_spaces.first; ts; ts = ts->next) {
+		writestruct(wd, DATA, TransformOrientation, 1, ts);
+	}
+
 	/* writing MultiView to the blend file */
 	for (SceneRenderView *srv = sce->r.views.first; srv; srv = srv->next) {
 		writestruct(wd, DATA, SceneRenderView, 1, srv);
@@ -2923,25 +2702,6 @@ static void write_gpencil(WriteData *wd, bGPdata *gpd)
 		for (bGPDpalette *palette = gpd->palettes.first; palette; palette = palette->next) {
 			writelist(wd, DATA, bGPDpalettecolor, &palette->colors);
 		}
-	}
-}
-
-static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
-{
-	writestruct(wd, ID_WM, wmWindowManager, 1, wm);
-	write_iddata(wd, &wm->id);
-
-	for (wmWindow *win = wm->windows.first; win; win = win->next) {
-
-		/* update deprecated screen member (for so loading in 2.7x uses the correct screen) */
-		win->screen = BKE_workspace_active_screen_get(win->workspace_hook);
-
-		writestruct(wd, DATA, wmWindow, 1, win);
-		writestruct(wd, DATA, WorkSpaceInstanceHook, 1, win->workspace_hook);
-		writestruct(wd, DATA, Stereo3dFormat, 1, win->stereo3d_format);
-
-		/* data is written, clear deprecated data again */
-		win->screen = NULL;
 	}
 }
 
@@ -3025,6 +2785,185 @@ static void write_soops(WriteData *wd, SpaceOops *so)
 	}
 }
 
+static void write_area_regions(WriteData *wd, ScrArea *area)
+{
+	for (ARegion *region = area->regionbase.first; region; region = region->next) {
+		write_region(wd, region, area->spacetype);
+
+		for (Panel *pa = region->panels.first; pa; pa = pa->next) {
+			writestruct(wd, DATA, Panel, 1, pa);
+		}
+
+		for (PanelCategoryStack *pc_act = region->panels_category_active.first; pc_act; pc_act = pc_act->next) {
+			writestruct(wd, DATA, PanelCategoryStack, 1, pc_act);
+		}
+
+		for (uiList *ui_list = region->ui_lists.first; ui_list; ui_list = ui_list->next) {
+			write_uilist(wd, ui_list);
+		}
+
+		for (uiPreview *ui_preview = region->ui_previews.first; ui_preview; ui_preview = ui_preview->next) {
+			writestruct(wd, DATA, uiPreview, 1, ui_preview);
+		}
+	}
+
+	for (SpaceLink *sl = area->spacedata.first; sl; sl = sl->next) {
+		for (ARegion *region = sl->regionbase.first; region; region = region->next) {
+			write_region(wd, region, sl->spacetype);
+		}
+
+		if (sl->spacetype == SPACE_VIEW3D) {
+			View3D *v3d = (View3D *)sl;
+			writestruct(wd, DATA, View3D, 1, v3d);
+
+			if (v3d->localvd) {
+				writestruct(wd, DATA, View3D, 1, v3d->localvd);
+			}
+
+			if (v3d->fx_settings.ssao) {
+				writestruct(wd, DATA, GPUSSAOSettings, 1, v3d->fx_settings.ssao);
+			}
+			if (v3d->fx_settings.dof) {
+				writestruct(wd, DATA, GPUDOFSettings, 1, v3d->fx_settings.dof);
+			}
+		}
+		else if (sl->spacetype == SPACE_IPO) {
+			SpaceIpo *sipo = (SpaceIpo *)sl;
+			ListBase tmpGhosts = sipo->ghostCurves;
+
+			/* temporarily disable ghost curves when saving */
+			sipo->ghostCurves.first = sipo->ghostCurves.last = NULL;
+
+			writestruct(wd, DATA, SpaceIpo, 1, sl);
+			if (sipo->ads) {
+				writestruct(wd, DATA, bDopeSheet, 1, sipo->ads);
+			}
+
+			/* reenable ghost curves */
+			sipo->ghostCurves = tmpGhosts;
+		}
+		else if (sl->spacetype == SPACE_BUTS) {
+			writestruct(wd, DATA, SpaceButs, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_FILE) {
+			SpaceFile *sfile = (SpaceFile *)sl;
+
+			writestruct(wd, DATA, SpaceFile, 1, sl);
+			if (sfile->params) {
+				writestruct(wd, DATA, FileSelectParams, 1, sfile->params);
+			}
+		}
+		else if (sl->spacetype == SPACE_SEQ) {
+			writestruct(wd, DATA, SpaceSeq, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_OUTLINER) {
+			SpaceOops *so = (SpaceOops *)sl;
+			write_soops(wd, so);
+		}
+		else if (sl->spacetype == SPACE_IMAGE) {
+			writestruct(wd, DATA, SpaceImage, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_TEXT) {
+			writestruct(wd, DATA, SpaceText, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_SCRIPT) {
+			SpaceScript *scr = (SpaceScript *)sl;
+			scr->but_refs = NULL;
+			writestruct(wd, DATA, SpaceScript, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_ACTION) {
+			writestruct(wd, DATA, SpaceAction, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_NLA) {
+			SpaceNla *snla = (SpaceNla *)sl;
+
+			writestruct(wd, DATA, SpaceNla, 1, snla);
+			if (snla->ads) {
+				writestruct(wd, DATA, bDopeSheet, 1, snla->ads);
+			}
+		}
+		else if (sl->spacetype == SPACE_NODE) {
+			SpaceNode *snode = (SpaceNode *)sl;
+			bNodeTreePath *path;
+			writestruct(wd, DATA, SpaceNode, 1, snode);
+
+			for (path = snode->treepath.first; path; path = path->next) {
+				writestruct(wd, DATA, bNodeTreePath, 1, path);
+			}
+		}
+		else if (sl->spacetype == SPACE_CONSOLE) {
+			SpaceConsole *con = (SpaceConsole *)sl;
+			ConsoleLine *cl;
+
+			for (cl = con->history.first; cl; cl = cl->next) {
+				/* 'len_alloc' is invalid on write, set from 'len' on read */
+				writestruct(wd, DATA, ConsoleLine, 1, cl);
+				writedata(wd, DATA, cl->len + 1, cl->line);
+			}
+			writestruct(wd, DATA, SpaceConsole, 1, sl);
+		}
+#ifdef WITH_TOPBAR_WRITING
+		else if (sl->spacetype == SPACE_TOPBAR) {
+			writestruct(wd, DATA, SpaceTopBar, 1, sl);
+		}
+#endif
+		else if (sl->spacetype == SPACE_USERPREF) {
+			writestruct(wd, DATA, SpaceUserPref, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_CLIP) {
+			writestruct(wd, DATA, SpaceClip, 1, sl);
+		}
+		else if (sl->spacetype == SPACE_INFO) {
+			writestruct(wd, DATA, SpaceInfo, 1, sl);
+		}
+	}
+}
+
+static void write_area_map(WriteData *wd, ScrAreaMap *area_map)
+{
+	writelist(wd, DATA, ScrVert, &area_map->vertbase);
+	writelist(wd, DATA, ScrEdge, &area_map->edgebase);
+	for (ScrArea *area = area_map->areabase.first; area; area = area->next) {
+		writestruct(wd, DATA, ScrArea, 1, area);
+
+#ifdef WITH_TOPBAR_WRITING
+		writestruct(wd, DATA, ScrGlobalAreaData, 1, area->global);
+#endif
+
+		write_area_regions(wd, area);
+	}
+}
+
+static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
+{
+	writestruct(wd, ID_WM, wmWindowManager, 1, wm);
+	write_iddata(wd, &wm->id);
+
+	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+#ifndef WITH_TOPBAR_WRITING
+		/* Don't write global areas yet, while we make changes to them. */
+		ScrAreaMap global_areas = win->global_areas;
+		memset(&win->global_areas, 0, sizeof(win->global_areas));
+#endif
+
+		/* update deprecated screen member (for so loading in 2.7x uses the correct screen) */
+		win->screen = BKE_workspace_active_screen_get(win->workspace_hook);
+
+		writestruct(wd, DATA, wmWindow, 1, win);
+		writestruct(wd, DATA, WorkSpaceInstanceHook, 1, win->workspace_hook);
+		writestruct(wd, DATA, Stereo3dFormat, 1, win->stereo3d_format);
+
+#ifdef WITH_TOPBAR_WRITING
+		write_area_map(wd, &win->global_areas);
+#else
+		win->global_areas = global_areas;
+#endif
+
+		/* data is written, clear deprecated data again */
+		win->screen = NULL;
+	}
+}
+
 static void write_screen(WriteData *wd, bScreen *sc)
 {
 	/* write LibData */
@@ -3035,157 +2974,7 @@ static void write_screen(WriteData *wd, bScreen *sc)
 	write_previews(wd, sc->preview);
 
 	/* direct data */
-	for (ScrVert *sv = sc->vertbase.first; sv; sv = sv->next) {
-		writestruct(wd, DATA, ScrVert, 1, sv);
-	}
-
-	for (ScrEdge *se = sc->edgebase.first; se; se = se->next) {
-		writestruct(wd, DATA, ScrEdge, 1, se);
-	}
-
-	for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
-		SpaceLink *sl;
-		Panel *pa;
-		uiList *ui_list;
-		uiPreview *ui_preview;
-		PanelCategoryStack *pc_act;
-		ARegion *ar;
-
-		writestruct(wd, DATA, ScrArea, 1, sa);
-
-		for (ar = sa->regionbase.first; ar; ar = ar->next) {
-			write_region(wd, ar, sa->spacetype);
-
-			for (pa = ar->panels.first; pa; pa = pa->next) {
-				writestruct(wd, DATA, Panel, 1, pa);
-			}
-
-			for (pc_act = ar->panels_category_active.first; pc_act; pc_act = pc_act->next) {
-				writestruct(wd, DATA, PanelCategoryStack, 1, pc_act);
-			}
-
-			for (ui_list = ar->ui_lists.first; ui_list; ui_list = ui_list->next) {
-				write_uilist(wd, ui_list);
-			}
-
-			for (ui_preview = ar->ui_previews.first; ui_preview; ui_preview = ui_preview->next) {
-				writestruct(wd, DATA, uiPreview, 1, ui_preview);
-			}
-		}
-
-		for (sl = sa->spacedata.first; sl; sl = sl->next) {
-			for (ar = sl->regionbase.first; ar; ar = ar->next) {
-				write_region(wd, ar, sl->spacetype);
-			}
-
-			if (sl->spacetype == SPACE_VIEW3D) {
-				View3D *v3d = (View3D *)sl;
-				writestruct(wd, DATA, View3D, 1, v3d);
-
-				if (v3d->localvd) {
-					writestruct(wd, DATA, View3D, 1, v3d->localvd);
-				}
-
-				if (v3d->fx_settings.ssao) {
-					writestruct(wd, DATA, GPUSSAOSettings, 1, v3d->fx_settings.ssao);
-				}
-				if (v3d->fx_settings.dof) {
-					writestruct(wd, DATA, GPUDOFSettings, 1, v3d->fx_settings.dof);
-				}
-			}
-			else if (sl->spacetype == SPACE_IPO) {
-				SpaceIpo *sipo = (SpaceIpo *)sl;
-				ListBase tmpGhosts = sipo->ghostCurves;
-
-				/* temporarily disable ghost curves when saving */
-				sipo->ghostCurves.first = sipo->ghostCurves.last = NULL;
-
-				writestruct(wd, DATA, SpaceIpo, 1, sl);
-				if (sipo->ads) {
-					writestruct(wd, DATA, bDopeSheet, 1, sipo->ads);
-				}
-
-				/* reenable ghost curves */
-				sipo->ghostCurves = tmpGhosts;
-			}
-			else if (sl->spacetype == SPACE_BUTS) {
-				writestruct(wd, DATA, SpaceButs, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_FILE) {
-				SpaceFile *sfile = (SpaceFile *)sl;
-
-				writestruct(wd, DATA, SpaceFile, 1, sl);
-				if (sfile->params) {
-					writestruct(wd, DATA, FileSelectParams, 1, sfile->params);
-				}
-			}
-			else if (sl->spacetype == SPACE_SEQ) {
-				writestruct(wd, DATA, SpaceSeq, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_OUTLINER) {
-				SpaceOops *so = (SpaceOops *)sl;
-				write_soops(wd, so);
-			}
-			else if (sl->spacetype == SPACE_IMAGE) {
-				writestruct(wd, DATA, SpaceImage, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_TEXT) {
-				writestruct(wd, DATA, SpaceText, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_SCRIPT) {
-				SpaceScript *scr = (SpaceScript *)sl;
-				scr->but_refs = NULL;
-				writestruct(wd, DATA, SpaceScript, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_ACTION) {
-				writestruct(wd, DATA, SpaceAction, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_NLA) {
-				SpaceNla *snla = (SpaceNla *)sl;
-
-				writestruct(wd, DATA, SpaceNla, 1, snla);
-				if (snla->ads) {
-					writestruct(wd, DATA, bDopeSheet, 1, snla->ads);
-				}
-			}
-			else if (sl->spacetype == SPACE_TIME) {
-				writestruct(wd, DATA, SpaceTime, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_NODE) {
-				SpaceNode *snode = (SpaceNode *)sl;
-				bNodeTreePath *path;
-				writestruct(wd, DATA, SpaceNode, 1, snode);
-
-				for (path = snode->treepath.first; path; path = path->next) {
-					writestruct(wd, DATA, bNodeTreePath, 1, path);
-				}
-			}
-			else if (sl->spacetype == SPACE_LOGIC) {
-				writestruct(wd, DATA, SpaceLogic, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_CONSOLE) {
-				SpaceConsole *con = (SpaceConsole *)sl;
-				ConsoleLine *cl;
-
-				for (cl = con->history.first; cl; cl = cl->next) {
-					/* 'len_alloc' is invalid on write, set from 'len' on read */
-					writestruct(wd, DATA, ConsoleLine, 1, cl);
-					writedata(wd, DATA, cl->len + 1, cl->line);
-				}
-				writestruct(wd, DATA, SpaceConsole, 1, sl);
-
-			}
-			else if (sl->spacetype == SPACE_USERPREF) {
-				writestruct(wd, DATA, SpaceUserPref, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_CLIP) {
-				writestruct(wd, DATA, SpaceClip, 1, sl);
-			}
-			else if (sl->spacetype == SPACE_INFO) {
-				writestruct(wd, DATA, SpaceInfo, 1, sl);
-			}
-		}
-	}
+	write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
 }
 
 static void write_bone(WriteData *wd, Bone *bone)
@@ -3838,14 +3627,12 @@ static void write_cachefile(WriteData *wd, CacheFile *cache_file)
 static void write_workspace(WriteData *wd, WorkSpace *workspace)
 {
 	ListBase *layouts = BKE_workspace_layouts_get(workspace);
-	ListBase *transform_orientations = BKE_workspace_transform_orientations_get(workspace);
 
 	writestruct(wd, ID_WS, WorkSpace, 1, workspace);
 	writelist(wd, DATA, WorkSpaceLayout, layouts);
 	writelist(wd, DATA, WorkSpaceDataRelation, &workspace->hook_layout_relations);
 	writelist(wd, DATA, WorkSpaceDataRelation, &workspace->scene_viewlayer_relations);
 	writelist(wd, DATA, wmOwnerID, &workspace->owner_ids);
-	writelist(wd, DATA, TransformOrientation, transform_orientations);
 }
 
 static void write_groom(WriteData *wd, Groom *groom)
@@ -4306,6 +4093,11 @@ bool BLO_write_file(
 	void     *path_list_backup = NULL;
 	const int path_list_flag = (BKE_BPATH_TRAVERSE_SKIP_LIBRARY | BKE_BPATH_TRAVERSE_SKIP_MULTIFILE);
 
+	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *BEFORE* save to disk.");
+		BLO_main_validate_libraries(mainvar, reports);
+	}
+
 	/* open temporary file, so we preserve the original in case we crash */
 	BLI_snprintf(tempname, sizeof(tempname), "%s@", filepath);
 
@@ -4388,6 +4180,11 @@ bool BLO_write_file(
 	if (BLI_rename(tempname, filepath) != 0) {
 		BKE_report(reports, RPT_ERROR, "Cannot change old file (file saved with @)");
 		return 0;
+	}
+
+	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *AFTER* save to disk.");
+		BLO_main_validate_libraries(mainvar, reports);
 	}
 
 	return 1;

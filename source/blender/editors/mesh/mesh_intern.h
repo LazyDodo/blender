@@ -210,7 +210,6 @@ void MESH_OT_hide(struct wmOperatorType *ot);
 void MESH_OT_reveal(struct wmOperatorType *ot);
 void MESH_OT_mark_seam(struct wmOperatorType *ot);
 void MESH_OT_mark_sharp(struct wmOperatorType *ot);
-void MESH_OT_noise(struct wmOperatorType *ot);
 void MESH_OT_flip_normals(struct wmOperatorType *ot);
 void MESH_OT_solidify(struct wmOperatorType *ot);
 void MESH_OT_knife_cut(struct wmOperatorType *ot);
@@ -252,14 +251,6 @@ void MESH_OT_customdata_skin_clear(struct wmOperatorType *ot);
 void MESH_OT_customdata_custom_splitnormals_add(struct wmOperatorType *ot);
 void MESH_OT_customdata_custom_splitnormals_clear(struct wmOperatorType *ot);
 void MESH_OT_drop_named_image(struct wmOperatorType *ot);
-
-
-/* *** mesh_navmesh.c *** */
-void MESH_OT_navmesh_make(struct wmOperatorType *ot);
-void MESH_OT_navmesh_face_copy(struct wmOperatorType *ot);
-void MESH_OT_navmesh_face_add(struct wmOperatorType *ot);
-void MESH_OT_navmesh_reset(struct wmOperatorType *ot);
-void MESH_OT_navmesh_clear(struct wmOperatorType *ot);
 
 
 #endif  /* __MESH_INTERN_H__ */

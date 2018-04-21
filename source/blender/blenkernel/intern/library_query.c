@@ -31,13 +31,11 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_actuator_types.h"
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_constraint_types.h"
-#include "DNA_controller_types.h"
 #include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
@@ -56,7 +54,6 @@
 #include "DNA_lightprobe_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
-#include "DNA_sensor_types.h"
 #include "DNA_sequence_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_speaker_types.h"
@@ -85,7 +82,6 @@
 #include "BKE_node.h"
 #include "BKE_particle.h"
 #include "BKE_rigidbody.h"
-#include "BKE_sca.h"
 #include "BKE_sequencer.h"
 #include "BKE_tracking.h"
 #include "BKE_workspace.h"
@@ -213,33 +209,6 @@ static void library_foreach_constraintObjectLooper(bConstraint *UNUSED(con), ID 
 
 static void library_foreach_particlesystemsObjectLooper(
         ParticleSystem *UNUSED(psys), ID **id_pointer, void *user_data, int cb_flag)
-{
-	LibraryForeachIDData *data = (LibraryForeachIDData *) user_data;
-	FOREACH_CALLBACK_INVOKE_ID_PP(data, id_pointer, cb_flag);
-
-	FOREACH_FINALIZE_VOID;
-}
-
-static void library_foreach_sensorsObjectLooper(
-        bSensor *UNUSED(sensor), ID **id_pointer, void *user_data, int cb_flag)
-{
-	LibraryForeachIDData *data = (LibraryForeachIDData *) user_data;
-	FOREACH_CALLBACK_INVOKE_ID_PP(data, id_pointer, cb_flag);
-
-	FOREACH_FINALIZE_VOID;
-}
-
-static void library_foreach_controllersObjectLooper(
-        bController *UNUSED(controller), ID **id_pointer, void *user_data, int cb_flag)
-{
-	LibraryForeachIDData *data = (LibraryForeachIDData *) user_data;
-	FOREACH_CALLBACK_INVOKE_ID_PP(data, id_pointer, cb_flag);
-
-	FOREACH_FINALIZE_VOID;
-}
-
-static void library_foreach_actuatorsObjectLooper(
-        bActuator *UNUSED(actuator), ID **id_pointer, void *user_data, int cb_flag)
 {
 	LibraryForeachIDData *data = (LibraryForeachIDData *) user_data;
 	FOREACH_CALLBACK_INVOKE_ID_PP(data, id_pointer, cb_flag);
@@ -477,8 +446,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				}
 
 				if (toolsett) {
-					CALLBACK_INVOKE(toolsett->skgen_template, IDWALK_CB_NOP);
-
 					CALLBACK_INVOKE(toolsett->particle.scene, IDWALK_CB_NOP);
 					CALLBACK_INVOKE(toolsett->particle.object, IDWALK_CB_NOP);
 					CALLBACK_INVOKE(toolsett->particle.shape_object, IDWALK_CB_NOP);
@@ -506,8 +473,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				if (scene->rigidbody_world) {
 					BKE_rigidbody_world_id_loop(scene->rigidbody_world, library_foreach_rigidbodyworldSceneLooper, &data);
 				}
-
-				CALLBACK_INVOKE(scene->gm.dome.warptext, IDWALK_CB_NOP);
 
 				break;
 			}
@@ -606,10 +571,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 						CALLBACK_INVOKE(object->soft->effector_weights->group, IDWALK_CB_NOP);
 					}
 				}
-
-				BKE_sca_sensors_id_loop(&object->sensors, library_foreach_sensorsObjectLooper, &data);
-				BKE_sca_controllers_id_loop(&object->controllers, library_foreach_controllersObjectLooper, &data);
-				BKE_sca_actuators_id_loop(&object->actuators, library_foreach_actuatorsObjectLooper, &data);
 				break;
 			}
 
@@ -670,17 +631,10 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			case ID_MA:
 			{
 				Material *material = (Material *) id;
-				for (i = 0; i < MAX_MTEX; i++) {
-					if (material->mtex[i]) {
-						library_foreach_mtex(&data, material->mtex[i]);
-					}
-				}
 				if (material->nodetree) {
 					/* nodetree **are owned by IDs**, treat them as mere sub-data and not real ID! */
 					library_foreach_ID_as_subdata_link((ID **)&material->nodetree, callback, user_data, flag, &data);
 				}
-				CALLBACK_INVOKE(material->group, IDWALK_CB_USER);
-				CALLBACK_INVOKE(material->edit_image, IDWALK_CB_USER);
 				if (material->texpaintslot != NULL) {
 					CALLBACK_INVOKE(material->texpaintslot->ima, IDWALK_CB_NOP);
 				}
@@ -695,16 +649,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					library_foreach_ID_as_subdata_link((ID **)&texture->nodetree, callback, user_data, flag, &data);
 				}
 				CALLBACK_INVOKE(texture->ima, IDWALK_CB_USER);
-				if (texture->env) {
-					CALLBACK_INVOKE(texture->env->object, IDWALK_CB_NOP);
-					CALLBACK_INVOKE(texture->env->ima, IDWALK_CB_USER);
-				}
-				if (texture->pd)
-					CALLBACK_INVOKE(texture->pd->object, IDWALK_CB_NOP);
-				if (texture->vd)
-					CALLBACK_INVOKE(texture->vd->object, IDWALK_CB_NOP);
-				if (texture->ot)
-					CALLBACK_INVOKE(texture->ot->object, IDWALK_CB_NOP);
 				break;
 			}
 
@@ -718,11 +662,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			case ID_LA:
 			{
 				Lamp *lamp = (Lamp *) id;
-				for (i = 0; i < MAX_MTEX; i++) {
-					if (lamp->mtex[i]) {
-						library_foreach_mtex(&data, lamp->mtex[i]);
-					}
-				}
 				if (lamp->nodetree) {
 					/* nodetree **are owned by IDs**, treat them as mere sub-data and not real ID! */
 					library_foreach_ID_as_subdata_link((ID **)&lamp->nodetree, callback, user_data, flag, &data);
@@ -747,11 +686,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			case ID_WO:
 			{
 				World *world = (World *) id;
-				for (i = 0; i < MAX_MTEX; i++) {
-					if (world->mtex[i]) {
-						library_foreach_mtex(&data, world->mtex[i]);
-					}
-				}
 				if (world->nodetree) {
 					/* nodetree **are owned by IDs**, treat them as mere sub-data and not real ID! */
 					library_foreach_ID_as_subdata_link((ID **)&world->nodetree, callback, user_data, flag, &data);
@@ -1092,7 +1026,7 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 #if 0
 			return ELEM(id_type_used, ID_ME, ID_CU, ID_MB, ID_LT, ID_SPK, ID_AR, ID_LA, ID_CA,  /* obdata */
 			                          ID_OB, ID_MA, ID_GD, ID_GR, ID_TE, ID_PA, ID_TXT, ID_SO, ID_MC, ID_IM, ID_AC
-			                          /* + constraints, modifiers and game logic ID types... */);
+			                          /* + constraints and modifiers ... */);
 #else
 			return true;
 #endif

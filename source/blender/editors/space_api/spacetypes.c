@@ -83,7 +83,6 @@ void ED_spacetypes_init(void)
 	
 	/* create space types */
 	ED_spacetype_outliner();
-	ED_spacetype_time();
 	ED_spacetype_view3d();
 	ED_spacetype_ipo();
 	ED_spacetype_image();
@@ -96,10 +95,10 @@ void ED_spacetypes_init(void)
 	ED_spacetype_script();
 	ED_spacetype_text();
 	ED_spacetype_sequencer();
-	ED_spacetype_logic();
 	ED_spacetype_console();
 	ED_spacetype_userpref();
 	ED_spacetype_clip();
+	ED_spacetype_topbar();
 //	...
 	
 	/* register operator types for screen and all spaces */
@@ -122,7 +121,6 @@ void ED_spacetypes_init(void)
 	ED_operatortypes_metaball();
 	ED_operatortypes_sound();
 	ED_operatortypes_render();
-	ED_operatortypes_logic();
 	ED_operatortypes_mask();
 	ED_operatortypes_io();
 	ED_operatortypes_groom();
@@ -151,9 +149,6 @@ void ED_spacetypes_init(void)
 			type->operatortypes();
 		}
 	}
-
-	/* register internal render callbacks */
-	ED_render_internal_init();
 }
 
 void ED_spacemacros_init(void)

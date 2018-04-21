@@ -76,12 +76,11 @@
 
 WorkSpace *ED_workspace_add(
         Main *bmain, const char *name, Scene *scene,
-        ViewLayer *act_view_layer, ViewRender *view_render)
+        ViewLayer *act_view_layer)
 {
 	WorkSpace *workspace = BKE_workspace_add(bmain, name);
 
 	BKE_workspace_view_layer_set(workspace, act_view_layer, scene);
-	BKE_viewrender_copy(&workspace->view_render, view_render);
 
 	return workspace;
 }
@@ -223,12 +222,7 @@ WorkSpace *ED_workspace_duplicate(
 	Scene *scene = WM_window_get_active_scene(win);
 	WorkSpace *workspace_new = ED_workspace_add(
 	        bmain, workspace_old->id.name + 2, scene,
-	        BKE_workspace_view_layer_get(workspace_old, scene),
-	        &workspace_old->view_render);
-	ListBase *transform_orientations_old = BKE_workspace_transform_orientations_get(workspace_old);
-	ListBase *transform_orientations_new = BKE_workspace_transform_orientations_get(workspace_new);
-
-	BLI_duplicatelist(transform_orientations_new, transform_orientations_old);
+	        BKE_workspace_view_layer_get(workspace_old, scene));
 
 	workspace_new->tool = workspace_old->tool;
 
@@ -319,11 +313,9 @@ static void WORKSPACE_OT_workspace_duplicate(wmOperatorType *ot)
 
 static int workspace_delete_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	Main *bmain = CTX_data_main(C);
-	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
 
-	ED_workspace_delete(WM_window_get_active_workspace(win), bmain, C, wm);
+	WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_DELETE, WM_window_get_active_workspace(win));
 
 	return OPERATOR_FINISHED;
 }

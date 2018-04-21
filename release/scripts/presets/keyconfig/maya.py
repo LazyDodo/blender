@@ -33,9 +33,6 @@ kmi = km.keymap_items.new('wm.call_menu', 'NDOF_BUTTON_MENU', 'PRESS')
 kmi.properties.name = 'USERPREF_MT_ndof_settings'
 kmi = km.keymap_items.new('wm.context_set_enum', 'F2', 'PRESS', shift=True)
 kmi.properties.data_path = 'area.type'
-kmi.properties.value = 'LOGIC_EDITOR'
-kmi = km.keymap_items.new('wm.context_set_enum', 'F3', 'PRESS', shift=True)
-kmi.properties.data_path = 'area.type'
 kmi.properties.value = 'NODE_EDITOR'
 kmi = km.keymap_items.new('wm.context_set_enum', 'F4', 'PRESS', shift=True)
 kmi.properties.data_path = 'area.type'
@@ -773,17 +770,6 @@ kmi.properties.value_2 = 'CONNECTED'
 # Map Armature
 km = kc.keymaps.new('Armature', space_type='EMPTY', region_type='WINDOW', modal=False)
 
-kmi = km.keymap_items.new('sketch.delete', 'BACK_SPACE', 'PRESS')
-kmi = km.keymap_items.new('sketch.delete', 'DEL', 'PRESS')
-kmi = km.keymap_items.new('sketch.finish_stroke', 'RIGHTMOUSE', 'PRESS')
-kmi = km.keymap_items.new('sketch.cancel_stroke', 'ESC', 'PRESS')
-kmi = km.keymap_items.new('sketch.gesture', 'LEFTMOUSE', 'PRESS', shift=True)
-kmi = km.keymap_items.new('sketch.draw_stroke', 'LEFTMOUSE', 'PRESS')
-kmi = km.keymap_items.new('sketch.draw_stroke', 'LEFTMOUSE', 'PRESS', ctrl=True)
-kmi.properties.snap = True
-kmi = km.keymap_items.new('sketch.draw_preview', 'MOUSEMOVE', 'ANY')
-kmi = km.keymap_items.new('sketch.draw_preview', 'MOUSEMOVE', 'ANY', ctrl=True)
-kmi.properties.snap = True
 kmi = km.keymap_items.new('armature.hide', 'H', 'PRESS', ctrl=True)
 kmi.properties.unselected = False
 kmi = km.keymap_items.new('armature.hide', 'H', 'PRESS', alt=True)

@@ -823,7 +823,7 @@ void BKE_groom_curve_cache_clear(Groom *groom)
 
 /* === Depsgraph evaluation === */
 
-void BKE_groom_eval_geometry(const EvaluationContext *UNUSED(eval_ctx), Groom *groom)
+void BKE_groom_eval_geometry(struct Depsgraph *UNUSED(depsgraph), Groom *groom)
 {
 	if (G.debug & G_DEBUG_DEPSGRAPH) {
 		printf("%s on %s\n", __func__, groom->id.name);

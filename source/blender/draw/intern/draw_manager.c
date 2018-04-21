@@ -76,6 +76,7 @@
 #include "engines/clay/clay_engine.h"
 #include "engines/eevee/eevee_engine.h"
 #include "engines/basic/basic_engine.h"
+#include "engines/workbench/workbench_engine.h"
 #include "engines/external/external_engine.h"
 
 #include "../../../intern/gawain/gawain/gwn_context.h"
@@ -350,16 +351,6 @@ static void drw_viewport_cache_resize(void)
 	DRW_instance_data_list_resize(DST.idatalist);
 }
 
-static void drw_state_eval_ctx_init(DRWManager *dst)
-{
-	DRWContextState *draw_ctx = &dst->draw_ctx;
-	DEG_evaluation_context_init_from_scene(
-	        &draw_ctx->eval_ctx,
-	        draw_ctx->scene,
-	        draw_ctx->view_layer,
-	        DST.options.is_scene_render ? DAG_EVAL_RENDER : DAG_EVAL_VIEWPORT);
-}
-
 /* Not a viewport variable, we could split this out. */
 static void drw_context_state_init(void)
 {
@@ -388,8 +379,6 @@ static void drw_context_state_init(void)
 	else {
 		DST.draw_ctx.object_pose = NULL;
 	}
-
-	drw_state_eval_ctx_init(&DST);
 }
 
 /* It also stores viewport variable to an immutable place: DST
@@ -507,7 +496,7 @@ static void drw_viewport_var_init(void)
 void DRW_viewport_matrix_get(float mat[4][4], DRWViewportMatrixType type)
 {
 	BLI_assert(type >= 0 && type < DRW_MAT_COUNT);
-	BLI_assert(((DST.override_mat & (1 << type)) != 0)|| DST.draw_ctx.rv3d != NULL); /* Can't use this in render mode. */
+	BLI_assert(((DST.override_mat & (1 << type)) != 0) || DST.draw_ctx.rv3d != NULL); /* Can't use this in render mode. */
 
 	copy_m4_m4(mat, DST.view_data.matstate.mat[type]);
 }
@@ -517,7 +506,7 @@ void DRW_viewport_matrix_get_all(DRWMatrixState *state)
 	memcpy(state, DST.view_data.matstate.mat, sizeof(DRWMatrixState));
 }
 
-void DRW_viewport_matrix_override_set(float mat[4][4], DRWViewportMatrixType type)
+void DRW_viewport_matrix_override_set(const float mat[4][4], DRWViewportMatrixType type)
 {
 	BLI_assert(type < DRW_MAT_COUNT);
 	copy_m4_m4(DST.view_data.matstate.mat[type], mat);
@@ -906,15 +895,36 @@ static void drw_engines_enable_external(void)
 /* TODO revisit this when proper layering is implemented */
 /* Gather all draw engines needed and store them in DST.enabled_engines
  * That also define the rendering order of engines */
-static void drw_engines_enable_from_engine(RenderEngineType *engine_type)
+static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int drawtype, int drawtype_lighting)
 {
-	/* TODO layers */
-	if (engine_type->draw_engine != NULL) {
-		use_drw_engine(engine_type->draw_engine);
-	}
+	switch (drawtype) {
+		case OB_WIRE:
+			break;
 
-	if ((engine_type->flag & RE_INTERNAL) == 0) {
-		drw_engines_enable_external();
+		case OB_SOLID:
+			if (drawtype_lighting == V3D_LIGHTING_FLAT) {
+				use_drw_engine(&draw_engine_workbench_solid_flat);
+
+			} 
+			else if (drawtype_lighting == V3D_LIGHTING_STUDIO) {
+				use_drw_engine(&draw_engine_workbench_solid_studio);
+
+			}
+			break;
+
+		case OB_TEXTURE:
+		case OB_MATERIAL:
+		case OB_RENDER:
+		default:
+			/* TODO layers */
+			if (engine_type->draw_engine != NULL) {
+				use_drw_engine(engine_type->draw_engine);
+			}
+
+			if ((engine_type->flag & RE_INTERNAL) == 0) {
+				drw_engines_enable_external();
+			}
+			break;
 	}
 }
 
@@ -977,6 +987,11 @@ static void drw_engines_enable_from_mode(int mode)
 	}
 }
 
+static void drw_engines_enable_from_overlays(int draw_overlays) {
+	if (draw_overlays) {
+		use_drw_engine(&draw_engine_overlay_type);
+	}
+}
 /**
  * Use for select and depth-drawing.
  */
@@ -989,10 +1004,14 @@ static void drw_engines_enable(ViewLayer *view_layer, RenderEngineType *engine_t
 {
 	Object *obact = OBACT(view_layer);
 	const int mode = CTX_data_mode_enum_ex(DST.draw_ctx.object_edit, obact, DST.draw_ctx.object_mode);
+	View3D * v3d = DST.draw_ctx.v3d;
+	const int drawtype = v3d->drawtype;
+	const int drawtype_lighting = v3d->drawtype_lighting;
 
-	drw_engines_enable_from_engine(engine_type);
+	drw_engines_enable_from_engine(engine_type, drawtype, drawtype_lighting);
 
 	if (DRW_state_draw_support()) {
+		drw_engines_enable_from_overlays(v3d->overlays);
 		drw_engines_enable_from_object_mode();
 		drw_engines_enable_from_mode(mode);
 	}
@@ -1125,15 +1144,15 @@ void DRW_notify_id_update(const DRWUpdateContext *update_ctx, ID *id)
  * for each relevant engine / mode engine. */
 void DRW_draw_view(const bContext *C)
 {
-	EvaluationContext eval_ctx;
-	CTX_data_eval_ctx(C, &eval_ctx);
-	RenderEngineType *engine_type = CTX_data_engine_type(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ARegion *ar = CTX_wm_region(C);
 	View3D *v3d = CTX_wm_view3d(C);
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
+	RenderEngineType *engine_type = ED_view3d_engine_type(scene, v3d->drawtype);
 
 	/* Reset before using it. */
 	drw_state_prepare_clean_for_draw(&DST);
-	DRW_draw_render_loop_ex(eval_ctx.depsgraph, engine_type, ar, v3d, C);
+	DRW_draw_render_loop_ex(depsgraph, engine_type, ar, v3d, C);
 }
 
 /**
@@ -1294,7 +1313,7 @@ void DRW_draw_render_loop(
 	drw_state_prepare_clean_for_draw(&DST);
 
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
-	RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
+	RenderEngineType *engine_type = ED_view3d_engine_type(scene, v3d->drawtype);
 
 	DRW_draw_render_loop_ex(depsgraph, engine_type, ar, v3d, NULL);
 }
@@ -1453,8 +1472,8 @@ static void draw_select_framebuffer_setup(const rcti *rect)
 
 	/* If size mismatch recreate the texture. */
 	if ((g_select_buffer.texture_depth != NULL) &&
-		((GPU_texture_width(g_select_buffer.texture_depth) != BLI_rcti_size_x(rect)) ||
-		(GPU_texture_height(g_select_buffer.texture_depth) != BLI_rcti_size_y(rect))))
+	    ((GPU_texture_width(g_select_buffer.texture_depth) != BLI_rcti_size_x(rect)) ||
+	     (GPU_texture_height(g_select_buffer.texture_depth) != BLI_rcti_size_y(rect))))
 	{
 		GPU_texture_free(g_select_buffer.texture_depth);
 		g_select_buffer.texture_depth = NULL;
@@ -1489,7 +1508,7 @@ void DRW_draw_select_loop(
         DRW_SelectPassFn select_pass_fn, void *select_pass_user_data)
 {
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
-	RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
+	RenderEngineType *engine_type = ED_view3d_engine_type(scene, v3d->drawtype);
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	Object *obact = OBACT(view_layer);
 	Object *obedit = OBEDIT_FROM_OBACT(obact);
@@ -1557,7 +1576,14 @@ void DRW_draw_select_loop(
 		drw_engines_cache_init();
 
 		if (use_obedit) {
+#if 0
 			drw_engines_cache_populate(obact);
+#else
+			FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, obact->mode, ob_iter) {
+				drw_engines_cache_populate(ob_iter);
+			}
+			FOREACH_OBJECT_IN_MODE_END;
+#endif
 		}
 		else {
 			DEG_OBJECT_ITER_BEGIN(
@@ -1674,7 +1700,7 @@ void DRW_draw_depth_loop(
         ARegion *ar, View3D *v3d)
 {
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
-	RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
+	RenderEngineType *engine_type = ED_view3d_engine_type(scene, v3d->drawtype);
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	RegionView3D *rv3d = ar->regiondata;
 
@@ -1926,6 +1952,10 @@ void DRW_engines_register(void)
 	RE_engines_register(NULL, &DRW_engine_viewport_clay_type);
 #endif
 	RE_engines_register(NULL, &DRW_engine_viewport_eevee_type);
+	RE_engines_register(NULL, &DRW_engine_viewport_workbench_type);
+
+	DRW_engine_register(&draw_engine_workbench_solid_flat);
+	DRW_engine_register(&draw_engine_workbench_solid_studio);
 
 	DRW_engine_register(&draw_engine_object_type);
 	DRW_engine_register(&draw_engine_edit_armature_type);
@@ -1936,6 +1966,7 @@ void DRW_engines_register(void)
 	DRW_engine_register(&draw_engine_edit_metaball_type);
 	DRW_engine_register(&draw_engine_edit_surface_type);
 	DRW_engine_register(&draw_engine_edit_text_type);
+	DRW_engine_register(&draw_engine_overlay_type);
 	DRW_engine_register(&draw_engine_paint_texture_type);
 	DRW_engine_register(&draw_engine_paint_vertex_type);
 	DRW_engine_register(&draw_engine_paint_weight_type);

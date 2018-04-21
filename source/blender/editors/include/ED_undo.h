@@ -25,7 +25,10 @@
 #ifndef __ED_UNDO_H__
 #define __ED_UNDO_H__
 
+#include "BLI_compiler_attrs.h"
+
 struct bContext;
+struct CLG_LogRef;
 struct wmOperator;
 struct wmOperatorType;
 struct UndoStack;
@@ -49,9 +52,23 @@ int     ED_undo_operator_repeat(struct bContext *C, struct wmOperator *op);
 void    ED_undo_operator_repeat_cb(struct bContext *C, void *arg_op, void *arg_unused);
 void    ED_undo_operator_repeat_cb_evt(struct bContext *C, void *arg_op, int arg_unused);
 
+#ifdef WITH_REDO_REGION_REMOVAL
+/* Context sanity helpers for operator repeat. */
+typedef struct OperatorRepeatContextHandle OperatorRepeatContextHandle;
+
+const OperatorRepeatContextHandle *ED_operator_repeat_prepare_context(
+        struct bContext *C, struct wmOperator *op) ATTR_WARN_UNUSED_RESULT;
+void ED_operator_repeat_reset_context(
+        struct bContext *C, const OperatorRepeatContextHandle *context_info);
+#endif
+
 bool    ED_undo_is_valid(const struct bContext *C, const char *undoname);
 
 struct UndoStack *ED_undo_stack_get(void);
+
+/* helpers */
+void ED_undo_object_set_active_or_warn(
+        struct ViewLayer *view_layer, struct Object *ob, const char *info, struct CLG_LogRef *log);
 
 /* undo_system_types.c */
 void ED_undosys_type_init(void);

@@ -52,7 +52,6 @@
 
 /* *********** STATIC *********** */
 static struct {
-	char *shadow_shader_lib;
 	char *frag_shader_lib;
 	char *volume_shader_lib;
 
@@ -97,7 +96,6 @@ extern char datatoc_lit_surface_vert_glsl[];
 extern char datatoc_raytrace_lib_glsl[];
 extern char datatoc_ssr_lib_glsl[];
 extern char datatoc_shadow_vert_glsl[];
-extern char datatoc_shadow_geom_glsl[];
 extern char datatoc_lightprobe_geom_glsl[];
 extern char datatoc_lightprobe_vert_glsl[];
 extern char datatoc_background_vert_glsl[];
@@ -467,7 +465,7 @@ static void eevee_init_util_texture(void)
 	/* Copy blue noise in 3rd layer  */
 	for (int i = 0; i < 64 * 64; i++) {
 		texels_layer[i][0] = blue_noise[i][0];
-		texels_layer[i][1] = blue_noise[i][1];
+		texels_layer[i][1] = blue_noise[i][2];
 		texels_layer[i][2] = cosf(blue_noise[i][1] * 2.0f * M_PI);
 		texels_layer[i][3] = sinf(blue_noise[i][1] * 2.0f * M_PI);
 	}
@@ -546,7 +544,8 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 {
 	if (!e_data.frag_shader_lib) {
 		/* Shaders */
-		e_data.shadow_shader_lib = BLI_string_joinN(
+		e_data.frag_shader_lib = BLI_string_joinN(
+		        datatoc_common_view_lib_glsl,
 		        datatoc_common_uniforms_lib_glsl,
 		        datatoc_bsdf_common_lib_glsl,
 		        datatoc_bsdf_sampling_lib_glsl,
@@ -570,10 +569,6 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		        datatoc_lit_surface_frag_glsl,
 		        datatoc_volumetric_lib_glsl);
 		
-		e_data.frag_shader_lib = BLI_string_joinN(
-		        datatoc_common_view_lib_glsl,
-		        e_data.shadow_shader_lib);
-
 		e_data.volume_shader_lib = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_uniforms_lib_glsl,
@@ -792,13 +787,13 @@ struct GPUMaterial *EEVEE_material_mesh_depth_get(
 	char *defines = eevee_get_defines(options);
 
 	char *frag_str = BLI_string_joinN(
-	        (is_shadow) ? e_data.shadow_shader_lib : e_data.frag_shader_lib,
+	        e_data.frag_shader_lib,
 	        datatoc_prepass_frag_glsl);
 
 	mat = DRW_shader_create_from_material(
 	        scene, ma, engine, options,
 	        (is_shadow) ? datatoc_shadow_vert_glsl : datatoc_lit_surface_vert_glsl,
-	        (is_shadow) ? datatoc_shadow_geom_glsl : NULL,
+	        NULL,
 	        frag_str,
 	        defines);
 
@@ -1634,11 +1629,11 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 							break;
 						case MA_BS_CLIP:
 							gpumat = EEVEE_material_mesh_depth_get(scene, ma, false, true);
-							EEVEE_lights_cache_shcaster_material_add(sldata, psl, gpumat, mat_geom[i], ob, ob->obmat, &ma->alpha_threshold);
+							EEVEE_lights_cache_shcaster_material_add(sldata, psl, gpumat, mat_geom[i], ob, &ma->alpha_threshold);
 							break;
 						case MA_BS_HASHED:
 							gpumat = EEVEE_material_mesh_depth_get(scene, ma, true, true);
-							EEVEE_lights_cache_shcaster_material_add(sldata, psl, gpumat, mat_geom[i], ob, ob->obmat, NULL);
+							EEVEE_lights_cache_shcaster_material_add(sldata, psl, gpumat, mat_geom[i], ob, NULL);
 							break;
 						case MA_BS_NONE:
 						default:
@@ -1690,7 +1685,7 @@ void EEVEE_materials_free(void)
 	for (int i = 0; i < VAR_MAT_MAX; ++i) {
 		DRW_SHADER_FREE_SAFE(e_data.default_lit[i]);
 	}
-	MEM_SAFE_FREE(e_data.shadow_shader_lib);
+	MEM_SAFE_FREE(e_data.frag_shader_lib);
 	MEM_SAFE_FREE(e_data.frag_shader_lib);
 	MEM_SAFE_FREE(e_data.volume_shader_lib);
 	DRW_SHADER_FREE_SAFE(e_data.default_prepass_sh);

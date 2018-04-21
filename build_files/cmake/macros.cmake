@@ -583,6 +583,7 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_editor_space_sequencer
 		bf_editor_space_text
 		bf_editor_space_time
+		bf_editor_space_topbar
 		bf_editor_space_userpref
 		bf_editor_space_view3d
 		bf_editor_space_clip
@@ -759,10 +760,6 @@ function(SETUP_BLENDER_SORTED_LIBS)
 
 	if(WITH_BULLET AND NOT WITH_SYSTEM_BULLET)
 		list_insert_after(BLENDER_SORTED_LIBS "ge_logic_ngnetwork" "extern_bullet")
-	endif()
-
-	if(WITH_GAMEENGINE_DECKLINK)
-		list(APPEND BLENDER_SORTED_LIBS bf_intern_decklink)
 	endif()
 
 	if(WIN32)

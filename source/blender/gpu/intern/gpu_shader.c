@@ -60,8 +60,10 @@ extern char datatoc_gpu_shader_simple_lighting_smooth_color_frag_glsl[];
 extern char datatoc_gpu_shader_simple_lighting_smooth_color_alpha_frag_glsl[];
 extern char datatoc_gpu_shader_flat_color_frag_glsl[];
 extern char datatoc_gpu_shader_flat_color_alpha_test_0_frag_glsl[];
+extern char datatoc_gpu_shader_flat_id_frag_glsl[];
 extern char datatoc_gpu_shader_2D_vert_glsl[];
 extern char datatoc_gpu_shader_2D_flat_color_vert_glsl[];
+extern char datatoc_gpu_shader_2D_smooth_color_uniform_alpha_vert_glsl[];
 extern char datatoc_gpu_shader_2D_smooth_color_vert_glsl[];
 extern char datatoc_gpu_shader_2D_smooth_color_frag_glsl[];
 extern char datatoc_gpu_shader_2D_image_vert_glsl[];
@@ -98,6 +100,7 @@ extern char datatoc_gpu_shader_3D_clipped_uniform_color_vert_glsl[];
 
 extern char datatoc_gpu_shader_instance_vert_glsl[];
 extern char datatoc_gpu_shader_instance_variying_size_variying_color_vert_glsl[];
+extern char datatoc_gpu_shader_instance_variying_size_variying_id_vert_glsl[];
 extern char datatoc_gpu_shader_instance_objectspace_variying_color_vert_glsl[];
 extern char datatoc_gpu_shader_instance_screenspace_variying_color_vert_glsl[];
 extern char datatoc_gpu_shader_instance_screen_aligned_vert_glsl[];
@@ -211,8 +214,7 @@ static void gpu_shader_standard_extensions(char defines[MAX_EXT_DEFINE_LENGTH])
 }
 
 static void gpu_shader_standard_defines(char defines[MAX_DEFINE_LENGTH],
-                                        bool use_opensubdiv,
-                                        bool use_new_shading)
+                                        bool use_opensubdiv)
 {
 	/* some useful defines to detect GPU type */
 	if (GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_ANY, GPU_DRIVER_ANY)) {
@@ -250,10 +252,6 @@ static void gpu_shader_standard_defines(char defines[MAX_DEFINE_LENGTH],
 #else
 	UNUSED_VARS(use_opensubdiv);
 #endif
-
-	if (use_new_shading) {
-		strcat(defines, "#define USE_NEW_SHADING\n");
-	}
 
 	return;
 }
@@ -362,8 +360,7 @@ GPUShader *GPU_shader_create_ex(const char *vertexcode,
 	}
 
 	gpu_shader_standard_defines(standard_defines,
-	                            use_opensubdiv,
-	                            (flags & GPU_SHADER_FLAGS_NEW_SHADING) != 0);
+	                            use_opensubdiv);
 	gpu_shader_standard_extensions(standard_extensions);
 
 	if (vertexcode) {
@@ -703,6 +700,8 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		                               datatoc_gpu_shader_flat_color_frag_glsl },
 		[GPU_SHADER_2D_SMOOTH_COLOR] = { datatoc_gpu_shader_2D_smooth_color_vert_glsl,
 		                                 datatoc_gpu_shader_2D_smooth_color_frag_glsl },
+		[GPU_SHADER_2D_SMOOTH_COLOR_UNIFORM_ALPHA] = { datatoc_gpu_shader_2D_smooth_color_uniform_alpha_vert_glsl,
+		                                               datatoc_gpu_shader_2D_smooth_color_frag_glsl },
 		[GPU_SHADER_2D_IMAGE_LINEAR_TO_SRGB] = { datatoc_gpu_shader_2D_image_vert_glsl,
 		                                         datatoc_gpu_shader_image_linear_frag_glsl },
 		[GPU_SHADER_2D_IMAGE] = { datatoc_gpu_shader_2D_image_vert_glsl,
@@ -792,6 +791,9 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 			  datatoc_gpu_shader_point_uniform_color_outline_aa_frag_glsl },
 
 		[GPU_SHADER_INSTANCE_UNIFORM_COLOR] = { datatoc_gpu_shader_instance_vert_glsl, datatoc_gpu_shader_uniform_color_frag_glsl },
+		[GPU_SHADER_INSTANCE_VARIYING_ID_VARIYING_SIZE] =
+		    { datatoc_gpu_shader_instance_variying_size_variying_id_vert_glsl,
+		      datatoc_gpu_shader_flat_id_frag_glsl },
 		[GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SIZE] =
 		    { datatoc_gpu_shader_instance_variying_size_variying_color_vert_glsl,
 		      datatoc_gpu_shader_flat_color_frag_glsl },
@@ -833,6 +835,7 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 			case GPU_SHADER_SMOKE_COBA:
 				defines = "#define USE_COBA\n";
 				break;
+			case GPU_SHADER_INSTANCE_VARIYING_ID_VARIYING_SIZE:
 			case GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SIZE:
 				defines = "#define UNIFORM_SCALE\n";
 				break;

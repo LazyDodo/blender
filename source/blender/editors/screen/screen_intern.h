@@ -44,6 +44,7 @@ struct Main;
 /* area.c */
 void        ED_area_data_copy(ScrArea *sa_dst, ScrArea *sa_src, const bool do_free);
 void        ED_area_data_swap(ScrArea *sa1, ScrArea *sa2);
+void        screen_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *area);
 void        region_toggle_hidden(struct bContext *C, ARegion *ar, const bool do_fade);
 
 /* screen_edit.c */
@@ -52,20 +53,19 @@ void        screen_data_copy(bScreen *to, bScreen *from);
 void        screen_new_activate_prepare(const wmWindow *win, bScreen *screen_new);
 void        screen_change_update(struct bContext *C, wmWindow *win, bScreen *sc);
 bScreen    *screen_change_prepare(bScreen *screen_old, bScreen *screen_new, struct Main *bmain, struct bContext *C, wmWindow *win);
-ScrEdge    *screen_findedge(bScreen *sc, ScrVert *v1, ScrVert *v2);
 ScrArea    *area_split(bScreen *sc, ScrArea *sa, char dir, float fac, int merge);
 int         screen_area_join(struct bContext *C, bScreen *scr, ScrArea *sa1, ScrArea *sa2);
 int         area_getorientation(ScrArea *sa, ScrArea *sb);
-void        select_connected_scredge(bScreen *sc, ScrEdge *edge);
+void        select_connected_scredge(const wmWindow *win, ScrEdge *edge);
 
-void        removenotused_scrverts(bScreen *sc);
-void        removedouble_scrverts(bScreen *sc);
-void        removedouble_scredges(bScreen *sc);
-void        removenotused_scredges(bScreen *sc);
 bool        scredge_is_horizontal(ScrEdge *se);
-ScrEdge    *screen_find_active_scredge(const bScreen *sc,
-                                       const int winsize_x, const int winsize_y,
-                                       const int mx, const int my);
+ScrEdge     *screen_area_map_find_active_scredge(
+        const struct ScrAreaMap *area_map,
+        const int winsize_x, const int winsize_y,
+        const int mx, const int my);
+ScrEdge    *screen_find_active_scredge(
+        const wmWindow *win, const bScreen *screen,
+        const int mx, const int my);
 
 struct AZone *is_in_area_actionzone(ScrArea *sa, const int xy[2]);
 

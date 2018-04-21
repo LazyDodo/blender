@@ -100,10 +100,6 @@ static const char *includefiles[] = {
 	"DNA_sequence_types.h",
 	"DNA_effect_types.h",
 	"DNA_outliner_types.h",
-	"DNA_property_types.h",
-	"DNA_sensor_types.h",
-	"DNA_controller_types.h",
-	"DNA_actuator_types.h",
 	"DNA_sound_types.h",
 	"DNA_group_types.h",
 	"DNA_armature_types.h",
@@ -470,7 +466,7 @@ static int preprocess_include(char *maindata, int len)
 		if (cp[0] == '/' && cp[1] == '/') {
 			comment = 1;
 		}
-		else if (*cp < 32) {
+		else if (*cp == '\n') {
 			comment = 0;
 		}
 		if (comment || *cp < 32 || *cp > 128) *cp = 32;
@@ -579,9 +575,10 @@ static int convert_include(const char *filename)
 	/* read include file, skip structs with a '#' before it.
 	 * store all data in temporal arrays.
 	 */
-	int filelen, count, overslaan, slen, type, name, strct;
+	int filelen, count, slen, type, name, strct;
 	short *structpoin, *sp;
 	char *maindata, *mainend, *md, *md1;
+	bool skip_struct;
 	
 	md = maindata = read_file_data(filename, &filelen);
 	if (filelen == -1) {
@@ -594,18 +591,18 @@ static int convert_include(const char *filename)
 
 	/* we look for '{' and then back to 'struct' */
 	count = 0;
-	overslaan = 0;
+	skip_struct = false;
 	while (count < filelen) {
 		
 		/* code for skipping a struct: two hashes on 2 lines. (preprocess added a space) */
 		if (md[0] == '#' && md[1] == ' ' && md[2] == '#') {
-			overslaan = 1;
+			skip_struct = true;
 		}
 		
 		if (md[0] == '{') {
 			md[0] = 0;
-			if (overslaan) {
-				overslaan = 0;
+			if (skip_struct) {
+				skip_struct = false;
 			}
 			else {
 				if (md[-1] == ' ') md[-1] = 0;
@@ -1329,10 +1326,6 @@ int main(int argc, char **argv)
 #include "DNA_sequence_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_outliner_types.h"
-#include "DNA_property_types.h"
-#include "DNA_sensor_types.h"
-#include "DNA_controller_types.h"
-#include "DNA_actuator_types.h"
 #include "DNA_sound_types.h"
 #include "DNA_group_types.h"
 #include "DNA_armature_types.h"

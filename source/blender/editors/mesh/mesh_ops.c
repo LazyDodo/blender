@@ -141,7 +141,6 @@ void ED_operatortypes_mesh(void)
 #endif
 	WM_operatortype_append(MESH_OT_vertices_smooth);
 	WM_operatortype_append(MESH_OT_vertices_smooth_laplacian);
-	WM_operatortype_append(MESH_OT_noise);
 	WM_operatortype_append(MESH_OT_flip_normals);
 	WM_operatortype_append(MESH_OT_rip);
 	WM_operatortype_append(MESH_OT_rip_edge);
@@ -197,14 +196,6 @@ void ED_operatortypes_mesh(void)
 	WM_operatortype_append(MESH_OT_bisect);
 	WM_operatortype_append(MESH_OT_symmetrize);
 	WM_operatortype_append(MESH_OT_symmetry_snap);
-
-#ifdef WITH_GAMEENGINE
-	WM_operatortype_append(MESH_OT_navmesh_make);
-	WM_operatortype_append(MESH_OT_navmesh_face_copy);
-	WM_operatortype_append(MESH_OT_navmesh_face_add);
-	WM_operatortype_append(MESH_OT_navmesh_reset);
-	WM_operatortype_append(MESH_OT_navmesh_clear);
-#endif
 }
 
 #if 0 /* UNUSED, remove? */

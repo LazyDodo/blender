@@ -520,7 +520,6 @@ class USERPREF_PT_system(Panel):
         col = colsplit.column()
         col.label(text="OpenGL:")
         col.prop(system, "gl_clip_alpha", slider=True)
-        col.prop(system, "use_mipmaps")
         col.prop(system, "use_gpu_mipmap")
         col.prop(system, "use_16bit_textures")
 
@@ -853,6 +852,9 @@ class USERPREF_PT_theme(Panel):
 
             col.label(text="List Item:")
             self._theme_widget_style(col, ui.wcol_list_item)
+
+            col.label(text="Tab:")
+            self._theme_widget_style(col, ui.wcol_tab)
 
             ui_state = theme.user_interface.wcol_state
             col.label(text="State:")

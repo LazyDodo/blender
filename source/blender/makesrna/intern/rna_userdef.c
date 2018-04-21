@@ -52,7 +52,6 @@
 #include "WM_types.h"
 
 #include "BLT_lang.h"
-#include "GPU_buffers.h"
 
 #ifdef WITH_OPENSUBDIV
 static const EnumPropertyItem opensubdiv_compute_type_items[] = {
@@ -202,12 +201,6 @@ static void rna_userdef_load_ui_update(Main *UNUSED(bmain), Scene *UNUSED(scene)
 	UserDef *userdef = (UserDef *)ptr->data;
 	if (userdef->flag & USER_FILENOUI) G.fileflags |= G_FILE_NO_UI;
 	else G.fileflags &= ~G_FILE_NO_UI;
-}
-
-static void rna_userdef_mipmap_update(Main *bmain, Scene *scene, PointerRNA *ptr)
-{
-	GPU_set_mipmap(!(U.gameflags & USER_DISABLE_MIPMAP));
-	rna_userdef_update(bmain, scene, ptr);
 }
 
 static void rna_userdef_anisotropic_update(Main *bmain, Scene *scene, PointerRNA *ptr)
@@ -1035,6 +1028,11 @@ static void rna_def_userdef_theme_ui(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "wcol_state", PROP_POINTER, PROP_NONE);
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_ui_text(prop, "State Colors", "");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
+
+	prop = RNA_def_property(srna, "wcol_tab", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_NEVER_NULL);
+	RNA_def_property_ui_text(prop, "Tab Colors", "");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	prop = RNA_def_property(srna, "menu_shadow_fac", PROP_FLOAT, PROP_FACTOR);
@@ -2282,23 +2280,6 @@ static void rna_def_userdef_theme_space_node(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 }
 
-static void rna_def_userdef_theme_space_logic(BlenderRNA *brna)
-{
-	StructRNA *srna;
-//	PropertyRNA *prop;
-	
-	/* space_logic */
-	
-	srna = RNA_def_struct(brna, "ThemeLogicEditor", NULL);
-	RNA_def_struct_sdna(srna, "ThemeSpace");
-	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
-	RNA_def_struct_ui_text(srna, "Theme Logic Editor", "Theme settings for the Logic Editor");
-	
-	rna_def_userdef_theme_spaces_main(srna);
-	
-}
-
-
 static void rna_def_userdef_theme_space_buts(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -2313,44 +2294,6 @@ static void rna_def_userdef_theme_space_buts(BlenderRNA *brna)
 
 	rna_def_userdef_theme_spaces_main(srna);
 
-}
-
-static void rna_def_userdef_theme_space_time(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	/* space_time */
-
-	srna = RNA_def_struct(brna, "ThemeTimeline", NULL);
-	RNA_def_struct_sdna(srna, "ThemeSpace");
-	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
-	RNA_def_struct_ui_text(srna, "Theme Timeline", "Theme settings for the Timeline");
-
-	rna_def_userdef_theme_spaces_main(srna);
-
-	prop = RNA_def_property(srna, "grid", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_ui_text(prop, "Grid", "");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
-
-	prop = RNA_def_property(srna, "frame_current", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "cframe");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_ui_text(prop, "Current Frame", "");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
-	
-	prop = RNA_def_property(srna, "time_keyframe", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "time_keyframe");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_ui_text(prop, "Keyframe", "Base color for keyframe indicator lines");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
-	
-	prop = RNA_def_property(srna, "time_grease_pencil", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "time_gp_keyframe");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_ui_text(prop, "Grease Pencil", "Color of Grease Pencil keyframes");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
 }
 
 static void rna_def_userdef_theme_space_image(BlenderRNA *brna)
@@ -2984,6 +2927,20 @@ static void rna_def_userdef_theme_space_clip(BlenderRNA *brna)
 	rna_def_userdef_theme_spaces_curves(srna, false, false, false, true);
 }
 
+static void rna_def_userdef_theme_space_topbar(BlenderRNA *brna)
+{
+	StructRNA *srna;
+
+	/* space_topbar */
+
+	srna = RNA_def_struct(brna, "ThemeTopBar", NULL);
+	RNA_def_struct_sdna(srna, "ThemeSpace");
+	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
+	RNA_def_struct_ui_text(srna, "Theme Top Bar", "Theme settings for the Top Bar");
+
+	rna_def_userdef_theme_spaces_main(srna);
+}
+
 static void rna_def_userdef_themes(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -2994,7 +2951,6 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 		{19, "STYLE", ICON_FONTPREVIEW, "Text Style", ""},
 		{18, "BONE_COLOR_SETS", ICON_COLOR, "Bone Color Sets", ""},
 		{1, "VIEW_3D", ICON_VIEW3D, "3D View", ""},
-		{2, "TIMELINE", ICON_TIME, "Timeline", ""},
 		{3, "GRAPH_EDITOR", ICON_IPO, "Graph Editor", ""},
 		{4, "DOPESHEET_EDITOR", ICON_ACTION, "Dope Sheet", ""},
 		{5, "NLA_EDITOR", ICON_NLA, "NLA Editor", ""},
@@ -3002,7 +2958,6 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 		{7, "SEQUENCE_EDITOR", ICON_SEQUENCE, "Video Sequence Editor", ""},
 		{8, "TEXT_EDITOR", ICON_TEXT, "Text Editor", ""},
 		{9, "NODE_EDITOR", ICON_NODETREE, "Node Editor", ""},
-		{10, "LOGIC_EDITOR", ICON_LOGIC, "Logic Editor", ""},
 		{11, "PROPERTIES", ICON_BUTS, "Properties", ""},
 		{12, "OUTLINER", ICON_OOPS, "Outliner", ""},
 		{14, "USER_PREFERENCES", ICON_PREFERENCES, "User Preferences", ""},
@@ -3010,6 +2965,7 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 		{16, "FILE_BROWSER", ICON_FILESEL, "File Browser", ""},
 		{17, "CONSOLE", ICON_CONSOLE, "Python Console", ""},
 		{20, "CLIP_EDITOR", ICON_CLIP, "Movie Clip Editor", ""},
+		{21, "TOPBAR", ICON_NONE, "Top Bar", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -3090,24 +3046,12 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "ThemeTextEditor");
 	RNA_def_property_ui_text(prop, "Text Editor", "");
 
-	prop = RNA_def_property(srna, "timeline", PROP_POINTER, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_NEVER_NULL);
-	RNA_def_property_pointer_sdna(prop, NULL, "ttime");
-	RNA_def_property_struct_type(prop, "ThemeTimeline");
-	RNA_def_property_ui_text(prop, "Timeline", "");
-
 	prop = RNA_def_property(srna, "node_editor", PROP_POINTER, PROP_NONE);
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_pointer_sdna(prop, NULL, "tnode");
 	RNA_def_property_struct_type(prop, "ThemeNodeEditor");
 	RNA_def_property_ui_text(prop, "Node Editor", "");
 
-	prop = RNA_def_property(srna, "logic_editor", PROP_POINTER, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_NEVER_NULL);
-	RNA_def_property_pointer_sdna(prop, NULL, "tlogic");
-	RNA_def_property_struct_type(prop, "ThemeLogicEditor");
-	RNA_def_property_ui_text(prop, "Logic Editor", "");
-	
 	prop = RNA_def_property(srna, "outliner", PROP_POINTER, PROP_NONE);
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_pointer_sdna(prop, NULL, "toops");
@@ -3143,6 +3087,12 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 	RNA_def_property_pointer_sdna(prop, NULL, "tclip");
 	RNA_def_property_struct_type(prop, "ThemeClipEditor");
 	RNA_def_property_ui_text(prop, "Clip Editor", "");
+
+	prop = RNA_def_property(srna, "topbar", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_NEVER_NULL);
+	RNA_def_property_pointer_sdna(prop, NULL, "ttopbar");
+	RNA_def_property_struct_type(prop, "ThemeTopBar");
+	RNA_def_property_ui_text(prop, "Top Bar", "");
 }
 
 static void rna_def_userdef_addon(BlenderRNA *brna)
@@ -3226,14 +3176,13 @@ static void rna_def_userdef_dothemes(BlenderRNA *brna)
 	rna_def_userdef_theme_space_seq(brna);
 	rna_def_userdef_theme_space_buts(brna);
 	rna_def_userdef_theme_space_text(brna);
-	rna_def_userdef_theme_space_time(brna);
 	rna_def_userdef_theme_space_node(brna);
 	rna_def_userdef_theme_space_outliner(brna);
 	rna_def_userdef_theme_space_info(brna);
 	rna_def_userdef_theme_space_userpref(brna);
 	rna_def_userdef_theme_space_console(brna);
-	rna_def_userdef_theme_space_logic(brna);
 	rna_def_userdef_theme_space_clip(brna);
+	rna_def_userdef_theme_space_topbar(brna);
 	rna_def_userdef_theme_colorset(brna);
 	rna_def_userdef_themes(brna);
 }
@@ -4116,13 +4065,6 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Clip Alpha", "Clip alpha below this threshold in the 3D textured view");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
-	
-	prop = RNA_def_property(srna, "use_mipmaps", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "gameflags", USER_DISABLE_MIPMAP);
-	RNA_def_property_ui_text(prop, "Mipmaps",
-	                         "Scale textures for the 3D View (looks nicer but uses more memory and slows image "
-	                         "reloading)");
-	RNA_def_property_update(prop, 0, "rna_userdef_mipmap_update");
 
 	prop = RNA_def_property(srna, "use_16bit_textures", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_16bit_textures", 1);

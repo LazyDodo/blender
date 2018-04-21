@@ -284,8 +284,9 @@ IDProperty *RNA_struct_idprops(PointerRNA *ptr, bool create)
 {
 	StructRNA *type = ptr->type;
 
-	if (type && type->idproperties)
+	if (type && type->idproperties) {
 		return type->idproperties(ptr, create);
+	}
 	
 	return NULL;
 }
@@ -299,8 +300,16 @@ static IDProperty *rna_idproperty_find(PointerRNA *ptr, const char *name)
 {
 	IDProperty *group = RNA_struct_idprops(ptr, 0);
 
-	if (group)
-		return IDP_GetPropertyFromGroup(group, name);
+	if (group) {
+		if (group->type == IDP_GROUP) {
+			return IDP_GetPropertyFromGroup(group, name);
+		}
+		else {
+			/* Not sure why that happens sometimes, with nested properties... */
+			/* Seems to be actually array prop, name is usually "0"... To be sorted out later. */
+//			printf("Got unexpected IDProp container when trying to retrieve %s: %d\n", name, group->type);
+		}
+	}
 
 	return NULL;
 }
@@ -1843,7 +1852,7 @@ bool RNA_property_editable(PointerRNA *ptr, PropertyRNA *prop)
 	return ((flag & PROP_EDITABLE) &&
 	        (flag & PROP_REGISTER) == 0 &&
 	        (!id || ((!ID_IS_LINKED(id) || (prop->flag & PROP_LIB_EXCEPTION)) &&
-	                 (!id->override_static || RNA_property_overridable(ptr, prop)))));
+	                 (!id->override_static || RNA_property_overridable_get(ptr, prop)))));
 }
 
 /**
@@ -1876,7 +1885,7 @@ bool RNA_property_editable_info(PointerRNA *ptr, PropertyRNA *prop, const char *
 			}
 			return false;
 		}
-		if (id->override_static != NULL && !RNA_property_overridable(ptr, prop)) {
+		if (id->override_static != NULL && !RNA_property_overridable_get(ptr, prop)) {
 			if (!(*r_info)[0]) {
 				*r_info = N_("Can't edit this property from an override data-block.");
 			}
@@ -1957,12 +1966,33 @@ bool RNA_property_animated(PointerRNA *ptr, PropertyRNA *prop)
 
 /** \note Does not take into account editable status, this has to be checked separately
  * (using RNA_property_edtiable_flag() usually). */
-bool RNA_property_overridable(PointerRNA *UNUSED(ptr), PropertyRNA *prop)
+bool RNA_property_overridable_get(PointerRNA *UNUSED(ptr), PropertyRNA *prop)
 {
-	prop = rna_ensure_property(prop);
-
-	return !(prop->flag & PROP_NO_COMPARISON) && (prop->flag & PROP_OVERRIDABLE_STATIC);
+	if (prop->magic == RNA_MAGIC) {
+		/* If this is a RNA-defined property (real or 'virtual' IDProp), we want to use RNA prop flag. */
+		return !(prop->flag & PROP_NO_COMPARISON) && (prop->flag & PROP_OVERRIDABLE_STATIC);
+	}
+	else {
+		/* If this is a real 'pure' IDProp (aka custom property), we want to use the IDProp flag. */
+		return !(prop->flag & PROP_NO_COMPARISON) && (((IDProperty *)prop)->flag & IDP_FLAG_OVERRIDABLE_STATIC);
+	}
 }
+
+/* Should only be used for custom properties */
+bool RNA_property_overridable_static_set(PointerRNA *UNUSED(ptr), PropertyRNA *prop, const bool is_overridable)
+{
+	/* Only works for pure custom properties IDProps. */
+	if (prop->magic != RNA_MAGIC) {
+		IDProperty *idprop = (IDProperty *)prop;
+
+		idprop->flag = is_overridable ? (idprop->flag | IDP_FLAG_OVERRIDABLE_STATIC) :
+		                                (idprop->flag & ~IDP_FLAG_OVERRIDABLE_STATIC);
+		return true;
+	}
+
+	return false;
+}
+
 
 bool RNA_property_overridden(PointerRNA *ptr, PropertyRNA *prop)
 {
@@ -7277,7 +7307,7 @@ static int rna_property_override_diff(
 
 	bool override_changed = false;
 	int diff_flags = flags;
-	if (!RNA_property_overridable(ptr_a, prop_a)) {
+	if (!RNA_property_overridable_get(ptr_a, prop_a)) {
 		diff_flags &= ~RNA_OVERRIDE_COMPARE_CREATE;
 	}
 	const int diff = override_diff(
@@ -7440,12 +7470,21 @@ bool RNA_struct_override_matches(
 	const bool do_create = (flags & RNA_OVERRIDE_COMPARE_CREATE) != 0;
 	const bool do_restore = (flags & RNA_OVERRIDE_COMPARE_RESTORE) != 0;
 
+//#define DEBUG_OVERRIDE_TIMEIT
 #ifdef DEBUG_OVERRIDE_TIMEIT
-	static float _sum_time = 0.0f;
-	static float _num_time = 0.0f;
-	double _timeit_time;
+	static float _sum_time_global = 0.0f;
+	static float _num_time_global = 0.0f;
+	double _timeit_time_global;
+	static float _sum_time_diffing = 0.0f;
+	static float _delta_time_diffing = 0.0f;
+	static int _num_delta_time_diffing = 0.0f;
+	static float _num_time_diffing = 0.0f;
+	double _timeit_time_diffing;
+
 	if (!root_path) {
-		_timeit_time = PIL_check_seconds_timer();
+		_delta_time_diffing = 0.0f;
+		_num_delta_time_diffing = 0;
+		_timeit_time_global = PIL_check_seconds_timer();
 	}
 #endif
 
@@ -7463,7 +7502,7 @@ bool RNA_struct_override_matches(
 			continue;
 		}
 
-		if (ignore_non_overridable && !RNA_property_overridable(ptr_local, prop_local)) {
+		if (ignore_non_overridable && !RNA_property_overridable_get(ptr_local, prop_local)) {
 			continue;
 		}
 
@@ -7473,33 +7512,60 @@ bool RNA_struct_override_matches(
 			continue;
 		}
 
+#define RNA_PATH_BUFFSIZE 8192
+#define RNA_PATH_PRINTF(_str, ...) \
+	if (BLI_snprintf(rna_path, RNA_PATH_BUFFSIZE, \
+	                  (_str), __VA_ARGS__) >= RNA_PATH_BUFFSIZE) \
+	{ rna_path = BLI_sprintfN((_str), __VA_ARGS__); }(void)0
+#define RNA_PATH_FREE \
+	if (rna_path != rna_path_buffer) MEM_freeN(rna_path)
+
+		char rna_path_buffer[RNA_PATH_BUFFSIZE];
+		char *rna_path = rna_path_buffer;
+
 		/* XXX TODO this will have to be refined to handle collections insertions, and array items */
-		char *rna_path;
 		if (root_path) {
 			/* Inlined building, much much more efficient. */
 			if (prop_local->magic == RNA_MAGIC) {
-				rna_path = BLI_sprintfN("%s.%s", root_path, RNA_property_identifier(prop_local));
+				RNA_PATH_PRINTF("%s.%s", root_path, RNA_property_identifier(prop_local));
 			}
 			else {
-				rna_path = BLI_sprintfN("%s[\"%s\"]", root_path, RNA_property_identifier(prop_local));
+				RNA_PATH_PRINTF("%s[\"%s\"]", root_path, RNA_property_identifier(prop_local));
 			}
 		}
 		else {
+			/* This is rather slow, but is not much called, so not really worth optimizing. */
 			rna_path = RNA_path_from_ID_to_property(ptr_local, prop_local);
 		}
 		if (rna_path == NULL) {
 			continue;
 		}
 
+//		printf("Override Checking %s\n", rna_path);
+
 		if (ignore_overridden && BKE_override_static_property_find(override, rna_path) != NULL) {
-			MEM_SAFE_FREE(rna_path);
+			RNA_PATH_FREE;
 			continue;
 		}
+
+#ifdef DEBUG_OVERRIDE_TIMEIT
+		if (!root_path) {
+			_timeit_time_diffing = PIL_check_seconds_timer();
+		}
+#endif
 
 		eRNAOverrideMatchResult report_flags = 0;
 		const int diff = rna_property_override_diff(
 		                     ptr_local, ptr_reference, NULL, prop_local, prop_reference, rna_path,
 		                     RNA_EQ_STRICT, override, flags, &report_flags);
+
+#ifdef DEBUG_OVERRIDE_TIMEIT
+		if (!root_path) {
+			const float _delta_time = (float)(PIL_check_seconds_timer() - _timeit_time_diffing);
+			_delta_time_diffing += _delta_time;
+			_num_delta_time_diffing++;
+		}
+#endif
 
 		matching = matching && diff == 0;
 		if (r_report_flags) {
@@ -7545,18 +7611,28 @@ bool RNA_struct_override_matches(
 			}
 		}
 
-		MEM_SAFE_FREE(rna_path);
+		RNA_PATH_FREE;
+
+#undef RNA_PATH_BUFFSIZE
+#undef RNA_PATH_PRINTF
+#undef RNA_PATH_FREE
 	}
 	RNA_property_collection_end(&iter);
 
 #ifdef DEBUG_OVERRIDE_TIMEIT
 	if (!root_path) {
-		const float _delta_time = (float)(PIL_check_seconds_timer() - _timeit_time);
-		_sum_time += _delta_time;
-		_num_time++;
+		const float _delta_time = (float)(PIL_check_seconds_timer() - _timeit_time_global);
+		_sum_time_global += _delta_time;
+		_num_time_global++;
+		_sum_time_diffing += _delta_time_diffing;
+		_num_time_diffing++;
 		printf("ID: %s\n", ((ID *)ptr_local->id.data)->name);
 		printf("time end      (%s): %.6f\n", __func__, _delta_time);
-		printf("time averaged (%s): %.6f (total: %.6f, in %d runs)\n", __func__, (_sum_time / _num_time), _sum_time, (int)_num_time);
+		printf("time averaged (%s): %.6f (total: %.6f, in %d runs)\n", __func__,
+		       (_sum_time_global / _num_time_global), _sum_time_global, (int)_num_time_global);
+		printf("diffing time end      (%s): %.6f (in %d runs)\n", __func__, _delta_time_diffing, _num_delta_time_diffing);
+		printf("diffing time averaged (%s): %.6f (total: %.6f, in %d runs)\n", __func__,
+		       (_sum_time_diffing / _num_time_diffing), _sum_time_diffing, (int)_num_time_diffing);
 	}
 #endif
 
@@ -7722,7 +7798,7 @@ eRNAOverrideStatus RNA_property_override_status(PointerRNA *ptr, PropertyRNA *pr
 		return override_status;
 	}
 
-	if (RNA_property_overridable(ptr, prop) && RNA_property_editable_flag(ptr, prop)) {
+	if (RNA_property_overridable_get(ptr, prop) && RNA_property_editable_flag(ptr, prop)) {
 		override_status |= RNA_OVERRIDE_STATUS_OVERRIDABLE;
 	}
 

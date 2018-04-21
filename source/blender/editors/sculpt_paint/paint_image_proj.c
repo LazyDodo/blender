@@ -227,7 +227,7 @@ typedef struct ProjPaintState {
 	View3D *v3d;
 	RegionView3D *rv3d;
 	ARegion *ar;
-	const Depsgraph *depsgraph;
+	Depsgraph *depsgraph;
 	Scene *scene;
 	int source; /* PROJ_SRC_**** */
 
@@ -283,7 +283,6 @@ typedef struct ProjPaintState {
 	bool  do_backfacecull;          /* ignore faces with normals pointing away, skips a lot of raycasts if your normals are correctly flipped */
 	bool  do_mask_normal;           /* mask out pixels based on their normals */
 	bool  do_mask_cavity;           /* mask out pixels based on cavity */
-	bool  do_new_shading_nodes;     /* cache BKE_scene_use_new_shading_nodes value */
 	float normal_angle;             /* what angle to mask at */
 	float normal_angle__cos;         /* cos(normal_angle), faster to compare */
 	float normal_angle_inner;
@@ -2492,8 +2491,7 @@ static bool IsectPoly2Df_twoside(const float pt[2], float uv[][2], const int tot
 static void project_paint_face_init(
         const ProjPaintState *ps,
         const int thread_index, const int bucket_index, const int tri_index, const int image_index,
-        const rctf *clip_rect, const rctf *bucket_bounds, ImBuf *ibuf, ImBuf **tmpibuf,
-        const bool clamp_u, const bool clamp_v)
+        const rctf *clip_rect, const rctf *bucket_bounds, ImBuf *ibuf, ImBuf **tmpibuf)
 {
 	/* Projection vars, to get the 3D locations into screen space  */
 	MemArena *arena = ps->arena_mt[thread_index];
@@ -2600,17 +2598,6 @@ static void project_paint_face_init(
 #endif
 
 		if (pixel_bounds_array(uv_clip, &bounds_px, ibuf->x, ibuf->y, uv_clip_tot)) {
-
-			if (clamp_u) {
-				CLAMP(bounds_px.xmin, 0, ibuf->x);
-				CLAMP(bounds_px.xmax, 0, ibuf->x);
-			}
-
-			if (clamp_v) {
-				CLAMP(bounds_px.ymin, 0, ibuf->y);
-				CLAMP(bounds_px.ymax, 0, ibuf->y);
-			}
-
 #if 0
 			project_paint_undo_tiles_init(&bounds_px, ps->projImages + image_index, tmpibuf,
 			                              tile_width, threaded, ps->do_masking);
@@ -2927,19 +2914,16 @@ static void project_bucket_init(
 	int tri_index, image_index = 0;
 	ImBuf *ibuf = NULL;
 	Image *tpage_last = NULL, *tpage;
-	Image *ima = NULL;
 	ImBuf *tmpibuf = NULL;
 
 	if (ps->image_tot == 1) {
 		/* Simple loop, no context switching */
 		ibuf = ps->projImages[0].ibuf;
-		ima = ps->projImages[0].ima;
 
 		for (node = ps->bucketFaces[bucket_index]; node; node = node->next) {
 			project_paint_face_init(
 			        ps, thread_index, bucket_index, GET_INT_FROM_POINTER(node->link), 0,
-			        clip_rect, bucket_bounds, ibuf, &tmpibuf,
-			        (ima->tpageflag & IMA_CLAMP_U) != 0, (ima->tpageflag & IMA_CLAMP_V) != 0);
+			        clip_rect, bucket_bounds, ibuf, &tmpibuf);
 		}
 	}
 	else {
@@ -2956,7 +2940,6 @@ static void project_bucket_init(
 				for (image_index = 0; image_index < ps->image_tot; image_index++) {
 					if (ps->projImages[image_index].ima == tpage_last) {
 						ibuf = ps->projImages[image_index].ibuf;
-						ima = ps->projImages[image_index].ima;
 						break;
 					}
 				}
@@ -2965,8 +2948,7 @@ static void project_bucket_init(
 
 			project_paint_face_init(
 			        ps, thread_index, bucket_index, tri_index, image_index,
-			        clip_rect, bucket_bounds, ibuf, &tmpibuf,
-			        (ima->tpageflag & IMA_CLAMP_U) != 0, (ima->tpageflag & IMA_CLAMP_V) != 0);
+			        clip_rect, bucket_bounds, ibuf, &tmpibuf);
 		}
 	}
 
@@ -3426,13 +3408,12 @@ static void project_paint_bleed_add_face_user(
 /* Return true if DM can be painted on, false otherwise */
 static bool proj_paint_state_dm_init(const bContext *C, ProjPaintState *ps)
 {
-	EvaluationContext eval_ctx;
-	CTX_data_eval_ctx(C, &eval_ctx);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	/* Workaround for subsurf selection, try the display mesh first */
 	if (ps->source == PROJ_SRC_IMAGE_CAM) {
 		/* using render mesh, assume only camera was rendered from */
-		ps->dm = mesh_create_derived_render(&eval_ctx, ps->scene, ps->ob, ps->scene->customdata_mask | CD_MASK_MTFACE);
+		ps->dm = mesh_create_derived_render(depsgraph, ps->scene, ps->ob, ps->scene->customdata_mask | CD_MASK_MTFACE);
 		ps->dm_release = true;
 	}
 	else if (ps->ob->derivedFinal &&
@@ -3444,7 +3425,7 @@ static bool proj_paint_state_dm_init(const bContext *C, ProjPaintState *ps)
 	}
 	else {
 		ps->dm = mesh_get_derived_final(
-		        &eval_ctx, ps->scene, ps->ob,
+		        depsgraph, ps->scene, ps->ob,
 		        ps->scene->customdata_mask | CD_MASK_MTFACE | (ps->do_face_sel ? CD_ORIGINDEX : 0));
 		ps->dm_release = true;
 	}
@@ -5030,7 +5011,6 @@ void paint_proj_stroke(
 
 	/* clone gets special treatment here to avoid going through image initialization */
 	if (ps_handle->is_clone_cursor_pick) {
-		EvaluationContext eval_ctx;
 		Scene *scene = ps_handle->scene;
 		struct Depsgraph *graph = CTX_data_depsgraph(C);
 		View3D *v3d = CTX_wm_view3d(C);
@@ -5040,9 +5020,7 @@ void paint_proj_stroke(
 
 		view3d_operator_needs_opengl(C);
 
-		CTX_data_eval_ctx(C, &eval_ctx);
-
-		if (!ED_view3d_autodist(&eval_ctx, graph, ar, v3d, mval_i, cursor, false, NULL)) {
+		if (!ED_view3d_autodist(graph, ar, v3d, mval_i, cursor, false, NULL)) {
 			return;
 		}
 
@@ -5123,7 +5101,6 @@ static void project_state_init(bContext *C, Object *ob, ProjPaintState *ps, int 
 	else {
 		ps->do_backfacecull = ps->do_occlude = ps->do_mask_normal = 0;
 	}
-	ps->do_new_shading_nodes = BKE_scene_use_new_shading_nodes(scene); /* only cache the value */
 
 	if (ps->tool == PAINT_TOOL_CLONE)
 		ps->do_layer_clone = (settings->imapaint.flag & IMAGEPAINT_PROJECT_LAYER_CLONE) ? 1 : 0;
@@ -5457,17 +5434,15 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	ImBuf *ibuf;
 	char filename[FILE_MAX];
 
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
-	struct RenderEngineType *engine_type = CTX_data_engine_type(C);
-	EvaluationContext eval_ctx;
 	ToolSettings *settings = scene->toolsettings;
+	View3D *v3d = CTX_wm_view3d(C);
+	RegionView3D *rv3d = CTX_wm_region_view3d(C);
 	int w = settings->imapaint.screen_grab_size[0];
 	int h = settings->imapaint.screen_grab_size[1];
 	int maxsize;
 	char err_out[256] = "unknown";
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	RNA_string_get(op->ptr, "filepath", filename);
 
@@ -5477,8 +5452,8 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	if (h > maxsize) h = maxsize;
 
 	ibuf = ED_view3d_draw_offscreen_imbuf(
-	        &eval_ctx, scene, view_layer, engine_type,
-	        CTX_wm_view3d(C), CTX_wm_region(C),
+	        depsgraph, scene, v3d->drawtype,
+	        v3d, CTX_wm_region(C),
 	        w, h, IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
 	        NULL, err_out);
 	if (!ibuf) {
@@ -5496,9 +5471,6 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	if (image) {
 		/* now for the trickiness. store the view projection here!
 		 * re-projection will reuse this */
-		View3D *v3d = CTX_wm_view3d(C);
-		RegionView3D *rv3d = CTX_wm_region_view3d(C);
-
 		IDPropertyTemplate val;
 		IDProperty *idgroup = IDP_GetProperties(&image->id, 1);
 		IDProperty *view_data;
@@ -5651,20 +5623,11 @@ bool BKE_paint_proj_mesh_data_check(Scene *scene, Object *ob, bool *uvs, bool *m
 /* Add layer operator */
 
 static const EnumPropertyItem layer_type_items[] = {
-	{MAP_COL, "DIFFUSE_COLOR", 0, "Diffuse Color", ""},
-	{MAP_REF, "DIFFUSE_INTENSITY", 0, "Diffuse Intensity", ""},
-	{MAP_ALPHA, "ALPHA", 0, "Alpha", ""},
-	{MAP_TRANSLU, "TRANSLUCENCY", 0, "Translucency", ""},
-	{MAP_COLSPEC, "SPECULAR_COLOR", 0, "Specular Color", ""},
-	{MAP_SPEC, "SPECULAR_INTENSITY", 0, "Specular Intensity", ""},
-	{MAP_HAR, "SPECULAR_HARDNESS", 0, "Specular Hardness", ""},
-	{MAP_AMB, "AMBIENT", 0, "Ambient", ""},
-	{MAP_EMIT, "EMIT", 0, "Emit", ""},
-	{MAP_COLMIR, "MIRROR_COLOR", 0, "Mirror Color", ""},
-	{MAP_RAYMIRR, "RAYMIRROR", 0, "Ray Mirror", ""},
-	{MAP_NORM, "NORMAL", 0, "Normal", ""},
-	{MAP_WARP, "WARP", 0, "Warp", ""},
-	{MAP_DISPLACE, "DISPLACE", 0, "Displace", ""},
+	{0, "BASE_COLOR", 0, "Base Color", ""},
+	{1, "EMISSION", 0, "Emission", ""},
+	{2, "NORMAL", 0, "Normal", ""},
+	{3, "BUMP", 0, "Bump", ""},
+	{4, "DISPLACEMENT", 0, "Displacement", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -5699,7 +5662,6 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 	Object *ob = CTX_data_active_object(C);
 	Scene *scene = CTX_data_scene(C);
 	Material *ma;
-	bool is_bi = BKE_scene_uses_blender_internal(scene) || BKE_scene_uses_blender_game(scene);
 	Image *ima = NULL;
 
 	if (!ob)
@@ -5708,54 +5670,28 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 	ma = give_current_material(ob, ob->actcol);
 
 	if (ma) {
+		/* TODO: use type to link to proper socket. */
 		Main *bmain = CTX_data_main(C);
 
-		if (!is_bi && BKE_scene_use_new_shading_nodes(scene)) {
-			bNode *imanode;
-			bNodeTree *ntree = ma->nodetree;
+		bNode *imanode;
+		bNodeTree *ntree = ma->nodetree;
 
-			if (!ntree) {
-				ED_node_shader_default(C, &ma->id);
-				ntree = ma->nodetree;
-			}
-			
-			ma->use_nodes = true;
-						
-			/* try to add an image node */
-			imanode = nodeAddStaticNode(C, ntree, SH_NODE_TEX_IMAGE);
-			
-			ima = proj_paint_image_create(op, bmain);
-			imanode->id = &ima->id;
-			
-			nodeSetActive(ntree, imanode);
+		if (!ntree) {
+			ED_node_shader_default(C, &ma->id);
+			ntree = ma->nodetree;
+		}
+		
+		ma->use_nodes = true;
 					
-			ntreeUpdateTree(CTX_data_main(C), ntree);
-		}
-		else {
-			MTex *mtex = BKE_texture_mtex_add_id(&ma->id, -1);
-
-			/* successful creation of mtex layer, now create set */
-			if (mtex) {
-				int type = MAP_COL;
-				char imagename_buff[MAX_ID_NAME - 2];
-				const char *imagename = DATA_("Diffuse Color");
-
-				if (op) {
-					type = RNA_enum_get(op->ptr, "type");
-					RNA_string_get(op->ptr, "name", imagename_buff);
-					imagename = imagename_buff;
-				}
-
-				mtex->tex = BKE_texture_add(bmain, imagename);
-				mtex->mapto = type;
-
-				if (mtex->tex) {
-					ima = mtex->tex->ima = proj_paint_image_create(op, bmain);
-				}
-
-				WM_event_add_notifier(C, NC_TEXTURE | NA_ADDED, mtex->tex);
-			}
-		}
+		/* try to add an image node */
+		imanode = nodeAddStaticNode(C, ntree, SH_NODE_TEX_IMAGE);
+		
+		ima = proj_paint_image_create(op, bmain);
+		imanode->id = &ima->id;
+		
+		nodeSetActive(ntree, imanode);
+				
+		ntreeUpdateTree(CTX_data_main(C), ntree);
 		
 		if (ima) {
 			BKE_texpaint_slot_refresh_cache(scene, ma);
@@ -5845,59 +5781,6 @@ void PAINT_OT_add_texture_paint_slot(wmOperatorType *ot)
 	RNA_def_enum(ot->srna, "generated_type", rna_enum_image_generated_type_items, IMA_GENTYPE_BLANK,
 	             "Generated Type", "Fill the image with a grid for UV map testing");
 	RNA_def_boolean(ot->srna, "float", 0, "32 bit Float", "Create image with 32 bit floating point bit depth");
-}
-
-static int texture_paint_delete_texture_paint_slot_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	Object *ob = CTX_data_active_object(C);
-	Scene *scene = CTX_data_scene(C);
-	Material *ma;
-	bool is_bi = BKE_scene_uses_blender_internal(scene) || BKE_scene_uses_blender_game(scene);
-	TexPaintSlot *slot;
-	
-	/* not supported for node-based engines */
-	if (!ob || !is_bi)
-		return OPERATOR_CANCELLED;
-	
-	ma = give_current_material(ob, ob->actcol);
-	
-	if (!ma->texpaintslot || ma->use_nodes)
-		return OPERATOR_CANCELLED;
-	
-	slot = ma->texpaintslot + ma->paint_active_slot;
-	
-	if (ma->mtex[slot->index]->tex) {
-		id_us_min(&ma->mtex[slot->index]->tex->id);
-		
-		if (ma->mtex[slot->index]->tex->ima) {
-			id_us_min(&ma->mtex[slot->index]->tex->ima->id);
-		}
-	}
-	MEM_freeN(ma->mtex[slot->index]);
-	ma->mtex[slot->index] = NULL;
-	
-	BKE_texpaint_slot_refresh_cache(scene, ma);
-	DEG_id_tag_update(&ma->id, 0);
-	WM_event_add_notifier(C, NC_MATERIAL, ma);
-	/* we need a notifier for data change since we change the displayed modifier uvs */
-	WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data);
-	return OPERATOR_FINISHED;
-}
-
-
-void PAINT_OT_delete_texture_paint_slot(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Delete Texture Paint Slot";
-	ot->description = "Delete selected texture paint slot";
-	ot->idname = "PAINT_OT_delete_texture_paint_slot";
-
-	/* api callbacks */
-	ot->exec = texture_paint_delete_texture_paint_slot_exec;
-	ot->poll = ED_operator_region_view3d_active;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
 static int add_simple_uvs_exec(bContext *C, wmOperator *UNUSED(op))

@@ -74,11 +74,10 @@ static void rna_HairSystem_generate_follicles(
 	}
 	
 	struct Scene *scene = CTX_data_scene(C);
-	EvaluationContext eval_ctx;
-	CTX_data_eval_ctx(C, &eval_ctx);
+	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	
 	CustomDataMask datamask = CD_MASK_BAREMESH;
-	DerivedMesh *dm = mesh_get_derived_final(&eval_ctx, scene, scalp, datamask);
+	DerivedMesh *dm = mesh_get_derived_final(depsgraph, scene, scalp, datamask);
 	
 	BKE_hair_generate_follicles(hsys, dm, (unsigned int)seed, count);
 }

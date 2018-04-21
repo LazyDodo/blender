@@ -157,13 +157,15 @@ static const float cornervec[WIDGET_CURVE_RESOLU][2] = {
 	{0.924, 0.617}, {0.98, 0.805}, {1.0, 1.0}
 };
 
-#define WIDGET_AA_JITTER 8
-static const float jit[WIDGET_AA_JITTER][2] = {
+
+const float ui_pixel_jitter[UI_PIXEL_AA_JITTER][2] = {
 	{ 0.468813, -0.481430}, {-0.155755, -0.352820},
 	{ 0.219306, -0.238501}, {-0.393286, -0.110949},
 	{-0.024699,  0.013908}, { 0.343805,  0.147431},
 	{-0.272855,  0.269918}, { 0.095909,  0.388710}
 };
+#define WIDGET_AA_JITTER UI_PIXEL_AA_JITTER
+#define jit ui_pixel_jitter
 
 /* -------------------------------------------------------------------- */
 /** \name Shape Preset Data
@@ -221,8 +223,22 @@ static const uint g_shape_preset_hold_action_face[2][3] = {{2, 0, 1}, {3, 5, 4}}
  **/
 
 /* offset in triavec[] in shader per type */
-static const int tria_ofs[ROUNDBOX_TRIA_MAX] = {0, 0, 6, 22, 28};
-static const int tria_vcount[ROUNDBOX_TRIA_MAX] = {0, 3, 16, 3, 6};
+static const int tria_ofs[ROUNDBOX_TRIA_MAX] = {
+	[ROUNDBOX_TRIA_NONE]              = 0,
+	[ROUNDBOX_TRIA_ARROWS]            = 0,
+	[ROUNDBOX_TRIA_SCROLL]            = 6,
+	[ROUNDBOX_TRIA_MENU]              = 22,
+	[ROUNDBOX_TRIA_CHECK]             = 28,
+	[ROUNDBOX_TRIA_HOLD_ACTION_ARROW] = 34,
+};
+static const int tria_vcount[ROUNDBOX_TRIA_MAX] = {
+	[ROUNDBOX_TRIA_NONE]              = 0,
+	[ROUNDBOX_TRIA_ARROWS]            = 3,
+	[ROUNDBOX_TRIA_SCROLL]            = 16,
+	[ROUNDBOX_TRIA_MENU]              = 3,
+	[ROUNDBOX_TRIA_CHECK]             = 6,
+	[ROUNDBOX_TRIA_HOLD_ACTION_ARROW] = 3,
+};
 
 static struct {
 	Gwn_Batch *roundbox_widget[ROUNDBOX_TRIA_MAX];
@@ -288,7 +304,7 @@ static uint32_t set_tria_vertex(
 
 static void roundbox_batch_add_tria(Gwn_VertBufRaw *vflag_step, int tria, uint32_t last_data)
 {
-	const int tria_num = (tria == ROUNDBOX_TRIA_CHECK) ? 1 : 2;
+	const int tria_num = ELEM(tria, ROUNDBOX_TRIA_CHECK, ROUNDBOX_TRIA_HOLD_ACTION_ARROW) ? 1 : 2;
 	/* for each tria */
 	for (int t = 0; t < tria_num; ++t) {
 		for (int j = 0; j < WIDGET_AA_JITTER; j++) {
@@ -315,7 +331,7 @@ Gwn_Batch *ui_batch_roundbox_widget_get(int tria)
 		vcount += ((WIDGET_CURVE_RESOLU * 2) * 2) * WIDGET_AA_JITTER; /* emboss */
 		if (tria) {
 			vcount += (tria_vcount[tria] + 2) * WIDGET_AA_JITTER; /* tria1 */
-			if (tria != ROUNDBOX_TRIA_CHECK) {
+			if (!ELEM(tria, ROUNDBOX_TRIA_CHECK, ROUNDBOX_TRIA_HOLD_ACTION_ARROW)) {
 				vcount += (tria_vcount[tria] + 2) * WIDGET_AA_JITTER; /* tria2 */
 			}
 		}
@@ -832,6 +848,12 @@ static void shape_preset_init_number_arrows(uiWidgetTrias *tria, const rcti *rec
 
 static void shape_preset_init_hold_action(uiWidgetTrias *tria, const rcti *rect, float triasize, char where)
 {
+	tria->type = ROUNDBOX_TRIA_HOLD_ACTION_ARROW;
+	/* With the current changes to use batches for widget drawing, the code
+	 * below is doing almost nothing effectively. 'where' doesn't work either,
+	 * shader is currently hardcoded to work for the button triangle pointing
+	 * at the lower right. The same limitation applies to other trias as well.
+	 * XXX Should be addressed. */
 	shape_preset_init_trias_ex(
 	        tria, rect, triasize, where,
 	        g_shape_preset_hold_action_vert, ARRAY_SIZE(g_shape_preset_hold_action_vert),
@@ -1111,8 +1133,7 @@ static void widgetbase_draw(uiWidgetBase *wtb, uiWidgetColors *wcol)
 		}
 	}
 
-	if (wtb->tria1.type != ROUNDBOX_TRIA_NONE)
-	{
+	if (wtb->tria1.type != ROUNDBOX_TRIA_NONE) {
 		tria_col[0] = wcol->item[0];
 		tria_col[1] = wcol->item[1];
 		tria_col[2] = wcol->item[2];
@@ -1142,7 +1163,7 @@ static void widgetbase_draw(uiWidgetBase *wtb, uiWidgetColors *wcol)
 
 		/* for each AA step */
 		immBegin(GWN_PRIM_TRIS, (wtb->tria1.tot + wtb->tria2.tot) * 3 * WIDGET_AA_JITTER);
-		if (wtb->tria1.tot){
+		if (wtb->tria1.tot) {
 			shape_preset_draw_trias_aa(&wtb->tria1, pos);
 		}
 		if (wtb->tria2.tot) {
@@ -2268,7 +2289,7 @@ static struct uiWidgetColors wcol_list_item = {
 };
 
 struct uiWidgetColors wcol_tab = {
-	{255, 255, 255, 255},
+	{60, 60, 60, 255},
 	{83, 83, 83, 255},
 	{114, 114, 114, 255},
 	{90, 90, 90, 255},
@@ -3157,36 +3178,6 @@ bool ui_link_bezier_points(const rcti *rect, float coord_array[][2], int resol)
 	return true;
 }
 
-#define LINK_RESOL  24
-void ui_draw_link_bezier(const rcti *rect, const float color[4])
-{
-	float coord_array[LINK_RESOL + 1][2];
-
-	if (ui_link_bezier_points(rect, coord_array, LINK_RESOL)) {
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
-
-#if 0 /* unused */
-		/* we can reuse the dist variable here to increment the GL curve eval amount*/
-		const float dist = 1.0f / (float)LINK_RESOL;
-#endif
-		glEnable(GL_BLEND);
-		glEnable(GL_LINE_SMOOTH);
-
-		immUniformColor4fv(color);
-
-		immBegin(GWN_PRIM_LINE_STRIP, LINK_RESOL + 1);
-		for (int i = 0; i <= LINK_RESOL; ++i)
-			immVertex2fv(pos, coord_array[i]);
-		immEnd();
-
-		glDisable(GL_BLEND);
-		glDisable(GL_LINE_SMOOTH);
-
-		immUnbindProgram();
-	}
-}
-
 /* function in use for buttons and for view2d sliders */
 void UI_draw_widget_scroll(uiWidgetColors *wcol, const rcti *rect, const rcti *slider, int state)
 {
@@ -3358,24 +3349,6 @@ static void widget_progressbar(uiBut *but, uiWidgetColors *wcol, rcti *rect, int
 	/* raise text a bit */
 	rect->xmin += (BLI_rcti_size_x(&rect_prog) / 2);
 	rect->xmax += (BLI_rcti_size_x(&rect_prog) / 2);
-}
-
-static void widget_link(uiBut *but, uiWidgetColors *UNUSED(wcol), rcti *rect, int UNUSED(state), int UNUSED(roundboxalign))
-{
-	
-	if (but->flag & UI_SELECT) {
-		rcti rectlink;
-		float color[4];
-		
-		UI_GetThemeColor4fv(TH_TEXT_HI, color);
-		
-		rectlink.xmin = BLI_rcti_cent_x(rect);
-		rectlink.ymin = BLI_rcti_cent_y(rect);
-		rectlink.xmax = but->linkto[0];
-		rectlink.ymax = but->linkto[1];
-		
-		ui_draw_link_bezier(&rectlink, color);
-	}
 }
 
 static void widget_numslider(uiBut *but, uiWidgetColors *wcol, rcti *rect, int state, int roundboxalign)
@@ -3859,16 +3832,20 @@ static void widget_roundbut_exec(uiWidgetColors *wcol, rcti *rect, int state, in
 	widgetbase_draw(&wtb, wcol);
 }
 
-static void widget_tab(uiBut *but, uiWidgetColors *wcol, rcti *rect, int UNUSED(state), int roundboxalign)
+static void widget_tab(uiWidgetColors *wcol, rcti *rect, int state, int roundboxalign)
 {
 	const uiStyle *style = UI_style_get();
-	const float rad = 0.15f * U.widget_unit;
+	const float rad = 0.25f * U.widget_unit;
 	const int fontid = style->widget.uifont_id;
-	const bool is_active = (but->flag & UI_SELECT);
+	const bool is_active = (state & UI_SELECT);
+
+/* Draw shaded outline - Disabled for now, seems incorrect and also looks nicer without it imho ;) */
+//#define USE_TAB_SHADED_HIGHLIGHT
 
 	uiWidgetBase wtb;
 	unsigned char theme_col_tab_highlight[3];
 
+#ifdef USE_TAB_SHADED_HIGHLIGHT
 	/* create outline highlight colors */
 	if (is_active) {
 		interp_v3_v3v3_uchar(theme_col_tab_highlight, (unsigned char *)wcol->inner_sel,
@@ -3878,6 +3855,7 @@ static void widget_tab(uiBut *but, uiWidgetColors *wcol, rcti *rect, int UNUSED(
 		interp_v3_v3v3_uchar(theme_col_tab_highlight, (unsigned char *)wcol->inner,
 		                     (unsigned char *)wcol->outline, 0.12f);
 	}
+#endif
 
 	widget_init(&wtb);
 
@@ -3885,7 +3863,9 @@ static void widget_tab(uiBut *but, uiWidgetColors *wcol, rcti *rect, int UNUSED(
 	round_box_edges(&wtb, roundboxalign, rect, rad);
 
 	/* draw inner */
+#ifdef USE_TAB_SHADED_HIGHLIGHT
 	wtb.draw_outline = 0;
+#endif
 	widgetbase_draw(&wtb, wcol);
 
 	/* We are drawing on top of widget bases. Flush cache. */
@@ -3893,13 +3873,19 @@ static void widget_tab(uiBut *but, uiWidgetColors *wcol, rcti *rect, int UNUSED(
 	UI_widgetbase_draw_cache_flush();
 	glDisable(GL_BLEND);
 
+#ifdef USE_TAB_SHADED_HIGHLIGHT
 	/* draw outline (3d look) */
 	ui_draw_but_TAB_outline(rect, rad, theme_col_tab_highlight, (unsigned char *)wcol->inner);
+#endif
 
 	/* text shadow */
 	BLF_enable(fontid, BLF_SHADOW);
 	BLF_shadow(fontid, 3, (const float[4]){1.0f, 1.0f, 1.0f, 0.25f});
 	BLF_shadow_offset(fontid, 0, -1);
+
+#ifndef USE_TAB_SHADED_HIGHLIGHT
+	UNUSED_VARS(is_active, theme_col_tab_highlight);
+#endif
 }
 
 static void widget_draw_extra_mask(const bContext *C, uiBut *but, uiWidgetType *wt, rcti *rect)
@@ -3990,8 +3976,8 @@ static uiWidgetType *widget_type(uiWidgetTypeEnum type)
 			break;
 
 		case UI_WTYPE_TAB:
-			wt.custom = widget_tab;
 			wt.wcol_theme = &btheme->tui.wcol_tab;
+			wt.draw = widget_tab;
 			break;
 
 		case UI_WTYPE_TOOLTIP:
@@ -4322,14 +4308,7 @@ void ui_draw_but(const bContext *C, ARegion *ar, uiStyle *style, uiBut *but, rct
 			case UI_BTYPE_LISTBOX:
 				wt = widget_type(UI_WTYPE_BOX);
 				break;
-				
-			case UI_BTYPE_LINK:
-			case UI_BTYPE_INLINK:
-				wt = widget_type(UI_WTYPE_ICON);
-				wt->custom = widget_link;
-				
-				break;
-			
+
 			case UI_BTYPE_EXTRA:
 				widget_draw_extra_mask(C, but, widget_type(UI_WTYPE_BOX), rect);
 				break;

@@ -42,7 +42,7 @@ struct bNodeTree;
 struct BakePixel;
 struct Depsgraph;
 struct Depsgraph;
-struct EvaluationContext;
+struct Depsgraph;
 struct IDProperty;
 struct Main;
 struct Object;
@@ -60,7 +60,7 @@ struct ViewLayer;
 
 /* RenderEngineType.flag */
 #define RE_INTERNAL				1
-#define RE_GAME					2
+/* #define RE_FLAG_DEPRECATED	2 */
 #define RE_USE_PREVIEW			4
 #define RE_USE_POSTPROCESS		8
 #define RE_USE_SHADING_NODES	16
@@ -69,7 +69,6 @@ struct ViewLayer;
 #define RE_USE_TEXTURE_PREVIEW		128
 #define RE_USE_SHADING_NODES_CUSTOM 	256
 #define RE_USE_SPHERICAL_STEREO 512
-#define RE_USE_LEGACY_PIPELINE	1024 /* XXX Temporary flag, to be removed once draw manager is finished. */
 
 /* RenderEngine.flag */
 #define RE_ENGINE_ANIMATION		1

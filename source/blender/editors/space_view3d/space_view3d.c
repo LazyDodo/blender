@@ -113,18 +113,30 @@ ARegion *view3d_has_buttons_region(ScrArea *sa)
 
 ARegion *view3d_has_tools_region(ScrArea *sa)
 {
-	ARegion *ar, *artool = NULL, *arprops = NULL, *arhead;
-	
+	ARegion *ar, *artool = NULL, *arhead;
+#ifndef WITH_REDO_REGION_REMOVAL
+	ARegion *arprops = NULL;
+#endif
+
 	for (ar = sa->regionbase.first; ar; ar = ar->next) {
 		if (ar->regiontype == RGN_TYPE_TOOLS)
 			artool = ar;
+#ifndef WITH_REDO_REGION_REMOVAL
 		if (ar->regiontype == RGN_TYPE_TOOL_PROPS)
 			arprops = ar;
+#endif
 	}
-	
+
 	/* tool region hide/unhide also hides props */
-	if (arprops && artool) return artool;
-	
+	if (artool
+#ifndef WITH_REDO_REGION_REMOVAL
+	    && arprops
+#endif
+	    )
+	{
+		return artool;
+	}
+
 	if (artool == NULL) {
 		/* add subdiv level; after header */
 		for (arhead = sa->regionbase.first; arhead; arhead = arhead->next)
@@ -142,15 +154,17 @@ ARegion *view3d_has_tools_region(ScrArea *sa)
 		artool->flag = RGN_FLAG_HIDDEN;
 	}
 
+#ifndef WITH_REDO_REGION_REMOVAL
 	if (arprops == NULL) {
 		/* add extra subdivided region for tool properties */
 		arprops = MEM_callocN(sizeof(ARegion), "tool props for view3d");
-		
+
 		BLI_insertlinkafter(&sa->regionbase, artool, arprops);
 		arprops->regiontype = RGN_TYPE_TOOL_PROPS;
 		arprops->alignment = RGN_ALIGN_BOTTOM | RGN_SPLIT_PREV;
 	}
-	
+#endif
+
 	return artool;
 }
 
@@ -290,8 +304,6 @@ void ED_view3d_stop_render_preview(wmWindowManager *wm, ARegion *ar)
 		BPy_END_ALLOW_THREADS;
 #endif
 
-		if (rv3d->render_engine->re)
-			RE_Database_Free(rv3d->render_engine->re);
 		RE_engine_free(rv3d->render_engine);
 		rv3d->render_engine = NULL;
 	}
@@ -333,6 +345,7 @@ static SpaceLink *view3d_new(const bContext *C)
 	v3d->gridlines = 16;
 	v3d->gridsubdiv = 10;
 	v3d->drawtype = OB_SOLID;
+	v3d->drawtype_lighting = V3D_LIGHTING_STUDIO;
 
 	v3d->gridflag = V3D_SHOW_X | V3D_SHOW_Y | V3D_SHOW_FLOOR;
 	
@@ -344,9 +357,8 @@ static SpaceLink *view3d_new(const bContext *C)
 	v3d->far = 1000.0f;
 
 	v3d->twflag |= U.manipulator_flag & V3D_MANIPULATOR_DRAW;
-	v3d->twtype = V3D_MANIP_TRANSLATE;
 	v3d->around = V3D_AROUND_CENTER_MEAN;
-	v3d->custom_orientation_index = -1;
+	scene->orientation_index_custom = -1;
 	
 	v3d->bundle_size = 0.2f;
 	v3d->bundle_drawtype = OB_PLAINAXES;
@@ -371,15 +383,17 @@ static SpaceLink *view3d_new(const bContext *C)
 	ar->regiontype = RGN_TYPE_TOOLS;
 	ar->alignment = RGN_ALIGN_LEFT;
 	ar->flag = RGN_FLAG_HIDDEN;
-	
+
+#ifndef WITH_REDO_REGION_REMOVAL
 	/* tool properties */
 	ar = MEM_callocN(sizeof(ARegion), "tool properties for view3d");
-	
+
 	BLI_addtail(&v3d->regionbase, ar);
 	ar->regiontype = RGN_TYPE_TOOL_PROPS;
 	ar->alignment = RGN_ALIGN_BOTTOM | RGN_SPLIT_PREV;
 	ar->flag = RGN_FLAG_HIDDEN;
-	
+#endif
+
 	/* buttons/list view */
 	ar = MEM_callocN(sizeof(ARegion), "buttons for view3d");
 	
@@ -711,7 +725,6 @@ static void view3d_widgets(void)
 	wmManipulatorMapType *mmap_type = WM_manipulatormaptype_ensure(
 	        &(const struct wmManipulatorMapType_Params){SPACE_VIEW3D, RGN_TYPE_WINDOW});
 
-	WM_manipulatorgrouptype_append_and_link(mmap_type, TRANSFORM_WGT_manipulator);
 	WM_manipulatorgrouptype_append_and_link(mmap_type, VIEW3D_WGT_lamp_spot);
 	WM_manipulatorgrouptype_append_and_link(mmap_type, VIEW3D_WGT_lamp_area);
 	WM_manipulatorgrouptype_append_and_link(mmap_type, VIEW3D_WGT_lamp_target);
@@ -721,6 +734,7 @@ static void view3d_widgets(void)
 	WM_manipulatorgrouptype_append_and_link(mmap_type, VIEW3D_WGT_empty_image);
 	WM_manipulatorgrouptype_append_and_link(mmap_type, VIEW3D_WGT_armature_spline);
 
+	WM_manipulatorgrouptype_append(TRANSFORM_WGT_manipulator);
 	WM_manipulatorgrouptype_append(VIEW3D_WGT_xform_cage);
 
 	WM_manipulatorgrouptype_append(VIEW3D_WGT_ruler);
@@ -921,6 +935,7 @@ static void view3d_main_region_listener(
 						ob_data = OBEDIT_FROM_VIEW_LAYER(view_layer)->data;
 					}
 					if (ob_data) {
+						BLI_assert(OB_DATA_SUPPORT_ID(GS(ob_data->name)));
 						/* TODO(sergey): Notifiers shouldn't really be doing DEG tags. */
 						DEG_id_tag_update(ob_data, DEG_TAG_SELECT_UPDATE);
 					}
@@ -1062,7 +1077,7 @@ static void view3d_main_region_listener(
 
 static void view3d_main_region_message_subscribe(
         const struct bContext *UNUSED(C),
-        struct WorkSpace *workspace, struct Scene *scene,
+        struct WorkSpace *UNUSED(workspace), struct Scene *scene,
         struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
         struct wmMsgBus *mbus)
 {
@@ -1071,7 +1086,6 @@ static void view3d_main_region_message_subscribe(
 	 * accepting some redundant redraws.
 	 *
 	 * For other space types we might try avoid this, keep the 3D view as an exceptional case! */
-	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
 	wmMsgParams_RNA msg_key_params = {{{0}}};
 
 	/* Only subscribe to types. */
@@ -1089,7 +1103,6 @@ static void view3d_main_region_message_subscribe(
 		&RNA_Object,
 		&RNA_UnitSettings,  /* grid-floor */
 
-		&RNA_ViewRenderSettings,
 		&RNA_World,
 	};
 
@@ -1111,6 +1124,7 @@ static void view3d_main_region_message_subscribe(
 	/* Subscribe to a handful of other properties. */
 	RegionView3D *rv3d = ar->regiondata;
 
+	WM_msg_subscribe_rna_anon_prop(mbus, RenderSettings, engine, &msg_sub_value_region_tag_redraw);
 	WM_msg_subscribe_rna_anon_prop(mbus, RenderSettings, resolution_x, &msg_sub_value_region_tag_redraw);
 	WM_msg_subscribe_rna_anon_prop(mbus, RenderSettings, resolution_y, &msg_sub_value_region_tag_redraw);
 	WM_msg_subscribe_rna_anon_prop(mbus, RenderSettings, pixel_aspect_x, &msg_sub_value_region_tag_redraw);
@@ -1121,12 +1135,12 @@ static void view3d_main_region_message_subscribe(
 
 	/* Each engine could be responsible for its own engine data types.
 	 * For now this is simplest. */
-	if (STREQ(view_render->engine_id, RE_engine_id_BLENDER_EEVEE)) {
+	if (STREQ(scene->r.engine, RE_engine_id_BLENDER_EEVEE)) {
 		extern StructRNA RNA_ViewLayerEngineSettingsEevee;
 		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsEevee, &msg_sub_value_region_tag_redraw);
 	}
 #ifdef WITH_CLAY_ENGINE
-	else if (STREQ(view_render->engine_id, RE_engine_id_BLENDER_CLAY)) {
+	else if (STREQ(scene->r.engine, RE_engine_id_BLENDER_CLAY)) {
 		extern StructRNA RNA_ViewLayerEngineSettingsClay;
 		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsClay, &msg_sub_value_region_tag_redraw);
 	}
@@ -1317,6 +1331,7 @@ static void view3d_tools_region_draw(const bContext *C, ARegion *ar)
 	ED_region_panels(C, ar, CTX_data_mode_string(C), -1, true);
 }
 
+#ifndef WITH_REDO_REGION_REMOVAL
 static void view3d_props_region_listener(
         bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
@@ -1337,6 +1352,7 @@ static void view3d_props_region_listener(
 			break;
 	}
 }
+#endif
 
 /* area (not region) level listener */
 static void space_view3d_listener(
@@ -1528,6 +1544,7 @@ void ED_spacetype_view3d(void)
 	view3d_toolshelf_register(art);
 #endif
 
+#ifndef WITH_REDO_REGION_REMOVAL
 	/* regions: tool properties */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype view3d tool properties region");
 	art->regionid = RGN_TYPE_TOOL_PROPS;
@@ -1538,10 +1555,10 @@ void ED_spacetype_view3d(void)
 	art->init = view3d_tools_region_init;
 	art->draw = view3d_tools_region_draw;
 	BLI_addhead(&st->regiontypes, art);
-	
+
 	view3d_tool_props_register(art);
-	
-	
+#endif
+
 	/* regions: header */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype view3d header region");
 	art->regionid = RGN_TYPE_HEADER;

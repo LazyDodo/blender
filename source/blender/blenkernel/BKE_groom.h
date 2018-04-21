@@ -32,7 +32,7 @@
  *  \ingroup bke
  */
 
-struct EvaluationContext;
+struct Depsgraph;
 struct Groom;
 struct GroomBundle;
 struct Main;
@@ -80,7 +80,7 @@ void BKE_groom_hair_update_guide_curves(struct Groom *groom);
 
 /* === Depsgraph evaluation === */
 
-void BKE_groom_eval_geometry(const struct EvaluationContext *eval_ctx, struct Groom *groom);
+void BKE_groom_eval_geometry(struct Depsgraph *depsgraph, struct Groom *groom);
 
 
 /* === Draw Cache === */

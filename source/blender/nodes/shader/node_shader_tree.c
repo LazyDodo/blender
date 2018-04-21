@@ -68,30 +68,22 @@
 static int shader_tree_poll(const bContext *C, bNodeTreeType *UNUSED(treetype))
 {
 	Scene *scene = CTX_data_scene(C);
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-	const char *engine_id = view_render->engine_id;
+	const char *engine_id = scene->r.engine;
 
 	/* allow empty engine string too, this is from older versions that didn't have registerable engines yet */
 	return (engine_id[0] == '\0' ||
-	        STREQ(engine_id, RE_engine_id_BLENDER_RENDER) ||
-	        STREQ(engine_id, RE_engine_id_BLENDER_GAME) ||
 	        STREQ(engine_id, RE_engine_id_CYCLES) ||
-	        !BKE_viewrender_use_shading_nodes_custom(view_render));
+	        !BKE_scene_use_shading_nodes_custom(scene));
 }
 
 static void shader_get_from_context(const bContext *C, bNodeTreeType *UNUSED(treetype), bNodeTree **r_ntree, ID **r_id, ID **r_from)
 {
 	SpaceNode *snode = CTX_wm_space_node(C);
 	Scene *scene = CTX_data_scene(C);
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob = OBACT(view_layer);
-	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
 	
-	if ((snode->shaderfrom == SNODE_SHADER_OBJECT) ||
-	    (BKE_viewrender_use_new_shading_nodes(view_render) == false))
-	{
+	if (snode->shaderfrom == SNODE_SHADER_OBJECT) {
 		if (ob) {
 			*r_from = &ob->id;
 			if (ob->type == OB_LAMP) {
@@ -126,16 +118,12 @@ static void shader_get_from_context(const bContext *C, bNodeTreeType *UNUSED(tre
 	}
 }
 
-static void foreach_nodeclass(ViewRender *view_render, void *calldata, bNodeClassCallback func)
+static void foreach_nodeclass(Scene *UNUSED(scene), void *calldata, bNodeClassCallback func)
 {
 	func(calldata, NODE_CLASS_INPUT, N_("Input"));
 	func(calldata, NODE_CLASS_OUTPUT, N_("Output"));
-
-	if (BKE_viewrender_use_new_shading_nodes(view_render)) {
-		func(calldata, NODE_CLASS_SHADER, N_("Shader"));
-		func(calldata, NODE_CLASS_TEXTURE, N_("Texture"));
-	}
-	
+	func(calldata, NODE_CLASS_SHADER, N_("Shader"));
+	func(calldata, NODE_CLASS_TEXTURE, N_("Texture"));
 	func(calldata, NODE_CLASS_OP_COLOR, N_("Color"));
 	func(calldata, NODE_CLASS_OP_VECTOR, N_("Vector"));
 	func(calldata, NODE_CLASS_CONVERTOR, N_("Convertor"));
@@ -630,16 +618,6 @@ void ntreeGPUMaterialNodes(bNodeTree *ntree, GPUMaterial *mat, short compatibili
 	MEM_freeN(localtree);
 }
 
-/* **************** call to switch lamploop for material node ************ */
-
-void (*node_shader_lamp_loop)(struct ShadeInput *, struct ShadeResult *);
-
-void set_node_shader_lamp_loop(void (*lamp_loop_func)(ShadeInput *, ShadeResult *))
-{
-	node_shader_lamp_loop = lamp_loop_func;
-}
-
-
 bNodeTreeExec *ntreeShaderBeginExecTree_internal(bNodeExecContext *context, bNodeTree *ntree, bNodeInstanceKey parent_key)
 {
 	bNodeTreeExec *exec;
@@ -714,25 +692,13 @@ void ntreeShaderEndExecTree(bNodeTreeExec *exec)
 	}
 }
 
-/* only for Blender internal */
-bool ntreeShaderExecTree(bNodeTree *ntree, ShadeInput *shi, ShadeResult *shr)
+/* TODO: left over from Blender Internal, could reuse for new texture nodes. */
+bool ntreeShaderExecTree(bNodeTree *ntree, int thread)
 {
 	ShaderCallData scd;
-	/**
-	 * \note: preserve material from ShadeInput for material id, nodetree execs change it
-	 * fix for bug "[#28012] Mat ID messy with shader nodes"
-	 */
-	Material *mat = shi->mat;
 	bNodeThreadStack *nts = NULL;
 	bNodeTreeExec *exec = ntree->execdata;
 	int compat;
-	
-	/* convert caller data to struct */
-	scd.shi = shi;
-	scd.shr = shr;
-	
-	/* each material node has own local shaderesult, with optional copying */
-	memset(shr, 0, sizeof(ShadeResult));
 	
 	/* ensure execdata is only initialized once */
 	if (!exec) {
@@ -744,17 +710,9 @@ bool ntreeShaderExecTree(bNodeTree *ntree, ShadeInput *shi, ShadeResult *shr)
 		exec = ntree->execdata;
 	}
 	
-	nts = ntreeGetThreadStack(exec, shi->thread);
-	compat = ntreeExecThreadNodes(exec, nts, &scd, shi->thread);
+	nts = ntreeGetThreadStack(exec, thread);
+	compat = ntreeExecThreadNodes(exec, nts, &scd, thread);
 	ntreeReleaseThreadStack(nts);
-	
-	// \note: set material back to preserved material
-	shi->mat = mat;
-		
-	/* better not allow negative for now */
-	if (shr->combined[0] < 0.0f) shr->combined[0] = 0.0f;
-	if (shr->combined[1] < 0.0f) shr->combined[1] = 0.0f;
-	if (shr->combined[2] < 0.0f) shr->combined[2] = 0.0f;
 	
 	/* if compat is zero, it has been using non-compatible nodes */
 	return compat;

@@ -67,6 +67,14 @@ struct MovieClipScopes;
 struct Mask;
 struct BLI_mempool;
 
+/* TODO 2.8: Remove the operator redo panel/region from the 3D View and Clip
+ * Editor toolshelf. Leaving this ifdef'ed out for until new tool system and
+ * topbar design is more clear. */
+//#define WITH_REDO_REGION_REMOVAL
+/* TODO 2.8: We don't write the topbar to files currently. Uncomment this
+ * define to enable writing (should become the default in a bit). */
+//#define WITH_TOPBAR_WRITING
+
 
 /* SpaceLink (Base) ==================================== */
 
@@ -124,11 +132,9 @@ typedef struct SpaceButs {
 	short mainb, mainbo, mainbuser; /* context tabs */
 	short re_align, align;          /* align for panels */
 	short preview;                  /* preview is signal to refresh */
-	/* texture context selector (material, lamp, particles, world, other) */
-	short texture_context, texture_context_prev;
 	char flag;
 	char collection_context;
-	char pad[6];
+	char pad[2];
 	
 	void *path;                     /* runtime */
 	int pathflag, dataicon;         /* runtime */
@@ -146,7 +152,7 @@ typedef struct SpaceButs {
 #define CONTEXT_SHADING 3
 #define CONTEXT_EDITING 4
 #define CONTEXT_SCRIPT  5
-#define CONTEXT_LOGIC   6
+//#define CONTEXT_LOGIC   6
 
 /* sbuts->mainb old (deprecated) */
 #ifdef DNA_DEPRECATED_ALLOW
@@ -158,7 +164,7 @@ typedef struct SpaceButs {
 #define BUTS_WORLD          5
 #define BUTS_RENDER         6
 #define BUTS_EDIT           7
-#define BUTS_GAME           8
+// #define BUTS_GAME           8
 #define BUTS_FPAINT         9
 #define BUTS_RADIO          10
 #define BUTS_SCRIPT         11
@@ -199,16 +205,6 @@ typedef enum eSpaceButtons_Flag {
 	SB_TEX_USER_LIMITED = (1 << 3), /* Do not add materials, particles, etc. in TemplateTextureUser list. */
 	SB_SHADING_CONTEXT = (1 << 4),
 } eSpaceButtons_Flag;
-
-/* sbuts->texture_context */
-typedef enum eSpaceButtons_Texture_Context {
-	SB_TEXC_MATERIAL = 0,
-	SB_TEXC_WORLD = 1,
-	SB_TEXC_LAMP = 2,
-	SB_TEXC_PARTICLES = 3,
-	SB_TEXC_OTHER = 4,
-	SB_TEXC_LINESTYLE = 5,
-} eSpaceButtons_Texture_Context;
 
 /* sbuts->collection_context */
 typedef enum eSpaceButtons_Collection_Context {
@@ -478,40 +474,6 @@ typedef enum eSpaceNla_Flag {
 
 /* Timeline =============================================== */
 
-/* Pointcache drawing data */
-# /* Only store the data array in the cache to avoid constant reallocation. */
-# /* No need to store when saved. */
-typedef struct SpaceTimeCache {
-	struct SpaceTimeCache *next, *prev;
-	float *array;
-} SpaceTimeCache;
-
-/* Timeline View */
-typedef struct SpaceTime {
-	SpaceLink *next, *prev;
-	ListBase regionbase;        /* storage of regions for inactive spaces */
-	int spacetype;
-	float blockscale DNA_DEPRECATED;
-	
-	View2D v2d DNA_DEPRECATED;  /* deprecated, copied to region */
-
-	ListBase caches;
-
-	int cache_display;
-	int flag;
-} SpaceTime;
-
-
-/* time->flag */
-typedef enum eTimeline_Flag {
-	/* show timing in frames instead of in seconds */
-	TIME_DRAWFRAMES    = (1 << 0),
-	/* show time indicator box beside the frame number */
-	TIME_CFRA_NUM      = (1 << 1),
-	/* only keyframes from active/selected channels get shown */
-	TIME_ONLYACTSEL    = (1 << 2),
-} eTimeline_Flag;
-
 /* time->redraws (now screen->redraws_flag) */
 typedef enum eScreen_Redraws_Flag {
 	TIME_REGION            = (1 << 0),
@@ -527,18 +489,6 @@ typedef enum eScreen_Redraws_Flag {
 
 	TIME_FOLLOW            = (1 << 15),
 } eScreen_Redraws_Flag;
-
-/* time->cache */
-typedef enum eTimeline_Cache_Flag {
-	TIME_CACHE_DISPLAY       = (1 << 0),
-	TIME_CACHE_SOFTBODY      = (1 << 1),
-	TIME_CACHE_PARTICLES     = (1 << 2),
-	TIME_CACHE_CLOTH         = (1 << 3),
-	TIME_CACHE_SMOKE         = (1 << 4),
-	TIME_CACHE_DYNAMICPAINT  = (1 << 5),
-	TIME_CACHE_RIGIDBODY     = (1 << 6),
-} eTimeline_Cache_Flag;
-
 
 /* Sequence Editor ======================================= */
 
@@ -1217,14 +1167,14 @@ typedef enum eSpaceNode_Flag {
 	SNODE_AUTO_RENDER    = (1 << 5),
 //	SNODE_SHOW_HIGHLIGHT = (1 << 6), DNA_DEPRECATED
 //	SNODE_USE_HIDDEN_PREVIEW = (1 << 10), DNA_DEPRECATED December2013 
-	SNODE_NEW_SHADERS    = (1 << 11),
+//	SNODE_NEW_SHADERS    = (1 << 11), DNA_DEPRECATED
 	SNODE_PIN            = (1 << 12),
 	SNODE_SKIP_INSOFFSET = (1 << 13), /* automatically offset following nodes in a chain on insertion */
 } eSpaceNode_Flag;
 
 /* snode->texfrom */
 typedef enum eSpaceNode_TexFrom {
-	SNODE_TEX_OBJECT   = 0,
+	/* SNODE_TEX_OBJECT   = 0, */
 	SNODE_TEX_WORLD    = 1,
 	SNODE_TEX_BRUSH    = 2,
 	SNODE_TEX_LINESTYLE = 3,
@@ -1242,23 +1192,6 @@ enum {
 	SNODE_INSERTOFS_DIR_RIGHT = 0,
 	SNODE_INSERTOFS_DIR_LEFT  = 1,
 };
-
-/* Game Logic Editor ===================================== */
-
-/* Logic Editor */
-typedef struct SpaceLogic {
-	SpaceLink *next, *prev;
-	ListBase regionbase;        /* storage of regions for inactive spaces */
-	int spacetype;
-	float blockscale DNA_DEPRECATED;
-	
-	short blockhandler[8]  DNA_DEPRECATED;
-	
-	short flag, scaflag;
-	int pad;
-	
-	struct bGPdata *gpd;        /* grease-pencil data */
-} SpaceLogic;
 
 /* Console ================================================ */
 
@@ -1359,6 +1292,7 @@ typedef struct SpaceClip {
 	MaskSpaceInfo mask_info;
 } SpaceClip;
 
+
 /* SpaceClip->flag */
 typedef enum eSpaceClip_Flag {
 	SC_SHOW_MARKER_PATTERN      = (1 << 0),
@@ -1407,6 +1341,22 @@ typedef enum eSpaceClip_GPencil_Source {
 	SC_GPENCIL_SRC_TRACK = 1,
 } eSpaceClip_GPencil_Source;
 
+
+/* Top Bar ======================================= */
+
+/* These two lines with # tell makesdna this struct can be excluded.
+ * Should be: #ifndef WITH_TOPBAR_WRITING */
+#
+#
+typedef struct SpaceTopBar {
+	SpaceLink *next, *prev;
+	ListBase regionbase;        /* storage of regions for inactive spaces */
+	int spacetype;
+
+	int pad;
+} SpaceTopBar;
+
+
 /* **************** SPACE DEFINES ********************* */
 
 /* space types, moved from DNA_screen_types.h */
@@ -1430,14 +1380,15 @@ typedef enum eSpace_Type {
 	SPACE_NLA      = 13,
 	/* TODO: fully deprecate */
 	SPACE_SCRIPT   = 14, /* Deprecated */
-	SPACE_TIME     = 15,
+	SPACE_TIME     = 15, /* Deprecated */
 	SPACE_NODE     = 16,
-	SPACE_LOGIC    = 17,
+	SPACE_LOGIC    = 17, /* deprecated */
 	SPACE_CONSOLE  = 18,
 	SPACE_USERPREF = 19,
 	SPACE_CLIP     = 20,
-	
-	SPACEICONMAX = SPACE_CLIP
+	SPACE_TOPBAR   = 21,
+
+	SPACEICONMAX = SPACE_TOPBAR
 } eSpace_Type;
 
 /* use for function args */

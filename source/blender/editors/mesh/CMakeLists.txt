@@ -32,6 +32,7 @@ set(INC
 	../../makesrna
 	../../render/extern/include
 	../../windowmanager
+	../../../../intern/clog
 	../../../../intern/guardedalloc
 	../../../../intern/glew-mx
 )
@@ -66,18 +67,6 @@ set(SRC
 
 	mesh_intern.h
 )
-
-if(WITH_GAMEENGINE)
-	add_definitions(-DWITH_GAMEENGINE)
-
-	list(APPEND INC
-		../../../../extern/recastnavigation
-	)
-
-	list(APPEND SRC
-		mesh_navmesh.c
-	)
-endif()
 
 if(WITH_INTERNATIONAL)
 	add_definitions(-DWITH_INTERNATIONAL)

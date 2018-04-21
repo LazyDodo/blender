@@ -40,6 +40,7 @@ struct HairFollicle;
 struct HairPattern;
 struct HairSystem;
 struct HairDrawSettings;
+struct HairGuideData;
 struct DerivedMesh;
 struct MeshSample;
 struct Object;

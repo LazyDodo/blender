@@ -156,17 +156,14 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case SPACE_CONSOLE:
 					ts = &btheme->tconsole;
 					break;
-				case SPACE_TIME:
-					ts = &btheme->ttime;
-					break;
 				case SPACE_NODE:
 					ts = &btheme->tnode;
 					break;
-				case SPACE_LOGIC:
-					ts = &btheme->tlogic;
-					break;
 				case SPACE_CLIP:
 					ts = &btheme->tclip;
+					break;
+				case SPACE_TOPBAR:
+					ts = &btheme->ttopbar;
 					break;
 				default:
 					ts = &btheme->tv3d;
@@ -1210,10 +1207,6 @@ void ui_theme_init_default(void)
 	rgba_char_args_set(btheme->tnode.console_output, 223, 202, 53, 255);  /* interface nodes */
 	btheme->tnode.noodle_curving = 5;
 
-	/* space logic */
-	btheme->tlogic = btheme->tv3d;
-	rgba_char_args_set(btheme->tlogic.back, 100, 100, 100, 255);
-	
 	/* space clip */
 	btheme->tclip = btheme->tv3d;
 
@@ -1232,6 +1225,14 @@ void ui_theme_init_default(void)
 	rgba_char_args_set(btheme->tclip.strip_select, 0xff, 0x8c, 0x00, 0xff);
 	btheme->tclip.handle_vertex_size = 5;
 	ui_theme_space_init_handles_color(&btheme->tclip);
+
+	/* space topbar */
+	char tmp[4];
+	btheme->ttopbar = btheme->tv3d;
+	/* swap colors */
+	copy_v4_v4_char(tmp, btheme->ttopbar.header);
+	copy_v4_v4_char(btheme->ttopbar.header, btheme->ttopbar.tab_inactive);
+	copy_v4_v4_char(btheme->ttopbar.back, tmp);
 }
 
 void ui_style_init_default(void)
@@ -2104,13 +2105,6 @@ void init_userdef_do_versions(void)
 
 			if (btheme->tui.wcol_num.outline[3] == 0)
 				ui_widget_color_init(&btheme->tui);
-			
-			/* Logic editor theme, check for alpha==0 is safe, then color was never set */
-			if (btheme->tlogic.syntaxn[3] == 0) {
-				/* re-uses syntax color storage */
-				btheme->tlogic = btheme->tv3d;
-				rgba_char_args_set(btheme->tlogic.back, 100, 100, 100, 255);
-			}
 
 			rgba_char_args_set_fl(btheme->tinfo.back, 0.45, 0.45, 0.45, 1.0);
 			rgba_char_args_set_fl(btheme->tuserpref.back, 0.45, 0.45, 0.45, 1.0);
@@ -2147,8 +2141,6 @@ void init_userdef_do_versions(void)
 				strcpy(km->idname, "3D View Generic");
 			else if (STREQ(km->idname, "EditMesh"))
 				strcpy(km->idname, "Mesh");
-			else if (STREQ(km->idname, "TimeLine"))
-				strcpy(km->idname, "Timeline");
 			else if (STREQ(km->idname, "UVEdit"))
 				strcpy(km->idname, "UV Editor");
 			else if (STREQ(km->idname, "Animation_Channels"))
@@ -2791,10 +2783,6 @@ void init_userdef_do_versions(void)
 			rgba_char_args_set(btheme->tnode.gp_vertex, 0, 0, 0, 255);
 			rgba_char_args_set(btheme->tnode.gp_vertex_select, 255, 133, 0, 255);
 			btheme->tnode.gp_vertex_size = 3;
-			
-			/* Timeline Keyframe Indicators */
-			rgba_char_args_set(btheme->ttime.time_keyframe, 0xDD, 0xD7, 0x00, 0xFF);
-			rgba_char_args_set(btheme->ttime.time_gp_keyframe, 0xB5, 0xE6, 0x1D, 0xFF);
 		}
 	}
 
@@ -2924,17 +2912,14 @@ void init_userdef_do_versions(void)
 		U.transopts &= ~(
 		    USER_TR_DEPRECATED_2 | USER_TR_DEPRECATED_3 | USER_TR_DEPRECATED_4 |
 		    USER_TR_DEPRECATED_6 | USER_TR_DEPRECATED_7);
-		U.gameflags &= ~(
-		    USER_GL_RENDER_DEPRECATED_0 | USER_GL_RENDER_DEPRECATED_1 |
-		    USER_GL_RENDER_DEPRECATED_3 | USER_GL_RENDER_DEPRECATED_4);
 
 		U.uiflag |= USER_LOCK_CURSOR_ADJUST;
 	}
 
-	if (!USER_VERSION_ATLEAST(280, 1)) {
+	if (!USER_VERSION_ATLEAST(280, 9)) {
 		/* interface_widgets.c */
 		struct uiWidgetColors wcol_tab = {
-			{255, 255, 255, 255},
+			{60, 60, 60, 255},
 			{83, 83, 83, 255},
 			{114, 114, 114, 255},
 			{90, 90, 90, 255},
@@ -2947,15 +2932,36 @@ void init_userdef_do_versions(void)
 		};
 
 		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			char tmp[4];
+
 			btheme->tui.wcol_tab = wcol_tab;
+			btheme->ttopbar = btheme->tv3d;
+			/* swap colors */
+			copy_v4_v4_char(tmp, btheme->ttopbar.header);
+			copy_v4_v4_char(btheme->ttopbar.header, btheme->ttopbar.tab_inactive);
+			copy_v4_v4_char(btheme->ttopbar.back, tmp);
+		}
+	}
+	
+	if (!USER_VERSION_ATLEAST(280, 9)) {
+		/* Timeline removal */
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			if (btheme->tipo.anim_active[3] == 0) {
+				rgba_char_args_set(btheme->tipo.anim_active,    204, 112, 26, 102);
+			}
+			if (btheme->tseq.anim_active[3] == 0) {
+				rgba_char_args_set(btheme->tseq.anim_active,    204, 112, 26, 102);	
+			}
 		}
 	}
 
 	/**
 	 * Include next version bump.
-	 *
-	 * (keep this block even if it becomes empty).
 	 */
+	{
+		/* (keep this block even if it becomes empty). */
+	}
+
 	if (((bTheme *)U.themes.first)->tui.manipulator_hi[3] == 0) {
 		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
 			ui_theme_space_init_manipulator_colors(btheme);

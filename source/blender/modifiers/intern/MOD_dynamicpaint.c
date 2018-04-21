@@ -68,9 +68,6 @@ static void copyData(ModifierData *md, ModifierData *target)
 			id_us_plus((ID *)surface->init_texture);
 		}
 	}
-	if (tpmd->brush) {
-		id_us_plus((ID *)tpmd->brush->mat);
-	}
 }
 
 static void freeData(ModifierData *md)
@@ -105,16 +102,10 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 			}
 		}
 	}
-
-	if (pmd->brush) {
-		if (pmd->brush->flags & MOD_DPAINT_USE_MATERIAL) {
-			dataMask |= CD_MASK_MLOOPUV;
-		}
-	}
 	return dataMask;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationContext *eval_ctx,
+static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
                                   Object *ob, DerivedMesh *dm,
                                   ModifierApplyFlag flag)
 {
@@ -122,7 +113,7 @@ static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationConte
 
 	/* dont apply dynamic paint on orco dm stack */
 	if (!(flag & MOD_APPLY_ORCO)) {
-		return dynamicPaint_Modifier_do(pmd, eval_ctx, md->scene, ob, dm);
+		return dynamicPaint_Modifier_do(pmd, depsgraph, md->scene, ob, dm);
 	}
 	return dm;
 }
@@ -168,9 +159,6 @@ static void foreachIDLink(ModifierData *md, Object *ob,
 				walk(userData, ob, (ID **)&surface->effector_weights->group, IDWALK_CB_NOP);
 			}
 		}
-	}
-	if (pmd->brush) {
-		walk(userData, ob, (ID **)&pmd->brush->mat, IDWALK_CB_USER);
 	}
 }
 
