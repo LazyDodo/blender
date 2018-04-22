@@ -331,12 +331,44 @@ void ED_OT_undo_redo(wmOperatorType *ot)
 
 /** \} */
 
+#ifdef WITH_REDO_REGION_REMOVAL
+struct OperatorRepeatContextHandle {
+	ScrArea *restore_area;
+	ARegion *restore_region;
+};
+
+/**
+ * Resets the context to the state \a op was executed in (or at least, was in when registering).
+ * #ED_operator_repeat_reset_context should be called when done repeating!
+ */
+const OperatorRepeatContextHandle *ED_operator_repeat_prepare_context(bContext *C, wmOperator *op)
+{
+	static OperatorRepeatContextHandle context_info;
+
+	context_info.restore_area = CTX_wm_area(C);
+	context_info.restore_region = CTX_wm_region(C);
+
+	CTX_wm_area_set(C, op->execution_area);
+	CTX_wm_region_set(C, op->execution_region);
+
+	return &context_info;
+}
+/**
+ * Resets context to the old state from before #ED_operator_repeat_prepare_context was called.
+ */
+void ED_operator_repeat_reset_context(bContext *C, const OperatorRepeatContextHandle *context_info)
+{
+	CTX_wm_area_set(C, context_info->restore_area);
+	CTX_wm_region_set(C, context_info->restore_region);
+}
+#endif
+
 /* -------------------------------------------------------------------- */
 /** \name Operator Repeat
  * \{ */
 
 /* ui callbacks should call this rather than calling WM_operator_repeat() themselves */
-int ED_undo_operator_repeat(bContext *C, struct wmOperator *op)
+int ED_undo_operator_repeat(bContext *C, wmOperator *op)
 {
 	int ret = 0;
 
@@ -345,12 +377,17 @@ int ED_undo_operator_repeat(bContext *C, struct wmOperator *op)
 		wmWindowManager *wm = CTX_wm_manager(C);
 		struct Scene *scene = CTX_data_scene(C);
 
+#ifdef WITH_REDO_REGION_REMOVAL
+		const OperatorRepeatContextHandle *context_info;
+		context_info = ED_operator_repeat_prepare_context(C, op);
+#else
 		/* keep in sync with logic in view3d_panel_operator_redo() */
 		ARegion *ar = CTX_wm_region(C);
 		ARegion *ar1 = BKE_area_find_region_active_win(CTX_wm_area(C));
 
 		if (ar1)
 			CTX_wm_region_set(C, ar1);
+#endif
 
 		if ((WM_operator_repeat_check(C, op)) &&
 		    (WM_operator_poll(C, op->type)) &&
@@ -362,8 +399,6 @@ int ED_undo_operator_repeat(bContext *C, struct wmOperator *op)
 		    (WM_jobs_test(wm, scene, WM_JOB_TYPE_ANY) == 0))
 		{
 			int retval;
-
-			ED_viewport_render_kill_jobs(wm, CTX_data_main(C), true);
 
 			if (G.debug & G_DEBUG)
 				printf("redo_cb: operator redo %s\n", op->type->name);
@@ -398,8 +433,12 @@ int ED_undo_operator_repeat(bContext *C, struct wmOperator *op)
 			}
 		}
 
+#ifdef WITH_REDO_REGION_REMOVAL
+		ED_operator_repeat_reset_context(C, context_info);
+#else
 		/* set region back */
 		CTX_wm_region_set(C, ar);
+#endif
 	}
 	else {
 		CLOG_WARN(&LOG, "called with NULL 'op'");

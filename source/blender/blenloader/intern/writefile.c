@@ -186,6 +186,7 @@
 
 #include "BLO_writefile.h"
 #include "BLO_readfile.h"
+#include "BLO_runtime.h"
 #include "BLO_undofile.h"
 #include "BLO_blend_defs.h"
 
@@ -2291,24 +2292,6 @@ static void write_texture(WriteData *wd, Tex *tex)
 		if (tex->coba) {
 			writestruct(wd, DATA, ColorBand, 1, tex->coba);
 		}
-		if (tex->type == TEX_ENVMAP && tex->env) {
-			writestruct(wd, DATA, EnvMap, 1, tex->env);
-		}
-		if (tex->type == TEX_POINTDENSITY && tex->pd) {
-			writestruct(wd, DATA, PointDensity, 1, tex->pd);
-			if (tex->pd->coba) {
-				writestruct(wd, DATA, ColorBand, 1, tex->pd->coba);
-			}
-			if (tex->pd->falloff_curve) {
-				write_curvemapping(wd, tex->pd->falloff_curve);
-			}
-		}
-		if (tex->type == TEX_VOXELDATA) {
-			writestruct(wd, DATA, VoxelData, 1, tex->vd);
-		}
-		if (tex->type == TEX_OCEAN && tex->ot) {
-			writestruct(wd, DATA, OceanTex, 1, tex->ot);
-		}
 
 		/* nodetree is integral part of texture, no libdata */
 		if (tex->nodetree) {
@@ -2329,19 +2312,6 @@ static void write_material(WriteData *wd, Material *ma)
 
 		if (ma->adt) {
 			write_animdata(wd, ma->adt);
-		}
-
-		for (int a = 0; a < MAX_MTEX; a++) {
-			if (ma->mtex[a]) {
-				writestruct(wd, DATA, MTex, 1, ma->mtex[a]);
-			}
-		}
-
-		if (ma->ramp_col) {
-			writestruct(wd, DATA, ColorBand, 1, ma->ramp_col);
-		}
-		if (ma->ramp_spec) {
-			writestruct(wd, DATA, ColorBand, 1, ma->ramp_spec);
 		}
 
 		/* nodetree is integral part of material, no libdata */
@@ -2365,12 +2335,6 @@ static void write_world(WriteData *wd, World *wrld)
 			write_animdata(wd, wrld->adt);
 		}
 
-		for (int a = 0; a < MAX_MTEX; a++) {
-			if (wrld->mtex[a]) {
-				writestruct(wd, DATA, MTex, 1, wrld->mtex[a]);
-			}
-		}
-
 		/* nodetree is integral part of world, no libdata */
 		if (wrld->nodetree) {
 			writestruct(wd, DATA, bNodeTree, 1, wrld->nodetree);
@@ -2390,13 +2354,6 @@ static void write_lamp(WriteData *wd, Lamp *la)
 
 		if (la->adt) {
 			write_animdata(wd, la->adt);
-		}
-
-		/* direct data */
-		for (int a = 0; a < MAX_MTEX; a++) {
-			if (la->mtex[a]) {
-				writestruct(wd, DATA, MTex, 1, la->mtex[a]);
-			}
 		}
 
 		if (la->curfalloff) {
@@ -2908,9 +2865,6 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 				writestruct(wd, DATA, bDopeSheet, 1, snla->ads);
 			}
 		}
-		else if (sl->spacetype == SPACE_TIME) {
-			writestruct(wd, DATA, SpaceTime, 1, sl);
-		}
 		else if (sl->spacetype == SPACE_NODE) {
 			SpaceNode *snode = (SpaceNode *)sl;
 			bNodeTreePath *path;
@@ -2930,8 +2884,12 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 				writedata(wd, DATA, cl->len + 1, cl->line);
 			}
 			writestruct(wd, DATA, SpaceConsole, 1, sl);
-
 		}
+#ifdef WITH_TOPBAR_WRITING
+		else if (sl->spacetype == SPACE_TOPBAR) {
+			writestruct(wd, DATA, SpaceTopBar, 1, sl);
+		}
+#endif
 		else if (sl->spacetype == SPACE_USERPREF) {
 			writestruct(wd, DATA, SpaceUserPref, 1, sl);
 		}
@@ -2942,7 +2900,21 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 			writestruct(wd, DATA, SpaceInfo, 1, sl);
 		}
 	}
+}
 
+static void write_area_map(WriteData *wd, ScrAreaMap *area_map)
+{
+	writelist(wd, DATA, ScrVert, &area_map->vertbase);
+	writelist(wd, DATA, ScrEdge, &area_map->edgebase);
+	for (ScrArea *area = area_map->areabase.first; area; area = area->next) {
+		writestruct(wd, DATA, ScrArea, 1, area);
+
+#ifdef WITH_TOPBAR_WRITING
+		writestruct(wd, DATA, ScrGlobalAreaData, 1, area->global);
+#endif
+
+		write_area_regions(wd, area);
+	}
 }
 
 static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
@@ -2951,6 +2923,11 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 	write_iddata(wd, &wm->id);
 
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+#ifndef WITH_TOPBAR_WRITING
+		/* Don't write global areas yet, while we make changes to them. */
+		ScrAreaMap global_areas = win->global_areas;
+		memset(&win->global_areas, 0, sizeof(win->global_areas));
+#endif
 
 		/* update deprecated screen member (for so loading in 2.7x uses the correct screen) */
 		win->screen = BKE_workspace_active_screen_get(win->workspace_hook);
@@ -2958,6 +2935,12 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 		writestruct(wd, DATA, wmWindow, 1, win);
 		writestruct(wd, DATA, WorkSpaceInstanceHook, 1, win->workspace_hook);
 		writestruct(wd, DATA, Stereo3dFormat, 1, win->stereo3d_format);
+
+#ifdef WITH_TOPBAR_WRITING
+		write_area_map(wd, &win->global_areas);
+#else
+		win->global_areas = global_areas;
+#endif
 
 		/* data is written, clear deprecated data again */
 		win->screen = NULL;
@@ -2974,19 +2957,7 @@ static void write_screen(WriteData *wd, bScreen *sc)
 	write_previews(wd, sc->preview);
 
 	/* direct data */
-	for (ScrVert *sv = sc->vertbase.first; sv; sv = sv->next) {
-		writestruct(wd, DATA, ScrVert, 1, sv);
-	}
-
-	for (ScrEdge *se = sc->edgebase.first; se; se = se->next) {
-		writestruct(wd, DATA, ScrEdge, 1, se);
-	}
-
-	for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
-		writestruct(wd, DATA, ScrArea, 1, sa);
-
-		write_area_regions(wd, sa);
-	}
+	write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
 }
 
 static void write_bone(WriteData *wd, Bone *bone)
@@ -4088,6 +4059,11 @@ bool BLO_write_file(
 	void     *path_list_backup = NULL;
 	const int path_list_flag = (BKE_BPATH_TRAVERSE_SKIP_LIBRARY | BKE_BPATH_TRAVERSE_SKIP_MULTIFILE);
 
+	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *BEFORE* save to disk.");
+		BLO_main_validate_libraries(mainvar, reports);
+	}
+
 	/* open temporary file, so we preserve the original in case we crash */
 	BLI_snprintf(tempname, sizeof(tempname), "%s@", filepath);
 
@@ -4170,6 +4146,11 @@ bool BLO_write_file(
 	if (BLI_rename(tempname, filepath) != 0) {
 		BKE_report(reports, RPT_ERROR, "Cannot change old file (file saved with @)");
 		return 0;
+	}
+
+	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *AFTER* save to disk.");
+		BLO_main_validate_libraries(mainvar, reports);
 	}
 
 	return 1;

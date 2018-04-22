@@ -167,7 +167,8 @@ void ANIM_draw_previewrange(const bContext *C, View2D *v2d, int end_frame_width)
 		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
-		immUniformColor4f(0.0f, 0.0f, 0.0f, 0.4f);
+		immUniformThemeColorShadeAlpha(TH_ANIM_ACTIVE, -25, -30);
+		//immUniformColor4f(0.8f, 0.44f, 0.1f, 0.2f); /* XXX: Fix this hardcoded color (anim_active) */
 
 		/* only draw two separate 'curtains' if there's no overlap between them */
 		if (PSFRA < PEFRA + end_frame_width) {
@@ -182,6 +183,55 @@ void ANIM_draw_previewrange(const bContext *C, View2D *v2d, int end_frame_width)
 
 		glDisable(GL_BLEND);
 	}
+}
+
+/* *************************************************** */
+/* SCENE FRAME RANGE */
+
+/* Draw frame range guides (for scene frame range) in background */
+// TODO: Should we still show these when preview range is enabled?
+void ANIM_draw_framerange(Scene *scene, View2D *v2d)
+{
+	/* Don't draw frame range when preview range is enabled.
+	 * Otherwise we get nasty/confusing visual conflicts
+	 */
+	if (PRVRANGEON) {
+		return;
+	}
+	
+	/* draw darkened area outside of active timeline frame range */
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+
+	Gwn_VertFormat *format = immVertexFormat();
+	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+
+	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+	immUniformThemeColorShadeAlpha(TH_BACK, -25, -100);
+
+	if (SFRA < EFRA) {
+		immRectf(pos, v2d->cur.xmin, v2d->cur.ymin, (float)SFRA, v2d->cur.ymax);
+		immRectf(pos, (float)EFRA, v2d->cur.ymin, v2d->cur.xmax, v2d->cur.ymax);
+	}
+	else {
+		immRectf(pos, v2d->cur.xmin, v2d->cur.ymin, v2d->cur.xmax, v2d->cur.ymax);
+	}
+
+	glDisable(GL_BLEND);
+
+	/* thin lines where the actual frames are */
+	immUniformThemeColorShade(TH_BACK, -60);
+
+	immBegin(GWN_PRIM_LINES, 4);
+
+	immVertex2f(pos, (float)SFRA, v2d->cur.ymin);
+	immVertex2f(pos, (float)SFRA, v2d->cur.ymax);
+
+	immVertex2f(pos, (float)EFRA, v2d->cur.ymin);
+	immVertex2f(pos, (float)EFRA, v2d->cur.ymax);
+
+	immEnd();
+	immUnbindProgram();
 }
 
 /* *************************************************** */

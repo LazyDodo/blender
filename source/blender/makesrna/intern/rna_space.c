@@ -75,7 +75,7 @@ const EnumPropertyItem rna_enum_space_type_items[] = {
 
 	/* Animation */
 	{0, "", ICON_NONE, "Animation", ""},
-	{SPACE_TIME, "TIMELINE", ICON_TIME, "Timeline", "Timeline and playback controls"},
+	//{SPACE_ACTION, "TIMELINE", ICON_TIME, "Timeline", "Timeline and playback controls (NOTE: Switch to 'Timeline' mode)"}, /* XXX */
 	{SPACE_IPO, "GRAPH_EDITOR", ICON_IPO, "Graph Editor", "Edit drivers and keyframe interpolation"},
 	{SPACE_ACTION, "DOPESHEET_EDITOR", ICON_ACTION, "Dope Sheet", "Adjust timing of keyframes"},
 	{SPACE_NLA, "NLA_EDITOR", ICON_NLA, "NLA Editor", "Combine and layer Actions"},
@@ -87,6 +87,8 @@ const EnumPropertyItem rna_enum_space_type_items[] = {
 	                "advanced editing and script development"},
 	{SPACE_INFO, "INFO", ICON_INFO, "Info", "Main menu bar and list of error messages "
 	             "(drag down to expand and display)"},
+	/* Special case: Top-bar isn't supposed to be a regular editor for the user. */
+	{SPACE_TOPBAR, "TOPBAR", ICON_NONE, "Top Bar", "Global bar at the top of the screen for global per-window settings"},
 
 	/* Data */
 	{0, "", ICON_NONE, "Data", ""},
@@ -216,17 +218,6 @@ static const EnumPropertyItem buttons_context_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-/* Actually populated dynamically trough a function, but helps for context-less access (e.g. doc, i18n...). */
-static const EnumPropertyItem buttons_texture_context_items[] = {
-	{SB_TEXC_MATERIAL, "MATERIAL", ICON_MATERIAL, "", "Show material textures"},
-	{SB_TEXC_WORLD, "WORLD", ICON_WORLD, "", "Show world textures"},
-	{SB_TEXC_LAMP, "LAMP", ICON_LAMP, "", "Show lamp textures"},
-	{SB_TEXC_PARTICLES, "PARTICLES", ICON_PARTICLES, "", "Show particles textures"},
-	{SB_TEXC_LINESTYLE, "LINESTYLE", ICON_LINE_DATA, "", "Show linestyle textures"},
-	{SB_TEXC_OTHER, "OTHER", ICON_TEXTURE, "", "Show other data textures"},
-	{0, NULL, 0, NULL, NULL}
-};
-
 static const EnumPropertyItem buttons_collection_context_items[] = {
 	{SB_COLLECTION_CTX_VIEW_LAYER, "VIEW_LAYER", ICON_RENDERLAYERS, "", "Show material textures"},
 	{SB_COLLECTION_CTX_GROUP, "GROUP", ICON_GROUP, "", "Show world textures"},
@@ -319,8 +310,6 @@ static StructRNA *rna_Space_refine(struct PointerRNA *ptr)
 			return &RNA_SpaceDopeSheetEditor;
 		case SPACE_NLA:
 			return &RNA_SpaceNLA;
-		case SPACE_TIME:
-			return &RNA_SpaceTimeline;
 		case SPACE_NODE:
 			return &RNA_SpaceNodeEditor;
 		case SPACE_CONSOLE:
@@ -1147,50 +1136,6 @@ static void rna_SpaceProperties_align_set(PointerRNA *ptr, int value)
 	sbuts->re_align = 1;
 }
 
-static const EnumPropertyItem *rna_SpaceProperties_texture_context_itemf(
-        bContext *C, PointerRNA *UNUSED(ptr),
-        PropertyRNA *UNUSED(prop), bool *r_free)
-{
-	EnumPropertyItem *item = NULL;
-	int totitem = 0;
-
-	if (ED_texture_context_check_world(C)) {
-		RNA_enum_items_add_value(&item, &totitem, buttons_texture_context_items, SB_TEXC_WORLD);
-	}
-
-	if (ED_texture_context_check_lamp(C)) {
-		RNA_enum_items_add_value(&item, &totitem, buttons_texture_context_items, SB_TEXC_LAMP);
-	}
-	else if (ED_texture_context_check_material(C)) {
-		RNA_enum_items_add_value(&item, &totitem, buttons_texture_context_items, SB_TEXC_MATERIAL);
-	}
-
-	if (ED_texture_context_check_particles(C)) {
-		RNA_enum_items_add_value(&item, &totitem, buttons_texture_context_items, SB_TEXC_PARTICLES);
-	}
-
-	if (ED_texture_context_check_linestyle(C)) {
-		RNA_enum_items_add_value(&item, &totitem, buttons_texture_context_items, SB_TEXC_LINESTYLE);
-	}
-
-	if (ED_texture_context_check_others(C)) {
-		RNA_enum_items_add_value(&item, &totitem, buttons_texture_context_items, SB_TEXC_OTHER);
-	}
-
-	RNA_enum_item_end(&item, &totitem);
-	*r_free = true;
-
-	return item;
-}
-
-static void rna_SpaceProperties_texture_context_set(PointerRNA *ptr, int value)
-{
-	SpaceButs *sbuts = (SpaceButs *)(ptr->data);
-
-	/* User action, no need to keep "better" value in prev here! */
-	sbuts->texture_context = sbuts->texture_context_prev = value;
-}
-
 /* Space Console */
 static void rna_ConsoleLine_body_get(PointerRNA *ptr, char *value)
 {
@@ -1345,6 +1290,7 @@ static void rna_SpaceDopeSheetEditor_action_update(bContext *C, PointerRNA *ptr)
 static void rna_SpaceDopeSheetEditor_mode_update(bContext *C, PointerRNA *ptr)
 {
 	SpaceAction *saction = (SpaceAction *)(ptr->data);
+	ScrArea *sa = CTX_wm_area(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *obact = OBACT(view_layer);
 
@@ -1373,7 +1319,25 @@ static void rna_SpaceDopeSheetEditor_mode_update(bContext *C, PointerRNA *ptr)
 		else
 			saction->action = NULL;
 	}
-
+	
+	/* Collapse summary channel and hide channel list for timeline */
+	if (saction->mode == SACTCONT_TIMELINE) {
+		saction->ads.flag |= ADS_FLAG_SUMMARY_COLLAPSED;
+	}
+	
+	if (sa && sa->spacedata.first == saction) {
+		ARegion *channels_region = BKE_area_find_region_type(sa, RGN_TYPE_CHANNELS);
+		if (channels_region) {
+			if (saction->mode == SACTCONT_TIMELINE) {
+				channels_region->flag |= RGN_FLAG_HIDDEN;
+			}
+			else {
+				channels_region->flag &= ~RGN_FLAG_HIDDEN;
+			}
+			ED_region_visibility_change_update(C, channels_region);
+		}
+	}
+	
 	/* recalculate extents of channel list */
 	saction->flag |= SACTION_TEMP_NEEDCHANSYNC;
 }
@@ -1861,6 +1825,7 @@ static void rna_def_space(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "spacetype");
 	RNA_def_property_enum_items(prop, rna_enum_space_type_items);
+	/* When making this editable, take care for the special case of global areas (see rna_Area_type_set). */
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Type", "Space data type");
 
@@ -2201,16 +2166,6 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static const EnumPropertyItem manipulators_items[] = {
-		{V3D_MANIP_TRANSLATE, "TRANSLATE", ICON_MAN_TRANS, "Translate",
-		                      "Use the manipulator for movement transformations"},
-		{V3D_MANIP_ROTATE, "ROTATE", ICON_MAN_ROT, "Rotate",
-		                   "Use the manipulator for rotation transformations"},
-		{V3D_MANIP_SCALE, "SCALE", ICON_MAN_SCALE, "Scale",
-		                  "Use the manipulator for scale transformations"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	static const EnumPropertyItem rv3d_persp_items[] = {
 		{RV3D_PERSP, "PERSP", 0, "Perspective", ""},
 		{RV3D_ORTHO, "ORTHO", 0, "Orthographic", ""},
@@ -2324,16 +2279,22 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Viewport Shading", "Method to display/shade objects in the 3D View");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_SpaceView3D_viewport_shade_update");
 
-	prop = RNA_def_property(srna, "viewport_shade_solid", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "drawtype_solid");
+	prop = RNA_def_property(srna, "viewport_lighting", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "drawtype_lighting");
 	RNA_def_property_enum_items(prop, rna_enum_viewport_lighting_items);
-	RNA_def_property_ui_text(prop, "Viewport Lighting (Solid)", "Lighting Method for Solid Viewport Shading");
+	RNA_def_property_ui_text(prop, "Viewport Lighting", "Lighting Method for Solid/Texture Viewport Shading");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_SpaceView3D_viewport_shade_update");
 
-	prop = RNA_def_property(srna, "viewport_shade_texture", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "drawtype_texture");
-	RNA_def_property_enum_items(prop, rna_enum_viewport_lighting_items);
-	RNA_def_property_ui_text(prop, "Viewport Lighting (Texture)", "Lighting Method for Texture Viewport Shading");
+	prop = RNA_def_property(srna, "show_face_orientation_overlay", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "overlays", V3D_OVERLAY_FACE_ORIENTATION);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "Face Orientation", "Show the Face Orientation Overlay");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_SpaceView3D_viewport_shade_update");
+
+	prop = RNA_def_property(srna, "show_random_object_colors", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "drawtype_options", V3D_DRAWOPTION_RANDOMIZE);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "Random Colors", "Show random object colors");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_SpaceView3D_viewport_shade_update");
 
 	prop = RNA_def_property(srna, "local_view", PROP_POINTER, PROP_NONE);
@@ -2499,13 +2460,6 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "twflag", V3D_MANIPULATOR_DRAW);
 	RNA_def_property_ui_text(prop, "Manipulator", "Use a 3D manipulator widget for controlling transforms");
 	RNA_def_property_ui_icon(prop, ICON_MANIPUL, 0);
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "transform_manipulators", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "twtype");
-	RNA_def_property_enum_items(prop, manipulators_items);
-	RNA_def_property_flag(prop, PROP_ENUM_FLAG);
-	RNA_def_property_ui_text(prop, "Transform Manipulators", "Transformation manipulators");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "lock_camera_and_layers", PROP_BOOLEAN, PROP_NONE);
@@ -2811,18 +2765,6 @@ static void rna_def_space_buttons(BlenderRNA *brna)
 	RNA_def_property_enum_funcs(prop, NULL, "rna_SpaceProperties_align_set", NULL);
 	RNA_def_property_ui_text(prop, "Align", "Arrangement of the panels");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_PROPERTIES, NULL);
-
-	prop = RNA_def_property(srna, "texture_context", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, buttons_texture_context_items);
-	RNA_def_property_enum_funcs(prop, NULL, "rna_SpaceProperties_texture_context_set",
-	                            "rna_SpaceProperties_texture_context_itemf");
-	RNA_def_property_ui_text(prop, "Texture Context", "Type of texture data to display and edit");
-	RNA_def_property_update(prop, NC_TEXTURE, NULL);
-
-	prop = RNA_def_property(srna, "use_limited_texture_context", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", SB_TEX_USER_LIMITED);
-	RNA_def_property_ui_text(prop, "Limited Texture Context",
-	                         "Use the limited version of texture user (for 'old shading' mode)");
 
 	prop = RNA_def_property(srna, "collection_context", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, buttons_collection_context_items);
@@ -3294,6 +3236,7 @@ static void rna_def_space_dopesheet(BlenderRNA *brna)
 
 	/* XXX: action-editor is currently for object-level only actions, so show that using object-icon hint */
 	static EnumPropertyItem mode_items[] = {
+		{SACTCONT_TIMELINE, "TIMELINE", ICON_TIME, "Timeline", "Timeline and playback controls"},
 		{SACTCONT_DOPESHEET, "DOPESHEET", ICON_OOPS, "Dope Sheet", "Edit all keyframes in scene"},
 		{SACTCONT_ACTION, "ACTION", ICON_OBJECT_DATA, "Action Editor", "Edit keyframes in active object's Object-level action"},
 		{SACTCONT_SHAPEKEY, "SHAPEKEY", ICON_SHAPEKEY_DATA, "Shape Key Editor", "Edit keyframes in active object's Shape Keys action"},
@@ -3384,6 +3327,42 @@ static void rna_def_space_dopesheet(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, autosnap_items);
 	RNA_def_property_ui_text(prop, "Auto Snap", "Automatic time snapping settings for transformations");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_DOPESHEET, NULL);
+	
+	/* displaying cache status */
+	prop = RNA_def_property(srna, "show_cache", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_DISPLAY);
+	RNA_def_property_ui_text(prop, "Show Cache", "Show the status of cached frames in the timeline");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
+
+	prop = RNA_def_property(srna, "cache_softbody", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_SOFTBODY);
+	RNA_def_property_ui_text(prop, "Softbody", "Show the active object's softbody point cache");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
+
+	prop = RNA_def_property(srna, "cache_particles", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_PARTICLES);
+	RNA_def_property_ui_text(prop, "Particles", "Show the active object's particle point cache");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
+
+	prop = RNA_def_property(srna, "cache_cloth", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_CLOTH);
+	RNA_def_property_ui_text(prop, "Cloth", "Show the active object's cloth point cache");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
+
+	prop = RNA_def_property(srna, "cache_smoke", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_SMOKE);
+	RNA_def_property_ui_text(prop, "Smoke", "Show the active object's smoke cache");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
+
+	prop = RNA_def_property(srna, "cache_dynamicpaint", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_DYNAMICPAINT);
+	RNA_def_property_ui_text(prop, "Dynamic Paint", "Show the active object's Dynamic Paint cache");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
+
+	prop = RNA_def_property(srna, "cache_rigidbody", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_RIGIDBODY);
+	RNA_def_property_ui_text(prop, "Rigid Body", "Show the active object's Rigid Body cache");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
 }
 
 static void rna_def_space_graph(BlenderRNA *brna)
@@ -3587,63 +3566,6 @@ static void rna_def_space_nla(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_NLA, NULL);
 }
 
-static void rna_def_space_time(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "SpaceTimeline", "Space");
-	RNA_def_struct_sdna(srna, "SpaceTime");
-	RNA_def_struct_ui_text(srna, "Space Timeline Editor", "Timeline editor space data");
-
-	/* view settings */
-	prop = RNA_def_property(srna, "show_frame_indicator", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", TIME_CFRA_NUM);
-	RNA_def_property_ui_text(prop, "Show Frame Number Indicator",
-	                         "Show frame number beside the current frame indicator line");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	prop = RNA_def_property(srna, "show_seconds", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", TIME_DRAWFRAMES);
-	RNA_def_property_ui_text(prop, "Show Seconds", "Show timing in seconds not frames");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	/* displaying cache status */
-	prop = RNA_def_property(srna, "show_cache", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_DISPLAY);
-	RNA_def_property_ui_text(prop, "Show Cache", "Show the status of cached frames in the timeline");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	prop = RNA_def_property(srna, "cache_softbody", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_SOFTBODY);
-	RNA_def_property_ui_text(prop, "Softbody", "Show the active object's softbody point cache");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	prop = RNA_def_property(srna, "cache_particles", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_PARTICLES);
-	RNA_def_property_ui_text(prop, "Particles", "Show the active object's particle point cache");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	prop = RNA_def_property(srna, "cache_cloth", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_CLOTH);
-	RNA_def_property_ui_text(prop, "Cloth", "Show the active object's cloth point cache");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	prop = RNA_def_property(srna, "cache_smoke", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_SMOKE);
-	RNA_def_property_ui_text(prop, "Smoke", "Show the active object's smoke cache");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	prop = RNA_def_property(srna, "cache_dynamicpaint", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_DYNAMICPAINT);
-	RNA_def_property_ui_text(prop, "Dynamic Paint", "Show the active object's Dynamic Paint cache");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-
-	prop = RNA_def_property(srna, "cache_rigidbody", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_RIGIDBODY);
-	RNA_def_property_ui_text(prop, "Rigid Body", "Show the active object's Rigid Body cache");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TIME, NULL);
-}
 
 static void rna_def_console_line(BlenderRNA *brna)
 {
@@ -4187,7 +4109,6 @@ static void rna_def_space_node(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	static const EnumPropertyItem texture_id_type_items[] = {
-		{SNODE_TEX_OBJECT, "OBJECT", ICON_OBJECT_DATA, "Object", "Edit texture nodes from Object"},
 		{SNODE_TEX_WORLD, "WORLD", ICON_WORLD_DATA, "World", "Edit texture nodes from World"},
 		{SNODE_TEX_BRUSH, "BRUSH", ICON_BRUSH_DATA, "Brush", "Edit texture nodes from Brush"},
 #ifdef WITH_FREESTYLE
@@ -4620,7 +4541,6 @@ void RNA_def_space(BlenderRNA *brna)
 	rna_def_space_dopesheet(brna);
 	rna_def_space_graph(brna);
 	rna_def_space_nla(brna);
-	rna_def_space_time(brna);
 	rna_def_space_console(brna);
 	rna_def_console_line(brna);
 	rna_def_space_info(brna);

@@ -58,6 +58,7 @@ struct wmWindowManager;
 struct WorkSpace;
 struct GPUFXSettings;
 struct wmMsgBus;
+struct ScrAreaMap;
 
 #include "BLI_compiler_attrs.h"
 
@@ -76,8 +77,9 @@ typedef struct SpaceType {
 	int spaceid;                                /* unique space identifier */
 	int iconid;                                 /* icon lookup for menus */
 	
-	/* initial allocation, after this WM will call init() too */
-	struct SpaceLink    *(*new)(const struct bContext *C);
+	/* Initial allocation, after this WM will call init() too. Some editors need
+	 * area and scene data (e.g. frame range) to set their initial scrolling. */
+	struct SpaceLink    *(*new)(const struct ScrArea *, const struct Scene *);
 	/* not free spacelink itself */
 	void (*free)(struct SpaceLink *);
 	
@@ -244,6 +246,7 @@ typedef struct HeaderType {
 
 	char idname[BKE_ST_MAXNAME];        /* unique name */
 	int space_type;
+	int region_type;
 
 	/* draw entirely, view changes should be handled here */
 	void (*draw)(const struct bContext *, struct Header *);
@@ -334,6 +337,7 @@ float BKE_screen_view3d_zoom_from_fac(float zoomfac);
 
 /* screen */
 void BKE_screen_free(struct bScreen *sc); 
+void BKE_screen_area_map_free(struct ScrAreaMap *area_map) ATTR_NONNULL();
 unsigned int BKE_screen_visible_layers(struct bScreen *screen, struct Scene *scene);
 
 struct ScrEdge *BKE_screen_find_edge(struct bScreen *sc, struct ScrVert *v1, struct ScrVert *v2);

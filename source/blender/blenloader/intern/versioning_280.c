@@ -29,6 +29,7 @@
 #define DNA_DEPRECATED_ALLOW
 
 #include <string.h>
+#include <float.h>
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
@@ -68,6 +69,7 @@
 #include "BKE_node.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
+#include "BKE_screen.h"
 #include "BKE_workspace.h"
 #include "BKE_gpencil.h"
 #include "BKE_paint.h"
@@ -537,8 +539,8 @@ void do_versions_after_linking_280(Main *main)
 		/* Due to several changes to particle RNA and draw code particles from older files may no longer
 		 * be visible. Here we correct this by setting a default draw size for those files. */
 		for (Object *object = main->object.first; object; object = object->id.next) {
-			for (ParticleSystem *psys = object->particlesystem.first; psys; psys=psys->next) {
-				if(psys->part->draw_size == 0.0f) {
+			for (ParticleSystem *psys = object->particlesystem.first; psys; psys = psys->next) {
+				if (psys->part->draw_size == 0.0f) {
 					psys->part->draw_size = 0.1f;
 				}
 			}
@@ -621,7 +623,7 @@ void do_versions_after_linking_280(Main *main)
 					}
 				}
 			}
-			else if (object->transflag & OB_DUPLI){
+			else if (object->transflag & OB_DUPLI) {
 				object->duplicator_visibility_flag = OB_DUPLI_FLAG_VIEWPORT;
 			}
 			else {
@@ -722,16 +724,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 {
 
 	if (!MAIN_VERSION_ATLEAST(main, 280, 0)) {
-		for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-			if (STREQ(scene->r.engine, RE_engine_id_BLENDER_RENDER)) {
-#ifdef WITH_CLAY_ENGINE
-				BLI_strncpy(scene->r.engine, RE_engine_id_BLENDER_CLAY, sizeof(scene->r.engine));
-#else
-				BLI_strncpy(scene->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(scene->r.engine));
-#endif
-			}
-		}
-
 		if (!DNA_struct_elem_find(fd->filesdna, "Scene", "ListBase", "view_layers")) {
 			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
 				/* Master Collection */
@@ -1030,7 +1022,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 		}
 
 		for (Group *group = main->group.first; group; group = group->id.next) {
-			if (group->view_layer != NULL){
+			if (group->view_layer != NULL) {
 				do_version_view_layer_visibility(group->view_layer);
 			}
 		}
@@ -1116,8 +1108,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
 					if (sl->spacetype == SPACE_VIEW3D) {
 						View3D *v3d = (View3D *)sl;
-						v3d->drawtype_solid = V3D_LIGHTING_STUDIO;
-						v3d->drawtype_wireframe = V3D_LIGHTING_STUDIO;
+						v3d->drawtype_lighting = V3D_LIGHTING_STUDIO;
 
 						/* Assume (demo) files written with 2.8 want to show
 						 * Eevee renders in the viewport. */
@@ -1140,4 +1131,80 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 			}
 		}
 	}
+
+	if (!MAIN_VERSION_ATLEAST(main, 280, 8)) {
+		/* Blender Internal removal */
+		for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+			if (STREQ(scene->r.engine, "BLENDER_RENDER") ||
+			    STREQ(scene->r.engine, "BLENDER_GAME"))
+			{
+				BLI_strncpy(scene->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(scene->r.engine));
+			}
+
+			scene->r.bake_mode = 0;
+		}
+
+		for (Tex *tex = main->tex.first; tex; tex = tex->id.next) {
+			/* Removed envmap, pointdensity, voxeldata, ocean textures. */
+			if (ELEM(tex->type, 10, 14, 15, 16)) {
+				tex->type = 0;
+			}
+		}
+	}
+
+	if (!DNA_struct_find(fd->filesdna, "SpaceTopBar")) {
+		/* Remove info editor, but only if at the top of the window. */
+		for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+			/* Calculate window width/height from screen vertices */
+			int win_width = 0, win_height = 0;
+			for (ScrVert *vert = screen->vertbase.first; vert; vert = vert->next) {
+				win_width  = MAX2(win_width, vert->vec.x);
+				win_height = MAX2(win_height, vert->vec.y);
+			}
+
+			for (ScrArea *area = screen->areabase.first, *area_next; area; area = area_next) {
+				area_next = area->next;
+
+				if (area->spacetype == SPACE_INFO) {
+					if ((area->v2->vec.y == win_height) && (area->v1->vec.x == 0) && (area->v4->vec.x == win_width)) {
+						BKE_screen_area_free(area);
+
+						BLI_remlink(&screen->areabase, area);
+
+						BKE_screen_remove_double_scredges(screen);
+						BKE_screen_remove_unused_scredges(screen);
+						BKE_screen_remove_unused_scrverts(screen);
+
+						MEM_freeN(area);
+					}
+				}
+				/* AREA_TEMP_INFO is deprecated from now on, it should only be set for info areas
+				 * which are deleted above, so don't need to unset it. Its slot/bit can be reused */
+			}
+		}
+	}
+
+#ifdef WITH_REDO_REGION_REMOVAL
+	if (!MAIN_VERSION_ATLEAST(main, 280, TO_BE_DETERMINED)) {
+		/* Remove tool property regions. */
+		for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (ELEM(sl->spacetype, SPACE_VIEW3D, SPACE_CLIP)) {
+						ListBase *regionbase = (sl == sa->spacedata.first) ? &sa->regionbase : &sl->regionbase;
+
+						for (ARegion *region = regionbase->first, *region_next; region; region = region_next) {
+							region_next = region->next;
+
+							if (region->regiontype == RGN_TYPE_TOOL_PROPS) {
+								BKE_area_region_free(NULL, region);
+								BLI_freelinkN(regionbase, region);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+#endif
 }

@@ -35,6 +35,7 @@
 
 #include "GPU_draw.h"
 #include "GPU_matrix.h"
+#include "GPU_batch.h"
 #include "GPU_immediate.h"
 
 #include "BLI_blenlib.h"
@@ -99,6 +100,7 @@ typedef void (*VectorDrawFunc)(int x, int y, int w, int h, float alpha);
 #define ICON_TYPE_TEXTURE   1
 #define ICON_TYPE_BUFFER    2
 #define ICON_TYPE_VECTOR    3
+#define ICON_TYPE_GEOM      4
 
 typedef struct DrawInfo {
 	int type;
@@ -108,6 +110,9 @@ typedef struct DrawInfo {
 		struct {
 			VectorDrawFunc func;
 		} vector;
+		struct {
+			ImBuf *image_cache;
+		} geom;
 		struct {
 			IconImage *image;
 		} buffer;
@@ -767,18 +772,46 @@ void UI_icons_free_drawinfo(void *drawinfo)
 				MEM_freeN(di->data.buffer.image);
 			}
 		}
+		else if (di->type == ICON_TYPE_GEOM) {
+			if (di->data.geom.image_cache) {
+				IMB_freeImBuf(di->data.geom.image_cache);
+			}
+		}
 
 		MEM_freeN(di);
 	}
 }
 
-static DrawInfo *icon_create_drawinfo(void)
+/**
+ * #Icon.data_type and #Icon.obj
+ */
+static DrawInfo *icon_create_drawinfo(int icon_data_type)
 {
 	DrawInfo *di = NULL;
 
 	di = MEM_callocN(sizeof(DrawInfo), "di_icon");
-	di->type = ICON_TYPE_PREVIEW;
 
+	if (ELEM(icon_data_type, ICON_DATA_ID, ICON_DATA_PREVIEW)) {
+		di->type = ICON_TYPE_PREVIEW;
+	}
+	else if (icon_data_type == ICON_DATA_GEOM) {
+		di->type = ICON_TYPE_GEOM;
+	}
+	else {
+		BLI_assert(0);
+	}
+
+	return di;
+}
+
+static DrawInfo *icon_ensure_drawinfo(Icon *icon)
+{
+	if (icon->drawinfo) {
+		return icon->drawinfo;
+	}
+	DrawInfo *di = icon_create_drawinfo(icon->obj_type);
+	icon->drawinfo = di;
+	icon->drawinfo_free = UI_icons_free_drawinfo;
 	return di;
 }
 
@@ -796,40 +829,27 @@ int UI_icon_get_width(int icon_id)
 		return 0;
 	}
 	
-	di = (DrawInfo *)icon->drawinfo;
-	if (!di) {
-		di = icon_create_drawinfo();
-		icon->drawinfo = di;
-	}
-
-	if (di)
+	di = icon_ensure_drawinfo(icon);
+	if (di) {
 		return ICON_DEFAULT_WIDTH;
+	}
 
 	return 0;
 }
 
 int UI_icon_get_height(int icon_id)
 {
-	Icon *icon = NULL;
-	DrawInfo *di = NULL;
-
-	icon = BKE_icon_get(icon_id);
-	
+	Icon *icon = BKE_icon_get(icon_id);
 	if (icon == NULL) {
 		if (G.debug & G_DEBUG)
 			printf("%s: Internal error, no icon for icon ID: %d\n", __func__, icon_id);
 		return 0;
 	}
-	
-	di = (DrawInfo *)icon->drawinfo;
 
-	if (!di) {
-		di = icon_create_drawinfo();
-		icon->drawinfo = di;
-	}
-	
-	if (di)
+	DrawInfo *di = icon_ensure_drawinfo(icon);
+	if (di) {
 		return ICON_DEFAULT_HEIGHT;
+	}
 
 	return 0;
 }
@@ -886,14 +906,7 @@ void ui_icon_ensure_deferred(const bContext *C, const int icon_id, const bool bi
 	Icon *icon = BKE_icon_get(icon_id);
 
 	if (icon) {
-		DrawInfo *di = (DrawInfo *)icon->drawinfo;
-
-		if (!di) {
-			di = icon_create_drawinfo();
-
-			icon->drawinfo = di;
-			icon->drawinfo_free = UI_icons_free_drawinfo;
-		}
+		DrawInfo *di = icon_ensure_drawinfo(icon);
 
 		if (di) {
 			switch (di->type) {
@@ -1208,7 +1221,6 @@ static void icon_draw_size(
 {
 	bTheme *btheme = UI_GetTheme();
 	Icon *icon = NULL;
-	DrawInfo *di = NULL;
 	IconImage *iimg;
 	const float fdraw_size = (float)draw_size;
 	int w, h;
@@ -1222,25 +1234,39 @@ static void icon_draw_size(
 		return;
 	}
 
-	di = (DrawInfo *)icon->drawinfo;
-	
-	if (!di) {
-		di = icon_create_drawinfo();
-	
-		icon->drawinfo = di;
-		icon->drawinfo_free = UI_icons_free_drawinfo;
-	}
-	
 	/* scale width and height according to aspect */
 	w = (int)(fdraw_size / aspect + 0.5f);
 	h = (int)(fdraw_size / aspect + 0.5f);
-	
+
+	DrawInfo *di = icon_ensure_drawinfo(icon);
+
 	if (di->type == ICON_TYPE_VECTOR) {
 		/* We need to flush widget base first to ensure correct ordering. */
 		UI_widgetbase_draw_cache_flush();
 		/* vector icons use the uiBlock transformation, they are not drawn
 		 * with untransformed coordinates like the other icons */
 		di->data.vector.func((int)x, (int)y, w, h, 1.0f);
+	}
+	else if (di->type == ICON_TYPE_GEOM) {
+		/* We need to flush widget base first to ensure correct ordering. */
+		UI_widgetbase_draw_cache_flush();
+
+		/* This could re-generate often if rendered at different sizes in the one interface.
+		 * TODO(campbell): support caching multiple sizes. */
+		ImBuf *ibuf = di->data.geom.image_cache;
+		if ((ibuf == NULL) ||
+		    (ibuf->x != w) ||
+		    (ibuf->y != h))
+		{
+			if (ibuf) {
+				IMB_freeImBuf(ibuf);
+			}
+			ibuf = BKE_icon_geom_rasterize(icon->obj, w, h);
+			di->data.geom.image_cache = ibuf;
+		}
+		glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		icon_draw_rect(x, y, w, h, aspect, w, h, ibuf->rect, alpha, rgb, is_preview);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else if (di->type == ICON_TYPE_TEXTURE) {
 		/* texture image use premul alpha for correct scaling */

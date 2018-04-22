@@ -1318,8 +1318,8 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		
 		/* turn manipulator off during transform */
 		if (t->flag & T_MODAL) {
-			t->twtype = v3d->twtype;
-			v3d->twtype = 0;
+			t->twflag = v3d->twflag;
+			v3d->twflag = 0;
 		}
 
 		if (v3d->flag & V3D_ALIGN) t->flag |= T_V3D_ALIGN;
@@ -1595,7 +1595,7 @@ void postTrans(bContext *C, TransInfo *t)
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			/* free data malloced per trans-data */
 			if (ELEM(t->obedit_type, OB_CURVE, OB_SURF) ||
-				(t->spacetype == SPACE_IPO))
+			    (t->spacetype == SPACE_IPO))
 			{
 				TransData *td = tc->data;
 				for (int a = 0; a < tc->data_len; a++, td++) {
@@ -1630,7 +1630,7 @@ void postTrans(bContext *C, TransInfo *t)
 		View3D *v3d = t->sa->spacedata.first;
 		/* restore manipulator */
 		if (t->flag & T_MODAL) {
-			v3d->twtype = t->twtype;
+			v3d->twflag = t->twflag;
 		}
 	}
 	

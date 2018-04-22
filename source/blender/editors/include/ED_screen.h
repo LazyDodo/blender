@@ -83,6 +83,7 @@ void    ED_region_header_init(struct ARegion *ar);
 void    ED_region_header(const struct bContext *C, struct ARegion *ar);
 void    ED_region_cursor_set(struct wmWindow *win, struct ScrArea *sa, struct ARegion *ar);
 void    ED_region_toggle_hidden(struct bContext *C, struct ARegion *ar);
+void    ED_region_visibility_change_update(struct bContext *C, struct ARegion *ar);
 void    ED_region_info_draw(struct ARegion *ar, const char *text, float fill_color[4], const bool full_redraw);
 void    ED_region_info_draw_multiline(ARegion *ar, const char *text_array[], float fill_color[4], const bool full_redraw);
 void    ED_region_image_metadata_draw(int x, int y, struct ImBuf *ibuf, const rctf *frame, float zoomx, float zoomy);
@@ -111,6 +112,11 @@ int     ED_area_header_switchbutton(const struct bContext *C, struct uiBlock *bl
 void    ED_area_initialize(struct wmWindowManager *wm, struct wmWindow *win, struct ScrArea *sa);
 void    ED_area_exit(struct bContext *C, struct ScrArea *sa);
 int     ED_screen_area_active(const struct bContext *C);
+void    ED_screen_global_topbar_area_create(
+            struct wmWindow *win,
+            const struct bScreen *screen);
+void    ED_screen_global_areas_create(
+            struct wmWindow *win);
 void    ED_area_do_listen(struct bScreen *sc, ScrArea *sa, struct wmNotifier *note, Scene *scene,
                           struct WorkSpace *workspace);
 void    ED_area_tag_redraw(ScrArea *sa);
@@ -123,6 +129,23 @@ void    ED_area_newspace(struct bContext *C, ScrArea *sa, int type, const bool s
 void    ED_area_prevspace(struct bContext *C, ScrArea *sa);
 void    ED_area_swapspace(struct bContext *C, ScrArea *sa1, ScrArea *sa2);
 int     ED_area_headersize(void);
+int     ED_area_global_size_y(const ScrArea *area);
+bool    ED_area_is_global(const ScrArea *area);
+int     ED_region_global_size_y(void);
+
+/** Iterate over all areas visible in the screen (screen as in everything visible in the window, not just bScreen) */
+#define ED_screen_areas_iter(win, screen, area_name)                       \
+	for (ScrArea *area_name = (win)->global_areas.areabase.first ?         \
+	                                  (win)->global_areas.areabase.first : \
+	                                  screen->areabase.first;              \
+	     area_name != NULL;                                                \
+	     area_name = (area_name == (win)->global_areas.areabase.last) ? (screen)->areabase.first : area_name->next)
+#define ED_screen_verts_iter(win, screen, vert_name)                       \
+	for (ScrVert *vert_name = (win)->global_areas.vertbase.first ?         \
+	                                  (win)->global_areas.vertbase.first : \
+	                                  screen->vertbase.first;              \
+	     vert_name != NULL;                                                \
+	     vert_name = (vert_name == (win)->global_areas.vertbase.last) ? (screen)->vertbase.first : vert_name->next)
 
 /* screens */
 void    ED_screens_initialize(struct wmWindowManager *wm);
@@ -130,13 +153,14 @@ void    ED_screen_draw_edges(struct wmWindow *win);
 void    ED_screen_draw_join_shape(struct ScrArea *sa1, struct ScrArea *sa2);
 void    ED_screen_draw_split_preview(struct ScrArea *sa, const int dir, const float fac);
 void    ED_screen_refresh(struct wmWindowManager *wm, struct wmWindow *win);
+void    ED_screen_ensure_updated(struct wmWindowManager *wm, struct wmWindow *win, struct bScreen *screen);
 void    ED_screen_do_listen(struct bContext *C, struct wmNotifier *note);
 bool    ED_screen_change(struct bContext *C, struct bScreen *sc);
 void    ED_screen_update_after_scene_change(
         const struct bScreen *screen,
         struct Scene *scene_new,
         struct ViewLayer *view_layer);
-void    ED_screen_set_active_region(struct bContext *C, const struct wmEvent *event);
+void    ED_screen_set_active_region(struct bContext *C, const int xy[2]);
 void    ED_screen_exit(struct bContext *C, struct wmWindow *window, struct bScreen *screen);
 void    ED_screen_animation_timer(struct bContext *C, int redraws, int refresh, int sync, int enable);
 void    ED_screen_animation_timer_update(struct bScreen *screen, int redraws, int refresh);
@@ -219,7 +243,6 @@ int     ED_operator_objectmode(struct bContext *C);
 int     ED_operator_view3d_active(struct bContext *C);
 int     ED_operator_region_view3d_active(struct bContext *C);
 int     ED_operator_animview_active(struct bContext *C);
-int     ED_operator_timeline_active(struct bContext *C);
 int     ED_operator_outliner_active(struct bContext *C);
 int     ED_operator_outliner_active_no_editobject(struct bContext *C);
 int     ED_operator_file_active(struct bContext *C);
