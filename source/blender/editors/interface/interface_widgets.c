@@ -4266,7 +4266,11 @@ void ui_draw_but(const bContext *C, ARegion *ar, uiStyle *style, uiBut *but, rct
 					}
 				}
 				break;
-				
+
+			case UI_BTYPE_POPOVER:
+				wt = widget_type(UI_WTYPE_PULLDOWN);
+				break;
+
 			case UI_BTYPE_PULLDOWN:
 				wt = widget_type(UI_WTYPE_PULLDOWN);
 				break;
@@ -4414,7 +4418,7 @@ void ui_draw_menu_back(uiStyle *UNUSED(style), uiBlock *block, rcti *rect)
 		wt->draw(&wt->wcol, rect, block->flag, block->direction);
 	else
 		wt->draw(&wt->wcol, rect, 0, 0);
-	
+
 	if (block) {
 		float draw_color[4];
 		unsigned char *color = (unsigned char *)wt->wcol.text;
