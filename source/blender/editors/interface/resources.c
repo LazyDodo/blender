@@ -658,6 +658,9 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case TH_WIDGET_EMBOSS:
 					cp = btheme->tui.widget_emboss; break;
 
+				case TH_EDITOR_OUTLINE:
+					cp = btheme->tui.editor_outline;
+					break;
 				case TH_AXIS_X:
 					cp = btheme->tui.xaxis; break;
 				case TH_AXIS_Y:
@@ -881,6 +884,7 @@ void ui_theme_init_default(void)
 	btheme->tui.iconfile[0] = 0;
 	rgba_char_args_set(btheme->tui.wcol_tooltip.text, 255, 255, 255, 255);
 	rgba_char_args_set_fl(btheme->tui.widget_emboss, 1.0f, 1.0f, 1.0f, 0.02f);
+	rgba_char_args_set_fl(btheme->tui.editor_outline, 0.25f, 0.25f, 0.25f, 1.0f);
 
 	rgba_char_args_set(btheme->tui.xaxis, 220,   0,   0, 255);
 	rgba_char_args_set(btheme->tui.yaxis,   0, 220,   0, 255);
@@ -2952,6 +2956,32 @@ void init_userdef_do_versions(void)
 			if (btheme->tseq.anim_active[3] == 0) {
 				rgba_char_args_set(btheme->tseq.anim_active,    204, 112, 26, 102);	
 			}
+		}
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 10)) {
+		/* Roundness */
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			btheme->tui.wcol_regular.roundness = 0.25f;
+			btheme->tui.wcol_tool.roundness = 0.2f;
+			btheme->tui.wcol_text.roundness = 0.2f;
+			btheme->tui.wcol_radio.roundness = 0.2f;
+			btheme->tui.wcol_option.roundness = 0.333333f;
+			btheme->tui.wcol_toggle.roundness = 0.25f;
+			btheme->tui.wcol_num.roundness = 0.5f;
+			btheme->tui.wcol_numslider.roundness = 0.5f;
+			btheme->tui.wcol_tab.roundness = 0.25f;
+			btheme->tui.wcol_menu.roundness = 0.2f;
+			btheme->tui.wcol_pulldown.roundness = 0.2f;
+			btheme->tui.wcol_menu_back.roundness = 0.25f;
+			btheme->tui.wcol_menu_item.roundness = 0.25f;
+			btheme->tui.wcol_tooltip.roundness = 0.25f;
+			btheme->tui.wcol_box.roundness = 0.2f;
+			btheme->tui.wcol_scroll.roundness = 0.5f;
+			btheme->tui.wcol_progress.roundness = 0.25f;
+			btheme->tui.wcol_list_item.roundness = 0.2f;
+			btheme->tui.wcol_pie_menu.roundness = 0.5f;
+			rgba_char_args_set_fl(btheme->tui.editor_outline, 0.25f, 0.25f, 0.25f, 1.0f);
 		}
 	}
 

@@ -108,7 +108,8 @@ enum {
 	UI_DIR_DOWN         = (1 << 1),
 	UI_DIR_LEFT         = (1 << 2),
 	UI_DIR_RIGHT        = (1 << 3),
-	UI_DIR_CENTER_Y     = (1 << 4),
+	UI_DIR_CENTER_X     = (1 << 4),
+	UI_DIR_CENTER_Y     = (1 << 5),
 
 	UI_DIR_ALL          = (UI_DIR_UP | UI_DIR_DOWN | UI_DIR_LEFT | UI_DIR_RIGHT),
 };
@@ -140,6 +141,7 @@ enum {
 #define UI_BLOCK_POPUP_HOLD  (1 << 18)
 #define UI_BLOCK_LIST_ITEM   (1 << 19)
 #define UI_BLOCK_RADIAL      (1 << 20)
+#define UI_BLOCK_POPOVER     (1 << 21)
 
 /* uiPopupBlockHandle->menuretval */
 #define UI_RETURN_CANCEL     (1 << 0)   /* cancel all menus cascading */
@@ -221,6 +223,9 @@ enum {
 	UI_BUT_ALIGN_ALL         = (UI_BUT_ALIGN | UI_BUT_ALIGN_STITCH_TOP | UI_BUT_ALIGN_STITCH_LEFT),
 
 	UI_BUT_BOX_ITEM          = (1 << 20), /* This but is "inside" a box item (currently used to change theme colors). */
+
+	UI_BUT_ACTIVE_LEFT       = (1 << 21), /* Active left part of number button */
+	UI_BUT_ACTIVE_RIGHT      = (1 << 22), /* Active left part of number button */
 };
 
 /* scale fixed button widths by this to account for DPI */
@@ -315,6 +320,9 @@ typedef enum {
  *
  * Functions to draw various shapes, taking theme settings into account.
  * Used for code that draws its own UI style elements. */
+
+void UI_draw_anti_tria(float x1, float y1, float x2, float y2, float x3, float y3, const float color[4]);
+void UI_draw_anti_fan(float tri_array[][2], unsigned int length, const float color[4]);
 
 void UI_draw_roundbox_corner_set(int type);
 void UI_draw_roundbox_aa(bool filled, float minx, float miny, float maxx, float maxy, float rad, const float color[4]);

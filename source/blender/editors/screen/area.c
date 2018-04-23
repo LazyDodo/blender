@@ -75,8 +75,6 @@
 
 #include "screen_intern.h"
 
-extern void ui_draw_anti_tria(float x1, float y1, float x2, float y2, float x3, float y3, const float color[4]); /* xxx temp */
-
 enum RegionEmbossSide {
 	REGION_EMBOSS_LEFT   = (1 << 0),
 	REGION_EMBOSS_TOP    = (1 << 1),
@@ -86,61 +84,6 @@ enum RegionEmbossSide {
 };
 
 /* general area and region code */
-
-static void region_draw_emboss(const ARegion *ar, const rcti *scirct, int sides)
-{
-	rcti rect;
-	
-	/* translate scissor rect to region space */
-	rect.xmin = scirct->xmin - ar->winrct.xmin;
-	rect.ymin = scirct->ymin - ar->winrct.ymin;
-	rect.xmax = scirct->xmax - ar->winrct.xmin;
-	rect.ymax = scirct->ymax - ar->winrct.ymin;
-	
-	/* set transp line */
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
-
-	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBeginAtMost(GWN_PRIM_LINES, 8);
-
-	/* right */
-	if (sides & REGION_EMBOSS_RIGHT) {
-		immAttrib4ub(color, 0, 0, 0, 30);
-		immVertex2f(pos, rect.xmax, rect.ymax);
-		immVertex2f(pos, rect.xmax, rect.ymin);
-	}
-
-	/* bottom */
-	if (sides & REGION_EMBOSS_BOTTOM) {
-		immAttrib4ub(color, 0, 0, 0, 30);
-		immVertex2f(pos, rect.xmax, rect.ymin);
-		immVertex2f(pos, rect.xmin, rect.ymin);
-	}
-
-	/* left */
-	if (sides & REGION_EMBOSS_LEFT) {
-		immAttrib4ub(color, 255, 255, 255, 30);
-		immVertex2f(pos, rect.xmin, rect.ymin);
-		immVertex2f(pos, rect.xmin, rect.ymax);
-	}
-
-	/* top */
-	if (sides & REGION_EMBOSS_TOP) {
-		immAttrib4ub(color, 255, 255, 255, 30);
-		immVertex2f(pos, rect.xmin, rect.ymax);
-		immVertex2f(pos, rect.xmax, rect.ymax);
-	}
-
-	immEnd();
-	immUnbindProgram();
-	
-	glDisable(GL_BLEND);
-}
 
 void ED_region_pixelspace(ARegion *ar)
 {
@@ -267,57 +210,9 @@ static void area_draw_azone_fullscreen(short x1, short y1, short x2, short y2, f
 /**
  * \brief Corner widgets use for dragging and splitting the view.
  */
-static void area_draw_azone(short x1, short y1, short x2, short y2)
+static void area_draw_azone(short UNUSED(x1), short UNUSED(y1), short UNUSED(x2), short UNUSED(y2))
 {
-	int dx = x2 - x1;
-	int dy = y2 - y1;
-
-	dx = copysign(ceilf(0.3f * abs(dx)), dx);
-	dy = copysign(ceilf(0.3f * abs(dy)), dy);
-
-	glEnable(GL_LINE_SMOOTH);
-
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int col = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
-
-	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBegin(GWN_PRIM_LINES, 12);
-
-	immAttrib4ub(col, 255, 255, 255, 180);
-	immVertex2f(pos, x1, y2);
-	immAttrib4ub(col, 255, 255, 255, 180);
-	immVertex2f(pos, x2, y1);
-
-	immAttrib4ub(col, 255, 255, 255, 130);
-	immVertex2f(pos, x1, y2 - dy);
-	immAttrib4ub(col, 255, 255, 255, 130);
-	immVertex2f(pos, x2 - dx, y1);
-
-	immAttrib4ub(col, 255, 255, 255, 80);
-	immVertex2f(pos, x1, y2 - 2 * dy);
-	immAttrib4ub(col, 255, 255, 255, 80);
-	immVertex2f(pos, x2 - 2 * dx, y1);
-	
-	immAttrib4ub(col, 0, 0, 0, 210);
-	immVertex2f(pos, x1, y2 + 1);
-	immAttrib4ub(col, 0, 0, 0, 210);
-	immVertex2f(pos, x2 + 1, y1);
-
-	immAttrib4ub(col, 0, 0, 0, 180);
-	immVertex2f(pos, x1, y2 - dy + 1);
-	immAttrib4ub(col, 0, 0, 0, 180);
-	immVertex2f(pos, x2 - dx + 1, y1);
-
-	immAttrib4ub(col, 0, 0, 0, 150);
-	immVertex2f(pos, x1, y2 - 2 * dy + 1);
-	immAttrib4ub(col, 0, 0, 0, 150);
-	immVertex2f(pos, x2 - 2 * dx + 1, y1);
-
-	immEnd();
-	immUnbindProgram();
-
-	glDisable(GL_LINE_SMOOTH);
+	/* No drawing needed since all corners are action zone, and visually distinguishable. */
 }
 
 static void region_draw_azone_icon(AZone *az)
@@ -443,19 +338,19 @@ static void region_draw_azone_tria(AZone *az)
 	/* add code to draw region hidden as 'too small' */
 	switch (az->edge) {
 		case AE_TOP_TO_BOTTOMRIGHT:
-			ui_draw_anti_tria((float)az->x1, (float)az->y1, (float)az->x2, (float)az->y1, (float)(az->x1 + az->x2) / 2, (float)az->y2, color);
+			UI_draw_anti_tria((float)az->x1, (float)az->y1, (float)az->x2, (float)az->y1, (float)(az->x1 + az->x2) / 2, (float)az->y2, color);
 			break;
 			
 		case AE_BOTTOM_TO_TOPLEFT:
-			ui_draw_anti_tria((float)az->x1, (float)az->y2, (float)az->x2, (float)az->y2, (float)(az->x1 + az->x2) / 2, (float)az->y1, color);
+			UI_draw_anti_tria((float)az->x1, (float)az->y2, (float)az->x2, (float)az->y2, (float)(az->x1 + az->x2) / 2, (float)az->y1, color);
 			break;
 
 		case AE_LEFT_TO_TOPRIGHT:
-			ui_draw_anti_tria((float)az->x2, (float)az->y1, (float)az->x2, (float)az->y2, (float)az->x1, (float)(az->y1 + az->y2) / 2, color);
+			UI_draw_anti_tria((float)az->x2, (float)az->y1, (float)az->x2, (float)az->y2, (float)az->x1, (float)(az->y1 + az->y2) / 2, color);
 			break;
 			
 		case AE_RIGHT_TO_TOPLEFT:
-			ui_draw_anti_tria((float)az->x1, (float)az->y1, (float)az->x1, (float)az->y2, (float)az->x2, (float)(az->y1 + az->y2) / 2, color);
+			UI_draw_anti_tria((float)az->x1, (float)az->y1, (float)az->x1, (float)az->y2, (float)az->x2, (float)(az->y1 + az->y2) / 2, color);
 			break;
 			
 	}
@@ -605,21 +500,6 @@ void ED_region_do_draw(bContext *C, ARegion *ar)
 	memset(&ar->drawrct, 0, sizeof(ar->drawrct));
 	
 	UI_blocklist_free_inactive(C, &ar->uiblocks);
-
-	if (sa) {
-		const bScreen *screen = WM_window_get_active_screen(win);
-
-		/* disable emboss when the area is full,
-		 * unless we need to see division between regions (quad-split for eg) */
-		if (((screen->state == SCREENFULL) && (ar->alignment == RGN_ALIGN_NONE)) == 0) {
-			/* Don't draw horizontal separators in the top-bar to make the tabs
-			 * look nice with the lower sub-bar. Obviously, a more generic
-			 * solution would be preferable, e.g. a dedicated RGN_TYPE_TABS
-			 * region type, but for now keeping it simple. */
-			int emboss_sides = ED_area_is_global(sa) ? (REGION_EMBOSS_LEFT | REGION_EMBOSS_RIGHT) : REGION_EMBOSS_ALL;
-			region_draw_emboss(ar, &ar->winrct, emboss_sides);
-		}
-	}
 
 	/* We may want to detach message-subscriptions from drawing. */
 	{
@@ -786,26 +666,40 @@ static void area_azone_initialize(wmWindow *win, const bScreen *screen, ScrArea 
 #else
 	(void)win;
 #endif
-	{
+
+	float coords[4][4] = {
+	    /* Bottom-left. */
+	    {sa->totrct.xmin,
+	     sa->totrct.ymin,
+	     sa->totrct.xmin + (AZONESPOT - 1),
+	     sa->totrct.ymin + (AZONESPOT - 1)},
+	    /* Bottom-right. */
+	    {sa->totrct.xmax,
+	     sa->totrct.ymin,
+	     sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.ymin + (AZONESPOT - 1)},
+	    /* Top-left. */
+	    {sa->totrct.xmin,
+	     sa->totrct.ymax,
+	     sa->totrct.xmin + (AZONESPOT - 1),
+	     sa->totrct.ymax - (AZONESPOT - 1)},
+	    /* Top-right. */
+	    {sa->totrct.xmax,
+	     sa->totrct.ymax,
+	     sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.ymax - (AZONESPOT - 1)}};
+
+	for (int i = 0; i < 4; i++) {
 		/* set area action zones */
 		az = (AZone *)MEM_callocN(sizeof(AZone), "actionzone");
 		BLI_addtail(&(sa->actionzones), az);
 		az->type = AZONE_AREA;
-		az->x1 = sa->totrct.xmin;
-		az->y1 = sa->totrct.ymin;
-		az->x2 = sa->totrct.xmin + (AZONESPOT - 1);
-		az->y2 = sa->totrct.ymin + (AZONESPOT - 1);
+		az->x1 = coords[i][0];
+		az->y1 = coords[i][1];
+		az->x2 = coords[i][2];
+		az->y2 = coords[i][3];
 		BLI_rcti_init(&az->rect, az->x1, az->x2, az->y1, az->y2);
 	}
-	
-	az = (AZone *)MEM_callocN(sizeof(AZone), "actionzone");
-	BLI_addtail(&(sa->actionzones), az);
-	az->type = AZONE_AREA;
-	az->x1 = sa->totrct.xmax;
-	az->y1 = sa->totrct.ymax;
-	az->x2 = sa->totrct.xmax - (AZONESPOT - 1);
-	az->y2 = sa->totrct.ymax - (AZONESPOT - 1);
-	BLI_rcti_init(&az->rect, az->x1, az->x2, az->y1, az->y2);
 }
 
 static void fullscreen_azone_initialize(ScrArea *sa, ARegion *ar)
@@ -1601,10 +1495,10 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 	sa->type = BKE_spacetype_from_id(sa->spacetype);
 	
 	if (sa->type == NULL) {
-		sa->butspacetype = sa->spacetype = SPACE_VIEW3D;
+		sa->spacetype = SPACE_VIEW3D;
 		sa->type = BKE_spacetype_from_id(sa->spacetype);
 	}
-	
+
 	for (ar = sa->regionbase.first; ar; ar = ar->next)
 		ar->type = BKE_regiontype_from_id(sa->type, ar->regiontype);
 
@@ -1727,7 +1621,6 @@ void ED_area_data_copy(ScrArea *sa_dst, ScrArea *sa_src, const bool do_free)
 	sa_dst->headertype = sa_src->headertype;
 	sa_dst->spacetype = sa_src->spacetype;
 	sa_dst->type = sa_src->type;
-	sa_dst->butspacetype = sa_src->butspacetype;
 
 	sa_dst->flag = (sa_dst->flag & ~flag_copy) | (sa_src->flag & flag_copy);
 
@@ -1758,7 +1651,6 @@ void ED_area_data_swap(ScrArea *sa_dst, ScrArea *sa_src)
 	SWAP(short, sa_dst->headertype, sa_src->headertype);
 	SWAP(char, sa_dst->spacetype, sa_src->spacetype);
 	SWAP(SpaceType *, sa_dst->type, sa_src->type);
-	SWAP(char, sa_dst->butspacetype, sa_src->butspacetype);
 
 
 	SWAP(ListBase, sa_dst->spacedata, sa_src->spacedata);
@@ -1797,8 +1689,9 @@ void ED_area_swapspace(bContext *C, ScrArea *sa1, ScrArea *sa2)
  */
 void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exit)
 {
+	wmWindow *win = CTX_wm_window(C);
+
 	if (sa->spacetype != type) {
-		wmWindow *win = CTX_wm_window(C);
 		SpaceType *st;
 		SpaceLink *slold;
 		SpaceLink *sl;
@@ -1822,7 +1715,6 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 		slold = sa->spacedata.first;
 
 		sa->spacetype = type;
-		sa->butspacetype = type;
 		sa->type = st;
 
 		/* If st->new may be called, don't use context until then. The
