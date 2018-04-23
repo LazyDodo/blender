@@ -64,6 +64,54 @@ typedef struct TexPaintSlot {
 #define CLAY_MATCAP_SIMPLE		1
 #define CLAY_MATCAP_COMPLETE	2
 
+typedef struct GpencilColorData {
+	struct Image *sima;      /* Texture image for strokes */
+	struct Image *ima;       /* Texture image for filling */
+	float rgb[4];            /* color for paint and strokes (alpha included) */
+	float fill[4];           /* color that should be used for drawing "fills" for strokes (alpha included) */
+	float scolor[4];         /* secondary color used for gradients and other stuff */
+	short flag;              /* settings for palette color */
+	short index;             /* custom index for passes */
+	short stroke_style;      /* style for drawing strokes (used to select shader type) */
+	short fill_style;        /* style for filling areas (used to select shader type) */
+	float mix_factor;        /* factor used to define shader behavior (several uses) */
+	float g_angle;           /* angle used for gradients orientation */
+	float g_radius;          /* radius for radial gradients */
+	float g_boxsize;         /* cheesboard size */
+	float g_scale[2];        /* uv coordinates scale */
+	float g_shift[2];        /* factor to shift filling in 2d space */
+	float t_angle;           /* angle used for texture orientation */
+	float t_scale[2];        /* texture scale (separated of uv scale) */
+	float t_offset[2];       /* factor to shift texture in 2d space */
+	float t_opacity;         /* texture opacity */
+	float t_pixsize;         /* pixel size for uv along the stroke */
+	int mode;                /* drawing mode (line or dots) */
+} GpencilColorData;
+
+/* GpencilColor->flag */
+typedef enum eGpencilColorData_Flag {
+	/* don't display color */
+	GPC_COLOR_HIDE = (1 << 1),
+	/* protected from further editing */
+	GPC_COLOR_LOCKED = (1 << 2),
+	/* do onion skinning */
+	GPC_COLOR_ONIONSKIN = (1 << 3),
+	/* clamp texture */
+	GPC_COLOR_TEX_CLAMP = (1 << 4),
+	/* mix texture */
+	GPC_COLOR_TEX_MIX = (1 << 5),
+	/* Flip fill colors */
+	GPC_COLOR_FLIP_FILL = (1 << 6),
+	/* Texture is a pattern */
+	GPC_COLOR_PATTERN = (1 << 7)
+} eGpencilColorData_Flag;
+
+typedef enum eGpencilColorData_Mode {
+	GPC_MODE_LINE = 0, /* line */
+	GPC_MODE_DOTS = 1, /* dots */
+	GPC_MODE_BOX = 2, /* rectangles */
+} eGpencilColorData_Mode;
+
 typedef struct Material {
 	ID id;
 	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */ 
@@ -111,6 +159,9 @@ typedef struct Material {
 
 	/* Runtime cache for GLSL materials. */
 	ListBase gpumaterial;
+
+	/* grease pencil color */
+	struct GpencilColorData *gpcolor;
 } Material;
 
 /* **************** MATERIAL ********************* */
@@ -231,6 +282,22 @@ enum {
 	MA_BS_SOLID,
 	MA_BS_CLIP,
 	MA_BS_HASHED,
+};
+
+/* Grease Pencil Stroke styles */
+enum {
+	GPC_STROKE_STYLE_SOLID = 0,
+	GPC_STROKE_STYLE_TEXTURE
+};
+
+/* Grease Pencil Fill styles */
+enum {
+	GPC_FILL_STYLE_SOLID = 0,
+	GPC_FILL_STYLE_GRADIENT,
+	GPC_FILL_STYLE_RADIAL,
+	GPC_FILL_STYLE_CHESSBOARD,
+	GPC_FILL_STYLE_TEXTURE,
+	GPC_FILL_STYLE_PATTERN,
 };
 
 #endif
