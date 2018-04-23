@@ -690,7 +690,6 @@ void do_versions_after_linking_280(Main *main)
 			}
 		}
 	}
-}
 
 	/* Grease Pencil Object */
 	/* Convert grease pencil datablock to GP object */
