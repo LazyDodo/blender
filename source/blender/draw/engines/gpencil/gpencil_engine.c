@@ -389,14 +389,14 @@ static void GPENCIL_cache_init(void *vedata)
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
 		}
-		GpencilColorData *palcolor = give_material_gpencil_settings(ob, ob->actcol);
+		GpencilColorData *gpcolor = give_material_gpencil_settings(ob, ob->actcol);
 
-		if (palcolor) {
-			stl->storage->stroke_style = palcolor->stroke_style;
+		if (gpcolor) {
+			stl->storage->stroke_style = gpcolor->stroke_style;
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
-			if (palcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) {
+			if (gpcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) {
 				stl->storage->color_type = GPENCIL_COLOR_TEXTURE;
-				if (palcolor->flag & GPC_COLOR_PATTERN) {
+				if (gpcolor->flag & GPC_COLOR_PATTERN) {
 					stl->storage->color_type = GPENCIL_COLOR_PATTERN;
 				}
 			}

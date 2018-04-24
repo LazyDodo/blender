@@ -527,7 +527,7 @@ GpencilColorData *give_material_gpencil_settings(Object *ob, short act)
 {
 	Material *ma = give_current_material(ob, act);
 	if (ma != NULL) {
-		return &ma->gpcolor;
+		return ma->gpcolor;
 	}
 	else {
 		return NULL;
