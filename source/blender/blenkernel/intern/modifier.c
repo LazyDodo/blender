@@ -863,11 +863,16 @@ void modifier_deformVerts(struct ModifierData *md, struct Depsgraph *depsgraph,
 		mti->deformVerts(md, depsgraph, ob, mesh, vertexCos, numVerts, flag);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
 
 		mti->deformVerts_DM(md, depsgraph, ob, dm, vertexCos, numVerts, flag);
 
-		dm->release(dm);
+		if (dm) {
+			dm->release(dm);
+		}
 	}
 }
 
@@ -881,11 +886,16 @@ void modifier_deformMatrices(struct ModifierData *md, struct Depsgraph *depsgrap
 		mti->deformMatrices(md, depsgraph, ob, mesh, vertexCos, defMats, numVerts);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
 
 		mti->deformMatrices_DM(md, depsgraph, ob, dm, vertexCos, defMats, numVerts);
 
-		dm->release(dm);
+		if (dm) {
+			dm->release(dm);
+		}
 	}
 }
 
@@ -899,11 +909,16 @@ void modifier_deformVertsEM(struct ModifierData *md, struct Depsgraph *depsgraph
 		mti->deformVertsEM(md, depsgraph, ob, editData, mesh, vertexCos, numVerts);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
 
 		mti->deformVertsEM_DM(md, depsgraph, ob, editData, dm, vertexCos, numVerts);
 
-		dm->release(dm);
+		if (dm) {
+			dm->release(dm);
+		}
 	}
 }
 
@@ -917,11 +932,16 @@ void modifier_deformMatricesEM(struct ModifierData *md, struct Depsgraph *depsgr
 		mti->deformMatricesEM(md, depsgraph, ob, editData, mesh, vertexCos, defMats, numVerts);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
 
 		mti->deformMatricesEM_DM(md, depsgraph, ob, editData, dm, vertexCos, defMats, numVerts);
 
-		dm->release(dm);
+		if (dm) {
+			dm->release(dm);
+		}
 	}
 }
 
