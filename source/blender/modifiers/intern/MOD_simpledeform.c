@@ -32,6 +32,7 @@
  *  \ingroup modifiers
  */
 
+#include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 
@@ -185,6 +186,7 @@ static void SimpleDeformModifier_do(SimpleDeformModifierData *smd, struct Object
                                     float (*vertexCos)[3], int numVerts)
 {
 	const float base_limit[2] = {0.0f, 0.0f};
+	printf("SimpleDeformModifier_do(ob=%p, me=%p, me.mverts=%p, vcos=%p\n", ob, mesh, mesh->mvert, vertexCos);
 
 	int i;
 	float smd_limit[2], smd_factor;

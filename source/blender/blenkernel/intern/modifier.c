@@ -1102,12 +1102,23 @@ struct DerivedMesh *modifier_applyModifier_DM_deprecated(struct ModifierData *md
 		struct Mesh *mesh = ob->data;
 		BLI_assert(DEG_depsgraph_use_copy_on_write());
 		BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); /* This should be a CoW mesh */
+		BLI_assert(BLI_findindex(&G.main->mesh, mesh) == -1); /* This should be a CoW mesh */
+
 		if (dm != NULL) {
+//			Mesh mesh_l = {0};
+//			BKE_mesh_init(&mesh_l);
+//			DM_to_mesh(dm, &mesh_l, ob, CD_MASK_EVERYTHING, false);
 //			BKE_mesh_free(mesh);
-			mesh = MEM_callocN(sizeof(struct Mesh), "Mesh");
+//			*mesh = mesh_l;
+
+			//			BKE_mesh_free(mesh);
 //			MEMSET_STRUCT_OFS(mesh, 0, id);
-			BKE_mesh_init(mesh);
-			printf("Converting DM_to_mesh(dm=%p, mesh=%s=%p)\n", dm, mesh->id.name, mesh);
+//			mesh = MEM_callocN(sizeof(struct Mesh), "temp mesh");
+//			BKE_mesh_init(mesh);
+			Mesh *orig = (Mesh *)mesh->id.orig_id;
+			printf("Converting DM_to_mesh(dm=%p, mesh=%s=%p  orig=%p   vptr=%p orig=%p)\n",
+			       dm, mesh->id.name, mesh,
+			       orig, mesh->mvert, orig->mvert);
 			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
 		}
 
