@@ -227,13 +227,9 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		}
 	}
 
-	/* now we know the number of verts, edges and faces, we can create
-	 * the mesh
-	 */
-	printf("Creating new mesh from %s=%p\n", mesh->id.name, mesh);
+	/* now we know the number of verts, edges and faces, we can create the mesh. */
 	result = BKE_mesh_from_template(mesh, BLI_ghash_len(vertHash), BLI_ghash_len(edgeHash),
 	                                0, numLoops_dst, numFaces_dst);
-	printf("    : %s=%p\n", result->id.name, result);
 
 	/* copy the vertices across */
 	GHASH_ITER (gh_iter, vertHash) {

@@ -186,8 +186,6 @@ static void SimpleDeformModifier_do(SimpleDeformModifierData *smd, struct Object
                                     float (*vertexCos)[3], int numVerts)
 {
 	const float base_limit[2] = {0.0f, 0.0f};
-	printf("SimpleDeformModifier_do(ob=%p, me=%p, me.mverts=%p, vcos=%p\n", ob, mesh, mesh->mvert, vertexCos);
-
 	int i;
 	float smd_limit[2], smd_factor;
 	SpaceTransform *transf = NULL, tmp_transf;
@@ -396,7 +394,7 @@ static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
 }
 
 static void deformVertsEM(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
-                          Object *ob, struct BMEditMesh *editData,
+                          Object *ob, struct BMEditMesh *UNUSED(editData),
                           struct Mesh *mesh,
                           float (*vertexCos)[3],
                           int numVerts)

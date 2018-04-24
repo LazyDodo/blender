@@ -647,7 +647,6 @@ Mesh * BKE_mesh_from_template(Mesh *me_src,
                               int numVerts, int numEdges, int numTessFaces,
                               int numLoops, int numPolys)
 {
-	printf("BKE_mesh_from_template(%p, %d, %d, %d, %d, %d)\n", me_src, numVerts, numEdges, numTessFaces, numLoops, numPolys);
 	return mesh_from_template_ex(
 	            me_src,
 	            numVerts, numEdges, numTessFaces,

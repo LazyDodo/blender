@@ -1070,9 +1070,6 @@ void CDDM_apply_vert_coords(DerivedMesh *dm, float (*vertCoords)[3])
 	MVert *vert;
 	int i;
 
-	printf("CDDM_apply_vert_coords(cddm=%p, cddm.mvert=%p, vertcoords=%p, coord[0]=(%.3f, %.3f))\n",
-	       cddm, cddm->mvert, vertCoords, vertCoords[0][0], vertCoords[0][1]);
-
 	/* this will just return the pointer if it wasn't a referenced layer */
 	vert = CustomData_duplicate_referenced_layer(&dm->vertData, CD_MVERT, dm->numVertData);
 	cddm->mvert = vert;
