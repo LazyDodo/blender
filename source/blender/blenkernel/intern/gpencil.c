@@ -2311,7 +2311,7 @@ void BKE_gpencil_material_index_remove(bGPdata *gpd, int index)
 			for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 				for (gps = gpf->strokes.first; gps; gps = gpsn) {
 					gpsn = gps->next;
-					if (gps->matindex == index) {
+					if (gps->mat_nr == index) {
 						if (gps->points) {
 							BKE_gpencil_free_stroke_weights(gps);
 							MEM_freeN(gps->points);
@@ -2321,8 +2321,8 @@ void BKE_gpencil_material_index_remove(bGPdata *gpd, int index)
 					}
 					else {
 						/* reassign strokes */
-						if (gps->matindex > index) {
-							gps->matindex--;
+						if (gps->mat_nr > index) {
+							gps->mat_nr--;
 						}
 					}
 				}
@@ -2345,7 +2345,7 @@ void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, 
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				/* reassign strokes */
-				MAT_NR_REMAP(gps->matindex);
+				MAT_NR_REMAP(gps->mat_nr);
 			}
 		}
 	}
