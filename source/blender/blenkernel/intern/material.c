@@ -43,6 +43,7 @@
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_customdata_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_ID.h"
 #include "DNA_meta_types.h"
 #include "DNA_node_types.h"
@@ -242,7 +243,8 @@ Material ***give_matarar(Object *ob)
 	Mesh *me;
 	Curve *cu;
 	MetaBall *mb;
-	
+	bGPdata *gpd;
+
 	if (ob->type == OB_MESH) {
 		me = ob->data;
 		return &(me->mat);
@@ -255,6 +257,10 @@ Material ***give_matarar(Object *ob)
 		mb = ob->data;
 		return &(mb->mat);
 	}
+	else if (ob->type == OB_GPENCIL) {
+		gpd = ob->data;
+		return &(gpd->mat);
+	}
 	return NULL;
 }
 
@@ -263,7 +269,8 @@ short *give_totcolp(Object *ob)
 	Mesh *me;
 	Curve *cu;
 	MetaBall *mb;
-	
+	bGPdata *gpd;
+
 	if (ob->type == OB_MESH) {
 		me = ob->data;
 		return &(me->totcol);
@@ -275,6 +282,10 @@ short *give_totcolp(Object *ob)
 	else if (ob->type == OB_MBALL) {
 		mb = ob->data;
 		return &(mb->totcol);
+	}
+	else if (ob->type == OB_GPENCIL) {
+		gpd = ob->data;
+		return &(gpd->totcol);
 	}
 	return NULL;
 }
@@ -310,6 +321,8 @@ short *give_totcolp_id(ID *id)
 			return &(((Curve *)id)->totcol);
 		case ID_MB:
 			return &(((MetaBall *)id)->totcol);
+		case ID_GD:
+			return &(((bGPdata *)id)->totcol);
 		default:
 			break;
 	}

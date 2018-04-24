@@ -389,6 +389,10 @@ typedef struct bGPdata {
 	int active_palette_slot;    /* index of active palette slot */
 
 	ListBase palette_slots;     /* list of bGPDpaletteref's - (2.8+) */
+
+	struct Material **mat;      /* materials array */
+	short totcol;               /* total materials */
+	char pad[6];
 } bGPdata;
 
 

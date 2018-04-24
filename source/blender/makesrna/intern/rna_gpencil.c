@@ -1430,7 +1430,14 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	/* Animation Data */
 	rna_def_animdata_common(srna);
 	
-	
+	/* materials */
+	prop = RNA_def_property(srna, "materials", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "mat", "totcol");
+	RNA_def_property_struct_type(prop, "Material");
+	RNA_def_property_ui_text(prop, "Materials", "");
+	RNA_def_property_srna(prop, "IDMaterials"); /* see rna_ID.c */
+	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "rna_IDMaterials_assign_int");
+
 	/* Palette Slots */
 	prop = RNA_def_property(srna, "palette_slots", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "palette_slots", NULL);

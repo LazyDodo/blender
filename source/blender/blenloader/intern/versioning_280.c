@@ -65,6 +65,7 @@
 #include "BKE_idprop.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 #include "BKE_mesh.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
@@ -743,6 +744,64 @@ void do_versions_after_linking_280(Main *main)
 			}
 		}
 	}
+
+	/* Special Hero files conversion PaletteColors to Materials */
+	for (Object *ob = main->object.first; ob; ob = ob->id.next) {
+		if ((ob->type == OB_GPENCIL) && (ob->data)) {
+			bGPdata *gpd = ob->data;
+			/* do not convert already converted files */
+			if (gpd->totcol > 0) {
+				continue;
+			}
+			for (const bGPDpaletteref *palslot = gpd->palette_slots.first; palslot; palslot = palslot->next) {
+				Palette *palette = palslot->palette;
+				for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
+					
+					/* create material slot */
+					BKE_object_material_slot_add(ob);
+					Material *ma = BKE_material_add(main, palcolor->info);
+					assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+
+					/* copy color settings */
+					GpencilColorData *gpcolor = ma->gpcolor;
+					copy_v4_v4(gpcolor->rgb, palcolor->rgb);
+					copy_v4_v4(gpcolor->fill, palcolor->fill);
+					copy_v4_v4(gpcolor->scolor, palcolor->scolor);
+					gpcolor->flag = palcolor->flag;
+					gpcolor->stroke_style = palcolor->stroke_style;
+					gpcolor->fill_style = palcolor->fill_style;
+					gpcolor->index = palcolor->index;
+					gpcolor->mix_factor = palcolor->mix_factor;
+					gpcolor->g_angle = palcolor->g_angle;
+					gpcolor->g_radius = palcolor->g_radius;
+					gpcolor->g_boxsize = palcolor->g_boxsize;
+					copy_v2_v2(gpcolor->g_scale, palcolor->g_scale);
+					copy_v2_v2(gpcolor->g_shift, palcolor->g_shift);
+					gpcolor->t_angle = palcolor->t_angle;
+					copy_v2_v2(gpcolor->t_scale, palcolor->t_scale);
+					copy_v2_v2(gpcolor->t_offset, palcolor->t_offset);
+					gpcolor->t_opacity = palcolor->t_opacity;
+					gpcolor->t_pixsize = palcolor->t_pixsize;
+					gpcolor->sima = palcolor->sima;
+					gpcolor->ima = palcolor->ima;
+					gpcolor->mode = palcolor->mode;
+
+					/* fix strokes */
+					for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+						for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+							for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+								if ((palette == gps->palette) && (STREQ(gps->colorname, palcolor->info))) {
+									gps->matindex = ob->totcol;
+								}
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+
 
 }
 

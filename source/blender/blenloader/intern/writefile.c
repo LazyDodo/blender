@@ -2670,6 +2670,8 @@ static void write_gpencil(WriteData *wd, bGPdata *gpd)
 			write_animdata(wd, gpd->adt);
 		}
 
+		writedata(wd, DATA, sizeof(void *) * gpd->totcol, gpd->mat);
+
 		/* write grease-pencil layers to file */
 		writelist(wd, DATA, bGPDlayer, &gpd->layers);
 		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {

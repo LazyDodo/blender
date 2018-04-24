@@ -933,6 +933,10 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			case ID_GD:
 			{
 				bGPdata *gpencil = (bGPdata *) id;
+				/* materials */
+				for (i = 0; i < gpencil->totcol; i++) {
+					CALLBACK_INVOKE(gpencil->mat[i], IDWALK_CB_USER);
+				}
 
 				/* relink palette for all strokes */
 				for (bGPDlayer *gp_layer = gpencil->layers.first; gp_layer; gp_layer = gp_layer->next) {

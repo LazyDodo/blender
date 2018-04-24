@@ -4118,17 +4118,17 @@ static void lib_link_material(FileData *fd, Main *main)
 		if (ma->id.tag & LIB_TAG_NEED_LINK) {
 			IDP_LibLinkProperty(ma->id.properties, fd);
 			lib_link_animdata(fd, &ma->id, ma->adt);
-			
+
 			ma->ipo = newlibadr_us(fd, ma->id.lib, ma->ipo);  // XXX deprecated - old animation system
-			
+
 			if (ma->nodetree) {
 				lib_link_ntree(fd, &ma->id, ma->nodetree);
 				ma->nodetree->id.lib = ma->id.lib;
 			}
-			
+
 			/* relink grease pencil settings */
+			ma->gpcolor = newdataadr(fd, ma->gpcolor);
 			if (ma->gpcolor != NULL) {
-				ma->gpcolor = newlibadr(fd, ma->id.lib, ma->gpcolor);
 				GpencilColorData *gpcolor = ma->gpcolor;
 				if (gpcolor->sima != NULL) {
 					gpcolor->sima = newlibadr(fd, ma->id.lib, gpcolor->sima);
@@ -6395,6 +6395,10 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 
 	/* clear drawing cache */
 	gpd->batch_cache_data = NULL;
+
+	/* materials */
+	gpd->mat = newdataadr(fd, gpd->mat);
+	test_pointer_array(fd, (void **)&gpd->mat);
 
 	/* relink palettes */
 	link_list(fd, &gpd->palettes);
