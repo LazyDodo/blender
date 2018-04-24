@@ -6371,6 +6371,11 @@ static void lib_link_gpencil(FileData *fd, Main *main)
 			IDP_LibLinkProperty(gpd->id.properties, fd);
 			lib_link_animdata(fd, &gpd->id, gpd->adt);
 
+			/* materials */
+			for (int a = 0; a < gpd->totcol; a++) {
+				gpd->mat[a] = newlibadr_us(fd, gpd->id.lib, gpd->mat[a]);
+			}
+
 			gpd->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
 	}
