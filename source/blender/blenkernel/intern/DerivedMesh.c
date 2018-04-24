@@ -1162,7 +1162,10 @@ DerivedMesh *mesh_create_derived_for_modifier(
 	
 	if (mti->type == eModifierTypeType_OnlyDeform) {
 		int numVerts;
-		float (*deformedVerts)[3] = BKE_mesh_vertexCos_get(me, &numVerts);
+		/* Always get the vertex coordinates from the original mesh. Otherwise
+		 * there is the risk of deforming already-deformed coordinates. */
+		Mesh *mesh_orig_id = (me->id.tag & LIB_TAG_COPY_ON_WRITE) ? (Mesh *)me->id.orig_id : me;
+		float (*deformedVerts)[3] = BKE_mesh_vertexCos_get(mesh_orig_id, &numVerts);
 
 		modwrap_deformVerts(md, depsgraph, ob, NULL, deformedVerts, numVerts, 0);
 		dm = mesh_create_derived(me, deformedVerts);
@@ -1745,6 +1748,9 @@ static void mesh_calc_modifiers(
         DerivedMesh **r_deform, DerivedMesh **r_final)
 {
 	Mesh *me = ob->data;
+	/* Always get the vertex coordinates from the original mesh. Otherwise
+	 * there is the risk of deforming already-deformed coordinates. */
+	Mesh *mesh_orig_id = (me->id.tag & LIB_TAG_COPY_ON_WRITE) ? (Mesh *)me->id.orig_id : me;
 	ModifierData *firstmd, *md, *previewmd = NULL;
 	CDMaskLink *datamasks, *curr;
 	/* XXX Always copying POLYINDEX, else tessellated data are no more valid! */
@@ -1834,7 +1840,7 @@ static void mesh_calc_modifiers(
 
 			if (mti->type == eModifierTypeType_OnlyDeform && !sculpt_dyntopo) {
 				if (!deformedVerts)
-					deformedVerts = BKE_mesh_vertexCos_get(me, &numVerts);
+					deformedVerts = BKE_mesh_vertexCos_get(mesh_orig_id, &numVerts);
 
 				modwrap_deformVerts(md, depsgraph, ob, NULL, deformedVerts, numVerts, deform_app_flags);
 			}
@@ -1867,7 +1873,7 @@ static void mesh_calc_modifiers(
 		if (inputVertexCos)
 			deformedVerts = inputVertexCos;
 		else
-			deformedVerts = BKE_mesh_vertexCos_get(me, &numVerts);
+			deformedVerts = BKE_mesh_vertexCos_get(mesh_orig_id, &numVerts);
 	}
 
 
@@ -1964,7 +1970,7 @@ static void mesh_calc_modifiers(
 					dm->getVertCos(dm, deformedVerts);
 				}
 				else {
-					deformedVerts = BKE_mesh_vertexCos_get(me, &numVerts);
+					deformedVerts = BKE_mesh_vertexCos_get(mesh_orig_id, &numVerts);
 				}
 			}
 
