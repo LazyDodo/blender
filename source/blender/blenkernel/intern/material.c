@@ -103,8 +103,28 @@ void BKE_material_free(Material *ma)
 
 	MEM_SAFE_FREE(ma->texpaintslot);
 
+	MEM_SAFE_FREE(ma->gpcolor);
+
 	BKE_icon_id_delete((ID *)ma);
 	BKE_previewimg_free(&ma->preview);
+}
+
+static void grease_pencil_init(Material *ma)
+{
+	if ((ma) && (ma->gpcolor == NULL)) {
+		ma->gpcolor = MEM_callocN(sizeof(GpencilColorData), "Grease Pencil Material Settings");
+
+		GpencilColorData *gpcolor = ma->gpcolor;
+		/* set basic settings */
+		gpcolor->rgb[3] = 1.0f;
+		gpcolor->g_boxsize = 0.1f;
+		gpcolor->g_radius = 0.5f;
+		ARRAY_SET_ITEMS(gpcolor->scolor, 1.0f, 1.0f, 1.0f, 0.2f);
+		ARRAY_SET_ITEMS(gpcolor->g_scale, 1.0f, 1.0f);
+		ARRAY_SET_ITEMS(gpcolor->t_scale, 1.0f, 1.0f);
+		gpcolor->t_opacity = 1.0f;
+		gpcolor->t_pixsize = 100.0f;
+	}
 }
 
 void BKE_material_init(Material *ma)
@@ -124,6 +144,7 @@ void BKE_material_init(Material *ma)
 	ma->preview = NULL;
 
 	ma->alpha_threshold = 0.5f;
+
 }
 
 Material *BKE_material_add(Main *bmain, const char *name)
@@ -134,6 +155,9 @@ Material *BKE_material_add(Main *bmain, const char *name)
 	
 	BKE_material_init(ma);
 	
+	/* grease pencil settings */
+	grease_pencil_init(ma);
+
 	return ma;
 }
 
@@ -164,6 +188,10 @@ void BKE_material_copy_data(Main *bmain, Material *ma_dst, const Material *ma_sr
 		ma_dst->texpaintslot = MEM_dupallocN(ma_src->texpaintslot);
 	}
 
+	if (ma_src->gpcolor != NULL) {
+		ma_dst->gpcolor = MEM_dupallocN(ma_src->gpcolor);
+	}
+
 	BLI_listbase_clear(&ma_dst->gpumaterial);
 
 	/* TODO Duplicate Engine Settings and set runtime to NULL */
@@ -192,7 +220,8 @@ Material *BKE_material_localize(Material *ma)
 
 	man->texpaintslot = NULL;
 	man->preview = NULL;
-	
+	man->gpcolor = NULL;
+
 	if (ma->nodetree)
 		man->nodetree = ntreeLocalize(ma->nodetree);
 	

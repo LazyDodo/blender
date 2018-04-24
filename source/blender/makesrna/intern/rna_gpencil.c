@@ -957,6 +957,12 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Palette", "Palette that stroke's color comes from");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
+	/* Material Index */
+	prop = RNA_def_property(srna, "material_index", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "matindex");
+	RNA_def_property_ui_text(prop, "Material Index", "Number of material used in this stroke");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
 	/* Settings */
 	prop = RNA_def_property(srna, "draw_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");

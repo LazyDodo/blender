@@ -4126,6 +4126,18 @@ static void lib_link_material(FileData *fd, Main *main)
 				ma->nodetree->id.lib = ma->id.lib;
 			}
 			
+			/* relink grease pencil settings */
+			if (ma->gpcolor != NULL) {
+				ma->gpcolor = newlibadr(fd, ma->id.lib, ma->gpcolor);
+				GpencilColorData *gpcolor = ma->gpcolor;
+				if (gpcolor->sima != NULL) {
+					gpcolor->sima = newlibadr(fd, ma->id.lib, gpcolor->sima);
+				}
+				if (gpcolor->ima != NULL) {
+					gpcolor->ima = newlibadr(fd, ma->id.lib, gpcolor->ima);
+				}
+			}
+
 			ma->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
 	}
@@ -4146,6 +4158,8 @@ static void direct_link_material(FileData *fd, Material *ma)
 	
 	ma->preview = direct_link_preview_image(fd, ma->preview);
 	BLI_listbase_clear(&ma->gpumaterial);
+
+	ma->gpcolor = newdataadr(fd, ma->gpcolor);
 }
 
 /* ************ READ PARTICLE SETTINGS ***************** */
@@ -9428,6 +9442,10 @@ static void expand_material(FileData *fd, Main *mainvar, Material *ma)
 	
 	if (ma->nodetree)
 		expand_nodetree(fd, mainvar, ma->nodetree);
+
+	if (ma->gpcolor)
+		expand_doit(fd, mainvar, ma->gpcolor);
+
 }
 
 static void expand_lamp(FileData *fd, Main *mainvar, Lamp *la)

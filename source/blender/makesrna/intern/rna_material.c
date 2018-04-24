@@ -421,7 +421,7 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0, 1.0);
 	RNA_def_property_float_sdna(prop, NULL, "rgb");
 	RNA_def_property_array(prop, 4);
-	RNA_def_property_ui_text(prop, "Color", "");
+	RNA_def_property_ui_text(prop, "Color Rgba", "");
 	RNA_def_property_update(prop, NC_SCREEN | NC_SCENE | ND_TOOLSETTINGS | ND_DATA | NC_GPENCIL, "rna_Material_update");
 
 	prop = RNA_def_property(srna, "alpha", PROP_FLOAT, PROP_NONE);
@@ -442,7 +442,7 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "fill");
 	RNA_def_property_array(prop, 4);
 	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Fill Color", "Color for filling region bounded by each stroke");
+	RNA_def_property_ui_text(prop, "Fill Color Rgba", "Color for filling region bounded by each stroke");
 	RNA_def_property_update(prop, NC_SCREEN | NC_SCENE | ND_TOOLSETTINGS | ND_DATA | NC_GPENCIL, "rna_Material_update");
 
 	/* Fill alpha */

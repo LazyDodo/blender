@@ -633,6 +633,10 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				if (material->texpaintslot != NULL) {
 					CALLBACK_INVOKE(material->texpaintslot->ima, IDWALK_CB_NOP);
 				}
+				if (material->gpcolor != NULL) {
+					CALLBACK_INVOKE(material->gpcolor->sima, IDWALK_CB_NOP);
+					CALLBACK_INVOKE(material->gpcolor->ima, IDWALK_CB_NOP);
+				}
 				break;
 			}
 

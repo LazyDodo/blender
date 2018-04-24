@@ -201,7 +201,7 @@ typedef struct bGPDstroke {
 	char tmp_layerinfo[128];
 
 	float falloff;          /* runtime falloff factor (only for transform) */
-	char pad1[4];
+	int matindex;           /* index of the current used material */
 } bGPDstroke;
 
 /* bGPDstroke->flag */
