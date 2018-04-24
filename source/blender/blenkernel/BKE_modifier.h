@@ -497,6 +497,10 @@ void modifier_deformVerts(
         struct ModifierData *md, const struct ModifierEvalContext *ctx,
         struct Mesh *mesh, float (*vertexCos)[3], int numVerts);
 
+void modifier_deformVerts_ensure_normals(
+        struct ModifierData *md, const struct ModifierEvalContext *ctx,
+        struct Mesh *mesh, float (*vertexCos)[3], int numVerts);
+
 void modifier_deformMatrices(
         struct ModifierData *md, const struct ModifierEvalContext *ctx,
         struct Mesh *mesh, float (*vertexCos)[3], float (*defMats)[3][3], int numVerts);

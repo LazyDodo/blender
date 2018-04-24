@@ -870,6 +870,18 @@ void modifier_deformVerts(struct ModifierData *md, const ModifierEvalContext *ct
 	}
 }
 
+void modifier_deformVerts_ensure_normals(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct Mesh *mesh,
+	float (*vertexCos)[3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mesh && mti->dependsOnNormals && mti->dependsOnNormals(md)) {
+		BKE_mesh_calc_normals(mesh);
+	}
+	modifier_deformVerts(md, ctx, mesh, vertexCos, numVerts);
+}
+
 void modifier_deformMatrices(struct ModifierData *md, const ModifierEvalContext *ctx,
 	struct Mesh *mesh,
 	float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
