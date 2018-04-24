@@ -483,7 +483,7 @@ typedef struct TransInfo {
 	short		persp;
 	short		around;
 	char		spacetype;		/* spacetype where transforming is      */
-	char		helpline;		/* helpline modes (not to be confused with hotline) */
+	char		helpline;		/* choice of custom cursor with or without a help line from the gizmo to the mouse pos */
 	short		obedit_type;	/* Avoid looking inside TransDataContainer obedit. */
 
 	float		vec[3];			/* translation, to show for widget   	*/
@@ -497,7 +497,7 @@ typedef struct TransInfo {
 
 	short		current_orientation;
 	TransformOrientation *custom_orientation; /* this gets used when current_orientation is V3D_MANIP_CUSTOM */
-	short		twtype;			/* backup from view3d, to restore on end */
+	short		twflag;			/* backup from view3d, to restore on end */
 
 	short		prop_mode;
 	

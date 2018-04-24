@@ -72,8 +72,10 @@ static void rna_Screen_redraw_update(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 {
 	bScreen *screen = (bScreen *)ptr->data;
 
-	/* the settings for this are currently only available from a menu in the TimeLine, hence refresh=SPACE_TIME */
-	ED_screen_animation_timer_update(screen, screen->redraws_flag, SPACE_TIME);
+	/* the settings for this are currently only available from a menu in the TimeLine,
+	 * hence refresh=SPACE_ACTION, as timeline is now in there
+	 */
+	ED_screen_animation_timer_update(screen, screen->redraws_flag, SPACE_ACTION);
 }
 
 static int rna_Screen_is_animation_playing_get(PointerRNA *UNUSED(ptr))
@@ -81,6 +83,12 @@ static int rna_Screen_is_animation_playing_get(PointerRNA *UNUSED(ptr))
 	/* can be NULL on file load, T42619 */
 	wmWindowManager *wm = G.main->wm.first;
 	return wm ? (ED_screen_animation_playing(wm) != NULL) : 0;
+}
+
+static int rna_region_alignment_get(PointerRNA *ptr)
+{
+	ARegion *region = ptr->data;
+	return (region->alignment & ~RGN_SPLIT_PREV);
 }
 
 static void rna_Screen_layout_name_get(PointerRNA *ptr, char *value)
@@ -130,21 +138,41 @@ static int rna_Screen_fullscreen_get(PointerRNA *ptr)
 /* UI compatible list: should not be needed, but for now we need to keep EMPTY
  * at least in the static version of this enum for python scripts. */
 static const EnumPropertyItem *rna_Area_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr),
-                                             PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
+                                             PropertyRNA *UNUSED(prop), bool *r_free)
 {
+	EnumPropertyItem *item = NULL;
+	int totitem = 0;
+
 	/* +1 to skip SPACE_EMPTY */
-	return rna_enum_space_type_items + 1;
+	for (const EnumPropertyItem *item_from = rna_enum_space_type_items + 1; item_from->identifier; item_from++) {
+		if (ELEM(item_from->value, SPACE_TOPBAR)) {
+			continue;
+		}
+		RNA_enum_item_add(&item, &totitem, item_from);
+	}
+	RNA_enum_item_end(&item, &totitem);
+	*r_free = true;
+
+	return item;
 }
 
 static int rna_Area_type_get(PointerRNA *ptr)
 {
 	ScrArea *sa = (ScrArea *)ptr->data;
-	/* read from this instead of 'spacetype' for correct reporting: T41435 */
-	return sa->butspacetype;
+	/* Usually 'spacetype' is used. It lags behind a bit while switching area
+	 * type though, then we use 'butspacetype' instead (T41435). */
+	return (sa->butspacetype == SPACE_EMPTY) ? sa->spacetype : sa->butspacetype;
 }
 
 static void rna_Area_type_set(PointerRNA *ptr, int value)
 {
+	if (ELEM(value, SPACE_TOPBAR)) {
+		/* Special case: An area can not be set to show the top-bar editor (or
+		 * other global areas). However it should still be possible to identify
+		 * its type from Python. */
+		return;
+	}
+
 	ScrArea *sa = (ScrArea *)ptr->data;
 	sa->butspacetype = value;
 }
@@ -169,6 +197,9 @@ static void rna_Area_type_update(bContext *C, PointerRNA *ptr)
 
 			ED_area_newspace(C, sa, sa->butspacetype, true);
 			ED_area_tag_redraw(sa);
+
+			/* Unset so that rna_Area_type_get uses spacetype instead. */
+			sa->butspacetype = SPACE_EMPTY;
 
 			/* It is possible that new layers becomes visible. */
 			if (sa->spacetype == SPACE_VIEW3D) {
@@ -329,6 +360,19 @@ static void rna_def_region(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	static const EnumPropertyItem alignment_types[] = {
+		{RGN_ALIGN_NONE, "NONE", 0, "None", "Don't use any fixed alignment, fill available space"},
+		{RGN_ALIGN_TOP, "TOP", 0, "Top", ""},
+		{RGN_ALIGN_BOTTOM, "BOTTOM", 0, "Bottom", ""},
+		{RGN_ALIGN_LEFT, "LEFT", 0, "Left", ""},
+		{RGN_ALIGN_RIGHT, "RIGHT", 0, "Right", ""},
+		{RGN_ALIGN_HSPLIT, "HORIZONTAL_SPLIT", 0, "Horizontal Split", ""},
+		{RGN_ALIGN_VSPLIT, "VERTICAL_SPLIT", 0, "Vertical Split", ""},
+		{RGN_ALIGN_FLOAT, "FLOAT", 0, "Float", "Region floats on screen, doesn't use any fixed alignment"},
+		{RGN_ALIGN_QSPLIT, "QUAD_SPLIT", 0, "Quad Split", "Region is split horizontally and vertically"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	srna = RNA_def_struct(brna, "Region", NULL);
 	RNA_def_struct_ui_text(srna, "Region", "Region in a subdivided screen area");
 	RNA_def_struct_sdna(srna, "ARegion");
@@ -364,6 +408,12 @@ static void rna_def_region(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_ui_text(prop, "View2D", "2D view of the region");
+
+	prop = RNA_def_property(srna, "alignment", PROP_ENUM, PROP_NONE);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_enum_items(prop, alignment_types);
+	RNA_def_property_enum_funcs(prop, "rna_region_alignment_get", NULL, NULL);
+	RNA_def_property_ui_text(prop, "Alignment", "Alignment of the region within the area");
 
 	RNA_def_function(srna, "tag_redraw", "ED_region_tag_redraw");
 }

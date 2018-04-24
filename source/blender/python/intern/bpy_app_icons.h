@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,29 +15,16 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * The Original Code is Copyright (C) 2008 Blender Foundation.
- * All rights reserved.
- *
- * 
- * Contributor(s): Blender Foundation
- *
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/editors/space_time/time_intern.h
- *  \ingroup sptime
+/** \file blender/python/intern/bpy_app_icons.h
+ *  \ingroup pythonintern
  */
 
+#ifndef __BPY_APP_ICONS_H__
+#define __BPY_APP_ICONS_H__
 
-#ifndef __TIME_INTERN_H__
-#define __TIME_INTERN_H__
+PyObject *BPY_app_icons_module(void);
 
-/* internal exports only */
-
-
-/* time_ops.c */
-void time_operatortypes(void);
-void time_keymap(struct wmKeyConfig *keyconf);
-
-#endif /* __TIME_INTERN_H__ */
-
+#endif /* __BPY_APP_ICONS_H__ */

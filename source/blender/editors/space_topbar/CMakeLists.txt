@@ -22,6 +22,8 @@ set(INC
 	../include
 	../../blenkernel
 	../../blenlib
+	../../blenloader
+	../../blentranslation
 	../../gpu
 	../../makesdna
 	../../makesrna
@@ -35,12 +37,9 @@ set(INC_SYS
 )
 
 set(SRC
-	space_time.c
-	time_ops.c
-
-	time_intern.h
+	space_topbar.c
 )
 
 add_definitions(${GL_DEFINITIONS})
 
-blender_add_lib(bf_editor_space_time "${SRC}" "${INC}" "${INC_SYS}")
+blender_add_lib(bf_editor_space_topbar "${SRC}" "${INC}" "${INC_SYS}")

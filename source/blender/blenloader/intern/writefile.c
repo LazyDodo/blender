@@ -186,6 +186,7 @@
 
 #include "BLO_writefile.h"
 #include "BLO_readfile.h"
+#include "BLO_runtime.h"
 #include "BLO_undofile.h"
 #include "BLO_blend_defs.h"
 
@@ -2855,9 +2856,6 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 				writestruct(wd, DATA, bDopeSheet, 1, snla->ads);
 			}
 		}
-		else if (sl->spacetype == SPACE_TIME) {
-			writestruct(wd, DATA, SpaceTime, 1, sl);
-		}
 		else if (sl->spacetype == SPACE_NODE) {
 			SpaceNode *snode = (SpaceNode *)sl;
 			bNodeTreePath *path;
@@ -2877,8 +2875,12 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 				writedata(wd, DATA, cl->len + 1, cl->line);
 			}
 			writestruct(wd, DATA, SpaceConsole, 1, sl);
-
 		}
+#ifdef WITH_TOPBAR_WRITING
+		else if (sl->spacetype == SPACE_TOPBAR) {
+			writestruct(wd, DATA, SpaceTopBar, 1, sl);
+		}
+#endif
 		else if (sl->spacetype == SPACE_USERPREF) {
 			writestruct(wd, DATA, SpaceUserPref, 1, sl);
 		}
@@ -2889,7 +2891,25 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 			writestruct(wd, DATA, SpaceInfo, 1, sl);
 		}
 	}
+}
 
+static void write_area_map(WriteData *wd, ScrAreaMap *area_map)
+{
+	writelist(wd, DATA, ScrVert, &area_map->vertbase);
+	writelist(wd, DATA, ScrEdge, &area_map->edgebase);
+	for (ScrArea *area = area_map->areabase.first; area; area = area->next) {
+		area->butspacetype = area->spacetype; /* Just for compatibility, will be reset below. */
+
+		writestruct(wd, DATA, ScrArea, 1, area);
+
+#ifdef WITH_TOPBAR_WRITING
+		writestruct(wd, DATA, ScrGlobalAreaData, 1, area->global);
+#endif
+
+		write_area_regions(wd, area);
+
+		area->butspacetype = SPACE_EMPTY; /* Unset again, was changed above. */
+	}
 }
 
 static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
@@ -2898,6 +2918,11 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 	write_iddata(wd, &wm->id);
 
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+#ifndef WITH_TOPBAR_WRITING
+		/* Don't write global areas yet, while we make changes to them. */
+		ScrAreaMap global_areas = win->global_areas;
+		memset(&win->global_areas, 0, sizeof(win->global_areas));
+#endif
 
 		/* update deprecated screen member (for so loading in 2.7x uses the correct screen) */
 		win->screen = BKE_workspace_active_screen_get(win->workspace_hook);
@@ -2905,6 +2930,12 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 		writestruct(wd, DATA, wmWindow, 1, win);
 		writestruct(wd, DATA, WorkSpaceInstanceHook, 1, win->workspace_hook);
 		writestruct(wd, DATA, Stereo3dFormat, 1, win->stereo3d_format);
+
+#ifdef WITH_TOPBAR_WRITING
+		write_area_map(wd, &win->global_areas);
+#else
+		win->global_areas = global_areas;
+#endif
 
 		/* data is written, clear deprecated data again */
 		win->screen = NULL;
@@ -2921,19 +2952,7 @@ static void write_screen(WriteData *wd, bScreen *sc)
 	write_previews(wd, sc->preview);
 
 	/* direct data */
-	for (ScrVert *sv = sc->vertbase.first; sv; sv = sv->next) {
-		writestruct(wd, DATA, ScrVert, 1, sv);
-	}
-
-	for (ScrEdge *se = sc->edgebase.first; se; se = se->next) {
-		writestruct(wd, DATA, ScrEdge, 1, se);
-	}
-
-	for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
-		writestruct(wd, DATA, ScrArea, 1, sa);
-
-		write_area_regions(wd, sa);
-	}
+	write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
 }
 
 static void write_bone(WriteData *wd, Bone *bone)
@@ -4023,6 +4042,11 @@ bool BLO_write_file(
 	void     *path_list_backup = NULL;
 	const int path_list_flag = (BKE_BPATH_TRAVERSE_SKIP_LIBRARY | BKE_BPATH_TRAVERSE_SKIP_MULTIFILE);
 
+	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *BEFORE* save to disk.");
+		BLO_main_validate_libraries(mainvar, reports);
+	}
+
 	/* open temporary file, so we preserve the original in case we crash */
 	BLI_snprintf(tempname, sizeof(tempname), "%s@", filepath);
 
@@ -4105,6 +4129,11 @@ bool BLO_write_file(
 	if (BLI_rename(tempname, filepath) != 0) {
 		BKE_report(reports, RPT_ERROR, "Cannot change old file (file saved with @)");
 		return 0;
+	}
+
+	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *AFTER* save to disk.");
+		BLO_main_validate_libraries(mainvar, reports);
 	}
 
 	return 1;

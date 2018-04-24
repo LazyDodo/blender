@@ -91,6 +91,7 @@ typedef enum {
 	UI_WTYPE_MENU_ITEM,
 	UI_WTYPE_MENU_ITEM_RADIAL,
 	UI_WTYPE_MENU_BACK,
+	UI_WTYPE_POPOVER_BACK,
 
 	/* specials */
 	UI_WTYPE_ICON,
@@ -112,6 +113,9 @@ typedef enum {
 /* panel limits */
 #define UI_PANEL_MINX   100
 #define UI_PANEL_MINY   70
+
+/* popover width (multiplied by 'U.widget_unit') */
+#define UI_POPOVER_WIDTH_UNITS 10
 
 /* uiBut->flag */
 enum {
@@ -187,23 +191,6 @@ enum {
 
 /* max amount of items a radial menu (pie menu) can contain */
 #define PIE_MAX_ITEMS 8
-
-typedef struct uiLinkLine {  /* only for draw/edit */
-	struct uiLinkLine *next, *prev;
-	struct uiBut *from, *to;
-	short flag, deactive;
-} uiLinkLine;
-
-typedef struct {
-	void **poin;        /* pointer to original pointer */
-	void ***ppoin;      /* pointer to original pointer-array */
-	short *totlink;     /* if pointer-array, here is the total */
-	
-	short maxlink, pad;
-	short fromcode, tocode;
-	
-	ListBase lines;
-} uiLink;
 
 struct uiBut {
 	struct uiBut *next, *prev;
@@ -329,6 +316,11 @@ struct uiBut {
 	/* pointer back */
 	uiBlock *block;
 };
+
+typedef struct uiButTab {
+	uiBut but;
+	struct wmOperatorType *unlink_ot;
+} uiButTab;
 
 typedef struct ColorPicker {
 	struct ColorPicker *next, *prev;
@@ -627,6 +619,18 @@ uiPopupBlockHandle *ui_popup_menu_create(
         struct bContext *C, struct ARegion *butregion, uiBut *but,
         uiMenuCreateFunc create_func, void *arg);
 
+/* interface_region_popover.c */
+uiBlock *ui_popover_block_refresh(
+        struct bContext *C, uiPopupBlockHandle *handle,
+        ARegion *butregion, uiBut *but);
+uiPopupBlockHandle *ui_popover_block_create(
+        struct bContext *C, struct ARegion *butregion, uiBut *but,
+        uiBlockCreateFunc create_func, uiBlockHandleCreateFunc handle_create_func,
+        void *arg);
+uiPopupBlockHandle *ui_popover_panel_create(
+        struct bContext *C, struct ARegion *butregion, uiBut *but,
+        uiMenuCreateFunc create_func, void *arg);
+
 /* interface_region_menu_pie.c */
 void ui_pie_menu_level_create(
         uiBlock *block, struct wmOperatorType *ot, const char *propname, IDProperty *properties,
@@ -725,16 +729,14 @@ struct Gwn_Batch *ui_batch_roundbox_get(bool filled, bool antialiased);
 struct Gwn_Batch *ui_batch_roundbox_widget_get(int tria);
 struct Gwn_Batch *ui_batch_roundbox_shadow_get(void);
 
-void ui_draw_anti_tria(float x1, float y1, float x2, float y2, float x3, float y3, const float color[4]);
 void ui_draw_anti_roundbox(int mode, float minx, float miny, float maxx, float maxy,
                            float rad, bool use_alpha, const float color[4]);
 void ui_draw_menu_back(struct uiStyle *style, uiBlock *block, rcti *rect);
+void ui_draw_popover_back(struct uiStyle *style, uiBlock *block, rcti *rect);
 void ui_draw_pie_center(uiBlock *block);
 uiWidgetColors *ui_tooltip_get_theme(void);
 void ui_draw_tooltip_background(uiStyle *UNUSED(style), uiBlock *block, rcti *rect);
 void ui_draw_search_back(struct uiStyle *style, uiBlock *block, rcti *rect);
-bool ui_link_bezier_points(const rcti *rect, float coord_array[][2], int resol);
-void ui_draw_link_bezier(const rcti *rect, const float color[4]);
 
 extern void ui_draw_but(const struct bContext *C, ARegion *ar, struct uiStyle *style, uiBut *but, rcti *rect);
 /* theme color init */
@@ -748,6 +750,9 @@ void ui_draw_preview_item(struct uiFontStyle *fstyle, rcti *rect, const char *na
 #define UI_POPUP_MARGIN (UI_DPI_FAC * 12)
 /* margin at top of screen for popups */
 #define UI_POPUP_MENU_TOP (int)(8 * UI_DPI_FAC)
+
+#define UI_PIXEL_AA_JITTER 8
+const float ui_pixel_jitter[UI_PIXEL_AA_JITTER][2];
 
 /* interface_style.c */
 void uiStyleInit(void);
@@ -770,7 +775,7 @@ void ui_layout_list_set_labels_active(uiLayout *layout);
 
 /* interface_align.c */
 bool ui_but_can_align(const uiBut *but) ATTR_WARN_UNUSED_RESULT;
-void ui_block_align_calc(uiBlock *block);
+void ui_block_align_calc(uiBlock *block, const ARegion *region);
 
 /* interface_anim.c */
 void ui_but_anim_flag(uiBut *but, float cfra);

@@ -775,14 +775,6 @@ struct SpaceNla *CTX_wm_space_nla(const bContext *C)
 	return NULL;
 }
 
-struct SpaceTime *CTX_wm_space_time(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_TIME)
-		return sa->spacedata.first;
-	return NULL;
-}
-
 struct SpaceNode *CTX_wm_space_node(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
@@ -827,6 +819,14 @@ struct SpaceClip *CTX_wm_space_clip(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	if (sa && sa->spacetype == SPACE_CLIP)
+		return sa->spacedata.first;
+	return NULL;
+}
+
+struct SpaceTopBar *CTX_wm_space_topbar(const bContext *C)
+{
+	ScrArea *sa = CTX_wm_area(C);
+	if (sa && sa->spacetype == SPACE_TOPBAR)
 		return sa->spacedata.first;
 	return NULL;
 }

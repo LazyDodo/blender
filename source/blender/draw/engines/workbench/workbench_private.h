@@ -57,12 +57,13 @@ typedef struct WORKBENCH_PrivateData {
 
 	struct GHash *material_hash;
 	short drawtype_lighting;
+	short drawtype_options;
 } WORKBENCH_PrivateData; /* Transient data */
 
 typedef struct WORKBENCH_MaterialData {
 	/* Solid color */
 	float color[3];
-	
+
 	/* Linked shgroup for drawing */
 	DRWShadingGroup *shgrp;
 } WORKBENCH_MaterialData;

@@ -156,14 +156,14 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case SPACE_CONSOLE:
 					ts = &btheme->tconsole;
 					break;
-				case SPACE_TIME:
-					ts = &btheme->ttime;
-					break;
 				case SPACE_NODE:
 					ts = &btheme->tnode;
 					break;
 				case SPACE_CLIP:
 					ts = &btheme->tclip;
+					break;
+				case SPACE_TOPBAR:
+					ts = &btheme->ttopbar;
 					break;
 				default:
 					ts = &btheme->tv3d;
@@ -658,6 +658,9 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case TH_WIDGET_EMBOSS:
 					cp = btheme->tui.widget_emboss; break;
 
+				case TH_EDITOR_OUTLINE:
+					cp = btheme->tui.editor_outline;
+					break;
 				case TH_AXIS_X:
 					cp = btheme->tui.xaxis; break;
 				case TH_AXIS_Y:
@@ -881,6 +884,7 @@ void ui_theme_init_default(void)
 	btheme->tui.iconfile[0] = 0;
 	rgba_char_args_set(btheme->tui.wcol_tooltip.text, 255, 255, 255, 255);
 	rgba_char_args_set_fl(btheme->tui.widget_emboss, 1.0f, 1.0f, 1.0f, 0.02f);
+	rgba_char_args_set_fl(btheme->tui.editor_outline, 0.25f, 0.25f, 0.25f, 1.0f);
 
 	rgba_char_args_set(btheme->tui.xaxis, 220,   0,   0, 255);
 	rgba_char_args_set(btheme->tui.yaxis,   0, 220,   0, 255);
@@ -1225,6 +1229,14 @@ void ui_theme_init_default(void)
 	rgba_char_args_set(btheme->tclip.strip_select, 0xff, 0x8c, 0x00, 0xff);
 	btheme->tclip.handle_vertex_size = 5;
 	ui_theme_space_init_handles_color(&btheme->tclip);
+
+	/* space topbar */
+	char tmp[4];
+	btheme->ttopbar = btheme->tv3d;
+	/* swap colors */
+	copy_v4_v4_char(tmp, btheme->ttopbar.header);
+	copy_v4_v4_char(btheme->ttopbar.header, btheme->ttopbar.tab_inactive);
+	copy_v4_v4_char(btheme->ttopbar.back, tmp);
 }
 
 void ui_style_init_default(void)
@@ -2133,8 +2145,6 @@ void init_userdef_do_versions(void)
 				strcpy(km->idname, "3D View Generic");
 			else if (STREQ(km->idname, "EditMesh"))
 				strcpy(km->idname, "Mesh");
-			else if (STREQ(km->idname, "TimeLine"))
-				strcpy(km->idname, "Timeline");
 			else if (STREQ(km->idname, "UVEdit"))
 				strcpy(km->idname, "UV Editor");
 			else if (STREQ(km->idname, "Animation_Channels"))
@@ -2777,10 +2787,6 @@ void init_userdef_do_versions(void)
 			rgba_char_args_set(btheme->tnode.gp_vertex, 0, 0, 0, 255);
 			rgba_char_args_set(btheme->tnode.gp_vertex_select, 255, 133, 0, 255);
 			btheme->tnode.gp_vertex_size = 3;
-			
-			/* Timeline Keyframe Indicators */
-			rgba_char_args_set(btheme->ttime.time_keyframe, 0xDD, 0xD7, 0x00, 0xFF);
-			rgba_char_args_set(btheme->ttime.time_gp_keyframe, 0xB5, 0xE6, 0x1D, 0xFF);
 		}
 	}
 
@@ -2914,10 +2920,10 @@ void init_userdef_do_versions(void)
 		U.uiflag |= USER_LOCK_CURSOR_ADJUST;
 	}
 
-	if (!USER_VERSION_ATLEAST(280, 1)) {
+	if (!USER_VERSION_ATLEAST(280, 9)) {
 		/* interface_widgets.c */
 		struct uiWidgetColors wcol_tab = {
-			{255, 255, 255, 255},
+			{60, 60, 60, 255},
 			{83, 83, 83, 255},
 			{114, 114, 114, 255},
 			{90, 90, 90, 255},
@@ -2930,7 +2936,52 @@ void init_userdef_do_versions(void)
 		};
 
 		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			char tmp[4];
+
 			btheme->tui.wcol_tab = wcol_tab;
+			btheme->ttopbar = btheme->tv3d;
+			/* swap colors */
+			copy_v4_v4_char(tmp, btheme->ttopbar.header);
+			copy_v4_v4_char(btheme->ttopbar.header, btheme->ttopbar.tab_inactive);
+			copy_v4_v4_char(btheme->ttopbar.back, tmp);
+		}
+	}
+	
+	if (!USER_VERSION_ATLEAST(280, 9)) {
+		/* Timeline removal */
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			if (btheme->tipo.anim_active[3] == 0) {
+				rgba_char_args_set(btheme->tipo.anim_active,    204, 112, 26, 102);
+			}
+			if (btheme->tseq.anim_active[3] == 0) {
+				rgba_char_args_set(btheme->tseq.anim_active,    204, 112, 26, 102);	
+			}
+		}
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 10)) {
+		/* Roundness */
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			btheme->tui.wcol_regular.roundness = 0.25f;
+			btheme->tui.wcol_tool.roundness = 0.2f;
+			btheme->tui.wcol_text.roundness = 0.2f;
+			btheme->tui.wcol_radio.roundness = 0.2f;
+			btheme->tui.wcol_option.roundness = 0.2f;
+			btheme->tui.wcol_toggle.roundness = 0.25f;
+			btheme->tui.wcol_num.roundness = 0.5f;
+			btheme->tui.wcol_numslider.roundness = 0.5f;
+			btheme->tui.wcol_tab.roundness = 0.25f;
+			btheme->tui.wcol_menu.roundness = 0.2f;
+			btheme->tui.wcol_pulldown.roundness = 0.2f;
+			btheme->tui.wcol_menu_back.roundness = 0.25f;
+			btheme->tui.wcol_menu_item.roundness = 0.25f;
+			btheme->tui.wcol_tooltip.roundness = 0.25f;
+			btheme->tui.wcol_box.roundness = 0.2f;
+			btheme->tui.wcol_scroll.roundness = 0.5f;
+			btheme->tui.wcol_progress.roundness = 0.25f;
+			btheme->tui.wcol_list_item.roundness = 0.2f;
+			btheme->tui.wcol_pie_menu.roundness = 0.5f;
+			rgba_char_args_set_fl(btheme->tui.editor_outline, 0.25f, 0.25f, 0.25f, 1.0f);
 		}
 	}
 
