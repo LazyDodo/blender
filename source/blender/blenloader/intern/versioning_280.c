@@ -791,7 +791,7 @@ void do_versions_after_linking_280(Main *main)
 						for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 							for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 								if ((palette == gps->palette) && (STREQ(gps->colorname, palcolor->info))) {
-									gps->matindex = ob->totcol;
+									gps->matindex = ob->totcol - 1;
 								}
 							}
 						}

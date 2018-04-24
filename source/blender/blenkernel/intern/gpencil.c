@@ -2301,3 +2301,55 @@ float BKE_gpencil_multiframe_falloff_calc(bGPDframe *gpf, int actnum, int f_init
 	
 	return value;
 }
+
+/* remove strokes using a material */
+void BKE_gpencil_material_index_remove(bGPdata *gpd, int index)
+{
+	bGPDstroke *gps, *gpsn;
+
+		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+			for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+				for (gps = gpf->strokes.first; gps; gps = gpsn) {
+					gpsn = gps->next;
+					if (gps->matindex == index) {
+						if (gps->points) {
+							BKE_gpencil_free_stroke_weights(gps);
+							MEM_freeN(gps->points);
+						}
+						if (gps->triangles) MEM_freeN(gps->triangles);
+						BLI_freelinkN(&gpf->strokes, gps);
+					}
+					else {
+						/* reassign strokes */
+						if (gps->matindex > index) {
+							gps->matindex--;
+						}
+					}
+				}
+			}
+		}
+		BKE_gpencil_batch_cache_dirty(gpd);
+}
+
+void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, unsigned int remap_len)
+{
+	const short remap_len_short = (short)remap_len;
+
+#define MAT_NR_REMAP(n) \
+	if (n < remap_len_short) { \
+		BLI_assert(n >= 0 && remap[n] < remap_len_short); \
+		n = remap[n]; \
+	} ((void)0)
+
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+				/* reassign strokes */
+				MAT_NR_REMAP(gps->matindex);
+			}
+		}
+	}
+
+#undef MAT_NR_REMAP
+
+}

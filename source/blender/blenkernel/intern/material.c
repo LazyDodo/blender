@@ -59,6 +59,7 @@
 #include "BKE_animsys.h"
 #include "BKE_displist.h"
 #include "BKE_global.h"
+#include "BKE_gpencil.h"
 #include "BKE_icons.h"
 #include "BKE_image.h"
 #include "BKE_library.h"
@@ -343,6 +344,9 @@ static void material_data_index_remove_id(ID *id, short index)
 			break;
 		case ID_MB:
 			/* meta-elems don't have materials atm */
+			break;
+		case ID_GD:
+			BKE_gpencil_material_index_remove((bGPdata *)id, index);
 			break;
 		default:
 			break;
@@ -758,6 +762,9 @@ void BKE_material_remap_object(Object *ob, const unsigned int *remap)
 	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
 		BKE_curve_material_remap(ob->data, remap, ob->totcol);
 	}
+	if (ob->type == OB_GPENCIL) {
+		BKE_gpencil_material_remap(ob->data, remap, ob->totcol);
+	}
 	else {
 		/* add support for this object data! */
 		BLI_assert(matar == NULL);
@@ -955,7 +962,7 @@ bool BKE_object_material_slot_remove(Object *ob)
 	}
 
 	/* check indices from mesh */
-	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT)) {
+	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_GPENCIL)) {
 		material_data_index_remove_id((ID *)ob->data, actcol - 1);
 		if (ob->curve_cache) {
 			BKE_displist_free(&ob->curve_cache->disp);
