@@ -79,6 +79,7 @@ enum {
 };
 
 struct Material *give_current_material(struct Object *ob, short act);
+struct GpencilColorData *give_material_gpencil_settings(struct Object *ob, short act);
 void assign_material_id(struct ID *id, struct Material *ma, short act);
 void assign_material(struct Object *ob, struct Material *ma, short act, int assign_type);
 void assign_matarar(struct Object *ob, struct Material ***matar, short totcol);

@@ -35,7 +35,6 @@
 #include "DNA_screen_types.h"
 #include "DNA_view3d_types.h"
 
-#include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_action.h"
 
@@ -388,18 +387,18 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 
 
 /* Helper for doing all the checks on whether a stroke can be drawn */
-bool gpencil_can_draw_stroke(const bGPDstroke *gps, const bool onion)
+bool gpencil_can_draw_stroke(struct Object *ob, const bGPDstroke *gps, const bool onion)
 {
 	/* skip stroke if it doesn't have any valid data */
 	if ((gps->points == NULL) || (gps->totpoints < 1))
 		return false;
 
-	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gps_palcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
 
 	/* check if the color is visible */
 	if ((gps->palette == NULL) || (gps_palcolor == NULL) ||
-	    (gps_palcolor->flag & PC_COLOR_HIDE) ||
-	    (onion && (gps_palcolor->flag & PC_COLOR_ONIONSKIN)))
+	    (gps_palcolor->flag & GPC_COLOR_HIDE) ||
+	    (onion && (gps_palcolor->flag & GPC_COLOR_ONIONSKIN)))
 	{
 		return false;
 	}
@@ -575,9 +574,9 @@ static void gpencil_set_fill_point(
 }
 
 /* recalc the internal geometry caches for fill and uvs */
-void DRW_gpencil_recalc_geometry_caches(bGPDstroke *gps) {
+void DRW_gpencil_recalc_geometry_caches(Object *ob, bGPDstroke *gps) {
 	if (gps->flag & GP_STROKE_RECALC_CACHES) {
-		PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+		GpencilColorData *gps_palcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
 
 		/* Calculate triangles cache for filling area (must be done only after changes) */
 		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {

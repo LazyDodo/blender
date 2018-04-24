@@ -33,6 +33,7 @@ struct bGPDstroke;
 struct ModifierData;
 struct GPENCIL_StorageList;
 struct Object;
+struct GpencilColorData;
 
  /* TODO: these could be system parameter in userprefs screen */
 #define GPENCIL_MAX_GP_OBJ 256 
@@ -358,7 +359,7 @@ typedef struct GpencilBatchCache {
 } GpencilBatchCache;
 
 struct DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct DRWPass *pass, struct GPUShader *shader, struct Object *ob,
-	                                                      struct bGPdata *gpd, struct PaletteColor *palcolor, int id, bool onion);
+	                                                      struct bGPdata *gpd, struct GpencilColorData *gpcolor, int id, bool onion);
 /* general drawing functions */
 void DRW_gpencil_populate_datablock(struct GPENCIL_e_data *e_data, void *vedata, struct Scene *scene, struct Object *ob, struct ToolSettings *ts, struct bGPdata *gpd);
 void DRW_gpencil_populate_buffer_strokes(struct GPENCIL_e_data *e_data, void *vedata, struct ToolSettings *ts, struct Object *ob);
@@ -374,11 +375,11 @@ struct Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(struct bGPdata *gpd, float 
 struct Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(struct bGPdata *gpd);
 struct Gwn_Batch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
 
-void DRW_gpencil_recalc_geometry_caches(struct bGPDstroke *gps);
+void DRW_gpencil_recalc_geometry_caches(struct Object *ob, struct bGPDstroke *gps);
 
 struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height);
 
-bool gpencil_can_draw_stroke(const struct bGPDstroke *gps, const bool onion);
+bool gpencil_can_draw_stroke(struct Object *ob, const struct bGPDstroke *gps, const bool onion);
 
 /* object cache functions */
 struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used);
