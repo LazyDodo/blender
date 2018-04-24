@@ -291,6 +291,9 @@ void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 	/* clear animation data */
 	BKE_animdata_free(&gpd->id, false);
 
+	/* materials */
+	MEM_SAFE_FREE(gpd->mat);
+
 	/* free layers */
 	if (free_all) {
 		BKE_gpencil_free_layers_temp_data(&gpd->layers);
