@@ -399,23 +399,7 @@ static void deformVertsEM(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
                           float (*vertexCos)[3],
                           int numVerts)
 {
-//	in caller: BLI_assert(mesh->edit_coords == NULL) to avoid double stuff
-//	DerivedMesh *dm = derivedData;
-//	CustomDataMask dataMask = requiredDataMask(ob, md);
-
-	/* we implement requiredDataMask but thats not really useful since
-	 * mesh_calc_modifiers pass a NULL derivedData */
-//	if (dataMask)
-//		dm = get_dm(ob, editData, dm, NULL, false, false);
-
-//	CDDM_from_editbmesh(em, false, false);
-
-
-
 	SimpleDeformModifier_do((SimpleDeformModifierData *)md, ob, mesh, vertexCos, numVerts);
-
-//	if (dm != derivedData)
-//		dm->release(dm);
 }
 
 
