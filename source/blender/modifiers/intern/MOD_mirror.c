@@ -88,7 +88,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 
 static Mesh *doMirrorOnAxis(MirrorModifierData *mmd,
                             Object *ob,
-                            Mesh *mesh,
+                            const Mesh *mesh,
                             int axis)
 {
 	const float tolerance_sq = mmd->tolerance * mmd->tolerance;
@@ -291,8 +291,7 @@ static Mesh *doMirrorOnAxis(MirrorModifierData *mmd,
 		/* slow - so only call if one or more merge verts are found,
 		 * users may leave this on and not realize there is nothing to merge - campbell */
 		if (tot_vtargetmap) {
-			// TODO(sybren): port CDDM_merge_verts()
-//			result = CDDM_merge_verts(result, vtargetmap, tot_vtargetmap, CDDM_MERGE_VERTS_DUMP_IF_MAPPED);
+			result = BKE_mesh_merge_verts(result, vtargetmap, tot_vtargetmap, MESH_MERGE_VERTS_DUMP_IF_MAPPED);
 		}
 		MEM_freeN(vtargetmap);
 	}
@@ -312,16 +311,20 @@ static Mesh *mirrorModifier__doMirror(MirrorModifierData *mmd,
 	if (mmd->flag & MOD_MIR_AXIS_Y) {
 		Mesh *tmp = result;
 		result = doMirrorOnAxis(mmd, ob, result, 1);
-		/* free intermediate results */
-		BKE_mesh_free(tmp);
-		MEM_freeN(tmp);
+		if (tmp != mesh) {
+			/* free intermediate results */
+			BKE_mesh_free(tmp);
+			MEM_freeN(tmp);
+		}
 	}
 	if (mmd->flag & MOD_MIR_AXIS_Z) {
 		Mesh *tmp = result;
 		result = doMirrorOnAxis(mmd, ob, result, 2);
-		/* free intermediate results */
-		BKE_mesh_free(tmp);
-		MEM_freeN(tmp);
+		if (tmp != mesh) {
+			/* free intermediate results */
+			BKE_mesh_free(tmp);
+			MEM_freeN(tmp);
+		}
 	}
 
 	return result;
