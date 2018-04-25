@@ -2518,6 +2518,8 @@ static void editbmesh_calc_modifiers(
 		struct Mesh *mesh = ob->data;
 		if (mesh->id.tag & LIB_TAG_COPY_ON_WRITE) {
 			BKE_mesh_ensure_edit_data(mesh);
+			if (mesh->emd->vertexCos != NULL)
+				MEM_freeN((void *)mesh->emd->vertexCos);
 			mesh->emd->vertexCos = MEM_dupallocN(deformedVerts);
 		}
 		*r_final = getEditDerivedBMesh(em, ob, dataMask, deformedVerts);
