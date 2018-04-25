@@ -202,7 +202,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	float dmat[4][4];
 	struct GPHookData_cb tData;
 
-	if (!is_stroke_affected_by_modifier(
+	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
 	        mmd->flag & GP_HOOK_INVERSE_LAYER, mmd->flag & GP_HOOK_INVERSE_PASS))
 	{

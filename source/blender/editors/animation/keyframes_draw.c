@@ -1046,39 +1046,6 @@ void gpl_to_keylist(bDopeSheet *UNUSED(ads), bGPDlayer *gpl, DLRBT_Tree *keys)
 	}
 }
 
-void palette_to_keylist(bDopeSheet *ads, Palette *palette, DLRBT_Tree *keys, DLRBT_Tree *blocks)
-{
-	bAnimContext ac = { NULL };
-	ListBase anim_data = { NULL, NULL };
-	bAnimListElem *ale;
-	int filter;
-
-	bAnimListElem dummychan = { NULL };
-
-	if (ELEM(NULL, palette, palette->adt))
-		return;
-
-	/* create a dummy wrapper data to work with */
-	dummychan.type = ANIMTYPE_PALETTE;
-	dummychan.data = palette;
-	dummychan.id = &palette->id;
-	dummychan.adt = palette->adt;
-
-	ac.ads = ads;
-	ac.data = &dummychan;
-	ac.datatype = ANIMCONT_CHANNEL;
-
-	/* get F-Curves to take keyframes from */
-	filter = ANIMFILTER_DATA_VISIBLE; // curves only
-	ANIM_animdata_filter(&ac, &anim_data, filter, ac.data, ac.datatype);
-
-	/* loop through each F-Curve, grabbing the keyframes */
-	for (ale = anim_data.first; ale; ale = ale->next)
-		fcurve_to_keylist(ale->adt, ale->data, keys, blocks);
-
-	ANIM_animdata_freelist(&anim_data);
-}
-
 void mask_to_keylist(bDopeSheet *UNUSED(ads), MaskLayer *masklay, DLRBT_Tree *keys)
 {
 	MaskLayerShape *masklay_shape;

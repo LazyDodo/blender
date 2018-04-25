@@ -606,7 +606,7 @@ static int gp_set_filling_texture(Image *image, short flag)
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	if (flag & PAC_COLOR_TEX_CLAMP) {
+	if (flag & GPC_COLOR_TEX_CLAMP) {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
@@ -621,11 +621,12 @@ static int gp_set_filling_texture(Image *image, short flag)
 
 /* draw fills for shapes */
 static void gp_draw_stroke_fill(
-        bGPdata *UNUSED(gpd), bGPDstroke *gps,
+        bGPdata *gpd, bGPDstroke *gps,
         int offsx, int offsy, int winx, int winy, const float diff_mat[4][4], const float color[4])
 {
 	BLI_assert(gps->totpoints >= 3);
-	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	Material *material = gpd->mat[gps->mat_nr];
+	GpencilColorData *gpcolor = material->gpcolor;
 
 	/* Calculate triangles cache for filling area (must be done only after changes) */
 	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
@@ -639,25 +640,25 @@ static void gp_draw_stroke_fill(
 	immBindBuiltinProgram(GPU_SHADER_GPENCIL_FILL);
 
 	immUniformColor4fv(color);
-	immUniform4fv("color2", palcolor->scolor);
-	immUniform1i("fill_type", palcolor->fill_style);
-	immUniform1f("mix_factor", palcolor->mix_factor);
+	immUniform4fv("color2", gpcolor->scolor);
+	immUniform1i("fill_type", gpcolor->fill_style);
+	immUniform1f("mix_factor", gpcolor->mix_factor);
 
-	immUniform1f("g_angle", palcolor->g_angle);
-	immUniform1f("g_radius", palcolor->g_radius);
-	immUniform1f("g_boxsize", palcolor->g_boxsize);
-	immUniform2fv("g_scale", palcolor->g_scale);
-	immUniform2fv("g_shift", palcolor->g_shift);
+	immUniform1f("g_angle", gpcolor->g_angle);
+	immUniform1f("g_radius", gpcolor->g_radius);
+	immUniform1f("g_boxsize", gpcolor->g_boxsize);
+	immUniform2fv("g_scale", gpcolor->g_scale);
+	immUniform2fv("g_shift", gpcolor->g_shift);
 
-	immUniform1f("t_angle", palcolor->t_angle);
-	immUniform2fv("t_scale", palcolor->t_scale);
-	immUniform2fv("t_offset", palcolor->t_offset);
-	immUniform1f("t_opacity", palcolor->t_opacity);
-	immUniform1i("t_mix", palcolor->flag & PAC_COLOR_TEX_MIX ? 1 : 0);
-	immUniform1i("t_flip", palcolor->flag & PAC_COLOR_FLIP_FILL ? 1 : 0);
+	immUniform1f("t_angle", gpcolor->t_angle);
+	immUniform2fv("t_scale", gpcolor->t_scale);
+	immUniform2fv("t_offset", gpcolor->t_offset);
+	immUniform1f("t_opacity", gpcolor->t_opacity);
+	immUniform1i("t_mix", gpcolor->flag & GPC_COLOR_TEX_MIX ? 1 : 0);
+	immUniform1i("t_flip", gpcolor->flag & GPC_COLOR_FLIP_FILL ? 1 : 0);
 	/* image texture */
-	if ((palcolor->fill_style == FILL_STYLE_TEXTURE) || (palcolor->flag & PAC_COLOR_TEX_MIX)) {
-		gp_set_filling_texture(palcolor->ima, palcolor->flag);
+	if ((gpcolor->fill_style == GPC_FILL_STYLE_TEXTURE) || (gpcolor->flag & GPC_COLOR_TEX_MIX)) {
+		gp_set_filling_texture(gpcolor->ima, gpcolor->flag);
 	}
 
 	/* Draw all triangles for filling the polygon (cache must be calculated before) */
@@ -1025,18 +1026,20 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			continue;
 		}
 		/* check if the color is visible */
-		PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-		if ((palcolor == NULL) ||
-		    (palcolor->flag & PC_COLOR_HIDE) ||
+		Material *material = tgpw->gpd->mat[gps->mat_nr];
+		GpencilColorData *gpcolor = material->gpcolor;
+
+		if ((gpcolor == NULL) ||
+		    (gpcolor->flag & GPC_COLOR_HIDE) ||
 		    /* if onion and ghost flag do not draw*/
-		    (tgpw->onion && (palcolor->flag & PC_COLOR_ONIONSKIN)))
+		    (tgpw->onion && (gpcolor->flag & GPC_COLOR_ONIONSKIN)))
 		{
 			continue;
 		}
 
 		/* if disable fill, the colors with fill must be omitted too except fill boundary strokes */
 		if ((tgpw->disable_fill == 1) && 
-			(palcolor->fill[3] > 0.0f) && 
+			(gpcolor->fill[3] > 0.0f) && 
 			((gps->flag & GP_STROKE_NOFILL) == 0))
 		{
 				continue;
@@ -1068,9 +1071,9 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			//if ((dflag & GP_DRAWDATA_FILL) && (gps->totpoints >= 3)) {
 			if ((gps->totpoints >= 3) && (tgpw->disable_fill != 1)) {
 				/* set color using palette, tint color and opacity */
-				interp_v3_v3v3(tfill, palcolor->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tfill[3] = palcolor->fill[3] * tgpw->opacity;
-				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (palcolor->fill_style > 0)) {
+				interp_v3_v3v3(tfill, gpcolor->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tfill[3] = gpcolor->fill[3] * tgpw->opacity;
+				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0)) {
 					const float *color;
 					if (!tgpw->onion) {
 						color = tfill;
@@ -1080,7 +1083,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 							color = tgpw->tintcolor;
 						}
 						else {
-							ARRAY_SET_ITEMS(tfill, UNPACK3(palcolor->fill), tgpw->tintcolor[3]);
+							ARRAY_SET_ITEMS(tfill, UNPACK3(gpcolor->fill), tgpw->tintcolor[3]);
 							color = tfill;
 						}
 					}
@@ -1091,8 +1094,8 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			/* 3D Stroke */
 			/* set color using palette, tint color and opacity */
 			if (!tgpw->onion) {
-				interp_v3_v3v3(tcolor, palcolor->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tcolor[3] = palcolor->rgb[3] * tgpw->opacity;
+				interp_v3_v3v3(tcolor, gpcolor->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tcolor[3] = gpcolor->rgb[3] * tgpw->opacity;
 				copy_v4_v4(ink, tcolor);
 			}
 			else {
@@ -1100,11 +1103,11 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 					copy_v4_v4(ink, tgpw->tintcolor);
 				}
 				else {
-					ARRAY_SET_ITEMS(tcolor, palcolor->rgb[0], palcolor->rgb[1], palcolor->rgb[2], tgpw->opacity);
+					ARRAY_SET_ITEMS(tcolor, gpcolor->rgb[0], gpcolor->rgb[1], gpcolor->rgb[2], tgpw->opacity);
 					copy_v4_v4(ink, tcolor);
 				}
 			}
-			if (palcolor->mode == PAC_MODE_DOTS) {
+			if (gpcolor->mode == GPC_MODE_DOTS) {
 				/* volumetric stroke drawing */
 				if (tgpw->disable_fill != 1) {
 					gp_draw_stroke_volumetric_3d(gps->points, gps->totpoints, sthickness, ink);
@@ -1135,9 +1138,9 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			/* 2D - Fill */
 			if (gps->totpoints >= 3) {
 				/* set color using palette, tint color and opacity */
-				interp_v3_v3v3(tfill, palcolor->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tfill[3] = palcolor->fill[3] * tgpw->opacity;
-				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (palcolor->fill_style > 0)) {
+				interp_v3_v3v3(tfill, gpcolor->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tfill[3] = gpcolor->fill[3] * tgpw->opacity;
+				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0)) {
 					const float *color;
 					if (!tgpw->onion) {
 						color = tfill;
@@ -1147,7 +1150,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 							color = tgpw->tintcolor;
 						}
 						else {
-							ARRAY_SET_ITEMS(tfill, palcolor->fill[0], palcolor->fill[1], palcolor->fill[2],
+							ARRAY_SET_ITEMS(tfill, gpcolor->fill[0], gpcolor->fill[1], gpcolor->fill[2],
 								tgpw->tintcolor[3]);
 							color = tfill;
 						}
@@ -1159,8 +1162,8 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			/* 2D Strokes... */
 			/* set color using palette, tint color and opacity */
 			if (!tgpw->onion) {
-				interp_v3_v3v3(tcolor, palcolor->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tcolor[3] = palcolor->rgb[3] * tgpw->opacity;
+				interp_v3_v3v3(tcolor, gpcolor->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tcolor[3] = gpcolor->rgb[3] * tgpw->opacity;
 				copy_v4_v4(ink, tcolor);
 			}
 			else {
@@ -1168,11 +1171,11 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 					copy_v4_v4(ink, tgpw->tintcolor);
 				}
 				else {
-					ARRAY_SET_ITEMS(tcolor, palcolor->rgb[0], palcolor->rgb[1], palcolor->rgb[2], tgpw->opacity);
+					ARRAY_SET_ITEMS(tcolor, gpcolor->rgb[0], gpcolor->rgb[1], gpcolor->rgb[2], tgpw->opacity);
 					copy_v4_v4(ink, tcolor);
 				}
 			}
-			if (palcolor->mode == PAC_MODE_DOTS) {
+			if (gpcolor->mode == GPC_MODE_DOTS) {
 				/* blob/disk-based "volumetric" drawing */
 				gp_draw_stroke_volumetric_2d(gps->points, gps->totpoints, sthickness, tgpw->dflag, gps->flag,
 					tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, ink);
@@ -1236,12 +1239,14 @@ static void gp_draw_strokes_edit(
 
 		/* verify palette color lock */
 		{
-			PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-			if (palcolor != NULL) {
-				if (palcolor->flag & PC_COLOR_HIDE) {
+			Material *material = gpd->mat[gps->mat_nr];
+			GpencilColorData *gpcolor = material->gpcolor;
+
+			if (gpcolor != NULL) {
+				if (gpcolor->flag & GPC_COLOR_HIDE) {
 					continue;
 				}
-				if (((lflag & GP_LAYER_UNLOCK_COLOR) == 0) && (palcolor->flag & PC_COLOR_LOCKED)) {
+				if (((lflag & GP_LAYER_UNLOCK_COLOR) == 0) && (gpcolor->flag & GPC_COLOR_LOCKED)) {
 					continue;
 				}
 			}
@@ -1264,7 +1269,8 @@ static void gp_draw_strokes_edit(
 
 		/* for now, we assume that the base color of the points is not too close to the real color */
 		/* set color using palette */
-		PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+		Material *material = gpd->mat[gps->mat_nr];
+		GpencilColorData *gpcolor = material->gpcolor;
 
 		float selectColor[4];
 		UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);
@@ -1309,7 +1315,7 @@ static void gp_draw_strokes_edit(
 				immAttrib1f(size, vsize);
 			}
 			else {
-				immAttrib3fv(color, palcolor->rgb);
+				immAttrib3fv(color, gpcolor->rgb);
 				immAttrib1f(size, bsize);
 			}
 
@@ -1667,7 +1673,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 			 * It should also be noted that sbuffer contains temporary point types
 			 * i.e. tGPspoints NOT bGPDspoints
 			 */
-			if (gpd->mode == PAC_MODE_DOTS) {
+			if (gpd->mode == GPC_MODE_DOTS) {
 				gp_draw_stroke_volumetric_buffer(gpd->sbuffer, gpd->sbuffer_size, lthick,
 				                                 dflag, gpd->scolor);
 			}

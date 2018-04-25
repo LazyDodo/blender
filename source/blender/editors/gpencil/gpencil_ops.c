@@ -810,7 +810,6 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_convert_scene_to_object);
 
 	WM_operatortype_append(GPENCIL_OT_stroke_arrange);
-	WM_operatortype_append(GPENCIL_OT_stroke_change_palette);
 	WM_operatortype_append(GPENCIL_OT_stroke_change_color);
 	WM_operatortype_append(GPENCIL_OT_stroke_lock_color);
 	WM_operatortype_append(GPENCIL_OT_stroke_apply_thickness);
@@ -828,13 +827,6 @@ void ED_operatortypes_gpencil(void)
 
 	WM_operatortype_append(GPENCIL_OT_sculpt_select);
 	
-	/* palette slots */
-	WM_operatortype_append(GPENCIL_OT_palette_slot_add);
-	WM_operatortype_append(GPENCIL_OT_palette_slot_remove);
-
-	/* conversion of old palettes */
-	WM_operatortype_append(GPENCIL_OT_convert_old_palettes);
-
 	/* vertex groups */
 	WM_operatortype_append(GPENCIL_OT_vertex_group_assign);
 	WM_operatortype_append(GPENCIL_OT_vertex_group_remove_from);

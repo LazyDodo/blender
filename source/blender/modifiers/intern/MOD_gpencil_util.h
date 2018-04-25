@@ -33,8 +33,12 @@
 #ifndef __MOD_GPENCIL_UTIL_H__
 #define __MOD_GPENCIL_UTIL_H__
 
+struct Object;
+struct bGPDlayer;
+struct bGPDstroke;
+
 bool is_stroke_affected_by_modifier(
-        char *mlayername, int mpassindex, int minpoints,
+        struct Object *ob, char *mlayername, int mpassindex, int minpoints,
         bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2);
 
 float is_point_affected_by_modifier(bGPDspoint *pt, int inverse, int vindex);

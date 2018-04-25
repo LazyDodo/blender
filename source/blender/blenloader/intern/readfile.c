@@ -2335,7 +2335,7 @@ static void lib_link_brush(FileData *fd, Main *main)
 			brush->paint_curve = newlibadr_us(fd, brush->id.lib, brush->paint_curve);
 
 			/* link default grease pencil palette */
-			brush->palette = newlibadr_us(fd, brush->id.lib, brush->palette);
+			brush->material = newlibadr_us(fd, brush->id.lib, brush->material);
 
 			brush->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
@@ -2384,17 +2384,6 @@ static void lib_link_palette(FileData *fd, Main *main)
 			IDP_LibLinkProperty(palette->id.properties, fd);
 
 			palette->id.tag &= ~LIB_TAG_NEED_LINK;
-
-			lib_link_animdata(fd, &palette->id, palette->adt);
-			/* relink images */
-			for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-				if (palcolor->sima != NULL) {
-					palcolor->sima = newlibadr(fd, palette->id.lib, palcolor->sima);
-				}
-				if (palcolor->ima != NULL) {
-					palcolor->ima = newlibadr(fd, palette->id.lib, palcolor->ima);
-				}
-			}
 		}
 	}
 }
@@ -2404,12 +2393,6 @@ static void direct_link_palette(FileData *fd, Palette *palette)
 
 	/* palette itself has been read */
 	link_list(fd, &palette->colors);
-	
-	/* relink animdata */
-	if (palette != NULL) {
-		palette->adt = newdataadr(fd, palette->adt);
-		direct_link_animdata(fd, palette->adt);
-	}
 }
 
 static void lib_link_paint_curve(FileData *fd, Main *main)
@@ -6321,50 +6304,14 @@ static void direct_link_scene(FileData *fd, Scene *sce, Main *bmain)
 /* relink's grease pencil data's refs */
 static void lib_link_gpencil(FileData *fd, Main *main)
 {
-	/* Build up hash of colors to assign later to strokes, for faster lookups */
-	int palette_count = BLI_listbase_count(&main->palettes);
-	int i = 0;
-	
 	/* Relink all datablock linked by GP datablock */
 	for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
 		if (gpd->id.tag & LIB_TAG_NEED_LINK) {
-			/* XXX: early 2.8, pre-paletteslot version patching */
-			bool *palettes_needed = MEM_callocN(sizeof(bool) * palette_count, "palettes_needed");
-			
 			/* Layers */
 			for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 				/* Layer -> Parent References */
 				gpl->parent = newlibadr(fd, gpd->id.lib, gpl->parent);
-				
-				/* Layer -> Frame data */
-				for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-					/* Strokes -> Palette References */
-					for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-						/* Relink palette */
-						gps->palette = newlibadr(fd, gpd->id.lib, gps->palette);
-						
-						/* XXX: Temporary version-patching code for early 2.8 files without any palette slots */
-						if (i >= 0) palettes_needed[i] = true;
-					}
-				}
 			}
-			
-			/* Palette Slots */
-			for (bGPDpaletteref *palslot = gpd->palette_slots.first; palslot; palslot = palslot->next) {
-				palslot->palette = newlibadr_us(fd, gpd->id.lib, palslot->palette);
-			}
-			
-			
-			/* XXX: Temporary version-patching code for early 2.8 files without any palette slots */
-			if (BLI_listbase_is_empty(&gpd->palette_slots)) {
-				for (i = 0; i < palette_count; i++) {
-					if (palettes_needed[i]) {
-						BKE_gpencil_paletteslot_add(gpd, BLI_findlink(&main->palettes, i));
-					}
-				}
-			}
-			MEM_freeN(palettes_needed);
-			
 			
 			/* Datablock Stuff */
 			IDP_LibLinkProperty(gpd->id.properties, fd);
@@ -6403,15 +6350,6 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 	/* materials */
 	gpd->mat = newdataadr(fd, gpd->mat);
 	test_pointer_array(fd, (void **)&gpd->mat);
-
-	/* relink palettes */
-	link_list(fd, &gpd->palettes);
-	for (palette = gpd->palettes.first; palette; palette = palette->next) {
-		link_list(fd, &palette->colors);
-	}
-	
-	/* relink palette slots */
-	link_list(fd, &gpd->palette_slots);
 
 	/* relink layers */
 	link_list(fd, &gpd->layers);
@@ -9438,7 +9376,7 @@ static void expand_brush(FileData *fd, Main *mainvar, Brush *brush)
 	expand_doit(fd, mainvar, brush->mask_mtex.tex);
 	expand_doit(fd, mainvar, brush->clone.image);
 	expand_doit(fd, mainvar, brush->paint_curve);
-	expand_doit(fd, mainvar, brush->palette);
+	expand_doit(fd, mainvar, brush->material);
 }
 
 static void expand_material(FileData *fd, Main *mainvar, Material *ma)
@@ -9926,32 +9864,8 @@ static void expand_gpencil(FileData *fd, Main *mainvar, bGPdata *gpd)
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		expand_doit(fd, mainvar, gpl->parent);
-		
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				expand_doit(fd, mainvar, gps->palette);
-			}
-		}
 	}
 	
-	for (bGPDpaletteref *palslot = gpd->palette_slots.first; palslot; palslot = palslot->next) {
-		expand_doit(fd, mainvar, palslot->palette);
-	}
-}
-
-static void expand_palette(FileData *fd, Main *mainvar, Palette *palette)
-{
-	if (palette->adt) {
-		expand_animdata(fd, mainvar, palette->adt);
-	}
-	for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-		if (palcolor->sima) {
-			expand_doit(fd, mainvar, palcolor->sima);
-		}
-		if (palcolor->ima) {
-			expand_doit(fd, mainvar, palcolor->ima);
-		}
-	}
 }
 
 static void expand_workspace(FileData *fd, Main *mainvar, WorkSpace *workspace)
@@ -10076,9 +9990,6 @@ void BLO_expand_main(void *fdhandle, Main *mainvar)
 						break;
 					case ID_GD:
 						expand_gpencil(fd, mainvar, (bGPdata *)id);
-						break;
-					case ID_PAL:
-						expand_palette(fd, mainvar, (Palette *)id);
 						break;
 					case ID_CF:
 						expand_cachefile(fd, mainvar, (CacheFile *)id);

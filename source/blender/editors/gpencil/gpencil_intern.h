@@ -42,6 +42,7 @@ struct bGPdata;
 struct bGPDstroke;
 struct bGPDspoint;
 struct tGPspoint;
+struct Material;
 
 struct GHash;
 
@@ -115,7 +116,7 @@ typedef struct tGPDinterpolate {
 	struct ScrArea *sa;        /* area where painting originated */
 	struct ARegion *ar;        /* region where painting originated */
 	struct bGPdata *gpd;       /* current GP datablock */
-	struct Palette *palette;   /* current palette */
+	struct Material *mat;      /* current material */
 
 	int cframe;                /* current frame number */
 	ListBase ilayers;          /* (tGPDinterpolate_layer) layers to be interpolated */
@@ -142,9 +143,8 @@ typedef struct tGPDprimitive {
 	struct View3D *v3d;               /* view3d where painting originated */
 	struct ARegion *ar;               /* region where painting originated */
 	struct bGPdata *gpd;              /* current GP datablock */
-	struct Palette *palette;          /* current palette */
-	struct PaletteColor *palcolor;    /* current palette color */
-	struct Brush *brush;              /* current brush */ 
+	struct Material *mat;             /* current material */
+	struct Brush *brush;              /* current brush */
 
 	int cframe;                       /* current frame number */
 	struct bGPDlayer *gpl;            /* layer */
@@ -351,15 +351,6 @@ enum {
 	GP_STROKE_JOINCOPY = 1
 };
 
-/* move strokes to new palette */
-enum {
-	GP_MOVE_PALETTE_SELECT = -1,
-	GP_MOVE_PALETTE_ALL = 1,
-	GP_MOVE_PALETTE_BEFORE = 2,
-	GP_MOVE_PALETTE_AFTER = 3,
-	GP_MOVE_PALETTE_CURRENT = 4
-};
-
 enum {
 	GP_STROKE_BOX = -1,
 	GP_STROKE_LINE = 1,
@@ -368,7 +359,6 @@ enum {
 
 
 void GPENCIL_OT_stroke_arrange(struct wmOperatorType *ot);
-void GPENCIL_OT_stroke_change_palette(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_change_color(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_lock_color(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_apply_thickness(struct wmOperatorType *ot);
@@ -390,11 +380,6 @@ void GPENCIL_OT_brush_copy(struct wmOperatorType *ot);
 void GPENCIL_OT_brush_select(struct wmOperatorType *ot);
 
 void GPENCIL_OT_sculpt_select(struct wmOperatorType *ot);
-
-void GPENCIL_OT_palette_slot_add(struct wmOperatorType *ot);
-void GPENCIL_OT_palette_slot_remove(struct wmOperatorType *ot);
-
-void GPENCIL_OT_convert_old_palettes(struct wmOperatorType *ot);
 
 /* undo stack ---------- */
 
@@ -500,7 +485,7 @@ typedef enum ACTCONT_TYPES {
 					if (ED_gpencil_stroke_can_use(C, gps) == false)                             \
 						continue;                                                               \
 					/* check if the color is editable */                                        \
-					if (ED_gpencil_stroke_color_use(gpl, gps) == false)                         \
+					if (ED_gpencil_stroke_color_use(obact_, gpl, gps) == false)                         \
 						continue;                                                               \
 					/* ... Do Stuff With Strokes ...  */
 

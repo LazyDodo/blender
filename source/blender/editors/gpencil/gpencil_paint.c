@@ -49,6 +49,7 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_material_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_windowmanager_types.h"
 
@@ -60,6 +61,7 @@
 #include "BKE_global.h"
 #include "BKE_report.h"
 #include "BKE_layer.h"
+#include "BKE_material.h"
 #include "BKE_screen.h"
 #include "BKE_tracking.h"
 #include "BKE_colortools.h"
@@ -128,6 +130,7 @@ typedef struct tGPsdata {
 	Scene *scene;       /* current scene from context */
 	struct Depsgraph *graph;
 	
+	Object *ob;         /* current object */
 	wmWindow *win;      /* window where painting originated */
 	ScrArea *sa;        /* area where painting originated */
 	ARegion *ar;        /* region where painting originated */
@@ -172,9 +175,8 @@ typedef struct tGPsdata {
 	
 	void *erasercursor; /* radial cursor data for drawing eraser */
 
-	/* Palette settings are only used for 3D view */
-	Palette *palette;   /* current palette */
-	PaletteColor *palettecolor; /* current palette color */
+	/* mat settings are only used for 3D view */
+	Material *material;   /* current material */
 	
 	Brush *brush;    /* current drawing brush */
 	Brush *eraser;   /* default eraser brush */
@@ -564,7 +566,7 @@ static short gp_stroke_addpoint(
 	Object *obact = (Object *)p->ownerPtr.data;
 	RegionView3D *rv3d = p->ar->regiondata;
 	View3D *v3d = p->sa->spacedata.first;
-	PaletteColor *palcolor = p->palettecolor;
+	GpencilColorData *gpcolor = p->material->gpcolor;
 
 	/* check painting mode */
 	if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
@@ -695,7 +697,7 @@ static short gp_stroke_addpoint(
 		
 		/* point uv (only 3d view) */
 		if ((p->sa->spacetype == SPACE_VIEW3D) && (gpd->sbuffer_size > 1)) {
-			float pixsize = palcolor->t_pixsize / 1000000.0f;
+			float pixsize = gpcolor->t_pixsize / 1000000.0f;
 			tGPspoint *ptb = (tGPspoint *)gpd->sbuffer + gpd->sbuffer_size - 2;
 			bGPDspoint spt, spt2;
 
@@ -712,8 +714,8 @@ static short gp_stroke_addpoint(
 
 			p->totpixlen += len_v3v3(&spt.x, &spt2.x) / pixsize;
 			pt->uv_fac = p->totpixlen;
-			if ((palcolor) && (palcolor->sima)) {
-				pt->uv_fac /= palcolor->sima->gen_x;
+			if ((gpcolor) && (gpcolor->sima)) {
+				pt->uv_fac /= gpcolor->sima->gen_x;
 			}
 		}
 		else {
@@ -1144,12 +1146,11 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			MEM_freeN(depth_arr);
 	}
 	
-	/* Save palette color */
-	gps->palette = p->palette;
-	BLI_strncpy(gps->colorname, p->palettecolor->info, sizeof(gps->colorname));
+	/* Save material index */
+	gps->mat_nr = BKE_object_material_slot_find_index(p->ob, p->mat) - 1;
 
 	/* calculate UVs along the stroke */
-	ED_gpencil_calc_stroke_uv(gps);
+	ED_gpencil_calc_stroke_uv(obact, gps);
 
 	/* add stroke to frame, usually on tail of the listbase, but if on back is enabled the stroke is added on listbase head 
 	 * because the drawing order is inverse and the head stroke is the first to draw. This is very useful for artist
@@ -1429,7 +1430,7 @@ static void gp_stroke_doeraser(tGPsdata *p)
 		for (gps = gpf->strokes.first; gps; gps = gpn) {
 			gpn = gps->next;
 			/* check if the color is editable */
-			if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+			if (ED_gpencil_stroke_color_use(p->ob, gpl, gps) == false) {
 				continue;
 			}
 			/* Not all strokes in the datablock may be valid in the current editor/context
@@ -1554,45 +1555,41 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 
 
 /* initialize a paint palette brush and a default color if not exist */
-static void gp_init_palette(tGPsdata *p)
+static void gp_init_colors(tGPsdata *p)
 {
 	bGPdata *gpd = p->gpd;
 	Brush *brush = p->brush;
 
-	bGPDpaletteref *palslot = NULL;
-	Palette *palette = NULL;
-	PaletteColor *palcolor = NULL;
+	Material *mat = NULL;
+	GpencilColorData *gpcolor = NULL;
 	
 	/* if the brush has a palette and color defined, use these and not current defaults */
-	palcolor = BKE_gpencil_get_color_from_brush(gpd, brush, true);
+	//mat = BKE_gpencil_get_color_from_brush(gpd, brush, true);
 
-	/* if no brush defaults, get palette and color info
+	/* if no brush defaults, get color info
 	 * NOTE: _validate() ensures that everything we need will exist...
 	 */
-	if (palcolor != NULL) {
-		palette = brush->palette;
+	if (mat == NULL) {
+		p->material = BKE_gpencil_color_ensure(p->bmain, p->ob);
 	}
 	else {
-		palslot = BKE_gpencil_paletteslot_validate(p->bmain, gpd);
-		palette = palslot->palette;
-		palcolor = BKE_palette_color_get_active(palette);
+		p->material = mat;
 	}
 	/* assign color to temp tGPsdata */
-	if (palcolor) {
-		p->palette = palette;
-		p->palettecolor = palcolor;
+	gpcolor = p->material->gpcolor;
+	if (gpcolor) {
 		
-		/* set palette colors */
-		copy_v4_v4(gpd->scolor, palcolor->rgb);
-		copy_v4_v4(gpd->sfill, palcolor->fill);
+		/* set colors */
+		copy_v4_v4(gpd->scolor, gpcolor->rgb);
+		copy_v4_v4(gpd->sfill, gpcolor->fill);
 		/* add some alpha to make easy the filling without hide strokes */
 		if (gpd->sfill[3] > 0.8f) {
 			gpd->sfill[3] = 0.8f;
 		}
 
-		gpd->mode = (short)palcolor->mode;
-		gpd->bstroke_style = palcolor->stroke_style;
-		gpd->bfill_style = palcolor->fill_style;
+		gpd->mode = (short)gpcolor->mode;
+		gpd->bstroke_style = gpcolor->stroke_style;
+		gpd->bfill_style = gpcolor->fill_style;
 	}
 }
 
@@ -1619,6 +1616,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 	p->bmain = CTX_data_main(C);
 	p->scene = CTX_data_scene(C);
 	p->graph = CTX_data_depsgraph(C);
+	p->ob = CTX_data_active_object(C);
 	p->win = CTX_wm_window(C);
 	p->disable_fill = RNA_boolean_get(op->ptr, "disable_fill");
 	
@@ -1808,11 +1806,11 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 		/* NOTE: This is only done for 3D view, as Palettes aren't used for
 		 *       annotations in 2D editors
 		 */
-		gp_init_palette(p);
+		gp_init_colors(p);
 	}
 	else {
 		#if 1 /* XXX: Temporary hack only - Palettes won't be used here in future... */
-			gp_init_palette(p);
+			gp_init_colors(p);
 		#endif
 	}
 

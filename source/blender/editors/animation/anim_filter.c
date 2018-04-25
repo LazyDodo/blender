@@ -968,18 +968,6 @@ static bAnimListElem *make_new_animlistelem(void *data, short datatype, ID *owne
 				ale->datatype = ALE_NONE;
 				break;
 			}
-			case ANIMTYPE_PALETTE:
-			{
-				Palette *palette = (Palette *)data;
-				AnimData *adt = palette->adt;
-
-				ale->flag = palette->flag;
-				ale->key_data = (adt) ? adt->action : NULL;
-				ale->datatype = ALE_ACT;
-
-				ale->adt = BKE_animdata_from_id(data);
-				break;
-			}
 		}
 	}
 	
@@ -2853,37 +2841,6 @@ static size_t animdata_filter_dopesheet_movieclips(bAnimContext *ac, ListBase *a
 	return items;
 }
 
-static size_t animdata_filter_ds_palette(bAnimContext *ac, ListBase *anim_data, bDopeSheet *ads, Palette *palette, int filter_mode)
-{
-	ListBase tmp_data = { NULL, NULL };
-	size_t tmp_items = 0;
-	size_t items = 0;
-	/* add world animation channels */
-	BEGIN_ANIMFILTER_SUBCHANNELS(EXPANDED_PALETTE(palette))
-	{
-		/* animation data filtering */
-		tmp_items += animfilter_block_data(ac, &tmp_data, ads, (ID *)palette, filter_mode);
-	}
-	END_ANIMFILTER_SUBCHANNELS;
-	/* did we find anything? */
-	if (tmp_items) {
-		/* include data-expand widget first */
-		if (filter_mode & ANIMFILTER_LIST_CHANNELS) {
-			/* check if filtering by active status */
-			if (ANIMCHANNEL_ACTIVEOK(palette)) {
-				ANIMCHANNEL_NEW_CHANNEL(palette, ANIMTYPE_PALETTE, palette);
-			}
-		}
-		/* now add the list of collected channels */
-		BLI_movelisttolist(anim_data, &tmp_data);
-		BLI_assert(BLI_listbase_is_empty(&tmp_data));
-		items += tmp_items;
-	}
-	/* return the number of items added to the list */
-	return items;
-}
-
-
 /* Helper for animdata_filter_dopesheet() - For checking if an object should be included or not */
 static bool animdata_filter_base_is_ok(bDopeSheet *ads, Base *base, int filter_mode)
 {
@@ -3023,13 +2980,6 @@ static size_t animdata_filter_dopesheet(bAnimContext *ac, ListBase *anim_data, b
 	/* scene-linked animation - e.g. world, compositing nodes, scene anim (including sequencer currently) */
 	items += animdata_filter_dopesheet_scene(ac, anim_data, ads, scene, filter_mode);
 
-	/* palettes */
-	for (Palette *palette = G.main->palettes.first; palette; palette = palette->id.next) {
-		if (palette->adt) {
-			items += animdata_filter_ds_palette(ac, anim_data, ads, palette, filter_mode);
-		}
-	}
-
 	/* If filtering for channel drawing, we want the objects in alphabetical order,
 	 * to make it easier to predict where items are in the hierarchy
 	 *  - This order only really matters if we need to show all channels in the list (e.g. for drawing)
@@ -3147,10 +3097,6 @@ static size_t animdata_filter_animchan(bAnimContext *ac, ListBase *anim_data, bD
 			items += animfilter_block_data(ac, anim_data, ads, channel->id, filter_mode);
 			break;
 			
-		case ANIMTYPE_PALETTE:
-			items += animdata_filter_ds_palette(ac, anim_data, ads, channel->data, filter_mode);
-			break;
-
 		default:
 			printf("ERROR: Unsupported channel type (%d) in animdata_filter_animchan()\n", channel->type);
 			break;

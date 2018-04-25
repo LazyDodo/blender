@@ -396,7 +396,7 @@ bool gpencil_can_draw_stroke(struct Object *ob, const bGPDstroke *gps, const boo
 	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* check if the color is visible */
-	if ((gps->palette == NULL) || (gpcolor == NULL) ||
+	if ((gpcolor == NULL) ||
 	    (gpcolor->flag & GPC_COLOR_HIDE) ||
 	    (onion && (gpcolor->flag & GPC_COLOR_ONIONSKIN)))
 	{
@@ -588,7 +588,7 @@ void DRW_gpencil_recalc_geometry_caches(Object *ob, bGPDstroke *gps) {
 		}
 
 		/* calc uv data along the stroke */
-		ED_gpencil_calc_stroke_uv(gps);
+		ED_gpencil_calc_stroke_uv(ob, gps);
 		
 		/* clear flag */
 		gps->flag &= ~GP_STROKE_RECALC_CACHES;
@@ -596,14 +596,14 @@ void DRW_gpencil_recalc_geometry_caches(Object *ob, bGPDstroke *gps) {
 }
 
 /* create batch geometry data for stroke shader */
-Gwn_Batch *DRW_gpencil_get_fill_geom(bGPDstroke *gps, const float color[4])
+Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float color[4])
 {
 	BLI_assert(gps->totpoints >= 3);
 
 	/* Calculate triangles cache for filling area (must be done only after changes) */
 	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
 		gp_triangulate_stroke_fill(gps);
-		ED_gpencil_calc_stroke_uv(gps);
+		ED_gpencil_calc_stroke_uv(ob, gps);
 	}
 
 	BLI_assert(gps->tot_triangles >= 1);

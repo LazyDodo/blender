@@ -58,6 +58,7 @@
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_library.h"
+#include "BKE_material.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
 
@@ -170,9 +171,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	gps->flag |= GP_STROKE_CYCLIC;
 	gps->flag |= GP_STROKE_3DSPACE;
 
-	gps->palette = tgpi->palette;
-	if (tgpi->palcolor)
-		BLI_strncpy(gps->colorname, tgpi->palcolor->info, sizeof(gps->colorname));
+	gps->mat_nr = BKE_object_material_slot_find_index(tgpi->ob, tgpi->mat) - 1;
 
 	/* allocate memory for storage points, but keep empty */
 	gps->totpoints = 0;
@@ -445,10 +444,8 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	/* set GP datablock */
 	tgpi->gpd = gpd;
 	
-	/* get palette and color info */
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_validate(bmain, gpd);
-	tgpi->palette = palslot->palette;
-	tgpi->palcolor = BKE_palette_color_get_active(tgpi->palette);
+	/* getcolor info */
+	tgpi->mat = BKE_gpencil_color_ensure(bmain, tgpi->ob);
 
 	/* set parameters */
 	tgpi->type = RNA_enum_get(op->ptr, "type");

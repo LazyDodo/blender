@@ -54,6 +54,7 @@
 #include "BKE_gpencil.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
+#include "BKE_material.h"
 #include "BKE_tracking.h"
 #include "BKE_action.h"
 #include "BKE_screen.h"
@@ -434,14 +435,15 @@ bool ED_gpencil_stroke_can_use(const bContext *C, const bGPDstroke *gps)
 }
 
 /* Check whether given stroke can be edited for the current color */
-bool ED_gpencil_stroke_color_use(const bGPDlayer *gpl, const bGPDstroke *gps)
+bool ED_gpencil_stroke_color_use(Object *ob, const bGPDlayer *gpl, const bGPDstroke *gps)
 {
 	/* check if the color is editable */
-	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-	if ((gps->palette) && (palcolor != NULL)) {
-		if (palcolor->flag & PC_COLOR_HIDE)
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
+	if (gpcolor != NULL) {
+		if (gpcolor->flag & GPC_COLOR_HIDE)
 			return false;
-		if (((gpl->flag & GP_LAYER_UNLOCK_COLOR) == 0) && (palcolor->flag & PC_COLOR_LOCKED))
+		if (((gpl->flag & GP_LAYER_UNLOCK_COLOR) == 0) && (gpcolor->flag & GPC_COLOR_LOCKED))
 			return false;
 	}
 	
@@ -1124,11 +1126,13 @@ Object *ED_add_gpencil_object(bContext *C, Scene *scene, const float loc[3])
 /* Helper function to create default colors and drawing brushes */
 void ED_gpencil_add_defaults(bContext *C)
 {
+	Main *bmain = CTX_data_main(C);
+	Object *ob = CTX_data_active_object(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	
-	/* ensure palettes, colors, and palette slots exist */
-	BKE_gpencil_paletteslot_validate(CTX_data_main(C), gpd);
+	/* ensure color exist */
+	BKE_gpencil_color_ensure(bmain, ob);
 
 	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	/* if not exist, create a new one */
@@ -1339,7 +1343,10 @@ void ED_gpencil_brush_draw_eraser(Brush *brush, int x, int y)
 /* Helper callback for drawing the cursor itself */
 static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 {
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	Object *ob = CTX_data_active_object(C);
+
 	GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	GP_EditBrush_Data *brush = NULL;
@@ -1347,19 +1354,12 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	int *last_mouse_position = customdata;
 
 	/* get current color */
-	bGPDpaletteref *palslot = NULL;
-	Palette *palette = NULL;
-	PaletteColor *palcolor = NULL;
-	palcolor = BKE_gpencil_get_color_from_brush(gpd, CTX_data_active_gpencil_brush(C), false);
-	if (palcolor == NULL) {
-		palslot = BKE_gpencil_paletteslot_get_active(gpd);
-		if (palslot) {
-			palette = palslot->palette;
-			if (palette) {
-				palcolor = BKE_palette_color_get_active(palette);
-			}
-		}
+	Material *mat = BKE_gpencil_get_color_from_brush(gpd, CTX_data_active_gpencil_brush(C), false);
+	GpencilColorData *gpcolor = NULL;
+	if (mat == NULL) {
+		mat = BKE_gpencil_color_ensure(bmain, ob);
 	}
+	gpcolor = mat->gpcolor;
 
 	if ((gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE)) {
 		brush = &gset->brush[gset->weighttype];
@@ -1405,13 +1405,13 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			 * is too disruptive and the size of cursor does not change with zoom factor.
 			 * The decision was to use a fix size, instead of paintbrush->thickness value. 
 			 */
-			if ((palcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
+			if ((gpcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
 				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
 				(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
 			{
 				radius = 2.0f;
-				copy_v3_v3(color, palcolor->rgb);
+				copy_v3_v3(color, gpcolor->rgb);
 			}
 			else {
 				radius = 5.0f;
@@ -1450,7 +1450,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 	/* Inner Ring: Color from UI panel */
 	immUniformColor4f(color[0], color[1], color[2], 0.8f);
-	if ((palcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
+	if ((gpcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
 		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
 		(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
@@ -1624,15 +1624,15 @@ void ED_gpencil_tpoint_to_point(ARegion *ar, float origin[3], const tGPspoint *t
 }
 
 /* texture coordinate utilities */
-void ED_gpencil_calc_stroke_uv(bGPDstroke *gps)
+void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 {
 	if (gps == NULL) {
 		return;
 	}
-	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	float pixsize;
-	if (palcolor) {
-		pixsize = palcolor->t_pixsize / 1000000.0f;
+	if (gpcolor) {
+		pixsize = gpcolor->t_pixsize / 1000000.0f;
 	}
 	else {
 		/* use this value by default */
@@ -1661,8 +1661,8 @@ void ED_gpencil_calc_stroke_uv(bGPDstroke *gps)
 	/* normalize the distance using a factor */
 	float factor;
 	/* if image, use texture width */
-	if ((palcolor) && (palcolor->sima)) {
-		factor = palcolor->sima->gen_x;
+	if ((gpcolor) && (gpcolor->sima)) {
+		factor = gpcolor->sima->gen_x;
 	}
 	else {
 		factor = totlen;
@@ -1676,6 +1676,8 @@ void ED_gpencil_calc_stroke_uv(bGPDstroke *gps)
 /* recalc uv for any stroke using the color */
 void ED_gpencil_update_color_uv(Main *bmain, Palette *palette, PaletteColor *palcolor)
 {
+	
+#if 0 /* GPXX */
 	/* read all strokes  */
 	for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
@@ -1684,7 +1686,7 @@ void ED_gpencil_update_color_uv(Main *bmain, Palette *palette, PaletteColor *pal
 				for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 					for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 						/* check if the color is editable */
-						if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+						if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 							continue;
 						}
 						if (gps->palette != palette) {
@@ -1693,13 +1695,14 @@ void ED_gpencil_update_color_uv(Main *bmain, Palette *palette, PaletteColor *pal
 
 						/* update */
 						if (strcmp(palcolor->info, gps->colorname) == 0) {
-							ED_gpencil_calc_stroke_uv(gps);
+							ED_gpencil_calc_stroke_uv(ob, gps);
 						}
 					}
 				}
 			}
 		}
 	}
+#endif
 }
 /* ******************************************************** */
 

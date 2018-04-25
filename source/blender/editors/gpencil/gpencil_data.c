@@ -68,6 +68,7 @@
 #include "BKE_library.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
+#include "BKE_material.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
@@ -950,6 +951,7 @@ enum {
 
 static int gp_stroke_arrange_exec(bContext *C, wmOperator *op)
 {
+	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
 	bGPDstroke *gps;
@@ -982,7 +984,7 @@ static int gp_stroke_arrange_exec(bContext *C, wmOperator *op)
 					continue;
 				}
 				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+				if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 					continue;
 				}
 				/* some stroke is already at front*/
@@ -1079,126 +1081,22 @@ void GPENCIL_OT_stroke_arrange(wmOperatorType *ot)
 	ot->prop = RNA_def_enum(ot->srna, "direction", slot_move, GP_STROKE_MOVE_UP, "Direction", "");
 }
 
-/* ******************* Move Stroke to new palette ************************** */
-
-static int gp_stroke_change_palette_exec(bContext *C, wmOperator *op)
-{
-	Scene *scene = CTX_data_scene(C);
-	const int type = RNA_enum_get(op->ptr, "type");
-
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	Palette *palette;
-	PaletteColor *palcolor;
-
-	/* sanity checks */
-	if (ELEM(NULL, gpd, palslot)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	palette = palslot->palette;
-	if (ELEM(NULL, palette)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	/* loop all strokes */
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		/* only editable and visible layers are considered */
-		if (!gpencil_layer_is_editable(gpl))
-			continue;
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			/* check frame if frame range */
-			if ((type == GP_MOVE_PALETTE_BEFORE) && (gpf->framenum >= scene->r.cfra))
-				continue;
-			if ((type == GP_MOVE_PALETTE_AFTER) && (gpf->framenum < scene->r.cfra))
-				continue;
-			if ((type == GP_MOVE_PALETTE_CURRENT) && (gpf->framenum != scene->r.cfra))
-				continue;
-
-			for (bGPDstroke *gps = gpf->strokes.last; gps; gps = gps->prev) {
-				/* only if selected */
-				if (((gps->flag & GP_STROKE_SELECT) == 0) && (type == GP_MOVE_PALETTE_SELECT))
-					continue;
-				/* skip strokes that are invalid for current view */
-				if (ED_gpencil_stroke_can_use(C, gps) == false)
-					continue;
-				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps) == false)
-					continue;
-
-				/* look for new color */
-				palcolor = BKE_palette_color_getbyname(palette, gps->colorname);
-				/* if the color does not exist, create a new one to keep stroke */
-				if (palcolor == NULL) {
-					palcolor = BKE_palette_color_add_name(palette, gps->colorname);
-					PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-					copy_v4_v4(palcolor->rgb, gps_palcolor->rgb);
-					copy_v4_v4(palcolor->fill, gps_palcolor->fill);
-					/* duplicate flags */
-					palcolor->flag = gps_palcolor->flag;
-					palcolor->stroke_style = gps_palcolor->stroke_style;
-					palcolor->fill_style = gps_palcolor->fill_style;
-				}
-
-				/* asign new color */
-				BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
-				gps->palette = palette;
-			}
-		}
-	}
-	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_stroke_change_palette(wmOperatorType *ot)
-{
-	static EnumPropertyItem palette_move_type[] = {
-		{ GP_MOVE_PALETTE_SELECT, "SELECTED", 0, "Change Strokes Selected", "Move to new palette any stroke selected in any frame" },
-		{ GP_MOVE_PALETTE_ALL, "ALL", 0, "Change All Frames", "Move all strokes in all frames to new palette" },
-		{ GP_MOVE_PALETTE_BEFORE, "BEFORE", 0, "Change Frames Before", "Move all strokes in frames before current frame to new palette" },
-		{ GP_MOVE_PALETTE_AFTER, "AFTER", 0, "Change Frames After", "Move all strokes in frames greater or equal current frame to new palette" },
-		{ GP_MOVE_PALETTE_CURRENT, "CURRENT", 0, "Change Current Frame", "Move all strokes in current frame to new palette" },
-		{ 0, NULL, 0, NULL, NULL }
-	};
-
-	/* identifiers */
-	ot->name = "Change Stroke Palette";
-	ot->idname = "GPENCIL_OT_stroke_change_palette";
-	ot->description = "Move strokes to active palette";
-
-	/* callbacks */
-	ot->exec = gp_stroke_change_palette_exec;
-	ot->poll = gp_active_layer_poll;
-	
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
-	/* properties */
-	ot->prop = RNA_def_enum(ot->srna, "type", palette_move_type, GP_MOVE_PALETTE_SELECT, "Type", "");
-
-}
-
 /* ******************* Move Stroke to new color ************************** */
 
 static int gp_stroke_change_color_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	Palette *palette;
-	PaletteColor *color;
+	Object *ob = CTX_data_active_object(C);
+	Material *mat = give_current_material(ob, ob->actcol + 1);
+	int idx = BKE_object_material_slot_find_index(ob, mat) - 1;
 
 	/* sanity checks */
-	if (ELEM(NULL, gpd, palslot)) {
+	if (ELEM(NULL, gpd)) {
 		return OPERATOR_CANCELLED;
 	}
 
 	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
-	palette = palslot->palette;
-	color = BKE_palette_color_get_active(palette);
-	if (ELEM(NULL, color)) {
+	if (ELEM(NULL, mat)) {
 		return OPERATOR_CANCELLED;
 	}
 
@@ -1222,14 +1120,11 @@ static int gp_stroke_change_color_exec(bContext *C, wmOperator *UNUSED(op))
 						if (ED_gpencil_stroke_can_use(C, gps) == false)
 							continue;
 						/* check if the color is editable */
-						if (ED_gpencil_stroke_color_use(gpl, gps) == false)
+						if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false)
 							continue;
 
-						/* asign new color (only if different) */
-						if (STREQ(gps->colorname, color->info) == false) {
-							BLI_strncpy(gps->colorname, color->info, sizeof(gps->colorname));
-							gps->palette = palette;
-						}
+						/* asign new color */
+						gps->mat_nr = idx;
 					}
 				}
 			}
@@ -1264,20 +1159,22 @@ void GPENCIL_OT_stroke_change_color(wmOperatorType *ot)
 static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	Palette *palette;
+
+	Object *ob = CTX_data_active_object(C);
+	Material *mat = NULL;
+
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
 
 	/* sanity checks */
-	if (ELEM(NULL, gpd, palslot))
+	if (ELEM(NULL, gpd))
 		return OPERATOR_CANCELLED;
 
-	palette = palslot->palette;
-	if (ELEM(NULL, palette))
-		return OPERATOR_CANCELLED;
-	
 	/* first lock all colors */
-	for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-		palcolor->flag |= PC_COLOR_LOCKED;
+	for (int i = 0; i < totcol; i++) {
+		Material *tmp = (*matar)[i];
+		tmp->gpcolor->flag |= GPC_COLOR_LOCKED;
+
 	}
 
 	/* loop all selected strokes and unlock any color */
@@ -1291,11 +1188,9 @@ static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 					if (ED_gpencil_stroke_can_use(C, gps) == false) {
 						continue;
 					}
-					PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
 					/* unlock color */
-					if (gps_palcolor != NULL) {
-						gps_palcolor->flag &= ~PC_COLOR_LOCKED;
-					}
+					Material *tmp = (*matar)[gps->mat_nr];
+					tmp->gpcolor->flag &= ~GPC_COLOR_LOCKED;
 				}
 			}
 		}
@@ -1321,88 +1216,6 @@ void GPENCIL_OT_stroke_lock_color(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
-
-/* ************************************************ */
-/* Palette Slot Operators */
-
-/* ********************* Add Palette SLot ************************* */
-
-static int gp_paletteslot_add_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	bGPdata *gpd = CTX_data_gpencil_data(C);
-	
-	/* just add an empty slot */
-	BKE_gpencil_paletteslot_add(gpd, NULL);
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_ADDED, NULL);
-	
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_palette_slot_add(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Add Palette Slot";
-	ot->idname = "GPENCIL_OT_palette_slot_add";
-	ot->description = "Add new Palette Slot to refer to a Palette used by this Grease Pencil object";
-	
-	/* callbacks */
-	ot->exec = gp_paletteslot_add_exec;
-	ot->poll = gp_active_layer_poll; // XXX
-	
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-/* ******************* Remove Palette Slot *********************** */
-
-static int gp_paletteslot_active_poll(bContext *C)
-{
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-
-	return (palslot != NULL);
-}
-
-static int gp_paletteslot_remove_exec(bContext *C, wmOperator *op)
-{
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	
-	/* 1) Check if palette is still used anywhere */
-	if (BKE_gpencil_paletteslot_has_users(gpd, palslot)) {
-		/* XXX: Change strokes to the new active slot's palette instead? */
-		BKE_report(op->reports, RPT_ERROR, "Cannot remove, Palette still in use");
-		return OPERATOR_CANCELLED;
-	}
-	
-	/* 2) Remove the slot (will unlink user and free it) */
-	if ((palslot->next == NULL) && (gpd->active_palette_slot > 0)) {
-		/* fix active slot index */
-		gpd->active_palette_slot--;
-	}
-	
-	BKE_gpencil_palette_slot_free(gpd, palslot);
-		
-	/* updates */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_REMOVED, NULL);
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_palette_slot_remove(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Remove Palette Slot";
-	ot->idname = "GPENCIL_OT_palette_slot_remove";
-	ot->description = "Remove active Palette Slot to refer to a Palette used by this Grease Pencil object";
-	
-	/* callbacks */
-	ot->exec = gp_paletteslot_remove_exec;
-	ot->poll = gp_paletteslot_active_poll;
-	
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
 
 /* ************************************************ */
 /* Drawing Brushes Operators */
@@ -1528,42 +1341,6 @@ void GPENCIL_OT_sculpt_select(wmOperatorType *ot)
 
 	/* properties */
 	RNA_def_int(ot->srna, "index", 0, 0, INT_MAX, "Index", "Index of Sculpt Brush", 0, INT_MAX);
-}
-
-/* ******************* Convert animation data ************************ */
-
-static int gp_convert_old_palettes_poll(bContext *C)
-{
-	/* TODO: need better poll */
-	Main *bmain = CTX_data_main(C);
-	return bmain->gpencil.first != NULL;
-}
-
-/* convert old animation data to new format */
-static int gp_convert_old_palettes_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	Main *bmain = CTX_data_main(C);
-	for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
-		BKE_gpencil_move_animdata_to_palettes(C, gpd);
-	}
-	/* notifiers */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_convert_old_palettes(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Convert Old Palettes";
-	ot->idname = "GPENCIL_OT_convert_old_palettes";
-	ot->description = "Convert old gpencil palettes animation data to blender palettes";
-
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	/* callbacks */
-	ot->exec = gp_convert_old_palettes_exec;
-	ot->poll = gp_convert_old_palettes_poll;
 }
 
 /* ******************* Convert scene gp data to gp object ************************ */
@@ -2089,14 +1866,15 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				if (obact->defbase.first && obact->actdef == 0)
 					obact->actdef = 1;
 
-				/* add missing paletteslots */
+				/* add missing materials */
+#if 0 /* GPXX */
 				bGPDpaletteref *palslot;
 				for (palslot = gpd_src->palette_slots.first; palslot; palslot = palslot->next) {
 					if (BKE_gpencil_paletteslot_find(gpd_dst, palslot->palette) == NULL) {
 						BKE_gpencil_paletteslot_add(gpd_dst, palslot->palette);
 					}
 				}
-
+#endif
 				/* duplicate bGPDlayers  */
 				tJoinGPencil_AdtFixData afd = {0};
 				afd.src_gpd = gpd_src;

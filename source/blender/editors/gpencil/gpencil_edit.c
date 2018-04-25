@@ -61,6 +61,7 @@
 #include "BKE_gpencil.h"
 #include "BKE_paint.h"
 #include "BKE_library.h"
+#include "BKE_material.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_screen.h"
@@ -729,6 +730,10 @@ void ED_gpencil_strokes_copybuf_free(void)
  */
 GHash *gp_copybuf_validate_colormap(bContext *C)
 {
+
+/* GPXX */
+	return NULL;
+#if 0
 	GHash *new_colors = BLI_ghash_str_new("GPencil Paste Dst Colors");
 	GHashIterator gh_iter;
 	
@@ -742,28 +747,29 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 	
 	/* For each color, figure out what to map to... */
 	GHASH_ITER(gh_iter, gp_strokes_copypastebuf_colors) {
-		PaletteColor *palcolor;
+		PaletteColor *gpcolor;
 		char *name = BLI_ghashIterator_getKey(&gh_iter);
 		
 		/* Look for existing color to map to */
 		/* XXX: What to do if same name but different color? Behaviour here should depend on a property? */
-		palcolor = BKE_palette_color_getbyname(palette, name);
-		if (palcolor == NULL) {
+		gpcolor = BKE_palette_color_getbyname(palette, name);
+		if (gpcolor == NULL) {
 			/* Doesn't Exist - Create new matching color for this palette */
 			/* XXX: This still doesn't fix the pasting across file boundaries problem... */
 			PaletteColor *src_color = BLI_ghashIterator_getValue(&gh_iter);
 			
-			palcolor = MEM_dupallocN(src_color);
-			BLI_addtail(&palette->colors, palcolor);
+			gpcolor = MEM_dupallocN(src_color);
+			BLI_addtail(&palette->colors, gpcolor);
 			
-			BLI_uniquename(&palette->colors, palcolor, DATA_("GP Color"), '.', offsetof(PaletteColor, info), sizeof(palcolor->info));
+			BLI_uniquename(&palette->colors, gpcolor, DATA_("GP Color"), '.', offsetof(PaletteColor, info), sizeof(gpcolor->info));
 		}
 		
 		/* Store this mapping (for use later when pasting) */
-		BLI_ghash_insert(new_colors, name, palcolor);
+		BLI_ghash_insert(new_colors, name, gpcolor);
 	}
 	
 	return new_colors;
+#endif
 }
 
 /* --------------------- */
@@ -832,7 +838,8 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 		}
 	}
 	CTX_DATA_END;
-	
+
+#if 0 /* GPXX */
 	/* Build up hash of colors used in these strokes, making copies of these to protect against dangling pointers */
 	if (gp_strokes_copypastebuf.first) {
 		gp_strokes_copypastebuf_colors = BLI_ghash_str_new("GPencil CopyBuf Colors");
@@ -848,7 +855,7 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 			}
 		}
 	}
-	
+#endif	
 	/* updates (to ensure operator buttons are refreshed, when used via hotkeys) */
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL); // XXX?
 	
@@ -1420,6 +1427,7 @@ static int gp_delete_selected_strokes(bContext *C)
 /* Delete selected points but keep the stroke */
 static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 {
+	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 	bool changed = false;
@@ -1451,7 +1459,7 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 					if (ED_gpencil_stroke_can_use(C, gps) == false)
 						continue;
 					/* check if the color is editable */
-					if (ED_gpencil_stroke_color_use(gpl, gps) == false)
+					if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false)
 						continue;
 
 					/* the stroke must have at least one point selected for any operator */
@@ -1749,6 +1757,7 @@ void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke 
 /* Split selected strokes into segments, splitting on selected points */
 static int gp_delete_selected_points(bContext *C)
 {
+	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 	bool changed = false;
@@ -1775,7 +1784,7 @@ static int gp_delete_selected_points(bContext *C)
 					if (ED_gpencil_stroke_can_use(C, gps) == false)
 						continue;
 					/* check if the color is editable */
-					if (ED_gpencil_stroke_color_use(gpl, gps) == false)
+					if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false)
 						continue;
 
 
@@ -1933,7 +1942,7 @@ static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 				if (ED_gpencil_stroke_can_use(C, gps) == false)
 					continue;
 				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps) == false)
+				if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false)
 					continue;
 				
 				// TODO: if entire stroke is selected, offset entire stroke by same amount?
@@ -2007,7 +2016,7 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 				if (ED_gpencil_stroke_can_use(C, gps) == false)
 					continue;
 				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps) == false)
+				if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false)
 					continue;
 				/* only continue if this stroke is selected (editable doesn't guarantee this)... */
 				if ((gps->flag & GP_STROKE_SELECT) == 0)
@@ -2098,7 +2107,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 				if (ED_gpencil_stroke_can_use(C, gps) == false)
 					continue;
 				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps) == false)
+				if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false)
 					continue;
 				/* only continue if this stroke is selected (editable doesn't guarantee this)... */
 				if ((gps->flag & GP_STROKE_SELECT) == 0)
@@ -2201,6 +2210,8 @@ enum {
 static int gp_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
+
 	const int type = RNA_enum_get(op->ptr, "type");
 	
 	/* sanity checks */
@@ -2214,13 +2225,13 @@ static int gp_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
 			continue;
 			
 		for (bGPDstroke *gps = gpl->actframe->strokes.last; gps; gps = gps->prev) {
-			PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-			
+			GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
 			/* skip strokes that are not selected or invalid for current view */
 			if (((gps->flag & GP_STROKE_SELECT) == 0) || ED_gpencil_stroke_can_use(C, gps) == false)
 				continue;
 			/* skip hidden or locked colors */
-			if (!palcolor || (palcolor->flag & PC_COLOR_HIDE) || (palcolor->flag & PC_COLOR_LOCKED))
+			if (!gpcolor || (gpcolor->flag & GPC_COLOR_HIDE) || (gpcolor->flag & GPC_COLOR_LOCKED))
 				continue;
 			
 			switch (type) {
@@ -2410,8 +2421,8 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *activegpl = BKE_gpencil_layer_getactive(gpd);
 	bGPDstroke *gps, *gpsn;
-	Palette *palette = BKE_palette_get_active_from_context(C);
-	PaletteColor *palcolor = BKE_palette_color_get_active(palette);
+	Object *ob = CTX_data_active_object(C);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	bGPDframe *gpf_a = NULL;
 	bGPDstroke *stroke_a = NULL;
@@ -2447,7 +2458,7 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 					continue;
 				}
 				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+				if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 					continue;
 				}
 				
@@ -2474,7 +2485,10 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 						
 						/* if new, set current color */
 						if (type == GP_STROKE_JOINCOPY) {
-							BLI_strncpy(new_stroke->colorname, palcolor->info, sizeof(new_stroke->colorname));
+							/* GPXX */
+#if 0
+							BLI_strncpy(new_stroke->colorname, gpcolor->info, sizeof(new_stroke->colorname));
+#endif
 						}
 					}
 					
@@ -2549,6 +2563,7 @@ void GPENCIL_OT_stroke_join(wmOperatorType *ot)
 static int gp_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
 
 	/* sanity checks */
 	if (ELEM(NULL, gpd))
@@ -2568,7 +2583,7 @@ static int gp_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
 					continue;
 				}
 				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+				if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 					continue;
 				}
 				
@@ -3003,6 +3018,8 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Base *base_old = CTX_data_active_base(C);
 	bGPdata *gpd_src = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
+
 	Object *ob_dst = NULL;
 	bGPdata *gpd_dst = NULL;
 	bGPDlayer *gpl_dst = NULL;
@@ -3026,7 +3043,6 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 	// XXX: check usercounts
 	gpd_dst = BKE_gpencil_data_addnew(bmain, "GPencil");
 	ob_dst->data = (bGPdata *)gpd_dst;
-	BKE_gpencil_copy_palette_data(gpd_dst, gpd_src);
 
 	/* loop old datablock and separate parts */
 	if ((mode == GP_SEPARATE_POINT) || (mode == GP_SEPARATE_STROKE)) {
@@ -3056,7 +3072,7 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 							continue;
 						}
 						/* check if the color is editable */
-						if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+						if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 							continue;
 						}
 						/*  separate selected strokes */
@@ -3169,6 +3185,7 @@ void GPENCIL_OT_stroke_separate(wmOperatorType *ot)
 /* ***************** Split Strokes ********************** */
 static int gp_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDspoint *pt;
 	int i;
@@ -3203,7 +3220,7 @@ static int gp_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
 						continue;
 					}
 					/* check if the color is editable */
-					if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+					if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 						continue;
 					}
 					/*  split selected strokes */

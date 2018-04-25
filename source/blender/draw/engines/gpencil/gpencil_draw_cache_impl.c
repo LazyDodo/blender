@@ -339,7 +339,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 			}
 			if (cache->is_dirty) {
 				gpencil_batch_cache_check_free_slots(ob);
-				cache->batch_fill[cache->cache_idx] = DRW_gpencil_get_fill_geom(gps, color);
+				cache->batch_fill[cache->cache_idx] = DRW_gpencil_get_fill_geom(ob, gps, color);
 			}
 			DRW_shgroup_call_add(fillgrp, cache->batch_fill[cache->cache_idx], gpf->viewmatrix);
 		}

@@ -44,7 +44,7 @@
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 #include "BKE_main.h"
-#include "BKE_paint.h"
+#include "BKE_material.h"
 
 #include "DEG_depsgraph.h"
 
@@ -67,13 +67,13 @@ static void copyData(ModifierData *md, ModifierData *target)
 
 /* color correction strokes */
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
+                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 
 	GpencilColorModifierData *mmd = (GpencilColorModifierData *)md;
 	float hsv[3], factor[3];
 
-	if (!is_stroke_affected_by_modifier(
+	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 1, gpl, gps,
 	        mmd->flag & GP_COLOR_INVERSE_LAYER, mmd->flag & GP_COLOR_INVERSE_PASS))
 	{
@@ -100,73 +100,54 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	GpencilColorModifierData *mmd = (GpencilColorModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ob->data;
-	Palette *newpalette = NULL;
 	
-	GHash *gh_layer = BLI_ghash_str_new("GP_Color Layer modifier");
-	GHash *gh_color;
+	GHash *gh_color = BLI_ghash_str_new("GP_Color modifier");
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+
+				Material *mat = give_current_material(ob, gps->mat_nr + 1);
+				if (mat == NULL)
+					continue;
+				GpencilColorData *gpcolor = mat->gpcolor;
 				/* skip stroke if it doesn't have color info */
-				if (ELEM(NULL, gps->palette, gps->colorname))
+				if (ELEM(NULL, gpcolor))
 					continue;
 
-				PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-				copy_v4_v4(gps->tmp_rgb, gps_palcolor->rgb);
-				copy_v4_v4(gps->tmp_fill, gps_palcolor->fill);
-
-				/* look for palette */
-				gh_color = (GHash *)BLI_ghash_lookup(gh_layer, gps->palette->id.name);
-				if (gh_color == NULL) {
-					gh_color = BLI_ghash_str_new("GP_Color Correction modifier");
-					BLI_ghash_insert(gh_layer, gps->palette->id.name, gh_color);
-				}
+				copy_v4_v4(gps->tmp_rgb, gpcolor->rgb);
+				copy_v4_v4(gps->tmp_fill, gpcolor->fill);
 
 				/* look for color */
-				PaletteColor *newpalcolor = (PaletteColor *)BLI_ghash_lookup(gh_color, gps->colorname);
-				if (newpalcolor == NULL) {
-					if (mmd->flag & GP_COLOR_CREATE_COLORS) {
-						if (!newpalette) {
-							bGPDpaletteref *palslot = BKE_gpencil_paletteslot_addnew(bmain, gpd, "Tinted Colors");
-							newpalette = palslot->palette;
-						}
-						newpalcolor = BKE_palette_color_copy(newpalette, gps_palcolor);
-						BLI_strncpy(gps->colorname, newpalcolor->info, sizeof(gps->colorname));
-					}
-					BLI_ghash_insert(gh_color, gps->colorname, newpalcolor);
-					
-					deformStroke(md, depsgraph, ob, gpl, gps);
+				if (mmd->flag & GP_TINT_CREATE_COLORS) {
+					Material *newmat = (Material *)BLI_ghash_lookup(gh_color, mat->id.name);
+					if (newmat == NULL) {
+						BKE_object_material_slot_add(ob);
+						newmat = BKE_material_copy(bmain, mat);
+						assign_material(ob, newmat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 
-					/* update palette */
-					if ((newpalette) && (mmd->flag & GP_COLOR_CREATE_COLORS)) {
-						copy_v4_v4(newpalcolor->rgb, gps->tmp_rgb);
-						copy_v4_v4(newpalcolor->fill, gps->tmp_fill);
-						gps->palette = newpalette;
+						copy_v4_v4(newmat->gpcolor->rgb, gps->tmp_rgb);
+						copy_v4_v4(newmat->gpcolor->fill, gps->tmp_fill);
+
+						BLI_ghash_insert(gh_color, mat->id.name, newmat);
 					}
-					else {
-						/* reuse existing color */
-						copy_v4_v4(gps_palcolor->rgb, gps->tmp_rgb);
-						copy_v4_v4(gps_palcolor->fill, gps->tmp_fill);
-					}
+					/* reasign color index */
+					int idx = BKE_object_material_slot_find_index(ob, newmat);
+					gps->mat_nr = idx - 1;
 				}
+				else {
+					/* reuse existing color */
+					copy_v4_v4(gpcolor->rgb, gps->tmp_rgb);
+					copy_v4_v4(gpcolor->fill, gps->tmp_fill);
+				}
+
+				deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
 	/* free hash buffers */
-	GHashIterator *ihash = BLI_ghashIterator_new(gh_layer);
-	while (!BLI_ghashIterator_done(ihash)) {
-		GHash *gh = BLI_ghashIterator_getValue(ihash);
-		if (gh) {
-			BLI_ghash_free(gh, NULL, NULL);
-			gh = NULL;
-		}
-		BLI_ghashIterator_step(ihash);
-	}
-	BLI_ghashIterator_free(ihash);
-
-	if (gh_layer) {
-		BLI_ghash_free(gh_layer, NULL, NULL);
-		gh_layer = NULL;
+	if (gh_color) {
+		BLI_ghash_free(gh_color, NULL, NULL);
+		gh_color = NULL;
 	}
 }
 

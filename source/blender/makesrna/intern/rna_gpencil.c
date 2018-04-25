@@ -127,73 +127,6 @@ static void UNUSED_FUNCTION(rna_GPencil_onion_skinning_update)(Main *bmain, Scen
 	rna_GPencil_update(bmain, scene, ptr);
 }
 
-static char *rna_GPencilPaletteSlot_path(PointerRNA *ptr)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	int index = BLI_findindex(&gpd->palette_slots, ptr->data);
-	
-	return BLI_sprintfN("palette_slots[%d]", index);
-}
-
-static int rna_GPencilPaletteSlot_name_length(PointerRNA *ptr)
-{
-	bGPDpaletteref *gpref = ptr->data;
-	
-	if (gpref->palette)
-		return strlen(gpref->palette->id.name + 2);
-	
-	return 0;
-}
-
-static void rna_GPencilPaletteSlot_name_get(PointerRNA *ptr, char *str)
-{
-	bGPDpaletteref *gpref = ptr->data;
-	
-	if (gpref->palette)
-		strcpy(str, gpref->palette->id.name + 2);
-	else
-		str[0] = '\0';
-}
-
-static void rna_GPencilPaletteSlot_palette_set(PointerRNA *ptr, PointerRNA value)
-{
-	bGPdata *gpd = ptr->id.data;
-	bGPDpaletteref *palslot = ptr->data;
-	
-	Palette *palette = value.data;
-	
-	BKE_gpencil_paletteslot_set_palette(gpd, palslot, palette);
-}
-
-static void rna_GPencil_active_palette_index_range(PointerRNA *ptr, int *min, int *max,
-                                                   int *UNUSED(softmin), int *UNUSED(softmax))
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	*min = 0;
-	*max = BLI_listbase_count(&gpd->palette_slots) - 1;
-}
-
-
-static PointerRNA rna_GPencil_active_palette_slot_get(PointerRNA *ptr)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	
-	return rna_pointer_inherit_refine(ptr, &RNA_GPencilPaletteSlot, palslot);
-}
-
-static void rna_GPencil_active_palette_slot_set(PointerRNA *ptr, PointerRNA value)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	bGPDpaletteref *palslot = value.data;
-	int index = BLI_findindex(&gpd->palette_slots, palslot);
-	
-	if (index >= 0) {
-		gpd->active_palette_slot = index;
-	}
-}
-
-
 static char *rna_GPencilLayer_path(PointerRNA *ptr)
 {
 	bGPDlayer *gpl = (bGPDlayer *)ptr->data;
@@ -706,73 +639,7 @@ static int rna_GPencil_info_total_points(PointerRNA *ptr)
 	return tot;
 }
 
-static int rna_GPencil_info_total_palettes(PointerRNA *ptr)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	GHash *data = BLI_ghash_str_new("GP count palettes");
-	int tot = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				Palette *palette = (Palette *)BLI_ghash_lookup(data, gps->palette->id.name);
-				if (palette == NULL) {
-					tot += 1;
-					BLI_ghash_insert(data, gps->palette->id.name, gps->palette);
-				}
-			}
-		}
-	}
-	BLI_ghash_free(data, NULL, NULL);
-	data = NULL;
-
-	return tot;
-}
-
 #else
-
-static void rna_def_gpencil_palette_slot(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-	
-	srna = RNA_def_struct(brna, "GPencilPaletteSlot", NULL);
-	RNA_def_struct_sdna(srna, "bGPDpaletteref");
-	RNA_def_struct_path_func(srna, "rna_GPencilPaletteSlot_path");
-	RNA_def_struct_ui_text(srna, "Grease Pencil Palette Slot", "Reference for a Palette used in Grease Pencil datablock");
-	RNA_def_struct_ui_icon(srna, ICON_COLOR);
-	
-	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_funcs(prop, "rna_GPencilPaletteSlot_name_get", "rna_GPencilPaletteSlot_name_length", NULL);
-	RNA_def_property_ui_text(prop, "Name", "Palette slot name");
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_struct_name_property(srna, prop);
-	
-	prop = RNA_def_property(srna, "palette", PROP_POINTER, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
-	RNA_def_property_pointer_funcs(prop, 
-	                               NULL, 
-	                               "rna_GPencilPaletteSlot_palette_set", 
-	                               NULL, 
-	                               NULL /*"rna_GPencilPalette_id_poll"*/);
-	RNA_def_property_ui_text(prop, "Palette", "Palette data-block used by this palette slot");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-}
-
-static void rna_def_gpencil_palette_slots_api(BlenderRNA *brna, PropertyRNA *cprop)
-{
-	StructRNA *srna;
-	//PropertyRNA *prop;
-
-	//FunctionRNA *func;
-	//PropertyRNA *parm;
-
-	RNA_def_property_srna(cprop, "GreasePencilPaletteSlots");
-	srna = RNA_def_struct(brna, "GreasePencilPaletteSlots", NULL);
-	RNA_def_struct_sdna(srna, "bGPdata");
-	RNA_def_struct_ui_text(srna, "Grease Pencil Palette Slots", "Collection of grease pencil palette slots");
-
-	/* TODO: API methods... new/remove/active */
-}
 
 /* information of vertex groups by point */
 static void rna_def_gpencil_point_weight(BlenderRNA *brna)
@@ -949,13 +816,6 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
 	RNA_def_property_collection_sdna(prop, NULL, "triangles", "tot_triangles");
 	RNA_def_property_struct_type(prop, "GPencilTriangle");
 	RNA_def_property_ui_text(prop, "Triangles", "Triangulation data for HQ fill");
-
-	/* Palette */
-	prop = RNA_def_property(srna, "palette", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "Palette");
-	RNA_def_property_pointer_sdna(prop, NULL, "palette");
-	RNA_def_property_ui_text(prop, "Palette", "Palette that stroke's color comes from");
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	/* Material Index */
 	prop = RNA_def_property(srna, "material_index", PROP_INT, PROP_NONE);
@@ -1438,31 +1298,6 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	RNA_def_property_srna(prop, "IDMaterials"); /* see rna_ID.c */
 	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "rna_IDMaterials_assign_int");
 
-	/* Palette Slots */
-	prop = RNA_def_property(srna, "palette_slots", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "palette_slots", NULL);
-	RNA_def_property_struct_type(prop, "GPencilPaletteSlot");
-	RNA_def_property_ui_text(prop, "Palette Slots", "");
-	rna_def_gpencil_palette_slots_api(brna, prop);
-	
-	prop = RNA_def_property(srna, "active_palette_index", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_int_sdna(prop, NULL, "active_palette_slot");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_int_funcs(prop, NULL, NULL,
-	                           "rna_GPencil_active_palette_index_range");
-	RNA_def_property_ui_text(prop, "Active Palette Index", "Index of active palette slot");
-	RNA_def_property_update(prop, NC_MATERIAL, NULL);
-	
-	prop = RNA_def_property(srna, "active_palette_slot", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "GPencilPaletteSlot");
-	RNA_def_property_pointer_funcs(prop, "rna_GPencil_active_palette_slot_get",
-	                               "rna_GPencil_active_palette_slot_set", NULL, NULL);
-	RNA_def_property_flag(prop, PROP_EDITABLE);
-	//RNA_def_property_editable_func(prop, "rna_GPencil_active_palette_slot_editable");
-	RNA_def_property_ui_text(prop, "Active Palette Slot", "Active palette slot being displayed");
-	RNA_def_property_update(prop, NC_MATERIAL, NULL);
-	
-	
 	/* xray modes */
 	prop = RNA_def_property(srna, "xray_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "xray_mode");
@@ -1561,11 +1396,6 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	RNA_def_property_int_funcs(prop, "rna_GPencil_info_total_points", NULL, NULL);
 	RNA_def_property_ui_text(prop, "Total Points", "Number of Points");
 
-	prop = RNA_def_property(srna, "info_total_palettes", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_int_funcs(prop, "rna_GPencil_info_total_palettes", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Total Palettes", "Number of Palettes");
-
 	/* onion skinning */
 	prop = RNA_def_property(srna, "ghost_before_range", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "gstep");
@@ -1656,8 +1486,6 @@ void RNA_def_gpencil(BlenderRNA *brna)
 	rna_def_gpencil_triangle(brna);
 	
 	rna_def_gpencil_point_weight(brna);
-	
-	rna_def_gpencil_palette_slot(brna);
 }
 
 #endif

@@ -89,7 +89,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	GpencilThickModifierData *mmd = (GpencilThickModifierData *)md;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
-	if (!is_stroke_affected_by_modifier(
+	if (!is_stroke_affected_by_modifier(ob, 
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
 	        mmd->flag & GP_THICK_INVERSE_LAYER, mmd->flag & GP_THICK_INVERSE_PASS))
 	{

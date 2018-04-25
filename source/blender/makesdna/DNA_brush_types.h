@@ -44,8 +44,7 @@
 struct CurveMapping;
 struct MTex;
 struct Image;
-struct AnimData;
-struct Image;
+struct Material;
 
 typedef struct BrushClone {
 	struct Image *image;    /* image for clone tool */
@@ -182,9 +181,8 @@ typedef struct Brush {
 	float gp_active_smooth;   /* smooth while drawing factor */
 	char pad_[4];
 
-	/* optional link of palette and color to replace default color in context */	
-	struct Palette *palette;            /* palette linked */
-	char           colorname[64];       /* color name */
+	/* optional link of material to replace default in context */	
+	struct Material *material;     /* material */
 } Brush;
 
 /* Brush->gp_flag */
@@ -250,74 +248,20 @@ typedef enum eGP_BrushIcons {
 
 typedef struct PaletteColor {
 	struct PaletteColor *next, *prev;
-	struct Image *sima;      /* Texture image for strokes */
-	struct Image *ima;       /* Texture image for filling */
-	float rgb[4];            /* color for paint and strokes (alpha included) */
-	float fill[4];           /* color that should be used for drawing "fills" for strokes (alpha included) */
-	float scolor[4];         /* secondary color used for gradients and other stuff */
-	char info[64];           /* color name. Must be unique. */
-	float value;             /* sculpt/weight */
-	short flag;              /* settings for palette color */
-	short index;             /* custom index for passes */
-	short stroke_style;      /* style for drawing strokes (used to select shader type) */
-	short fill_style;        /* style for filling areas (used to select shader type) */
-	float mix_factor;        /* factor used to define shader behavior (several uses) */
-	float g_angle;           /* angle used for gradients orientation */
-	float g_radius;          /* radius for radial gradients */
-	float g_boxsize;         /* cheesboard size */
-	float g_scale[2];        /* uv coordinates scale */
-	float g_shift[2];        /* factor to shift filling in 2d space */
-	float t_angle;           /* angle used for texture orientation */
-	float t_scale[2];        /* texture scale (separated of uv scale) */
-	float t_offset[2];       /* factor to shift texture in 2d space */
-	float t_opacity;         /* texture opacity */
-	float t_pixsize;         /* pixel size for uv along the stroke */
-	int mode;                /* drawing mode (line or dots) */
-	char pad[4];
+	/* two values, one to store rgb, other to store values for sculpt/weight */
+	float rgb[3];
+	float value;
 } PaletteColor;
-
-/* PaletteColor->flag (mainly used by grease pencil) */
-typedef enum ePaletteColor_Flag {
-	/* don't display color */
-	PAC_COLOR_HIDE = (1 << 1),
-	/* protected from further editing */
-	PAC_COLOR_LOCKED = (1 << 2),
-	/* do onion skinning */
-	PAC_COLOR_ONIONSKIN = (1 << 3),
-	/* clamp texture */
-	PAC_COLOR_TEX_CLAMP = (1 << 4),
-	/* mix texture */
-	PAC_COLOR_TEX_MIX = (1 << 5),
-	/* Flip fill colors */
-	PAC_COLOR_FLIP_FILL = (1 << 6),
-	/* Stroke use Dots */
-	PAC_COLOR_DOT = (1 << 7), /* deprecated (only for old files) */
-	/* Texture is a pattern */
-	PAC_COLOR_PATTERN = (1 << 8)
-} ePaletteColor_Flag;
-
-typedef enum ePaletteColor_Mode {
-	PAC_MODE_LINE = 0, /* line */
-	PAC_MODE_DOTS = 1, /* dots */
-	PAC_MODE_BOX  = 2, /* rectangles */
-} ePaletteColor_Mode;
 
 typedef struct Palette {
 	ID id;
-	struct AnimData *adt;   /* animation data - for animating draw settings */
 
 	/* pointer to individual colours */
 	ListBase colors;
 
 	int active_color;
-	int flag;
+	int pad;
 } Palette;
-
-/* Palette->flag */
-typedef enum ePalette_Flag {
-	/* in Action Editor, show as expanded channel */
-	PALETTE_DATA_EXPAND = (1 << 1)
-} ePalette_Flag;
 
 typedef struct PaintCurvePoint {
 	BezTriple bez; /* bezier handle */
@@ -517,17 +461,5 @@ enum {
 
 #define MAX_BRUSH_PIXEL_RADIUS 500
 #define GP_MAX_BRUSH_PIXEL_RADIUS 1000
-
-/* Grease Pencil Stroke styles */
-#define STROKE_STYLE_SOLID	0
-#define STROKE_STYLE_TEXTURE 1
-
-/* Grease Pencil Fill styles */
-#define FILL_STYLE_SOLID	0
-#define FILL_STYLE_GRADIENT	1
-#define FILL_STYLE_RADIAL	2
-#define FILL_STYLE_CHESSBOARD 3
-#define FILL_STYLE_TEXTURE 4
-#define FILL_STYLE_PATTERN 5
 
 #endif  /* __DNA_BRUSH_TYPES_H__ */
