@@ -1006,18 +1006,18 @@ void modifier_deformVerts_DM_deprecated(struct ModifierData *md, struct Depsgrap
 	}
 	else {
 		/* TODO(sybren): deduplicate all the copies of this code in this file. */
-		Mesh *new_mesh = NULL;
+		Mesh *mesh = NULL;
 		if (dm != NULL) {
-			new_mesh = BKE_libblock_alloc_notest(ID_ME);
-			BKE_mesh_init(new_mesh);
-			DM_to_mesh(dm, new_mesh, ob, CD_MASK_EVERYTHING, false);
+			mesh = BKE_libblock_alloc_notest(ID_ME);
+			BKE_mesh_init(mesh);
+			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
 		}
 
-		mti->deformVerts(md, depsgraph, ob, new_mesh, vertexCos, numVerts, flag);
+		mti->deformVerts(md, depsgraph, ob, mesh, vertexCos, numVerts, flag);
 
-		if (new_mesh != NULL) {
-			BKE_mesh_free(new_mesh);
-			MEM_freeN(new_mesh);
+		if (mesh != NULL) {
+			BKE_mesh_free(mesh);
+			MEM_freeN(mesh);
 		}
 	}
 }
