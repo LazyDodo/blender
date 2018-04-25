@@ -142,19 +142,19 @@ static Mesh *doMirrorOnAxis(MirrorModifierData *mmd,
 
 	/* Subsurf for eg wont have mesh data in the custom data arrays.
 	 * now add mvert/medge/mpoly layers. */
+	if (!CustomData_has_layer(&mesh->vdata, CD_MVERT)) {
+		memcpy(result->mvert, mesh->mvert, sizeof(*result->mvert) * mesh->totvert);
+	}
+	if (!CustomData_has_layer(&mesh->edata, CD_MEDGE)) {
+		memcpy(result->medge, mesh->medge, sizeof(*result->medge) * mesh->totedge);
+	}
+	if (!CustomData_has_layer(&mesh->pdata, CD_MPOLY)) {
+		memcpy(result->mloop, mesh->mloop, sizeof(*result->mloop) * mesh->totloop);
+		memcpy(result->mpoly, mesh->mpoly, sizeof(*result->mpoly) * mesh->totpoly);
+	}
 
-	if (!CustomData_has_layer(&dm->vertData, CD_MVERT)) {
-		dm->copyVertArray(dm, CDDM_get_verts(result));
-	}
-	if (!CustomData_has_layer(&dm->edgeData, CD_MEDGE)) {
-		dm->copyEdgeArray(dm, CDDM_get_edges(result));
-	}
-	if (!CustomData_has_layer(&dm->polyData, CD_MPOLY)) {
-		dm->copyLoopArray(dm, CDDM_get_loops(result));
-		dm->copyPolyArray(dm, CDDM_get_polys(result));
-	}
-
-	/* copy customdata to new geometry */
+	/* copy customdata to new geometry,
+	 * copy from its self because this data may have been created in the checks above */
 	CustomData_copy_data(&result->vdata, &result->vdata, 0, maxVerts, maxVerts);
 	CustomData_copy_data(&result->edata, &result->edata, 0, maxEdges, maxEdges);
 	/* loops are copied later */
@@ -335,8 +335,8 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *UNUSED(depsgraph)
 	MirrorModifierData *mmd = (MirrorModifierData *) md;
 
 	result = mirrorModifier__doMirror(mmd, ob, mesh);
+	BKE_mesh_calc_normals(result);
 
-	/* TODO(sybren): recompute normals? */
 	return result;
 }
 
