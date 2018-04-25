@@ -140,6 +140,20 @@ static Mesh *doMirrorOnAxis(MirrorModifierData *mmd,
 	CustomData_copy_data(&mesh->ldata, &result->ldata, 0, 0, maxLoops);
 	CustomData_copy_data(&mesh->pdata, &result->pdata, 0, 0, maxPolys);
 
+	/* Subsurf for eg wont have mesh data in the custom data arrays.
+	 * now add mvert/medge/mpoly layers. */
+
+	if (!CustomData_has_layer(&dm->vertData, CD_MVERT)) {
+		dm->copyVertArray(dm, CDDM_get_verts(result));
+	}
+	if (!CustomData_has_layer(&dm->edgeData, CD_MEDGE)) {
+		dm->copyEdgeArray(dm, CDDM_get_edges(result));
+	}
+	if (!CustomData_has_layer(&dm->polyData, CD_MPOLY)) {
+		dm->copyLoopArray(dm, CDDM_get_loops(result));
+		dm->copyPolyArray(dm, CDDM_get_polys(result));
+	}
+
 	/* copy customdata to new geometry */
 	CustomData_copy_data(&result->vdata, &result->vdata, 0, maxVerts, maxVerts);
 	CustomData_copy_data(&result->edata, &result->edata, 0, maxEdges, maxEdges);
