@@ -1006,14 +1006,16 @@ void modifier_deformVerts_DM_deprecated(struct ModifierData *md, struct Depsgrap
 	}
 	else {
 		/* TODO(sybren): deduplicate all the copies of this code in this file. */
-		struct Mesh *mesh = ob->data;
-		BLI_assert(DEG_depsgraph_use_copy_on_write());
-		BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); /* This should be a CoW mesh */
+		Mesh *new_mesh = BKE_libblock_alloc_notest(ID_ME);
+		BKE_mesh_init(new_mesh);
 		if (dm != NULL) {
-			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
+			DM_to_mesh(dm, new_mesh, ob, CD_MASK_EVERYTHING, false);
 		}
 
-		mti->deformVerts(md, depsgraph, ob, mesh, vertexCos, numVerts, flag);
+		mti->deformVerts(md, depsgraph, ob, new_mesh, vertexCos, numVerts, flag);
+
+		BKE_mesh_free(new_mesh);
+		MEM_freeN(new_mesh);
 	}
 }
 
@@ -1049,17 +1051,9 @@ void modifier_deformVertsEM_DM_deprecated(struct ModifierData *md, struct Depsgr
 		mti->deformVertsEM_DM(md, depsgraph, ob, editData, dm, vertexCos, numVerts);
 	}
 	else {
-		struct Mesh *mesh = ob->data;
-		BLI_assert(DEG_depsgraph_use_copy_on_write());
-		/* TODO(sybren): the first vertex select in edit mode will result in this function being called
-		 * with a non-CoW mesh. */
-		/* BLI_assert(mesh->id.tag & LIB_TAG_COPY_ON_WRITE); */ /* This should be a CoW mesh */
-		if ((mesh->id.tag & LIB_TAG_COPY_ON_WRITE) == 0) {
-			printf("   \033[31mWARNING, operating on real Mesh %s = %p\033[30m\n", mesh->id.name, mesh);
-		}
-
+		Mesh *mesh = BKE_libblock_alloc_notest(ID_ME);
+		BKE_mesh_init(mesh);
 		if (dm != NULL) {
-			BKE_mesh_free(mesh);
 			DM_to_mesh(dm, mesh, ob, CD_MASK_EVERYTHING, false);
 		}
 
