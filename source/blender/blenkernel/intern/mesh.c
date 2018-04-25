@@ -404,12 +404,16 @@ bool BKE_mesh_clear_edit_data(struct Mesh *me)
 		return false;
 	}
 
-	MEM_freeN((void *)me->emd->polyCos);
-	MEM_freeN((void *)me->emd->polyNos);
-	MEM_freeN((void *)me->emd->vertexCos);
-	MEM_freeN((void *)me->emd->vertexNos);
+	if (me->emd->polyCos != NULL)
+		MEM_freeN((void *)me->emd->polyCos);
+	if (me->emd->polyNos != NULL)
+		MEM_freeN((void *)me->emd->polyNos);
+	if (me->emd->vertexCos != NULL)
+		MEM_freeN((void *)me->emd->vertexCos);
+	if (me->emd->vertexNos != NULL)
+		MEM_freeN((void *)me->emd->vertexNos);
+
 	MEM_SAFE_FREE(me->emd);
-	BLI_assert(me->emd == NULL);
 	return true;
 }
 
