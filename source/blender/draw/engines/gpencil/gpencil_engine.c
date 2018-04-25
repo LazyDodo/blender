@@ -389,7 +389,7 @@ static void GPENCIL_cache_init(void *vedata)
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
 		}
-		GpencilColorData *gpcolor = give_material_gpencil_settings(ob, ob->actcol);
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
 
 		if (gpcolor) {
 			stl->storage->stroke_style = gpcolor->stroke_style;

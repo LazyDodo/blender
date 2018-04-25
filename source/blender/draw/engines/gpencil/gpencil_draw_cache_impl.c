@@ -317,7 +317,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 	Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const float tintcolor[4], const bool onion, const bool custonion)
 {
-	GpencilColorData *gpcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	if (gps->totpoints >= 3) {
 		float tfill[4];
 		/* set color using palette, tint color and opacity */
@@ -354,7 +354,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	float tcolor[4];
 	float ink[4];
 	short sthickness;
-	GpencilColorData *gpcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* set color using base color, tint color and opacity */
 	if (!onion) {
@@ -398,7 +398,7 @@ static void gpencil_add_editpoints_shgroup(
 		GPENCIL_StorageList *stl, GpencilBatchCache *cache,ToolSettings *ts, Object *ob, 
 		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
-	GpencilColorData *gpcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	if (GPENCIL_ANY_EDIT_MODE(gpd)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -450,7 +450,7 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 		
-		GpencilColorData *gpcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 		copy_v4_v4(gps->tmp_rgb, gpcolor->rgb);
 		copy_v4_v4(gps->tmp_fill, gpcolor->fill);
 
@@ -533,7 +533,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			continue;
 		}
 
-		GpencilColorData *gpcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 		/* be sure recalc all chache in source stroke to avoid recalculation when frame change 
 		 * and improve fps */
@@ -637,7 +637,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	/* if the brush has a palette and color defined, use these and not current defaults */
 	//TODO: BKE_gpencil_get_color_from_brush(gpd, brush, false);
 	if (gpcolor == NULL) {
-		gpcolor = give_material_gpencil_settings(ob, ob->actcol);
+		gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
 	}
 	
 	/* drawing strokes */

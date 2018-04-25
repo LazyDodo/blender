@@ -393,7 +393,7 @@ bool gpencil_can_draw_stroke(struct Object *ob, const bGPDstroke *gps, const boo
 	if ((gps->points == NULL) || (gps->totpoints < 1))
 		return false;
 
-	GpencilColorData *gpcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* check if the color is visible */
 	if ((gps->palette == NULL) || (gpcolor == NULL) ||
@@ -576,7 +576,7 @@ static void gpencil_set_fill_point(
 /* recalc the internal geometry caches for fill and uvs */
 void DRW_gpencil_recalc_geometry_caches(Object *ob, bGPDstroke *gps) {
 	if (gps->flag & GP_STROKE_RECALC_CACHES) {
-		GpencilColorData *gpcolor = give_material_gpencil_settings(ob, gps->mat_nr + 1);
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 		/* Calculate triangles cache for filling area (must be done only after changes) */
 		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {

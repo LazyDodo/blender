@@ -523,7 +523,7 @@ Material *give_current_material(Object *ob, short act)
 	return ma;
 }
 
-GpencilColorData *give_material_gpencil_settings(Object *ob, short act)
+GpencilColorData *BKE_material_gpencil_settings_get(Object *ob, short act)
 {
 	Material *ma = give_current_material(ob, act);
 	if (ma != NULL) {
