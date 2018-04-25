@@ -52,6 +52,6 @@ struct DerivedMesh *get_dm_for_modifier(struct Object *ob, ModifierApplyFlag fla
 void modifier_get_vgroup(struct Object *ob, struct DerivedMesh *dm,
                          const char *name, struct MDeformVert **dvert, int *defgrp_index);
 void modifier_get_vgroup_mesh(struct Object *ob, struct Mesh *mesh,
-                              const char *name, MDeformVert **dvert, int *defgrp_index);
+                              const char *name, struct MDeformVert **dvert, int *defgrp_index);
 
 #endif /* __MOD_UTIL_H__ */
