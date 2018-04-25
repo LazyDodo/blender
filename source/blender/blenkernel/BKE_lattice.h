@@ -73,7 +73,7 @@ void lattice_deform_verts(struct Object *laOb, struct Object *target,
                           struct DerivedMesh *dm, float (*vertexCos)[3],
                           int numVerts, const char *vgroup, float influence);
 void armature_deform_verts(struct Object *armOb, struct Object *target,
-                           struct DerivedMesh *dm, float (*vertexCos)[3],
+                           struct Mesh *mesh, float (*vertexCos)[3],
                            float (*defMats)[3][3], int numVerts, int deformflag,
                            float (*prevCos)[3], const char *defgrp_name);
 

@@ -1054,6 +1054,7 @@ void modifier_deformVertsEM_DM_deprecated(struct ModifierData *md, struct Depsgr
 		mti->deformVertsEM_DM(md, depsgraph, ob, editData, dm, vertexCos, numVerts);
 	}
 	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
 		Mesh *mesh = NULL;
 		if (dm != NULL) {
 			mesh = BKE_libblock_alloc_notest(ID_ME);

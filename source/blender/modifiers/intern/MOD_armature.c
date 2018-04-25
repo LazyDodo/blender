@@ -46,6 +46,7 @@
 #include "BKE_cdderivedmesh.h"
 #include "BKE_lattice.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
 
 #include "MEM_guardedalloc.h"
@@ -107,7 +108,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
-                        Object *ob, DerivedMesh *derivedData,
+                        Object *ob, Mesh *mesh,
                         float (*vertexCos)[3],
                         int numVerts,
                         ModifierApplyFlag UNUSED(flag))
@@ -116,7 +117,7 @@ static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
 
 	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
 	
-	armature_deform_verts(amd->object, ob, derivedData, vertexCos, NULL,
+	armature_deform_verts(amd->object, ob, mesh, vertexCos, NULL,
 	                      numVerts, amd->deformflag, (float(*)[3])amd->prevCos, amd->defgrp_name);
 
 	/* free cache */
@@ -128,16 +129,16 @@ static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
 
 static void deformVertsEM(
         ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob, struct BMEditMesh *em,
-        DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
+        Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	DerivedMesh *dm = derivedData;
+	Mesh *to_use = mesh;
 
-	if (!derivedData) dm = CDDM_from_editbmesh(em, false, false);
+//	if (!mesh) to_use = Mesh_from_editbmesh(em, false, false);
 
 	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
 
-	armature_deform_verts(amd->object, ob, dm, vertexCos, NULL,
+	armature_deform_verts(amd->object, ob, mesh, vertexCos, NULL,
 	                      numVerts, amd->deformflag, (float(*)[3])amd->prevCos, amd->defgrp_name);
 
 	/* free cache */
@@ -146,7 +147,10 @@ static void deformVertsEM(
 		amd->prevCos = NULL;
 	}
 
-	if (!derivedData) dm->release(dm);
+//	if (!mesh) {
+//		BKE_mesh_free(to_use);
+//		MEM_freeN(to_use);
+//	}
 }
 
 static void deformMatricesEM(
@@ -190,14 +194,14 @@ ModifierTypeInfo modifierType_Armature = {
 
 	/* copyData */          copyData,
 
-	/* deformVerts_DM */    deformVerts,
+	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ deformMatrices,
 	/* deformVertsEM_DM */  deformVertsEM,
 	/* deformMatricesEM_DM*/deformMatricesEM,
 	/* applyModifier_DM */  NULL,
 	/* applyModifierEM_DM */NULL,
 
-	/* deformVerts */       NULL,
+	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
