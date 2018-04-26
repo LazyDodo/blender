@@ -283,14 +283,21 @@ static void GPENCIL_cache_init(void *vedata)
 
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	Object *ob = NULL;
-	bGPdata *gpd = NULL;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
 	// RegionView3D *rv3d = draw_ctx->rv3d;
+
+	/* Special handling for when active object is GP object (e.g. for draw mode) */
 	Object *obact = draw_ctx->obact;
+	bGPdata *obact_gpd = NULL;
+	GpencilColorData *gpcolor = NULL;
+
+	if (obact && (obact->type == OB_GPENCIL) && (obact->data)) {
+		obact_gpd = (bGPdata *)obact->data;
+		gpcolor = BKE_material_gpencil_settings_get(obact, obact->actcol);
+	}
 
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
@@ -339,6 +346,21 @@ static void GPENCIL_cache_init(void *vedata)
 		if (draw_ctx->evil_C) {
 			stl->storage->playing = ED_screen_animation_playing(CTX_wm_manager(draw_ctx->evil_C)) != NULL ? 1 : 0;
 		}
+
+		if (obact_gpd) {
+			/* for some reason, when press play there is a delay in the animation flag check
+			* and this produces errors. To be sure, we set cache as dirty because the frame
+			* is changing.
+			*/
+			if (stl->storage->playing == 1) {
+				obact_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+			}
+			/* if render, set as dirty to update all data */
+			else if (stl->storage->is_render == true) {
+				obact_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+			}
+		}
+		
 		/* save render state */
 		stl->storage->is_render = DRW_state_is_image_render();
 
@@ -354,13 +376,10 @@ static void GPENCIL_cache_init(void *vedata)
 		}
 
 		/* detect if painting session */
-		bGPdata *obact_gpd = NULL;
-		if ((obact) && (obact->type == OB_GPENCIL) && (obact->data))
-			obact_gpd = obact->data;
-
-		if ((obact_gpd) && (obact_gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
-			(stl->storage->playing == 0) &&
-			((ts->gpencil_simplify & GP_TOOL_FLAG_DISABLE_FAST_DRAWING) == 0))
+		if ((obact_gpd) &&
+		    (obact_gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
+		    (stl->storage->playing == 0) &&
+		    ((ts->gpencil_simplify & GP_TOOL_FLAG_DISABLE_FAST_DRAWING) == 0))
 		{
 			if (((obact_gpd->sbuffer_sflag & GP_STROKE_ERASER) == 0) && (obact_gpd->sbuffer_size > 1)) {
 				stl->g_data->session_flag = GP_DRW_PAINT_PAINTING;
@@ -373,23 +392,6 @@ static void GPENCIL_cache_init(void *vedata)
 			/* if not drawing mode */
 			stl->g_data->session_flag = GP_DRW_PAINT_HOLD;
 		}
-
-		ob = draw_ctx->obact;
-		if ((ob) && (ob->type == OB_GPENCIL)) {
-			gpd = ob->data;
-			/* for some reason, when press play there is a delay in the animation flag check
-			* and this produces errors. To be sure, we set cache as dirty because the frame
-			* is changing.
-			*/
-			if (stl->storage->playing == 1) {
-				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
-			}
-			/* if render, set as dirty to update all data */
-			else if (stl->storage->is_render == true) {
-				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
-			}
-		}
-		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
 
 		if (gpcolor) {
 			stl->storage->stroke_style = gpcolor->stroke_style;
