@@ -1130,9 +1130,17 @@ void ED_gpencil_add_defaults(bContext *C)
 	Object *ob = CTX_data_active_object(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
-	
+
+	/* first try to reuse default material */
+	if (ob->actcol > 0) {
+		Material *mat = give_current_material(ob, ob->actcol);
+		if ((mat) && (mat->gpcolor == NULL)) {
+			BKE_material_init_gpencil_settings(mat);
+		}
+	}
+
 	/* ensure color exist */
-	//BKE_gpencil_color_ensure(bmain, ob);
+	BKE_gpencil_color_ensure(bmain, ob);
 
 	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	/* if not exist, create a new one */

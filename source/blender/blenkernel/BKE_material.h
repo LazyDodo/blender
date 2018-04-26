@@ -60,6 +60,7 @@ struct Material *BKE_material_copy(struct Main *bmain, const struct Material *ma
 struct Material *BKE_material_localize(struct Material *ma);
 struct Material *give_node_material(struct Material *ma); /* returns node material or self */
 void BKE_material_make_local(struct Main *bmain, struct Material *ma, const bool lib_local);
+void BKE_material_init_gpencil_settings(struct Material *ma);
 
 /* UNUSED */
 // void automatname(struct Material *);

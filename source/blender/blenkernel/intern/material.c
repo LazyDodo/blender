@@ -111,7 +111,7 @@ void BKE_material_free(Material *ma)
 	BKE_previewimg_free(&ma->preview);
 }
 
-static void grease_pencil_init(Material *ma)
+void BKE_material_init_gpencil_settings(Material *ma)
 {
 	if ((ma) && (ma->gpcolor == NULL)) {
 		ma->gpcolor = MEM_callocN(sizeof(GpencilColorData), "Grease Pencil Material Settings");
@@ -167,10 +167,11 @@ Material *BKE_material_add_gpencil(Main *bmain, const char *name)
 	ma = BKE_material_add(bmain, name);
 
 	/* grease pencil settings */
-	grease_pencil_init(ma);
+	BKE_material_init_gpencil_settings(ma);
 
 	return ma;
 }
+
 
 /**
  * Only copy internal data of Material ID from source to already allocated/initialized destination.
