@@ -6310,7 +6310,7 @@ static void lib_link_gpencil(FileData *fd, Main *main)
 			/* Layers */
 			for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 				/* Layer -> Parent References */
-				gpl->parent = newlibadr(fd, gpd->id.lib, gpl->parent);
+				gpl->parent = newlibadr_us(fd, gpd->id.lib, gpl->parent);
 			}
 			
 			/* Datablock Stuff */
