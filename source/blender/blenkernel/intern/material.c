@@ -157,6 +157,15 @@ Material *BKE_material_add(Main *bmain, const char *name)
 	
 	BKE_material_init(ma);
 	
+	return ma;
+}
+
+Material *BKE_material_add_gpencil(Main *bmain, const char *name)
+{
+	Material *ma;
+
+	ma = BKE_material_add(bmain, name);
+
 	/* grease pencil settings */
 	grease_pencil_init(ma);
 

@@ -269,6 +269,16 @@ static Material *rna_Main_materials_new(Main *bmain, const char *name)
 	return (Material *)id;
 }
 
+static Material *rna_Main_materials_new_greasepencil(Main *bmain, const char *name)
+{
+	char safe_name[MAX_ID_NAME - 2];
+	rna_idname_validate(name, safe_name);
+
+	ID *id = (ID *)BKE_material_add_gpencil(bmain, safe_name);
+	id_us_min(id);
+	return (Material *)id;
+}
+
 static const EnumPropertyItem *rna_Main_nodetree_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	return rna_node_tree_type_itemf(NULL, NULL, r_free);
@@ -799,6 +809,14 @@ void RNA_def_main_materials(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "new", "rna_Main_materials_new");
 	RNA_def_function_ui_description(func, "Add a new material to the main database");
+	parm = RNA_def_string(func, "name", "Material", 0, "", "New name for the data-block");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	/* return type */
+	parm = RNA_def_pointer(func, "material", "Material", "", "New material data-block");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "new_greasepencil", "rna_Main_materials_new_greasepencil");
+	RNA_def_function_ui_description(func, "Add a new grease pencil material to the main database");
 	parm = RNA_def_string(func, "name", "Material", 0, "", "New name for the data-block");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
