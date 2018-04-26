@@ -295,8 +295,6 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 
 	/* define initial values */
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	bGPdata *gpd = CTX_data_gpencil_data(C);
-	Main *bmain = CTX_data_main(C);
 
 	/* set current scene and window info */
 	tgpk->win = CTX_wm_window(C);

@@ -1970,11 +1970,11 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 static int gpencil_active_color_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
-	short *totcolp;
-	if (ob) {
-		totcolp = give_totcolp(ob);
+	if (ob && ob->data && (ob->type == OB_GPENCIL)) {
+		short *totcolp = give_totcolp(ob);
+		return *totcolp > 0;
 	}
-	return ((ED_gpencil_data_get_active(C) != NULL) && (totcolp > 0));
+	return false;
 }
 
 
@@ -2337,7 +2337,7 @@ static int gpencil_color_select_exec(bContext *C, wmOperator *UNUSED(op))
 					continue;
 
 				/* select */
-				if (ob->actcol = gps->mat_nr) {
+				if (ob->actcol == gps->mat_nr) {
 					bGPDspoint *pt;
 					int i;
 
