@@ -608,6 +608,7 @@ class GPENCIL_MT_gpencil_edit_specials(Menu):
             layout.separator()
             layout.operator("gpencil.reproject")
 
+
 class GPENCIL_MT_gpencil_sculpt_specials(Menu):
     bl_label = "GPencil Specials"
 
@@ -783,41 +784,29 @@ class GPENCIL_MT_brush_specials(Menu):
         layout.operator("gpencil.brush_presets_create", icon='HELP', text="Create a Set of Predefined Brushes")
 
 
-class GPENCIL_MT_palettecolor_duplicate(Menu):
-    bl_label = "Duplicate"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator_enum("palette.palettecolor_duplicate", "type")
-
-
-class GPENCIL_MT_palettecolor_specials(Menu):
+class GPENCIL_MT_color_specials(Menu):
     bl_label = "Layer"
 
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("palette.palettecolor_reveal", icon='RESTRICT_VIEW_OFF', text="Show All")
-        layout.operator("palette.palettecolor_hide", icon='RESTRICT_VIEW_ON', text="Hide Others").unselected = True
+        layout.operator("gpencil.color_reveal", icon='RESTRICT_VIEW_OFF', text="Show All")
+        layout.operator("gpencil.color_hide", icon='RESTRICT_VIEW_ON', text="Hide Others").unselected = True
 
         layout.separator()
 
-        layout.operator("palette.palettecolor_lock_all", icon='LOCKED', text="Lock All")
-        layout.operator("palette.palettecolor_unlock_all", icon='UNLOCKED', text="UnLock All")
-
-        layout.separator()
-        layout.menu("GPENCIL_MT_palettecolor_duplicate", icon='PASTEDOWN', text="Duplicate")
+        layout.operator("gpencil.color_lock_all", icon='LOCKED', text="Lock All")
+        layout.operator("gpencil.color_unlock_all", icon='UNLOCKED', text="UnLock All")
 
         layout.separator()
 
-        layout.operator("palette.palettecolor_select", icon='COLOR', text="Select Strokes")
+        layout.operator("gpencil.color_select", icon='COLOR', text="Select Strokes")
         layout.operator("gpencil.stroke_change_color", icon='MAN_TRANS', text="Move to Color")
 
         layout.separator()
 
         layout.operator("gpencil.stroke_lock_color", icon='BORDER_RECT', text="Lock Unselected")
-        layout.operator("palette.lock_layer", icon='COLOR', text="Lock Unused")
+        layout.operator("gpencil.lock_layer", icon='COLOR', text="Lock Unused")
 
 
 class GreasePencilDataPanel:
@@ -1126,8 +1115,7 @@ classes = (
     GPENCIL_UL_layer,
     GPENCIL_MT_layer_specials,
     GPENCIL_MT_brush_specials,
-    GPENCIL_MT_palettecolor_specials,
-    GPENCIL_MT_palettecolor_duplicate,
+    GPENCIL_MT_color_specials,
 )
 
 if __name__ == "__main__":  # only for live edit.

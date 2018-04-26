@@ -405,6 +405,17 @@ void GPENCIL_OT_vertex_group_deselect(struct wmOperatorType *ot);
 void GPENCIL_OT_vertex_group_invert(struct wmOperatorType *ot);
 void GPENCIL_OT_vertex_group_smooth(struct wmOperatorType *ot);
 
+/* color handle */
+void GPENCIL_OT_lock_layer(struct wmOperatorType *ot);
+void GPENCIL_OT_color_isolate(struct wmOperatorType *ot);
+void GPENCIL_OT_color_hide(struct wmOperatorType *ot);
+void GPENCIL_OT_color_reveal(struct wmOperatorType *ot);
+void GPENCIL_OT_color_lock_all(struct wmOperatorType *ot);
+void GPENCIL_OT_color_unlock_all(struct wmOperatorType *ot);
+void GPENCIL_OT_color_select(struct wmOperatorType *ot);
+void GPENCIL_OT_color_choose(struct wmOperatorType *ot);
+
+
 /* ****************************************************** */
 /* FILTERED ACTION DATA - TYPES  ---> XXX DEPRECEATED OLD ANIM SYSTEM CODE! */
 

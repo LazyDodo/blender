@@ -1171,7 +1171,7 @@ static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* first lock all colors */
-	for (int i = 0; i < totcol; i++) {
+	for (short i = 0; i < *totcol; i++) {
 		Material *tmp = (*matar)[i];
 		tmp->gpcolor->flag |= GPC_COLOR_LOCKED;
 
@@ -1965,4 +1965,444 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 
 	return OPERATOR_FINISHED;
 }
+
+/* Color Handle operator */
+static int gpencil_active_color_poll(bContext *C)
+{
+	Object *ob = CTX_data_active_object(C);
+	short *totcolp;
+	if (ob) {
+		totcolp = give_totcolp(ob);
+	}
+	return ((ED_gpencil_data_get_active(C) != NULL) && (totcolp > 0));
+}
+
+
+/* ******************* Lock and hide any color non used in current layer ************************** */
+static int gpencil_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
+	GpencilColorData *gpcolor = NULL;
+
+	/* sanity checks */
+	if (ELEM(NULL, gpd))
+		return OPERATOR_CANCELLED;
+
+	/* first lock and hide all colors */
+	Material *mat = NULL;
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
+	if ((totcol == 0) || (matar == NULL))
+		return OPERATOR_CANCELLED;
+
+	for (short i = 0; i < *totcol; i++) {
+		mat = (*matar)[i];
+		gpcolor = mat->gpcolor;
+		gpcolor->flag |= GPC_COLOR_LOCKED;
+		gpcolor->flag |= GPC_COLOR_HIDE;
+	}
+
+	/* loop all selected strokes and unlock any color used in active layer */
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		/* only editable and visible layers are considered */
+		if (gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL) && (gpl->flag & GP_LAYER_ACTIVE)) {
+			for (bGPDstroke *gps = gpl->actframe->strokes.last; gps; gps = gps->prev) {
+				/* skip strokes that are invalid for current view */
+				if (ED_gpencil_stroke_can_use(C, gps) == false)
+					continue;
+
+				gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+				/* unlock/unhide color if not unlocked before */
+				if (gpcolor != NULL) {
+					gpcolor->flag &= ~GPC_COLOR_LOCKED;
+					gpcolor->flag &= ~GPC_COLOR_HIDE;
+				}
+			}
+		}
+	}
+	/* notifiers */
+	BKE_gpencil_batch_cache_dirty(gpd);
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_lock_layer(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Disable Unused Layer Colors";
+	ot->idname = "GPENCIL_OT_lock_layer";
+	ot->description = "Lock and hide any color not used in any layer";
+
+	/* api callbacks */
+	ot->exec = gpencil_lock_layer_exec;
+	ot->poll = gp_active_layer_poll;
+}
+
+/* ********************** Isolate gpencil_ color **************************** */
+
+static int gpencil_color_isolate_exec(bContext *C, wmOperator *op)
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
+	Material *active_mat = give_current_material(ob, ob->actcol + 1);
+	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol + 1);
+	GpencilColorData *gpcolor;
+
+	int flags = GPC_COLOR_LOCKED;
+	bool isolate = false;
+
+	if (RNA_boolean_get(op->ptr, "affect_visibility"))
+		flags |= GPC_COLOR_HIDE;
+
+	if (ELEM(NULL, gpd, active_color)) {
+		BKE_report(op->reports, RPT_ERROR, "No active color to isolate");
+		return OPERATOR_CANCELLED;
+	}
+
+	/* Test whether to isolate or clear all flags */
+	Material *mat = NULL;
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
+	for (short i = 0; i < *totcol; i++) {
+		mat = (*matar)[i];
+		/* Skip if this is the active one */
+		if (mat == active_mat)
+			continue;
+
+		/* If the flags aren't set, that means that the color is
+		* not alone, so we have some colors to isolate still
+		*/
+		gpcolor = mat->gpcolor;
+		if ((gpcolor->flag & flags) == 0) {
+			isolate = true;
+			break;
+		}
+	}
+
+	/* Set/Clear flags as appropriate */
+	if (isolate) {
+		/* Set flags on all "other" colors */
+		for (short i = 0; i < *totcol; i++) {
+			mat = (*matar)[i];
+			gpcolor = mat->gpcolor;
+			if (gpcolor == active_color)
+				continue;
+			else
+				gpcolor->flag |= flags;
+		}
+	}
+	else {
+		/* Clear flags - Restore everything else */
+		for (short i = 0; i < *totcol; i++) {
+			mat = (*matar)[i];
+			gpcolor = mat->gpcolor;
+			gpcolor->flag &= ~flags;
+		}
+	}
+
+	/* notifiers */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_color_isolate(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Isolate Color";
+	ot->idname = "GPENCIL_OT_color_isolate";
+	ot->description = "Toggle whether the active color is the only one that is editable and/or visible";
+
+	/* callbacks */
+	ot->exec = gpencil_color_isolate_exec;
+	ot->poll = gpencil_active_color_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* properties */
+	RNA_def_boolean(ot->srna, "affect_visibility", false, "Affect Visibility", "In addition to toggling "
+		"the editability, also affect the visibility");
+}
+
+/* *********************** Hide Palette colors ******************************** */
+
+static int gpencil_color_hide_exec(bContext *C, wmOperator *op)
+{
+	Object *ob = CTX_data_active_object(C);
+	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol + 1);
+
+	bool unselected = RNA_boolean_get(op->ptr, "unselected");
+
+	Material *mat = NULL;
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
+	if ((totcol == 0) || (matar == NULL))
+		return OPERATOR_CANCELLED;
+
+	if (unselected) {
+		/* hide unselected */
+		GpencilColorData *color = NULL;
+		for (short i = 0; i < *totcol; i++) {
+			mat = (*matar)[i];
+			color = mat->gpcolor;
+			if (active_color != color) {
+				color->flag |= GPC_COLOR_HIDE;
+			}
+		}
+	}
+	else {
+		/* hide selected/active */
+		active_color->flag |= GPC_COLOR_HIDE;
+	}
+
+	/* notifiers */
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_color_hide(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Hide Color(s)";
+	ot->idname = "GPENCIL_OT_color_hide";
+	ot->description = "Hide selected/unselected Grease Pencil colors";
+
+	/* callbacks */
+	ot->exec = gpencil_color_hide_exec;
+	ot->poll = gpencil_active_color_poll; /* NOTE: we need an active color to play with */
+
+										  /* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* props */
+	RNA_def_boolean(ot->srna, "unselected", 0, "Unselected", "Hide unselected rather than selected colors");
+}
+
+/* ********************** Show All Colors ***************************** */
+
+static int gpencil_color_reveal_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Object *ob = CTX_data_active_object(C);
+	Material *mat = NULL;
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
+
+	if ((totcol == 0) || (matar == NULL))
+		return OPERATOR_CANCELLED;
+
+	/* make all colors visible */
+	GpencilColorData *gpcolor = NULL;
+
+	for (short i = 0; i < *totcol; i++) {
+		mat = (*matar)[i];
+		gpcolor = mat->gpcolor;
+		gpcolor->flag &= ~GPC_COLOR_HIDE;
+	}
+
+	/* notifiers */
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_color_reveal(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Show All Colors";
+	ot->idname = "GPENCIL_OT_color_reveal";
+	ot->description = "Unhide all hidden Grease Pencil gpencil_ colors";
+
+	/* callbacks */
+	ot->exec = gpencil_color_reveal_exec;
+	ot->poll = gpencil_active_color_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+/* ***************** Lock/Unlock All colors ************************ */
+
+static int gpencil_color_lock_all_exec(bContext *C, wmOperator *UNUSED(op))
+{
+
+	Object *ob = CTX_data_active_object(C);
+	Material *mat = NULL;
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
+
+	if ((totcol == 0) || (matar == NULL))
+		return OPERATOR_CANCELLED;
+
+	/* make all layers non-editable */
+	GpencilColorData *gpcolor = NULL;
+
+	for (short i = 0; i < *totcol; i++) {
+		mat = (*matar)[i];
+		gpcolor = mat->gpcolor;
+		gpcolor->flag &= ~GPC_COLOR_LOCKED;
+	}
+
+	/* notifiers */
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_color_lock_all(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Lock All Colors";
+	ot->idname = "GPENCIL_OT_color_lock_all";
+	ot->description = "Lock all Grease Pencil colors to prevent them from being accidentally modified";
+
+	/* callbacks */
+	ot->exec = gpencil_color_lock_all_exec;
+	ot->poll = gpencil_active_color_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+/* -------------------------- */
+
+static int gpencil_color_unlock_all_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Object *ob = CTX_data_active_object(C);
+	Material *mat = NULL;
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
+
+	if ((totcol == 0) || (matar == NULL))
+		return OPERATOR_CANCELLED;
+
+	/* make all layers editable again*/
+	GpencilColorData *gpcolor = NULL;
+
+	for (short i = 0; i < *totcol; i++) {
+		mat = (*matar)[i];
+		gpcolor = mat->gpcolor;
+		gpcolor->flag &= ~GPC_COLOR_LOCKED;
+	}
+
+	/* notifiers */
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_color_unlock_all(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Unlock All Colors";
+	ot->idname = "GPENCIL_OT_color_unlock_all";
+	ot->description = "Unlock all Grease Pencil colors so that they can be edited";
+
+	/* callbacks */
+	ot->exec = gpencil_color_unlock_all_exec;
+	ot->poll = gpencil_active_color_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+
+/* ***************** Select all strokes using color ************************ */
+
+static int gpencil_color_select_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol + 1);
+
+	/* sanity checks */
+	if (ELEM(NULL, gpd, gpcolor))
+		return OPERATOR_CANCELLED;
+
+	/* read all strokes and select*/
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		/* only editable and visible layers are considered */
+		if (gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
+			/* verify something to do */
+			for (bGPDstroke *gps = gpl->actframe->strokes.first; gps; gps = gps->next) {
+				/* skip strokes that are invalid for current view */
+				if (ED_gpencil_stroke_can_use(C, gps) == false)
+					continue;
+				/* check if the color is editable */
+				if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false)
+					continue;
+
+				/* select */
+				if (ob->actcol = gps->mat_nr) {
+					bGPDspoint *pt;
+					int i;
+
+					gps->flag |= GP_STROKE_SELECT;
+					for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+						pt->flag |= GP_SPOINT_SELECT;
+					}
+				}
+			}
+		}
+	}
+	/* notifiers */
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_color_select(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Select Color";
+	ot->idname = "GPENCIL_OT_color_select";
+	ot->description = "Select all Grease Pencil strokes using current color";
+
+	/* callbacks */
+	ot->exec = gpencil_color_select_exec;
+	ot->poll = gpencil_active_color_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+/* ***************** Choose Palette color by index ************************ */
+static int gpencil_color_choose_exec(bContext *C, wmOperator *op)
+{
+	const int index = RNA_int_get(op->ptr, "index");
+
+	Object *ob = CTX_data_active_object(C);
+	if (ob == NULL)
+		return OPERATOR_CANCELLED;
+
+	ob->actcol = index + 1;
+
+	/* notifiers */
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_color_choose(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Choose Color";
+	ot->idname = "GPENCIL_OT_color_choose";
+	ot->description = "Active a gpencil_ color";
+
+	/* callbacks */
+	ot->exec = gpencil_color_choose_exec;
+	ot->poll = gpencil_active_color_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* properties */
+	RNA_def_int(ot->srna, "index", 0, 0, INT_MAX, "Index", "Index of Color", 0, INT_MAX);
+}
+
 

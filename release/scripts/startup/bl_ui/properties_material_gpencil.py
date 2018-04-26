@@ -89,7 +89,7 @@ class MATERIAL_PT_gpencil_slots(Panel):
             col.operator("object.material_slot_add", icon='ZOOMIN', text="")
             col.operator("object.material_slot_remove", icon='ZOOMOUT', text="")
 
-            col.menu("GPENCIL_MT_palettecolor_specials", icon='DOWNARROW_HLT', text="")
+            col.menu("GPENCIL_MT_color_specials", icon='DOWNARROW_HLT', text="")
 
             if is_sortable:
                 col.separator()
@@ -100,8 +100,8 @@ class MATERIAL_PT_gpencil_slots(Panel):
                 col.separator()
 
                 sub = col.column(align=True)
-                sub.operator("palette.palettecolor_isolate", icon='LOCKED', text="").affect_visibility = False
-                sub.operator("palette.palettecolor_isolate", icon='RESTRICT_VIEW_OFF', text="").affect_visibility = True
+                sub.operator("gpencil.color_isolate", icon='LOCKED', text="").affect_visibility = False
+                sub.operator("gpencil.color_isolate", icon='RESTRICT_VIEW_OFF', text="").affect_visibility = True
 
         split = layout.split(percentage=0.65)
 

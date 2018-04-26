@@ -835,6 +835,16 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_vertex_group_invert);
 	WM_operatortype_append(GPENCIL_OT_vertex_group_smooth);
 
+	/* color handle */
+	WM_operatortype_append(GPENCIL_OT_lock_layer);
+	WM_operatortype_append(GPENCIL_OT_color_isolate);
+	WM_operatortype_append(GPENCIL_OT_color_hide);
+	WM_operatortype_append(GPENCIL_OT_color_reveal);
+	WM_operatortype_append(GPENCIL_OT_color_lock_all);
+	WM_operatortype_append(GPENCIL_OT_color_unlock_all);
+	WM_operatortype_append(GPENCIL_OT_color_select);
+	WM_operatortype_append(GPENCIL_OT_color_choose);
+
 
 	/* Editing (Time) --------------- */
 	
