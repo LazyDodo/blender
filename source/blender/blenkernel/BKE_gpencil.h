@@ -41,11 +41,10 @@ struct bGPDlayer;
 struct bGPDframe;
 struct bGPDspoint;
 struct bGPDstroke;
-struct bGPDpaletteref;
+struct Material;
 struct bGPDpalette;
 struct bGPDpalettecolor;
 struct Main;
-struct PaletteColor;
 struct BoundBox;
 struct Brush;
 struct Object;
@@ -53,7 +52,6 @@ struct bDeformGroup;
 struct GpencilSimplifyModifierData;
 struct GpencilArrayModifierData;
 struct GpencilLatticeModifierData;
-struct Palette;
 
 /* ------------ Grease-Pencil API ------------------ */
 
@@ -86,11 +84,14 @@ struct bGPDstroke *BKE_gpencil_stroke_duplicate(struct bGPDstroke *gps_src);
 void BKE_gpencil_copy_data(struct Main *bmain, struct bGPdata *gpd_dst, const struct bGPdata *gpd_src, const int flag);
 struct bGPdata   *BKE_gpencil_copy(struct Main *bmain, const struct bGPdata *gpd);
 struct bGPdata   *BKE_gpencil_data_duplicate(struct Main *bmain, const struct bGPdata *gpd, bool internal_copy);
-void BKE_gpencil_copy_palette_data(struct bGPdata *gpd_dst, const struct bGPdata *gpd_src);
 
 void BKE_gpencil_make_local(struct Main *bmain, struct bGPdata *gpd, const bool lib_local);
 
 void BKE_gpencil_frame_delete_laststroke(struct bGPDlayer *gpl, struct bGPDframe *gpf);
+
+/* materials */
+void BKE_gpencil_material_index_remove(struct bGPdata *gpd, int index);
+void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, unsigned int remap_len);
 
 /* Utilities for creating and populating GP strokes */
 /* - Number of values defining each point in the built-in data 
@@ -103,13 +104,7 @@ void BKE_gpencil_stroke_add_points(
         const float *array, const int totpoints,
         const float mat[4][4]);
 
-struct bGPDstroke *BKE_gpencil_add_stroke(
-        struct bGPDframe *gpf, struct Palette *palette, struct PaletteColor *palcolor, int totpoints,
-        const char *colorname, short thickness);
-
-
-/* conversion of animation data from bGPDpalette to Palette */
-void BKE_gpencil_move_animdata_to_palettes(struct bContext *C, struct bGPdata *gpd);
+struct bGPDstroke *BKE_gpencil_add_stroke(struct bGPDframe *gpf, int mat_idx, int totpoints, short thickness);
 
 /* Stroke and Fill - Alpha Visibility Threshold */
 #define GPENCIL_ALPHA_OPACITY_THRESH 0.001f
@@ -138,22 +133,8 @@ struct bGPDlayer *BKE_gpencil_layer_getactive(struct bGPdata *gpd);
 void BKE_gpencil_layer_setactive(struct bGPdata *gpd, struct bGPDlayer *active);
 void BKE_gpencil_layer_delete(struct bGPdata *gpd, struct bGPDlayer *gpl);
 
-/* Palette Slots */
-void BKE_gpencil_palette_slot_free(struct bGPdata *gpd, struct bGPDpaletteref *palslot);
-
-struct bGPDpaletteref *BKE_gpencil_paletteslot_find(struct bGPdata *gpd, const struct Palette *palette);
-bool BKE_gpencil_paletteslot_has_users(const struct bGPdata *gpd, const struct bGPDpaletteref *palslot);
-
-struct bGPDpaletteref *BKE_gpencil_paletteslot_get_active(const struct bGPdata *gpd);
-void BKE_gpencil_paletteslot_set_active(struct bGPdata *gpd, const struct bGPDpaletteref *palslot);
-void BKE_gpencil_paletteslot_set_active_palette(struct bGPdata *gpd, const struct Palette *palette);
-
-void BKE_gpencil_paletteslot_set_palette(struct bGPdata *gpd, struct bGPDpaletteref *palslot, struct Palette *palette);
-
-struct bGPDpaletteref *BKE_gpencil_paletteslot_add(struct bGPdata *gpd, struct Palette *palette);
-struct bGPDpaletteref *BKE_gpencil_paletteslot_addnew(struct Main *bmain, struct bGPdata *gpd, const char name[]);
-struct bGPDpaletteref *BKE_gpencil_paletteslot_validate(struct Main *bmain, struct bGPdata *gpd);
-struct PaletteColor *BKE_gpencil_get_color_from_brush(struct bGPdata *gpd, struct Brush *brush, bool add);
+struct Material *BKE_gpencil_get_color_from_brush(struct bGPdata *gpd, struct Brush *brush, bool add);
+struct Material *BKE_gpencil_color_ensure(struct Main *bmain, struct Object *ob);
 
 /* Palettes - Deprecated (2.78-2.79) */
 void BKE_gpencil_free_palettes(struct ListBase *list);

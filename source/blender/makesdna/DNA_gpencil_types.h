@@ -146,26 +146,6 @@ typedef enum eGPDpalette_Flag {
 } eGPDpalette_Flag;
 
 /* ***************************************** */
-/* GP Palette Slots - 2.8+ Replacement for bGPDpalette */
-
-/**
- * Palette Slot
- *
- * This is equivalent to the "Material Slot" concept on normal geometry,
- * but, instead of referencing a Material, we instead reference Blender
- * Palette datablocks (since these are used to supply GP colours).
- *
- * GP datablocks can have several of these at a time - one for each palette
- * used by a stroke in the datablock.
- */
-typedef struct bGPDpaletteref {
-	struct bGPDpaletteref *next, *prev;
-	
-	/* the palette referenced in this slot */
-	Palette *palette;
-} bGPDpaletteref;
-
-/* ***************************************** */
 /* GP Strokes */
 
 /* Grease-Pencil Annotations - 'Stroke'
@@ -185,13 +165,7 @@ typedef struct bGPDstroke {
 
 	double inittime;		/* Init time of stroke */
 
-	/* The pointer to color is only used during drawing, but not saved 
-	 * colorname is the join with the palette, but when draw, the pointer is update if the value is NULL
-	 * to speed up the drawing
-	 */
-	char colorname[128];    /* color name */
-	
-	Palette      *palette;  /* current palette */
+	char colorname[128] DNA_DEPRECATED;    /* color name */
 
 	/* runtime final colors (result of original colors and modifiers) */
 	float tmp_rgb[4];
@@ -201,7 +175,7 @@ typedef struct bGPDstroke {
 	char tmp_layerinfo[128];
 
 	float falloff;          /* runtime falloff factor (only for transform) */
-	char pad1[4];
+	int mat_nr;             /* material index */
 } bGPDstroke;
 
 /* bGPDstroke->flag */
@@ -385,10 +359,10 @@ typedef struct bGPdata {
 	float gcolor_prev[3];	    /* optional color for ghosts before the active frame */
 	float gcolor_next[3];	    /* optional color for ghosts after the active frame */
 
-	/* Palette Slots */
-	int active_palette_slot;    /* index of active palette slot */
-
-	ListBase palette_slots;     /* list of bGPDpaletteref's - (2.8+) */
+	char pad[4];
+	struct Material **mat;      /* materials array */
+	short totcol;               /* total materials */
+	char pad2[6];
 } bGPdata;
 
 

@@ -111,7 +111,7 @@ bool ED_gpencil_has_keyframe_v3d(struct Scene *scene, struct Object *ob, int cfr
 
 bool ED_gpencil_stroke_can_use_direct(const struct ScrArea *sa, const struct bGPDstroke *gps);
 bool ED_gpencil_stroke_can_use(const struct bContext *C, const struct bGPDstroke *gps);
-bool ED_gpencil_stroke_color_use(const struct bGPDlayer *gpl, const struct bGPDstroke *gps);
+bool ED_gpencil_stroke_color_use(struct Object *ob, const struct bGPDlayer *gpl, const struct bGPDstroke *gps);
 
 /* ----------- Grease Pencil Operators ----------------- */
 
@@ -218,7 +218,7 @@ int ED_gpencil_join_objects_exec(struct bContext *C, struct wmOperator *op);
 
 /* texture coordinate utilities */
 void ED_gpencil_tpoint_to_point(struct ARegion *ar, float origin[3], const struct tGPspoint *tpt, struct bGPDspoint *pt);
-void ED_gpencil_calc_stroke_uv(struct bGPDstroke *gps);
+void ED_gpencil_calc_stroke_uv(struct Object *ob, struct bGPDstroke *gps);
 void ED_gpencil_update_color_uv(struct Main *bmain, struct Palette *palette, struct PaletteColor *palcolor);
 
 #endif /*  __ED_GPENCIL_H__ */

@@ -133,7 +133,7 @@ void BKE_gpencil_array_modifier_instance_tfm(GpencilArrayModifierData *mmd, cons
 /* array modifier - generate geometry callback (for viewport/rendering) */
 /* TODO: How to skip this for the simplify options?   -->  !GP_SIMPLIFY_MODIF(ts, playing) */
 static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-	                          Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf,
+	                          Object *ob, bGPDlayer *gpl, bGPDframe *gpf,
 	                          int modifier_index)
 {
 	GpencilArrayModifierData *mmd = (GpencilArrayModifierData *)md;
@@ -153,7 +153,7 @@ static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 		/* Record whether this stroke can be used
 		 * ATTENTION: The logic here is the inverse of what's used everywhere else!
 		 */
-		if (is_stroke_affected_by_modifier(
+		if (is_stroke_affected_by_modifier(ob,
 		        mmd->layername, mmd->pass_index, 1, gpl, gps,
 		        mmd->flag & GP_ARRAY_INVERSE_LAYER, mmd->flag & GP_ARRAY_INVERSE_PASS))
 		{

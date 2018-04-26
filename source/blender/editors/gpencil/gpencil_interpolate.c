@@ -166,6 +166,7 @@ static void gp_interpolate_update_strokes(bContext *C, tGPDinterpolate *tgpi)
 /* Helper: Verify valid strokes for interpolation */
 static bool gp_interpolate_check_todo(bContext *C, bGPdata *gpd)
 {
+	Object *ob = CTX_data_active_object(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	eGP_Interpolate_SettingsFlag flag = ts->gp_interpolate.flag;
 	
@@ -194,7 +195,7 @@ static bool gp_interpolate_check_todo(bContext *C, bGPdata *gpd)
 				continue;
 			}
 			/* check if the color is editable */
-			if (ED_gpencil_stroke_color_use(gpl, gps_from) == false) {
+			if (ED_gpencil_stroke_color_use(ob, gpl, gps_from) == false) {
 				continue;
 			}
 			
@@ -217,7 +218,8 @@ static void gp_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
 	bGPdata *gpd = tgpi->gpd;
 	bGPDlayer *active_gpl = CTX_data_active_gpencil_layer(C);
 	bGPDframe *actframe = active_gpl->actframe;
-	
+	Object *ob = CTX_data_active_object(C);
+
 	/* save initial factor for active layer to define shift limits */
 	tgpi->init_factor = (float)(tgpi->cframe - actframe->framenum) / (actframe->next->framenum - actframe->framenum + 1);
 	
@@ -273,7 +275,7 @@ static void gp_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
 			}
 			
 			/* check if the color is editable */
-			if (ED_gpencil_stroke_color_use(tgpil->gpl, gps_from) == false) {
+			if (ED_gpencil_stroke_color_use(ob, tgpil->gpl, gps_from) == false) {
 				valid = false;
 			}
 			
@@ -903,6 +905,7 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
 	bGPDframe *actframe = active_gpl->actframe;
 	
 	Scene *scene = CTX_data_scene(C);
+	Object *ob = CTX_data_active_object(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	GP_Interpolate_Settings *ipo_settings = &ts->gp_interpolate;
 	eGP_Interpolate_SettingsFlag flag = ipo_settings->flag;
@@ -972,7 +975,7 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
 					continue;
 				}
 				/* check if the color is editable */
-				if (ED_gpencil_stroke_color_use(gpl, gps_from) == false) {
+				if (ED_gpencil_stroke_color_use(ob, gpl, gps_from) == false) {
 					continue;
 				}
 				

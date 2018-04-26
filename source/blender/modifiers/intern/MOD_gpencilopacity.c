@@ -40,7 +40,7 @@
 
 #include "BKE_context.h"
 #include "BKE_deform.h"
-#include "BKE_paint.h"
+#include "BKE_material.h"
 #include "BKE_gpencil.h"
 #include "BKE_modifier.h"
 
@@ -68,28 +68,28 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilOpacityModifierData *mmd = (GpencilOpacityModifierData *)md;
-	PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
-	if (!is_stroke_affected_by_modifier(
+	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
 	        mmd->flag & GP_OPACITY_INVERSE_LAYER, mmd->flag & GP_OPACITY_INVERSE_PASS))
 	{
 		return;
 	}
 	
-	palcolor->fill[3]*= mmd->factor;
+	gpcolor->fill[3]*= mmd->factor;
 
 	/* if factor is > 1, then force opacity */
 	if (mmd->factor > 1.0f) {
-		palcolor->rgb[3] += mmd->factor - 1.0f;
-		if (palcolor->fill[3] > 1e-5) {
-			palcolor->fill[3] += mmd->factor - 1.0f;
+		gpcolor->rgb[3] += mmd->factor - 1.0f;
+		if (gpcolor->fill[3] > 1e-5) {
+			gpcolor->fill[3] += mmd->factor - 1.0f;
 		}
 	}
 
-	CLAMP(palcolor->rgb[3], 0.0f, 1.0f);
-	CLAMP(palcolor->fill[3], 0.0f, 1.0f);
+	CLAMP(gpcolor->rgb[3], 0.0f, 1.0f);
+	CLAMP(gpcolor->fill[3], 0.0f, 1.0f);
 
 	/* if opacity > 1.0, affect the strength of the stroke */
 	if (mmd->factor > 1.0f) {

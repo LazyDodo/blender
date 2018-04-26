@@ -65,6 +65,7 @@
 #include "BKE_idprop.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 #include "BKE_mesh.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
@@ -947,11 +948,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 		}
 
 		{
-			/* NOTE: See also do_versions_after_linking_280()
-			* Some GP datablock link changes happen there instead, otherwise we get weird
-			* crashes and corrupt data when trying to move linked datablocks around.
-			*/
-
+#if 0	/* GPXX */		
 			/* Convert grease pencil palettes to blender palettes */
 			if (!DNA_struct_elem_find(fd->filesdna, "bGPDstroke", "Palette", "*palette")) {
 				for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
@@ -996,6 +993,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 					gpd->id.tag &= ~LIB_TAG_NEED_LINK; // XXX: WHY?!
 				}
 			}
+#endif
 
 			/* Grease pencil sculpt and paint cursors */
 			if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "weighttype")) {

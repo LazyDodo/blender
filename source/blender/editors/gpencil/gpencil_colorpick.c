@@ -51,6 +51,7 @@
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
 #include "BKE_screen.h"
+#include "BKE_material.h" 
 #include "BKE_paint.h" 
 #include "BKE_report.h" 
 
@@ -101,7 +102,7 @@ typedef struct tGPDpick {
 	struct Object *ob;                  /* current active gp object */
 	struct ScrArea *sa;                 /* area where painting originated */
 	struct ARegion *ar;                 /* region where painting originated */
-	struct Palette *palette;            /* current palette */
+	struct Material *mat;               /* current material */
 	struct Brush *brush;            /* current brush */
 	short bflag;                        /* previous brush flag */
 
@@ -165,7 +166,7 @@ static void gp_draw_pattern_box(int xmin, int ymin, int xmax, int ymax)
 /* draw a toolbar with all colors of the palette */
 static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 {
-	if (!tgpk->palette) {
+	if (!tgpk->mat) {
 		return;
 	}
 
@@ -317,13 +318,13 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 
 	ED_region_visible_rect(tgpk->ar, &tgpk->rect);
 
-	/* get current palette */
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_validate(bmain, gpd);
-	tgpk->palette = palslot->palette;
+	/* get current material */
+	tgpk->mat = give_current_material(tgpk->ob, tgpk->ob->actcol);
 
 	/* allocate color table */
-	tgpk->totcolor = BLI_listbase_count(&tgpk->palette->colors);
-	tgpk->curindex = tgpk->palette->active_color;
+	short *totcolp = give_totcolp(tgpk->ob);
+	tgpk->totcolor = *totcolp;
+	tgpk->curindex = tgpk->ob->actcol - 1;
 	if (tgpk->totcolor > 0) {
 		tgpk->colors = MEM_callocN(sizeof(tGPDpickColor) * tgpk->totcolor, "gp_colorpicker");
 	}
@@ -381,18 +382,22 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 
 	/* load color table in temp data */
 	tGPDpickColor *tcolor = tgpk->colors;
-	Palette *palette = tgpk->palette;
 	int idx = 0;
 	int row = 0;
 	int col = 0;
 	int t = 0;
-	for (PaletteColor *palcol = palette->colors.first; palcol; palcol = palcol->next) {
+	Material ***matar = give_matarar(tgpk->ob);
+	short *totcol = give_totcolp(tgpk->ob);
+	for (short i = 0; i < *totcol; i++) {
+		Material *tmp = (*matar)[i];
+		GpencilColorData *gpcolor = tmp->gpcolor;
+		
 		tcolor->index = idx;
 
-		BLI_strncpy(tcolor->name, palcol->info, sizeof(tcolor->name));
-		copy_v4_v4(tcolor->rgba, palcol->rgb);
-		copy_v4_v4(tcolor->fill, palcol->fill);
-		tcolor->fillmode = (palcol->fill[3] > 0.0f);
+		BLI_strncpy(tcolor->name, tmp->id.name, sizeof(tcolor->name));
+		copy_v4_v4(tcolor->rgba, gpcolor->rgb);
+		copy_v4_v4(tcolor->fill, gpcolor->fill);
+		tcolor->fillmode = (gpcolor->fill[3] > 0.0f);
 
 		/* box position */
 		tcolor->rect.xmin = tgpk->panel.xmin + (tgpk->boxsize[0] * col) + (GP_BOX_GAP * (col + 1)) - (GP_BOX_GAP / 2);
@@ -514,7 +519,7 @@ static int gpencil_colorpick_modal(bContext *C, wmOperator *op, const wmEvent *e
 			else {
 				int index = gpencil_colorpick_index_from_mouse(tgpk, event);
 				if (index != -1) {
-					tgpk->palette->active_color = index;
+					tgpk->ob->actcol = index + 1;
 					estate = OPERATOR_FINISHED;
 				}
 			}
@@ -551,7 +556,7 @@ void GPENCIL_OT_colorpick(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Grease Pencil Color Picker";
 	ot->idname = "GPENCIL_OT_colorpick";
-	ot->description = "Select a color from visual palette";
+	ot->description = "Select a color from visual mat";
 	
 	/* api callbacks */
 	ot->invoke = gpencil_colorpick_invoke;

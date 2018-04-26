@@ -32,57 +32,45 @@
 #include "BLI_utildefines.h"
 
 #include "DNA_gpencil_types.h"
+#include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 #include "BKE_main.h"
-#include "BKE_paint.h"
+#include "BKE_material.h"
 
 #include "ED_gpencil.h"
 
-/* ***************************************************************** */
-/* Palette Validation API */
-/* TODO: Move this to the BKE_gpencil API if/when other code needs to do this */
-
 /* Definition of the most important info from a color */
-typedef struct PaletteColorTemplate {
+typedef struct ColorTemplate {
 	const char *name;
 	float line[4];
 	float fill[4];
-} PaletteColorTemplate;
+} ColorTemplate;
 
-/* Ensure that a Palette Color exists matching the template (matched by name) */
-static PaletteColor *gpencil_palette_color_verify_template(Palette *palette, const PaletteColorTemplate *pct)
+/* Add color an ensure duplications (matched by name) */
+static int gpencil_monkey_color(Main *bmain, Object *ob, const ColorTemplate *pct)
 {
-	BLI_assert((palette != NULL) && (pct != NULL));
-	
-	PaletteColor *palcolor = BKE_palette_color_getbyname(palette, pct->name);
-	if (palcolor == NULL) {
-		palcolor = BKE_palette_color_add_name(palette, pct->name);
-		BLI_assert(palcolor != NULL);
-		
-		copy_v4_v4(palcolor->rgb, pct->line);
-		copy_v4_v4(palcolor->fill, pct->fill);
-	}
-	
-	return palcolor;
-}
-
-/* Ensure that a Palette Slot exists with a similarly named palette */
-static bGPDpaletteref *gpencil_palette_slot_verify(Main *bmain, bGPdata *gpd, const char name[])
-{
-	BLI_assert((gpd != NULL) && (name != NULL));
-	
-	/* Try to find a matching palette */
-	for (bGPDpaletteref *slot = gpd->palette_slots.first; slot; slot = slot->next) {
-		if ((slot->palette) && STREQ(slot->palette->id.name + 2, name)) {
-			return slot;
+	Material *ma = NULL;
+	Material ***matar = give_matarar(ob);
+	short *totcol = give_totcolp(ob);
+	for (short i = 0; i < *totcol; i++) {
+		ma = (*matar)[i];
+		if (STREQ(ma->id.name, pct->name)) {
+			return i;
 		}
 	}
+
+	/* create a new one */
+	BKE_object_material_slot_add(ob);
+	ma = BKE_material_add(bmain, pct->name);
+	assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+
+	copy_v4_v4(ma->gpcolor->rgb, pct->line);
+	copy_v4_v4(ma->gpcolor->fill, pct->fill);
 	
-	/* Not found, so make one */
-	return BKE_gpencil_paletteslot_addnew(bmain, gpd, name);
+	return BKE_object_material_slot_find_index(ob, ma) - 1;
 }
 
 /* ***************************************************************** */
@@ -1391,37 +1379,37 @@ static const float data35[261 * GP_PRIM_DATABUF_SIZE] = {
 /* ***************************************************************** */
 /* Monkey Color Data */
 
-static const PaletteColorTemplate gp_monkey_pct_black = {
+static const ColorTemplate gp_monkey_pct_black = {
 	"Black",
 	{0.0f, 0.0f, 0.0f, 1.0f},
 	{0.0f, 0.0f, 0.0f, 0.0f},
 };
 
-static const PaletteColorTemplate gp_monkey_pct_skin = {
+static const ColorTemplate gp_monkey_pct_skin = {
 	"Skin",
 	{0.553f, 0.39f, 0.266f, 0.0f},
 	{0.733f, 0.567f, 0.359f, 1.0f},
 };
 
-static const PaletteColorTemplate gp_monkey_pct_skin_light = {
+static const ColorTemplate gp_monkey_pct_skin_light = {
 	"Skin_Light",
 	{0.553f, 0.39f, 0.266f, 0.0f},
 	{0.913f, 0.828f, 0.637f, 1.0f},
 };
 
-static const PaletteColorTemplate gp_monkey_pct_skin_shadow = {
+static const ColorTemplate gp_monkey_pct_skin_shadow = {
 	"Skin_Shadow",
 	{0.553f, 0.39f, 0.266f, 0.0f},
 	{0.32f, 0.29f, 0.223f, 1.0f},
 };
 
-static const PaletteColorTemplate gp_monkey_pct_eyes = {
+static const ColorTemplate gp_monkey_pct_eyes = {
 	"Eyes",
 	{0.553f, 0.39f, 0.266f, 0.0f},
 	{0.773f, 0.762f, 0.73f, 1.0f},	
 };
 
-static const PaletteColorTemplate gp_monkey_pct_pupils = {
+static const ColorTemplate gp_monkey_pct_pupils = {
 	"Pupils",
 	{0.107f, 0.075f, 0.051f, 0.0f},
 	{0.153f, 0.057f, 0.063f, 1.0f},	
@@ -1435,18 +1423,17 @@ void ED_gpencil_create_monkey(bContext *C, bGPdata *gpd, float mat[4][4])
 {
 	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
+	Object *ob = CTX_data_active_object(C);
+
 	bGPDstroke *gps;
 	
-	/* create palette and colors */
-	bGPDpaletteref *palslot = gpencil_palette_slot_verify(bmain, gpd, "Suzanne");
-	Palette *palette = palslot->palette;
-	
-	PaletteColor *color_Black = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_black);
-	PaletteColor *color_Skin = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_skin);
-	PaletteColor *color_Skin_Light = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_skin_light);
-	PaletteColor *color_Skin_Shadow = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_skin_shadow);
-	PaletteColor *color_Eyes = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_eyes);
-	PaletteColor *color_Pupils = gpencil_palette_color_verify_template(palette, &gp_monkey_pct_pupils);
+	/* create colors */
+	int color_Black = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_black);
+	int color_Skin = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_skin);
+	int color_Skin_Light = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_skin_light);
+	int color_Skin_Shadow = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_skin_shadow);
+	int color_Eyes = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_eyes);
+	int color_Pupils = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_pupils);
 
 	/* layers */
 	/* NOTE: For now, we just add new layers, to make it easier to separate out old/new instances */
@@ -1459,112 +1446,112 @@ void ED_gpencil_create_monkey(bContext *C, bGPdata *gpd, float mat[4][4])
 	bGPDframe *frameLines = BKE_gpencil_frame_addnew(Lines, CFRA);
 
 	/* generate strokes */
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin, 538, "Skin", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin, 538, 3);
 	BKE_gpencil_stroke_add_points(gps, data0, 538, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Eyes, 136, "Eyes", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Eyes, 136, 3);
 	BKE_gpencil_stroke_add_points(gps, data1, 136, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin, 2, "Skin", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin, 2, 3);
 	BKE_gpencil_stroke_add_points(gps, data2, 2, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 1, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 1, 3);
 	BKE_gpencil_stroke_add_points(gps, data3, 1, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 1, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 1, 3);
 	BKE_gpencil_stroke_add_points(gps, data4, 1, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 48, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 48, 3);
 	BKE_gpencil_stroke_add_points(gps, data5, 48, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 47, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 47, 3);
 	BKE_gpencil_stroke_add_points(gps, data6, 47, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 162, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 162, 3);
 	BKE_gpencil_stroke_add_points(gps, data7, 162, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 55, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 55, 3);
 	BKE_gpencil_stroke_add_points(gps, data8, 55, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 70, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 70, 3);
 	BKE_gpencil_stroke_add_points(gps, data9, 70, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Light, 227, "Skin_Light", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Light, 227, 3);
 	BKE_gpencil_stroke_add_points(gps, data10, 227, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 1, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 1, 3);
 	BKE_gpencil_stroke_add_points(gps, data11, 1, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 123, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 123, 3);
 	BKE_gpencil_stroke_add_points(gps, data12, 123, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 125, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 125, 3);
 	BKE_gpencil_stroke_add_points(gps, data13, 125, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 45, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 45, 3);
 	BKE_gpencil_stroke_add_points(gps, data14, 45, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 44, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 44, 3);
 	BKE_gpencil_stroke_add_points(gps, data15, 44, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 84, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 84, 3);
 	BKE_gpencil_stroke_add_points(gps, data16, 84, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 56, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 56, 3);
 	BKE_gpencil_stroke_add_points(gps, data17, 56, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 59, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 59, 3);
 	BKE_gpencil_stroke_add_points(gps, data18, 59, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Skin_Shadow, 100, "Skin_Shadow", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Skin_Shadow, 100, 3);
 	BKE_gpencil_stroke_add_points(gps, data19, 100, mat);
 
-	gps = BKE_gpencil_add_stroke(frameColor, palette, color_Eyes, 136, "Eyes", 3);
+	gps = BKE_gpencil_add_stroke(frameColor, color_Eyes, 136, 3);
 	BKE_gpencil_stroke_add_points(gps, data20, 136, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 353, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 353, 3);
 	BKE_gpencil_stroke_add_points(gps, data21, 353, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 309, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 309, 3);
 	BKE_gpencil_stroke_add_points(gps, data22, 309, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 209, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 209, 3);
 	BKE_gpencil_stroke_add_points(gps, data23, 209, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 133, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 133, 3);
 	BKE_gpencil_stroke_add_points(gps, data24, 133, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 389, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 389, 3);
 	BKE_gpencil_stroke_add_points(gps, data25, 389, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 41, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 41, 3);
 	BKE_gpencil_stroke_add_points(gps, data26, 41, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 77, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 77, 3);
 	BKE_gpencil_stroke_add_points(gps, data27, 77, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 257, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 257, 3);
 	BKE_gpencil_stroke_add_points(gps, data28, 257, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 205, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 205, 3);
 	BKE_gpencil_stroke_add_points(gps, data29, 205, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 33, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 33, 3);
 	BKE_gpencil_stroke_add_points(gps, data30, 33, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 37, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 37, 3);
 	BKE_gpencil_stroke_add_points(gps, data31, 37, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 201, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 201, 3);
 	BKE_gpencil_stroke_add_points(gps, data32, 201, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Pupils, 69, "Pupils", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Pupils, 69, 3);
 	BKE_gpencil_stroke_add_points(gps, data33, 69, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Pupils, 57, "Pupils", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Pupils, 57, 3);
 	BKE_gpencil_stroke_add_points(gps, data34, 57, mat);
 
-	gps = BKE_gpencil_add_stroke(frameLines, palette, color_Black, 261, "Black", 3);
+	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 261, 3);
 	BKE_gpencil_stroke_add_points(gps, data35, 261, mat);
 }
 

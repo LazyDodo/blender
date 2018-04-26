@@ -2079,10 +2079,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
                 row = layout.row(align=True)
-                row.template_ID(brush, "palette")
-                if brush.palette:
-                    row = layout.row(align=True)
-                    row.prop_search(brush, "colorname", brush.palette, "colors", text="Color", icon="LAYER_ACTIVE")
+                row.template_ID(brush, "material")
 
             if brush.gpencil_brush_type == 'FILL':
                 col = layout.column(align=True)

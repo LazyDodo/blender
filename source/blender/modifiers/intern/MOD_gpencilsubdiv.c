@@ -62,14 +62,14 @@ static void copyData(ModifierData *md, ModifierData *target)
 
 /* subdivide stroke to get more control points */
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
+                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilSubdivModifierData *mmd = (GpencilSubdivModifierData *)md;
 	bGPDspoint *temp_points;
 	int totnewpoints, oldtotpoints;
 	int i2;
 
-	if (!is_stroke_affected_by_modifier(
+	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
 	        mmd->flag & GP_SUBDIV_INVERSE_LAYER, mmd->flag & GP_SUBDIV_INVERSE_PASS))
 	{

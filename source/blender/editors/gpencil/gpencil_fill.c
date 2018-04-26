@@ -48,6 +48,7 @@
 #include "BKE_brush.h" 
 #include "BKE_image.h" 
 #include "BKE_gpencil.h"
+#include "BKE_material.h"
 #include "BKE_context.h"
 #include "BKE_screen.h"
 #include "BKE_paint.h" 
@@ -90,8 +91,7 @@ typedef struct tGPDfill {
 	struct View3D *v3d;                 /* view3 where painting originated */
 	struct ARegion *ar;                 /* region where painting originated */
 	struct bGPdata *gpd;                /* current GP datablock */
-	struct Palette *palette;            /* current palette */
-	struct PaletteColor *palcolor;      /* current palette color */
+	struct Material *mat;               /* current material */
 	struct bGPDlayer *gpl;              /* layer */
 	struct bGPDframe *gpf;              /* frame */
 	
@@ -120,11 +120,13 @@ typedef struct tGPDfill {
 
 
  /* draw a given stroke using same thickness and color for all points */
-static void gp_draw_basic_stroke(bGPDstroke *gps, const float diff_mat[4][4], 
+static void gp_draw_basic_stroke(Object *ob, bGPDstroke *gps, const float diff_mat[4][4], 
 								bool cyclic, float ink[4], int flag, float thershold)
 {
 	bGPDspoint *points = gps->points;
-	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
 	int totpoints = gps->totpoints;
 	float fpt[3];
 	float col[4];
@@ -148,7 +150,7 @@ static void gp_draw_basic_stroke(bGPDstroke *gps, const float diff_mat[4][4],
 	for (int i = 0; i < totpoints; i++, pt++) {
 
 		if (flag & GP_BRUSH_FILL_HIDE) {
-			float alpha = gps_palcolor->rgb[3] * pt->strength;
+			float alpha = gpcolor->rgb[3] * pt->strength;
 			CLAMP(alpha, 0.0f, 1.0f);
 			col[3] = alpha <= thershold ? 0.0f : 1.0f;
 		}
@@ -218,8 +220,8 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 				continue;
 			}
 			/* check if the color is visible */
-			PaletteColor *palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-			if ((palcolor == NULL) || (palcolor->flag & PC_COLOR_HIDE))
+			GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+			if ((gpcolor == NULL) || (gpcolor->flag & GPC_COLOR_HIDE))
 			{
 				continue;
 			}
@@ -248,7 +250,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 			if ((tgpf->fill_draw_mode == GP_FILL_DMODE_CONTROL) || 
 				(tgpf->fill_draw_mode == GP_FILL_DMODE_BOTH)) 
 			{
-				gp_draw_basic_stroke(gps, tgpw.diff_mat, gps->flag & GP_STROKE_CYCLIC, ink,
+				gp_draw_basic_stroke(tgpw.ob, gps, tgpw.diff_mat, gps->flag & GP_STROKE_CYCLIC, ink,
 					tgpf->flag, tgpf->fill_threshold);
 			}
 		}
@@ -825,9 +827,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	gps->flag |= GP_STROKE_CYCLIC;
 	gps->flag |= GP_STROKE_3DSPACE;
 
-	gps->palette = tgpf->palette;
-	if (tgpf->palcolor)
-		BLI_strncpy(gps->colorname, tgpf->palcolor->info, sizeof(gps->colorname));
+	gps->mat_nr = BKE_object_material_slot_find_index(tgpf->ob, tgpf->mat) - 1;
 
 	/* allocate memory for storage points */
 	gps->totpoints = tgpf->sbuffer_size;
@@ -971,10 +971,8 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->gpd = gpd;
 	tgpf->gpl = BKE_gpencil_layer_getactive(gpd);
 
-	/* get palette and color info */
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_validate(bmain, gpd);
-	tgpf->palette = palslot->palette;
-	tgpf->palcolor = BKE_palette_color_get_active(tgpf->palette);
+	/* get color info */
+	tgpf->mat = BKE_gpencil_color_ensure(bmain, tgpf->ob);
 
 	tgpf->lock_axis = ts->gp_sculpt.lock_axis;
 	

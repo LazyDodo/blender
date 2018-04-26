@@ -8090,7 +8090,7 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 							continue;
 						}
 						/* check if the color is editable */
-						if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+						if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
 							continue;
 						}
 
@@ -8206,7 +8206,7 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 							continue;
 						}
 						/* check if the color is editable */
-						if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+						if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
 							continue;
 						}
 						/* What we need to include depends on proportional editing settings... */

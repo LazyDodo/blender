@@ -108,21 +108,10 @@ void BKE_palette_copy_data(
         struct Main *bmain, struct Palette *palette_dst, const struct Palette *palette_src, const int flag);
 struct Palette      *BKE_palette_copy(struct Main *bmain, const struct Palette *palette);
 void                 BKE_palette_make_local(struct Main *bmain, struct Palette *palette, const bool lib_local);
-bool                 BKE_palette_is_empty(const struct Palette *palette);
-void                 BKE_palette_clear(struct Palette *palette);
-struct Palette      *BKE_palette_get_active_from_context(const struct bContext *C);
-void                 BKE_palette_set_active_byname(const struct bContext *C, char *palname);
-
 struct PaletteColor *BKE_palette_color_add(struct Palette *palette);
-struct PaletteColor *BKE_palette_color_add_name(struct Palette *palette, const char *name);
-struct PaletteColor *BKE_palette_color_getbyname(struct Palette *palette, const char *name);
-struct PaletteColor *BKE_gpencil_palettecolor_getbyrgb(struct Palette *palette, float rgb[3]);
-struct PaletteColor *BKE_gpencil_palettecolor_getbyrgba(struct Palette *palette, float rgba[4]);
+bool                 BKE_palette_is_empty(const struct Palette *palette);
 void                 BKE_palette_color_remove(struct Palette *palette, struct PaletteColor *color);
-struct PaletteColor *BKE_palette_color_get_active(struct Palette *palette);
-struct PaletteColor *BKE_palette_color_get_active_from_context(const struct bContext *C);
-void                 BKE_palette_color_add_default_set(struct Palette *palette);
-struct PaletteColor *BKE_palette_color_copy(struct Palette *palette, struct PaletteColor *palcolor);
+void                 BKE_palette_clear(struct Palette *palette);
 
 /* paint curves */
 struct PaintCurve *BKE_paint_curve_add(struct Main *bmain, const char *name);

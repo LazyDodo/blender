@@ -2321,6 +2321,11 @@ static void write_material(WriteData *wd, Material *ma)
 		}
 
 		write_previews(wd, ma->preview);
+
+		/* grease pencil settings */
+		if (ma->gpcolor) {
+			writestruct(wd, DATA, GpencilColorData, 1, ma->gpcolor);
+		}
 	}
 }
 
@@ -2665,6 +2670,8 @@ static void write_gpencil(WriteData *wd, bGPdata *gpd)
 			write_animdata(wd, gpd->adt);
 		}
 
+		writedata(wd, DATA, sizeof(void *) * gpd->totcol, gpd->mat);
+
 		/* write grease-pencil layers to file */
 		writelist(wd, DATA, bGPDlayer, &gpd->layers);
 		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
@@ -2682,9 +2689,6 @@ static void write_gpencil(WriteData *wd, bGPdata *gpd)
 				}
 			}
 		}
-       
-		/* write GP Palette Slots to file */
-		writelist(wd, DATA, bGPDpaletteref, &gpd->palette_slots);
 	}
 }
 
@@ -3193,10 +3197,7 @@ static void write_palette(WriteData *wd, Palette *palette)
 		PaletteColor *color;
 		writestruct(wd, ID_PAL, Palette, 1, palette);
 		write_iddata(wd, &palette->id);
-		/* animation data */
-		if (palette->adt) {
-			write_animdata(wd, palette->adt);
-		}
+
 		for (color = palette->colors.first; color; color = color->next) {
 			writestruct(wd, DATA, PaletteColor, 1, color);
 		}

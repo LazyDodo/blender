@@ -373,7 +373,7 @@ enum {
 
 /* check if the object type supports materials */
 #define OB_TYPE_SUPPORT_MATERIAL(_type) \
-	((_type) >= OB_MESH && (_type) <= OB_MBALL)
+	(((_type) >= OB_MESH && (_type) <= OB_MBALL) || ((_type) == OB_GPENCIL))
 #define OB_TYPE_SUPPORT_VGROUP(_type) \
 	(ELEM(_type, OB_MESH, OB_LATTICE, OB_GPENCIL))
 #define OB_TYPE_SUPPORT_EDITMODE(_type) \

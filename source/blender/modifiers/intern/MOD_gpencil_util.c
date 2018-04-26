@@ -46,7 +46,7 @@
 #include "BKE_global.h"
 #include "BKE_object.h"
 #include "BKE_lattice.h"
-#include "BKE_paint.h"
+#include "BKE_material.h"
 #include "BKE_gpencil.h"
 #include "BKE_modifier.h"
 #include "BKE_colortools.h"
@@ -63,10 +63,10 @@ void gp_mod_fill_random_array(float *ar, int count)
 
 /* verify if valid layer and pass index */
 bool is_stroke_affected_by_modifier(
-        char *mlayername, int mpassindex, int minpoints,
+		Object *ob, char *mlayername, int mpassindex, int minpoints,
         bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2)
 {
-	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* omit if filter by layer */
 	if (mlayername[0] != '\0') {
@@ -84,12 +84,12 @@ bool is_stroke_affected_by_modifier(
 	/* verify pass */
 	if (mpassindex > 0) {
 		if (inv2 == false) {
-			if (gps_palcolor->index != mpassindex) {
+			if (gpcolor->index != mpassindex) {
 				return false;
 			}
 		}
 		else {
-			if (gps_palcolor->index == mpassindex) {
+			if (gpcolor->index == mpassindex) {
 				return false;
 			}
 		}

@@ -1037,11 +1037,7 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 			BLI_addtail(&gpf->strokes, new_stroke);
 			
 			/* Fix color references */
-			BLI_assert(new_stroke->colorname[0] != '\0');
-			PaletteColor *palcolor = BLI_ghash_lookup(data->new_colors, new_stroke->colorname);
-			
-			BLI_assert(palcolor != NULL);
-			BLI_strncpy(new_stroke->colorname, palcolor->info, sizeof(new_stroke->colorname));
+			/* GPXX */
 			
 			/* Adjust all the stroke's points, so that the strokes
 			 * get pasted relative to where the cursor is now
@@ -1463,6 +1459,7 @@ static bool gpsculpt_brush_do_frame(
         float diff_mat[4][4])
 {
 	bool changed = false;
+	Object *ob = CTX_data_active_object(C);
 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 		/* skip strokes that are invalid for current view */
@@ -1470,7 +1467,7 @@ static bool gpsculpt_brush_do_frame(
 			continue;
 		}
 		/* check if the color is editable */
-		if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+		if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 			continue;
 		}
 

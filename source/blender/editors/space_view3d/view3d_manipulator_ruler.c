@@ -34,7 +34,8 @@
 #include "BKE_object.h"
 #include "BKE_gpencil.h"
 #include "BKE_unit.h"
-#include "BKE_paint.h"
+#include "BKE_material.h"
+#include "BKE_main.h"
 
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -381,14 +382,14 @@ static bool view3d_ruler_item_mousemove(
 static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 {
 	// RulerInfo *ruler_info = mgroup->customdata;
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	Object *ob = CTX_data_active_object(C);
+
 	bGPdata *gpd;
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
 	bGPDstroke *gps;
-	bGPDpaletteref *palslot;
-	Palette *palette = NULL;
-	PaletteColor *palcolor = NULL;
 	RulerItem *ruler_item;
 	const char *ruler_name = RULER_ID;
 	bool changed = false;
@@ -401,16 +402,9 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 		gpl->flag |= GP_LAYER_HIDE;
 	}
 
-	/* try to get active palette or create a new one */
-	palslot = BKE_gpencil_paletteslot_validate(CTX_data_main(C), gpd);
-	palette = palslot->palette;
-	palcolor = BKE_palette_color_get_active(palette);
-
-	/* try to get color with the ruler name or create a new one */
-	palcolor = BKE_palette_color_getbyname(palette, (char *)ruler_name);
-	if (palcolor == NULL) {
-		palcolor = BKE_palette_color_add_name(palette, (char *)ruler_name);
-	}
+	/* try to get active color or create a new one */
+	Material *mat = BKE_gpencil_color_ensure(bmain, ob);
+	GpencilColorData *gpcolor = mat->gpcolor;
 
 	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
 	BKE_gpencil_free_strokes(gpf);
@@ -444,7 +438,8 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 		gps->flag = GP_STROKE_3DSPACE;
 		gps->thickness = 3;
 		/* assign color to stroke */
-		BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
+		gps->mat_nr = BKE_object_material_slot_find_index(ob, mat) - 1;
+
 		BLI_addtail(&gpf->strokes, gps);
 		changed = true;
 	}

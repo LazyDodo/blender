@@ -47,6 +47,7 @@
 #include "BLT_translation.h"
 
 #include "DNA_anim_types.h"
+#include "DNA_material_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_userdef_types.h"
 #include "DNA_scene_types.h"
@@ -61,7 +62,7 @@
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
-#include "BKE_paint.h"
+#include "BKE_material.h"
 
 #include "DEG_depsgraph.h"
 
@@ -201,39 +202,6 @@ void BKE_gpencil_free_layers(ListBase *list)
 	}
 }
 
-/* Free palette slot
- * NOTE: This doesn't unlink the palette from any strokes that may be using it
- */
-void BKE_gpencil_palette_slot_free(bGPdata *gpd, bGPDpaletteref *palslot)
-{
-	if (ELEM(NULL, gpd, palslot))
-		return;
-	
-	/* unlink palette */
-	if (palslot->palette) {
-		id_us_min(&palslot->palette->id);
-	}
-	
-	/* free slot */
-	BLI_freelinkN(&gpd->palette_slots, palslot);
-}
-
-/* Free palette slots */
-static void BKE_gpencil_free_paletteslots(bGPdata *gpd)
-{
-	bGPDpaletteref *palslot, *gpr_next;
-	
-	/* error checking */
-	if (gpd == NULL) return;
-	
-	/* delete palette slots */
-	for (palslot = gpd->palette_slots.first; palslot; palslot = gpr_next) {
-		gpr_next = palslot->next;
-		
-		BKE_gpencil_palette_slot_free(gpd, palslot);
-	}
-}
-
 /* clear all runtime derived data */
 static void BKE_gpencil_clear_derived(bGPDlayer *gpl)
 {
@@ -291,14 +259,14 @@ void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 	/* clear animation data */
 	BKE_animdata_free(&gpd->id, false);
 
+	/* materials */
+	MEM_SAFE_FREE(gpd->mat);
+
 	/* free layers */
 	if (free_all) {
 		BKE_gpencil_free_layers_temp_data(&gpd->layers);
 	}
 	BKE_gpencil_free_layers(&gpd->layers);
-
-	/* free palette slots */
-	BKE_gpencil_free_paletteslots(gpd);
 
 	/* free all data */
 	if (free_all) {
@@ -528,9 +496,7 @@ void BKE_gpencil_stroke_add_points(bGPDstroke *gps, const float *array, const in
 }
 
 /* Create a new stroke, with pre-allocated data buffers */
-bGPDstroke *BKE_gpencil_add_stroke(
-        bGPDframe *gpf, Palette *palette, PaletteColor *palcolor, int totpoints,
-        const char *colorname, short thickness)
+bGPDstroke *BKE_gpencil_add_stroke(bGPDframe *gpf, int mat_idx, int totpoints, short thickness)
 {
 	/* allocate memory for a new stroke */
 	bGPDstroke *gps = MEM_callocN(sizeof(bGPDstroke), "gp_stroke");
@@ -549,8 +515,7 @@ bGPDstroke *BKE_gpencil_add_stroke(
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 	gps->tot_triangles = 0;
 	
-	gps->palette = palette;
-	BLI_strncpy(gps->colorname, colorname, sizeof(gps->colorname));
+	gps->mat_nr = mat_idx;
 	
 	/* add to frame */
 	BLI_addtail(&gpf->strokes, gps);
@@ -639,33 +604,6 @@ void BKE_gpencil_frame_copy_strokes(bGPDframe *gpf_src, struct bGPDframe *gpf_ds
 	}
 }
 
-/* fix any null value in palettes (this must be removed in the future) */
-static void gpencil_fix_null_palette(const bContext *C, bGPdata *gpd, bGPDstroke *gps_src)
-{
-	Palette *tmp_palette = NULL;
-	PaletteColor *palcolor = NULL;
-
-	printf("Fixing wrong color pointer:%s\n", gps_src->colorname);
-	tmp_palette = BKE_palette_get_active_from_context(C);
-	if (!tmp_palette) {
-		bGPDpaletteref *palslot;
-
-		if (BLI_listbase_count(&gpd->palette_slots) > 0) {
-			palslot = BLI_findlink(&gpd->palette_slots, 0);
-		}
-		else {
-			palslot = BKE_gpencil_paletteslot_addnew(CTX_data_main(C), gpd,
-				"Auto-Generated Palette");
-		}		tmp_palette = palslot->palette;
-	}
-
-	gps_src->palette = tmp_palette;
-	if (BKE_palette_is_empty(tmp_palette)) {
-		palcolor = BKE_palette_color_add_name(tmp_palette, gps_src->colorname);
-	}
-
-}
-
 /* make a copy of a given gpencil frame and copy colors too */
 bGPDframe *BKE_gpencil_frame_color_duplicate(const bContext *C, bGPdata *gpd, const bGPDframe *gpf_src)
 {
@@ -683,11 +621,6 @@ bGPDframe *BKE_gpencil_frame_color_duplicate(const bContext *C, bGPdata *gpd, co
 	/* copy strokes */
 	BLI_listbase_clear(&gpf_dst->strokes);
 	for (bGPDstroke *gps_src = gpf_src->strokes.first; gps_src; gps_src = gps_src->next) {
-		/* antoniov XXX: The palette never must be null, but this avoid crash after open if NULL */
-		if (gps_src->palette == NULL) {
-			gpencil_fix_null_palette(C, gpd, gps_src);
-		}
-
 		/* make copy of source stroke */
 		gps_dst = MEM_dupallocN(gps_src);
 		gps_dst->points = MEM_dupallocN(gps_src->points);
@@ -735,39 +668,6 @@ bGPDlayer *BKE_gpencil_layer_duplicate(const bGPDlayer *gpl_src)
 }
 
 /**
-* Only copy internal data of palettes to already allocated/initialized destination.
-*
-* WARNING! This function will not handle ID user count!
-*
-*/
-void BKE_gpencil_copy_palette_data(bGPdata *gpd_dst, const bGPdata *gpd_src)
-{
-	/* copy palette slots */
-	BLI_listbase_clear(&gpd_dst->palette_slots);
-	for (const bGPDpaletteref *palslot_src = gpd_src->palette_slots.first; palslot_src; palslot_src = palslot_src->next) {
-		bGPDpaletteref *palslot_dst = MEM_dupallocN(palslot_src);
-
-		/* TODO: Separate out into separate function, and make use of LIB_ID_COPY flags? */
-		if (palslot_dst->palette) {
-			/* XXX: Better safe than sorry... at worst, usercount won't go down,
-			* and the user has to reload?
-			*/
-			id_us_plus(&palslot_dst->palette->id);
-		}
-		palslot_dst->next = palslot_dst->prev = NULL;
-
-		BLI_addtail(&gpd_dst->palette_slots, palslot_dst);
-	}
-
-	/* copy palettes */
-	BLI_listbase_clear(&gpd_dst->palettes);
-	for (const bGPDpalette *palette_src = gpd_src->palettes.first; palette_src; palette_src = palette_src->next) {
-		bGPDpalette *palette_dst = BKE_gpencil_palette_duplicate(palette_src);  /* TODO here too could add unused flags... */
-		BLI_addtail(&gpd_dst->palettes, palette_dst);
-	}
-}
-
-/**
  * Only copy internal data of GreasePencil ID from source to already allocated/initialized destination.
  * You probably never want to use that directly, use id_copy or BKE_id_copy_ex for typical needs.
  *
@@ -788,8 +688,6 @@ void BKE_gpencil_copy_data(Main *UNUSED(bmain), bGPdata *gpd_dst, const bGPdata 
 		BLI_addtail(&gpd_dst->layers, gpl_dst);
 	}
 	
-	/* copy palette slots */
-	BKE_gpencil_copy_palette_data(gpd_dst, gpd_src);
 }
 
 /* Standard API to make a copy of GP datablock, separate from copying its data */
@@ -1138,275 +1036,33 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 	BLI_freelinkN(&gpd->layers, gpl);
 }
 
-/* ************************************************** */
-/* GP Palette Slots API */
-
-/* Active Palette Slot ------------------------------ */
-
-/* Get active palette slot */
-bGPDpaletteref *BKE_gpencil_paletteslot_get_active(const bGPdata *gpd)
+Material *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush, bool add)
 {
+	/* GPXX */
+	Material *gpcolor = NULL;
+
+	return gpcolor;
+}
+
+/* Get active color, and add all default settings if we don't find anything */
+Material *BKE_gpencil_color_ensure(Main *bmain, Object *ob)
+{
+	Material *mat = NULL;
+
 	/* sanity checks */
-	if (ELEM(NULL, gpd, gpd->palette_slots.first))
-		return NULL;
-	
-	/* use active_index value to find the relevant slot */
-	return BLI_findlink(&gpd->palette_slots, gpd->active_palette_slot);
-}
-
-/* Set active palette slot */
-void BKE_gpencil_paletteslot_set_active(bGPdata *gpd, const bGPDpaletteref *palslot)
-{
-	/* sanity checks */
-	if (ELEM(NULL, gpd, palslot))
-		return;
-	
-	/* try to find index of this item, assuming it exists in the list */
-	gpd->active_palette_slot = BLI_findindex(&gpd->palette_slots, palslot);
-}
-
-/* Make the slot using this palette active */
-void BKE_gpencil_paletteslot_set_active_palette(bGPdata *gpd, const Palette *palette)
-{
-	bGPDpaletteref *palslot = BKE_gpencil_paletteslot_find(gpd, palette);
-	BKE_gpencil_paletteslot_set_active(gpd, palslot);
-}
-
-/* Slot Lookup ------------------------------------- */
-
-/* Get palette slot that uses this Palette */
-bGPDpaletteref *BKE_gpencil_paletteslot_find(bGPdata *gpd, const Palette *palette)
-{
-	bGPDpaletteref *palslot;
-	
-	/* sanity checks */
-	if (ELEM(NULL, gpd, palette))
-		return NULL;
-	
-	/* search for the palette */
-	for (palslot = gpd->palette_slots.first; palslot; palslot = palslot->next) {
-		if (palslot->palette == palette)
-			return palslot;
-	}
-	
-	/* not found */
-	return NULL;
-}
-
-/* Check if palette is used by any strokes... */
-bool BKE_gpencil_paletteslot_has_users(const bGPdata *gpd, const bGPDpaletteref *palslot)
-{
-	Palette *palette;
-	bGPDlayer *gpl;
-	bGPDframe *gpf;
-	bGPDstroke *gps;
-	
-	/* quick-exit checks */
-	if (ELEM(NULL, gpd, palslot, palslot->palette))
-		return false;
-	
-	palette = palslot->palette;
-	
-	/* check if any strokes use this */
-	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			for (gps = gpf->strokes.first; gps; gps = gps->next) {
-				if (gps->palette == palette)
-					return true;
-			}
-		}
-	}
-	
-	/* nothing found */
-	return false;
-}
-
-/* Add Slots --------------------------------------- */
-
-/* Create a new palette slot (and optionally assign a palette to it) */
-bGPDpaletteref *BKE_gpencil_paletteslot_add(bGPdata *gpd, Palette *palette)
-{
-	bGPDpaletteref *palslot;
-	
-	/* sanity checks */
-	if (gpd == NULL) {
-		return NULL;
-	}
-	if (palette) {
-		/* check if it's used already - don't allow for duplicates */
-		palslot = BKE_gpencil_paletteslot_find(gpd, palette);
-		if (palslot) {
-			/* just return existing? */
-			return palslot;
-		}
-	}
-	
-	/* allocate a new slot, and assigned palette as user */
-	palslot = MEM_callocN(sizeof(bGPDpaletteref), "bGPDpaletteref");
-	BLI_addtail(&gpd->palette_slots, palslot);
-	
-	/* assign palette */
-	if (palette) {
-		palslot->palette = palette;
-		id_us_plus(&palette->id);
-	}
-	
-	/* update active palette */
-	gpd->active_palette_slot = BLI_listbase_count(&gpd->palette_slots) - 1;
-	
-	/* return new slot */
-	return palslot;
-}
-
-/* Wrapper for BKE_gpencil_paletteslot_add() to add a new Palette + slot, 
- * and set all the usercounts correctly
- */
-bGPDpaletteref *BKE_gpencil_paletteslot_addnew(Main *bmain, bGPdata *gpd, const char name[])
-{
-	/* create the palette first */
-	Palette *palette = BKE_palette_add(bmain, name);
-	
-	/* lower the usercount, as assigning to the slot will add its own instead */
-	id_us_min(&palette->id);
-	
-	/* create and return the new slot */
-	return BKE_gpencil_paletteslot_add(gpd, palette);
-}
-
-PaletteColor *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush, bool add)
-{
-	bGPDpaletteref *palslot = NULL;
-	PaletteColor *palcolor = NULL;
-
-	if ((gpd) && (gpd->palette_slots.first) && (brush) && (brush->palette) && (brush->colorname)) {
-
-		/* verify paletteslots has this palette */
-		for (bGPDpaletteref *slot = gpd->palette_slots.first; slot; slot = slot->next) {
-			if (slot->palette == brush->palette) {
-				palslot = slot;
-				break;
-			}
-		}
-		/* add slot */
-		if (palslot == NULL) {
-			if (!add) {
-				return NULL;
-			}
-			palslot = BKE_gpencil_paletteslot_add(gpd, NULL);
-			palslot->palette = brush->palette;
-			id_us_plus((ID *)brush->palette);
-		}
-
-		palcolor = BKE_palette_color_getbyname(brush->palette, brush->colorname);
-	}
-
-	return palcolor;
-}
-
-/* Get active palette slot, and add all default settings if we don't find anything */
-bGPDpaletteref *BKE_gpencil_paletteslot_validate(Main *bmain, bGPdata *gpd)
-{
-	bGPDpaletteref *palslot;
-	Palette *palette;
-	
-	/* sanity checks */
-	if (ELEM(NULL, bmain, gpd))
+	if (ELEM(NULL, bmain, ob))
 		return NULL;
 
-	/* ensure a palette slot exists */
-	palslot = BKE_gpencil_paletteslot_get_active(gpd);
-	if (palslot == NULL) {
-		palslot = BKE_gpencil_paletteslot_add(gpd, NULL);
+	if (ob->totcol == 0) {
+		BKE_object_material_slot_add(ob);
+		Material *ma = BKE_material_add(bmain, "Color");
+		assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 	}
-	
-	/* ensure a palette exists */
-	/* TODO: use "active palette" instead of making a new one each time?
-	 *      (or use active one on "gp_object" in scene?)
-	 */
-	if (palslot->palette == NULL) {
-		/* NOTE: no need to increment user count when setting this one here,
-		 * as the db already has 2 users (1 from "Fake User", and the other
-		 * is for whoever uses it now - i.e. the palette slot!)
-		 */
-		palslot->palette = BKE_palette_add(bmain, "Palette");
+	else {
+		mat = give_current_material(ob, ob->actcol);
 	}
-	
-	/* ensure the palette has colors, and that the active one is usable */
-	palette = palslot->palette;
-	if (BKE_palette_is_empty(palette)) {
-		/* init the default set if none exist */
-		BKE_palette_color_add_default_set(palette);
-		palette->active_color = 0;
-	}
-	else if (BKE_palette_color_get_active(palette) == NULL) {
-		/* sometimes the "active" color is unreachable
-		 * (e.g. after deleting the previously active one)
-		 */
-		palette->active_color = 0;
-	}
-	
-	/* return the slot (this is more useful, as we can still get the palette from it) */
-	return palslot;
-}
 
-/* Palette Assignment ------------------------------- */
-
-/**
- * Helper for BKE_gpencil_paletteslot_set_palette()
- *
- * Change all strokes using 'old_palette' to use 'new_palette' instead.
- */
-/* XXX: This overlaps with the operators, but this one just does bulk replacement */
-/* TODO: Optimise with hash lookups? */
-static void gpencil_strokes_palette_change_all(bGPdata *gpd, Palette *old_palette, Palette *new_palette)
-{
-	if (BKE_palette_is_empty(old_palette))
-		return;
-	
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				/* check if this stroke uses the old palette */
-				if (gps->palette == old_palette) {
-					/* change palette */
-					gps->palette = new_palette;
-				}
-			}
-		}
-	}
-}
-
-/* Set the palette used by this slot */
-void BKE_gpencil_paletteslot_set_palette(bGPdata *gpd, bGPDpaletteref *palslot, Palette *palette)
-{
-	/* sanity checks */
-	if (ELEM(NULL, gpd, palslot))
-		return;
-	
-	/* Save effort if nothing changes... */
-	/* XXX: This does mean that "flushing" the property to fix any errors won't work... */
-	if (palslot->palette == palette)
-		return;
-	
-	/* Unset existing palette */
-	if (palslot->palette) {
-		/* Unbind all strokes using this, as the slots *must*
-		 * reflect all the palettes used by the strokes
-		 *
-		 * XXX: What happens if the new Palette doesn't support this new color?
-		 */
-		gpencil_strokes_palette_change_all(gpd, palslot->palette, palette);
-		
-		/* Now clear the old user... */
-		id_us_min(&palslot->palette->id);
-		palslot->palette = NULL;
-	}
-	
-	/* Set new palette */
-	palslot->palette = palette;
-	if (palette) {
-		id_us_plus(&palette->id);
-	}
+	return mat;
 }
 
 /* ************************************************** */
@@ -1648,49 +1304,17 @@ bGPDpalettecolor *BKE_gpencil_palettecolor_getbyname(bGPDpalette *palette, char 
 	return BLI_findstring(&palette->colors, name, offsetof(bGPDpalettecolor, info));
 }
 
-/* Change color name in all strokes */
-static void BKE_gpencil_palettecolor_changename(PaletteColor *palcolor, bGPdata *gpd, const char *oldname, const char *newname)
-{
-	bGPDlayer *gpl;
-	bGPDframe *gpf;
-	bGPDstroke *gps;
-	
-	/* Sanity checks (gpd may not be set in the RNA pointers sometimes) */
-	if (ELEM(NULL, gpd, newname))
-		return;
-	
-	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			for (gps = gpf->strokes.first; gps; gps = gps->next) {
-				if (STREQ(gps->colorname, oldname)) {
-					BLI_strncpy(gps->colorname, newname, sizeof(gps->colorname));
-				}
-			}
-		}
-	}
-		
-}
-
-/* Change color name in all gpd datablocks */
-void BKE_gpencil_palettecolor_allnames(PaletteColor *palcolor, const char *oldname, const char *newname)
-{
-	bGPdata *gpd;
-	Main *bmain = G.main;
-
-	for (gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
-		BKE_gpencil_palettecolor_changename(palcolor, gpd, oldname, newname);
-	}
-}
-
 /* Delete all strokes of the color for all gpd datablocks */
 void BKE_gpencil_palettecolor_delete_allstrokes(Main *bmain, PaletteColor *palcolor)
 {
+	/* GPXX */
 	bGPdata *gpd;
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
 	bGPDstroke *gps, *gpsn;
 	PaletteColor *gps_palcolor = NULL;
 
+#if 0
 	/* TODO: Optimise this by only checking GP datablocks that reference the palette this comes from */
 	for (gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 		for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
@@ -1711,6 +1335,7 @@ void BKE_gpencil_palettecolor_delete_allstrokes(Main *bmain, PaletteColor *palco
 		}
 		BKE_gpencil_batch_cache_dirty(gpd);
 	}
+#endif
 }
 
 /* set the active gp-palettecolor */
@@ -1742,73 +1367,6 @@ void BKE_gpencil_palettecolor_delete(bGPDpalette *palette, bGPDpalettecolor *pal
 
 	/* free */
 	BLI_freelinkN(&palette->colors, palcolor);
-}
-
-/* ************************************************** */
-/* Palette Data Conversion */
-
-/* Transfer the animation data from bGPDpalette to Palette */
-void BKE_gpencil_move_animdata_to_palettes(bContext *C, bGPdata *gpd)
-{
-	Main *bmain = CTX_data_main(C);
-	Palette *palette = NULL;
-	AnimData *src_adt = NULL, *dst_adt = NULL;
-	FCurve *fcu = NULL;
-	char info[64];
-
-	/* sanity checks */
-	if (ELEM(NULL, gpd)) {
-		if (G.debug & G_DEBUG)
-			printf("ERROR: no source ID to separate AnimData with\n");
-		return;
-	}
-	/* get animdata from src, and create for destination (if needed) */
-	src_adt = BKE_animdata_from_id((ID *)gpd);
-	if (ELEM(NULL, src_adt)) {
-		if (G.debug & G_DEBUG)
-			printf("ERROR: no source AnimData\n");
-		return;
-	}
-
-	/* find first palette */
-	for (fcu = src_adt->action->curves.first; fcu; fcu = fcu->next) {
-		if (strncmp("palette", fcu->rna_path, 7) == 0) {
-			int x = strcspn(fcu->rna_path, "[") + 2;
-			int y = strcspn(fcu->rna_path, "]");
-			BLI_strncpy(info, fcu->rna_path + x, y - x);
-			palette = BLI_findstring(&bmain->palettes, info, offsetof(ID, name) + 2);
-			break;
-		}
-	}
-	if (ELEM(NULL, palette)) {
-		if (G.debug & G_DEBUG)
-			printf("ERROR: Palette %s not found\n", info);
-		return;
-	}
-
-	/* active action */
-	if (src_adt->action) {
-		/* get animdata from destination or create (if needed) */
-		dst_adt = BKE_animdata_add_id((ID *) palette);
-		if (ELEM(NULL, dst_adt)) {
-			if (G.debug & G_DEBUG)
-				printf("ERROR: no AnimData for destination palette\n");
-			return;
-		}
-
-		/* create destination action */
-		dst_adt->action = BKE_action_add(G.main, src_adt->action->id.name + 2);
-		/* move fcurves */
-		action_move_fcurves_by_basepath(src_adt->action, dst_adt->action, "palettes");
-
-		/* loop over base paths, to fix for each one... */
-		for (fcu = dst_adt->action->curves.first; fcu; fcu = fcu->next) {
-			if (strncmp("palette", fcu->rna_path, 7) == 0) {
-				int x = strcspn(fcu->rna_path, ".") + 1;
-				BLI_strncpy(fcu->rna_path, fcu->rna_path + x, strlen(fcu->rna_path));
-			}
-		}
-	}
 }
 
 /* ************************************************** */
@@ -2297,4 +1855,56 @@ float BKE_gpencil_multiframe_falloff_calc(bGPDframe *gpf, int actnum, int f_init
 	}
 	
 	return value;
+}
+
+/* remove strokes using a material */
+void BKE_gpencil_material_index_remove(bGPdata *gpd, int index)
+{
+	bGPDstroke *gps, *gpsn;
+
+		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+			for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+				for (gps = gpf->strokes.first; gps; gps = gpsn) {
+					gpsn = gps->next;
+					if (gps->mat_nr == index) {
+						if (gps->points) {
+							BKE_gpencil_free_stroke_weights(gps);
+							MEM_freeN(gps->points);
+						}
+						if (gps->triangles) MEM_freeN(gps->triangles);
+						BLI_freelinkN(&gpf->strokes, gps);
+					}
+					else {
+						/* reassign strokes */
+						if (gps->mat_nr > index) {
+							gps->mat_nr--;
+						}
+					}
+				}
+			}
+		}
+		BKE_gpencil_batch_cache_dirty(gpd);
+}
+
+void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, unsigned int remap_len)
+{
+	const short remap_len_short = (short)remap_len;
+
+#define MAT_NR_REMAP(n) \
+	if (n < remap_len_short) { \
+		BLI_assert(n >= 0 && remap[n] < remap_len_short); \
+		n = remap[n]; \
+	} ((void)0)
+
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+				/* reassign strokes */
+				MAT_NR_REMAP(gps->mat_nr);
+			}
+		}
+	}
+
+#undef MAT_NR_REMAP
+
 }

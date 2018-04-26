@@ -296,7 +296,7 @@ static void GPENCIL_cache_init(void *vedata)
 		/* Alloc transient pointers */
 		stl->g_data = MEM_mallocN(sizeof(g_data), "g_data");
 		stl->storage->xray = GP_XRAY_FRONT; /* used for drawing */
-		stl->storage->stroke_style = STROKE_STYLE_SOLID; /* used for drawing */
+		stl->storage->stroke_style = GPC_STROKE_STYLE_SOLID; /* used for drawing */
 	}
 	/* reset total shading groups */
 	stl->g_data->tot_sh = 0;
@@ -389,20 +389,20 @@ static void GPENCIL_cache_init(void *vedata)
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
 		}
-		bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-		PaletteColor *palcolor = BKE_palette_color_get_active((palslot) ? palslot->palette : NULL);
-		if (palcolor) {
-			stl->storage->stroke_style = palcolor->stroke_style;
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
+
+		if (gpcolor) {
+			stl->storage->stroke_style = gpcolor->stroke_style;
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
-			if (palcolor->stroke_style == STROKE_STYLE_TEXTURE) {
+			if (gpcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) {
 				stl->storage->color_type = GPENCIL_COLOR_TEXTURE;
-				if (palcolor->flag & PAC_COLOR_PATTERN) {
+				if (gpcolor->flag & GPC_COLOR_PATTERN) {
 					stl->storage->color_type = GPENCIL_COLOR_PATTERN;
 				}
 			}
 		}
 		else {
-			stl->storage->stroke_style = STROKE_STYLE_SOLID;
+			stl->storage->stroke_style = GPC_STROKE_STYLE_SOLID;
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
 		}
 

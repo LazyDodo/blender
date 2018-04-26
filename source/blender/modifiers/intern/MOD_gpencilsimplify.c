@@ -60,11 +60,11 @@ static void copyData(ModifierData *md, ModifierData *target)
 }
 
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *UNUSED(ob), bGPDlayer *gpl, bGPDstroke *gps)
+                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	GpencilSimplifyModifierData *mmd = (GpencilSimplifyModifierData *)md;
 	
-	if (!is_stroke_affected_by_modifier(
+	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 4, gpl, gps,
 	        mmd->flag & GP_SIMPLIFY_INVERSE_LAYER, mmd->flag & GP_SIMPLIFY_INVERSE_PASS))
 	{

@@ -42,7 +42,7 @@
 #include "BKE_main.h"
 #include "BKE_unit.h"
 #include "BKE_gpencil.h"
-#include "BKE_paint.h"
+#include "BKE_material.h"
 
 #include "BIF_gl.h"
 
@@ -300,12 +300,11 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 {
 	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
+	Object *ob = CTX_data_active_object(C);
+
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
 	bGPDstroke *gps;
-	bGPDpaletteref *palslot;
-	Palette *palette;
-	PaletteColor *palcolor;
 	RulerItem *ruler_item;
 	const char *ruler_name = RULER_ID;
 	bool changed = false;
@@ -322,15 +321,9 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 		gpl->flag |= GP_LAYER_HIDE;
 	}
 
-	/* try to get active palette or create a new one */
-	palslot  = BKE_gpencil_paletteslot_validate(bmain, scene->gpd);
-	palette  = palslot->palette;
-	
-	/* try to get color with the ruler name or create a new one */
-	palcolor = BKE_palette_color_getbyname(palette, (char *)ruler_name);
-	if (palcolor == NULL) {
-		palcolor = BKE_palette_color_add_name(palette, (char *)ruler_name);
-	}
+	/* try to get active color or create a new one */
+	Material *mat = BKE_gpencil_color_ensure(bmain, ob);
+	GpencilColorData *gpcolor = mat->gpcolor;
 	
 	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
 	BKE_gpencil_free_strokes(gpf);
@@ -364,8 +357,8 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 		gps->flag = GP_STROKE_3DSPACE;
 		gps->thickness = 3;
 		/* assign color to stroke */
-		BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
-		gps->palette = palette;
+		gps->mat_nr = BKE_object_material_slot_find_index(ob, mat) - 1;
+
 		BLI_addtail(&gpf->strokes, gps);
 		changed = true;
 	}

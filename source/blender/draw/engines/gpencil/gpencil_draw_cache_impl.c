@@ -31,12 +31,14 @@
 #include "BKE_gpencil.h"
 #include "BKE_image.h"
 #include "BKE_lattice.h"
+#include "BKE_material.h"
 #include "BKE_paint.h"
 
 #include "ED_gpencil.h"
 #include "ED_view3d.h"
 
 #include "DNA_gpencil_types.h"
+#include "DNA_material_types.h"
 #include "DNA_view3d_types.h"
 #include "DNA_modifier_types.h"
 
@@ -54,7 +56,7 @@
 
 /* create shading group for filling */
 static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, 
-	GPUShader *shader, bGPdata *gpd, PaletteColor *palcolor, int id)
+	GPUShader *shader, bGPdata *gpd, GpencilColorData *gpcolor, int id)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 
@@ -63,33 +65,33 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, 
 	stl->g_data->tot_sh++;
 	stl->g_data->tot_sh_fill++;
 
-	DRW_shgroup_uniform_vec4(grp, "color2", palcolor->scolor, 1);
-	stl->shgroups[id].fill_style = palcolor->fill_style;
+	DRW_shgroup_uniform_vec4(grp, "color2", gpcolor->scolor, 1);
+	stl->shgroups[id].fill_style = gpcolor->fill_style;
 	DRW_shgroup_uniform_int(grp, "fill_type", &stl->shgroups[id].fill_style, 1);
-	DRW_shgroup_uniform_float(grp, "mix_factor", &palcolor->mix_factor, 1);
+	DRW_shgroup_uniform_float(grp, "mix_factor", &gpcolor->mix_factor, 1);
 
-	DRW_shgroup_uniform_float(grp, "g_angle", &palcolor->g_angle, 1);
-	DRW_shgroup_uniform_float(grp, "g_radius", &palcolor->g_radius, 1);
-	DRW_shgroup_uniform_float(grp, "g_boxsize", &palcolor->g_boxsize, 1);
-	DRW_shgroup_uniform_vec2(grp, "g_scale", palcolor->g_scale, 1);
-	DRW_shgroup_uniform_vec2(grp, "g_shift", palcolor->g_shift, 1);
+	DRW_shgroup_uniform_float(grp, "g_angle", &gpcolor->g_angle, 1);
+	DRW_shgroup_uniform_float(grp, "g_radius", &gpcolor->g_radius, 1);
+	DRW_shgroup_uniform_float(grp, "g_boxsize", &gpcolor->g_boxsize, 1);
+	DRW_shgroup_uniform_vec2(grp, "g_scale", gpcolor->g_scale, 1);
+	DRW_shgroup_uniform_vec2(grp, "g_shift", gpcolor->g_shift, 1);
 
-	DRW_shgroup_uniform_float(grp, "t_angle", &palcolor->t_angle, 1);
-	DRW_shgroup_uniform_vec2(grp, "t_scale", palcolor->t_scale, 1);
-	DRW_shgroup_uniform_vec2(grp, "t_offset", palcolor->t_offset, 1);
-	DRW_shgroup_uniform_float(grp, "t_opacity", &palcolor->t_opacity, 1);
+	DRW_shgroup_uniform_float(grp, "t_angle", &gpcolor->t_angle, 1);
+	DRW_shgroup_uniform_vec2(grp, "t_scale", gpcolor->t_scale, 1);
+	DRW_shgroup_uniform_vec2(grp, "t_offset", gpcolor->t_offset, 1);
+	DRW_shgroup_uniform_float(grp, "t_opacity", &gpcolor->t_opacity, 1);
 
-	stl->shgroups[id].t_mix = palcolor->flag & PAC_COLOR_TEX_MIX ? 1 : 0;
+	stl->shgroups[id].t_mix = gpcolor->flag & GPC_COLOR_TEX_MIX ? 1 : 0;
 	DRW_shgroup_uniform_int(grp, "t_mix", &stl->shgroups[id].t_mix, 1);
 
-	stl->shgroups[id].t_flip = palcolor->flag & PAC_COLOR_FLIP_FILL ? 1 : 0;
+	stl->shgroups[id].t_flip = gpcolor->flag & GPC_COLOR_FLIP_FILL ? 1 : 0;
 	DRW_shgroup_uniform_int(grp, "t_flip", &stl->shgroups[id].t_flip, 1);
 
 	DRW_shgroup_uniform_int(grp, "xraymode", (const int *) &gpd->xray_mode, 1);
 	/* image texture */
-	if ((palcolor->fill_style == FILL_STYLE_TEXTURE) || (palcolor->fill_style == FILL_STYLE_PATTERN) || (palcolor->flag & PAC_COLOR_TEX_MIX)) {
+	if ((gpcolor->fill_style == GPC_FILL_STYLE_TEXTURE) || (gpcolor->fill_style == GPC_FILL_STYLE_PATTERN) || (gpcolor->flag & GPC_COLOR_TEX_MIX)) {
 		ImBuf *ibuf;
-		Image *image = palcolor->ima;
+		Image *image = gpcolor->ima;
 		ImageUser iuser = { NULL };
 		void *lock;
 
@@ -101,10 +103,10 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, 
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
 		else {
-			GPUTexture *texture = GPU_texture_from_blender(palcolor->ima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
+			GPUTexture *texture = GPU_texture_from_blender(gpcolor->ima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
-			stl->shgroups[id].t_clamp = palcolor->flag & PAC_COLOR_TEX_CLAMP ? 1 : 0;
+			stl->shgroups[id].t_clamp = gpcolor->flag & GPC_COLOR_TEX_CLAMP ? 1 : 0;
 			DRW_shgroup_uniform_int(grp, "t_clamp", &stl->shgroups[id].t_clamp, 1);
 
 			BKE_image_release_ibuf(image, ibuf, NULL);
@@ -122,7 +124,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, 
 
 /* create shading group for strokes */
 DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, GPUShader *shader, Object *ob,
-	bGPdata *gpd, PaletteColor *palcolor, int id, bool onion)
+	bGPdata *gpd, GpencilColorData *gpcolor, int id, bool onion)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const float *viewport_size = DRW_viewport_size_get();
@@ -151,11 +153,11 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENC
 		stl->shgroups[id].keep_size = (int)((gpd) && (gpd->flag & GP_DATA_STROKE_KEEPTHICKNESS));
 		DRW_shgroup_uniform_int(grp, "keep_size", &stl->shgroups[id].keep_size, 1);
 
-		stl->shgroups[id].stroke_style = palcolor->stroke_style;
+		stl->shgroups[id].stroke_style = gpcolor->stroke_style;
 		stl->shgroups[id].color_type = GPENCIL_COLOR_SOLID;
-		if ((palcolor->stroke_style == STROKE_STYLE_TEXTURE) && (!onion)) {
+		if ((gpcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) && (!onion)) {
 			stl->shgroups[id].color_type = GPENCIL_COLOR_TEXTURE;
-			if (palcolor->flag & PAC_COLOR_PATTERN) {
+			if (gpcolor->flag & GPC_COLOR_PATTERN) {
 				stl->shgroups[id].color_type = GPENCIL_COLOR_PATTERN;
 			}
 		}
@@ -186,9 +188,9 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENC
 	}
 
 	/* image texture for pattern */
-	if ((palcolor) && (palcolor->stroke_style == STROKE_STYLE_TEXTURE) && (!onion)) {
+	if ((gpcolor) && (gpcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) && (!onion)) {
 		ImBuf *ibuf;
-		Image *image = palcolor->sima;
+		Image *image = gpcolor->sima;
 		ImageUser iuser = { NULL };
 		void *lock;
 
@@ -200,7 +202,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENC
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
 		else {
-			GPUTexture *texture = GPU_texture_from_blender(palcolor->sima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
+			GPUTexture *texture = GPU_texture_from_blender(gpcolor->sima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
 			BKE_image_release_ibuf(image, ibuf, NULL);
@@ -217,7 +219,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENC
 
 /* create shading group for volumetrics */
 static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, GPUShader *shader, Object *ob,
-	bGPdata *gpd, PaletteColor *palcolor, int id, bool onion)
+	bGPdata *gpd, GpencilColorData *gpcolor, int id, bool onion)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const float *viewport_size = DRW_viewport_size_get();
@@ -243,12 +245,12 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data,
 		stl->shgroups[id].keep_size = (int)((gpd) && (gpd->flag & GP_DATA_STROKE_KEEPTHICKNESS));
 		DRW_shgroup_uniform_int(grp, "keep_size", &stl->shgroups[id].keep_size, 1);
 
-		stl->shgroups[id].mode = palcolor->mode;
-		stl->shgroups[id].stroke_style = palcolor->stroke_style;
+		stl->shgroups[id].mode = gpcolor->mode;
+		stl->shgroups[id].stroke_style = gpcolor->stroke_style;
 		stl->shgroups[id].color_type = GPENCIL_COLOR_SOLID;
-		if ((palcolor->stroke_style == STROKE_STYLE_TEXTURE) && (!onion)) {
+		if ((gpcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) && (!onion)) {
 			stl->shgroups[id].color_type = GPENCIL_COLOR_TEXTURE;
-			if (palcolor->flag & PAC_COLOR_PATTERN) {
+			if (gpcolor->flag & GPC_COLOR_PATTERN) {
 				stl->shgroups[id].color_type = GPENCIL_COLOR_PATTERN;
 			}
 		}
@@ -260,7 +262,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data,
 		stl->storage->obj_scale = 1.0f;
 		stl->storage->keep_size = 0;
 		stl->storage->pixfactor = GP_DEFAULT_PIX_FACTOR;
-		stl->storage->mode = palcolor->mode;
+		stl->storage->mode = gpcolor->mode;
 		DRW_shgroup_uniform_float(grp, "objscale", &stl->storage->obj_scale, 1);
 		DRW_shgroup_uniform_int(grp, "keep_size", &stl->storage->keep_size, 1);
 		DRW_shgroup_uniform_int(grp, "color_type", &stl->storage->color_type, 1);
@@ -282,9 +284,9 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data,
 	}
 
 	/* image texture */
-	if ((palcolor) && (palcolor->stroke_style == STROKE_STYLE_TEXTURE) && (!onion)) {
+	if ((gpcolor) && (gpcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) && (!onion)) {
 		ImBuf *ibuf;
-		Image *image = palcolor->sima;
+		Image *image = gpcolor->sima;
 		ImageUser iuser = { NULL };
 		void *lock;
 
@@ -296,7 +298,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data,
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
 		else {
-			GPUTexture *texture = GPU_texture_from_blender(palcolor->sima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
+			GPUTexture *texture = GPU_texture_from_blender(gpcolor->sima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
 			BKE_image_release_ibuf(image, ibuf, NULL);
@@ -315,13 +317,13 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 	Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const float tintcolor[4], const bool onion, const bool custonion)
 {
-	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	if (gps->totpoints >= 3) {
 		float tfill[4];
 		/* set color using palette, tint color and opacity */
 		interp_v3_v3v3(tfill, gps->tmp_fill, tintcolor, tintcolor[3]);
 		tfill[3] = gps->tmp_fill[3] * gpl->opacity;
-		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps_palcolor->fill_style > 0)) {
+		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0)) {
 			const float *color;
 			if (!onion) {
 				color = tfill;
@@ -337,7 +339,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 			}
 			if (cache->is_dirty) {
 				gpencil_batch_cache_check_free_slots(ob);
-				cache->batch_fill[cache->cache_idx] = DRW_gpencil_get_fill_geom(gps, color);
+				cache->batch_fill[cache->cache_idx] = DRW_gpencil_get_fill_geom(ob, gps, color);
 			}
 			DRW_shgroup_call_add(fillgrp, cache->batch_fill[cache->cache_idx], gpf->viewmatrix);
 		}
@@ -352,9 +354,9 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	float tcolor[4];
 	float ink[4];
 	short sthickness;
-	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
-	/* set color using palette, tint color and opacity */
+	/* set color using base color, tint color and opacity */
 	if (!onion) {
 		/* if special stroke, use fill color as stroke color */
 		if (gps->flag & GP_STROKE_NOFILL) {
@@ -381,7 +383,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	CLAMP_MIN(sthickness, 1);
 	if (cache->is_dirty) {
 		gpencil_batch_cache_check_free_slots(ob);
-		if ((gps->totpoints > 1) && (gps_palcolor->mode  == PAC_MODE_LINE)) {
+		if ((gps->totpoints > 1) && (gpcolor->mode  == GPC_MODE_LINE)) {
 			cache->batch_stroke[cache->cache_idx] = DRW_gpencil_get_stroke_geom(gpf, gps, sthickness, ink);
 		}
 		else {
@@ -396,7 +398,7 @@ static void gpencil_add_editpoints_shgroup(
 		GPENCIL_StorageList *stl, GpencilBatchCache *cache,ToolSettings *ts, Object *ob, 
 		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
-	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	if (GPENCIL_ANY_EDIT_MODE(gpd)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -418,7 +420,7 @@ static void gpencil_add_editpoints_shgroup(
 		}
 		/* edit points */
 		if ((gps->flag & GP_STROKE_SELECT) || (is_weight_paint)) {
-			if ((gpl->flag & GP_LAYER_UNLOCK_COLOR) || ((gps_palcolor->flag & PC_COLOR_LOCKED) == 0)) {
+			if ((gpl->flag & GP_LAYER_UNLOCK_COLOR) || ((gpcolor->flag & GPC_COLOR_LOCKED) == 0)) {
 				if (cache->is_dirty) {
 					gpencil_batch_cache_check_free_slots(ob);
 					cache->batch_edit[cache->cache_idx] = DRW_gpencil_get_edit_geom(gps, ts->gp_sculpt.alpha, gpd->flag);
@@ -448,13 +450,13 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 		
-		PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-		copy_v4_v4(gps->tmp_rgb, gps_palcolor->rgb);
-		copy_v4_v4(gps->tmp_fill, gps_palcolor->fill);
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+		copy_v4_v4(gps->tmp_rgb, gpcolor->rgb);
+		copy_v4_v4(gps->tmp_fill, gpcolor->fill);
 
 		int id = stl->storage->shgroup_id;
 		/* check if stroke can be drawn */
-		if (gpencil_can_draw_stroke(gps, true) == false) {
+		if (gpencil_can_draw_stroke(ob, gps, true) == false) {
 			continue;
 		}
 		/* limit the number of shading groups */
@@ -463,11 +465,11 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 		}
 
 		stl->shgroups[id].shgrps_fill = NULL;
-		if ((gps->totpoints > 1) && (gps_palcolor->mode == PAC_MODE_LINE)) {
-			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gps_palcolor, id, true);
+		if ((gps->totpoints > 1) && (gpcolor->mode == GPC_MODE_LINE)) {
+			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gpcolor, id, true);
 		}
 		else {
-			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gps_palcolor, id, true);
+			stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gpcolor, id, true);
 		}
 
 		/* stroke */
@@ -523,7 +525,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 
 	for (gps = derived_gpf->strokes.first; gps; gps = gps->next) {
 		/* check if stroke can be drawn */
-		if (gpencil_can_draw_stroke(gps, false) == false) {
+		if (gpencil_can_draw_stroke(ob, gps, false) == false) {
 			continue;
 		}
 		/* limit the number of shading groups */
@@ -531,18 +533,18 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			continue;
 		}
 
-		PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-		
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
 		/* be sure recalc all chache in source stroke to avoid recalculation when frame change 
 		 * and improve fps */
 		if (src_gps) {
-			DRW_gpencil_recalc_geometry_caches(src_gps);
+			DRW_gpencil_recalc_geometry_caches(ob, src_gps);
 		}
 
 		/* if the fill has any value, it's considered a fill and is not drawn if simplify fill is enabled */
 		if ((stl->storage->simplify_fill) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_REMOVE_LINE)) {
-			if ((gps_palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || 
-			    (gps_palcolor->fill_style > FILL_STYLE_SOLID))
+			if ((gpcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || 
+			    (gpcolor->fill_style > GPC_FILL_STYLE_SOLID))
 			{
 				continue;
 			}
@@ -552,19 +554,19 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			int id = stl->storage->shgroup_id;
 			if (gps->totpoints > 0) {
 				if ((gps->totpoints > 2) && (!stl->storage->simplify_fill) &&
-					((gps_palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps_palcolor->fill_style > 0)) &&
+					((gpcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0)) &&
 					((gps->flag & GP_STROKE_NOFILL) == 0))
 				{
-					stl->shgroups[id].shgrps_fill = DRW_gpencil_shgroup_fill_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh, gpd, gps_palcolor, id);
+					stl->shgroups[id].shgrps_fill = DRW_gpencil_shgroup_fill_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh, gpd, gpcolor, id);
 				}
 				else {
 					stl->shgroups[id].shgrps_fill = NULL;
 				}
-				if ((gps_palcolor->mode == PAC_MODE_LINE) && (gps->totpoints > 1)) {
-					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gps_palcolor, id, false);
+				if ((gpcolor->mode == GPC_MODE_LINE) && (gps->totpoints > 1)) {
+					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh, ob, gpd, gpcolor, id, false);
 				}
 				else {
-					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gps_palcolor, id, false);
+					stl->shgroups[id].shgrps_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh, ob, gpd, gpcolor, id, false);
 				}
 			}
 			else {
@@ -577,8 +579,8 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			strokegrp = stl->shgroups[id].shgrps_stroke;
 
 			/* copy color to temp fields to apply temporal changes in the stroke */
-			copy_v4_v4(gps->tmp_rgb, gps_palcolor->rgb);
-			copy_v4_v4(gps->tmp_fill, gps_palcolor->fill);
+			copy_v4_v4(gps->tmp_rgb, gpcolor->rgb);
+			copy_v4_v4(gps->tmp_fill, gpcolor->fill);
 
 			/* apply modifiers (only modify geometry, but not create ) */
 			if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
@@ -628,15 +630,14 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	bGPdata *gpd = ob->data;
-	PaletteColor *palcolor = NULL;
+	GpencilColorData *gpcolor = NULL;
 
 	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
 
 	/* if the brush has a palette and color defined, use these and not current defaults */
-	palcolor = BKE_gpencil_get_color_from_brush(gpd, brush, false);
-	if (palcolor == NULL) {
-		bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-		palcolor = BKE_palette_color_get_active((palslot) ? palslot->palette : NULL);
+	//TODO: BKE_gpencil_get_color_from_brush(gpd, brush, false);
+	if (gpcolor == NULL) {
+		gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
 	}
 	
 	/* drawing strokes */
@@ -651,15 +652,15 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 			short lthick = brush->thickness * obscale;
 			/* if only one point, don't need to draw buffer because the user has no time to see it */
 			if (gpd->sbuffer_size > 1) {
-				if ((palcolor) && (palcolor->mode == PAC_MODE_LINE)) {
-					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->drawing_pass, e_data->gpencil_stroke_sh, NULL, gpd, palcolor, -1, false);
+				if ((gpcolor) && (gpcolor->mode == GPC_MODE_LINE)) {
+					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_stroke_create(e_data, vedata, psl->drawing_pass, e_data->gpencil_stroke_sh, NULL, gpd, gpcolor, -1, false);
 				}
 				else {
-					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->drawing_pass, e_data->gpencil_point_sh, NULL, gpd, palcolor, -1, false);
+					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_point_create(e_data, vedata, psl->drawing_pass, e_data->gpencil_point_sh, NULL, gpd, gpcolor, -1, false);
 				}
 
 				/* use unit matrix because the buffer is in screen space and does not need conversion */
-				if (gpd->mode == PAC_MODE_LINE) {
+				if (gpd->mode == GPC_MODE_LINE) {
 					stl->g_data->batch_buffer_stroke = DRW_gpencil_get_buffer_stroke_geom(gpd, stl->storage->unit_matrix, lthick);
 				}
 				else {

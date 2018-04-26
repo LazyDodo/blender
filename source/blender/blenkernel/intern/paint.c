@@ -1,4 +1,5 @@
 /*
+/*
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
@@ -373,68 +374,6 @@ void BKE_paint_palette_set(Paint *p, Palette *palette)
 	}
 }
 
-Palette *BKE_palette_get_active_from_context(const bContext *C)
-{
-	Object *ob = CTX_data_active_object(C);
-	Palette *palette = NULL;
-
-	/* XXX: Object detection fails in some contexts
-	 * (e.g. Properties Editor when drawing UI)
-	 */
-	if ((ob) && (ob->type == OB_GPENCIL)) {
-		bGPdata *gpd = CTX_data_gpencil_data(C);
-		bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-		if (palslot) {
-			palette = palslot->palette;
-		}
-	}
-	else {
-		Paint *paint = BKE_paint_get_active_from_context(C);
-		if (paint && paint->palette) {
-			palette = paint->palette;
-		}
-	}
-
-	return palette;
-}
-
-void BKE_palette_set_active_byname(const bContext *C, char *palname)
-{
-	Paint *paint = BKE_paint_get_active_from_context(C);
-	Main *bmain = CTX_data_main(C);
-
-	if (paint) {
-		Palette *palette = BLI_findstring(&bmain->palettes, palname, offsetof(ID, name));
-		if ((palette) && (paint->palette != palette)) {
-			BKE_paint_palette_set(paint, palette);
-		}
-
-	}
-}
-
-PaletteColor *BKE_palette_color_get_active(Palette *palette)
-{
-	PaletteColor *palcolor = NULL;
-
-	if (palette) {
-		palcolor = BLI_findlink(&palette->colors, palette->active_color);
-	}
-	
-	return palcolor;
-}
-
-PaletteColor *BKE_palette_color_get_active_from_context(const bContext *C)
-{
-	PaletteColor *palcolor = NULL;
-	
-	Palette *palette = BKE_palette_get_active_from_context(C);
-	if (palette) {
-		palcolor = BKE_palette_color_get_active(palette);
-	}
-
-	return palcolor;
-}
-
 void BKE_paint_curve_set(Brush *br, PaintCurve *pc)
 {
 	if (br) {
@@ -480,9 +419,6 @@ Palette *BKE_palette_add(Main *bmain, const char *name)
 	/* enable fake user by default */
 	id_fake_user_set(&palette->id);
 
-	/* initial settings */
-	palette->flag = PALETTE_DATA_EXPAND;
-
 	return palette;
 }
 
@@ -515,149 +451,18 @@ void BKE_palette_make_local(Main *bmain, Palette *palette, const bool lib_local)
 void BKE_palette_free(Palette *palette)
 {
 	BLI_freelistN(&palette->colors);
-	
-	/* free animation data*/
-	if (palette->adt) {
-		BKE_animdata_free((ID *) palette, false);
-	}
-}
-
-/* Add default set of colors for Grease Pencil */
-void BKE_palette_color_add_default_set(Palette *palette)
-{
-	PaletteColor *palcolor;
-	palcolor = BKE_palette_color_add_name(palette, "Black");
-	ARRAY_SET_ITEMS(palcolor->rgb, 0.0, 0.0, 0.0, 1.0);
-
-	palcolor = BKE_palette_color_add_name(palette, "White");
-	ARRAY_SET_ITEMS(palcolor->rgb, 1.0, 1.0, 1.0, 1.0);
-
-	palcolor = BKE_palette_color_add_name(palette, "Red");
-	ARRAY_SET_ITEMS(palcolor->rgb, 1.0, 0.0, 0.0, 1.0);
-
-	palcolor = BKE_palette_color_add_name(palette, "Green");
-	ARRAY_SET_ITEMS(palcolor->rgb, 0.0, 1.0, 0.0, 1.0);
-
-	palcolor = BKE_palette_color_add_name(palette, "Blue");
-	ARRAY_SET_ITEMS(palcolor->rgb, 0.0, 0.0, 1.0, 1.0);
-
-	palcolor = BKE_palette_color_add_name(palette, "Grey");
-	ARRAY_SET_ITEMS(palcolor->fill, 0.6, 0.6, 0.6, 0.9);
-	ARRAY_SET_ITEMS(palcolor->rgb, 0.4, 0.4, 0.4, 1.0);
-}
-
-PaletteColor *BKE_palette_color_copy(Palette *palette, PaletteColor *palcolor)
-{
-	PaletteColor *newcolor = NULL;
-
-	newcolor = BKE_palette_color_add_name(palette, palcolor->info);
-	copy_v4_v4(newcolor->rgb, palcolor->rgb);
-	copy_v4_v4(newcolor->fill, palcolor->fill);
-	copy_v4_v4(newcolor->scolor, palcolor->scolor);
-	newcolor->value = palcolor->value;
-	newcolor->flag = palcolor->flag;
-	newcolor->stroke_style = palcolor->stroke_style;
-	newcolor->fill_style = palcolor->fill_style;
-	newcolor->index = palcolor->index;
-	newcolor->mix_factor = palcolor->mix_factor;
-	newcolor->g_angle = palcolor->g_angle;
-	newcolor->g_radius = palcolor->g_radius;
-	newcolor->g_boxsize = palcolor->g_boxsize;
-	copy_v2_v2(newcolor->g_scale, palcolor->g_scale);
-	copy_v2_v2(newcolor->g_shift, palcolor->g_shift);
-	newcolor->t_angle = palcolor->t_angle;
-	copy_v2_v2(newcolor->t_scale, palcolor->t_scale);
-	copy_v2_v2(newcolor->t_offset, palcolor->t_offset);
-	newcolor->t_opacity = palcolor->t_opacity;
-	newcolor->t_pixsize = palcolor->t_pixsize;
-	newcolor->sima = palcolor->sima;
-	newcolor->ima = palcolor->ima;
-
-	return newcolor;
 }
 
 PaletteColor *BKE_palette_color_add(Palette *palette)
 {
-	return BKE_palette_color_add_name(palette, "Color");
-}
-
-PaletteColor *BKE_palette_color_add_name(Palette *palette, const char *name)
-{
 	PaletteColor *color = MEM_callocN(sizeof(*color), "Palette Color");
 	BLI_addtail(&palette->colors, color);
-
-	/* set basic settings */
-	color->rgb[3] = 1.0f;
-	color->g_boxsize = 0.1f;
-	color->g_radius = 0.5f;
-	ARRAY_SET_ITEMS(color->scolor, 1.0f, 1.0f, 1.0f, 0.2f);
-	ARRAY_SET_ITEMS(color->g_scale, 1.0f, 1.0f);
-	ARRAY_SET_ITEMS(color->t_scale, 1.0f, 1.0f);
-	color->t_opacity = 1.0f;
-	color->t_pixsize = 100.0f;
-
-	/* auto-name */
-	BLI_strncpy(color->info, name, sizeof(color->info));
-	BLI_uniquename(&palette->colors, color, name, '.', offsetof(PaletteColor, info),
-		sizeof(color->info));
-
 	return color;
 }
 
 bool BKE_palette_is_empty(const struct Palette *palette)
 {
 	return BLI_listbase_is_empty(&palette->colors);
-}
-
-/* get the palettecolor looking by name */
-PaletteColor *BKE_palette_color_getbyname(Palette *palette, const char *name)
-{
-	/* error checking */
-	if (ELEM(NULL, palette, name)) {
-		return NULL;
-	}
-
-	return BLI_findstring(&palette->colors, name, offsetof(PaletteColor, info));
-}
-
-/* get the palettecolor looking by rgb */
-PaletteColor *BKE_gpencil_palettecolor_getbyrgb(Palette *palette, float rgb[3])
-{
-	PaletteColor *palcolor;
-
-	/* error checking */
-	if (ELEM(NULL, palette, palette->colors.first)) {
-		return NULL;
-	}
-	/* loop over colors until found */
-	for (palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-		if (equals_v3v3(palcolor->rgb, rgb)) {
-			return palcolor;
-		}
-	}
-
-	/* no active color found */
-	return NULL;
-}
-
-/* get the palettecolor looking by rgba */
-PaletteColor *BKE_gpencil_palettecolor_getbyrgba(Palette *palette, float rgba[4])
-{
-	PaletteColor *palcolor;
-
-	/* error checking */
-	if (ELEM(NULL, palette, palette->colors.first)) {
-		return NULL;
-	}
-	/* loop over colors until found */
-	for (palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-		if (equals_v4v4(palcolor->rgb, rgba)) {
-			return palcolor;
-		}
-	}
-
-	/* no active color found */
-	return NULL;
 }
 
 /* are we in vertex paint or weight pain face select mode? */

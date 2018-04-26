@@ -87,6 +87,8 @@ short BKE_object_material_slot_find_index(struct Object *ob, struct Material *ma
 bool  BKE_object_material_slot_add(struct Object *ob);
 bool  BKE_object_material_slot_remove(struct Object *ob);
 
+struct GpencilColorData *BKE_material_gpencil_settings_get(struct Object *ob, short act);
+
 void BKE_texpaint_slot_refresh_cache(struct Scene *scene, struct Material *ma);
 void BKE_texpaint_slots_refresh_object(struct Scene *scene, struct Object *ob);
 

@@ -69,7 +69,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	float weight = 1.0f;
 	float val;
 
-	if (!is_stroke_affected_by_modifier(
+	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
 	        mmd->flag & GP_SMOOTH_INVERSE_LAYER, mmd->flag & GP_SMOOTH_INVERSE_PASS))
 	{

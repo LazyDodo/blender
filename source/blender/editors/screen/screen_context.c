@@ -84,8 +84,7 @@ const char *screen_context_dir[] = {
 	"sequences", "selected_sequences", "selected_editable_sequences", /* sequencer */
 	"gpencil_data", "gpencil_data_owner", /* grease pencil data */
 	"visible_gpencil_layers", "editable_gpencil_layers", "editable_gpencil_strokes",
-	"active_gpencil_layer", "active_gpencil_frame", "active_gpencil_palette", 
-	"active_gpencil_palettecolor", "active_gpencil_brush",
+	"active_gpencil_layer", "active_gpencil_frame", "active_gpencil_brush",
 	"active_palette", "active_palettecolor", "available_palettes", "available_palettecolors",
 	"active_operator", "selected_editable_fcurves",
 	NULL};
@@ -508,31 +507,6 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 			}
 		}
 	}
-	else if (CTX_data_equals(member, "active_gpencil_palette")) {
-		/* XXX: see comment for gpencil_data case... */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
-		bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-		
-		if (palslot && palslot->palette) {
-			Palette *palette = palslot->palette;
-			CTX_data_pointer_set(result, &palette->id, &RNA_Palette, palette);
-			return 1;
-		}
-	}
-	else if (CTX_data_equals(member, "active_gpencil_palettecolor")) {
-		/* XXX: see comment for gpencil_data case... */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
-		bGPDpaletteref *palslot = BKE_gpencil_paletteslot_get_active(gpd);
-		
-		if (palslot && palslot->palette) {
-			Palette *palette = palslot->palette;
-			PaletteColor *palcolor = BKE_palette_color_get_active(palette);
-			if (palcolor) {
-				CTX_data_pointer_set(result, &palette->id, &RNA_PaletteColor, palcolor);
-				return 1;
-			}
-		}
-	}
 	else if (CTX_data_equals(member, "active_gpencil_brush")) {
 		Brush *brush = BKE_brush_getactive_gpencil(scene->toolsettings);
 
@@ -608,7 +582,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 							for (gps = gpf->strokes.first; gps; gps = gps->next) {
 								if (ED_gpencil_stroke_can_use_direct(sa, gps)) {
 									/* check if the color is editable */
-									if (ED_gpencil_stroke_color_use(gpl, gps) == false) {
+									if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
 										continue;
 									}
 
@@ -626,55 +600,6 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 			CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
 			return 1;
 		}
-	}
-	else if (CTX_data_equals(member, "active_palette")) {
-		Palette *palette = BKE_palette_get_active_from_context(C);
-
-		if (palette) {
-			CTX_data_pointer_set(result, &palette->id, &RNA_Palette, palette);
-			return 1;
-		}
-	}
-	else if (CTX_data_equals(member, "active_palettecolor")) {
-		Palette *palette = BKE_palette_get_active_from_context(C);
-		PaletteColor *palcolor = BKE_palette_color_get_active(palette);
-
-		if (palcolor) {
-			CTX_data_pointer_set(result, &palette->id, &RNA_PaletteColor, palcolor);
-			return 1;
-		}
-	}
-	else if (CTX_data_equals(member, "active_palettecolors")) {
-		Palette *palette = BKE_palette_get_active_from_context(C);
-		if (palette) {
-			for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-				CTX_data_list_add(result, &palette->id, &RNA_PaletteColor, palcolor);
-			}
-			CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
-			return 1;
-		}
-	}
-	else if (CTX_data_equals(member, "available_palettes")) {
-		Main *bmain = CTX_data_main(C);
-
-		for (Palette *palette = bmain->palettes.first; palette; palette = palette->id.next) {
-			// TODO: filter to palettes on scene
-			CTX_data_list_add(result, &palette->id, &RNA_Palette, palette);
-		}
-		CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
-		return 1;
-	}
-	else if (CTX_data_equals(member, "available_palettecolors")) {
-		Main *bmain = CTX_data_main(C);
-
-		for (Palette *palette = bmain->palettes.first; palette; palette = palette->id.next) {
-			// TODO: filter to palettes on scene
-			for (PaletteColor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-				CTX_data_list_add(result, &palette->id, &RNA_PaletteColor, palcolor);
-			}
-		}
-		CTX_data_type_set(result, CTX_DATA_TYPE_COLLECTION);
-		return 1;
 	}
 	else if (CTX_data_equals(member, "active_operator")) {
 		wmOperator *op = NULL;

@@ -35,7 +35,6 @@
 #include "DNA_screen_types.h"
 #include "DNA_view3d_types.h"
 
-#include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_action.h"
 
@@ -388,18 +387,18 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 
 
 /* Helper for doing all the checks on whether a stroke can be drawn */
-bool gpencil_can_draw_stroke(const bGPDstroke *gps, const bool onion)
+bool gpencil_can_draw_stroke(struct Object *ob, const bGPDstroke *gps, const bool onion)
 {
 	/* skip stroke if it doesn't have any valid data */
 	if ((gps->points == NULL) || (gps->totpoints < 1))
 		return false;
 
-	PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* check if the color is visible */
-	if ((gps->palette == NULL) || (gps_palcolor == NULL) ||
-	    (gps_palcolor->flag & PC_COLOR_HIDE) ||
-	    (onion && (gps_palcolor->flag & PC_COLOR_ONIONSKIN)))
+	if ((gpcolor == NULL) ||
+	    (gpcolor->flag & GPC_COLOR_HIDE) ||
+	    (onion && (gpcolor->flag & GPC_COLOR_ONIONSKIN)))
 	{
 		return false;
 	}
@@ -575,21 +574,21 @@ static void gpencil_set_fill_point(
 }
 
 /* recalc the internal geometry caches for fill and uvs */
-void DRW_gpencil_recalc_geometry_caches(bGPDstroke *gps) {
+void DRW_gpencil_recalc_geometry_caches(Object *ob, bGPDstroke *gps) {
 	if (gps->flag & GP_STROKE_RECALC_CACHES) {
-		PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 		/* Calculate triangles cache for filling area (must be done only after changes) */
 		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {
 			if ((gps->totpoints > 2) && 
-				((gps_palcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gps_palcolor->fill_style > 0))) 
+				((gpcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0))) 
 			{
 				gp_triangulate_stroke_fill(gps);
 			}
 		}
 
 		/* calc uv data along the stroke */
-		ED_gpencil_calc_stroke_uv(gps);
+		ED_gpencil_calc_stroke_uv(ob, gps);
 		
 		/* clear flag */
 		gps->flag &= ~GP_STROKE_RECALC_CACHES;
@@ -597,14 +596,14 @@ void DRW_gpencil_recalc_geometry_caches(bGPDstroke *gps) {
 }
 
 /* create batch geometry data for stroke shader */
-Gwn_Batch *DRW_gpencil_get_fill_geom(bGPDstroke *gps, const float color[4])
+Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float color[4])
 {
 	BLI_assert(gps->totpoints >= 3);
 
 	/* Calculate triangles cache for filling area (must be done only after changes) */
 	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
 		gp_triangulate_stroke_fill(gps);
-		ED_gpencil_calc_stroke_uv(gps);
+		ED_gpencil_calc_stroke_uv(ob, gps);
 	}
 
 	BLI_assert(gps->tot_triangles >= 1);
