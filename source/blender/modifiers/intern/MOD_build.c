@@ -84,7 +84,7 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
                            Object *UNUSED(ob), struct Mesh *mesh,
                            ModifierApplyFlag UNUSED(flag))
 {
-	Mesh *result; /* TODO(sybren): remove and replace with direct modification of mesh? */
+	Mesh *result;
 	BuildModifierData *bmd = (BuildModifierData *) md;
 	int i, j, k;
 	int numFaces_dst, numEdges_dst, numLoops_dst = 0;
