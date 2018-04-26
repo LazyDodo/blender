@@ -81,8 +81,9 @@ enum {
 };
 
 enum {
-	V3D_DRAWOPTION_RANDOMIZE = (1 << 0),
-	V3D_DRAWOPTION_OBJECT_OVERLAP   = (2 << 0),
+	V3D_DRAWOPTION_RANDOMIZE      = (1 << 0),
+	V3D_DRAWOPTION_OBJECT_OVERLAP = (1 << 1),
+	V3D_DRAWOPTION_SHADOW         = (1 << 2),
 };
 
 enum {

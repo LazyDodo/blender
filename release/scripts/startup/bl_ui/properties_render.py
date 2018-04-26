@@ -788,6 +788,8 @@ class RENDER_PT_workbench_environment_light(RenderButtonsPanel, Panel):
         col.prop(props, "diffuse_light_z_pos", text="Front/Back")
         col.prop(props, "diffuse_light_z_neg", text="")
 
+        layout.prop(props, "light_direction", text="")
+
 
 classes = (
     RENDER_MT_presets,

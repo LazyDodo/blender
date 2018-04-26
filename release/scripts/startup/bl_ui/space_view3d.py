@@ -3537,6 +3537,7 @@ class VIEW3D_PT_view3d_display(Panel):
         if view.viewport_shade == "SOLID":
             col.prop(view, "show_random_object_colors")
             col.prop(view, "show_object_overlap")
+            col.prop(view, "show_shadows")
 
         if context.mode in {'PAINT_WEIGHT', 'PAINT_VERTEX', 'PAINT_TEXTURE'}:
             col.prop(view, "show_mode_shade_override")

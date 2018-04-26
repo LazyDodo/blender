@@ -72,6 +72,9 @@ static void workbench_view_layer_settings_create(RenderEngine *UNUSED(engine), I
 	BKE_collection_engine_property_add_float_array(props, "diffuse_light_y_neg", diffuse_y_neg, 3);
 	BKE_collection_engine_property_add_float_array(props, "diffuse_light_z_pos", diffuse_z_pos, 3);
 	BKE_collection_engine_property_add_float_array(props, "diffuse_light_z_neg", diffuse_z_neg, 3);
+
+	const float light_direction[3] = {0.577350269, 0.577350269, 0.577350269};
+	BKE_collection_engine_property_add_float_array(props, "light_direction", light_direction, 3);
 }
 
 /* Note: currently unused, we may want to register so we can see this when debugging the view. */
