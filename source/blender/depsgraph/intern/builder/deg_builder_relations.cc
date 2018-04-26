@@ -1760,6 +1760,7 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 			ComponentKey geometry_key(obdata, DEG_NODE_TYPE_GEOMETRY);
 			add_relation(time_key, geometry_key, "GP Frame Change");
 			
+#if 0 /* GPXX: This must be replace by materials  */
 			/* Geometry cache also needs to be recalculated when Palette
 			 * settings change (e.g. when fill.opacity changes on/off,
 			 * we need to rebuild the bGPDstroke->triangles caches)
@@ -1770,6 +1771,7 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 					add_relation(palette_key, geometry_key, "Palette -> GP Data");
 				}
 			}
+#endif
 			break;
 		}
 	}
