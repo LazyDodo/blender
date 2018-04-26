@@ -261,15 +261,9 @@ static void rna_gpcolordata_uv_update(Main *bmain, Scene *scene, PointerRNA *ptr
 
 static char *rna_GpencilColorData_path(PointerRNA *ptr)
 {
-	Material *ma = ptr->id.data;
-	GpencilColorData *gpcolor = (GpencilColorData *)ptr->data;
-	char name_esc[sizeof(ma->id.name) * 2];
-
-	BLI_strescape(name_esc, ma->id.name, sizeof(name_esc));
-
-	return BLI_sprintfN("grease_pencil[\"%s\"]", name_esc);
-
+		return BLI_sprintfN("grease_pencil");
 }
+
 static int rna_GpencilColorData_is_stroke_visible_get(PointerRNA *ptr)
 {
 	GpencilColorData *pcolor = (GpencilColorData *)ptr->data;
@@ -408,8 +402,7 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "GpencilColorData", NULL);
 	RNA_def_struct_sdna(srna, "GpencilColorData");
 	RNA_def_struct_ui_text(srna, "Grease Pencil Color", "");
-	/* TODO (antoniov): add animation path */
-	//RNA_def_struct_path_func(srna, "rna_GpencilColorData_path");
+	RNA_def_struct_path_func(srna, "rna_GpencilColorData_path");
 
 	prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_range(prop, 0.0, 1.0);
