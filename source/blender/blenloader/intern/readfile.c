@@ -4110,14 +4110,13 @@ static void lib_link_material(FileData *fd, Main *main)
 			}
 
 			/* relink grease pencil settings */
-			ma->gpcolor = newdataadr(fd, ma->gpcolor);
 			if (ma->gpcolor != NULL) {
 				GpencilColorData *gpcolor = ma->gpcolor;
 				if (gpcolor->sima != NULL) {
-					gpcolor->sima = newlibadr(fd, ma->id.lib, gpcolor->sima);
+					gpcolor->sima = newlibadr_us(fd, ma->id.lib, gpcolor->sima);
 				}
 				if (gpcolor->ima != NULL) {
-					gpcolor->ima = newlibadr(fd, ma->id.lib, gpcolor->ima);
+					gpcolor->ima = newlibadr_us(fd, ma->id.lib, gpcolor->ima);
 				}
 			}
 
