@@ -1147,7 +1147,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	}
 	
 	/* Save material index */
-	gps->mat_nr = BKE_object_material_slot_find_index(p->ob, p->mat) - 1;
+	gps->mat_nr = BKE_object_material_slot_find_index(p->ob, p->material) - 1;
 
 	/* calculate UVs along the stroke */
 	ED_gpencil_calc_stroke_uv(obact, gps);

@@ -55,8 +55,7 @@ struct ViewLayer;
 struct View3D;
 
 struct Object;
-struct Palette;
-struct PaletteColor;
+struct Material;
 
 struct bAnimContext;
 struct KeyframeEditData;
@@ -219,6 +218,6 @@ int ED_gpencil_join_objects_exec(struct bContext *C, struct wmOperator *op);
 /* texture coordinate utilities */
 void ED_gpencil_tpoint_to_point(struct ARegion *ar, float origin[3], const struct tGPspoint *tpt, struct bGPDspoint *pt);
 void ED_gpencil_calc_stroke_uv(struct Object *ob, struct bGPDstroke *gps);
-void ED_gpencil_update_color_uv(struct Main *bmain, struct Palette *palette, struct PaletteColor *palcolor);
+void ED_gpencil_update_color_uv(struct Main *bmain, struct Material *mat);
 
 #endif /*  __ED_GPENCIL_H__ */

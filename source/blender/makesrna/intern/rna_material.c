@@ -86,6 +86,7 @@ const EnumPropertyItem rna_enum_ramp_blend_items[] = {
 #include "ED_node.h"
 #include "ED_image.h"
 #include "ED_screen.h"
+#include "ED_gpencil.h"
 
 static void rna_Material_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
@@ -252,8 +253,8 @@ void rna_mtex_texture_slots_clear(ID *self_id, struct bContext *C, ReportList *r
 static void rna_gpcolordata_uv_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	/* update all uv strokes of this color */
-	GpencilColorData *gpcolor = (GpencilColorData *)ptr->data;
-	//ED_gpencil_update_color_uv(bmain, palette, gpcolor);
+	Material *ma = ptr->id.data;
+	ED_gpencil_update_color_uv(bmain, ma);
 
 	rna_Material_update(bmain, scene, ptr);
 }

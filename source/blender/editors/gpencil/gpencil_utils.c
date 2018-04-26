@@ -1673,36 +1673,38 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 	}
 }
 
-/* recalc uv for any stroke using the color */
-void ED_gpencil_update_color_uv(Main *bmain, Palette *palette, PaletteColor *palcolor)
+/* recalc uv for any stroke using the material */
+void ED_gpencil_update_color_uv(Main *bmain, Material *mat)
 {
-	
-#if 0 /* GPXX */
+	Material *gps_mat = NULL;
 	/* read all strokes  */
-	for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
-		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-			/* only editable and visible layers are considered */
-			if (gpencil_layer_is_editable(gpl)) {
-				for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-					for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-						/* check if the color is editable */
-						if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
-							continue;
-						}
-						if (gps->palette != palette) {
-							continue;
-						}
+	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+		if (ob->type == OB_GPENCIL) {
+			bGPdata *gpd = ob->data;
+			if (gpd == NULL) {
+				continue;
+			}
 
-						/* update */
-						if (strcmp(palcolor->info, gps->colorname) == 0) {
-							ED_gpencil_calc_stroke_uv(ob, gps);
+			for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+				/* only editable and visible layers are considered */
+				if (gpencil_layer_is_editable(gpl)) {
+					for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+						for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+							/* check if it is editable */
+							if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
+								continue;
+							}
+							gps_mat = give_current_material(ob, gps->mat_nr + 1);
+							/* update */
+							if ((gps_mat) && (gps_mat == mat)) {
+								ED_gpencil_calc_stroke_uv(ob, gps);
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-#endif
 }
 /* ******************************************************** */
 
