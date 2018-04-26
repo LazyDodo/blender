@@ -133,7 +133,7 @@ struct bGPDlayer *BKE_gpencil_layer_getactive(struct bGPdata *gpd);
 void BKE_gpencil_layer_setactive(struct bGPdata *gpd, struct bGPDlayer *active);
 void BKE_gpencil_layer_delete(struct bGPdata *gpd, struct bGPDlayer *gpl);
 
-struct Material *BKE_gpencil_get_color_from_brush(struct bGPdata *gpd, struct Brush *brush, bool add);
+struct Material *BKE_gpencil_get_color_from_brush(struct Brush *brush);
 struct Material *BKE_gpencil_color_ensure(struct Main *bmain, struct Object *ob);
 
 /* Palettes - Deprecated (2.78-2.79) */
@@ -153,7 +153,6 @@ void BKE_gpencil_palettecolor_setactive(struct bGPDpalette *palette, struct bGPD
 void BKE_gpencil_palettecolor_delete(struct bGPDpalette *palette, struct bGPDpalettecolor *palcolor);
 struct bGPDpalettecolor *BKE_gpencil_palettecolor_getbyname(struct bGPDpalette *palette, char *name);
 void BKE_gpencil_palettecolor_allnames(struct PaletteColor *palcolor, const char *oldname, const char *newname);
-void BKE_gpencil_palettecolor_delete_allstrokes(struct Main *bmain, struct PaletteColor *palcolor);
 
 /* object boundbox */
 bool BKE_gpencil_stroke_minmax(

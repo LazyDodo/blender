@@ -1354,7 +1354,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	int *last_mouse_position = customdata;
 
 	/* get current color */
-	Material *mat = BKE_gpencil_get_color_from_brush(gpd, CTX_data_active_gpencil_brush(C), false);
+	Material *mat = BKE_gpencil_get_color_from_brush(CTX_data_active_gpencil_brush(C));
 	GpencilColorData *gpcolor = NULL;
 	if (mat == NULL) {
 		mat = BKE_gpencil_color_ensure(bmain, ob);

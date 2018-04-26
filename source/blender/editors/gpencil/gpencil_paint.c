@@ -1564,12 +1564,12 @@ static void gp_init_colors(tGPsdata *p)
 	GpencilColorData *gpcolor = NULL;
 	
 	/* if the brush has a palette and color defined, use these and not current defaults */
-	//mat = BKE_gpencil_get_color_from_brush(gpd, brush, true);
+	mat = BKE_gpencil_get_color_from_brush(brush);
 
 	/* if no brush defaults, get color info
 	 * NOTE: _validate() ensures that everything we need will exist...
 	 */
-	if (mat == NULL) {
+	if ((mat == NULL) || (mat->gpcolor == NULL)){
 		p->material = BKE_gpencil_color_ensure(p->bmain, p->ob);
 	}
 	else {

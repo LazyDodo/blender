@@ -2422,7 +2422,6 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 	bGPDlayer *activegpl = BKE_gpencil_layer_getactive(gpd);
 	bGPDstroke *gps, *gpsn;
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	bGPDframe *gpf_a = NULL;
 	bGPDstroke *stroke_a = NULL;

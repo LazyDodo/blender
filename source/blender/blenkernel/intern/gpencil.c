@@ -1036,12 +1036,11 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 	BLI_freelinkN(&gpd->layers, gpl);
 }
 
-Material *BKE_gpencil_get_color_from_brush(bGPdata *gpd, Brush *brush, bool add)
+Material *BKE_gpencil_get_color_from_brush(Brush *brush)
 {
-	/* GPXX */
-	Material *gpcolor = NULL;
+	Material *mat = brush->material;
 
-	return gpcolor;
+	return mat;
 }
 
 /* Get active color, and add all default settings if we don't find anything */
@@ -1302,40 +1301,6 @@ bGPDpalettecolor *BKE_gpencil_palettecolor_getbyname(bGPDpalette *palette, char 
 	}
 
 	return BLI_findstring(&palette->colors, name, offsetof(bGPDpalettecolor, info));
-}
-
-/* Delete all strokes of the color for all gpd datablocks */
-void BKE_gpencil_palettecolor_delete_allstrokes(Main *bmain, PaletteColor *palcolor)
-{
-	/* GPXX */
-	bGPdata *gpd;
-	bGPDlayer *gpl;
-	bGPDframe *gpf;
-	bGPDstroke *gps, *gpsn;
-	PaletteColor *gps_palcolor = NULL;
-
-#if 0
-	/* TODO: Optimise this by only checking GP datablocks that reference the palette this comes from */
-	for (gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
-		for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-			for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-				for (gps = gpf->strokes.first; gps; gps = gpsn) {
-					gpsn = gps->next;
-					gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-					if (gps_palcolor == palcolor) {
-						if (gps->points) {
-							BKE_gpencil_free_stroke_weights(gps);
-							MEM_freeN(gps->points);
-						}
-						if (gps->triangles) MEM_freeN(gps->triangles);
-						BLI_freelinkN(&gpf->strokes, gps);
-					}
-				}
-			}
-		}
-		BKE_gpencil_batch_cache_dirty(gpd);
-	}
-#endif
 }
 
 /* set the active gp-palettecolor */
