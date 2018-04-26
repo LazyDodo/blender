@@ -1,16 +1,37 @@
 layout(triangles) in;
-layout(triangle_strip, max_vertices=3) out;
+layout(triangle_strip, max_vertices=12) out;
 
-uniform vec4 direction = vec4(0.57, 0.57, 0.0, 0.0);
+uniform vec4 lightDirection = vec4(-4.0, -25.0, 0.0, 0.0);
 
 void main()
 {
-	for(int i = 0; i < gl_in.length(); i++)
-	{
-		vec4 new_pos = gl_in[i].gl_Position;
+	gl_Position = gl_in[0].gl_Position;
+	EmitVertex();
+	gl_Position = gl_in[1].gl_Position;
+	EmitVertex();
+	gl_Position = gl_in[0].gl_Position + lightDirection;
+	EmitVertex();
+	gl_Position = gl_in[1].gl_Position + lightDirection;
+	EmitVertex();
+	EndPrimitive();
 
-		new_pos += direction;
-		gl_Position = new_pos;
-		EmitVertex();
-	}
+	gl_Position = gl_in[1].gl_Position;
+	EmitVertex();
+	gl_Position = gl_in[2].gl_Position;
+	EmitVertex();
+	gl_Position = gl_in[1].gl_Position + lightDirection;
+	EmitVertex();
+	gl_Position = gl_in[2].gl_Position + lightDirection;
+	EmitVertex();
+	EndPrimitive();
+
+	gl_Position = gl_in[2].gl_Position;
+	EmitVertex();
+	gl_Position = gl_in[0].gl_Position;
+	EmitVertex();
+	gl_Position = gl_in[2].gl_Position + lightDirection;
+	EmitVertex();
+	gl_Position = gl_in[0].gl_Position + lightDirection;
+	EmitVertex();
+	EndPrimitive();
 }

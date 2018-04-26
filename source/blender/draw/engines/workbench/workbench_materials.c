@@ -303,7 +303,6 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		wpd->world_ubo = DRW_uniformbuffer_create(sizeof(WORKBENCH_UBO_World), NULL);
 		DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
 
-		/* TODO: get from viewlayer collection engine */
 		psl->composite_pass = DRW_pass_create("Composite", DRW_STATE_WRITE_COLOR | DRW_STATE_STENCIL_EQUAL);
 		grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_pass);
 		workbench_composite_uniforms(wpd, grp);
@@ -312,7 +311,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 
 		if (SHADOW_ENABLED(wpd)) {
-			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_WRITE_STENCIL);
+			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_STENCIL);
 			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
 			DRW_shgroup_stencil_mask(grp, 0x01);
 			wpd->shadow_shgrp = grp;
