@@ -26,6 +26,13 @@ __all__ = (
     "ToolSelectPanelHelper",
 )
 
+# Support reloading icons.
+if "_icon_cache" in locals():
+    release = bpy.app.icons.release
+    for icon_value in _icon_cache.values():
+        release(icon_value)
+    del release
+
 
 # (filename -> icon_value) map
 _icon_cache = {}
@@ -37,7 +44,7 @@ class ToolSelectPanelHelper:
     - keymap_prefix:
       The text prefix for each key-map for this spaces tools.
     - tools_all():
-      Returns all tools defined.
+      Returns (context_mode, tools) tuple pair for all tools defined.
     - tools_from_context(context):
       Returns tools available in this context.
 
@@ -178,7 +185,7 @@ class ToolSelectPanelHelper:
         if kc is None:
             return
 
-        for context_mode, tools in cls._tools.items():
+        for context_mode, tools in cls.tools_all():
             for item_parent in tools:
                 if item_parent is None:
                     continue
