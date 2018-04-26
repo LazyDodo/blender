@@ -86,9 +86,9 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 {
 	Mesh *result; /* TODO(sybren): remove and replace with direct modification of mesh? */
 	BuildModifierData *bmd = (BuildModifierData *) md;
-	unsigned int i, j, k;
-	unsigned int numFaces_dst, numEdges_dst, numLoops_dst = 0;
-	unsigned int *vertMap, *edgeMap, *faceMap;
+	int i, j, k;
+	int numFaces_dst, numEdges_dst, numLoops_dst = 0;
+	int *vertMap, *edgeMap, *faceMap;
 	float frac;
 	MPoly *mpoly_dst;
 	MLoop *ml_dst, *ml_src /*, *mloop_dst */;
@@ -98,9 +98,9 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	/* maps edge indices in old mesh to indices in new mesh */
 	GHash *edgeHash = BLI_ghash_int_new("build ed apply gh");
 
-	const unsigned int numVert_src = mesh->totvert;
-	const unsigned int numEdge_src = mesh->totedge;
-	const unsigned int numPoly_src = mesh->totpoly;
+	const int numVert_src = mesh->totvert;
+	const int numEdge_src = mesh->totedge;
+	const int numPoly_src = mesh->totpoly;
 	MPoly *mpoly_src = mesh->mpoly;
 	MLoop *mloop_src = mesh->mloop;
 	MEdge *medge_src = mesh->medge;
@@ -110,9 +110,9 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	edgeMap = MEM_malloc_arrayN(numEdge_src, sizeof(*edgeMap), "build modifier edgeMap");
 	faceMap = MEM_malloc_arrayN(numPoly_src, sizeof(*faceMap), "build modifier faceMap");
 
-	range_vn_u(vertMap, numVert_src, 0);
-	range_vn_u(edgeMap, numEdge_src, 0);
-	range_vn_u(faceMap, numPoly_src, 0);
+	range_vn_i(vertMap, numVert_src, 0);
+	range_vn_i(edgeMap, numEdge_src, 0);
+	range_vn_i(faceMap, numPoly_src, 0);
 
 	struct Scene *scene = DEG_get_input_scene(depsgraph);
 	frac = (BKE_scene_frame_get(scene) - bmd->start) / bmd->length;
@@ -124,13 +124,11 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	numFaces_dst = numPoly_src * frac;
 	numEdges_dst = numEdge_src * frac;
 
-	BKE_mesh_tessface_ensure(mesh);
-
 	/* if there's at least one face, build based on faces */
 	if (numFaces_dst) {
 		MPoly *mpoly, *mp;
 		MLoop *ml, *mloop;
-		unsigned int new_idx;
+		int new_idx;
 		
 		if (bmd->flag & MOD_BUILD_FLAG_RANDOMIZE) {
 			BLI_array_randomize(faceMap, sizeof(*faceMap),
@@ -149,8 +147,8 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 
 			for (j = 0; j < mp->totloop; j++, ml++) {
 				void **val_p;
-				if (!BLI_ghash_ensure_p(vertHash, SET_UINT_IN_POINTER(ml->v), &val_p)) {
-					*val_p = SET_UINT_IN_POINTER(new_idx);
+				if (!BLI_ghash_ensure_p(vertHash, SET_INT_IN_POINTER(ml->v), &val_p)) {
+					*val_p = SET_INT_IN_POINTER(new_idx);
 					new_idx++;
 				}
 			}
@@ -166,10 +164,10 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		for (i = 0; i < numEdge_src; i++) {
 			MEdge *me = medge_src + i;
 
-			if (BLI_ghash_haskey(vertHash, SET_UINT_IN_POINTER(me->v1)) &&
-			    BLI_ghash_haskey(vertHash, SET_UINT_IN_POINTER(me->v2)))
+			if (BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v1)) &&
+			    BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v2)))
 			{
-				BLI_ghash_insert(edgeHash, SET_UINT_IN_POINTER(i), SET_UINT_IN_POINTER(new_idx));
+				BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(new_idx));
 				new_idx++;
 			}
 		}
@@ -177,7 +175,7 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	}
 	else if (numEdges_dst) {
 		MEdge *medge, *me;
-		unsigned int new_idx;
+		int new_idx;
 
 		if (bmd->flag & MOD_BUILD_FLAG_RANDOMIZE)
 			BLI_array_randomize(edgeMap, sizeof(*edgeMap),
@@ -193,12 +191,12 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 			void **val_p;
 			me = medge + edgeMap[i];
 
-			if (!BLI_ghash_ensure_p(vertHash, SET_UINT_IN_POINTER(me->v1), &val_p)) {
-				*val_p = SET_UINT_IN_POINTER(new_idx);
+			if (!BLI_ghash_ensure_p(vertHash, SET_INT_IN_POINTER(me->v1), &val_p)) {
+				*val_p = SET_INT_IN_POINTER(new_idx);
 				new_idx++;
 			}
-			if (!BLI_ghash_ensure_p(vertHash, SET_UINT_IN_POINTER(me->v2), &val_p)) {
-				*val_p = SET_UINT_IN_POINTER(new_idx);
+			if (!BLI_ghash_ensure_p(vertHash, SET_INT_IN_POINTER(me->v2), &val_p)) {
+				*val_p = SET_INT_IN_POINTER(new_idx);
 				new_idx++;
 			}
 		}
@@ -235,8 +233,8 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	GHASH_ITER (gh_iter, vertHash) {
 		MVert source;
 		MVert *dest;
-		unsigned int oldIndex = GET_UINT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
-		unsigned int newIndex = GET_UINT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
+		int oldIndex = GET_INT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
+		int newIndex = GET_INT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
 
 		source = mvert_src[oldIndex];
 		dest = &result->mvert[newIndex];
@@ -249,8 +247,8 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	GHASH_ITER (gh_iter, edgeHash) {
 		MEdge source;
 		MEdge *dest;
-		unsigned int oldIndex = GET_UINT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
-		unsigned int newIndex = GET_UINT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
+		int oldIndex = GET_INT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
+		int newIndex = GET_INT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
 		BLI_assert(newIndex < BLI_ghash_len(edgeHash));
 
 		source = medge_src[oldIndex];
@@ -258,8 +256,8 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		
 		CustomData_copy_data(&mesh->edata, &result->edata, oldIndex, newIndex, 1);
 		*dest = source;
-		dest->v1 = GET_UINT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_UINT_IN_POINTER(source.v1)));
-		dest->v2 = GET_UINT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_UINT_IN_POINTER(source.v2)));
+		dest->v1 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v1)));
+		dest->v2 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v2)));
 	}
 
 	mpoly_dst = result->mpoly;
@@ -292,8 +290,6 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	MEM_freeN(vertMap);
 	MEM_freeN(edgeMap);
 	MEM_freeN(faceMap);
-
-	BKE_mesh_tessface_ensure(result);
 
 	/* TODO(sybren): also copy flags & tags? */
 	return result;
