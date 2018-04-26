@@ -4110,6 +4110,7 @@ static void lib_link_material(FileData *fd, Main *main)
 			}
 
 			/* relink grease pencil settings */
+			ma->gpcolor = newdataadr(fd, ma->gpcolor);
 			if (ma->gpcolor != NULL) {
 				GpencilColorData *gpcolor = ma->gpcolor;
 				if (gpcolor->sima != NULL) {
@@ -6334,7 +6335,6 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 	bGPDframe *gpf;
 	bGPDstroke *gps;
 	bGPDspoint *pt;
-	bGPDpalette *palette;
 
 	/* we must firstly have some grease-pencil data to link! */
 	if (gpd == NULL)
@@ -9388,9 +9388,6 @@ static void expand_material(FileData *fd, Main *mainvar, Material *ma)
 	
 	if (ma->nodetree)
 		expand_nodetree(fd, mainvar, ma->nodetree);
-
-	if (ma->gpcolor)
-		expand_doit(fd, mainvar, ma->gpcolor);
 
 }
 

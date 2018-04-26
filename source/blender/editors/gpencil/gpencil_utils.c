@@ -1132,7 +1132,7 @@ void ED_gpencil_add_defaults(bContext *C)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	
 	/* ensure color exist */
-	BKE_gpencil_color_ensure(bmain, ob);
+	//BKE_gpencil_color_ensure(bmain, ob);
 
 	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	/* if not exist, create a new one */

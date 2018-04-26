@@ -50,12 +50,12 @@ typedef struct ColorTemplate {
 } ColorTemplate;
 
 /* Add color an ensure duplications (matched by name) */
-static int gpencil_monkey_color(Main *bmain, Object *ob, ColorTemplate *pct)
+static int gpencil_monkey_color(Main *bmain, Object *ob, const ColorTemplate *pct)
 {
 	Material *ma = NULL;
 	Material ***matar = give_matarar(ob);
 	short *totcol = give_totcolp(ob);
-	for (int i = 0; i < totcol; i++) {
+	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
 		if (STREQ(ma->id.name, pct->name)) {
 			return i;

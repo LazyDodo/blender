@@ -63,7 +63,7 @@ class MATERIAL_PT_gpencil_slots(Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == 'GPENCIL' and context.object.active_material
+        return context.object and context.object.type == 'GPENCIL'
 
     @staticmethod
     def draw(self, context):

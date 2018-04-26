@@ -1087,7 +1087,7 @@ static int gp_stroke_change_color_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	Material *mat = give_current_material(ob, ob->actcol + 1);
+	Material *mat = give_current_material(ob, ob->actcol);
 	int idx = BKE_object_material_slot_find_index(ob, mat) - 1;
 
 	/* sanity checks */
@@ -2046,8 +2046,8 @@ static int gpencil_color_isolate_exec(bContext *C, wmOperator *op)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	Material *active_mat = give_current_material(ob, ob->actcol + 1);
-	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol + 1);
+	Material *active_mat = give_current_material(ob, ob->actcol);
+	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol);
 	GpencilColorData *gpcolor;
 
 	int flags = GPC_COLOR_LOCKED;
@@ -2133,7 +2133,7 @@ void GPENCIL_OT_color_isolate(wmOperatorType *ot)
 static int gpencil_color_hide_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol + 1);
+	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol);
 
 	bool unselected = RNA_boolean_get(op->ptr, "unselected");
 
@@ -2244,7 +2244,7 @@ static int gpencil_color_lock_all_exec(bContext *C, wmOperator *UNUSED(op))
 	for (short i = 0; i < *totcol; i++) {
 		mat = (*matar)[i];
 		gpcolor = mat->gpcolor;
-		gpcolor->flag &= ~GPC_COLOR_LOCKED;
+		gpcolor->flag |= GPC_COLOR_LOCKED;
 	}
 
 	/* notifiers */
@@ -2317,7 +2317,7 @@ static int gpencil_color_select_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol + 1);
+	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
 
 	/* sanity checks */
 	if (ELEM(NULL, gpd, gpcolor))

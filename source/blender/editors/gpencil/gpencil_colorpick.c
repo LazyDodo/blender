@@ -319,10 +319,11 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	ED_region_visible_rect(tgpk->ar, &tgpk->rect);
 
 	/* get current material */
-	tgpk->mat = give_current_material(tgpk->ob, tgpk->ob->actcol + 1);
+	tgpk->mat = give_current_material(tgpk->ob, tgpk->ob->actcol);
 
 	/* allocate color table */
-	tgpk->totcolor = give_totcolp(tgpk->ob);
+	short *totcolp = give_totcolp(tgpk->ob);
+	tgpk->totcolor = *totcolp;
 	tgpk->curindex = tgpk->ob->actcol - 1;
 	if (tgpk->totcolor > 0) {
 		tgpk->colors = MEM_callocN(sizeof(tGPDpickColor) * tgpk->totcolor, "gp_colorpicker");
@@ -387,7 +388,7 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	int t = 0;
 	Material ***matar = give_matarar(tgpk->ob);
 	short *totcol = give_totcolp(tgpk->ob);
-	for (int i = 0; i < totcol; i++) {
+	for (short i = 0; i < *totcol; i++) {
 		Material *tmp = (*matar)[i];
 		GpencilColorData *gpcolor = tmp->gpcolor;
 		

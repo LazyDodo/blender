@@ -1059,7 +1059,7 @@ Material *BKE_gpencil_color_ensure(Main *bmain, Object *ob)
 		assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 	}
 	else {
-		mat = give_current_material(ob, ob->actcol + 1);
+		mat = give_current_material(ob, ob->actcol);
 	}
 
 	return mat;
