@@ -1252,6 +1252,9 @@ static void rna_Fur_guide_curves_apply(ID *id, FurModifierData *fmd, bContext *C
 		DerivedMesh *scalp = mesh_get_derived_final(CTX_data_depsgraph(C), CTX_data_scene(C), (Object*)id, CD_MASK_BAREMESH);
 		BKE_hair_bind_follicles(fmd->hair_system, scalp);
 	}
+	
+	DEG_id_tag_update(id, OB_RECALC_DATA);
+	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, id);
 }
 
 #else
