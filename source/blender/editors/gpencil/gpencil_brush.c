@@ -60,6 +60,7 @@
 #include "BKE_screen.h"
 #include "BKE_object_deform.h"
 #include "BKE_colortools.h"
+#include "BKE_material.h"
 
 #include "UI_interface.h"
 
@@ -1006,6 +1007,7 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 	tGPSB_CloneBrushData *data = gso->customdata;
 	
 	Scene *scene = gso->scene;
+	Object *ob = CTX_data_active_object(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
 	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
 	bGPDstroke *gps;
@@ -1037,7 +1039,14 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 			BLI_addtail(&gpf->strokes, new_stroke);
 			
 			/* Fix color references */
-			/* GPXX */
+			Material *mat = BLI_ghash_lookup(data->new_colors, &new_stroke->mat_nr);
+			if ((mat) && (BKE_object_material_slot_find_index(ob, mat) > 0)) {
+				gps->mat_nr = BKE_object_material_slot_find_index(ob, mat) - 1;
+				CLAMP_MIN(gps->mat_nr, 0);
+			}
+			else {
+				gps->mat_nr = 0; /* only if the color is not found */
+			}
 			
 			/* Adjust all the stroke's points, so that the strokes
 			 * get pasted relative to where the cursor is now

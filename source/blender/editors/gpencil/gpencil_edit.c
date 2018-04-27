@@ -730,46 +730,26 @@ void ED_gpencil_strokes_copybuf_free(void)
  */
 GHash *gp_copybuf_validate_colormap(bContext *C)
 {
-
-/* GPXX */
-	return NULL;
-#if 0
+	Object *ob = CTX_data_active_object(C);
 	GHash *new_colors = BLI_ghash_str_new("GPencil Paste Dst Colors");
 	GHashIterator gh_iter;
 	
-	bGPdata *gpd = CTX_data_gpencil_data(C);
-	bGPDpaletteref *palslot;
-	Palette *palette;
-	
-	/* If there's no active palette yet (i.e. new datablock), add one */
-	palslot = BKE_gpencil_paletteslot_validate(CTX_data_main(C), gpd);
-	palette = palslot->palette;
-	
-	/* For each color, figure out what to map to... */
+	/* For each color, check if exist and add if not */
 	GHASH_ITER(gh_iter, gp_strokes_copypastebuf_colors) {
-		PaletteColor *gpcolor;
-		char *name = BLI_ghashIterator_getKey(&gh_iter);
 		
-		/* Look for existing color to map to */
-		/* XXX: What to do if same name but different color? Behaviour here should depend on a property? */
-		gpcolor = BKE_palette_color_getbyname(palette, name);
-		if (gpcolor == NULL) {
-			/* Doesn't Exist - Create new matching color for this palette */
-			/* XXX: This still doesn't fix the pasting across file boundaries problem... */
-			PaletteColor *src_color = BLI_ghashIterator_getValue(&gh_iter);
-			
-			gpcolor = MEM_dupallocN(src_color);
-			BLI_addtail(&palette->colors, gpcolor);
-			
-			BLI_uniquename(&palette->colors, gpcolor, DATA_("GP Color"), '.', offsetof(PaletteColor, info), sizeof(gpcolor->info));
+		int *key = BLI_ghashIterator_getKey(&gh_iter);
+		Material *mat = BLI_ghashIterator_getValue(&gh_iter);
+		
+		if (BKE_object_material_slot_find_index(ob, mat) == 0) {
+			BKE_object_material_slot_add(ob);
+			assign_material(ob, mat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 		}
-		
-		/* Store this mapping (for use later when pasting) */
-		BLI_ghash_insert(new_colors, name, gpcolor);
-	}
 	
+		/* Store this mapping (for use later when pasting) */
+		BLI_ghash_insert(new_colors, key, mat);
+	}
+
 	return new_colors;
-#endif
 }
 
 /* --------------------- */
@@ -898,13 +878,14 @@ typedef enum eGP_PasteMode {
 static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
+	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C); /* only use active for copy merge */
 	bGPDframe *gpf;
 	
 	eGP_PasteMode type = RNA_enum_get(op->ptr, "type");
 	GHash *new_colors;
-	
+
 	/* check for various error conditions */
 	if (gpd == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data");
@@ -999,12 +980,20 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 				
 				new_stroke->next = new_stroke->prev = NULL;
 				BLI_addtail(&gpf->strokes, new_stroke);
+
+				/* Remap material */
+				Material *mat = BLI_ghash_lookup(new_colors, &new_stroke->mat_nr);
+				if ((mat) && (BKE_object_material_slot_find_index(ob, mat) > 0)) {
+					gps->mat_nr = BKE_object_material_slot_find_index(ob, mat) - 1;
+					CLAMP_MIN(gps->mat_nr, 0);
+				}
+				else {
+					gps->mat_nr = 0; /* only if the color is not found */
+				}
+
 			}
 		}
 	}
-	
-	/* free temp data */
-	BLI_ghash_free(new_colors, NULL, NULL);
 	
 	/* updates */
 	BKE_gpencil_batch_cache_dirty(gpd);

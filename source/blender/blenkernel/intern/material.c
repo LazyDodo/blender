@@ -537,6 +537,10 @@ GpencilColorData *BKE_material_gpencil_settings_get(Object *ob, short act)
 {
 	Material *ma = give_current_material(ob, act);
 	if (ma != NULL) {
+		if (ma->gpcolor == NULL) {
+			BKE_material_init_gpencil_settings(ma);
+		}
+
 		return ma->gpcolor;
 	}
 	else {
