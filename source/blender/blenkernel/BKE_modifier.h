@@ -519,6 +519,10 @@ struct Mesh *modifier_applyModifier(
         struct ModifierData *md, const struct ModifierEvalContext *ctx,
         struct Mesh *mesh);
 
+struct Mesh *modifier_applyModifier_ensure_normals(
+        struct ModifierData *md, const struct ModifierEvalContext *ctx,
+        struct Mesh *mesh);
+
 struct Mesh *modifier_applyModifierEM(
         struct ModifierData *md, const struct ModifierEvalContext *ctx,
         struct BMEditMesh *editData, struct Mesh *mesh);
