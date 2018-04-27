@@ -1054,7 +1054,9 @@ Material *BKE_gpencil_color_ensure(Main *bmain, Object *ob)
 
 	mat = give_current_material(ob, ob->actcol);
 	if (mat == NULL) {
-		BKE_object_material_slot_add(ob);
+		if (ob->totcol == 0) {
+			BKE_object_material_slot_add(ob);
+		}
 		mat = BKE_material_add_gpencil(bmain, DATA_("Material"));
 		assign_material(ob, mat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 	}
