@@ -777,6 +777,7 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 
 static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 {
+	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	
 	if (gpd == NULL) {
@@ -839,23 +840,21 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 	}
 	CTX_DATA_END;
 
-#if 0 /* GPXX */
-	/* Build up hash of colors used in these strokes, making copies of these to protect against dangling pointers */
+	/* Build up hash of material colors used in these strokes */
 	if (gp_strokes_copypastebuf.first) {
 		gp_strokes_copypastebuf_colors = BLI_ghash_str_new("GPencil CopyBuf Colors");
-		
+		Material *mat = NULL;
 		for (bGPDstroke *gps = gp_strokes_copypastebuf.first; gps; gps = gps->next) {
 			if (ED_gpencil_stroke_can_use(C, gps)) {
-				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, gps->colorname) == false)
+				mat = give_current_material(ob, gps->mat_nr + 1);
+				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, &gps->mat_nr) == false)
 				{
-					PaletteColor *gps_palcolor = BKE_palette_color_getbyname(gps->palette, gps->colorname);
-					PaletteColor *color = MEM_dupallocN(gps_palcolor);
-					BLI_ghash_insert(gp_strokes_copypastebuf_colors, gps->colorname, color);
+					BLI_ghash_insert(gp_strokes_copypastebuf_colors, &gps->mat_nr, mat);
 				}
 			}
 		}
 	}
-#endif	
+
 	/* updates (to ensure operator buttons are refreshed, when used via hotkeys) */
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL); // XXX?
 	
