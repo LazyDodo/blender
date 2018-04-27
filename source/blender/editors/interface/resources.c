@@ -2171,10 +2171,6 @@ void init_userdef_do_versions(void)
 				strcpy(km->idname, "Property Editor");
 		}
 	}
-	if (!USER_VERSION_ATLEAST(250, 16)) {
-		if (U.wmdrawmethod == USER_DRAW_TRIPLE)
-			U.wmdrawmethod = USER_DRAW_AUTOMATIC;
-	}
 	
 	if (!USER_VERSION_ATLEAST(252, 3)) {
 		if (U.flag & USER_LMOUSESELECT) 
@@ -2982,6 +2978,27 @@ void init_userdef_do_versions(void)
 			btheme->tui.wcol_list_item.roundness = 0.2f;
 			btheme->tui.wcol_pie_menu.roundness = 0.5f;
 			rgba_char_args_set_fl(btheme->tui.editor_outline, 0.25f, 0.25f, 0.25f, 1.0f);
+		}
+	}
+
+	if (((bTheme *)U.themes.first)->tui.wcol_toolbar_item.text[3] == 0) {
+		struct uiWidgetColors wcol_toolbar_item = {
+			.outline = {0x19, 0x19, 0x19, 0xff},
+			.inner = {0x46, 0x46, 0x46, 0xff},
+			.inner_sel = {0xb4, 0xb4, 0xb4, 0xff},
+			.item = {0x19, 0x19, 0x19, 0xff},
+
+			.text = {0xff, 0xff, 0xff, 0xff},
+			.text_sel = {0x33, 0x33, 0x33, 0xff},
+
+			.shaded = 0,
+			.shadetop = 0,
+			.shadedown = 0,
+			.alpha_check = 0,
+			.roundness = 0.3f,
+		};
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			btheme->tui.wcol_toolbar_item = wcol_toolbar_item;
 		}
 	}
 

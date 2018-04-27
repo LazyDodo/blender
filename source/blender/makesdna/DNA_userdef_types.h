@@ -164,7 +164,7 @@ typedef struct uiGradientColors {
 
 typedef struct ThemeUI {
 	/* Interface Elements (buttons, menus, icons) */
-	uiWidgetColors wcol_regular, wcol_tool, wcol_text;
+	uiWidgetColors wcol_regular, wcol_tool, wcol_toolbar_item, wcol_text;
 	uiWidgetColors wcol_radio, wcol_option, wcol_toggle;
 	uiWidgetColors wcol_num, wcol_numslider, wcol_tab;
 	uiWidgetColors wcol_menu, wcol_pulldown, wcol_menu_back, wcol_menu_item, wcol_tooltip;
@@ -515,9 +515,8 @@ typedef struct UserDef {
 	short tb_leftmouse, tb_rightmouse;
 	struct SolidLight light[3];
 	short manipulator_flag, manipulator_size;
-	int pad6;
+	short pad6[3];
 	short textimeout, texcollectrate;
-	short wmdrawmethod; /* eWM_DrawMethod */
 	short dragthreshold;
 	int memcachelimit;
 	int prefetchframes;
@@ -796,16 +795,6 @@ typedef enum eOpenGL_SelectOptions {
 	USER_SELECT_USE_OCCLUSION_QUERY = 1,
 	USER_SELECT_USE_SELECT_RENDERMODE = 2
 } eOpenGL_SelectOptions;
-
-/* wm draw method.
- * UserDef.wmdrawmethod */
-typedef enum eWM_DrawMethod {
-	USER_DRAW_TRIPLE		= 0,
-	USER_DRAW_OVERLAP		= 1,
-	USER_DRAW_FULL			= 2,
-	USER_DRAW_AUTOMATIC		= 3,
-	USER_DRAW_OVERLAP_FLIP	= 4,
-} eWM_DrawMethod;
 
 /* text draw options
  * UserDef.text_render */

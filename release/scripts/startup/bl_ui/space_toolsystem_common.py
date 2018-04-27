@@ -24,6 +24,7 @@ from bpy.types import (
 
 __all__ = (
     "ToolSelectPanelHelper",
+    "ToolDef",
 )
 
 # Support reloading icons.
@@ -37,6 +38,64 @@ if "_icon_cache" in locals():
 # (filename -> icon_value) map
 _icon_cache = {}
 
+def _keymap_fn_from_seq(keymap_data):
+
+    # standalone
+    def _props_assign_recursive(rna_props, py_props):
+        for prop_id, value in py_props.items():
+            if isinstance(value, dict):
+                _props_assign_recursive(getattr(rna_props, prop_id), value)
+            else:
+                setattr(rna_props, prop_id, value)
+
+    def keymap_fn(km):
+        for op_idname, op_props_dict, kmi_kwargs in keymap_fn.keymap_data:
+            kmi = km.keymap_items.new(op_idname, **kmi_kwargs)
+            kmi_props = kmi.properties
+            if op_props_dict:
+                _props_assign_recursive(kmi.properties, op_props_dict)
+    keymap_fn.keymap_data = keymap_data
+    return keymap_fn
+
+
+class ToolDef:
+    """
+    Tool definition,
+    This class is never instanced, it's used as definition for tool types.
+
+    Since we want to define functions here, it's more convenient to declare class-methods
+    then functions in a dict or tuple.
+    """
+    __slots__ = ()
+
+    def __new__(cls, *args, **kwargs):
+        raise RuntimeError("%s should not be instantiated" % cls)
+
+    def __init_subclass__(cls):
+        # All classes must have a name
+        assert(cls.text is not None)
+        # We must have a key-map or widget (otherwise the tool does nothing!)
+        assert(cls.keymap is not None or cls.widget is not None)
+
+        if type(cls.keymap) is tuple:
+            cls.keymap = _keymap_fn_from_seq(cls.keymap)
+
+
+    # The name to display in the interface.
+    text = None
+    # The name of the icon to use (found in ``release/datafiles/icons``) or None for no icon.
+    icon = None
+    # An optional manipulator group to activate when the tool is set or None for no widget.
+    widget = None
+    # Optional keymap for tool, either:
+    # - A function that populates a keymaps passed in as an argument.
+    # - A tuple filled with triple's of:
+    #   ``(operator_id, operator_properties, keymap_item_args)``.
+    keymap = None
+    # Optional draw settings (operator options, toolsettings).
+    draw_settings = None
+
+
 class ToolSelectPanelHelper:
     """
     Generic Class, can be used for any toolbar.
@@ -48,19 +107,7 @@ class ToolSelectPanelHelper:
     - tools_from_context(context):
       Returns tools available in this context.
 
-    Each tool is a dict:
-      ``(text=tool_name, icon=icon_name, widget=manipulator_group_idname, keymap=keymap_actions)``
-    For a separator in the toolbar, use ``None``.
-
-      Where:
-      ``tool_name``
-        is the name to display in the interface.
-      ``icon_name``
-        is the name of the icon to use (found in ``release/datafiles/icons``).
-      ``manipulator_group_idname``
-        is an optional manipulator group to activate when the tool is set.
-      ``keymap_actions``
-        an optional triple of: ``(operator_id, operator_properties, keymap_item_args)``
+    Each tool is a 'ToolDef' or None for a separator in the toolbar, use ``None``.
     """
 
     @staticmethod
@@ -89,14 +136,10 @@ class ToolSelectPanelHelper:
             return 0
 
     @staticmethod
-    def _tool_is_group(tool):
-        return type(tool) is not dict
-
-    @staticmethod
     def _tools_flatten(tools):
         for item in tools:
             if item is not None:
-                if ToolSelectPanelHelper._tool_is_group(item):
+                if type(item) is tuple:
                     for sub_item in item:
                         if sub_item is not None:
                             yield sub_item
@@ -107,12 +150,11 @@ class ToolSelectPanelHelper:
     def _tool_vars_from_def(cls, item, context_mode):
         # For now be strict about whats in this dict
         # prevent accidental adding unknown keys.
-        assert(len(item) == 4)
-        text = item["text"]
-        icon_name = item["icon"]
-        mp_idname = item["widget"]
-        actions = item["keymap"]
-        if actions is None:
+        text = item.text
+        icon_name = item.icon
+        mp_idname = item.widget
+        keymap_fn = item.keymap
+        if keymap_fn is None:
             km, km_idname = (None, None)
         else:
             km_test = cls._tool_keymap.get((context_mode, text))
@@ -138,15 +180,7 @@ class ToolSelectPanelHelper:
         )
 
     @classmethod
-    def _km_action_simple(cls, kc, context_mode, text, actions):
-
-        # standalone
-        def props_assign_recursive(rna_props, py_props):
-            for prop_id, value in py_props.items():
-                if isinstance(value, dict):
-                    props_assign_recursive(getattr(rna_props, prop_id), value)
-                else:
-                    setattr(rna_props, prop_id, value)
+    def _km_action_simple(cls, kc, context_mode, text, keymap_fn):
 
         if context_mode is None:
             context_mode = "All"
@@ -155,11 +189,7 @@ class ToolSelectPanelHelper:
         if km is not None:
             return km, km_idname
         km = kc.keymaps.new(km_idname, space_type=cls.bl_space_type, region_type='WINDOW')
-        for op_idname, op_props_dict, kmi_kwargs in actions:
-            kmi = km.keymap_items.new(op_idname, **kmi_kwargs)
-            kmi_props = kmi.properties
-            if op_props_dict:
-                props_assign_recursive(kmi.properties, op_props_dict)
+        keymap_fn(km)
         return km, km_idname
 
     @classmethod
@@ -189,14 +219,14 @@ class ToolSelectPanelHelper:
             for item_parent in tools:
                 if item_parent is None:
                     continue
-                for item in item_parent if (cls._tool_is_group(item_parent)) else (item_parent,):
+                for item in item_parent if (type(item_parent) is tuple) else (item_parent,):
                     if item is None:
                         continue
-                    actions = item["keymap"]
-                    if actions is not None:
-                        text = item["text"]
-                        icon_name = item["icon"]
-                        km, km_idname = cls._km_action_simple(kc, context_mode, text, actions)
+                    keymap_data = item.keymap
+                    if keymap_data is not None:
+                        text = item.text
+                        icon_name = item.icon
+                        km, km_idname = cls._km_action_simple(kc, context_mode, text, keymap_data)
                         cls._tool_keymap[context_mode, text] = km, km_idname
 
     def draw(self, context):
@@ -231,7 +261,7 @@ class ToolSelectPanelHelper:
                         col.scale_y = scale_y
                         continue
 
-                    if self._tool_is_group(item):
+                    if type(item) is tuple:
                         is_active = False
                         i = 0
                         for i, sub_item in enumerate(item):
@@ -246,9 +276,9 @@ class ToolSelectPanelHelper:
 
                         if is_active:
                             # not ideal, write this every time :S
-                            self._tool_group_active[item[0]["text"]] = index
+                            self._tool_group_active[item[0].text] = index
                         else:
-                            index = self._tool_group_active.get(item[0]["text"], 0)
+                            index = self._tool_group_active.get(item[0].text, 0)
 
                         item = item[index]
                         use_menu = True
@@ -262,7 +292,7 @@ class ToolSelectPanelHelper:
                     if use_menu:
                         props = col.operator_menu_hold(
                             "wm.tool_set",
-                            text=item["text"] if show_text else "",
+                            text=item.text if show_text else "",
                             depress=is_active,
                             menu="WM_MT_toolsystem_submenu",
                             icon_value=icon_value,
@@ -270,7 +300,7 @@ class ToolSelectPanelHelper:
                     else:
                         props = col.operator(
                             "wm.tool_set",
-                            text=item["text"] if show_text else "",
+                            text=item.text if show_text else "",
                             depress=is_active,
                             icon_value=icon_value,
                         )
@@ -281,6 +311,47 @@ class ToolSelectPanelHelper:
 
     def tools_from_context(cls, context):
         return (cls._tools[None], cls._tools.get(context.mode, ()))
+
+    @staticmethod
+    def _active_tool(context, with_icon=False):
+        """
+        Return the active Python tool definition and icon name.
+        """
+
+        workspace = context.workspace
+        space_type = workspace.tool_space_type
+        cls = next(
+            (cls for cls in ToolSelectPanelHelper.__subclasses__()
+             if cls.bl_space_type == space_type),
+            None
+        )
+        if cls is not None:
+            tool_def_active, index_active = ToolSelectPanelHelper._tool_vars_from_active_with_index(context)
+
+            context_mode = context.mode
+            for tool_items in cls.tools_from_context(context):
+                for item in cls._tools_flatten(tool_items):
+                    tool_def, icon_name = cls._tool_vars_from_def(item, context_mode)
+                    if (tool_def == tool_def_active):
+                        if with_icon:
+                            icon_value = ToolSelectPanelHelper._icon_value_from_icon_handle(icon_name)
+                        else:
+                            icon_value = 0
+                        return (item, icon_value)
+        return None, 0
+
+    @staticmethod
+    def draw_active_tool_header(context, layout):
+        item, icon_value = ToolSelectPanelHelper._active_tool(context, with_icon=True)
+        if item is None:
+            layout.label("No Tool Found")
+            return
+        # Indent until we have better icon scaling.
+        layout.label("      " + item.text, icon_value=icon_value)
+
+        draw_settings = item.draw_settings
+        if draw_settings is not None:
+            draw_settings(context, layout)
 
 
 # The purpose of this menu is to be a generic popup to select between tools
@@ -303,7 +374,7 @@ class WM_MT_toolsystem_submenu(Menu):
 
             for item_items in cls.tools_from_context(context):
                 for item_group in item_items:
-                    if (item_group is not None) and ToolSelectPanelHelper._tool_is_group(item_group):
+                    if type(item_group) is tuple:
                         if index_button < len(item_group):
                             item = item_group[index_button]
                             tool_def, icon_name = cls._tool_vars_from_def(item, context_mode)
@@ -332,7 +403,7 @@ class WM_MT_toolsystem_submenu(Menu):
             icon_value = ToolSelectPanelHelper._icon_value_from_icon_handle(icon_name)
             props = layout.operator(
                 "wm.tool_set",
-                text=item["text"],
+                text=item.text,
                 icon_value=icon_value,
             )
             props.keymap = tool_def[0] or ""
