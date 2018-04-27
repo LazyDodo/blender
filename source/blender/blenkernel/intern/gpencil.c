@@ -265,13 +265,13 @@ void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 	}
 	BKE_gpencil_free_layers(&gpd->layers);
 
+	/* materials */
+	MEM_SAFE_FREE(gpd->mat);
+
 	/* free all data */
 	if (free_all) {
 		/* clear cache */
 		BKE_gpencil_batch_cache_free(gpd);
-
-		/* materials */
-		MEM_SAFE_FREE(gpd->mat);
 
 		/* free palettes (deprecated) */
 		BKE_gpencil_free_palettes(&gpd->palettes);
@@ -679,6 +679,11 @@ void BKE_gpencil_copy_data(Main *UNUSED(bmain), bGPdata *gpd_dst, const bGPdata 
 {
 	/* cache data is not duplicated */
 	gpd_dst->batch_cache_data = NULL;
+
+	/* duplicate material array */
+	if (gpd_src->mat) {
+		gpd_dst->mat = MEM_dupallocN(gpd_src->mat);
+	}
 
 	/* copy layers */
 	BLI_listbase_clear(&gpd_dst->layers);
