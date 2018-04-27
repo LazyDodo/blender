@@ -1789,6 +1789,7 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 		r_center[2] = 0.0f;
 	}
 	else if (t->options & CTX_GPENCIL_STROKES) {
+		/* TODO: GPXX (segment fault in some situations, maybe related to new multiedit) */
 		/* move cursor in local space */
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			Object *ob = tc->obedit;
