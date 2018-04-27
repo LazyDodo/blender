@@ -6334,6 +6334,7 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 	bGPDframe *gpf;
 	bGPDstroke *gps;
 	bGPDspoint *pt;
+	bGPDpalette *palette;
 
 	/* we must firstly have some grease-pencil data to link! */
 	if (gpd == NULL)
@@ -6342,6 +6343,14 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 	/* relink animdata */
 	gpd->adt = newdataadr(fd, gpd->adt);
 	direct_link_animdata(fd, gpd->adt);
+
+	/* relink palettes (old palettes deprecated, only to convert old files) */
+	link_list(fd, &gpd->palettes);
+	if (gpd->palettes.first != NULL) {
+		for (palette = gpd->palettes.first; palette; palette = palette->next) {
+			link_list(fd, &palette->colors);
+		}
+	}
 
 	/* clear drawing cache */
 	gpd->batch_cache_data = NULL;

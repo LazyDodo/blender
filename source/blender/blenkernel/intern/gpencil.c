@@ -1043,7 +1043,11 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 
 Material *BKE_gpencil_get_color_from_brush(Brush *brush)
 {
-	Material *mat = brush->material;
+	Material *mat = NULL;
+		
+	if ((brush != NULL) && (brush->material != NULL)) {
+		brush->material;
+	}
 
 	return mat;
 }
