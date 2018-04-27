@@ -2484,10 +2484,7 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 						
 						/* if new, set current color */
 						if (type == GP_STROKE_JOINCOPY) {
-							/* GPXX */
-#if 0
-							BLI_strncpy(new_stroke->colorname, gpcolor->info, sizeof(new_stroke->colorname));
-#endif
+							new_stroke->mat_nr = stroke_a->mat_nr;
 						}
 					}
 					

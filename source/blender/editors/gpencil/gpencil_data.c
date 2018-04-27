@@ -1823,6 +1823,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 	}
 
 	gpd_dst = obact->data;
+	Object *ob_dst = obact;
 
 	/* loop and join all data */
 	CTX_DATA_BEGIN(C, Base *, base, selected_editable_bases)
@@ -1830,6 +1831,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 		if ((base->object->type == OB_GPENCIL) && (base->object != obact)) {
 			/* we assume that each datablock is not already used in active object */
 			if (obact->data != base->object->data) {
+				Object *ob_src = base->object;
 				bGPdata *gpd_src = base->object->data;
 
 				/* Apply all GP modifiers before */
@@ -1866,15 +1868,18 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				if (obact->defbase.first && obact->actdef == 0)
 					obact->actdef = 1;
 
-				/* add missing materials */
-#if 0 /* GPXX */
-				bGPDpaletteref *palslot;
-				for (palslot = gpd_src->palette_slots.first; palslot; palslot = palslot->next) {
-					if (BKE_gpencil_paletteslot_find(gpd_dst, palslot->palette) == NULL) {
-						BKE_gpencil_paletteslot_add(gpd_dst, palslot->palette);
+				/* add missing materials reading source materials and checking in destination object */
+				Material ***matar = give_matarar(ob_src);
+				short *totcol = give_totcolp(ob_src);
+
+				for (short i = 0; i < *totcol; i++) {
+					Material *tmp_mat = (*matar)[i];
+					if (BKE_object_material_slot_find_index(ob_dst, tmp_mat) == 0) {
+						BKE_object_material_slot_add(ob_dst);
+						assign_material(ob_dst, tmp_mat, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
 					}
 				}
-#endif
+
 				/* duplicate bGPDlayers  */
 				tJoinGPencil_AdtFixData afd = {0};
 				afd.src_gpd = gpd_src;
@@ -1901,8 +1906,26 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 					ED_gpencil_parent_location(base->object, gpd_src, gpl_src, diff_mat);
 					invert_m4_m4(inverse_diff_mat, diff_mat);
 
+					Material *ma_src = NULL;
+					int idx;
 					for (bGPDframe *gpf = gpl_new->frames.first; gpf; gpf = gpf->next) {
 						for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+
+							/* reasign material. Look old material and try to find in dst */
+							ma_src = give_current_material(ob_src, gps->mat_nr - 1);
+							if (ma_src != NULL) {
+								idx = BKE_object_material_slot_find_index(ob_dst, ma_src);
+								if (idx > 0) {
+									gps->mat_nr = idx - 1;
+								}
+								else {
+									gps->mat_nr = 0;
+								}
+							}
+							else { 
+								gps->mat_nr = 0;
+							}
+
 							bGPDspoint *pt;
 							int i;
 							for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
