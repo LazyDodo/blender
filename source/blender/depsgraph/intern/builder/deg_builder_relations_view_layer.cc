@@ -104,12 +104,6 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 	if (scene->gpd != NULL) {
 		build_gpencil(scene->gpd);
 	}
-
-	/* Palettes. */
-	LISTBASE_FOREACH (Palette *, palette, &bmain_->palettes) {
-		build_palette(palette);
-	}
-
 	/* Masks. */
 	LISTBASE_FOREACH (Mask *, mask, &bmain_->mask) {
 		build_mask(mask);

@@ -200,7 +200,6 @@ struct DepsgraphNodeBuilder {
 	void build_world(World *world);
 	void build_compositor(Scene *scene);
 	void build_gpencil(bGPdata *gpd);
-	void build_palette(Palette *palette);
 	void build_cachefile(CacheFile *cache_file);
 	void build_mask(Mask *mask);
 	void build_movieclip(MovieClip *clip);

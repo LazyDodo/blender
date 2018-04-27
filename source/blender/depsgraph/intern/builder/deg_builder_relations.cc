@@ -1945,12 +1945,6 @@ void DepsgraphRelationBuilder::build_gpencil(bGPdata *gpd)
 	// TODO: parent object (when that feature is implemented)
 }
 
-void DepsgraphRelationBuilder::build_palette(Palette *palette)
-{
-	/* animation */
-	build_animdata(&palette->id);
-}
-
 void DepsgraphRelationBuilder::build_cachefile(CacheFile *cache_file) {
 	/* Animation. */
 	build_animdata(&cache_file->id);

@@ -123,12 +123,6 @@ void DepsgraphNodeBuilder::build_view_layer(
 	if (scene->gpd != NULL) {
 		build_gpencil(scene->gpd);
 	}
-
-	/* Palettes. */
-	LISTBASE_FOREACH (Palette *, palette, &bmain_->palettes) {
-		build_palette(palette);
-	}
-
 	/* Cache file. */
 	LISTBASE_FOREACH (CacheFile *, cachefile, &bmain_->cachefiles) {
 		build_cachefile(cachefile);
