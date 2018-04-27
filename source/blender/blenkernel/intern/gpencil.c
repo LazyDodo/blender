@@ -259,9 +259,6 @@ void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 	/* clear animation data */
 	BKE_animdata_free(&gpd->id, false);
 
-	/* materials */
-	MEM_SAFE_FREE(gpd->mat);
-
 	/* free layers */
 	if (free_all) {
 		BKE_gpencil_free_layers_temp_data(&gpd->layers);
@@ -272,7 +269,10 @@ void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 	if (free_all) {
 		/* clear cache */
 		BKE_gpencil_batch_cache_free(gpd);
-		
+
+		/* materials */
+		MEM_SAFE_FREE(gpd->mat);
+
 		/* free palettes (deprecated) */
 		BKE_gpencil_free_palettes(&gpd->palettes);
 	}
@@ -1053,12 +1053,12 @@ Material *BKE_gpencil_color_ensure(Main *bmain, Object *ob)
 		return NULL;
 
 	mat = give_current_material(ob, ob->actcol);
-	if ((mat == NULL) || (mat->gpcolor == NULL)) {
+	if (mat == NULL) {
 		BKE_object_material_slot_add(ob);
 		mat = BKE_material_add_gpencil(bmain, DATA_("Material"));
 		assign_material(ob, mat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 	}
-	else if ((mat != NULL) && (mat->gpcolor == NULL)) {
+	else if (mat->gpcolor == NULL) {
 			BKE_material_init_gpencil_settings(mat);
 	}
 
