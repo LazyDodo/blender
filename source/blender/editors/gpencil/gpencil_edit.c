@@ -701,11 +701,11 @@ void ED_gpencil_strokes_copybuf_free(void)
 {
 	bGPDstroke *gps, *gpsn;
 	
-	/* Free the palettes buffer
-	 * NOTE: This is done before the strokes so that the name ptrs (keys) are still safe
+	/* Free the colors buffer
+	 * NOTE: This is done before the strokes so that the ptrs are still safe
 	 */
 	if (gp_strokes_copypastebuf_colors) {
-		BLI_ghash_free(gp_strokes_copypastebuf_colors, NULL, MEM_freeN);
+		BLI_ghash_free(gp_strokes_copypastebuf_colors, NULL, NULL);
 		gp_strokes_copypastebuf_colors = NULL;
 	}
 	
@@ -994,7 +994,10 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 			}
 		}
 	}
-	
+
+	/* free temp data */
+	BLI_ghash_free(new_colors, NULL, NULL);
+
 	/* updates */
 	BKE_gpencil_batch_cache_dirty(gpd);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
