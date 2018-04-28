@@ -519,16 +519,19 @@ struct uiKeyNavLock {
 };
 
 typedef uiBlock * (*uiBlockHandleCreateFunc)(struct bContext *C, struct uiPopupBlockHandle *handle, void *arg1);
+typedef void (*uiBlockHandleFreeFunc)(struct uiPopupBlockHandle *handle, void *arg1);
 
 struct uiPopupBlockCreate {
-	uiBlockCreateFunc              create_func;
+	uiBlockCreateFunc       create_func;
 	uiBlockHandleCreateFunc handle_create_func;
+	uiBlockHandleFreeFunc   free_func;
 	void *arg;
 
 	int event_xy[2];
 
 	/* when popup is initialized from a button */
 	ARegion *butregion;
+	uiBut *but;
 };
 
 struct uiPopupBlockHandle {
@@ -714,7 +717,11 @@ typedef struct uiWidgetBaseParameters {
 	float color_tria[4];
 	float tria1_center[2], tria2_center[2];
 	float tria1_size, tria2_size;
-	float shade_dir, do_alpha_check;
+	float shade_dir;
+	/* We pack alpha check and discard factor in alpha_discard.
+	 * If the value is negative then we do alpha check.
+	 * The absolute value itself is the discard factor. */
+	float alpha_discard;
 } uiWidgetBaseParameters;
 
 enum {

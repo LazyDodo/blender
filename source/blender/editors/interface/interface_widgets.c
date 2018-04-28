@@ -579,6 +579,7 @@ static void widget_init(uiWidgetBase *wtb)
 	wtb->draw_emboss = true;
 
 	wtb->uniform_params.shade_dir = 1.0f;
+	wtb->uniform_params.alpha_discard = 1.0f;
 }
 
 /* helper call, makes shadow rect, with 'sun' above menu, so only shadow to left/right/bottom */
@@ -913,17 +914,6 @@ static void shape_preset_init_scroll_circle(uiWidgetTrias *tria, const rcti *rec
 	        g_shape_preset_scroll_circle_face, ARRAY_SIZE(g_shape_preset_scroll_circle_face));
 }
 
-static void shape_preset_draw_trias_aa(uiWidgetTrias *tria, uint pos)
-{
-	for (int k = 0; k < WIDGET_AA_JITTER; k++) {
-		for (int i = 0; i < tria->tot; ++i)
-			for (int j = 0; j < 3; ++j)
-				immVertex2f(pos,
-				            tria->vec[tria->index[i][j]][0] + jit[k][0],
-				            tria->vec[tria->index[i][j]][1] + jit[k][1]);
-	}
-}
-
 static void widget_draw_vertex_buffer(unsigned int pos, unsigned int col, int mode,
                                       const float quads_pos[WIDGET_SIZE_MAX][2],
                                       const unsigned char quads_col[WIDGET_SIZE_MAX][4],
@@ -1025,6 +1015,35 @@ static void widgetbase_outline(uiWidgetBase *wtb, unsigned int pos)
 	widget_draw_vertex_buffer(pos, 0, GL_TRIANGLE_STRIP, triangle_strip, NULL, wtb->totvert * 2 + 2);
 }
 
+static void widgetbase_set_uniform_alpha_discard(
+        uiWidgetBase *wtb,
+        const bool alpha_check,
+        const float discard_factor)
+{
+	if (alpha_check) {
+		wtb->uniform_params.alpha_discard = -discard_factor;
+	}
+	else {
+		wtb->uniform_params.alpha_discard = discard_factor;
+	}
+}
+
+static void widgetbase_set_uniform_alpha_check(
+        uiWidgetBase *wtb,
+        const bool alpha_check)
+{
+	const float discard_factor = fabs(wtb->uniform_params.alpha_discard);
+	widgetbase_set_uniform_alpha_discard(wtb, alpha_check, discard_factor);
+}
+
+static void widgetbase_set_uniform_discard_factor(
+        uiWidgetBase *wtb,
+        const float discard_factor)
+{
+	bool alpha_check = wtb->uniform_params.alpha_discard < 0.0f;
+	widgetbase_set_uniform_alpha_discard(wtb, alpha_check, discard_factor);
+}
+
 static void widgetbase_set_uniform_colors_ubv(
         uiWidgetBase *wtb,
         const unsigned char *col1, const unsigned char *col2,
@@ -1033,7 +1052,7 @@ static void widgetbase_set_uniform_colors_ubv(
         const unsigned char *tria,
         const bool alpha_check)
 {
-	wtb->uniform_params.do_alpha_check = (float)alpha_check;
+	widgetbase_set_uniform_alpha_check(wtb, alpha_check);
 	rgba_float_args_set_ch(wtb->uniform_params.color_inner1, col1[0], col1[1], col1[2], col1[3]);
 	rgba_float_args_set_ch(wtb->uniform_params.color_inner2, col2[0], col2[1], col2[2], col2[3]);
 	rgba_float_args_set_ch(wtb->uniform_params.color_outline, outline[0], outline[1], outline[2], outline[3]);
@@ -1043,6 +1062,7 @@ static void widgetbase_set_uniform_colors_ubv(
 
 /* keep in sync with shader */
 #define MAX_WIDGET_BASE_BATCH 6
+#define MAX_WIDGET_PARAMETERS 11
 
 struct {
 	Gwn_Batch *batch; /* Batch type */
@@ -1062,13 +1082,14 @@ void UI_widgetbase_draw_cache_flush(void)
 	if (g_widget_base_batch.count == 1) {
 		/* draw single */
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_BASE);
-		GWN_batch_uniform_4fv_array(batch, "parameters", 11, (float *)g_widget_base_batch.params);
+		GWN_batch_uniform_4fv_array(batch, "parameters", MAX_WIDGET_PARAMETERS, (float *)g_widget_base_batch.params);
 		GWN_batch_uniform_3fv(batch, "checkerColorAndSize", checker_params);
 		GWN_batch_draw(batch);
 	}
 	else {
 		GWN_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_BASE_INST);
-		GWN_batch_uniform_4fv_array(batch, "parameters", 11 * MAX_WIDGET_BASE_BATCH, (float *)g_widget_base_batch.params);
+		GWN_batch_uniform_4fv_array(batch, "parameters", MAX_WIDGET_PARAMETERS * MAX_WIDGET_BASE_BATCH,
+		                            (float *)g_widget_base_batch.params);
 		GWN_batch_uniform_3fv(batch, "checkerColorAndSize", checker_params);
 		gpuBindMatrices(batch->interface);
 		GWN_batch_draw_range_ex(batch, 0, g_widget_base_batch.count, true);
@@ -1192,32 +1213,6 @@ static void widgetbase_draw(uiWidgetBase *wtb, uiWidgetColors *wcol)
 		draw_widgetbase_batch(roundbox_batch, wtb);
 	}
 
-	/* DEPRECATED: should be removed at some point. */
-	if ((wtb->tria1.type == ROUNDBOX_TRIA_NONE) &&
-	    (wtb->tria1.tot || wtb->tria2.tot))
-	{
-		const unsigned char tcol[4] = {wcol->item[0],
-		                               wcol->item[1],
-		                               wcol->item[2],
-		                               (unsigned char)((float)wcol->item[3] / WIDGET_AA_JITTER)};
-
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
-		immUniformColor4ubv(tcol);
-
-		/* for each AA step */
-		immBegin(GWN_PRIM_TRIS, (wtb->tria1.tot + wtb->tria2.tot) * 3 * WIDGET_AA_JITTER);
-		if (wtb->tria1.tot) {
-			shape_preset_draw_trias_aa(&wtb->tria1, pos);
-		}
-		if (wtb->tria2.tot) {
-			shape_preset_draw_trias_aa(&wtb->tria2, pos);
-		}
-		immEnd();
-
-		immUnbindProgram();
-	}
-
 	glDisable(GL_BLEND);
 }
 
@@ -1327,7 +1322,8 @@ static void widget_draw_icon_ex(
 			UI_icon_draw_aspect(xs, ys, icon, aspect, alpha);
 		}
 		else {
-			UI_icon_draw_desaturate(xs, ys, icon, aspect, alpha);
+			const bTheme *btheme = UI_GetTheme();
+			UI_icon_draw_desaturate(xs, ys, icon, aspect, alpha, 1.0 - btheme->tui.icon_saturation);
 		}
 	}
 
@@ -3360,7 +3356,7 @@ static void widget_numbut_draw(uiWidgetColors *wcol, rcti *rect, int state, int 
 
 		wcol_zone = *wcol;
 		copy_v3_v3_char(wcol_zone.item, wcol->text);
-		if (!(state & (UI_STATE_ACTIVE_LEFT|UI_STATE_ACTIVE_RIGHT))) {
+		if (!(state & (UI_STATE_ACTIVE_LEFT | UI_STATE_ACTIVE_RIGHT))) {
 			widget_active_color(wcol_zone.inner);
 		}
 
@@ -3578,74 +3574,80 @@ static void widget_numslider(uiBut *but, uiWidgetColors *wcol, rcti *rect, int s
 {
 	uiWidgetBase wtb, wtb1;
 	rcti rect1;
-	double value;
-	float offs, toffs, fac = 0;
+	float offs, toffs;
 	char outline[3];
 
 	widget_init(&wtb);
 	widget_init(&wtb1);
-	
-	/* backdrop first */
-	
+
+	/* Backdrop first. */
 	offs = wcol->roundness * BLI_rcti_size_y(rect);
 	toffs = offs * 0.75f;
 	round_box_edges(&wtb, roundboxalign, rect, offs);
 
 	wtb.draw_outline = false;
 	widgetbase_draw(&wtb, wcol);
-	
-	/* draw left/right parts only when not in text editing */
+
+	/* Draw slider part only when not in text editing. */
 	if (!(state & UI_STATE_TEXT_INPUT)) {
-		int roundboxalign_slider;
-		
-		/* slider part */
+		int roundboxalign_slider = roundboxalign;
+
 		copy_v3_v3_char(outline, wcol->outline);
 		copy_v3_v3_char(wcol->outline, wcol->item);
 		copy_v3_v3_char(wcol->inner, wcol->item);
 
-		if (!(state & UI_SELECT))
+		if (!(state & UI_SELECT)) {
 			SWAP(short, wcol->shadetop, wcol->shadedown);
-		
-		rect1 = *rect;
-		
-		value = ui_but_value_get(but);
-		if ((but->softmax - but->softmin) > 0) {
-			fac = ((float)value - but->softmin) * (BLI_rcti_size_x(&rect1) - offs) / (but->softmax - but->softmin);
 		}
-		
-		/* left part of slider, always rounded */
-		rect1.xmax = rect1.xmin + ceil(offs + U.pixelsize);
-		round_box_edges(&wtb1, roundboxalign & ~(UI_CNR_TOP_RIGHT | UI_CNR_BOTTOM_RIGHT), &rect1, offs);
-		wtb1.draw_outline = false;
-		widgetbase_draw(&wtb1, wcol);
-		
-		/* right part of slider, interpolate roundness */
-		rect1.xmax = rect1.xmin + fac + offs;
-		rect1.xmin +=  floor(offs - U.pixelsize);
-		
-		if (rect1.xmax + offs > rect->xmax) {
-			roundboxalign_slider = roundboxalign & ~(UI_CNR_TOP_LEFT | UI_CNR_BOTTOM_LEFT);
-			offs *= (rect1.xmax + offs - rect->xmax) / offs;
+
+		rect1 = *rect;
+		float factor, factor_ui;
+		float factor_discard = 1.0f; /* No discard. */
+		float value = (float)ui_but_value_get(but);
+
+		if (but->rnaprop && (RNA_property_subtype(but->rnaprop) == PROP_PERCENTAGE)) {
+			factor = value / but->softmax;
 		}
 		else {
-			roundboxalign_slider = 0;
-			offs = 0.0f;
+			factor = (value - but->softmin) / (but->softmax - but->softmin);
 		}
+
+		factor_ui = factor * (float)BLI_rcti_size_x(rect);
+
+		if (factor_ui <= offs) {
+			/* Left part only. */
+			roundboxalign_slider &= ~(UI_CNR_TOP_RIGHT | UI_CNR_BOTTOM_RIGHT);
+			rect1.xmax = rect1.xmin + offs;
+			factor_discard = factor_ui / offs;
+		}
+		else if (factor_ui <= rect->xmax - offs) {
+			/* Left part + middle part. */
+			roundboxalign_slider &= ~(UI_CNR_TOP_RIGHT | UI_CNR_BOTTOM_RIGHT);
+			rect1.xmax = rect1.xmin + factor_ui;
+		}
+		else {
+			/* Left part + middle part + right part. */
+			factor_discard = factor;
+		}
+
 		round_box_edges(&wtb1, roundboxalign_slider, &rect1, offs);
-		
+		wtb1.draw_outline = false;
+		widgetbase_set_uniform_discard_factor(&wtb1, factor_discard);
 		widgetbase_draw(&wtb1, wcol);
+
 		copy_v3_v3_char(wcol->outline, outline);
-		
-		if (!(state & UI_SELECT))
+
+		if (!(state & UI_SELECT)) {
 			SWAP(short, wcol->shadetop, wcol->shadedown);
+		}
 	}
-	
-	/* outline */
+
+	/* Outline. */
 	wtb.draw_outline = true;
 	wtb.draw_inner = false;
 	widgetbase_draw(&wtb, wcol);
 
-	/* add space at either side of the button so text aligns with numbuttons (which have arrow icons) */
+	/* Add space at either side of the button so text aligns with numbuttons (which have arrow icons). */
 	if (!(state & UI_STATE_TEXT_INPUT)) {
 		rect->xmax -= toffs;
 		rect->xmin += toffs;

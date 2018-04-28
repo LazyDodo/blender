@@ -225,7 +225,7 @@ enum {
 	UI_BUT_BOX_ITEM          = (1 << 20), /* This but is "inside" a box item (currently used to change theme colors). */
 
 	UI_BUT_ACTIVE_LEFT       = (1 << 21), /* Active left part of number button */
-	UI_BUT_ACTIVE_RIGHT      = (1 << 22), /* Active left part of number button */
+	UI_BUT_ACTIVE_RIGHT      = (1 << 22), /* Active right part of number button */
 };
 
 /* scale fixed button widths by this to account for DPI */
@@ -422,10 +422,7 @@ void UI_popup_menu_but_set(uiPopupMenu *pup, struct ARegion *butregion, uiBut *b
 
 typedef struct uiPopover uiPopover;
 
-uiPopover *UI_popover_begin(
-        struct bContext *C) ATTR_NONNULL();
-uiPopover *UI_popover_begin_ex(
-        struct bContext *C, const char *block_name) ATTR_NONNULL();
+uiPopover *UI_popover_begin(struct bContext *C) ATTR_NONNULL();
 void UI_popover_end(struct bContext *C, struct uiPopover *head);
 struct uiLayout *UI_popover_layout(uiPopover *head);
 

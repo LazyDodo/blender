@@ -347,11 +347,11 @@ void initMouseInputMode(TransInfo *t, MouseInput *mi, MouseInputMode mode)
 	/* setup for the mouse cursor: either set a custom one,
 	 * or hide it if it will be drawn with the helpline */
 	wmWindow *win = CTX_wm_window(t->context);
-	switch(t->helpline) {
+	switch (t->helpline) {
 		case HLP_NONE:
 			/* INPUT_VECTOR, INPUT_CUSTOM_RATIO, INPUT_CUSTOM_RATIO_FLIP */
 			if (t->flag & T_MODAL) {
-				WM_cursor_set(win, BC_HANDCURSOR);
+				WM_cursor_set(win, BC_NSEW_SCROLLCURSOR);
 			}
 			break;
 		case HLP_SPRING:
