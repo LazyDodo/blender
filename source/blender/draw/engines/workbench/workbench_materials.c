@@ -315,7 +315,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
 			DRW_shgroup_stencil_mask(grp, 0x01);
 			wpd->shadow_shgrp = grp;
-			DRW_shgroup_call_add(grp, DRW_cache_quad_get(), NULL);
+			// DRW_shgroup_call_add(grp, DRW_cache_quad_get(), NULL);
 
 			psl->composite_shadow_pass = DRW_pass_create("Composite Shadow", DRW_STATE_WRITE_COLOR | DRW_STATE_STENCIL_EQUAL);
 			grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_shadow_pass);
@@ -419,7 +419,10 @@ void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob
 		}
 
 		if (SHADOW_ENABLED(wpd)) {
-			/* TODO: DRW_shgroup_call_object_add(wpd->shadow_shgrp, DRW_cache_sphere_get(), ob); */
+			struct Gwn_Batch *geom_shadow = DRW_cache_mesh_wire_outline_get(ob);
+			if (geom_shadow) {
+				DRW_shgroup_call_object_add(wpd->shadow_shgrp, geom_shadow, ob);
+			}
 		}	
 	}
 }
