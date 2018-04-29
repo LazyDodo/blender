@@ -689,7 +689,7 @@ void GPENCIL_OT_duplicate(wmOperatorType *ot)
 /* NOTE: is exposed within the editors/gpencil module so that other tools can use it too */
 ListBase gp_strokes_copypastebuf = {NULL, NULL};
 
-/* Hash for hanging on to all the palette colors used by strokes in the buffer
+/* Hash for hanging on to all the colors used by strokes in the buffer
  *
  * This is needed to prevent dangling and unsafe pointers when pasting across datablocks,
  * or after a color used by a stroke in the buffer gets deleted (via user action or undo).
@@ -3026,7 +3026,7 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 	base_new = ED_object_add_duplicate(bmain, scene, view_layer, base_old, 0);
 	ob_dst = base_new->object;
 
-	/* create new grease pencil datablock and copy paletteslots */
+	/* create new grease pencil datablock */
 	// XXX: check usercounts
 	gpd_dst = BKE_gpencil_data_addnew(bmain, "GPencil");
 	ob_dst->data = (bGPdata *)gpd_dst;

@@ -88,7 +88,7 @@ typedef struct tGPDpickColor {
 	char name[64];   /* color name. Must be unique. */
 	rcti full_rect;  /* full size of region occupied by color box (for event/highlight handling) */
 	rcti rect;       /* box position */
-	int index;       /* index of color in palette */
+	int index;       /* index of color in material slots */
 	float rgba[4];   /* color */
 	float fill[4];   /* fill color */
 	bool fillmode;   /* flag fill is not enabled */
@@ -114,7 +114,7 @@ typedef struct tGPDpick {
 
 	int totcolor;                       /* number of colors */
 	int curindex;                       /* index of color under cursor */
-	tGPDpickColor *colors;              /* colors of palette */
+	tGPDpickColor *colors;              /* colors of object */
 
 	void *draw_handle_3d;               /* handle for drawing strokes while operator is running */
 } tGPDpick;
@@ -163,7 +163,7 @@ static void gp_draw_pattern_box(int xmin, int ymin, int xmax, int ymax)
 	immUnbindProgram();
 }
 
-/* draw a toolbar with all colors of the palette */
+/* draw a toolbar with all colors of the object */
 static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 {
 	if (!tgpk->mat) {

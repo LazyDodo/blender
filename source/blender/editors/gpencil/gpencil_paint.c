@@ -1554,7 +1554,7 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 }
 
 
-/* initialize a paint palette brush and a default color if not exist */
+/* initialize a paint brush and a default color if not exist */
 static void gp_init_colors(tGPsdata *p)
 {
 	bGPdata *gpd = p->gpd;
@@ -1566,8 +1566,8 @@ static void gp_init_colors(tGPsdata *p)
 	/* if the brush has a material defined, use this one and not current defaults */
 	mat = BKE_gpencil_get_color_from_brush(brush);
 
-	/* if no brush defaults, get color info
-	 * NOTE: _validate() ensures that everything we need will exist...
+	/* if no brush defaults, get material and color info
+	 * NOTE: Ensures that everything we need will exist...
 	 */
 	if ((mat == NULL) || (mat->gpcolor == NULL)){
 		p->material = BKE_gpencil_color_ensure(p->bmain, p->ob);
@@ -1575,7 +1575,7 @@ static void gp_init_colors(tGPsdata *p)
 	else {
 		p->material = mat;
 	}
-	/* assign color to temp tGPsdata */
+	/* assign color information to temp tGPsdata */
 	gpcolor = p->material->gpcolor;
 	if (gpcolor) {
 		
@@ -1672,7 +1672,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 					}
 				}
 				else {
-					/* create new default */
+					/* create new default object */
 					obact = ED_add_gpencil_object(C, p->scene, cur);
 					p->scene->gp_object = obact;
 				}
@@ -1801,15 +1801,15 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 	/* set brush and create a new one if null */
 	gp_init_drawing_brush(C, p);
 
-	/* setup active palette */
+	/* setup active color */
 	if (curarea->spacetype == SPACE_VIEW3D) {
-		/* NOTE: This is only done for 3D view, as Palettes aren't used for
+		/* NOTE: This is only done for 3D view, as Materials aren't used for
 		 *       annotations in 2D editors
 		 */
 		gp_init_colors(p);
 	}
 	else {
-		#if 1 /* XXX: Temporary hack only - Palettes won't be used here in future... */
+		#if 1 /* XXX: Temporary hack only - Materials won't be used here in future... */
 			gp_init_colors(p);
 		#endif
 	}

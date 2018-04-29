@@ -1070,7 +1070,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			/* 3D Fill */
 			//if ((dflag & GP_DRAWDATA_FILL) && (gps->totpoints >= 3)) {
 			if ((gps->totpoints >= 3) && (tgpw->disable_fill != 1)) {
-				/* set color using palette, tint color and opacity */
+				/* set color using material, tint color and opacity */
 				interp_v3_v3v3(tfill, gpcolor->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
 				tfill[3] = gpcolor->fill[3] * tgpw->opacity;
 				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0)) {
@@ -1092,7 +1092,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			}
 
 			/* 3D Stroke */
-			/* set color using palette, tint color and opacity */
+			/* set color using material tint color and opacity */
 			if (!tgpw->onion) {
 				interp_v3_v3v3(tcolor, gpcolor->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
 				tcolor[3] = gpcolor->rgb[3] * tgpw->opacity;
@@ -1137,7 +1137,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 		else {
 			/* 2D - Fill */
 			if (gps->totpoints >= 3) {
-				/* set color using palette, tint color and opacity */
+				/* set color using material, tint color and opacity */
 				interp_v3_v3v3(tfill, gpcolor->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
 				tfill[3] = gpcolor->fill[3] * tgpw->opacity;
 				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0)) {
@@ -1160,7 +1160,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			}
 
 			/* 2D Strokes... */
-			/* set color using palette, tint color and opacity */
+			/* set color using material, tint color and opacity */
 			if (!tgpw->onion) {
 				interp_v3_v3v3(tcolor, gpcolor->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
 				tcolor[3] = gpcolor->rgb[3] * tgpw->opacity;
@@ -1237,7 +1237,7 @@ static void gp_draw_strokes_edit(
 		if ((gps->flag & GP_STROKE_SELECT) == 0)
 			continue;
 
-		/* verify palette color lock */
+		/* verify color lock */
 		{
 			Material *material = gpd->mat[gps->mat_nr];
 			GpencilColorData *gpcolor = material->gpcolor;
@@ -1268,7 +1268,7 @@ static void gp_draw_strokes_edit(
 		}
 
 		/* for now, we assume that the base color of the points is not too close to the real color */
-		/* set color using palette */
+		/* set color using material */
 		Material *material = gpd->mat[gps->mat_nr];
 		GpencilColorData *gpcolor = material->gpcolor;
 

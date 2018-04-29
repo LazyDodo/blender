@@ -2151,7 +2151,7 @@ void GPENCIL_OT_color_isolate(wmOperatorType *ot)
 		"the editability, also affect the visibility");
 }
 
-/* *********************** Hide Palette colors ******************************** */
+/* *********************** Hide colors ******************************** */
 
 static int gpencil_color_hide_exec(bContext *C, wmOperator *op)
 {
@@ -2393,7 +2393,7 @@ void GPENCIL_OT_color_select(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/* ***************** Choose Palette color by index ************************ */
+/* ***************** Choose color by index ************************ */
 static int gpencil_color_choose_exec(bContext *C, wmOperator *op)
 {
 	const int index = RNA_int_get(op->ptr, "index");
