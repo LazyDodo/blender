@@ -400,10 +400,7 @@ static void gp_select_same_layer(bContext *C)
 /* Select all strokes with same colors as selected ones */
 static void gp_select_same_color(bContext *C)
 {
-	/* First, build set containing all the colors of selected strokes
-	 * - We use the palette names, so that we can select all strokes with one 
-	 *   (potentially missing) color, and remap them to something else
-	 */
+	/* First, build set containing all the colors of selected strokes */
 	GSet *selected_colors = BLI_gset_str_new("GP Selected Colors");
 	
 	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
@@ -412,7 +409,7 @@ static void gp_select_same_color(bContext *C)
 			/* add instead of insert here, otherwise the uniqueness check gets skipped,
 			 * and we get many duplicate entries...
 			 */
-			BLI_gset_add(selected_colors, gps->colorname);
+			BLI_gset_add(selected_colors, &gps->mat_nr);
 		}
 	}
 	CTX_DATA_END;
@@ -420,7 +417,7 @@ static void gp_select_same_color(bContext *C)
 	/* Second, select any visible stroke that uses these colors */
 	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
 	{
-		if (BLI_gset_haskey(selected_colors, gps->colorname)) {
+		if (BLI_gset_haskey(selected_colors, &gps->mat_nr)) {
 			/* select this stroke */
 			bGPDspoint *pt;
 			int i;
@@ -433,6 +430,11 @@ static void gp_select_same_color(bContext *C)
 		}
 	}
 	CTX_DATA_END;
+	
+	/* free memomy */
+	if (selected_colors != NULL) {
+		BLI_gset_free(selected_colors, NULL);
+	}
 }
 
 
