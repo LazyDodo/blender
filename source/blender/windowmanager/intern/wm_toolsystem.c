@@ -37,6 +37,7 @@
 #include "BKE_context.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_paint.h"
 
 #include "RNA_access.h"
 
@@ -73,10 +74,18 @@ void WM_toolsystem_unlink(bContext *C, WorkSpace *workspace)
 	}
 }
 
-void WM_toolsystem_link(bContext *UNUSED(C), WorkSpace *workspace)
+void WM_toolsystem_link(bContext *C, WorkSpace *workspace)
 {
 	if (workspace->tool.manipulator_group[0]) {
 		WM_manipulator_group_type_ensure(workspace->tool.manipulator_group);
+	}
+	if (workspace->tool.data_block[0]) {
+		/* Currently only brush data-blocks supported. */
+		Paint *p = BKE_paint_get_active_from_context(C);
+		struct Brush *brush = (struct Brush *)BKE_libblock_find_name(ID_BR, workspace->tool.data_block);
+		if (brush) {
+			BKE_paint_brush_set(p, brush);
+		}
 	}
 }
 
@@ -90,8 +99,9 @@ void WM_toolsystem_set(bContext *C, const bToolDef *tool)
 	workspace->tool.spacetype = tool->spacetype;
 
 	if (&workspace->tool != tool) {
-		BLI_strncpy(workspace->tool.keymap, tool->keymap, sizeof(tool->keymap));
-		BLI_strncpy(workspace->tool.manipulator_group, tool->manipulator_group, sizeof(tool->manipulator_group));
+		STRNCPY(workspace->tool.keymap, tool->keymap);
+		STRNCPY(workspace->tool.manipulator_group, tool->manipulator_group);
+		STRNCPY(workspace->tool.data_block, tool->data_block);
 		workspace->tool.spacetype = tool->spacetype;
 	}
 

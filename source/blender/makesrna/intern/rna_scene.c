@@ -957,10 +957,12 @@ static void rna_RenderSettings_stereoViews_begin(CollectionPropertyIterator *ite
 	rna_iterator_listbase_begin(iter, &rd->views, rna_RenderSettings_stereoViews_skip);
 }
 
+#if 0
 static char *rna_RenderSettings_path(PointerRNA *UNUSED(ptr))
 {
 	return BLI_sprintfN("render");
 }
+#endif
 
 static char *rna_BakeSettings_path(PointerRNA *UNUSED(ptr))
 {
@@ -4823,7 +4825,6 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "RenderSettings", NULL);
 	RNA_def_struct_sdna(srna, "RenderData");
 	RNA_def_struct_nested(brna, srna, "Scene");
-	RNA_def_struct_path_func(srna, "rna_RenderSettings_path");
 	RNA_def_struct_ui_text(srna, "Render Data", "Rendering settings for a Scene data-block");
 
 	/* Render Data */
@@ -5330,14 +5331,14 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "sequencer_gl_preview", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "seq_prev_type");
-	RNA_def_property_enum_items(prop, rna_enum_viewport_shade_items);
+	RNA_def_property_enum_items(prop, rna_enum_shading_type_items);
 	RNA_def_property_ui_text(prop, "Sequencer Preview Shading", "Method to draw in the sequencer view");
 	RNA_def_property_update(prop, NC_SCENE | ND_SEQUENCER, "rna_SceneSequencer_update");
 
 #if 0  /* UNUSED, see R_SEQ_GL_REND comment */
 	prop = RNA_def_property(srna, "sequencer_gl_render", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "seq_rend_type");
-	RNA_def_property_enum_items(prop, rna_enum_viewport_shade_items);
+	RNA_def_property_enum_items(prop, rna_enum_shading_type_items);
 	/* XXX Label and tooltips are obviously wrong! */
 	RNA_def_property_ui_text(prop, "Sequencer Preview Shading", "Method to draw in the sequencer view");
 #endif
