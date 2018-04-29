@@ -1046,7 +1046,7 @@ Material *BKE_gpencil_get_color_from_brush(Brush *brush)
 	Material *mat = NULL;
 		
 	if ((brush != NULL) && (brush->material != NULL)) {
-		brush->material;
+		mat = brush->material;
 	}
 
 	return mat;
