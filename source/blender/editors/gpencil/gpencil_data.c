@@ -1912,7 +1912,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 						for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 
 							/* reasign material. Look old material and try to find in dst */
-							ma_src = give_current_material(ob_src, gps->mat_nr - 1);
+							ma_src = give_current_material(ob_src, gps->mat_nr + 1);
 							if (ma_src != NULL) {
 								idx = BKE_object_material_slot_find_index(ob_dst, ma_src);
 								if (idx > 0) {
