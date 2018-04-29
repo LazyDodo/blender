@@ -3012,7 +3012,8 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 	bGPDlayer *gpl_dst = NULL;
 	bGPDframe *gpf_dst = NULL;
 	bGPDspoint *pt;
-	int i;
+	Material *mat = NULL;
+	int i, idx;
 
 	eGP_SeparateModes mode = RNA_enum_get(op->ptr, "mode");
 
@@ -3030,6 +3031,9 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 	// XXX: check usercounts
 	gpd_dst = BKE_gpencil_data_addnew(bmain, "GPencil");
 	ob_dst->data = (bGPdata *)gpd_dst;
+
+	int totslots = ob_dst->totcol;
+	int totadd = 0;
 
 	/* loop old datablock and separate parts */
 	if ((mode == GP_SEPARATE_POINT) || (mode == GP_SEPARATE_STROKE)) {
@@ -3074,11 +3078,31 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 								gpf_dst = BKE_gpencil_layer_getframe(gpl_dst, gpf->framenum, GP_GETFRAME_ADD_NEW);
 							}
 
+							/* add duplicate materials */
+							mat = give_current_material(ob, gps->mat_nr + 1);
+							idx = BKE_object_material_slot_find_index(ob_dst, mat);
+							if (idx == 0) {
+
+								totadd++;
+								ob_dst->actcol = totadd;
+								ob_dst->totcol = totadd;
+
+								if (totadd > totslots) {
+									BKE_object_material_slot_add(ob_dst);
+								}
+
+								assign_material(ob_dst, mat, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
+								idx = totadd;
+							}
+
 							/* selected points mode */
 							if (mode == GP_SEPARATE_POINT) {
 								/* make copy of source stroke */
 								bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps);
-								
+
+								/* reasign material */
+								gps_dst->mat_nr = idx - 1;
+
 								/* link to destination frame */
 								BLI_addtail(&gpf_dst->strokes, gps_dst);
 								
@@ -3102,6 +3126,8 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 								gps->prev = gps->next = NULL;
 								/* relink to destination frame */
 								BLI_addtail(&gpf_dst->strokes, gps);
+								/* reasign material */
+								gps->mat_nr = idx - 1;
 							}
 						}
 					}
