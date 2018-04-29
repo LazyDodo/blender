@@ -1282,28 +1282,6 @@ bGPDpalettecolor *BKE_gpencil_palettecolor_addnew(bGPDpalette *palette, const ch
 }
 
 
-/* get the active gp-palettecolor for editing */
-bGPDpalettecolor *BKE_gpencil_palettecolor_getactive(bGPDpalette *palette)
-{
-	bGPDpalettecolor *palcolor;
-
-	/* error checking */
-	if (ELEM(NULL, palette, palette->colors.first)) {
-		return NULL;
-	}
-
-	/* loop over colors until found (assume only one active) */
-	for (palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-		if (palcolor->flag & PC_COLOR_ACTIVE) {
-			return palcolor;
-		}
-	}
-
-	/* no active color found */
-	return NULL;
-}
-
-
 /* get the gp-palettecolor looking for name */
 bGPDpalettecolor *BKE_gpencil_palettecolor_getbyname(bGPDpalette *palette, char *name)
 {

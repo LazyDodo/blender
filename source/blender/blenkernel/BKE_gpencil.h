@@ -148,7 +148,6 @@ void BKE_gpencil_palette_setactive(struct bGPdata *gpd, struct bGPDpalette *acti
 void BKE_gpencil_palette_delete(struct bGPdata *gpd, struct bGPDpalette *palette);
 void BKE_gpencil_palette_change_strokes(struct bGPdata *gpd);
 
-struct bGPDpalettecolor *BKE_gpencil_palettecolor_getactive(struct bGPDpalette *palette);
 void BKE_gpencil_palettecolor_setactive(struct bGPDpalette *palette, struct bGPDpalettecolor *active);
 void BKE_gpencil_palettecolor_delete(struct bGPDpalette *palette, struct bGPDpalettecolor *palcolor);
 struct bGPDpalettecolor *BKE_gpencil_palettecolor_getbyname(struct bGPDpalette *palette, char *name);
