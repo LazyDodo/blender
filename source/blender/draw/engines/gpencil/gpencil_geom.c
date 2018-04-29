@@ -663,7 +663,6 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 	}
 
 	/* for now, we assume that the base color of the points is not too close to the real color */
-	/* set color using palette */
 	float selectColor[4];
 	UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);
 	selectColor[3] = alpha;

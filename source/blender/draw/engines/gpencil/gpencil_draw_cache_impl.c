@@ -320,7 +320,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	if (gps->totpoints >= 3) {
 		float tfill[4];
-		/* set color using palette, tint color and opacity */
+		/* set color using material, tint color and opacity */
 		interp_v3_v3v3(tfill, gps->tmp_fill, tintcolor, tintcolor[3]);
 		tfill[3] = gps->tmp_fill[3] * gpl->opacity;
 		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gpcolor->fill_style > 0)) {
@@ -634,7 +634,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 
 	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
 
-	/* if the brush has a palette and color defined, use these and not current defaults */
+	/* if the brush has a default material defined, use these and not current defaults */
 	Material *mat = BKE_gpencil_get_color_from_brush(brush);
 	if (mat != NULL) {
 		gpcolor = mat->gpcolor;
