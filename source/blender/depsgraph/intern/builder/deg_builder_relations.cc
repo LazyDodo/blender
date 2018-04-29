@@ -1760,7 +1760,7 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 			ComponentKey geometry_key(obdata, DEG_NODE_TYPE_GEOMETRY);
 			add_relation(time_key, geometry_key, "GP Frame Change");
 			
-#if 0 GPXX
+#if 0 /* GPXX */
 			/* Geometry cache also needs to be recalculated when Material
 			 * settings change (e.g. when fill.opacity changes on/off,
 			 * we need to rebuild the bGPDstroke->triangles caches)
