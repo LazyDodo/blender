@@ -1113,8 +1113,8 @@ void BKE_gpencil_free_palettes(ListBase *list)
 }
 
 
-/* add a new gp-palette and make it the active */
-bGPDpalette *BKE_gpencil_palette_addnew(bGPdata *gpd, const char *name, bool setactive)
+/* add a new gp-palette */
+bGPDpalette *BKE_gpencil_palette_addnew(bGPdata *gpd, const char *name)
 {
 	bGPDpalette *palette;
 
@@ -1135,120 +1135,12 @@ bGPDpalette *BKE_gpencil_palette_addnew(bGPdata *gpd, const char *name, bool set
 	BLI_uniquename(&gpd->palettes, palette, DATA_("GP_Palette"), '.', offsetof(bGPDpalette, info),
 	               sizeof(palette->info));
 
-	/* make this one the active one */
-	/* NOTE: Always make this active if there's nothing else yet (T50123) */
-	if ((setactive) || (gpd->palettes.first == gpd->palettes.last)) {
-		BKE_gpencil_palette_setactive(gpd, palette);
-	}
-
 	/* return palette */
 	return palette;
 }
 
-
-/* get the active gp-palette for editing */
-bGPDpalette *BKE_gpencil_palette_getactive(bGPdata *gpd)
-{
-	bGPDpalette *palette;
-
-	/* error checking */
-	if (ELEM(NULL, gpd, gpd->palettes.first)) {
-		return NULL;
-	}
-
-	/* loop over palettes until found (assume only one active) */
-	for (palette = gpd->palettes.first; palette; palette = palette->next) {
-		if (palette->flag & PL_PALETTE_ACTIVE)
-			return palette;
-	}
-
-	/* no active palette found */
-	return NULL;
-}
-
-/* set the active gp-palette */
-void BKE_gpencil_palette_setactive(bGPdata *gpd, bGPDpalette *active)
-{
-	bGPDpalette *palette;
-
-	/* error checking */
-	if (ELEM(NULL, gpd, gpd->palettes.first, active)) {
-		return;
-	}
-
-	/* loop over palettes deactivating all */
-	for (palette = gpd->palettes.first; palette; palette = palette->next) {
-		palette->flag &= ~PL_PALETTE_ACTIVE;
-	}
-
-	/* set as active one */
-	active->flag |= PL_PALETTE_ACTIVE;
-	/* force color recalc */
-	BKE_gpencil_palette_change_strokes(gpd);
-}
-
-/* delete the active gp-palette */
-void BKE_gpencil_palette_delete(bGPdata *gpd, bGPDpalette *palette)
-{
-	/* error checking */
-	if (ELEM(NULL, gpd, palette)) {
-		return;
-	}
-
-	/* free colors */
-	free_gpencil_colors(palette);
-	BLI_freelinkN(&gpd->palettes, palette);
-	/* force color recalc */
-	BKE_gpencil_palette_change_strokes(gpd);
-}
-
-/* make a copy of a given gpencil palette */
-bGPDpalette *BKE_gpencil_palette_duplicate(const bGPDpalette *palette_src)
-{
-	bGPDpalette *palette_dst;
-	const bGPDpalettecolor *palcolor_src;
-	bGPDpalettecolor *palcolord_dst;
-
-	/* error checking */
-	if (palette_src == NULL) {
-		return NULL;
-	}
-
-	/* make a copy of source palette */
-	palette_dst = MEM_dupallocN(palette_src);
-	palette_dst->prev = palette_dst->next = NULL;
-
-	/* copy colors */
-	BLI_listbase_clear(&palette_dst->colors);
-	for (palcolor_src = palette_src->colors.first; palcolor_src; palcolor_src = palcolor_src->next) {
-		/* make a copy of source */
-		palcolord_dst = MEM_dupallocN(palcolor_src);
-		BLI_addtail(&palette_dst->colors, palcolord_dst);
-	}
-
-	/* return new palette */
-	return palette_dst;
-}
-
-/* Set all strokes to recalc the palette color */
-void BKE_gpencil_palette_change_strokes(bGPdata *gpd)
-{
-	bGPDlayer *gpl;
-	bGPDframe *gpf;
-	bGPDstroke *gps;
-
-	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			for (gps = gpf->strokes.first; gps; gps = gps->next) {
-				gps->flag |= GP_STROKE_RECALC_COLOR;
-			}
-		}
-	}
-}
-
-
-/* add a new gp-palettecolor and make it the active */
-bGPDpalettecolor *BKE_gpencil_palettecolor_addnew(bGPDpalette *palette, const char *name, bool setactive)
+/* add a new gp-palettecolor */
+bGPDpalettecolor *BKE_gpencil_palettecolor_addnew(bGPDpalette *palette, const char *name)
 {
 	bGPDpalettecolor *palcolor;
 
@@ -1272,56 +1164,8 @@ bGPDpalettecolor *BKE_gpencil_palettecolor_addnew(bGPDpalette *palette, const ch
 	BLI_uniquename(&palette->colors, palcolor, DATA_("Color"), '.', offsetof(bGPDpalettecolor, info),
 	               sizeof(palcolor->info));
 
-	/* make this one the active one */
-	if (setactive) {
-		BKE_gpencil_palettecolor_setactive(palette, palcolor);
-	}
-
 	/* return palette color */
 	return palcolor;
-}
-
-
-/* get the gp-palettecolor looking for name */
-bGPDpalettecolor *BKE_gpencil_palettecolor_getbyname(bGPDpalette *palette, char *name)
-{
-	/* error checking */
-	if (ELEM(NULL, palette, name)) {
-		return NULL;
-	}
-
-	return BLI_findstring(&palette->colors, name, offsetof(bGPDpalettecolor, info));
-}
-
-/* set the active gp-palettecolor */
-void BKE_gpencil_palettecolor_setactive(bGPDpalette *palette, bGPDpalettecolor *active)
-{
-	bGPDpalettecolor *palcolor;
-
-	/* error checking */
-	if (ELEM(NULL, palette, palette->colors.first, active)) {
-		return;
-	}
-
-	/* loop over colors deactivating all */
-	for (palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
-		palcolor->flag &= ~PC_COLOR_ACTIVE;
-	}
-
-	/* set as active one */
-	active->flag |= PC_COLOR_ACTIVE;
-}
-
-/* delete the active gp-palettecolor */
-void BKE_gpencil_palettecolor_delete(bGPDpalette *palette, bGPDpalettecolor *palcolor)
-{
-	/* error checking */
-	if (ELEM(NULL, palette, palcolor)) {
-		return;
-	}
-
-	/* free */
-	BLI_freelinkN(&palette->colors, palcolor);
 }
 
 /* ************************************************** */

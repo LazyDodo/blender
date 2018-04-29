@@ -1364,10 +1364,10 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 			for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
 				if (BLI_listbase_is_empty(&gpd->palettes)) {
 					/* create palette */
-					bGPDpalette *palette = BKE_gpencil_palette_addnew(gpd, "GP_Palette", true);
+					bGPDpalette *palette = BKE_gpencil_palette_addnew(gpd, "GP_Palette");
 					for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 						/* create color using layer name */
-						bGPDpalettecolor *palcolor = BKE_gpencil_palettecolor_addnew(palette, gpl->info, true);
+						bGPDpalettecolor *palcolor = BKE_gpencil_palettecolor_addnew(palette, gpl->info);
 						if (palcolor != NULL) {
 							/* set color attributes */
 							copy_v4_v4(palcolor->color, gpl->color);
@@ -1403,9 +1403,6 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 						/* set thickness to 0 (now it is a factor to override stroke thickness) */
 						gpl->thickness = 0.0f;
 					}
-					/* set first color as active */
-					if (palette->colors.first)
-						BKE_gpencil_palettecolor_setactive(palette, palette->colors.first);
 				}
 			}
 		}
