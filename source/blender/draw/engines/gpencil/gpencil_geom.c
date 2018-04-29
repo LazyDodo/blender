@@ -387,13 +387,11 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 
 
 /* Helper for doing all the checks on whether a stroke can be drawn */
-bool gpencil_can_draw_stroke(struct Object *ob, const bGPDstroke *gps, const bool onion)
+bool gpencil_can_draw_stroke(struct GpencilColorData *gpcolor, const bGPDstroke *gps, const bool onion)
 {
 	/* skip stroke if it doesn't have any valid data */
-	if ((gps->points == NULL) || (gps->totpoints < 1))
+	if ((gps->points == NULL) || (gps->totpoints < 1) || (gpcolor == NULL))
 		return false;
-
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* check if the color is visible */
 	if ((gpcolor == NULL) ||
@@ -574,10 +572,8 @@ static void gpencil_set_fill_point(
 }
 
 /* recalc the internal geometry caches for fill and uvs */
-void DRW_gpencil_recalc_geometry_caches(Object *ob, bGPDstroke *gps) {
+void DRW_gpencil_recalc_geometry_caches(Object *ob, GpencilColorData *gpcolor, bGPDstroke *gps) {
 	if (gps->flag & GP_STROKE_RECALC_CACHES) {
-		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-
 		/* Calculate triangles cache for filling area (must be done only after changes) */
 		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {
 			if ((gps->totpoints > 2) && 

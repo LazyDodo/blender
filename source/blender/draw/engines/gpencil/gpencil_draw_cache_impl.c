@@ -383,7 +383,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	CLAMP_MIN(sthickness, 1);
 	if (cache->is_dirty) {
 		gpencil_batch_cache_check_free_slots(ob);
-		if ((gps->totpoints > 1) && (gpcolor->mode  == GPC_MODE_LINE)) {
+		if ((gps->totpoints > 1) && (gpcolor->mode == GPC_MODE_LINE)) {
 			cache->batch_stroke[cache->cache_idx] = DRW_gpencil_get_stroke_geom(gpf, gps, sthickness, ink);
 		}
 		else {
@@ -456,7 +456,7 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 
 		int id = stl->storage->shgroup_id;
 		/* check if stroke can be drawn */
-		if (gpencil_can_draw_stroke(ob, gps, true) == false) {
+		if (gpencil_can_draw_stroke(gpcolor, gps, true) == false) {
 			continue;
 		}
 		/* limit the number of shading groups */
@@ -524,8 +524,10 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 	}
 
 	for (gps = derived_gpf->strokes.first; gps; gps = gps->next) {
+		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
 		/* check if stroke can be drawn */
-		if (gpencil_can_draw_stroke(ob, gps, false) == false) {
+		if (gpencil_can_draw_stroke(gpcolor, gps, false) == false) {
 			continue;
 		}
 		/* limit the number of shading groups */
@@ -533,12 +535,10 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			continue;
 		}
 
-		GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-
 		/* be sure recalc all chache in source stroke to avoid recalculation when frame change 
 		 * and improve fps */
 		if (src_gps) {
-			DRW_gpencil_recalc_geometry_caches(ob, src_gps);
+			DRW_gpencil_recalc_geometry_caches(ob, gpcolor, src_gps);
 		}
 
 		/* if the fill has any value, it's considered a fill and is not drawn if simplify fill is enabled */

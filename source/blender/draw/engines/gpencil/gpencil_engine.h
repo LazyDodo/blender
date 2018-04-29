@@ -375,11 +375,11 @@ struct Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(struct bGPdata *gpd, float 
 struct Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(struct bGPdata *gpd);
 struct Gwn_Batch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
 
-void DRW_gpencil_recalc_geometry_caches(struct Object *ob, struct bGPDstroke *gps);
+void DRW_gpencil_recalc_geometry_caches(struct Object *ob, struct GpencilColorData *gpcolor, struct bGPDstroke *gps);
 
 struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height);
 
-bool gpencil_can_draw_stroke(struct Object *ob, const struct bGPDstroke *gps, const bool onion);
+bool gpencil_can_draw_stroke(struct GpencilColorData *gpcolor, const struct bGPDstroke *gps, const bool onion);
 
 /* object cache functions */
 struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used);
