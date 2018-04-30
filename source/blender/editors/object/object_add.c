@@ -1040,7 +1040,7 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 			mul_v3_fl(mat[1], radius);
 			mul_v3_fl(mat[2], radius);
 			
-			ED_gpencil_create_monkey(C, gpd, mat);
+			ED_gpencil_create_monkey(C, mat);
 			break;
 		}
 		
