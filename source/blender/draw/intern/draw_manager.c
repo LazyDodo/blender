@@ -196,8 +196,11 @@ int DRW_object_is_mode_shade(const Object *ob)
 	BLI_assert(ob == DST.draw_ctx.obact);
 	UNUSED_VARS_NDEBUG(ob);
 	if ((DST.draw_ctx.object_mode & OB_MODE_EDIT) == 0) {
-		if (DST.draw_ctx.object_mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)) {
-			if ((DST.draw_ctx.v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE) == 0) {
+		if ((DST.draw_ctx.object_mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)) > 0) {
+			if (ELEM(DST.draw_ctx.v3d->drawtype, OB_MATERIAL, OB_RENDER)) {
+				return false;
+			}
+			else if ((DST.draw_ctx.v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE) == 0) {
 				return true;
 			}
 			else {
@@ -206,6 +209,16 @@ int DRW_object_is_mode_shade(const Object *ob)
 		}
 	}
 	return -1;
+}
+
+int DRW_object_is_paint_mode(const Object *ob)
+{
+	if (ob == DST.draw_ctx.obact) {
+		if ((DST.draw_ctx.object_mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)) > 0) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /** \} */
@@ -1080,56 +1093,6 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 		drw_engines_disable();
 
 		BLI_mutex_unlock(&DST.ogl_context_mutex);
-	}
-}
-
-/** \} */
-
-/** \name ID Update
- * \{ */
-
-/* TODO(sergey): This code is run for each changed ID (including the ones which
- * are changed indirectly via update flush. Need to find a way to make this to
- * run really fast, hopefully without any memory allocations on a heap
- * Idea here could be to run every known engine's id_update() and make them
- * do nothing if there is no engine-specific data yet.
- */
-void DRW_notify_id_update(const DRWUpdateContext *update_ctx, ID *id)
-{
-	RenderEngineType *engine_type = update_ctx->engine_type;
-	ARegion *ar = update_ctx->ar;
-	View3D *v3d = update_ctx->v3d;
-	RegionView3D *rv3d = ar->regiondata;
-	Depsgraph *depsgraph = update_ctx->depsgraph;
-	Scene *scene = update_ctx->scene;
-	ViewLayer *view_layer = update_ctx->view_layer;
-
-	/* Separate update for each stereo view. */
-	for (int view = 0; view < 2; view++) {
-		GPUViewport *viewport = WM_draw_region_get_viewport(ar, view);
-		if (!viewport) {
-			continue;
-		}
-
-		/* Reset before using it. */
-		drw_state_prepare_clean_for_draw(&DST);
-		DST.viewport = viewport;
-		DST.draw_ctx = (DRWContextState){
-			.ar = ar, .rv3d = rv3d, .v3d = v3d,
-			.scene = scene, .view_layer = view_layer, .obact = OBACT(view_layer),
-			.engine_type = engine_type,
-			.depsgraph = depsgraph, .object_mode = OB_MODE_OBJECT,
-		};
-		drw_engines_enable(view_layer, engine_type);
-		for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
-			DrawEngineType *draw_engine = link->data;
-			ViewportEngineData *data = drw_viewport_engine_data_ensure(draw_engine);
-			if (draw_engine->id_update) {
-				draw_engine->id_update(data, id);
-			}
-		}
-		DST.viewport = NULL;
-		drw_engines_disable();
 	}
 }
 
