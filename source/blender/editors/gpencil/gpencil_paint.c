@@ -1574,6 +1574,11 @@ static void gp_init_colors(tGPsdata *p)
 	}
 	else {
 		p->material = mat;
+		/* check if the material is already on object material slots and add it if missing */
+		if (BKE_object_material_slot_find_index(p->ob, p->material) == 0) {
+			BKE_object_material_slot_add(p->ob);
+			assign_material(p->ob, mat, p->ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+		}
 	}
 	/* assign color information to temp tGPsdata */
 	gpcolor = p->material->gpcolor;
