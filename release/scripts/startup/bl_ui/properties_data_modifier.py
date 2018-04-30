@@ -1767,7 +1767,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "pass_index", text="Pass")
         row.prop(md, "inverse_pass", text="", icon="ARROW_LEFTRIGHT")
 
-    def GP_ARRAY(self, layout, ob, md):
+    def GP_INSTANCE(self, layout, ob, md):
         gpd = ob.data
 
         col = layout.column()

@@ -524,11 +524,11 @@ static void GPENCIL_cache_populate(void *vedata, Object *ob)
 			/* add for drawing later */
 			gpencil_object_cache_add(stl->g_data->gp_object_cache, ob, false, &stl->g_data->gp_cache_used);
 			
-			/* generate instances as separate cache objects for array modifiers 
+			/* generate instances as separate cache objects for instance modifiers 
 			 * with the "Make as Objects" option enabled
 			 */
 			if (!stl->storage->simplify_modif) {
-				gpencil_array_modifiers(stl, ob);
+				gpencil_instance_modifiers(stl, ob);
 			}
 		}
 		/* draw current painting strokes */
@@ -633,9 +633,9 @@ static void gpencil_prepare_fast_drawing(GPENCIL_StorageList *stl, DefaultFrameb
 
 static void gpencil_free_obj_list(GPENCIL_StorageList *stl)
 {
-	/* Clear temp objects created for display arrays only. These objects are created
+	/* Clear temp objects created for display instances only. These objects are created
 	 * while the draw manager draw the scene, but only to hold the strokes data.
-	 * see: gp_array_modifier_make_instances()
+	 * see: gp_instance_modifier_make_instances()
 	 *
 	 * the normal objects are not freed because they are not tagged as temp objects
 	 */

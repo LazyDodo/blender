@@ -1032,7 +1032,7 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 					case eModifierType_GpencilTint:
 						ICON_DRAW(ICON_COLOR);
 						break;
-					case eModifierType_GpencilArray:
+					case eModifierType_GpencilInstance:
 						ICON_DRAW(ICON_MOD_ARRAY);
 						break;
 					case eModifierType_GpencilBuild:

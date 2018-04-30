@@ -600,7 +600,7 @@ extern StructRNA RNA_GpencilSimplify;
 extern StructRNA RNA_GpencilThickModifier;
 extern StructRNA RNA_GpencilTintModifier;
 extern StructRNA RNA_GpencilColorModifier;
-extern StructRNA RNA_GpencilArrayModifier;
+extern StructRNA RNA_GpencilInstanceModifier;
 extern StructRNA RNA_GpencilDupliModifier;
 extern StructRNA RNA_GpencilOpacityModifier;
 extern StructRNA RNA_GpencilLatticeModifier;

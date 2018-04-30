@@ -91,7 +91,7 @@ typedef enum ModifierType {
 	eModifierType_GpencilSubdiv     = 55,
 	eModifierType_GpencilThick      = 56,
 	eModifierType_GpencilTint       = 57,
-	eModifierType_GpencilArray      = 58,
+	eModifierType_GpencilInstance   = 58,
 	eModifierType_GpencilBuild      = 59,
 	eModifierType_GpencilOpacity    = 60,
 	eModifierType_GpencilColor      = 61,
@@ -1752,7 +1752,7 @@ typedef enum eGpencilOpacity_Flag {
 	GP_OPACITY_INVERSE_VGROUP = (1 << 2),
 } eGpencilOpacity_Flag;
 
-typedef struct GpencilArrayModifierData {
+typedef struct GpencilInstanceModifierData {
 	ModifierData modifier;
 	int count[3];                /* number of elements in array */
 	int flag;                    /* several flags */
@@ -1767,15 +1767,15 @@ typedef struct GpencilArrayModifierData {
 	
 	int pass_index;              /* custom index for passes */
 	char layername[64];          /* layer name */
-} GpencilArrayModifierData;
+} GpencilInstanceModifierData;
 
-typedef enum eGpencilArray_Flag {
-	GP_ARRAY_RANDOM_SIZE = (1 << 0),
-	GP_ARRAY_RANDOM_ROT = (1 << 1),
-	GP_ARRAY_INVERSE_LAYER  = (1 << 2),
-	GP_ARRAY_INVERSE_PASS   = (1 << 3),
-	GP_ARRAY_MAKE_OBJECTS = (1 << 4),
-} eGpencilArray_Flag;
+typedef enum eGpencilInstance_Flag {
+	GP_INSTANCE_RANDOM_SIZE = (1 << 0),
+	GP_INSTANCE_RANDOM_ROT = (1 << 1),
+	GP_INSTANCE_INVERSE_LAYER  = (1 << 2),
+	GP_INSTANCE_INVERSE_PASS   = (1 << 3),
+	GP_INSTANCE_MAKE_OBJECTS = (1 << 4),
+} eGpencilInstance_Flag;
 
 typedef struct GpencilBuildModifierData {
 	ModifierData modifier;

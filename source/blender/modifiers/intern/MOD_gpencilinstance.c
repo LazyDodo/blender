@@ -24,7 +24,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpencilarray.c
+/** \file blender/modifiers/intern/MOD_gpencilinstance.c
  *  \ingroup modifiers
  */
 
@@ -57,7 +57,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilArrayModifierData *gpmd = (GpencilArrayModifierData *)md;
+	GpencilInstanceModifierData *gpmd = (GpencilInstanceModifierData *)md;
 	gpmd->count[0] = 1;
 	gpmd->count[1] = 1;
 	gpmd->count[2] = 1;
@@ -73,7 +73,7 @@ static void initData(ModifierData *md)
 	gpmd->rnd_rot = 0.5f;
 	gpmd->rnd_size = 0.5f;
 	gpmd->lock_axis |= GP_LOCKAXIS_X;
-	gpmd->flag |= GP_ARRAY_MAKE_OBJECTS;
+	gpmd->flag |= GP_INSTANCE_MAKE_OBJECTS;
 	
 	/* fill random values */
 	gp_mod_fill_random_array(gpmd->rnd, 20);
@@ -88,7 +88,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 /* -------------------------------- */
 
 /* helper function for per-instance positioning */
-void BKE_gpencil_array_modifier_instance_tfm(GpencilArrayModifierData *mmd, const int elem_idx[3], float r_mat[4][4])
+void BKE_gpencil_instance_modifier_instance_tfm(GpencilInstanceModifierData *mmd, const int elem_idx[3], float r_mat[4][4])
 {
 	float offset[3], rot[3], scale[3];
 	int ri = mmd->rnd[0];
@@ -99,7 +99,7 @@ void BKE_gpencil_array_modifier_instance_tfm(GpencilArrayModifierData *mmd, cons
 	offset[2] = mmd->offset[2] * elem_idx[2];
 	
 	/* rotation */
-	if (mmd->flag & GP_ARRAY_RANDOM_ROT) {
+	if (mmd->flag & GP_INSTANCE_RANDOM_ROT) {
 		factor = mmd->rnd_rot * mmd->rnd[ri];
 		mul_v3_v3fl(rot, mmd->rot, factor);
 		add_v3_v3(rot, mmd->rot);
@@ -109,7 +109,7 @@ void BKE_gpencil_array_modifier_instance_tfm(GpencilArrayModifierData *mmd, cons
 	}
 	
 	/* scale */
-	if (mmd->flag & GP_ARRAY_RANDOM_SIZE) {
+	if (mmd->flag & GP_INSTANCE_RANDOM_SIZE) {
 		factor = mmd->rnd_size * mmd->rnd[ri];
 		mul_v3_v3fl(scale, mmd->scale, factor);
 		add_v3_v3(scale, mmd->scale);
@@ -136,7 +136,7 @@ static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	                          Object *ob, bGPDlayer *gpl, bGPDframe *gpf,
 	                          int modifier_index)
 {
-	GpencilArrayModifierData *mmd = (GpencilArrayModifierData *)md;
+	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 	ListBase stroke_cache = {NULL, NULL};
 	bGPDstroke *gps;
 	int idx;
@@ -155,7 +155,7 @@ static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 		 */
 		if (is_stroke_affected_by_modifier(ob,
 		        mmd->layername, mmd->pass_index, 1, gpl, gps,
-		        mmd->flag & GP_ARRAY_INVERSE_LAYER, mmd->flag & GP_ARRAY_INVERSE_PASS))
+		        mmd->flag & GP_INSTANCE_INVERSE_LAYER, mmd->flag & GP_INSTANCE_INVERSE_PASS))
 		{
 			valid_strokes[idx] = true;
 			num_valid++;
@@ -189,7 +189,7 @@ static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 				const int elem_idx[3] = {x, y, z};
 				float mat[4][4];
 				
-				BKE_gpencil_array_modifier_instance_tfm(mmd, elem_idx, mat);
+				BKE_gpencil_instance_modifier_instance_tfm(mmd, elem_idx, mat);
 				
 				/* apply shift */
 				int sh = x;
@@ -273,7 +273,7 @@ static Object *array_instance_add_ob_copy(const bContext *C, Object *from_ob)
 /* bakeModifierGP - "Make Objects" Mode */
 static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *ob)
 {
-	GpencilArrayModifierData *mmd = (GpencilArrayModifierData *)md;
+	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 	
 	/* reset random */
 	mmd->rnd[0] = 1;
@@ -295,7 +295,7 @@ static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *
 				}
 				
 				/* compute transform for instance */
-				BKE_gpencil_array_modifier_instance_tfm(mmd, elem_idx, mat);
+				BKE_gpencil_instance_modifier_instance_tfm(mmd, elem_idx, mat);
 				mul_m4_m4m4(finalmat, ob->obmat, mat);
 				
 				/* moves to new origin */
@@ -342,7 +342,7 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	                        Object *ob, bGPDlayer *gpl, bGPDframe *gpf,
 	                        int modifier_index)
 {
-	GpencilArrayModifierData *mmd = (GpencilArrayModifierData *)md;
+	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 	
 	/* When the "make_objects" flag is set, this modifier is handled as part of the 
 	 * draw engine instead. The main benefit is that the instances won't suffer from
@@ -352,7 +352,7 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	 *        we find a better fix to the z-ordering problems, it's better to have
 	 *        working functionality
 	 */
-	if ((mmd->flag & GP_ARRAY_MAKE_OBJECTS) == 0) {
+	if ((mmd->flag & GP_INSTANCE_MAKE_OBJECTS) == 0) {
 		generate_geometry(md, depsgraph, ob, gpl, gpf, modifier_index);
 	}
 }
@@ -361,12 +361,12 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
-	GpencilArrayModifierData *mmd = (GpencilArrayModifierData *)md;
+	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 	
 	/* Create new objects or add all to current datablock.
 	 * Sometimes it's useful to have the option to do either of these...
 	 */
-	if (mmd->flag & GP_ARRAY_MAKE_OBJECTS) {
+	if (mmd->flag & GP_INSTANCE_MAKE_OBJECTS) {
 		bakeModifierGP_objects(C, md, ob);
 	}
 	else {
@@ -374,10 +374,10 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilArray = {
-	/* name */              "Array",
-	/* structName */        "GpencilArrayModifierData",
-	/* structSize */        sizeof(GpencilArrayModifierData),
+ModifierTypeInfo modifierType_GpencilInstance = {
+	/* name */              "Instance",
+	/* structName */        "GpencilInstanceModifierData",
+	/* structSize */        sizeof(GpencilInstanceModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

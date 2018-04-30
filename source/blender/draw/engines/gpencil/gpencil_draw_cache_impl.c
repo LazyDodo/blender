@@ -1045,10 +1045,10 @@ struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height)
 	return tex;
 }
 
-/* Helper for gpencil_array_modifiers()
- * See also MOD_gpencilarray.c -> bakeModifierGP()
+/* Helper for gpencil_instance_modifiers()
+ * See also MOD_gpencilinstance.c -> bakeModifierGP()
  */
-static void gp_array_modifier_make_instances(GPENCIL_StorageList *stl, Object *ob, GpencilArrayModifierData *mmd)
+static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object *ob, GpencilInstanceModifierData *mmd)
 {
 	/* reset random */
 	mmd->rnd[0] = 1;
@@ -1069,7 +1069,7 @@ static void gp_array_modifier_make_instances(GPENCIL_StorageList *stl, Object *o
 				}
 				
 				/* compute transform for instance */
-				BKE_gpencil_array_modifier_instance_tfm(mmd, elem_idx, mat);
+				BKE_gpencil_instance_modifier_instance_tfm(mmd, elem_idx, mat);
 
 				/* add object to cache */
 				newob = MEM_dupallocN(ob);
@@ -1096,8 +1096,8 @@ static void gp_array_modifier_make_instances(GPENCIL_StorageList *stl, Object *o
 	}
 }
 
-/* create instances using array modifiers */
-void gpencil_array_modifiers(GPENCIL_StorageList *stl, Object *ob)
+/* create instances using instance modifiers */
+void gpencil_instance_modifiers(GPENCIL_StorageList *stl, Object *ob)
 {
 	if ((ob) && (ob->data)) {
 		bGPdata *gpd = ob->data;
@@ -1110,14 +1110,14 @@ void gpencil_array_modifiers(GPENCIL_StorageList *stl, Object *ob)
 		if (((md->mode & eModifierMode_Realtime) && (stl->storage->is_render == false)) ||
 		    ((md->mode & eModifierMode_Render) && (stl->storage->is_render == true)))
 		{
-			if (md->type == eModifierType_GpencilArray) {
-				GpencilArrayModifierData *mmd = (GpencilArrayModifierData *)md;
+			if (md->type == eModifierType_GpencilInstance) {
+				GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 				
 				/* Only add instances if the "Make Objects" flag is set
 				 * FIXME: This is a workaround for z-ordering weirdness when all instances are in the same object
 				 */
-				if (mmd->flag & GP_ARRAY_MAKE_OBJECTS) {
-					gp_array_modifier_make_instances(stl, ob, mmd);
+				if (mmd->flag & GP_INSTANCE_MAKE_OBJECTS) {
+					gp_instance_modifier_make_instances(stl, ob, mmd);
 				}
 			}
 		}

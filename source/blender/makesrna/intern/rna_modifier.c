@@ -124,7 +124,7 @@ const EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	
 	/* Grease Pencil Modifiers */
 	{0, "", 0, N_("Generate"), "" },
-	{eModifierType_GpencilArray, "GP_ARRAY", ICON_MOD_ARRAY, "Array", "Create grid of duplicate instances"},
+	{eModifierType_GpencilInstance, "GP_INSTANCE", ICON_MOD_ARRAY, "Instance", "Create grid of duplicate instances"},
 	{eModifierType_GpencilBuild, "GP_BUILD", ICON_MOD_BUILD, "Build", "Create duplication of strokes"},
 	{eModifierType_GpencilSimplify, "GP_SIMPLIFY", ICON_MOD_DECIM, "Simplify", "Simplify stroke reducing number of points"},
 	{eModifierType_GpencilSubdiv, "GP_SUBDIV", ICON_MOD_SUBSURF, "Subdivide", "Subdivide stroke adding more control points"},
@@ -474,8 +474,8 @@ static StructRNA *rna_Modifier_refine(struct PointerRNA *ptr)
 			return &RNA_GpencilTintModifier;
 		case eModifierType_GpencilColor:
 			return &RNA_GpencilColorModifier;
-		case eModifierType_GpencilArray:
-			return &RNA_GpencilArrayModifier;
+		case eModifierType_GpencilInstance:
+			return &RNA_GpencilInstanceModifier;
 		case eModifierType_GpencilBuild:
 			return &RNA_GpencilBuildModifier;
 		case eModifierType_GpencilOpacity:
@@ -5548,14 +5548,14 @@ static void rna_def_modifier_gpencilopacity(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 
-static void rna_def_modifier_gpencilarray(BlenderRNA *brna)
+static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	srna = RNA_def_struct(brna, "GpencilArrayModifier", "Modifier");
-	RNA_def_struct_ui_text(srna, "Array Modifier", "Create grid of duplicate instances");
-	RNA_def_struct_sdna(srna, "GpencilArrayModifierData");
+	srna = RNA_def_struct(brna, "GpencilInstanceModifier", "Modifier");
+	RNA_def_struct_ui_text(srna, "Instance Modifier", "Create grid of duplicate instances");
+	RNA_def_struct_sdna(srna, "GpencilInstanceModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_ARRAY);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5608,7 +5608,7 @@ static void rna_def_modifier_gpencilarray(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "random_rot", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_RANDOM_ROT);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_RANDOM_ROT);
 	RNA_def_property_ui_text(prop, "Random Rotation", "Use random factors for rotation");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
@@ -5619,7 +5619,7 @@ static void rna_def_modifier_gpencilarray(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "random_scale", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_RANDOM_SIZE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_RANDOM_SIZE);
 	RNA_def_property_ui_text(prop, "Random Scale", "Use random factors for scale");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
@@ -5630,17 +5630,17 @@ static void rna_def_modifier_gpencilarray(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 	
 	prop = RNA_def_property(srna, "inverse_layers", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_INVERSE_LAYER);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_INVERSE_LAYER);
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "inverse_pass", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_INVERSE_PASS);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_INVERSE_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 	
 	prop = RNA_def_property(srna, "use_make_objects", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_MAKE_OBJECTS);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_MAKE_OBJECTS);
 	RNA_def_property_ui_text(prop, "Make Objects", 
 		"When applying this modifier, instances get created as separate objects");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
@@ -6240,7 +6240,7 @@ void RNA_def_modifier(BlenderRNA *brna)
 	rna_def_modifier_gpenciloffset(brna);
 	rna_def_modifier_gpenciltint(brna);
 	rna_def_modifier_gpencilcolor(brna);
-	rna_def_modifier_gpencilarray(brna);
+	rna_def_modifier_gpencilinstance(brna);
 	rna_def_modifier_gpencilbuild(brna);
 	rna_def_modifier_gpencilopacity(brna);
 	rna_def_modifier_gpencillattice(brna);

@@ -393,7 +393,7 @@ struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
 void DRW_gpencil_vfx_modifiers(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache);
 void DRW_gpencil_vfx_draw(struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache);
 bool gpencil_object_use_vfx(struct Object *ob);
-void gpencil_array_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
+void gpencil_instance_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
 /* depth of field */
 int GPENCIL_depth_of_field_init(struct DrawEngineType *draw_engine_gpencil_type, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *camera);
