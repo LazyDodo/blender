@@ -1760,20 +1760,20 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 			ComponentKey geometry_key(obdata, DEG_NODE_TYPE_GEOMETRY);
 			add_relation(time_key, geometry_key, "GP Frame Change");
 			
-#if 0 /* GPXX */
 			/* Geometry cache also needs to be recalculated when Material
 			 * settings change (e.g. when fill.opacity changes on/off,
 			 * we need to rebuild the bGPDstroke->triangles caches)
 			 */
-			for (short i = 0; i < gpd->totcol; i++) {
-				Material *mat = gpd->mat[i];
-				if ((mat) && (mat->gpcolor)) {
-					ComponentKey material_key(&mat->id, DEG_NODE_TYPE_PARAMETERS);
+			for (int i = 0; i < gpd->totcol; i++) {
+				Material *ma = gpd->mat[i];
+				if ((ma) && (ma->gpcolor)) {
+					OperationKey material_key(&ma->id,
+					                          DEG_NODE_TYPE_SHADING,
+					                          DEG_OPCODE_MATERIAL_UPDATE);
 					add_relation(material_key, geometry_key, "Material -> GP Data");
 				}
 			}
 			break;
-#endif
 		}
 	}
 
