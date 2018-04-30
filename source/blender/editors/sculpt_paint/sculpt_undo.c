@@ -50,10 +50,10 @@
 #include "DNA_mesh_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
+#include "DNA_workspace_types.h"
 
 #include "BKE_ccg.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_multires.h"
 #include "BKE_paint.h"
 #include "BKE_key.h"
@@ -61,10 +61,10 @@
 #include "BKE_subsurf.h"
 #include "BKE_undo_system.h"
 
+#include "DEG_depsgraph.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
-
-#include "GPU_buffers.h"
 
 #include "ED_paint.h"
 #include "ED_object.h"
@@ -140,6 +140,7 @@ static bool sculpt_undo_restore_coords(bContext *C, DerivedMesh *dm, SculptUndoN
 	Scene *scene = CTX_data_scene(C);
 	Sculpt *sd = CTX_data_tool_settings(C)->sculpt;
 	Object *ob = CTX_data_active_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	SculptSession *ss = ob->sculpt;
 	MVert *mvert;
 	int *index;
@@ -156,7 +157,7 @@ static bool sculpt_undo_restore_coords(bContext *C, DerivedMesh *dm, SculptUndoN
 			if (kb) {
 				ob->shapenr = BLI_findindex(&key->block, kb) + 1;
 
-				BKE_sculpt_update_mesh_elements(scene, sd, ob, 0, false);
+				BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, 0, false);
 				WM_event_add_notifier(C, NC_OBJECT | ND_DATA, ob);
 			}
 			else {
@@ -378,8 +379,8 @@ static void sculpt_undo_bmesh_restore_generic(bContext *C,
 }
 
 /* Create empty sculpt BMesh and enable logging */
-static void sculpt_undo_bmesh_enable(Object *ob,
-                                     SculptUndoNode *unode)
+static void sculpt_undo_bmesh_enable(
+        Object *ob, SculptUndoNode *unode)
 {
 	SculptSession *ss = ob->sculpt;
 	Mesh *me = ob->data;
@@ -472,6 +473,7 @@ static void sculpt_undo_restore_list(bContext *C, ListBase *lb)
 	Scene *scene = CTX_data_scene(C);
 	Sculpt *sd = CTX_data_tool_settings(C)->sculpt;
 	Object *ob = CTX_data_active_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	DerivedMesh *dm;
 	SculptSession *ss = ob->sculpt;
 	SculptUndoNode *unode;
@@ -490,10 +492,10 @@ static void sculpt_undo_restore_list(bContext *C, ListBase *lb)
 		}
 	}
 
-	BKE_sculpt_update_mesh_elements(scene, sd, ob, 0, need_mask);
+	BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, 0, need_mask);
 
 	/* call _after_ sculpt_update_mesh_elements() which may update 'ob->derivedFinal' */
-	dm = mesh_get_derived_final(scene, ob, 0);
+	dm = mesh_get_derived_final(depsgraph, scene, ob, 0);
 
 	if (lb->first && sculpt_undo_bmesh_restore(C, lb->first, ob, ss))
 		return;
@@ -576,14 +578,11 @@ static void sculpt_undo_restore_list(bContext *C, ListBase *lb)
 		}
 
 		if (tag_update) {
-			DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		}
 		else {
 			sculpt_update_object_bounding_box(ob);
 		}
-
-		/* for non-PBVH drawing, need to recreate VBOs */
-		GPU_drawobject_free(ob->derivedFinal);
 	}
 }
 

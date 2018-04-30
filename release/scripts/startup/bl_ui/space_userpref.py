@@ -61,7 +61,9 @@ class USERPREF_HT_header(Header):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        if userpref.active_section == 'INPUT':
+        if userpref.active_section == 'INTERFACE':
+            layout.operator("wm.save_workspace_file")
+        elif userpref.active_section == 'INPUT':
             layout.operator("wm.keyconfig_import")
             layout.operator("wm.keyconfig_export")
         elif userpref.active_section == 'ADDONS':
@@ -228,7 +230,6 @@ class USERPREF_PT_interface(Panel):
         col.prop(view, "show_large_cursors")
         col.prop(view, "show_view_name", text="View Name")
         col.prop(view, "show_playback_fps", text="Playback FPS")
-        col.prop(view, "use_global_scene")
         col.prop(view, "object_origin_size")
 
         col.separator()
@@ -288,11 +289,12 @@ class USERPREF_PT_interface(Panel):
         #col.prop(view, "open_left_mouse_delay", text="Hold LMB")
         #col.prop(view, "open_right_mouse_delay", text="Hold RMB")
         col.prop(view, "show_manipulator")
+        col.prop(view, "show_manipulator_navigate")
+        ## Currently not working
+        # col.prop(view, "show_manipulator_shaded")
         sub = col.column()
         sub.active = view.show_manipulator
         sub.prop(view, "manipulator_size", text="Size")
-        sub.prop(view, "manipulator_handle_size", text="Handle Size")
-        sub.prop(view, "manipulator_hotspot", text="Hotspot")
 
         col.separator()
         col.separator()
@@ -518,7 +520,6 @@ class USERPREF_PT_system(Panel):
         col = colsplit.column()
         col.label(text="OpenGL:")
         col.prop(system, "gl_clip_alpha", slider=True)
-        col.prop(system, "use_mipmaps")
         col.prop(system, "use_gpu_mipmap")
         col.prop(system, "use_16bit_textures")
 
@@ -534,8 +535,6 @@ class USERPREF_PT_system(Panel):
 
         col.separator()
 
-        col.label(text="Window Draw Method:")
-        col.prop(system, "window_draw_method", text="")
         col.prop(system, "multi_sample", text="")
         if sys.platform == "linux" and system.multi_sample != 'NONE':
             col.label(text="Might fail for Mesh editing selection!")
@@ -725,6 +724,7 @@ class USERPREF_PT_theme(Panel):
         colsub.row().prop(widget_style, "item", slider=True)
         colsub.row().prop(widget_style, "inner", slider=True)
         colsub.row().prop(widget_style, "inner_sel", slider=True)
+        colsub.row().prop(widget_style, "roundness")
 
         subsplit = row.split(percentage=0.85)
 
@@ -804,6 +804,9 @@ class USERPREF_PT_theme(Panel):
             col.label(text="Tool:")
             self._theme_widget_style(col, ui.wcol_tool)
 
+            col.label(text="Toolbar Item:")
+            self._theme_widget_style(col, ui.wcol_toolbar_item)
+
             col.label(text="Radio Buttons:")
             self._theme_widget_style(col, ui.wcol_radio)
 
@@ -852,6 +855,9 @@ class USERPREF_PT_theme(Panel):
             col.label(text="List Item:")
             self._theme_widget_style(col, ui.wcol_list_item)
 
+            col.label(text="Tab:")
+            self._theme_widget_style(col, ui.wcol_tab)
+
             ui_state = theme.user_interface.wcol_state
             col.label(text="State:")
 
@@ -866,6 +872,7 @@ class USERPREF_PT_theme(Panel):
             colsub.row().prop(ui_state, "inner_anim_sel")
             colsub.row().prop(ui_state, "inner_driven")
             colsub.row().prop(ui_state, "inner_driven_sel")
+            colsub.row().prop(ui_state, "blend")
 
             subsplit = row.split(percentage=0.85)
 
@@ -874,7 +881,8 @@ class USERPREF_PT_theme(Panel):
             colsub = padding.column()
             colsub.row().prop(ui_state, "inner_key")
             colsub.row().prop(ui_state, "inner_key_sel")
-            colsub.row().prop(ui_state, "blend")
+            colsub.row().prop(ui_state, "inner_overridden")
+            colsub.row().prop(ui_state, "inner_overridden_sel")
 
             col.separator()
             col.separator()
@@ -889,6 +897,9 @@ class USERPREF_PT_theme(Panel):
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui, "menu_shadow_fac")
+            colsub.row().prop(ui, "icon_alpha")
+            colsub.row().prop(ui, "icon_saturation")
+            colsub.row().prop(ui, "editor_outline")
 
             subsplit = row.split(percentage=0.85)
 
@@ -896,27 +907,12 @@ class USERPREF_PT_theme(Panel):
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui, "menu_shadow_width")
-
-            row = col.row()
-
-            subsplit = row.split(percentage=0.95)
-
-            padding = subsplit.split(percentage=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "icon_alpha")
-
-            subsplit = row.split(percentage=0.85)
-
-            padding = subsplit.split(percentage=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
             colsub.row().prop(ui, "widget_emboss")
 
             col.separator()
             col.separator()
 
-            col.label("Axis Colors:")
+            col.label("Axis & Manipulator Colors:")
 
             row = col.row()
 
@@ -934,9 +930,13 @@ class USERPREF_PT_theme(Panel):
             padding = subsplit.split(percentage=0.15)
             colsub = padding.column()
             colsub = padding.column()
+            colsub.row().prop(ui, "manipulator_primary")
+            colsub.row().prop(ui, "manipulator_secondary")
+            colsub.row().prop(ui, "manipulator_a")
+            colsub.row().prop(ui, "manipulator_b")
 
-            layout.separator()
-            layout.separator()
+            col.separator()
+            col.separator()
         elif theme.theme_area == 'BONE_COLOR_SETS':
             col = split.column()
 

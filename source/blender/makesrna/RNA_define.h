@@ -37,6 +37,14 @@
 extern "C" {
 #endif
 
+#ifdef UNIT_TEST
+#define RNA_MAX_ARRAY_LENGTH 64
+#else
+#define RNA_MAX_ARRAY_LENGTH 32
+#endif
+
+#define RNA_MAX_ARRAY_DIMENSION 3
+
 /* Blender RNA */
 
 BlenderRNA *RNA_create(void);
@@ -168,6 +176,8 @@ void RNA_def_property_ui_icon(PropertyRNA *prop, int icon, bool consecutive);
 void RNA_def_property_update(PropertyRNA *prop, int noteflag, const char *updatefunc);
 void RNA_def_property_editable_func(PropertyRNA *prop, const char *editable);
 void RNA_def_property_editable_array_func(PropertyRNA *prop, const char *editable);
+
+void RNA_def_property_override_funcs(PropertyRNA *prop, const char *diff, const char *store, const char *apply);
 
 void RNA_def_property_update_runtime(PropertyRNA *prop, const void *func);
 void RNA_def_property_poll_runtime(PropertyRNA *prop, const void *func);

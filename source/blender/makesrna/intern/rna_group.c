@@ -49,13 +49,14 @@ static PointerRNA rna_Group_objects_get(CollectionPropertyIterator *iter)
 {
 	ListBaseIterator *internal = &iter->internal.listbase;
 
-	/* we are actually iterating a GroupObject list, so override get */
-	return rna_pointer_inherit_refine(&iter->parent, &RNA_Object, ((GroupObject *)internal->link)->ob);
+	/* we are actually iterating a ObjectBase list, so override get */
+	Base *base = (Base *)internal->link;
+	return rna_pointer_inherit_refine(&iter->parent, &RNA_Object, base->object);
 }
 
-static void rna_Group_objects_link(Group *group, bContext *C, ReportList *reports, Object *object)
+static void rna_Group_objects_link(Group *group, ReportList *reports, Object *object)
 {
-	if (!BKE_group_object_add(group, object, CTX_data_scene(C), NULL)) {
+	if (!BKE_group_object_add(group, object)) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' already in group '%s'", object->id.name + 2, group->id.name + 2);
 		return;
 	}
@@ -63,9 +64,9 @@ static void rna_Group_objects_link(Group *group, bContext *C, ReportList *report
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, &object->id);
 }
 
-static void rna_Group_objects_unlink(Group *group, bContext *C, ReportList *reports, Object *object)
+static void rna_Group_objects_unlink(Group *group, ReportList *reports, Object *object)
 {
-	if (!BKE_group_object_unlink(group, object, CTX_data_scene(C), NULL)) {
+	if (!BKE_group_object_unlink(group, object)) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in group '%s'", object->id.name + 2, group->id.name + 2);
 		return;
 	}
@@ -91,7 +92,7 @@ static void rna_def_group_objects(BlenderRNA *brna, PropertyRNA *cprop)
 
 	/* add object */
 	func = RNA_def_function(srna, "link", "rna_Group_objects_link");
-	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_function_ui_description(func, "Add this object to a group");
 	/* object to add */
 	parm = RNA_def_pointer(func, "object", "Object", "", "Object to add");
@@ -100,7 +101,7 @@ static void rna_def_group_objects(BlenderRNA *brna, PropertyRNA *cprop)
 	/* remove object */
 	func = RNA_def_function(srna, "unlink", "rna_Group_objects_unlink");
 	RNA_def_function_ui_description(func, "Remove this object to a group");
-	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	/* object to remove */
 	parm = RNA_def_pointer(func, "object", "Object", "", "Object to remove");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -124,20 +125,18 @@ void RNA_def_group(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, -10000.0, 10000.0, 10, RNA_TRANSLATION_PREC_DEFAULT);
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
-	prop = RNA_def_property(srna, "layers", PROP_BOOLEAN, PROP_LAYER);
-	RNA_def_property_boolean_sdna(prop, NULL, "layer", 1);
-	RNA_def_property_array(prop, 20);
-	RNA_def_property_ui_text(prop, "Dupli Layers", "Layers visible when this group is instanced as a dupli");
-	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
-
 	prop = RNA_def_property(srna, "objects", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "gobject", NULL);
+	RNA_def_property_collection_sdna(prop, NULL, "view_layer->object_bases", NULL);
 	RNA_def_property_struct_type(prop, "Object");
 	RNA_def_property_ui_text(prop, "Objects", "A collection of this groups objects");
 	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, "rna_Group_objects_get", NULL, NULL, NULL, NULL);
-
 	rna_def_group_objects(brna, prop);
 
+	prop = RNA_def_property(srna, "view_layer", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "ViewLayer");
+	RNA_def_property_flag(prop, PROP_NEVER_NULL);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "View Layer", "Group internal view layer");
 }
 
 #endif

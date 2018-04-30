@@ -52,7 +52,6 @@
 #include "BKE_particle.h"
 #include "BKE_pointcache.h"
 
-#include "depsgraph_private.h"
 #include "DEG_depsgraph_build.h"
 
 static void initData(ModifierData *md)
@@ -131,20 +130,6 @@ static bool isDisabled(ModifierData *md, int useRenderParams)
 	return false;
 }
 
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	ParticleInstanceModifierData *pimd = (ParticleInstanceModifierData *) md;
-
-	if (pimd->ob) {
-		DagNode *curNode = dag_get_node(ctx->forest, pimd->ob);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA,
-		                 "Particle Instance Modifier");
-	}
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ParticleInstanceModifierData *pimd = (ParticleInstanceModifierData *) md;
@@ -217,8 +202,8 @@ static void store_float_in_vcol(MLoopCol *vcol, float float_value)
 	vcol->a = 1.0f;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
-                                  DerivedMesh *derivedData,
+static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
+                                  Object *ob, DerivedMesh *derivedData,
                                   ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *dm = derivedData, *result;
@@ -267,6 +252,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 	if (part_end == 0)
 		return derivedData;
 
+	sim.depsgraph = depsgraph;
 	sim.scene = md->scene;
 	sim.ob = pimd->ob;
 	sim.psys = psys;
@@ -557,7 +543,6 @@ ModifierTypeInfo modifierType_ParticleInstance = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  NULL,

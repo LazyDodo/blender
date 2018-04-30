@@ -40,7 +40,7 @@ class OBJECT_PT_context_object(ObjectButtonsPanel, Panel):
             layout.template_ID(space, "pin_id")
         else:
             row = layout.row()
-            row.template_ID(context.scene.objects, "active", filter='AVAILABLE')
+            row.template_ID(context.view_layer.objects, "active", filter='AVAILABLE')
 
 
 class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
@@ -136,8 +136,6 @@ class OBJECT_PT_relations(ObjectButtonsPanel, Panel):
         split = layout.split()
 
         col = split.column()
-        col.prop(ob, "layers")
-        col.separator()
         col.prop(ob, "pass_index")
 
         col = split.column()
@@ -163,20 +161,16 @@ class OBJECT_PT_relations_extras(ObjectButtonsPanel, Panel):
 
         split = layout.split()
 
-        if context.scene.render.engine != 'BLENDER_GAME':
-            col = split.column()
-            col.label(text="Tracking Axes:")
-            col.prop(ob, "track_axis", text="Axis")
-            col.prop(ob, "up_axis", text="Up Axis")
+        col = split.column()
+        col.label(text="Tracking Axes:")
+        col.prop(ob, "track_axis", text="Axis")
+        col.prop(ob, "up_axis", text="Up Axis")
 
         col = split.column()
         col.prop(ob, "use_slow_parent")
         row = col.row()
         row.active = ((ob.parent is not None) and (ob.use_slow_parent))
         row.prop(ob, "slow_parent_offset", text="Offset")
-
-        layout.prop(ob, "use_extra_recalc_object")
-        layout.prop(ob, "use_extra_recalc_data")
 
 
 class GROUP_MT_specials(Menu):
@@ -221,13 +215,8 @@ class OBJECT_PT_groups(ObjectButtonsPanel, Panel):
                 row.operator("object.group_remove", text="", icon='X', emboss=False)
                 row.menu("GROUP_MT_specials", icon='DOWNARROW_HLT', text="")
 
-                split = col.box().split()
-
-                col = split.column()
-                col.prop(group, "layers", text="Dupli Visibility")
-
-                col = split.column()
-                col.prop(group, "dupli_offset", text="")
+                row = col.box().row()
+                row.prop(group, "dupli_offset", text="")
 
 
 class OBJECT_PT_display(ObjectButtonsPanel, Panel):
@@ -284,6 +273,13 @@ class OBJECT_PT_display(ObjectButtonsPanel, Panel):
             # Only useful with object having faces/materials...
             col.label(text="Object Color:")
             col.prop(obj, "color", text="")
+
+        col = layout.column()
+        col.active = bool(is_dupli or obj.particle_systems)
+        col.label(text="Duplicator Visibility:")
+        row = col.row(align=True)
+        row.prop(obj, "show_duplicator_for_viewport", text="Viewport")
+        row.prop(obj, "show_duplicator_for_render", text="Render")
 
 
 class OBJECT_PT_duplication(ObjectButtonsPanel, Panel):
@@ -362,7 +358,7 @@ class OBJECT_PT_onion_skinning(OnionSkinButtonsPanel):  # , Panel): # inherit fr
 
 
 class OBJECT_PT_custom_props(ObjectButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
     _context_path = "object"
     _property_type = bpy.types.Object
 

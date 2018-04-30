@@ -45,12 +45,14 @@
 #include "BKE_blender_copybuffer.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
-#include "BKE_depsgraph.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
+#include "BKE_layer.h"
 #include "BKE_report.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -70,8 +72,9 @@
 /* Pose Apply */
 
 /* helper for apply_armature_pose2bones - fixes parenting of objects that are bone-parented to armature */
-static void applyarmature_fix_boneparents(Scene *scene, Object *armob)
+static void applyarmature_fix_boneparents(const bContext *C, Scene *scene, Object *armob)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object workob, *ob;
 	
 	/* go through all objects in database */
@@ -83,7 +86,7 @@ static void applyarmature_fix_boneparents(Scene *scene, Object *armob)
 			 */
 			BKE_object_apply_mat4(ob, ob->obmat, false, false);
 			
-			BKE_object_workob_calc_parent(scene, ob, &workob);
+			BKE_object_workob_calc_parent(depsgraph, scene, ob, &workob);
 			invert_m4_m4(ob->parentinv, workob.obmat);
 		}
 	}
@@ -92,13 +95,14 @@ static void applyarmature_fix_boneparents(Scene *scene, Object *armob)
 /* set the current pose as the restpose */
 static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C)); // must be active object, not edit-object
 	bArmature *arm = BKE_armature_from_object(ob);
 	bPose *pose;
 	bPoseChannel *pchan;
 	EditBone *curbone;
-	
+
 	/* don't check if editmode (should be done by caller) */
 	if (ob->type != OB_ARMATURE)
 		return OPERATOR_CANCELLED;
@@ -189,10 +193,10 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 	ED_armature_edit_free(arm);
 	
 	/* flush positions of posebones */
-	BKE_pose_where_is(scene, ob);
+	BKE_pose_where_is(depsgraph, scene, ob);
 	
 	/* fix parenting of objects which are bone-parented */
-	applyarmature_fix_boneparents(scene, ob);
+	applyarmature_fix_boneparents(C, scene, ob);
 	
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
@@ -219,38 +223,38 @@ void POSE_OT_armature_apply(wmOperatorType *ot)
 /* set the current pose as the restpose */
 static int pose_visual_transform_apply_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C)); // must be active object, not edit-object
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	/* don't check if editmode (should be done by caller) */
-	if (ob->type != OB_ARMATURE)
-		return OPERATOR_CANCELLED;
-
-	/* loop over all selected pchans
-	 *
-	 * TODO, loop over children before parents if multiple bones
-	 * at once are to be predictable*/
-	CTX_DATA_BEGIN(C, bPoseChannel *, pchan, selected_pose_bones)
+	FOREACH_OBJECT_IN_MODE_BEGIN(view_layer, OB_MODE_POSE, ob)
 	{
-		float delta_mat[4][4];
+		/* loop over all selected pchans
+		 *
+		 * TODO, loop over children before parents if multiple bones
+		 * at once are to be predictable*/
+		CTX_DATA_BEGIN(C, bPoseChannel *, pchan, selected_pose_bones)
+		{
+			float delta_mat[4][4];
+			
+			/* chan_mat already contains the delta transform from rest pose to pose-mode pose
+			 * as that is baked into there so that B-Bones will work. Once we've set this as the
+			 * new raw-transform components, don't recalc the poses yet, otherwise IK result will 
+			 * change, thus changing the result we may be trying to record.
+			 */
+			/* XXX For some reason, we can't use pchan->chan_mat here, gives odd rotation/offset (see T38251).
+			 *     Using pchan->pose_mat and bringing it back in bone space seems to work as expected!
+			 */
+			BKE_armature_mat_pose_to_bone(pchan, pchan->pose_mat, delta_mat);
+			
+			BKE_pchan_apply_mat4(pchan, delta_mat, true);
+		}
+		CTX_DATA_END;
 		
-		/* chan_mat already contains the delta transform from rest pose to pose-mode pose
-		 * as that is baked into there so that B-Bones will work. Once we've set this as the
-		 * new raw-transform components, don't recalc the poses yet, otherwise IK result will 
-		 * change, thus changing the result we may be trying to record.
-		 */
-		/* XXX For some reason, we can't use pchan->chan_mat here, gives odd rotation/offset (see T38251).
-		 *     Using pchan->pose_mat and bringing it back in bone space seems to work as expected!
-		 */
-		BKE_armature_mat_pose_to_bone(pchan, pchan->pose_mat, delta_mat);
-		
-		BKE_pchan_apply_mat4(pchan, delta_mat, true);
-	}
-	CTX_DATA_END;
-	
-	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+		/* note, notifier might evolve */
+		WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+	}
+	FOREACH_OBJECT_IN_MODE_END;
 
 	return OPERATOR_FINISHED;
 }
@@ -565,11 +569,11 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 	BKE_main_free(tmp_bmain);
 	
 	/* Update event for pose and deformation children. */
-	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	
 	/* Recalculate paths if any of the bones have paths... */
 	if ((ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
-		ED_pose_recalculate_paths(scene, ob);
+		ED_pose_recalculate_paths(C, scene, ob);
 	}
 	
 	/* Notifiers for updates, */
@@ -754,57 +758,73 @@ static int pose_clear_transform_generic_exec(bContext *C, wmOperator *op,
                                              void (*clear_func)(bPoseChannel *), const char default_ksName[])
 {
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
-	short autokey = 0;
-	
+	bool changed_multi = false;
+
 	/* sanity checks */
 	if (ELEM(NULL, clear_func, default_ksName)) {
 		BKE_report(op->reports, RPT_ERROR, "Programming error: missing clear transform function or keying set name");
 		return OPERATOR_CANCELLED;
 	}
-	
+
 	/* only clear relevant transforms for selected bones */
-	CTX_DATA_BEGIN(C, bPoseChannel *, pchan, selected_pose_bones)
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, OB_MODE_POSE, ob_iter)
 	{
-		/* run provided clearing function */
-		clear_func(pchan);
-		
-		/* do auto-keyframing as appropriate */
-		if (autokeyframe_cfra_can_key(scene, &ob->id)) {
-			/* clear any unkeyed tags */
-			if (pchan->bone)
-				pchan->bone->flag &= ~BONE_UNKEYED;
+		ListBase dsources = {NULL, NULL};
+		bool changed = false;
 
-			/* tag for autokeying later */
-			autokey = 1;
+		FOREACH_PCHAN_SELECTED_IN_OBJECT_BEGIN (ob_iter, pchan)
+		{
+			/* run provided clearing function */
+			clear_func(pchan);
+			changed = true;
+
+			/* do auto-keyframing as appropriate */
+			if (autokeyframe_cfra_can_key(scene, &ob_iter->id)) {
+				/* clear any unkeyed tags */
+				if (pchan->bone) {
+					pchan->bone->flag &= ~BONE_UNKEYED;
+				}
+				/* tag for autokeying later */
+				ANIM_relative_keyingset_add_source(&dsources, &ob_iter->id, &RNA_PoseBone, pchan);
+			}
+			else {
+				/* add unkeyed tags */
+				if (pchan->bone) {
+					pchan->bone->flag |= BONE_UNKEYED;
+				}
+			}
 		}
-		else {
-			/* add unkeyed tags */
-			if (pchan->bone)
-				pchan->bone->flag |= BONE_UNKEYED;
+		FOREACH_PCHAN_SELECTED_IN_OBJECT_END;
+
+		if (changed) {
+			changed_multi = true;
+
+			/* perform autokeying on the bones if needed */
+			if (!BLI_listbase_is_empty(&dsources)) {
+				/* get KeyingSet to use */
+				KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, default_ksName);
+
+				/* insert keyframes */
+				ANIM_apply_keyingset(C, &dsources, NULL, ks, MODIFYKEY_MODE_INSERT, (float)CFRA);
+
+				/* now recalculate paths */
+				if ((ob_iter->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
+					ED_pose_recalculate_paths(C, scene, ob_iter);
+				}
+
+				BLI_freelistN(&dsources);
+			}
+
+			DEG_id_tag_update(&ob_iter->id, OB_RECALC_DATA);
+
+			/* note, notifier might evolve */
+			WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob_iter);
 		}
 	}
-	CTX_DATA_END;
-	
-	/* perform autokeying on the bones if needed */
-	if (autokey) {
-		/* get KeyingSet to use */
-		KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, default_ksName);
-		
-		/* insert keyframes */
-		ANIM_apply_keyingset(C, NULL, NULL, ks, MODIFYKEY_MODE_INSERT, (float)CFRA);
-		
-		/* now recalculate paths */
-		if ((ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS))
-			ED_pose_recalculate_paths(scene, ob);
-	}
-	
-	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	FOREACH_OBJECT_IN_MODE_END;
 
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
-	
-	return OPERATOR_FINISHED;
+	return changed_multi ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
 }
 
 /* --------------- */
@@ -897,57 +917,61 @@ void POSE_OT_transforms_clear(wmOperatorType *ot)
 
 static int pose_clear_user_transforms_exec(bContext *C, wmOperator *op)
 {
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
 	float cframe = (float)CFRA;
 	const bool only_select = RNA_boolean_get(op->ptr, "only_selected");
 	
-	if ((ob->adt) && (ob->adt->action)) {
-		/* XXX: this is just like this to avoid contaminating anything else; 
-		 * just pose values should change, so this should be fine 
-		 */
-		bPose *dummyPose = NULL;
-		Object workob = {{NULL}};
-		bPoseChannel *pchan;
-		
-		/* execute animation step for current frame using a dummy copy of the pose */
-		BKE_pose_copy_data(&dummyPose, ob->pose, 0);
-		
-		BLI_strncpy(workob.id.name, "OB<ClearTfmWorkOb>", sizeof(workob.id.name));
-		workob.type = OB_ARMATURE;
-		workob.data = ob->data;
-		workob.adt = ob->adt;
-		workob.pose = dummyPose;
-		
-		BKE_animsys_evaluate_animdata(scene, &workob.id, workob.adt, cframe, ADT_RECALC_ANIM);
-		
-		/* copy back values, but on selected bones only  */
-		for (pchan = dummyPose->chanbase.first; pchan; pchan = pchan->next) {
-			pose_bone_do_paste(ob, pchan, only_select, 0);
-		}
-		
-		/* free temp data - free manually as was copied without constraints */
-		for (pchan = dummyPose->chanbase.first; pchan; pchan = pchan->next) {
-			if (pchan->prop) {
-				IDP_FreeProperty(pchan->prop);
-				MEM_freeN(pchan->prop);
+	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, OB_MODE_POSE, ob)
+	{
+		if ((ob->adt) && (ob->adt->action)) {
+			/* XXX: this is just like this to avoid contaminating anything else;
+			 * just pose values should change, so this should be fine
+			 */
+			bPose *dummyPose = NULL;
+			Object workob = {{NULL}};
+			bPoseChannel *pchan;
+			
+			/* execute animation step for current frame using a dummy copy of the pose */
+			BKE_pose_copy_data(&dummyPose, ob->pose, 0);
+			
+			BLI_strncpy(workob.id.name, "OB<ClearTfmWorkOb>", sizeof(workob.id.name));
+			workob.type = OB_ARMATURE;
+			workob.data = ob->data;
+			workob.adt = ob->adt;
+			workob.pose = dummyPose;
+			
+			BKE_animsys_evaluate_animdata(scene, &workob.id, workob.adt, cframe, ADT_RECALC_ANIM);
+			
+			/* copy back values, but on selected bones only  */
+			for (pchan = dummyPose->chanbase.first; pchan; pchan = pchan->next) {
+				pose_bone_do_paste(ob, pchan, only_select, 0);
 			}
+			
+			/* free temp data - free manually as was copied without constraints */
+			for (pchan = dummyPose->chanbase.first; pchan; pchan = pchan->next) {
+				if (pchan->prop) {
+					IDP_FreeProperty(pchan->prop);
+					MEM_freeN(pchan->prop);
+				}
+			}
+			
+			/* was copied without constraints */
+			BLI_freelistN(&dummyPose->chanbase);
+			MEM_freeN(dummyPose);
+		}
+		else {
+			/* no animation, so just reset whole pose to rest pose
+			 * (cannot just restore for selected though)
+			 */
+			BKE_pose_rest(ob->pose);
 		}
 		
-		/* was copied without constraints */
-		BLI_freelistN(&dummyPose->chanbase);
-		MEM_freeN(dummyPose);
+		/* notifiers and updates */
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
 	}
-	else {
-		/* no animation, so just reset whole pose to rest pose 
-		 * (cannot just restore for selected though)
-		 */
-		BKE_pose_rest(ob->pose);
-	}
-	
-	/* notifiers and updates */
-	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
-	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
+	FOREACH_OBJECT_IN_MODE_END;
 	
 	return OPERATOR_FINISHED;
 }

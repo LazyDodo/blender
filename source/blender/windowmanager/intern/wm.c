@@ -52,9 +52,11 @@
 #include "BKE_screen.h"
 #include "BKE_report.h"
 #include "BKE_global.h"
+#include "BKE_workspace.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
 #include "wm_window.h"
 #include "wm_event_system.h"
 #include "wm_draw.h"
@@ -162,6 +164,9 @@ void wm_operator_register(bContext *C, wmOperator *op)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
 	int tot = 0;
+
+	op->execution_area = CTX_wm_area(C);
+	op->execution_region = CTX_wm_region(C);
 
 	BLI_addtail(&wm->operators, op);
 
@@ -340,6 +345,14 @@ void WM_menutype_free(void)
 
 bool WM_menutype_poll(bContext *C, MenuType *mt)
 {
+	/* If we're tagged, only use compatible. */
+	if (mt->owner_id[0] != '\0') {
+		const WorkSpace *workspace = CTX_wm_workspace(C);
+		if (BKE_workspace_owner_id_check(workspace, mt->owner_id) == false) {
+			return false;
+		}
+	}
+
 	if (mt->poll != NULL) {
 		return mt->poll(C, mt);
 	}
@@ -362,7 +375,7 @@ void WM_keymap_init(bContext *C)
 	
 	/* initialize only after python init is done, for keymaps that
 	 * use python operators */
-	if (CTX_py_init_get(C) && (wm->initialized & WM_INIT_KEYMAP) == 0) {
+	if (CTX_py_init_get(C) && (wm->initialized & WM_KEYMAP_IS_INITIALIZED) == 0) {
 		/* create default key config, only initialize once,
 		 * it's persistent across sessions */
 		if (!(wm->defaultconf->flag & KEYCONF_INIT_DEFAULT)) {
@@ -375,7 +388,7 @@ void WM_keymap_init(bContext *C)
 		WM_keyconfig_update_tag(NULL, NULL);
 		WM_keyconfig_update(wm);
 
-		wm->initialized |= WM_INIT_KEYMAP;
+		wm->initialized |= WM_KEYMAP_IS_INITIALIZED;
 	}
 }
 
@@ -395,7 +408,7 @@ void WM_check(bContext *C)
 
 	if (!G.background) {
 		/* case: fileread */
-		if ((wm->initialized & WM_INIT_WINDOW) == 0) {
+		if ((wm->initialized & WM_WINDOW_IS_INITIALIZED) == 0) {
 			WM_keymap_init(C);
 			WM_autosave_init(wm);
 		}
@@ -404,11 +417,15 @@ void WM_check(bContext *C)
 		wm_window_ghostwindows_ensure(wm);
 	}
 
+	if (wm->message_bus == NULL) {
+		wm->message_bus = WM_msgbus_create();
+	}
+
 	/* case: fileread */
 	/* note: this runs in bg mode to set the screen context cb */
-	if ((wm->initialized & WM_INIT_WINDOW) == 0) {
+	if ((wm->initialized & WM_WINDOW_IS_INITIALIZED) == 0) {
 		ED_screens_initialize(wm);
-		wm->initialized |= WM_INIT_WINDOW;
+		wm->initialized |= WM_WINDOW_IS_INITIALIZED;
 	}
 }
 
@@ -437,21 +454,24 @@ void wm_clear_default_size(bContext *C)
 }
 
 /* on startup, it adds all data, for matching */
-void wm_add_default(bContext *C)
+void wm_add_default(Main *bmain, bContext *C)
 {
-	wmWindowManager *wm = BKE_libblock_alloc(CTX_data_main(C), ID_WM, "WinMan", 0);
+	wmWindowManager *wm = BKE_libblock_alloc(bmain, ID_WM, "WinMan", 0);
 	wmWindow *win;
 	bScreen *screen = CTX_wm_screen(C); /* XXX from file read hrmf */
-	
+	WorkSpace *workspace;
+	WorkSpaceLayout *layout = BKE_workspace_layout_find_global(bmain, screen, &workspace);
+
 	CTX_wm_manager_set(C, wm);
 	win = wm_window_new(C);
-	win->screen = screen;
+	win->scene = CTX_data_scene(C);
+	WM_window_set_active_workspace(win, workspace);
+	WM_window_set_active_layout(win, workspace, layout);
 	screen->winid = win->winid;
-	BLI_strncpy(win->screenname, screen->id.name + 2, sizeof(win->screenname));
-	
+
 	wm->winactive = win;
 	wm->file_saved = 1;
-	wm_window_make_drawable(wm, win); 
+	wm_window_make_drawable(wm, win);
 }
 
 
@@ -466,8 +486,7 @@ void wm_close_and_free(bContext *C, wmWindowManager *wm)
 		wm_autosave_timer_ended(wm);
 
 	while ((win = BLI_pophead(&wm->windows))) {
-		win->screen = NULL; /* prevent draw clear to use screen */
-		wm_draw_window_clear(win);
+		WM_window_set_active_workspace(win, NULL); /* prevent draw clear to use screen */
 		wm_window_free(C, wm, win);
 	}
 	
@@ -480,7 +499,11 @@ void wm_close_and_free(bContext *C, wmWindowManager *wm)
 	}
 
 	BLI_freelistN(&wm->queue);
-	
+
+	if (wm->message_bus != NULL) {
+		WM_msgbus_destroy(wm->message_bus);
+	}
+
 	BLI_freelistN(&wm->paintcursors);
 
 	WM_drag_free_list(&wm->drags);

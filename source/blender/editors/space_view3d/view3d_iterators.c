@@ -40,6 +40,9 @@
 #include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
 #include "BKE_editmesh.h"
+#include "BKE_context.h"
+
+#include "DEG_depsgraph.h"
 
 #include "bmesh.h"
 
@@ -109,7 +112,9 @@ void meshobject_foreachScreenVert(
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenObjectVert_userData data;
-	DerivedMesh *dm = mesh_get_derived_deform(vc->scene, vc->obact, CD_MASK_BAREMESH);
+	DerivedMesh *dm;
+
+	dm = mesh_get_derived_deform(vc->depsgraph, vc->scene, vc->obact, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -150,7 +155,9 @@ void mesh_foreachScreenVert(
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenVert_userData data;
-	DerivedMesh *dm = editbmesh_get_derived_cage(vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	DerivedMesh *dm;
+
+	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -204,7 +211,9 @@ void mesh_foreachScreenEdge(
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenEdge_userData data;
-	DerivedMesh *dm = editbmesh_get_derived_cage(vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	DerivedMesh *dm;
+
+	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -250,7 +259,9 @@ void mesh_foreachScreenFace(
         void *userData, const eV3DProjTest clip_flag)
 {
 	foreachScreenFace_userData data;
-	DerivedMesh *dm = editbmesh_get_derived_cage(vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	DerivedMesh *dm;
+
+	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 

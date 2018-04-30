@@ -163,9 +163,6 @@ struct bPoseChannel *BKE_pose_channel_get_mirrored(const struct bPose *pose, con
 bool BKE_pose_channels_is_valid(const struct bPose *pose);
 #endif
 
-/* Copy the data from the action-pose (src) into the pose */
-void extract_pose_from_pose(struct bPose *pose, const struct bPose *src);
-
 /* sets constraint flags */
 void BKE_pose_update_constraint_flags(struct bPose *pose);
 
@@ -210,6 +207,22 @@ void BKE_pose_rest(struct bPose *pose);
 
 /* Tag pose for recalc. Also tag all related data to be recalc. */
 void BKE_pose_tag_recalc(struct Main *bmain, struct bPose *pose);
+
+/* context.selected_pose_bones */
+#define FOREACH_PCHAN_SELECTED_IN_OBJECT_BEGIN(_ob, _pchan) \
+	for (bPoseChannel *_pchan = (_ob)->pose->chanbase.first; _pchan;  _pchan = _pchan->next) { \
+		if (PBONE_VISIBLE(((bArmature *)(_ob)->data), (_pchan)->bone) && ((_pchan)->bone->flag & BONE_SELECTED)) {
+#define FOREACH_PCHAN_SELECTED_IN_OBJECT_END \
+		} \
+	} ((void)0)
+/* context.visible_pose_bones */
+#define FOREACH_PCHAN_VISIBLE_IN_OBJECT_BEGIN(_ob, _pchan) \
+	for (bPoseChannel *_pchan = (_ob)->pose->chanbase.first; _pchan;  _pchan = _pchan->next) { \
+		if (PBONE_VISIBLE(((bArmature *)(_ob)->data), (_pchan)->bone)) {
+#define FOREACH_PCHAN_VISIBLE_IN_OBJECT_END \
+		} \
+	} ((void)0)
+
 
 #ifdef __cplusplus
 };

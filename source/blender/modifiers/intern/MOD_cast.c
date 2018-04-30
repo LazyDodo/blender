@@ -45,9 +45,6 @@
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
-
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 static void initData(ModifierData *md)
@@ -103,18 +100,6 @@ static void foreachObjectLink(
 	CastModifierData *cmd = (CastModifierData *) md;
 
 	walk(userData, ob, &cmd->object, IDWALK_CB_NOP);
-}
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	CastModifierData *cmd = (CastModifierData *) md;
-
-	if (cmd->object) {
-		DagNode *curNode = dag_get_node(ctx->forest, cmd->object);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode, DAG_RL_OB_DATA,
-		                 "Cast Modifier");
-	}
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -444,8 +429,8 @@ static void cuboid_do(
 	}
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
-                        DerivedMesh *derivedData,
+static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+                        Object *ob, DerivedMesh *derivedData,
                         float (*vertexCos)[3],
                         int numVerts,
                         ModifierApplyFlag UNUSED(flag))
@@ -467,7 +452,8 @@ static void deformVerts(ModifierData *md, Object *ob,
 }
 
 static void deformVertsEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *editData,
+        ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+        Object *ob, struct BMEditMesh *editData,
         DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
 {
 	DerivedMesh *dm = get_dm(ob, editData, derivedData, NULL, false, false);
@@ -505,7 +491,6 @@ ModifierTypeInfo modifierType_Cast = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

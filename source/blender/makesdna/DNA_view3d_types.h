@@ -45,6 +45,7 @@ struct SmoothView3DStore;
 struct wmTimer;
 struct Material;
 struct GPUFX;
+struct GPUViewport;
 
 /* This is needed to not let VC choke on near and far... old
  * proprietary MS extensions... */
@@ -65,23 +66,28 @@ struct GPUFX;
 
 /* The near/far thing is a Win EXCEPTION. Thus, leave near/far in the
  * code, and patch for windows. */
- 
-/* Background Picture in 3D-View */
-typedef struct BGpic {
-	struct BGpic *next, *prev;
 
-	struct Image *ima;
-	struct ImageUser iuser;
-	struct MovieClip *clip;
-	struct MovieClipUser cuser;
-	float xof, yof, size, blend, rotation;
-	short view;
-	short flag;
-	short source;
-	char pad[6];
-} BGpic;
+typedef struct View3DDebug {
+	float znear, zfar;
+	char background;
+	char pad[7];
+} View3DDebug;
 
 /* ********************************* */
+enum {
+	V3D_LIGHTING_FLAT   = 0,
+	V3D_LIGHTING_STUDIO = 1,
+	V3D_LIGHTING_SCENE  = 2
+};
+
+enum {
+	V3D_DRAWOPTION_RANDOMIZE = (1 << 0),
+	V3D_DRAWOPTION_OBJECT_OVERLAP   = (2 << 0),
+};
+
+enum {
+	V3D_OVERLAY_FACE_ORIENTATION = (1 << 0),
+};
 
 typedef struct RegionView3D {
 	
@@ -111,8 +117,13 @@ typedef struct RegionView3D {
 	struct wmTimer *smooth_timer;
 
 
-	/* transform widget matrix */
+	/* transform manipulator matrix */
 	float twmat[4][4];
+	/* min/max dot product on twmat xyz axis. */
+	float tw_axis_min[3], tw_axis_max[3];
+	float tw_axis_matrix[3][3];
+
+	float gridview;
 
 	float viewquat[4];			/* view rotation, must be kept normalized */
 	float dist;					/* distance from 'ofs' along -viewinv[2] vector, where result is negative as is 'ofs' */
@@ -130,17 +141,13 @@ typedef struct RegionView3D {
 	char pad[3];
 	float ofs_lock[2];			/* normalized offset for locked view: (-1, -1) bottom left, (1, 1) upper right */
 
-	short twdrawflag;
+	short twdrawflag; /* XXX can easily get rid of this (Julian) */
 	short rflag;
 
 
 	/* last view (use when switching out of camera view) */
 	float lviewquat[4];
 	short lpersp, lview; /* lpersp can never be set to 'RV3D_CAMOB' */
-
-	float gridview;
-	float tw_idot[3];  /* manipulator runtime: (1 - dot) product with view vector (used to check view alignment) */
-
 
 	/* active rotation from NDOF or elsewhere */
 	float rot_angle;
@@ -173,9 +180,6 @@ typedef struct View3D {
 	struct Object *camera, *ob_centre;
 	rctf render_border;
 
-	struct ListBase bgpicbase;
-	struct BGpic *bgpic  DNA_DEPRECATED; /* deprecated, use bgpicbase, only kept for do_versions(...) */
-
 	struct View3D *localvd; /* allocated backup of its self while in localview */
 	
 	char ob_centre_bone[64];		/* optional string for armature bone to define center, MAXBONENAME */
@@ -202,11 +206,11 @@ typedef struct View3D {
 	short gridsubdiv;	/* Number of subdivisions in the grid between each highlighted grid line */
 	char gridflag;
 
-	/* transform widget info */
-	char twtype, twmode, twflag;
+	/* transform manipulator info */
+	char twtype, _pad5, twflag;
 	
 	short flag3;
-	
+
 	/* afterdraw, for xray & transparent */
 	struct ListBase afterdraw_transp;
 	struct ListBase afterdraw_xray;
@@ -217,7 +221,6 @@ typedef struct View3D {
 
 	char multiview_eye;				/* multiview current eye - for internal use */
 
-	/* built-in shader effects (eGPUFXFlags) */
 	char pad3[4];
 
 	/* note, 'fx_settings.dof' is currently _not_ allocated,
@@ -243,8 +246,15 @@ typedef struct View3D {
 	 * Runtime-only, set in the rendered viewport toggle operator.
 	 */
 	short prev_drawtype;
-	short pad1;
-	float pad2;
+	/* drawtype options (lighting, random) used for drawtype == OB_SOLID */
+	short drawtype_lighting;
+	short drawtype_options;
+	short pad5;
+
+	int overlays;
+	int pad6;
+
+	View3DDebug debug;
 } View3D;
 
 
@@ -255,7 +265,7 @@ typedef struct View3D {
 
 /* View3D->flag (short) */
 /*#define V3D_DISPIMAGE		1*/ /*UNUSED*/
-#define V3D_DISPBGPICS		2
+/*#define V3D_DISPBGPICS		2*/ /* UNUSED */
 #define V3D_HIDE_HELPLINES	4
 #define V3D_INVALID_BACKBUF	8
 
@@ -274,7 +284,7 @@ typedef struct View3D {
 #define RV3D_CLIPPING				4
 #define RV3D_NAVIGATING				8
 #define RV3D_GPULIGHT_UPDATE		16
-#define RV3D_IS_GAME_ENGINE			32  /* runtime flag, used to check if LoD's should be used */
+/*#define RV3D_IS_GAME_ENGINE			32 *//* UNUSED */
 /**
  * Disable zbuffer offset, skip calls to #ED_view3d_polygon_offset.
  * Use when precise surface depth is needed and picking bias isn't, see T45434).
@@ -315,11 +325,18 @@ typedef struct View3D {
 #define V3D_SOLID_MATCAP		(1 << 12)	/* user flag */
 #define V3D_SHOW_SOLID_MATCAP	(1 << 13)	/* runtime flag */
 #define V3D_OCCLUDE_WIRE		(1 << 14)
-#define V3D_SHADELESS_TEX		(1 << 15)
+#define V3D_SHOW_MODE_SHADE_OVERRIDE	(1 << 15)
 
 
 /* View3d->flag3 (short) */
 #define V3D_SHOW_WORLD			(1 << 0)
+
+/* View3d->debug.background */
+enum {
+	V3D_DEBUG_BACKGROUND_NONE     = (1 << 0),
+	V3D_DEBUG_BACKGROUND_GRADIENT = (1 << 1),
+	V3D_DEBUG_BACKGROUND_WORLD    = (1 << 2),
+};
 
 /* View3D->around */
 enum {
@@ -351,48 +368,18 @@ enum {
 #define V3D_SHOW_Y				4
 #define V3D_SHOW_Z				8
 
-/* View3d->twtype (bits, we can combine them) */
-#define V3D_MANIP_TRANSLATE		1
-#define V3D_MANIP_ROTATE		2
-#define V3D_MANIP_SCALE			4
-
-/* View3d->twmode */
+/* Scene.orientation_type */
 #define V3D_MANIP_GLOBAL		0
 #define V3D_MANIP_LOCAL			1
 #define V3D_MANIP_NORMAL		2
 #define V3D_MANIP_VIEW			3
 #define V3D_MANIP_GIMBAL		4
-#define V3D_MANIP_CUSTOM		5 /* anything of value 5 or higher is custom */
+#define V3D_MANIP_CUSTOM		5
 
-/* View3d->twflag */
-   /* USE = user setting, DRAW = based on selection */
-#define V3D_USE_MANIPULATOR		1
-#define V3D_DRAW_MANIPULATOR	2
-/* #define V3D_CALC_MANIPULATOR	4 */ /*UNUSED*/
-
-/* BGPic->flag */
-/* may want to use 1 for select ? */
+/* View3d->twflag (also) */
 enum {
-	V3D_BGPIC_EXPANDED      = (1 << 1),
-	V3D_BGPIC_CAMERACLIP    = (1 << 2),
-	V3D_BGPIC_DISABLED      = (1 << 3),
-	V3D_BGPIC_FOREGROUND    = (1 << 4),
-
-	/* Camera framing options */
-	V3D_BGPIC_CAMERA_ASPECT = (1 << 5),  /* don't stretch to fit the camera view  */
-	V3D_BGPIC_CAMERA_CROP   = (1 << 6),  /* crop out the image */
-
-	/* Axis flip options */
-	V3D_BGPIC_FLIP_X        = (1 << 7),
-	V3D_BGPIC_FLIP_Y        = (1 << 8),
+	V3D_MANIPULATOR_DRAW        = (1 << 0),
 };
-
-#define V3D_BGPIC_EXPANDED (V3D_BGPIC_EXPANDED | V3D_BGPIC_CAMERACLIP)
-
-/* BGPic->source */
-/* may want to use 1 for select ?*/
-#define V3D_BGPIC_IMAGE		0
-#define V3D_BGPIC_MOVIE		1
 
 #define RV3D_CAMZOOM_MIN -30
 #define RV3D_CAMZOOM_MAX 600

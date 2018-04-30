@@ -42,6 +42,7 @@ class AbcMBallWriter : public AbcObjectWriter {
 public:
 	AbcMBallWriter(
 	        Main *bmain,
+	        Depsgraph *depsgraph,
 	        Scene *scene,
 	        Object *ob,
 	        AbcTransformWriter *parent,

@@ -28,7 +28,7 @@
  *  \ingroup collada
  */
 #ifdef WITH_COLLADA
-#include "DNA_scene_types.h"
+#include "DNA_space_types.h"
 
 #include "BLT_translation.h"
 
@@ -36,11 +36,12 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_object.h"
+
+#include "DEG_depsgraph.h"
 
 #include "ED_screen.h"
 #include "ED_object.h"
@@ -93,7 +94,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	int sample_animations;
 	int sampling_rate;
 
-	int export_texture_type;
+	int include_material_textures;
 	int use_texture_copies;
 	int active_uv_only;
 
@@ -149,7 +150,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 
 	deform_bones_only        = RNA_boolean_get(op->ptr, "deform_bones_only");
 
-	export_texture_type      = RNA_enum_get(op->ptr, "export_texture_type_selection");
+	include_material_textures = RNA_boolean_get(op->ptr, "include_material_textures");
 	use_texture_copies       = RNA_boolean_get(op->ptr, "use_texture_copies");
 	active_uv_only           = RNA_boolean_get(op->ptr, "active_uv_only");
 
@@ -166,8 +167,8 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	/* get editmode results */
 	ED_object_editmode_load(CTX_data_edit_object(C));
 
-	EvaluationContext *eval_ctx = G.main->eval_ctx;
 	Scene *scene = CTX_data_scene(C);
+
 	ExportSettings export_settings;
 
 	export_settings.filepath = filepath;
@@ -183,7 +184,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	export_settings.sampling_rate = sampling_rate;
 
 	export_settings.active_uv_only = active_uv_only != 0;
-	export_settings.export_texture_type = export_texture_type;
+	export_settings.include_material_textures = include_material_textures != 0;
 	export_settings.use_texture_copies = use_texture_copies != 0;
 
 	export_settings.triangulate = triangulate != 0;
@@ -199,8 +200,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	if (export_settings.include_armatures) includeFilter |= OB_REL_MOD_ARMATURE;
 	if (export_settings.include_children) includeFilter |= OB_REL_CHILDREN_RECURSIVE;
 
-
-	export_count = collada_export(eval_ctx,
+	export_count = collada_export(CTX_data_depsgraph(C),
 		scene,
 		&export_settings
 	);
@@ -273,7 +273,7 @@ static void uiCollada_exportSettings(uiLayout *layout, PointerRNA *imfptr)
 	uiItemR(row, imfptr, "active_uv_only", 0, NULL, ICON_NONE);
 
 	row = uiLayoutRow(box, false);
-	uiItemR(row, imfptr, "export_texture_type_selection", 0, "", ICON_NONE);
+	uiItemR(row, imfptr, "include_material_textures", 0, NULL, ICON_NONE);
 
 	row = uiLayoutRow(box, false);
 	uiItemR(row, imfptr, "use_texture_copies", 1, NULL, ICON_NONE);
@@ -350,15 +350,9 @@ void WM_OT_collada_export(wmOperatorType *ot)
 	};
 
 	static const EnumPropertyItem prop_bc_export_transformation_type[] = {
-		{ BC_TRANSFORMATION_TYPE_MATRIX, "matrix", 0, "Matrix", "Use <matrix> to specify transformations" },
-		{ BC_TRANSFORMATION_TYPE_TRANSROTLOC, "transrotloc", 0, "TransRotLoc", "Use <translate>, <rotate>, <scale> to specify transformations" },
-		{ 0, NULL, 0, NULL, NULL }
-	};
-
-	static const EnumPropertyItem prop_bc_export_texture_type[] = {
-		{ BC_TEXTURE_TYPE_MAT, "mat", 0, "Materials", "Export Materials" },
-		{ BC_TEXTURE_TYPE_UV, "uv", 0, "UV Textures", "Export UV Textures (Face textures) as materials" },
-		{ 0, NULL, 0, NULL, NULL }
+		{BC_TRANSFORMATION_TYPE_MATRIX, "matrix", 0, "Matrix", "Use <matrix> to specify transformations"},
+		{BC_TRANSFORMATION_TYPE_TRANSROTLOC, "transrotloc", 0, "TransRotLoc", "Use <translate>, <rotate>, <scale> to specify transformations"},
+		{0, NULL, 0, NULL, NULL}
 	};
 
 	ot->name = "Export COLLADA";
@@ -412,8 +406,12 @@ void WM_OT_collada_export(wmOperatorType *ot)
 	RNA_def_int(func, "sampling_rate", 1, 1, INT_MAX,
 		"Sampling Rate", "The distance between 2 keyframes. 1 means: Every frame is keyed", 1, INT_MAX);
 
+
 	RNA_def_boolean(func, "active_uv_only", 0, "Only Selected UV Map",
 	                "Export only the selected UV Map");
+
+	RNA_def_boolean(func, "include_material_textures", 0, "Include Material Textures",
+	                "Export textures assigned to the object Materials");
 
 	RNA_def_boolean(func, "use_texture_copies", 1, "Copy",
 	                "Copy textures to same folder where the .dae file is exported");
@@ -431,20 +429,11 @@ void WM_OT_collada_export(wmOperatorType *ot)
 	RNA_def_boolean(func, "sort_by_name", 0, "Sort by Object name",
 	                "Sort exported data by Object name");
 
-
 	RNA_def_int(func, "export_transformation_type", 0, INT_MIN, INT_MAX,
-		"Transform", "Transformation type for translation, scale and rotation", INT_MIN, INT_MAX);
+	            "Transform", "Transformation type for translation, scale and rotation", INT_MIN, INT_MAX);
 
 	RNA_def_enum(func, "export_transformation_type_selection", prop_bc_export_transformation_type, 0,
-		"Transform", "Transformation type for translation, scale and rotation");
-
-
-	RNA_def_int(func, "export_texture_type", 0, INT_MIN, INT_MAX,
-		"Texture Type", "Type for exported Textures (UV or MAT)", INT_MIN, INT_MAX);
-
-	RNA_def_enum(func, "export_texture_type_selection", prop_bc_export_texture_type, 0,
-		"Texture Type", "Type for exported Textures (UV or MAT)");
-
+	             "Transform", "Transformation type for translation, scale and rotation");
 
 	RNA_def_boolean(func, "open_sim", 0, "Export to SL/OpenSim",
 	                "Compatibility mode for SL, OpenSim and other compatible online worlds");
@@ -497,6 +486,7 @@ static int wm_collada_import_exec(bContext *C, wmOperator *op)
 	import_settings.keep_bind_info = keep_bind_info != 0;
 
 	if (collada_import(C, &import_settings)) {
+		DEG_id_tag_update(&CTX_data_scene(C)->id, DEG_TAG_BASE_FLAGS_UPDATE);
 		return OPERATOR_FINISHED;
 	}
 	else {

@@ -28,6 +28,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 #include "BLI_math.h"
+#include "BLI_string.h"
 
 #include "DNA_brush_types.h"
 #include "DNA_freestyle_types.h"
@@ -39,10 +40,13 @@
 #include "DNA_mesh_types.h"
 #include "DNA_material_types.h"
 #include "DNA_object_types.h"
+#include "DNA_workspace_types.h"
 
 #include "BKE_brush.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_scene.h"
+#include "BKE_workspace.h"
 
 #include "BLO_readfile.h"
 
@@ -86,17 +90,45 @@ void BLO_update_defaults_userpref_blend(void)
 }
 
 /**
+ * New workspace design: Remove all screens/workspaces except of "Default" one and rename the workspace to "General".
+ * For compatibility, a new workspace has been created for each screen of old files,
+ * we only want one workspace and one screen in the default startup file however.
+ */
+static void update_defaults_startup_workspaces(Main *bmain)
+{
+	WorkSpace *workspace_default = NULL;
+
+	for (WorkSpace *workspace = bmain->workspaces.first, *workspace_next; workspace; workspace = workspace_next) {
+		workspace_next = workspace->id.next;
+
+		if (STREQ(workspace->id.name + 2, "Default")) {
+			/* don't rename within iterator, renaming causes listbase to be re-sorted */
+			workspace_default = workspace;
+		}
+		else {
+			BKE_workspace_remove(bmain, workspace);
+		}
+	}
+
+	/* rename "Default" workspace to "General" */
+	BKE_libblock_rename(bmain, (ID *)workspace_default, "General");
+	BLI_assert(BLI_listbase_count(BKE_workspace_layouts_get(workspace_default)) == 1);
+}
+
+/**
  * Update defaults in startup.blend, without having to save and embed the file.
  * This function can be emptied each time the startup.blend is updated. */
 void BLO_update_defaults_startup_blend(Main *bmain)
 {
 	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+		BLI_strncpy(scene->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(scene->r.engine));
+
 		scene->r.im_format.planes = R_IMF_PLANES_RGBA;
 		scene->r.im_format.compress = 15;
 
-		for (SceneRenderLayer *srl = scene->r.layers.first; srl; srl = srl->next) {
-			srl->freestyleConfig.sphere_radius = 0.1f;
-			srl->pass_alpha_threshold = 0.5f;
+		for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
+			view_layer->freestyle_config.sphere_radius = 0.1f;
+			view_layer->pass_alpha_threshold = 0.5f;
 		}
 
 		if (scene->toolsettings) {
@@ -177,9 +209,6 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 			pset->brush[PE_BRUSH_CUT].strength = 1.0f;
 		}
 
-		scene->gm.lodflag |= SCE_LOD_USE_HYST;
-		scene->gm.scehysteresis = 10;
-
 		scene->r.ffcodecdata.audio_mixrate = 48000;
 	}
 
@@ -191,20 +220,18 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		linestyle->chain_count = 10;
 	}
 
-	for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-		ScrArea *area;
-		for (area = screen->areabase.first; area; area = area->next) {
-			SpaceLink *space_link;
-			ARegion *ar;
+	update_defaults_startup_workspaces(bmain);
 
-			for (space_link = area->spacedata.first; space_link; space_link = space_link->next) {
+	for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+		for (ScrArea *area = screen->areabase.first; area; area = area->next) {
+			for (SpaceLink *space_link = area->spacedata.first; space_link; space_link = space_link->next) {
 				if (space_link->spacetype == SPACE_CLIP) {
 					SpaceClip *space_clip = (SpaceClip *) space_link;
 					space_clip->flag &= ~SC_MANUAL_CALIBRATION;
 				}
 			}
 
-			for (ar = area->regionbase.first; ar; ar = ar->next) {
+			for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
 				/* Remove all stored panels, we want to use defaults (order, open/closed) as defined by UI code here! */
 				BLI_freelistN(&ar->panels);
 

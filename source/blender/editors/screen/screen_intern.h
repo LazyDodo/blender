@@ -33,6 +33,7 @@
 
 struct bContext;
 struct bContextDataResult;
+struct Main;
 
 /* internal exports only */
 
@@ -43,23 +44,28 @@ struct bContextDataResult;
 /* area.c */
 void        ED_area_data_copy(ScrArea *sa_dst, ScrArea *sa_src, const bool do_free);
 void        ED_area_data_swap(ScrArea *sa1, ScrArea *sa2);
-void		region_toggle_hidden(struct bContext *C, ARegion *ar, const bool do_fade);
+void        screen_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *area);
+void        region_toggle_hidden(struct bContext *C, ARegion *ar, const bool do_fade);
 
 /* screen_edit.c */
-ScrEdge    *screen_findedge(bScreen *sc, ScrVert *v1, ScrVert *v2);
+bScreen    *screen_add(const char *name, const int winsize_x, const int winsize_y);
+void        screen_data_copy(bScreen *to, bScreen *from);
+void        screen_new_activate_prepare(const wmWindow *win, bScreen *screen_new);
+void        screen_change_update(struct bContext *C, wmWindow *win, bScreen *sc);
+bScreen    *screen_change_prepare(bScreen *screen_old, bScreen *screen_new, struct Main *bmain, struct bContext *C, wmWindow *win);
 ScrArea    *area_split(bScreen *sc, ScrArea *sa, char dir, float fac, int merge);
 int         screen_area_join(struct bContext *C, bScreen *scr, ScrArea *sa1, ScrArea *sa2);
 int         area_getorientation(ScrArea *sa, ScrArea *sb);
-void        select_connected_scredge(bScreen *sc, ScrEdge *edge);
+void        select_connected_scredge(const wmWindow *win, ScrEdge *edge);
 
-void        removenotused_scrverts(bScreen *sc);
-void        removedouble_scrverts(bScreen *sc);
-void        removedouble_scredges(bScreen *sc);
-void        removenotused_scredges(bScreen *sc);
 bool        scredge_is_horizontal(ScrEdge *se);
-ScrEdge    *screen_find_active_scredge(bScreen *sc,
-                                       const int winsize_x, const int winsize_y,
-                                       const int mx, const int my);
+ScrEdge     *screen_area_map_find_active_scredge(
+        const struct ScrAreaMap *area_map,
+        const int winsize_x, const int winsize_y,
+        const int mx, const int my);
+ScrEdge    *screen_find_active_scredge(
+        const wmWindow *win, const bScreen *screen,
+        const int mx, const int my);
 
 struct AZone *is_in_area_actionzone(ScrArea *sa, const int xy[2]);
 
@@ -75,6 +81,9 @@ void	SCREEN_OT_screencast(struct wmOperatorType *ot);
 
 /* screen_ops.c */
 void	region_blend_start(struct bContext *C, struct ScrArea *sa, struct ARegion *ar);
+
+/* workspace_layout_edit.c */
+bool workspace_layout_set_poll(const struct WorkSpaceLayout *layout);
 
 
 #endif /* __SCREEN_INTERN_H__ */

@@ -41,6 +41,7 @@ struct MFace;
 struct DerivedMesh;
 struct ClothModifierData;
 struct CollisionModifierData;
+struct Depsgraph;
 
 #define DO_INLINE MALWAYS_INLINE
 
@@ -226,7 +227,7 @@ void cloth_free_contacts(ColliderContacts *collider_contacts, int totcolliders);
 void cloth_free_modifier_extern (struct ClothModifierData *clmd );
 void cloth_free_modifier (struct ClothModifierData *clmd );
 void cloth_init (struct ClothModifierData *clmd );
-void clothModifier_do (struct ClothModifierData *clmd, struct Scene *scene, struct Object *ob, struct DerivedMesh *dm, float (*vertexCos)[3]);
+void clothModifier_do(struct ClothModifierData *clmd, struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct DerivedMesh *dm, float (*vertexCos)[3]);
 
 int cloth_uses_vgroup(struct ClothModifierData *clmd);
 
@@ -235,7 +236,8 @@ void bvhtree_update_from_cloth(struct ClothModifierData *clmd, bool moving);
 void bvhselftree_update_from_cloth(struct ClothModifierData *clmd, bool moving);
 
 // needed for button_object.c
-void cloth_clear_cache (struct Object *ob, struct ClothModifierData *clmd, float framenr );
+void cloth_clear_cache(
+        struct Object *ob, struct ClothModifierData *clmd, float framenr );
 
 void cloth_parallel_transport_hair_frame(float mat[3][3], const float dir_old[3], const float dir_new[3]);
 

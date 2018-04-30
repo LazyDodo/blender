@@ -31,6 +31,7 @@
  *  \ingroup bke
  */
 
+struct Depsgraph;
 struct Object;
 struct Scene;
 struct SoftBody;
@@ -59,7 +60,8 @@ extern void             sbFree(struct SoftBody *sb);
 extern void             sbFreeSimulation(struct SoftBody *sb);
 
 /* do one simul step, reading and writing vertex locs from given array */
-extern void             sbObjectStep(struct Scene *scene, struct Object *ob, float framnr, float (*vertexCos)[3], int numVerts);
+extern void             sbObjectStep(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
+                                     float framnr, float (*vertexCos)[3], int numVerts);
 
 /* makes totally fresh start situation, resets time */
 extern void             sbObjectToSoftbody(struct Object *ob);

@@ -38,6 +38,7 @@
 
 #include "DNA_ID.h"
 #include "DNA_dynamicpaint_types.h"
+#include "DNA_group_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
 #include "DNA_object_force_types.h"
@@ -1647,6 +1648,25 @@ void BKE_ptcache_id_from_rigidbody(PTCacheID *pid, Object *ob, RigidBodyWorld *r
 	pid->file_type = PTCACHE_FILE_PTCACHE;
 }
 
+PTCacheID BKE_ptcache_id_find(Object *ob, Scene *scene, PointCache *cache)
+{
+	PTCacheID result = {0};
+
+	ListBase pidlist;
+	BKE_ptcache_ids_from_object(&pidlist, ob, scene, MAX_DUPLI_RECUR);
+
+	for (PTCacheID *pid = pidlist.first; pid; pid = pid->next) {
+		if (pid->cache == cache) {
+			result = *pid;
+			break;
+		}
+	}
+
+	BLI_freelistN(&pidlist);
+
+	return result;
+}
+
 void BKE_ptcache_ids_from_object(ListBase *lb, Object *ob, Scene *scene, int duplis)
 {
 	PTCacheID *pid;
@@ -1715,22 +1735,19 @@ void BKE_ptcache_ids_from_object(ListBase *lb, Object *ob, Scene *scene, int dup
 		BLI_addtail(lb, pid);
 	}
 
-	if (scene && (duplis-- > 0) && (ob->transflag & OB_DUPLI)) {
-		ListBase *lb_dupli_ob;
-		/* don't update the dupli groups, we only want their pid's */
-		if ((lb_dupli_ob = object_duplilist_ex(G.main->eval_ctx, scene, ob, false))) {
-			DupliObject *dob;
-			for (dob= lb_dupli_ob->first; dob; dob= dob->next) {
-				if (dob->ob != ob) { /* avoids recursive loops with dupliframes: bug 22988 */
-					ListBase lb_dupli_pid;
-					BKE_ptcache_ids_from_object(&lb_dupli_pid, dob->ob, scene, duplis);
-					BLI_movelisttolist(lb, &lb_dupli_pid);
-					if (lb_dupli_pid.first)
-						printf("Adding Dupli\n");
-				}
-			}
+	/* Consider all object in dupli groups to be part of the same object,
+	 * for baking with linking dupligroups. Once we have better overrides
+	 * this can be revisited so users select the local objects directly. */
+	if (scene && (duplis-- > 0) && (ob->dup_group)) {
+		Group *group = ob->dup_group;
+		Base *base = group->view_layer->object_bases.first;
 
-			free_object_duplilist(lb_dupli_ob);	/* does restore */
+		for (; base; base = base->next) {
+			if (base->object != ob) {
+				ListBase lb_dupli_pid;
+				BKE_ptcache_ids_from_object(&lb_dupli_pid, base->object, scene, duplis);
+				BLI_movelisttolist(lb, &lb_dupli_pid);
+			}
 		}
 	}
 }
@@ -3510,13 +3527,14 @@ PointCache *BKE_ptcache_copy_list(ListBase *ptcaches_new, const ListBase *ptcach
  * every user action changing stuff, and then it runs a complete bake??? (ton) */
 
 /* Baking */
-void BKE_ptcache_quick_cache_all(Main *bmain, Scene *scene)
+void BKE_ptcache_quick_cache_all(Main *bmain, Scene *scene, ViewLayer *view_layer)
 {
 	PTCacheBaker baker;
 
 	memset(&baker, 0, sizeof(baker));
 	baker.main = bmain;
 	baker.scene = scene;
+	baker.view_layer = view_layer;
 	baker.bake = 0;
 	baker.render = 0;
 	baker.anim_init = 0;
@@ -3542,6 +3560,8 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 {
 	Main *bmain = baker->main;
 	Scene *scene = baker->scene;
+	ViewLayer *view_layer = baker->view_layer;
+	struct Depsgraph *depsgraph = baker->depsgraph;
 	Scene *sce_iter; /* SETLOOPER macro only */
 	Base *base;
 	ListBase pidlist;
@@ -3604,7 +3624,7 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 		}
 	}
 	else {
-		for (SETLOOPER(scene, sce_iter, base)) {
+		for (SETLOOPER_VIEW_LAYER(scene, view_layer, sce_iter, base)) {
 			/* cache/bake everything in the scene */
 			BKE_ptcache_ids_from_object(&pidlist, base->object, scene, MAX_DUPLI_RECUR);
 
@@ -3660,7 +3680,7 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 	stime = ptime = PIL_check_seconds_timer();
 
 	for (int fr = CFRA; fr <= endframe; fr += baker->quick_step, CFRA = fr) {
-		BKE_scene_update_for_newframe(G.main->eval_ctx, bmain, scene, scene->lay);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 		if (baker->update_progress) {
 			float progress = ((float)(CFRA - startframe)/(float)(endframe - startframe));
@@ -3715,7 +3735,7 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 		}
 	}
 	else {
-		for (SETLOOPER(scene, sce_iter, base)) {
+		for (SETLOOPER_VIEW_LAYER(scene, view_layer, sce_iter, base)) {
 			BKE_ptcache_ids_from_object(&pidlist, base->object, scene, MAX_DUPLI_RECUR);
 
 			for (pid=pidlist.first; pid; pid=pid->next) {
@@ -3746,7 +3766,7 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 	CFRA = cfrao;
 	
 	if (bake) { /* already on cfra unless baking */
-		BKE_scene_update_for_newframe(bmain->eval_ctx, bmain, scene, scene->lay);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 
 	/* TODO: call redraw all windows somehow */

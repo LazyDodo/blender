@@ -46,8 +46,9 @@ extern "C" {
 #include "intern/nodes/deg_node_operation.h"
 #include "intern/depsgraph.h"
 
-struct Main;
+struct DEGEditorUpdateContext;
 struct Group;
+struct Main;
 struct Scene;
 
 namespace DEG {
@@ -105,15 +106,23 @@ DepsNodeFactory *deg_type_get_factory(const eDepsNode_Type type);
 
 /* Editors Integration -------------------------------------------------- */
 
-void deg_editors_id_update(struct Main *bmain, struct ID *id);
+void deg_editors_id_update(const DEGEditorUpdateContext *update_ctx,
+                           struct ID *id);
 
-void deg_editors_scene_update(struct Main *bmain, struct Scene *scene, bool updated);
+void deg_editors_scene_update(const DEGEditorUpdateContext *update_ctx,
+                              bool updated);
 
 #define DEG_DEBUG_PRINTF(type, ...) \
 	do { \
 		if (G.debug & G_DEBUG_DEPSGRAPH_ ## type) { \
 			fprintf(stderr, __VA_ARGS__); \
 		} \
+	} while (0)
+
+#define DEG_ERROR_PRINTF(...)               \
+	do {                                    \
+		fprintf(stderr, __VA_ARGS__);       \
+		fflush(stderr);                     \
 	} while (0)
 
 bool deg_terminal_do_color(void);

@@ -34,10 +34,7 @@ add_subdirectory(opencolorio)
 add_subdirectory(mikktspace)
 add_subdirectory(glew-mx)
 add_subdirectory(eigen)
-
-if(WITH_GAMEENGINE_DECKLINK)
-	add_subdirectory(decklink)
-endif()
+add_subdirectory(gawain)
 
 if(WITH_AUDASPACE)
 	add_subdirectory(audaspace)
@@ -63,10 +60,6 @@ if(WITH_IK_ITASC)
 	add_subdirectory(itasc)
 endif()
 
-if(WITH_GAMEENGINE)
-	add_subdirectory(moto)
-endif()
-
 if(WITH_CYCLES)
 	add_subdirectory(cycles)
 endif()
@@ -84,10 +77,8 @@ if(WITH_OPENSUBDIV)
 endif()
 
 # only windows needs utf16 converter
-# gpudirect is a runtime interface to the nVidia's DVP driver, only for windows
 if(WIN32)
 	add_subdirectory(utfconv)
-	add_subdirectory(gpudirect)
 endif()
 
 if(WITH_OPENVDB)

@@ -45,8 +45,6 @@
 #include "BKE_modifier.h"
 #include "BKE_shrinkwrap.h"
 
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 static bool dependsOnNormals(ModifierData *md);
@@ -105,8 +103,8 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 	walk(userData, ob, &smd->auxTarget, IDWALK_CB_NOP);
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
-                        DerivedMesh *derivedData,
+static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+                        Object *ob, DerivedMesh *derivedData,
                         float (*vertexCos)[3],
                         int numVerts,
                         ModifierApplyFlag flag)
@@ -126,7 +124,8 @@ static void deformVerts(ModifierData *md, Object *ob,
 		dm->release(dm);
 }
 
-static void deformVertsEM(ModifierData *md, Object *ob, struct BMEditMesh *editData, DerivedMesh *derivedData,
+static void deformVertsEM(ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob,
+                          struct BMEditMesh *editData, DerivedMesh *derivedData,
                           float (*vertexCos)[3], int numVerts)
 {
 	DerivedMesh *dm = derivedData;
@@ -141,19 +140,6 @@ static void deformVertsEM(ModifierData *md, Object *ob, struct BMEditMesh *editD
 
 	if (dm != derivedData)
 		dm->release(dm);
-}
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *) md;
-
-	if (smd->target)
-		dag_add_relation(ctx->forest, dag_get_node(ctx->forest, smd->target), ctx->obNode,
-		                 DAG_RL_OB_DATA | DAG_RL_DATA_DATA, "Shrinkwrap Modifier");
-
-	if (smd->auxTarget)
-		dag_add_relation(ctx->forest, dag_get_node(ctx->forest, smd->auxTarget), ctx->obNode,
-		                 DAG_RL_OB_DATA | DAG_RL_DATA_DATA, "Shrinkwrap Modifier");
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -201,7 +187,6 @@ ModifierTypeInfo modifierType_Shrinkwrap = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  dependsOnNormals,

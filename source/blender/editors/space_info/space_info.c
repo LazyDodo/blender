@@ -50,6 +50,9 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
+
+#include "RNA_access.h"
 
 #include "UI_resources.h"
 #include "UI_interface.h"
@@ -60,7 +63,7 @@
 
 /* ******************** default callbacks for info space ***************** */
 
-static SpaceLink *info_new(const bContext *UNUSED(C))
+static SpaceLink *info_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceInfo *sinfo;
@@ -236,7 +239,9 @@ static void info_header_region_draw(const bContext *C, ARegion *ar)
 	ED_region_header(C, ar);
 }
 
-static void info_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn)
+static void info_main_region_listener(
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	// SpaceInfo *sinfo = sa->spacedata.first;
 
@@ -251,13 +256,16 @@ static void info_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), 
 	}
 }
 
-static void info_header_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn)
+static void info_header_listener(
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
 	switch (wmn->category) {
 		case NC_SCREEN:
-			if (ELEM(wmn->data, ND_SCREENCAST, ND_ANIMPLAY))
+			if (ELEM(wmn->data, ND_LAYER, ND_SCREENCAST, ND_ANIMPLAY)) {
 				ED_region_tag_redraw(ar);
+			}
 			break;
 		case NC_WM:
 			if (wmn->data == ND_JOB)
@@ -277,6 +285,22 @@ static void info_header_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegi
 			break;
 	}
 	
+}
+
+static void info_header_region_message_subscribe(
+        const bContext *UNUSED(C),
+        WorkSpace *UNUSED(workspace), Scene *UNUSED(scene),
+        bScreen *UNUSED(screen), ScrArea *UNUSED(sa), ARegion *ar,
+        struct wmMsgBus *mbus)
+{
+	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
+		.owner = ar,
+		.user_data = ar,
+		.notify = ED_region_do_msg_notify_tag_redraw,
+	};
+
+	WM_msg_subscribe_rna_anon_prop(mbus, Window, view_layer, &msg_sub_value_region_tag_redraw);
+	WM_msg_subscribe_rna_anon_prop(mbus, ViewLayer, name, &msg_sub_value_region_tag_redraw);
 }
 
 static void recent_files_menu_draw(const bContext *UNUSED(C), Menu *menu)
@@ -342,6 +366,7 @@ void ED_spacetype_info(void)
 	
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_VIEW2D | ED_KEYMAP_FRAMES | ED_KEYMAP_HEADER;
 	art->listener = info_header_listener;
+	art->message_subscribe = info_header_region_message_subscribe;
 	art->init = info_header_region_init;
 	art->draw = info_header_region_draw;
 	

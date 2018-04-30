@@ -157,10 +157,10 @@ void PAINT_OT_weight_sample_group(struct wmOperatorType *ot);
 /* paint_vertex_proj.c */
 struct VertProjHandle;
 struct VertProjHandle *ED_vpaint_proj_handle_create(
-        struct Scene *scene, struct Object *ob,
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
         struct DMCoNo **r_vcosnos);
 void  ED_vpaint_proj_handle_update(
-        struct VertProjHandle *vp_handle,
+        struct Depsgraph *depsgraph, struct VertProjHandle *vp_handle,
         /* runtime vars */
         struct ARegion *ar, const float mval_fl[2]);
 void  ED_vpaint_proj_handle_free(
@@ -216,7 +216,6 @@ void PAINT_OT_texture_paint_toggle(struct wmOperatorType *ot);
 void PAINT_OT_project_image(struct wmOperatorType *ot);
 void PAINT_OT_image_from_view(struct wmOperatorType *ot);
 void PAINT_OT_add_texture_paint_slot(struct wmOperatorType *ot);
-void PAINT_OT_delete_texture_paint_slot(struct wmOperatorType *ot);
 void PAINT_OT_image_paint(struct wmOperatorType *ot);
 void PAINT_OT_add_simple_uvs(struct wmOperatorType *ot);
 
@@ -259,7 +258,6 @@ bool paint_convert_bb_to_rect(struct rcti *rect,
  * 2D screens-space bounding box into four 3D planes) */
 void paint_calc_redraw_planes(float planes[4][4],
                               const struct ARegion *ar,
-                              struct RegionView3D *rv3d,
                               struct Object *ob,
                               const struct rcti *screen_rect);
 

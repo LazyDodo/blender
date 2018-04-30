@@ -630,3 +630,4 @@ if(WITH_CODEC_FFMPEG)
 endif()
 
 add_subdirectory(collada)
+add_subdirectory(view_layer)

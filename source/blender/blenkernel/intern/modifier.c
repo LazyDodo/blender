@@ -69,6 +69,8 @@
 #include "BKE_main.h"
 /* end */
 
+#include "DEG_depsgraph.h"
+
 #include "MOD_modifiertypes.h"
 
 static ModifierTypeInfo *modifier_types[NUM_MODIFIER_TYPES] = {NULL};
@@ -688,9 +690,9 @@ bool modifiers_isCorrectableDeformed(struct Scene *scene, Object *ob)
 	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
 	int required_mode = eModifierMode_Realtime;
 
-	if (ob->mode == OB_MODE_EDIT)
+	if (ob->mode == OB_MODE_EDIT) {
 		required_mode |= eModifierMode_Editmode;
-	
+	}
 	for (; md; md = md->next) {
 		if (!modifier_isEnabled(scene, md, required_mode)) {
 			/* pass */
@@ -784,8 +786,8 @@ void modifier_path_init(char *path, int path_maxlen, const char *name)
 /* wrapper around ModifierTypeInfo.applyModifier that ensures valid normals */
 
 struct DerivedMesh *modwrap_applyModifier(
-        ModifierData *md, Object *ob,
-        struct DerivedMesh *dm,
+        ModifierData *md, struct Depsgraph *depsgraph,
+        Object *ob, struct DerivedMesh *dm,
         ModifierApplyFlag flag)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
@@ -794,12 +796,12 @@ struct DerivedMesh *modwrap_applyModifier(
 	if (mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	return mti->applyModifier(md, ob, dm, flag);
+	return mti->applyModifier(md, depsgraph, ob, dm, flag);
 }
 
 struct DerivedMesh *modwrap_applyModifierEM(
-        ModifierData *md, Object *ob,
-        struct BMEditMesh *em,
+        ModifierData *md, struct Depsgraph *depsgraph,
+        Object *ob, struct BMEditMesh *em,
         DerivedMesh *dm,
         ModifierApplyFlag flag)
 {
@@ -809,12 +811,12 @@ struct DerivedMesh *modwrap_applyModifierEM(
 	if (mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	return mti->applyModifierEM(md, ob, em, dm, flag);
+	return mti->applyModifierEM(md, depsgraph, ob, em, dm, flag);
 }
 
 void modwrap_deformVerts(
-        ModifierData *md, Object *ob,
-        DerivedMesh *dm,
+        ModifierData *md, struct Depsgraph *depsgraph,
+        Object *ob, DerivedMesh *dm,
         float (*vertexCos)[3], int numVerts,
         ModifierApplyFlag flag)
 {
@@ -824,11 +826,11 @@ void modwrap_deformVerts(
 	if (dm && mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	mti->deformVerts(md, ob, dm, vertexCos, numVerts, flag);
+	mti->deformVerts(md, depsgraph, ob, dm, vertexCos, numVerts, flag);
 }
 
 void modwrap_deformVertsEM(
-        ModifierData *md, Object *ob,
+        ModifierData *md, struct Depsgraph *depsgraph, Object *ob,
         struct BMEditMesh *em, DerivedMesh *dm,
         float (*vertexCos)[3], int numVerts)
 {
@@ -838,6 +840,6 @@ void modwrap_deformVertsEM(
 	if (dm && mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	mti->deformVertsEM(md, ob, em, dm, vertexCos, numVerts);
+	mti->deformVertsEM(md, depsgraph, ob, em, dm, vertexCos, numVerts);
 }
 /* end modifier callback wrappers */

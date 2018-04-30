@@ -43,9 +43,6 @@
 #include "BKE_modifier.h"
 #include "BKE_deform.h"
 
-
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 #define BEND_EPS 0.000001f
@@ -378,14 +375,6 @@ static void foreachObjectLink(
 	walk(userData, ob, &smd->origin, IDWALK_CB_NOP);
 }
 
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	SimpleDeformModifierData *smd  = (SimpleDeformModifierData *)md;
-
-	if (smd->origin)
-		dag_add_relation(ctx->forest, dag_get_node(ctx->forest, smd->origin), ctx->obNode, DAG_RL_OB_DATA, "SimpleDeform Modifier");
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	SimpleDeformModifierData *smd  = (SimpleDeformModifierData *)md;
@@ -394,8 +383,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
-                        DerivedMesh *derivedData,
+static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+                        Object *ob, DerivedMesh *derivedData,
                         float (*vertexCos)[3],
                         int numVerts,
                         ModifierApplyFlag UNUSED(flag))
@@ -414,8 +403,8 @@ static void deformVerts(ModifierData *md, Object *ob,
 		dm->release(dm);
 }
 
-static void deformVertsEM(ModifierData *md, Object *ob,
-                          struct BMEditMesh *editData,
+static void deformVertsEM(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+                          Object *ob, struct BMEditMesh *editData,
                           DerivedMesh *derivedData,
                           float (*vertexCos)[3],
                           int numVerts)
@@ -458,7 +447,6 @@ ModifierTypeInfo modifierType_SimpleDeform = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

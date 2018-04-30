@@ -40,6 +40,8 @@ extern "C" {
 #endif
 
 struct Depsgraph;
+struct Scene;
+struct ViewLayer;
 
 /* ------------------------------------------------ */
 
@@ -67,9 +69,10 @@ bool DEG_debug_compare(const struct Depsgraph *graph1,
                        const struct Depsgraph *graph2);
 
 /* Check that dependnecies in the graph are really up to date. */
-bool DEG_debug_scene_relations_validate(struct Main *bmain,
-                                        struct Scene *scene);
-
+bool DEG_debug_graph_relations_validate(struct Depsgraph *graph,
+                                        struct Main *bmain,
+                                        struct Scene *scene,
+                                        struct ViewLayer *view_layer);
 
 /* Perform consistency check on the graph. */
 bool DEG_debug_consistency_check(struct Depsgraph *graph);

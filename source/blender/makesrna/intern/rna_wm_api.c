@@ -71,6 +71,8 @@ const EnumPropertyItem rna_enum_window_cursor_items[] = {
 #include "UI_interface.h"
 #include "BKE_context.h"
 
+#include "WM_types.h"
+
 static wmKeyMap *rna_keymap_active(wmKeyMap *km, bContext *C)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
@@ -113,6 +115,37 @@ static wmTimer *rna_event_timer_add(struct wmWindowManager *wm, float time_step,
 static void rna_event_timer_remove(struct wmWindowManager *wm, wmTimer *timer)
 {
 	WM_event_remove_timer(wm, timer->win, timer);
+}
+
+
+static wmManipulatorGroupType *wm_manipulatorgrouptype_find_for_add_remove(ReportList *reports, const char *idname)
+{
+	wmManipulatorGroupType *wgt = WM_manipulatorgrouptype_find(idname, true);
+	if (wgt == NULL) {
+		BKE_reportf(reports, RPT_ERROR, "Manipulator group type '%s' not found!", idname);
+		return NULL;
+	}
+	if (wgt->flag & WM_MANIPULATORGROUPTYPE_PERSISTENT) {
+		BKE_reportf(reports, RPT_ERROR, "Manipulator group '%s' has 'PERSISTENT' option set!", idname);
+		return NULL;
+	}
+	return wgt;
+}
+
+static void rna_manipulator_group_type_add(ReportList *reports, const char *idname)
+{
+	wmManipulatorGroupType *wgt = wm_manipulatorgrouptype_find_for_add_remove(reports, idname);
+	if (wgt != NULL) {
+		WM_manipulator_group_type_add_ptr(wgt);
+	}
+}
+
+static void rna_manipulator_group_type_remove(Main *bmain, ReportList *reports, const char *idname)
+{
+	wmManipulatorGroupType *wgt = wm_manipulatorgrouptype_find_for_add_remove(reports, idname);
+	if (wgt != NULL) {
+		WM_manipulator_group_type_remove_ptr(bmain, wgt);
+	}
 }
 
 /* placeholder data for final implementation of a true progressbar */
@@ -315,6 +348,24 @@ static void rna_PopMenuEnd(bContext *C, PointerRNA *handle)
 	UI_popup_menu_end(C, handle->data);
 }
 
+/* popover wrapper */
+static PointerRNA rna_PopoverBegin(bContext *C)
+{
+	PointerRNA r_ptr;
+	void *data;
+
+	data = (void *)UI_popover_begin(C);
+
+	RNA_pointer_create(NULL, &RNA_UIPopover, data, &r_ptr);
+
+	return r_ptr;
+}
+
+static void rna_PopoverEnd(bContext *C, PointerRNA *handle)
+{
+	UI_popover_end(C, handle->data);
+}
+
 /* pie menu wrapper */
 static PointerRNA rna_PieMenuBegin(bContext *C, const char *title, int icon, PointerRNA *event)
 {
@@ -331,6 +382,23 @@ static PointerRNA rna_PieMenuBegin(bContext *C, const char *title, int icon, Poi
 static void rna_PieMenuEnd(bContext *C, PointerRNA *handle)
 {
 	UI_pie_menu_end(C, handle->data);
+}
+
+static PointerRNA rna_WindoManager_operator_properties_last(const char *idname)
+{
+	wmOperatorType *ot = WM_operatortype_find(idname, true);
+
+	if (ot != NULL) {
+		/* Could make optional. */
+		if (ot->last_properties == NULL) {
+			IDPropertyTemplate val = {0};
+			ot->last_properties = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
+		}
+		PointerRNA ptr;
+		RNA_pointer_create(NULL, ot->srna, ot->last_properties, &ptr);
+		return ptr;
+	}
+	return PointerRNA_NULL;
 }
 
 #else
@@ -426,6 +494,18 @@ void RNA_api_wm(StructRNA *srna)
 	parm = RNA_def_pointer(func, "timer", "Timer", "", "");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 
+	func = RNA_def_function(srna, "manipulator_group_type_add", "rna_manipulator_group_type_add");
+	RNA_def_function_ui_description(func, "Activate an existing widget group (when the persistent option isn't set)");
+	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_REPORTS);
+	parm = RNA_def_string(func, "identifier", NULL, 0, "", "Manipulator group type name");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+
+	func = RNA_def_function(srna, "manipulator_group_type_remove", "rna_manipulator_group_type_remove");
+	RNA_def_function_ui_description(func, "De-activate a widget group (when the persistent option isn't set)");
+	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_MAIN | FUNC_USE_REPORTS);
+	parm = RNA_def_string(func, "identifier", NULL, 0, "", "Manipulator group type name");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+
 	/* Progress bar interface */
 	func = RNA_def_function(srna, "progress_begin", "rna_progress_begin");
 	RNA_def_function_ui_description(func, "Start progress report");
@@ -496,6 +576,22 @@ void RNA_api_wm(StructRNA *srna)
 	parm = RNA_def_pointer(func, "menu", "UIPopupMenu", "", "");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
 
+
+	/* wrap UI_popover_panel_begin */
+	func = RNA_def_function(srna, "popover_begin__internal", "rna_PopoverBegin");
+	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
+	/* return */
+	parm = RNA_def_pointer(func, "menu", "UIPopover", "", "");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+	RNA_def_function_return(func, parm);
+
+	/* wrap UI_popover_panel_end */
+	func = RNA_def_function(srna, "popover_end__internal", "rna_PopoverEnd");
+	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
+	parm = RNA_def_pointer(func, "menu", "UIPopover", "", "");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+
+
 	/* wrap uiPieMenuBegin */
 	func = RNA_def_function(srna, "piemenu_begin__internal", "rna_PieMenuBegin");
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
@@ -515,6 +611,17 @@ void RNA_api_wm(StructRNA *srna)
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
 	parm = RNA_def_pointer(func, "menu", "UIPieMenu", "", "");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+
+	/* access last operator options (optionally create). */
+	func = RNA_def_function(srna, "operator_properties_last", "rna_WindoManager_operator_properties_last");
+	RNA_def_function_flag(func, FUNC_NO_SELF);
+	parm = RNA_def_string(func, "operator", NULL, 0, "", "");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	/* return */
+	parm = RNA_def_pointer(func, "result", "OperatorProperties", "", "");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+	RNA_def_function_return(func, parm);
+
 }
 
 void RNA_api_operator(StructRNA *srna)

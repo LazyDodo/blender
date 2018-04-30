@@ -53,6 +53,7 @@
 #include "DNA_mask_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
+#include "DNA_lightprobe_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_speaker_types.h"
@@ -60,6 +61,7 @@
 #include "DNA_text_types.h"
 #include "DNA_vfont_types.h"
 #include "DNA_windowmanager_types.h"
+#include "DNA_workspace_types.h"
 #include "DNA_world_types.h"
 
 #include "BLI_blenlib.h"
@@ -71,8 +73,8 @@
 #include "BKE_brush.h"
 #include "BKE_camera.h"
 #include "BKE_cachefile.h"
+#include "BKE_collection.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_fcurve.h"
 #include "BKE_font.h"
 #include "BKE_group.h"
@@ -83,7 +85,9 @@
 #include "BKE_key.h"
 #include "BKE_lamp.h"
 #include "BKE_lattice.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
+#include "BKE_library_override.h"
 #include "BKE_library_query.h"
 #include "BKE_library_remap.h"
 #include "BKE_linestyle.h"
@@ -99,14 +103,18 @@
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
-#include "BKE_sca.h"
+#include "BKE_lightprobe.h"
 #include "BKE_speaker.h"
 #include "BKE_sound.h"
 #include "BKE_screen.h"
 #include "BKE_scene.h"
 #include "BKE_text.h"
 #include "BKE_texture.h"
+#include "BKE_workspace.h"
 #include "BKE_world.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #ifdef WITH_PYTHON
 #include "BPY_extern.h"
@@ -173,6 +181,7 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 	}
 
 	if (*id_p && (*id_p == old_id)) {
+		const bool is_reference = (cb_flag & IDWALK_CB_STATIC_OVERRIDE_REFERENCE) != 0;
 		const bool is_indirect = (cb_flag & IDWALK_CB_INDIRECT_USAGE) != 0;
 		const bool skip_indirect = (id_remap_data->flag & ID_REMAP_SKIP_INDIRECT_USAGE) != 0;
 		/* Note: proxy usage implies LIB_TAG_EXTERN, so on this aspect it is direct,
@@ -183,6 +192,7 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 		const bool is_obj_editmode = (is_obj && BKE_object_is_in_editmode((Object *)id));
 		const bool is_never_null = ((cb_flag & IDWALK_CB_NEVER_NULL) && (new_id == NULL) &&
 		                            (id_remap_data->flag & ID_REMAP_FORCE_NEVER_NULL_USAGE) == 0);
+		const bool skip_reference = (id_remap_data->flag & ID_REMAP_SKIP_STATIC_OVERRIDE) != 0;
 		const bool skip_never_null = (id_remap_data->flag & ID_REMAP_SKIP_NEVER_NULL_USAGE) != 0;
 
 #ifdef DEBUG_PRINT
@@ -199,7 +209,8 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 		 * (skipped_indirect too). */
 		if ((is_never_null && skip_never_null) ||
 		    (is_obj_editmode && (((Object *)id)->data == *id_p) && new_id != NULL) ||
-		    (skip_indirect && is_indirect))
+		    (skip_indirect && is_indirect) ||
+		    (is_reference && skip_reference))
 		{
 			if (is_indirect) {
 				id_remap_data->skipped_indirect++;
@@ -212,7 +223,7 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 					}
 				}
 			}
-			else if (is_never_null || is_obj_editmode) {
+			else if (is_never_null || is_obj_editmode || is_reference) {
 				id_remap_data->skipped_direct++;
 			}
 			else {
@@ -229,7 +240,7 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 		else {
 			if (!is_never_null) {
 				*id_p = new_id;
-				DAG_id_tag_update_ex(id_remap_data->bmain, id_self, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+				DEG_id_tag_update_ex(id_remap_data->bmain, id_self, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
 			}
 			if (cb_flag & IDWALK_CB_USER) {
 				id_us_min(old_id);
@@ -252,19 +263,37 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 }
 
 /* Some remapping unfortunately require extra and/or specific handling, tackle those here. */
-static void libblock_remap_data_preprocess_scene_base_unlink(
-        IDRemap *r_id_remap_data, Scene *sce, Base *base, const bool skip_indirect, const bool is_indirect)
+static void libblock_remap_data_preprocess_scene_object_unlink(
+        IDRemap *r_id_remap_data, Scene *sce, Object *ob, const bool skip_indirect, const bool is_indirect)
 {
 	if (skip_indirect && is_indirect) {
 		r_id_remap_data->skipped_indirect++;
 		r_id_remap_data->skipped_refcounted++;
 	}
 	else {
-		id_us_min((ID *)base->object);
-		BKE_scene_base_unlink(sce, base);
-		MEM_freeN(base);
+		BKE_collections_object_remove(r_id_remap_data->bmain, &sce->id, ob, false);
 		if (!is_indirect) {
 			r_id_remap_data->status |= ID_REMAP_IS_LINKED_DIRECT;
+		}
+	}
+}
+
+static void libblock_remap_data_preprocess_group_unlink(
+        IDRemap *r_id_remap_data, Object *ob, const bool skip_indirect, const bool is_indirect)
+{
+	Main *bmain = r_id_remap_data->bmain;
+	for (Group *group = bmain->group.first; group; group = group->id.next) {
+		if (BKE_group_object_exists(group, ob)) {
+			if (skip_indirect && is_indirect) {
+				r_id_remap_data->skipped_indirect++;
+				r_id_remap_data->skipped_refcounted++;
+			}
+			else {
+				BKE_collections_object_remove(bmain, &group->id, ob, false);
+				if (!is_indirect) {
+					r_id_remap_data->status |= ID_REMAP_IS_LINKED_DIRECT;
+				}
+			}
 		}
 	}
 }
@@ -283,23 +312,24 @@ static void libblock_remap_data_preprocess(IDRemap *r_id_remap_data)
 				/* In case we are unlinking... */
 				if (!r_id_remap_data->old_id) {
 					/* ... everything from scene. */
-					Base *base, *base_next;
-					for (base = sce->base.first; base; base = base_next) {
-						base_next = base->next;
-						libblock_remap_data_preprocess_scene_base_unlink(
-						            r_id_remap_data, sce, base, skip_indirect, is_indirect);
+					FOREACH_SCENE_OBJECT_BEGIN(sce, ob_iter)
+					{
+						libblock_remap_data_preprocess_scene_object_unlink(
+						            r_id_remap_data, sce, ob_iter, skip_indirect, is_indirect);
+						libblock_remap_data_preprocess_group_unlink(
+						            r_id_remap_data, ob_iter, skip_indirect, is_indirect);
 					}
+					FOREACH_SCENE_OBJECT_END;
 				}
 				else if (GS(r_id_remap_data->old_id->name) == ID_OB) {
 					/* ... a specific object from scene. */
 					Object *old_ob = (Object *)r_id_remap_data->old_id;
-					Base *base = BKE_scene_base_find(sce, old_ob);
-
-					if (base) {
-						libblock_remap_data_preprocess_scene_base_unlink(
-						            r_id_remap_data, sce, base, skip_indirect, is_indirect);
-					}
+					libblock_remap_data_preprocess_scene_object_unlink(
+					            r_id_remap_data, sce, old_ob, skip_indirect, is_indirect);
+					libblock_remap_data_preprocess_group_unlink(
+					            r_id_remap_data, old_ob, skip_indirect, is_indirect);
 				}
+
 			}
 			break;
 		}
@@ -340,7 +370,7 @@ static void libblock_remap_data_postprocess_object_update(Main *bmain, Object *o
 		}
 		if (new_ob == NULL) {  /* We need to remove NULL-ified groupobjects... */
 			for (Group *group = bmain->group.first; group; group = group->id.next) {
-				BKE_group_object_unlink(group, NULL, NULL, NULL);
+				BKE_group_object_unlink(group, NULL);
 			}
 		}
 		else {
@@ -350,7 +380,7 @@ static void libblock_remap_data_postprocess_object_update(Main *bmain, Object *o
 	if (old_ob->type == OB_MBALL) {
 		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 			if (ob->type == OB_MBALL && BKE_mball_is_basis_for(ob, old_ob)) {
-				DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			}
 		}
 	}
@@ -360,26 +390,21 @@ static void libblock_remap_data_postprocess_group_scene_unlink(Main *UNUSED(bmai
 {
 	/* Note that here we assume no object has no base (i.e. all objects are assumed instanced
 	 * in one scene...). */
-	for (Base *base = sce->base.first; base; base = base->next) {
-		if (base->flag & OB_FROMGROUP) {
-			Object *ob = base->object;
+	FOREACH_SCENE_OBJECT_BEGIN(sce, ob)
+	{
+		if (ob->flag & OB_FROMGROUP) {
+			Group *grp = BKE_group_object_find(NULL, ob);
 
-			if (ob->flag & OB_FROMGROUP) {
-				Group *grp = BKE_group_object_find(NULL, ob);
-
-				/* Unlinked group (old_id) is still in bmain... */
-				if (grp && (&grp->id == old_id || grp->id.us == 0)) {
-					grp = BKE_group_object_find(grp, ob);
-				}
-				if (!grp) {
-					ob->flag &= ~OB_FROMGROUP;
-				}
+			/* Unlinked group (old_id) is still in bmain... */
+			if (grp && (&grp->id == old_id || grp->id.us == 0)) {
+				grp = BKE_group_object_find(grp, ob);
 			}
-			if (!(ob->flag & OB_FROMGROUP)) {
-				base->flag &= ~OB_FROMGROUP;
+			if (!grp) {
+				ob->flag &= ~OB_FROMGROUP;
 			}
 		}
 	}
+	FOREACH_SCENE_OBJECT_END;
 }
 
 static void libblock_remap_data_postprocess_obdata_relink(Main *UNUSED(bmain), Object *ob, ID *new_id)
@@ -478,10 +503,6 @@ ATTR_NONNULL(1) static void libblock_remap_data(
 				}
 			}
 		}
-	}
-
-	if (old_id && GS(old_id->name) == ID_OB) {
-		BKE_sca_logic_links_remap(bmain, (Object *)old_id, (Object *)new_id);
 	}
 
 	/* XXX We may not want to always 'transfer' fakeuser from old to new id... Think for now it's desired behavior
@@ -594,8 +615,8 @@ void BKE_libblock_remap_locked(
 	libblock_remap_data_postprocess_nodetree_update(bmain, new_id);
 	BKE_main_lock(bmain);
 
-	/* Full rebuild of DAG! */
-	DAG_relations_tag_update(bmain);
+	/* Full rebuild of DEG! */
+	DEG_relations_tag_update(bmain);
 }
 
 void BKE_libblock_remap(Main *bmain, void *old_idv, void *new_idv, const short remap_flags)
@@ -747,6 +768,10 @@ void BKE_libblock_free_data(ID *id, const bool do_id_user)
 		MEM_freeN(id->properties);
 	}
 
+	if (id->override_static) {
+		BKE_override_static_free(&id->override_static);
+	}
+
 	/* XXX TODO remove animdata handling from each type's freeing func, and do it here, like for copy! */
 }
 
@@ -811,6 +836,9 @@ void BKE_libblock_free_datablock(ID *id, const int UNUSED(flag))
 		case ID_SPK:
 			BKE_speaker_free((Speaker *)id);
 			break;
+		case ID_LP:
+			BKE_lightprobe_free((LightProbe *)id);
+			break;
 		case ID_SO:
 			BKE_sound_free((bSound *)id);
 			break;
@@ -857,6 +885,9 @@ void BKE_libblock_free_datablock(ID *id, const int UNUSED(flag))
 		case ID_CF:
 			BKE_cachefile_free((CacheFile *)id);
 			break;
+		case ID_WS:
+			BKE_workspace_free((WorkSpace *)id);
+			break;
 	}
 }
 
@@ -895,7 +926,7 @@ void BKE_id_free_ex(Main *bmain, void *idv, int flag, const bool use_flag_from_i
 	const short type = GS(id->name);
 
 	if (bmain && (flag & LIB_ID_FREE_NO_DEG_TAG) == 0) {
-		DAG_id_type_tag(bmain, type);
+		DEG_id_type_tag(bmain, type);
 	}
 
 #ifdef WITH_PYTHON
@@ -958,7 +989,7 @@ void BKE_libblock_free_ex(Main *bmain, void *idv, const bool do_id_user, const b
 	short type = GS(id->name);
 	ListBase *lb = which_libbase(bmain, type);
 
-	DAG_id_type_tag(bmain, type);
+	DEG_id_type_tag(bmain, type);
 
 #ifdef WITH_PYTHON
 #ifdef WITH_PYTHON_SAFETY

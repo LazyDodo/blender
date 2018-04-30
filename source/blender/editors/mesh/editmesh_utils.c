@@ -43,12 +43,13 @@
 
 #include "BKE_DerivedMesh.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
 #include "BKE_report.h"
 #include "BKE_editmesh.h"
 #include "BKE_editmesh_bvh.h"
+
+#include "DEG_depsgraph.h"
 
 #include "BKE_object.h"  /* XXX. only for EDBM_mesh_load(). */
 
@@ -323,7 +324,7 @@ void EDBM_mesh_make(Object *ob, const int select_mode, const bool add_key_index)
 
 /**
  * \warning This can invalidate the #DerivedMesh cache of other objects (for linked duplicates).
- * Most callers should run #DAG_id_tag_update on \a ob->data, see: T46738, T46913
+ * Most callers should run #DEG_id_tag_update on \a ob->data, see: T46738, T46913
  */
 void EDBM_mesh_load(Object *ob)
 {
@@ -511,7 +512,6 @@ UvVertMap *BM_uv_vert_map_create(
 	/* vars from original func */
 	UvVertMap *vmap;
 	UvMapVert *buf;
-	/* MTexPoly *tf; */ /* UNUSED */
 	MLoopUV *luv;
 	unsigned int a;
 	int totverts, i, totuv, totfaces;
@@ -593,7 +593,6 @@ UvVertMap *BM_uv_vert_map_create(
 			newvlist = v;
 
 			efa = BM_face_at_index(bm, v->f);
-			/* tf = CustomData_bmesh_get(&bm->pdata, efa->head.data, CD_MTEXPOLY); */ /* UNUSED */
 
 			l = BM_iter_at_index(bm, BM_LOOPS_OF_FACE, efa, v->tfindex);
 			luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
@@ -605,8 +604,6 @@ UvVertMap *BM_uv_vert_map_create(
 			while (iterv) {
 				next = iterv->next;
 				efa = BM_face_at_index(bm, iterv->f);
-				/* tf = CustomData_bmesh_get(&bm->pdata, efa->head.data, CD_MTEXPOLY); */ /* UNUSED */
-
 				l = BM_iter_at_index(bm, BM_LOOPS_OF_FACE, efa, iterv->tfindex);
 				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
 				uv2 = luv->uv;
@@ -925,7 +922,7 @@ UvElement *BM_uv_element_get(UvElementMap *map, BMFace *efa, BMLoop *l)
 
 /* last_sel, use em->act_face otherwise get the last selected face in the editselections
  * at the moment, last_sel is mainly useful for making sure the space image dosnt flicker */
-BMFace *EDBM_uv_active_face_get(BMEditMesh *em, const bool sloppy, const bool selected, MTexPoly **r_tf)
+BMFace *EDBM_uv_active_face_get(BMEditMesh *em, const bool sloppy, const bool selected)
 {
 	BMFace *efa = NULL;
 
@@ -936,11 +933,9 @@ BMFace *EDBM_uv_active_face_get(BMEditMesh *em, const bool sloppy, const bool se
 	efa = BM_mesh_active_face_get(em->bm, sloppy, selected);
 
 	if (efa) {
-		if (r_tf) *r_tf = CustomData_bmesh_get(&em->bm->pdata, efa->head.data, CD_MTEXPOLY);
 		return efa;
 	}
 
-	if (r_tf) *r_tf = NULL;
 	return NULL;
 }
 
@@ -949,7 +944,6 @@ bool EDBM_uv_check(BMEditMesh *em)
 {
 	/* some of these checks could be a touch overkill */
 	return em && em->bm->totface &&
-	       CustomData_has_layer(&em->bm->pdata, CD_MTEXPOLY) &&
 	       CustomData_has_layer(&em->bm->ldata, CD_MLOOPUV);
 }
 
@@ -1036,7 +1030,7 @@ void EDBM_verts_mirror_cache_begin_ex(
 	BM_mesh_elem_index_ensure(bm, BM_VERT);
 
 	if (use_topology) {
-		ED_mesh_mirrtopo_init(me, NULL, -1, &mesh_topo_store, true);
+		ED_mesh_mirrtopo_init(me, NULL, &mesh_topo_store, true);
 	}
 	else {
 		tree = BLI_kdtree_new(bm->totvert);
@@ -1334,7 +1328,7 @@ void EDBM_update_generic(BMEditMesh *em, const bool do_tessface, const bool is_d
 {
 	Object *ob = em->ob;
 	/* order of calling isn't important */
-	DAG_id_tag_update(ob->data, OB_RECALC_DATA);
+	DEG_id_tag_update(ob->data, OB_RECALC_DATA);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, ob->data);
 
 	if (do_tessface) {
@@ -1486,7 +1480,9 @@ static void scale_point(float c1[3], const float p[3], const float s)
 	add_v3_v3(c1, p);
 }
 
-bool BMBVH_EdgeVisible(struct BMBVHTree *tree, BMEdge *e, ARegion *ar, View3D *v3d, Object *obedit)
+bool BMBVH_EdgeVisible(struct BMBVHTree *tree, BMEdge *e,
+                       struct Depsgraph *depsgraph,
+                       ARegion *ar, View3D *v3d, Object *obedit)
 {
 	BMFace *f;
 	float co1[3], co2[3], co3[3], dir1[3], dir2[3], dir3[3];
@@ -1498,7 +1494,7 @@ bool BMBVH_EdgeVisible(struct BMBVHTree *tree, BMEdge *e, ARegion *ar, View3D *v
 		ar->winy / 2.0f,
 	};
 
-	ED_view3d_win_to_segment(ar, v3d, mval_f, origin, end, false);
+	ED_view3d_win_to_segment(depsgraph, ar, v3d, mval_f, origin, end, false);
 
 	invert_m4_m4(invmat, obedit->obmat);
 	mul_m4_v3(invmat, origin);

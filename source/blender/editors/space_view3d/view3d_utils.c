@@ -48,10 +48,14 @@
 #include "BKE_context.h"
 #include "BKE_object.h"
 #include "BKE_screen.h"
-#include "BKE_depsgraph.h" /* for ED_view3d_camera_lock_sync */
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "BIF_gl.h"
 #include "BIF_glutil.h"
+
+#include "GPU_matrix.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -96,6 +100,7 @@ void ED_view3d_dist_range_get(
  * \note copies logic of #ED_view3d_viewplane_get(), keep in sync.
  */
 bool ED_view3d_clip_range_get(
+        Depsgraph *depsgraph,
         const View3D *v3d, const RegionView3D *rv3d,
         float *r_clipsta, float *r_clipend,
         const bool use_ortho_factor)
@@ -103,7 +108,7 @@ bool ED_view3d_clip_range_get(
 	CameraParams params;
 
 	BKE_camera_params_init(&params);
-	BKE_camera_params_from_view3d(&params, v3d, rv3d);
+	BKE_camera_params_from_view3d(&params, depsgraph, v3d, rv3d);
 
 	if (use_ortho_factor && params.is_ortho) {
 		const float fac = 2.0f / (params.clipend - params.clipsta);
@@ -118,13 +123,14 @@ bool ED_view3d_clip_range_get(
 }
 
 bool ED_view3d_viewplane_get(
+        Depsgraph *depsgraph,
         const View3D *v3d, const RegionView3D *rv3d, int winx, int winy,
         rctf *r_viewplane, float *r_clipsta, float *r_clipend, float *r_pixsize)
 {
 	CameraParams params;
 
 	BKE_camera_params_init(&params);
-	BKE_camera_params_from_view3d(&params, v3d, rv3d);
+	BKE_camera_params_from_view3d(&params, depsgraph, v3d, rv3d);
 	BKE_camera_params_compute_viewplane(&params, winx, winy, 1.0f, 1.0f);
 
 	if (r_viewplane) *r_viewplane = params.viewplane;
@@ -155,7 +161,7 @@ void view3d_operator_needs_opengl(const bContext *C)
 	view3d_region_operator_needs_opengl(win, ar);
 }
 
-void view3d_region_operator_needs_opengl(wmWindow *win, ARegion *ar)
+void view3d_region_operator_needs_opengl(wmWindow *UNUSED(win), ARegion *ar)
 {
 	/* for debugging purpose, context should always be OK */
 	if ((ar == NULL) || (ar->regiontype != RGN_TYPE_WINDOW)) {
@@ -164,11 +170,9 @@ void view3d_region_operator_needs_opengl(wmWindow *win, ARegion *ar)
 	else {
 		RegionView3D *rv3d = ar->regiondata;
 
-		wmSubWindowSet(win, ar->swinid);
-		glMatrixMode(GL_PROJECTION);
-		glLoadMatrixf(rv3d->winmat);
-		glMatrixMode(GL_MODELVIEW);
-		glLoadMatrixf(rv3d->viewmat);
+		wmViewport(&ar->winrct); // TODO: bad
+		gpuLoadProjectionMatrix(rv3d->winmat);
+		gpuLoadMatrix(rv3d->viewmat);
 	}
 }
 
@@ -230,6 +234,7 @@ bool ED_view3d_context_activate(bContext *C)
 /** \name View Clipping Utilities
  *
  * \{ */
+
 void ED_view3d_clipping_calc_from_boundbox(float clip[4][4], const BoundBox *bb, const bool is_flip)
 {
 	int val;
@@ -244,40 +249,35 @@ void ED_view3d_clipping_calc_from_boundbox(float clip[4][4], const BoundBox *bb,
 	}
 }
 
-void ED_view3d_clipping_calc(BoundBox *bb, float planes[4][4], bglMats *mats, const rcti *rect)
+void ED_view3d_clipping_calc(BoundBox *bb, float planes[4][4], const ARegion *ar, const Object *ob, const rcti *rect)
 {
-	float modelview[4][4];
-	double xs, ys, p[3];
-	int val, flip_sign, a;
-
-	/* near zero floating point values can give issues with gluUnProject
-	 * in side view on some implementations */
-	if (fabs(mats->modelview[0]) < 1e-6) mats->modelview[0] = 0.0;
-	if (fabs(mats->modelview[5]) < 1e-6) mats->modelview[5] = 0.0;
-
-	/* Set up viewport so that gluUnProject will give correct values */
-	mats->viewport[0] = 0;
-	mats->viewport[1] = 0;
+	/* init in case unproject fails */
+	memset(bb->vec, 0, sizeof(bb->vec));
 
 	/* four clipping planes and bounding volume */
 	/* first do the bounding volume */
-	for (val = 0; val < 4; val++) {
-		xs = (val == 0 || val == 3) ? rect->xmin : rect->xmax;
-		ys = (val == 0 || val == 1) ? rect->ymin : rect->ymax;
+	for (int val = 0; val < 4; val++) {
+		float xs = (val == 0 || val == 3) ? rect->xmin : rect->xmax;
+		float ys = (val == 0 || val == 1) ? rect->ymin : rect->ymax;
 
-		gluUnProject(xs, ys, 0.0, mats->modelview, mats->projection, mats->viewport, &p[0], &p[1], &p[2]);
-		copy_v3fl_v3db(bb->vec[val], p);
+		ED_view3d_unproject(ar, xs, ys, 0.0, bb->vec[val]);
+		ED_view3d_unproject(ar, xs, ys, 1.0, bb->vec[4 + val]);
+	}
 
-		gluUnProject(xs, ys, 1.0, mats->modelview, mats->projection, mats->viewport, &p[0], &p[1], &p[2]);
-		copy_v3fl_v3db(bb->vec[4 + val], p);
+	/* optionally transform to object space */
+	if (ob) {
+		float imat[4][4];
+		invert_m4_m4(imat, ob->obmat);
+
+		for (int val = 0; val < 8; val++) {
+			mul_m4_v3(imat, bb->vec[val]);
+		}
 	}
 
 	/* verify if we have negative scale. doing the transform before cross
 	 * product flips the sign of the vector compared to doing cross product
 	 * before transform then, so we correct for that. */
-	for (a = 0; a < 16; a++)
-		((float *)modelview)[a] = mats->modelview[a];
-	flip_sign = is_negative_m4(modelview);
+	int flip_sign = (ob) ? is_negative_m4(ob->obmat) : false;
 
 	ED_view3d_clipping_calc_from_boundbox(planes, bb, flip_sign);
 }
@@ -500,7 +500,7 @@ bool ED_view3d_camera_lock_sync(View3D *v3d, RegionView3D *rv3d)
 
 			ob_update = v3d->camera;
 			while (ob_update) {
-				DAG_id_tag_update(&ob_update->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob_update->id, OB_RECALC_OB);
 				WM_main_add_notifier(NC_OBJECT | ND_TRANSFORM, ob_update);
 				ob_update = ob_update->parent;
 			}
@@ -512,7 +512,7 @@ bool ED_view3d_camera_lock_sync(View3D *v3d, RegionView3D *rv3d)
 			ED_view3d_to_object(v3d->camera, rv3d->ofs, rv3d->viewquat, rv3d->dist);
 			BKE_object_tfm_protected_restore(v3d->camera, &obtfm, v3d->camera->protectflag | protect_scale_all);
 
-			DAG_id_tag_update(&v3d->camera->id, OB_RECALC_OB);
+			DEG_id_tag_update(&v3d->camera->id, OB_RECALC_OB);
 			WM_main_add_notifier(NC_OBJECT | ND_TRANSFORM, v3d->camera);
 		}
 
@@ -591,6 +591,7 @@ bool ED_view3d_camera_lock_autokey(
 }
 
 /** \} */
+
 
 
 /* -------------------------------------------------------------------- */
@@ -877,22 +878,17 @@ static float view_autodist_depth_margin(ARegion *ar, const int mval[2], int marg
  * \param fallback_depth_pt: Use this points depth when no depth can be found.
  */
 bool ED_view3d_autodist(
-        Scene *scene, ARegion *ar, View3D *v3d,
+        struct Depsgraph *graph, ARegion *ar, View3D *v3d,
         const int mval[2], float mouse_worldloc[3],
         const bool alphaoverride, const float fallback_depth_pt[3])
 {
-	bglMats mats; /* ZBuffer depth vars */
 	float depth_close;
-	double cent[2],  p[3];
 	int margin_arr[] = {0, 2, 4};
 	int i;
 	bool depth_ok = false;
 
 	/* Get Z Depths, needed for perspective, nice for ortho */
-	ED_view3d_draw_depth(scene, ar, v3d, alphaoverride);
-
-	/* call after in case settings have been modified since last drawing, see: T47089 */
-	bgl_get_mats(&mats);
+	ED_view3d_draw_depth(graph, ar, v3d, alphaoverride);
 
 	/* Attempt with low margin's first */
 	i = 0;
@@ -902,15 +898,10 @@ bool ED_view3d_autodist(
 	} while ((depth_ok == false) && (i < ARRAY_SIZE(margin_arr)));
 
 	if (depth_ok) {
-		cent[0] = (double)mval[0] + 0.5;
-		cent[1] = (double)mval[1] + 0.5;
+		float centx = (float)mval[0] + 0.5f;
+		float centy = (float)mval[1] + 0.5f;
 
-		if (gluUnProject(cent[0], cent[1], depth_close,
-		                 mats.modelview, mats.projection, (GLint *)mats.viewport, &p[0], &p[1], &p[2]))
-		{
-			mouse_worldloc[0] = (float)p[0];
-			mouse_worldloc[1] = (float)p[1];
-			mouse_worldloc[2] = (float)p[2];
+		if (ED_view3d_unproject(ar, centx, centy, depth_close, mouse_worldloc)) {
 			return true;
 		}
 	}
@@ -924,27 +915,29 @@ bool ED_view3d_autodist(
 	}
 }
 
-void ED_view3d_autodist_init(Scene *scene, ARegion *ar, View3D *v3d, int mode)
+void ED_view3d_autodist_init(
+        struct Depsgraph *graph,
+        ARegion *ar, View3D *v3d, int mode)
 {
 	/* Get Z Depths, needed for perspective, nice for ortho */
 	switch (mode) {
 		case 0:
-			ED_view3d_draw_depth(scene, ar, v3d, true);
+			ED_view3d_draw_depth(graph, ar, v3d, true);
 			break;
 		case 1:
-			ED_view3d_draw_depth_gpencil(scene, ar, v3d);
+		{
+			Scene *scene = DEG_get_evaluated_scene(graph);
+			ED_view3d_draw_depth_gpencil(graph, scene, ar, v3d);
 			break;
+		}
 	}
 }
 
 /* no 4x4 sampling, run #ED_view3d_autodist_init first */
-bool ED_view3d_autodist_simple(
-        ARegion *ar, const int mval[2], float mouse_worldloc[3],
-        int margin, float *force_depth)
+bool ED_view3d_autodist_simple(ARegion *ar, const int mval[2], float mouse_worldloc[3],
+                               int margin, float *force_depth)
 {
-	bglMats mats; /* ZBuffer depth vars, could cache? */
 	float depth;
-	double cent[2],  p[3];
 
 	/* Get Z Depths, needed for perspective, nice for ortho */
 	if (force_depth)
@@ -955,21 +948,9 @@ bool ED_view3d_autodist_simple(
 	if (depth == FLT_MAX)
 		return false;
 
-	cent[0] = (double)mval[0] + 0.5;
-	cent[1] = (double)mval[1] + 0.5;
-
-	bgl_get_mats(&mats);
-
-	if (!gluUnProject(cent[0], cent[1], depth,
-	                  mats.modelview, mats.projection, (GLint *)mats.viewport, &p[0], &p[1], &p[2]))
-	{
-		return false;
-	}
-
-	mouse_worldloc[0] = (float)p[0];
-	mouse_worldloc[1] = (float)p[1];
-	mouse_worldloc[2] = (float)p[2];
-	return true;
+	float centx = (float)mval[0] + 0.5f;
+	float centy = (float)mval[1] + 0.5f;
+	return ED_view3d_unproject(ar, centx, centy, depth, mouse_worldloc);
 }
 
 bool ED_view3d_autodist_depth(ARegion *ar, const int mval[2], int margin, float *depth)
@@ -1376,7 +1357,7 @@ float ED_view3d_depth_read_cached(const ViewContext *vc, const int mval[2])
 }
 
 bool ED_view3d_depth_read_cached_normal(
-        const ViewContext *vc, const bglMats *mats, const int mval[2],
+        const ViewContext *vc, const int mval[2],
         float r_normal[3])
 {
 	/* Note: we could support passing in a radius.
@@ -1395,7 +1376,7 @@ bool ED_view3d_depth_read_cached_normal(
 
 			const double depth = (double)ED_view3d_depth_read_cached(vc, mval_ofs);
 			if ((depth > depths->depth_range[0]) && (depth < depths->depth_range[1])) {
-				if (ED_view3d_depth_unproject(ar, mats, mval_ofs, depth, coords[i])) {
+				if (ED_view3d_depth_unproject(ar, mval_ofs, depth, coords[i])) {
 					depths_valid[i] = true;
 				}
 			}
@@ -1437,70 +1418,19 @@ bool ED_view3d_depth_read_cached_normal(
 }
 
 bool ED_view3d_depth_unproject(
-        const ARegion *ar, const bglMats *mats,
+        const ARegion *ar,
         const int mval[2], const double depth,
         float r_location_world[3])
 {
-	double p[3];
-	if (gluUnProject(
-	        (double)ar->winrct.xmin + mval[0] + 0.5,
-	        (double)ar->winrct.ymin + mval[1] + 0.5,
-	        depth, mats->modelview, mats->projection, (const GLint *)mats->viewport,
-	        &p[0], &p[1], &p[2]))
-	{
-		copy_v3fl_v3db(r_location_world, p);
-		return true;
-	}
-	return false;
+	float centx = (float)mval[0] + 0.5f;
+	float centy = (float)mval[1] + 0.5f;
+	return ED_view3d_unproject(ar, centx, centy, depth, r_location_world);
 }
 
 void ED_view3d_depth_tag_update(RegionView3D *rv3d)
 {
 	if (rv3d->depths)
 		rv3d->depths->damaged = true;
-}
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Background Image Utilities
- * \{ */
-
-BGpic *ED_view3d_background_image_new(View3D *v3d)
-{
-	BGpic *bgpic = MEM_callocN(sizeof(BGpic), "Background Image");
-
-	bgpic->rotation = 0.0f;
-	bgpic->size = 5.0f;
-	bgpic->blend = 0.5f;
-	bgpic->iuser.fie_ima = 2;
-	bgpic->iuser.ok = 1;
-	bgpic->view = 0; /* 0 for all */
-	bgpic->flag |= V3D_BGPIC_EXPANDED;
-
-	BLI_addtail(&v3d->bgpicbase, bgpic);
-
-	return bgpic;
-}
-
-void ED_view3d_background_image_remove(View3D *v3d, BGpic *bgpic)
-{
-	BLI_remlink(&v3d->bgpicbase, bgpic);
-
-	MEM_freeN(bgpic);
-}
-
-void ED_view3d_background_image_clear(View3D *v3d)
-{
-	BGpic *bgpic = v3d->bgpicbase.first;
-
-	while (bgpic) {
-		BGpic *next_bgpic = bgpic->next;
-
-		ED_view3d_background_image_remove(v3d, bgpic);
-
-		bgpic = next_bgpic;
-	}
 }
 
 /** \} */

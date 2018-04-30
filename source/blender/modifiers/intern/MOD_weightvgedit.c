@@ -46,7 +46,6 @@
 #include "BKE_modifier.h"
 #include "BKE_texture.h"          /* Texture masking. */
 
-#include "depsgraph_private.h"
 #include "DEG_depsgraph_build.h"
 
 #include "MEM_guardedalloc.h"
@@ -137,23 +136,6 @@ static void foreachTexLink(ModifierData *md, Object *ob, TexWalkFunc walk, void 
 	walk(userData, ob, md, "mask_texture");
 }
 
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	WeightVGEditModifierData *wmd = (WeightVGEditModifierData *) md;
-	DagNode *curNode;
-
-	if (wmd->mask_tex_map_obj && wmd->mask_tex_mapping == MOD_DISP_MAP_OBJECT) {
-		curNode = dag_get_node(ctx->forest, wmd->mask_tex_map_obj);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA,
-		                 "WeightVGEdit Modifier");
-	}
-
-	if (wmd->mask_tex_mapping == MOD_DISP_MAP_GLOBAL)
-		dag_add_relation(ctx->forest, ctx->obNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA,
-		                 "WeightVGEdit Modifier");
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	WeightVGEditModifierData *wmd = (WeightVGEditModifierData *)md;
@@ -172,7 +154,10 @@ static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 	return (wmd->defgrp_name[0] == '\0');
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *derivedData,
+static DerivedMesh *applyModifier(ModifierData *md,
+                                  struct Depsgraph *UNUSED(depsgraph),
+                                  Object *ob,
+                                  DerivedMesh *derivedData,
                                   ModifierApplyFlag UNUSED(flag))
 {
 	WeightVGEditModifierData *wmd = (WeightVGEditModifierData *) md;
@@ -293,7 +278,6 @@ ModifierTypeInfo modifierType_WeightVGEdit = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     dependsOnTime,
 	/* dependsOnNormals */  NULL,

@@ -53,10 +53,13 @@
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 
-#include "BIF_gl.h"
+#include "GPU_immediate.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
+
+#include "RNA_access.h"
 
 #include "UI_resources.h"
 #include "UI_view2d.h"
@@ -92,9 +95,8 @@ ARegion *graph_has_buttons_region(ScrArea *sa)
 
 /* ******************** default callbacks for ipo space ***************** */
 
-static SpaceLink *graph_new(const bContext *C)
+static SpaceLink *graph_new(const ScrArea *UNUSED(sa), const Scene *scene)
 {
-	Scene *scene = CTX_data_scene(C);
 	ARegion *ar;
 	SpaceIpo *sipo;
 	
@@ -226,12 +228,13 @@ static void graph_main_region_draw(const bContext *C, ARegion *ar)
 {
 	/* draw entirely, view changes should be handled here */
 	SpaceIpo *sipo = CTX_wm_space_graph(C);
+	Scene *scene = CTX_data_scene(C);
 	bAnimContext ac;
 	View2D *v2d = &ar->v2d;
 	View2DGrid *grid;
 	View2DScrollers *scrollers;
 	float col[3];
-	short unitx = 0, unity = V2D_UNIT_VALUES, flag = 0;
+	short unitx = 0, unity = V2D_UNIT_VALUES, cfra_flag = 0;
 	
 	/* clear and setup matrix */
 	UI_GetThemeColor3fv(TH_BACK, col);
@@ -246,7 +249,12 @@ static void graph_main_region_draw(const bContext *C, ARegion *ar)
 	UI_view2d_grid_draw(v2d, grid, V2D_GRIDLINES_ALL);
 	
 	ED_region_draw_cb_draw(C, ar, REGION_DRAW_PRE_VIEW);
-
+	
+	/* start and end frame (in F-Curve mode only) */
+	if (sipo->mode != SIPO_MODE_DRIVERS) {
+		ANIM_draw_framerange(scene, v2d);
+	}
+	
 	/* draw data */
 	if (ANIM_animdata_get_context(C, &ac)) {
 		/* draw ghost curves */
@@ -265,47 +273,54 @@ static void graph_main_region_draw(const bContext *C, ARegion *ar)
 	
 	/* only free grid after drawing data, as we need to use it to determine sampling rate */
 	UI_view2d_grid_free(grid);
-	
-	/* horizontal component of value-cursor (value line before the current frame line) */
-	if ((sipo->flag & SIPO_NODRAWCURSOR) == 0) {
 
-		float y = sipo->cursorVal;
-		
-		/* Draw a green line to indicate the cursor value */
-		UI_ThemeColorShadeAlpha(TH_CFRAME, -10, -50);
-		glEnable(GL_BLEND);
-		glLineWidth(2.0);
+	if (((sipo->flag & SIPO_NODRAWCURSOR) == 0) || (sipo->mode == SIPO_MODE_DRIVERS)) {
+		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
-		glBegin(GL_LINES);
-		glVertex2f(v2d->cur.xmin, y);
-		glVertex2f(v2d->cur.xmax, y);
-		glEnd();
+		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
-		glDisable(GL_BLEND);
+		/* horizontal component of value-cursor (value line before the current frame line) */
+		if ((sipo->flag & SIPO_NODRAWCURSOR) == 0) {
+			float y = sipo->cursorVal;
+
+			/* Draw a green line to indicate the cursor value */
+			immUniformThemeColorShadeAlpha(TH_CFRAME, -10, -50);
+			glEnable(GL_BLEND);
+			glLineWidth(2.0);
+
+			immBegin(GWN_PRIM_LINES, 2);
+			immVertex2f(pos, v2d->cur.xmin, y);
+			immVertex2f(pos, v2d->cur.xmax, y);
+			immEnd();
+
+			glDisable(GL_BLEND);
+		}
+
+		/* current frame or vertical component of vertical component of the cursor */
+		if (sipo->mode == SIPO_MODE_DRIVERS) {
+			/* cursor x-value */
+			float x = sipo->cursorTime;
+
+			/* to help differentiate this from the current frame, draw slightly darker like the horizontal one */
+			immUniformThemeColorShadeAlpha(TH_CFRAME, -40, -50);
+			glEnable(GL_BLEND);
+			glLineWidth(2.0);
+
+			immBegin(GWN_PRIM_LINES, 2);
+			immVertex2f(pos, x, v2d->cur.ymin);
+			immVertex2f(pos, x, v2d->cur.ymax);
+			immEnd();
+
+			glDisable(GL_BLEND);
+		}
+
+		immUnbindProgram();
 	}
-	
-	/* current frame or vertical component of vertical component of the cursor */
-	if (sipo->mode == SIPO_MODE_DRIVERS) {
-		/* cursor x-value */
-		float x = sipo->cursorTime;
-		
-		/* to help differentiate this from the current frame, draw slightly darker like the horizontal one */
-		UI_ThemeColorShadeAlpha(TH_CFRAME, -40, -50);
-		glEnable(GL_BLEND);
-		glLineWidth(2.0);
-		
-		glBegin(GL_LINES);
-		glVertex2f(x, v2d->cur.ymin);
-		glVertex2f(x, v2d->cur.ymax);
-		glEnd();
 
-		glDisable(GL_BLEND);
-	}
-	else {
+	if (sipo->mode != SIPO_MODE_DRIVERS) {
 		/* current frame */
-		if (sipo->flag & SIPO_DRAWTIME) flag |= DRAWCFRA_UNIT_SECONDS;
-		if ((sipo->flag & SIPO_NODRAWCFRANUM) == 0) flag |= DRAWCFRA_SHOW_NUMBOX;
-		ANIM_draw_cfra(C, v2d, flag);
+		if (sipo->flag & SIPO_DRAWTIME) cfra_flag |= DRAWCFRA_UNIT_SECONDS;
+		ANIM_draw_cfra(C, v2d, cfra_flag);
 	}
 	
 	/* markers */
@@ -328,6 +343,12 @@ static void graph_main_region_draw(const bContext *C, ARegion *ar)
 	scrollers = UI_view2d_scrollers_calc(C, v2d, unitx, V2D_GRID_NOCLAMP, unity, V2D_GRID_NOCLAMP);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
+	
+	/* draw current frame number-indicator on top of scrollers */
+	if ((sipo->mode != SIPO_MODE_DRIVERS) && ((sipo->flag & SIPO_NODRAWCFRANUM) == 0)) {
+		UI_view2d_view_orthoSpecial(ar, v2d, 1);
+		ANIM_draw_cfra_number(C, v2d, cfra_flag);
+	}
 }
 
 static void graph_channel_region_init(wmWindowManager *wm, ARegion *ar)
@@ -404,7 +425,9 @@ static void graph_buttons_region_draw(const bContext *C, ARegion *ar)
 	ED_region_panels(C, ar, NULL, -1, true);
 }
 
-static void graph_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn)
+static void graph_region_listener(
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
 	switch (wmn->category) {
@@ -416,6 +439,7 @@ static void graph_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), AReg
 				case ND_RENDER_OPTIONS:
 				case ND_OB_ACTIVE:
 				case ND_FRAME:
+				case ND_FRAME_RANGE:
 				case ND_MARKERS:
 					ED_region_tag_redraw(ar);
 					break;
@@ -450,6 +474,11 @@ static void graph_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), AReg
 			if (wmn->action == NA_RENAME)
 				ED_region_tag_redraw(ar);
 			break;
+		case NC_SCREEN:
+			if (ELEM(wmn->data, ND_LAYER)) {
+				ED_region_tag_redraw(ar);
+			}
+			break;
 		default:
 			if (wmn->data == ND_KEYS)
 				ED_region_tag_redraw(ar);
@@ -458,8 +487,49 @@ static void graph_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), AReg
 	}
 }
 
+static void graph_region_message_subscribe(
+        const struct bContext *UNUSED(C),
+        struct WorkSpace *UNUSED(workspace), struct Scene *scene,
+        struct bScreen *screen, struct ScrArea *sa, struct ARegion *ar,
+        struct wmMsgBus *mbus)
+{
+	PointerRNA ptr;
+	RNA_pointer_create(&screen->id, &RNA_SpaceGraphEditor, sa->spacedata.first, &ptr);
+
+	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
+		.owner = ar,
+		.user_data = ar,
+		.notify = ED_region_do_msg_notify_tag_redraw,
+	};
+
+	/* Timeline depends on scene properties. */
+	{
+		bool use_preview = (scene->r.flag & SCER_PRV_RANGE);
+		extern PropertyRNA rna_Scene_frame_start;
+		extern PropertyRNA rna_Scene_frame_end;
+		extern PropertyRNA rna_Scene_frame_preview_start;
+		extern PropertyRNA rna_Scene_frame_preview_end;
+		extern PropertyRNA rna_Scene_use_preview_range;
+		extern PropertyRNA rna_Scene_frame_current;
+		const PropertyRNA *props[] = {
+			use_preview ? &rna_Scene_frame_preview_start : &rna_Scene_frame_start,
+			use_preview ? &rna_Scene_frame_preview_end   : &rna_Scene_frame_end,
+			&rna_Scene_use_preview_range,
+			&rna_Scene_frame_current,
+		};
+
+		PointerRNA idptr;
+		RNA_id_pointer_create(&scene->id, &idptr);
+
+		for (int i = 0; i < ARRAY_SIZE(props); i++) {
+			WM_msg_subscribe_rna(mbus, &idptr, props[i], &msg_sub_value_region_tag_redraw, __func__);
+		}
+	}
+}
+
 /* editor level listener */
-static void graph_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn)
+static void graph_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene),
+                           WorkSpace *UNUSED(workspace))
 {
 	SpaceIpo *sipo = (SpaceIpo *)sa->spacedata.first;
 	
@@ -718,6 +788,7 @@ void ED_spacetype_ipo(void)
 	art->init = graph_main_region_init;
 	art->draw = graph_main_region_draw;
 	art->listener = graph_region_listener;
+	art->message_subscribe = graph_region_message_subscribe;
 	art->keymapflag = ED_KEYMAP_VIEW2D | ED_KEYMAP_MARKERS | ED_KEYMAP_ANIMATION | ED_KEYMAP_FRAMES;
 
 	BLI_addhead(&st->regiontypes, art);

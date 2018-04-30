@@ -139,18 +139,6 @@ void POSE_OT_quaternions_flip(struct wmOperatorType *ot);
 void POSE_OT_bone_layers(struct wmOperatorType *ot);
 
 /* ******************************************************* */
-/* Etch-A-Ton (Skeleton Sketching) Operators */
-
-void SKETCH_OT_gesture(struct wmOperatorType *ot);
-void SKETCH_OT_delete(struct wmOperatorType *ot);
-void SKETCH_OT_draw_stroke(struct wmOperatorType *ot);
-void SKETCH_OT_draw_preview(struct wmOperatorType *ot);
-void SKETCH_OT_finish_stroke(struct wmOperatorType *ot);
-void SKETCH_OT_cancel_stroke(struct wmOperatorType *ot);
-void SKETCH_OT_convert(struct wmOperatorType *ot);
-void SKETCH_OT_select(struct wmOperatorType *ot);
-
-/* ******************************************************* */
 /* Pose Tool Utilities (for PoseLib, Pose Sliding, etc.) */
 /* pose_utils.c */
 
@@ -225,7 +213,6 @@ void POSE_OT_propagate(struct wmOperatorType *ot);
  */
 
 EditBone *make_boneList(struct ListBase *edbo, struct ListBase *bones, struct EditBone *parent, struct Bone *actBone);
-bool BIF_sk_selectStroke(struct bContext *C, const int mval[2], const bool extend);
 
 /* duplicate method */
 void preEditBoneDuplicate(struct ListBase *editbones);
@@ -248,10 +235,15 @@ void armature_select_mirrored_ex(struct bArmature *arm, const int flag);
 void armature_select_mirrored(struct bArmature *arm);
 void armature_tag_unselect(struct bArmature *arm);
 
-void *get_nearest_bone(struct bContext *C, const int xy[2], bool findunsel);
+void *get_nearest_bone(
+        struct bContext *C, const int xy[2], bool findunsel,
+        struct Base **r_base);
+
 void *get_bone_from_selectbuffer(
-        struct Scene *scene, struct Base *base, const unsigned int *buffer, short hits,
-        bool findunsel, bool do_nearest);
+        struct Base **bases, uint bases_len,
+        bool is_editmode, const unsigned int *buffer, short hits,
+        bool findunsel, bool do_nearest,
+        struct Base **r_base);
 
 int bone_looper(struct Object *ob, struct Bone *bone, void *data,
                 int (*bone_func)(struct Object *, struct Bone *, void *));

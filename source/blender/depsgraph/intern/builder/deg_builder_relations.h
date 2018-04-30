@@ -57,6 +57,7 @@ struct ID;
 struct FCurve;
 struct Group;
 struct Key;
+struct LayerCollection;
 struct Main;
 struct Mask;
 struct Material;
@@ -68,7 +69,9 @@ struct Object;
 struct bPoseChannel;
 struct bConstraint;
 struct ParticleSystem;
+struct ParticleSettings;
 struct Scene;
+struct ViewLayer;
 struct Tex;
 struct World;
 struct EffectorWeights;
@@ -191,9 +194,10 @@ struct DepsgraphRelationBuilder
 	                                       const char *description,
 	                                       bool check_unique = false);
 
-	void build_scene(Scene *scene);
+	void build_view_layer(Scene *scene, ViewLayer *view_layer);
 	void build_group(Object *object, Group *group);
-	void build_object(Object *object);
+	void build_object(Base *base, Object *object);
+	void build_object_flags(Base *base, Object *object);
 	void build_object_data(Object *object);
 	void build_object_parent(Object *object);
 	void build_constraints(ID *id,
@@ -218,6 +222,7 @@ struct DepsgraphRelationBuilder
 	void build_world(World *world);
 	void build_rigidbody(Scene *scene);
 	void build_particles(Object *object);
+	void build_particle_settings(ParticleSettings *part);
 	void build_particles_visualization_object(Object *object,
 	                                          ParticleSystem *psys,
 	                                          Object *draw_object);
@@ -239,18 +244,17 @@ struct DepsgraphRelationBuilder
 	void build_nodetree(bNodeTree *ntree);
 	void build_material(Material *ma);
 	void build_texture(Tex *tex);
-	void build_texture_stack(MTex **texture_stack);
 	void build_compositor(Scene *scene);
 	void build_gpencil(bGPdata *gpd);
 	void build_cachefile(CacheFile *cache_file);
 	void build_mask(Mask *mask);
 	void build_movieclip(MovieClip *clip);
+	void build_lightprobe(Object *object);
 
 	void add_collision_relations(const OperationKey &key,
 	                             Scene *scene,
 	                             Object *object,
 	                             Group *group,
-	                             int layer,
 	                             bool dupli,
 	                             const char *name);
 	void add_forcefield_relations(const OperationKey &key,
@@ -258,8 +262,10 @@ struct DepsgraphRelationBuilder
 	                              Object *object,
 	                              ParticleSystem *psys,
 	                              EffectorWeights *eff,
-	                              bool add_absorption,
-	                              const char *name);
+	                              bool add_absorption, const char *name);
+
+	void build_copy_on_write_relations();
+	void build_copy_on_write_relations(IDDepsNode *id_node);
 
 	template <typename KeyType>
 	OperationDepsNode *find_operation_node(const KeyType &key);

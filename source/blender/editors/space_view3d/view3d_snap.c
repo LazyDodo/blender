@@ -40,12 +40,13 @@
 #include "BKE_action.h"
 #include "BKE_armature.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_main.h"
 #include "BKE_mball.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_tracking.h"
+
+#include "DEG_depsgraph.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -68,6 +69,7 @@ static bool snap_calc_active_center(bContext *C, const bool select_only, float r
 
 static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *obedit = CTX_data_edit_object(C);
 	Scene *scene = CTX_data_scene(C);
 	RegionView3D *rv3d = CTX_wm_region_data(C);
@@ -153,7 +155,7 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 				}
 				ob->pose->flag |= (POSE_LOCKED | POSE_DO_UNLOCK);
 				
-				DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			}
 			else {
 				vec[0] = -ob->obmat[3][0] + gridf * floorf(0.5f + ob->obmat[3][0] / gridf);
@@ -162,7 +164,7 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 				
 				if (ob->parent) {
 					float originmat[3][3];
-					BKE_object_where_is_calc_ex(scene, NULL, ob, originmat);
+					BKE_object_where_is_calc_ex(depsgraph, scene, NULL, ob, originmat);
 					
 					invert_m3_m3(imat, originmat);
 					mul_m3_v3(imat, vec);
@@ -177,7 +179,7 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 				/* auto-keyframing */
 				ED_autokeyframe_object(C, scene, ob, ks);
 
-				DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 			}
 		}
 		CTX_DATA_END;
@@ -207,6 +209,7 @@ void VIEW3D_OT_snap_selected_to_grid(wmOperatorType *ot)
 
 static int snap_selected_to_location(bContext *C, const float snap_target_global[3], const bool use_offset)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *obedit = CTX_data_edit_object(C);
 	Object *obact = CTX_data_active_object(C);
@@ -329,7 +332,7 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 
 		obact->pose->flag |= (POSE_LOCKED | POSE_DO_UNLOCK);
 
-		DAG_id_tag_update(&obact->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&obact->id, OB_RECALC_DATA);
 	}
 	else {
 		struct KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, ANIM_KS_LOCATION_ID);
@@ -370,7 +373,7 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 
 				if (ob->parent) {
 					float originmat[3][3];
-					BKE_object_where_is_calc_ex(scene, NULL, ob, originmat);
+					BKE_object_where_is_calc_ex(depsgraph, scene, NULL, ob, originmat);
 
 					invert_m3_m3(imat, originmat);
 					mul_m3_v3(imat, cursor_parent);
@@ -385,7 +388,7 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 				/* auto-keyframing */
 				ED_autokeyframe_object(C, scene, ob, ks);
 
-				DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 			}
 		}
 

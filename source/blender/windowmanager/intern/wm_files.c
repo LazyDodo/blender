@@ -71,6 +71,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_windowmanager_types.h"
+#include "DNA_workspace_types.h"
 
 #include "BKE_appdir.h"
 #include "BKE_autoexec.h"
@@ -78,7 +79,6 @@
 #include "BKE_blendfile.h"
 #include "BKE_blender_undo.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_global.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -88,6 +88,7 @@
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_undo_system.h"
+#include "BKE_workspace.h"
 
 #include "BLO_readfile.h"
 #include "BLO_writefile.h"
@@ -123,8 +124,11 @@
 #include "BPY_extern.h"
 #endif
 
+#include "DEG_depsgraph.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
 #include "wm.h"
 #include "wm_files.h"
 #include "wm_window.h"
@@ -163,7 +167,7 @@ static void wm_window_match_init(bContext *C, ListBase *wmlist)
 			CTX_wm_window_set(C, win);  /* needed by operator close callbacks */
 			WM_event_remove_handlers(C, &win->handlers);
 			WM_event_remove_handlers(C, &win->modalhandlers);
-			ED_screen_exit(C, win, win->screen);
+			ED_screen_exit(C, win, WM_window_get_active_screen(win));
 		}
 	}
 	
@@ -178,27 +182,12 @@ static void wm_window_match_init(bContext *C, ListBase *wmlist)
 	CTX_wm_menu_set(C, NULL);
 
 	ED_editors_exit(C);
-
-	/* just had return; here from r12991, this code could just get removed?*/
-#if 0
-	if (wm == NULL) return;
-	if (G.fileflags & G_FILE_NO_UI) return;
-	
-	/* we take apart the used screens from non-active window */
-	for (win = wm->windows.first; win; win = win->next) {
-		BLI_strncpy(win->screenname, win->screen->id.name, MAX_ID_NAME);
-		if (win != wm->winactive) {
-			BLI_remlink(&G.main->screen, win->screen);
-			//BLI_addtail(screenbase, win->screen);
-		}
-	}
-#endif
 }
 
 static void wm_window_substitute_old(wmWindowManager *wm, wmWindow *oldwin, wmWindow *win)
 {
 	win->ghostwin = oldwin->ghostwin;
-	win->multisamples = oldwin->multisamples;
+	win->gwnctx = oldwin->gwnctx;
 	win->active = oldwin->active;
 	if (win->active)
 		wm->winactive = win;
@@ -207,7 +196,7 @@ static void wm_window_substitute_old(wmWindowManager *wm, wmWindow *oldwin, wmWi
 		GHOST_SetWindowUserData(win->ghostwin, win);    /* pointer back */
 
 	oldwin->ghostwin = NULL;
-	oldwin->multisamples = 0;
+	oldwin->gwnctx = NULL;
 
 	win->eventstate = oldwin->eventstate;
 	oldwin->eventstate = NULL;
@@ -219,102 +208,127 @@ static void wm_window_substitute_old(wmWindowManager *wm, wmWindow *oldwin, wmWi
 	win->posy = oldwin->posy;
 }
 
-/* match old WM with new, 4 cases:
- * 1- no current wm, no read wm: make new default
- * 2- no current wm, but read wm: that's OK, do nothing
- * 3- current wm, but not in file: try match screen names
- * 4- current wm, and wm in file: try match ghostwin
- */
-
-static void wm_window_match_do(bContext *C, ListBase *oldwmlist)
+static void wm_window_match_keep_current_wm(
+        const bContext *C, ListBase *current_wm_list,
+        const bool load_ui,
+        ListBase *r_new_wm_list)
 {
-	wmWindowManager *oldwm, *wm;
-	wmWindow *oldwin, *win;
-	
-	/* cases 1 and 2 */
-	if (BLI_listbase_is_empty(oldwmlist)) {
-		if (G.main->wm.first) {
-			/* nothing todo */
-		}
-		else {
-			wm_add_default(C);
+	wmWindowManager *wm = current_wm_list->first;
+	bScreen *screen = NULL;
+
+	/* match oldwm to new dbase, only old files */
+	wm->initialized &= ~WM_WINDOW_IS_INITIALIZED;
+
+	/* when loading without UI, no matching needed */
+	if (load_ui && (screen = CTX_wm_screen(C))) {
+		for (wmWindow *win = wm->windows.first; win; win = win->next) {
+			WorkSpace *workspace;
+
+			BKE_workspace_layout_find_global(G.main, screen, &workspace);
+			BKE_workspace_active_set(win->workspace_hook, workspace);
+			win->scene = CTX_data_scene(C);
+
+			/* all windows get active screen from file */
+			if (screen->winid == 0) {
+				WM_window_set_active_screen(win, workspace, screen);
+			}
+			else {
+				WorkSpaceLayout *layout_old = WM_window_get_active_layout(win);
+				WorkSpaceLayout *layout_new = ED_workspace_layout_duplicate(workspace, layout_old, win);
+
+				WM_window_set_active_layout(win, workspace, layout_new);
+			}
+
+			bScreen *win_screen = WM_window_get_active_screen(win);
+			win_screen->winid = win->winid;
 		}
 	}
-	else {
-		/* cases 3 and 4 */
-		
-		/* we've read file without wm..., keep current one entirely alive */
-		if (BLI_listbase_is_empty(&G.main->wm)) {
-			bScreen *screen = NULL;
 
-			/* when loading without UI, no matching needed */
-			if (!(G.fileflags & G_FILE_NO_UI) && (screen = CTX_wm_screen(C))) {
+	*r_new_wm_list = *current_wm_list;
+}
 
-				/* match oldwm to new dbase, only old files */
-				for (wm = oldwmlist->first; wm; wm = wm->id.next) {
-					
-					for (win = wm->windows.first; win; win = win->next) {
-						/* all windows get active screen from file */
-						if (screen->winid == 0)
-							win->screen = screen;
-						else 
-							win->screen = ED_screen_duplicate(win, screen);
-						
-						BLI_strncpy(win->screenname, win->screen->id.name + 2, sizeof(win->screenname));
-						win->screen->winid = win->winid;
-					}
-				}
-			}
-			
-			G.main->wm = *oldwmlist;
-			
-			/* screens were read from file! */
-			ED_screens_initialize(G.main->wm.first);
-		}
-		else {
-			bool has_match = false;
+static void wm_window_match_replace_by_file_wm(
+        bContext *C, ListBase *current_wm_list, ListBase *readfile_wm_list,
+        ListBase *r_new_wm_list)
+{
+	wmWindowManager *oldwm = current_wm_list->first;
+	wmWindowManager *wm = readfile_wm_list->first; /* will become our new WM */
+	bool has_match = false;
 
-			/* what if old was 3, and loaded 1? */
-			/* this code could move to setup_appdata */
-			oldwm = oldwmlist->first;
-			wm = G.main->wm.first;
+	/* this code could move to setup_appdata */
 
-			/* preserve key configurations in new wm, to preserve their keymaps */
-			wm->keyconfigs = oldwm->keyconfigs;
-			wm->addonconf = oldwm->addonconf;
-			wm->defaultconf = oldwm->defaultconf;
-			wm->userconf = oldwm->userconf;
+	/* preserve key configurations in new wm, to preserve their keymaps */
+	wm->keyconfigs = oldwm->keyconfigs;
+	wm->addonconf = oldwm->addonconf;
+	wm->defaultconf = oldwm->defaultconf;
+	wm->userconf = oldwm->userconf;
 
-			BLI_listbase_clear(&oldwm->keyconfigs);
-			oldwm->addonconf = NULL;
-			oldwm->defaultconf = NULL;
-			oldwm->userconf = NULL;
+	BLI_listbase_clear(&oldwm->keyconfigs);
+	oldwm->addonconf = NULL;
+	oldwm->defaultconf = NULL;
+	oldwm->userconf = NULL;
 
-			/* ensure making new keymaps and set space types */
-			wm->initialized = 0;
-			wm->winactive = NULL;
+	/* ensure making new keymaps and set space types */
+	wm->initialized = 0;
+	wm->winactive = NULL;
 
-			/* only first wm in list has ghostwins */
-			for (win = wm->windows.first; win; win = win->next) {
-				for (oldwin = oldwm->windows.first; oldwin; oldwin = oldwin->next) {
-
-					if (oldwin->winid == win->winid) {
-						has_match = true;
-
-						wm_window_substitute_old(wm, oldwin, win);
-					}
-				}
-			}
-
-			/* make sure at least one window is kept open so we don't lose the context, check T42303 */
-			if (!has_match) {
-				oldwin = oldwm->windows.first;
-				win = wm->windows.first;
+	/* only first wm in list has ghostwins */
+	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+		for (wmWindow *oldwin = oldwm->windows.first; oldwin; oldwin = oldwin->next) {
+			if (oldwin->winid == win->winid) {
+				has_match = true;
 
 				wm_window_substitute_old(wm, oldwin, win);
 			}
+		}
+	}
+	/* make sure at least one window is kept open so we don't lose the context, check T42303 */
+	if (!has_match) {
+		wm_window_substitute_old(wm, oldwm->windows.first, wm->windows.first);
+	}
 
-			wm_close_and_free_all(C, oldwmlist);
+	wm_close_and_free_all(C, current_wm_list);
+
+	*r_new_wm_list = *readfile_wm_list;
+}
+
+/**
+ * Match old WM with new, 4 cases:
+ * 1) No current WM, no WM in file: Make new default.
+ * 2) No current WM, but WM in file: Keep current WM, do nothing else.
+ * 3) Current WM, but not in file: Keep current WM, update windows with screens from file.
+ * 4) Current WM, and WM in file: Try to keep current GHOST windows, use WM from file.
+ *
+ * \param r_new_wm_list: Return argument for the wm list to be used from now on.
+ */
+static void wm_window_match_do(
+        bContext *C,
+        ListBase *current_wm_list, ListBase *readfile_wm_list,
+        ListBase *r_new_wm_list)
+{
+	if (BLI_listbase_is_empty(current_wm_list)) {
+		/* case 1 */
+		if (BLI_listbase_is_empty(readfile_wm_list)) {
+			Main *bmain = CTX_data_main(C);
+			/* Neither current, no newly read file have a WM -> add the default one. */
+			wm_add_default(bmain, C);
+			*r_new_wm_list = bmain->wm;
+		}
+		/* case 2 */
+		else {
+			*r_new_wm_list = *readfile_wm_list;
+		}
+	}
+	else {
+		/* case 3 */
+		if (BLI_listbase_is_empty(readfile_wm_list)) {
+			/* We've read file without wm, keep current one entirely alive.
+			 * Happens when reading pre 2.5 files (no WM back then) */
+			wm_window_match_keep_current_wm(C, current_wm_list, (G.fileflags & G_FILE_NO_UI) == 0, r_new_wm_list);
+		}
+		/* case 4 */
+		else {
+			wm_window_match_replace_by_file_wm(C, current_wm_list, readfile_wm_list, r_new_wm_list);
 		}
 	}
 }
@@ -466,7 +480,7 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 	CTX_wm_window_set(C, wm->windows.first);
 
 	ED_editors_init(C);
-	DAG_on_visible_update(CTX_data_main(C), true);
+	DEG_on_visible_update(CTX_data_main(C), true);
 
 #ifdef WITH_PYTHON
 	if (is_startup_file) {
@@ -499,17 +513,11 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 	BLI_callback_exec(CTX_data_main(C), NULL, BLI_CB_EVT_VERSION_UPDATE);
 	BLI_callback_exec(CTX_data_main(C), NULL, BLI_CB_EVT_LOAD_POST);
 
-	/* Would otherwise be handled by event loop.
-	 *
-	 * Disabled for startup file, since it causes problems when PyDrivers are used in the startup file.
-	 * While its possible state of startup file may be wrong,
-	 * in this case users nearly always load a file to replace the startup file. */
-	if (G.background && (is_startup_file == false)) {
-		Main *bmain = CTX_data_main(C);
-		BKE_scene_update_tagged(bmain->eval_ctx, bmain, CTX_data_scene(C));
-	}
-
+#if 1
 	WM_event_add_notifier(C, NC_WM | ND_FILEREAD, NULL);
+#else
+	WM_msg_publish_static(CTX_wm_message_bus(C), WM_MSG_STATICTYPE_FILE_READ);
+#endif
 
 	/* report any errors.
 	 * currently disabled if addons aren't yet loaded */
@@ -522,6 +530,9 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 		 * a blend file and do anything since the screen
 		 * won't be set to a valid value again */
 		CTX_wm_window_set(C, NULL); /* exits queues */
+
+		/* Ensure tools are registered. */
+		WM_toolsystem_init(C);
 	}
 
 	if (!G.background) {
@@ -563,7 +574,7 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 
 		/* put aside screens to match with persistent windows later */
 		/* also exit screens and editors */
-		wm_window_match_init(C, &wmbase); 
+		wm_window_match_init(C, &wmbase);
 		
 		/* confusing this global... */
 		G.relbase_valid = 1;
@@ -585,7 +596,7 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 		}
 
 		/* match the read WM with current WM */
-		wm_window_match_do(C, &wmbase);
+		wm_window_match_do(C, &wmbase, &G.main->wm, &G.main->wm);
 		WM_check(C); /* opens window(s), checks keymaps */
 
 		if (retval == BKE_BLENDFILE_READ_OK_USERPREFS) {
@@ -603,6 +614,10 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 
 		success = true;
 	}
+#if 0
+	else if (retval == BKE_READ_EXOTIC_OK_OTHER)
+		BKE_undo_write(C, "Import file");
+#endif
 	else if (retval == BKE_READ_EXOTIC_FAIL_OPEN) {
 		BKE_reportf(reports, RPT_ERROR, "Cannot read file '%s': %s", filepath,
 		            errno ? strerror(errno) : TIP_("unable to open the file"));
@@ -844,29 +859,20 @@ int wm_homefile_read(
 	/* prevent buggy files that had G_FILE_RELATIVE_REMAP written out by mistake. Screws up autosaves otherwise
 	 * can remove this eventually, only in a 2.53 and older, now its not written */
 	G.fileflags &= ~G_FILE_RELATIVE_REMAP;
-	
-	if (use_userdef) {
+
+	if (use_userdef) {	
 		/* check userdef before open window, keymaps etc */
 		wm_init_userdef(CTX_data_main(C), read_userdef_from_memory);
 	}
 	
 	/* match the read WM with current WM */
-	wm_window_match_do(C, &wmbase); 
+	wm_window_match_do(C, &wmbase, &G.main->wm, &G.main->wm);
 	WM_check(C); /* opens window(s), checks keymaps */
 
 	G.main->name[0] = '\0';
 
-	if (use_userdef) {
-		/* When loading factory settings, the reset solid OpenGL lights need to be applied. */
-		if (!G.background) {
-			GPU_default_lights();
-		}
-	}
-
 	/* start with save preference untitled.blend */
 	G.save_over = 0;
-	/* disable auto-play in startup.blend... */
-	G.fileflags &= ~G_FILE_AUTOPLAY;
 
 	wm_file_read_post(C, true, use_userdef);
 
@@ -997,7 +1003,7 @@ static void wm_history_file_update(void)
 
 
 /* screen can be NULL */
-static ImBuf *blend_file_thumb(Scene *scene, bScreen *screen, BlendThumbnail **thumb_pt)
+static ImBuf *blend_file_thumb(const bContext *C, Scene *scene, bScreen *screen, BlendThumbnail **thumb_pt)
 {
 	/* will be scaled down, but gives some nice oversampling */
 	ImBuf *ibuf;
@@ -1032,19 +1038,21 @@ static ImBuf *blend_file_thumb(Scene *scene, bScreen *screen, BlendThumbnail **t
 	}
 
 	/* gets scaled to BLEN_THUMB_SIZE */
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+
 	if (scene->camera) {
 		ibuf = ED_view3d_draw_offscreen_imbuf_simple(
-		        scene, scene->camera,
+		        depsgraph, scene, OB_SOLID, scene->camera,
 		        BLEN_THUMB_SIZE * 2, BLEN_THUMB_SIZE * 2,
-		        IB_rect, V3D_OFSDRAW_NONE, OB_SOLID, R_ALPHAPREMUL, 0, NULL,
-		        NULL, NULL, err_out);
+		        IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
+		        NULL, err_out);
 	}
 	else {
 		ibuf = ED_view3d_draw_offscreen_imbuf(
-		        scene, v3d, ar,
+		        depsgraph, scene, OB_SOLID, v3d, ar,
 		        BLEN_THUMB_SIZE * 2, BLEN_THUMB_SIZE * 2,
 		        IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
-		        NULL, NULL, err_out);
+		        NULL, err_out);
 	}
 
 	if (ibuf) {
@@ -1137,7 +1145,7 @@ static int wm_file_write(bContext *C, const char *filepath, int fileflags, Repor
 	/* Main now can store a .blend thumbnail, usefull for background mode or thumbnail customization. */
 	main_thumb = thumb = CTX_data_main(C)->blen_thumb;
 	if ((U.flag & USER_SAVE_PREVIEWS) && BLI_thread_is_main()) {
-		ibuf_thumb = blend_file_thumb(CTX_data_scene(C), CTX_wm_screen(C), &thumb);
+		ibuf_thumb = blend_file_thumb(C, CTX_data_scene(C), CTX_wm_screen(C), &thumb);
 	}
 
 	/* operator now handles overwrite checks */
@@ -1173,7 +1181,6 @@ static int wm_file_write(bContext *C, const char *filepath, int fileflags, Repor
 		}
 
 		SET_FLAG_FROM_TEST(G.fileflags, fileflags & G_FILE_COMPRESS, G_FILE_COMPRESS);
-		SET_FLAG_FROM_TEST(G.fileflags, fileflags & G_FILE_AUTOPLAY, G_FILE_AUTOPLAY);
 
 		/* prevent background mode scripts from clobbering history */
 		if (do_history) {
@@ -1281,7 +1288,7 @@ void wm_autosave_timer(const bContext *C, wmWindowManager *wm, wmTimer *UNUSED(w
 	}
 	else {
 		/*  save as regular blend file */
-		int fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_AUTOPLAY | G_FILE_HISTORY);
+		int fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_HISTORY);
 
 		ED_editors_flush_edits(C, false);
 
@@ -1395,7 +1402,7 @@ static int wm_homefile_write_exec(bContext *C, wmOperator *op)
 	BLI_callback_exec(G.main, NULL, BLI_CB_EVT_SAVE_PRE);
 
 	/* check current window and close it if temp */
-	if (win && win->screen->temp)
+	if (win && WM_window_is_temp_screen(win))
 		wm_window_close(C, wm, win);
 
 	/* update keymaps in user preferences */
@@ -1408,7 +1415,7 @@ static int wm_homefile_write_exec(bContext *C, wmOperator *op)
 	ED_editors_flush_edits(C, false);
 
 	/*  force save as regular blend file */
-	fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_AUTOPLAY | G_FILE_HISTORY);
+	fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_HISTORY);
 
 	if (BLO_write_file(CTX_data_main(C), filepath, fileflags | G_FILE_USERPREFS, op->reports, NULL) == 0) {
 		printf("fail\n");
@@ -1540,6 +1547,42 @@ void WM_OT_save_userpref(wmOperatorType *ot)
 
 	ot->invoke = WM_operator_confirm;
 	ot->exec = wm_userpref_write_exec;
+}
+
+static int wm_workspace_configuration_file_write_exec(bContext *C, wmOperator *op)
+{
+	Main *bmain = CTX_data_main(C);
+	char filepath[FILE_MAX];
+
+	const char *app_template = U.app_template[0] ? U.app_template : NULL;
+	const char * const cfgdir = BKE_appdir_folder_id_create(BLENDER_USER_CONFIG, app_template);
+	if (cfgdir == NULL) {
+		BKE_report(op->reports, RPT_ERROR, "Unable to create workspace configuration file path");
+		return OPERATOR_CANCELLED;
+	}
+
+	BLI_path_join(filepath, sizeof(filepath), cfgdir, BLENDER_WORKSPACES_FILE, NULL);
+	printf("trying to save workspace configuration file at %s ", filepath);
+
+	if (BKE_blendfile_workspace_config_write(bmain, filepath, op->reports) != 0) {
+		printf("ok\n");
+		return OPERATOR_FINISHED;
+	}
+	else {
+		printf("fail\n");
+	}
+
+	return OPERATOR_CANCELLED;
+}
+
+void WM_OT_save_workspace_file(wmOperatorType *ot)
+{
+	ot->name = "Save Workspace Configuration";
+	ot->idname = "WM_OT_save_workspace_file";
+	ot->description = "Save workspaces of the current file as part of the user configuration";
+
+	ot->invoke = WM_operator_confirm;
+	ot->exec = wm_workspace_configuration_file_write_exec;
 }
 
 static int wm_history_file_read_exec(bContext *UNUSED(C), wmOperator *UNUSED(op))

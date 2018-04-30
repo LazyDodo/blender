@@ -47,9 +47,10 @@
 #include "RNA_define.h"
 #include "RNA_access.h"
 
-#include "BKE_depsgraph.h"
 #include "BKE_context.h"
 #include "BKE_mball.h"
+
+#include "DEG_depsgraph.h"
 
 #include "ED_mball.h"
 #include "ED_screen.h"
@@ -431,7 +432,7 @@ static int duplicate_metaelems_exec(bContext *C, wmOperator *UNUSED(op))
 			ml = ml->prev;
 		}
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, mb);
-		DAG_id_tag_update(obedit->data, 0);
+		DEG_id_tag_update(obedit->data, 0);
 	}
 
 	return OPERATOR_FINISHED;
@@ -473,7 +474,7 @@ static int delete_metaelems_exec(bContext *C, wmOperator *UNUSED(op))
 			ml = next;
 		}
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, mb);
-		DAG_id_tag_update(obedit->data, 0);
+		DEG_id_tag_update(obedit->data, 0);
 	}
 
 	return OPERATOR_FINISHED;
@@ -513,7 +514,7 @@ static int hide_metaelems_exec(bContext *C, wmOperator *op)
 			ml = ml->next;
 		}
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, mb);
-		DAG_id_tag_update(obedit->data, 0);
+		DEG_id_tag_update(obedit->data, 0);
 	}
 
 	return OPERATOR_FINISHED;
@@ -556,7 +557,7 @@ static int reveal_metaelems_exec(bContext *C, wmOperator *op)
 	}
 	if (changed) {
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, mb);
-		DAG_id_tag_update(obedit->data, 0);
+		DEG_id_tag_update(obedit->data, 0);
 	}
 	
 	return OPERATOR_FINISHED;

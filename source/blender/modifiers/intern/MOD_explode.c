@@ -147,7 +147,7 @@ static void createFacepa(ExplodeModifierData *emd,
 	/* make tree of emitter locations */
 	tree = BLI_kdtree_new(totpart);
 	for (p = 0, pa = psys->particles; p < totpart; p++, pa++) {
-		psys_particle_on_emitter(psmd, psys->part->from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, co, NULL, NULL, NULL, NULL, NULL);
+		psys_particle_on_emitter(psmd, psys->part->from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, co, NULL, NULL, NULL, NULL);
 		BLI_kdtree_insert(tree, p, co);
 	}
 	BLI_kdtree_balance(tree);
@@ -785,9 +785,10 @@ static DerivedMesh *cutEdges(ExplodeModifierData *emd, DerivedMesh *dm)
 
 	return splitdm;
 }
-static DerivedMesh *explodeMesh(ExplodeModifierData *emd,
-                                ParticleSystemModifierData *psmd, Scene *scene, Object *ob,
-                                DerivedMesh *to_explode)
+static DerivedMesh *explodeMesh(
+        ExplodeModifierData *emd,
+        ParticleSystemModifierData *psmd, struct Depsgraph *depsgraph, Scene *scene,
+        Object *ob, DerivedMesh *to_explode)
 {
 	DerivedMesh *explode, *dm = to_explode;
 	MFace *mf = NULL, *mface;
@@ -812,6 +813,7 @@ static DerivedMesh *explodeMesh(ExplodeModifierData *emd,
 	mface = dm->getTessFaceArray(dm);
 	totpart = psmd->psys->totpart;
 
+	sim.depsgraph = depsgraph;
 	sim.scene = scene;
 	sim.ob = ob;
 	sim.psys = psmd->psys;
@@ -993,8 +995,8 @@ static ParticleSystemModifierData *findPrecedingParticlesystem(Object *ob, Modif
 	}
 	return psmd;
 }
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
-                                  DerivedMesh *derivedData,
+static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
+                                  Object *ob, DerivedMesh *derivedData,
                                   ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *dm = derivedData;
@@ -1028,7 +1030,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 		if (emd->flag & eExplodeFlag_EdgeCut) {
 			int *facepa = emd->facepa;
 			DerivedMesh *splitdm = cutEdges(emd, dm);
-			DerivedMesh *explode = explodeMesh(emd, psmd, md->scene, ob, splitdm);
+			DerivedMesh *explode = explodeMesh(emd, psmd, depsgraph, md->scene, ob, splitdm);
 
 			MEM_freeN(emd->facepa);
 			emd->facepa = facepa;
@@ -1036,7 +1038,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 			return explode;
 		}
 		else
-			return explodeMesh(emd, psmd, md->scene, ob, derivedData);
+			return explodeMesh(emd, psmd, depsgraph, md->scene, ob, derivedData);
 	}
 	return derivedData;
 }
@@ -1059,7 +1061,6 @@ ModifierTypeInfo modifierType_Explode = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     dependsOnTime,
 	/* dependsOnNormals */  NULL,

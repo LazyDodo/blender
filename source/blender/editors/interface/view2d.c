@@ -49,10 +49,10 @@
 #include "BKE_screen.h"
 #include "BKE_global.h"
 
+#include "GPU_immediate.h"
+#include "GPU_matrix.h"
 
 #include "WM_api.h"
-
-#include "BIF_gl.h"
 
 #include "BLF_api.h"
 
@@ -152,18 +152,23 @@ static void view2d_masks(View2D *v2d, bool check_scrollers)
 	 *	- if they overlap, they must not occupy the corners (which are reserved for other widgets)
 	 */
 	if (scroll) {
+		const int scroll_width = (v2d->scroll & V2D_SCROLL_SCALE_VERTICAL) ?
+		                             V2D_SCROLL_WIDTH_TEXT : V2D_SCROLL_WIDTH;
+		const int scroll_height = (v2d->scroll & V2D_SCROLL_SCALE_HORIZONTAL) ?
+		                              V2D_SCROLL_HEIGHT_TEXT : V2D_SCROLL_HEIGHT;
+
 		/* vertical scroller */
 		if (scroll & V2D_SCROLL_LEFT) {
 			/* on left-hand edge of region */
 			v2d->vert = v2d->mask;
-			v2d->vert.xmax = V2D_SCROLL_WIDTH;
+			v2d->vert.xmax = scroll_width;
 			v2d->mask.xmin = v2d->vert.xmax + 1;
 		}
 		else if (scroll & V2D_SCROLL_RIGHT) {
 			/* on right-hand edge of region */
 			v2d->vert = v2d->mask;
 			v2d->vert.xmax++; /* one pixel extra... was leaving a minor gap... */
-			v2d->vert.xmin = v2d->vert.xmax - V2D_SCROLL_WIDTH;
+			v2d->vert.xmin = v2d->vert.xmax - scroll_width;
 			v2d->mask.xmax = v2d->vert.xmin - 1;
 		}
 		
@@ -171,13 +176,13 @@ static void view2d_masks(View2D *v2d, bool check_scrollers)
 		if (scroll & (V2D_SCROLL_BOTTOM)) {
 			/* on bottom edge of region */
 			v2d->hor = v2d->mask;
-			v2d->hor.ymax = V2D_SCROLL_HEIGHT;
+			v2d->hor.ymax = scroll_height;
 			v2d->mask.ymin = v2d->hor.ymax + 1;
 		}
 		else if (scroll & V2D_SCROLL_TOP) {
 			/* on upper edge of region */
 			v2d->hor = v2d->mask;
-			v2d->hor.ymin = v2d->hor.ymax - V2D_SCROLL_HEIGHT;
+			v2d->hor.ymin = v2d->hor.ymax - scroll_height;
 			v2d->mask.ymax = v2d->hor.ymin - 1;
 		}
 		
@@ -1107,9 +1112,6 @@ void UI_view2d_view_ortho(View2D *v2d)
 	
 	/* set matrix on all appropriate axes */
 	wmOrtho2(curmasked.xmin, curmasked.xmax, curmasked.ymin, curmasked.ymax);
-
-	/* XXX is this necessary? */
-	glLoadIdentity();
 }
 
 /**
@@ -1137,9 +1139,6 @@ void UI_view2d_view_orthoSpecial(ARegion *ar, View2D *v2d, const bool xaxis)
 		wmOrtho2(curmasked.xmin - xofs, curmasked.xmax - xofs, -yofs, ar->winy - yofs);
 	else
 		wmOrtho2(-xofs, ar->winx - xofs, curmasked.ymin - yofs, curmasked.ymax - yofs);
-		
-	/* XXX is this necessary? */
-	glLoadIdentity();
 } 
 
 
@@ -1151,7 +1150,7 @@ void UI_view2d_view_restore(const bContext *C)
 	int height = BLI_rcti_size_y(&ar->winrct) + 1;
 	
 	wmOrtho2(0.0f, (float)width, 0.0f, (float)height);
-	glLoadIdentity();
+	gpuLoadIdentity();
 	
 	//	ED_region_pixelspace(CTX_wm_region(C));
 }
@@ -1305,12 +1304,45 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 {
 	float vec1[2], vec2[2];
 	int a, step;
+	int vertical_minor_step = (BLI_rcti_size_x(&v2d->mask) + 1) / (U.v2d_min_gridsize * UI_DPI_FAC),
+		horizontal_major_step = (BLI_rcti_size_y(&v2d->mask) + 1) / (U.v2d_min_gridsize * UI_DPI_FAC);
+	unsigned char grid_line_color[3];
 	
 	/* check for grid first, as it may not exist */
 	if (grid == NULL)
 		return;
 
-	glBegin(GL_LINES);
+	/* Count the needed vertices for the gridlines */
+	unsigned vertex_count = 0;
+	if (flag & V2D_VERTICAL_LINES) {
+		/* vertical lines */
+		vertex_count += 2 * vertical_minor_step;		/* minor gridlines */
+		vertex_count += 2 * (vertical_minor_step + 2);	/* major gridlines */
+	}
+	if (flag & V2D_HORIZONTAL_LINES) {
+		/* horizontal lines */
+		vertex_count += 2 * (horizontal_major_step + 1);	/* major gridlines */
+
+		/* fine lines */
+		if (flag & V2D_HORIZONTAL_FINELINES)
+			vertex_count += 2 * (horizontal_major_step + 1);
+	}
+	/* axes */
+	if (flag & V2D_HORIZONTAL_AXIS)
+		vertex_count += 2;
+	if (flag & V2D_VERTICAL_AXIS)
+		vertex_count += 2;
+
+	/* If there is nothing to render, exit early */
+	if (vertex_count == 0)
+		return;
+
+	Gwn_VertFormat *format = immVertexFormat();
+	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+
+	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
+	immBegin(GWN_PRIM_LINES, vertex_count);
 
 	/* vertical lines */
 	if (flag & V2D_VERTICAL_LINES) {
@@ -1320,24 +1352,31 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		vec2[1] = v2d->cur.ymax;
 		
 		/* minor gridlines */
-		step = (BLI_rcti_size_x(&v2d->mask) + 1) / (U.v2d_min_gridsize * UI_DPI_FAC);
-		UI_ThemeColor(TH_GRID);
-		
-		for (a = 0; a < step; a++) {
-			glVertex2fv(vec1);
-			glVertex2fv(vec2);
-			
-			vec2[0] = vec1[0] += grid->dx;
+		step = vertical_minor_step;
+		if (step != 0) {
+			UI_GetThemeColor3ubv(TH_GRID, grid_line_color);
+	
+			for (a = 0; a < step; a++) {
+				immSkipAttrib(color);
+				immVertex2fv(pos, vec1);
+				immAttrib3ubv(color, grid_line_color);
+				immVertex2fv(pos, vec2);
+				
+				vec2[0] = vec1[0] += grid->dx;
+			}
 		}
 		
 		/* major gridlines */
 		vec2[0] = vec1[0] -= 0.5f * grid->dx;
-		UI_ThemeColorShade(TH_GRID, 16);
+
+		UI_GetThemeColorShade3ubv(TH_GRID, 16, grid_line_color);
 		
 		step++;
 		for (a = 0; a <= step; a++) {
-			glVertex2fv(vec1);
-			glVertex2fv(vec2);
+			immSkipAttrib(color);
+			immVertex2fv(pos, vec1);
+			immAttrib3ubv(color, grid_line_color);
+			immVertex2fv(pos, vec2);
 			
 			vec2[0] = vec1[0] -= grid->dx;
 		}
@@ -1350,12 +1389,15 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		vec1[0] = grid->startx;
 		vec2[0] = v2d->cur.xmax;
 		
-		step = (BLI_rcti_size_y(&v2d->mask) + 1) / (U.v2d_min_gridsize * UI_DPI_FAC);
-		
-		UI_ThemeColor(TH_GRID);
+		step = horizontal_major_step;
+	
+		UI_GetThemeColor3ubv(TH_GRID, grid_line_color);
+
 		for (a = 0; a <= step; a++) {
-			glVertex2fv(vec1);
-			glVertex2fv(vec2);
+			immSkipAttrib(color);
+			immVertex2fv(pos, vec1);
+			immAttrib3ubv(color, grid_line_color);
+			immVertex2fv(pos, vec2);
 			
 			vec2[1] = vec1[1] += grid->dy;
 		}
@@ -1365,10 +1407,12 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		step++;
 		
 		if (flag & V2D_HORIZONTAL_FINELINES) {
-			UI_ThemeColorShade(TH_GRID, 16);
+			UI_GetThemeColorShade3ubv(TH_GRID, 16, grid_line_color);
 			for (a = 0; a < step; a++) {
-				glVertex2fv(vec1);
-				glVertex2fv(vec2);
+				immSkipAttrib(color);
+				immVertex2fv(pos, vec1);
+				immAttrib3ubv(color, grid_line_color);
+				immVertex2fv(pos, vec2);
 				
 				vec2[1] = vec1[1] -= grid->dy;
 			}
@@ -1376,7 +1420,7 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 	}
 	
 	/* Axes are drawn as darker lines */
-	UI_ThemeColorShade(TH_GRID, -50);
+	UI_GetThemeColorShade3ubv(TH_GRID, -50, grid_line_color);
 	
 	/* horizontal axis */
 	if (flag & V2D_HORIZONTAL_AXIS) {
@@ -1384,8 +1428,10 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		vec2[0] = v2d->cur.xmax;
 		vec1[1] = vec2[1] = 0.0f;
 		
-		glVertex2fv(vec1);
-		glVertex2fv(vec2);
+		immSkipAttrib(color);
+		immVertex2fv(pos, vec1);
+		immAttrib3ubv(color, grid_line_color);
+		immVertex2fv(pos, vec2);
 	}
 	
 	/* vertical axis */
@@ -1394,91 +1440,157 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		vec2[1] = v2d->cur.ymax;
 		vec1[0] = vec2[0] = 0.0f;
 		
-		glVertex2fv(vec1);
-		glVertex2fv(vec2);
+		immSkipAttrib(color);
+		immVertex2fv(pos, vec1);
+		immAttrib3ubv(color, grid_line_color);
+		immVertex2fv(pos, vec2);
 	}
 
-	glEnd();
+	immEnd();
+	immUnbindProgram();
 }
 
 /* Draw a constant grid in given 2d-region */
 void UI_view2d_constant_grid_draw(View2D *v2d, float step)
 {
-	float start;
+	float start_x, start_y;
+	int count_x, count_y;
+	
+	start_x = v2d->cur.xmin;
+	if (start_x < 0.0)
+		start_x += -(float)fmod(v2d->cur.xmin, step);
+	else
+		start_x += (step - (float)fmod(v2d->cur.xmin, step));
 
-	UI_ThemeColorShade(TH_BACK, -10);
-	
-	start = v2d->cur.xmin - (float)fmod(v2d->cur.xmin, step);
-	
-	glBegin(GL_LINES);
-	for (; start < v2d->cur.xmax; start += step) {
-		glVertex2f(start, v2d->cur.ymin);
-		glVertex2f(start, v2d->cur.ymax);
-	}
+	if (start_x > v2d->cur.xmax)
+		count_x = 0;
+	else
+		count_x = (v2d->cur.xmax - start_x) / step + 1;
 
-	start = v2d->cur.ymin - (float)fmod(v2d->cur.ymin, step);
-	for (; start < v2d->cur.ymax; start += step) {
-		glVertex2f(v2d->cur.xmin, start);
-		glVertex2f(v2d->cur.xmax, start);
+	start_y = v2d->cur.ymin;
+	if (start_y < 0.0)
+		start_y += -(float)fmod(v2d->cur.ymin, step);
+	else
+		start_y += (step - (float)fabs(fmod(v2d->cur.ymin, step)));
+
+	if (start_y > v2d->cur.ymax)
+		count_y = 0;
+	else
+		count_y = (v2d->cur.ymax - start_y) / step + 1;
+	
+	if (count_x > 0 || count_y > 0) {
+		Gwn_VertFormat *format = immVertexFormat();
+		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		float theme_color[3];
+
+		UI_GetThemeColorShade3fv(TH_BACK, -10, theme_color);
+		
+		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
+		immBegin(GWN_PRIM_LINES, count_x * 2 + count_y * 2 + 4);
+		
+		immAttrib3fv(color, theme_color);
+		for (int i = 0; i < count_x ; start_x += step, i++) {
+			immVertex2f(pos, start_x, v2d->cur.ymin);
+			immVertex2f(pos, start_x, v2d->cur.ymax);
+		}
+
+		for (int i = 0; i < count_y; start_y += step, i++) {
+			immVertex2f(pos, v2d->cur.xmin, start_y);
+			immVertex2f(pos, v2d->cur.xmax, start_y);
+		}
+	
+		/* X and Y axis */
+		UI_GetThemeColorShade3fv(TH_BACK, -18, theme_color);
+		
+		immAttrib3fv(color, theme_color);
+		immVertex2f(pos, 0.0f, v2d->cur.ymin);
+		immVertex2f(pos, 0.0f, v2d->cur.ymax);
+		immVertex2f(pos, v2d->cur.xmin, 0.0f);
+		immVertex2f(pos, v2d->cur.xmax, 0.0f);
+	
+		immEnd();
+		immUnbindProgram();
 	}
-	
-	/* X and Y axis */
-	UI_ThemeColorShade(TH_BACK, -18);
-	glVertex2f(0.0f, v2d->cur.ymin);
-	glVertex2f(0.0f, v2d->cur.ymax);
-	glVertex2f(v2d->cur.xmin, 0.0f);
-	glVertex2f(v2d->cur.xmax, 0.0f);
-	
-	glEnd();
 }
 
 /* Draw a multi-level grid in given 2d-region */
 void UI_view2d_multi_grid_draw(View2D *v2d, int colorid, float step, int level_size, int totlevels)
 {
+	/* Exit if there is nothing to draw */
+	if (totlevels == 0)
+		return;
+
 	int offset = -10;
 	float lstep = step;
-	int level;
+	unsigned char grid_line_color[3];
+
+	/* Make an estimate of at least how many vertices will be needed */
+	unsigned vertex_count = 4;
+	vertex_count += 2 * ((int)((v2d->cur.xmax - v2d->cur.xmin) / lstep) + 1);
+	vertex_count += 2 * ((int)((v2d->cur.ymax - v2d->cur.ymin) / lstep) + 1);
+
+	Gwn_VertFormat *format = immVertexFormat();
+	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 	glLineWidth(1.0f);
-	for (level = 0; level < totlevels; ++level) {
-		int i;
-		float start;
+
+	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
+	immBeginAtMost(GWN_PRIM_LINES, vertex_count);
+
+	for (int level = 0; level < totlevels; ++level) {
+		UI_GetThemeColorShade3ubv(colorid, offset, grid_line_color);
 		
-		UI_ThemeColorShade(colorid, offset);
+		int i = (int)(v2d->cur.xmin / lstep);
+		if (v2d->cur.xmin > 0.0f)
+			i++;
+		float start = i * lstep;
 		
-		i = (v2d->cur.xmin >= 0.0f ? -(int)(-v2d->cur.xmin / lstep) : (int)(v2d->cur.xmin / lstep));
-		start = i * lstep;
-		
-		glBegin(GL_LINES);
 		for (; start < v2d->cur.xmax; start += lstep, ++i) {
 			if (i == 0 || (level < totlevels - 1 && i % level_size == 0))
 				continue;
-			glVertex2f(start, v2d->cur.ymin);
-			glVertex2f(start, v2d->cur.ymax);
+
+			immSkipAttrib(color);
+			immVertex2f(pos, start, v2d->cur.ymin);
+			immAttrib3ubv(color, grid_line_color);
+			immVertex2f(pos, start, v2d->cur.ymax);
 		}
 		
-		i = (v2d->cur.ymin >= 0.0f ? -(int)(-v2d->cur.ymin / lstep) : (int)(v2d->cur.ymin / lstep));
+		i = (int)(v2d->cur.ymin / lstep);
+		if (v2d->cur.ymin > 0.0f)
+			i++;
 		start = i * lstep;
 		
 		for (; start < v2d->cur.ymax; start += lstep, ++i) {
 			if (i == 0 || (level < totlevels - 1 && i % level_size == 0))
 				continue;
-			glVertex2f(v2d->cur.xmin, start);
-			glVertex2f(v2d->cur.xmax, start);
+
+			immSkipAttrib(color);
+			immVertex2f(pos, v2d->cur.xmin, start);
+			immAttrib3ubv(color, grid_line_color);
+			immVertex2f(pos, v2d->cur.xmax, start);
 		}
-		
-		/* X and Y axis */
-		UI_ThemeColorShade(colorid, offset - 8);
-		glVertex2f(0.0f, v2d->cur.ymin);
-		glVertex2f(0.0f, v2d->cur.ymax);
-		glVertex2f(v2d->cur.xmin, 0.0f);
-		glVertex2f(v2d->cur.xmax, 0.0f);
-		
-		glEnd();
 		
 		lstep *= level_size;
 		offset -= 6;
 	}
+
+	/* X and Y axis */
+	UI_GetThemeColorShade3ubv(colorid, -18 + ((totlevels - 1) * -6), grid_line_color);
+
+	immSkipAttrib(color);
+	immVertex2f(pos, 0.0f, v2d->cur.ymin);
+	immAttrib3ubv(color, grid_line_color);
+	immVertex2f(pos, 0.0f, v2d->cur.ymax);
+
+	immSkipAttrib(color);
+	immVertex2f(pos, v2d->cur.xmin, 0.0f);
+	immAttrib3ubv(color, grid_line_color);
+	immVertex2f(pos, v2d->cur.xmax, 0.0f);
+
+	immEnd();
+	immUnbindProgram();
 }
 
 /* the price we pay for not exposting structs :( */
@@ -1700,6 +1812,10 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 	Scene *scene = CTX_data_scene(C);
 	rcti vert, hor;
 	int scroll = view2d_scroll_mapped(v2d->scroll);
+	unsigned char scrollers_back_color[4];
+
+	/* Color for scrollbar backs */
+	UI_GetThemeColor4ubv(TH_BACK, scrollers_back_color);
 	
 	/* make copies of rects for less typing */
 	vert = vs->vert;
@@ -1711,7 +1827,6 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 		uiWidgetColors wcol = btheme->tui.wcol_scroll;
 		rcti slider;
 		int state;
-		unsigned char col[4];
 		
 		slider.xmin = vs->hor_min;
 		slider.xmax = vs->hor_max;
@@ -1735,16 +1850,23 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 		}
 		
 		/* clean rect behind slider, but not with transparent background */
-		UI_GetThemeColor4ubv(TH_BACK, col);
-		if (col[3] == 255) {
-			glColor3ub(col[0], col[1], col[2]);
-			glRecti(v2d->hor.xmin, v2d->hor.ymin, v2d->hor.xmax, v2d->hor.ymax);
+		if (scrollers_back_color[3] == 255) {
+			Gwn_VertFormat *format = immVertexFormat();
+			unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+
+			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+
+			immUniformColor3ubv(scrollers_back_color);
+			immRecti(pos, v2d->hor.xmin, v2d->hor.ymin, v2d->hor.xmax, v2d->hor.ymax);
+
+			immUnbindProgram();
 		}
 		
 		UI_draw_widget_scroll(&wcol, &hor, &slider, state);
 		
 		/* scale indicators */
 		if ((scroll & V2D_SCROLL_SCALE_HORIZONTAL) && (vs->grid)) {
+			const int font_id = BLF_default();
 			View2DGrid *grid = vs->grid;
 			float fac, dfac, fac2, val;
 			
@@ -1759,7 +1881,7 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 			dfac = dfac * BLI_rcti_size_x(&hor);
 			
 			/* set starting value, and text color */
-			UI_ThemeColor(TH_TEXT);
+			UI_FontThemeColor(font_id, TH_TEXT);
 			val = grid->startx;
 			
 			/* if we're clamping to whole numbers only, make sure entries won't be repeated */
@@ -1771,11 +1893,13 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 			}
 			if (vs->xunits == V2D_UNIT_FRAMES)
 				grid->powerx = 1;
-			
+
 			/* draw numbers in the appropriate range */
 			if (dfac > 0.0f) {
 				float h = 0.1f * UI_UNIT_Y + (float)(hor.ymin);
-				
+
+				BLF_batch_draw_begin();
+
 				for (; fac < hor.xmax - 0.5f * U.widget_unit; fac += dfac, val += grid->dx) {
 					
 					/* make prints look nicer for scrollers */
@@ -1802,6 +1926,8 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 							break;
 					}
 				}
+
+				BLF_batch_draw_end();
 			}
 		}
 	}
@@ -1812,7 +1938,6 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 		uiWidgetColors wcol = btheme->tui.wcol_scroll;
 		rcti slider;
 		int state;
-		unsigned char col[4];
 		
 		slider.xmin = vert.xmin;
 		slider.xmax = vert.xmax;
@@ -1836,10 +1961,16 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 		}
 		
 		/* clean rect behind slider, but not with transparent background */
-		UI_GetThemeColor4ubv(TH_BACK, col);
-		if (col[3] == 255) {
-			glColor3ub(col[0], col[1], col[2]);
-			glRecti(v2d->vert.xmin, v2d->vert.ymin, v2d->vert.xmax, v2d->vert.ymax);
+		if (scrollers_back_color[3] == 255) {
+			Gwn_VertFormat *format = immVertexFormat();
+			unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+
+			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+
+			immUniformColor3ubv(scrollers_back_color);
+			immRecti(pos, v2d->vert.xmin, v2d->vert.ymin, v2d->vert.xmax, v2d->vert.ymax);
+
+			immUnbindProgram();
 		}
 		
 		UI_draw_widget_scroll(&wcol, &vert, &slider, state);
@@ -1863,7 +1994,8 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 			dfac = dfac     * BLI_rcti_size_y(&vert);
 			
 			/* set starting value, and text color */
-			UI_ThemeColor(TH_TEXT);
+			const int font_id = BLF_default();
+			UI_FontThemeColor(font_id, TH_TEXT);
 			val = grid->starty;
 			
 			/* if vertical clamping (to whole numbers) is used (i.e. in Sequencer), apply correction */
@@ -1872,9 +2004,8 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 				
 			/* draw vertical steps */
 			if (dfac > 0.0f) {
-				
-				BLF_rotation_default(M_PI_2);
-				BLF_enable_default(BLF_ROTATION);
+				BLF_rotation(font_id, M_PI_2);
+				BLF_enable(font_id, BLF_ROTATION);
 
 				for (; fac < vert.ymax - 10; fac += dfac, val += grid->dy) {
 					
@@ -1885,7 +2016,7 @@ void UI_view2d_scrollers_draw(const bContext *C, View2D *v2d, View2DScrollers *v
 					scroll_printstr(scene, (float)(vert.xmax) - 2.0f, fac, val, grid->powery, vs->yunits, 'v');
 				}
 				
-				BLF_disable_default(BLF_ROTATION);
+				BLF_disable(font_id, BLF_ROTATION);
 			}
 		}
 	}
@@ -2407,7 +2538,8 @@ void UI_view2d_text_cache_draw(ARegion *ar)
 	int col_pack_prev = 0;
 
 	/* investigate using BLF_ascender() */
-	const float default_height = g_v2d_strings ? BLF_height_default("28", 3) : 0.0f;
+	const int font_id = BLF_default();
+	const float default_height = g_v2d_strings ? BLF_height(font_id, "28", 3) : 0.0f;
 
 	wmOrtho2_region_pixelspace(ar);
 
@@ -2418,7 +2550,7 @@ void UI_view2d_text_cache_draw(ARegion *ar)
 		if (yofs < 1) yofs = 1;
 
 		if (col_pack_prev != v2s->col.pack) {
-			glColor3ubv(v2s->col.ub);
+			BLF_color3ubv(font_id, v2s->col.ub);
 			col_pack_prev = v2s->col.pack;
 		}
 
@@ -2426,11 +2558,11 @@ void UI_view2d_text_cache_draw(ARegion *ar)
 			BLF_draw_default((float)(v2s->mval[0] + xofs), (float)(v2s->mval[1] + yofs), 0.0,
 			                  v2s->str, BLF_DRAW_STR_DUMMY_MAX);
 		else {
-			BLF_clipping_default(v2s->rect.xmin - 4, v2s->rect.ymin - 4, v2s->rect.xmax + 4, v2s->rect.ymax + 4);
-			BLF_enable_default(BLF_CLIPPING);
+			BLF_enable(font_id, BLF_CLIPPING);
+			BLF_clipping(font_id, v2s->rect.xmin - 4, v2s->rect.ymin - 4, v2s->rect.xmax + 4, v2s->rect.ymax + 4);
 			BLF_draw_default(v2s->rect.xmin + xofs, v2s->rect.ymin + yofs, 0.0f,
 			                 v2s->str, BLF_DRAW_STR_DUMMY_MAX);
-			BLF_disable_default(BLF_CLIPPING);
+			BLF_disable(font_id, BLF_CLIPPING);
 		}
 	}
 	g_v2d_strings = NULL;
@@ -2439,11 +2571,6 @@ void UI_view2d_text_cache_draw(ARegion *ar)
 		BLI_memarena_free(g_v2d_strings_arena);
 		g_v2d_strings_arena = NULL;
 	}
-
-	// glMatrixMode(GL_PROJECTION);
-	// glPopMatrix();
-	// glMatrixMode(GL_MODELVIEW);
-	// glPopMatrix();
 }
 
 

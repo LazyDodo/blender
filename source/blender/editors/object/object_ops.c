@@ -47,6 +47,8 @@
 #include "ED_screen.h"
 #include "ED_object.h"
 
+#include "DEG_depsgraph.h"
+
 #include "object_intern.h"
 
 
@@ -61,16 +63,13 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_origin_clear);
 	WM_operatortype_append(OBJECT_OT_visual_transform_apply);
 	WM_operatortype_append(OBJECT_OT_transform_apply);
+	WM_operatortype_append(OBJECT_OT_transform_axis_target);
 	WM_operatortype_append(OBJECT_OT_origin_set);
 	
 	WM_operatortype_append(OBJECT_OT_mode_set);
 	WM_operatortype_append(OBJECT_OT_editmode_toggle);
 	WM_operatortype_append(OBJECT_OT_posemode_toggle);
 	WM_operatortype_append(OBJECT_OT_proxy_make);
-	WM_operatortype_append(OBJECT_OT_hide_view_clear);
-	WM_operatortype_append(OBJECT_OT_hide_view_set);
-	WM_operatortype_append(OBJECT_OT_hide_render_clear);
-	WM_operatortype_append(OBJECT_OT_hide_render_set);
 	WM_operatortype_append(OBJECT_OT_shade_smooth);
 	WM_operatortype_append(OBJECT_OT_shade_flat);
 	WM_operatortype_append(OBJECT_OT_paths_calculate);
@@ -87,16 +86,16 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_slow_parent_set);
 	WM_operatortype_append(OBJECT_OT_slow_parent_clear);
 	WM_operatortype_append(OBJECT_OT_make_local);
+	WM_operatortype_append(OBJECT_OT_make_override_static);
 	WM_operatortype_append(OBJECT_OT_make_single_user);
 	WM_operatortype_append(OBJECT_OT_make_links_scene);
 	WM_operatortype_append(OBJECT_OT_make_links_data);
-	WM_operatortype_append(OBJECT_OT_move_to_layer);
 
 	WM_operatortype_append(OBJECT_OT_select_random);
 	WM_operatortype_append(OBJECT_OT_select_all);
 	WM_operatortype_append(OBJECT_OT_select_same_group);
+	WM_operatortype_append(OBJECT_OT_select_same_collection);
 	WM_operatortype_append(OBJECT_OT_select_by_type);
-	WM_operatortype_append(OBJECT_OT_select_by_layer);
 	WM_operatortype_append(OBJECT_OT_select_linked);
 	WM_operatortype_append(OBJECT_OT_select_grouped);
 	WM_operatortype_append(OBJECT_OT_select_mirror);
@@ -113,6 +112,7 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_text_add);
 	WM_operatortype_append(OBJECT_OT_armature_add);
 	WM_operatortype_append(OBJECT_OT_empty_add);
+	WM_operatortype_append(OBJECT_OT_lightprobe_add);
 	WM_operatortype_append(OBJECT_OT_drop_named_image);
 	WM_operatortype_append(OBJECT_OT_lamp_add);
 	WM_operatortype_append(OBJECT_OT_camera_add);
@@ -202,15 +202,17 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_vertex_weight_normalize_active_vertex);
 	WM_operatortype_append(OBJECT_OT_vertex_weight_copy);
 
+	WM_operatortype_append(OBJECT_OT_face_map_add);
+	WM_operatortype_append(OBJECT_OT_face_map_remove);
+	WM_operatortype_append(OBJECT_OT_face_map_assign);
+	WM_operatortype_append(OBJECT_OT_face_map_remove_from);
+	WM_operatortype_append(OBJECT_OT_face_map_select);
+	WM_operatortype_append(OBJECT_OT_face_map_deselect);
+	WM_operatortype_append(OBJECT_OT_face_map_move);
+
 	WM_operatortype_append(TRANSFORM_OT_vertex_warp);
 
-	WM_operatortype_append(OBJECT_OT_game_property_new);
-	WM_operatortype_append(OBJECT_OT_game_property_remove);
-	WM_operatortype_append(OBJECT_OT_game_property_copy);
-	WM_operatortype_append(OBJECT_OT_game_property_clear);
-	WM_operatortype_append(OBJECT_OT_game_property_move);
-	WM_operatortype_append(OBJECT_OT_logic_bricks_copy);
-	WM_operatortype_append(OBJECT_OT_game_physics_copy);
+	WM_operatortype_append(OBJECT_OT_move_to_collection);
 
 	WM_operatortype_append(OBJECT_OT_shape_key_add);
 	WM_operatortype_append(OBJECT_OT_shape_key_remove);
@@ -238,9 +240,6 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_drop_named_material);
 	WM_operatortype_append(OBJECT_OT_unlink_data);
 	WM_operatortype_append(OBJECT_OT_laplaciandeform_bind);
-
-	WM_operatortype_append(OBJECT_OT_lod_add);
-	WM_operatortype_append(OBJECT_OT_lod_remove);
 
 	WM_operatortype_append(TRANSFORM_OT_vertex_random);
 
@@ -317,9 +316,6 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 	ED_keymap_proportional_cycle(keyconf, keymap);
 	ED_keymap_proportional_obmode(keyconf, keymap);
 
-	/* game-engine only, leave free for users to define */
-	WM_keymap_add_item(keymap, "VIEW3D_OT_game_start", PKEY, KM_PRESS, 0, 0);
-
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_select_all", AKEY, KM_PRESS, 0, 0);
 	RNA_enum_set(kmi->ptr, "action", SEL_TOGGLE);
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
@@ -366,25 +362,6 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "clear_delta", false);
 	
 	WM_keymap_verify_item(keymap, "OBJECT_OT_origin_clear", OKEY, KM_PRESS, KM_ALT, 0);
-	
-	WM_keymap_add_item(keymap, "OBJECT_OT_hide_view_clear", HKEY, KM_PRESS, KM_ALT, 0);
-	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_hide_view_set", HKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "unselected", false);
-
-	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_hide_view_set", HKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_boolean_set(kmi->ptr, "unselected", true);
-
-	/* same as above but for rendering */
-	WM_keymap_add_item(keymap, "OBJECT_OT_hide_render_clear", HKEY, KM_PRESS, KM_ALT | KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "OBJECT_OT_hide_render_set", HKEY, KM_PRESS, KM_CTRL, 0);
-
-	/* conflicts, removing */
-#if 0
-	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_hide_render_set", HKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0)
-	      RNA_boolean_set(kmi->ptr, "unselected", true);
-#endif
-
-	WM_keymap_add_item(keymap, "OBJECT_OT_move_to_layer", MKEY, KM_PRESS, 0, 0);
 	
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_delete", XKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "use_global", false);
@@ -434,6 +411,8 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 		kmi = WM_keymap_add_item(keymap, "OBJECT_OT_subdivision_set", ZEROKEY + i, KM_PRESS, KM_CTRL, 0);
 		RNA_int_set(kmi->ptr, "level", i);
 	}
+
+	WM_keymap_add_item(keymap, "OBJECT_OT_move_to_collection", MKEY, KM_PRESS, 0, 0);
 }
 
 void ED_keymap_proportional_cycle(struct wmKeyConfig *UNUSED(keyconf), struct wmKeyMap *keymap)

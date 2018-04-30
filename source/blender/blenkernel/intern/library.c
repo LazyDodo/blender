@@ -62,6 +62,7 @@
 #include "DNA_mask_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
+#include "DNA_lightprobe_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_speaker_types.h"
@@ -70,6 +71,7 @@
 #include "DNA_vfont_types.h"
 #include "DNA_windowmanager_types.h"
 #include "DNA_world_types.h"
+#include "DNA_workspace_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
@@ -91,7 +93,6 @@
 #include "BKE_cachefile.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_font.h"
 #include "BKE_global.h"
 #include "BKE_group.h"
@@ -103,6 +104,7 @@
 #include "BKE_lamp.h"
 #include "BKE_lattice.h"
 #include "BKE_library.h"
+#include "BKE_library_override.h"
 #include "BKE_library_query.h"
 #include "BKE_library_remap.h"
 #include "BKE_linestyle.h"
@@ -117,6 +119,7 @@
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_packedFile.h"
+#include "BKE_lightprobe.h"
 #include "BKE_sound.h"
 #include "BKE_speaker.h"
 #include "BKE_scene.h"
@@ -418,6 +421,9 @@ bool id_make_local(Main *bmain, ID *id, const bool test, const bool lib_local)
 		case ID_SPK:
 			if (!test) BKE_speaker_make_local(bmain, (Speaker *)id, lib_local);
 			return true;
+		case ID_LP:
+			if (!test) BKE_lightprobe_make_local(bmain, (LightProbe *)id, lib_local);
+			return true;
 		case ID_WO:
 			if (!test) BKE_world_make_local(bmain, (World *)id, lib_local);
 			return true;
@@ -469,7 +475,11 @@ bool id_make_local(Main *bmain, ID *id, const bool test, const bool lib_local)
 		case ID_CF:
 			if (!test) BKE_cachefile_make_local(bmain, (CacheFile *)id, lib_local);
 			return true;
+		case ID_WS:
 		case ID_SCR:
+			/* A bit special: can be appended but not linked. Return false
+			 * since supporting make-local doesn't make much sense. */
+			return false;
 		case ID_LI:
 		case ID_KE:
 		case ID_WM:
@@ -589,6 +599,9 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 		case ID_SPK:
 			BKE_speaker_copy_data(bmain, (Speaker *)*r_newid, (Speaker *)id, flag);
 			break;
+		case ID_LP:
+			BKE_lightprobe_copy_data(bmain, (LightProbe *)*r_newid, (LightProbe *)id, flag);
+			break;
 		case ID_CA:
 			BKE_camera_copy_data(bmain, (Camera *)*r_newid, (Camera *)id, flag);
 			break;
@@ -649,6 +662,7 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 		case ID_LI:
 		case ID_SCR:
 		case ID_WM:
+		case ID_WS:
 		case ID_IP:
 			BLI_assert(0);  /* Should have been rejected at start of function! */
 			break;
@@ -678,6 +692,75 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 bool id_copy(Main *bmain, const ID *id, ID **newid, bool test)
 {
 	return BKE_id_copy_ex(bmain, id, newid, 0, test);
+}
+
+/** Does a mere memory swap over the whole IDs data (including type-specific memory).
+ *  \note Most internal ID data itself is not swapped (only IDProperties are). */
+void BKE_id_swap(Main *bmain, ID *id_a, ID *id_b)
+{
+	BLI_assert(GS(id_a->name) == GS(id_b->name));
+
+	const ID id_a_back = *id_a;
+	const ID id_b_back = *id_b;
+
+#define CASE_SWAP(_gs, _type) \
+	case _gs: \
+		SWAP(_type, *(_type *)id_a, *(_type *)id_b); \
+		break
+
+	switch ((ID_Type)GS(id_a->name)) {
+		CASE_SWAP(ID_SCE, Scene);
+		CASE_SWAP(ID_LI, Library);
+		CASE_SWAP(ID_OB, Object);
+		CASE_SWAP(ID_ME, Mesh);
+		CASE_SWAP(ID_CU, Curve);
+		CASE_SWAP(ID_MB, MetaBall);
+		CASE_SWAP(ID_MA, Material);
+		CASE_SWAP(ID_TE, Tex);
+		CASE_SWAP(ID_IM, Image);
+		CASE_SWAP(ID_LT, Lattice);
+		CASE_SWAP(ID_LA, Lamp);
+		CASE_SWAP(ID_LP, LightProbe);
+		CASE_SWAP(ID_CA, Camera);
+		CASE_SWAP(ID_KE, Key);
+		CASE_SWAP(ID_WO, World);
+		CASE_SWAP(ID_SCR, bScreen);
+		CASE_SWAP(ID_VF, VFont);
+		CASE_SWAP(ID_TXT, Text);
+		CASE_SWAP(ID_SPK, Speaker);
+		CASE_SWAP(ID_SO, bSound);
+		CASE_SWAP(ID_GR, Group);
+		CASE_SWAP(ID_AR, bArmature);
+		CASE_SWAP(ID_AC, bAction);
+		CASE_SWAP(ID_NT, bNodeTree);
+		CASE_SWAP(ID_BR, Brush);
+		CASE_SWAP(ID_PA, ParticleSettings);
+		CASE_SWAP(ID_WM, wmWindowManager);
+		CASE_SWAP(ID_WS, WorkSpace);
+		CASE_SWAP(ID_GD, bGPdata);
+		CASE_SWAP(ID_MC, MovieClip);
+		CASE_SWAP(ID_MSK, Mask);
+		CASE_SWAP(ID_LS, FreestyleLineStyle);
+		CASE_SWAP(ID_PAL, Palette);
+		CASE_SWAP(ID_PC, PaintCurve);
+		CASE_SWAP(ID_CF, CacheFile);
+		case ID_IP:
+			break;  /* Deprecated. */
+	}
+
+#undef CASE_SWAP
+
+	/* Restore original ID's internal data. */
+	*id_a = id_a_back;
+	*id_b = id_b_back;
+
+	/* Exception: IDProperties. */
+	id_a->properties = id_b_back.properties;
+	id_b->properties = id_a_back.properties;
+
+	/* Swap will have broken internal references to itself, restore them. */
+	BKE_libblock_relink_ex(bmain, id_a, id_b, id_a, false);
+	BKE_libblock_relink_ex(bmain, id_b, id_a, id_b, false);
 }
 
 /** Does *not* set ID->newid pointer. */
@@ -847,6 +930,8 @@ ListBase *which_libbase(Main *mainlib, short type)
 			return &(mainlib->text);
 		case ID_SPK:
 			return &(mainlib->speaker);
+		case ID_LP:
+			return &(mainlib->lightprobe);
 		case ID_SO:
 			return &(mainlib->sound);
 		case ID_GR:
@@ -877,6 +962,8 @@ ListBase *which_libbase(Main *mainlib, short type)
 			return &(mainlib->paintcurves);
 		case ID_CF:
 			return &(mainlib->cachefiles);
+		case ID_WS:
+			return &(mainlib->workspaces);
 	}
 	return NULL;
 }
@@ -962,11 +1049,11 @@ void BKE_main_lib_objects_recalc_all(Main *bmain)
 	/* flag for full recalc */
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ID_IS_LINKED(ob)) {
-			DAG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+			DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
 		}
 	}
 
-	DAG_id_type_tag(bmain, ID_OB);
+	DEG_id_type_tag(bmain, ID_OB);
 }
 
 /**
@@ -1015,6 +1102,7 @@ int set_listbasepointers(Main *main, ListBase **lb)
 	lb[INDEX_ID_BR]  = &(main->brush);
 	lb[INDEX_ID_PA]  = &(main->particle);
 	lb[INDEX_ID_SPK] = &(main->speaker);
+	lb[INDEX_ID_LP]  = &(main->lightprobe);
 
 	lb[INDEX_ID_WO]  = &(main->world);
 	lb[INDEX_ID_MC]  = &(main->movieclip);
@@ -1022,6 +1110,7 @@ int set_listbasepointers(Main *main, ListBase **lb)
 	lb[INDEX_ID_OB]  = &(main->object);
 	lb[INDEX_ID_LS]  = &(main->linestyle); /* referenced by scenes */
 	lb[INDEX_ID_SCE] = &(main->scene);
+	lb[INDEX_ID_WS]  = &(main->workspaces); /* before wm, so it's freed after it! */
 	lb[INDEX_ID_WM]  = &(main->wm);
 	lb[INDEX_ID_MSK] = &(main->mask);
 	
@@ -1074,6 +1163,7 @@ size_t BKE_libblock_get_alloc_info(short type, const char **name)
 		CASE_RETURN(ID_VF,  VFont);
 		CASE_RETURN(ID_TXT, Text);
 		CASE_RETURN(ID_SPK, Speaker);
+		CASE_RETURN(ID_LP,  LightProbe);
 		CASE_RETURN(ID_SO,  bSound);
 		CASE_RETURN(ID_GR,  Group);
 		CASE_RETURN(ID_AR,  bArmature);
@@ -1089,6 +1179,7 @@ size_t BKE_libblock_get_alloc_info(short type, const char **name)
 		CASE_RETURN(ID_PAL, Palette);
 		CASE_RETURN(ID_PC,  PaintCurve);
 		CASE_RETURN(ID_CF,  CacheFile);
+		CASE_RETURN(ID_WS,  WorkSpace);
 	}
 	return 0;
 #undef CASE_RETURN
@@ -1146,7 +1237,7 @@ void *BKE_libblock_alloc(Main *bmain, short type, const char *name, const int fl
 
 			/* TODO to be removed from here! */
 			if ((flag & LIB_ID_CREATE_NO_DEG_TAG) == 0) {
-				DAG_id_type_tag(bmain, type);
+				DEG_id_type_tag(bmain, type);
 			}
 		}
 		else {
@@ -1204,6 +1295,9 @@ void BKE_libblock_init_empty(ID *id)
 			break;
 		case ID_SPK:
 			BKE_speaker_init((Speaker *)id);
+			break;
+		case ID_LP:
+			BKE_lightprobe_init((LightProbe *)id);
 			break;
 		case ID_CA:
 			BKE_camera_init((Camera *)id);
@@ -1325,12 +1419,21 @@ void BKE_libblock_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int fla
 		new_id->properties = IDP_CopyProperty_ex(id->properties, flag);
 	}
 
+	/* XXX Again... We need a way to control what we copy in a much more refined way.
+	 * We cannot always copy this, some internal copying will die on it! */
+	/* For now, upper level code will have to do that itself when required. */
+#if 0
+	if (id->override != NULL) {
+		BKE_override_copy(new_id, id);
+	}
+#endif
+
 	/* the duplicate should get a copy of the animdata */
 	BLI_assert((flag & LIB_ID_COPY_ACTIONS) == 0 || (flag & LIB_ID_CREATE_NO_MAIN) == 0);
 	id_copy_animdata(bmain, new_id, (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0);
 
 	if ((flag & LIB_ID_CREATE_NO_DEG_TAG) == 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0) {
-		DAG_id_type_tag(bmain, GS(new_id->name));
+		DEG_id_type_tag(bmain, GS(new_id->name));
 	}
 
 	*r_newid = new_id;
@@ -1364,7 +1467,6 @@ void BKE_library_free(Library *lib)
 Main *BKE_main_new(void)
 {
 	Main *bmain = MEM_callocN(sizeof(Main), "new main");
-	bmain->eval_ctx = DEG_evaluation_context_new(DAG_EVAL_VIEWPORT);
 	bmain->lock = MEM_mallocN(sizeof(SpinLock), "main lock");
 	BLI_spin_init((SpinLock *)bmain->lock);
 	return bmain;
@@ -1439,7 +1541,6 @@ void BKE_main_free(Main *mainvar)
 
 	BLI_spin_end((SpinLock *)mainvar->lock);
 	MEM_freeN(mainvar->lock);
-	DEG_evaluation_context_free(mainvar->eval_ctx);
 	MEM_freeN(mainvar);
 }
 

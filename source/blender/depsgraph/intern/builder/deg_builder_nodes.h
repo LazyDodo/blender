@@ -33,6 +33,8 @@
 #include "intern/builder/deg_builder_map.h"
 #include "intern/depsgraph_types.h"
 
+#include "DEG_depsgraph.h"  /* used for DEG_depsgraph_use_copy_on_write() */
+
 struct Base;
 struct CacheFile;
 struct bGPdata;
@@ -43,6 +45,7 @@ struct Image;
 struct FCurve;
 struct Group;
 struct Key;
+struct LayerCollection;
 struct Main;
 struct Material;
 struct Mask;
@@ -50,6 +53,8 @@ struct MTex;
 struct MovieClip;
 struct bNodeTree;
 struct Object;
+struct ParticleSettings;
+struct Probe;
 struct bPoseChannel;
 struct bConstraint;
 struct Scene;
@@ -71,9 +76,35 @@ struct DepsgraphNodeBuilder {
 	DepsgraphNodeBuilder(Main *bmain, Depsgraph *graph);
 	~DepsgraphNodeBuilder();
 
+	/* For given original ID get ID which is created by CoW system. */
+	ID *get_cow_id(const ID *id_orig) const;
+	/* Similar to above, but for the cases when there is no ID node we create
+	 * one.
+	 */
+	ID *ensure_cow_id(ID *id_orig);
+
+	/* Helper wrapper function which wraps get_cow_id with a needed type cast. */
+	template<typename T>
+	T *get_cow_datablock(const T *orig) const {
+		return (T *)get_cow_id(&orig->id);
+	}
+
+	/* For a given COW datablock get corresponding original one. */
+	template<typename T>
+	T *get_orig_datablock(const T *cow) const {
+		if (DEG_depsgraph_use_copy_on_write()) {
+			return (T *)cow->id.orig_id;
+		}
+		else {
+			return (T *)cow;
+		}
+	}
+
 	void begin_build();
+	void end_build();
 
 	IDDepsNode *add_id_node(ID *id);
+	IDDepsNode *find_id_node(ID *id);
 	TimeSourceDepsNode *add_time_source();
 
 	ComponentDepsNode *add_component_node(ID *id,
@@ -127,15 +158,23 @@ struct DepsgraphNodeBuilder {
 	                                       int name_tag = -1);
 
 	void build_id(ID* id);
-	void build_scene(Scene *scene);
-	void build_group(Base *base, Group *group);
-	void build_object(Base *base, Object *object);
+	void build_view_layer(Scene *scene,
+	                       ViewLayer *view_layer,
+	                       eDepsNode_LinkedState_Type linked_state);
+	void build_group(Group *group);
+	void build_object(int base_index,
+	                  Object *object,
+	                  eDepsNode_LinkedState_Type linked_state);
+	void build_object_flags(int base_index,
+	                        Object *object,
+	                        eDepsNode_LinkedState_Type linked_state);
 	void build_object_data(Object *object);
 	void build_object_transform(Object *object);
 	void build_object_constraints(Object *object);
 	void build_pose_constraints(Object *object, bPoseChannel *pchan, int pchan_index);
 	void build_rigidbody(Scene *scene);
 	void build_particles(Object *object);
+	void build_particle_settings(ParticleSettings *part);
 	void build_cloth(Object *object);
 	void build_animdata(ID *id);
 	void build_driver(ID *id, FCurve *fcurve);
@@ -156,7 +195,6 @@ struct DepsgraphNodeBuilder {
 	void build_nodetree(bNodeTree *ntree);
 	void build_material(Material *ma);
 	void build_texture(Tex *tex);
-	void build_texture_stack(MTex **texture_stack);
 	void build_image(Image *image);
 	void build_world(World *world);
 	void build_compositor(Scene *scene);
@@ -164,8 +202,16 @@ struct DepsgraphNodeBuilder {
 	void build_cachefile(CacheFile *cache_file);
 	void build_mask(Mask *mask);
 	void build_movieclip(MovieClip *clip);
+	void build_lightprobe(Object *object);
 
 protected:
+	struct SavedEntryTag {
+		ID *id;
+		eDepsNode_Type component_type;
+		eDepsOperation_Code opcode;
+	};
+	vector<SavedEntryTag> saved_entry_tags_;
+
 	struct BuilderWalkUserData {
 		DepsgraphNodeBuilder *builder;
 	};
@@ -186,7 +232,10 @@ protected:
 
 	/* State which demotes currently built entities. */
 	Scene *scene_;
+	ViewLayer *view_layer_;
+	int view_layer_index_;
 
+	GHash *cow_id_hash_;
 	BuilderMap built_map_;
 };
 

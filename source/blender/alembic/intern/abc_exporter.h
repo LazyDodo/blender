@@ -34,15 +34,19 @@ class AbcObjectWriter;
 class AbcTransformWriter;
 class ArchiveWriter;
 
-struct EvaluationContext;
+struct Depsgraph;
 struct Main;
 struct Object;
 struct Scene;
+struct ViewLayer;
+struct Base;
 
 struct ExportSettings {
 	ExportSettings();
 
 	Scene *scene;
+	ViewLayer *view_layer;  // Scene layer to export; all its objects will be exported, unless selected_only=true
+	Depsgraph *depsgraph;
 	SimpleLogger logger;
 
 	bool selected_only;
@@ -89,6 +93,7 @@ class AbcExporter {
 	unsigned int m_trans_sampling_index, m_shape_sampling_index;
 
 	Scene *m_scene;
+	Depsgraph *m_depsgraph;
 
 	ArchiveWriter *m_writer;
 
@@ -99,10 +104,11 @@ class AbcExporter {
 	std::vector<AbcObjectWriter *> m_shapes;
 
 public:
-	AbcExporter(Main *bmain, Scene *scene, const char *filename, ExportSettings &settings);
+	AbcExporter(Main *bmain, Scene *scene, Depsgraph *depsgraph,
+	            const char *filename, ExportSettings &settings);
 	~AbcExporter();
 
-	void operator()(Main *bmain, float &progress, bool &was_canceled);
+	void operator()(float &progress, bool &was_canceled);
 
 protected:
 	void getShutterSamples(unsigned int nr_of_samples,
@@ -113,12 +119,12 @@ protected:
 private:
 	Alembic::Abc::TimeSamplingPtr createTimeSampling(double step);
 
-	void createTransformWritersHierarchy(EvaluationContext *eval_ctx);
-	AbcTransformWriter * createTransformWriter(Object *ob,  Object *parent, Object *dupliObParent);
-	void exploreTransform(EvaluationContext *eval_ctx, Object *ob, Object *parent, Object *dupliObParent = NULL);
-	void exploreObject(EvaluationContext *eval_ctx, Object *ob, Object *dupliObParent);
-	void createShapeWriters(EvaluationContext *eval_ctx);
-	void createShapeWriter(Object *ob, Object *dupliObParent);
+	void createTransformWritersHierarchy(Depsgraph *depsgraph);
+	AbcTransformWriter * createTransformWriter(Depsgraph *depsgraph, Object *ob,  Object *parent, Object *dupliObParent);
+	void exploreTransform(Depsgraph *depsgraph, Base *ob_base, Object *parent, Object *dupliObParent);
+	void exploreObject(Depsgraph *depsgraph, Base *ob_base, Object *dupliObParent);
+	void createShapeWriters(Depsgraph *depsgraph);
+	void createShapeWriter(Base *ob_base, Object *dupliObParent);
 	void createParticleSystemsWriters(Object *ob, AbcTransformWriter *xform);
 
 	AbcTransformWriter *getXForm(const std::string &name);

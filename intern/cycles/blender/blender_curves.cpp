@@ -326,18 +326,6 @@ static bool ObtainCacheParticleVcol(Mesh *mesh,
 	return true;
 }
 
-static void set_resolution(BL::Object *b_ob, BL::Scene *scene, bool render)
-{
-	BL::Object::modifiers_iterator b_mod;
-	for(b_ob->modifiers.begin(b_mod); b_mod != b_ob->modifiers.end(); ++b_mod) {
-		if((b_mod->type() == b_mod->type_PARTICLE_SYSTEM) && ((b_mod->show_viewport()) || (b_mod->show_render()))) {
-			BL::ParticleSystemModifier psmd((const PointerRNA)b_mod->ptr);
-			BL::ParticleSystem b_psys((const PointerRNA)psmd.particle_system().ptr);
-			b_psys.set_resolution(*scene, *b_ob, (render)? 2: 1);
-		}
-	}
-}
-
 static void ExportCurveTrianglePlanes(Mesh *mesh, ParticleCurveData *CData,
                                       float3 RotCam, bool is_ortho)
 {
@@ -919,9 +907,6 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 	ParticleCurveData CData;
 
-	if(!preview)
-		set_resolution(&b_ob, &b_scene, true);
-
 	ObtainCacheParticleData(mesh, &b_mesh, &b_ob, &CData, !preview);
 
 	/* add hair geometry to mesh */
@@ -1063,9 +1048,6 @@ void BlenderSync::sync_curves(Mesh *mesh,
 			}
 		}
 	}
-
-	if(!preview)
-		set_resolution(&b_ob, &b_scene, false);
 
 	mesh->compute_bounds();
 }

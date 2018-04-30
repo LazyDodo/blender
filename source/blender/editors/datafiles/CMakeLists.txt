@@ -152,6 +152,7 @@ set(ICON_NAMES
 	pose_hlt
 	particlemode
 	lightpaint
+	greasepencil_stroke_paint
 	scene_data
 	renderlayers
 	world_data
@@ -194,6 +195,7 @@ set(ICON_NAMES
 	library_data_indirect
 	greasepencil
 	line_data
+	library_data_override
 	group_bone
 	group_vertex
 	group_vcol
@@ -213,6 +215,7 @@ set(ICON_NAMES
 	outliner_ob_speaker
 	outliner_ob_force_field
 	outliner_ob_group_instance
+	outliner_ob_greasepencil
 	restrict_color_off
 	restrict_color_on
 	restrict_view_off
@@ -233,6 +236,7 @@ set(ICON_NAMES
 	outliner_data_surface
 	outliner_data_speaker
 	outliner_data_pose
+	outliner_data_greasepencil
 	mesh_plane
 	mesh_cube
 	mesh_circle
@@ -422,6 +426,7 @@ set(ICON_NAMES
 	clipuv_hlt
 	snap_peel_object
 	grid
+	object_origin
 	pastedown
 	copydown
 	pasteflipup
@@ -518,6 +523,69 @@ set(ICON_NAMES
 	image_alpha
 	image_zdepth
 	imagefile
+)
+
+# This section is maintained by the updating script, keep BEGIN/END comments.
+set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
+	# BEGIN ICON_GEOM_NAMES
+	brush.sculpt.blob
+	brush.sculpt.crease
+	brush.sculpt.draw
+	brush.sculpt.flatten
+	brush.sculpt.grab
+	brush.sculpt.layer
+	brush.sculpt.mask
+	brush.sculpt.nudge
+	brush.sculpt.pinch
+	brush.sculpt.smooth
+	brush.sculpt.snake_hook
+	brush.sculpt.thumb
+	none
+	ops.armature.bone.roll
+	ops.armature.extrude.cursor
+	ops.armature.extrude
+	ops.generic.cursor
+	ops.generic.select_border
+	ops.generic.select_circle
+	ops.generic.select_lasso
+	ops.gpencil.draw
+	ops.gpencil.draw.eraser
+	ops.gpencil.draw.line
+	ops.gpencil.draw.poly
+	ops.mesh.bevel
+	ops.mesh.bisect
+	ops.mesh.dupli_extrude_cursor
+	ops.mesh.extrude_faces_move
+	ops.mesh.extrude_region_move
+	ops.mesh.inset
+	ops.mesh.knife_tool
+	ops.mesh.loopcut_slide
+	ops.mesh.offset_edge_loops_slide
+	ops.mesh.polybuild_hover
+	ops.mesh.rip
+	ops.mesh.rip_edge
+	ops.mesh.spin
+	ops.mesh.spin.duplicate
+	ops.mesh.vertices_smooth
+	ops.particle.brush_edit.add
+	ops.particle.brush_edit.comb
+	ops.particle.brush_edit.comb.weight
+	ops.particle.brush_edit.cut
+	ops.particle.brush_edit.length
+	ops.particle.brush_edit.puff
+	ops.particle.brush_edit.smooth
+	ops.transform.edge_slide
+	ops.transform.push_pull
+	ops.transform.resize.cage
+	ops.transform.resize
+	ops.transform.rotate
+	ops.transform.shrink_fatten
+	ops.transform.transform
+	ops.transform.translate
+	ops.transform.vert_slide
+	ops.transform.vertex_random
+	ops.view3d.ruler
+	# END ICON_GEOM_NAMES
 )
 
 data_to_c_simple(../../../../release/datafiles/bfont.pfb SRC)

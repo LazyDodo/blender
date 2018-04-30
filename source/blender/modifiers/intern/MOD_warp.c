@@ -42,8 +42,6 @@
 #include "BKE_texture.h"
 #include "BKE_colortools.h"
 
-#include "depsgraph_private.h"
-
 #include "RE_shader_ext.h"
 
 #include "MOD_util.h"
@@ -137,24 +135,6 @@ static void foreachIDLink(ModifierData *md, Object *ob, IDWalkFunc walk, void *u
 static void foreachTexLink(ModifierData *md, Object *ob, TexWalkFunc walk, void *userData)
 {
 	walk(userData, ob, md, "texture");
-}
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	WarpModifierData *wmd = (WarpModifierData *) md;
-
-	if (wmd->object_from && wmd->object_to) {
-		DagNode *fromNode = dag_get_node(ctx->forest, wmd->object_from);
-		DagNode *toNode = dag_get_node(ctx->forest, wmd->object_to);
-
-		dag_add_relation(ctx->forest, fromNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier1");
-		dag_add_relation(ctx->forest, toNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier2");
-	}
-
-	if ((wmd->texmapping == MOD_DISP_MAP_OBJECT) && wmd->map_object) {
-		DagNode *curNode = dag_get_node(ctx->forest, wmd->map_object);
-		dag_add_relation(ctx->forest, curNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier3");
-	}
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -329,7 +309,7 @@ static int warp_needs_dm(WarpModifierData *wmd)
 	return wmd->texture || wmd->defgrp_name[0];
 }
 
-static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData,
+static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob, DerivedMesh *derivedData,
                         float (*vertexCos)[3], int numVerts, ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *dm = NULL;
@@ -346,7 +326,7 @@ static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData,
 	}
 }
 
-static void deformVertsEM(ModifierData *md, Object *ob, struct BMEditMesh *em,
+static void deformVertsEM(ModifierData *md, struct Depsgraph *depsgraph, Object *ob, struct BMEditMesh *em,
                           DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
 {
 	DerivedMesh *dm = derivedData;
@@ -357,7 +337,7 @@ static void deformVertsEM(ModifierData *md, Object *ob, struct BMEditMesh *em,
 			dm = CDDM_from_editbmesh(em, false, false);
 	}
 
-	deformVerts(md, ob, dm, vertexCos, numVerts, 0);
+	deformVerts(md, depsgraph, ob, dm, vertexCos, numVerts, 0);
 
 	if (use_dm) {
 		if (!derivedData) dm->release(dm);
@@ -384,7 +364,6 @@ ModifierTypeInfo modifierType_Warp = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     dependsOnTime,
 	/* dependsOnNormals */  NULL,

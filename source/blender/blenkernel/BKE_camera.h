@@ -39,11 +39,13 @@ extern "C" {
 #include "DNA_vec_types.h"
 
 struct Camera;
+struct Depsgraph;
 struct Main;
 struct Object;
 struct RegionView3D;
 struct RenderData;
 struct Scene;
+struct ViewLayer;
 struct rctf;
 struct View3D;
 struct GPUFXSettings;
@@ -91,11 +93,6 @@ typedef struct CameraParams {
 	float clipsta;
 	float clipend;
 
-	/* fields */
-	int use_fields;
-	int field_second;
-	int field_odd;
-
 	/* computed viewplane */
 	float ycor;
 	float viewdx;
@@ -112,7 +109,7 @@ typedef struct CameraParams {
 
 void BKE_camera_params_init(CameraParams *params);
 void BKE_camera_params_from_object(CameraParams *params, const struct Object *camera);
-void BKE_camera_params_from_view3d(CameraParams *params, const struct View3D *v3d, const struct RegionView3D *rv3d);
+void BKE_camera_params_from_view3d(CameraParams *params, struct Depsgraph *depsgraph, const struct View3D *v3d, const struct RegionView3D *rv3d);
 
 void BKE_camera_params_compute_viewplane(CameraParams *params, int winx, int winy, float aspx, float aspy);
 void BKE_camera_params_compute_matrix(CameraParams *params);
@@ -128,7 +125,8 @@ void BKE_camera_view_frame(
         float r_vec[4][3]);
 
 bool BKE_camera_view_frame_fit_to_scene(
-        struct Scene *scene, struct View3D *v3d, struct Object *camera_ob,
+        struct Depsgraph *depsgraph,
+        struct Scene *scene, struct ViewLayer *view_layer, struct Object *camera_ob,
         float r_co[3], float *r_scale);
 bool BKE_camera_view_frame_fit_to_coords(
         const struct Scene *scene,
@@ -146,6 +144,11 @@ void           BKE_camera_multiview_model_matrix(struct RenderData *rd, struct O
 float          BKE_camera_multiview_shift_x(struct RenderData *rd, struct Object *camera, const char *viewname);
 void           BKE_camera_multiview_params(struct RenderData *rd, struct CameraParams *params, struct Object *camera, const char *viewname);
 bool           BKE_camera_multiview_spherical_stereo(struct RenderData *rd, struct Object *camera);
+
+/* Camera background image API */
+struct CameraBGImage *BKE_camera_background_image_new(struct Camera *cam);
+void BKE_camera_background_image_remove(struct Camera *cam, struct CameraBGImage *bgpic);
+void BKE_camera_background_image_clear(struct Camera *cam);
 
 #ifdef __cplusplus
 }

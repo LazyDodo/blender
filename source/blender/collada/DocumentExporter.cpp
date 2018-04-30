@@ -71,7 +71,6 @@ extern "C"
 #include "DNA_mesh_types.h"
 #include "DNA_image_types.h"
 #include "DNA_material_types.h"
-#include "DNA_texture_types.h"
 #include "DNA_anim_types.h"
 #include "DNA_action_types.h"
 #include "DNA_curve_types.h"
@@ -138,8 +137,7 @@ extern bool bc_has_object_type(LinkNode *export_set, short obtype);
 char *bc_CustomData_get_layer_name(const struct CustomData *data, int type, int n)
 {
 	int layer_index = CustomData_get_layer_index(data, type);
-	if (layer_index < 0)
-		return NULL;
+	if (layer_index < 0) return NULL;
 
 	return data->layers[layer_index + n].name;
 }
@@ -148,13 +146,14 @@ char *bc_CustomData_get_active_layer_name(const CustomData *data, int type)
 {
 	/* get the layer index of the active layer of type */
 	int layer_index = CustomData_get_active_layer_index(data, type);
-	if (layer_index < 1)
-		return NULL;
+	if (layer_index < 0) return NULL;
 
-	return bc_CustomData_get_layer_name(data, type, layer_index-1);
+	return data->layers[layer_index].name;
 }
 
-DocumentExporter::DocumentExporter(const ExportSettings *export_settings) : export_settings(export_settings) {
+DocumentExporter::DocumentExporter(Depsgraph *depsgraph, const ExportSettings *export_settings) :
+	depsgraph(depsgraph),
+	export_settings(export_settings) {
 }
 
 static COLLADABU::NativeString make_temp_filepath(const char *name, const char *extension)
@@ -181,7 +180,8 @@ static COLLADABU::NativeString make_temp_filepath(const char *name, const char *
 // COLLADA allows this through multiple <channel>s in <animation>.
 // For this to work, we need to know objects that use a certain action.
 
-int DocumentExporter::exportCurrentScene(const EvaluationContext *eval_ctx, Scene *sce)
+
+int DocumentExporter::exportCurrentScene(Scene *sce)
 {
 	PointerRNA sceneptr, unit_settings;
 	PropertyRNA *system; /* unused , *scale; */
@@ -287,7 +287,7 @@ int DocumentExporter::exportCurrentScene(const EvaluationContext *eval_ctx, Scen
 	// <library_geometries>
 	if (bc_has_object_type(export_set, OB_MESH)) {
 		GeometryExporter ge(writer, this->export_settings);
-		ge.exportGeom(sce);
+		ge.exportGeom(depsgraph, sce);
 	}
 
 	// <library_controllers>
@@ -295,7 +295,7 @@ int DocumentExporter::exportCurrentScene(const EvaluationContext *eval_ctx, Scen
 	ControllerExporter controller_exporter(writer, this->export_settings);
 	if (bc_has_object_type(export_set, OB_ARMATURE) || this->export_settings->include_shapekeys) 
 	{
-		controller_exporter.export_controllers(sce);
+		controller_exporter.export_controllers(depsgraph, sce);
 	}
 
 	// <library_visual_scenes>
@@ -304,10 +304,10 @@ int DocumentExporter::exportCurrentScene(const EvaluationContext *eval_ctx, Scen
 
 	if (this->export_settings->include_animations) {
 		// <library_animations>
-		AnimationExporter ae(writer, this->export_settings);
+		AnimationExporter ae(depsgraph, writer, this->export_settings);
 		ae.exportAnimations(sce);
 	}
-	se.exportScene(sce);
+	se.exportScene(depsgraph, sce);
 	
 	// <scene>
 	std::string scene_name(translate_id(id_name(sce)));

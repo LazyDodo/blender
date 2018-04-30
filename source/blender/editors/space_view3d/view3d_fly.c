@@ -56,6 +56,10 @@
 #include "UI_interface.h"
 #include "UI_resources.h"
 
+#include "GPU_immediate.h"
+
+#include "DEG_depsgraph.h"
+
 #include "view3d_intern.h"  /* own include */
 
 /* NOTE: these defines are saved in keymap files, do not change values but just add new ones */
@@ -191,6 +195,7 @@ typedef struct FlyInfo {
 	RegionView3D *rv3d;
 	View3D *v3d;
 	ARegion *ar;
+	struct Depsgraph *depsgraph;
 	Scene *scene;
 
 	wmTimer *timer; /* needed for redraws */
@@ -240,7 +245,7 @@ static void drawFlyPixel(const struct bContext *UNUSED(C), ARegion *UNUSED(ar), 
 	float x1, x2, y1, y2;
 
 	if (fly->scene->camera) {
-		ED_view3d_calc_camera_border(fly->scene, fly->ar, fly->v3d, fly->rv3d, &viewborder, false);
+		ED_view3d_calc_camera_border(fly->scene, fly->depsgraph, fly->ar, fly->v3d, fly->rv3d, &viewborder, false);
 		xoff = viewborder.xmin;
 		yoff = viewborder.ymin;
 	}
@@ -257,36 +262,45 @@ static void drawFlyPixel(const struct bContext *UNUSED(C), ARegion *UNUSED(ar), 
 	x2 = xoff + 0.55f * fly->width;
 	y2 = yoff + 0.55f * fly->height;
 
-	UI_ThemeColor(TH_VIEW_OVERLAY);
-	glBegin(GL_LINES);
-	/* bottom left */
-	glVertex2f(x1, y1);
-	glVertex2f(x1, y1 + 5);
+	Gwn_VertFormat *format = immVertexFormat();
+	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
-	glVertex2f(x1, y1);
-	glVertex2f(x1 + 5, y1);
+	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+
+	immUniformThemeColor(TH_VIEW_OVERLAY);
+
+	immBegin(GWN_PRIM_LINES, 16);
+
+	/* bottom left */
+	immVertex2f(pos, x1, y1);
+	immVertex2f(pos, x1, y1 + 5);
+
+	immVertex2f(pos, x1, y1);
+	immVertex2f(pos, x1 + 5, y1);
 
 	/* top right */
-	glVertex2f(x2, y2);
-	glVertex2f(x2, y2 - 5);
+	immVertex2f(pos, x2, y2);
+	immVertex2f(pos, x2, y2 - 5);
 
-	glVertex2f(x2, y2);
-	glVertex2f(x2 - 5, y2);
+	immVertex2f(pos, x2, y2);
+	immVertex2f(pos, x2 - 5, y2);
 
 	/* top left */
-	glVertex2f(x1, y2);
-	glVertex2f(x1, y2 - 5);
+	immVertex2f(pos, x1, y2);
+	immVertex2f(pos, x1, y2 - 5);
 
-	glVertex2f(x1, y2);
-	glVertex2f(x1 + 5, y2);
+	immVertex2f(pos, x1, y2);
+	immVertex2f(pos, x1 + 5, y2);
 
 	/* bottom right */
-	glVertex2f(x2, y1);
-	glVertex2f(x2, y1 + 5);
+	immVertex2f(pos, x2, y1);
+	immVertex2f(pos, x2, y1 + 5);
 
-	glVertex2f(x2, y1);
-	glVertex2f(x2 - 5, y1);
-	glEnd();
+	immVertex2f(pos, x2, y1);
+	immVertex2f(pos, x2 - 5, y1);
+
+	immEnd();
+	immUnbindProgram();
 }
 
 static void fly_update_header(bContext *C, wmOperator *op, FlyInfo *fly)
@@ -332,6 +346,7 @@ enum {
 static bool initFlyInfo(bContext *C, FlyInfo *fly, wmOperator *op, const wmEvent *event)
 {
 	wmWindow *win = CTX_wm_window(C);
+
 	rctf viewborder;
 
 	float upvec[3]; /* tmp */
@@ -340,6 +355,7 @@ static bool initFlyInfo(bContext *C, FlyInfo *fly, wmOperator *op, const wmEvent
 	fly->rv3d = CTX_wm_region_view3d(C);
 	fly->v3d = CTX_wm_view3d(C);
 	fly->ar = CTX_wm_region(C);
+	fly->depsgraph = CTX_data_depsgraph(C);
 	fly->scene = CTX_data_scene(C);
 
 #ifdef NDOF_FLY_DEBUG
@@ -406,12 +422,12 @@ static bool initFlyInfo(bContext *C, FlyInfo *fly, wmOperator *op, const wmEvent
 	}
 
 	fly->v3d_camera_control = ED_view3d_cameracontrol_acquire(
-	        fly->scene, fly->v3d, fly->rv3d,
+	        CTX_data_depsgraph(C), fly->scene, fly->v3d, fly->rv3d,
 	        (U.uiflag & USER_CAM_LOCK_NO_PARENT) == 0);
 
 	/* calculate center */
 	if (fly->scene->camera) {
-		ED_view3d_calc_camera_border(fly->scene, fly->ar, fly->v3d, fly->rv3d, &viewborder, false);
+		ED_view3d_calc_camera_border(fly->scene, fly->depsgraph, fly->ar, fly->v3d, fly->rv3d, &viewborder, false);
 
 		fly->width = BLI_rctf_size_x(&viewborder);
 		fly->height = BLI_rctf_size_y(&viewborder);

@@ -148,6 +148,7 @@ bool id_make_local(struct Main *bmain, struct ID *id, const bool test, const boo
 bool id_single_user(struct bContext *C, struct ID *id, struct PointerRNA *ptr, struct PropertyRNA *prop);
 bool id_copy(struct Main *bmain, const struct ID *id, struct ID **newid, bool test);
 bool BKE_id_copy_ex(struct Main *bmain, const struct ID *id, struct ID **r_newid, const int flag, const bool test);
+void BKE_id_swap(struct Main *bmain, struct ID *id_a, struct ID *id_b);
 void id_sort_by_name(struct ListBase *lb, struct ID *id);
 void BKE_id_expand_local(struct Main *bmain, struct ID *id);
 void BKE_id_copy_ensure_local(struct Main *bmain, const struct ID *old_id, struct ID *new_id);
@@ -158,7 +159,7 @@ void id_clear_lib_data_ex(struct Main *bmain, struct ID *id, const bool id_in_ma
 
 struct ListBase *which_libbase(struct Main *mainlib, short type);
 
-#define MAX_LIBARRAY    35
+#define MAX_LIBARRAY    37
 int set_listbasepointers(struct Main *main, struct ListBase *lb[MAX_LIBARRAY]);
 
 /* Main API */

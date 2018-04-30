@@ -94,10 +94,13 @@ static const EnumPropertyItem empty_vortex_shape_items[] = {
 #include "DNA_modifier_types.h"
 #include "DNA_texture_types.h"
 
+#include "BKE_collection.h"
 #include "BKE_context.h"
 #include "BKE_modifier.h"
 #include "BKE_pointcache.h"
-#include "BKE_depsgraph.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #include "ED_object.h"
 
@@ -105,65 +108,45 @@ static void rna_Cache_change(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerR
 {
 	Object *ob = (Object *)ptr->id.data;
 	PointCache *cache = (PointCache *)ptr->data;
-	PTCacheID *pid = NULL;
-	ListBase pidlist;
 
 	if (!ob)
 		return;
 
 	cache->flag |= PTCACHE_OUTDATED;
 
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
+	PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
 
-	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 
-	for (pid = pidlist.first; pid; pid = pid->next) {
-		if (pid->cache == cache)
-			break;
-	}
-
-	if (pid) {
+	if (pid.cache) {
 		/* Just make sure this wasn't changed. */
-		if (pid->type == PTCACHE_TYPE_SMOKE_DOMAIN)
+		if (pid.type == PTCACHE_TYPE_SMOKE_DOMAIN)
 			cache->step = 1;
-		BKE_ptcache_update_info(pid);
+		BKE_ptcache_update_info(&pid);
 	}
-
-	BLI_freelistN(&pidlist);
 }
 
 static void rna_Cache_toggle_disk_cache(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Object *ob = (Object *)ptr->id.data;
 	PointCache *cache = (PointCache *)ptr->data;
-	PTCacheID *pid = NULL;
-	ListBase pidlist;
 
 	if (!ob)
 		return;
 
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
-
-	for (pid = pidlist.first; pid; pid = pid->next) {
-		if (pid->cache == cache)
-			break;
-	}
+	PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
 
 	/* smoke can only use disk cache */
-	if (pid && pid->type != PTCACHE_TYPE_SMOKE_DOMAIN)
-		BKE_ptcache_toggle_disk_cache(pid);
+	if (pid.cache && pid.type != PTCACHE_TYPE_SMOKE_DOMAIN)
+		BKE_ptcache_toggle_disk_cache(&pid);
 	else
 		cache->flag ^= PTCACHE_DISK_CACHE;
-
-	BLI_freelistN(&pidlist);
 }
 
 static void rna_Cache_idname_change(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Object *ob = (Object *)ptr->id.data;
 	PointCache *cache = (PointCache *)ptr->data;
-	PTCacheID *pid = NULL, *pid2 = NULL;
-	ListBase pidlist;
 	bool use_new_name = true;
 
 	if (!ob)
@@ -171,23 +154,22 @@ static void rna_Cache_idname_change(Main *UNUSED(bmain), Scene *UNUSED(scene), P
 
 	/* TODO: check for proper characters */
 
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
-
 	if (cache->flag & PTCACHE_EXTERNAL) {
-		for (pid = pidlist.first; pid; pid = pid->next) {
-			if (pid->cache == cache)
-				break;
+		PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
+
+		if (pid.cache) {
+			BKE_ptcache_load_external(&pid);
 		}
 
-		if (!pid)
-			return;
-
-		BKE_ptcache_load_external(pid);
-
-		DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		WM_main_add_notifier(NC_OBJECT | ND_POINTCACHE, ob);
 	}
 	else {
+		PTCacheID *pid = NULL, *pid2 = NULL;
+		ListBase pidlist;
+
+		BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
+
 		for (pid = pidlist.first; pid; pid = pid->next) {
 			if (pid->cache == cache)
 				pid2 = pid;
@@ -213,9 +195,9 @@ static void rna_Cache_idname_change(Main *UNUSED(bmain), Scene *UNUSED(scene), P
 
 			BLI_strncpy(cache->prev_name, cache->name, sizeof(cache->prev_name));
 		}
-	}
 
-	BLI_freelistN(&pidlist);
+		BLI_freelistN(&pidlist);
+	}
 }
 
 static void rna_Cache_list_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
@@ -236,42 +218,26 @@ static void rna_Cache_active_point_cache_index_range(PointerRNA *ptr, int *min, 
 {
 	Object *ob = ptr->id.data;
 	PointCache *cache = ptr->data;
-	PTCacheID *pid;
-	ListBase pidlist;
-
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
+	PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
 	
 	*min = 0;
 	*max = 0;
 
-	for (pid = pidlist.first; pid; pid = pid->next) {
-		if (pid->cache == cache) {
-			*max = max_ii(0, BLI_listbase_count(pid->ptcaches) - 1);
-			break;
-		}
+	if (pid.cache) {
+		*max = max_ii(0, BLI_listbase_count(pid.ptcaches) - 1);
 	}
-
-	BLI_freelistN(&pidlist);
 }
 
 static int rna_Cache_active_point_cache_index_get(PointerRNA *ptr)
 {
 	Object *ob = ptr->id.data;
 	PointCache *cache = ptr->data;
-	PTCacheID *pid;
-	ListBase pidlist;
+	PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
 	int num = 0;
 
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
-	
-	for (pid = pidlist.first; pid; pid = pid->next) {
-		if (pid->cache == cache) {
-			num = BLI_findindex(pid->ptcaches, cache);
-			break;
-		}
+	if (pid.cache) {
+		num = BLI_findindex(pid.ptcaches, cache);
 	}
-
-	BLI_freelistN(&pidlist);
 
 	return num;
 }
@@ -280,19 +246,11 @@ static void rna_Cache_active_point_cache_index_set(struct PointerRNA *ptr, int v
 {
 	Object *ob = ptr->id.data;
 	PointCache *cache = ptr->data;
-	PTCacheID *pid;
-	ListBase pidlist;
-
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
+	PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
 	
-	for (pid = pidlist.first; pid; pid = pid->next) {
-		if (pid->cache == cache) {
-			*(pid->cache_ptr) = BLI_findlink(pid->ptcaches, value);
-			break;
-		}
+	if (pid.cache) {
+		*(pid.cache_ptr) = BLI_findlink(pid.ptcaches, value);
 	}
-
-	BLI_freelistN(&pidlist);
 }
 
 static void rna_PointCache_frame_step_range(PointerRNA *ptr, int *min, int *max,
@@ -300,22 +258,14 @@ static void rna_PointCache_frame_step_range(PointerRNA *ptr, int *min, int *max,
 {
 	Object *ob = ptr->id.data;
 	PointCache *cache = ptr->data;
-	PTCacheID *pid;
-	ListBase pidlist;
+	PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
 
 	*min = 1;
 	*max = 20;
 
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
-	
-	for (pid = pidlist.first; pid; pid = pid->next) {
-		if (pid->cache == cache) {
-			*max = pid->max_step;
-			break;
-		}
+	if (pid.cache) {
+		*max = pid.max_step;
 	}
-
-	BLI_freelistN(&pidlist);
 }
 
 static char *rna_CollisionSettings_path(PointerRNA *UNUSED(ptr))
@@ -499,7 +449,7 @@ static void rna_FieldSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 			part->pd2->tex = NULL;
 		}
 
-		DAG_id_tag_update(&part->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | PSYS_RECALC_RESET);
+		DEG_id_tag_update(&part->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | PSYS_RECALC_RESET);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, NULL);
 
 	}
@@ -511,7 +461,7 @@ static void rna_FieldSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 			ob->pd->tex = NULL;
 		}
 
-		DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, ob);
 	}
 }
@@ -547,7 +497,7 @@ static void rna_FieldSettings_type_set(PointerRNA *ptr, int value)
 static void rna_FieldSettings_dependency_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	if (particle_id_check(ptr)) {
-		DAG_id_tag_update((ID *)ptr->id.data, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | PSYS_RECALC_RESET);
+		DEG_id_tag_update((ID *)ptr->id.data, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | PSYS_RECALC_RESET);
 	}
 	else {
 		Object *ob = (Object *)ptr->id.data;
@@ -563,12 +513,12 @@ static void rna_FieldSettings_dependency_update(Main *bmain, Scene *scene, Point
 
 		rna_FieldSettings_shape_update(bmain, scene, ptr);
 
-		DAG_relations_tag_update(bmain);
+		DEG_relations_tag_update(bmain);
 
 		if (ob->type == OB_CURVE && ob->pd->forcefield == PFIELD_GUIDE)
-			DAG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+			DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
 		else
-			DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+			DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, ob);
 	}
@@ -605,23 +555,23 @@ static void rna_EffectorWeight_update(Main *UNUSED(bmain), Scene *UNUSED(scene),
 
 	if (id && GS(id->name) == ID_SCE) {
 		Scene *scene = (Scene *)id;
-		Base *base;
-
-		for (base = scene->base.first; base; base = base->next) {
-			BKE_ptcache_object_reset(scene, base->object, PTCACHE_RESET_DEPSGRAPH);
+		FOREACH_SCENE_OBJECT_BEGIN(scene, ob)
+		{
+			BKE_ptcache_object_reset(scene, ob, PTCACHE_RESET_DEPSGRAPH);
 		}
+		FOREACH_SCENE_OBJECT_END;
 	}
 	else {
-		DAG_id_tag_update(id, OB_RECALC_DATA | PSYS_RECALC_RESET);
+		DEG_id_tag_update(id, OB_RECALC_DATA | PSYS_RECALC_RESET);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, NULL);
 	}
 }
 
 static void rna_EffectorWeight_dependency_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DAG_relations_tag_update(bmain);
+	DEG_relations_tag_update(bmain);
 
-	DAG_id_tag_update((ID *)ptr->id.data, OB_RECALC_DATA | PSYS_RECALC_RESET);
+	DEG_id_tag_update((ID *)ptr->id.data, OB_RECALC_DATA | PSYS_RECALC_RESET);
 
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, NULL);
 }
@@ -718,7 +668,7 @@ static void rna_CollisionSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 {
 	Object *ob = (Object *)ptr->id.data;
 
-	DAG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ob);
 }
 
@@ -726,13 +676,13 @@ static void rna_softbody_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Point
 {
 	Object *ob = (Object *)ptr->id.data;
 
-	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ob);
 }
 
 static void rna_softbody_dependency_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	DAG_relations_tag_update(bmain);
+	DEG_relations_tag_update(bmain);
 	rna_softbody_update(bmain, scene, ptr);
 }
 
@@ -1509,78 +1459,6 @@ static void rna_def_field(BlenderRNA *brna)
 	/* falloff_power, use_max_distance, maximum_distance */
 }
 
-static void rna_def_game_softbody(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "GameSoftBodySettings", NULL);
-	RNA_def_struct_sdna(srna, "BulletSoftBody");
-	RNA_def_struct_ui_text(srna, "Game Soft Body Settings",
-	                       "Soft body simulation settings for an object in the game engine");
-	
-	/* Floats */
-	
-	prop = RNA_def_property(srna, "linear_stiffness", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "linStiff");
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Linear Stiffness", "Linear stiffness of the soft body links");
-	
-	prop = RNA_def_property(srna, "dynamic_friction", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "kDF");
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Friction", "Dynamic Friction");
-	
-	prop = RNA_def_property(srna, "shape_threshold", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "kMT");
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Threshold", "Shape matching threshold");
-	
-	prop = RNA_def_property(srna, "collision_margin", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "margin");
-	RNA_def_property_range(prop, 0.01f, 1.0f);
-	RNA_def_property_ui_text(prop, "Margin",
-	                         "Collision margin for soft body. Small value makes the algorithm unstable");
-	
-	prop = RNA_def_property(srna, "weld_threshold", PROP_FLOAT, PROP_DISTANCE);
-	RNA_def_property_float_sdna(prop, NULL, "welding");
-	RNA_def_property_range(prop, 0.0f, 0.01f);
-	RNA_def_property_ui_text(prop, "Welding",
-	                         "Welding threshold: distance between nearby vertices to be considered equal "
-	                         "=> set to 0.0 to disable welding test and speed up scene loading "
-	                         "(ok if the mesh has no duplicates)");
-
-	/* Integers */
-	
-	prop = RNA_def_property(srna, "location_iterations", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "piterations");
-	RNA_def_property_range(prop, 0, 10);
-	RNA_def_property_ui_text(prop, "Position Iterations", "Position solver iterations");
-	
-	prop = RNA_def_property(srna, "cluster_iterations", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "numclusteriterations");
-	RNA_def_property_range(prop, 1, 128);
-	RNA_def_property_ui_text(prop, "Cluster Iterations", "Number of cluster iterations");
-	
-	/* Booleans */
-	
-	prop = RNA_def_property(srna, "use_shape_match", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", OB_BSB_SHAPE_MATCHING);
-	RNA_def_property_ui_text(prop, "Shape Match", "Enable soft body shape matching goal");
-	
-	prop = RNA_def_property(srna, "use_bending_constraints", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", OB_BSB_BENDING_CONSTRAINTS);
-	RNA_def_property_ui_text(prop, "Bending Const", "Enable bending constraints");
-	
-	prop = RNA_def_property(srna, "use_cluster_rigid_to_softbody", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "collisionflags", OB_BSB_COL_CL_RS);
-	RNA_def_property_ui_text(prop, "Rigid to Soft Body", "Enable cluster collision between soft and rigid body");
-	
-	prop = RNA_def_property(srna, "use_cluster_soft_to_softbody", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "collisionflags", OB_BSB_COL_CL_SS);
-	RNA_def_property_ui_text(prop, "Soft to Soft Body", "Enable cluster collision between soft and soft body");
-}
-
 static void rna_def_softbody(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1704,7 +1582,7 @@ static void rna_def_softbody(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "spring_length", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "springpreload");
 	RNA_def_property_range(prop, 0.0f, 200.0f);
-	RNA_def_property_ui_text(prop, "SL", "Alter spring length to shrink/blow up (unit %) 0 to disable");
+	RNA_def_property_ui_text(prop, "view_layer", "Alter spring length to shrink/blow up (unit %) 0 to disable");
 	RNA_def_property_update(prop, 0, "rna_softbody_update");
 	
 	prop = RNA_def_property(srna, "aero", PROP_INT, PROP_NONE);
@@ -1901,7 +1779,6 @@ void RNA_def_object_force(BlenderRNA *brna)
 	rna_def_collision(brna);
 	rna_def_effector_weight(brna);
 	rna_def_field(brna);
-	rna_def_game_softbody(brna);
 	rna_def_softbody(brna);
 }
 

@@ -102,7 +102,8 @@ static DerivedMesh *WireframeModifier_do(WireframeModifierData *wmd, Object *ob,
 
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm, ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob,
+                                  DerivedMesh *dm, ModifierApplyFlag UNUSED(flag))
 {
 	return WireframeModifier_do((WireframeModifierData *)md, ob, dm);
 }
@@ -128,7 +129,6 @@ ModifierTypeInfo modifierType_Wireframe = {
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
 	/* updateDepgraph */    NULL,
-	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  dependsOnNormals,
 	/* foreachObjectLink */ NULL,

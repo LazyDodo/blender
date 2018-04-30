@@ -39,10 +39,11 @@
 
 #include "BKE_action.h"
 #include "BKE_armature.h"
-#include "BKE_depsgraph.h"
 #include "BKE_idprop.h"
 
 #include "BKE_context.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RNA_access.h"
 
@@ -182,6 +183,7 @@ void poseAnim_mapping_free(ListBase *pfLinks)
 /* helper for apply() / reset() - refresh the data */
 void poseAnim_mapping_refresh(bContext *C, Scene *scene, Object *ob)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	bArmature *arm = (bArmature *)ob->data;
 	
 	/* old optimize trick... this enforces to bypass the depgraph 
@@ -189,9 +191,9 @@ void poseAnim_mapping_refresh(bContext *C, Scene *scene, Object *ob)
 	 */
 	/* FIXME: shouldn't this use the builtin stuff? */
 	if ((arm->flag & ARM_DELAYDEFORM) == 0)
-		DAG_id_tag_update(&ob->id, OB_RECALC_DATA);  /* sets recalc flags */
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);  /* sets recalc flags */
 	else
-		BKE_pose_where_is(scene, ob);
+		BKE_pose_where_is(depsgraph, scene, ob);
 	
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
@@ -266,7 +268,7 @@ void poseAnim_mapping_autoKeyframe(bContext *C, Scene *scene, Object *ob, ListBa
 		 */
 		if (ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS) {
 			//ED_pose_clear_paths(C, ob); // XXX for now, don't need to clear
-			ED_pose_recalculate_paths(scene, ob);
+			ED_pose_recalculate_paths(C, scene, ob);
 		}
 	}
 }

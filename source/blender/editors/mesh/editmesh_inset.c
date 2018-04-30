@@ -72,7 +72,7 @@ typedef struct {
 	float mcenter[2];
 	BMBackup mesh_backup;
 	void *draw_handle_pixel;
-	short twtype;
+	short twflag;
 } InsetData;
 
 
@@ -152,8 +152,8 @@ static bool edbm_inset_init(bContext *C, wmOperator *op, const bool is_modal)
 		        ar->type, ED_region_draw_mouse_line_cb, opdata->mcenter, REGION_DRAW_POST_PIXEL);
 		G.moving = G_TRANSFORM_EDIT;
 		if (v3d) {
-			opdata->twtype = v3d->twtype;
-			v3d->twtype = 0;
+			opdata->twflag = v3d->twflag;
+			v3d->twflag = 0;
 		}
 	}
 
@@ -173,7 +173,7 @@ static void edbm_inset_exit(bContext *C, wmOperator *op)
 		EDBM_redo_state_free(&opdata->mesh_backup, NULL, false);
 		ED_region_draw_cb_exit(ar->type, opdata->draw_handle_pixel);
 		if (v3d) {
-			v3d->twtype = opdata->twtype;
+			v3d->twflag = opdata->twflag;
 		}
 		G.moving = 0;
 	}
@@ -378,7 +378,9 @@ static int edbm_inset_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			case LEFTMOUSE:
 			case PADENTER:
 			case RETKEY:
-				if (event->val == KM_PRESS) {
+				if ((event->val == KM_PRESS) ||
+				    ((event->val == KM_RELEASE) && RNA_boolean_get(op->ptr, "release_confirm")))
+				{
 					edbm_inset_calc(op);
 					edbm_inset_exit(C, op);
 					return OPERATOR_FINISHED;
@@ -540,4 +542,7 @@ void MESH_OT_inset(wmOperatorType *ot)
 	RNA_def_boolean(ot->srna, "use_select_inset", false, "Select Outer", "Select the new inset faces");
 	RNA_def_boolean(ot->srna, "use_individual", false, "Individual", "Individual Face Inset");
 	RNA_def_boolean(ot->srna, "use_interpolate", true, "Interpolate", "Blend face data across the inset");
+
+	prop = RNA_def_boolean(ot->srna, "release_confirm", 0, "Confirm on Release", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }

@@ -38,11 +38,13 @@
 #include "DNA_scene_types.h"
 
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_group.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_rigidbody.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -88,10 +90,10 @@ bool ED_rigidbody_constraint_add(Main *bmain, Scene *scene, Object *ob, int type
 	ob->rigidbody_constraint->flag |= RBC_FLAG_NEEDS_VALIDATE;
 
 	/* add constraint to rigid body constraint group */
-	BKE_group_object_add(rbw->constraints, ob, scene, NULL);
+	BKE_group_object_add(rbw->constraints, ob);
 
-	DAG_relations_tag_update(bmain);
-	DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+	DEG_relations_tag_update(bmain);
+	DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 	return true;
 }
 
@@ -101,10 +103,10 @@ void ED_rigidbody_constraint_remove(Main *bmain, Scene *scene, Object *ob)
 
 	BKE_rigidbody_remove_constraint(scene, ob);
 	if (rbw)
-		BKE_group_object_unlink(rbw->constraints, ob, scene, NULL);
+		BKE_group_object_unlink(rbw->constraints, ob);
 
-	DAG_relations_tag_update(bmain);
-	DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+	DEG_relations_tag_update(bmain);
+	DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 }
 
 /* ********************************************** */
@@ -116,8 +118,9 @@ static int rigidbody_con_add_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
-	Object *ob = (scene) ? OBACT : NULL;
+	Object *ob = OBACT(view_layer);
 	int type = RNA_enum_get(op->ptr, "type");
 	bool changed;
 
@@ -165,11 +168,8 @@ static int rigidbody_con_remove_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = (scene) ? OBACT : NULL;
-
-	/* sanity checks */
-	if (scene == NULL)
-		return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *ob = OBACT(view_layer);
 
 	/* apply to active object */
 	if (ELEM(NULL, ob, ob->rigidbody_constraint)) {

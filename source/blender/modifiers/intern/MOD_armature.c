@@ -50,8 +50,6 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 
@@ -99,18 +97,6 @@ static void foreachObjectLink(
 	walk(userData, ob, &amd->object, IDWALK_CB_NOP);
 }
 
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-
-	if (amd->object) {
-		DagNode *curNode = dag_get_node(ctx->forest, amd->object);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Armature Modifier");
-	}
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *)md;
@@ -120,8 +106,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
-                        DerivedMesh *derivedData,
+static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+                        Object *ob, DerivedMesh *derivedData,
                         float (*vertexCos)[3],
                         int numVerts,
                         ModifierApplyFlag UNUSED(flag))
@@ -141,7 +127,7 @@ static void deformVerts(ModifierData *md, Object *ob,
 }
 
 static void deformVertsEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *em,
+        ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob, struct BMEditMesh *em,
         DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
@@ -164,7 +150,7 @@ static void deformVertsEM(
 }
 
 static void deformMatricesEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *em,
+        ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob, struct BMEditMesh *em,
         DerivedMesh *derivedData, float (*vertexCos)[3],
         float (*defMats)[3][3], int numVerts)
 {
@@ -179,7 +165,7 @@ static void deformMatricesEM(
 	if (!derivedData) dm->release(dm);
 }
 
-static void deformMatrices(ModifierData *md, Object *ob, DerivedMesh *derivedData,
+static void deformMatrices(ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob, DerivedMesh *derivedData,
                            float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
@@ -213,7 +199,6 @@ ModifierTypeInfo modifierType_Armature = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

@@ -55,13 +55,7 @@
 
 #include "MOD_util.h"
 
-#include "depsgraph_private.h"
-
-/* Due to cyclic dependencies it's possible that curve used for
- * deformation here is not evaluated at the time of evaluating
- * this modifier.
- */
-#define CYCLIC_DEPENDENCY_WORKAROUND
+#include "DEG_depsgraph.h"
 
 static void initData(ModifierData *md)
 {
@@ -101,37 +95,6 @@ static void foreachObjectLink(
 	walk(userData, ob, &amd->end_cap, IDWALK_CB_NOP);
 	walk(userData, ob, &amd->curve_ob, IDWALK_CB_NOP);
 	walk(userData, ob, &amd->offset_ob, IDWALK_CB_NOP);
-}
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	ArrayModifierData *amd = (ArrayModifierData *) md;
-
-	if (amd->start_cap) {
-		DagNode *curNode = dag_get_node(ctx->forest, amd->start_cap);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Array Modifier");
-	}
-	if (amd->end_cap) {
-		DagNode *curNode = dag_get_node(ctx->forest, amd->end_cap);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Array Modifier");
-	}
-	if (amd->curve_ob) {
-		DagNode *curNode = dag_get_node(ctx->forest, amd->curve_ob);
-		curNode->eval_flags |= DAG_EVAL_NEED_CURVE_PATH;
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Array Modifier");
-	}
-	if (amd->offset_ob) {
-		DagNode *curNode = dag_get_node(ctx->forest, amd->offset_ob);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Array Modifier");
-	}
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -393,8 +356,7 @@ static void dm_merge_transform(
 }
 
 static DerivedMesh *arrayModifier_doArray(
-        ArrayModifierData *amd,
-        Scene *scene, Object *ob, DerivedMesh *dm,
+        ArrayModifierData *amd, Object *ob, DerivedMesh *dm,
         ModifierApplyFlag flag)
 {
 	const float eps = 1e-6f;
@@ -506,12 +468,6 @@ static DerivedMesh *arrayModifier_doArray(
 	if (amd->fit_type == MOD_ARR_FITCURVE && amd->curve_ob) {
 		Curve *cu = amd->curve_ob->data;
 		if (cu) {
-#ifdef CYCLIC_DEPENDENCY_WORKAROUND
-			if (amd->curve_ob->curve_cache == NULL) {
-				BKE_displist_make_curveTypes(scene, amd->curve_ob, false);
-			}
-#endif
-
 			if (amd->curve_ob->curve_cache && amd->curve_ob->curve_cache->path) {
 				float scale_fac = mat4_to_scale(amd->curve_ob->obmat);
 				length = scale_fac * amd->curve_ob->curve_cache->path->totdist;
@@ -800,12 +756,12 @@ static DerivedMesh *arrayModifier_doArray(
 }
 
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
-                                  DerivedMesh *dm,
+static DerivedMesh *applyModifier(ModifierData *md, Depsgraph *UNUSED(depsgraph),
+                                  Object *ob, DerivedMesh *dm,
                                   ModifierApplyFlag flag)
 {
 	ArrayModifierData *amd = (ArrayModifierData *) md;
-	return arrayModifier_doArray(amd, md->scene, ob, dm, flag);
+	return arrayModifier_doArray(amd, ob, dm, flag);
 }
 
 
@@ -831,7 +787,6 @@ ModifierTypeInfo modifierType_Array = {
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

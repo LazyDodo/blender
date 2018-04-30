@@ -54,6 +54,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_userdef_types.h"
 #include "DNA_windowmanager_types.h"
+#include "DNA_workspace_types.h"
 
 #include "BLT_translation.h"
 
@@ -72,7 +73,6 @@
 #include "BKE_blender_version.h"
 #include "BKE_brush.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_icons.h"
 #include "BKE_idprop.h"
 #include "BKE_image.h"
@@ -88,8 +88,11 @@
 
 #include "BKE_idcode.h"
 
-#include "BIF_glutil.h" /* for paint cursor */
 #include "BLF_api.h"
+
+#include "GPU_immediate.h"
+#include "GPU_immediate_util.h"
+#include "GPU_matrix.h"
 
 #include "IMB_imbuf_types.h"
 #include "IMB_imbuf.h"
@@ -98,8 +101,6 @@
 #include "ED_screen.h"
 #include "ED_undo.h"
 #include "ED_view3d.h"
-
-#include "GPU_basic_shader.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -120,6 +121,8 @@
 #include "wm_window.h"
 
 static GHash *global_ops_hash = NULL;
+/** Counter for operator-properties that should not be tagged with #OP_PROP_TAG_ADVANCED. */
+static int ot_prop_basic_count = -1;
 
 #define UNDOCUMENTED_OPERATOR_TIP N_("(undocumented operator)")
 
@@ -159,21 +162,31 @@ void WM_operatortype_iter(GHashIterator *ghi)
 	BLI_ghashIterator_init(ghi, global_ops_hash);
 }
 
-/* all ops in 1 list (for time being... needs evaluation later) */
-void WM_operatortype_append(void (*opfunc)(wmOperatorType *))
+/** \name Operator Type Append
+ * \{ */
+
+static wmOperatorType *wm_operatortype_append__begin(void)
 {
-	wmOperatorType *ot;
-	
-	ot = MEM_callocN(sizeof(wmOperatorType), "operatortype");
+	wmOperatorType *ot = MEM_callocN(sizeof(wmOperatorType), "operatortype");
+
+	BLI_assert(ot_prop_basic_count == -1);
+
 	ot->srna = RNA_def_struct_ptr(&BLENDER_RNA, "", &RNA_OperatorProperties);
+	RNA_def_struct_property_tags(ot->srna, rna_enum_operator_property_tags);
 	/* Set the default i18n context now, so that opfunc can redefine it if needed! */
 	RNA_def_struct_translation_context(ot->srna, BLT_I18NCONTEXT_OPERATOR_DEFAULT);
 	ot->translation_context = BLT_I18NCONTEXT_OPERATOR_DEFAULT;
-	opfunc(ot);
 
+	return ot;
+}
+static void wm_operatortype_append__end(wmOperatorType *ot)
+{
 	if (ot->name == NULL) {
 		CLOG_ERROR(WM_LOG_OPERATORS, "Operator '%s' has no name property", ot->idname);
 	}
+
+	/* Allow calling _begin without _end in operatortype creation. */
+	WM_operatortype_props_advanced_end(ot);
 
 	/* XXX All ops should have a description but for now allow them not to. */
 	RNA_def_struct_ui_text(ot->srna, ot->name, ot->description ? ot->description : UNDOCUMENTED_OPERATOR_TIP);
@@ -182,21 +195,22 @@ void WM_operatortype_append(void (*opfunc)(wmOperatorType *))
 	BLI_ghash_insert(global_ops_hash, (void *)ot->idname, ot);
 }
 
+/* all ops in 1 list (for time being... needs evaluation later) */
+void WM_operatortype_append(void (*opfunc)(wmOperatorType *))
+{
+	wmOperatorType *ot = wm_operatortype_append__begin();
+	opfunc(ot);
+	wm_operatortype_append__end(ot);
+}
+
 void WM_operatortype_append_ptr(void (*opfunc)(wmOperatorType *, void *), void *userdata)
 {
-	wmOperatorType *ot;
-
-	ot = MEM_callocN(sizeof(wmOperatorType), "operatortype");
-	ot->srna = RNA_def_struct_ptr(&BLENDER_RNA, "", &RNA_OperatorProperties);
-	/* Set the default i18n context now, so that opfunc can redefine it if needed! */
-	RNA_def_struct_translation_context(ot->srna, BLT_I18NCONTEXT_OPERATOR_DEFAULT);
-	ot->translation_context = BLT_I18NCONTEXT_OPERATOR_DEFAULT;
+	wmOperatorType *ot = wm_operatortype_append__begin();
 	opfunc(ot, userdata);
-	RNA_def_struct_ui_text(ot->srna, ot->name, ot->description ? ot->description : UNDOCUMENTED_OPERATOR_TIP);
-	RNA_def_struct_identifier(&BLENDER_RNA, ot->srna, ot->idname);
-
-	BLI_ghash_insert(global_ops_hash, (void *)ot->idname, ot);
+	wm_operatortype_append__end(ot);
 }
+
+/** \} */
 
 /* ********************* macro operator ******************** */
 
@@ -527,6 +541,55 @@ void WM_operatortype_last_properties_clear_all(void)
 			ot->last_properties = NULL;
 		}
 	}
+}
+
+/**
+ * Tag all operator-properties of \a ot defined after calling this, until
+ * the next #WM_operatortype_props_advanced_end call (if available), with
+ * #OP_PROP_TAG_ADVANCED. Previously defined ones properties not touched.
+ *
+ * Calling this multiple times without a call to #WM_operatortype_props_advanced_end,
+ * all calls after the first one are ignored. Meaning all propereties defined after the
+ * first call are tagged as advanced.
+ *
+ * This doesn't do the actual tagging, #WM_operatortype_props_advanced_end does which is
+ * called for all operators during registration (see #wm_operatortype_append__end).
+ */
+void WM_operatortype_props_advanced_begin(wmOperatorType *ot)
+{
+	if (ot_prop_basic_count == -1) { /* Don't do anything if _begin was called before, but not _end  */
+		ot_prop_basic_count = RNA_struct_count_properties(ot->srna);
+	}
+}
+
+/**
+ * Tags all operator-properties of \ot defined since the first #WM_operatortype_props_advanced_begin
+ * call, or the last #WM_operatortype_props_advanced_end call, with #OP_PROP_TAG_ADVANCED.
+ * Note that this is called for all operators during registration (see #wm_operatortype_append__end).
+ * So it does not need to be explicitly called in operator-type definition.
+ */
+void WM_operatortype_props_advanced_end(wmOperatorType *ot)
+{
+	PointerRNA struct_ptr;
+	int counter = 0;
+
+	if (ot_prop_basic_count == -1) {
+		/* WM_operatortype_props_advanced_begin was not called. Don't do anything. */
+		return;
+	}
+
+	RNA_pointer_create(NULL, ot->srna, NULL, &struct_ptr);
+
+	RNA_STRUCT_BEGIN (&struct_ptr, prop)
+	{
+		counter++;
+		if (counter > ot_prop_basic_count) {
+			WM_operatortype_prop_tag(prop, OP_PROP_TAG_ADVANCED);
+		}
+	}
+	RNA_STRUCT_END;
+
+	ot_prop_basic_count = -1;
 }
 
 /* SOME_OT_op -> some.op */
@@ -1169,46 +1232,70 @@ int WM_menu_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 	return WM_menu_invoke_ex(C, op, WM_OP_INVOKE_REGION_WIN);
 }
 
+struct EnumSearchMenu {
+	wmOperator *op; /* the operator that will be executed when selecting an item */
+
+	bool use_previews;
+	short prv_cols, prv_rows;
+};
 
 /* generic enum search invoke popup */
-static uiBlock *wm_enum_search_menu(bContext *C, ARegion *ar, void *arg_op)
+static uiBlock *wm_enum_search_menu(bContext *C, ARegion *ar, void *arg)
 {
-	static char search[256] = "";
-	wmEvent event;
+	struct EnumSearchMenu *search_menu = arg;
 	wmWindow *win = CTX_wm_window(C);
+	wmOperator *op = search_menu->op;
+	/* template_ID uses 4 * widget_unit for width, we use a bit more, some items may have a suffix to show */
+	const int width = search_menu->use_previews ? 5 * U.widget_unit * search_menu->prv_cols : UI_searchbox_size_x();
+	const int height = search_menu->use_previews ? 5 * U.widget_unit * search_menu->prv_rows : UI_searchbox_size_y();
+	static char search[256] = "";
 	uiBlock *block;
 	uiBut *but;
-	wmOperator *op = (wmOperator *)arg_op;
 
 	block = UI_block_begin(C, ar, "_popup", UI_EMBOSS);
 	UI_block_flag_enable(block, UI_BLOCK_LOOP | UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_SEARCH_MENU);
 
 	search[0] = '\0';
+	BLI_assert(search_menu->use_previews || (search_menu->prv_cols == 0 && search_menu->prv_rows == 0));
 #if 0 /* ok, this isn't so easy... */
 	uiDefBut(block, UI_BTYPE_LABEL, 0, RNA_struct_ui_name(op->type->srna), 10, 10, UI_searchbox_size_x(), UI_UNIT_Y, NULL, 0.0, 0.0, 0, 0, "");
 #endif
 	but = uiDefSearchButO_ptr(block, op->type, op->ptr->data, search, 0, ICON_VIEWZOOM, sizeof(search),
-	                          10, 10, UI_searchbox_size_x(), UI_UNIT_Y, 0, 0, "");
+	                          10, 10, width, UI_UNIT_Y, search_menu->prv_rows, search_menu->prv_cols, "");
 
 	/* fake button, it holds space for search items */
-	uiDefBut(block, UI_BTYPE_LABEL, 0, "", 10, 10 - UI_searchbox_size_y(), UI_searchbox_size_x(), UI_searchbox_size_y(), NULL, 0, 0, 0, 0, NULL);
+	uiDefBut(block, UI_BTYPE_LABEL, 0, "", 10, 10 - UI_searchbox_size_y(), width, height, NULL, 0, 0, 0, 0, NULL);
 
 	UI_block_bounds_set_popup(block, 6, 0, -UI_UNIT_Y); /* move it downwards, mouse over button */
-
-	wm_event_init_from_window(win, &event);
-	event.type = EVT_BUT_OPEN;
-	event.val = KM_PRESS;
-	event.customdata = but;
-	event.customdatafree = false;
-	wm_event_add(win, &event);
+	UI_but_focus_on_enter_event(win, but);
 
 	return block;
 }
 
+/**
+ * Similar to #WM_enum_search_invoke, but draws previews. Also, this can't
+ * be used as invoke callback directly since it needs additional info.
+ */
+int WM_enum_search_invoke_previews(
+        bContext *C, wmOperator *op, short prv_cols, short prv_rows)
+{
+	static struct EnumSearchMenu search_menu;
+
+	search_menu.op = op;
+	search_menu.use_previews = true;
+	search_menu.prv_cols = prv_cols;
+	search_menu.prv_rows = prv_rows;
+
+	UI_popup_block_invoke(C, wm_enum_search_menu, &search_menu);
+
+	return OPERATOR_INTERFACE;
+}
 
 int WM_enum_search_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
-	UI_popup_block_invoke(C, wm_enum_search_menu, op);
+	static struct EnumSearchMenu search_menu;
+	search_menu.op = op;
+	UI_popup_block_invoke(C, wm_enum_search_menu, &search_menu);
 	return OPERATOR_INTERFACE;
 }
 
@@ -1411,13 +1498,15 @@ static uiBlock *wm_block_create_redo(bContext *C, ARegion *ar, void *arg_op)
 
 	if (op->type->flag & OPTYPE_MACRO) {
 		for (op = op->macro.first; op; op = op->next) {
-			uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'H', UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+			uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+			                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 			if (op->next)
 				uiItemS(layout);
 		}
 	}
 	else {
-		uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'H', UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+		uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+		                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 	}
 	
 	UI_block_bounds_set_popup(block, 4, 0, 0);
@@ -1486,7 +1575,8 @@ static uiBlock *wm_block_dialog_create(bContext *C, ARegion *ar, void *userData)
 
 	layout = UI_block_layout(block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 0, 0, data->width, data->height, 0, style);
 	
-	uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'H', UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+	uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+	                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 	
 	/* clear so the OK button is left alone */
 	UI_block_func_set(block, NULL, NULL, NULL);
@@ -1525,7 +1615,7 @@ static uiBlock *wm_operator_ui_create(bContext *C, ARegion *ar, void *userData)
 	layout = UI_block_layout(block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 0, 0, data->width, data->height, 0, style);
 
 	/* since ui is defined the auto-layout args are not used */
-	uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'V', 0);
+	uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_COLUMN, 0);
 
 	UI_block_func_set(block, NULL, NULL, NULL);
 
@@ -1721,6 +1811,50 @@ static void WM_OT_operator_defaults(wmOperatorType *ot)
 	ot->flag = OPTYPE_INTERNAL;
 }
 
+#ifdef USE_WORKSPACE_TOOL
+/* ***************** Set Active Tool ************************* */
+
+/* Developers note: in it's current form this doesn't need to be an operator,
+ * keep this as-is for now since it may end up setting an active key-map.
+ */
+
+static int wm_operator_tool_set_exec(bContext *C, wmOperator *op)
+{
+	ScrArea *sa = CTX_wm_area(C);
+
+	bToolDef tool_def = {{0}};
+
+	tool_def.index = RNA_int_get(op->ptr, "index");
+	tool_def.spacetype = sa->spacetype;
+	RNA_string_get(op->ptr, "keymap", tool_def.keymap);
+	RNA_string_get(op->ptr, "manipulator_group", tool_def.manipulator_group);
+	RNA_string_get(op->ptr, "data_block", tool_def.data_block);
+
+	WM_toolsystem_set(C, &tool_def);
+
+	/* For some reason redraw fails with menus (even though 'ar' isn't the menu's region). */
+	ED_area_tag_redraw(sa);
+
+	return OPERATOR_FINISHED;
+}
+
+static void WM_OT_tool_set(wmOperatorType *ot)
+{
+	ot->name = "Set Active Tool";
+	ot->idname = "WM_OT_tool_set";
+	ot->description = "Set the active tool";
+
+	ot->exec = wm_operator_tool_set_exec;
+
+	ot->flag = OPTYPE_INTERNAL;
+
+	RNA_def_string(ot->srna, "keymap", NULL, KMAP_MAX_NAME, "Key Map", "");
+	RNA_def_string(ot->srna, "manipulator_group", NULL, MAX_NAME, "Manipulator Group", "");
+	RNA_def_string(ot->srna, "data_block", NULL, MAX_NAME, "Data Block", "");
+	RNA_def_int(ot->srna, "index", 0, INT_MIN, INT_MAX, "Index", "", INT_MIN, INT_MAX);
+}
+#endif /* USE_WORKSPACE_TOOL */
+
 /* ***************** Splash Screen ************************* */
 
 static void wm_block_splash_close(bContext *C, void *arg_block, void *UNUSED(arg))
@@ -1826,7 +1960,7 @@ static uiBlock *wm_block_create_splash(bContext *C, ARegion *ar, void *UNUSED(ar
 			ibuf_template = IMB_loadiffname(splash_filepath, IB_rect, NULL);
 			if (ibuf_template) {
 				const int x_expect = ibuf->x;
-				const int y_expect = 230 * (int)U.pixelsize;
+				const int y_expect = 282 * (int)U.pixelsize;
 				/* don't cover the header text */
 				if (ibuf_template->x == x_expect && ibuf_template->y == y_expect) {
 					memcpy(ibuf->rect, ibuf_template->rect, ibuf_template->x * ibuf_template->y * sizeof(char[4]));
@@ -1865,8 +1999,8 @@ static uiBlock *wm_block_create_splash(bContext *C, ARegion *ar, void *UNUSED(ar
 	if (version_suffix != NULL && version_suffix[0]) {
 		/* placed after the version number in the image,
 		 * placing y is tricky to match baseline */
-		int x = 260 * U.pixelsize - (2 * UI_DPI_FAC);
-		int y = 242 * U.pixelsize + (4 * UI_DPI_FAC);
+		int x = 236 * U.pixelsize - (2 * UI_DPI_FAC);
+		int y = 231 * U.pixelsize + (4 * UI_DPI_FAC);
 		int w = 240 * U.pixelsize;
 
 		/* hack to have text draw 'text_sel' */
@@ -1879,17 +2013,32 @@ static uiBlock *wm_block_create_splash(bContext *C, ARegion *ar, void *UNUSED(ar
 
 #ifdef WITH_BUILDINFO
 	if (build_commit_timestamp != 0) {
-		uiDefBut(block, UI_BTYPE_LABEL, 0, date_buf, U.pixelsize * 494 - date_width, U.pixelsize * 270, date_width, UI_UNIT_Y, NULL, 0, 0, 0, 0, NULL);
+		but = uiDefBut(
+		          block, UI_BTYPE_LABEL, 0, date_buf,
+		          U.pixelsize * 502 - date_width, U.pixelsize * 267,
+		          date_width, UI_UNIT_Y, NULL, 0, 0, 0, 0, NULL);
+		/* XXX, set internal flag - UI_SELECT */
+		UI_but_flag_enable(but, 1);
 		label_delta = 12;
 	}
-	uiDefBut(block, UI_BTYPE_LABEL, 0, hash_buf, U.pixelsize * 494 - hash_width, U.pixelsize * (270 - label_delta), hash_width, UI_UNIT_Y, NULL, 0, 0, 0, 0, NULL);
+	but = uiDefBut(
+	          block, UI_BTYPE_LABEL, 0, hash_buf,
+	          U.pixelsize * 502 - hash_width, U.pixelsize * (267 - label_delta),
+	          hash_width, UI_UNIT_Y, NULL, 0, 0, 0, 0, NULL);
+	/* XXX, set internal flag - UI_SELECT */
+	UI_but_flag_enable(but, 1);
 
 	if (!STREQ(build_branch, "master")) {
 		char branch_buf[128] = "\0";
 		int branch_width;
 		BLI_snprintf(branch_buf, sizeof(branch_buf), "Branch: %s", build_branch);
 		branch_width = (int)BLF_width(style->widgetlabel.uifont_id, branch_buf, sizeof(branch_buf)) + U.widget_unit;
-		uiDefBut(block, UI_BTYPE_LABEL, 0, branch_buf, U.pixelsize * 494 - branch_width, U.pixelsize * (258 - label_delta), branch_width, UI_UNIT_Y, NULL, 0, 0, 0, 0, NULL);
+		but = uiDefBut(
+		          block, UI_BTYPE_LABEL, 0, branch_buf,
+		          U.pixelsize * 502 - branch_width, U.pixelsize * (255 - label_delta),
+		          branch_width, UI_UNIT_Y, NULL, 0, 0, 0, 0, NULL);
+		/* XXX, set internal flag - UI_SELECT */
+		UI_but_flag_enable(but, 1);
 	}
 #endif  /* WITH_BUILDINFO */
 	
@@ -2128,8 +2277,11 @@ static void WM_OT_call_menu_pie(wmOperatorType *ot)
 static int wm_operator_winactive_normal(bContext *C)
 {
 	wmWindow *win = CTX_wm_window(C);
+	bScreen *screen;
 
-	if (win == NULL || win->screen == NULL || win->screen->state != SCREENNORMAL)
+	if (win == NULL)
+		return 0;
+	if (!((screen = WM_window_get_active_screen(win)) && (screen->state == SCREENNORMAL)))
 		return 0;
 
 	return 1;
@@ -2146,14 +2298,22 @@ static void WM_OT_window_close(wmOperatorType *ot)
 	ot->poll = WM_operator_winactive;
 }
 
-static void WM_OT_window_duplicate(wmOperatorType *ot)
+static void WM_OT_window_new(wmOperatorType *ot)
 {
-	ot->name = "Duplicate Window";
-	ot->idname = "WM_OT_window_duplicate";
-	ot->description = "Duplicate the current Blender window";
-		
-	ot->exec = wm_window_duplicate_exec;
+	PropertyRNA *prop;
+
+	ot->name = "New Window";
+	ot->idname = "WM_OT_window_new";
+	ot->description = "Create a new Blender window";
+
+	ot->exec = wm_window_new_exec;
+	ot->invoke = wm_window_new_invoke;
 	ot->poll = wm_operator_winactive_normal;
+
+	prop = RNA_def_enum(ot->srna, "screen", DummyRNA_NULL_items, 0, "Screen", "");
+	RNA_def_enum_funcs(prop, wm_window_new_screen_itemf);
+	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
+	ot->prop = prop;
 }
 
 static void WM_OT_window_fullscreen_toggle(wmOperatorType *ot)
@@ -2364,8 +2524,9 @@ static void radial_control_set_tex(RadialControl *rc)
 			if ((ibuf = BKE_brush_gen_radial_control_imbuf(rc->image_id_ptr.data, rc->use_secondary_tex))) {
 				glGenTextures(1, &rc->gltex);
 				glBindTexture(GL_TEXTURE_2D, rc->gltex);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA8, ibuf->x, ibuf->y, 0,
-				             GL_ALPHA, GL_FLOAT, ibuf->rect_float);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, ibuf->x, ibuf->y, 0,
+				             GL_RED, GL_FLOAT, ibuf->rect_float);
+				glBindTexture(GL_TEXTURE_2D, 0);
 				MEM_freeN(ibuf->rect_float);
 				MEM_freeN(ibuf);
 			}
@@ -2398,43 +2559,64 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 
 		RNA_property_float_get_array(fill_ptr, fill_prop, col);
 	}
-	glColor4f(col[0], col[1], col[2], alpha);
+		
+	Gwn_VertFormat *format = immVertexFormat();
+	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	if (rc->gltex) {
+
+		unsigned int texCoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+
+		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rc->gltex);
 
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		GLint swizzleMask[] = {GL_ZERO, GL_ZERO, GL_ZERO, GL_RED};
+		glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+
+		immBindBuiltinProgram(GPU_SHADER_2D_IMAGE_MASK_UNIFORM_COLOR);
+
+		immUniformColor3fvAlpha(col, alpha);
+		immUniform1i("image", 0);
 
 		/* set up rotation if available */
 		if (rc->rot_prop) {
 			rot = RNA_property_float_get(&rc->rot_ptr, rc->rot_prop);
-			glPushMatrix();
-			glRotatef(RAD2DEGF(rot), 0, 0, 1);
+			gpuPushMatrix();
+			gpuRotate2D(RAD2DEGF(rot));
 		}
 
 		/* draw textured quad */
-		GPU_basic_shader_bind(GPU_SHADER_TEXTURE_2D | GPU_SHADER_USE_COLOR);
-		glBegin(GL_QUADS);
-		glTexCoord2f(0, 0);
-		glVertex2f(-radius, -radius);
-		glTexCoord2f(1, 0);
-		glVertex2f(radius, -radius);
-		glTexCoord2f(1, 1);
-		glVertex2f(radius, radius);
-		glTexCoord2f(0, 1);
-		glVertex2f(-radius, radius);
-		glEnd();
-		GPU_basic_shader_bind(GPU_SHADER_USE_COLOR);
+		immBegin(GWN_PRIM_TRI_FAN, 4);
+
+		immAttrib2f(texCoord, 0, 0);
+		immVertex2f(pos, -radius, -radius);
+
+		immAttrib2f(texCoord, 1, 0);
+		immVertex2f(pos, radius, -radius);
+		
+		immAttrib2f(texCoord, 1, 1);
+		immVertex2f(pos, radius, radius);
+		
+		immAttrib2f(texCoord, 0, 1);
+		immVertex2f(pos, -radius, radius);
+
+		immEnd();
 
 		/* undo rotation */
 		if (rc->rot_prop)
-			glPopMatrix();
+			gpuPopMatrix();
 	}
 	else {
 		/* flat color if no texture available */
-		glutil_draw_filled_arc(0, M_PI * 2, radius, 40);
+		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+		immUniformColor3fvAlpha(col, alpha);
+		imm_draw_circle_fill_2d(pos, 0.0f, 0.0f, radius, 40);
 	}
+	
+	immUnbindProgram();
 }
 
 static void radial_control_paint_cursor(bContext *C, int x, int y, void *customdata)
@@ -2493,7 +2675,7 @@ static void radial_control_paint_cursor(bContext *C, int x, int y, void *customd
 	/* Keep cursor in the original place */
 	x = rc->initial_mouse[0] - ar->winrct.xmin;
 	y = rc->initial_mouse[1] - ar->winrct.ymin;
-	glTranslatef((float)x, (float)y, 0.0f);
+	gpuTranslate2f((float)x, (float)y);
 
 	glEnable(GL_BLEND);
 	glEnable(GL_LINE_SMOOTH);
@@ -2501,7 +2683,7 @@ static void radial_control_paint_cursor(bContext *C, int x, int y, void *customd
 	/* apply zoom if available */
 	if (rc->zoom_prop) {
 		RNA_property_float_get_array(&rc->zoom_ptr, rc->zoom_prop, zoom);
-		glScalef(zoom[0], zoom[1], 1);
+		gpuScale2fv(zoom);
 	}
 
 	/* draw rotated texture */
@@ -2510,24 +2692,39 @@ static void radial_control_paint_cursor(bContext *C, int x, int y, void *customd
 	/* set line color */
 	if (rc->col_prop)
 		RNA_property_float_get_array(&rc->col_ptr, rc->col_prop, col);
-	glColor4f(col[0], col[1], col[2], 0.5);
+
+	Gwn_VertFormat *format = immVertexFormat();
+	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+
+	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+	immUniformColor3fvAlpha(col, 0.5f);
 
 	if (rc->subtype == PROP_ANGLE) {
-		glPushMatrix();
+		gpuPushMatrix();
+
 		/* draw original angle line */
-		glRotatef(RAD2DEGF(rc->initial_value), 0, 0, 1);
-		fdrawline((float)WM_RADIAL_CONTROL_DISPLAY_MIN_SIZE, 0.0f, (float)WM_RADIAL_CONTROL_DISPLAY_SIZE, 0.0f);
+		gpuRotate2D(RAD2DEGF(rc->initial_value));
+		immBegin(GWN_PRIM_LINES, 2);
+		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_MIN_SIZE, 0.0f);
+		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_SIZE, 0.0f);
+		immEnd();
+
 		/* draw new angle line */
-		glRotatef(RAD2DEGF(rc->current_value - rc->initial_value), 0, 0, 1);
-		fdrawline((float)WM_RADIAL_CONTROL_DISPLAY_MIN_SIZE, 0.0f, (float)WM_RADIAL_CONTROL_DISPLAY_SIZE, 0.0f);
-		glPopMatrix();
+		gpuRotate2D(RAD2DEGF(rc->current_value - rc->initial_value));
+		immBegin(GWN_PRIM_LINES, 2);
+		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_MIN_SIZE, 0.0f);
+		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_SIZE, 0.0f);
+		immEnd();
+
+		gpuPopMatrix();
 	}
 
 	/* draw circles on top */
-	glutil_draw_lined_arc(0.0, (float)(M_PI * 2.0), r1, 40);
-	glutil_draw_lined_arc(0.0, (float)(M_PI * 2.0), r2, 40);
+	imm_draw_circle_wire_2d(pos, 0.0f, 0.0f, r1, 40);
+	imm_draw_circle_wire_2d(pos, 0.0f, 0.0f, r2, 40);
 	if (rmin > 0.0f)
-		glutil_draw_lined_arc(0.0, (float)(M_PI * 2.0), rmin, 40);
+		imm_draw_circle_wire_2d(pos, 0.0, 0.0f, rmin, 40);
+	immUnbindProgram();
 
 	BLF_size(fontid, 1.5 * fstyle_points * U.pixelsize, U.dpi);
 	BLF_enable(fontid, BLF_SHADOW);
@@ -2543,6 +2740,7 @@ static void radial_control_paint_cursor(bContext *C, int x, int y, void *customd
 
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
+
 }
 
 typedef enum {
@@ -3115,6 +3313,7 @@ static const EnumPropertyItem redraw_timer_type_items[] = {
 
 static void redraw_timer_step(
         bContext *C, Main *bmain, Scene *scene,
+        struct Depsgraph *depsgraph,
         wmWindow *win, ScrArea *sa, ARegion *ar,
         const int type, const int cfra)
 {
@@ -3133,16 +3332,17 @@ static void redraw_timer_step(
 		CTX_wm_window_set(C, win);  /* XXX context manipulation warning! */
 	}
 	else if (type == eRTDrawWindow) {
+		bScreen *screen = WM_window_get_active_screen(win);
 		ScrArea *sa_iter;
 
 		CTX_wm_menu_set(C, NULL);
 
-		for (sa_iter = win->screen->areabase.first; sa_iter; sa_iter = sa_iter->next) {
+		for (sa_iter = screen->areabase.first; sa_iter; sa_iter = sa_iter->next) {
 			ARegion *ar_iter;
 			CTX_wm_area_set(C, sa_iter);
 
 			for (ar_iter = sa_iter->regionbase.first; ar_iter; ar_iter = ar_iter->next) {
-				if (ar_iter->swinid) {
+				if (ar_iter->visible) {
 					CTX_wm_region_set(C, ar_iter);
 					ED_region_do_draw(C, ar_iter);
 					ar_iter->do_draw = false;
@@ -3160,7 +3360,7 @@ static void redraw_timer_step(
 	}
 	else if (type == eRTAnimationStep) {
 		scene->r.cfra += (cfra == scene->r.cfra) ? 1 : -1;
-		BKE_scene_update_for_newframe(bmain->eval_ctx, bmain, scene, scene->lay);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 	else if (type == eRTAnimationPlay) {
 		/* play anim, return on same frame as started with */
@@ -3172,7 +3372,7 @@ static void redraw_timer_step(
 			if (scene->r.cfra > scene->r.efra)
 				scene->r.cfra = scene->r.sfra;
 
-			BKE_scene_update_for_newframe(bmain->eval_ctx, bmain, scene, scene->lay);
+			BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 			redraw_timer_window_swap(C);
 		}
 	}
@@ -3196,13 +3396,14 @@ static int redraw_timer_exec(bContext *C, wmOperator *op)
 	const int cfra = scene->r.cfra;
 	int a, iter_steps = 0;
 	const char *infostr = "";
+	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	WM_cursor_wait(1);
 
 	time_start = PIL_check_seconds_timer();
 
 	for (a = 0; a < iter; a++) {
-		redraw_timer_step(C, bmain, scene, win, sa, ar, type, cfra);
+		redraw_timer_step(C, bmain, scene, depsgraph, win, sa, ar, type, cfra);
 		iter_steps += 1;
 
 		if (time_limit != 0.0) {
@@ -3258,28 +3459,6 @@ static void WM_OT_memory_statistics(wmOperatorType *ot)
 	ot->description = "Print memory statistics to the console";
 	
 	ot->exec = memory_statistics_exec;
-}
-
-/* ************************** memory statistics for testing ***************** */
-
-static int dependency_relations_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	Main *bmain = CTX_data_main(C);
-	Scene *scene = CTX_data_scene(C);
-	Object *ob = CTX_data_active_object(C);
-
-	DAG_print_dependencies(bmain, scene, ob);
-
-	return OPERATOR_FINISHED;
-}
-
-static void WM_OT_dependency_relations(wmOperatorType *ot)
-{
-	ot->name = "Dependency Relations";
-	ot->idname = "WM_OT_dependency_relations";
-	ot->description = "Print dependency graph relations to the console";
-	
-	ot->exec = dependency_relations_exec;
 }
 
 /* *************************** Mat/tex/etc. previews generation ************* */
@@ -3528,12 +3707,13 @@ void wm_operatortype_init(void)
 	global_ops_hash = BLI_ghash_str_new_ex("wm_operatortype_init gh", 2048);
 
 	WM_operatortype_append(WM_OT_window_close);
-	WM_operatortype_append(WM_OT_window_duplicate);
+	WM_operatortype_append(WM_OT_window_new);
 	WM_operatortype_append(WM_OT_read_history);
 	WM_operatortype_append(WM_OT_read_homefile);
 	WM_operatortype_append(WM_OT_read_factory_settings);
 	WM_operatortype_append(WM_OT_save_homefile);
 	WM_operatortype_append(WM_OT_save_userpref);
+	WM_operatortype_append(WM_OT_save_workspace_file);
 	WM_operatortype_append(WM_OT_userpref_autoexec_path_add);
 	WM_operatortype_append(WM_OT_userpref_autoexec_path_remove);
 	WM_operatortype_append(WM_OT_window_fullscreen_toggle);
@@ -3550,9 +3730,11 @@ void wm_operatortype_init(void)
 	WM_operatortype_append(WM_OT_save_mainfile);
 	WM_operatortype_append(WM_OT_redraw_timer);
 	WM_operatortype_append(WM_OT_memory_statistics);
-	WM_operatortype_append(WM_OT_dependency_relations);
 	WM_operatortype_append(WM_OT_debug_menu);
 	WM_operatortype_append(WM_OT_operator_defaults);
+#ifdef USE_WORKSPACE_TOOL
+	WM_operatortype_append(WM_OT_tool_set);
+#endif
 	WM_operatortype_append(WM_OT_splash);
 	WM_operatortype_append(WM_OT_search_menu);
 	WM_operatortype_append(WM_OT_call_menu);
@@ -3565,6 +3747,10 @@ void wm_operatortype_init(void)
 	WM_operatortype_append(WM_OT_previews_ensure);
 	WM_operatortype_append(WM_OT_previews_clear);
 	WM_operatortype_append(WM_OT_doc_view_manual_ui_context);
+
+	/* manipulators */
+	WM_operatortype_append(MANIPULATORGROUP_OT_manipulator_select);
+	WM_operatortype_append(MANIPULATORGROUP_OT_manipulator_tweak);
 }
 
 /* circleselect-like modal operators */
@@ -3767,7 +3953,7 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 	
 	/* note, this doesn't replace existing keymap items */
-	WM_keymap_verify_item(keymap, "WM_OT_window_duplicate", WKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
+	WM_keymap_verify_item(keymap, "WM_OT_window_new", WKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 #ifdef __APPLE__
 	WM_keymap_add_item(keymap, "WM_OT_read_homefile", NKEY, KM_PRESS, KM_OSKEY, 0);
 	WM_keymap_add_menu(keymap, "INFO_MT_file_open_recent", OKEY, KM_PRESS, KM_SHIFT | KM_OSKEY, 0);
@@ -3807,10 +3993,6 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 #endif
 
 	/* Space switching */
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", F2KEY, KM_PRESS, KM_SHIFT, 0); /* new in 2.5x, was DXF export */
-	RNA_string_set(kmi->ptr, "data_path", "area.type");
-	RNA_string_set(kmi->ptr, "value", "LOGIC_EDITOR");
-
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", F3KEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_string_set(kmi->ptr, "data_path", "area.type");
 	RNA_string_set(kmi->ptr, "value", "NODE_EDITOR");
@@ -3871,6 +4053,7 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 	RNA_float_set(kmi->ptr, "value", 1.0f / 1.5f);
 #endif /* WITH_INPUT_NDOF */
 
+	wm_manipulators_keymap(keyconf);
 	gesture_circle_modal_keymap(keyconf);
 	gesture_border_modal_keymap(keyconf);
 	gesture_zoom_border_modal_keymap(keyconf);

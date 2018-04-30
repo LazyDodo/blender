@@ -191,7 +191,13 @@ static uiBlock *ui_block_func_POPUP(bContext *C, uiPopupBlockHandle *handle, voi
 
 	if (pup->but) {
 		/* minimum width to enforece */
-		minwidth = BLI_rctf_size_x(&pup->but->rect);
+		if (pup->but->drawstr[0]) {
+			minwidth = BLI_rctf_size_x(&pup->but->rect);
+		}
+		else {
+			/* For buttons with no text, use the minimum (typically icon only). */
+			minwidth = UI_MENU_WIDTH_MIN;
+		}
 
 		/* settings (typically rna-enum-popups) show above the button,
 		 * menu's like file-menu, show below */
@@ -209,7 +215,7 @@ static uiBlock *ui_block_func_POPUP(bContext *C, uiPopupBlockHandle *handle, voi
 		}
 	}
 	else {
-		minwidth = 50;
+		minwidth = UI_MENU_WIDTH_MIN;
 		direction = UI_DIR_DOWN;
 	}
 
@@ -612,11 +618,13 @@ void UI_popup_block_close(bContext *C, wmWindow *win, uiBlock *block)
 	/* if loading new .blend while popup is open, window will be NULL */
 	if (block->handle) {
 		if (win) {
+			const bScreen *screen = WM_window_get_active_screen(win);
+
 			UI_popup_handlers_remove(&win->modalhandlers, block->handle);
 			ui_popup_block_free(C, block->handle);
 
 			/* In the case we have nested popups, closing one may need to redraw another, see: T48874 */
-			for (ARegion *ar = win->screen->regionbase.first; ar; ar = ar->next) {
+			for (ARegion *ar = screen->regionbase.first; ar; ar = ar->next) {
 				ED_region_tag_refresh_ui(ar);
 			}
 		}

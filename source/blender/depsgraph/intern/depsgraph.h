@@ -38,13 +38,18 @@
 
 #include "BLI_threads.h"  /* for SpinLock */
 
+#include "DEG_depsgraph.h"
+
 #include "intern/depsgraph_types.h"
 
 struct ID;
 struct GHash;
+struct Main;
 struct GSet;
 struct PointerRNA;
 struct PropertyRNA;
+struct Scene;
+struct ViewLayer;
 
 namespace DEG {
 
@@ -96,14 +101,17 @@ struct Depsgraph {
 	typedef vector<OperationDepsNode *> OperationNodes;
 	typedef vector<IDDepsNode *> IDDepsNodes;
 
-	Depsgraph();
+	Depsgraph(Scene *scene,
+	          ViewLayer *view_layer,
+	          eEvaluationMode mode);
 	~Depsgraph();
 
 	/**
 	 * Convenience wrapper to find node given just pointer + property.
 	 *
 	 * \param ptr: pointer to the data that node will represent
-	 * \param prop: optional property affected - providing this effectively results in inner nodes being returned
+	 * \param prop: optional property affected - providing this effectively
+	 *              results in inner nodes being returned
 	 *
 	 * \return A node matching the required characteristics if it exists
 	 * or NULL if no such node exists in the graph
@@ -114,7 +122,7 @@ struct Depsgraph {
 	TimeSourceDepsNode *find_time_source() const;
 
 	IDDepsNode *find_id_node(const ID *id) const;
-	IDDepsNode *add_id_node(ID *id, const char *name = "");
+	IDDepsNode *add_id_node(ID *id, ID *id_cow_hint = NULL);
 	void clear_id_nodes();
 
 	/* Add new relationship between two nodes. */
@@ -141,6 +149,11 @@ struct Depsgraph {
 
 	/* Clear storage used by all nodes. */
 	void clear_all_nodes();
+
+	/* Copy-on-Write Functionality ........ */
+
+	/* For given original ID get ID which is created by CoW system. */
+	ID *get_cow_id(const ID *id_orig) const;
 
 	/* Core Graph Functionality ........... */
 
@@ -177,12 +190,18 @@ struct Depsgraph {
 	 */
 	SpinLock lock;
 
-	/* Layers Visibility .................. */
+	/* Scene, layer, mode this dependency graph is built for. */
+	Scene *scene;
+	ViewLayer *view_layer;
+	eEvaluationMode mode;
 
-	/* Visible layers bitfield, used for skipping invisible objects updates. */
-	unsigned int layers;
+	/* Time at which dependency graph is being or was last evaluated. */
+	float ctime;
 
-	// XXX: additional stuff like eval contexts, mempools for allocating nodes from, etc.
+	/* Evaluated version of datablocks we access a lot.
+	 * Stored here to save us form doing hash lookup.
+	 */
+	Scene *scene_cow;
 };
 
 }  // namespace DEG

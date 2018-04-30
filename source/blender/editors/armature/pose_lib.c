@@ -46,7 +46,6 @@
 #include "BKE_animsys.h"
 #include "BKE_action.h"
 #include "BKE_armature.h"
-#include "BKE_depsgraph.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
 #include "BKE_library.h"
@@ -54,6 +53,8 @@
 
 #include "BKE_context.h"
 #include "BKE_report.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -1101,9 +1102,9 @@ static void poselib_preview_apply(bContext *C, wmOperator *op)
 		 */
 		// FIXME: shouldn't this use the builtin stuff?
 		if ((pld->arm->flag & ARM_DELAYDEFORM) == 0)
-			DAG_id_tag_update(&pld->ob->id, OB_RECALC_DATA);  /* sets recalc flags */
+			DEG_id_tag_update(&pld->ob->id, OB_RECALC_DATA);  /* sets recalc flags */
 		else
-			BKE_pose_where_is(pld->scene, pld->ob);
+			BKE_pose_where_is(CTX_data_depsgraph(C), pld->scene, pld->ob);
 	}
 	
 	/* do header print - if interactively previewing */
@@ -1609,9 +1610,9 @@ static void poselib_preview_cleanup(bContext *C, wmOperator *op)
 		 *	- note: code copied from transform_generics.c -> recalcData()
 		 */
 		if ((arm->flag & ARM_DELAYDEFORM) == 0)
-			DAG_id_tag_update(&ob->id, OB_RECALC_DATA);  /* sets recalc flags */
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);  /* sets recalc flags */
 		else
-			BKE_pose_where_is(scene, ob);
+			BKE_pose_where_is(CTX_data_depsgraph(C), scene, ob);
 	}
 	else if (pld->state == PL_PREVIEW_CONFIRM) {
 		/* tag poses as appropriate */
@@ -1622,14 +1623,14 @@ static void poselib_preview_cleanup(bContext *C, wmOperator *op)
 		action_set_activemarker(act, marker, NULL);
 		
 		/* Update event for pose and deformation children */
-		DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		
 		/* updates */
 		if (IS_AUTOKEY_MODE(scene, NORMAL)) {
 			//remake_action_ipos(ob->action);
 		}
 		else
-			BKE_pose_where_is(scene, ob);
+			BKE_pose_where_is(CTX_data_depsgraph(C), scene, ob);
 	}
 	
 	/* Request final redraw of the view. */

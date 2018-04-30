@@ -46,7 +46,6 @@
 #include "BKE_cdderivedmesh.h"
 #include "BKE_library_query.h"
 
-#include "depsgraph_private.h"
 #include "DEG_depsgraph_build.h"
 
 #include "MOD_modifiertypes.h"
@@ -185,8 +184,8 @@ static void copyData(ModifierData *md, ModifierData *target)
 	modifier_copyData_generic(md, target);
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
-                                  DerivedMesh *derivedData,
+static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+                                  Object *ob, DerivedMesh *derivedData,
                                   ModifierApplyFlag flag)
 {
 	DerivedMesh *dm = derivedData;
@@ -1118,20 +1117,6 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 	return result;
 }
 
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	ScrewModifierData *ltmd = (ScrewModifierData *) md;
-
-	if (ltmd->ob_axis) {
-		DagNode *curNode = dag_get_node(ctx->forest, ltmd->ob_axis);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA,
-		                 "Screw Modifier");
-	}
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ScrewModifierData *ltmd = (ScrewModifierData *)md;
@@ -1171,7 +1156,6 @@ ModifierTypeInfo modifierType_Screw = {
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

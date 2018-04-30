@@ -41,7 +41,6 @@
 #include "BLI_blenlib.h"
 
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_library.h"
@@ -49,6 +48,8 @@
 #include "BKE_node.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RE_engine.h"
 #include "RE_pipeline.h"
@@ -123,7 +124,7 @@ static int compo_get_recalc_flags(const bContext *C)
 	int recalc_flags = 0;
 
 	for (win = wm->windows.first; win; win = win->next) {
-		bScreen *sc = win->screen;
+		const bScreen *sc = WM_window_get_active_screen(win);
 		ScrArea *sa;
 
 		for (sa = sc->areabase.first; sa; sa = sa->next) {
@@ -328,11 +329,11 @@ void snode_dag_update(bContext *C, SpaceNode *snode)
 	if (snode->edittree != snode->nodetree) {
 		FOREACH_NODETREE(bmain, tntree, id) {
 			if (ntreeHasTree(tntree, snode->edittree))
-				DAG_id_tag_update(id, 0);
+				DEG_id_tag_update(id, 0);
 		} FOREACH_NODETREE_END
 	}
 
-	DAG_id_tag_update(snode->id, 0);
+	DEG_id_tag_update(snode->id, 0);
 }
 
 void snode_notify(bContext *C, SpaceNode *snode)
@@ -382,7 +383,6 @@ bool ED_node_is_texture(struct SpaceNode *snode)
 /* called from shading buttons or header */
 void ED_node_shader_default(const bContext *C, ID *id)
 {
-	Scene *scene = CTX_data_scene(C);
 	bNode *in, *out;
 	bNodeSocket *fromsock, *tosock, *sock;
 	bNodeTree *ntree;
@@ -397,14 +397,8 @@ void ED_node_shader_default(const bContext *C, ID *id)
 			Material *ma = (Material *)id;
 			ma->nodetree = ntree;
 
-			if (BKE_scene_use_new_shading_nodes(scene)) {
-				output_type = SH_NODE_OUTPUT_MATERIAL;
-				shader_type = SH_NODE_BSDF_DIFFUSE;
-			}
-			else {
-				output_type = SH_NODE_OUTPUT;
-				shader_type = SH_NODE_MATERIAL;
-			}
+			output_type = SH_NODE_OUTPUT_MATERIAL;
+			shader_type = SH_NODE_BSDF_PRINCIPLED;
 
 			copy_v3_v3(color, &ma->r);
 			strength = 0.0f;
@@ -455,18 +449,16 @@ void ED_node_shader_default(const bContext *C, ID *id)
 	nodeAddLink(ntree, in, fromsock, out, tosock);
 
 	/* default values */
-	if (BKE_scene_use_new_shading_nodes(scene)) {
-		PointerRNA sockptr;
-		sock = in->inputs.first;
-		RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
-		
-		RNA_float_set_array(&sockptr, "default_value", color);
+	PointerRNA sockptr;
+	sock = in->inputs.first;
+	RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
+	
+	RNA_float_set_array(&sockptr, "default_value", color);
 
-		if (strength != 0.0f) {
-			sock = in->inputs.last;
-			RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
-			RNA_float_set(&sockptr, "default_value", strength);
-		}
+	if (strength != 0.0f) {
+		sock = in->inputs.last;
+		RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
+		RNA_float_set(&sockptr, "default_value", strength);
 	}
 	
 	ntreeUpdateTree(CTX_data_main(C), ntree);
@@ -544,12 +536,6 @@ void snode_set_context(const bContext *C)
 	bNodeTreeType *treetype = ntreeTypeFind(snode->tree_idname);
 	bNodeTree *ntree = snode->nodetree;
 	ID *id = snode->id, *from = snode->from;
-	
-	/* we use this to signal warnings, when node shaders are drawn in wrong render engine */
-	if (BKE_scene_use_new_shading_nodes(CTX_data_scene(C)))
-		snode->flag |= SNODE_NEW_SHADERS;
-	else
-		snode->flag &= ~SNODE_NEW_SHADERS;
 	
 	/* check the tree type */
 	if (!treetype ||
@@ -638,7 +624,7 @@ void ED_node_set_active(Main *bmain, bNodeTree *ntree, bNode *node)
 			if (node->id && ELEM(GS(node->id->name), ID_MA, ID_LA, ID_WO))
 				nodeClearActiveID(ntree, ID_TE);
 			
-			if (ELEM(node->type, SH_NODE_OUTPUT, SH_NODE_OUTPUT_MATERIAL,
+			if (ELEM(node->type, SH_NODE_OUTPUT_MATERIAL,
 			         SH_NODE_OUTPUT_WORLD, SH_NODE_OUTPUT_LAMP, SH_NODE_OUTPUT_LINESTYLE))
 			{
 				bNode *tnode;
@@ -688,22 +674,6 @@ void ED_node_set_active(Main *bmain, bNodeTree *ntree, bNode *node)
 				
 				/* addnode() doesnt link this yet... */
 				node->id = (ID *)BKE_image_verify_viewer(IMA_TYPE_COMPOSITE, "Viewer Node");
-			}
-			else if (node->type == CMP_NODE_R_LAYERS) {
-				Scene *scene;
-
-				for (scene = bmain->scene.first; scene; scene = scene->id.next) {
-					if (scene->nodetree && scene->use_nodes && ntreeHasTree(scene->nodetree, ntree)) {
-						if (node->id == NULL || node->id == (ID *)scene) {
-							int num_layers = BLI_listbase_count(&scene->r.layers);
-							scene->r.actlay = node->custom1;
-							/* Clamp the value, because it might have come from a different
-							 * scene which could have more render layers than new one.
-							 */
-							scene->r.actlay = min_ff(scene->r.actlay, num_layers - 1);
-						}
-					}
-				}
 			}
 			else if (node->type == CMP_NODE_COMPOSITE) {
 				if (was_output == 0) {
@@ -1271,7 +1241,7 @@ bool ED_node_select_check(ListBase *lb)
 
 
 /* goes over all scenes, reads render layers */
-static int node_read_renderlayers_exec(bContext *C, wmOperator *UNUSED(op))
+static int node_read_viewlayers_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Main *bmain = CTX_data_main(C);
 	SpaceNode *snode = CTX_wm_space_node(C);
@@ -1301,48 +1271,14 @@ static int node_read_renderlayers_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void NODE_OT_read_renderlayers(wmOperatorType *ot)
+void NODE_OT_read_viewlayers(wmOperatorType *ot)
 {
 	
-	ot->name = "Read Render Layers";
-	ot->idname = "NODE_OT_read_renderlayers";
+	ot->name = "Read View Layers";
+	ot->idname = "NODE_OT_read_viewlayers";
 	ot->description = "Read all render layers of all used scenes";
 	
-	ot->exec = node_read_renderlayers_exec;
-	
-	ot->poll = composite_node_active;
-	
-	/* flags */
-	ot->flag = 0;
-}
-
-static int node_read_fullsamplelayers_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	Main *bmain = CTX_data_main(C);
-	SpaceNode *snode = CTX_wm_space_node(C);
-	Scene *curscene = CTX_data_scene(C);
-	Render *re = RE_NewSceneRender(curscene);
-
-	WM_cursor_wait(1);
-	RE_MergeFullSample(re, bmain, curscene, snode->nodetree);
-	WM_cursor_wait(0);
-
-	/* note we are careful to send the right notifier, as otherwise the
-	 * compositor would reexecute and overwrite the full sample result */
-	WM_event_add_notifier(C, NC_SCENE | ND_COMPO_RESULT, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-
-void NODE_OT_read_fullsamplelayers(wmOperatorType *ot)
-{
-	
-	ot->name = "Read Full Sample Layers";
-	ot->idname = "NODE_OT_read_fullsamplelayers";
-	ot->description = "Read all render layers of current scene, in full sample";
-	
-	ot->exec = node_read_fullsamplelayers_exec;
+	ot->exec = node_read_viewlayers_exec;
 	
 	ot->poll = composite_node_active;
 	
@@ -1361,13 +1297,13 @@ int node_render_changed_exec(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 	if (node) {
-		SceneRenderLayer *srl = BLI_findlink(&sce->r.layers, node->custom1);
+		ViewLayer *view_layer = BLI_findlink(&sce->view_layers, node->custom1);
 		
-		if (srl) {
+		if (view_layer) {
 			PointerRNA op_ptr;
 			
 			WM_operator_properties_create(&op_ptr, "RENDER_OT_render");
-			RNA_string_set(&op_ptr, "layer", srl->name);
+			RNA_string_set(&op_ptr, "layer", view_layer->name);
 			RNA_string_set(&op_ptr, "scene", sce->id.name + 2);
 			
 			/* to keep keypositions */

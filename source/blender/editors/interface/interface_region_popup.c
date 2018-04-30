@@ -48,7 +48,6 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
-#include "wm_subwindow.h"
 
 #include "UI_interface.h"
 
@@ -139,11 +138,12 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 		const int win_y = WM_window_pixels_y(window);
 		// wm_window_get_size(window, &win_x, &win_y);
 
+		const int center_x = (block->direction & UI_DIR_CENTER_X) ? size_x / 2 : 0;
 		const int center_y = (block->direction & UI_DIR_CENTER_Y) ? size_y / 2 : 0;
 
 		/* check if there's space at all */
-		if (butrct.xmin - size_x > 0.0f) left = 1;
-		if (butrct.xmax + size_x < win_x) right = 1;
+		if (butrct.xmin - size_x + center_x > 0.0f) left = 1;
+		if (butrct.xmax + size_x - center_x < win_x) right = 1;
 		if (butrct.ymin - size_y + center_y > 0.0f) down = 1;
 		if (butrct.ymax + size_y - center_y < win_y) top = 1;
 
@@ -194,8 +194,8 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 		}
 		else if (dir1 == UI_DIR_UP) {
 			offset_y = butrct.ymax - block->rect.ymin;
-			if (dir2 == UI_DIR_RIGHT) offset_x = butrct.xmax - block->rect.xmax;
-			else                      offset_x = butrct.xmin - block->rect.xmin;
+			if (dir2 == UI_DIR_RIGHT) offset_x = butrct.xmax - block->rect.xmax + center_x;
+			else                      offset_x = butrct.xmin - block->rect.xmin - center_x;
 			/* changed direction? */
 			if ((dir1 & block->direction) == 0) {
 				UI_block_order_flip(block);
@@ -203,12 +203,17 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 		}
 		else if (dir1 == UI_DIR_DOWN) {
 			offset_y = butrct.ymin - block->rect.ymax;
-			if (dir2 == UI_DIR_RIGHT) offset_x = butrct.xmax - block->rect.xmax;
-			else                      offset_x = butrct.xmin - block->rect.xmin;
+			if (dir2 == UI_DIR_RIGHT) offset_x = butrct.xmax - block->rect.xmax + center_x;
+			else                      offset_x = butrct.xmin - block->rect.xmin - center_x;
 			/* changed direction? */
 			if ((dir1 & block->direction) == 0) {
 				UI_block_order_flip(block);
 			}
+		}
+
+		/* Center over popovers for eg. */
+		if (block->direction & UI_DIR_CENTER_X) {
+			offset_x += BLI_rctf_size_x(&butrct) / ((dir2 == UI_DIR_LEFT) ? 2 : - 2);
 		}
 
 		/* and now we handle the exception; no space below or to top */
@@ -295,7 +300,7 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 /** \name Menu Block Creation
  * \{ */
 
-static void ui_block_region_draw(const bContext *C, ARegion *ar)
+static void ui_block_region_refresh(const bContext *C, ARegion *ar)
 {
 	ScrArea *ctx_area = CTX_wm_area(C);
 	ARegion *ctx_region = CTX_wm_region(C);
@@ -309,9 +314,11 @@ static void ui_block_region_draw(const bContext *C, ARegion *ar)
 		ar->do_draw &= ~RGN_DRAW_REFRESH_UI;
 		for (block = ar->uiblocks.first; block; block = block_next) {
 			block_next = block->next;
-			if (block->handle->can_refresh) {
-				handle_ctx_area = block->handle->ctx_area;
-				handle_ctx_region = block->handle->ctx_region;
+			uiPopupBlockHandle *handle = block->handle;
+
+			if (handle->can_refresh) {
+				handle_ctx_area = handle->ctx_area;
+				handle_ctx_region = handle->ctx_region;
 
 				if (handle_ctx_area) {
 					CTX_wm_area_set((bContext *)C, handle_ctx_area);
@@ -319,13 +326,21 @@ static void ui_block_region_draw(const bContext *C, ARegion *ar)
 				if (handle_ctx_region) {
 					CTX_wm_region_set((bContext *)C, handle_ctx_region);
 				}
-				ui_popup_block_refresh((bContext *)C, block->handle, NULL, NULL);
+
+				uiBut *but = handle->popup_create_vars.but;
+				ARegion *butregion = handle->popup_create_vars.butregion;
+				ui_popup_block_refresh((bContext *)C, handle, butregion, but);
 			}
 		}
 	}
 
 	CTX_wm_area_set((bContext *)C, ctx_area);
 	CTX_wm_region_set((bContext *)C, ctx_region);
+}
+
+static void ui_block_region_draw(const bContext *C, ARegion *ar)
+{
+	uiBlock *block;
 
 	for (block = ar->uiblocks.first; block; block = block->next)
 		UI_block_draw(C, block);
@@ -335,7 +350,7 @@ static void ui_block_region_draw(const bContext *C, ARegion *ar)
  * Use to refresh centered popups on screen resizing (for splash).
  */
 static void ui_block_region_popup_window_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn)
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	switch (wmn->category) {
 		case NC_WINDOW:
@@ -576,6 +591,17 @@ uiBlock *ui_popup_block_refresh(
 	else {
 		/* clip block with window boundary */
 		ui_popup_block_clip(window, block);
+
+		/* Avoid menu moving down and losing cursor focus by keeping it at
+		 * the same height. */
+		if (block_old && handle->prev_block_rect.ymax > block->rect.ymax) {
+			float offset = handle->prev_block_rect.ymax - block->rect.ymax;
+			ui_block_translate(block, 0, offset);
+			block->rect.ymin = handle->prev_block_rect.ymin;
+		}
+
+		handle->prev_block_rect = block->rect;
+
 		/* the block and buttons were positioned in window space as in 2.4x, now
 		 * these menu blocks are regions so we bring it back to region space.
 		 * additionally we add some padding for the menu shadow or rounded menus */
@@ -600,9 +626,7 @@ uiBlock *ui_popup_block_refresh(
 	ED_region_init(C, ar);
 
 	/* get winmat now that we actually have the subwindow */
-	wmSubWindowSet(window, ar->swinid);
-
-	wm_subwindow_matrix_get(window, ar->swinid, block->winmat);
+	wmGetProjectionMatrix(block->winmat, &ar->winrct);
 
 	/* notify change and redraw */
 	ED_region_tag_redraw(ar);
@@ -646,6 +670,7 @@ uiPopupBlockHandle *ui_popup_block_create(
 	handle->popup_create_vars.create_func = create_func;
 	handle->popup_create_vars.handle_create_func = handle_create_func;
 	handle->popup_create_vars.arg = arg;
+	handle->popup_create_vars.but = but;
 	handle->popup_create_vars.butregion = but ? butregion : NULL;
 	copy_v2_v2_int(handle->popup_create_vars.event_xy, &window->eventstate->x);
 	/* caller may free vars used to create this popup, in that case this variable should be disabled. */
@@ -657,6 +682,7 @@ uiPopupBlockHandle *ui_popup_block_create(
 
 	memset(&type, 0, sizeof(ARegionType));
 	type.draw = ui_block_region_draw;
+	type.layout = ui_block_region_refresh;
 	type.regionid = RGN_TYPE_TEMPORARY;
 	ar->type = &type;
 
@@ -675,6 +701,10 @@ uiPopupBlockHandle *ui_popup_block_create(
 
 void ui_popup_block_free(bContext *C, uiPopupBlockHandle *handle)
 {
+	if (handle->popup_create_vars.free_func) {
+		handle->popup_create_vars.free_func(handle, handle->popup_create_vars.arg);
+	}
+
 	ui_popup_block_remove(C, handle);
 
 	MEM_freeN(handle);

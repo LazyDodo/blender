@@ -144,6 +144,15 @@ class WindowManager(bpy_types.ID):
         finally:
             self.popmenu_end__internal(popup)
 
+    def popover(self, draw_func, title="", icon='NONE'):
+        import bpy
+        popup = self.popover_begin__internal(title, icon)
+
+        try:
+            draw_func(popup, bpy.context)
+        finally:
+            self.popover_end__internal(popup)
+
     def popup_menu_pie(self, event, draw_func, title="", icon='NONE'):
         import bpy
         pie = self.piemenu_begin__internal(title, icon, event)
@@ -517,15 +526,6 @@ class Text(bpy_types.ID):
         self.clear()
         self.write(string)
 
-    @property
-    def users_logic(self):
-        """Logic bricks that use this text"""
-        import bpy
-        return tuple(obj for obj in bpy.data.objects
-                     if self in [cont.text for cont in obj.game.controllers
-                                 if cont.type == 'PYTHON']
-                     )
-
 
 # values are module: [(cls, path, line), ...]
 TypeMap = {}
@@ -590,6 +590,106 @@ class OrderedMeta(RNAMeta):
 
     def __prepare__(name, bases, **kwargs):
         return OrderedDictMini()  # collections.OrderedDict()
+
+
+# Same as 'Operator'
+# only without 'as_keywords'
+class Manipulator(StructRNA, metaclass=OrderedMeta):
+    __slots__ = ()
+
+    def __getattribute__(self, attr):
+        properties = StructRNA.path_resolve(self, "properties")
+        bl_rna = getattr(properties, "bl_rna", None)
+        if (bl_rna is not None) and (attr in bl_rna.properties):
+            return getattr(properties, attr)
+        return super().__getattribute__(attr)
+
+    def __setattr__(self, attr, value):
+        properties = StructRNA.path_resolve(self, "properties")
+        bl_rna = getattr(properties, "bl_rna", None)
+        if (bl_rna is not None) and (attr in bl_rna.properties):
+            return setattr(properties, attr, value)
+        return super().__setattr__(attr, value)
+
+    def __delattr__(self, attr):
+        properties = StructRNA.path_resolve(self, "properties")
+        bl_rna = getattr(properties, "bl_rna", None)
+        if (bl_rna is not None) and (attr in bl_rna.properties):
+            return delattr(properties, attr)
+        return super().__delattr__(attr)
+
+    from _bpy import (
+        _rna_manipulator_target_set_handler as target_set_handler,
+        _rna_manipulator_target_get_value as target_get_value,
+        _rna_manipulator_target_set_value as target_set_value,
+        _rna_manipulator_target_get_range as target_get_range,
+    )
+
+    # Convenience wrappers around private `_gawain` module.
+    def draw_custom_shape(self, shape, *, matrix=None, select_id=None):
+        """
+        Draw a shape created form :class:`bpy.types.Manipulator.draw_custom_shape`.
+
+        :arg shape: The cached shape to draw.
+        :type shape: Undefined.
+        :arg matrix: 4x4 matrix, when not given
+           :class:`bpy.types.Manipulator.matrix_world` is used.
+        :type matrix: :class:`mathutils.Matrix`
+        :arg select_id: The selection id.
+           Only use when drawing within :class:`bpy.types.Manipulator.draw_select`.
+        :type select_it: int
+        """
+        import gpu
+
+        if matrix is None:
+            matrix = self.matrix_world
+
+        batch, dims = shape
+
+        # XXX, can we avoid setting the shader every time?
+        batch.program_set_builtin('3D_UNIFORM_COLOR' if dims == 3 else '2D_UNIFORM_COLOR')
+
+        if select_id is not None:
+            gpu.select.load_id(select_id)
+        else:
+            if self.is_highlight:
+                color = (*self.color_highlight, self.alpha_highlight)
+            else:
+                color = (*self.color, self.alpha)
+            batch.uniform_f32("color", *color)
+
+        with gpu.matrix.push_pop():
+            gpu.matrix.multiply_matrix(matrix)
+            batch.draw()
+
+    @staticmethod
+    def new_custom_shape(type, verts):
+        """
+        Create a new shape that can be passed to :class:`bpy.types.Manipulator.draw_custom_shape`.
+
+        :arg type: The type of shape to create in (POINTS, LINES, TRIS, LINE_STRIP).
+        :type type: string
+        :arg verts: Coordinates.
+        :type verts: sequence of of 2D or 3D coordinates.
+        :arg display_name: Optional callback that takes the full path, returns the name to display.
+        :type display_name: Callable that takes a string and returns a string.
+        :return: The newly created shape.
+        :rtype: Undefined (it may change).
+        """
+        from _gawain.types import (
+            Gwn_Batch,
+            Gwn_VertBuf,
+            Gwn_VertFormat,
+        )
+        dims = len(verts[0])
+        if dims not in {2, 3}:
+            raise ValueError("Expected 2D or 3D vertex")
+        fmt = Gwn_VertFormat()
+        pos_id = fmt.attr_add(id="pos", comp_type='F32', len=dims, fetch_mode='FLOAT')
+        vbo = Gwn_VertBuf(len=len(verts), format=fmt)
+        vbo.fill(id=pos_id, data=verts)
+        batch = Gwn_Batch(type=type, buf=vbo)
+        return (batch, dims)
 
 
 # Only defined so operators members can be used by accessing self.order
@@ -666,7 +766,23 @@ class _GenericUI:
                 # ensure menus always get default context
                 operator_context_default = self.layout.operator_context
 
+                # Support filtering out by owner
+                workspace = context.workspace
+                if workspace.use_filter_by_owner:
+                    owner_names = {owner_id.name for owner_id in workspace.owner_ids}
+                else:
+                    owner_names = None
+
                 for func in draw_ls._draw_funcs:
+
+                    # Begin 'owner_id' filter.
+                    if owner_names is not None:
+                        owner_id = getattr(func, "_owner", None)
+                        if owner_id is not None:
+                            if func._owner not in owner_names:
+                                continue
+                    # End 'owner_id' filter.
+
                     # so bad menu functions don't stop
                     # the entire menu from drawing
                     try:
@@ -682,6 +798,13 @@ class _GenericUI:
 
         return draw_funcs
 
+    @staticmethod
+    def _dyn_owner_apply(draw_func):
+        from _bpy import _bl_owner_id_get
+        owner_id = _bl_owner_id_get()
+        if owner_id is not None:
+            draw_func._owner = owner_id
+
     @classmethod
     def is_extended(cls):
         return bool(getattr(cls.draw, "_draw_funcs", None))
@@ -693,6 +816,7 @@ class _GenericUI:
         takes the same arguments as the menus draw function
         """
         draw_funcs = cls._dyn_ui_initialize()
+        cls._dyn_owner_apply(draw_func)
         draw_funcs.append(draw_func)
 
     @classmethod
@@ -702,6 +826,7 @@ class _GenericUI:
         the menus draw function
         """
         draw_funcs = cls._dyn_ui_initialize()
+        cls._dyn_owner_apply(draw_func)
         draw_funcs.insert(0, draw_func)
 
     @classmethod

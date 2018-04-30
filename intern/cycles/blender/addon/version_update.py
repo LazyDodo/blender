@@ -417,7 +417,8 @@ def do_versions(self):
             if not cscene.is_property_set("sample_clamp_indirect"):
                 cscene.sample_clamp_indirect = 0.0
 
-    if bpy.data.version <= (2, 79, 1):
+    if bpy.data.version <= (2, 79, 1) or \
+       (bpy.data.version >= (2, 80, 0) and bpy.data.version <= (2, 80, 3)):
         displacement_nodes_insert()
 
     if bpy.data.version <= (2, 79, 2):
@@ -428,6 +429,7 @@ def do_versions(self):
 
         foreach_cycles_node(displacement_principled_nodes)
 
-    if bpy.data.version <= (2, 79, 3):
+    if bpy.data.version <= (2, 79, 3) or \
+       (bpy.data.version >= (2, 80, 0) and bpy.data.version <= (2, 80, 4)):
         # Switch to squared roughness convention
         square_roughness_nodes_insert()

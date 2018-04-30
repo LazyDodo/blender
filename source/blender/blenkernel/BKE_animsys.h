@@ -47,6 +47,7 @@ struct ReportList;
 struct bAction;
 struct bActionGroup;
 struct AnimMapper;
+struct FCurve;
 
 /* ************************************* */
 /* AnimData API */
@@ -148,7 +149,7 @@ char *BKE_animdata_driver_path_hack(struct bContext *C, struct PointerRNA *ptr, 
                                     char *base_path);
 
 /* ************************************* */
-/* Batch AnimData API */
+/* Gwn_Batch AnimData API */
 
 /* Define for callback looper used in BKE_animdata_main_cb */
 typedef void (*ID_AnimData_Edit_Callback)(struct ID *id, struct AnimData *adt, void *user_data);
@@ -179,7 +180,6 @@ void BKE_animsys_evaluate_animdata(struct Scene *scene, struct ID *id, struct An
 void BKE_animsys_evaluate_all_animation(struct Main *main, struct Scene *scene, float ctime);
 
 /* TODO(sergey): This is mainly a temp public function. */
-struct FCurve;
 bool BKE_animsys_execute_fcurve(struct PointerRNA *ptr, struct AnimMapper *remap, struct FCurve *fcu, float curval);
 
 /* ------------ Specialized API --------------- */
@@ -200,10 +200,10 @@ void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, 
 
 /* ------------ Evaluation API --------------- */
 
-struct EvaluationContext;
+struct Depsgraph;
 
-void BKE_animsys_eval_animdata(struct EvaluationContext *eval_ctx, struct ID *id);
-void BKE_animsys_eval_driver(struct EvaluationContext *eval_ctx, struct ID *id, struct FCurve *fcurve);
+void BKE_animsys_eval_animdata(struct Depsgraph *depsgraph, struct ID *id);
+void BKE_animsys_eval_driver(struct Depsgraph *depsgraph, struct ID *id, struct FCurve *fcurve);
 
 /* ************************************* */
 

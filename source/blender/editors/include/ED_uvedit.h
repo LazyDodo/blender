@@ -35,12 +35,13 @@ struct BMesh;
 struct BMEditMesh;
 struct BMFace;
 struct BMLoop;
+struct Depsgraph;
 struct Image;
 struct ImageUser;
-struct MTexPoly;
 struct Main;
 struct Object;
 struct Scene;
+struct ViewLayer;
 struct SpaceImage;
 struct bNode;
 struct wmKeyConfig;
@@ -49,9 +50,8 @@ struct wmKeyConfig;
 void ED_operatortypes_uvedit(void);
 void ED_keymap_uvedit(struct wmKeyConfig *keyconf);
 
-void ED_uvedit_assign_image(
-        struct Main *bmain, struct Scene *scene, struct Object *obedit, struct Image *ima, struct Image *previma);
 bool ED_uvedit_minmax(struct Scene *scene, struct Image *ima, struct Object *obedit, float min[2], float max[2]);
+bool ED_uvedit_center(Scene *scene, Image *ima, struct Object *obedit, float cent[2], char mode);
 void ED_uvedit_select_all(struct BMesh *bm);
 
 bool ED_object_get_active_image(
@@ -62,7 +62,8 @@ void ED_object_assign_active_image(struct Main *bmain, struct Object *ob, int ma
 bool ED_uvedit_test(struct Object *obedit);
 
 /* visibility and selection */
-bool uvedit_face_visible_test(struct Scene *scene, struct Image *ima, struct BMFace *efa, struct MTexPoly *tf);
+bool uvedit_face_visible_test(
+        struct Scene *scene, struct Object *obedit, struct Image *ima, struct BMFace *efa);
 bool uvedit_face_select_test(
         struct Scene *scene, struct BMFace *efa,
         const int cd_loop_uv_offset);
@@ -116,21 +117,24 @@ void ED_uvedit_live_unwrap_end(short cancel);
 
 void ED_uvedit_live_unwrap(struct Scene *scene, struct Object *obedit);
 void ED_uvedit_pack_islands(
-        struct Scene *scene, struct Object *ob, struct BMesh *bm,
+        struct Scene *scene, struct Object *ob, struct BMesh *bm, bool selected, bool correct_aspect, bool do_rotate);
+void ED_uvedit_pack_islands_multi(
+        struct Scene *scene, struct Object **objects, const uint objects_len,
         bool selected, bool correct_aspect, bool do_rotate);
 void ED_uvedit_unwrap_cube_project(
         struct BMesh *bm, float cube_size, bool use_select, const float center[3]);
 
 /* single call up unwrap using scene settings, used for edge tag unwrapping */
-void ED_unwrap_lscm(struct Scene *scene, struct Object *obedit, const short sel);
+void ED_unwrap_lscm(struct Scene *scene, struct Object *obedit, const short sel, const bool pack);
 
 
 /* uvedit_draw.c */
 void ED_image_draw_cursor(
-        struct ARegion *ar, const float cursor[2]);
+       struct ARegion *ar, const float cursor[2]);
 void ED_uvedit_draw_main(
-        struct SpaceImage *sima, struct ARegion *ar, struct Scene *scene,
-        struct Object *obedit, struct Object *obact);
+        struct SpaceImage *sima,
+        struct ARegion *ar, struct Scene *scene, struct ViewLayer *view_layer,
+        struct Object *obedit, struct Object *obact, struct Depsgraph *depsgraph);
 
 /* uvedit_buttons.c */
 void ED_uvedit_buttons_register(struct ARegionType *art);

@@ -55,6 +55,7 @@ void OBJECT_OT_scale_clear(struct wmOperatorType *ot);
 void OBJECT_OT_origin_clear(struct wmOperatorType *ot);
 void OBJECT_OT_visual_transform_apply(struct wmOperatorType *ot);
 void OBJECT_OT_transform_apply(struct wmOperatorType *ot);
+void OBJECT_OT_transform_axis_target(struct wmOperatorType *ot);
 void OBJECT_OT_origin_set(struct wmOperatorType *ot);
 
 /* object_relations.c */
@@ -67,10 +68,10 @@ void OBJECT_OT_track_clear(struct wmOperatorType *ot);
 void OBJECT_OT_slow_parent_set(struct wmOperatorType *ot);
 void OBJECT_OT_slow_parent_clear(struct wmOperatorType *ot);
 void OBJECT_OT_make_local(struct wmOperatorType *ot);
+void OBJECT_OT_make_override_static(struct wmOperatorType *ot);
 void OBJECT_OT_make_single_user(struct wmOperatorType *ot);
 void OBJECT_OT_make_links_scene(struct wmOperatorType *ot);
 void OBJECT_OT_make_links_data(struct wmOperatorType *ot);
-void OBJECT_OT_move_to_layer(struct wmOperatorType *ot);
 void OBJECT_OT_drop_named_material(struct wmOperatorType *ot);
 void OBJECT_OT_unlink_data(struct wmOperatorType *ot);
 
@@ -78,10 +79,6 @@ void OBJECT_OT_unlink_data(struct wmOperatorType *ot);
 void OBJECT_OT_mode_set(struct wmOperatorType *ot);
 void OBJECT_OT_editmode_toggle(struct wmOperatorType *ot);
 void OBJECT_OT_posemode_toggle(struct wmOperatorType *ot);
-void OBJECT_OT_hide_view_set(struct wmOperatorType *ot);
-void OBJECT_OT_hide_view_clear(struct wmOperatorType *ot);
-void OBJECT_OT_hide_render_set(struct wmOperatorType *ot);
-void OBJECT_OT_hide_render_clear(struct wmOperatorType *ot);
 void OBJECT_OT_proxy_make(struct wmOperatorType *ot);
 void OBJECT_OT_shade_smooth(struct wmOperatorType *ot);
 void OBJECT_OT_shade_flat(struct wmOperatorType *ot);
@@ -90,13 +87,7 @@ void OBJECT_OT_paths_update(struct wmOperatorType *ot);
 void OBJECT_OT_paths_clear(struct wmOperatorType *ot);
 void OBJECT_OT_forcefield_toggle(struct wmOperatorType *ot);
 
-void OBJECT_OT_game_property_new(struct wmOperatorType *ot);
-void OBJECT_OT_game_property_remove(struct wmOperatorType *ot);
-void OBJECT_OT_game_property_copy(struct wmOperatorType *ot);
-void OBJECT_OT_game_property_clear(struct wmOperatorType *ot);
-void OBJECT_OT_game_property_move(struct wmOperatorType *ot);
-void OBJECT_OT_logic_bricks_copy(struct wmOperatorType *ot);
-void OBJECT_OT_game_physics_copy(struct wmOperatorType *ot);
+void OBJECT_OT_move_to_collection(struct wmOperatorType *ot);
 
 /* object_select.c */
 void OBJECT_OT_select_all(struct wmOperatorType *ot);
@@ -109,6 +100,7 @@ void OBJECT_OT_select_mirror(struct wmOperatorType *ot);
 void OBJECT_OT_select_more(struct wmOperatorType *ot);
 void OBJECT_OT_select_less(struct wmOperatorType *ot);
 void OBJECT_OT_select_same_group(struct wmOperatorType *ot);
+void OBJECT_OT_select_same_collection(struct wmOperatorType *ot);
 
 /* object_add.c */
 void OBJECT_OT_add(struct wmOperatorType *ot);
@@ -117,6 +109,7 @@ void OBJECT_OT_metaball_add(struct wmOperatorType *ot);
 void OBJECT_OT_text_add(struct wmOperatorType *ot);
 void OBJECT_OT_armature_add(struct wmOperatorType *ot);
 void OBJECT_OT_empty_add(struct wmOperatorType *ot);
+void OBJECT_OT_lightprobe_add(struct wmOperatorType *ot);
 void OBJECT_OT_drop_named_image(struct wmOperatorType *ot);
 void OBJECT_OT_lamp_add(struct wmOperatorType *ot);
 void OBJECT_OT_effector_add(struct wmOperatorType *ot);
@@ -237,6 +230,15 @@ void OBJECT_OT_vertex_weight_set_active(struct wmOperatorType *ot);
 void OBJECT_OT_vertex_weight_normalize_active_vertex(struct wmOperatorType *ot);
 void OBJECT_OT_vertex_weight_copy(struct wmOperatorType *ot);
 
+/* object_facemap_ops.c */
+void OBJECT_OT_face_map_add(struct wmOperatorType *ot);
+void OBJECT_OT_face_map_remove(struct wmOperatorType *ot);
+void OBJECT_OT_face_map_assign(struct wmOperatorType *ot);
+void OBJECT_OT_face_map_remove_from(struct wmOperatorType *ot);
+void OBJECT_OT_face_map_select(struct wmOperatorType *ot);
+void OBJECT_OT_face_map_deselect(struct wmOperatorType *ot);
+void OBJECT_OT_face_map_move(struct wmOperatorType *ot);
+
 /* object_warp.c */
 void TRANSFORM_OT_vertex_warp(struct wmOperatorType *ot);
 
@@ -258,10 +260,6 @@ void OBJECT_OT_grouped_select(struct wmOperatorType *ot);
 /* object_bake.c */
 void OBJECT_OT_bake_image(wmOperatorType *ot);
 void OBJECT_OT_bake(wmOperatorType *ot);
-
-/* object_lod.c */
-void OBJECT_OT_lod_add(struct wmOperatorType *ot);
-void OBJECT_OT_lod_remove(struct wmOperatorType *ot);
 
 /* object_random.c */
 void TRANSFORM_OT_vertex_random(struct wmOperatorType *ot);

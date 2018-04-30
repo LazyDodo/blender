@@ -286,11 +286,13 @@ const EnumPropertyItem rna_enum_axis_flag_xyz_items[] = {
 
 #include "BKE_cachefile.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_library.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
 #include "BKE_particle.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #ifdef WITH_ALEMBIC
 #  include "ABC_alembic.h"
@@ -453,14 +455,14 @@ static char *rna_Modifier_path(PointerRNA *ptr)
 
 static void rna_Modifier_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DAG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
 }
 
 static void rna_Modifier_dependency_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	rna_Modifier_update(bmain, scene, ptr);
-	DAG_relations_tag_update(bmain);
+	DEG_relations_tag_update(bmain);
 }
 
 /* Vertex Groups */
@@ -793,11 +795,11 @@ static void rna_CurveModifier_dependency_update(Main *bmain, Scene *scene, Point
 {
 	CurveModifierData *cmd = (CurveModifierData *)ptr->data;
 	rna_Modifier_update(bmain, scene, ptr);
-	DAG_relations_tag_update(bmain);
+	DEG_relations_tag_update(bmain);
 	if (cmd->object != NULL) {
 		Curve *curve = cmd->object->data;
 		if ((curve->flag & CU_PATH) == 0) {
-			DAG_id_tag_update(&curve->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&curve->id, OB_RECALC_DATA);
 		}
 	}
 }
@@ -806,11 +808,11 @@ static void rna_ArrayModifier_dependency_update(Main *bmain, Scene *scene, Point
 {
 	ArrayModifierData *amd = (ArrayModifierData *)ptr->data;
 	rna_Modifier_update(bmain, scene, ptr);
-	DAG_relations_tag_update(bmain);
+	DEG_relations_tag_update(bmain);
 	if (amd->curve_ob != NULL) {
 		Curve *curve = amd->curve_ob->data;
 		if ((curve->flag & CU_PATH) == 0) {
-			DAG_id_tag_update(&curve->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&curve->id, OB_RECALC_DATA);
 		}
 	}
 }
@@ -933,19 +935,19 @@ static const EnumPropertyItem *rna_DataTransferModifier_layers_select_src_itemf(
 
 		if (ob_src) {
 			DerivedMesh *dm_src;
-			CustomData *pdata;
+			CustomData *ldata;
 			int num_data, i;
 
 			dm_src = object_get_derived_final(ob_src, false);
 			if (dm_src != NULL) {
-				pdata = dm_src->getPolyDataLayout(dm_src);
-				num_data = CustomData_number_of_layers(pdata, CD_MTEXPOLY);
+				ldata = dm_src->getLoopDataLayout(dm_src);
+				num_data = CustomData_number_of_layers(ldata, CD_MLOOPUV);
 
 				RNA_enum_item_add_separator(&item, &totitem);
 
 				for (i = 0; i < num_data; i++) {
 					tmp_item.value = i;
-					tmp_item.identifier = tmp_item.name = CustomData_get_layer_name(pdata, CD_MTEXPOLY, i);
+					tmp_item.identifier = tmp_item.name = CustomData_get_layer_name(ldata, CD_MLOOPUV, i);
 					RNA_enum_item_add(&item, &totitem, &tmp_item);
 				}
 			}
@@ -1024,18 +1026,18 @@ static const EnumPropertyItem *rna_DataTransferModifier_layers_select_dst_itemf(
 
 			if (ob_dst && ob_dst->data) {
 				Mesh *me_dst;
-				CustomData *pdata;
+				CustomData *ldata;
 				int num_data, i;
 
 				me_dst = ob_dst->data;
-				pdata = &me_dst->pdata;
-				num_data = CustomData_number_of_layers(pdata, CD_MTEXPOLY);
+				ldata = &me_dst->ldata;
+				num_data = CustomData_number_of_layers(ldata, CD_MLOOPUV);
 
 				RNA_enum_item_add_separator(&item, &totitem);
 
 				for (i = 0; i < num_data; i++) {
 					tmp_item.value = i;
-					tmp_item.identifier = tmp_item.name = CustomData_get_layer_name(pdata, CD_MTEXPOLY, i);
+					tmp_item.identifier = tmp_item.name = CustomData_get_layer_name(ldata, CD_MLOOPUV, i);
 					RNA_enum_item_add(&item, &totitem, &tmp_item);
 				}
 			}
@@ -1852,7 +1854,7 @@ static void rna_def_modifier_armature(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Object", "Armature object to deform with");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_ArmatureModifier_object_set", NULL, "rna_Armature_object_poll");
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK | PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
 
 	prop = RNA_def_property(srna, "use_bone_envelopes", PROP_BOOLEAN, PROP_NONE);
@@ -2282,11 +2284,6 @@ static void rna_def_modifier_uvproject(BlenderRNA *brna)
 	                                  "rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
 	RNA_def_property_ui_text(prop, "Projectors", "");
 
-	prop = RNA_def_property(srna, "image", PROP_POINTER, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Image", "");
-	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
 	prop = RNA_def_property(srna, "aspect_x", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "aspectx");
 	RNA_def_property_flag(prop, PROP_PROPORTIONAL);
@@ -2317,11 +2314,6 @@ static void rna_def_modifier_uvproject(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0, FLT_MAX);
 	RNA_def_property_ui_range(prop, 0, 1000, 1, 3);
 	RNA_def_property_ui_text(prop, "Vertical Scale", "");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "use_image_override", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flags", MOD_UVPROJECT_OVERRIDEIMAGE);
-	RNA_def_property_ui_text(prop, "Override Image", "Override faces' current images with the given image");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	srna = RNA_def_struct(brna, "UVProjector", NULL);
@@ -4930,12 +4922,13 @@ void RNA_def_modifier(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_viewport", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eModifierMode_Realtime);
 	RNA_def_property_ui_text(prop, "Realtime", "Display modifier in viewport");
-	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
+	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION | PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_OFF, 0);
 	
 	prop = RNA_def_property(srna, "show_render", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eModifierMode_Render);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Render", "Use modifier during render");
 	RNA_def_property_ui_icon(prop, ICON_SCENE, 0);
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, NULL);
@@ -4954,6 +4947,7 @@ void RNA_def_modifier(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "show_expanded", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eModifierMode_Expanded);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Expanded", "Set modifier expanded in the user interface");
 	RNA_def_property_ui_icon(prop, ICON_TRIA_RIGHT, 1);
 

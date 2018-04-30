@@ -55,13 +55,12 @@ class PhysicButtonsPanel:
     @classmethod
     def poll(cls, context):
         ob = context.object
-        rd = context.scene.render
-        return (ob and ob.type == 'MESH') and rd.engine in cls.COMPAT_ENGINES and context.dynamic_paint
+        return (ob and ob.type == 'MESH') and context.engine in cls.COMPAT_ENGINES and context.dynamic_paint
 
 
 class PHYSICS_PT_dynamic_paint(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
@@ -109,7 +108,6 @@ class PHYSICS_PT_dynamic_paint(PhysicButtonsPanel, Panel):
 
         elif md.ui_type == 'BRUSH':
             brush = md.brush_settings
-            use_shading_nodes = context.scene.render.use_shading_nodes
 
             if brush is None:
                 layout.operator("dpaint.type_toggle", text="Add Brush").type = 'BRUSH'
@@ -124,27 +122,18 @@ class PHYSICS_PT_dynamic_paint(PhysicButtonsPanel, Panel):
                 col.prop(brush, "paint_wetness", text="Wetness")
 
                 col = split.column()
-                if not use_shading_nodes:
-                    sub = col.column()
-                    sub.active = (brush.paint_source != 'PARTICLE_SYSTEM')
-                    sub.prop(brush, "use_material")
-                if brush.use_material and brush.paint_source != 'PARTICLE_SYSTEM' and not use_shading_nodes:
-                    col.prop(brush, "material", text="")
-                    col.prop(brush, "paint_alpha", text="Alpha Factor")
-                else:
-                    col.prop(brush, "paint_color", text="")
-                    col.prop(brush, "paint_alpha", text="Alpha")
+                col.prop(brush, "paint_color", text="")
+                col.prop(brush, "paint_alpha", text="Alpha")
 
 
 class PHYSICS_PT_dp_advanced_canvas(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Advanced"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
-        return md and md.ui_type == 'CANVAS' and md.canvas_settings and md.canvas_settings.canvas_surfaces.active and rd.engine in cls.COMPAT_ENGINES
+        return md and md.ui_type == 'CANVAS' and md.canvas_settings and md.canvas_settings.canvas_surfaces.active and context.engine in cls.COMPAT_ENGINES
 
     def draw(self, context):
         layout = self.layout
@@ -215,18 +204,17 @@ class PHYSICS_PT_dp_advanced_canvas(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_dp_canvas_output(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Output"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
         if not (md and md.ui_type == 'CANVAS' and md.canvas_settings):
             return 0
         surface = context.dynamic_paint.canvas_settings.canvas_surfaces.active
         return (surface and
                 (not (surface.surface_format == 'VERTEX' and (surface.surface_type in {'DISPLACE', 'WAVE'}))) and
-                (rd.engine in cls.COMPAT_ENGINES))
+                (context.engine in cls.COMPAT_ENGINES))
 
     def draw(self, context):
         layout = self.layout
@@ -276,7 +264,7 @@ class PHYSICS_PT_dp_canvas_output(PhysicButtonsPanel, Panel):
         # image format outputs
         if surface.surface_format == 'IMAGE':
             layout.operator("dpaint.bake", text="Bake Image Sequence", icon='MOD_DYNAMICPAINT')
-            layout.prop_search(surface, "uv_layer", ob.data, "uv_textures", text="UV Map")
+            layout.prop_search(surface, "uv_layer", ob.data, "uv_layers", text="UV Map")
             layout.separator()
 
             layout.prop(surface, "image_output_path", text="")
@@ -309,16 +297,15 @@ class PHYSICS_PT_dp_canvas_output(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_dp_canvas_initial_color(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Initial Color"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
         if not (md and md.ui_type == 'CANVAS' and md.canvas_settings):
             return 0
         surface = context.dynamic_paint.canvas_settings.canvas_surfaces.active
-        return (surface and surface.surface_type == 'PAINT') and (rd.engine in cls.COMPAT_ENGINES)
+        return (surface and surface.surface_type == 'PAINT') and (context.engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -337,7 +324,7 @@ class PHYSICS_PT_dp_canvas_initial_color(PhysicButtonsPanel, Panel):
 
         elif surface.init_color_type == 'TEXTURE':
             layout.prop(surface, "init_texture")
-            layout.prop_search(surface, "init_layername", ob.data, "uv_textures", text="UV Map")
+            layout.prop_search(surface, "init_layername", ob.data, "uv_layers", text="UV Map")
 
         elif surface.init_color_type == 'VERTEX_COLOR':
             layout.prop_search(surface, "init_layername", ob.data, "vertex_colors", text="Color Layer")
@@ -346,16 +333,15 @@ class PHYSICS_PT_dp_canvas_initial_color(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_dp_effects(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Effects"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
         if not (md and md.ui_type == 'CANVAS' and md.canvas_settings):
             return False
         surface = context.dynamic_paint.canvas_settings.canvas_surfaces.active
-        return (surface and surface.surface_type == 'PAINT') and (rd.engine in cls.COMPAT_ENGINES)
+        return (surface and surface.surface_type == 'PAINT') and (context.engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -396,18 +382,17 @@ class PHYSICS_PT_dp_effects(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_dp_cache(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Cache"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
         return (md and
                 md.ui_type == 'CANVAS' and
                 md.canvas_settings and
                 md.canvas_settings.canvas_surfaces.active and
                 md.canvas_settings.canvas_surfaces.active.is_cache_user and
-                (rd.engine in cls.COMPAT_ENGINES))
+                (context.engine in cls.COMPAT_ENGINES))
 
     def draw(self, context):
         surface = context.dynamic_paint.canvas_settings.canvas_surfaces.active
@@ -418,13 +403,12 @@ class PHYSICS_PT_dp_cache(PhysicButtonsPanel, Panel):
 
 class PHYSICS_PT_dp_brush_source(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Source"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
-        return md and md.ui_type == 'BRUSH' and md.brush_settings and (rd.engine in cls.COMPAT_ENGINES)
+        return md and md.ui_type == 'BRUSH' and md.brush_settings and (context.engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -472,13 +456,12 @@ class PHYSICS_PT_dp_brush_source(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_dp_brush_velocity(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Velocity"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
-        return md and md.ui_type == 'BRUSH' and md.brush_settings and (rd.engine in cls.COMPAT_ENGINES)
+        return md and md.ui_type == 'BRUSH' and md.brush_settings and (context.engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -509,13 +492,12 @@ class PHYSICS_PT_dp_brush_velocity(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_dp_brush_wave(PhysicButtonsPanel, Panel):
     bl_label = "Dynamic Paint Waves"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         md = context.dynamic_paint
-        rd = context.scene.render
-        return md and md.ui_type == 'BRUSH' and md.brush_settings and (rd.engine in cls.COMPAT_ENGINES)
+        return md and md.ui_type == 'BRUSH' and md.brush_settings and (context.engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout

@@ -28,6 +28,7 @@ if "bpy" in locals():
 
 _modules = [
     "properties_animviz",
+    "properties_collection",
     "properties_constraint",
     "properties_data_armature",
     "properties_data_bone",
@@ -39,8 +40,9 @@ _modules = [
     "properties_data_mesh",
     "properties_data_metaball",
     "properties_data_modifier",
+    "properties_data_lightprobe",
     "properties_data_speaker",
-    "properties_game",
+    "properties_data_workspace",
     "properties_mask_common",
     "properties_material",
     "properties_object",
@@ -57,10 +59,17 @@ _modules = [
     "properties_physics_smoke",
     "properties_physics_softbody",
     "properties_render",
-    "properties_render_layer",
+    "properties_view_layer",
     "properties_scene",
     "properties_texture",
     "properties_world",
+
+    # Generic Space Modules
+    #
+    # Depends on DNA_WORKSPACE_TOOL (C define).
+    "space_toolsystem_common",
+    "space_toolsystem_toolbar",
+
     "space_clip",
     "space_console",
     "space_dopesheet",
@@ -68,7 +77,6 @@ _modules = [
     "space_graph",
     "space_image",
     "space_info",
-    "space_logic",
     "space_nla",
     "space_node",
     "space_outliner",
@@ -76,6 +84,7 @@ _modules = [
     "space_sequencer",
     "space_text",
     "space_time",
+    "space_topbar",
     "space_userpref",
     "space_view3d",
     "space_view3d_toolbar",

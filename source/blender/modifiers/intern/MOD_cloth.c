@@ -43,7 +43,6 @@
 
 #include "BLI_utildefines.h"
 
-
 #include "BKE_cloth.h"
 #include "BKE_cdderivedmesh.h"
 #include "BKE_effect.h"
@@ -52,8 +51,6 @@
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 #include "BKE_pointcache.h"
-
-#include "depsgraph_private.h"
 
 #include "MOD_util.h"
 
@@ -72,7 +69,7 @@ static void initData(ModifierData *md)
 	cloth_init(clmd);
 }
 
-static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3],
+static void deformVerts(ModifierData *md, struct Depsgraph *depsgraph, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3],
                         int numVerts, ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *dm;
@@ -112,24 +109,9 @@ static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData, 
 
 	CDDM_apply_vert_coords(dm, vertexCos);
 
-	clothModifier_do(clmd, md->scene, ob, dm, vertexCos);
+	clothModifier_do(clmd, depsgraph, md->scene, ob, dm, vertexCos);
 
 	dm->release(dm);
-}
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	ClothModifierData *clmd = (ClothModifierData *) md;
-	
-	if (clmd) {
-		/* Actual code uses get_collisionobjects */
-#ifdef WITH_LEGACY_DEPSGRAPH
-		dag_add_collision_relations(ctx->forest, ctx->scene, ctx->object, ctx->obNode, clmd->coll_parms->group, ctx->object->lay|ctx->scene->lay, eModifierType_Collision, NULL, true, "Cloth Collision");
-		dag_add_forcefield_relations(ctx->forest, ctx->scene, ctx->object, ctx->obNode, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
-#else
-	(void)ctx;
-#endif
-	}
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -137,7 +119,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	ClothModifierData *clmd = (ClothModifierData *)md;
 	if (clmd != NULL) {
 		/* Actual code uses get_collisionobjects */
-		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, clmd->coll_parms->group, ctx->object->lay|ctx->scene->lay, eModifierType_Collision, NULL, true, "Cloth Collision");
+		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, clmd->coll_parms->group, eModifierType_Collision, NULL, true, "Cloth Collision");
 
 		DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
 	}
@@ -253,7 +235,6 @@ ModifierTypeInfo modifierType_Cloth = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     dependsOnTime,
 	/* dependsOnNormals */	NULL,

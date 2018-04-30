@@ -48,6 +48,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_camera_types.h"
 #include "DNA_object_types.h"
 #include "DNA_node_types.h"
 #include "DNA_packedFile_types.h"
@@ -56,7 +57,6 @@
 
 #include "BKE_colortools.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_icons.h"
 #include "BKE_image.h"
@@ -70,8 +70,9 @@
 #include "BKE_sound.h"
 #include "BKE_scene.h"
 
+#include "DEG_depsgraph.h"
+
 #include "GPU_draw.h"
-#include "GPU_buffers.h"
 
 #include "IMB_colormanagement.h"
 #include "IMB_imbuf.h"
@@ -277,8 +278,9 @@ static int space_image_main_area_not_uv_brush_poll(bContext *C)
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *toolsettings = scene->toolsettings;
 
-	if (sima && !toolsettings->uvsculpt && !scene->obedit)
+	if (sima && !toolsettings->uvsculpt && (CTX_data_edit_object(C) == NULL)) {
 		return 1;
+	}
 
 	return 0;
 }
@@ -792,6 +794,7 @@ static int image_view_selected_exec(bContext *C, wmOperator *UNUSED(op))
 	SpaceImage *sima;
 	ARegion *ar;
 	Scene *scene;
+	ViewLayer *view_layer;
 	Object *obedit;
 	Image *ima;
 
@@ -799,6 +802,7 @@ static int image_view_selected_exec(bContext *C, wmOperator *UNUSED(op))
 	sima = CTX_wm_space_image(C);
 	ar = CTX_wm_region(C);
 	scene = CTX_data_scene(C);
+	view_layer = CTX_data_view_layer(C);
 	obedit = CTX_data_edit_object(C);
 
 	ima = ED_space_image(sima);
@@ -810,7 +814,7 @@ static int image_view_selected_exec(bContext *C, wmOperator *UNUSED(op))
 			return OPERATOR_CANCELLED;
 		}
 	}
-	else if (ED_space_image_check_show_maskedit(scene, sima)) {
+	else if (ED_space_image_check_show_maskedit(sima, view_layer)) {
 		if (!ED_mask_selected_minmax(C, min, max)) {
 			return OPERATOR_CANCELLED;
 		}
@@ -1307,20 +1311,22 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		ED_space_image_set(sima, scene, obedit, ima);
 		iuser = &sima->iuser;
 	}
-	else if (sa && sa->spacetype == SPACE_VIEW3D) {
-		View3D *v3d = sa->spacedata.first;
-
-		for (BGpic *bgpic = v3d->bgpicbase.first; bgpic; bgpic = bgpic->next) {
-			if (bgpic->ima == ima) {
-				iuser = &bgpic->iuser;
-				break;
-			}
-		}
-	}
 	else {
 		Tex *tex = CTX_data_pointer_get_type(C, "texture", &RNA_Texture).data;
 		if (tex && tex->type == TEX_IMAGE) {
 			iuser = &tex->iuser;
+		}
+
+		if (iuser == NULL) {
+			Camera *cam = CTX_data_pointer_get_type(C, "camera", &RNA_Camera).data;
+			if (cam) {
+				for (CameraBGImage *bgpic = cam->bg_images.first; bgpic; bgpic = bgpic->next) {
+					if (bgpic->ima == ima) {
+						iuser = &bgpic->iuser;
+						break;
+					}
+				}
+			}
 		}
 	}
 
@@ -1425,7 +1431,7 @@ static void image_open_draw(bContext *UNUSED(C), wmOperator *op)
 
 	/* main draw call */
 	RNA_pointer_create(NULL, op->type->srna, op->properties, &ptr);
-	uiDefAutoButsRNA(layout, &ptr, image_open_draw_check_prop, '\0');
+	uiDefAutoButsRNA(layout, &ptr, image_open_draw_check_prop, UI_BUT_LABEL_ALIGN_NONE, false);
 
 	/* image template */
 	RNA_pointer_create(NULL, &RNA_ImageFormatSettings, imf, &imf_ptr);
@@ -2141,7 +2147,7 @@ static void image_save_as_draw(bContext *UNUSED(C), wmOperator *op)
 
 	/* main draw call */
 	RNA_pointer_create(NULL, op->type->srna, op->properties, &ptr);
-	uiDefAutoButsRNA(layout, &ptr, image_save_as_draw_check_prop, '\0');
+	uiDefAutoButsRNA(layout, &ptr, image_save_as_draw_check_prop, UI_BUT_LABEL_ALIGN_NONE, false);
 
 	/* multiview template */
 	if (is_multiview)
@@ -2341,7 +2347,7 @@ static int image_reload_exec(bContext *C, wmOperator *UNUSED(op))
 	
 	// XXX other users?
 	BKE_image_signal(ima, (sima) ? &sima->iuser : NULL, IMA_SIGNAL_RELOAD);
-	DAG_id_tag_update(&ima->id, 0);
+	DEG_id_tag_update(&ima->id, 0);
 
 	WM_event_add_notifier(C, NC_IMAGE | NA_EDITED, ima);
 	
@@ -2438,7 +2444,6 @@ static int image_new_exec(bContext *C, wmOperator *op)
 		bScreen *sc;
 		Object *ob = CTX_data_active_object(C);
 		
-		GPU_drawobject_free(ob->derivedFinal);	
 		if (scene->toolsettings->imapaint.canvas)
 			id_us_min(&scene->toolsettings->imapaint.canvas->id);
 		scene->toolsettings->imapaint.canvas = ima;
@@ -2452,7 +2457,7 @@ static int image_new_exec(bContext *C, wmOperator *op)
 						SpaceImage *sima_other = (SpaceImage *)sl;
 						
 						if (!sima_other->pin) {
-							ED_space_image_set(sima_other, scene, scene->obedit, ima);
+							ED_space_image_set(sima_other, scene, obedit, ima);
 						}
 					}
 				}
@@ -3594,7 +3599,7 @@ void IMAGE_OT_change_frame(wmOperatorType *ot)
 
 /* Reload cached render results... */
 /* goes over all scenes, reads render layers */
-static int image_read_renderlayers_exec(bContext *C, wmOperator *UNUSED(op))
+static int image_read_viewlayers_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
 	SpaceImage *sima = CTX_wm_space_image(C);
@@ -3611,14 +3616,14 @@ static int image_read_renderlayers_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void IMAGE_OT_read_renderlayers(wmOperatorType *ot)
+void IMAGE_OT_read_viewlayers(wmOperatorType *ot)
 {
-	ot->name = "Read Render Layers";
-	ot->idname = "IMAGE_OT_read_renderlayers";
-	ot->description = "Read all the current scene's render layers from cache, as needed";
+	ot->name = "Read View Layers";
+	ot->idname = "IMAGE_OT_read_viewlayers";
+	ot->description = "Read all the current scene's view layers from cache, as needed";
 
 	ot->poll = space_image_main_region_poll;
-	ot->exec = image_read_renderlayers_exec;
+	ot->exec = image_read_viewlayers_exec;
 
 	/* flags */
 	ot->flag = 0;

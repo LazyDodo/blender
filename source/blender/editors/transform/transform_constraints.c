@@ -40,8 +40,10 @@
 #include "DNA_space_types.h"
 #include "DNA_view3d_types.h"
 
-#include "BIF_gl.h"
 #include "BIF_glutil.h"
+
+#include "GPU_immediate.h"
+#include "GPU_matrix.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
@@ -331,7 +333,8 @@ static void planeProjection(TransInfo *t, const float in[3], float out[3])
  *
  */
 
-static void applyAxisConstraintVec(TransInfo *t, TransData *td, const float in[3], float out[3], float pvec[3])
+static void applyAxisConstraintVec(
+        TransInfo *t, TransDataContainer *UNUSED(tc), TransData *td, const float in[3], float out[3], float pvec[3])
 {
 	copy_v3_v3(out, in);
 	if (!td && t->con.mode & CON_APPLY) {
@@ -378,7 +381,8 @@ static void applyAxisConstraintVec(TransInfo *t, TransData *td, const float in[3
  * Further down, that vector is mapped to each data's space.
  */
 
-static void applyObjectConstraintVec(TransInfo *t, TransData *td, const float in[3], float out[3], float pvec[3])
+static void applyObjectConstraintVec(
+        TransInfo *t, TransDataContainer *tc, TransData *td, const float in[3], float out[3], float pvec[3])
 {
 	copy_v3_v3(out, in);
 	if (t->con.mode & CON_APPLY) {
@@ -426,7 +430,7 @@ static void applyObjectConstraintVec(TransInfo *t, TransData *td, const float in
 
 			mul_m3_v3(td->axismtx, out);
 			if (t->flag & T_EDIT) {
-				mul_m3_v3(t->obedit_mat, out);
+				mul_m3_v3(tc->obedit_mat, out);
 			}
 		}
 	}
@@ -436,7 +440,8 @@ static void applyObjectConstraintVec(TransInfo *t, TransData *td, const float in
  * Generic callback for constant spatial constraints applied to resize motion
  */
 
-static void applyAxisConstraintSize(TransInfo *t, TransData *td, float smat[3][3])
+static void applyAxisConstraintSize(
+        TransInfo *t, TransDataContainer *UNUSED(tc), TransData *td, float smat[3][3])
 {
 	if (!td && t->con.mode & CON_APPLY) {
 		float tmat[3][3];
@@ -460,7 +465,8 @@ static void applyAxisConstraintSize(TransInfo *t, TransData *td, float smat[3][3
  * Callback for object based spatial constraints applied to resize motion
  */
 
-static void applyObjectConstraintSize(TransInfo *t, TransData *td, float smat[3][3])
+static void applyObjectConstraintSize(
+        TransInfo *t, TransDataContainer *tc, TransData *td, float smat[3][3])
 {
 	if (td && t->con.mode & CON_APPLY) {
 		float tmat[3][3];
@@ -480,7 +486,7 @@ static void applyObjectConstraintSize(TransInfo *t, TransData *td, float smat[3]
 
 		mul_m3_m3m3(tmat, smat, imat);
 		if (t->flag & T_EDIT) {
-			mul_m3_m3m3(smat, t->obedit_mat, smat);
+			mul_m3_m3m3(smat, tc->obedit_mat, smat);
 		}
 		mul_m3_m3m3(smat, td->axismtx, tmat);
 	}
@@ -500,7 +506,7 @@ static void applyObjectConstraintSize(TransInfo *t, TransData *td, float smat[3]
  * (ie: not doing counterclockwise rotations when the mouse moves clockwise).
  */
 
-static void applyAxisConstraintRot(TransInfo *t, TransData *td, float vec[3], float *angle)
+static void applyAxisConstraintRot(TransInfo *t, TransDataContainer *UNUSED(tc), TransData *td, float vec[3], float *angle)
 {
 	if (!td && t->con.mode & CON_APPLY) {
 		int mode = t->con.mode & (CON_AXIS0 | CON_AXIS1 | CON_AXIS2);
@@ -542,7 +548,8 @@ static void applyAxisConstraintRot(TransInfo *t, TransData *td, float vec[3], fl
  * (ie: not doing counterclockwise rotations when the mouse moves clockwise).
  */
 
-static void applyObjectConstraintRot(TransInfo *t, TransData *td, float vec[3], float *angle)
+static void applyObjectConstraintRot(
+        TransInfo *t, TransDataContainer *tc, TransData *td, float vec[3], float *angle)
 {
 	if (t->con.mode & CON_APPLY) {
 		int mode = t->con.mode & (CON_AXIS0 | CON_AXIS1 | CON_AXIS2);
@@ -551,11 +558,11 @@ static void applyObjectConstraintRot(TransInfo *t, TransData *td, float vec[3], 
 
 		/* on setup call, use first object */
 		if (td == NULL) {
-			td = t->data;
+			td = tc->data;
 		}
 
 		if (t->flag & T_EDIT) {
-			mul_m3_m3m3(tmp_axismtx, t->obedit_mat, td->axismtx);
+			mul_m3_m3m3(tmp_axismtx, tc->obedit_mat, td->axismtx);
 			axismtx = tmp_axismtx;
 		}
 		else {
@@ -605,20 +612,21 @@ void setConstraint(TransInfo *t, float space[3][3], int mode, const char text[])
 /* applies individual td->axismtx constraints */
 void setAxisMatrixConstraint(TransInfo *t, int mode, const char text[])
 {
-	if (t->total == 1) {
+	TransDataContainer *tc = t->data_container;
+	if (t->data_len_all == 1) {
 		float axismtx[3][3];
 		if (t->flag & T_EDIT) {
-			mul_m3_m3m3(axismtx, t->obedit_mat, t->data->axismtx);
+			mul_m3_m3m3(axismtx, tc->obedit_mat, tc->data->axismtx);
 		}
 		else {
-			copy_m3_m3(axismtx, t->data->axismtx);
+			copy_m3_m3(axismtx, tc->data->axismtx);
 		}
 
 		setConstraint(t, axismtx, mode, text);
 	}
 	else {
 		BLI_strncpy(t->con.text + 1, text, sizeof(t->con.text) - 1);
-		copy_m3_m3(t->con.mtx, t->data->axismtx);
+		copy_m3_m3(t->con.mtx, tc->data->axismtx);
 		t->con.mode = mode;
 		getConstraintMatrix(t);
 
@@ -636,7 +644,9 @@ void setLocalConstraint(TransInfo *t, int mode, const char text[])
 {
 	/* edit-mode now allows local transforms too */
 	if (t->flag & T_EDIT) {
-		setConstraint(t, t->obedit_mat, mode, text);
+		/* Use the active (first) edit object. */
+		TransDataContainer *tc = t->data_container;
+		setConstraint(t, tc->obedit_mat, mode, text);
 	}
 	else {
 		setAxisMatrixConstraint(t, mode, text);
@@ -651,7 +661,7 @@ void setLocalConstraint(TransInfo *t, int mode, const char text[])
  */
 void setUserConstraint(TransInfo *t, short orientation, int mode, const char ftext[])
 {
-	char text[40];
+	char text[256];
 
 	switch (orientation) {
 		case V3D_MANIP_GLOBAL:
@@ -683,10 +693,15 @@ void setUserConstraint(TransInfo *t, short orientation, int mode, const char fte
 			BLI_snprintf(text, sizeof(text), ftext, IFACE_("gimbal"));
 			setConstraint(t, t->spacemtx, mode, text);
 			break;
-		default: /* V3D_MANIP_CUSTOM */
-			BLI_snprintf(text, sizeof(text), ftext, t->spacename);
+		case V3D_MANIP_CUSTOM:
+		{
+			char orientation_str[128];
+			BLI_snprintf(orientation_str, sizeof(orientation_str), "%s \"%s\"",
+			             IFACE_("custom orientation"), t->custom_orientation->name);
+			BLI_snprintf(text, sizeof(text), ftext, orientation_str);
 			setConstraint(t, t->spacemtx, mode, text);
 			break;
+		}
 	}
 
 	t->con.orientation = orientation;
@@ -704,8 +719,6 @@ void drawConstraint(TransInfo *t)
 		return;
 	if (!(tc->mode & CON_APPLY))
 		return;
-	if (t->flag & T_USES_MANIPULATOR)
-		return;
 	if (t->flag & T_NO_CONSTRAINT)
 		return;
 
@@ -715,7 +728,6 @@ void drawConstraint(TransInfo *t)
 	else {
 		if (tc->mode & CON_SELECT) {
 			float vec[3];
-			char col2[3] = {255, 255, 255};
 			int depth_test_enabled;
 
 			convertViewVec(t, vec, (t->mval[0] - t->con.imval[0]), (t->mval[1] - t->con.imval[1]));
@@ -725,18 +737,29 @@ void drawConstraint(TransInfo *t)
 			drawLine(t, t->center_global, tc->mtx[1], 'Y', 0);
 			drawLine(t, t->center_global, tc->mtx[2], 'Z', 0);
 
-			glColor3ubv((GLubyte *)col2);
-
 			depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
 			if (depth_test_enabled)
 				glDisable(GL_DEPTH_TEST);
 
-			setlinestyle(1);
-			glBegin(GL_LINES);
-			glVertex3fv(t->center_global);
-			glVertex3fv(vec);
-			glEnd();
-			setlinestyle(0);
+			const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+
+			immBindBuiltinProgram(GPU_SHADER_3D_LINE_DASHED_UNIFORM_COLOR);
+
+			float viewport_size[4];
+			glGetFloatv(GL_VIEWPORT, viewport_size);
+			immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
+
+			immUniform1i("num_colors", 0);  /* "simple" mode */
+			immUniformColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+			immUniform1f("dash_width", 2.0f);
+			immUniform1f("dash_factor", 0.5f);
+
+			immBegin(GWN_PRIM_LINES, 2);
+			immVertex3fv(shdr_pos, t->center_global);
+			immVertex3fv(shdr_pos, vec);
+			immEnd();
+
+			immUnbindProgram();
 
 			if (depth_test_enabled)
 				glEnable(GL_DEPTH_TEST);
@@ -762,8 +785,6 @@ void drawPropCircle(const struct bContext *C, TransInfo *t)
 		float tmat[4][4], imat[4][4];
 		int depth_test_enabled;
 
-		UI_ThemeColor(TH_GRID);
-
 		if (t->spacetype == SPACE_VIEW3D && rv3d != NULL) {
 			copy_m4_m4(tmat, rv3d->viewmat);
 			invert_m4_m4(imat, tmat);
@@ -773,13 +794,13 @@ void drawPropCircle(const struct bContext *C, TransInfo *t)
 			unit_m4(imat);
 		}
 
-		glPushMatrix();
+		gpuPushMatrix();
 
 		if (t->spacetype == SPACE_VIEW3D) {
 			/* pass */
 		}
 		else if (t->spacetype == SPACE_IMAGE) {
-			glScalef(1.0f / t->aspect[0], 1.0f / t->aspect[1], 1.0f);
+			gpuScale2f(1.0f / t->aspect[0], 1.0f / t->aspect[1]);
 		}
 		else if (ELEM(t->spacetype, SPACE_IPO, SPACE_ACTION)) {
 			/* only scale y */
@@ -789,21 +810,28 @@ void drawPropCircle(const struct bContext *C, TransInfo *t)
 			float ysize = BLI_rctf_size_y(datamask);
 			float xmask = BLI_rcti_size_x(mask);
 			float ymask = BLI_rcti_size_y(mask);
-			glScalef(1.0f, (ysize / xsize) * (xmask / ymask), 1.0f);
+			gpuScale2f(1.0f, (ysize / xsize) * (xmask / ymask));
 		}
 
 		depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
 		if (depth_test_enabled)
 			glDisable(GL_DEPTH_TEST);
 
+		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+
+		immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
+		immUniformThemeColor(TH_GRID);
+
 		set_inverted_drawing(1);
-		drawcircball(GL_LINE_LOOP, t->center_global, t->prop_size, imat);
+		imm_drawcircball(t->center_global, t->prop_size, imat, pos);
 		set_inverted_drawing(0);
+
+		immUnbindProgram();
 
 		if (depth_test_enabled)
 			glEnable(GL_DEPTH_TEST);
 
-		glPopMatrix();
+		gpuPopMatrix();
 	}
 }
 
@@ -816,57 +844,59 @@ static void drawObjectConstraint(TransInfo *t)
 	 * Without drawing the first light, users have little clue what they are doing.
 	 */
 	short options = DRAWLIGHT;
-	TransData *td = t->data;
 	int i;
 	float tmp_axismtx[3][3];
 
-	for (i = 0; i < t->total; i++, td++) {
-		float co[3];
-		float (*axismtx)[3];
+	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+		TransData *td = tc->data;
+		for (i = 0; i < tc->data_len; i++, td++) {
+			float co[3];
+			float (*axismtx)[3];
 
-		if (t->flag & T_PROP_EDIT) {
-			/* we're sorted, so skip the rest */
-			if (td->factor == 0.0f) {
-				break;
+			if (t->flag & T_PROP_EDIT) {
+				/* we're sorted, so skip the rest */
+				if (td->factor == 0.0f) {
+					break;
+				}
 			}
-		}
 
-		if (t->options & CTX_GPENCIL_STROKES) {
-			/* only draw a constraint line for one point, otherwise we can't see anything */
-			if ((options & DRAWLIGHT) == 0) {
-				break;
+			if (t->options & CTX_GPENCIL_STROKES) {
+				/* only draw a constraint line for one point, otherwise we can't see anything */
+				if ((options & DRAWLIGHT) == 0) {
+					break;
+				}
 			}
-		}
 
-		if (t->flag & T_OBJECT) {
-			copy_v3_v3(co, td->ob->obmat[3]);
-			axismtx = td->axismtx;
-		}
-		else if (t->flag & T_EDIT) {
-			mul_v3_m4v3(co, t->obedit->obmat, td->center);
+			if (t->flag & T_OBJECT) {
+				copy_v3_v3(co, td->ob->obmat[3]);
+				axismtx = td->axismtx;
+			}
+			else if (t->flag & T_EDIT) {
+				mul_v3_m4v3(co, tc->obedit->obmat, td->center);
 
-			mul_m3_m3m3(tmp_axismtx, t->obedit_mat, td->axismtx);
-			axismtx = tmp_axismtx;
-		}
-		else if (t->flag & T_POSE) {
-			mul_v3_m4v3(co, t->poseobj->obmat, td->center);
-			axismtx = td->axismtx;
-		}
-		else {
-			copy_v3_v3(co, td->center);
-			axismtx = td->axismtx;
-		}
+				mul_m3_m3m3(tmp_axismtx, tc->obedit_mat, td->axismtx);
+				axismtx = tmp_axismtx;
+			}
+			else if (t->flag & T_POSE) {
+				mul_v3_m4v3(co, tc->poseobj->obmat, td->center);
+				axismtx = td->axismtx;
+			}
+			else {
+				copy_v3_v3(co, td->center);
+				axismtx = td->axismtx;
+			}
 
-		if (t->con.mode & CON_AXIS0) {
-			drawLine(t, co, axismtx[0], 'X', options);
+			if (t->con.mode & CON_AXIS0) {
+				drawLine(t, co, axismtx[0], 'X', options);
+			}
+			if (t->con.mode & CON_AXIS1) {
+				drawLine(t, co, axismtx[1], 'Y', options);
+			}
+			if (t->con.mode & CON_AXIS2) {
+				drawLine(t, co, axismtx[2], 'Z', options);
+			}
+			options &= ~DRAWLIGHT;
 		}
-		if (t->con.mode & CON_AXIS1) {
-			drawLine(t, co, axismtx[1], 'Y', options);
-		}
-		if (t->con.mode & CON_AXIS2) {
-			drawLine(t, co, axismtx[2], 'Z', options);
-		}
-		options &= ~DRAWLIGHT;
 	}
 }
 

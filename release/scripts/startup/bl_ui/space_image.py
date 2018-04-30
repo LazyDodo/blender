@@ -194,7 +194,7 @@ class IMAGE_MT_image(Menu):
 
         show_render = sima.show_render
 
-        layout.operator("image.read_renderlayers")
+        layout.operator("image.read_viewlayers")
 
         layout.operator("image.save_dirty", text="Save All Images")
 
@@ -481,7 +481,7 @@ class IMAGE_HT_header(Header):
                 row.prop(toolsettings, "snap_target", text="")
 
             mesh = context.edit_object.data
-            layout.prop_search(mesh.uv_textures, "active", mesh, "uv_textures", text="")
+            layout.prop_search(mesh.uv_layers, "active", mesh, "uv_layers", text="")
 
         if ima:
             if ima.is_stereo_3d:
@@ -612,50 +612,6 @@ class IMAGE_PT_image_properties(Panel):
         iuser = sima.image_user
 
         layout.template_image(sima, "image", iuser, multiview=True)
-
-
-class IMAGE_PT_game_properties(Panel):
-    bl_space_type = 'IMAGE_EDITOR'
-    bl_region_type = 'UI'
-    bl_label = "Game Properties"
-
-    @classmethod
-    def poll(cls, context):
-        sima = context.space_data
-        # display even when not in game mode because these settings effect the 3d view
-        return (sima and sima.image and not sima.show_maskedit)  # and (rd.engine == 'BLENDER_GAME')
-
-    def draw(self, context):
-        layout = self.layout
-
-        sima = context.space_data
-        ima = sima.image
-
-        split = layout.split()
-        col = split.column()
-        col.prop(ima, "use_animation")
-        sub = col.column(align=True)
-        sub.active = ima.use_animation
-        sub.prop(ima, "frame_start", text="Start")
-        sub.prop(ima, "frame_end", text="End")
-        sub.prop(ima, "fps", text="Speed")
-
-        col = split.column()
-        col.prop(ima, "use_tiles")
-        sub = col.column(align=True)
-        sub.active = ima.use_tiles or ima.use_animation
-        sub.prop(ima, "tiles_x", text="X")
-        sub.prop(ima, "tiles_y", text="Y")
-
-        split = layout.split()
-        col = split.column()
-        col.label(text="Clamp:")
-        col.prop(ima, "use_clamp_x", text="X")
-        col.prop(ima, "use_clamp_y", text="Y")
-
-        col = split.column()
-        col.label(text="Mapping:")
-        col.prop(ima, "mapping", expand=True)
 
 
 class IMAGE_PT_view_properties(Panel):
@@ -1363,7 +1319,6 @@ classes = (
     IMAGE_PT_active_mask_spline,
     IMAGE_PT_active_mask_point,
     IMAGE_PT_image_properties,
-    IMAGE_PT_game_properties,
     IMAGE_PT_view_properties,
     IMAGE_PT_tools_transform_uvs,
     IMAGE_PT_tools_align_uvs,

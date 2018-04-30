@@ -59,7 +59,6 @@
 #include "BKE_brush.h"
 #include "BKE_cachefile.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h" /* for DAG_init */
 #include "BKE_font.h"
 #include "BKE_global.h"
 #include "BKE_material.h"
@@ -69,6 +68,7 @@
 #include "BKE_image.h"
 #include "BKE_particle.h"
 
+#include "DEG_depsgraph.h"
 
 #include "IMB_imbuf.h"  /* for IMB_init */
 
@@ -83,13 +83,6 @@
 
 #ifdef WITH_FREESTYLE
 #  include "FRS_freestyle.h"
-#endif
-
-/* for passing information between creator and gameengine */
-#ifdef WITH_GAMEENGINE
-#  include "BL_System.h"
-#else /* dummy */
-#  define SYS_SystemHandle int
 #endif
 
 #include <signal.h>
@@ -226,7 +219,6 @@ int main(
         )
 {
 	bContext *C;
-	SYS_SystemHandle syshandle;
 
 #ifndef WITH_PYTHON_MODULE
 	bArgs *ba;
@@ -373,19 +365,13 @@ int main(
 	BKE_cachefiles_init();
 	BKE_images_init();
 	BKE_modifier_init();
-	DAG_init();
+	DEG_register_node_types();
 
 	BKE_brush_system_init();
 	RE_texture_rng_init();
 	
 
 	BLI_callback_global_init();
-
-#ifdef WITH_GAMEENGINE
-	syshandle = SYS_GetSystem();
-#else
-	syshandle = 0;
-#endif
 
 	/* first test for background */
 #ifndef WITH_PYTHON_MODULE
@@ -394,7 +380,7 @@ int main(
 	/* ensure we free on early exit */
 	app_init_data.ba = ba;
 
-	main_args_setup(C, ba, &syshandle);
+	main_args_setup(C, ba);
 
 	BLI_argsParse(ba, 1, NULL, NULL);
 
@@ -402,7 +388,6 @@ int main(
 
 #else
 	G.factory_startup = true;  /* using preferences or user startup makes no sense for py-as-module */
-	(void)syshandle;
 #endif
 
 #ifdef WITH_FFMPEG
@@ -517,20 +502,6 @@ int main(
 		WM_exit(C);
 	}
 	else {
-		if (G.fileflags & G_FILE_AUTOPLAY) {
-			if (G.f & G_SCRIPT_AUTOEXEC) {
-				if (WM_init_game(C)) {
-					return 0;
-				}
-			}
-			else {
-				if (!(G.f & G_SCRIPT_AUTOEXEC_FAIL_QUIET)) {
-					G.f |= G_SCRIPT_AUTOEXEC_FAIL;
-					BLI_snprintf(G.autoexec_fail, sizeof(G.autoexec_fail), "Game AutoStart");
-				}
-			}
-		}
-
 		if (!G.file_loaded) {
 			WM_init_splash(C);
 		}

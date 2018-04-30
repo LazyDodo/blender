@@ -31,7 +31,7 @@
  */
 
 struct bContext;
-struct EvaluationContext;
+struct Depsgraph;
 struct StripColorBalance;
 struct Editing;
 struct GSet;
@@ -40,6 +40,7 @@ struct GPUFX;
 struct ImBuf;
 struct Main;
 struct Mask;
+struct RenderEngineType;
 struct Scene;
 struct Sequence;
 struct SequenceModifierData;
@@ -92,12 +93,12 @@ void BKE_sequence_iterator_end(SeqIterator *iter);
 	}
 
 typedef struct SeqRenderData {
-	struct EvaluationContext *eval_ctx;
 	struct Main *bmain;
 	struct Scene *scene;
 	int rectx;
 	int recty;
 	int preview_render_size;
+	int for_render;
 	int motion_blur_samples;
 	float motion_blur_shutter;
 	bool skip_cache;
@@ -112,8 +113,9 @@ typedef struct SeqRenderData {
 } SeqRenderData;
 
 void BKE_sequencer_new_render_data(
-        struct EvaluationContext *eval_ctx, struct Main *bmain, struct Scene *scene,
+        struct Main *bmain, struct Scene *scene,
         int rectx, int recty, int preview_render_size,
+        int for_render,
         SeqRenderData *r_context);
 
 int BKE_sequencer_cmp_time_startdisp(const void *a, const void *b);
@@ -434,10 +436,12 @@ enum {
 };
 
 typedef struct ImBuf *(*SequencerDrawView)(
-        struct Scene *scene, struct Object *camera, int width, int height,
-        unsigned int flag, unsigned int draw_flags, int drawtype, int alpha_mode,
+        struct Depsgraph *depsgraph, struct Scene *scene,
+        int drawtype,
+        struct Object *camera, int width, int height,
+        unsigned int flag, unsigned int draw_flags, int alpha_mode,
         int samples, const char *viewname,
-        struct GPUFX *fx, struct GPUOffScreen *ofs, char err_out[256]);
+        struct GPUOffScreen *ofs, char err_out[256]);
 extern SequencerDrawView sequencer_view3d_cb;
 
 /* copy/paste */

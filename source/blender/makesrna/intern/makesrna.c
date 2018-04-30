@@ -2995,6 +2995,28 @@ static void rna_generate_property(FILE *f, StructRNA *srna, const char *nest, Pr
 			}
 			break;
 		}
+		case PROP_POINTER:
+		{
+			PointerPropertyRNA *pprop = (PointerPropertyRNA *)prop;
+
+			/* XXX This systematically enforces that flag on ID pointers... we'll probably have to revisit. :/ */
+			StructRNA *type = rna_find_struct((const char *)pprop->type);
+			if (type && (type->flag & STRUCT_ID)) {
+				prop->flag |= PROP_PTR_NO_OWNERSHIP;
+			}
+			break;
+		}
+		case PROP_COLLECTION:
+		{
+			CollectionPropertyRNA *cprop = (CollectionPropertyRNA *)prop;
+
+			/* XXX This systematically enforces that flag on ID pointers... we'll probably have to revisit. :/ */
+			StructRNA *type = rna_find_struct((const char *)cprop->item_type);
+			if (type && (type->flag & STRUCT_ID)) {
+				prop->flag |= PROP_PTR_NO_OWNERSHIP;
+			}
+			break;
+		}
 		default:
 			break;
 	}
@@ -3025,12 +3047,15 @@ static void rna_generate_property(FILE *f, StructRNA *srna, const char *nest, Pr
 	        prop->arraylength[1],
 	        prop->arraylength[2],
 	        prop->totarraylength);
-	fprintf(f, "\t%s%s, %d, %s, %s,\n",
+	fprintf(f, "\t%s%s, %d, %s, %s, %s, %s, %s,\n",
 	        (prop->flag & PROP_CONTEXT_UPDATE) ? "(UpdateFunc)" : "",
 	        rna_function_string(prop->update),
 	        prop->noteflag,
 	        rna_function_string(prop->editable),
-	        rna_function_string(prop->itemeditable));
+	        rna_function_string(prop->itemeditable),
+	        rna_function_string(prop->override_diff),
+	        rna_function_string(prop->override_store),
+	        rna_function_string(prop->override_apply));
 
 	if (prop->flag_internal & PROP_INTERN_RAW_ACCESS) rna_set_raw_offset(f, srna, prop);
 	else fprintf(f, "\t0, -1");
@@ -3325,7 +3350,6 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_action.c", "rna_action_api.c", RNA_def_action},
 	{"rna_animation.c", "rna_animation_api.c", RNA_def_animation},
 	{"rna_animviz.c", NULL, RNA_def_animviz},
-	{"rna_actuator.c", "rna_actuator_api.c", RNA_def_actuator},
 	{"rna_armature.c", "rna_armature_api.c", RNA_def_armature},
 	{"rna_boid.c", NULL, RNA_def_boid},
 	{"rna_brush.c", NULL, RNA_def_brush},
@@ -3335,9 +3359,7 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_color.c", NULL, RNA_def_color},
 	{"rna_constraint.c", NULL, RNA_def_constraint},
 	{"rna_context.c", NULL, RNA_def_context},
-	{"rna_controller.c", "rna_controller_api.c", RNA_def_controller},
 	{"rna_curve.c", "rna_curve_api.c", RNA_def_curve},
-	{"rna_depsgraph.c", NULL, RNA_def_depsgraph},
 	{"rna_dynamicpaint.c", NULL, RNA_def_dynamic_paint},
 	{"rna_fcurve.c", "rna_fcurve_api.c", RNA_def_fcurve},
 	{"rna_fluidsim.c", NULL, RNA_def_fluidsim},
@@ -3347,6 +3369,7 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_key.c", NULL, RNA_def_key},
 	{"rna_lamp.c", NULL, RNA_def_lamp},
 	{"rna_lattice.c", "rna_lattice_api.c", RNA_def_lattice},
+	{"rna_layer.c", NULL, RNA_def_view_layer},
 	{"rna_linestyle.c", NULL, RNA_def_linestyle},
 	{"rna_main.c", "rna_main_api.c", RNA_def_main},
 	{"rna_material.c", "rna_material_api.c", RNA_def_material},
@@ -3357,17 +3380,17 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_nodetree.c", NULL, RNA_def_nodetree},
 	{"rna_object.c", "rna_object_api.c", RNA_def_object},
 	{"rna_object_force.c", NULL, RNA_def_object_force},
+	{"rna_depsgraph.c", NULL, RNA_def_depsgraph},
 	{"rna_packedfile.c", NULL, RNA_def_packedfile},
 	{"rna_palette.c", NULL, RNA_def_palette},
 	{"rna_particle.c", NULL, RNA_def_particle},
 	{"rna_pose.c", "rna_pose_api.c", RNA_def_pose},
-	{"rna_property.c", NULL, RNA_def_gameproperty},
+	{"rna_lightprobe.c", NULL, RNA_def_lightprobe},
 	{"rna_render.c", NULL, RNA_def_render},
 	{"rna_rigidbody.c", NULL, RNA_def_rigidbody},
 	{"rna_scene.c", "rna_scene_api.c", RNA_def_scene},
 	{"rna_screen.c", NULL, RNA_def_screen},
 	{"rna_sculpt_paint.c", NULL, RNA_def_sculpt_paint},
-	{"rna_sensor.c", "rna_sensor_api.c", RNA_def_sensor},
 	{"rna_sequencer.c", "rna_sequencer_api.c", RNA_def_sequencer},
 	{"rna_smoke.c", NULL, RNA_def_smoke},
 	{"rna_space.c", "rna_space_api.c", RNA_def_space},
@@ -3380,6 +3403,8 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_userdef.c", NULL, RNA_def_userdef},
 	{"rna_vfont.c", "rna_vfont_api.c", RNA_def_vfont},
 	{"rna_wm.c", "rna_wm_api.c", RNA_def_wm},
+	{"rna_wm_manipulator.c", "rna_wm_manipulator_api.c", RNA_def_wm_manipulator},
+	{"rna_workspace.c", NULL, RNA_def_workspace},
 	{"rna_world.c", NULL, RNA_def_world},
 	{"rna_movieclip.c", NULL, RNA_def_movieclip},
 	{"rna_tracking.c", NULL, RNA_def_tracking},
@@ -3709,6 +3734,9 @@ static const char *cpp_classes = ""
 "	bool is_a(StructRNA *type) { return RNA_struct_is_a(ptr.type, type) ? true: false; }\n"
 "	operator void*() { return ptr.data; }\n"
 "	operator bool() { return ptr.data != NULL; }\n"
+"\n"
+"	bool operator==(const Pointer &other) { return ptr.data == other.ptr.data; }\n"
+"	bool operator!=(const Pointer &other) { return ptr.data != other.ptr.data; }\n"
 "\n"
 "	PointerRNA ptr;\n"
 "};\n"

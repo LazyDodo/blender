@@ -45,9 +45,8 @@ void python_thread_state_restore(void **python_thread_state);
 
 static inline BL::Mesh object_to_mesh(BL::BlendData& data,
                                       BL::Object& object,
-                                      BL::Scene& scene,
+                                      BL::Depsgraph& depsgraph,
                                       bool apply_modifiers,
-                                      bool render,
                                       bool calc_undeformed,
                                       Mesh::SubdivisionType subdivision_type)
 {
@@ -64,7 +63,7 @@ static inline BL::Mesh object_to_mesh(BL::BlendData& data,
 		subsurf_mod.show_viewport(false);
 	}
 
-	BL::Mesh me = data.meshes.new_from_object(scene, object, apply_modifiers, (render)? 2: 1, false, calc_undeformed);
+	BL::Mesh me = data.meshes.new_from_object(depsgraph, object, apply_modifiers, false, calc_undeformed);
 
 	if(subdivision_type != Mesh::SUBDIVISION_NONE) {
 		BL::Modifier subsurf_mod = object.modifiers[object.modifiers.length()-1];
@@ -307,7 +306,7 @@ static inline uint get_layer(const BL::Array<int, 20>& array)
 static inline uint get_layer(const BL::Array<int, 20>& array,
                              const BL::Array<int, 8>& local_array,
                              bool is_light = false,
-                             uint scene_layers = (1 << 20) - 1)
+                             uint view_layers = (1 << 20) - 1)
 {
 	uint layer = 0;
 
@@ -319,7 +318,7 @@ static inline uint get_layer(const BL::Array<int, 20>& array,
 		/* Consider light is visible if it was visible without layer
 		 * override, which matches behavior of Blender Internal.
 		 */
-		if(layer & scene_layers) {
+		if(layer & view_layers) {
 			for(uint i = 0; i < 8; i++)
 				layer |= (1 << (20+i));
 		}

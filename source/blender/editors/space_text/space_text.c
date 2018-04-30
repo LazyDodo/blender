@@ -62,7 +62,7 @@
 
 /* ******************** default callbacks for text space ***************** */
 
-static SpaceLink *text_new(const bContext *UNUSED(C))
+static SpaceLink *text_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceText *stext;
@@ -125,7 +125,8 @@ static SpaceLink *text_duplicate(SpaceLink *sl)
 	return (SpaceLink *)stextn;
 }
 
-static void text_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn)
+static void text_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene),
+                          WorkSpace *UNUSED(workspace))
 {
 	SpaceText *st = sa->spacedata.first;
 

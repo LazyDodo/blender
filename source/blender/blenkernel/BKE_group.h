@@ -34,24 +34,52 @@
  */
 
 struct Base;
-struct EvaluationContext;
+struct Depsgraph;
 struct Group;
 struct Main;
 struct Object;
 struct Scene;
 
 void          BKE_group_free(struct Group *group);
+void          BKE_group_init(struct Group *group);
 struct Group *BKE_group_add(struct Main *bmain, const char *name);
 void          BKE_group_copy_data(struct Main *bmain, struct Group *group_dst, const struct Group *group_src, const int flag);
 struct Group *BKE_group_copy(struct Main *bmain, const struct Group *group);
 void          BKE_group_make_local(struct Main *bmain, struct Group *group, const bool lib_local);
-bool          BKE_group_object_add(struct Group *group, struct Object *ob, struct Scene *scene, struct Base *base);
-bool          BKE_group_object_unlink(struct Group *group, struct Object *ob, struct Scene *scene, struct Base *base);
+bool          BKE_group_object_add(struct Group *group, struct Object *ob);
+bool          BKE_group_object_unlink(struct Group *group, struct Object *ob);
 struct Group *BKE_group_object_find(struct Group *group, struct Object *ob);
 bool          BKE_group_object_exists(struct Group *group, struct Object *ob);
 bool          BKE_group_object_cyclic_check(struct Main *bmain, struct Object *object, struct Group *group);
 bool          BKE_group_is_animated(struct Group *group, struct Object *parent);
 
-void          BKE_group_handle_recalc_and_update(struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *parent, struct Group *group);
+void          BKE_group_handle_recalc_and_update(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *parent, struct Group *group);
+
+/* Dependency graph evaluation. */
+
+void BKE_group_eval_view_layers(struct Depsgraph *depsgraph,
+                                struct Group *group);
+
+/* Helper macros. */
+
+#define FOREACH_GROUP_BASE_BEGIN(_group, _base)                   \
+	for (Base *_base = (Base *)(_group)->view_layer->object_bases.first; \
+	     _base;                                                   \
+	     _base = _base->next)                                     \
+	{
+
+#define FOREACH_GROUP_BASE_END                                    \
+	}
+
+#define FOREACH_GROUP_OBJECT_BEGIN(_group, _object)               \
+	for (Base *_base = (Base *)(_group)->view_layer->object_bases.first; \
+	     _base;                                                   \
+	     _base = _base->next)                                     \
+	{                                                             \
+		Object *_object = _base->object;                          \
+		BLI_assert(_object != NULL);
+
+#define FOREACH_GROUP_OBJECT_END                                  \
+	} ((void)0)
 
 #endif  /* __BKE_GROUP_H__ */

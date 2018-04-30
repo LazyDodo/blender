@@ -40,6 +40,7 @@
 #include "DNA_ID.h"
 
 #include "BLI_math.h"
+#include "BLI_listbase.h"
 #include "BLI_rect.h"
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
@@ -47,6 +48,7 @@
 #include "BKE_animsys.h"
 #include "BKE_camera.h"
 #include "BKE_object.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_library_remap.h"
@@ -54,7 +56,9 @@
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 
-#include "GPU_compositing.h"
+#include "DEG_depsgraph_query.h"
+
+#include "MEM_guardedalloc.h"
 
 /****************************** Camera Datablock *****************************/
 
@@ -71,8 +75,6 @@ void BKE_camera_init(Camera *cam)
 	cam->ortho_scale = 6.0;
 	cam->flag |= CAM_SHOWPASSEPARTOUT;
 	cam->passepartalpha = 0.5f;
-
-	GPU_fx_compositor_init_dof_settings(&cam->gpu_dof);
 
 	/* stereoscopy 3d */
 	cam->stereo.interocular_distance = 0.065f;
@@ -100,9 +102,19 @@ void *BKE_camera_add(Main *bmain, const char *name)
  *
  * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
-void BKE_camera_copy_data(Main *UNUSED(bmain), Camera *UNUSED(cam_dst), const Camera *UNUSED(cam_src), const int UNUSED(flag))
+void BKE_camera_copy_data(Main *UNUSED(bmain), Camera *cam_dst, const Camera *cam_src, const int flag)
 {
-	/* Nothing to do! */
+	BLI_duplicatelist(&cam_dst->bg_images, &cam_src->bg_images);
+	if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
+		for (CameraBGImage *bgpic = cam_dst->bg_images.first; bgpic; bgpic = bgpic->next) {
+			if (bgpic->source == CAM_BGIMG_SOURCE_IMAGE) {
+				id_us_plus((ID *)bgpic->ima);
+			}
+			else if (bgpic->source == CAM_BGIMG_SOURCE_MOVIE) {
+				id_us_plus((ID *)bgpic->clip);
+			}
+		}
+	}
 }
 
 Camera *BKE_camera_copy(Main *bmain, const Camera *cam)
@@ -120,6 +132,16 @@ void BKE_camera_make_local(Main *bmain, Camera *cam, const bool lib_local)
 /** Free (or release) any data used by this camera (does not free the camera itself). */
 void BKE_camera_free(Camera *ca)
 {
+	for (CameraBGImage *bgpic = ca->bg_images.first; bgpic; bgpic = bgpic->next) {
+		if (bgpic->source == CAM_BGIMG_SOURCE_IMAGE) {
+			id_us_min((ID *)bgpic->ima);
+		}
+		else if (bgpic->source == CAM_BGIMG_SOURCE_MOVIE) {
+			id_us_min((ID *)bgpic->clip);
+		}
+	}
+	BLI_freelistN(&ca->bg_images);
+
 	BKE_animdata_free((ID *)ca, false);
 }
 
@@ -237,7 +259,7 @@ void BKE_camera_params_from_object(CameraParams *params, const Object *ob)
 	}
 }
 
-void BKE_camera_params_from_view3d(CameraParams *params, const View3D *v3d, const RegionView3D *rv3d)
+void BKE_camera_params_from_view3d(CameraParams *params, Depsgraph *depsgraph, const View3D *v3d, const RegionView3D *rv3d)
 {
 	/* common */
 	params->lens = v3d->lens;
@@ -246,7 +268,8 @@ void BKE_camera_params_from_view3d(CameraParams *params, const View3D *v3d, cons
 
 	if (rv3d->persp == RV3D_CAMOB) {
 		/* camera view */
-		BKE_camera_params_from_object(params, v3d->camera);
+		Object *camera_object = DEG_get_evaluated_object(depsgraph, v3d->camera);
+		BKE_camera_params_from_object(params, camera_object);
 
 		params->zoom = BKE_screen_view3d_zoom_to_fac(rv3d->camzoom);
 
@@ -281,10 +304,7 @@ void BKE_camera_params_compute_viewplane(CameraParams *params, int winx, int win
 	float pixsize, viewfac, sensor_size, dx, dy;
 	int sensor_fit;
 
-	/* fields rendering */
 	params->ycor = yasp / xasp;
-	if (params->use_fields)
-		params->ycor *= 2.0f;
 
 	if (params->is_ortho) {
 		/* orthographic camera */
@@ -325,18 +345,6 @@ void BKE_camera_params_compute_viewplane(CameraParams *params, int winx, int win
 	viewplane.ymin += dy;
 	viewplane.xmax += dx;
 	viewplane.ymax += dy;
-
-	/* fields offset */
-	if (params->field_second) {
-		if (params->field_odd) {
-			viewplane.ymin -= 0.5f * params->ycor;
-			viewplane.ymax -= 0.5f * params->ycor;
-		}
-		else {
-			viewplane.ymin += 0.5f * params->ycor;
-			viewplane.ymax += 0.5f * params->ycor;
-		}
-	}
 
 	/* the window matrix is used for clipping, and not changed during OSA steps */
 	/* using an offset of +0.5 here would give clip errors on edges */
@@ -641,7 +649,7 @@ static bool camera_frame_fit_calc_from_data(
 /* don't move the camera, just yield the fit location */
 /* r_scale only valid/useful for ortho cameras */
 bool BKE_camera_view_frame_fit_to_scene(
-        Scene *scene, struct View3D *v3d, Object *camera_ob, float r_co[3], float *r_scale)
+        Depsgraph *depsgraph, Scene *scene, ViewLayer *view_layer, Object *camera_ob, float r_co[3], float *r_scale)
 {
 	CameraParams params;
 	CameraViewFrameData data_cb;
@@ -652,7 +660,7 @@ bool BKE_camera_view_frame_fit_to_scene(
 	camera_frame_fit_data_init(scene, camera_ob, &params, &data_cb);
 
 	/* run callback on all visible points */
-	BKE_scene_foreach_display_point(scene, v3d, BA_SELECT, camera_to_frame_view_cb, &data_cb);
+	BKE_scene_foreach_display_point(depsgraph, scene, view_layer, camera_to_frame_view_cb, &data_cb);
 
 	return camera_frame_fit_calc_from_data(&params, &data_cb, r_co, r_scale);
 }
@@ -861,9 +869,9 @@ static Object *camera_multiview_advanced(Scene *scene, Object *camera, const cha
 	}
 
 	if (name[0] != '\0') {
-		Base *base = BKE_scene_base_find_by_name(scene, name);
-		if (base) {
-			return base->object;
+		Object *ob = BKE_scene_object_find_by_name(scene, name);
+		if (ob != NULL) {
+			return ob;
 		}
 	}
 
@@ -958,5 +966,40 @@ void BKE_camera_to_gpu_dof(struct Object *camera, struct GPUFXSettings *r_fx_set
 		r_fx_settings->dof->focal_length = cam->lens;
 		r_fx_settings->dof->sensor = BKE_camera_sensor_size(cam->sensor_fit, cam->sensor_x, cam->sensor_y);
 		r_fx_settings->dof->focus_distance = BKE_camera_object_dof_distance(camera);
+	}
+}
+
+CameraBGImage *BKE_camera_background_image_new(Camera *cam)
+{
+	CameraBGImage *bgpic = MEM_callocN(sizeof(CameraBGImage), "Background Image");
+
+	bgpic->scale = 1.0f;
+	bgpic->alpha = 0.5f;
+	bgpic->iuser.fie_ima = 2;
+	bgpic->iuser.ok = 1;
+	bgpic->flag |= CAM_BGIMG_FLAG_EXPANDED;
+
+	BLI_addtail(&cam->bg_images, bgpic);
+
+	return bgpic;
+}
+
+void BKE_camera_background_image_remove(Camera *cam, CameraBGImage *bgpic)
+{
+	BLI_remlink(&cam->bg_images, bgpic);
+
+	MEM_freeN(bgpic);
+}
+
+void BKE_camera_background_image_clear(Camera *cam)
+{
+	CameraBGImage *bgpic = cam->bg_images.first;
+
+	while (bgpic) {
+		CameraBGImage *next_bgpic = bgpic->next;
+
+		BKE_camera_background_image_remove(cam, bgpic);
+
+		bgpic = next_bgpic;
 	}
 }

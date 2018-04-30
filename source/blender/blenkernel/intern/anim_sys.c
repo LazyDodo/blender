@@ -60,7 +60,6 @@
 #include "BKE_animsys.h"
 #include "BKE_action.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_fcurve.h"
 #include "BKE_nla.h"
 #include "BKE_global.h"
@@ -70,13 +69,14 @@
 #include "BKE_report.h"
 #include "BKE_texture.h"
 
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
+
 #include "RNA_access.h"
 
 #include "nla_private.h"
 
 #include "atomic_ops.h"
-
-#include "DEG_depsgraph.h"
 
 /* ***************************************** */
 /* AnimData API */
@@ -97,6 +97,7 @@ bool id_type_can_have_animdata(const short id_type)
 		case ID_MA: case ID_TE: case ID_NT:
 		case ID_LA: case ID_CA: case ID_WO:
 		case ID_LS:
+		case ID_LP:
 		case ID_SPK:
 		case ID_SCE:
 		case ID_MC:
@@ -601,36 +602,8 @@ char *BKE_animdata_driver_path_hack(bContext *C, PointerRNA *ptr, PropertyRNA *p
 		Object *ob = CTX_data_active_object(C);
 
 		if (ob && id) {
-			/* only id-types which can be remapped to go through objects should be considered */
-			switch (GS(id->name)) {
-				case ID_TE: /* textures */
-				{
-					Material *ma = give_current_material(ob, ob->actcol);
-					Tex *tex = give_current_material_texture(ma);
-
-					/* assumes: texture will only be shown if it is active material's active texture it's ok */
-					if ((ID *)tex == id) {
-						char name_esc_ma[(sizeof(ma->id.name) - 2) * 2];
-						char name_esc_tex[(sizeof(tex->id.name) - 2) * 2];
-
-						BLI_strescape(name_esc_ma, ma->id.name + 2, sizeof(name_esc_ma));
-						BLI_strescape(name_esc_tex, tex->id.name + 2, sizeof(name_esc_tex));
-
-						/* create new path */
-						// TODO: use RNA path functions to construct step by step instead?
-						// FIXME: maybe this isn't even needed anymore...
-						path = BLI_sprintfN("material_slots[\"%s\"].material.texture_slots[\"%s\"].texture.%s",
-						                    name_esc_ma, name_esc_tex, basepath);
-
-						/* free old one */
-						if (basepath != base_path)
-							MEM_freeN(basepath);
-					}
-					break;
-				}
-				default:
-					break;
-			}
+			/* TODO: after material textures were removed, this function serves
+			 * no purpose anymore, but could be used again so was not removed. */
 
 			/* fix RNA pointer, as we've now changed the ID root by changing the paths */
 			if (basepath != path) {
@@ -1555,37 +1528,100 @@ static bool animsys_store_rna_setting(
 /* less than 1.0 evaluates to false, use epsilon to avoid float error */
 #define ANIMSYS_FLOAT_AS_BOOL(value) ((value) > ((1.0f - FLT_EPSILON)))
 
+static bool animsys_read_rna_setting(PathResolvedRNA *anim_rna, float *r_value)
+{
+	PropertyRNA *prop = anim_rna->prop;
+	PointerRNA *ptr = &anim_rna->ptr;
+	int array_index = anim_rna->prop_index;
+	float orig_value;
+
+	/* caller must ensure this is animatable */
+	BLI_assert(RNA_property_animateable(ptr, prop) || ptr->id.data == NULL);
+
+	switch (RNA_property_type(prop)) {
+		case PROP_BOOLEAN:
+		{
+			if (array_index != -1) {
+				const int orig_value_coerce = RNA_property_boolean_get_index(ptr, prop, array_index);
+				orig_value = (float)orig_value_coerce;
+			}
+			else {
+				const int orig_value_coerce = RNA_property_boolean_get(ptr, prop);
+				orig_value = (float)orig_value_coerce;
+			}
+			break;
+		}
+		case PROP_INT:
+		{
+			if (array_index != -1) {
+				const int orig_value_coerce = RNA_property_int_get_index(ptr, prop, array_index);
+				orig_value = (float)orig_value_coerce;
+			}
+			else {
+				const int orig_value_coerce = RNA_property_int_get(ptr, prop);
+				orig_value = (float)orig_value_coerce;
+			}
+			break;
+		}
+		case PROP_FLOAT:
+		{
+			if (array_index != -1) {
+				const float orig_value_coerce = RNA_property_float_get_index(ptr, prop, array_index);
+				orig_value = (float)orig_value_coerce;
+			}
+			else {
+				const float orig_value_coerce = RNA_property_float_get(ptr, prop);
+				orig_value = (float)orig_value_coerce;
+			}
+			break;
+		}
+		case PROP_ENUM:
+		{
+			const int orig_value_coerce = RNA_property_enum_get(ptr, prop);
+			orig_value = (float)orig_value_coerce;
+			break;
+		}
+		default:
+			/* nothing can be done here... so it is unsuccessful? */
+			return false;
+	}
+
+	if (r_value != NULL) {
+		*r_value = orig_value;
+	}
+
+	/* successful */
+	return true;
+}
+
 /* Write the given value to a setting using RNA, and return success */
 static bool animsys_write_rna_setting(PathResolvedRNA *anim_rna, const float value)
 {
 	PropertyRNA *prop = anim_rna->prop;
 	PointerRNA *ptr = &anim_rna->ptr;
 	int array_index = anim_rna->prop_index;
-	
+
 	/* caller must ensure this is animatable */
 	BLI_assert(RNA_property_animateable(ptr, prop) || ptr->id.data == NULL);
 
-	/* set value for animatable numerical values only
-	 * HACK: some local F-Curves (e.g. those on NLA Strips) are evaluated
-	 *       without an ID provided, which causes the animateable test to fail!
-	 */
-	bool written = false;
+	/* Check whether value is new. Otherwise we skip all the updates. */
+	float old_value;
+	if (!animsys_read_rna_setting(anim_rna, &old_value)) {
+		return false;
+	}
+	if (old_value == value) {
+		return true;
+	}
 
 	switch (RNA_property_type(prop)) {
 		case PROP_BOOLEAN:
 		{
 			const int value_coerce = ANIMSYS_FLOAT_AS_BOOL(value);
 			if (array_index != -1) {
-				if (RNA_property_boolean_get_index(ptr, prop, array_index) != value_coerce) {
-					RNA_property_boolean_set_index(ptr, prop, array_index, value_coerce);
-					written = true;
-				}
+				RNA_property_boolean_set_index(ptr, prop, array_index, value_coerce);
 			}
 			else {
-				if (RNA_property_boolean_get(ptr, prop) != value_coerce) {
-					RNA_property_boolean_set(ptr, prop, value_coerce);
-					written = true;
-				}
+				RNA_property_boolean_set(ptr, prop, value_coerce);
 			}
 			break;
 		}
@@ -1594,16 +1630,10 @@ static bool animsys_write_rna_setting(PathResolvedRNA *anim_rna, const float val
 			int value_coerce = (int)value;
 			RNA_property_int_clamp(ptr, prop, &value_coerce);
 			if (array_index != -1) {
-				if (RNA_property_int_get_index(ptr, prop, array_index) != value_coerce) {
-					RNA_property_int_set_index(ptr, prop, array_index, value_coerce);
-					written = true;
-				}
+				RNA_property_int_set_index(ptr, prop, array_index, value_coerce);
 			}
 			else {
-				if (RNA_property_int_get(ptr, prop) != value_coerce) {
-					RNA_property_int_set(ptr, prop, value_coerce);
-					written = true;
-				}
+				RNA_property_int_set(ptr, prop, value_coerce);
 			}
 			break;
 		}
@@ -1612,26 +1642,17 @@ static bool animsys_write_rna_setting(PathResolvedRNA *anim_rna, const float val
 			float value_coerce = value;
 			RNA_property_float_clamp(ptr, prop, &value_coerce);
 			if (array_index != -1) {
-				if (RNA_property_float_get_index(ptr, prop, array_index) != value_coerce) {
-					RNA_property_float_set_index(ptr, prop, array_index, value_coerce);
-					written = true;
-				}
+				RNA_property_float_set_index(ptr, prop, array_index, value_coerce);
 			}
 			else {
-				if (RNA_property_float_get(ptr, prop) != value_coerce) {
-					RNA_property_float_set(ptr, prop, value_coerce);
-					written = true;
-				}
+				RNA_property_float_set(ptr, prop, value_coerce);
 			}
 			break;
 		}
 		case PROP_ENUM:
 		{
 			const int value_coerce = (int)value;
-			if (RNA_property_enum_get(ptr, prop) != value_coerce) {
-				RNA_property_enum_set(ptr, prop, value_coerce);
-				written = true;
-			}
+			RNA_property_enum_set(ptr, prop, value_coerce);
 			break;
 		}
 		default:
@@ -1659,23 +1680,6 @@ static bool animsys_write_rna_setting(PathResolvedRNA *anim_rna, const float val
 	}
 #endif
 
-	/* as long as we don't do property update, we still tag datablock
-	 * as having been updated. this flag does not cause any updates to
-	 * be run, it's for e.g. render engines to synchronize data */
-	if (written && ptr->id.data) {
-		ID *id = ptr->id.data;
-
-		/* for cases like duplifarmes it's only a temporary so don't
-		 * notify anyone of updates */
-		if (!(id->recalc & ID_RECALC_SKIP_ANIM_TAG)) {
-			/* NOTE: This is a bit annoying to use atomic API here, but this
-			 * code is at it's EOL and removed already in 2.8 branch.
-			 */
-			atomic_fetch_and_or_int32(&id->recalc, ID_RECALC);
-			DAG_id_type_tag(G.main, GS(id->name));
-		}
-	}
-
 	/* successful */
 	return true;
 }
@@ -1697,10 +1701,15 @@ bool BKE_animsys_execute_fcurve(PointerRNA *ptr, AnimMapper *remap, FCurve *fcu,
 /* Evaluate all the F-Curves in the given list 
  * This performs a set of standard checks. If extra checks are required, separate code should be used
  */
-static void animsys_evaluate_fcurves(PointerRNA *ptr, ListBase *list, AnimMapper *remap, float ctime)
+static void animsys_evaluate_fcurves(PointerRNA *ptr, ListBase *list, AnimMapper *remap, float ctime, short recalc)
 {
 	FCurve *fcu;
-	
+
+	/* Pointer is expected to be an ID pointer, if it's not -- we are doomed. */
+	PointerRNA orig_ptr = *ptr;
+	orig_ptr.id.data = ((ID *)orig_ptr.id.data)->orig_id;
+	orig_ptr.data = orig_ptr.id.data;
+
 	/* calculate then execute each curve */
 	for (fcu = list->first; fcu; fcu = fcu->next) {
 		/* check if this F-Curve doesn't belong to a muted group */
@@ -1708,9 +1717,28 @@ static void animsys_evaluate_fcurves(PointerRNA *ptr, ListBase *list, AnimMapper
 			/* check if this curve should be skipped */
 			if ((fcu->flag & (FCURVE_MUTED | FCURVE_DISABLED)) == 0) {
 				PathResolvedRNA anim_rna;
+				/* Read current value from original datablock. */
+				float dna_val;
+				if (animsys_store_rna_setting(&orig_ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
+					if (!animsys_read_rna_setting(&anim_rna, &dna_val)) {
+						continue;
+					}
+				}
+				else {
+					continue;
+				}
 				if (animsys_store_rna_setting(ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
+					const bool check_orig_dna = ((recalc & ADT_RECALC_CHECK_ORIG_DNA) != 0);
+					/* If we are tweaking DNA without changing frame, we don't write f-curves,
+					 * since otherwise we will not be able to change properties which has animation.
+					 */
+					if (check_orig_dna && fcu->orig_dna_val != dna_val) {
+						continue;
+					}
 					const float curval = calculate_fcurve(&anim_rna, fcu, ctime);
 					animsys_write_rna_setting(&anim_rna, curval);
+					/* Store original DNA value f-curve was written for. */
+					fcu->orig_dna_val = dna_val;
 				}
 			}
 		}
@@ -1823,7 +1851,7 @@ void animsys_evaluate_action_group(PointerRNA *ptr, bAction *act, bActionGroup *
 }
 
 /* Evaluate Action (F-Curve Bag) */
-void animsys_evaluate_action(PointerRNA *ptr, bAction *act, AnimMapper *remap, float ctime)
+static void animsys_evaluate_action_ex(PointerRNA *ptr, bAction *act, AnimMapper *remap, float ctime, short recalc)
 {
 	/* check if mapper is appropriate for use here (we set to NULL if it's inappropriate) */
 	if (act == NULL) return;
@@ -1832,7 +1860,12 @@ void animsys_evaluate_action(PointerRNA *ptr, bAction *act, AnimMapper *remap, f
 	action_idcode_patch_check(ptr->id.data, act);
 	
 	/* calculate then execute each curve */
-	animsys_evaluate_fcurves(ptr, &act->curves, remap, ctime);
+	animsys_evaluate_fcurves(ptr, &act->curves, remap, ctime, recalc);
+}
+
+void animsys_evaluate_action(PointerRNA *ptr, bAction *act, AnimMapper *remap, float ctime)
+{
+	animsys_evaluate_action_ex(ptr, act, remap, ctime, 0);
 }
 
 /* ***************************************** */
@@ -1871,7 +1904,7 @@ static void nlastrip_evaluate_controls(NlaStrip *strip, float ctime)
 		RNA_pointer_create(NULL, &RNA_NlaStrip, strip, &strip_ptr);
 		
 		/* execute these settings as per normal */
-		animsys_evaluate_fcurves(&strip_ptr, &strip->fcurves, NULL, ctime);
+		animsys_evaluate_fcurves(&strip_ptr, &strip->fcurves, NULL, ctime, 0);
 	}
 	
 	/* analytically generate values for influence and time (if applicable)
@@ -2619,17 +2652,6 @@ static void animsys_evaluate_nla(ListBase *echannels, PointerRNA *ptr, AnimData 
 		
 	/* 3. free temporary evaluation data that's not used elsewhere */
 	BLI_freelistN(&estrips);
-
-	/* Tag ID as updated so render engines will recognize changes in data
-	 * which is animated but doesn't have actions.
-	 */
-	if (ptr->id.data != NULL) {
-		ID *id = ptr->id.data;
-		if (!(id->recalc & ID_RECALC_SKIP_ANIM_TAG)) {
-			id->recalc |= ID_RECALC;
-			DAG_id_type_tag(G.main, GS(id->name));
-		}
-	}
 }
 
 /* NLA Evaluation function (mostly for use through do_animdata) 
@@ -2749,7 +2771,7 @@ void BKE_animsys_evaluate_animdata(Scene *scene, ID *id, AnimData *adt, float ct
 		}
 		/* evaluate Active Action only */
 		else if (adt->action)
-			animsys_evaluate_action(&id_ptr, adt->action, adt->remap, ctime);
+			animsys_evaluate_action_ex(&id_ptr, adt->action, adt->remap, ctime, recalc);
 		
 		/* reset tag */
 		adt->recalc &= ~ADT_RECALC_ANIM;
@@ -2920,17 +2942,44 @@ void BKE_animsys_evaluate_all_animation(Main *main, Scene *scene, float ctime)
 /* ************** */
 /* Evaluation API */
 
-void BKE_animsys_eval_animdata(EvaluationContext *eval_ctx, ID *id)
+void BKE_animsys_eval_animdata(Depsgraph *depsgraph, ID *id)
 {
+	float ctime = DEG_get_ctime(depsgraph);
 	AnimData *adt = BKE_animdata_from_id(id);
 	Scene *scene = NULL; /* XXX: this is only needed for flushing RNA updates,
 	                      * which should get handled as part of the dependency graph instead...
 	                      */
-	DEG_debug_print_eval_time(__func__, id->name, id, eval_ctx->ctime);
-	BKE_animsys_evaluate_animdata(scene, id, adt, eval_ctx->ctime, ADT_RECALC_ANIM);
+	DEG_debug_print_eval_time(__func__, id->name, id, ctime);
+	short recalc = ADT_RECALC_ANIM;
+	const Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	/* If animation component is directly tagged for update, we always apply f-curves. */
+	if (((scene_eval->id.recalc & ID_RECALC_TIME) == 0) &&
+	    (id->recalc & ID_RECALC_TIME) == 0)
+	{
+		recalc |= ADT_RECALC_CHECK_ORIG_DNA;
+	}
+	BKE_animsys_evaluate_animdata(scene, id, adt, ctime, recalc);
 }
 
-void BKE_animsys_eval_driver(EvaluationContext *eval_ctx,
+/* TODO(sergey): This is slow lookup of driver from CoW datablock.
+ * Keep this for until we've got something smarter for depsgraph
+ * building.\
+ */
+static FCurve *find_driver_from_evaluated_id(ID *id, FCurve *fcu)
+{
+	/* We've got non-CoW datablock, can use f-curve as-is. */
+	if (id->orig_id == NULL) {
+		return fcu;
+	}
+	/*const*/ ID *id_orig = id->orig_id;
+	const AnimData *adt_orig = BKE_animdata_from_id(id_orig);
+	const AnimData *adt_cow = BKE_animdata_from_id(id);
+	const int fcu_index = BLI_findindex(&adt_orig->drivers, fcu);
+	BLI_assert(fcu_index != -1);
+	return BLI_findlink(&adt_cow->drivers, fcu_index);
+}
+
+void BKE_animsys_eval_driver(Depsgraph *depsgraph,
                              ID *id,
                              FCurve *fcu)
 {
@@ -2938,6 +2987,8 @@ void BKE_animsys_eval_driver(EvaluationContext *eval_ctx,
 	ChannelDriver *driver = fcu->driver;
 	PointerRNA id_ptr;
 	bool ok = false;
+
+	fcu = find_driver_from_evaluated_id(id, fcu);
 
 	DEG_debug_print_eval_subdata_index(
 	        __func__, id->name, id, "fcu", fcu->rna_path, fcu, fcu->array_index);
@@ -2956,7 +3007,8 @@ void BKE_animsys_eval_driver(EvaluationContext *eval_ctx,
 
 			PathResolvedRNA anim_rna;
 			if (animsys_store_rna_setting(&id_ptr, NULL, fcu->rna_path, fcu->array_index, &anim_rna)) {
-				const float curval = calculate_fcurve(&anim_rna, fcu, eval_ctx->ctime);
+				const float ctime = DEG_get_ctime(depsgraph);
+				const float curval = calculate_fcurve(&anim_rna, fcu, ctime);
 				ok = animsys_write_rna_setting(&anim_rna, curval);
 			}
 

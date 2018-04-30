@@ -39,8 +39,6 @@ struct ID;
 struct bPoseChannel;
 struct GHash;
 
-struct EvaluationContext;
-
 namespace DEG {
 
 struct Depsgraph;
@@ -127,7 +125,7 @@ struct ComponentDepsNode : public DepsNode {
 	OperationDepsNode *get_entry_operation();
 	OperationDepsNode *get_exit_operation();
 
-	void finalize_build();
+	void finalize_build(Depsgraph *graph);
 
 	IDDepsNode *owner;
 
@@ -147,9 +145,7 @@ struct ComponentDepsNode : public DepsNode {
 	OperationDepsNode *exit_operation;
 
 	// XXX: a poll() callback to check if component's first node can be started?
-
-	/* Temporary bitmask, used during graph construction. */
-	unsigned int layers;
+	virtual bool depends_on_cow() { return true; }
 };
 
 /* ---------------------------------------- */
@@ -173,14 +169,18 @@ struct ComponentDepsNode : public DepsNode {
 	}
 
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Animation);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(BatchCache);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Cache);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(CopyOnWrite);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Geometry);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(LayerCollections);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Parameters);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Particles);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Proxy);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Pose);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Sequencer);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Shading);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(ShadingParameters);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Transform);
 
 /* Bone Component */

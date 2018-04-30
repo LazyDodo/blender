@@ -36,7 +36,7 @@
 #include <float.h>
 
 #ifdef WITH_AUDASPACE
-#  include AUD_SPECIAL_H
+#  include <AUD_Special.h>
 #endif
 
 #include "MEM_guardedalloc.h"
@@ -54,12 +54,13 @@
 
 #include "BLT_translation.h"
 
-#include "BKE_depsgraph.h"
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
 #include "BKE_nla.h"
 #include "BKE_context.h"
 #include "BKE_report.h"
+
+#include "DEG_depsgraph_build.h"
 
 #include "UI_view2d.h"
 
@@ -2714,7 +2715,7 @@ static int graph_driver_vars_paste_exec(bContext *C, wmOperator *op)
 	/* successful or not? */
 	if (ok) {
 		/* rebuild depsgraph, now that there are extra deps here */
-		DAG_relations_tag_update(CTX_data_main(C));
+		DEG_relations_tag_update(CTX_data_main(C));
 		
 		/* set notifier that keyframes have changed */
 		WM_event_add_notifier(C, NC_SCENE | ND_FRAME, CTX_data_scene(C));
@@ -2788,7 +2789,7 @@ static int graph_driver_delete_invalid_exec(bContext *C, wmOperator *op)
 
 	if (deleted > 0) {
 		/* notify the world of any changes */
-		DAG_relations_tag_update(CTX_data_main(C));
+		DEG_relations_tag_update(CTX_data_main(C));
 		WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME | NA_REMOVED, NULL);
 		WM_reportf(RPT_INFO, "Deleted %u drivers", deleted);
 	}

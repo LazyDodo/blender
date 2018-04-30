@@ -132,6 +132,7 @@ static int rule_goal_avoid(BoidRule *rule, BoidBrainData *bbd, BoidValues *val, 
 	if (eff == NULL && gabr->ob) {
 		memset(&temp_eff, 0, sizeof(EffectorCache));
 		temp_eff.ob = gabr->ob;
+		temp_eff.depsgraph = bbd->sim->depsgraph;
 		temp_eff.scene = bbd->sim->scene;
 		eff = &temp_eff;
 		get_effector_data(eff, &efd, &epoint, 0);

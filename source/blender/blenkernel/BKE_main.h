@@ -48,7 +48,7 @@
 extern "C" {
 #endif
 
-struct EvaluationContext;
+struct Depsgraph;
 struct Library;
 struct MainLock;
 struct GHash;
@@ -110,6 +110,7 @@ typedef struct Main {
 	ListBase vfont;
 	ListBase text;
 	ListBase speaker;
+	ListBase lightprobe;
 	ListBase sound;
 	ListBase group;
 	ListBase armature;
@@ -125,11 +126,9 @@ typedef struct Main {
 	ListBase mask;
 	ListBase linestyle;
 	ListBase cachefiles;
+	ListBase workspaces;
 
 	char id_tag_update[MAX_LIBARRAY];
-
-	/* Evaluation context used by viewport */
-	struct EvaluationContext *eval_ctx;
 
 	/* Must be generated, used and freed by same code - never assume this is valid data unless you know
 	 * when, who and how it was created.

@@ -108,7 +108,7 @@ static void deg_foreach_dependent_ID(const Depsgraph *graph,
 			IDDepsNode *id_node = comp_node->owner;
 			if (!id_node->done) {
 				/* TODO(sergey): Is it orig or CoW? */
-				callback(id_node->id, user_data);
+				callback(id_node->id_orig, user_data);
 				id_node->done = true;
 			}
 			/* Schedule outgoing operation nodes. */

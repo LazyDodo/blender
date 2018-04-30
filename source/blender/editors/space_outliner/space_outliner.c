@@ -39,6 +39,7 @@
 #include "BLI_mempool.h"
 
 #include "BKE_context.h"
+#include "BKE_layer.h"
 #include "BKE_screen.h"
 #include "BKE_scene.h"
 #include "BKE_outliner_treehash.h"
@@ -47,6 +48,7 @@
 #include "ED_screen.h"
 
 #include "WM_api.h"
+#include "WM_message.h"
 #include "WM_types.h"
 
 #include "BIF_gl.h"
@@ -102,10 +104,14 @@ static int outliner_parent_drop_poll(bContext *C, wmDrag *drag, const wmEvent *e
 		if (GS(id->name) == ID_OB) {
 			/* Ensure item under cursor is valid drop target */
 			TreeElement *te = outliner_dropzone_find(soops, fmval, true);
+			TreeStoreElem *tselem = te ? TREESTORE(te) : NULL;
 
-			if (te && te->idcode == ID_OB && TREESTORE(te)->type == 0) {
+			if (!te) {
+				/* pass */
+			}
+			else if (te->idcode == ID_OB && tselem->type == 0) {
 				Scene *scene;
-				ID *te_id = TREESTORE(te)->id;
+				ID *te_id = tselem->id;
 
 				/* check if dropping self or parent */
 				if (te_id == id || (Object *)te_id == ((Object *)id)->parent)
@@ -118,9 +124,23 @@ static int outliner_parent_drop_poll(bContext *C, wmDrag *drag, const wmEvent *e
 				 * element for object it means that all displayed objects belong to
 				 * active scene and parenting them is allowed (sergey)
 				 */
-				if (!scene || BKE_scene_base_find(scene, (Object *)id)) {
+				if (!scene) {
 					return 1;
 				}
+				else {
+					for (ViewLayer *view_layer = scene->view_layers.first;
+					     view_layer;
+					     view_layer = view_layer->next)
+					{
+						if (BKE_view_layer_base_find(view_layer, (Object *)id)) {
+							return 1;
+						}
+					}
+				}
+			}
+			else if (ELEM(tselem->type, TSE_LAYER_COLLECTION, TSE_SCENE_COLLECTION)) {
+				/* support adding object from different scene to collection */
+				return 1;
 			}
 		}
 	}
@@ -143,7 +163,7 @@ static int outliner_parent_clear_poll(bContext *C, wmDrag *drag, const wmEvent *
 
 	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &fmval[0], &fmval[1]);
 
-	if (!ELEM(soops->outlinevis, SO_ALL_SCENES, SO_CUR_SCENE, SO_VISIBLE, SO_GROUPS)) {
+	if (!ELEM(soops->outlinevis, SO_SCENES, SO_GROUPS, SO_COLLECTIONS)) {
 		return false;
 	}
 
@@ -156,7 +176,7 @@ static int outliner_parent_clear_poll(bContext *C, wmDrag *drag, const wmEvent *
 
 					switch (te->idcode) {
 						case ID_SCE:
-							return (ELEM(tselem->type, TSE_R_LAYER_BASE, TSE_R_LAYER, TSE_R_PASS));
+							return (ELEM(tselem->type, TSE_R_LAYER_BASE, TSE_R_LAYER));
 						case ID_OB:
 							return (ELEM(tselem->type, TSE_MODIFIER_BASE, TSE_CONSTRAINT_BASE));
 						/* Other codes to ignore? */
@@ -292,7 +312,9 @@ static void outliner_main_region_free(ARegion *UNUSED(ar))
 	
 }
 
-static void outliner_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn)
+static void outliner_main_region_listener(
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
 	switch (wmn->category) {
@@ -308,7 +330,9 @@ static void outliner_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(s
 				case ND_RENDER_OPTIONS:
 				case ND_SEQUENCER:
 				case ND_LAYER:
+				case ND_LAYER_CONTENT:
 				case ND_WORLD:
+				case ND_SCENEBROWSE:
 					ED_region_tag_redraw(ar);
 					break;
 			}
@@ -392,8 +416,31 @@ static void outliner_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(s
 			if (ELEM(wmn->action, NA_EDITED, NA_SELECTED))
 				ED_region_tag_redraw(ar);
 			break;
+		case NC_SCREEN:
+			if (ELEM(wmn->data, ND_LAYER)) {
+				ED_region_tag_redraw(ar);
+			}
+			break;
 	}
 	
+}
+
+static void outliner_main_region_message_subscribe(
+        const struct bContext *UNUSED(C),
+        struct WorkSpace *UNUSED(workspace), struct Scene *UNUSED(scene),
+        struct bScreen *UNUSED(screen), struct ScrArea *sa, struct ARegion *ar,
+        struct wmMsgBus *mbus)
+{
+	SpaceOops *soops = sa->spacedata.first;
+	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
+		.owner = ar,
+		.user_data = ar,
+		.notify = ED_region_do_msg_notify_tag_redraw,
+	};
+
+	if (soops->outlinevis == SO_COLLECTIONS) {
+		WM_msg_subscribe_rna_anon_prop(mbus, Window, view_layer, &msg_sub_value_region_tag_redraw);
+	}
 }
 
 
@@ -414,7 +461,9 @@ static void outliner_header_region_free(ARegion *UNUSED(ar))
 {
 }
 
-static void outliner_header_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn)
+static void outliner_header_region_listener(
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
 	switch (wmn->category) {
@@ -431,7 +480,7 @@ static void outliner_header_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED
 
 /* ******************** default callbacks for outliner space ***************** */
 
-static SpaceLink *outliner_new(const bContext *UNUSED(C))
+static SpaceLink *outliner_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceOops *soutliner;
@@ -547,6 +596,7 @@ void ED_spacetype_outliner(void)
 	art->draw = outliner_main_region_draw;
 	art->free = outliner_main_region_free;
 	art->listener = outliner_main_region_listener;
+	art->message_subscribe = outliner_main_region_message_subscribe;
 	BLI_addhead(&st->regiontypes, art);
 	
 	/* regions: header */

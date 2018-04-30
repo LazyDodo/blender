@@ -32,6 +32,7 @@
  *  \since March 2001
  *  \author nzc
  */
+struct Depsgraph;
 struct Main;
 struct MetaBall;
 struct Object;
@@ -71,9 +72,20 @@ void BKE_mball_select_swap(struct MetaBall *mb);
 
 /* **** Depsgraph evaluation **** */
 
-struct EvaluationContext;
+struct Depsgraph;
 
-void BKE_mball_eval_geometry(struct EvaluationContext *eval_ctx,
+void BKE_mball_eval_geometry(struct Depsgraph *depsgraph,
                              struct MetaBall *mball);
+/* Draw Cache */
+
+void BKE_mball_element_calc_scale_xform(float r_scale_xform[3][4],
+                                        const float obmat[4][4],
+                                        const float local_pos[3]);
+
+enum {
+	BKE_MBALL_BATCH_DIRTY_ALL = 0,
+};
+void BKE_mball_batch_cache_dirty(struct MetaBall *mb, int mode);
+void BKE_mball_batch_cache_free(struct MetaBall *mb);
 
 #endif

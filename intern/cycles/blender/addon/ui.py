@@ -17,6 +17,7 @@
 # <pep8 compliant>
 
 import bpy
+from bpy_extras.node_utils import find_node_input, find_output_node
 
 from bpy.types import (
         Panel,
@@ -49,8 +50,7 @@ class CyclesButtonsPanel:
 
     @classmethod
     def poll(cls, context):
-        rd = context.scene.render
-        return rd.engine in cls.COMPAT_ENGINES
+        return context.engine in cls.COMPAT_ENGINES
 
 
 def get_device_type(context):
@@ -204,13 +204,6 @@ class CYCLES_RENDER_PT_sampling(CyclesButtonsPanel, Panel):
             col.prop(cscene, "sample_all_lights_indirect")
 
         layout.row().prop(cscene, "sampling_pattern", text="Pattern")
-
-        for rl in scene.render.layers:
-            if rl.samples > 0:
-                layout.separator()
-                layout.row().prop(cscene, "use_layer_samples")
-                break
-
         draw_samples_info(layout, context)
 
 
@@ -415,8 +408,8 @@ class CYCLES_RENDER_PT_performance(CyclesButtonsPanel, Panel):
 
         subsub = sub.column()
         subsub.active = not rd.use_save_buffers
-        for rl in rd.layers:
-            if rl.cycles.use_denoising:
+        for view_layer in scene.view_layers:
+            if view_layer.cycles.use_denoising:
                 subsub.active = False
         subsub.prop(cscene, "use_progressive_refine")
 
@@ -443,9 +436,9 @@ class CYCLES_RENDER_PT_performance(CyclesButtonsPanel, Panel):
         split.prop(cscene, "preview_start_resolution")
 
 
-class CYCLES_RENDER_PT_layer_options(CyclesButtonsPanel, Panel):
-    bl_label = "Layer"
-    bl_context = "render_layer"
+class CYCLES_RENDER_PT_filter(CyclesButtonsPanel, Panel):
+    bl_label = "Filter"
+    bl_context = "view_layer"
 
     def draw(self, context):
         layout = self.layout
@@ -453,40 +446,22 @@ class CYCLES_RENDER_PT_layer_options(CyclesButtonsPanel, Panel):
 
         scene = context.scene
         rd = scene.render
-        rl = rd.layers.active
+        view_layer = context.view_layer
 
-        split = layout.split()
-
-        col = split.column()
-        col.prop(scene, "layers", text="Scene")
-        col.prop(rl, "layers_exclude", text="Exclude")
-
-        col = split.column()
-        col.prop(rl, "layers", text="Layer")
-        col.prop(rl, "layers_zmask", text="Mask Layer")
-
-        split = layout.split()
-
-        col = split.column()
-        col.label(text="Material:")
-        col.prop(rl, "material_override", text="")
-        col.separator()
-        col.prop(rl, "samples")
-
-        col = split.column()
-        col.prop(rl, "use_sky", "Use Environment")
-        col.prop(rl, "use_ao", "Use AO")
-        col.prop(rl, "use_solid", "Use Surfaces")
-        col.prop(rl, "use_strand", "Use Hair")
+        col = layout.column()
+        col.prop(view_layer, "use_sky", "Use Environment")
+        col.prop(view_layer, "use_ao", "Use AO")
+        col.prop(view_layer, "use_solid", "Use Surfaces")
+        col.prop(view_layer, "use_strand", "Use Hair")
         if with_freestyle:
             row = col.row()
-            row.prop(rl, "use_freestyle", "Use Freestyle")
+            row.prop(view_layer, "use_freestyle", "Use Freestyle")
             row.active = rd.use_freestyle
 
 
 class CYCLES_RENDER_PT_layer_passes(CyclesButtonsPanel, Panel):
     bl_label = "Passes"
-    bl_context = "render_layer"
+    bl_context = "view_layer"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -496,178 +471,134 @@ class CYCLES_RENDER_PT_layer_passes(CyclesButtonsPanel, Panel):
 
         scene = context.scene
         rd = scene.render
-        rl = rd.layers.active
-        crl = rl.cycles
+        view_layer = context.view_layer
+        cycles_view_layer = view_layer.cycles
 
         split = layout.split()
 
         col = split.column()
-        col.prop(rl, "use_pass_combined")
-        col.prop(rl, "use_pass_z")
-        col.prop(rl, "use_pass_mist")
-        col.prop(rl, "use_pass_normal")
+        col.prop(view_layer, "use_pass_combined")
+        col.prop(view_layer, "use_pass_z")
+        col.prop(view_layer, "use_pass_mist")
+        col.prop(view_layer, "use_pass_normal")
         row = col.row()
-        row.prop(rl, "use_pass_vector")
+        row.prop(view_layer, "use_pass_vector")
         row.active = not rd.use_motion_blur
-        col.prop(rl, "use_pass_uv")
-        col.prop(rl, "use_pass_object_index")
-        col.prop(rl, "use_pass_material_index")
+        col.prop(view_layer, "use_pass_uv")
+        col.prop(view_layer, "use_pass_object_index")
+        col.prop(view_layer, "use_pass_material_index")
         col.separator()
-        col.prop(rl, "use_pass_shadow")
-        col.prop(rl, "use_pass_ambient_occlusion")
+        col.prop(view_layer, "use_pass_shadow")
+        col.prop(view_layer, "use_pass_ambient_occlusion")
         col.separator()
-        col.prop(rl, "pass_alpha_threshold")
+        col.prop(view_layer, "pass_alpha_threshold")
 
         col = split.column()
         col.label(text="Diffuse:")
         row = col.row(align=True)
-        row.prop(rl, "use_pass_diffuse_direct", text="Direct", toggle=True)
-        row.prop(rl, "use_pass_diffuse_indirect", text="Indirect", toggle=True)
-        row.prop(rl, "use_pass_diffuse_color", text="Color", toggle=True)
+        row.prop(view_layer, "use_pass_diffuse_direct", text="Direct", toggle=True)
+        row.prop(view_layer, "use_pass_diffuse_indirect", text="Indirect", toggle=True)
+        row.prop(view_layer, "use_pass_diffuse_color", text="Color", toggle=True)
         col.label(text="Glossy:")
         row = col.row(align=True)
-        row.prop(rl, "use_pass_glossy_direct", text="Direct", toggle=True)
-        row.prop(rl, "use_pass_glossy_indirect", text="Indirect", toggle=True)
-        row.prop(rl, "use_pass_glossy_color", text="Color", toggle=True)
+        row.prop(view_layer, "use_pass_glossy_direct", text="Direct", toggle=True)
+        row.prop(view_layer, "use_pass_glossy_indirect", text="Indirect", toggle=True)
+        row.prop(view_layer, "use_pass_glossy_color", text="Color", toggle=True)
         col.label(text="Transmission:")
         row = col.row(align=True)
-        row.prop(rl, "use_pass_transmission_direct", text="Direct", toggle=True)
-        row.prop(rl, "use_pass_transmission_indirect", text="Indirect", toggle=True)
-        row.prop(rl, "use_pass_transmission_color", text="Color", toggle=True)
+        row.prop(view_layer, "use_pass_transmission_direct", text="Direct", toggle=True)
+        row.prop(view_layer, "use_pass_transmission_indirect", text="Indirect", toggle=True)
+        row.prop(view_layer, "use_pass_transmission_color", text="Color", toggle=True)
         col.label(text="Subsurface:")
         row = col.row(align=True)
-        row.prop(rl, "use_pass_subsurface_direct", text="Direct", toggle=True)
-        row.prop(rl, "use_pass_subsurface_indirect", text="Indirect", toggle=True)
-        row.prop(rl, "use_pass_subsurface_color", text="Color", toggle=True)
+        row.prop(view_layer, "use_pass_subsurface_direct", text="Direct", toggle=True)
+        row.prop(view_layer, "use_pass_subsurface_indirect", text="Indirect", toggle=True)
+        row.prop(view_layer, "use_pass_subsurface_color", text="Color", toggle=True)
         col.label(text="Volume:")
         row = col.row(align=True)
-        row.prop(crl, "use_pass_volume_direct", text="Direct", toggle=True)
-        row.prop(crl, "use_pass_volume_indirect", text="Indirect", toggle=True)
+        row.prop(cycles_view_layer, "use_pass_volume_direct", text="Direct", toggle=True)
+        row.prop(cycles_view_layer, "use_pass_volume_indirect", text="Indirect", toggle=True)
 
         col.separator()
-        col.prop(rl, "use_pass_emit", text="Emission")
-        col.prop(rl, "use_pass_environment")
+        col.prop(view_layer, "use_pass_emit", text="Emission")
+        col.prop(view_layer, "use_pass_environment")
 
         if context.scene.cycles.feature_set == 'EXPERIMENTAL':
             col.separator()
             sub = col.column()
-            sub.active = crl.use_denoising
-            sub.prop(crl, "denoising_store_passes", text="Denoising")
+            sub.active = cycles_view_layer.use_denoising
+            sub.prop(cycles_view_layer, "denoising_store_passes", text="Denoising")
 
         col = layout.column()
-        col.prop(crl, "pass_debug_render_time")
+        col.prop(cycles_view_layer, "pass_debug_render_time")
         if _cycles.with_cycles_debug:
-            col.prop(crl, "pass_debug_bvh_traversed_nodes")
-            col.prop(crl, "pass_debug_bvh_traversed_instances")
-            col.prop(crl, "pass_debug_bvh_intersections")
-            col.prop(crl, "pass_debug_ray_bounces")
-
-
-class CYCLES_RENDER_PT_views(CyclesButtonsPanel, Panel):
-    bl_label = "Views"
-    bl_context = "render_layer"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw_header(self, context):
-        rd = context.scene.render
-        self.layout.prop(rd, "use_multiview", text="")
-
-    def draw(self, context):
-        layout = self.layout
-
-        scene = context.scene
-        rd = scene.render
-        rv = rd.views.active
-
-        layout.active = rd.use_multiview
-        basic_stereo = (rd.views_format == 'STEREO_3D')
-
-        row = layout.row()
-        row.prop(rd, "views_format", expand=True)
-
-        if basic_stereo:
-            row = layout.row()
-            row.template_list("RENDERLAYER_UL_renderviews", "name", rd, "stereo_views", rd.views, "active_index", rows=2)
-
-            row = layout.row()
-            row.label(text="File Suffix:")
-            row.prop(rv, "file_suffix", text="")
-
-        else:
-            row = layout.row()
-            row.template_list("RENDERLAYER_UL_renderviews", "name", rd, "views", rd.views, "active_index", rows=2)
-
-            col = row.column(align=True)
-            col.operator("scene.render_view_add", icon='ZOOMIN', text="")
-            col.operator("scene.render_view_remove", icon='ZOOMOUT', text="")
-
-            row = layout.row()
-            row.label(text="Camera Suffix:")
-            row.prop(rv, "camera_suffix", text="")
+            col.prop(cycles_view_layer, "pass_debug_bvh_traversed_nodes")
+            col.prop(cycles_view_layer, "pass_debug_bvh_traversed_instances")
+            col.prop(cycles_view_layer, "pass_debug_bvh_intersections")
+            col.prop(cycles_view_layer, "pass_debug_ray_bounces")
 
 
 class CYCLES_RENDER_PT_denoising(CyclesButtonsPanel, Panel):
     bl_label = "Denoising"
-    bl_context = "render_layer"
+    bl_context = "view_layer"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context):
-        rd = context.scene.render
-        rl = rd.layers.active
-        crl = rl.cycles
-        cscene = context.scene.cycles
+        scene = context.scene
+        view_layer = context.view_layer
+        cycles_view_layer = view_layer.cycles
+        cscene = scene.cycles
         layout = self.layout
 
-        layout.prop(crl, "use_denoising", text="")
+        layout.prop(cycles_view_layer, "use_denoising", text="")
 
     def draw(self, context):
         layout = self.layout
 
         scene = context.scene
         cscene = scene.cycles
-        rd = scene.render
-        rl = rd.layers.active
-        crl = rl.cycles
+        view_layer = context.view_layer
+        cycles_view_layer = view_layer.cycles
 
-        layout.active = crl.use_denoising
+        layout.active = cycles_view_layer.use_denoising
 
         split = layout.split()
 
         col = split.column()
         sub = col.column(align=True)
-        sub.prop(crl, "denoising_radius", text="Radius")
-        sub.prop(crl, "denoising_strength", slider=True, text="Strength")
+        sub.prop(cycles_view_layer, "denoising_radius", text="Radius")
+        sub.prop(cycles_view_layer, "denoising_strength", slider=True, text="Strength")
 
         col = split.column()
         sub = col.column(align=True)
-        sub.prop(crl, "denoising_feature_strength", slider=True, text="Feature Strength")
-        sub.prop(crl, "denoising_relative_pca")
+        sub.prop(cycles_view_layer, "denoising_feature_strength", slider=True, text="Feature Strength")
+        sub.prop(cycles_view_layer, "denoising_relative_pca")
 
         layout.separator()
 
         row = layout.row()
         row.label(text="Diffuse:")
         sub = row.row(align=True)
-        sub.prop(crl, "denoising_diffuse_direct", text="Direct", toggle=True)
-        sub.prop(crl, "denoising_diffuse_indirect", text="Indirect", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_diffuse_direct", text="Direct", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_diffuse_indirect", text="Indirect", toggle=True)
 
         row = layout.row()
         row.label(text="Glossy:")
         sub = row.row(align=True)
-        sub.prop(crl, "denoising_glossy_direct", text="Direct", toggle=True)
-        sub.prop(crl, "denoising_glossy_indirect", text="Indirect", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_glossy_direct", text="Direct", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_glossy_indirect", text="Indirect", toggle=True)
 
         row = layout.row()
         row.label(text="Transmission:")
         sub = row.row(align=True)
-        sub.prop(crl, "denoising_transmission_direct", text="Direct", toggle=True)
-        sub.prop(crl, "denoising_transmission_indirect", text="Indirect", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_transmission_direct", text="Direct", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_transmission_indirect", text="Indirect", toggle=True)
 
         row = layout.row()
         row.label(text="Subsurface:")
         sub = row.row(align=True)
-        sub.prop(crl, "denoising_subsurface_direct", text="Direct", toggle=True)
-        sub.prop(crl, "denoising_subsurface_indirect", text="Indirect", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_subsurface_direct", text="Direct", toggle=True)
+        sub.prop(cycles_view_layer, "denoising_subsurface_indirect", text="Indirect", toggle=True)
 
 
 class CYCLES_PT_post_processing(CyclesButtonsPanel, Panel):
@@ -916,43 +847,22 @@ class CYCLES_OT_use_shading_nodes(Operator):
         return {'FINISHED'}
 
 
-def find_node(material, nodetype):
-    if material and material.node_tree:
-        ntree = material.node_tree
-
-        active_output_node = None
-        for node in ntree.nodes:
-            if getattr(node, "type", None) == nodetype:
-                if getattr(node, "is_active_output", True):
-                    return node
-                if not active_output_node:
-                    active_output_node = node
-        return active_output_node
-
-    return None
-
-
-def find_node_input(node, name):
-    for input in node.inputs:
-        if input.name == name:
-            return input
-
-    return None
-
-
-def panel_node_draw(layout, id_data, output_type, input_name):
+def panel_node_draw(layout, id_data, output_types, input_name):
     if not id_data.use_nodes:
         layout.operator("cycles.use_shading_nodes", icon='NODETREE')
         return False
 
     ntree = id_data.node_tree
 
-    node = find_node(id_data, output_type)
-    if not node:
-        layout.label(text="No output node")
-    else:
+    node = find_output_node(ntree, output_types)
+    if node:
         input = find_node_input(node, input_name)
-        layout.template_node_view(ntree, node, input)
+        if input:
+            layout.template_node_view(ntree, node, input)
+        else:
+            layout.label(text="Incompatible output node")
+    else:
+        layout.label(text="No output node")
 
     return True
 
@@ -1041,7 +951,7 @@ class CYCLES_LAMP_PT_nodes(CyclesButtonsPanel, Panel):
         layout = self.layout
 
         lamp = context.lamp
-        if not panel_node_draw(layout, lamp, 'OUTPUT_LAMP', 'Surface'):
+        if not panel_node_draw(layout, lamp, ('OUTPUT_LAMP',), 'Surface'):
             layout.prop(lamp, "color")
 
 
@@ -1096,7 +1006,7 @@ class CYCLES_WORLD_PT_surface(CyclesButtonsPanel, Panel):
 
         world = context.world
 
-        if not panel_node_draw(layout, world, 'OUTPUT_WORLD', 'Surface'):
+        if not panel_node_draw(layout, world, ('OUTPUT_WORLD',), 'Surface'):
             layout.prop(world, "horizon_color", text="Color")
 
 
@@ -1114,7 +1024,7 @@ class CYCLES_WORLD_PT_volume(CyclesButtonsPanel, Panel):
         layout = self.layout
 
         world = context.world
-        panel_node_draw(layout, world, 'OUTPUT_WORLD', 'Volume')
+        panel_node_draw(layout, world, ('OUTPUT_WORLD',), 'Volume')
 
 
 class CYCLES_WORLD_PT_ambient_occlusion(CyclesButtonsPanel, Panel):
@@ -1151,8 +1061,8 @@ class CYCLES_WORLD_PT_mist(CyclesButtonsPanel, Panel):
     def poll(cls, context):
         if CyclesButtonsPanel.poll(context):
             if context.world:
-                for rl in context.scene.render.layers:
-                    if rl.use_pass_mist:
+                for view_layer in context.scene.view_layers:
+                    if view_layer.use_pass_mist:
                         return True
 
         return False
@@ -1259,7 +1169,7 @@ class CYCLES_MATERIAL_PT_surface(CyclesButtonsPanel, Panel):
         layout = self.layout
 
         mat = context.material
-        if not panel_node_draw(layout, mat, 'OUTPUT_MATERIAL', 'Surface'):
+        if not panel_node_draw(layout, mat, ('OUTPUT_MATERIAL', 'OUTPUT_EEVEE_MATERIAL'), 'Surface'):
             layout.prop(mat, "diffuse_color")
 
 
@@ -1279,7 +1189,7 @@ class CYCLES_MATERIAL_PT_volume(CyclesButtonsPanel, Panel):
         mat = context.material
         # cmat = mat.cycles
 
-        panel_node_draw(layout, mat, 'OUTPUT_MATERIAL', 'Volume')
+        panel_node_draw(layout, mat, ('OUTPUT_MATERIAL', 'OUTPUT_EEVEE_MATERIAL'), 'Volume')
 
 
 class CYCLES_MATERIAL_PT_displacement(CyclesButtonsPanel, Panel):
@@ -1295,7 +1205,7 @@ class CYCLES_MATERIAL_PT_displacement(CyclesButtonsPanel, Panel):
         layout = self.layout
 
         mat = context.material
-        panel_node_draw(layout, mat, 'OUTPUT_MATERIAL', 'Displacement')
+        panel_node_draw(layout, mat, ('OUTPUT_MATERIAL', 'OUTPUT_EEVEE_MATERIAL'), 'Displacement')
 
 
 class CYCLES_MATERIAL_PT_settings(CyclesButtonsPanel, Panel):
@@ -1354,175 +1264,10 @@ class CYCLES_MATERIAL_PT_viewport(CyclesButtonsPanel, Panel):
         col.prop(mat, "diffuse_color", text="")
         col.prop(mat, "alpha")
 
-        col.separator()
-        col.label("Alpha:")
-        col.prop(mat.game_settings, "alpha_blend", text="")
-
         col = split.column(align=True)
         col.label("Specular:")
         col.prop(mat, "specular_color", text="")
         col.prop(mat, "specular_hardness", text="Hardness")
-
-
-class CYCLES_TEXTURE_PT_context(CyclesButtonsPanel, Panel):
-    bl_label = ""
-    bl_context = "texture"
-    bl_options = {'HIDE_HEADER'}
-    COMPAT_ENGINES = {'CYCLES'}
-
-    def draw(self, context):
-        layout = self.layout
-
-        tex = context.texture
-        space = context.space_data
-        pin_id = space.pin_id
-        use_pin_id = space.use_pin_id
-        user = context.texture_user
-
-        space.use_limited_texture_context = False
-
-        if not (use_pin_id and isinstance(pin_id, bpy.types.Texture)):
-            pin_id = None
-
-        if not pin_id:
-            layout.template_texture_user()
-
-        if user or pin_id:
-            layout.separator()
-
-            split = layout.split(percentage=0.65)
-            col = split.column()
-
-            if pin_id:
-                col.template_ID(space, "pin_id")
-            else:
-                propname = context.texture_user_property.identifier
-                col.template_ID(user, propname, new="texture.new")
-
-            if tex:
-                split = layout.split(percentage=0.2)
-                split.label(text="Type:")
-                split.prop(tex, "type", text="")
-
-
-class CYCLES_TEXTURE_PT_node(CyclesButtonsPanel, Panel):
-    bl_label = "Node"
-    bl_context = "texture"
-
-    @classmethod
-    def poll(cls, context):
-        node = context.texture_node
-        return node and CyclesButtonsPanel.poll(context)
-
-    def draw(self, context):
-        layout = self.layout
-
-        node = context.texture_node
-        ntree = node.id_data
-        layout.template_node_view(ntree, node, None)
-
-
-class CYCLES_TEXTURE_PT_mapping(CyclesButtonsPanel, Panel):
-    bl_label = "Mapping"
-    bl_context = "texture"
-
-    @classmethod
-    def poll(cls, context):
-        node = context.texture_node
-        # TODO(sergey): perform a faster/nicer check?
-        return node and hasattr(node, 'texture_mapping') and CyclesButtonsPanel.poll(context)
-
-    def draw(self, context):
-        layout = self.layout
-
-        node = context.texture_node
-
-        mapping = node.texture_mapping
-
-        layout.prop(mapping, "vector_type", expand=True)
-
-        row = layout.row()
-
-        row.column().prop(mapping, "translation")
-        row.column().prop(mapping, "rotation")
-        row.column().prop(mapping, "scale")
-
-        layout.label(text="Projection:")
-
-        row = layout.row()
-        row.prop(mapping, "mapping_x", text="")
-        row.prop(mapping, "mapping_y", text="")
-        row.prop(mapping, "mapping_z", text="")
-
-
-class CYCLES_TEXTURE_PT_colors(CyclesButtonsPanel, Panel):
-    bl_label = "Color"
-    bl_context = "texture"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        # node = context.texture_node
-        return False
-        # return node and CyclesButtonsPanel.poll(context)
-
-    def draw(self, context):
-        layout = self.layout
-
-        node = context.texture_node
-
-        mapping = node.color_mapping
-
-        split = layout.split()
-
-        col = split.column()
-        col.label(text="Blend:")
-        col.prop(mapping, "blend_type", text="")
-        col.prop(mapping, "blend_factor", text="Factor")
-        col.prop(mapping, "blend_color", text="")
-
-        col = split.column()
-        col.label(text="Adjust:")
-        col.prop(mapping, "brightness")
-        col.prop(mapping, "contrast")
-        col.prop(mapping, "saturation")
-
-        layout.separator()
-
-        layout.prop(mapping, "use_color_ramp", text="Ramp")
-        if mapping.use_color_ramp:
-            layout.template_color_ramp(mapping, "color_ramp", expand=True)
-
-
-class CYCLES_PARTICLE_PT_textures(CyclesButtonsPanel, Panel):
-    bl_label = "Textures"
-    bl_context = "particle"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        psys = context.particle_system
-        return psys and CyclesButtonsPanel.poll(context)
-
-    def draw(self, context):
-        layout = self.layout
-
-        psys = context.particle_system
-        part = psys.settings
-
-        row = layout.row()
-        row.template_list("TEXTURE_UL_texslots", "", part, "texture_slots", part, "active_texture_index", rows=2)
-
-        col = row.column(align=True)
-        col.operator("texture.slot_move", text="", icon='TRIA_UP').type = 'UP'
-        col.operator("texture.slot_move", text="", icon='TRIA_DOWN').type = 'DOWN'
-        col.menu("TEXTURE_MT_specials", icon='DOWNARROW_HLT', text="")
-
-        if not part.active_texture:
-            layout.template_ID(part, "active_texture", new="texture.new")
-        else:
-            slot = part.texture_slots[part.active_texture_index]
-            layout.template_ID(slot, "texture", new="texture.new")
 
 
 class CYCLES_RENDER_PT_bake(CyclesButtonsPanel, Panel):
@@ -1537,66 +1282,83 @@ class CYCLES_RENDER_PT_bake(CyclesButtonsPanel, Panel):
         scene = context.scene
         cscene = scene.cycles
         cbk = scene.render.bake
+        rd = scene.render
 
-        layout.operator("object.bake", icon='RENDER_STILL').type = cscene.bake_type
-
-        col = layout.column()
-        col.prop(cscene, "bake_type")
-
-        col = layout.column()
-
-        if cscene.bake_type == 'NORMAL':
-            col.prop(cbk, "normal_space", text="Space")
-
-            row = col.row(align=True)
-            row.label(text="Swizzle:")
-            row.prop(cbk, "normal_r", text="")
-            row.prop(cbk, "normal_g", text="")
-            row.prop(cbk, "normal_b", text="")
-
-        elif cscene.bake_type == 'COMBINED':
-            row = col.row(align=True)
-            row.prop(cbk, "use_pass_direct", toggle=True)
-            row.prop(cbk, "use_pass_indirect", toggle=True)
-
-            split = col.split()
-            split.active = cbk.use_pass_direct or cbk.use_pass_indirect
-
-            col = split.column()
-            col.prop(cbk, "use_pass_diffuse")
-            col.prop(cbk, "use_pass_glossy")
-            col.prop(cbk, "use_pass_transmission")
-
-            col = split.column()
-            col.prop(cbk, "use_pass_subsurface")
-            col.prop(cbk, "use_pass_ambient_occlusion")
-            col.prop(cbk, "use_pass_emit")
-
-        elif cscene.bake_type in {'DIFFUSE', 'GLOSSY', 'TRANSMISSION', 'SUBSURFACE'}:
-            row = col.row(align=True)
-            row.prop(cbk, "use_pass_direct", toggle=True)
-            row.prop(cbk, "use_pass_indirect", toggle=True)
-            row.prop(cbk, "use_pass_color", toggle=True)
-
-        layout.separator()
-
-        split = layout.split()
-
-        col = split.column()
-        col.prop(cbk, "margin")
-        col.prop(cbk, "use_clear")
-
-        col = split.column()
-        col.prop(cbk, "use_selected_to_active")
-        sub = col.column()
-        sub.active = cbk.use_selected_to_active
-        sub.prop(cbk, "use_cage", text="Cage")
-        if cbk.use_cage:
-            sub.prop(cbk, "cage_extrusion", text="Extrusion")
-            sub.prop_search(cbk, "cage_object", scene, "objects", text="")
+        if rd.use_bake_multires:
+            layout.operator("object.bake_image", icon='RENDER_STILL')
         else:
-            sub.prop(cbk, "cage_extrusion", text="Ray Distance")
+            layout.operator("object.bake", icon='RENDER_STILL').type = cscene.bake_type
 
+        col = layout.column()
+        col.prop(rd, "use_bake_multires")
+        if rd.use_bake_multires:
+            col.prop(rd, "bake_type")
+
+            split = layout.split()
+
+            col = split.column()
+            col.prop(rd, "bake_margin")
+            col.prop(rd, "use_bake_clear")
+
+            col = split.column()
+            if rd.bake_type == 'DISPLACEMENT':
+                col.prop(rd, "use_bake_lores_mesh")
+        else:
+            col.prop(cscene, "bake_type")
+
+            col = layout.column()
+
+            if cscene.bake_type == 'NORMAL':
+                col.prop(cbk, "normal_space", text="Space")
+
+                row = col.row(align=True)
+                row.label(text="Swizzle:")
+                row.prop(cbk, "normal_r", text="")
+                row.prop(cbk, "normal_g", text="")
+                row.prop(cbk, "normal_b", text="")
+
+            elif cscene.bake_type == 'COMBINED':
+                row = col.row(align=True)
+                row.prop(cbk, "use_pass_direct", toggle=True)
+                row.prop(cbk, "use_pass_indirect", toggle=True)
+
+                split = col.split()
+                split.active = cbk.use_pass_direct or cbk.use_pass_indirect
+
+                col = split.column()
+                col.prop(cbk, "use_pass_diffuse")
+                col.prop(cbk, "use_pass_glossy")
+                col.prop(cbk, "use_pass_transmission")
+
+                col = split.column()
+                col.prop(cbk, "use_pass_subsurface")
+                col.prop(cbk, "use_pass_ambient_occlusion")
+                col.prop(cbk, "use_pass_emit")
+
+            elif cscene.bake_type in {'DIFFUSE', 'GLOSSY', 'TRANSMISSION', 'SUBSURFACE'}:
+                row = col.row(align=True)
+                row.prop(cbk, "use_pass_direct", toggle=True)
+                row.prop(cbk, "use_pass_indirect", toggle=True)
+                row.prop(cbk, "use_pass_color", toggle=True)
+
+            layout.separator()
+
+            split = layout.split()
+
+            col = split.column()
+            col.prop(cbk, "margin")
+            col.prop(cbk, "use_clear")
+
+            col = split.column()
+            col.prop(cbk, "use_selected_to_active")
+            sub = col.column()
+            sub.active = cbk.use_selected_to_active
+            sub.prop(cbk, "use_cage", text="Cage")
+            if cbk.use_cage:
+                sub.prop(cbk, "cage_extrusion", text="Extrusion")
+                sub.prop_search(cbk, "cage_object", scene, "objects", text="")
+            else:
+                sub.prop(cbk, "cage_extrusion", text="Ray Distance")
 
 class CYCLES_RENDER_PT_debug(CyclesButtonsPanel, Panel):
     bl_label = "Debug"
@@ -1704,6 +1466,7 @@ class CYCLES_SCENE_PT_simplify(CyclesButtonsPanel, Panel):
         row.prop(rd, "simplify_subdivision", text="Viewport")
         row.prop(rd, "simplify_subdivision_render", text="Render")
 
+
         col = layout.column(align=True)
         col.label(text="Child Particles")
         row = col.row(align=True)
@@ -1743,11 +1506,13 @@ def draw_device(self, context):
     scene = context.scene
     layout = self.layout
 
-    if scene.render.engine == 'CYCLES':
+    if context.engine == 'CYCLES':
         from . import engine
         cscene = scene.cycles
 
-        layout.prop(cscene, "feature_set")
+        split = layout.split(percentage=1 / 3)
+        split.label("Feature Set:")
+        split.prop(cscene, "feature_set", text="")
 
         split = layout.split(percentage=1 / 3)
         split.label("Device:")
@@ -1763,14 +1528,11 @@ def draw_pause(self, context):
     layout = self.layout
     scene = context.scene
 
-    if scene.render.engine == "CYCLES":
+    if context.engine == "CYCLES":
         view = context.space_data
 
-        if view.viewport_shade == 'RENDERED':
-            cscene = scene.cycles
-            layername = scene.render.layers.active.name
-            layout.prop(cscene, "preview_pause", icon="PAUSE", text="")
-            layout.prop(cscene, "preview_active_layer", icon="RENDERLAYERS", text=layername)
+        cscene = scene.cycles
+        layout.prop(cscene, "preview_pause", icon="PAUSE", text="")
 
 
 def get_panels():
@@ -1780,47 +1542,13 @@ def get_panels():
         'DATA_PT_falloff_curve',
         'DATA_PT_lamp',
         'DATA_PT_preview',
-        'DATA_PT_shadow',
         'DATA_PT_spot',
-        'DATA_PT_sunsky',
         'MATERIAL_PT_context_material',
-        'MATERIAL_PT_diffuse',
-        'MATERIAL_PT_flare',
-        'MATERIAL_PT_halo',
-        'MATERIAL_PT_mirror',
-        'MATERIAL_PT_options',
-        'MATERIAL_PT_pipeline',
         'MATERIAL_PT_preview',
-        'MATERIAL_PT_shading',
-        'MATERIAL_PT_shadow',
-        'MATERIAL_PT_specular',
-        'MATERIAL_PT_sss',
-        'MATERIAL_PT_strand',
-        'MATERIAL_PT_transp',
-        'MATERIAL_PT_volume_density',
-        'MATERIAL_PT_volume_integration',
-        'MATERIAL_PT_volume_lighting',
-        'MATERIAL_PT_volume_options',
-        'MATERIAL_PT_volume_shading',
-        'MATERIAL_PT_volume_transp',
-        'RENDERLAYER_PT_layer_options',
-        'RENDERLAYER_PT_layer_passes',
-        'RENDERLAYER_PT_views',
-        'RENDER_PT_antialiasing',
-        'RENDER_PT_bake',
-        'RENDER_PT_motion_blur',
-        'RENDER_PT_performance',
+        'VIEWLAYER_PT_filter',
+        'VIEWLAYER_PT_layer_passes',
         'RENDER_PT_post_processing',
-        'RENDER_PT_shading',
         'SCENE_PT_simplify',
-        'TEXTURE_PT_context_texture',
-        'WORLD_PT_ambient_occlusion',
-        'WORLD_PT_environment_lighting',
-        'WORLD_PT_gather',
-        'WORLD_PT_indirect_lighting',
-        'WORLD_PT_mist',
-        'WORLD_PT_preview',
-        'WORLD_PT_world'
         }
 
     panels = []
@@ -1841,9 +1569,8 @@ classes = (
     CYCLES_RENDER_PT_motion_blur,
     CYCLES_RENDER_PT_film,
     CYCLES_RENDER_PT_performance,
-    CYCLES_RENDER_PT_layer_options,
+    CYCLES_RENDER_PT_filter,
     CYCLES_RENDER_PT_layer_passes,
-    CYCLES_RENDER_PT_views,
     CYCLES_RENDER_PT_denoising,
     CYCLES_PT_post_processing,
     CYCLES_CAMERA_PT_dof,
@@ -1868,11 +1595,6 @@ classes = (
     CYCLES_MATERIAL_PT_displacement,
     CYCLES_MATERIAL_PT_settings,
     CYCLES_MATERIAL_PT_viewport,
-    CYCLES_TEXTURE_PT_context,
-    CYCLES_TEXTURE_PT_node,
-    CYCLES_TEXTURE_PT_mapping,
-    CYCLES_TEXTURE_PT_colors,
-    CYCLES_PARTICLE_PT_textures,
     CYCLES_RENDER_PT_bake,
     CYCLES_RENDER_PT_debug,
     CYCLES_PARTICLE_PT_curve_settings,

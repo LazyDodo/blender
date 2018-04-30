@@ -47,9 +47,9 @@
 #include "BKE_deform.h"
 #include "BKE_editmesh.h"
 
-#include "depsgraph_private.h"
-
 #include "MEM_guardedalloc.h"
+
+#include "DEG_depsgraph.h"
 
 #include "MOD_util.h"
 
@@ -120,19 +120,6 @@ static void foreachObjectLink(
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *) md;
 
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
-}
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	MeshDeformModifierData *mmd = (MeshDeformModifierData *) md;
-
-	if (mmd->object) {
-		DagNode *curNode = dag_get_node(ctx->forest, mmd->object);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA | DAG_RL_DATA_OB | DAG_RL_OB_OB,
-		                 "Mesh Deform Modifier");
-	}
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -286,7 +273,7 @@ static void meshdeform_vert_task(
 }
 
 static void meshdeformModifier_do(
-        ModifierData *md, Object *ob, DerivedMesh *dm,
+        ModifierData *md, struct Depsgraph *depsgraph, Object *ob, DerivedMesh *dm,
         float (*vertexCos)[3], int numVerts)
 {
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *) md;
@@ -311,9 +298,9 @@ static void meshdeformModifier_do(
 	 *
 	 * We'll support this case once granular dependency graph is landed.
 	 */
-	if (mmd->object == md->scene->obedit) {
+	if (mmd->object->mode & OB_MODE_EDIT) {
 		BMEditMesh *em = BKE_editmesh_from_object(mmd->object);
-		tmpdm = editbmesh_get_derived_cage_and_final(md->scene, mmd->object, em, 0, &cagedm);
+		tmpdm = editbmesh_get_derived_cage_and_final(depsgraph, md->scene, mmd->object, em, 0, &cagedm);
 		if (tmpdm)
 			tmpdm->release(tmpdm);
 	}
@@ -422,7 +409,7 @@ static void meshdeformModifier_do(
 	cagedm->release(cagedm);
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
+static void deformVerts(ModifierData *md, struct Depsgraph *depsgraph, Object *ob,
                         DerivedMesh *derivedData,
                         float (*vertexCos)[3],
                         int numVerts,
@@ -432,13 +419,13 @@ static void deformVerts(ModifierData *md, Object *ob,
 
 	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
 
-	meshdeformModifier_do(md, ob, dm, vertexCos, numVerts);
+	meshdeformModifier_do(md, depsgraph, ob, dm, vertexCos, numVerts);
 
 	if (dm && dm != derivedData)
 		dm->release(dm);
 }
 
-static void deformVertsEM(ModifierData *md, Object *ob,
+static void deformVertsEM(ModifierData *md, struct Depsgraph *depsgraph, Object *ob,
                           struct BMEditMesh *UNUSED(editData),
                           DerivedMesh *derivedData,
                           float (*vertexCos)[3],
@@ -446,7 +433,7 @@ static void deformVertsEM(ModifierData *md, Object *ob,
 {
 	DerivedMesh *dm = get_dm(ob, NULL, derivedData, NULL, false, false);
 
-	meshdeformModifier_do(md, ob, dm, vertexCos, numVerts);
+	meshdeformModifier_do(md, depsgraph, ob, dm, vertexCos, numVerts);
 
 	if (dm && dm != derivedData)
 		dm->release(dm);
@@ -535,7 +522,6 @@ ModifierTypeInfo modifierType_MeshDeform = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  NULL,

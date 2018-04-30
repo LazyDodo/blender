@@ -30,8 +30,10 @@
  */
 
 #include "BLI_sys_types.h"
+#include "GPU_buffers.h"
 #include "GPU_init_exit.h"  /* interface */
-
+#include "GPU_immediate.h"
+#include "GPU_batch.h"
 #include "BKE_global.h"
 
 #include "intern/gpu_codegen.h"
@@ -59,14 +61,28 @@ void GPU_init(void)
 	if (G.debug & G_DEBUG_GPU)
 		gpu_debug_init();
 
+	gpu_batch_init();
+
+	if (!G.background) {
+		immInit();
+	}
+
+	GPU_pbvh_fix_linking();
 }
 
 
 
 void GPU_exit(void)
 {
+	if (!G.background) {
+		immDestroy();
+	}
+
+	gpu_batch_exit();
+
 	if (G.debug & G_DEBUG_GPU)
 		gpu_debug_exit();
+
 	gpu_codegen_exit();
 
 	gpu_extensions_exit(); /* must come last */

@@ -37,9 +37,12 @@ extern "C" {
 #include "DNA_scene_types.h"
 }  /* extern "C" */
 
+#include "DNA_object_types.h"
+
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_debug.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #include "intern/depsgraph_intern.h"
 #include "intern/nodes/deg_node_id.h"
@@ -67,18 +70,20 @@ bool DEG_debug_compare(const struct Depsgraph *graph1,
 	return true;
 }
 
-bool DEG_debug_scene_relations_validate(Main *bmain,
-                                        Scene *scene)
+bool DEG_debug_graph_relations_validate(Depsgraph *graph,
+                                        Main *bmain,
+                                        Scene *scene,
+                                        ViewLayer *view_layer)
 {
-	Depsgraph *depsgraph = DEG_graph_new();
+	Depsgraph *temp_depsgraph = DEG_graph_new(scene, view_layer, DEG_get_mode(graph));
 	bool valid = true;
-	DEG_graph_build_from_scene(depsgraph, bmain, scene);
-	if (!DEG_debug_compare(depsgraph, scene->depsgraph)) {
+	DEG_graph_build_from_view_layer(temp_depsgraph, bmain, scene, view_layer);
+	if (!DEG_debug_compare(temp_depsgraph, graph)) {
 		fprintf(stderr, "ERROR! Depsgraph wasn't tagged for update when it should have!\n");
 		BLI_assert(!"This should not happen!");
 		valid = false;
 	}
-	DEG_graph_free(depsgraph);
+	DEG_graph_free(temp_depsgraph);
 	return valid;
 }
 

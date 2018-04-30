@@ -36,23 +36,7 @@
 
 #include "GHOST_Context.h"
 
-#ifdef WITH_GLEW_MX
-#define wglewGetContext() wglewContext
-#endif
-
 #include <GL/wglew.h>
-
-#ifdef WITH_GLEW_MX 
-extern "C" WGLEWContext *wglewContext;
-#endif
-
-#ifndef GHOST_OPENGL_WGL_CONTEXT_FLAGS
-#  ifdef WITH_GPU_DEBUG
-#    define GHOST_OPENGL_WGL_CONTEXT_FLAGS WGL_CONTEXT_DEBUG_BIT_ARB
-#  else
-#    define GHOST_OPENGL_WGL_CONTEXT_FLAGS 0
-#  endif
-#endif
 
 #ifndef GHOST_OPENGL_WGL_RESET_NOTIFICATION_STRATEGY
 #define GHOST_OPENGL_WGL_RESET_NOTIFICATION_STRATEGY 0
@@ -95,6 +79,12 @@ public:
 	GHOST_TSuccess activateDrawingContext();
 
 	/**
+	 * Release the drawing context of the calling thread.
+	 * \return  A boolean success indicator.
+	 */
+	GHOST_TSuccess releaseDrawingContext();
+
+	/**
 	 * Call immediately after new to initialize.  If this fails then immediately delete the object.
 	 * \return Indication as to whether initialization has succeeded.
 	 */
@@ -120,13 +110,6 @@ public:
 	 * \return Whether the swap interval can be read.
 	 */
 	GHOST_TSuccess getSwapInterval(int &intervalOut);
-
-protected:
-	inline void activateWGLEW() const {
-#ifdef WITH_GLEW_MX 
-		wglewContext = m_wglewContext;
-#endif
-	}
 
 private:
 	int choose_pixel_format(
@@ -160,6 +143,10 @@ private:
 
 	void initContextWGLEW(PIXELFORMATDESCRIPTOR &preferredPFD);
 
+	/* offscreen buffer with size of 1x1 pixel,
+	 * kept here to release the device constext when closing the program. */
+	HPBUFFERARB m_dummyPbuffer;
+
 	HWND m_hWnd;
 	HDC  m_hDC;
 
@@ -171,10 +158,6 @@ private:
 	const int m_contextResetNotificationStrategy;
 
 	HGLRC m_hGLRC;
-
-#ifdef WITH_GLEW_MX 
-	WGLEWContext *m_wglewContext;
-#endif
 	
 #ifndef NDEBUG
 	const char *m_dummyVendor;
@@ -184,8 +167,6 @@ private:
 
 	static HGLRC s_sharedHGLRC;
 	static int   s_sharedCount;
-
-	static bool s_singleContextMode;
 };
 
 #endif  // __GHOST_CONTEXTWGL_H__

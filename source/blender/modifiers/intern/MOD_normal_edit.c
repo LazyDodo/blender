@@ -42,8 +42,6 @@
 #include "BKE_mesh.h"
 #include "BKE_deform.h"
 
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 
@@ -511,17 +509,6 @@ static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 	return !is_valid_target(enmd);
 }
 
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	NormalEditModifierData *enmd = (NormalEditModifierData *) md;
-
-	if (enmd->target) {
-		DagNode *Node = dag_get_node(ctx->forest, enmd->target);
-
-		dag_add_relation(ctx->forest, Node, ctx->obNode, DAG_RL_OB_DATA, "NormalEdit Modifier");
-	}
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	NormalEditModifierData *enmd = (NormalEditModifierData *) md;
@@ -530,7 +517,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm, ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *UNUSED(depsgraph), Object *ob,
+                                  DerivedMesh *dm, ModifierApplyFlag UNUSED(flag))
 {
 	return normalEditModifier_do((NormalEditModifierData *)md, ob, dm);
 }
@@ -555,7 +543,6 @@ ModifierTypeInfo modifierType_NormalEdit = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  dependsOnNormals,

@@ -46,14 +46,18 @@
 #include "BKE_paint.h"
 #include "BKE_colortools.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_mesh_mapping.h"
 #include "BKE_customdata.h"
 #include "BKE_editmesh.h"
 
+#include "DEG_depsgraph.h"
+
 #include "ED_screen.h"
 #include "ED_image.h"
 #include "ED_mesh.h"
+
+#include "GPU_immediate.h"
+#include "GPU_immediate_util.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -63,9 +67,6 @@
 
 #include "paint_intern.h"
 #include "uvedit_intern.h"
-
-#include "BIF_gl.h"
-#include "BIF_glutil.h"
 
 #include "UI_view2d.h"
 
@@ -212,18 +213,17 @@ static void brush_drawcursor_uvsculpt(bContext *C, int x, int y, void *UNUSED(cu
 			alpha *= (size - PX_SIZE_FADE_MIN) / (PX_SIZE_FADE_MAX - PX_SIZE_FADE_MIN);
 		}
 
-		glPushMatrix();
+		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+		immUniformColor3fvAlpha(brush->add_col, alpha);
 
-		glTranslatef((float)x, (float)y, 0.0f);
-
-		glColor4f(brush->add_col[0], brush->add_col[1], brush->add_col[2], alpha);
 		glEnable(GL_LINE_SMOOTH);
 		glEnable(GL_BLEND);
-		glutil_draw_lined_arc(0, (float)(M_PI * 2.0), size, 40);
+		imm_draw_circle_wire_2d(pos, (float)x, (float)y, size, 40);
 		glDisable(GL_BLEND);
 		glDisable(GL_LINE_SMOOTH);
 
-		glPopMatrix();
+		immUnbindProgram();
 	}
 #undef PX_SIZE_FADE_MAX
 #undef PX_SIZE_FADE_MIN
@@ -652,7 +652,7 @@ static UvSculptData *uv_sculpt_stroke_init(bContext *C, wmOperator *op, const wm
 			UvElement *element;
 			UvNearestHit hit = UV_NEAREST_HIT_INIT;
 			Image *ima = CTX_data_edit_image(C);
-			uv_find_nearest_vert(scene, ima, em, co, 0.0f, &hit);
+			uv_find_nearest_vert(scene, ima, obedit, co, 0.0f, &hit);
 
 			element = BM_uv_element_get(data->elementMap, hit.efa, hit.l);
 			island_index = element->island;
@@ -899,7 +899,7 @@ static int uv_sculpt_stroke_modal(bContext *C, wmOperator *op, const wmEvent *ev
 
 	ED_region_tag_redraw(CTX_wm_region(C));
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
-	DAG_id_tag_update(obedit->data, 0);
+	DEG_id_tag_update(obedit->data, 0);
 	return OPERATOR_RUNNING_MODAL;
 }
 

@@ -47,6 +47,8 @@
 
 #include "BKE_cloth.h"
 #include "BKE_effect.h"
+#include "BKE_group.h"
+#include "BKE_layer.h"
 #include "BKE_modifier.h"
 #include "BKE_scene.h"
 
@@ -501,22 +503,22 @@ static void add_collision_object(Object ***objs, unsigned int *numobj, unsigned 
 
 	/* objects in dupli groups, one level only for now */
 	if (ob->dup_group && level == 0) {
-		GroupObject *go;
 		Group *group= ob->dup_group;
 
 		/* add objects */
-		for (go= group->gobject.first; go; go= go->next)
-			add_collision_object(objs, numobj, maxobj, go->ob, self, level+1, modifier_type);
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
+		{
+			add_collision_object(objs, numobj, maxobj, object, self, level+1, modifier_type);
+		}
+		FOREACH_GROUP_OBJECT_END;
 	}
 }
 
 // return all collision objects in scene
 // collision object will exclude self 
-Object **get_collisionobjects_ext(Scene *scene, Object *self, Group *group, int layer, unsigned int *numcollobj, unsigned int modifier_type, bool dupli)
+Object **get_collisionobjects_ext(Scene *scene, Object *self, Group *group, unsigned int *numcollobj, unsigned int modifier_type, bool dupli)
 {
-	Base *base;
 	Object **objs;
-	GroupObject *go;
 	unsigned int numobj= 0, maxobj= 100;
 	int level = dupli ? 0 : 1;
 	
@@ -525,16 +527,20 @@ Object **get_collisionobjects_ext(Scene *scene, Object *self, Group *group, int 
 	/* gather all collision objects */
 	if (group) {
 		/* use specified group */
-		for (go= group->gobject.first; go; go= go->next)
-			add_collision_object(&objs, &numobj, &maxobj, go->ob, self, level, modifier_type);
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
+		{
+			add_collision_object(&objs, &numobj, &maxobj, object, self, level, modifier_type);
+		}
+		FOREACH_GROUP_OBJECT_END;
 	}
 	else {
 		Scene *sce_iter;
+		Base *base;
 		/* add objects in same layer in scene */
 		for (SETLOOPER(scene, sce_iter, base)) {
-			if ( base->lay & layer )
+			if ((base->flag & BASE_VISIBLED) != 0) {
 				add_collision_object(&objs, &numobj, &maxobj, base->object, self, level, modifier_type);
-
+			}
 		}
 	}
 
@@ -547,7 +553,7 @@ Object **get_collisionobjects(Scene *scene, Object *self, Group *group, unsigned
 {
 	/* Need to check for active layers, too.
 	   Otherwise this check fails if the objects are not on the same layer - DG */
-	return get_collisionobjects_ext(scene, self, group, self->lay | scene->lay, numcollobj, modifier_type, true);
+	return get_collisionobjects_ext(scene, self, group, numcollobj, modifier_type, true);
 }
 
 static void add_collider_cache_object(ListBase **objs, Object *ob, Object *self, int level)
@@ -575,24 +581,28 @@ static void add_collider_cache_object(ListBase **objs, Object *ob, Object *self,
 
 	/* objects in dupli groups, one level only for now */
 	if (ob->dup_group && level == 0) {
-		GroupObject *go;
 		Group *group= ob->dup_group;
 
 		/* add objects */
-		for (go= group->gobject.first; go; go= go->next)
-			add_collider_cache_object(objs, go->ob, self, level+1);
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
+		{
+			add_collider_cache_object(objs, object, self, level+1);
+		}
+		FOREACH_GROUP_OBJECT_END;
 	}
 }
 
 ListBase *get_collider_cache(Scene *scene, Object *self, Group *group)
 {
-	GroupObject *go;
 	ListBase *objs= NULL;
 	
 	/* add object in same layer in scene */
 	if (group) {
-		for (go= group->gobject.first; go; go= go->next)
-			add_collider_cache_object(&objs, go->ob, self, 0);
+		FOREACH_GROUP_OBJECT_BEGIN(group, object)
+		{
+			add_collider_cache_object(&objs, object, self, 0);
+		}
+		FOREACH_GROUP_OBJECT_END;
 	}
 	else {
 		Scene *sce_iter;
@@ -600,7 +610,7 @@ ListBase *get_collider_cache(Scene *scene, Object *self, Group *group)
 
 		/* add objects in same layer in scene */
 		for (SETLOOPER(scene, sce_iter, base)) {
-			if (!self || (base->lay & self->lay))
+			if (!self || ((base->flag & BASE_VISIBLED) != 0))
 				add_collider_cache_object(&objs, base->object, self, 0);
 
 		}

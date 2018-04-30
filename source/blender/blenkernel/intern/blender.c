@@ -52,16 +52,18 @@
 #include "BKE_brush.h"
 #include "BKE_cachefile.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
 #include "BKE_image.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RE_pipeline.h"
 #include "RE_render_ext.h"
@@ -92,7 +94,7 @@ void BKE_blender_free(void)
 	IMB_exit();
 	BKE_cachefiles_exit();
 	BKE_images_exit();
-	DAG_exit();
+	DEG_free_node_types();
 
 	BKE_brush_system_exit();
 	RE_texture_rng_exit();	
@@ -101,6 +103,8 @@ void BKE_blender_free(void)
 
 	BKE_sequencer_cache_destruct();
 	IMB_moviecache_destruct();
+
+	BKE_layer_exit();
 	
 	free_nodesystem();
 }
@@ -283,11 +287,13 @@ void BKE_blender_userdef_app_template_data_swap(UserDef *userdef_a, UserDef *use
 	DATA_SWAP(font_path_ui_mono);
 	DATA_SWAP(keyconfigstr);
 
+	DATA_SWAP(manipulator_flag);
 	DATA_SWAP(app_flag);
 
 	/* We could add others. */
 	FLAG_SWAP(uiflag, int, USER_QUIT_PROMPT);
 
+#undef SWAP_TYPELESS
 #undef DATA_SWAP
 #undef LIST_SWAP
 #undef FLAG_SWAP

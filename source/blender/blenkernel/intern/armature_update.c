@@ -41,7 +41,6 @@
 #include "BKE_anim.h"
 #include "BKE_armature.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_displist.h"
 #include "BKE_fcurve.h"
 #include "BKE_scene.h"
@@ -113,9 +112,11 @@ static void splineik_init_tree_from_pchan(Scene *scene, Object *UNUSED(ob), bPos
 		 *       currently for paths to work it needs to go through the bevlist/displist system (ton)
 		 */
 
+		/* TODO: Make sure this doesn't crash. */
+#if 0
 		/* only happens on reload file, but violates depsgraph still... fix! */
 		if (ELEM(NULL,  ikData->tar->curve_cache, ikData->tar->curve_cache->path, ikData->tar->curve_cache->path->data)) {
-			BKE_displist_make_curveTypes(scene, ikData->tar, 0);
+			BKE_displist_make_curveTypes(depsgraph, scene, ikData->tar, 0);
 			
 			/* path building may fail in EditMode after removing verts [#33268]*/
 			if (ELEM(NULL, ikData->tar->curve_cache->path, ikData->tar->curve_cache->path->data)) {
@@ -123,6 +124,9 @@ static void splineik_init_tree_from_pchan(Scene *scene, Object *UNUSED(ob), bPos
 				return;
 			}
 		}
+#else
+		(void) scene;
+#endif
 	}
 
 	/* find the root bone and the chain of bones from the root to the tip
@@ -261,15 +265,16 @@ static void splineik_init_tree(Scene *scene, Object *ob, float UNUSED(ctime))
 /* ----------- */
 
 /* Evaluate spline IK for a given bone */
-static void splineik_evaluate_bone(tSplineIK_Tree *tree, Scene *scene, Object *ob, bPoseChannel *pchan,
-                                   int index, float ctime)
+static void splineik_evaluate_bone(
+        struct Depsgraph *depsgraph, tSplineIK_Tree *tree, Scene *scene, Object *ob, bPoseChannel *pchan,
+        int index, float ctime)
 {
 	bSplineIKConstraint *ikData = tree->ikData;
 	float poseHead[3], poseTail[3], poseMat[4][4];
 	float splineVec[3], scaleFac, radius = 1.0f;
 
 	/* firstly, calculate the bone matrix the standard way, since this is needed for roll control */
-	BKE_pose_where_is_bone(scene, ob, pchan, ctime, 1);
+	BKE_pose_where_is_bone(depsgraph, scene, ob, pchan, ctime, 1);
 
 	copy_v3_v3(poseHead, pchan->pose_head);
 	copy_v3_v3(poseTail, pchan->pose_tail);
@@ -511,7 +516,7 @@ static void splineik_evaluate_bone(tSplineIK_Tree *tree, Scene *scene, Object *o
 }
 
 /* Evaluate the chain starting from the nominated bone */
-static void splineik_execute_tree(Scene *scene, Object *ob, bPoseChannel *pchan_root, float ctime)
+static void splineik_execute_tree(struct Depsgraph *depsgraph, Scene *scene, Object *ob, bPoseChannel *pchan_root, float ctime)
 {
 	tSplineIK_Tree *tree;
 
@@ -525,7 +530,7 @@ static void splineik_execute_tree(Scene *scene, Object *ob, bPoseChannel *pchan_
 		 */
 		for (i = tree->chainlen - 1; i >= 0; i--) {
 			bPoseChannel *pchan = tree->chain[i];
-			splineik_evaluate_bone(tree, scene, ob, pchan, i, ctime);
+			splineik_evaluate_bone(depsgraph, tree, scene, ob, pchan, i, ctime);
 		}
 
 		/* free the tree info specific to SplineIK trees now */
@@ -544,9 +549,11 @@ void BKE_pose_splineik_init_tree(Scene *scene, Object *ob, float ctime)
 	splineik_init_tree(scene, ob, ctime);
 }
 
-void BKE_splineik_execute_tree(Scene *scene, Object *ob, bPoseChannel *pchan_root, float ctime)
+void BKE_splineik_execute_tree(
+        struct Depsgraph *depsgraph, Scene *scene,
+        Object *ob, bPoseChannel *pchan_root, float ctime)
 {
-	splineik_execute_tree(scene, ob, pchan_root, ctime);
+	splineik_execute_tree(depsgraph, scene, ob, pchan_root, ctime);
 }
 
 /* *************** Depsgraph evaluation callbacks ************ */
@@ -560,7 +567,7 @@ BLI_INLINE bPoseChannel *pose_pchan_get_indexed(Object *ob, int pchan_index)
 	return pose->chan_array[pchan_index];
 }
 
-void BKE_pose_eval_init(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_eval_init(struct Depsgraph *UNUSED(depsgraph),
                         Scene *UNUSED(scene),
                         Object *ob)
 {
@@ -590,7 +597,7 @@ void BKE_pose_eval_init(EvaluationContext *UNUSED(eval_ctx),
 	}
 }
 
-void BKE_pose_eval_init_ik(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_eval_init_ik(struct Depsgraph *depsgraph,
                            Scene *scene,
                            Object *ob)
 {
@@ -602,7 +609,7 @@ void BKE_pose_eval_init_ik(EvaluationContext *UNUSED(eval_ctx),
 		return;
 	}
 	/* construct the IK tree (standard IK) */
-	BIK_initialize_tree(scene, ob, ctime);
+	BIK_initialize_tree(depsgraph, scene, ob, ctime);
 	/* construct the Spline IK trees
 	 *  - this is not integrated as an IK plugin, since it should be able
 	 *    to function in conjunction with standard IK
@@ -610,7 +617,7 @@ void BKE_pose_eval_init_ik(EvaluationContext *UNUSED(eval_ctx),
 	BKE_pose_splineik_init_tree(scene, ob, ctime);
 }
 
-void BKE_pose_eval_bone(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_eval_bone(struct Depsgraph *depsgraph,
                         Scene *scene,
                         Object *ob,
                         int pchan_index)
@@ -640,14 +647,14 @@ void BKE_pose_eval_bone(EvaluationContext *UNUSED(eval_ctx),
 				if ((pchan->flag & POSE_DONE) == 0) {
 					/* TODO(sergey): Use time source node for time. */
 					float ctime = BKE_scene_frame_get(scene); /* not accurate... */
-					BKE_pose_where_is_bone(scene, ob, pchan, ctime, 1);
+					BKE_pose_where_is_bone(depsgraph, scene, ob, pchan, ctime, 1);
 				}
 			}
 		}
 	}
 }
 
-void BKE_pose_constraints_evaluate(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_constraints_evaluate(struct Depsgraph *depsgraph,
                                    Scene *scene,
                                    Object *ob,
                                    int pchan_index)
@@ -665,12 +672,12 @@ void BKE_pose_constraints_evaluate(EvaluationContext *UNUSED(eval_ctx),
 	else {
 		if ((pchan->flag & POSE_DONE) == 0) {
 			float ctime = BKE_scene_frame_get(scene); /* not accurate... */
-			BKE_pose_where_is_bone(scene, ob, pchan, ctime, 1);
+			BKE_pose_where_is_bone(depsgraph, scene, ob, pchan, ctime, 1);
 		}
 	}
 }
 
-void BKE_pose_bone_done(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_bone_done(struct Depsgraph *UNUSED(depsgraph),
                         struct Object *ob,
                         int pchan_index)
 {
@@ -683,7 +690,7 @@ void BKE_pose_bone_done(EvaluationContext *UNUSED(eval_ctx),
 	}
 }
 
-void BKE_pose_iktree_evaluate(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_iktree_evaluate(struct Depsgraph *depsgraph,
                               Scene *scene,
                               Object *ob,
                               int rootchan_index)
@@ -697,10 +704,10 @@ void BKE_pose_iktree_evaluate(EvaluationContext *UNUSED(eval_ctx),
 	if (arm->flag & ARM_RESTPOS) {
 		return;
 	}
-	BIK_execute_tree(scene, ob, rootchan, ctime);
+	BIK_execute_tree(depsgraph, scene, ob, rootchan, ctime);
 }
 
-void BKE_pose_splineik_evaluate(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_splineik_evaluate(struct Depsgraph *depsgraph,
                                 Scene *scene,
                                 Object *ob,
                                 int rootchan_index)
@@ -715,10 +722,10 @@ void BKE_pose_splineik_evaluate(EvaluationContext *UNUSED(eval_ctx),
 	if (arm->flag & ARM_RESTPOS) {
 		return;
 	}
-	BKE_splineik_execute_tree(scene, ob, rootchan, ctime);
+	BKE_splineik_execute_tree(depsgraph, scene, ob, rootchan, ctime);
 }
 
-void BKE_pose_eval_flush(EvaluationContext *UNUSED(eval_ctx),
+void BKE_pose_eval_flush(struct Depsgraph *UNUSED(depsgraph),
                          Scene *scene,
                          Object *ob)
 {
@@ -732,14 +739,12 @@ void BKE_pose_eval_flush(EvaluationContext *UNUSED(eval_ctx),
 	/* release the IK tree */
 	BIK_release_tree(scene, ob, ctime);
 
-	ob->recalc &= ~OB_RECALC_ALL;
-
 	BLI_assert(pose->chan_array != NULL);
 	MEM_freeN(pose->chan_array);
 	pose->chan_array = NULL;
 }
 
-void BKE_pose_eval_proxy_copy(EvaluationContext *UNUSED(eval_ctx), Object *ob)
+void BKE_pose_eval_proxy_copy(struct Depsgraph *UNUSED(depsgraph), Object *ob)
 {
 	BLI_assert(ID_IS_LINKED(ob) && ob->proxy_from != NULL);
 	DEG_debug_print_eval(__func__, ob->id.name, ob);
@@ -747,8 +752,4 @@ void BKE_pose_eval_proxy_copy(EvaluationContext *UNUSED(eval_ctx), Object *ob)
 		printf("Proxy copy error, lib Object: %s proxy Object: %s\n",
 		       ob->id.name + 2, ob->proxy_from->id.name + 2);
 	}
-	/* Rest of operations are NO-OP in depsgraph, so can clear
-	 * flag now.
-	 */
-	ob->recalc &= ~OB_RECALC_ALL;
 }

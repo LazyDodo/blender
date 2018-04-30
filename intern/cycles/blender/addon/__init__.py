@@ -19,7 +19,7 @@
 bl_info = {
     "name": "Cycles Render Engine",
     "author": "",
-    "blender": (2, 76, 0),
+    "blender": (2, 80, 0),
     "location": "Info header, render engine menu",
     "description": "Cycles Render Engine integration",
     "warning": "",
@@ -52,7 +52,7 @@ from . import (
 
 class CyclesRender(bpy.types.RenderEngine):
     bl_idname = 'CYCLES'
-    bl_label = "Cycles Render"
+    bl_label = "Cycles"
     bl_use_shading_nodes = True
     bl_use_preview = True
     bl_use_exclude_layers = True
@@ -79,21 +79,21 @@ class CyclesRender(bpy.types.RenderEngine):
         else:
             engine.reset(self, data, scene)
 
-    def render(self, scene):
-        engine.render(self)
+    def render_to_image(self, depsgraph):
+        engine.render(self, depsgraph)
 
-    def bake(self, scene, obj, pass_type, pass_filter, object_id, pixel_array, num_pixels, depth, result):
-        engine.bake(self, obj, pass_type, pass_filter, object_id, pixel_array, num_pixels, depth, result)
+    def bake(self, depsgraph, scene, obj, pass_type, pass_filter, object_id, pixel_array, num_pixels, depth, result):
+        engine.bake(self, depsgraph, obj, pass_type, pass_filter, object_id, pixel_array, num_pixels, depth, result)
 
     # viewport render
     def view_update(self, context):
         if not self.session:
             engine.create(self, context.blend_data, context.scene,
                           context.region, context.space_data, context.region_data)
-        engine.update(self, context.blend_data, context.scene)
+        engine.update(self, context.depsgraph, context.blend_data, context.scene)
 
-    def view_draw(self, context):
-        engine.draw(self, context.region, context.space_data, context.region_data)
+    def render_to_view(self, context):
+        engine.draw(self, context.depsgraph, context.region, context.space_data, context.region_data)
 
     def update_script_node(self, node):
         if engine.with_osl():

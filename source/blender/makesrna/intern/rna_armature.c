@@ -44,18 +44,19 @@
 #ifdef RNA_RUNTIME
 
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_idprop.h"
 #include "BKE_main.h"
 
 #include "ED_armature.h"
 #include "BKE_armature.h"
 
+#include "DEG_depsgraph.h"
+
 static void rna_Armature_update_data(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	ID *id = ptr->id.data;
 
-	DAG_id_tag_update(id, 0);
+	DEG_id_tag_update(id, 0);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, id);
 	/*WM_main_add_notifier(NC_OBJECT|ND_POSE, NULL); */
 }
@@ -146,6 +147,7 @@ static void rna_Armature_redraw_data(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 {
 	ID *id = ptr->id.data;
 	
+	DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, id);
 }
 
@@ -173,7 +175,7 @@ static void rna_Bone_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 			bArmature *arm = (bArmature *)id;
 			
 			if (arm->flag & ARM_HAS_VIZ_DEPS) {
-				DAG_id_tag_update(id, OB_RECALC_DATA);
+				DEG_id_tag_update(id, OB_RECALC_DATA);
 			}
 		}
 		else if (GS(id->name) == ID_OB) {
@@ -181,7 +183,7 @@ static void rna_Bone_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 			bArmature *arm = (bArmature *)ob->data;
 			
 			if (arm->flag & ARM_HAS_VIZ_DEPS) {
-				DAG_id_tag_update(id, OB_RECALC_DATA);
+				DEG_id_tag_update(id, OB_RECALC_DATA);
 			}
 		}
 	}
@@ -725,6 +727,7 @@ static void rna_def_bone(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "parent", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Bone");
 	RNA_def_property_pointer_sdna(prop, NULL, "parent");
+	RNA_def_property_flag(prop, PROP_PTR_NO_OWNERSHIP);
 	RNA_def_property_ui_text(prop, "Parent", "Parent bone (in same Armature)");
 	RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
 	
@@ -732,6 +735,7 @@ static void rna_def_bone(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "children", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "childbase", NULL);
 	RNA_def_property_struct_type(prop, "Bone");
+	RNA_def_property_flag(prop, PROP_PTR_NO_OWNERSHIP);
 	RNA_def_property_ui_text(prop, "Children", "Bones which are children of this bone");
 
 	rna_def_bone_common(srna, 0);
@@ -986,11 +990,6 @@ static void rna_def_armature(BlenderRNA *brna)
 		{ARM_WIRE, "WIRE", 0, "Wire", "Display bones as thin wires, showing subdivision and B-Splines"},
 		{0, NULL, 0, NULL, NULL}
 	};
-	static const EnumPropertyItem prop_vdeformer[] = {
-		{ARM_VDEF_BLENDER, "BLENDER", 0, "Blender", "Use Blender's armature vertex deformation"},
-		{ARM_VDEF_BGE_CPU, "BGE_CPU", 0, "BGE", "Use vertex deformation code optimized for the BGE"},
-		{0, NULL, 0, NULL, NULL}
-	};
 	static const EnumPropertyItem prop_ghost_type_items[] = {
 		{ARM_GHOST_CUR, "CURRENT_FRAME", 0, "Around Frame",
 		                "Display Ghosts of poses within a fixed number of frames around the current frame"},
@@ -1047,13 +1046,6 @@ static void rna_def_armature(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
 	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
 
-	prop = RNA_def_property(srna, "deform_method", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "gevertdeformer");
-	RNA_def_property_enum_items(prop, prop_vdeformer);
-	RNA_def_property_ui_text(prop, "Vertex Deformer", "Vertex Deformer Method (Game Engine only)");
-	RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
-	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
-	
 /* XXX deprecated ....... old animviz for armatures only */
 	prop = RNA_def_property(srna, "ghost_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "ghosttype");

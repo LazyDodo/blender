@@ -166,8 +166,9 @@ typedef struct ParticleSettings {
 	short type, from, distr, texact;
 	/* physics modes */
 	short phystype, rotmode, avemode, reactevent;
-	int draw, pad1;
-	short draw_as, draw_size, childtype, pad2;
+	int draw;
+	float draw_size;
+	short draw_as, pad1, childtype, pad2;
 	short ren_as, subframes, draw_col;
 	/* number of path segments, power of 2 except */
 	short draw_step, ren_step;
@@ -186,11 +187,6 @@ typedef struct ParticleSettings {
 
 	/* draw color */
 	float color_vec_max;
-
-	/* simplification */
-	short simplify_flag, simplify_refsize;
-	float simplify_rate, simplify_transition;
-	float simplify_viewport;
 
 	/* time and emission */
 	float sta, end, lifetime, randlife;
@@ -259,7 +255,9 @@ typedef struct ParticleSettings {
 
 	/* modified dm support */
 	short use_modifier_stack;
-	short pad5[3];
+
+	short pad5;
+	int pad8;
 
 	float twist;
 	float pad6;
@@ -310,9 +308,6 @@ typedef struct ParticleSystem {
 	short vgroup[13], vg_neg, rt3;			/* vertex groups, 0==disable, 1==starting index */
 	char pad[6];
 
-	/* temporary storage during render */
-	struct ParticleRenderData *renderdata;
-
 	/* point cache */
 	struct PointCache *pointcache;
 	struct ListBase ptcaches;
@@ -329,6 +324,8 @@ typedef struct ParticleSystem {
 
 	float dt_frac;							/* current time step, as a fraction of a frame */
 	float lattice_strength;					/* influence of the lattice modifier */
+
+	void *batch_cache;
 } ParticleSystem;
 
 typedef enum eParticleDrawFlag {

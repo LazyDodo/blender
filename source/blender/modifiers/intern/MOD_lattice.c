@@ -44,8 +44,6 @@
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 static void initData(ModifierData *md)
@@ -91,18 +89,6 @@ static void foreachObjectLink(
 	walk(userData, ob, &lmd->object, IDWALK_CB_NOP);
 }
 
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	LatticeModifierData *lmd = (LatticeModifierData *) md;
-
-	if (lmd->object) {
-		DagNode *latNode = dag_get_node(ctx->forest, lmd->object);
-
-		dag_add_relation(ctx->forest, latNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Lattice Modifier");
-	}
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	LatticeModifierData *lmd = (LatticeModifierData *)md;
@@ -113,8 +99,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Lattice Modifier");
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
-                        DerivedMesh *derivedData,
+static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
+                        Object *ob, DerivedMesh *derivedData,
                         float (*vertexCos)[3],
                         int numVerts,
                         ModifierApplyFlag UNUSED(flag))
@@ -129,14 +115,14 @@ static void deformVerts(ModifierData *md, Object *ob,
 }
 
 static void deformVertsEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *em,
+        ModifierData *md, struct Depsgraph *depsgraph, Object *ob, struct BMEditMesh *em,
         DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
 {
 	DerivedMesh *dm = derivedData;
 
 	if (!derivedData) dm = CDDM_from_editbmesh(em, false, false);
 
-	deformVerts(md, ob, dm, vertexCos, numVerts, 0);
+	deformVerts(md, depsgraph, ob, dm, vertexCos, numVerts, 0);
 
 	if (!derivedData) dm->release(dm);
 }
@@ -161,7 +147,6 @@ ModifierTypeInfo modifierType_Lattice = {
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

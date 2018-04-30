@@ -41,10 +41,11 @@
 #include "BLT_translation.h"
 
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_main.h"
 #include "BKE_screen.h"
 #include "BKE_editmesh.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -71,11 +72,10 @@ static void do_view3d_header_buttons(bContext *C, void *arg, int event);
 /* XXX quickly ported across */
 static void handle_view3d_lock(bContext *C)
 {
-	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	ScrArea *sa = CTX_wm_area(C);
 	View3D *v3d = CTX_wm_view3d(C);
-	
+
 	if (v3d != NULL && sa != NULL) {
 		if (v3d->localvd == NULL && v3d->scenelock && sa->spacetype == SPACE_VIEW3D) {
 			/* copy to scene */
@@ -83,10 +83,6 @@ static void handle_view3d_lock(bContext *C)
 			scene->layact = v3d->layact;
 			scene->camera = v3d->camera;
 
-			/* not through notifier, listener don't have context
-			 * and non-open screens or spaces need to be updated too */
-			BKE_screen_view3d_main_sync(&bmain->screen, scene);
-			
 			/* notifiers for scene update */
 			WM_event_add_notifier(C, NC_SCENE | ND_LAYER, scene);
 		}
@@ -97,16 +93,16 @@ static void handle_view3d_lock(bContext *C)
  * layer code is on three levels actually:
  * - here for operator
  * - uiTemplateLayers in interface/ code for buttons
- * - ED_view3d_scene_layer_set for RNA
+ * - ED_view3d_view_layer_set for RNA
  */
-static void view3d_layers_editmode_ensure(Scene *scene, View3D *v3d)
+static void view3d_layers_editmode_ensure(View3D *v3d, Object *obedit)
 {
 	/* sanity check - when in editmode disallow switching the editmode layer off since its confusing
 	 * an alternative would be to always draw the editmode object. */
-	if (scene->obedit && (scene->obedit->lay & v3d->lay) == 0) {
+	if (obedit && (obedit->lay & v3d->lay) == 0) {
 		int bit;
 		for (bit = 0; bit < 32; bit++) {
-			if (scene->obedit->lay & (1u << bit)) {
+			if (obedit->lay & (1u << bit)) {
 				v3d->lay |= (1u << bit);
 				break;
 			}
@@ -116,9 +112,9 @@ static void view3d_layers_editmode_ensure(Scene *scene, View3D *v3d)
 
 static int view3d_layers_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
 	ScrArea *sa = CTX_wm_area(C);
 	View3D *v3d = sa->spacedata.first;
+	Object *obedit = CTX_data_edit_object(C);
 	int nr = RNA_int_get(op->ptr, "nr");
 	const bool toggle = RNA_boolean_get(op->ptr, "toggle");
 	
@@ -134,7 +130,7 @@ static int view3d_layers_exec(bContext *C, wmOperator *op)
 			/* return to active layer only */
 			v3d->lay = v3d->lay_prev;
 
-			view3d_layers_editmode_ensure(scene, v3d);
+			view3d_layers_editmode_ensure(v3d, obedit);
 		}
 		else {
 			v3d->lay_prev = v3d->lay;
@@ -155,7 +151,7 @@ static int view3d_layers_exec(bContext *C, wmOperator *op)
 			v3d->lay = (1 << nr);
 		}
 
-		view3d_layers_editmode_ensure(scene, v3d);
+		view3d_layers_editmode_ensure(v3d, obedit);
 
 		/* set active layer, ensure to always have one */
 		if (v3d->lay & (1 << nr))
@@ -172,7 +168,7 @@ static int view3d_layers_exec(bContext *C, wmOperator *op)
 	
 	if (v3d->scenelock) handle_view3d_lock(C);
 	
-	DAG_on_visible_update(CTX_data_main(C), false);
+	DEG_on_visible_update(CTX_data_main(C), false);
 
 	ED_area_tag_redraw(sa);
 	
@@ -284,15 +280,18 @@ void uiTemplateHeader3D(uiLayout *layout, struct bContext *C)
 	ScrArea *sa = CTX_wm_area(C);
 	View3D *v3d = sa->spacedata.first;
 	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	PointerRNA v3dptr, toolsptr, sceneptr;
-	Object *ob = OBACT;
+	Object *ob = OBACT(view_layer);
 	Object *obedit = CTX_data_edit_object(C);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	uiBlock *block;
 	uiLayout *row;
-	bool is_paint = false;
-	int modeselect;
+	bool is_paint = (
+	        ob && !(gpd && (gpd->flag & GP_DATA_STROKE_EDITMODE)) &&
+	        ELEM(ob->mode,
+	             OB_MODE_SCULPT, OB_MODE_VERTEX_PAINT, OB_MODE_WEIGHT_PAINT, OB_MODE_TEXTURE_PAINT));
 	
 	RNA_pointer_create(&screen->id, &RNA_SpaceView3D, v3d, &v3dptr);
 	RNA_pointer_create(&scene->id, &RNA_ToolSettings, ts, &toolsptr);
@@ -303,39 +302,6 @@ void uiTemplateHeader3D(uiLayout *layout, struct bContext *C)
 
 	/* other buttons: */
 	UI_block_emboss_set(block, UI_EMBOSS);
-	
-	/* mode */
-	if ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE)) {
-		modeselect = OB_MODE_GPENCIL;
-	}
-	else if (ob) {
-		modeselect = ob->mode;
-		is_paint = ELEM(ob->mode, OB_MODE_SCULPT, OB_MODE_VERTEX_PAINT, OB_MODE_WEIGHT_PAINT, OB_MODE_TEXTURE_PAINT);
-	}
-	else {
-		modeselect = OB_MODE_OBJECT;
-	}
-
-	row = uiLayoutRow(layout, false);
-	{
-		const EnumPropertyItem *item = rna_enum_object_mode_items;
-		const char *name = "";
-		int icon = ICON_OBJECT_DATAMODE;
-
-		while (item->identifier) {
-			if (item->value == modeselect && item->identifier[0]) {
-				name = IFACE_(item->name);
-				icon = item->icon;
-				break;
-			}
-			item++;
-		}
-
-		uiItemMenuEnumO(row, C, "OBJECT_OT_mode_set", "mode", name, icon);
-	}
-
-	/* Draw type */
-	uiItemR(layout, &v3dptr, "viewport_shade", UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
 
 	row = uiLayoutRow(layout, true);
 	uiItemR(row, &v3dptr, "pivot_point", UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
@@ -364,18 +330,10 @@ void uiTemplateHeader3D(uiLayout *layout, struct bContext *C)
 		/* Transform widget / manipulators */
 		row = uiLayoutRow(layout, true);
 		uiItemR(row, &v3dptr, "show_manipulator", UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
-		if (v3d->twflag & V3D_USE_MANIPULATOR) {
-			uiItemR(row, &v3dptr, "transform_manipulators", UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
-		}
-		uiItemR(row, &v3dptr, "transform_orientation", 0, "", ICON_NONE);
+		uiItemR(row, &sceneptr, "transform_orientation", 0, "", ICON_NONE);
 	}
 
 	if (obedit == NULL && v3d->localvd == NULL) {
-		unsigned int ob_lay = ob ? ob->lay : 0;
-
-		/* Layers */
-		uiTemplateLayers(layout, v3d->scenelock ? &sceneptr : &v3dptr, "layers", &v3dptr, "layers_used", ob_lay);
-
 		/* Scene lock */
 		uiItemR(layout, &v3dptr, "lock_camera_and_layers", UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
 	}
