@@ -140,7 +140,7 @@ void DepsgraphNodeBuilder::build_view_layer(
 	                   DEG_NODE_TYPE_LAYER_COLLECTIONS,
 	                   function_bind(BKE_layer_eval_view_layer_indexed,
 	                                 _1,
-	                                 &scene_cow->id,
+	                                 scene_cow,
 	                                 view_layer_index_),
 	                   DEG_OPCODE_VIEW_LAYER_EVAL);
 	/* Parameters evaluation for scene relations mainly. */

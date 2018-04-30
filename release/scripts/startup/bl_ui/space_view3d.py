@@ -1382,14 +1382,14 @@ class INFO_MT_add(Menu):
         layout.operator_menu_enum("object.effector_add", "type", text="Force Field", icon='OUTLINER_OB_FORCE_FIELD')
         layout.separator()
 
-        if len(bpy.data.groups) > 10:
+        if len(bpy.data.collections) > 10:
             layout.operator_context = 'INVOKE_REGION_WIN'
-            layout.operator("object.group_instance_add", text="Group Instance...", icon='OUTLINER_OB_GROUP_INSTANCE')
+            layout.operator("object.group_instance_add", text="Collection Instance...", icon='OUTLINER_OB_GROUP_INSTANCE')
         else:
             layout.operator_menu_enum(
                 "object.group_instance_add",
                 "group",
-                text="Group Instance",
+                text="Collection Instance",
                 icon='OUTLINER_OB_GROUP_INSTANCE',
             )
 

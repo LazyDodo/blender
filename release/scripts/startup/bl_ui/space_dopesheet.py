@@ -41,7 +41,7 @@ def dopesheet_filter(layout, context, genericFiltersOnly=False):
         row.prop(dopesheet, "show_only_errors", text="")
 
     if not genericFiltersOnly:
-        if bpy.data.groups:
+        if bpy.data.collections:
             row = layout.row(align=True)
             row.prop(dopesheet, "show_only_group_objects", text="")
             if dopesheet.show_only_group_objects:

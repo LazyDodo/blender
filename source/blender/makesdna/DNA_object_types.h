@@ -263,7 +263,7 @@ typedef struct Object {
 	
 	struct PartDeflect *pd;		/* particle deflector/attractor/collision data */
 	struct SoftBody *soft;		/* if exists, saved in file */
-	struct Group *dup_group;	/* object duplicator for group */
+	struct Collection *dup_group;	/* object duplicator for group */
 	void *pad10;
 
 	char  pad4;
@@ -525,7 +525,7 @@ enum {
 #define OB_FROMDUPLI        (1 << 9)
 #define OB_DONE             (1 << 10)  /* unknown state, clear before use */
 /* #define OB_RADIO            (1 << 11) */  /* deprecated */
-#define OB_FROMGROUP        (1 << 12)
+/* #define OB_FROMGROUP        (1 << 12) */  /* deprecated */
 
 /* WARNING - when adding flags check on PSYS_RECALC */
 /* ob->recalc (flag bits!) */

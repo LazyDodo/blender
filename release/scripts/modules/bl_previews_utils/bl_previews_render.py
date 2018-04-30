@@ -399,7 +399,7 @@ def do_previews(do_objects, do_groups, do_scenes, do_data_intern):
                 ob.hide_render = is_rendered
 
     if do_groups:
-        for grp in ids_nolib(bpy.data.groups):
+        for grp in ids_nolib(bpy.data.collections):
             if grp.name in groups_ignored:
                 continue
             # Here too, we do want to keep linked objects members of local group...
@@ -471,7 +471,7 @@ def do_clear_previews(do_objects, do_groups, do_scenes, do_data_intern):
             ob.preview.image_size = (0, 0)
 
     if do_groups:
-        for grp in ids_nolib(bpy.data.groups):
+        for grp in ids_nolib(bpy.data.collections):
             grp.preview.image_size = (0, 0)
 
     if do_scenes:

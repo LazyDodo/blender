@@ -60,7 +60,7 @@ class Library(bpy_types.ID):
         # See: readblenentry.c, IDTYPE_FLAGS_ISLINKABLE,
         # we could make this an attribute in rna.
         attr_links = ("actions", "armatures", "brushes", "cameras",
-                      "curves", "grease_pencil", "groups", "images",
+                      "curves", "grease_pencil", "collections", "images",
                       "lamps", "lattices", "materials", "metaballs",
                       "meshes", "node_groups", "objects", "scenes",
                       "sounds", "speakers", "textures", "texts",
@@ -119,9 +119,9 @@ class Object(bpy_types.ID):
 
     @property
     def users_group(self):
-        """The groups this object is in"""
+        """The collections this object is in"""
         import bpy
-        return tuple(group for group in bpy.data.groups
+        return tuple(group for group in bpy.data.collections
                      if self in group.objects[:])
 
     @property

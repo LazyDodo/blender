@@ -50,8 +50,8 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_collection.h"
 #include "BKE_context.h"
-#include "BKE_group.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
@@ -267,12 +267,12 @@ static bool object_select_all_by_material(bContext *C, Material *mat)
 static bool object_select_all_by_dup_group(bContext *C, Object *ob)
 {
 	bool changed = false;
-	Group *dup_group = (ob->transflag & OB_DUPLIGROUP) ? ob->dup_group : NULL;
+	Collection *dup_group = (ob->transflag & OB_DUPLIGROUP) ? ob->dup_group : NULL;
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
 		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
-			Group *dup_group_other = (base->object->transflag & OB_DUPLIGROUP) ? base->object->dup_group : NULL;
+			Collection *dup_group_other = (base->object->transflag & OB_DUPLIGROUP) ? base->object->dup_group : NULL;
 			if (dup_group == dup_group_other) {
 				ED_object_base_select(base, BA_SELECT);
 				changed = true;
@@ -546,26 +546,26 @@ static bool select_grouped_parent(bContext *C) /* Makes parent active and de-sel
 static bool select_grouped_group(bContext *C, Object *ob)  /* Select objects in the same group as the active */
 {
 	bool changed = false;
-	Group *group, *ob_groups[GROUP_MENU_MAX];
-	int group_count = 0, i;
+	Collection *collection, *ob_collections[GROUP_MENU_MAX];
+	int collection_count = 0, i;
 	uiPopupMenu *pup;
 	uiLayout *layout;
 
-	for (group = CTX_data_main(C)->group.first; group && group_count < GROUP_MENU_MAX; group = group->id.next) {
-		if (BKE_group_object_exists(group, ob)) {
-			ob_groups[group_count] = group;
-			group_count++;
+	for (collection = CTX_data_main(C)->collection.first; collection && collection_count < GROUP_MENU_MAX; collection = collection->id.next) {
+		if (BKE_collection_has_object(collection, ob)) {
+			ob_collections[collection_count] = collection;
+			collection_count++;
 		}
 	}
 
-	if (!group_count)
+	if (!collection_count)
 		return 0;
-	else if (group_count == 1) {
-		group = ob_groups[0];
+	else if (collection_count == 1) {
+		collection = ob_collections[0];
 		CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 		{
 			if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
-				if (BKE_group_object_exists(group, base->object)) {
+				if (BKE_collection_has_object(collection, base->object)) {
 					ED_object_base_select(base, BA_SELECT);
 					changed = true;
 				}
@@ -579,9 +579,9 @@ static bool select_grouped_group(bContext *C, Object *ob)  /* Select objects in 
 	pup = UI_popup_menu_begin(C, IFACE_("Select Group"), ICON_NONE);
 	layout = UI_popup_menu_layout(pup);
 
-	for (i = 0; i < group_count; i++) {
-		group = ob_groups[i];
-		uiItemStringO(layout, group->id.name + 2, 0, "OBJECT_OT_select_same_group", "group", group->id.name + 2);
+	for (i = 0; i < collection_count; i++) {
+		collection = ob_collections[i];
+		uiItemStringO(layout, collection->id.name + 2, 0, "OBJECT_OT_select_same_group", "group", collection->id.name + 2);
 	}
 
 	UI_popup_menu_end(C, pup);
@@ -666,23 +666,22 @@ static bool select_grouped_type(bContext *C, Object *ob)
 static bool select_grouped_collection(bContext *C, Object *ob)  /* Select objects in the same collection as the active */
 {
 	typedef struct EnumeratedCollection {
-		struct SceneCollection *collection;
+		struct Collection *collection;
 		int index;
 	} EnumeratedCollection;
 
 	bool changed = false;
-	SceneCollection *collection;
 	EnumeratedCollection ob_collections[COLLECTION_MENU_MAX];
 	int collection_count = 0, i;
 	uiPopupMenu *pup;
 	uiLayout *layout;
 
 	i = 0;
-	FOREACH_SCENE_COLLECTION_BEGIN(CTX_data_scene(C), scene_collection)
+	FOREACH_SCENE_COLLECTION_BEGIN(CTX_data_scene(C), collection)
 	{
-		if (BKE_collection_object_exists(scene_collection, ob)) {
+		if (BKE_collection_has_object(collection, ob)) {
 			ob_collections[collection_count].index = i;
-			ob_collections[collection_count].collection = scene_collection;
+			ob_collections[collection_count].collection = collection;
 			if (++collection_count >= COLLECTION_MENU_MAX) {
 				break;
 			}
@@ -695,8 +694,8 @@ static bool select_grouped_collection(bContext *C, Object *ob)  /* Select object
 		return 0;
 	}
 	else if (collection_count == 1) {
-		collection = ob_collections[0].collection;
-		return BKE_collection_objects_select(CTX_data_view_layer(C), collection);
+		Collection *collection = ob_collections[0].collection;
+		return BKE_collection_objects_select(CTX_data_view_layer(C), collection, false);
 	}
 
 	/* build the menu. */
@@ -705,7 +704,7 @@ static bool select_grouped_collection(bContext *C, Object *ob)  /* Select object
 
 	for (i = 0; i < collection_count; i++) {
 		uiItemIntO(layout,
-		           ob_collections[i].collection->name,
+		           ob_collections[i].collection->id.name + 2,
 		           ICON_NONE,
 		           "OBJECT_OT_select_same_collection",
 		           "collection_index",
@@ -964,24 +963,24 @@ void OBJECT_OT_select_all(wmOperatorType *ot)
 
 static int object_select_same_group_exec(bContext *C, wmOperator *op)
 {
-	Group *group;
-	char group_name[MAX_ID_NAME];
+	Collection *collection;
+	char collection_name[MAX_ID_NAME];
 
 	/* passthrough if no objects are visible */
 	if (CTX_DATA_COUNT(C, visible_bases) == 0) return OPERATOR_PASS_THROUGH;
 
-	RNA_string_get(op->ptr, "group", group_name);
+	RNA_string_get(op->ptr, "group", collection_name);
 
-	group = (Group *)BKE_libblock_find_name(ID_GR, group_name);
+	collection = (Collection *)BKE_libblock_find_name(ID_GR, collection_name);
 
-	if (!group) {
+	if (!collection) {
 		return OPERATOR_PASS_THROUGH;
 	}
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
 		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
-			if (BKE_group_object_exists(group, base->object)) {
+			if (BKE_collection_has_object(collection, base->object)) {
 				ED_object_base_select(base, BA_SELECT);
 			}
 		}
@@ -1015,7 +1014,7 @@ void OBJECT_OT_select_same_group(wmOperatorType *ot)
 
 static int object_select_same_collection_exec(bContext *C, wmOperator *op)
 {
-	SceneCollection *collection;
+	Collection *collection;
 
 	/* passthrough if no objects are visible */
 	if (CTX_DATA_COUNT(C, visible_bases) == 0) return OPERATOR_PASS_THROUGH;
@@ -1027,7 +1026,7 @@ static int object_select_same_collection_exec(bContext *C, wmOperator *op)
 		return OPERATOR_PASS_THROUGH;
 	}
 
-	if (BKE_collection_objects_select(CTX_data_view_layer(C), collection)) {
+	if (BKE_collection_objects_select(CTX_data_view_layer(C), collection, false)) {
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
 	}
 

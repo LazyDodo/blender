@@ -42,10 +42,10 @@
 #include "BLI_listbase.h"
 
 #include "BKE_camera.h"
+#include "BKE_collection.h"
 #include "BKE_paint.h"
 #include "BKE_editlattice.h"
 #include "BKE_editmesh.h"
-#include "BKE_group.h" /* needed for BKE_group_object_exists() */
 #include "BKE_object_deform.h"
 #include "BKE_object_facemap.h"
 
@@ -104,7 +104,7 @@ static const EnumPropertyItem parent_type_items[] = {
 	{OB_DUPLIFACES, "FACES", 0, "Faces", "Duplicate child objects on all faces"}
 
 #define DUPLI_ITEM_GROUP \
-	{OB_DUPLIGROUP, "GROUP", 0, "Group", "Enable group instancing"}
+	{OB_DUPLIGROUP, "COLLECTION", 0, "Collection", "Enable collection instancing"}
 static const EnumPropertyItem dupli_items[] = {
 	DUPLI_ITEMS_SHARED,
 	DUPLI_ITEM_GROUP,
@@ -474,12 +474,12 @@ static const EnumPropertyItem *rna_Object_dupli_type_itemf(
 static void rna_Object_dup_group_set(PointerRNA *ptr, PointerRNA value)
 {
 	Object *ob = (Object *)ptr->data;
-	Group *grp = (Group *)value.data;
+	Collection *grp = (Collection *)value.data;
 	
 	/* must not let this be set if the object belongs in this group already,
 	 * thus causing a cycle/infinite-recursion leading to crashes on load [#25298]
 	 */
-	if (BKE_group_object_exists(grp, ob) == 0) {
+	if (BKE_collection_has_object_recursive(grp, ob) == 0) {
 		if (ob->type == OB_EMPTY) {
 			id_us_min(&ob->dup_group->id);
 			ob->dup_group = grp;
@@ -1973,7 +1973,7 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Proxy", "Library object this proxy object controls");
 
 	prop = RNA_def_property(srna, "proxy_group", PROP_POINTER, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Proxy Group", "Library group duplicator object this proxy object controls");
+	RNA_def_property_ui_text(prop, "Proxy Collection", "Library collection duplicator object this proxy object controls");
 
 	/* materials */
 	prop = RNA_def_property(srna, "material_slots", PROP_COLLECTION, PROP_NONE);
@@ -2348,10 +2348,11 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
 	prop = RNA_def_property(srna, "dupli_group", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_pointer_sdna(prop, NULL, "dup_group");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_Object_dup_group_set", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Dupli Group", "Instance an existing group");
+	RNA_def_property_ui_text(prop, "Dupli Collection", "Instance an existing collection");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_dependency_update");
 
 	prop = RNA_def_property(srna, "dupli_frames_start", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
