@@ -1133,9 +1133,9 @@ void ED_gpencil_add_defaults(bContext *C)
 
 	/* first try to reuse default material */
 	if (ob->actcol > 0) {
-		Material *mat = give_current_material(ob, ob->actcol);
-		if ((mat) && (mat->gpcolor == NULL)) {
-			BKE_material_init_gpencil_settings(mat);
+		Material *ma = give_current_material(ob, ob->actcol);
+		if ((ma) && (ma->gpcolor == NULL)) {
+			BKE_material_init_gpencil_settings(ma);
 		}
 	}
 
@@ -1362,12 +1362,12 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	int *last_mouse_position = customdata;
 
 	/* get current color */
-	Material *mat = BKE_gpencil_get_color_from_brush(CTX_data_active_gpencil_brush(C));
+	Material *ma = BKE_gpencil_get_color_from_brush(CTX_data_active_gpencil_brush(C));
 	GpencilColorData *gpcolor = NULL;
-	if (mat == NULL) {
-		mat = BKE_gpencil_color_ensure(bmain, ob);
+	if (ma == NULL) {
+		ma = BKE_gpencil_color_ensure(bmain, ob);
 	}
-	gpcolor = mat->gpcolor;
+	gpcolor = ma->gpcolor;
 
 	if ((gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE)) {
 		brush = &gset->brush[gset->weighttype];
@@ -1684,7 +1684,7 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 /* recalc uv for any stroke using the material */
 void ED_gpencil_update_color_uv(Main *bmain, Material *mat)
 {
-	Material *gps_mat = NULL;
+	Material *gps_ma = NULL;
 	/* read all strokes  */
 	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->type == OB_GPENCIL) {
@@ -1702,9 +1702,9 @@ void ED_gpencil_update_color_uv(Main *bmain, Material *mat)
 							if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
 								continue;
 							}
-							gps_mat = give_current_material(ob, gps->mat_nr + 1);
+							gps_ma = give_current_material(ob, gps->mat_nr + 1);
 							/* update */
-							if ((gps_mat) && (gps_mat == mat)) {
+							if ((gps_ma) && (gps_ma == mat)) {
 								ED_gpencil_calc_stroke_uv(ob, gps);
 							}
 						}

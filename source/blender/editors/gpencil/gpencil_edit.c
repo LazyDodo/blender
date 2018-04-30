@@ -738,15 +738,15 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 	GHASH_ITER(gh_iter, gp_strokes_copypastebuf_colors) {
 		
 		int *key = BLI_ghashIterator_getKey(&gh_iter);
-		Material *mat = BLI_ghashIterator_getValue(&gh_iter);
+		Material *ma = BLI_ghashIterator_getValue(&gh_iter);
 		
-		if (BKE_object_material_slot_find_index(ob, mat) == 0) {
+		if (BKE_object_material_slot_find_index(ob, ma) == 0) {
 			BKE_object_material_slot_add(ob);
-			assign_material(ob, mat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+			assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 		}
 	
 		/* Store this mapping (for use later when pasting) */
-		BLI_ghash_insert(new_colors, key, mat);
+		BLI_ghash_insert(new_colors, key, ma);
 	}
 
 	return new_colors;
@@ -823,13 +823,13 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 	/* Build up hash of material colors used in these strokes */
 	if (gp_strokes_copypastebuf.first) {
 		gp_strokes_copypastebuf_colors = BLI_ghash_str_new("GPencil CopyBuf Colors");
-		Material *mat = NULL;
+		Material *ma = NULL;
 		for (bGPDstroke *gps = gp_strokes_copypastebuf.first; gps; gps = gps->next) {
 			if (ED_gpencil_stroke_can_use(C, gps)) {
-				mat = give_current_material(ob, gps->mat_nr + 1);
+				ma = give_current_material(ob, gps->mat_nr + 1);
 				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, &gps->mat_nr) == false)
 				{
-					BLI_ghash_insert(gp_strokes_copypastebuf_colors, &gps->mat_nr, mat);
+					BLI_ghash_insert(gp_strokes_copypastebuf_colors, &gps->mat_nr, ma);
 				}
 			}
 		}
@@ -982,9 +982,9 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 				BLI_addtail(&gpf->strokes, new_stroke);
 
 				/* Remap material */
-				Material *mat = BLI_ghash_lookup(new_colors, &new_stroke->mat_nr);
-				if ((mat) && (BKE_object_material_slot_find_index(ob, mat) > 0)) {
-					gps->mat_nr = BKE_object_material_slot_find_index(ob, mat) - 1;
+				Material *ma = BLI_ghash_lookup(new_colors, &new_stroke->mat_nr);
+				if ((ma) && (BKE_object_material_slot_find_index(ob, ma) > 0)) {
+					gps->mat_nr = BKE_object_material_slot_find_index(ob, ma) - 1;
 					CLAMP_MIN(gps->mat_nr, 0);
 				}
 				else {
@@ -3012,7 +3012,7 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 	bGPDlayer *gpl_dst = NULL;
 	bGPDframe *gpf_dst = NULL;
 	bGPDspoint *pt;
-	Material *mat = NULL;
+	Material *ma = NULL;
 	int i, idx;
 
 	eGP_SeparateModes mode = RNA_enum_get(op->ptr, "mode");
@@ -3079,8 +3079,8 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 							}
 
 							/* add duplicate materials */
-							mat = give_current_material(ob, gps->mat_nr + 1);
-							idx = BKE_object_material_slot_find_index(ob_dst, mat);
+							ma = give_current_material(ob, gps->mat_nr + 1);
+							idx = BKE_object_material_slot_find_index(ob_dst, ma);
 							if (idx == 0) {
 
 								totadd++;
@@ -3091,7 +3091,7 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 									BKE_object_material_slot_add(ob_dst);
 								}
 
-								assign_material(ob_dst, mat, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
+								assign_material(ob_dst, ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
 								idx = totadd;
 							}
 

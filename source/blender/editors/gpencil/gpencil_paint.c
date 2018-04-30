@@ -1560,24 +1560,24 @@ static void gp_init_colors(tGPsdata *p)
 	bGPdata *gpd = p->gpd;
 	Brush *brush = p->brush;
 
-	Material *mat = NULL;
+	Material *ma = NULL;
 	GpencilColorData *gpcolor = NULL;
 	
 	/* if the brush has a material defined, use this one and not current defaults */
-	mat = BKE_gpencil_get_color_from_brush(brush);
+	ma = BKE_gpencil_get_color_from_brush(brush);
 
 	/* if no brush defaults, get material and color info
 	 * NOTE: Ensures that everything we need will exist...
 	 */
-	if ((mat == NULL) || (mat->gpcolor == NULL)){
+	if ((ma == NULL) || (ma->gpcolor == NULL)){
 		p->material = BKE_gpencil_color_ensure(p->bmain, p->ob);
 	}
 	else {
-		p->material = mat;
+		p->material = ma;
 		/* check if the material is already on object material slots and add it if missing */
 		if (BKE_object_material_slot_find_index(p->ob, p->material) == 0) {
 			BKE_object_material_slot_add(p->ob);
-			assign_material(p->ob, mat, p->ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+			assign_material(p->ob, ma, p->ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 		}
 	}
 	/* assign color information to temp tGPsdata */

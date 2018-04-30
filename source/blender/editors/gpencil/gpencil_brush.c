@@ -1039,9 +1039,9 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 			BLI_addtail(&gpf->strokes, new_stroke);
 			
 			/* Fix color references */
-			Material *mat = BLI_ghash_lookup(data->new_colors, &new_stroke->mat_nr);
-			if ((mat) && (BKE_object_material_slot_find_index(ob, mat) > 0)) {
-				gps->mat_nr = BKE_object_material_slot_find_index(ob, mat) - 1;
+			Material *ma = BLI_ghash_lookup(data->new_colors, &new_stroke->mat_nr);
+			if ((ma) && (BKE_object_material_slot_find_index(ob, ma) > 0)) {
+				gps->mat_nr = BKE_object_material_slot_find_index(ob, ma) - 1;
 				CLAMP_MIN(gps->mat_nr, 0);
 			}
 			else {

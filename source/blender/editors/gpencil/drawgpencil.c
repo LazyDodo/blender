@@ -625,8 +625,8 @@ static void gp_draw_stroke_fill(
         int offsx, int offsy, int winx, int winy, const float diff_mat[4][4], const float color[4])
 {
 	BLI_assert(gps->totpoints >= 3);
-	Material *material = gpd->mat[gps->mat_nr];
-	GpencilColorData *gpcolor = material->gpcolor;
+	Material *ma = gpd->mat[gps->mat_nr];
+	GpencilColorData *gpcolor = ma->gpcolor;
 
 	/* Calculate triangles cache for filling area (must be done only after changes) */
 	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
@@ -1026,8 +1026,8 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			continue;
 		}
 		/* check if the color is visible */
-		Material *material = tgpw->gpd->mat[gps->mat_nr];
-		GpencilColorData *gpcolor = material->gpcolor;
+		Material *ma = tgpw->gpd->mat[gps->mat_nr];
+		GpencilColorData *gpcolor = ma->gpcolor;
 
 		if ((gpcolor == NULL) ||
 		    (gpcolor->flag & GPC_COLOR_HIDE) ||
@@ -1239,8 +1239,8 @@ static void gp_draw_strokes_edit(
 
 		/* verify color lock */
 		{
-			Material *material = gpd->mat[gps->mat_nr];
-			GpencilColorData *gpcolor = material->gpcolor;
+			Material *ma = gpd->mat[gps->mat_nr];
+			GpencilColorData *gpcolor = ma->gpcolor;
 
 			if (gpcolor != NULL) {
 				if (gpcolor->flag & GPC_COLOR_HIDE) {
@@ -1269,8 +1269,8 @@ static void gp_draw_strokes_edit(
 
 		/* for now, we assume that the base color of the points is not too close to the real color */
 		/* set color using material */
-		Material *material = gpd->mat[gps->mat_nr];
-		GpencilColorData *gpcolor = material->gpcolor;
+		Material *ma = gpd->mat[gps->mat_nr];
+		GpencilColorData *gpcolor = ma->gpcolor;
 
 		float selectColor[4];
 		UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);

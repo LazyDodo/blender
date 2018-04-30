@@ -387,12 +387,12 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	Material ***matar = give_matarar(tgpk->ob);
 	short *totcol = give_totcolp(tgpk->ob);
 	for (short i = 0; i < *totcol; i++) {
-		Material *tmp = (*matar)[i];
-		GpencilColorData *gpcolor = tmp->gpcolor;
+		Material *tmp_ma = (*matar)[i];
+		GpencilColorData *gpcolor = tmp_ma->gpcolor;
 		
 		tcolor->index = idx;
 
-		BLI_strncpy(tcolor->name, tmp->id.name + 2, sizeof(tcolor->name));
+		BLI_strncpy(tcolor->name, tmp_ma->id.name + 2, sizeof(tcolor->name));
 		copy_v4_v4(tcolor->rgba, gpcolor->rgb);
 		copy_v4_v4(tcolor->fill, gpcolor->fill);
 		tcolor->fillmode = (gpcolor->fill[3] > 0.0f);

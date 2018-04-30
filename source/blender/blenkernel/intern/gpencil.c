@@ -1043,37 +1043,37 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 
 Material *BKE_gpencil_get_color_from_brush(Brush *brush)
 {
-	Material *mat = NULL;
+	Material *ma = NULL;
 		
 	if ((brush != NULL) && (brush->material != NULL)) {
-		mat = brush->material;
+		ma = brush->material;
 	}
 
-	return mat;
+	return ma;
 }
 
 /* Get active color, and add all default settings if we don't find anything */
 Material *BKE_gpencil_color_ensure(Main *bmain, Object *ob)
 {
-	Material *mat = NULL;
+	Material *ma = NULL;
 
 	/* sanity checks */
 	if (ELEM(NULL, bmain, ob))
 		return NULL;
 
-	mat = give_current_material(ob, ob->actcol);
-	if (mat == NULL) {
+	ma = give_current_material(ob, ob->actcol);
+	if (ma == NULL) {
 		if (ob->totcol == 0) {
 			BKE_object_material_slot_add(ob);
 		}
-		mat = BKE_material_add_gpencil(bmain, DATA_("Material"));
-		assign_material(ob, mat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+		ma = BKE_material_add_gpencil(bmain, DATA_("Material"));
+		assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 	}
-	else if (mat->gpcolor == NULL) {
-			BKE_material_init_gpencil_settings(mat);
+	else if (ma->gpcolor == NULL) {
+			BKE_material_init_gpencil_settings(ma);
 	}
 
-	return mat;
+	return ma;
 }
 
 /* ************************************************** */
