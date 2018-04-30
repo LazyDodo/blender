@@ -316,14 +316,14 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 
 		if (SHADOW_ENABLED(wpd)) {
 			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_STENCIL);
+			// DRW_STATE_WRITE_STENCIL | DRW_STATE_STENCIL_INCR_DECR_WRAP
 			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
 			DRW_shgroup_stencil_mask(grp, 0x01);
 			wpd->shadow_shgrp = grp;
-			// DRW_shgroup_call_add(grp, DRW_cache_quad_get(), NULL);
 
-			psl->composite_shadow_pass = DRW_pass_create("Composite Shadow", DRW_STATE_WRITE_COLOR | DRW_STATE_STENCIL_EQUAL);
+			psl->composite_shadow_pass = DRW_pass_create("Composite Shadow", DRW_STATE_WRITE_COLOR | DRW_STATE_STENCIL_NEQUAL);
 			grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_shadow_pass);
-			DRW_shgroup_stencil_mask(grp, 0x01);
+			DRW_shgroup_stencil_mask(grp, 0x00);
 			workbench_composite_uniforms(wpd, grp);
 			DRW_shgroup_uniform_float(grp, "lightMultiplier", &e_data.shadow_multiplier, 1);
 			DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
@@ -443,7 +443,7 @@ void workbench_materials_draw_background(WORKBENCH_Data *vedata)
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	const float clear_depth = 1.0f;
 	const float clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-	unsigned int clear_stencil = 0x01;
+	unsigned int clear_stencil = 0xFF;
 
 	GPU_framebuffer_bind(fbl->prepass_fb);
 	int clear_bits = GPU_DEPTH_BIT;

@@ -295,8 +295,10 @@ typedef enum {
 	DRW_STATE_CLIP_PLANES   = (1 << 18),
 	DRW_STATE_ADDITIVE_FULL = (1 << 19), /* Same as DRW_STATE_ADDITIVE but let alpha accumulate without premult. */
 
-	DRW_STATE_WRITE_STENCIL    = (1 << 27),
-	DRW_STATE_STENCIL_EQUAL    = (1 << 28),
+	DRW_STATE_WRITE_STENCIL          = (1 << 27),
+	DRW_STATE_STENCIL_EQUAL          = (1 << 28),
+	DRW_STATE_STENCIL_NEQUAL         = (1 << 29),
+	DRW_STATE_STENCIL_INCR_DECR_WRAP = (1 << 30),
 } DRWState;
 
 #define DRW_STATE_DEFAULT (DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS)
