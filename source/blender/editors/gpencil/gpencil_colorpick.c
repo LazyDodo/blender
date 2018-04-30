@@ -392,7 +392,7 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 		
 		tcolor->index = idx;
 
-		BLI_strncpy(tcolor->name, tmp->id.name, sizeof(tcolor->name));
+		BLI_strncpy(tcolor->name, tmp->id.name + 2, sizeof(tcolor->name));
 		copy_v4_v4(tcolor->rgba, gpcolor->rgb);
 		copy_v4_v4(tcolor->fill, gpcolor->fill);
 		tcolor->fillmode = (gpcolor->fill[3] > 0.0f);
