@@ -1616,7 +1616,6 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 	p->bmain = CTX_data_main(C);
 	p->scene = CTX_data_scene(C);
 	p->graph = CTX_data_depsgraph(C);
-	p->ob = CTX_data_active_object(C);
 	p->win = CTX_wm_window(C);
 	p->disable_fill = RNA_boolean_get(op->ptr, "disable_fill");
 	
@@ -1677,6 +1676,9 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 					p->scene->gp_object = obact;
 				}
 			}
+			/* assign object after all checks to be sure we have one active */
+			p->ob = obact;
+
 			break;
 		}
 		case SPACE_NODE:
