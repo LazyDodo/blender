@@ -88,7 +88,7 @@
 /* Get pointer to active Grease Pencil datablock, and an RNA-pointer to trace back to whatever owns it,
  * when context info is not available.
  */
-bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrArea *sa, Object *ob, PointerRNA *ptr)
+bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrArea *sa, Object *ob, PointerRNA *r_ptr)
 {
 	/* if there's an active area, check if the particular editor may
 	 * have defined any special Grease Pencil context for editing...
@@ -103,7 +103,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 			{
 				/* return obgpencil datablock */
 				if (ob && (ob->type == OB_GPENCIL)) {
-					if (ptr) RNA_id_pointer_create(&ob->id, ptr);
+					if (r_ptr) RNA_id_pointer_create(&ob->id, r_ptr);
 					return (bGPdata **)&ob->data;
 				}
 				else {
@@ -119,7 +119,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 				/* return the GP data for the active node block/node */
 				if (snode && snode->nodetree) {
 					/* for now, as long as there's an active node tree, default to using that in the Nodes Editor */
-					if (ptr) RNA_id_pointer_create(&snode->nodetree->id, ptr);
+					if (r_ptr) RNA_id_pointer_create(&snode->nodetree->id, r_ptr);
 					return &snode->nodetree->gpd;
 				}
 				
@@ -132,7 +132,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 			
 				/* for now, Grease Pencil data is associated with the space (actually preview region only) */
 				/* XXX our convention for everything else is to link to data though... */
-				if (ptr) RNA_pointer_create(screen_id, &RNA_SpaceSequenceEditor, sseq, ptr);
+				if (r_ptr) RNA_pointer_create(screen_id, &RNA_SpaceSequenceEditor, sseq, r_ptr);
 				return &sseq->gpd;
 			}
 			case SPACE_IMAGE: /* Image/UV Editor */
@@ -141,7 +141,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 				
 				/* for now, Grease Pencil data is associated with the space... */
 				/* XXX our convention for everything else is to link to data though... */
-				if (ptr) RNA_pointer_create(screen_id, &RNA_SpaceImageEditor, sima, ptr);
+				if (r_ptr) RNA_pointer_create(screen_id, &RNA_SpaceImageEditor, sima, r_ptr);
 				return &sima->gpd;
 			}
 			case SPACE_CLIP: /* Nodes Editor */
@@ -156,15 +156,11 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 						if (!track)
 							return NULL;
 						
-						if (ptr)
-							RNA_pointer_create(&clip->id, &RNA_MovieTrackingTrack, track, ptr);
-						
+						if (r_ptr) RNA_pointer_create(&clip->id, &RNA_MovieTrackingTrack, track, r_ptr);
 						return &track->gpd;
 					}
 					else {
-						if (ptr)
-							RNA_id_pointer_create(&clip->id, ptr);
-						
+						if (r_ptr) RNA_id_pointer_create(&clip->id, r_ptr);
 						return &clip->gpd;
 					}
 				}
@@ -176,19 +172,19 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 	}
 	
 	/* just fall back on the scene's GP data */
-	if (ptr) RNA_id_pointer_create((ID *)scene, ptr);
+	if (r_ptr) RNA_id_pointer_create((ID *)scene, r_ptr);
 	return (scene) ? &scene->gpd : NULL;
 }
 
 /* Get pointer to active Grease Pencil datablock, and an RNA-pointer to trace back to whatever owns it */
-bGPdata **ED_gpencil_data_get_pointers(const bContext *C, PointerRNA *ptr)
+bGPdata **ED_gpencil_data_get_pointers(const bContext *C, PointerRNA *r_ptr)
 {
 	ID *screen_id = (ID *)CTX_wm_screen(C);
 	Scene *scene = CTX_data_scene(C);
 	ScrArea *sa = CTX_wm_area(C);
 	Object *ob = CTX_data_active_object(C);
 
-	return ED_gpencil_data_get_pointers_direct(screen_id, scene, sa, ob, ptr);
+	return ED_gpencil_data_get_pointers_direct(screen_id, scene, sa, ob, r_ptr);
 }
 
 /* -------------------------------------------------------- */
