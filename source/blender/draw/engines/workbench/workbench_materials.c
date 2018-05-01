@@ -36,6 +36,8 @@
 #include "UI_resources.h"
 
 /* *********** STATIC *********** */
+
+// #define SHOW_SHADOW_VOLUME
 #define MAX_SHADERS 255
 static struct {
 	struct GPUShader *prepass_sh_cache[MAX_SHADERS];
@@ -309,7 +311,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
 
 		copy_v3_v3(e_data.light_direction, BKE_collection_engine_property_value_get_float_array(props, "light_direction"));
-		invert_v3(e_data.light_direction);
+		negate_v3(e_data.light_direction);
 
 		psl->composite_pass = DRW_pass_create("Composite", DRW_STATE_WRITE_COLOR | DRW_STATE_STENCIL_EQUAL);
 		grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_pass);
@@ -319,6 +321,13 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 
 		if (SHADOW_ENABLED(wpd)) {
+#ifdef SHOW_SHADOW_VOLUME
+			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_COLOR );
+			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
+			DRW_shgroup_uniform_vec3(grp, "lightDirection", e_data.light_direction, 1);
+			DRW_shgroup_stencil_mask(grp, 0xFF);
+			wpd->shadow_shgrp = grp;
+#else
 			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_STENCIL | DRW_STATE_STENCIL_INCR_DECR_WRAP);
 			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
 			DRW_shgroup_uniform_vec3(grp, "lightDirection", e_data.light_direction, 1);
@@ -331,6 +340,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 			workbench_composite_uniforms(wpd, grp);
 			DRW_shgroup_uniform_float(grp, "lightMultiplier", &e_data.shadow_multiplier, 1);
 			DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
+#endif
 		}
 	}
 }
@@ -468,11 +478,17 @@ void workbench_materials_draw_scene(WORKBENCH_Data *vedata)
 	GPU_framebuffer_bind(fbl->prepass_fb);
 	DRW_draw_pass(psl->prepass_pass);
 	if (SHADOW_ENABLED(wpd)) {
+#ifdef SHOW_SHADOW_VOLUME
+		GPU_framebuffer_bind(dfbl->default_fb);
+		DRW_draw_pass(psl->composite_pass);
+		DRW_draw_pass(psl->shadow_pass);
+#else
 		GPU_framebuffer_bind(dfbl->depth_only_fb);
 		DRW_draw_pass(psl->shadow_pass);
 		GPU_framebuffer_bind(dfbl->default_fb);
 		DRW_draw_pass(psl->composite_pass);
 		DRW_draw_pass(psl->composite_shadow_pass);
+#endif
 	}
 	else {
 		GPU_framebuffer_bind(dfbl->default_fb);

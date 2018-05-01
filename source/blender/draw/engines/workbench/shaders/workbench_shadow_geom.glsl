@@ -28,12 +28,10 @@ void main()
 	bool front1 = dot(faceNormal1[0], light_direction) >= 0;
 	bool front2 = dot(faceNormal2[0], light_direction) >= 0;
 
-	if (front1 != front2) {
-		if (!front1 && front2) {
-			emit_quad(gl_in[0].gl_Position, gl_in[1].gl_Position, vec4(light_direction, 0.0));
-		}
-		else if (front1 && !front2) {
-			emit_quad(gl_in[1].gl_Position, gl_in[0].gl_Position, vec4(light_direction, 0.0));
-		}
+	if (!front1 && front2) {
+		emit_quad(gl_in[0].gl_Position, gl_in[1].gl_Position, vec4(light_direction, 0.0));
+	}
+	else if (front1 && !front2) {
+		emit_quad(gl_in[1].gl_Position, gl_in[0].gl_Position, vec4(light_direction, 0.0));
 	}
 }
