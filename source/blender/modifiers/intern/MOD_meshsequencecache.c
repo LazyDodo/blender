@@ -149,7 +149,7 @@ static DerivedMesh *applyModifier(ModifierData *md, const ModifierEvalContext *c
 	return result ? result : dm;
 #else
 	return dm;
-	UNUSED_VARS(md);
+	UNUSED_VARS(ctx, md);
 #endif
 }
 
