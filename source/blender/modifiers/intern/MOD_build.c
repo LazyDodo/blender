@@ -128,7 +128,7 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	if (numFaces_dst) {
 		MPoly *mpoly, *mp;
 		MLoop *ml, *mloop;
-		int new_idx;
+		uintptr_t hash_num;
 		
 		if (bmd->flag & MOD_BUILD_FLAG_RANDOMIZE) {
 			BLI_array_randomize(faceMap, sizeof(*faceMap),
@@ -140,7 +140,7 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		 */
 		mpoly = mpoly_src;
 		mloop = mloop_src;
-		new_idx = 0;
+		hash_num = 0;
 		for (i = 0; i < numFaces_dst; i++) {
 			mp = mpoly + faceMap[i];
 			ml = mloop + mp->loopstart;
@@ -148,34 +148,34 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 			for (j = 0; j < mp->totloop; j++, ml++) {
 				void **val_p;
 				if (!BLI_ghash_ensure_p(vertHash, SET_INT_IN_POINTER(ml->v), &val_p)) {
-					*val_p = SET_INT_IN_POINTER(new_idx);
-					new_idx++;
+					*val_p = (void *)hash_num;
+					hash_num++;
 				}
 			}
 
 			numLoops_dst += mp->totloop;
 		}
-		BLI_assert(new_idx == BLI_ghash_len(vertHash));
+		BLI_assert(hash_num == BLI_ghash_len(vertHash));
 
 		/* get the set of edges that will be in the new mesh (i.e. all edges
 		 * that have both verts in the new mesh)
 		 */
-		new_idx = 0;
+		hash_num = 0;
 		for (i = 0; i < numEdge_src; i++) {
 			MEdge *me = medge_src + i;
 
 			if (BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v1)) &&
 			    BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v2)))
 			{
-				BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(new_idx));
-				new_idx++;
+				BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(i), (void *)hash_num);
+				hash_num++;
 			}
 		}
-		BLI_assert(new_idx == BLI_ghash_len(edgeHash));
+		BLI_assert(hash_num == BLI_ghash_len(edgeHash));
 	}
 	else if (numEdges_dst) {
 		MEdge *medge, *me;
-		int new_idx;
+		uintptr_t hash_num;
 
 		if (bmd->flag & MOD_BUILD_FLAG_RANDOMIZE)
 			BLI_array_randomize(edgeMap, sizeof(*edgeMap),
@@ -185,28 +185,29 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		 * mapped to the new indices
 		 */
 		medge = medge_src;
-		new_idx = 0;
+		hash_num = 0;
 		BLI_assert(BLI_ghash_len(vertHash) == 0);
 		for (i = 0; i < numEdges_dst; i++) {
 			void **val_p;
 			me = medge + edgeMap[i];
 
 			if (!BLI_ghash_ensure_p(vertHash, SET_INT_IN_POINTER(me->v1), &val_p)) {
-				*val_p = SET_INT_IN_POINTER(new_idx);
-				new_idx++;
+				*val_p = (void *)hash_num;
+				hash_num++;
 			}
 			if (!BLI_ghash_ensure_p(vertHash, SET_INT_IN_POINTER(me->v2), &val_p)) {
-				*val_p = SET_INT_IN_POINTER(new_idx);
-				new_idx++;
+				*val_p = (void *)hash_num;
+				hash_num++;
 			}
 		}
-		BLI_assert(new_idx == BLI_ghash_len(vertHash));
+		BLI_assert(hash_num == BLI_ghash_len(vertHash));
 
 		/* get the set of edges that will be in the new mesh */
 		for (i = 0; i < numEdges_dst; i++) {
 			j = BLI_ghash_len(edgeHash);
 
-			BLI_ghash_insert(edgeHash,  SET_INT_IN_POINTER(edgeMap[i]), SET_INT_IN_POINTER(j));
+			BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(edgeMap[i]),
+			                 SET_INT_IN_POINTER(j));
 		}
 	}
 	else {
@@ -253,11 +254,12 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 
 		source = medge_src[oldIndex];
 		dest = &result->medge[newIndex];
-		
+
+		source.v1 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v1)));
+		source.v2 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v2)));
+
 		CustomData_copy_data(&mesh->edata, &result->edata, oldIndex, newIndex, 1);
 		*dest = source;
-		dest->v1 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v1)));
-		dest->v2 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v2)));
 	}
 
 	mpoly_dst = result->mpoly;
