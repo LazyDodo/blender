@@ -203,10 +203,8 @@ static DerivedMesh *applyModifier(ModifierData *md,
 #else /* !WITH_MOD_REMESH */
 
 static DerivedMesh *applyModifier(ModifierData *UNUSED(md),
-                                  struct Depsgraph *UNUSED(depsgraph),
-                                  Object *UNUSED(ob),
-                                  DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
+                                  const ModifierEvalContext *UNUSED(ctx),
+                                  DerivedMesh *derivedData)
 {
 	return derivedData;
 }
