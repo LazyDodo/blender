@@ -1302,7 +1302,7 @@ void CDDM_calc_normals_tessface(DerivedMesh *dm)
 
 #if 1
 /* TODO(sybren): Delete everything in this #if block after we have ported the modifiers
- * to use Mesh instead of DerivedMesh. The code has been copied to mesh.c and ported. */
+ * to use Mesh instead of DerivedMesh. The code has been copied to mesh_merge.c and ported. */
 /**
  * Poly compare with vtargetmap
  * Function used by #CDDM_merge_verts.
