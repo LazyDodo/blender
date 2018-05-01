@@ -905,134 +905,49 @@ class GreasePencilDataPanel:
 
 
 class GreasePencilOnionPanel:
-    bl_label = "Onion Skinning"
-    bl_region_type = 'UI'
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        ts = context.scene.tool_settings
-
-        if context.gpencil_data is None:
-            return False
-
-        if context.space_data.type in ('VIEW_3D', 'PROPERTIES'):
-            if context.space_data.context == 'DATA':
-                if context.object.type != 'GPENCIL':
-                    return False
-
-        gpl = context.active_gpencil_layer
-        if gpl is None:
-            return False;
-
-        return True
-
     @staticmethod
-    def draw(self, context):
-        layout = self.layout
-        gpd = context.gpencil_data
-        gpl = context.active_gpencil_layer
-
-        col = layout.column(align=True)
+    def draw_settings(layout, gp):
+        col = layout.column(align=False)
+        col.row().prop(gp, "onion_mode", expand=True)
 
         row = col.row()
-        row.prop(gpd, "use_onion_skinning")
+        row.prop(gp, "onion_factor", text="Opacity", slider=True)
         sub = row.row(align=True)
-        icon = 'RESTRICT_RENDER_OFF' if gpd.use_ghosts_always else 'RESTRICT_RENDER_ON'
-        sub.prop(gpd, "use_ghosts_always", text="", icon=icon)
-        sub.prop(gpd, "use_ghost_custom_colors", text="", icon='COLOR')
-
-        row = layout.row(align=True)
-        row.active = gpd.use_onion_skinning
-        row.prop(gpd, "onion_mode", expand=True)
-
-        row = layout.row(align=True)
-        row.active = gpd.use_onion_skinning
-        row.prop(gpd, "onion_factor", text="Opacity", slider=True)
+        icon = 'RESTRICT_RENDER_OFF' if gp.use_ghosts_always else 'RESTRICT_RENDER_ON'
+        sub.prop(gp, "use_ghosts_always", text="", icon=icon)
+        sub.prop(gp, "use_ghost_custom_colors", text="", icon='COLOR')
 
         split = layout.split(percentage=0.5)
-        split.active = gpd.use_onion_skinning
 
         # - Before Frames
         sub = split.column(align=True)
         row = sub.row(align=True)
-        row.active = gpd.use_ghost_custom_colors
-        row.prop(gpd, "before_color", text="")
+        row.active = gp.use_ghost_custom_colors
+        row.prop(gp, "before_color", text="")
 
         row = sub.row(align=True)
-        row.active = gpd.onion_mode in ('ABSOLUTE', 'RELATIVE')
-        row.prop(gpd, "ghost_before_range", text="Before")
+        row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
+        row.prop(gp, "ghost_before_range", text="Before")
 
         # - After Frames
         sub = split.column(align=True)
         row = sub.row(align=True)
-        row.active = gpd.use_ghost_custom_colors
-        row.prop(gpd, "after_color", text="")
+        row.active = gp.use_ghost_custom_colors
+        row.prop(gp, "after_color", text="")
 
         row = sub.row(align=True)
-        row.active = gpd.onion_mode in ('ABSOLUTE', 'RELATIVE')
-        row.prop(gpd, "ghost_after_range", text="After")
+        row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
+        row.prop(gp, "ghost_after_range", text="After")
 
         # - fade and loop
         row = layout.row()
-        row.active = gpd.use_onion_skinning
-        row.prop(gpd, "use_onion_fade", text="Fade")
-        subrow = row.row()
-        subrow.active = gpd.onion_mode in ('RELATIVE', 'SELECTED')
-        subrow.prop(gpd, "use_onion_loop", text="Loop")
+        row.active = gp.use_onion_skinning
+        row.prop(gp, "use_onion_fade", text="Fade")
+        if hasattr(gp, "use_onion_loop"): # XXX
+            subrow = row.row()
+            subrow.active = gp.onion_mode in ('RELATIVE', 'SELECTED')
+            subrow.prop(gp, "use_onion_loop", text="Loop")
 
-        # -----------------
-        # layer override
-        # -----------------
-        ovr = gpd.use_onion_skinning and gpl.override_onion
-        layout.separator()
-        box = layout.box()
-        col = box.column(align=True)
-        col.active = gpd.use_onion_skinning
-
-        row = col.row()
-        row.prop(gpl, "override_onion", text="Layer Override")
-        if gpl.override_onion:
-            sub = row.row(align=True)
-            icon = 'RESTRICT_RENDER_OFF' if gpd.use_ghosts_always else 'RESTRICT_RENDER_ON'
-            sub.prop(gpl, "use_ghosts_always", text="", icon=icon)
-            sub.prop(gpl, "use_ghost_custom_colors", text="", icon='COLOR')
-
-            row = box.row(align=True)
-            row.active = ovr
-            row.prop(gpl, "onion_mode", expand=True)
-
-            split = box.split(percentage=0.5)
-            split.active = ovr
-
-            # - Before Frames
-            sub = split.column(align=True)
-            row = sub.row(align=True)
-            row.active = gpl.use_ghost_custom_colors
-            
-            row.prop(gpl, "before_color", text="")
-            row = sub.row(align=True)
-            row.active = gpl.onion_mode in ('ABSOLUTE', 'RELATIVE')
-            row.prop(gpl, "ghost_before_range", text="Before")
-
-            # - After Frames
-            sub = split.column(align=True)
-            row = sub.row(align=True)
-            row.active = gpl.use_ghost_custom_colors
-            row.prop(gpl, "after_color", text="")
-            
-            row = sub.row(align=True)
-            row.active = gpl.onion_mode in ('ABSOLUTE', 'RELATIVE')
-            row.prop(gpl, "ghost_after_range", text="After")
-
-            # - Fade
-            split = box.split(percentage=0.5)
-            split.active = ovr
-            sub = split.column(align=True)
-            sub.prop(gpl, "use_onion_fade", text="Fade")
-
-            sub = split.column(align=True)
-            sub.prop(gpl, "onion_factor", text="Opacity", slider=True)
 
 ###############################
 

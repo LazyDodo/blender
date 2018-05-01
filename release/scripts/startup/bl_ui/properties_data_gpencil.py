@@ -75,7 +75,7 @@ class DATA_PT_gpencil_datapanel(GreasePencilDataPanel, Panel):
     # NOTE: this is just a wrapper around the generic GP Panel
 
 
-class DATA_PT_gpencil_layeroptionpanel(LayerDataButtonsPanel, Panel):
+class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
@@ -112,14 +112,48 @@ class DATA_PT_gpencil_layeroptionpanel(LayerDataButtonsPanel, Panel):
         row.prop(gpl, "use_stroke_location", text="Draw on Stroke Location")
 
 
-class DATA_PT_gpencil_onionpanel(GreasePencilOnionPanel, Panel):
+class DATA_PT_gpencil_onionpanel(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_label = "Onion Skinning"
     bl_options = {'DEFAULT_CLOSED'}
 
-    # NOTE: this is just a wrapper around the generic GP Panel
+    @staticmethod
+    def draw_header(self, context):
+        self.layout.prop(context.gpencil_data, "use_onion_skinning", text="")
+
+    def draw(self, context):
+        gpd = context.gpencil_data
+
+        layout = self.layout
+        layout.enabled = gpd.use_onion_skinning
+
+        GreasePencilOnionPanel.draw_settings(layout, gpd)
+
+
+class DATA_PT_gpencil_layer_onionpanel(Panel):
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "data"
+    bl_label = "Onion Skinning (Layer Override)"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        return bool(context.active_gpencil_layer)
+
+    def draw_header(self, context):
+        self.layout.prop(context.active_gpencil_layer, "override_onion", text="")
+
+    def draw(self, context):
+        gpd = context.gpencil_data
+        gpl = context.active_gpencil_layer
+
+        layout = self.layout
+        layout.enabled = gpd.use_onion_skinning and gpl.override_onion
+
+        GreasePencilOnionPanel.draw_settings(layout, gpl)
 
 
 class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
@@ -276,7 +310,8 @@ classes = (
     DATA_PT_gpencil,
     DATA_PT_gpencil_datapanel,
     DATA_PT_gpencil_onionpanel,
-    DATA_PT_gpencil_layeroptionpanel,
+    DATA_PT_gpencil_layer_onionpanel,
+    DATA_PT_gpencil_layer_optionpanel,
     DATA_PT_gpencil_vertexpanel,
     DATA_PT_gpencil_parentpanel,
     DATA_PT_gpencil_display,
