@@ -95,8 +95,10 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	GHashIterator gh_iter;
 	/* maps vert indices in old mesh to indices in new mesh */
 	GHash *vertHash = BLI_ghash_int_new("build ve apply gh");
-	/* maps edge indices in old mesh to indices in new mesh */
+	/* maps edge indices in new mesh to indices in old mesh */
 	GHash *edgeHash = BLI_ghash_int_new("build ed apply gh");
+	/* maps edge indices in old mesh to indices in new mesh */
+	GHash *edgeHash2 = BLI_ghash_int_new("build ed apply gh");
 
 	const int numVert_src = mesh->totvert;
 	const int numEdge_src = mesh->totedge;
@@ -128,7 +130,7 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	if (numFaces_dst) {
 		MPoly *mpoly, *mp;
 		MLoop *ml, *mloop;
-		uintptr_t hash_num;
+		uintptr_t hash_num, hash_num_alt;
 		
 		if (bmd->flag & MOD_BUILD_FLAG_RANDOMIZE) {
 			BLI_array_randomize(faceMap, sizeof(*faceMap),
@@ -161,13 +163,15 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		 * that have both verts in the new mesh)
 		 */
 		hash_num = 0;
-		for (i = 0; i < numEdge_src; i++) {
+		hash_num_alt = 0;
+		for (i = 0; i < numEdge_src; i++, hash_num_alt++) {
 			MEdge *me = medge_src + i;
 
 			if (BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v1)) &&
 			    BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v2)))
 			{
-				BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(i), (void *)hash_num);
+				BLI_ghash_insert(edgeHash, (void *)hash_num, (void *)hash_num_alt);
+				BLI_ghash_insert(edgeHash2, (void *)hash_num_alt, (void *)hash_num);
 				hash_num++;
 			}
 		}
@@ -186,7 +190,7 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		 */
 		medge = medge_src;
 		hash_num = 0;
-		BLI_assert(BLI_ghash_len(vertHash) == 0);
+		BLI_assert(hash_num == BLI_ghash_len(vertHash));
 		for (i = 0; i < numEdges_dst; i++) {
 			void **val_p;
 			me = medge + edgeMap[i];
@@ -206,7 +210,9 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		for (i = 0; i < numEdges_dst; i++) {
 			j = BLI_ghash_len(edgeHash);
 
-			BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(edgeMap[i]),
+			BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(j),
+			                 SET_INT_IN_POINTER(edgeMap[i]));
+			BLI_ghash_insert(edgeHash2,  SET_INT_IN_POINTER(edgeMap[i]),
 			                 SET_INT_IN_POINTER(j));
 		}
 	}
@@ -245,20 +251,18 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	}
 
 	/* copy the edges across, remapping indices */
-	GHASH_ITER (gh_iter, edgeHash) {
+	for (i = 0; i < BLI_ghash_len(edgeHash); i++) {
 		MEdge source;
 		MEdge *dest;
-		int oldIndex = GET_INT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
-		int newIndex = GET_INT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
-		BLI_assert(newIndex < BLI_ghash_len(edgeHash));
+		int oldIndex = GET_INT_FROM_POINTER(BLI_ghash_lookup(edgeHash, SET_INT_IN_POINTER(i)));
 
 		source = medge_src[oldIndex];
-		dest = &result->medge[newIndex];
+		dest = &result->medge[i];
 
 		source.v1 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v1)));
 		source.v2 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v2)));
 
-		CustomData_copy_data(&mesh->edata, &result->edata, oldIndex, newIndex, 1);
+		CustomData_copy_data(&mesh->edata, &result->edata, oldIndex, i, 1);
 		*dest = source;
 	}
 
@@ -282,12 +286,13 @@ static Mesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		ml_src = mloop_src + source->loopstart;
 		for (j = 0; j < source->totloop; j++, k++, ml_src++, ml_dst++) {
 			ml_dst->v = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(ml_src->v)));
-			ml_dst->e = GET_INT_FROM_POINTER(BLI_ghash_lookup(edgeHash, SET_INT_IN_POINTER(ml_src->e)));
+			ml_dst->e = GET_INT_FROM_POINTER(BLI_ghash_lookup(edgeHash2, SET_INT_IN_POINTER(ml_src->e)));
 		}
 	}
 
 	BLI_ghash_free(vertHash, NULL, NULL);
 	BLI_ghash_free(edgeHash, NULL, NULL);
+	BLI_ghash_free(edgeHash2, NULL, NULL);
 	
 	MEM_freeN(vertMap);
 	MEM_freeN(edgeMap);
