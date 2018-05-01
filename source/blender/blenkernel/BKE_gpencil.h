@@ -65,6 +65,7 @@ void BKE_gpencil_free_layers(struct ListBase *list);
 void BKE_gpencil_free_derived_frames(struct bGPdata *gpd);
 void BKE_gpencil_free(struct bGPdata *gpd, bool free_all);
 
+void BKE_gpencil_batch_cache_dirty(struct bGPdata *gpd);
 void BKE_gpencil_batch_cache_free(struct bGPdata *gpd);
 
 void BKE_gpencil_stroke_sync_selection(struct bGPDstroke *gps);
