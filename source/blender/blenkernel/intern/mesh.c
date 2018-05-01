@@ -2720,7 +2720,6 @@ Mesh *BKE_mesh_new_from_object(
 	return tmpmesh;
 }
 
-
 /* **** Depsgraph evaluation **** */
 
 void BKE_mesh_eval_geometry(Depsgraph *UNUSED(depsgraph),
