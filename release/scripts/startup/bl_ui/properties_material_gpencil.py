@@ -22,7 +22,6 @@ from bpy.types import Panel, UIList
 
 
 class GPENCIL_UL_matslots(UIList):
-
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         slot = item
         ma = slot.material
@@ -55,7 +54,7 @@ class GPENCIL_UL_matslots(UIList):
 
 
 class MATERIAL_PT_gpencil_slots(Panel):
-    bl_label = "Palette Slots"
+    bl_label = "Grease Pencil Material Slots"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "material"
@@ -123,11 +122,11 @@ class MATERIAL_PT_gpencil_strokecolor(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "material"
-    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == 'GPENCIL' and context.object.active_material
+        ob = context.object
+        return ob and ob.type == 'GPENCIL' and ob.active_material
 
     @staticmethod
     def draw(self, context):
@@ -175,11 +174,11 @@ class MATERIAL_PT_gpencil_fillcolor(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "material"
-    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == 'GPENCIL' and context.object.active_material
+        ob = context.object
+        return ob and ob.type == 'GPENCIL' and ob.active_material
  
     @staticmethod
     def draw(self, context):
