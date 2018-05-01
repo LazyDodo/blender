@@ -79,8 +79,6 @@
 #include "BLO_readfile.h"
 #include "readfile.h"
 
-#include "DEG_depsgraph.h"
-
 #include "MEM_guardedalloc.h"
 
 
@@ -743,7 +741,7 @@ void do_versions_after_linking_280(Main *main)
 			}
 
 			/* set cache as dirty */
-			DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+			BKE_gpencil_batch_cache_dirty(ob->data);
 
 			scene->gpd = NULL;
 		}
