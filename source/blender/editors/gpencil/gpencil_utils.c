@@ -78,6 +78,7 @@
 #include "GPU_immediate_util.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
@@ -199,11 +200,37 @@ bGPdata *ED_gpencil_data_get_active_direct(ID *screen_id, Scene *scene, ScrArea 
 	return (gpd_ptr) ? *(gpd_ptr) : NULL;
 }
 
-/* Get the active Grease Pencil datablock */
+/**
+ * Get the active Grease Pencil datablock
+ * \note This is the original (bmain) copy of the datablock, stored in files.
+ *       Do not use for reading evaluated copies of GP Objects data
+ */
 bGPdata *ED_gpencil_data_get_active(const bContext *C)
 {
 	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers(C, NULL);
 	return (gpd_ptr) ? *(gpd_ptr) : NULL;
+}
+
+/**
+ * Get the evaluated copy of the active Grease Pencil datablock (where applicable)
+ * - For the 3D View (i.e. "GP Objects"), this gives the evaluated copy of the GP datablock
+ *   (i.e. a copy of the active GP datablock for the active object, where modifiers have been
+ *   applied). This is needed to correctly work with "Copy-on-Write"
+ * - For all other editors (i.e. "GP Annotations"), this just gives the active datablock
+ *   like for ED_gpencil_data_get_active()
+ */
+bGPdata *ED_gpencil_data_get_active_evaluated(const bContext *C)
+{
+	ID *screen_id = (ID *)CTX_wm_screen(C);
+	Scene *scene = CTX_data_scene(C);
+	ScrArea *sa = CTX_wm_area(C);
+	
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Object *ob = CTX_data_active_object(C);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+	
+	/* if (ob && ob->type == OB_GPENCIL) BLI_assert(ob_eval->data == DEG_get_evaluated_id(ob->data)); */
+	return ED_gpencil_data_get_active_direct(screen_id, scene, sa, ob_eval);
 }
 
 /* -------------------------------------------------------- */

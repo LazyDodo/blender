@@ -93,6 +93,7 @@ typedef struct tGPencilSort {
 /* Context-dependent */
 struct bGPdata **ED_gpencil_data_get_pointers(const struct bContext *C, struct PointerRNA *ptr);
 struct bGPdata  *ED_gpencil_data_get_active(const struct bContext *C);
+struct bGPdata  *ED_gpencil_data_get_active_evaluated(const struct bContext *C);
 
 /* Context independent (i.e. each required part is passed in instead) */
 struct bGPdata **ED_gpencil_data_get_pointers_direct(struct ID *screen_id, struct Scene *scene,
