@@ -1161,7 +1161,6 @@ static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 
 	Object *ob = CTX_data_active_object(C);
-	Material *ma = NULL;
 
 	Material ***matar = give_matarar(ob);
 	short *totcol = give_totcolp(ob);
