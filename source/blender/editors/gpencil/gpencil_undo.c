@@ -36,6 +36,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_gpencil_types.h"
+#include "DNA_object_types.h"
 #include "DNA_listBase.h"
 #include "DNA_windowmanager_types.h"
 
@@ -50,6 +51,8 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+
+#include "DEG_depsgraph.h"
 
 #include "gpencil_intern.h"
 
@@ -112,7 +115,7 @@ int ED_undo_gpencil_step(bContext *C, int step, const char *name)
 			}
 		}
 		/* drawing batch cache is dirty now */
-		BKE_gpencil_batch_cache_dirty(new_gpd);
+		DEG_id_tag_update(&new_gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 		new_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 	}
 	

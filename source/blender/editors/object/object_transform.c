@@ -1112,7 +1112,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 								}
 							}
 						}
-						BKE_gpencil_batch_cache_dirty(gpd);
+						DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 
 						tot_change++;
 						if (centermode == ORIGIN_TO_GEOMETRY) {

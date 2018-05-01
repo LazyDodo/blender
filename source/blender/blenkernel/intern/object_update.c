@@ -30,6 +30,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_group_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_key_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
@@ -336,7 +337,8 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 			BKE_mball_batch_cache_dirty(ob->data, BKE_MBALL_BATCH_DIRTY_ALL);
 			break;
 		case OB_GPENCIL:
-			BKE_gpencil_batch_cache_dirty(ob->data);
+			bGPdata *gpd = ob->data;
+			DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 			break;
 	}
 

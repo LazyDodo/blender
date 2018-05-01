@@ -79,6 +79,8 @@
 #include "ED_view3d.h"
 #include "ED_space_api.h"
 
+#include "DEG_depsgraph.h"
+
 #include "gpencil_intern.h"
 
 /* ************************************************ */
@@ -159,7 +161,7 @@ static void gp_interpolate_update_strokes(bContext *C, tGPDinterpolate *tgpi)
 		}
 	}
 	
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -417,7 +419,7 @@ static void gpencil_interpolate_exit(bContext *C, wmOperator *op)
 		BLI_freelistN(&tgpi->ilayers);
 		MEM_freeN(tgpi);
 	}
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	
 	/* clear pointer */
@@ -531,7 +533,7 @@ static int gpencil_interpolate_invoke(bContext *C, wmOperator *op, const wmEvent
 	
 	/* update shift indicator in header */
 	gpencil_interpolate_status_indicators(tgpi);
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	
 	/* add a modal handler for this operator */
@@ -1019,7 +1021,7 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
 	}
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -1131,7 +1133,7 @@ static int gpencil_interpolate_reverse_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_END;
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;

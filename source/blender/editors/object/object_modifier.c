@@ -38,6 +38,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_key_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_force_types.h"
@@ -176,8 +177,8 @@ ModifierData *ED_object_modifier_add(ReportList *reports, Main *bmain, Scene *sc
 	}
 
 	if (ob->type == OB_GPENCIL) {
-		/* FIXME: Shouldn't the depsgraph tagging handle this? */
-		BKE_gpencil_batch_cache_dirty(ob->data);
+		bGPdata *gpd = ob->data;
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	}
 
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);

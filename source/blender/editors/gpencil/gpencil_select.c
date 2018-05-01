@@ -1037,7 +1037,7 @@ static int gpencil_border_select_exec(bContext *C, wmOperator *op)
 	if (gpd->flag & GP_DATA_STROKE_PAINTMODE) {
 		gp_delete_selected_point_wrap(C);
 		changed = true;
-		BKE_gpencil_batch_cache_dirty(gpd);
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	}
 
 	/* updates */
@@ -1154,7 +1154,7 @@ static int gpencil_lasso_select_exec(bContext *C, wmOperator *op)
 	if (gpd->flag & GP_DATA_STROKE_PAINTMODE) {
 		gp_delete_selected_point_wrap(C);
 		changed = true;
-		BKE_gpencil_batch_cache_dirty(gpd);
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	}
 
 	/* updates */

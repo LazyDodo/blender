@@ -261,7 +261,7 @@ static int gp_layer_remove_exec(bContext *C, wmOperator *op)
 	BKE_gpencil_layer_delete(gpd, gpl);
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -301,7 +301,7 @@ static int gp_layer_move_exec(bContext *C, wmOperator *op)
 	
 	BLI_assert(ELEM(direction, -1, 0, 1)); /* we use value below */
 	if (BLI_listbase_link_move(&gpd->layers, gpl, direction)) {
-		BKE_gpencil_batch_cache_dirty(gpd);
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	}
 	
@@ -352,7 +352,7 @@ static int gp_layer_copy_exec(bContext *C, wmOperator *UNUSED(op))
 	BKE_gpencil_layer_setactive(gpd, new_layer);
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -403,7 +403,7 @@ static int gp_frame_duplicate_exec(bContext *C, wmOperator *op)
 
 	}
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -487,7 +487,7 @@ static int gp_frame_clean_fill_exec(bContext *C, wmOperator *op)
 
 	/* notifiers */
 	if (changed) {
-		BKE_gpencil_batch_cache_dirty(gpd);
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	}
 
@@ -545,7 +545,7 @@ static int gp_hide_exec(bContext *C, wmOperator *op)
 	}
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -633,7 +633,7 @@ static int gp_reveal_exec(bContext *C, wmOperator *op)
 	}
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -674,7 +674,7 @@ static int gp_lock_all_exec(bContext *C, wmOperator *UNUSED(op))
 	}
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -712,7 +712,7 @@ static int gp_unlock_all_exec(bContext *C, wmOperator *UNUSED(op))
 	}
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -785,7 +785,7 @@ static int gp_isolate_layer_exec(bContext *C, wmOperator *op)
 	}
 	
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -850,7 +850,7 @@ static int gp_merge_layer_exec(bContext *C, wmOperator *op)
 	BLI_ghash_free(gh_frames_cur, NULL, NULL);
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -912,7 +912,7 @@ static int gp_layer_change_exec(bContext *C, wmOperator *op)
 	BKE_gpencil_layer_setactive(gpd, gpl);
 	
 	/* updates */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	
 	return OPERATOR_FINISHED;
@@ -1049,7 +1049,7 @@ static int gp_stroke_arrange_exec(bContext *C, wmOperator *op)
 	}
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1133,7 +1133,7 @@ static int gp_stroke_change_color_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_END;
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1196,7 +1196,7 @@ static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1370,7 +1370,7 @@ static int gp_convert_scene_to_object_exec(bContext *C, wmOperator *UNUSED(op))
 	scene->gpd = NULL;
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1438,7 +1438,8 @@ static int gpencil_vertex_group_assign_exec(bContext *C, wmOperator *UNUSED(op))
 	ED_gpencil_vgroup_assign(C, ob, ts->vgroup_weight);
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(ob->data);
+	bGPdata *gpd = ob->data;
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1471,7 +1472,8 @@ static int gpencil_vertex_group_remove_from_exec(bContext *C, wmOperator *UNUSED
 	ED_gpencil_vgroup_remove(C, ob);
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(ob->data); // XXX: Review this (aligorith)
+	bGPdata *gpd = ob->data;
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1504,7 +1506,8 @@ static int gpencil_vertex_group_select_exec(bContext *C, wmOperator *UNUSED(op))
 	ED_gpencil_vgroup_select(C, ob);
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(ob->data);
+	bGPdata *gpd = ob->data;
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1536,7 +1539,8 @@ static int gpencil_vertex_group_deselect_exec(bContext *C, wmOperator *UNUSED(op
 	ED_gpencil_vgroup_deselect(C, ob);
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(ob->data);
+	bGPdata *gpd = ob->data;
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1590,7 +1594,8 @@ static int gpencil_vertex_group_invert_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_END;
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(ob->data);
+	bGPdata *gpd = ob->data;
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1672,7 +1677,8 @@ static int gpencil_vertex_group_smooth_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(ob->data);
+	bGPdata *gpd = ob->data;
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 
 	return OPERATOR_FINISHED;
@@ -2045,7 +2051,7 @@ static int gpencil_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 	/* notifiers */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;

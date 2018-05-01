@@ -3570,7 +3570,7 @@ static void posttrans_gpd_clean(bGPdata *gpd)
 #endif
 	}
 	/* set cache flag to dirty */
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 }
 
 static void posttrans_mask_clean(Mask *mask)

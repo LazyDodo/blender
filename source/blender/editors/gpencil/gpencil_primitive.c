@@ -77,6 +77,8 @@
 #include "ED_view3d.h"
 #include "ED_space_api.h"
 
+#include "DEG_depsgraph.h"
+
 #include "gpencil_intern.h"
 
 #define MIN_EDGES 2
@@ -370,7 +372,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* free temp data */
 	MEM_SAFE_FREE(points2D);
 	
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -409,7 +411,7 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		MEM_freeN(tgpi->gpf);
 		MEM_freeN(tgpi);
 	}
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	
 	/* clear pointer */
@@ -496,7 +498,7 @@ static int gpencil_primitive_invoke(bContext *C, wmOperator *op, const wmEvent *
 	
 	/* update sindicator in header */
 	gpencil_primitive_status_indicators(tgpi);
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	
 	/* add a modal handler for this operator */

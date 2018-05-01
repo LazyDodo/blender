@@ -1300,7 +1300,7 @@ void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
 	}
 	
 	
-	BKE_gpencil_batch_cache_dirty(gpd);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 }
 
 /* ************************************************** */
@@ -1682,7 +1682,8 @@ void BKE_gpencil_material_index_remove(bGPdata *gpd, int index)
 				}
 			}
 		}
-		BKE_gpencil_batch_cache_dirty(gpd);
+
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 }
 
 void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, unsigned int remap_len)

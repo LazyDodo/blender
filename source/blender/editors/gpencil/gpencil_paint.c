@@ -203,7 +203,7 @@ typedef struct tGPsdata {
 static void gp_update_cache(bGPdata *gpd)
 {
 	if (gpd) {
-		BKE_gpencil_batch_cache_dirty(gpd);
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 		gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 	}
 }

@@ -80,6 +80,8 @@
 
 #include "BIF_gl.h"
 
+#include "DEG_depsgraph.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
 
@@ -4048,7 +4050,8 @@ static void achannel_setting_flush_widget_cb(bContext *C, void *ale_npoin, void 
 	if (ale_setting->type == ANIMTYPE_GPLAYER) {
 		/* draw cache updates for settings that affect the visible strokes */
 		if (setting == ACHANNEL_SETTING_VISIBLE) {
-			BKE_gpencil_batch_cache_dirty((bGPdata *)ale_setting->id);
+			bGPdata *gpd = (bGPdata *)ale_setting->id;
+			DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 		}
 		
 		/* UI updates */
