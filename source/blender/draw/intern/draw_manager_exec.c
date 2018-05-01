@@ -287,8 +287,8 @@ void drw_state_set(DRWState state)
 				if ((state & DRW_STATE_WRITE_STENCIL) != 0) {
 					if ((state & DRW_STATE_STENCIL_INCR_DECR_WRAP) != 0) {
 						glStencilMask(0xFF);
-						glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_INCR_WRAP, GL_KEEP);
-						glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
+						glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+						glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
 					}
 					else {
 						glStencilMask(0xFF);
