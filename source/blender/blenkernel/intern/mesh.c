@@ -626,7 +626,6 @@ static Mesh *mesh_from_template_ex(
 
 	me_dst->mat = MEM_dupallocN(me_src->mat);
 	me_dst->mselect = MEM_dupallocN(me_dst->mselect);
-//	me_dst->bb = MEM_dupallocN(me_dst->bb);
 
 	me_dst->totvert = numVerts;
 	me_dst->totedge = numEdges;
