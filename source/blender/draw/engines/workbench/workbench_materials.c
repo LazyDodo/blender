@@ -29,6 +29,8 @@
 
 #include "BKE_particle.h"
 
+#include "DNA_modifier_types.h"
+
 #include "GPU_shader.h"
 
 #include "UI_resources.h"
@@ -44,7 +46,7 @@ static struct {
 	struct GPUTexture *normal_buffer_tx; /* ref only, not alloced */
 
 	int next_object_id;
-} e_data = {NULL};
+} e_data = {{NULL}};
 
 /* Shaders */
 extern char datatoc_workbench_prepass_vert_glsl[];
@@ -74,6 +76,10 @@ static char *workbench_build_defines(WORKBENCH_PrivateData *wpd)
 	if (wpd->drawtype_lighting & V3D_LIGHTING_STUDIO) {
 		BLI_dynstr_appendf(ds, "#define V3D_LIGHTING_STUDIO\n");
 	}
+
+#ifdef WORKBENCH_ENCODE_NORMALS
+	BLI_dynstr_appendf(ds, "#define WORKBENCH_ENCODE_NORMALS\n");
+#endif
 
 	str = BLI_dynstr_get_cstring(ds);
 	BLI_dynstr_free(ds);
@@ -162,13 +168,17 @@ static uint get_material_hash(WORKBENCH_PrivateData *wpd, WORKBENCH_MaterialData
 
 static void workbench_init_object_data(ObjectEngineData *engine_data)
 {
-	WORKBENCH_ObjectData *data = (WORKBENCH_ObjectData*)engine_data;
+	WORKBENCH_ObjectData *data = (WORKBENCH_ObjectData *)engine_data;
 	data->object_id = e_data.next_object_id++;
 }
 
 static void get_material_solid_color(WORKBENCH_PrivateData *wpd, WORKBENCH_ObjectData *engine_object_data, Object *ob, float *color, float hsv_saturation, float hsv_value)
 {
-	if (wpd->drawtype_options & V3D_DRAWOPTION_RANDOMIZE) {
+	static float default_color[] = {1.0f, 1.0f, 1.0f};
+	if (DRW_object_is_paint_mode(ob)) {
+		copy_v3_v3(color, default_color);
+	}
+	else if (wpd->drawtype_options & V3D_DRAWOPTION_RANDOMIZE) {
 		float offset = fmodf(engine_object_data->object_id * M_GOLDEN_RATION_CONJUGATE, 1.0);
 		float hsv[3] = {offset, hsv_saturation, hsv_value};
 		hsv_to_rgb_v(hsv, color);
@@ -199,9 +209,13 @@ void workbench_materials_engine_init(WORKBENCH_Data *vedata)
 	{
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = {(int)viewport_size[0], (int)viewport_size[1]};
-		e_data.object_id_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_R_32U, &draw_engine_workbench_solid);
-		e_data.color_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_8, &draw_engine_workbench_solid);
-		e_data.normal_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RG_8, &draw_engine_workbench_solid);
+		e_data.object_id_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_R32UI, &draw_engine_workbench_solid);
+		e_data.color_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA8, &draw_engine_workbench_solid);
+#ifdef WORKBENCH_ENCODE_NORMALS
+		e_data.normal_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RG8, &draw_engine_workbench_solid);
+#else
+		e_data.normal_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA32F, &draw_engine_workbench_solid);
+#endif
 
 		GPU_framebuffer_ensure_config(&fbl->prepass_fb, {
 			GPU_ATTACHMENT_TEXTURE(dtxl->depth),
@@ -233,6 +247,9 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 	DRWShadingGroup *grp;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	ViewLayer *view_layer = draw_ctx->view_layer;
+	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_WORKBENCH);
 
 	const DRWContextState *DCS = DRW_context_state_get();
 
@@ -252,14 +269,14 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 	/* Deferred Mix Pass */
 	{
 		WORKBENCH_UBO_World *wd = &wpd->world_data;
-		wd->diffuse_light_xp[0] = 0.8; wd->diffuse_light_xp[1] = 0.8; wd->diffuse_light_xp[2] = 1.0;
-		wd->diffuse_light_xn[0] = 0.8; wd->diffuse_light_xn[1] = 0.8; wd->diffuse_light_xn[2] = 1.0;
-		wd->diffuse_light_yp[0] = 0.8; wd->diffuse_light_yp[1] = 0.8; wd->diffuse_light_yp[2] = 1.0;
-		wd->diffuse_light_yn[0] = 0.8; wd->diffuse_light_yn[1] = 0.8; wd->diffuse_light_yn[2] = 1.0;
-		wd->diffuse_light_zp[0] = 1.0; wd->diffuse_light_zp[1] = 1.0; wd->diffuse_light_zp[2] = 1.0;
-		wd->diffuse_light_zn[0] = 0.0; wd->diffuse_light_zn[1] = 0.0; wd->diffuse_light_zn[2] = 0.0;
-		UI_GetThemeColor3fv(UI_GetThemeValue(TH_SHOW_BACK_GRAD)?TH_LOW_GRAD:TH_HIGH_GRAD, wd->background_color_low);
+		UI_GetThemeColor3fv(UI_GetThemeValue(TH_SHOW_BACK_GRAD) ? TH_LOW_GRAD:TH_HIGH_GRAD, wd->background_color_low);
 		UI_GetThemeColor3fv(TH_HIGH_GRAD, wd->background_color_high);
+		copy_v3_v3(wd->diffuse_light_x_pos, BKE_collection_engine_property_value_get_float_array(props, "diffuse_light_x_pos"));
+		copy_v3_v3(wd->diffuse_light_x_neg, BKE_collection_engine_property_value_get_float_array(props, "diffuse_light_x_neg"));
+		copy_v3_v3(wd->diffuse_light_y_pos, BKE_collection_engine_property_value_get_float_array(props, "diffuse_light_y_pos"));
+		copy_v3_v3(wd->diffuse_light_y_neg, BKE_collection_engine_property_value_get_float_array(props, "diffuse_light_y_neg"));
+		copy_v3_v3(wd->diffuse_light_z_pos, BKE_collection_engine_property_value_get_float_array(props, "diffuse_light_z_pos"));
+		copy_v3_v3(wd->diffuse_light_z_neg, BKE_collection_engine_property_value_get_float_array(props, "diffuse_light_z_neg"));
 
 		psl->composite_pass = DRW_pass_create("Composite", DRW_STATE_WRITE_COLOR);
 		grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_pass);
@@ -287,7 +304,8 @@ static WORKBENCH_MaterialData *get_or_create_material_data(WORKBENCH_Data *vedat
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	WORKBENCH_MaterialData *material;
-	WORKBENCH_ObjectData *engine_object_data = (WORKBENCH_ObjectData*)DRW_object_engine_data_ensure(ob, &draw_engine_workbench_solid, sizeof(WORKBENCH_ObjectData), &workbench_init_object_data, NULL);
+	WORKBENCH_ObjectData *engine_object_data = (WORKBENCH_ObjectData *)DRW_object_engine_data_ensure(
+	        ob, &draw_engine_workbench_solid, sizeof(WORKBENCH_ObjectData), &workbench_init_object_data, NULL);
 	WORKBENCH_MaterialData material_template;
 	float color[3];
 	const float hsv_saturation = BKE_collection_engine_property_value_get_float(props, "random_object_color_saturation");
@@ -317,22 +335,26 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, IDPropert
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 
 	if (ob != draw_ctx->object_edit) {
-		for (ParticleSystem *psys = ob->particlesystem.first; psys; psys = psys->next) {
-			if (psys_check_enabled(ob, psys, false)) {
-				ParticleSettings *part = psys->part;
-				int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
+		for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+			if (md->type == eModifierType_ParticleSystem) {
+				ParticleSystem *psys = ((ParticleSystemModifierData *)md)->psys;
 
-				if (draw_as == PART_DRAW_PATH && !psys->pathcache && !psys->childcache) {
-					draw_as = PART_DRAW_DOT;
-				}
+				if (psys_check_enabled(ob, psys, false)) {
+					ParticleSettings *part = psys->part;
+					int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
 
-				static float mat[4][4];
-				unit_m4(mat);
+					if (draw_as == PART_DRAW_PATH && !psys->pathcache && !psys->childcache) {
+						draw_as = PART_DRAW_DOT;
+					}
 
-				if (draw_as == PART_DRAW_PATH) {
-					struct Gwn_Batch *geom = DRW_cache_particles_get_hair(psys, NULL);
-					WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, props, ob);
-					DRW_shgroup_call_add(material->shgrp, geom, mat);
+					static float mat[4][4];
+					unit_m4(mat);
+
+					if (draw_as == PART_DRAW_PATH) {
+						struct Gwn_Batch *geom = DRW_cache_particles_get_hair(psys, NULL);
+						WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, props, ob);
+						DRW_shgroup_call_add(material->shgrp, geom, mat);
+					}
 				}
 			}
 		}
@@ -358,7 +380,7 @@ void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob
 
 		material = get_or_create_material_data(vedata, props, ob);
 		const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;
-		if(is_sculpt_mode) {
+		if (is_sculpt_mode) {
 			DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
 		}
 		else {

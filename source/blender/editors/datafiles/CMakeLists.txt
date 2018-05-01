@@ -528,6 +528,20 @@ set(ICON_NAMES
 # This section is maintained by the updating script, keep BEGIN/END comments.
 set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	# BEGIN ICON_GEOM_NAMES
+	brush.sculpt.blob
+	brush.sculpt.crease
+	brush.sculpt.draw
+	brush.sculpt.flatten
+	brush.sculpt.grab
+	brush.sculpt.layer
+	brush.sculpt.mask
+	brush.sculpt.nudge
+	brush.sculpt.pinch
+	brush.sculpt.smooth
+	brush.sculpt.snake_hook
+	brush.sculpt.thumb
+	none
+	ops.armature.bone.roll
 	ops.armature.extrude.cursor
 	ops.armature.extrude
 	ops.generic.cursor
@@ -538,7 +552,11 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.gpencil.draw.eraser
 	ops.gpencil.draw.line
 	ops.gpencil.draw.poly
+	ops.mesh.bevel
 	ops.mesh.bisect
+	ops.mesh.dupli_extrude_cursor
+	ops.mesh.extrude_faces_move
+	ops.mesh.extrude_region_move
 	ops.mesh.inset
 	ops.mesh.knife_tool
 	ops.mesh.loopcut_slide
@@ -562,11 +580,10 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.transform.resize
 	ops.transform.rotate
 	ops.transform.shrink_fatten
+	ops.transform.transform
 	ops.transform.translate
 	ops.transform.vert_slide
 	ops.transform.vertex_random
-	ops.view3d.edit_mesh_extrude
-	ops.view3d.edit_mesh_extrude_individual
 	ops.view3d.ruler
 	# END ICON_GEOM_NAMES
 )
