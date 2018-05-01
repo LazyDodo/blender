@@ -167,22 +167,22 @@ static void deformMatricesEM(
         float (*defMats)[3][3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *to_use = mesh;
+	Mesh *mesh_src = mesh;
 
 	/* TODO(sybren): possibly lift this code to modifier.c and use it for all modifiers */
 	if (!mesh) {
 		struct BMeshToMeshParams params = {0};
-		to_use = BKE_libblock_alloc_notest(ID_ME);
-		BKE_mesh_init(to_use);
-		BM_mesh_bm_to_me(em->bm, to_use, &params);
+		mesh_src = BKE_libblock_alloc_notest(ID_ME);
+		BKE_mesh_init(mesh_src);
+		BM_mesh_bm_to_me(em->bm, mesh_src, &params);
 	}
 
-	armature_deform_verts(amd->object, ctx->object, to_use, vertexCos, defMats, numVerts,
+	armature_deform_verts(amd->object, ctx->object, mesh_src, vertexCos, defMats, numVerts,
 	                      amd->deformflag, NULL, amd->defgrp_name);
 
 	if (!mesh) {
-		BKE_mesh_free(to_use);
-		MEM_freeN(to_use);
+		BKE_mesh_free(mesh_src);
+		MEM_freeN(mesh_src);
 	}
 }
 
@@ -190,9 +190,9 @@ static void deformMatrices(ModifierData *md, const ModifierEvalContext *ctx, Mes
                            float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *to_use = mesh ? mesh : ctx->object->data;
+	Mesh *mesh_src = mesh ? mesh : ctx->object->data;
 
-	armature_deform_verts(amd->object, ctx->object, to_use, vertexCos, defMats, numVerts,
+	armature_deform_verts(amd->object, ctx->object, mesh_src, vertexCos, defMats, numVerts,
 	                      amd->deformflag, NULL, amd->defgrp_name);
 }
 
