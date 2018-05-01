@@ -309,6 +309,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
 
 		copy_v3_v3(e_data.light_direction, BKE_collection_engine_property_value_get_float_array(props, "light_direction"));
+		invert_v3(e_data.light_direction);
 
 		psl->composite_pass = DRW_pass_create("Composite", DRW_STATE_WRITE_COLOR | DRW_STATE_STENCIL_EQUAL);
 		grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_pass);
@@ -320,7 +321,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		if (SHADOW_ENABLED(wpd)) {
 			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_STENCIL | DRW_STATE_STENCIL_INCR_DECR_WRAP);
 			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
-			DRW_shgroup_uniform_float(grp, "lightDirection", e_data.light_direction, 3);
+			DRW_shgroup_uniform_vec3(grp, "lightDirection", e_data.light_direction, 1);
 			DRW_shgroup_stencil_mask(grp, 0xFF);
 			wpd->shadow_shgrp = grp;
 
