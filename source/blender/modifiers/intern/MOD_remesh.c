@@ -143,10 +143,8 @@ static void dualcon_add_quad(void *output_v, const int vert_indices[4])
 }
 
 static DerivedMesh *applyModifier(ModifierData *md,
-                                  struct Depsgraph *UNUSED(depsgraph),
-                                  Object *UNUSED(ob),
-                                  DerivedMesh *dm,
-                                  ModifierApplyFlag UNUSED(flag))
+                                  const ModifierEvalContext *UNUSED(ctx),
+                                  DerivedMesh *dm)
 {
 	RemeshModifierData *rmd;
 	DualConOutput *output;
