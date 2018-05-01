@@ -29,19 +29,21 @@
 
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
 
 #include "BLI_utildefines.h"
 
 #include "BKE_cdderivedmesh.h"
 #include "BKE_dynamicpaint.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
 #include "depsgraph_private.h"
 #include "DEG_depsgraph_build.h"
 
+#include "MOD_modifiertypes.h"
 
 static void initData(ModifierData *md) 
 {
@@ -58,6 +60,15 @@ static void copyData(ModifierData *md, ModifierData *target)
 	DynamicPaintModifierData *tpmd = (DynamicPaintModifierData *)target;
 	
 	dynamicPaint_Modifier_copy(pmd, tpmd);
+
+	if (tpmd->canvas) {
+		for (DynamicPaintSurface *surface = tpmd->canvas->surfaces.first; surface; surface = surface->next) {
+			id_us_plus((ID *)surface->init_texture);
+		}
+	}
+	if (tpmd->brush) {
+		id_us_plus((ID *)tpmd->brush->mat);
+	}
 }
 
 static void freeData(ModifierData *md)
@@ -116,14 +127,10 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 
 static bool is_brush_cb(Object *UNUSED(ob), ModifierData *pmd)
 {
-	return ((DynamicPaintModifierData*)pmd)->brush != NULL;
+	return ((DynamicPaintModifierData *)pmd)->brush != NULL;
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *scene,
-                           Object *ob,
-                           DagNode *obNode)
+static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *) md;
 
@@ -132,37 +139,30 @@ static void updateDepgraph(ModifierData *md, DagForest *forest,
 #ifdef WITH_LEGACY_DEPSGRAPH
 		for (DynamicPaintSurface *surface = pmd->canvas->surfaces.first; surface; surface = surface->next) {
 			if (surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) {
-				dag_add_forcefield_relations(forest, scene, ob, obNode, surface->effector_weights, true, 0, "Dynamic Paint Field");
+				dag_add_forcefield_relations(ctx->forest, ctx->scene, ctx->object, ctx->obNode, surface->effector_weights, true, 0, "Dynamic Paint Field");
 			}
 
 			/* Actual code uses custom loop over group/scene without layer checks in dynamicPaint_doStep */
-			dag_add_collision_relations(forest, scene, ob, obNode, surface->brush_group, -1, eModifierType_DynamicPaint, is_brush_cb, false, "Dynamic Paint Brush");
+			dag_add_collision_relations(ctx->forest, ctx->scene, ctx->object, ctx->obNode, surface->brush_group, -1, eModifierType_DynamicPaint, is_brush_cb, false, "Dynamic Paint Brush");
 		}
 #else
-	(void)forest;
-	(void)scene;
-	(void)ob;
-	(void)obNode;
+	(void)ctx;
 #endif
 	}
 }
 
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *scene,
-                            Object *ob,
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *)md;
 	/* Add relation from canvases to all brush objects. */
 	if (pmd->canvas != NULL) {
 		for (DynamicPaintSurface *surface = pmd->canvas->surfaces.first; surface; surface = surface->next) {
 			if (surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) {
-				DEG_add_forcefield_relations(node, scene, ob, surface->effector_weights, true, 0, "Dynamic Paint Field");
+				DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, surface->effector_weights, true, 0, "Dynamic Paint Field");
 			}
 
 			/* Actual code uses custom loop over group/scene without layer checks in dynamicPaint_doStep */
-			DEG_add_collision_relations(node, scene, ob, surface->brush_group, -1, eModifierType_DynamicPaint, is_brush_cb, false, "Dynamic Paint Brush");
+			DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, surface->brush_group, -1, eModifierType_DynamicPaint, is_brush_cb, false, "Dynamic Paint Brush");
 		}
 	}
 }

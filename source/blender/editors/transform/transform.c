@@ -51,7 +51,7 @@
 #include "BLI_listbase.h"
 #include "BLI_string.h"
 #include "BLI_ghash.h"
-#include "BLI_stackdefines.h"
+#include "BLI_utildefines_stack.h"
 #include "BLI_memarena.h"
 
 #include "BKE_nla.h"
@@ -801,7 +801,7 @@ enum {
 /* called in transform_ops.c, on each regeneration of keymaps */
 wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
 {
-	static EnumPropertyItem modal_items[] = {
+	static const EnumPropertyItem modal_items[] = {
 		{TFM_MODAL_CANCEL, "CANCEL", 0, "Cancel", ""},
 		{TFM_MODAL_CONFIRM, "CONFIRM", 0, "Confirm", ""},
 		{TFM_MODAL_TRANSLATE, "TRANSLATE", 0, "Translate", ""},
@@ -1605,7 +1605,7 @@ static void drawArrow(ArrowDirection d, short offset, short length, short size)
 			offset = -offset;
 			length = -length;
 			size = -size;
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		case RIGHT:
 			glBegin(GL_LINES);
 			glVertex2s(offset, 0);
@@ -1621,7 +1621,7 @@ static void drawArrow(ArrowDirection d, short offset, short length, short size)
 			offset = -offset;
 			length = -length;
 			size = -size;
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		case UP:
 			glBegin(GL_LINES);
 			glVertex2s(0, offset);
@@ -1640,7 +1640,7 @@ static void drawArrowHead(ArrowDirection d, short size)
 	switch (d) {
 		case LEFT:
 			size = -size;
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		case RIGHT:
 			glBegin(GL_LINES);
 			glVertex2s(0, 0);
@@ -1652,7 +1652,7 @@ static void drawArrowHead(ArrowDirection d, short size)
 
 		case DOWN:
 			size = -size;
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		case UP:
 			glBegin(GL_LINES);
 			glVertex2s(0, 0);
@@ -1694,23 +1694,13 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 	TransInfo *t = (TransInfo *)customdata;
 
 	if (t->helpline != HLP_NONE && !(t->flag & T_USES_MANIPULATOR)) {
-		float vecrot[3], cent[2];
+		float cent[2];
 		int mval[2];
 
 		mval[0] = x;
 		mval[1] = y;
 
-		copy_v3_v3(vecrot, t->center);
-		if (t->flag & T_EDIT) {
-			Object *ob = t->obedit;
-			if (ob) mul_m4_v3(ob->obmat, vecrot);
-		}
-		else if (t->flag & T_POSE) {
-			Object *ob = t->poseobj;
-			if (ob) mul_m4_v3(ob->obmat, vecrot);
-		}
-
-		projectFloatViewEx(t, vecrot, cent, V3D_PROJ_TEST_CLIP_ZERO);
+		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
 
 		glPushMatrix();
 
@@ -1936,7 +1926,7 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 	}
 
 	// If modal, save settings back in scene if not set as operator argument
-	if (t->flag & T_MODAL) {
+	if ((t->flag & T_MODAL) || (op->flag & OP_IS_REPEAT)) {
 		/* save settings if not set in operator */
 
 		/* skip saving proportional edit if it was not actually used */
@@ -1956,10 +1946,9 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 					ts->proportional_objects = (proportional != PROP_EDIT_OFF);
 			}
 
-			if ((prop = RNA_struct_find_property(op->ptr, "proportional_size")) &&
-			    !RNA_property_is_set(op->ptr, prop))
-			{
-				ts->proportional_size = t->prop_size;
+			if ((prop = RNA_struct_find_property(op->ptr, "proportional_size"))) {
+				ts->proportional_size =
+				        RNA_property_is_set(op->ptr, prop) ? RNA_property_float_get(op->ptr, prop) : t->prop_size;
 			}
 
 			if ((prop = RNA_struct_find_property(op->ptr, "proportional_edit_falloff")) &&
@@ -2176,7 +2165,14 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	calculateCenter(t);
 
 	if (event) {
-		initMouseInput(t, &t->mouse, t->center2d, event->mval, event->shift);
+		/* Initialize accurate transform to settings requested by keymap. */
+		bool use_accurate = false;
+		if ((prop = RNA_struct_find_property(op->ptr, "use_accurate")) && RNA_property_is_set(op->ptr, prop)) {
+			if (RNA_property_boolean_get(op->ptr, prop)) {
+				use_accurate = true;
+			}
+		}
+		initMouseInput(t, &t->mouse, t->center2d, event->mval, use_accurate);
 	}
 
 	switch (mode) {
@@ -2871,7 +2867,9 @@ static void initBend(TransInfo *t)
 	t->flag |= T_NO_CONSTRAINT;
 
 	//copy_v3_v3(t->center, ED_view3d_cursor3d_get(t->scene, t->view));
-	calculateCenterCursor(t, t->center);
+	if ((t->flag & T_OVERRIDE_CENTER) == 0) {
+		calculateCenterCursor(t, t->center);
+	}
 	calculateCenterGlobal(t, t->center, t->center_global);
 
 	t->val = 0.0f;
@@ -3044,19 +3042,13 @@ static void Bend(TransInfo *t, const int UNUSED(mval[2]))
 /** \name Transform Shear
  * \{ */
 
-static void postInputShear(TransInfo *UNUSED(t), float values[3])
-{
-	mul_v3_fl(values, 0.05f);
-}
-
 static void initShear(TransInfo *t)
 {
 	t->mode = TFM_SHEAR;
 	t->transform = applyShear;
 	t->handleEvent = handleEventShear;
-	
-	setInputPostFct(&t->mouse, postInputShear);
-	initMouseInputMode(t, &t->mouse, INPUT_HORIZONTAL_ABSOLUTE);
+
+	initMouseInputMode(t, &t->mouse, INPUT_HORIZONTAL_RATIO);
 	
 	t->idx_max = 0;
 	t->num.idx_max = 0;
@@ -3078,24 +3070,24 @@ static eRedrawFlag handleEventShear(TransInfo *t, const wmEvent *event)
 	if (event->type == MIDDLEMOUSE && event->val == KM_PRESS) {
 		/* Use custom.mode.data pointer to signal Shear direction */
 		if (t->custom.mode.data == NULL) {
-			initMouseInputMode(t, &t->mouse, INPUT_VERTICAL_ABSOLUTE);
+			initMouseInputMode(t, &t->mouse, INPUT_VERTICAL_RATIO);
 			t->custom.mode.data = (void *)1;
 		}
 		else {
-			initMouseInputMode(t, &t->mouse, INPUT_HORIZONTAL_ABSOLUTE);
+			initMouseInputMode(t, &t->mouse, INPUT_HORIZONTAL_RATIO);
 			t->custom.mode.data = NULL;
 		}
 
 		status = TREDRAW_HARD;
 	}
 	else if (event->type == XKEY && event->val == KM_PRESS) {
-		initMouseInputMode(t, &t->mouse, INPUT_HORIZONTAL_ABSOLUTE);
+		initMouseInputMode(t, &t->mouse, INPUT_HORIZONTAL_RATIO);
 		t->custom.mode.data = NULL;
 		
 		status = TREDRAW_HARD;
 	}
 	else if (event->type == YKEY && event->val == KM_PRESS) {
-		initMouseInputMode(t, &t->mouse, INPUT_VERTICAL_ABSOLUTE);
+		initMouseInputMode(t, &t->mouse, INPUT_VERTICAL_RATIO);
 		t->custom.mode.data = (void *)1;
 		
 		status = TREDRAW_HARD;
@@ -4066,13 +4058,15 @@ static void initTrackball(TransInfo *t)
 static void applyTrackballValue(TransInfo *t, const float axis1[3], const float axis2[3], float angles[2])
 {
 	TransData *td = t->data;
-	float mat[3][3], smat[3][3], totmat[3][3];
+	float mat[3][3];
+	float axis[3];
+	float angle;
 	int i;
 
-	axis_angle_normalized_to_mat3(smat, axis1, angles[0]);
-	axis_angle_normalized_to_mat3(totmat, axis2, angles[1]);
-
-	mul_m3_m3m3(mat, smat, totmat);
+	mul_v3_v3fl(axis, axis1, angles[0]);
+	madd_v3_v3fl(axis, axis2, angles[1]);
+	angle = normalize_v3(axis);
+	axis_angle_normalized_to_mat3(mat, axis, angle);
 
 	for (i = 0; i < t->total; i++, td++) {
 		if (td->flag & TD_NOACTION)
@@ -4082,10 +4076,7 @@ static void applyTrackballValue(TransInfo *t, const float axis1[3], const float 
 			continue;
 
 		if (t->flag & T_PROP_EDIT) {
-			axis_angle_normalized_to_mat3(smat, axis1, td->factor * angles[0]);
-			axis_angle_normalized_to_mat3(totmat, axis2, td->factor * angles[1]);
-
-			mul_m3_m3m3(mat, smat, totmat);
+			axis_angle_normalized_to_mat3(mat, axis, td->factor * angle);
 		}
 
 		ElementRotation(t, td, mat, t->around);
@@ -4271,7 +4262,7 @@ static void headerTranslation(TransInfo *t, const float vec[3], char str[UI_MAX_
 		bUnit_AsString(distvec, sizeof(distvec), dist * t->scene->unit.scale_length, 4, t->scene->unit.system,
 		               B_UNIT_LENGTH, do_split, false);
 	}
-	else if (dist > 1e10f || dist < -1e10f)  {
+	else if (dist > 1e10f || dist < -1e10f) {
 		/* prevent string buffer overflow */
 		BLI_snprintf(distvec, NUM_STR_REP_LEN, "%.4e", dist);
 	}
@@ -4331,7 +4322,7 @@ static void headerTranslation(TransInfo *t, const float vec[3], char str[UI_MAX_
 			const char *str_dir = (snode->insert_ofs_dir == SNODE_INSERTOFS_DIR_RIGHT) ? IFACE_("right") : IFACE_("left");
 			char str_km[64];
 
-			WM_modalkeymap_items_to_string(t->keymap, TFM_MODAL_INSERTOFS_TOGGLE_DIR, true, sizeof(str_km), str_km);
+			WM_modalkeymap_items_to_string(t->keymap, TFM_MODAL_INSERTOFS_TOGGLE_DIR, true, str_km, sizeof(str_km));
 
 			ofs += BLI_snprintf(str, UI_MAX_DRAW_STR, IFACE_("Auto-offset set to %s - press %s to toggle direction  |  %s"),
 			                    str_dir, str_km, str_old);
@@ -4547,7 +4538,7 @@ static void applyShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
 	if (t->keymap) {
 		wmKeyMapItem *kmi = WM_modalkeymap_find_propvalue(t->keymap, TFM_MODAL_RESIZE);
 		if (kmi) {
-			ofs += WM_keymap_item_to_string(kmi, false, sizeof(str) - ofs, str + ofs);
+			ofs += WM_keymap_item_to_string(kmi, false, str + ofs, sizeof(str) - ofs);
 		}
 	}
 	BLI_snprintf(str + ofs, sizeof(str) - ofs, IFACE_(" or Alt) Even Thickness %s"),
@@ -4941,7 +4932,7 @@ static void initPushPull(TransInfo *t)
 
 static void applyPushPull(TransInfo *t, const int UNUSED(mval[2]))
 {
-	float vec[3], axis[3];
+	float vec[3], axis_global[3];
 	float distance;
 	int i;
 	char str[UI_MAX_DRAW_STR];
@@ -4969,7 +4960,7 @@ static void applyPushPull(TransInfo *t, const int UNUSED(mval[2]))
 	}
 
 	if (t->con.applyRot && t->con.mode & CON_APPLY) {
-		t->con.applyRot(t, NULL, axis, NULL);
+		t->con.applyRot(t, NULL, axis_global, NULL);
 	}
 
 	for (i = 0; i < t->total; i++, td++) {
@@ -4981,7 +4972,11 @@ static void applyPushPull(TransInfo *t, const int UNUSED(mval[2]))
 
 		sub_v3_v3v3(vec, t->center, td->center);
 		if (t->con.applyRot && t->con.mode & CON_APPLY) {
+			float axis[3];
+			copy_v3_v3(axis, axis_global);
 			t->con.applyRot(t, td, axis, NULL);
+
+			mul_m3_v3(td->smtx, axis);
 			if (isLockConstraint(t)) {
 				float dvec[3];
 				project_v3_v3v3(dvec, vec, axis);
@@ -5554,10 +5549,10 @@ static void slide_origdata_interp_data_vert(
 	float v_proj[3][3];
 
 	if (do_loop_weight || do_loop_mdisps) {
-		project_plane_v3_v3v3(v_proj[1], sv->co_orig_3d, v_proj_axis);
+		project_plane_normalized_v3_v3v3(v_proj[1], sv->co_orig_3d, v_proj_axis);
 	}
 
-	// BM_ITER_ELEM (l, &liter, sv->v, BM_LOOPS_OF_VERT) {
+	// BM_ITER_ELEM (l, &liter, sv->v, BM_LOOPS_OF_VERT)
 	BM_iter_init(&liter, bm, BM_LOOPS_OF_VERT, sv->v);
 	l_num = liter.count;
 	loop_weights = do_loop_weight ? BLI_array_alloca(loop_weights, l_num) : NULL;
@@ -5588,19 +5583,19 @@ static void slide_origdata_interp_data_vert(
 			/* In the unlikely case that we're next to a zero length edge - walk around the to the next.
 			 * Since we only need to check if the vertex is in this corner,
 			 * its not important _which_ loop - as long as its not overlapping 'sv->co_orig_3d', see: T45096. */
-			project_plane_v3_v3v3(v_proj[0], co_prev, v_proj_axis);
+			project_plane_normalized_v3_v3v3(v_proj[0], co_prev, v_proj_axis);
 			while (UNLIKELY(((co_prev_ok = (len_squared_v3v3(v_proj[1], v_proj[0]) > eps)) == false) &&
 			                ((l_prev = l_prev->prev) != l->next)))
 			{
 				co_prev = slide_origdata_orig_vert_co(sod, l_prev->v);
-				project_plane_v3_v3v3(v_proj[0], co_prev, v_proj_axis);
+				project_plane_normalized_v3_v3v3(v_proj[0], co_prev, v_proj_axis);
 			}
-			project_plane_v3_v3v3(v_proj[2], co_next, v_proj_axis);
+			project_plane_normalized_v3_v3v3(v_proj[2], co_next, v_proj_axis);
 			while (UNLIKELY(((co_next_ok = (len_squared_v3v3(v_proj[1], v_proj[2]) > eps)) == false) &&
 			                ((l_next = l_next->next) != l->prev)))
 			{
 				co_next = slide_origdata_orig_vert_co(sod, l_next->v);
-				project_plane_v3_v3v3(v_proj[2], co_next, v_proj_axis);
+				project_plane_normalized_v3_v3v3(v_proj[2], co_next, v_proj_axis);
 			}
 
 			if (co_prev_ok && co_next_ok) {
@@ -5620,12 +5615,12 @@ static void slide_origdata_interp_data_vert(
 	if (sod->layer_math_map_num) {
 		if (do_loop_weight) {
 			for (j = 0; j < sod->layer_math_map_num; j++) {
-				 BM_vert_loop_groups_data_layer_merge_weights(bm, sv->cd_loop_groups[j], sod->layer_math_map[j], loop_weights);
+				BM_vert_loop_groups_data_layer_merge_weights(bm, sv->cd_loop_groups[j], sod->layer_math_map[j], loop_weights);
 			}
 		}
 		else {
 			for (j = 0; j < sod->layer_math_map_num; j++) {
-				 BM_vert_loop_groups_data_layer_merge(bm, sv->cd_loop_groups[j], sod->layer_math_map[j]);
+				BM_vert_loop_groups_data_layer_merge(bm, sv->cd_loop_groups[j], sod->layer_math_map[j]);
 			}
 		}
 	}
@@ -7985,7 +7980,7 @@ static void headerSeqSlide(TransInfo *t, const float val[2], char str[UI_MAX_DRA
 	if (t->keymap) {
 		wmKeyMapItem *kmi = WM_modalkeymap_find_propvalue(t->keymap, TFM_MODAL_TRANSLATE);
 		if (kmi) {
-			ofs += WM_keymap_item_to_string(kmi, false, UI_MAX_DRAW_STR - ofs, str + ofs);
+			ofs += WM_keymap_item_to_string(kmi, false, str + ofs, UI_MAX_DRAW_STR - ofs);
 		}
 	}
 	ofs += BLI_snprintf(str + ofs, UI_MAX_DRAW_STR - ofs, IFACE_(" or Alt) Expand to fit %s"),
@@ -8356,8 +8351,15 @@ static void initTimeSlide(TransInfo *t)
 
 		TransData  *td = t->data;
 		for (i = 0; i < t->total; i++, td++) {
-			if (min > *(td->val)) min = *(td->val);
-			if (max < *(td->val)) max = *(td->val);
+			AnimData *adt = (t->spacetype != SPACE_NLA) ? td->extra : NULL;
+			float val = *(td->val);
+			
+			/* strip/action time to global (mapped) time */
+			if (adt)
+				val = BKE_nla_tweakedit_remap(adt, val, NLATIME_CONVERT_MAP);
+			
+			if (min > val) min = val;
+			if (max < val) max = val;
 		}
 
 		if (min == max) {
@@ -8432,24 +8434,37 @@ static void applyTimeSlideValue(TransInfo *t, float sval)
 		 */
 		AnimData *adt = (t->spacetype != SPACE_NLA) ? td->extra : NULL;
 		float cval = t->values[0];
-
-		/* apply NLA-mapping to necessary values */
-		if (adt)
-			cval = BKE_nla_tweakedit_remap(adt, cval, NLATIME_CONVERT_UNMAP);
-
+		
 		/* only apply to data if in range */
 		if ((sval > minx) && (sval < maxx)) {
 			float cvalc = CLAMPIS(cval, minx, maxx);
+			float ival = td->ival;
 			float timefac;
-
+			
+			/* NLA mapping magic here works as follows:
+			 * - "ival" goes from strip time to global time
+			 * - calculation is performed into td->val in global time
+			 *   (since sval and min/max are all in global time)
+			 * - "td->val" then gets put back into strip time
+			 */
+			if (adt) {
+				/* strip to global */
+				ival = BKE_nla_tweakedit_remap(adt, ival, NLATIME_CONVERT_MAP);
+			}
+			
 			/* left half? */
-			if (td->ival < sval) {
-				timefac = (sval - td->ival) / (sval - minx);
+			if (ival < sval) {
+				timefac = (sval - ival) / (sval - minx);
 				*(td->val) = cvalc - timefac * (cvalc - minx);
 			}
 			else {
-				timefac = (td->ival - sval) / (maxx - sval);
+				timefac = (ival - sval) / (maxx - sval);
 				*(td->val) = cvalc + timefac * (maxx - cvalc);
+			}
+			
+			if (adt) {
+				/* global to strip */
+				*(td->val) = BKE_nla_tweakedit_remap(adt, *(td->val), NLATIME_CONVERT_UNMAP);
 			}
 		}
 	}
@@ -8509,9 +8524,11 @@ static void initTimeScale(TransInfo *t)
 
 	/* recalculate center2d to use CFRA and mouse Y, since that's
 	 * what is used in time scale */
-	t->center[0] = t->scene->r.cfra;
-	projectFloatView(t, t->center, center);
-	center[1] = t->mouse.imval[1];
+	if ((t->flag & T_OVERRIDE_CENTER) == 0) {
+		t->center[0] = t->scene->r.cfra;
+		projectFloatView(t, t->center, center);
+		center[1] = t->mouse.imval[1];
+	}
 
 	/* force a reinit with the center2d used here */
 	initMouseInput(t, &t->mouse, center, t->mouse.imval, false);

@@ -893,6 +893,11 @@ int GHOST_toggleConsole(int action)
 	return system->toggleConsole(action);
 }
 
+int GHOST_SupportsNativeDialogs(void)
+{
+	GHOST_ISystem *system = GHOST_ISystem::getSystem();
+	return system->supportsNativeDialogs();
+}
 
 int GHOST_confirmQuit(GHOST_WindowHandle windowhandle)
 {
@@ -912,6 +917,12 @@ float GHOST_GetNativePixelSize(GHOST_WindowHandle windowhandle)
 	if (window)
 		return window->getNativePixelSize();
 	return 1.0f;
+}
+
+GHOST_TUns16 GHOST_GetDPIHint(GHOST_WindowHandle windowhandle)
+{
+	GHOST_IWindow *window = (GHOST_IWindow *)windowhandle;
+	return window->getDPIHint();
 }
 
 #ifdef WITH_INPUT_IME

@@ -189,16 +189,18 @@ void geom(
 }
 
 void particle_info(
-        vec4 sprops, vec3 loc, vec3 vel, vec3 avel,
-        out float index, out float age, out float life_time, out vec3 location,
+        vec4 sprops, vec4 loc, vec3 vel, vec3 avel,
+        out float index, out float random, out float age,
+        out float life_time, out vec3 location,
         out float size, out vec3 velocity, out vec3 angular_velocity)
 {
 	index = sprops.x;
+	random = loc.w;
 	age = sprops.y;
 	life_time = sprops.z;
 	size = sprops.w;
 
-	location = loc;
+	location = loc.xyz;
 	velocity = vel;
 	angular_velocity = avel;
 }
@@ -403,7 +405,7 @@ void math_modulo(float val1, float val2, out float outval)
 
 	/* change sign to match C convention, mod in GLSL will take absolute for negative numbers,
 	 * see https://www.opengl.org/sdk/docs/man/html/mod.xhtml */
-	outval = (val1 > 0.0) ? outval : -outval;
+	outval = (val1 > 0.0) ? outval : outval - val2;
 }
 
 void math_abs(float val1, out float outval)
@@ -954,8 +956,8 @@ void texco_orco(vec3 attorco, out vec3 orco)
 
 void texco_uv(vec2 attuv, out vec3 uv)
 {
-	/* disabled for now, works together with leaving out mtex_2d_mapping
-	   uv = vec3(attuv*2.0 - vec2(1.0, 1.0), 0.0); */
+	/* disabled for now, works together with leaving out mtex_2d_mapping */
+	// uv = vec3(attuv*2.0 - vec2(1.0, 1.0), 0.0); */
 	uv = vec3(attuv, 0.0);
 }
 
@@ -2378,11 +2380,19 @@ void shade_alpha_obcolor(vec4 col, vec4 obcol, out vec4 outcol)
 
 /*********** NEW SHADER UTILITIES **************/
 
-float fresnel_dielectric(vec3 Incoming, vec3 Normal, float eta)
+float fresnel_dielectric_0(float eta)
+{
+	/* compute fresnel reflactance at normal incidence => cosi = 1.0 */
+	float A = (eta - 1.0) / (eta + 1.0);
+
+	return A * A;
+}
+
+float fresnel_dielectric_cos(float cosi, float eta)
 {
 	/* compute fresnel reflectance without explicitly computing
 	 * the refracted direction */
-	float c = abs(dot(Incoming, Normal));
+	float c = abs(cosi);
 	float g = eta * eta - 1.0 + c * c;
 	float result;
 
@@ -2397,6 +2407,13 @@ float fresnel_dielectric(vec3 Incoming, vec3 Normal, float eta)
 	}
 
 	return result;
+}
+
+float fresnel_dielectric(vec3 Incoming, vec3 Normal, float eta)
+{
+	/* compute fresnel reflectance without explicitly computing
+	 * the refracted direction */
+	return fresnel_dielectric_cos(dot(Incoming, Normal), eta);
 }
 
 float hypot(float x, float y)
@@ -2463,8 +2480,7 @@ uint hash(int kx, int ky, int kz)
 
 float bits_to_01(uint bits)
 {
-	float x = float(bits) * (1.0 / float(0xffffffffu));
-	return x;
+	return (float(bits) / 4294967295.0);
 }
 
 float cellnoise(vec3 p)
@@ -2491,6 +2507,61 @@ float floorfrac(float x, out int i)
 	i = floor_to_int(x);
 	return x - i;
 }
+
+
+/* Principled BSDF operations */
+
+float sqr(float a)
+{
+	return a*a;
+}
+
+float schlick_fresnel(float u)
+{
+	float m = clamp(1.0 - u, 0.0, 1.0);
+	float m2 = m * m;
+	return m2 * m2 * m; // pow(m,5)
+}
+
+float GTR1(float NdotH, float a)
+{
+	if (a >= 1.0) {
+		return M_1_PI;
+	}
+
+	a = max(a, 0.001);
+	float a2 = a*a;
+	float t = 1.0 + (a2 - 1.0) * NdotH*NdotH;
+	return (a2 - 1.0) / (M_PI * log(a2) * t);
+}
+
+float GTR2(float NdotH, float a)
+{
+	float a2 = a*a;
+	float t = 1.0 + (a2 - 1.0) * NdotH*NdotH;
+	return a2 / (M_PI * t*t);
+}
+
+float GTR2_aniso(float NdotH, float HdotX, float HdotY, float ax, float ay)
+{
+	return 1.0 / (M_PI * ax*ay * sqr(sqr(HdotX / ax) + sqr(HdotY / ay) + NdotH*NdotH));
+}
+
+float smithG_GGX(float NdotV, float alphaG)
+{
+	float a = alphaG*alphaG;
+	float b = NdotV*NdotV;
+	return 1.0 / (NdotV + sqrt(a + b - a * b));
+}
+
+vec3 rotate_vector(vec3 p, vec3 n, float theta) {
+	return (
+	           p * cos(theta) + cross(n, p) *
+	           sin(theta) + n * dot(p, n) *
+	           (1.0 - cos(theta))
+	       );
+}
+
 
 /*********** NEW SHADER NODES ***************/
 
@@ -2528,7 +2599,8 @@ void node_bsdf_glossy(vec4 color, float roughness, vec3 N, out vec4 result)
 		vec3 light_specular = gl_LightSource[i].specular.rgb;
 
 		/* we mix in some diffuse so low roughness still shows up */
-		float bsdf = 0.5 * pow(max(dot(N, H), 0.0), 1.0 / roughness);
+		float r2 = roughness * roughness;
+		float bsdf = 0.5 * pow(max(dot(N, H), 0.0), 1.0 / r2);
 		bsdf += 0.5 * max(dot(N, light_position), 0.0);
 		L += light_specular * bsdf;
 	}
@@ -2551,6 +2623,125 @@ void node_bsdf_glass(vec4 color, float roughness, float ior, vec3 N, out vec4 re
 void node_bsdf_toon(vec4 color, float size, float tsmooth, vec3 N, out vec4 result)
 {
 	node_bsdf_diffuse(color, 0.0, N, result);
+}
+
+void node_bsdf_principled(vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
+	float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
+	float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, out vec4 result)
+{
+	/* ambient light */
+	// TODO: set ambient light to an appropriate value
+	vec3 L = mix(0.1, 0.03, metallic) * mix(base_color.rgb, subsurface_color.rgb, subsurface * (1.0 - metallic));
+
+	float eta = (2.0 / (1.0 - sqrt(0.08 * specular))) - 1.0;
+
+	/* set the viewing vector */
+	vec3 V = (gl_ProjectionMatrix[3][3] == 0.0) ? -normalize(I) : vec3(0.0, 0.0, 1.0);
+
+	/* get the tangent */
+	vec3 Tangent = T;
+	if (T == vec3(0.0)) {
+		// if no tangent is set, use a default tangent
+		if(N.x != N.y || N.x != N.z) {
+			Tangent = vec3(N.z-N.y, N.x-N.z, N.y-N.x);  // (1,1,1) x N
+		}
+		else {
+			Tangent = vec3(N.z-N.y, N.x+N.z, -N.y-N.x);  // (-1,1,1) x N
+		}
+	}
+
+	/* rotate tangent */
+	if (anisotropic_rotation != 0.0) {
+		Tangent = rotate_vector(Tangent, N, anisotropic_rotation * 2.0 * M_PI);
+	}
+
+	/* calculate the tangent and bitangent */
+	vec3 Y = normalize(cross(N, Tangent));
+	vec3 X = cross(Y, N);
+
+	/* fresnel normalization parameters */
+	float F0 = fresnel_dielectric_0(eta);
+	float F0_norm = 1.0 / (1.0 - F0);
+
+	/* directional lights */
+	for (int i = 0; i < NUM_LIGHTS; i++) {
+		vec3 light_position_world = gl_LightSource[i].position.xyz;
+		vec3 light_position = normalize(light_position_world);
+
+		vec3 H = normalize(light_position + V);
+
+		vec3 light_diffuse = gl_LightSource[i].diffuse.rgb;
+		vec3 light_specular = gl_LightSource[i].specular.rgb;
+
+		float NdotL = dot(N, light_position);
+		float NdotV = dot(N, V);
+		float LdotH = dot(light_position, H);
+
+		vec3 diffuse_and_specular_bsdf = vec3(0.0);
+		if (NdotL >= 0.0 && NdotV >= 0.0) {
+			float NdotH = dot(N, H);
+
+			float Cdlum = 0.3 * base_color.r + 0.6 * base_color.g + 0.1 * base_color.b; // luminance approx.
+
+			vec3 Ctint = Cdlum > 0 ? base_color.rgb / Cdlum : vec3(1.0); // normalize lum. to isolate hue+sat
+			vec3 Cspec0 = mix(specular * 0.08 * mix(vec3(1.0), Ctint, specular_tint), base_color.rgb, metallic);
+			vec3 Csheen = mix(vec3(1.0), Ctint, sheen_tint);
+
+			// Diffuse fresnel - go from 1 at normal incidence to .5 at grazing
+			// and mix in diffuse retro-reflection based on roughness
+
+			float FL = schlick_fresnel(NdotL), FV = schlick_fresnel(NdotV);
+			float Fd90 = 0.5 + 2.0 * LdotH*LdotH * roughness;
+			float Fd = mix(1.0, Fd90, FL) * mix(1.0, Fd90, FV);
+
+			// Based on Hanrahan-Krueger brdf approximation of isotropic bssrdf
+			// 1.25 scale is used to (roughly) preserve albedo
+			// Fss90 used to "flatten" retroreflection based on roughness
+			float Fss90 = LdotH*LdotH * roughness;
+			float Fss = mix(1.0, Fss90, FL) * mix(1.0, Fss90, FV);
+			float ss = 1.25 * (Fss * (1.0 / (NdotL + NdotV) - 0.5) + 0.5);
+
+			// specular
+			float aspect = sqrt(1.0 - anisotropic * 0.9);
+			float a = sqr(roughness);
+			float ax = max(0.001, a / aspect);
+			float ay = max(0.001, a * aspect);
+			float Ds = GTR2_aniso(NdotH, dot(H, X), dot(H, Y), ax, ay); //GTR2(NdotH, a);
+			float FH = (fresnel_dielectric_cos(LdotH, eta) - F0) * F0_norm;
+			vec3 Fs = mix(Cspec0, vec3(1.0), FH);
+			float roughg = sqr(roughness * 0.5 + 0.5);
+			float Gs = smithG_GGX(NdotL, roughg) * smithG_GGX(NdotV, roughg);
+
+			// sheen
+			vec3 Fsheen = schlick_fresnel(LdotH) * sheen * Csheen;
+
+			vec3 diffuse_bsdf = (mix(Fd * base_color.rgb, ss * subsurface_color.rgb, subsurface) + Fsheen) * light_diffuse;
+			vec3 specular_bsdf = Gs * Fs * Ds * light_specular;
+			diffuse_and_specular_bsdf = diffuse_bsdf * (1.0 - metallic) + specular_bsdf;
+		}
+		diffuse_and_specular_bsdf *= max(NdotL, 0.0);
+
+		float CNdotL = dot(CN, light_position);
+		float CNdotV = dot(CN, V);
+
+		vec3 clearcoat_bsdf = vec3(0.0);
+		if (CNdotL >= 0.0 && CNdotV >= 0.0 && clearcoat > 0.0) {
+			float CNdotH = dot(CN, H);
+			//float FH = schlick_fresnel(LdotH);
+
+			// clearcoat (ior = 1.5 -> F0 = 0.04)
+			float Dr = GTR1(CNdotH, sqr(clearcoat_roughness));
+			float Fr = fresnel_dielectric_cos(LdotH, 1.5); //mix(0.04, 1.0, FH);
+			float Gr = smithG_GGX(CNdotL, 0.25) * smithG_GGX(CNdotV, 0.25);
+
+			clearcoat_bsdf = clearcoat * Gr * Fr * Dr * vec3(0.25) * light_specular;
+		}
+		clearcoat_bsdf *= max(CNdotL, 0.0);
+
+		L += diffuse_and_specular_bsdf + clearcoat_bsdf;
+	}
+
+	result = vec4(L, 1.0);
 }
 
 void node_bsdf_translucent(vec4 color, vec3 N, out vec4 result)
@@ -2782,7 +2973,10 @@ float calc_gradient(vec3 p, int gradient_type)
 		return atan(y, x) / (M_PI * 2) + 0.5;
 	}
 	else {
-		float r = max(1.0 - sqrt(x * x + y * y + z * z), 0.0);
+		/* Bias a little bit for the case where p is a unit length vector,
+		 * to get exactly zero instead of a small random value depending
+		 * on float precision. */
+		float r = max(0.999999 - sqrt(x * x + y * y + z * z), 0.0);
 		if (gradient_type == 5) {  /* quadratic sphere */
 			return r * r;
 		}
@@ -2846,10 +3040,10 @@ vec2 calc_brick_texture(vec3 p, float mortar_size, float mortar_smooth, float bi
 	float tint = clamp((integer_noise((rownum << 16) + (bricknum & 0xFFFF)) + bias), 0.0, 1.0);
 
 	float min_dist = min(min(x, y), min(brick_width - x, row_height - y));
-	if(min_dist >= mortar_size) {
+	if (min_dist >= mortar_size) {
 		return vec2(tint, 0.0);
 	}
-	else if(mortar_smooth == 0.0) {
+	else if (mortar_smooth == 0.0) {
 		return vec2(tint, 1.0);
 	}
 	else {
@@ -2931,15 +3125,17 @@ void node_tex_image(vec3 co, sampler2D ima, out vec4 color, out float alpha)
 }
 
 void node_tex_image_box(vec3 texco,
-                        vec3 nob,
+                        vec3 N,
                         sampler2D ima,
                         float blend,
                         out vec4 color,
                         out float alpha)
 {
+	vec3 signed_N = N;
+
 	/* project from direction vector to barycentric coordinates in triangles */
-	nob = vec3(abs(nob.x), abs(nob.y), abs(nob.z));
-	nob /= (nob.x + nob.y + nob.z);
+	N = vec3(abs(N.x), abs(N.y), abs(N.z));
+	N /= (N.x + N.y + N.z);
 
 	/* basic idea is to think of this as a triangle, each corner representing
 	 * one of the 3 faces of the cube. in the corners we have single textures,
@@ -2955,37 +3151,37 @@ void node_tex_image_box(vec3 texco,
 	float limit = 0.5 * (1.0 + blend);
 
 	/* first test for corners with single texture */
-	if (nob.x > limit * (nob.x + nob.y) && nob.x > limit * (nob.x + nob.z)) {
+	if (N.x > limit * (N.x + N.y) && N.x > limit * (N.x + N.z)) {
 		weight.x = 1.0;
 	}
-	else if (nob.y > limit * (nob.x + nob.y) && nob.y > limit * (nob.y + nob.z)) {
+	else if (N.y > limit * (N.x + N.y) && N.y > limit * (N.y + N.z)) {
 		weight.y = 1.0;
 	}
-	else if (nob.z > limit * (nob.x + nob.z) && nob.z > limit * (nob.y + nob.z)) {
+	else if (N.z > limit * (N.x + N.z) && N.z > limit * (N.y + N.z)) {
 		weight.z = 1.0;
 	}
 	else if (blend > 0.0) {
 		/* in case of blending, test for mixes between two textures */
-		if (nob.z < (1.0 - limit) * (nob.y + nob.x)) {
-			weight.x = nob.x / (nob.x + nob.y);
+		if (N.z < (1.0 - limit) * (N.y + N.x)) {
+			weight.x = N.x / (N.x + N.y);
 			weight.x = clamp((weight.x - 0.5 * (1.0 - blend)) / blend, 0.0, 1.0);
 			weight.y = 1.0 - weight.x;
 		}
-		else if (nob.x < (1.0 - limit) * (nob.y + nob.z)) {
-			weight.y = nob.y / (nob.y + nob.z);
+		else if (N.x < (1.0 - limit) * (N.y + N.z)) {
+			weight.y = N.y / (N.y + N.z);
 			weight.y = clamp((weight.y - 0.5 * (1.0 - blend)) / blend, 0.0, 1.0);
 			weight.z = 1.0 - weight.y;
 		}
-		else if (nob.y < (1.0 - limit) * (nob.x + nob.z)) {
-			weight.x = nob.x / (nob.x + nob.z);
+		else if (N.y < (1.0 - limit) * (N.x + N.z)) {
+			weight.x = N.x / (N.x + N.z);
 			weight.x = clamp((weight.x - 0.5 * (1.0 - blend)) / blend, 0.0, 1.0);
 			weight.z = 1.0 - weight.x;
 		}
 		else {
 			/* last case, we have a mix between three */
-			weight.x = ((2.0 - limit) * nob.x + (limit - 1.0)) / (2.0 * limit - 1.0);
-			weight.y = ((2.0 - limit) * nob.y + (limit - 1.0)) / (2.0 * limit - 1.0);
-			weight.z = ((2.0 - limit) * nob.z + (limit - 1.0)) / (2.0 * limit - 1.0);
+			weight.x = ((2.0 - limit) * N.x + (limit - 1.0)) / (2.0 * limit - 1.0);
+			weight.y = ((2.0 - limit) * N.y + (limit - 1.0)) / (2.0 * limit - 1.0);
+			weight.z = ((2.0 - limit) * N.z + (limit - 1.0)) / (2.0 * limit - 1.0);
 		}
 	}
 	else {
@@ -2994,13 +3190,25 @@ void node_tex_image_box(vec3 texco,
 	}
 	color = vec4(0);
 	if (weight.x > 0.0) {
-		color += weight.x * texture2D(ima, texco.yz);
+		vec2 uv = texco.yz;
+		if(signed_N.x < 0.0) {
+			uv.x = 1.0 - uv.x;
+		}
+		color += weight.x * texture2D(ima, uv);
 	}
 	if (weight.y > 0.0) {
-		color += weight.y * texture2D(ima, texco.xz);
+		vec2 uv = texco.xz;
+		if(signed_N.y > 0.0) {
+			uv.x = 1.0 - uv.x;
+		}
+		color += weight.y * texture2D(ima, uv);
 	}
 	if (weight.z > 0.0) {
-		color += weight.z * texture2D(ima, texco.yx);
+		vec2 uv = texco.yx;
+		if(signed_N.z > 0.0) {
+			uv.x = 1.0 - uv.x;
+		}
+		color += weight.z * texture2D(ima, uv);
 	}
 
 	alpha = color.a;
@@ -3108,17 +3316,29 @@ float noise_perlin(float x, float y, float z)
 	float v = noise_fade(fy);
 	float w = noise_fade(fz);
 
-	float result;
+	float noise_u[2], noise_v[2];
 
-	result = noise_nerp(w, noise_nerp(v, noise_nerp(u, noise_grad(hash(X, Y, Z), fx, fy, fz),
-	                                                noise_grad(hash(X + 1, Y, Z), fx - 1.0, fy, fz)),
-	                                  noise_nerp(u, noise_grad(hash(X, Y + 1, Z), fx, fy - 1.0, fz),
-	                                             noise_grad(hash(X + 1, Y + 1, Z), fx - 1.0, fy - 1.0, fz))),
-	                    noise_nerp(v, noise_nerp(u, noise_grad(hash(X, Y, Z + 1), fx, fy, fz - 1.0),
-	                                             noise_grad(hash(X + 1, Y, Z + 1), fx - 1.0, fy, fz - 1.0)),
-	                               noise_nerp(u, noise_grad(hash(X, Y + 1, Z + 1), fx, fy - 1.0, fz - 1.0),
-	                                          noise_grad(hash(X + 1, Y + 1, Z + 1), fx - 1.0, fy - 1.0, fz - 1.0))));
-	return noise_scale3(result);
+	noise_u[0] = noise_nerp(u,
+	        noise_grad(hash(X, Y, Z), fx, fy, fz),
+	        noise_grad(hash(X + 1, Y, Z), fx - 1.0, fy, fz));
+
+	noise_u[1] = noise_nerp(u,
+	        noise_grad(hash(X, Y + 1, Z), fx, fy - 1.0, fz),
+	        noise_grad(hash(X + 1, Y + 1, Z), fx - 1.0, fy - 1.0, fz));
+
+	noise_v[0] = noise_nerp(v, noise_u[0], noise_u[1]);
+
+	noise_u[0] = noise_nerp(u,
+	        noise_grad(hash(X, Y, Z + 1), fx, fy, fz - 1.0),
+	        noise_grad(hash(X + 1, Y, Z + 1), fx - 1.0, fy, fz - 1.0));
+
+	noise_u[1] = noise_nerp(u,
+	        noise_grad(hash(X, Y + 1, Z + 1), fx, fy - 1.0, fz - 1.0),
+	        noise_grad(hash(X + 1, Y + 1, Z + 1), fx - 1.0, fy - 1.0, fz - 1.0));
+
+	noise_v[1] = noise_nerp(v, noise_u[0], noise_u[1]);
+
+	return noise_scale3(noise_nerp(w, noise_v[0], noise_v[1]));
 }
 
 float noise(vec3 p)
@@ -3563,12 +3783,12 @@ void node_light_falloff(float strength, float tsmooth, out float quadratic, out 
 	constant = strength;
 }
 
-void node_object_info(out vec3 location, out float object_index, out float material_index, out float random)
+void node_object_info(mat4 obmat, vec3 info, out vec3 location, out float object_index, out float material_index, out float random)
 {
-	location = vec3(0.0);
-	object_index = 0.0;
-	material_index = 0.0;
-	random = 0.0;
+	location = obmat[3].xyz;
+	object_index = info.x;
+	material_index = info.y;
+	random = info.z;
 }
 
 void node_normal_map(vec4 tangent, vec3 normal, vec3 texnormal, out vec3 outnormal)
@@ -3605,9 +3825,48 @@ void node_bump(float strength, float dist, float height, vec3 N, vec3 surf_pos, 
 	result = normalize(strength * result + (1.0 - strength) * N);
 }
 
+void node_bevel(float radius, vec3 N, out vec3 result)
+{
+	result = N;
+}
+
+void node_displacement_object(float height, float midlevel, float scale, vec3 N, mat4 obmat, out vec3 result)
+{
+	N = (vec4(N, 0.0) * obmat).xyz;
+	result = (height - midlevel) * scale * normalize(N);
+	result = (obmat * vec4(result, 0.0)).xyz;
+}
+
+void node_displacement_world(float height, float midlevel, float scale, vec3 N, out vec3 result)
+{
+	result = (height - midlevel) * scale * normalize(N);
+}
+
+void node_vector_displacement_tangent(vec4 vector, float midlevel, float scale, vec4 tangent, vec3 normal, mat4 obmat, mat4 viewmat, out vec3 result)
+{
+	vec3 N_object = normalize(((vec4(normal, 0.0) * viewmat) * obmat).xyz);
+	vec3 T_object = normalize(((vec4(tangent.xyz, 0.0) * viewmat) * obmat).xyz);
+	vec3 B_object = tangent.w * normalize(cross(N_object, T_object));
+
+	vec3 offset = (vector.xyz - vec3(midlevel)) * scale;
+	result = offset.x * T_object + offset.y * N_object + offset.z * B_object;
+	result = (obmat * vec4(result, 0.0)).xyz;
+}
+
+void node_vector_displacement_object(vec4 vector, float midlevel, float scale, mat4 obmat, out vec3 result)
+{
+	result = (vector.xyz - vec3(midlevel)) * scale;
+	result = (obmat * vec4(result, 0.0)).xyz;
+}
+
+void node_vector_displacement_world(vec4 vector, float midlevel, float scale, out vec3 result)
+{
+	result = (vector.xyz - vec3(midlevel)) * scale;
+}
+
 /* output */
 
-void node_output_material(vec4 surface, vec4 volume, float displacement, out vec4 result)
+void node_output_material(vec4 surface, vec4 volume, vec3 displacement, out vec4 result)
 {
 	result = surface;
 }

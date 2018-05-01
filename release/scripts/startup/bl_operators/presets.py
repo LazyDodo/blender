@@ -65,8 +65,10 @@ class AddPresetBase:
                 setattr(cls, attr, trans)
             return trans
 
+        name = name.lower().strip()
+        name = bpy.path.display_name_to_filepath(name)
         trans = maketrans_init()
-        return name.lower().strip().translate(trans)
+        return name.translate(trans)
 
     def execute(self, context):
         import os
@@ -135,7 +137,7 @@ class AddPresetBase:
 
                             file_preset.write("%s = %r\n" % (rna_path_step, value))
 
-                    file_preset = open(filepath, 'w')
+                    file_preset = open(filepath, 'w', encoding="utf-8")
                     file_preset.write("import bpy\n")
 
                     if hasattr(self, "preset_defines"):
@@ -680,3 +682,26 @@ class AddPresetUnitsLength(AddPresetBase, Operator):
     ]
 
     preset_subdir = "units_length"
+
+
+classes = (
+    AddPresetCamera,
+    AddPresetCloth,
+    AddPresetFluid,
+    AddPresetHairDynamics,
+    AddPresetInteraction,
+    AddPresetInterfaceTheme,
+    AddPresetKeyconfig,
+    AddPresetNodeColor,
+    AddPresetOperator,
+    AddPresetRender,
+    AddPresetSSS,
+    AddPresetSafeAreas,
+    AddPresetSunSky,
+    AddPresetTrackingCamera,
+    AddPresetTrackingSettings,
+    AddPresetTrackingTrackColor,
+    AddPresetUnitsLength,
+    ExecutePreset,
+    WM_MT_operator_presets,
+)

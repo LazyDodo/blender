@@ -33,6 +33,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "CLG_log.h"
+
 #include "BLI_utildefines.h"
 #include "BLI_path_util.h"
 #include "BLI_fileops.h"
@@ -47,7 +49,7 @@
 #include "gpu.h"
 #include "bpy_rna.h"
 #include "bpy_path.h"
-#include "bpy_util.h"
+#include "bpy_capi_utils.h"
 #include "bpy_traceback.h"
 #include "bpy_intern_string.h"
 
@@ -75,6 +77,9 @@
 #include "../bmesh/bmesh_py_api.h"
 #include "../mathutils/mathutils.h"
 
+/* Logging types to use anywhere in the Python modules. */
+CLG_LOGREF_DECLARE_GLOBAL(BPY_LOG_CONTEXT, "bpy.context");
+CLG_LOGREF_DECLARE_GLOBAL(BPY_LOG_RNA, "bpy.rna");
 
 /* for internal use, when starting and ending python scripts */
 
@@ -480,11 +485,20 @@ static bool python_script_exec(
 			 * object, but as written in the Python/C API Ref Manual, chapter 2,
 			 * 'FILE structs for different C libraries can be different and
 			 * incompatible'.
-			 * So now we load the script file data to a buffer */
+			 * So now we load the script file data to a buffer.
+			 *
+			 * Note on use of 'globals()', it's important not copy the dictionary because
+			 * tools may inspect 'sys.modules["__main__"]' for variables defined in the code
+			 * where using a copy of 'globals()' causes code execution
+			 * to leave the main namespace untouched. see: T51444
+			 *
+			 * This leaves us with the problem of variables being included,
+			 * currently this is worked around using 'dict.__del__' it's ugly but works.
+			 */
 			{
 				const char *pystring =
-				        "ns = globals().copy()\n"
-				        "with open(__file__, 'rb') as f: exec(compile(f.read(), __file__, 'exec'), ns)";
+				        "with open(__file__, 'rb') as f:"
+				        "exec(compile(f.read(), __file__, 'exec'), globals().__delitem__('f') or globals())";
 
 				fclose(fp);
 
@@ -572,21 +586,23 @@ void BPY_DECREF_RNA_INVALIDATE(void *pyob_ptr)
 /**
  * \return success
  */
-bool BPY_execute_string_as_number(bContext *C, const char *expr, double *value, const bool verbose)
+bool BPY_execute_string_as_number(bContext *C, const char *expr, const bool verbose, double *r_value)
 {
 	PyGILState_STATE gilstate;
 	bool ok = true;
 
-	if (!value || !expr) return -1;
+	if (!r_value || !expr) {
+		return -1;
+	}
 
 	if (expr[0] == '\0') {
-		*value = 0.0;
+		*r_value = 0.0;
 		return ok;
 	}
 
 	bpy_context_set(C, &gilstate);
 
-	ok = PyC_RunString_AsNumber(expr, value, "<blender button>");
+	ok = PyC_RunString_AsNumber(expr, "<blender button>", r_value);
 
 	if (ok == false) {
 		if (verbose) {
@@ -601,6 +617,42 @@ bool BPY_execute_string_as_number(bContext *C, const char *expr, double *value, 
 
 	return ok;
 }
+
+/**
+ * \return success
+ */
+bool BPY_execute_string_as_string(bContext *C, const char *expr, const bool verbose, char **r_value)
+{
+	PyGILState_STATE gilstate;
+	bool ok = true;
+
+	if (!r_value || !expr) {
+		return -1;
+	}
+
+	if (expr[0] == '\0') {
+		*r_value = NULL;
+		return ok;
+	}
+
+	bpy_context_set(C, &gilstate);
+
+	ok = PyC_RunString_AsString(expr, "<blender button>", r_value);
+
+	if (ok == false) {
+		if (verbose) {
+			BPy_errors_to_report_ex(CTX_wm_reports(C), false, false);
+		}
+		else {
+			PyErr_Clear();
+		}
+	}
+
+	bpy_context_clear(C, &gilstate);
+
+	return ok;
+}
+
 
 bool BPY_execute_string_ex(bContext *C, const char *expr, bool use_eval)
 {
@@ -753,8 +805,9 @@ int BPY_context_member_get(bContext *C, const char *member, bContextDataResult *
 					CTX_data_list_add(result, ptr->id.data, ptr->type, ptr->data);
 				}
 				else {
-					printf("PyContext: '%s' list item not a valid type in sequece type '%s'\n",
-					       member, Py_TYPE(item)->tp_name);
+					CLOG_INFO(BPY_LOG_CONTEXT, 1,
+					          "'%s' list item not a valid type in sequence type '%s'",
+					          member, Py_TYPE(item)->tp_name);
 				}
 
 			}
@@ -766,16 +819,14 @@ int BPY_context_member_get(bContext *C, const char *member, bContextDataResult *
 
 	if (done == false) {
 		if (item) {
-			printf("PyContext '%s' not a valid type\n", member);
+			CLOG_INFO(BPY_LOG_CONTEXT, 1, "'%s' not a valid type", member);
 		}
 		else {
-			printf("PyContext '%s' not found\n", member);
+			CLOG_INFO(BPY_LOG_CONTEXT, 1, "'%s' not found\n", member);
 		}
 	}
 	else {
-		if (G.debug & G_DEBUG_PYTHON) {
-			printf("PyContext '%s' found\n", member);
-		}
+		CLOG_INFO(BPY_LOG_CONTEXT, 2, "'%s' found", member);
 	}
 
 	if (use_gil)
@@ -822,6 +873,7 @@ static void bpy_module_delay_init(PyObject *bpy_proxy)
 
 	BLI_strncpy(filename_abs, filename_rel, sizeof(filename_abs));
 	BLI_path_cwd(filename_abs, sizeof(filename_abs));
+	Py_DECREF(filename_obj);
 
 	argv[0] = filename_abs;
 	argv[1] = NULL;

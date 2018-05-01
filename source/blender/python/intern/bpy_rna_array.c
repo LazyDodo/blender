@@ -28,15 +28,22 @@
 
 #include <Python.h>
 
+#include "CLG_log.h"
+
+#include "BLI_utildefines.h"
+
 #include "RNA_types.h"
 
 #include "bpy_rna.h"
 #include "BKE_global.h"
+
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
-
 #include "RNA_access.h"
+
+#include "BPY_extern_clog.h"
+
+#include "../generic/py_capi_utils.h"
 
 #define USE_MATHUTILS
 
@@ -550,7 +557,7 @@ static void py_to_float(const struct ItemConvertArgData *arg, PyObject *py, char
 static void py_to_int(const struct ItemConvertArgData *arg, PyObject *py, char *data)
 {
 	const int *range = arg->int_data.range;
-	int value = (int)PyLong_AsLong(py);
+	int value = PyC_Long_AsI32(py);
 	CLAMP(value, range[0], range[1]);
 	*(int *)data = value;
 }
@@ -782,8 +789,7 @@ PyObject *pyrna_py_from_array_index(BPy_PropertyArrayRNA *self, PointerRNA *ptr,
 	len = RNA_property_multi_array_length(ptr, prop, arraydim);
 	if (index >= len || index < 0) {
 		/* this shouldn't happen because higher level funcs must check for invalid index */
-		if (G.debug & G_DEBUG_PYTHON)
-			printf("%s: invalid index %d for array with length=%d\n", __func__, index, len);
+		CLOG_WARN(BPY_LOG_RNA, "invalid index %d for array with length=%d", index, len);
 
 		PyErr_SetString(PyExc_IndexError, "out of range");
 		return NULL;

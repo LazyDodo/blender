@@ -1,11 +1,10 @@
 /*
-
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -62,13 +61,14 @@
 #include "renderpipeline.h"
 #include "render_types.h"
 #include "render_result.h"
+#include "rendercore.h"
 
 /* Render Engine Types */
 
 static RenderEngineType internal_render_type = {
 	NULL, NULL,
 	"BLENDER_RENDER", N_("Blender Render"), RE_INTERNAL,
-	NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, render_internal_update_passes,
 	{NULL, NULL, NULL}
 };
 
@@ -77,7 +77,7 @@ static RenderEngineType internal_render_type = {
 static RenderEngineType internal_game_type = {
 	NULL, NULL,
 	"BLENDER_GAME", N_("Blender Game"), RE_INTERNAL | RE_GAME,
-	NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	{NULL, NULL, NULL}
 };
 
@@ -143,7 +143,7 @@ RenderEngine *RE_engine_create_ex(RenderEngineType *type, bool use_for_viewport)
 	if (use_for_viewport) {
 		engine->flag |= RE_ENGINE_USED_FOR_VIEWPORT;
 
-		BLI_begin_threaded_malloc();
+		BLI_threaded_malloc_begin();
 	}
 
 	return engine;
@@ -158,7 +158,7 @@ void RE_engine_free(RenderEngine *engine)
 #endif
 
 	if (engine->flag & RE_ENGINE_USED_FOR_VIEWPORT) {
-		BLI_end_threaded_malloc();
+		BLI_threaded_malloc_end();
 	}
 
 	MEM_freeN(engine);
@@ -212,6 +212,8 @@ RenderResult *RE_engine_begin_result(RenderEngine *engine, int x, int y, int w, 
 
 	/* can be NULL if we CLAMP the width or height to 0 */
 	if (result) {
+		render_result_clone_passes(re, result, viewname);
+
 		RenderPart *pa;
 
 		/* Copy EXR tile settings, so pipeline knows whether this is a result
@@ -245,7 +247,18 @@ void RE_engine_update_result(RenderEngine *engine, RenderResult *result)
 	}
 }
 
-void RE_engine_end_result(RenderEngine *engine, RenderResult *result, int cancel, int merge_results)
+void RE_engine_add_pass(RenderEngine *engine, const char *name, int channels, const char *chan_id, const char *layername)
+{
+	Render *re = engine->re;
+
+	if (!re || !re->result) {
+		return;
+	}
+
+	render_result_add_pass(re->result, name, channels, chan_id, layername, NULL);
+}
+
+void RE_engine_end_result(RenderEngine *engine, RenderResult *result, int cancel, int highlight, int merge_results)
 {
 	Render *re = engine->re;
 
@@ -254,12 +267,12 @@ void RE_engine_end_result(RenderEngine *engine, RenderResult *result, int cancel
 	}
 
 	/* merge. on break, don't merge in result for preview renders, looks nicer */
-	if (!cancel) {
+	if (!highlight) {
 		/* for exr tile render, detect tiles that are done */
 		RenderPart *pa = get_part_from_result(re, result);
 
 		if (pa) {
-			pa->status = PART_STATUS_READY;
+			pa->status = (!cancel && merge_results)? PART_STATUS_MERGED: PART_STATUS_RENDERED;
 		}
 		else if (re->result->do_exr_tile) {
 			/* if written result does not match any tile and we are using save
@@ -270,7 +283,7 @@ void RE_engine_end_result(RenderEngine *engine, RenderResult *result, int cancel
 
 	if (!cancel || merge_results) {
 		if (re->result->do_exr_tile) {
-			if (!cancel) {
+			if (!cancel && merge_results) {
 				render_result_exr_file_merge(re->result, result, re->viewname);
 			}
 		}
@@ -287,6 +300,11 @@ void RE_engine_end_result(RenderEngine *engine, RenderResult *result, int cancel
 	/* free */
 	BLI_remlink(&engine->fullresult, result);
 	render_result_free(result);
+}
+
+RenderResult *RE_engine_get_result(RenderEngine *engine)
+{
+	return engine->re->result;
 }
 
 /* Cancel */
@@ -489,7 +507,7 @@ bool RE_bake_engine(
         Render *re, Object *object,
         const int object_id, const BakePixel pixel_array[],
         const size_t num_pixels, const int depth,
-        const ScenePassType pass_type, const int pass_filter,
+        const eScenePassType pass_type, const int pass_filter,
         float result[])
 {
 	RenderEngineType *type = RE_engines_find(re->r.engine);
@@ -760,3 +778,22 @@ int RE_engine_render(Render *re, int do_all)
 	return 1;
 }
 
+void RE_engine_register_pass(struct RenderEngine *engine, struct Scene *scene, struct SceneRenderLayer *srl,
+                             const char *name, int UNUSED(channels), const char *UNUSED(chanid), int type)
+{
+	/* The channel information is currently not used, but is part of the API in case it's needed in the future. */
+
+	if (!(scene && srl && engine)) {
+		return;
+	}
+
+	/* Register the pass in all scenes that have a render layer node for this layer.
+	 * Since multiple scenes can be used in the compositor, the code must loop over all scenes
+	 * and check whether their nodetree has a node that needs to be updated. */
+	Scene *sce;
+	for (sce = G.main->scene.first; sce; sce = sce->id.next) {
+		if (sce->nodetree) {
+			ntreeCompositRegisterPass(sce->nodetree, scene, srl, name, type);
+		}
+	}
+}

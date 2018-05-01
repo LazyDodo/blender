@@ -254,6 +254,7 @@ typedef struct bPoseChannel {
 	float roll1, roll2;
 	float curveInX, curveInY;
 	float curveOutX, curveOutY;
+	float ease1, ease2;
 	float scaleIn, scaleOut;
 	
 	struct bPoseChannel *bbone_prev; /* next/prev bones to use as handle references when calculating bbones (optional) */
@@ -376,7 +377,12 @@ typedef enum eRotationModes {
 typedef struct bPose {
 	ListBase chanbase;          /* list of pose channels, PoseBones in RNA */
 	struct GHash *chanhash;     /* ghash for quicker string lookups */
-	
+
+	/* Flat array of pose channels. It references pointers from
+	 * chanbase. Used for quick pose channel lookup from an index.
+	 */
+	bPoseChannel **chan_array;
+
 	short flag, pad;
 	unsigned int proxy_layer;   /* proxy layer: copy from armature, gets synced */
 	int pad1;
@@ -514,7 +520,7 @@ typedef enum eActionGroup_Flag {
 	AGRP_MODIFIERS_OFF = (1 << 7),
 	
 	AGRP_TEMP       = (1 << 30),
-	AGRP_MOVED      = (1 << 31)
+	AGRP_MOVED      = (1u << 31)
 } eActionGroup_Flag;
 
 
@@ -749,7 +755,7 @@ typedef struct bActionChannel {
 } bActionChannel;
 
 /* Action Channel flags (ONLY USED FOR DO_VERSIONS...) */
-typedef enum ACHAN_FLAG {
+typedef enum eActionChannelFlag {
 	ACHAN_SELECTED  = (1 << 0),
 	ACHAN_HIGHLIGHTED = (1 << 1),
 	ACHAN_HIDDEN    = (1 << 2),
@@ -757,7 +763,7 @@ typedef enum ACHAN_FLAG {
 	ACHAN_EXPANDED  = (1 << 4),
 	ACHAN_SHOWIPO   = (1 << 5),
 	ACHAN_SHOWCONS  = (1 << 6),
-	ACHAN_MOVED     = (1 << 31)
-} ACHAN_FLAG; 
+	ACHAN_MOVED     = (1u << 31)
+} eActionChannelFlag;
 
 #endif  /* __DNA_ACTION_TYPES_H__ */

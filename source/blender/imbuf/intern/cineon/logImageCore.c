@@ -38,6 +38,8 @@
 #include "BLI_fileops.h"
 #include "BLI_utildefines.h"
 
+#include "IMB_imbuf.h"
+
 #include "MEM_guardedalloc.h"
 
 /*
@@ -162,7 +164,7 @@ void logImageGetSize(LogImageFile *logImage, int *width, int *height, int *depth
  * Helper
  */
 
-unsigned int getRowLength(int width, LogImageElement logElement)
+size_t getRowLength(size_t width, LogImageElement logElement)
 {
 	/* return the row length in bytes according to width and packing method */
 	switch (logElement.bitsPerSample) {
@@ -177,19 +179,18 @@ unsigned int getRowLength(int width, LogImageElement logElement)
 				return ((width * logElement.depth * 10 - 1) / 32 + 1) * 4;
 			else if (logElement.packing == 1 || logElement.packing == 2)
 				return ((width * logElement.depth - 1) / 3 + 1) * 4;
-
+			break;
 		case 12:
 			if (logElement.packing == 0)
 				return ((width * logElement.depth * 12 - 1) / 32 + 1) * 4;
 			else if (logElement.packing == 1 || logElement.packing == 2)
 				return width * logElement.depth * 2;
-
+			break;
 		case 16:
 			return width * logElement.depth * 2;
 
-		default:
-			return 0;
 	}
+	return 0;
 }
 
 
@@ -202,7 +203,7 @@ int logImageSetDataRGBA(LogImageFile *logImage, float *data, int dataIsLinearRGB
 	float *elementData;
 	int returnValue;
 
-	elementData = (float *)MEM_mallocN(logImage->width * logImage->height * logImage->depth * sizeof(float), __func__);
+	elementData = (float *)imb_alloc_pixels(logImage->width, logImage->height, logImage->depth, sizeof(float), __func__);
 	if (elementData == NULL)
 		return 1;
 
@@ -239,9 +240,8 @@ int logImageSetDataRGBA(LogImageFile *logImage, float *data, int dataIsLinearRGB
 
 static int logImageSetData8(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
-	unsigned int rowLength = getRowLength(logImage->width, logElement);
+	size_t rowLength = getRowLength(logImage->width, logElement);
 	unsigned char *row;
-	int x, y;
 
 	row = (unsigned char *)MEM_mallocN(rowLength, __func__);
 	if (row == NULL) {
@@ -250,8 +250,8 @@ static int logImageSetData8(LogImageFile *logImage, LogImageElement logElement, 
 	}
 	memset(row, 0, rowLength);
 
-	for (y = 0; y < logImage->height; y++) {
-		for (x = 0; x < logImage->width * logImage->depth; x++)
+	for (size_t y = 0; y < logImage->height; y++) {
+		for (size_t x = 0; x < logImage->width * logImage->depth; x++)
 			row[x] = (unsigned char)float_uint(data[y * logImage->width * logImage->depth + x], 255);
 
 		if (logimage_fwrite(row, rowLength, 1, logImage) == 0) {
@@ -266,10 +266,9 @@ static int logImageSetData8(LogImageFile *logImage, LogImageElement logElement, 
 
 static int logImageSetData10(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
-	unsigned int rowLength = getRowLength(logImage->width, logElement);
+	size_t rowLength = getRowLength(logImage->width, logElement);
 	unsigned int pixel, index;
 	unsigned int *row;
-	int x, y, offset;
 
 	row = (unsigned int *)MEM_mallocN(rowLength, __func__);
 	if (row == NULL) {
@@ -277,12 +276,12 @@ static int logImageSetData10(LogImageFile *logImage, LogImageElement logElement,
 		return 1;
 	}
 
-	for (y = 0; y < logImage->height; y++) {
-		offset = 22;
+	for (size_t y = 0; y < logImage->height; y++) {
+		int offset = 22;
 		index = 0;
 		pixel = 0;
 
-		for (x = 0; x < logImage->width * logImage->depth; x++) {
+		for (size_t x = 0; x < logImage->width * logImage->depth; x++) {
 			pixel |= (unsigned int)float_uint(data[y * logImage->width * logImage->depth + x], 1023) << offset;
 			offset -= 10;
 			if (offset < 0) {
@@ -309,9 +308,8 @@ static int logImageSetData10(LogImageFile *logImage, LogImageElement logElement,
 
 static int logImageSetData12(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
-	unsigned int rowLength = getRowLength(logImage->width, logElement);
+	size_t rowLength = getRowLength(logImage->width, logElement);
 	unsigned short *row;
-	int x, y;
 
 	row = (unsigned short *)MEM_mallocN(rowLength, __func__);
 	if (row == NULL) {
@@ -319,8 +317,8 @@ static int logImageSetData12(LogImageFile *logImage, LogImageElement logElement,
 		return 1;
 	}
 
-	for (y = 0; y < logImage->height; y++) {
-		for (x = 0; x < logImage->width * logImage->depth; x++)
+	for (size_t y = 0; y < logImage->height; y++) {
+		for (size_t x = 0; x < logImage->width * logImage->depth; x++)
 			row[x] = swap_ushort(((unsigned short)float_uint(data[y * logImage->width * logImage->depth + x], 4095)) << 4, logImage->isMSB);
 
 		if (logimage_fwrite(row, rowLength, 1, logImage) == 0) {
@@ -335,9 +333,8 @@ static int logImageSetData12(LogImageFile *logImage, LogImageElement logElement,
 
 static int logImageSetData16(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
-	unsigned int rowLength = getRowLength(logImage->width, logElement);
+	size_t rowLength = getRowLength(logImage->width, logElement);
 	unsigned short *row;
-	int x, y;
 
 	row = (unsigned short *)MEM_mallocN(rowLength, __func__);
 	if (row == NULL) {
@@ -345,8 +342,8 @@ static int logImageSetData16(LogImageFile *logImage, LogImageElement logElement,
 		return 1;
 	}
 
-	for (y = 0; y < logImage->height; y++) {
-		for (x = 0; x < logImage->width * logImage->depth; x++)
+	for (size_t y = 0; y < logImage->height; y++) {
+		for (size_t x = 0; x < logImage->width * logImage->depth; x++)
 			row[x] = swap_ushort((unsigned short)float_uint(data[y * logImage->width * logImage->depth + x], 65535), logImage->isMSB);
 
 		if (logimage_fwrite(row, rowLength, 1, logImage) == 0) {
@@ -383,7 +380,7 @@ int logImageGetDataRGBA(LogImageFile *logImage, float *data, int dataIsLinearRGB
 		/* descriptor_Depth and descriptor_Composite are not supported */
 		if (logImage->element[i].descriptor != descriptor_Depth && logImage->element[i].descriptor != descriptor_Composite) {
 			/* Allocate memory */
-			elementData[i] = (float *)MEM_mallocN(logImage->width * logImage->height * logImage->element[i].depth * sizeof(float), __func__);
+			elementData[i] = imb_alloc_pixels(logImage->width, logImage->height, logImage->element[i].depth, sizeof(float), __func__);
 			if (elementData[i] == NULL) {
 				if (verbose) printf("DPX/Cineon: Cannot allocate memory for elementData[%d]\n.", i);
 				for (j = 0; j < i; j++)
@@ -531,7 +528,7 @@ int logImageGetDataRGBA(LogImageFile *logImage, float *data, int dataIsLinearRGB
 			}
 		}
 
-		mergedData = (float *)MEM_mallocN(logImage->width * logImage->height * mergedElement.depth * sizeof(float), __func__);
+		mergedData = (float *)imb_alloc_pixels(logImage->width, logImage->height, mergedElement.depth, sizeof(float), __func__);
 		if (mergedData == NULL) {
 			if (verbose) printf("DPX/Cineon: Cannot allocate mergedData.\n");
 			for (i = 0; i < logImage->numElements; i++)
@@ -572,26 +569,25 @@ static int logImageElementGetData(LogImageFile *logImage, LogImageElement logEle
 				return logImageElementGetData10Packed(logImage, logElement, data);
 			else if (logElement.packing == 1 || logElement.packing == 2)
 				return logImageElementGetData10(logImage, logElement, data);
+			break;
 
 		case 12:
 			if (logElement.packing == 0)
 				return logImageElementGetData12Packed(logImage, logElement, data);
 			else if (logElement.packing == 1 || logElement.packing == 2)
 				return logImageElementGetData12(logImage, logElement, data);
+			break;
 
 		case 16:
 			return logImageElementGetData16(logImage, logElement, data);
-
-		default:
-			/* format not supported */
-			return 1;
 	}
+	/* format not supported */
+	return 1;
 }
 
 static int logImageElementGetData1(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
 	unsigned int pixel;
-	int x, y, offset;
 
 	/* seek at the right place */
 	if (logimage_fseek(logImage, logElement.dataOffset, SEEK_SET) != 0) {
@@ -600,14 +596,14 @@ static int logImageElementGetData1(LogImageFile *logImage, LogImageElement logEl
 	}
 
 	/* read 1 bit data padded to 32 bits */
-	for (y = 0; y < logImage->height; y++) {
-		for (x = 0; x < logImage->width * logElement.depth; x += 32) {
+	for (size_t y = 0; y < logImage->height; y++) {
+		for (size_t x = 0; x < logImage->width * logElement.depth; x += 32) {
 			if (logimage_read_uint(&pixel, logImage) != 0) {
 				if (verbose) printf("DPX/Cineon: EOF reached\n");
 				return 1;
 			}
 			pixel = swap_uint(pixel, logImage->isMSB);
-			for (offset = 0; offset < 32 && x + offset < logImage->width; offset++)
+			for (int offset = 0; offset < 32 && x + offset < logImage->width; offset++)
 				data[y * logImage->width * logElement.depth + x + offset] = (float)((pixel >> offset) & 0x01);
 		}
 	}
@@ -616,19 +612,18 @@ static int logImageElementGetData1(LogImageFile *logImage, LogImageElement logEl
 
 static int logImageElementGetData8(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
-	unsigned int rowLength = getRowLength(logImage->width, logElement);
+	size_t rowLength = getRowLength(logImage->width, logElement);
 	unsigned char pixel;
-	int x, y;
 
 	/* extract required pixels */
-	for (y = 0; y < logImage->height; y++) {
+	for (size_t y = 0; y < logImage->height; y++) {
 		/* 8 bits are 32-bits padded so we need to seek at each row */
 		if (logimage_fseek(logImage, logElement.dataOffset + y * rowLength, SEEK_SET) != 0) {
-			if (verbose) printf("DPX/Cineon: Couldn't seek at %d\n", logElement.dataOffset + y * (int)rowLength);
+			if (verbose) printf("DPX/Cineon: Couldn't seek at %d\n", (int)(logElement.dataOffset + y * rowLength));
 			return 1;
 		}
 
-		for (x = 0; x < logImage->width * logElement.depth; x++) {
+		for (size_t x = 0; x < logImage->width * logElement.depth; x++) {
 			if (logimage_read_uchar(&pixel, logImage) != 0) {
 				if (verbose) printf("DPX/Cineon: EOF reached\n");
 				return 1;
@@ -642,7 +637,6 @@ static int logImageElementGetData8(LogImageFile *logImage, LogImageElement logEl
 static int logImageElementGetData10(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
 	unsigned int pixel;
-	int x, y, offset;
 
 	/* seek to data */
 	if (logimage_fseek(logImage, logElement.dataOffset, SEEK_SET) != 0) {
@@ -651,9 +645,9 @@ static int logImageElementGetData10(LogImageFile *logImage, LogImageElement logE
 	}
 
 	if (logImage->depth == 1 && logImage->srcFormat == format_DPX) {
-		for (y = 0; y < logImage->height; y++) {
-			offset = 32;
-			for (x = 0; x < logImage->width * logElement.depth; x++) {
+		for (size_t y = 0; y < logImage->height; y++) {
+			int offset = 32;
+			for (size_t x = 0; x < logImage->width * logElement.depth; x++) {
 				/* we need to read the next long */
 				if (offset >= 30) {
 					if (logElement.packing == 1)
@@ -673,9 +667,9 @@ static int logImageElementGetData10(LogImageFile *logImage, LogImageElement logE
 		}
 	}
 	else {
-		for (y = 0; y < logImage->height; y++) {
-			offset = -1;
-			for (x = 0; x < logImage->width * logElement.depth; x++) {
+		for (size_t y = 0; y < logImage->height; y++) {
+			int offset = -1;
+			for (size_t x = 0; x < logImage->width * logElement.depth; x++) {
 				/* we need to read the next long */
 				if (offset < 0) {
 					if (logElement.packing == 1)
@@ -700,23 +694,22 @@ static int logImageElementGetData10(LogImageFile *logImage, LogImageElement logE
 
 static int logImageElementGetData10Packed(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
-	unsigned int rowLength = getRowLength(logImage->width, logElement);
+	size_t rowLength = getRowLength(logImage->width, logElement);
 	unsigned int pixel, oldPixel;
-	int offset, offset2, x, y;
 
 	/* converting bytes to pixels */
-	for (y = 0; y < logImage->height; y++) {
+	for (size_t y = 0; y < logImage->height; y++) {
 		/* seek to data */
 		if (logimage_fseek(logImage, y * rowLength + logElement.dataOffset, SEEK_SET) != 0) {
-			if (verbose) printf("DPX/Cineon: Couldn't seek at %u\n", y * rowLength + logElement.dataOffset);
+			if (verbose) printf("DPX/Cineon: Couldn't seek at %u\n", (unsigned int)(y * rowLength + logElement.dataOffset));
 			return 1;
 		}
 
 		oldPixel = 0;
-		offset = 0;
-		offset2 = 0;
+		int offset = 0;
+		int offset2 = 0;
 
-		for (x = 0; x < logImage->width * logElement.depth; x++) {
+		for (size_t x = 0; x < logImage->width * logElement.depth; x++) {
 			if (offset2 != 0) {
 				offset = 10 - offset2;
 				offset2 = 0;
@@ -779,23 +772,22 @@ static int logImageElementGetData12(LogImageFile *logImage, LogImageElement logE
 
 static int logImageElementGetData12Packed(LogImageFile *logImage, LogImageElement logElement, float *data)
 {
-	unsigned int rowLength = getRowLength(logImage->width, logElement);
+	size_t rowLength = getRowLength(logImage->width, logElement);
 	unsigned int pixel, oldPixel;
-	int offset, offset2, x, y;
 
 	/* converting bytes to pixels */
-	for (y = 0; y < logImage->height; y++) {
+	for (size_t y = 0; y < logImage->height; y++) {
 		/* seek to data */
 		if (logimage_fseek(logImage, y * rowLength + logElement.dataOffset, SEEK_SET) != 0) {
-			if (verbose) printf("DPX/Cineon: Couldn't seek at %u\n", y * rowLength + logElement.dataOffset);
+			if (verbose) printf("DPX/Cineon: Couldn't seek at %u\n", (unsigned int)(y * rowLength + logElement.dataOffset));
 			return 1;
 		}
 
 		oldPixel = 0;
-		offset = 0;
-		offset2 = 0;
+		int offset = 0;
+		int offset2 = 0;
 
-		for (x = 0; x < logImage->width * logElement.depth; x++) {
+		for (size_t x = 0; x < logImage->width * logElement.depth; x++) {
 			if (offset2 != 0) {
 				offset = 12 - offset2;
 				offset2 = 0;
@@ -1021,6 +1013,7 @@ static int convertRGBA_RGB(float *src, float *dst, LogImageFile *logImage,
 	float *dst_ptr = dst;
 
 	switch (logElement.transfer) {
+		case transfer_Unspecified:
 		case transfer_UserDefined:
 		case transfer_Linear:
 		case transfer_Logarithmic: {
@@ -1055,6 +1048,7 @@ static int convertRGBA_RGB(float *src, float *dst, LogImageFile *logImage,
 		}
 
 		default:
+			if (verbose) printf("DPX/Cineon: Unknown transfer %d.\n", logElement.transfer);
 			return 1;
 	}
 }
@@ -1067,6 +1061,7 @@ static int convertRGB_RGBA(float *src, float *dst, LogImageFile *logImage,
 	float *dst_ptr = dst;
 
 	switch (logElement.transfer) {
+		case transfer_Unspecified:
 		case transfer_UserDefined:
 		case transfer_Linear:
 		case transfer_Logarithmic: {
@@ -1101,6 +1096,7 @@ static int convertRGB_RGBA(float *src, float *dst, LogImageFile *logImage,
 		}
 
 		default:
+			if (verbose) printf("DPX/Cineon: Unknown transfer %d.\n", logElement.transfer);
 			return 1;
 	}
 }
@@ -1116,7 +1112,7 @@ static int convertRGBA_RGBA(float *src, float *dst, LogImageFile *logImage,
 		case transfer_UserDefined:
 		case transfer_Linear:
 		case transfer_Logarithmic: {
-			memcpy(dst, src, 4 * logImage->width * logImage->height * sizeof(float));
+			memcpy(dst, src, 4 * (size_t)logImage->width * (size_t)logImage->height * sizeof(float));
 			return 0;
 		}
 
@@ -1431,11 +1427,11 @@ static int convertRGBAToLogElement(float *src, float *dst, LogImageFile *logImag
 
 	if (srcIsLinearRGB != 0) {
 		/* we need to convert src to sRGB */
-		srgbSrc = (float *)MEM_mallocN(4 * logImage->width * logImage->height * sizeof(float), __func__);
+		srgbSrc = (float *)imb_alloc_pixels(logImage->width, logImage->height, 4, sizeof(float), __func__);
 		if (srgbSrc == NULL)
 			return 1;
 
-		memcpy(srgbSrc, src, 4 * logImage->width * logImage->height * sizeof(float));
+		memcpy(srgbSrc, src, 4 * (size_t)logImage->width * (size_t)logImage->height * sizeof(float));
 		srgbSrc_ptr = srgbSrc;
 
 		/* convert data from Linear RGB to sRGB via lut */

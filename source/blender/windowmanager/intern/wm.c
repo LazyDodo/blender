@@ -61,6 +61,7 @@
 #include "wm.h"
 
 #include "ED_screen.h"
+#include "BKE_undo_system.h"
 
 #ifdef WITH_PYTHON
 #include "BPY_extern.h"
@@ -107,6 +108,17 @@ void WM_operator_free(wmOperator *op)
 	MEM_freeN(op);
 }
 
+void WM_operator_free_all_after(wmWindowManager *wm, struct wmOperator *op)
+{
+	op = op->next;
+	while (op != NULL) {
+		wmOperator *op_next = op->next;
+		BLI_remlink(&wm->operators, op);
+		WM_operator_free(op);
+		op = op_next;
+	}
+}
+
 /**
  * Use with extreme care!,
  * properties, customdata etc - must be compatible.
@@ -149,18 +161,23 @@ static void wm_reports_free(wmWindowManager *wm)
 void wm_operator_register(bContext *C, wmOperator *op)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
-	int tot;
+	int tot = 0;
 
 	BLI_addtail(&wm->operators, op);
-	tot = BLI_listbase_count(&wm->operators);
-	
-	while (tot > MAX_OP_REGISTERED) {
-		wmOperator *opt = wm->operators.first;
-		BLI_remlink(&wm->operators, opt);
-		WM_operator_free(opt);
-		tot--;
+
+	/* only count registered operators */
+	while (op) {
+		wmOperator *op_prev = op->prev;
+		if (op->type->flag & OPTYPE_REGISTER) {
+			tot += 1;
+		}
+		if (tot > MAX_OP_REGISTERED) {
+			BLI_remlink(&wm->operators, op);
+			WM_operator_free(op);
+		}
+		op = op_prev;
 	}
-	
+
 	/* so the console is redrawn */
 	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_INFO_REPORT, NULL);
 	WM_event_add_notifier(C, NC_WM | ND_HISTORY, NULL);
@@ -321,6 +338,14 @@ void WM_menutype_free(void)
 	menutypes_hash = NULL;
 }
 
+bool WM_menutype_poll(bContext *C, MenuType *mt)
+{
+	if (mt->poll != NULL) {
+		return mt->poll(C, mt);
+	}
+	return true;
+}
+
 /* ****************************************** */
 
 void WM_keymap_init(bContext *C)
@@ -414,7 +439,7 @@ void wm_clear_default_size(bContext *C)
 /* on startup, it adds all data, for matching */
 void wm_add_default(bContext *C)
 {
-	wmWindowManager *wm = BKE_libblock_alloc(CTX_data_main(C), ID_WM, "WinMan");
+	wmWindowManager *wm = BKE_libblock_alloc(CTX_data_main(C), ID_WM, "WinMan", 0);
 	wmWindow *win;
 	bScreen *screen = CTX_wm_screen(C); /* XXX from file read hrmf */
 	
@@ -461,25 +486,33 @@ void wm_close_and_free(bContext *C, wmWindowManager *wm)
 	WM_drag_free_list(&wm->drags);
 	
 	wm_reports_free(wm);
-	
+
+	if (wm->undo_stack) {
+		BKE_undosys_stack_destroy(wm->undo_stack);
+		wm->undo_stack = NULL;
+	}
+
 	if (C && CTX_wm_manager(C) == wm) CTX_wm_manager_set(C, NULL);
 }
 
 void wm_close_and_free_all(bContext *C, ListBase *wmlist)
 {
-	Main *bmain = CTX_data_main(C);
 	wmWindowManager *wm;
-	
+
 	while ((wm = wmlist->first)) {
 		wm_close_and_free(C, wm);
 		BLI_remlink(wmlist, wm);
-		BKE_libblock_free_data(bmain, &wm->id);
+		BKE_libblock_free_data(&wm->id, true);
 		MEM_freeN(wm);
 	}
 }
 
 void WM_main(bContext *C)
 {
+	/* Single refresh before handling events.
+	 * This ensures we don't run operators before the depsgraph has been evaluated. */
+	wm_event_do_refresh_wm_and_depsgraph(C);
+
 	while (1) {
 		
 		/* get events from ghost, handle window events, add to window queues */

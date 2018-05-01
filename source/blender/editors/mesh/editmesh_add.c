@@ -60,9 +60,10 @@
 
 /* ********* add primitive operators ************* */
 
-static Object *make_prim_init(bContext *C, const char *idname,
-                              float *dia, float mat[4][4],
-                              bool *was_editmode, const float loc[3], const float rot[3], const unsigned int layer)
+static Object *make_prim_init(
+        bContext *C, const char *idname,
+        float *dia, float mat[4][4],
+        bool *was_editmode, const float loc[3], const float rot[3], const unsigned int layer)
 {
 	Object *obedit = CTX_data_edit_object(C);
 
@@ -233,7 +234,7 @@ static int add_primitive_circle_exec(bContext *C, wmOperator *op)
 
 	if (!EDBM_op_call_and_selectf(
 	        em, op, "verts.out", false,
-	        "create_circle segments=%i diameter=%f cap_ends=%b cap_tris=%b matrix=%m4 calc_uvs=%b",
+	        "create_circle segments=%i radius=%f cap_ends=%b cap_tris=%b matrix=%m4 calc_uvs=%b",
 	        RNA_int_get(op->ptr, "vertices"), RNA_float_get(op->ptr, "radius"),
 	        cap_end, cap_tri, mat, calc_uvs))
 	{
@@ -384,7 +385,7 @@ void MESH_OT_primitive_cone_add(wmOperatorType *ot)
 	/* props */
 	RNA_def_int(ot->srna, "vertices", 32, 3, MESH_ADD_VERTS_MAXI, "Vertices", "", 3, 500);
 	RNA_def_float_distance(ot->srna, "radius1", 1.0f, 0.0, OBJECT_ADD_SIZE_MAXF, "Radius 1", "", 0.001, 100.00);
-	RNA_def_float_distance(ot->srna, "radius2", 0.0f, 0.0, OBJECT_ADD_SIZE_MAXF, "Radius 2", "", 0.001, 100.00);
+	RNA_def_float_distance(ot->srna, "radius2", 0.0f, 0.0, OBJECT_ADD_SIZE_MAXF, "Radius 2", "", 0.0, 100.00);
 	RNA_def_float_distance(ot->srna, "depth", 2.0f, 0.0, OBJECT_ADD_SIZE_MAXF, "Depth", "", 0.001, 100.00);
 	RNA_def_enum(ot->srna, "end_fill_type", fill_type_items, 1, "Base Fill Type", "");
 

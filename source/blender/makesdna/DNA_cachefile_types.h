@@ -47,10 +47,12 @@ enum {
 	CACHEFILE_KEYFRAME_DRAWN = (1 << 0),
 };
 
+/* Representation of an object's path inside the Alembic file.
+ * Note that this is not a file path. */
 typedef struct AlembicObjectPath {
 	struct AlembicObjectPath *next, *prev;
 
-	char path[1024];  /* 1024 = FILE_MAX, might use PATH_MAX in the future. */
+	char path[4096];
 } AlembicObjectPath;
 
 typedef struct CacheFile {
@@ -73,9 +75,12 @@ typedef struct CacheFile {
 
 	float scale;
 	float frame;  /* The frame/time to lookup in the cache file. */
+	float frame_offset; /* The frame offset to subtract. */
 
 	short flag;  /* Animation flag. */
 	short draw_flag;
+
+	char padding[4];
 } CacheFile;
 
 #ifdef __cplusplus

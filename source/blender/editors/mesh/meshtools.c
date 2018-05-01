@@ -46,8 +46,6 @@
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
 
-
-#include "BLI_kdtree.h"
 #include "BKE_context.h"
 #include "BKE_depsgraph.h"
 #include "BKE_deform.h"
@@ -57,6 +55,8 @@
 #include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_material.h"
+#include "BKE_object.h"
+#include "BKE_object_deform.h"
 #include "BKE_report.h"
 #include "BKE_editmesh.h"
 #include "BKE_multires.h"
@@ -77,7 +77,7 @@
 
 static void join_mesh_single(
         Main *bmain, Scene *scene,
-        Object *ob_dst, Base *base_src, float imat[4][4],
+        Object *ob_dst, Object *ob_src, float imat[4][4],
         MVert **mvert_pp, MEdge **medge_pp, MLoop **mloop_pp, MPoly **mpoly_pp,
         CustomData *vdata, CustomData *edata, CustomData *ldata, CustomData *pdata,
         int totvert, int totedge, int totloop, int totpoly,
@@ -87,7 +87,7 @@ static void join_mesh_single(
 {
 	int a, b;
 
-	Mesh *me = base_src->object->data;
+	Mesh *me = ob_src->data;
 	MVert *mvert = *mvert_pp;
 	MEdge *medge = *medge_pp;
 	MLoop *mloop = *mloop_pp;
@@ -103,33 +103,28 @@ static void join_mesh_single(
 
 		/* vertex groups */
 		MDeformVert *dvert = CustomData_get(vdata, *vertofs, CD_MDEFORMVERT);
+		MDeformVert *dvert_src = CustomData_get(&me->vdata, 0, CD_MDEFORMVERT);
 
-		/* NB: vertex groups here are new version */
-		if (dvert) {
-			for (a = 0; a < me->totvert; a++) {
-				for (b = 0; b < dvert[a].totweight; b++) {
-					/*	Find the old vertex group */
-					bDeformGroup *dg, *odg = BLI_findlink(&base_src->object->defbase, dvert[a].dw[b].def_nr);
-					int index;
-					if (odg) {
-						/*	Search for a match in the new object, and set new index */
-						for (dg = ob_dst->defbase.first, index = 0; dg; dg = dg->next, index++) {
-							if (STREQ(dg->name, odg->name)) {
-								dvert[a].dw[b].def_nr = index;
-								break;
-							}
-						}
-					}
-				}
+		/* Remap to correct new vgroup indices, if needed. */
+		if (dvert_src) {
+			BLI_assert(dvert != NULL);
+
+			/* Build src to merged mapping of vgroup indices. */
+			int *vgroup_index_map;
+			int vgroup_index_map_len;
+			vgroup_index_map = BKE_object_defgroup_index_map_create(ob_src, ob_dst, &vgroup_index_map_len);
+			BKE_object_defgroup_index_map_apply(dvert, me->totvert, vgroup_index_map, vgroup_index_map_len);
+			if (vgroup_index_map != NULL) {
+				MEM_freeN(vgroup_index_map);
 			}
 		}
 
 		/* if this is the object we're merging into, no need to do anything */
-		if (base_src->object != ob_dst) {
+		if (ob_src != ob_dst) {
 			float cmat[4][4];
 
 			/* watch this: switch matmul order really goes wrong */
-			mul_m4_m4m4(cmat, imat, base_src->object->obmat);
+			mul_m4_m4m4(cmat, imat, ob_src->obmat);
 
 			/* transform vertex coordinates into new space */
 			for (a = 0, mvert = *mvert_pp; a < me->totvert; a++, mvert++) {
@@ -206,13 +201,13 @@ static void join_mesh_single(
 	}
 
 	if (me->totloop) {
-		if (base_src->object != ob_dst) {
+		if (ob_src != ob_dst) {
 			MultiresModifierData *mmd;
 
-			multiresModifier_prepare_join(scene, base_src->object, ob_dst);
+			multiresModifier_prepare_join(scene, ob_src, ob_dst);
 
-			if ((mmd = get_multires_modifier(scene, base_src->object, true))) {
-				ED_object_iter_other(bmain, base_src->object, true,
+			if ((mmd = get_multires_modifier(scene, ob_src, true))) {
+				ED_object_iter_other(bmain, ob_src, true,
 				                     ED_object_multires_update_totlevels_cb,
 				                     &mmd->totlvl);
 			}
@@ -230,8 +225,8 @@ static void join_mesh_single(
 	if (me->totpoly) {
 		if (matmap) {
 			/* make mapping for materials */
-			for (a = 1; a <= base_src->object->totcol; a++) {
-				Material *ma = give_current_material(base_src->object, a);
+			for (a = 1; a <= ob_src->totcol; a++) {
+				Material *ma = give_current_material(ob_src, a);
 
 				for (b = 0; b < totcol; b++) {
 					if (ma == matar[b]) {
@@ -266,8 +261,7 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Base *ob_base = CTX_data_active_base(C);
-	Object *ob = ob_base->object;
+	Object *ob = CTX_data_active_object(C);
 	Material **matar = NULL, *ma;
 	Mesh *me;
 	MVert *mvert = NULL;
@@ -444,15 +438,6 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 							/* adjust settings to fit (allocate a new data-array) */
 							kbn->data = MEM_callocN(sizeof(float) * 3 * totvert, "joined_shapekey");
 							kbn->totelem = totvert;
-		
-							/* XXX 2.5 Animato */
-#if 0
-							/* also, copy corresponding ipo-curve to ipo-block if applicable */
-							if (me->key->ipo && key->ipo) {
-								/* FIXME... this is a luxury item! */
-								puts("FIXME: ignoring IPO's when joining shapekeys on Meshes for now...");
-							}
-#endif
 						}
 
 						kb_map[i] = kbn;
@@ -499,7 +484,7 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 	 */
 	join_mesh_single(
 	            bmain, scene,
-	            ob, ob_base, imat,
+	            ob, ob, imat,
 	            &mvert, &medge, &mloop, &mpoly,
 	            &vdata, &edata, &ldata, &pdata,
 	            totvert, totedge, totloop, totpoly,
@@ -516,7 +501,7 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 		if (base->object->type == OB_MESH) {
 			join_mesh_single(
 			            bmain, scene,
-			            ob, base, imat,
+			            ob, base->object, imat,
 			            &mvert, &medge, &mloop, &mpoly,
 			            &vdata, &edata, &ldata, &pdata,
 			            totvert, totedge, totloop, totpoly,
@@ -567,12 +552,10 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 		if (ma)
 			id_us_min(&ma->id);
 	}
-	if (ob->mat) MEM_freeN(ob->mat);
-	if (ob->matbits) MEM_freeN(ob->matbits);
-	if (me->mat) MEM_freeN(me->mat);
-	ob->mat = me->mat = NULL;
-	ob->matbits = NULL;
-	
+	MEM_SAFE_FREE(ob->mat);
+	MEM_SAFE_FREE(ob->matbits);
+	MEM_SAFE_FREE(me->mat);
+
 	if (totcol) {
 		me->mat = matar;
 		ob->mat = MEM_callocN(sizeof(*ob->mat) * totcol, "join obmatar");
@@ -595,6 +578,9 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 	if (key && (key->type != KEY_RELATIVE)) {
 		BKE_key_sort(key);
 	}
+
+	/* Due to dependnecy cycle some other object might access old derived data. */
+	BKE_object_free_derived_caches(ob);
 
 	DAG_relations_tag_update(bmain);   /* removed objects, need to rebuild dag */
 
@@ -680,84 +666,6 @@ int join_mesh_shapes_exec(bContext *C, wmOperator *op)
 	
 	return OPERATOR_FINISHED;
 }
-
-/* -------------------------------------------------------------------- */
-/* Mesh Mirror (Spatial) */
-
-/** \name Mesh Spatial Mirror API
- * \{ */
-
-#define KD_THRESH      0.00002f
-
-static struct { void *tree; } MirrKdStore = {NULL};
-
-/* mode is 's' start, or 'e' end, or 'u' use */
-/* if end, ob can be NULL */
-int ED_mesh_mirror_spatial_table(Object *ob, BMEditMesh *em, DerivedMesh *dm, const float co[3], char mode)
-{
-	if (mode == 'u') {        /* use table */
-		if (MirrKdStore.tree == NULL)
-			ED_mesh_mirror_spatial_table(ob, em, dm, NULL, 's');
-
-		if (MirrKdStore.tree) {
-			KDTreeNearest nearest;
-			const int i = BLI_kdtree_find_nearest(MirrKdStore.tree, co, &nearest);
-
-			if (i != -1) {
-				if (nearest.dist < KD_THRESH) {
-					return i;
-				}
-			}
-		}
-		return -1;
-	}
-	else if (mode == 's') {   /* start table */
-		Mesh *me = ob->data;
-		const bool use_em = (!dm && em && me->edit_btmesh == em);
-		const int totvert = use_em ? em->bm->totvert : dm ? dm->getNumVerts(dm) : me->totvert;
-
-		if (MirrKdStore.tree) /* happens when entering this call without ending it */
-			ED_mesh_mirror_spatial_table(ob, em, dm, co, 'e');
-
-		MirrKdStore.tree = BLI_kdtree_new(totvert);
-
-		if (use_em) {
-			BMVert *eve;
-			BMIter iter;
-			int i;
-
-			/* this needs to be valid for index lookups later (callers need) */
-			BM_mesh_elem_table_ensure(em->bm, BM_VERT);
-
-			BM_ITER_MESH_INDEX (eve, &iter, em->bm, BM_VERTS_OF_MESH, i) {
-				BLI_kdtree_insert(MirrKdStore.tree, i, eve->co);
-			}
-		}
-		else {
-			MVert *mvert = dm ? dm->getVertArray(dm) : me->mvert;
-			int i;
-			
-			for (i = 0; i < totvert; i++, mvert++) {
-				BLI_kdtree_insert(MirrKdStore.tree, i, mvert->co);
-			}
-		}
-
-		BLI_kdtree_balance(MirrKdStore.tree);
-	}
-	else if (mode == 'e') { /* end table */
-		if (MirrKdStore.tree) {
-			BLI_kdtree_free(MirrKdStore.tree);
-			MirrKdStore.tree = NULL;
-		}
-	}
-	else {
-		BLI_assert(0);
-	}
-
-	return 0;
-}
-
-/** \} */
 
 
 /* -------------------------------------------------------------------- */
@@ -1098,7 +1006,7 @@ bool ED_mesh_pick_face(bContext *C, Object *ob, const int mval[2], unsigned int 
 	if (!me || me->totpoly == 0)
 		return false;
 
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	if (size) {
 		/* sample rect to increase chances of selecting, so that when clicking
@@ -1263,7 +1171,7 @@ bool ED_mesh_pick_vert(bContext *C, Object *ob, const int mval[2], unsigned int 
 	if (!me || me->totvert == 0)
 		return false;
 
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	if (use_zbuf) {
 		if (size > 0) {

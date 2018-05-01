@@ -261,6 +261,11 @@ public:
 	 */
 	GHOST_TSuccess handleKeyEvent(void *eventPtr);
 	
+	/**
+	 * Informs if the system provides native dialogs (eg. confirm quit)
+	 */
+	virtual bool supportsNativeDialogs(void);
+
 protected:
 	/**
 	 * Initializes the system.
@@ -291,11 +296,6 @@ protected:
 
 	/** Ignores window size messages (when window is dragged). */
 	bool m_ignoreWindowSizedMessages;
-	
-	/** Stores the mouse cursor delta due to setting a new cursor position
-	 * Needed because cocoa event delta cursor move takes setCursorPosition changes too.
-	 */
-	GHOST_TInt32 m_cursorDelta_x, m_cursorDelta_y;
 	
 	/** Temporarily ignore momentum scroll events */
 	bool m_ignoreMomentumScroll;

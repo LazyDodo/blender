@@ -46,7 +46,7 @@
 #include "rna_internal.h"  /* own include */
 
 /* confusingm 2 enums mixed up here */
-EnumPropertyItem rna_enum_window_cursor_items[] = {
+const EnumPropertyItem rna_enum_window_cursor_items[] = {
 	{CURSOR_STD, "DEFAULT", 0, "Default", ""},
 	{CURSOR_NONE, "NONE", 0, "None", ""},
 	{CURSOR_WAIT, "WAIT", 0, "Wait", ""},
@@ -85,6 +85,11 @@ static void rna_keymap_restore_item_to_default(wmKeyMap *km, bContext *C, wmKeyM
 static void rna_Operator_report(wmOperator *op, int type, const char *msg)
 {
 	BKE_report(op->reports, type, msg);
+}
+
+static int rna_Operator_is_repeat(wmOperator *op, bContext *C)
+{
+	return WM_operator_is_repeat(C, op);
 }
 
 /* since event isn't needed... */
@@ -293,7 +298,7 @@ static void rna_KeyConfig_remove(wmWindowManager *wm, ReportList *reports, Point
 }
 
 /* popup menu wrapper */
-static PointerRNA rna_PupMenuBegin(bContext *C, const char *title, int icon)
+static PointerRNA rna_PopMenuBegin(bContext *C, const char *title, int icon)
 {
 	PointerRNA r_ptr;
 	void *data;
@@ -305,7 +310,7 @@ static PointerRNA rna_PupMenuBegin(bContext *C, const char *title, int icon)
 	return r_ptr;
 }
 
-static void rna_PupMenuEnd(bContext *C, PointerRNA *handle)
+static void rna_PopMenuEnd(bContext *C, PointerRNA *handle)
 {
 	UI_popup_menu_end(C, handle->data);
 }
@@ -454,8 +459,11 @@ void RNA_api_wm(StructRNA *srna)
 
 	/* invoke enum */
 	func = RNA_def_function(srna, "invoke_search_popup", "rna_Operator_enum_search_invoke");
-	RNA_def_function_ui_description(func, "Operator search popup invoke (search in values of "
-	                                "operator's type 'prop' EnumProperty, and execute it on confirmation)");
+	RNA_def_function_ui_description(
+	        func,
+	        "Operator search popup invoke which "
+	        "searches values of the operator's :class:`bpy.types.Operator.bl_property` "
+	        "(which must be an EnumProperty), executing it on confirmation");
 	rna_generic_op_invoke(func, 0);
 
 	/* invoke functions, for use with python */
@@ -471,7 +479,7 @@ void RNA_api_wm(StructRNA *srna)
 
 
 	/* wrap UI_popup_menu_begin */
-	func = RNA_def_function(srna, "pupmenu_begin__internal", "rna_PupMenuBegin");
+	func = RNA_def_function(srna, "popmenu_begin__internal", "rna_PopMenuBegin");
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
 	parm = RNA_def_string(func, "title", NULL, 0, "", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -483,7 +491,7 @@ void RNA_api_wm(StructRNA *srna)
 	RNA_def_function_return(func, parm);
 
 	/* wrap UI_popup_menu_end */
-	func = RNA_def_function(srna, "pupmenu_end__internal", "rna_PupMenuEnd");
+	func = RNA_def_function(srna, "popmenu_end__internal", "rna_PopMenuEnd");
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
 	parm = RNA_def_pointer(func, "menu", "UIPopupMenu", "", "");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
@@ -521,6 +529,12 @@ void RNA_api_operator(StructRNA *srna)
 	parm = RNA_def_string(func, "message", NULL, 0, "Report Message", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
+	/* utility, not for registering */
+	func = RNA_def_function(srna, "is_repeat", "rna_Operator_is_repeat");
+	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
+	/* return */
+	parm = RNA_def_boolean(func, "result", 0, "result", "");
+	RNA_def_function_return(func, parm);
 
 	/* Registration */
 

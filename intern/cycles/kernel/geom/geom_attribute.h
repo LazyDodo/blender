@@ -30,7 +30,7 @@ ccl_device_inline uint subd_triangle_patch(KernelGlobals *kg, const ShaderData *
 ccl_device_inline uint attribute_primitive_type(KernelGlobals *kg, const ShaderData *sd)
 {
 #ifdef __HAIR__
-	if(ccl_fetch(sd, type) & PRIMITIVE_ALL_CURVE) {
+	if(sd->type & PRIMITIVE_ALL_CURVE) {
 		return ATTR_PRIM_CURVE;
 	}
 	else
@@ -51,14 +51,19 @@ ccl_device_inline AttributeDescriptor attribute_not_found()
 
 /* Find attribute based on ID */
 
+ccl_device_inline uint object_attribute_map_offset(KernelGlobals *kg, int object)
+{
+	return kernel_tex_fetch(__objects, object).attribute_map_offset;
+}
+
 ccl_device_inline AttributeDescriptor find_attribute(KernelGlobals *kg, const ShaderData *sd, uint id)
 {
-	if(ccl_fetch(sd, object) == PRIM_NONE) {
+	if(sd->object == OBJECT_NONE) {
 		return attribute_not_found();
 	}
 
 	/* for SVM, find attribute by unique id */
-	uint attr_offset = ccl_fetch(sd, object)*kernel_data.bvh.attributes_map_stride;
+	uint attr_offset = object_attribute_map_offset(kg, sd->object);
 	attr_offset += attribute_primitive_type(kg, sd);
 	uint4 attr_map = kernel_tex_fetch(__attributes_map, attr_offset);
 	
@@ -73,7 +78,7 @@ ccl_device_inline AttributeDescriptor find_attribute(KernelGlobals *kg, const Sh
 	AttributeDescriptor desc;
 	desc.element = (AttributeElement)attr_map.y;
 	
-	if(ccl_fetch(sd, prim) == PRIM_NONE &&
+	if(sd->prim == PRIM_NONE &&
 	   desc.element != ATTR_ELEMENT_MESH &&
 	   desc.element != ATTR_ELEMENT_VOXEL &&
 	   desc.element != ATTR_ELEMENT_OBJECT)
@@ -98,7 +103,6 @@ ccl_device Transform primitive_attribute_matrix(KernelGlobals *kg, const ShaderD
 	tfm.x = kernel_tex_fetch(__attributes_float3, desc.offset + 0);
 	tfm.y = kernel_tex_fetch(__attributes_float3, desc.offset + 1);
 	tfm.z = kernel_tex_fetch(__attributes_float3, desc.offset + 2);
-	tfm.w = kernel_tex_fetch(__attributes_float3, desc.offset + 3);
 
 	return tfm;
 }

@@ -17,7 +17,7 @@
 #ifndef __UTIL_HASH_H__
 #define __UTIL_HASH_H__
 
-#include "util_types.h"
+#include "util/util_types.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -60,6 +60,11 @@ static inline uint hash_string(const char *str)
 	return i;
 }
 #endif
+
+ccl_device_inline float hash_int_01(uint k)
+{
+	return (float)hash_int(k) * (1.0f/(float)0xFFFFFFFF);
+}
 
 CCL_NAMESPACE_END
 

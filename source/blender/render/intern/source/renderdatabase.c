@@ -66,6 +66,7 @@
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
+#include "BLI_hash.h"
 
 #include "DNA_material_types.h" 
 #include "DNA_meshdata_types.h" 
@@ -1458,6 +1459,14 @@ ObjectInstanceRen *RE_addRenderInstance(
 		}
 	}
 
+	/* Fill object info */
+	if (dob) {
+		obi->random_id = dob->random_id;
+	}
+	else {
+		obi->random_id = BLI_hash_int_2d(BLI_hash_string(obi->ob->id.name + 2), 0);
+	}
+
 	RE_updateRenderInstance(re, obi, RE_OBJECT_INSTANCES_UPDATE_OBMAT | RE_OBJECT_INSTANCES_UPDATE_VIEW);
 
 	if (mat) {
@@ -1473,9 +1482,10 @@ ObjectInstanceRen *RE_addRenderInstance(
 	return obi;
 }
 
-void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3])
+void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *random, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3])
 {
 	*index = obi->part_index;
+	*random = BLI_hash_int_01(obi->part_index);
 	*age = obi->part_age;
 	*lifetime = obi->part_lifetime;
 	copy_v3_v3(co, obi->part_co);

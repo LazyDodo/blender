@@ -40,7 +40,7 @@
 #include "DNA_key_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
 
 #include "BLI_bitmap.h"
@@ -744,10 +744,12 @@ static int modifier_add_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static EnumPropertyItem *modifier_add_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *modifier_add_itemf(
+        bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {	
 	Object *ob = ED_object_active_context(C);
-	EnumPropertyItem *item = NULL, *md_item, *group_item = NULL;
+	EnumPropertyItem *item = NULL;
+	const EnumPropertyItem *md_item, *group_item = NULL;
 	const ModifierTypeInfo *mti;
 	int totitem = 0, a;
 	
@@ -793,7 +795,7 @@ void OBJECT_OT_modifier_add(wmOperatorType *ot)
 
 	/* identifiers */
 	ot->name = "Add Modifier";
-	ot->description = "Add a modifier to the active object";
+	ot->description = "Add a procedural operation/effect to the active object";
 	ot->idname = "OBJECT_OT_modifier_add";
 	
 	/* api callbacks */
@@ -817,9 +819,9 @@ int edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_flag
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "modifier", rna_type);
 	Object *ob = (ptr.id.data) ? ptr.id.data : ED_object_active_context(C);
 	
-	if (!ob || ID_IS_LINKED_DATABLOCK(ob)) return 0;
+	if (!ob || ID_IS_LINKED(ob)) return 0;
 	if (obtype_flag && ((1 << ob->type) & obtype_flag) == 0) return 0;
-	if (ptr.id.data && ID_IS_LINKED_DATABLOCK(ptr.id.data)) return 0;
+	if (ptr.id.data && ID_IS_LINKED(ptr.id.data)) return 0;
 	
 	return 1;
 }
@@ -1019,7 +1021,7 @@ static int modifier_apply_invoke(bContext *C, wmOperator *op, const wmEvent *UNU
 		return OPERATOR_CANCELLED;
 }
 
-static EnumPropertyItem modifier_apply_as_items[] = {
+static const EnumPropertyItem modifier_apply_as_items[] = {
 	{MODIFIER_APPLY_DATA, "DATA", 0, "Object Data", "Apply modifier to the object's data"},
 	{MODIFIER_APPLY_SHAPE, "SHAPE", 0, "New Shape", "Apply deform-only modifier to a new shape on this object"},
 	{0, NULL, 0, NULL, NULL}
@@ -1484,7 +1486,6 @@ static int skin_root_mark_exec(bContext *C, wmOperator *UNUSED(op))
 	Object *ob = CTX_data_edit_object(C);
 	BMEditMesh *em = BKE_editmesh_from_object(ob);
 	BMesh *bm = em->bm;
-	const int cd_vert_skin_offset = CustomData_get_offset(&bm->vdata, CD_MVERT_SKIN);
 	BMVert *bm_vert;
 	BMIter bm_iter;
 	GSet *visited;
@@ -1492,6 +1493,8 @@ static int skin_root_mark_exec(bContext *C, wmOperator *UNUSED(op))
 	visited = BLI_gset_ptr_new(__func__);
 
 	BKE_mesh_ensure_skin_customdata(ob->data);
+
+	const int cd_vert_skin_offset = CustomData_get_offset(&bm->vdata, CD_MVERT_SKIN);
 
 	BM_ITER_MESH (bm_vert, &bm_iter, bm, BM_VERTS_OF_MESH) {
 		if (BM_elem_flag_test(bm_vert, BM_ELEM_SELECT) &&
@@ -1572,7 +1575,7 @@ static int skin_loose_mark_clear_exec(bContext *C, wmOperator *op)
 
 void OBJECT_OT_skin_loose_mark_clear(wmOperatorType *ot)
 {
-	static EnumPropertyItem action_items[] = {
+	static const EnumPropertyItem action_items[] = {
 		{SKIN_LOOSE_MARK, "MARK", 0, "Mark", "Mark selected vertices as loose"},
 		{SKIN_LOOSE_CLEAR, "CLEAR", 0, "Clear", "Set selected vertices as not loose"},
 		{0, NULL, 0, NULL, NULL}
@@ -1657,7 +1660,7 @@ static void skin_armature_bone_create(Object *skin_ob,
 
 		v = (e->v1 == parent_v ? e->v2 : e->v1);
 
-		bone = ED_armature_edit_bone_add(arm, "Bone");
+		bone = ED_armature_ebone_add(arm, "Bone");
 
 		bone->parent = parent_bone;
 		bone->flag |= BONE_CONNECTED;
@@ -1730,7 +1733,7 @@ static Object *modifier_skin_armature_create(Main *bmain, Scene *scene, Object *
 			 * a fake root bone (have it going off in the Y direction
 			 * (arbitrary) */
 			if (emap[v].count > 1) {
-				bone = ED_armature_edit_bone_add(arm, "Bone");
+				bone = ED_armature_ebone_add(arm, "Bone");
 
 				copy_v3_v3(bone->head, me->mvert[v].co);
 				copy_v3_v3(bone->tail, me->mvert[v].co);
@@ -1931,7 +1934,7 @@ static int meshdeform_bind_exec(bContext *C, wmOperator *op)
 		int mode = mmd->modifier.mode;
 
 		/* force modifier to run, it will call binding routine */
-		mmd->bindfunc = mesh_deform_bind;
+		mmd->bindfunc = ED_mesh_deform_bind_callback;
 		mmd->modifier.mode |= eModifierMode_Realtime;
 
 		if (ob->type == OB_MESH) {
@@ -2290,6 +2293,59 @@ void OBJECT_OT_laplaciandeform_bind(wmOperatorType *ot)
 	ot->invoke = laplaciandeform_bind_invoke;
 	ot->exec = laplaciandeform_bind_exec;
 	
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
+	edit_modifier_properties(ot);
+}
+
+/************************ sdef bind operator *********************/
+
+static int surfacedeform_bind_poll(bContext *C)
+{
+	return edit_modifier_poll_generic(C, &RNA_SurfaceDeformModifier, 0);
+}
+
+static int surfacedeform_bind_exec(bContext *C, wmOperator *op)
+{
+	Object *ob = ED_object_active_context(C);
+	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)edit_modifier_property_get(op, ob, eModifierType_SurfaceDeform);
+
+	if (!smd)
+		return OPERATOR_CANCELLED;
+
+	if (smd->flags & MOD_SDEF_BIND) {
+		smd->flags &= ~MOD_SDEF_BIND;
+	}
+	else if (smd->target) {
+		smd->flags |= MOD_SDEF_BIND;
+	}
+
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
+
+	return OPERATOR_FINISHED;
+}
+
+static int surfacedeform_bind_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	if (edit_modifier_invoke_properties(C, op))
+		return surfacedeform_bind_exec(C, op);
+	else
+		return OPERATOR_CANCELLED;
+}
+
+void OBJECT_OT_surfacedeform_bind(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Surface Deform Bind";
+	ot->description = "Bind mesh to target in surface deform modifier";
+	ot->idname = "OBJECT_OT_surfacedeform_bind";
+
+	/* api callbacks */
+	ot->poll = surfacedeform_bind_poll;
+	ot->invoke = surfacedeform_bind_invoke;
+	ot->exec = surfacedeform_bind_exec;
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
 	edit_modifier_properties(ot);

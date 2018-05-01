@@ -103,11 +103,12 @@ static void change_frame_apply(bContext *C, wmOperator *op)
 	}
 
 	/* set the new frame number */
-	CFRA = (int)frame;
 	if (scene->r.flag & SCER_SHOW_SUBFRAME) {
+		CFRA = (int)frame;
 		SUBFRA = frame - (int)frame;
 	}
 	else {
+		CFRA = round_fl_to_int(frame);
 		SUBFRA = 0.0f;
 	}
 	FRAMENUMBER_MIN_CLAMP(CFRA);
@@ -134,15 +135,12 @@ static float frame_from_event(bContext *C, const wmEvent *event)
 {
 	ARegion *region = CTX_wm_region(C);
 	Scene *scene = CTX_data_scene(C);
-	float viewx;
 	float frame;
 
 	/* convert from region coordinates to View2D 'tot' space */
-	viewx = UI_view2d_region_to_view_x(&region->v2d, event->mval[0]);
+	frame = UI_view2d_region_to_view_x(&region->v2d, event->mval[0]);
 	
-	/* round result to nearest int (frames are ints!) */
-	frame = viewx;
-	
+	/* respect preview range restrictions (if only allowed to move around within that range) */
 	if (scene->r.flag & SCER_LOCK_FRAME_SELECTION) {
 		CLAMP(frame, PSFRA, PEFRA);
 	}
@@ -303,8 +301,8 @@ static int previewrange_define_exec(bContext *C, wmOperator *op)
 	if (efra < sfra) efra = sfra;
 	
 	scene->r.flag |= SCER_PRV_RANGE;
-	scene->r.psfra = iroundf(sfra);
-	scene->r.pefra = iroundf(efra);
+	scene->r.psfra = round_fl_to_int(sfra);
+	scene->r.pefra = round_fl_to_int(efra);
 	
 	/* send notifiers */
 	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, scene);
@@ -320,10 +318,10 @@ static void ANIM_OT_previewrange_set(wmOperatorType *ot)
 	ot->description = "Interactively define frame range used for playback";
 	
 	/* api callbacks */
-	ot->invoke = WM_border_select_invoke;
+	ot->invoke = WM_gesture_border_invoke;
 	ot->exec = previewrange_define_exec;
-	ot->modal = WM_border_select_modal;
-	ot->cancel = WM_border_select_cancel;
+	ot->modal = WM_gesture_border_modal;
+	ot->cancel = WM_gesture_border_cancel;
 	
 	ot->poll = ED_operator_animview_active;
 	

@@ -34,6 +34,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 #include <algorithm>
 
 extern "C" {
@@ -53,12 +54,18 @@ extern "C" {
 #include "BKE_object.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_scene.h"
+#include "BKE_idprop.h"
 }
 
+#include "ImportSettings.h"
 #include "ExportSettings.h"
 #include "collada_internal.h"
 
 typedef std::map<COLLADAFW::TextureMapId, std::vector<MTex *> > TexIndexTextureArrayMap;
+
+extern Main *bc_get_main();
+extern EvaluationContext *bc_get_evaluation_context();
+extern void bc_update_scene(Scene *scene, float ctime);
 
 extern float bc_get_float_value(const COLLADAFW::FloatOrDoubleArray& array, unsigned int index);
 extern int bc_test_parent_loop(Object *par, Object *ob);
@@ -88,11 +95,41 @@ extern std::string bc_url_encode(std::string data);
 extern void bc_match_scale(Object *ob, UnitConverter &bc_unit, bool scale_to_scene);
 extern void bc_match_scale(std::vector<Object *> *objects_done, UnitConverter &unit_converter, bool scale_to_scene);
 
+extern void bc_decompose(float mat[4][4], float *loc, float eul[3], float quat[4], float *size);
+extern void bc_rotate_from_reference_quat(float quat_to[4], float quat_from[4], float mat_to[4][4]);
+
 extern void bc_triangulate_mesh(Mesh *me);
 extern bool bc_is_leaf_bone(Bone *bone);
 extern EditBone *bc_get_edit_bone(bArmature * armature, char *name);
 extern int bc_set_layer(int bitfield, int layer, bool enable);
 extern int bc_set_layer(int bitfield, int layer);
+
+inline bool bc_in_range(float a, float b, float range) {
+	return fabsf(a - b) < range;
+}
+void bc_copy_m4_farray(float r[4][4], float *a);
+void bc_copy_farray_m4(float *r, float a[4][4]);
+
+extern void bc_sanitize_mat(float mat[4][4], int precision);
+extern void bc_sanitize_mat(double mat[4][4], int precision);
+
+extern IDProperty *bc_get_IDProperty(Bone *bone, std::string key);
+extern void bc_set_IDProperty(EditBone *ebone, const char *key, float value);
+extern void bc_set_IDPropertyMatrix(EditBone *ebone, const char *key, float mat[4][4]);
+
+extern float bc_get_property(Bone *bone, std::string key, float def);
+extern void bc_get_property_vector(Bone *bone, std::string key, float val[3], const float def[3]);
+extern bool bc_get_property_matrix(Bone *bone, std::string key, float mat[4][4]);
+
+extern void bc_create_restpose_mat(const ExportSettings *export_settings, Bone *bone, float to_mat[4][4], float world[4][4], bool use_local_space);
+
+extern std::string bc_get_active_uvlayer_name(Object *ob);
+extern std::string bc_get_active_uvlayer_name(Mesh *me);
+extern std::string bc_get_uvlayer_name(Mesh *me, int layer);
+
+extern std::set<Image *> bc_getUVImages(Scene *sce, bool all_uv_layers);
+extern std::set<Image *> bc_getUVImages(Object *ob, bool all_uv_layers);
+extern std::set<Object *> bc_getUVTexturedObjects(Scene *sce, bool all_uv_layers);
 
 class BCPolygonNormalsIndices
 {

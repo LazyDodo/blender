@@ -90,7 +90,7 @@
 /* Get the active settings for keyframing settings from context (specifically the given scene) */
 short ANIM_get_keyframing_flags(Scene *scene, short incl_mode)
 {
-	short flag = 0;
+	eInsertKeyFlags flag = INSERTKEY_NOFLAGS;
 	
 	/* standard flags */
 	{
@@ -145,7 +145,7 @@ bAction *verify_adt_action(ID *id, short add)
 		BLI_snprintf(actname, sizeof(actname), "%sAction", id->name + 2);
 		
 		/* create action */
-		adt->action = add_empty_action(G.main, actname);
+		adt->action = BKE_action_add(G.main, actname);
 		
 		/* set ID-type from ID-block that this is going to be assigned to
 		 * so that users can't accidentally break actions by assigning them
@@ -186,6 +186,7 @@ FCurve *verify_fcurve(bAction *act, const char group[], PointerRNA *ptr,
 		fcu = MEM_callocN(sizeof(FCurve), "FCurve");
 		
 		fcu->flag = (FCURVE_VISIBLE | FCURVE_SELECTED);
+		fcu->auto_smoothing = FCURVE_SMOOTH_CONT_ACCEL;
 		if (BLI_listbase_is_empty(&act->curves))
 			fcu->flag |= FCURVE_ACTIVE;  /* first one added active */
 			
@@ -301,7 +302,7 @@ void update_autoflags_fcurve(FCurve *fcu, bContext *C, ReportList *reports, Poin
  * NOTE: any recalculate of the F-Curve that needs to be done will need to 
  *      be done by the caller.
  */
-int insert_bezt_fcurve(FCurve *fcu, const BezTriple *bezt, short flag)
+int insert_bezt_fcurve(FCurve *fcu, const BezTriple *bezt, eInsertKeyFlags flag)
 {
 	int i = 0;
 	
@@ -388,11 +389,11 @@ int insert_bezt_fcurve(FCurve *fcu, const BezTriple *bezt, short flag)
  * adding a new keyframe to a curve, when the keyframe doesn't exist anywhere else yet. 
  * It returns the index at which the keyframe was added.
  *
- * \param keyframe_type: The type of keyframe (eBezTriple_KeyframeTypes)
+ * \param keyframe_type: The type of keyframe (eBezTriple_KeyframeType)
  * \param flag: Optional flags (eInsertKeyFlags) for controlling how keys get added 
  *              and/or whether updates get done
  */
-int insert_vert_fcurve(FCurve *fcu, float x, float y, char keyframe_type, short flag)
+int insert_vert_fcurve(FCurve *fcu, float x, float y, eBezTriple_KeyframeType keyframe_type, eInsertKeyFlags flag)
 {
 	BezTriple beztr = {{{0}}};
 	unsigned int oldTot = fcu->totvert;
@@ -880,13 +881,13 @@ static float visualkey_get_value(PointerRNA *ptr, PropertyRNA *prop, int array_i
  *  Use this when validation of necessary animation data is not necessary, since an RNA-pointer to the necessary
  *	data being keyframed, and a pointer to the F-Curve to use have both been provided.
  *
- *  keytype is the "keyframe type" (eBezTriple_KeyframeTypes), as shown in the Dope Sheet.
+ *  keytype is the "keyframe type" (eBezTriple_KeyframeType), as shown in the Dope Sheet.
  *
  *	The flag argument is used for special settings that alter the behavior of
  *	the keyframe insertion. These include the 'visual' keyframing modes, quick refresh,
  *	and extra keyframe filtering.
  */
-bool insert_keyframe_direct(ReportList *reports, PointerRNA ptr, PropertyRNA *prop, FCurve *fcu, float cfra, char keytype, short flag)
+bool insert_keyframe_direct(ReportList *reports, PointerRNA ptr, PropertyRNA *prop, FCurve *fcu, float cfra, eBezTriple_KeyframeType keytype, eInsertKeyFlags flag)
 {
 	float curval = 0.0f;
 	
@@ -1005,7 +1006,7 @@ bool insert_keyframe_direct(ReportList *reports, PointerRNA ptr, PropertyRNA *pr
  *
  *	index of -1 keys all array indices
  */
-short insert_keyframe(ReportList *reports, ID *id, bAction *act, const char group[], const char rna_path[], int array_index, float cfra, char keytype, short flag)
+short insert_keyframe(ReportList *reports, ID *id, bAction *act, const char group[], const char rna_path[], int array_index, float cfra, eBezTriple_KeyframeType keytype, eInsertKeyFlags flag)
 {	
 	PointerRNA id_ptr, ptr;
 	PropertyRNA *prop = NULL;
@@ -1073,10 +1074,11 @@ short insert_keyframe(ReportList *reports, ID *id, bAction *act, const char grou
 				/* for Loc/Rot/Scale and also Color F-Curves, the color of the F-Curve in the Graph Editor,
 				 * is determined by the array index for the F-Curve
 				 */
-				if (ELEM(RNA_property_subtype(prop), PROP_TRANSLATION, PROP_XYZ, PROP_EULER, PROP_COLOR, PROP_COORDS)) {
+				PropertySubType prop_subtype = RNA_property_subtype(prop);
+				if (ELEM(prop_subtype, PROP_TRANSLATION, PROP_XYZ, PROP_EULER, PROP_COLOR, PROP_COORDS)) {
 					fcu->color_mode = FCURVE_COLOR_AUTO_RGB;
 				}
-				else if (RNA_property_subtype(prop), PROP_QUATERNION) {
+				else if (ELEM(prop_subtype, PROP_QUATERNION)) {
 					fcu->color_mode = FCURVE_COLOR_AUTO_YRGB;
 				}
 			}
@@ -1127,7 +1129,7 @@ static bool delete_keyframe_fcurve(AnimData *adt, FCurve *fcu, float cfra)
 	return false;
 }
 
-short delete_keyframe(ReportList *reports, ID *id, bAction *act, const char group[], const char rna_path[], int array_index, float cfra, short UNUSED(flag))
+short delete_keyframe(ReportList *reports, ID *id, bAction *act, const char group[], const char rna_path[], int array_index, float cfra, eInsertKeyFlags UNUSED(flag))
 {
 	AnimData *adt = BKE_animdata_from_id(id);
 	PointerRNA id_ptr, ptr;
@@ -1216,7 +1218,7 @@ short delete_keyframe(ReportList *reports, ID *id, bAction *act, const char grou
  *	The flag argument is used for special settings that alter the behavior of
  *	the keyframe deletion. These include the quick refresh options.
  */
-static short clear_keyframe(ReportList *reports, ID *id, bAction *act, const char group[], const char rna_path[], int array_index, short UNUSED(flag))
+static short clear_keyframe(ReportList *reports, ID *id, bAction *act, const char group[], const char rna_path[], int array_index, eInsertKeyFlags UNUSED(flag))
 {
 	AnimData *adt = BKE_animdata_from_id(id);
 	PointerRNA id_ptr, ptr;
@@ -1354,7 +1356,7 @@ static int insert_key_exec(bContext *C, wmOperator *op)
 	 * updated since the last switching to the edit mode will be keyframed correctly
 	 */
 	if (obedit && ANIM_keyingset_find_id(ks, (ID *)obedit->data)) {
-		ED_object_toggle_modes(C, OB_MODE_EDIT);
+		ED_object_mode_toggle(C, OB_MODE_EDIT);
 		ob_edit_mode = true;
 	}
 	
@@ -1365,7 +1367,7 @@ static int insert_key_exec(bContext *C, wmOperator *op)
 	
 	/* restore the edit mode if necessary */
 	if (ob_edit_mode) {
-		ED_object_toggle_modes(C, OB_MODE_EDIT);
+		ED_object_mode_toggle(C, OB_MODE_EDIT);
 	}
 
 	/* report failure or do updates? */
@@ -1765,7 +1767,8 @@ static int insert_key_button_exec(bContext *C, wmOperator *op)
 	short success = 0;
 	int index;
 	const bool all = RNA_boolean_get(op->ptr, "all");
-	short flag = 0;
+	eInsertKeyFlags flag = INSERTKEY_NOFLAGS;
+
 	
 	/* flags for inserting keyframes */
 	flag = ANIM_get_keyframing_flags(scene, 1);
@@ -1785,7 +1788,13 @@ static int insert_key_button_exec(bContext *C, wmOperator *op)
 			NlaStrip *strip = (NlaStrip *)ptr.data;
 			FCurve *fcu = list_find_fcurve(&strip->fcurves, RNA_property_identifier(prop), index);
 			
-			success = insert_keyframe_direct(op->reports, ptr, prop, fcu, cfra, ts->keyframe_type, 0);
+			if (fcu) {
+				success = insert_keyframe_direct(op->reports, ptr, prop, fcu, cfra, ts->keyframe_type, 0);
+			}
+			else {
+				BKE_report(op->reports, RPT_ERROR,
+				           "This property cannot be animated as it will not get updated correctly");
+			}
 		}
 		else if (UI_but_flag_is_set(but, UI_BUT_DRIVEN)) {
 			/* Driven property - Find driver */
@@ -1881,7 +1890,7 @@ static int delete_key_button_exec(bContext *C, wmOperator *op)
 	}
 
 	if (ptr.id.data && ptr.data && prop) {
-		if (ptr.type == &RNA_NlaStrip) {
+		if (BKE_nlastrip_has_curves_for_property(&ptr, prop)) {
 			/* Handle special properties for NLA Strips, whose F-Curves are stored on the
 			 * strips themselves. These are stored separately or else the properties will
 			 * not have any effect.
@@ -1890,27 +1899,27 @@ static int delete_key_button_exec(bContext *C, wmOperator *op)
 			NlaStrip *strip = (NlaStrip *)ptr.data;
 			FCurve *fcu = list_find_fcurve(&strip->fcurves, RNA_property_identifier(prop), 0);
 			
-			BLI_assert(fcu != NULL); /* NOTE: This should be true, or else we wouldn't be able to get here */
-			
-			if (BKE_fcurve_is_protected(fcu)) {
-				BKE_reportf(op->reports, RPT_WARNING,
-				            "Not deleting keyframe for locked F-Curve for NLA Strip influence on %s - %s '%s'",
-				            strip->name, BKE_idcode_to_name(GS(id->name)), id->name + 2);
-			}
-			else {
-				/* remove the keyframe directly
-				 * NOTE: cannot use delete_keyframe_fcurve(), as that will free the curve,
-				 *       and delete_keyframe() expects the FCurve to be part of an action
-				 */
-				bool found = false;
-				int i;
-				
-				/* try to find index of beztriple to get rid of */
-				i = binarysearch_bezt_index(fcu->bezt, cfra, fcu->totvert, &found);
-				if (found) {
-					/* delete the key at the index (will sanity check + do recalc afterwards) */
-					delete_fcurve_key(fcu, i, 1);
-					success = true;
+			if (fcu) {
+				if (BKE_fcurve_is_protected(fcu)) {
+					BKE_reportf(op->reports, RPT_WARNING,
+					            "Not deleting keyframe for locked F-Curve for NLA Strip influence on %s - %s '%s'",
+					            strip->name, BKE_idcode_to_name(GS(id->name)), id->name + 2);
+				}
+				else {
+					/* remove the keyframe directly
+					 * NOTE: cannot use delete_keyframe_fcurve(), as that will free the curve,
+					 *       and delete_keyframe() expects the FCurve to be part of an action
+					 */
+					bool found = false;
+					int i;
+					
+					/* try to find index of beztriple to get rid of */
+					i = binarysearch_bezt_index(fcu->bezt, cfra, fcu->totvert, &found);
+					if (found) {
+						/* delete the key at the index (will sanity check + do recalc afterwards) */
+						delete_fcurve_key(fcu, i, 1);
+						success = true;
+					}
 				}
 			}
 		}

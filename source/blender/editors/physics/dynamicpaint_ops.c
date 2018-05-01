@@ -253,7 +253,7 @@ static int output_toggle_exec(bContext *C, wmOperator *op)
 
 void DPAINT_OT_output_toggle(wmOperatorType *ot)
 {
-	static EnumPropertyItem prop_output_toggle_types[] = {
+	static const EnumPropertyItem prop_output_toggle_types[] = {
 		{0, "A", 0, "Output A", ""},
 		{1, "B", 0, "Output B", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -279,10 +279,10 @@ void DPAINT_OT_output_toggle(wmOperatorType *ot)
 /***************************** Image Sequence Baking ******************************/
 
 typedef struct DynamicPaintBakeJob {
-    /* from wmJob */
-    void *owner;
-    short *stop, *do_update;
-    float *progress;
+	/* from wmJob */
+	void *owner;
+	short *stop, *do_update;
+	float *progress;
 
 	struct Main *bmain;
 	Scene *scene;
@@ -297,13 +297,13 @@ typedef struct DynamicPaintBakeJob {
 
 static void dpaint_bake_free(void *customdata)
 {
-    DynamicPaintBakeJob *job = customdata;
-    MEM_freeN(job);
+	DynamicPaintBakeJob *job = customdata;
+	MEM_freeN(job);
 }
 
 static void dpaint_bake_endjob(void *customdata)
 {
-    DynamicPaintBakeJob *job = customdata;
+	DynamicPaintBakeJob *job = customdata;
 	DynamicPaintCanvasSettings *canvas = job->canvas;
 
 	canvas->flags &= ~MOD_DPAINT_BAKING;
@@ -311,7 +311,7 @@ static void dpaint_bake_endjob(void *customdata)
 	dynamicPaint_freeSurfaceData(job->surface);
 
 	G.is_rendering = false;
-    BKE_spacedata_draw_locks(false);
+	BKE_spacedata_draw_locks(false);
 
 	WM_set_locked_interface(G.main->wm.first, false);
 
@@ -359,7 +359,7 @@ static void dynamicPaint_bakeImageSequence(DynamicPaintBakeJob *job)
 	scene->r.cfra = (int)frame;
 	ED_update_for_newframe(job->bmain, scene, 1);
 
-	/* Init surface	*/
+	/* Init surface */
 	if (!dynamicPaint_createUVSurface(scene, surface, job->progress, job->do_update)) {
 		job->success = 0;
 		return;
@@ -421,26 +421,26 @@ static void dynamicPaint_bakeImageSequence(DynamicPaintBakeJob *job)
 
 static void dpaint_bake_startjob(void *customdata, short *stop, short *do_update, float *progress)
 {
-    DynamicPaintBakeJob *job = customdata;
+	DynamicPaintBakeJob *job = customdata;
 
-    job->stop = stop;
-    job->do_update = do_update;
-    job->progress = progress;
+	job->stop = stop;
+	job->do_update = do_update;
+	job->progress = progress;
 	job->start = PIL_check_seconds_timer();
 	job->success = 1;
 
-    G.is_break = false; /* reset BKE_blender_test_break*/
+	G.is_break = false; /* reset BKE_blender_test_break*/
 
 	/* XXX annoying hack: needed to prevent data corruption when changing
 	 * scene frame in separate threads
-     */
-    G.is_rendering = true;
-    BKE_spacedata_draw_locks(true);
+	 */
+	G.is_rendering = true;
+	BKE_spacedata_draw_locks(true);
 
 	dynamicPaint_bakeImageSequence(job);
 
-    *do_update = true;
-    *stop = 0;
+	*do_update = true;
+	*stop = 0;
 }
 
 /*
@@ -493,7 +493,7 @@ static int dynamicpaint_bake_exec(struct bContext *C, struct wmOperator *op)
 
 	WM_set_locked_interface(CTX_wm_manager(C), true);
 
-	/*  Bake Dynamic Paint	*/
+	/* Bake Dynamic Paint */
 	WM_jobs_start(CTX_wm_manager(C), wm_job);
 
 	return OPERATOR_FINISHED;

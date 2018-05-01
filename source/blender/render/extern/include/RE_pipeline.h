@@ -83,25 +83,19 @@ typedef struct RenderView {
 
 typedef struct RenderPass {
 	struct RenderPass *next, *prev;
-	int passtype, channels;
+	int channels;
 	char name[64];		/* amount defined in openexr_multi.h */
 	char chan_id[8];	/* amount defined in openexr_multi.h */
 	float *rect;
 	int rectx, recty;
 
-	char internal_name[64]; /* EXR_PASS_MAXNAME */
+	char fullname[64]; /* EXR_PASS_MAXNAME */
 	char view[64];		/* EXR_VIEW_MAXNAME */
 	int view_id;	/* quick lookup */
 
-	int debug_type;
+	int pad;
 } RenderPass;
 
-enum {
-	RENDER_PASS_DEBUG_BVH_TRAVERSED_NODES = 0,
-	RENDER_PASS_DEBUG_BVH_TRAVERSED_INSTANCES = 1,
-	RENDER_PASS_DEBUG_RAY_BOUNCES = 2,
-	RENDER_PASS_DEBUG_BVH_INTERSECTIONS = 3,
-};
 
 /* a renderlayer is a full image, but with all passes and samples */
 /* size of the rects is defined in RenderResult */
@@ -200,6 +194,10 @@ typedef struct RenderStats {
 struct Render *RE_NewRender(const char *name);
 struct Render *RE_GetRender(const char *name);
 
+struct Scene;
+struct Render *RE_NewSceneRender(const struct Scene *scene);
+struct Render *RE_GetSceneRender(const struct Scene *scene);
+
 /* assign default dummy callbacks */
 void RE_InitRenderCB(struct Render *re);
 
@@ -236,7 +234,9 @@ void RE_render_result_rect_from_ibuf(
         struct ImBuf *ibuf, const int view_id);
 
 struct RenderLayer *RE_GetRenderLayer(struct RenderResult *rr, const char *name);
-float *RE_RenderLayerGetPass(volatile struct RenderLayer *rl, int passtype, const char *viewname);
+float *RE_RenderLayerGetPass(volatile struct RenderLayer *rl, const char *name, const char *viewname);
+
+bool RE_HasSingleLayer(struct Render *re);
 
 /* add passes for grease pencil */
 struct RenderPass *RE_create_gp_pass(struct RenderResult *rr, const char *layername, const char *viewname);
@@ -312,7 +312,7 @@ void RE_PreviewRender(struct Render *re, struct Main *bmain, struct Scene *scene
 bool RE_ReadRenderResult(struct Scene *scene, struct Scene *scenode);
 bool RE_WriteRenderResult(
         struct ReportList *reports, RenderResult *rr, const char *filename,
-        struct ImageFormatData *imf, const bool multiview, const char *view);
+        struct ImageFormatData *imf, const char *view, int layer);
 struct RenderResult *RE_MultilayerConvert(
         void *exrhandle, const char *colorspace, bool predivide, int rectx, int recty);
 
@@ -336,15 +336,13 @@ void RE_current_scene_update_cb(struct Render *re, void *handle, void (*f)(void 
 
 /* should move to kernel once... still unsure on how/where */
 float RE_filter_value(int type, float x);
-/* vector blur zbuffer method */
-void RE_zbuf_accumulate_vecblur(
-        struct NodeBlurData *nbd, int xsize, int ysize, float *newrect,
-        const float *imgrect, float *vecbufrect, const float *zbufrect);
 
 int RE_seq_render_active(struct Scene *scene, struct RenderData *rd);
 
 bool RE_layers_have_name(struct RenderResult *result);
+bool RE_passes_have_name(struct RenderLayer *rl);
 
+struct RenderPass *RE_pass_find_by_name(volatile struct RenderLayer *rl, const char *name, const char *viewname);
 struct RenderPass *RE_pass_find_by_type(volatile struct RenderLayer *rl, int passtype, const char *viewname);
 
 /* shaded view or baking options */
@@ -381,26 +379,19 @@ bool RE_allow_render_generic_object(struct Object *ob);
 /* RE_updateRenderInstances flag */
 enum {
 	RE_OBJECT_INSTANCES_UPDATE_VIEW  = (1 << 0),
-	RE_OBJECT_INSTANCES_UPDATE_OBMAT = (1 << 1),
+	RE_OBJECT_INSTANCES_UPDATE_OBMAT = (1 << 1)
 };
 void RE_updateRenderInstances(Render *re, int flag);
 
 /******* defined in render_result.c *********/
 
-bool RE_HasFakeLayer(RenderResult *res);
+bool RE_HasCombinedLayer(RenderResult *res);
+bool RE_HasFloatPixels(RenderResult *res);
 bool RE_RenderResult_is_stereo(RenderResult *res);
 struct RenderView *RE_RenderViewGetById(struct RenderResult *res, const int view_id);
 struct RenderView *RE_RenderViewGetByName(struct RenderResult *res, const char *viewname);
 
 RenderResult *RE_DuplicateRenderResult(RenderResult *rr);
-
-/******* Debug pass helper functions *********/
-
-#ifdef WITH_CYCLES_DEBUG
-int RE_debug_pass_num_channels_get(int pass_type);
-const char *RE_debug_pass_name_get(int pass_type);
-int RE_debug_pass_type_get(struct Render *re);
-#endif
 
 #endif /* __RE_PIPELINE_H__ */
 

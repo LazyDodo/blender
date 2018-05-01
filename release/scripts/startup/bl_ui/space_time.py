@@ -239,6 +239,7 @@ class TIME_MT_autokey(Menu):
 
 
 def marker_menu_generic(layout):
+    from bpy import context
 
     # layout.operator_context = 'EXEC_REGION_WIN'
 
@@ -250,7 +251,7 @@ def marker_menu_generic(layout):
         layout.operator_context = 'INVOKE_DEFAULT'
         layout.operator("marker.make_links_scene", text="Duplicate Marker to Scene...", icon='OUTLINER_OB_EMPTY')
     else:
-        layout.operator_menu_enum("marker.make_links_scene", "scene", text="Duplicate Marker to Scene...")
+        layout.operator_menu_enum("marker.make_links_scene", "scene", text="Duplicate Marker to Scene")
 
     layout.operator("marker.delete", text="Delete Marker")
 
@@ -265,9 +266,22 @@ def marker_menu_generic(layout):
     layout.operator("screen.marker_jump", text="Jump to Previous Marker").next = False
 
     layout.separator()
-    ts = bpy.context.tool_settings
+    ts = context.tool_settings
     layout.prop(ts, "lock_markers")
 
 
+classes = (
+    TIME_HT_header,
+    TIME_MT_editor_menus,
+    TIME_MT_marker,
+    TIME_MT_view,
+    TIME_MT_cache,
+    TIME_MT_frame,
+    TIME_MT_playback,
+    TIME_MT_autokey,
+)
+
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

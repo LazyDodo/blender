@@ -17,23 +17,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "device.h"
-#include "device_intern.h"
+#include "device/device.h"
+#include "device/device_intern.h"
 
-#include "util_debug.h"
-#include "util_foreach.h"
-#include "util_half.h"
-#include "util_math.h"
-#include "util_opengl.h"
-#include "util_time.h"
-#include "util_types.h"
-#include "util_vector.h"
-#include "util_string.h"
+#include "util/util_foreach.h"
+#include "util/util_half.h"
+#include "util/util_logging.h"
+#include "util/util_math.h"
+#include "util/util_opengl.h"
+#include "util/util_time.h"
+#include "util/util_system.h"
+#include "util/util_types.h"
+#include "util/util_vector.h"
+#include "util/util_string.h"
 
 CCL_NAMESPACE_BEGIN
 
 bool Device::need_types_update = true;
 bool Device::need_devices_update = true;
+thread_mutex Device::device_mutex;
 vector<DeviceType> Device::types;
 vector<DeviceInfo> Device::devices;
 
@@ -44,15 +46,14 @@ std::ostream& operator <<(std::ostream &os,
 {
 	os << "Experimental features: "
 	   << (requested_features.experimental ? "On" : "Off") << std::endl;
-	os << "Max closure count: " << requested_features.max_closure << std::endl;
 	os << "Max nodes group: " << requested_features.max_nodes_group << std::endl;
 	/* TODO(sergey): Decode bitflag into list of names. */
 	os << "Nodes features: " << requested_features.nodes_features << std::endl;
-	os << "Use hair: "
+	os << "Use Hair: "
 	   << string_from_bool(requested_features.use_hair) << std::endl;
-	os << "Use object motion: "
+	os << "Use Object Motion: "
 	   << string_from_bool(requested_features.use_object_motion) << std::endl;
-	os << "Use camera motion: "
+	os << "Use Camera Motion: "
 	   << string_from_bool(requested_features.use_camera_motion) << std::endl;
 	os << "Use Baking: "
 	   << string_from_bool(requested_features.use_baking) << std::endl;
@@ -66,6 +67,10 @@ std::ostream& operator <<(std::ostream &os,
 	   << string_from_bool(requested_features.use_patch_evaluation) << std::endl;
 	os << "Use Transparent Shadows: "
 	   << string_from_bool(requested_features.use_transparent) << std::endl;
+	os << "Use Principled BSDF: "
+	   << string_from_bool(requested_features.use_principled) << std::endl;
+	os << "Use Denoising: "
+	   << string_from_bool(requested_features.use_denoising) << std::endl;
 	return os;
 }
 
@@ -78,28 +83,12 @@ Device::~Device()
 	}
 }
 
-void Device::pixels_alloc(device_memory& mem)
-{
-	mem_alloc(mem, MEM_READ_WRITE);
-}
-
-void Device::pixels_copy_from(device_memory& mem, int y, int w, int h)
-{
-	if(mem.data_type == TYPE_HALF)
-		mem_copy_from(mem, y, w, h, sizeof(half4));
-	else
-		mem_copy_from(mem, y, w, h, sizeof(uchar4));
-}
-
-void Device::pixels_free(device_memory& mem)
-{
-	mem_free(mem);
-}
-
 void Device::draw_pixels(device_memory& rgba, int y, int w, int h, int dx, int dy, int width, int height, bool transparent,
 	const DeviceDrawParams &draw_params)
 {
-	pixels_copy_from(rgba, y, w, h);
+	assert(rgba.type == MEM_PIXELS);
+
+	mem_copy_from(rgba, y, w, h, rgba.memory_elements_size(1));
 
 	if(transparent) {
 		glEnable(GL_BLEND);
@@ -111,17 +100,17 @@ void Device::draw_pixels(device_memory& rgba, int y, int w, int h, int dx, int d
 	if(rgba.data_type == TYPE_HALF) {
 		/* for multi devices, this assumes the inefficient method that we allocate
 		 * all pixels on the device even though we only render to a subset */
-		GLhalf *data_pointer = (GLhalf*)rgba.data_pointer;
+		GLhalf *host_pointer = (GLhalf*)rgba.host_pointer;
 		float vbuffer[16], *basep;
 		float *vp = NULL;
 
-		data_pointer += 4*y*w;
+		host_pointer += 4*y*w;
 
 		/* draw half float texture, GLSL shader for display transform assumed to be bound */
 		GLuint texid;
 		glGenTextures(1, &texid);
 		glBindTexture(GL_TEXTURE_2D, texid);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, w, h, 0, GL_RGBA, GL_HALF_FLOAT, data_pointer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, w, h, 0, GL_RGBA, GL_HALF_FLOAT, host_pointer);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -203,7 +192,7 @@ void Device::draw_pixels(device_memory& rgba, int y, int w, int h, int dx, int d
 		glPixelZoom((float)width/(float)w, (float)height/(float)h);
 		glRasterPos2f(dx, dy);
 
-		uint8_t *pixels = (uint8_t*)rgba.data_pointer;
+		uint8_t *pixels = (uint8_t*)rgba.host_pointer;
 
 		pixels += 4*y*w;
 
@@ -292,53 +281,49 @@ string Device::string_from_type(DeviceType type)
 
 vector<DeviceType>& Device::available_types()
 {
+	thread_scoped_lock lock(device_mutex);
 	if(need_types_update) {
 		types.clear();
 		types.push_back(DEVICE_CPU);
-
 #ifdef WITH_CUDA
-		if(device_cuda_init())
+		if(device_cuda_init()) {
 			types.push_back(DEVICE_CUDA);
+		}
 #endif
-
 #ifdef WITH_OPENCL
-		if(device_opencl_init())
+		if(device_opencl_init()) {
 			types.push_back(DEVICE_OPENCL);
+		}
 #endif
-
 #ifdef WITH_NETWORK
 		types.push_back(DEVICE_NETWORK);
 #endif
-
 		need_types_update = false;
 	}
-
 	return types;
 }
 
 vector<DeviceInfo>& Device::available_devices()
 {
+	thread_scoped_lock lock(device_mutex);
 	if(need_devices_update) {
 		devices.clear();
-#ifdef WITH_CUDA
-		if(device_cuda_init())
-			device_cuda_info(devices);
-#endif
-
 #ifdef WITH_OPENCL
-		if(device_opencl_init())
+		if(device_opencl_init()) {
 			device_opencl_info(devices);
+		}
 #endif
-
+#ifdef WITH_CUDA
+		if(device_cuda_init()) {
+			device_cuda_info(devices);
+		}
+#endif
 		device_cpu_info(devices);
-
 #ifdef WITH_NETWORK
 		device_network_info(devices);
 #endif
-
 		need_devices_update = false;
 	}
-
 	return devices;
 }
 
@@ -346,12 +331,6 @@ string Device::device_capabilities()
 {
 	string capabilities = "CPU device capabilities: ";
 	capabilities += device_cpu_capabilities() + "\n";
-#ifdef WITH_CUDA
-	if(device_cuda_init()) {
-		capabilities += "\nCUDA device capabilities:\n";
-		capabilities += device_cuda_capabilities();
-	}
-#endif
 
 #ifdef WITH_OPENCL
 	if(device_opencl_init()) {
@@ -360,10 +339,17 @@ string Device::device_capabilities()
 	}
 #endif
 
+#ifdef WITH_CUDA
+	if(device_cuda_init()) {
+		capabilities += "\nCUDA device capabilities:\n";
+		capabilities += device_cuda_capabilities();
+	}
+#endif
+
 	return capabilities;
 }
 
-DeviceInfo Device::get_multi_device(vector<DeviceInfo> subdevices)
+DeviceInfo Device::get_multi_device(const vector<DeviceInfo>& subdevices, int threads, bool background)
 {
 	assert(subdevices.size() > 1);
 
@@ -371,16 +357,47 @@ DeviceInfo Device::get_multi_device(vector<DeviceInfo> subdevices)
 	info.type = DEVICE_MULTI;
 	info.id = "MULTI";
 	info.description = "Multi Device";
-	info.multi_devices = subdevices;
 	info.num = 0;
 
-	info.has_bindless_textures = true;
-	info.pack_images = false;
-	foreach(DeviceInfo &device, subdevices) {
-		assert(device.type == info.multi_devices[0].type);
+	info.has_half_images = true;
+	info.has_volume_decoupled = true;
+	info.bvh_layout_mask = BVH_LAYOUT_ALL;
+	info.has_osl = true;
 
-		info.pack_images |= device.pack_images;
-		info.has_bindless_textures &= device.has_bindless_textures;
+	foreach(const DeviceInfo &device, subdevices) {
+		/* Ensure CPU device does not slow down GPU. */
+		if(device.type == DEVICE_CPU && subdevices.size() > 1) {
+			if(background) {
+				int orig_cpu_threads = (threads)? threads: system_cpu_thread_count();
+				int cpu_threads = max(orig_cpu_threads - (subdevices.size() - 1), 0);
+
+				VLOG(1) << "CPU render threads reduced from "
+						<< orig_cpu_threads << " to " << cpu_threads
+						<< ", to dedicate to GPU.";
+
+				if(cpu_threads >= 1) {
+					DeviceInfo cpu_device = device;
+					cpu_device.cpu_threads = cpu_threads;
+					info.multi_devices.push_back(cpu_device);
+				}
+				else {
+					continue;
+				}
+			}
+			else {
+				VLOG(1) << "CPU render threads disabled for interactive render.";
+				continue;
+			}
+		}
+		else {
+			info.multi_devices.push_back(device);
+		}
+
+		/* Accumulate device info. */
+		info.has_half_images &= device.has_half_images;
+		info.has_volume_decoupled &= device.has_volume_decoupled;
+		info.bvh_layout_mask = device.bvh_layout_mask & info.bvh_layout_mask;
+		info.has_osl &= device.has_osl;
 	}
 
 	return info;

@@ -41,7 +41,7 @@
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
-#include "BLI_polyfill2d.h"
+#include "BLI_polyfill_2d.h"
 
 #include "BLF_api.h"
 #include "BLT_translation.h"
@@ -426,7 +426,7 @@ static void gp_triangulate_stroke_fill(bGPDstroke *gps)
 	
 	/* convert to 2d and triangulate */
 	gp_stroke_2d_flat(gps->points, gps->totpoints, points2d, &direction);
-	BLI_polyfill_calc((const float(*)[2])points2d, (unsigned int)gps->totpoints, direction, (unsigned int(*)[3])tmp_triangles);
+	BLI_polyfill_calc(points2d, (unsigned int)gps->totpoints, direction, tmp_triangles);
 
 	/* Number of triangles */
 	gps->tot_triangles = gps->totpoints - 2;
@@ -441,9 +441,7 @@ static void gp_triangulate_stroke_fill(bGPDstroke *gps)
 		
 		for (int i = 0; i < gps->tot_triangles; i++) {
 			bGPDtriangle *stroke_triangle = &gps->triangles[i];
-			stroke_triangle->v1 = tmp_triangles[i][0];
-			stroke_triangle->v2 = tmp_triangles[i][1];
-			stroke_triangle->v3 = tmp_triangles[i][2];
+			memcpy(stroke_triangle->verts, tmp_triangles[i], sizeof(uint[3]));
 		}
 	}
 	else {
@@ -490,53 +488,39 @@ static void gp_draw_stroke_fill(
 		/* Draw all triangles for filling the polygon (cache must be calculated before) */
 		BLI_assert(gps->tot_triangles >= 1);
 		glBegin(GL_TRIANGLES);
-		for (i = 0, stroke_triangle = gps->triangles; i < gps->tot_triangles; i++, stroke_triangle++) {
-			if (gps->flag & GP_STROKE_3DSPACE) {
-				/* vertex 1 */
-				pt = &gps->points[stroke_triangle->v1];
-				mul_v3_m4v3(fpt, diff_mat, &pt->x);
-				glVertex3fv(fpt);
-				/* vertex 2 */
-				pt = &gps->points[stroke_triangle->v2];
-				mul_v3_m4v3(fpt, diff_mat, &pt->x);
-				glVertex3fv(fpt);
-				/* vertex 3 */
-				pt = &gps->points[stroke_triangle->v3];
-				mul_v3_m4v3(fpt, diff_mat, &pt->x);
-				glVertex3fv(fpt);
+		if (gps->flag & GP_STROKE_3DSPACE) {
+			for (i = 0, stroke_triangle = gps->triangles; i < gps->tot_triangles; i++, stroke_triangle++) {
+				for (int j = 0; j < 3; j++) {
+					pt = &gps->points[stroke_triangle->verts[j]];
+					mul_v3_m4v3(fpt, diff_mat, &pt->x);
+					glVertex3fv(fpt);
+				}
 			}
-			else {
-				float co[2];
-				/* vertex 1 */
-				pt = &gps->points[stroke_triangle->v1];
-				mul_v3_m4v3(fpt, diff_mat, &pt->x);
-				gp_calc_2d_stroke_fxy(fpt, gps->flag, offsx, offsy, winx, winy, co);
-				glVertex2fv(co);
-				/* vertex 2 */
-				pt = &gps->points[stroke_triangle->v2];
-				mul_v3_m4v3(fpt, diff_mat, &pt->x);
-				gp_calc_2d_stroke_fxy(fpt, gps->flag, offsx, offsy, winx, winy, co);
-				glVertex2fv(co);
-				/* vertex 3 */
-				pt = &gps->points[stroke_triangle->v3];
-				mul_v3_m4v3(fpt, diff_mat, &pt->x);
-				gp_calc_2d_stroke_fxy(fpt, gps->flag, offsx, offsy, winx, winy, co);
-				glVertex2fv(co);
+		}
+		else {
+			for (i = 0, stroke_triangle = gps->triangles; i < gps->tot_triangles; i++, stroke_triangle++) {
+				for (int j = 0; j < 3; j++) {
+					float co[2];
+					pt = &gps->points[stroke_triangle->verts[j]];
+					mul_v3_m4v3(fpt, diff_mat, &pt->x);
+					gp_calc_2d_stroke_fxy(fpt, gps->flag, offsx, offsy, winx, winy, co);
+					glVertex2fv(co);
+				}
 			}
 		}
 		glEnd();
 	}
 	else {
 		/* As an initial implementation, we use the OpenGL filled polygon drawing
-		* here since it's the easiest option to implement for this case. It does
-		* come with limitations (notably for concave shapes), though it shouldn't
-		* be much of an issue in most cases.
-		*
-		* We keep this legacy implementation around despite now having the high quality
-		* fills, as this is necessary for keeping everything working nicely for files
-		* created using old versions of Blender which may have depended on the artifacts
-		* the old fills created.
-		*/
+		 * here since it's the easiest option to implement for this case. It does
+		 * come with limitations (notably for concave shapes), though it shouldn't
+		 * be much of an issue in most cases.
+		 *
+		 * We keep this legacy implementation around despite now having the high quality
+		 * fills, as this is necessary for keeping everything working nicely for files
+		 * created using old versions of Blender which may have depended on the artifacts
+		 * the old fills created.
+		 */
 		bGPDspoint *pt;
 
 		glBegin(GL_POLYGON);
@@ -701,24 +685,25 @@ static void gp_draw_stroke_2d(bGPDspoint *points, int totpoints, short thickness
 	 */
 	{
 		bGPDspoint *pt1, *pt2;
-		float pm[2];
+		float s0[2], s1[2];     /* segment 'center' points */
+		float pm[2];  /* normal from previous segment. */
 		int i;
 		float fpt[3];
 		
 		glShadeModel(GL_FLAT);
 		glBegin(GL_QUADS);
-		
+
+		/* get x and y coordinates from first point */
+		mul_v3_m4v3(fpt, diff_mat, &points->x);
+		gp_calc_2d_stroke_fxy(fpt, sflag, offsx, offsy, winx, winy, s0);
+
 		for (i = 0, pt1 = points, pt2 = points + 1; i < (totpoints - 1); i++, pt1++, pt2++) {
-			float s0[2], s1[2];     /* segment 'center' points */
 			float t0[2], t1[2];     /* tessellated coordinates */
 			float m1[2], m2[2];     /* gradient and normal */
 			float mt[2], sc[2];     /* gradient for thickness, point for end-cap */
 			float pthick;           /* thickness at segment point */
 
-			/* get x and y coordinates from points */
-			mul_v3_m4v3(fpt, diff_mat, &pt1->x);
-			gp_calc_2d_stroke_fxy(fpt, sflag, offsx, offsy, winx, winy, s0);
-
+			/* get x and y coordinates from point2 (point1 has already been computed in previous iteration). */
 			mul_v3_m4v3(fpt, diff_mat, &pt2->x);
 			gp_calc_2d_stroke_fxy(fpt, sflag, offsx, offsy, winx, winy, s1);
 			
@@ -846,6 +831,8 @@ static void gp_draw_stroke_2d(bGPDspoint *points, int totpoints, short thickness
 				glVertex2fv(t0);
 			}
 			
+			/* store computed point2 coordinates as point1 ones of next segment. */
+			copy_v2_v2(s0, s1);
 			/* store stroke's 'natural' normal for next stroke to use */
 			copy_v2_v2(pm, m2);
 		}
@@ -1729,10 +1716,10 @@ void ED_gpencil_draw_view3d(wmWindowManager *wm, Scene *scene, View3D *v3d, AReg
 		rctf rectf;
 		ED_view3d_calc_camera_border(scene, ar, v3d, rv3d, &rectf, true); /* no shift */
 		
-		offsx = iroundf(rectf.xmin);
-		offsy = iroundf(rectf.ymin);
-		winx  = iroundf(rectf.xmax - rectf.xmin);
-		winy  = iroundf(rectf.ymax - rectf.ymin);
+		offsx = round_fl_to_int(rectf.xmin);
+		offsy = round_fl_to_int(rectf.ymin);
+		winx  = round_fl_to_int(rectf.xmax - rectf.xmin);
+		winy  = round_fl_to_int(rectf.ymax - rectf.ymin);
 	}
 	else {
 		offsx = 0;

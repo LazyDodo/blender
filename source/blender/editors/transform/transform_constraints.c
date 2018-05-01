@@ -831,6 +831,13 @@ static void drawObjectConstraint(TransInfo *t)
 			}
 		}
 
+		if (t->options & CTX_GPENCIL_STROKES) {
+			/* only draw a constraint line for one point, otherwise we can't see anything */
+			if ((options & DRAWLIGHT) == 0) {
+				break;
+			}
+		}
+
 		if (t->flag & T_OBJECT) {
 			copy_v3_v3(co, td->ob->obmat[3]);
 			axismtx = td->axismtx;
@@ -972,7 +979,7 @@ static void setNearestAxis3d(TransInfo *t)
 	 * of two 2D points 30 pixels apart (that's the last factor in the formula) after
 	 * projecting them with ED_view3d_win_to_delta and then get the length of that vector.
 	 */
-	zfac = mul_project_m4_v3_zfac(t->persmat, t->center);
+	zfac = mul_project_m4_v3_zfac(t->persmat, t->center_global);
 	zfac = len_v3(t->persinv[0]) * 2.0f / t->ar->winx * zfac * 30.0f;
 
 	for (i = 0; i < 3; i++) {

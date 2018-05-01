@@ -1523,6 +1523,15 @@ float mat4_to_scale(float mat[4][4])
 	return len_v3(unit_vec);
 }
 
+/** Return 2D scale (in XY plane) of given mat4. */
+float mat4_to_xy_scale(float M[4][4])
+{
+	/* unit length vector in xy plane */
+	float unit_vec[3] = {(float)M_SQRT1_2, (float)M_SQRT1_2, 0.0f};
+	mul_mat3_m4_v3(M, unit_vec);
+	return len_v3(unit_vec);
+}
+
 void mat3_to_rot_size(float rot[3][3], float size[3], float mat3[3][3])
 {
 	/* keep rot as a 3x3 matrix, the caller can convert into a quat or euler */
@@ -1625,6 +1634,7 @@ void translate_m4(float mat[4][4], float Tx, float Ty, float Tz)
 	mat[3][2] += (Tx * mat[0][2] + Ty * mat[1][2] + Tz * mat[2][2]);
 }
 
+/* TODO: enum for axis? */
 /**
  * Rotate a matrix in-place.
  *
@@ -1662,6 +1672,9 @@ void rotate_m4(float mat[4][4], const char axis, const float angle)
 				mat[1][col] = -angle_sin * mat[0][col] + angle_cos * mat[1][col];
 				mat[0][col] =  temp;
 			}
+			break;
+		default:
+			BLI_assert(0);
 			break;
 	}
 }
@@ -1738,16 +1751,16 @@ void blend_m4_m4m4(float out[4][4], float dst[4][4], float src[4][4], const floa
 /**
  * A polar-decomposition-based interpolation between matrix A and matrix B.
  *
- * \note This code is about five times slower as the 'naive' interpolation done by \a blend_m3_m3m3
- *       (it typically remains below 2 usec on an average i74700, while \a blend_m3_m3m3 remains below 0.4 usec).
+ * \note This code is about five times slower as the 'naive' interpolation done by #blend_m3_m3m3
+ *       (it typically remains below 2 usec on an average i74700, while #blend_m3_m3m3 remains below 0.4 usec).
  *       However, it gives expected results even with non-uniformaly scaled matrices, see T46418 for an example.
  *
  * Based on "Matrix Animation and Polar Decomposition", by Ken Shoemake & Tom Duff
  *
- * @return R the interpolated matrix.
- * @param A the intput matrix which is totally effective with \a t = 0.0.
- * @param B the intput matrix which is totally effective with \a t = 1.0.
- * @param t the interpolation factor.
+ * \param R: Resulting interpolated matrix.
+ * \param A: Input matrix which is totally effective with `t = 0.0`.
+ * \param B: Input matrix which is totally effective with `t = 1.0`.
+ * \param t: Interpolation factor.
  */
 void interp_m3_m3m3(float R[3][3], float A[3][3], float B[3][3], const float t)
 {
@@ -1777,12 +1790,12 @@ void interp_m3_m3m3(float R[3][3], float A[3][3], float B[3][3], const float t)
 }
 
 /**
- * Complete transform matrix interpolation, based on polar-decomposition-based interpolation from interp_m3_m3m3.
+ * Complete transform matrix interpolation, based on polar-decomposition-based interpolation from #interp_m3_m3m3.
  *
- * @return R the interpolated matrix.
- * @param A the intput matrix which is totally effective with \a t = 0.0.
- * @param B the intput matrix which is totally effective with \a t = 1.0.
- * @param t the interpolation factor.
+ * \param R: Resulting interpolated matrix.
+ * \param A: Input matrix which is totally effective with `t = 0.0`.
+ * \param B: Input matrix which is totally effective with `t = 1.0`.
+ * \param t: Interpolation factor.
  */
 void interp_m4_m4m4(float R[4][4], float A[4][4], float B[4][4], const float t)
 {

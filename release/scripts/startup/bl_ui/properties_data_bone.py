@@ -188,18 +188,13 @@ class BONE_PT_curved(BoneButtonsPanel, Panel):
         row = col.row()
         sub = row.column(align=True)
         sub.label(text="Scale:")
-        sub.prop(bbone, "bbone_scalein", text="Scale In")
-        sub.prop(bbone, "bbone_scaleout", text="Scale Out")
+        sub.prop(bbone, "bbone_scalein", text="In")
+        sub.prop(bbone, "bbone_scaleout", text="Out")
 
         sub = row.column(align=True)
         sub.label("Easing:")
-        if pchan:
-            # XXX: have these also be an overlay?
-            sub.prop(bbone.bone, "bbone_in", text="Ease In")
-            sub.prop(bbone.bone, "bbone_out", text="Ease Out")
-        else:
-            sub.prop(bone, "bbone_in", text="Ease In")
-            sub.prop(bone, "bbone_out", text="Ease Out")
+        sub.prop(bbone, "bbone_easein", text="In")
+        sub.prop(bbone, "bbone_easeout", text="Out")
 
         if pchan:
             layout.separator()
@@ -449,5 +444,20 @@ class BONE_PT_custom_props(BoneButtonsPanel, PropertyPanel, Panel):
         else:
             return "active_bone"
 
+
+classes = (
+    BONE_PT_context_bone,
+    BONE_PT_transform,
+    BONE_PT_transform_locks,
+    BONE_PT_curved,
+    BONE_PT_relations,
+    BONE_PT_display,
+    BONE_PT_inverse_kinematics,
+    BONE_PT_deform,
+    BONE_PT_custom_props,
+)
+
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

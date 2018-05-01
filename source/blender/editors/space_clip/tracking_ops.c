@@ -226,7 +226,6 @@ static int delete_track_exec(bContext *C, wmOperator *UNUSED(op))
 	MovieClip *clip = ED_space_clip_get_clip(sc);
 	MovieTracking *tracking = &clip->tracking;
 	bool changed = false;
-
 	/* Delete selected plane tracks. */
 	ListBase *plane_tracks_base = BKE_tracking_get_active_plane_tracks(tracking);
 	for (MovieTrackingPlaneTrack *plane_track = plane_tracks_base->first,
@@ -235,14 +234,11 @@ static int delete_track_exec(bContext *C, wmOperator *UNUSED(op))
 	     plane_track = next_plane_track)
 	{
 		next_plane_track = plane_track->next;
-
 		if (PLANE_TRACK_VIEW_SELECTED(plane_track)) {
-			BKE_tracking_plane_track_free(plane_track);
-			BLI_freelinkN(plane_tracks_base, plane_track);
+			clip_delete_plane_track(C, clip, plane_track);
 			changed = true;
 		}
 	}
-
 	/* Remove selected point tracks (they'll also be removed from planes which
 	 * uses them).
 	 */
@@ -257,14 +253,11 @@ static int delete_track_exec(bContext *C, wmOperator *UNUSED(op))
 			changed = true;
 		}
 	}
-
 	/* Nothing selected now, unlock view so it can be scrolled nice again. */
 	sc->flag &= ~SC_LOCK_SELECTION;
-
 	if (changed) {
 		WM_event_add_notifier(C, NC_MOVIECLIP | NA_EDITED, clip);
 	}
-
 	return OPERATOR_FINISHED;
 }
 
@@ -875,8 +868,7 @@ static int slide_marker_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			if (ELEM(event->type, LEFTSHIFTKEY, RIGHTSHIFTKEY)) {
 				data->accurate = event->val == KM_PRESS;
 			}
-
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		case MOUSEMOVE:
 			mdelta[0] = event->mval[0] - data->mval[0];
 			mdelta[1] = event->mval[1] - data->mval[1];
@@ -1138,7 +1130,7 @@ static int clear_track_path_exec(bContext *C, wmOperator *op)
 
 void CLIP_OT_clear_track_path(wmOperatorType *ot)
 {
-	static EnumPropertyItem clear_path_actions[] = {
+	static const EnumPropertyItem clear_path_actions[] = {
 		{TRACK_CLEAR_UPTO, "UPTO", 0, "Clear up-to", "Clear path up to current frame"},
 		{TRACK_CLEAR_REMAINED, "REMAINED", 0, "Clear remained", "Clear path at remaining frames (after current)"},
 		{TRACK_CLEAR_ALL, "ALL", 0, "Clear all", "Clear the whole path"},
@@ -1210,7 +1202,7 @@ static int disable_markers_exec(bContext *C, wmOperator *op)
 
 void CLIP_OT_disable_markers(wmOperatorType *ot)
 {
-	static EnumPropertyItem actions_items[] = {
+	static const EnumPropertyItem actions_items[] = {
 		{MARKER_OP_DISABLE, "DISABLE", 0, "Disable",
 		 "Disable selected markers"},
 		{MARKER_OP_ENABLE,  "ENABLE", 0, "Enable",
@@ -1477,7 +1469,7 @@ static int frame_jump_exec(bContext *C, wmOperator *op)
 
 void CLIP_OT_frame_jump(wmOperatorType *ot)
 {
-	static EnumPropertyItem position_items[] = {
+	static const EnumPropertyItem position_items[] = {
 		{0, "PATHSTART",  0, "Path Start",      "Jump to start of current path"},
 		{1, "PATHEND",    0, "Path End",        "Jump to end of current path"},
 		{2, "FAILEDPREV", 0, "Previous Failed", "Jump to previous failed frame"},
@@ -1534,7 +1526,8 @@ static int join_tracks_exec(bContext *C, wmOperator *op)
 				update_stabilization = true;
 				if ((act_track->flag & TRACK_USE_2D_STAB) == 0) {
 					act_track->flag |= TRACK_USE_2D_STAB;
-				} else {
+				}
+				else {
 					stab->tot_track--;
 				}
 				BLI_assert(0 <= stab->tot_track);
@@ -1543,7 +1536,8 @@ static int join_tracks_exec(bContext *C, wmOperator *op)
 				update_stabilization = true;
 				if ((act_track->flag & TRACK_USE_2D_STAB_ROT) == 0) {
 					act_track->flag |= TRACK_USE_2D_STAB_ROT;
-				} else {
+				}
+				else {
 					stab->tot_rot_track--;
 				}
 				BLI_assert(0 <= stab->tot_rot_track);
@@ -1643,7 +1637,7 @@ static int lock_tracks_exec(bContext *C, wmOperator *op)
 
 void CLIP_OT_lock_tracks(wmOperatorType *ot)
 {
-	static EnumPropertyItem actions_items[] = {
+	static const EnumPropertyItem actions_items[] = {
 		{TRACK_ACTION_LOCK, "LOCK", 0, "Lock", "Lock selected tracks"},
 		{TRACK_ACTION_UNLOCK, "UNLOCK", 0, "Unlock", "Unlock selected tracks"},
 		{TRACK_ACTION_TOGGLE, "TOGGLE", 0, "Toggle",
@@ -1699,7 +1693,7 @@ static int set_solver_keyframe_exec(bContext *C, wmOperator *op)
 
 void CLIP_OT_set_solver_keyframe(wmOperatorType *ot)
 {
-	static EnumPropertyItem keyframe_items[] = {
+	static const EnumPropertyItem keyframe_items[] = {
 		{SOLVER_KEYFRAME_A, "KEYFRAME_A", 0, "Keyframe A", ""},
 		{SOLVER_KEYFRAME_B, "KEYFRAME_B", 0, "Keyframe B", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -1864,6 +1858,10 @@ static bool is_track_clean(MovieTrackingTrack *track, int frames, int del)
 		}
 	}
 
+	if (del && count == 0) {
+		ok = 0;
+	}
+
 	if (del) {
 		MEM_freeN(track->markers);
 
@@ -1970,7 +1968,7 @@ static int clean_tracks_invoke(bContext *C,
 
 void CLIP_OT_clean_tracks(wmOperatorType *ot)
 {
-	static EnumPropertyItem actions_items[] = {
+	static const EnumPropertyItem actions_items[] = {
 		{TRACKING_CLEAN_SELECT, "SELECT", 0, "Select",
 		 "Select unclean tracks"},
 		{TRACKING_CLEAN_DELETE_TRACK, "DELETE_TRACK", 0, "Delete Track",

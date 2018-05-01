@@ -88,7 +88,7 @@ static void draw_render_info(const bContext *C,
                              float zoomy)
 {
 	RenderResult *rr;
-	Render *re = RE_GetRender(scene->id.name);
+	Render *re = RE_GetSceneRender(scene);
 	RenderData *rd = RE_engine_get_render_data(re);
 	Scene *stats_scene = ED_render_job_get_scene(C);
 	if (stats_scene == NULL) {
@@ -360,11 +360,11 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 	if (channels == 1) {
 		if (fp) {
 			rgb_to_hsv(fp[0], fp[0], fp[0], &hue, &sat, &val);
-			rgb_to_yuv(fp[0], fp[0], fp[0], &lum, &u, &v);
+			rgb_to_yuv(fp[0], fp[0], fp[0], &lum, &u, &v, BLI_YUV_ITU_BT709);
 		}
 		else if (cp) {
 			rgb_to_hsv((float)cp[0] / 255.0f, (float)cp[0] / 255.0f, (float)cp[0] / 255.0f, &hue, &sat, &val);
-			rgb_to_yuv((float)cp[0] / 255.0f, (float)cp[0] / 255.0f, (float)cp[0] / 255.0f, &lum, &u, &v);
+			rgb_to_yuv((float)cp[0] / 255.0f, (float)cp[0] / 255.0f, (float)cp[0] / 255.0f, &lum, &u, &v, BLI_YUV_ITU_BT709);
 		}
 		
 		BLI_snprintf(str, sizeof(str), "V:%-.4f", val);
@@ -379,7 +379,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 	}
 	else if (channels >= 3) {
 		rgb_to_hsv(finalcol[0], finalcol[1], finalcol[2], &hue, &sat, &val);
-		rgb_to_yuv(finalcol[0], finalcol[1], finalcol[2], &lum, &u, &v);
+		rgb_to_yuv(finalcol[0], finalcol[1], finalcol[2], &lum, &u, &v, BLI_YUV_ITU_BT709);
 
 		BLI_snprintf(str, sizeof(str), "H:%-.4f", hue);
 		BLF_position(blf_mono_font, dx, dy, 0);
@@ -881,7 +881,7 @@ void draw_image_main(const bContext *C, ARegion *ar)
 		 * other images are not modifying in such a way so they does not require
 		 * lock (sergey)
 		 */
-		BLI_lock_thread(LOCK_DRAW_IMAGE);
+		BLI_thread_lock(LOCK_DRAW_IMAGE);
 	}
 
 	if (show_stereo3d) {
@@ -942,7 +942,7 @@ void draw_image_main(const bContext *C, ARegion *ar)
 #endif
 
 	if (show_viewer) {
-		BLI_unlock_thread(LOCK_DRAW_IMAGE);
+		BLI_thread_unlock(LOCK_DRAW_IMAGE);
 	}
 
 	/* render info */

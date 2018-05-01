@@ -40,7 +40,7 @@
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
@@ -440,9 +440,9 @@ static void ptcache_particle_extra_write(void *psys_v, PTCacheMem *pm, int UNUSE
 	PTCacheExtra *extra = NULL;
 
 	if (psys->part->phystype == PART_PHYS_FLUID &&
-		psys->part->fluid && psys->part->fluid->flag & SPH_VISCOELASTIC_SPRINGS &&
-		psys->tot_fluidsprings && psys->fluid_springs) {
-
+	    psys->part->fluid && psys->part->fluid->flag & SPH_VISCOELASTIC_SPRINGS &&
+	    psys->tot_fluidsprings && psys->fluid_springs)
+	{
 		extra = MEM_callocN(sizeof(PTCacheExtra), "Point cache: fluid extra data");
 
 		extra->type = BPHYS_EXTRA_FLUID_SPRINGS;
@@ -789,8 +789,9 @@ static int ptcache_smoke_read(PTCacheFile *pf, void *smoke_v)
 
 	/* check if resolution has changed */
 	if (sds->res[0] != ch_res[0] ||
-		sds->res[1] != ch_res[1] ||
-		sds->res[2] != ch_res[2]) {
+	    sds->res[1] != ch_res[1] ||
+	    sds->res[2] != ch_res[2])
+	{
 		if (sds->flags & MOD_SMOKE_ADAPTIVE_DOMAIN)
 			reallocate = 1;
 		else
@@ -972,20 +973,20 @@ static int ptcache_smoke_openvdb_write(struct OpenVDBWriter *writer, void *smoke
 
 		smoke_turbulence_export(sds->wt, &dens, &react, &flame, &fuel, &r, &g, &b, &tcu, &tcv, &tcw);
 
-		wt_density_grid = OpenVDB_export_grid_fl(writer, "density", dens, sds->res_wt, sds->fluidmat_wt, NULL);
+		wt_density_grid = OpenVDB_export_grid_fl(writer, "density", dens, sds->res_wt, sds->fluidmat_wt, sds->clipping, NULL);
 		clip_grid = wt_density_grid;
 
 		if (fluid_fields & SM_ACTIVE_FIRE) {
-			OpenVDB_export_grid_fl(writer, "flame", flame, sds->res_wt, sds->fluidmat_wt, wt_density_grid);
-			OpenVDB_export_grid_fl(writer, "fuel", fuel, sds->res_wt, sds->fluidmat_wt, wt_density_grid);
-			OpenVDB_export_grid_fl(writer, "react", react, sds->res_wt, sds->fluidmat_wt, wt_density_grid);
+			OpenVDB_export_grid_fl(writer, "flame", flame, sds->res_wt, sds->fluidmat_wt, sds->clipping, wt_density_grid);
+			OpenVDB_export_grid_fl(writer, "fuel", fuel, sds->res_wt, sds->fluidmat_wt, sds->clipping, wt_density_grid);
+			OpenVDB_export_grid_fl(writer, "react", react, sds->res_wt, sds->fluidmat_wt, sds->clipping, wt_density_grid);
 		}
 
 		if (fluid_fields & SM_ACTIVE_COLORS) {
-			OpenVDB_export_grid_vec(writer, "color", r, g, b, sds->res_wt, sds->fluidmat_wt, VEC_INVARIANT, true, wt_density_grid);
+			OpenVDB_export_grid_vec(writer, "color", r, g, b, sds->res_wt, sds->fluidmat_wt, VEC_INVARIANT, true, sds->clipping, wt_density_grid);
 		}
 
-		OpenVDB_export_grid_vec(writer, "texture coordinates", tcu, tcv, tcw, sds->res, sds->fluidmat, VEC_INVARIANT, false, wt_density_grid);
+		OpenVDB_export_grid_vec(writer, "texture coordinates", tcu, tcv, tcw, sds->res, sds->fluidmat, VEC_INVARIANT, false, sds->clipping, wt_density_grid);
 	}
 
 	if (sds->fluid) {
@@ -999,33 +1000,33 @@ static int ptcache_smoke_openvdb_write(struct OpenVDBWriter *writer, void *smoke
 		OpenVDBWriter_add_meta_fl(writer, "blender/smoke/dx", dx);
 		OpenVDBWriter_add_meta_fl(writer, "blender/smoke/dt", dt);
 
-		const char *name = (!sds->wt) ? "density" : "density low";
-		density_grid = OpenVDB_export_grid_fl(writer, name, dens, sds->res, sds->fluidmat, NULL);
+		const char *name = (!sds->wt) ? "density" : "density_low";
+		density_grid = OpenVDB_export_grid_fl(writer, name, dens, sds->res, sds->fluidmat, sds->clipping, NULL);
 		clip_grid = sds->wt ? clip_grid : density_grid;
 
-		OpenVDB_export_grid_fl(writer, "shadow", sds->shadow, sds->res, sds->fluidmat, NULL);
+		OpenVDB_export_grid_fl(writer, "shadow", sds->shadow, sds->res, sds->fluidmat, sds->clipping, NULL);
 
 		if (fluid_fields & SM_ACTIVE_HEAT) {
-			OpenVDB_export_grid_fl(writer, "heat", heat, sds->res, sds->fluidmat, clip_grid);
-			OpenVDB_export_grid_fl(writer, "heat old", heatold, sds->res, sds->fluidmat, clip_grid);
+			OpenVDB_export_grid_fl(writer, "heat", heat, sds->res, sds->fluidmat, sds->clipping, clip_grid);
+			OpenVDB_export_grid_fl(writer, "heat_old", heatold, sds->res, sds->fluidmat, sds->clipping, clip_grid);
 		}
 
 		if (fluid_fields & SM_ACTIVE_FIRE) {
-			name = (!sds->wt) ? "flame" : "flame low";
-			OpenVDB_export_grid_fl(writer, name, flame, sds->res, sds->fluidmat, density_grid);
-			name = (!sds->wt) ? "fuel" : "fuel low";
-			OpenVDB_export_grid_fl(writer, name, fuel, sds->res, sds->fluidmat, density_grid);
-			name = (!sds->wt) ? "react" : "react low";
-			OpenVDB_export_grid_fl(writer, name, react, sds->res, sds->fluidmat, density_grid);
+			name = (!sds->wt) ? "flame" : "flame_low";
+			OpenVDB_export_grid_fl(writer, name, flame, sds->res, sds->fluidmat, sds->clipping, density_grid);
+			name = (!sds->wt) ? "fuel" : "fuel_low";
+			OpenVDB_export_grid_fl(writer, name, fuel, sds->res, sds->fluidmat, sds->clipping, density_grid);
+			name = (!sds->wt) ? "react" : "react_low";
+			OpenVDB_export_grid_fl(writer, name, react, sds->res, sds->fluidmat, sds->clipping, density_grid);
 		}
 
 		if (fluid_fields & SM_ACTIVE_COLORS) {
-			name = (!sds->wt) ? "color" : "color low";
-			OpenVDB_export_grid_vec(writer, name, r, g, b, sds->res, sds->fluidmat, VEC_INVARIANT, true, density_grid);
+			name = (!sds->wt) ? "color" : "color_low";
+			OpenVDB_export_grid_vec(writer, name, r, g, b, sds->res, sds->fluidmat, VEC_INVARIANT, true, sds->clipping, density_grid);
 		}
 
-		OpenVDB_export_grid_vec(writer, "velocity", vx, vy, vz, sds->res, sds->fluidmat, VEC_CONTRAVARIANT_RELATIVE, false, clip_grid);
-		OpenVDB_export_grid_ch(writer, "obstacles", obstacles, sds->res, sds->fluidmat, NULL);
+		OpenVDB_export_grid_vec(writer, "velocity", vx, vy, vz, sds->res, sds->fluidmat, VEC_CONTRAVARIANT_RELATIVE, false, sds->clipping, clip_grid);
+		OpenVDB_export_grid_ch(writer, "obstacles", obstacles, sds->res, sds->fluidmat, sds->clipping, NULL);
 	}
 
 	return 1;
@@ -1104,25 +1105,25 @@ static int ptcache_smoke_openvdb_read(struct OpenVDBReader *reader, void *smoke_
 
 		OpenVDB_import_grid_fl(reader, "shadow", &sds->shadow, sds->res);
 
-		const char *name = (!sds->wt) ? "density" : "density low";
+		const char *name = (!sds->wt) ? "density" : "density_low";
 		OpenVDB_import_grid_fl(reader, name, &dens, sds->res);
 
 		if (cache_fields & SM_ACTIVE_HEAT) {
 			OpenVDB_import_grid_fl(reader, "heat", &heat, sds->res);
-			OpenVDB_import_grid_fl(reader, "heat old", &heatold, sds->res);
+			OpenVDB_import_grid_fl(reader, "heat_old", &heatold, sds->res);
 		}
 
 		if (cache_fields & SM_ACTIVE_FIRE) {
-			name = (!sds->wt) ? "flame" : "flame low";
+			name = (!sds->wt) ? "flame" : "flame_low";
 			OpenVDB_import_grid_fl(reader, name, &flame, sds->res);
-			name = (!sds->wt) ? "fuel" : "fuel low";
+			name = (!sds->wt) ? "fuel" : "fuel_low";
 			OpenVDB_import_grid_fl(reader, name, &fuel, sds->res);
-			name = (!sds->wt) ? "react" : "react low";
+			name = (!sds->wt) ? "react" : "react_low";
 			OpenVDB_import_grid_fl(reader, name, &react, sds->res);
 		}
 
 		if (cache_fields & SM_ACTIVE_COLORS) {
-			name = (!sds->wt) ? "color" : "color low";
+			name = (!sds->wt) ? "color" : "color_low";
 			OpenVDB_import_grid_vec(reader, name, &r, &g, &b, sds->res);
 		}
 
@@ -2197,8 +2198,8 @@ static void ptcache_data_copy(void *from[], void *to[])
 {
 	int i;
 	for (i=0; i<BPHYS_TOT_DATA; i++) {
-	/* note, durian file 03.4b_comp crashes if to[i] is not tested
-	 * its NULL, not sure if this should be fixed elsewhere but for now its needed */
+		/* note, durian file 03.4b_comp crashes if to[i] is not tested
+		 * its NULL, not sure if this should be fixed elsewhere but for now its needed */
 		if (from[i] && to[i])
 			memcpy(to[i], from[i], ptcache_data_size[i]);
 	}
@@ -3449,7 +3450,7 @@ void BKE_ptcache_free_list(ListBase *ptcaches)
 	}
 }
 
-static PointCache *ptcache_copy(PointCache *cache, bool copy_data)
+static PointCache *ptcache_copy(PointCache *cache, const bool copy_data)
 {
 	PointCache *ncache;
 
@@ -3492,14 +3493,15 @@ static PointCache *ptcache_copy(PointCache *cache, bool copy_data)
 }
 
 /* returns first point cache */
-PointCache *BKE_ptcache_copy_list(ListBase *ptcaches_new, const ListBase *ptcaches_old, bool copy_data)
+PointCache *BKE_ptcache_copy_list(ListBase *ptcaches_new, const ListBase *ptcaches_old, const int flag)
 {
 	PointCache *cache = ptcaches_old->first;
 
 	BLI_listbase_clear(ptcaches_new);
 
-	for (; cache; cache=cache->next)
-		BLI_addtail(ptcaches_new, ptcache_copy(cache, copy_data));
+	for (; cache; cache=cache->next) {
+		BLI_addtail(ptcaches_new, ptcache_copy(cache, (flag & LIB_ID_COPY_CACHES) != 0));
+	}
 
 	return ptcaches_new->first;
 }
@@ -3618,9 +3620,13 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 						psys_get_pointcache_start_end(scene, pid->calldata, &cache->startframe, &cache->endframe);
 					}
 
-					if ((cache->flag & PTCACHE_REDO_NEEDED || (cache->flag & PTCACHE_SIMULATION_VALID)==0) &&
-					    (render || bake))
-					{
+					// XXX workaround for regression inroduced in ee3fadd, needs looking into
+					if (pid->type == PTCACHE_TYPE_RIGIDBODY) {
+						if ((cache->flag & PTCACHE_REDO_NEEDED || (cache->flag & PTCACHE_SIMULATION_VALID)==0) && (render || bake)) {
+							BKE_ptcache_id_clear(pid, PTCACHE_CLEAR_ALL, 0);
+						}
+					}
+					else if (((cache->flag & PTCACHE_BAKED) == 0) && (render || bake)) {
 						BKE_ptcache_id_clear(pid, PTCACHE_CLEAR_ALL, 0);
 					}
 

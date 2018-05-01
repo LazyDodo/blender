@@ -115,6 +115,13 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         sub.active = md.use_object_offset
         sub.prop(md, "offset_object", text="")
 
+        row = layout.row()
+        split = row.split()
+        col = split.column()
+        col.label(text="UVs:")
+        sub = col.column(align=True)
+        sub.prop(md, "offset_u")
+        sub.prop(md, "offset_v")
         layout.separator()
 
         layout.prop(md, "start_cap")
@@ -146,10 +153,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         layout.row().prop(md, "offset_type", expand=True)
 
     def BOOLEAN(self, layout, ob, md):
-        if not bpy.app.build_options.mod_boolean:
-            layout.label("Built without Boolean modifier")
-            return
-
         split = layout.split()
 
         col = split.column()
@@ -160,12 +163,11 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label(text="Object:")
         col.prop(md, "object", text="")
 
-        split = layout.split()
-        split.column().label(text="Solver:")
-        split.column().prop(md, "solver", text="")
+        layout.prop(md, "double_threshold")
 
-        if md.solver == 'BMESH':
-            layout.prop(md, "double_threshold")
+        if bpy.app.debug:
+            layout.prop(md, "debug_options")
+
 
     def BUILD(self, layout, ob, md):
         split = layout.split()
@@ -381,7 +383,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         split = layout.split()
 
         col = split.column()
-        col.label(text="Vertex group:")
+        col.label(text="Vertex Group:")
         col.prop_search(md, "vertex_group", ob, "vertex_groups", text="")
         sub = col.column()
         sub.active = bool(md.vertex_group)
@@ -566,8 +568,20 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
         col = split.column()
         col.label(text="Textures:")
-        col.prop(md, "use_mirror_u", text="U")
-        col.prop(md, "use_mirror_v", text="V")
+        col.prop(md, "use_mirror_u", text="Flip U")
+        col.prop(md, "use_mirror_v", text="Flip V")
+
+        col = layout.column(align=True)
+
+        if md.use_mirror_u:
+            col.prop(md, "mirror_offset_u")
+
+        if md.use_mirror_v:
+            col.prop(md, "mirror_offset_v")
+
+        col = layout.column(align=True)
+        col.prop(md, "offset_u")
+        col.prop(md, "offset_v")
 
         col = layout.column()
 
@@ -697,11 +711,15 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
     def PARTICLE_INSTANCE(self, layout, ob, md):
         layout.prop(md, "object")
-        layout.prop(md, "particle_system_index", text="Particle System")
+        if md.object:
+            layout.prop_search(md, "particle_system", md.object, "particle_systems", text="Particle System")
+        else:
+            layout.prop(md, "particle_system_index", text="Particle System")
 
         split = layout.split()
         col = split.column()
         col.label(text="Create From:")
+        layout.prop(md, "space", text="")
         col.prop(md, "use_normal")
         col.prop(md, "use_children")
         col.prop(md, "use_size")
@@ -711,6 +729,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "show_alive")
         col.prop(md, "show_unborn")
         col.prop(md, "show_dead")
+
+        row = layout.row(align=True)
+        row.prop(md, "particle_amount", text="Amount")
+        row.prop(md, "particle_offset", text="Offset")
 
         layout.separator()
 
@@ -723,8 +745,16 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "use_preserve_shape")
 
         col = split.column()
-        col.prop(md, "position", slider=True)
-        col.prop(md, "random_position", text="Random", slider=True)
+        col2 = col.column(align=True)
+        col2.prop(md, "position", slider=True)
+        col2.prop(md, "random_position", text="Random", slider=True)
+        col2 = col.column(align=True)
+        col2.prop(md, "rotation", slider=True)
+        col2.prop(md, "random_rotation", text="Random", slider=True)
+
+        col = layout.column()
+        col.prop_search(md, "index_layer_name", ob.data, "vertex_colors", text="Index Layer")
+        col.prop_search(md, "value_layer_name", ob.data, "vertex_colors", text="Value Layer")
 
     def PARTICLE_SYSTEM(self, layout, ob, md):
         layout.label(text="Settings can be found inside the Particle context")
@@ -739,6 +769,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "steps")
         col.prop(md, "render_steps")
         col.prop(md, "use_smooth_shade")
+        col.prop(md, "use_merge_vertices")
+        sub = col.column()
+        sub.active = md.use_merge_vertices
+        sub.prop(md, "merge_threshold")
 
         col = split.column()
         row = col.row()
@@ -820,10 +854,18 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label(text="Axis, Origin:")
         col.prop(md, "origin", text="")
 
+        col.prop(md, "deform_axis")
+
         if md.deform_method in {'TAPER', 'STRETCH', 'TWIST'}:
-            col.label(text="Lock:")
-            col.prop(md, "lock_x")
-            col.prop(md, "lock_y")
+            row = col.row(align=True)
+            row.label(text="Lock:")
+            deform_axis = md.deform_axis
+            if deform_axis != 'X':
+                row.prop(md, "lock_x")
+            if deform_axis != 'Y':
+                row.prop(md, "lock_y")
+            if deform_axis != 'Z':
+                row.prop(md, "lock_z")
 
         col = split.column()
         col.label(text="Deform:")
@@ -902,16 +944,18 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "material_offset_rim", text="Rim")
 
     def SUBSURF(self, layout, ob, md):
+        from bpy import context
         layout.row().prop(md, "subdivision_type", expand=True)
 
         split = layout.split()
         col = split.column()
 
-        scene = bpy.context.scene
+        scene = context.scene
         engine = scene.render.engine
-        show_adaptive_options = (engine == "CYCLES" and md == ob.modifiers[-1] and
-                                 scene.cycles.feature_set == "EXPERIMENTAL")
-
+        show_adaptive_options = (
+            engine == 'CYCLES' and md == ob.modifiers[-1] and
+            scene.cycles.feature_set == 'EXPERIMENTAL'
+        )
         if show_adaptive_options:
             col.label(text="View:")
             col.prop(md, "levels", text="Levels")
@@ -950,6 +994,23 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
     def SURFACE(self, layout, ob, md):
         layout.label(text="Settings are inside the Physics tab")
+
+    def SURFACE_DEFORM(self, layout, ob, md):
+        col = layout.column()
+        col.active = not md.is_bound
+
+        col.prop(md, "target")
+        col.prop(md, "falloff")
+
+        layout.separator()
+
+        col = layout.column()
+
+        if md.is_bound:
+            col.operator("object.surfacedeform_bind", text="Unbind")
+        else:
+            col.active = md.target is not None
+            col.operator("object.surfacedeform_bind", text="Bind")
 
     def UV_PROJECT(self, layout, ob, md):
         split = layout.split()
@@ -1505,5 +1566,11 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             layout.operator("object.correctivesmooth_bind", text="Unbind" if is_bind else "Bind")
 
 
+classes = (
+    DATA_PT_modifiers,
+)
+
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

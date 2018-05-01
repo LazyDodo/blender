@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-#include "attribute.h"
-#include "camera.h"
-#include "curves.h"
-#include "mesh.h"
-#include "object.h"
-#include "scene.h"
+#include "render/attribute.h"
+#include "render/camera.h"
+#include "render/curves.h"
+#include "render/mesh.h"
+#include "render/object.h"
+#include "render/scene.h"
 
-#include "blender_sync.h"
-#include "blender_util.h"
+#include "blender/blender_sync.h"
+#include "blender/blender_util.h"
 
-#include "util_foreach.h"
-#include "util_logging.h"
+#include "util/util_foreach.h"
+#include "util/util_hash.h"
+#include "util/util_logging.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -411,6 +412,7 @@ static void ExportCurveTrianglePlanes(Mesh *mesh, ParticleCurveData *CData,
 		}
 	}
 
+	mesh->resize_mesh(mesh->verts.size(), mesh->num_triangles());
 	mesh->attributes.remove(ATTR_STD_VERTEX_NORMAL);
 	mesh->attributes.remove(ATTR_STD_FACE_NORMAL);
 	mesh->add_face_normals();
@@ -434,8 +436,8 @@ static void ExportCurveTriangleGeometry(Mesh *mesh,
 			if(CData->curve_keynum[curve] <= 1 || CData->curve_length[curve] == 0.0f)
 				continue;
 
-			numverts += (CData->curve_keynum[curve] - 2)*2*resolution + resolution;
-			numtris += (CData->curve_keynum[curve] - 2)*resolution;
+			numverts += (CData->curve_keynum[curve] - 1)*resolution + resolution;
+			numtris += (CData->curve_keynum[curve] - 1)*2*resolution;
 		}
 	}
 
@@ -545,6 +547,7 @@ static void ExportCurveTriangleGeometry(Mesh *mesh,
 		}
 	}
 
+	mesh->resize_mesh(mesh->verts.size(), mesh->num_triangles());
 	mesh->attributes.remove(ATTR_STD_VERTEX_NORMAL);
 	mesh->attributes.remove(ATTR_STD_FACE_NORMAL);
 	mesh->add_face_normals();
@@ -563,9 +566,12 @@ static void ExportCurveSegments(Scene *scene, Mesh *mesh, ParticleCurveData *CDa
 		return;
 
 	Attribute *attr_intercept = NULL;
+	Attribute *attr_random = NULL;
 
 	if(mesh->need_attribute(scene, ATTR_STD_CURVE_INTERCEPT))
 		attr_intercept = mesh->curve_attributes.add(ATTR_STD_CURVE_INTERCEPT);
+	if(mesh->need_attribute(scene, ATTR_STD_CURVE_RANDOM))
+		attr_random = mesh->curve_attributes.add(ATTR_STD_CURVE_RANDOM);
 
 	/* compute and reserve size of arrays */
 	for(int sys = 0; sys < CData->psys_firstcurve.size(); sys++) {
@@ -610,6 +616,10 @@ static void ExportCurveSegments(Scene *scene, Mesh *mesh, ParticleCurveData *CDa
 				num_curve_keys++;
 			}
 
+			if(attr_random != NULL) {
+				attr_random->add(hash_int_01(num_curves));
+			}
+
 			mesh->add_curve(num_keys, CData->psys_shader[sys]);
 			num_keys += num_curve_keys;
 			num_curves++;
@@ -623,10 +633,10 @@ static void ExportCurveSegments(Scene *scene, Mesh *mesh, ParticleCurveData *CDa
 	}
 }
 
-static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int time_index)
+static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int motion_step)
 {
 	VLOG(1) << "Exporting curve motion segments for mesh " << mesh->name
-	        << ", time index " << time_index;
+	        << ", motion step " << motion_step;
 
 	/* find attribute */
 	Attribute *attr_mP = mesh->curve_attributes.find(ATTR_STD_MOTION_VERTEX_POSITION);
@@ -641,7 +651,7 @@ static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int 
 
 	/* export motion vectors for curve keys */
 	size_t numkeys = mesh->curve_keys.size();
-	float4 *mP = attr_mP->data_float4() + time_index*numkeys;
+	float4 *mP = attr_mP->data_float4() + motion_step*numkeys;
 	bool have_motion = false;
 	int i = 0;
 
@@ -692,12 +702,12 @@ static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int 
 			}
 			mesh->curve_attributes.remove(ATTR_STD_MOTION_VERTEX_POSITION);
 		}
-		else if(time_index > 0) {
-			VLOG(1) << "Filling in new motion vertex position for time_index "
-			        << time_index;
+		else if(motion_step > 0) {
+			VLOG(1) << "Filling in new motion vertex position for motion_step "
+			        << motion_step;
 			/* motion, fill up previous steps that we might have skipped because
 			 * they had no motion, but we need them anyway now */
-			for(int step = 0; step < time_index; step++) {
+			for(int step = 0; step < motion_step; step++) {
 				float4 *mP = attr_mP->data_float4() + step*numkeys;
 
 				for(int key = 0; key < numkeys; key++) {
@@ -774,17 +784,17 @@ static void ExportCurveTriangleVcol(ParticleCurveData *CData,
 
 			for(int curvekey = CData->curve_firstkey[curve]; curvekey < CData->curve_firstkey[curve] + CData->curve_keynum[curve] - 1; curvekey++) {
 				for(int section = 0; section < resol; section++) {
-					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear(CData->curve_vcol[curve]));
+					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear_v3(CData->curve_vcol[curve]));
 					vertexindex++;
-					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear(CData->curve_vcol[curve]));
+					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear_v3(CData->curve_vcol[curve]));
 					vertexindex++;
-					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear(CData->curve_vcol[curve]));
+					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear_v3(CData->curve_vcol[curve]));
 					vertexindex++;
-					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear(CData->curve_vcol[curve]));
+					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear_v3(CData->curve_vcol[curve]));
 					vertexindex++;
-					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear(CData->curve_vcol[curve]));
+					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear_v3(CData->curve_vcol[curve]));
 					vertexindex++;
-					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear(CData->curve_vcol[curve]));
+					cdata[vertexindex] = color_float_to_byte(color_srgb_to_scene_linear_v3(CData->curve_vcol[curve]));
 					vertexindex++;
 				}
 			}
@@ -878,7 +888,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
                               BL::Mesh& b_mesh,
                               BL::Object& b_ob,
                               bool motion,
-                              int time_index)
+                              int motion_step)
 {
 	if(!motion) {
 		/* Clear stored curve data */
@@ -890,7 +900,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 	}
 
 	/* obtain general settings */
-	bool use_curves = scene->curve_system_manager->use_curves;
+	const bool use_curves = scene->curve_system_manager->use_curves;
 
 	if(!(use_curves && b_ob.mode() != b_ob.mode_PARTICLE_EDIT)) {
 		if(!motion)
@@ -898,11 +908,11 @@ void BlenderSync::sync_curves(Mesh *mesh,
 		return;
 	}
 
-	int primitive = scene->curve_system_manager->primitive;
-	int triangle_method = scene->curve_system_manager->triangle_method;
-	int resolution = scene->curve_system_manager->resolution;
-	size_t vert_num = mesh->verts.size();
-	size_t tri_num = mesh->num_triangles();
+	const int primitive = scene->curve_system_manager->primitive;
+	const int triangle_method = scene->curve_system_manager->triangle_method;
+	const int resolution = scene->curve_system_manager->resolution;
+	const size_t vert_num = mesh->verts.size();
+	const size_t tri_num = mesh->num_triangles();
 	int used_res = 1;
 
 	/* extract particle hair data - should be combined with connecting to mesh later*/
@@ -941,7 +951,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 	}
 	else {
 		if(motion)
-			ExportCurveSegmentsMotion(mesh, &CData, time_index);
+			ExportCurveSegmentsMotion(mesh, &CData, motion_step);
 		else
 			ExportCurveSegments(scene, mesh, &CData);
 	}
@@ -1002,7 +1012,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 					for(size_t curve = 0; curve < CData.curve_vcol.size(); curve++)
 						if(!(CData.curve_keynum[curve] <= 1 || CData.curve_length[curve] == 0.0f))
-							fdata[i++] = color_srgb_to_scene_linear(CData.curve_vcol[curve]);
+							fdata[i++] = color_srgb_to_scene_linear_v3(CData.curve_vcol[curve]);
 				}
 			}
 		}

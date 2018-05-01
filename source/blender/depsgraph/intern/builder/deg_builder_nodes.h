@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "intern/builder/deg_builder_map.h"
 #include "intern/depsgraph_types.h"
 
 struct Base;
@@ -61,8 +62,6 @@ namespace DEG {
 
 struct Depsgraph;
 struct DepsNode;
-struct RootDepsNode;
-struct SubgraphDepsNode;
 struct IDDepsNode;
 struct TimeSourceDepsNode;
 struct ComponentDepsNode;
@@ -72,37 +71,40 @@ struct DepsgraphNodeBuilder {
 	DepsgraphNodeBuilder(Main *bmain, Depsgraph *graph);
 	~DepsgraphNodeBuilder();
 
-	void begin_build(Main *bmain);
+	void begin_build();
 
-	RootDepsNode *add_root_node();
 	IDDepsNode *add_id_node(ID *id);
-	TimeSourceDepsNode *add_time_source(ID *id);
+	TimeSourceDepsNode *add_time_source();
 
 	ComponentDepsNode *add_component_node(ID *id,
 	                                      eDepsNode_Type comp_type,
 	                                      const char *comp_name = "");
 
 	OperationDepsNode *add_operation_node(ComponentDepsNode *comp_node,
-	                                      eDepsOperation_Type optype,
-	                                      DepsEvalOperationCb op,
+	                                      const DepsEvalOperationCb& op,
 	                                      eDepsOperation_Code opcode,
 	                                      const char *name = "",
 	                                      int name_tag = -1);
 	OperationDepsNode *add_operation_node(ID *id,
 	                                      eDepsNode_Type comp_type,
 	                                      const char *comp_name,
-	                                      eDepsOperation_Type optype,
-	                                      DepsEvalOperationCb op,
+	                                      const DepsEvalOperationCb& op,
 	                                      eDepsOperation_Code opcode,
 	                                      const char *name = "",
 	                                      int name_tag = -1);
 	OperationDepsNode *add_operation_node(ID *id,
 	                                      eDepsNode_Type comp_type,
-	                                      eDepsOperation_Type optype,
-	                                      DepsEvalOperationCb op,
+	                                      const DepsEvalOperationCb& op,
 	                                      eDepsOperation_Code opcode,
 	                                      const char *name = "",
 	                                      int name_tag = -1);
+
+	OperationDepsNode *ensure_operation_node(ID *id,
+	                                         eDepsNode_Type comp_type,
+	                                         const DepsEvalOperationCb& op,
+	                                         eDepsOperation_Code opcode,
+	                                         const char *name = "",
+	                                         int name_tag = -1);
 
 	bool has_operation_node(ID *id,
 	                        eDepsNode_Type comp_type,
@@ -124,31 +126,33 @@ struct DepsgraphNodeBuilder {
 	                                       const char *name = "",
 	                                       int name_tag = -1);
 
-	void build_scene(Main *bmain, Scene *scene);
-	SubgraphDepsNode *build_subgraph(Group *group);
-	void build_group(Scene *scene, Base *base, Group *group);
-	void build_object(Scene *scene, Base *base, Object *ob);
-	void build_object_transform(Scene *scene, Object *ob);
-	void build_object_constraints(Scene *scene, Object *ob);
-	void build_pose_constraints(Object *ob, bPoseChannel *pchan);
+	void build_id(ID* id);
+	void build_scene(Scene *scene);
+	void build_group(Base *base, Group *group);
+	void build_object(Base *base, Object *object);
+	void build_object_data(Object *object);
+	void build_object_transform(Object *object);
+	void build_object_constraints(Object *object);
+	void build_pose_constraints(Object *object, bPoseChannel *pchan, int pchan_index);
 	void build_rigidbody(Scene *scene);
-	void build_particles(Scene *scene, Object *ob);
+	void build_particles(Object *object);
+	void build_cloth(Object *object);
 	void build_animdata(ID *id);
-	OperationDepsNode *build_driver(ID *id, FCurve *fcurve);
-	void build_ik_pose(Scene *scene,
-	                   Object *ob,
+	void build_driver(ID *id, FCurve *fcurve);
+	void build_driver_variables(ID *id, FCurve *fcurve);
+	void build_driver_id_property(ID *id, const char *rna_path);
+	void build_ik_pose(Object *object,
 	                   bPoseChannel *pchan,
 	                   bConstraint *con);
-	void build_splineik_pose(Scene *scene,
-	                         Object *ob,
+	void build_splineik_pose(Object *object,
 	                         bPoseChannel *pchan,
 	                         bConstraint *con);
-	void build_rig(Scene *scene, Object *ob);
-	void build_proxy_rig(Object *ob);
+	void build_rig(Object *object);
+	void build_proxy_rig(Object *object);
 	void build_shapekeys(Key *key);
-	void build_obdata_geom(Scene *scene, Object *ob);
-	void build_camera(Object *ob);
-	void build_lamp(Object *ob);
+	void build_obdata_geom(Object *object);
+	void build_camera(Object *object);
+	void build_lamp(Object *object);
 	void build_nodetree(bNodeTree *ntree);
 	void build_material(Material *ma);
 	void build_texture(Tex *tex);
@@ -162,8 +166,28 @@ struct DepsgraphNodeBuilder {
 	void build_movieclip(MovieClip *clip);
 
 protected:
-	Main *m_bmain;
-	Depsgraph *m_graph;
+	struct BuilderWalkUserData {
+		DepsgraphNodeBuilder *builder;
+	};
+
+	static void modifier_walk(void *user_data,
+	                          struct Object *object,
+	                          struct ID **idpoin,
+	                          int cb_flag);
+
+	static void constraint_walk(bConstraint *constraint,
+	                            ID **idpoin,
+	                            bool is_reference,
+	                            void *user_data);
+
+	/* State which never changes, same for the whole builder time. */
+	Main *bmain_;
+	Depsgraph *graph_;
+
+	/* State which demotes currently built entities. */
+	Scene *scene_;
+
+	BuilderMap built_map_;
 };
 
 }  // namespace DEG

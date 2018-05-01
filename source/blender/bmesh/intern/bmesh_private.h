@@ -44,17 +44,18 @@
 #  define BM_CHECK_ELEMENT(el)  (void)(el)
 #else
 int bmesh_elem_check(void *element, const char htype);
-#  define BM_CHECK_ELEMENT(el)                                                \
+#  define BM_CHECK_ELEMENT(el) {                                              \
 	if (bmesh_elem_check(el, ((BMHeader *)el)->htype)) {                      \
 	    printf("check_element failure, with code %i on line %i in file\n"     \
 	    "    \"%s\"\n\n",                                                     \
 	    bmesh_elem_check(el, ((BMHeader *)el)->htype),                        \
 	    __LINE__, __FILE__);                                                  \
-	} (void)0
+	} \
+} ((void)0)
 #endif
 
 int bmesh_radial_length(const BMLoop *l);
-int bmesh_disk_count_ex(const BMVert *v, const int count_max);
+int bmesh_disk_count_at_most(const BMVert *v, const int count_max);
 int bmesh_disk_count(const BMVert *v);
 
 /**
@@ -73,7 +74,7 @@ enum {
 };
 
 #define BM_ELEM_API_FLAG_ENABLE(element, f)  { ((element)->head.api_flag |=  (f)); } (void)0
-#define BM_ELEM_API_FLAG_DISABLE(element, f) { ((element)->head.api_flag &= (unsigned char)~(f)); } (void)0
+#define BM_ELEM_API_FLAG_DISABLE(element, f) { ((element)->head.api_flag &= (uchar)~(f)); } (void)0
 #define BM_ELEM_API_FLAG_TEST(element, f)      ((element)->head.api_flag &   (f))
 #define BM_ELEM_API_FLAG_CLEAR(element)      { ((element)->head.api_flag = 0); } (void)0
 

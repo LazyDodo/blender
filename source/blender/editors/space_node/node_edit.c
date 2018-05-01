@@ -505,8 +505,6 @@ void ED_node_composit_default(const bContext *C, struct Scene *sce)
 	nodeAddLink(sce->nodetree, in, fromsock, out, tosock);
 	
 	ntreeUpdateTree(CTX_data_main(C), sce->nodetree);
-	
-	// XXX ntreeCompositForceHidden(sce->nodetree);
 }
 
 /* assumes nothing being done in ntree yet, sets the default in/out node */
@@ -582,16 +580,10 @@ void snode_set_context(const bContext *C)
 		}
 	}
 	
-	if (snode->nodetree != ntree || snode->id != id || snode->from != from || snode->treepath.last == NULL) {
+	if (snode->nodetree != ntree || snode->id != id || snode->from != from ||
+	    (snode->treepath.last == NULL && ntree))
+	{
 		ED_node_tree_start(snode, ntree, id, from);
-	}
-	
-	/* XXX Legacy hack to update render layer node outputs.
-	 * This should be handled by the depsgraph eventually ...
-	 */
-	if (ED_node_is_compositor(snode) && snode->nodetree) {
-		/* update output sockets based on available layers */
-		ntreeCompositForceHidden(snode->nodetree);
 	}
 }
 
@@ -1069,12 +1061,9 @@ int node_find_indicated_socket(SpaceNode *snode, bNode **nodep, bNodeSocket **so
 	
 	/* check if we click in a socket */
 	for (node = snode->edittree->nodes.first; node; node = node->next) {
-		
-		rect.xmin = cursor[0] - (NODE_SOCKSIZE + 4);
-		rect.ymin = cursor[1] - (NODE_SOCKSIZE + 4);
-		rect.xmax = cursor[0] + (NODE_SOCKSIZE + 4);
-		rect.ymax = cursor[1] + (NODE_SOCKSIZE + 4);
-		
+
+		BLI_rctf_init_pt_radius(&rect, cursor, NODE_SOCKSIZE + 4);
+
 		if (!(node->flag & NODE_HIDDEN)) {
 			/* extra padding inside and out - allow dragging on the text areas too */
 			if (in_out == SOCK_IN) {
@@ -1332,7 +1321,7 @@ static int node_read_fullsamplelayers_exec(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 	SpaceNode *snode = CTX_wm_space_node(C);
 	Scene *curscene = CTX_data_scene(C);
-	Render *re = RE_NewRender(curscene->id.name);
+	Render *re = RE_NewSceneRender(curscene);
 
 	WM_cursor_wait(1);
 	RE_MergeFullSample(re, bmain, curscene, snode->nodetree);
@@ -1916,7 +1905,7 @@ static int node_output_file_move_active_socket_exec(bContext *C, wmOperator *op)
 
 void NODE_OT_output_file_move_active_socket(wmOperatorType *ot)
 {
-	static EnumPropertyItem direction_items[] = {
+	static const EnumPropertyItem direction_items[] = {
 		{1, "UP", 0, "Up", ""},
 		{2, "DOWN", 0, "Down", ""},
 		{ 0, NULL, 0, NULL, NULL }
@@ -2097,7 +2086,7 @@ static int node_clipboard_paste_exec(bContext *C, wmOperator *op)
 	/* make sure all clipboard nodes would be valid in the target tree */
 	all_nodes_valid = true;
 	for (node = clipboard_nodes_lb->first; node; node = node->next) {
-		if (!node->typeinfo->poll_instance(node, ntree)) {
+		if (!node->typeinfo->poll_instance || !node->typeinfo->poll_instance(node, ntree)) {
 			all_nodes_valid = false;
 			BKE_reportf(op->reports, RPT_ERROR, "Cannot add node %s into node tree %s", node->name, ntree->id.name + 2);
 		}
@@ -2284,7 +2273,7 @@ void NODE_OT_tree_socket_remove(wmOperatorType *ot)
 
 /********************** Move interface socket operator *********************/
 
-static EnumPropertyItem move_direction_items[] = {
+static const EnumPropertyItem move_direction_items[] = {
 	{ 1, "UP", 0, "Up", "" },
 	{ 2, "DOWN", 0, "Down", "" },
 	{ 0, NULL, 0, NULL, NULL },
@@ -2574,17 +2563,17 @@ void NODE_OT_viewer_border(wmOperatorType *ot)
 	ot->idname = "NODE_OT_viewer_border";
 
 	/* api callbacks */
-	ot->invoke = WM_border_select_invoke;
+	ot->invoke = WM_gesture_border_invoke;
 	ot->exec = viewer_border_exec;
-	ot->modal = WM_border_select_modal;
-	ot->cancel = WM_border_select_cancel;
+	ot->modal = WM_gesture_border_modal;
+	ot->cancel = WM_gesture_border_cancel;
 	ot->poll = composite_node_active;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	WM_operator_properties_gesture_border(ot, true);
+	WM_operator_properties_gesture_border_select(ot);
 }
 
 static int clear_viewer_border_exec(bContext *C, wmOperator *UNUSED(op))

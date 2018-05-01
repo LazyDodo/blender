@@ -62,8 +62,8 @@ typedef union {
 } EdgeUUID;
 
 typedef struct SortFace {
-	EdgeUUID		es[4];
-	unsigned int	index;
+	EdgeUUID     es[4];
+	unsigned int index;
 } SortFace;
 
 /* Used to detect polys (faces) using exactly the same vertices. */
@@ -126,28 +126,28 @@ static int search_face_cmp(const void *v1, const void *v2)
 	if (sfa->es[0].edval > sfb->es[0].edval) {
 		return 1;
 	}
-	else if	(sfa->es[0].edval < sfb->es[0].edval) {
+	else if (sfa->es[0].edval < sfb->es[0].edval) {
 		return -1;
 	}
 
-	else if	(sfa->es[1].edval > sfb->es[1].edval) {
+	else if (sfa->es[1].edval > sfb->es[1].edval) {
 		return 1;
 	}
-	else if	(sfa->es[1].edval < sfb->es[1].edval) {
+	else if (sfa->es[1].edval < sfb->es[1].edval) {
 		return -1;
 	}
 
-	else if	(sfa->es[2].edval > sfb->es[2].edval) {
+	else if (sfa->es[2].edval > sfb->es[2].edval) {
 		return 1;
 	}
-	else if	(sfa->es[2].edval < sfb->es[2].edval) {
+	else if (sfa->es[2].edval < sfb->es[2].edval) {
 		return -1;
 	}
 
-	else if	(sfa->es[3].edval > sfb->es[3].edval) {
+	else if (sfa->es[3].edval > sfb->es[3].edval) {
 		return 1;
 	}
-	else if	(sfa->es[3].edval < sfb->es[3].edval) {
+	else if (sfa->es[3].edval < sfb->es[3].edval) {
 		return -1;
 	}
 
@@ -584,8 +584,8 @@ bool BKE_mesh_validate_arrays(Mesh *mesh,
 								int prev_e = ml->e;
 								ml->e = GET_INT_FROM_POINTER(BLI_edgehash_lookup(edge_hash, v1, v2));
 								fix_flag.loops_edge = true;
-								PRINT_ERR("\tPoly %u has invalid edge reference (%d), fixed using edge %u\n",
-								          sp->index, prev_e, ml->e);
+								PRINT_ERR("\tPoly %u has invalid edge reference (%d, is_removed: %d), fixed using edge %u\n",
+								          sp->index, prev_e, IS_REMOVED_EDGE(me), ml->e);
 							}
 							else {
 								PRINT_ERR("\tPoly %u has invalid edge reference (%u)\n", sp->index, ml->e);
@@ -1486,7 +1486,7 @@ void BKE_mesh_calc_edges(Mesh *mesh, bool update, const bool select)
 		}
 	}
 
-	totedge = BLI_edgehash_size(eh);
+	totedge = BLI_edgehash_len(eh);
 
 	/* write new edges into a temporary CustomData */
 	CustomData_reset(&edata);

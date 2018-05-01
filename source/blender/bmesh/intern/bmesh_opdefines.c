@@ -112,7 +112,7 @@ static BMOpDefine bmo_smooth_vert_def = {
 	 {"use_axis_x", BMO_OP_SLOT_BOOL},      /* smooth vertices along X axis */
 	 {"use_axis_y", BMO_OP_SLOT_BOOL},      /* smooth vertices along Y axis */
 	 {"use_axis_z", BMO_OP_SLOT_BOOL},      /* smooth vertices along Z axis */
-	{{'\0'}},
+	 {{'\0'}},
 	},
 	{{{'\0'}}},  /* no output */
 	bmo_smooth_vert_exec,
@@ -120,7 +120,7 @@ static BMOpDefine bmo_smooth_vert_def = {
 };
 
 /*
- * Vertext Smooth Laplacian.
+ * Vertex Smooth Laplacian.
  *
  * Smooths vertices by using Laplacian smoothing propose by.
  * Desbrun, et al. Implicit Fairing of Irregular Meshes using Diffusion and Curvature Flow.
@@ -135,7 +135,7 @@ static BMOpDefine bmo_smooth_laplacian_vert_def = {
 	 {"use_y", BMO_OP_SLOT_BOOL},           /* Smooth object along Y axis */
 	 {"use_z", BMO_OP_SLOT_BOOL},           /* Smooth object along Z axis */
 	 {"preserve_volume", BMO_OP_SLOT_BOOL}, /* Apply volume preservation after smooth */
-	{{'\0'}},
+	 {{'\0'}},
 	},
 	{{{'\0'}}},  /* no output */
 	bmo_smooth_laplacian_vert_exec,
@@ -839,11 +839,10 @@ static BMOpDefine bmo_bmesh_to_mesh_def = {
 	"bmesh_to_mesh",
 	/* slots_in */
 	{
-	/* pointer to a mesh structure to fill in */
+	 /* pointer to a mesh structure to fill in */
 	 {"mesh", BMO_OP_SLOT_PTR, {(int)BMO_OP_SLOT_SUBTYPE_PTR_MESH}},
 	/* pointer to an object structure */
 	 {"object", BMO_OP_SLOT_PTR, {(int)BMO_OP_SLOT_SUBTYPE_PTR_OBJECT}},
-	 {"skip_tessface", BMO_OP_SLOT_BOOL},  /* don't calculate mfaces */
 	 {{'\0'}},
 	},
 	{{{'\0'}}},  /* no output */
@@ -861,7 +860,7 @@ static BMOpDefine bmo_mesh_to_bmesh_def = {
 	"mesh_to_bmesh",
 	/* slots_in */
 	{
-	/* pointer to a Mesh structure */
+	 /* pointer to a Mesh structure */
 	 {"mesh", BMO_OP_SLOT_PTR, {(int)BMO_OP_SLOT_SUBTYPE_PTR_MESH}},
 	/* pointer to an Object structure */
 	 {"object", BMO_OP_SLOT_PTR, {(int)BMO_OP_SLOT_SUBTYPE_PTR_OBJECT}},
@@ -1037,7 +1036,7 @@ static BMOpDefine bmo_extrude_face_region_def = {
 	/* slots_in */
 	{{"geom", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT | BM_EDGE | BM_FACE}},     /* edges and faces */
 	 {"edges_exclude", BMO_OP_SLOT_MAPPING, {(int)BMO_OP_SLOT_SUBTYPE_MAP_EMPTY}},
-	 {"use_keep_orig", BMO_OP_SLOT_BOOL},   /* keep original geometry */
+	 {"use_keep_orig", BMO_OP_SLOT_BOOL},   /* keep original geometry (requires ``geom`` to include edges). */
 	 {"use_select_history", BMO_OP_SLOT_BOOL},  /* pass to duplicate */
 	 {{'\0'}},
 	},
@@ -1284,7 +1283,7 @@ static BMOpDefine bmo_bisect_plane_def = {
 	 {"clear_inner",   BMO_OP_SLOT_BOOL},    /* when enabled. remove all geometry on the negative side of the plane */
 	 {{'\0'}},
 	},
-	{{"geom_cut.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT | BM_EDGE}},  /* output new geometry from the cut */
+	{{"geom_cut.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT | BM_EDGE}},  /* output geometry aligned with the plane (new and existing) */
 	 {"geom.out",     BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT | BM_EDGE | BM_FACE}},  /* input and output geometry (result of cut)  */
 	 {{'\0'}}},
 	bmo_bisect_plane_exec,
@@ -1338,7 +1337,7 @@ static BMOpDefine bmo_duplicate_def = {
 	 {"face_map.out", BMO_OP_SLOT_MAPPING, {(int)BMO_OP_SLOT_SUBTYPE_MAP_ELEM}},
 	 {"boundary_map.out", BMO_OP_SLOT_MAPPING, {(int)BMO_OP_SLOT_SUBTYPE_MAP_ELEM}},
 	 {"isovert_map.out", BMO_OP_SLOT_MAPPING, {(int)BMO_OP_SLOT_SUBTYPE_MAP_ELEM}},
-	{{'\0'}},
+	 {{'\0'}},
 	},
 	bmo_duplicate_exec,
 	(BMO_OPTYPE_FLAG_NORMALS_CALC |
@@ -1684,7 +1683,7 @@ static BMOpDefine bmo_create_circle_def = {
 	{{"cap_ends",        BMO_OP_SLOT_BOOL},  /* whether or not to fill in the ends with faces */
 	 {"cap_tris",        BMO_OP_SLOT_BOOL},  /* fill ends with triangles instead of ngons */
 	 {"segments",        BMO_OP_SLOT_INT},
-	 {"diameter",        BMO_OP_SLOT_FLT},  /* diameter of one end */
+	 {"radius",          BMO_OP_SLOT_FLT},  /* Radius of the circle. */
 	 {"matrix",          BMO_OP_SLOT_MAT},  /* matrix to multiply the new geometry with */
 	 {"calc_uvs",        BMO_OP_SLOT_BOOL}, /* calculate default UVs */
 	 {{'\0'}},
@@ -1741,6 +1740,8 @@ static BMOpDefine bmo_bevel_def = {
 	},
 	/* slots_out */
 	{{"faces.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_FACE}}, /* output faces */
+	 {"edges.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_EDGE}}, /* output edges */
+	 {"verts.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT}}, /* output verts */
 	 {{'\0'}},
 	},
 
@@ -1912,7 +1913,6 @@ static BMOpDefine bmo_wireframe_def = {
 	 {"use_even_offset", BMO_OP_SLOT_BOOL},
 	 {"use_crease", BMO_OP_SLOT_BOOL},
 	 {"crease_weight", BMO_OP_SLOT_FLT},
-	 {"thickness", BMO_OP_SLOT_FLT},
 	 {"use_relative_offset", BMO_OP_SLOT_BOOL},
 	 {"material_offset", BMO_OP_SLOT_INT},
 	 {{'\0'}},

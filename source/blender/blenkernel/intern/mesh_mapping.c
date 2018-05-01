@@ -117,7 +117,7 @@ UvVertMap *BKE_mesh_uv_vert_map_create(
 			}
 
 			if (use_winding) {
-				winding[a] = cross_poly_v2((const float (*)[2])tf_uv, (unsigned int)nverts) > 0;
+				winding[a] = cross_poly_v2(tf_uv, (unsigned int)nverts) > 0;
 			}
 		}
 	}
@@ -165,7 +165,7 @@ UvVertMap *BKE_mesh_uv_vert_map_create(
 		vmap->vert[a] = newvlist;
 	}
 
-	if (use_winding)  {
+	if (use_winding) {
 		MEM_freeN(winding);
 	}
 

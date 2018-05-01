@@ -1,6 +1,6 @@
 
 set(INC
-	.
+	..
 	../../glew-mx
 )
 
@@ -38,6 +38,7 @@ set(SRC_HEADERS
 	util_atomic.h
 	util_boundbox.h
 	util_debug.h
+	util_defines.h
 	util_guarded_allocator.cpp
 	util_foreach.h
 	util_function.h
@@ -52,13 +53,23 @@ set(SRC_HEADERS
 	util_math.h
 	util_math_cdf.h
 	util_math_fast.h
+	util_math_intersect.h
+	util_math_float2.h
+	util_math_float3.h
+	util_math_float4.h
+	util_math_int2.h
+	util_math_int3.h
+	util_math_int4.h
+	util_math_matrix.h
 	util_md5.h
 	util_opengl.h
 	util_optimization.h
 	util_param.h
 	util_path.h
 	util_progress.h
+	util_projection.h
 	util_queue.h
+	util_rect.h
 	util_set.h
 	util_simd.h
 	util_sky_model.cpp
@@ -79,6 +90,32 @@ set(SRC_HEADERS
 	util_time.h
 	util_transform.h
 	util_types.h
+	util_types_float2.h
+	util_types_float2_impl.h
+	util_types_float3.h
+	util_types_float3_impl.h
+	util_types_float4.h
+	util_types_float4_impl.h
+	util_types_int2.h
+	util_types_int2_impl.h
+	util_types_int3.h
+	util_types_int3_impl.h
+	util_types_int4.h
+	util_types_int4_impl.h
+	util_types_uchar2.h
+	util_types_uchar2_impl.h
+	util_types_uchar3.h
+	util_types_uchar3_impl.h
+	util_types_uchar4.h
+	util_types_uchar4_impl.h
+	util_types_uint2.h
+	util_types_uint2_impl.h
+	util_types_uint3.h
+	util_types_uint3_impl.h
+	util_types_uint4.h
+	util_types_uint4_impl.h
+	util_types_vector3.h
+	util_types_vector3_impl.h
 	util_vector.h
 	util_version.h
 	util_view.h
@@ -91,4 +128,4 @@ include_directories(SYSTEM ${INC_SYS})
 
 add_definitions(${GL_DEFINITIONS})
 
-add_library(cycles_util ${SRC} ${SRC_HEADERS})
+cycles_add_library(cycles_util ${SRC} ${SRC_HEADERS})

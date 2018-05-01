@@ -72,7 +72,7 @@ static void do_nla_region_buttons(bContext *C, void *UNUSED(arg), int UNUSED(eve
 	//Scene *scene = CTX_data_scene(C);
 #if 0
 	switch (event) {
-
+		/* pass */
 	}
 #endif
 	/* default for now */
@@ -285,7 +285,9 @@ static void nla_panel_animdata(const bContext *C, Panel *pa)
 	/* Active Action Properties ------------------------------------- */
 	/* action */
 	row = uiLayoutRow(layout, true);
-	uiTemplateID(row, (bContext *)C, &adt_ptr, "action", "ACTION_OT_new", NULL, "NLA_OT_action_unlink");
+	uiTemplateID(
+	        row, (bContext *)C, &adt_ptr, "action",
+	        "ACTION_OT_new", NULL, "NLA_OT_action_unlink", UI_TEMPLATE_ID_FILTER_ALL);
 	
 	/* extrapolation */
 	row = uiLayoutRow(layout, true);
@@ -552,7 +554,7 @@ void nla_buttons_register(ARegionType *art)
 	pt = MEM_callocN(sizeof(PanelType), "spacetype nla panel modifiers");
 	strcpy(pt->idname, "NLA_PT_modifiers");
 	strcpy(pt->label, N_("Modifiers"));
-  strcpy(pt->category, "Modifiers");
+	strcpy(pt->category, "Modifiers");
 	strcpy(pt->translation_context, BLT_I18NCONTEXT_DEFAULT_BPYRNA);
 	pt->draw = nla_panel_modifiers;
 	pt->poll = nla_strip_eval_panel_poll;

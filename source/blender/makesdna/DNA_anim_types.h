@@ -52,6 +52,7 @@ extern "C" {
 typedef struct FModifier {
 	struct FModifier *next, *prev;
 	
+	struct FCurve *curve;  /* containing curve, only used for updates to CYCLES */
 	void *data;			/* pointer to modifier data */
 	
 	char name[64];		/* user-defined description for the modifier - MAX_ID_NAME-2 */
@@ -489,7 +490,10 @@ typedef struct FCurve {
 	float curval;			/* value stored from last time curve was evaluated (not threadsafe, debug display only!) */
 	short flag;				/* user-editable settings for this curve */
 	short extend;			/* value-extending mode for this curve (does not cover  */
+	char auto_smoothing;	/* auto-handle smoothing mode */
 	
+	char pad[7];
+
 		/* RNA - data link */
 	int array_index;		/* if applicable, the index of the RNA-array item to get */
 	char *rna_path;			/* RNA-path to resolve data-access */
@@ -543,6 +547,12 @@ typedef enum eFCurve_Coloring {
 	FCURVE_COLOR_AUTO_YRGB    = 3,		/* automatically determine color where XYZ <-> RGB, but index(X) != 0 */
 	FCURVE_COLOR_CUSTOM       = 2,		/* custom color */
 } eFCurve_Coloring;
+
+/* curve smoothing modes */
+typedef enum eFCurve_Smoothing {
+	FCURVE_SMOOTH_NONE             = 0,	/* legacy mode: auto handles only consider adjacent points */
+	FCURVE_SMOOTH_CONT_ACCEL       = 1,	/* maintain continuity of the acceleration */
+} eFCurve_Smoothing;
 
 /* ************************************************ */
 /* 'Action' Datatypes */
@@ -685,7 +695,7 @@ typedef enum eNlaStrip_Flag {
 	/* temporary editing flags */
 		/* NLA-Strip is really just a temporary meta used to facilitate easier transform code */
 	NLASTRIP_FLAG_TEMP_META     = (1<<30),
-	NLASTRIP_FLAG_EDIT_TOUCHED  = (1<<31)
+	NLASTRIP_FLAG_EDIT_TOUCHED  = (1u << 31)
 } eNlaStrip_Flag;
 
 /* NLA Strip Type */
@@ -830,17 +840,18 @@ typedef enum eKS_Settings {
 
 /* Flags for use by keyframe creation/deletion calls */
 typedef enum eInsertKeyFlags {
+	INSERTKEY_NOFLAGS       = 0,
 	INSERTKEY_NEEDED 	= (1<<0),	/* only insert keyframes where they're needed */
 	INSERTKEY_MATRIX 	= (1<<1),	/* insert 'visual' keyframes where possible/needed */
 	INSERTKEY_FAST 		= (1<<2),	/* don't recalculate handles,etc. after adding key */
 	INSERTKEY_FASTR		= (1<<3),	/* don't realloc mem (or increase count, as array has already been set out) */
 	INSERTKEY_REPLACE 	= (1<<4),	/* only replace an existing keyframe (this overrides INSERTKEY_NEEDED) */
 	INSERTKEY_XYZ2RGB	= (1<<5),	/* transform F-Curves should have XYZ->RGB color mode */
-	INSERTKEY_NO_USERPREF	= (1 << 6),	/* ignore user-prefs (needed for predictable API use) */
+	INSERTKEY_NO_USERPREF	= (1<<6),	/* ignore user-prefs (needed for predictable API use) */
 	/* Allow to make a full copy of new key into existing one, if any, instead of 'reusing' existing handles.
 	 * Used by copy/paste code. */
 	INSERTKEY_OVERWRITE_FULL = (1<<7),
-	INSERTKEY_DRIVER    = (1<<8),	/* for driver FCurves, use driver's "input" value - for easier corrective driver setup */
+	INSERTKEY_DRIVER         = (1<<8),	/* for driver FCurves, use driver's "input" value - for easier corrective driver setup */
 } eInsertKeyFlags;
 
 /* ************************************************ */

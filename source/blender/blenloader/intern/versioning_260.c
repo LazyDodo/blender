@@ -41,7 +41,7 @@
 #include "DNA_linestyle_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
-#include "DNA_object_fluidsim.h" // NT
+#include "DNA_object_fluidsim_types.h"
 #include "DNA_object_types.h"
 #include "DNA_property_types.h"
 #include "DNA_text_types.h"
@@ -944,7 +944,7 @@ void blo_do_versions_260(FileData *fd, Library *UNUSED(lib), Main *main)
 			}
 		}
 		{
-		/* Warn the user if he is using ["Text"] properties for Font objects */
+			/* Warn the user if he is using ["Text"] properties for Font objects */
 			Object *ob;
 			bProperty *prop;
 
@@ -1000,7 +1000,7 @@ void blo_do_versions_260(FileData *fd, Library *UNUSED(lib), Main *main)
 		{
 			/* convert extended ascii to utf-8 for text editor */
 			Text *text;
-			for (text = main->text.first; text; text = text->id.next)
+			for (text = main->text.first; text; text = text->id.next) {
 				if (!(text->flags & TXT_ISEXT)) {
 					TextLine *tl;
 
@@ -1013,6 +1013,7 @@ void blo_do_versions_260(FileData *fd, Library *UNUSED(lib), Main *main)
 							text->curc = 0;
 					}
 				}
+			}
 		}
 		{
 			/* set new dynamic paint values */

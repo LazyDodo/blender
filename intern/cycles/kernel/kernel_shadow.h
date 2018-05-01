@@ -16,6 +16,42 @@
 
 CCL_NAMESPACE_BEGIN
 
+#ifdef __VOLUME__
+typedef struct VolumeState {
+#  ifdef __SPLIT_KERNEL__
+#  else
+	PathState ps;
+#  endif
+} VolumeState;
+
+/* Get PathState ready for use for volume stack evaluation. */
+#  ifdef __SPLIT_KERNEL__
+ccl_addr_space
+#  endif
+ccl_device_inline PathState *shadow_blocked_volume_path_state(
+        KernelGlobals *kg,
+        VolumeState *volume_state,
+        ccl_addr_space PathState *state,
+        ShaderData *sd,
+        Ray *ray)
+{
+#  ifdef __SPLIT_KERNEL__
+	ccl_addr_space PathState *ps =
+	        &kernel_split_state.state_shadow[ccl_global_id(1) * ccl_global_size(0) + ccl_global_id(0)];
+#  else
+	PathState *ps = &volume_state->ps;
+#  endif
+	*ps = *state;
+	/* We are checking for shadow on the "other" side of the surface, so need
+	 * to discard volume we are currently at.
+	 */
+	if(dot(sd->Ng, ray->D) < 0.0f) {
+		kernel_volume_stack_enter_exit(kg, sd, ps->volume_stack);
+	}
+	return ps;
+}
+#endif  /* __VOLUME__ */
+
 /* Attenuate throughput accordingly to the given intersection event.
  * Returns true if the throughput is zero and traversal can be aborted.
  */
@@ -24,7 +60,7 @@ ccl_device_forceinline bool shadow_handle_transparent_isect(
         ShaderData *shadow_sd,
         ccl_addr_space PathState *state,
 #    ifdef __VOLUME__
-        struct PathState *volume_state,
+        ccl_addr_space struct PathState *volume_state,
 #    endif
         Intersection *isect,
         Ray *ray,
@@ -45,15 +81,12 @@ ccl_device_forceinline bool shadow_handle_transparent_isect(
 	/* Setup shader data at surface. */
 	shader_setup_from_ray(kg, shadow_sd, isect, ray);
 	/* Attenuation from transparent surface. */
-	if(!(ccl_fetch(shadow_sd, flag) & SD_HAS_ONLY_VOLUME)) {
+	if(!(shadow_sd->flag & SD_HAS_ONLY_VOLUME)) {
 		path_state_modify_bounce(state, true);
 		shader_eval_surface(kg,
 		                    shadow_sd,
-		                    NULL,
 		                    state,
-		                    0.0f,
-		                    PATH_RAY_SHADOW,
-		                    SHADER_CONTEXT_SHADOW);
+		                    PATH_RAY_SHADOW);
 		path_state_modify_bounce(state, false);
 		*throughput *= shader_bsdf_transparency(kg, shadow_sd);
 	}
@@ -72,13 +105,14 @@ ccl_device_forceinline bool shadow_handle_transparent_isect(
 ccl_device bool shadow_blocked_opaque(KernelGlobals *kg,
                                       ShaderData *shadow_sd,
                                       ccl_addr_space PathState *state,
+                                      const uint visibility,
                                       Ray *ray,
                                       Intersection *isect,
                                       float3 *shadow)
 {
 	const bool blocked = scene_intersect(kg,
 	                                     *ray,
-	                                     PATH_RAY_SHADOW_OPAQUE,
+	                                     visibility & PATH_RAY_SHADOW_OPAQUE,
 	                                     isect,
 	                                     NULL,
 	                                     0.0f, 0.0f);
@@ -126,8 +160,10 @@ ccl_device bool shadow_blocked_opaque(KernelGlobals *kg,
  * Note that hits array should be as big as max_hits+1.
  */
 ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
+                                                    ShaderData *sd,
                                                     ShaderData *shadow_sd,
                                                     ccl_addr_space PathState *state,
+                                                    const uint visibility,
                                                     Ray *ray,
                                                     Intersection *hits,
                                                     uint max_hits,
@@ -140,8 +176,12 @@ ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
 	const bool blocked = scene_intersect_shadow_all(kg,
 	                                                ray,
 	                                                hits,
+	                                                visibility,
 	                                                max_hits,
 	                                                &num_hits);
+#    ifdef __VOLUME__
+	VolumeState volume_state;
+#    endif
 	/* If no opaque surface found but we did find transparent hits,
 	 * shade them.
 	 */
@@ -152,7 +192,14 @@ ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
 		int bounce = state->transparent_bounce;
 		Intersection *isect = hits;
 #    ifdef __VOLUME__
-		PathState ps = *state;
+#      ifdef __SPLIT_KERNEL__
+		ccl_addr_space
+#      endif
+		PathState *ps = shadow_blocked_volume_path_state(kg,
+		                                                 &volume_state,
+		                                                 state,
+		                                                 sd,
+		                                                 ray);
 #    endif
 		sort_intersections(hits, num_hits);
 		for(int hit = 0; hit < num_hits; hit++, isect++) {
@@ -171,7 +218,7 @@ ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
 			                                   shadow_sd,
 			                                   state,
 #ifdef __VOLUME__
-			                                   &ps,
+			                                   ps,
 #endif
 			                                   isect,
 			                                   ray,
@@ -180,7 +227,7 @@ ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
 				return true;
 			}
 			/* Move ray forward. */
-			ray->P = ccl_fetch(shadow_sd, P);
+			ray->P = shadow_sd->P;
 			if(ray->t != FLT_MAX) {
 				ray->D = normalize_len(Pend - ray->P, &ray->t);
 			}
@@ -188,8 +235,8 @@ ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
 		}
 #    ifdef __VOLUME__
 		/* Attenuation for last line segment towards light. */
-		if(ps.volume_stack[0].shader != SHADER_NONE) {
-			kernel_volume_shadow(kg, shadow_sd, &ps, ray, &throughput);
+		if(ps->volume_stack[0].shader != SHADER_NONE) {
+			kernel_volume_shadow(kg, shadow_sd, ps, ray, &throughput);
 		}
 #    endif
 		*shadow = throughput;
@@ -197,8 +244,16 @@ ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
 	}
 #    ifdef __VOLUME__
 	if(!blocked && state->volume_stack[0].shader != SHADER_NONE) {
-		/* Apply attenuation from current volume shader/ */
-		kernel_volume_shadow(kg, shadow_sd, state, ray, shadow);
+		/* Apply attenuation from current volume shader. */
+#      ifdef __SPLIT_KERNEL__
+		ccl_addr_space
+#      endif
+		PathState *ps = shadow_blocked_volume_path_state(kg,
+		                                                 &volume_state,
+		                                                 state,
+		                                                 sd,
+		                                                 ray);
+		kernel_volume_shadow(kg, shadow_sd, ps, ray, shadow);
 	}
 #    endif
 	return blocked;
@@ -208,13 +263,18 @@ ccl_device bool shadow_blocked_transparent_all_loop(KernelGlobals *kg,
  * loop to help readability of the actual logic.
  */
 ccl_device bool shadow_blocked_transparent_all(KernelGlobals *kg,
+                                               ShaderData *sd,
                                                ShaderData *shadow_sd,
                                                ccl_addr_space PathState *state,
+                                               const uint visibility,
                                                Ray *ray,
                                                uint max_hits,
                                                float3 *shadow)
 {
-#    ifdef __KERNEL_CUDA__
+#    ifdef __SPLIT_KERNEL__
+	Intersection hits_[SHADOW_STACK_MAX_HITS];
+	Intersection *hits = &hits_[0];
+#    elif defined(__KERNEL_CUDA__)
 	Intersection *hits = kg->hits_stack;
 #    else
 	Intersection hits_stack[SHADOW_STACK_MAX_HITS];
@@ -239,8 +299,10 @@ ccl_device bool shadow_blocked_transparent_all(KernelGlobals *kg,
 #    endif  /* __KERNEL_GPU__ */
 	/* Invoke actual traversal. */
 	return shadow_blocked_transparent_all_loop(kg,
+	                                           sd,
 	                                           shadow_sd,
 	                                           state,
+	                                           visibility,
 	                                           ray,
 	                                           hits,
 	                                           max_hits,
@@ -248,7 +310,7 @@ ccl_device bool shadow_blocked_transparent_all(KernelGlobals *kg,
 }
 #  endif  /* __SHADOW_RECORD_ALL__ */
 
-#  ifdef __KERNEL_GPU__
+#  if defined(__KERNEL_GPU__) || !defined(__SHADOW_RECORD_ALL__)
 /* Shadow function to compute how much light is blocked,
  *
  * Here we raytrace from one transparent surface to the next step by step.
@@ -263,20 +325,32 @@ ccl_device bool shadow_blocked_transparent_all(KernelGlobals *kg,
  */
 ccl_device bool shadow_blocked_transparent_stepped_loop(
         KernelGlobals *kg,
+        ShaderData *sd,
         ShaderData *shadow_sd,
         ccl_addr_space PathState *state,
+        const uint visibility,
         Ray *ray,
         Intersection *isect,
         const bool blocked,
         const bool is_transparent_isect,
         float3 *shadow)
 {
+#    ifdef __VOLUME__
+	VolumeState volume_state;
+#    endif
 	if(blocked && is_transparent_isect) {
 		float3 throughput = make_float3(1.0f, 1.0f, 1.0f);
 		float3 Pend = ray->P + ray->D*ray->t;
 		int bounce = state->transparent_bounce;
 #    ifdef __VOLUME__
-		PathState ps = *state;
+#      ifdef __SPLIT_KERNEL__
+		ccl_addr_space
+#      endif
+		PathState *ps = shadow_blocked_volume_path_state(kg,
+		                                                 &volume_state,
+		                                                 state,
+		                                                 sd,
+		                                                 ray);
 #    endif
 		for(;;) {
 			if(bounce >= kernel_data.integrator.transparent_max_bounce) {
@@ -284,7 +358,7 @@ ccl_device bool shadow_blocked_transparent_stepped_loop(
 			}
 			if(!scene_intersect(kg,
 			                    *ray,
-			                    PATH_RAY_SHADOW_TRANSPARENT,
+			                    visibility & PATH_RAY_SHADOW_TRANSPARENT,
 			                    isect,
 			                    NULL,
 			                    0.0f, 0.0f))
@@ -299,7 +373,7 @@ ccl_device bool shadow_blocked_transparent_stepped_loop(
 			                                   shadow_sd,
 			                                   state,
 #ifdef __VOLUME__
-			                                   &ps,
+			                                   ps,
 #endif
 			                                   isect,
 			                                   ray,
@@ -308,7 +382,7 @@ ccl_device bool shadow_blocked_transparent_stepped_loop(
 				return true;
 			}
 			/* Move ray forward. */
-			ray->P = ray_offset(ccl_fetch(shadow_sd, P), -ccl_fetch(shadow_sd, Ng));
+			ray->P = ray_offset(shadow_sd->P, -shadow_sd->Ng);
 			if(ray->t != FLT_MAX) {
 				ray->D = normalize_len(Pend - ray->P, &ray->t);
 			}
@@ -316,8 +390,8 @@ ccl_device bool shadow_blocked_transparent_stepped_loop(
 		}
 #    ifdef __VOLUME__
 		/* Attenuation for last line segment towards light. */
-		if(ps.volume_stack[0].shader != SHADER_NONE) {
-			kernel_volume_shadow(kg, shadow_sd, &ps, ray, &throughput);
+		if(ps->volume_stack[0].shader != SHADER_NONE) {
+			kernel_volume_shadow(kg, shadow_sd, ps, ray, &throughput);
 		}
 #    endif
 		*shadow *= throughput;
@@ -326,7 +400,15 @@ ccl_device bool shadow_blocked_transparent_stepped_loop(
 #    ifdef __VOLUME__
 	if(!blocked && state->volume_stack[0].shader != SHADER_NONE) {
 		/* Apply attenuation from current volume shader. */
-		kernel_volume_shadow(kg, shadow_sd, state, ray, shadow);
+#      ifdef __SPLIT_KERNEL__
+		ccl_addr_space
+#      endif
+		PathState *ps = shadow_blocked_volume_path_state(kg,
+		                                                 &volume_state,
+		                                                 state,
+		                                                 sd,
+		                                                 ray);
+		kernel_volume_shadow(kg, shadow_sd, ps, ray, shadow);
 	}
 #    endif
 	return blocked;
@@ -334,24 +416,28 @@ ccl_device bool shadow_blocked_transparent_stepped_loop(
 
 ccl_device bool shadow_blocked_transparent_stepped(
         KernelGlobals *kg,
+        ShaderData *sd,
         ShaderData *shadow_sd,
         ccl_addr_space PathState *state,
+        const uint visibility,
         Ray *ray,
         Intersection *isect,
         float3 *shadow)
 {
-	const bool blocked = scene_intersect(kg,
-	                                     *ray,
-	                                     PATH_RAY_SHADOW_OPAQUE,
-	                                     isect,
-	                                     NULL,
-	                                     0.0f, 0.0f);
-	const bool is_transparent_isect = blocked
-	        ? shader_transparent_shadow(kg, isect)
-	        : false;
+	bool blocked = scene_intersect(kg,
+	                               *ray,
+	                               visibility & PATH_RAY_SHADOW_OPAQUE,
+	                               isect,
+	                               NULL,
+	                               0.0f, 0.0f);
+	bool is_transparent_isect = blocked
+		? shader_transparent_shadow(kg, isect)
+		: false;
 	return shadow_blocked_transparent_stepped_loop(kg,
+	                                               sd,
 	                                               shadow_sd,
 	                                               state,
+	                                               visibility,
 	                                               ray,
 	                                               isect,
 	                                               blocked,
@@ -359,32 +445,30 @@ ccl_device bool shadow_blocked_transparent_stepped(
 	                                               shadow);
 }
 
-#  endif  /* __KERNEL_GPU__ */
+#  endif  /* __KERNEL_GPU__ || !__SHADOW_RECORD_ALL__ */
 #endif /* __TRANSPARENT_SHADOWS__ */
 
 ccl_device_inline bool shadow_blocked(KernelGlobals *kg,
+                                      ShaderData *sd,
                                       ShaderData *shadow_sd,
                                       ccl_addr_space PathState *state,
-                                      ccl_addr_space Ray *ray_input,
+                                      Ray *ray_input,
                                       float3 *shadow)
 {
-	/* Special trickery for split kernel: some data is coming from the
-	 * global memory.
-	 */
-#ifdef __SPLIT_KERNEL__
-	Ray private_ray = *ray_input;
-	Ray *ray = &private_ray;
-	Intersection *isect = &kg->isect_shadow[SD_THREAD];
-#else  /* __SPLIT_KERNEL__ */
 	Ray *ray = ray_input;
-	Intersection isect_object;
-	Intersection *isect = &isect_object;
-#endif  /* __SPLIT_KERNEL__ */
+	Intersection isect;
 	/* Some common early checks. */
 	*shadow = make_float3(1.0f, 1.0f, 1.0f);
 	if(ray->t == 0.0f) {
 		return false;
 	}
+#ifdef __SHADOW_TRICKS__
+	const uint visibility = (state->flag & PATH_RAY_SHADOW_CATCHER)
+		? PATH_RAY_SHADOW_NON_CATCHER
+		: PATH_RAY_SHADOW;
+#else
+	const uint visibility = PATH_RAY_SHADOW;
+#endif
 	/* Do actual shadow shading. */
 	/* First of all, we check if integrator requires transparent shadows.
 	 * if not, we use simplest and fastest ever way to calculate occlusion.
@@ -396,8 +480,9 @@ ccl_device_inline bool shadow_blocked(KernelGlobals *kg,
 		return shadow_blocked_opaque(kg,
 		                             shadow_sd,
 		                             state,
+		                             visibility,
 		                             ray,
-		                             isect,
+		                             &isect,
 		                             shadow);
 	}
 #ifdef __TRANSPARENT_SHADOWS__
@@ -422,39 +507,45 @@ ccl_device_inline bool shadow_blocked(KernelGlobals *kg,
 	 */
 	const bool blocked = scene_intersect(kg,
 	                                     *ray,
-	                                     PATH_RAY_SHADOW_OPAQUE,
-	                                     isect,
+	                                     visibility & PATH_RAY_SHADOW_OPAQUE,
+	                                     &isect,
 	                                     NULL,
 	                                     0.0f, 0.0f);
 	const bool is_transparent_isect = blocked
-	        ? shader_transparent_shadow(kg, isect)
+	        ? shader_transparent_shadow(kg, &isect)
 	        : false;
 	if(!blocked || !is_transparent_isect ||
 	   max_hits + 1 >= SHADOW_STACK_MAX_HITS)
 	{
 		return shadow_blocked_transparent_stepped_loop(kg,
+		                                               sd,
 		                                               shadow_sd,
 		                                               state,
+		                                               visibility,
 		                                               ray,
-		                                               isect,
+		                                               &isect,
 		                                               blocked,
 		                                               is_transparent_isect,
 		                                               shadow);
 	}
 #    endif  /* __KERNEL_GPU__ */
 	return shadow_blocked_transparent_all(kg,
+	                                      sd,
 	                                      shadow_sd,
 	                                      state,
+	                                      visibility,
 	                                      ray,
 	                                      max_hits,
 	                                      shadow);
 #  else  /* __SHADOW_RECORD_ALL__ */
 	/* Fallback to a slowest version which works on all devices. */
 	return shadow_blocked_transparent_stepped(kg,
+	                                          sd,
 	                                          shadow_sd,
 	                                          state,
+	                                          visibility,
 	                                          ray,
-	                                          isect,
+	                                          &isect,
 	                                          shadow);
 #  endif  /* __SHADOW_RECORD_ALL__ */
 #endif  /* __TRANSPARENT_SHADOWS__ */

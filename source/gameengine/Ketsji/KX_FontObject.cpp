@@ -142,7 +142,7 @@ int GetFontId(VFont *vfont)
 		fontid = BLF_load("default");
 		
 		/* XXX the following code is supposed to work (after you add get_builtin_packedfile to BKE_font.h )
-		 * unfortunately it's crashing on blf_glyph.c:173 because gc->max_glyph_width is 0
+		 * unfortunately it's crashing on blf_glyph.c:173 because gc->glyph_width_max is 0
 		 */
 		// packedfile=get_builtin_packedfile();
 		// fontid= BLF_load_mem(font->name, (unsigned char*)packedfile->data, packedfile->size);
@@ -281,7 +281,7 @@ int KX_FontObject::pyattr_set_text(void *self_v, const KX_PYATTRIBUTE_DEF *attrd
 	KX_FontObject* self = static_cast<KX_FontObject*>(self_v);
 	if (!PyUnicode_Check(value))
 		return PY_SET_ATTR_FAIL;
-	char* chars = _PyUnicode_AsString(value);
+	const char *chars = _PyUnicode_AsString(value);
 
 	/* Allow for some logic brick control */
 	CValue* tprop = self->GetProperty("Text");

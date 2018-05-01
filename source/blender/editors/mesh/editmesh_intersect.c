@@ -51,6 +51,7 @@
 #include "mesh_intern.h"  /* own include */
 
 #include "tools/bmesh_intersect.h"
+#include "tools/bmesh_separate.h"
 
 
 /* detect isolated holes and fill them */
@@ -137,6 +138,12 @@ enum {
 	ISECT_SEL_UNSEL     = 1,
 };
 
+enum {
+	ISECT_SEPARATE_ALL           = 0,
+	ISECT_SEPARATE_CUT           = 1,
+	ISECT_SEPARATE_NONE          = 2,
+};
+
 static int edbm_intersect_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit = CTX_data_edit_object(C);
@@ -144,7 +151,9 @@ static int edbm_intersect_exec(bContext *C, wmOperator *op)
 	BMesh *bm = em->bm;
 	const int mode = RNA_enum_get(op->ptr, "mode");
 	int (*test_fn)(BMFace *, void *);
-	bool use_separate = RNA_boolean_get(op->ptr, "use_separate");
+	bool use_separate_all = false;
+	bool use_separate_cut = false;
+	const int separate_mode = RNA_enum_get(op->ptr, "separate_mode");
 	const float eps = RNA_float_get(op->ptr, "threshold");
 	bool use_self;
 	bool has_isect;
@@ -160,15 +169,38 @@ static int edbm_intersect_exec(bContext *C, wmOperator *op)
 			break;
 	}
 
+	switch (separate_mode) {
+		case ISECT_SEPARATE_ALL:
+			use_separate_all = true;
+			break;
+		case ISECT_SEPARATE_CUT:
+			if (use_self == false) {
+				use_separate_cut = true;
+			}
+			else {
+				/* we could support this but would require more advanced logic inside 'BM_mesh_intersect'
+				 * for now just separate all */
+				use_separate_all = true;
+			}
+			break;
+		default:  /* ISECT_SEPARATE_NONE */
+			break;
+	}
 
 	has_isect = BM_mesh_intersect(
 	        bm,
 	        em->looptris, em->tottri,
 	        test_fn, NULL,
-	        use_self, use_separate, true, true,
+	        use_self, use_separate_all, true, true, true,
 	        -1,
 	        eps);
 
+	if (use_separate_cut) {
+		/* detach selected/un-selected faces */
+		BM_mesh_separate_faces(
+		        bm,
+		        BM_elem_cb_check_hflag_enabled_simple(const BMFace *, BM_ELEM_SELECT));
+	}
 
 	if (has_isect) {
 		edbm_intersect_select(em);
@@ -182,11 +214,21 @@ static int edbm_intersect_exec(bContext *C, wmOperator *op)
 
 void MESH_OT_intersect(struct wmOperatorType *ot)
 {
-	static EnumPropertyItem isect_mode_items[] = {
+	static const EnumPropertyItem isect_mode_items[] = {
 		{ISECT_SEL, "SELECT", 0, "Self Intersect",
 		 "Self intersect selected faces"},
 		{ISECT_SEL_UNSEL, "SELECT_UNSELECT", 0, "Selected/Unselected",
 		 "Intersect selected with unselected faces"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	static const EnumPropertyItem isect_separate_items[] = {
+		{ISECT_SEPARATE_ALL, "ALL", 0, "All",
+		 "Separate all geometry from intersections"},
+		{ISECT_SEPARATE_CUT, "CUT", 0, "Cut",
+		 "Cut into geometry keeping each side separate (Selected/Unselected only)"},
+		{ISECT_SEPARATE_NONE, "NONE", 0, "Merge",
+		 "Merge all geometry from the intersection"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -201,7 +243,7 @@ void MESH_OT_intersect(struct wmOperatorType *ot)
 
 	/* props */
 	RNA_def_enum(ot->srna, "mode", isect_mode_items, ISECT_SEL_UNSEL, "Source", "");
-	RNA_def_boolean(ot->srna, "use_separate", true, "Separate", "");
+	RNA_def_enum(ot->srna, "separate_mode", isect_separate_items, ISECT_SEPARATE_CUT, "Separate Mode", "");
 	RNA_def_float_distance(ot->srna, "threshold", 0.000001f, 0.0, 0.01, "Merge threshold", "", 0.0, 0.001);
 
 	/* flags */
@@ -239,7 +281,7 @@ static int edbm_intersect_boolean_exec(bContext *C, wmOperator *op)
 	        bm,
 	        em->looptris, em->tottri,
 	        test_fn, NULL,
-	        false, false, true, true,
+	        false, false, true, true, true,
 	        boolean_operation,
 	        eps);
 
@@ -256,7 +298,7 @@ static int edbm_intersect_boolean_exec(bContext *C, wmOperator *op)
 
 void MESH_OT_intersect_boolean(struct wmOperatorType *ot)
 {
-	static EnumPropertyItem isect_boolean_operation_items[] = {
+	static const EnumPropertyItem isect_boolean_operation_items[] = {
 		{BMESH_ISECT_BOOLEAN_ISECT, "INTERSECT", 0, "Intersect", ""},
 		{BMESH_ISECT_BOOLEAN_UNION, "UNION", 0, "Union", ""},
 		{BMESH_ISECT_BOOLEAN_DIFFERENCE, "DIFFERENCE", 0, "Difference", ""},
@@ -358,7 +400,7 @@ static void bm_face_split_by_edges(
 	        bm, f, edge_net_temp_buf->data, edge_net_temp_buf->count,
 	        &face_arr, &face_arr_len);
 
-	BLI_buffer_empty(edge_net_temp_buf);
+	BLI_buffer_clear(edge_net_temp_buf);
 
 	if (face_arr_len) {
 		int i;

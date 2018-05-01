@@ -130,7 +130,7 @@
 #include "DNA_key_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_action_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_constraint_types.h"
 
 #include "MEM_guardedalloc.h"
@@ -1540,7 +1540,7 @@ static KX_GameObject *gameobject_from_blenderobject(
 		gameobj->AddMesh(meshobj);
 
 		// gather levels of detail
-		if (BLI_listbase_count_ex(&ob->lodlevels, 2) > 1) {
+		if (BLI_listbase_count_at_most(&ob->lodlevels, 2) > 1) {
 			LodLevel *lod = ((LodLevel*)ob->lodlevels.first)->next;
 			Mesh* lodmesh = mesh;
 			Object* lodmatob = ob;

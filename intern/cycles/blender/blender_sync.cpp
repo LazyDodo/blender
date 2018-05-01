@@ -14,29 +14,29 @@
  * limitations under the License.
  */
 
-#include "background.h"
-#include "camera.h"
-#include "film.h"
-#include "graph.h"
-#include "integrator.h"
-#include "light.h"
-#include "mesh.h"
-#include "nodes.h"
-#include "object.h"
-#include "scene.h"
-#include "shader.h"
-#include "curves.h"
+#include "render/background.h"
+#include "render/camera.h"
+#include "render/film.h"
+#include "render/graph.h"
+#include "render/integrator.h"
+#include "render/light.h"
+#include "render/mesh.h"
+#include "render/nodes.h"
+#include "render/object.h"
+#include "render/scene.h"
+#include "render/shader.h"
+#include "render/curves.h"
 
-#include "device.h"
+#include "device/device.h"
 
-#include "blender_sync.h"
-#include "blender_session.h"
-#include "blender_util.h"
+#include "blender/blender_sync.h"
+#include "blender/blender_session.h"
+#include "blender/blender_util.h"
 
-#include "util_debug.h"
-#include "util_foreach.h"
-#include "util_opengl.h"
-#include "util_hash.h"
+#include "util/util_debug.h"
+#include "util/util_foreach.h"
+#include "util/util_opengl.h"
+#include "util/util_hash.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -47,8 +47,7 @@ BlenderSync::BlenderSync(BL::RenderEngine& b_engine,
                          BL::Scene& b_scene,
                          Scene *scene,
                          bool preview,
-                         Progress &progress,
-                         bool is_cpu)
+                         Progress &progress)
 : b_engine(b_engine),
   b_data(b_data),
   b_scene(b_scene),
@@ -62,7 +61,6 @@ BlenderSync::BlenderSync(BL::RenderEngine& b_engine,
   scene(scene),
   preview(preview),
   experimental(false),
-  is_cpu(is_cpu),
   dicing_rate(1.0f),
   max_subdivisions(12),
   progress(progress)
@@ -210,10 +208,9 @@ void BlenderSync::sync_data(BL::RenderSettings& b_render,
 	   scene->need_motion() == Scene::MOTION_NONE ||
 	   scene->camera->motion_position == Camera::MOTION_POSITION_CENTER)
 	{
-		sync_objects(b_v3d);
+		sync_objects();
 	}
 	sync_motion(b_render,
-	            b_v3d,
 	            b_override,
 	            width, height,
 	            python_thread_state);
@@ -225,9 +222,7 @@ void BlenderSync::sync_data(BL::RenderSettings& b_render,
 
 void BlenderSync::sync_integrator()
 {
-#ifdef __CAMERA_MOTION__
 	BL::RenderSettings r = b_scene.render();
-#endif
 	PointerRNA cscene = RNA_pointer_get(&b_scene.ptr, "cycles");
 
 	experimental = (get_enum(cscene, "feature_set") != 0);
@@ -235,7 +230,6 @@ void BlenderSync::sync_integrator()
 	Integrator *integrator = scene->integrator;
 	Integrator previntegrator = *integrator;
 
-	integrator->min_bounce = get_int(cscene, "min_bounces");
 	integrator->max_bounce = get_int(cscene, "max_bounces");
 
 	integrator->max_diffuse_bounce = get_int(cscene, "diffuse_bounces");
@@ -244,8 +238,6 @@ void BlenderSync::sync_integrator()
 	integrator->max_volume_bounce = get_int(cscene, "volume_bounces");
 
 	integrator->transparent_max_bounce = get_int(cscene, "transparent_max_bounces");
-	integrator->transparent_min_bounce = get_int(cscene, "transparent_min_bounces");
-	integrator->transparent_shadows = get_boolean(cscene, "use_transparent_shadows");
 
 	integrator->volume_max_steps = get_int(cscene, "volume_max_steps");
 	integrator->volume_step_size = get_float(cscene, "volume_step_size");
@@ -275,7 +267,6 @@ void BlenderSync::sync_integrator()
 
 	integrator->sample_clamp_direct = get_float(cscene, "sample_clamp_direct");
 	integrator->sample_clamp_indirect = get_float(cscene, "sample_clamp_indirect");
-#ifdef __CAMERA_MOTION__
 	if(!preview) {
 		if(integrator->motion_blur != r.use_motion_blur()) {
 			scene->object_manager->tag_update(scene);
@@ -284,7 +275,6 @@ void BlenderSync::sync_integrator()
 
 		integrator->motion_blur = r.use_motion_blur();
 	}
-#endif
 
 	integrator->method = (Integrator::Method)get_enum(cscene,
 	                                                  "progressive",
@@ -329,6 +319,9 @@ void BlenderSync::sync_integrator()
 		else {
 			integrator->ao_bounces = get_int(cscene, "ao_bounces_render");
 		}
+	}
+	else {
+		integrator->ao_bounces = 0;
 	}
 
 	if(integrator->modified(previntegrator))
@@ -480,11 +473,156 @@ void BlenderSync::sync_images()
 	}
 }
 
+/* Passes */
+PassType BlenderSync::get_pass_type(BL::RenderPass& b_pass)
+{
+	string name = b_pass.name();
+#define MAP_PASS(passname, passtype) if(name == passname) return passtype;
+	/* NOTE: Keep in sync with defined names from DNA_scene_types.h */
+	MAP_PASS("Combined", PASS_COMBINED);
+	MAP_PASS("Depth", PASS_DEPTH);
+	MAP_PASS("Mist", PASS_MIST);
+	MAP_PASS("Normal", PASS_NORMAL);
+	MAP_PASS("IndexOB", PASS_OBJECT_ID);
+	MAP_PASS("UV", PASS_UV);
+	MAP_PASS("Vector", PASS_MOTION);
+	MAP_PASS("IndexMA", PASS_MATERIAL_ID);
+
+	MAP_PASS("DiffDir", PASS_DIFFUSE_DIRECT);
+	MAP_PASS("GlossDir", PASS_GLOSSY_DIRECT);
+	MAP_PASS("TransDir", PASS_TRANSMISSION_DIRECT);
+	MAP_PASS("SubsurfaceDir", PASS_SUBSURFACE_DIRECT);
+	MAP_PASS("VolumeDir", PASS_VOLUME_DIRECT);
+
+	MAP_PASS("DiffInd", PASS_DIFFUSE_INDIRECT);
+	MAP_PASS("GlossInd", PASS_GLOSSY_INDIRECT);
+	MAP_PASS("TransInd", PASS_TRANSMISSION_INDIRECT);
+	MAP_PASS("SubsurfaceInd", PASS_SUBSURFACE_INDIRECT);
+	MAP_PASS("VolumeInd", PASS_VOLUME_INDIRECT);
+
+	MAP_PASS("DiffCol", PASS_DIFFUSE_COLOR);
+	MAP_PASS("GlossCol", PASS_GLOSSY_COLOR);
+	MAP_PASS("TransCol", PASS_TRANSMISSION_COLOR);
+	MAP_PASS("SubsurfaceCol", PASS_SUBSURFACE_COLOR);
+
+	MAP_PASS("Emit", PASS_EMISSION);
+	MAP_PASS("Env", PASS_BACKGROUND);
+	MAP_PASS("AO", PASS_AO);
+	MAP_PASS("Shadow", PASS_SHADOW);
+
+#ifdef __KERNEL_DEBUG__
+	MAP_PASS("Debug BVH Traversed Nodes", PASS_BVH_TRAVERSED_NODES);
+	MAP_PASS("Debug BVH Traversed Instances", PASS_BVH_TRAVERSED_INSTANCES);
+	MAP_PASS("Debug BVH Intersections", PASS_BVH_INTERSECTIONS);
+	MAP_PASS("Debug Ray Bounces", PASS_RAY_BOUNCES);
+#endif
+	MAP_PASS("Debug Render Time", PASS_RENDER_TIME);
+#undef MAP_PASS
+
+	return PASS_NONE;
+}
+
+int BlenderSync::get_denoising_pass(BL::RenderPass& b_pass)
+{
+	string name = b_pass.name();
+	if(name.substr(0, 10) != "Denoising ") {
+		return -1;
+	}
+	name = name.substr(10);
+
+#define MAP_PASS(passname, offset) if(name == passname) return offset;
+	MAP_PASS("Normal", DENOISING_PASS_NORMAL);
+	MAP_PASS("Normal Variance", DENOISING_PASS_NORMAL_VAR);
+	MAP_PASS("Albedo", DENOISING_PASS_ALBEDO);
+	MAP_PASS("Albedo Variance", DENOISING_PASS_ALBEDO_VAR);
+	MAP_PASS("Depth", DENOISING_PASS_DEPTH);
+	MAP_PASS("Depth Variance", DENOISING_PASS_DEPTH_VAR);
+	MAP_PASS("Shadow A", DENOISING_PASS_SHADOW_A);
+	MAP_PASS("Shadow B", DENOISING_PASS_SHADOW_B);
+	MAP_PASS("Image", DENOISING_PASS_COLOR);
+	MAP_PASS("Image Variance", DENOISING_PASS_COLOR_VAR);
+#undef MAP_PASS
+
+	return -1;
+}
+
+array<Pass> BlenderSync::sync_render_passes(BL::RenderLayer& b_rlay,
+                                            BL::SceneRenderLayer& b_srlay,
+                                            const SessionParams &session_params)
+{
+	array<Pass> passes;
+	Pass::add(PASS_COMBINED, passes);
+
+	if(!session_params.device.advanced_shading) {
+		return passes;
+	}
+
+	/* loop over passes */
+	BL::RenderLayer::passes_iterator b_pass_iter;
+
+	for(b_rlay.passes.begin(b_pass_iter); b_pass_iter != b_rlay.passes.end(); ++b_pass_iter) {
+		BL::RenderPass b_pass(*b_pass_iter);
+		PassType pass_type = get_pass_type(b_pass);
+
+		if(pass_type == PASS_MOTION && scene->integrator->motion_blur)
+			continue;
+		if(pass_type != PASS_NONE)
+			Pass::add(pass_type, passes);
+	}
+
+	PointerRNA crp = RNA_pointer_get(&b_srlay.ptr, "cycles");
+	if(get_boolean(crp, "denoising_store_passes") &&
+	   get_boolean(crp, "use_denoising"))
+	{
+		b_engine.add_pass("Denoising Normal",          3, "XYZ", b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Normal Variance", 3, "XYZ", b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Albedo",          3, "RGB", b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Albedo Variance", 3, "RGB", b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Depth",           1, "Z",   b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Depth Variance",  1, "Z",   b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Shadow A",        3, "XYV", b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Shadow B",        3, "XYV", b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Image",           3, "RGB", b_srlay.name().c_str());
+		b_engine.add_pass("Denoising Image Variance",  3, "RGB", b_srlay.name().c_str());
+	}
+#ifdef __KERNEL_DEBUG__
+	if(get_boolean(crp, "pass_debug_bvh_traversed_nodes")) {
+		b_engine.add_pass("Debug BVH Traversed Nodes", 1, "X", b_srlay.name().c_str());
+		Pass::add(PASS_BVH_TRAVERSED_NODES, passes);
+	}
+	if(get_boolean(crp, "pass_debug_bvh_traversed_instances")) {
+		b_engine.add_pass("Debug BVH Traversed Instances", 1, "X", b_srlay.name().c_str());
+		Pass::add(PASS_BVH_TRAVERSED_INSTANCES, passes);
+	}
+	if(get_boolean(crp, "pass_debug_bvh_intersections")) {
+		b_engine.add_pass("Debug BVH Intersections", 1, "X", b_srlay.name().c_str());
+		Pass::add(PASS_BVH_INTERSECTIONS, passes);
+	}
+	if(get_boolean(crp, "pass_debug_ray_bounces")) {
+		b_engine.add_pass("Debug Ray Bounces", 1, "X", b_srlay.name().c_str());
+		Pass::add(PASS_RAY_BOUNCES, passes);
+	}
+#endif
+	if(get_boolean(crp, "pass_debug_render_time")) {
+		b_engine.add_pass("Debug Render Time", 1, "X", b_srlay.name().c_str());
+		Pass::add(PASS_RENDER_TIME, passes);
+	}
+	if(get_boolean(crp, "use_pass_volume_direct")) {
+		b_engine.add_pass("VolumeDir", 3, "RGB", b_srlay.name().c_str());
+		Pass::add(PASS_VOLUME_DIRECT, passes);
+	}
+	if(get_boolean(crp, "use_pass_volume_indirect")) {
+		b_engine.add_pass("VolumeInd", 3, "RGB", b_srlay.name().c_str());
+		Pass::add(PASS_VOLUME_INDIRECT, passes);
+	}
+
+	return passes;
+}
+
 /* Scene Parameters */
 
 SceneParams BlenderSync::get_scene_params(BL::Scene& b_scene,
-                                          bool background,
-                                          bool is_cpu)
+                                          bool background)
 {
 	BL::RenderSettings r = b_scene.render();
 	SceneParams params;
@@ -496,14 +634,10 @@ SceneParams BlenderSync::get_scene_params(BL::Scene& b_scene,
 	else if(shadingsystem == 1)
 		params.shadingsystem = SHADINGSYSTEM_OSL;
 	
-	if(background)
+	if(background || DebugFlags().viewport_static_bvh)
 		params.bvh_type = SceneParams::BVH_STATIC;
 	else
-		params.bvh_type = (SceneParams::BVHType)get_enum(
-		        cscene,
-		        "debug_bvh_type",
-		        SceneParams::BVH_NUM_TYPES,
-		        SceneParams::BVH_STATIC);
+		params.bvh_type = SceneParams::BVH_DYNAMIC;
 
 	params.use_bvh_spatial_split = RNA_boolean_get(&cscene, "debug_use_spatial_splits");
 	params.use_bvh_unaligned_nodes = RNA_boolean_get(&cscene, "debug_use_hair_bvh");
@@ -528,15 +662,7 @@ SceneParams BlenderSync::get_scene_params(BL::Scene& b_scene,
 		params.texture_limit = 0;
 	}
 
-#if !(defined(__GNUC__) && (defined(i386) || defined(_M_IX86)))
-	if(is_cpu) {
-		params.use_qbvh = DebugFlags().cpu.qbvh && system_cpu_support_sse2();
-	}
-	else
-#endif
-	{
-		params.use_qbvh = false;
-	}
+	params.bvh_layout = DebugFlags().cpu.bvh_layout;
 
 	return params;
 }
@@ -559,6 +685,16 @@ SessionParams BlenderSync::get_session_params(BL::RenderEngine& b_engine,
 
 	/* feature set */
 	params.experimental = (get_enum(cscene, "feature_set") != 0);
+
+	/* threads */
+	BL::RenderSettings b_r = b_scene.render();
+	if(b_r.threads_mode() == BL::RenderSettings::threads_mode_FIXED)
+		params.threads = b_r.threads();
+	else
+		params.threads = 0;
+
+	/* Background */
+	params.background = background;
 
 	/* device type */
 	vector<DeviceInfo>& devices = Device::available_devices();
@@ -588,12 +724,28 @@ SessionParams BlenderSync::get_session_params(BL::RenderEngine& b_engine,
 			}
 		}
 
-		int compute_device = get_enum(b_preferences, "compute_device_type");
+		enum ComputeDevice {
+			COMPUTE_DEVICE_CPU = 0,
+			COMPUTE_DEVICE_CUDA = 1,
+			COMPUTE_DEVICE_OPENCL = 2,
+			COMPUTE_DEVICE_NUM = 3,
+		};
 
-		if(compute_device != 0) {
+		ComputeDevice compute_device = (ComputeDevice)get_enum(b_preferences,
+		                                                       "compute_device_type",
+		                                                       COMPUTE_DEVICE_NUM,
+		                                                       COMPUTE_DEVICE_CPU);
+
+		if(compute_device != COMPUTE_DEVICE_CPU) {
 			vector<DeviceInfo> used_devices;
 			RNA_BEGIN(&b_preferences, device, "devices") {
-				if(get_enum(device, "type") == compute_device && get_boolean(device, "use")) {
+				ComputeDevice device_type = (ComputeDevice)get_enum(device,
+				                                                    "type",
+				                                                    COMPUTE_DEVICE_NUM,
+				                                                    COMPUTE_DEVICE_CPU);
+
+				if(get_boolean(device, "use") &&
+				   (device_type == compute_device || device_type == COMPUTE_DEVICE_CPU)) {
 					string id = get_string(device, "id");
 					foreach(DeviceInfo& info, devices) {
 						if(info.id == id) {
@@ -608,14 +760,13 @@ SessionParams BlenderSync::get_session_params(BL::RenderEngine& b_engine,
 				params.device = used_devices[0];
 			}
 			else if(used_devices.size() > 1) {
-				params.device = Device::get_multi_device(used_devices);
+				params.device = Device::get_multi_device(used_devices,
+				                                         params.threads,
+				                                         params.background);
 			}
 			/* Else keep using the CPU device that was set before. */
 		}
 	}
-
-	/* Background */
-	params.background = background;
 
 	/* samples */
 	int samples = get_int(cscene, "samples");
@@ -676,19 +827,28 @@ SessionParams BlenderSync::get_session_params(BL::RenderEngine& b_engine,
 		params.tile_order = TILE_BOTTOM_TO_TOP;
 	}
 
+	/* other parameters */
 	params.start_resolution = get_int(cscene, "preview_start_resolution");
+	params.pixel_size = b_engine.get_preview_pixel_size(b_scene);
 
 	/* other parameters */
-	if(b_scene.render().threads_mode() == BL::RenderSettings::threads_mode_FIXED)
-		params.threads = b_scene.render().threads();
-	else
-		params.threads = 0;
-
 	params.cancel_timeout = (double)get_float(cscene, "debug_cancel_timeout");
 	params.reset_timeout = (double)get_float(cscene, "debug_reset_timeout");
 	params.text_timeout = (double)get_float(cscene, "debug_text_timeout");
 
-	params.progressive_refine = get_boolean(cscene, "use_progressive_refine");
+	/* progressive refine */
+	params.progressive_refine = get_boolean(cscene, "use_progressive_refine") &&
+	                            !b_r.use_save_buffers();
+
+	if(params.progressive_refine) {
+		BL::RenderSettings::layers_iterator b_rlay;
+		for(b_r.layers.begin(b_rlay); b_rlay != b_r.layers.end(); ++b_rlay) {
+			PointerRNA crl = RNA_pointer_get(&b_rlay->ptr, "cycles");
+			if(get_boolean(crl, "use_denoising")) {
+				params.progressive_refine = false;
+			}
+		}
+	}
 
 	if(background) {
 		if(params.progressive_refine)
@@ -697,6 +857,7 @@ SessionParams BlenderSync::get_session_params(BL::RenderEngine& b_engine,
 			params.progressive = false;
 
 		params.start_resolution = INT_MAX;
+		params.pixel_size = 1;
 	}
 	else
 		params.progressive = true;

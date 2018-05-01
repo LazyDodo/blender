@@ -36,7 +36,7 @@
 
 #include "bpy_rna.h"
 #include "bpy_rna_callback.h"
-#include "bpy_util.h"
+#include "bpy_capi_utils.h"
 
 #include "DNA_space_types.h"
 #include "DNA_screen_types.h"
@@ -53,7 +53,7 @@
 #define RNA_CAPSULE_ID "RNA_HANDLE"
 #define RNA_CAPSULE_ID_INVALID "RNA_HANDLE_REMOVED"
 
-static EnumPropertyItem region_draw_mode_items[] = {
+static const EnumPropertyItem region_draw_mode_items[] = {
 	{REGION_DRAW_POST_PIXEL, "POST_PIXEL", 0, "Post Pixel", ""},
 	{REGION_DRAW_POST_VIEW, "POST_VIEW", 0, "Post View", ""},
 	{REGION_DRAW_PRE_VIEW, "PRE_VIEW", 0, "Pre View", ""},
@@ -189,7 +189,7 @@ PyObject *pyrna_callback_classmethod_add(PyObject *UNUSED(self), PyObject *args)
 	StructRNA *srna;
 
 	if (PyTuple_GET_SIZE(args) < 2) {
-		PyErr_SetString(PyExc_ValueError, "handler_add(handle): expected at least 2 args");
+		PyErr_SetString(PyExc_ValueError, "handler_add(handler): expected at least 2 args");
 		return NULL;
 	}
 
@@ -252,7 +252,7 @@ PyObject *pyrna_callback_classmethod_remove(PyObject *UNUSED(self), PyObject *ar
 	int cb_regiontype;
 
 	if (PyTuple_GET_SIZE(args) < 2) {
-		PyErr_SetString(PyExc_ValueError, "callback_remove(handle): expected at least 2 args");
+		PyErr_SetString(PyExc_ValueError, "callback_remove(handler): expected at least 2 args");
 		return NULL;
 	}
 
@@ -263,7 +263,7 @@ PyObject *pyrna_callback_classmethod_remove(PyObject *UNUSED(self), PyObject *ar
 	py_handle = PyTuple_GET_ITEM(args, 1);
 	handle = PyCapsule_GetPointer(py_handle, RNA_CAPSULE_ID);
 	if (handle == NULL) {
-		PyErr_SetString(PyExc_ValueError, "callback_remove(handle): NULL handle given, invalid or already removed");
+		PyErr_SetString(PyExc_ValueError, "callback_remove(handler): NULL handler given, invalid or already removed");
 		return NULL;
 	}
 

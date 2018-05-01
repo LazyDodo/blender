@@ -41,13 +41,14 @@
 
 #include "BLI_utildefines.h"
 #include "BLI_sort_utils.h"
+#include "BLI_ghash.h"
 #include "BLI_math_vector.h"
 #include "BLI_math.h"
+#include "BLI_task.h"
 
 #include "BKE_tracking.h"
 #include "BKE_movieclip.h"
 #include "BKE_fcurve.h"
-#include "BLI_ghash.h"
 
 #include "MEM_guardedalloc.h"
 #include "IMB_imbuf_types.h"
@@ -203,7 +204,7 @@ static float get_animated_scaleinf(StabContext *ctx, int framenr)
 
 static void get_animated_target_pos(StabContext *ctx,
                                     int framenr,
-		                            float target_pos[2])
+                                    float target_pos[2])
 {
 	target_pos[0] = fetch_from_fcurve(ctx->target_pos[0],
 	                                  framenr,
@@ -755,7 +756,8 @@ static void average_marker_positions(StabContext *ctx, int framenr, float r_ref_
 	if (ok) {
 		r_ref_pos[0] /= weight_sum;
 		r_ref_pos[1] /= weight_sum;
-	} else {
+	}
+	else {
 		/* No usable tracking data on any track on this frame.
 		 * Use data from neighbouring frames to extrapolate...
 		 */
@@ -784,7 +786,8 @@ static void average_marker_positions(StabContext *ctx, int framenr, float r_ref_
 			 * Also default to this frame when we're in a gap */
 			average_marker_positions(ctx, next_lower, r_ref_pos);
 
-		} else if (next_higher < MAXFRAME) {
+		}
+		else if (next_higher < MAXFRAME) {
 			average_marker_positions(ctx, next_higher, r_ref_pos);
 		}
 		use_values_from_fcurves(ctx, false);
@@ -1167,7 +1170,8 @@ static void stabilization_calculate_data(StabContext *ctx,
 
 	if (ctx->stab->flag & TRACKING_STABILIZE_SCALE) {
 		*r_scale = expf(scale_step * scaleinf);  /* Averaged in log scale */
-	} else {
+	}
+	else {
 		*r_scale = 1.0f;
 	}
 
@@ -1180,8 +1184,8 @@ static void stabilization_calculate_data(StabContext *ctx,
 	 */
 	get_animated_target_pos(ctx, framenr, target_pos);
 	sub_v2_v2(r_translation, target_pos);
-	*r_angle -= get_animated_target_rot(ctx,framenr);
-	target_scale = get_animated_target_scale(ctx,framenr);
+	*r_angle -= get_animated_target_rot(ctx, framenr);
+	target_scale = get_animated_target_scale(ctx, framenr);
 	if (target_scale != 0.0f) {
 		*r_scale /= target_scale;
 		/* target_scale is an expected/intended reference zoom value */
@@ -1488,6 +1492,38 @@ void BKE_tracking_stabilization_data_get(MovieClip *clip,
 	discard_stabilization_working_context(ctx);
 }
 
+
+typedef void (*interpolation_func)(struct ImBuf *, struct ImBuf *, float, float, int, int);
+
+typedef struct TrackingStabilizeFrameInterpolationData {
+	ImBuf *ibuf;
+	ImBuf *tmpibuf;
+	float (*mat)[4];
+
+	interpolation_func interpolation;
+} TrackingStabilizeFrameInterpolationData;
+
+static void tracking_stabilize_frame_interpolation_cb(
+        void *__restrict userdata,
+        const int j,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
+{
+	TrackingStabilizeFrameInterpolationData *data = userdata;
+	ImBuf *ibuf = data->ibuf;
+	ImBuf *tmpibuf = data->tmpibuf;
+	float (*mat)[4] = data->mat;
+
+	interpolation_func interpolation = data->interpolation;
+
+	for (int i = 0; i < tmpibuf->x; i++) {
+		float vec[3] = {i, j, 0.0f};
+
+		mul_v3_m4v3(vec, mat, vec);
+
+		interpolation(ibuf, tmpibuf, vec[0], vec[1], i, j);
+	}
+}
+
 /* Stabilize given image buffer using stabilization data for a specified
  * frame number.
  *
@@ -1508,8 +1544,8 @@ ImBuf *BKE_tracking_stabilize_frame(MovieClip *clip,
 	int width = ibuf->x, height = ibuf->y;
 	float pixel_aspect = tracking->camera.pixel_aspect;
 	float mat[4][4];
-	int j, filter = tracking->stabilization.filter;
-	void (*interpolation)(struct ImBuf *, struct ImBuf *, float, float, int, int) = NULL;
+	int filter = tracking->stabilization.filter;
+	interpolation_func interpolation = NULL;
 	int ibuf_flags;
 
 	if (translation)
@@ -1560,24 +1596,18 @@ ImBuf *BKE_tracking_stabilize_frame(MovieClip *clip,
 		/* fallback to default interpolation method */
 		interpolation = nearest_interpolation;
 
-	/* This function is only used for display in clip editor and
-	 * sequencer only, which would only benefit of using threads
-	 * here.
-	 *
-	 * But need to keep an eye on this if the function will be
-	 * used in other cases.
-	 */
-#pragma omp parallel for if (tmpibuf->y > 128)
-	for (j = 0; j < tmpibuf->y; j++) {
-		int i;
-		for (i = 0; i < tmpibuf->x; i++) {
-			float vec[3] = {i, j, 0.0f};
+	TrackingStabilizeFrameInterpolationData data = {
+		.ibuf = ibuf, .tmpibuf = tmpibuf, .mat = mat,
+		.interpolation = interpolation
+	};
 
-			mul_v3_m4v3(vec, mat, vec);
-
-			interpolation(ibuf, tmpibuf, vec[0], vec[1], i, j);
-		}
-	}
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = (tmpibuf->y > 128);
+	BLI_task_parallel_range(0, tmpibuf->y,
+	                        &data,
+	                        tracking_stabilize_frame_interpolation_cb,
+	                        &settings);
 
 	if (tmpibuf->rect_float)
 		tmpibuf->userflags |= IB_RECT_INVALID;

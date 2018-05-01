@@ -47,7 +47,7 @@
 
 #include "rna_internal.h"  /* own include */
 
-static EnumPropertyItem space_items[] = {
+static const EnumPropertyItem space_items[] = {
 	{CONSTRAINT_SPACE_WORLD,    "WORLD", 0, "World Space",
 	                            "The most gobal space in Blender"},
 	{CONSTRAINT_SPACE_POSE,     "POSE", 0, "Pose Space",
@@ -91,7 +91,7 @@ static EnumPropertyItem space_items[] = {
 #include "DEG_depsgraph.h"
 
 /* Convert a given matrix from a space to another (using the object and/or a bone as reference). */
-static void rna_Scene_mat_convert_space(Object *ob, ReportList *reports, bPoseChannel *pchan,
+static void rna_Object_mat_convert_space(Object *ob, ReportList *reports, bPoseChannel *pchan,
                                         float *mat, float *mat_ret, int from, int to)
 {
 	copy_m4_m4((float (*)[4])mat_ret, (float (*)[4])mat);
@@ -321,49 +321,55 @@ static void rna_Object_ray_cast(
         float origin[3], float direction[3], float distance,
         int *r_success, float r_location[3], float r_normal[3], int *r_index)
 {
-	BVHTreeFromMesh treeData = {NULL};
-	
+	bool success = false;
+
 	if (ob->derivedFinal == NULL) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' has no mesh data to be used for ray casting", ob->id.name + 2);
 		return;
 	}
 
-	/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
-	bvhtree_from_mesh_looptri(&treeData, ob->derivedFinal, 0.0f, 4, 6);
+	/* Test BoundBox first (efficiency) */
+	BoundBox *bb = BKE_object_boundbox_get(ob);
+	float distmin;
+	if (!bb || (isect_ray_aabb_v3_simple(origin, direction, bb->vec[0], bb->vec[6], &distmin, NULL) && distmin <= distance)) {
 
-	/* may fail if the mesh has no faces, in that case the ray-cast misses */
-	if (treeData.tree != NULL) {
-		BVHTreeRayHit hit;
+		BVHTreeFromMesh treeData = {NULL};
 
-		hit.index = -1;
-		hit.dist = distance;
-		
-		normalize_v3(direction);
+		/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
+		bvhtree_from_mesh_looptri(&treeData, ob->derivedFinal, 0.0f, 4, 6);
+
+		/* may fail if the mesh has no faces, in that case the ray-cast misses */
+		if (treeData.tree != NULL) {
+			BVHTreeRayHit hit;
+
+			hit.index = -1;
+			hit.dist = distance;
+
+			normalize_v3(direction);
 
 
-		if (BLI_bvhtree_ray_cast(treeData.tree, origin, direction, 0.0f, &hit,
-		                         treeData.raycast_callback, &treeData) != -1)
-		{
-			if (hit.dist <= distance) {
-				*r_success = true;
+			if (BLI_bvhtree_ray_cast(treeData.tree, origin, direction, 0.0f, &hit,
+			                         treeData.raycast_callback, &treeData) != -1)
+			{
+				if (hit.dist <= distance) {
+					*r_success = success = true;
 
-				copy_v3_v3(r_location, hit.co);
-				copy_v3_v3(r_normal, hit.no);
-				*r_index = dm_looptri_to_poly_index(ob->derivedFinal, &treeData.looptri[hit.index]);
-
-				goto finally;
+					copy_v3_v3(r_location, hit.co);
+					copy_v3_v3(r_normal, hit.no);
+					*r_index = dm_looptri_to_poly_index(ob->derivedFinal, &treeData.looptri[hit.index]);
+				}
 			}
+
+			free_bvhtree_from_mesh(&treeData);
 		}
 	}
+	if (success == false) {
+		*r_success = false;
 
-	*r_success = false;
-
-	zero_v3(r_location);
-	zero_v3(r_normal);
-	*r_index = -1;
-
-finally:
-	free_bvhtree_from_mesh(&treeData);
+		zero_v3(r_location);
+		zero_v3(r_normal);
+		*r_index = -1;
+	}
 }
 
 static void rna_Object_closest_point_on_mesh(
@@ -470,10 +476,7 @@ void rna_Object_dm_info(struct Object *ob, int type, char *result)
 
 static int rna_Object_update_from_editmode(Object *ob)
 {
-	if (ob->mode & OB_MODE_EDIT) {
-		return ED_object_editmode_load(ob);
-	}
-	return false;
+	return ED_object_editmode_load(ob);
 }
 #else /* RNA_RUNTIME */
 
@@ -482,13 +485,13 @@ void RNA_api_object(StructRNA *srna)
 	FunctionRNA *func;
 	PropertyRNA *parm;
 
-	static EnumPropertyItem mesh_type_items[] = {
+	static const EnumPropertyItem mesh_type_items[] = {
 		{eModifierMode_Realtime, "PREVIEW", 0, "Preview", "Apply modifier preview settings"},
 		{eModifierMode_Render, "RENDER", 0, "Render", "Apply modifier render settings"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static EnumPropertyItem dupli_eval_mode_items[] = {
+	static const EnumPropertyItem dupli_eval_mode_items[] = {
 		{DAG_EVAL_VIEWPORT, "VIEWPORT", 0, "Viewport", "Generate duplis using viewport settings"},
 		{DAG_EVAL_PREVIEW, "PREVIEW", 0, "Preview", "Generate duplis using preview settings"},
 		{DAG_EVAL_RENDER, "RENDER", 0, "Render", "Generate duplis using render settings"},
@@ -496,7 +499,7 @@ void RNA_api_object(StructRNA *srna)
 	};
 
 #ifndef NDEBUG
-	static EnumPropertyItem mesh_dm_info_items[] = {
+	static const EnumPropertyItem mesh_dm_info_items[] = {
 		{0, "SOURCE", 0, "Source", "Source mesh"},
 		{1, "DEFORM", 0, "Deform", "Objects deform mesh"},
 		{2, "FINAL", 0, "Final", "Objects final mesh"},
@@ -505,7 +508,7 @@ void RNA_api_object(StructRNA *srna)
 #endif
 
 	/* Matrix space conversion */
-	func = RNA_def_function(srna, "convert_space", "rna_Scene_mat_convert_space");
+	func = RNA_def_function(srna, "convert_space", "rna_Object_mat_convert_space");
 	RNA_def_function_ui_description(func, "Convert (transform) the given matrix from one space to another");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "pose_bone", "PoseBone", "",

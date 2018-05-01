@@ -53,6 +53,7 @@
 
 #include "BKE_global.h"
 #include "BKE_idprop.h"
+#include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_sound.h"
@@ -61,6 +62,8 @@
 #include "IMB_imbuf.h"
 
 #include "ffmpeg_compat.h"
+
+struct StampData;
 
 typedef struct FFMpegContext {
 	int ffmpeg_type;
@@ -75,7 +78,7 @@ typedef struct FFMpegContext {
 	bool ffmpeg_preview;
 
 	int ffmpeg_crf;  /* set to 0 to not use CRF mode; we have another flag for lossless anyway. */
-	int ffmpeg_preset; /* see FFMpegPreset */
+	int ffmpeg_preset; /* see eFFMpegPreset */
 
 	AVFormatContext *outfile;
 	AVStream *video_stream;
@@ -93,6 +96,8 @@ typedef struct FFMpegContext {
 	double audio_time;
 	bool audio_deinterleave;
 	int audio_sample_size;
+
+	struct StampData *stamp_data;
 
 #ifdef WITH_AUDASPACE
 	AUD_Device *audio_mixdown_device;
@@ -158,7 +163,7 @@ static int write_audio_frame(FFMpegContext *context)
 		for (channel = 0; channel < c->channels; channel++) {
 			for (i = 0; i < frame->nb_samples; i++) {
 				memcpy(context->audio_deinterleave_buffer + (i + channel * frame->nb_samples) * context->audio_sample_size,
-					   context->audio_input_buffer + (c->channels * i + channel) * context->audio_sample_size, context->audio_sample_size);
+				       context->audio_input_buffer + (c->channels * i + channel) * context->audio_sample_size, context->audio_sample_size);
 			}
 		}
 
@@ -568,7 +573,8 @@ static AVStream *alloc_video_stream(FFMpegContext *context, RenderData *rd, int 
 
 	if (context->ffmpeg_crf >= 0) {
 		ffmpeg_dict_set_int(&opts, "crf", context->ffmpeg_crf);
-	} else {
+	}
+	else {
 		c->bit_rate = context->ffmpeg_video_bitrate * 1000;
 		c->rc_max_rate = rd->ffcodecdata.rc_max_rate * 1000;
 		c->rc_min_rate = rd->ffcodecdata.rc_min_rate * 1000;
@@ -576,23 +582,32 @@ static AVStream *alloc_video_stream(FFMpegContext *context, RenderData *rd, int 
 	}
 
 	if (context->ffmpeg_preset) {
-		char const * preset_name;
-		switch(context->ffmpeg_preset) {
-			case FFM_PRESET_ULTRAFAST: preset_name = "ultrafast"; break;
-			case FFM_PRESET_SUPERFAST: preset_name = "superfast"; break;
-			case FFM_PRESET_VERYFAST: preset_name = "veryfast"; break;
-			case FFM_PRESET_FASTER: preset_name = "faster"; break;
-			case FFM_PRESET_FAST: preset_name = "fast"; break;
-			case FFM_PRESET_MEDIUM: preset_name = "medium"; break;
-			case FFM_PRESET_SLOW: preset_name = "slow"; break;
-			case FFM_PRESET_SLOWER: preset_name = "slower"; break;
-			case FFM_PRESET_VERYSLOW: preset_name = "veryslow"; break;
+		/* 'preset' is used by h.264, 'deadline' is used by webm/vp9. I'm not
+		 * setting those properties conditionally based on the video codec,
+		 * as the FFmpeg encoder simply ignores unknown settings anyway. */
+		char const *preset_name = NULL;  /* used by h.264 */
+		char const *deadline_name = NULL; /* used by webm/vp9 */
+		switch (context->ffmpeg_preset) {
+			case FFM_PRESET_GOOD:
+				preset_name = "medium";
+				deadline_name = "good";
+				break;
+			case FFM_PRESET_BEST:
+				preset_name = "slower";
+				deadline_name = "best";
+				break;
+			case FFM_PRESET_REALTIME:
+				preset_name = "superfast";
+				deadline_name = "realtime";
+				break;
 			default:
 				printf("Unknown preset number %i, ignoring.\n", context->ffmpeg_preset);
-				preset_name = NULL;
 		}
 		if (preset_name != NULL) {
 			av_dict_set(&opts, "preset", preset_name, 0);
+		}
+		if (deadline_name != NULL) {
+			av_dict_set(&opts, "deadline", deadline_name, 0);
 		}
 	}
 
@@ -680,6 +695,7 @@ static AVStream *alloc_video_stream(FFMpegContext *context, RenderData *rd, int 
 	/* xasp & yasp got float lately... */
 
 	st->sample_aspect_ratio = c->sample_aspect_ratio = av_d2q(((double) rd->xasp / (double) rd->yasp), 255);
+	st->avg_frame_rate = av_inv_q(c->time_base);
 
 	set_ffmpeg_properties(rd, c, "video", &opts);
 
@@ -832,6 +848,12 @@ static void ffmpeg_dict_set_float(AVDictionary **dict, const char *key, float va
 	BLI_snprintf(buffer, sizeof(buffer), "%.8f", value);
 
 	av_dict_set(dict, key, buffer, 0);
+}
+
+static void ffmpeg_add_metadata_callback(void *data, const char *propname, char *propvalue, int len)
+{
+	AVDictionary **metadata = (AVDictionary **)data;
+	av_dict_set(metadata, propname, propvalue, 0);
 }
 
 static int start_ffmpeg_impl(FFMpegContext *context, struct RenderData *rd, int rectx, int recty, const char *suffix, ReportList *reports)
@@ -992,6 +1014,11 @@ static int start_ffmpeg_impl(FFMpegContext *context, struct RenderData *rd, int 
 			goto fail;
 		}
 	}
+
+	if (context->stamp_data != NULL) {
+		BKE_stamp_info_callback(&of->metadata, context->stamp_data, ffmpeg_add_metadata_callback, false);
+	}
+
 	if (avformat_write_header(of, NULL) < 0) {
 		BKE_report(reports, RPT_ERROR, "Could not initialize streams, probably unsupported codec combination");
 		goto fail;
@@ -1166,6 +1193,7 @@ int BKE_ffmpeg_start(void *context_v, struct Scene *scene, RenderData *rd, int r
 
 	context->ffmpeg_autosplit_count = 0;
 	context->ffmpeg_preview = preview;
+	context->stamp_data = BKE_stamp_info_from_scene_static(scene);
 
 	success = start_ffmpeg_impl(context, rd, rectx, recty, suffix, reports);
 #ifdef WITH_AUDASPACE
@@ -1657,7 +1685,7 @@ void BKE_ffmpeg_image_type_verify(RenderData *rd, ImageFormatData *imf)
 		{
 			BKE_ffmpeg_preset_set(rd, FFMPEG_PRESET_H264);
 			rd->ffcodecdata.constant_rate_factor = FFM_CRF_MEDIUM;
-			rd->ffcodecdata.ffmpeg_preset = FFM_PRESET_MEDIUM;
+			rd->ffcodecdata.ffmpeg_preset = FFM_PRESET_GOOD;
 			rd->ffcodecdata.type = FFMPEG_MKV;
 		}
 		if (rd->ffcodecdata.type == FFMPEG_OGG) {
@@ -1732,6 +1760,7 @@ void *BKE_ffmpeg_context_create(void)
 	context->ffmpeg_autosplit = 0;
 	context->ffmpeg_autosplit_count = 0;
 	context->ffmpeg_preview = false;
+	context->stamp_data = NULL;
 
 	return context;
 }
@@ -1739,9 +1768,13 @@ void *BKE_ffmpeg_context_create(void)
 void BKE_ffmpeg_context_free(void *context_v)
 {
 	FFMpegContext *context = context_v;
-	if (context) {
-		MEM_freeN(context);
+	if (context == NULL) {
+		return;
 	}
+	if (context->stamp_data) {
+		MEM_freeN(context->stamp_data);
+	}
+	MEM_freeN(context);
 }
 
 #endif /* WITH_FFMPEG */

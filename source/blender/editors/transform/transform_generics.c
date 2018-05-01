@@ -82,7 +82,6 @@
 #include "BKE_editmesh.h"
 #include "BKE_tracking.h"
 #include "BKE_mask.h"
-#include "BKE_utildefines.h"
 
 #include "ED_anim_api.h"
 #include "ED_armature.h"
@@ -267,6 +266,7 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 		/* if playback has just looped around, we need to add a new NLA track+strip to allow a clean pass to occur */
 		if ((sad) && (sad->flag & ANIMPLAY_FLAG_JUMPED)) {
 			AnimData *adt = BKE_animdata_from_id(id);
+			const bool is_first = (adt) && (adt->nla_tracks.first == NULL);
 			
 			/* perform push-down manually with some differences 
 			 * NOTE: BKE_nla_action_pushdown() sync warning...
@@ -277,7 +277,7 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 				/* only push down if action is more than 1-2 frames long */
 				calc_action_range(adt->action, &astart, &aend, 1);
 				if (aend > astart + 2.0f) {
-					NlaStrip *strip = add_nlastrip_to_stack(adt, adt->action);
+					NlaStrip *strip = BKE_nlastack_add_strip(adt, adt->action);
 					
 					/* clear reference to action now that we've pushed it onto the stack */
 					id_us_min(&adt->action->id);
@@ -286,6 +286,29 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 					/* adjust blending + extend so that they will behave correctly */
 					strip->extendmode = NLASTRIP_EXTEND_NOTHING;
 					strip->flag &= ~(NLASTRIP_FLAG_AUTO_BLENDS | NLASTRIP_FLAG_SELECT | NLASTRIP_FLAG_ACTIVE);
+					
+					/* copy current "action blending" settings from adt to the strip,
+					 * as it was keyframed with these settings, so omitting them will
+					 * change the effect  [T54766]
+					 */
+					if (is_first == false) {
+						strip->blendmode = adt->act_blendmode;
+						strip->influence = adt->act_influence;
+						
+						if (adt->act_influence < 1.0f) {
+							/* enable "user-controlled" influence (which will insert a default keyframe)
+							 * so that the influence doesn't get lost on the new update
+							 *
+							 * NOTE: An alternative way would have been to instead hack the influence
+							 * to not get always get reset to full strength if NLASTRIP_FLAG_USR_INFLUENCE
+							 * is disabled but auto-blending isn't being used. However, that approach
+							 * is a bit hacky/hard to discover, and may cause backwards compatability issues,
+							 * so it's better to just do it this way.
+							 */
+							strip->flag |= NLASTRIP_FLAG_USR_INFLUENCE;
+							BKE_nlastrip_validate_fcurves(strip);
+						}
+					}
 					
 					/* also, adjust the AnimData's action extend mode to be on 
 					 * 'nothing' so that previous result still play 
@@ -848,7 +871,7 @@ static void recalcData_objects(TransInfo *t)
 							mul_qt_v3(qrot, up_axis);
 
 							/* roll has a tendency to flip in certain orientations - [#34283], [#33974] */
-							roll = ED_rollBoneToVector(ebo, up_axis, false);
+							roll = ED_armature_ebone_roll_to_vector(ebo, up_axis, false);
 							ebo->roll = angle_compat_rad(roll, td->ival);
 						}
 					}
@@ -857,7 +880,7 @@ static void recalcData_objects(TransInfo *t)
 			
 			if (arm->flag & ARM_MIRROR_EDIT) {
 				if (t->state != TRANS_CANCEL)
-					transform_armature_mirror_update(t->obedit);
+					ED_armature_edit_transform_mirror_update(t->obedit);
 				else
 					restoreBones(t);
 			}
@@ -971,7 +994,7 @@ static void recalcData_sequencer(TransInfo *t)
 
 /* force recalculation of triangles during transformation */
 static void recalcData_gpencil_strokes(TransInfo *t)
- {
+{
 	TransData *td = t->data;
 	for (int i = 0; i < t->total; i++, td++) {
 		bGPDstroke *gps = td->extra;
@@ -1208,7 +1231,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		if (prop_id && (prop = RNA_struct_find_property(op->ptr, prop_id)) &&
 		    RNA_property_is_set(op->ptr, prop))
 		{
-			BKE_BIT_TEST_SET(t->flag, RNA_property_boolean_get(op->ptr, prop), T_ALT_TRANSFORM);
+			SET_FLAG_FROM_TEST(t->flag, RNA_property_boolean_get(op->ptr, prop), T_ALT_TRANSFORM);
 		}
 	}
 
@@ -1331,7 +1354,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 			t->current_orientation = V3D_MANIP_GLOBAL;
 		}
 	}
-	
+
 	if (op && ((prop = RNA_struct_find_property(op->ptr, "release_confirm")) &&
 	           RNA_property_is_set(op->ptr, prop)))
 	{
@@ -1435,6 +1458,13 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 #endif
 
 	setTransformViewAspect(t, t->aspect);
+
+	if (op && (prop = RNA_struct_find_property(op->ptr, "center_override")) && RNA_property_is_set(op->ptr, prop)) {
+		RNA_property_float_get_array(op->ptr, prop, t->center);
+		mul_v3_v3(t->center, t->aspect);
+		t->flag |= T_OVERRIDE_CENTER;
+	}
+
 	setTransformViewMatrices(t);
 	initNumInput(&t->num);
 }
@@ -1835,7 +1865,9 @@ static void calculateCenter_FromAround(TransInfo *t, int around, float r_center[
 
 void calculateCenter(TransInfo *t)
 {
-	calculateCenter_FromAround(t, t->around, t->center);
+	if ((t->flag & T_OVERRIDE_CENTER) == 0) {
+		calculateCenter_FromAround(t, t->around, t->center);
+	}
 	calculateCenterGlobal(t, t->center, t->center_global);
 
 	/* avoid calculating again */
@@ -1849,7 +1881,7 @@ void calculateCenter(TransInfo *t)
 	calculateCenter2D(t);
 
 	/* for panning from cameraview */
-	if (t->flag & T_OBJECT) {
+	if ((t->flag & T_OBJECT) && (t->flag & T_OVERRIDE_CENTER) == 0) {
 		if (t->spacetype == SPACE_VIEW3D && t->ar && t->ar->regiontype == RGN_TYPE_WINDOW) {
 			
 			if (t->flag & T_CAMERA) {
@@ -1876,14 +1908,6 @@ void calculateCenter(TransInfo *t)
 	
 	if (t->spacetype == SPACE_VIEW3D) {
 		/* ED_view3d_calc_zfac() defines a factor for perspective depth correction, used in ED_view3d_win_to_delta() */
-		float vec[3];
-		if (t->flag & (T_EDIT | T_POSE)) {
-			Object *ob = t->obedit ? t->obedit : t->poseobj;
-			mul_v3_m4v3(vec, ob->obmat, t->center);
-		}
-		else {
-			copy_v3_v3(vec, t->center);
-		}
 
 		/* zfac is only used convertViewVec only in cases operator was invoked in RGN_TYPE_WINDOW
 		 * and never used in other cases.
@@ -1892,7 +1916,7 @@ void calculateCenter(TransInfo *t)
 		 * for a region different from RGN_TYPE_WINDOW.
 		 */
 		if (t->ar->regiontype == RGN_TYPE_WINDOW) {
-			t->zfac = ED_view3d_calc_zfac(t->ar->regiondata, vec, NULL);
+			t->zfac = ED_view3d_calc_zfac(t->ar->regiondata, t->center_global, NULL);
 		}
 		else {
 			t->zfac = 0.0f;

@@ -64,6 +64,7 @@
 #include "ED_anim_api.h"
 #include "ED_keyframing.h"
 #include "ED_screen.h"
+#include "ED_undo.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -208,7 +209,12 @@ static void graph_panel_properties(const bContext *C, Panel *pa)
 	sub = uiLayoutRow(row, true);
 	uiLayoutSetEnabled(sub, (fcu->color_mode == FCURVE_COLOR_CUSTOM));
 	uiItemR(sub, &fcu_ptr, "color", 0, "", ICON_NONE);
-	
+
+	/* smoothing setting */
+	col = uiLayoutColumn(layout, true);
+	uiItemL(col, IFACE_("Auto Handle Smoothing:"), ICON_NONE);
+	uiItemR(col, &fcu_ptr, "auto_smoothing", 0, "", ICON_NONE);
+
 	MEM_freeN(ale);
 }
 
@@ -498,25 +504,28 @@ static void driver_remove_cb(bContext *C, void *ale_v, void *UNUSED(arg))
 	
 	/* call API method to remove this driver  */
 	ANIM_remove_driver(reports, id, fcu->rna_path, fcu->array_index, 0);
+	ED_undo_push(C, "Remove Driver");
 }
 
 /* callback to add a target variable to the active driver */
-static void driver_add_var_cb(bContext *UNUSED(C), void *driver_v, void *UNUSED(arg))
+static void driver_add_var_cb(bContext *C, void *driver_v, void *UNUSED(arg))
 {
 	ChannelDriver *driver = (ChannelDriver *)driver_v;
 	
 	/* add a new variable */
 	driver_add_new_variable(driver);
+	ED_undo_push(C, "Add Driver Variable");
 }
 
 /* callback to remove target variable from active driver */
-static void driver_delete_var_cb(bContext *UNUSED(C), void *driver_v, void *dvar_v)
+static void driver_delete_var_cb(bContext *C, void *driver_v, void *dvar_v)
 {
 	ChannelDriver *driver = (ChannelDriver *)driver_v;
 	DriverVar *dvar = (DriverVar *)dvar_v;
 	
 	/* remove the active variable */
 	driver_free_variable_ex(driver, dvar);
+	ED_undo_push(C, "Delete Driver Variable");
 }
 
 /* callback to report why a driver variable is invalid */
@@ -616,30 +625,31 @@ static void graph_panel_driverVar__rotDiff(uiLayout *layout, ID *id, DriverVar *
 	Object *ob2 = (Object *)dtar2->id;
 	PointerRNA dtar_ptr, dtar2_ptr;
 	uiLayout *col;
-	
+
 	/* initialize RNA pointer to the target */
-	RNA_pointer_create(id, &RNA_DriverTarget, dtar, &dtar_ptr); 
-	RNA_pointer_create(id, &RNA_DriverTarget, dtar2, &dtar2_ptr); 
-	
-	/* Bone 1 */
+	RNA_pointer_create(id, &RNA_DriverTarget, dtar, &dtar_ptr);
+	RNA_pointer_create(id, &RNA_DriverTarget, dtar2, &dtar2_ptr);
+
+	/* Object 1 */
 	col = uiLayoutColumn(layout, true);
 	uiLayoutSetRedAlert(col, (dtar->flag & DTAR_FLAG_INVALID)); /* XXX: per field... */
-	uiItemR(col, &dtar_ptr, "id", 0, IFACE_("Bone 1"), ICON_NONE);
-	
+	uiItemR(col, &dtar_ptr, "id", 0, IFACE_("Object 1"), ICON_NONE);
+
 	if (dtar->id && GS(dtar->id->name) == ID_OB && ob1->pose) {
 		PointerRNA tar_ptr;
-		
+
 		RNA_pointer_create(dtar->id, &RNA_Pose, ob1->pose, &tar_ptr);
 		uiItemPointerR(col, &dtar_ptr, "bone_target", &tar_ptr, "bones", "", ICON_BONE_DATA);
 	}
-	
+
+	/* Object 2 */
 	col = uiLayoutColumn(layout, true);
 	uiLayoutSetRedAlert(col, (dtar2->flag & DTAR_FLAG_INVALID)); /* XXX: per field... */
-	uiItemR(col, &dtar2_ptr, "id", 0, IFACE_("Bone 2"), ICON_NONE);
-		
+	uiItemR(col, &dtar2_ptr, "id", 0, IFACE_("Object 2"), ICON_NONE);
+
 	if (dtar2->id && GS(dtar2->id->name) == ID_OB && ob2->pose) {
 		PointerRNA tar_ptr;
-		
+
 		RNA_pointer_create(dtar2->id, &RNA_Pose, ob2->pose, &tar_ptr);
 		uiItemPointerR(col, &dtar2_ptr, "bone_target", &tar_ptr, "bones", "", ICON_BONE_DATA);
 	}
@@ -658,8 +668,8 @@ static void graph_panel_driverVar__locDiff(uiLayout *layout, ID *id, DriverVar *
 	/* initialize RNA pointer to the target */
 	RNA_pointer_create(id, &RNA_DriverTarget, dtar,  &dtar_ptr); 
 	RNA_pointer_create(id, &RNA_DriverTarget, dtar2, &dtar2_ptr); 
-	
-	/* Bone 1 */
+
+	/* Object 1 */
 	col = uiLayoutColumn(layout, true);
 	uiLayoutSetRedAlert(col, (dtar->flag & DTAR_FLAG_INVALID)); /* XXX: per field... */
 	uiItemR(col, &dtar_ptr, "id", 0, IFACE_("Object 1"), ICON_NONE);
@@ -673,7 +683,8 @@ static void graph_panel_driverVar__locDiff(uiLayout *layout, ID *id, DriverVar *
 	
 	uiLayoutSetRedAlert(col, false); /* we can clear it again now - it's only needed when creating the ID/Bone fields */
 	uiItemR(col, &dtar_ptr, "transform_space", 0, NULL, ICON_NONE);
-	
+
+	/* Object 2 */
 	col = uiLayoutColumn(layout, true);
 	uiLayoutSetRedAlert(col, (dtar2->flag & DTAR_FLAG_INVALID)); /* XXX: per field... */
 	uiItemR(col, &dtar2_ptr, "id", 0, IFACE_("Object 2"), ICON_NONE);

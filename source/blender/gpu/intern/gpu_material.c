@@ -47,13 +47,13 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_anim.h"
+#include "BKE_colorband.h"
 #include "BKE_colortools.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_scene.h"
-#include "BKE_texture.h"
 #include "BKE_group.h"
 
 #include "IMB_imbuf_types.h"
@@ -121,6 +121,8 @@ struct GPUMaterial {
 	int partcoloc;
 	int partvel;
 	int partangvel;
+
+	int objectinfoloc;
 
 	ListBase lamps;
 	bool bound;
@@ -225,7 +227,7 @@ static void gpu_material_set_attrib_id(GPUMaterial *material)
 	attribs->totlayer = b;
 }
 
-static int GPU_material_construct_end(GPUMaterial *material, const char *passname)
+static int gpu_material_construct_end(GPUMaterial *material, const char *passname)
 {
 	if (material->outlink) {
 		GPUNodeLink *outlink = material->outlink;
@@ -268,6 +270,8 @@ static int GPU_material_construct_end(GPUMaterial *material, const char *passnam
 			material->partvel = GPU_shader_get_uniform(shader, GPU_builtin_name(GPU_PARTICLE_VELOCITY));
 		if (material->builtins & GPU_PARTICLE_ANG_VELOCITY)
 			material->partangvel = GPU_shader_get_uniform(shader, GPU_builtin_name(GPU_PARTICLE_ANG_VELOCITY));
+		if (material->builtins & GPU_OBJECT_INFO)
+			material->objectinfoloc = GPU_shader_get_uniform(shader, GPU_builtin_name(GPU_OBJECT_INFO));
 		return 1;
 	}
 	else {
@@ -308,9 +312,11 @@ void GPU_material_free(ListBase *gpumaterial)
 	BLI_freelistN(gpumaterial);
 }
 
-bool GPU_lamp_override_visible(GPULamp *lamp, SceneRenderLayer *srl, Material *ma)
+bool GPU_lamp_visible(GPULamp *lamp, SceneRenderLayer *srl, Material *ma)
 {
-	if (srl && srl->light_override)
+	if (lamp->hide)
+		return false;
+	else if (srl && srl->light_override)
 		return BKE_group_object_exists(srl->light_override, lamp->ob);
 	else if (ma && ma->group)
 		return BKE_group_object_exists(ma->group, lamp->ob);
@@ -334,8 +340,8 @@ void GPU_material_bind(
 			for (LinkData *nlink = material->lamps.first; nlink; nlink = nlink->next) {
 				GPULamp *lamp = nlink->data;
 				
-				if (!lamp->hide && (lamp->lay & viewlay) && (!(lamp->mode & LA_LAYER) || (lamp->lay & oblay)) &&
-				    GPU_lamp_override_visible(lamp, srl, material->ma))
+				if ((lamp->lay & viewlay) && (!(lamp->mode & LA_LAYER) || (lamp->lay & oblay)) &&
+				    GPU_lamp_visible(lamp, srl, material->ma))
 				{
 					lamp->dynenergy = lamp->energy;
 					copy_v3_v3(lamp->dyncol, lamp->col);
@@ -398,9 +404,14 @@ void GPU_material_bind(
 	}
 }
 
+GPUBuiltin GPU_get_material_builtins(GPUMaterial *material)
+{
+	return material->builtins;
+}
+
 void GPU_material_bind_uniforms(
         GPUMaterial *material, float obmat[4][4], float viewmat[4][4], float obcol[4],
-        float autobumpscale, GPUParticleInfo *pi)
+        float autobumpscale, GPUParticleInfo *pi, float object_info[3])
 {
 	if (material->pass) {
 		GPUShader *shader = GPU_pass_shader(material->pass);
@@ -441,13 +452,16 @@ void GPU_material_bind_uniforms(
 			GPU_shader_uniform_vector(shader, material->partscalarpropsloc, 4, 1, pi->scalprops);
 		}
 		if (material->builtins & GPU_PARTICLE_LOCATION) {
-			GPU_shader_uniform_vector(shader, material->partcoloc, 3, 1, pi->location);
+			GPU_shader_uniform_vector(shader, material->partcoloc, 4, 1, pi->location);
 		}
 		if (material->builtins & GPU_PARTICLE_VELOCITY) {
 			GPU_shader_uniform_vector(shader, material->partvel, 3, 1, pi->velocity);
 		}
 		if (material->builtins & GPU_PARTICLE_ANG_VELOCITY) {
 			GPU_shader_uniform_vector(shader, material->partangvel, 3, 1, pi->angular_velocity);
+		}
+		if (material->builtins & GPU_OBJECT_INFO) {
+			GPU_shader_uniform_vector(shader, material->objectinfoloc, 3, 1, object_info);
 		}
 
 	}
@@ -665,7 +679,7 @@ static void ramp_blend(
 	GPU_link(mat, names[type], fac, col1, col2, r_col);
 }
 
-static void do_colorband_blend(
+static void BKE_colorband_eval_blend(
         GPUMaterial *mat, ColorBand *coba, GPUNodeLink *fac, float rampfac, int type,
         GPUNodeLink *incol, GPUNodeLink **r_col)
 {
@@ -674,7 +688,7 @@ static void do_colorband_blend(
 	int size;
 
 	/* do colorband */
-	colorband_table_RGBA(coba, &array, &size);
+	BKE_colorband_evaluate_table_rgba(coba, &array, &size);
 	GPU_link(mat, "valtorgb", fac, GPU_texture(size, array), &col, &tmp);
 
 	/* use alpha in fac */
@@ -697,7 +711,7 @@ static void ramp_diffuse_result(GPUShadeInput *shi, GPUNodeLink **diff)
 				GPU_link(mat, "ramp_rgbtobw", *diff, &fac);
 				
 				/* colorband + blend */
-				do_colorband_blend(mat, ma->ramp_col, fac, ma->rampfac_col, ma->rampblend_col, *diff, diff);
+				BKE_colorband_eval_blend(mat, ma->ramp_col, fac, ma->rampfac_col, ma->rampblend_col, *diff, diff);
 			}
 		}
 	}
@@ -734,7 +748,7 @@ static void add_to_diffuse(
 			}
 
 			/* colorband + blend */
-			do_colorband_blend(mat, ma->ramp_col, fac, ma->rampfac_col, ma->rampblend_col, shi->rgb, &addcol);
+			BKE_colorband_eval_blend(mat, ma->ramp_col, fac, ma->rampfac_col, ma->rampblend_col, shi->rgb, &addcol);
 		}
 	}
 	else
@@ -756,7 +770,7 @@ static void ramp_spec_result(GPUShadeInput *shi, GPUNodeLink **spec)
 		GPU_link(mat, "ramp_rgbtobw", *spec, &fac);
 		
 		/* colorband + blend */
-		do_colorband_blend(mat, ma->ramp_spec, fac, ma->rampfac_spec, ma->rampblend_spec, *spec, spec);
+		BKE_colorband_eval_blend(mat, ma->ramp_spec, fac, ma->rampfac_spec, ma->rampblend_spec, *spec, spec);
 	}
 }
 
@@ -788,7 +802,7 @@ static void do_specular_ramp(GPUShadeInput *shi, GPUNodeLink *is, GPUNodeLink *t
 		}
 		
 		/* colorband + blend */
-		do_colorband_blend(mat, ma->ramp_spec, fac, ma->rampfac_spec, ma->rampblend_spec, *spec, spec);
+		BKE_colorband_eval_blend(mat, ma->ramp_spec, fac, ma->rampfac_spec, ma->rampblend_spec, *spec, spec);
 	}
 }
 
@@ -1891,7 +1905,7 @@ GPUMaterial *GPU_material_matcap(Scene *scene, Material *ma, bool use_opensubdiv
 		
 	GPU_material_output_link(mat, outlink);
 
-	GPU_material_construct_end(mat, "matcap_pass");
+	gpu_material_construct_end(mat, "matcap_pass");
 	
 	/* note that even if building the shader fails in some way, we still keep
 	 * it to avoid trying to compile again and again, and simple do not use
@@ -2044,7 +2058,7 @@ static void do_world_tex(GPUShadeInput *shi, struct World *wo, GPUNodeLink **hor
 	}
 }
 
-static void GPU_material_old_world(struct GPUMaterial *mat, struct World *wo)
+static void gpu_material_old_world(struct GPUMaterial *mat, struct World *wo)
 {
 	GPUShadeInput shi;
 	GPUShadeResult shr;
@@ -2112,17 +2126,18 @@ GPUMaterial *GPU_material_world(struct Scene *scene, struct World *wo)
 	mat->type = GPU_MATERIAL_TYPE_WORLD;
 	
 	/* create nodes */
-	if (BKE_scene_use_new_shading_nodes(scene) && wo->nodetree && wo->use_nodes)
+	if (BKE_scene_use_new_shading_nodes(scene) && wo->nodetree && wo->use_nodes) {
 		ntreeGPUMaterialNodes(wo->nodetree, mat, NODE_NEW_SHADING);
+	}
 	else {
-		GPU_material_old_world(mat, wo);
+		gpu_material_old_world(mat, wo);
 	}
 
 	if (GPU_material_do_color_management(mat))
 		if (mat->outlink)
 			GPU_link(mat, "linearrgb_to_srgb", mat->outlink, &mat->outlink);
 
-	GPU_material_construct_end(mat, wo->id.name);
+	gpu_material_construct_end(mat, wo->id.name);
 	
 	/* note that even if building the shader fails in some way, we still keep
 	 * it to avoid trying to compile again and again, and simple do not use
@@ -2188,7 +2203,7 @@ GPUMaterial *GPU_material_from_blender(Scene *scene, Material *ma, bool use_open
 		if (mat->outlink)
 			GPU_link(mat, "linearrgb_to_srgb", mat->outlink, &mat->outlink);
 
-	GPU_material_construct_end(mat, ma->id.name);
+	gpu_material_construct_end(mat, ma->id.name);
 
 	/* note that even if building the shader fails in some way, we still keep
 	 * it to avoid trying to compile again and again, and simple do not use

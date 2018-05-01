@@ -35,12 +35,13 @@
 /* internal exports only */
 struct ListBase;
 struct EditNurb;
+struct GHash;
 struct Object;
 struct wmOperatorType;
 struct ViewContext;
 
 /* editfont.c */
-enum { DEL_ALL, DEL_NEXT_CHAR, DEL_PREV_CHAR, DEL_SELECTION, DEL_NEXT_SEL, DEL_PREV_SEL };
+enum { DEL_NEXT_CHAR, DEL_PREV_CHAR, DEL_NEXT_WORD, DEL_PREV_WORD, DEL_SELECTION, DEL_NEXT_SEL, DEL_PREV_SEL };
 enum { CASE_LOWER, CASE_UPPER };
 enum { LINE_BEGIN, LINE_END, PREV_CHAR, NEXT_CHAR, PREV_WORD, NEXT_WORD,
        PREV_LINE, NEXT_LINE, PREV_PAGE, NEXT_PAGE };
@@ -109,6 +110,7 @@ void CURVE_OT_radius_set(struct wmOperatorType *ot);
 void CURVE_OT_spline_weight_set(struct wmOperatorType *ot);
 void CURVE_OT_handle_type_set(struct wmOperatorType *ot);
 void CURVE_OT_normals_make_consistent(struct wmOperatorType *ot);
+void CURVE_OT_decimate(struct wmOperatorType *ot);
 void CURVE_OT_shade_smooth(struct wmOperatorType *ot);
 void CURVE_OT_shade_flat(struct wmOperatorType *ot);
 void CURVE_OT_tilt_clear(struct wmOperatorType *ot);
@@ -127,6 +129,10 @@ void CURVE_OT_extrude(struct wmOperatorType *ot);
 void CURVE_OT_cyclic_toggle(struct wmOperatorType *ot);
 
 void CURVE_OT_match_texture_space(struct wmOperatorType *ot);
+
+/* exported for editcurve_undo.c */
+struct GHash *ED_curve_keyindex_hash_duplicate(struct GHash *keyindex);
+void          ED_curve_keyindex_update_nurb(struct EditNurb *editnurb, struct Nurb *nu, struct Nurb *newnu);
 
 bool ED_curve_pick_vert(
         struct ViewContext *vc, short sel, const int mval[2],

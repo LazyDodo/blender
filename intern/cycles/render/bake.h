@@ -17,11 +17,11 @@
 #ifndef __BAKE_H__
 #define __BAKE_H__
 
-#include "device.h"
-#include "scene.h"
+#include "device/device.h"
+#include "render/scene.h"
 
-#include "util_progress.h"
-#include "util_vector.h"
+#include "util/util_progress.h"
+#include "util/util_vector.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -69,7 +69,7 @@ public:
 	void device_free(Device *device, DeviceScene *dscene);
 
 	static int shader_type_to_pass_filter(ShaderEvalType type, const int pass_filter);
-	static bool is_aa_pass(ShaderEvalType type);
+	static int aa_samples(Scene *scene, BakeData *bake_data, ShaderEvalType type);
 
 	bool need_update;
 

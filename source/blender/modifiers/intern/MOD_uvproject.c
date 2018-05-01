@@ -45,6 +45,7 @@
 
 
 #include "BKE_camera.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_mesh.h"
 #include "BKE_DerivedMesh.h"
@@ -70,9 +71,12 @@ static void copyData(ModifierData *md, ModifierData *target)
 {
 #if 0
 	UVProjectModifierData *umd = (UVProjectModifierData *) md;
-	UVProjectModifierData *tumd = (UVProjectModifierData *) target;
 #endif
+	UVProjectModifierData *tumd = (UVProjectModifierData *) target;
+
 	modifier_copyData_generic(md, target);
+
+	id_us_plus((ID *)tumd->image);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(md))
@@ -105,36 +109,28 @@ static void foreachIDLink(ModifierData *md, Object *ob,
 	foreachObjectLink(md, ob, (ObjectWalkFunc)walk, userData);
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *UNUSED(scene),
-                           Object *UNUSED(ob),
-                           DagNode *obNode)
+static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	UVProjectModifierData *umd = (UVProjectModifierData *) md;
 	int i;
 
 	for (i = 0; i < umd->num_projectors; ++i) {
 		if (umd->projectors[i]) {
-			DagNode *curNode = dag_get_node(forest, umd->projectors[i]);
+			DagNode *curNode = dag_get_node(ctx->forest, umd->projectors[i]);
 
-			dag_add_relation(forest, curNode, obNode,
+			dag_add_relation(ctx->forest, curNode, ctx->obNode,
 			                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "UV Project Modifier");
 		}
 	}
 }
 
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *UNUSED(ob),
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	UVProjectModifierData *umd = (UVProjectModifierData *)md;
 	int i;
 	for (i = 0; i < umd->num_projectors; ++i) {
 		if (umd->projectors[i] != NULL) {
-			DEG_add_object_relation(node, umd->projectors[i], DEG_OB_COMP_TRANSFORM, "UV Project Modifier");
+			DEG_add_object_relation(ctx->node, umd->projectors[i], DEG_OB_COMP_TRANSFORM, "UV Project Modifier");
 		}
 	}
 }
@@ -247,7 +243,7 @@ static DerivedMesh *uvprojectModifier_do(UVProjectModifierData *umd,
 
 	numVerts = dm->getNumVerts(dm);
 
-	coords = MEM_mallocN(sizeof(*coords) * numVerts,
+	coords = MEM_malloc_arrayN(numVerts, sizeof(*coords),
 	                     "uvprojectModifier_do coords");
 	dm->getVertCos(dm, coords);
 

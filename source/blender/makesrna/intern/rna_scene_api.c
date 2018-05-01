@@ -49,7 +49,7 @@
 #  include "../../alembic/ABC_alembic.h"
 #endif
 
-EnumPropertyItem rna_enum_abc_compression_items[] = {
+const EnumPropertyItem rna_enum_abc_compression_items[] = {
 #ifdef WITH_ALEMBIC
 	{ ABC_ARCHIVE_OGAWA, "OGAWA", 0, "Ogawa", "" },
 	{ ABC_ARCHIVE_HDF5, "HDF5", 0, "HDF5", "" },
@@ -75,7 +75,7 @@ EnumPropertyItem rna_enum_abc_compression_items[] = {
 #  include "BPY_extern.h"
 #endif
 
-static void rna_Scene_frame_set(Scene *scene, int frame, float subframe)
+static void rna_Scene_frame_set(Scene *scene, Main *bmain, int frame, float subframe)
 {
 	double cfra = (double)frame + (double)subframe;
 
@@ -87,7 +87,7 @@ static void rna_Scene_frame_set(Scene *scene, int frame, float subframe)
 #endif
 
 	/* It's possible that here we're including layers which were never visible before. */
-	BKE_scene_update_for_newframe_ex(G.main->eval_ctx, G.main, scene, (1 << 20) - 1, true);
+	BKE_scene_update_for_newframe_ex(bmain->eval_ctx, bmain, scene, (1 << 20) - 1, true);
 
 #ifdef WITH_PYTHON
 	BPy_END_ALLOW_THREADS;
@@ -112,7 +112,7 @@ static void rna_Scene_uvedit_aspect(Scene *scene, Object *ob, float *aspect)
 	if ((ob->type == OB_MESH) && (ob->mode == OB_MODE_EDIT)) {
 		BMEditMesh *em;
 		em = BKE_editmesh_from_object(ob);
-		if (EDBM_mtexpoly_check(em)) {
+		if (EDBM_uv_check(em)) {
 			ED_uvedit_get_aspect(scene, ob, em->bm, aspect, aspect + 1);
 			return;
 		}
@@ -121,13 +121,13 @@ static void rna_Scene_uvedit_aspect(Scene *scene, Object *ob, float *aspect)
 	aspect[0] = aspect[1] = 1.0f;
 }
 
-static void rna_Scene_update_tagged(Scene *scene)
+static void rna_Scene_update_tagged(Scene *scene, Main *bmain)
 {
 #ifdef WITH_PYTHON
 	BPy_BEGIN_ALLOW_THREADS;
 #endif
 
-	BKE_scene_update_tagged(G.main->eval_ctx, G.main, scene);
+	BKE_scene_update_tagged(bmain->eval_ctx, bmain, scene);
 
 #ifdef WITH_PYTHON
 	BPy_END_ALLOW_THREADS;
@@ -164,7 +164,6 @@ static void rna_Scene_ray_cast(
 
 	bool ret = ED_transform_snap_object_project_ray_ex(
 	        sctx,
-	        SCE_SNAP_MODE_FACE,
 	        &(const struct SnapObjectParams){
 	            .snap_select = SNAP_ALL,
 	        },
@@ -208,6 +207,8 @@ static void rna_Scene_alembic_export(
         int renderable_only,
         int face_sets,
         int use_subdiv_schema,
+        int export_hair,
+        int export_particles,
         int compression_type,
         int packuv,
         float scale,
@@ -225,8 +226,8 @@ static void rna_Scene_alembic_export(
 	    .frame_start = frame_start,
 	    .frame_end = frame_end,
 
-	    .frame_step_xform = 1.0 / (double)xform_samples,
-	    .frame_step_shape = 1.0 / (double)geom_samples,
+	    .frame_samples_xform = xform_samples,
+	    .frame_samples_shape = geom_samples,
 
 	    .shutter_open = shutter_open,
 	    .shutter_close = shutter_close,
@@ -241,56 +242,22 @@ static void rna_Scene_alembic_export(
 	    .renderable_only = renderable_only,
 	    .face_sets = face_sets,
 	    .use_subdiv_schema = use_subdiv_schema,
+	    .export_hair = export_hair,
+	    .export_particles = export_particles,
 	    .compression_type = compression_type,
 	    .packuv = packuv,
-		.triangulate = triangulate,
-		.quad_method = quad_method,
-		.ngon_method = ngon_method,
+	    .triangulate = triangulate,
+	    .quad_method = quad_method,
+	    .ngon_method = ngon_method,
 
 	    .global_scale = scale,
 	};
 
-	ABC_export(scene, C, filepath, &params);
+	ABC_export(scene, C, filepath, &params, true);
 
 #ifdef WITH_PYTHON
 	BPy_END_ALLOW_THREADS;
 #endif
-}
-
-#endif
-
-#ifdef WITH_COLLADA
-/* don't remove this, as COLLADA exporting cannot be done through operators in render() callback. */
-#include "../../collada/collada.h"
-
-static void rna_Scene_collada_export(
-        Scene *scene,
-        const char *filepath,
-        int apply_modifiers,
-        int export_mesh_type,
-
-        int selected,
-        int include_children,
-        int include_armatures,
-        int include_shapekeys,
-        int deform_bones_only,
-
-        int active_uv_only,
-        int include_uv_textures,
-        int include_material_textures,
-        int use_texture_copies,
-
-        int use_ngons,
-        int use_object_instantiation,
-        int use_blender_profile,
-        int sort_by_name,
-        int open_sim,
-        int export_transformation_type)
-{
-	collada_export(scene, filepath, apply_modifiers, export_mesh_type, selected,
-	               include_children, include_armatures, include_shapekeys, deform_bones_only,
-	               active_uv_only, include_uv_textures, include_material_textures,
-	               use_texture_copies, use_ngons, use_object_instantiation, use_blender_profile, sort_by_name, export_transformation_type, open_sim);
 }
 
 #endif
@@ -307,10 +274,12 @@ void RNA_api_scene(StructRNA *srna)
 	parm = RNA_def_int(func, "frame", 0, MINAFRAME, MAXFRAME, "", "Frame number to set", MINAFRAME, MAXFRAME);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	RNA_def_float(func, "subframe", 0.0, 0.0, 1.0, "", "Sub-frame time, between 0.0 and 1.0", 0.0, 1.0);
+	RNA_def_function_flag(func, FUNC_USE_MAIN);
 
 	func = RNA_def_function(srna, "update", "rna_Scene_update_tagged");
 	RNA_def_function_ui_description(func,
 	                                "Update data tagged to be updated from previous access to data or operators");
+	RNA_def_function_flag(func, FUNC_USE_MAIN);
 
 	func = RNA_def_function(srna, "uvedit_aspect", "rna_Scene_uvedit_aspect");
 	RNA_def_function_ui_description(func, "Get uv aspect for current object");
@@ -348,41 +317,10 @@ void RNA_api_scene(StructRNA *srna)
 	parm = RNA_def_float_matrix(func, "matrix", 4, 4, NULL, 0.0f, 0.0f, "", "Matrix", 0.0f, 0.0f);
 	RNA_def_function_output(func, parm);
 
-#ifdef WITH_COLLADA
-	/* don't remove this, as COLLADA exporting cannot be done through operators in render() callback. */
-	func = RNA_def_function(srna, "collada_export", "rna_Scene_collada_export");
-	parm = RNA_def_string(func, "filepath", NULL, FILE_MAX, "File Path", "File path to write Collada file");
-	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	RNA_def_property_subtype(parm, PROP_FILEPATH); /* allow non utf8 */
-	RNA_def_boolean(func, "apply_modifiers", 0, "Apply Modifiers", "Apply modifiers");
-	RNA_def_int(func, "export_mesh_type", 0, INT_MIN, INT_MAX,
-	            "Resolution", "Modifier resolution for export", INT_MIN, INT_MAX);
-	RNA_def_boolean(func, "selected", 0, "Selection Only", "Export only selected elements");
-	RNA_def_boolean(func, "include_children", 0, "Include Children", "Export all children of selected objects (even if not selected)");
-	RNA_def_boolean(func, "include_armatures", 0, "Include Armatures", "Export related armatures (even if not selected)");
-	RNA_def_boolean(func, "include_shapekeys", 0, "Include Shape Keys", "Export all Shape Keys from Mesh Objects");
-	RNA_def_boolean(func, "deform_bones_only", 0, "Deform Bones only", "Only export deforming bones with armatures");
-
-	RNA_def_boolean(func, "active_uv_only", 0, "Active UV Layer only", "Export only the active UV Layer");
-	RNA_def_boolean(func, "include_uv_textures", 0, "Include UV Textures", "Export textures assigned to the object UV maps");
-	RNA_def_boolean(func, "include_material_textures", 0, "Include Material Textures", "Export textures assigned to the object Materials");
-	RNA_def_boolean(func, "use_texture_copies", 0, "copy", "Copy textures to same folder where the .dae file is exported");
-
-	RNA_def_boolean(func, "use_ngons", 1, "Use NGons", "Keep NGons in Export");
-	RNA_def_boolean(func, "use_object_instantiation", 1, "Use Object Instances", "Instantiate multiple Objects from same Data");
-	RNA_def_boolean(func, "use_blender_profile", 1, "Use Blender Profile", "Export additional Blender specific information (for material, shaders, bones, etc.)");
-	RNA_def_boolean(func, "sort_by_name", 0, "Sort by Object name", "Sort exported data by Object name");
-	RNA_def_boolean(func, "open_sim", 0, "Export for SL/OpenSim", "Compatibility mode for SL, OpenSim and similar online worlds");
-
-	RNA_def_int(func, "export_transformation_type", 0, INT_MIN, INT_MAX,
-	            "Transformation", "Transformation type for translation, scale and rotation", INT_MIN, INT_MAX);
-
-	RNA_def_function_ui_description(func, "Export to collada file");
-#endif
-
 #ifdef WITH_ALEMBIC
+	/* XXX Deprecated, will be removed in 2.8 in favour of calling the export operator. */
 	func = RNA_def_function(srna, "alembic_export", "rna_Scene_alembic_export");
-	RNA_def_function_ui_description(func, "Export to Alembic file");
+	RNA_def_function_ui_description(func, "Export to Alembic file (deprecated, use the Alembic export operator)");
 
 	parm = RNA_def_string(func, "filepath", NULL, FILE_MAX, "File Path", "File path to write Alembic file");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -396,7 +334,7 @@ void RNA_api_scene(StructRNA *srna)
 	RNA_def_float(func, "shutter_close", 1.0f, -1.0f, 1.0f, "Shutter close", "", -1.0f, 1.0f);
 	RNA_def_boolean(func, "selected_only"	, 0, "Selected only", "Export only selected objects");
 	RNA_def_boolean(func, "uvs"			, 1, "UVs", "Export UVs");
-	RNA_def_boolean(func, "normals"		, 1, "Normals", "Export cormals");
+	RNA_def_boolean(func, "normals"		, 1, "Normals", "Export normals");
 	RNA_def_boolean(func, "vcolors"		, 0, "Vertex colors", "Export vertex colors");
 	RNA_def_boolean(func, "apply_subdiv"	, 1, "Subsurfs as meshes", "Export subdivision surfaces as meshes");
 	RNA_def_boolean(func, "flatten"		, 0, "Flatten hierarchy", "Flatten hierarchy");
@@ -404,6 +342,8 @@ void RNA_api_scene(StructRNA *srna)
 	RNA_def_boolean(func, "renderable_only"	, 0, "Renderable objects only", "Export only objects marked renderable in the outliner");
 	RNA_def_boolean(func, "face_sets"	, 0, "Facesets", "Export face sets");
 	RNA_def_boolean(func, "subdiv_schema", 0, "Use Alembic subdivision Schema", "Use Alembic subdivision Schema");
+	RNA_def_boolean(func, "export_hair", 1, "Export Hair", "Exports hair particle systems as animated curves");
+	RNA_def_boolean(func, "export_particles", 1, "Export Particles", "Exports non-hair particle systems");
 	RNA_def_enum(func, "compression_type", rna_enum_abc_compression_items, 0, "Compression", "");
 	RNA_def_boolean(func, "packuv"		, 0, "Export with packed UV islands", "Export with packed UV islands");
 	RNA_def_float(func, "scale", 1.0f, 0.0001f, 1000.0f, "Scale", "Value by which to enlarge or shrink the objects with respect to the world's origin", 0.0001f, 1000.0f);

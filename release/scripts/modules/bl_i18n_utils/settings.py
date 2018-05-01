@@ -90,6 +90,7 @@ LANGUAGES = (
     (40, "Hindi (मानक हिन्दी)", "hi_IN"),
     (41, "Vietnamese (tiếng Việt)", "vi_VN"),
     (42, "Basque (Euskara)", "eu_EU"),
+    (43, "Hausa (Hausa)", "ha"),
 )
 
 # Default context, in py!
@@ -118,7 +119,7 @@ MSG_COMMENT_PREFIX = "#~ "
 MSG_CONTEXT_PREFIX = "MSGCTXT:"
 
 # The default comment prefix used in po's.
-PO_COMMENT_PREFIX= "# "
+PO_COMMENT_PREFIX = "# "
 
 # The comment prefix used to mark sources of msgids, in po's.
 PO_COMMENT_PREFIX_SOURCE = "#: "
@@ -130,7 +131,7 @@ PO_COMMENT_PREFIX_SOURCE_CUSTOM = "#. :src: "
 PO_COMMENT_PREFIX_GENERATED = "#. "
 
 # The comment prefix used to comment entries in po's.
-PO_COMMENT_PREFIX_MSG= "#~ "
+PO_COMMENT_PREFIX_MSG = "#~ "
 
 # The comment prefix used to mark fuzzy msgids, in po's.
 PO_COMMENT_FUZZY = "#, fuzzy"

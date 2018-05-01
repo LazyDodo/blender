@@ -38,26 +38,27 @@
 
 #include "MEM_guardedalloc.h"
 
-extern "C" {
-#include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
+#include "BLI_blenlib.h"
 
+extern "C" {
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
 #include "BKE_main.h"
 #include "BKE_node.h"
+} /* extern "C" */
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
-} /* extern "C" */
 
 #include "intern/builder/deg_builder.h"
 #include "intern/builder/deg_builder_pchanmap.h"
 
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_component.h"
+#include "intern/nodes/deg_node_id.h"
 #include "intern/nodes/deg_node_operation.h"
 
 #include "intern/depsgraph_intern.h"
@@ -67,74 +68,48 @@ extern "C" {
 
 namespace DEG {
 
-void DepsgraphRelationBuilder::build_scene(Main *bmain, Scene *scene)
+void DepsgraphRelationBuilder::build_scene(Scene *scene)
 {
-	if (scene->set) {
-		build_scene(bmain, scene->set);
+	if (scene->set != NULL) {
+		build_scene(scene->set);
 	}
-
-	/* scene objects */
-	LINKLIST_FOREACH (Base *, base, &scene->base) {
-		Object *ob = base->object;
-
-		/* object itself */
-		build_object(bmain, scene, ob);
-
-		/* object that this is a proxy for */
-		if (ob->proxy) {
-			ob->proxy->proxy_from = ob;
-			build_object(bmain, scene, ob->proxy);
-			/* TODO(sergey): This is an inverted relation, matches old depsgraph
-			 * behavior and need to be investigated if it still need to be inverted.
-			 */
-			ComponentKey ob_pose_key(&ob->id, DEPSNODE_TYPE_EVAL_POSE);
-			ComponentKey proxy_pose_key(&ob->proxy->id, DEPSNODE_TYPE_EVAL_POSE);
-			add_relation(ob_pose_key, proxy_pose_key, DEPSREL_TYPE_TRANSFORM, "Proxy");
-		}
-
-		/* Object dupligroup. */
-		if (ob->dup_group) {
-			build_group(bmain, scene, ob, ob->dup_group);
-		}
+	/* Setup currently building context. */
+	scene_ = scene;
+	/* Scene objects. */
+	LISTBASE_FOREACH (Base *, base, &scene->base) {
+		Object *object = base->object;
+		build_object(object);
 	}
-
-	/* rigidbody */
-	if (scene->rigidbody_world) {
+	/* Rigidbody. */
+	if (scene->rigidbody_world != NULL) {
 		build_rigidbody(scene);
 	}
-
-	/* scene's animation and drivers */
-	if (scene->adt) {
+	/* Scene's animation and drivers. */
+	if (scene->adt != NULL) {
 		build_animdata(&scene->id);
 	}
-
-	/* world */
-	if (scene->world) {
+	/* World. */
+	if (scene->world != NULL) {
 		build_world(scene->world);
 	}
-
-	/* compo nodes */
-	if (scene->nodetree) {
+	/* Compositor nodes. */
+	if (scene->nodetree != NULL) {
 		build_compositor(scene);
 	}
-
-	/* grease pencil */
-	if (scene->gpd) {
+	/* Grease pencil. */
+	if (scene->gpd != NULL) {
 		build_gpencil(scene->gpd);
 	}
-
 	/* Masks. */
-	LINKLIST_FOREACH (Mask *, mask, &bmain->mask) {
+	LISTBASE_FOREACH (Mask *, mask, &bmain_->mask) {
 		build_mask(mask);
 	}
-
 	/* Movie clips. */
-	LINKLIST_FOREACH (MovieClip *, clip, &bmain->movieclip) {
+	LISTBASE_FOREACH (MovieClip *, clip, &bmain_->movieclip) {
 		build_movieclip(clip);
 	}
-
-	for (Depsgraph::OperationNodes::const_iterator it_op = m_graph->operations.begin();
-	     it_op != m_graph->operations.end();
+	for (Depsgraph::OperationNodes::const_iterator it_op = graph_->operations.begin();
+	     it_op != graph_->operations.end();
 	     ++it_op)
 	{
 		OperationDepsNode *node = *it_op;

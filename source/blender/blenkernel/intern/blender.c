@@ -45,6 +45,7 @@
 #include "IMB_imbuf.h"
 #include "IMB_moviecache.h"
 
+#include "BKE_addon.h"
 #include "BKE_blender.h"  /* own include */
 #include "BKE_blender_version.h"  /* own include */
 #include "BKE_blendfile.h"
@@ -82,6 +83,10 @@ void BKE_blender_free(void)
 	BKE_main_free(G.main);
 	G.main = NULL;
 
+	if (G.log.file != NULL) {
+		fclose(G.log.file);
+	}
+
 	BKE_spacetypes_free();      /* after free main, it uses space callbacks */
 	
 	IMB_exit();
@@ -100,6 +105,18 @@ void BKE_blender_free(void)
 	free_nodesystem();
 }
 
+void BKE_blender_version_string(char *version_str, size_t maxncpy, short version, short subversion, bool v_prefix, bool include_subversion)
+{
+	const char *prefix = v_prefix ? "v" : "";
+
+	if (include_subversion && subversion > 0) {
+		BLI_snprintf(version_str, maxncpy, "%s%d.%02d.%d", prefix, version / 100, version % 100, subversion);
+	}
+	else {
+		BLI_snprintf(version_str, maxncpy, "%s%d.%02d", prefix, version / 100, version % 100);
+	}
+}
+
 void BKE_blender_globals_init(void)
 {
 	memset(&G, 0, sizeof(Global));
@@ -110,16 +127,15 @@ void BKE_blender_globals_init(void)
 
 	strcpy(G.ima, "//");
 
-	if (BLENDER_SUBVERSION)
-		BLI_snprintf(versionstr, sizeof(versionstr), "v%d.%02d.%d", BLENDER_VERSION / 100, BLENDER_VERSION % 100, BLENDER_SUBVERSION);
-	else
-		BLI_snprintf(versionstr, sizeof(versionstr), "v%d.%02d", BLENDER_VERSION / 100, BLENDER_VERSION % 100);
+	BKE_blender_version_string(versionstr, sizeof(versionstr), BLENDER_VERSION, BLENDER_SUBVERSION, true, true);
 
 #ifndef WITH_PYTHON_SECURITY /* default */
 	G.f |= G_SCRIPT_AUTOEXEC;
 #else
 	G.f &= ~G_SCRIPT_AUTOEXEC;
 #endif
+
+	G.log.level = 1;
 }
 
 void BKE_blender_globals_clear(void)
@@ -141,20 +157,28 @@ static void keymap_item_free(wmKeyMapItem *kmi)
 		MEM_freeN(kmi->ptr);
 }
 
-/**
- * When loading a new userdef from file,
- * or when exiting Blender.
- */
-void BKE_blender_userdef_free(void)
+void BKE_blender_userdef_data_swap(UserDef *userdef_a, UserDef *userdef_b)
 {
-	wmKeyMap *km;
-	wmKeyMapItem *kmi;
-	wmKeyMapDiffItem *kmdi;
-	bAddon *addon, *addon_next;
-	uiFont *font;
+	SWAP(UserDef, *userdef_a, *userdef_b);
+}
 
-	for (km = U.user_keymaps.first; km; km = km->next) {
-		for (kmdi = km->diff_items.first; kmdi; kmdi = kmdi->next) {
+void BKE_blender_userdef_data_set(UserDef *userdef)
+{
+	BKE_blender_userdef_data_swap(&U, userdef);
+	BKE_blender_userdef_data_free(userdef, true);
+}
+
+void BKE_blender_userdef_data_set_and_free(UserDef *userdef)
+{
+	BKE_blender_userdef_data_set(userdef);
+	MEM_freeN(userdef);
+}
+
+static void userdef_free_keymaps(UserDef *userdef)
+{
+	for (wmKeyMap *km = userdef->user_keymaps.first, *km_next; km; km = km_next) {
+		km_next = km->next;
+		for (wmKeyMapDiffItem *kmdi = km->diff_items.first; kmdi; kmdi = kmdi->next) {
 			if (kmdi->add_item) {
 				keymap_item_free(kmdi->add_item);
 				MEM_freeN(kmdi->add_item);
@@ -165,47 +189,120 @@ void BKE_blender_userdef_free(void)
 			}
 		}
 
-		for (kmi = km->items.first; kmi; kmi = kmi->next)
+		for (wmKeyMapItem *kmi = km->items.first; kmi; kmi = kmi->next) {
 			keymap_item_free(kmi);
+		}
 
 		BLI_freelistN(&km->diff_items);
 		BLI_freelistN(&km->items);
+
+		MEM_freeN(km);
 	}
-	
-	for (addon = U.addons.first; addon; addon = addon_next) {
+	BLI_listbase_clear(&userdef->user_keymaps);
+}
+
+static void userdef_free_addons(UserDef *userdef)
+{
+	for (bAddon *addon = userdef->addons.first, *addon_next; addon; addon = addon_next) {
 		addon_next = addon->next;
-		if (addon->prop) {
-			IDP_FreeProperty(addon->prop);
-			MEM_freeN(addon->prop);
-		}
-		MEM_freeN(addon);
+		BKE_addon_free(addon);
 	}
-
-	for (font = U.uifonts.first; font; font = font->next) {
-		BLF_unload_id(font->blf_id);
-	}
-
-	BLF_default_set(-1);
-
-	BLI_freelistN(&U.autoexec_paths);
-
-	BLI_freelistN(&U.uistyles);
-	BLI_freelistN(&U.uifonts);
-	BLI_freelistN(&U.themes);
-	BLI_freelistN(&U.user_keymaps);
+	BLI_listbase_clear(&userdef->addons);
 }
 
 /**
- * Handle changes in settings that need refreshing.
+ * When loading a new userdef from file,
+ * or when exiting Blender.
  */
-void BKE_blender_userdef_refresh(void)
+void BKE_blender_userdef_data_free(UserDef *userdef, bool clear_fonts)
 {
-	/* prevent accidents */
-	if (U.pixelsize == 0) U.pixelsize = 1;
-	
-	BLF_default_dpi(U.pixelsize * U.dpi);
-	U.widget_unit = (U.pixelsize * U.dpi * 20 + 36) / 72;
+#define U _invalid_access_ /* ensure no accidental global access */
+#ifdef U  /* quiet warning */
+#endif
 
+	userdef_free_keymaps(userdef);
+	userdef_free_addons(userdef);
+
+	if (clear_fonts) {
+		for (uiFont *font = userdef->uifonts.first; font; font = font->next) {
+			BLF_unload_id(font->blf_id);
+		}
+		BLF_default_set(-1);
+	}
+
+	BLI_freelistN(&userdef->autoexec_paths);
+
+	BLI_freelistN(&userdef->uistyles);
+	BLI_freelistN(&userdef->uifonts);
+	BLI_freelistN(&userdef->themes);
+
+#undef U
+}
+
+/**
+ * Write U from userdef.
+ * This function defines which settings a template will override for the user preferences.
+ */
+void BKE_blender_userdef_app_template_data_swap(UserDef *userdef_a, UserDef *userdef_b)
+{
+	/* TODO:
+	 * - various minor settings (add as needed).
+	 */
+
+#define DATA_SWAP(id) \
+	{ \
+		UserDef userdef_tmp; \
+		memcpy(&(userdef_tmp.id), &(userdef_a->id), sizeof(userdef_tmp.id)); \
+		memcpy(&(userdef_a->id), &(userdef_b->id), sizeof(userdef_tmp.id)); \
+		memcpy(&(userdef_b->id), &(userdef_tmp.id), sizeof(userdef_tmp.id)); \
+	}
+
+#define LIST_SWAP(id) { \
+	SWAP(ListBase, userdef_a->id, userdef_b->id); \
+} ((void)0)
+
+#define FLAG_SWAP(id, ty, flags) { \
+	CHECK_TYPE(&(userdef_a->id), ty *); \
+	const ty f = flags; \
+	const ty a = userdef_a->id; \
+	const ty b = userdef_b->id; \
+	userdef_a->id = (userdef_a->id & ~f) | (b & f); \
+	userdef_b->id = (userdef_b->id & ~f) | (a & f); \
+} ((void)0)
+
+
+	LIST_SWAP(uistyles);
+	LIST_SWAP(uifonts);
+	LIST_SWAP(themes);
+	LIST_SWAP(addons);
+	LIST_SWAP(user_keymaps);
+
+	DATA_SWAP(light);
+
+	DATA_SWAP(font_path_ui);
+	DATA_SWAP(font_path_ui_mono);
+	DATA_SWAP(keyconfigstr);
+
+	DATA_SWAP(app_flag);
+
+	/* We could add others. */
+	FLAG_SWAP(uiflag, int, USER_QUIT_PROMPT);
+
+#undef DATA_SWAP
+#undef LIST_SWAP
+#undef FLAG_SWAP
+}
+
+void BKE_blender_userdef_app_template_data_set(UserDef *userdef)
+{
+	BKE_blender_userdef_app_template_data_swap(&U, userdef);
+	BKE_blender_userdef_data_free(userdef, true);
+}
+
+void BKE_blender_userdef_app_template_data_set_and_free(UserDef *userdef)
+{
+	BKE_blender_userdef_app_template_data_set(userdef);
+	MEM_freeN(userdef);
 }
 
 /* *****************  testing for break ************* */

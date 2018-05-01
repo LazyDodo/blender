@@ -138,7 +138,8 @@ extern bool bc_has_object_type(LinkNode *export_set, short obtype);
 char *bc_CustomData_get_layer_name(const struct CustomData *data, int type, int n)
 {
 	int layer_index = CustomData_get_layer_index(data, type);
-	if (layer_index < 0) return NULL;
+	if (layer_index < 0)
+		return NULL;
 
 	return data->layers[layer_index + n].name;
 }
@@ -147,9 +148,10 @@ char *bc_CustomData_get_active_layer_name(const CustomData *data, int type)
 {
 	/* get the layer index of the active layer of type */
 	int layer_index = CustomData_get_active_layer_index(data, type);
-	if (layer_index < 0) return NULL;
+	if (layer_index < 1)
+		return NULL;
 
-	return data->layers[layer_index].name;
+	return bc_CustomData_get_layer_name(data, type, layer_index-1);
 }
 
 DocumentExporter::DocumentExporter(const ExportSettings *export_settings) : export_settings(export_settings) {
@@ -179,7 +181,7 @@ static COLLADABU::NativeString make_temp_filepath(const char *name, const char *
 // COLLADA allows this through multiple <channel>s in <animation>.
 // For this to work, we need to know objects that use a certain action.
 
-int DocumentExporter::exportCurrentScene(Scene *sce)
+int DocumentExporter::exportCurrentScene(const EvaluationContext *eval_ctx, Scene *sce)
 {
 	PointerRNA sceneptr, unit_settings;
 	PropertyRNA *system; /* unused , *scale; */
@@ -288,10 +290,6 @@ int DocumentExporter::exportCurrentScene(Scene *sce)
 		ge.exportGeom(sce);
 	}
 
-	// <library_animations>
-	AnimationExporter ae(writer, this->export_settings);
-	bool has_animations = ae.exportAnimations(sce);
-
 	// <library_controllers>
 	ArmatureExporter arm_exporter(writer, this->export_settings);
 	ControllerExporter controller_exporter(writer, this->export_settings);
@@ -304,18 +302,11 @@ int DocumentExporter::exportCurrentScene(Scene *sce)
 
 	SceneExporter se(writer, &arm_exporter, this->export_settings);
 
-	if (has_animations && this->export_settings->export_transformation_type == BC_TRANSFORMATION_TYPE_MATRIX) {
-		// channels adressing <matrix> objects is not (yet) supported
-		// So we force usage of <location>, <translation> and <scale>
-		fprintf(stdout, 
-			"For animated Ojects we must use decomposed <matrix> elements,\n" \
-			"Forcing usage of TransLocRot transformation type.");
-		se.setExportTransformationType(BC_TRANSFORMATION_TYPE_TRANSROTLOC);
+	if (this->export_settings->include_animations) {
+		// <library_animations>
+		AnimationExporter ae(writer, this->export_settings);
+		ae.exportAnimations(sce);
 	}
-	else {
-		se.setExportTransformationType(this->export_settings->export_transformation_type);
-	}
-
 	se.exportScene(sce);
 	
 	// <scene>

@@ -108,7 +108,7 @@ void KX_SoundActuator::play()
 	case KX_SOUNDACT_LOOPBIDIRECTIONAL:
 	case KX_SOUNDACT_LOOPBIDIRECTIONAL_STOP:
 		sound = AUD_Sound_pingpong(sound);
-		// fall through
+		ATTR_FALLTHROUGH;
 	case KX_SOUNDACT_LOOPEND:
 	case KX_SOUNDACT_LOOPSTOP:
 		loop = true;
@@ -124,7 +124,7 @@ void KX_SoundActuator::play()
 	AUD_Device_free(device);
 
 	// in case of pingpong, we have to free the sound
-	if(sound != m_sound)
+	if (sound != m_sound)
 		AUD_Sound_free(sound);
 
 	if (m_handle != NULL) {
@@ -488,7 +488,7 @@ int KX_SoundActuator::pyattr_set_3d_property(void *self, const struct KX_PYATTRI
 		if (actuator->m_handle)
 			AUD_Handle_setAttenuation(actuator->m_handle, prop_value);
 
-	} else if (!!strcmp(prop, "cone_angle_inner")) {
+	} else if (!strcmp(prop, "cone_angle_inner")) {
 		actuator->m_3d.cone_inner_angle = prop_value;
 		if (actuator->m_handle)
 			AUD_Handle_setConeAngleInner(actuator->m_handle, prop_value);

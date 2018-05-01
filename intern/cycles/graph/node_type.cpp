@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "node_type.h"
-#include "util_foreach.h"
-#include "util_transform.h"
+#include "graph/node_type.h"
+#include "util/util_foreach.h"
+#include "util/util_transform.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -77,7 +77,7 @@ size_t SocketType::max_size()
 
 void *SocketType::zero_default_value()
 {
-	static Transform zero_transform = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+	static Transform zero_transform = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 	return &zero_transform;
 }
 

@@ -41,6 +41,7 @@
 #include "GPU_glew.h"
 
 #include "BLI_blenlib.h"
+#include "BLI_hash.h"
 #include "BLI_linklist.h"
 #include "BLI_math.h"
 #include "BLI_threads.h"
@@ -681,10 +682,10 @@ int GPU_verify_image(
 				if (do_color_management) {
 					srgb_frect = MEM_mallocN(ibuf->x * ibuf->y * sizeof(float) * 4, "floar_buf_col_cor");
 					gpu_verify_high_bit_srgb_buffer(srgb_frect, ibuf);
-					frect = srgb_frect + texwinsy * ibuf->x + texwinsx;
+					frect = srgb_frect + (4 * (texwinsy * ibuf->x + texwinsx));
 				}
 				else {
-					frect = ibuf->rect_float + texwinsy * ibuf->x + texwinsx;
+					frect = ibuf->rect_float + (ibuf->channels * (texwinsy * ibuf->x + texwinsx));
 				}
 			}
 			else {
@@ -1203,7 +1204,7 @@ void GPU_paint_set_mipmap(bool mipmap)
 
 
 /* check if image has been downscaled and do scaled partial update */
-static bool GPU_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x, int y, int w, int h)
+static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x, int y, int w, int h)
 {
 	if ((!GPU_full_non_power_of_two_support() && !is_power_of_2_resolution(ibuf->x, ibuf->y)) ||
 	    is_over_resolution_limit(GL_TEXTURE_2D, ibuf->x, ibuf->y))
@@ -1296,7 +1297,7 @@ void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, i
 			bool is_data = (ima->tpageflag & IMA_GLBIND_IS_DATA) != 0;
 			IMB_partial_rect_from_float(ibuf, buffer, x, y, w, h, is_data);
 			
-			if (GPU_check_scaled_image(ibuf, ima, buffer, x, y, w, h)) {
+			if (gpu_check_scaled_image(ibuf, ima, buffer, x, y, w, h)) {
 				MEM_freeN(buffer);
 				BKE_image_release_ibuf(ima, ibuf, NULL);
 				return;
@@ -1320,7 +1321,7 @@ void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, i
 			return;
 		}
 
-		if (GPU_check_scaled_image(ibuf, ima, NULL, x, y, w, h)) {
+		if (gpu_check_scaled_image(ibuf, ima, NULL, x, y, w, h)) {
 			BKE_image_release_ibuf(ima, ibuf, NULL);
 			return;
 		}
@@ -1474,9 +1475,9 @@ static LinkNode *image_free_queue = NULL;
 
 static void gpu_queue_image_for_free(Image *ima)
 {
-	BLI_lock_thread(LOCK_OPENGL);
+	BLI_thread_lock(LOCK_OPENGL);
 	BLI_linklist_prepend(&image_free_queue, ima);
-	BLI_unlock_thread(LOCK_OPENGL);
+	BLI_thread_unlock(LOCK_OPENGL);
 }
 
 void GPU_free_unused_buffers(void)
@@ -1484,7 +1485,7 @@ void GPU_free_unused_buffers(void)
 	if (!BLI_thread_is_main())
 		return;
 
-	BLI_lock_thread(LOCK_OPENGL);
+	BLI_thread_lock(LOCK_OPENGL);
 
 	/* images */
 	for (LinkNode *node = image_free_queue; node; node = node->next) {
@@ -1501,7 +1502,7 @@ void GPU_free_unused_buffers(void)
 	/* vbo buffers */
 	GPU_global_buffer_pool_free_unused();
 
-	BLI_unlock_thread(LOCK_OPENGL);
+	BLI_thread_unlock(LOCK_OPENGL);
 }
 
 void GPU_free_image(Image *ima)
@@ -1870,7 +1871,7 @@ void GPU_begin_object_materials(
 	GPU_object_material_unbind();
 }
 
-static int GPU_get_particle_info(GPUParticleInfo *pi)
+static int gpu_get_particle_info(GPUParticleInfo *pi)
 {
 	DupliObject *dob = GMS.dob;
 	if (dob->particle_system) {
@@ -1889,6 +1890,8 @@ static int GPU_get_particle_info(GPUParticleInfo *pi)
 			pi->scalprops[3] = p->size;
 
 			copy_v3_v3(pi->location, p->state.co);
+			pi->location[3] = BLI_hash_int_01(ind);
+
 			copy_v3_v3(pi->velocity, p->state.vel);
 			copy_v3_v3(pi->angular_velocity, p->state.ave);
 			return 1;
@@ -1897,6 +1900,21 @@ static int GPU_get_particle_info(GPUParticleInfo *pi)
 	}
 	else
 		return 0;
+}
+
+static void GPU_get_object_info(float oi[3], Material *mat)
+{
+	Object *ob = GMS.gob;
+	oi[0] = ob->index;
+	oi[1] = mat->index;
+	unsigned int random;
+	if (GMS.dob) {
+		random = GMS.dob->random_id;
+	}
+	else {
+		random = BLI_hash_int_2d(BLI_hash_string(GMS.gob->id.name + 2), 0);
+	}
+	oi[2] = random * (1.0f / (float)0xFFFFFFFF);
 }
 
 int GPU_object_material_bind(int nr, void *attribs)
@@ -1958,21 +1976,27 @@ int GPU_object_material_bind(int nr, void *attribs)
 			/* bind glsl material and get attributes */
 			Material *mat = GMS.gmatbuf[nr];
 			GPUParticleInfo partile_info;
+			float object_info[3] = {0};
 
 			float auto_bump_scale;
 
 			GPUMaterial *gpumat = GPU_material_from_blender(GMS.gscene, mat, GMS.is_opensubdiv);
 			GPU_material_vertex_attributes(gpumat, gattribs);
 
-			if (GMS.dob)
-				GPU_get_particle_info(&partile_info);
+			if (GMS.dob) {
+				gpu_get_particle_info(&partile_info);
+			}
+			
+			if (GPU_get_material_builtins(gpumat) & GPU_OBJECT_INFO) {
+				GPU_get_object_info(object_info, mat);
+			}
 
 			GPU_material_bind(
 			        gpumat, GMS.gob->lay, GMS.glay, 1.0, !(GMS.gob->mode & OB_MODE_TEXTURE_PAINT),
 			        GMS.gviewmat, GMS.gviewinv, GMS.gviewcamtexcofac, GMS.gscenelock);
 
 			auto_bump_scale = GMS.gob->derivedFinal != NULL ? GMS.gob->derivedFinal->auto_bump_scale : 1.0f;
-			GPU_material_bind_uniforms(gpumat, GMS.gob->obmat, GMS.gviewmat, GMS.gob->col, auto_bump_scale, &partile_info);
+			GPU_material_bind_uniforms(gpumat, GMS.gob->obmat, GMS.gviewmat, GMS.gob->col, auto_bump_scale, &partile_info, object_info);
 			GMS.gboundmat = mat;
 
 			/* for glsl use alpha blend mode, unless it's set to solid and
@@ -2177,7 +2201,7 @@ int GPU_scene_object_lights(Scene *scene, Object *ob, int lay, float viewmat[4][
 		GPU_basic_shader_light_set(count, NULL);
 	
 	/* view direction for specular is not computed correct by default in
-	 * opengl, so we set the settings ourselfs */
+	 * opengl, so we set the settings ourselves */
 	GPU_basic_shader_light_set_viewer(!ortho);
 
 	int count = 0;

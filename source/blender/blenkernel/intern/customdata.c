@@ -33,14 +33,10 @@
 /** \file blender/blenkernel/intern/customdata.c
  *  \ingroup bke
  */
- 
-
-#include <math.h>
-#include <string.h>
-#include <assert.h>
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_customdata_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_ID.h"
 
@@ -62,20 +58,16 @@
 #include "BKE_mesh_remap.h"
 #include "BKE_multires.h"
 
-#include "data_transfer_intern.h"
-
 #include "bmesh.h"
 
-#include <math.h>
-#include <string.h>
+/* only for customdata_data_transfer_interp_normal_normals */
+#include "data_transfer_intern.h"
 
 /* number of layers to add when growing a CustomData object */
 #define CUSTOMDATA_GROW 5
 
 /* ensure typemap size is ok */
-BLI_STATIC_ASSERT(sizeof(((CustomData *)NULL)->typemap) /
-                  sizeof(((CustomData *)NULL)->typemap[0]) == CD_NUMTYPES,
-                  "size mismatch");
+BLI_STATIC_ASSERT(ARRAY_SIZE(((CustomData *)NULL)->typemap) == CD_NUMTYPES, "size mismatch");
 
 
 /********************* Layer type information **********************/
@@ -165,7 +157,7 @@ static void layerCopy_mdeformvert(const void *source, void *dest,
 		MDeformVert *dvert = POINTER_OFFSET(dest, i * size);
 
 		if (dvert->totweight) {
-			MDeformWeight *dw = MEM_mallocN(dvert->totweight * sizeof(*dw),
+			MDeformWeight *dw = MEM_malloc_arrayN(dvert->totweight, sizeof(*dw),
 			                                "layerCopy_mdeformvert dw");
 
 			memcpy(dw, dvert->dw, dvert->totweight * sizeof(*dw));
@@ -289,7 +281,7 @@ static void layerInterp_mdeformvert(
 		}
 
 		if (totweight) {
-			dvert->dw = MEM_mallocN(sizeof(*dvert->dw) * totweight, __func__);
+			dvert->dw = MEM_malloc_arrayN(totweight, sizeof(*dvert->dw), __func__);
 		}
 	}
 
@@ -544,11 +536,11 @@ static void layerSwap_mdisps(void *data, const int *ci)
 
 			MEM_freeN(s->disps);
 			s->totdisp = (s->totdisp / corners) * nverts;
-			s->disps = MEM_callocN(s->totdisp * sizeof(float) * 3, "mdisp swap");
+			s->disps = MEM_calloc_arrayN(s->totdisp, sizeof(float) * 3, "mdisp swap");
 			return;
 		}
 
-		d = MEM_callocN(sizeof(float) * 3 * s->totdisp, "mdisps swap");
+		d = MEM_calloc_arrayN(s->totdisp, 3 * sizeof(float), "mdisps swap");
 
 		for (S = 0; S < corners; S++)
 			memcpy(d + cornersize * S, s->disps + cornersize * ci[S], cornersize * 3 * sizeof(float));
@@ -604,7 +596,7 @@ static int layerRead_mdisps(CDataFile *cdf, void *data, int count)
 
 	for (i = 0; i < count; ++i) {
 		if (!d[i].disps)
-			d[i].disps = MEM_callocN(sizeof(float) * 3 * d[i].totdisp, "mdisps read");
+			d[i].disps = MEM_calloc_arrayN(d[i].totdisp, 3 * sizeof(float), "mdisps read");
 
 		if (!cdf_read_data(cdf, d[i].totdisp * 3 * sizeof(float), d[i].disps)) {
 			printf("failed to read multires displacement %d/%d %d\n", i, count, d[i].totdisp);
@@ -805,18 +797,15 @@ static void layerInterp_mloopcol(
         const float *sub_weights, int count, void *dest)
 {
 	MLoopCol *mc = dest;
-	int i;
-	const float *sub_weight;
 	struct {
 		float a;
 		float r;
 		float g;
 		float b;
-	} col;
-	col.a = col.r = col.g = col.b = 0;
+	} col = {0};
 
-	sub_weight = sub_weights;
-	for (i = 0; i < count; ++i) {
+	const float *sub_weight = sub_weights;
+	for (int i = 0; i < count; ++i) {
 		float weight = weights ? weights[i] : 1;
 		const MLoopCol *src = sources[i];
 		if (sub_weights) {
@@ -833,19 +822,16 @@ static void layerInterp_mloopcol(
 			col.a += src->a * weight;
 		}
 	}
-	
+
+
 	/* Subdivide smooth or fractal can cause problems without clamping
 	 * although weights should also not cause this situation */
-	CLAMP(col.a, 0.0f, 255.0f);
-	CLAMP(col.r, 0.0f, 255.0f);
-	CLAMP(col.g, 0.0f, 255.0f);
-	CLAMP(col.b, 0.0f, 255.0f);
 
-	/* delay writing to the destination incase dest is in sources */
-	mc->r = (int)col.r;
-	mc->g = (int)col.g;
-	mc->b = (int)col.b;
-	mc->a = (int)col.a;
+	/* also delay writing to the destination incase dest is in sources */
+	mc->r = round_fl_to_uchar_clamp(col.r);
+	mc->g = round_fl_to_uchar_clamp(col.g);
+	mc->b = round_fl_to_uchar_clamp(col.b);
+	mc->a = round_fl_to_uchar_clamp(col.a);
 }
 
 static int layerMaxNum_mloopcol(void)
@@ -1068,15 +1054,10 @@ static void layerInterp_mcol(
 		
 		/* Subdivide smooth or fractal can cause problems without clamping
 		 * although weights should also not cause this situation */
-		CLAMP(col[j].a, 0.0f, 255.0f);
-		CLAMP(col[j].r, 0.0f, 255.0f);
-		CLAMP(col[j].g, 0.0f, 255.0f);
-		CLAMP(col[j].b, 0.0f, 255.0f);
-		
-		mc[j].a = (int)col[j].a;
-		mc[j].r = (int)col[j].r;
-		mc[j].g = (int)col[j].g;
-		mc[j].b = (int)col[j].b;
+		mc[j].a = round_fl_to_uchar_clamp(col[j].a);
+		mc[j].r = round_fl_to_uchar_clamp(col[j].r);
+		mc[j].g = round_fl_to_uchar_clamp(col[j].g);
+		mc[j].b = round_fl_to_uchar_clamp(col[j].b);
 	}
 }
 
@@ -1825,7 +1806,7 @@ void CustomData_set_layer_flag(struct CustomData *data, int type, int flag)
 
 static int customData_resize(CustomData *data, int amount)
 {
-	CustomDataLayer *tmp = MEM_callocN(sizeof(*tmp) * (data->maxlayer + amount),
+	CustomDataLayer *tmp = MEM_calloc_arrayN((data->maxlayer + amount), sizeof(*tmp),
 	                                   "CustomData->layers");
 	if (!tmp) return 0;
 
@@ -1843,7 +1824,6 @@ static CustomDataLayer *customData_add_layer__internal(CustomData *data, int typ
                                                        int totelem, const char *name)
 {
 	const LayerTypeInfo *typeInfo = layerType_getInfo(type);
-	const size_t size = (size_t)totelem * typeInfo->size;
 	int flag = 0, index = data->totlayer;
 	void *newlayerdata = NULL;
 
@@ -1860,12 +1840,12 @@ static CustomDataLayer *customData_add_layer__internal(CustomData *data, int typ
 	if ((alloctype == CD_ASSIGN) || (alloctype == CD_REFERENCE)) {
 		newlayerdata = layerdata;
 	}
-	else if (size > 0) {
+	else if (totelem > 0 && typeInfo->size > 0) {
 		if (alloctype == CD_DUPLICATE && layerdata) {
-			newlayerdata = MEM_mallocN(size, layerType_getName(type));
+			newlayerdata = MEM_malloc_arrayN((size_t)totelem, typeInfo->size, layerType_getName(type));
 		}
 		else {
-			newlayerdata = MEM_callocN(size, layerType_getName(type));
+			newlayerdata = MEM_calloc_arrayN((size_t)totelem, typeInfo->size, layerType_getName(type));
 		}
 
 		if (!newlayerdata)
@@ -1876,7 +1856,7 @@ static CustomDataLayer *customData_add_layer__internal(CustomData *data, int typ
 		if (typeInfo->copy)
 			typeInfo->copy(layerdata, newlayerdata, totelem);
 		else
-			memcpy(newlayerdata, layerdata, size);
+			memcpy(newlayerdata, layerdata, (size_t)totelem * typeInfo->size);
 	}
 	else if (alloctype == CD_DEFAULT) {
 		if (typeInfo->set_default)
@@ -1963,11 +1943,15 @@ void *CustomData_add_layer_named(CustomData *data, int type, int alloctype,
 
 bool CustomData_free_layer(CustomData *data, int type, int totelem, int index)
 {
-	const int n = index - CustomData_get_layer_index(data, type);
+	const int index_first = CustomData_get_layer_index(data, type);
+	const int n = index - index_first;
 	int i;
-	
-	if (index < 0)
+
+	BLI_assert(index >= index_first);
+	if ((index_first == -1) || (n < 0)) {
 		return false;
+	}
+	BLI_assert(data->layers[index].type == type);
 
 	customData_free_layer__internal(&data->layers[index], totelem);
 
@@ -2012,8 +1996,10 @@ bool CustomData_free_layer_active(CustomData *data, int type, int totelem)
 
 void CustomData_free_layers(CustomData *data, int type, int totelem)
 {
-	while (CustomData_has_layer(data, type))
-		CustomData_free_layer_active(data, type, totelem);
+	const int index = CustomData_get_layer_index(data, type);
+	while (CustomData_free_layer(data, type, totelem, index)) {
+		/* pass */
+	}
 }
 
 bool CustomData_has_layer(const CustomData *data, int type)
@@ -2061,7 +2047,7 @@ static void *customData_duplicate_referenced_layer_index(CustomData *data, const
 		const LayerTypeInfo *typeInfo = layerType_getInfo(layer->type);
 
 		if (typeInfo->copy) {
-			void *dst_data = MEM_mallocN((size_t)totelem * typeInfo->size, "CD duplicate ref layer");
+			void *dst_data = MEM_malloc_arrayN((size_t)totelem, typeInfo->size, "CD duplicate ref layer");
 			typeInfo->copy(layer->data, dst_data, totelem);
 			layer->data = dst_data;
 		}
@@ -2290,7 +2276,7 @@ void CustomData_interp(const CustomData *source, CustomData *dest,
 	 * elements
 	 */
 	if (count > SOURCE_BUF_SIZE)
-		sources = MEM_mallocN(sizeof(*sources) * count, __func__);
+		sources = MEM_malloc_arrayN(count, sizeof(*sources), __func__);
 
 	/* interpolates a layer at a time */
 	dest_i = 0;
@@ -3157,7 +3143,7 @@ void CustomData_bmesh_interp(
 	 * elements
 	 */
 	if (count > SOURCE_BUF_SIZE)
-		sources = MEM_mallocN(sizeof(*sources) * count, __func__);
+		sources = MEM_malloc_arrayN(count, sizeof(*sources), __func__);
 
 	/* interpolates a layer at a time */
 	for (i = 0; i < data->totlayer; ++i) {
@@ -3347,7 +3333,7 @@ void CustomData_file_write_prepare(
 		else {
 			if (UNLIKELY((size_t)j >= write_layers_size)) {
 				if (write_layers == write_layers_buff) {
-					write_layers = MEM_mallocN(sizeof(*write_layers) * (write_layers_size + chunk_size), __func__);
+					write_layers = MEM_malloc_arrayN((write_layers_size + chunk_size), sizeof(*write_layers), __func__);
 					if (write_layers_buff) {
 						memcpy(write_layers, write_layers_buff, sizeof(*write_layers) * write_layers_size);
 					}
@@ -4015,7 +4001,7 @@ void CustomData_data_transfer(const MeshPairRemap *me_remap, const CustomDataTra
 	}
 
 	if (data_src) {
-		tmp_data_src = MEM_mallocN(sizeof(*tmp_data_src) * tmp_buff_size, __func__);
+		tmp_data_src = MEM_malloc_arrayN(tmp_buff_size, sizeof(*tmp_data_src), __func__);
 	}
 
 	if (data_type & CD_FAKE) {

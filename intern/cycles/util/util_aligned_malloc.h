@@ -17,9 +17,12 @@
 #ifndef __UTIL_ALIGNED_MALLOC_H__
 #define __UTIL_ALIGNED_MALLOC_H__
 
-#include "util_types.h"
+#include "util/util_types.h"
 
 CCL_NAMESPACE_BEGIN
+
+/* Minimum alignment needed by all CPU native data types (SSE, AVX). */
+#define MIN_ALIGNMENT_CPU_DATA_TYPES 16
 
 /* Allocate block of size bytes at least aligned to a given value. */
 void *util_aligned_malloc(size_t size, int alignment);

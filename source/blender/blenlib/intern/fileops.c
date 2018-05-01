@@ -42,9 +42,6 @@
 #include "zlib.h"
 
 #ifdef WIN32
-#  ifdef __MINGW32__
-#    include <ctype.h>
-#  endif
 #  include <io.h>
 #  include "BLI_winstuff.h"
 #  include "BLI_callbacks.h"
@@ -265,7 +262,7 @@ void *BLI_gzopen(const char *filename, const char *mode)
 
 	/* temporary #if until we update all libraries to 1.2.7
 	 * for correct wide char path handling */
-#if ZLIB_VERNUM >= 0x1270 && !defined(FREE_WINDOWS)
+#if ZLIB_VERNUM >= 0x1270
 	UTF16_ENCODE(filename);
 
 	gzfile = gzopen_w(filename_16, mode);
@@ -320,7 +317,7 @@ static bool delete_recursive(const char *dir)
 {
 	struct direntry *filelist, *fl;
 	bool err = false;
-	unsigned int nbr, i;
+	uint nbr, i;
 
 	i = nbr = BLI_filelist_dir_contents(dir, &filelist);
 	fl = filelist;
@@ -624,7 +621,21 @@ static int recursive_operation(const char *startfrom, const char *startto,
 			if (to)
 				join_dirfile_alloc(&to_path, &to_alloc_len, to, dirent->d_name);
 
-			if (dirent->d_type == DT_DIR) {
+			bool is_dir;
+
+#ifdef __HAIKU__
+			{
+				struct stat st_dir;
+				char filename[FILE_MAX];
+				BLI_path_join(filename, sizeof(filename), startfrom, dirent->d_name, NULL);
+				lstat(filename, &st_dir);
+				is_dir = S_ISDIR(st_dir.st_mode);
+			}
+#else
+			is_dir = (dirent->d_type == DT_DIR);
+#endif
+
+			if (is_dir) {
 				/* recursively dig into a subfolder */
 				ret = recursive_operation(from_path, to_path, callback_dir_pre, callback_file, callback_dir_post);
 			}

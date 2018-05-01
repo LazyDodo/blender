@@ -107,6 +107,7 @@ void VIEW3D_OT_zoom_border(struct wmOperatorType *ot);
 void VIEW3D_OT_toggle_render(struct wmOperatorType *ot);
 
 void view3d_boxview_copy(ScrArea *sa, ARegion *ar);
+void view3d_boxview_sync(ScrArea *sa, ARegion *ar);
 
 void view3d_orbit_apply_dyn_ofs(
         float r_ofs[3], const float ofs_old[3], const float viewquat_old[4],
@@ -142,7 +143,13 @@ void draw_motion_paths_cleanup(View3D *v3d);
 
 
 /* drawobject.c */
-void draw_object(Scene *scene, struct ARegion *ar, View3D *v3d, Base *base, const short dflag);
+void draw_object(
+        Scene *scene, struct ARegion *ar, View3D *v3d,
+        Base *base, const short dflag);
+void draw_object_select(
+        Scene *scene, ARegion *ar, View3D *v3d,
+        Base *base, const short dflag);
+
 bool draw_glsl_material(Scene *scene, struct Object *ob, View3D *v3d, const char dt);
 void draw_object_instance(Scene *scene, View3D *v3d, RegionView3D *rv3d, struct Object *ob, const char dt, int outline);
 void draw_object_backbufsel(Scene *scene, View3D *v3d, RegionView3D *rv3d, struct Object *ob);
@@ -152,7 +159,7 @@ void view3d_cached_text_draw_begin(void);
 void view3d_cached_text_draw_add(const float co[3],
                                  const char *str, const size_t str_len,
                                  short xoffs, short flag, const unsigned char col[4]);
-void view3d_cached_text_draw_end(View3D *v3d, ARegion *ar, bool depth_write, float mat[4][4]);
+void view3d_cached_text_draw_end(View3D *v3d, ARegion *ar, bool depth_write);
 
 bool check_object_draw_texture(struct Scene *scene, struct View3D *v3d, const char drawtype);
 
@@ -167,9 +174,10 @@ enum {
 int view3d_effective_drawtype(const struct View3D *v3d);
 
 /* drawarmature.c */
-bool draw_armature(Scene *scene, View3D *v3d, ARegion *ar, Base *base,
-                   const short dt, const short dflag, const unsigned char ob_wire_col[4],
-                   const bool is_outline);
+bool draw_armature(
+        Scene *scene, View3D *v3d, ARegion *ar, Base *base,
+        const short dt, const short dflag, const unsigned char ob_wire_col[4],
+        const bool is_outline);
 
 /* drawmesh.c */
 void draw_mesh_textured(Scene *scene, View3D *v3d, RegionView3D *rv3d,
@@ -193,9 +201,16 @@ void draw_sim_debug_data(Scene *scene, View3D *v3d, ARegion *ar);
 
 /* view3d_draw.c */
 void view3d_main_region_draw(const struct bContext *C, struct ARegion *ar);
-void ED_view3d_draw_depth(Scene *scene, struct ARegion *ar, View3D *v3d, bool alphaoverride);
+
+void ED_view3d_draw_depth(
+        Scene *scene,
+        struct ARegion *ar, View3D *v3d, bool alphaoverride);
 void ED_view3d_draw_depth_gpencil(Scene *scene, ARegion *ar, View3D *v3d);
-void ED_view3d_after_add(ListBase *lb, Base *base, const short dflag);
+void ED_view3d_draw_select_loop(
+        ViewContext *vc, Scene *scene, View3D *v3d, ARegion *ar,
+        bool use_obedit_skip, bool use_nearest);
+
+void ED_view3d_after_add(ListBase *lb, Base *base, const short dflag);\
 
 void circf(float x, float y, float rad);
 void circ(float x, float y, float rad);
@@ -241,8 +256,11 @@ void ED_view3d_smooth_view_force_finish(
         struct bContext *C,
         struct View3D *v3d, struct ARegion *ar);
 
-void view3d_winmatrix_set(ARegion *ar, const View3D *v3d, const rctf *rect);
-void view3d_viewmatrix_set(Scene *scene, const View3D *v3d, RegionView3D *rv3d);
+void view3d_winmatrix_set(
+        ARegion *ar, const View3D *v3d, const rcti *rect);
+void view3d_viewmatrix_set(
+        Scene *scene,
+        const View3D *v3d, RegionView3D *rv3d, const float rect_scale[2]);
 
 void fly_modal_keymap(struct wmKeyConfig *keyconf);
 void walk_modal_keymap(struct wmKeyConfig *keyconf);

@@ -38,14 +38,28 @@
 extern "C" {
 #endif
 
+struct UserDef;
+
 void BKE_blender_free(void);
 
 void BKE_blender_globals_init(void);
 void BKE_blender_globals_clear(void);
+void BKE_blender_version_string(
+        char *version_str, size_t maxncpy,
+        short version, short subversion, bool v_prefix, bool include_subversion);
 
-void BKE_blender_userdef_free(void);
-void BKE_blender_userdef_refresh(void);
-	
+void BKE_blender_userdef_data_swap(struct UserDef *userdef_dst, struct UserDef *userdef_src);
+void BKE_blender_userdef_data_set(struct UserDef *userdef);
+void BKE_blender_userdef_data_set_and_free(struct UserDef *userdef);
+
+void BKE_blender_userdef_app_template_data_swap(struct UserDef *userdef_dst, struct UserDef *userdef_src);
+void BKE_blender_userdef_app_template_data_set(struct UserDef *userdef);
+void BKE_blender_userdef_app_template_data_set_and_free(struct UserDef *userdef);
+
+void BKE_blender_userdef_data_duplicate(struct UserDef *userdef_dst, struct UserDef *userdef_src);
+
+void BKE_blender_userdef_data_free(struct UserDef *userdef, bool clear_fonts);
+
 /* set this callback when a UI is running */
 void BKE_blender_callback_test_break_set(void (*func)(void));
 int  BKE_blender_test_break(void);

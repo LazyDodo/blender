@@ -275,6 +275,7 @@ class RENDER_PT_performance(RenderButtonsPanel, Panel):
 
         col.separator()
         col.prop(rd, "preview_start_resolution")
+        col.prop(rd, "preview_pixel_size", text="")
 
         col = split.column()
         col.label(text="Memory:")
@@ -286,7 +287,7 @@ class RENDER_PT_performance(RenderButtonsPanel, Panel):
         sub.prop(rd, "use_free_image_textures")
         sub = col.column()
         sub.active = rd.use_raytrace
-        sub.label(text="Acceleration structure:")
+        sub.label(text="Acceleration Structure:")
         sub.prop(rd, "raytrace_method", text="")
         if rd.raytrace_method == 'OCTREE':
             sub.prop(rd, "octree_resolution", text="Resolution")
@@ -347,7 +348,7 @@ class RENDER_PT_stamp(RenderButtonsPanel, Panel):
         col.active = rd.use_stamp
         row = col.row()
         row.prop(rd, "stamp_font_size", text="Font Size")
-        row.prop(rd, "use_stamp_labels", text="Draw labels")
+        row.prop(rd, "use_stamp_labels", text="Draw Labels")
 
         row = col.row()
         row.column().prop(rd, "stamp_foreground", slider=True)
@@ -368,6 +369,7 @@ class RENDER_PT_stamp(RenderButtonsPanel, Panel):
         col.prop(rd, "use_stamp_camera", text="Camera")
         col.prop(rd, "use_stamp_lens", text="Lens")
         col.prop(rd, "use_stamp_filename", text="Filename")
+        col.prop(rd, "use_stamp_frame_range", text="Frame range")
         col.prop(rd, "use_stamp_marker", text="Marker")
         col.prop(rd, "use_stamp_sequencer_strip", text="Seq. Strip")
 
@@ -409,37 +411,6 @@ class RENDER_PT_output(RenderButtonsPanel, Panel):
         if rd.use_multiview:
             layout.template_image_views(image_settings)
 
-        if file_format == 'QUICKTIME':
-            quicktime = rd.quicktime
-
-            split = layout.split()
-            col = split.column()
-            col.prop(quicktime, "codec_type", text="Video Codec")
-            col.prop(quicktime, "codec_spatial_quality", text="Quality")
-
-            # Audio
-            col.prop(quicktime, "audiocodec_type", text="Audio Codec")
-            if quicktime.audiocodec_type != 'No audio':
-                split = layout.split()
-                if quicktime.audiocodec_type == 'LPCM':
-                    split.prop(quicktime, "audio_bitdepth", text="")
-
-                split.prop(quicktime, "audio_samplerate", text="")
-
-                split = layout.split()
-                col = split.column()
-                if quicktime.audiocodec_type == 'AAC':
-                    col.prop(quicktime, "audio_bitrate")
-
-                subsplit = split.split()
-                col = subsplit.column()
-
-                if quicktime.audiocodec_type == 'AAC':
-                    col.prop(quicktime, "audio_codec_isvbr")
-
-                col = subsplit.column()
-                col.prop(quicktime, "audio_resampling_hq")
-
 
 class RENDER_PT_encoding(RenderButtonsPanel, Panel):
     bl_label = "Encoding"
@@ -463,17 +434,38 @@ class RENDER_PT_encoding(RenderButtonsPanel, Panel):
         split.prop(rd.ffmpeg, "format")
         split.prop(ffmpeg, "use_autosplit")
 
+        # Video:
         layout.separator()
+        self.draw_vcodec(context)
+
+        # Audio:
+        layout.separator()
+        if ffmpeg.format != 'MP3':
+            layout.prop(ffmpeg, "audio_codec", text="Audio Codec")
+
+        if ffmpeg.audio_codec != 'NONE':
+            row = layout.row()
+            row.prop(ffmpeg, "audio_bitrate")
+            row.prop(ffmpeg, "audio_volume", slider=True)
+
+    def draw_vcodec(self, context):
+        """Video codec options."""
+        layout = self.layout
+        ffmpeg = context.scene.render.ffmpeg
 
         needs_codec = ffmpeg.format in {'AVI', 'QUICKTIME', 'MKV', 'OGG', 'MPEG4'}
         if needs_codec:
             layout.prop(ffmpeg, "codec")
 
+        if needs_codec and ffmpeg.codec == 'NONE':
+            return
+
         if ffmpeg.codec in {'DNXHD'}:
             layout.prop(ffmpeg, "use_lossless_output")
 
         # Output quality
-        if needs_codec and ffmpeg.codec in {'H264', 'MPEG4'}:
+        use_crf = needs_codec and ffmpeg.codec in {'H264', 'MPEG4', 'WEBM'}
+        if use_crf:
             layout.prop(ffmpeg, "constant_rate_factor")
 
         # Encoding speed
@@ -482,35 +474,24 @@ class RENDER_PT_encoding(RenderButtonsPanel, Panel):
         layout.prop(ffmpeg, "gopsize")
         # B-Frames
         row = layout.row()
-        row.prop(ffmpeg, "use_max_b_frames", text='Max B-frames')
+        row.prop(ffmpeg, "use_max_b_frames", text="Max B-frames")
         pbox = row.split()
-        pbox.prop(ffmpeg, "max_b_frames", text='')
+        pbox.prop(ffmpeg, "max_b_frames", text="")
         pbox.enabled = ffmpeg.use_max_b_frames
 
-        split = layout.split()
-        split.enabled = ffmpeg.constant_rate_factor == 'NONE'
-        col = split.column()
-        col.label(text="Rate:")
-        col.prop(ffmpeg, "video_bitrate")
-        col.prop(ffmpeg, "minrate", text="Minimum")
-        col.prop(ffmpeg, "maxrate", text="Maximum")
-        col.prop(ffmpeg, "buffersize", text="Buffer")
+        if not use_crf or ffmpeg.constant_rate_factor == 'NONE':
+            split = layout.split()
+            col = split.column()
+            col.label(text="Rate:")
+            col.prop(ffmpeg, "video_bitrate")
+            col.prop(ffmpeg, "minrate", text="Minimum")
+            col.prop(ffmpeg, "maxrate", text="Maximum")
+            col.prop(ffmpeg, "buffersize", text="Buffer")
 
-        col = split.column()
-        col.label(text="Mux:")
-        col.prop(ffmpeg, "muxrate", text="Rate")
-        col.prop(ffmpeg, "packetsize", text="Packet Size")
-
-        layout.separator()
-
-        # Audio:
-        if ffmpeg.format != 'MP3':
-            layout.prop(ffmpeg, "audio_codec", text="Audio Codec")
-
-        row = layout.row()
-        row.enabled = ffmpeg.audio_codec != 'NONE'
-        row.prop(ffmpeg, "audio_bitrate")
-        row.prop(ffmpeg, "audio_volume", slider=True)
+            col = split.column()
+            col.label(text="Mux:")
+            col.prop(ffmpeg, "muxrate", text="Rate")
+            col.prop(ffmpeg, "packetsize", text="Packet Size")
 
 
 class RENDER_PT_bake(RenderButtonsPanel, Panel):
@@ -584,5 +565,24 @@ class RENDER_PT_bake(RenderButtonsPanel, Panel):
             sub.prop(rd, "bake_user_scale", text="User Scale")
 
 
+classes = (
+    RENDER_MT_presets,
+    RENDER_MT_ffmpeg_presets,
+    RENDER_MT_framerate_presets,
+    RENDER_PT_render,
+    RENDER_PT_dimensions,
+    RENDER_PT_antialiasing,
+    RENDER_PT_motion_blur,
+    RENDER_PT_shading,
+    RENDER_PT_performance,
+    RENDER_PT_post_processing,
+    RENDER_PT_stamp,
+    RENDER_PT_output,
+    RENDER_PT_encoding,
+    RENDER_PT_bake,
+)
+
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

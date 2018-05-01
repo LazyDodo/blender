@@ -17,15 +17,15 @@
 #ifndef __BLENDER_UTIL_H__
 #define __BLENDER_UTIL_H__
 
-#include "mesh.h"
+#include "render/mesh.h"
 
-#include "util_algorithm.h"
-#include "util_map.h"
-#include "util_path.h"
-#include "util_set.h"
-#include "util_transform.h"
-#include "util_types.h"
-#include "util_vector.h"
+#include "util/util_algorithm.h"
+#include "util/util_map.h"
+#include "util/util_path.h"
+#include "util/util_set.h"
+#include "util/util_transform.h"
+#include "util/util_types.h"
+#include "util/util_vector.h"
 
 /* Hacks to hook into Blender API
  * todo: clean this up ... */
@@ -51,8 +51,8 @@ static inline BL::Mesh object_to_mesh(BL::BlendData& data,
                                       bool calc_undeformed,
                                       Mesh::SubdivisionType subdivision_type)
 {
-	bool subsurf_mod_show_render;
-	bool subsurf_mod_show_viewport;
+	bool subsurf_mod_show_render = false;
+	bool subsurf_mod_show_viewport = false;
 
 	if(subdivision_type != Mesh::SUBDIVISION_NONE) {
 		BL::Modifier subsurf_mod = object.modifiers[object.modifiers.length()-1];
@@ -174,22 +174,19 @@ static inline void curvemapping_color_to_array(BL::CurveMapping& cumap,
 
 	if(rgb_curve) {
 		BL::CurveMap mapI = cumap.curves[3];
-
 		for(int i = 0; i < size; i++) {
-			float t = min_x + (float)i/(float)(size-1) * range_x;
-
-			data[i][0] = mapR.evaluate(mapI.evaluate(t));
-			data[i][1] = mapG.evaluate(mapI.evaluate(t));
-			data[i][2] = mapB.evaluate(mapI.evaluate(t));
+			const float t = min_x + (float)i/(float)(size-1) * range_x;
+			data[i] = make_float3(mapR.evaluate(mapI.evaluate(t)),
+			                      mapG.evaluate(mapI.evaluate(t)),
+			                      mapB.evaluate(mapI.evaluate(t)));
 		}
 	}
 	else {
 		for(int i = 0; i < size; i++) {
 			float t = min_x + (float)i/(float)(size-1) * range_x;
-
-			data[i][0] = mapR.evaluate(t);
-			data[i][1] = mapG.evaluate(t);
-			data[i][2] = mapB.evaluate(t);
+			data[i] = make_float3(mapR.evaluate(t),
+			                      mapG.evaluate(t),
+			                      mapB.evaluate(t));
 		}
 	}
 }
@@ -250,14 +247,15 @@ static inline float *image_get_float_pixels_for_frame(BL::Image& image,
 
 static inline Transform get_transform(const BL::Array<float, 16>& array)
 {
-	Transform tfm;
+	ProjectionTransform projection;
 
-	/* we assume both types to be just 16 floats, and transpose because blender
-	 * use column major matrix order while we use row major */
-	memcpy(&tfm, &array, sizeof(float)*16);
-	tfm = transform_transpose(tfm);
+	/* We assume both types to be just 16 floats, and transpose because blender
+	 * use column major matrix order while we use row major. */
+	memcpy(&projection, &array, sizeof(float)*16);
+	projection = projection_transpose(projection);
 
-	return tfm;
+	/* Drop last row, matrix is assumed to be affine transform. */
+	return projection_to_transform(projection);
 }
 
 static inline float2 get_float2(const BL::Array<float, 2>& array)
@@ -302,7 +300,7 @@ static inline uint get_layer(const BL::Array<int, 20>& array)
 	for(uint i = 0; i < 20; i++)
 		if(array[i])
 			layer |= (1 << i);
-	
+
 	return layer;
 }
 
@@ -437,7 +435,7 @@ static inline string get_string(PointerRNA& ptr, const char *name)
 	string str(cstr);
 	if(cstr != cstrbuf)
 		MEM_freeN(cstr);
-	
+
 	return str;
 }
 
@@ -454,7 +452,7 @@ static inline string blender_absolute_path(BL::BlendData& b_data,
 {
 	if(path.size() >= 2 && path[0] == '/' && path[1] == '/') {
 		string dirname;
-		
+
 		if(b_id.library()) {
 			BL::ID b_library_id(b_id.library());
 			dirname = blender_absolute_path(b_data,
@@ -486,33 +484,34 @@ static inline void mesh_texture_space(BL::Mesh& b_mesh,
 	loc = loc*size - make_float3(0.5f, 0.5f, 0.5f);
 }
 
-/* object used for motion blur */
-static inline bool object_use_motion(BL::Object& b_parent, BL::Object& b_ob)
+/* Object motion steps, returns 0 if no motion blur needed. */
+static inline uint object_motion_steps(BL::Object& b_parent, BL::Object& b_ob)
 {
+	/* Get motion enabled and steps from object itself. */
 	PointerRNA cobject = RNA_pointer_get(&b_ob.ptr, "cycles");
 	bool use_motion = get_boolean(cobject, "use_motion_blur");
-	/* If motion blur is enabled for the object we also check
-	 * whether it's enabled for the parent object as well.
-	 *
-	 * This way we can control motion blur from the dupligroup
-	 * duplicator much easier.
-	 */
-	if(use_motion && b_parent.ptr.data != b_ob.ptr.data) {
+	if(!use_motion) {
+		return 0;
+	}
+
+	uint steps = max(1, get_int(cobject, "motion_steps"));
+
+	/* Also check parent object, so motion blur and steps can be
+	 * controlled by dupligroup duplicator for linked groups. */
+	if(b_parent.ptr.data != b_ob.ptr.data) {
 		PointerRNA parent_cobject = RNA_pointer_get(&b_parent.ptr, "cycles");
 		use_motion &= get_boolean(parent_cobject, "use_motion_blur");
+
+		if(!use_motion) {
+			return 0;
+		}
+
+		steps = max(steps, get_int(parent_cobject, "motion_steps"));
 	}
-	return use_motion;
-}
 
-/* object motion steps */
-static inline uint object_motion_steps(BL::Object& b_ob)
-{
-	PointerRNA cobject = RNA_pointer_get(&b_ob.ptr, "cycles");
-	uint steps = get_int(cobject, "motion_steps");
-
-	/* use uneven number of steps so we get one keyframe at the current frame,
-	 * and ue 2^(steps - 1) so objects with more/fewer steps still have samples
-	 * at the same times, to avoid sampling at many different times */
+	/* Use uneven number of steps so we get one keyframe at the current frame,
+	 * and use 2^(steps - 1) so objects with more/fewer steps still have samples
+	 * at the same times, to avoid sampling at many different times. */
 	return (2 << (steps - 1)) + 1;
 }
 
@@ -547,7 +546,7 @@ static inline BL::SmokeDomainSettings object_smoke_domain_find(BL::Object& b_ob)
 				return b_smd.domain_settings();
 		}
 	}
-	
+
 	return BL::SmokeDomainSettings(PointerRNA_NULL);
 }
 
@@ -819,4 +818,3 @@ protected:
 CCL_NAMESPACE_END
 
 #endif /* __BLENDER_UTIL_H__ */
-

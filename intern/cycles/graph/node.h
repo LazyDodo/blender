@@ -16,14 +16,15 @@
 
 #pragma once
 
-#include "node_type.h"
+#include "graph/node_type.h"
 
-#include "util_map.h"
-#include "util_param.h"
-#include "util_vector.h"
+#include "util/util_map.h"
+#include "util/util_param.h"
+#include "util/util_vector.h"
 
 CCL_NAMESPACE_BEGIN
 
+class MD5Hash;
 struct Node;
 struct NodeType;
 struct Transform;
@@ -87,6 +88,9 @@ struct Node
 
 	/* equals */
 	bool equals(const Node& other) const;
+
+	/* compute hash of node and its socket values */
+	void hash(MD5Hash& md5);
 
 	ustring name;
 	const NodeType *type;

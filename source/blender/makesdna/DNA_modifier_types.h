@@ -86,6 +86,7 @@ typedef enum ModifierType {
 	eModifierType_NormalEdit        = 50,
 	eModifierType_CorrectiveSmooth  = 51,
 	eModifierType_MeshSequenceCache = 52,
+	eModifierType_SurfaceDeform     = 53,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -97,7 +98,7 @@ typedef enum ModifierMode {
 	eModifierMode_Expanded          = (1 << 4),
 	eModifierMode_Virtual           = (1 << 5),
 	eModifierMode_ApplyOnSpline     = (1 << 6),
-	eModifierMode_DisableTemporary  = (1 << 31)
+	eModifierMode_DisableTemporary  = (1u << 31)
 } ModifierMode;
 
 typedef struct ModifierData {
@@ -248,6 +249,7 @@ typedef struct ArrayModifierData {
 	int flags;
 	/* the number of duplicates to generate for MOD_ARR_FIXEDCOUNT */
 	int count;
+	float uv_offset[2];
 } ArrayModifierData;
 
 /* ArrayModifierData->fit_type */
@@ -276,6 +278,8 @@ typedef struct MirrorModifierData {
 	short axis  DNA_DEPRECATED; /* deprecated, use flag instead */
 	short flag;
 	float tolerance;
+	float uv_offset[2];
+	float uv_offset_copy[2];
 	struct Object *mirror_ob;
 } MirrorModifierData;
 
@@ -599,7 +603,7 @@ typedef struct ClothModifierData {
 	struct Cloth *clothObject;            /* The internal data structure for cloth. */
 	struct ClothSimSettings *sim_parms;   /* definition is in DNA_cloth_types.h */
 	struct ClothCollSettings *coll_parms; /* definition is in DNA_cloth_types.h */
-	struct PointCache *point_cache;       /* definition is in DNA_object_force.h */
+	struct PointCache *point_cache;       /* definition is in DNA_object_force_types.h */
 	struct ListBase ptcaches;
 	/* XXX nasty hack, remove once hair can be separated from cloth modifier data */
 	struct ClothHairData *hairdata;
@@ -651,8 +655,8 @@ typedef struct BooleanModifierData {
 
 	struct Object *object;
 	char operation;
-	char solver;
 	char pad[2];
+	char bm_flag;
 	float double_threshold;
 } BooleanModifierData;
 
@@ -662,10 +666,12 @@ typedef enum {
 	eBooleanModifierOp_Difference = 2,
 } BooleanModifierOp;
 
-typedef enum {
-	eBooleanModifierSolver_Carve    = 0,
-	eBooleanModifierSolver_BMesh = 1,
-} BooleanSolver;
+/* bm_flag (only used when G_DEBUG) */
+enum {
+	eBooleanModifierBMeshFlag_BMesh_Separate            = (1 << 0),
+	eBooleanModifierBMeshFlag_BMesh_NoDissolve          = (1 << 1),
+	eBooleanModifierBMeshFlag_BMesh_NoConnectRegions    = (1 << 2),
+};
 
 typedef struct MDefInfluence {
 	int vertex;
@@ -747,12 +753,21 @@ typedef enum {
 	eParticleInstanceFlag_UseSize   = (1 << 7),
 } ParticleInstanceModifierFlag;
 
+typedef enum {
+	eParticleInstanceSpace_World    = 0,
+	eParticleInstanceSpace_Local    = 1,
+} ParticleInstanceModifierSpace;
+
 typedef struct ParticleInstanceModifierData {
 	ModifierData modifier;
 
 	struct Object *ob;
-	short psys, flag, axis, pad;
+	short psys, flag, axis, space;
 	float position, random_position;
+	float rotation, random_rotation;
+	float particle_amount, particle_offset;
+	char index_layer_name[64]; /* MAX_CUSTOMDATA_LAYER_NAME */
+	char value_layer_name[64]; /* MAX_CUSTOMDATA_LAYER_NAME */
 } ParticleInstanceModifierData;
 
 typedef enum {
@@ -788,8 +803,8 @@ typedef enum {
 typedef struct FluidsimModifierData {
 	ModifierData modifier;
 
-	struct FluidsimSettings *fss;   /* definition is in DNA_object_fluidsim.h */
-	struct PointCache *point_cache; /* definition is in DNA_object_force.h */
+	struct FluidsimSettings *fss;   /* definition is in DNA_object_fluidsim_types.h */
+	struct PointCache *point_cache; /* definition is in DNA_object_force_types.h */
 } FluidsimModifierData;
 
 typedef struct ShrinkwrapModifierData {
@@ -856,8 +871,8 @@ typedef struct SimpleDeformModifierData {
 
 	char mode;              /* deform function */
 	char axis;              /* lock axis (for taper and strech) */
+	char deform_axis;       /* axis to perform the deform on (default is X, but can be overridden by origin */
 	char flag;
-	char pad;
 
 } SimpleDeformModifierData;
 
@@ -877,6 +892,7 @@ enum {
 enum {
 	MOD_SIMPLEDEFORM_LOCK_AXIS_X = (1 << 0),
 	MOD_SIMPLEDEFORM_LOCK_AXIS_Y = (1 << 1),
+	MOD_SIMPLEDEFORM_LOCK_AXIS_Z = (1 << 2),
 };
 
 typedef struct ShapeKeyModifierData {
@@ -922,9 +938,10 @@ typedef struct ScrewModifierData {
 	unsigned int iter;
 	float screw_ofs;
 	float angle;
-	char axis;
-	char pad;
+	float merge_dist;
 	short flag;
+	char axis;
+	char pad[5];
 } ScrewModifierData;
 
 enum {
@@ -935,6 +952,7 @@ enum {
 	MOD_SCREW_SMOOTH_SHADING = (1 << 5),
 	MOD_SCREW_UV_STRETCH_U   = (1 << 6),
 	MOD_SCREW_UV_STRETCH_V   = (1 << 7),
+	MOD_SCREW_MERGE          = (1 << 8),
 };
 
 typedef struct OceanModifierData {
@@ -1213,19 +1231,19 @@ enum {
 };
 
 /* Remesh modifier */
-typedef enum RemeshModifierFlags {
+typedef enum eRemeshModifierFlags {
 	MOD_REMESH_FLOOD_FILL     = 1,
 	MOD_REMESH_SMOOTH_SHADING = 2,
 } RemeshModifierFlags;
 
-typedef enum RemeshModifierMode {
+typedef enum eRemeshModifierMode {
 	/* blocky */
 	MOD_REMESH_CENTROID       = 0,
 	/* smooth */
 	MOD_REMESH_MASS_POINT     = 1,
 	/* keeps sharp edges */
 	MOD_REMESH_SHARP_FEATURES = 2,
-} RemeshModifierMode;
+} eRemeshModifierMode;
 
 typedef struct RemeshModifierData {
 	ModifierData modifier;
@@ -1513,7 +1531,7 @@ enum {
 	MOD_DATATRANSFER_USE_VERT         = 1 << 28,
 	MOD_DATATRANSFER_USE_EDGE         = 1 << 29,
 	MOD_DATATRANSFER_USE_LOOP         = 1 << 30,
-	MOD_DATATRANSFER_USE_POLY         = 1 << 31,
+	MOD_DATATRANSFER_USE_POLY         = 1u << 31,
 };
 
 /* Set Split Normals modifier */
@@ -1568,6 +1586,46 @@ enum {
 	MOD_MESHSEQ_READ_POLY  = (1 << 1),
 	MOD_MESHSEQ_READ_UV    = (1 << 2),
 	MOD_MESHSEQ_READ_COLOR = (1 << 3),
+};
+
+typedef struct SDefBind {
+	unsigned int *vert_inds;
+	unsigned int numverts;
+	int mode;
+	float *vert_weights;
+	float normal_dist;
+	float influence;
+} SDefBind;
+
+typedef struct SDefVert {
+	SDefBind *binds;
+	unsigned int numbinds;
+	char pad[4];
+} SDefVert;
+
+typedef struct SurfaceDeformModifierData {
+	ModifierData modifier;
+
+	struct Object *target;	/* bind target object */
+	SDefVert *verts;		/* vertex bind data */
+	float falloff;
+	unsigned int numverts, numpoly;
+	int flags;
+	float mat[4][4];
+} SurfaceDeformModifierData;
+
+/* Surface Deform modifier flags */
+enum {
+	MOD_SDEF_BIND = (1 << 0),
+	MOD_SDEF_USES_LOOPTRI = (1 << 1),
+	MOD_SDEF_HAS_CONCAVE = (1 << 2),
+};
+
+/* Surface Deform vertex bind modes */
+enum {
+	MOD_SDEF_MODE_LOOPTRI = 0,
+	MOD_SDEF_MODE_NGON = 1,
+	MOD_SDEF_MODE_CENTROID = 2,
 };
 
 #define MOD_MESHSEQ_READ_ALL \

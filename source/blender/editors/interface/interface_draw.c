@@ -40,9 +40,9 @@
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
 
+#include "BKE_colorband.h"
 #include "BKE_colortools.h"
 #include "BKE_node.h"
-#include "BKE_texture.h"
 #include "BKE_tracking.h"
 
 
@@ -831,7 +831,7 @@ static void vectorscope_draw_target(float centerx, float centery, float diam, co
 	float tangle = 0.f, tampli;
 	float dangle, dampli, dangle2, dampli2;
 
-	rgb_to_yuv(colf[0], colf[1], colf[2], &y, &u, &v);
+	rgb_to_yuv(colf[0], colf[1], colf[2], &y, &u, &v, BLI_YUV_ITU_BT709);
 	if (u > 0 && v >= 0) tangle = atanf(v / u);
 	else if (u > 0 && v < 0) tangle = atanf(v / u) + 2.0f * (float)M_PI;
 	else if (u < 0) tangle = atanf(v / u) + (float)M_PI;
@@ -1121,7 +1121,7 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 	glBegin(GL_TRIANGLE_STRIP);
 	for (int a = 0; a <= sizex; a++) {
 		float pos = ((float)a) / sizex;
-		do_colorband(coba, pos, colf);
+		BKE_colorband_evaluate(coba, pos, colf);
 		if (display)
 			IMB_colormanagement_scene_linear_to_display_v3(colf, display);
 		
@@ -1140,7 +1140,7 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 	glBegin(GL_TRIANGLE_STRIP);
 	for (int a = 0; a <= sizex; a++) {
 		float pos = ((float)a) / sizex;
-		do_colorband(coba, pos, colf);
+		BKE_colorband_evaluate(coba, pos, colf);
 		if (display)
 			IMB_colormanagement_scene_linear_to_display_v3(colf, display);
 

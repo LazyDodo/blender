@@ -27,32 +27,17 @@
 
 setup_libdirs()
 
-if(WITH_CODEC_QUICKTIME)
-	add_definitions(-DWITH_QUICKTIME)
-endif()
-
 if(WIN32 AND NOT UNIX)
 	string(SUBSTRING ${BLENDER_VERSION} 0 1 bver1)
 	string(SUBSTRING ${BLENDER_VERSION} 2 1 bver2)
 	string(SUBSTRING ${BLENDER_VERSION} 3 1 bver3)
-	if(MINGW)
-		add_definitions(
-			-DWINDRES
-			-DBLEN_VER_RC_STR_M=${BLENDER_VERSION}
-			-DBLEN_VER_RC_1=${bver1}
-			-DBLEN_VER_RC_2=${bver2}
-			-DBLEN_VER_RC_3=${bver3}
-			-DBLEN_VER_RC_4=0
-		)
-	else()
-		add_definitions(
-			-DBLEN_VER_RC_STR=${BLENDER_VERSION}
-			-DBLEN_VER_RC_1=${bver1}
-			-DBLEN_VER_RC_2=${bver2}
-			-DBLEN_VER_RC_3=${bver3}
-			-DBLEN_VER_RC_4=0
-		)
-	endif()
+	add_definitions(
+		-DBLEN_VER_RC_STR=${BLENDER_VERSION}
+		-DBLEN_VER_RC_1=${bver1}
+		-DBLEN_VER_RC_2=${bver2}
+		-DBLEN_VER_RC_3=${bver3}
+		-DBLEN_VER_RC_4=0
+	)
 
 	add_executable(
 			blenderplayer ${EXETYPE}
@@ -73,8 +58,8 @@ elseif(APPLE)
 	set(PLAYER_SOURCEINFO ${PLAYER_SOURCEDIR}/Contents/Info.plist)
 	set_target_properties(blenderplayer PROPERTIES
 		MACOSX_BUNDLE_INFO_PLIST ${PLAYER_SOURCEINFO}
-		MACOSX_BUNDLE_SHORT_VERSION_STRING ${BLENDER_VERSION}
-		MACOSX_BUNDLE_LONG_VERSION_STRING "${BLENDER_VERSION} ${BLENDER_DATE}")
+		MACOSX_BUNDLE_SHORT_VERSION_STRING "${BLENDER_VERSION}${BLENDER_VERSION_CHAR}"
+		MACOSX_BUNDLE_LONG_VERSION_STRING "${BLENDER_VERSION}${BLENDER_VERSION_CHAR} ${BLENDER_DATE}")
 
 else()
 	add_executable(blenderplayer bad_level_call_stubs/stubs.c)
@@ -176,10 +161,16 @@ endif()
 		extern_rangetree
 		extern_wcwidth
 		bf_intern_libmv
-		extern_glog
-		extern_gflags
 		extern_sdlew
 	)
+
+	if(NOT WITH_SYSTEM_GLOG)
+		list(APPEND BLENDER_SORTED_LIBS extern_glog)
+	endif()
+
+	if(NOT WITH_SYSTEM_GFLAGS)
+		list(APPEND BLENDER_SORTED_LIBS extern_gflags)
+	endif()
 
 	if(WITH_MOD_CLOTH_ELTOPO)
 		list(APPEND BLENDER_SORTED_LIBS extern_eltopo)
@@ -197,16 +188,8 @@ endif()
 		list(APPEND BLENDER_SORTED_LIBS extern_ceres)
 	endif()
 
-	if(WITH_MOD_BOOLEAN)
-		list(APPEND BLENDER_SORTED_LIBS extern_carve)
-	endif()
-
 	if(WITH_GHOST_XDND)
 		list(APPEND BLENDER_SORTED_LIBS extern_xdnd)
-	endif()
-
-	if(WITH_CODEC_QUICKTIME)
-		list(APPEND BLENDER_SORTED_LIBS bf_quicktime)
 	endif()
 
 	if(WITH_CXX_GUARDEDALLOC)

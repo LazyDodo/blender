@@ -44,6 +44,8 @@
 #include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
+#include "BKE_scene.h"
+#include "BKE_texture.h"
 
 #include "ED_node.h"  /* own include */
 #include "ED_screen.h"
@@ -105,13 +107,15 @@ static bool add_reroute_intersect_check(bNodeLink *link, float mcoords[][2], int
 
 	if (node_link_bezier_points(NULL, NULL, link, coord_array, NODE_LINK_RESOL)) {
 
-		for (i = 0; i < tot - 1; i++)
-			for (b = 0; b < NODE_LINK_RESOL; b++)
+		for (i = 0; i < tot - 1; i++) {
+			for (b = 0; b < NODE_LINK_RESOL; b++) {
 				if (isect_seg_seg_v2(mcoords[i], mcoords[i + 1], coord_array[b], coord_array[b + 1]) > 0) {
 					result[0] = (mcoords[i][0] + mcoords[i + 1][0]) / 2.0f;
 					result[1] = (mcoords[i][1] + mcoords[i + 1][1]) / 2.0f;
 					return 1;
 				}
+			}
+		}
 	}
 	return 0;
 }
@@ -273,8 +277,6 @@ static int add_reroute_exec(bContext *C, wmOperator *op)
 
 void NODE_OT_add_reroute(wmOperatorType *ot)
 {
-	PropertyRNA *prop;
-
 	ot->name = "Add Reroute";
 	ot->idname = "NODE_OT_add_reroute";
 	ot->description = "Add a reroute node";
@@ -289,8 +291,10 @@ void NODE_OT_add_reroute(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	prop = RNA_def_property(ot->srna, "path", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_struct_runtime(prop, &RNA_OperatorMousePath);
+	/* properties */
+	PropertyRNA *prop;
+	prop = RNA_def_collection_runtime(ot->srna, "path", &RNA_OperatorMousePath, "Path", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 	/* internal */
 	RNA_def_int(ot->srna, "cursor", BC_CROSSCURSOR, 0, INT_MAX, "Cursor", "", 0, INT_MAX);
 }
@@ -312,7 +316,10 @@ static int node_add_file_exec(bContext *C, wmOperator *op)
 
 	switch (snode->nodetree->type) {
 		case NTREE_SHADER:
-			type = SH_NODE_TEX_IMAGE;
+			if (BKE_scene_use_new_shading_nodes(CTX_data_scene(C)))
+				type = SH_NODE_TEX_IMAGE;
+			else
+				type = SH_NODE_TEXTURE;
 			break;
 		case NTREE_TEXTURE:
 			type = TEX_NODE_IMAGE;
@@ -333,7 +340,14 @@ static int node_add_file_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 	
-	node->id = (ID *)ima;
+	if (type == SH_NODE_TEXTURE) {
+		Tex *tex = BKE_texture_add(CTX_data_main(C), DATA_(ima->id.name));
+		tex->ima = ima;
+		node->id = (ID *)tex;
+		WM_event_add_notifier(C, NC_TEXTURE | NA_ADDED, node->id);
+	}
+	else
+		node->id = (ID *)ima;
 
 	/* When adding new image file via drag-drop we need to load imbuf in order
 	 * to get proper image source.
@@ -503,7 +517,7 @@ static int new_node_tree_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static EnumPropertyItem *new_node_tree_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *new_node_tree_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	return rna_node_tree_type_itemf(NULL, NULL, r_free);
 }

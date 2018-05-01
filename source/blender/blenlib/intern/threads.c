@@ -54,6 +54,8 @@
 #  include <sys/time.h>
 #endif
 
+#include "atomic_ops.h"
+
 #if defined(__APPLE__) && defined(_OPENMP) && (__GNUC__ == 4) && (__GNUC_MINOR__ == 2) && !defined(__clang__)
 #  define USE_APPLE_OMP_FIX
 #endif
@@ -81,13 +83,13 @@ static TaskScheduler *task_scheduler = NULL;
  *     int maxthreads = 2;
  *     int cont = 1;
  * 
- *     BLI_init_threads(&lb, do_something_func, maxthreads);
+ *     BLI_threadpool_init(&lb, do_something_func, maxthreads);
  * 
  *     while (cont) {
  *         if (BLI_available_threads(&lb) && !(escape loop event)) {
  *             // get new job (data pointer)
  *             // tag job 'processed 
- *             BLI_insert_thread(&lb, job);
+ *             BLI_threadpool_insert(&lb, job);
  *         }
  *         else PIL_sleep_ms(50);
  *         
@@ -96,7 +98,7 @@ static TaskScheduler *task_scheduler = NULL;
  *         for (go over all jobs)
  *             if (job is ready) {
  *                 if (job was not removed) {
- *                     BLI_remove_thread(&lb, job);
+ *                     BLI_threadpool_remove(&lb, job);
  *                 }
  *             }
  *             else cont = 1;
@@ -108,7 +110,7 @@ static TaskScheduler *task_scheduler = NULL;
  *         }
  *     }
  * 
- *     BLI_end_threads(&lb);
+ *     BLI_threadpool_end(&lb);
  *
  ************************************************ */
 static SpinLock _malloc_lock;
@@ -124,7 +126,7 @@ static pthread_mutex_t _colormanage_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _fftw_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _view3d_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t mainid;
-static int thread_levels = 0;  /* threads can be invoked inside threads */
+static unsigned int thread_levels = 0;  /* threads can be invoked inside threads */
 static int num_threads_override = 0;
 
 /* just a max for security reasons */
@@ -181,7 +183,7 @@ TaskScheduler *BLI_task_scheduler_get(void)
  * problem otherwise: scene render will kill of the mutex!
  */
 
-void BLI_init_threads(ListBase *threadbase, void *(*do_thread)(void *), int tot)
+void BLI_threadpool_init(ListBase *threadbase, void *(*do_thread)(void *), int tot)
 {
 	int a;
 
@@ -198,9 +200,9 @@ void BLI_init_threads(ListBase *threadbase, void *(*do_thread)(void *), int tot)
 			tslot->avail = 1;
 		}
 	}
-	
-	BLI_spin_lock(&_malloc_lock);
-	if (thread_levels == 0) {
+
+	unsigned int level = atomic_fetch_and_add_u(&thread_levels, 1);
+	if (level == 0) {
 		MEM_set_lock_callback(BLI_lock_malloc_thread, BLI_unlock_malloc_thread);
 
 #ifdef USE_APPLE_OMP_FIX
@@ -210,9 +212,6 @@ void BLI_init_threads(ListBase *threadbase, void *(*do_thread)(void *), int tot)
 		thread_tls_data = pthread_getspecific(gomp_tls_key);
 #endif
 	}
-
-	thread_levels++;
-	BLI_spin_unlock(&_malloc_lock);
 }
 
 /* amount of available threads */
@@ -229,7 +228,7 @@ int BLI_available_threads(ListBase *threadbase)
 }
 
 /* returns thread number, for sample patterns or threadsafe tables */
-int BLI_available_thread_index(ListBase *threadbase)
+int BLI_threadpool_available_thread_index(ListBase *threadbase)
 {
 	ThreadSlot *tslot;
 	int counter = 0;
@@ -259,7 +258,7 @@ int BLI_thread_is_main(void)
 	return pthread_equal(pthread_self(), mainid);
 }
 
-void BLI_insert_thread(ListBase *threadbase, void *callerdata)
+void BLI_threadpool_insert(ListBase *threadbase, void *callerdata)
 {
 	ThreadSlot *tslot;
 	
@@ -274,7 +273,7 @@ void BLI_insert_thread(ListBase *threadbase, void *callerdata)
 	printf("ERROR: could not insert thread slot\n");
 }
 
-void BLI_remove_thread(ListBase *threadbase, void *callerdata)
+void BLI_threadpool_remove(ListBase *threadbase, void *callerdata)
 {
 	ThreadSlot *tslot;
 	
@@ -287,7 +286,7 @@ void BLI_remove_thread(ListBase *threadbase, void *callerdata)
 	}
 }
 
-void BLI_remove_thread_index(ListBase *threadbase, int index)
+void BLI_threadpool_remove_index(ListBase *threadbase, int index)
 {
 	ThreadSlot *tslot;
 	int counter = 0;
@@ -302,7 +301,7 @@ void BLI_remove_thread_index(ListBase *threadbase, int index)
 	}
 }
 
-void BLI_remove_threads(ListBase *threadbase)
+void BLI_threadpool_clear(ListBase *threadbase)
 {
 	ThreadSlot *tslot;
 	
@@ -315,7 +314,7 @@ void BLI_remove_threads(ListBase *threadbase)
 	}
 }
 
-void BLI_end_threads(ListBase *threadbase)
+void BLI_threadpool_end(ListBase *threadbase)
 {
 	ThreadSlot *tslot;
 	
@@ -331,11 +330,10 @@ void BLI_end_threads(ListBase *threadbase)
 		BLI_freelistN(threadbase);
 	}
 
-	BLI_spin_lock(&_malloc_lock);
-	thread_levels--;
-	if (thread_levels == 0)
+	unsigned int level = atomic_sub_and_fetch_u(&thread_levels, 1);
+	if (level == 0) {
 		MEM_set_lock_callback(NULL, NULL);
-	BLI_spin_unlock(&_malloc_lock);
+	}
 }
 
 /* System Information */
@@ -420,12 +418,12 @@ static ThreadMutex *global_mutex_from_type(const int type)
 	}
 }
 
-void BLI_lock_thread(int type)
+void BLI_thread_lock(int type)
 {
 	pthread_mutex_lock(global_mutex_from_type(type));
 }
 
-void BLI_unlock_thread(int type)
+void BLI_thread_unlock(int type)
 {
 	pthread_mutex_unlock(global_mutex_from_type(type));
 }
@@ -474,8 +472,10 @@ void BLI_mutex_free(ThreadMutex *mutex)
 
 void BLI_spin_init(SpinLock *spin)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__)
 	*spin = OS_SPINLOCK_INIT;
+#elif defined(_MSC_VER)
+	*spin = 0;
 #else
 	pthread_spin_init(spin, 0);
 #endif
@@ -483,8 +483,14 @@ void BLI_spin_init(SpinLock *spin)
 
 void BLI_spin_lock(SpinLock *spin)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__)
 	OSSpinLockLock(spin);
+#elif defined(_MSC_VER)
+	while (InterlockedExchangeAcquire(spin, 1)) {
+		while (*spin) {
+			/* pass */
+		}
+	}
 #else
 	pthread_spin_lock(spin);
 #endif
@@ -492,21 +498,24 @@ void BLI_spin_lock(SpinLock *spin)
 
 void BLI_spin_unlock(SpinLock *spin)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__)
 	OSSpinLockUnlock(spin);
+#elif defined(_MSC_VER)
+	_ReadWriteBarrier();
+	*spin = 0;
 #else
 	pthread_spin_unlock(spin);
 #endif
 }
 
-#ifndef __APPLE__
+#if defined(__APPLE__) || defined(_MSC_VER)
+void BLI_spin_end(SpinLock *UNUSED(spin))
+{
+}
+#else
 void BLI_spin_end(SpinLock *spin)
 {
 	pthread_spin_destroy(spin);
-}
-#else
-void BLI_spin_end(SpinLock *UNUSED(spin))
-{
 }
 #endif
 
@@ -764,12 +773,12 @@ void *BLI_thread_queue_pop_timeout(ThreadQueue *queue, int ms)
 	return work;
 }
 
-int BLI_thread_queue_size(ThreadQueue *queue)
+int BLI_thread_queue_len(ThreadQueue *queue)
 {
 	int size;
 
 	pthread_mutex_lock(&queue->mutex);
-	size = BLI_gsqueue_size(queue->queue);
+	size = BLI_gsqueue_len(queue->queue);
 	pthread_mutex_unlock(&queue->mutex);
 
 	return size;
@@ -810,28 +819,24 @@ void BLI_thread_queue_wait_finish(ThreadQueue *queue)
 
 /* ************************************************ */
 
-void BLI_begin_threaded_malloc(void)
+void BLI_threaded_malloc_begin(void)
 {
-	/* Used for debug only */
-	/* BLI_assert(thread_levels >= 0); */
-
-	BLI_spin_lock(&_malloc_lock);
-	if (thread_levels == 0) {
+	unsigned int level = atomic_fetch_and_add_u(&thread_levels, 1);
+	if (level == 0) {
 		MEM_set_lock_callback(BLI_lock_malloc_thread, BLI_unlock_malloc_thread);
+		/* There is a little chance that two threads will meed to acces to a
+		 * scheduler which was not yet created from main thread. which could
+		 * cause scheduler created multiple times.
+		 */
+		BLI_task_scheduler_get();
 	}
-	thread_levels++;
-	BLI_spin_unlock(&_malloc_lock);
 }
 
-void BLI_end_threaded_malloc(void)
+void BLI_threaded_malloc_end(void)
 {
-	/* Used for debug only */
-	/* BLI_assert(thread_levels >= 0); */
-
-	BLI_spin_lock(&_malloc_lock);
-	thread_levels--;
-	if (thread_levels == 0)
+	unsigned int level = atomic_sub_and_fetch_u(&thread_levels, 1);
+	if (level == 0) {
 		MEM_set_lock_callback(NULL, NULL);
-	BLI_spin_unlock(&_malloc_lock);
+	}
 }
 

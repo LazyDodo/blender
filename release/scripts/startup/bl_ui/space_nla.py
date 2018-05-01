@@ -26,7 +26,7 @@ class NLA_HT_header(Header):
     bl_space_type = 'NLA_EDITOR'
 
     def draw(self, context):
-        from bl_ui.space_dopesheet import dopesheet_filter
+        from .space_dopesheet import dopesheet_filter
 
         layout = self.layout
 
@@ -124,7 +124,7 @@ class NLA_MT_marker(Menu):
     def draw(self, context):
         layout = self.layout
 
-        from bl_ui.space_time import marker_menu_generic
+        from .space_time import marker_menu_generic
         marker_menu_generic(layout)
 
 
@@ -209,5 +209,19 @@ class NLA_MT_edit_transform(Menu):
         layout.operator("transform.transform", text="Extend").mode = 'TIME_EXTEND'
         layout.operator("transform.transform", text="Scale").mode = 'TIME_SCALE'
 
+
+classes = (
+    NLA_HT_header,
+    NLA_MT_edit,
+    NLA_MT_editor_menus,
+    NLA_MT_view,
+    NLA_MT_select,
+    NLA_MT_marker,
+    NLA_MT_add,
+    NLA_MT_edit_transform,
+)
+
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

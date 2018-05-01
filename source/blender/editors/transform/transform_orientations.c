@@ -70,7 +70,7 @@ void BIF_clearTransformOrientation(bContext *C)
 	
 	// Need to loop over all view3d
 	if (v3d && v3d->twmode >= V3D_MANIP_CUSTOM) {
-		v3d->twmode = V3D_MANIP_GLOBAL; /* fallback to global	*/
+		v3d->twmode = V3D_MANIP_GLOBAL; /* fallback to global */
 	}
 }
 
@@ -451,18 +451,18 @@ void initTransformOrientation(bContext *C, TransInfo *t)
 
 		case V3D_MANIP_GIMBAL:
 			unit_m3(t->spacemtx);
-			if (gimbal_axis(ob, t->spacemtx)) {
+			if (ob && gimbal_axis(ob, t->spacemtx)) {
 				BLI_strncpy(t->spacename, IFACE_("gimbal"), sizeof(t->spacename));
 				break;
 			}
-			/* fall-through */  /* no gimbal fallthrough to normal */
+			ATTR_FALLTHROUGH;  /* no gimbal fallthrough to normal */
 		case V3D_MANIP_NORMAL:
 			if (obedit || (ob && ob->mode & OB_MODE_POSE)) {
 				BLI_strncpy(t->spacename, IFACE_("normal"), sizeof(t->spacename));
 				ED_getTransformOrientationMatrix(C, t->spacemtx, t->around);
 				break;
 			}
-			/* fall-through */  /* we define 'normal' as 'local' in Object mode */
+			ATTR_FALLTHROUGH;  /* we define 'normal' as 'local' in Object mode */
 		case V3D_MANIP_LOCAL:
 			BLI_strncpy(t->spacename, IFACE_("local"), sizeof(t->spacename));
 		
@@ -743,10 +743,19 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 							SWAP(BMVert *, v_pair[0], v_pair[1]);
 						}
 
-						add_v3_v3v3(normal, v_pair[0]->no, v_pair[1]->no);
-						sub_v3_v3v3(plane, v_pair[0]->co, v_pair[1]->co);
-						/* flip the plane normal so we point outwards */
-						negate_v3(plane);
+						add_v3_v3v3(normal, v_pair[1]->no, v_pair[0]->no);
+						sub_v3_v3v3(plane, v_pair[1]->co, v_pair[0]->co);
+
+						if (normalize_v3(plane) != 0.0f) {
+							/* For edges it'd important the resulting matrix can rotate around the edge,
+							 * project onto the plane so we can use a fallback value. */
+							project_plane_normalized_v3_v3v3(normal, normal, plane);
+							if (UNLIKELY(normalize_v3(normal) == 0.0f)) {
+								/* in the case the normal and plane are aligned,
+								 * use a fallback normal which is orthogonal to the plane. */
+								ortho_v3_v3(normal, plane);
+							}
+						}
 					}
 
 					result = ORIENTATION_EDGE;
@@ -817,14 +826,20 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 		else if (ELEM(obedit->type, OB_CURVE, OB_SURF)) {
 			Curve *cu = obedit->data;
 			Nurb *nu = NULL;
-			BezTriple *bezt = NULL;
 			int a;
 			ListBase *nurbs = BKE_curve_editNurbs_get(cu);
 
-			if (activeOnly && BKE_curve_nurb_vert_active_get(cu, &nu, (void *)&bezt)) {
+			void *vert_act = NULL;
+			if (activeOnly && BKE_curve_nurb_vert_active_get(cu, &nu, &vert_act)) {
 				if (nu->type == CU_BEZIER) {
+					BezTriple *bezt = vert_act;
 					BKE_nurb_bezt_calc_normal(nu, bezt, normal);
 					BKE_nurb_bezt_calc_plane(nu, bezt, plane);
+				}
+				else {
+					BPoint *bp = vert_act;
+					BKE_nurb_bpoint_calc_normal(nu, bp, normal);
+					BKE_nurb_bpoint_calc_plane(nu, bp, plane);
 				}
 			}
 			else {
@@ -833,7 +848,7 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 				for (nu = nurbs->first; nu; nu = nu->next) {
 					/* only bezier has a normal */
 					if (nu->type == CU_BEZIER) {
-						bezt = nu->bezt;
+						BezTriple *bezt = nu->bezt;
 						a = nu->pntsu;
 						while (a--) {
 							short flag = 0;
@@ -883,6 +898,36 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 #undef SEL_F3
 
 							bezt++;
+						}
+					}
+					else if (nu->bp && (nu->pntsv == 1)) {
+						BPoint *bp = nu->bp;
+						a = nu->pntsu;
+						while (a--) {
+							if (bp->f1 & SELECT) {
+								float tvec[3];
+
+								BPoint *bp_prev = BKE_nurb_bpoint_get_prev(nu, bp);
+								BPoint *bp_next = BKE_nurb_bpoint_get_next(nu, bp);
+
+								const bool is_prev_sel = bp_prev && (bp_prev->f1 & SELECT);
+								const bool is_next_sel = bp_next && (bp_next->f1 & SELECT);
+								if (is_prev_sel == false && is_next_sel == false) {
+									/* Isolated, add based on surrounding */
+									BKE_nurb_bpoint_calc_normal(nu, bp, tvec);
+									add_v3_v3(normal, tvec);
+								}
+								else if (is_next_sel) {
+									/* A segment, add the edge normal */
+									sub_v3_v3v3(tvec, bp->vec, bp_next->vec);
+									normalize_v3(tvec);
+									add_v3_v3(normal, tvec);
+								}
+
+								BKE_nurb_bpoint_calc_plane(nu, bp, tvec);
+								add_v3_v3(plane, tvec);
+							}
+							bp++;
 						}
 					}
 				}

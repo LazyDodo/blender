@@ -63,8 +63,6 @@ void		wm_window_swap_buffers	(wmWindow *win);
 void		wm_window_set_swap_interval(wmWindow *win, int interval);
 bool		wm_window_get_swap_interval(wmWindow *win, int *intervalOut);
 
-float		wm_window_pixelsize(wmWindow *win);
-
 void		wm_get_cursor_position			(wmWindow *win, int *x, int *y);
 void		wm_cursor_position_from_ghost	(wmWindow *win, int *x, int *y);
 void		wm_cursor_position_to_ghost		(wmWindow *win, int *x, int *y);
@@ -80,6 +78,7 @@ void		wm_window_IME_end	(wmWindow *win);
 int			wm_window_close_exec(bContext *C, struct wmOperator *op);
 int			wm_window_duplicate_exec(bContext *C, struct wmOperator *op);
 int			wm_window_fullscreen_toggle_exec(bContext *C, struct wmOperator *op);
+void		wm_quit_with_optional_confirmation_prompt(bContext *C, wmWindow *win) ATTR_NONNULL();
 
 /* Initial (unmaximized) size to start with for
  * systems that can't find it for themselves (X11).

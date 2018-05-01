@@ -34,15 +34,16 @@
 #include <cstring>  /* required for memset */
 #include <queue>
 
-extern "C" {
 #include "BLI_utildefines.h"
+#include "BLI_task.h"
+#include "BLI_listbase.h"
 
+extern "C" {
 #include "DNA_object_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_windowmanager_types.h"
 
-#include "BLI_task.h"
 
 #include "BKE_idcode.h"
 #include "BKE_library.h"
@@ -52,14 +53,15 @@ extern "C" {
 #define new new_
 #include "BKE_screen.h"
 #undef new
-
-#include "DEG_depsgraph.h"
 } /* extern "C" */
 
-#include "intern/eval/deg_eval_flush.h"
+#include "DEG_depsgraph.h"
 
+#include "intern/builder/deg_builder.h"
+#include "intern/eval/deg_eval_flush.h"
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_component.h"
+#include "intern/nodes/deg_node_id.h"
 #include "intern/nodes/deg_node_operation.h"
 
 #include "intern/depsgraph_intern.h"
@@ -82,13 +84,13 @@ namespace {
 
 void lib_id_recalc_tag(Main *bmain, ID *id)
 {
-	id->tag |= LIB_TAG_ID_RECALC;
+	id->recalc |= ID_RECALC;
 	DEG_id_type_tag(bmain, GS(id->name));
 }
 
 void lib_id_recalc_data_tag(Main *bmain, ID *id)
 {
-	id->tag |= LIB_TAG_ID_RECALC_DATA;
+	id->recalc |= ID_RECALC_DATA;
 	DEG_id_type_tag(bmain, GS(id->name));
 }
 
@@ -108,7 +110,7 @@ void lib_id_recalc_tag_flag(Main *bmain, ID *id, int flag)
 		 * nodes for update after relations update and after layer
 		 * visibility changes.
 		 */
-		short idtype = GS(id->name);
+		ID_Type idtype = GS(id->name);
 		if (idtype == ID_OB) {
 			Object *object = (Object *)id;
 			object->recalc |= (flag & OB_RECALC_ALL);
@@ -166,36 +168,6 @@ void DEG_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id)
 	}
 }
 
-/* Tag nodes related to a specific piece of data */
-void DEG_graph_data_tag_update(Depsgraph *graph, const PointerRNA *ptr)
-{
-	DEG::Depsgraph *deg_graph = reinterpret_cast<DEG::Depsgraph *>(graph);
-	DEG::DepsNode *node = deg_graph->find_node_from_pointer(ptr, NULL);
-	if (node != NULL) {
-		node->tag_update(deg_graph);
-	}
-	else {
-		printf("Missing node in %s\n", __func__);
-		BLI_assert(!"Shouldn't happens since it'll miss crucial update.");
-	}
-}
-
-/* Tag nodes related to a specific property. */
-void DEG_graph_property_tag_update(Depsgraph *graph,
-                                   const PointerRNA *ptr,
-                                   const PropertyRNA *prop)
-{
-	DEG::Depsgraph *deg_graph = reinterpret_cast<DEG::Depsgraph *>(graph);
-	DEG::DepsNode *node = deg_graph->find_node_from_pointer(ptr, prop);
-	if (node != NULL) {
-		node->tag_update(deg_graph);
-	}
-	else {
-		printf("Missing node in %s\n", __func__);
-		BLI_assert(!"Shouldn't happens since it'll miss crucial update.");
-	}
-}
-
 /* Tag given ID for an update in all the dependency graphs. */
 void DEG_id_tag_update(ID *id, short flag)
 {
@@ -208,7 +180,7 @@ void DEG_id_tag_update_ex(Main *bmain, ID *id, short flag)
 		/* Ideally should not happen, but old depsgraph allowed this. */
 		return;
 	}
-	DEG_DEBUG_PRINTF("%s: id=%s flag=%d\n", __func__, id->name, flag);
+	DEG_DEBUG_PRINTF(TAG, "%s: id=%s flag=%d\n", __func__, id->name, flag);
 	lib_id_recalc_tag_flag(bmain, id, flag);
 	for (Scene *scene = (Scene *)bmain->scene.first;
 	     scene != NULL;
@@ -250,7 +222,7 @@ void DEG_id_tag_update_ex(Main *bmain, ID *id, short flag)
 #endif
 }
 
-/* Tag given ID type for update. */
+/* Mark a particular datablock type as having changing. */
 void DEG_id_type_tag(Main *bmain, short idtype)
 {
 	if (idtype == ID_NT) {
@@ -276,13 +248,18 @@ void DEG_ids_flush_tagged(Main *bmain)
 	     scene != NULL;
 	     scene = (Scene *)scene->id.next)
 	{
-		/* TODO(sergey): Only visible scenes? */
-		if (scene->depsgraph != NULL) {
-			DEG::deg_graph_flush_updates(
-			        bmain,
-			        reinterpret_cast<DEG::Depsgraph *>(scene->depsgraph));
-		}
+		DEG_scene_flush_update(bmain, scene);
 	}
+}
+
+void DEG_scene_flush_update(Main *bmain, Scene *scene)
+{
+	if (scene->depsgraph == NULL) {
+		return;
+	}
+	DEG::deg_graph_flush_updates(
+	        bmain,
+	        reinterpret_cast<DEG::Depsgraph *>(scene->depsgraph));
 }
 
 /* Update dependency graph when visible scenes/layers changes. */
@@ -316,10 +293,9 @@ void DEG_graph_on_visible_update(Main *bmain, Scene *scene)
 		 * This is mainly needed on file load only, after that updates of invisible objects
 		 * will be stored in the pending list.
 		 */
-		GHASH_FOREACH_BEGIN(DEG::IDDepsNode *, id_node, graph->id_hash)
-		{
+		foreach (DEG::IDDepsNode *id_node, graph->id_nodes) {
 			ID *id = id_node->id;
-			if ((id->tag & LIB_TAG_ID_RECALC_ALL) != 0 ||
+			if ((id->recalc & ID_RECALC_ALL) != 0 ||
 			    (id_node->layers & scene->lay_updated) == 0)
 			{
 				id_node->tag_update(graph);
@@ -331,21 +307,51 @@ void DEG_graph_on_visible_update(Main *bmain, Scene *scene)
 			 */
 			if (GS(id->name) == ID_OB) {
 				Object *object = (Object *)id;
-				if ((id->tag & LIB_TAG_ID_RECALC_ALL) == 0 &&
+				if ((id->recalc & ID_RECALC_ALL) == 0 &&
 				    (object->recalc & OB_RECALC_ALL) != 0)
 				{
 					id_node->tag_update(graph);
 					DEG::ComponentDepsNode *anim_comp =
-					        id_node->find_component(DEG::DEPSNODE_TYPE_ANIMATION);
+					        id_node->find_component(DEG::DEG_NODE_TYPE_ANIMATION);
 					if (anim_comp != NULL && object->recalc & OB_RECALC_TIME) {
 						anim_comp->tag_update(graph);
 					}
 				}
 			}
 		}
-		GHASH_FOREACH_END();
 	}
 	scene->lay_updated |= graph->layers;
+	/* If graph is tagged for update, we don't need to bother with updates here,
+	 * nodes will be re-created.
+	 */
+	if (graph->need_update) {
+		return;
+	}
+	/* Special trick to get local view to work.  */
+	LISTBASE_FOREACH (Base *, base, &scene->base) {
+		Object *object = base->object;
+		DEG::IDDepsNode *id_node = graph->find_id_node(&object->id);
+		id_node->layers = 0;
+	}
+	LISTBASE_FOREACH (Base *, base, &scene->base) {
+		Object *object = base->object;
+		DEG::IDDepsNode *id_node = graph->find_id_node(&object->id);
+		id_node->layers |= base->lay;
+		if (object == scene->camera || object->type == OB_CAMERA) {
+			/* Camera should always be updated, it used directly by viewport. */
+			id_node->layers |= (unsigned int)(-1);
+		}
+	}
+	DEG::deg_graph_build_flush_layers(graph);
+	LISTBASE_FOREACH (Base *, base, &scene->base) {
+		Object *object = base->object;
+		DEG::IDDepsNode *id_node = graph->find_id_node(&object->id);
+		GHASH_FOREACH_BEGIN(DEG::ComponentDepsNode *, comp, id_node->components)
+		{
+			id_node->layers |= comp->layers;
+		}
+		GHASH_FOREACH_END();
+	}
 }
 
 void DEG_on_visible_update(Main *bmain, const bool UNUSED(do_time))
@@ -402,12 +408,12 @@ void DEG_ids_clear_recalc(Main *bmain)
 
 		if (id && bmain->id_tag_update[BKE_idcode_to_index(GS(id->name))]) {
 			for (; id; id = (ID *)id->next) {
-				id->tag &= ~(LIB_TAG_ID_RECALC | LIB_TAG_ID_RECALC_DATA);
+				id->recalc &= ~ID_RECALC_ALL;
 
 				/* Some ID's contain semi-datablock nodetree */
 				ntree = ntreeFromID(id);
 				if (ntree != NULL) {
-					ntree->id.tag &= ~(LIB_TAG_ID_RECALC | LIB_TAG_ID_RECALC_DATA);
+					ntree->id.recalc &= ~ID_RECALC_ALL;
 				}
 			}
 		}

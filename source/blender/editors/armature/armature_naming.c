@@ -73,11 +73,11 @@
 static bool editbone_unique_check(void *arg, const char *name)
 {
 	struct {ListBase *lb; void *bone; } *data = arg;
-	EditBone *dupli = ED_armature_bone_find_name(data->lb, name);
+	EditBone *dupli = ED_armature_ebone_find_name(data->lb, name);
 	return dupli && dupli != data->bone;
 }
 
-void unique_editbone_name(ListBase *edbo, char *name, EditBone *bone)
+void ED_armature_ebone_unique_name(ListBase *edbo, char *name, EditBone *bone)
 {
 	struct {ListBase *lb; void *bone; } data;
 	data.lb = edbo;
@@ -152,10 +152,10 @@ void ED_armature_bone_rename(bArmature *arm, const char *oldnamep, const char *n
 		
 		/* now check if we're in editmode, we need to find the unique name */
 		if (arm->edbo) {
-			EditBone *eBone = ED_armature_bone_find_name(arm->edbo, oldname);
+			EditBone *eBone = ED_armature_ebone_find_name(arm->edbo, oldname);
 			
 			if (eBone) {
-				unique_editbone_name(arm->edbo, newname, NULL);
+				ED_armature_ebone_unique_name(arm->edbo, newname, NULL);
 				BLI_strncpy(eBone->name, newname, MAXBONENAME);
 			}
 			else {
@@ -311,10 +311,11 @@ typedef struct BoneFlipNameData {
  * This way if we are flipping related bones (e.g., Bone.L, Bone.R) at the same time
  * all the bones are safely renamed, without conflicting with each other.
  *
- * \param arm Armature the bones belong to
- * \param bones ListBase of BoneConflict elems, populated via ED_armature_bones_flip_names_add
+ * \param arm: Armature the bones belong to
+ * \param bones_names: List of BoneConflict elems.
+ * \param do_strip_numbers: if set, try to get rid of dot-numbers at end of bone names.
  */
-void ED_armature_bones_flip_names(bArmature *arm, ListBase *bones_names)
+void ED_armature_bones_flip_names(bArmature *arm, ListBase *bones_names, const bool do_strip_numbers)
 {
 	ListBase bones_names_conflicts = {NULL};
 	BoneFlipNameData *bfn;
@@ -326,9 +327,9 @@ void ED_armature_bones_flip_names(bArmature *arm, ListBase *bones_names)
 		char name_flip[MAXBONENAME];
 		char *name = link->data;
 
-		/* Do not strip numbers, otherwise we'll end up with completely mismatched names in cases like
+		/* WARNING: if do_strip_numbers is set, expect completely mismatched names in cases like
 		 * Bone.R, Bone.R.001, Bone.R.002, etc. */
-		BLI_string_flip_side_name(name_flip, name, false, sizeof(name_flip));
+		BLI_string_flip_side_name(name_flip, name, do_strip_numbers, sizeof(name_flip));
 
 		ED_armature_bone_rename(arm, name, name_flip);
 
@@ -351,7 +352,7 @@ void ED_armature_bones_flip_names(bArmature *arm, ListBase *bones_names)
 /* ************************************************** */
 /* Bone Renaming - EditMode */
 
-static int armature_flip_names_exec(bContext *C, wmOperator *UNUSED(op))
+static int armature_flip_names_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = CTX_data_edit_object(C);
 	bArmature *arm;
@@ -360,9 +361,11 @@ static int armature_flip_names_exec(bContext *C, wmOperator *UNUSED(op))
 	if (ELEM(NULL, ob, ob->pose))
 		return OPERATOR_CANCELLED;
 
+	const bool do_strip_numbers = RNA_boolean_get(op->ptr, "do_strip_numbers");
+
 	arm = ob->data;
 
-	ListBase bones_names= {NULL};
+	ListBase bones_names = {NULL};
 
 	CTX_DATA_BEGIN(C, EditBone *, ebone, selected_editable_bones)
 	{
@@ -370,7 +373,7 @@ static int armature_flip_names_exec(bContext *C, wmOperator *UNUSED(op))
 	}
 	CTX_DATA_END;
 
-	ED_armature_bones_flip_names(arm, &bones_names);
+	ED_armature_bones_flip_names(arm, &bones_names, do_strip_numbers);
 
 	BLI_freelistN(&bones_names);
 	
@@ -400,6 +403,10 @@ void ARMATURE_OT_flip_names(wmOperatorType *ot)
 	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	RNA_def_boolean(ot->srna, "do_strip_numbers", false, "Strip Numbers",
+	                "Try to remove right-most dot-number from flipped names "
+	                "(WARNING: may result in incoherent naming in some cases)");
 }
 
 
@@ -435,7 +442,7 @@ static int armature_autoside_names_exec(bContext *C, wmOperator *op)
 
 void ARMATURE_OT_autoside_names(wmOperatorType *ot)
 {
-	static EnumPropertyItem axis_items[] = {
+	static const EnumPropertyItem axis_items[] = {
 		{0, "XAXIS", 0, "X-Axis", "Left/Right"},
 		{1, "YAXIS", 0, "Y-Axis", "Front/Back"},
 		{2, "ZAXIS", 0, "Z-Axis", "Top/Bottom"},

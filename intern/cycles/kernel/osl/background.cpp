@@ -34,10 +34,11 @@
 
 #include <OSL/genclosure.h>
 
-#include "osl_closures.h"
+#include "kernel/osl/osl_closures.h"
 
-#include "kernel_compat_cpu.h"
-#include "closure/alloc.h"
+#include "kernel/kernel_compat_cpu.h"
+#include "kernel/closure/alloc.h"
+#include "kernel/closure/emissive.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -53,7 +54,7 @@ class GenericBackgroundClosure : public CClosurePrimitive {
 public:
 	void setup(ShaderData *sd, int /* path_flag */, float3 weight)
 	{
-		closure_alloc(sd, sizeof(ShaderClosure), CLOSURE_BACKGROUND_ID, weight);
+		background_setup(sd, weight);
 	}
 };
 

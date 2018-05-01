@@ -39,6 +39,7 @@ set(INC
 	../nodes
 	../render/extern/include
 	../../gameengine/BlenderRoutines
+	../../../intern/clog
 	../../../intern/ghost
 	../../../intern/guardedalloc
 	../../../intern/glew-mx
@@ -60,12 +61,14 @@ set(SRC
 	intern/wm_files.c
 	intern/wm_files_link.c
 	intern/wm_gesture.c
+	intern/wm_gesture_ops.c
 	intern/wm_init_exit.c
 	intern/wm_jobs.c
 	intern/wm_keymap.c
 	intern/wm_operator_props.c
 	intern/wm_operators.c
 	intern/wm_subwindow.c
+	intern/wm_tooltip.c
 	intern/wm_window.c
 	intern/wm_stereo.c
 
@@ -100,16 +103,6 @@ if(WITH_OPENCOLLADA)
 	add_definitions(-DWITH_COLLADA)
 endif()
 
-if(WITH_CODEC_QUICKTIME)
-	list(APPEND INC
-		../quicktime
-	)
-	list(APPEND INC_SYS
-		${QUICKTIME_INCLUDE_DIRS}
-	)
-	add_definitions(-DWITH_QUICKTIME)
-endif()
-
 if(WITH_CODEC_FFMPEG)
 	list(APPEND INC_SYS
 		${FFMPEG_INCLUDE_DIRS}
@@ -128,10 +121,6 @@ if(WITH_PYTHON)
 		../python
 	)
 	add_definitions(-DWITH_PYTHON)
-
-	if(WITH_PYTHON_SECURITY)
-		add_definitions(-DWITH_PYTHON_SECURITY)
-	endif()
 endif()
 
 if(WITH_GAMEENGINE)

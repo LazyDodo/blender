@@ -132,8 +132,9 @@ void ED_pose_bone_select(Object *ob, bPoseChannel *pchan, bool select)
 
 /* called from editview.c, for mode-less pose selection */
 /* assumes scene obact and basact is still on old situation */
-int ED_do_pose_selectbuffer(Scene *scene, Base *base, unsigned int *buffer, short hits,
-                            bool extend, bool deselect, bool toggle, bool do_nearest)
+bool ED_armature_pose_select_pick_with_buffer(
+        Scene *scene, Base *base, const unsigned int *buffer, short hits,
+        bool extend, bool deselect, bool toggle, bool do_nearest)
 {
 	Object *ob = base->object;
 	Bone *nearBone;
@@ -154,7 +155,7 @@ int ED_do_pose_selectbuffer(Scene *scene, Base *base, unsigned int *buffer, shor
 		 * always give predictable behavior in weight paint mode - campbell */
 		if ((ob_act == NULL) || ((ob_act != ob) && (ob_act->mode & OB_MODE_WEIGHT_PAINT) == 0)) {
 			/* when we are entering into posemode via toggle-select,
-			 * frop another active object - always select the bone. */
+			 * from another active object - always select the bone. */
 			if (!extend && !deselect && toggle) {
 				/* re-select below */
 				nearBone->flag &= ~BONE_SELECTED;
@@ -162,7 +163,7 @@ int ED_do_pose_selectbuffer(Scene *scene, Base *base, unsigned int *buffer, shor
 		}
 
 		if (!extend && !deselect && !toggle) {
-			ED_pose_de_selectall(ob, SEL_DESELECT, true);
+			ED_pose_deselect_all(ob, SEL_DESELECT, true);
 			nearBone->flag |= (BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL);
 			arm->act_bone = nearBone;
 		}
@@ -216,7 +217,7 @@ int ED_do_pose_selectbuffer(Scene *scene, Base *base, unsigned int *buffer, shor
 
 /* 'select_mode' is usual SEL_SELECT/SEL_DESELECT/SEL_TOGGLE/SEL_INVERT.
  * When true, 'ignore_visibility' makes this func also affect invisible bones (hidden or on hidden layers). */
-void ED_pose_de_selectall(Object *ob, int select_mode, const bool ignore_visibility)
+void ED_pose_deselect_all(Object *ob, int select_mode, const bool ignore_visibility)
 {
 	bArmature *arm = ob->data;
 	bPoseChannel *pchan;
@@ -226,7 +227,7 @@ void ED_pose_de_selectall(Object *ob, int select_mode, const bool ignore_visibil
 		return;
 	}
 	
-	/*	Determine if we're selecting or deselecting	*/
+	/* Determine if we're selecting or deselecting */
 	if (select_mode == SEL_TOGGLE) {
 		select_mode = SEL_SELECT;
 		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
@@ -280,12 +281,9 @@ static int pose_select_connected_invoke(bContext *C, wmOperator *op, const wmEve
 	const bool extend = RNA_boolean_get(op->ptr, "extend");
 
 	view3d_operator_needs_opengl(C);
-	
-	if (extend)
-		bone = get_nearest_bone(C, 0, event->mval[0], event->mval[1]);
-	else
-		bone = get_nearest_bone(C, 1, event->mval[0], event->mval[1]);
-	
+
+	bone = get_nearest_bone(C, event->mval, !extend);
+
 	if (!bone)
 		return OPERATOR_CANCELLED;
 	
@@ -593,7 +591,7 @@ static int pose_select_hierarchy_exec(bContext *C, wmOperator *op)
 
 void POSE_OT_select_hierarchy(wmOperatorType *ot)
 {
-	static EnumPropertyItem direction_items[] = {
+	static const EnumPropertyItem direction_items[] = {
 		{BONE_SELECT_PARENT, "PARENT", 0, "Select Parent", ""},
 		{BONE_SELECT_CHILD, "CHILD", 0, "Select Child", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -842,7 +840,7 @@ static int pose_select_grouped_exec(bContext *C, wmOperator *op)
 
 void POSE_OT_select_grouped(wmOperatorType *ot)
 {
-	static EnumPropertyItem prop_select_grouped_types[] = {
+	static const EnumPropertyItem prop_select_grouped_types[] = {
 		{POSE_SEL_SAME_LAYER, "LAYER", 0, "Layer", "Shared layers"},
 		{POSE_SEL_SAME_GROUP, "GROUP", 0, "Group", "Shared group"},
 		{POSE_SEL_SAME_KEYINGSET, "KEYINGSET", 0, "Keying Set", "All bones affected by active Keying Set"},

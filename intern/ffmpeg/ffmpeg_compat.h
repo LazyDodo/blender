@@ -48,6 +48,16 @@
 
 #include <libswscale/swscale.h>
 
+/* Stupid way to distinguish FFmpeg from Libav:
+ * - FFmpeg's MICRO version starts from 100 and goes up, while
+ * - Libav's micro is always below 100.
+ */
+#if LIBAVCODEC_VERSION_MICRO >= 100
+#  define AV_USING_FFMPEG
+#else
+#  define AV_USING_LIBAV
+#endif
+
 #if (LIBAVFORMAT_VERSION_MAJOR > 52) || ((LIBAVFORMAT_VERSION_MAJOR >= 52) && (LIBAVFORMAT_VERSION_MINOR >= 105))
 #  define FFMPEG_HAVE_AVIO 1
 #endif
@@ -350,7 +360,12 @@ int avcodec_decode_video2(AVCodecContext *avctx, AVFrame *picture,
 FFMPEG_INLINE
 int64_t av_get_pts_from_frame(AVFormatContext *avctx, AVFrame * picture)
 {
-	int64_t pts = picture->pkt_pts;
+	int64_t pts;
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(55, 34, 100)
+	pts = picture->pts;
+#else
+	pts = picture->pkt_pts;
+#endif
 
 	if (pts == AV_NOPTS_VALUE) {
 		pts = picture->pkt_dts;
@@ -423,18 +438,50 @@ void av_frame_free(AVFrame **frame)
 #endif
 
 FFMPEG_INLINE
-AVRational av_get_r_frame_rate_compat(const AVStream *stream)
+const char* av_get_metadata_key_value(AVDictionary *metadata, const char *key)
 {
-	/* Stupid way to distinguish FFmpeg from Libav. */
-#if LIBAVCODEC_VERSION_MICRO >= 100
-	return stream->r_frame_rate;
-#else
-#  if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(54, 23, 1)
+	if (metadata == NULL) {
+		return NULL;
+	}
+	AVDictionaryEntry *tag = NULL;
+	while ((tag = av_dict_get(metadata, "", tag, AV_DICT_IGNORE_SUFFIX))) {
+		if (!strcmp(tag->key, key)) {
+			return tag->value;
+		}
+	}
+	return NULL;
+}
+
+FFMPEG_INLINE
+bool av_check_encoded_with_ffmpeg(AVFormatContext *ctx)
+{
+	const char* encoder = av_get_metadata_key_value(ctx->metadata, "ENCODER");
+	if (encoder != NULL && !strncmp(encoder, "Lavf", 4)) {
+		return true;
+	}
+	return false;
+}
+
+FFMPEG_INLINE
+AVRational av_get_r_frame_rate_compat(AVFormatContext *ctx,
+                                      const AVStream *stream)
+{
+	/* If the video is encoded with FFmpeg and we are decoding with FFmpeg
+	 * as well it seems to be more reliable to use r_frame_rate (tbr).
+	 *
+	 * For other cases we fall back to avg_frame_rate (fps) when possible.
+	 */
+#ifdef AV_USING_FFMPEG
+	if (av_check_encoded_with_ffmpeg(ctx)) {
+		return stream->r_frame_rate;
+	}
+#endif
+
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(54, 23, 1)
 	/* For until r_frame_rate was deprecated use it. */
 	return stream->r_frame_rate;
-#  else
+#else
 	return stream->avg_frame_rate;
-#  endif
 #endif
 }
 

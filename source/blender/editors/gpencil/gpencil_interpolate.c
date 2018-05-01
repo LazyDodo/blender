@@ -77,7 +77,6 @@
 #include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
-#include "ED_screen.h"
 #include "ED_space_api.h"
 
 #include "gpencil_intern.h"
@@ -86,13 +85,14 @@
 /* Core/Shared Utilities */
 
 /* Poll callback for interpolation operators */
-static int gpencil_interpolate_poll(bContext *C)
+static int gpencil_view3d_poll(bContext *C)
 {
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
 	
 	/* only 3D view */
-	if (CTX_wm_area(C)->spacetype != SPACE_VIEW3D) {
+	ScrArea *sa = CTX_wm_area(C);
+	if (sa && sa->spacetype != SPACE_VIEW3D) {
 		return 0;
 	}
 	
@@ -117,8 +117,8 @@ static void gp_interpolate_update_points(bGPDstroke *gps_from, bGPDstroke *gps_t
 		
 		/* Interpolate all values */
 		interp_v3_v3v3(&pt->x, &prev->x, &next->x, factor);
-		pt->pressure = interpf(prev->pressure, next->pressure, factor);
-		pt->strength = interpf(prev->strength, next->strength, factor);
+		pt->pressure = interpf(prev->pressure, next->pressure, 1.0f - factor);
+		pt->strength = interpf(prev->strength, next->strength, 1.0f - factor);
 		CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 	}
 }
@@ -284,7 +284,9 @@ static void gp_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
 			new_stroke = MEM_dupallocN(gps_from);
 			new_stroke->points = MEM_dupallocN(gps_from->points);
 			new_stroke->triangles = MEM_dupallocN(gps_from->triangles);
-			
+			new_stroke->tot_triangles = 0;
+			new_stroke->flag |= GP_STROKE_RECALC_CACHES;
+
 			if (valid) {
 				/* if destination stroke is smaller, resize new_stroke to size of gps_to stroke */
 				if (gps_from->totpoints > gps_to->totpoints) {
@@ -302,6 +304,7 @@ static void gp_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
 				new_stroke->points = MEM_recallocN(new_stroke->points, sizeof(*new_stroke->points));
 				new_stroke->tot_triangles = 0;
 				new_stroke->triangles = MEM_recallocN(new_stroke->triangles, sizeof(*new_stroke->triangles));
+				new_stroke->flag |= GP_STROKE_RECALC_CACHES;
 			}
 			
 			/* add to strokes */
@@ -625,6 +628,7 @@ static int gpencil_interpolate_modal(bContext *C, wmOperator *op, const wmEvent 
 			break;
 		}
 		default:
+		{
 			if ((event->val == KM_PRESS) && handleNumInput(C, &tgpi->num, event)) {
 				const float factor = tgpi->init_factor;
 				float value;
@@ -649,6 +653,7 @@ static int gpencil_interpolate_modal(bContext *C, wmOperator *op, const wmEvent 
 				/* unhandled event - allow to pass through */
 				return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
 			}
+		}
 	}
 	
 	/* still running... */
@@ -673,7 +678,7 @@ void GPENCIL_OT_interpolate(wmOperatorType *ot)
 	ot->invoke = gpencil_interpolate_invoke;
 	ot->modal = gpencil_interpolate_modal;
 	ot->cancel = gpencil_interpolate_cancel;
-	ot->poll = gpencil_interpolate_poll;
+	ot->poll = gpencil_view3d_poll;
 	
 	/* flags */
 	ot->flag = OPTYPE_UNDO | OPTYPE_BLOCKING;
@@ -984,7 +989,9 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
 				new_stroke = MEM_dupallocN(gps_from);
 				new_stroke->points = MEM_dupallocN(gps_from->points);
 				new_stroke->triangles = MEM_dupallocN(gps_from->triangles);
-				
+				new_stroke->tot_triangles = 0;
+				new_stroke->flag |= GP_STROKE_RECALC_CACHES;
+
 				/* if destination stroke is smaller, resize new_stroke to size of gps_to stroke */
 				if (gps_from->totpoints > gps_to->totpoints) {
 					new_stroke->points = MEM_recallocN(new_stroke->points, sizeof(*new_stroke->points) * gps_to->totpoints);
@@ -1017,7 +1024,7 @@ void GPENCIL_OT_interpolate_sequence(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec = gpencil_interpolate_seq_exec;
-	ot->poll = gpencil_interpolate_poll;
+	ot->poll = gpencil_view3d_poll;
 	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -1025,24 +1032,14 @@ void GPENCIL_OT_interpolate_sequence(wmOperatorType *ot)
 
 /* ******************** Remove Breakdowns ************************ */
 
-/* Same as gpencil_interpolate_poll(), 
- * except we ALSO need to have an active frame that is a breakdown
- */
 static int gpencil_interpolate_reverse_poll(bContext *C)
 {
-	bGPdata *gpd = CTX_data_gpencil_data(C);
+	if (!gpencil_view3d_poll(C)) {
+		return 0;
+	}
+
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
-	
-	/* only 3D view */
-	if (CTX_wm_area(C)->spacetype != SPACE_VIEW3D) {
-		return 0;
-	}
-	
-	/* need data to interpolate */
-	if (ELEM(NULL, gpd, gpl)) {
-		return 0;
-	}
-	
+
 	/* need to be on a breakdown frame */
 	if ((gpl->actframe == NULL) || (gpl->actframe->key_type != BEZT_KEYTYPE_BREAKDOWN)) {
 		CTX_wm_operator_poll_msg_set(C, "Expected current frame to be a breakdown");

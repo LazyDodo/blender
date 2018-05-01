@@ -166,7 +166,7 @@ struct ImBuf *IMB_makeSingleUser(struct ImBuf *ibuf);
  *
  * \attention Defined in allocimbuf.c
  */
-struct ImBuf *IMB_dupImBuf(struct ImBuf *ibuf1);
+struct ImBuf *IMB_dupImBuf(const struct ImBuf *ibuf1);
 
 /**
  *
@@ -205,6 +205,7 @@ typedef enum IMB_BlendMode {
 	IMB_BLEND_SATURATION = 21,
 	IMB_BLEND_LUMINOSITY = 22,
 	IMB_BLEND_COLOR	= 23,
+	IMB_BLEND_INTERPOLATE = 24,
 
 	IMB_BLEND_COPY = 1000,
 	IMB_BLEND_COPY_RGB = 1001,
@@ -379,13 +380,13 @@ struct ImBuf *IMB_onehalf(struct ImBuf *ibuf1);
  *
  * \attention Defined in scaling.c
  */
-struct ImBuf *IMB_scaleImBuf(struct ImBuf *ibuf, unsigned int newx, unsigned int newy);
+bool IMB_scaleImBuf(struct ImBuf *ibuf, unsigned int newx, unsigned int newy);
 
 /**
  *
  * \attention Defined in scaling.c
  */
-struct ImBuf *IMB_scalefastImBuf(struct ImBuf *ibuf, unsigned int newx, unsigned int newy);
+bool IMB_scalefastImBuf(struct ImBuf *ibuf, unsigned int newx, unsigned int newy);
 
 /**
  *
@@ -398,7 +399,7 @@ void IMB_scaleImBuf_threaded(struct ImBuf *ibuf, unsigned int newx, unsigned int
  * \attention Defined in writeimage.c
  */
 short IMB_saveiff(struct ImBuf *ibuf, const char *filepath, int flags);
-struct ImBuf *IMB_prepare_write_ImBuf(const bool isfloat, struct ImBuf *ibuf);
+bool IMB_prepare_write_ImBuf(const bool isfloat, struct ImBuf *ibuf);
 
 /**
  *
@@ -565,23 +566,13 @@ void buf_rectfill_area(unsigned char *rect, float *rectf, int width, int height,
                        const float col[4], struct ColorManagedDisplay *display,
                        int x1, int y1, int x2, int y2);
 
-/**
- *
- * \attention Defined in metadata.c
- */
-/** read the field from the image info into the field 
- *  \param img - the ImBuf that contains the image data
- *  \param key - the key of the field
- *  \param value - the data in the field, first one found with key is returned, 
- *                 memory has to be allocated by user.
- *  \param len - length of value buffer allocated by user.
- *  \return    - 1 (true) if ImageInfo present and value for the key found, 0 (false) otherwise
- */
-bool IMB_metadata_get_field(struct ImBuf *img, const char *key, char *value, const size_t len);
-bool IMB_metadata_change_field(struct ImBuf *img, const char *key, const char *field);
-void IMB_metadata_copy(struct ImBuf *dimb, struct ImBuf *simb);
-
 /* exported for image tools in blender, to quickly allocate 32 bits rect */
+void *imb_alloc_pixels(unsigned int x,
+                       unsigned int y,
+                       unsigned int channels,
+                       size_t typesize,
+                       const char *name);
+
 bool imb_addrectImBuf(struct ImBuf *ibuf);
 void imb_freerectImBuf(struct ImBuf *ibuf);
 
