@@ -1165,7 +1165,7 @@ DerivedMesh *mesh_create_derived_for_modifier(
 		int numVerts;
 		/* Always get the vertex coordinates from the original mesh. Otherwise
 		 * there is the risk of deforming already-deformed coordinates. */
-		Mesh *mesh_orig_id = (me->id.tag & LIB_TAG_COPY_ON_WRITE) ? (Mesh *)me->id.orig_id : me;
+		Mesh *mesh_orig_id = (Mesh *)DEG_get_original_id(&me->id);
 		float (*deformedVerts)[3] = BKE_mesh_vertexCos_get(mesh_orig_id, &numVerts);
 
 		modwrap_deformVerts(md, &mectx, NULL, deformedVerts, numVerts);
@@ -1754,7 +1754,7 @@ static void mesh_calc_modifiers(
 	Mesh *me = ob->data;
 	/* Always get the vertex coordinates from the original mesh. Otherwise
 	 * there is the risk of deforming already-deformed coordinates. */
-	Mesh *mesh_orig_id = (me->id.tag & LIB_TAG_COPY_ON_WRITE) ? (Mesh *)me->id.orig_id : me;
+	Mesh *mesh_orig_id = (Mesh *)DEG_get_original_id(&me->id);
 	ModifierData *firstmd, *md, *previewmd = NULL;
 	CDMaskLink *datamasks, *curr;
 	/* XXX Always copying POLYINDEX, else tessellated data are no more valid! */
