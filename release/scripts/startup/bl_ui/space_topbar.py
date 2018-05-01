@@ -145,15 +145,17 @@ class TOPBAR_HT_lower_bar(Header):
             draw_fn(context, layout)
 
         if mode == 'SCULPT':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".dummy", category="")
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".sculpt_mode", category="")
         elif mode == 'PAINT_VERTEX':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".dummy", category="")
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
             layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".vertexpaint", category="")
         elif mode == 'PAINT_WEIGHT':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context="", category="")
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
             layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".weightpaint", category="")
         elif mode == 'PAINT_TEXTURE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context="", category="")
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".imagepaint", category="")
 
         elif mode == 'EDIT_ARMATURE':
             layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".armature_edit", category="")
@@ -192,6 +194,17 @@ class _draw_left_context_mode:
         UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
         UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
         layout.prop(brush, "direction", text="", expand=True)
+
+    def PAINT_TEXTURE(context, layout):
+        brush = context.tool_settings.vertex_paint.brush
+        if brush is None:
+            return
+
+        from .properties_paint_common import UnifiedPaintPanel
+
+        layout.prop(brush, "color", text="")
+        UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
+        UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
     def PAINT_VERTEX(context, layout):
         brush = context.tool_settings.vertex_paint.brush

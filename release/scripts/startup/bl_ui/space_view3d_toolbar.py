@@ -197,6 +197,7 @@ class View3DPaintPanel(UnifiedPaintPanel):
 
 class VIEW3D_PT_imapaint_tools_missing(Panel, View3DPaintPanel):
     bl_category = "Tools"
+    bl_context = ".imagepaint" # dot on purpose (access from topbar)
     bl_label = "Missing Data"
 
     @classmethod
@@ -258,7 +259,7 @@ class VIEW3D_PT_imapaint_tools_missing(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_brush(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Brush"
 
     @classmethod
@@ -530,7 +531,7 @@ class VIEW3D_MT_tools_projectpaint_uvlayer(Menu):
 
 
 class VIEW3D_PT_slots_projectpaint(View3DPanel, Panel):
-    bl_context = "imagepaint"
+    bl_context = ".imagepaint" # dot on purpose (access from topbar)
     bl_label = "Slots"
     bl_category = "Slots"
 
@@ -591,7 +592,7 @@ class VIEW3D_PT_slots_projectpaint(View3DPanel, Panel):
 
 
 class VIEW3D_PT_stencil_projectpaint(View3DPanel, Panel):
-    bl_context = "imagepaint"
+    bl_context = ".imagepaint" # dot on purpose (access from topbar)
     bl_label = "Mask"
     bl_category = "Slots"
 
@@ -633,7 +634,7 @@ class VIEW3D_PT_stencil_projectpaint(View3DPanel, Panel):
 
 class VIEW3D_PT_tools_brush_overlay(Panel, View3DPaintPanel):
     bl_category = "Options"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Overlay"
 
     @classmethod
@@ -700,7 +701,7 @@ class VIEW3D_PT_tools_brush_overlay(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_brush_texture(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Texture"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -725,7 +726,7 @@ class VIEW3D_PT_tools_brush_texture(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_mask_texture(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = "imagepaint"
+    bl_context = ".imagepaint" # dot on purpose (access from topbar)
     bl_label = "Texture Mask"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -748,7 +749,7 @@ class VIEW3D_PT_tools_mask_texture(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_brush_stroke(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Stroke"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -847,7 +848,7 @@ class VIEW3D_PT_tools_brush_stroke(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_brush_curve(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Curve"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -877,7 +878,7 @@ class VIEW3D_PT_tools_brush_curve(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_sculpt_dyntopo(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".sculpt_mode"  # dot on purpose (access from topbar)
     bl_label = "Dyntopo"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -928,7 +929,7 @@ class VIEW3D_PT_sculpt_dyntopo(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_sculpt_options(Panel, View3DPaintPanel):
     bl_category = "Options"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".sculpt_mode"  # dot on purpose (access from topbar)
     bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -962,7 +963,7 @@ class VIEW3D_PT_sculpt_options(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_sculpt_symmetry(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".sculpt_mode"  # dot on purpose (access from topbar)
     bl_label = "Symmetry/Lock"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -1004,7 +1005,7 @@ class VIEW3D_PT_sculpt_symmetry(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_brush_appearance(Panel, View3DPaintPanel):
     bl_category = "Options"
-    bl_context = ".dummy"  # dot on purpose (access from topbar)
+    bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Appearance"
 
     @classmethod
@@ -1126,7 +1127,7 @@ class VIEW3D_PT_tools_vertexpaint_symmetry(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_imagepaint_external(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = "imagepaint"
+    bl_context = ".imagepaint" # dot on purpose (access from topbar)
     bl_label = "External"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -1148,7 +1149,7 @@ class VIEW3D_PT_tools_imagepaint_external(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_imagepaint_symmetry(Panel, View3DPaintPanel):
     bl_category = "Tools"
-    bl_context = "imagepaint"
+    bl_context = ".imagepaint" # dot on purpose (access from topbar)
     bl_label = "Symmetry"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -1167,7 +1168,7 @@ class VIEW3D_PT_tools_imagepaint_symmetry(Panel, View3DPaintPanel):
 
 class VIEW3D_PT_tools_projectpaint(View3DPaintPanel, Panel):
     bl_category = "Options"
-    bl_context = "imagepaint"
+    bl_context = ".imagepaint" # dot on purpose (access from topbar)
     bl_label = "Project Paint"
 
     @classmethod
