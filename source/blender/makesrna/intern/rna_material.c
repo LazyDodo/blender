@@ -259,7 +259,7 @@ static void rna_gpcolordata_uv_update(Main *bmain, Scene *scene, PointerRNA *ptr
 	rna_Material_update(bmain, scene, ptr);
 }
 
-static char *rna_GpencilColorData_path(PointerRNA *ptr)
+static char *rna_GpencilColorData_path(PointerRNA *UNUSED(ptr))
 {
 	return BLI_sprintfN("grease_pencil");
 }
