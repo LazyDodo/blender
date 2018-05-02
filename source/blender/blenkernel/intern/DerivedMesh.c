@@ -2535,7 +2535,6 @@ static void editbmesh_calc_modifiers(
 			mesh->emd->vertexCos = MEM_dupallocN(deformedVerts);
 		}
 		*r_final = getEditDerivedBMesh(em, ob, dataMask, deformedVerts);
-
 		deformedVerts = NULL;
 
 		/* In this case, we should never have weight-modifying modifiers in stack... */

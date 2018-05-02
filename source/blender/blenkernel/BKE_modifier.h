@@ -212,7 +212,7 @@ typedef struct ModifierTypeInfo {
 
 	/* Like applyModifier but called during editmode (for supporting
 	 * modifiers).
-	 *
+	 * 
 	 * The derived object that is returned must support the operations that
 	 * are expected from editmode objects. The same qualifications regarding
 	 * derivedData apply as for applyModifier.
