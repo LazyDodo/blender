@@ -42,17 +42,26 @@ class VIEW3D_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
+        mode = 'OBJECT' if obj is None else obj.mode
+        act_mode_item = bpy.types.Object.bl_rna.properties['mode'].enum_items[mode]
+        layout.operator_menu_enum("object.mode_set", "mode", text=act_mode_item.name, icon=act_mode_item.icon)
+        del act_mode_item
+
+        layout.template_header_3D_mode()
+
         VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
 
         # Contains buttons like Mode, Pivot, Manipulator, Layer, Mesh Select Mode...
         row = layout
-        row.popover(space_type='VIEW_3D', region_type='UI', panel_type="VIEW3D_PT_shading", text="Shading")
-        row.popover(space_type='VIEW_3D', region_type='UI', panel_type="VIEW3D_PT_overlay", text="Overlay")
+        row.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_shading", text="Shading")
+        row.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_overlay", text="Overlay")
 
         layout.template_header_3D()
 
         if obj:
-            mode = obj.mode
+            # Set above:
+            # mode = obj.mode
+
             # Particle edit
             if mode == 'PARTICLE_EDIT':
                 row.prop(toolsettings.particle_edit, "select_mode", text="", expand=True)
@@ -3519,12 +3528,12 @@ class VIEW3D_PT_view3d_name(Panel):
 
 class VIEW3D_PT_shading(Panel):
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
+    bl_region_type = 'HEADER'
     bl_label = "Shading"
 
     @classmethod
     def poll(cls, context):
-        return False
+        return True
 
     def draw(self, context):
         layout = self.layout
@@ -3540,7 +3549,7 @@ class VIEW3D_PT_shading(Panel):
             col.row().prop(shading, "light", expand=True)
 
             col.separator()
-            col.prop(shading, "show_random_object_colors")
+            col.row().prop(shading, "single_color_mode", expand=True)
             col.prop(shading, "show_object_overlap")
             col.prop(shading, "show_shadows")
 
@@ -3572,12 +3581,12 @@ class VIEW3D_PT_shading(Panel):
 
 class VIEW3D_PT_overlay(Panel):
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
+    bl_region_type = 'HEADER'
     bl_label = "Overlay"
 
     @classmethod
     def poll(cls, context):
-        return False
+        return True
 
     def draw(self, context):
         layout = self.layout
@@ -3592,6 +3601,14 @@ class VIEW3D_PT_overlay(Panel):
         col.separator()
 
         col.prop(view, "show_world")
+
+        if context.mode in {'PAINT_WEIGHT', 'PAINT_VERTEX'}:
+            engine_type = {
+                'PAINT_WEIGHT': 'WeightPaintMode',
+                'PAINT_VERTEX': 'VertexPaintMode',
+            }.get(context.mode)
+            engine_props = scene.collection_properties[engine_type]
+            col.prop(engine_props, "use_wire")
 
         if context.mode in {'PAINT_WEIGHT', 'PAINT_VERTEX', 'PAINT_TEXTURE'}:
             col.prop(view, "show_mode_shade_override")

@@ -117,19 +117,22 @@ class TOPBAR_HT_lower_bar(Header):
         # Object Mode
         # -----------
 
+        # Testing move to 3D header.
+        '''
         object_mode = 'OBJECT' if object is None else object.mode
         act_mode_item = bpy.types.Object.bl_rna.properties['mode'].enum_items[object_mode]
         layout.operator_menu_enum("object.mode_set", "mode", text=act_mode_item.name, icon=act_mode_item.icon)
-
-    def draw_center(self, context):
-        layout = self.layout
-        mode = context.mode
+        '''
 
         # Active Tool
         # -----------
 
         from .space_toolsystem_common import ToolSelectPanelHelper
         ToolSelectPanelHelper.draw_active_tool_header(context, layout)
+
+    def draw_center(self, context):
+        layout = self.layout
+        mode = context.mode
 
         layout.separator()
 
@@ -176,7 +179,7 @@ class TOPBAR_HT_lower_bar(Header):
         row.enabled = op is not None
         row.popover(
             space_type='TOPBAR',
-            region_type='WINDOW',
+            region_type='HEADER',
             panel_type="TOPBAR_PT_redo",
             text=op.name + " Settings" if op else "Command Settings",
         )
@@ -224,19 +227,9 @@ class _draw_left_context_mode:
 
         from .properties_paint_common import UnifiedPaintPanel
 
-        layout.prop(brush, "weight")
+        UnifiedPaintPanel.prop_unified_weight(layout, context, brush, "weight", slider=True, text="Weight")
         UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
         UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
-
-
-class TOPBAR_PT_redo(Panel):
-    bl_label = "Redo"
-    bl_space_type = 'TOPBAR'
-    bl_region_type = 'WINDOW'
-
-    def draw(self, context):
-        layout = self.layout
-        layout.column().template_operator_redo_props()
 
 
 class INFO_MT_editor_menus(Menu):
@@ -505,7 +498,6 @@ class INFO_MT_help(Menu):
 classes = (
     TOPBAR_HT_upper_bar,
     TOPBAR_HT_lower_bar,
-    TOPBAR_PT_redo,
     INFO_MT_editor_menus,
     INFO_MT_file,
     INFO_MT_file_import,

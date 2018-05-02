@@ -70,6 +70,7 @@
 #include "bmesh_tools.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "mesh_intern.h"  /* own include */
 
@@ -657,15 +658,19 @@ BMEdge *EDBM_edge_find_nearest_ex(
 		BMEdge *eed;
 
 		/* Make sure that the edges also are considered to find nearest.
-		 * TODO: cleanup: add `selectmode` as a parameter */
+		 * TODO: cleanup: add `selectmode` as a parameter
+		 * XXX: Without selectmode as parameter we need to resort to this super ugly hack,
+		 *      because we should never write to evaluate data. */
 		const short ts_selectmode = vc->scene->toolsettings->selectmode;
-		vc->scene->toolsettings->selectmode |= SCE_SELECT_EDGE;
+
+		Scene *scene_eval = (Scene *)DEG_get_evaluated_id(vc->depsgraph, &vc->scene->id);
+		scene_eval->toolsettings->selectmode |= SCE_SELECT_EDGE;
 
 		/* No afterqueue (yet), so we check it now, otherwise the bm_xxxofs indices are bad. */
 		ED_view3d_backbuf_validate(vc);
 
 		/* restore `selectmode` */
-		vc->scene->toolsettings->selectmode = ts_selectmode;
+		scene_eval->toolsettings->selectmode = ts_selectmode;
 
 		index = ED_view3d_backbuf_sample_rect(vc, vc->mval, dist_px, bm_solidoffs, bm_wireoffs, &dist_test);
 		eed = index ? BM_edge_at_index_find_or_table(bm, index - 1) : NULL;
@@ -2314,6 +2319,7 @@ bool EDBM_selectmode_toggle(
         bContext *C, const short selectmode_new,
         const int action, const bool use_extend, const bool use_expand)
 {
+	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Object *obedit = CTX_data_edit_object(C);
@@ -2420,9 +2426,11 @@ bool EDBM_selectmode_toggle(
 			Object *ob_iter = objects[ob_index];
 			BMEditMesh *em_iter = BKE_editmesh_from_object(ob_iter);
 			EDBM_selectmode_set(em_iter);
+			DEG_id_tag_update(ob_iter->data, DEG_TAG_COPY_ON_WRITE);
 			WM_event_add_notifier(C, NC_GEOM | ND_SELECT, ob_iter->data);
 		}
 		WM_main_add_notifier(NC_SCENE | ND_TOOLSETTINGS, NULL);
+		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	MEM_SAFE_FREE(objects);

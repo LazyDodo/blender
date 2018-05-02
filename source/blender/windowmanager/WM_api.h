@@ -338,6 +338,7 @@ void		WM_operator_properties_create_ptr(struct PointerRNA *ptr, struct wmOperato
 void        WM_operator_properties_clear(struct PointerRNA *ptr);
 void		WM_operator_properties_free(struct PointerRNA *ptr);
 
+bool        WM_operator_check_ui_empty(struct wmOperatorType *ot);
 bool        WM_operator_check_ui_enabled(const struct bContext *C, const char *idname);
 wmOperator *WM_operator_last_redo(const struct bContext *C);
 ID         *WM_operator_drop_load_path(struct bContext *C, struct wmOperator *op, const short idcode);
@@ -594,6 +595,8 @@ void WM_toolsystem_link(struct bContext *C, struct WorkSpace *workspace);
 
 void WM_toolsystem_set(struct bContext *C, const struct bToolDef *tool);
 void WM_toolsystem_init(struct bContext *C);
+
+bool WM_toolsystem_active_tool_is_brush(const struct bContext *C);
 
 /* wm_tooltip.c */
 typedef struct ARegion *(*wmTooltipInitFn)(struct bContext *, struct ARegion *, bool *);
