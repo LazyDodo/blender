@@ -275,7 +275,7 @@ void drw_state_set(DRWState state)
 		DRWState test;
 		if (CHANGED_ANY_STORE_VAR(
 		        DRW_STATE_WRITE_STENCIL |
-		        DRW_STATE_STENCIL_INCR_DECR_WRAP |
+		        DRW_STATE_STENCIL_DEPTH_FAIL_INCR_DECR_WRAP |
 		        DRW_STATE_STENCIL_EQUAL |
 		        DRW_STATE_STENCIL_NEQUAL,
 		        test))
@@ -285,10 +285,10 @@ void drw_state_set(DRWState state)
 
 				/* Stencil Write */
 				if ((state & DRW_STATE_WRITE_STENCIL) != 0) {
-					if ((state & DRW_STATE_STENCIL_INCR_DECR_WRAP) != 0) {
+					if ((state & DRW_STATE_STENCIL_DEPTH_FAIL_INCR_DECR_WRAP) != 0) {
 						glStencilMask(0xFF);
-						glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_KEEP, GL_INCR_WRAP);
-						glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+						glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_INCR_WRAP, GL_KEEP);
+						glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
 					}
 					else {
 						glStencilMask(0xFF);

@@ -38,8 +38,9 @@
 
 /* *********** STATIC *********** */
 
-// #define SHOW_SHADOW_VOLUME
+//#define DEBUG_SHADOW_VOLUME
 #define MAX_SHADERS 255
+
 static struct {
 	struct GPUShader *prepass_sh_cache[MAX_SHADERS];
 	struct GPUShader *composite_sh_cache[MAX_SHADERS];
@@ -74,7 +75,6 @@ extern DrawEngineType draw_engine_workbench_solid;
 #define OBJECT_ID_PASS_ENABLED(wpd) (wpd->drawtype_options & V3D_DRAWOPTION_OBJECT_OVERLAP)
 #define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (wpd->drawtype_lighting & V3D_LIGHTING_STUDIO)
 #define SHADOW_ENABLED(wpd) (wpd->drawtype_options & V3D_DRAWOPTION_SHADOW)
-
 static char *workbench_build_defines(WORKBENCH_PrivateData *wpd)
 {
 	char *str = NULL;
@@ -220,8 +220,6 @@ void workbench_materials_engine_init(WORKBENCH_Data *vedata)
 		memset(e_data.prepass_sh_cache,   0x00, sizeof(struct GPUShader *) * MAX_SHADERS);
 		memset(e_data.composite_sh_cache, 0x00, sizeof(struct GPUShader *) * MAX_SHADERS);
 		e_data.next_object_id = 1;
-		e_data.light_multiplier = 1.0;
-		e_data.shadow_multiplier = 0.8;
 		e_data.shadow_sh = DRW_shader_create(datatoc_workbench_shadow_vert_glsl, datatoc_workbench_shadow_geom_glsl, NULL, NULL);
 	}
 
@@ -320,6 +318,8 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		wpd->world_ubo = DRW_uniformbuffer_create(sizeof(WORKBENCH_UBO_World), NULL);
 		DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
 
+		e_data.light_multiplier = 1.0;
+		e_data.shadow_multiplier = BKE_collection_engine_property_value_get_float(props, "ambient_light_intensity");
 		copy_v3_v3(e_data.light_direction, BKE_collection_engine_property_value_get_float_array(props, "light_direction"));
 		negate_v3(e_data.light_direction);
 
@@ -331,14 +331,14 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 
 		if (SHADOW_ENABLED(wpd)) {
-#ifdef SHOW_SHADOW_VOLUME
-			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_COLOR );
+#ifdef DEBUG_SHADOW_VOLUME
+			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_COLOR);
 			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
 			DRW_shgroup_uniform_vec3(grp, "lightDirection", e_data.light_direction, 1);
 			DRW_shgroup_stencil_mask(grp, 0xFF);
 			wpd->shadow_shgrp = grp;
 #else
-			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_STENCIL | DRW_STATE_STENCIL_INCR_DECR_WRAP);
+			psl->shadow_pass = DRW_pass_create("Shadow", DRW_STATE_DEPTH_GREATER | DRW_STATE_WRITE_STENCIL | DRW_STATE_STENCIL_DEPTH_FAIL_INCR_DECR_WRAP);
 			grp = DRW_shgroup_create(e_data.shadow_sh, psl->shadow_pass);
 			DRW_shgroup_uniform_vec3(grp, "lightDirection", e_data.light_direction, 1);
 			DRW_shgroup_stencil_mask(grp, 0xFF);
@@ -468,7 +468,7 @@ void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob
 		}
 
 		if (SHADOW_ENABLED(wpd)) {
-			struct Gwn_Batch *geom_shadow = DRW_cache_mesh_wire_outline_get(ob);
+			struct Gwn_Batch *geom_shadow = DRW_cache_object_surface_get(ob);
 			if (geom_shadow) {
 				DRW_shgroup_call_object_add(wpd->shadow_shgrp, geom_shadow, ob);
 			}
@@ -508,7 +508,7 @@ void workbench_materials_draw_scene(WORKBENCH_Data *vedata)
 	GPU_framebuffer_bind(fbl->prepass_fb);
 	DRW_draw_pass(psl->prepass_pass);
 	if (SHADOW_ENABLED(wpd)) {
-#ifdef SHOW_SHADOW_VOLUME
+#ifdef DEBUG_SHADOW_VOLUME
 		GPU_framebuffer_bind(dfbl->default_fb);
 		DRW_draw_pass(psl->composite_pass);
 		DRW_draw_pass(psl->shadow_pass);
