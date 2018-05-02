@@ -3552,6 +3552,9 @@ class VIEW3D_PT_shading(Panel):
             col.row().prop(shading, "single_color_mode", expand=True)
             col.prop(shading, "show_object_overlap")
             col.prop(shading, "show_shadows")
+            if shading.show_shadows:
+                col.prop(shading, "ambient_light_intensity")
+
 
             if shading.light == 'STUDIO':
                 # TODO: don't store these settings in the scene

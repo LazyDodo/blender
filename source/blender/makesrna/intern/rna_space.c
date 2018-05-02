@@ -2241,6 +2241,14 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_ui_text(prop, "Shadow", "Show Shadow");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_3DViewShading_type_update");
+
+	prop = RNA_def_property(srna, "ambient_light_intensity", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "drawtype_ambient_intensity");
+	RNA_def_property_ui_text(prop, "Ambient Light", "Intensity of ambient light for shadows");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_range(prop, 0.00f, 1.0f, 1, 3);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_3DViewShading_type_update");
 }
 
 static void rna_def_space_view3d_overlay(BlenderRNA *brna)

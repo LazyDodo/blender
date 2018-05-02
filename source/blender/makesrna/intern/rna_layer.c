@@ -1770,8 +1770,9 @@ static void rna_def_view_layer_engine_settings_workbench(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "ambient_light_intensity", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_Workbench_ambient_light_intensity_get", "rna_LayerEngineSettings_Workbench_ambient_light_intensity_set", NULL);
-	RNA_def_property_ui_text(prop, "Ambient Light", "Intensity of ambient light");
+	RNA_def_property_ui_text(prop, "Ambient Light", "Intensity of ambient light for shadows");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_range(prop, 0.00f, 1.0f, 1, 3);
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
 

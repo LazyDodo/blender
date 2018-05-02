@@ -51,8 +51,6 @@ static struct {
 	struct GPUTexture *normal_buffer_tx; /* ref only, not alloced */
 
 	float light_direction[3]; /* world light direction for shadows */
-	float light_multiplier;
-	float shadow_multiplier;
 	int next_object_id;
 } e_data = {NULL};
 
@@ -288,6 +286,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
 	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_WORKBENCH);
+	static float light_multiplier = 1.0f;
 
 	const DRWContextState *DCS = DRW_context_state_get();
 
@@ -297,10 +296,12 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 	if (v3d) {
 		wpd->drawtype_lighting = v3d->drawtype_lighting;
 		wpd->drawtype_options = v3d->drawtype_options;
+		wpd->drawtype_ambient_intensity = v3d->drawtype_ambient_intensity;
 	}
 	else {
 		wpd->drawtype_lighting = V3D_LIGHTING_STUDIO;
 		wpd->drawtype_options = 0;
+		wpd->drawtype_ambient_intensity = 0.8;
 	}
 
 	select_deferred_shaders(wpd);
@@ -318,8 +319,6 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		wpd->world_ubo = DRW_uniformbuffer_create(sizeof(WORKBENCH_UBO_World), NULL);
 		DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
 
-		e_data.light_multiplier = 1.0;
-		e_data.shadow_multiplier = BKE_collection_engine_property_value_get_float(props, "ambient_light_intensity");
 		copy_v3_v3(e_data.light_direction, BKE_collection_engine_property_value_get_float_array(props, "light_direction"));
 		negate_v3(e_data.light_direction);
 
@@ -327,7 +326,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_pass);
 		workbench_composite_uniforms(wpd, grp);
 		DRW_shgroup_stencil_mask(grp, 0x00);
-		DRW_shgroup_uniform_float(grp, "lightMultiplier", &e_data.light_multiplier, 1);
+		DRW_shgroup_uniform_float(grp, "lightMultiplier", &light_multiplier, 1);
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 
 		if (SHADOW_ENABLED(wpd)) {
@@ -348,7 +347,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 			grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_shadow_pass);
 			DRW_shgroup_stencil_mask(grp, 0x00);
 			workbench_composite_uniforms(wpd, grp);
-			DRW_shgroup_uniform_float(grp, "lightMultiplier", &e_data.shadow_multiplier, 1);
+			DRW_shgroup_uniform_float(grp, "lightMultiplier", &wpd->drawtype_ambient_intensity, 1);
 			DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 #endif
 		}
