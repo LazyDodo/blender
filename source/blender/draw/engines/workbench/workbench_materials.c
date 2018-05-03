@@ -301,7 +301,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 	else {
 		wpd->drawtype_lighting = V3D_LIGHTING_STUDIO;
 		wpd->drawtype_options = 0;
-		wpd->drawtype_ambient_intensity = 0.8;
+		wpd->drawtype_ambient_intensity = 0.5;
 	}
 
 	select_deferred_shaders(wpd);

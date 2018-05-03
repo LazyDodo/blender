@@ -2244,7 +2244,7 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "ambient_light_intensity", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "drawtype_ambient_intensity");
-	RNA_def_property_float_default(prop, 0.8);
+	RNA_def_property_float_default(prop, 0.5);
 	RNA_def_property_ui_text(prop, "Ambient Light", "Intensity of ambient light for shadows");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 1.0f, 1, 3);
