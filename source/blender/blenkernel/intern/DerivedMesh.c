@@ -97,8 +97,23 @@ static ThreadRWMutex loops_cache_lock = PTHREAD_RWLOCK_INITIALIZER;
 static void add_shapekey_layers(DerivedMesh *dm, Mesh *me, Object *ob);
 static void shapekey_layers_to_keyblocks(DerivedMesh *dm, Mesh *me, int actshape_uid);
 
+static void mesh_init_origspace(Mesh *mesh);
+
 
 /* -------------------------------------------------------------------- */
+
+static void apply_vert_coords(Mesh *mesh, float (*vertCoords)[3])
+{
+	MVert *vert;
+	int i;
+
+	/* this will just return the pointer if it wasn't a referenced layer */
+	vert = CustomData_duplicate_referenced_layer(&mesh->vdata, CD_MVERT, mesh->totvert);
+	mesh->mvert = vert;
+
+	for (i = 0; i < mesh->totvert; ++i, ++vert)
+		copy_v3_v3(vert->co, vertCoords[i]);
+}
 
 static MVert *dm_getVertArray(DerivedMesh *dm)
 {
@@ -893,6 +908,20 @@ void DM_set_only_copy(DerivedMesh *dm, CustomDataMask mask)
 #endif
 }
 
+void mesh_set_only_copy(Mesh *mesh, CustomDataMask mask)
+{
+	CustomData_set_only_copy(&mesh->vdata, mask);
+	CustomData_set_only_copy(&mesh->edata, mask);
+	CustomData_set_only_copy(&mesh->fdata, mask);
+	/* this wasn't in 2.63 and is disabled for 2.64 because it gives problems with
+	 * weight paint mode when there are modifiers applied, needs further investigation,
+	 * see replies to r50969, Campbell */
+#if 0
+	CustomData_set_only_copy(&mesh->ldata, mask);
+	CustomData_set_only_copy(&mesh->pdata, mask);
+#endif
+}
+
 void DM_add_vert_layer(DerivedMesh *dm, int type, int alloctype, void *layer)
 {
 	CustomData_add_layer(&dm->vertData, type, alloctype, layer, dm->numVertData);
@@ -1267,6 +1296,29 @@ static DerivedMesh *create_orco_dm(Object *ob, Mesh *me, BMEditMesh *em, int lay
 	return dm;
 }
 
+static Mesh *create_orco_mesh(Object *ob, Mesh *me, BMEditMesh *em, int layer)
+{
+	Mesh *mesh;
+	float (*orco)[3];
+	int free;
+
+	if (em) {
+		//mesh = CDDM_from_editbmesh(em, false, false); // TODO(mai): need to find a mesh_from_editbmesh
+	}
+	else {
+		BKE_id_copy_ex(NULL, &me->id, (ID**)&mesh, LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT, false);
+	}
+
+	orco = get_orco_coords_dm(ob, em, layer, &free);
+
+	if (orco) {
+		apply_vert_coords(mesh, orco);
+		if (free) MEM_freeN(orco);
+	}
+
+	return mesh;
+}
+
 static void add_orco_dm(
         Object *ob, BMEditMesh *em, DerivedMesh *dm,
         DerivedMesh *orcodm, int layer)
@@ -1298,6 +1350,48 @@ static void add_orco_dm(
 		if (!(layerorco = DM_get_vert_data_layer(dm, layer))) {
 			DM_add_vert_layer(dm, layer, CD_CALLOC, NULL);
 			layerorco = DM_get_vert_data_layer(dm, layer);
+		}
+
+		memcpy(layerorco, orco, sizeof(float) * 3 * totvert);
+		if (free) MEM_freeN(orco);
+	}
+}
+
+static void add_orco_mesh(
+        Object *ob, BMEditMesh *em, Mesh *mesh,
+        Mesh *orco_mesh, int layer)
+{
+	float (*orco)[3], (*layerorco)[3];
+	int totvert, free;
+
+	totvert = mesh->totvert;
+
+	if (orco_mesh) {
+		free = 1;
+
+		if (orco_mesh->totvert == totvert) {
+			orco = BKE_mesh_vertexCos_get(orco_mesh, NULL);
+		}
+		else {
+			orco = BKE_mesh_vertexCos_get(mesh, NULL);
+		}
+	}
+	else {
+		/* TODO(sybren): totvert should potentially change here, as ob->data
+		 * or em may have a different number of vertices than dm. */
+		orco = get_orco_coords_dm(ob, em, layer, &free);
+	}
+
+	if (orco) {
+		if (layer == CD_ORCO) {
+			BKE_mesh_orco_verts_transform(ob->data, orco, totvert, 0);
+		}
+
+		if (!(layerorco = CustomData_get_layer(&mesh->vdata, layer))) {
+			CustomData_add_layer(&mesh->vdata, layer, CD_CALLOC, NULL, mesh->totvert);
+			BKE_mesh_update_customdata_pointers(mesh, false);
+
+			layerorco = CustomData_get_layer(&mesh->vdata, layer);
 		}
 
 		memcpy(layerorco, orco, sizeof(float) * 3 * totvert);
@@ -1530,6 +1624,81 @@ static void calc_weightpaint_vert_array(
 	}
 }
 
+static void calc_weightpaint_vert_array_mesh(
+        Object *ob, Mesh *mesh, int const draw_flag, DMWeightColorInfo *dm_wcinfo,
+        unsigned char (*r_wtcol_v)[4])
+{
+	BMEditMesh *em = BKE_editmesh_from_object(ob);
+	const int numVerts = mesh->totvert;
+
+	if ((ob->actdef != 0) &&
+	    (CustomData_has_layer(em ? &em->bm->vdata : &mesh->vdata, CD_MDEFORMVERT)))
+	{
+		unsigned char (*wc)[4] = r_wtcol_v;
+		unsigned int i;
+
+		/* variables for multipaint */
+		const int defbase_tot = BLI_listbase_count(&ob->defbase);
+		const int defbase_act = ob->actdef - 1;
+
+		int defbase_sel_tot = 0;
+		bool *defbase_sel = NULL;
+
+		if (draw_flag & CALC_WP_MULTIPAINT) {
+			defbase_sel = BKE_object_defgroup_selected_get(ob, defbase_tot, &defbase_sel_tot);
+
+			if (defbase_sel_tot > 1 && (draw_flag & CALC_WP_MIRROR_X)) {
+				BKE_object_defgroup_mirror_selection(ob, defbase_tot, defbase_sel, defbase_sel, &defbase_sel_tot);
+			}
+		}
+
+		/* editmesh won't have deform verts unless modifiers require it,
+		 * avoid having to create an array of deform-verts only for drawing
+		 * by reading from the bmesh directly. */
+		if (em) {
+			BMIter iter;
+			BMVert *eve;
+			const int cd_dvert_offset = CustomData_get_offset(&em->bm->vdata, CD_MDEFORMVERT);
+			BLI_assert(cd_dvert_offset != -1);
+
+			BM_ITER_MESH_INDEX (eve, &iter, em->bm, BM_VERTS_OF_MESH, i) {
+				const MDeformVert *dv = BM_ELEM_CD_GET_VOID_P(eve, cd_dvert_offset);
+				calc_weightpaint_vert_color(
+				        (unsigned char *)wc, dv, dm_wcinfo,
+				        defbase_tot, defbase_act, defbase_sel, defbase_sel_tot, draw_flag);
+				wc++;
+			}
+		}
+		else {
+			const MDeformVert *dv = CustomData_get_layer(&mesh->vdata, CD_MDEFORMVERT);
+			for (i = numVerts; i != 0; i--, wc++, dv++) {
+				calc_weightpaint_vert_color(
+				        (unsigned char *)wc, dv, dm_wcinfo,
+				        defbase_tot, defbase_act, defbase_sel, defbase_sel_tot, draw_flag);
+			}
+		}
+
+		if (defbase_sel) {
+			MEM_freeN(defbase_sel);
+		}
+	}
+	else {
+		unsigned char col[4];
+		if ((ob->actdef == 0) && !BLI_listbase_is_empty(&ob->defbase)) {
+			/* color-code for missing data (full brightness isn't easy on the eye). */
+			ARRAY_SET_ITEMS(col, 0xa0, 0, 0xa0, 0xff);
+		}
+		else if (draw_flag & (CALC_WP_GROUP_USER_ACTIVE | CALC_WP_GROUP_USER_ALL)) {
+			copy_v3_v3_char((char *)col, dm_wcinfo->alert_color);
+			col[3] = 255;
+		}
+		else {
+			weightpaint_color(col, dm_wcinfo, 0.0f);
+		}
+		copy_vn_i((int *)r_wtcol_v, numVerts, *((int *)col));
+	}
+}
+
 /** return an array of vertex weight colors from given weights, caller must free.
  *
  * \note that we could save some memory and allocate RGB only but then we'd need to
@@ -1619,6 +1788,80 @@ void DM_update_weight_mcol(
 		MEM_freeN(wtcol_v);
 
 		dm->dirty |= DM_DIRTY_TESS_CDLAYERS;
+	}
+}
+
+void mesh_update_weight_mcol(
+        Object *ob, Mesh *mesh, int const draw_flag,
+        float *weights, int num, const int *indices)
+{
+	BMEditMesh *em = BKE_editmesh_from_object(ob);
+	unsigned char (*wtcol_v)[4];
+	int numVerts = mesh->totvert;
+	int i;
+
+	if (em) {
+		BKE_editmesh_color_ensure(em, BM_VERT);
+		wtcol_v = em->derivedVertColor;
+	}
+	else {
+		wtcol_v = MEM_malloc_arrayN(numVerts, sizeof(*wtcol_v), __func__);
+	}
+
+	/* Weights are given by caller. */
+	if (weights) {
+		float *w = weights;
+		/* If indices is not NULL, it means we do not have weights for all vertices,
+		 * so we must create them (and set them to zero)... */
+		if (indices) {
+			w = MEM_calloc_arrayN(numVerts, sizeof(float), "Temp weight array DM_update_weight_mcol");
+			i = num;
+			while (i--)
+				w[indices[i]] = weights[i];
+		}
+
+		/* Convert float weights to colors. */
+		calc_colors_from_weights_array(numVerts, w, wtcol_v);
+
+		if (indices)
+			MEM_freeN(w);
+	}
+	else {
+		/* No weights given, take them from active vgroup(s). */
+		calc_weightpaint_vert_array_mesh(ob, mesh, draw_flag, &G_dm_wcinfo, wtcol_v);
+	}
+
+	if (em) {
+		/* editmesh draw function checks specifically for this */
+	}
+	else {
+		const int totpoly = mesh->totpoly;
+		const int totloop = mesh->totloop;
+		unsigned char(*wtcol_l)[4] = CustomData_get_layer(&mesh->ldata, CD_PREVIEW_MLOOPCOL);
+		MLoop *mloop = mesh->mloop, *ml;
+		MPoly *mp = mesh->mpoly;
+		int l_index;
+		int j;
+
+		/* now add to loops, so the data can be passed through the modifier stack
+		 * If no CD_PREVIEW_MLOOPCOL existed yet, we have to add a new one! */
+		if (!wtcol_l) {
+			wtcol_l = MEM_malloc_arrayN(totloop, sizeof(*wtcol_l), __func__);
+			CustomData_add_layer(&mesh->ldata, CD_PREVIEW_MLOOPCOL, CD_ASSIGN, wtcol_l, totloop);
+		}
+
+		l_index = 0;
+		for (i = 0; i < totpoly; i++, mp++) {
+			ml = mloop + mp->loopstart;
+
+			for (j = 0; j < mp->totloop; j++, ml++, l_index++) {
+				copy_v4_v4_uchar(&wtcol_l[l_index][0],
+				                 &wtcol_v[ml->v][0]);
+			}
+		}
+		MEM_freeN(wtcol_v);
+
+		//dm->dirty |= DM_DIRTY_TESS_CDLAYERS; // XXX: Does Mesh need this?
 	}
 }
 
@@ -3151,6 +3394,76 @@ void DM_init_origspace(DerivedMesh *dm)
 	BLI_array_free(vcos_2d);
 }
 
+static void mesh_init_origspace(Mesh *mesh)
+{
+	const float default_osf[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+
+	OrigSpaceLoop *lof_array = CustomData_get_layer(&mesh->ldata, CD_ORIGSPACE_MLOOP);
+	const int numpoly = mesh->totpoly;
+	// const int numloop = mesh->totloop;
+	MVert *mv = mesh->mvert;
+	MLoop *ml = mesh->mloop;
+	MPoly *mp = mesh->mpoly;
+	int i, j, k;
+
+	float (*vcos_2d)[2] = NULL;
+	BLI_array_staticdeclare(vcos_2d, 64);
+
+	for (i = 0; i < numpoly; i++, mp++) {
+		OrigSpaceLoop *lof = lof_array + mp->loopstart;
+
+		if (mp->totloop == 3 || mp->totloop == 4) {
+			for (j = 0; j < mp->totloop; j++, lof++) {
+				copy_v2_v2(lof->uv, default_osf[j]);
+			}
+		}
+		else {
+			MLoop *l = &ml[mp->loopstart];
+			float p_nor[3], co[3];
+			float mat[3][3];
+
+			float min[2] = {FLT_MAX, FLT_MAX}, max[2] = {-FLT_MAX, -FLT_MAX};
+			float translate[2], scale[2];
+
+			BKE_mesh_calc_poly_normal(mp, l, mv, p_nor);
+			axis_dominant_v3_to_m3(mat, p_nor);
+
+			BLI_array_clear(vcos_2d);
+			BLI_array_reserve(vcos_2d, mp->totloop);
+			for (j = 0; j < mp->totloop; j++, l++) {
+				mul_v3_m3v3(co, mat, mv[l->v].co);
+				copy_v2_v2(vcos_2d[j], co);
+
+				for (k = 0; k < 2; k++) {
+					if (co[k] > max[k])
+						max[k] = co[k];
+					else if (co[k] < min[k])
+						min[k] = co[k];
+				}
+			}
+
+			/* Brings min to (0, 0). */
+			negate_v2_v2(translate, min);
+
+			/* Scale will bring max to (1, 1). */
+			sub_v2_v2v2(scale, max, min);
+			if (scale[0] == 0.0f)
+				scale[0] = 1e-9f;
+			if (scale[1] == 0.0f)
+				scale[1] = 1e-9f;
+			invert_v2(scale);
+
+			/* Finally, transform all vcos_2d into ((0, 0), (1, 1)) square and assing them as origspace. */
+			for (j = 0; j < mp->totloop; j++, lof++) {
+				add_v2_v2v2(lof->uv, vcos_2d[j], translate);
+				mul_v2_v2(lof->uv, scale);
+			}
+		}
+	}
+
+	//mesh->dirty |= DM_DIRTY_TESS_CDLAYERS; // XXX: Needed for Mesh?
+	BLI_array_free(vcos_2d);
+}
 
 
 /* derivedmesh info printing function,
