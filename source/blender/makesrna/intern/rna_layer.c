@@ -319,6 +319,9 @@ static void rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_set(PointerRNA *ptr,
 #define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_INT(_NAME_) \
 	RNA_LAYER_ENGINE_GET_SET(int, Workbench, COLLECTION_MODE_NONE, _NAME_)
 
+#define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_BOOL(_NAME_) \
+	RNA_LAYER_ENGINE_GET_SET(bool, Workbench, COLLECTION_MODE_NONE, _NAME_)
+
 /* mode engines */
 
 #define RNA_LAYER_MODE_OBJECT_GET_SET_FLOAT(_NAME_) \
@@ -367,6 +370,7 @@ RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(hair_brightness_randomness)
 /* Collection settings */
 RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT(random_object_color_saturation)
 RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT(random_object_color_value)
+RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT(show_shadows)
 /* View Layer settings */
 RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(diffuse_light_x_pos, 3)
 RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(diffuse_light_x_neg, 3)
@@ -1800,6 +1804,13 @@ static void rna_def_layer_collection_engine_settings_workbench(BlenderRNA *brna)
 	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_Workbench_random_object_color_value_get", "rna_LayerEngineSettings_Workbench_random_object_color_value_set", NULL);
 	RNA_def_property_ui_text(prop, "Random Value", "Random Object Color Value");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
+
+	prop = RNA_def_property(srna, "show_shadows", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_Workbench_show_shadows_get", "rna_LayerEngineSettings_Workbench_show_shadows_set");
+	RNA_def_property_boolean_default(prop, true);
+	RNA_def_property_ui_text(prop, "Cast Shadows", "Show the shadows casted by the objects for this collection");
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
 

@@ -51,6 +51,7 @@ static void workbench_layer_collection_settings_create(RenderEngine *UNUSED(engi
 
 	BKE_collection_engine_property_add_float(props, "random_object_color_saturation", 0.5f);
 	BKE_collection_engine_property_add_float(props, "random_object_color_value", 0.9f);
+	BKE_collection_engine_property_add_bool(props, "show_shadows", true);
 }
 
 static void workbench_view_layer_settings_create(RenderEngine *UNUSED(engine), IDProperty *props)
@@ -73,7 +74,7 @@ static void workbench_view_layer_settings_create(RenderEngine *UNUSED(engine), I
 	BKE_collection_engine_property_add_float_array(props, "diffuse_light_z_pos", diffuse_z_pos, 3);
 	BKE_collection_engine_property_add_float_array(props, "diffuse_light_z_neg", diffuse_z_neg, 3);
 
-	const float light_direction[3] = {0.577350269, 0.577350269, 0.577350269};
+	const float light_direction[3] = {-0.577350269, -0.577350269, 0.577350269};
 	BKE_collection_engine_property_add_float_array(props, "light_direction", light_direction, 3);
 }
 

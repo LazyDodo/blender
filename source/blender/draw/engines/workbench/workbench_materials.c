@@ -467,9 +467,12 @@ void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob
 		}
 
 		if (SHADOW_ENABLED(wpd)) {
-			struct Gwn_Batch *geom_shadow = DRW_cache_object_surface_get(ob);
-			if (geom_shadow) {
-				DRW_shgroup_call_object_add(wpd->shadow_shgrp, geom_shadow, ob);
+			const bool ob_show_shadows = BKE_collection_engine_property_value_get_bool(props, "show_shadows");
+			if (ob_show_shadows) {
+				struct Gwn_Batch *geom_shadow = DRW_cache_object_surface_get(ob);
+				if (geom_shadow) {
+					DRW_shgroup_call_object_add(wpd->shadow_shgrp, geom_shadow, ob);
+				}
 			}
 		}	
 	}
