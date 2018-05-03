@@ -1076,4 +1076,12 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 			}
 		}
 	}
+
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "Lamp", "float", "spec_fac")) {
+			for (Lamp *la = main->lamp.first; la; la = la->id.next) {
+				la->spec_fac = 1.0f;
+			}
+		}
+	}
 }
