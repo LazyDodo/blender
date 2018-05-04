@@ -2010,19 +2010,29 @@ void DepsgraphRelationBuilder::build_compositor(Scene *scene)
 
 void DepsgraphRelationBuilder::build_gpencil(bGPdata *gpd)
 {
+	if (built_map_.checkIsBuiltAndTag(gpd)) {
+		return;
+	}
 	/* animation */
 	build_animdata(&gpd->id);
 
 	// TODO: parent object (when that feature is implemented)
 }
 
-void DepsgraphRelationBuilder::build_cachefile(CacheFile *cache_file) {
+void DepsgraphRelationBuilder::build_cachefile(CacheFile *cache_file)
+{
+	if (built_map_.checkIsBuiltAndTag(cache_file)) {
+		return;
+	}
 	/* Animation. */
 	build_animdata(&cache_file->id);
 }
 
 void DepsgraphRelationBuilder::build_mask(Mask *mask)
 {
+	if (built_map_.checkIsBuiltAndTag(mask)) {
+		return;
+	}
 	ID *mask_id = &mask->id;
 	/* F-Curve animation. */
 	build_animdata(mask_id);
@@ -2039,6 +2049,9 @@ void DepsgraphRelationBuilder::build_mask(Mask *mask)
 
 void DepsgraphRelationBuilder::build_movieclip(MovieClip *clip)
 {
+	if (built_map_.checkIsBuiltAndTag(clip)) {
+		return;
+	}
 	/* Animation. */
 	build_animdata(&clip->id);
 }

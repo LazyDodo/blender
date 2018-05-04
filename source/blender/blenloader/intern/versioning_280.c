@@ -1257,6 +1257,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 					if (sl->spacetype == SPACE_VIEW3D) {
 						View3D *v3d = (View3D *)sl;
 						v3d->drawtype_ambient_intensity = 0.5;
+						copy_v3_fl(v3d->drawtype_single_color, 1.0f);
 						v3d->overlays |= V3D_OVERLAY_HIDE_CURSOR;
 					}
 				}

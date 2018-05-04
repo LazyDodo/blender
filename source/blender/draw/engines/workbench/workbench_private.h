@@ -36,6 +36,7 @@
 
 typedef struct WORKBENCH_FramebufferList {
 	struct GPUFrameBuffer *prepass_fb;
+	struct GPUFrameBuffer *composite_fb;
 } WORKBENCH_FramebufferList;
 
 typedef struct WORKBENCH_StorageList {
@@ -77,8 +78,8 @@ typedef struct WORKBENCH_PrivateData {
 	short drawtype_lighting;
 	short drawtype_options;
 	short drawtype_studiolight;
-	short pad;
 	float drawtype_ambient_intensity;
+	float drawtype_single_color[3];
 	struct GPUUniformBuffer *world_ubo;
 	struct DRWShadingGroup *shadow_shgrp;
 	WORKBENCH_UBO_World world_data;

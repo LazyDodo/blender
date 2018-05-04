@@ -50,6 +50,7 @@ static struct {
 	struct GPUTexture *object_id_tx; /* ref only, not alloced */
 	struct GPUTexture *color_buffer_tx; /* ref only, not alloced */
 	struct GPUTexture *normal_buffer_tx; /* ref only, not alloced */
+	struct GPUTexture *composite_buffer_tx; /* ref only, not alloced */
 
 	float light_direction[3]; /* world light direction for shadows */
 	int next_object_id;
@@ -137,7 +138,9 @@ static char *workbench_build_prepass_frag(void)
 static int get_shader_index(WORKBENCH_PrivateData *wpd)
 {
 	const int DRAWOPTIONS_MASK = V3D_DRAWOPTION_OBJECT_OVERLAP;
-	return ((wpd->drawtype_options & DRAWOPTIONS_MASK) << 2) + wpd->drawtype_lighting;
+	int index = (wpd->drawtype_options & DRAWOPTIONS_MASK);
+	index = (index << 2) + wpd->drawtype_lighting;
+	return index;
 }
 
 static void select_deferred_shaders(WORKBENCH_PrivateData *wpd)
@@ -183,14 +186,19 @@ static void workbench_init_object_data(ObjectEngineData *engine_data)
 	data->object_id = e_data.next_object_id++;
 }
 
-static void get_material_solid_color(WORKBENCH_PrivateData *wpd, WORKBENCH_ObjectData *engine_object_data, Object *ob, Material *mat, float *color, float hsv_saturation, float hsv_value)
+static void get_material_solid_color(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, float *color, float hsv_saturation, float hsv_value)
 {
 	static float default_color[] = {1.0f, 1.0f, 1.0f};
 	if (DRW_object_is_paint_mode(ob) || wpd->drawtype_options & V3D_DRAWOPTION_SINGLE_COLOR) {
-		copy_v3_v3(color, default_color);
+		copy_v3_v3(color, wpd->drawtype_single_color);
 	}
 	else if (wpd->drawtype_options & V3D_DRAWOPTION_RANDOMIZE) {
-		float offset = fmodf(engine_object_data->object_id * M_GOLDEN_RATION_CONJUGATE, 1.0);
+		uint hash = BLI_ghashutil_strhash_p_murmur(ob->id.name);
+		if (ob->id.lib) {
+			hash = (hash * 13) ^ BLI_ghashutil_strhash_p_murmur(ob->id.lib->name);
+		}
+		float offset = fmodf((hash / 100000.0) * M_GOLDEN_RATION_CONJUGATE, 1.0);
+
 		float hsv[3] = {offset, hsv_saturation, hsv_value};
 		hsv_to_rgb_v(hsv, color);
 	}
@@ -232,6 +240,7 @@ void workbench_materials_engine_init(WORKBENCH_Data *vedata)
 		const int size[2] = {(int)viewport_size[0], (int)viewport_size[1]};
 		e_data.object_id_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_R32UI, &draw_engine_workbench_solid);
 		e_data.color_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA8, &draw_engine_workbench_solid);
+		e_data.composite_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA16F, &draw_engine_workbench_solid);
 #ifdef WORKBENCH_ENCODE_NORMALS
 		e_data.normal_buffer_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RG8, &draw_engine_workbench_solid);
 #else
@@ -243,6 +252,10 @@ void workbench_materials_engine_init(WORKBENCH_Data *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.object_id_tx),
 			GPU_ATTACHMENT_TEXTURE(e_data.color_buffer_tx),
 			GPU_ATTACHMENT_TEXTURE(e_data.normal_buffer_tx),
+		});
+		GPU_framebuffer_ensure_config(&fbl->composite_fb, {
+			GPU_ATTACHMENT_TEXTURE(dtxl->depth),
+			GPU_ATTACHMENT_TEXTURE(e_data.composite_buffer_tx),
 		});
 	}
 
@@ -298,12 +311,14 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		wpd->drawtype_options = v3d->drawtype_options;
 		wpd->drawtype_studiolight = v3d->drawtype_studiolight;
 		wpd->drawtype_ambient_intensity = v3d->drawtype_ambient_intensity;
+		copy_v3_v3(wpd->drawtype_single_color, v3d->drawtype_single_color);
 	}
 	else {
 		wpd->drawtype_lighting = V3D_LIGHTING_STUDIO;
 		wpd->drawtype_options = 0;
 		wpd->drawtype_studiolight = 0;
 		wpd->drawtype_ambient_intensity = 0.5;
+		copy_v3_fl(wpd->drawtype_single_color, 1.0f);
 	}
 
 	select_deferred_shaders(wpd);
@@ -372,7 +387,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(WORKBENCH_Data *vedat
 	const float hsv_value = BKE_collection_engine_property_value_get_float(props, "random_object_color_value");
 
 	/* Solid */
-	get_material_solid_color(wpd, engine_object_data, ob, mat, color, hsv_saturation, hsv_value);
+	get_material_solid_color(wpd, ob, mat, color, hsv_saturation, hsv_value);
 	copy_v3_v3(material_template.color, color);
 	material_template.object_id = engine_object_data->object_id;
 	unsigned int hash = get_material_hash(wpd, &material_template);
@@ -519,15 +534,18 @@ void workbench_materials_draw_scene(WORKBENCH_Data *vedata)
 #else
 		GPU_framebuffer_bind(dfbl->depth_only_fb);
 		DRW_draw_pass(psl->shadow_pass);
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(fbl->composite_fb);
 		DRW_draw_pass(psl->composite_pass);
 		DRW_draw_pass(psl->composite_shadow_pass);
 #endif
 	}
 	else {
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(fbl->composite_fb);
 		DRW_draw_pass(psl->composite_pass);
 	}
+
+	GPU_framebuffer_bind(dfbl->color_only_fb);
+	DRW_transform_to_display(e_data.composite_buffer_tx);
 
 	BLI_ghash_free(wpd->material_hash, NULL, MEM_freeN);
 	DRW_UBO_FREE_SAFE(wpd->world_ubo);

@@ -124,7 +124,9 @@ typedef struct ModifierData {
 	struct ModifierData *next, *prev;
 
 	int type, mode;
-	int stackindex, pad;
+	int stackindex;
+	short flag;
+	short pad;
 	char name[64];  /* MAX_NAME */
 
 	/* XXX for timing info set by caller... solve later? (ton) */
@@ -132,6 +134,11 @@ typedef struct ModifierData {
 
 	char *error;
 } ModifierData;
+
+typedef enum {
+	/* This modifier has been inserted in local override, and hence can be fully edited. */
+	eModifierFlag_StaticOverride_Local  = (1 << 0),
+} ModifierFlag;
 
 typedef enum {
 	eSubsurfModifierFlag_Incremental  = (1 << 0),
