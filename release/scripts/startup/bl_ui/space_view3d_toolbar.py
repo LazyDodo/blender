@@ -1510,7 +1510,8 @@ class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
 
     @classmethod
     def poll(cls, context):
-        return (context.space_data.type == 'VIEW_3D')
+        ob = context.active_object
+        return ob and ob.type == 'GPENCIL'
 
     @staticmethod
     def draw(self, context):
@@ -1539,8 +1540,6 @@ class VIEW3D_PT_tools_grease_pencil_animation(Panel):
     @classmethod
     def poll(cls, context):
         if context.gpencil_data is None:
-            return False
-        elif context.space_data.type != 'VIEW_3D':
             return False
         elif context.active_object.mode == 'OBJECT':
             return False
@@ -1574,11 +1573,8 @@ class VIEW3D_PT_tools_grease_pencil_interpolate(Panel):
     def poll(cls, context):
         if context.gpencil_data is None:
             return False
-        elif context.space_data.type != 'VIEW_3D':
-            return False
 
         gpd = context.gpencil_data
-
         return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
 
     @staticmethod
