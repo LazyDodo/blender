@@ -103,7 +103,7 @@ typedef struct tGPDpick {
 	struct ScrArea *sa;                 /* area where painting originated */
 	struct ARegion *ar;                 /* region where painting originated */
 	struct Material *mat;               /* current material */
-	struct Brush *brush;            /* current brush */
+	struct Brush *brush;                /* current brush */
 	short bflag;                        /* previous brush flag */
 
 	int center[2];                      /* mouse center position */
@@ -218,46 +218,46 @@ static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 		sbox.xmax = col->rect.xmax - scalex;
 		sbox.ymax = col->rect.ymax;
 
-		fbox.xmin = col->rect.xmin + scalex;
-		fbox.ymin = col->rect.ymin;
-		fbox.xmax = col->rect.xmax;
-		fbox.ymax = col->rect.ymax - scaley;
+fbox.xmin = col->rect.xmin + scalex;
+fbox.ymin = col->rect.ymin;
+fbox.xmax = col->rect.xmax;
+fbox.ymax = col->rect.ymax - scaley;
 
-		glEnable(GL_BLEND);
-		glEnable(GL_LINE_SMOOTH);
+glEnable(GL_BLEND);
+glEnable(GL_LINE_SMOOTH);
 
 
-		/* highlight background of item under mouse */
-		if (i == tgpk->curindex) {
-			/* TODO: How to get the menu gradient shading? */
-			rcti *cbox = &col->full_rect;
-			UI_draw_roundbox_4fv(true,
-			                     cbox->xmin, cbox->ymin - GP_PICK_NAME_HEIGHT,
-			                     cbox->xmax, cbox->ymax,
-			                     0, selcolor);
-		}
+/* highlight background of item under mouse */
+if (i == tgpk->curindex) {
+	/* TODO: How to get the menu gradient shading? */
+	rcti *cbox = &col->full_rect;
+	UI_draw_roundbox_4fv(true,
+		cbox->xmin, cbox->ymin - GP_PICK_NAME_HEIGHT,
+		cbox->xmax, cbox->ymax,
+		0, selcolor);
+}
 
-		/* fill box */
-		UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax, radius, wcolor);
-		gp_draw_pattern_box(fbox.xmin + 2, fbox.ymin + 2, fbox.xmax - 2, fbox.ymax - 2);
-		UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
-			radius, col->fill);
-		UI_draw_roundbox_4fv(false, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
-			radius, line);
+/* fill box */
+UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax, radius, wcolor);
+gp_draw_pattern_box(fbox.xmin + 2, fbox.ymin + 2, fbox.xmax - 2, fbox.ymax - 2);
+UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
+	radius, col->fill);
+UI_draw_roundbox_4fv(false, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
+	radius, line);
 
-		/* stroke box */
-		UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax, radius, wcolor);
-		gp_draw_pattern_box(sbox.xmin + 2, sbox.ymin + 2, sbox.xmax - 2, sbox.ymax - 2);
-		UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
-			radius, col->rgba);
-		UI_draw_roundbox_4fv(false, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
-			radius, line);
+/* stroke box */
+UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax, radius, wcolor);
+gp_draw_pattern_box(sbox.xmin + 2, sbox.ymin + 2, sbox.xmax - 2, sbox.ymax - 2);
+UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
+	radius, col->rgba);
+UI_draw_roundbox_4fv(false, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
+	radius, line);
 
-		glDisable(GL_BLEND);
-		glDisable(GL_LINE_SMOOTH);
+glDisable(GL_BLEND);
+glDisable(GL_LINE_SMOOTH);
 
-		/* draw color name */
-		gp_draw_color_name(tgpk, col, fstyle, focus);
+/* draw color name */
+gp_draw_color_name(tgpk, col, fstyle, focus);
 	}
 }
 
@@ -265,8 +265,8 @@ static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 static void gpencil_colorpick_draw_3d(const bContext *C, ARegion *UNUSED(ar), void *arg)
 {
 	tGPDpick *tgpk = (tGPDpick *)arg;
-	
-	gpencil_draw_color_table(C, tgpk); 
+
+	gpencil_draw_color_table(C, tgpk);
 }
 
 /* check if context is suitable */
@@ -317,12 +317,18 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	ED_region_visible_rect(tgpk->ar, &tgpk->rect);
 
 	/* get current material */
-	tgpk->mat = give_current_material(tgpk->ob, tgpk->ob->actcol);
+	if ((tgpk->brush) && (tgpk->brush->material)) {
+		tgpk->mat = tgpk->brush->material;
+		tgpk->curindex = BKE_object_material_slot_find_index(tgpk->ob, tgpk->mat) - 1;
+	}
+	else {
+		tgpk->mat = give_current_material(tgpk->ob, tgpk->ob->actcol);
+		tgpk->curindex = tgpk->ob->actcol - 1;
+	}
 
 	/* allocate color table */
 	short *totcolp = give_totcolp(tgpk->ob);
 	tgpk->totcolor = *totcolp;
-	tgpk->curindex = tgpk->ob->actcol - 1;
 	if (tgpk->totcolor > 0) {
 		tgpk->colors = MEM_callocN(sizeof(tGPDpickColor) * tgpk->totcolor, "gp_colorpicker");
 	}
@@ -518,6 +524,8 @@ static int gpencil_colorpick_modal(bContext *C, wmOperator *op, const wmEvent *e
 				int index = gpencil_colorpick_index_from_mouse(tgpk, event);
 				if (index != -1) {
 					tgpk->ob->actcol = index + 1;
+					tgpk->brush->material = give_current_material(tgpk->ob, tgpk->ob->actcol);
+					tgpk->mat = tgpk->brush->material;
 					estate = OPERATOR_FINISHED;
 				}
 			}
