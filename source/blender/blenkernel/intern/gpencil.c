@@ -551,9 +551,13 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src)
 
 	gps_dst->points = MEM_dupallocN(gps_src->points);
 	BKE_gpencil_stroke_weights_duplicate(gps_src, gps_dst);
-	gps_dst->triangles = NULL;
-	gps_dst->tot_triangles = 0;
-	gps_dst->flag |= GP_STROKE_RECALC_CACHES;
+	
+	/* Don't clear triangles, so that modifier evaluation can just use
+	 * this without extra work first. Most places that need to force
+	 * this data to get recalculated will destroy the data anyway though.
+	 */
+	gps_dst->triangles = MEM_dupallocN(gps_dst->triangles);
+	/* gps_dst->flag |= GP_STROKE_RECALC_CACHES; */
 
 	/* return new stroke */
 	return gps_dst;
@@ -602,37 +606,6 @@ void BKE_gpencil_frame_copy_strokes(bGPDframe *gpf_src, struct bGPDframe *gpf_ds
 		gps_dst = BKE_gpencil_stroke_duplicate(gps_src);
 		BLI_addtail(&gpf_dst->strokes, gps_dst);
 	}
-}
-
-/* make a copy of a given gpencil frame and copy colors too */
-// XXX: C and GPD unused... deprecate this function?
-bGPDframe *BKE_gpencil_frame_color_duplicate(const bContext *C, bGPdata *gpd, const bGPDframe *gpf_src)
-{
-	bGPDstroke *gps_dst;
-	bGPDframe *gpf_dst;
-	
-	/* error checking */
-	if (gpf_src == NULL) {
-		return NULL;
-	}
-	
-	/* make a copy of the source frame */
-	gpf_dst = MEM_dupallocN(gpf_src);
-
-	/* copy strokes */
-	BLI_listbase_clear(&gpf_dst->strokes);
-	for (bGPDstroke *gps_src = gpf_src->strokes.first; gps_src; gps_src = gps_src->next) {
-		/* make copy of source stroke */
-		gps_dst = MEM_dupallocN(gps_src);
-		gps_dst->points = MEM_dupallocN(gps_src->points);
-		BKE_gpencil_stroke_weights_duplicate(gps_src, gps_dst);
-
-		gps_dst->triangles = MEM_dupallocN(gps_src->triangles);
-
-		BLI_addtail(&gpf_dst->strokes, gps_dst);
-	}
-	/* return new frame */
-	return gpf_dst;
 }
 
 /* make a copy of a given gpencil layer */

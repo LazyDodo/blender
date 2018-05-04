@@ -1004,7 +1004,8 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 				BLI_ghash_remove(gpl->derived_data, ob->id.name, NULL, NULL);
 			}
 			/* create new data */
-			derived_gpf = BKE_gpencil_frame_color_duplicate(C, gpd, gpf);
+			// TODO: we want the triangles data kept!
+			derived_gpf = BKE_gpencil_frame_duplicate(gpf);
 			BLI_ghash_insert(gpl->derived_data, ob->id.name, derived_gpf);
 		}
 
