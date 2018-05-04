@@ -311,8 +311,7 @@ typedef struct ModifierTypeInfo {
 	 * in the modifier stack in relation to other modifiers.
 	 */
 	void (*generateStrokes)(struct ModifierData *md, struct Depsgraph *depsgraph,
-	                        struct Object *ob, struct bGPDlayer *gpl, struct bGPDframe *gpf,
-	                        int modifier_index);
+	                        struct Object *ob, struct bGPDlayer *gpl, struct bGPDframe *gpf);
 
 	/* Bake-down GP modifier's effects into the GP datablock.
 	 *

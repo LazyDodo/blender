@@ -133,8 +133,7 @@ void BKE_gpencil_instance_modifier_instance_tfm(GpencilInstanceModifierData *mmd
 /* array modifier - generate geometry callback (for viewport/rendering) */
 /* TODO: How to skip this for the simplify options?   -->  !GP_SIMPLIFY_MODIF(ts, playing) */
 static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-	                          Object *ob, bGPDlayer *gpl, bGPDframe *gpf,
-	                          int modifier_index)
+	                          Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 	ListBase stroke_cache = {NULL, NULL};
@@ -243,7 +242,7 @@ static void bakeModifierGP_strokes(const bContext *UNUSED(C), Depsgraph *depsgra
 	
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			generate_geometry(md, depsgraph, ob, gpl, gpf, -1);
+			generate_geometry(md, depsgraph, ob, gpl, gpf);
 		}
 	}
 }
@@ -339,8 +338,7 @@ static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *
 
 /* Generic "generateStrokes" callback */
 static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
-	                        Object *ob, bGPDlayer *gpl, bGPDframe *gpf,
-	                        int modifier_index)
+	                        Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 	
@@ -353,7 +351,7 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	 *        working functionality
 	 */
 	if ((mmd->flag & GP_INSTANCE_MAKE_OBJECTS) == 0) {
-		generate_geometry(md, depsgraph, ob, gpl, gpf, modifier_index);
+		generate_geometry(md, depsgraph, ob, gpl, gpf);
 	}
 }
 

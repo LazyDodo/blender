@@ -383,7 +383,6 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 	bGPdata *gpd = ob->data;
 	bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
 
-	int id = 0;
 	for (md = ob->modifiers.first; md; md = md->next) {
 		if (((md->mode & eModifierMode_Realtime) && (is_render == false)) ||
 		    ((md->mode & eModifierMode_Render) && (is_render == true)))
@@ -395,10 +394,9 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 			}
 
 			if (mti->generateStrokes) {
-				mti->generateStrokes(md, depsgraph, ob, gpl, gpf, id);
+				mti->generateStrokes(md, depsgraph, ob, gpl, gpf);
 			}
 		}
-		id++;
 	}
 }
 

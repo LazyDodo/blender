@@ -90,19 +90,19 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
  */
 
 /* Remove a particular stroke */
-static void clear_stroke(bGPDframe *gpf, bGPDstroke *gps, int modifier_index)
+static void clear_stroke(bGPDframe *gpf, bGPDstroke *gps)
 {
 	BLI_remlink(&gpf->strokes, gps);
 	BKE_gpencil_free_stroke(gps);
 }
 
 /* Clear all strokes in frame */
-static void gpf_clear_all_strokes(bGPDframe *gpf, int modifier_index)
+static void gpf_clear_all_strokes(bGPDframe *gpf)
 {
 	bGPDstroke *gps, *gps_next;
 	for (gps = gpf->strokes.first; gps; gps = gps_next) {
 		gps_next = gps->next;
-		clear_stroke(gpf, gps, modifier_index);
+		clear_stroke(gpf, gps);
 	}
 	BLI_listbase_clear(&gpf->strokes);
 }
@@ -185,7 +185,7 @@ typedef struct tStrokeBuildDetails {
 
 
 /* Sequential - Show strokes one after the other */
-static void build_sequential(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac, int modifier_index)
+static void build_sequential(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac)
 {
 	const size_t tot_strokes = BLI_listbase_count(&gpf->strokes);
 	bGPDstroke *gps;
@@ -258,7 +258,7 @@ static void build_sequential(GpencilBuildModifierData *mmd, bGPDframe *gpf, floa
 		/* Determine what portion of the stroke is visible */
 		if ((cell->end_idx < first_visible) || (cell->start_idx > last_visible)) {
 			/* Not visible at all - Either ended before */
-			clear_stroke(gpf, cell->gps, modifier_index);
+			clear_stroke(gpf, cell->gps);
 		}
 		else {
 			/* Some proportion of stroke is visible */
@@ -288,7 +288,7 @@ static void build_sequential(GpencilBuildModifierData *mmd, bGPDframe *gpf, floa
 /* Concurrent - Show multiple strokes at once */
 // TODO: Allow random offsets to start times
 // TODO: Allow varying speeds? Scaling of progress?
-static void build_concurrent(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac, int modifier_index)
+static void build_concurrent(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac)
 {
 	bGPDstroke *gps, *gps_next;
 	int max_points = 0;
@@ -382,7 +382,7 @@ static void build_concurrent(GpencilBuildModifierData *mmd, bGPDframe *gpf, floa
 		/* Modify the stroke geometry */
 		if (num_points <= 0) {
 			/* Nothing Left - Delete the stroke */
-			clear_stroke(gpf, gps, modifier_index);
+			clear_stroke(gpf, gps);
 		}
 		else if (num_points < gps->totpoints) {
 			/* Remove some points */
@@ -395,8 +395,7 @@ static void build_concurrent(GpencilBuildModifierData *mmd, bGPDframe *gpf, floa
 
 /* Entry-point for Build Modifier */
 static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
-	                        Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf,
-	                        int modifier_index)
+	                        Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf)
 {
 	GpencilBuildModifierData *mmd = (GpencilBuildModifierData *)md;
 	const bool reverse = (mmd->transition != GP_BUILD_TRANSITION_GROW);
@@ -457,7 +456,7 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 			/* 2) Forward Order = Start with nothing, end with the full frame.
 			 *    ==> Free all strokes, and return an empty frame
 			 */
-			gpf_clear_all_strokes(gpf, modifier_index);
+			gpf_clear_all_strokes(gpf);
 		}
 		
 		/* Early exit */
@@ -469,7 +468,7 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 			/* 1) Reverse = Start with all, end with nothing.
 			 *    ==> Free all strokes, and return an empty frame
 			 */
-			gpf_clear_all_strokes(gpf, modifier_index);
+			gpf_clear_all_strokes(gpf);
 		}
 		else {
 			/* 2) Forward Order = Start with nothing, end with the full frame.
@@ -489,11 +488,11 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	/* Time management mode */
 	switch (mmd->mode) {
 		case GP_BUILD_MODE_SEQUENTIAL:
-			build_sequential(mmd, gpf, fac, modifier_index);
+			build_sequential(mmd, gpf, fac);
 			break;
 			
 		case GP_BUILD_MODE_CONCURRENT:
-			build_concurrent(mmd, gpf, fac, modifier_index);
+			build_concurrent(mmd, gpf, fac);
 			break;
 			
 		default:
