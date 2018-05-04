@@ -84,14 +84,14 @@ static void GPENCIL_create_framebuffers(void *vedata)
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 
 	/* Go full 32bits for rendering */
-	DRWTextureFormat fb_format = DRW_state_is_image_render() ? DRW_TEX_RGBA_32 : DRW_TEX_RGBA_16;
+	GPUTextureFormat fb_format = DRW_state_is_image_render() ? GPU_RGBA32F : GPU_RGBA16F;
 
 	if (DRW_state_is_fbo()) {
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
 		/* vfx (ping-pong textures) */
-		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_object_type);
 		e_data.vfx_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
 			&draw_engine_object_type);
@@ -100,7 +100,7 @@ static void GPENCIL_create_framebuffers(void *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_a)
 			});
 
-		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_object_type);
 		e_data.vfx_color_tx_b = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
 			&draw_engine_object_type);
@@ -110,9 +110,9 @@ static void GPENCIL_create_framebuffers(void *vedata)
 			});
 
 		/* painting framebuffer to speed up drawing process (always 16 bits) */
-		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_object_type);
-		e_data.painting_color_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_16,
+		e_data.painting_color_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA16F,
 			&draw_engine_object_type);
 		GPU_framebuffer_ensure_config(&fbl->painting_fb, {
 			GPU_ATTACHMENT_TEXTURE(e_data.painting_depth_tx),
@@ -658,6 +658,7 @@ static void GPENCIL_draw_scene(void *vedata)
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
 	int init_grp, end_grp;
 	tGPencilObjectCache *cache;
@@ -683,12 +684,12 @@ static void GPENCIL_draw_scene(void *vedata)
 	if ((!is_render) && (stl->g_data->session_flag & GP_DRW_PAINT_PAINTING)) {
 		GPU_framebuffer_bind(dfbl->default_fb);
 
-		MULTISAMPLE_SYNC_ENABLE(dfbl);
+		MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 		
 		DRW_draw_pass(psl->painting_pass);
 		DRW_draw_pass(psl->drawing_pass);
 
-		MULTISAMPLE_SYNC_DISABLE(dfbl);
+		MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl);
 
 		/* free memory */
 		gpencil_free_obj_list(stl);
@@ -842,8 +843,8 @@ static void DRW_framebuffer_multisample_ensure(DefaultFramebufferList *dfbl, Def
 		if (!dfbl->multisample_fb) {
 			dfbl->multisample_fb = GPU_framebuffer_create();
 			if (dfbl->multisample_fb) {
-				dtxl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, NULL, U.ogl_multisamples, NULL);
-				dtxl->multisample_depth = GPU_texture_create_depth_with_stencil_multisample(rect_w, rect_h, U.ogl_multisamples, NULL);
+				dtxl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA8, NULL, U.ogl_multisamples, NULL);
+				dtxl->multisample_depth = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_DEPTH24_STENCIL8, NULL, U.ogl_multisamples, NULL);
 				GPU_framebuffer_ensure_config(&dfbl->multisample_fb, {
 					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_depth),
 					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_color)
@@ -881,9 +882,9 @@ static void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct 
 		DRW_framebuffer_multisample_ensure(dfbl, dtxl, rect_w, rect_h);
 	}
 
-	e_data.render_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+	e_data.render_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 		&draw_engine_object_type);
-	e_data.render_color_tx = DRW_texture_pool_query_2D(size[0], size[1], DRW_TEX_RGBA_32,
+	e_data.render_color_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA32F,
 		&draw_engine_object_type);
 	GPU_framebuffer_ensure_config(&fbl->main, {
 		GPU_ATTACHMENT_TEXTURE(e_data.render_depth_tx),

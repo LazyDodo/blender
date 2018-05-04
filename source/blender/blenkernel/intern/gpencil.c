@@ -605,6 +605,7 @@ void BKE_gpencil_frame_copy_strokes(bGPDframe *gpf_src, struct bGPDframe *gpf_ds
 }
 
 /* make a copy of a given gpencil frame and copy colors too */
+// XXX: C and GPD unused... deprecate this function?
 bGPDframe *BKE_gpencil_frame_color_duplicate(const bContext *C, bGPdata *gpd, const bGPDframe *gpf_src)
 {
 	bGPDstroke *gps_dst;

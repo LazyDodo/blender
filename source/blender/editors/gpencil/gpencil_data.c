@@ -1961,7 +1961,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				if (base->object->adt) {
 					if (obact->adt == NULL) {
 						/* no animdata, so just use a copy of the whole thing */
-						obact->adt = BKE_animdata_copy(bmain, base->object->adt, false);
+						obact->adt = BKE_animdata_copy(bmain, base->object->adt, false, true);
 					}
 					else {
 						/* merge in data - we'll fix the drivers manually */
@@ -1972,7 +1972,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				if (gpd_src->adt) {
 					if (gpd_dst->adt == NULL) {
 						/* no animdata, so just use a copy of the whole thing */
-						gpd_dst->adt = BKE_animdata_copy(bmain, gpd_src->adt, false);
+						gpd_dst->adt = BKE_animdata_copy(bmain, gpd_src->adt, false, true);
 					}
 					else {
 						/* merge in data - we'll fix the drivers manually */

@@ -696,10 +696,11 @@ void do_versions_after_linking_280(Main *main)
 
 	/* Grease Pencil Object */
 	/* Convert grease pencil datablock to GP object */
+#if 0 /* XXX: Needs review - maybe we don't want to do this, as annotations could cause havok on cycles files! */
 	for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
 		if (scene->gpd) {
 			Object *ob;
-			ViewLayer *view_layer = BKE_view_layer_from_scene_get(scene);
+			ViewLayer *view_layer = scene->view_layers.first; /* Weak, but at least it goes somewhere... */
 			if (view_layer == NULL) {
 				view_layer = BKE_view_layer_add(scene, "Viewport");
 				printf("added scene layer again - %p\n", view_layer);
@@ -771,7 +772,7 @@ void do_versions_after_linking_280(Main *main)
 			}
 		}
 	}
-
+#endif
 }
 
 static void do_version_layer_collections_idproperties(ListBase *lb)

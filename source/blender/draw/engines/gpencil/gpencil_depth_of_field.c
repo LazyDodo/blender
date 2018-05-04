@@ -114,13 +114,13 @@ int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCI
 		int buffer_size[2] = { (int)viewport_size[0] / 2, (int)viewport_size[1] / 2 };
 
 		/* Setup buffers */
-		e_data->gpencil_dof_down_near = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGBA_16,
+		e_data->gpencil_dof_down_near = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], GPU_RGBA16F,
 														   draw_engine_gpencil_type);
-		e_data->gpencil_dof_down_far = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RGBA_16,
+		e_data->gpencil_dof_down_far = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], GPU_RGBA16F,
 														   draw_engine_gpencil_type);
-		e_data->gpencil_dof_coc = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_RG_16,
+		e_data->gpencil_dof_coc = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], GPU_R16F,
 														   draw_engine_gpencil_type);
-		e_data->gpencil_dof_weight = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], DRW_TEX_R_16,
+		e_data->gpencil_dof_weight = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], GPU_R16F,
 														   draw_engine_gpencil_type);
 
 		GPU_framebuffer_ensure_config(&fbl->dof_down_fb, {
@@ -131,7 +131,7 @@ int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCI
 		});
 			
 		/* Go full 32bits for rendering and reduce the color artifacts. */
-		DRWTextureFormat fb_format = DRW_state_is_image_render() ? DRW_TEX_RGBA_32 : DRW_TEX_RGBA_16;
+		GPUTextureFormat fb_format = DRW_state_is_image_render() ? GPU_RGBA32F : GPU_RGBA16F;
 
 		e_data->gpencil_dof_far_blur = DRW_texture_pool_query_2D(buffer_size[0], buffer_size[1], fb_format,
 														  draw_engine_gpencil_type);

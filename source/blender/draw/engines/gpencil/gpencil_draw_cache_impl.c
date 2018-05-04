@@ -1039,7 +1039,7 @@ struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height)
 	int h = height;
 	float *final_rect = MEM_callocN(sizeof(float) * 4 * w * h, "Gpencil Blank Texture");
 
-	tex = DRW_texture_create_2D(w, h, DRW_TEX_RGBA_8, DRW_TEX_FILTER, final_rect);
+	tex = DRW_texture_create_2D(w, h, GPU_RGBA8, DRW_TEX_FILTER, final_rect);
 	MEM_freeN(final_rect);
 
 	return tex;

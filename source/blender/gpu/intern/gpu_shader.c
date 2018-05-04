@@ -827,14 +827,6 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		[GPU_SHADER_2D_NODELINK_INST] = { datatoc_gpu_shader_2D_nodelink_vert_glsl,
 		                                  datatoc_gpu_shader_2D_nodelink_frag_glsl },
 
-		[GPU_SHADER_3D_INSTANCE_BONE_ENVELOPE_SOLID] = { datatoc_gpu_shader_instance_bone_envelope_solid_vert_glsl,
-		                                                 datatoc_gpu_shader_simple_lighting_frag_glsl },
-		[GPU_SHADER_3D_INSTANCE_BONE_ENVELOPE_WIRE] = { datatoc_gpu_shader_instance_bone_envelope_wire_vert_glsl,
-		                                                datatoc_gpu_shader_flat_color_frag_glsl },
-
-		[GPU_SHADER_3D_INSTANCE_MBALL_HANDLES] = { datatoc_gpu_shader_instance_mball_handles_vert_glsl,
-		                                           datatoc_gpu_shader_flat_color_frag_glsl },
-
 		[GPU_SHADER_GPENCIL_STROKE] = { datatoc_gpu_shader_gpencil_stroke_vert_glsl,
 									    datatoc_gpu_shader_gpencil_stroke_frag_glsl,
 			                            datatoc_gpu_shader_gpencil_stroke_geom_glsl },

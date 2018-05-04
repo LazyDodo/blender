@@ -323,7 +323,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 
 	/* try to get active color or create a new one */
 	Material *mat = BKE_gpencil_color_ensure(bmain, ob);
-	GpencilColorData *gpcolor = mat->gpcolor;
 	
 	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
 	BKE_gpencil_free_strokes(gpf);
