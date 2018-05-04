@@ -200,8 +200,8 @@ static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 	glEnable(GL_BLEND);
 	UI_draw_roundbox_corner_set(UI_CNR_ALL);
 	UI_draw_roundbox_4fv(true, tgpk->panel.xmin, tgpk->panel.ymin,
-						tgpk->panel.xmax, tgpk->panel.ymax,
-						radius, background);
+		tgpk->panel.xmax, tgpk->panel.ymax,
+		radius, background);
 	glDisable(GL_BLEND);
 
 	/* draw color boxes */
@@ -218,46 +218,46 @@ static void gpencil_draw_color_table(const bContext *C, tGPDpick *tgpk)
 		sbox.xmax = col->rect.xmax - scalex;
 		sbox.ymax = col->rect.ymax;
 
-fbox.xmin = col->rect.xmin + scalex;
-fbox.ymin = col->rect.ymin;
-fbox.xmax = col->rect.xmax;
-fbox.ymax = col->rect.ymax - scaley;
+		fbox.xmin = col->rect.xmin + scalex;
+		fbox.ymin = col->rect.ymin;
+		fbox.xmax = col->rect.xmax;
+		fbox.ymax = col->rect.ymax - scaley;
 
-glEnable(GL_BLEND);
-glEnable(GL_LINE_SMOOTH);
+		glEnable(GL_BLEND);
+		glEnable(GL_LINE_SMOOTH);
 
 
-/* highlight background of item under mouse */
-if (i == tgpk->curindex) {
-	/* TODO: How to get the menu gradient shading? */
-	rcti *cbox = &col->full_rect;
-	UI_draw_roundbox_4fv(true,
-		cbox->xmin, cbox->ymin - GP_PICK_NAME_HEIGHT,
-		cbox->xmax, cbox->ymax,
-		0, selcolor);
-}
+		/* highlight background of item under mouse */
+		if (i == tgpk->curindex) {
+			/* TODO: How to get the menu gradient shading? */
+			rcti *cbox = &col->full_rect;
+			UI_draw_roundbox_4fv(true,
+				cbox->xmin, cbox->ymin - GP_PICK_NAME_HEIGHT,
+				cbox->xmax, cbox->ymax,
+				0, selcolor);
+		}
 
-/* fill box */
-UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax, radius, wcolor);
-gp_draw_pattern_box(fbox.xmin + 2, fbox.ymin + 2, fbox.xmax - 2, fbox.ymax - 2);
-UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
-	radius, col->fill);
-UI_draw_roundbox_4fv(false, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
-	radius, line);
+		/* fill box */
+		UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax, radius, wcolor);
+		gp_draw_pattern_box(fbox.xmin + 2, fbox.ymin + 2, fbox.xmax - 2, fbox.ymax - 2);
+		UI_draw_roundbox_4fv(true, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
+			radius, col->fill);
+		UI_draw_roundbox_4fv(false, fbox.xmin, fbox.ymin, fbox.xmax, fbox.ymax,
+			radius, line);
 
-/* stroke box */
-UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax, radius, wcolor);
-gp_draw_pattern_box(sbox.xmin + 2, sbox.ymin + 2, sbox.xmax - 2, sbox.ymax - 2);
-UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
-	radius, col->rgba);
-UI_draw_roundbox_4fv(false, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
-	radius, line);
+		/* stroke box */
+		UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax, radius, wcolor);
+		gp_draw_pattern_box(sbox.xmin + 2, sbox.ymin + 2, sbox.xmax - 2, sbox.ymax - 2);
+		UI_draw_roundbox_4fv(true, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
+			radius, col->rgba);
+		UI_draw_roundbox_4fv(false, sbox.xmin, sbox.ymin, sbox.xmax, sbox.ymax,
+			radius, line);
 
-glDisable(GL_BLEND);
-glDisable(GL_LINE_SMOOTH);
+		glDisable(GL_BLEND);
+		glDisable(GL_LINE_SMOOTH);
 
-/* draw color name */
-gp_draw_color_name(tgpk, col, fstyle, focus);
+		/* draw color name */
+		gp_draw_color_name(tgpk, col, fstyle, focus);
 	}
 }
 
