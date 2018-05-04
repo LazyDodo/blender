@@ -634,15 +634,16 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 
 	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
 
-	/* if the brush has a default material defined, use these and not current defaults */
+	/* use the brush material */
 	Material *ma = BKE_gpencil_get_color_from_brush(brush);
 	if (ma != NULL) {
 		gpcolor = ma->gpcolor;
 	}
+	/* this is not common, but avoid any special situations when brush could be without material */
 	if (gpcolor == NULL) {
 		gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
 	}
-	
+
 	/* drawing strokes */
 	/* Check if may need to draw the active stroke cache, only if this layer is the active layer
 	 * that is being edited. (Stroke buffer is currently stored in gp-data)

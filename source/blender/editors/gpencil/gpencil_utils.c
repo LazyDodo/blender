@@ -1381,15 +1381,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	GP_EditBrush_Data *brush = NULL;
 	Brush *paintbrush = NULL;
-	int *last_mouse_position = customdata;
-
-	/* get current color */
-	Material *ma = BKE_gpencil_get_color_from_brush(CTX_data_active_gpencil_brush(C));
+	Material *ma = NULL;
 	GpencilColorData *gpcolor = NULL;
-	if (ma == NULL) {
-		ma = BKE_gpencil_color_ensure(bmain, ob);
-	}
-	gpcolor = ma->gpcolor;
+	int *last_mouse_position = customdata;
 
 	if ((gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE)) {
 		brush = &gset->brush[gset->weighttype];
@@ -1430,6 +1424,15 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 				ED_gpencil_brush_draw_eraser(paintbrush, x, y);
 				return;
 			}
+
+			/* get current drawing color */
+			ma = BKE_gpencil_get_color_from_brush(paintbrush);
+			if (ma == NULL) {
+				ma = BKE_gpencil_color_ensure(bmain, ob);
+				/* assign the material to the brush */
+				paintbrush->material = ma;
+			}
+			gpcolor = ma->gpcolor;
 
 			/* after some testing, display the size of the brush is not practical because 
 			 * is too disruptive and the size of cursor does not change with zoom factor.
