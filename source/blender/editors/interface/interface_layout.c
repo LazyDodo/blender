@@ -238,9 +238,10 @@ static int ui_layout_vary_direction(uiLayout *layout)
 static int ui_text_icon_width(uiLayout *layout, const char *name, int icon, bool compact)
 {
 	bool variable;
+	const int unit_x = UI_UNIT_X * (layout->scale[0] ? layout->scale[0] : 1.0f);
 
 	if (icon && !name[0])
-		return UI_UNIT_X;  /* icon only */
+		return unit_x;  /* icon only */
 
 	variable = (ui_layout_vary_direction(layout) == UI_ITEM_VARY_X);
 
@@ -249,14 +250,14 @@ static int ui_text_icon_width(uiLayout *layout, const char *name, int icon, bool
 			layout->item.flag |= UI_ITEM_MIN;
 		}
 		const uiFontStyle *fstyle = UI_FSTYLE_WIDGET;
-		/* it may seem odd that the icon only adds (UI_UNIT_X / 4)
+		/* it may seem odd that the icon only adds (unit_x / 4)
 		 * but taking margins into account its fine */
 		return (UI_fontstyle_string_width(fstyle, name) +
-		        (UI_UNIT_X * ((compact ? 1.25f : 1.50f) +
-		                      (icon    ? 0.25f : 0.0f))));
+		        (unit_x * ((compact ? 1.25f : 1.50f) +
+		                   (icon    ? 0.25f : 0.0f))));
 	}
 	else {
-		return UI_UNIT_X * 10;
+		return unit_x * 10;
 	}
 }
 
@@ -902,7 +903,23 @@ static void ui_item_menu_hold(struct bContext *C, ARegion *butregion, uiBut *but
 
 	block->flag |= UI_BLOCK_POPUP_HOLD;
 	block->flag |= UI_BLOCK_IS_FLIP;
-	UI_block_direction_set(block, UI_DIR_DOWN);
+
+	char direction = UI_DIR_DOWN;
+	if (!but->drawstr[0]) {
+		if (butregion->alignment == RGN_ALIGN_LEFT) {
+			direction = UI_DIR_RIGHT;
+		}
+		else if (butregion->alignment == RGN_ALIGN_RIGHT) {
+			direction = UI_DIR_LEFT;
+		}
+		else if (butregion->alignment == RGN_ALIGN_BOTTOM) {
+			direction = UI_DIR_UP;
+		}
+		else {
+			direction = UI_DIR_DOWN;
+		}
+	}
+	UI_block_direction_set(block, direction);
 
 	const char *menu_id = but->hold_argN;
 	MenuType *mt = WM_menutype_find(menu_id, true);
@@ -1931,7 +1948,7 @@ void uiItemM(uiLayout *layout, bContext *UNUSED(C), const char *menuname, const 
 }
 
 /* popover */
-void uiItemPopoverPanel_ptr(uiLayout *layout, bContext *UNUSED(C), PanelType *pt, const char *name, int icon)
+void uiItemPopoverPanel_ptr(uiLayout *layout, bContext *C, PanelType *pt, const char *name, int icon)
 {
 	if (!name) {
 		name = CTX_IFACE_(pt->translation_context, pt->label);
@@ -1942,6 +1959,9 @@ void uiItemPopoverPanel_ptr(uiLayout *layout, bContext *UNUSED(C), PanelType *pt
 
 	uiBut *but = ui_item_menu(layout, name, icon, ui_item_paneltype_func, pt, NULL, NULL, false);
 	but->type = UI_BTYPE_POPOVER;
+	if (pt->poll && (pt->poll(C, pt) == false)) {
+		but->flag |= UI_BUT_DISABLED;
+	}
 }
 
 void uiItemPopoverPanel(

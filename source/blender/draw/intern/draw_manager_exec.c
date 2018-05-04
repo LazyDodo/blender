@@ -190,8 +190,8 @@ void drw_state_set(DRWState state)
 	{
 		int test;
 		if (CHANGED_ANY_STORE_VAR(
-		        DRW_STATE_BLEND | DRW_STATE_ADDITIVE | DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION |
-		        DRW_STATE_ADDITIVE_FULL,
+		        DRW_STATE_BLEND | DRW_STATE_BLEND_PREMUL | DRW_STATE_ADDITIVE |
+		        DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION | DRW_STATE_ADDITIVE_FULL,
 		        test))
 		{
 			if (test) {
@@ -200,6 +200,9 @@ void drw_state_set(DRWState state)
 				if ((state & DRW_STATE_BLEND) != 0) {
 					glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, /* RGB */
 					                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA); /* Alpha */
+				}
+				else if ((state & DRW_STATE_BLEND_PREMUL) != 0) {
+					glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 				}
 				else if ((state & DRW_STATE_MULTIPLY) != 0) {
 					glBlendFunc(GL_DST_COLOR, GL_ZERO);
@@ -458,6 +461,8 @@ static void draw_clipping_setup_from_view(void)
 		mul_m4_v3(viewinv, bbox.vec[i]);
 	}
 
+	memcpy(&DST.clipping.frustum_corners, &bbox, sizeof(BoundBox));
+
 	/* Compute clip planes using the world space frustum corners. */
 	for (int p = 0; p < 6; p++) {
 		int q, r;
@@ -637,6 +642,22 @@ bool DRW_culling_box_test(BoundBox *bbox)
 	return true;
 }
 
+/* Return True if the current view frustum is inside or intersect the given plane */
+bool DRW_culling_plane_test(float plane[4])
+{
+	draw_clipping_setup_from_view();
+
+	/* Test against the 8 frustum corners. */
+	for (int c = 0; c < 8; c++) {
+		float dist = plane_point_side_v3(plane, DST.clipping.frustum_corners.vec[c]);
+		if (dist < 0.0f) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -644,22 +665,35 @@ bool DRW_culling_box_test(BoundBox *bbox)
 /** \name Draw (DRW_draw)
  * \{ */
 
+static void draw_visibility_eval(DRWCallState *st)
+{
+	bool culled = st->flag & DRW_CALL_CULLED;
+
+	if (st->cache_id != DST.state_cache_id) {
+		/* Update culling result for this view. */
+		culled = !DRW_culling_sphere_test(&st->bsphere);
+	}
+
+	if (st->visibility_cb) {
+		culled = !st->visibility_cb(!culled, st->user_data);
+	}
+
+	SET_FLAG_FROM_TEST(st->flag, culled, DRW_CALL_CULLED);
+}
+
 static void draw_matrices_model_prepare(DRWCallState *st)
 {
 	if (st->cache_id == DST.state_cache_id) {
-		return; /* Values are already updated for this view. */
+		/* Values are already updated for this view. */
+		return;
 	}
 	else {
 		st->cache_id = DST.state_cache_id;
 	}
 
-	if (DRW_culling_sphere_test(&st->bsphere)) {
-		st->flag &= ~DRW_CALL_CULLED;
-	}
-	else {
-		st->flag |= DRW_CALL_CULLED;
-		return; /* No need to go further the call will not be used. */
-	}
+	/* No need to go further the call will not be used. */
+	if (st->flag & DRW_CALL_CULLED)
+		return;
 
 	/* Order matters */
 	if (st->matflag & (DRW_CALL_MODELVIEW | DRW_CALL_MODELVIEWINVERSE |
@@ -1014,6 +1048,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 		for (DRWCall *call = shgroup->calls.first; call; call = call->next) {
 
 			/* OPTI/IDEA(clem): Do this preparation in another thread. */
+			draw_visibility_eval(call->state);
 			draw_matrices_model_prepare(call->state);
 
 			if ((call->state->flag & DRW_CALL_CULLED) != 0)

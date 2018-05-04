@@ -39,10 +39,13 @@
 
 #include "BLI_utildefines.h"
 
-#include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
 #include "BKE_lattice.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
+
+#include "MEM_guardedalloc.h"
 
 #include "MOD_util.h"
 
@@ -99,32 +102,36 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Lattice Modifier");
 }
 
-static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
-                        Object *ob, DerivedMesh *derivedData,
+static void deformVerts(ModifierData *md, const ModifierEvalContext *ctx,
+                        struct Mesh *mesh,
                         float (*vertexCos)[3],
-                        int numVerts,
-                        ModifierApplyFlag UNUSED(flag))
+                        int numVerts)
 {
 	LatticeModifierData *lmd = (LatticeModifierData *) md;
 
 
 	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
-	
-	lattice_deform_verts(lmd->object, ob, derivedData,
+
+	lattice_deform_verts(lmd->object, ctx->object, mesh,
 	                     vertexCos, numVerts, lmd->name, lmd->strength);
 }
 
 static void deformVertsEM(
-        ModifierData *md, struct Depsgraph *depsgraph, Object *ob, struct BMEditMesh *em,
-        DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
+        ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *em,
+        struct Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
-	DerivedMesh *dm = derivedData;
+	struct Mesh *mesh_src = mesh;
 
-	if (!derivedData) dm = CDDM_from_editbmesh(em, false, false);
+	if (!mesh) {
+		mesh_src = BKE_bmesh_to_mesh(em->bm, &(struct BMeshToMeshParams){0});
+	}
 
-	deformVerts(md, depsgraph, ob, dm, vertexCos, numVerts, 0);
+	deformVerts(md, ctx, mesh_src, vertexCos, numVerts);
 
-	if (!derivedData) dm->release(dm);
+	if (!mesh) {
+		BKE_mesh_free(mesh_src);
+		MEM_freeN(mesh_src);
+	}
 }
 
 
@@ -137,15 +144,25 @@ ModifierTypeInfo modifierType_Lattice = {
 	                        eModifierTypeFlag_AcceptsLattice |
 	                        eModifierTypeFlag_SupportsEditmode,
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* deformStroke */      NULL,
 	/* generateStrokes */   NULL,
 	/* bakeModifierGP */    NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

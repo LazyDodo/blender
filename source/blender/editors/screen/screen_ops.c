@@ -1045,7 +1045,6 @@ static int area_dupli_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 	layout_new = ED_workspace_layout_add(workspace, newwin, BKE_workspace_layout_name_get(layout_old));
 	newsc = BKE_workspace_layout_screen_get(layout_new);
 	WM_window_set_active_layout(newwin, workspace, layout_new);
-	ED_screen_global_areas_create(newwin);
 
 	/* copy area to new screen */
 	ED_area_data_copy((ScrArea *)newsc->areabase.first, sa, true);
@@ -2157,7 +2156,9 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	/* execute the events */
 	switch (event->type) {
 		case MOUSEMOVE:
-			
+		{
+			const float aspect = BLI_rctf_size_x(&rmd->ar->v2d.cur) / (BLI_rcti_size_x(&rmd->ar->v2d.mask) + 1);
+			const int snap_size_threshold = (U.widget_unit * 3) / aspect;
 			if (rmd->edge == AE_LEFT_TO_TOPRIGHT || rmd->edge == AE_RIGHT_TO_TOPLEFT) {
 				delta = event->x - rmd->origx;
 				if (rmd->edge == AE_LEFT_TO_TOPRIGHT) delta = -delta;
@@ -2166,8 +2167,15 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				delta /= UI_DPI_FAC;
 				
 				rmd->ar->sizex = rmd->origval + delta;
+
+				if (rmd->ar->type->snap_size) {
+					short sizex_test = rmd->ar->type->snap_size(rmd->ar, rmd->ar->sizex, 0);
+					if (ABS(rmd->ar->sizex - sizex_test) < snap_size_threshold) {
+						rmd->ar->sizex = sizex_test;
+					}
+				}
 				CLAMP(rmd->ar->sizex, 0, rmd->maxsize);
-				
+
 				if (rmd->ar->sizex < UI_UNIT_X) {
 					rmd->ar->sizex = rmd->origval;
 					if (!(rmd->ar->flag & RGN_FLAG_HIDDEN))
@@ -2185,6 +2193,13 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				delta /= UI_DPI_FAC;
 
 				rmd->ar->sizey = rmd->origval + delta;
+
+				if (rmd->ar->type->snap_size) {
+					short sizey_test = rmd->ar->type->snap_size(rmd->ar, rmd->ar->sizey, 1);
+					if (ABS(rmd->ar->sizey - sizey_test) < snap_size_threshold) {
+						rmd->ar->sizey = sizey_test;
+					}
+				}
 				CLAMP(rmd->ar->sizey, 0, rmd->maxsize);
 
 				/* note, 'UI_UNIT_Y/4' means you need to drag the header almost
@@ -2204,7 +2219,7 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
 			
 			break;
-			
+		}
 		case LEFTMOUSE:
 			if (event->val == KM_RELEASE) {
 				
@@ -4197,7 +4212,7 @@ typedef struct RegionAlphaInfo {
 #define TIMEOUT		0.2f
 #define TIMESTEP	0.04f
 
-float ED_region_blend_factor(ARegion *ar)
+float ED_region_blend_alpha(ARegion *ar)
 {
 	/* check parent too */
 	if (ar->regiontimer == NULL && (ar->alignment & RGN_SPLIT_PREV) && ar->prev) {

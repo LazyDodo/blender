@@ -38,6 +38,7 @@
 
 struct Lattice;
 struct Main;
+struct Mesh;
 struct Object;
 struct Scene;
 struct DerivedMesh;
@@ -75,10 +76,10 @@ void curve_deform_vector(struct Object *cuOb, struct Object *target,
                          float orco[3], float vec[3], float mat[3][3], int no_rot_axis);
 
 void lattice_deform_verts(struct Object *laOb, struct Object *target,
-                          struct DerivedMesh *dm, float (*vertexCos)[3],
+                          struct Mesh *mesh, float (*vertexCos)[3],
                           int numVerts, const char *vgroup, float influence);
 void armature_deform_verts(struct Object *armOb, struct Object *target,
-                           struct DerivedMesh *dm, float (*vertexCos)[3],
+                           const struct Mesh *mesh, float (*vertexCos)[3],
                            float (*defMats)[3][3], int numVerts, int deformflag,
                            float (*prevCos)[3], const char *defgrp_name);
 

@@ -638,6 +638,7 @@ static int modifier_apply_obdata(ReportList *reports, bContext *C, Depsgraph *de
 		Curve *cu;
 		int numVerts;
 		float (*vertexCos)[3];
+		ModifierEvalContext mectx = {depsgraph, ob, 0};
 
 		if (ELEM(mti->type, eModifierTypeType_Constructive, eModifierTypeType_Nonconstructive)) {
 			BKE_report(reports, RPT_ERROR, "Cannot apply constructive modifiers on curve");
@@ -648,7 +649,7 @@ static int modifier_apply_obdata(ReportList *reports, bContext *C, Depsgraph *de
 		BKE_report(reports, RPT_INFO, "Applied modifier only changed CV points, not tessellated/bevel vertices");
 
 		vertexCos = BKE_curve_nurbs_vertexCos_get(&cu->nurb, &numVerts);
-		mti->deformVerts(md, depsgraph, ob, NULL, vertexCos, numVerts, 0);
+		modifier_deformVerts_DM_deprecated(md, &mectx, NULL, vertexCos, numVerts);
 		BK_curve_nurbs_vertexCos_apply(&cu->nurb, vertexCos);
 
 		MEM_freeN(vertexCos);

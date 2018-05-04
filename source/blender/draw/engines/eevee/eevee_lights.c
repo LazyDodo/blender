@@ -318,7 +318,7 @@ void EEVEE_lights_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
 		led->data.ld.shadow_id = -1;
 		led->prev_cube_shadow_id = -1;
 
-		if (la->mode & (LA_SHAD_BUF | LA_SHAD_RAY)) {
+		if (la->mode & LA_SHADOW) {
 			if (la->type == LA_SUN) {
 				int sh_nbr = 1; /* TODO : MSM */
 				int cascade_nbr = MAX_CASCADE_NUM; /* TODO : Custom cascade number */
@@ -472,7 +472,7 @@ void EEVEE_lights_cache_shcaster_object_add(EEVEE_ViewLayerData *sldata, Object 
 void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata)
 {
 	EEVEE_LampsInfo *linfo = sldata->lamps;
-	DRWTextureFormat shadow_pool_format = DRW_TEX_R_32;
+	GPUTextureFormat shadow_pool_format = GPU_R32F;
 
 	sldata->common_data.la_num_light = linfo->num_light;
 
@@ -485,8 +485,8 @@ void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata)
 	}
 
 	switch (linfo->shadow_method) {
-		case SHADOW_ESM: shadow_pool_format = ((linfo->shadow_high_bitdepth) ? DRW_TEX_R_32 : DRW_TEX_R_16); break;
-		case SHADOW_VSM: shadow_pool_format = ((linfo->shadow_high_bitdepth) ? DRW_TEX_RG_32 : DRW_TEX_RG_16); break;
+		case SHADOW_ESM: shadow_pool_format = ((linfo->shadow_high_bitdepth) ? GPU_R32F : GPU_R16F); break;
+		case SHADOW_VSM: shadow_pool_format = ((linfo->shadow_high_bitdepth) ? GPU_RG32F : GPU_RG16F); break;
 		default:
 			BLI_assert(!"Incorrect Shadow Method");
 			break;
@@ -496,7 +496,7 @@ void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata)
 		/* TODO render everything on the same 2d render target using clip planes and no Geom Shader. */
 		/* Cubemaps */
 		sldata->shadow_cube_target = DRW_texture_create_cube(
-		        linfo->shadow_cube_target_size, DRW_TEX_DEPTH_24, 0, NULL);
+		        linfo->shadow_cube_target_size, GPU_DEPTH_COMPONENT24, 0, NULL);
 		sldata->shadow_cube_blur = DRW_texture_create_cube(
 		        linfo->shadow_cube_target_size, shadow_pool_format, DRW_TEX_FILTER, NULL);
 	}
@@ -504,7 +504,7 @@ void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata)
 	if (!sldata->shadow_cascade_target) {
 		/* CSM */
 		sldata->shadow_cascade_target = DRW_texture_create_2D_array(
-		        linfo->shadow_size, linfo->shadow_size, MAX_CASCADE_NUM, DRW_TEX_DEPTH_24, 0, NULL);
+		        linfo->shadow_size, linfo->shadow_size, MAX_CASCADE_NUM, GPU_DEPTH_COMPONENT24, 0, NULL);
 		sldata->shadow_cascade_blur = DRW_texture_create_2D_array(
 		        linfo->shadow_size, linfo->shadow_size, MAX_CASCADE_NUM, shadow_pool_format, DRW_TEX_FILTER, NULL);
 	}
@@ -545,6 +545,8 @@ static void eevee_light_setup(Object *ob, EEVEE_Light *evli)
 
 	/* Color */
 	copy_v3_v3(evli->color, &la->r);
+
+	evli->spec = la->spec_fac;
 
 	/* Influence Radius */
 	evli->dist = la->dist;
@@ -724,8 +726,10 @@ static void eevee_shadow_cascade_setup(Object *ob, EEVEE_LampsInfo *linfo, EEVEE
 	/* obmat = Object Space > World Space */
 	/* viewmat = World Space > View Space */
 	float (*viewmat)[4] = sh_data->viewmat;
-	invert_m4_m4(viewmat, ob->obmat);
-	normalize_m4(viewmat);
+#if 0 /* done at culling time */
+	normalize_m4_m4(viewmat, ob->obmat);
+#endif
+	invert_m4(viewmat);
 	invert_m4_m4(sh_data->viewinv, viewmat);
 
 	/* The technique consists into splitting
@@ -991,6 +995,28 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl)
 
 	DRWMatrixState saved_mats;
 
+	/* Precompute all shadow/view test before rendering and trashing the culling cache. */
+	bool cube_visible[MAX_SHADOW_CUBE];
+	for (i = 0; (ob = linfo->shadow_cube_ref[i]) && (i < MAX_SHADOW_CUBE); i++) {
+		Lamp *la = (Lamp *)ob->data;
+		BoundSphere bsphere = {
+			.center = {ob->obmat[3][0], ob->obmat[3][1], ob->obmat[3][2]},
+			.radius = la->dist
+		};
+		cube_visible[i] = DRW_culling_sphere_test(&bsphere);
+	}
+	bool cascade_visible[MAX_SHADOW_CASCADE];
+	for (i = 0; (ob = linfo->shadow_cascade_ref[i]) && (i < MAX_SHADOW_CASCADE); i++) {
+		EEVEE_LampEngineData *led = EEVEE_lamp_data_get(ob);
+		EEVEE_ShadowCascadeData *sh_data = &led->data.scad;
+		float plane[4];
+		normalize_m4_m4(sh_data->viewmat, ob->obmat);
+		plane_from_point_normal_v3(plane, sh_data->viewmat[3], sh_data->viewmat[2]);
+		/* TODO: check against near/far instead of "local Z = 0" plane.
+		 * Or even the cascades AABB. */
+		cascade_visible[i] = DRW_culling_plane_test(plane);
+	}
+
 	/* We need to save the Matrices before overidding them */
 	DRW_viewport_matrix_get_all(&saved_mats);
 
@@ -1001,7 +1027,7 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl)
 		EEVEE_LampEngineData *led = EEVEE_lamp_data_ensure(ob);
 		Lamp *la = (Lamp *)ob->data;
 
-		if (!led->need_update) {
+		if (!led->need_update || !cube_visible[i]) {
 			continue;
 		}
 
@@ -1097,6 +1123,10 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl)
 	/* Cascaded Shadow Maps */
 	DRW_stats_group_start("Cascaded Shadow Maps");
 	for (i = 0; (ob = linfo->shadow_cascade_ref[i]) && (i < MAX_SHADOW_CASCADE); i++) {
+		if (!cascade_visible[i]) {
+			continue;
+		}
+
 		EEVEE_LampEngineData *led = EEVEE_lamp_data_ensure(ob);
 		Lamp *la = (Lamp *)ob->data;
 

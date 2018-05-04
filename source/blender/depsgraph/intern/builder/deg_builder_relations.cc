@@ -169,6 +169,16 @@ static bool object_particles_depends_on_time(Object *object)
 	return false;
 }
 
+static bool check_id_has_anim_component(ID *id)
+{
+	AnimData *adt = BKE_animdata_from_id(id);
+	if (adt == NULL) {
+		return false;
+	}
+	return (adt->action != NULL) ||
+	       (!BLI_listbase_is_empty(&adt->nla_tracks));
+}
+
 /* **** General purpose functions ****  */
 
 DepsgraphRelationBuilder::DepsgraphRelationBuilder(Main *bmain,
@@ -211,7 +221,7 @@ OperationDepsNode *DepsgraphRelationBuilder::get_node(
 	OperationDepsNode *op_node = find_node(key);
 	if (op_node == NULL) {
 		fprintf(stderr, "find_node_operation: Failed for (%s, '%s')\n",
-		        DEG_OPNAMES[key.opcode], key.name);
+		        operationCodeAsString(key.opcode), key.name);
 	}
 	return op_node;
 }
@@ -241,37 +251,45 @@ bool DepsgraphRelationBuilder::has_node(const OperationKey &key) const
 	return find_node(key) != NULL;
 }
 
-void DepsgraphRelationBuilder::add_time_relation(TimeSourceDepsNode *timesrc,
-                                                 DepsNode *node_to,
-                                                 const char *description,
-                                                 bool check_unique)
+DepsRelation *DepsgraphRelationBuilder::add_time_relation(
+        TimeSourceDepsNode *timesrc,
+        DepsNode *node_to,
+        const char *description,
+        bool check_unique)
 {
 	if (timesrc && node_to) {
-		graph_->add_new_relation(timesrc, node_to, description, check_unique);
+		return graph_->add_new_relation(timesrc, node_to, description, check_unique);
 	}
 	else {
-		DEG_DEBUG_PRINTF(BUILD, "add_time_relation(%p = %s, %p = %s, %s) Failed\n",
+		DEG_DEBUG_PRINTF((::Depsgraph *)graph_,
+		                 BUILD, "add_time_relation(%p = %s, %p = %s, %s) Failed\n",
 		                 timesrc,   (timesrc) ? timesrc->identifier().c_str() : "<None>",
 		                 node_to,   (node_to) ? node_to->identifier().c_str() : "<None>",
 		                 description);
 	}
+	return NULL;
 }
 
-void DepsgraphRelationBuilder::add_operation_relation(
+DepsRelation *DepsgraphRelationBuilder::add_operation_relation(
         OperationDepsNode *node_from,
         OperationDepsNode *node_to,
         const char *description,
         bool check_unique)
 {
 	if (node_from && node_to) {
-		graph_->add_new_relation(node_from, node_to, description, check_unique);
+		return graph_->add_new_relation(node_from,
+		                                node_to,
+		                                description,
+		                                check_unique);
 	}
 	else {
-		DEG_DEBUG_PRINTF(BUILD, "add_operation_relation(%p = %s, %p = %s, %s) Failed\n",
+		DEG_DEBUG_PRINTF((::Depsgraph *)graph_,
+		                 BUILD, "add_operation_relation(%p = %s, %p = %s, %s) Failed\n",
 		                 node_from, (node_from) ? node_from->identifier().c_str() : "<None>",
 		                 node_to,   (node_to)   ? node_to->identifier().c_str() : "<None>",
 		                 description);
 	}
+	return NULL;
 }
 
 void DepsgraphRelationBuilder::add_collision_relations(
@@ -555,6 +573,7 @@ void DepsgraphRelationBuilder::build_object_data(Object *object)
 		ComponentKey geometry_key((ID *)object->data, DEG_NODE_TYPE_GEOMETRY);
 		ComponentKey key_key(&key->id, DEG_NODE_TYPE_GEOMETRY);
 		add_relation(key_key, geometry_key, "Shapekeys");
+		build_nested_shapekey(&object->id, key);
 	}
 }
 
@@ -889,6 +908,11 @@ void DepsgraphRelationBuilder::build_animdata_curves(ID *id)
 	ComponentKey adt_key(id, DEG_NODE_TYPE_ANIMATION);
 	TimeSourceKey time_src_key;
 	add_relation(time_src_key, adt_key, "TimeSrc -> Animation");
+	/* Relation from action itself. */
+	if (adt->action != NULL) {
+		ComponentKey action_key(&adt->action->id, DEG_NODE_TYPE_ANIMATION);
+		add_relation(action_key, adt_key, "Action -> Animation");
+	}
 	/* Get source operations. */
 	DepsNode *node_from = get_node(adt_key);
 	BLI_assert(node_from != NULL);
@@ -1265,6 +1289,7 @@ void DepsgraphRelationBuilder::build_world(World *world)
 		ComponentKey ntree_key(&world->nodetree->id, DEG_NODE_TYPE_SHADING);
 		ComponentKey world_key(&world->id, DEG_NODE_TYPE_SHADING);
 		add_relation(ntree_key, world_key, "NTree->World Shading Update");
+		build_nested_nodetree(&world->id, world->nodetree);
 	}
 }
 
@@ -1825,6 +1850,7 @@ void DepsgraphRelationBuilder::build_lamp(Object *object)
 		build_nodetree(lamp->nodetree);
 		ComponentKey nodetree_key(&lamp->nodetree->id, DEG_NODE_TYPE_SHADING);
 		add_relation(nodetree_key, lamp_parameters_key, "NTree->Lamp Parameters");
+		build_nested_nodetree(&lamp->id, lamp->nodetree);
 	}
 
 	if (DEG_depsgraph_use_copy_on_write()) {
@@ -1897,6 +1923,11 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 	                                    DEG_NODE_TYPE_SHADING_PARAMETERS,
 	                                    DEG_OPCODE_MATERIAL_UPDATE);
 	add_relation(shading_parameters_key, shading_update_key, "NTree Shading Parameters");
+
+	if (check_id_has_anim_component(&ntree->id)) {
+		ComponentKey animation_key(&ntree->id, DEG_NODE_TYPE_ANIMATION);
+		add_relation(shading_parameters_key, animation_key, "NTree Shading Parameters");
+	}
 }
 
 /* Recursively build graph for material */
@@ -1917,6 +1948,7 @@ void DepsgraphRelationBuilder::build_material(Material *material)
 		                          DEG_NODE_TYPE_SHADING,
 		                          DEG_OPCODE_MATERIAL_UPDATE);
 		add_relation(ntree_key, material_key, "Material's NTree");
+		build_nested_nodetree(&material->id, material->nodetree);
 	}
 }
 
@@ -1930,6 +1962,7 @@ void DepsgraphRelationBuilder::build_texture(Tex *texture)
 	build_animdata(&texture->id);
 	/* texture's nodetree */
 	build_nodetree(texture->nodetree);
+	build_nested_nodetree(&texture->id, texture->nodetree);
 }
 
 void DepsgraphRelationBuilder::build_compositor(Scene *scene)
@@ -1997,6 +2030,43 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations()
 	foreach (IDDepsNode *id_node, graph_->id_nodes) {
 		build_copy_on_write_relations(id_node);
 	}
+}
+
+/* Nested datablocks (node trees, shape keys) requires special relation to
+ * ensure owner's datablock remapping happens after node tree itself is ready.
+ *
+ * This is similar to what happens in ntree_hack_remap_pointers().
+ */
+void DepsgraphRelationBuilder::build_nested_datablock(ID *owner, ID *id) {
+	if (!DEG_depsgraph_use_copy_on_write()) {
+		return;
+	}
+	OperationKey owner_copy_on_write_key(owner,
+	                                     DEG_NODE_TYPE_COPY_ON_WRITE,
+	                                     DEG_OPCODE_COPY_ON_WRITE);
+	OperationKey id_copy_on_write_key(id,
+	                                  DEG_NODE_TYPE_COPY_ON_WRITE,
+	                                  DEG_OPCODE_COPY_ON_WRITE);
+	add_relation(id_copy_on_write_key,
+	             owner_copy_on_write_key,
+	             "Eval Order");
+}
+
+void DepsgraphRelationBuilder::build_nested_nodetree(ID *owner,
+                                                     bNodeTree *ntree)
+{
+	if (ntree == NULL) {
+		return;
+	}
+	build_nested_datablock(owner, &ntree->id);
+}
+
+void DepsgraphRelationBuilder::build_nested_shapekey(ID *owner, Key *key)
+{
+	if (key == NULL) {
+		return;
+	}
+	build_nested_datablock(owner, &key->id);
 }
 
 void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node)

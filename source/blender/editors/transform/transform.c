@@ -1049,11 +1049,13 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 							initEdgeSlide(t);
 							/* if that fails, do vertex slide */
 							if (t->state == TRANS_CANCEL) {
+								resetTransModal(t);
 								t->state = TRANS_STARTING;
 								initVertSlide(t);
 							}
 							/* vert slide can fail on unconnected vertices (rare but possible) */
 							if (t->state == TRANS_CANCEL) {
+								resetTransModal(t);
 								t->mode = TFM_TRANSLATION;
 								t->state = TRANS_STARTING;
 								restoreTransObjects(t);
@@ -1723,7 +1725,15 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 	if (t->helpline != HLP_NONE) {
 		float cent[2];
-		float mval[3] = { x, y, 0.0f };
+		float mval[3] = {
+		    x,
+		    y,
+		    0.0f,
+		};
+		float tmval[2] = {
+		    (float)t->mval[0],
+		    (float)t->mval[1],
+		};
 
 
 #if 0 /* XXX: Fix from 1c9690e7607bc990cc4a3e6ba839949bb83a78af cannot be used anymore */
@@ -1742,6 +1752,17 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 #else
 		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
 #endif
+
+		/* Offset the values for the area region. */
+		const float offset[2] = {
+		    t->ar->winrct.xmin,
+		    t->ar->winrct.ymin,
+		};
+
+		for (int i = 0; i < 2; i++) {
+			cent[i] += offset[i];
+			tmval[i] += offset[i];
+		}
 
 		gpuPushMatrix();
 
@@ -1767,7 +1788,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 			immBegin(GWN_PRIM_LINES, 2);
 			immVertex2fv(POS_INDEX, cent);
-			immVertex2f(POS_INDEX, (float)t->mval[0], (float)t->mval[1]);
+			immVertex2f(POS_INDEX, tmval[0], tmval[1]);
 			immEnd();
 
 			immUnbindProgram();
@@ -1784,7 +1805,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 
 				gpuTranslate3fv(mval);
-				gpuRotateAxis(-RAD2DEGF(atan2f(cent[0] - t->mval[0], cent[1] - t->mval[1])), 'Z');
+				gpuRotateAxis(-RAD2DEGF(atan2f(cent[0] - tmval[0], cent[1] - tmval[1])), 'Z');
 
 				glLineWidth(3.0f);
 				drawArrow(UP, 5, 10, 5);
@@ -1809,7 +1830,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				break;
 			case HLP_ANGLE:
 			{
-				float dx = t->mval[0] - cent[0], dy = t->mval[1] - cent[1];
+				float dx = tmval[0] - cent[0], dy = tmval[1] - cent[1];
 				float angle = atan2f(dy, dx);
 				float dist = hypotf(dx, dy);
 				float delta_angle = min_ff(15.0f / dist, (float)M_PI / 4.0f);
@@ -1817,7 +1838,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 
-				gpuTranslate3f(cent[0] - t->mval[0] + mval[0], cent[1] - t->mval[1] + mval[1], 0);
+				gpuTranslate3f(cent[0] - tmval[0] + mval[0], cent[1] - tmval[1] + mval[1], 0);
 
 				glLineWidth(3.0f);
 				drawArc(dist, angle - delta_angle, angle - spacing_angle, 10);
@@ -5949,6 +5970,7 @@ static bool bm_loop_calc_opposite_co(BMLoop *l_tmp,
 	BMLoop *l_last  = l_tmp->prev;
 	BMLoop *l_iter;
 	float dist = FLT_MAX;
+	bool found = false;
 
 	l_iter = l_first;
 	do {
@@ -5967,12 +5989,13 @@ static bool bm_loop_calc_opposite_co(BMLoop *l_tmp,
 				if (tdist < dist) {
 					copy_v3_v3(r_co, tvec);
 					dist = tdist;
+					found = true;
 				}
 			}
 		}
 	} while ((l_iter = l_iter->next) != l_last);
 
-	return (dist != FLT_MAX);
+	return found;
 }
 
 /**
@@ -7002,7 +7025,7 @@ static eRedrawFlag handleEventEdgeSlide(struct TransInfo *t, const struct wmEven
 static void drawEdgeSlide(TransInfo *t)
 {
 	if ((t->mode == TFM_EDGE_SLIDE) && TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data) {
-		EdgeSlideParams *slp = t->custom.mode.data;
+		const EdgeSlideParams *slp = t->custom.mode.data;
 		EdgeSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
 		const bool is_clamp = !(t->flag & T_ALT_TRANSFORM);
 
@@ -7254,6 +7277,7 @@ static void applyEdgeSlide(TransInfo *t, const int UNUSED(mval[2]))
 
 static void calcVertSlideCustomPoints(struct TransInfo *t)
 {
+	VertSlideParams *slp = t->custom.mode.data;
 	VertSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
 	TransDataVertSlideVert *sv = &sld->sv[sld->curr_sv_index];
 
@@ -7271,7 +7295,7 @@ static void calcVertSlideCustomPoints(struct TransInfo *t)
 	ARRAY_SET_ITEMS(mval_start, co_orig_2d[0] + mval_ofs[0], co_orig_2d[1] + mval_ofs[1]);
 	ARRAY_SET_ITEMS(mval_end, co_curr_2d[0] + mval_ofs[0], co_curr_2d[1] + mval_ofs[1]);
 
-	if (sld->flipped && sld->use_even) {
+	if (slp->flipped && slp->use_even) {
 		setCustomPoints(t, &t->mouse, mval_start, mval_end);
 	}
 	else {
@@ -7632,6 +7656,7 @@ static eRedrawFlag handleEventVertSlide(struct TransInfo *t, const struct wmEven
 static void drawVertSlide(TransInfo *t)
 {
 	if ((t->mode == TFM_VERT_SLIDE) && TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data) {
+		const VertSlideParams *slp = t->custom.mode.data;
 		VertSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
 		const bool is_clamp = !(t->flag & T_ALT_TRANSFORM);
 
@@ -7688,7 +7713,7 @@ static void drawVertSlide(TransInfo *t)
 			glPointSize(ctrl_size);
 
 			immBegin(GWN_PRIM_POINTS, 1);
-			immVertex3fv(shdr_pos, (sld->flipped && sld->use_even) ?
+			immVertex3fv(shdr_pos, (slp->flipped && slp->use_even) ?
 			            curr_sv->co_link_orig_3d[curr_sv->co_link_curr] :
 			            curr_sv->co_orig_3d);
 			immEnd();
@@ -7748,15 +7773,18 @@ static void drawVertSlide(TransInfo *t)
 
 static void doVertSlide(TransInfo *t, float perc)
 {
+	VertSlideParams *slp = t->custom.mode.data;
+
+	slp->perc = perc;
+
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 		VertSlideData *sld = tc->custom.mode.data;
 		TransDataVertSlideVert *svlist = sld->sv, *sv;
 		int i;
 
-		sld->perc = perc;
 		sv = svlist;
 
-		if (sld->use_even == false) {
+		if (slp->use_even == false) {
 			for (i = 0; i < sld->totsv; i++, sv++) {
 				interp_v3_v3v3(sv->v->co, sv->co_orig_3d, sv->co_link_orig_3d[sv->co_link_curr], perc);
 			}
@@ -7774,7 +7802,7 @@ static void doVertSlide(TransInfo *t, float perc)
 				edge_len = normalize_v3(dir);
 
 				if (edge_len > FLT_EPSILON) {
-					if (sld->flipped) {
+					if (slp->flipped) {
 						madd_v3_v3v3fl(sv->v->co, sv->co_link_orig_3d[sv->co_link_curr], dir, -tperc);
 					}
 					else {
@@ -7794,7 +7822,7 @@ static void applyVertSlide(TransInfo *t, const int UNUSED(mval[2]))
 	char str[UI_MAX_DRAW_STR];
 	size_t ofs = 0;
 	float final;
-	VertSlideData *slp =  t->custom.mode.data;
+	VertSlideParams *slp =  t->custom.mode.data;
 	const bool flipped = slp->flipped;
 	const bool use_even = slp->use_even;
 	const bool is_clamp = !(t->flag & T_ALT_TRANSFORM);

@@ -46,6 +46,7 @@
 #include "DNA_scene_types.h"
 
 #include "GPU_framebuffer.h"
+#include "GPU_texture.h"
 
 #include "draw_common.h"
 #include "draw_cache.h"
@@ -101,20 +102,21 @@ typedef char DRWViewportEmptyList;
 }
 
 /* Use of multisample framebuffers. */
-#define MULTISAMPLE_SYNC_ENABLE(dfbl) { \
+#define MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl) { \
 	if (dfbl->multisample_fb != NULL) { \
 		DRW_stats_query_start("Multisample Blit"); \
-		GPU_framebuffer_blit(dfbl->default_fb, 0, dfbl->multisample_fb, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
 		GPU_framebuffer_bind(dfbl->multisample_fb); \
+		/* TODO clear only depth but need to do alpha to coverage for transparencies. */ \
+		GPU_framebuffer_clear_color_depth(dfbl->multisample_fb, (const float[4]){0.0f}, 1.0f); \
 		DRW_stats_query_end(); \
 	} \
 }
 
-#define MULTISAMPLE_SYNC_DISABLE(dfbl) { \
+#define MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl) { \
 	if (dfbl->multisample_fb != NULL) { \
 		DRW_stats_query_start("Multisample Resolve"); \
-		GPU_framebuffer_blit(dfbl->multisample_fb, 0, dfbl->default_fb, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
 		GPU_framebuffer_bind(dfbl->default_fb); \
+		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color); \
 		DRW_stats_query_end(); \
 	} \
 }
@@ -169,32 +171,6 @@ typedef struct DefaultTextureList {
 #endif
 
 /* Textures */
-/* NOTE naming in this struct is broken.
- * There should either be suffixes for Normalized int formats or float formats.
- * Right now every 8bit texture is Normalized int and others are Floating point. */
-typedef enum {
-	DRW_TEX_RGBA_8,
-	DRW_TEX_RGBA_16,
-	DRW_TEX_RGBA_32,
-	DRW_TEX_RGB_11_11_10,
-	DRW_TEX_RGB_8,
-	DRW_TEX_RGB_16,
-	DRW_TEX_RGB_32,
-	DRW_TEX_RG_8,
-	DRW_TEX_RG_16,
-	DRW_TEX_RG_16I,
-	DRW_TEX_RG_32,
-	DRW_TEX_R_8,
-	DRW_TEX_R_16,
-	DRW_TEX_R_16I,
-	DRW_TEX_R_16U,
-	DRW_TEX_R_32,
-	DRW_TEX_DEPTH_16,
-	DRW_TEX_DEPTH_24,
-	DRW_TEX_DEPTH_24_STENCIL_8,
-	DRW_TEX_DEPTH_32,
-} DRWTextureFormat;
-
 typedef enum {
 	DRW_TEX_FILTER = (1 << 0),
 	DRW_TEX_WRAP = (1 << 1),
@@ -205,23 +181,23 @@ typedef enum {
 /* Textures from DRW_texture_pool_query_* have the options
  * DRW_TEX_FILTER for color float textures, and no options
  * for depth textures and integer textures. */
-struct GPUTexture *DRW_texture_pool_query_2D(int w, int h, DRWTextureFormat format, DrawEngineType *engine_type);
+struct GPUTexture *DRW_texture_pool_query_2D(int w, int h, GPUTextureFormat format, DrawEngineType *engine_type);
 
 struct GPUTexture *DRW_texture_create_1D(
-        int w, DRWTextureFormat format, DRWTextureFlag flags, const float *fpixels);
+        int w, GPUTextureFormat format, DRWTextureFlag flags, const float *fpixels);
 struct GPUTexture *DRW_texture_create_2D(
-        int w, int h, DRWTextureFormat format, DRWTextureFlag flags, const float *fpixels);
+        int w, int h, GPUTextureFormat format, DRWTextureFlag flags, const float *fpixels);
 struct GPUTexture *DRW_texture_create_2D_array(
-        int w, int h, int d, DRWTextureFormat format, DRWTextureFlag flags, const float *fpixels);
+        int w, int h, int d, GPUTextureFormat format, DRWTextureFlag flags, const float *fpixels);
 struct GPUTexture *DRW_texture_create_3D(
-        int w, int h, int d, DRWTextureFormat format, DRWTextureFlag flags, const float *fpixels);
+        int w, int h, int d, GPUTextureFormat format, DRWTextureFlag flags, const float *fpixels);
 struct GPUTexture *DRW_texture_create_cube(
-        int w, DRWTextureFormat format, DRWTextureFlag flags, const float *fpixels);
+        int w, GPUTextureFormat format, DRWTextureFlag flags, const float *fpixels);
 
 void DRW_texture_ensure_fullscreen_2D(
-        struct GPUTexture **tex, DRWTextureFormat format, DRWTextureFlag flags);
+        struct GPUTexture **tex, GPUTextureFormat format, DRWTextureFlag flags);
 void DRW_texture_ensure_2D(
-        struct GPUTexture **tex, int w, int h, DRWTextureFormat format, DRWTextureFlag flags);
+        struct GPUTexture **tex, int w, int h, GPUTextureFormat format, DRWTextureFlag flags);
 
 void DRW_texture_generate_mipmaps(struct GPUTexture *tex);
 void DRW_texture_free(struct GPUTexture *tex);
@@ -244,6 +220,8 @@ void DRW_uniformbuffer_free(struct GPUUniformBuffer *ubo);
 } while (0)
 
 void DRW_transform_to_display(struct GPUTexture *tex);
+void DRW_multisamples_resolve(
+        struct GPUTexture *src_depth, struct GPUTexture *src_color);
 
 /* Shaders */
 struct GPUShader *DRW_shader_create(
@@ -293,6 +271,7 @@ typedef enum {
 	DRW_STATE_TRANSMISSION  = (1 << 17),
 	DRW_STATE_CLIP_PLANES   = (1 << 18),
 	DRW_STATE_ADDITIVE_FULL = (1 << 19), /* Same as DRW_STATE_ADDITIVE but let alpha accumulate without premult. */
+	DRW_STATE_BLEND_PREMUL  = (1 << 20), /* Use that if color is already premult by alpha. */
 
 	DRW_STATE_WRITE_STENCIL    = (1 << 27),
 	DRW_STATE_STENCIL_EQUAL    = (1 << 28),
@@ -336,11 +315,19 @@ typedef void (DRWCallGenerateFn)(
         void (*draw_fn)(DRWShadingGroup *shgroup, struct Gwn_Batch *geom),
         void *user_data);
 
+/* return final visibility */
+typedef bool (DRWCallVisibilityFn)(
+        bool vis_in,
+        void *user_data);
+
 void DRW_shgroup_instance_batch(DRWShadingGroup *shgroup, struct Gwn_Batch *batch);
 
 void DRW_shgroup_free(struct DRWShadingGroup *shgroup);
 void DRW_shgroup_call_add(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4]);
 void DRW_shgroup_call_object_add(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob);
+void DRW_shgroup_call_object_add_with_callback(
+        DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob,
+        DRWCallVisibilityFn *callback, void *user_data);
 /* Used for drawing a batch with instancing without instance attribs. */
 void DRW_shgroup_call_instances_add(
         DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4], unsigned int *count);
@@ -449,6 +436,7 @@ bool DRW_object_is_renderable(struct Object *ob);
 bool DRW_check_object_visible_within_active_context(struct Object *ob);
 bool DRW_object_is_flat_normal(const struct Object *ob);
 int  DRW_object_is_mode_shade(const struct Object *ob);
+int  DRW_object_is_paint_mode(const struct Object *ob);
 
 /* Draw commands */
 void DRW_draw_pass(DRWPass *pass);
@@ -474,6 +462,7 @@ void DRW_state_clip_planes_reset(void);
 /* Culling, return true if object is inside view frustum. */
 bool DRW_culling_sphere_test(BoundSphere *bsphere);
 bool DRW_culling_box_test(BoundBox *bbox);
+bool DRW_culling_plane_test(float plane[4]);
 
 /* Selection */
 void DRW_select_load_id(unsigned int id);

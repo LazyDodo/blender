@@ -82,6 +82,11 @@ class GreasePencilDrawingToolsPanel:
     bl_category = "Grease Pencil"
     bl_region_type = 'TOOLS'
 
+    @classmethod
+    def poll(cls, context):
+        # XXX - disabled in 2.8 branch.
+        return False
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
@@ -147,6 +152,9 @@ class GreasePencilStrokeEditPanel:
 
     @classmethod
     def poll(cls, context):
+        # XXX - disabled in 2.8 branch.
+        return False
+
         if context.gpencil_data is None:
             return False
 
@@ -245,6 +253,9 @@ class GreasePencilStrokeSculptPanel:
 
     @classmethod
     def poll(cls, context):
+        # XXX - disabled in 2.8 branch.
+        return False
+
         if context.gpencil_data is None:
             return False
 
@@ -948,7 +959,6 @@ class GreasePencilOnionPanel:
             subrow.active = gp.onion_mode in ('RELATIVE', 'SELECTED')
             subrow.prop(gp, "use_onion_loop", text="Loop")
 
-
 ###############################
 
 # FIXME: Placeholder - Annotation views shouldn't use this anymore...
@@ -986,6 +996,9 @@ class GreasePencilToolsPanel:
 
     @classmethod
     def poll(cls, context):
+        # XXX - disabled in 2.8 branch.
+        return False
+
         return (context.gpencil_data is not None)
 
     @staticmethod

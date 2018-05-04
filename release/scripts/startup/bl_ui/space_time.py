@@ -65,19 +65,17 @@ class TIME_HT_editor_buttons(Header):
             #   since JACK transport doesn't support reversed playback
             if scene.sync_mode == 'AUDIO_SYNC' and context.user_preferences.system.audio_device == 'JACK':
                 sub = row.row(align=True)
-                sub.scale_x = 2.0
+                sub.scale_x = 1.4
                 sub.operator("screen.animation_play", text="", icon='PLAY')
             else:
                 row.operator("screen.animation_play", text="", icon='PLAY_REVERSE').reverse = True
                 row.operator("screen.animation_play", text="", icon='PLAY')
         else:
             sub = row.row(align=True)
-            sub.scale_x = 2.0
+            sub.scale_x = 1.4
             sub.operator("screen.animation_play", text="", icon='PAUSE')
         row.operator("screen.keyframe_jump", text="", icon='NEXT_KEYFRAME').next = True
         row.operator("screen.frame_jump", text="", icon='FF').end = True
-
-        layout.prop(scene, "sync_mode", text="")
 
         layout.separator()
 
@@ -152,10 +150,6 @@ class TIME_MT_view(Menu):
 
         layout.separator()
 
-        layout.operator("marker.camera_bind")
-
-        layout.separator()
-
         layout.operator("screen.area_dupli")
         layout.operator("screen.screen_full_area")
         layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
@@ -222,10 +216,9 @@ class TIME_MT_playback(Menu):
         layout.prop(screen, "use_follow")
         layout.separator()
 
-        layout.prop(scene, "use_frame_drop", text="Frame Dropping")
-        layout.prop(scene, "use_audio_sync", text="AV-sync", icon='SPEAKER')
         layout.prop(scene, "use_audio")
         layout.prop(scene, "use_audio_scrub")
+        layout.prop_menu_enum(scene, "sync_mode")
 
 
 class TIME_MT_autokey(Menu):
@@ -260,6 +253,10 @@ def marker_menu_generic(layout):
 
     layout.operator("marker.rename", text="Rename Marker")
     layout.operator("marker.move", text="Grab/Move Marker")
+
+    layout.separator()
+
+    layout.operator("marker.camera_bind")
 
     layout.separator()
 

@@ -721,6 +721,9 @@ static void screen_vertices_scale(
 	/* Global areas have a fixed size that only changes with the DPI. Here we ensure that exactly this size is set.
 	 * TODO Assumes global area to be top-aligned. Should be made more generic */
 	for (ScrArea *area = win->global_areas.areabase.first; area; area = area->next) {
+		if (area->global->flag & GLOBAL_AREA_IS_HIDDEN) {
+			continue;
+		}
 		/* width */
 		area->v1->vec.x = area->v2->vec.x = 0;
 		area->v3->vec.x = area->v4->vec.x = window_size_x - 1;
@@ -832,36 +835,6 @@ void ED_screen_refresh(wmWindowManager *wm, wmWindow *win)
 	screen->context = ed_screen_context;
 }
 
-static bool screen_regions_need_size_refresh(
-        const wmWindow *win, const bScreen *screen)
-{
-	ED_screen_areas_iter(win, screen, area) {
-		if (area->flag & AREA_FLAG_REGION_SIZE_UPDATE) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static void screen_refresh_region_sizes_only(
-        wmWindowManager *wm, wmWindow *win,
-        bScreen *screen)
-{
-	const int window_size_x = WM_window_pixels_x(win);
-	const int window_size_y = WM_window_pixels_y(win);
-	const int screen_size_x = WM_window_screen_pixels_x(win);
-	const int screen_size_y = WM_window_screen_pixels_y(win);
-
-	screen_vertices_scale(win, screen, window_size_x, window_size_y, screen_size_x, screen_size_y);
-
-	ED_screen_areas_iter(win, screen, area) {
-		screen_area_update_region_sizes(wm, win, area);
-		/* XXX hack to force drawing */
-		ED_area_tag_redraw(area);
-	}
-}
-
 /* file read, set all screens, ... */
 void ED_screens_initialize(wmWindowManager *wm)
 {
@@ -884,9 +857,6 @@ void ED_screen_ensure_updated(wmWindowManager *wm, wmWindow *win, bScreen *scree
 	if (screen->do_refresh) {
 		ED_screen_refresh(wm, win);
 	}
-	else if (screen_regions_need_size_refresh(win, screen)) {
-		screen_refresh_region_sizes_only(wm, win, screen);
-	}
 }
 
 
@@ -905,7 +875,7 @@ void ED_region_exit(bContext *C, ARegion *ar)
 
 	WM_event_remove_handlers(C, &ar->handlers);
 	WM_event_modal_handler_region_replace(win, ar, NULL);
-	ar->visible = 0;
+	WM_draw_region_free(ar);
 	
 	if (ar->headerstr) {
 		MEM_freeN(ar->headerstr);
@@ -1464,6 +1434,10 @@ ScrArea *ED_screen_state_toggle(bContext *C, wmWindow *win, ScrArea *sa, const s
 		}
 
 		if (state == SCREENFULL) {
+			/* unhide global areas */
+			for (ScrArea *glob_area = win->global_areas.areabase.first; glob_area; glob_area = glob_area->next) {
+				glob_area->global->flag &= ~GLOBAL_AREA_IS_HIDDEN;
+			}
 			/* restore the old side panels/header visibility */
 			for (ar = sa->regionbase.first; ar; ar = ar->next) {
 				ar->flag = ar->flagfullscreen;
@@ -1523,6 +1497,10 @@ ScrArea *ED_screen_state_toggle(bContext *C, wmWindow *win, ScrArea *sa, const s
 		newa->flag = sa->flag; /* mostly for AREA_FLAG_WASFULLSCREEN */
 
 		if (state == SCREENFULL) {
+			/* temporarily hide global areas */
+			for (ScrArea *glob_area = win->global_areas.areabase.first; glob_area; glob_area = glob_area->next) {
+				glob_area->global->flag |= GLOBAL_AREA_IS_HIDDEN;
+			}
 			/* temporarily hide the side panels/header */
 			for (ar = newa->regionbase.first; ar; ar = ar->next) {
 				ar->flagfullscreen = ar->flag;

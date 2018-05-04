@@ -614,6 +614,39 @@ int WM_operator_poll_context(bContext *C, wmOperatorType *ot, short context)
 	return wm_operator_call_internal(C, ot, NULL, NULL, context, true);
 }
 
+bool WM_operator_check_ui_empty(wmOperatorType *ot)
+{
+	if (ot->macro.first != NULL) {
+		/* for macros, check all have exec() we can call */
+		wmOperatorTypeMacro *otmacro;
+		for (otmacro = ot->macro.first; otmacro; otmacro = otmacro->next) {
+			wmOperatorType *otm = WM_operatortype_find(otmacro->idname, 0);
+			if (otm && !WM_operator_check_ui_empty(otm)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/* Assume a ui callback will draw something. */
+	if (ot->ui) {
+		return false;
+	}
+
+	PointerRNA ptr;
+	WM_operator_properties_create_ptr(&ptr, ot);
+	RNA_STRUCT_BEGIN (&ptr, prop)
+	{
+		int flag = RNA_property_flag(prop);
+		if (flag & PROP_HIDDEN) {
+			continue;
+		}
+		return false;
+	}
+	RNA_STRUCT_END;
+	return true;
+}
+
 /**
  * Sets the active region for this space from the context.
  *
@@ -944,7 +977,6 @@ int WM_operator_call_notest(bContext *C, wmOperator *op)
  */
 int WM_operator_repeat(bContext *C, wmOperator *op)
 {
-#ifdef WITH_REDO_REGION_REMOVAL
 	const OperatorRepeatContextHandle *context_info;
 	int retval;
 
@@ -953,9 +985,6 @@ int WM_operator_repeat(bContext *C, wmOperator *op)
 	ED_operator_repeat_reset_context(C, context_info);
 
 	return retval;
-#else
-	return wm_operator_exec(C, op, true, true);
-#endif
 }
 /**
  * \return true if #WM_operator_repeat can run
@@ -2618,12 +2647,6 @@ static void wm_event_drag_test(wmWindowManager *wm, wmWindow *win, wmEvent *even
 		/* restore cursor (disabled, see wm_dragdrop.c) */
 		// WM_cursor_modal_restore(win);
 	}
-	
-	/* overlap fails otherwise */
-	if (screen->do_draw_drag)
-		if (win->drawmethod == USER_DRAW_OVERLAP)
-			screen->do_draw = true;
-	
 }
 
 /* filter out all events of the pie that spawned the last pie unless it's a release event */

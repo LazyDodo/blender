@@ -501,7 +501,7 @@ BVHTree *bvhtree_from_editmesh_verts(
 
 /* Builds a bvh tree where nodes are the vertices of the given dm
  * and stores the BVHTree in dm->bvhCache */
-BVHTree *bvhtree_from_mesh_verts(
+static BVHTree *bvhtree_from_mesh_verts(
         BVHTreeFromMesh *data, DerivedMesh *dm,
         float epsilon, int tree_type, int axis)
 {
@@ -709,7 +709,7 @@ BVHTree *bvhtree_from_editmesh_edges(
 }
 
 /* Builds a bvh tree where nodes are the edges of the given dm */
-BVHTree *bvhtree_from_mesh_edges(
+static BVHTree *bvhtree_from_mesh_edges(
         BVHTreeFromMesh *data, DerivedMesh *dm,
         float epsilon, int tree_type, int axis)
 {
@@ -859,7 +859,7 @@ static void bvhtree_from_mesh_faces_setup_data(
 }
 
 /* Builds a bvh tree where nodes are the tesselated faces of the given dm */
-BVHTree *bvhtree_from_mesh_faces(
+static BVHTree *bvhtree_from_mesh_faces(
         BVHTreeFromMesh *data, DerivedMesh *dm,
         float epsilon, int tree_type, int axis)
 {
@@ -1222,6 +1222,36 @@ BVHTree *bvhtree_from_mesh_looptri_ex(
 	        mloop, loop_allocated,
 	        looptri, looptri_allocated);
 
+	return tree;
+}
+
+/**
+ * Builds or queries a bvhcache for the cache bvhtree of the request type.
+ */
+BVHTree *bvhtree_from_mesh_get(
+        struct BVHTreeFromMesh *data, struct DerivedMesh *mesh,
+        const int type, const int tree_type)
+{
+	BVHTree *tree = NULL;
+	switch (type) {
+		case BVHTREE_FROM_VERTS:
+			tree = bvhtree_from_mesh_verts(data, mesh, 0.0f, tree_type, 6);
+			break;
+		case BVHTREE_FROM_EDGES:
+			tree = bvhtree_from_mesh_edges(data, mesh, 0.0f, tree_type, 6);
+			break;
+		case BVHTREE_FROM_FACES:
+			tree = bvhtree_from_mesh_faces(data, mesh, 0.0f, tree_type, 6);
+			break;
+		case BVHTREE_FROM_LOOPTRI:
+			tree = bvhtree_from_mesh_looptri(data, mesh, 0.0f, tree_type, 6);
+			break;
+	}
+#ifdef DEBUG
+	if (BLI_bvhtree_get_tree_type(tree) != tree_type) {
+		printf("tree_type %d obtained instead of %d\n", BLI_bvhtree_get_tree_type(tree), tree_type);
+	}
+#endif
 	return tree;
 }
 

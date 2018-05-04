@@ -144,8 +144,8 @@ static void EDIT_CURVE_engine_init(void *vedata)
 
 	/* Init Framebuffers like this: order is attachment order (for color texs) */
 	/*
-	 * DRWFboTexture tex[2] = {{&txl->depth, DRW_TEX_DEPTH_24, 0},
-	 *                         {&txl->color, DRW_TEX_RGBA_8, DRW_TEX_FILTER}};
+	 * DRWFboTexture tex[2] = {{&txl->depth, GPU_DEPTH_COMPONENT24, 0},
+	 *                         {&txl->color, GPU_RGBA8, DRW_TEX_FILTER}};
 	 */
 
 	/* DRW_framebuffer_init takes care of checking if
@@ -285,9 +285,9 @@ static void EDIT_CURVE_draw_scene(void *vedata)
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
-	UNUSED_VARS(fbl, dtxl);
+	UNUSED_VARS(fbl);
 
-	MULTISAMPLE_SYNC_ENABLE(dfbl)
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
 
 	/* Show / hide entire passes, swap framebuffers ... whatever you fancy */
 	/*
@@ -303,7 +303,7 @@ static void EDIT_CURVE_draw_scene(void *vedata)
 	DRW_draw_pass(psl->overlay_edge_pass);
 	DRW_draw_pass(psl->overlay_vert_pass);
 
-	MULTISAMPLE_SYNC_DISABLE(dfbl)
+	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 
 	/* If you changed framebuffer, double check you rebind
 	 * the default one with its textures attached before finishing */

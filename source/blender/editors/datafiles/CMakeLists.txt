@@ -525,6 +525,79 @@ set(ICON_NAMES
 	imagefile
 )
 
+# This section is maintained by the updating script, keep BEGIN/END comments.
+set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
+	# BEGIN ICON_GEOM_NAMES
+	brush.paint_texture.draw
+	brush.paint_vertex.alpha
+	brush.paint_vertex.blur
+	brush.paint_vertex.mix
+	brush.paint_vertex.smear
+	brush.paint_weight.blur
+	brush.paint_weight.darken
+	brush.paint_weight.draw
+	brush.paint_weight.lighten
+	brush.paint_weight.mix
+	brush.paint_weight.multiply
+	brush.sculpt.blob
+	brush.sculpt.clay
+	brush.sculpt.clay_strips
+	brush.sculpt.crease
+	brush.sculpt.draw
+	brush.sculpt.fill
+	brush.sculpt.flatten
+	brush.sculpt.grab
+	brush.sculpt.inflate
+	brush.sculpt.layer
+	brush.sculpt.mask
+	brush.sculpt.nudge
+	brush.sculpt.pinch
+	brush.sculpt.rotate
+	brush.sculpt.scrape
+	brush.sculpt.smooth
+	brush.sculpt.snake_hook
+	brush.sculpt.thumb
+	brush.vertex.average
+	brush.weight.add
+	brush.weight.subtract
+	none
+	ops.armature.bone.roll
+	ops.armature.extrude.cursor
+	ops.armature.extrude
+	ops.generic.cursor
+	ops.generic.select_border
+	ops.generic.select_circle
+	ops.generic.select_lasso
+	ops.mesh.bevel
+	ops.mesh.bisect
+	ops.mesh.dupli_extrude_cursor
+	ops.mesh.extrude_faces_move
+	ops.mesh.extrude_region_move
+	ops.mesh.inset
+	ops.mesh.knife_tool
+	ops.mesh.loopcut_slide
+	ops.mesh.offset_edge_loops_slide
+	ops.mesh.polybuild_hover
+	ops.mesh.rip
+	ops.mesh.rip_edge
+	ops.mesh.spin
+	ops.mesh.spin.duplicate
+	ops.mesh.vertices_smooth
+	ops.paint.weight_gradient
+	ops.transform.edge_slide
+	ops.transform.push_pull
+	ops.transform.resize.cage
+	ops.transform.resize
+	ops.transform.rotate
+	ops.transform.shrink_fatten
+	ops.transform.transform
+	ops.transform.translate
+	ops.transform.vert_slide
+	ops.transform.vertex_random
+	ops.view3d.ruler
+	# END ICON_GEOM_NAMES
+)
+
 data_to_c_simple(../../../../release/datafiles/bfont.pfb SRC)
 data_to_c_simple(../../../../release/datafiles/bfont.ttf SRC)
 data_to_c_simple(../../../../release/datafiles/bmonofont.ttf SRC)

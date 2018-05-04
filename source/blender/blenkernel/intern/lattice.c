@@ -844,7 +844,7 @@ void curve_deform_vector(Object *cuOb, Object *target,
 
 }
 
-void lattice_deform_verts(Object *laOb, Object *target, DerivedMesh *dm,
+void lattice_deform_verts(Object *laOb, Object *target, Mesh *mesh,
                           float (*vertexCos)[3], int numVerts, const char *vgroup, float fac)
 {
 	LatticeDeformData *lattice_deform_data;
@@ -862,8 +862,8 @@ void lattice_deform_verts(Object *laOb, Object *target, DerivedMesh *dm,
 	 */
 	if (target && target->type == OB_MESH) {
 		/* if there's derived data without deformverts, don't use vgroups */
-		if (dm) {
-			use_vgroups = (dm->getVertDataArray(dm, CD_MDEFORMVERT) != NULL);
+		if (mesh) {
+			use_vgroups = (mesh->dvert != NULL);
 		}
 		else {
 			Mesh *me = target->data;
@@ -879,12 +879,10 @@ void lattice_deform_verts(Object *laOb, Object *target, DerivedMesh *dm,
 		const int defgrp_index = defgroup_name_index(target, vgroup);
 		float weight;
 
-		if (defgrp_index >= 0 && (me->dvert || dm)) {
-			MDeformVert *dvert = me->dvert;
+		if (defgrp_index >= 0 && (me->dvert || mesh)) {
+			MDeformVert *dvert = mesh ? mesh->dvert : me->dvert;
 			
 			for (a = 0; a < numVerts; a++, dvert++) {
-				if (dm) dvert = dm->getVertData(dm, a, CD_MDEFORMVERT);
-
 				weight = defvert_find_weight(dvert, defgrp_index);
 
 				if (weight > 0.0f)
@@ -1028,6 +1026,7 @@ void BKE_lattice_modifiers_calc(struct Depsgraph *depsgraph, Scene *scene, Objec
 	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
 	float (*vertexCos)[3] = NULL;
 	int numVerts, editmode = (lt->editlatt != NULL);
+	const ModifierEvalContext mectx = {depsgraph, ob, 0};
 
 	if (ob->curve_cache) {
 		BKE_displist_free(&ob->curve_cache->disp);
@@ -1048,7 +1047,7 @@ void BKE_lattice_modifiers_calc(struct Depsgraph *depsgraph, Scene *scene, Objec
 		if (mti->type != eModifierTypeType_OnlyDeform) continue;
 
 		if (!vertexCos) vertexCos = BKE_lattice_vertexcos_get(ob, &numVerts);
-		mti->deformVerts(md, depsgraph, ob, NULL, vertexCos, numVerts, 0);
+		modifier_deformVerts_DM_deprecated(md, &mectx, NULL, vertexCos, numVerts);
 	}
 
 	/* always displist to make this work like derivedmesh */

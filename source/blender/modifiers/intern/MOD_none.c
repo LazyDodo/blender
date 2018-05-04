@@ -57,15 +57,25 @@ ModifierTypeInfo modifierType_None = {
 	                        eModifierTypeFlag_AcceptsCVs,
 
 	/* copyData */          NULL,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* deformStroke */      NULL,
 	/* generateStrokes */   NULL,
 	/* bakeModifierGP */    NULL,
+
 	/* initData */          NULL,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,

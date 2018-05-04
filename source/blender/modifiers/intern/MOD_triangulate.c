@@ -85,10 +85,8 @@ static void copyData(ModifierData *md, ModifierData *target)
 }
 
 static DerivedMesh *applyModifier(ModifierData *md,
-                                  struct Depsgraph *UNUSED(depsgraph),
-                                  Object *UNUSED(ob),
-                                  DerivedMesh *dm,
-                                  ModifierApplyFlag UNUSED(flag))
+                                  const ModifierEvalContext *UNUSED(ctx),
+                                  DerivedMesh *dm)
 {
 	TriangulateModifierData *tmd = (TriangulateModifierData *)md;
 	DerivedMesh *result;
@@ -111,15 +109,25 @@ ModifierTypeInfo modifierType_Triangulate = {
 	                        eModifierTypeFlag_AcceptsCVs,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* deformStroke */      NULL,
 	/* generateStrokes */   NULL,
 	/* bakeModifierGP */    NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL, //requiredDataMask,
 	/* freeData */          NULL,

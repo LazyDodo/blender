@@ -4713,7 +4713,7 @@ static void direct_link_mesh(FileData *fd, Mesh *mesh)
 
 	mesh->bb = NULL;
 	mesh->edit_btmesh = NULL;
-	mesh->batch_cache = NULL;
+	mesh->runtime.batch_cache = NULL;
 	
 	/* happens with old files */
 	if (mesh->mselect == NULL) {
@@ -6442,7 +6442,6 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 				rv3d->sms = NULL;
 				rv3d->smooth_timer = NULL;
 				rv3d->compositor = NULL;
-				rv3d->viewport = NULL;
 			}
 		}
 	}
@@ -6457,10 +6456,10 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 	ar->headerstr = NULL;
 	ar->visible = 0;
 	ar->type = NULL;
-	ar->swap = 0;
 	ar->do_draw = 0;
 	ar->manipulator_map = NULL;
 	ar->regiontimer = NULL;
+	ar->draw_buffer = NULL;
 	memset(&ar->drawrct, 0, sizeof(ar->drawrct));
 }
 
@@ -6948,10 +6947,7 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		BLI_listbase_clear(&win->handlers);
 		BLI_listbase_clear(&win->modalhandlers);
 		BLI_listbase_clear(&win->gesture);
-		BLI_listbase_clear(&win->drawdata);
 		
-		win->drawmethod = -1;
-		win->drawfail = 0;
 		win->active = 0;
 
 		win->cursor       = 0;
@@ -7468,7 +7464,6 @@ static bool direct_link_screen(FileData *fd, bScreen *sc)
 	sc->regionbase.first = sc->regionbase.last= NULL;
 	sc->context = NULL;
 	sc->active_region = NULL;
-	sc->swap = 0;
 
 	sc->preview = direct_link_preview_image(fd, sc->preview);
 
@@ -7572,10 +7567,12 @@ static void fix_relpaths_library(const char *basepath, Main *main)
 
 static void lib_link_lightprobe(FileData *fd, Main *main)
 {
-	for (LightProbe *prb = main->speaker.first; prb; prb = prb->id.next) {
+	for (LightProbe *prb = main->lightprobe.first; prb; prb = prb->id.next) {
 		if (prb->id.tag & LIB_TAG_NEED_LINK) {
 			IDP_LibLinkProperty(prb->id.properties, fd);
 			lib_link_animdata(fd, &prb->id, prb->adt);
+
+			prb->visibility_grp = newlibadr(fd, prb->id.lib, prb->visibility_grp);
 
 			prb->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
