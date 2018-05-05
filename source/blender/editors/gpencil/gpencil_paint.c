@@ -1570,8 +1570,10 @@ static void gp_init_colors(tGPsdata *p)
 	 * NOTE: Ensures that everything we need will exist...
 	 */
 	if ((ma == NULL) || (ma->gpcolor == NULL)) {
-		p->material = BKE_gpencil_color_ensure(p->bmain, p->ob);
-		/* assign the material to the brush */
+		BKE_gpencil_color_ensure(p->bmain, p->ob);
+
+		/* assign always the first material to the brush */
+		p->material = give_current_material(p->ob, 1);
 		brush->material = p->material;
 	}
 	else {

@@ -1428,8 +1428,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			/* get current drawing color */
 			ma = BKE_gpencil_get_color_from_brush(paintbrush);
 			if (ma == NULL) {
-				ma = BKE_gpencil_color_ensure(bmain, ob);
-				/* assign the material to the brush */
+				BKE_gpencil_color_ensure(bmain, ob);
+				/* assign the first material to the brush */
+				ma = give_current_material(ob, 1);
 				paintbrush->material = ma;
 			}
 			gpcolor = ma->gpcolor;
