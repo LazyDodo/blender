@@ -1224,7 +1224,6 @@ typedef struct ToolSettings {
 	float vgroup_weight;
 
 	float doublimit;	/* remove doubles limit */
-	float normalsize;	/* size of normals */
 	short automerge;
 
 	/* Selection Mode for Mesh */
@@ -1249,6 +1248,8 @@ typedef struct ToolSettings {
 	char gpencil_v2d_align; /*                          : General 2D Editor */
 	char gpencil_seq_align; /*                          : Sequencer Preview */
 	char gpencil_ima_align; /*                          : Image Editor */
+
+	char _pad3[4];
 	
 	/* Grease Pencil Sculpt */
 	struct GP_BrushEdit_Settings gp_sculpt;
@@ -1459,8 +1460,6 @@ typedef struct Scene {
 
 	ListBase view_layers;
 	struct SceneCollection *collection;
-	int active_view_layer;
-	int pad4;
 
 	IDProperty *collection_properties;  /* settings to be overriden by layer collections */
 	IDProperty *layer_properties;  /* settings to be override by workspaces */

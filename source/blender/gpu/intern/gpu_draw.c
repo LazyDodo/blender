@@ -480,7 +480,7 @@ void GPU_create_gl_tex(
 	if (textarget == GL_TEXTURE_2D) {
 		if (use_high_bit_depth) {
 			if (GLEW_ARB_texture_float)
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, rectw, recth, 0, GL_RGBA, GL_FLOAT, frect);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, rectw, recth, 0, GL_RGBA, GL_FLOAT, frect);
 			else
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16, rectw, recth, 0, GL_RGBA, GL_FLOAT, frect);
 		}
@@ -509,7 +509,7 @@ void GPU_create_gl_tex(
 					ImBuf *mip = ibuf->mipmap[i - 1];
 					if (use_high_bit_depth) {
 						if (GLEW_ARB_texture_float)
-							glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA16F_ARB, mip->x, mip->y, 0, GL_RGBA, GL_FLOAT, mip->rect_float);
+							glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA16F, mip->x, mip->y, 0, GL_RGBA, GL_FLOAT, mip->rect_float);
 						else
 							glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA16, mip->x, mip->y, 0, GL_RGBA, GL_FLOAT, mip->rect_float);
 					}
@@ -531,7 +531,7 @@ void GPU_create_gl_tex(
 
 		if (h == w && is_power_of_2_i(h) && !is_over_resolution_limit(textarget, h, w)) {
 			void **cube_map = gpu_gen_cube_map(rect, frect, rectw, recth, use_high_bit_depth);
-			GLenum informat = use_high_bit_depth ? (GLEW_ARB_texture_float ? GL_RGBA16F_ARB : GL_RGBA16) : GL_RGBA8;
+			GLenum informat = use_high_bit_depth ? (GLEW_ARB_texture_float ? GL_RGBA16F : GL_RGBA16) : GL_RGBA8;
 			GLenum type = use_high_bit_depth ? GL_FLOAT : GL_UNSIGNED_BYTE;
 
 			if (cube_map)
@@ -914,12 +914,12 @@ void GPU_create_smoke(SmokeModifierData *smd, int highres)
 			if (smoke_has_colors(sds->fluid)) {
 				float *data = MEM_callocN(sizeof(float) * sds->total_cells * 4, "smokeColorTexture");
 				smoke_get_rgba(sds->fluid, data, 0);
-				sds->tex = GPU_texture_create_3D(sds->res[0], sds->res[1], sds->res[2], data, NULL);
+				sds->tex = GPU_texture_create_3D(sds->res[0], sds->res[1], sds->res[2], GPU_RGBA8, data, NULL);
 				MEM_freeN(data);
 			}
 			/* density only */
 			else {
-				sds->tex = GPU_texture_create_3D_custom(sds->res[0], sds->res[1], sds->res[2], 1,
+				sds->tex = GPU_texture_create_3D(sds->res[0], sds->res[1], sds->res[2],
 				                                 GPU_R8, smoke_get_density(sds->fluid), NULL);
 
 				/* Swizzle the RGBA components to read the Red channel so
@@ -933,7 +933,7 @@ void GPU_create_smoke(SmokeModifierData *smd, int highres)
 				GPU_texture_unbind(sds->tex);
 			}
 			sds->tex_flame = (smoke_has_fuel(sds->fluid)) ?
-			                  GPU_texture_create_3D_custom(sds->res[0], sds->res[1], sds->res[2], 1,
+			                  GPU_texture_create_3D(sds->res[0], sds->res[1], sds->res[2],
 			                  GPU_R8, smoke_get_flame(sds->fluid), NULL) :
 			                  NULL;
 		}
@@ -942,12 +942,12 @@ void GPU_create_smoke(SmokeModifierData *smd, int highres)
 			if (smoke_turbulence_has_colors(sds->wt)) {
 				float *data = MEM_callocN(sizeof(float) * smoke_turbulence_get_cells(sds->wt) * 4, "smokeColorTexture");
 				smoke_turbulence_get_rgba(sds->wt, data, 0);
-				sds->tex = GPU_texture_create_3D(sds->res_wt[0], sds->res_wt[1], sds->res_wt[2], data, NULL);
+				sds->tex = GPU_texture_create_3D(sds->res_wt[0], sds->res_wt[1], sds->res_wt[2], GPU_RGBA8, data, NULL);
 				MEM_freeN(data);
 			}
 			/* density only */
 			else {
-				sds->tex = GPU_texture_create_3D_custom(sds->res_wt[0], sds->res_wt[1], sds->res_wt[2], 1,
+				sds->tex = GPU_texture_create_3D(sds->res_wt[0], sds->res_wt[1], sds->res_wt[2],
 				                                        GPU_R8, smoke_turbulence_get_density(sds->wt), NULL);
 
 				/* Swizzle the RGBA components to read the Red channel so
@@ -961,12 +961,12 @@ void GPU_create_smoke(SmokeModifierData *smd, int highres)
 				GPU_texture_unbind(sds->tex);
 			}
 			sds->tex_flame = (smoke_turbulence_has_fuel(sds->wt)) ?
-			                  GPU_texture_create_3D_custom(sds->res_wt[0], sds->res_wt[1], sds->res_wt[2], 1,
+			                  GPU_texture_create_3D(sds->res_wt[0], sds->res_wt[1], sds->res_wt[2],
 			                                               GPU_R8, smoke_turbulence_get_flame(sds->wt), NULL) :
 			                  NULL;
 		}
 
-		sds->tex_shadow = GPU_texture_create_3D_custom(sds->res[0], sds->res[1], sds->res[2], 1,
+		sds->tex_shadow = GPU_texture_create_3D(sds->res[0], sds->res[1], sds->res[2],
 		                                        GPU_R8, sds->shadow, NULL);
 	}
 #else // WITH_SMOKE

@@ -89,7 +89,6 @@ typedef struct DRWUpdateContext {
 	struct RenderEngineType *engine_type;
 } DRWUpdateContext;
 void DRW_notify_view_update(const DRWUpdateContext *update_ctx);
-void DRW_notify_id_update(const DRWUpdateContext *update_ctx, struct ID *id);
 
 
 typedef enum eDRWSelectStage { DRW_SELECT_PASS_PRE = 1, DRW_SELECT_PASS_POST, } eDRWSelectStage;
@@ -102,10 +101,12 @@ void DRW_draw_render_loop_ex(
         struct Depsgraph *depsgraph,
         struct RenderEngineType *engine_type,
         struct ARegion *ar, struct View3D *v3d,
+        struct GPUViewport *viewport,
         const struct bContext *evil_C);
 void DRW_draw_render_loop(
         struct Depsgraph *depsgraph,
-        struct ARegion *ar, struct View3D *v3d);
+        struct ARegion *ar, struct View3D *v3d,
+        struct GPUViewport *viewport);
 void DRW_draw_render_loop_offscreen(
         struct Depsgraph *depsgraph,
         struct RenderEngineType *engine_type,
@@ -127,13 +128,6 @@ void DRW_pass_free(struct DRWPass *pass);
 struct DRWInstanceDataList *DRW_instance_data_list_create(void);
 void DRW_instance_data_list_free(struct DRWInstanceDataList *idatalist);
 
-/* Mode engines initialization */
-void OBJECT_collection_settings_create(struct IDProperty *properties);
-void EDIT_MESH_collection_settings_create(struct IDProperty *properties);
-void EDIT_ARMATURE_collection_settings_create(struct IDProperty *properties);
-void PAINT_WEIGHT_collection_settings_create(struct IDProperty *properties);
-void PAINT_VERTEX_collection_settings_create(struct IDProperty *properties);
-
 void DRW_opengl_context_create(void);
 void DRW_opengl_context_destroy(void);
 void DRW_opengl_context_enable(void);
@@ -141,4 +135,5 @@ void DRW_opengl_context_disable(void);
 
 void DRW_deferred_shader_remove(struct GPUMaterial *mat);
 
+unsigned int *WORKBENCH_generate_studiolight_preview(int studiolight_id, int icon_size);
 #endif /* __DRW_ENGINE_H__ */

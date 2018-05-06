@@ -129,6 +129,9 @@ void ED_pose_bone_select(Object *ob, bPoseChannel *pchan, bool select)
 		
 		/* send necessary notifiers */
 		WM_main_add_notifier(NC_GEOM | ND_DATA, ob);
+		
+		/* tag armature for copy-on-write update (since act_bone is in armature not object) */
+		DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
 	}
 }
 
@@ -220,6 +223,9 @@ bool ED_armature_pose_select_pick_with_buffer(
 				 */
 				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			}
+			
+			/* tag armature for copy-on-write update (since act_bone is in armature not object) */
+			DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
 		}
 	}
 	
@@ -307,9 +313,6 @@ static void selectconnected_posebonechildren(Object *ob, Bone *bone, int extend)
 	if (!(bone->flag & BONE_CONNECTED) || (bone->flag & BONE_UNSELECTABLE))
 		return;
 	
-	/* XXX old cruft! use notifiers instead */
-	//select_actionchannel_by_name (ob->action, bone->name, !(shift));
-	
 	if (extend)
 		bone->flag &= ~BONE_SELECTED;
 	else
@@ -381,7 +384,7 @@ void POSE_OT_select_linked(wmOperatorType *ot)
 	ot->idname = "POSE_OT_select_linked";
 	ot->description = "Select bones related to selected ones by parent/child relationships";
 	
-	/* api callbacks */
+	/* callbacks */
 	/* leave 'exec' unset */
 	ot->invoke = pose_select_connected_invoke;
 	ot->poll = pose_select_linked_poll;
@@ -928,59 +931,60 @@ void POSE_OT_select_grouped(wmOperatorType *ot)
 static int pose_select_mirror_exec(bContext *C, wmOperator *op)
 {
 	Object *ob_act = CTX_data_active_object(C);
-	Object *ob = BKE_object_pose_armature_get(ob_act);
-	bArmature *arm;
-	bPoseChannel *pchan, *pchan_mirror_act = NULL;
-	const bool active_only = RNA_boolean_get(op->ptr, "only_active");
-	const bool extend = RNA_boolean_get(op->ptr, "extend");
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	if ((ob && (ob->mode & OB_MODE_POSE)) == 0) {
-		return OPERATOR_CANCELLED;
-	}
+	FOREACH_OBJECT_IN_MODE_BEGIN(view_layer, OB_MODE_POSE, ob)
+	{
+		bArmature *arm;
+		bPoseChannel *pchan, *pchan_mirror_act = NULL;
+		const bool active_only = RNA_boolean_get(op->ptr, "only_active");
+		const bool extend = RNA_boolean_get(op->ptr, "extend");
 
-	arm = ob->data;
+		arm = ob->data;
 
-	for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
-		const int flag = (pchan->bone->flag & BONE_SELECTED);
-		PBONE_PREV_FLAG_SET(pchan, flag);
-	}
+		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+			const int flag = (pchan->bone->flag & BONE_SELECTED);
+			PBONE_PREV_FLAG_SET(pchan, flag);
+		}
 
-	for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
-		if (PBONE_SELECTABLE(arm, pchan->bone)) {
-			bPoseChannel *pchan_mirror;
-			int flag_new = extend ? PBONE_PREV_FLAG_GET(pchan) : 0;
+		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+			if (PBONE_SELECTABLE(arm, pchan->bone)) {
+				bPoseChannel *pchan_mirror;
+				int flag_new = extend ? PBONE_PREV_FLAG_GET(pchan) : 0;
 
-			if ((pchan_mirror = BKE_pose_channel_get_mirrored(ob->pose, pchan->name)) &&
-			    (PBONE_VISIBLE(arm, pchan_mirror->bone)))
-			{
-				const int flag_mirror = PBONE_PREV_FLAG_GET(pchan_mirror);
-				flag_new |= flag_mirror;
+				if ((pchan_mirror = BKE_pose_channel_get_mirrored(ob->pose, pchan->name)) &&
+				    (PBONE_VISIBLE(arm, pchan_mirror->bone)))
+				{
+					const int flag_mirror = PBONE_PREV_FLAG_GET(pchan_mirror);
+					flag_new |= flag_mirror;
 
-				if (pchan->bone == arm->act_bone) {
-					pchan_mirror_act = pchan_mirror;
+					if (pchan->bone == arm->act_bone) {
+						pchan_mirror_act = pchan_mirror;
+					}
+
+					/* skip all but the active or its mirror */
+					if (active_only && !ELEM(arm->act_bone, pchan->bone, pchan_mirror->bone)) {
+						continue;
+					}
 				}
 
-				/* skip all but the active or its mirror */
-				if (active_only && !ELEM(arm->act_bone, pchan->bone, pchan_mirror->bone)) {
-					continue;
-				}
+				pchan->bone->flag = (pchan->bone->flag & ~(BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL)) | flag_new;
 			}
-
-			pchan->bone->flag = (pchan->bone->flag & ~(BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL)) | flag_new;
 		}
-	}
 
-	if (pchan_mirror_act) {
-		arm->act_bone = pchan_mirror_act->bone;
+		if (pchan_mirror_act) {
+			arm->act_bone = pchan_mirror_act->bone;
 
-		/* in weightpaint we select the associated vertex group too */
-		if (ob_act->mode & OB_MODE_WEIGHT_PAINT) {
-			ED_vgroup_select_by_name(ob_act, pchan_mirror_act->name);
-			DEG_id_tag_update(&ob_act->id, OB_RECALC_DATA);
+			/* in weightpaint we select the associated vertex group too */
+			if (ob_act->mode & OB_MODE_WEIGHT_PAINT) {
+				ED_vgroup_select_by_name(ob_act, pchan_mirror_act->name);
+				DEG_id_tag_update(&ob_act->id, OB_RECALC_DATA);
+			}
 		}
-	}
 
-	WM_event_add_notifier(C, NC_OBJECT | ND_BONE_SELECT, ob);
+		WM_event_add_notifier(C, NC_OBJECT | ND_BONE_SELECT, ob);
+	}
+	FOREACH_OBJECT_IN_MODE_END;
 
 	return OPERATOR_FINISHED;
 }

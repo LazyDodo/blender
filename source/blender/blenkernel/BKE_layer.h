@@ -58,7 +58,8 @@ struct WorkSpace;
 
 void BKE_layer_exit(void);
 
-struct ViewLayer *BKE_view_layer_from_scene_get(const struct Scene *scene);
+struct ViewLayer *BKE_view_layer_default_view(const struct Scene *scene);
+struct ViewLayer *BKE_view_layer_default_render(const struct Scene *scene);
 struct ViewLayer *BKE_view_layer_from_workspace_get(const struct Scene *scene, const struct WorkSpace *workspace);
 struct ViewLayer *BKE_view_layer_add(struct Scene *scene, const char *name);
 struct ViewLayer *BKE_view_layer_group_add(struct Group *group);
@@ -134,18 +135,18 @@ void BKE_override_layer_collection_boolean_add(struct LayerCollection *layer_col
 /* engine settings */
 typedef void (*EngineSettingsCB)(struct RenderEngine *engine, struct IDProperty *props);
 
-struct IDProperty *BKE_layer_collection_engine_evaluated_get(struct Object *ob, const int type, const char *engine_name);
-struct IDProperty *BKE_layer_collection_engine_collection_get(struct LayerCollection *lc, const int type, const char *engine_name);
-struct IDProperty *BKE_layer_collection_engine_scene_get(struct Scene *scene, const int type, const char *engine_name);
+struct IDProperty *BKE_layer_collection_engine_evaluated_get(struct Object *ob, const char *engine_name);
+struct IDProperty *BKE_layer_collection_engine_collection_get(struct LayerCollection *lc, const char *engine_name);
+struct IDProperty *BKE_layer_collection_engine_scene_get(struct Scene *scene, const char *engine_name);
 void BKE_layer_collection_engine_settings_callback_register(struct Main *bmain, const char *engine_name, EngineSettingsCB func);
 void BKE_layer_collection_engine_settings_callback_free(void);
 void BKE_layer_collection_engine_settings_create(struct IDProperty *root);
 void BKE_layer_collection_engine_settings_validate_scene(struct Scene *scene);
 void BKE_layer_collection_engine_settings_validate_collection(struct LayerCollection *lc);
 
-struct IDProperty *BKE_view_layer_engine_evaluated_get(struct ViewLayer *view_layer, const int type, const char *engine_name);
-struct IDProperty *BKE_view_layer_engine_layer_get(struct ViewLayer *view_layer, const int type, const char *engine_name);
-struct IDProperty *BKE_view_layer_engine_scene_get(struct Scene *scene, const int type, const char *engine_name);
+struct IDProperty *BKE_view_layer_engine_evaluated_get(struct ViewLayer *view_layer, const char *engine_name);
+struct IDProperty *BKE_view_layer_engine_layer_get(struct ViewLayer *view_layer, const char *engine_name);
+struct IDProperty *BKE_view_layer_engine_scene_get(struct Scene *scene, const char *engine_name);
 void BKE_view_layer_engine_settings_callback_register(struct Main *bmain, const char *engine_name, EngineSettingsCB func);
 void BKE_view_layer_engine_settings_callback_free(void);
 void BKE_view_layer_engine_settings_validate_scene(struct Scene *scene);

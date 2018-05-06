@@ -429,9 +429,6 @@ static void do_versions_windowmanager_2_50(bScreen *screen)
 				sl->spacetype = SPACE_EMPTY;	/* spacedata then matches */
 		}
 
-		/* it seems to be possible in 2.5 to have this saved, filewindow probably */
-		sa->butspacetype = sa->spacetype;
-
 		/* pushed back spaces also need regions! */
 		if (sa->spacedata.first) {
 			sl = sa->spacedata.first;
@@ -841,8 +838,7 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 
 		for (sce = main->scene.first; sce; sce = sce->id.next) {
 			ts = sce->toolsettings;
-			if (ts->normalsize == 0.0f || !ts->uv_selectmode || ts->vgroup_weight == 0.0f) {
-				ts->normalsize = 0.1f;
+			if (!ts->uv_selectmode || ts->vgroup_weight == 0.0f) {
 				ts->selectmode = SCE_SELECT_VERTEX;
 
 				/* autokeying - setting should be taken from the user-prefs

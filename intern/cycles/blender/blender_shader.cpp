@@ -834,7 +834,6 @@ static ShaderNode *add_node(Scene *scene,
 		node = uvm;
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeTexPointDensity)) {
-		/* TODO: fix point density to work with new view layer depsgraph */
 		BL::ShaderNodeTexPointDensity b_point_density_node(b_node);
 		PointDensityTextureNode *point_density = new PointDensityTextureNode();
 		point_density->filename = b_point_density_node.name();
@@ -1230,7 +1229,7 @@ void BlenderSync::sync_materials(BL::Depsgraph& b_depsgraph, bool update_all)
 	    ++b_mat_orig)
 	{
 		/* TODO(sergey): Iterate over evaluated data rather than using mapping. */
-		BL::Material b_mat_(b_depsgraph.evaluated_id_get(*b_mat_orig));
+		BL::Material b_mat_(b_depsgraph.id_eval_get(*b_mat_orig));
 		BL::Material *b_mat = &b_mat_;
 		Shader *shader;
 
@@ -1404,7 +1403,7 @@ void BlenderSync::sync_lamps(BL::Depsgraph& b_depsgraph, bool update_all)
 	    ++b_lamp_orig)
 	{
 		/* TODO(sergey): Iterate over evaluated data rather than using mapping. */
-		BL::Lamp b_lamp_(b_depsgraph.evaluated_id_get(*b_lamp_orig));
+		BL::Lamp b_lamp_(b_depsgraph.id_eval_get(*b_lamp_orig));
 		BL::Lamp *b_lamp = &b_lamp_;
 		Shader *shader;
 

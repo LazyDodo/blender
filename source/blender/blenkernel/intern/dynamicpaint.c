@@ -4164,7 +4164,7 @@ static int dynamicPaint_paintMesh(struct Depsgraph *depsgraph, DynamicPaintSurfa
 		/* check bounding box collision */
 		if (grid && meshBrush_boundsIntersect(&grid->grid_bounds, &mesh_bb, brush, brush_radius)) {
 			/* Build a bvh tree from transformed vertices	*/
-			if (bvhtree_from_mesh_looptri(&treeData, dm, 0.0f, 4, 8)) {
+			if (bvhtree_from_mesh_get(&treeData, dm, BVHTREE_FROM_LOOPTRI, 4)) {
 				int c_index;
 				int total_cells = grid->dim[0] * grid->dim[1] * grid->dim[2];
 
@@ -5967,12 +5967,12 @@ static int dynamicPaint_doStep(struct Depsgraph *depsgraph, Scene *scene, Object
 
 					/* Apply brush on the surface depending on it's collision type */
 					if (brush->psys && brush->psys->part &&
-						ELEM(brush->psys->part->type, PART_EMITTER, PART_FLUID) &&
-						psys_check_enabled(brushObj, brush->psys, G.is_rendering))
+					    ELEM(brush->psys->part->type, PART_EMITTER, PART_FLUID) &&
+					    psys_check_enabled(brushObj, brush->psys, G.is_rendering))
 					{
 						/* Paint a particle system */
 						BKE_animsys_evaluate_animdata(scene, &brush->psys->part->id, brush->psys->part->adt,
-													  BKE_scene_frame_get(scene), ADT_RECALC_ANIM);
+						                              BKE_scene_frame_get(scene), ADT_RECALC_ANIM);
 						dynamicPaint_paintParticles(surface, brush->psys, brush, timescale);
 					}
 					/* Object center distance: */

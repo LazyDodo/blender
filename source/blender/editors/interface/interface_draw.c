@@ -116,6 +116,7 @@ void UI_draw_roundbox_aa(bool filled, float minx, float miny, float maxx, float 
 		.color_inner1[1] = color[1], .color_inner2[1] = color[1],
 		.color_inner1[2] = color[2], .color_inner2[2] = color[2],
 		.color_inner1[3] = color[3], .color_inner2[3] = color[3],
+		.alpha_discard = 1.0f,
 	};
 
 	glEnable(GL_BLEND);
@@ -236,6 +237,7 @@ void UI_draw_roundbox_4fv(bool filled, float minx, float miny, float maxx, float
 		.color_inner1[1] = col[1], .color_inner2[1] = col[1],
 		.color_inner1[2] = col[2], .color_inner2[2] = col[2],
 		.color_inner1[3] = col[3], .color_inner2[3] = col[3],
+		.alpha_discard = 1.0f,
 	};
 
 	Gwn_Batch *batch = ui_batch_roundbox_get(filled, false);
@@ -393,6 +395,7 @@ void UI_draw_roundbox_shade_x(
 		.color_inner2[2] = max_ff(0.0f, col[2] + shadedown),
 		.color_inner1[3] = 1.0f,
 		.color_inner2[3] = 1.0f,
+		.alpha_discard = 1.0f,
 	};
 
 	Gwn_Batch *batch = ui_batch_roundbox_get(filled, false);
@@ -644,7 +647,7 @@ void ui_draw_but_IMAGE(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSED(w
 	/* prevent drawing outside widget area */
 	GLint scissor[4];
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);
-	glScissor(ar->winrct.xmin + rect->xmin, ar->winrct.ymin + rect->ymin, w, h);
+	glScissor(rect->xmin, rect->ymin, w, h);
 #endif
 	
 	glEnable(GL_BLEND);
@@ -773,7 +776,7 @@ static void histogram_draw_one(
 
 #define HISTOGRAM_TOT_GRID_LINES 4
 
-void ui_draw_but_HISTOGRAM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
+void ui_draw_but_HISTOGRAM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
 {
 	Histogram *hist = (Histogram *)but->poin;
 	int res = hist->x_resolution;
@@ -800,8 +803,8 @@ void ui_draw_but_HISTOGRAM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol)
 	/* need scissor test, histogram can draw outside of boundary */
 	GLint scissor[4];
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);
-	glScissor(ar->winrct.xmin + (rect.xmin - 1),
-	          ar->winrct.ymin + (rect.ymin - 1),
+	glScissor((rect.xmin - 1),
+	          (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
 	          (rect.ymax + 1) - (rect.ymin - 1));
 
@@ -873,7 +876,7 @@ static void waveform_draw_one(float *waveform, int nbr, const float col[3])
 	GWN_batch_discard(batch);
 }
 
-void ui_draw_but_WAVEFORM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
+void ui_draw_but_WAVEFORM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
 {
 	Scopes *scopes = (Scopes *)but->poin;
 	GLint scissor[4];
@@ -923,8 +926,8 @@ void ui_draw_but_WAVEFORM(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol),
 
 	/* need scissor test, waveform can draw outside of boundary */
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);
-	glScissor(ar->winrct.xmin + (rect.xmin - 1),
-	          ar->winrct.ymin + (rect.ymin - 1),
+	glScissor((rect.xmin - 1),
+	          (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
 	          (rect.ymax + 1) - (rect.ymin - 1));
 
@@ -1114,7 +1117,7 @@ static void vectorscope_draw_target(unsigned int pos, float centerx, float cente
 	float tangle = 0.0f, tampli;
 	float dangle, dampli, dangle2, dampli2;
 
-	rgb_to_yuv(colf[0], colf[1], colf[2], &y, &u, &v);
+	rgb_to_yuv(colf[0], colf[1], colf[2], &y, &u, &v, BLI_YUV_ITU_BT709);
 	if (u > 0 && v >= 0) tangle = atanf(v / u);
 	else if (u > 0 && v < 0) tangle = atanf(v / u) + 2.0f * (float)M_PI;
 	else if (u < 0) tangle = atanf(v / u) + (float)M_PI;
@@ -1160,7 +1163,7 @@ static void vectorscope_draw_target(unsigned int pos, float centerx, float cente
 	immEnd();
 }
 
-void ui_draw_but_VECTORSCOPE(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
+void ui_draw_but_VECTORSCOPE(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
 {
 	const float skin_rad = DEG2RADF(123.0f); /* angle in radians of the skin tone line */
 	Scopes *scopes = (Scopes *)but->poin;
@@ -1195,8 +1198,8 @@ void ui_draw_but_VECTORSCOPE(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wco
 	/* need scissor test, hvectorscope can draw outside of boundary */
 	GLint scissor[4];
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);
-	glScissor(ar->winrct.xmin + (rect.xmin - 1),
-	          ar->winrct.ymin + (rect.ymin - 1),
+	glScissor((rect.xmin - 1),
+	          (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
 	          (rect.ymax + 1) - (rect.ymin - 1));
 	
@@ -1622,12 +1625,13 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 	GLint scissor[4];
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	rcti scissor_new = {
-		.xmin = ar->winrct.xmin + rect->xmin,
-		.ymin = ar->winrct.ymin + rect->ymin,
-		.xmax = ar->winrct.xmin + rect->xmax,
-		.ymax = ar->winrct.ymin + rect->ymax
+		.xmin = rect->xmin,
+		.ymin = rect->ymin,
+		.xmax = rect->xmax,
+		.ymax = rect->ymax
 	};
-	BLI_rcti_isect(&scissor_new, &ar->winrct, &scissor_new);
+	rcti scissor_region = {0, ar->winx, 0, ar->winy};
+	BLI_rcti_isect(&scissor_new, &scissor_region, &scissor_new);
 	glScissor(scissor_new.xmin,
 	          scissor_new.ymin,
 	          BLI_rcti_size_x(&scissor_new),
@@ -1822,7 +1826,7 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 	immUnbindProgram();
 }
 
-void ui_draw_but_TRACKPREVIEW(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
+void ui_draw_but_TRACKPREVIEW(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *recti)
 {
 	bool ok = false;
 	MovieClipScopes *scopes = (MovieClipScopes *)but->poin;
@@ -1843,8 +1847,8 @@ void ui_draw_but_TRACKPREVIEW(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wc
 	/* need scissor test, preview image can draw outside of boundary */
 	GLint scissor[4];
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);
-	glScissor(ar->winrct.xmin + (rect.xmin - 1),
-	          ar->winrct.ymin + (rect.ymin - 1),
+	glScissor((rect.xmin - 1),
+	          (rect.ymin - 1),
 	          (rect.xmax + 1) - (rect.xmin - 1),
 	          (rect.ymax + 1) - (rect.ymin - 1));
 
@@ -1881,7 +1885,7 @@ void ui_draw_but_TRACKPREVIEW(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wc
 		gpuPushMatrix();
 
 		/* draw content of pattern area */
-		glScissor(ar->winrct.xmin + rect.xmin, ar->winrct.ymin + rect.ymin, scissor[2], scissor[3]);
+		glScissor(rect.xmin, rect.ymin, scissor[2], scissor[3]);
 
 		if (width > 0 && height > 0) {
 			ImBuf *drawibuf = scopes->track_preview;
@@ -1898,8 +1902,8 @@ void ui_draw_but_TRACKPREVIEW(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wc
 
 			/* draw cross for pixel position */
 			gpuTranslate2f(rect.xmin + scopes->track_pos[0], rect.ymin + scopes->track_pos[1]);
-			glScissor(ar->winrct.xmin + rect.xmin,
-			          ar->winrct.ymin + rect.ymin,
+			glScissor(rect.xmin,
+			          rect.ymin,
 			          BLI_rctf_size_x(&rect),
 			          BLI_rctf_size_y(&rect));
 
@@ -1977,13 +1981,15 @@ void ui_draw_but_NODESOCKET(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);
 	
 	rcti scissor_new = {
-		.xmin = ar->winrct.xmin + recti->xmin,
-		.ymin = ar->winrct.ymin + recti->ymin,
-		.xmax = ar->winrct.xmin + recti->xmax,
-		.ymax = ar->winrct.ymin + recti->ymax
+		.xmin = recti->xmin,
+		.ymin = recti->ymin,
+		.xmax = recti->xmax,
+		.ymax = recti->ymax
 	};
 
-	BLI_rcti_isect(&scissor_new, &ar->winrct, &scissor_new);
+	rcti scissor_region = {0, ar->winx, 0, ar->winy};
+
+	BLI_rcti_isect(&scissor_new, &scissor_region, &scissor_new);
 	glScissor(scissor_new.xmin,
 	          scissor_new.ymin,
 	          BLI_rcti_size_x(&scissor_new),
@@ -2157,6 +2163,7 @@ void ui_draw_dropshadow(const rctf *rct, float radius, float aspect, float alpha
 		.round_corners[1] = (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 1.0f : 0.0f,
 		.round_corners[2] = (roundboxtype & UI_CNR_TOP_RIGHT) ? 1.0f : 0.0f,
 		.round_corners[3] = (roundboxtype & UI_CNR_TOP_LEFT) ? 1.0f : 0.0f,
+		.alpha_discard = 1.0f,
 	};
 
 	Gwn_Batch *batch = ui_batch_roundbox_shadow_get();

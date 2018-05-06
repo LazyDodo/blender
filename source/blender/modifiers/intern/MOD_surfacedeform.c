@@ -949,7 +949,7 @@ static bool surfacedeformBind(SurfaceDeformModifierData *smd, float (*vertexCos)
 		return false;
 	}
 
-	bvhtree_from_mesh_looptri(&treeData, tdm, 0.0, 2, 6);
+	bvhtree_from_mesh_get(&treeData, tdm, BVHTREE_FROM_LOOPTRI, 2);
 	if (treeData.tree == NULL) {
 		modifier_setError((ModifierData *)smd, "Out of memory");
 		freeAdjacencyMap(vert_edges, adj_array, edge_polys);
@@ -1181,21 +1181,20 @@ static void surfacedeformModifier_do(
 }
 
 static void deformVerts(
-        ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
-        Object *ob, DerivedMesh *UNUSED(derivedData),
-        float (*vertexCos)[3], int numVerts,
-        ModifierApplyFlag UNUSED(flag))
-{
-	surfacedeformModifier_do(md, vertexCos, numVerts, ob);
-}
-
-static void deformVertsEM(
-        ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
-        Object *ob, struct BMEditMesh *UNUSED(editData),
+        ModifierData *md, const ModifierEvalContext *ctx,
         DerivedMesh *UNUSED(derivedData),
         float (*vertexCos)[3], int numVerts)
 {
-	surfacedeformModifier_do(md, vertexCos, numVerts, ob);
+	surfacedeformModifier_do(md, vertexCos, numVerts, ctx->object);
+}
+
+static void deformVertsEM(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct BMEditMesh *UNUSED(editData),
+        DerivedMesh *UNUSED(derivedData),
+        float (*vertexCos)[3], int numVerts)
+{
+	surfacedeformModifier_do(md, vertexCos, numVerts, ctx->object);
 }
 
 static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
@@ -1214,12 +1213,21 @@ ModifierTypeInfo modifierType_SurfaceDeform = {
 	                        eModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          copyData,
-	/* deformVerts */       deformVerts,
+
+	/* deformVerts_DM */    deformVerts,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  deformVertsEM,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
-	/* deformVertsEM */     deformVertsEM,
+	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,

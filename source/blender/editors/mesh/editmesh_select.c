@@ -70,6 +70,7 @@
 #include "bmesh_tools.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "mesh_intern.h"  /* own include */
 
@@ -657,15 +658,19 @@ BMEdge *EDBM_edge_find_nearest_ex(
 		BMEdge *eed;
 
 		/* Make sure that the edges also are considered to find nearest.
-		 * TODO: cleanup: add `selectmode` as a parameter */
+		 * TODO: cleanup: add `selectmode` as a parameter
+		 * XXX: Without selectmode as parameter we need to resort to this super ugly hack,
+		 *      because we should never write to evaluate data. */
 		const short ts_selectmode = vc->scene->toolsettings->selectmode;
-		vc->scene->toolsettings->selectmode |= SCE_SELECT_EDGE;
+
+		Scene *scene_eval = (Scene *)DEG_get_evaluated_id(vc->depsgraph, &vc->scene->id);
+		scene_eval->toolsettings->selectmode |= SCE_SELECT_EDGE;
 
 		/* No afterqueue (yet), so we check it now, otherwise the bm_xxxofs indices are bad. */
 		ED_view3d_backbuf_validate(vc);
 
 		/* restore `selectmode` */
-		vc->scene->toolsettings->selectmode = ts_selectmode;
+		scene_eval->toolsettings->selectmode = ts_selectmode;
 
 		index = ED_view3d_backbuf_sample_rect(vc, vc->mval, dist_px, bm_solidoffs, bm_wireoffs, &dist_test);
 		eed = index ? BM_edge_at_index_find_or_table(bm, index - 1) : NULL;
@@ -916,7 +921,7 @@ BMFace *EDBM_face_find_nearest(ViewContext *vc, float *r_dist)
  * selected vertices and edges get disadvantage
  * return 1 if found one
  */
-static int unified_findnearest(
+static bool unified_findnearest(
         ViewContext *vc,
         Base **r_base, BMVert **r_eve, BMEdge **r_eed, BMFace **r_efa)
 {
@@ -928,12 +933,21 @@ static int unified_findnearest(
 	/* since edges select lines, we give dots advantage of ~20 pix */
 	const float dist_margin = (dist_init / 2);
 	float dist = dist_init;
-	BMFace *efa_zbuf = NULL;
-	BMEdge *eed_zbuf = NULL;
 
-	BMVert *eve = NULL;
-	BMEdge *eed = NULL;
-	BMFace *efa = NULL;
+	struct {
+		struct {
+			BMVert *ele;
+			Base *base;
+		} v;
+		struct {
+			BMEdge *ele;
+			Base *base;
+		} e, e_zbuf;
+		struct {
+			BMFace *ele;
+			Base *base;
+		} f, f_zbuf;
+	} hit = {{NULL}};
 
 	/* TODO(campbell): perform selection as one pass
 	 * instead of many smaller passes (which doesn't work for zbuf occlusion). */
@@ -951,14 +965,18 @@ static int unified_findnearest(
 			Object *obedit = base_iter->object;
 			ED_view3d_viewcontext_init_object(vc, obedit);
 			ED_view3d_backbuf_validate(vc);
-
+			BMFace *efa_zbuf = NULL;
 			BMFace *efa_test = EDBM_face_find_nearest_ex(vc, &dist, dist_center_p, true, use_cycle, &efa_zbuf);
-			if (efa && dist_center_p) {
+			if (hit.f.ele && dist_center_p) {
 				dist = min_ff(dist_margin, dist_center);
 			}
 			if (efa_test) {
-				*r_base = base_iter;
-				efa = efa_test;
+				hit.f.base = base_iter;
+				hit.f.ele  = efa_test;
+			}
+			if (efa_zbuf) {
+				hit.f_zbuf.base = base_iter;
+				hit.f_zbuf.ele  = efa_zbuf;
 			}
 		} /* bases */
 	}
@@ -972,13 +990,18 @@ static int unified_findnearest(
 			Object *obedit = base_iter->object;
 			ED_view3d_viewcontext_init_object(vc, obedit);
 			ED_view3d_backbuf_validate(vc);
+			BMEdge *eed_zbuf = NULL;
 			BMEdge *eed_test = EDBM_edge_find_nearest_ex(vc, &dist, dist_center_p, true, use_cycle, &eed_zbuf);
-			if (eed && dist_center_p) {
+			if (hit.e.ele && dist_center_p) {
 				dist = min_ff(dist_margin, dist_center);
 			}
 			if (eed_test) {
-				*r_base = base_iter;
-				eed = eed_test;
+				hit.e.base = base_iter;
+				hit.e.ele  = eed_test;
+			}
+			if (eed_zbuf) {
+				hit.e_zbuf.base = base_iter;
+				hit.e_zbuf.ele  = eed_zbuf;
 			}
 		} /* bases */
 	}
@@ -991,8 +1014,8 @@ static int unified_findnearest(
 			ED_view3d_backbuf_validate(vc);
 			BMVert *eve_test = EDBM_vert_find_nearest_ex(vc, &dist, true, use_cycle);
 			if (eve_test) {
-				*r_base = base_iter;
-				eve = eve_test;
+				hit.v.base = base_iter;
+				hit.v.ele  = eve_test;
 			}
 		} /* bases */
 	}
@@ -1000,32 +1023,48 @@ static int unified_findnearest(
 	MEM_SAFE_FREE(bases);
 
 	/* return only one of 3 pointers, for frontbuffer redraws */
-	if (eve) {
-		efa = NULL; eed = NULL;
+	if (hit.v.ele) {
+		hit.f.ele = NULL;
+		hit.e.ele = NULL;
 	}
-	else if (eed) {
-		efa = NULL;
+	else if (hit.e.ele) {
+		hit.f.ele = NULL;
 	}
 
 	/* there may be a face under the cursor, who's center if too far away
 	 * use this if all else fails, it makes sense to select this */
-	if ((eve || eed || efa) == 0) {
-		if (eed_zbuf) {
-			eed = eed_zbuf;
+	if ((hit.v.ele || hit.e.ele || hit.f.ele) == 0) {
+		if (hit.e_zbuf.ele) {
+			hit.e.base = hit.e_zbuf.base;
+			hit.e.ele  = hit.e_zbuf.ele;
 		}
-		else if (efa_zbuf) {
-			efa = efa_zbuf;
+		else if (hit.f_zbuf.ele) {
+			hit.f.base = hit.f_zbuf.base;
+			hit.f.ele  = hit.f_zbuf.ele;
 		}
 	}
 
 	mval_prev[0] = vc->mval[0];
 	mval_prev[1] = vc->mval[1];
+	
+	/* Only one element type will be non-null. */
+	BLI_assert(((hit.v.ele != NULL) + (hit.e.ele != NULL) + (hit.f.ele != NULL)) <= 1);
 
-	*r_eve = eve;
-	*r_eed = eed;
-	*r_efa = efa;
+	if (hit.v.ele) {
+		*r_base = hit.v.base;
+	}
+	if (hit.e.ele) {
+		*r_base = hit.e.base;
+	}
+	if (hit.f.ele) {
+		*r_base = hit.f.base;
+	}
 
-	return (eve || eed || efa);
+	*r_eve = hit.v.ele;
+	*r_eed = hit.e.ele;
+	*r_efa = hit.f.ele;
+
+	return (hit.v.ele || hit.e.ele || hit.f.ele);
 }
 
 /** \} */
@@ -2314,6 +2353,7 @@ bool EDBM_selectmode_toggle(
         bContext *C, const short selectmode_new,
         const int action, const bool use_extend, const bool use_expand)
 {
+	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Object *obedit = CTX_data_edit_object(C);
@@ -2420,9 +2460,11 @@ bool EDBM_selectmode_toggle(
 			Object *ob_iter = objects[ob_index];
 			BMEditMesh *em_iter = BKE_editmesh_from_object(ob_iter);
 			EDBM_selectmode_set(em_iter);
+			DEG_id_tag_update(ob_iter->data, DEG_TAG_COPY_ON_WRITE);
 			WM_event_add_notifier(C, NC_GEOM | ND_SELECT, ob_iter->data);
 		}
 		WM_main_add_notifier(NC_SCENE | ND_TOOLSETTINGS, NULL);
+		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	MEM_SAFE_FREE(objects);
@@ -3690,6 +3732,13 @@ static int edbm_select_sharp_edges_exec(bContext *C, wmOperator *op)
 		}
 	}
 
+	if ((em->bm->selectmode & (SCE_SELECT_VERTEX | SCE_SELECT_EDGE)) == 0) {
+		/* Since we can't select individual edges, select faces connected to them. */
+		EDBM_selectmode_convert(em, SCE_SELECT_EDGE, SCE_SELECT_FACE);
+	}
+	else {
+		EDBM_selectmode_flush(em);
+	}
 	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
 
 	return OPERATOR_FINISHED;

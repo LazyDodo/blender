@@ -190,8 +190,8 @@ void drw_state_set(DRWState state)
 	{
 		int test;
 		if (CHANGED_ANY_STORE_VAR(
-		        DRW_STATE_BLEND | DRW_STATE_ADDITIVE | DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION |
-		        DRW_STATE_ADDITIVE_FULL,
+		        DRW_STATE_BLEND | DRW_STATE_BLEND_PREMUL | DRW_STATE_ADDITIVE |
+		        DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION | DRW_STATE_ADDITIVE_FULL,
 		        test))
 		{
 			if (test) {
@@ -200,6 +200,9 @@ void drw_state_set(DRWState state)
 				if ((state & DRW_STATE_BLEND) != 0) {
 					glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, /* RGB */
 					                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA); /* Alpha */
+				}
+				else if ((state & DRW_STATE_BLEND_PREMUL) != 0) {
+					glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 				}
 				else if ((state & DRW_STATE_MULTIPLY) != 0) {
 					glBlendFunc(GL_DST_COLOR, GL_ZERO);
@@ -275,21 +278,27 @@ void drw_state_set(DRWState state)
 		DRWState test;
 		if (CHANGED_ANY_STORE_VAR(
 		        DRW_STATE_WRITE_STENCIL |
-		        DRW_STATE_STENCIL_EQUAL,
+		        DRW_STATE_WRITE_STENCIL_SHADOW |
+		        DRW_STATE_STENCIL_EQUAL |
+		        DRW_STATE_STENCIL_NEQUAL,
 		        test))
 		{
 			if (test) {
 				glEnable(GL_STENCIL_TEST);
-
 				/* Stencil Write */
 				if ((state & DRW_STATE_WRITE_STENCIL) != 0) {
 					glStencilMask(0xFF);
 					glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				}
+				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW) != 0) {
+					glStencilMask(0xFF);
+					glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_INCR_WRAP, GL_KEEP);
+					glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
+				}
 				/* Stencil Test */
-				else if ((state & DRW_STATE_STENCIL_EQUAL) != 0) {
+				else if ((state & (DRW_STATE_STENCIL_EQUAL | DRW_STATE_STENCIL_NEQUAL)) != 0) {
 					glStencilMask(0x00); /* disable write */
-					DST.stencil_mask = 0;
+					DST.stencil_mask = STENCIL_UNDEFINED;
 				}
 				else {
 					BLI_assert(0);
@@ -315,15 +324,17 @@ void drw_state_set(DRWState state)
 static void drw_stencil_set(unsigned int mask)
 {
 	if (DST.stencil_mask != mask) {
+		DST.stencil_mask = mask;
 		/* Stencil Write */
 		if ((DST.state & DRW_STATE_WRITE_STENCIL) != 0) {
 			glStencilFunc(GL_ALWAYS, mask, 0xFF);
-			DST.stencil_mask = mask;
 		}
 		/* Stencil Test */
 		else if ((DST.state & DRW_STATE_STENCIL_EQUAL) != 0) {
 			glStencilFunc(GL_EQUAL, mask, 0xFF);
-			DST.stencil_mask = mask;
+		}
+		else if ((DST.state & DRW_STATE_STENCIL_NEQUAL) != 0) {
+			glStencilFunc(GL_NOTEQUAL, mask, 0xFF);
 		}
 	}
 }
@@ -458,6 +469,8 @@ static void draw_clipping_setup_from_view(void)
 		mul_m4_v3(viewinv, bbox.vec[i]);
 	}
 
+	memcpy(&DST.clipping.frustum_corners, &bbox, sizeof(BoundBox));
+
 	/* Compute clip planes using the world space frustum corners. */
 	for (int p = 0; p < 6; p++) {
 		int q, r;
@@ -565,13 +578,13 @@ static void draw_clipping_setup_from_view(void)
 		/* distance to view Z axis */
 		f = len_v2(farpoint);
 		/* get corresponding point on the near plane */
-		mul_v2_v2fl(farxy, farpoint, s/e);
+		mul_v2_v2fl(farxy, farpoint, s / e);
 		/* this formula preserve the sign of n */
 		sub_v2_v2(nearpoint, farxy);
 		n = f * s / e - len_v2(nearpoint);
 		c = len_v2(farcenter) / e;
 		/* the big formula, it simplifies to (F-N)/(2(e-s)) for the symmetric case */
-		z = (F-N) / (2.0f * (e-s + c*(f-n)));
+		z = (F - N) / (2.0f * (e - s + c * (f - n)));
 
 		bsphere->center[0] = farcenter[0] * z / e;
 		bsphere->center[1] = farcenter[1] * z / e;
@@ -637,6 +650,22 @@ bool DRW_culling_box_test(BoundBox *bbox)
 	return true;
 }
 
+/* Return True if the current view frustum is inside or intersect the given plane */
+bool DRW_culling_plane_test(float plane[4])
+{
+	draw_clipping_setup_from_view();
+
+	/* Test against the 8 frustum corners. */
+	for (int c = 0; c < 8; c++) {
+		float dist = plane_point_side_v3(plane, DST.clipping.frustum_corners.vec[c]);
+		if (dist < 0.0f) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -644,22 +673,35 @@ bool DRW_culling_box_test(BoundBox *bbox)
 /** \name Draw (DRW_draw)
  * \{ */
 
+static void draw_visibility_eval(DRWCallState *st)
+{
+	bool culled = st->flag & DRW_CALL_CULLED;
+
+	if (st->cache_id != DST.state_cache_id) {
+		/* Update culling result for this view. */
+		culled = !DRW_culling_sphere_test(&st->bsphere);
+	}
+
+	if (st->visibility_cb) {
+		culled = !st->visibility_cb(!culled, st->user_data);
+	}
+
+	SET_FLAG_FROM_TEST(st->flag, culled, DRW_CALL_CULLED);
+}
+
 static void draw_matrices_model_prepare(DRWCallState *st)
 {
 	if (st->cache_id == DST.state_cache_id) {
-		return; /* Values are already updated for this view. */
+		/* Values are already updated for this view. */
+		return;
 	}
 	else {
 		st->cache_id = DST.state_cache_id;
 	}
 
-	if (DRW_culling_sphere_test(&st->bsphere)) {
-		st->flag &= ~DRW_CALL_CULLED;
-	}
-	else {
-		st->flag |= DRW_CALL_CULLED;
-		return; /* No need to go further the call will not be used. */
-	}
+	/* No need to go further the call will not be used. */
+	if (st->flag & DRW_CALL_CULLED)
+		return;
 
 	/* Order matters */
 	if (st->matflag & (DRW_CALL_MODELVIEW | DRW_CALL_MODELVIEWINVERSE |
@@ -1014,6 +1056,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 		for (DRWCall *call = shgroup->calls.first; call; call = call->next) {
 
 			/* OPTI/IDEA(clem): Do this preparation in another thread. */
+			draw_visibility_eval(call->state);
 			draw_matrices_model_prepare(call->state);
 
 			if ((call->state->flag & DRW_CALL_CULLED) != 0)

@@ -77,8 +77,9 @@ typedef struct SpaceType {
 	int spaceid;                                /* unique space identifier */
 	int iconid;                                 /* icon lookup for menus */
 	
-	/* initial allocation, after this WM will call init() too */
-	struct SpaceLink    *(*new)(const struct bContext *C);
+	/* Initial allocation, after this WM will call init() too. Some editors need
+	 * area and scene data (e.g. frame range) to set their initial scrolling. */
+	struct SpaceLink    *(*new)(const struct ScrArea *, const struct Scene *);
 	/* not free spacelink itself */
 	void (*free)(struct SpaceLink *);
 	
@@ -139,6 +140,10 @@ typedef struct ARegionType {
 	void (*exit)(struct wmWindowManager *, struct ARegion *);
 	/* draw entirely, view changes should be handled here */
 	void (*draw)(const struct bContext *, struct ARegion *);
+	/* optional, compute button layout before drawing for dynamic size */
+	void (*layout)(const struct bContext *, struct ARegion *);
+	/* snap the size of the region (can be NULL for no snapping). */
+	int (*snap_size)(const struct ARegion *ar, int size, int axis);
 	/* contextual changes should be handled here */
 	void (*listener)(struct bScreen *, struct ScrArea *, struct ARegion *,
 	                 struct wmNotifier *, const struct Scene *scene);

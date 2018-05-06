@@ -38,22 +38,31 @@
 
 /* We may want to load direct from file. */
 PyDoc_STRVAR(bpy_app_icons_new_triangles_doc,
-".. function:: new_triangles(coords, colors)"
+".. function:: new_triangles(range, coords, colors)"
 "\n"
 "   Create a new icon from triangle geometry.\n"
 "\n"
+"   :arg range: Pair of ints.\n"
+"   :type range: tuple.\n"
 "   :arg coords: Sequence of bytes (6 floats for one triangle) for (X, Y) coordinates.\n"
-"   :type coords: byte sequence\n"
+"   :type coords: byte sequence.\n"
 "   :arg colors: Sequence of ints (12 for one triangles) for RGBA.\n"
-"   :type colors: byte sequence\n"
+"   :type colors: byte sequence.\n"
 "   :return: Unique icon value (pass to interface ``icon_value`` argument).\n"
 "   :rtype: int\n"
 );
-static PyObject *bpy_app_icons_new_triangles(PyObject *UNUSED(self), PyObject *args)
+static PyObject *bpy_app_icons_new_triangles(PyObject *UNUSED(self), PyObject *args, PyObject *kw)
 {
 	/* bytes */
+	uchar coords_range[2];
 	PyObject *py_coords, *py_colors;
-	if (!PyArg_ParseTuple(args, "SS:new_triangles", &py_coords, &py_colors)) {
+
+	static const char *_keywords[] = {"range", "coords", "colors", NULL};
+	static _PyArg_Parser _parser = {"(BB)SS:new_triangles", _keywords, 0};
+	if (!_PyArg_ParseTupleAndKeywordsFast(
+	            args, kw, &_parser,
+	            &coords_range[0], &coords_range[1], &py_coords, &py_colors))
+	{
 		return NULL;
 	}
 
@@ -78,9 +87,44 @@ static PyObject *bpy_app_icons_new_triangles(PyObject *UNUSED(self), PyObject *a
 
 	struct Icon_Geom *geom = MEM_mallocN(sizeof(*geom), __func__);
 	geom->coords_len = tris_len;
+	geom->coords_range[0] = coords_range[0];
+	geom->coords_range[1] = coords_range[1];
 	geom->coords = coords;
 	geom->colors = colors;
 	geom->icon_id = 0;
+	int icon_id = BKE_icon_geom_ensure(geom);
+	return PyLong_FromLong(icon_id);
+}
+
+PyDoc_STRVAR(bpy_app_icons_new_triangles_from_file_doc,
+".. function:: new_triangles_from_file(filename)"
+"\n"
+"   Create a new icon from triangle geometry.\n"
+"\n"
+"   :arg range: File path.\n"
+"   :type range: string.\n"
+"   :return: Unique icon value (pass to interface ``icon_value`` argument).\n"
+"   :rtype: int\n"
+);
+static PyObject *bpy_app_icons_new_triangles_from_file(PyObject *UNUSED(self), PyObject *args, PyObject *kw)
+{
+	/* bytes */
+	char *filename;
+
+	static const char *_keywords[] = {"filename", NULL};
+	static _PyArg_Parser _parser = {"s:new_triangles_from_file", _keywords, 0};
+	if (!_PyArg_ParseTupleAndKeywordsFast(
+	            args, kw, &_parser,
+	            &filename))
+	{
+		return NULL;
+	}
+
+	struct Icon_Geom *geom = BKE_icon_geom_from_file(filename);
+	if (geom == NULL) {
+		PyErr_SetString(PyExc_ValueError, "Unable to load from file");
+		return NULL;
+	}
 	int icon_id = BKE_icon_geom_ensure(geom);
 	return PyLong_FromLong(icon_id);
 }
@@ -90,13 +134,14 @@ PyDoc_STRVAR(bpy_app_icons_release_doc,
 "\n"
 "   Release the icon.\n"
 );
-static PyObject *bpy_app_icons_release(PyObject *UNUSED(self), PyObject *args)
+static PyObject *bpy_app_icons_release(PyObject *UNUSED(self), PyObject *args, PyObject *kw)
 {
 	int icon_id;
-	static _PyArg_Parser _parser = {"i:release", NULL, 0};
+	static const char *_keywords[] = {"icon_id", NULL};
+	static _PyArg_Parser _parser = {"i:release", _keywords, 0};
 	if (!_PyArg_ParseTupleAndKeywordsFast(
-	        args, NULL, &_parser,
-	        &icon_id))
+	            args, kw, &_parser,
+	            &icon_id))
 	{
 		return NULL;
 	}
@@ -109,8 +154,12 @@ static PyObject *bpy_app_icons_release(PyObject *UNUSED(self), PyObject *args)
 }
 
 static struct PyMethodDef M_AppIcons_methods[] = {
-	{"new_triangles", (PyCFunction)bpy_app_icons_new_triangles, METH_VARARGS, bpy_app_icons_new_triangles_doc},
-	{"release", (PyCFunction)bpy_app_icons_release, METH_VARARGS, bpy_app_icons_release_doc},
+	{"new_triangles", (PyCFunction)bpy_app_icons_new_triangles,
+	 METH_VARARGS | METH_KEYWORDS, bpy_app_icons_new_triangles_doc},
+	{"new_triangles_from_file", (PyCFunction)bpy_app_icons_new_triangles_from_file,
+	 METH_VARARGS | METH_KEYWORDS, bpy_app_icons_new_triangles_from_file_doc},
+	{"release", (PyCFunction)bpy_app_icons_release,
+	 METH_VARARGS | METH_KEYWORDS, bpy_app_icons_release_doc},
 	{NULL, NULL, 0, NULL}
 };
 

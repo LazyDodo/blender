@@ -156,7 +156,7 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_EEVEE);
 
 	const float *viewport_size = DRW_viewport_size_get();
 
@@ -214,30 +214,30 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			/* Volume properties: We evaluate all volumetric objects
 			 * and store their final properties into each froxel */
 			txl->volume_prop_scattering = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                    DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                    GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_prop_extinction = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                    DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                    GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_prop_emission = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                  DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                  GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_prop_phase = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                               DRW_TEX_RG_16, DRW_TEX_FILTER, NULL);
+			                                               GPU_RG16F, DRW_TEX_FILTER, NULL);
 
 			/* Volume scattering: We compute for each froxel the
 			 * Scattered light towards the view. We also resolve temporal
 			 * super sampling during this stage. */
 			txl->volume_scatter = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                            DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                            GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_transmittance = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                  DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                  GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 
 			/* Final integration: We compute for each froxel the
 			 * amount of scattered light and extinction coef at this
 			 * given depth. We use theses textures as double buffer
 			 * for the volumetric history. */
 			txl->volume_scatter_history = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                    DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                    GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_transmittance_history = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                          DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                          GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 		}
 
 		/* Temporal Super sampling jitter */
@@ -422,7 +422,8 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		grp = DRW_shgroup_empty_tri_batch_create(scatter_sh, psl->volumetric_scatter_ps,
 		                                         common_data->vol_tex_size[2]);
 		DRW_shgroup_uniform_texture_ref(grp, "irradianceGrid", &sldata->irradiance_pool);
-		DRW_shgroup_uniform_texture_ref(grp, "shadowTexture", &sldata->shadow_pool);
+		DRW_shgroup_uniform_texture_ref(grp, "shadowCubeTexture", &sldata->shadow_cube_pool);
+		DRW_shgroup_uniform_texture_ref(grp, "shadowCascadeTexture", &sldata->shadow_cascade_pool);
 		DRW_shgroup_uniform_texture_ref(grp, "volumeScattering", &txl->volume_prop_scattering);
 		DRW_shgroup_uniform_texture_ref(grp, "volumeExtinction", &txl->volume_prop_extinction);
 		DRW_shgroup_uniform_texture_ref(grp, "volumeEmission", &txl->volume_prop_emission);

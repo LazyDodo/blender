@@ -36,6 +36,7 @@
 #include "DNA_view3d_types.h"
 
 #include "BKE_object.h"
+#include "BKE_group.h"
 #include "MEM_guardedalloc.h"
 
 #include "GPU_material.h"
@@ -145,7 +146,7 @@ static struct GPUTexture *create_hammersley_sample_texture(int samples)
 		texels[i][1] = sinf(phi);
 	}
 
-	tex = DRW_texture_create_1D(samples, DRW_TEX_RG_16, DRW_TEX_WRAP, (float *)texels);
+	tex = DRW_texture_create_1D(samples, GPU_RG16F, DRW_TEX_WRAP, (float *)texels);
 	MEM_freeN(texels);
 	return tex;
 }
@@ -171,14 +172,14 @@ static void planar_pool_ensure_alloc(EEVEE_Data *vedata, int num_planar_ref)
 	if (!txl->planar_pool) {
 		if (num_planar_ref > 0) {
 			txl->planar_pool = DRW_texture_create_2D_array(width, height, max_ff(1, num_planar_ref),
-			                                                 DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
+			                                                 GPU_R11F_G11F_B10F, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
 			txl->planar_depth = DRW_texture_create_2D_array(width, height, max_ff(1, num_planar_ref),
-			                                                DRW_TEX_DEPTH_24, 0, NULL);
+			                                                GPU_DEPTH_COMPONENT24, 0, NULL);
 		}
 		else if (num_planar_ref == 0) {
 			/* Makes Opengl Happy : Create a placeholder texture that will never be sampled but still bound to shader. */
-			txl->planar_pool = DRW_texture_create_2D_array(1, 1, 1, DRW_TEX_RGBA_8, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
-			txl->planar_depth = DRW_texture_create_2D_array(1, 1, 1, DRW_TEX_DEPTH_24, 0, NULL);
+			txl->planar_pool = DRW_texture_create_2D_array(1, 1, 1, GPU_RGBA8, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
+			txl->planar_depth = DRW_texture_create_2D_array(1, 1, 1, GPU_DEPTH_COMPONENT24, 0, NULL);
 		}
 	}
 }
@@ -301,7 +302,7 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *UNUSED(veda
 	bool update_all = false;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_EEVEE);
 
 	/* Shaders */
 	if (!e_data.probe_filter_glossy_sh) {
@@ -355,8 +356,8 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *UNUSED(veda
 
 	/* Setup Render Target Cubemap */
 	if (!sldata->probe_rt) {
-		sldata->probe_depth_rt = DRW_texture_create_cube(sldata->probes->target_size, DRW_TEX_DEPTH_24, 0, NULL);
-		sldata->probe_rt = DRW_texture_create_cube(sldata->probes->target_size, DRW_TEX_RGBA_16, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
+		sldata->probe_depth_rt = DRW_texture_create_cube(sldata->probes->target_size, GPU_DEPTH_COMPONENT24, 0, NULL);
+		sldata->probe_rt = DRW_texture_create_cube(sldata->probes->target_size, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
 	}
 
 	for (int i = 0; i < 6; ++i) {
@@ -368,14 +369,14 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *UNUSED(veda
 
 	/* Placeholder planar pool: used when rendering planar reflections (avoid dependency loop). */
 	if (!e_data.planar_pool_placeholder) {
-		e_data.planar_pool_placeholder = DRW_texture_create_2D_array(1, 1, 1, DRW_TEX_RGBA_8, DRW_TEX_FILTER, NULL);
+		e_data.planar_pool_placeholder = DRW_texture_create_2D_array(1, 1, 1, GPU_RGBA8, DRW_TEX_FILTER, NULL);
 	}
 
 	if (!e_data.depth_placeholder) {
-		e_data.depth_placeholder = DRW_texture_create_2D(1, 1, DRW_TEX_DEPTH_24, 0, NULL);
+		e_data.depth_placeholder = DRW_texture_create_2D(1, 1, GPU_DEPTH_COMPONENT24, 0, NULL);
 	}
 	if (!e_data.depth_array_placeholder) {
-		e_data.depth_array_placeholder = DRW_texture_create_2D_array(1, 1, 1, DRW_TEX_DEPTH_24, 0, NULL);
+		e_data.depth_array_placeholder = DRW_texture_create_2D_array(1, 1, 1, GPU_DEPTH_COMPONENT24, 0, NULL);
 	}
 }
 
@@ -385,6 +386,9 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_StorageList *stl = vedata->stl;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
+
+	/* Make sure no aditionnal visibility check runs by default. */
+	pinfo->vis_data.group = NULL;
 
 	pinfo->do_cube_update = false;
 	pinfo->num_cube = 1; /* at least one for the world */
@@ -569,6 +573,30 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 		DRW_shgroup_uniform_float(grp, "fireflyFactor", &sldata->common_data.ssr_firefly_fac, 1);
 		DRW_shgroup_call_instances_add(grp, DRW_cache_fullscreen_quad_get(), NULL, (unsigned int *)&pinfo->num_planar);
 	}
+}
+
+bool EEVEE_lightprobes_obj_visibility_cb(bool vis_in, void *user_data)
+{
+	EEVEE_ObjectEngineData *oed = (EEVEE_ObjectEngineData *)user_data;
+
+	/* test disabled if group is NULL */
+	if (oed->test_data->group == NULL)
+		return vis_in;
+
+	if (oed->test_data->cached == false)
+		oed->ob_vis_dirty = true;
+
+	/* early out, don't need to compute ob_vis yet. */
+	if (vis_in == false)
+		return vis_in;
+
+	if (oed->ob_vis_dirty) {
+		oed->ob_vis_dirty = false;
+		oed->ob_vis = BKE_group_object_exists(oed->test_data->group, oed->ob);
+		oed->ob_vis = (oed->test_data->invert) ? !oed->ob_vis : oed->ob_vis;
+	}
+
+	return vis_in && oed->ob_vis;
 }
 
 void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
@@ -943,7 +971,7 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 
 	if (!sldata->probe_pool) {
 		sldata->probe_pool = DRW_texture_create_2D_array(pinfo->cubemap_res, pinfo->cubemap_res, max_ff(1, pinfo->num_cube),
-		                                                 DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
+		                                                 GPU_R11F_G11F_B10F, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
 		if (sldata->probe_filter_fb) {
 			GPU_framebuffer_texture_attach(sldata->probe_filter_fb, sldata->probe_pool, 0, 0);
 		}
@@ -963,9 +991,9 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 
 #ifdef IRRADIANCE_SH_L2
 	/* we need a signed format for Spherical Harmonics */
-	int irradiance_format = DRW_TEX_RGBA_16;
+	int irradiance_format = GPU_RGBA16F;
 #else
-	int irradiance_format = DRW_TEX_RGBA_8;
+	int irradiance_format = GPU_RGBA8;
 #endif
 
 	if (!sldata->irradiance_pool || !sldata->irradiance_rt) {
@@ -1224,10 +1252,17 @@ static void render_scene_to_probe(
 	txl->planar_pool = e_data.planar_pool_placeholder;
 	txl->maxzbuffer = e_data.depth_placeholder;
 
+	DRW_stats_group_start("Cubemap Render");
+
 	/* Update common uniforms */
 	DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
 
 	for (int i = 0; i < 6; ++i) {
+		/* Recompute only on 1st drawloop. */
+		pinfo->vis_data.cached = (i != 0);
+
+		DRW_stats_group_start("Cubemap Face");
+
 		/* Setup custom matrices */
 		mul_m4_m4m4(viewmat, cubefacemat[i], posmat);
 		mul_m4_m4m4(persmat, winmat, viewmat);
@@ -1258,7 +1293,14 @@ static void render_scene_to_probe(
 		EEVEE_draw_default_passes(psl);
 		DRW_draw_pass(psl->material_pass);
 		DRW_draw_pass(psl->sss_pass); /* Only output standard pass */
+
+		DRW_stats_group_end();
 	}
+
+	DRW_stats_group_end();
+
+	/* Make sure no aditionnal visibility check runs after this. */
+	pinfo->vis_data.group = NULL;
 
 	/* Restore */
 	txl->planar_pool = tmp_planar_pool;
@@ -1269,6 +1311,7 @@ static void render_scene_to_planar(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, int layer,
         EEVEE_LightProbeEngineData *ped)
 {
+	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 	EEVEE_FramebufferList *fbl = vedata->fbl;
 	EEVEE_TextureList *txl = vedata->txl;
 	EEVEE_PassList *psl = vedata->psl;
@@ -1284,7 +1327,12 @@ static void render_scene_to_planar(
 	invert_m4_m4(persinv, persmat);
 	invert_m4_m4(wininv, winmat);
 
+	DRW_stats_group_start("Planar Reflection");
+
 	DRW_viewport_matrix_override_set_all(&ped->mats);
+
+	/* Don't reuse previous visibility. */
+	pinfo->vis_data.cached = false;
 
 	/* Be sure that cascaded shadow maps are updated. */
 	EEVEE_draw_shadows(sldata, psl);
@@ -1347,6 +1395,11 @@ static void render_scene_to_planar(
 
 	DRW_state_invert_facing();
 	DRW_state_clip_planes_reset();
+
+	DRW_stats_group_end();
+
+	/* Make sure no aditionnal visibility check runs after this. */
+	pinfo->vis_data.group = NULL;
 
 	/* Restore */
 	txl->planar_pool = tmp_planar_pool;
@@ -1499,6 +1552,9 @@ void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *v
 
 	for (int i = 0; (ob = pinfo->probes_planar_ref[i]) && (i < MAX_PLANAR); i++) {
 		EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
+		LightProbe *prb = (LightProbe *)ob->data;
+		pinfo->vis_data.group = prb->visibility_grp;
+		pinfo->vis_data.invert = prb->flag & LIGHTPROBE_FLAG_INVERT_GROUP;
 		render_scene_to_planar(sldata, vedata, i, ped);
 	}
 
@@ -1546,6 +1602,8 @@ static void lightprobes_refresh_cube(EEVEE_ViewLayerData *sldata, EEVEE_Data *ve
 			continue;
 		}
 		LightProbe *prb = (LightProbe *)ob->data;
+		pinfo->vis_data.group = prb->visibility_grp;
+		pinfo->vis_data.invert = prb->flag & LIGHTPROBE_FLAG_INVERT_GROUP;
 		render_scene_to_probe(sldata, vedata, ob->obmat[3], prb->clipsta, prb->clipend);
 		glossy_filter_probe(sldata, vedata, psl, i, prb->intensity);
 		ped->need_update = false;
@@ -1652,6 +1710,8 @@ static void lightprobes_refresh_all_no_world(EEVEE_ViewLayerData *sldata, EEVEE_
 					egrid->level_bias = (float)(1 << 0);
 					DRW_uniformbuffer_update(sldata->grid_ubo, &sldata->probes->grid_data);
 				}
+				pinfo->vis_data.group = prb->visibility_grp;
+				pinfo->vis_data.invert = prb->flag & LIGHTPROBE_FLAG_INVERT_GROUP;
 				render_scene_to_probe(sldata, vedata, pos, prb->clipsta, prb->clipend);
 				diffuse_filter_probe(sldata, vedata, psl, egrid->offset + cell_id,
 				                     prb->clipsta, prb->clipend, egrid->visibility_range, prb->vis_blur,

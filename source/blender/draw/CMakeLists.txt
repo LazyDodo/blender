@@ -111,8 +111,8 @@ set(SRC
 	engines/eevee/eevee_volumes.c
 	engines/workbench/workbench_engine.c
 	engines/workbench/workbench_materials.c
-	engines/workbench/solid_flat_mode.c
-	engines/workbench/solid_studio_mode.c
+	engines/workbench/workbench_studiolight.c
+	engines/workbench/solid_mode.c
 	engines/external/external_engine.c
 
 	DRW_engine.h
@@ -214,16 +214,32 @@ data_to_c_simple(engines/eevee/shaders/volumetric_resolve_frag.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/volumetric_scatter_frag.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/volumetric_integration_frag.glsl SRC)
 
-data_to_c_simple(engines/workbench/shaders/solid_flat_frag.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/solid_studio_frag.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_diffuse_lib.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_vert.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_studio_vert.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_prepass_vert.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_prepass_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_composite_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_shadow_vert.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_shadow_geom.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_background_lib.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_common_lib.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_data_lib.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_object_overlap_lib.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fxaa_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fullscreen_vert.glsl SRC)
+data_to_c_simple(modes/shaders/armature_sphere_solid_vert.glsl SRC)
+data_to_c_simple(modes/shaders/armature_sphere_solid_frag.glsl SRC)
+data_to_c_simple(modes/shaders/armature_sphere_outline_vert.glsl SRC)
+data_to_c_simple(modes/shaders/armature_envelope_solid_vert.glsl SRC)
+data_to_c_simple(modes/shaders/armature_envelope_solid_frag.glsl SRC)
+data_to_c_simple(modes/shaders/armature_envelope_outline_vert.glsl SRC)
+data_to_c_simple(modes/shaders/armature_envelope_distance_frag.glsl SRC)
+data_to_c_simple(modes/shaders/armature_shape_solid_vert.glsl SRC)
+data_to_c_simple(modes/shaders/armature_shape_solid_frag.glsl SRC)
+data_to_c_simple(modes/shaders/armature_shape_outline_vert.glsl SRC)
+data_to_c_simple(modes/shaders/armature_shape_outline_geom.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_geom_tri.glsl SRC)
@@ -254,11 +270,14 @@ data_to_c_simple(modes/shaders/object_outline_prepass_frag.glsl SRC)
 data_to_c_simple(modes/shaders/object_grid_frag.glsl SRC)
 data_to_c_simple(modes/shaders/object_grid_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_lightprobe_grid_vert.glsl SRC)
+data_to_c_simple(modes/shaders/object_mball_handles_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_particle_prim_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_particle_dot_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_particle_dot_frag.glsl SRC)
 data_to_c_simple(modes/shaders/paint_texture_frag.glsl SRC)
 data_to_c_simple(modes/shaders/paint_texture_vert.glsl SRC)
+data_to_c_simple(modes/shaders/paint_vertex_frag.glsl SRC)
+data_to_c_simple(modes/shaders/paint_vertex_vert.glsl SRC)
 data_to_c_simple(modes/shaders/paint_wire_frag.glsl SRC)
 data_to_c_simple(modes/shaders/paint_wire_vert.glsl SRC)
 data_to_c_simple(modes/shaders/paint_vert_frag.glsl SRC)

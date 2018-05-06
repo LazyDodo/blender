@@ -1684,7 +1684,7 @@ public:
 			min_blocks *= 8;
 		}
 
-		uint step_samples = divide_up(min_blocks * num_threads_per_block, wtile->w * wtile->h);;
+		uint step_samples = divide_up(min_blocks * num_threads_per_block, wtile->w * wtile->h);
 
 		/* Render all samples. */
 		int start_sample = rtile.start_sample;
@@ -1893,7 +1893,7 @@ public:
 		glGenTextures(1, &pmem.cuTexId);
 		glBindTexture(GL_TEXTURE_2D, pmem.cuTexId);
 		if(mem.data_type == TYPE_HALF)
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, pmem.w, pmem.h, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, pmem.w, pmem.h, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
 		else
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, pmem.w, pmem.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

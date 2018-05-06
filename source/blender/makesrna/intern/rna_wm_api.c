@@ -331,7 +331,7 @@ static void rna_KeyConfig_remove(wmWindowManager *wm, ReportList *reports, Point
 }
 
 /* popup menu wrapper */
-static PointerRNA rna_PupMenuBegin(bContext *C, const char *title, int icon)
+static PointerRNA rna_PopMenuBegin(bContext *C, const char *title, int icon)
 {
 	PointerRNA r_ptr;
 	void *data;
@@ -343,9 +343,27 @@ static PointerRNA rna_PupMenuBegin(bContext *C, const char *title, int icon)
 	return r_ptr;
 }
 
-static void rna_PupMenuEnd(bContext *C, PointerRNA *handle)
+static void rna_PopMenuEnd(bContext *C, PointerRNA *handle)
 {
 	UI_popup_menu_end(C, handle->data);
+}
+
+/* popover wrapper */
+static PointerRNA rna_PopoverBegin(bContext *C)
+{
+	PointerRNA r_ptr;
+	void *data;
+
+	data = (void *)UI_popover_begin(C);
+
+	RNA_pointer_create(NULL, &RNA_UIPopover, data, &r_ptr);
+
+	return r_ptr;
+}
+
+static void rna_PopoverEnd(bContext *C, PointerRNA *handle)
+{
+	UI_popover_end(C, handle->data);
 }
 
 /* pie menu wrapper */
@@ -364,6 +382,18 @@ static PointerRNA rna_PieMenuBegin(bContext *C, const char *title, int icon, Poi
 static void rna_PieMenuEnd(bContext *C, PointerRNA *handle)
 {
 	UI_pie_menu_end(C, handle->data);
+}
+
+static PointerRNA rna_WindoManager_operator_properties_last(const char *idname)
+{
+	wmOperatorType *ot = WM_operatortype_find(idname, true);
+
+	if (ot != NULL) {
+		PointerRNA ptr;
+		WM_operator_last_properties_ensure(ot, &ptr);
+		return ptr;
+	}
+	return PointerRNA_NULL;
 }
 
 #else
@@ -524,7 +554,7 @@ void RNA_api_wm(StructRNA *srna)
 
 
 	/* wrap UI_popup_menu_begin */
-	func = RNA_def_function(srna, "pupmenu_begin__internal", "rna_PupMenuBegin");
+	func = RNA_def_function(srna, "popmenu_begin__internal", "rna_PopMenuBegin");
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
 	parm = RNA_def_string(func, "title", NULL, 0, "", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -536,10 +566,26 @@ void RNA_api_wm(StructRNA *srna)
 	RNA_def_function_return(func, parm);
 
 	/* wrap UI_popup_menu_end */
-	func = RNA_def_function(srna, "pupmenu_end__internal", "rna_PupMenuEnd");
+	func = RNA_def_function(srna, "popmenu_end__internal", "rna_PopMenuEnd");
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
 	parm = RNA_def_pointer(func, "menu", "UIPopupMenu", "", "");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+
+
+	/* wrap UI_popover_panel_begin */
+	func = RNA_def_function(srna, "popover_begin__internal", "rna_PopoverBegin");
+	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
+	/* return */
+	parm = RNA_def_pointer(func, "menu", "UIPopover", "", "");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+	RNA_def_function_return(func, parm);
+
+	/* wrap UI_popover_panel_end */
+	func = RNA_def_function(srna, "popover_end__internal", "rna_PopoverEnd");
+	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
+	parm = RNA_def_pointer(func, "menu", "UIPopover", "", "");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+
 
 	/* wrap uiPieMenuBegin */
 	func = RNA_def_function(srna, "piemenu_begin__internal", "rna_PieMenuBegin");
@@ -560,6 +606,17 @@ void RNA_api_wm(StructRNA *srna)
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
 	parm = RNA_def_pointer(func, "menu", "UIPieMenu", "", "");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+
+	/* access last operator options (optionally create). */
+	func = RNA_def_function(srna, "operator_properties_last", "rna_WindoManager_operator_properties_last");
+	RNA_def_function_flag(func, FUNC_NO_SELF);
+	parm = RNA_def_string(func, "operator", NULL, 0, "", "");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	/* return */
+	parm = RNA_def_pointer(func, "result", "OperatorProperties", "", "");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
+	RNA_def_function_return(func, parm);
+
 }
 
 void RNA_api_operator(StructRNA *srna)

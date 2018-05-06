@@ -136,6 +136,7 @@ CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_OPERATORS, "wm.operator");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_HANDLERS, "wm.handler");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_EVENTS, "wm.event");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_KEYMAPS, "wm.keymap");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_TOOLS, "wm.tool");
 
 static void wm_init_reports(bContext *C)
 {
@@ -154,6 +155,40 @@ static void wm_free_reports(bContext *C)
 
 bool wm_start_with_console = false; /* used in creator.c */
 
+/**
+ * Since we cannot know in advance if we will require the draw manager
+ * context when starting blender in background mode (specially true with
+ * scripts) we deferre the ghost initialization the most as possible
+ * so that it does not break anything that can run in headless mode (as in
+ * without display server attached).
+ **/
+static bool opengl_is_init = false;
+
+void WM_init_opengl(void)
+{
+	/* must be called only once */
+	BLI_assert(opengl_is_init == false);
+
+	if (G.background) {
+		/* Ghost is still not init elsewhere in background mode. */
+		wm_ghost_init(NULL);
+	}
+
+	/* Needs to be first to have an ogl context bound. */
+	DRW_opengl_context_create();
+
+	GPU_init();
+	GPU_set_mipmap(true);
+	GPU_set_linear_mipmap(true);
+	GPU_set_anisotropic(U.anisotropic_filter);
+	GPU_set_gpu_mipmapping(U.use_gpu_mipmap);
+
+#ifdef WITH_OPENSUBDIV
+	BKE_subsurf_osd_init();
+#endif
+	opengl_is_init = true;
+}
+
 /* only called once, for startup */
 void WM_init(bContext *C, int argc, const char **argv)
 {
@@ -162,6 +197,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 		wm_ghost_init(C);   /* note: it assigns C to ghost! */
 		wm_init_cursor_data();
 	}
+
 	GHOST_CreateSystemPaths();
 
 	BKE_addon_pref_type_init();
@@ -200,7 +236,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 
 	/* get the default database, plus a wm */
 	wm_homefile_read(C, NULL, G.factory_startup, false, true, NULL, NULL);
-	
 
 	BLT_lang_set(NULL);
 
@@ -210,18 +245,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 		/* sets 3D mouse deadzone */
 		WM_ndof_deadzone_set(U.ndof_deadzone);
 #endif
-		DRW_opengl_context_create();
-
-		GPU_init();
-
-		GPU_set_mipmap(true);
-		GPU_set_linear_mipmap(true);
-		GPU_set_anisotropic(U.anisotropic_filter);
-		GPU_set_gpu_mipmapping(U.use_gpu_mipmap);
-
-#ifdef WITH_OPENSUBDIV
-		BKE_subsurf_osd_init();
-#endif
+		WM_init_opengl();
 
 		UI_init();
 	}
@@ -456,7 +480,7 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	COM_deinitialize();
 #endif
 
-	if (!G.background) {
+	if (opengl_is_init) {
 #ifdef WITH_OPENSUBDIV
 		BKE_subsurf_osd_cleanup();
 #endif
@@ -483,7 +507,7 @@ void WM_exit_ext(bContext *C, const bool do_python)
 
 	BLF_exit();
 
-	if (!G.background) {
+	if (opengl_is_init) {
 		GPU_pass_cache_free();
 		DRW_opengl_context_destroy();
 	}

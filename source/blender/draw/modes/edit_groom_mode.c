@@ -236,7 +236,7 @@ static void EDIT_GROOM_draw_scene(void *vedata)
 
 	UNUSED_VARS(fbl, dtxl);
 
-	MULTISAMPLE_SYNC_ENABLE(dfbl)
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
 
 	/* Show / hide entire passes, swap framebuffers ... whatever you fancy */
 	/*
@@ -251,7 +251,7 @@ static void EDIT_GROOM_draw_scene(void *vedata)
 	DRW_draw_pass(psl->wire_pass);
 	DRW_draw_pass(psl->vert_pass);
 
-	MULTISAMPLE_SYNC_DISABLE(dfbl)
+	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 
 	/* If you changed framebuffer, double check you rebind
 	 * the default one with its textures attached before finishing */

@@ -346,7 +346,6 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 		rv = sce_copy->r.views;
 		curvemapping_free_data(&sce_copy->r.mblur_shutter_curve);
 		sce_copy->r = sce->r;
-		sce_copy->active_view_layer = 0;
 		sce_copy->r.views = rv;
 		sce_copy->unit = sce->unit;
 		sce_copy->physics_settings = sce->physics_settings;
@@ -654,7 +653,6 @@ void BKE_scene_init(Scene *sce)
 
 	sce->toolsettings->selectmode = SCE_SELECT_VERTEX;
 	sce->toolsettings->uv_selectmode = UV_SELECT_VERTEX;
-	sce->toolsettings->normalsize = 0.1;
 	sce->toolsettings->autokey_mode = U.autokey_mode;
 
 	sce->toolsettings->snap_node_mode = SCE_SNAP_MODE_GRID;
@@ -718,6 +716,7 @@ void BKE_scene_init(Scene *sce)
 	sce->audio.doppler_factor = 1.0f;
 	sce->audio.speed_of_sound = 343.3f;
 	sce->audio.volume = 1.0f;
+	sce->audio.flag = AUDIO_SYNC;
 
 	BLI_strncpy(sce->r.pic, U.renderdir, sizeof(sce->r.pic));
 
@@ -934,7 +933,7 @@ int BKE_scene_base_iter_next(
 			if (iter->phase == F_START) {
 				ViewLayer *view_layer = (depsgraph) ?
 					DEG_get_evaluated_view_layer(depsgraph) :
-					BKE_view_layer_from_scene_get(*scene);
+					BKE_view_layer_context_active_PLACEHOLDER(*scene);
 				*base = view_layer->object_bases.first;
 				if (*base) {
 					*ob = (*base)->object;
@@ -944,7 +943,7 @@ int BKE_scene_base_iter_next(
 					/* exception: empty scene layer */
 					while ((*scene)->set) {
 						(*scene) = (*scene)->set;
-						ViewLayer *view_layer_set = BKE_view_layer_from_scene_get((*scene));
+						ViewLayer *view_layer_set = BKE_view_layer_default_render((*scene));
 						if (view_layer_set->object_bases.first) {
 							*base = view_layer_set->object_bases.first;
 							*ob = (*base)->object;
@@ -965,7 +964,7 @@ int BKE_scene_base_iter_next(
 							/* (*scene) is finished, now do the set */
 							while ((*scene)->set) {
 								(*scene) = (*scene)->set;
-								ViewLayer *view_layer_set = BKE_view_layer_from_scene_get((*scene));
+								ViewLayer *view_layer_set = BKE_view_layer_default_render((*scene));
 								if (view_layer_set->object_bases.first) {
 									*base = view_layer_set->object_bases.first;
 									*ob = (*base)->object;
@@ -1465,7 +1464,7 @@ Base *_setlooper_base_step(Scene **sce_iter, ViewLayer *view_layer, Base *base)
 next_set:
 		/* Reached the end, get the next base in the set. */
 		while ((*sce_iter = (*sce_iter)->set)) {
-			ViewLayer *view_layer_set = BKE_view_layer_from_scene_get((*sce_iter));
+			ViewLayer *view_layer_set = BKE_view_layer_default_render((*sce_iter));
 			base = (Base *)view_layer_set->object_bases.first;
 
 			if (base) {
@@ -2001,6 +2000,13 @@ Depsgraph *BKE_scene_get_depsgraph(Scene *scene,
 			*key_ptr = MEM_mallocN(sizeof(DepsgraphKey), __func__);
 			**key_ptr = key;
 			*depsgraph_ptr = DEG_graph_new(scene, view_layer, DAG_EVAL_VIEWPORT);
+			/* TODO(sergey): Would be cool to avoid string format print,
+			 * but is a bit tricky because we can't know in advance  whether
+			 * we will ever enable debug messages for this depsgraph.
+			 */
+			char name[1024];
+			BLI_snprintf(name, sizeof(name), "%s :: %s", scene->id.name, view_layer->name);
+			DEG_debug_name_set(*depsgraph_ptr, name);
 		}
 		depsgraph = *depsgraph_ptr;
 	}

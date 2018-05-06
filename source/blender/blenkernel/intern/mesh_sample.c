@@ -691,7 +691,7 @@ static void generator_raycast_bind(MSurfaceSampleGenerator_RayCast *gen)
 	if (dm->getNumTessFaces(dm) == 0)
 		return;
 	
-	bvhtree_from_mesh_faces(&gen->bvhdata, dm, 0.0f, 4, 6);
+	bvhtree_from_mesh_get(&gen->bvhdata, dm, BVHTREE_FROM_FACES, 2);
 }
 
 static void generator_raycast_unbind(MSurfaceSampleGenerator_RayCast *gen)
@@ -1211,7 +1211,7 @@ static void generator_volume_random_bind(MVolumeSampleGenerator_Random *gen)
 	if (dm->getNumTessFaces(dm) == 0)
 		return;
 	
-	bvhtree_from_mesh_faces(&gen->bvhdata, dm, 0.0f, 4, 6);
+	bvhtree_from_mesh_get(&gen->bvhdata, dm, BVHTREE_FROM_FACES, 2);
 	
 	INIT_MINMAX(gen->min, gen->max);
 	dm->getMinMax(dm, gen->min, gen->max);

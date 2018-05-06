@@ -273,8 +273,7 @@ static DerivedMesh *uvprojectModifier_do(UVProjectModifierData *umd,
 			best_projector = &projectors[0];
 
 			for (j = 1; j < num_projectors; ++j) {
-				float tmp_dot = dot_v3v3(projectors[j].normal,
-										 face_no);
+				float tmp_dot = dot_v3v3(projectors[j].normal, face_no);
 				if (tmp_dot > best_dot) {
 					best_dot = tmp_dot;
 					best_projector = &projectors[j];
@@ -317,14 +316,13 @@ static DerivedMesh *uvprojectModifier_do(UVProjectModifierData *umd,
 	return dm;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
-                                  Object *ob, DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
+                                  DerivedMesh *derivedData)
 {
 	DerivedMesh *result;
 	UVProjectModifierData *umd = (UVProjectModifierData *) md;
 
-	result = uvprojectModifier_do(umd, ob, derivedData);
+	result = uvprojectModifier_do(umd, ctx->object, derivedData);
 
 	return result;
 }
@@ -341,12 +339,21 @@ ModifierTypeInfo modifierType_UVProject = {
 	                        eModifierTypeFlag_EnableInEditmode,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

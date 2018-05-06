@@ -119,8 +119,10 @@ set(SRC
 	intern/hair.c
 	intern/hair_draw.c
 	intern/icons.c
+	intern/icons_rasterize.c
 	intern/idcode.c
 	intern/idprop.c
+	intern/idprop_utils.c
 	intern/image.c
 	intern/image_gen.c
 	intern/ipo.c
@@ -142,6 +144,7 @@ set(SRC
 	intern/mesh.c
 	intern/mesh_evaluate.c
 	intern/mesh_mapping.c
+	intern/mesh_merge.c
 	intern/mesh_remap.c
 	intern/mesh_sample.c
 	intern/mesh_tangent.c

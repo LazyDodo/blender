@@ -102,6 +102,9 @@ enum {
 };
 
 typedef struct DRWCallState {
+	DRWCallVisibilityFn *visibility_cb;
+	void *user_data;
+
 	unsigned char flag;
 	unsigned char cache_id;   /* Compared with DST.state_cache_id to see if matrices are still valid. */
 	uint16_t matflag;         /* Which matrices to compute. */
@@ -259,7 +262,7 @@ typedef struct ViewUboStorage {
 /* ------------- DRAW MANAGER ------------ */
 
 #define MAX_CLIP_PLANES 6 /* GL_MAX_CLIP_PLANES is at least 6 */
-
+#define STENCIL_UNDEFINED 256
 typedef struct DRWManager {
 	/* TODO clean up this struct a bit */
 	/* Cache generation */
@@ -317,6 +320,7 @@ typedef struct DRWManager {
 
 	struct {
 		float frustum_planes[6][4];
+		BoundBox frustum_corners;
 		BoundSphere frustum_bsphere;
 		bool updated;
 	} clipping;
@@ -350,7 +354,7 @@ extern DRWManager DST; /* TODO : get rid of this and allow multithreaded renderi
 
 void drw_texture_set_parameters(GPUTexture *tex, DRWTextureFlag flags);
 void drw_texture_get_format(
-        DRWTextureFormat format, bool is_framebuffer,
+        GPUTextureFormat format, bool is_framebuffer,
         GPUTextureFormat *r_data_type, int *r_channels, bool *r_is_depth);
 
 void *drw_viewport_engine_data_ensure(void *engine_type);

@@ -44,6 +44,7 @@ extern GlobalsUboStorage ts;
 
 typedef struct POSE_PassList {
 	struct DRWPass *bone_solid;
+	struct DRWPass *bone_outline;
 	struct DRWPass *bone_wire;
 	struct DRWPass *bone_envelope;
 	struct DRWPass *relationship;
@@ -88,6 +89,12 @@ static void POSE_cache_init(void *vedata)
 	}
 
 	{
+		/* Bones Outline */
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		psl->bone_outline = DRW_pass_create("Bone Outline Pass", state);
+	}
+
+	{
 		/* Wire bones */
 		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
 		psl->bone_wire = DRW_pass_create("Bone Wire Pass", state);
@@ -95,7 +102,7 @@ static void POSE_cache_init(void *vedata)
 
 	{
 		/* distance outline around envelope bones */
-		DRWState state = DRW_STATE_ADDITIVE | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
+		DRWState state = DRW_STATE_ADDITIVE | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_FRONT;
 		psl->bone_envelope = DRW_pass_create("Bone Envelope Outline Pass", state);
 	}
 
@@ -112,7 +119,7 @@ static void POSE_cache_init(void *vedata)
 	}
 }
 
-/* Add geometry to shadingGroups. Execute for each objects */
+/* Add geometry to shading groups. Execute for each objects */
 static void POSE_cache_populate(void *vedata, Object *ob)
 {
 	POSE_PassList *psl = ((POSE_Data *)vedata)->psl;
@@ -125,7 +132,7 @@ static void POSE_cache_populate(void *vedata, Object *ob)
 	if (ob->type == OB_ARMATURE) {
 		if (DRW_pose_mode_armature(ob, draw_ctx->obact)) {
 			DRW_shgroup_armature_pose(
-			        ob, psl->bone_solid, psl->bone_wire, psl->bone_envelope,
+			        ob, psl->bone_solid, psl->bone_outline, psl->bone_wire, psl->bone_envelope,
 			        stl->g_data->relationship_lines);
 		}
 	}
@@ -138,7 +145,7 @@ bool DRW_pose_mode_armature(Object *ob, Object *active_ob)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 
-	/* Pode armature is handled by pose mode engine. */
+	/* Pose armature is handled by pose mode engine. */
 	if (((ob == active_ob) || (ob->base_flag & BASE_SELECTED)) &&
 	    ((draw_ctx->object_mode & OB_MODE_POSE) != 0))
 	{
@@ -159,11 +166,19 @@ bool DRW_pose_mode_armature(Object *ob, Object *active_ob)
 static void POSE_draw_scene(void *vedata)
 {
 	POSE_PassList *psl = ((POSE_Data *)vedata)->psl;
+	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
 	DRW_draw_pass(psl->bone_envelope);
+
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
+
+	DRW_draw_pass(psl->bone_outline);
 	DRW_draw_pass(psl->bone_wire);
 	DRW_draw_pass(psl->bone_solid);
 	DRW_draw_pass(psl->relationship);
+
+	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 }
 
 /* Create collection settings here.

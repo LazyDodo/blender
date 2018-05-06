@@ -633,6 +633,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 		Curve *cu;
 		int numVerts;
 		float (*vertexCos)[3];
+		ModifierEvalContext mectx = {depsgraph, ob, 0};
 
 		if (ELEM(mti->type, eModifierTypeType_Constructive, eModifierTypeType_Nonconstructive)) {
 			BKE_report(reports, RPT_ERROR, "Cannot apply constructive modifiers on curve");
@@ -643,7 +644,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 		BKE_report(reports, RPT_INFO, "Applied modifier only changed CV points, not tessellated/bevel vertices");
 
 		vertexCos = BKE_curve_nurbs_vertexCos_get(&cu->nurb, &numVerts);
-		mti->deformVerts(md, depsgraph, ob, NULL, vertexCos, numVerts, 0);
+		modifier_deformVerts_DM_deprecated(md, &mectx, NULL, vertexCos, numVerts);
 		BK_curve_nurbs_vertexCos_apply(&cu->nurb, vertexCos);
 
 		MEM_freeN(vertexCos);
@@ -826,9 +827,19 @@ int edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_flag
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "modifier", rna_type);
 	Object *ob = (ptr.id.data) ? ptr.id.data : ED_object_active_context(C);
 	
+	if (!ptr.data) {
+		CTX_wm_operator_poll_msg_set(C, "Context missing 'modifier'");
+		return 0;
+	}
+
 	if (!ob || ID_IS_LINKED(ob)) return 0;
 	if (obtype_flag && ((1 << ob->type) & obtype_flag) == 0) return 0;
 	if (ptr.id.data && ID_IS_LINKED(ptr.id.data)) return 0;
+
+	if (ID_IS_STATIC_OVERRIDE(ob)) {
+		CTX_wm_operator_poll_msg_set(C, "Cannot edit modifiers comming from static override");
+		return (((ModifierData *)ptr.data)->flag & eModifierFlag_StaticOverride_Local) != 0;
+	}
 	
 	return 1;
 }

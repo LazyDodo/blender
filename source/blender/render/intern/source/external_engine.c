@@ -52,6 +52,7 @@
 #include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_debug.h"
 #include "DEG_depsgraph_query.h"
 
 #include "RNA_access.h"
@@ -505,6 +506,7 @@ static void engine_depsgraph_init(RenderEngine *engine, ViewLayer *view_layer)
 	Scene *scene = engine->re->scene;
 
 	engine->depsgraph = DEG_graph_new(scene, view_layer, DAG_EVAL_RENDER);
+	DEG_debug_name_set(engine->depsgraph, "RENDER");
 
 	BKE_scene_graph_update_tagged(engine->depsgraph, bmain);
 }
@@ -555,7 +557,7 @@ bool RE_bake_has_engine(Render *re)
 }
 
 bool RE_bake_engine(
-        Render *re, Object *object,
+        Render *re, ViewLayer *view_layer, Object *object,
         const int object_id, const BakePixel pixel_array[],
         const size_t num_pixels, const int depth,
         const eScenePassType pass_type, const int pass_filter,
@@ -595,7 +597,6 @@ bool RE_bake_engine(
 		type->update(engine, re->main, re->scene);
 
 	if (type->bake) {
-		ViewLayer *view_layer = BLI_findlink(&re->scene->view_layers, re->scene->active_view_layer);
 		engine_depsgraph_init(engine, view_layer);
 
 		type->bake(engine,

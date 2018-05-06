@@ -90,7 +90,7 @@
 #include "GPU_immediate.h"
 #include "GPU_matrix.h"
 
-#define USE_AXIS_BOUNDS
+#include "DEG_depsgraph_query.h"
 
 /* return codes for select, and drawing flags */
 
@@ -169,17 +169,6 @@ typedef struct ManipulatorGroup {
 
 	struct wmManipulator *manipulators[MAN_AXIS_LAST];
 } ManipulatorGroup;
-
-struct TransformBounds {
-	float center[3];		/* Center for transform widget. */
-	float min[3], max[3];	/* Boundbox of selection for transform widget. */
-
-#ifdef USE_AXIS_BOUNDS
-	/* Normalized axis */
-	float axis[3][3];
-	float axis_min[3], axis_max[3];
-#endif
-};
 
 /* -------------------------------------------------------------------- */
 /** \name Utilities
@@ -446,13 +435,11 @@ static void calc_tw_center(struct TransformBounds *tbounds, const float co[3])
 	minmax_v3v3_v3(tbounds->min, tbounds->max, co);
 	add_v3_v3(tbounds->center, co);
 
-#ifdef USE_AXIS_BOUNDS
 	for (int i = 0; i < 3; i++) {
 		const float d = dot_v3v3(tbounds->axis[i], co);
 		tbounds->axis_min[i] = min_ff(d, tbounds->axis_min[i]);
 		tbounds->axis_max[i] = max_ff(d, tbounds->axis_max[i]);
 	}
-#endif
 }
 
 static void protectflag_to_drawflags(short protectflag, short *drawflags)
@@ -597,10 +584,11 @@ bool gimbal_axis(Object *ob, float gmat[3][3])
 
 /* centroid, boundbox, of selection */
 /* returns total items selected */
-static int calc_manipulator_stats(
+int ED_transform_calc_manipulator_stats(
         const bContext *C, bool use_only_center,
         struct TransformBounds *tbounds)
 {
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
 	Scene *scene = CTX_data_scene(C);
@@ -610,6 +598,8 @@ static int calc_manipulator_stats(
 	RegionView3D *rv3d = ar->regiondata;
 	Base *base;
 	Object *ob = OBACT(view_layer);
+	const Object *ob_eval = NULL;
+	const Object *obedit_eval = NULL;
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	const bool is_gp_edit = ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE));
 	int a, totsel = 0;
@@ -617,13 +607,14 @@ static int calc_manipulator_stats(
 	/* transform widget matrix */
 	unit_m4(rv3d->twmat);
 
-#ifdef USE_AXIS_BOUNDS
 	unit_m3(rv3d->tw_axis_matrix);
 	zero_v3(rv3d->tw_axis_min);
 	zero_v3(rv3d->tw_axis_max);
-#endif
 
 	rv3d->twdrawflag = 0xFFFF;
+
+	ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+	obedit_eval = DEG_get_evaluated_object(depsgraph, obedit);
 
 	/* global, local or normal orientation?
 	 * if we could check 'totsel' now, this should be skipped with no selection. */
@@ -668,7 +659,7 @@ static int calc_manipulator_stats(
 					copy_m4_m3(rv3d->twmat, mat);
 					break;
 				}
-				copy_m4_m4(rv3d->twmat, ob->obmat);
+				copy_m4_m4(rv3d->twmat, ob_eval->obmat);
 				normalize_m4(rv3d->twmat);
 				break;
 			}
@@ -698,11 +689,10 @@ static int calc_manipulator_stats(
 	INIT_MINMAX(tbounds->min, tbounds->max);
 	zero_v3(tbounds->center);
 
-#ifdef USE_AXIS_BOUNDS
 	copy_m3_m4(tbounds->axis, rv3d->twmat);
 	if (ob && ob->mode & OB_MODE_EDIT) {
 		float diff_mat[3][3];
-		copy_m3_m4(diff_mat, ob->obmat);
+		copy_m3_m4(diff_mat, ob_eval->obmat);
 		normalize_m3(diff_mat);
 		invert_m3(diff_mat);
 		mul_m3_m3m3(tbounds->axis, tbounds->axis, diff_mat);
@@ -713,7 +703,6 @@ static int calc_manipulator_stats(
 		tbounds->axis_min[i] = +FLT_MAX;
 		tbounds->axis_max[i] = -FLT_MAX;
 	}
-#endif
 
 	if (is_gp_edit) {
 		float diff_mat[4][4];
@@ -766,6 +755,7 @@ static int calc_manipulator_stats(
 	}
 	else if (obedit) {
 		ob = obedit;
+		ob_eval = obedit_eval;
 		if (obedit->type == OB_MESH) {
 			BMEditMesh *em = BKE_editmesh_from_object(obedit);
 			BMEditSelection ese;
@@ -938,9 +928,9 @@ static int calc_manipulator_stats(
 		/* selection center */
 		if (totsel) {
 			mul_v3_fl(tbounds->center, 1.0f / (float)totsel);   // centroid!
-			mul_m4_v3(obedit->obmat, tbounds->center);
-			mul_m4_v3(obedit->obmat, tbounds->min);
-			mul_m4_v3(obedit->obmat, tbounds->max);
+			mul_m4_v3(obedit_eval->obmat, tbounds->center);
+			mul_m4_v3(obedit_eval->obmat, tbounds->min);
+			mul_m4_v3(obedit_eval->obmat, tbounds->max);
 		}
 	}
 	else if (ob && (ob->mode & OB_MODE_POSE)) {
@@ -976,9 +966,9 @@ static int calc_manipulator_stats(
 
 		if (ok) {
 			mul_v3_fl(tbounds->center, 1.0f / (float)totsel);   // centroid!
-			mul_m4_v3(ob->obmat, tbounds->center);
-			mul_m4_v3(ob->obmat, tbounds->min);
-			mul_m4_v3(ob->obmat, tbounds->max);
+			mul_m4_v3(ob_eval->obmat, tbounds->center);
+			mul_m4_v3(ob_eval->obmat, tbounds->min);
+			mul_m4_v3(ob_eval->obmat, tbounds->max);
 		}
 	}
 	else if (ob && (ob->mode & OB_MODE_ALL_PAINT)) {
@@ -1016,22 +1006,26 @@ static int calc_manipulator_stats(
 		if (base && ((base->flag & BASE_SELECTED) == 0)) ob = NULL;
 
 		for (base = view_layer->object_bases.first; base; base = base->next) {
-			if (TESTBASELIB(base)) {
-				if (ob == NULL)
-					ob = base->object;
-				if (use_only_center || base->object->bb == NULL) {
-					calc_tw_center(tbounds, base->object->obmat[3]);
-				}
-				else {
-					for (uint j = 0; j < 8; j++) {
-						float co[3];
-						mul_v3_m4v3(co, base->object->obmat, base->object->bb->vec[j]);
-						calc_tw_center(tbounds, co);
-					}
-				}
-				protectflag_to_drawflags(base->object->protectflag, &rv3d->twdrawflag);
-				totsel++;
+			if (!TESTBASELIB(base)) {
+				continue;
 			}
+			const Object *base_object_eval = DEG_get_evaluated_object(depsgraph, base->object);
+			if (ob == NULL) {
+				ob = base->object;
+				ob_eval = base_object_eval;
+			}
+			if (use_only_center || base_object_eval->bb == NULL) {
+				calc_tw_center(tbounds, base_object_eval->obmat[3]);
+			}
+			else {
+				for (uint j = 0; j < 8; j++) {
+					float co[3];
+					mul_v3_m4v3(co, base_object_eval->obmat, base_object_eval->bb->vec[j]);
+					calc_tw_center(tbounds, co);
+				}
+			}
+			protectflag_to_drawflags(base->object->protectflag, &rv3d->twdrawflag);
+			totsel++;
 		}
 
 		/* selection center */
@@ -1044,11 +1038,9 @@ static int calc_manipulator_stats(
 		unit_m4(rv3d->twmat);
 	}
 	else {
-#ifdef USE_AXIS_BOUNDS
 		copy_v3_v3(rv3d->tw_axis_min, tbounds->axis_min);
 		copy_v3_v3(rv3d->tw_axis_max, tbounds->axis_max);
 		copy_m3_m3(rv3d->tw_axis_matrix, tbounds->axis);
-#endif
 	}
 
 	return totsel;
@@ -1191,17 +1183,14 @@ static ManipulatorGroup *manipulatorgroup_init(wmManipulatorGroup *mgroup)
 #define MANIPULATOR_NEW_ARROW(v, draw_style) { \
 	man->manipulators[v] = WM_manipulator_new_ptr(wt_arrow, mgroup, NULL); \
 	RNA_enum_set(man->manipulators[v]->ptr, "draw_style", draw_style); \
-	WM_manipulator_set_flag(man->manipulators[v], WM_MANIPULATOR_GRAB_CURSOR, true); \
 } ((void)0)
 #define MANIPULATOR_NEW_DIAL(v, draw_options) { \
 	man->manipulators[v] = WM_manipulator_new_ptr(wt_dial, mgroup, NULL); \
 	RNA_enum_set(man->manipulators[v]->ptr, "draw_options", draw_options); \
-	WM_manipulator_set_flag(man->manipulators[v], WM_MANIPULATOR_GRAB_CURSOR, true); \
 } ((void)0)
 #define MANIPULATOR_NEW_PRIM(v, draw_style) { \
 	man->manipulators[v] = WM_manipulator_new_ptr(wt_prim, mgroup, NULL); \
 	RNA_enum_set(man->manipulators[v]->ptr, "draw_style", draw_style); \
-	WM_manipulator_set_flag(man->manipulators[v], WM_MANIPULATOR_GRAB_CURSOR, true); \
 } ((void)0)
 
 	/* add/init widgets - order matters! */
@@ -1251,7 +1240,7 @@ static int manipulator_modal(
 	struct TransformBounds tbounds;
 
 
-	if (calc_manipulator_stats(C, true, &tbounds)) {
+	if (ED_transform_calc_manipulator_stats(C, true, &tbounds)) {
 		manipulator_prepare_mat(C, v3d, rv3d, &tbounds);
 		WM_manipulator_set_matrix_location(widget, rv3d->twmat[3]);
 	}
@@ -1277,9 +1266,12 @@ static void WIDGETGROUP_manipulator_setup(const bContext *C, wmManipulatorGroup 
 		ScrArea *sa = CTX_wm_area(C);
 		wmKeyMap *km = WM_keymap_find_all(C, workspace->tool.keymap, sa->spacetype, RGN_TYPE_WINDOW);
 		/* Weak, check first event */
-		wmKeyMapItem *kmi = km->items.first;
+		wmKeyMapItem *kmi = km ? km->items.first : NULL;
 
-		if (STREQ(kmi->idname, "TRANSFORM_OT_translate")) {
+		if (kmi == NULL) {
+			man->twtype |= V3D_MANIP_TRANSLATE | V3D_MANIP_ROTATE | V3D_MANIP_SCALE;
+		}
+		else if (STREQ(kmi->idname, "TRANSFORM_OT_translate")) {
 			man->twtype |= V3D_MANIP_TRANSLATE;
 		}
 		else if (STREQ(kmi->idname, "TRANSFORM_OT_rotate")) {
@@ -1327,7 +1319,7 @@ static void WIDGETGROUP_manipulator_setup(const bContext *C, wmManipulatorGroup 
 			case MAN_AXIS_SCALE_YZ:
 			case MAN_AXIS_SCALE_ZX:
 			{
-				const float ofs_ax = 11.0f;
+				const float ofs_ax = 7.0f;
 				const float ofs[3] = {ofs_ax, ofs_ax, 0.0f};
 				WM_manipulator_set_scale(axis, 0.07f);
 				WM_manipulator_set_matrix_offset_location(axis, ofs);
@@ -1408,7 +1400,7 @@ static void WIDGETGROUP_manipulator_refresh(const bContext *C, wmManipulatorGrou
 	struct TransformBounds tbounds;
 
 	/* skip, we don't draw anything anyway */
-	if ((man->all_hidden = (calc_manipulator_stats(C, true, &tbounds) == 0)))
+	if ((man->all_hidden = (ED_transform_calc_manipulator_stats(C, true, &tbounds) == 0)))
 		return;
 
 	manipulator_prepare_mat(C, v3d, rv3d, &tbounds);
@@ -1597,7 +1589,7 @@ static void WIDGETGROUP_xform_cage_setup(const bContext *UNUSED(C), wmManipulato
 	             ED_MANIPULATOR_CAGE2D_XFORM_FLAG_TRANSLATE);
 
 	mpr->color[0] = 1;
-	mpr->color_hi[0] =1;
+	mpr->color_hi[0] = 1;
 
 	mgroup->customdata = xmgroup;
 
@@ -1640,7 +1632,7 @@ static void WIDGETGROUP_xform_cage_refresh(const bContext *C, wmManipulatorGroup
 
 	struct TransformBounds tbounds;
 
-	if ((calc_manipulator_stats(C, false, &tbounds) == 0) ||
+	if ((ED_transform_calc_manipulator_stats(C, false, &tbounds) == 0) ||
 	    equals_v3v3(rv3d->tw_axis_min, rv3d->tw_axis_max))
 	{
 		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, true);

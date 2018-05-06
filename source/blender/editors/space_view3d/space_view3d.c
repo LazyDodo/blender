@@ -75,6 +75,7 @@
 
 #include "RNA_access.h"
 
+#include "UI_interface.h"
 #include "UI_resources.h"
 
 #ifdef WITH_PYTHON
@@ -114,26 +115,14 @@ ARegion *view3d_has_buttons_region(ScrArea *sa)
 ARegion *view3d_has_tools_region(ScrArea *sa)
 {
 	ARegion *ar, *artool = NULL, *arhead;
-#ifndef WITH_REDO_REGION_REMOVAL
-	ARegion *arprops = NULL;
-#endif
 
 	for (ar = sa->regionbase.first; ar; ar = ar->next) {
 		if (ar->regiontype == RGN_TYPE_TOOLS)
 			artool = ar;
-#ifndef WITH_REDO_REGION_REMOVAL
-		if (ar->regiontype == RGN_TYPE_TOOL_PROPS)
-			arprops = ar;
-#endif
 	}
 
 	/* tool region hide/unhide also hides props */
-	if (artool
-#ifndef WITH_REDO_REGION_REMOVAL
-	    && arprops
-#endif
-	    )
-	{
+	if (artool) {
 		return artool;
 	}
 
@@ -153,17 +142,6 @@ ARegion *view3d_has_tools_region(ScrArea *sa)
 		artool->alignment = RGN_ALIGN_LEFT;
 		artool->flag = RGN_FLAG_HIDDEN;
 	}
-
-#ifndef WITH_REDO_REGION_REMOVAL
-	if (arprops == NULL) {
-		/* add extra subdivided region for tool properties */
-		arprops = MEM_callocN(sizeof(ARegion), "tool props for view3d");
-
-		BLI_insertlinkafter(&sa->regionbase, artool, arprops);
-		arprops->regiontype = RGN_TYPE_TOOL_PROPS;
-		arprops->alignment = RGN_ALIGN_BOTTOM | RGN_SPLIT_PREV;
-	}
-#endif
 
 	return artool;
 }
@@ -325,9 +303,8 @@ void ED_view3d_shade_update(Main *bmain, View3D *v3d, ScrArea *sa)
 
 /* ******************** default callbacks for view3d space ***************** */
 
-static SpaceLink *view3d_new(const bContext *C)
+static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 {
-	Scene *scene = CTX_data_scene(C);
 	ARegion *ar;
 	View3D *v3d;
 	RegionView3D *rv3d;
@@ -345,7 +322,9 @@ static SpaceLink *view3d_new(const bContext *C)
 	v3d->gridlines = 16;
 	v3d->gridsubdiv = 10;
 	v3d->drawtype = OB_SOLID;
-	v3d->drawtype_lighting = V3D_LIGHTING_STUDIO;
+	v3d->shading.light = V3D_LIGHTING_STUDIO;
+	v3d->shading.shadow_intensity = 0.5;
+	copy_v3_fl(v3d->shading.single_color, 0.8f);
 
 	v3d->gridflag = V3D_SHOW_X | V3D_SHOW_Y | V3D_SHOW_FLOOR;
 	
@@ -358,8 +337,7 @@ static SpaceLink *view3d_new(const bContext *C)
 
 	v3d->twflag |= U.manipulator_flag & V3D_MANIPULATOR_DRAW;
 	v3d->around = V3D_AROUND_CENTER_MEAN;
-	scene->orientation_index_custom = -1;
-	
+
 	v3d->bundle_size = 0.2f;
 	v3d->bundle_drawtype = OB_PLAINAXES;
 
@@ -383,16 +361,6 @@ static SpaceLink *view3d_new(const bContext *C)
 	ar->regiontype = RGN_TYPE_TOOLS;
 	ar->alignment = RGN_ALIGN_LEFT;
 	ar->flag = RGN_FLAG_HIDDEN;
-
-#ifndef WITH_REDO_REGION_REMOVAL
-	/* tool properties */
-	ar = MEM_callocN(sizeof(ARegion), "tool properties for view3d");
-
-	BLI_addtail(&v3d->regionbase, ar);
-	ar->regiontype = RGN_TYPE_TOOL_PROPS;
-	ar->alignment = RGN_ALIGN_BOTTOM | RGN_SPLIT_PREV;
-	ar->flag = RGN_FLAG_HIDDEN;
-#endif
 
 	/* buttons/list view */
 	ar = MEM_callocN(sizeof(ARegion), "buttons for view3d");
@@ -427,14 +395,6 @@ static void view3d_free(SpaceLink *sl)
 	
 	if (vd->properties_storage) MEM_freeN(vd->properties_storage);
 	
-	/* matcap material, its preview rect gets freed via icons */
-	if (vd->defmaterial) {
-		if (vd->defmaterial->gpumaterial.first)
-			GPU_material_free(&vd->defmaterial->gpumaterial);
-		BKE_previewimg_free(&vd->defmaterial->preview);
-		MEM_freeN(vd->defmaterial);
-	}
-
 	if (vd->fx_settings.ssao)
 		MEM_freeN(vd->fx_settings.ssao);
 	if (vd->fx_settings.dof)
@@ -465,8 +425,6 @@ static SpaceLink *view3d_duplicate(SpaceLink *sl)
 		v3dn->drawtype = OB_SOLID;
 	
 	/* copy or clear inside new stuff */
-
-	v3dn->defmaterial = NULL;
 
 	v3dn->properties_storage = NULL;
 	if (v3dn->fx_settings.dof)
@@ -582,13 +540,6 @@ static void view3d_main_region_exit(wmWindowManager *wm, ARegion *ar)
 	if (rv3d->gpuoffscreen) {
 		GPU_offscreen_free(rv3d->gpuoffscreen);
 		rv3d->gpuoffscreen = NULL;
-	}
-	
-	if (rv3d->viewport) {
-		DRW_opengl_context_enable();
-		GPU_viewport_free(rv3d->viewport);
-		DRW_opengl_context_disable();
-		rv3d->viewport = NULL;
 	}
 }
 
@@ -767,11 +718,6 @@ static void view3d_main_region_free(ARegion *ar)
 		if (rv3d->gpuoffscreen) {
 			GPU_offscreen_free(rv3d->gpuoffscreen);
 		}
-		if (rv3d->viewport) {
-			DRW_opengl_context_enable();
-			GPU_viewport_free(rv3d->viewport);
-			DRW_opengl_context_disable();
-		}
 
 		MEM_freeN(rv3d);
 		ar->regiondata = NULL;
@@ -795,8 +741,6 @@ static void *view3d_main_region_duplicate(void *poin)
 		new->render_engine = NULL;
 		new->sms = NULL;
 		new->smooth_timer = NULL;
-		new->compositor = NULL;
-		new->viewport = NULL;
 		
 		return new;
 	}
@@ -1103,6 +1047,8 @@ static void view3d_main_region_message_subscribe(
 		&RNA_Object,
 		&RNA_UnitSettings,  /* grid-floor */
 
+		&RNA_View3DOverlay,
+		&RNA_View3DShading,
 		&RNA_World,
 	};
 
@@ -1138,6 +1084,10 @@ static void view3d_main_region_message_subscribe(
 	if (STREQ(scene->r.engine, RE_engine_id_BLENDER_EEVEE)) {
 		extern StructRNA RNA_ViewLayerEngineSettingsEevee;
 		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsEevee, &msg_sub_value_region_tag_redraw);
+	}
+	else if (STREQ(scene->r.engine, RE_engine_id_BLENDER_WORKBENCH)) {
+		extern StructRNA RNA_ViewLayerEngineSettingsWorkbench;
+		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsWorkbench, &msg_sub_value_region_tag_redraw);
 	}
 #ifdef WITH_CLAY_ENGINE
 	else if (STREQ(scene->r.engine, RE_engine_id_BLENDER_CLAY)) {
@@ -1315,6 +1265,27 @@ static void view3d_buttons_region_listener(
 	}
 }
 
+static int view3d_tools_region_snap_size(const ARegion *ar, int size, int axis)
+{
+	if (axis == 0) {
+		/* Note, this depends on the icon size: see #ICON_DEFAULT_HEIGHT_TOOLBAR. */
+		const float snap_units[] = {3 + 0.25f, 5 + 0.25};
+		const float aspect = BLI_rctf_size_x(&ar->v2d.cur) / (BLI_rcti_size_x(&ar->v2d.mask) + 1);
+		int best_diff = INT_MAX;
+		int best_size = size;
+		for (uint i = 0; i < ARRAY_SIZE(snap_units); i += 1) {
+			const int test_size = (snap_units[i] * U.widget_unit) / (UI_DPI_FAC * aspect);
+			const int test_diff = ABS(test_size - size);
+			if (test_diff < best_diff) {
+				best_size = test_size;
+				best_diff = test_diff;
+			}
+		}
+		return best_size;
+	}
+	return size;
+}
+
 /* add handlers, stuff you only do once or on area/region changes */
 static void view3d_tools_region_init(wmWindowManager *wm, ARegion *ar)
 {
@@ -1330,29 +1301,6 @@ static void view3d_tools_region_draw(const bContext *C, ARegion *ar)
 {
 	ED_region_panels(C, ar, CTX_data_mode_string(C), -1, true);
 }
-
-#ifndef WITH_REDO_REGION_REMOVAL
-static void view3d_props_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
-        wmNotifier *wmn, const Scene *UNUSED(scene))
-{
-	/* context changes */
-	switch (wmn->category) {
-		case NC_WM:
-			if (wmn->data == ND_HISTORY)
-				ED_region_tag_redraw(ar);
-			break;
-		case NC_SCENE:
-			if (wmn->data == ND_MODE)
-				ED_region_tag_redraw(ar);
-			break;
-		case NC_SPACE:
-			if (wmn->data == ND_SPACE_VIEW3D)
-				ED_region_tag_redraw(ar);
-			break;
-	}
-}
-#endif
 
 /* area (not region) level listener */
 static void space_view3d_listener(
@@ -1463,8 +1411,6 @@ static void view3d_id_remap(ScrArea *sa, SpaceLink *slink, ID *old_id, ID *new_i
 
 		/* Values in local-view aren't used, see: T52663 */
 		if (is_local == false) {
-			/* Skip 'v3d->defmaterial', it's not library data.  */
-
 			if ((ID *)v3d->ob_centre == old_id) {
 				v3d->ob_centre = (Object *)new_id;
 				/* Otherwise, bonename may remain valid... We could be smart and check this, too? */
@@ -1535,6 +1481,7 @@ void ED_spacetype_view3d(void)
 	art->prefsizey = 50; /* XXX */
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->listener = view3d_buttons_region_listener;
+	art->snap_size = view3d_tools_region_snap_size;
 	art->init = view3d_tools_region_init;
 	art->draw = view3d_tools_region_draw;
 	BLI_addhead(&st->regiontypes, art);
@@ -1542,21 +1489,6 @@ void ED_spacetype_view3d(void)
 #if 0
 	/* unfinished still */
 	view3d_toolshelf_register(art);
-#endif
-
-#ifndef WITH_REDO_REGION_REMOVAL
-	/* regions: tool properties */
-	art = MEM_callocN(sizeof(ARegionType), "spacetype view3d tool properties region");
-	art->regionid = RGN_TYPE_TOOL_PROPS;
-	art->prefsizex = 0;
-	art->prefsizey = 120;
-	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
-	art->listener = view3d_props_region_listener;
-	art->init = view3d_tools_region_init;
-	art->draw = view3d_tools_region_draw;
-	BLI_addhead(&st->regiontypes, art);
-
-	view3d_tool_props_register(art);
 #endif
 
 	/* regions: header */
@@ -1571,4 +1503,3 @@ void ED_spacetype_view3d(void)
 	
 	BKE_spacetype_register(st);
 }
-

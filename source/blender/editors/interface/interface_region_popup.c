@@ -90,7 +90,7 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 	uiSafetyRct *saferct;
 	rctf butrct;
 	/*float aspect;*/ /*UNUSED*/
-	int xsize, ysize, xof = 0, yof = 0, center;
+	int size_x, size_y, offset_x = 0, offset_y = 0;
 	short dir1 = 0, dir2 = 0;
 
 	/* transform to window coordinates, using the source button region/block */
@@ -126,34 +126,29 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 	//block->rect.xmin -= 2.0; block->rect.ymin -= 2.0;
 	//block->rect.xmax += 2.0; block->rect.ymax += 2.0;
 
-	xsize = BLI_rctf_size_x(&block->rect) + 0.2f * UI_UNIT_X;  /* 4 for shadow */
-	ysize = BLI_rctf_size_y(&block->rect) + 0.2f * UI_UNIT_Y;
-	/* aspect /= (float)xsize;*/ /*UNUSED*/
+	size_x = BLI_rctf_size_x(&block->rect) + 0.2f * UI_UNIT_X;  /* 4 for shadow */
+	size_y = BLI_rctf_size_y(&block->rect) + 0.2f * UI_UNIT_Y;
+	/* aspect /= (float)size_x;*/ /*UNUSED*/
 
 	{
 		bool left = 0, right = 0, top = 0, down = 0;
-		int winx, winy;
 		// int offscreen;
 
-		winx = WM_window_pixels_x(window);
-		winy = WM_window_pixels_y(window);
-		// wm_window_get_size(window, &winx, &winy);
+		const int win_x = WM_window_pixels_x(window);
+		const int win_y = WM_window_pixels_y(window);
+		// wm_window_get_size(window, &win_x, &win_y);
 
-		if (block->direction & UI_DIR_CENTER_Y) {
-			center = ysize / 2;
-		}
-		else {
-			center = 0;
-		}
+		const int center_x = (block->direction & UI_DIR_CENTER_X) ? size_x / 2 : 0;
+		const int center_y = (block->direction & UI_DIR_CENTER_Y) ? size_y / 2 : 0;
 
 		/* check if there's space at all */
-		if (butrct.xmin - xsize > 0.0f) left = 1;
-		if (butrct.xmax + xsize < winx) right = 1;
-		if (butrct.ymin - ysize + center > 0.0f) down = 1;
-		if (butrct.ymax + ysize - center < winy) top = 1;
+		if (butrct.xmin - size_x + center_x > 0.0f) left = 1;
+		if (butrct.xmax + size_x - center_x < win_x) right = 1;
+		if (butrct.ymin - size_y + center_y > 0.0f) down = 1;
+		if (butrct.ymax + size_y - center_y < win_y) top = 1;
 
 		if (top == 0 && down == 0) {
-			if (butrct.ymin - ysize < winy - butrct.ymax - ysize)
+			if (butrct.ymin - size_y < win_y - butrct.ymax - size_y)
 				top = 1;
 			else
 				down = 1;
@@ -161,7 +156,7 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 
 		dir1 = (block->direction & UI_DIR_ALL);
 
-		/* secundary directions */
+		/* Secondary directions. */
 		if (dir1 & (UI_DIR_UP | UI_DIR_DOWN)) {
 			if      (dir1 & UI_DIR_LEFT)  dir2 = UI_DIR_LEFT;
 			else if (dir1 & UI_DIR_RIGHT) dir2 = UI_DIR_RIGHT;
@@ -188,39 +183,44 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 		}
 
 		if (dir1 == UI_DIR_LEFT) {
-			xof = butrct.xmin - block->rect.xmax;
-			if (dir2 == UI_DIR_UP) yof = butrct.ymin - block->rect.ymin - center - MENU_PADDING;
-			else                   yof = butrct.ymax - block->rect.ymax + center + MENU_PADDING;
+			offset_x = butrct.xmin - block->rect.xmax;
+			if (dir2 == UI_DIR_UP) offset_y = butrct.ymin - block->rect.ymin - center_y - MENU_PADDING;
+			else                   offset_y = butrct.ymax - block->rect.ymax + center_y + MENU_PADDING;
 		}
 		else if (dir1 == UI_DIR_RIGHT) {
-			xof = butrct.xmax - block->rect.xmin;
-			if (dir2 == UI_DIR_UP) yof = butrct.ymin - block->rect.ymin - center - MENU_PADDING;
-			else                   yof = butrct.ymax - block->rect.ymax + center + MENU_PADDING;
+			offset_x = butrct.xmax - block->rect.xmin;
+			if (dir2 == UI_DIR_UP) offset_y = butrct.ymin - block->rect.ymin - center_y - MENU_PADDING;
+			else                   offset_y = butrct.ymax - block->rect.ymax + center_y + MENU_PADDING;
 		}
 		else if (dir1 == UI_DIR_UP) {
-			yof = butrct.ymax - block->rect.ymin;
-			if (dir2 == UI_DIR_RIGHT) xof = butrct.xmax - block->rect.xmax;
-			else                      xof = butrct.xmin - block->rect.xmin;
+			offset_y = butrct.ymax - block->rect.ymin;
+			if (dir2 == UI_DIR_RIGHT) offset_x = butrct.xmax - block->rect.xmax + center_x;
+			else                      offset_x = butrct.xmin - block->rect.xmin - center_x;
 			/* changed direction? */
 			if ((dir1 & block->direction) == 0) {
 				UI_block_order_flip(block);
 			}
 		}
 		else if (dir1 == UI_DIR_DOWN) {
-			yof = butrct.ymin - block->rect.ymax;
-			if (dir2 == UI_DIR_RIGHT) xof = butrct.xmax - block->rect.xmax;
-			else                      xof = butrct.xmin - block->rect.xmin;
+			offset_y = butrct.ymin - block->rect.ymax;
+			if (dir2 == UI_DIR_RIGHT) offset_x = butrct.xmax - block->rect.xmax + center_x;
+			else                      offset_x = butrct.xmin - block->rect.xmin - center_x;
 			/* changed direction? */
 			if ((dir1 & block->direction) == 0) {
 				UI_block_order_flip(block);
 			}
 		}
 
+		/* Center over popovers for eg. */
+		if (block->direction & UI_DIR_CENTER_X) {
+			offset_x += BLI_rctf_size_x(&butrct) / ((dir2 == UI_DIR_LEFT) ? 2 : - 2);
+		}
+
 		/* and now we handle the exception; no space below or to top */
 		if (top == 0 && down == 0) {
 			if (dir1 == UI_DIR_LEFT || dir1 == UI_DIR_RIGHT) {
 				/* align with bottom of screen */
-				// yof = ysize; (not with menu scrolls)
+				// offset_y = size_y; (not with menu scrolls)
 			}
 		}
 
@@ -229,17 +229,17 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 		if (left == 0 && right == 0) {
 			if (dir1 == UI_DIR_UP || dir1 == UI_DIR_DOWN) {
 				/* align with left size of screen */
-				xof = -block->rect.xmin + 5;
+				offset_x = -block->rect.xmin + 5;
 			}
 		}
 #endif
 
 #if 0
 		/* clamp to window bounds, could be made into an option if its ever annoying */
-		if (     (offscreen = (block->rect.ymin + yof)) < 0) yof -= offscreen;   /* bottom */
-		else if ((offscreen = (block->rect.ymax + yof) - winy) > 0) yof -= offscreen;  /* top */
-		if (     (offscreen = (block->rect.xmin + xof)) < 0) xof -= offscreen;   /* left */
-		else if ((offscreen = (block->rect.xmax + xof) - winx) > 0) xof -= offscreen;  /* right */
+		if (     (offscreen = (block->rect.ymin + offset_y)) < 0) offset_y -= offscreen;   /* bottom */
+		else if ((offscreen = (block->rect.ymax + offset_y) - winy) > 0) offset_y -= offscreen;  /* top */
+		if (     (offscreen = (block->rect.xmin + offset_x)) < 0) offset_x -= offscreen;   /* left */
+		else if ((offscreen = (block->rect.xmax + offset_x) - winx) > 0) offset_x -= offscreen;  /* right */
 #endif
 	}
 
@@ -248,13 +248,13 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 	for (bt = block->buttons.first; bt; bt = bt->next) {
 		ui_block_to_window_rctf(butregion, but->block, &bt->rect, &bt->rect);
 
-		BLI_rctf_translate(&bt->rect, xof, yof);
+		BLI_rctf_translate(&bt->rect, offset_x, offset_y);
 
 		/* ui_but_update recalculates drawstring size in pixels */
 		ui_but_update(bt);
 	}
 
-	BLI_rctf_translate(&block->rect, xof, yof);
+	BLI_rctf_translate(&block->rect, offset_x, offset_y);
 
 	/* safety calculus */
 	{
@@ -300,7 +300,7 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 /** \name Menu Block Creation
  * \{ */
 
-static void ui_block_region_draw(const bContext *C, ARegion *ar)
+static void ui_block_region_refresh(const bContext *C, ARegion *ar)
 {
 	ScrArea *ctx_area = CTX_wm_area(C);
 	ARegion *ctx_region = CTX_wm_region(C);
@@ -314,9 +314,11 @@ static void ui_block_region_draw(const bContext *C, ARegion *ar)
 		ar->do_draw &= ~RGN_DRAW_REFRESH_UI;
 		for (block = ar->uiblocks.first; block; block = block_next) {
 			block_next = block->next;
-			if (block->handle->can_refresh) {
-				handle_ctx_area = block->handle->ctx_area;
-				handle_ctx_region = block->handle->ctx_region;
+			uiPopupBlockHandle *handle = block->handle;
+
+			if (handle->can_refresh) {
+				handle_ctx_area = handle->ctx_area;
+				handle_ctx_region = handle->ctx_region;
 
 				if (handle_ctx_area) {
 					CTX_wm_area_set((bContext *)C, handle_ctx_area);
@@ -324,13 +326,21 @@ static void ui_block_region_draw(const bContext *C, ARegion *ar)
 				if (handle_ctx_region) {
 					CTX_wm_region_set((bContext *)C, handle_ctx_region);
 				}
-				ui_popup_block_refresh((bContext *)C, block->handle, NULL, NULL);
+
+				uiBut *but = handle->popup_create_vars.but;
+				ARegion *butregion = handle->popup_create_vars.butregion;
+				ui_popup_block_refresh((bContext *)C, handle, butregion, but);
 			}
 		}
 	}
 
 	CTX_wm_area_set((bContext *)C, ctx_area);
 	CTX_wm_region_set((bContext *)C, ctx_region);
+}
+
+static void ui_block_region_draw(const bContext *C, ARegion *ar)
+{
+	uiBlock *block;
 
 	for (block = ar->uiblocks.first; block; block = block->next)
 		UI_block_draw(C, block);
@@ -460,8 +470,6 @@ uiBlock *ui_popup_block_refresh(
         bContext *C, uiPopupBlockHandle *handle,
         ARegion *butregion, uiBut *but)
 {
-	BLI_assert(handle->can_refresh == true);
-
 	const int margin = UI_POPUP_MARGIN;
 	wmWindow *window = CTX_wm_window(C);
 	ARegion *ar = handle->region;
@@ -472,6 +480,8 @@ uiBlock *ui_popup_block_refresh(
 
 	uiBlock *block_old = ar->uiblocks.first;
 	uiBlock *block;
+
+	BLI_assert(!block_old || handle->can_refresh == true);
 
 #ifdef DEBUG
 	wmEvent *event_back = window->eventstate;
@@ -581,6 +591,17 @@ uiBlock *ui_popup_block_refresh(
 	else {
 		/* clip block with window boundary */
 		ui_popup_block_clip(window, block);
+
+		/* Avoid menu moving down and losing cursor focus by keeping it at
+		 * the same height. */
+		if (block_old && handle->prev_block_rect.ymax > block->rect.ymax) {
+			float offset = handle->prev_block_rect.ymax - block->rect.ymax;
+			ui_block_translate(block, 0, offset);
+			block->rect.ymin = handle->prev_block_rect.ymin;
+		}
+
+		handle->prev_block_rect = block->rect;
+
 		/* the block and buttons were positioned in window space as in 2.4x, now
 		 * these menu blocks are regions so we bring it back to region space.
 		 * additionally we add some padding for the menu shadow or rounded menus */
@@ -649,10 +670,12 @@ uiPopupBlockHandle *ui_popup_block_create(
 	handle->popup_create_vars.create_func = create_func;
 	handle->popup_create_vars.handle_create_func = handle_create_func;
 	handle->popup_create_vars.arg = arg;
+	handle->popup_create_vars.but = but;
 	handle->popup_create_vars.butregion = but ? butregion : NULL;
 	copy_v2_v2_int(handle->popup_create_vars.event_xy, &window->eventstate->x);
-	/* caller may free vars used to create this popup, in that case this variable should be disabled. */
-	handle->can_refresh = true;
+
+	/* don't allow by default, only if popup type explicitly supports it */
+	handle->can_refresh = false;
 
 	/* create area region */
 	ar = ui_region_temp_add(CTX_wm_screen(C));
@@ -660,6 +683,7 @@ uiPopupBlockHandle *ui_popup_block_create(
 
 	memset(&type, 0, sizeof(ARegionType));
 	type.draw = ui_block_region_draw;
+	type.layout = ui_block_region_refresh;
 	type.regionid = RGN_TYPE_TEMPORARY;
 	ar->type = &type;
 
@@ -669,7 +693,7 @@ uiPopupBlockHandle *ui_popup_block_create(
 	handle = block->handle;
 
 	/* keep centered on window resizing */
-	if ((block->bounds_type == UI_BLOCK_BOUNDS_POPUP_CENTER) && handle->can_refresh) {
+	if (block->bounds_type == UI_BLOCK_BOUNDS_POPUP_CENTER) {
 		type.listener = ui_block_region_popup_window_listener;
 	}
 
@@ -678,6 +702,10 @@ uiPopupBlockHandle *ui_popup_block_create(
 
 void ui_popup_block_free(bContext *C, uiPopupBlockHandle *handle)
 {
+	if (handle->popup_create_vars.free_func) {
+		handle->popup_create_vars.free_func(handle, handle->popup_create_vars.arg);
+	}
+
 	ui_popup_block_remove(C, handle);
 
 	MEM_freeN(handle);

@@ -182,6 +182,9 @@ BLI_INLINE OperationDepsNode *flush_schedule_children(
 {
 	OperationDepsNode *result = NULL;
 	foreach (DepsRelation *rel, op_node->outlinks) {
+		if (rel->flag & DEPSREL_FLAG_NO_FLUSH) {
+			continue;
+		}
 		OperationDepsNode *to_node = (OperationDepsNode *)rel->to;
 		if (to_node->scheduled == false) {
 			if (result != NULL) {
@@ -236,7 +239,8 @@ void flush_editors_id_update(Main *bmain,
 			id_cow->recalc |= factory->id_recalc_tag();
 		}
 		GHASH_FOREACH_END();
-		DEG_DEBUG_PRINTF(EVAL, "Accumulated recalc bits for %s: %u\n",
+		DEG_DEBUG_PRINTF((::Depsgraph *)graph,
+		                 EVAL, "Accumulated recalc bits for %s: %u\n",
 		                 id_orig->name, (unsigned int)id_cow->recalc);
 		/* Inform editors. */
 		if (deg_copy_on_write_is_expanded(id_cow)) {
@@ -298,7 +302,7 @@ void deg_graph_flush_updates(Main *bmain, Depsgraph *graph)
 	flush_editors_id_update(bmain, graph, &update_ctx);
 }
 
-static void graph_clear_func(
+static void graph_clear_operation_func(
         void *__restrict data_v,
         const int i,
         const ParallelRangeTLS *__restrict /*tls*/)
@@ -309,18 +313,41 @@ static void graph_clear_func(
 	node->flag &= ~(DEPSOP_FLAG_DIRECTLY_MODIFIED | DEPSOP_FLAG_NEEDS_UPDATE);
 }
 
+static void graph_clear_id_node_func(
+        void *__restrict data_v,
+        const int i,
+        const ParallelRangeTLS *__restrict /*tls*/)
+{
+	Depsgraph *graph = (Depsgraph *)data_v;
+	IDDepsNode *id_node = graph->id_nodes[i];
+	id_node->id_cow->recalc &= ~ID_RECALC_ALL;
+}
+
 /* Clear tags from all operation nodes. */
 void deg_graph_clear_tags(Depsgraph *graph)
 {
 	/* Go over all operation nodes, clearing tags. */
-	const int num_operations = graph->operations.size();
-	ParallelRangeSettings settings;
-	BLI_parallel_range_settings_defaults(&settings);
-	settings.min_iter_per_thread = 1024;
-	BLI_task_parallel_range(0, num_operations,
-	                        graph,
-	                        graph_clear_func,
-	                        &settings);
+	{
+		const int num_operations = graph->operations.size();
+		ParallelRangeSettings settings;
+		BLI_parallel_range_settings_defaults(&settings);
+		settings.min_iter_per_thread = 1024;
+		BLI_task_parallel_range(0, num_operations,
+		                        graph,
+		                        graph_clear_operation_func,
+		                        &settings);
+	}
+	/* Go over all ID nodes nodes, clearing tags. */
+	{
+		const int num_id_nodes = graph->id_nodes.size();
+		ParallelRangeSettings settings;
+		BLI_parallel_range_settings_defaults(&settings);
+		settings.min_iter_per_thread = 1024;
+		BLI_task_parallel_range(0, num_id_nodes,
+		                        graph,
+		                        graph_clear_id_node_func,
+		                        &settings);
+	}
 	/* Clear any entry tags which haven't been flushed. */
 	BLI_gset_clear(graph->entry_tags, NULL);
 }

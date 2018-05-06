@@ -414,7 +414,7 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 		DM_ensure_tessface(dm);
 		BVHTreeFromMesh bvhtree;
 		//bvhtree_from_mesh_looptri(&bvhtree, dm, 0.0f, 4, 6);
-		bvhtree_from_mesh_faces(&bvhtree, dm, 0.0f, 4, 6);
+		bvhtree_from_mesh_get(&bvhtree, dm, BVHTREE_FROM_FACES, 2);
 		if (bvhtree.tree != NULL) {
 			BVHTreeNearest nearest;
 			nearest.index = -1;

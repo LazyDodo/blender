@@ -28,6 +28,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -162,7 +163,7 @@ static ID *override_static_create_from(Main *bmain, ID *reference_id)
 	id_us_min(local_id);
 
 	BKE_override_static_init(local_id, reference_id);
-	local_id->flag |= LIB_OVERRIDE_STATIC_AUTO;
+	local_id->override_static->flag |= STATICOVERRIDE_AUTO;
 
 	return local_id;
 }
@@ -303,30 +304,46 @@ IDOverrideStaticPropertyOperation *BKE_override_static_property_operation_find(
 		*r_strict = true;
 	}
 
-	if (subitem_locname &&
-	    (opop = BLI_findstring_ptr(&override_property->operations, subitem_locname,
-	                               offsetof(IDOverrideStaticPropertyOperation, subitem_local_name))))
-	{
-		return opop;
+	if (subitem_locname != NULL) {
+		opop = BLI_findstring_ptr(&override_property->operations, subitem_locname,
+		                          offsetof(IDOverrideStaticPropertyOperation, subitem_local_name));
+
+		if (opop == NULL) {
+			return NULL;
+		}
+
+		if (subitem_refname == NULL || opop->subitem_reference_name == NULL) {
+			return subitem_refname == opop->subitem_reference_name ? opop : NULL;
+		}
+		return (subitem_refname != NULL && opop->subitem_reference_name != NULL &&
+		        STREQ(subitem_refname, opop->subitem_reference_name)) ? opop : NULL;
 	}
 
-	if (subitem_refname &&
-	    (opop = BLI_findstring_ptr(&override_property->operations, subitem_refname,
-	                               offsetof(IDOverrideStaticPropertyOperation, subitem_reference_name))))
-	{
-		return opop;
+	if (subitem_refname != NULL) {
+		opop = BLI_findstring_ptr(&override_property->operations, subitem_refname,
+		                          offsetof(IDOverrideStaticPropertyOperation, subitem_reference_name));
+
+		if (opop == NULL) {
+			return NULL;
+		}
+
+		if (subitem_locname == NULL || opop->subitem_local_name == NULL) {
+			return subitem_locname == opop->subitem_local_name ? opop : NULL;
+		}
+		return (subitem_locname != NULL && opop->subitem_local_name != NULL &&
+		        STREQ(subitem_locname, opop->subitem_local_name)) ? opop : NULL;
 	}
 
 	if ((opop = BLI_listbase_bytes_find(&override_property->operations, &subitem_locindex, sizeof(subitem_locindex),
 	                                    offsetof(IDOverrideStaticPropertyOperation, subitem_local_index))))
 	{
-		return opop;
+		return ELEM(subitem_refindex, -1, opop->subitem_reference_index) ? opop : NULL;
 	}
 
 	if ((opop = BLI_listbase_bytes_find(&override_property->operations, &subitem_refindex, sizeof(subitem_refindex),
 	                                    offsetof(IDOverrideStaticPropertyOperation, subitem_reference_index))))
 	{
-		return opop;
+		return ELEM(subitem_locindex, -1, opop->subitem_local_index) ? opop : NULL;
 	}
 
 	/* index == -1 means all indices, that is valid fallback in case we requested specific index. */
@@ -517,7 +534,7 @@ bool BKE_override_static_operations_create(ID *local, const bool force_auto)
 	const bool is_template = (local->override_static->reference == NULL);
 	bool ret = false;
 
-	if (!is_template && (force_auto || local->flag & LIB_OVERRIDE_STATIC_AUTO)) {
+	if (!is_template && (force_auto || local->override_static->flag & STATICOVERRIDE_AUTO)) {
 		PointerRNA rnaptr_local, rnaptr_reference;
 		RNA_id_pointer_create(local, &rnaptr_local);
 		RNA_id_pointer_create(local->override_static->reference, &rnaptr_reference);

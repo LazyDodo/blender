@@ -156,6 +156,9 @@ typedef enum eDepsgraph_Tag {
 	/* Only inform editors about the change. Don't modify datablock itself. */
 	DEG_TAG_EDITORS_UPDATE = (1 << 12),
 } eDepsgraph_Tag;
+
+const char *DEG_update_tag_as_string(eDepsgraph_Tag flag);
+
 void DEG_id_tag_update(struct ID *id, int flag);
 void DEG_id_tag_update_ex(struct Main *bmain, struct ID *id, int flag);
 
@@ -231,18 +234,23 @@ void DEG_editors_set_update_cb(DEG_EditorUpdateIDCb id_func,
 
 /* Evaluation Debug ------------------------------ */
 
-void DEG_debug_print_eval(const char* function_name,
+void DEG_debug_print_begin(struct Depsgraph *depsgraph);
+
+void DEG_debug_print_eval(struct Depsgraph *depsgraph,
+                          const char* function_name,
                           const char* object_name,
                           const void* object_address);
 
-void DEG_debug_print_eval_subdata(const char *function_name,
+void DEG_debug_print_eval_subdata(struct Depsgraph *depsgraph,
+                                  const char *function_name,
                                   const char *object_name,
                                   const void *object_address,
                                   const char *subdata_comment,
                                   const char *subdata_name,
                                   const void *subdata_address);
 
-void DEG_debug_print_eval_subdata_index(const char *function_name,
+void DEG_debug_print_eval_subdata_index(struct Depsgraph *depsgraph,
+                                        const char *function_name,
                                         const char *object_name,
                                         const void *object_address,
                                         const char *subdata_comment,
@@ -250,7 +258,18 @@ void DEG_debug_print_eval_subdata_index(const char *function_name,
                                         const void *subdata_address,
                                         const int subdata_index);
 
-void DEG_debug_print_eval_time(const char* function_name,
+void DEG_debug_print_eval_parent_typed(struct Depsgraph *depsgraph,
+                                       const char *function_name,
+                                       const char *object_name,
+                                       const void *object_address,
+                                       const char *object_type,
+                                       const char *parent_comment,
+                                       const char *parent_name,
+                                       const void *parent_address,
+                                       const char *parent_type);
+
+void DEG_debug_print_eval_time(struct Depsgraph *depsgraph,
+                               const char* function_name,
                                const char* object_name,
                                const void* object_address,
                                float time);

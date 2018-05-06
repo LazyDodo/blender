@@ -68,6 +68,7 @@ struct ScrArea;
 struct Main;
 struct bToolDef;
 struct ViewLayer;
+struct GPUViewport;
 
 #ifdef WITH_INPUT_NDOF
 struct wmNDOFMotionData;
@@ -93,6 +94,7 @@ void		WM_main				(struct bContext *C) ATTR_NORETURN;
 
 void		WM_init_splash		(struct bContext *C);
 
+void		WM_init_opengl		(void);
 
 void		WM_check			(struct bContext *C);
 
@@ -138,9 +140,6 @@ struct wmWindow	*WM_window_open(struct bContext *C, const struct rcti *rect);
 struct wmWindow *WM_window_open_temp(struct bContext *C, int x, int y, int sizex, int sizey, int type);
 void             WM_window_set_dpi(wmWindow *win);
 			
-			/* returns true if draw method is triple buffer */
-bool		WM_is_draw_triple(struct wmWindow *win);
-
 bool		WM_stereo3d_enabled(struct wmWindow *win, bool only_fullscreen_test);
 
 
@@ -339,7 +338,11 @@ void		WM_operator_properties_create_ptr(struct PointerRNA *ptr, struct wmOperato
 void        WM_operator_properties_clear(struct PointerRNA *ptr);
 void		WM_operator_properties_free(struct PointerRNA *ptr);
 
+bool        WM_operator_check_ui_empty(struct wmOperatorType *ot);
 bool        WM_operator_check_ui_enabled(const struct bContext *C, const char *idname);
+
+IDProperty *WM_operator_last_properties_ensure_idprops(struct wmOperatorType *ot);
+void        WM_operator_last_properties_ensure(struct wmOperatorType *ot, struct PointerRNA *ptr);
 wmOperator *WM_operator_last_redo(const struct bContext *C);
 ID         *WM_operator_drop_load_path(struct bContext *C, struct wmOperator *op, const short idcode);
 
@@ -561,6 +564,11 @@ void        *WM_draw_cb_activate(
 void        WM_draw_cb_exit(struct wmWindow *win, void *handle);
 void		WM_redraw_windows(struct bContext *C);
 
+			/* Region drawing */
+void                WM_draw_region_free(struct ARegion *ar);
+struct GPUViewport *WM_draw_region_get_viewport(struct ARegion *ar, int view);
+struct GPUViewport *WM_draw_region_get_bound_viewport(struct ARegion *ar);
+
 void        WM_main_playanim(int argc, const char **argv);
 
 /* debugging only, convenience function to write on crash */
@@ -590,6 +598,8 @@ void WM_toolsystem_link(struct bContext *C, struct WorkSpace *workspace);
 
 void WM_toolsystem_set(struct bContext *C, const struct bToolDef *tool);
 void WM_toolsystem_init(struct bContext *C);
+
+bool WM_toolsystem_active_tool_is_brush(const struct bContext *C);
 
 /* wm_tooltip.c */
 typedef struct ARegion *(*wmTooltipInitFn)(struct bContext *, struct ARegion *, bool *);

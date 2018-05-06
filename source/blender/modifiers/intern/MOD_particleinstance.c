@@ -202,9 +202,8 @@ static void store_float_in_vcol(MLoopCol *vcol, float float_value)
 	vcol->a = 1.0f;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
-                                  Object *ob, DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
+                                  DerivedMesh *derivedData)
 {
 	DerivedMesh *dm = derivedData, *result;
 	ParticleInstanceModifierData *pimd = (ParticleInstanceModifierData *) md;
@@ -214,10 +213,10 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	MPoly *mpoly, *orig_mpoly;
 	MLoop *mloop, *orig_mloop;
 	MVert *mvert, *orig_mvert;
-	int totvert, totpoly, totloop /* , totedge */;
-	int maxvert, maxpoly, maxloop, part_end = 0, part_start;
+	int totvert, totpoly, totloop , totedge;
+	int maxvert, maxpoly, maxloop, maxedge, part_end = 0, part_start;
 	int k, p, p_skip;
-	short track = ob->trackflag % 3, trackneg, axis = pimd->axis;
+	short track = ctx->object->trackflag % 3, trackneg, axis = pimd->axis;
 	float max_co = 0.0, min_co = 0.0, temp_co[3];
 	float *size = NULL;
 	float spacemat[4][4];
@@ -225,9 +224,9 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	const bool use_children = pimd->flag & eParticleInstanceFlag_Children;
 	bool between;
 
-	trackneg = ((ob->trackflag > 2) ? 1 : 0);
+	trackneg = ((ctx->object->trackflag > 2) ? 1 : 0);
 
-	if (pimd->ob == ob) {
+	if (pimd->ob == ctx->object) {
 		pimd->ob = NULL;
 		return derivedData;
 	}
@@ -252,7 +251,7 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	if (part_end == 0)
 		return derivedData;
 
-	sim.depsgraph = depsgraph;
+	sim.depsgraph = ctx->depsgraph;
 	sim.scene = md->scene;
 	sim.ob = pimd->ob;
 	sim.psys = psys;
@@ -295,12 +294,13 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 	totvert = dm->getNumVerts(dm);
 	totpoly = dm->getNumPolys(dm);
 	totloop = dm->getNumLoops(dm);
-	/* totedge = dm->getNumEdges(dm); */ /* UNUSED */
+	totedge = dm->getNumEdges(dm);
 
 	/* count particles */
 	maxvert = 0;
 	maxpoly = 0;
 	maxloop = 0;
+	maxedge = 0;
 
 	for (p = part_start; p < part_end; p++) {
 		if (particle_skip(pimd, psys, p))
@@ -309,6 +309,7 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		maxvert += totvert;
 		maxpoly += totpoly;
 		maxloop += totloop;
+		maxedge += totedge;
 	}
 
 	psys->lattice_deform_data = psys_create_lattice_deform_data(&sim);
@@ -321,11 +322,10 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 		max_co = max[track];
 	}
 
-	result = CDDM_from_template(dm, maxvert, 0, 0, maxloop, maxpoly);
+	result = CDDM_from_template(dm, maxvert, maxedge, 0, maxloop, maxpoly);
 
 	mvert = result->getVertArray(result);
 	orig_mvert = dm->getVertArray(dm);
-
 	mpoly = result->getPolyArray(result);
 	orig_mpoly = dm->getPolyArray(dm);
 	mloop = result->getLoopArray(result);
@@ -472,8 +472,17 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 			mul_m4_v3(spacemat, mv->co);
 		}
 
+		/* create edges and adjust edge vertex indices*/
+		DM_copy_edge_data(dm, result, 0, p_skip * totedge, totedge);
+		MEdge *me = CDDM_get_edges(result) + p_skip * totedge;
+		for (k = 0; k < totedge; k++, me++) {
+			me->v1 += p_skip * totvert;
+			me->v2 += p_skip * totvert;
+		}
+
 		/* create polys and loops */
 		for (k = 0; k < totpoly; k++) {
+
 			MPoly *inMP = orig_mpoly + k;
 			MPoly *mp = mpoly + p_skip * totpoly + k;
 
@@ -489,6 +498,7 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 				DM_copy_loop_data(dm, result, inMP->loopstart, mp->loopstart, j);
 				for (; j; j--, ml++, inML++) {
 					ml->v = inML->v + (p_skip * totvert);
+					ml->e = inML->e + (p_skip * totedge);
 					const int ml_index = (ml - mloop);
 					if (mloopcols_index != NULL) {
 						const int part_index = vert_part_index[ml->v];
@@ -501,11 +511,8 @@ static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
 				}
 			}
 		}
-
 		p_skip++;
 	}
-
-	CDDM_calc_edges(result);
 
 	if (psys->lattice_deform_data) {
 		end_latt_deform(psys->lattice_deform_data);
@@ -533,12 +540,21 @@ ModifierTypeInfo modifierType_ParticleInstance = {
 	                        eModifierTypeFlag_EnableInEditmode,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

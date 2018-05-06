@@ -440,41 +440,17 @@ static void outliner_draw_restrictbuts(uiBlock *block, Scene *scene, ARegion *ar
 	for (te = lb->first; te; te = te->next) {
 		tselem = TREESTORE(te);
 		if (te->ys + 2 * UI_UNIT_Y >= ar->v2d.cur.ymin && te->ys <= ar->v2d.cur.ymax) {
-			/* scene render layers and passes have toggle-able flags too! */
-			if (tselem->type == TSE_R_LAYER) {
+			if (tselem->type == TSE_R_LAYER && (soops->outlinevis == SO_SCENES)) {
+				/* View layer render toggle. */
+				ViewLayer *view_layer = te->directdata;
+
 				UI_block_emboss_set(block, UI_EMBOSS_NONE);
 				
-				bt = uiDefIconButBitI(block, UI_BTYPE_ICON_TOGGLE, VIEW_LAYER_RENDER, 0, ICON_CHECKBOX_HLT - 1,
-				                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), te->ys, UI_UNIT_X,
-				                      UI_UNIT_Y, te->directdata, 0, 0, 0, 0, TIP_("Render this RenderLayer"));
+				bt = uiDefIconButBitS(block, UI_BTYPE_ICON_TOGGLE_N, VIEW_LAYER_RENDER, 0, ICON_RESTRICT_RENDER_OFF,
+				                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_RENDERX), te->ys, UI_UNIT_X,
+				                      UI_UNIT_Y, &view_layer->flag, 0, 0, 0, 0, TIP_("Use view layer for rendering"));
 				UI_but_func_set(bt, restrictbutton_r_lay_cb, tselem->id, NULL);
 				UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
-				
-				UI_block_emboss_set(block, UI_EMBOSS);
-			}
-			else if (tselem->type == TSE_R_PASS) {
-				int *layflag = te->directdata;
-				int passflag = 1 << tselem->nr;
-				
-				UI_block_emboss_set(block, UI_EMBOSS_NONE);
-				
-				
-				bt = uiDefIconButBitI(block, UI_BTYPE_ICON_TOGGLE, passflag, 0, ICON_CHECKBOX_HLT - 1,
-				                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), te->ys, UI_UNIT_X,
-				                      UI_UNIT_Y, layflag, 0, 0, 0, 0, TIP_("Render this Pass"));
-				UI_but_func_set(bt, restrictbutton_r_lay_cb, tselem->id, NULL);
-				UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
-				
-				layflag++;  /* is lay_xor */
-				if (ELEM(passflag, SCE_PASS_SPEC, SCE_PASS_SHADOW, SCE_PASS_AO, SCE_PASS_REFLECT, SCE_PASS_REFRACT,
-				          SCE_PASS_INDIRECT, SCE_PASS_EMIT, SCE_PASS_ENVIRONMENT))
-				{
-					bt = uiDefIconButBitI(block, UI_BTYPE_TOGGLE, passflag, 0, (*layflag & passflag) ? ICON_DOT : ICON_BLANK1,
-					                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_SELECTX), te->ys, UI_UNIT_X,
-					                      UI_UNIT_Y, layflag, 0, 0, 0, 0, TIP_("Exclude this Pass from Combined"));
-					UI_but_func_set(bt, restrictbutton_r_lay_cb, tselem->id, NULL);
-					UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
-				}
 				
 				UI_block_emboss_set(block, UI_EMBOSS);
 			}
@@ -1070,8 +1046,11 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 			case TSE_R_LAYER_BASE:
 				ICON_DRAW(ICON_RENDERLAYERS);
 				break;
+			case TSE_SCENE_OBJECTS_BASE:
+				ICON_DRAW(ICON_OUTLINER_OB_GROUP_INSTANCE);
+				break;
 			case TSE_R_LAYER:
-				ICON_DRAW(ICON_RENDERLAYERS);
+				ICON_DRAW(ICON_RENDER_RESULT);
 				break;
 			case TSE_LINKED_LAMP:
 				ICON_DRAW(ICON_LAMP_DATA);
@@ -1424,8 +1403,8 @@ static void outliner_draw_tree_element(
 			te->flag |= TE_ACTIVE; // for lookup in display hierarchies
 		}
 		
-		if ((soops->outlinevis == SO_COLLECTIONS) && (tselem->type == TSE_SCENE_COLLECTION) && (te->parent == NULL)) {
-			/* Master collection can't expand/collapse. */
+		if ((soops->outlinevis == SO_COLLECTIONS) && (tselem->type == TSE_R_LAYER)) {
+			/* View layer in collections can't expand/collapse. */
 		}
 		else if (te->subtree.first || (tselem->type == 0 && te->idcode == ID_SCE) || (te->flag & TE_LAZY_CLOSED)) {
 			/* open/close icon, only when sublevels, except for scene */
@@ -1622,7 +1601,7 @@ static void outliner_draw_hierarchy_lines_recursive(unsigned pos, SpaceOops *soo
 	const unsigned char grayed_alpha = col[3] / 2;
 
 	/* For vertical lines between objects. */
-	y1 = *starty;
+	y1 = y2 = *starty;
 	for (te = lb->first; te; te = te->next) {
 		bool draw_childs_grayed_out = draw_grayed_out || (te->drag_data != NULL);
 		tselem = TREESTORE(te);
@@ -1814,7 +1793,7 @@ static void outliner_draw_tree(
 		CLAMP_MIN(mask_x, 0);
 
 		glGetFloatv(GL_SCISSOR_BOX, scissor);
-		glScissor(ar->winrct.xmin, ar->winrct.ymin, mask_x, ar->winy);
+		glScissor(0, 0, mask_x, ar->winy);
 	}
 
 	// gray hierarchy lines

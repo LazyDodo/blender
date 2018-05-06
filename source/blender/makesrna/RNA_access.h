@@ -669,6 +669,7 @@ extern StructRNA RNA_TransformSequence;
 extern StructRNA RNA_UILayout;
 extern StructRNA RNA_UIList;
 extern StructRNA RNA_UIPieMenu;
+extern StructRNA RNA_uiPopover;
 extern StructRNA RNA_UIPopupMenu;
 extern StructRNA RNA_UVWarpModifier;
 extern StructRNA RNA_UVProjectModifier;
@@ -693,6 +694,8 @@ extern StructRNA RNA_WaveModifier;
 extern StructRNA RNA_VertexWeightEditModifier;
 extern StructRNA RNA_VertexWeightMixModifier;
 extern StructRNA RNA_VertexWeightProximityModifier;
+extern StructRNA RNA_View3DOverlay;
+extern StructRNA RNA_View3DShading;
 extern StructRNA RNA_ViewLayer;
 extern StructRNA RNA_Window;
 extern StructRNA RNA_WindowManager;
@@ -1280,7 +1283,7 @@ bool RNA_struct_override_store(
         struct IDOverrideStatic *override);
 
 void RNA_struct_override_apply(
-        struct PointerRNA *ptr_local, struct PointerRNA *ptr_reference, struct PointerRNA *ptr_storage,
+        struct PointerRNA *ptr_local, struct PointerRNA *ptr_override, struct PointerRNA *ptr_storage,
         struct IDOverrideStatic *override);
 
 struct IDOverrideStaticProperty *RNA_property_override_property_find(PointerRNA *ptr, PropertyRNA *prop);

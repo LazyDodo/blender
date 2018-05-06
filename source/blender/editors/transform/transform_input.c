@@ -30,10 +30,13 @@
 
 #include "DNA_screen_types.h"
 
+#include "BKE_context.h"
+
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "WM_types.h"
+#include "WM_api.h"
 
 #include "transform.h"
 
@@ -341,6 +344,29 @@ void initMouseInputMode(TransInfo *t, MouseInput *mi, MouseInputMode mode)
 			break;
 	}
 
+	/* setup for the mouse cursor: either set a custom one,
+	 * or hide it if it will be drawn with the helpline */
+	wmWindow *win = CTX_wm_window(t->context);
+	switch (t->helpline) {
+		case HLP_NONE:
+			/* INPUT_VECTOR, INPUT_CUSTOM_RATIO, INPUT_CUSTOM_RATIO_FLIP */
+			if (t->flag & T_MODAL) {
+				WM_cursor_set(win, BC_NSEW_SCROLLCURSOR);
+			}
+			break;
+		case HLP_SPRING:
+		case HLP_ANGLE:
+		case HLP_TRACKBALL:
+		case HLP_HARROW:
+		case HLP_VARROW:
+			if (t->flag & T_MODAL) {
+				WM_cursor_set(win, CURSOR_NONE);
+			}
+			break;
+		default:
+			break;
+	}
+
 	/* if we've allocated new data, free the old data
 	 * less hassle then checking before every alloc above */
 	if (mi_data_prev && (mi_data_prev != mi->data)) {
@@ -389,6 +415,12 @@ void applyMouseInput(TransInfo *t, MouseInput *mi, const int mval[2], float outp
 
 	if (mi->apply != NULL) {
 		mi->apply(t, mi, mval_db, output);
+	}
+
+	if (!is_zero_v3(t->values_modal_offset)) {
+		float values_ofs[3];
+		mul_v3_m3v3(values_ofs, t->spacemtx, t->values_modal_offset);
+		add_v3_v3(t->values, values_ofs);
 	}
 
 	if (mi->post) {

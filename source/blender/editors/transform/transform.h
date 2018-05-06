@@ -307,11 +307,6 @@ typedef struct VertSlideData {
 
 	SlideOrigData orig_data;
 
-	float perc;
-
-	bool use_even;
-	bool flipped;
-
 	int curr_sv_index;
 
 	/* result of ED_view3d_ob_project_mat_get */
@@ -428,8 +423,20 @@ typedef struct TransDataContainer {
 	TransData2D *data_2d;
 
 	struct Object *obedit;
-	/** Normalized editmode matrix ('T_EDIT' only). */
-	float          obedit_mat[3][3];
+
+	/**
+	 * Use when #T_LOCAL_MATRIX is set.
+	 * Typically: 'obedit->obmat' or 'poseobj->obmat', but may be used elsewhere too.
+	 */
+	bool use_local_mat;
+	float  mat[4][4];
+	float imat[4][4];
+	/** 3x3 copies of matrices above. */
+	float  mat3[3][3];
+	float imat3[3][3];
+
+	/** Normalized 'mat3' */
+	float  mat3_unit[3][3];
 
 	/** if 't->flag & T_POSE', this denotes pose object */
 	struct Object *poseobj;
@@ -483,7 +490,7 @@ typedef struct TransInfo {
 	short		persp;
 	short		around;
 	char		spacetype;		/* spacetype where transforming is      */
-	char		helpline;		/* helpline modes (not to be confused with hotline) */
+	char		helpline;		/* Choice of custom cursor with or without a help line from the manipulator to the mouse position. */
 	short		obedit_type;	/* Avoid looking inside TransDataContainer obedit. */
 
 	float		vec[3];			/* translation, to show for widget   	*/
@@ -504,6 +511,7 @@ typedef struct TransInfo {
 	short		mirror;
 
 	float		values[4];
+	float		values_modal_offset[4];  /* Offset applied ontop of modal input. */
 	float		auto_values[4];
 	float		axis[3];
 	float		axis_orig[3];	/* TransCon can change 'axis', store the original value here */
@@ -550,7 +558,10 @@ typedef struct TransInfo {
 #define T_CAMERA		(1 << 4)
 		 // trans on points, having no rotation/scale
 #define T_POINTS		(1 << 6)
-/* empty slot - (1 << 7) */
+/**
+ * Apply matrix #TransDataContainer.matrix, this avoids having to have duplicate check all over
+ * that happen to apply to spesiifc modes (edit & pose for eg). */
+#define T_LOCAL_MATRIX (1 << 7)
 
 	/* restrictions flags */
 #define T_ALL_RESTRICTIONS	((1 << 8)|(1 << 9)|(1 << 10))
@@ -801,6 +812,7 @@ void setInputPostFct(MouseInput *mi, void	(*post)(struct TransInfo *t, float val
 
 void initTransDataContainers_FromObjectData(TransInfo *t);
 void initTransInfo(struct bContext *C, TransInfo *t, struct wmOperator *op, const struct wmEvent *event);
+void freeTransCustomDataForMode(TransInfo *t);
 void postTrans(struct bContext *C, TransInfo *t);
 void resetTransModal(TransInfo *t);
 void resetTransRestrictions(TransInfo *t);
