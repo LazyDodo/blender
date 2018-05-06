@@ -58,9 +58,9 @@ void BKE_gpencil_free_point_weights(struct bGPDspoint *pt);
 void BKE_gpencil_free_stroke_weights(struct bGPDstroke *gps);
 void BKE_gpencil_free_stroke(struct bGPDstroke *gps);
 bool BKE_gpencil_free_strokes(struct bGPDframe *gpf);
-bool BKE_gpencil_free_layer_temp_data(struct bGPDframe *derived_gpf);
 void BKE_gpencil_free_frames(struct bGPDlayer *gpl);
 void BKE_gpencil_free_layers(struct ListBase *list);
+bool BKE_gpencil_free_frame_temp_data(struct bGPDframe *derived_gpf);
 void BKE_gpencil_free_derived_frames(struct bGPdata *gpd);
 void BKE_gpencil_free(struct bGPdata *gpd, bool free_all);
 

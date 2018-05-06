@@ -1000,7 +1000,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 		if (cache->is_dirty) {
 			if (derived_gpf != NULL) {
 				/* first clear temp data */
-				BKE_gpencil_free_layer_temp_data(derived_gpf);
+				BKE_gpencil_free_frame_temp_data(derived_gpf);
 				BLI_ghash_remove(gpl->derived_data, ob->id.name, NULL, NULL);
 			}
 			/* create new data */
