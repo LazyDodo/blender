@@ -88,10 +88,9 @@ typedef struct tGPDpickColor {
 	struct Material *mat; /* material */
 	rcti full_rect;  /* full size of region occupied by color box (for event/highlight handling) */
 	rcti rect;       /* box position */
-	int index;       /* index of color in material slots */
-	float rgba[4];   /* color */
+	int index;       /* index of color */
+	float rgba[4];   /* stroke color */
 	float fill[4];   /* fill color */
-	bool fillmode;   /* flag fill is not enabled */
 } tGPDpickColor;
 
 /* Temporary color picker operation data (op->customdata) */
@@ -408,7 +407,6 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 		tcolor->mat = mat;
 		copy_v4_v4(tcolor->rgba, gpcolor->rgb);
 		copy_v4_v4(tcolor->fill, gpcolor->fill);
-		tcolor->fillmode = (gpcolor->fill[3] > 0.0f);
 
 		/* box position */
 		tcolor->rect.xmin = tgpk->panel.xmin + (tgpk->boxsize[0] * col) + (GP_BOX_GAP * (col + 1)) - (GP_BOX_GAP / 2);
