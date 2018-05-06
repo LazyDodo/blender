@@ -1363,6 +1363,9 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 col.prop(brush, "line_width", text="Thickness")
                 col.prop(brush, "gpencil_fill_simplyfy_lvl", text="Simplify")
 
+                col = layout.row(align=True)
+                col.template_ID(brush, "material")
+
                 col = layout.column(align=True)
                 col.label(text="Boundary Draw Mode:")
                 row = col.row(align=True)

@@ -122,12 +122,14 @@ typedef struct tGPDfill {
 
 
  /* draw a given stroke using same thickness and color for all points */
-static void gp_draw_basic_stroke(Object *ob, bGPDstroke *gps, const float diff_mat[4][4], 
+static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float diff_mat[4][4],
 								bool cyclic, float ink[4], int flag, float thershold)
 {
+	Object *ob = tgpf->ob;
 	bGPDspoint *points = gps->points;
-	
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
+	Material *ma = tgpf->mat;
+	GpencilColorData *gpcolor = ma->gpcolor;
 
 	int totpoints = gps->totpoints;
 	float fpt[3];
@@ -252,7 +254,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 			if ((tgpf->fill_draw_mode == GP_FILL_DMODE_CONTROL) || 
 				(tgpf->fill_draw_mode == GP_FILL_DMODE_BOTH)) 
 			{
-				gp_draw_basic_stroke(tgpw.ob, gps, tgpw.diff_mat, gps->flag & GP_STROKE_CYCLIC, ink,
+				gp_draw_basic_stroke(tgpf, gps, tgpw.diff_mat, gps->flag & GP_STROKE_CYCLIC, ink,
 					tgpf->flag, tgpf->fill_threshold);
 			}
 		}
@@ -973,9 +975,6 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->gpd = gpd;
 	tgpf->gpl = BKE_gpencil_layer_getactive(gpd);
 
-	/* get color info */
-	tgpf->mat = BKE_gpencil_color_ensure(bmain, tgpf->ob);
-
 	tgpf->lock_axis = ts->gp_sculpt.lock_axis;
 	
 	tgpf->oldkey = -1;
@@ -990,6 +989,17 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->fill_threshold = brush->gp_fill_threshold;
 	tgpf->fill_simplylvl = brush->gp_fill_simplylvl;
 	tgpf->fill_draw_mode = brush->gp_fill_draw_mode;
+	
+	/* get color info */
+	Material *ma = BKE_gpencil_get_color_from_brush(brush);
+	/* if no brush defaults, get material and color info */
+	if ((ma == NULL) || (ma->gpcolor == NULL)) {
+		ma = BKE_gpencil_color_ensure(bmain, tgpf->ob);
+		/* assign always the first material to the brush */
+		brush->material = give_current_material(tgpf->ob, 1);
+	}
+
+	tgpf->mat = ma;
 
 	/* init undo */
 	gpencil_undo_init(tgpf->gpd);
