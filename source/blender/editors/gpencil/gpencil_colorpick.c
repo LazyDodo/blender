@@ -85,7 +85,7 @@
 
 /* Representation of a color displayed in the picker */
 typedef struct tGPDpickColor {
-	char name[64];   /* color name. Must be unique. */
+	struct Material *mat; /* material */
 	rcti full_rect;  /* full size of region occupied by color box (for event/highlight handling) */
 	rcti rect;       /* box position */
 	int index;       /* index of color in material slots */
@@ -114,7 +114,7 @@ typedef struct tGPDpick {
 
 	int totcolor;                       /* number of colors */
 	int curindex;                       /* index of color under cursor */
-	tGPDpickColor *colors;              /* colors of object */
+	tGPDpickColor *colors;              /* colors */
 
 	void *draw_handle_3d;               /* handle for drawing strokes while operator is running */
 } tGPDpick;
@@ -126,6 +126,7 @@ static void gp_draw_color_name(tGPDpick *tgpk, tGPDpickColor *col, const uiFontS
 	bTheme *btheme = UI_GetTheme();
 	uiWidgetColors menuBack = btheme->tui.wcol_menu_back;
 
+	Material *ma = col->mat;
 	char drawstr[UI_MAX_DRAW_STR];
 	const float okwidth = tgpk->boxsize[0];
 	const size_t max_len = sizeof(drawstr);
@@ -140,7 +141,7 @@ static void gp_draw_color_name(tGPDpick *tgpk, tGPDpickColor *col, const uiFontS
 	}
 
 	/* color name */
-	BLI_strncpy(drawstr, col->name, sizeof(drawstr));
+	BLI_strncpy(drawstr, ma->id.name + 2, sizeof(drawstr));
 	UI_text_clip_middle_ex((uiFontStyle *)fstyle, drawstr, okwidth, minwidth, max_len, '\0');
 	UI_fontstyle_draw_simple(fstyle, col->rect.xmin, col->rect.ymin - GP_PICK_NAME_HEIGHT, 
 							 drawstr, text_col);
@@ -291,6 +292,7 @@ static int gpencil_colorpick_poll(bContext *C)
 /* Allocate memory and initialize values */
 static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEvent *event)
 {
+	Main *bmain = CTX_data_main(C);
 	tGPDpick *tgpk = MEM_callocN(sizeof(tGPDpick), __func__);
 
 	/* define initial values */
@@ -319,16 +321,14 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	/* get current material */
 	if ((tgpk->brush) && (tgpk->brush->material)) {
 		tgpk->mat = tgpk->brush->material;
-		tgpk->curindex = BKE_object_material_slot_find_index(tgpk->ob, tgpk->mat) - 1;
 	}
 	else {
-		tgpk->mat = give_current_material(tgpk->ob, tgpk->ob->actcol);
-		tgpk->curindex = tgpk->ob->actcol - 1;
+		tgpk->mat = NULL;
+		tgpk->curindex = 0;
 	}
 
 	/* allocate color table */
-	short *totcolp = give_totcolp(tgpk->ob);
-	tgpk->totcolor = *totcolp;
+	tgpk->totcolor = BLI_listbase_count(&bmain->mat);
 	if (tgpk->totcolor > 0) {
 		tgpk->colors = MEM_callocN(sizeof(tGPDpickColor) * tgpk->totcolor, "gp_colorpicker");
 	}
@@ -390,15 +390,22 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	int row = 0;
 	int col = 0;
 	int t = 0;
-	Material ***matar = give_matarar(tgpk->ob);
-	short *totcol = give_totcolp(tgpk->ob);
-	for (short i = 0; i < *totcol; i++) {
-		Material *tmp_ma = (*matar)[i];
-		GpencilColorData *gpcolor = tmp_ma->gpcolor;
-		
-		tcolor->index = idx;
+	for (Material *mat = bmain->mat.first; mat; mat = mat->id.next) {
 
-		BLI_strncpy(tcolor->name, tmp_ma->id.name + 2, sizeof(tcolor->name));
+		/* only grease pencil materials */
+		if (mat->gpcolor == NULL) {
+			continue;
+		}
+		/* TODO: add a filter by object if the flag is enabled */
+
+		/* set current color */
+		if ((tgpk->mat != NULL) && (mat == tgpk->mat)) {
+			tgpk->curindex = idx;
+		}
+
+		GpencilColorData *gpcolor = mat->gpcolor;
+		tcolor->index = idx;
+		tcolor->mat = mat;
 		copy_v4_v4(tcolor->rgba, gpcolor->rgb);
 		copy_v4_v4(tcolor->fill, gpcolor->fill);
 		tcolor->fillmode = (gpcolor->fill[3] > 0.0f);
@@ -523,9 +530,9 @@ static int gpencil_colorpick_modal(bContext *C, wmOperator *op, const wmEvent *e
 			else {
 				int index = gpencil_colorpick_index_from_mouse(tgpk, event);
 				if (index != -1) {
-					tgpk->ob->actcol = index + 1;
-					tgpk->brush->material = give_current_material(tgpk->ob, tgpk->ob->actcol);
-					tgpk->mat = tgpk->brush->material;
+					tGPDpickColor *col = tgpk->colors + index;
+					tgpk->brush->material = col->mat;
+					tgpk->mat = col->mat;
 					estate = OPERATOR_FINISHED;
 				}
 			}
