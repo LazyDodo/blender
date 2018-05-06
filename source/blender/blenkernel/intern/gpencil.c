@@ -144,7 +144,7 @@ bool BKE_gpencil_free_strokes(bGPDframe *gpf)
 }
 
 /* Free strokes and colors belonging to a gp-frame */
-bool BKE_gpencil_free_layer_temp_data(bGPDlayer *UNUSED(gpl), bGPDframe *derived_gpf)
+bool BKE_gpencil_free_layer_temp_data(bGPDframe *derived_gpf)
 {
 	bGPDstroke *gps_next;
 	if (!derived_gpf) {
@@ -214,7 +214,7 @@ static void BKE_gpencil_clear_derived(bGPDlayer *gpl)
 	GHASH_ITER(gh_iter, gpl->derived_data) {
 		bGPDframe *gpf = (bGPDframe *)BLI_ghashIterator_getValue(&gh_iter);
 		if (gpf) {
-			BKE_gpencil_free_layer_temp_data(gpl, gpf);
+			BKE_gpencil_free_layer_temp_data(gpf);
 		}
 	}
 }
