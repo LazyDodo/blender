@@ -3612,6 +3612,7 @@ class VIEW3D_PT_overlay(Panel):
         view = context.space_data
         overlay = view.overlay
         scene = context.scene
+        toolsettings = context.tool_settings
         display_all = overlay.show_overlays
 
         col = layout.column()
@@ -3657,6 +3658,10 @@ class VIEW3D_PT_overlay(Panel):
 
             col.prop(overlay, "show_occlude_wire")
 
+            col.prop(overlay, "show_weight")
+            col.label("Show Zero Weights:")
+            col.row().prop(toolsettings, "vertex_group_user", expand=True)
+
             col.label(text="Normals:")
             row = col.row(align=True)
 
@@ -3667,6 +3672,7 @@ class VIEW3D_PT_overlay(Panel):
             sub = row.row(align=True)
             sub.active = overlay.show_vertex_normals or overlay.show_face_normals or overlay.show_split_normals
             sub.prop(overlay, "normals_length", text="Size")
+
 
         elif context.mode in {'PAINT_WEIGHT', 'PAINT_VERTEX', 'PAINT_TEXTURE'}:
             col.separator()
@@ -3836,8 +3842,6 @@ class VIEW3D_PT_view3d_meshdisplay(Panel):
         col.prop(mesh, "show_edge_crease", text="Creases")
         if with_freestyle:
             col.prop(mesh, "show_edge_seams", text="Seams")
-
-        layout.prop(mesh, "show_weight")
 
         col = split.column()
         col.label()
