@@ -125,7 +125,6 @@ typedef struct tGPDfill {
 static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float diff_mat[4][4],
 								bool cyclic, float ink[4], int flag, float thershold)
 {
-	Object *ob = tgpf->ob;
 	bGPDspoint *points = gps->points;
 
 	Material *ma = tgpf->mat;
