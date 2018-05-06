@@ -12,14 +12,14 @@ in vec3 snor;
 
 /* ---- Per instance Attribs ---- */
 in mat4 InstanceModelMatrix;
-in vec4 color;
+in vec4 outlineColorSize;
 
 out vec4 pPos;
 out float vZ;
 out float vFacing;
 out vec2 ssPos;
 out vec2 ssNor;
-out vec4 vCol;
+out vec4 vColSize;
 
 /* project to screen space */
 vec2 proj(vec4 pos)
@@ -45,9 +45,15 @@ void main()
 	 * barelly visible at the outline corners. */
 	ssNor = normalize((NormalMatrix * snor).xy);
 
-	vFacing = dot(V, normalize(NormalMatrix * nor));
+	vec3 normal = normalize(NormalMatrix * nor);
+	/* Add a small bias to avoid loosing outline
+	 * on faces orthogonal to the view.
+	 * (test case: octahedral bone without rotation in front view.) */
+	normal.z += 1e-6;
+
+	vFacing = dot(V, normal);
 
 	ssPos = proj(pPos);
 
-	vCol = color;
+	vColSize = outlineColorSize;
 }

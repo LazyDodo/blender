@@ -169,7 +169,6 @@ typedef struct OBJECT_PrivateData {
 
 	/* Lamps */
 	DRWShadingGroup *lamp_center;
-	DRWShadingGroup *lamp_center_group;
 	DRWShadingGroup *lamp_groundpoint;
 	DRWShadingGroup *lamp_groundline;
 	DRWShadingGroup *lamp_circle;
@@ -207,50 +206,36 @@ typedef struct OBJECT_PrivateData {
 
 	/* Outlines */
 	DRWShadingGroup *outlines_active;
-	DRWShadingGroup *outlines_active_group;
 	DRWShadingGroup *outlines_select;
-	DRWShadingGroup *outlines_select_group;
 	DRWShadingGroup *outlines_transform;
 
 	/* Lightprobes */
 	DRWShadingGroup *lightprobes_cube_select;
-	DRWShadingGroup *lightprobes_cube_select_group;
 	DRWShadingGroup *lightprobes_cube_active;
-	DRWShadingGroup *lightprobes_cube_active_group;
 	DRWShadingGroup *lightprobes_cube_transform;
 
 	DRWShadingGroup *lightprobes_planar_select;
-	DRWShadingGroup *lightprobes_planar_select_group;
 	DRWShadingGroup *lightprobes_planar_active;
-	DRWShadingGroup *lightprobes_planar_active_group;
 	DRWShadingGroup *lightprobes_planar_transform;
 
 	/* Wire */
 	DRWShadingGroup *wire;
 	DRWShadingGroup *wire_active;
-	DRWShadingGroup *wire_active_group;
 	DRWShadingGroup *wire_select;
-	DRWShadingGroup *wire_select_group;
 	DRWShadingGroup *wire_transform;
 
 	/* Points */
 	DRWShadingGroup *points;
 	DRWShadingGroup *points_active;
-	DRWShadingGroup *points_active_group;
 	DRWShadingGroup *points_select;
-	DRWShadingGroup *points_select_group;
 	DRWShadingGroup *points_transform;
 
 	/* Outlines id offset */
 	int id_ofs_active;
-	int id_ofs_active_group;
 	int id_ofs_select;
-	int id_ofs_select_group;
 	int id_ofs_transform;
 	int id_ofs_prb_active;
-	int id_ofs_prb_active_group;
 	int id_ofs_prb_select;
-	int id_ofs_prb_select_group;
 	int id_ofs_prb_transform;
 } OBJECT_PrivateData; /* Transient data */
 
@@ -635,10 +620,6 @@ static int *shgroup_theme_id_to_probe_outline_counter(
 			return &stl->g_data->id_ofs_prb_active;
 		case TH_SELECT:
 			return &stl->g_data->id_ofs_prb_select;
-		case TH_GROUP:
-			return &stl->g_data->id_ofs_prb_select_group;
-		case TH_GROUP_ACTIVE:
-			return &stl->g_data->id_ofs_prb_active_group;
 		case TH_TRANSFORM:
 		default:
 			return &stl->g_data->id_ofs_prb_transform;
@@ -653,10 +634,6 @@ static int *shgroup_theme_id_to_outline_counter(
 			return &stl->g_data->id_ofs_active;
 		case TH_SELECT:
 			return &stl->g_data->id_ofs_select;
-		case TH_GROUP:
-			return &stl->g_data->id_ofs_select_group;
-		case TH_GROUP_ACTIVE:
-			return &stl->g_data->id_ofs_active_group;
 		case TH_TRANSFORM:
 		default:
 			return &stl->g_data->id_ofs_transform;
@@ -672,10 +649,6 @@ static DRWShadingGroup *shgroup_theme_id_to_probe_planar_outline_shgrp(
 			return stl->g_data->lightprobes_planar_active;
 		case TH_SELECT:
 			return stl->g_data->lightprobes_planar_select;
-		case TH_GROUP:
-			return stl->g_data->lightprobes_planar_select_group;
-		case TH_GROUP_ACTIVE:
-			return stl->g_data->lightprobes_planar_active_group;
 		case TH_TRANSFORM:
 		default:
 			return stl->g_data->lightprobes_planar_transform;
@@ -691,10 +664,6 @@ static DRWShadingGroup *shgroup_theme_id_to_probe_cube_outline_shgrp(
 			return stl->g_data->lightprobes_cube_active;
 		case TH_SELECT:
 			return stl->g_data->lightprobes_cube_select;
-		case TH_GROUP:
-			return stl->g_data->lightprobes_cube_select_group;
-		case TH_GROUP_ACTIVE:
-			return stl->g_data->lightprobes_cube_active_group;
 		case TH_TRANSFORM:
 		default:
 			return stl->g_data->lightprobes_cube_transform;
@@ -712,10 +681,6 @@ static DRWShadingGroup *shgroup_theme_id_to_outline_or(
 			return stl->g_data->outlines_active;
 		case TH_SELECT:
 			return stl->g_data->outlines_select;
-		case TH_GROUP:
-			return stl->g_data->outlines_select_group;
-		case TH_GROUP_ACTIVE:
-			return stl->g_data->outlines_active_group;
 		case TH_TRANSFORM:
 			return stl->g_data->outlines_transform;
 		default:
@@ -731,10 +696,6 @@ static DRWShadingGroup *shgroup_theme_id_to_wire_or(
 			return stl->g_data->wire_active;
 		case TH_SELECT:
 			return stl->g_data->wire_select;
-		case TH_GROUP:
-			return stl->g_data->wire_select_group;
-		case TH_GROUP_ACTIVE:
-			return stl->g_data->wire_active_group;
 		case TH_TRANSFORM:
 			return stl->g_data->wire_transform;
 		default:
@@ -750,10 +711,6 @@ static DRWShadingGroup *shgroup_theme_id_to_point_or(
 			return stl->g_data->points_active;
 		case TH_SELECT:
 			return stl->g_data->points_select;
-		case TH_GROUP:
-			return stl->g_data->points_select_group;
-		case TH_GROUP_ACTIVE:
-			return stl->g_data->points_active_group;
 		case TH_TRANSFORM:
 			return stl->g_data->points_transform;
 		default:
@@ -908,19 +865,15 @@ static void OBJECT_cache_init(void *vedata)
 
 		/* Select */
 		g_data->outlines_select = shgroup_outline(psl->outlines, &g_data->id_ofs_select, sh);
-		g_data->outlines_select_group = shgroup_outline(psl->outlines, &g_data->id_ofs_select_group, sh);
 
 		/* Transform */
 		g_data->outlines_transform = shgroup_outline(psl->outlines, &g_data->id_ofs_transform, sh);
 
 		/* Active */
 		g_data->outlines_active = shgroup_outline(psl->outlines, &g_data->id_ofs_active, sh);
-		g_data->outlines_active_group = shgroup_outline(psl->outlines, &g_data->id_ofs_active_group, sh);
 
 		g_data->id_ofs_select = 0;
-		g_data->id_ofs_select_group = 0;
 		g_data->id_ofs_active = 0;
-		g_data->id_ofs_active_group = 0;
 		g_data->id_ofs_transform = 0;
 	}
 
@@ -932,22 +885,16 @@ static void OBJECT_cache_init(void *vedata)
 
 		/* Cubemap */
 		g_data->lightprobes_cube_select       = shgroup_instance_outline(pass, sphere, &g_data->id_ofs_prb_select);
-		g_data->lightprobes_cube_select_group = shgroup_instance_outline(pass, sphere, &g_data->id_ofs_prb_select_group);
 		g_data->lightprobes_cube_active       = shgroup_instance_outline(pass, sphere, &g_data->id_ofs_prb_active);
-		g_data->lightprobes_cube_active_group = shgroup_instance_outline(pass, sphere, &g_data->id_ofs_prb_active_group);
 		g_data->lightprobes_cube_transform    = shgroup_instance_outline(pass, sphere, &g_data->id_ofs_prb_transform);
 
 		/* Planar */
 		g_data->lightprobes_planar_select       = shgroup_instance_outline(pass, quad, &g_data->id_ofs_prb_select);
-		g_data->lightprobes_planar_select_group = shgroup_instance_outline(pass, quad, &g_data->id_ofs_prb_select_group);
 		g_data->lightprobes_planar_active       = shgroup_instance_outline(pass, quad, &g_data->id_ofs_prb_active);
-		g_data->lightprobes_planar_active_group = shgroup_instance_outline(pass, quad, &g_data->id_ofs_prb_active_group);
 		g_data->lightprobes_planar_transform    = shgroup_instance_outline(pass, quad, &g_data->id_ofs_prb_transform);
 
 		g_data->id_ofs_prb_select = 0;
-		g_data->id_ofs_prb_select_group = 0;
 		g_data->id_ofs_prb_active = 0;
-		g_data->id_ofs_prb_active_group = 0;
 		g_data->id_ofs_prb_transform = 0;
 	}
 
@@ -967,7 +914,7 @@ static void OBJECT_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(grp, "sceneDepth", &dtxl->depth);
 		DRW_shgroup_uniform_block(grp, "globalsBlock", globals_ubo);
 		DRW_shgroup_uniform_float(grp, "alphaOcclu", &alphaOcclu, 1);
-		DRW_shgroup_uniform_int(grp, "idOffsets", &stl->g_data->id_ofs_active, 5);
+		DRW_shgroup_uniform_int(grp, "idOffsets", &stl->g_data->id_ofs_active, 3);
 		DRW_shgroup_call_add(grp, quad, NULL);
 
 		psl->outlines_expand = DRW_pass_create("Outlines Expand Pass", state);
@@ -1164,14 +1111,12 @@ static void OBJECT_cache_init(void *vedata)
 
 		/* Select */
 		stl->g_data->wire_select = shgroup_wire(psl->non_meshes, ts.colorSelect, sh);
-		stl->g_data->wire_select_group = shgroup_wire(psl->non_meshes, ts.colorGroupActive, sh);
 
 		/* Transform */
 		stl->g_data->wire_transform = shgroup_wire(psl->non_meshes, ts.colorTransform, sh);
 
 		/* Active */
 		stl->g_data->wire_active = shgroup_wire(psl->non_meshes, ts.colorActive, sh);
-		stl->g_data->wire_active_group = shgroup_wire(psl->non_meshes, ts.colorGroupActive, sh);
 	}
 
 
@@ -1183,14 +1128,12 @@ static void OBJECT_cache_init(void *vedata)
 
 		/* Select */
 		stl->g_data->points_select = shgroup_points(psl->non_meshes, ts.colorSelect, sh);
-		stl->g_data->points_select_group = shgroup_points(psl->non_meshes, ts.colorGroupActive, sh);
 
 		/* Transform */
 		stl->g_data->points_transform = shgroup_points(psl->non_meshes, ts.colorTransform, sh);
 
 		/* Active */
 		stl->g_data->points_active = shgroup_points(psl->non_meshes, ts.colorActive, sh);
-		stl->g_data->points_active_group = shgroup_points(psl->non_meshes, ts.colorGroupActive, sh);
 	}
 
 	{
@@ -1210,7 +1153,6 @@ static void OBJECT_cache_init(void *vedata)
 		stl->g_data->lamp_buflimit = shgroup_distance_lines_instance(psl->non_meshes, geom);
 
 		stl->g_data->lamp_center = shgroup_dynpoints_uniform_color(psl->non_meshes, ts.colorLampNoAlpha, &ts.sizeLampCenter);
-		stl->g_data->lamp_center_group = shgroup_dynpoints_uniform_color(psl->non_meshes, ts.colorGroup, &ts.sizeLampCenter);
 
 		geom = DRW_cache_lamp_get();
 		stl->g_data->lamp_circle = shgroup_instance_screenspace(psl->non_meshes, geom, &ts.sizeLampCircle);
@@ -1387,9 +1329,7 @@ static void DRW_shgroup_lamp(OBJECT_StorageList *stl, Object *ob, ViewLayer *vie
 	float (*spotblendmat)[4] = lamp_engine_data->spot_blend_mat;
 
 	/* Don't draw the center if it's selected or active */
-	if (theme_id == TH_GROUP)
-		DRW_shgroup_call_dynamic_add(stl->g_data->lamp_center_group, ob->obmat[3]);
-	else if (theme_id == TH_LAMP)
+	if (theme_id == TH_LAMP)
 		DRW_shgroup_call_dynamic_add(stl->g_data->lamp_center, ob->obmat[3]);
 
 	/* First circle */
@@ -2071,9 +2011,6 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		return;
 	}
 
-	//CollectionEngineSettings *ces_mode_ob = BKE_layer_collection_engine_evaluated_get(ob, COLLECTION_MODE_OBJECT, "");
-
-	//bool do_wire = BKE_collection_engine_property_value_get_bool(ces_mode_ob, "show_wire");
 	bool do_outlines = ((ob->base_flag & BASE_SELECTED) != 0);
 
 	if (do_outlines) {
@@ -2229,19 +2166,15 @@ static void OBJECT_draw_scene(void *vedata)
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
 	int id_ct_select =       g_data->id_ofs_select;
-	int id_ct_select_group = g_data->id_ofs_select_group;
 	int id_ct_active =       g_data->id_ofs_active;
-	int id_ct_active_group = g_data->id_ofs_active_group;
 	int id_ct_transform =    g_data->id_ofs_transform;
 
 	int id_ct_prb_select =       g_data->id_ofs_prb_select;
-	int id_ct_prb_select_group = g_data->id_ofs_prb_select_group;
 	int id_ct_prb_active =       g_data->id_ofs_prb_active;
-	int id_ct_prb_active_group = g_data->id_ofs_prb_active_group;
 	int id_ct_prb_transform =    g_data->id_ofs_prb_transform;
 
-	int outline_calls = id_ct_select + id_ct_select_group + id_ct_active + id_ct_active_group + id_ct_transform;
-	outline_calls += id_ct_prb_select + id_ct_prb_select_group + id_ct_prb_active + id_ct_prb_active_group + id_ct_prb_transform;
+	int outline_calls = id_ct_select + id_ct_active + id_ct_transform;
+	outline_calls += id_ct_prb_select + id_ct_prb_active + id_ct_prb_transform;
 
 	float clearcol[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
@@ -2263,15 +2196,11 @@ static void OBJECT_draw_scene(void *vedata)
 		DRW_stats_group_start("Outlines");
 
 		g_data->id_ofs_active = 1;
-		g_data->id_ofs_active_group = g_data->id_ofs_active       + id_ct_active       + id_ct_prb_active + 1;
-		g_data->id_ofs_select =       g_data->id_ofs_active_group + id_ct_active_group + id_ct_prb_active_group + 1;
-		g_data->id_ofs_select_group = g_data->id_ofs_select       + id_ct_select       + id_ct_prb_select + 1;
-		g_data->id_ofs_transform =    g_data->id_ofs_select_group + id_ct_select_group + id_ct_prb_select_group + 1;
+		g_data->id_ofs_select =    g_data->id_ofs_active + id_ct_active + id_ct_prb_active + 1;
+		g_data->id_ofs_transform = g_data->id_ofs_select + id_ct_select + id_ct_prb_select + 1;
 
 		g_data->id_ofs_prb_active =       g_data->id_ofs_active       + id_ct_active;
-		g_data->id_ofs_prb_active_group = g_data->id_ofs_active_group + id_ct_active_group;
 		g_data->id_ofs_prb_select =       g_data->id_ofs_select       + id_ct_select;
-		g_data->id_ofs_prb_select_group = g_data->id_ofs_select_group + id_ct_select_group;
 		g_data->id_ofs_prb_transform =    g_data->id_ofs_transform    + id_ct_transform;
 
 		/* Render filled polygon on a separate framebuffer */
@@ -2320,15 +2249,6 @@ static void OBJECT_draw_scene(void *vedata)
 		BLI_ghash_free(stl->g_data->image_plane_map, NULL, MEM_freeN);
 		stl->g_data->image_plane_map = NULL;
 	}
-}
-
-void OBJECT_collection_settings_create(IDProperty *props)
-{
-	BLI_assert(props &&
-	           props->type == IDP_GROUP &&
-	           props->subtype == IDP_GROUP_SUB_MODE_OBJECT);
-	BKE_collection_engine_property_add_int(props, "show_wire", false);
-	BKE_collection_engine_property_add_int(props, "show_backface_culling", false);
 }
 
 static const DrawEngineDataSize OBJECT_data_size = DRW_VIEWPORT_DATA_SIZE(OBJECT_Data);

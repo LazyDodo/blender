@@ -44,7 +44,6 @@ struct bGPdata;
 struct SmoothView3DStore;
 struct wmTimer;
 struct Material;
-struct GPUFX;
 struct GPUViewport;
 
 /* This is needed to not let VC choke on near and far... old
@@ -66,38 +65,6 @@ struct GPUViewport;
 
 /* The near/far thing is a Win EXCEPTION. Thus, leave near/far in the
  * code, and patch for windows. */
-
-typedef struct View3DDebug {
-	float znear, zfar;
-	char background;
-	char pad[7];
-} View3DDebug;
-
-/* ********************************* */
-enum {
-	V3D_LIGHTING_FLAT   = 0,
-	V3D_LIGHTING_STUDIO = 1,
-	V3D_LIGHTING_SCENE  = 2
-};
-
-/* 
- * V3D_DRAWOPTION_OBJECT_COLOR, V3D_DRAWOPTION_OBJECT_OVERLAP, 
- * V3D_DRAWOPTION_SINGLE_COLOR, V3D_DRAWOPTION_MATERIAL_COLOR are mutual exclusive
-*/
-enum {
-	V3D_DRAWOPTION_MATERIAL_COLOR = (0 << 0),
-	V3D_DRAWOPTION_RANDOMIZE      = (1 << 0),
-	V3D_DRAWOPTION_OBJECT_OVERLAP = (1 << 1),
-	V3D_DRAWOPTION_SINGLE_COLOR   = (1 << 2),
-	V3D_DRAWOPTION_OBJECT_COLOR   = (1 << 4),
-	V3D_DRAWOPTION_SHADOW         = (1 << 5),
-};
-#define V3D_DRAWOPTION_SOLID_COLOR_MASK (V3D_DRAWOPTION_SINGLE_COLOR | V3D_DRAWOPTION_RANDOMIZE | V3D_DRAWOPTION_OBJECT_COLOR | V3D_DRAWOPTION_MATERIAL_COLOR)
-
-enum {
-	V3D_OVERLAY_FACE_ORIENTATION = (1 << 0),
-	V3D_OVERLAY_HIDE_CURSOR      = (1 << 1),
-};
 
 typedef struct RegionView3D {
 	
@@ -162,9 +129,33 @@ typedef struct RegionView3D {
 	/* active rotation from NDOF or elsewhere */
 	float rot_angle;
 	float rot_axis[3];
-
-	struct GPUFX *compositor;
 } RegionView3D;
+
+/* 3D Viewport Shading setings */
+typedef struct View3DShading {
+	short flag;
+	short color_type;
+
+	short light;
+	short studio_light;
+
+	float shadow_intensity;
+	float single_color[3];
+} View3DShading;
+
+/* 3D Viewport Overlay setings */
+typedef struct View3DOverlay {
+	int flag;
+
+	/* Edit mode settings */
+	int edit_flag;
+	float normals_length;
+	float backwire_opacity;
+
+	/* Paint mode settings */
+	int paint_flag;
+	int pad;
+} View3DOverlay;
 
 /* 3D ViewPort Struct */
 typedef struct View3D {
@@ -197,13 +188,9 @@ typedef struct View3D {
 	unsigned int lay;
 	int layact;
 	
-	/**
-	 * The drawing mode for the 3d display. Set to OB_BOUNDBOX, OB_WIRE, OB_SOLID,
-	 * OB_TEXTURE, OB_MATERIAL or OB_RENDER */
-	short drawtype;
 	short ob_centre_cursor;		/* optional bool for 3d cursor to define center */
 	short scenelock, around;
-	short flag, flag2;
+	short flag, flag2, pad2;
 	
 	float lens, grid;
 	float near, far;
@@ -221,11 +208,6 @@ typedef struct View3D {
 	
 	short flag3;
 
-	/* afterdraw, for xray & transparent */
-	struct ListBase afterdraw_transp;
-	struct ListBase afterdraw_xray;
-	struct ListBase afterdraw_xraytransp;
-
 	/* drawflags, denoting state */
 	char zbuf, transp, xray;
 
@@ -238,15 +220,13 @@ typedef struct View3D {
 	struct GPUFXSettings fx_settings;
 
 	void *properties_storage;		/* Nkey panel stores stuff here (runtime only!) */
-	/* Allocated per view, not library data (used by matcap). */
-	struct Material *defmaterial;
 
 	/* XXX deprecated? */
 	struct bGPdata *gpd  DNA_DEPRECATED;		/* Grease-Pencil Data (annotation layers) */
 	int gpencil_grid_size[2];
 	float gpencil_paper_color[4];
 
-	 /* multiview - stereo 3d */
+	/* Stereoscopy settings */
 	short stereo3d_flag;
 	char stereo3d_camera;
 	char pad4;
@@ -254,21 +234,13 @@ typedef struct View3D {
 	float stereo3d_volume_alpha;
 	float stereo3d_convergence_alpha;
 
-	/* Previous viewport draw type.
-	 * Runtime-only, set in the rendered viewport toggle operator.
-	 */
-	short prev_drawtype;
-	/* drawtype options (lighting, random) used for drawtype == OB_SOLID */
-	short drawtype_lighting;
-	short drawtype_options;
-	short drawtype_studiolight;
-	float drawtype_ambient_intensity;
-	float drawtype_single_color[3];
-	int overlays;
-
+	/* Display settings */
+	short drawtype;         /* Shading mode (OB_SOLID, OB_TEXTURE, ..) */
+	short prev_drawtype;    /* Runtime, for toggle between rendered viewport. */
 	int pad5;
 
-	View3DDebug debug;
+	View3DShading shading;
+	View3DOverlay overlay;
 } View3D;
 
 
@@ -346,11 +318,47 @@ typedef struct View3D {
 #define V3D_GP_SHOW_PAPER       (1 << 2) /* Activate paper to cover all viewport */
 #define V3D_GP_SHOW_GRID        (1 << 3) /* Activate paper grid */
 
-/* View3d->debug.background */
+/* View3DShading->light */
 enum {
-	V3D_DEBUG_BACKGROUND_NONE     = (1 << 0),
-	V3D_DEBUG_BACKGROUND_GRADIENT = (1 << 1),
-	V3D_DEBUG_BACKGROUND_WORLD    = (1 << 2),
+	V3D_LIGHTING_FLAT   = 0,
+	V3D_LIGHTING_STUDIO = 1,
+	V3D_LIGHTING_SCENE  = 2
+};
+
+/* View3DShading->flag */
+enum {
+	V3D_SHADING_OBJECT_OVERLAP = (1 << 0),
+	V3D_SHADING_SHADOW         = (1 << 2),
+};
+
+/* View3DShading->single_color_type */
+enum {
+	V3D_SHADING_MATERIAL_COLOR = 0,
+	V3D_SHADING_RANDOM_COLOR   = 1,
+	V3D_SHADING_SINGLE_COLOR   = 2,
+	V3D_SHADING_OBJECT_COLOR   = 3,
+};
+
+/* View3DOverlay->flag */
+enum {
+	V3D_OVERLAY_FACE_ORIENTATION  = (1 << 0),
+	V3D_OVERLAY_HIDE_CURSOR       = (1 << 1),
+};
+
+/* View3DOverlay->edit_flag */
+enum {
+	V3D_OVERLAY_EDIT_VERT_NORMALS = (1 << 0),
+	V3D_OVERLAY_EDIT_LOOP_NORMALS = (1 << 1),
+	V3D_OVERLAY_EDIT_FACE_NORMALS = (1 << 2),
+
+	V3D_OVERLAY_EDIT_OCCLUDE_WIRE = (1 << 3),
+
+	V3D_OVERLAY_EDIT_WEIGHT       = (1 << 4),
+};
+
+/* View3DOverlay->paint_flag */
+enum {
+	V3D_OVERLAY_PAINT_WIRE        = (1 << 0),
 };
 
 /* View3D->around */

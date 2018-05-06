@@ -54,7 +54,7 @@ static struct {
 
 	float light_direction[3]; /* world light direction for shadows */
 	int next_object_id;
-} e_data = {NULL};
+} e_data = {{NULL}};
 
 /* Shaders */
 extern char datatoc_workbench_prepass_vert_glsl[];
@@ -72,19 +72,19 @@ extern char datatoc_workbench_world_light_lib_glsl[];
 
 extern DrawEngineType draw_engine_workbench_solid;
 
-#define OBJECT_ID_PASS_ENABLED(wpd) (wpd->drawtype_options & V3D_DRAWOPTION_OBJECT_OVERLAP)
-#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (wpd->drawtype_lighting & V3D_LIGHTING_STUDIO)
-#define SHADOW_ENABLED(wpd) (wpd->drawtype_options & V3D_DRAWOPTION_SHADOW)
+#define OBJECT_ID_PASS_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_OBJECT_OVERLAP)
+#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (wpd->shading.light & V3D_LIGHTING_STUDIO)
+#define SHADOW_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_SHADOW)
 static char *workbench_build_defines(WORKBENCH_PrivateData *wpd)
 {
 	char *str = NULL;
 
 	DynStr *ds = BLI_dynstr_new();
 
-	if (wpd->drawtype_options & V3D_DRAWOPTION_OBJECT_OVERLAP) {
-		BLI_dynstr_appendf(ds, "#define V3D_DRAWOPTION_OBJECT_OVERLAP\n");
+	if (wpd->shading.flag & V3D_SHADING_OBJECT_OVERLAP) {
+		BLI_dynstr_appendf(ds, "#define V3D_SHADING_OBJECT_OVERLAP\n");
 	}
-	if (wpd->drawtype_lighting & V3D_LIGHTING_STUDIO) {
+	if (wpd->shading.light & V3D_LIGHTING_STUDIO) {
 		BLI_dynstr_appendf(ds, "#define V3D_LIGHTING_STUDIO\n");
 	}
 
@@ -107,10 +107,10 @@ static char *workbench_build_composite_frag(WORKBENCH_PrivateData *wpd)
 	BLI_dynstr_append(ds, datatoc_workbench_common_lib_glsl);
 	BLI_dynstr_append(ds, datatoc_workbench_background_lib_glsl);
 
-	if (wpd->drawtype_lighting & V3D_LIGHTING_STUDIO) {
+	if (wpd->shading.light & V3D_LIGHTING_STUDIO) {
 		BLI_dynstr_append(ds, datatoc_workbench_world_light_lib_glsl);
 	}
-	if (wpd->drawtype_options & V3D_DRAWOPTION_OBJECT_OVERLAP) {
+	if (wpd->shading.flag & V3D_SHADING_OBJECT_OVERLAP) {
 		BLI_dynstr_append(ds, datatoc_workbench_object_overlap_lib_glsl);
 	}
 
@@ -137,9 +137,9 @@ static char *workbench_build_prepass_frag(void)
 
 static int get_shader_index(WORKBENCH_PrivateData *wpd)
 {
-	const int DRAWOPTIONS_MASK = V3D_DRAWOPTION_OBJECT_OVERLAP;
-	int index = (wpd->drawtype_options & DRAWOPTIONS_MASK);
-	index = (index << 2) + wpd->drawtype_lighting;
+	const int DRAWOPTIONS_MASK = V3D_SHADING_OBJECT_OVERLAP;
+	int index = (wpd->shading.flag & DRAWOPTIONS_MASK);
+	index = (index << 2) + wpd->shading.light;
 	return index;
 }
 
@@ -163,19 +163,14 @@ static void select_deferred_shaders(WORKBENCH_PrivateData *wpd)
 }
 
 /* Functions */
-static uint get_material_hash(WORKBENCH_PrivateData *wpd, WORKBENCH_MaterialData *material_template)
+static uint get_material_hash(WORKBENCH_MaterialData *material_template)
 {
 	uint input[4];
 	float *color = material_template->color;
 	input[0] = (uint)(color[0] * 512);
 	input[1] = (uint)(color[1] * 512);
 	input[2] = (uint)(color[2] * 512);
-
-	/* Only hash object id when needed */
-	input[3] = (uint)0;
-	if (OBJECT_ID_PASS_ENABLED(wpd)) {
-		input[3] = material_template->object_id;
-	}
+	input[3] = material_template->object_id;
 
 	return BLI_ghashutil_uinthash_v4_murmur(input);
 }
@@ -189,10 +184,10 @@ static void workbench_init_object_data(ObjectEngineData *engine_data)
 static void get_material_solid_color(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, float *color, float hsv_saturation, float hsv_value)
 {
 	static float default_color[] = {1.0f, 1.0f, 1.0f};
-	if (DRW_object_is_paint_mode(ob) || wpd->drawtype_options & V3D_DRAWOPTION_SINGLE_COLOR) {
-		copy_v3_v3(color, wpd->drawtype_single_color);
+	if (DRW_object_is_paint_mode(ob) || wpd->shading.color_type == V3D_SHADING_SINGLE_COLOR) {
+		copy_v3_v3(color, wpd->shading.single_color);
 	}
-	else if (wpd->drawtype_options & V3D_DRAWOPTION_RANDOMIZE) {
+	else if (wpd->shading.color_type == V3D_SHADING_RANDOM_COLOR) {
 		uint hash = BLI_ghashutil_strhash_p_murmur(ob->id.name);
 		if (ob->id.lib) {
 			hash = (hash * 13) ^ BLI_ghashutil_strhash_p_murmur(ob->id.lib->name);
@@ -202,11 +197,11 @@ static void get_material_solid_color(WORKBENCH_PrivateData *wpd, Object *ob, Mat
 		float hsv[3] = {offset, hsv_saturation, hsv_value};
 		hsv_to_rgb_v(hsv, color);
 	}
-	else if (wpd->drawtype_options & V3D_DRAWOPTION_OBJECT_COLOR) {
+	else if (wpd->shading.color_type == V3D_SHADING_OBJECT_COLOR) {
 		copy_v3_v3(color, ob->col);
 	}
 	else {
-		/* V3D_DRAWOPTION_MATERIAL_COLOR */
+		/* V3D_SHADING_MATERIAL_COLOR */
 		if (mat) {
 			copy_v3_v3(color, &mat->r);
 		}
@@ -277,12 +272,8 @@ void workbench_materials_engine_free()
 
 static void workbench_composite_uniforms(WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp)
 {
-	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-	DRW_shgroup_uniform_texture_ref(grp, "depthBuffer", &dtxl->depth);
 	DRW_shgroup_uniform_texture_ref(grp, "colorBuffer", &e_data.color_buffer_tx);
-	if (OBJECT_ID_PASS_ENABLED(wpd)) {
-		DRW_shgroup_uniform_texture_ref(grp, "objectId", &e_data.object_id_tx);
-	}
+	DRW_shgroup_uniform_texture_ref(grp, "objectId", &e_data.object_id_tx);
 	if (NORMAL_VIEWPORT_PASS_ENABLED(wpd)) {
 		DRW_shgroup_uniform_texture_ref(grp, "normalBuffer", &e_data.normal_buffer_tx);
 	}
@@ -298,8 +289,8 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 	DRWShadingGroup *grp;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_WORKBENCH);
-	static float light_multiplier = 1.0f;
+	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_WORKBENCH);
+	static float shadow_multiplier = 0.0f;
 
 	const DRWContextState *DCS = DRW_context_state_get();
 
@@ -307,18 +298,13 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 
 	View3D *v3d = DCS->v3d;
 	if (v3d) {
-		wpd->drawtype_lighting = v3d->drawtype_lighting;
-		wpd->drawtype_options = v3d->drawtype_options;
-		wpd->drawtype_studiolight = v3d->drawtype_studiolight;
-		wpd->drawtype_ambient_intensity = v3d->drawtype_ambient_intensity;
-		copy_v3_v3(wpd->drawtype_single_color, v3d->drawtype_single_color);
+		wpd->shading = v3d->shading;
 	}
 	else {
-		wpd->drawtype_lighting = V3D_LIGHTING_STUDIO;
-		wpd->drawtype_options = 0;
-		wpd->drawtype_studiolight = 0;
-		wpd->drawtype_ambient_intensity = 0.5;
-		copy_v3_fl(wpd->drawtype_single_color, 1.0f);
+		memset(&wpd->shading, 0, sizeof(wpd->shading));
+		wpd->shading.light = V3D_LIGHTING_STUDIO;
+		wpd->shading.shadow_intensity = 0.5;
+		copy_v3_fl(wpd->shading.single_color, 0.8f);
 	}
 
 	select_deferred_shaders(wpd);
@@ -327,7 +313,13 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 		WORKBENCH_UBO_World *wd = &wpd->world_data;
 		UI_GetThemeColor3fv(UI_GetThemeValue(TH_SHOW_BACK_GRAD) ? TH_LOW_GRAD:TH_HIGH_GRAD, wd->background_color_low);
 		UI_GetThemeColor3fv(TH_HIGH_GRAD, wd->background_color_high);
-		studiolight_update_world(wpd->drawtype_studiolight, wd);
+
+		/* XXX: Really quick conversion to avoid washed out background.
+		 * Needs to be adressed properly (color managed using ocio). */
+		srgb_to_linearrgb_v3_v3(wd->background_color_high, wd->background_color_high);
+		srgb_to_linearrgb_v3_v3(wd->background_color_low, wd->background_color_low);
+
+		studiolight_update_world(wpd->shading.studio_light, wd);
 
 		wpd->world_ubo = DRW_uniformbuffer_create(sizeof(WORKBENCH_UBO_World), NULL);
 		DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
@@ -340,7 +332,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 			grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_pass);
 			workbench_composite_uniforms(wpd, grp);
 			DRW_shgroup_stencil_mask(grp, 0x00);
-			DRW_shgroup_uniform_float(grp, "lightMultiplier", &light_multiplier, 1);
+			DRW_shgroup_uniform_float(grp, "shadowMultiplier", &shadow_multiplier, 1);
 			DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 
 #ifdef DEBUG_SHADOW_VOLUME
@@ -360,7 +352,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 			grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_shadow_pass);
 			DRW_shgroup_stencil_mask(grp, 0x00);
 			workbench_composite_uniforms(wpd, grp);
-			DRW_shgroup_uniform_float(grp, "lightMultiplier", &wpd->drawtype_ambient_intensity, 1);
+			DRW_shgroup_uniform_float(grp, "shadowMultiplier", &wpd->shading.shadow_intensity, 1);
 			DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 #endif
 		}
@@ -368,7 +360,7 @@ void workbench_materials_cache_init(WORKBENCH_Data *vedata)
 			psl->composite_pass = DRW_pass_create("Composite", DRW_STATE_WRITE_COLOR);
 			grp = DRW_shgroup_create(wpd->composite_sh, psl->composite_pass);
 			workbench_composite_uniforms(wpd, grp);
-			DRW_shgroup_uniform_float(grp, "lightMultiplier", &light_multiplier, 1);
+			DRW_shgroup_uniform_float(grp, "shadowMultiplier", &shadow_multiplier, 1);
 			DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 		}
 	}
@@ -390,7 +382,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(WORKBENCH_Data *vedat
 	get_material_solid_color(wpd, ob, mat, color, hsv_saturation, hsv_value);
 	copy_v3_v3(material_template.color, color);
 	material_template.object_id = engine_object_data->object_id;
-	unsigned int hash = get_material_hash(wpd, &material_template);
+	unsigned int hash = get_material_hash(&material_template);
 
 	material = BLI_ghash_lookup(wpd->material_hash, SET_UINT_IN_POINTER(hash));
 	if (material == NULL) {
@@ -445,7 +437,7 @@ void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob
 	if (!DRW_object_is_renderable(ob))
 		return;
 
-	IDProperty *props = BKE_layer_collection_engine_evaluated_get(ob, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_WORKBENCH);
+	IDProperty *props = BKE_layer_collection_engine_evaluated_get(ob, RE_engine_id_BLENDER_WORKBENCH);
 	if (ob->type == OB_MESH) {
 		workbench_cache_populate_particles(vedata, props, ob);
 	}
@@ -456,7 +448,7 @@ void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob
 		const bool is_active = (ob == draw_ctx->obact);
 		const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;
 
-		if ((vedata->stl->g_data->drawtype_options & V3D_DRAWOPTION_SOLID_COLOR_MASK) != 0 || is_sculpt_mode) {
+		if (vedata->stl->g_data->shading.color_type != V3D_SHADING_MATERIAL_COLOR || is_sculpt_mode) {
 			/* No material split needed */
 			struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
 			if (geom) {
@@ -509,8 +501,7 @@ void workbench_materials_draw_background(WORKBENCH_Data *vedata)
 	unsigned int clear_stencil = 0xFF;
 
 	GPU_framebuffer_bind(fbl->prepass_fb);
-	int clear_bits = GPU_DEPTH_BIT;
-	SET_FLAG_FROM_TEST(clear_bits, OBJECT_ID_PASS_ENABLED(wpd), GPU_COLOR_BIT);
+	int clear_bits = GPU_DEPTH_BIT | GPU_COLOR_BIT;
 	SET_FLAG_FROM_TEST(clear_bits, SHADOW_ENABLED(wpd), GPU_STENCIL_BIT);
 	GPU_framebuffer_clear(fbl->prepass_fb, clear_bits, clear_color, clear_depth, clear_stencil);
 }

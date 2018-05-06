@@ -150,13 +150,10 @@ bool DRW_object_is_renderable(Object *ob)
 
 	if (ob->type == OB_MESH) {
 		if (ob == DST.draw_ctx.object_edit) {
-			IDProperty *props = BKE_layer_collection_engine_evaluated_get(ob, COLLECTION_MODE_EDIT, "");
-			bool do_show_occlude_wire = BKE_collection_engine_property_value_get_bool(props, "show_occlude_wire");
-			if (do_show_occlude_wire) {
-				return false;
-			}
-			bool do_show_weight = BKE_collection_engine_property_value_get_bool(props, "show_weight");
-			if (do_show_weight) {
+			View3D *v3d = DST.draw_ctx.v3d;
+			const int mask = (V3D_OVERLAY_EDIT_OCCLUDE_WIRE | V3D_OVERLAY_EDIT_WEIGHT);
+
+			if (v3d && v3d->overlay.edit_flag & mask) {
 				return false;
 			}
 		}
@@ -320,6 +317,8 @@ void DRW_multisamples_resolve(GPUTexture *src_depth, GPUTexture *src_color)
 		case 16: builtin = GPU_SHADER_2D_IMAGE_MULTISAMPLE_16; break;
 		default:
 			BLI_assert(0);
+			builtin = GPU_SHADER_2D_IMAGE_MULTISAMPLE_2;
+			break;
 	}
 
 	GWN_batch_program_set_builtin(geom, builtin);
@@ -981,7 +980,7 @@ static void drw_engines_enable_external(void)
 /* TODO revisit this when proper layering is implemented */
 /* Gather all draw engines needed and store them in DST.enabled_engines
  * That also define the rendering order of engines */
-static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int drawtype, int UNUSED(drawtype_lighting))
+static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int drawtype)
 {
 	switch (drawtype) {
 		case OB_WIRE:
@@ -1065,9 +1064,9 @@ static void drw_engines_enable_from_mode(int mode)
 	use_drw_engine(&draw_engine_gpencil_type);
 }
 
-static void drw_engines_enable_from_overlays(int draw_overlays)
+static void drw_engines_enable_from_overlays(int overlay_flag)
 {
-	if (draw_overlays) {
+	if (overlay_flag) {
 		use_drw_engine(&draw_engine_overlay_type);
 	}
 }
@@ -1085,12 +1084,11 @@ static void drw_engines_enable(ViewLayer *view_layer, RenderEngineType *engine_t
 	const int mode = CTX_data_mode_enum_ex(DST.draw_ctx.object_edit, obact, DST.draw_ctx.object_mode);
 	View3D * v3d = DST.draw_ctx.v3d;
 	const int drawtype = v3d->drawtype;
-	const int drawtype_lighting = v3d->drawtype_lighting;
 
-	drw_engines_enable_from_engine(engine_type, drawtype, drawtype_lighting);
+	drw_engines_enable_from_engine(engine_type, drawtype);
 
 	if (DRW_state_draw_support()) {
-		drw_engines_enable_from_overlays(v3d->overlays);
+		drw_engines_enable_from_overlays(v3d->overlay.flag);
 		drw_engines_enable_from_object_mode();
 		drw_engines_enable_from_mode(mode);
 	}

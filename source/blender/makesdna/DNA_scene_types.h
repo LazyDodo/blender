@@ -1235,7 +1235,6 @@ typedef struct ToolSettings {
 	float vgroup_weight;
 
 	float doublimit;	/* remove doubles limit */
-	float normalsize;	/* size of normals */
 	short automerge;
 
 	/* Selection Mode for Mesh */
