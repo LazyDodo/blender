@@ -94,7 +94,7 @@ int GPENCIL_depth_of_field_init(DrawEngineType *draw_engine_gpencil_type, GPENCI
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_EEVEE);
 
 	Scene *scene = draw_ctx->scene;
 	RegionView3D *rv3d = draw_ctx->rv3d;

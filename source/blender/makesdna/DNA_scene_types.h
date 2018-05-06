@@ -1261,7 +1261,7 @@ typedef struct ToolSettings {
 	char gpencil_ima_align; /*                          : Image Editor */
 
 	short gpencil_simplify; /* simplify flags for grease pencil */
-	char pad6[6];
+	char pad6[2];
 
 	/* Grease Pencil Sculpt */
 	struct GP_BrushEdit_Settings gp_sculpt;
