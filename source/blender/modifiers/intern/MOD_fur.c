@@ -110,15 +110,14 @@ static void freeData(ModifierData *md)
 	BLI_freelistN(&fmd->guide_curves);
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx),
-                                  Object *UNUSED(ob), DerivedMesh *dm,
-                                  ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
+                                  DerivedMesh *derivedData)
 {
 	FurModifierData *fmd = (FurModifierData *) md;
 	
-	UNUSED_VARS(fmd);
+	UNUSED_VARS(fmd, ctx);
 	
-	return dm;
+	return derivedData;
 }
 
 static void foreachObjectLink(
