@@ -110,11 +110,199 @@ static void InterpolateKeySegments(int seg,
 		curveinterp_v3_v3v3v3v3(keyloc, &ckey_loc1, &ckey_loc2, &ckey_loc3, &ckey_loc4, t);
 }
 
-static bool ObtainCacheParticleData(Mesh *mesh,
-                                    BL::Mesh *b_mesh,
-                                    BL::Object *b_ob,
-                                    ParticleCurveData *CData,
-                                    bool background)
+static void ObtainCacheDataFromParticleSystem(Mesh *mesh,
+                                              BL::Object *b_ob,
+                                              BL::ParticleSystemModifier *b_psmd,
+                                              ParticleCurveData *CData,
+                                              bool background,
+                                              int *curvenum,
+                                              int *keyno)
+{
+	BL::ParticleSystem b_psys((const PointerRNA)b_psmd->particle_system().ptr);
+	BL::ParticleSettings b_part((const PointerRNA)b_psys.settings().ptr);
+
+	Transform tfm = get_transform(b_ob->matrix_world());
+	Transform itfm = transform_quick_inverse(tfm);
+
+	if((b_part.type() != BL::ParticleSettings::type_HAIR) ||
+	   (b_part.render_type() != BL::ParticleSettings::render_type_PATH))
+	{
+		return;
+	}
+	
+	int shader = clamp(b_part.material()-1, 0, mesh->used_shaders.size()-1);
+	int draw_step = background ? b_part.render_step() : b_part.draw_step();
+	int totparts = b_psys.particles.length();
+	int totchild = background ? b_psys.child_particles.length() : (int)((float)b_psys.child_particles.length() * (float)b_part.draw_percentage() / 100.0f);
+	int totcurves = totchild;
+	
+	if(b_part.child_type() == 0 || totchild == 0)
+		totcurves += totparts;
+	
+	if(totcurves == 0)
+		return;
+	
+	int ren_step = (1 << draw_step) + 1;
+	if(b_part.kink() == BL::ParticleSettings::kink_SPIRAL)
+		ren_step += b_part.kink_extra_steps();
+	
+	PointerRNA cpsys = RNA_pointer_get(&b_part.ptr, "cycles");
+	
+	CData->psys_firstcurve.push_back_slow(*curvenum);
+	CData->psys_curvenum.push_back_slow(totcurves);
+	CData->psys_shader.push_back_slow(shader);
+	
+	float radius = get_float(cpsys, "radius_scale") * 0.5f;
+	
+	CData->psys_rootradius.push_back_slow(radius * get_float(cpsys, "root_width"));
+	CData->psys_tipradius.push_back_slow(radius * get_float(cpsys, "tip_width"));
+	CData->psys_shape.push_back_slow(get_float(cpsys, "shape"));
+	CData->psys_closetip.push_back_slow(get_boolean(cpsys, "use_closetip"));
+	
+	int pa_no = 0;
+	if(!(b_part.child_type() == 0) && totchild != 0)
+		pa_no = totparts;
+	
+	int num_add = (totparts+totchild - pa_no);
+	CData->curve_firstkey.reserve(CData->curve_firstkey.size() + num_add);
+	CData->curve_keynum.reserve(CData->curve_keynum.size() + num_add);
+	CData->curve_length.reserve(CData->curve_length.size() + num_add);
+	CData->curvekey_co.reserve(CData->curvekey_co.size() + num_add*ren_step);
+	CData->curvekey_time.reserve(CData->curvekey_time.size() + num_add*ren_step);
+	
+	for(; pa_no < totparts+totchild; pa_no++) {
+		int keynum = 0;
+		CData->curve_firstkey.push_back_slow(*keyno);
+		
+		float curve_length = 0.0f;
+		float3 pcKey;
+		for(int step_no = 0; step_no < ren_step; step_no++) {
+			float nco[3];
+			b_psys.co_hair(*b_ob, pa_no, step_no, nco);
+			float3 cKey = make_float3(nco[0], nco[1], nco[2]);
+			cKey = transform_point(&itfm, cKey);
+			if(step_no > 0) {
+				float step_length = len(cKey - pcKey);
+				if(step_length == 0.0f)
+					continue;
+				curve_length += step_length;
+			}
+			CData->curvekey_co.push_back_slow(cKey);
+			CData->curvekey_time.push_back_slow(curve_length);
+			pcKey = cKey;
+			keynum++;
+		}
+		*keyno += keynum;
+		
+		CData->curve_keynum.push_back_slow(keynum);
+		CData->curve_length.push_back_slow(curve_length);
+		(*curvenum)++;
+	}
+}
+
+static void ObtainCacheUVFromParticleSystem(BL::Mesh *b_mesh,
+                                            BL::ParticleSystemModifier *b_psmd,
+                                            ParticleCurveData *CData,
+                                            bool background,
+                                            int uv_num)
+{
+	BL::ParticleSystem b_psys((const PointerRNA)b_psmd->particle_system().ptr);
+	BL::ParticleSettings b_part((const PointerRNA)b_psys.settings().ptr);
+
+	if((b_part.type() != BL::ParticleSettings::type_HAIR) ||
+	   (b_part.render_type() != BL::ParticleSettings::render_type_PATH))
+	{
+		return;
+	}
+
+	int totparts = b_psys.particles.length();
+	int totchild = background ? b_psys.child_particles.length() : (int)((float)b_psys.child_particles.length() * (float)b_part.draw_percentage() / 100.0f);
+	int totcurves = totchild;
+	
+	if(b_part.child_type() == 0 || totchild == 0)
+		totcurves += totparts;
+	
+	if(totcurves == 0)
+		return;
+	
+	int pa_no = 0;
+	if(!(b_part.child_type() == 0) && totchild != 0)
+		pa_no = totparts;
+	
+	int num_add = (totparts+totchild - pa_no);
+	CData->curve_uv.reserve(CData->curve_uv.size() + num_add);
+	
+	BL::ParticleSystem::particles_iterator b_pa;
+	b_psys.particles.begin(b_pa);
+	for(; pa_no < totparts+totchild; pa_no++) {
+		/* Add UVs */
+		BL::Mesh::tessface_uv_textures_iterator l;
+		b_mesh->tessface_uv_textures.begin(l);
+		
+		float3 uv = make_float3(0.0f, 0.0f, 0.0f);
+		if(b_mesh->tessface_uv_textures.length())
+			b_psys.uv_on_emitter(*b_psmd, *b_pa, pa_no, uv_num, &uv.x);
+		CData->curve_uv.push_back_slow(uv);
+		
+		if(pa_no < totparts && b_pa != b_psys.particles.end())
+			++b_pa;
+	}
+}
+
+static void ObtainCacheVColFromParticleSystem(BL::Mesh *b_mesh,
+                                              BL::ParticleSystemModifier *b_psmd,
+                                              ParticleCurveData *CData,
+                                              bool background,
+                                              int vcol_num)
+{
+	BL::ParticleSystem b_psys((const PointerRNA)b_psmd->particle_system().ptr);
+	BL::ParticleSettings b_part((const PointerRNA)b_psys.settings().ptr);
+
+	if((b_part.type() != BL::ParticleSettings::type_HAIR) ||
+	   (b_part.render_type() != BL::ParticleSettings::render_type_PATH))
+	{
+		return;
+	}
+
+	int totparts = b_psys.particles.length();
+	int totchild = background ? b_psys.child_particles.length() : (int)((float)b_psys.child_particles.length() * (float)b_part.draw_percentage() / 100.0f);
+	int totcurves = totchild;
+	
+	if(b_part.child_type() == 0 || totchild == 0)
+		totcurves += totparts;
+	
+	if(totcurves == 0)
+		return;
+	
+	int pa_no = 0;
+	if(!(b_part.child_type() == 0) && totchild != 0)
+		pa_no = totparts;
+	
+	int num_add = (totparts+totchild - pa_no);
+	CData->curve_vcol.reserve(CData->curve_vcol.size() + num_add);
+	
+	BL::ParticleSystem::particles_iterator b_pa;
+	b_psys.particles.begin(b_pa);
+	for(; pa_no < totparts+totchild; pa_no++) {
+		/* Add vertex colors */
+		BL::Mesh::tessface_vertex_colors_iterator l;
+		b_mesh->tessface_vertex_colors.begin(l);
+		
+		float3 vcol = make_float3(0.0f, 0.0f, 0.0f);
+		if(b_mesh->tessface_vertex_colors.length())
+			b_psys.mcol_on_emitter(*b_psmd, *b_pa, pa_no, vcol_num, &vcol.x);
+		CData->curve_vcol.push_back_slow(vcol);
+		
+		if(pa_no < totparts && b_pa != b_psys.particles.end())
+			++b_pa;
+	}
+}
+
+static bool ObtainCacheDataFromObject(Mesh *mesh,
+                                      BL::Mesh *b_mesh,
+                                      BL::Object *b_ob,
+                                      ParticleCurveData *CData,
+                                      bool background)
 {
 	int curvenum = 0;
 	int keyno = 0;
@@ -122,85 +310,19 @@ static bool ObtainCacheParticleData(Mesh *mesh,
 	if(!(mesh && b_mesh && b_ob && CData))
 		return false;
 
-	Transform tfm = get_transform(b_ob->matrix_world());
-	Transform itfm = transform_quick_inverse(tfm);
-
 	BL::Object::modifiers_iterator b_mod;
 	for(b_ob->modifiers.begin(b_mod); b_mod != b_ob->modifiers.end(); ++b_mod) {
-		if((b_mod->type() == b_mod->type_PARTICLE_SYSTEM) && (background ? b_mod->show_render() : b_mod->show_viewport())) {
-			BL::ParticleSystemModifier psmd((const PointerRNA)b_mod->ptr);
-			BL::ParticleSystem b_psys((const PointerRNA)psmd.particle_system().ptr);
-			BL::ParticleSettings b_part((const PointerRNA)b_psys.settings().ptr);
-
-			if((b_part.render_type() == BL::ParticleSettings::render_type_PATH) && (b_part.type() == BL::ParticleSettings::type_HAIR)) {
-				int shader = clamp(b_part.material()-1, 0, mesh->used_shaders.size()-1);
-				int draw_step = background ? b_part.render_step() : b_part.draw_step();
-				int totparts = b_psys.particles.length();
-				int totchild = background ? b_psys.child_particles.length() : (int)((float)b_psys.child_particles.length() * (float)b_part.draw_percentage() / 100.0f);
-				int totcurves = totchild;
-
-				if(b_part.child_type() == 0 || totchild == 0)
-					totcurves += totparts;
-
-				if(totcurves == 0)
-					continue;
-
-				int ren_step = (1 << draw_step) + 1;
-				if(b_part.kink() == BL::ParticleSettings::kink_SPIRAL)
-					ren_step += b_part.kink_extra_steps();
-
-				PointerRNA cpsys = RNA_pointer_get(&b_part.ptr, "cycles");
-
-				CData->psys_firstcurve.push_back_slow(curvenum);
-				CData->psys_curvenum.push_back_slow(totcurves);
-				CData->psys_shader.push_back_slow(shader);
-
-				float radius = get_float(cpsys, "radius_scale") * 0.5f;
-
-				CData->psys_rootradius.push_back_slow(radius * get_float(cpsys, "root_width"));
-				CData->psys_tipradius.push_back_slow(radius * get_float(cpsys, "tip_width"));
-				CData->psys_shape.push_back_slow(get_float(cpsys, "shape"));
-				CData->psys_closetip.push_back_slow(get_boolean(cpsys, "use_closetip"));
-
-				int pa_no = 0;
-				if(!(b_part.child_type() == 0) && totchild != 0)
-					pa_no = totparts;
-
-				int num_add = (totparts+totchild - pa_no);
-				CData->curve_firstkey.reserve(CData->curve_firstkey.size() + num_add);
-				CData->curve_keynum.reserve(CData->curve_keynum.size() + num_add);
-				CData->curve_length.reserve(CData->curve_length.size() + num_add);
-				CData->curvekey_co.reserve(CData->curvekey_co.size() + num_add*ren_step);
-				CData->curvekey_time.reserve(CData->curvekey_time.size() + num_add*ren_step);
-
-				for(; pa_no < totparts+totchild; pa_no++) {
-					int keynum = 0;
-					CData->curve_firstkey.push_back_slow(keyno);
-
-					float curve_length = 0.0f;
-					float3 pcKey;
-					for(int step_no = 0; step_no < ren_step; step_no++) {
-						float nco[3];
-						b_psys.co_hair(*b_ob, pa_no, step_no, nco);
-						float3 cKey = make_float3(nco[0], nco[1], nco[2]);
-						cKey = transform_point(&itfm, cKey);
-						if(step_no > 0) {
-							float step_length = len(cKey - pcKey);
-							if(step_length == 0.0f)
-								continue;
-							curve_length += step_length;
-						}
-						CData->curvekey_co.push_back_slow(cKey);
-						CData->curvekey_time.push_back_slow(curve_length);
-						pcKey = cKey;
-						keynum++;
-					}
-					keyno += keynum;
-
-					CData->curve_keynum.push_back_slow(keynum);
-					CData->curve_length.push_back_slow(curve_length);
-					curvenum++;
-				}
+		if (background ? b_mod->show_render() : b_mod->show_viewport())
+		{
+			if((b_mod->type() == b_mod->type_PARTICLE_SYSTEM)) {
+				BL::ParticleSystemModifier b_psmd((const PointerRNA)b_mod->ptr);
+				ObtainCacheDataFromParticleSystem(mesh,
+				                                  b_ob,
+				                                  &b_psmd,
+				                                  CData,
+				                                  background,
+				                                  &curvenum,
+				                                  &keyno);
 			}
 		}
 	}
@@ -208,12 +330,12 @@ static bool ObtainCacheParticleData(Mesh *mesh,
 	return true;
 }
 
-static bool ObtainCacheParticleUV(Mesh *mesh,
-                                  BL::Mesh *b_mesh,
-                                  BL::Object *b_ob,
-                                  ParticleCurveData *CData,
-                                  bool background,
-                                  int uv_num)
+static bool ObtainCacheUVFromObject(Mesh *mesh,
+                                    BL::Mesh *b_mesh,
+                                    BL::Object *b_ob,
+                                    ParticleCurveData *CData,
+                                    bool background,
+                                    int uv_num)
 {
 	if(!(mesh && b_mesh && b_ob && CData))
 		return false;
@@ -222,44 +344,11 @@ static bool ObtainCacheParticleUV(Mesh *mesh,
 
 	BL::Object::modifiers_iterator b_mod;
 	for(b_ob->modifiers.begin(b_mod); b_mod != b_ob->modifiers.end(); ++b_mod) {
-		if((b_mod->type() == b_mod->type_PARTICLE_SYSTEM) && (background ? b_mod->show_render() : b_mod->show_viewport())) {
-			BL::ParticleSystemModifier psmd((const PointerRNA)b_mod->ptr);
-			BL::ParticleSystem b_psys((const PointerRNA)psmd.particle_system().ptr);
-			BL::ParticleSettings b_part((const PointerRNA)b_psys.settings().ptr);
-
-			if((b_part.render_type() == BL::ParticleSettings::render_type_PATH) && (b_part.type() == BL::ParticleSettings::type_HAIR)) {
-				int totparts = b_psys.particles.length();
-				int totchild = background ? b_psys.child_particles.length() : (int)((float)b_psys.child_particles.length() * (float)b_part.draw_percentage() / 100.0f);
-				int totcurves = totchild;
-
-				if(b_part.child_type() == 0 || totchild == 0)
-					totcurves += totparts;
-
-				if(totcurves == 0)
-					continue;
-
-				int pa_no = 0;
-				if(!(b_part.child_type() == 0) && totchild != 0)
-					pa_no = totparts;
-
-				int num_add = (totparts+totchild - pa_no);
-				CData->curve_uv.reserve(CData->curve_uv.size() + num_add);
-
-				BL::ParticleSystem::particles_iterator b_pa;
-				b_psys.particles.begin(b_pa);
-				for(; pa_no < totparts+totchild; pa_no++) {
-					/* Add UVs */
-					BL::Mesh::tessface_uv_textures_iterator l;
-					b_mesh->tessface_uv_textures.begin(l);
-
-					float3 uv = make_float3(0.0f, 0.0f, 0.0f);
-					if(b_mesh->tessface_uv_textures.length())
-						b_psys.uv_on_emitter(psmd, *b_pa, pa_no, uv_num, &uv.x);
-					CData->curve_uv.push_back_slow(uv);
-
-					if(pa_no < totparts && b_pa != b_psys.particles.end())
-						++b_pa;
-				}
+		if (background ? b_mod->show_render() : b_mod->show_viewport())
+		{
+			if((b_mod->type() == b_mod->type_PARTICLE_SYSTEM)) {
+				BL::ParticleSystemModifier b_psmd((const PointerRNA)b_mod->ptr);
+				ObtainCacheUVFromParticleSystem(b_mesh, &b_psmd, CData, background, uv_num);
 			}
 		}
 	}
@@ -267,12 +356,12 @@ static bool ObtainCacheParticleUV(Mesh *mesh,
 	return true;
 }
 
-static bool ObtainCacheParticleVcol(Mesh *mesh,
-                                    BL::Mesh *b_mesh,
-                                    BL::Object *b_ob,
-                                    ParticleCurveData *CData,
-                                    bool background,
-                                    int vcol_num)
+static bool ObtainCacheVcolFromObject(Mesh *mesh,
+                                      BL::Mesh *b_mesh,
+                                      BL::Object *b_ob,
+                                      ParticleCurveData *CData,
+                                      bool background,
+                                      int vcol_num)
 {
 	if(!(mesh && b_mesh && b_ob && CData))
 		return false;
@@ -281,44 +370,12 @@ static bool ObtainCacheParticleVcol(Mesh *mesh,
 
 	BL::Object::modifiers_iterator b_mod;
 	for(b_ob->modifiers.begin(b_mod); b_mod != b_ob->modifiers.end(); ++b_mod) {
-		if((b_mod->type() == b_mod->type_PARTICLE_SYSTEM) && (background ? b_mod->show_render() : b_mod->show_viewport())) {
-			BL::ParticleSystemModifier psmd((const PointerRNA)b_mod->ptr);
-			BL::ParticleSystem b_psys((const PointerRNA)psmd.particle_system().ptr);
-			BL::ParticleSettings b_part((const PointerRNA)b_psys.settings().ptr);
-
-			if((b_part.render_type() == BL::ParticleSettings::render_type_PATH) && (b_part.type() == BL::ParticleSettings::type_HAIR)) {
-				int totparts = b_psys.particles.length();
-				int totchild = background ? b_psys.child_particles.length() : (int)((float)b_psys.child_particles.length() * (float)b_part.draw_percentage() / 100.0f);
-				int totcurves = totchild;
-
-				if(b_part.child_type() == 0 || totchild == 0)
-					totcurves += totparts;
-
-				if(totcurves == 0)
-					continue;
-
-				int pa_no = 0;
-				if(!(b_part.child_type() == 0) && totchild != 0)
-					pa_no = totparts;
-
-				int num_add = (totparts+totchild - pa_no);
-				CData->curve_vcol.reserve(CData->curve_vcol.size() + num_add);
-
-				BL::ParticleSystem::particles_iterator b_pa;
-				b_psys.particles.begin(b_pa);
-				for(; pa_no < totparts+totchild; pa_no++) {
-					/* Add vertex colors */
-					BL::Mesh::tessface_vertex_colors_iterator l;
-					b_mesh->tessface_vertex_colors.begin(l);
-
-					float3 vcol = make_float3(0.0f, 0.0f, 0.0f);
-					if(b_mesh->tessface_vertex_colors.length())
-						b_psys.mcol_on_emitter(psmd, *b_pa, pa_no, vcol_num, &vcol.x);
-					CData->curve_vcol.push_back_slow(vcol);
-
-					if(pa_no < totparts && b_pa != b_psys.particles.end())
-						++b_pa;
-				}
+		if (background ? b_mod->show_render() : b_mod->show_viewport())
+		{
+			if((b_mod->type() == b_mod->type_PARTICLE_SYSTEM))
+			{
+				BL::ParticleSystemModifier b_psmd((const PointerRNA)b_mod->ptr);
+				ObtainCacheVColFromParticleSystem(b_mesh, &b_psmd, CData, background, vcol_num);
 			}
 		}
 	}
@@ -907,7 +964,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 	ParticleCurveData CData;
 
-	ObtainCacheParticleData(mesh, &b_mesh, &b_ob, &CData, !preview);
+	ObtainCacheDataFromObject(mesh, &b_mesh, &b_ob, &CData, !preview);
 
 	/* add hair geometry to mesh */
 	if(primitive == CURVE_TRIANGLES) {
@@ -976,7 +1033,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 			if(!mesh->need_attribute(scene, ustring(l->name().c_str())))
 				continue;
 
-			ObtainCacheParticleVcol(mesh, &b_mesh, &b_ob, &CData, !preview, vcol_num);
+			ObtainCacheVcolFromObject(mesh, &b_mesh, &b_ob, &CData, !preview, vcol_num);
 
 			if(primitive == CURVE_TRIANGLES) {
 				Attribute *attr_vcol = mesh->attributes.add(
@@ -1017,7 +1074,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 			if(mesh->need_attribute(scene, name) || mesh->need_attribute(scene, std)) {
 				Attribute *attr_uv;
 
-				ObtainCacheParticleUV(mesh, &b_mesh, &b_ob, &CData, !preview, uv_num);
+				ObtainCacheUVFromObject(mesh, &b_mesh, &b_ob, &CData, !preview, uv_num);
 
 				if(primitive == CURVE_TRIANGLES) {
 					if(active_render)
