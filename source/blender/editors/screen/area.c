@@ -1743,7 +1743,6 @@ void ED_area_data_copy(ScrArea *sa_dst, ScrArea *sa_src, const bool do_free)
 	const char spacetype = sa_dst->spacetype;
 	const short flag_copy = HEADER_NO_PULLDOWN;
 	
-	sa_dst->headertype = sa_src->headertype;
 	sa_dst->spacetype = sa_src->spacetype;
 	sa_dst->type = sa_src->type;
 
@@ -1773,7 +1772,6 @@ void ED_area_data_copy(ScrArea *sa_dst, ScrArea *sa_src, const bool do_free)
 
 void ED_area_data_swap(ScrArea *sa_dst, ScrArea *sa_src)
 {
-	SWAP(short, sa_dst->headertype, sa_src->headertype);
 	SWAP(char, sa_dst->spacetype, sa_src->spacetype);
 	SWAP(SpaceType *, sa_dst->type, sa_src->type);
 
@@ -1822,6 +1820,7 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 		SpaceLink *sl;
 		/* store sa->type->exit callback */
 		void *sa_exit = sa->type ? sa->type->exit : NULL;
+		int header_alignment = ED_area_header_alignment(sa);
 
 		/* in some cases (opening temp space) we don't want to
 		 * call area exit callback, so we temporarily unset it */
@@ -1860,7 +1859,7 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 			}
 			sl = NULL;
 		}
-		
+
 		if (sl) {
 			/* swap regions */
 			slold->regionbase = sa->regionbase;
@@ -1870,6 +1869,15 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 			/* put in front of list */
 			BLI_remlink(&sa->spacedata, sl);
 			BLI_addhead(&sa->spacedata, sl);
+
+
+			/* Sync header alignment. */
+			for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
+				if (ar->regiontype == RGN_TYPE_HEADER) {
+					ar->alignment = header_alignment;
+					break;
+				}
+			}
 		}
 		else {
 			/* new space */
@@ -2339,6 +2347,18 @@ void ED_region_header_init(ARegion *ar)
 int ED_area_headersize(void)
 {
 	return (int)(HEADERY * UI_DPI_FAC);
+}
+
+
+int ED_area_header_alignment(const ScrArea *area)
+{
+	for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
+		if (ar->regiontype == RGN_TYPE_HEADER) {
+			return ar->alignment;
+		}
+	}
+
+	return RGN_ALIGN_TOP;
 }
 
 /**
