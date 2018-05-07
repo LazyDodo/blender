@@ -1888,13 +1888,28 @@ void MESH_OT_edge_rotate(wmOperatorType *ot)
 
 static int edbm_hide_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+	const bool unselected = RNA_boolean_get(op->ptr, "unselected");
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	EDBM_mesh_hide(em, RNA_boolean_get(op->ptr, "unselected"));
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		BMesh *bm = em->bm;
 
-	EDBM_update_generic(em, true, false);
+		if ((bm->totvertsel == 0) &&
+		    (bm->totedgesel == 0) &&
+		    (bm->totfacesel == 0))
+		{
+			continue;
+		}
 
+		EDBM_mesh_hide(em, unselected);
+		EDBM_update_generic(em, true, false);
+	}
+
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
 
@@ -1924,13 +1939,19 @@ void MESH_OT_hide(wmOperatorType *ot)
 
 static int edbm_reveal_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
 	const bool select = RNA_boolean_get(op->ptr, "select");
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	EDBM_mesh_reveal(em, select);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-	EDBM_update_generic(em, true, false);
+		EDBM_mesh_reveal(em, select);
+		EDBM_update_generic(em, true, false);
+	}
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -5078,42 +5099,52 @@ void MESH_OT_dissolve_degenerate(wmOperatorType *ot)
 /* internally uses dissolve */
 static int edbm_delete_edgeloop_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-
 	const bool use_face_split = RNA_boolean_get(op->ptr, "use_face_split");
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	/* deal with selection */
-	{
-		BMEdge *e;
-		BMIter iter;
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-		BM_mesh_elem_hflag_disable_all(em->bm, BM_FACE, BM_ELEM_TAG, false);
+		if (em->bm->totedgesel == 0) {
+			continue;
+		}
 
-		BM_ITER_MESH (e, &iter, em->bm, BM_EDGES_OF_MESH) {
-			if (BM_elem_flag_test(e, BM_ELEM_SELECT) && e->l) {
-				BMLoop *l_iter = e->l;
-				do {
-					BM_elem_flag_enable(l_iter->f, BM_ELEM_TAG);
-				} while ((l_iter = l_iter->radial_next) != e->l);
+		/* deal with selection */
+		{
+			BMEdge *e;
+			BMIter iter;
+
+			BM_mesh_elem_hflag_disable_all(em->bm, BM_FACE, BM_ELEM_TAG, false);
+
+			BM_ITER_MESH (e, &iter, em->bm, BM_EDGES_OF_MESH) {
+				if (BM_elem_flag_test(e, BM_ELEM_SELECT) && e->l) {
+					BMLoop *l_iter = e->l;
+					do {
+						BM_elem_flag_enable(l_iter->f, BM_ELEM_TAG);
+					} while ((l_iter = l_iter->radial_next) != e->l);
+				}
 			}
 		}
+
+		if (!EDBM_op_callf(
+		            em, op,
+		            "dissolve_edges edges=%he use_verts=%b use_face_split=%b",
+		            BM_ELEM_SELECT, true, use_face_split))
+		{
+			continue;
+		}
+
+		BM_mesh_elem_hflag_enable_test(em->bm, BM_FACE, BM_ELEM_SELECT, true, false, BM_ELEM_TAG);
+
+		EDBM_selectmode_flush_ex(em, SCE_SELECT_VERTEX);
+
+		EDBM_update_generic(em, true, true);
 	}
 
-	if (!EDBM_op_callf(
-	            em, op,
-	            "dissolve_edges edges=%he use_verts=%b use_face_split=%b",
-	            BM_ELEM_SELECT, true, use_face_split))
-	{
-		return OPERATOR_CANCELLED;
-	}
-
-	BM_mesh_elem_hflag_enable_test(em->bm, BM_FACE, BM_ELEM_SELECT, true, false, BM_ELEM_TAG);
-
-	EDBM_selectmode_flush_ex(em, SCE_SELECT_VERTEX);
-
-	EDBM_update_generic(em, true, true);
-
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
 

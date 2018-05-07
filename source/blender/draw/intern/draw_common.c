@@ -153,6 +153,7 @@ void DRW_globals_update(void)
 
 /* ********************************* SHGROUP ************************************* */
 
+extern char datatoc_armature_axes_vert_glsl[];
 extern char datatoc_armature_sphere_solid_vert_glsl[];
 extern char datatoc_armature_sphere_solid_frag_glsl[];
 extern char datatoc_armature_sphere_outline_vert_glsl[];
@@ -171,6 +172,7 @@ extern char datatoc_object_mball_handles_vert_glsl[];
 static struct {
 	struct GPUShader *shape_outline;
 	struct GPUShader *shape_solid;
+	struct GPUShader *bone_axes;
 	struct GPUShader *bone_envelope;
 	struct GPUShader *bone_envelope_distance;
 	struct GPUShader *bone_envelope_outline;
@@ -212,12 +214,18 @@ void DRW_globals_free(void)
 	}
 }
 
-DRWShadingGroup *shgroup_dynlines_uniform_color(DRWPass *pass, float color[4])
+DRWShadingGroup *shgroup_dynlines_dashed_uniform_color(DRWPass *pass, float color[4])
 {
-	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_UNIFORM_COLOR);
+	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_LINE_DASHED_UNIFORM_COLOR);
 
+	static float dash_width = 12.0f;
+	static float dash_factor = 0.5f;
 	DRWShadingGroup *grp = DRW_shgroup_line_batch_create(sh, pass);
 	DRW_shgroup_uniform_vec4(grp, "color", color, 1);
+	DRW_shgroup_uniform_vec2(grp, "viewport_size", DRW_viewport_size_get(), 1);
+	DRW_shgroup_uniform_float(grp, "dash_width", &dash_width, 1);
+	DRW_shgroup_uniform_float(grp, "dash_factor", &dash_factor, 1);
+	DRW_shgroup_uniform_int_copy(grp, "num_colors", 0); /* "simple" mode */
 
 	return grp;
 }
@@ -435,6 +443,27 @@ DRWShadingGroup *shgroup_spot_instance(DRWPass *pass, struct Gwn_Batch *geom)
 	return grp;
 }
 
+DRWShadingGroup *shgroup_instance_bone_axes(DRWPass *pass)
+{
+	if (g_shaders.bone_axes == NULL) {
+		g_shaders.bone_axes = DRW_shader_create(
+		            datatoc_armature_axes_vert_glsl, NULL,
+		            datatoc_gpu_shader_flat_color_frag_glsl, NULL);
+	}
+
+	DRW_shgroup_instance_format(g_formats.instance_color, {
+		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
+		{"color"              , DRW_ATTRIB_FLOAT, 4}
+	});
+
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_axes,
+	                                                   pass, DRW_cache_bone_arrows_get(),
+	                                                   g_formats.instance_color);
+	DRW_shgroup_uniform_vec3(grp, "screenVecs[0]", DRW_viewport_screenvecs_get(), 2);
+
+	return grp;
+}
+
 DRWShadingGroup *shgroup_instance_bone_envelope_outline(DRWPass *pass)
 {
 	if (g_shaders.bone_envelope_outline == NULL) {
@@ -608,7 +637,6 @@ DRWShadingGroup *shgroup_instance_bone_sphere_outline(DRWPass *pass)
 
 	return grp;
 }
-
 
 
 /* ******************************************** COLOR UTILS *********************************************** */

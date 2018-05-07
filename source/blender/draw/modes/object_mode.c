@@ -108,6 +108,7 @@ typedef struct OBJECT_PassList {
 	struct DRWPass *bone_outline;
 	struct DRWPass *bone_wire;
 	struct DRWPass *bone_envelope;
+	struct DRWPass *bone_axes;
 	struct DRWPass *particle;
 	struct DRWPass *hair;
 	struct DRWPass *lightprobes;
@@ -1013,6 +1014,11 @@ static void OBJECT_cache_init(void *vedata)
 	}
 
 	{
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE;
+		psl->bone_axes = DRW_pass_create("Bone Axes Pass", state);
+	}
+
+	{
 		/* Non Meshes Pass (Camera, empties, lamps ...) */
 		struct Gwn_Batch *geom;
 
@@ -1194,21 +1200,22 @@ static void OBJECT_cache_init(void *vedata)
 
 	{
 		/* -------- STIPPLES ------- */
-		/* TODO port to shader stipple */
 		struct Gwn_Batch *geom;
 
 		/* Relationship Lines */
-		stl->g_data->relationship_lines = shgroup_dynlines_uniform_color(psl->non_meshes, ts.colorWire);
-		DRW_shgroup_state_enable(stl->g_data->relationship_lines, DRW_STATE_STIPPLE_3);
+		stl->g_data->relationship_lines = shgroup_dynlines_dashed_uniform_color(psl->non_meshes, ts.colorWire);
 
 		/* Force Field Curve Guide End (here because of stipple) */
+		/* TODO port to shader stipple */
 		geom = DRW_cache_screenspace_circle_get();
 		stl->g_data->field_curve_end = shgroup_instance_screen_aligned(psl->non_meshes, geom);
 
 		/* Force Field Limits */
+		/* TODO port to shader stipple */
 		geom = DRW_cache_field_tube_limit_get();
 		stl->g_data->field_tube_limit = shgroup_instance_scaled(psl->non_meshes, geom);
 
+		/* TODO port to shader stipple */
 		geom = DRW_cache_field_cone_limit_get();
 		stl->g_data->field_cone_limit = shgroup_instance_scaled(psl->non_meshes, geom);
 	}
@@ -1895,8 +1902,8 @@ static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl
 static void DRW_shgroup_relationship_lines(OBJECT_StorageList *stl, Object *ob)
 {
 	if (ob->parent && DRW_check_object_visible_within_active_context(ob->parent)) {
-		DRW_shgroup_call_dynamic_add(stl->g_data->relationship_lines, ob->obmat[3]);
 		DRW_shgroup_call_dynamic_add(stl->g_data->relationship_lines, ob->parent->obmat[3]);
+		DRW_shgroup_call_dynamic_add(stl->g_data->relationship_lines, ob->obmat[3]);
 	}
 }
 
@@ -2140,9 +2147,15 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			bArmature *arm = ob->data;
 			if (arm->edbo == NULL) {
 				if (DRW_state_is_select() || !DRW_pose_mode_armature(ob, draw_ctx->obact)) {
-					DRW_shgroup_armature_object(
-					        ob, view_layer, psl->bone_solid, psl->bone_outline, psl->bone_wire, psl->bone_envelope,
-					        stl->g_data->relationship_lines);
+					DRWArmaturePasses passes = {
+					    .bone_solid = psl->bone_solid,
+					    .bone_outline = psl->bone_outline,
+					    .bone_wire = psl->bone_wire,
+					    .bone_envelope = psl->bone_envelope,
+					    .bone_axes = psl->bone_axes,
+					    .relationship_lines = NULL, /* Don't draw relationship lines */
+					};
+					DRW_shgroup_armature_object(ob, view_layer, passes);
 				}
 			}
 			break;
@@ -2234,6 +2247,7 @@ static void OBJECT_draw_scene(void *vedata)
 	DRW_draw_pass(psl->non_meshes);
 	DRW_draw_pass(psl->particle);
 	DRW_draw_pass(psl->reference_image);
+	DRW_draw_pass(psl->bone_axes);
 
 	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 
