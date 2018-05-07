@@ -409,7 +409,7 @@ static void GPENCIL_cache_init(void *vedata)
 		}
 
 		/* drawing buffer pass */
-		psl->drawing_pass = DRW_pass_create("GPencil Drawing Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND);
+		psl->drawing_pass = DRW_pass_create("GPencil Drawing Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
 		/* full screen pass to combine the result */
 		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
@@ -732,13 +732,13 @@ static void GPENCIL_draw_scene(void *vedata)
 				}
 
 				if (end_grp >= init_grp) {
-					MULTISAMPLE_GP_SYNC_ENABLE(dfbl, fbl);
+					MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 
 					DRW_draw_pass_subset(psl->stroke_pass,
 						stl->shgroups[init_grp].shgrps_fill != NULL ? stl->shgroups[init_grp].shgrps_fill : stl->shgroups[init_grp].shgrps_stroke,
 						stl->shgroups[end_grp].shgrps_stroke);
 
-					MULTISAMPLE_GP_SYNC_DISABLE(dfbl, fbl);
+					MULTISAMPLE_GP_SYNC_DISABLE(dfbl, dtxl, fbl->vfx_fb_a);
 				}
 				/* Current buffer drawing */
 				if ((!is_render) && (gpd->sbuffer_size > 0)) {

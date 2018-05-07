@@ -121,6 +121,16 @@ typedef char DRWViewportEmptyList;
 	} \
 }
 
+#define MULTISAMPLE_GP_SYNC_DISABLE(dfbl, dtxl, fb) { \
+	if (dfbl->multisample_fb != NULL) { \
+		DRW_stats_query_start("GP Multisample Resolve"); \
+		GPU_framebuffer_bind(fb); \
+		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color); \
+		DRW_stats_query_end(); \
+	} \
+}
+
+
 
 
 typedef struct DrawEngineDataSize {

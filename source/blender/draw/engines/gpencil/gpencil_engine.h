@@ -54,25 +54,6 @@ struct GpencilColorData;
 
 #define GP_IS_CAMERAVIEW ((rv3d != NULL) && (rv3d->persp == RV3D_CAMOB && v3d->camera))
 
- /* anti aliasing macros using MSAA */
-#define MULTISAMPLE_GP_SYNC_ENABLE(dfbl, fbl) { \
-	if ((U.ogl_multisamples > 0) && (dfbl->multisample_fb != NULL)) { \
-		DRW_stats_query_start("GP Multisample Blit"); \
-		GPU_framebuffer_blit(fbl->vfx_fb_a, 0, dfbl->multisample_fb, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
-		GPU_framebuffer_bind(dfbl->multisample_fb); \
-		DRW_stats_query_end(); \
-	} \
-}
-
-#define MULTISAMPLE_GP_SYNC_DISABLE(dfbl, fbl) { \
-	if ((U.ogl_multisamples > 0) && (dfbl->multisample_fb != NULL)) { \
-		DRW_stats_query_start("GP Multisample Resolve"); \
-		GPU_framebuffer_blit(dfbl->multisample_fb, 0, fbl->vfx_fb_a, 0, GPU_COLOR_BIT | GPU_DEPTH_BIT); \
-		GPU_framebuffer_bind(fbl->vfx_fb_a); \
-		DRW_stats_query_end(); \
-	} \
-}
-
  /* *********** OBJECTS CACHE *********** */
 typedef struct GPencilVFXSwirl {
 	float loc[3];
