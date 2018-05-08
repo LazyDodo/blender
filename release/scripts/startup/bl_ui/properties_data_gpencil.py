@@ -312,8 +312,8 @@ classes = (
     DATA_PT_gpencil_onionpanel,
     DATA_PT_gpencil_layer_onionpanel,
     DATA_PT_gpencil_layer_optionpanel,
-    DATA_PT_gpencil_vertexpanel,
     DATA_PT_gpencil_parentpanel,
+    DATA_PT_gpencil_vertexpanel,
     DATA_PT_gpencil_display,
     DATA_PT_gpencil_infopanel,
 
