@@ -64,7 +64,7 @@ static void initData(ModifierData *md)
 	gpmd->length = 100.0f;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 	modifier_copyData_generic(md, target);
 }

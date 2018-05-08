@@ -60,7 +60,7 @@ static void initData(ModifierData *md)
 	gpmd->flag |= GP_COLOR_CREATE_COLORS;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 	modifier_copyData_generic(md, target);
 }

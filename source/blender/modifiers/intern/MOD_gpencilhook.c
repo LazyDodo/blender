@@ -88,7 +88,7 @@ static void initData(ModifierData *md)
 	}
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 	GpencilHookModifierData *gmd = (GpencilHookModifierData *)md;
 	GpencilHookModifierData *tgmd = (GpencilHookModifierData *)target;

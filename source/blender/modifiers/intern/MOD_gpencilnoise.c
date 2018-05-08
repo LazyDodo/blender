@@ -69,7 +69,7 @@ static void initData(ModifierData *md)
 	gpmd->vrand2 = 1.0;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 	modifier_copyData_generic(md, target);
 }

@@ -65,8 +65,8 @@ static void initData(ModifierData *md)
 	gpmd->offset[1] = 1.0f;
 	gpmd->offset[2] = 1.0f;
 	gpmd->shift[0] = 0.0f;
+	gpmd->shift[1] = 0.0f;
 	gpmd->shift[2] = 0.0f;
-	gpmd->shift[3] = 0.0f;
 	gpmd->scale[0] = 1.0f;
 	gpmd->scale[1] = 1.0f;
 	gpmd->scale[2] = 1.0f;
@@ -80,7 +80,7 @@ static void initData(ModifierData *md)
 	gpmd->rnd[0] = 1;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 	modifier_copyData_generic(md, target);
 }

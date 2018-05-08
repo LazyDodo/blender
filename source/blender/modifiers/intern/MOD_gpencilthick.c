@@ -68,7 +68,7 @@ static void freeData(ModifierData *md)
 	}
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 	GpencilThickModifierData *gmd = (GpencilThickModifierData *)md;
 	GpencilThickModifierData *tgmd = (GpencilThickModifierData *)target;
