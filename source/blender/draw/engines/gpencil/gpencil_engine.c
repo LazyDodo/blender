@@ -614,7 +614,7 @@ static void GPENCIL_draw_scene(void *vedata)
 				}
 
 				if (end_grp >= init_grp) {
-					MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
+					// MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 
 					DRW_draw_pass_subset(psl->stroke_pass,
 						stl->shgroups[init_grp].shgrps_fill != NULL ? stl->shgroups[init_grp].shgrps_fill : stl->shgroups[init_grp].shgrps_stroke,
@@ -927,8 +927,6 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 	GPENCIL_engine_init(vedata);
 	GPENCIL_render_init(vedata, engine, draw_ctx->depsgraph);
 
-	/* depth of field */
-	Object *camera = DEG_get_evaluated_object(draw_ctx->depsgraph, RE_GetCamera(engine->re));
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
@@ -953,10 +951,10 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 	GPENCIL_render_result_z(render_layer, viewname, vedata, rect);
 	
 	/* detach textures */
-	if (fbl->main) {
-		GPU_framebuffer_texture_detach(fbl->main, e_data.render_depth_tx);
-		GPU_framebuffer_texture_detach(fbl->main, e_data.render_color_tx);
-	}
+	// if (fbl->main) {
+	// 	GPU_framebuffer_texture_detach(fbl->main, e_data.render_depth_tx);
+	// 	GPU_framebuffer_texture_detach(fbl->main, e_data.render_color_tx);
+	// }
 
 	/* merge previous render image with new GP image */ 
 	if (rect_color_src) {
