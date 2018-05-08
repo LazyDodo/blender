@@ -298,10 +298,4 @@ struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
 /* modifier functions */
 void gpencil_instance_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
-/* depth of field */
-int GPENCIL_depth_of_field_init(struct DrawEngineType *draw_engine_gpencil_type, struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct Object *camera);
-void GPENCIL_depth_of_field_cache_init(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata);
-void GPENCIL_depth_of_field_draw(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata);
-void GPENCIL_dof_nearfar(struct Object *camera, float coc, float nearfar[2]);
-
 #endif /* __GPENCIL_ENGINE_H__ */

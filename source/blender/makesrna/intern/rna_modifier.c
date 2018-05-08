@@ -475,18 +475,6 @@ static StructRNA *rna_Modifier_refine(struct PointerRNA *ptr)
 			return &RNA_GpencilOpacityModifier;
 		case eModifierType_GpencilLattice:
 			return &RNA_GpencilLatticeModifier;
-		case eModifierType_GpencilBlur:
-			return &RNA_GpencilBlurModifier;
-		case eModifierType_GpencilWave:
-			return &RNA_GpencilWaveModifier;
-		case eModifierType_GpencilPixel:
-			return &RNA_GpencilPixelModifier;
-		case eModifierType_GpencilSwirl:
-			return &RNA_GpencilSwirlModifier;
-		case eModifierType_GpencilFlip:
-			return &RNA_GpencilFlipModifier;
-		case eModifierType_GpencilLight:
-			return &RNA_GpencilLightModifier;
 		case eModifierType_GpencilSmooth:
 			return &RNA_GpencilSmoothModifier;
 		case eModifierType_GpencilHook:

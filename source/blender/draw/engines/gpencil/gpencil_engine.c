@@ -163,30 +163,6 @@ static void GPENCIL_create_shaders(void)
 	}
 }
 
-static void GPENCIL_init_dof(void *vedata)
-{
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
-	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_EEVEE);
-
-	if ((DRW_state_is_opengl_render()) || (!DRW_state_is_image_render())) {
-		/* viewport and opengl render */
-		stl->storage->enable_dof = GP_IS_CAMERAVIEW && BKE_collection_engine_property_value_get_bool(props, "dof_enable");
-		if (stl->storage->enable_dof == true) {
-			Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-			GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
-		}
-	}
-	else {
-		/* render F12 */
-		stl->storage->enable_dof = BKE_collection_engine_property_value_get_bool(props, "dof_enable");
-	}
-}
-
 static void GPENCIL_engine_init(void *vedata)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
@@ -209,9 +185,6 @@ static void GPENCIL_engine_init(void *vedata)
 	if (!e_data.gpencil_blank_texture) {
 		e_data.gpencil_blank_texture = DRW_gpencil_create_blank_texture(16, 16);
 	}
-
-	/* init depth of field */ 
-	GPENCIL_init_dof(vedata);
 }
 
 static void GPENCIL_engine_free(void)
@@ -225,10 +198,6 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_simple_fullscreen_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_painting_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_paper_sh);
-
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_downsample_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_scatter_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_resolve_sh);
 
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
 }
@@ -426,9 +395,6 @@ static void GPENCIL_cache_init(void *vedata)
 			}
 			DRW_shgroup_uniform_int(paper_shgrp, "uselines", &stl->storage->uselines, 1);
 		}
-
-		/* depth of field */
-		GPENCIL_depth_of_field_cache_init(&e_data, vedata);
 	}
 }
 
@@ -961,12 +927,6 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 
 	GPENCIL_engine_init(vedata);
 	GPENCIL_render_init(vedata, engine, draw_ctx->depsgraph);
-
-	/* depth of field */
-	Object *camera = DEG_get_evaluated_object(draw_ctx->depsgraph, RE_GetCamera(engine->re));
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	stl->storage->camera = camera; /* save current camera */
-	GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
 
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	if (fbl->main) {
