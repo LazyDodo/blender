@@ -152,9 +152,6 @@ class GreasePencilStrokeEditPanel:
 
     @classmethod
     def poll(cls, context):
-        # XXX - disabled in 2.8 branch.
-        return False
-
         if context.gpencil_data is None:
             return False
 
@@ -253,9 +250,6 @@ class GreasePencilStrokeSculptPanel:
 
     @classmethod
     def poll(cls, context):
-        # XXX - disabled in 2.8 branch.
-        return False
-
         if context.gpencil_data is None:
             return False
 
