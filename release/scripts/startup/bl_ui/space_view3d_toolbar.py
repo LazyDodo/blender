@@ -1337,23 +1337,20 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
         sub = col.column(align=True)
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
-        # Brush details
         if brush is not None:
+            # XXX: Items in "sub" currently show up beside the brush selector in a separate column
             if brush.gpencil_brush_type == 'ERASE':
                 sub.prop(brush, "default_eraser", text="")
 
-            if brush.gpencil_brush_type == 'DRAW':
-                row = layout.row(align=True)
-                row.prop(brush, "line_width", text="Radius")
-                row.prop(brush, "use_pressure", text="", icon='STYLUS_PRESSURE')
-                row = layout.row(align=True)
-                row.prop(brush, "pen_strength", slider=True)
-                row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+            # Brush details
+            if brush.gpencil_brush_type == 'ERASE':
+                col = layout.column(align=True)
+                col.prop(brush, "line_width", text="Radius")
 
-                row = layout.row(align=True)
-                row.template_ID(brush, "material")
-
-            if brush.gpencil_brush_type == 'FILL':
+                col.separator()
+                row = col.row()
+                row.prop(brush, "eraser_mode", expand=True)
+            elif brush.gpencil_brush_type == 'FILL':
                 col = layout.column(align=True)
                 col.prop(brush, "gpencil_fill_leak", text="Leak Size")
                 col.prop(brush, "line_width", text="Thickness")
@@ -1374,18 +1371,21 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 sub = col.row(align=True)
                 sub.enabled = brush.gpencil_fill_hide
                 sub.prop(brush, "gpencil_fill_threshold", text="Threshold")
+            else: # brush.gpencil_brush_type == 'DRAW':
+                row = layout.row(align=True)
+                row.prop(brush, "line_width", text="Radius")
+                row.prop(brush, "use_pressure", text="", icon='STYLUS_PRESSURE')
+                row = layout.row(align=True)
+                row.prop(brush, "pen_strength", slider=True)
+                row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
-            if brush.gpencil_brush_type == 'ERASE':
-                col = layout.column(align=True)
-                col.prop(brush, "line_width", text="Radius")
-
-                col.separator()
-                row = col.row()
-                row.prop(brush, "eraser_mode", expand=True)
+                row = layout.row(align=True)
+                row.template_ID(brush, "material")
 
             if brush.gpencil_brush_type != 'ERASE':
                 layout.separator()
                 layout.prop(context.tool_settings, "use_gpencil_draw_onback", text="Draw on Back")
+
 
 
 # Grease Pencil drawing brushes options
