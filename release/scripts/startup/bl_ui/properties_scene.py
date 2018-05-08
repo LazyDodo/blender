@@ -456,7 +456,6 @@ class SCENE_PT_gp_simplify(SceneButtonsPanel, Panel):
         col.prop(ts, "gpencil_simplify_view_fill", text="Fill")
         col.prop(ts, "gpencil_simplify_remove_lines", text="Remove Fill Lines")
         col.prop(ts, "gpencil_simplify_view_modifier", text="Modifiers")
-        col.prop(ts, "gpencil_simplify_view_vfx", text="VFX")
 
         row = layout.row()
         row.prop(ts, "gpencil_disable_fast_drawing")
