@@ -407,6 +407,7 @@ void modifier_type_init(ModifierTypeInfo *types[])
 	INIT_TYPE(GpencilBuild);
 	INIT_TYPE(GpencilOpacity);
 	INIT_TYPE(GpencilLattice);
+	INIT_TYPE(GpencilSmooth);
 	INIT_TYPE(GpencilHook);
 	INIT_TYPE(GpencilOffset);
 #undef INIT_TYPE

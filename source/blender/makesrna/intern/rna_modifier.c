@@ -475,18 +475,6 @@ static StructRNA *rna_Modifier_refine(struct PointerRNA *ptr)
 			return &RNA_GpencilOpacityModifier;
 		case eModifierType_GpencilLattice:
 			return &RNA_GpencilLatticeModifier;
-		case eModifierType_GpencilBlur:
-			return &RNA_GpencilBlurModifier;
-		case eModifierType_GpencilWave:
-			return &RNA_GpencilWaveModifier;
-		case eModifierType_GpencilPixel:
-			return &RNA_GpencilPixelModifier;
-		case eModifierType_GpencilSwirl:
-			return &RNA_GpencilSwirlModifier;
-		case eModifierType_GpencilFlip:
-			return &RNA_GpencilFlipModifier;
-		case eModifierType_GpencilLight:
-			return &RNA_GpencilLightModifier;
 		case eModifierType_GpencilSmooth:
 			return &RNA_GpencilSmoothModifier;
 		case eModifierType_GpencilHook:
@@ -667,8 +655,6 @@ RNA_MOD_OBJECT_SET(Shrinkwrap, target, OB_MESH);
 RNA_MOD_OBJECT_SET(Shrinkwrap, auxTarget, OB_MESH);
 RNA_MOD_OBJECT_SET(SurfaceDeform, target, OB_MESH);
 RNA_MOD_OBJECT_SET(GpencilLattice, object, OB_LATTICE);
-RNA_MOD_OBJECT_SET(GpencilLight, object, OB_EMPTY);
-RNA_MOD_OBJECT_SET(GpencilSwirl, object, OB_EMPTY);
 
 static void rna_HookModifier_object_set(PointerRNA *ptr, PointerRNA value)
 {
@@ -5913,200 +5899,6 @@ static void rna_def_modifier_gpencilhook(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 
-static void rna_def_modifier_gpencilblur(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "GpencilBlurModifier", "Modifier");
-	RNA_def_struct_ui_text(srna, "Gaussian Blur Modifier", "Gaussian Blur modifier");
-	RNA_def_struct_sdna(srna, "GpencilBlurModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_SOLO_ON);
-
-	prop = RNA_def_property(srna, "factor", PROP_INT, PROP_PIXEL);
-	RNA_def_property_int_sdna(prop, NULL, "radius");
-	RNA_def_property_range(prop, 0, INT_MAX);
-	RNA_def_property_ui_text(prop, "Factor", "Factor of Blur");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "samples", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "samples");
-	RNA_def_property_range(prop, 0, 32);
-	RNA_def_property_ui_range(prop, 0, 32, 2, -1);
-	RNA_def_property_int_default(prop, 4);
-	RNA_def_property_ui_text(prop, "Samples", "Number of Blur Samples (zero, disable blur)");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "coc", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "coc");
-	RNA_def_property_range(prop, 0.001f, 1.0f);
-	RNA_def_property_float_default(prop, 0.025f);
-	RNA_def_property_ui_text(prop, "Precision", "Define circle of confusion for depth of field");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "use_dof_mode", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BLUR_DOF_MODE);
-	RNA_def_property_ui_text(prop, "Lock Focal Plane", "Blur using focal plane distance as factor to simulate depth of field effect (only in camera view)");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-}
-
-static void rna_def_modifier_gpencilwave(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	static EnumPropertyItem prop_gpencil_wave_type_items[] = {
-		{ 0, "HORIZONTAL", 0, "Horizontal", "" },
-		{ 1, "VERTICAL", 0, "Vertical", "" },
-		{ 0, NULL, 0, NULL, NULL }
-	};
-
-	srna = RNA_def_struct(brna, "GpencilWaveModifier", "Modifier");
-	RNA_def_struct_ui_text(srna, "Wave Deformation Modifier", "Wave Deformation modifier");
-	RNA_def_struct_sdna(srna, "GpencilWaveModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_SOLO_ON);
-
-	prop = RNA_def_property(srna, "orientation", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "orientation");
-	RNA_def_property_enum_items(prop, prop_gpencil_wave_type_items);
-	RNA_def_property_ui_text(prop, "Orientation", "Direction of the wave");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "amplitude", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "amplitude");
-	RNA_def_property_range(prop, 0, FLT_MAX);
-	RNA_def_property_ui_text(prop, "Amplitude", "Amplitude of Wave");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "period", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "period");
-	RNA_def_property_range(prop, 0, FLT_MAX);
-	RNA_def_property_ui_text(prop, "Period", "Period of Wave");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "phase", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "phase");
-	RNA_def_property_range(prop, -FLT_MAX, FLT_MAX);
-	RNA_def_property_ui_text(prop, "Phase", "Phase Shift of Wave");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-}
-
-static void rna_def_modifier_gpencilpixel(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "GpencilPixelModifier", "Modifier");
-	RNA_def_struct_ui_text(srna, "Pixelate Modifier", "Pixelate modifier");
-	RNA_def_struct_sdna(srna, "GpencilPixelModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_SOLO_ON);
-
-	prop = RNA_def_property(srna, "size", PROP_INT, PROP_PIXEL);
-	RNA_def_property_int_sdna(prop, NULL, "size");
-	RNA_def_property_range(prop, 1, INT_MAX);
-	RNA_def_property_ui_text(prop, "Size", "Pixel size");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_range(prop, 0.0, 1.0);
-	RNA_def_property_float_sdna(prop, NULL, "rgba");
-	RNA_def_property_array(prop, 4);
-	RNA_def_property_ui_text(prop, "Color", "Color used for lines");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "use_lines", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_PIXEL_USE_LINES);
-	RNA_def_property_ui_text(prop, "Lines", "Display lines between pixels");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-}
-
-static void rna_def_modifier_gpencilswirl(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "GpencilSwirlModifier", "Modifier");
-	RNA_def_struct_ui_text(srna, "Swirl Modifier", "Swirl modifier");
-	RNA_def_struct_sdna(srna, "GpencilSwirlModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_SOLO_ON);
-
-	prop = RNA_def_property(srna, "radius", PROP_INT, PROP_PIXEL);
-	RNA_def_property_int_sdna(prop, NULL, "radius");
-	RNA_def_property_range(prop, 0, INT_MAX);
-	RNA_def_property_ui_text(prop, "Radius", "Radius to apply");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "angle", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "angle");
-	RNA_def_property_range(prop, DEG2RAD(-5 * 360), DEG2RAD(5 * 360));
-	RNA_def_property_ui_range(prop, DEG2RAD(-5 * 360), DEG2RAD(5 * 360), 5, 2);
-	RNA_def_property_ui_text(prop, "Angle", "Angle of rotation");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "transparent", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SWIRL_MAKE_TRANSPARENT);
-	RNA_def_property_ui_text(prop, "Transparent", "Make image transparent outside of radius");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Object", "Object to determine center location");
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_GpencilSwirlModifier_object_set", NULL, NULL);
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
-	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
-}
-
-static void rna_def_modifier_gpencilflip(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "GpencilFlipModifier", "Modifier");
-	RNA_def_struct_ui_text(srna, "Flip Modifier", "Flip modifier");
-	RNA_def_struct_sdna(srna, "GpencilFlipModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_SOLO_ON);
-
-	prop = RNA_def_property(srna, "flip_horizontal", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_FLIP_HORIZONTAL);
-	RNA_def_property_ui_text(prop, "Horizontal", "Flip image horizontally");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "flip_vertical", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_FLIP_VERTICAL);
-	RNA_def_property_ui_text(prop, "Vertical", "Flip image vertically");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-}
-
-static void rna_def_modifier_gpencillight(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-	
-	srna = RNA_def_struct(brna, "GpencilLightModifier", "Modifier");
-	RNA_def_struct_ui_text(srna, "Light Modifier", "Light modifier");
-	RNA_def_struct_sdna(srna, "GpencilLightModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_SOLO_ON);
-
-	prop = RNA_def_property(srna, "energy", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "energy");
-	RNA_def_property_range(prop, 0, FLT_MAX);
-	RNA_def_property_ui_range(prop, 1, FLT_MAX, 1, 2);
-	RNA_def_property_ui_text(prop, "Energy", "Strength of light source");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "ambient", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "ambient");
-	RNA_def_property_range(prop, 0, FLT_MAX);
-	RNA_def_property_ui_range(prop, 0, FLT_MAX, 1, 2);
-	RNA_def_property_ui_text(prop, "Ambient", "Strength of ambient light source");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Object", "Object to determine light source location");
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_GpencilLightModifier_object_set", NULL, NULL);
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
-	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
-}
-
 void RNA_def_modifier(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -6240,12 +6032,6 @@ void RNA_def_modifier(BlenderRNA *brna)
 	rna_def_modifier_gpencilopacity(brna);
 	rna_def_modifier_gpencillattice(brna);
 	rna_def_modifier_gpencilhook(brna);
-	rna_def_modifier_gpencilblur(brna);
-	rna_def_modifier_gpencilwave(brna);
-	rna_def_modifier_gpencilpixel(brna);
-	rna_def_modifier_gpencilswirl(brna);
-	rna_def_modifier_gpencilflip(brna);
-	rna_def_modifier_gpencillight(brna);
 }
 
 #endif

@@ -89,6 +89,16 @@ static void GPENCIL_create_framebuffers(void *vedata)
 	if (DRW_state_is_fbo()) {
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
+		
+		/* temp textures */
+		e_data.temp_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
+			&draw_engine_object_type);
+		e_data.temp_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_object_type);
+		GPU_framebuffer_ensure_config(&fbl->temp_fb_a, {
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_a),
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_a)
+			});
 
 		/* painting framebuffer to speed up drawing process (always 16 bits) */
 		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
@@ -163,30 +173,6 @@ static void GPENCIL_create_shaders(void)
 	}
 }
 
-static void GPENCIL_init_dof(void *vedata)
-{
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
-	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_EEVEE);
-
-	if ((DRW_state_is_opengl_render()) || (!DRW_state_is_image_render())) {
-		/* viewport and opengl render */
-		stl->storage->enable_dof = GP_IS_CAMERAVIEW && BKE_collection_engine_property_value_get_bool(props, "dof_enable");
-		if (stl->storage->enable_dof == true) {
-			Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-			GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
-		}
-	}
-	else {
-		/* render F12 */
-		stl->storage->enable_dof = BKE_collection_engine_property_value_get_bool(props, "dof_enable");
-	}
-}
-
 static void GPENCIL_engine_init(void *vedata)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
@@ -209,9 +195,6 @@ static void GPENCIL_engine_init(void *vedata)
 	if (!e_data.gpencil_blank_texture) {
 		e_data.gpencil_blank_texture = DRW_gpencil_create_blank_texture(16, 16);
 	}
-
-	/* init depth of field */ 
-	GPENCIL_init_dof(vedata);
 }
 
 static void GPENCIL_engine_free(void)
@@ -225,10 +208,6 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_simple_fullscreen_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_painting_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_paper_sh);
-
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_downsample_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_scatter_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_dof_resolve_sh);
 
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
 }
@@ -282,10 +261,6 @@ static void GPENCIL_cache_init(void *vedata)
 		stl->shgroups = MEM_mallocN(sizeof(GPENCIL_shgroup) * GPENCIL_MAX_SHGROUPS, "GPENCIL_shgroup");
 	}
 
-	if (!stl->vfx) {
-		stl->vfx = MEM_mallocN(sizeof(GPENCIL_vfx) * GPENCIL_MAX_GP_OBJ, "GPENCIL_vfx");
-	}
-	
 	/* init gp objects cache */
 	stl->g_data->gp_cache_used = 0;
 	stl->g_data->gp_cache_size = 0;
@@ -384,18 +359,9 @@ static void GPENCIL_cache_init(void *vedata)
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
 		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(mix_shgrp_noblend, quad_noblend, NULL);
-		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.vfx_color_tx_a);
-		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.vfx_depth_tx_a);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.temp_color_tx_a);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.temp_depth_tx_a);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
-
-		/* vfx copy pass from txtb to txta */
-		struct Gwn_Batch *vfxquad = DRW_cache_fullscreen_quad_get();
-		psl->vfx_copy_pass = DRW_pass_create("GPencil VFX Copy b to a Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		DRWShadingGroup *vfx_copy_shgrp = DRW_shgroup_create(e_data.gpencil_simple_fullscreen_sh, psl->vfx_copy_pass);
-		stl->g_data->tot_sh++;
-		DRW_shgroup_call_add(vfx_copy_shgrp, vfxquad, NULL);
-		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeColor", &e_data.vfx_color_tx_b);
-		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeDepth", &e_data.vfx_depth_tx_b);
 
 		/* Painting session pass (used only to speedup while the user is drawing ) */
 		struct Gwn_Batch *paintquad = DRW_cache_fullscreen_quad_get();
@@ -430,9 +396,6 @@ static void GPENCIL_cache_init(void *vedata)
 			}
 			DRW_shgroup_uniform_int(paper_shgrp, "uselines", &stl->storage->uselines, 1);
 		}
-
-		/* depth of field */
-		GPENCIL_depth_of_field_cache_init(&e_data, vedata);
 	}
 }
 
@@ -486,9 +449,7 @@ static void GPENCIL_cache_finish(void *vedata)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
-	tGPencilObjectCache *cache;
 	bool is_multiedit = false; 
-	// bool playing = (bool)stl->storage->playing;
 
 	/* if painting session, don't need to do more */
 	if (stl->g_data->session_flag & GP_DRW_PAINT_PAINTING) {
@@ -622,11 +583,8 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	if (DRW_state_is_fbo()) {
 		/* attach temp textures */
-		GPU_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_depth_tx_a, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->vfx_fb_a, e_data.vfx_color_tx_a, 0, 0);
-
-		GPU_framebuffer_texture_attach(fbl->vfx_fb_b, e_data.vfx_depth_tx_b, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->vfx_fb_b, e_data.vfx_color_tx_b, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_depth_tx_a, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_color_tx_a, 0, 0);
 
 		GPU_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_depth_tx, 0, 0);
 		GPU_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_color_tx, 0, 0);
@@ -645,8 +603,8 @@ static void GPENCIL_draw_scene(void *vedata)
 				init_grp = cache->init_grp;
 				end_grp = cache->end_grp;
 				/* Render stroke in separated framebuffer */
-				GPU_framebuffer_bind(fbl->vfx_fb_a);
-				GPU_framebuffer_clear_color_depth(fbl->vfx_fb_a, clearcol, 1.0f);
+				GPU_framebuffer_bind(fbl->temp_fb_a);
+				GPU_framebuffer_clear_color_depth(fbl->temp_fb_a, clearcol, 1.0f);
 
 				/* Stroke Pass: DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH
 				 * draw only a subset that usually start with a fill and end with stroke because the
@@ -662,13 +620,16 @@ static void GPENCIL_draw_scene(void *vedata)
 						stl->shgroups[init_grp].shgrps_fill != NULL ? stl->shgroups[init_grp].shgrps_fill : stl->shgroups[init_grp].shgrps_stroke,
 						stl->shgroups[end_grp].shgrps_stroke);
 
-					MULTISAMPLE_GP_SYNC_DISABLE(dfbl, dtxl, fbl->vfx_fb_a);
+					MULTISAMPLE_GP_SYNC_DISABLE(dfbl, dtxl, fbl->temp_fb_a);
 				}
 				/* Current buffer drawing */
 				if ((!is_render) && (gpd->sbuffer_size > 0)) {
 					DRW_draw_pass(psl->drawing_pass);
 				}
-
+				
+				e_data.input_depth_tx = e_data.temp_depth_tx_a;
+				e_data.input_color_tx = e_data.temp_color_tx_a;
+				
 				/* Combine with scene buffer */
 				if ((!is_render) || (fbl->main == NULL)) {
 					GPU_framebuffer_bind(dfbl->default_fb);
@@ -969,8 +930,6 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 	/* depth of field */
 	Object *camera = DEG_get_evaluated_object(draw_ctx->depsgraph, RE_GetCamera(engine->re));
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	stl->storage->camera = camera; /* save current camera */
-	GPENCIL_depth_of_field_init(&draw_engine_gpencil_type, &e_data, vedata, camera);
 
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	if (fbl->main) {

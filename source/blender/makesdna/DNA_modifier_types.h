@@ -97,9 +97,9 @@ typedef enum ModifierType {
 	eModifierType_GpencilColor      = 61,
 	eModifierType_GpencilLattice    = 62,
 	eModifierType_GpencilSimplify   = 63,
-	eModifierType_GpencilSmooth     = 68,
-	eModifierType_GpencilHook       = 69,
-	eModifierType_GpencilOffset     = 71,
+	eModifierType_GpencilSmooth     = 64,
+	eModifierType_GpencilHook       = 65,
+	eModifierType_GpencilOffset     = 66,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -1929,74 +1929,6 @@ typedef enum eGpencilOffset_Flag {
 	GP_OFFSET_INVERSE_PASS = (1 << 1),
 	GP_OFFSET_INVERSE_VGROUP = (1 << 2)
 } eGpencilOffset_Flag;
-
-typedef struct GpencilBlurModifierData {
-	ModifierData modifier;
-	int radius[2];
-	int flag;                    /* flags */
-	int samples;                 /* number of samples */
-	float coc;                   /* circle of confusion */
-	char pad[4];
-} GpencilBlurModifierData;
-
-typedef enum eGpencilBlur_Flag {
-	GP_BLUR_DOF_MODE = (1 << 0)
-} eGpencilBlur_Flag;
-
-typedef struct GpencilWaveModifierData {
-	ModifierData modifier;
-	float amplitude;
-	float period;
-	float phase;
-	int orientation;
-	int flag;                    /* flags */
-	char pad[4];
-} GpencilWaveModifierData;
-
-typedef struct GpencilPixelModifierData {
-	ModifierData modifier;
-	int size[2];
-	int flag;                    /* flags */
-	float rgba[4];
-	char pad[4];
-} GpencilPixelModifierData;
-
-typedef enum eGpencilPixel_Flag {
-	GP_PIXEL_USE_LINES = (1 << 0),
-} eGpencilPixel_Flag;
-
-typedef struct GpencilSwirlModifierData {
-	ModifierData modifier;
-	struct Object *object;
-	int flag;                    /* flags */
-	int radius;
-	float angle;
-	char pad[4];
-} GpencilSwirlModifierData;
-
-typedef enum eGpencilSwirl_Flag {
-	GP_SWIRL_MAKE_TRANSPARENT = (1 << 0),
-} eGpencilSwirl_Flag;
-
-typedef struct GpencilFlipModifierData {
-	ModifierData modifier;
-	int flag;                    /* flags */
-	char pad[4];
-} GpencilFlipModifierData;
-
-typedef enum eGpencilFlip_Flag {
-	GP_FLIP_HORIZONTAL = (1 << 0),
-	GP_FLIP_VERTICAL = (1 << 1),
-} eGpencilFlip_Flag;
-
-typedef struct GpencilLightModifierData {
-	ModifierData modifier;
-	struct Object *object;
-	int flag;                    /* flags */
-	float energy;
-	float ambient;
-	char pad[4];
-} GpencilLightModifierData;
 
 typedef struct GpencilSmoothModifierData {
 	ModifierData modifier;
