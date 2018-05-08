@@ -101,6 +101,7 @@ struct Mesh *BKE_mesh_copy(struct Main *bmain, const struct Mesh *me);
 void BKE_mesh_update_customdata_pointers(struct Mesh *me, const bool do_ensure_tess_cd);
 void BKE_mesh_ensure_skin_customdata(struct Mesh *me);
 
+struct Mesh *BKE_mesh_new(int numVerts, int numEdges, int numTessFaces,int numLoops, int numPolys);
 struct Mesh * BKE_mesh_from_template(
         const struct Mesh *me_src,
         int numVerts, int numEdges, int numTessFaces,
@@ -201,6 +202,7 @@ void BKE_mesh_calc_normals_poly(
         int numLoops, int numPolys, float (*r_polyNors)[3],
         const bool only_face_normals);
 void BKE_mesh_calc_normals(struct Mesh *me);
+void BKE_mesh_ensure_normals(struct Mesh *me);
 void BKE_mesh_calc_normals_tessface(
         struct MVert *mverts, int numVerts,
         const struct MFace *mfaces, int numFaces,

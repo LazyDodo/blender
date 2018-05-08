@@ -243,24 +243,36 @@ static void mesh_operator_edgering_props_get(wmOperator *op, struct EdgeRingOpSu
 
 static int edbm_subdivide_edge_ring_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object * *objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 	struct EdgeRingOpSubdProps op_props;
 
 	mesh_operator_edgering_props_get(op, &op_props);
 
-	if (!EDBM_op_callf(
-	            em, op,
-	            "subdivide_edgering edges=%he interp_mode=%i cuts=%i smooth=%f "
-	            "profile_shape=%i profile_shape_factor=%f",
-	            BM_ELEM_SELECT, op_props.interp_mode, op_props.cuts, op_props.smooth,
-	            op_props.profile_shape, op_props.profile_shape_factor))
-	{
-		return OPERATOR_CANCELLED;
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object * obedit = objects[ob_index];
+		BMEditMesh * em = BKE_editmesh_from_object(obedit);
+
+		if (em->bm->totedgesel == 0) {
+			continue;
+		}
+
+		if (!EDBM_op_callf(
+		        em, op,
+		        "subdivide_edgering edges=%he interp_mode=%i cuts=%i smooth=%f "
+		        "profile_shape=%i profile_shape_factor=%f",
+		        BM_ELEM_SELECT, op_props.interp_mode, op_props.cuts, op_props.smooth,
+		        op_props.profile_shape, op_props.profile_shape_factor))
+		{
+			continue;
+		}
+
+		EDBM_update_generic(em, true, true);
 	}
 
-	EDBM_update_generic(em, true, true);
-
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
 
@@ -2240,12 +2252,21 @@ static void mesh_set_smooth_faces(BMEditMesh *em, short smooth)
 
 static int edbm_faces_shade_smooth_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+	ViewLayer * view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object * *objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object * obedit = objects[ob_index];
+		BMEditMesh * em = BKE_editmesh_from_object(obedit);
 
-	mesh_set_smooth_faces(em, 1);
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
 
-	EDBM_update_generic(em, false, false);
+		mesh_set_smooth_faces(em, 1);
+		EDBM_update_generic(em, false, false);
+	}
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -2273,12 +2294,21 @@ void MESH_OT_faces_shade_smooth(wmOperatorType *ot)
 
 static int edbm_faces_shade_flat_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-	mesh_set_smooth_faces(em, 0);
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
 
-	EDBM_update_generic(em, false, false);
+		mesh_set_smooth_faces(em, 0);
+		EDBM_update_generic(em, false, false);
+	}
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -3022,38 +3052,47 @@ void MESH_OT_blend_from_shape(wmOperatorType *ot)
 
 static int edbm_solidify_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	Mesh *me = obedit->data;
-	BMEditMesh *em = me->edit_btmesh;
-	BMesh *bm = em->bm;
-	BMOperator bmop;
-
 	const float thickness = RNA_float_get(op->ptr, "thickness");
 
-	if (!EDBM_op_init(em, &bmop, op, "solidify geom=%hf thickness=%f", BM_ELEM_SELECT, thickness)) {
-		return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		BMesh *bm = em->bm;
+
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
+
+		BMOperator bmop;
+
+		if (!EDBM_op_init(em, &bmop, op, "solidify geom=%hf thickness=%f", BM_ELEM_SELECT, thickness)) {
+			continue;
+		}
+
+		/* deselect only the faces in the region to be solidified (leave wire
+		 * edges and loose verts selected, as there will be no corresponding
+		 * geometry selected below) */
+		BMO_slot_buffer_hflag_disable(bm, bmop.slots_in, "geom", BM_FACE, BM_ELEM_SELECT, true);
+
+		/* run the solidify operator */
+		BMO_op_exec(bm, &bmop);
+
+		/* select the newly generated faces */
+		BMO_slot_buffer_hflag_enable(bm, bmop.slots_out, "geom.out", BM_FACE, BM_ELEM_SELECT, true);
+
+		if (!EDBM_op_finish(em, &bmop, op, true)) {
+			continue;
+		}
+
+		EDBM_update_generic(em, true, true);
 	}
 
-	/* deselect only the faces in the region to be solidified (leave wire
-	 * edges and loose verts selected, as there will be no corresponding
-	 * geometry selected below) */
-	BMO_slot_buffer_hflag_disable(bm, bmop.slots_in, "geom", BM_FACE, BM_ELEM_SELECT, true);
-
-	/* run the solidify operator */
-	BMO_op_exec(bm, &bmop);
-
-	/* select the newly generated faces */
-	BMO_slot_buffer_hflag_enable(bm, bmop.slots_out, "geom.out", BM_FACE, BM_ELEM_SELECT, true);
-
-	if (!EDBM_op_finish(em, &bmop, op, true)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	EDBM_update_generic(em, true, true);
-
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
-
 
 void MESH_OT_solidify(wmOperatorType *ot)
 {
@@ -4757,22 +4796,32 @@ static void edbm_dissolve_prop__use_boundary_tear(wmOperatorType *ot)
 
 static int edbm_dissolve_verts_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-
 	const bool use_face_split = RNA_boolean_get(op->ptr, "use_face_split");
 	const bool use_boundary_tear = RNA_boolean_get(op->ptr, "use_boundary_tear");
 
-	if (!EDBM_op_callf(
-	            em, op,
-	            "dissolve_verts verts=%hv use_face_split=%b use_boundary_tear=%b",
-	            BM_ELEM_SELECT, use_face_split, use_boundary_tear))
-	{
-		return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+		if (em->bm->totvertsel == 0) {
+			continue;
+		}
+
+		if (!EDBM_op_callf(
+		            em, op,
+		            "dissolve_verts verts=%hv use_face_split=%b use_boundary_tear=%b",
+		            BM_ELEM_SELECT, use_face_split, use_boundary_tear))
+		{
+			continue;
+		}
+		EDBM_update_generic(em, true, true);
 	}
 
-	EDBM_update_generic(em, true, true);
-
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
 
@@ -4802,21 +4851,32 @@ void MESH_OT_dissolve_verts(wmOperatorType *ot)
 
 static int edbm_dissolve_edges_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-
 	const bool use_verts = RNA_boolean_get(op->ptr, "use_verts");
 	const bool use_face_split = RNA_boolean_get(op->ptr, "use_face_split");
 
-	if (!EDBM_op_callf(
-	            em, op,
-	            "dissolve_edges edges=%he use_verts=%b use_face_split=%b",
-	            BM_ELEM_SELECT, use_verts, use_face_split))
-	{
-		return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+		if (em->bm->totedgesel == 0) {
+			continue;
+		}
+
+		if (!EDBM_op_callf(
+		        em, op,
+		        "dissolve_edges edges=%he use_verts=%b use_face_split=%b",
+		        BM_ELEM_SELECT, use_verts, use_face_split))
+		{
+			continue;
+		}
+
+		EDBM_update_generic(em, true, true);
 	}
 
-	EDBM_update_generic(em, true, true);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -4847,21 +4907,30 @@ void MESH_OT_dissolve_edges(wmOperatorType *ot)
 
 static int edbm_dissolve_faces_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-
 	const bool use_verts = RNA_boolean_get(op->ptr, "use_verts");
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-	if (!EDBM_op_call_and_selectf(
-	        em, op,
-	        "region.out", true,
-	        "dissolve_faces faces=%hf use_verts=%b",
-	        BM_ELEM_SELECT, use_verts))
-	{
-		return OPERATOR_CANCELLED;
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
+
+		if (!EDBM_op_call_and_selectf(
+		        em, op,
+		        "region.out", true,
+		        "dissolve_faces faces=%hf use_verts=%b",
+		        BM_ELEM_SELECT, use_verts))
+		{
+			continue;
+		}
+
+		EDBM_update_generic(em, true, true);
 	}
-
-	EDBM_update_generic(em, true, true);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -6022,9 +6091,6 @@ void MESH_OT_bridge_edge_loops(wmOperatorType *ot)
 
 static int edbm_wireframe_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-	BMOperator bmop;
 	const bool use_boundary        = RNA_boolean_get(op->ptr, "use_boundary");
 	const bool use_even_offset     = RNA_boolean_get(op->ptr, "use_even_offset");
 	const bool use_replace         = RNA_boolean_get(op->ptr, "use_replace");
@@ -6034,25 +6100,41 @@ static int edbm_wireframe_exec(bContext *C, wmOperator *op)
 	const float thickness          = RNA_float_get(op->ptr,   "thickness");
 	const float offset             = RNA_float_get(op->ptr,   "offset");
 
-	EDBM_op_init(
-	        em, &bmop, op,
-	        "wireframe faces=%hf use_replace=%b use_boundary=%b use_even_offset=%b use_relative_offset=%b "
-	        "use_crease=%b crease_weight=%f thickness=%f offset=%f",
-	        BM_ELEM_SELECT, use_replace, use_boundary, use_even_offset, use_relative_offset,
-	        use_crease, crease_weight, thickness, offset);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-	BMO_op_exec(em->bm, &bmop);
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
 
-	BM_mesh_elem_hflag_disable_all(em->bm, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_SELECT, false);
-	BMO_slot_buffer_hflag_enable(em->bm, bmop.slots_out, "faces.out", BM_FACE, BM_ELEM_SELECT, true);
+		BMOperator bmop;
 
-	if (!EDBM_op_finish(em, &bmop, op, true)) {
-		return OPERATOR_CANCELLED;
-	}
-	else {
+		EDBM_op_init(
+		        em, &bmop, op,
+		        "wireframe faces=%hf use_replace=%b use_boundary=%b use_even_offset=%b use_relative_offset=%b "
+		        "use_crease=%b crease_weight=%f thickness=%f offset=%f",
+		        BM_ELEM_SELECT, use_replace, use_boundary, use_even_offset, use_relative_offset,
+		        use_crease, crease_weight, thickness, offset);
+
+		BMO_op_exec(em->bm, &bmop);
+
+		BM_mesh_elem_hflag_disable_all(em->bm, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_SELECT, false);
+		BMO_slot_buffer_hflag_enable(em->bm, bmop.slots_out, "faces.out", BM_FACE, BM_ELEM_SELECT, true);
+
+		if (!EDBM_op_finish(em, &bmop, op, true)) {
+			continue;
+		}
+
 		EDBM_update_generic(em, true, true);
-		return OPERATOR_FINISHED;
 	}
+
+	MEM_freeN(objects);
+
+	return OPERATOR_FINISHED;
 }
 
 void MESH_OT_wireframe(wmOperatorType *ot)
