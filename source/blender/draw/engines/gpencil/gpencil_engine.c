@@ -90,25 +90,6 @@ static void GPENCIL_create_framebuffers(void *vedata)
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
-		/* vfx (ping-pong textures) */
-		e_data.vfx_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
-			&draw_engine_object_type);
-		e_data.vfx_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
-			&draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->vfx_fb_a, {
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_a),
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_a)
-			});
-
-		e_data.vfx_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
-			&draw_engine_object_type);
-		e_data.vfx_color_tx_b = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
-			&draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->vfx_fb_b, {
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_depth_tx_b),
-			GPU_ATTACHMENT_TEXTURE(e_data.vfx_color_tx_b)
-			});
-
 		/* painting framebuffer to speed up drawing process (always 16 bits) */
 		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_object_type);
@@ -172,25 +153,8 @@ static void GPENCIL_create_shaders(void)
 	if (!e_data.gpencil_simple_fullscreen_sh) {
 		e_data.gpencil_simple_fullscreen_sh = DRW_shader_create_fullscreen(datatoc_gpencil_simple_mix_frag_glsl, NULL);
 	}
-	/* vfx shaders (all in screen space) */
-	if (!e_data.gpencil_vfx_blur_sh) {
-		e_data.gpencil_vfx_blur_sh = DRW_shader_create_fullscreen(datatoc_gpencil_gaussian_blur_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_wave_sh) {
-		e_data.gpencil_vfx_wave_sh = DRW_shader_create_fullscreen(datatoc_gpencil_wave_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_pixel_sh) {
-		e_data.gpencil_vfx_pixel_sh = DRW_shader_create_fullscreen(datatoc_gpencil_pixel_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_swirl_sh) {
-		e_data.gpencil_vfx_swirl_sh = DRW_shader_create_fullscreen(datatoc_gpencil_swirl_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_flip_sh) {
-		e_data.gpencil_vfx_flip_sh = DRW_shader_create_fullscreen(datatoc_gpencil_flip_frag_glsl, NULL);
-	}
-	if (!e_data.gpencil_vfx_light_sh) {
-		e_data.gpencil_vfx_light_sh = DRW_shader_create_fullscreen(datatoc_gpencil_light_frag_glsl, NULL);
-	}
+
+	/* shaders for use when drawing */
 	if (!e_data.gpencil_painting_sh) {
 		e_data.gpencil_painting_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
 	}
@@ -259,12 +223,6 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_edit_point_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_fullscreen_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_simple_fullscreen_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_blur_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_wave_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_pixel_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_swirl_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_flip_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_vfx_light_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_painting_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_paper_sh);
 
@@ -367,7 +325,6 @@ static void GPENCIL_cache_init(void *vedata)
 		/* save simplify flags (can change while drawing, so it's better to save) */
 		stl->storage->simplify_fill = GP_SIMPLIFY_FILL(ts, stl->storage->playing);
 		stl->storage->simplify_modif = GP_SIMPLIFY_MODIF(ts, stl->storage->playing);
-		stl->storage->simplify_vfx = GP_SIMPLIFY_VFX(ts, stl->storage->playing);
 
 		/* save pixsize */
 		stl->storage->pixsize = DRW_viewport_pixelsize_get();
@@ -439,19 +396,6 @@ static void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_call_add(vfx_copy_shgrp, vfxquad, NULL);
 		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeColor", &e_data.vfx_color_tx_b);
 		DRW_shgroup_uniform_texture_ref(vfx_copy_shgrp, "strokeDepth", &e_data.vfx_depth_tx_b);
-
-		/* VFX passes */
-		psl->vfx_wave_pass = DRW_pass_create("GPencil VFX Wave Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-
-		psl->vfx_blur_pass = DRW_pass_create("GPencil VFX Blur Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-
-		psl->vfx_pixel_pass = DRW_pass_create("GPencil VFX Pixel Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-
-		psl->vfx_swirl_pass = DRW_pass_create("GPencil VFX Swirl Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-
-		psl->vfx_flip_pass = DRW_pass_create("GPencil VFX Flip Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-
-		psl->vfx_light_pass = DRW_pass_create("GPencil VFX Light Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
 		/* Painting session pass (used only to speedup while the user is drawing ) */
 		struct Gwn_Batch *paintquad = DRW_cache_fullscreen_quad_get();
@@ -575,13 +519,6 @@ static void GPENCIL_cache_finish(void *vedata)
 				printf("GPENCIL_cache_finish: %s %d->%d\n", ob->id.name, 
 					stl->g_data->gp_object_cache[i].init_grp, stl->g_data->gp_object_cache[i].end_grp);
 			}
-			/* VFX pass */
-			if (!stl->storage->simplify_vfx) {
-				cache = &stl->g_data->gp_object_cache[i];
-				if ((!is_multiedit) && (ob->modifiers.first)) {
-					DRW_gpencil_vfx_modifiers(&e_data, vedata, cache);
-				}
-			}
 			/* if render set to dirty to refresh viewport */
 			if (stl->storage->is_render == true) {
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
@@ -599,19 +536,6 @@ static int gpencil_object_cache_compare_zdepth(const void *a1, const void *a2)
 	else if (ps1->zdepth > ps2->zdepth) return -1;
 
 	return 0;
-}
-
-/* Draw all passes related to VFX modifiers 
- * the passes are created using two framebuffers and use a ping-pong selection
- * to alternate use. By default all vfx modifiers start with tx_a as input
- * and the final output must put the result in tx_a again to be used by next
- * vfx modifier. This use one pass more but allows to create a stack of vfx
- * modifiers and add more modifiers in the future using the same structure.
-*/
-static void gpencil_vfx_passes(void *vedata, tGPencilObjectCache *cache)
-{
-	/* draw all vfx passes */
-	DRW_gpencil_vfx_draw(vedata, cache);
 }
 
 /* prepare a texture with full viewport for fast drawing */
@@ -745,25 +669,6 @@ static void GPENCIL_draw_scene(void *vedata)
 					DRW_draw_pass(psl->drawing_pass);
 				}
 
-				/* vfx modifiers passes */
-				if ((gpencil_object_use_vfx(ob)) && (!stl->storage->simplify_vfx)) {
-					gpencil_vfx_passes(vedata, cache);
-				}
-				e_data.input_depth_tx = e_data.vfx_depth_tx_a;
-				e_data.input_color_tx = e_data.vfx_color_tx_a;
-
-#if 0 /* the result is very low quality, disable while find a solution */
-				/* depth of field effect
-				 * send always to tx_b because other textures can be in use. Remap input
-				 * textures too.
-				 */
-				if (stl->storage->enable_dof == true) {
-					GPENCIL_depth_of_field_draw(&e_data, vedata);
-
-					e_data.input_depth_tx = e_data.vfx_depth_tx_b;
-					e_data.input_color_tx = e_data.vfx_color_tx_b;
-				}
-#endif
 				/* Combine with scene buffer */
 				if ((!is_render) || (fbl->main == NULL)) {
 					GPU_framebuffer_bind(dfbl->default_fb);
@@ -792,12 +697,6 @@ static void GPENCIL_draw_scene(void *vedata)
 
 	/* detach temp textures */
 	if (DRW_state_is_fbo()) {
-		GPU_framebuffer_texture_detach(fbl->vfx_fb_a, e_data.vfx_depth_tx_a);
-		GPU_framebuffer_texture_detach(fbl->vfx_fb_a, e_data.vfx_color_tx_a);
-
-		GPU_framebuffer_texture_detach(fbl->vfx_fb_b, e_data.vfx_depth_tx_b);
-		GPU_framebuffer_texture_detach(fbl->vfx_fb_b, e_data.vfx_color_tx_b);
-
 		GPU_framebuffer_texture_detach(fbl->painting_fb, e_data.painting_depth_tx);
 		GPU_framebuffer_texture_detach(fbl->painting_fb, e_data.painting_color_tx);
 

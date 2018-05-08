@@ -101,13 +101,6 @@ extern ModifierTypeInfo modifierType_GpencilSmooth;
 extern ModifierTypeInfo modifierType_GpencilHook;
 extern ModifierTypeInfo modifierType_GpencilOffset;
 
-extern ModifierTypeInfo modifierType_GpencilBlur;
-extern ModifierTypeInfo modifierType_GpencilWave;
-extern ModifierTypeInfo modifierType_GpencilPixel;
-extern ModifierTypeInfo modifierType_GpencilSwirl;
-extern ModifierTypeInfo modifierType_GpencilFlip;
-extern ModifierTypeInfo modifierType_GpencilLight;
-
 /* MOD_util.c */
 void modifier_type_init(ModifierTypeInfo *types[]);
 

@@ -55,72 +55,18 @@ struct GpencilColorData;
 #define GP_IS_CAMERAVIEW ((rv3d != NULL) && (rv3d->persp == RV3D_CAMOB && v3d->camera))
 
  /* *********** OBJECTS CACHE *********** */
-typedef struct GPencilVFXSwirl {
-	float loc[3];
-	float radius; 
-	float angle;
-	int transparent;
-} GPencilVFXSwirl;
-
-typedef struct GPencilVFXPixel {
-	float loc[3];
-	float size[2];
-	float rgba[4];
-	int lines;
-} GPencilVFXPixel;
-
-typedef struct GPencilVFXBlur {
-	float radius[2];
-	int samples;
-} GPencilVFXBlur;
-
-typedef struct GPencilVFXWave {
-	int orientation;
-	float amplitude;
-	float period;
-	float phase;
-} GPencilVFXWave;
-
-typedef struct GPencilVFXFlip {
-	float flipmode[2]; /* use float to pass to shader, but only will be 0 or 1 */
-} GPencilVFXFlip;
-
-typedef struct GPencilVFXLight {
-	float loc[4];
-	float energy;
-	float ambient;
-	float specular;
-} GPencilVFXLight;
 
 /* used to save gpencil objects */
 typedef struct tGPencilObjectCache {
 	struct Object *ob;
 	int init_grp, end_grp;
 	int idx;  /*original index, can change after sort */
-	DRWShadingGroup *vfx_wave_sh;
 
-	DRWShadingGroup *vfx_blur_sh;
-
-	DRWShadingGroup *vfx_pixel_sh;
-
-	DRWShadingGroup *vfx_swirl_sh;
-
-	DRWShadingGroup *vfx_flip_sh;
-
-	DRWShadingGroup *vfx_light_sh;
 	float zdepth;  /* z-depth value to sort gp object */
 	bool temp_ob;  /* flag to tag temporary objects that must be removed after drawing loop */
 } tGPencilObjectCache;
 
   /* *********** LISTS *********** */
-typedef struct GPENCIL_vfx {
-	GPencilVFXBlur vfx_blur;
-	GPencilVFXWave vfx_wave;
-	GPencilVFXPixel vfx_pixel;
-	GPencilVFXSwirl vfx_swirl;
-	GPencilVFXFlip vfx_flip;
-	GPencilVFXLight vfx_light;
-} GPENCIL_vfx;
 
 typedef struct GPENCIL_shgroup {
 	int s_clamp;
@@ -182,7 +128,6 @@ typedef struct GPENCIL_StorageList {
 	struct GPENCIL_Storage *storage;
 	struct g_data *g_data;
 	struct GPENCIL_shgroup *shgroups;
-	struct GPENCIL_vfx *vfx;
 } GPENCIL_StorageList;
 
 typedef struct GPENCIL_PassList {
@@ -191,13 +136,6 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *drawing_pass;
 	struct DRWPass *mix_pass;
 	struct DRWPass *mix_pass_noblend;
-	struct DRWPass *vfx_copy_pass;
-	struct DRWPass *vfx_wave_pass;
-	struct DRWPass *vfx_blur_pass;
-	struct DRWPass *vfx_pixel_pass;
-	struct DRWPass *vfx_swirl_pass;
-	struct DRWPass *vfx_flip_pass;
-	struct DRWPass *vfx_light_pass;
 	struct DRWPass *painting_pass;
 	struct DRWPass *paper_pass;
 
@@ -274,12 +212,6 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_drawing_fill_sh;
 	struct GPUShader *gpencil_fullscreen_sh;
 	struct GPUShader *gpencil_simple_fullscreen_sh;
-	struct GPUShader *gpencil_vfx_blur_sh;
-	struct GPUShader *gpencil_vfx_wave_sh;
-	struct GPUShader *gpencil_vfx_pixel_sh;
-	struct GPUShader *gpencil_vfx_swirl_sh;
-	struct GPUShader *gpencil_vfx_flip_sh;
-	struct GPUShader *gpencil_vfx_light_sh;
 	struct GPUShader *gpencil_painting_sh;
 	struct GPUShader *gpencil_paper_sh;
 
@@ -288,12 +220,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_dof_scatter_sh;
 	struct GPUShader *gpencil_dof_resolve_sh;
 
-	/* textures for ping-pong vfx effects */
-	struct GPUTexture *vfx_depth_tx_a;
-	struct GPUTexture *vfx_color_tx_a;
-	struct GPUTexture *vfx_depth_tx_b;
-	struct GPUTexture *vfx_color_tx_b;
-
+	/* textures */
 	struct GPUTexture *painting_depth_tx;
 	struct GPUTexture *painting_color_tx;
 
@@ -307,7 +234,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *input_depth_tx;
 	struct GPUTexture *input_color_tx;
 
-	/* depth of field */	
+	/* depth of field */
 	struct GPUTexture *gpencil_dof_down_near;
 	struct GPUTexture *gpencil_dof_down_far;
 	struct GPUTexture *gpencil_dof_coc;
@@ -319,7 +246,6 @@ typedef struct GPENCIL_e_data {
 
 /* Gwn_Batch Cache */
 typedef struct GpencilBatchCache {
-	
 	/* For normal strokes, a variable number of batch can be needed depending of number of strokes.
 	   It could use the stroke number as total size, but when activate the onion skining, the number
 	   can change, so the size is changed dinamically.
@@ -370,10 +296,7 @@ void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *
 void gpencil_batch_cache_check_free_slots(struct Object *ob);
 struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
 
-/* vfx and modifiers functions */
-void DRW_gpencil_vfx_modifiers(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache);
-void DRW_gpencil_vfx_draw(struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache);
-bool gpencil_object_use_vfx(struct Object *ob);
+/* modifier functions */
 void gpencil_instance_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
 /* depth of field */

@@ -97,15 +97,9 @@ typedef enum ModifierType {
 	eModifierType_GpencilColor      = 61,
 	eModifierType_GpencilLattice    = 62,
 	eModifierType_GpencilSimplify   = 63,
-	eModifierType_GpencilBlur       = 64,
-	eModifierType_GpencilWave       = 65,
-	eModifierType_GpencilPixel      = 66,
-	eModifierType_GpencilSwirl      = 67,
 	eModifierType_GpencilSmooth     = 68,
 	eModifierType_GpencilHook       = 69,
-	eModifierType_GpencilFlip       = 70,
 	eModifierType_GpencilOffset     = 71,
-	eModifierType_GpencilLight      = 72,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 

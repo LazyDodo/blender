@@ -66,7 +66,7 @@ void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, bool
 	tGPencilObjectCache *cache = &cache_array[*gp_cache_used];
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	
-	/* zero out all vfx_* pointers */
+	/* zero out all pointers */
 	memset(cache, 0, sizeof(*cache));
 	
 	/* save object */

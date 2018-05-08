@@ -139,13 +139,6 @@ const EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	{eModifierType_GpencilColor, "GP_COLOR", ICON_GROUP_VCOL, "Hue/Saturation", "Apply changes to stroke colors"},
 	{eModifierType_GpencilOpacity, "GP_OPACITY", ICON_MOD_MASK, "Opacity", "Opacity of the strokes"},
 	{eModifierType_GpencilTint, "GP_TINT", ICON_COLOR, "Tint", "Tint strokes with new color"},
-	{ 0, "", 0, N_("VFX"), "" },
-	{eModifierType_GpencilFlip, "GP_FLIP", ICON_SOLO_ON, "Flip", "Flip image"},
-	{eModifierType_GpencilBlur, "GP_BLUR", ICON_SOLO_ON, "Gaussian Blur", "Apply Gaussian Blur to object"},
-	{eModifierType_GpencilPixel, "GP_PIXEL", ICON_SOLO_ON, "Pixelate", "Pixelate image"},
-	{eModifierType_GpencilSwirl, "GP_SWIRL", ICON_SOLO_ON, "Swirl", "Create a rotation distortion"},
-	{eModifierType_GpencilWave, "GP_WAVE", ICON_SOLO_ON, "Wave Distortion", "Apply sinusoidal deformation"},
-	{eModifierType_GpencilLight, "GP_LIGHT", ICON_SOLO_ON, "Light", "Simulate ilumination" },
 	{0, NULL, 0, NULL, NULL}
 };
 

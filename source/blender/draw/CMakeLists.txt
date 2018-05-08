@@ -115,7 +115,6 @@ set(SRC
 	engines/gpencil/gpencil_cache_utils.c
 	engines/gpencil/gpencil_draw_cache_impl.c
 	engines/gpencil/gpencil_geom.c
-	engines/gpencil/gpencil_vfx.c
 	engines/gpencil/gpencil_depth_of_field.c
 
 	DRW_engine.h
@@ -293,12 +292,6 @@ data_to_c_simple(engines/gpencil/shaders/gpencil_simple_mix_frag.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_point_vert.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_point_geom.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_point_frag.glsl SRC)
-data_to_c_simple(engines/gpencil/shaders/gpencil_gaussian_blur_frag.glsl SRC)
-data_to_c_simple(engines/gpencil/shaders/gpencil_wave_frag.glsl SRC)
-data_to_c_simple(engines/gpencil/shaders/gpencil_pixel_frag.glsl SRC)
-data_to_c_simple(engines/gpencil/shaders/gpencil_swirl_frag.glsl SRC)
-data_to_c_simple(engines/gpencil/shaders/gpencil_flip_frag.glsl SRC)
-data_to_c_simple(engines/gpencil/shaders/gpencil_light_frag.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_painting_frag.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_paper_frag.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_vert.glsl SRC)

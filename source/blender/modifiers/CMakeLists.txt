@@ -124,12 +124,6 @@ set(SRC
 	intern/MOD_gpencilbuild.c
 	intern/MOD_gpencilopacity.c
 	intern/MOD_gpencillattice.c
-	intern/MOD_gpencilblur.c
-	intern/MOD_gpencilwave.c
-	intern/MOD_gpencilpixel.c
-	intern/MOD_gpencilswirl.c
-	intern/MOD_gpencilflip.c
-	intern/MOD_gpencillight.c
 	intern/MOD_gpencilsmooth.c
 	intern/MOD_gpencilhook.c
 	intern/MOD_gpenciloffset.c
