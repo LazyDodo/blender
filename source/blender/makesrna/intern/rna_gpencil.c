@@ -456,10 +456,9 @@ static void rna_GPencil_stroke_point_pop(bGPDstroke *stroke, ReportList *reports
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
-static bGPDstroke *rna_GPencil_stroke_new(bGPDframe *frame, const char *colorname)
+static bGPDstroke *rna_GPencil_stroke_new(bGPDframe *frame)
 {
 	bGPDstroke *stroke = MEM_callocN(sizeof(bGPDstroke), "gp_stroke");
-	/* XXX: colorname is unused */
 	stroke->flag |= GP_STROKE_RECALC_COLOR;
 	BLI_addtail(&frame->strokes, stroke);
 
@@ -871,7 +870,6 @@ static void rna_def_gpencil_strokes_api(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "new", "rna_GPencil_stroke_new");
 	RNA_def_function_ui_description(func, "Add a new grease pencil stroke");
-	parm = RNA_def_string(func, "colorname", 0, MAX_NAME, "Color", "Name of the color");
 	parm = RNA_def_pointer(func, "stroke", "GPencilStroke", "", "The newly created stroke");
 	RNA_def_function_return(func, parm);
 
