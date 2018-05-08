@@ -313,10 +313,10 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 	
 	/* Exit EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	/* Brush Settings */
 	/* NOTE: We cannot expose these in the standard keymap, as they will interfere with regular hotkeys
@@ -430,10 +430,10 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 
 	/* Enter PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", DKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter SculptMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculptmode_toggle", EKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	/* menu - add GP object (3d view only) */
 	WM_keymap_add_item(keymap, "OBJECT_OT_gpencil_add", AKEY, KM_PRESS, KM_SHIFT, 0);
@@ -567,10 +567,10 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 
 	/* Exit PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	/* Select drawing brush using index */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_select", ONEKEY, KM_PRESS, 0, 0);
@@ -604,10 +604,10 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter SculptMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculptmode_toggle", EKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	/* menu draw specials (add two keys to make more easy for user) */
 	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_draw_specials", WKEY, KM_PRESS, 0, 0);
@@ -628,10 +628,10 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 
 	/* Exit SculptMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 	
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculptmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	/* Selection */
 	ed_keymap_gpencil_selection(keymap);
@@ -668,10 +668,10 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", DKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 }
 
 /* Stroke Weight Paint Keymap - Only when weight is enabled */
@@ -685,10 +685,10 @@ static void ed_keymap_gpencil_weightpainting(wmKeyConfig *keyconf)
 
 	/* Exit WeightMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_weightmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	/* Selection */
 	ed_keymap_gpencil_selection(keymap);
@@ -713,10 +713,10 @@ static void ed_keymap_gpencil_weightpainting(wmKeyConfig *keyconf)
 
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", DKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "back", 1);
+	RNA_boolean_set(kmi->ptr, "back", 1);
 }
 /* ==================== */
 

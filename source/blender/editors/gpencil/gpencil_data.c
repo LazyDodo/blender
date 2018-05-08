@@ -1018,21 +1018,21 @@ static int gp_stroke_arrange_exec(bContext *C, wmOperator *op)
 						BLI_addtail(&gpf->strokes, gps);
 					}
 					break;
-					/* Bring Forward */
+				/* Bring Forward */
 				case GP_STROKE_MOVE_UP:
 					for (LinkData *link = selected.last; link; link = link->prev) {
 						gps = link->data;
 						BLI_listbase_link_move(&gpf->strokes, gps, 1);
 					}
 					break;
-					/* Send Backward */
+				/* Send Backward */
 				case GP_STROKE_MOVE_DOWN:
 					for (LinkData *link = selected.first; link; link = link->next) {
 						gps = link->data;
 						BLI_listbase_link_move(&gpf->strokes, gps, -1);
 					}
 					break;
-					/* Send to Back */
+				/* Send to Back */
 				case GP_STROKE_MOVE_BOTTOM:
 					for (LinkData *link = selected.last; link; link = link->prev) {
 						gps = link->data;
