@@ -255,14 +255,12 @@ class DATA_PT_gpencil_infopanel(DataButtonsPanel, Panel):
         col.label("Frames:", icon="LAYER_ACTIVE")
         col.label("Strokes:", icon="LAYER_ACTIVE")
         col.label("Points:", icon="LAYER_ACTIVE")
-        col.label("Palettes:", icon="LAYER_ACTIVE")
 
         col = split.column(align=True)
         col.label(str(gpd.info_total_layers))
         col.label(str(gpd.info_total_frames))
         col.label(str(gpd.info_total_strokes))
         col.label(str(gpd.info_total_points))
-        col.label(str(gpd.info_total_palettes))
 
 
 class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
