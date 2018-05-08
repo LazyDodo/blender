@@ -119,6 +119,10 @@ class DATA_PT_gpencil_onionpanel(Panel):
     bl_label = "Onion Skinning"
     bl_options = {'DEFAULT_CLOSED'}
 
+    @classmethod
+    def poll(cls, context):
+        return bool(context.active_gpencil_layer)
+
     @staticmethod
     def draw_header(self, context):
         self.layout.prop(context.gpencil_data, "use_onion_skinning", text="")
