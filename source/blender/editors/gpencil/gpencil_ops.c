@@ -393,10 +393,10 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 
 	/* toogle multiedit support */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "lines", 0);
+	RNA_boolean_set(kmi->ptr, "toggle_visibility", 0);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_int_set(kmi->ptr, "lines", 1);
+	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
 
 	/* Isolate Layer */
 	WM_keymap_add_item(keymap, "GPENCIL_OT_layer_isolate", PADASTERKEY, KM_PRESS, 0, 0);
@@ -641,10 +641,10 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 
 	/* toogle multiedit support */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "lines", 0);
+	RNA_boolean_set(kmi->ptr, "toggle_visibility", 0);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_int_set(kmi->ptr, "lines", 1);
+	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
 
 	/* Select sculpt brush using index */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculpt_select", ONEKEY, KM_PRESS, 0, 0);
@@ -706,10 +706,10 @@ static void ed_keymap_gpencil_weightpainting(wmKeyConfig *keyconf)
 
 	/* toogle multiedit support */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, 0, 0);
-	RNA_int_set(kmi->ptr, "lines", 0);
+	RNA_boolean_set(kmi->ptr, "toggle_visibility", 0);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_int_set(kmi->ptr, "lines", 1);
+	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
 
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);

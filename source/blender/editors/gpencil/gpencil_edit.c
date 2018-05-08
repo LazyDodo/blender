@@ -477,7 +477,7 @@ void GPENCIL_OT_selection_opacity_toggle(wmOperatorType *ot)
 static int gpencil_multiedit_toggle_exec(bContext *C, wmOperator *op)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	const int lines = RNA_int_get(op->ptr, "lines");
+	const bool lines = RNA_boolean_get(op->ptr, "lines");
 
 	if (gpd == NULL)
 		return OPERATOR_CANCELLED;
@@ -501,7 +501,7 @@ void GPENCIL_OT_multiedit_toggle(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Edit Lines Toggle";
 	ot->idname = "GPENCIL_OT_multiedit_toggle";
-	ot->description = "Enable/Disable edit lines support";
+	ot->description = "Enable/disable edit lines support";
 
 	/* callbacks */
 	ot->exec = gpencil_multiedit_toggle_exec;
@@ -511,7 +511,7 @@ void GPENCIL_OT_multiedit_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 
 	/* properties */
-	RNA_def_int(ot->srna, "lines", 0, 0, 1, "lines", "1 to toggle display lines only", 0, 1);
+	RNA_def_boolean(ot->srna, "toggle_visibility", 0, "Toggle Visibility Only", "Toggle visibility of edit lines only");
 }
 
 /* ************** Duplicate Selected Strokes **************** */
