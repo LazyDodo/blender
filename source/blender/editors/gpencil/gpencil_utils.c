@@ -1582,42 +1582,42 @@ void ED_gpencil_setup_modes(bContext *C, bGPdata *gpd, int newmode)
 	}
 
 	switch (newmode) {
-	case OB_MODE_GPENCIL_EDIT:
-		gpd->flag |= GP_DATA_STROKE_EDITMODE;
-		gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
-		gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
-		gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
-		ED_gpencil_toggle_brush_cursor(C, false, NULL);
-		break;
-	case OB_MODE_GPENCIL_PAINT:
-		gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
-		gpd->flag |= GP_DATA_STROKE_PAINTMODE;
-		gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
-		gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
-		ED_gpencil_toggle_brush_cursor(C, true, NULL);
-		break;
-	case OB_MODE_GPENCIL_SCULPT:
-		gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
-		gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
-		gpd->flag |= GP_DATA_STROKE_SCULPTMODE;
-		gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
-		gpencil_verify_brush_type(C, OB_MODE_GPENCIL_SCULPT);
-		ED_gpencil_toggle_brush_cursor(C, true, NULL);
-		break;
-	case OB_MODE_GPENCIL_WEIGHT:
-		gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
-		gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
-		gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
-		gpd->flag |= GP_DATA_STROKE_WEIGHTMODE;
-		gpencil_verify_brush_type(C, OB_MODE_GPENCIL_WEIGHT);
-		ED_gpencil_toggle_brush_cursor(C, true, NULL);
-		break;
-	default:
-		gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
-		gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
-		gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
-		ED_gpencil_toggle_brush_cursor(C, false, NULL);
-		break;
+		case OB_MODE_GPENCIL_EDIT:
+			gpd->flag |= GP_DATA_STROKE_EDITMODE;
+			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
+			ED_gpencil_toggle_brush_cursor(C, false, NULL);
+			break;
+		case OB_MODE_GPENCIL_PAINT:
+			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
+			gpd->flag |= GP_DATA_STROKE_PAINTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
+			ED_gpencil_toggle_brush_cursor(C, true, NULL);
+			break;
+		case OB_MODE_GPENCIL_SCULPT:
+			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
+			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
+			gpd->flag |= GP_DATA_STROKE_SCULPTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
+			gpencil_verify_brush_type(C, OB_MODE_GPENCIL_SCULPT);
+			ED_gpencil_toggle_brush_cursor(C, true, NULL);
+			break;
+		case OB_MODE_GPENCIL_WEIGHT:
+			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
+			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
+			gpd->flag |= GP_DATA_STROKE_WEIGHTMODE;
+			gpencil_verify_brush_type(C, OB_MODE_GPENCIL_WEIGHT);
+			ED_gpencil_toggle_brush_cursor(C, true, NULL);
+			break;
+		default:
+			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
+			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
+			ED_gpencil_toggle_brush_cursor(C, false, NULL);
+			break;
 	}
 }
 
