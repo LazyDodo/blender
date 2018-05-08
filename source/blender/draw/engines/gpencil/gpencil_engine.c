@@ -281,10 +281,6 @@ static void GPENCIL_cache_init(void *vedata)
 		 */
 		stl->shgroups = MEM_mallocN(sizeof(GPENCIL_shgroup) * GPENCIL_MAX_SHGROUPS, "GPENCIL_shgroup");
 	}
-
-	if (!stl->vfx) {
-		stl->vfx = MEM_mallocN(sizeof(GPENCIL_vfx) * GPENCIL_MAX_GP_OBJ, "GPENCIL_vfx");
-	}
 	
 	/* init gp objects cache */
 	stl->g_data->gp_cache_used = 0;
