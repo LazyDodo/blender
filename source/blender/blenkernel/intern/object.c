@@ -489,9 +489,6 @@ void BKE_object_free(Object *ob)
 	}
 
 	BKE_previewimg_free(&ob->preview);
-
-	/* don't free, let the base free it */
-	ob->base_collection_properties = NULL;
 }
 
 /* actual check for internal data, not context or flags */

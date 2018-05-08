@@ -1658,7 +1658,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 			/* if active object doesn't exist or it's not a Grease Pencil object, 
 			 * use the scene's gp_object (), or create one if it doesn't exist
 			 */
-			float *cur = ED_view3d_cursor3d_get(p->scene, v3d);
+			float *cur = ED_view3d_cursor3d_get(p->scene, v3d)->location;
 			if ((!obact) || (obact->type != OB_GPENCIL)) {
 				if (p->scene->gp_object) {
 					/* use existing default */

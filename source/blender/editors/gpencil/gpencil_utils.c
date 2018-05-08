@@ -706,9 +706,8 @@ bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, Scene *scene, const float screen
 {
 	View3D *v3d = gsc->sa->spacedata.first;
 	RegionView3D *rv3d = gsc->ar->regiondata;
-	float *rvec = ED_view3d_cursor3d_get(scene, v3d);
-	float ref[3];
-	copy_v3_v3(ref, rvec);
+	float *rvec = ED_view3d_cursor3d_get(scene, v3d)->location;
+	float ref[3] = {rvec[0], rvec[1], rvec[2]};
 	float zfac = ED_view3d_calc_zfac(rv3d, rvec, NULL);
 	
 	float mval_f[2], mval_prj[2];
@@ -781,7 +780,7 @@ void gp_stroke_convertcoords_tpoint(
  */
 void ED_gp_get_drawing_reference(View3D *v3d, Scene *scene, Object *ob, bGPDlayer *gpl, char align_flag, float r_vec[3])
 {
-	const float *fp = ED_view3d_cursor3d_get(scene, v3d);
+	const float *fp = ED_view3d_cursor3d_get(scene, v3d)->location;
 
 	/* if using a gpencil object at cursor mode, can use the location of the object */
 	if (align_flag & GP_PROJECT_VIEWSPACE) {

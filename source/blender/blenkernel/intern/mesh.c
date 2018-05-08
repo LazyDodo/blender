@@ -51,7 +51,6 @@
 #include "BKE_main.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
-#include "BKE_idcode.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
 #include "BKE_displist.h"
@@ -615,13 +614,14 @@ void BKE_mesh_copy_data(Main *bmain, Mesh *me_dst, const Mesh *me_src, const int
 	}
 }
 
-Mesh *BKE_mesh_new(int numVerts, int numEdges, int numTessFaces,int numLoops, int numPolys)
+Mesh *BKE_mesh_new_nomain(int verts_len, int edges_len, int tessface_len, int loops_len, int polys_len)
 {
-	Mesh *mesh = BKE_libblock_alloc(NULL, ID_ME,
-	                                BKE_idcode_to_name(ID_ME),
-	                                LIB_ID_CREATE_NO_MAIN |
-	                                LIB_ID_CREATE_NO_USER_REFCOUNT |
-								    LIB_ID_CREATE_NO_DEG_TAG);
+	Mesh *mesh = BKE_libblock_alloc(
+	        NULL, ID_ME,
+	        BKE_idcode_to_name(ID_ME),
+	        LIB_ID_CREATE_NO_MAIN |
+	        LIB_ID_CREATE_NO_USER_REFCOUNT |
+	        LIB_ID_CREATE_NO_DEG_TAG);
 	BKE_libblock_init_empty(&mesh->id);
 
 	/* don't use CustomData_reset(...); because we dont want to touch customdata */
@@ -631,16 +631,16 @@ Mesh *BKE_mesh_new(int numVerts, int numEdges, int numTessFaces,int numLoops, in
 	copy_vn_i(mesh->ldata.typemap, CD_NUMTYPES, -1);
 	copy_vn_i(mesh->pdata.typemap, CD_NUMTYPES, -1);
 
-	CustomData_add_layer(&mesh->vdata, CD_ORIGINDEX, CD_CALLOC, NULL, numVerts);
-	CustomData_add_layer(&mesh->edata, CD_ORIGINDEX, CD_CALLOC, NULL, numEdges);
-	CustomData_add_layer(&mesh->fdata, CD_ORIGINDEX, CD_CALLOC, NULL, numTessFaces);
-	CustomData_add_layer(&mesh->pdata, CD_ORIGINDEX, CD_CALLOC, NULL, numPolys);
+	CustomData_add_layer(&mesh->vdata, CD_ORIGINDEX, CD_CALLOC, NULL, verts_len);
+	CustomData_add_layer(&mesh->edata, CD_ORIGINDEX, CD_CALLOC, NULL, edges_len);
+	CustomData_add_layer(&mesh->fdata, CD_ORIGINDEX, CD_CALLOC, NULL, tessface_len);
+	CustomData_add_layer(&mesh->pdata, CD_ORIGINDEX, CD_CALLOC, NULL, polys_len);
 
-	CustomData_add_layer(&mesh->vdata, CD_MVERT, CD_CALLOC, NULL, numVerts);
-	CustomData_add_layer(&mesh->edata, CD_MEDGE, CD_CALLOC, NULL, numEdges);
-	CustomData_add_layer(&mesh->fdata, CD_MFACE, CD_CALLOC, NULL, numTessFaces);
-	CustomData_add_layer(&mesh->ldata, CD_MLOOP, CD_CALLOC, NULL, numLoops);
-	CustomData_add_layer(&mesh->pdata, CD_MPOLY, CD_CALLOC, NULL, numPolys);
+	CustomData_add_layer(&mesh->vdata, CD_MVERT, CD_CALLOC, NULL, verts_len);
+	CustomData_add_layer(&mesh->edata, CD_MEDGE, CD_CALLOC, NULL, edges_len);
+	CustomData_add_layer(&mesh->fdata, CD_MFACE, CD_CALLOC, NULL, tessface_len);
+	CustomData_add_layer(&mesh->ldata, CD_MLOOP, CD_CALLOC, NULL, loops_len);
+	CustomData_add_layer(&mesh->pdata, CD_MPOLY, CD_CALLOC, NULL, polys_len);
 
 	mesh->mvert = CustomData_get_layer(&mesh->vdata, CD_MVERT);
 	mesh->medge = CustomData_get_layer(&mesh->edata, CD_MEDGE);
@@ -651,10 +651,10 @@ Mesh *BKE_mesh_new(int numVerts, int numEdges, int numTessFaces,int numLoops, in
 	return mesh;
 }
 
-static Mesh *mesh_from_template_ex(
+static Mesh *mesh_new_nomain_from_template_ex(
         const Mesh *me_src,
-        int numVerts, int numEdges, int numTessFaces,
-        int numLoops, int numPolys,
+        int verts_len, int edges_len, int tessface_len,
+        int loops_len, int polys_len,
         CustomDataMask mask)
 {
 	const bool do_tessface = ((me_src->totface != 0) && (me_src->totpoly == 0)); /* only do tessface if we have no polys */
@@ -664,17 +664,17 @@ static Mesh *mesh_from_template_ex(
 	me_dst->mat = MEM_dupallocN(me_src->mat);
 	me_dst->mselect = MEM_dupallocN(me_dst->mselect);
 
-	me_dst->totvert = numVerts;
-	me_dst->totedge = numEdges;
-	me_dst->totloop = numLoops;
-	me_dst->totpoly = numPolys;
+	me_dst->totvert = verts_len;
+	me_dst->totedge = edges_len;
+	me_dst->totloop = loops_len;
+	me_dst->totpoly = polys_len;
 
-	CustomData_copy(&me_src->vdata, &me_dst->vdata, mask, CD_CALLOC, numVerts);
-	CustomData_copy(&me_src->edata, &me_dst->edata, mask, CD_CALLOC, numEdges);
-	CustomData_copy(&me_src->ldata, &me_dst->ldata, mask, CD_CALLOC, numLoops);
-	CustomData_copy(&me_src->pdata, &me_dst->pdata, mask, CD_CALLOC, numPolys);
+	CustomData_copy(&me_src->vdata, &me_dst->vdata, mask, CD_CALLOC, verts_len);
+	CustomData_copy(&me_src->edata, &me_dst->edata, mask, CD_CALLOC, edges_len);
+	CustomData_copy(&me_src->ldata, &me_dst->ldata, mask, CD_CALLOC, loops_len);
+	CustomData_copy(&me_src->pdata, &me_dst->pdata, mask, CD_CALLOC, polys_len);
 	if (do_tessface) {
-		CustomData_copy(&me_src->fdata, &me_dst->fdata, mask, CD_CALLOC, numTessFaces);
+		CustomData_copy(&me_src->fdata, &me_dst->fdata, mask, CD_CALLOC, tessface_len);
 	}
 	else {
 		mesh_tessface_clear_intern(me_dst, false);
@@ -683,24 +683,25 @@ static Mesh *mesh_from_template_ex(
 	BKE_mesh_update_customdata_pointers(me_dst, false);
 
 	if (!CustomData_get_layer(&me_dst->vdata, CD_ORIGINDEX))
-		CustomData_add_layer(&me_dst->vdata, CD_ORIGINDEX, CD_CALLOC, NULL, numVerts);
+		CustomData_add_layer(&me_dst->vdata, CD_ORIGINDEX, CD_CALLOC, NULL, verts_len);
 	if (!CustomData_get_layer(&me_dst->edata, CD_ORIGINDEX))
-		CustomData_add_layer(&me_dst->edata, CD_ORIGINDEX, CD_CALLOC, NULL, numEdges);
+		CustomData_add_layer(&me_dst->edata, CD_ORIGINDEX, CD_CALLOC, NULL, edges_len);
 	if (!CustomData_get_layer(&me_dst->pdata, CD_ORIGINDEX))
-		CustomData_add_layer(&me_dst->pdata, CD_ORIGINDEX, CD_CALLOC, NULL, numPolys);
+		CustomData_add_layer(&me_dst->pdata, CD_ORIGINDEX, CD_CALLOC, NULL, polys_len);
 
 	return me_dst;
 }
 
-Mesh * BKE_mesh_from_template(const Mesh *me_src,
-                              int numVerts, int numEdges, int numTessFaces,
-                              int numLoops, int numPolys)
+Mesh * BKE_mesh_new_nomain_from_template(
+        const Mesh *me_src,
+        int verts_len, int edges_len, int tessface_len,
+        int loops_len, int polys_len)
 {
-	return mesh_from_template_ex(
-	            me_src,
-	            numVerts, numEdges, numTessFaces,
-	            numLoops, numPolys,
-	            CD_MASK_EVERYTHING);
+	return mesh_new_nomain_from_template_ex(
+	        me_src,
+	        verts_len, edges_len, tessface_len,
+	        loops_len, polys_len,
+	        CD_MASK_EVERYTHING);
 }
 
 Mesh *BKE_mesh_copy(Main *bmain, const Mesh *me)
@@ -738,7 +739,7 @@ BMesh *BKE_mesh_to_bmesh(
 	        });
 }
 
-Mesh *BKE_bmesh_to_mesh(BMesh *bm, const struct BMeshToMeshParams *params)
+Mesh *BKE_bmesh_to_mesh_nomain(BMesh *bm, const struct BMeshToMeshParams *params)
 {
 	Mesh *mesh = BKE_id_new_nomain(ID_ME, NULL);
 	BM_mesh_bm_to_me(bm, mesh, params);
@@ -1497,6 +1498,58 @@ int BKE_mesh_nurbs_displist_to_mdata(
 	return 0;
 }
 
+Mesh *BKE_mesh_new_nomain_from_curve_displist(Object *ob, ListBase *dispbase)
+{
+	Curve *cu = ob->data;
+	Mesh *mesh;
+	MVert *allvert;
+	MEdge *alledge;
+	MLoop *allloop;
+	MPoly *allpoly;
+	MLoopUV *alluv = NULL;
+	int totvert, totedge, totloop, totpoly;
+	bool use_orco_uv = (cu->flag & CU_UV_ORCO) != 0;
+
+	if (BKE_mesh_nurbs_displist_to_mdata(
+	        ob, dispbase, &allvert, &totvert, &alledge,
+	        &totedge, &allloop, &allpoly, (use_orco_uv) ? &alluv : NULL,
+	        &totloop, &totpoly) != 0)
+	{
+		/* Error initializing mdata. This often happens when curve is empty */
+		return BKE_mesh_new_nomain(0, 0, 0, 0, 0);
+	}
+
+	mesh = BKE_mesh_new_nomain(totvert, totedge, 0, totloop, totpoly);
+	mesh->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
+
+	memcpy(mesh->mvert, allvert, totvert * sizeof(MVert));
+	memcpy(mesh->medge, alledge, totedge * sizeof(MEdge));
+	memcpy(mesh->mloop, allloop, totloop * sizeof(MLoop));
+	memcpy(mesh->mpoly, allpoly, totpoly * sizeof(MPoly));
+
+	if (alluv) {
+		const char *uvname = "Orco";
+		CustomData_add_layer_named(&mesh->ldata, CD_MLOOPUV, CD_ASSIGN, alluv, totloop, uvname);
+	}
+
+	MEM_freeN(allvert);
+	MEM_freeN(alledge);
+	MEM_freeN(allloop);
+	MEM_freeN(allpoly);
+
+	return mesh;
+}
+
+Mesh *BKE_mesh_new_nomain_from_curve(Object *ob)
+{
+	ListBase disp = {NULL, NULL};
+
+	if (ob->curve_cache) {
+		disp = ob->curve_cache->disp;
+	}
+
+	return BKE_mesh_new_nomain_from_curve_displist(ob, &disp);
+}
 
 /* this may fail replacing ob->data, be sure to check ob->type */
 void BKE_mesh_from_nurbs_displist(Object *ob, ListBase *dispbase, const bool use_orco_uv, const char *obdata_name)
@@ -1890,15 +1943,15 @@ void BKE_mesh_smooth_flag_set(Object *meshOb, int enableSmooth)
 
 /**
  * Return a newly MEM_malloc'd array of all the mesh vertex locations
- * \note \a r_numVerts may be NULL
+ * \note \a r_verts_len may be NULL
  */
-float (*BKE_mesh_vertexCos_get(const Mesh *me, int *r_numVerts))[3]
+float (*BKE_mesh_vertexCos_get(const Mesh *me, int *r_verts_len))[3]
 {
-	int i, numVerts = me->totvert;
-	float (*cos)[3] = MEM_malloc_arrayN(numVerts, sizeof(*cos), "vertexcos1");
+	int i, verts_len = me->totvert;
+	float (*cos)[3] = MEM_malloc_arrayN(verts_len, sizeof(*cos), "vertexcos1");
 
-	if (r_numVerts) *r_numVerts = numVerts;
-	for (i = 0; i < numVerts; i++)
+	if (r_verts_len) *r_verts_len = verts_len;
+	for (i = 0; i < verts_len; i++)
 		copy_v3_v3(cos[i], me->mvert[i].co);
 
 	return cos;
@@ -2029,13 +2082,13 @@ void BKE_mesh_ensure_navmesh(Mesh *me)
 {
 	if (!CustomData_has_layer(&me->pdata, CD_RECAST)) {
 		int i;
-		int numFaces = me->totpoly;
+		int polys_len = me->totpoly;
 		int *recastData;
-		recastData = (int *)MEM_malloc_arrayN(numFaces, sizeof(int), __func__);
-		for (i = 0; i < numFaces; i++) {
+		recastData = (int *)MEM_malloc_arrayN(polys_len, sizeof(int), __func__);
+		for (i = 0; i < polys_len; i++) {
 			recastData[i] = i + 1;
 		}
-		CustomData_add_layer_named(&me->pdata, CD_RECAST, CD_ASSIGN, recastData, numFaces, "recastData");
+		CustomData_add_layer_named(&me->pdata, CD_RECAST, CD_ASSIGN, recastData, polys_len, "recastData");
 	}
 }
 
@@ -2226,6 +2279,22 @@ void BKE_mesh_mselect_active_set(Mesh *me, int index, int type)
 	           (me->mselect[me->totselect - 1].type  == type));
 }
 
+
+void BKE_mesh_apply_vert_coords(Mesh *mesh, float (*vertCoords)[3])
+{
+	MVert *vert;
+	int i;
+
+	/* this will just return the pointer if it wasn't a referenced layer */
+	vert = CustomData_duplicate_referenced_layer(&mesh->vdata, CD_MVERT, mesh->totvert);
+	mesh->mvert = vert;
+
+	for (i = 0; i < mesh->totvert; ++i, ++vert)
+		copy_v3_v3(vert->co, vertCoords[i]);
+
+	mesh->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
+}
+
 /**
  * Compute 'split' (aka loop, or per face corner's) normals.
  *
@@ -2277,6 +2346,8 @@ void BKE_mesh_calc_normals_split_ex(Mesh *mesh, MLoopNorSpaceArray *r_lnors_spac
 	if (free_polynors) {
 		MEM_freeN(polynors);
 	}
+
+	mesh->runtime.cd_dirty_vert &= ~CD_MASK_NORMAL;
 }
 
 void BKE_mesh_calc_normals_split(Mesh *mesh)
@@ -2310,25 +2381,25 @@ static int split_faces_prepare_new_verts(
 	 * dealing with smooth/flat faces one can find cases that no simple algorithm can handle properly. */
 	BLI_assert(lnors_spacearr != NULL);
 
-	const int num_loops = mesh->totloop;
-	int num_verts = mesh->totvert;
+	const int loops_len = mesh->totloop;
+	int verts_len = mesh->totvert;
 	MVert *mvert = mesh->mvert;
 	MLoop *mloop = mesh->mloop;
 
-	BLI_bitmap *verts_used = BLI_BITMAP_NEW(num_verts, __func__);
-	BLI_bitmap *done_loops = BLI_BITMAP_NEW(num_loops, __func__);
+	BLI_bitmap *verts_used = BLI_BITMAP_NEW(verts_len, __func__);
+	BLI_bitmap *done_loops = BLI_BITMAP_NEW(loops_len, __func__);
 
 	MLoop *ml = mloop;
 	MLoopNorSpace **lnor_space = lnors_spacearr->lspacearr;
 
 	BLI_assert(lnors_spacearr->data_type == MLNOR_SPACEARR_LOOP_INDEX);
 
-	for (int loop_idx = 0; loop_idx < num_loops; loop_idx++, ml++, lnor_space++) {
+	for (int loop_idx = 0; loop_idx < loops_len; loop_idx++, ml++, lnor_space++) {
 		if (!BLI_BITMAP_TEST(done_loops, loop_idx)) {
 			const int vert_idx = ml->v;
 			const bool vert_used = BLI_BITMAP_TEST_BOOL(verts_used, vert_idx);
 			/* If vert is already used by another smooth fan, we need a new vert for this one. */
-			const int new_vert_idx = vert_used ? num_verts++ : vert_idx;
+			const int new_vert_idx = vert_used ? verts_len++ : vert_idx;
 
 			BLI_assert(*lnor_space);
 
@@ -2373,7 +2444,7 @@ static int split_faces_prepare_new_verts(
 	MEM_freeN(done_loops);
 	MEM_freeN(verts_used);
 
-	return num_verts - mesh->totvert;
+	return verts_len - mesh->totvert;
 }
 
 /* Detect needed new edges, and update accordingly loops' edge indices.
@@ -2441,12 +2512,12 @@ static int split_faces_prepare_new_edges(
 static void split_faces_split_new_verts(
         Mesh *mesh, SplitFaceNewVert *new_verts, const int num_new_verts)
 {
-	const int num_verts = mesh->totvert - num_new_verts;
+	const int verts_len = mesh->totvert - num_new_verts;
 	MVert *mvert = mesh->mvert;
 
 	/* Remember new_verts is a single linklist, so its items are in reversed order... */
 	MVert *new_mv = &mvert[mesh->totvert - 1];
-	for (int i = mesh->totvert - 1; i >= num_verts ; i--, new_mv--, new_verts = new_verts->next) {
+	for (int i = mesh->totvert - 1; i >= verts_len ; i--, new_mv--, new_verts = new_verts->next) {
 		BLI_assert(new_verts->new_index == i);
 		BLI_assert(new_verts->new_index != new_verts->orig_index);
 		CustomData_copy_data(&mesh->vdata, &mesh->vdata, new_verts->orig_index, i, 1);
@@ -2544,7 +2615,7 @@ void BKE_mesh_split_faces(Mesh *mesh, bool free_loop_normals)
 /* settings: 1 - preview, 2 - render */
 Mesh *BKE_mesh_new_from_object(
         Depsgraph *depsgraph, Main *bmain, Scene *sce, Object *ob,
-        int apply_modifiers, int calc_tessface, int calc_undeformed)
+        const bool apply_modifiers, const bool calc_tessface, const bool calc_undeformed)
 {
 	Mesh *tmpmesh;
 	Curve *tmpcu = NULL, *copycu;
@@ -2780,7 +2851,6 @@ Mesh *BKE_mesh_new_from_object(
 
 	return tmpmesh;
 }
-
 
 /* **** Depsgraph evaluation **** */
 

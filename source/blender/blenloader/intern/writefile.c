@@ -2433,11 +2433,6 @@ static void write_layer_collections(WriteData *wd, ListBase *lb)
 		writestruct(wd, DATA, LayerCollection, 1, lc);
 
 		writelist(wd, DATA, LinkData, &lc->object_bases);
-		writelist(wd, DATA, CollectionOverride, &lc->overrides);
-
-		if (lc->properties) {
-			IDP_WriteProperty(lc->properties, wd);
-		}
 
 		write_layer_collections(wd, &lc->layer_collections);
 	}
@@ -2447,9 +2442,6 @@ static void write_view_layer(WriteData *wd, ViewLayer *view_layer)
 {
 	writestruct(wd, DATA, ViewLayer, 1, view_layer);
 	writelist(wd, DATA, Base, &view_layer->object_bases);
-	if (view_layer->properties) {
-		IDP_WriteProperty(view_layer->properties, wd);
-	}
 
 	if (view_layer->id_properties) {
 		IDP_WriteProperty(view_layer->id_properties, wd);
