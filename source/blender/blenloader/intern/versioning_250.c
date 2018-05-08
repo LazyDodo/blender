@@ -99,7 +99,7 @@ static void area_add_header_region(ScrArea *sa, ListBase *lb)
 
 	BLI_addtail(lb, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	if (sa->headertype == HEADERDOWN)
+	if (sa->headertype == 1)
 		ar->alignment = RGN_ALIGN_BOTTOM;
 	else
 		ar->alignment = RGN_ALIGN_TOP;
@@ -838,8 +838,7 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 
 		for (sce = main->scene.first; sce; sce = sce->id.next) {
 			ts = sce->toolsettings;
-			if (ts->normalsize == 0.0f || !ts->uv_selectmode || ts->vgroup_weight == 0.0f) {
-				ts->normalsize = 0.1f;
+			if (!ts->uv_selectmode || ts->vgroup_weight == 0.0f) {
 				ts->selectmode = SCE_SELECT_VERTEX;
 
 				/* autokeying - setting should be taken from the user-prefs

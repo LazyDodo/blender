@@ -25,6 +25,7 @@
 
 #include "DRW_engine.h"
 #include "DRW_render.h"
+#include "DNA_view3d_types.h"
 
 /* If builtin shaders are needed */
 #include "GPU_shader.h"
@@ -44,8 +45,10 @@ extern GlobalsUboStorage ts;
 
 typedef struct POSE_PassList {
 	struct DRWPass *bone_solid;
+	struct DRWPass *bone_outline;
 	struct DRWPass *bone_wire;
 	struct DRWPass *bone_envelope;
+	struct DRWPass *bone_axes;
 	struct DRWPass *relationship;
 } POSE_PassList;
 
@@ -64,7 +67,7 @@ typedef struct POSE_Data {
 /* *********** STATIC *********** */
 
 typedef struct POSE_PrivateData {
-	DRWShadingGroup *relationship_lines;
+	char pad; /* UNUSED */
 } POSE_PrivateData; /* Transient data */
 
 /* *********** FUNCTIONS *********** */
@@ -83,8 +86,14 @@ static void POSE_cache_init(void *vedata)
 
 	{
 		/* Solid bones */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_BACK;
 		psl->bone_solid = DRW_pass_create("Bone Solid Pass", state);
+	}
+
+	{
+		/* Bones Outline */
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		psl->bone_outline = DRW_pass_create("Bone Outline Pass", state);
 	}
 
 	{
@@ -95,8 +104,13 @@ static void POSE_cache_init(void *vedata)
 
 	{
 		/* distance outline around envelope bones */
-		DRWState state = DRW_STATE_ADDITIVE | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
+		DRWState state = DRW_STATE_ADDITIVE | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_FRONT;
 		psl->bone_envelope = DRW_pass_create("Bone Envelope Outline Pass", state);
+	}
+
+	{
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WIRE_SMOOTH | DRW_STATE_BLEND;
+		psl->bone_axes = DRW_pass_create("Bone Axes Pass", state);
 	}
 
 	{
@@ -105,10 +119,6 @@ static void POSE_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS |
 		        DRW_STATE_BLEND | DRW_STATE_WIRE;
 		psl->relationship = DRW_pass_create("Bone Relationship Pass", state);
-
-		/* Relationship Lines */
-		stl->g_data->relationship_lines = shgroup_dynlines_uniform_color(psl->relationship, ts.colorWire);
-		DRW_shgroup_state_enable(stl->g_data->relationship_lines, DRW_STATE_STIPPLE_3);
 	}
 }
 
@@ -116,7 +126,6 @@ static void POSE_cache_init(void *vedata)
 static void POSE_cache_populate(void *vedata, Object *ob)
 {
 	POSE_PassList *psl = ((POSE_Data *)vedata)->psl;
-	POSE_StorageList *stl = ((POSE_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 
 	/* In the future this will allow us to implement face manipulators,
@@ -124,9 +133,15 @@ static void POSE_cache_populate(void *vedata, Object *ob)
 
 	if (ob->type == OB_ARMATURE) {
 		if (DRW_pose_mode_armature(ob, draw_ctx->obact)) {
-			DRW_shgroup_armature_pose(
-			        ob, psl->bone_solid, psl->bone_wire, psl->bone_envelope,
-			        stl->g_data->relationship_lines);
+			DRWArmaturePasses passes = {
+			    .bone_solid = psl->bone_solid,
+			    .bone_outline = psl->bone_outline,
+			    .bone_wire = psl->bone_wire,
+			    .bone_envelope = psl->bone_envelope,
+			    .bone_axes = psl->bone_axes,
+			    .relationship_lines = psl->relationship,
+			};
+			DRW_shgroup_armature_pose(ob, passes);
 		}
 	}
 }
@@ -159,11 +174,33 @@ bool DRW_pose_mode_armature(Object *ob, Object *active_ob)
 static void POSE_draw_scene(void *vedata)
 {
 	POSE_PassList *psl = ((POSE_Data *)vedata)->psl;
+	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const bool transparent_bones = (draw_ctx->v3d->overlay.arm_flag & V3D_OVERLAY_ARM_TRANSP_BONES) != 0;
 
 	DRW_draw_pass(psl->bone_envelope);
+
+	if (transparent_bones) {
+		DRW_pass_state_add(psl->bone_solid, DRW_STATE_BLEND);
+		DRW_pass_state_remove(psl->bone_solid, DRW_STATE_WRITE_DEPTH);
+		DRW_draw_pass(psl->bone_solid);
+	}
+
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
+
+	if (!transparent_bones) {
+		DRW_draw_pass(psl->bone_solid);
+	}
+
+	DRW_draw_pass(psl->bone_outline);
 	DRW_draw_pass(psl->bone_wire);
-	DRW_draw_pass(psl->bone_solid);
 	DRW_draw_pass(psl->relationship);
+
+	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
+
+	/* Draw axes with linesmooth and outside of multisample buffer. */
+	DRW_draw_pass(psl->bone_axes);
 }
 
 /* Create collection settings here.

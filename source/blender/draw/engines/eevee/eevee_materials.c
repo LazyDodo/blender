@@ -368,7 +368,8 @@ static void add_standard_uniforms(
 	/* TODO if glossy or diffuse bsdf */
 	if (true) {
 		DRW_shgroup_uniform_texture(shgrp, "utilTex", e_data.util_tex);
-		DRW_shgroup_uniform_texture_ref(shgrp, "shadowTexture", &sldata->shadow_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "shadowCubeTexture", &sldata->shadow_cube_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "shadowCascadeTexture", &sldata->shadow_cascade_pool);
 		DRW_shgroup_uniform_texture_ref(shgrp, "maxzBuffer", &vedata->txl->maxzbuffer);
 
 		if ((vedata->stl->effects->enabled_effects & EFFECT_GTAO) != 0) {
@@ -1297,8 +1298,7 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 	Scene *scene = draw_ctx->scene;
 	GHash *material_hash = stl->g_data->material_hash;
 
-	IDProperty *ces_mode_ob = BKE_layer_collection_engine_evaluated_get(ob, COLLECTION_MODE_OBJECT, "");
-	const bool do_cull = BKE_collection_engine_property_value_get_bool(ces_mode_ob, "show_backface_culling");
+	const bool do_cull = (draw_ctx->v3d && (draw_ctx->v3d->flag2 & V3D_BACKFACE_CULLING));
 	const bool is_active = (ob == draw_ctx->obact);
 	const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;
 #if 0
@@ -1380,7 +1380,13 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 		bool use_volume_material = (gpumat_array[0] && GPU_material_use_domain_volume(gpumat_array[0]));
 
 		/* Get per-material split surface */
-		struct Gwn_Batch **mat_geom = DRW_cache_object_surface_material_get(ob, gpumat_array, materials_len);
+		char *auto_layer_names;
+		int *auto_layer_is_srgb;
+		int auto_layer_count;
+		struct Gwn_Batch **mat_geom = DRW_cache_object_surface_material_get(ob, gpumat_array, materials_len,
+		                                                                    &auto_layer_names,
+		                                                                    &auto_layer_is_srgb,
+		                                                                    &auto_layer_count);
 		if (mat_geom) {
 			for (int i = 0; i < materials_len; ++i) {
 				EEVEE_ObjectEngineData *oedata = NULL;
@@ -1411,6 +1417,23 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 				/* Depth Prepass */
 				ADD_SHGROUP_CALL_SAFE(shgrp_depth_array[i], ob, mat_geom[i], oedata);
 				ADD_SHGROUP_CALL_SAFE(shgrp_depth_clip_array[i], ob, mat_geom[i], oedata);
+
+				char *name = auto_layer_names;
+				for (int j = 0; j < auto_layer_count; ++j) {
+					/* TODO don't add these uniform when not needed (default pass shaders). */
+					if (shgrp_array[i]) {
+						DRW_shgroup_uniform_bool(shgrp_array[i], name, &auto_layer_is_srgb[j], 1);
+					}
+					if (shgrp_depth_array[i]) {
+						DRW_shgroup_uniform_bool(shgrp_depth_array[i], name, &auto_layer_is_srgb[j], 1);
+					}
+					if (shgrp_depth_clip_array[i]) {
+						DRW_shgroup_uniform_bool(shgrp_depth_clip_array[i], name, &auto_layer_is_srgb[j], 1);
+					}
+					/* Go to next layer name. */
+					while (*name != '\0') { name++; }
+					name += 1;
+				}
 
 				/* Shadow Pass */
 				if (ma->use_nodes && ma->nodetree && (ma->blend_method != MA_BM_SOLID)) {
@@ -1487,23 +1510,30 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 							}
 							else {
 								if (ma->use_nodes && ma->nodetree) {
+									static float half = 0.5f;
+									static float error_col[3] = {1.0f, 0.0f, 1.0f};
+									static float compile_col[3] = {0.5f, 0.5f, 0.5f};
 									struct GPUMaterial *gpumat = EEVEE_material_hair_get(scene, ma, sldata->lamps->shadow_method);
 
-									shgrp = DRW_shgroup_material_create(gpumat, psl->material_pass);
-									if (shgrp) {
-										add_standard_uniforms(shgrp, sldata, vedata, NULL, NULL, false, false);
-
-										BLI_ghash_insert(material_hash, ma, shgrp);
-
-										DRW_shgroup_call_add(shgrp, hair_geom, mat);
-									}
-									else {
-										/* Shader failed : pink color */
-										static float col[3] = {1.0f, 0.0f, 1.0f};
-										static float half = 0.5f;
-
-										color_p = col;
-										metal_p = spec_p = rough_p = &half;
+									switch (GPU_material_status(gpumat)) {
+										case GPU_MAT_SUCCESS:
+										{
+											shgrp = DRW_shgroup_material_create(gpumat, psl->material_pass);
+											add_standard_uniforms(shgrp, sldata, vedata, NULL, NULL, false, false);
+											break;
+										}
+										case GPU_MAT_QUEUED:
+										{
+											sldata->probes->all_materials_updated = false;
+											color_p = compile_col;
+											metal_p = spec_p = rough_p = &half;
+											break;
+										}
+										case GPU_MAT_FAILED:
+										default:
+											color_p = error_col;
+											metal_p = spec_p = rough_p = &half;
+											break;
 									}
 								}
 
@@ -1516,11 +1546,10 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 									DRW_shgroup_uniform_float(shgrp, "metallic", metal_p, 1);
 									DRW_shgroup_uniform_float(shgrp, "specular", spec_p, 1);
 									DRW_shgroup_uniform_float(shgrp, "roughness", rough_p, 1);
-
-									BLI_ghash_insert(material_hash, ma, shgrp);
-
-									DRW_shgroup_call_add(shgrp, hair_geom, mat);
 								}
+
+								DRW_shgroup_call_add(shgrp, hair_geom, NULL);
+								BLI_ghash_insert(material_hash, ma, shgrp);
 							}
 						}
 					}

@@ -27,15 +27,20 @@
 #define __WORKBENCH_PRIVATE_H__
 
 
-#include "DRW_render.h"
+#include "DNA_image_types.h"
 #include "DNA_view3d_types.h"
+
+#include "DRW_render.h"
+
 
 #define WORKBENCH_ENGINE "BLENDER_WORKBENCH"
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
 #define WORKBENCH_ENCODE_NORMALS
 
+
 typedef struct WORKBENCH_FramebufferList {
 	struct GPUFrameBuffer *prepass_fb;
+	struct GPUFrameBuffer *composite_fb;
 } WORKBENCH_FramebufferList;
 
 typedef struct WORKBENCH_StorageList {
@@ -44,7 +49,10 @@ typedef struct WORKBENCH_StorageList {
 
 typedef struct WORKBENCH_PassList {
 	struct DRWPass *prepass_pass;
+	struct DRWPass *shadow_pass;
 	struct DRWPass *composite_pass;
+	struct DRWPass *composite_shadow_pass;
+	struct DRWPass *composite_light_pass;
 } WORKBENCH_PassList;
 
 typedef struct WORKBENCH_Data {
@@ -69,11 +77,13 @@ BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_World, 16)
 
 typedef struct WORKBENCH_PrivateData {
 	struct GHash *material_hash;
-	struct GPUShader *prepass_sh;
+	struct GPUShader *prepass_solid_sh;
+	struct GPUShader *prepass_texture_sh;
 	struct GPUShader *composite_sh;
-	short drawtype_lighting;
-	short drawtype_options;
+	View3DShading shading;
+	int drawtype;
 	struct GPUUniformBuffer *world_ubo;
+	struct DRWShadingGroup *shadow_shgrp;
 	WORKBENCH_UBO_World world_data;
 } WORKBENCH_PrivateData; /* Transient data */
 
@@ -81,6 +91,8 @@ typedef struct WORKBENCH_MaterialData {
 	/* Solid color */
 	float color[3];
 	int object_id;
+	int drawtype;
+	Image* ima;
 
 	/* Linked shgroup for drawing */
 	DRWShadingGroup *shgrp;
@@ -108,9 +120,13 @@ void workbench_solid_materials_free(void);
 /* workbench_materials.c */
 void workbench_materials_engine_init(WORKBENCH_Data *vedata);
 void workbench_materials_engine_free(void);
+void workbench_materials_draw_background(WORKBENCH_Data *vedata);
 void workbench_materials_draw_scene(WORKBENCH_Data *vedata);
 void workbench_materials_cache_init(WORKBENCH_Data *vedata);
 void workbench_materials_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob);
 void workbench_materials_cache_finish(WORKBENCH_Data *vedata);
+
+/* workbench_studiolight.c */
+void studiolight_update_world(int studio_light, WORKBENCH_UBO_World* wd);
 
 #endif

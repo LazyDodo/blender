@@ -172,7 +172,7 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 
 			switch (colorid) {
 				case TH_BACK:
-					if (theme_regionid == RGN_TYPE_WINDOW)
+					if (ELEM(theme_regionid, RGN_TYPE_WINDOW, RGN_TYPE_PREVIEW))
 						cp = ts->back;
 					else if (theme_regionid == RGN_TYPE_CHANNELS)
 						cp = ts->list;
@@ -230,6 +230,7 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 					headerdesel[0] = cp[0] > 10 ? cp[0] - 10 : 0;
 					headerdesel[1] = cp[1] > 10 ? cp[1] - 10 : 0;
 					headerdesel[2] = cp[2] > 10 ? cp[2] - 10 : 0;
+					headerdesel[3] = cp[3];
 					cp = headerdesel;
 					break;
 				case TH_HEADER_TEXT:
@@ -1548,7 +1549,7 @@ void UI_GetThemeColorBlendShade3ubv(int colorid1, int colorid2, float fac, int o
 	blend[1] = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
 	blend[2] = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
 
-	F3TOCHAR3(blend, col);
+	unit_float_to_uchar_clamp_v3(col, blend);
 }
 
 void UI_GetThemeColorShade4ubv(int colorid, int offset, unsigned char col[4])

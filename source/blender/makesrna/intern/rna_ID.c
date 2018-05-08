@@ -33,6 +33,7 @@
 #include "DNA_object_types.h"
 
 #include "BLI_utildefines.h"
+#include "BLI_math_base.h"
 
 #include "BKE_icons.h"
 #include "BKE_object.h"
@@ -678,7 +679,7 @@ static void rna_ImagePreview_pixels_float_set(PointerRNA *ptr, const float *valu
 	}
 
 	for (i = 0; i < len; i++) {
-		data[i] = FTOCHAR(values[i]);
+		data[i] = unit_float_to_uchar_clamp(values[i]);
 	}
 	prv_img->flag[size] |= PRV_USER_EDITED;
 }
@@ -1106,11 +1107,16 @@ static void rna_def_ID_override_static_property(BlenderRNA *brna)
 static void rna_def_ID_override_static(BlenderRNA *brna)
 {
 	StructRNA *srna;
+	PropertyRNA *prop;
 
 	srna = RNA_def_struct(brna, "IDOverrideStatic", NULL);
 	RNA_def_struct_ui_text(srna, "ID Static Override", "Struct gathering all data needed by statically overridden IDs");
 
 	RNA_def_pointer(srna, "reference", "ID", "Reference ID", "Linked ID used as reference by this override");
+
+	prop = RNA_def_boolean(srna, "auto_generate", true, "Auto Generate Override",
+	                       "Automatically generate overriding operations by detecting changes in properties");
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", STATICOVERRIDE_AUTO);
 
 	RNA_def_collection(srna, "properties", "IDOverrideStaticProperty", "Properties",
 	                   "List of overridden properties");
