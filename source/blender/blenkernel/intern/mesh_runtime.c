@@ -54,33 +54,33 @@ static ThreadRWMutex loops_cache_lock = PTHREAD_RWLOCK_INITIALIZER;
 static void mesh_ensure_looptri_data(Mesh *mesh)
 {
 	const unsigned int totpoly = mesh->totpoly;
-	const int looptris_num = poly_to_tri_count(totpoly, mesh->totloop);
+	const int looptris_len = poly_to_tri_count(totpoly, mesh->totloop);
 
 	BLI_assert(mesh->runtime.looptris.array_wip == NULL);
 
 	SWAP(MLoopTri *, mesh->runtime.looptris.array, mesh->runtime.looptris.array_wip);
 
-	if ((looptris_num > mesh->runtime.looptris.num_alloc) ||
-	    (looptris_num < mesh->runtime.looptris.num_alloc * 2) ||
+	if ((looptris_len > mesh->runtime.looptris.len_alloc) ||
+	    (looptris_len < mesh->runtime.looptris.len_alloc * 2) ||
 	    (totpoly == 0))
 	{
 		MEM_SAFE_FREE(mesh->runtime.looptris.array_wip);
-		mesh->runtime.looptris.num_alloc = 0;
-		mesh->runtime.looptris.num = 0;
+		mesh->runtime.looptris.len_alloc = 0;
+		mesh->runtime.looptris.len = 0;
 	}
 
 	if (totpoly) {
 		if (mesh->runtime.looptris.array_wip == NULL) {
-			mesh->runtime.looptris.array_wip = MEM_malloc_arrayN(looptris_num, sizeof(*mesh->runtime.looptris.array_wip), __func__);
-			mesh->runtime.looptris.num_alloc = looptris_num;
+			mesh->runtime.looptris.array_wip = MEM_malloc_arrayN(looptris_len, sizeof(*mesh->runtime.looptris.array_wip), __func__);
+			mesh->runtime.looptris.len_alloc = looptris_len;
 		}
 
-		mesh->runtime.looptris.num = looptris_num;
+		mesh->runtime.looptris.len = looptris_len;
 	}
 }
 
 /* This is a ported copy of CDDM_recalc_looptri(dm). */
-void BKE_mesh_runtime_recalc_looptri(Mesh *mesh)
+void BKE_mesh_runtime_looptri_recalc(Mesh *mesh)
 {
 	mesh_ensure_looptri_data(mesh);
 	BLI_assert(mesh->totpoly == 0 || mesh->runtime.looptris.array_wip != NULL);
@@ -97,15 +97,15 @@ void BKE_mesh_runtime_recalc_looptri(Mesh *mesh)
 }
 
 /* This is a ported copy of dm_getNumLoopTri(dm). */
-int BKE_mesh_get_looptri_num(Mesh *mesh)
+int BKE_mesh_runtime_looptri_len(const Mesh *mesh)
 {
-	const int numlooptris = poly_to_tri_count(mesh->totpoly, mesh->totloop);
-	BLI_assert(ELEM(mesh->runtime.looptris.num, 0, numlooptris));
-	return numlooptris;
+	const int looptri_len = poly_to_tri_count(mesh->totpoly, mesh->totloop);
+	BLI_assert(ELEM(mesh->runtime.looptris.len, 0, looptri_len));
+	return looptri_len;
 }
 
 /* This is a ported copy of dm_getLoopTriArray(dm). */
-const MLoopTri *BKE_mesh_get_looptri_array(Mesh *mesh)
+const MLoopTri *BKE_mesh_runtime_looptri_ensure(Mesh *mesh)
 {
 	MLoopTri *looptri;
 
@@ -114,14 +114,14 @@ const MLoopTri *BKE_mesh_get_looptri_array(Mesh *mesh)
 	BLI_rw_mutex_unlock(&loops_cache_lock);
 
 	if (looptri != NULL) {
-		BLI_assert(BKE_mesh_get_looptri_num(mesh) == mesh->runtime.looptris.num);
+		BLI_assert(BKE_mesh_runtime_looptri_len(mesh) == mesh->runtime.looptris.len);
 	}
 	else {
 		BLI_rw_mutex_lock(&loops_cache_lock, THREAD_LOCK_WRITE);
 		/* We need to ensure array is still NULL inside mutex-protected code, some other thread might have already
 		 * recomputed those looptris. */
 		if (mesh->runtime.looptris.array == NULL) {
-			BKE_mesh_runtime_recalc_looptri(mesh);
+			BKE_mesh_runtime_looptri_recalc(mesh);
 		}
 		looptri = mesh->runtime.looptris.array;
 		BLI_rw_mutex_unlock(&loops_cache_lock);
