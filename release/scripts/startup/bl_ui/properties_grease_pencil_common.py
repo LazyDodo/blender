@@ -775,11 +775,6 @@ class GPENCIL_MT_color_specials(Menu):
 
         layout.separator()
 
-        layout.operator("gpencil.color_select", icon='COLOR', text="Select Strokes")
-        layout.operator("gpencil.stroke_change_color", icon='MAN_TRANS', text="Move to Color")
-
-        layout.separator()
-
         layout.operator("gpencil.stroke_lock_color", icon='BORDER_RECT', text="Lock Unselected")
         layout.operator("gpencil.lock_layer", icon='COLOR', text="Lock Unused")
 
