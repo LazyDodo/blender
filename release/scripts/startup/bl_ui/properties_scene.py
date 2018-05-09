@@ -461,6 +461,20 @@ class SCENE_PT_gp_simplify(SceneButtonsPanel, Panel):
         row.prop(ts, "gpencil_disable_fast_drawing")
 
 
+class SCENE_PT_viewport_display(SceneButtonsPanel, Panel):
+    bl_label = "Viewport Display"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        layout.prop(scene.display, "light_direction", text="")
+
+
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
     _context_path = "scene"
@@ -475,6 +489,7 @@ classes = (
     SCENE_PT_keying_sets,
     SCENE_PT_keying_set_paths,
     SCENE_PT_color_management,
+    SCENE_PT_viewport_display,
     SCENE_PT_audio,
     SCENE_PT_physics,
     SCENE_PT_rigid_body_world,

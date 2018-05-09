@@ -431,7 +431,7 @@ typedef struct ImageFormatData {
 #define R_IMF_IMTYPE_TIFF           22
 #define R_IMF_IMTYPE_OPENEXR        23
 #define R_IMF_IMTYPE_FFMPEG         24
-#define R_IMF_IMTYPE_FRAMESERVER    25
+/* #define R_IMF_IMTYPE_FRAMESERVER    25 */ /* frame server is nomore */
 #define R_IMF_IMTYPE_CINEON         26
 #define R_IMF_IMTYPE_DPX            27
 #define R_IMF_IMTYPE_MULTILAYER     28
@@ -1381,6 +1381,13 @@ typedef struct DisplaySafeAreas {
 	float action_center[2];
 } DisplaySafeAreas;
 
+/* ------------------------------------------- */
+/* Scene Display - used for store scene specific display settings for the 3d view */
+typedef struct SceneDisplay {
+	float light_direction[3];      /* light direction for shadows/highlight */
+	int pad;
+} SceneDisplay;
+
 /* *************************************************************** */
 /* Scene ID-Block */
 
@@ -1475,6 +1482,8 @@ typedef struct Scene {
 
 	IDProperty *collection_properties;  /* settings to be overriden by layer collections */
 	IDProperty *layer_properties;  /* settings to be override by workspaces */
+
+	struct SceneDisplay display;
 } Scene;
 
 /* **************** RENDERDATA ********************* */
