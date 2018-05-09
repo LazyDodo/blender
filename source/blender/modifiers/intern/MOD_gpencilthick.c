@@ -75,6 +75,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 
 	if (tgmd->cur_thickness != NULL) {
 		curvemapping_free(tgmd->cur_thickness);
+		tgmd->cur_thickness = NULL;
 	}
 
 	modifier_copyData_generic(md, target);

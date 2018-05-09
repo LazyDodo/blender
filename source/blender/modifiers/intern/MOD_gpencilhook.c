@@ -95,6 +95,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 
 	if (tgmd->curfalloff != NULL) {
 		curvemapping_free(tgmd->curfalloff);
+		tgmd->curfalloff = NULL;
 	}
 
 	modifier_copyData_generic(md, target);
