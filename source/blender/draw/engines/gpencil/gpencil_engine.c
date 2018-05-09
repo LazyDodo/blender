@@ -614,7 +614,7 @@ static void GPENCIL_draw_scene(void *vedata)
 				}
 
 				if (end_grp >= init_grp) {
-					// MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
+					 MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 
 					DRW_draw_pass_subset(psl->stroke_pass,
 						stl->shgroups[init_grp].shgrps_fill != NULL ? stl->shgroups[init_grp].shgrps_fill : stl->shgroups[init_grp].shgrps_stroke,
