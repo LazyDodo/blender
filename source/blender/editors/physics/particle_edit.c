@@ -1181,6 +1181,8 @@ static void PE_update_selection(Depsgraph *depsgraph, Scene *scene, Object *ob, 
 	/* disable update flag */
 	LOOP_POINTS
 		point->flag &= ~PEP_EDIT_RECALC;
+
+	DEG_id_tag_update(&ob->id, DEG_TAG_SELECT_UPDATE);
 }
 
 void update_world_cos(Object *ob, PTCacheEdit *edit)
@@ -2645,7 +2647,7 @@ void PARTICLE_OT_remove_doubles(wmOperatorType *ot)
 
 	/* properties */
 	RNA_def_float(ot->srna, "threshold", 0.0002f, 0.0f, FLT_MAX,
-	              "Merge Distance", "Threshold distance withing which particles are removed", 0.00001f, 0.1f);
+	              "Merge Distance", "Threshold distance within which particles are removed", 0.00001f, 0.1f);
 }
 
 
