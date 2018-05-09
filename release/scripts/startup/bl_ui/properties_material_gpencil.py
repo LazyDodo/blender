@@ -25,7 +25,7 @@ class GPENCIL_UL_matslots(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         slot = item
         ma = slot.material
-        if ma is not None:
+        if (ma is not None) and (ma.grease_pencil is not None):
             gpcolor = ma.grease_pencil
 
             if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -53,6 +53,20 @@ class GPENCIL_UL_matslots(UIList):
                 layout.label(text="", icon_value=icon)
 
 
+class GPMaterialButtonsPanel:
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "material"
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return (ob and ob.type == 'GPENCIL' and
+                ob.active_material and
+                ob.active_material.grease_pencil)
+
+
+
 class MATERIAL_PT_gpencil_slots(Panel):
     bl_label = "Grease Pencil Material Slots"
     bl_space_type = 'PROPERTIES'
@@ -62,7 +76,8 @@ class MATERIAL_PT_gpencil_slots(Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == 'GPENCIL'
+        ob = context.object
+        return ob and ob.type == 'GPENCIL'
 
     @staticmethod
     def draw(self, context):
@@ -117,22 +132,14 @@ class MATERIAL_PT_gpencil_slots(Panel):
             split.separator()
 
 
-class MATERIAL_PT_gpencil_strokecolor(Panel):
+class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
     bl_label = "Stroke"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "material"
-
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-        return ob and ob.type == 'GPENCIL' and ob.active_material
 
     @staticmethod
     def draw(self, context):
         layout = self.layout
         ma = context.object.active_material
-        if ma is not None:
+        if (ma is not None) and (ma.grease_pencil):
             gpcolor = ma.grease_pencil
 
             split = layout.split(percentage=1.0)
@@ -169,22 +176,14 @@ class MATERIAL_PT_gpencil_strokecolor(Panel):
                 col.prop(gpcolor, "pixel_size", text="UV Factor")
 
 
-class MATERIAL_PT_gpencil_fillcolor(Panel):
+class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
     bl_label = "Fill"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "material"
 
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-        return ob and ob.type == 'GPENCIL' and ob.active_material
- 
     @staticmethod
     def draw(self, context):
         layout = self.layout
         ma = context.object.active_material
-        if ma is not None:
+        if (ma is not None) and (ma.grease_pencil):
             gpcolor = ma.grease_pencil
 
             # color settings
