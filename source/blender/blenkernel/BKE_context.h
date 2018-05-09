@@ -311,18 +311,10 @@ int CTX_data_visible_pose_bones(const bContext *C, ListBase *list);
 struct bGPdata *CTX_data_gpencil_data(const bContext *C);
 struct bGPDlayer *CTX_data_active_gpencil_layer(const bContext *C);
 struct bGPDframe *CTX_data_active_gpencil_frame(const bContext *C);
-struct Palette *CTX_data_active_gpencil_palette(const bContext *C);
-struct PaletteColor *CTX_data_active_gpencil_palettecolor(const bContext *C);
 struct Brush *CTX_data_active_gpencil_brush(const bContext *C);
 int CTX_data_visible_gpencil_layers(const bContext *C, ListBase *list);
 int CTX_data_editable_gpencil_layers(const bContext *C, ListBase *list);
 int CTX_data_editable_gpencil_strokes(const bContext *C, ListBase *list);
-
-struct Palette *CTX_data_active_palette(const bContext *C);
-struct PaletteColor *CTX_data_active_palettecolor(const bContext *C);
-int CTX_data_active_palettecolors(const bContext *C, ListBase *list);
-int CTX_data_available_palettes(const bContext *C, ListBase *list);
-int CTX_data_available_palettecolors(const bContext *C, ListBase *list);
 
 struct Depsgraph *CTX_data_depsgraph(const bContext *C);
 

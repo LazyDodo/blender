@@ -1203,16 +1203,6 @@ bGPDlayer *CTX_data_active_gpencil_layer(const bContext *C)
 	return ctx_data_pointer_get(C, "active_gpencil_layer");
 }
 
-Palette *CTX_data_active_gpencil_palette(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_gpencil_palette");
-}
-
-PaletteColor *CTX_data_active_gpencil_palettecolor(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_gpencil_palettecolor");
-}
-
 Brush *CTX_data_active_gpencil_brush(const bContext *C)
 {
 	return ctx_data_pointer_get(C, "active_gpencil_brush");
@@ -1236,31 +1226,6 @@ int CTX_data_editable_gpencil_layers(const bContext *C, ListBase *list)
 int CTX_data_editable_gpencil_strokes(const bContext *C, ListBase *list)
 {
 	return ctx_data_collection_get(C, "editable_gpencil_strokes", list);
-}
-
-Palette *CTX_data_active_palette(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_palette");
-}
-
-PaletteColor *CTX_data_active_palettecolor(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_palettecolor");
-}
-
-int CTX_data_available_palettes(const bContext *C, ListBase *list)
-{
-	return ctx_data_collection_get(C, "available_palettes", list);
-}
-
-int CTX_data_active_palettecolors(const bContext *C, ListBase *list)
-{
-	return ctx_data_collection_get(C, "active_palettecolors", list);
-}
-
-int CTX_data_available_palettecolors(const bContext *C, ListBase *list)
-{
-	return ctx_data_collection_get(C, "available_palettecolors", list);
 }
 
 Depsgraph *CTX_data_depsgraph(const bContext *C)

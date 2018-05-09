@@ -85,7 +85,6 @@ const char *screen_context_dir[] = {
 	"gpencil_data", "gpencil_data_owner", /* grease pencil data */
 	"visible_gpencil_layers", "editable_gpencil_layers", "editable_gpencil_strokes",
 	"active_gpencil_layer", "active_gpencil_frame", "active_gpencil_brush",
-	"active_palette", "active_palettecolor", "available_palettes", "available_palettecolors",
 	"active_operator", "selected_editable_fcurves",
 	NULL};
 
