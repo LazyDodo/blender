@@ -260,7 +260,7 @@ void BKE_gpencil_simplify_fixed(bGPDlayer *UNUSED(gpl), bGPDstroke *gps)
 	/* resize gps */
 	int newtot = (gps->totpoints - 2) / 2;
 	if (((gps->totpoints - 2) % 2) > 0) {
-		++newtot;
+		newtot++;
 	}
 	newtot += 2;
 

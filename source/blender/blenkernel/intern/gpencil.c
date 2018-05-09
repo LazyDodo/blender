@@ -104,7 +104,7 @@ void BKE_gpencil_free_stroke_weights(bGPDstroke *gps)
 	if (gps == NULL) {
 		return;
 	}
-	for (int i = 0; i < gps->totpoints; ++i) {
+	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		BKE_gpencil_free_point_weights(pt);
 	}
