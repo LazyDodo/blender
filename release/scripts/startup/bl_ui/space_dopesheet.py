@@ -169,7 +169,6 @@ class DOPESHEET_HT_editor_buttons(Header):
         elif st.mode == 'GPENCIL':
             row = layout.row(align=True)
             row.prop(st.dopesheet, "show_gpencil_3d_only", text="Active Only")
-            row.prop(scene, "show_keys_from_selected_only", text="", icon="RESTRICT_SELECT_OFF")
 
             if st.dopesheet.show_gpencil_3d_only:
                 row = layout.row(align=True)
