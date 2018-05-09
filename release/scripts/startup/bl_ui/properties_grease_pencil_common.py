@@ -692,36 +692,6 @@ class GPENCIL_MT_gpencil_vertex_group(Menu):
             layout.operator("gpencil.vertex_group_deselect", text="Deselect Points")
 
 
-class GPENCIL_UL_palettecolor(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        # assert(isinstance(item, bpy.types.PaletteColor)
-        palcolor = item
-
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            if palcolor.lock:
-                layout.active = False
-
-            split = layout.split(percentage=0.25)
-            row = split.row(align=True)
-            row.enabled = not palcolor.lock
-            row.prop(palcolor, "color_rgba", text="", emboss=palcolor.is_stroke_visible)
-            row.prop(palcolor, "fill_rgba", text="", emboss=palcolor.is_fill_visible)
-            split.prop(palcolor, "name", text="", emboss=False)
-
-            row = layout.row(align=True)
-            row.prop(palcolor, "lock", text="", emboss=False)
-            row.prop(palcolor, "hide", text="", emboss=False)
-            if palcolor.ghost is True:
-                icon = 'GHOST_DISABLED'
-            else:
-                icon = 'GHOST_ENABLED'
-            row.prop(palcolor, "ghost", text="", icon=icon, emboss=False)
-
-        elif self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-            layout.label(text="", icon_value=icon)
-
-
 class GPENCIL_UL_layer(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # assert(isinstance(item, bpy.types.GPencilLayer)
@@ -1033,7 +1003,6 @@ classes = (
     GPENCIL_MT_gpencil_sculpt_specials,
     GPENCIL_MT_gpencil_draw_specials,
     GPENCIL_MT_gpencil_vertex_group,
-    GPENCIL_UL_palettecolor,
     GPENCIL_UL_layer,
     GPENCIL_MT_layer_specials,
     GPENCIL_MT_brush_specials,
