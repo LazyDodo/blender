@@ -123,7 +123,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilSmooth = {
+ModifierTypeInfo modifierType_Gpencil_Smooth = {
 	/* name */              "Smooth",
 	/* structName */        "GpencilSmoothModifierData",
 	/* structSize */        sizeof(GpencilSmoothModifierData),

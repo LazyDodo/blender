@@ -181,7 +181,7 @@ static void foreachObjectLink(
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
 }
 
-ModifierTypeInfo modifierType_GpencilLattice = {
+ModifierTypeInfo modifierType_Gpencil_Lattice = {
 	/* name */              "Lattice",
 	/* structName */        "GpencilLatticeModifierData",
 	/* structSize */        sizeof(GpencilLatticeModifierData),

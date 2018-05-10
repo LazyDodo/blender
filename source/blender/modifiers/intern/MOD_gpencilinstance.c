@@ -372,7 +372,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilInstance = {
+ModifierTypeInfo modifierType_Gpencil_Instance = {
 	/* name */              "Instance",
 	/* structName */        "GpencilInstanceModifierData",
 	/* structSize */        sizeof(GpencilInstanceModifierData),

@@ -996,43 +996,43 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 						break;
 					
 					/* GPencil Modifiers */
-					case eModifierType_GpencilNoise:
+					case eModifierType_Gpencil_Noise:
 						ICON_DRAW(ICON_RNDCURVE);
 						break;
-					case eModifierType_GpencilSubdiv:
+					case eModifierType_Gpencil_Subdiv:
 						ICON_DRAW(ICON_MOD_SUBSURF);
 						break;
-					case eModifierType_GpencilThick:
+					case eModifierType_Gpencil_Thick:
 						ICON_DRAW(ICON_MAN_ROT);
 						break;
-					case eModifierType_GpencilTint:
+					case eModifierType_Gpencil_Tint:
 						ICON_DRAW(ICON_COLOR);
 						break;
-					case eModifierType_GpencilInstance:
+					case eModifierType_Gpencil_Instance:
 						ICON_DRAW(ICON_MOD_ARRAY);
 						break;
-					case eModifierType_GpencilBuild:
+					case eModifierType_Gpencil_Build:
 						ICON_DRAW(ICON_MOD_BUILD);
 						break;
-					case eModifierType_GpencilOpacity:
+					case eModifierType_Gpencil_Opacity:
 						ICON_DRAW(ICON_MOD_MASK);
 						break;
-					case eModifierType_GpencilColor:
+					case eModifierType_Gpencil_Color:
 						ICON_DRAW(ICON_GROUP_VCOL);
 						break;
-					case eModifierType_GpencilLattice:
+					case eModifierType_Gpencil_Lattice:
 						ICON_DRAW(ICON_MOD_LATTICE);
 						break;
-					case eModifierType_GpencilSimplify:
+					case eModifierType_Gpencil_Simplify:
 						ICON_DRAW(ICON_MOD_DECIM);
 						break;
-					case eModifierType_GpencilSmooth:
+					case eModifierType_Gpencil_Smooth:
 						ICON_DRAW(ICON_MOD_SMOOTH);
 						break;
-					case eModifierType_GpencilHook:
+					case eModifierType_Gpencil_Hook:
 						ICON_DRAW(ICON_HOOK);
 						break;
-					case eModifierType_GpencilOffset:
+					case eModifierType_Gpencil_Offset:
 						ICON_DRAW(ICON_MOD_DISPLACE);
 						break;
 					

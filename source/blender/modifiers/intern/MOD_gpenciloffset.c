@@ -113,7 +113,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilOffset = {
+ModifierTypeInfo modifierType_Gpencil_Offset = {
 	/* name */              "Offset",
 	/* structName */        "GpencilOffsetModifierData",
 	/* structSize */        sizeof(GpencilOffsetModifierData),

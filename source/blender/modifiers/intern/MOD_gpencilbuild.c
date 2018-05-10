@@ -524,7 +524,7 @@ static void bakeModifierGP(const bContext *C, const Depsgraph *UNUSED(depsgraph)
 
 /* ******************************************** */
 
-ModifierTypeInfo modifierType_GpencilBuild = {
+ModifierTypeInfo modifierType_Gpencil_Build = {
 	/* name */              "Build",
 	/* structName */        "GpencilBuildModifierData",
 	/* structSize */        sizeof(GpencilBuildModifierData),

@@ -87,19 +87,19 @@ extern ModifierTypeInfo modifierType_CorrectiveSmooth;
 extern ModifierTypeInfo modifierType_MeshSequenceCache;
 extern ModifierTypeInfo modifierType_SurfaceDeform;
 
-extern ModifierTypeInfo modifierType_GpencilNoise;
-extern ModifierTypeInfo modifierType_GpencilSubdiv;
-extern ModifierTypeInfo modifierType_GpencilSimplify;
-extern ModifierTypeInfo modifierType_GpencilThick;
-extern ModifierTypeInfo modifierType_GpencilTint;
-extern ModifierTypeInfo modifierType_GpencilColor;
-extern ModifierTypeInfo modifierType_GpencilInstance;
-extern ModifierTypeInfo modifierType_GpencilBuild;
-extern ModifierTypeInfo modifierType_GpencilOpacity;
-extern ModifierTypeInfo modifierType_GpencilLattice;
-extern ModifierTypeInfo modifierType_GpencilSmooth;
-extern ModifierTypeInfo modifierType_GpencilHook;
-extern ModifierTypeInfo modifierType_GpencilOffset;
+extern ModifierTypeInfo modifierType_Gpencil_Noise;
+extern ModifierTypeInfo modifierType_Gpencil_Subdiv;
+extern ModifierTypeInfo modifierType_Gpencil_Simplify;
+extern ModifierTypeInfo modifierType_Gpencil_Thick;
+extern ModifierTypeInfo modifierType_Gpencil_Tint;
+extern ModifierTypeInfo modifierType_Gpencil_Color;
+extern ModifierTypeInfo modifierType_Gpencil_Instance;
+extern ModifierTypeInfo modifierType_Gpencil_Build;
+extern ModifierTypeInfo modifierType_Gpencil_Opacity;
+extern ModifierTypeInfo modifierType_Gpencil_Lattice;
+extern ModifierTypeInfo modifierType_Gpencil_Smooth;
+extern ModifierTypeInfo modifierType_Gpencil_Hook;
+extern ModifierTypeInfo modifierType_Gpencil_Offset;
 
 /* MOD_util.c */
 void modifier_type_init(ModifierTypeInfo *types[]);

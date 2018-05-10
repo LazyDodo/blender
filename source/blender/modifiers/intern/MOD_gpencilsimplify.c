@@ -96,7 +96,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilSimplify = {
+ModifierTypeInfo modifierType_Gpencil_Simplify = {
 	/* name */              "Simplify",
 	/* structName */        "GpencilSimplifyModifierData",
 	/* structSize */        sizeof(GpencilSimplifyModifierData),

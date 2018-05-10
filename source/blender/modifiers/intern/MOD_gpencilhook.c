@@ -322,7 +322,7 @@ static void foreachObjectLink(
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
 }
 
-ModifierTypeInfo modifierType_GpencilHook = {
+ModifierTypeInfo modifierType_Gpencil_Hook = {
 	/* name */              "Hook",
 	/* structName */        "GpencilHookModifierData",
 	/* structSize */        sizeof(GpencilHookModifierData),

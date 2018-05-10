@@ -5367,11 +5367,11 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				}
 			}
 		}
-		else if (md->type == eModifierType_GpencilLattice) {
+		else if (md->type == eModifierType_Gpencil_Lattice) {
 			GpencilLatticeModifierData *gpmd = (GpencilLatticeModifierData*)md;
 			gpmd->cache_data = NULL;
 		}
-		else if (md->type == eModifierType_GpencilHook) {
+		else if (md->type == eModifierType_Gpencil_Hook) {
 			GpencilHookModifierData *hmd = (GpencilHookModifierData *)md;
 
 			hmd->curfalloff = newdataadr(fd, hmd->curfalloff);
@@ -5379,7 +5379,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				direct_link_curvemapping(fd, hmd->curfalloff);
 			}
 		}
-		else if (md->type == eModifierType_GpencilThick) {
+		else if (md->type == eModifierType_Gpencil_Thick) {
 			GpencilThickModifierData *gpmd = (GpencilThickModifierData *)md;
 
 			gpmd->cur_thickness = newdataadr(fd, gpmd->cur_thickness);

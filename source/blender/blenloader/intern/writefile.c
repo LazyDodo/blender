@@ -1613,14 +1613,14 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 
 			writedata(wd, DATA, sizeof(int) * hmd->totindex, hmd->indexar);
 		}
-		else if (md->type == eModifierType_GpencilThick) {
+		else if (md->type == eModifierType_Gpencil_Thick) {
 			GpencilThickModifierData *gpmd = (GpencilThickModifierData *)md;
 
 			if (gpmd->cur_thickness) {
 				write_curvemapping(wd, gpmd->cur_thickness);
 			}
 		}
-		else if (md->type == eModifierType_GpencilHook) {
+		else if (md->type == eModifierType_Gpencil_Hook) {
 			GpencilHookModifierData *gpmd = (GpencilHookModifierData *)md;
 
 			if (gpmd->curfalloff) {

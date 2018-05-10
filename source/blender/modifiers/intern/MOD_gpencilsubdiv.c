@@ -157,7 +157,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilSubdiv = {
+ModifierTypeInfo modifierType_Gpencil_Subdiv = {
 	/* name */              "Subdivision",
 	/* structName */        "GpencilSubdivModifierData",
 	/* structSize */        sizeof(GpencilSubdivModifierData),

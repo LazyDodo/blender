@@ -1111,7 +1111,7 @@ void gpencil_instance_modifiers(GPENCIL_StorageList *stl, Object *ob)
 		if (((md->mode & eModifierMode_Realtime) && (stl->storage->is_render == false)) ||
 		    ((md->mode & eModifierMode_Render) && (stl->storage->is_render == true)))
 		{
-			if (md->type == eModifierType_GpencilInstance) {
+			if (md->type == eModifierType_Gpencil_Instance) {
 				GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
 				
 				/* Only add instances if the "Make Objects" flag is set

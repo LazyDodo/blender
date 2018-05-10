@@ -233,7 +233,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilNoise = {
+ModifierTypeInfo modifierType_Gpencil_Noise = {
 	/* name */              "Noise",
 	/* structName */        "GpencilNoiseModifierData",
 	/* structSize */        sizeof(GpencilNoiseModifierData),

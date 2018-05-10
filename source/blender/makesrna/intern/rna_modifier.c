@@ -124,21 +124,21 @@ const EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	
 	/* Grease Pencil Modifiers */
 	{0, "", 0, N_("Generate"), "" },
-	{eModifierType_GpencilInstance, "GP_INSTANCE", ICON_MOD_ARRAY, "Instance", "Create grid of duplicate instances"},
-	{eModifierType_GpencilBuild, "GP_BUILD", ICON_MOD_BUILD, "Build", "Create duplication of strokes"},
-	{eModifierType_GpencilSimplify, "GP_SIMPLIFY", ICON_MOD_DECIM, "Simplify", "Simplify stroke reducing number of points"},
-	{eModifierType_GpencilSubdiv, "GP_SUBDIV", ICON_MOD_SUBSURF, "Subdivide", "Subdivide stroke adding more control points"},
+	{eModifierType_Gpencil_Instance, "GP_INSTANCE", ICON_MOD_ARRAY, "Instance", "Create grid of duplicate instances"},
+	{eModifierType_Gpencil_Build, "GP_BUILD", ICON_MOD_BUILD, "Build", "Create duplication of strokes"},
+	{eModifierType_Gpencil_Simplify, "GP_SIMPLIFY", ICON_MOD_DECIM, "Simplify", "Simplify stroke reducing number of points"},
+	{eModifierType_Gpencil_Subdiv, "GP_SUBDIV", ICON_MOD_SUBSURF, "Subdivide", "Subdivide stroke adding more control points"},
 	{0, "", 0, N_("Deform"), "" },
-	{eModifierType_GpencilHook, "GP_HOOK", ICON_HOOK, "Hook", "Deform stroke points using objects"},
-	{eModifierType_GpencilLattice, "GP_LATTICE", ICON_MOD_LATTICE, "Lattice", "Deform strokes using lattice"},
-	{eModifierType_GpencilNoise, "GP_NOISE", ICON_RNDCURVE, "Noise", "Add noise to strokes"},
-	{eModifierType_GpencilOffset, "GP_OFFSET", ICON_MOD_DISPLACE, "Offset", "Change stroke location, rotation or scale"},
-	{eModifierType_GpencilSmooth, "GP_SMOOTH", ICON_MOD_SMOOTH, "Smooth", "Smooth stroke"},
-	{eModifierType_GpencilThick, "GP_THICK", ICON_MAN_ROT, "Thickness", "Change stroke thickness"},
+	{eModifierType_Gpencil_Hook, "GP_HOOK", ICON_HOOK, "Hook", "Deform stroke points using objects"},
+	{eModifierType_Gpencil_Lattice, "GP_LATTICE", ICON_MOD_LATTICE, "Lattice", "Deform strokes using lattice"},
+	{eModifierType_Gpencil_Noise, "GP_NOISE", ICON_RNDCURVE, "Noise", "Add noise to strokes"},
+	{eModifierType_Gpencil_Offset, "GP_OFFSET", ICON_MOD_DISPLACE, "Offset", "Change stroke location, rotation or scale"},
+	{eModifierType_Gpencil_Smooth, "GP_SMOOTH", ICON_MOD_SMOOTH, "Smooth", "Smooth stroke"},
+	{eModifierType_Gpencil_Thick, "GP_THICK", ICON_MAN_ROT, "Thickness", "Change stroke thickness"},
 	{0, "", 0, N_("Color"), "" },
-	{eModifierType_GpencilColor, "GP_COLOR", ICON_GROUP_VCOL, "Hue/Saturation", "Apply changes to stroke colors"},
-	{eModifierType_GpencilOpacity, "GP_OPACITY", ICON_MOD_MASK, "Opacity", "Opacity of the strokes"},
-	{eModifierType_GpencilTint, "GP_TINT", ICON_COLOR, "Tint", "Tint strokes with new color"},
+	{eModifierType_Gpencil_Color, "GP_COLOR", ICON_GROUP_VCOL, "Hue/Saturation", "Apply changes to stroke colors"},
+	{eModifierType_Gpencil_Opacity, "GP_OPACITY", ICON_MOD_MASK, "Opacity", "Opacity of the strokes"},
+	{eModifierType_Gpencil_Tint, "GP_TINT", ICON_COLOR, "Tint", "Tint strokes with new color"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -455,31 +455,31 @@ static StructRNA *rna_Modifier_refine(struct PointerRNA *ptr)
 			return &RNA_MeshSequenceCacheModifier;
 		case eModifierType_SurfaceDeform:
 			return &RNA_SurfaceDeformModifier;
-		case eModifierType_GpencilNoise:
+		case eModifierType_Gpencil_Noise:
 			return &RNA_GpencilNoiseModifier;
-		case eModifierType_GpencilSubdiv:
+		case eModifierType_Gpencil_Subdiv:
 			return &RNA_GpencilSubdivModifier;
-		case eModifierType_GpencilSimplify:
+		case eModifierType_Gpencil_Simplify:
 			return &RNA_GpencilSimplifyModifier;
-		case eModifierType_GpencilThick:
+		case eModifierType_Gpencil_Thick:
 			return &RNA_GpencilThickModifier;
-		case eModifierType_GpencilTint:
+		case eModifierType_Gpencil_Tint:
 			return &RNA_GpencilTintModifier;
-		case eModifierType_GpencilColor:
+		case eModifierType_Gpencil_Color:
 			return &RNA_GpencilColorModifier;
-		case eModifierType_GpencilInstance:
+		case eModifierType_Gpencil_Instance:
 			return &RNA_GpencilInstanceModifier;
-		case eModifierType_GpencilBuild:
+		case eModifierType_Gpencil_Build:
 			return &RNA_GpencilBuildModifier;
-		case eModifierType_GpencilOpacity:
+		case eModifierType_Gpencil_Opacity:
 			return &RNA_GpencilOpacityModifier;
-		case eModifierType_GpencilLattice:
+		case eModifierType_Gpencil_Lattice:
 			return &RNA_GpencilLatticeModifier;
-		case eModifierType_GpencilSmooth:
+		case eModifierType_Gpencil_Smooth:
 			return &RNA_GpencilSmoothModifier;
-		case eModifierType_GpencilHook:
+		case eModifierType_Gpencil_Hook:
 			return &RNA_GpencilHookModifier;
-		case eModifierType_GpencilOffset:
+		case eModifierType_Gpencil_Offset:
 			return &RNA_GpencilOffsetModifier;
 			/* Default */
 		case eModifierType_None:

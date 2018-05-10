@@ -158,7 +158,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	}
 }
 
-ModifierTypeInfo modifierType_GpencilTint = {
+ModifierTypeInfo modifierType_Gpencil_Tint = {
 	/* name */              "Tint",
 	/* structName */        "GpencilTintModifierData",
 	/* structSize */        sizeof(GpencilTintModifierData),

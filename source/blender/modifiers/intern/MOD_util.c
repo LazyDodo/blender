@@ -432,18 +432,18 @@ void modifier_type_init(ModifierTypeInfo *types[])
 	INIT_TYPE(MeshSequenceCache);
 	INIT_TYPE(SurfaceDeform);
 
-	INIT_TYPE(GpencilNoise);
-	INIT_TYPE(GpencilSubdiv);
-	INIT_TYPE(GpencilSimplify);
-	INIT_TYPE(GpencilThick);
-	INIT_TYPE(GpencilTint);
-	INIT_TYPE(GpencilColor);
-	INIT_TYPE(GpencilInstance);
-	INIT_TYPE(GpencilBuild);
-	INIT_TYPE(GpencilOpacity);
-	INIT_TYPE(GpencilLattice);
-	INIT_TYPE(GpencilSmooth);
-	INIT_TYPE(GpencilHook);
-	INIT_TYPE(GpencilOffset);
+	INIT_TYPE(Gpencil_Noise);
+	INIT_TYPE(Gpencil_Subdiv);
+	INIT_TYPE(Gpencil_Simplify);
+	INIT_TYPE(Gpencil_Thick);
+	INIT_TYPE(Gpencil_Tint);
+	INIT_TYPE(Gpencil_Color);
+	INIT_TYPE(Gpencil_Instance);
+	INIT_TYPE(Gpencil_Build);
+	INIT_TYPE(Gpencil_Opacity);
+	INIT_TYPE(Gpencil_Lattice);
+	INIT_TYPE(Gpencil_Smooth);
+	INIT_TYPE(Gpencil_Hook);
+	INIT_TYPE(Gpencil_Offset);
 #undef INIT_TYPE
 }
