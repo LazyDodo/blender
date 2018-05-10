@@ -49,7 +49,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilSubdivModifierData *gpmd = (GpencilSubdivModifierData *)md;
+	SubdivGpencilModifierData *gpmd = (SubdivGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	gpmd->level = 1;
 	gpmd->layername[0] = '\0';
@@ -64,7 +64,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	GpencilSubdivModifierData *mmd = (GpencilSubdivModifierData *)md;
+	SubdivGpencilModifierData *mmd = (SubdivGpencilModifierData *)md;
 	bGPDspoint *temp_points;
 	int totnewpoints, oldtotpoints;
 	int i2;
@@ -159,8 +159,8 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Subdiv = {
 	/* name */              "Subdivision",
-	/* structName */        "GpencilSubdivModifierData",
-	/* structSize */        sizeof(GpencilSubdivModifierData),
+	/* structName */        "SubdivGpencilModifierData",
+	/* structSize */        sizeof(SubdivGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

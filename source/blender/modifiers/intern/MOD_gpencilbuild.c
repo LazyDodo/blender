@@ -51,7 +51,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilBuildModifierData *gpmd = (GpencilBuildModifierData *)md;
+	BuildGpencilModifierData *gpmd = (BuildGpencilModifierData *)md;
 	
 	/* We deliberately set this range to the half the default
 	 * frame-range to have an immediate effect ot suggest use-cases
@@ -112,7 +112,7 @@ static void gpf_clear_all_strokes(bGPDframe *gpf)
  * Note: This won't be called if all points are present/removed
  * TODO: Allow blending of growing/shrinking tip (e.g. for more gradual transitions)
  */
-static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eGpencilBuild_Transition transition)
+static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eBuildGpencil_Transition transition)
 {
 	bGPDspoint *new_points = MEM_callocN(sizeof(bGPDspoint) * num_points, "GP Build Modifier - Reduced Points");
 	
@@ -185,7 +185,7 @@ typedef struct tStrokeBuildDetails {
 
 
 /* Sequential - Show strokes one after the other */
-static void build_sequential(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac)
+static void build_sequential(BuildGpencilModifierData *mmd, bGPDframe *gpf, float fac)
 {
 	const size_t tot_strokes = BLI_listbase_count(&gpf->strokes);
 	bGPDstroke *gps;
@@ -288,7 +288,7 @@ static void build_sequential(GpencilBuildModifierData *mmd, bGPDframe *gpf, floa
 /* Concurrent - Show multiple strokes at once */
 // TODO: Allow random offsets to start times
 // TODO: Allow varying speeds? Scaling of progress?
-static void build_concurrent(GpencilBuildModifierData *mmd, bGPDframe *gpf, float fac)
+static void build_concurrent(BuildGpencilModifierData *mmd, bGPDframe *gpf, float fac)
 {
 	bGPDstroke *gps, *gps_next;
 	int max_points = 0;
@@ -397,7 +397,7 @@ static void build_concurrent(GpencilBuildModifierData *mmd, bGPDframe *gpf, floa
 static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	                        Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf)
 {
-	GpencilBuildModifierData *mmd = (GpencilBuildModifierData *)md;
+	BuildGpencilModifierData *mmd = (BuildGpencilModifierData *)md;
 	const bool reverse = (mmd->transition != GP_BUILD_TRANSITION_GROW);
 	
 	const float ctime = DEG_get_ctime(depsgraph);
@@ -526,8 +526,8 @@ static void bakeModifierGP(const bContext *C, const Depsgraph *UNUSED(depsgraph)
 
 ModifierTypeInfo modifierType_Gpencil_Build = {
 	/* name */              "Build",
-	/* structName */        "GpencilBuildModifierData",
-	/* structSize */        sizeof(GpencilBuildModifierData),
+	/* structName */        "BuildGpencilModifierData",
+	/* structSize */        sizeof(BuildGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod,
 

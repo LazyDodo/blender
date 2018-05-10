@@ -303,7 +303,7 @@ void BKE_gpencil_lattice_init(Object *ob)
 	ModifierData *md;
 	for (md = ob->modifiers.first; md; md = md->next) {
 		if (md->type == eModifierType_Gpencil_Lattice) {
-			GpencilLatticeModifierData *mmd = (GpencilLatticeModifierData *)md;
+			LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 			Object *latob = NULL;
 
 			latob = mmd->object;
@@ -326,7 +326,7 @@ void BKE_gpencil_lattice_clear(Object *ob)
 	ModifierData *md;
 	for (md = ob->modifiers.first; md; md = md->next) {
 		if (md->type == eModifierType_Gpencil_Lattice) {
-			GpencilLatticeModifierData *mmd = (GpencilLatticeModifierData *)md;
+			LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 			if ((mmd) && (mmd->cache_data)) {
 				end_latt_deform((LatticeDeformData *)mmd->cache_data);
 				mmd->cache_data = NULL;

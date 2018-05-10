@@ -5368,11 +5368,11 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 			}
 		}
 		else if (md->type == eModifierType_Gpencil_Lattice) {
-			GpencilLatticeModifierData *gpmd = (GpencilLatticeModifierData*)md;
+			LatticeGpencilModifierData *gpmd = (LatticeGpencilModifierData*)md;
 			gpmd->cache_data = NULL;
 		}
 		else if (md->type == eModifierType_Gpencil_Hook) {
-			GpencilHookModifierData *hmd = (GpencilHookModifierData *)md;
+			HookGpencilModifierData *hmd = (HookGpencilModifierData *)md;
 
 			hmd->curfalloff = newdataadr(fd, hmd->curfalloff);
 			if (hmd->curfalloff) {
@@ -5380,7 +5380,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 			}
 		}
 		else if (md->type == eModifierType_Gpencil_Thick) {
-			GpencilThickModifierData *gpmd = (GpencilThickModifierData *)md;
+			ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
 
 			gpmd->cur_thickness = newdataadr(fd, gpmd->cur_thickness);
 			if (gpmd->cur_thickness) {

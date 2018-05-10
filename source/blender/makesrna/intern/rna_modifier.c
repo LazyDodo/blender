@@ -572,13 +572,13 @@ RNA_MOD_VGROUP_NAME_SET(WeightVGMix, mask_defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(WeightVGProximity, defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(WeightVGProximity, mask_defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(Wireframe, defgrp_name);
-RNA_MOD_VGROUP_NAME_SET(GpencilNoise, vgname);
-RNA_MOD_VGROUP_NAME_SET(GpencilThick, vgname);
-RNA_MOD_VGROUP_NAME_SET(GpencilOpacity, vgname);
-RNA_MOD_VGROUP_NAME_SET(GpencilLattice, vgname);
-RNA_MOD_VGROUP_NAME_SET(GpencilSmooth, vgname);
-RNA_MOD_VGROUP_NAME_SET(GpencilHook, vgname);
-RNA_MOD_VGROUP_NAME_SET(GpencilOffset, vgname);
+RNA_MOD_VGROUP_NAME_SET(NoiseGpencil, vgname);
+RNA_MOD_VGROUP_NAME_SET(ThickGpencil, vgname);
+RNA_MOD_VGROUP_NAME_SET(OpacityGpencil, vgname);
+RNA_MOD_VGROUP_NAME_SET(LatticeGpencil, vgname);
+RNA_MOD_VGROUP_NAME_SET(SmoothGpencil, vgname);
+RNA_MOD_VGROUP_NAME_SET(HookGpencil, vgname);
+RNA_MOD_VGROUP_NAME_SET(OffsetGpencil, vgname);
 
 static void rna_ExplodeModifier_vgroup_get(PointerRNA *ptr, char *value)
 {
@@ -654,7 +654,7 @@ RNA_MOD_OBJECT_SET(NormalEdit, target, OB_EMPTY);
 RNA_MOD_OBJECT_SET(Shrinkwrap, target, OB_MESH);
 RNA_MOD_OBJECT_SET(Shrinkwrap, auxTarget, OB_MESH);
 RNA_MOD_OBJECT_SET(SurfaceDeform, target, OB_MESH);
-RNA_MOD_OBJECT_SET(GpencilLattice, object, OB_LATTICE);
+RNA_MOD_OBJECT_SET(LatticeGpencil, object, OB_LATTICE);
 
 static void rna_HookModifier_object_set(PointerRNA *ptr, PointerRNA value)
 {
@@ -666,9 +666,9 @@ static void rna_HookModifier_object_set(PointerRNA *ptr, PointerRNA value)
 	BKE_object_modifier_hook_reset(ob, hmd);
 }
 
-static void rna_GpencilHookModifier_object_set(PointerRNA *ptr, PointerRNA value)
+static void rna_HookGpencilModifier_object_set(PointerRNA *ptr, PointerRNA value)
 {
-	GpencilHookModifierData *hmd = ptr->data;
+	HookGpencilModifierData *hmd = ptr->data;
 	Object *ob = (Object *)value.data;
 
 	hmd->object = ob;
@@ -4985,7 +4985,7 @@ static void rna_def_modifier_gpencilnoise(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilNoiseModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Noise Modifier", "Noise effect modifier");
-	RNA_def_struct_sdna(srna, "GpencilNoiseModifierData");
+	RNA_def_struct_sdna(srna, "NoiseGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_RNDCURVE);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -4996,7 +4996,7 @@ static void rna_def_modifier_gpencilnoise(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilNoiseModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_NoiseGpencilModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "factor", PROP_FLOAT, PROP_NONE);
@@ -5075,7 +5075,7 @@ static void rna_def_modifier_gpencilsmooth(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilSmoothModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Smooth Modifier", "Smooth effect modifier");
-	RNA_def_struct_sdna(srna, "GpencilSmoothModifierData");
+	RNA_def_struct_sdna(srna, "SmoothGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_SMOOTH);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5086,7 +5086,7 @@ static void rna_def_modifier_gpencilsmooth(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilSmoothModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_SmoothGpencilModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "factor", PROP_FLOAT, PROP_NONE);
@@ -5150,7 +5150,7 @@ static void rna_def_modifier_gpencilsubdiv(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilSubdivModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Subdivision Modifier", "Subdivide Stroke modifier");
-	RNA_def_struct_sdna(srna, "GpencilSubdivModifierData");
+	RNA_def_struct_sdna(srna, "SubdivGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_SUBSURF);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5201,7 +5201,7 @@ static void rna_def_modifier_gpencilsimplify(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilSimplifyModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Simplify Modifier", "Simplify Stroke modifier");
-	RNA_def_struct_sdna(srna, "GpencilSimplifyModifierData");
+	RNA_def_struct_sdna(srna, "SimplifyGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_DECIM);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5252,7 +5252,7 @@ static void rna_def_modifier_gpencilthick(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilThickModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Thick Modifier", "Subdivide and Smooth Stroke modifier");
-	RNA_def_struct_sdna(srna, "GpencilThickModifierData");
+	RNA_def_struct_sdna(srna, "ThickGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MAN_ROT);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5263,7 +5263,7 @@ static void rna_def_modifier_gpencilthick(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilThickModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_ThickGpencilModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "thickness", PROP_INT, PROP_NONE);
@@ -5316,7 +5316,7 @@ static void rna_def_modifier_gpenciloffset(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilOffsetModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Offset Modifier", "Offset Stroke modifier");
-	RNA_def_struct_sdna(srna, "GpencilOffsetModifierData");
+	RNA_def_struct_sdna(srna, "OffsetGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_DISPLACE);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5327,7 +5327,7 @@ static void rna_def_modifier_gpenciloffset(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilOffsetModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_OffsetGpencilModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_NONE);
@@ -5377,7 +5377,7 @@ static void rna_def_modifier_gpenciltint(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilTintModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Tint Modifier", "Tint Stroke Color modifier");
-	RNA_def_struct_sdna(srna, "GpencilTintModifierData");
+	RNA_def_struct_sdna(srna, "TintGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_COLOR);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5427,7 +5427,7 @@ static void rna_def_modifier_gpencilcolor(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilColorModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Hue/Saturation Modifier", "Change Hue/Saturation modifier");
-	RNA_def_struct_sdna(srna, "GpencilColorModifierData");
+	RNA_def_struct_sdna(srna, "ColorGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_GROUP_VCOL);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5485,7 +5485,7 @@ static void rna_def_modifier_gpencilopacity(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilOpacityModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Opacity Modifier", "Opacity of Strokes modifier");
-	RNA_def_struct_sdna(srna, "GpencilOpacityModifierData");
+	RNA_def_struct_sdna(srna, "OpacityGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_MASK);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5496,7 +5496,7 @@ static void rna_def_modifier_gpencilopacity(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilOpacityModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_OpacityGpencilModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "factor", PROP_FLOAT, PROP_NONE);
@@ -5534,7 +5534,7 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilInstanceModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Instance Modifier", "Create grid of duplicate instances");
-	RNA_def_struct_sdna(srna, "GpencilInstanceModifierData");
+	RNA_def_struct_sdna(srna, "InstanceGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_ARRAY);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5661,7 +5661,7 @@ static void rna_def_modifier_gpencilbuild(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilBuildModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Build Modifier", "Animate strokes appearing and disappearing");
-	RNA_def_struct_sdna(srna, "GpencilBuildModifierData");
+	RNA_def_struct_sdna(srna, "BuildGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_BUILD);
 	
 	/* Mode */
@@ -5756,7 +5756,7 @@ static void rna_def_modifier_gpencillattice(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilLatticeModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Lattice Modifier", "Change stroke using lattice to deform modifier");
-	RNA_def_struct_sdna(srna, "GpencilLatticeModifierData");
+	RNA_def_struct_sdna(srna, "LatticeGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_LATTICE);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -5767,7 +5767,7 @@ static void rna_def_modifier_gpencillattice(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilLatticeModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_LatticeGpencilModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_NONE);
@@ -5793,7 +5793,7 @@ static void rna_def_modifier_gpencillattice(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Object", "Lattice object to deform with");
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_GpencilLatticeModifier_object_set", NULL, "rna_Lattice_object_poll");
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_LatticeGpencilModifier_object_set", NULL, "rna_Lattice_object_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
 	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
 
@@ -5811,13 +5811,13 @@ static void rna_def_modifier_gpencilhook(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "GpencilHookModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Hook Modifier", "Hook modifier to modify the location of stroke points");
-	RNA_def_struct_sdna(srna, "GpencilHookModifierData");
+	RNA_def_struct_sdna(srna, "HookGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_HOOK);
 
 	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Object", "Parent Object for hook, also recalculates and clears offset");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_GpencilHookModifier_object_set", NULL, NULL);
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_HookGpencilModifier_object_set", NULL, NULL);
 	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
 
 	prop = RNA_def_property(srna, "subtarget", PROP_STRING, PROP_NONE);
@@ -5834,7 +5834,7 @@ static void rna_def_modifier_gpencilhook(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "vgname");
 	RNA_def_property_ui_text(prop, "Vertex Group", "Vertex group name for modulating the deform");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GpencilHookModifier_vgname_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_HookGpencilModifier_vgname_set");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_NONE);

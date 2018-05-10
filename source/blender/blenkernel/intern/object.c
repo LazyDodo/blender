@@ -225,7 +225,7 @@ void BKE_object_modifier_hook_reset(Object *ob, HookModifierData *hmd)
 	}
 }
 
-void BKE_object_modifier_gpencil_hook_reset(Object *ob, GpencilHookModifierData *hmd)
+void BKE_object_modifier_gpencil_hook_reset(Object *ob, HookGpencilModifierData *hmd)
 {
 	/* reset functionality */
 	if (hmd->object) {

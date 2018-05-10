@@ -49,7 +49,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilOffsetModifierData *gpmd = (GpencilOffsetModifierData *)md;
+	OffsetGpencilModifierData *gpmd = (OffsetGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	gpmd->layername[0] = '\0';
 	gpmd->vgname[0] = '\0';
@@ -67,7 +67,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	GpencilOffsetModifierData *mmd = (GpencilOffsetModifierData *)md;
+	OffsetGpencilModifierData *mmd = (OffsetGpencilModifierData *)md;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 	
 	float mat[4][4];
@@ -115,8 +115,8 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Offset = {
 	/* name */              "Offset",
-	/* structName */        "GpencilOffsetModifierData",
-	/* structSize */        sizeof(GpencilOffsetModifierData),
+	/* structName */        "OffsetGpencilModifierData",
+	/* structSize */        sizeof(OffsetGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

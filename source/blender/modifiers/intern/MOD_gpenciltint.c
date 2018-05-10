@@ -52,7 +52,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilTintModifierData *gpmd = (GpencilTintModifierData *)md;
+	TintGpencilModifierData *gpmd = (TintGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	gpmd->factor = 0;
 	gpmd->layername[0] = '\0';
@@ -68,7 +68,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
+	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 1, gpl, gps,
@@ -104,7 +104,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
-	GpencilTintModifierData *mmd = (GpencilTintModifierData *)md;
+	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ob->data;
 
@@ -160,8 +160,8 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Tint = {
 	/* name */              "Tint",
-	/* structName */        "GpencilTintModifierData",
-	/* structSize */        sizeof(GpencilTintModifierData),
+	/* structName */        "TintGpencilModifierData",
+	/* structSize */        sizeof(TintGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

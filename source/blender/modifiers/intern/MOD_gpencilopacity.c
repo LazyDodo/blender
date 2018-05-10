@@ -51,7 +51,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilOpacityModifierData *gpmd = (GpencilOpacityModifierData *)md;
+	OpacityGpencilModifierData *gpmd = (OpacityGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	gpmd->factor = 1.0f;
 	gpmd->layername[0] = '\0';
@@ -67,7 +67,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	GpencilOpacityModifierData *mmd = (GpencilOpacityModifierData *)md;
+	OpacityGpencilModifierData *mmd = (OpacityGpencilModifierData *)md;
 	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
@@ -143,8 +143,8 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Opacity = {
 	/* name */              "Opacity",
-	/* structName */        "GpencilOpacityModifierData",
-	/* structSize */        sizeof(GpencilOpacityModifierData),
+	/* structName */        "OpacityGpencilModifierData",
+	/* structSize */        sizeof(OpacityGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

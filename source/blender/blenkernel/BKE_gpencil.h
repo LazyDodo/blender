@@ -48,9 +48,9 @@ struct BoundBox;
 struct Brush;
 struct Object;
 struct bDeformGroup;
-struct GpencilSimplifyModifierData;
-struct GpencilInstanceModifierData;
-struct GpencilLatticeModifierData;
+struct SimplifyGpencilModifierData;
+struct InstanceGpencilModifierData;
+struct LatticeGpencilModifierData;
 
 /* ------------ Grease-Pencil API ------------------ */
 
@@ -168,7 +168,7 @@ void BKE_gpencil_geometry_modifiers(
 		struct Depsgraph *depsgraph, struct Object *ob, 
 		struct bGPDlayer *gpl, struct bGPDframe *gpf, bool is_render);
 
-void BKE_gpencil_instance_modifier_instance_tfm(struct GpencilInstanceModifierData *mmd, const int elem_idx[3], float r_mat[4][4]);
+void BKE_gpencil_instance_modifier_instance_tfm(struct InstanceGpencilModifierData *mmd, const int elem_idx[3], float r_mat[4][4]);
 
 void BKE_gpencil_lattice_init(struct Object *ob);
 void BKE_gpencil_lattice_clear(struct Object *ob);

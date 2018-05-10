@@ -75,7 +75,7 @@ struct GPHookData_cb {
 
 static void initData(ModifierData *md)
 {
-	GpencilHookModifierData *gpmd = (GpencilHookModifierData *)md;
+	HookGpencilModifierData *gpmd = (HookGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	gpmd->layername[0] = '\0';
 	gpmd->vgname[0] = '\0';
@@ -90,8 +90,8 @@ static void initData(ModifierData *md)
 
 static void copyData(const ModifierData *md, ModifierData *target)
 {
-	GpencilHookModifierData *gmd = (GpencilHookModifierData *)md;
-	GpencilHookModifierData *tgmd = (GpencilHookModifierData *)target;
+	HookGpencilModifierData *gmd = (HookGpencilModifierData *)md;
+	HookGpencilModifierData *tgmd = (HookGpencilModifierData *)target;
 
 	if (tgmd->curfalloff != NULL) {
 		curvemapping_free(tgmd->curfalloff);
@@ -191,7 +191,7 @@ static void gp_hook_co_apply(struct GPHookData_cb *tData, float weight, bGPDspoi
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	GpencilHookModifierData *mmd = (GpencilHookModifierData *)md;
+	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
 	if (!mmd->object) {
 		return;
 	}
@@ -258,7 +258,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
-	GpencilHookModifierData *mmd = (GpencilHookModifierData *)md;
+	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = md->scene;
 	bGPdata *gpd = ob->data;
@@ -289,7 +289,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 
 static void freeData(ModifierData *md)
 {
-	GpencilHookModifierData *mmd = (GpencilHookModifierData *)md;
+	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
 
 	if (mmd->curfalloff) {
 		curvemapping_free(mmd->curfalloff);
@@ -298,14 +298,14 @@ static void freeData(ModifierData *md)
 
 static bool isDisabled(ModifierData *md, int UNUSED(userRenderParams))
 {
-	GpencilHookModifierData *mmd = (GpencilHookModifierData *)md;
+	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
 
 	return !mmd->object;
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
-	GpencilHookModifierData *lmd = (GpencilHookModifierData *)md;
+	HookGpencilModifierData *lmd = (HookGpencilModifierData *)md;
 	if (lmd->object != NULL) {
 		DEG_add_object_relation(ctx->node, lmd->object, DEG_OB_COMP_GEOMETRY, "Hook Modifier");
 		DEG_add_object_relation(ctx->node, lmd->object, DEG_OB_COMP_TRANSFORM, "Hook Modifier");
@@ -317,15 +317,15 @@ static void foreachObjectLink(
 	ModifierData *md, Object *ob,
 	ObjectWalkFunc walk, void *userData)
 {
-	GpencilHookModifierData *mmd = (GpencilHookModifierData *)md;
+	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
 
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
 }
 
 ModifierTypeInfo modifierType_Gpencil_Hook = {
 	/* name */              "Hook",
-	/* structName */        "GpencilHookModifierData",
-	/* structSize */        sizeof(GpencilHookModifierData),
+	/* structName */        "HookGpencilModifierData",
+	/* structSize */        sizeof(HookGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod,
 

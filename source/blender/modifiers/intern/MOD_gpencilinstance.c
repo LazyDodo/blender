@@ -57,7 +57,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilInstanceModifierData *gpmd = (GpencilInstanceModifierData *)md;
+	InstanceGpencilModifierData *gpmd = (InstanceGpencilModifierData *)md;
 	gpmd->count[0] = 1;
 	gpmd->count[1] = 1;
 	gpmd->count[2] = 1;
@@ -88,7 +88,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 /* -------------------------------- */
 
 /* helper function for per-instance positioning */
-void BKE_gpencil_instance_modifier_instance_tfm(GpencilInstanceModifierData *mmd, const int elem_idx[3], float r_mat[4][4])
+void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd, const int elem_idx[3], float r_mat[4][4])
 {
 	float offset[3], rot[3], scale[3];
 	int ri = mmd->rnd[0];
@@ -135,7 +135,7 @@ void BKE_gpencil_instance_modifier_instance_tfm(GpencilInstanceModifierData *mmd
 static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	                          Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
-	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
+	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 	ListBase stroke_cache = {NULL, NULL};
 	bGPDstroke *gps;
 	int idx;
@@ -272,7 +272,7 @@ static Object *array_instance_add_ob_copy(const bContext *C, Object *from_ob)
 /* bakeModifierGP - "Make Objects" Mode */
 static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *ob)
 {
-	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
+	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 	
 	/* reset random */
 	mmd->rnd[0] = 1;
@@ -340,7 +340,7 @@ static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *
 static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	                        Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
-	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
+	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 	
 	/* When the "make_objects" flag is set, this modifier is handled as part of the 
 	 * draw engine instead. The main benefit is that the instances won't suffer from
@@ -359,7 +359,7 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
-	GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
+	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 	
 	/* Create new objects or add all to current datablock.
 	 * Sometimes it's useful to have the option to do either of these...
@@ -374,8 +374,8 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Instance = {
 	/* name */              "Instance",
-	/* structName */        "GpencilInstanceModifierData",
-	/* structSize */        sizeof(GpencilInstanceModifierData),
+	/* structName */        "InstanceGpencilModifierData",
+	/* structSize */        sizeof(InstanceGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

@@ -54,7 +54,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilNoiseModifierData *gpmd = (GpencilNoiseModifierData *)md;
+	NoiseGpencilModifierData *gpmd = (NoiseGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	gpmd->flag |= GP_NOISE_MOD_LOCATION;
 	gpmd->flag |= GP_NOISE_FULL_STROKE;
@@ -76,7 +76,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 
 static bool dependsOnTime(ModifierData *md)
 {
-	GpencilNoiseModifierData *mmd = (GpencilNoiseModifierData *)md;
+	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 	return (mmd->flag & GP_NOISE_USE_RANDOM) != 0;
 }
 
@@ -84,7 +84,7 @@ static bool dependsOnTime(ModifierData *md)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	GpencilNoiseModifierData *mmd = (GpencilNoiseModifierData *)md;
+	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 	bGPDspoint *pt0, *pt1;
 	float shift, vran, vdir;
 	float normal[3];
@@ -235,8 +235,8 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Noise = {
 	/* name */              "Noise",
-	/* structName */        "GpencilNoiseModifierData",
-	/* structSize */        sizeof(GpencilNoiseModifierData),
+	/* structName */        "NoiseGpencilModifierData",
+	/* structSize */        sizeof(NoiseGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

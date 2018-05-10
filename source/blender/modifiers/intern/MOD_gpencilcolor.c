@@ -53,7 +53,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilColorModifierData *gpmd = (GpencilColorModifierData *)md;
+	ColorGpencilModifierData *gpmd = (ColorGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	ARRAY_SET_ITEMS(gpmd->hsv, 1.0f, 1.0f, 1.0f);
 	gpmd->layername[0] = '\0';
@@ -70,7 +70,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 
-	GpencilColorModifierData *mmd = (GpencilColorModifierData *)md;
+	ColorGpencilModifierData *mmd = (ColorGpencilModifierData *)md;
 	float hsv[3], factor[3];
 
 	if (!is_stroke_affected_by_modifier(ob,
@@ -97,7 +97,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
-	GpencilColorModifierData *mmd = (GpencilColorModifierData *)md;
+	ColorGpencilModifierData *mmd = (ColorGpencilModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ob->data;
 	
@@ -153,8 +153,8 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Color = {
 	/* name */              "Hue/Saturation",
-	/* structName */        "GpencilColorModifierData",
-	/* structSize */        sizeof(GpencilColorModifierData),
+	/* structName */        "ColorGpencilModifierData",
+	/* structSize */        sizeof(ColorGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 

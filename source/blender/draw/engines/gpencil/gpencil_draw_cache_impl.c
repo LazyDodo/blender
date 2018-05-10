@@ -1049,7 +1049,7 @@ struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height)
 /* Helper for gpencil_instance_modifiers()
  * See also MOD_gpencilinstance.c -> bakeModifierGP()
  */
-static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object *ob, GpencilInstanceModifierData *mmd)
+static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object *ob, InstanceGpencilModifierData *mmd)
 {
 	/* reset random */
 	mmd->rnd[0] = 1;
@@ -1112,7 +1112,7 @@ void gpencil_instance_modifiers(GPENCIL_StorageList *stl, Object *ob)
 		    ((md->mode & eModifierMode_Render) && (stl->storage->is_render == true)))
 		{
 			if (md->type == eModifierType_Gpencil_Instance) {
-				GpencilInstanceModifierData *mmd = (GpencilInstanceModifierData *)md;
+				InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 				
 				/* Only add instances if the "Make Objects" flag is set
 				 * FIXME: This is a workaround for z-ordering weirdness when all instances are in the same object

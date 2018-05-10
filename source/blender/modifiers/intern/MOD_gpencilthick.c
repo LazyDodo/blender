@@ -48,7 +48,7 @@
 
 static void initData(ModifierData *md)
 {
-	GpencilThickModifierData *gpmd = (GpencilThickModifierData *)md;
+	ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
 	gpmd->pass_index = 0;
 	gpmd->thickness = 0;
 	gpmd->layername[0] = '\0';
@@ -61,7 +61,7 @@ static void initData(ModifierData *md)
 
 static void freeData(ModifierData *md)
 {
-	GpencilThickModifierData *gpmd = (GpencilThickModifierData *)md;
+	ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
 
 	if (gpmd->cur_thickness) {
 		curvemapping_free(gpmd->cur_thickness);
@@ -70,8 +70,8 @@ static void freeData(ModifierData *md)
 
 static void copyData(const ModifierData *md, ModifierData *target)
 {
-	GpencilThickModifierData *gmd = (GpencilThickModifierData *)md;
-	GpencilThickModifierData *tgmd = (GpencilThickModifierData *)target;
+	ThickGpencilModifierData *gmd = (ThickGpencilModifierData *)md;
+	ThickGpencilModifierData *tgmd = (ThickGpencilModifierData *)target;
 
 	if (tgmd->cur_thickness != NULL) {
 		curvemapping_free(tgmd->cur_thickness);
@@ -87,7 +87,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	GpencilThickModifierData *mmd = (GpencilThickModifierData *)md;
+	ThickGpencilModifierData *mmd = (ThickGpencilModifierData *)md;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(ob, 
@@ -143,8 +143,8 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 
 ModifierTypeInfo modifierType_Gpencil_Thick = {
 	/* name */              "Thickness",
-	/* structName */        "GpencilThickModifierData",
-	/* structSize */        sizeof(GpencilThickModifierData),
+	/* structName */        "ThickGpencilModifierData",
+	/* structSize */        sizeof(ThickGpencilModifierData),
 	/* type */              eModifierTypeType_Gpencil,
 	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
 
