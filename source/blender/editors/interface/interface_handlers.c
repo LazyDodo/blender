@@ -6663,7 +6663,7 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 		/*bool is_idprop = RNA_property_is_idprop(prop);*/ /* XXX does not work as expected, not strictly needed */
 		bool is_set = RNA_property_is_set(ptr, prop);
 
-		const int override_status = RNA_property_override_status(ptr, prop, -1);
+		const int override_status = RNA_property_static_override_status(ptr, prop, -1);
 		const bool is_overridable = (override_status & RNA_OVERRIDE_STATUS_OVERRIDABLE) != 0;
 
 		/* second slower test, saved people finding keyframe items in menus when its not possible */
@@ -8497,8 +8497,8 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 		uiButtonActivateType post_type = data->posttype;
 
 		/* Reset the button value when empty text is typed. */
-		if ((data->str != NULL) && (data->str[0] == '\0') &&
-		    ELEM(RNA_property_type(but->rnaprop), PROP_FLOAT, PROP_INT))
+		if ((data->cancel == false) && (data->str != NULL) && (data->str[0] == '\0') &&
+		    (but->rnaprop && ELEM(RNA_property_type(but->rnaprop), PROP_FLOAT, PROP_INT)))
 		{
 			MEM_SAFE_FREE(data->str);
 			ui_button_value_default(but, &data->value);

@@ -289,9 +289,6 @@ const EnumPropertyItem rna_enum_image_type_items[] = {
 	{0, "", 0, N_("Movie"), NULL},
 	{R_IMF_IMTYPE_AVIJPEG, "AVI_JPEG", ICON_FILE_MOVIE, "AVI JPEG", "Output video in AVI JPEG format"},
 	{R_IMF_IMTYPE_AVIRAW, "AVI_RAW", ICON_FILE_MOVIE, "AVI Raw", "Output video in AVI Raw format"},
-#ifdef WITH_FRAMESERVER
-	{R_IMF_IMTYPE_FRAMESERVER, "FRAMESERVER", ICON_FILE_SCRIPT, "Frame Server", "Output image to a frameserver"},
-#endif
 #ifdef WITH_FFMPEG
 	{R_IMF_IMTYPE_FFMPEG, "FFMPEG", ICON_FILE_MOVIE, "FFmpeg video", "The most versatile way to output video files"},
 #endif
@@ -449,6 +446,7 @@ static const EnumPropertyItem transform_orientation_items[] = {
 	                   "(bone Y axis for pose mode)"},
 	{V3D_MANIP_GIMBAL, "GIMBAL", 0, "Gimbal", "Align each axis to the Euler rotation axis as used for input"},
 	{V3D_MANIP_VIEW, "VIEW", 0, "View", "Align the transformation axes to the window"},
+	{V3D_MANIP_CURSOR, "CURSOR", 0, "Cursor", "Align the transformation axes to the 3D cursor"},
 	// {V3D_MANIP_CUSTOM, "CUSTOM", 0, "Custom", "Use a custom transform orientation"},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -5645,6 +5643,25 @@ static void rna_def_display_safe_areas(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE | ND_DRAW_RENDER_VIEWPORT, NULL);
 }
 
+static void rna_def_scene_display(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	static float default_light_direction[3] = {-0.577350269, -0.577350269, 0.577350269};
+
+	srna = RNA_def_struct(brna, "SceneDisplay", NULL);
+	RNA_def_struct_ui_text(srna, "Scene Display", "Scene display settings for 3d viewport");
+	RNA_def_struct_sdna(srna, "SceneDisplay");
+
+	prop = RNA_def_property(srna, "light_direction", PROP_FLOAT, PROP_DIRECTION);
+	RNA_def_property_float_sdna(prop, NULL, "light_direction");
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_float_array_default(prop, default_light_direction);
+	RNA_def_property_ui_text(prop, "Light Direction", "Direction of the light for shadows and highlights");
+	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
+}
 
 void RNA_def_scene(BlenderRNA *brna)
 {
@@ -5700,9 +5717,14 @@ void RNA_def_scene(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE | ND_WORLD, "rna_Scene_world_update");
 
 	prop = RNA_def_property(srna, "cursor_location", PROP_FLOAT, PROP_XYZ_LENGTH);
-	RNA_def_property_float_sdna(prop, NULL, "cursor");
+	RNA_def_property_float_sdna(prop, NULL, "cursor.location");
 	RNA_def_property_ui_text(prop, "Cursor Location", "3D cursor location");
 	RNA_def_property_ui_range(prop, -10000.0, 10000.0, 10, 4);
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "cursor_rotation", PROP_FLOAT, PROP_QUATERNION);
+	RNA_def_property_float_sdna(prop, NULL, "cursor.rotation");
+	RNA_def_property_ui_text(prop, "Cursor Rotation", "3D cursor rotation in quaternions (keep normalized)");
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
 
 	prop = RNA_def_property(srna, "objects", PROP_COLLECTION, PROP_NONE);
@@ -6099,6 +6121,12 @@ void RNA_def_scene(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "SceneCollection");
 	RNA_def_property_ui_text(prop, "Master Collection", "Collection that contains all other collections");
 
+	/* Scene Display */
+	prop = RNA_def_property(srna, "display", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "display");
+	RNA_def_property_struct_type(prop, "SceneDisplay");
+	RNA_def_property_ui_text(prop, "Scene Display", "Scene display settings for 3d viewport");
+
 	/* Nestled Data  */
 	/* *** Non-Animated *** */
 	RNA_define_animate_sdna(false);
@@ -6113,6 +6141,7 @@ void RNA_def_scene(BlenderRNA *brna)
 	rna_def_transform_orientation(brna);
 	rna_def_selected_uv_element(brna);
 	rna_def_display_safe_areas(brna);
+	rna_def_scene_display(brna);
 	RNA_define_animate_sdna(true);
 	/* *** Animated *** */
 	rna_def_scene_render_data(brna);

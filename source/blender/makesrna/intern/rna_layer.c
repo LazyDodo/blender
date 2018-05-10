@@ -94,7 +94,7 @@ static PointerRNA rna_SceneCollection_objects_get(CollectionPropertyIterator *it
 {
 	ListBaseIterator *internal = &iter->internal.listbase;
 
-	/* we are actually iterating a LinkData list, so override get */
+	/* we are actually iterating a LinkData list */
 	return rna_pointer_inherit_refine(&iter->parent, &RNA_Object, ((LinkData *)internal->link)->data);
 }
 
@@ -302,18 +302,6 @@ static void rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_set(PointerRNA *ptr,
 #define RNA_LAYER_ENGINE_EEVEE_GET_SET_BOOL(_NAME_) \
 	RNA_LAYER_ENGINE_GET_SET(bool, Eevee, _NAME_)
 
-#define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(_NAME_, _LEN_) \
-	RNA_LAYER_ENGINE_GET_SET_ARRAY(float, Workbench, _NAME_, _LEN_)
-
-#define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(float, Workbench, _NAME_)
-
-#define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_INT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(int, Workbench, _NAME_)
-
-#define RNA_LAYER_ENGINE_WORKBENCH_GET_SET_BOOL(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(bool, Workbench, _NAME_)
-
 /* clay engine */
 #ifdef WITH_CLAY_ENGINE
 /* ViewLayer settings. */
@@ -331,13 +319,6 @@ RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(ssao_distance)
 RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(ssao_attenuation)
 RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(hair_brightness_randomness)
 #endif /* WITH_CLAY_ENGINE */
-
-/* workbench engine */
-/* Collection settings */
-RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT(random_object_color_saturation)
-RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT(random_object_color_value)
-/* View Layer settings */
-RNA_LAYER_ENGINE_WORKBENCH_GET_SET_FLOAT_ARRAY(light_direction, 3)
 
 /* eevee engine */
 /* ViewLayer settings. */
@@ -470,9 +451,6 @@ static StructRNA *rna_ViewLayerSettings_refine(PointerRNA *ptr)
 			if (STREQ(props->name, RE_engine_id_BLENDER_EEVEE)) {
 				return &RNA_ViewLayerEngineSettingsEevee;
 			}
-			else if (STREQ(props->name, RE_engine_id_BLENDER_WORKBENCH)) {
-				return &RNA_ViewLayerEngineSettingsWorkbench;
-			}
 			break;
 		default:
 			BLI_assert(!"Mode not fully implemented");
@@ -530,9 +508,6 @@ static StructRNA *rna_LayerCollectionSettings_refine(PointerRNA *ptr)
 				return &RNA_LayerCollectionEngineSettingsClay;
 			}
 #endif
-			if (STREQ(props->name, RE_engine_id_BLENDER_WORKBENCH)) {
-				return &RNA_LayerCollectionEngineSettingsWorkbench;
-			}
 			if (STREQ(props->name, RE_engine_id_BLENDER_EEVEE)) {
 				/* printf("Mode not fully implemented\n"); */
 				return &RNA_LayerCollectionSettings;
@@ -810,7 +785,7 @@ static PointerRNA rna_ViewLayer_objects_get(CollectionPropertyIterator *iter)
 {
 	ListBaseIterator *internal = &iter->internal.listbase;
 
-	/* we are actually iterating a ObjectBase list, so override get */
+	/* we are actually iterating a ObjectBase list */
 	Base *base = (Base *)internal->link;
 	return rna_pointer_inherit_refine(&iter->parent, &RNA_Object, base->object);
 }
@@ -995,22 +970,6 @@ static void rna_def_scene_collection(BlenderRNA *brna)
 	parm = RNA_def_pointer(func, "result", "SceneCollection", "", "Newly created collection");
 	RNA_def_function_return(func, parm);
 }
-
-static void rna_def_layer_collection_override(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "LayerCollectionOverride", NULL);
-	RNA_def_struct_sdna(srna, "CollectionOverride");
-	RNA_def_struct_ui_text(srna, "Collection Override", "Collection Override");
-
-	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Name", "Collection name");
-	RNA_def_struct_name_property(srna, prop);
-	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, NULL);
-}
-
 
 #ifdef WITH_CLAY_ENGINE
 static void rna_def_view_layer_engine_settings_clay(BlenderRNA *brna)
@@ -1619,54 +1578,6 @@ static void rna_def_layer_collection_engine_settings_clay(BlenderRNA *brna)
 }
 #endif /* WITH_CLAY_ENGINE */
 
-/* Workbench engine */
-static void rna_def_view_layer_engine_settings_workbench(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "ViewLayerEngineSettingsWorkbench", "ViewLayerSettings");
-	RNA_def_struct_ui_text(srna, "Workbench Scene Layer Settings", "Workbench Engine settings");
-
-	RNA_define_verify_sdna(0); /* not in sdna */
-	prop = RNA_def_property(srna, "light_direction", PROP_FLOAT, PROP_DIRECTION);
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_Workbench_light_direction_get", "rna_LayerEngineSettings_Workbench_light_direction_set", NULL);
-	RNA_def_property_ui_text(prop, "Light Direction", "Direction of the light for shadow calculation");
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
-
-	RNA_define_verify_sdna(1); /* not in sdna */
-}
-
-static void rna_def_layer_collection_engine_settings_workbench(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "LayerCollectionEngineSettingsWorkbench", "LayerCollectionSettings");
-	RNA_def_struct_ui_text(srna, "Collections Workbench Engine Settings", "Workbench specific settings for this collection");
-
-	RNA_define_verify_sdna(0); /* not in sdna */
-
-	prop = RNA_def_property(srna, "random_object_color_saturation", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_Workbench_random_object_color_saturation_get", "rna_LayerEngineSettings_Workbench_random_object_color_saturation_set", NULL);
-	RNA_def_property_ui_text(prop, "Random Saturation", "Random Object Color Saturation");
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "random_object_color_value", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_Workbench_random_object_color_value_get", "rna_LayerEngineSettings_Workbench_random_object_color_value_set", NULL);
-	RNA_def_property_ui_text(prop, "Random Value", "Random Object Color Value");
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	RNA_define_verify_sdna(1); /* not in sdna */
-}
-
 static void rna_def_view_layer_settings(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1703,7 +1614,6 @@ static void rna_def_view_layer_settings(BlenderRNA *brna)
 #ifdef WITH_CLAY_ENGINE
 	rna_def_view_layer_engine_settings_clay(brna);
 #endif
-	rna_def_view_layer_engine_settings_workbench(brna);
 	rna_def_view_layer_engine_settings_eevee(brna);
 
 	RNA_define_verify_sdna(1);
@@ -1746,8 +1656,6 @@ static void rna_def_layer_collection_settings(BlenderRNA *brna)
 	rna_def_layer_collection_engine_settings_clay(brna);
 #endif
 
-	rna_def_layer_collection_engine_settings_workbench(brna);
-
 	RNA_define_verify_sdna(1);
 }
 
@@ -1785,17 +1693,6 @@ static void rna_def_layer_collection(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "Object");
 	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, "rna_LayerCollection_objects_get", NULL, NULL, NULL, NULL);
 	RNA_def_property_ui_text(prop, "Objects", "All the objects directly or indirectly added to this collection (not including sub-collection objects)");
-
-	prop = RNA_def_property(srna, "overrides", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "overrides", NULL);
-	RNA_def_property_struct_type(prop, "LayerCollectionOverride");
-	RNA_def_property_ui_text(prop, "Collection Overrides", "");
-
-	/* Override settings */
-	prop = RNA_def_property(srna, "engine_overrides", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "properties->data.group", NULL);
-	RNA_def_property_struct_type(prop, "LayerCollectionSettings");
-	RNA_def_property_ui_text(prop, "Collection Settings", "Override of engine specific render settings");
 
 	/* Functions */
 	func = RNA_def_function(srna, "move_above", "rna_LayerCollection_move_above");
@@ -2002,12 +1899,6 @@ void RNA_def_view_layer(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "FreestyleSettings");
 	RNA_def_property_ui_text(prop, "Freestyle Settings", "");
 
-	/* Override settings */
-	prop = RNA_def_property(srna, "engine_overrides", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "properties->data.group", NULL);
-	RNA_def_property_struct_type(prop, "ViewLayerSettings");
-	RNA_def_property_ui_text(prop, "Layer Settings", "Override of engine specific render settings");
-
 	/* debug update routine */
 	func = RNA_def_function(srna, "update", "rna_ViewLayer_update_tagged");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
@@ -2025,7 +1916,6 @@ void RNA_def_view_layer(BlenderRNA *brna)
 	RNA_define_animate_sdna(false);
 	rna_def_scene_collection(brna);
 	rna_def_layer_collection(brna);
-	rna_def_layer_collection_override(brna);
 	rna_def_object_base(brna);
 	RNA_define_animate_sdna(true);
 	/* *** Animated *** */

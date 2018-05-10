@@ -41,6 +41,7 @@
 #include "DNA_object_types.h"
 
 #include "BKE_cdderivedmesh.h"
+#include "BKE_curve.h"
 #include "BKE_customdata.h"
 #include "BKE_deform.h"
 #include "BKE_library.h"
@@ -149,12 +150,9 @@ static void get_vert2geom_distance(int numVerts, float (*v_cos)[3],
 	BVHTreeFromMesh treeData_e = {NULL};
 	BVHTreeFromMesh treeData_f = {NULL};
 
-	/* XXX TODO horrible, but simpler for now, bvhtree needs some love first! */
-	DerivedMesh *target_dm = CDDM_from_mesh(target);
-
 	if (dist_v) {
 		/* Create a bvh-tree of the given target's verts. */
-		bvhtree_from_mesh_get(&treeData_v, target_dm, BVHTREE_FROM_VERTS, 2);
+		BKE_bvhtree_from_mesh_get(&treeData_v, target, BVHTREE_FROM_VERTS, 2);
 		if (treeData_v.tree == NULL) {
 			OUT_OF_MEMORY();
 			return;
@@ -162,7 +160,7 @@ static void get_vert2geom_distance(int numVerts, float (*v_cos)[3],
 	}
 	if (dist_e) {
 		/* Create a bvh-tree of the given target's edges. */
-		bvhtree_from_mesh_get(&treeData_e, target_dm, BVHTREE_FROM_EDGES, 2);
+		BKE_bvhtree_from_mesh_get(&treeData_e, target, BVHTREE_FROM_EDGES, 2);
 		if (treeData_e.tree == NULL) {
 			OUT_OF_MEMORY();
 			return;
@@ -170,7 +168,7 @@ static void get_vert2geom_distance(int numVerts, float (*v_cos)[3],
 	}
 	if (dist_f) {
 		/* Create a bvh-tree of the given target's faces. */
-		bvhtree_from_mesh_get(&treeData_f, target_dm, BVHTREE_FROM_LOOPTRI, 2);
+		BKE_bvhtree_from_mesh_get(&treeData_f, target, BVHTREE_FROM_LOOPTRI, 2);
 		if (treeData_f.tree == NULL) {
 			OUT_OF_MEMORY();
 			return;
@@ -203,8 +201,6 @@ static void get_vert2geom_distance(int numVerts, float (*v_cos)[3],
 		free_bvhtree_from_mesh(&treeData_e);
 	if (dist_f)
 		free_bvhtree_from_mesh(&treeData_f);
-
-	target_dm->release(target_dm);
 }
 
 /**
@@ -295,16 +291,6 @@ static void initData(ModifierData *md)
 	wmd->max_dist             = 1.0f; /* vert arbitrary distance, but don't use 0 */
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	WeightVGProximityModifierData *wmd  = (WeightVGProximityModifierData *) md;
-	WeightVGProximityModifierData *twmd = (WeightVGProximityModifierData *) target;
-#endif
-
-	modifier_copyData_generic(md, target);
-}
-
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 {
 	WeightVGProximityModifierData *wmd = (WeightVGProximityModifierData *) md;
@@ -380,6 +366,8 @@ static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 
 static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh)
 {
+	BLI_assert(mesh != NULL);
+
 	WeightVGProximityModifierData *wmd = (WeightVGProximityModifierData *) md;
 	MDeformVert *dvert = NULL;
 	MDeformWeight **dw, **tdw;
@@ -433,12 +421,12 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 
 	Mesh *result;
 	BKE_id_copy_ex(
-	            NULL, &mesh->id, (ID **)&result,
-	            LIB_ID_CREATE_NO_MAIN |
-	            LIB_ID_CREATE_NO_USER_REFCOUNT |
-	            LIB_ID_CREATE_NO_DEG_TAG|
-	            LIB_ID_COPY_NO_PREVIEW,
-	            false);
+	        NULL, &mesh->id, (ID **)&result,
+	        LIB_ID_CREATE_NO_MAIN |
+	        LIB_ID_CREATE_NO_USER_REFCOUNT |
+	        LIB_ID_CREATE_NO_DEG_TAG |
+	        LIB_ID_COPY_NO_PREVIEW,
+	        false);
 
 	if (has_mdef) {
 		dvert = CustomData_get_layer(&result->vdata, CD_MDEFORMVERT);
@@ -516,10 +504,10 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		const bool use_trgt_faces = (wmd->proximity_flags & MOD_WVG_PROXIMITY_GEOM_FACES) != 0;
 
 		if (use_trgt_verts || use_trgt_edges || use_trgt_faces) {
-			Mesh *target_mesh = get_mesh_eval_for_modifier(obr, ctx->flag);
+			Mesh *target_mesh = BKE_modifier_get_evaluated_mesh_from_object(obr, ctx->flag);
 
 			/* We must check that we do have a valid target_mesh! */
-			if (target_mesh) {
+			if (target_mesh != NULL) {
 				SpaceTransform loc2trgt;
 				float *dists_v = use_trgt_verts ? MEM_malloc_arrayN(numIdx, sizeof(float), "dists_v") : NULL;
 				float *dists_e = use_trgt_edges ? MEM_malloc_arrayN(numIdx, sizeof(float), "dists_e") : NULL;
@@ -594,7 +582,7 @@ ModifierTypeInfo modifierType_WeightVGProximity = {
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_UsesPreview,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
 
 	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,

@@ -28,13 +28,14 @@
 
 struct Gwn_Batch;
 struct GPUMaterial;
-struct Object;
 struct ModifierData;
+struct Object;
+struct PTCacheEdit;
 
 void DRW_shape_cache_free(void);
 
 /* 3D cursor */
-struct Gwn_Batch *DRW_cache_cursor_get(void);
+struct Gwn_Batch *DRW_cache_cursor_get(bool crosshair_lines);
 
 /* Common Shapes */
 struct Gwn_Batch *DRW_cache_fullscreen_quad_get(void);
@@ -105,6 +106,7 @@ struct Gwn_Batch *DRW_cache_bone_envelope_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_envelope_head_wire_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_point_get(void);
 struct Gwn_Batch *DRW_cache_bone_point_wire_outline_get(void);
+struct Gwn_Batch *DRW_cache_bone_stick_get(void);
 struct Gwn_Batch *DRW_cache_bone_arrows_get(void);
 
 /* Meshes */
@@ -167,6 +169,9 @@ struct Gwn_Batch *DRW_cache_lattice_vert_overlay_get(struct Object *ob);
 /* Particles */
 struct Gwn_Batch *DRW_cache_particles_get_hair(struct ParticleSystem *psys, struct ModifierData *md);
 struct Gwn_Batch *DRW_cache_particles_get_dots(struct Object *object, struct ParticleSystem *psys);
+struct Gwn_Batch *DRW_cache_particles_get_edit_strands(struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_cache_particles_get_edit_inner_points(struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_cache_particles_get_edit_tip_points(struct PTCacheEdit *edit);
 struct Gwn_Batch *DRW_cache_particles_get_prim(int type);
 
 /* Metaball */
