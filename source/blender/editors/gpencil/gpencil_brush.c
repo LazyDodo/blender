@@ -293,7 +293,7 @@ static bool gp_brush_smooth_apply(
 
 	/* perform smoothing */
 	if (gso->settings->flag & GP_BRUSHEDIT_FLAG_APPLY_POSITION) {
-		BKE_gp_smooth_stroke(gps, pt_index, inf);
+		BKE_gpencil_smooth_stroke(gps, pt_index, inf);
 	}
 	if (gso->settings->flag & GP_BRUSHEDIT_FLAG_APPLY_STRENGTH) {
 		BKE_gp_smooth_stroke_strength(gps, pt_index, inf);

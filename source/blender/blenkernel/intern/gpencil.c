@@ -1400,7 +1400,7 @@ bool BKE_gpencil_vgroup_remove_point_weight(bGPDspoint *pt, int index)
  * \param i                Point index
  * \param inf              Amount of smoothing to apply
  */
-bool BKE_gp_smooth_stroke(bGPDstroke *gps, int i, float inf)
+bool BKE_gpencil_smooth_stroke(bGPDstroke *gps, int i, float inf)
 {
 	bGPDspoint *pt = &gps->points[i];
 	// float pressure = 0.0f;
