@@ -186,10 +186,10 @@ static void GPENCIL_engine_init(void *vedata)
 	/* init storage */
 	if (!stl->storage) {
 		stl->storage = MEM_callocN(sizeof(GPENCIL_Storage), "GPENCIL_Storage");
-	}
 
-	/* unit matrix */
-	unit_m4(stl->storage->unit_matrix);
+		/* unit matrix */
+		unit_m4(stl->storage->unit_matrix);
+	}
 
 	/* blank texture used if no texture defined for fill shader */
 	if (!e_data.gpencil_blank_texture) {
