@@ -91,25 +91,25 @@ typedef struct MaterialGPencilStyle {
 /* GpencilColor->flag */
 typedef enum eGpencilColorData_Flag {
 	/* don't display color */
-	GPC_COLOR_HIDE = (1 << 1),
+	GP_STYLE_COLOR_HIDE = (1 << 1),
 	/* protected from further editing */
-	GPC_COLOR_LOCKED = (1 << 2),
+	GP_STYLE_COLOR_LOCKED = (1 << 2),
 	/* do onion skinning */
-	GPC_COLOR_ONIONSKIN = (1 << 3),
+	GP_STYLE_COLOR_ONIONSKIN = (1 << 3),
 	/* clamp texture */
-	GPC_COLOR_TEX_CLAMP = (1 << 4),
+	GP_STYLE_COLOR_TEX_CLAMP = (1 << 4),
 	/* mix texture */
-	GPC_COLOR_TEX_MIX = (1 << 5),
+	GP_STYLE_COLOR_TEX_MIX = (1 << 5),
 	/* Flip fill colors */
-	GPC_COLOR_FLIP_FILL = (1 << 6),
+	GP_STYLE_COLOR_FLIP_FILL = (1 << 6),
 	/* Texture is a pattern */
-	GPC_COLOR_PATTERN = (1 << 7)
+	GP_STYLE_COLOR_PATTERN = (1 << 7)
 } eGpencilColorData_Flag;
 
 typedef enum eGpencilColorData_Mode {
-	GPC_MODE_LINE = 0, /* line */
-	GPC_MODE_DOTS = 1, /* dots */
-	GPC_MODE_BOX = 2, /* rectangles */
+	GP_STYLE_MODE_LINE = 0, /* line */
+	GP_STYLE_MODE_DOTS = 1, /* dots */
+	GP_STYLE_MODE_BOX = 2, /* rectangles */
 } eGpencilColorData_Mode;
 
 typedef struct Material {
@@ -286,18 +286,18 @@ enum {
 
 /* Grease Pencil Stroke styles */
 enum {
-	GPC_STROKE_STYLE_SOLID = 0,
-	GPC_STROKE_STYLE_TEXTURE
+	GP_STYLE_STROKE_STYLE_SOLID = 0,
+	GP_STYLE_STROKE_STYLE_TEXTURE
 };
 
 /* Grease Pencil Fill styles */
 enum {
-	GPC_FILL_STYLE_SOLID = 0,
-	GPC_FILL_STYLE_GRADIENT,
-	GPC_FILL_STYLE_RADIAL,
-	GPC_FILL_STYLE_CHESSBOARD,
-	GPC_FILL_STYLE_TEXTURE,
-	GPC_FILL_STYLE_PATTERN,
+	GP_STYLE_FILL_STYLE_SOLID = 0,
+	GP_STYLE_FILL_STYLE_GRADIENT,
+	GP_STYLE_FILL_STYLE_RADIAL,
+	GP_STYLE_FILL_STYLE_CHESSBOARD,
+	GP_STYLE_FILL_STYLE_TEXTURE,
+	GP_STYLE_FILL_STYLE_PATTERN,
 };
 
 #endif

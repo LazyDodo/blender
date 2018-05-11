@@ -2228,7 +2228,7 @@ static int gp_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
 			if (((gps->flag & GP_STROKE_SELECT) == 0) || ED_gpencil_stroke_can_use(C, gps) == false)
 				continue;
 			/* skip hidden or locked colors */
-			if (!gp_style || (gp_style->flag & GPC_COLOR_HIDE) || (gp_style->flag & GPC_COLOR_LOCKED))
+			if (!gp_style || (gp_style->flag & GP_STYLE_COLOR_HIDE) || (gp_style->flag & GP_STYLE_COLOR_LOCKED))
 				continue;
 			
 			switch (type) {

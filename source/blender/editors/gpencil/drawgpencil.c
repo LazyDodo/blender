@@ -606,7 +606,7 @@ static int gp_set_filling_texture(Image *image, short flag)
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	if (flag & GPC_COLOR_TEX_CLAMP) {
+	if (flag & GP_STYLE_COLOR_TEX_CLAMP) {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
@@ -654,10 +654,10 @@ static void gp_draw_stroke_fill(
 	immUniform2fv("t_scale", gp_style->t_scale);
 	immUniform2fv("t_offset", gp_style->t_offset);
 	immUniform1f("t_opacity", gp_style->t_opacity);
-	immUniform1i("t_mix", gp_style->flag & GPC_COLOR_TEX_MIX ? 1 : 0);
-	immUniform1i("t_flip", gp_style->flag & GPC_COLOR_FLIP_FILL ? 1 : 0);
+	immUniform1i("t_mix", gp_style->flag & GP_STYLE_COLOR_TEX_MIX ? 1 : 0);
+	immUniform1i("t_flip", gp_style->flag & GP_STYLE_COLOR_FLIP_FILL ? 1 : 0);
 	/* image texture */
-	if ((gp_style->fill_style == GPC_FILL_STYLE_TEXTURE) || (gp_style->flag & GPC_COLOR_TEX_MIX)) {
+	if ((gp_style->fill_style == GP_STYLE_FILL_STYLE_TEXTURE) || (gp_style->flag & GP_STYLE_COLOR_TEX_MIX)) {
 		gp_set_filling_texture(gp_style->ima, gp_style->flag);
 	}
 
@@ -1030,9 +1030,9 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 		MaterialGPencilStyle *gp_style = ma->gp_style;
 
 		if ((gp_style == NULL) ||
-		    (gp_style->flag & GPC_COLOR_HIDE) ||
+		    (gp_style->flag & GP_STYLE_COLOR_HIDE) ||
 		    /* if onion and ghost flag do not draw*/
-		    (tgpw->onion && (gp_style->flag & GPC_COLOR_ONIONSKIN)))
+		    (tgpw->onion && (gp_style->flag & GP_STYLE_COLOR_ONIONSKIN)))
 		{
 			continue;
 		}
@@ -1107,7 +1107,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 					copy_v4_v4(ink, tcolor);
 				}
 			}
-			if (gp_style->mode == GPC_MODE_DOTS) {
+			if (gp_style->mode == GP_STYLE_MODE_DOTS) {
 				/* volumetric stroke drawing */
 				if (tgpw->disable_fill != 1) {
 					gp_draw_stroke_volumetric_3d(gps->points, gps->totpoints, sthickness, ink);
@@ -1175,7 +1175,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 					copy_v4_v4(ink, tcolor);
 				}
 			}
-			if (gp_style->mode == GPC_MODE_DOTS) {
+			if (gp_style->mode == GP_STYLE_MODE_DOTS) {
 				/* blob/disk-based "volumetric" drawing */
 				gp_draw_stroke_volumetric_2d(gps->points, gps->totpoints, sthickness, tgpw->dflag, gps->flag,
 					tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, ink);
@@ -1243,10 +1243,10 @@ static void gp_draw_strokes_edit(
 			MaterialGPencilStyle *gp_style = ma->gp_style;
 
 			if (gp_style != NULL) {
-				if (gp_style->flag & GPC_COLOR_HIDE) {
+				if (gp_style->flag & GP_STYLE_COLOR_HIDE) {
 					continue;
 				}
-				if (((lflag & GP_LAYER_UNLOCK_COLOR) == 0) && (gp_style->flag & GPC_COLOR_LOCKED)) {
+				if (((lflag & GP_LAYER_UNLOCK_COLOR) == 0) && (gp_style->flag & GP_STYLE_COLOR_LOCKED)) {
 					continue;
 				}
 			}
@@ -1673,7 +1673,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 			 * It should also be noted that sbuffer contains temporary point types
 			 * i.e. tGPspoints NOT bGPDspoints
 			 */
-			if (gpd->mode == GPC_MODE_DOTS) {
+			if (gpd->mode == GP_STYLE_MODE_DOTS) {
 				gp_draw_stroke_volumetric_buffer(gpd->sbuffer, gpd->sbuffer_size, lthick,
 				                                 dflag, gpd->scolor);
 			}

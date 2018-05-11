@@ -464,9 +464,9 @@ bool ED_gpencil_stroke_color_use(Object *ob, const bGPDlayer *gpl, const bGPDstr
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	if (gp_style != NULL) {
-		if (gp_style->flag & GPC_COLOR_HIDE)
+		if (gp_style->flag & GP_STYLE_COLOR_HIDE)
 			return false;
-		if (((gpl->flag & GP_LAYER_UNLOCK_COLOR) == 0) && (gp_style->flag & GPC_COLOR_LOCKED))
+		if (((gpl->flag & GP_LAYER_UNLOCK_COLOR) == 0) && (gp_style->flag & GP_STYLE_COLOR_LOCKED))
 			return false;
 	}
 	

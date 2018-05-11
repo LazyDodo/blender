@@ -376,27 +376,27 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 
 	/* mode type styles */
 	static EnumPropertyItem gpcolordata_mode_types_items[] = {
-		{ GPC_MODE_LINE, "LINE", 0, "Line", "Draw strokes using a continuous line" },
-		{ GPC_MODE_DOTS, "DOTS", 0, "Dots", "Draw strokes using separated dots" },
-		{ GPC_MODE_BOX, "BOX", 0, "Boxes", "Draw strokes using separated rectangle boxes" },
+		{ GP_STYLE_MODE_LINE, "LINE", 0, "Line", "Draw strokes using a continuous line" },
+		{ GP_STYLE_MODE_DOTS, "DOTS", 0, "Dots", "Draw strokes using separated dots" },
+		{ GP_STYLE_MODE_BOX, "BOX", 0, "Boxes", "Draw strokes using separated rectangle boxes" },
 		{ 0, NULL, 0, NULL, NULL }
 	};
 
 	/* stroke styles */
 	static EnumPropertyItem stroke_style_items[] = {
-		{ GPC_STROKE_STYLE_SOLID, "SOLID", 0, "Solid", "Draw strokes with solid color" },
-		{ GPC_STROKE_STYLE_TEXTURE, "TEXTURE", 0, "Texture", "Draw strokes using texture" },
+		{ GP_STYLE_STROKE_STYLE_SOLID, "SOLID", 0, "Solid", "Draw strokes with solid color" },
+		{ GP_STYLE_STROKE_STYLE_TEXTURE, "TEXTURE", 0, "Texture", "Draw strokes using texture" },
 		{ 0, NULL, 0, NULL, NULL }
 	};
 
 	/* fill styles */
 	static EnumPropertyItem fill_style_items[] = {
-		{ GPC_FILL_STYLE_SOLID, "SOLID", 0, "Solid", "Fill area with solid color" },
-		{ GPC_FILL_STYLE_GRADIENT, "GRADIENT", 0, "Gradient", "Fill area with gradient color" },
-		{ GPC_FILL_STYLE_RADIAL, "RADIAL", 0, "Radial", "Fill area with radial gradient" },
-		{ GPC_FILL_STYLE_CHESSBOARD, "CHESSBOARD", 0, "Checker Board", "Fill area with chessboard pattern" },
-		{ GPC_FILL_STYLE_TEXTURE, "TEXTURE", 0, "Texture", "Fill area with image texture" },
-		{ GPC_FILL_STYLE_PATTERN, "PATTERN", 0, "Pattern", "Fill area with color but use image texture as pattern to distribute color" },
+		{ GP_STYLE_FILL_STYLE_SOLID, "SOLID", 0, "Solid", "Fill area with solid color" },
+		{ GP_STYLE_FILL_STYLE_GRADIENT, "GRADIENT", 0, "Gradient", "Fill area with gradient color" },
+		{ GP_STYLE_FILL_STYLE_RADIAL, "RADIAL", 0, "Radial", "Fill area with radial gradient" },
+		{ GP_STYLE_FILL_STYLE_CHESSBOARD, "CHESSBOARD", 0, "Checker Board", "Fill area with chessboard pattern" },
+		{ GP_STYLE_FILL_STYLE_TEXTURE, "TEXTURE", 0, "Texture", "Fill area with image texture" },
+		{ GP_STYLE_FILL_STYLE_PATTERN, "PATTERN", 0, "Pattern", "Fill area with color but use image texture as pattern to distribute color" },
 		{ 0, NULL, 0, NULL, NULL }
 	};
 
@@ -532,40 +532,40 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 
 	/* Flags */
 	prop = RNA_def_property(srna, "hide", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GPC_COLOR_HIDE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_HIDE);
 	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_OFF, 1);
 	RNA_def_property_ui_text(prop, "Hide", "Set color Visibility");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	prop = RNA_def_property(srna, "lock", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GPC_COLOR_LOCKED);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_LOCKED);
 	RNA_def_property_ui_icon(prop, ICON_UNLOCKED, 1);
 	RNA_def_property_ui_text(prop, "Locked", "Protect color from further editing and/or frame changes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	prop = RNA_def_property(srna, "ghost", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GPC_COLOR_ONIONSKIN);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_ONIONSKIN);
 	RNA_def_property_ui_icon(prop, ICON_GHOST_ENABLED, 0);
 	RNA_def_property_ui_text(prop, "Show in Ghosts", "Display strokes using this color when showing onion skins");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	prop = RNA_def_property(srna, "texture_clamp", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GPC_COLOR_TEX_CLAMP);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_TEX_CLAMP);
 	RNA_def_property_ui_text(prop, "Clamp", "Do not repeat texture and clamp to one instance only");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	prop = RNA_def_property(srna, "texture_mix", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GPC_COLOR_TEX_MIX);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_TEX_MIX);
 	RNA_def_property_ui_text(prop, "Mix Texture", "Mix texture image with filling colors");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	prop = RNA_def_property(srna, "flip", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GPC_COLOR_FLIP_FILL);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_FLIP_FILL);
 	RNA_def_property_ui_text(prop, "Flip", "Flip filling colors");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	prop = RNA_def_property(srna, "use_pattern", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GPC_COLOR_PATTERN);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_PATTERN);
 	RNA_def_property_ui_text(prop, "Pattern", "Texture is a pattern to apply color");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 

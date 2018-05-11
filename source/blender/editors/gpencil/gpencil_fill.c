@@ -224,7 +224,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 			}
 			/* check if the color is visible */
 			MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-			if ((gp_style == NULL) || (gp_style->flag & GPC_COLOR_HIDE))
+			if ((gp_style == NULL) || (gp_style->flag & GP_STYLE_COLOR_HIDE))
 			{
 				continue;
 			}

@@ -240,7 +240,7 @@ static void GPENCIL_cache_init(void *vedata)
 		/* Alloc transient pointers */
 		stl->g_data = MEM_mallocN(sizeof(g_data), "g_data");
 		stl->storage->xray = GP_XRAY_FRONT; /* used for drawing */
-		stl->storage->stroke_style = GPC_STROKE_STYLE_SOLID; /* used for drawing */
+		stl->storage->stroke_style = GP_STYLE_STROKE_STYLE_SOLID; /* used for drawing */
 	}
 	/* reset total shading groups */
 	stl->g_data->tot_sh = 0;
@@ -328,15 +328,15 @@ static void GPENCIL_cache_init(void *vedata)
 		if (gp_style) {
 			stl->storage->stroke_style = gp_style->stroke_style;
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
-			if (gp_style->stroke_style == GPC_STROKE_STYLE_TEXTURE) {
+			if (gp_style->stroke_style == GP_STYLE_STROKE_STYLE_TEXTURE) {
 				stl->storage->color_type = GPENCIL_COLOR_TEXTURE;
-				if (gp_style->flag & GPC_COLOR_PATTERN) {
+				if (gp_style->flag & GP_STYLE_COLOR_PATTERN) {
 					stl->storage->color_type = GPENCIL_COLOR_PATTERN;
 				}
 			}
 		}
 		else {
-			stl->storage->stroke_style = GPC_STROKE_STYLE_SOLID;
+			stl->storage->stroke_style = GP_STYLE_STROKE_STYLE_SOLID;
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
 		}
 

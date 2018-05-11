@@ -395,8 +395,8 @@ bool gpencil_can_draw_stroke(struct MaterialGPencilStyle *gp_style, const bGPDst
 
 	/* check if the color is visible */
 	if ((gp_style == NULL) ||
-	    (gp_style->flag & GPC_COLOR_HIDE) ||
-	    (onion && (gp_style->flag & GPC_COLOR_ONIONSKIN)))
+	    (gp_style->flag & GP_STYLE_COLOR_HIDE) ||
+	    (onion && (gp_style->flag & GP_STYLE_COLOR_ONIONSKIN)))
 	{
 		return false;
 	}
