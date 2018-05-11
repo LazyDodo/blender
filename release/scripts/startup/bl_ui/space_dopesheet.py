@@ -101,8 +101,6 @@ def dopesheet_filter(layout, context, genericFiltersOnly=False):
                 row.prop(dopesheet, "show_linestyles", text="")
             if bpy.data.grease_pencil:
                 row.prop(dopesheet, "show_gpencil", text="")
-            if bpy.data.palettes:
-                row.prop(dopesheet, "show_palettes", text="")
 
             layout.prop(dopesheet, "use_datablock_sort", text="")
 
