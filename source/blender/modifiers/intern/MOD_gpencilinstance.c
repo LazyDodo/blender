@@ -234,7 +234,7 @@ static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	MEM_SAFE_FREE(valid_strokes);
 }
 
-/* bakeModifierGP - "Bake to Data" Mode */
+/* gp_bakeModifier - "Bake to Data" Mode */
 static void bakeModifierGP_strokes(const bContext *UNUSED(C), Depsgraph *depsgraph,
                                       ModifierData *md, Object *ob)
 {
@@ -269,7 +269,7 @@ static Object *array_instance_add_ob_copy(const bContext *C, Object *from_ob)
 	return ob;
 }
 
-/* bakeModifierGP - "Make Objects" Mode */
+/* gp_bakeModifier - "Make Objects" Mode */
 static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
@@ -336,8 +336,8 @@ static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *
 
 /* -------------------------------- */
 
-/* Generic "generateStrokes" callback */
-static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
+/* Generic "gp_generateStrokes" callback */
+static void gp_generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	                        Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
@@ -355,8 +355,8 @@ static void generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 	}
 }
 
-/* Generic "bakeModifierGP" callback */
-static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
+/* Generic "gp_bakeModifier" callback */
+static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
@@ -395,9 +395,9 @@ ModifierTypeInfo modifierType_Gpencil_Instance = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* deformStroke */      NULL,
-	/* generateStrokes */   generateStrokes,
-	/* bakeModifierGP */    bakeModifierGP,
+	/* gp_deformStroke */      NULL,
+	/* gp_generateStrokes */   gp_generateStrokes,
+	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

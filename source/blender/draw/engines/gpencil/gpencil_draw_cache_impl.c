@@ -1047,7 +1047,7 @@ struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height)
 }
 
 /* Helper for gpencil_instance_modifiers()
- * See also MOD_gpencilinstance.c -> bakeModifierGP()
+ * See also MOD_gpencilinstance.c -> gp_bakeModifier()
  */
 static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object *ob, InstanceGpencilModifierData *mmd)
 {

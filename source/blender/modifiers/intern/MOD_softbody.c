@@ -98,9 +98,9 @@ ModifierTypeInfo modifierType_Softbody = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* deformStroke */      NULL,
-	/* generateStrokes */   NULL,
-	/* bakeModifierGP */    NULL,
+	/* gp_deformStroke */      NULL,
+	/* gp_generateStrokes */   NULL,
+	/* gp_bakeModifier */      NULL,
 
 	/* initData */          NULL,
 	/* requiredDataMask */  NULL,

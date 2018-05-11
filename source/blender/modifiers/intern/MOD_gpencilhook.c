@@ -188,7 +188,7 @@ static void gp_hook_co_apply(struct GPHookData_cb *tData, float weight, bGPDspoi
 }
 
 /* deform stroke */
-static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
+static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
@@ -255,7 +255,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 /* FIXME: Ideally we be doing this on a copy of the main depsgraph
  * (i.e. one where we don't have to worry about restoring state)
  */
-static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
+static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
@@ -277,7 +277,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 			
 			/* compute hook effects on this frame */
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				deformStroke(md, depsgraph, ob, gpl, gps);
+				gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
@@ -345,9 +345,9 @@ ModifierTypeInfo modifierType_Gpencil_Hook = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* deformStroke */      deformStroke,
-	/* generateStrokes */   NULL,
-	/* bakeModifierGP */    bakeModifierGP,
+	/* gp_deformStroke */      gp_deformStroke,
+	/* gp_generateStrokes */   NULL,
+	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

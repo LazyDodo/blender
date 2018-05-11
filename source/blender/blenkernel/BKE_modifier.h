@@ -35,7 +35,7 @@
 struct ID;
 struct Depsgraph;
 struct DerivedMesh;
-struct bContext; /* NOTE: bakeModifierGP() - called from UI - needs to create new datablocks, hence the need for this */
+struct bContext; /* NOTE: gp_bakeModifier() - called from UI - needs to create new datablocks, hence the need for this */
 struct Mesh;
 struct Object;
 struct Scene;
@@ -294,7 +294,7 @@ typedef struct ModifierTypeInfo {
 	 * The gps parameter contains the GP stroke to operate on. This is usually a copy
 	 * of the original (unmodified and saved to files) stroke data.
 	 */
-	void (*deformStroke)(struct ModifierData *md, struct Depsgraph *depsgraph,
+	void (*gp_deformStroke)(struct ModifierData *md, struct Depsgraph *depsgraph,
 	                     struct Object *ob, struct bGPDlayer *gpl, struct bGPDstroke *gps);
 
 	/* Callback for GP "geometry" modifiers that create extra geometry
@@ -308,7 +308,7 @@ typedef struct ModifierTypeInfo {
 	 * The modifier_index parameter indicates where the modifier is
 	 * in the modifier stack in relation to other modifiers.
 	 */
-	void (*generateStrokes)(struct ModifierData *md, struct Depsgraph *depsgraph,
+	void (*gp_generateStrokes)(struct ModifierData *md, struct Depsgraph *depsgraph,
 	                        struct Object *ob, struct bGPDlayer *gpl, struct bGPDframe *gpf);
 
 	/* Bake-down GP modifier's effects into the GP datablock.
@@ -317,7 +317,7 @@ typedef struct ModifierTypeInfo {
 	 * As such, this callback needs to go through all layers/frames in the
 	 * datablock, mutating the geometry and/or creating new datablocks/objects
 	 */
-	void (*bakeModifierGP)(const struct bContext *C, struct Depsgraph *depsgraph,
+	void (*gp_bakeModifier)(const struct bContext *C, struct Depsgraph *depsgraph,
                            struct ModifierData *md, struct Object *ob);
 
 	/********************* Optional functions *********************/

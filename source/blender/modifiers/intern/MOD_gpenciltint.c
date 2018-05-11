@@ -65,7 +65,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 /* tint strokes */
-static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
+static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
@@ -101,7 +101,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
+static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
@@ -147,7 +147,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 					copy_v4_v4(gp_style->fill, gps->tmp_fill);
 				}
 
-				deformStroke(md, depsgraph, ob, gpl, gps);
+				gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
@@ -181,9 +181,9 @@ ModifierTypeInfo modifierType_Gpencil_Tint = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* deformStroke */      deformStroke,
-	/* generateStrokes */   NULL,
-	/* bakeModifierGP */    bakeModifierGP,
+	/* gp_deformStroke */      gp_deformStroke,
+	/* gp_generateStrokes */   NULL,
+	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

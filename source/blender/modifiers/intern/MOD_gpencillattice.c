@@ -69,7 +69,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 	modifier_copyData_generic(md, target);
 }
 
-static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
+static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
@@ -102,7 +102,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 /* FIXME: Ideally we be doing this on a copy of the main depsgraph
  * (i.e. one where we don't have to worry about restoring state)
  */
-static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
+static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
@@ -128,7 +128,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 			
 			/* compute lattice effects on this frame */
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				deformStroke(md, depsgraph, ob, gpl, gps);
+				gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
@@ -204,9 +204,9 @@ ModifierTypeInfo modifierType_Gpencil_Lattice = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* deformStroke */      deformStroke,
-	/* generateStrokes */   NULL,
-	/* bakeModifierGP */    bakeModifierGP,
+	/* gp_deformStroke */      gp_deformStroke,
+	/* gp_generateStrokes */   NULL,
+	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

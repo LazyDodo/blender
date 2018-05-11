@@ -60,7 +60,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 /* aply smooth effect based on stroke direction */
-static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
+static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SmoothGpencilModifierData *mmd = (SmoothGpencilModifierData *)md;
@@ -109,7 +109,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
+static void gp_bakeModifier(const bContext *UNUSED(C), Depsgraph *depsgraph,
                            ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
@@ -117,7 +117,7 @@ static void bakeModifierGP(const bContext *UNUSED(C), Depsgraph *depsgraph,
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				deformStroke(md, depsgraph, ob, gpl, gps);
+				gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
@@ -146,9 +146,9 @@ ModifierTypeInfo modifierType_Gpencil_Smooth = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* deformStroke */      deformStroke,
-	/* generateStrokes */   NULL,
-	/* bakeModifierGP */    bakeModifierGP,
+	/* gp_deformStroke */      gp_deformStroke,
+	/* gp_generateStrokes */   NULL,
+	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

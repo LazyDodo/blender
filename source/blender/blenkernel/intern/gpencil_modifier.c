@@ -345,7 +345,7 @@ bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 	for (md = ob->modifiers.first; md; md = md->next) {
 		const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 		
-		if (mti && mti->generateStrokes) {
+		if (mti && mti->gp_generateStrokes) {
 			return true;
 		}
 	}
@@ -369,8 +369,8 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 				continue;
 			}
 			
-			if (mti && mti->deformStroke) {
-				mti->deformStroke(md, depsgraph, ob, gpl, gps);
+			if (mti && mti->gp_deformStroke) {
+				mti->gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
@@ -393,8 +393,8 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 				continue;
 			}
 
-			if (mti->generateStrokes) {
-				mti->generateStrokes(md, depsgraph, ob, gpl, gpf);
+			if (mti->gp_generateStrokes) {
+				mti->gp_generateStrokes(md, depsgraph, ob, gpl, gpf);
 			}
 		}
 	}

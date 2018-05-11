@@ -660,12 +660,12 @@ static int modifier_apply_obdata(ReportList *reports, bContext *C, Depsgraph *de
 		if (ELEM(NULL, ob, ob->data)) {
 			return 0;
 		}
-		else if (mti->bakeModifierGP == NULL) {
+		else if (mti->gp_bakeModifier == NULL) {
 			BKE_report(reports, RPT_ERROR, "Not implemented");
 			return 0;
 		}
 		
-		mti->bakeModifierGP(C, depsgraph, md, ob);
+		mti->gp_bakeModifier(C, depsgraph, md, ob);
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	}
 	else {

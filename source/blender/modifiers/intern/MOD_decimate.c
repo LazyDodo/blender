@@ -228,9 +228,9 @@ ModifierTypeInfo modifierType_Decimate = {
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
 
-	/* deformStroke */      NULL,
-	/* generateStrokes */   NULL,
-	/* bakeModifierGP */    NULL,
+	/* gp_deformStroke */      NULL,
+	/* gp_generateStrokes */   NULL,
+	/* gp_bakeModifier */      NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
