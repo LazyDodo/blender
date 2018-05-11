@@ -596,7 +596,7 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 
 	/* FKEY = Brush Size */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_paint.brush.line_width");
+	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_paint.brush.size");
 
 	/* CTRL + FKEY = Eraser Radius */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, KM_CTRL, 0);
