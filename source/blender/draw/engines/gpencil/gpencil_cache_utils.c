@@ -38,14 +38,14 @@
 #include "draw_cache_impl.h"
 
  /* allocate cache to store GP objects */
-tGPencilObjectCache *gpencil_object_cache_allocate(tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used)
+tGPencilObjectCache *gpencil_object_cache_allocate(tGPencilObjectCache *cache, int *gp_cache_size, int gp_cache_used)
 {
 	tGPencilObjectCache *p = NULL;
 
 	/* By default a cache is created with one block with a predefined number of free slots,
 	if the size is not enough, the cache is reallocated adding a new block of free slots.
 	This is done in order to keep cache small */
-	if (*gp_cache_used + 1 > *gp_cache_size) {
+	if (gp_cache_used + 1 > *gp_cache_size) {
 		if ((*gp_cache_size == 0) || (cache == NULL)) {
 			p = MEM_callocN(sizeof(struct tGPencilObjectCache) * GP_CACHE_BLOCK_SIZE, "tGPencilObjectCache");
 			*gp_cache_size = GP_CACHE_BLOCK_SIZE;

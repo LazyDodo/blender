@@ -258,7 +258,7 @@ struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height);
 bool gpencil_can_draw_stroke(struct MaterialGPencilStyle *gp_style, const struct bGPDstroke *gps, const bool onion);
 
 /* object cache functions */
-struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int *gp_cache_used);
+struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int gp_cache_used);
 void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *ob, bool is_temp, int *gp_cache_used);
 
 /* geometry batch cache functions */

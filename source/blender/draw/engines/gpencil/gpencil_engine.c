@@ -426,7 +426,7 @@ static void GPENCIL_cache_populate(void *vedata, Object *ob)
 			}
 
 			/* allocate memory for saving gp objects */
-			stl->g_data->gp_object_cache = gpencil_object_cache_allocate(stl->g_data->gp_object_cache, &stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
+			stl->g_data->gp_object_cache = gpencil_object_cache_allocate(stl->g_data->gp_object_cache, &stl->g_data->gp_cache_size, stl->g_data->gp_cache_used);
 			
 			/* add for drawing later */
 			gpencil_object_cache_add(stl->g_data->gp_object_cache, ob, false, &stl->g_data->gp_cache_used);

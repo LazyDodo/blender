@@ -1090,7 +1090,7 @@ static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object
 				
 				/* add temp object to cache */
 				stl->g_data->gp_object_cache = gpencil_object_cache_allocate(stl->g_data->gp_object_cache, &stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
-				gpencil_object_cache_add(stl->g_data->gp_object_cache, newob, true, &stl->g_data->gp_cache_used);
+				gpencil_object_cache_add(stl->g_data->gp_object_cache, newob, true, stl->g_data->gp_cache_used);
 			}
 		}
 	}
