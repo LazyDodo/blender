@@ -927,7 +927,7 @@ static void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct R
 	GPENCIL_engine_init(vedata);
 	GPENCIL_render_init(vedata, engine, draw_ctx->depsgraph);
 
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	// GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	if (fbl->main) {

@@ -938,7 +938,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	const bContext *C = draw_ctx->evil_C;
+	// const bContext *C = draw_ctx->evil_C;
 	bGPDframe *derived_gpf = NULL;
 	bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
 

@@ -62,7 +62,6 @@
 #include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
-#include "BKE_gpencil.h"
 
 #include "BKE_deform.h"
 
@@ -334,6 +333,12 @@ void BKE_lattice_make_local(Main *bmain, Lattice *lt, const bool lib_local)
 {
 	BKE_id_make_local_generic(bmain, &lt->id, true, lib_local);
 }
+
+typedef struct LatticeDeformData {
+	Object *object;
+	float *latticedata;
+	float latmat[4][4];
+} LatticeDeformData;
 
 LatticeDeformData *init_latt_deform(Object *oblatt, Object *ob)
 {
@@ -1219,7 +1224,6 @@ void BKE_lattice_translate(Lattice *lt, float offset[3], bool do_keys)
 void BKE_lattice_eval_geometry(struct Depsgraph *UNUSED(depsgraph),
                                Lattice *UNUSED(latt))
 {
-
 }
 
 /* Draw Engine */

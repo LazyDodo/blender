@@ -95,7 +95,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 			continue;
 		}
 
-		calc_latt_deform((LatticeDeformData *)mmd->cache_data, &pt->x, mmd->strength * weight);
+		calc_latt_deform((struct LatticeDeformData *)mmd->cache_data, &pt->x, mmd->strength * weight);
 	}
 }
 
@@ -108,7 +108,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = md->scene;
-	LatticeDeformData *ldata = NULL;
+	struct LatticeDeformData *ldata = NULL;
 	bGPdata *gpd = ob->data;
 	int oldframe = CFRA;
 
@@ -134,7 +134,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 	}
 	
 	/* free lingering data */
-	ldata = (LatticeDeformData *)mmd->cache_data;
+	ldata = (struct LatticeDeformData *)mmd->cache_data;
 	if (ldata) {
 		end_latt_deform(ldata);
 		mmd->cache_data = NULL;
@@ -148,7 +148,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 static void freeData(ModifierData *md)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
-	LatticeDeformData *ldata = (LatticeDeformData *)mmd->cache_data;
+	struct LatticeDeformData *ldata = (struct LatticeDeformData *)mmd->cache_data;
 	/* free deform data */
 	if (ldata) {
 		end_latt_deform(ldata);
