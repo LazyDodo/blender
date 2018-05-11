@@ -351,21 +351,19 @@ static void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_int(mix_shgrp, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* mix pass no blend */
-		struct Gwn_Batch *quad_noblend = DRW_cache_fullscreen_quad_get();
 		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
 		stl->g_data->tot_sh++;
-		DRW_shgroup_call_add(mix_shgrp_noblend, quad_noblend, NULL);
+		DRW_shgroup_call_add(mix_shgrp_noblend, quad, NULL);
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.temp_color_tx_a);
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.temp_depth_tx_a);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* Painting session pass (used only to speedup while the user is drawing ) */
-		struct Gwn_Batch *paintquad = DRW_cache_fullscreen_quad_get();
 		psl->painting_pass = DRW_pass_create("GPencil Painting Session Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *painting_shgrp = DRW_shgroup_create(e_data.gpencil_painting_sh, psl->painting_pass);
 		stl->g_data->tot_sh++;
-		DRW_shgroup_call_add(painting_shgrp, paintquad, NULL);
+		DRW_shgroup_call_add(painting_shgrp, quad, NULL);
 		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeColor", &e_data.painting_color_tx);
 		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeDepth", &e_data.painting_depth_tx);
 
@@ -373,10 +371,9 @@ static void GPENCIL_cache_init(void *vedata)
 		 * In render, the v3d is null
 		 */
 		if (v3d) {
-			struct Gwn_Batch *paperquad = DRW_cache_fullscreen_quad_get();
 			psl->paper_pass = DRW_pass_create("GPencil Paper Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND);
 			DRWShadingGroup *paper_shgrp = DRW_shgroup_create(e_data.gpencil_paper_sh, psl->paper_pass);
-			DRW_shgroup_call_add(paper_shgrp, paperquad, NULL);
+			DRW_shgroup_call_add(paper_shgrp, quad, NULL);
 			DRW_shgroup_uniform_vec4(paper_shgrp, "color", v3d->gpencil_paper_color, 1);
 
 			UI_GetThemeColor3fv(TH_GRID, stl->storage->gridcolor);
