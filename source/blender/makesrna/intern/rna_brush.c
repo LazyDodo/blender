@@ -1704,18 +1704,6 @@ static void rna_def_brush(BlenderRNA *brna)
 		"Number of simplify steps (large values reduce fill accuracy)");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
-	prop = RNA_def_property(srna, "lazy_radius", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "gp_lazy_radius");
-	RNA_def_property_range(prop, 1, 200);
-	RNA_def_property_ui_text(prop, "Distance", "Minimum distance from last point before stroke continues");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
-
-	prop = RNA_def_property(srna, "lazy_factor", PROP_FLOAT, PROP_FACTOR);
-	RNA_def_property_float_sdna(prop, NULL, "gp_lazy_factor");
-	RNA_def_property_range(prop, 0.5, 0.99);
-	RNA_def_property_ui_text(prop, "Factor", "Higher values give a smoother stroke");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
-
 	prop = RNA_def_property(srna, "uv_random", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "gp_uv_random");
 	RNA_def_property_range(prop, 0.0, 1.0);

@@ -257,8 +257,8 @@ static void brush_gpencil_curvemap_reset(CurveMap *cuma, int preset)
 /* create a set of grease pencil presets */
 void BKE_brush_gpencil_presets(bContext *C)
 {
-#define LAZY_RADIUS 40
-#define LAZY_FACTOR 0.9f
+#define SMOOTH_STROKE_RADIUS 40
+#define SMOOTH_STROKE_FACTOR 0.9f
 
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Paint *paint = BKE_brush_get_gpencil_paint(ts);
@@ -294,8 +294,8 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_PENCIL;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
-	brush->gp_lazy_radius = LAZY_RADIUS;
-	brush->gp_lazy_factor = LAZY_FACTOR;
+	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
+	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
 
 	/* Pen brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Pen");
@@ -326,8 +326,8 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_PEN;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
-	brush->gp_lazy_radius = LAZY_RADIUS;
-	brush->gp_lazy_factor = LAZY_FACTOR;
+	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
+	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
 
 	/* Ink brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Ink");
@@ -355,8 +355,8 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_INK;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
-	brush->gp_lazy_radius = LAZY_RADIUS;
-	brush->gp_lazy_factor = LAZY_FACTOR;
+	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
+	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
 
 	/* Curve */
 	custom_curve = brush->curve_sensitivity;
@@ -392,8 +392,8 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_INKNOISE;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
-	brush->gp_lazy_radius = LAZY_RADIUS;
-	brush->gp_lazy_factor = LAZY_FACTOR;
+	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
+	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
 
 	/* Curve */
 	custom_curve = brush->curve_sensitivity;
@@ -428,8 +428,8 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_BLOCK;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
-	brush->gp_lazy_radius = LAZY_RADIUS;
-	brush->gp_lazy_factor = LAZY_FACTOR;
+	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
+	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
 
 	/* Marker brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Marker");
@@ -459,8 +459,8 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_icon_id = GPBRUSH_MARKER;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
-	brush->gp_lazy_radius = LAZY_RADIUS;
-	brush->gp_lazy_factor = LAZY_FACTOR;
+	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
+	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
 
 	/* Fill brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Fill Area");
@@ -479,8 +479,8 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 1;
 
-	brush->gp_lazy_radius = LAZY_RADIUS;
-	brush->gp_lazy_factor = LAZY_FACTOR;
+	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
+	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
 
 	brush->draw_strength = 1.0f;
 

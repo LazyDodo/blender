@@ -171,9 +171,6 @@ typedef struct Brush {
 	int   gp_fill_draw_mode;  /* type of control lines drawing mode */
 	int   gp_icon_id;         /* icon identifier */
 
-	int   gp_lazy_radius;     /* distance to last point to create new point */
-	float gp_lazy_factor;     /* factor of smooth */
-
 	float gp_uv_random;       /* random factor for UV rotation */
 	int   gp_input_samples;   /* maximum distance before generate new point for very fast mouse movements */
 	int   gp_brush_type;      /* type of brush (draw, fill, erase, etc..) */

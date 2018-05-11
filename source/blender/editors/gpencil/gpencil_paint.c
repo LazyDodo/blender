@@ -304,7 +304,7 @@ static bool gp_stroke_filtermval(tGPsdata *p, const int mval[2], int pmval[2])
 	/* if lazy mouse, check minimum distance */
 	else if (GPENCIL_LAZY_MODE(brush, p->shift)) {
 		brush->gp_flag |= GP_BRUSH_STABILIZE_MOUSE_TEMP;
-		if ((dx * dx + dy * dy) > (brush->gp_lazy_radius * brush->gp_lazy_radius)) {
+		if ((dx * dx + dy * dy) > (brush->smooth_stroke_radius * brush->smooth_stroke_radius)) {
 			return true;
 		}
 		else {
@@ -2354,7 +2354,7 @@ static void gpencil_draw_apply(bContext *C, wmOperator *op, tGPsdata *p, Depsgra
 			float last_mouse[2];
 			copy_v2fl_v2i(now_mouse, p->mval);
 			copy_v2fl_v2i(last_mouse, p->mvalo);
-			interp_v2_v2v2(now_mouse, now_mouse, last_mouse, p->brush->gp_lazy_factor);
+			interp_v2_v2v2(now_mouse, now_mouse, last_mouse, p->brush->smooth_stroke_factor);
 			round_v2i_v2fl(p->mval, now_mouse);
 		}
 
