@@ -215,10 +215,6 @@ static void GPENCIL_engine_free(void)
 
 static void GPENCIL_cache_init(void *vedata)
 {
-	if (G.debug_value == 665) {
-		printf("GPENCIL_cache_init\n");
-	}
-
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -416,9 +412,6 @@ static void GPENCIL_cache_populate(void *vedata, Object *ob)
 	/* object datablock (this is not draw now) */
 	if (ob->type == OB_GPENCIL && ob->data) {
 		if ((stl->g_data->session_flag & GP_DRW_PAINT_READY) == 0) {
-			if (G.debug_value == 665) {
-				printf("GPENCIL_cache_populate: %s\n", ob->id.name);
-			}
 
 			/* if render set as dirty */
 			if (stl->storage->is_render == true) {
@@ -477,10 +470,6 @@ static void GPENCIL_cache_finish(void *vedata)
 
 			/* save end shading group */
 			stl->g_data->gp_object_cache[i].end_grp = stl->storage->shgroup_id - 1;
-			if (G.debug_value == 665) {
-				printf("GPENCIL_cache_finish: %s %d->%d\n", ob->id.name, 
-					stl->g_data->gp_object_cache[i].init_grp, stl->g_data->gp_object_cache[i].end_grp);
-			}
 			/* if render set to dirty to refresh viewport */
 			if (stl->storage->is_render == true) {
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
@@ -610,10 +599,6 @@ static void GPENCIL_draw_scene(void *vedata)
 				/* Stroke Pass: DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH
 				 * draw only a subset that usually start with a fill and end with stroke because the
 				 * shading groups are created by pairs */
-				if (G.debug_value == 665) {
-					printf("GPENCIL_draw_scene: %s %d->%d\n", ob->id.name, init_grp, end_grp);
-				}
-
 				if (end_grp >= init_grp) {
 					 MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 

@@ -941,10 +941,6 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	bGPDframe *derived_gpf = NULL;
 	bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
 
-	if (G.debug_value == 665) {
-		printf("DRW_gpencil_populate_datablock: %s\n", gpd->id.name);
-	}
-
 	/* check if playing animation */
 	bool playing = (bool)stl->storage->playing;
 
