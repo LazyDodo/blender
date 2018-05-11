@@ -93,16 +93,16 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 					BKE_gpencil_smooth_stroke(gps, i, val);
 				}
 				if (mmd->flag & GP_SMOOTH_MOD_STRENGTH) {
-					BKE_gp_smooth_stroke_strength(gps, i, val);
+					BKE_gpencil_smooth_stroke_strength(gps, i, val);
 				}
 				if ((mmd->flag & GP_SMOOTH_MOD_THICKNESS)  && (val > 0)) {
 					/* thickness need to repeat process several times */
 					for (int r2 = 0; r2 < r * 10; r2++) {
-						BKE_gp_smooth_stroke_thickness(gps, i, val);
+						BKE_gpencil_smooth_stroke_thickness(gps, i, val);
 					}
 				}
 				if (mmd->flag & GP_SMOOTH_MOD_UV) {
-					BKE_gp_smooth_stroke_uv(gps, i, val);
+					BKE_gpencil_smooth_stroke_uv(gps, i, val);
 				}
 			}
 		}

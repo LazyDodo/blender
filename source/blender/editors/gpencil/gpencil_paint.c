@@ -1123,7 +1123,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			for (int r = 0; r < brush->draw_smoothlvl; r++) {
 				for (i = 0; i < gps->totpoints; i++) {
 					BKE_gpencil_smooth_stroke(gps, i, brush->draw_smoothfac - reduce);
-					BKE_gp_smooth_stroke_strength(gps, i, brush->draw_smoothfac);
+					BKE_gpencil_smooth_stroke_strength(gps, i, brush->draw_smoothfac);
 				}
 				reduce += 0.25f;  // reduce the factor
 			}
@@ -1132,7 +1132,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		if ((brush->gp_flag & GP_BRUSH_GROUP_SETTINGS) && (brush->gp_thick_smoothfac > 0.0f)) {
 			for (int r = 0; r < brush->gp_thick_smoothlvl * 2; r++) {
 				for (i = 0; i < gps->totpoints; i++) {
-					BKE_gp_smooth_stroke_thickness(gps, i, brush->gp_thick_smoothfac);
+					BKE_gpencil_smooth_stroke_thickness(gps, i, brush->gp_thick_smoothfac);
 				}
 			}
 		}

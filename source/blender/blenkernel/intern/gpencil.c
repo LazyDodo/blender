@@ -1462,7 +1462,7 @@ bool BKE_gpencil_smooth_stroke(bGPDstroke *gps, int i, float inf)
  * \param i                Point index
  * \param inf              Amount of smoothing to apply
  */
-bool BKE_gp_smooth_stroke_strength(bGPDstroke *gps, int i, float inf)
+bool BKE_gpencil_smooth_stroke_strength(bGPDstroke *gps, int i, float inf)
 {
 	bGPDspoint *ptb = &gps->points[i];
 
@@ -1500,7 +1500,7 @@ bool BKE_gp_smooth_stroke_strength(bGPDstroke *gps, int i, float inf)
  * \param i                Point index
  * \param inf              Amount of smoothing to apply
  */
-bool BKE_gp_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf)
+bool BKE_gpencil_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf)
 {
 	bGPDspoint *ptb = &gps->points[i];
 
@@ -1538,7 +1538,7 @@ bool BKE_gp_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf)
 * \param i                Point index
 * \param inf              Amount of smoothing to apply
 */
-bool BKE_gp_smooth_stroke_uv(bGPDstroke *gps, int i, float inf)
+bool BKE_gpencil_smooth_stroke_uv(bGPDstroke *gps, int i, float inf)
 {
 	bGPDspoint *ptb = &gps->points[i];
 
@@ -1579,7 +1579,7 @@ bool BKE_gp_smooth_stroke_uv(bGPDstroke *gps, int i, float inf)
  * \param r_initframe      Number of first selected frame
  * \param r_endframe       Number of last selected frame
  */
-void BKE_gp_get_range_selected(bGPDlayer *gpl, int *r_initframe, int *r_endframe)
+void BKE_gpencil_get_range_selected(bGPDlayer *gpl, int *r_initframe, int *r_endframe)
 {
 	*r_initframe = gpl->actframe->framenum;
 	*r_endframe = gpl->actframe->framenum;

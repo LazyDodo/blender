@@ -296,13 +296,13 @@ static bool gp_brush_smooth_apply(
 		BKE_gpencil_smooth_stroke(gps, pt_index, inf);
 	}
 	if (gso->settings->flag & GP_BRUSHEDIT_FLAG_APPLY_STRENGTH) {
-		BKE_gp_smooth_stroke_strength(gps, pt_index, inf);
+		BKE_gpencil_smooth_stroke_strength(gps, pt_index, inf);
 	}
 	if (gso->settings->flag & GP_BRUSHEDIT_FLAG_APPLY_THICKNESS) {
-		BKE_gp_smooth_stroke_thickness(gps, pt_index, inf);
+		BKE_gpencil_smooth_stroke_thickness(gps, pt_index, inf);
 	}
 	if (gso->settings->flag & GP_BRUSHEDIT_FLAG_APPLY_UV) {
-		BKE_gp_smooth_stroke_uv(gps, pt_index, inf);
+		BKE_gpencil_smooth_stroke_uv(gps, pt_index, inf);
 	}
 
 	return true;
@@ -375,7 +375,7 @@ static bool gp_brush_strength_apply(
 		pt->strength += inf;
 	}
 	/* smooth the strength */
-	BKE_gp_smooth_stroke_strength(gps, pt_index, inf);
+	BKE_gpencil_smooth_stroke_strength(gps, pt_index, inf);
 
 	/* Strength should stay within [0.0, 1.0] */
 	CLAMP(pt->strength, 0.0f, 1.0f);
@@ -1619,7 +1619,7 @@ static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 			int f_end = 0;
 			
 			if (gso->use_multiframe_falloff) {
-				BKE_gp_get_range_selected(gpl, &f_init, &f_end);
+				BKE_gpencil_get_range_selected(gpl, &f_init, &f_end);
 			}
 			
 			for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {

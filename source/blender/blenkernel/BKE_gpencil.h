@@ -181,11 +181,11 @@ void BKE_gpencil_simplify_fixed(struct bGPDlayer *gpl, struct bGPDstroke *gps);
 void BKE_gpencil_transform(struct bGPdata *gpd, float mat[4][4]);
 
 bool BKE_gpencil_smooth_stroke(struct bGPDstroke *gps, int i, float inf);
-bool BKE_gp_smooth_stroke_strength(struct bGPDstroke *gps, int i, float inf);
-bool BKE_gp_smooth_stroke_thickness(struct bGPDstroke *gps, int i, float inf);
-bool BKE_gp_smooth_stroke_uv(struct bGPDstroke *gps, int i, float inf);
+bool BKE_gpencil_smooth_stroke_strength(struct bGPDstroke *gps, int i, float inf);
+bool BKE_gpencil_smooth_stroke_thickness(struct bGPDstroke *gps, int i, float inf);
+bool BKE_gpencil_smooth_stroke_uv(struct bGPDstroke *gps, int i, float inf);
 
-void BKE_gp_get_range_selected(struct bGPDlayer *gpl, int *r_initframe, int *r_endframe);
+void BKE_gpencil_get_range_selected(struct bGPDlayer *gpl, int *r_initframe, int *r_endframe);
 float BKE_gpencil_multiframe_falloff_calc(struct bGPDframe *gpf, int actnum, int f_init, int f_end, struct CurveMapping *cur_falloff);
 
 #endif /*  __BKE_GPENCIL_H__ */
