@@ -1564,13 +1564,13 @@ static void gp_init_colors(tGPsdata *p)
 	MaterialGPencilStyle *gp_style = NULL;
 	
 	/* use brush material */
-	ma = BKE_gpencil_get_color_from_brush(brush);
+	ma = BKE_gpencil_get_material_from_brush(brush);
 
 	/* if no brush defaults, get material and color info
 	 * NOTE: Ensures that everything we need will exist...
 	 */
 	if ((ma == NULL) || (ma->gp_style == NULL)) {
-		BKE_gpencil_color_ensure(p->bmain, p->ob);
+		BKE_gpencil_material_ensure(p->bmain, p->ob);
 
 		/* assign always the first material to the brush */
 		p->material = give_current_material(p->ob, 1);

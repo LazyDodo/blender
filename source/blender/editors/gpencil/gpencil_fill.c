@@ -990,10 +990,10 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->fill_draw_mode = brush->gp_fill_draw_mode;
 	
 	/* get color info */
-	Material *ma = BKE_gpencil_get_color_from_brush(brush);
+	Material *ma = BKE_gpencil_get_material_from_brush(brush);
 	/* if no brush defaults, get material and color info */
 	if ((ma == NULL) || (ma->gp_style == NULL)) {
-		ma = BKE_gpencil_color_ensure(bmain, tgpf->ob);
+		ma = BKE_gpencil_material_ensure(bmain, tgpf->ob);
 		/* assign always the first material to the brush */
 		brush->material = give_current_material(tgpf->ob, 1);
 	}

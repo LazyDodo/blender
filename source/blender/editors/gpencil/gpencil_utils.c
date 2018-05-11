@@ -1161,7 +1161,7 @@ void ED_gpencil_add_defaults(bContext *C)
 	}
 
 	/* ensure color exist */
-	BKE_gpencil_color_ensure(bmain, ob);
+	BKE_gpencil_material_ensure(bmain, ob);
 
 	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 	/* if not exist, create a new one */
@@ -1425,9 +1425,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			}
 
 			/* get current drawing color */
-			ma = BKE_gpencil_get_color_from_brush(paintbrush);
+			ma = BKE_gpencil_get_material_from_brush(paintbrush);
 			if (ma == NULL) {
-				BKE_gpencil_color_ensure(bmain, ob);
+				BKE_gpencil_material_ensure(bmain, ob);
 				/* assign the first material to the brush */
 				ma = give_current_material(ob, 1);
 				paintbrush->material = ma;

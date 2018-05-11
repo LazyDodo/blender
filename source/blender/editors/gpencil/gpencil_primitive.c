@@ -447,7 +447,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	tgpi->gpd = gpd;
 	
 	/* getcolor info */
-	tgpi->mat = BKE_gpencil_color_ensure(bmain, tgpi->ob);
+	tgpi->mat = BKE_gpencil_material_ensure(bmain, tgpi->ob);
 
 	/* set parameters */
 	tgpi->type = RNA_enum_get(op->ptr, "type");

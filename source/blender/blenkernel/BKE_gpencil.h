@@ -131,8 +131,8 @@ struct bGPDlayer *BKE_gpencil_layer_getactive(struct bGPdata *gpd);
 void BKE_gpencil_layer_setactive(struct bGPdata *gpd, struct bGPDlayer *active);
 void BKE_gpencil_layer_delete(struct bGPdata *gpd, struct bGPDlayer *gpl);
 
-struct Material *BKE_gpencil_get_color_from_brush(struct Brush *brush);
-struct Material *BKE_gpencil_color_ensure(struct Main *bmain, struct Object *ob);
+struct Material *BKE_gpencil_get_material_from_brush(struct Brush *brush);
+struct Material *BKE_gpencil_material_ensure(struct Main *bmain, struct Object *ob);
 
 /* Palettes - Deprecated (2.78-2.79) Only to convert old files  */
 void BKE_gpencil_free_palettes(struct ListBase *list);

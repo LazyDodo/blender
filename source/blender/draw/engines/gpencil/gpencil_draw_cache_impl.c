@@ -635,7 +635,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
 
 	/* use the brush material */
-	Material *ma = BKE_gpencil_get_color_from_brush(brush);
+	Material *ma = BKE_gpencil_get_material_from_brush(brush);
 	if (ma != NULL) {
 		gp_style = ma->gp_style;
 	}

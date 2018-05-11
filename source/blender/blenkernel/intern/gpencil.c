@@ -1015,7 +1015,7 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 	BLI_freelinkN(&gpd->layers, gpl);
 }
 
-Material *BKE_gpencil_get_color_from_brush(Brush *brush)
+Material *BKE_gpencil_get_material_from_brush(Brush *brush)
 {
 	Material *ma = NULL;
 		
@@ -1027,7 +1027,7 @@ Material *BKE_gpencil_get_color_from_brush(Brush *brush)
 }
 
 /* Get active color, and add all default settings if we don't find anything */
-Material *BKE_gpencil_color_ensure(Main *bmain, Object *ob)
+Material *BKE_gpencil_material_ensure(Main *bmain, Object *ob)
 {
 	Material *ma = NULL;
 
