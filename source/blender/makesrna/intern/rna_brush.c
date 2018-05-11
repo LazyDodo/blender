@@ -1671,19 +1671,19 @@ static void rna_def_brush(BlenderRNA *brna)
 
 	/* Curves for pressure */
 	prop = RNA_def_property(srna, "curve_sensitivity", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "cur_sensitivity");
+	RNA_def_property_pointer_sdna(prop, NULL, "curve_sensitivity");
 	RNA_def_property_struct_type(prop, "CurveMapping");
 	RNA_def_property_ui_text(prop, "Curve Sensitivity", "Curve used for the sensitivity");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "curve_strength", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "cur_strength");
+	RNA_def_property_pointer_sdna(prop, NULL, "curve_strength");
 	RNA_def_property_struct_type(prop, "CurveMapping");
 	RNA_def_property_ui_text(prop, "Curve Strength", "Curve used for the strength");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "curve_jitter", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "cur_jitter");
+	RNA_def_property_pointer_sdna(prop, NULL, "curve_jitter");
 	RNA_def_property_struct_type(prop, "CurveMapping");
 	RNA_def_property_ui_text(prop, "Curve Jitter", "Curve used for the jitter effect");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);

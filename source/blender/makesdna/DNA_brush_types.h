@@ -158,9 +158,9 @@ typedef struct Brush {
 	float draw_random_sub;    /* factor of randomness for subdivision */
 	char pad2[4];
 
-	struct CurveMapping *cur_sensitivity;
-	struct CurveMapping *cur_strength;
-	struct CurveMapping *cur_jitter;
+	struct CurveMapping *curve_sensitivity;
+	struct CurveMapping *curve_strength;
+	struct CurveMapping *curve_jitter;
 
 	float gp_thick_smoothfac; /* amount of thickness smoothing to apply to newly created strokes */
 	short gp_thick_smoothlvl; /* number of times to apply thickness smooth factor to new strokes */

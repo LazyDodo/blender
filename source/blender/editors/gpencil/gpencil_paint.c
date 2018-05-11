@@ -425,7 +425,7 @@ static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int
 	float pressure = pt->pressure;
 	float tmp_pressure = pt->pressure;
 	if (brush->draw_jitter > 0.0f) {
-		float curvef = curvemapping_evaluateF(brush->cur_jitter, 0, pressure);
+		float curvef = curvemapping_evaluateF(brush->curve_jitter, 0, pressure);
 		tmp_pressure = curvef * brush->draw_sensitivity;
 	}
 	const float exfactor = (brush->draw_jitter + 2.0f) * (brush->draw_jitter + 2.0f); /* exponential value */
@@ -617,7 +617,7 @@ static short gp_stroke_addpoint(
 		/* store settings */
 		/* pressure */
 		if (brush->gp_flag & GP_BRUSH_USE_PRESSURE) {
-			float curvef = curvemapping_evaluateF(brush->cur_sensitivity, 0, pressure);
+			float curvef = curvemapping_evaluateF(brush->curve_sensitivity, 0, pressure);
 			pt->pressure = curvef * brush->draw_sensitivity;
 		}
 		else {
@@ -637,7 +637,7 @@ static short gp_stroke_addpoint(
 		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && 
 			(brush->draw_random_press > 0.0f)) 
 		{
-			float curvef = curvemapping_evaluateF(brush->cur_sensitivity, 0, pressure);
+			float curvef = curvemapping_evaluateF(brush->curve_sensitivity, 0, pressure);
 			float tmp_pressure = curvef * brush->draw_sensitivity;
 			if (BLI_frand() > 0.5f) {
 				pt->pressure -= tmp_pressure * brush->draw_random_press * BLI_frand();
@@ -669,7 +669,7 @@ static short gp_stroke_addpoint(
 
 		/* color strength */
 		if (brush->gp_flag & GP_BRUSH_USE_STENGTH_PRESSURE) {
-			float curvef = curvemapping_evaluateF(brush->cur_strength, 0, pressure);
+			float curvef = curvemapping_evaluateF(brush->curve_strength, 0, pressure);
 			float tmp_pressure = curvef * brush->draw_sensitivity;
 
 			pt->strength = tmp_pressure * brush->draw_strength;
@@ -1537,9 +1537,9 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 		brush = BKE_brush_getactive_gpencil(ts);
 	}
 	/* be sure curves are initializated */
-	curvemapping_initialize(brush->cur_sensitivity);
-	curvemapping_initialize(brush->cur_strength);
-	curvemapping_initialize(brush->cur_jitter);
+	curvemapping_initialize(brush->curve_sensitivity);
+	curvemapping_initialize(brush->curve_strength);
+	curvemapping_initialize(brush->curve_jitter);
 
 	/* asign to temp tGPsdata */
 	p->brush = brush;

@@ -2361,18 +2361,18 @@ static void direct_link_brush(FileData *fd, Brush *brush)
 		BKE_brush_curve_preset(brush, CURVE_PRESET_SHARP);
 
 	/* grease pencil curves */
-	brush->cur_sensitivity = newdataadr(fd, brush->cur_sensitivity);
-	brush->cur_strength = newdataadr(fd, brush->cur_strength);
-	brush->cur_jitter = newdataadr(fd, brush->cur_jitter);
+	brush->curve_sensitivity = newdataadr(fd, brush->curve_sensitivity);
+	brush->curve_strength = newdataadr(fd, brush->curve_strength);
+	brush->curve_jitter = newdataadr(fd, brush->curve_jitter);
 
-	if (brush->cur_sensitivity)
-		direct_link_curvemapping(fd, brush->cur_sensitivity);
+	if (brush->curve_sensitivity)
+		direct_link_curvemapping(fd, brush->curve_sensitivity);
 
-	if (brush->cur_strength)
-		direct_link_curvemapping(fd, brush->cur_strength);
+	if (brush->curve_strength)
+		direct_link_curvemapping(fd, brush->curve_strength);
 
-	if (brush->cur_jitter)
-		direct_link_curvemapping(fd, brush->cur_jitter);
+	if (brush->curve_jitter)
+		direct_link_curvemapping(fd, brush->curve_jitter);
 
 	brush->preview = NULL;
 	brush->icon_imbuf = NULL;

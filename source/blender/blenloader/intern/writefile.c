@@ -3169,14 +3169,14 @@ static void write_brush(WriteData *wd, Brush *brush)
 		if (brush->curve) {
 			write_curvemapping(wd, brush->curve);
 		}
-		if (brush->cur_sensitivity) {
-			write_curvemapping(wd, brush->cur_sensitivity);
+		if (brush->curve_sensitivity) {
+			write_curvemapping(wd, brush->curve_sensitivity);
 		}
-		if (brush->cur_strength) {
-			write_curvemapping(wd, brush->cur_strength);
+		if (brush->curve_strength) {
+			write_curvemapping(wd, brush->curve_strength);
 		}
-		if (brush->cur_jitter) {
-			write_curvemapping(wd, brush->cur_jitter);
+		if (brush->curve_jitter) {
+			write_curvemapping(wd, brush->curve_jitter);
 		}
 		if (brush->gradient) {
 			writestruct(wd, DATA, ColorBand, 1, brush->gradient);

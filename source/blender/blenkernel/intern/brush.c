@@ -144,9 +144,9 @@ static void brush_defaults(Brush *brush)
 	brush->gp_icon_id = GPBRUSH_PEN;
 
 	/* curves */
-	brush->cur_sensitivity = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
-	brush->cur_strength = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
-	brush->cur_jitter = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+	brush->curve_sensitivity = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+	brush->curve_strength = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+	brush->curve_jitter = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 }
 
 /* Datablock add/copy/free/make_local */
@@ -359,7 +359,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_lazy_factor = LAZY_FACTOR;
 
 	/* Curve */
-	custom_curve = brush->cur_sensitivity;
+	custom_curve = brush->curve_sensitivity;
 	curvemapping_set_defaults(custom_curve, 0, 0.0f, 0.0f, 1.0f, 1.0f);
 	curvemapping_initialize(custom_curve);
 	brush_gpencil_curvemap_reset(custom_curve->cm, GPCURVE_PRESET_INK);
@@ -396,7 +396,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_lazy_factor = LAZY_FACTOR;
 
 	/* Curve */
-	custom_curve = brush->cur_sensitivity;
+	custom_curve = brush->curve_sensitivity;
 	curvemapping_set_defaults(custom_curve, 0, 0.0f, 0.0f, 1.0f, 1.0f);
 	curvemapping_initialize(custom_curve);
 	brush_gpencil_curvemap_reset(custom_curve->cm, GPCURVE_PRESET_INKNOISE);
@@ -558,9 +558,9 @@ void BKE_brush_copy_data(Main *UNUSED(bmain), Brush *brush_dst, const Brush *bru
 	}
 
 	brush_dst->curve = curvemapping_copy(brush_src->curve);
-	brush_dst->cur_sensitivity = curvemapping_copy(brush_src->cur_sensitivity);
-	brush_dst->cur_strength = curvemapping_copy(brush_src->cur_strength);
-	brush_dst->cur_jitter = curvemapping_copy(brush_src->cur_jitter);
+	brush_dst->curve_sensitivity = curvemapping_copy(brush_src->curve_sensitivity);
+	brush_dst->curve_strength = curvemapping_copy(brush_src->curve_strength);
+	brush_dst->curve_jitter = curvemapping_copy(brush_src->curve_jitter);
 
 	/* enable fake user by default */
 	id_fake_user_set(&brush_dst->id);
@@ -580,9 +580,9 @@ void BKE_brush_free(Brush *brush)
 		IMB_freeImBuf(brush->icon_imbuf);
 	}
 	curvemapping_free(brush->curve);
-	curvemapping_free(brush->cur_sensitivity);
-	curvemapping_free(brush->cur_strength);
-	curvemapping_free(brush->cur_jitter);
+	curvemapping_free(brush->curve_sensitivity);
+	curvemapping_free(brush->curve_strength);
+	curvemapping_free(brush->curve_jitter);
 
 	MEM_SAFE_FREE(brush->gradient);
 
