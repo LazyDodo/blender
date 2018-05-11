@@ -96,6 +96,7 @@ set(SRC
 	engines/eevee/eevee_depth_of_field.c
 	engines/eevee/eevee_effects.c
 	engines/eevee/eevee_engine.c
+	engines/eevee/eevee_lightcache.c
 	engines/eevee/eevee_lightprobes.c
 	engines/eevee/eevee_lights.c
 	engines/eevee/eevee_lookdev.c
@@ -135,6 +136,7 @@ set(SRC
 	engines/basic/basic_engine.h
 	engines/clay/clay_engine.h
 	engines/eevee/eevee_engine.h
+	engines/eevee/eevee_lightcache.h
 	engines/eevee/eevee_lut.h
 	engines/eevee/eevee_private.h
 	engines/external/external_engine.h

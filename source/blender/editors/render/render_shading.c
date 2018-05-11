@@ -94,6 +94,8 @@
 
 #include "RE_pipeline.h"
 
+#include "engines/eevee/eevee_lightcache.h"
+
 #include "render_intern.h"  // own include
 
 /********************** material slot operators *********************/
@@ -670,6 +672,117 @@ void SCENE_OT_view_layer_remove(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
+}
+
+/********************** light cache operators *********************/
+
+/* catch esc */
+static int light_cache_bake_modal(bContext *C, wmOperator *op, const wmEvent *event)
+{
+	Scene *scene = (Scene *) op->customdata;
+
+	/* no running blender, remove handler and pass through */
+	if (0 == WM_jobs_test(CTX_wm_manager(C), scene, WM_JOB_TYPE_RENDER)) {
+		return OPERATOR_FINISHED | OPERATOR_PASS_THROUGH;
+	}
+
+	/* running render */
+	switch (event->type) {
+		case ESCKEY:
+			return OPERATOR_RUNNING_MODAL;
+	}
+	return OPERATOR_PASS_THROUGH;
+}
+
+static void light_cache_bake_cancel(bContext *C, wmOperator *op)
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+	Scene *scene = (Scene *) op->customdata;
+
+	/* kill on cancel, because job is using op->reports */
+	WM_jobs_kill_type(wm, scene, WM_JOB_TYPE_RENDER);
+}
+
+/* executes blocking render */
+static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
+
+
+	G.is_break = false;
+
+	/* TODO abort if selected engine is not eevee. */
+	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene);
+	EEVEE_lightcache_bake_job(rj, NULL, NULL, NULL);
+	EEVEE_lightcache_job_data_free(rj);
+
+	// no redraw needed, we leave state as we entered it
+	ED_update_for_newframe(bmain, CTX_data_depsgraph(C));
+
+	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_RESULT, scene);
+
+	return OPERATOR_FINISHED;
+}
+
+static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
+
+	/* only one render job at a time */
+	if (WM_jobs_test(wm, scene, WM_JOB_TYPE_RENDER))
+		return OPERATOR_CANCELLED;
+
+	/* TODO abort if selected engine is not eevee. */
+	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene);
+
+	if (rj == NULL) {
+		/* TODO display reason of faillure Blabla */
+		return OPERATOR_CANCELLED;
+	}
+
+	wmJob *wm_job = WM_jobs_get(wm, CTX_wm_window(C), scene, "Bake Lighting",
+	                            WM_JOB_EXCL_RENDER | WM_JOB_PRIORITY | WM_JOB_PROGRESS, WM_JOB_TYPE_RENDER);
+	WM_jobs_customdata_set(wm_job, rj, EEVEE_lightcache_job_data_free);
+	WM_jobs_timer(wm_job, 0.2, NC_SCENE | ND_RENDER_RESULT, 0);
+	WM_jobs_callbacks(wm_job, EEVEE_lightcache_bake_job, NULL, NULL, NULL);
+
+	/* add modal handler for ESC */
+	WM_event_add_modal_handler(C, op);
+
+	/* store actual owner of job, so modal operator could check for it,
+	 * the reason of this is that active scene could change when rendering
+	 * several layers from compositor [#31800]
+	 */
+	op->customdata = scene;
+
+	WM_jobs_start(CTX_wm_manager(C), wm_job);
+
+	WM_cursor_wait(0);
+	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_RESULT, scene);
+
+	return OPERATOR_RUNNING_MODAL;
+}
+
+void SCENE_OT_light_cache_bake(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Bake Light Cache";
+	ot->idname = "SCENE_OT_light_cache_bake";
+	ot->description = "Bake the active view layer lighting";
+
+	/* api callbacks */
+	ot->invoke = light_cache_bake_invoke;
+	ot->modal = light_cache_bake_modal;
+	ot->cancel = light_cache_bake_cancel;
+	ot->exec = light_cache_bake_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER;
 }
 
 /********************** render view operators *********************/

@@ -53,6 +53,11 @@ static void eevee_view_layer_data_free(void *storage)
 	MEM_SAFE_FREE(sldata->shcasters_buffers[1].shadow_casters);
 	MEM_SAFE_FREE(sldata->shcasters_buffers[1].flags);
 
+	if (sldata->light_cache != NULL) {
+		EEVEE_lightcache_free(sldata->light_cache);
+		sldata->light_cache = NULL;
+	}
+
 	/* Probes */
 	MEM_SAFE_FREE(sldata->probes);
 	DRW_UBO_FREE_SAFE(sldata->probe_ubo);
@@ -75,6 +80,18 @@ EEVEE_ViewLayerData *EEVEE_view_layer_data_get(void)
 {
 	return (EEVEE_ViewLayerData *)DRW_view_layer_engine_data_get(
 	        &draw_engine_eevee_type);
+}
+
+EEVEE_ViewLayerData *EEVEE_view_layer_data_ensure_ex(struct ViewLayer *view_layer)
+{
+	EEVEE_ViewLayerData **sldata = (EEVEE_ViewLayerData **)DRW_view_layer_engine_data_ensure_ex(
+	        view_layer, &draw_engine_eevee_type, &eevee_view_layer_data_free);
+
+	if (*sldata == NULL) {
+		*sldata = MEM_callocN(sizeof(**sldata), "EEVEE_ViewLayerData");
+	}
+
+	return *sldata;
 }
 
 EEVEE_ViewLayerData *EEVEE_view_layer_data_ensure(void)

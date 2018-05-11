@@ -62,6 +62,8 @@ void ED_operatortypes_render(void)
 	WM_operatortype_append(SCENE_OT_render_view_add);
 	WM_operatortype_append(SCENE_OT_render_view_remove);
 
+	WM_operatortype_append(SCENE_OT_light_cache_bake);
+
 #ifdef WITH_FREESTYLE
 	WM_operatortype_append(SCENE_OT_freestyle_module_add);
 	WM_operatortype_append(SCENE_OT_freestyle_module_remove);
