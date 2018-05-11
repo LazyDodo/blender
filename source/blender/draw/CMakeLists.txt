@@ -112,6 +112,7 @@ set(SRC
 	engines/external/external_engine.c
 	engines/gpencil/gpencil_engine.h
 	engines/gpencil/gpencil_engine.c
+	engines/gpencil/gpencil_render.c
 	engines/gpencil/gpencil_cache_utils.c
 	engines/gpencil/gpencil_draw_cache_impl.c
 	engines/gpencil/gpencil_geom.c

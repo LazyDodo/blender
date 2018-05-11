@@ -31,9 +31,12 @@
 struct tGPspoint;
 struct bGPDstroke;
 struct ModifierData;
+struct GPENCIL_Data;
 struct GPENCIL_StorageList;
 struct Object;
 struct MaterialGPencilStyle;
+struct RenderEngine;
+struct RenderLayer;
 
  /* TODO: these could be system parameter in userprefs screen */
 #define GPENCIL_MAX_GP_OBJ 256 
@@ -145,6 +148,10 @@ typedef struct GPENCIL_Data {
 	struct GPENCIL_TextureList *txl;
 	struct GPENCIL_PassList *psl;
 	struct GPENCIL_StorageList *stl;
+
+	/* render textures */
+	struct GPUTexture *render_depth_tx;
+	struct GPUTexture *render_color_tx;
 } GPENCIL_Data;
 
 /* *********** STATIC *********** */
@@ -199,10 +206,6 @@ typedef struct GPENCIL_e_data {
 
 	struct GPUTexture *gpencil_blank_texture;
 	
-	/* render textures */
-	struct GPUTexture *render_depth_tx;
-	struct GPUTexture *render_color_tx;
-
 	/* runtime pointers texture */
 	struct GPUTexture *input_depth_tx;
 	struct GPUTexture *input_color_tx;
@@ -265,5 +268,16 @@ struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
 
 /* modifier functions */
 void gpencil_instance_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
+
+/* main functions */
+void GPENCIL_engine_init(void *vedata);
+void GPENCIL_cache_init(void *vedata);
+void GPENCIL_cache_populate(void *vedata, struct Object *ob);
+void GPENCIL_cache_finish(void *vedata);
+void GPENCIL_draw_scene(void *vedata);
+
+/* render */
+void GPENCIL_render_init(struct GPENCIL_Data *ved, struct RenderEngine *engine, struct Depsgraph *depsgraph);
+void GPENCIL_render_to_image(void *vedata, struct RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect);
 
 #endif /* __GPENCIL_ENGINE_H__ */
