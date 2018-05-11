@@ -1043,7 +1043,7 @@ Material *BKE_gpencil_color_ensure(Main *bmain, Object *ob)
 		ma = BKE_material_add_gpencil(bmain, DATA_("Material"));
 		assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 	}
-	else if (ma->gpcolor == NULL) {
+	else if (ma->gp_style == NULL) {
 			BKE_material_init_gpencil_settings(ma);
 	}
 

@@ -68,7 +68,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	OpacityGpencilModifierData *mmd = (OpacityGpencilModifierData *)md;
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(ob,
@@ -78,18 +78,18 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 		return;
 	}
 	
-	gpcolor->fill[3]*= mmd->factor;
+	gp_style->fill[3]*= mmd->factor;
 
 	/* if factor is > 1, then force opacity */
 	if (mmd->factor > 1.0f) {
-		gpcolor->rgb[3] += mmd->factor - 1.0f;
-		if (gpcolor->fill[3] > 1e-5) {
-			gpcolor->fill[3] += mmd->factor - 1.0f;
+		gp_style->rgb[3] += mmd->factor - 1.0f;
+		if (gp_style->fill[3] > 1e-5) {
+			gp_style->fill[3] += mmd->factor - 1.0f;
 		}
 	}
 
-	CLAMP(gpcolor->rgb[3], 0.0f, 1.0f);
-	CLAMP(gpcolor->fill[3], 0.0f, 1.0f);
+	CLAMP(gp_style->rgb[3], 0.0f, 1.0f);
+	CLAMP(gp_style->fill[3], 0.0f, 1.0f);
 
 	/* if opacity > 1.0, affect the strength of the stroke */
 	if (mmd->factor > 1.0f) {

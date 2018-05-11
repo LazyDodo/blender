@@ -461,12 +461,12 @@ bool ED_gpencil_stroke_can_use(const bContext *C, const bGPDstroke *gps)
 bool ED_gpencil_stroke_color_use(Object *ob, const bGPDlayer *gpl, const bGPDstroke *gps)
 {
 	/* check if the color is editable */
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
-	if (gpcolor != NULL) {
-		if (gpcolor->flag & GPC_COLOR_HIDE)
+	if (gp_style != NULL) {
+		if (gp_style->flag & GPC_COLOR_HIDE)
 			return false;
-		if (((gpl->flag & GP_LAYER_UNLOCK_COLOR) == 0) && (gpcolor->flag & GPC_COLOR_LOCKED))
+		if (((gpl->flag & GP_LAYER_UNLOCK_COLOR) == 0) && (gp_style->flag & GPC_COLOR_LOCKED))
 			return false;
 	}
 	
@@ -1155,7 +1155,7 @@ void ED_gpencil_add_defaults(bContext *C)
 	/* first try to reuse default material */
 	if (ob->actcol > 0) {
 		Material *ma = give_current_material(ob, ob->actcol);
-		if ((ma) && (ma->gpcolor == NULL)) {
+		if ((ma) && (ma->gp_style == NULL)) {
 			BKE_material_init_gpencil_settings(ma);
 		}
 	}
@@ -1381,7 +1381,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	GP_EditBrush_Data *brush = NULL;
 	Brush *paintbrush = NULL;
 	Material *ma = NULL;
-	GpencilColorData *gpcolor = NULL;
+	GpencilColorData *gp_style = NULL;
 	int *last_mouse_position = customdata;
 
 	if ((gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE)) {
@@ -1432,19 +1432,19 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 				ma = give_current_material(ob, 1);
 				paintbrush->material = ma;
 			}
-			gpcolor = ma->gpcolor;
+			gp_style = ma->gp_style;
 
 			/* after some testing, display the size of the brush is not practical because 
 			 * is too disruptive and the size of cursor does not change with zoom factor.
 			 * The decision was to use a fix size, instead of paintbrush->thickness value. 
 			 */
-			if ((gpcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
+			if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) && 
 				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
 				(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
 			{
 				radius = 2.0f;
-				copy_v3_v3(color, gpcolor->rgb);
+				copy_v3_v3(color, gp_style->rgb);
 			}
 			else {
 				radius = 5.0f;
@@ -1483,7 +1483,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 	/* Inner Ring: Color from UI panel */
 	immUniformColor4f(color[0], color[1], color[2], 0.8f);
-	if ((gpcolor) && (GPENCIL_PAINT_MODE(gpd)) && 
+	if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) && 
 		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
 		(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
@@ -1662,10 +1662,10 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 	if (gps == NULL) {
 		return;
 	}
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	float pixsize;
-	if (gpcolor) {
-		pixsize = gpcolor->t_pixsize / 1000000.0f;
+	if (gp_style) {
+		pixsize = gp_style->t_pixsize / 1000000.0f;
 	}
 	else {
 		/* use this value by default */
@@ -1694,8 +1694,8 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 	/* normalize the distance using a factor */
 	float factor;
 	/* if image, use texture width */
-	if ((gpcolor) && (gpcolor->sima)) {
-		factor = gpcolor->sima->gen_x;
+	if ((gp_style) && (gp_style->sima)) {
+		factor = gp_style->sima->gen_x;
 	}
 	else {
 		factor = totlen;

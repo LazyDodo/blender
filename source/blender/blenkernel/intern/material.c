@@ -105,7 +105,7 @@ void BKE_material_free(Material *ma)
 
 	MEM_SAFE_FREE(ma->texpaintslot);
 
-	MEM_SAFE_FREE(ma->gpcolor);
+	MEM_SAFE_FREE(ma->gp_style);
 
 	BKE_icon_id_delete((ID *)ma);
 	BKE_previewimg_free(&ma->preview);
@@ -113,19 +113,19 @@ void BKE_material_free(Material *ma)
 
 void BKE_material_init_gpencil_settings(Material *ma)
 {
-	if ((ma) && (ma->gpcolor == NULL)) {
-		ma->gpcolor = MEM_callocN(sizeof(GpencilColorData), "Grease Pencil Material Settings");
+	if ((ma) && (ma->gp_style == NULL)) {
+		ma->gp_style = MEM_callocN(sizeof(GpencilColorData), "Grease Pencil Material Settings");
 
-		GpencilColorData *gpcolor = ma->gpcolor;
+		GpencilColorData *gp_style = ma->gp_style;
 		/* set basic settings */
-		gpcolor->rgb[3] = 1.0f;
-		gpcolor->g_boxsize = 0.1f;
-		gpcolor->g_radius = 0.5f;
-		ARRAY_SET_ITEMS(gpcolor->scolor, 1.0f, 1.0f, 1.0f, 0.2f);
-		ARRAY_SET_ITEMS(gpcolor->g_scale, 1.0f, 1.0f);
-		ARRAY_SET_ITEMS(gpcolor->t_scale, 1.0f, 1.0f);
-		gpcolor->t_opacity = 1.0f;
-		gpcolor->t_pixsize = 100.0f;
+		gp_style->rgb[3] = 1.0f;
+		gp_style->g_boxsize = 0.1f;
+		gp_style->g_radius = 0.5f;
+		ARRAY_SET_ITEMS(gp_style->scolor, 1.0f, 1.0f, 1.0f, 0.2f);
+		ARRAY_SET_ITEMS(gp_style->g_scale, 1.0f, 1.0f);
+		ARRAY_SET_ITEMS(gp_style->t_scale, 1.0f, 1.0f);
+		gp_style->t_opacity = 1.0f;
+		gp_style->t_pixsize = 100.0f;
 	}
 }
 
@@ -200,8 +200,8 @@ void BKE_material_copy_data(Main *bmain, Material *ma_dst, const Material *ma_sr
 		ma_dst->texpaintslot = MEM_dupallocN(ma_src->texpaintslot);
 	}
 
-	if (ma_src->gpcolor != NULL) {
-		ma_dst->gpcolor = MEM_dupallocN(ma_src->gpcolor);
+	if (ma_src->gp_style != NULL) {
+		ma_dst->gp_style = MEM_dupallocN(ma_src->gp_style);
 	}
 
 	BLI_listbase_clear(&ma_dst->gpumaterial);
@@ -239,7 +239,7 @@ Material *BKE_material_localize(Material *ma)
 	man->texpaintslot = NULL;
 	man->preview = NULL;
 
-	/* man->gpcolor = NULL; */ /* XXX: We probably don't want to clear here, or else we may get problems with COW later? */
+	/* man->gp_style = NULL; */ /* XXX: We probably don't want to clear here, or else we may get problems with COW later? */
 	BLI_listbase_clear(&man->gpumaterial);
 
 	/* TODO Duplicate Engine Settings and set runtime to NULL */
@@ -542,11 +542,11 @@ GpencilColorData *BKE_material_gpencil_settings_get(Object *ob, short act)
 {
 	Material *ma = give_current_material(ob, act);
 	if (ma != NULL) {
-		if (ma->gpcolor == NULL) {
+		if (ma->gp_style == NULL) {
 			BKE_material_init_gpencil_settings(ma);
 		}
 
-		return ma->gpcolor;
+		return ma->gp_style;
 	}
 	else {
 		return NULL;

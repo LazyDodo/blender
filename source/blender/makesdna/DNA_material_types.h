@@ -161,7 +161,7 @@ typedef struct Material {
 	ListBase gpumaterial;
 
 	/* grease pencil color */
-	struct GpencilColorData *gpcolor;
+	struct GpencilColorData *gp_style;
 } Material;
 
 /* **************** MATERIAL ********************* */

@@ -392,7 +392,7 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	for (Material *mat = bmain->mat.first; mat; mat = mat->id.next) {
 
 		/* only grease pencil materials */
-		if (mat->gpcolor == NULL) {
+		if (mat->gp_style == NULL) {
 			continue;
 		}
 		/* TODO: add a filter by object if the flag is enabled */
@@ -402,11 +402,11 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 			tgpk->curindex = idx;
 		}
 
-		GpencilColorData *gpcolor = mat->gpcolor;
+		GpencilColorData *gp_style = mat->gp_style;
 		tcolor->index = idx;
 		tcolor->mat = mat;
-		copy_v4_v4(tcolor->rgba, gpcolor->rgb);
-		copy_v4_v4(tcolor->fill, gpcolor->fill);
+		copy_v4_v4(tcolor->rgba, gp_style->rgb);
+		copy_v4_v4(tcolor->fill, gp_style->fill);
 
 		/* box position */
 		tcolor->rect.xmin = tgpk->panel.xmin + (tgpk->boxsize[0] * col) + (GP_BOX_GAP * (col + 1)) - (GP_BOX_GAP / 2);

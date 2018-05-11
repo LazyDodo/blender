@@ -2222,13 +2222,13 @@ static int gp_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
 			continue;
 			
 		for (bGPDstroke *gps = gpl->actframe->strokes.last; gps; gps = gps->prev) {
-			GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+			GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 			/* skip strokes that are not selected or invalid for current view */
 			if (((gps->flag & GP_STROKE_SELECT) == 0) || ED_gpencil_stroke_can_use(C, gps) == false)
 				continue;
 			/* skip hidden or locked colors */
-			if (!gpcolor || (gpcolor->flag & GPC_COLOR_HIDE) || (gpcolor->flag & GPC_COLOR_LOCKED))
+			if (!gp_style || (gp_style->flag & GPC_COLOR_HIDE) || (gp_style->flag & GPC_COLOR_LOCKED))
 				continue;
 			
 			switch (type) {

@@ -116,13 +116,13 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 				Material *mat = give_current_material(ob, gps->mat_nr + 1);
 				if (mat == NULL)
 					continue;
-				GpencilColorData *gpcolor = mat->gpcolor;
+				GpencilColorData *gp_style = mat->gp_style;
 				/* skip stroke if it doesn't have color info */
-				if (ELEM(NULL, gpcolor))
+				if (ELEM(NULL, gp_style))
 					continue;
 
-				copy_v4_v4(gps->tmp_rgb, gpcolor->rgb);
-				copy_v4_v4(gps->tmp_fill, gpcolor->fill);
+				copy_v4_v4(gps->tmp_rgb, gp_style->rgb);
+				copy_v4_v4(gps->tmp_fill, gp_style->fill);
 
 				/* look for color */
 				if (mmd->flag & GP_TINT_CREATE_COLORS) {
@@ -132,8 +132,8 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 						newmat = BKE_material_copy(bmain, mat);
 						assign_material(ob, newmat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 
-						copy_v4_v4(newmat->gpcolor->rgb, gps->tmp_rgb);
-						copy_v4_v4(newmat->gpcolor->fill, gps->tmp_fill);
+						copy_v4_v4(newmat->gp_style->rgb, gps->tmp_rgb);
+						copy_v4_v4(newmat->gp_style->fill, gps->tmp_fill);
 
 						BLI_ghash_insert(gh_color, mat->id.name, newmat);
 					}
@@ -143,8 +143,8 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 				}
 				else {
 					/* reuse existing color */
-					copy_v4_v4(gpcolor->rgb, gps->tmp_rgb);
-					copy_v4_v4(gpcolor->fill, gps->tmp_fill);
+					copy_v4_v4(gp_style->rgb, gps->tmp_rgb);
+					copy_v4_v4(gp_style->fill, gps->tmp_fill);
 				}
 
 				deformStroke(md, depsgraph, ob, gpl, gps);

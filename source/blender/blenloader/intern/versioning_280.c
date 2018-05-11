@@ -720,10 +720,10 @@ void do_versions_after_linking_280(Main *main)
 					assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 
 					/* copy color settings */
-					GpencilColorData *gpcolor = ma->gpcolor;
-					copy_v4_v4(gpcolor->rgb, palcolor->color);
-					copy_v4_v4(gpcolor->fill, palcolor->fill);
-					gpcolor->flag = palcolor->flag;
+					GpencilColorData *gp_style = ma->gp_style;
+					copy_v4_v4(gp_style->rgb, palcolor->color);
+					copy_v4_v4(gp_style->fill, palcolor->fill);
+					gp_style->flag = palcolor->flag;
 
 					/* fix strokes */
 					for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {

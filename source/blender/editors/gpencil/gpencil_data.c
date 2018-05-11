@@ -1172,7 +1172,7 @@ static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 	/* first lock all colors */
 	for (short i = 0; i < *totcol; i++) {
 		Material *tmp_ma = (*matar)[i];
-		tmp_ma->gpcolor->flag |= GPC_COLOR_LOCKED;
+		tmp_ma->gp_style->flag |= GPC_COLOR_LOCKED;
 
 	}
 
@@ -1189,7 +1189,7 @@ static int gp_stroke_lock_color_exec(bContext *C, wmOperator *UNUSED(op))
 					}
 					/* unlock color */
 					Material *tmp_ma = (*matar)[gps->mat_nr];
-					tmp_ma->gpcolor->flag &= ~GPC_COLOR_LOCKED;
+					tmp_ma->gp_style->flag &= ~GPC_COLOR_LOCKED;
 				}
 			}
 		}
@@ -2011,7 +2011,7 @@ static int gpencil_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *gpcolor = NULL;
+	GpencilColorData *gp_style = NULL;
 
 	/* sanity checks */
 	if (ELEM(NULL, gpd))
@@ -2026,9 +2026,9 @@ static int gpencil_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
 
 	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
-		gpcolor = ma->gpcolor;
-		gpcolor->flag |= GPC_COLOR_LOCKED;
-		gpcolor->flag |= GPC_COLOR_HIDE;
+		gp_style = ma->gp_style;
+		gp_style->flag |= GPC_COLOR_LOCKED;
+		gp_style->flag |= GPC_COLOR_HIDE;
 	}
 
 	/* loop all selected strokes and unlock any color used in active layer */
@@ -2040,11 +2040,11 @@ static int gpencil_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
 				if (ED_gpencil_stroke_can_use(C, gps) == false)
 					continue;
 
-				gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+				gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 				/* unlock/unhide color if not unlocked before */
-				if (gpcolor != NULL) {
-					gpcolor->flag &= ~GPC_COLOR_LOCKED;
-					gpcolor->flag &= ~GPC_COLOR_HIDE;
+				if (gp_style != NULL) {
+					gp_style->flag &= ~GPC_COLOR_LOCKED;
+					gp_style->flag &= ~GPC_COLOR_HIDE;
 				}
 			}
 		}
@@ -2076,7 +2076,7 @@ static int gpencil_color_isolate_exec(bContext *C, wmOperator *op)
 	Object *ob = CTX_data_active_object(C);
 	Material *active_ma = give_current_material(ob, ob->actcol);
 	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol);
-	GpencilColorData *gpcolor;
+	GpencilColorData *gp_style;
 
 	int flags = GPC_COLOR_LOCKED;
 	bool isolate = false;
@@ -2102,8 +2102,8 @@ static int gpencil_color_isolate_exec(bContext *C, wmOperator *op)
 		/* If the flags aren't set, that means that the color is
 		* not alone, so we have some colors to isolate still
 		*/
-		gpcolor = ma->gpcolor;
-		if ((gpcolor->flag & flags) == 0) {
+		gp_style = ma->gp_style;
+		if ((gp_style->flag & flags) == 0) {
 			isolate = true;
 			break;
 		}
@@ -2114,19 +2114,19 @@ static int gpencil_color_isolate_exec(bContext *C, wmOperator *op)
 		/* Set flags on all "other" colors */
 		for (short i = 0; i < *totcol; i++) {
 			ma = (*matar)[i];
-			gpcolor = ma->gpcolor;
-			if (gpcolor == active_color)
+			gp_style = ma->gp_style;
+			if (gp_style == active_color)
 				continue;
 			else
-				gpcolor->flag |= flags;
+				gp_style->flag |= flags;
 		}
 	}
 	else {
 		/* Clear flags - Restore everything else */
 		for (short i = 0; i < *totcol; i++) {
 			ma = (*matar)[i];
-			gpcolor = ma->gpcolor;
-			gpcolor->flag &= ~flags;
+			gp_style = ma->gp_style;
+			gp_style->flag &= ~flags;
 		}
 	}
 
@@ -2176,7 +2176,7 @@ static int gpencil_color_hide_exec(bContext *C, wmOperator *op)
 		GpencilColorData *color = NULL;
 		for (short i = 0; i < *totcol; i++) {
 			ma = (*matar)[i];
-			color = ma->gpcolor;
+			color = ma->gp_style;
 			if (active_color != color) {
 				color->flag |= GPC_COLOR_HIDE;
 			}
@@ -2224,12 +2224,12 @@ static int gpencil_color_reveal_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* make all colors visible */
-	GpencilColorData *gpcolor = NULL;
+	GpencilColorData *gp_style = NULL;
 
 	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
-		gpcolor = ma->gpcolor;
-		gpcolor->flag &= ~GPC_COLOR_HIDE;
+		gp_style = ma->gp_style;
+		gp_style->flag &= ~GPC_COLOR_HIDE;
 	}
 
 	/* notifiers */
@@ -2267,12 +2267,12 @@ static int gpencil_color_lock_all_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* make all layers non-editable */
-	GpencilColorData *gpcolor = NULL;
+	GpencilColorData *gp_style = NULL;
 
 	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
-		gpcolor = ma->gpcolor;
-		gpcolor->flag |= GPC_COLOR_LOCKED;
+		gp_style = ma->gp_style;
+		gp_style->flag |= GPC_COLOR_LOCKED;
 	}
 
 	/* notifiers */
@@ -2309,12 +2309,12 @@ static int gpencil_color_unlock_all_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* make all layers editable again*/
-	GpencilColorData *gpcolor = NULL;
+	GpencilColorData *gp_style = NULL;
 
 	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
-		gpcolor = ma->gpcolor;
-		gpcolor->flag &= ~GPC_COLOR_LOCKED;
+		gp_style = ma->gp_style;
+		gp_style->flag &= ~GPC_COLOR_LOCKED;
 	}
 
 	/* notifiers */
@@ -2345,10 +2345,10 @@ static int gpencil_color_select_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, ob->actcol);
+	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, ob->actcol);
 
 	/* sanity checks */
-	if (ELEM(NULL, gpd, gpcolor))
+	if (ELEM(NULL, gpd, gp_style))
 		return OPERATOR_CANCELLED;
 
 	/* read all strokes and select*/

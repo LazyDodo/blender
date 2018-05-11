@@ -2210,8 +2210,8 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					else {
 						obn->mat[a] = ID_NEW_SET(obn->mat[a], BKE_material_copy(bmain, obn->mat[a]));
 						/* duplicate grease pencil settings */
-						if (ob->mat[a]->gpcolor) {
-							obn->mat[a]->gpcolor = MEM_dupallocN(ob->mat[a]->gpcolor);
+						if (ob->mat[a]->gp_style) {
+							obn->mat[a]->gp_style = MEM_dupallocN(ob->mat[a]->gp_style);
 						}
 					}
 					id_us_min(id);

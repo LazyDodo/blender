@@ -229,11 +229,11 @@ static void GPENCIL_cache_init(void *vedata)
 	/* Special handling for when active object is GP object (e.g. for draw mode) */
 	Object *obact = draw_ctx->obact;
 	bGPdata *obact_gpd = NULL;
-	GpencilColorData *gpcolor = NULL;
+	GpencilColorData *gp_style = NULL;
 
 	if (obact && (obact->type == OB_GPENCIL) && (obact->data)) {
 		obact_gpd = (bGPdata *)obact->data;
-		gpcolor = BKE_material_gpencil_settings_get(obact, obact->actcol);
+		gp_style = BKE_material_gpencil_settings_get(obact, obact->actcol);
 	}
 
 	if (!stl->g_data) {
@@ -325,12 +325,12 @@ static void GPENCIL_cache_init(void *vedata)
 			stl->g_data->session_flag = GP_DRW_PAINT_HOLD;
 		}
 
-		if (gpcolor) {
-			stl->storage->stroke_style = gpcolor->stroke_style;
+		if (gp_style) {
+			stl->storage->stroke_style = gp_style->stroke_style;
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
-			if (gpcolor->stroke_style == GPC_STROKE_STYLE_TEXTURE) {
+			if (gp_style->stroke_style == GPC_STROKE_STYLE_TEXTURE) {
 				stl->storage->color_type = GPENCIL_COLOR_TEXTURE;
-				if (gpcolor->flag & GPC_COLOR_PATTERN) {
+				if (gp_style->flag & GPC_COLOR_PATTERN) {
 					stl->storage->color_type = GPENCIL_COLOR_PATTERN;
 				}
 			}

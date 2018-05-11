@@ -4119,13 +4119,13 @@ static void lib_link_material(FileData *fd, Main *main)
 			}
 
 			/* relink grease pencil settings */
-			if (ma->gpcolor != NULL) {
-				GpencilColorData *gpcolor = ma->gpcolor;
-				if (gpcolor->sima != NULL) {
-					gpcolor->sima = newlibadr_us(fd, ma->id.lib, gpcolor->sima);
+			if (ma->gp_style != NULL) {
+				GpencilColorData *gp_style = ma->gp_style;
+				if (gp_style->sima != NULL) {
+					gp_style->sima = newlibadr_us(fd, ma->id.lib, gp_style->sima);
 				}
-				if (gpcolor->ima != NULL) {
-					gpcolor->ima = newlibadr_us(fd, ma->id.lib, gpcolor->ima);
+				if (gp_style->ima != NULL) {
+					gp_style->ima = newlibadr_us(fd, ma->id.lib, gp_style->ima);
 				}
 			}
 
@@ -4150,7 +4150,7 @@ static void direct_link_material(FileData *fd, Material *ma)
 	ma->preview = direct_link_preview_image(fd, ma->preview);
 	BLI_listbase_clear(&ma->gpumaterial);
 
-	ma->gpcolor = newdataadr(fd, ma->gpcolor);
+	ma->gp_style = newdataadr(fd, ma->gp_style);
 }
 
 /* ************ READ PARTICLE SETTINGS ***************** */

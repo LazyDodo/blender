@@ -566,7 +566,7 @@ static short gp_stroke_addpoint(
 	Object *obact = (Object *)p->ownerPtr.data;
 	RegionView3D *rv3d = p->ar->regiondata;
 	View3D *v3d = p->sa->spacedata.first;
-	GpencilColorData *gpcolor = p->material->gpcolor;
+	GpencilColorData *gp_style = p->material->gp_style;
 
 	/* check painting mode */
 	if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
@@ -697,7 +697,7 @@ static short gp_stroke_addpoint(
 		
 		/* point uv (only 3d view) */
 		if ((p->sa->spacetype == SPACE_VIEW3D) && (gpd->sbuffer_size > 1)) {
-			float pixsize = gpcolor->t_pixsize / 1000000.0f;
+			float pixsize = gp_style->t_pixsize / 1000000.0f;
 			tGPspoint *ptb = (tGPspoint *)gpd->sbuffer + gpd->sbuffer_size - 2;
 			bGPDspoint spt, spt2;
 
@@ -714,8 +714,8 @@ static short gp_stroke_addpoint(
 
 			p->totpixlen += len_v3v3(&spt.x, &spt2.x) / pixsize;
 			pt->uv_fac = p->totpixlen;
-			if ((gpcolor) && (gpcolor->sima)) {
-				pt->uv_fac /= gpcolor->sima->gen_x;
+			if ((gp_style) && (gp_style->sima)) {
+				pt->uv_fac /= gp_style->sima->gen_x;
 			}
 		}
 		else {
@@ -1561,7 +1561,7 @@ static void gp_init_colors(tGPsdata *p)
 	Brush *brush = p->brush;
 
 	Material *ma = NULL;
-	GpencilColorData *gpcolor = NULL;
+	GpencilColorData *gp_style = NULL;
 	
 	/* use brush material */
 	ma = BKE_gpencil_get_color_from_brush(brush);
@@ -1569,7 +1569,7 @@ static void gp_init_colors(tGPsdata *p)
 	/* if no brush defaults, get material and color info
 	 * NOTE: Ensures that everything we need will exist...
 	 */
-	if ((ma == NULL) || (ma->gpcolor == NULL)) {
+	if ((ma == NULL) || (ma->gp_style == NULL)) {
 		BKE_gpencil_color_ensure(p->bmain, p->ob);
 
 		/* assign always the first material to the brush */
@@ -1587,20 +1587,20 @@ static void gp_init_colors(tGPsdata *p)
 	}
 
 	/* assign color information to temp tGPsdata */
-	gpcolor = p->material->gpcolor;
-	if (gpcolor) {
+	gp_style = p->material->gp_style;
+	if (gp_style) {
 		
 		/* set colors */
-		copy_v4_v4(gpd->scolor, gpcolor->rgb);
-		copy_v4_v4(gpd->sfill, gpcolor->fill);
+		copy_v4_v4(gpd->scolor, gp_style->rgb);
+		copy_v4_v4(gpd->sfill, gp_style->fill);
 		/* add some alpha to make easy the filling without hide strokes */
 		if (gpd->sfill[3] > 0.8f) {
 			gpd->sfill[3] = 0.8f;
 		}
 
-		gpd->mode = (short)gpcolor->mode;
-		gpd->bstroke_style = gpcolor->stroke_style;
-		gpd->bfill_style = gpcolor->fill_style;
+		gpd->mode = (short)gp_style->mode;
+		gpd->bstroke_style = gp_style->stroke_style;
+		gpd->bfill_style = gp_style->fill_style;
 	}
 }
 

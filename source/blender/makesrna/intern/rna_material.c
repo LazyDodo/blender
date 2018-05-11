@@ -749,7 +749,7 @@ void RNA_def_material(BlenderRNA *brna)
 	
 	/* grease pencil */
 	prop = RNA_def_property(srna, "grease_pencil", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "gpcolor");
+	RNA_def_property_pointer_sdna(prop, NULL, "gp_style");
 	RNA_def_property_ui_text(prop, "Grease Pencil Settings", "Grease pencil color settings for material");
 
 	rna_def_material_greasepencil(brna);

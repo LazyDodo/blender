@@ -128,7 +128,7 @@ static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float di
 	bGPDspoint *points = gps->points;
 
 	Material *ma = tgpf->mat;
-	GpencilColorData *gpcolor = ma->gpcolor;
+	GpencilColorData *gp_style = ma->gp_style;
 
 	int totpoints = gps->totpoints;
 	float fpt[3];
@@ -153,7 +153,7 @@ static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float di
 	for (int i = 0; i < totpoints; i++, pt++) {
 
 		if (flag & GP_BRUSH_FILL_HIDE) {
-			float alpha = gpcolor->rgb[3] * pt->strength;
+			float alpha = gp_style->rgb[3] * pt->strength;
 			CLAMP(alpha, 0.0f, 1.0f);
 			col[3] = alpha <= thershold ? 0.0f : 1.0f;
 		}
@@ -223,8 +223,8 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 				continue;
 			}
 			/* check if the color is visible */
-			GpencilColorData *gpcolor = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-			if ((gpcolor == NULL) || (gpcolor->flag & GPC_COLOR_HIDE))
+			GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+			if ((gp_style == NULL) || (gp_style->flag & GPC_COLOR_HIDE))
 			{
 				continue;
 			}
@@ -992,7 +992,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	/* get color info */
 	Material *ma = BKE_gpencil_get_color_from_brush(brush);
 	/* if no brush defaults, get material and color info */
-	if ((ma == NULL) || (ma->gpcolor == NULL)) {
+	if ((ma == NULL) || (ma->gp_style == NULL)) {
 		ma = BKE_gpencil_color_ensure(bmain, tgpf->ob);
 		/* assign always the first material to the brush */
 		brush->material = give_current_material(tgpf->ob, 1);

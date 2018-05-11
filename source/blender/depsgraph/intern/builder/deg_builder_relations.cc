@@ -1829,7 +1829,7 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 			 */
 			for (int i = 0; i < gpd->totcol; i++) {
 				Material *ma = gpd->mat[i];
-				if ((ma) && (ma->gpcolor)) {
+				if ((ma) && (ma->gp_style)) {
 					OperationKey material_key(&ma->id,
 					                          DEG_NODE_TYPE_SHADING,
 					                          DEG_OPCODE_MATERIAL_UPDATE);
