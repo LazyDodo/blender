@@ -1586,7 +1586,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 		/* calculate parent position */
 		ED_gpencil_parent_location(ob, gpd, gpl, diff_mat);
 
-		short lthick = brush->thickness + gpl->thickness;
+		short lthick = brush->size + gpl->thickness;
 
 		/* don't draw layer if hidden */
 		if (gpl->flag & GP_LAYER_HIDE)

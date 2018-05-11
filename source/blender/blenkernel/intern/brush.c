@@ -133,7 +133,7 @@ static void brush_defaults(Brush *brush)
 	brush->stencil_dimension[1] = 256;
 
 	/* grease pencil basic settings */
-	brush->thickness = 3;
+	brush->size = 3;
 	brush->draw_smoothlvl = 1;
 	brush->gp_flag = 0;
 	brush->gp_flag |= GP_BRUSH_USE_PRESSURE;
@@ -269,7 +269,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Pencil brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Pencil");
-	brush->thickness = 25.0f;
+	brush->size = 25.0f;
 	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
@@ -300,7 +300,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	/* Pen brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Pen");
 	deft = brush; /* save default brush */
-	brush->thickness = 30.0f;
+	brush->size = 30.0f;
 	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
@@ -331,7 +331,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Ink brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Ink");
-	brush->thickness = 60.0f;
+	brush->size = 60.0f;
 	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.6f;
 
@@ -366,7 +366,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Ink Noise brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Noise");
-	brush->thickness = 60.0f;
+	brush->size = 60.0f;
 	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
@@ -403,7 +403,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Block Basic brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Block");
-	brush->thickness = 150.0f;
+	brush->size = 150.0f;
 	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
@@ -433,7 +433,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Marker brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Draw Marker");
-	brush->thickness = 80.0f;
+	brush->size = 80.0f;
 	brush->gp_flag |= (GP_BRUSH_USE_PRESSURE | GP_BRUSH_ENABLE_CURSOR);
 	brush->draw_sensitivity = 1.0f;
 
@@ -464,7 +464,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Fill brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Fill Area");
-	brush->thickness = 1.0f;
+	brush->size = 1.0f;
 	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->draw_sensitivity = 1.0f;
 	brush->gp_fill_leak = 3;
@@ -486,7 +486,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Soft Eraser brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Soft");
-	brush->thickness = 30.0f;
+	brush->size = 30.0f;
 	brush->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
 	brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
@@ -494,7 +494,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Hard Eraser brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Hard");
-	brush->thickness = 30.0f;
+	brush->size = 30.0f;
 	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->gp_icon_id = GPBRUSH_ERASE_HARD;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
@@ -502,7 +502,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 
 	/* Stroke Eraser brush */
 	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Stroke");
-	brush->thickness = 30.0f;
+	brush->size = 30.0f;
 	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->gp_icon_id = GPBRUSH_ERASE_STROKE;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;

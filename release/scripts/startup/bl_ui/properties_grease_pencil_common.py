@@ -58,7 +58,7 @@ def gpencil_active_brush_settings_simple(context, layout):
     row.operator_menu_enum("gpencil.brush_change", "brush", text="", icon='BRUSH_DATA')
     row.prop(brush, "name", text="")
 
-    col.prop(brush, "line_width", slider=True)
+    col.prop(brush, "size", slider=True)
     row = col.row(align=True)
     row.prop(brush, "use_random_pressure", text="", icon='RNDCURVE')
     row.prop(brush, "pen_sensitivity_factor", slider=True)

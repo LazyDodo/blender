@@ -142,7 +142,7 @@ typedef struct Brush {
 	float mask_stencil_dimension[2];
 
 	/* grease pencil drawing brush data */
-	short thickness;          /* thickness to apply to strokes */
+	char pad_1[2];
 	short gp_flag;            /* internal grease pencil drawing flags */
 	float draw_smoothfac;     /* amount of smoothing to apply to newly created strokes */
 	short draw_smoothlvl;     /* number of times to apply smooth factor to new strokes */

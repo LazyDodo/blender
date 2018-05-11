@@ -1332,7 +1332,7 @@ static bool gp_check_cursor_region(bContext *C, int mval[2])
 /* draw eraser cursor */
 void ED_gpencil_brush_draw_eraser(Brush *brush, int x, int y)
 {
-	short radius = (short)brush->thickness;
+	short radius = (short)brush->size;
 
 	Gwn_VertFormat *format = immVertexFormat();
 	const uint shdr_pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);

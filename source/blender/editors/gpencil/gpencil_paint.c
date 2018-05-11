@@ -942,7 +942,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	
 	/* copy appropriate settings for stroke */
 	gps->totpoints = totelem;
-	gps->thickness = brush->thickness;
+	gps->thickness = brush->size;
 	gps->flag = gpd->sbuffer_sflag;
 	gps->inittime = p->inittime;
 	
@@ -1505,7 +1505,7 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 	/* create a new soft eraser brush */
 	else {
 		brush_dft = BKE_brush_add_gpencil(bmain, ts, "Soft Eraser");
-		brush_dft->thickness = 30.0f;
+		brush_dft->size = 30.0f;
 		brush_dft->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
 		brush_dft->gp_icon_id = GPBRUSH_ERASE_SOFT;
 		brush_dft->gp_brush_type = GP_BRUSH_TYPE_ERASE;
@@ -1550,7 +1550,7 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 		p->eraser = brush;
 	}
 	/* use radius of eraser */
-	p->radius = (short)p->eraser->thickness;
+	p->radius = (short)p->eraser->size;
 }
 
 
@@ -2786,7 +2786,7 @@ static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEven
 	RegionView3D *rv3d = p->ar->regiondata;
 	float defaultpixsize = rv3d->pixsize * 1000.0f;
 	int samples = (GP_MAX_INPUT_SAMPLES - brush->gp_input_samples + 1);
-	float thickness = (float)brush->thickness;
+	float thickness = (float)brush->size;
 
 	float pt[2], a[2], b[2];
 	float vec[3];

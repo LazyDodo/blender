@@ -523,7 +523,7 @@ static void gpencil_primitive_done(bContext *C, wmOperator *op, wmWindow *win, t
 	/* prepare stroke to get transfered */
 	gps = tgpi->gpf->strokes.first;
 	if (gps) {
-		gps->thickness = tgpi->brush->thickness;
+		gps->thickness = tgpi->brush->size;
 		gps->flag |= GP_STROKE_RECALC_CACHES;
 	}
 

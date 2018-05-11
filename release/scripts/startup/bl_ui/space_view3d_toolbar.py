@@ -1345,7 +1345,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
             # Brush details
             if brush.gpencil_brush_type == 'ERASE':
                 col = layout.column(align=True)
-                col.prop(brush, "line_width", text="Radius")
+                col.prop(brush, "size", text="Radius")
 
                 col.separator()
                 row = col.row()
@@ -1353,7 +1353,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
             elif brush.gpencil_brush_type == 'FILL':
                 col = layout.column(align=True)
                 col.prop(brush, "gpencil_fill_leak", text="Leak Size")
-                col.prop(brush, "line_width", text="Thickness")
+                col.prop(brush, "size", text="Thickness")
                 col.prop(brush, "gpencil_fill_simplyfy_lvl", text="Simplify")
 
                 col = layout.row(align=True)
@@ -1373,7 +1373,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 sub.prop(brush, "gpencil_fill_threshold", text="Threshold")
             else: # brush.gpencil_brush_type == 'DRAW':
                 row = layout.row(align=True)
-                row.prop(brush, "line_width", text="Radius")
+                row.prop(brush, "size", text="Radius")
                 row.prop(brush, "use_pressure", text="", icon='STYLUS_PRESSURE')
                 row = layout.row(align=True)
                 row.prop(brush, "pen_strength", slider=True)

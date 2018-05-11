@@ -823,7 +823,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 
 	/* create new stroke */
 	bGPDstroke *gps = MEM_callocN(sizeof(bGPDstroke), "bGPDstroke");
-	gps->thickness = brush->thickness;
+	gps->thickness = brush->size;
 	gps->inittime = 0.0f;
 
 	/* the polygon must be closed, so enabled cyclic */

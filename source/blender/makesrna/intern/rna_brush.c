@@ -1562,14 +1562,6 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Image Painting Capabilities", "Brush's capabilities in image paint mode");
 
 	/* grease pencil drawing brushes */
-	/* Line Thickness */
-	prop = RNA_def_property(srna, "line_width", PROP_INT, PROP_PIXEL);
-	RNA_def_property_int_sdna(prop, NULL, "thickness");
-	RNA_def_property_range(prop, 1, 1000);
-	RNA_def_property_ui_range(prop, 1, 500, 1, 0);
-	RNA_def_property_ui_text(prop, "Thickness", "Thickness of strokes (in pixels)");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
-
 	/* Sensitivity factor for new strokes */
 	prop = RNA_def_property(srna, "pen_sensitivity_factor", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "draw_sensitivity");

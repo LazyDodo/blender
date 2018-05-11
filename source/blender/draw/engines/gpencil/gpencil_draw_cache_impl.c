@@ -653,7 +653,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 			/* It should also be noted that sbuffer contains temporary point types
 			* i.e. tGPspoints NOT bGPDspoints
 			*/
-			short lthick = brush->thickness * obscale;
+			short lthick = brush->size * obscale;
 			/* if only one point, don't need to draw buffer because the user has no time to see it */
 			if (gpd->sbuffer_size > 1) {
 				if ((gp_style) && (gp_style->mode == GP_STYLE_MODE_LINE)) {
