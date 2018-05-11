@@ -1665,7 +1665,7 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	float pixsize;
 	if (gp_style) {
-		pixsize = gp_style->t_pixsize / 1000000.0f;
+		pixsize = gp_style->texture_pixsize / 1000000.0f;
 	}
 	else {
 		/* use this value by default */

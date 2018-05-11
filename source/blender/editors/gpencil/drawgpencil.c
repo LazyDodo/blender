@@ -644,16 +644,16 @@ static void gp_draw_stroke_fill(
 	immUniform1i("fill_type", gp_style->fill_style);
 	immUniform1f("mix_factor", gp_style->mix_factor);
 
-	immUniform1f("g_angle", gp_style->g_angle);
-	immUniform1f("g_radius", gp_style->g_radius);
-	immUniform1f("g_boxsize", gp_style->g_boxsize);
-	immUniform2fv("g_scale", gp_style->g_scale);
-	immUniform2fv("g_shift", gp_style->g_shift);
+	immUniform1f("gradient_angle", gp_style->gradient_angle);
+	immUniform1f("gradient_radius", gp_style->gradient_radius);
+	immUniform1f("gradient_boxsize", gp_style->gradient_boxsize);
+	immUniform2fv("gradient_scale", gp_style->gradient_scale);
+	immUniform2fv("gradient_shift", gp_style->gradient_shift);
 
-	immUniform1f("t_angle", gp_style->t_angle);
-	immUniform2fv("t_scale", gp_style->t_scale);
-	immUniform2fv("t_offset", gp_style->t_offset);
-	immUniform1f("t_opacity", gp_style->t_opacity);
+	immUniform1f("texture_angle", gp_style->texture_angle);
+	immUniform2fv("texture_scale", gp_style->texture_scale);
+	immUniform2fv("texture_offset", gp_style->texture_offset);
+	immUniform1f("texture_opacity", gp_style->texture_opacity);
 	immUniform1i("t_mix", gp_style->flag & GP_STYLE_COLOR_TEX_MIX ? 1 : 0);
 	immUniform1i("t_flip", gp_style->flag & GP_STYLE_COLOR_FLIP_FILL ? 1 : 0);
 	/* image texture */

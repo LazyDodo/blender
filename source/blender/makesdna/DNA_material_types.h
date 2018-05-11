@@ -70,21 +70,21 @@ typedef struct MaterialGPencilStyle {
 	float rgb[4];            /* color for paint and strokes (alpha included) */
 	float fill[4];           /* color that should be used for drawing "fills" for strokes (alpha included) */
 	float scolor[4];         /* secondary color used for gradients and other stuff */
-	short flag;              /* settings for palette color */
+	short flag;              /* settings */
 	short index;             /* custom index for passes */
 	short stroke_style;      /* style for drawing strokes (used to select shader type) */
 	short fill_style;        /* style for filling areas (used to select shader type) */
 	float mix_factor;        /* factor used to define shader behavior (several uses) */
-	float g_angle;           /* angle used for gradients orientation */
-	float g_radius;          /* radius for radial gradients */
-	float g_boxsize;         /* cheesboard size */
-	float g_scale[2];        /* uv coordinates scale */
-	float g_shift[2];        /* factor to shift filling in 2d space */
-	float t_angle;           /* angle used for texture orientation */
-	float t_scale[2];        /* texture scale (separated of uv scale) */
-	float t_offset[2];       /* factor to shift texture in 2d space */
-	float t_opacity;         /* texture opacity */
-	float t_pixsize;         /* pixel size for uv along the stroke */
+	float gradient_angle;    /* angle used for gradients orientation */
+	float gradient_radius;   /* radius for radial gradients */
+	float gradient_boxsize;  /* cheesboard size */
+	float gradient_scale[2]; /* uv coordinates scale */
+	float gradient_shift[2]; /* factor to shift filling in 2d space */
+	float texture_angle;     /* angle used for texture orientation */
+	float texture_scale[2];  /* texture scale (separated of uv scale) */
+	float texture_offset[2]; /* factor to shift texture in 2d space */
+	float texture_opacity;   /* texture opacity */
+	float texture_pixsize;   /* pixel size for uv along the stroke */
 	int mode;                /* drawing mode (line or dots) */
 } MaterialGPencilStyle;
 

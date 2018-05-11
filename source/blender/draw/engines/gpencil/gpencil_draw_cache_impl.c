@@ -70,16 +70,16 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, 
 	DRW_shgroup_uniform_int(grp, "fill_type", &stl->shgroups[id].fill_style, 1);
 	DRW_shgroup_uniform_float(grp, "mix_factor", &gp_style->mix_factor, 1);
 
-	DRW_shgroup_uniform_float(grp, "g_angle", &gp_style->g_angle, 1);
-	DRW_shgroup_uniform_float(grp, "g_radius", &gp_style->g_radius, 1);
-	DRW_shgroup_uniform_float(grp, "g_boxsize", &gp_style->g_boxsize, 1);
-	DRW_shgroup_uniform_vec2(grp, "g_scale", gp_style->g_scale, 1);
-	DRW_shgroup_uniform_vec2(grp, "g_shift", gp_style->g_shift, 1);
+	DRW_shgroup_uniform_float(grp, "gradient_angle", &gp_style->gradient_angle, 1);
+	DRW_shgroup_uniform_float(grp, "gradient_radius", &gp_style->gradient_radius, 1);
+	DRW_shgroup_uniform_float(grp, "gradient_boxsize", &gp_style->gradient_boxsize, 1);
+	DRW_shgroup_uniform_vec2(grp, "gradient_scale", gp_style->gradient_scale, 1);
+	DRW_shgroup_uniform_vec2(grp, "gradient_shift", gp_style->gradient_shift, 1);
 
-	DRW_shgroup_uniform_float(grp, "t_angle", &gp_style->t_angle, 1);
-	DRW_shgroup_uniform_vec2(grp, "t_scale", gp_style->t_scale, 1);
-	DRW_shgroup_uniform_vec2(grp, "t_offset", gp_style->t_offset, 1);
-	DRW_shgroup_uniform_float(grp, "t_opacity", &gp_style->t_opacity, 1);
+	DRW_shgroup_uniform_float(grp, "texture_angle", &gp_style->texture_angle, 1);
+	DRW_shgroup_uniform_vec2(grp, "texture_scale", gp_style->texture_scale, 1);
+	DRW_shgroup_uniform_vec2(grp, "texture_offset", gp_style->texture_offset, 1);
+	DRW_shgroup_uniform_float(grp, "texture_opacity", &gp_style->texture_opacity, 1);
 
 	stl->shgroups[id].t_mix = gp_style->flag & GP_STYLE_COLOR_TEX_MIX ? 1 : 0;
 	DRW_shgroup_uniform_int(grp, "t_mix", &stl->shgroups[id].t_mix, 1);

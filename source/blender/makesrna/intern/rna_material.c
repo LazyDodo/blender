@@ -464,68 +464,68 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 
 	/* Scale factor for uv coordinates */
 	prop = RNA_def_property(srna, "pattern_scale", PROP_FLOAT, PROP_COORDS);
-	RNA_def_property_float_sdna(prop, NULL, "g_scale");
+	RNA_def_property_float_sdna(prop, NULL, "gradient_scale");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Scale", "Scale Factor for UV coordinates");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Shift factor to move pattern filling in 2d space */
 	prop = RNA_def_property(srna, "pattern_shift", PROP_FLOAT, PROP_COORDS);
-	RNA_def_property_float_sdna(prop, NULL, "g_shift");
+	RNA_def_property_float_sdna(prop, NULL, "gradient_shift");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Shift", "Shift filling pattern in 2d space");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Gradient angle */
 	prop = RNA_def_property(srna, "pattern_angle", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "g_angle");
+	RNA_def_property_float_sdna(prop, NULL, "gradient_angle");
 	RNA_def_property_ui_text(prop, "Angle", "Pattern Orientation Angle");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Gradient radius */
 	prop = RNA_def_property(srna, "pattern_radius", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "g_radius");
+	RNA_def_property_float_sdna(prop, NULL, "gradient_radius");
 	RNA_def_property_range(prop, 0.0001f, 10.0f);
 	RNA_def_property_ui_text(prop, "Radius", "Pattern Radius");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Box size */
 	prop = RNA_def_property(srna, "pattern_boxsize", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "g_boxsize");
+	RNA_def_property_float_sdna(prop, NULL, "gradient_boxsize");
 	RNA_def_property_range(prop, 0.0001f, 10.0f);
 	RNA_def_property_ui_text(prop, "Size", "Box Size");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Texture angle */
 	prop = RNA_def_property(srna, "texture_angle", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "t_angle");
+	RNA_def_property_float_sdna(prop, NULL, "texture_angle");
 	RNA_def_property_ui_text(prop, "Angle", "Texture Orientation Angle");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Scale factor for texture */
 	prop = RNA_def_property(srna, "texture_scale", PROP_FLOAT, PROP_COORDS);
-	RNA_def_property_float_sdna(prop, NULL, "t_scale");
+	RNA_def_property_float_sdna(prop, NULL, "texture_scale");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Scale", "Scale Factor for Texture");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Shift factor to move texture in 2d space */
 	prop = RNA_def_property(srna, "texture_offset", PROP_FLOAT, PROP_COORDS);
-	RNA_def_property_float_sdna(prop, NULL, "t_offset");
+	RNA_def_property_float_sdna(prop, NULL, "texture_offset");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Offset", "Shift Texture in 2d Space");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Texture opacity size */
 	prop = RNA_def_property(srna, "texture_opacity", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "t_opacity");
+	RNA_def_property_float_sdna(prop, NULL, "texture_opacity");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Opacity", "Texture Opacity");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* texture pixsize factor (used for UV along the stroke) */
 	prop = RNA_def_property(srna, "pixel_size", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "t_pixsize");
+	RNA_def_property_float_sdna(prop, NULL, "texture_pixsize");
 	RNA_def_property_range(prop, 1, 5000);
 	RNA_def_property_ui_text(prop, "UV Factor", "Texture Pixel Size factor along the stroke");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_gpcolordata_uv_update");
