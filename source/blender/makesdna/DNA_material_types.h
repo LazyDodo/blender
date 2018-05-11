@@ -88,8 +88,8 @@ typedef struct MaterialGPencilStyle {
 	int mode;                /* drawing mode (line or dots) */
 } MaterialGPencilStyle;
 
-/* GpencilColor->flag */
-typedef enum eGpencilColorData_Flag {
+/* MaterialGPencilStyle->flag */
+typedef enum eMaterialGPencilStyle_Flag {
 	/* don't display color */
 	GP_STYLE_COLOR_HIDE = (1 << 1),
 	/* protected from further editing */
@@ -104,13 +104,13 @@ typedef enum eGpencilColorData_Flag {
 	GP_STYLE_COLOR_FLIP_FILL = (1 << 6),
 	/* Texture is a pattern */
 	GP_STYLE_COLOR_PATTERN = (1 << 7)
-} eGpencilColorData_Flag;
+} eMaterialGPencilStyle_Flag;
 
-typedef enum eGpencilColorData_Mode {
+typedef enum eMaterialGPencilStyle_Mode {
 	GP_STYLE_MODE_LINE = 0, /* line */
 	GP_STYLE_MODE_DOTS = 1, /* dots */
 	GP_STYLE_MODE_BOX = 2, /* rectangles */
-} eGpencilColorData_Mode;
+} eMaterialGPencilStyle_Mode;
 
 typedef struct Material {
 	ID id;
