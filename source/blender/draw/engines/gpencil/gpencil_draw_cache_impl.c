@@ -1032,19 +1032,6 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	cache->is_dirty = false;
 }
 
-struct GPUTexture *DRW_gpencil_create_blank_texture(int width, int height)
-{
-	struct GPUTexture *tex;
-	int w = width;
-	int h = height;
-	float *final_rect = MEM_callocN(sizeof(float) * 4 * w * h, "Gpencil Blank Texture");
-
-	tex = DRW_texture_create_2D(w, h, GPU_RGBA8, DRW_TEX_FILTER, final_rect);
-	MEM_freeN(final_rect);
-
-	return tex;
-}
-
 /* Helper for gpencil_instance_modifiers()
  * See also MOD_gpencilinstance.c -> gp_bakeModifier()
  */
