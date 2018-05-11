@@ -414,6 +414,7 @@ static void buttons_area_listener(
 						ED_area_tag_redraw(sa);
 					break;
 			}
+			break;
 		case NC_NODE:
 			if (wmn->action == NA_SELECTED) {
 				ED_area_tag_redraw(sa);
