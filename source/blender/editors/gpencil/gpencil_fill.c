@@ -128,7 +128,7 @@ static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float di
 	bGPDspoint *points = gps->points;
 
 	Material *ma = tgpf->mat;
-	GpencilColorData *gp_style = ma->gp_style;
+	MaterialGPencilStyle *gp_style = ma->gp_style;
 
 	int totpoints = gps->totpoints;
 	float fpt[3];
@@ -223,7 +223,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 				continue;
 			}
 			/* check if the color is visible */
-			GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+			MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 			if ((gp_style == NULL) || (gp_style->flag & GPC_COLOR_HIDE))
 			{
 				continue;

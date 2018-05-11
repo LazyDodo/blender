@@ -114,9 +114,9 @@ void BKE_material_free(Material *ma)
 void BKE_material_init_gpencil_settings(Material *ma)
 {
 	if ((ma) && (ma->gp_style == NULL)) {
-		ma->gp_style = MEM_callocN(sizeof(GpencilColorData), "Grease Pencil Material Settings");
+		ma->gp_style = MEM_callocN(sizeof(MaterialGPencilStyle), "Grease Pencil Material Settings");
 
-		GpencilColorData *gp_style = ma->gp_style;
+		MaterialGPencilStyle *gp_style = ma->gp_style;
 		/* set basic settings */
 		gp_style->rgb[3] = 1.0f;
 		gp_style->g_boxsize = 0.1f;
@@ -538,7 +538,7 @@ Material *give_current_material(Object *ob, short act)
 	return ma;
 }
 
-GpencilColorData *BKE_material_gpencil_settings_get(Object *ob, short act)
+MaterialGPencilStyle *BKE_material_gpencil_settings_get(Object *ob, short act)
 {
 	Material *ma = give_current_material(ob, act);
 	if (ma != NULL) {

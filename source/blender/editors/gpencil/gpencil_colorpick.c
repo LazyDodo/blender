@@ -402,7 +402,7 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 			tgpk->curindex = idx;
 		}
 
-		GpencilColorData *gp_style = mat->gp_style;
+		MaterialGPencilStyle *gp_style = mat->gp_style;
 		tcolor->index = idx;
 		tcolor->mat = mat;
 		copy_v4_v4(tcolor->rgba, gp_style->rgb);

@@ -56,7 +56,7 @@
 
 /* create shading group for filling */
 static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, 
-	GPUShader *shader, bGPdata *gpd, GpencilColorData *gp_style, int id)
+	GPUShader *shader, bGPdata *gpd, MaterialGPencilStyle *gp_style, int id)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 
@@ -124,7 +124,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, 
 
 /* create shading group for strokes */
 DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, GPUShader *shader, Object *ob,
-	bGPdata *gpd, GpencilColorData *gp_style, int id, bool onion)
+	bGPdata *gpd, MaterialGPencilStyle *gp_style, int id, bool onion)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const float *viewport_size = DRW_viewport_size_get();
@@ -219,7 +219,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENC
 
 /* create shading group for volumetrics */
 static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, GPUShader *shader, Object *ob,
-	bGPdata *gpd, GpencilColorData *gp_style, int id, bool onion)
+	bGPdata *gpd, MaterialGPencilStyle *gp_style, int id, bool onion)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const float *viewport_size = DRW_viewport_size_get();
@@ -317,7 +317,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 	Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const float tintcolor[4], const bool onion, const bool custonion)
 {
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	if (gps->totpoints >= 3) {
 		float tfill[4];
 		/* set color using material, tint color and opacity */
@@ -354,7 +354,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	float tcolor[4];
 	float ink[4];
 	short sthickness;
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* set color using base color, tint color and opacity */
 	if (!onion) {
@@ -398,7 +398,7 @@ static void gpencil_add_editpoints_shgroup(
 		GPENCIL_StorageList *stl, GpencilBatchCache *cache,ToolSettings *ts, Object *ob, 
 		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	if (GPENCIL_ANY_EDIT_MODE(gpd)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -450,7 +450,7 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 		
-		GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+		MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 		copy_v4_v4(gps->tmp_rgb, gp_style->rgb);
 		copy_v4_v4(gps->tmp_fill, gp_style->fill);
 
@@ -524,7 +524,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 	}
 
 	for (gps = derived_gpf->strokes.first; gps; gps = gps->next) {
-		GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+		MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 		/* check if stroke can be drawn */
 		if (gpencil_can_draw_stroke(gp_style, gps, false) == false) {
@@ -630,7 +630,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	bGPdata *gpd = ob->data;
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 
 	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
 

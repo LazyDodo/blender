@@ -229,7 +229,7 @@ static void GPENCIL_cache_init(void *vedata)
 	/* Special handling for when active object is GP object (e.g. for draw mode) */
 	Object *obact = draw_ctx->obact;
 	bGPdata *obact_gpd = NULL;
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 
 	if (obact && (obact->type == OB_GPENCIL) && (obact->data)) {
 		obact_gpd = (bGPdata *)obact->data;

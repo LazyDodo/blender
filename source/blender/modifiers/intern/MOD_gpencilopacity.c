@@ -68,7 +68,7 @@ static void deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
                          Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	OpacityGpencilModifierData *mmd = (OpacityGpencilModifierData *)md;
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(ob,

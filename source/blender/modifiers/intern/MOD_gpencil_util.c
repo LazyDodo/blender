@@ -66,7 +66,7 @@ bool is_stroke_affected_by_modifier(
 		Object *ob, char *mlayername, int mpassindex, int minpoints,
         bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2)
 {
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* omit if filter by layer */
 	if (mlayername[0] != '\0') {

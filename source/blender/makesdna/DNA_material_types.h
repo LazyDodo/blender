@@ -64,7 +64,7 @@ typedef struct TexPaintSlot {
 #define CLAY_MATCAP_SIMPLE		1
 #define CLAY_MATCAP_COMPLETE	2
 
-typedef struct GpencilColorData {
+typedef struct MaterialGPencilStyle {
 	struct Image *sima;      /* Texture image for strokes */
 	struct Image *ima;       /* Texture image for filling */
 	float rgb[4];            /* color for paint and strokes (alpha included) */
@@ -86,7 +86,7 @@ typedef struct GpencilColorData {
 	float t_opacity;         /* texture opacity */
 	float t_pixsize;         /* pixel size for uv along the stroke */
 	int mode;                /* drawing mode (line or dots) */
-} GpencilColorData;
+} MaterialGPencilStyle;
 
 /* GpencilColor->flag */
 typedef enum eGpencilColorData_Flag {
@@ -161,7 +161,7 @@ typedef struct Material {
 	ListBase gpumaterial;
 
 	/* grease pencil color */
-	struct GpencilColorData *gp_style;
+	struct MaterialGPencilStyle *gp_style;
 } Material;
 
 /* **************** MATERIAL ********************* */

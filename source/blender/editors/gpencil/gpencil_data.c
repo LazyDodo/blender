@@ -2011,7 +2011,7 @@ static int gpencil_lock_layer_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 
 	/* sanity checks */
 	if (ELEM(NULL, gpd))
@@ -2075,8 +2075,8 @@ static int gpencil_color_isolate_exec(bContext *C, wmOperator *op)
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
 	Material *active_ma = give_current_material(ob, ob->actcol);
-	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol);
-	GpencilColorData *gp_style;
+	MaterialGPencilStyle *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol);
+	MaterialGPencilStyle *gp_style;
 
 	int flags = GPC_COLOR_LOCKED;
 	bool isolate = false;
@@ -2161,7 +2161,7 @@ void GPENCIL_OT_color_isolate(wmOperatorType *ot)
 static int gpencil_color_hide_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol);
+	MaterialGPencilStyle *active_color = BKE_material_gpencil_settings_get(ob, ob->actcol);
 
 	bool unselected = RNA_boolean_get(op->ptr, "unselected");
 
@@ -2173,7 +2173,7 @@ static int gpencil_color_hide_exec(bContext *C, wmOperator *op)
 
 	if (unselected) {
 		/* hide unselected */
-		GpencilColorData *color = NULL;
+		MaterialGPencilStyle *color = NULL;
 		for (short i = 0; i < *totcol; i++) {
 			ma = (*matar)[i];
 			color = ma->gp_style;
@@ -2224,7 +2224,7 @@ static int gpencil_color_reveal_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* make all colors visible */
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 
 	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
@@ -2267,7 +2267,7 @@ static int gpencil_color_lock_all_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* make all layers non-editable */
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 
 	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
@@ -2309,7 +2309,7 @@ static int gpencil_color_unlock_all_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* make all layers editable again*/
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 
 	for (short i = 0; i < *totcol; i++) {
 		ma = (*matar)[i];
@@ -2345,7 +2345,7 @@ static int gpencil_color_select_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, ob->actcol);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, ob->actcol);
 
 	/* sanity checks */
 	if (ELEM(NULL, gpd, gp_style))

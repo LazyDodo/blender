@@ -4120,7 +4120,7 @@ static void lib_link_material(FileData *fd, Main *main)
 
 			/* relink grease pencil settings */
 			if (ma->gp_style != NULL) {
-				GpencilColorData *gp_style = ma->gp_style;
+				MaterialGPencilStyle *gp_style = ma->gp_style;
 				if (gp_style->sima != NULL) {
 					gp_style->sima = newlibadr_us(fd, ma->id.lib, gp_style->sima);
 				}

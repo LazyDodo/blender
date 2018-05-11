@@ -267,19 +267,19 @@ static char *rna_GpencilColorData_path(PointerRNA *UNUSED(ptr))
 
 static int rna_GpencilColorData_is_stroke_visible_get(PointerRNA *ptr)
 {
-	GpencilColorData *pcolor = (GpencilColorData *)ptr->data;
+	MaterialGPencilStyle *pcolor = (MaterialGPencilStyle *)ptr->data;
 	return (pcolor->rgb[3] > GPENCIL_ALPHA_OPACITY_THRESH);
 }
 
 static int rna_GpencilColorData_is_fill_visible_get(PointerRNA *ptr)
 {
-	GpencilColorData *pcolor = (GpencilColorData *)ptr->data;
+	MaterialGPencilStyle *pcolor = (MaterialGPencilStyle *)ptr->data;
 	return ((pcolor->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (pcolor->fill_style > 0));
 }
 
 static void rna_GpencilColorData_stroke_image_set(PointerRNA *ptr, PointerRNA value)
 {
-	GpencilColorData *pcolor = (GpencilColorData *)ptr->data;
+	MaterialGPencilStyle *pcolor = (MaterialGPencilStyle *)ptr->data;
 	ID *id = value.data;
 
 	if (id) {
@@ -291,7 +291,7 @@ static void rna_GpencilColorData_stroke_image_set(PointerRNA *ptr, PointerRNA va
 
 static void rna_GpencilColorData_fill_image_set(PointerRNA *ptr, PointerRNA value)
 {
-	GpencilColorData *pcolor = (GpencilColorData *)ptr->data;
+	MaterialGPencilStyle *pcolor = (MaterialGPencilStyle *)ptr->data;
 	ID *id = value.data;
 
 	if (id) {
@@ -400,8 +400,8 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 		{ 0, NULL, 0, NULL, NULL }
 	};
 
-	srna = RNA_def_struct(brna, "GpencilColorData", NULL);
-	RNA_def_struct_sdna(srna, "GpencilColorData");
+	srna = RNA_def_struct(brna, "MaterialGPencilStyle", NULL);
+	RNA_def_struct_sdna(srna, "MaterialGPencilStyle");
 	RNA_def_struct_ui_text(srna, "Grease Pencil Color", "");
 	RNA_def_struct_path_func(srna, "rna_GpencilColorData_path");
 

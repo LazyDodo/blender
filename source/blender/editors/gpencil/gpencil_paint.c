@@ -566,7 +566,7 @@ static short gp_stroke_addpoint(
 	Object *obact = (Object *)p->ownerPtr.data;
 	RegionView3D *rv3d = p->ar->regiondata;
 	View3D *v3d = p->sa->spacedata.first;
-	GpencilColorData *gp_style = p->material->gp_style;
+	MaterialGPencilStyle *gp_style = p->material->gp_style;
 
 	/* check painting mode */
 	if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
@@ -1561,7 +1561,7 @@ static void gp_init_colors(tGPsdata *p)
 	Brush *brush = p->brush;
 
 	Material *ma = NULL;
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 	
 	/* use brush material */
 	ma = BKE_gpencil_get_color_from_brush(brush);

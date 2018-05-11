@@ -2324,7 +2324,7 @@ static void write_material(WriteData *wd, Material *ma)
 
 		/* grease pencil settings */
 		if (ma->gp_style) {
-			writestruct(wd, DATA, GpencilColorData, 1, ma->gp_style);
+			writestruct(wd, DATA, MaterialGPencilStyle, 1, ma->gp_style);
 		}
 	}
 }

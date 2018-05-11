@@ -461,7 +461,7 @@ bool ED_gpencil_stroke_can_use(const bContext *C, const bGPDstroke *gps)
 bool ED_gpencil_stroke_color_use(Object *ob, const bGPDlayer *gpl, const bGPDstroke *gps)
 {
 	/* check if the color is editable */
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	if (gp_style != NULL) {
 		if (gp_style->flag & GPC_COLOR_HIDE)
@@ -1381,7 +1381,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	GP_EditBrush_Data *brush = NULL;
 	Brush *paintbrush = NULL;
 	Material *ma = NULL;
-	GpencilColorData *gp_style = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
 	int *last_mouse_position = customdata;
 
 	if ((gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE)) {
@@ -1662,7 +1662,7 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 	if (gps == NULL) {
 		return;
 	}
-	GpencilColorData *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	float pixsize;
 	if (gp_style) {
 		pixsize = gp_style->t_pixsize / 1000000.0f;

@@ -116,7 +116,7 @@ static void bakeModifierGP(const bContext *C, Depsgraph *depsgraph,
 				Material *mat = give_current_material(ob, gps->mat_nr + 1);
 				if (mat == NULL)
 					continue;
-				GpencilColorData *gp_style = mat->gp_style;
+				MaterialGPencilStyle *gp_style = mat->gp_style;
 				/* skip stroke if it doesn't have color info */
 				if (ELEM(NULL, gp_style))
 					continue;
