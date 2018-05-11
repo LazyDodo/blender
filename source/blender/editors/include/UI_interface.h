@@ -1105,6 +1105,7 @@ void uiItemLDrag(uiLayout *layout, struct PointerRNA *ptr, const char *name, int
 void uiItemM(uiLayout *layout, struct bContext *C, const char *menuname, const char *name, int icon); /* menu */
 void uiItemV(uiLayout *layout, const char *name, int icon, int argval); /* value */
 void uiItemS(uiLayout *layout); /* separator */
+void uiItemSpacer(uiLayout *layout); /* separator that stretches */
 
 void uiItemPopoverPanel_ptr(
         uiLayout *layout, struct bContext *C,

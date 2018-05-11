@@ -718,6 +718,9 @@ void RNA_api_ui_layout(StructRNA *srna)
 
 	func = RNA_def_function(srna, "separator", "uiItemS");
 	RNA_def_function_ui_description(func, "Item. Inserts empty space into the layout between items");
+	
+	func = RNA_def_function(srna, "spacer", "uiItemSpacer");
+	RNA_def_function_ui_description(func, "Item. Inserts empty space into layout between items that can grow and shrink as needed");
 
 	/* context */
 	func = RNA_def_function(srna, "context_pointer_set", "uiLayoutSetContextPointer");

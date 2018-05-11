@@ -35,16 +35,31 @@ class TIME_HT_editor_buttons(Header):
         scene = context.scene
         toolsettings = context.tool_settings
         screen = context.screen
+        
+        # XXX: Nasty layout hacks ------------------------------ 
+        MAX_WIDTH = context.area.width
+        UI_UNIT_X = 20.0
+        UI_DPI_FAC = context.user_preferences.system.ui_scale
+        
+        # 7 for playback, 17 for frame nums (4 per control + 1 + 1), + menus
+        total_content_width = (18 + 8 + 16) * UI_UNIT_X * UI_DPI_FAC
+        
+        free_space = MAX_WIDTH - total_content_width
+        if free_space < 0:
+            spacer_scale = 0.1
+        else:
+            spacer_scale = (free_space / 2) / (UI_UNIT_X * UI_DPI_FAC)
+        #print("area width = %s, total_content = %s, spacer_scale = %s" % (MAX_WIDTH, total_content_width, spacer_scale))
+        
+        # XXX: Nasty layout hacks end ---------------------------
 
-        layout.separator()   # XXX: This should be dynamic (e.g. layout.separator(stretch=1.0))
-        layout.separator()
-        layout.separator()
-        layout.separator()
-        layout.separator()
-        layout.separator()
-        layout.separator()
+        row = layout.row()
+        row.alignment = 'EXPAND'
+        row.scale_x = spacer_scale
+        row.spacer()
 
         row = layout.row(align=True)
+        row.alignment = 'CENTER'
         row.prop(toolsettings, "use_keyframe_insert_auto", text="", toggle=True)
 
         row.operator("screen.frame_jump", text="", icon='REW').end = False
@@ -67,34 +82,34 @@ class TIME_HT_editor_buttons(Header):
         row.operator("screen.keyframe_jump", text="", icon='NEXT_KEYFRAME').next = True
         row.operator("screen.frame_jump", text="", icon='FF').end = True
 
-        layout.separator()  # XXX: This should be dynamic (e.g. layout.separator(stretch=1.0))
-        layout.separator()
-        layout.separator()
-        layout.separator()
-        layout.separator()
-        layout.separator()
-        layout.separator()
+        row = layout.row()
+        row.alignment = 'EXPAND'
+        row.scale_x = spacer_scale
+        row.spacer()
 
         row = layout.row()
-        row.scale_x = 0.95
+        row.alignment = 'RIGHT'
+        
+        subrow = row.row()
+        subrow.scale_x = 0.95
         if scene.show_subframe:
-            row.prop(scene, "frame_float", text="")
+            subrow.prop(scene, "frame_float", text="")
         else:
-            row.prop(scene, "frame_current", text="")
+            subrow.prop(scene, "frame_current", text="")
 
-        layout.separator()
-        layout.separator()
+        row.separator()
+        row.separator()
 
-        row = layout.row(align=True)
-        row.prop(scene, "use_preview_range", text="", toggle=True)
-        sub = row.row(align=True)
-        sub.scale_x = 0.8
+        subrow = row.row(align=True)
+        subrow.prop(scene, "use_preview_range", text="", toggle=True)
+        subsub = subrow.row(align=True)
+        subsub.scale_x = 0.8
         if not scene.use_preview_range:
-            sub.prop(scene, "frame_start", text="Start")
-            sub.prop(scene, "frame_end", text="End")
+            subsub.prop(scene, "frame_start", text="Start")
+            subsub.prop(scene, "frame_end", text="End")
         else:
-            sub.prop(scene, "frame_preview_start", text="Start")
-            sub.prop(scene, "frame_preview_end", text="End")
+            subsub.prop(scene, "frame_preview_start", text="Start")
+            subsub.prop(scene, "frame_preview_end", text="End")
 
 
 class TIME_MT_editor_menus(Menu):

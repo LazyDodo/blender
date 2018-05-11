@@ -2113,6 +2113,18 @@ void uiItemS(uiLayout *layout)
 	uiDefBut(block, (is_menu) ? UI_BTYPE_SEPR_LINE : UI_BTYPE_SEPR, 0, "", 0, 0, space, space, NULL, 0.0, 0.0, 0, 0, "");
 }
 
+/* spacer item - a separator that stretches out by default */
+void uiItemSpacer(uiLayout *layout)
+{
+	uiBlock *block = layout->root->block;
+	uiBut *but;
+	int space = UI_UNIT_X;
+
+	UI_block_layout_set_current(block, layout);
+	but = uiDefBut(block, UI_BTYPE_SEPR, 0, "", 0, 0, space, space, NULL, 0.0, 0.0, 0, 0, "");
+	//printf("   spacer: s = %p -> L = %p\n", but, layout);
+}
+
 /* level items */
 void uiItemMenuF(uiLayout *layout, const char *name, int icon, uiMenuCreateFunc func, void *arg)
 {
@@ -2331,6 +2343,7 @@ static void ui_litem_layout_row(uiLayout *litem)
 			{
 				min_flag = false;
 			}
+			
 
 			if ((neww < minw || min_flag) && w != 0) {
 				/* fixed size */
@@ -2360,7 +2373,8 @@ static void ui_litem_layout_row(uiLayout *litem)
 
 	for (item = litem->items.first; item; item = item->next) {
 		ui_item_size(item, &itemw, &itemh);
-		minw = ui_litem_min_width(itemw);
+		//minw = ui_litem_min_width(itemw);
+		minw = itemw;
 
 		if (item->flag & UI_ITEM_FIXED) {
 			/* fixed minimum size items */
