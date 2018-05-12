@@ -238,9 +238,10 @@ static int ui_layout_vary_direction(uiLayout *layout)
 static int ui_text_icon_width(uiLayout *layout, const char *name, int icon, bool compact)
 {
 	bool variable;
+	const int unit_x = UI_UNIT_X * (layout->scale[0] ? layout->scale[0] : 1.0f);
 
 	if (icon && !name[0])
-		return UI_UNIT_X;  /* icon only */
+		return unit_x;  /* icon only */
 
 	variable = (ui_layout_vary_direction(layout) == UI_ITEM_VARY_X);
 
@@ -249,14 +250,14 @@ static int ui_text_icon_width(uiLayout *layout, const char *name, int icon, bool
 			layout->item.flag |= UI_ITEM_MIN;
 		}
 		const uiFontStyle *fstyle = UI_FSTYLE_WIDGET;
-		/* it may seem odd that the icon only adds (UI_UNIT_X / 4)
+		/* it may seem odd that the icon only adds (unit_x / 4)
 		 * but taking margins into account its fine */
 		return (UI_fontstyle_string_width(fstyle, name) +
-		        (UI_UNIT_X * ((compact ? 1.25f : 1.50f) +
-		                      (icon    ? 0.25f : 0.0f))));
+		        (unit_x * ((compact ? 1.25f : 1.50f) +
+		                   (icon    ? 0.25f : 0.0f))));
 	}
 	else {
-		return UI_UNIT_X * 10;
+		return unit_x * 10;
 	}
 }
 
@@ -902,7 +903,23 @@ static void ui_item_menu_hold(struct bContext *C, ARegion *butregion, uiBut *but
 
 	block->flag |= UI_BLOCK_POPUP_HOLD;
 	block->flag |= UI_BLOCK_IS_FLIP;
-	UI_block_direction_set(block, UI_DIR_DOWN);
+
+	char direction = UI_DIR_DOWN;
+	if (!but->drawstr[0]) {
+		if (butregion->alignment == RGN_ALIGN_LEFT) {
+			direction = UI_DIR_RIGHT;
+		}
+		else if (butregion->alignment == RGN_ALIGN_RIGHT) {
+			direction = UI_DIR_LEFT;
+		}
+		else if (butregion->alignment == RGN_ALIGN_BOTTOM) {
+			direction = UI_DIR_UP;
+		}
+		else {
+			direction = UI_DIR_DOWN;
+		}
+	}
+	UI_block_direction_set(block, direction);
 
 	const char *menu_id = but->hold_argN;
 	MenuType *mt = WM_menutype_find(menu_id, true);
@@ -1824,6 +1841,35 @@ static void ui_item_menutype_func(bContext *C, uiLayout *layout, void *arg_mt)
 	layout->root->block->flag ^= UI_BLOCK_IS_FLIP;
 }
 
+static void ui_item_paneltype_func(bContext *C, uiLayout *layout, void *arg_mt)
+{
+	PanelType *pt = (PanelType *)arg_mt;
+
+	/* TODO: move into UI_paneltype_draw */
+	Panel *panel = MEM_callocN(sizeof(Panel), "popover panel");
+	panel->type = pt;
+
+	if (layout->context) {
+		CTX_store_set(C, layout->context);
+	}
+
+	if (pt->draw_header) {
+		panel->layout = uiLayoutRow(layout, false);
+		pt->draw_header(C, panel);
+		panel->layout = NULL;
+	}
+
+	panel->layout = layout;
+	pt->draw(C, panel);
+	panel->layout = NULL;
+
+	if (layout->context) {
+		CTX_store_set(C, NULL);
+	}
+
+	MEM_freeN(panel);
+}
+
 static uiBut *ui_item_menu(
         uiLayout *layout, const char *name, int icon, uiMenuCreateFunc func, void *arg, void *argN,
         const char *tip, bool force_menu)
@@ -1900,6 +1946,82 @@ void uiItemM(uiLayout *layout, bContext *UNUSED(C), const char *menuname, const 
 
 	ui_item_menu(layout, name, icon, ui_item_menutype_func, mt, NULL, TIP_(mt->description), false);
 }
+
+/* popover */
+void uiItemPopoverPanel_ptr(uiLayout *layout, bContext *C, PanelType *pt, const char *name, int icon)
+{
+	if (!name) {
+		name = CTX_IFACE_(pt->translation_context, pt->label);
+	}
+
+	if (layout->root->type == UI_LAYOUT_MENU && !icon)
+		icon = ICON_BLANK1;
+
+	uiBut *but = ui_item_menu(layout, name, icon, ui_item_paneltype_func, pt, NULL, NULL, true);
+	but->type = UI_BTYPE_POPOVER;
+	if (pt->poll && (pt->poll(C, pt) == false)) {
+		but->flag |= UI_BUT_DISABLED;
+	}
+}
+
+void uiItemPopoverPanel(
+        uiLayout *layout, bContext *C,
+        int space_id, int region_id, const char *panel_type,
+        const char *name, int icon)
+{
+	SpaceType *st = BKE_spacetype_from_id(space_id);
+	if (st == NULL) {
+		RNA_warning("space type not found %d", space_id);
+		return;
+	}
+	ARegionType *art = BKE_regiontype_from_id(st, region_id);
+	if (art == NULL) {
+		RNA_warning("region type not found %d", region_id);
+		return;
+	}
+
+	PanelType *pt;
+	for (pt = art->paneltypes.first; pt; pt = pt->next) {
+		if (STREQ(pt->idname, panel_type)) {
+			break;
+		}
+	}
+
+	if (pt == NULL) {
+		RNA_warning("area type not found %s", panel_type);
+		return;
+	}
+
+	uiItemPopoverPanel_ptr(layout, C, pt, name, icon);
+}
+
+void uiItemPopoverPanelFromGroup(
+        uiLayout *layout, bContext *C,
+        int space_id, int region_id, const char *context, const char *category)
+{
+	SpaceType *st = BKE_spacetype_from_id(space_id);
+	if (st == NULL) {
+		RNA_warning("space type not found %d", space_id);
+		return;
+	}
+	ARegionType *art = BKE_regiontype_from_id(st, region_id);
+	if (art == NULL) {
+		RNA_warning("region type not found %d", region_id);
+		return;
+	}
+
+	for (PanelType *pt = art->paneltypes.first; pt; pt = pt->next) {
+		/* Causes too many panels, check context. */
+		if (/* (*context == '\0') || */ STREQ(pt->context, context)) {
+			if ((*category == '\0') || STREQ(pt->category, category)) {
+				if (pt->poll == NULL || pt->poll(C, pt)) {
+					uiItemPopoverPanel_ptr(layout, C, pt, NULL, ICON_NONE);
+				}
+			}
+		}
+	}
+}
+
 
 /* label item */
 static uiBut *uiItemL_(uiLayout *layout, const char *name, int icon)
@@ -3603,6 +3725,18 @@ MenuType *UI_but_menutype_get(uiBut *but)
 		return NULL;
 	}
 }
+
+/* this is a bit of a hack but best keep it in one place at least */
+PanelType *UI_but_paneltype_get(uiBut *but)
+{
+	if (but->menu_create_func == ui_item_paneltype_func) {
+		return (PanelType *)but->poin;
+	}
+	else {
+		return NULL;
+	}
+}
+
 
 void UI_menutype_draw(bContext *C, MenuType *mt, struct uiLayout *layout)
 {

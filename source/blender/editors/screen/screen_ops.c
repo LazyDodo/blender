@@ -197,17 +197,12 @@ int ED_operator_animview_active(bContext *C)
 {
 	if (ED_operator_areaactive(C)) {
 		SpaceLink *sl = (SpaceLink *)CTX_wm_space_data(C);
-		if (sl && (ELEM(sl->spacetype, SPACE_SEQ, SPACE_ACTION, SPACE_NLA, SPACE_IPO, SPACE_TIME)))
+		if (sl && (ELEM(sl->spacetype, SPACE_SEQ, SPACE_ACTION, SPACE_NLA, SPACE_IPO)))
 			return true;
 	}
 
 	CTX_wm_operator_poll_msg_set(C, "expected a timeline/animation area to be active");
 	return 0;
-}
-
-int ED_operator_timeline_active(bContext *C)
-{
-	return ed_spacetype_test(C, SPACE_TIME);
 }
 
 int ED_operator_outliner_active(bContext *C)
@@ -715,6 +710,59 @@ AZone *is_in_area_actionzone(ScrArea *sa, const int xy[2])
 				ED_area_tag_redraw(sa);
 				break;
 			}
+			else if (az->type == AZONE_REGION_SCROLL) {
+				ARegion *ar = az->ar;
+				View2D *v2d = &ar->v2d;
+				const short isect_value = UI_view2d_mouse_in_scrollers(ar, v2d, xy[0], xy[1]);
+				bool redraw = false;
+
+				if (isect_value == 'h') {
+					if (az->direction == AZ_SCROLL_HOR) {
+						az->alpha = 1.0f;
+						v2d->alpha_hor = 255;
+						v2d->size_hor = V2D_SCROLL_HEIGHT;
+						redraw = true;
+					}
+				}
+				else if (isect_value == 'v') {
+					if (az->direction == AZ_SCROLL_VERT) {
+						az->alpha = 1.0f;
+						v2d->alpha_vert = 255;
+						v2d->size_vert = V2D_SCROLL_WIDTH;
+						redraw = true;
+					}
+				}
+				else {
+					const int local_xy[2] = {xy[0] - ar->winrct.xmin, xy[1] - ar->winrct.ymin};
+					float dist_fac = 0.0f, alpha = 0.0f;
+
+					if (az->direction == AZ_SCROLL_HOR) {
+						dist_fac = BLI_rcti_length_y(&v2d->hor, local_xy[1]) / AZONEFADEIN;
+						CLAMP(dist_fac, 0.0f, 1.0f);
+						alpha = 1.0f - dist_fac;
+
+						v2d->alpha_hor = alpha * 255;
+						v2d->size_hor = round_fl_to_int(V2D_SCROLL_HEIGHT -
+						                                ((V2D_SCROLL_HEIGHT - V2D_SCROLL_HEIGHT_MIN) * dist_fac));
+					}
+					else if (az->direction == AZ_SCROLL_VERT) {
+						dist_fac = BLI_rcti_length_x(&v2d->vert, local_xy[0]) / AZONEFADEIN;
+						CLAMP(dist_fac, 0.0f, 1.0f);
+						alpha = 1.0f - dist_fac;
+
+						v2d->alpha_vert = alpha * 255;
+						v2d->size_vert = round_fl_to_int(V2D_SCROLL_WIDTH -
+						                                 ((V2D_SCROLL_WIDTH - V2D_SCROLL_WIDTH_MIN) * dist_fac));
+					}
+					az->alpha = alpha;
+					redraw = true;
+				}
+
+				if (redraw) {
+					ED_area_tag_redraw(sa);
+				}
+				/* Don't return! */
+			}
 		}
 	}
 	
@@ -776,6 +824,9 @@ static int actionzone_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		actionzone_apply(C, op, sad->az->type);
 		actionzone_exit(op);
 		return OPERATOR_FINISHED;
+	}
+	else if (ELEM(sad->az->type, AZONE_REGION_SCROLL)) {
+		return OPERATOR_PASS_THROUGH;
 	}
 	else {
 		/* add modal handler */
@@ -2118,7 +2169,8 @@ static int region_scale_get_maxsize(RegionMoveData *rmd)
 	if (rmd->ar->regiontype == RGN_TYPE_TOOL_PROPS) {
 		/* this calculation seems overly verbose
 		 * can someone explain why this method is necessary? - campbell */
-		maxsize = rmd->maxsize - ((rmd->sa->headertype == HEADERTOP) ? UI_UNIT_Y * 2 : UI_UNIT_Y) - (UI_UNIT_Y / 4);
+		const bool top_header = ED_area_header_alignment(rmd->sa) == RGN_ALIGN_TOP;
+		maxsize = rmd->maxsize - ((top_header) ? UI_UNIT_Y * 2 : UI_UNIT_Y) - (UI_UNIT_Y / 4);
 	}
 
 	return maxsize;
@@ -2162,7 +2214,9 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	/* execute the events */
 	switch (event->type) {
 		case MOUSEMOVE:
-			
+		{
+			const float aspect = BLI_rctf_size_x(&rmd->ar->v2d.cur) / (BLI_rcti_size_x(&rmd->ar->v2d.mask) + 1);
+			const int snap_size_threshold = (U.widget_unit * 3) / aspect;
 			if (rmd->edge == AE_LEFT_TO_TOPRIGHT || rmd->edge == AE_RIGHT_TO_TOPLEFT) {
 				delta = event->x - rmd->origx;
 				if (rmd->edge == AE_LEFT_TO_TOPRIGHT) delta = -delta;
@@ -2171,8 +2225,15 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				delta /= UI_DPI_FAC;
 				
 				rmd->ar->sizex = rmd->origval + delta;
+
+				if (rmd->ar->type->snap_size) {
+					short sizex_test = rmd->ar->type->snap_size(rmd->ar, rmd->ar->sizex, 0);
+					if (ABS(rmd->ar->sizex - sizex_test) < snap_size_threshold) {
+						rmd->ar->sizex = sizex_test;
+					}
+				}
 				CLAMP(rmd->ar->sizex, 0, rmd->maxsize);
-				
+
 				if (rmd->ar->sizex < UI_UNIT_X) {
 					rmd->ar->sizex = rmd->origval;
 					if (!(rmd->ar->flag & RGN_FLAG_HIDDEN))
@@ -2190,6 +2251,13 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				delta /= UI_DPI_FAC;
 
 				rmd->ar->sizey = rmd->origval + delta;
+
+				if (rmd->ar->type->snap_size) {
+					short sizey_test = rmd->ar->type->snap_size(rmd->ar, rmd->ar->sizey, 1);
+					if (ABS(rmd->ar->sizey - sizey_test) < snap_size_threshold) {
+						rmd->ar->sizey = sizey_test;
+					}
+				}
 				CLAMP(rmd->ar->sizey, 0, rmd->maxsize);
 
 				/* note, 'UI_UNIT_Y/4' means you need to drag the header almost
@@ -2209,7 +2277,7 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
 			
 			break;
-			
+		}
 		case LEFTMOUSE:
 			if (event->val == KM_RELEASE) {
 				
@@ -2280,7 +2348,7 @@ static void areas_do_frame_follow(bContext *C, bool middle)
 				/* do follow here if editor type supports it */
 				if ((scr->redraws_flag & TIME_FOLLOW)) {
 					if ((ar->regiontype == RGN_TYPE_WINDOW &&
-					     ELEM(sa->spacetype, SPACE_SEQ, SPACE_TIME, SPACE_IPO, SPACE_ACTION, SPACE_NLA)) ||
+					     ELEM(sa->spacetype, SPACE_SEQ, SPACE_IPO, SPACE_ACTION, SPACE_NLA)) ||
 					    (sa->spacetype == SPACE_CLIP && ar->regiontype == RGN_TYPE_PREVIEW))
 					{
 						float w = BLI_rctf_size_x(&ar->v2d.cur);
@@ -3570,13 +3638,14 @@ static int match_region_with_redraws(int spacetype, int regiontype, int redraws,
 					return 1;
 				break;
 			case SPACE_IPO:
-			case SPACE_ACTION:
 			case SPACE_NLA:
 				if ((redraws & TIME_ALL_ANIM_WIN) || from_anim_edit)
 					return 1;
 				break;
-			case SPACE_TIME:
-				/* if only 1 window or 3d windows, we do timeline too */
+			case SPACE_ACTION:
+				/* if only 1 window or 3d windows, we do timeline too
+				 * NOTE: Now we do do action editor in all these cases, since timeline is here
+				 */
 				if ((redraws & (TIME_ALL_ANIM_WIN | TIME_REGION | TIME_ALL_3D_WIN)) || from_anim_edit)
 					return 1;
 				break;
@@ -3627,7 +3696,7 @@ static int match_region_with_redraws(int spacetype, int regiontype, int redraws,
 			return 1;
 	}
 	else if (regiontype == RGN_TYPE_HEADER) {
-		if (spacetype == SPACE_TIME)
+		if (spacetype == SPACE_ACTION)
 			return 1;
 	}
 	else if (regiontype == RGN_TYPE_PREVIEW) {
@@ -3789,7 +3858,7 @@ static int screen_animation_step(bContext *C, wmOperator *UNUSED(op), const wmEv
 						/* do follow here if editor type supports it */
 						if ((sad->redraws & TIME_FOLLOW)) {
 							if ((ar->regiontype == RGN_TYPE_WINDOW &&
-							     ELEM(sa->spacetype, SPACE_SEQ, SPACE_TIME, SPACE_IPO, SPACE_ACTION, SPACE_NLA)) ||
+							     ELEM(sa->spacetype, SPACE_SEQ, SPACE_IPO, SPACE_ACTION, SPACE_NLA)) ||
 							    (sa->spacetype == SPACE_CLIP && ar->regiontype == RGN_TYPE_PREVIEW))
 							{
 								float w = BLI_rctf_size_x(&ar->v2d.cur);
@@ -3892,7 +3961,7 @@ int ED_screen_animation_play(bContext *C, int sync, int mode)
 		WM_event_add_notifier(C, NC_SCENE | ND_FRAME, scene);
 	}
 	else {
-		int refresh = SPACE_TIME; /* these settings are currently only available from a menu in the TimeLine */
+		int refresh = SPACE_ACTION; /* these settings are currently only available from a menu in the TimeLine */
 		
 		if (mode == 1)  /* XXX only play audio forwards!? */
 			BKE_sound_play_scene(scene);
@@ -4197,7 +4266,7 @@ typedef struct RegionAlphaInfo {
 #define TIMEOUT		0.2f
 #define TIMESTEP	0.04f
 
-float ED_region_blend_factor(ARegion *ar)
+float ED_region_blend_alpha(ARegion *ar)
 {
 	/* check parent too */
 	if (ar->regiontimer == NULL && (ar->alignment & RGN_SPLIT_PREV) && ar->prev) {

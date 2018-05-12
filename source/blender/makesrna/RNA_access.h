@@ -216,6 +216,7 @@ extern StructRNA RNA_DecimateModifier;
 extern StructRNA RNA_DelaySensor;
 extern StructRNA RNA_CorrectiveSmoothModifier;
 extern StructRNA RNA_DisplaceModifier;
+extern StructRNA RNA_SceneDisplay;
 extern StructRNA RNA_DisplaySafeAreas;
 extern StructRNA RNA_DistortedNoiseTexture;
 extern StructRNA RNA_DomainFluidSettings;
@@ -320,7 +321,6 @@ extern StructRNA RNA_Lattice;
 extern StructRNA RNA_LatticeModifier;
 extern StructRNA RNA_LatticePoint;
 extern StructRNA RNA_LayerCollection;
-extern StructRNA RNA_LayerCollectionOverride;
 extern StructRNA RNA_Library;
 extern StructRNA RNA_LimitDistanceConstraint;
 extern StructRNA RNA_LimitLocationConstraint;
@@ -442,6 +442,7 @@ extern StructRNA RNA_NoiseTexture;
 extern StructRNA RNA_NorController;
 extern StructRNA RNA_Object;
 extern StructRNA RNA_ObjectBase;
+extern StructRNA RNA_ObjectDisplay;
 extern StructRNA RNA_ObstacleFluidSettings;
 extern StructRNA RNA_OceanModifier;
 extern StructRNA RNA_OceanTexData;
@@ -577,7 +578,6 @@ extern StructRNA RNA_SpaceOutliner;
 extern StructRNA RNA_SpaceProperties;
 extern StructRNA RNA_SpaceSequenceEditor;
 extern StructRNA RNA_SpaceTextEditor;
-extern StructRNA RNA_SpaceTimeline;
 extern StructRNA RNA_SpaceUVEditor;
 extern StructRNA RNA_SpaceUserPreferences;
 extern StructRNA RNA_SpaceView3D;
@@ -651,7 +651,6 @@ extern StructRNA RNA_ThemeSpaceGradient;
 extern StructRNA RNA_ThemeSpaceListGeneric;
 extern StructRNA RNA_ThemeStyle;
 extern StructRNA RNA_ThemeTextEditor;
-extern StructRNA RNA_ThemeTimeline;
 extern StructRNA RNA_ThemeUserInterface;
 extern StructRNA RNA_ThemeUserPreferences;
 extern StructRNA RNA_ThemeView3D;
@@ -666,6 +665,7 @@ extern StructRNA RNA_TransformSequence;
 extern StructRNA RNA_UILayout;
 extern StructRNA RNA_UIList;
 extern StructRNA RNA_UIPieMenu;
+extern StructRNA RNA_uiPopover;
 extern StructRNA RNA_UIPopupMenu;
 extern StructRNA RNA_UVWarpModifier;
 extern StructRNA RNA_UVProjectModifier;
@@ -690,6 +690,8 @@ extern StructRNA RNA_WaveModifier;
 extern StructRNA RNA_VertexWeightEditModifier;
 extern StructRNA RNA_VertexWeightMixModifier;
 extern StructRNA RNA_VertexWeightProximityModifier;
+extern StructRNA RNA_View3DOverlay;
+extern StructRNA RNA_View3DShading;
 extern StructRNA RNA_ViewLayer;
 extern StructRNA RNA_Window;
 extern StructRNA RNA_WindowManager;
@@ -1277,7 +1279,7 @@ bool RNA_struct_override_store(
         struct IDOverrideStatic *override);
 
 void RNA_struct_override_apply(
-        struct PointerRNA *ptr_local, struct PointerRNA *ptr_reference, struct PointerRNA *ptr_storage,
+        struct PointerRNA *ptr_local, struct PointerRNA *ptr_override, struct PointerRNA *ptr_storage,
         struct IDOverrideStatic *override);
 
 struct IDOverrideStaticProperty *RNA_property_override_property_find(PointerRNA *ptr, PropertyRNA *prop);
@@ -1289,7 +1291,7 @@ struct IDOverrideStaticPropertyOperation *RNA_property_override_property_operati
         PointerRNA *ptr, PropertyRNA *prop, const short operation, const int index,
         const bool strict, bool *r_strict, bool *r_created);
 
-eRNAOverrideStatus RNA_property_override_status(PointerRNA *ptr, PropertyRNA *prop, const int index);
+eRNAOverrideStatus RNA_property_static_override_status(PointerRNA *ptr, PropertyRNA *prop, const int index);
 
 void        RNA_struct_state_owner_set(const char *name);
 const char *RNA_struct_state_owner_get(void);

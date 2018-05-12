@@ -63,6 +63,7 @@
 #include "ED_keyframing.h"
 #include "ED_screen.h"
 #include "ED_object.h"
+#include "ED_view3d.h"
 
 #include "UI_interface.h"
 
@@ -618,34 +619,31 @@ static void pose_copy_menu(Scene *scene)
 
 static int pose_flip_names_exec(bContext *C, wmOperator *op)
 {
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
-	bArmature *arm;
-
-	/* paranoia checks */
-	if (ELEM(NULL, ob, ob->pose)) 
-		return OPERATOR_CANCELLED;
-
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	const bool do_strip_numbers = RNA_boolean_get(op->ptr, "do_strip_numbers");
-
-	arm = ob->data;
-
-	ListBase bones_names = {NULL};
-
-	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
-	{
-		BLI_addtail(&bones_names, BLI_genericNodeN(pchan->name));
-	}
-	CTX_DATA_END;
-
-	ED_armature_bones_flip_names(arm, &bones_names, do_strip_numbers);
-
-	BLI_freelistN(&bones_names);
 	
-	/* since we renamed stuff... */
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, OB_MODE_POSE, ob)
+	{
+		bArmature *arm = ob->data;
+		ListBase bones_names = {NULL};
 
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+		FOREACH_PCHAN_SELECTED_IN_OBJECT_BEGIN (ob, pchan)
+		{
+			BLI_addtail(&bones_names, BLI_genericNodeN(pchan->name));
+		}
+		FOREACH_PCHAN_SELECTED_IN_OBJECT_END;
+
+		ED_armature_bones_flip_names(arm, &bones_names, do_strip_numbers);
+
+		BLI_freelistN(&bones_names);
+		
+		/* since we renamed stuff... */
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+
+		/* note, notifier might evolve */
+		WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+	}
+	FOREACH_OBJECT_IN_MODE_END;
 	
 	return OPERATOR_FINISHED;
 }
@@ -822,6 +820,7 @@ static int pose_armature_layers_showall_exec(bContext *C, wmOperator *op)
 	
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+	DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
 	
 	/* done */
 	return OPERATOR_FINISHED;
@@ -889,6 +888,7 @@ static int armature_layers_exec(bContext *C, wmOperator *op)
 
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+	DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
 
 	return OPERATOR_FINISHED;
 }
@@ -963,6 +963,7 @@ static int pose_bone_layers_exec(bContext *C, wmOperator *op)
 
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+	DEG_id_tag_update((ID *)ob->data, DEG_TAG_COPY_ON_WRITE);
 
 	return OPERATOR_FINISHED;
 }
@@ -1242,3 +1243,34 @@ void POSE_OT_quaternions_flip(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
+/* -------------------------------------------------------------------- */
+/** \name Toggle Bone selection Overlay Operator
+ * \{ */
+
+static int toggle_bone_selection_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	View3D *v3d = CTX_wm_view3d(C);
+	v3d->overlay.flag ^= V3D_OVERLAY_BONE_SELECTION;
+	ED_view3d_shade_update(CTX_data_main(C), v3d, CTX_wm_area(C));
+	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
+	return OPERATOR_FINISHED;
+}
+
+static int pose_select_linked_poll(bContext *C)
+{
+	return (ED_operator_view3d_active(C) && ED_operator_posemode(C));
+}
+
+void POSE_OT_toggle_bone_selection_overlay(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Toggle Bone Selection Overlay";
+	ot->description = "Toggle bone selection overlay of the viewport";
+	ot->idname = "POSE_OT_toggle_bone_selection_overlay";
+
+	/* api callbacks */
+	ot->exec = toggle_bone_selection_exec;
+	ot->poll = pose_select_linked_poll;
+}
+
+/** \} */

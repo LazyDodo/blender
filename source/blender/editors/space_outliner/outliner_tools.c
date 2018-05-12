@@ -550,7 +550,7 @@ static void group_instance_cb(
 {
 	Group *group = (Group *)tselem->id;
 
-	Object *ob = ED_object_add_type(C, OB_EMPTY, group->id.name + 2, scene->cursor, NULL, false, scene->layact);
+	Object *ob = ED_object_add_type(C, OB_EMPTY, group->id.name + 2, scene->cursor.location, NULL, false, scene->layact);
 	ob->dup_group = group;
 	ob->transflag |= OB_DUPLIGROUP;
 	id_lib_extern(&group->id);
@@ -2080,7 +2080,7 @@ static int do_outliner_operation_event(bContext *C, ARegion *ar, SpaceOops *soop
 				else if (datalevel == TSE_DRIVER_BASE) {
 					/* do nothing... no special ops needed yet */
 				}
-				else if (ELEM(datalevel, TSE_R_LAYER_BASE, TSE_R_LAYER, TSE_R_PASS)) {
+				else if (ELEM(datalevel, TSE_R_LAYER_BASE, TSE_R_LAYER)) {
 					/*WM_operator_name_call(C, "OUTLINER_OT_renderdata_operation", WM_OP_INVOKE_REGION_WIN, NULL)*/
 				}
 				else if (datalevel == TSE_ID_BASE) {

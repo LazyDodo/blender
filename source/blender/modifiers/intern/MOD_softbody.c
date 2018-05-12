@@ -49,13 +49,13 @@
 
 #include "MOD_modifiertypes.h"
 
-static void deformVerts(ModifierData *md, Depsgraph *depsgraph, Object *ob,
-                        DerivedMesh *UNUSED(derivedData),
-                        float (*vertexCos)[3],
-                        int numVerts,
-                        ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *UNUSED(derivedData),
+        float (*vertexCos)[3],
+        int numVerts)
 {
-	sbObjectStep(depsgraph, md->scene, ob, (float)md->scene->r.cfra, vertexCos, numVerts);
+	sbObjectStep(ctx->depsgraph, md->scene, ctx->object, (float)md->scene->r.cfra, vertexCos, numVerts);
 }
 
 static bool dependsOnTime(ModifierData *UNUSED(md))
@@ -84,12 +84,21 @@ ModifierTypeInfo modifierType_Softbody = {
 	                        eModifierTypeFlag_Single,
 
 	/* copyData */          NULL,
-	/* deformVerts */       deformVerts,
+
+	/* deformVerts_DM */    deformVerts,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          NULL,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,

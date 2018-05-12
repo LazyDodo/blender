@@ -194,4 +194,24 @@ bool snapNodesTransform(
         /* return args */
         float r_loc[2], float *r_dist_px, char *r_node_border);
 
+struct TransformBounds {
+	float center[3];		/* Center for transform widget. */
+	float min[3], max[3];	/* Boundbox of selection for transform widget. */
+
+	/* Normalized axis */
+	float axis[3][3];
+	float axis_min[3], axis_max[3];
+};
+
+struct TransformCalcParams {
+	uint use_only_center : 1;
+	uint use_local_axis : 1;
+	/* Use 'Scene.orientation_type' when zero, otherwise subtract one and use. */
+	ushort orientation_type;
+};
+int ED_transform_calc_manipulator_stats(
+        const struct bContext *C,
+        const struct TransformCalcParams *params,
+        struct TransformBounds *tbounds);
+
 #endif  /* __ED_TRANSFORM_H__ */

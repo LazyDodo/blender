@@ -277,6 +277,7 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 		/* if playback has just looped around, we need to add a new NLA track+strip to allow a clean pass to occur */
 		if ((sad) && (sad->flag & ANIMPLAY_FLAG_JUMPED)) {
 			AnimData *adt = BKE_animdata_from_id(id);
+			const bool is_first = (adt) && (adt->nla_tracks.first == NULL);
 			
 			/* perform push-down manually with some differences 
 			 * NOTE: BKE_nla_action_pushdown() sync warning...
@@ -296,6 +297,29 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 					/* adjust blending + extend so that they will behave correctly */
 					strip->extendmode = NLASTRIP_EXTEND_NOTHING;
 					strip->flag &= ~(NLASTRIP_FLAG_AUTO_BLENDS | NLASTRIP_FLAG_SELECT | NLASTRIP_FLAG_ACTIVE);
+					
+					/* copy current "action blending" settings from adt to the strip,
+					 * as it was keyframed with these settings, so omitting them will
+					 * change the effect  [T54766]
+					 */
+					if (is_first == false) {
+						strip->blendmode = adt->act_blendmode;
+						strip->influence = adt->act_influence;
+						
+						if (adt->act_influence < 1.0f) {
+							/* enable "user-controlled" influence (which will insert a default keyframe)
+							 * so that the influence doesn't get lost on the new update
+							 *
+							 * NOTE: An alternative way would have been to instead hack the influence
+							 * to not get always get reset to full strength if NLASTRIP_FLAG_USR_INFLUENCE
+							 * is disabled but auto-blending isn't being used. However, that approach
+							 * is a bit hacky/hard to discover, and may cause backwards compatability issues,
+							 * so it's better to just do it this way.
+							 */
+							strip->flag |= NLASTRIP_FLAG_USR_INFLUENCE;
+							BKE_nlastrip_validate_fcurves(strip);
+						}
+					}
 					
 					/* also, adjust the AnimData's action extend mode to be on 
 					 * 'nothing' so that previous result still play 
@@ -1081,8 +1105,6 @@ void drawLine(TransInfo *t, const float center[3], const float dir[3], char axis
 		
 		gpuPushMatrix();
 
-		// if (t->obedit) gpuLoadMatrix(t->obedit->obmat); // sets opengl viewing
-
 		copy_v3_v3(v3, dir);
 		mul_v3_fl(v3, v3d->far);
 		
@@ -1118,18 +1140,7 @@ void drawLine(TransInfo *t, const float center[3], const float dir[3], char axis
  */
 void resetTransModal(TransInfo *t)
 {
-	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-		if (t->mode == TFM_EDGE_SLIDE) {
-			freeEdgeSlideVerts(t, tc, &tc->custom.mode);
-		}
-		else if (t->mode == TFM_VERT_SLIDE) {
-			freeVertSlideVerts(t, tc, &tc->custom.mode);
-		}
-		else {
-			/* no need to keep looping... */
-			break;
-		}
-	}
+	freeTransCustomDataForMode(t);
 }
 
 void resetTransRestrictions(TransInfo *t)
@@ -1174,12 +1185,25 @@ void initTransDataContainers_FromObjectData(TransInfo *t)
 			TransDataContainer *tc = &t->data_container[i];
 			if (object_mode & OB_MODE_EDIT) {
 				tc->obedit = objects[i];
-				copy_m3_m4(tc->obedit_mat, tc->obedit->obmat);
-				normalize_m3(tc->obedit_mat);
+				/* Check needed for UV's */
+				if ((t->flag & T_2D_EDIT) == 0) {
+					tc->use_local_mat = true;
+				}
 			}
 			else if (object_mode & OB_MODE_POSE) {
 				tc->poseobj = objects[i];
+				tc->use_local_mat = true;
 			}
+
+			if (tc->use_local_mat) {
+				BLI_assert((t->flag & T_2D_EDIT) == 0);
+				copy_m4_m4(tc->mat, objects[i]->obmat);
+				copy_m3_m4(tc->mat3, tc->mat);
+				invert_m4_m4(tc->imat, tc->mat);
+				invert_m3_m3(tc->imat3, tc->mat3);
+				normalize_m3_m3(tc->mat3_unit, tc->mat3);
+			}
+			/* Otherwise leave as zero. */
 		}
 		MEM_freeN(objects);
 	}
@@ -1553,19 +1577,41 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	initNumInput(&t->num);
 }
 
+
+static void freeTransCustomData(
+        TransInfo *t, TransDataContainer *tc,
+        TransCustomData *custom_data)
+{
+	if (custom_data->free_cb) {
+		/* Can take over freeing t->data and data_2d etc... */
+		custom_data->free_cb(t, tc, custom_data);
+		BLI_assert(custom_data->data == NULL);
+	}
+	else if ((custom_data->data != NULL) && custom_data->use_free) {
+		MEM_freeN(custom_data->data);
+		custom_data->data = NULL;
+	}
+	/* In case modes are switched in the same transform session. */
+	custom_data->free_cb = false;
+	custom_data->use_free = false;
+}
+
 static void freeTransCustomDataContainer(TransInfo *t, TransDataContainer *tc, TransCustomDataContainer *tcdc)
 {
 	TransCustomData *custom_data = &tcdc->first_elem;
 	for (int i = 0; i < TRANS_CUSTOM_DATA_ELEM_MAX; i++, custom_data++) {
-		if (custom_data->free_cb) {
-			/* Can take over freeing t->data and data_2d etc... */
-			custom_data->free_cb(t, tc, custom_data);
-			BLI_assert(custom_data->data == NULL);
-		}
-		else if ((custom_data->data != NULL) && custom_data->use_free) {
-			MEM_freeN(custom_data->data);
-			custom_data->data = NULL;
-		}
+		freeTransCustomData(t, tc, custom_data);
+	}
+}
+
+/**
+ * Needed for mode switching.
+ */
+void freeTransCustomDataForMode(TransInfo *t)
+{
+	freeTransCustomData(t, NULL, &t->custom.mode);
+	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+		freeTransCustomData(t, tc, &tc->custom.mode);
 	}
 }
 
@@ -1592,7 +1638,7 @@ void postTrans(bContext *C, TransInfo *t)
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			/* free data malloced per trans-data */
 			if (ELEM(t->obedit_type, OB_CURVE, OB_SURF) ||
-				(t->spacetype == SPACE_IPO))
+			    (t->spacetype == SPACE_IPO))
 			{
 				TransData *td = tc->data;
 				for (int a = 0; a < tc->data_len; a++, td++) {
@@ -1731,16 +1777,11 @@ void calculateCenterLocal(
 {
 	/* setting constraint center */
 	/* note, init functions may over-ride t->center */
-	if (t->flag & (T_EDIT | T_POSE)) {
-		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-			float obinv[4][4];
-			Object *ob = tc->obedit ? tc->obedit : tc->poseobj;
-			invert_m4_m4(obinv, ob->obmat);
-			mul_v3_m4v3(tc->center_local, obinv, center_global);
+	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+		if (tc->use_local_mat) {
+			mul_v3_m4v3(tc->center_local, tc->imat, center_global);
 		}
-	}
-	else {
-		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+		else {
 			copy_v3_v3(tc->center_local, center_global);
 		}
 	}
@@ -1750,7 +1791,7 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 {
 	const float *cursor;
 	
-	cursor = ED_view3d_cursor3d_get(t->scene, t->view);
+	cursor = ED_view3d_cursor3d_get(t->scene, t->view)->location;
 	copy_v3_v3(r_center, cursor);
 	
 	/* If edit or pose mode, move cursor in local space */
@@ -1830,14 +1871,13 @@ void calculateCenterMedian(TransInfo *t, float r_center[3])
 	int total = 0;
 
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-		Object *ob_xform = tc->obedit ? tc->obedit : tc->poseobj;
 		int i;
 		for (i = 0; i < tc->data_len; i++) {
 			if (tc->data[i].flag & TD_SELECTED) {
 				if (!(tc->data[i].flag & TD_NOCENTER)) {
-					if (ob_xform) {
+					if (tc->use_local_mat) {
 						float v[3];
-						mul_v3_m4v3(v, ob_xform->obmat, tc->data[i].center);
+						mul_v3_m4v3(v, tc->mat, tc->data[i].center);
 						add_v3_v3(partial, v);
 					}
 					else {
@@ -1861,14 +1901,13 @@ void calculateCenterBound(TransInfo *t, float r_center[3])
 	int i;
 	bool is_first = true;
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-		Object *ob_xform = tc->obedit ? tc->obedit : tc->poseobj;
 		for (i = 0; i < tc->data_len; i++) {
 			if (is_first == false) {
 				if (tc->data[i].flag & TD_SELECTED) {
 					if (!(tc->data[i].flag & TD_NOCENTER)) {
-						if (ob_xform) {
+						if (tc->use_local_mat) {
 							float v[3];
-							mul_v3_m4v3(v, ob_xform->obmat, tc->data[i].center);
+							mul_v3_m4v3(v, tc->mat, tc->data[i].center);
 							minmax_v3v3_v3(min, max, v);
 						}
 						else {
@@ -1876,11 +1915,11 @@ void calculateCenterBound(TransInfo *t, float r_center[3])
 						}
 					}
 				}
-				is_first = false;
 			}
 			else {
 				copy_v3_v3(max, tc->data[i].center);
 				copy_v3_v3(min, tc->data[i].center);
+				is_first = false;
 			}
 		}
 	}

@@ -212,8 +212,8 @@ static void drawgrid(UnitSettings *unit, ARegion *ar, View3D *v3d, const char **
 #endif
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 
@@ -379,8 +379,8 @@ static void drawfloor(Scene *scene, View3D *v3d, const char **grid_unit)
 			unsigned char col_bg[3], col_grid_emphasise[3], col_grid_light[3];
 
 			Gwn_VertFormat *format = immVertexFormat();
-			unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-			unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+			uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR);
 
@@ -467,8 +467,8 @@ static void drawfloor(Scene *scene, View3D *v3d, const char **grid_unit)
 			/* draw axis lines -- sometimes grid floor is off, other times we still need to draw the Z axis */
 
 			Gwn_VertFormat *format = immVertexFormat();
-			unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-			unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+			uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR);
 			immBegin(GWN_PRIM_LINES, (show_axis_x + show_axis_y + show_axis_z) * 2);
@@ -579,7 +579,7 @@ void DRW_draw_background(void)
 		gpuLoadIdentity();
 		gpuLoadProjectionMatrix(m);
 
-		immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
+		immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR_DITHER);
 
 		UI_GetThemeColor3ubv(TH_LOW_GRAD, col_lo);
 		UI_GetThemeColor3ubv(TH_HIGH_GRAD, col_hi);
@@ -614,6 +614,10 @@ void DRW_draw_background(void)
 static bool is_cursor_visible(const DRWContextState *draw_ctx, Scene *scene, ViewLayer *view_layer)
 {
 	Object *ob = OBACT(view_layer);
+	View3D *v3d = draw_ctx->v3d;
+	if ((v3d->flag2 & V3D_RENDER_OVERRIDE) > 0 || (v3d->overlay.flag & V3D_OVERLAY_HIDE_CURSOR)) {
+		return false;
+	}
 
 	/* don't draw cursor in paint modes, but with a few exceptions */
 	if (ob && draw_ctx->object_mode & OB_MODE_ALL_PAINT) {
@@ -652,19 +656,69 @@ void DRW_draw_cursor(void)
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glDepthMask(GL_FALSE);
 	glDisable(GL_DEPTH_TEST);
-	glLineWidth(1.0f);
 
 	if (is_cursor_visible(draw_ctx, scene, view_layer)) {
 		int co[2];
-		if (ED_view3d_project_int_global(ar, ED_view3d_cursor3d_get(scene, v3d), co, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) {
+		const View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
+		if (ED_view3d_project_int_global(
+		            ar, cursor->location, co, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK)
+		{
+			RegionView3D *rv3d = ar->regiondata;
+
+			/* Draw nice Anti Aliased cursor. */
+			glLineWidth(1.0f);
+			glEnable(GL_BLEND);
+			glEnable(GL_LINE_SMOOTH);
+
+			float eps = 1e-5f;
+			rv3d->viewquat[0] = -rv3d->viewquat[0];
+			const bool is_aligned = compare_v4v4(cursor->rotation, rv3d->viewquat, eps);
+			rv3d->viewquat[0] = -rv3d->viewquat[0];
+
+			/* Draw lines */
+			if  (is_aligned == false) {
+				uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+				immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
+				immUniformThemeColor3(TH_VIEW_OVERLAY);
+				immBegin(GWN_PRIM_LINES, 12);
+
+				const float scale = ED_view3d_pixel_size(rv3d, cursor->location) * U.dpi_fac * 20;
+
+#define CURSOR_VERT(axis_vec, axis, fac) \
+				immVertex3f( \
+				        pos, \
+				        cursor->location[0] + axis_vec[0] * (fac), \
+				        cursor->location[1] + axis_vec[1] * (fac), \
+				        cursor->location[2] + axis_vec[2] * (fac))
+
+#define CURSOR_EDGE(axis_vec, axis, sign) { \
+					CURSOR_VERT(axis_vec, axis, sign 1.0f); \
+					CURSOR_VERT(axis_vec, axis, sign 0.3f); \
+				}
+
+				for (int axis = 0; axis < 3; axis++) {
+					float axis_vec[3] = {0};
+					axis_vec[axis] = scale;
+					mul_qt_v3(cursor->rotation, axis_vec);
+					CURSOR_EDGE(axis_vec, axis, +);
+					CURSOR_EDGE(axis_vec, axis, -);
+				}
+
+#undef CURSOR_VERT
+#undef CURSOR_EDGE
+
+				immEnd();
+				immUnbindProgram();
+			}
 
 			ED_region_pixelspace(ar);
-			gpuTranslate2f(co[0], co[1]);
+			gpuTranslate2f(co[0] + 0.5f, co[1] + 0.5f);
 			gpuScale2f(U.widget_unit, U.widget_unit);
 
-			Gwn_Batch *cursor_batch = DRW_cache_cursor_get();
+			Gwn_Batch *cursor_batch = DRW_cache_cursor_get(is_aligned);
 			GPUShader *shader = GPU_shader_get_builtin_shader(GPU_SHADER_2D_FLAT_COLOR);
 			GWN_batch_program_set(cursor_batch, GPU_shader_get_program(shader), GPU_shader_get_interface(shader));
+
 			GWN_batch_draw(cursor_batch);
 		}
 	}

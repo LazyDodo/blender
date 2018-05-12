@@ -2414,11 +2414,6 @@ static void write_layer_collections(WriteData *wd, ListBase *lb)
 		writestruct(wd, DATA, LayerCollection, 1, lc);
 
 		writelist(wd, DATA, LinkData, &lc->object_bases);
-		writelist(wd, DATA, CollectionOverride, &lc->overrides);
-
-		if (lc->properties) {
-			IDP_WriteProperty(lc->properties, wd);
-		}
 
 		write_layer_collections(wd, &lc->layer_collections);
 	}
@@ -2428,9 +2423,6 @@ static void write_view_layer(WriteData *wd, ViewLayer *view_layer)
 {
 	writestruct(wd, DATA, ViewLayer, 1, view_layer);
 	writelist(wd, DATA, Base, &view_layer->object_bases);
-	if (view_layer->properties) {
-		IDP_WriteProperty(view_layer->properties, wd);
-	}
 
 	if (view_layer->id_properties) {
 		IDP_WriteProperty(view_layer->id_properties, wd);
@@ -2856,9 +2848,6 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 				writestruct(wd, DATA, bDopeSheet, 1, snla->ads);
 			}
 		}
-		else if (sl->spacetype == SPACE_TIME) {
-			writestruct(wd, DATA, SpaceTime, 1, sl);
-		}
 		else if (sl->spacetype == SPACE_NODE) {
 			SpaceNode *snode = (SpaceNode *)sl;
 			bNodeTreePath *path;
@@ -2901,6 +2890,8 @@ static void write_area_map(WriteData *wd, ScrAreaMap *area_map)
 	writelist(wd, DATA, ScrVert, &area_map->vertbase);
 	writelist(wd, DATA, ScrEdge, &area_map->edgebase);
 	for (ScrArea *area = area_map->areabase.first; area; area = area->next) {
+		area->butspacetype = area->spacetype; /* Just for compatibility, will be reset below. */
+
 		writestruct(wd, DATA, ScrArea, 1, area);
 
 #ifdef WITH_TOPBAR_WRITING
@@ -2908,6 +2899,8 @@ static void write_area_map(WriteData *wd, ScrAreaMap *area_map)
 #endif
 
 		write_area_regions(wd, area);
+
+		area->butspacetype = SPACE_EMPTY; /* Unset again, was changed above. */
 	}
 }
 

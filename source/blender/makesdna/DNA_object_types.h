@@ -139,6 +139,10 @@ typedef struct LodLevel {
 	int obhysteresis;
 } LodLevel;
 
+typedef struct ObjectDisplay {
+	int flag;
+} ObjectDisplay;
+
 typedef struct Object {
 	ID id;
 	struct AnimData *adt;		/* animation data (must be immediately after id for utilities to use it) */ 
@@ -250,7 +254,7 @@ typedef struct Object {
 	char restrictflag;		/* for restricting view, select, render etc. accessible in outliner */
 	char pad3;
 	short softflag;			/* softbody settings */
-	float pad9[3];
+	int pad2;
 
 	ListBase constraints;		/* object constraints */
 	ListBase nlastrips  DNA_DEPRECATED;			// XXX deprecated... old animation system
@@ -291,16 +295,18 @@ typedef struct Object {
 
 	struct PreviewImage *preview;
 
-	struct IDProperty *base_collection_properties; /* used by depsgraph, flushed from base */
-
 	ListBase drawdata;		/* runtime, ObjectEngineData */
 	int pad6;
 	int select_color;
 
-	/* Mesh structure createrd during object evaluaiton.
+	/* Mesh structure created during object evaluation.
 	 * It has all modifiers applied.
 	 */
 	struct Mesh *mesh_evaluated;
+
+	/* Object Display */
+	struct ObjectDisplay display;
+	int pad9;
 } Object;
 
 /* Warning, this is not used anymore because hooks are now modifiers */
@@ -339,7 +345,6 @@ typedef struct DupliObject {
 	struct ParticleSystem *particle_system;
 	unsigned int random_id;
 	unsigned int pad;
-	struct IDProperty *collection_properties;
 } DupliObject;
 
 /* **************** OBJECT ********************* */
@@ -367,6 +372,11 @@ enum {
 
 /* 23 and 24 are for life and sector (old file compat.) */
 	OB_ARMATURE   = 25,
+};
+
+/* ObjectDisplay.flag */
+enum {
+	OB_SHOW_SHADOW = (1 << 0),
 };
 
 /* check if the object type supports materials */
@@ -442,7 +452,6 @@ enum {
 	OB_MATERIAL  = 4,
 	OB_TEXTURE   = 5,
 	OB_RENDER    = 6,
-	OB_CLAY    = 7,
 };
 
 /* dtx: flags (short) */

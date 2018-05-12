@@ -50,6 +50,7 @@ extern "C" {
 #include "DNA_layer_types.h"
 #include "DNA_material_types.h"
 #include "DNA_userdef_types.h"
+#include "DNA_view3d_types.h"
 
 struct CurveMapping;
 struct Object;
@@ -431,7 +432,7 @@ typedef struct ImageFormatData {
 #define R_IMF_IMTYPE_TIFF           22
 #define R_IMF_IMTYPE_OPENEXR        23
 #define R_IMF_IMTYPE_FFMPEG         24
-#define R_IMF_IMTYPE_FRAMESERVER    25
+/* #define R_IMF_IMTYPE_FRAMESERVER    25 */ /* frame server is nomore */
 #define R_IMF_IMTYPE_CINEON         26
 #define R_IMF_IMTYPE_DPX            27
 #define R_IMF_IMTYPE_MULTILAYER     28
@@ -1208,7 +1209,6 @@ typedef struct ToolSettings {
 	float vgroup_weight;
 
 	float doublimit;	/* remove doubles limit */
-	float normalsize;	/* size of normals */
 	short automerge;
 
 	/* Selection Mode for Mesh */
@@ -1233,6 +1233,8 @@ typedef struct ToolSettings {
 	char gpencil_v2d_align; /*                          : General 2D Editor */
 	char gpencil_seq_align; /*                          : Sequencer Preview */
 	char gpencil_ima_align; /*                          : Image Editor */
+
+	char _pad3[4];
 	
 	/* Grease Pencil Sculpt */
 	struct GP_BrushEdit_Settings gp_sculpt;
@@ -1351,6 +1353,13 @@ typedef struct DisplaySafeAreas {
 	float action_center[2];
 } DisplaySafeAreas;
 
+/* ------------------------------------------- */
+/* Scene Display - used for store scene specific display settings for the 3d view */
+typedef struct SceneDisplay {
+	float light_direction[3];      /* light direction for shadows/highlight */
+	int pad;
+} SceneDisplay;
+
 /* *************************************************************** */
 /* Scene ID-Block */
 
@@ -1367,8 +1376,7 @@ typedef struct Scene {
 	struct Base  *basact DNA_DEPRECATED; /* active base */
 	void *_pad1;
 	
-	float cursor[3];			/* 3d cursor location */
-	char _pad[4];
+	View3DCursor cursor;			/* 3d cursor location */
 	
 	unsigned int lay;			/* bitflags for layer visibility */
 	int layact;		/* active layer */
@@ -1440,11 +1448,11 @@ typedef struct Scene {
 
 	ListBase view_layers;
 	struct SceneCollection *collection;
-	int active_view_layer;
-	int pad4;
 
 	IDProperty *collection_properties;  /* settings to be overriden by layer collections */
 	IDProperty *layer_properties;  /* settings to be override by workspaces */
+
+	struct SceneDisplay display;
 } Scene;
 
 /* **************** RENDERDATA ********************* */
@@ -1670,6 +1678,8 @@ extern const char *RE_engine_id_CYCLES;
 	(((workspace)->object_mode & OD_MODE_EDIT) ? OBACT(_view_layer) : NULL)
 #define OBEDIT_FROM_OBACT(ob) \
 	((ob) ? (((ob)->mode & OB_MODE_EDIT) ? ob : NULL) : NULL)
+#define OBPOSE_FROM_OBACT(ob) \
+	((ob) ? (((ob)->mode & OB_MODE_POSE) ? ob : NULL) : NULL)
 #define OBEDIT_FROM_VIEW_LAYER(view_layer) \
 	OBEDIT_FROM_OBACT(OBACT(view_layer))
 

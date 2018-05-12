@@ -1989,9 +1989,6 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 	if (ntree) {
 		bNodeTree *ltree;
 		bNode *node;
-		AnimData *adt;
-
-		bAction *action_backup = NULL, *tmpact_backup = NULL;
 
 		BLI_spin_lock(&spin);
 		if (!ntree->duplilock) {
@@ -2001,23 +1998,16 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 
 		BLI_mutex_lock(ntree->duplilock);
 
-		/* Workaround for copying an action on each render!
-		 * set action to NULL so animdata actions don't get copied */
-		adt = BKE_animdata_from_id(&ntree->id);
-
-		if (adt) {
-			action_backup = adt->action;
-			tmpact_backup = adt->tmpact;
-
-			adt->action = NULL;
-			adt->tmpact = NULL;
-		}
-
 		/* Make full copy outside of Main database.
 		 * Note: previews are not copied here.
 		 */
-		BKE_id_copy_ex(G.main, (ID *)ntree, (ID **)&ltree,
-		               LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT | LIB_ID_COPY_NO_PREVIEW, false);
+		BKE_id_copy_ex(
+		        NULL, &ntree->id, (ID **)&ltree,
+		        (LIB_ID_CREATE_NO_MAIN |
+		         LIB_ID_CREATE_NO_USER_REFCOUNT |
+		         LIB_ID_COPY_NO_PREVIEW |
+		         LIB_ID_COPY_NO_ANIMDATA),
+		        false);
 		ltree->flag |= NTREE_IS_LOCALIZED;
 
 		for (node = ltree->nodes.first; node; node = node->next) {
@@ -2025,20 +2015,6 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 				node->id = (ID *)ntreeLocalize((bNodeTree *)node->id);
 			}
 		}
-
-		if (adt) {
-			AnimData *ladt = BKE_animdata_from_id(&ltree->id);
-
-			adt->action = ladt->action = action_backup;
-			adt->tmpact = ladt->tmpact = tmpact_backup;
-
-			if (action_backup)
-				id_us_plus(&action_backup->id);
-			if (tmpact_backup)
-				id_us_plus(&tmpact_backup->id);
-
-		}
-		/* end animdata uglyness */
 
 		/* ensures only a single output node is enabled */
 		ntreeSetOutput(ntree);
@@ -2050,6 +2026,8 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 
 		if (ntree->typeinfo->localize)
 			ntree->typeinfo->localize(ltree, ntree);
+
+		ltree->id.tag |= LIB_TAG_LOCALIZED;
 
 		BLI_mutex_unlock(ntree->duplilock);
 
@@ -3792,10 +3770,10 @@ void BKE_nodetree_copy_default_values(bNodeTree *ntree_dst,
 	}
 }
 
-void BKE_nodetree_shading_params_eval(struct Depsgraph *UNUSED(depsgraph),
+void BKE_nodetree_shading_params_eval(struct Depsgraph *depsgraph,
                                       bNodeTree *ntree_dst,
                                       const bNodeTree *ntree_src)
 {
-	DEG_debug_print_eval(__func__, ntree_src->id.name, ntree_dst);
+	DEG_debug_print_eval(depsgraph, __func__, ntree_src->id.name, ntree_dst);
 	BKE_nodetree_copy_default_values(ntree_dst, ntree_src);
 }

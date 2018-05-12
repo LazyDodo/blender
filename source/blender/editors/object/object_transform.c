@@ -35,11 +35,11 @@
 #include "DNA_armature_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
+#include "DNA_lamp_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_group_types.h"
 #include "DNA_lattice_types.h"
-#include "DNA_lamp_types.h"
 
 #include "BLI_math.h"
 #include "BLI_listbase.h"
@@ -479,6 +479,18 @@ static int apply_objects_internal(
 				changed = false;
 			}
 		}
+
+		if (ob->type == OB_LAMP) {
+			Lamp *la = ob->data;
+			if (la->type == LA_AREA) {
+				if (apply_rot || apply_loc) {
+					BKE_reportf(reports, RPT_ERROR,
+					            "Area Lamps can only have scale applied: \"%s\"",
+					            ob->id.name + 2);
+					changed = false;
+				}
+			}
+		}
 	}
 	CTX_DATA_END;
 	
@@ -607,6 +619,22 @@ static int apply_objects_internal(
 				float max_scale = max_fff(fabsf(ob->size[0]), fabsf(ob->size[1]), fabsf(ob->size[2]));
 				ob->empty_drawsize *= max_scale;
 			}
+		}
+		else if (ob->type == OB_LAMP) {
+			Lamp *la = ob->data;
+			if (la->type != LA_AREA) {
+				continue;
+			}
+
+			bool keeps_aspect_ratio = compare_ff_relative(rsmat[0][0], rsmat[1][1], FLT_EPSILON, 64);
+			if ((la->area_shape == LA_AREA_SQUARE) && !keeps_aspect_ratio) {
+				la->area_shape = LA_AREA_RECT;
+				la->area_sizey = la->area_size;
+			}
+
+			la->area_size *= rsmat[0][0];
+			la->area_sizey *= rsmat[1][1];
+			la->area_sizez *= rsmat[2][2];
 		}
 		else {
 			continue;
@@ -758,7 +786,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 	else {
 		/* get the view settings if 'around' isn't set and the view is available */
 		View3D *v3d = CTX_wm_view3d(C);
-		copy_v3_v3(cursor, ED_view3d_cursor3d_get(scene, v3d));
+		copy_v3_v3(cursor, ED_view3d_cursor3d_get(scene, v3d)->location);
 		if (v3d && !RNA_struct_property_is_set(op->ptr, "center"))
 			around = v3d->around;
 	}

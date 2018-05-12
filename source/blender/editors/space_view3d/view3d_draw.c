@@ -72,6 +72,7 @@
 
 #include "DEG_depsgraph_query.h"
 
+#include "GPU_batch.h"
 #include "GPU_draw.h"
 #include "GPU_matrix.h"
 #include "GPU_immediate.h"
@@ -1245,41 +1246,35 @@ static void view3d_draw_view(const bContext *C, ARegion *ar)
 
 RenderEngineType *ED_view3d_engine_type(Scene *scene, int drawtype)
 {
-	/* Tempory viewport draw modes until we have a proper system. */
-	if (drawtype == OB_RENDER) {
-		return RE_engines_find(scene->r.engine);
-	}
-	else if (drawtype == OB_MATERIAL) {
+	/*
+	 * Tempory viewport draw modes until we have a proper system. 
+	 * all modes are done in the draw manager, except
+	 * cycles material as it is an external render engine.
+	 */
+	if (strcmp(scene->r.engine, RE_engine_id_CYCLES) == 0 && drawtype == OB_MATERIAL) {
 		return RE_engines_find(RE_engine_id_BLENDER_EEVEE);
 	}
-	else {
-		return RE_engines_find(RE_engine_id_BLENDER_WORKBENCH);
-	}
+	return RE_engines_find(scene->r.engine);
 }
 
 void view3d_main_region_draw(const bContext *C, ARegion *ar)
 {
 	View3D *v3d = CTX_wm_view3d(C);
-	RegionView3D *rv3d = ar->regiondata;
 
-	if (!rv3d->viewport) {
-		rv3d->viewport = GPU_viewport_create();
-	}
-
-	GPU_viewport_bind(rv3d->viewport, &ar->winrct);
 	view3d_draw_view(C, ar);
-	GPU_viewport_unbind(rv3d->viewport);
-
-	rcti rect = ar->winrct;
-	BLI_rcti_translate(&rect, -ar->winrct.xmin, -ar->winrct.ymin);
-	GPU_viewport_draw_to_screen(rv3d->viewport, &rect);
 
 	GPU_free_images_old();
 	GPU_pass_cache_garbage_collect();
 
+	/* XXX This is in order to draw UI batches with the DRW
+	 * olg context since we now use it for drawing the entire area */
+	gpu_batch_presets_reset();
+
+	/* No depth test for drawing action zones afterwards. */
+	glDisable(GL_DEPTH_TEST);
+
 	v3d->flag |= V3D_INVALID_BACKBUF;
 }
-
 
 /* -------------------------------------------------------------------- */
 

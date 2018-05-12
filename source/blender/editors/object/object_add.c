@@ -148,11 +148,11 @@ static const EnumPropertyItem field_type_items[] = {
 };
 
 static EnumPropertyItem lightprobe_type_items[] = {
-	{LIGHTPROBE_TYPE_CUBE, "SPHERE", ICON_MESH_UVSPHERE, "Reflection Cubemap",
+	{LIGHTPROBE_TYPE_CUBE, "CUBEMAP", ICON_LIGHTPROBE_CUBEMAP, "Reflection Cubemap",
      "Reflection probe with spherical or cubic attenuation"},
-	{LIGHTPROBE_TYPE_PLANAR, "PLANAR", ICON_MESH_PLANE, "Reflection Plane",
+	{LIGHTPROBE_TYPE_PLANAR, "PLANAR", ICON_LIGHTPROBE_PLANAR, "Reflection Plane",
      "Planar reflection probe"},
-	{LIGHTPROBE_TYPE_GRID, "GRID", ICON_MESH_GRID, "Irradiance Volume",
+	{LIGHTPROBE_TYPE_GRID, "GRID", ICON_LIGHTPROBE_GRID, "Irradiance Volume",
      "Irradiance probe to capture diffuse indirect lighting"},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -165,50 +165,49 @@ void ED_object_location_from_view(bContext *C, float loc[3])
 	Scene *scene = CTX_data_scene(C);
 	const float *cursor;
 
-	cursor = ED_view3d_cursor3d_get(scene, v3d);
+	cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
 
 	copy_v3_v3(loc, cursor);
+}
+
+void ED_object_rotation_from_quat(float rot[3], const float viewquat[4], const char align_axis)
+{
+	BLI_assert(align_axis >= 'X' && align_axis <= 'Z');
+
+	switch (align_axis) {
+		case 'X':
+		{
+			/* Same as 'rv3d->viewinv[1]' */
+			float axis_y[4] = {0.0f, 1.0f, 0.0f};
+			float quat_y[4], quat[4];
+			axis_angle_to_quat(quat_y, axis_y, M_PI_2);
+			mul_qt_qtqt(quat, viewquat, quat_y);
+			quat_to_eul(rot, quat);
+			break;
+		}
+		case 'Y':
+		{
+			quat_to_eul(rot, viewquat);
+			rot[0] -= (float)M_PI_2;
+			break;
+		}
+		case 'Z':
+		{
+			quat_to_eul(rot, viewquat);
+			break;
+		}
+	}
 }
 
 void ED_object_rotation_from_view(bContext *C, float rot[3], const char align_axis)
 {
 	RegionView3D *rv3d = CTX_wm_region_view3d(C);
-
 	BLI_assert(align_axis >= 'X' && align_axis <= 'Z');
-
 	if (rv3d) {
-		float quat[4];
-
-		switch (align_axis) {
-			case 'X':
-			{
-				float quat_y[4];
-				axis_angle_to_quat(quat_y, rv3d->viewinv[1], -M_PI_2);
-				mul_qt_qtqt(quat, rv3d->viewquat, quat_y);
-				quat[0] = -quat[0];
-
-				quat_to_eul(rot, quat);
-				break;
-			}
-			case 'Y':
-			{
-				copy_qt_qt(quat, rv3d->viewquat);
-				quat[0] = -quat[0];
-
-				quat_to_eul(rot, quat);
-				rot[0] -= (float)M_PI_2;
-				break;
-			}
-			case 'Z':
-			{
-				copy_qt_qt(quat, rv3d->viewquat);
-				quat[0] = -quat[0];
-
-				quat_to_eul(rot, quat);
-				break;
-			}
-		}
-
+		float viewquat[4];
+		copy_qt_qt(viewquat, rv3d->viewquat);
+		viewquat[0] *= -1.0f;
+		ED_object_rotation_from_quat(rot, viewquat, align_axis);
 	}
 	else {
 		zero_v3(rot);

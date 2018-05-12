@@ -699,11 +699,11 @@ static bool remap_hair_emitter(
 
 	if (dm->getNumTessFaces(dm) != 0) {
 		mface = dm->getTessFaceArray(dm);
-		bvhtree_from_mesh_faces(&bvhtree, dm, 0.0, 2, 6);
+		bvhtree_from_mesh_get(&bvhtree, dm, BVHTREE_FROM_FACES, 2);
 	}
 	else if (dm->getNumEdges(dm) != 0) {
 		medge = dm->getEdgeArray(dm);
-		bvhtree_from_mesh_edges(&bvhtree, dm, 0.0, 2, 6);
+		bvhtree_from_mesh_get(&bvhtree, dm, BVHTREE_FROM_EDGES, 2);
 	}
 	else {
 		dm->release(dm);
@@ -946,7 +946,7 @@ static void copy_particle_edit(
 		
 		pa++;
 	}
-	update_world_cos(ob, edit);
+	update_world_cos(depsgraph, ob, edit);
 	
 	UI_GetThemeColor3ubv(TH_EDGE_SELECT, edit->sel_col);
 	UI_GetThemeColor3ubv(TH_WIRE, edit->nosel_col);

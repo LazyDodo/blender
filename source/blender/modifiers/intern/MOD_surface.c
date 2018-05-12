@@ -63,20 +63,17 @@ static void freeData(ModifierData *md)
 	if (surmd) {
 		if (surmd->bvhtree) {
 			free_bvhtree_from_mesh(surmd->bvhtree);
-			MEM_freeN(surmd->bvhtree);
+			MEM_SAFE_FREE(surmd->bvhtree);
 		}
 
-		if (surmd->dm)
+		if (surmd->dm) {
 			surmd->dm->release(surmd->dm);
+			surmd->dm = NULL;
+		}
 
-		if (surmd->x)
-			MEM_freeN(surmd->x);
+		MEM_SAFE_FREE(surmd->x);
 		
-		if (surmd->v)
-			MEM_freeN(surmd->v);
-
-		surmd->bvhtree = NULL;
-		surmd->dm = NULL;
+		MEM_SAFE_FREE(surmd->v);
 	}
 }
 
@@ -85,11 +82,11 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
 	return true;
 }
 
-static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
-                        Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3],
-                        int UNUSED(numVerts),
-                        ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *derivedData,
+        float (*vertexCos)[3],
+        int UNUSED(numVerts))
 {
 	SurfaceModifierData *surmd = (SurfaceModifierData *) md;
 	
@@ -98,9 +95,9 @@ static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
 
 	/* if possible use/create DerivedMesh */
 	if (derivedData) surmd->dm = CDDM_copy(derivedData);
-	else surmd->dm = get_dm(ob, NULL, NULL, NULL, false, false);
+	else surmd->dm = get_dm(ctx->object, NULL, NULL, NULL, false, false);
 	
-	if (!ob->pd) {
+	if (!ctx->object->pd) {
 		printf("SurfaceModifier deformVerts: Should not happen!\n");
 		return;
 	}
@@ -141,7 +138,7 @@ static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
 		/* convert to global coordinates and calculate velocity */
 		for (i = 0, x = surmd->x, v = surmd->v; i < numverts; i++, x++, v++) {
 			vec = CDDM_get_vert(surmd->dm, i)->co;
-			mul_m4_v3(ob->obmat, vec);
+			mul_m4_v3(ctx->object->obmat, vec);
 
 			if (init)
 				v->co[0] = v->co[1] = v->co[2] = 0.0f;
@@ -159,9 +156,9 @@ static void deformVerts(ModifierData *md, struct Depsgraph *UNUSED(depsgraph),
 			surmd->bvhtree = MEM_callocN(sizeof(BVHTreeFromMesh), "BVHTreeFromMesh");
 
 		if (surmd->dm->getNumPolys(surmd->dm))
-			bvhtree_from_mesh_looptri(surmd->bvhtree, surmd->dm, 0.0, 2, 6);
+			bvhtree_from_mesh_get(surmd->bvhtree, surmd->dm, BVHTREE_FROM_LOOPTRI, 2);
 		else
-			bvhtree_from_mesh_edges(surmd->bvhtree, surmd->dm, 0.0, 2, 6);
+			bvhtree_from_mesh_get(surmd->bvhtree, surmd->dm, BVHTREE_FROM_EDGES, 2);
 	}
 }
 
@@ -176,12 +173,21 @@ ModifierTypeInfo modifierType_Surface = {
 	                        eModifierTypeFlag_NoUserAdd,
 
 	/* copyData */          NULL,
-	/* deformVerts */       deformVerts,
+
+	/* deformVerts_DM */    deformVerts,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,

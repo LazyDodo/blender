@@ -51,6 +51,7 @@
 
 #include "IMB_imbuf_types.h"
 
+#include "ED_anim_api.h" /* for timeline cursor drawing */
 #include "ED_mask.h"
 #include "ED_space_api.h"
 #include "ED_screen.h"
@@ -75,12 +76,8 @@
 
 #include "clip_intern.h"  /* own include */
 
-static void init_preview_region(const bContext *C, ARegion *ar)
+static void init_preview_region(const Scene *scene, const ScrArea *sa, const SpaceClip *sc, ARegion *ar)
 {
-	Scene *scene = CTX_data_scene(C);
-	ScrArea *sa = CTX_wm_area(C);
-	SpaceClip *sc = CTX_wm_space_clip(C);
-
 	ar->regiontype = RGN_TYPE_PREVIEW;
 	ar->alignment = RGN_ALIGN_TOP;
 	ar->flag |= RGN_FLAG_HIDDEN;
@@ -138,15 +135,17 @@ static void init_preview_region(const bContext *C, ARegion *ar)
 
 static void reinit_preview_region(const bContext *C, ARegion *ar)
 {
+	Scene *scene = CTX_data_scene(C);
+	ScrArea *sa = CTX_wm_area(C);
 	SpaceClip *sc = CTX_wm_space_clip(C);
 
 	if (sc->view == SC_VIEW_DOPESHEET) {
 		if ((ar->v2d.flag & V2D_VIEWSYNC_AREA_VERTICAL) == 0)
-			init_preview_region(C, ar);
+			init_preview_region(scene, sa, sc, ar);
 	}
 	else {
 		if (ar->v2d.flag & V2D_VIEWSYNC_AREA_VERTICAL)
-			init_preview_region(C, ar);
+			init_preview_region(scene, sa, sc, ar);
 	}
 }
 
@@ -168,7 +167,7 @@ static ARegion *ED_clip_has_preview_region(const bContext *C, ScrArea *sa)
 	arnew = MEM_callocN(sizeof(ARegion), "clip preview region");
 
 	BLI_insertlinkbefore(&sa->regionbase, ar, arnew);
-	init_preview_region(C, arnew);
+	init_preview_region(CTX_data_scene(C), sa, CTX_wm_space_clip(C), arnew);
 
 	return arnew;
 }
@@ -228,7 +227,7 @@ static void clip_scopes_check_gpencil_change(ScrArea *sa)
 
 /* ******************** default callbacks for clip space ***************** */
 
-static SpaceLink *clip_new(const bContext *C)
+static SpaceLink *clip_new(const ScrArea *sa, const Scene *scene)
 {
 	ARegion *ar;
 	SpaceClip *sc;
@@ -256,15 +255,6 @@ static SpaceLink *clip_new(const bContext *C)
 	ar->regiontype = RGN_TYPE_TOOLS;
 	ar->alignment = RGN_ALIGN_LEFT;
 
-#ifndef WITH_REDO_REGION_REMOVAL
-	/* tools view */
-	ar = MEM_callocN(sizeof(ARegion), "tool properties for clip");
-
-	BLI_addtail(&sc->regionbase, ar);
-	ar->regiontype = RGN_TYPE_TOOL_PROPS;
-	ar->alignment = RGN_ALIGN_BOTTOM | RGN_SPLIT_PREV;
-#endif
-
 	/* properties view */
 	ar = MEM_callocN(sizeof(ARegion), "properties for clip");
 
@@ -286,7 +276,7 @@ static SpaceLink *clip_new(const bContext *C)
 	ar = MEM_callocN(sizeof(ARegion), "preview for clip");
 
 	BLI_addtail(&sc->regionbase, ar);
-	init_preview_region(C, ar);
+	init_preview_region(scene, sa, sc, ar);
 
 	/* main region */
 	ar = MEM_callocN(sizeof(ARegion), "main region for clip");
@@ -897,19 +887,12 @@ static void clip_refresh(const bContext *C, ScrArea *sa)
 	bool main_visible = false, preview_visible = false, tools_visible = false;
 	bool properties_visible = false, channels_visible = false;
 	bool view_changed = false;
-#ifndef WITH_REDO_REGION_REMOVAL
-	ARegion *ar_tool_props = BKE_area_find_region_type(sa, RGN_TYPE_TOOL_PROPS);
-	bool tool_props_visible = false;
-#endif
 
 	switch (sc->view) {
 		case SC_VIEW_CLIP:
 			main_visible = true;
 			preview_visible = false;
 			tools_visible = true;
-#ifndef WITH_REDO_REGION_REMOVAL
-			tool_props_visible = true;
-#endif
 			properties_visible = true;
 			channels_visible = false;
 			break;
@@ -917,9 +900,6 @@ static void clip_refresh(const bContext *C, ScrArea *sa)
 			main_visible = false;
 			preview_visible = true;
 			tools_visible = false;
-#ifndef WITH_REDO_REGION_REMOVAL
-			tool_props_visible = false;
-#endif
 			properties_visible = false;
 			channels_visible = false;
 
@@ -929,9 +909,6 @@ static void clip_refresh(const bContext *C, ScrArea *sa)
 			main_visible = false;
 			preview_visible = true;
 			tools_visible = false;
-#ifndef WITH_REDO_REGION_REMOVAL
-			tool_props_visible = false;
-#endif
 			properties_visible = false;
 			channels_visible = true;
 
@@ -1011,32 +988,6 @@ static void clip_refresh(const bContext *C, ScrArea *sa)
 			view_changed = true;
 		}
 	}
-
-#ifndef WITH_REDO_REGION_REMOVAL
-	if (tool_props_visible) {
-		if (ar_tool_props && (ar_tool_props->flag & RGN_FLAG_HIDDEN)) {
-			ar_tool_props->flag &= ~RGN_FLAG_HIDDEN;
-			ar_tool_props->v2d.flag &= ~V2D_IS_INITIALISED;
-			view_changed = true;
-		}
-		if (ar_tool_props && (ar_tool_props->alignment != (RGN_ALIGN_BOTTOM | RGN_SPLIT_PREV))) {
-			ar_tool_props->alignment = RGN_ALIGN_BOTTOM | RGN_SPLIT_PREV;
-			view_changed = true;
-		}
-	}
-	else {
-		if (ar_tool_props && !(ar_tool_props->flag & RGN_FLAG_HIDDEN)) {
-			ar_tool_props->flag |= RGN_FLAG_HIDDEN;
-			ar_tool_props->v2d.flag &= ~V2D_IS_INITIALISED;
-			WM_event_remove_handlers((bContext *)C, &ar_tool_props->handlers);
-			view_changed = true;
-		}
-		if (ar_tool_props && ar_tool_props->alignment != RGN_ALIGN_NONE) {
-			ar_tool_props->alignment = RGN_ALIGN_NONE;
-			view_changed = true;
-		}
-	}
-#endif
 
 	if (preview_visible) {
 		if (ar_preview && (ar_preview->flag & RGN_FLAG_HIDDEN)) {
@@ -1295,6 +1246,7 @@ static void graph_region_draw(const bContext *C, ARegion *ar)
 	SpaceClip *sc = CTX_wm_space_clip(C);
 	Scene *scene = CTX_data_scene(C);
 	short unitx, unity;
+	short cfra_flag = 0;
 
 	if (sc->flag & SC_LOCK_TIMECURSOR)
 		ED_clip_graph_center_current_frame(scene, ar);
@@ -1308,6 +1260,10 @@ static void graph_region_draw(const bContext *C, ARegion *ar)
 	/* data... */
 	clip_draw_graph(sc, ar, scene);
 
+	/* current frame indicator line */
+	if (sc->flag & SC_SHOW_SECONDS) cfra_flag |= DRAWCFRA_UNIT_SECONDS;
+	ANIM_draw_cfra(C, v2d, cfra_flag);
+
 	/* reset view matrix */
 	UI_view2d_view_restore(C);
 
@@ -1317,6 +1273,11 @@ static void graph_region_draw(const bContext *C, ARegion *ar)
 	scrollers = UI_view2d_scrollers_calc(C, v2d, unitx, V2D_GRID_NOCLAMP, unity, V2D_GRID_NOCLAMP);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
+	
+	/* currnt frame indicator */
+	if (sc->flag & SC_SHOW_SECONDS) cfra_flag |= DRAWCFRA_UNIT_SECONDS;
+	UI_view2d_view_orthoSpecial(ar, v2d, 1);
+	ANIM_draw_cfra_number(C, v2d, cfra_flag);
 }
 
 static void dopesheet_region_draw(const bContext *C, ARegion *ar)
@@ -1327,7 +1288,7 @@ static void dopesheet_region_draw(const bContext *C, ARegion *ar)
 	View2D *v2d = &ar->v2d;
 	View2DGrid *grid;
 	View2DScrollers *scrollers;
-	short unit = 0;
+	short unit = 0, cfra_flag = 0;
 
 	if (clip)
 		BKE_tracking_dopesheet_update(&clip->tracking);
@@ -1348,6 +1309,10 @@ static void dopesheet_region_draw(const bContext *C, ARegion *ar)
 	/* data... */
 	clip_draw_dopesheet_main(sc, ar, scene);
 
+	/* current frame indicator line */
+	if (sc->flag & SC_SHOW_SECONDS) cfra_flag |= DRAWCFRA_UNIT_SECONDS;
+	ANIM_draw_cfra(C, v2d, cfra_flag);
+
 	/* reset view matrix */
 	UI_view2d_view_restore(C);
 
@@ -1355,6 +1320,10 @@ static void dopesheet_region_draw(const bContext *C, ARegion *ar)
 	scrollers = UI_view2d_scrollers_calc(C, v2d, unit, V2D_GRID_CLAMP, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
+	
+	/* currnt frame number indicator */
+	UI_view2d_view_orthoSpecial(ar, v2d, 1);
+	ANIM_draw_cfra_number(C, v2d, cfra_flag);
 }
 
 static void clip_preview_region_draw(const bContext *C, ARegion *ar)
@@ -1619,21 +1588,6 @@ void ED_spacetype_clip(void)
 	art->draw = clip_tools_region_draw;
 
 	BLI_addhead(&st->regiontypes, art);
-
-#ifndef WITH_REDO_REGION_REMOVAL
-	/* tool properties */
-	art = MEM_callocN(sizeof(ARegionType), "spacetype clip tool properties region");
-	art->regionid = RGN_TYPE_TOOL_PROPS;
-	art->prefsizex = 0;
-	art->prefsizey = 120;
-	art->keymapflag = ED_KEYMAP_FRAMES | ED_KEYMAP_UI;
-	art->listener = clip_props_region_listener;
-	art->init = clip_tools_region_init;
-	art->draw = clip_tools_region_draw;
-	ED_clip_tool_props_register(art);
-
-	BLI_addhead(&st->regiontypes, art);
-#endif
 
 	/* regions: header */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype clip region");

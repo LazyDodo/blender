@@ -574,7 +574,8 @@ static const char *template_id_context(StructRNA *type)
 
 static uiBut *template_id_def_new_but(
         uiBlock *block, const ID *id, const TemplateID *template_ui, StructRNA *type,
-        const char * const newop, const bool editable, const bool id_open, const bool use_tab_but)
+        const char * const newop, const bool editable, const bool id_open, const bool use_tab_but,
+        int but_height)
 {
 	ID *idfrom = template_ui->ptr.id.data;
 	uiBut *but;
@@ -613,12 +614,12 @@ static uiBut *template_id_def_new_but(
 
 	if (newop) {
 		but = uiDefIconTextButO(block, but_type, newop, WM_OP_INVOKE_DEFAULT, ICON_ZOOMIN,
-		                        (id) ? "" : CTX_IFACE_(template_id_context(type), "New"), 0, 0, w, UI_UNIT_Y, NULL);
+		                        (id) ? "" : CTX_IFACE_(template_id_context(type), "New"), 0, 0, w, but_height, NULL);
 		UI_but_funcN_set(but, template_id_cb, MEM_dupallocN(template_ui), SET_INT_IN_POINTER(UI_ID_ADD_NEW));
 	}
 	else {
 		but = uiDefIconTextBut(block, but_type, 0, ICON_ZOOMIN, (id) ? "" : CTX_IFACE_(template_id_context(type), "New"),
-		                       0, 0, w, UI_UNIT_Y, NULL, 0, 0, 0, 0, NULL);
+		                       0, 0, w, but_height, NULL, 0, 0, 0, 0, NULL);
 		UI_but_funcN_set(but, template_id_cb, MEM_dupallocN(template_ui), SET_INT_IN_POINTER(UI_ID_ADD_NEW));
 	}
 
@@ -735,7 +736,7 @@ static void template_ID(
 	}
 	
 	if (flag & UI_ID_ADD_NEW) {
-		template_id_def_new_but(block, id, template_ui, type, newop, editable, flag & UI_ID_OPEN, false);
+		template_id_def_new_but(block, id, template_ui, type, newop, editable, flag & UI_ID_OPEN, false, UI_UNIT_X);
 	}
 
 	/* Due to space limit in UI - skip the "open" icon for packed data, and allow to unpack.
@@ -811,6 +812,7 @@ static void template_ID_tabs(
 	const ARegion *region = CTX_wm_region(C);
 	const PointerRNA active_ptr = RNA_property_pointer_get(&template->ptr, template->prop);
 	const int but_align = (region->alignment == RGN_ALIGN_TOP) ? UI_BUT_ALIGN_DOWN : UI_BUT_ALIGN_TOP;
+	const int but_height = UI_UNIT_Y * 1.1;
 
 	uiBlock *block = uiLayoutGetBlock(layout);
 	uiStyle *style = UI_style_get_dpi();
@@ -824,7 +826,7 @@ static void template_ID_tabs(
 		uiButTab *tab;
 
 		tab = (uiButTab *)uiDefButR_prop(
-		        block, UI_BTYPE_TAB, 0, "", 0, 0, but_width, UI_UNIT_Y,
+		        block, UI_BTYPE_TAB, 0, "", 0, 0, but_width, UI_UNIT_Y * 1.1,
 		        &template->ptr, template->prop, 0, 0.0f,
 		        sizeof(id->name) - 2, 0.0f, 0.0f, "");
 		UI_but_funcN_set(&tab->but, template_ID_set_property_cb, MEM_dupallocN(template), id);
@@ -845,7 +847,7 @@ static void template_ID_tabs(
 			type = active_ptr.type;
 		}
 
-		but = template_id_def_new_but(block, active_ptr.data, template, type, newop, editable, flag & UI_ID_OPEN, true);
+		but = template_id_def_new_but(block, active_ptr.data, template, type, newop, editable, flag & UI_ID_OPEN, true, but_height);
 		UI_but_drawflag_enable(but, but_align);
 	}
 }
@@ -896,7 +898,7 @@ static void ui_template_id(
 	 */
 	if (template_ui->idlb) {
 		if (use_tabs) {
-			uiLayoutRow(layout, false);
+			uiLayoutRow(layout, true);
 			template_ID_tabs(C, layout, template_ui, type, flag, newop, openop, unlinkop);
 		}
 		else {
@@ -1531,7 +1533,6 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 
 /************************ Redo Buttons Template *************************/
 
-#ifdef WITH_REDO_REGION_REMOVAL
 static bool template_operator_redo_property_buts_poll(PointerRNA *UNUSED(ptr), PropertyRNA *prop)
 {
 	return (RNA_property_tags(prop) & OP_PROP_TAG_ADVANCED) == 0;
@@ -1550,15 +1551,17 @@ static void template_operator_redo_property_buts_draw(
 	else {
 		/* Might want to make label_align adjustable somehow. */
 		eAutoPropButsReturn return_info = uiTemplateOperatorPropertyButs(
-		                                          C, layout, op, template_operator_redo_property_buts_poll,
-		                                          UI_BUT_LABEL_ALIGN_NONE, layout_flags);
+		        C, layout, op, r_has_advanced ? template_operator_redo_property_buts_poll : NULL,
+		        UI_BUT_LABEL_ALIGN_NONE, layout_flags);
 		if (return_info & UI_PROP_BUTS_ANY_FAILED_CHECK) {
-			*r_has_advanced = true;
+			if (r_has_advanced) {
+				*r_has_advanced = true;
+			}
 		}
 	}
 }
 
-void uiTemplateOperatorRedoProperties(uiLayout *layout, bContext *C)
+void uiTemplateOperatorRedoProperties(uiLayout *layout, const bContext *C)
 {
 	wmOperator *op = WM_operator_last_redo(C);
 	uiBlock *block = uiLayoutGetBlock(layout);
@@ -1567,23 +1570,29 @@ void uiTemplateOperatorRedoProperties(uiLayout *layout, bContext *C)
 		return;
 	}
 
+	/* Disable for now, doesn't fit well in popover. */
+#if 0
 	/* Repeat button with operator name as text. */
 	uiItemFullO(layout, "SCREEN_OT_repeat_last", RNA_struct_ui_name(op->type->srna),
 	            ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
+#endif
 
 	if (WM_operator_repeat_check(C, op)) {
+#if 0
 		bool has_advanced = false;
+#endif
 
 		UI_block_func_set(block, ED_undo_operator_repeat_cb, op, NULL);
-		template_operator_redo_property_buts_draw(C, op, layout, UI_TEMPLATE_OP_PROPS_COMPACT, &has_advanced);
+		template_operator_redo_property_buts_draw(C, op, layout, UI_TEMPLATE_OP_PROPS_COMPACT, NULL /* &has_advanced */ );
 		UI_block_func_set(block, NULL, NULL, NULL); /* may want to reset to old state instead of NULLing all */
 
+#if 0
 		if (has_advanced) {
 			uiItemO(layout, IFACE_("More..."), ICON_NONE, "SCREEN_OT_redo_last");
 		}
+#endif
 	}
 }
-#endif
 
 /************************ Constraint Template *************************/
 
@@ -4232,7 +4241,7 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
 
 	but = uiDefBut(block, UI_BTYPE_ROUNDBOX, 0, "", UI_UNIT_X + 10, 0, UI_UNIT_X + width, UI_UNIT_Y,
 	               NULL, 0.0f, 0.0f, 0, 0, "");
-	but->col[0] = but->col[1] = but->col[2] = FTOCHAR(rti->grayscale);
+	but->col[0] = but->col[1] = but->col[2] = unit_float_to_uchar_clamp(rti->grayscale);
 	but->col[3] = 255;
 
 	UI_block_align_end(block);
@@ -4335,66 +4344,6 @@ void uiTemplateKeymapItemProperties(uiLayout *layout, PointerRNA *ptr)
 			}
 		}
 	}
-}
-
-/********************************* Overrides *************************************/
-
-void uiTemplateOverrideProperty(
-        uiLayout *layout, PointerRNA *collection_props_ptr, PointerRNA *scene_props_ptr, const char *propname,
-        const char *name, const char *text_ctxt, int translate, int icon,
-        const char *custom_template)
-{
-	bool is_set = false;
-	uiLayout *row, *col;
-
-	PointerRNA *ptr;
-	PropertyRNA *prop;
-
-	IDProperty *collection_props = collection_props_ptr->data;
-
-	if (IDP_GetPropertyFromGroup(collection_props, propname)) {
-		prop = RNA_struct_find_property(collection_props_ptr, propname);
-		ptr = collection_props_ptr;
-		is_set = RNA_property_is_set(ptr, prop);
-	}
-	else {
-		/* property doesn't exist yet */
-		prop = RNA_struct_find_property(scene_props_ptr, propname);
-		ptr = scene_props_ptr;
-	}
-
-	/* Get translated name (label). */
-	name = RNA_translate_ui_text(name, text_ctxt, NULL, prop, translate);
-
-	row = uiLayoutRow(layout, false);
-	col = uiLayoutColumn(row, false);
-
-	uiLayoutSetEnabled(col, is_set);
-
-	if (custom_template && STREQ(custom_template, "icon_view")) {
-		uiTemplateIconView(col, ptr, propname, false, 5.0f);
-	}
-	else {
-		uiItemFullR(col, ptr, prop, -1, 0, 0, name, icon);
-	}
-
-	col = uiLayoutColumn(row, false);
-	uiBut *but;
-	uiBlock *block = uiLayoutGetBlock(col);
-	UI_block_emboss_set(block, UI_EMBOSS_NONE);
-
-	if (is_set) {
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "UI_OT_unuse_property_button", WM_OP_EXEC_DEFAULT, ICON_X, 0, 0, UI_UNIT_X, UI_UNIT_Y, NULL);
-	}
-	else {
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "UI_OT_use_property_button", WM_OP_EXEC_DEFAULT, ICON_ZOOMIN, 0, 0, UI_UNIT_X, UI_UNIT_Y, NULL);
-		/* XXX - Using existing data struct to pass another RNAPointer */
-		but->rnasearchpoin = *scene_props_ptr;
-	}
-
-	but->rnapoin = *collection_props_ptr;
-	but->rnaprop = prop;
-	UI_block_emboss_set(block, UI_EMBOSS);
 }
 
 /********************************* Color management *************************************/

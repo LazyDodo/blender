@@ -43,7 +43,7 @@ typedef struct GPUAttachment {
 	int mip, layer;
 } GPUAttachment;
 
-typedef enum GPUFrameBufferBits{
+typedef enum GPUFrameBufferBits {
 	GPU_COLOR_BIT    = (1 << 0),
 	GPU_DEPTH_BIT    = (1 << 1),
 	GPU_STENCIL_BIT  = (1 << 2),
@@ -185,6 +185,7 @@ void GPU_offscreen_free(GPUOffScreen *ofs);
 void GPU_offscreen_bind(GPUOffScreen *ofs, bool save);
 void GPU_offscreen_unbind(GPUOffScreen *ofs, bool restore);
 void GPU_offscreen_read_pixels(GPUOffScreen *ofs, int type, void *pixels);
+void GPU_offscreen_draw_to_screen(GPUOffScreen *ofs, int x, int y);
 int GPU_offscreen_width(const GPUOffScreen *ofs);
 int GPU_offscreen_height(const GPUOffScreen *ofs);
 struct GPUTexture *GPU_offscreen_color_texture(const GPUOffScreen *ofs);

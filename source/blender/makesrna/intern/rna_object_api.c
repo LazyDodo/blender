@@ -97,7 +97,7 @@ static void rna_Object_select_set(Object *ob, bContext *C, ReportList *reports, 
 	Base *base = BKE_view_layer_base_find(view_layer, ob);
 
 	if (!base) {
-		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in Render Layer '%s'!", ob->id.name + 2, view_layer->name);
+		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in View Layer '%s'!", ob->id.name + 2, view_layer->name);
 		return;
 	}
 
@@ -311,7 +311,7 @@ static void rna_Object_ray_cast(
 		BVHTreeFromMesh treeData = {NULL};
 
 		/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
-		bvhtree_from_mesh_looptri(&treeData, ob->derivedFinal, 0.0f, 4, 6);
+		bvhtree_from_mesh_get(&treeData, ob->derivedFinal, BVHTREE_FROM_LOOPTRI, 4);
 
 		/* may fail if the mesh has no faces, in that case the ray-cast misses */
 		if (treeData.tree != NULL) {
@@ -360,7 +360,7 @@ static void rna_Object_closest_point_on_mesh(
 	}
 
 	/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
-	bvhtree_from_mesh_looptri(&treeData, ob->derivedFinal, 0.0f, 4, 6);
+	bvhtree_from_mesh_get(&treeData, ob->derivedFinal, BVHTREE_FROM_LOOPTRI, 4);
 
 	if (treeData.tree == NULL) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' could not create internal data for finding nearest point",

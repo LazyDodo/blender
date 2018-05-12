@@ -28,13 +28,14 @@
 
 struct Gwn_Batch;
 struct GPUMaterial;
-struct Object;
 struct ModifierData;
+struct Object;
+struct PTCacheEdit;
 
 void DRW_shape_cache_free(void);
 
 /* 3D cursor */
-struct Gwn_Batch *DRW_cache_cursor_get(void);
+struct Gwn_Batch *DRW_cache_cursor_get(bool crosshair_lines);
 
 /* Common Shapes */
 struct Gwn_Batch *DRW_cache_fullscreen_quad_get(void);
@@ -49,7 +50,8 @@ struct Gwn_Batch *DRW_cache_screenspace_circle_get(void);
 struct Gwn_Batch *DRW_cache_object_wire_outline_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_object_surface_get(struct Object *ob);
 struct Gwn_Batch **DRW_cache_object_surface_material_get(
-        struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len);
+        struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
+        char **auto_layer_names, int **auto_layer_is_srgb, int *auto_layer_count);
 
 /* Empties */
 struct Gwn_Batch *DRW_cache_plain_axes_get(void);
@@ -100,11 +102,11 @@ struct Gwn_Batch *DRW_cache_bone_box_get(void);
 struct Gwn_Batch *DRW_cache_bone_box_wire_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_wire_wire_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_envelope_solid_get(void);
-struct Gwn_Batch *DRW_cache_bone_envelope_distance_outline_get(void);
-struct Gwn_Batch *DRW_cache_bone_envelope_wire_outline_get(void);
+struct Gwn_Batch *DRW_cache_bone_envelope_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_envelope_head_wire_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_point_get(void);
 struct Gwn_Batch *DRW_cache_bone_point_wire_outline_get(void);
+struct Gwn_Batch *DRW_cache_bone_stick_get(void);
 struct Gwn_Batch *DRW_cache_bone_arrows_get(void);
 
 /* Meshes */
@@ -127,7 +129,8 @@ struct Gwn_Batch *DRW_cache_mesh_edges_paint_overlay_get(struct Object *ob, bool
 struct Gwn_Batch *DRW_cache_mesh_faces_weight_overlay_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_mesh_verts_weight_overlay_get(struct Object *ob);
 struct Gwn_Batch **DRW_cache_mesh_surface_shaded_get(
-        struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len);
+        struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
+        char **auto_layer_names, int **auto_layer_is_srgb, int *auto_layer_count);
 struct Gwn_Batch **DRW_cache_mesh_surface_texpaint_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_mesh_surface_texpaint_single_get(struct Object *ob);
 
@@ -166,6 +169,9 @@ struct Gwn_Batch *DRW_cache_lattice_vert_overlay_get(struct Object *ob);
 /* Particles */
 struct Gwn_Batch *DRW_cache_particles_get_hair(struct ParticleSystem *psys, struct ModifierData *md);
 struct Gwn_Batch *DRW_cache_particles_get_dots(struct Object *object, struct ParticleSystem *psys);
+struct Gwn_Batch *DRW_cache_particles_get_edit_strands(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_cache_particles_get_edit_inner_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_cache_particles_get_edit_tip_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
 struct Gwn_Batch *DRW_cache_particles_get_prim(int type);
 
 /* Metaball */

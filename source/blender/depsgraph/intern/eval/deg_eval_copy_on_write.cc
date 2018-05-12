@@ -37,11 +37,15 @@
  */
 #define NESTED_ID_NASTY_WORKAROUND
 
+/* Silence warnings from copying deprecated fields. */
+#define DNA_DEPRECATED_ALLOW
+
 #include "intern/eval/deg_eval_copy_on_write.h"
 
 #include <cstring>
 
 #include "BLI_utildefines.h"
+#include "BLI_listbase.h"
 #include "BLI_threads.h"
 #include "BLI_string.h"
 
@@ -58,6 +62,8 @@
 
 extern "C" {
 #include "DNA_ID.h"
+#include "DNA_anim_types.h"
+#include "DNA_armature_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
@@ -75,6 +81,8 @@ extern "C" {
 #endif
 
 #include "BKE_action.h"
+#include "BKE_animsys.h"
+#include "BKE_armature.h"
 #include "BKE_editmesh.h"
 #include "BKE_library_query.h"
 #include "BKE_object.h"
@@ -289,7 +297,6 @@ bool scene_copy_inplace_no_main(const Scene *scene, Scene *new_scene)
 	bool result = BKE_id_copy_ex(NULL,
 	                             id_for_copy,
 	                             (ID **)&new_scene,
-	                             LIB_ID_COPY_ACTIONS |
 	                             LIB_ID_CREATE_NO_MAIN |
 	                             LIB_ID_CREATE_NO_USER_REFCOUNT |
 	                             LIB_ID_CREATE_NO_ALLOCATE |
@@ -326,7 +333,6 @@ static bool check_datablocks_copy_on_writable(const ID *id_orig)
 	}
 	return !ELEM(id_type, ID_BR,
 	                      ID_LS,
-	                      ID_AC,
 	                      ID_PAL);
 }
 
@@ -337,17 +343,6 @@ static bool check_datablocks_copy_on_writable(const ID *id_orig)
 struct RemapCallbackUserData {
 	/* Dependency graph for which remapping is happening. */
 	const Depsgraph *depsgraph;
-	/* Temporarily allocated memory for copying purposes. This ID will
-	 * be discarded after expanding is done, so need to make sure temp_id
-	 * is replaced with proper real_id.
-	 *
-	 * NOTE: This is due to our logic of "inplace" duplication, where we
-	 * use generic duplication routines (which gives us new ID) which then
-	 * is followed with copying data to a placeholder we prepared before and
-	 * discarding pointer returned by duplication routines.
-	 */
-	const ID *temp_id;
-	ID *real_id;
 	/* Create placeholder for ID nodes for cases when we need to remap original
 	 * ID to it[s CoW version but we don't have required ID node yet.
 	 *
@@ -368,12 +363,7 @@ int foreach_libblock_remap_callback(void *user_data_v,
 	RemapCallbackUserData *user_data = (RemapCallbackUserData *)user_data_v;
 	const Depsgraph *depsgraph = user_data->depsgraph;
 	ID *id_orig = *id_p;
-	if (id_orig == user_data->temp_id) {
-		DEG_COW_PRINT("    Remapping datablock for %s: id_temp=%p id_cow=%p\n",
-		              id_orig->name, id_orig, user_data->real_id);
-		*id_p = user_data->real_id;
-	}
-	else if (check_datablocks_copy_on_writable(id_orig)) {
+	if (check_datablocks_copy_on_writable(id_orig)) {
 		ID *id_cow;
 		if (user_data->create_placeholders) {
 			/* Special workaround to stop creating temp datablocks for
@@ -410,6 +400,54 @@ int foreach_libblock_remap_callback(void *user_data_v,
 	return IDWALK_RET_NOP;
 }
 
+void updata_armature_edit_mode_pointers(const Depsgraph * /*depsgraph*/,
+                                        const ID *id_orig, ID *id_cow)
+{
+	const bArmature *armature_orig = (const bArmature *)id_orig;
+	bArmature *armature_cow = (bArmature *)id_cow;
+	armature_cow->edbo = armature_orig->edbo;
+}
+
+void updata_mesh_edit_mode_pointers(const Depsgraph *depsgraph,
+                                    const ID *id_orig, ID *id_cow)
+{
+	/* For meshes we need to update edit_btmesh to make it to point
+	 * to the CoW version of object.
+	 *
+	 * This is kind of confusing, because actual bmesh is not owned by
+	 * the CoW object, so need to be accurate about using link from
+	 * edit_btmesh to object.
+	 */
+	const Mesh *mesh_orig = (const Mesh *)id_orig;
+	Mesh *mesh_cow = (Mesh *)id_cow;
+	if (mesh_orig->edit_btmesh == NULL) {
+		return;
+	}
+	mesh_cow->edit_btmesh = (BMEditMesh *)MEM_dupallocN(mesh_orig->edit_btmesh);
+	mesh_cow->edit_btmesh->ob =
+	    (Object *)depsgraph->get_cow_id(&mesh_orig->edit_btmesh->ob->id);
+	mesh_cow->edit_btmesh->derivedFinal = NULL;
+	mesh_cow->edit_btmesh->derivedCage = NULL;
+}
+
+/* Edit data is stored and owned by original datablocks, copied ones
+ * are simply referencing to them.
+ */
+void updata_edit_mode_pointers(const Depsgraph *depsgraph,
+                               const ID *id_orig, ID *id_cow)
+{
+	const ID_Type type = GS(id_orig->name);
+	switch (type) {
+		case ID_AR:
+			updata_armature_edit_mode_pointers(depsgraph, id_orig, id_cow);
+			break;
+		case ID_ME:
+			updata_mesh_edit_mode_pointers(depsgraph, id_orig, id_cow);
+		default:
+			break;
+	}
+}
+
 /* Do some special treatment of data transfer from original ID to it's
  * CoW complementary part.
  *
@@ -431,31 +469,16 @@ void update_special_pointers(const Depsgraph *depsgraph,
 			BLI_assert(object_cow->derivedFinal == NULL);
 			BLI_assert(object_cow->derivedDeform == NULL);
 			object_cow->mode = object_orig->mode;
-			break;
-		}
-		case ID_ME:
-		{
-			/* For meshes we need to update edit_btmesh to make it to point
-			 * to the CoW version of object.
-			 *
-			 * This is kind of confusing, because actual bmesh is not owned by
-			 * the CoW object, so need to be accurate about using link from
-			 * edit_btmesh to object.
-			 */
-			const Mesh *mesh_orig = (const Mesh *)id_orig;
-			Mesh *mesh_cow = (Mesh *)id_cow;
-			if (mesh_orig->edit_btmesh != NULL) {
-				mesh_cow->edit_btmesh = (BMEditMesh *)MEM_dupallocN(mesh_orig->edit_btmesh);
-				mesh_cow->edit_btmesh->ob =
-				        (Object *)depsgraph->get_cow_id(&mesh_orig->edit_btmesh->ob->id);
-				mesh_cow->edit_btmesh->derivedFinal = NULL;
-				mesh_cow->edit_btmesh->derivedCage = NULL;
+			if (object_cow->type == OB_ARMATURE) {
+				BKE_pose_remap_bone_pointers((bArmature *)object_cow->data,
+				                             object_cow->pose);
 			}
 			break;
 		}
 		default:
 			break;
 	}
+	updata_edit_mode_pointers(depsgraph, id_orig, id_cow);
 }
 
 /* This callback is used to validate that all nested ID datablocks are
@@ -490,6 +513,7 @@ ID *deg_expand_copy_on_write_datablock(const Depsgraph *depsgraph,
 {
 	const ID *id_orig = id_node->id_orig;
 	ID *id_cow = id_node->id_cow;
+	const int id_cow_recalc = id_cow->recalc;
 	/* No need to expand such datablocks, their copied ID is same as original
 	 * one already.
 	 */
@@ -519,11 +543,6 @@ ID *deg_expand_copy_on_write_datablock(const Depsgraph *depsgraph,
 	 * - We don't want bmain's content to be freed when main is freed.
 	 */
 	bool done = false;
-	/* Need to make sure the possibly temporary allocated memory is correct for
-	 * until we are fully done with remapping original pointers with copied on
-	 * write ones.
-	 */
-	ID *newid = NULL;
 	/* First we handle special cases which are not covered by id_copy() yet.
 	 * or cases where we want to do something smarter than simple datablock
 	 * copy.
@@ -563,10 +582,8 @@ ID *deg_expand_copy_on_write_datablock(const Depsgraph *depsgraph,
 	 */
 	deg_tag_copy_on_write_id(id_cow, id_orig);
 	/* Perform remapping of the nodes. */
-	RemapCallbackUserData user_data;
+	RemapCallbackUserData user_data = {NULL};
 	user_data.depsgraph = depsgraph;
-	user_data.temp_id = newid;
-	user_data.real_id = id_cow;
 	user_data.node_builder = node_builder;
 	user_data.create_placeholders = create_placeholders;
 	BKE_library_foreach_ID_link(NULL,
@@ -578,10 +595,7 @@ ID *deg_expand_copy_on_write_datablock(const Depsgraph *depsgraph,
 	 * from above.
 	 */
 	update_special_pointers(depsgraph, id_orig, id_cow);
-	/* Now we can safely discard temporary memory used for copying. */
-	if (newid != NULL) {
-		MEM_freeN(newid);
-	}
+	id_cow->recalc = id_orig->recalc | id_cow_recalc;
 	return id_cow;
 }
 
@@ -597,6 +611,23 @@ ID *deg_expand_copy_on_write_datablock(const Depsgraph *depsgraph,
 	                                          id_node,
 	                                          node_builder,
 	                                          create_placeholders);
+}
+
+static void deg_update_copy_on_write_animation(const Depsgraph *depsgraph,
+                                               const IDDepsNode *id_node)
+{
+	DEG_debug_print_eval((::Depsgraph *)depsgraph,
+	                     __func__,
+	                     id_node->id_orig->name,
+	                     id_node->id_cow);
+	BKE_animdata_copy_id(NULL, id_node->id_cow, id_node->id_orig, false, false);
+	RemapCallbackUserData user_data = {NULL};
+	user_data.depsgraph = depsgraph;
+	BKE_library_foreach_ID_link(NULL,
+	                            id_node->id_cow,
+	                            foreach_libblock_remap_callback,
+	                            (void *)&user_data,
+	                            IDWALK_NOP);
 }
 
 ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
@@ -623,7 +654,6 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 	ListBase gpumaterial_backup;
 	ListBase *gpumaterial_ptr = NULL;
 	Mesh *mesh_evaluated = NULL;
-	IDProperty *base_collection_properties = NULL;
 	short base_flag = 0;
 	if (check_datablock_expanded(id_cow)) {
 		switch (id_type) {
@@ -653,6 +683,7 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 				                         ID_RECALC_ANIMATION |
 				                         ID_RECALC_COPY_ON_WRITE);
 				if ((id_cow->recalc & ~ignore_flag) == 0) {
+					deg_update_copy_on_write_animation(depsgraph, id_node);
 					return id_cow;
 				}
 				break;
@@ -673,7 +704,6 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 					}
 				}
 				/* Make a backup of base flags. */
-				base_collection_properties = object->base_collection_properties;
 				base_flag = object->base_flag;
 				break;
 			}
@@ -708,10 +738,7 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 				        ((Mesh *)mesh_evaluated->id.orig_id)->edit_btmesh;
 			}
 		}
-		if (base_collection_properties != NULL) {
-			object->base_collection_properties = base_collection_properties;
-			object->base_flag = base_flag;
-		}
+		object->base_flag = base_flag;
 	}
 	return id_cow;
 }
@@ -724,6 +751,45 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 	BLI_assert(id_node != NULL);
 	return deg_update_copy_on_write_datablock(depsgraph, id_node);
 }
+
+namespace {
+
+void discard_armature_edit_mode_pointers(ID *id_cow)
+{
+	bArmature *armature_cow = (bArmature *)id_cow;
+	armature_cow->edbo = NULL;
+}
+
+void discard_mesh_edit_mode_pointers(ID *id_cow)
+{
+	Mesh *mesh_cow = (Mesh *)id_cow;
+	if (mesh_cow->edit_btmesh == NULL) {
+		return;
+	}
+	BKE_editmesh_free_derivedmesh(mesh_cow->edit_btmesh);
+	MEM_freeN(mesh_cow->edit_btmesh);
+	mesh_cow->edit_btmesh = NULL;
+}
+
+/* NULL-ify all edit mode pointers which points to data from
+ * original object.
+ */
+void discard_edit_mode_pointers(ID *id_cow)
+{
+	const ID_Type type = GS(id_cow->name);
+	switch (type) {
+		case ID_AR:
+			discard_armature_edit_mode_pointers(id_cow);
+			break;
+		case ID_ME:
+			discard_mesh_edit_mode_pointers(id_cow);
+			break;
+		default:
+			break;
+	}
+}
+
+}  // namespace
 
 /* Free content of the CoW datablock
  * Notes:
@@ -753,30 +819,10 @@ void deg_free_copy_on_write_datablock(ID *id_cow)
 			ob_cow->data = NULL;
 			break;
 		}
-		case ID_ME:
-		{
-			Mesh *mesh_cow = (Mesh *)id_cow;
-			if (mesh_cow->edit_btmesh != NULL) {
-				BKE_editmesh_free_derivedmesh(mesh_cow->edit_btmesh);
-				MEM_freeN(mesh_cow->edit_btmesh);
-				mesh_cow->edit_btmesh = NULL;
-			}
-			break;
-		}
-		case ID_SCE:
-		{
-			/* Special case for scene: we use explicit function call which
-			 * ensures no access to other datablocks is done.
-			 */
-			Scene *scene = (Scene *)id_cow;
-			BKE_scene_free_ex(scene, false);
-			BKE_libblock_free_data(id_cow, false);
-			id_cow->name[0] = '\0';
-			return;
-		}
 		default:
 			break;
 	}
+	discard_edit_mode_pointers(id_cow);
 	BKE_libblock_free_datablock(id_cow, 0);
 	BKE_libblock_free_data(id_cow, false);
 	/* Signal datablock as not being expanded. */
@@ -787,7 +833,7 @@ void deg_evaluate_copy_on_write(struct ::Depsgraph *graph,
                                 const IDDepsNode *id_node)
 {
 	const DEG::Depsgraph *depsgraph = reinterpret_cast<const DEG::Depsgraph *>(graph);
-	DEBUG_PRINT("%s on %s\n", __func__, id_node->id_orig->name);
+	DEG_debug_print_eval(graph, __func__, id_node->id_orig->name, id_node->id_cow);
 	if (id_node->id_orig == &depsgraph->scene->id) {
 		/* NOTE: This is handled by eval_ctx setup routines, which
 		 * ensures scene and view layer pointers are valid.
@@ -814,6 +860,8 @@ bool deg_validate_copy_on_write_datablock(ID *id_cow)
 
 void deg_tag_copy_on_write_id(ID *id_cow, const ID *id_orig)
 {
+	BLI_assert(id_cow != id_orig);
+	BLI_assert((id_orig->tag & LIB_TAG_COPY_ON_WRITE) == 0);
 	id_cow->tag |= LIB_TAG_COPY_ON_WRITE;
 	id_cow->orig_id = (ID *)id_orig;
 }

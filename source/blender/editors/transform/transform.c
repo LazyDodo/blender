@@ -1041,11 +1041,13 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 							initEdgeSlide(t);
 							/* if that fails, do vertex slide */
 							if (t->state == TRANS_CANCEL) {
+								resetTransModal(t);
 								t->state = TRANS_STARTING;
 								initVertSlide(t);
 							}
 							/* vert slide can fail on unconnected vertices (rare but possible) */
 							if (t->state == TRANS_CANCEL) {
+								resetTransModal(t);
 								t->mode = TFM_TRANSLATION;
 								t->state = TRANS_STARTING;
 								restoreTransObjects(t);
@@ -1715,9 +1717,28 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 	if (t->helpline != HLP_NONE) {
 		float cent[2];
-		float mval[3] = { x, y, 0.0f };
+		float mval[3] = {
+		    x,
+		    y,
+		    0.0f,
+		};
+		float tmval[2] = {
+		    (float)t->mval[0],
+		    (float)t->mval[1],
+		};
 
 		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
+
+		/* Offset the values for the area region. */
+		const float offset[2] = {
+		    t->ar->winrct.xmin,
+		    t->ar->winrct.ymin,
+		};
+
+		for (int i = 0; i < 2; i++) {
+			cent[i] += offset[i];
+			tmval[i] += offset[i];
+		}
 
 		gpuPushMatrix();
 
@@ -1743,7 +1764,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 			immBegin(GWN_PRIM_LINES, 2);
 			immVertex2fv(POS_INDEX, cent);
-			immVertex2f(POS_INDEX, (float)t->mval[0], (float)t->mval[1]);
+			immVertex2f(POS_INDEX, tmval[0], tmval[1]);
 			immEnd();
 
 			immUnbindProgram();
@@ -1760,7 +1781,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 
 				gpuTranslate3fv(mval);
-				gpuRotateAxis(-RAD2DEGF(atan2f(cent[0] - t->mval[0], cent[1] - t->mval[1])), 'Z');
+				gpuRotateAxis(-RAD2DEGF(atan2f(cent[0] - tmval[0], cent[1] - tmval[1])), 'Z');
 
 				glLineWidth(3.0f);
 				drawArrow(UP, 5, 10, 5);
@@ -1785,7 +1806,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				break;
 			case HLP_ANGLE:
 			{
-				float dx = t->mval[0] - cent[0], dy = t->mval[1] - cent[1];
+				float dx = tmval[0] - cent[0], dy = tmval[1] - cent[1];
 				float angle = atan2f(dy, dx);
 				float dist = hypotf(dx, dy);
 				float delta_angle = min_ff(15.0f / dist, (float)M_PI / 4.0f);
@@ -1793,7 +1814,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 
-				gpuTranslate3f(cent[0] - t->mval[0] + mval[0], cent[1] - t->mval[1] + mval[1], 0);
+				gpuTranslate3f(cent[0] - tmval[0] + mval[0], cent[1] - tmval[1] + mval[1], 0);
 
 				glLineWidth(3.0f);
 				drawArc(dist, angle - delta_angle, angle - spacing_angle, 10);
@@ -2209,6 +2230,63 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	calculatePropRatio(t);
 	calculateCenter(t);
 
+	/* Overwrite initial values if operator supplied a non-null vector.
+	 *
+	 * Run before init functions so 'values_modal_offset' can be applied on mouse input.
+	 */
+	BLI_assert(is_zero_v4(t->values_modal_offset));
+	if ((prop = RNA_struct_find_property(op->ptr, "value")) && RNA_property_is_set(op->ptr, prop)) {
+		float values[4] = {0}; /* in case value isn't length 4, avoid uninitialized memory  */
+
+		if (RNA_property_array_check(prop)) {
+			RNA_float_get_array(op->ptr, "value", values);
+		}
+		else {
+			values[0] = RNA_float_get(op->ptr, "value");
+		}
+
+		copy_v4_v4(t->values, values);
+
+		if (t->flag & T_MODAL) {
+			copy_v4_v4(t->values_modal_offset, values);
+			t->redraw = TREDRAW_HARD;
+		}
+		else {
+			copy_v4_v4(t->auto_values, values);
+			t->flag |= T_AUTOVALUES;
+		}
+	}
+
+	/* Transformation axis from operator */
+	if ((prop = RNA_struct_find_property(op->ptr, "axis")) && RNA_property_is_set(op->ptr, prop)) {
+		RNA_property_float_get_array(op->ptr, prop, t->axis);
+		normalize_v3(t->axis);
+		copy_v3_v3(t->axis_orig, t->axis);
+	}
+
+	/* Constraint init from operator */
+	if ((prop = RNA_struct_find_property(op->ptr, "constraint_axis")) && RNA_property_is_set(op->ptr, prop)) {
+		int constraint_axis[3];
+
+		RNA_property_boolean_get_array(op->ptr, prop, constraint_axis);
+
+		if (constraint_axis[0] || constraint_axis[1] || constraint_axis[2]) {
+			t->con.mode |= CON_APPLY;
+
+			if (constraint_axis[0]) {
+				t->con.mode |= CON_AXIS0;
+			}
+			if (constraint_axis[1]) {
+				t->con.mode |= CON_AXIS1;
+			}
+			if (constraint_axis[2]) {
+				t->con.mode |= CON_AXIS2;
+			}
+
+			setUserConstraint(t, t->current_orientation, t->con.mode, "%s");
+		}
+	}
+
 	if (event) {
 		/* Initialize accurate transform to settings requested by keymap. */
 		bool use_accurate = false;
@@ -2355,55 +2433,6 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	if (t->state == TRANS_CANCEL) {
 		postTrans(C, t);
 		return 0;
-	}
-
-	/* Transformation axis from operator */
-	if ((prop = RNA_struct_find_property(op->ptr, "axis")) && RNA_property_is_set(op->ptr, prop)) {
-		RNA_property_float_get_array(op->ptr, prop, t->axis);
-		normalize_v3(t->axis);
-		copy_v3_v3(t->axis_orig, t->axis);
-	}
-
-	/* Constraint init from operator */
-	if ((prop = RNA_struct_find_property(op->ptr, "constraint_axis")) && RNA_property_is_set(op->ptr, prop)) {
-		int constraint_axis[3];
-
-		RNA_property_boolean_get_array(op->ptr, prop, constraint_axis);
-
-		if (constraint_axis[0] || constraint_axis[1] || constraint_axis[2]) {
-			t->con.mode |= CON_APPLY;
-
-			if (constraint_axis[0]) {
-				t->con.mode |= CON_AXIS0;
-			}
-			if (constraint_axis[1]) {
-				t->con.mode |= CON_AXIS1;
-			}
-			if (constraint_axis[2]) {
-				t->con.mode |= CON_AXIS2;
-			}
-
-			setUserConstraint(t, t->current_orientation, t->con.mode, "%s");
-		}
-	}
-
-	/* overwrite initial values if operator supplied a non-null vector
-	 *
-	 * keep last so we can apply the constraints space.
-	 */
-	if ((prop = RNA_struct_find_property(op->ptr, "value")) && RNA_property_is_set(op->ptr, prop)) {
-		float values[4] = {0}; /* in case value isn't length 4, avoid uninitialized memory  */
-
-		if (RNA_property_array_check(prop)) {
-			RNA_float_get_array(op->ptr, "value", values);
-		}
-		else {
-			values[0] = RNA_float_get(op->ptr, "value");
-		}
-
-		copy_v4_v4(t->values, values);
-		copy_v4_v4(t->auto_values, values);
-		t->flag |= T_AUTOVALUES;
 	}
 
 	t->context = NULL;
@@ -2924,7 +2953,7 @@ static void initBend(TransInfo *t)
 
 	data = MEM_callocN(sizeof(*data), __func__);
 
-	curs = ED_view3d_cursor3d_get(t->scene, t->view);
+	curs = ED_view3d_cursor3d_get(t->scene, t->view)->location;
 	copy_v3_v3(data->warp_sta, curs);
 	ED_view3d_win_to_3d(t->sa->spacedata.first, t->ar, curs, mval_fl, data->warp_end);
 
@@ -3034,11 +3063,11 @@ static void Bend(TransInfo *t, const int UNUSED(mval[2]))
 		float warp_end_radius_local[3];
 		float pivot_local[3];
 
-		if (t->flag & T_EDIT) {
-			sub_v3_v3v3(warp_sta_local, data->warp_sta, tc->obedit->obmat[3]);
-			sub_v3_v3v3(warp_end_local, data->warp_end, tc->obedit->obmat[3]);
-			sub_v3_v3v3(warp_end_radius_local, warp_end_radius_global, tc->obedit->obmat[3]);
-			sub_v3_v3v3(pivot_local, pivot_global, tc->obedit->obmat[3]);
+		if (tc->use_local_mat) {
+			sub_v3_v3v3(warp_sta_local, data->warp_sta, tc->mat[3]);
+			sub_v3_v3v3(warp_end_local, data->warp_end, tc->mat[3]);
+			sub_v3_v3v3(warp_end_radius_local, warp_end_radius_global, tc->mat[3]);
+			sub_v3_v3v3(pivot_local, pivot_global, tc->mat[3]);
 		}
 		else {
 			copy_v3_v3(warp_sta_local, data->warp_sta);
@@ -3834,18 +3863,14 @@ static void ElementRotation_ex(TransInfo *t, TransDataContainer *tc, TransData *
 	 * has been computed, it has to be converted back into the bone's space.
 	 */
 	else if (t->flag & T_POSE) {
-		float pmtx[3][3], imtx[3][3];
-		
 		// Extract and invert armature object matrix
-		copy_m3_m4(pmtx, tc->poseobj->obmat);
-		invert_m3_m3(imtx, pmtx);
-		
+
 		if ((td->flag & TD_NO_LOC) == 0) {
 			sub_v3_v3v3(vec, td->center, center);
 			
-			mul_m3_v3(pmtx, vec);   // To Global space
+			mul_m3_v3(tc->mat3, vec);   // To Global space
 			mul_m3_v3(mat, vec);        // Applying rotation
-			mul_m3_v3(imtx, vec);   // To Local space
+			mul_m3_v3(tc->imat3, vec);  // To Local space
 			
 			add_v3_v3(vec, center);
 			/* vec now is the location where the object has to be */
@@ -3857,11 +3882,11 @@ static void ElementRotation_ex(TransInfo *t, TransDataContainer *tc, TransData *
 				/* do nothing */
 			}
 			else if (td->flag & TD_PBONE_LOCAL_MTX_C) {
-				mul_m3_v3(pmtx, vec);   // To Global space
+				mul_m3_v3(tc->mat3, vec);        // To Global space
 				mul_m3_v3(td->ext->l_smtx, vec); // To Pose space (Local Location)
 			}
 			else {
-				mul_m3_v3(pmtx, vec);   // To Global space
+				mul_m3_v3(tc->mat3, vec); // To Global space
 				mul_m3_v3(td->smtx, vec); // To Pose space
 			}
 
@@ -4420,9 +4445,8 @@ static void applyTranslationValue(TransInfo *t, const float vec[3])
 		if (apply_snap_align_rotation) {
 			copy_v3_v3(pivot, t->tsnap.snapTarget);
 			/* The pivot has to be in local-space (see T49494) */
-			if (t->flag & (T_EDIT | T_POSE)) {
-				Object *ob = tc->obedit ? tc->obedit : tc->poseobj;
-				mul_m4_v3(ob->imat, pivot);
+			if (tc->use_local_mat) {
+				mul_m4_v3(tc->imat, pivot);
 			}
 		}
 
@@ -5884,6 +5908,7 @@ static bool bm_loop_calc_opposite_co(BMLoop *l_tmp,
 	BMLoop *l_last  = l_tmp->prev;
 	BMLoop *l_iter;
 	float dist = FLT_MAX;
+	bool found = false;
 
 	l_iter = l_first;
 	do {
@@ -5902,12 +5927,13 @@ static bool bm_loop_calc_opposite_co(BMLoop *l_tmp,
 				if (tdist < dist) {
 					copy_v3_v3(r_co, tvec);
 					dist = tdist;
+					found = true;
 				}
 			}
 		}
 	} while ((l_iter = l_iter->next) != l_last);
 
-	return (dist != FLT_MAX);
+	return found;
 }
 
 /**
@@ -6937,7 +6963,7 @@ static eRedrawFlag handleEventEdgeSlide(struct TransInfo *t, const struct wmEven
 static void drawEdgeSlide(TransInfo *t)
 {
 	if ((t->mode == TFM_EDGE_SLIDE) && TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data) {
-		EdgeSlideParams *slp = t->custom.mode.data;
+		const EdgeSlideParams *slp = t->custom.mode.data;
 		EdgeSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
 		const bool is_clamp = !(t->flag & T_ALT_TRANSFORM);
 
@@ -7189,6 +7215,7 @@ static void applyEdgeSlide(TransInfo *t, const int UNUSED(mval[2]))
 
 static void calcVertSlideCustomPoints(struct TransInfo *t)
 {
+	VertSlideParams *slp = t->custom.mode.data;
 	VertSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
 	TransDataVertSlideVert *sv = &sld->sv[sld->curr_sv_index];
 
@@ -7206,7 +7233,7 @@ static void calcVertSlideCustomPoints(struct TransInfo *t)
 	ARRAY_SET_ITEMS(mval_start, co_orig_2d[0] + mval_ofs[0], co_orig_2d[1] + mval_ofs[1]);
 	ARRAY_SET_ITEMS(mval_end, co_curr_2d[0] + mval_ofs[0], co_curr_2d[1] + mval_ofs[1]);
 
-	if (sld->flipped && sld->use_even) {
+	if (slp->flipped && slp->use_even) {
 		setCustomPoints(t, &t->mouse, mval_start, mval_end);
 	}
 	else {
@@ -7567,6 +7594,7 @@ static eRedrawFlag handleEventVertSlide(struct TransInfo *t, const struct wmEven
 static void drawVertSlide(TransInfo *t)
 {
 	if ((t->mode == TFM_VERT_SLIDE) && TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data) {
+		const VertSlideParams *slp = t->custom.mode.data;
 		VertSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
 		const bool is_clamp = !(t->flag & T_ALT_TRANSFORM);
 
@@ -7623,7 +7651,7 @@ static void drawVertSlide(TransInfo *t)
 			glPointSize(ctrl_size);
 
 			immBegin(GWN_PRIM_POINTS, 1);
-			immVertex3fv(shdr_pos, (sld->flipped && sld->use_even) ?
+			immVertex3fv(shdr_pos, (slp->flipped && slp->use_even) ?
 			            curr_sv->co_link_orig_3d[curr_sv->co_link_curr] :
 			            curr_sv->co_orig_3d);
 			immEnd();
@@ -7683,15 +7711,18 @@ static void drawVertSlide(TransInfo *t)
 
 static void doVertSlide(TransInfo *t, float perc)
 {
+	VertSlideParams *slp = t->custom.mode.data;
+
+	slp->perc = perc;
+
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 		VertSlideData *sld = tc->custom.mode.data;
 		TransDataVertSlideVert *svlist = sld->sv, *sv;
 		int i;
 
-		sld->perc = perc;
 		sv = svlist;
 
-		if (sld->use_even == false) {
+		if (slp->use_even == false) {
 			for (i = 0; i < sld->totsv; i++, sv++) {
 				interp_v3_v3v3(sv->v->co, sv->co_orig_3d, sv->co_link_orig_3d[sv->co_link_curr], perc);
 			}
@@ -7709,7 +7740,7 @@ static void doVertSlide(TransInfo *t, float perc)
 				edge_len = normalize_v3(dir);
 
 				if (edge_len > FLT_EPSILON) {
-					if (sld->flipped) {
+					if (slp->flipped) {
 						madd_v3_v3v3fl(sv->v->co, sv->co_link_orig_3d[sv->co_link_curr], dir, -tperc);
 					}
 					else {
@@ -7729,7 +7760,7 @@ static void applyVertSlide(TransInfo *t, const int UNUSED(mval[2]))
 	char str[UI_MAX_DRAW_STR];
 	size_t ofs = 0;
 	float final;
-	VertSlideData *slp =  t->custom.mode.data;
+	VertSlideParams *slp =  t->custom.mode.data;
 	const bool flipped = slp->flipped;
 	const bool use_even = slp->use_even;
 	const bool is_clamp = !(t->flag & T_ALT_TRANSFORM);

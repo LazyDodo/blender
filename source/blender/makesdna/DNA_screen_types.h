@@ -44,6 +44,7 @@ struct ARegionType;
 struct PanelType;
 struct Scene;
 struct uiLayout;
+struct wmDrawBuffer;
 struct wmTimer;
 struct wmTooltipState;
 
@@ -75,10 +76,9 @@ typedef struct bScreen {
 	char do_draw_gesture;				/* notifier for gesture draw. */
 	char do_draw_paintcursor;			/* notifier for paint cursor draw. */
 	char do_draw_drag;					/* notifier for dragging draw. */
-	char swap;							/* indicator to survive swap-exchange systems */
 	char skip_handling;					/* set to delay screen handling after switching back from maximized area */
 	char scrubbing;						/* set when scrubbing to avoid some costly updates */
-	char pad[2];
+	char pad[3];
 	
 	struct ARegion *active_region;		/* active region that has mouse focus */
 
@@ -240,8 +240,13 @@ typedef struct ScrGlobalAreaData {
 	 * if they are 'collapsed' or not. Value is set on area creation and not
 	 * touched afterwards. */
 	short size_min, size_max;
-	short pad;
+
+	short flag; /* GlobalAreaFlag */
 } ScrGlobalAreaData;
+
+enum GlobalAreaFlag {
+	GLOBAL_AREA_IS_HIDDEN = (1 << 0),
+};
 
 typedef struct ScrArea {
 	struct ScrArea *next, *prev;
@@ -251,10 +256,15 @@ typedef struct ScrArea {
 
 	rcti totrct;			/* rect bound by v1 v2 v3 v4 */
 
-	char spacetype, butspacetype;	/* SPACE_..., butspacetype is button arg  */
+	char spacetype;     /* eSpace_Type (SPACE_FOO) */
+	/* Temporarily used while switching area type, otherwise this should be
+	 * SPACE_EMPTY. Also, versioning uses it to nicely replace deprecated
+	 * editors. It's been there for ages, name doesn't fit any more... */
+	char butspacetype;  /* eSpace_Type (SPACE_FOO) */
+
 	short winx, winy;				/* size */
 
-	short headertype;				/* OLD! 0=no header, 1= down, 2= up */
+	short headertype DNA_DEPRECATED;/* OLD! 0=no header, 1= down, 2= up */
 	short do_refresh;				/* private, for spacetype refresh callback */
 	short flag;
 	short region_active_win;		/* index of last used region of 'RGN_TYPE_WINDOW'
@@ -298,10 +308,9 @@ typedef struct ARegion {
 	
 	short do_draw;				/* private, cached notifier events */
 	short do_draw_overlay;		/* private, cached notifier events */
-	short swap;					/* private, indicator to survive swap-exchange */
 	short overlap;				/* private, set for indicate drawing overlapped */
 	short flagfullscreen;		/* temporary copy of flag settings for clean fullscreen */
-	short pad;
+	short pad1, pad2;
 	
 	struct ARegionType *type;	/* callbacks for this region type */
 	
@@ -315,15 +324,11 @@ typedef struct ARegion {
 
 	struct wmManipulatorMap *manipulator_map; /* manipulator-map of this region */
 	struct wmTimer *regiontimer; /* blend in/out */
+	struct wmDrawBuffer *draw_buffer;
 
 	char *headerstr;			/* use this string to draw info */
 	void *regiondata;			/* XXX 2.50, need spacedata equivalent? */
 } ARegion;
-
-/* swap */
-#define WIN_BACK_OK		1
-#define WIN_FRONT_OK	2
-// #define WIN_EQUAL		3  // UNUSED
 
 /* area->flag */
 enum {
@@ -349,9 +354,6 @@ enum {
 #define AREAGRID	4
 #define AREAMINX	32
 #define HEADERY		26
-
-#define HEADERDOWN	1
-#define HEADERTOP	2
 
 /* screen->state */
 enum {
@@ -459,11 +461,6 @@ enum {
 	 * just big enough to show all its content (if enough space is available).
 	 * Note that only ED_region_header supports this right now. */
 	RGN_FLAG_DYNAMIC_SIZE     = (1 << 2),
-	/* The region width stored in ARegion.sizex already has the DPI
-	 * factor applied, skip applying it again (in region_rect_recursive).
-	 * XXX Not nice at all. Leaving for now as temporary solution, but
-	 * it might cause issues if we change how ARegion.sizex is used... */
-	RGN_SIZEX_DPI_APPLIED       = (1 << 3),
 };
 
 /* region do_draw */

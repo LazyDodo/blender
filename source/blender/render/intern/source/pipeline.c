@@ -277,8 +277,12 @@ RenderLayer *render_get_active_layer(Render *re, RenderResult *rr)
 	return rr->layers.first;
 }
 
-static bool render_scene_has_layers_to_render(Scene *scene)
+static bool render_scene_has_layers_to_render(Scene *scene, ViewLayer *single_layer)
 {
+	if (single_layer) {
+		return true;
+	}
+
 	ViewLayer *view_layer;
 	for (view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
 		if (view_layer->flag & VIEW_LAYER_RENDER) {
@@ -705,8 +709,7 @@ void render_copy_renderdata(RenderData *to, RenderData *from)
 /* what doesn't change during entire render sequence */
 /* disprect is optional, if NULL it assumes full window render */
 void RE_InitState(Render *re, Render *source, RenderData *rd,
-                  ListBase *render_layers, const int active_layer,
-                  ViewLayer *view_layer,
+                  ListBase *render_layers, ViewLayer *single_layer,
                   int winx, int winy, rcti *disprect)
 {
 	bool had_freestyle = (re->r.mode & R_EDGE_FRS) != 0;
@@ -719,7 +722,7 @@ void RE_InitState(Render *re, Render *source, RenderData *rd,
 	render_copy_renderdata(&re->r, rd);
 	BLI_freelistN(&re->view_layers);
 	BLI_duplicatelist(&re->view_layers, render_layers);
-	re->active_view_layer = active_layer;
+	re->active_view_layer = 0;
 
 	if (source) {
 		/* reuse border flags from source renderer */
@@ -751,8 +754,8 @@ void RE_InitState(Render *re, Render *source, RenderData *rd,
 
 	re->r.scemode = check_mode_full_sample(&re->r);
 	
-	if (view_layer) {
-		int index = BLI_findindex(render_layers, view_layer);
+	if (single_layer) {
+		int index = BLI_findindex(render_layers, single_layer);
 		if (index != -1) {
 			re->active_view_layer = index;
 			re->r.scemode |= R_SINGLE_LAYER;
@@ -1145,7 +1148,7 @@ static void render_scene(Render *re, Scene *sce, int cfra)
 	}
 	
 	/* initial setup */
-	RE_InitState(resc, re, &sce->r, &sce->view_layers, sce->active_view_layer, NULL, winx, winy, &re->disprect);
+	RE_InitState(resc, re, &sce->r, &sce->view_layers, NULL, winx, winy, &re->disprect);
 
 	/* We still want to use 'rendercache' setting from org (main) scene... */
 	resc->r.scemode = (resc->r.scemode & ~R_EXR_CACHE_FILE) | (re->r.scemode & R_EXR_CACHE_FILE);
@@ -1231,96 +1234,99 @@ bool RE_allow_render_generic_object(Object *ob)
 #define DEPSGRAPH_WORKAROUND_HACK
 
 #ifdef DEPSGRAPH_WORKAROUND_HACK
-static void tag_dependend_objects_for_render(Scene *scene, int UNUSED(renderlay))
+static void tag_dependend_object_for_render(Scene *scene, Object *object);
+
+static void tag_dependend_group_for_render(Scene *scene, Group *group)
 {
-	FOREACH_OBJECT_RENDERABLE_BEGIN(scene, object)
-	{
-		if (object->type == OB_MESH) {
-			if (RE_allow_render_generic_object(object)) {
-				ModifierData *md;
-				VirtualModifierData virtualModifierData;
+	if (group->id.tag & LIB_TAG_DOIT) {
+		return;
+	}
+	group->id.tag |= LIB_TAG_DOIT;
 
-				for (md = modifiers_getVirtualModifierList(object, &virtualModifierData);
-				     md;
-				     md = md->next)
-				{
-					if (!modifier_isEnabled(scene, md, eModifierMode_Render)) {
-						continue;
-					}
+	for (GroupObject *go = group->gobject.first; go != NULL; go = go->next) {
+		Object *object = go->ob;
+		tag_dependend_object_for_render(scene, object);
+	}
+}
 
-					if (md->type == eModifierType_Boolean) {
-						BooleanModifierData *bmd = (BooleanModifierData *)md;
-						if (bmd->object && bmd->object->type == OB_MESH) {
-							DEG_id_tag_update(&bmd->object->id, OB_RECALC_DATA);
-						}
+static void tag_dependend_object_for_render(Scene *scene, Object *object)
+{
+	if (object->type == OB_MESH) {
+		if (RE_allow_render_generic_object(object)) {
+			ModifierData *md;
+			VirtualModifierData virtualModifierData;
+
+			if (object->particlesystem.first) {
+				DEG_id_tag_update(&object->id, OB_RECALC_DATA);
+			}
+
+			for (md = modifiers_getVirtualModifierList(object, &virtualModifierData);
+			     md;
+			     md = md->next)
+			{
+				if (!modifier_isEnabled(scene, md, eModifierMode_Render)) {
+					continue;
+				}
+
+				if (md->type == eModifierType_Boolean) {
+					BooleanModifierData *bmd = (BooleanModifierData *)md;
+					if (bmd->object && bmd->object->type == OB_MESH) {
+						DEG_id_tag_update(&bmd->object->id, OB_RECALC_DATA);
 					}
-					else if (md->type == eModifierType_Array) {
-						ArrayModifierData *amd = (ArrayModifierData *)md;
-						if (amd->start_cap && amd->start_cap->type == OB_MESH) {
-							DEG_id_tag_update(&amd->start_cap->id, OB_RECALC_DATA);
-						}
-						if (amd->end_cap && amd->end_cap->type == OB_MESH) {
-							DEG_id_tag_update(&amd->end_cap->id, OB_RECALC_DATA);
-						}
+				}
+				else if (md->type == eModifierType_Array) {
+					ArrayModifierData *amd = (ArrayModifierData *)md;
+					if (amd->start_cap && amd->start_cap->type == OB_MESH) {
+						DEG_id_tag_update(&amd->start_cap->id, OB_RECALC_DATA);
 					}
-					else if (md->type == eModifierType_Shrinkwrap) {
-						ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *)md;
-						if (smd->target  && smd->target->type == OB_MESH) {
-							DEG_id_tag_update(&smd->target->id, OB_RECALC_DATA);
-						}
+					if (amd->end_cap && amd->end_cap->type == OB_MESH) {
+						DEG_id_tag_update(&amd->end_cap->id, OB_RECALC_DATA);
 					}
-					else if (md->type == eModifierType_ParticleSystem) {
-						ParticleSystemModifierData *psmd = (ParticleSystemModifierData *)md;
-						ParticleSystem *psys = psmd->psys;
-						ParticleSettings *part = psys->part;
-						switch (part->ren_as) {
-							case PART_DRAW_OB:
-								if (part->dup_ob != NULL) {
-									DEG_id_tag_update(&part->dup_ob->id, OB_RECALC_DATA);
+				}
+				else if (md->type == eModifierType_Shrinkwrap) {
+					ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *)md;
+					if (smd->target  && smd->target->type == OB_MESH) {
+						DEG_id_tag_update(&smd->target->id, OB_RECALC_DATA);
+					}
+				}
+				else if (md->type == eModifierType_ParticleSystem) {
+					ParticleSystemModifierData *psmd = (ParticleSystemModifierData *)md;
+					ParticleSystem *psys = psmd->psys;
+					ParticleSettings *part = psys->part;
+					switch (part->ren_as) {
+						case PART_DRAW_OB:
+							if (part->dup_ob != NULL) {
+								DEG_id_tag_update(&part->dup_ob->id, OB_RECALC_DATA);
+							}
+							break;
+						case PART_DRAW_GR:
+							if (part->dup_group != NULL) {
+								for (GroupObject *go = part->dup_group->gobject.first;
+								     go != NULL;
+								     go = go->next)
+								{
+									DEG_id_tag_update(&go->ob->id, OB_RECALC_DATA);
 								}
-								break;
-							case PART_DRAW_GR:
-								if (part->dup_group != NULL) {
-									for (GroupObject *go = part->dup_group->gobject.first;
-									     go != NULL;
-									     go = go->next)
-									{
-										DEG_id_tag_update(&go->ob->id, OB_RECALC_DATA);
-									}
-								}
-								break;
-						}
+							}
+							break;
 					}
 				}
 			}
 		}
 	}
-	FOREACH_OBJECT_RENDERABLE_END;
+	if (object->dup_group != NULL) {
+		tag_dependend_group_for_render(scene, object->dup_group);
+	}
 }
-#endif
 
-#define DEPSGRAPH_WORKAROUND_GROUP_HACK
-
-#ifdef DEPSGRAPH_WORKAROUND_GROUP_HACK
-/**
- * Make sure the COLLECTION_VIEWPORT / COLLECTION_RENDER is considered
- * for the collections visibility.
- *
- * This won't be needed anymore once we have depsgraph per render engine.
- */
-static void tag_groups_for_render(Render *re)
+static void tag_dependend_objects_for_render(Main *bmain, Scene *scene)
 {
-	for (Group *group = re->main->group.first; group; group = group->id.next) {
-		DEG_id_tag_update(&group->id, 0);
+	BKE_main_id_tag_idcode(bmain, ID_GR, LIB_TAG_DOIT, false);
+	FOREACH_OBJECT_RENDERABLE_BEGIN(scene, object)
+	{
+		tag_dependend_object_for_render(scene, object);
 	}
-
-#ifdef WITH_FREESTYLE
-	if (re->freestyle_bmain) {
-		for (Group *group = re->freestyle_bmain->group.first; group; group = group->id.next) {
-			DEG_id_tag_update(&group->id, 0);
-		}
-	}
-#endif
+	FOREACH_OBJECT_RENDERABLE_END;
 }
 #endif
 
@@ -1328,14 +1334,11 @@ static void tag_scenes_for_render(Render *re)
 {
 	bNode *node;
 	Scene *sce;
-#ifdef DEPSGRAPH_WORKAROUND_HACK
-	int renderlay = re->lay;
-#endif
 	
 	for (sce = re->main->scene.first; sce; sce = sce->id.next) {
 		sce->id.tag &= ~LIB_TAG_DOIT;
 #ifdef DEPSGRAPH_WORKAROUND_HACK
-		tag_dependend_objects_for_render(sce, renderlay);
+		tag_dependend_objects_for_render(re->main, sce);
 #endif
 	}
 	
@@ -1344,7 +1347,7 @@ static void tag_scenes_for_render(Render *re)
 		for (sce = re->freestyle_bmain->scene.first; sce; sce = sce->id.next) {
 			sce->id.tag &= ~LIB_TAG_DOIT;
 #ifdef DEPSGRAPH_WORKAROUND_HACK
-			tag_dependend_objects_for_render(sce, renderlay);
+			tag_dependend_objects_for_render(re->freestyle_bmain, sce);
 #endif
 		}
 	}
@@ -1353,7 +1356,7 @@ static void tag_scenes_for_render(Render *re)
 	if (RE_GetCamera(re) && composite_needs_render(re->scene, 1)) {
 		re->scene->id.tag |= LIB_TAG_DOIT;
 #ifdef DEPSGRAPH_WORKAROUND_HACK
-		tag_dependend_objects_for_render(re->scene, renderlay);
+		tag_dependend_objects_for_render(re->main, re->scene);
 #endif
 	}
 	
@@ -1382,11 +1385,11 @@ static void tag_scenes_for_render(Render *re)
 				if (node->id != (ID *)re->scene) {
 					if ((node->id->tag & LIB_TAG_DOIT) == 0) {
 						Scene *scene = (Scene *) node->id;
-						if (render_scene_has_layers_to_render(scene)) {
+						if (render_scene_has_layers_to_render(scene, NULL)) {
 							node->flag |= NODE_TEST;
 							node->id->tag |= LIB_TAG_DOIT;
 #ifdef DEPSGRAPH_WORKAROUND_HACK
-							tag_dependend_objects_for_render(scene, renderlay);
+							tag_dependend_objects_for_render(re->main, scene);
 #endif
 						}
 					}
@@ -1824,20 +1827,6 @@ static void do_render_all_options(Render *re)
 	}
 }
 
-bool RE_force_single_renderlayer(Scene *scene)
-{
-	int scemode = check_mode_full_sample(&scene->r);
-	if (scemode & R_SINGLE_LAYER) {
-		ViewLayer *view_layer = BLI_findlink(&scene->view_layers, scene->active_view_layer);
-		/* force layer to be enabled */
-		if ((view_layer->flag & VIEW_LAYER_RENDER) == 0) {
-			view_layer->flag |= VIEW_LAYER_RENDER;
-			return true;
-		}
-	}
-	return false;
-}
-
 static bool check_valid_compositing_camera(Scene *scene, Object *camera_override)
 {
 	if (scene->r.scemode & R_DOCOMP && scene->use_nodes) {
@@ -1847,7 +1836,7 @@ static bool check_valid_compositing_camera(Scene *scene, Object *camera_override
 			if (node->type == CMP_NODE_R_LAYERS && (node->flag & NODE_MUTED) == 0) {
 				Scene *sce = node->id ? (Scene *)node->id : scene;
 				if (sce->camera == NULL) {
-					sce->camera = BKE_view_layer_camera_find(BKE_view_layer_from_scene_get(sce));
+					sce->camera = BKE_view_layer_camera_find(BKE_view_layer_default_render(sce));
 				}
 				if (sce->camera == NULL) {
 					/* all render layers nodes need camera */
@@ -1905,7 +1894,7 @@ static int check_valid_camera(Scene *scene, Object *camera_override, ReportList 
 	const char *err_msg = "No camera found in scene \"%s\"";
 
 	if (camera_override == NULL && scene->camera == NULL)
-		scene->camera = BKE_view_layer_camera_find(BKE_view_layer_from_scene_get(scene));
+		scene->camera = BKE_view_layer_camera_find(BKE_view_layer_default_render(scene));
 
 	if (!check_valid_camera_multiview(scene, scene->camera, reports))
 		return false;
@@ -1921,7 +1910,7 @@ static int check_valid_camera(Scene *scene, Object *camera_override, ReportList 
 				{
 					if (!seq->scene_camera) {
 						if (!seq->scene->camera &&
-						    !BKE_view_layer_camera_find(BKE_view_layer_from_scene_get(seq->scene)))
+						    !BKE_view_layer_camera_find(BKE_view_layer_default_render(seq->scene)))
 						{
 							/* camera could be unneeded due to composite nodes */
 							Object *override = (seq->scene == scene) ? camera_override : NULL;
@@ -1973,7 +1962,7 @@ static int check_composite_output(Scene *scene)
 	return node_tree_has_composite_output(scene->nodetree);
 }
 
-bool RE_is_rendering_allowed(Scene *scene, Object *camera_override, ReportList *reports)
+bool RE_is_rendering_allowed(Scene *scene, ViewLayer *single_layer, Object *camera_override, ReportList *reports)
 {
 	int scemode = check_mode_full_sample(&scene->r);
 	
@@ -2049,7 +2038,7 @@ bool RE_is_rendering_allowed(Scene *scene, Object *camera_override, ReportList *
 	}
 
 	/* layer flag tests */
-	if (!render_scene_has_layers_to_render(scene)) {
+	if (!render_scene_has_layers_to_render(scene, single_layer)) {
 		BKE_report(reports, RPT_ERROR, "All render layers are disabled");
 		return 0;
 	}
@@ -2094,7 +2083,7 @@ const char *RE_GetActiveRenderView(Render *re)
 
 /* evaluating scene options for general Blender render */
 static int render_initialize_from_main(Render *re, RenderData *rd, Main *bmain, Scene *scene,
-                                       ViewLayer *view_layer, Object *camera_override, unsigned int lay_override,
+                                       ViewLayer *single_layer, Object *camera_override, unsigned int lay_override,
                                        int anim, int anim_init)
 {
 	int winx, winy;
@@ -2151,17 +2140,17 @@ static int render_initialize_from_main(Render *re, RenderData *rd, Main *bmain, 
 	 */
 	if (0) {
 		/* make sure dynamics are up to date */
-		view_layer = BKE_view_layer_from_scene_get(scene);
+		ViewLayer *view_layer = BKE_view_layer_context_active_PLACEHOLDER(scene);
 		update_physics_cache(re, scene, view_layer, anim_init);
 	}
 	
-	if (view_layer || scene->r.scemode & R_SINGLE_LAYER) {
+	if (single_layer || scene->r.scemode & R_SINGLE_LAYER) {
 		BLI_rw_mutex_lock(&re->resultmutex, THREAD_LOCK_WRITE);
 		render_result_single_layer_begin(re);
 		BLI_rw_mutex_unlock(&re->resultmutex);
 	}
 	
-	RE_InitState(re, NULL, &scene->r, &scene->view_layers, scene->active_view_layer, view_layer, winx, winy, &disprect);
+	RE_InitState(re, NULL, &scene->r, &scene->view_layers, single_layer, winx, winy, &disprect);
 	if (!re->ok)  /* if an error was printed, abort */
 		return 0;
 	
@@ -2182,7 +2171,7 @@ void RE_SetReports(Render *re, ReportList *reports)
 }
 
 /* general Blender frame render call */
-void RE_BlenderFrame(Render *re, Main *bmain, Scene *scene, ViewLayer *view_layer, Object *camera_override,
+void RE_BlenderFrame(Render *re, Main *bmain, Scene *scene, ViewLayer *single_layer, Object *camera_override,
                      unsigned int lay_override, int frame, const bool write_still)
 {
 	BLI_callback_exec(re->main, (ID *)scene, BLI_CB_EVT_RENDER_INIT);
@@ -2192,7 +2181,7 @@ void RE_BlenderFrame(Render *re, Main *bmain, Scene *scene, ViewLayer *view_laye
 	
 	scene->r.cfra = frame;
 	
-	if (render_initialize_from_main(re, &scene->r, bmain, scene, view_layer,
+	if (render_initialize_from_main(re, &scene->r, bmain, scene, single_layer,
 	                                camera_override, lay_override, 0, 0))
 	{
 		MEM_reset_peak_memory();
@@ -2551,15 +2540,6 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 	if (!render_initialize_from_main(re, &rd, bmain, scene, NULL, camera_override, lay_override, 0, 1))
 		return;
 
-	/* MULTIVIEW_TODO:
-	 * in case a new video format is added that implements get_next_frame multiview has to be addressed
-	 * or the error throwing for R_IMF_IMTYPE_FRAMESERVER has to be extended for those cases as well
-	 */
-	if ((rd.im_format.imtype == R_IMF_IMTYPE_FRAMESERVER) && (totvideos > 1)) {
-		BKE_report(re->reports, RPT_ERROR, "Frame Server only support stereo output for multiview rendering");
-		return;
-	}
-
 	if (is_movie) {
 		size_t width, height;
 		int i;
@@ -2796,7 +2776,7 @@ void RE_PreviewRender(Render *re, Main *bmain, Scene *sce)
 	winx = (sce->r.size * sce->r.xsch) / 100;
 	winy = (sce->r.size * sce->r.ysch) / 100;
 
-	RE_InitState(re, NULL, &sce->r, &sce->view_layers, sce->active_view_layer, NULL, winx, winy, NULL);
+	RE_InitState(re, NULL, &sce->r, &sce->view_layers, NULL, winx, winy, NULL);
 
 	re->main = bmain;
 	re->scene = sce;
@@ -2843,7 +2823,7 @@ bool RE_ReadRenderResult(Scene *scene, Scene *scenode)
 	re = RE_GetSceneRender(scene);
 	if (re == NULL)
 		re = RE_NewSceneRender(scene);
-	RE_InitState(re, NULL, &scene->r, &scene->view_layers, scene->active_view_layer, NULL, winx, winy, &disprect);
+	RE_InitState(re, NULL, &scene->r, &scene->view_layers, NULL, winx, winy, &disprect);
 	re->scene = scene;
 	
 	BLI_rw_mutex_lock(&re->resultmutex, THREAD_LOCK_WRITE);

@@ -46,6 +46,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_armature_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 
 #include "BLI_utildefines.h"
@@ -58,9 +59,12 @@
 #include "BLT_translation.h"
 
 #include "BKE_appdir.h"
+#include "BKE_cdderivedmesh.h"
+#include "BKE_idcode.h"
 #include "BKE_key.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_multires.h"
 #include "BKE_DerivedMesh.h"
 
@@ -129,6 +133,7 @@ ModifierData *modifier_new(int type)
 
 	md->type = type;
 	md->mode = eModifierMode_Realtime | eModifierMode_Render | eModifierMode_Expanded;
+	md->flag = eModifierFlag_StaticOverride_Local;
 
 	if (mti->flags & eModifierTypeFlag_EnableInEditmode)
 		md->mode |= eModifierMode_Editmode;
@@ -288,6 +293,13 @@ void modifiers_foreachTexLink(Object *ob, TexWalkFunc walk, void *userData)
 void modifier_copyData_generic(const ModifierData *md_src, ModifierData *md_dst)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md_src->type);
+
+	/* md_dst may have alredy be fully initialized with some extra allocated data,
+	 * we need to free it now to avoid memleak. */
+	if (mti->freeData) {
+		mti->freeData(md_dst);
+	}
+
 	const size_t data_size = sizeof(ModifierData);
 	const char *md_src_data = ((const char *)md_src) + data_size;
 	char       *md_dst_data =       ((char *)md_dst) + data_size;
@@ -308,6 +320,7 @@ void modifier_copyData_ex(ModifierData *md, ModifierData *target, const int flag
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 
 	target->mode = md->mode;
+	target->flag = md->flag;
 
 	if (mti->copyData) {
 		mti->copyData(md, target);
@@ -614,6 +627,27 @@ Object *modifiers_isDeformedByArmature(Object *ob)
 	return NULL;
 }
 
+Object *modifiers_isDeformedByMeshDeform(Object *ob)
+{
+	VirtualModifierData virtualModifierData;
+	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
+	MeshDeformModifierData *mdmd = NULL;
+
+	/* return the first selected armature, this lets us use multiple armatures */
+	for (; md; md = md->next) {
+		if (md->type == eModifierType_MeshDeform) {
+			mdmd = (MeshDeformModifierData *) md;
+			if (mdmd->object && (mdmd->object->flag & SELECT))
+				return mdmd->object;
+		}
+	}
+
+	if (mdmd) /* if were still here then return the last armature */
+		return mdmd->object;
+
+	return NULL;
+}
+
 /* Takes an object and returns its first selected lattice, else just its lattice
  * This should work for multiple lattices per object
  */
@@ -681,7 +715,7 @@ bool modifiers_usesArmature(Object *ob, bArmature *arm)
 bool modifier_isCorrectableDeformed(ModifierData *md)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-	return (mti->deformMatricesEM != NULL);
+	return (mti->deformMatricesEM != NULL) || (mti->deformMatricesEM_DM != NULL);
 }
 
 bool modifiers_isCorrectableDeformed(struct Scene *scene, Object *ob)
@@ -786,9 +820,8 @@ void modifier_path_init(char *path, int path_maxlen, const char *name)
 /* wrapper around ModifierTypeInfo.applyModifier that ensures valid normals */
 
 struct DerivedMesh *modwrap_applyModifier(
-        ModifierData *md, struct Depsgraph *depsgraph,
-        Object *ob, struct DerivedMesh *dm,
-        ModifierApplyFlag flag)
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct DerivedMesh *dm)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 	BLI_assert(CustomData_has_layer(&dm->polyData, CD_NORMAL) == false);
@@ -796,14 +829,12 @@ struct DerivedMesh *modwrap_applyModifier(
 	if (mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	return mti->applyModifier(md, depsgraph, ob, dm, flag);
+	return modifier_applyModifier_DM_deprecated(md, ctx, dm);
 }
 
 struct DerivedMesh *modwrap_applyModifierEM(
-        ModifierData *md, struct Depsgraph *depsgraph,
-        Object *ob, struct BMEditMesh *em,
-        DerivedMesh *dm,
-        ModifierApplyFlag flag)
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct BMEditMesh *em, DerivedMesh *dm)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 	BLI_assert(CustomData_has_layer(&dm->polyData, CD_NORMAL) == false);
@@ -811,14 +842,12 @@ struct DerivedMesh *modwrap_applyModifierEM(
 	if (mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	return mti->applyModifierEM(md, depsgraph, ob, em, dm, flag);
+	return modifier_applyModifierEM_DM_deprecated(md, ctx, em, dm);
 }
 
 void modwrap_deformVerts(
-        ModifierData *md, struct Depsgraph *depsgraph,
-        Object *ob, DerivedMesh *dm,
-        float (*vertexCos)[3], int numVerts,
-        ModifierApplyFlag flag)
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm, float (*vertexCos)[3], int numVerts)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 	BLI_assert(!dm || CustomData_has_layer(&dm->polyData, CD_NORMAL) == false);
@@ -826,11 +855,11 @@ void modwrap_deformVerts(
 	if (dm && mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	mti->deformVerts(md, depsgraph, ob, dm, vertexCos, numVerts, flag);
+	modifier_deformVerts_DM_deprecated(md, ctx, dm, vertexCos, numVerts);
 }
 
 void modwrap_deformVertsEM(
-        ModifierData *md, struct Depsgraph *depsgraph, Object *ob,
+        ModifierData *md, const ModifierEvalContext *ctx,
         struct BMEditMesh *em, DerivedMesh *dm,
         float (*vertexCos)[3], int numVerts)
 {
@@ -840,6 +869,332 @@ void modwrap_deformVertsEM(
 	if (dm && mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 		DM_ensure_normals(dm);
 	}
-	mti->deformVertsEM(md, depsgraph, ob, em, dm, vertexCos, numVerts);
+	modifier_deformVertsEM_DM_deprecated(md, ctx, em, dm, vertexCos, numVerts);
 }
 /* end modifier callback wrappers */
+
+
+/* wrappers for modifier callbacks that accept Mesh and select the proper implementation
+ * depending on if the modifier has been ported to Mesh or is still using DerivedMesh
+ */
+
+void modifier_deformVerts(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct Mesh *mesh,
+	float (*vertexCos)[3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformVerts) {
+		mti->deformVerts(md, ctx, mesh, vertexCos, numVerts);
+	}
+	else {
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
+
+		mti->deformVerts_DM(md, ctx, dm, vertexCos, numVerts);
+
+		if (dm) {
+			dm->release(dm);
+		}
+	}
+}
+
+void modifier_deformMatrices(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct Mesh *mesh,
+	float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformMatrices) {
+		mti->deformMatrices(md, ctx, mesh, vertexCos, defMats, numVerts);
+	}
+	else {
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
+
+		mti->deformMatrices_DM(md, ctx, dm, vertexCos, defMats, numVerts);
+
+		if (dm) {
+			dm->release(dm);
+		}
+	}
+}
+
+void modifier_deformVertsEM(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct BMEditMesh *editData, struct Mesh *mesh,
+	float (*vertexCos)[3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformVertsEM) {
+		mti->deformVertsEM(md, ctx, editData, mesh, vertexCos, numVerts);
+	}
+	else {
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
+
+		mti->deformVertsEM_DM(md, ctx, editData, dm, vertexCos, numVerts);
+
+		if (dm) {
+			dm->release(dm);
+		}
+	}
+}
+
+void modifier_deformMatricesEM(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct BMEditMesh *editData, struct Mesh *mesh,
+	float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformMatricesEM) {
+		mti->deformMatricesEM(md, ctx, editData, mesh, vertexCos, defMats, numVerts);
+	}
+	else {
+		DerivedMesh *dm = NULL;
+		if (mesh) {
+			dm = CDDM_from_mesh(mesh);
+		}
+
+		mti->deformMatricesEM_DM(md, ctx, editData, dm, vertexCos, defMats, numVerts);
+
+		if (dm) {
+			dm->release(dm);
+		}
+	}
+}
+
+struct Mesh *modifier_applyModifier(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct Mesh *mesh)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->applyModifier) {
+		return mti->applyModifier(md, ctx, mesh);
+	}
+	else {
+		DerivedMesh *dm = CDDM_from_mesh(mesh);
+
+		DerivedMesh *ndm = mti->applyModifier_DM(md, ctx, dm);
+
+		if (ndm != dm) {
+			dm->release(dm);
+		}
+
+		DM_to_mesh(ndm, mesh, ctx->object, CD_MASK_EVERYTHING, true);
+
+		return mesh;
+	}
+}
+
+struct Mesh *modifier_applyModifierEM(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct BMEditMesh *editData,
+	struct Mesh *mesh)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->applyModifierEM) {
+		return mti->applyModifierEM(md, ctx, editData, mesh);
+	}
+	else {
+		DerivedMesh *dm = CDDM_from_mesh(mesh);
+
+		DerivedMesh *ndm = mti->applyModifierEM_DM(md, ctx, editData, dm);
+
+		if (ndm != dm) {
+			dm->release(dm);
+		}
+
+		DM_to_mesh(ndm, mesh, ctx->object, CD_MASK_EVERYTHING, true);
+
+		return mesh;
+	}
+}
+
+/* depricated variants of above that accept DerivedMesh */
+
+void modifier_deformVerts_DM_deprecated(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct DerivedMesh *dm,
+	float (*vertexCos)[3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformVerts_DM) {
+		mti->deformVerts_DM(md, ctx, dm, vertexCos, numVerts);
+	}
+	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
+		Mesh *mesh = NULL;
+		if (dm != NULL) {
+			mesh = BKE_id_new_nomain(ID_ME, NULL);
+			DM_to_mesh(dm, mesh, ctx->object, CD_MASK_EVERYTHING, false);
+		}
+
+		mti->deformVerts(md, ctx, mesh, vertexCos, numVerts);
+
+		if (mesh != NULL) {
+			BKE_id_free(NULL, mesh);
+		}
+	}
+}
+
+void modifier_deformMatrices_DM_deprecated(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct DerivedMesh *dm,
+	float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
+{
+
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformMatrices_DM) {
+		mti->deformMatrices_DM(md, ctx, dm, vertexCos, defMats, numVerts);
+	}
+	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
+		Mesh *mesh = NULL;
+		if (dm != NULL) {
+			mesh = BKE_id_new_nomain(ID_ME, NULL);
+			DM_to_mesh(dm, mesh, ctx->object, CD_MASK_EVERYTHING, false);
+		}
+
+		mti->deformMatrices(md, ctx, mesh, vertexCos, defMats, numVerts);
+
+		if (mesh != NULL) {
+			BKE_id_free(NULL, mesh);
+		}
+	}
+}
+
+void modifier_deformVertsEM_DM_deprecated(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct BMEditMesh *editData, struct DerivedMesh *dm,
+	float (*vertexCos)[3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformVertsEM_DM) {
+		mti->deformVertsEM_DM(md, ctx, editData, dm, vertexCos, numVerts);
+	}
+	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
+		Mesh *mesh = NULL;
+		if (dm != NULL) {
+			mesh = BKE_id_new_nomain(ID_ME, NULL);
+			DM_to_mesh(dm, mesh, ctx->object, CD_MASK_EVERYTHING, false);
+		}
+
+		mti->deformVertsEM(md, ctx, editData, mesh, vertexCos, numVerts);
+
+		if (mesh != NULL) {
+			BKE_id_free(NULL, mesh);
+		}
+	}
+}
+
+void modifier_deformMatricesEM_DM_deprecated(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct BMEditMesh *editData, struct DerivedMesh *dm,
+	float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->deformMatricesEM_DM) {
+		mti->deformMatricesEM_DM(md, ctx, editData, dm, vertexCos, defMats, numVerts);
+	}
+	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
+		Mesh *mesh = NULL;
+		if (dm != NULL) {
+			mesh = BKE_id_new_nomain(ID_ME, NULL);
+			DM_to_mesh(dm, mesh, ctx->object, CD_MASK_EVERYTHING, false);
+		}
+
+		mti->deformMatricesEM(md, ctx, editData, mesh, vertexCos, defMats, numVerts);
+
+		if (mesh != NULL) {
+			BKE_id_free(NULL, mesh);
+		}
+	}
+}
+
+struct DerivedMesh *modifier_applyModifier_DM_deprecated(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct DerivedMesh *dm)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->applyModifier_DM) {
+		return mti->applyModifier_DM(md, ctx, dm);
+	}
+	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
+		Mesh *mesh = NULL;
+		if (dm != NULL) {
+			mesh = BKE_id_new_nomain(ID_ME, NULL);
+			DM_to_mesh(dm, mesh, ctx->object, CD_MASK_EVERYTHING, false);
+		}
+
+		struct Mesh *new_mesh = mti->applyModifier(md, ctx, mesh);
+
+		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
+		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
+
+		if (new_mesh != mesh) {
+			BKE_id_free(NULL, new_mesh);
+		}
+		if (mesh != NULL) {
+			BKE_id_free(NULL, mesh);
+		}
+
+		return ndm;
+	}
+}
+
+struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct BMEditMesh *editData,
+	struct DerivedMesh *dm)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+
+	if (mti->applyModifierEM_DM) {
+		return mti->applyModifierEM_DM(md, ctx, editData, dm);
+	}
+	else {
+		/* TODO(sybren): deduplicate all the copies of this code in this file. */
+		Mesh *mesh = NULL;
+		if (dm != NULL) {
+			mesh = BKE_id_new_nomain(ID_ME, NULL);
+			DM_to_mesh(dm, mesh, ctx->object, CD_MASK_EVERYTHING, false);
+		}
+
+		struct Mesh *new_mesh = mti->applyModifierEM(md, ctx, editData, mesh);
+
+		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
+		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
+
+		if (new_mesh != mesh) {
+			BKE_id_free(NULL, new_mesh);
+		}
+		if (mesh != NULL) {
+			BKE_id_free(NULL, mesh);
+		}
+
+		return ndm;
+	}
+}
+
+/** Get evaluated mesh for other object, which is used as an operand for the modifier,
+ * i.e. second operand for boolean modifier.
+ */
+Mesh *BKE_modifier_get_evaluated_mesh_from_object(Object *ob, const ModifierApplyFlag flag)
+{
+	if (flag & MOD_APPLY_RENDER) {
+		/* TODO(sergey): Use proper derived render in the future. */
+		return ob->mesh_evaluated;
+	}
+	else {
+		return ob->mesh_evaluated;
+	}
+}

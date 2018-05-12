@@ -102,6 +102,9 @@ enum {
 };
 
 typedef struct DRWCallState {
+	DRWCallVisibilityFn *visibility_cb;
+	void *user_data;
+
 	unsigned char flag;
 	unsigned char cache_id;   /* Compared with DST.state_cache_id to see if matrices are still valid. */
 	uint16_t matflag;         /* Which matrices to compute. */
@@ -137,7 +140,7 @@ typedef struct DRWCall {
 		struct { /* type == DRW_CALL_INSTANCES */
 			Gwn_Batch *geometry;
 			/* Count can be adjusted between redraw. If needed, we can add fixed count. */
-			unsigned int *count;
+			uint *count;
 		} instances;
 		struct { /* type == DRW_CALL_GENERATE */
 			DRWCallGenerateFn *geometry_fn;
@@ -154,11 +157,13 @@ typedef struct DRWCall {
 /* Used by DRWUniform.type */
 typedef enum {
 	DRW_UNIFORM_BOOL,
+	DRW_UNIFORM_BOOL_COPY,
 	DRW_UNIFORM_SHORT_TO_INT,
 	DRW_UNIFORM_SHORT_TO_FLOAT,
 	DRW_UNIFORM_INT,
 	DRW_UNIFORM_INT_COPY,
 	DRW_UNIFORM_FLOAT,
+	DRW_UNIFORM_FLOAT_COPY,
 	DRW_UNIFORM_TEXTURE,
 	DRW_UNIFORM_TEXTURE_PERSIST,
 	DRW_UNIFORM_TEXTURE_REF,
@@ -168,7 +173,13 @@ typedef enum {
 
 struct DRWUniform {
 	DRWUniform *next; /* single-linked list */
-	const void *value;
+	union {
+		/* For reference or array/vector types. */
+		const void *pvalue;
+		/* Single values. */
+		float fvalue;
+		int ivalue;
+	};
 	int location;
 	char type; /* DRWUniformType */
 	char length; /* cannot be more than 16 */
@@ -198,19 +209,19 @@ struct DRWShadingGroup {
 		struct { /* DRW_SHG_***_BATCH */
 			struct Gwn_Batch *batch_geom;     /* Result of call batching */
 			struct Gwn_VertBuf *batch_vbo;
-			unsigned int primitive_count;
+			uint primitive_count;
 		};
 		struct { /* DRW_SHG_INSTANCE[_EXTERNAL] */
 			struct Gwn_Batch *instance_geom;
 			struct Gwn_VertBuf *instance_vbo;
-			unsigned int instance_count;
+			uint instance_count;
 			float instance_orcofac[2][3]; /* TODO find a better place. */
 		};
 	};
 
 	DRWState state_extra;            /* State changes for this batch only (or'd with the pass's state) */
 	DRWState state_extra_disable;    /* State changes for this batch only (and'd with the pass's state) */
-	unsigned int stencil_mask;       /* Stencil mask to use for stencil test / write operations */
+	uint stencil_mask;       /* Stencil mask to use for stencil test / write operations */
 	DRWShadingGroupType type;
 
 	/* Builtin matrices locations */
@@ -259,7 +270,7 @@ typedef struct ViewUboStorage {
 /* ------------- DRAW MANAGER ------------ */
 
 #define MAX_CLIP_PLANES 6 /* GL_MAX_CLIP_PLANES is at least 6 */
-
+#define STENCIL_UNDEFINED 256
 typedef struct DRWManager {
 	/* TODO clean up this struct a bit */
 	/* Cache generation */
@@ -276,7 +287,7 @@ typedef struct DRWManager {
 	/* Managed by `DRW_state_set`, `DRW_state_reset` */
 	DRWState state;
 	DRWState state_lock;
-	unsigned int stencil_mask;
+	uint stencil_mask;
 
 	/* Per viewport */
 	GPUViewport *viewport;
@@ -289,11 +300,11 @@ typedef struct DRWManager {
 	GLenum backface, frontface;
 
 	struct {
-		unsigned int is_select : 1;
-		unsigned int is_depth : 1;
-		unsigned int is_image_render : 1;
-		unsigned int is_scene_render : 1;
-		unsigned int draw_background : 1;
+		uint is_select : 1;
+		uint is_depth : 1;
+		uint is_image_render : 1;
+		uint is_scene_render : 1;
+		uint draw_background : 1;
 	} options;
 
 	/* Current rendering context */
@@ -317,12 +328,13 @@ typedef struct DRWManager {
 
 	struct {
 		float frustum_planes[6][4];
+		BoundBox frustum_corners;
 		BoundSphere frustum_bsphere;
 		bool updated;
 	} clipping;
 
 #ifdef USE_GPU_SELECT
-	unsigned int select_id;
+	uint select_id;
 #endif
 
 	/* ---------- Nothing after this point is cleared after use ----------- */
@@ -350,7 +362,7 @@ extern DRWManager DST; /* TODO : get rid of this and allow multithreaded renderi
 
 void drw_texture_set_parameters(GPUTexture *tex, DRWTextureFlag flags);
 void drw_texture_get_format(
-        DRWTextureFormat format, bool is_framebuffer,
+        GPUTextureFormat format, bool is_framebuffer,
         GPUTextureFormat *r_data_type, int *r_channels, bool *r_is_depth);
 
 void *drw_viewport_engine_data_ensure(void *engine_type);

@@ -699,7 +699,7 @@ static bool calc_curve_deform(Object *par, float co[3],
 }
 
 void curve_deform_verts(
-        Object *cuOb, Object *target, DerivedMesh *dm, float (*vertexCos)[3],
+        Object *cuOb, Object *target, Mesh *mesh, float (*vertexCos)[3],
         int numVerts, const char *vgroup, short defaxis)
 {
 	Curve *cu;
@@ -735,8 +735,8 @@ void curve_deform_verts(
 
 		if (defgrp_index != -1) {
 			/* if there's derived data without deformverts, don't use vgroups */
-			if (dm) {
-				dvert = dm->getVertDataArray(dm, CD_MDEFORMVERT);
+			if (mesh) {
+				dvert = CustomData_get_layer(&mesh->vdata, CD_MDEFORMVERT);
 			}
 			else if (target->type == OB_LATTICE) {
 				dvert = ((Lattice *)target->data)->dvert;
@@ -849,51 +849,44 @@ void curve_deform_vector(Object *cuOb, Object *target,
 
 }
 
-void lattice_deform_verts(Object *laOb, Object *target, DerivedMesh *dm,
+void lattice_deform_verts(Object *laOb, Object *target, Mesh *mesh,
                           float (*vertexCos)[3], int numVerts, const char *vgroup, float fac)
 {
 	LatticeDeformData *lattice_deform_data;
+	MDeformVert *dvert = NULL;
+	int defgrp_index = -1;
 	int a;
-	bool use_vgroups;
 
 	if (laOb->type != OB_LATTICE)
 		return;
 
 	lattice_deform_data = init_latt_deform(laOb, target);
 
-	/* check whether to use vertex groups (only possible if target is a Mesh)
-	 * we want either a Mesh with no derived data, or derived data with
-	 * deformverts
+	/* Check whether to use vertex groups (only possible if target is a Mesh or Lattice).
+	 * We want either a Mesh/Lattice with no derived data, or derived data with deformverts.
 	 */
-	if (target && target->type == OB_MESH) {
-		/* if there's derived data without deformverts, don't use vgroups */
-		if (dm) {
-			use_vgroups = (dm->getVertDataArray(dm, CD_MDEFORMVERT) != NULL);
-		}
-		else {
-			Mesh *me = target->data;
-			use_vgroups = (me->dvert != NULL);
+	if (vgroup && vgroup[0] && target && ELEM(target->type, OB_MESH, OB_LATTICE)) {
+		defgrp_index = defgroup_name_index(target, vgroup);
+
+		if (defgrp_index != -1) {
+			/* if there's derived data without deformverts, don't use vgroups */
+			if (mesh) {
+				dvert = CustomData_get_layer(&mesh->vdata, CD_MDEFORMVERT);
+			}
+			else if (target->type == OB_LATTICE) {
+				dvert = ((Lattice *)target->data)->dvert;
+			}
+			else {
+				dvert = ((Mesh *)target->data)->dvert;
+			}
 		}
 	}
-	else {
-		use_vgroups = false;
-	}
-	
-	if (vgroup && vgroup[0] && use_vgroups) {
-		Mesh *me = target->data;
-		const int defgrp_index = defgroup_name_index(target, vgroup);
-		float weight;
-
-		if (defgrp_index >= 0 && (me->dvert || dm)) {
-			MDeformVert *dvert = me->dvert;
-			
-			for (a = 0; a < numVerts; a++, dvert++) {
-				if (dm) dvert = dm->getVertData(dm, a, CD_MDEFORMVERT);
-
-				weight = defvert_find_weight(dvert, defgrp_index);
-
-				if (weight > 0.0f)
-					calc_latt_deform(lattice_deform_data, vertexCos[a], weight * fac);
+	if (dvert) {
+		MDeformVert *dvert_iter;
+		for (a = 0, dvert_iter = dvert; a < numVerts; a++, dvert_iter++) {
+			const float weight = defvert_find_weight(dvert_iter, defgrp_index);
+			if (weight > 0.0f) {
+				calc_latt_deform(lattice_deform_data, vertexCos[a], weight * fac);
 			}
 		}
 	}
@@ -1033,6 +1026,7 @@ void BKE_lattice_modifiers_calc(struct Depsgraph *depsgraph, Scene *scene, Objec
 	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
 	float (*vertexCos)[3] = NULL;
 	int numVerts, editmode = (lt->editlatt != NULL);
+	const ModifierEvalContext mectx = {depsgraph, ob, 0};
 
 	if (ob->curve_cache) {
 		BKE_displist_free(&ob->curve_cache->disp);
@@ -1053,7 +1047,7 @@ void BKE_lattice_modifiers_calc(struct Depsgraph *depsgraph, Scene *scene, Objec
 		if (mti->type != eModifierTypeType_OnlyDeform) continue;
 
 		if (!vertexCos) vertexCos = BKE_lattice_vertexcos_get(ob, &numVerts);
-		mti->deformVerts(md, depsgraph, ob, NULL, vertexCos, numVerts, 0);
+		modifier_deformVerts_DM_deprecated(md, &mectx, NULL, vertexCos, numVerts);
 	}
 
 	/* always displist to make this work like derivedmesh */

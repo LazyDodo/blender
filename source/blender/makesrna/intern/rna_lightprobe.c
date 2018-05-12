@@ -43,6 +43,7 @@
 #include "DEG_depsgraph.h"
 
 #include "DNA_object_types.h"
+#include "DNA_group_types.h"
 
 #include "WM_api.h"
 
@@ -60,9 +61,9 @@ static EnumPropertyItem parallax_type_items[] = {
 };
 
 static EnumPropertyItem lightprobe_type_items[] = {
-	{LIGHTPROBE_TYPE_CUBE, "CUBEMAP", ICON_NONE, "Reflection Cubemap", "Capture reflections"},
-	{LIGHTPROBE_TYPE_PLANAR, "PLANAR", ICON_NONE, "Reflection Plane", ""},
-	{LIGHTPROBE_TYPE_GRID, "GRID", ICON_NONE, "Irradiance Volume", "Volume used for precomputing indirect lighting"},
+	{LIGHTPROBE_TYPE_CUBE, "CUBEMAP", ICON_LIGHTPROBE_CUBEMAP, "Reflection Cubemap", "Capture reflections"},
+	{LIGHTPROBE_TYPE_PLANAR, "PLANAR", ICON_LIGHTPROBE_PLANAR, "Reflection Plane", ""},
+	{LIGHTPROBE_TYPE_GRID, "GRID", ICON_LIGHTPROBE_GRID, "Irradiance Volume", "Volume used for precomputing indirect lighting"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -73,7 +74,7 @@ static void rna_def_lightprobe(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "LightProbe", "ID");
 	RNA_def_struct_ui_text(srna, "LightProbe", "Light Probe data-block for lighting capture objects");
-	RNA_def_struct_ui_icon(srna, ICON_RADIO);
+	RNA_def_struct_ui_icon(srna, ICON_LIGHTPROBE_CUBEMAP);
 
 	prop = RNA_def_property(srna, "type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, lightprobe_type_items);
@@ -184,6 +185,18 @@ static void rna_def_lightprobe(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 0.0f, 3.0f, 1.0, 3);
 	RNA_def_property_ui_text(prop, "Intensity", "Modify the intensity of the lighting captured by this probe");
+	RNA_def_property_update(prop, NC_MATERIAL | ND_SHADING, "rna_LightProbe_recalc");
+
+	prop = RNA_def_property(srna, "visibility_group", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "visibility_grp");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Visibility Group", "Restrict objects visible for this probe");
+	RNA_def_property_update(prop, NC_MATERIAL | ND_SHADING, "rna_LightProbe_recalc");
+
+	prop = RNA_def_property(srna, "invert_visibility_group", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", LIGHTPROBE_FLAG_INVERT_GROUP);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Invert Group", "Invert visibility group");
 	RNA_def_property_update(prop, NC_MATERIAL | ND_SHADING, "rna_LightProbe_recalc");
 
 	/* Data preview */

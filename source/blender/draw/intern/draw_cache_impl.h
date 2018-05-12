@@ -34,6 +34,7 @@ struct Gwn_VertBuf;
 struct ListBase;
 struct ModifierData;
 struct ParticleSystem;
+struct PTCacheEdit;
 
 struct Curve;
 struct Lattice;
@@ -91,7 +92,8 @@ struct Gwn_Batch *DRW_lattice_batch_cache_get_overlay_verts(struct Lattice *lt);
 /* Mesh */
 
 struct Gwn_Batch **DRW_mesh_batch_cache_get_surface_shaded(
-        struct Mesh *me, struct GPUMaterial **gpumat_array, uint gpumat_array_len);
+        struct Mesh *me, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
+        char **auto_layer_names, int **auto_layer_is_srgb, int *auto_layer_count);
 struct Gwn_Batch **DRW_mesh_batch_cache_get_surface_texpaint(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_surface_texpaint_single(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_weight_overlay_edges(struct Mesh *me, bool use_wire, bool use_sel);
@@ -123,5 +125,8 @@ void DRW_mesh_cache_sculpt_coords_ensure(struct Mesh *me);
 /* Particles */
 struct Gwn_Batch *DRW_particles_batch_cache_get_hair(struct ParticleSystem *psys, struct ModifierData *md);
 struct Gwn_Batch *DRW_particles_batch_cache_get_dots(struct Object *object, struct ParticleSystem *psys);
+struct Gwn_Batch *DRW_particles_batch_cache_get_edit_strands(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_particles_batch_cache_get_edit_inner_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_particles_batch_cache_get_edit_tip_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
 
 #endif /* __DRAW_CACHE_IMPL_H__ */

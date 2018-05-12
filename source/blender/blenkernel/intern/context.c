@@ -775,14 +775,6 @@ struct SpaceNla *CTX_wm_space_nla(const bContext *C)
 	return NULL;
 }
 
-struct SpaceTime *CTX_wm_space_time(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_TIME)
-		return sa->spacedata.first;
-	return NULL;
-}
-
 struct SpaceNode *CTX_wm_space_node(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
@@ -1251,4 +1243,11 @@ Depsgraph *CTX_data_depsgraph(const bContext *C)
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	return BKE_scene_get_depsgraph(scene, view_layer, true);
+}
+
+Depsgraph *CTX_data_depsgraph_on_load(const bContext *C)
+{
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	return BKE_scene_get_depsgraph(scene, view_layer, false);
 }

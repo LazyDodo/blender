@@ -198,7 +198,7 @@ void DEG_graph_build_from_view_layer(Depsgraph *graph,
                                       Scene *scene,
                                       ViewLayer *view_layer)
 {
-	double start_time;
+	double start_time = 0.0;
 	if (G.debug & G_DEBUG_DEPSGRAPH_BUILD) {
 		start_time = PIL_check_seconds_timer();
 	}
@@ -260,6 +260,9 @@ void DEG_graph_build_from_view_layer(Depsgraph *graph,
 	/* Relations are up to date. */
 	deg_graph->need_update = false;
 
+	/* Store pointers to commonly used valuated datablocks. */
+	deg_graph->scene_cow = (Scene *)deg_graph->get_cow_id(&deg_graph->scene->id);
+
 	if (need_on_visible_update) {
 		DEG_graph_on_visible_update(bmain, graph);
 	}
@@ -273,6 +276,7 @@ void DEG_graph_build_from_view_layer(Depsgraph *graph,
 /* Tag graph relations for update. */
 void DEG_graph_tag_relations_update(Depsgraph *graph)
 {
+	DEG_DEBUG_PRINTF(graph, TAG, "%s: Tagging relations for update.\n", __func__);
 	DEG::Depsgraph *deg_graph = reinterpret_cast<DEG::Depsgraph *>(graph);
 	deg_graph->need_update = true;
 	/* NOTE: When relations are updated, it's quite possible that
@@ -307,7 +311,7 @@ void DEG_graph_relations_update(Depsgraph *graph,
 /* Tag all relations for update. */
 void DEG_relations_tag_update(Main *bmain)
 {
-	DEG_DEBUG_PRINTF(TAG, "%s: Tagging relations for update.\n", __func__);
+	DEG_GLOBAL_DEBUG_PRINTF(TAG, "%s: Tagging relations for update.\n", __func__);
 	LISTBASE_FOREACH (Scene *, scene, &bmain->scene) {
 		LISTBASE_FOREACH (ViewLayer *, view_layer, &scene->view_layers) {
 			Depsgraph *depsgraph =

@@ -30,6 +30,9 @@
  * Implementation of Querying and Filtering API's
  */
 
+/* Silence warnings from copying deprecated fields. */
+#define DNA_DEPRECATED_ALLOW
+
 #include "MEM_guardedalloc.h"
 
 extern "C" {
@@ -122,17 +125,6 @@ static bool deg_objects_dupli_iterator_next(BLI_Iterator *iter)
 
 		temp_dupli_object->transflag &= ~OB_DUPLI;
 
-		if (dob->collection_properties != NULL) {
-			temp_dupli_object->base_collection_properties = dob->collection_properties;
-			IDP_MergeGroup(temp_dupli_object->base_collection_properties,
-			               dupli_parent->base_collection_properties,
-			               false);
-		}
-		else {
-			temp_dupli_object->base_collection_properties =
-			        dupli_parent->base_collection_properties;
-		}
-
 		copy_m4_m4(data->temp_dupli_object.obmat, dob->mat);
 		iter->current = &data->temp_dupli_object;
 		BLI_assert(
@@ -205,14 +197,10 @@ void DEG_iterator_objects_begin(BLI_Iterator *iter, DEGObjectIterData *data)
 	const size_t num_id_nodes = deg_graph->id_nodes.size();
 
 	if (num_id_nodes == 0) {
+		iter->data = NULL;
 		iter->valid = false;
 		return;
 	}
-
-	/* TODO: Calling this forces the scene datablock to be expanded,
-	 * otherwise we get crashes on load with copy-on-write. There may
-	 * be a better solution for this. */
-	DEG_get_evaluated_view_layer(depsgraph);
 
 	iter->data = data;
 	data->dupli_parent = NULL;
@@ -270,10 +258,13 @@ void DEG_iterator_objects_end(BLI_Iterator *iter)
 {
 #ifndef NDEBUG
 	DEGObjectIterData *data = (DEGObjectIterData *)iter->data;
-	/* Force crash in case the iterator data is referenced and accessed down
-	 * the line. (T51718)
-	 */
-	memset(&data->temp_dupli_object, 0xff, sizeof(data->temp_dupli_object));
+
+	if (data) {
+		/* Force crash in case the iterator data is referenced and accessed down
+		 * the line. (T51718)
+		 */
+		memset(&data->temp_dupli_object, 0xff, sizeof(data->temp_dupli_object));
+	}
 #else
 	(void) iter;
 #endif

@@ -56,18 +56,12 @@ static void initData(ModifierData *md)
 	pmd->type = MOD_DYNAMICPAINT_TYPE_CANVAS;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	DynamicPaintModifierData *pmd  = (DynamicPaintModifierData *)md;
+	const DynamicPaintModifierData *pmd  = (const DynamicPaintModifierData *)md;
 	DynamicPaintModifierData *tpmd = (DynamicPaintModifierData *)target;
 	
 	dynamicPaint_Modifier_copy(pmd, tpmd);
-
-	if (tpmd->canvas) {
-		for (DynamicPaintSurface *surface = tpmd->canvas->surfaces.first; surface; surface = surface->next) {
-			id_us_plus((ID *)surface->init_texture);
-		}
-	}
 }
 
 static void freeData(ModifierData *md)
@@ -105,15 +99,15 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, struct Depsgraph *depsgraph,
-                                  Object *ob, DerivedMesh *dm,
-                                  ModifierApplyFlag flag)
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *) md;
 
 	/* dont apply dynamic paint on orco dm stack */
-	if (!(flag & MOD_APPLY_ORCO)) {
-		return dynamicPaint_Modifier_do(pmd, depsgraph, md->scene, ob, dm);
+	if (!(ctx->flag & MOD_APPLY_ORCO)) {
+		return dynamicPaint_Modifier_do(pmd, ctx->depsgraph, md->scene, ctx->object, dm);
 	}
 	return dm;
 }
@@ -144,8 +138,9 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
 	return true;
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *) md;
 
@@ -162,8 +157,9 @@ static void foreachIDLink(ModifierData *md, Object *ob,
 	}
 }
 
-static void foreachTexLink(ModifierData *UNUSED(md), Object *UNUSED(ob),
-                           TexWalkFunc UNUSED(walk), void *UNUSED(userData))
+static void foreachTexLink(
+        ModifierData *UNUSED(md), Object *UNUSED(ob),
+        TexWalkFunc UNUSED(walk), void *UNUSED(userData))
 {
 	//walk(userData, ob, md, ""); /* re-enable when possible */
 }
@@ -180,12 +176,21 @@ ModifierTypeInfo modifierType_DynamicPaint = {
 	                        eModifierTypeFlag_UsesPreview,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,

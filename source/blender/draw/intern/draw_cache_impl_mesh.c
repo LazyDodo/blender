@@ -128,6 +128,8 @@ typedef struct MeshRenderData {
 	int loose_edge_len;
 
 	BMEditMesh *edit_bmesh;
+	struct EditMeshData *edit_data;
+
 	MVert *mvert;
 	MEdge *medge;
 	MLoop *mloop;
@@ -389,6 +391,7 @@ static MeshRenderData *mesh_render_data_create_ex(
 		BMesh *bm = embm->bm;
 
 		rdata->edit_bmesh = embm;
+		rdata->edit_data = me->runtime.edit_data;
 
 		int bm_ensure_types = 0;
 		if (types & (MR_DATATYPE_VERT)) {
@@ -424,6 +427,9 @@ static MeshRenderData *mesh_render_data_create_ex(
 			rdata->cd.offset.bweight = CustomData_get_offset(&bm->edata, CD_BWEIGHT);
 		}
 		if (types & (MR_DATATYPE_DVERT)) {
+			bm_ensure_types |= BM_VERT;
+		}
+		if (rdata->edit_data != NULL) {
 			bm_ensure_types |= BM_VERT;
 		}
 
@@ -623,7 +629,7 @@ static MeshRenderData *mesh_render_data_create_ex(
 				}
 				else {
 					const char *name = CustomData_get_layer_name(cd_ldata, CD_MLOOPCOL, i_src);
-					unsigned int hash = BLI_ghashutil_strhash_p(name);
+					uint hash = BLI_ghashutil_strhash_p(name);
 					BLI_snprintf(rdata->cd.uuid.vcol[i_dst], sizeof(*rdata->cd.uuid.vcol), "c%u", hash);
 					rdata->cd.layers.vcol[i_dst] = CustomData_get_layer_n(cd_ldata, CD_MLOOPCOL, i_src);
 					if (rdata->edit_bmesh) {
@@ -657,7 +663,7 @@ static MeshRenderData *mesh_render_data_create_ex(
 				}
 				else {
 					const char *name = CustomData_get_layer_name(cd_ldata, CD_MLOOPUV, i_src);
-					unsigned int hash = BLI_ghashutil_strhash_p(name);
+					uint hash = BLI_ghashutil_strhash_p(name);
 
 					BLI_snprintf(rdata->cd.uuid.uv[i_dst], sizeof(*rdata->cd.uuid.uv), "u%u", hash);
 					rdata->cd.layers.uv[i_dst] = CustomData_get_layer_n(cd_ldata, CD_MLOOPUV, i_src);
@@ -762,7 +768,7 @@ static MeshRenderData *mesh_render_data_create_ex(
 				}
 				else {
 					const char *name = CustomData_get_layer_name(cd_ldata, CD_MLOOPUV, i_src);
-					unsigned int hash = BLI_ghashutil_strhash_p(name);
+					uint hash = BLI_ghashutil_strhash_p(name);
 
 					BLI_snprintf(rdata->cd.uuid.tangent[i_dst], sizeof(*rdata->cd.uuid.tangent), "t%u", hash);
 
@@ -780,7 +786,7 @@ static MeshRenderData *mesh_render_data_create_ex(
 			}
 			if (cd_lused[CD_TANGENT] & DM_TANGENT_MASK_ORCO) {
 				const char *name = CustomData_get_layer_name(&rdata->cd.output.ldata, CD_TANGENT, i_dst);
-				unsigned int hash = BLI_ghashutil_strhash_p(name);
+				uint hash = BLI_ghashutil_strhash_p(name);
 				BLI_snprintf(rdata->cd.uuid.tangent[i_dst], sizeof(*rdata->cd.uuid.tangent), "t%u", hash);
 
 				rdata->cd.layers.tangent[i_dst] = CustomData_get_layer_n(&rdata->cd.output.ldata, CD_TANGENT, i_dst);
@@ -1352,16 +1358,26 @@ static unsigned char mesh_render_data_vertex_flag(MeshRenderData *rdata, const B
 
 static void add_overlay_tri(
         MeshRenderData *rdata, Gwn_VertBuf *vbo_pos, Gwn_VertBuf *vbo_nor, Gwn_VertBuf *vbo_data,
-        const unsigned int pos_id, const unsigned int vnor_id, const unsigned int lnor_id, const unsigned int data_id,
+        const uint pos_id, const uint vnor_id, const uint lnor_id, const uint data_id,
         const BMLoop **bm_looptri, const int base_vert_idx)
 {
 	unsigned char fflag;
 	unsigned char vflag;
 
 	if (vbo_pos) {
-		for (uint i = 0; i < 3; i++) {
-			const float *pos = bm_looptri[i]->v->co;
-			GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx + i, pos);
+		/* TODO(sybren): deduplicate this and all the other places it's pasted to in this file. */
+		if (rdata->edit_data && rdata->edit_data->vertexCos) {
+			for (uint i = 0; i < 3; i++) {
+				int vidx = BM_elem_index_get(bm_looptri[i]->v);
+				const float *pos = rdata->edit_data->vertexCos[vidx];
+				GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx + i, pos);
+			}
+		}
+		else {
+			for (uint i = 0; i < 3; i++) {
+				const float *pos = bm_looptri[i]->v->co;
+				GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx + i, pos);
+			}
 		}
 	}
 
@@ -1395,13 +1411,23 @@ static void add_overlay_tri(
 
 static void add_overlay_loose_edge(
         MeshRenderData *rdata, Gwn_VertBuf *vbo_pos, Gwn_VertBuf *vbo_nor, Gwn_VertBuf *vbo_data,
-        const unsigned int pos_id, const unsigned int vnor_id, const unsigned int data_id,
+        const uint pos_id, const uint vnor_id, const uint data_id,
         const BMEdge *eed, const int base_vert_idx)
 {
 	if (vbo_pos) {
-		for (int i = 0; i < 2; ++i) {
-			const float *pos = (&eed->v1)[i]->co;
-			GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx + i, pos);
+		/* TODO(sybren): deduplicate this and all the other places it's pasted to in this file. */
+		if (rdata->edit_data && rdata->edit_data->vertexCos) {
+			for (uint i = 0; i < 2; i++) {
+				int vidx = BM_elem_index_get((&eed->v1)[i]);
+				const float *pos = rdata->edit_data->vertexCos[vidx];
+				GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx + i, pos);
+			}
+		}
+		else {
+			for (int i = 0; i < 2; ++i) {
+				const float *pos = (&eed->v1)[i]->co;
+				GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx + i, pos);
+			}
 		}
 	}
 
@@ -1424,12 +1450,20 @@ static void add_overlay_loose_edge(
 
 static void add_overlay_loose_vert(
         MeshRenderData *rdata, Gwn_VertBuf *vbo_pos, Gwn_VertBuf *vbo_nor, Gwn_VertBuf *vbo_data,
-        const unsigned int pos_id, const unsigned int vnor_id, const unsigned int data_id,
+        const uint pos_id, const uint vnor_id, const uint data_id,
         const BMVert *eve, const int base_vert_idx)
 {
 	if (vbo_pos) {
-		const float *pos = eve->co;
-		GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx, pos);
+		/* TODO(sybren): deduplicate this and all the other places it's pasted to in this file. */
+		if (rdata->edit_data && rdata->edit_data->vertexCos) {
+			int vidx = BM_elem_index_get(eve);
+			const float *pos = rdata->edit_data->vertexCos[vidx];
+			GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx, pos);
+		}
+		else {
+			const float *pos = eve->co;
+			GWN_vertbuf_attr_set(vbo_pos, pos_id, base_vert_idx, pos);
+		}
 	}
 
 	if (vbo_nor) {
@@ -1530,6 +1564,12 @@ typedef struct MeshBatchCache {
 	Gwn_Batch *overlay_weight_verts;
 	Gwn_Batch *overlay_paint_edges;
 
+	/* arrays of bool uniform names (and value) that will be use to
+	 * set srgb conversion for auto attribs.*/
+	char *auto_layer_names;
+	int *auto_layer_is_srgb;
+	int auto_layer_ct;
+
 	/* settings to determine if cache is invalid */
 	bool is_maybe_dirty;
 	bool is_dirty; /* Instantly invalidates cache, skipping mesh check */
@@ -1548,7 +1588,7 @@ typedef struct MeshBatchCache {
 
 static bool mesh_batch_cache_valid(Mesh *me)
 {
-	MeshBatchCache *cache = me->batch_cache;
+	MeshBatchCache *cache = me->runtime.batch_cache;
 
 	if (cache == NULL) {
 		return false;
@@ -1589,10 +1629,10 @@ static bool mesh_batch_cache_valid(Mesh *me)
 
 static void mesh_batch_cache_init(Mesh *me)
 {
-	MeshBatchCache *cache = me->batch_cache;
+	MeshBatchCache *cache = me->runtime.batch_cache;
 
 	if (!cache) {
-		cache = me->batch_cache = MEM_callocN(sizeof(*cache), __func__);
+		cache = me->runtime.batch_cache = MEM_callocN(sizeof(*cache), __func__);
 	}
 	else {
 		memset(cache, 0, sizeof(*cache));
@@ -1619,12 +1659,12 @@ static MeshBatchCache *mesh_batch_cache_get(Mesh *me)
 		mesh_batch_cache_clear(me);
 		mesh_batch_cache_init(me);
 	}
-	return me->batch_cache;
+	return me->runtime.batch_cache;
 }
 
 void DRW_mesh_batch_cache_dirty(Mesh *me, int mode)
 {
-	MeshBatchCache *cache = me->batch_cache;
+	MeshBatchCache *cache = me->runtime.batch_cache;
 	if (cache == NULL) {
 		return;
 	}
@@ -1670,7 +1710,7 @@ void DRW_mesh_batch_cache_dirty(Mesh *me, int mode)
  **/
 static void mesh_batch_cache_clear_selective(Mesh *me, Gwn_VertBuf *vert)
 {
-	MeshBatchCache *cache = me->batch_cache;
+	MeshBatchCache *cache = me->runtime.batch_cache;
 	if (!cache) {
 		return;
 	}
@@ -1707,7 +1747,7 @@ static void mesh_batch_cache_clear_selective(Mesh *me, Gwn_VertBuf *vert)
 
 static void mesh_batch_cache_clear(Mesh *me)
 {
-	MeshBatchCache *cache = me->batch_cache;
+	MeshBatchCache *cache = me->runtime.batch_cache;
 	if (!cache) {
 		return;
 	}
@@ -1772,6 +1812,9 @@ static void mesh_batch_cache_clear(Mesh *me)
 	MEM_SAFE_FREE(cache->shaded_triangles_in_order);
 	MEM_SAFE_FREE(cache->shaded_triangles);
 
+	MEM_SAFE_FREE(cache->auto_layer_names);
+	MEM_SAFE_FREE(cache->auto_layer_is_srgb);
+
 	if (cache->texpaint_triangles) {
 		for (int i = 0; i < cache->mat_len; ++i) {
 			GWN_BATCH_DISCARD_SAFE(cache->texpaint_triangles[i]);
@@ -1786,7 +1829,7 @@ static void mesh_batch_cache_clear(Mesh *me)
 void DRW_mesh_batch_cache_free(Mesh *me)
 {
 	mesh_batch_cache_clear(me);
-	MEM_SAFE_FREE(me->batch_cache);
+	MEM_SAFE_FREE(me->runtime.batch_cache);
 }
 
 /* Gwn_Batch cache usage. */
@@ -1821,6 +1864,27 @@ static Gwn_VertBuf *mesh_batch_cache_get_tri_shading_data(MeshRenderData *rdata,
 		if (tangent_len == 0) { tangent_id = NULL; }
 		if (vcol_len == 0) { vcol_id = NULL; }
 
+		/* Count number of auto layer and allocate big enough name buffer. */
+		uint auto_names_len = 0;
+		uint auto_ofs = 0;
+		uint auto_id = 0;
+		cache->auto_layer_ct = 0;
+		for (uint i = 0; i < uv_len; i++) {
+			const char *attrib_name = mesh_render_data_uv_auto_layer_uuid_get(rdata, i);
+			auto_names_len += strlen(attrib_name) + 2; /* include null terminator and b prefix. */
+			cache->auto_layer_ct++;
+		}
+		for (uint i = 0; i < vcol_len; i++) {
+			if (rdata->cd.layers.auto_vcol[i]) {
+				const char *attrib_name = mesh_render_data_vcol_auto_layer_uuid_get(rdata, i);
+				auto_names_len += strlen(attrib_name) + 2; /* include null terminator and b prefix. */
+				cache->auto_layer_ct++;
+			}
+		}
+		auto_names_len += 1; /* add an ultimate '\0' terminator */
+		cache->auto_layer_names = MEM_callocN(auto_names_len * sizeof(char), "Auto layer name buf");
+		cache->auto_layer_is_srgb = MEM_mallocN(cache->auto_layer_ct * sizeof(int), "Auto layer value buf");
+
 		for (uint i = 0; i < uv_len; i++) {
 			/* UV */
 			const char *attrib_name = mesh_render_data_uv_layer_uuid_get(rdata, i);
@@ -1833,6 +1897,10 @@ static Gwn_VertBuf *mesh_batch_cache_get_tri_shading_data(MeshRenderData *rdata,
 			/* Auto Name */
 			attrib_name = mesh_render_data_uv_auto_layer_uuid_get(rdata, i);
 			GWN_vertformat_alias_add(format, attrib_name);
+
+			/* +1 include null terminator. */
+			auto_ofs += 1 + BLI_snprintf_rlen(cache->auto_layer_names + auto_ofs, auto_names_len - auto_ofs, "b%s", attrib_name);
+			cache->auto_layer_is_srgb[auto_id++] = 0; /* tag as not srgb */
 
 			if (i == rdata->cd.layers.uv_active) {
 				GWN_vertformat_alias_add(format, "u");
@@ -1862,7 +1930,12 @@ static Gwn_VertBuf *mesh_batch_cache_get_tri_shading_data(MeshRenderData *rdata,
 			/* Auto layer */
 			if (rdata->cd.layers.auto_vcol[i]) {
 				attrib_name = mesh_render_data_vcol_auto_layer_uuid_get(rdata, i);
+
 				GWN_vertformat_alias_add(format, attrib_name);
+
+				/* +1 include null terminator. */
+				auto_ofs += 1 + BLI_snprintf_rlen(cache->auto_layer_names + auto_ofs, auto_names_len - auto_ofs, "b%s", attrib_name);
+				cache->auto_layer_is_srgb[auto_id++] = 1; /* tag as srgb */
 			}
 
 			if (i == rdata->cd.layers.vcol_active) {
@@ -1996,7 +2069,7 @@ static Gwn_VertBuf *mesh_batch_cache_get_tri_uv_active(
 	BLI_assert(rdata->edit_bmesh == NULL);
 
 	if (cache->tri_aligned_uv == NULL) {
-		unsigned int vidx = 0;
+		uint vidx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint uv; } attr_id;
@@ -2095,8 +2168,18 @@ static Gwn_VertBuf *mesh_batch_cache_get_tri_pos_and_normals_ex(
 					}
 				}
 
-				for (uint t = 0; t < 3; t++) {
-					copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), bm_looptri[t]->v->co);
+				/* TODO(sybren): deduplicate this and all the other places it's pasted to in this file. */
+				if (rdata->edit_data && rdata->edit_data->vertexCos) {
+					for (uint t = 0; t < 3; t++) {
+						int vidx = BM_elem_index_get(bm_looptri[t]->v);
+						const float *pos = rdata->edit_data->vertexCos[vidx];
+						copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), pos);
+					}
+				}
+				else {
+					for (uint t = 0; t < 3; t++) {
+						copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), bm_looptri[t]->v->co);
+					}
 				}
 			}
 		}
@@ -2473,7 +2556,7 @@ static Gwn_VertBuf *mesh_create_tri_weights(
 
 	Gwn_VertBuf *vbo;
 	{
-		unsigned int cidx = 0;
+		uint cidx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint col; } attr_id;
@@ -2533,7 +2616,7 @@ static Gwn_VertBuf *mesh_create_tri_vert_colors(
 
 	Gwn_VertBuf *vbo;
 	{
-		unsigned int cidx = 0;
+		uint cidx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint col; } attr_id;
@@ -2593,7 +2676,7 @@ static Gwn_VertBuf *mesh_create_tri_select_id(
 
 	Gwn_VertBuf *vbo;
 	{
-		unsigned int cidx = 0;
+		uint cidx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint col; } attr_id;
@@ -2688,7 +2771,7 @@ static Gwn_VertBuf *mesh_batch_cache_get_vert_pos_and_nor_in_order(
 	return cache->pos_in_order;
 }
 
-static Gwn_VertFormat *edit_mesh_overlay_pos_format(unsigned int *r_pos_id)
+static Gwn_VertFormat *edit_mesh_overlay_pos_format(uint *r_pos_id)
 {
 	static Gwn_VertFormat format_pos = { 0 };
 	static unsigned pos_id;
@@ -2699,7 +2782,7 @@ static Gwn_VertFormat *edit_mesh_overlay_pos_format(unsigned int *r_pos_id)
 	return &format_pos;
 }
 
-static Gwn_VertFormat *edit_mesh_overlay_nor_format(unsigned int *r_vnor_id, unsigned int *r_lnor_id)
+static Gwn_VertFormat *edit_mesh_overlay_nor_format(uint *r_vnor_id, uint *r_lnor_id)
 {
 	static Gwn_VertFormat format_nor = { 0 };
 	static Gwn_VertFormat format_nor_loop = { 0 };
@@ -2720,7 +2803,7 @@ static Gwn_VertFormat *edit_mesh_overlay_nor_format(unsigned int *r_vnor_id, uns
 	}
 }
 
-static Gwn_VertFormat *edit_mesh_overlay_data_format(unsigned int *r_data_id)
+static Gwn_VertFormat *edit_mesh_overlay_data_format(uint *r_data_id)
 {
 	static Gwn_VertFormat format_flag = { 0 };
 	static unsigned data_id;
@@ -3185,7 +3268,7 @@ static Gwn_VertBuf *mesh_create_edge_pos_with_sel(
 
 	Gwn_VertBuf *vbo;
 	{
-		unsigned int vidx = 0, cidx = 0;
+		uint vidx = 0, cidx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, sel; } attr_id;
@@ -3272,7 +3355,7 @@ static Gwn_VertBuf *mesh_create_vert_pos_with_overlay_data(
 
 	Gwn_VertBuf *vbo;
 	{
-		unsigned int cidx = 0;
+		uint cidx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint data; } attr_id;
@@ -3765,7 +3848,8 @@ Gwn_Batch *DRW_mesh_batch_cache_get_verts_with_select_id(Mesh *me, uint select_i
 }
 
 Gwn_Batch **DRW_mesh_batch_cache_get_surface_shaded(
-        Mesh *me, struct GPUMaterial **gpumat_array, uint gpumat_array_len)
+        Mesh *me, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
+        char **auto_layer_names, int **auto_layer_is_srgb, int *auto_layer_count)
 {
 	MeshBatchCache *cache = mesh_batch_cache_get(me);
 
@@ -3783,17 +3867,23 @@ Gwn_Batch **DRW_mesh_batch_cache_get_surface_shaded(
 		Gwn_IndexBuf **el = mesh_batch_cache_get_triangles_in_order_split_by_material(rdata, cache);
 
 		Gwn_VertBuf *vbo = mesh_batch_cache_get_tri_pos_and_normals(rdata, cache);
+		Gwn_VertBuf *vbo_shading = mesh_batch_cache_get_tri_shading_data(rdata, cache);
+
 		for (int i = 0; i < mat_len; ++i) {
 			cache->shaded_triangles[i] = GWN_batch_create(
 			        GWN_PRIM_TRIS, vbo, el[i]);
-			Gwn_VertBuf *vbo_shading = mesh_batch_cache_get_tri_shading_data(rdata, cache);
 			if (vbo_shading) {
 				GWN_batch_vertbuf_add(cache->shaded_triangles[i], vbo_shading);
 			}
 		}
 
-
 		mesh_render_data_free(rdata);
+	}
+
+	if (auto_layer_names) {
+		*auto_layer_names = cache->auto_layer_names;
+		*auto_layer_is_srgb = cache->auto_layer_is_srgb;
+		*auto_layer_count = cache->auto_layer_ct;
 	}
 
 	return cache->shaded_triangles;
@@ -3915,7 +4005,7 @@ Gwn_Batch *DRW_mesh_batch_cache_get_weight_overlay_verts(Mesh *me)
  */
 void DRW_mesh_cache_sculpt_coords_ensure(Mesh *me)
 {
-	if (me->batch_cache) {
+	if (me->runtime.batch_cache) {
 		MeshBatchCache *cache = mesh_batch_cache_get(me);
 		if (cache && cache->pos_with_normals && cache->is_sculpt_points_tag) {
 			/* XXX Force update of all the batches that contains the pos_with_normals buffer.

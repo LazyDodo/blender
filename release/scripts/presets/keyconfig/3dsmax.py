@@ -586,11 +586,11 @@ kmi.properties.nr = 9
 kmi = km.keymap_items.new('view3d.layers', 'ZERO', 'PRESS', any=True)
 kmi.properties.nr = 10
 kmi = km.keymap_items.new('wm.context_toggle_enum', 'F3', 'PRESS')
-kmi.properties.data_path = 'space_data.viewport_shade'
+kmi.properties.data_path = 'space_data.shading.type'
 kmi.properties.value_1 = 'SOLID'
 kmi.properties.value_2 = 'WIREFRAME'
 kmi = km.keymap_items.new('wm.context_toggle_enum', 'Z', 'PRESS', alt=True)
-kmi.properties.data_path = 'space_data.viewport_shade'
+kmi.properties.data_path = 'space_data.shading.type'
 kmi.properties.value_1 = 'SOLID'
 kmi.properties.value_2 = 'TEXTURED'
 kmi = km.keymap_items.new('view3d.select_or_deselect_all', 'SELECTMOUSE', 'CLICK')
@@ -722,7 +722,7 @@ kmi.properties.value_1 = 'VERTEX'
 kmi.properties.value_2 = 'INCREMENT'
 kmi = km.keymap_items.new('view3d.select_border', 'EVT_TWEAK_L', 'ANY', ctrl=True)
 kmi = km.keymap_items.new('wm.context_toggle', 'G', 'PRESS')
-kmi.properties.data_path = 'space_data.show_floor'
+kmi.properties.data_path = 'space_data.overlay.show_floor'
 
 # Map Animation Channels
 km = kc.keymaps.new('Animation Channels', space_type='EMPTY', region_type='WINDOW', modal=False)

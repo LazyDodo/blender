@@ -68,10 +68,9 @@
 #include "DEG_depsgraph_query.h"
 
 
-void BKE_object_eval_local_transform(Depsgraph *UNUSED(depsgraph),
-                                     Object *ob)
+void BKE_object_eval_local_transform(Depsgraph *depsgraph, Object *ob)
 {
-	DEG_debug_print_eval(__func__, ob->id.name, ob);
+	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 
 	/* calculate local matrix */
 	BKE_object_to_mat4(ob, ob->obmat);
@@ -79,7 +78,7 @@ void BKE_object_eval_local_transform(Depsgraph *UNUSED(depsgraph),
 
 /* Evaluate parent */
 /* NOTE: based on solve_parenting(), but with the cruft stripped out */
-void BKE_object_eval_parent(Depsgraph *UNUSED(depsgraph),
+void BKE_object_eval_parent(Depsgraph *depsgraph,
                             Scene *scene,
                             Object *ob)
 {
@@ -89,7 +88,7 @@ void BKE_object_eval_parent(Depsgraph *UNUSED(depsgraph),
 	float tmat[4][4];
 	float locmat[4][4];
 
-	DEG_debug_print_eval(__func__, ob->id.name, ob);
+	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 
 	/* get local matrix (but don't calculate it, as that was done already!) */
 	// XXX: redundant?
@@ -118,7 +117,7 @@ void BKE_object_eval_constraints(Depsgraph *depsgraph,
 	bConstraintOb *cob;
 	float ctime = BKE_scene_frame_get(scene);
 
-	DEG_debug_print_eval(__func__, ob->id.name, ob);
+	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 
 	/* evaluate constraints stack */
 	/* TODO: split this into:
@@ -134,9 +133,9 @@ void BKE_object_eval_constraints(Depsgraph *depsgraph,
 	BKE_constraints_clear_evalob(cob);
 }
 
-void BKE_object_eval_done(Depsgraph *UNUSED(depsgraph), Object *ob)
+void BKE_object_eval_done(Depsgraph *depsgraph, Object *ob)
 {
-	DEG_debug_print_eval(__func__, ob->id.name, ob);
+	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 
 	/* Set negative scale flag in object. */
 	if (is_negative_m4(ob->obmat)) ob->transflag |= OB_NEG_SCALE;
@@ -315,7 +314,7 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
                                Scene *scene,
                                Object *ob)
 {
-	DEG_debug_print_eval(__func__, ob->id.name, ob);
+	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 	BLI_assert(ob->type != OB_ARMATURE);
 	BKE_object_handle_data_update(depsgraph, scene, ob);
 
@@ -359,6 +358,7 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 				/* TODO(sergey): This is kind of compatibility thing, so all render
 				 * engines can use object->data for mesh data for display. This is
 				 * something what we might want to change in the future.
+				 * XXX: This can sometimes cause modifiers to be applied twice!
 				 */
 				ob->data = new_mesh;
 				/* Special flags to help debugging. */
@@ -389,11 +389,11 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 	}
 }
 
-void BKE_object_eval_cloth(Depsgraph *UNUSED(depsgraph),
+void BKE_object_eval_cloth(Depsgraph *depsgraph,
                            Scene *scene,
                            Object *object)
 {
-	DEG_debug_print_eval(__func__, object->id.name, object);
+	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 	BKE_ptcache_object_reset(scene, object, PTCACHE_RESET_DEPSGRAPH);
 }
 
@@ -413,19 +413,17 @@ void BKE_object_eval_transform_all(Depsgraph *depsgraph,
 	BKE_object_eval_done(depsgraph, object);
 }
 
-void BKE_object_eval_update_shading(Depsgraph *UNUSED(depsgraph),
-                                    Object *object)
+void BKE_object_eval_update_shading(Depsgraph *depsgraph, Object *object)
 {
-	DEG_debug_print_eval(__func__, object->id.name, object);
+	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 	if (object->type == OB_MESH) {
 		BKE_mesh_batch_cache_dirty(object->data, BKE_MESH_BATCH_DIRTY_SHADING);
 	}
 }
 
-void BKE_object_data_select_update(Depsgraph *UNUSED(depsgraph),
-                                   struct ID *object_data)
+void BKE_object_data_select_update(Depsgraph *depsgraph, ID *object_data)
 {
-	DEG_debug_print_eval(__func__, object_data->name, object_data);
+	DEG_debug_print_eval(depsgraph, __func__, object_data->name, object_data);
 	switch (GS(object_data->name)) {
 		case ID_ME:
 			BKE_mesh_batch_cache_dirty((Mesh *)object_data,
@@ -444,7 +442,7 @@ void BKE_object_data_select_update(Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-void BKE_object_eval_flush_base_flags(Depsgraph *UNUSED(depsgraph),
+void BKE_object_eval_flush_base_flags(Depsgraph *depsgraph,
                                       Scene *scene, const int view_layer_index,
                                       Object *object, int base_index,
                                       const bool is_from_set)
@@ -459,14 +457,7 @@ void BKE_object_eval_flush_base_flags(Depsgraph *UNUSED(depsgraph),
 	Base *base = view_layer->object_bases_array[base_index];
 	BLI_assert(base->object == object);
 
-	DEG_debug_print_eval(__func__, object->id.name, object);
-
-	/* Make sure we have the base collection settings is already populated.
-	 * This will fail when BKE_layer_eval_layer_collection_pre hasn't run yet.
-	 *
-	 * Which usually means a missing call to DEG_id_tag_update(id, DEG_TAG_BASE_FLAGS_UPDATE).
-	 * Either of the entire scene, or of the newly added objects.*/
-	BLI_assert(!BLI_listbase_is_empty(&base->collection_properties->data.group));
+	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 
 	/* Copy flags and settings from base. */
 	object->base_flag = base->flag;
@@ -474,5 +465,13 @@ void BKE_object_eval_flush_base_flags(Depsgraph *UNUSED(depsgraph),
 		object->base_flag |= BASE_FROM_SET;
 		object->base_flag &= ~(BASE_SELECTED | BASE_SELECTABLED);
 	}
-	object->base_collection_properties = base->collection_properties;
+
+	if (object->mode == OB_MODE_PARTICLE_EDIT) {
+		for (ParticleSystem *psys = object->particlesystem.first;
+		     psys != NULL;
+		     psys = psys->next)
+		{
+			BKE_particle_batch_cache_dirty(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
+		}
+	}
 }

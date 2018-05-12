@@ -711,7 +711,7 @@ static void curve_draw_exec_precalc(wmOperator *op)
 			const struct StrokeElem *selem, *selem_first, *selem_last;
 
 			BLI_mempool_iternew(cdd->stroke_elem_pool, &iter);
-			selem_first = BLI_mempool_iterstep(&iter);
+			selem_first = selem_last = BLI_mempool_iterstep(&iter);
 			for (selem = BLI_mempool_iterstep(&iter); selem; selem = BLI_mempool_iterstep(&iter)) {
 				selem_last = selem;
 			}
@@ -1117,7 +1117,7 @@ static int curve_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 			/* use view plane (when set or as fallback when surface can't be found) */
 			if (cdd->project.use_depth == false) {
-				plane_co = ED_view3d_cursor3d_get(cdd->vc.scene, v3d);
+				plane_co = ED_view3d_cursor3d_get(cdd->vc.scene, v3d)->location;
 				plane_no = rv3d->viewinv[2];
 				cdd->project.use_plane = true;
 			}

@@ -430,7 +430,7 @@ static void applyObjectConstraintVec(
 
 			mul_m3_v3(td->axismtx, out);
 			if (t->flag & T_EDIT) {
-				mul_m3_v3(tc->obedit_mat, out);
+				mul_m3_v3(tc->mat3_unit, out);
 			}
 		}
 	}
@@ -486,7 +486,7 @@ static void applyObjectConstraintSize(
 
 		mul_m3_m3m3(tmat, smat, imat);
 		if (t->flag & T_EDIT) {
-			mul_m3_m3m3(smat, tc->obedit_mat, smat);
+			mul_m3_m3m3(smat, tc->mat3_unit, smat);
 		}
 		mul_m3_m3m3(smat, td->axismtx, tmat);
 	}
@@ -562,7 +562,7 @@ static void applyObjectConstraintRot(
 		}
 
 		if (t->flag & T_EDIT) {
-			mul_m3_m3m3(tmp_axismtx, tc->obedit_mat, td->axismtx);
+			mul_m3_m3m3(tmp_axismtx, tc->mat3_unit, td->axismtx);
 			axismtx = tmp_axismtx;
 		}
 		else {
@@ -616,7 +616,7 @@ void setAxisMatrixConstraint(TransInfo *t, int mode, const char text[])
 	if (t->data_len_all == 1) {
 		float axismtx[3][3];
 		if (t->flag & T_EDIT) {
-			mul_m3_m3m3(axismtx, tc->obedit_mat, tc->data->axismtx);
+			mul_m3_m3m3(axismtx, tc->mat3_unit, tc->data->axismtx);
 		}
 		else {
 			copy_m3_m3(axismtx, tc->data->axismtx);
@@ -646,7 +646,7 @@ void setLocalConstraint(TransInfo *t, int mode, const char text[])
 	if (t->flag & T_EDIT) {
 		/* Use the active (first) edit object. */
 		TransDataContainer *tc = t->data_container;
-		setConstraint(t, tc->obedit_mat, mode, text);
+		setConstraint(t, tc->mat3_unit, mode, text);
 	}
 	else {
 		setAxisMatrixConstraint(t, mode, text);
@@ -687,6 +687,10 @@ void setUserConstraint(TransInfo *t, short orientation, int mode, const char fte
 			break;
 		case V3D_MANIP_VIEW:
 			BLI_snprintf(text, sizeof(text), ftext, IFACE_("view"));
+			setConstraint(t, t->spacemtx, mode, text);
+			break;
+		case V3D_MANIP_CURSOR:
+			BLI_snprintf(text, sizeof(text), ftext, IFACE_("cursor"));
 			setConstraint(t, t->spacemtx, mode, text);
 			break;
 		case V3D_MANIP_GIMBAL:
@@ -872,13 +876,13 @@ static void drawObjectConstraint(TransInfo *t)
 				axismtx = td->axismtx;
 			}
 			else if (t->flag & T_EDIT) {
-				mul_v3_m4v3(co, tc->obedit->obmat, td->center);
+				mul_v3_m4v3(co, tc->mat, td->center);
 
-				mul_m3_m3m3(tmp_axismtx, tc->obedit_mat, td->axismtx);
+				mul_m3_m3m3(tmp_axismtx, tc->mat3_unit, td->axismtx);
 				axismtx = tmp_axismtx;
 			}
 			else if (t->flag & T_POSE) {
-				mul_v3_m4v3(co, tc->poseobj->obmat, td->center);
+				mul_v3_m4v3(co, tc->mat, td->center);
 				axismtx = td->axismtx;
 			}
 			else {

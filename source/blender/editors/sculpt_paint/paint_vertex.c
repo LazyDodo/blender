@@ -68,6 +68,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
 
 #include "ED_object.h"
 #include "ED_mesh.h"
@@ -206,7 +207,7 @@ int vertex_paint_mode_poll(bContext *C)
 	return ob && ob->mode == OB_MODE_VERTEX_PAINT && ((Mesh *)ob->data)->totpoly;
 }
 
-int vertex_paint_poll(bContext *C)
+static int vertex_paint_poll_ex(bContext *C, bool check_tool)
 {
 	if (vertex_paint_mode_poll(C) &&
 	    BKE_paint_brush(&CTX_data_tool_settings(C)->vpaint->paint))
@@ -214,11 +215,24 @@ int vertex_paint_poll(bContext *C)
 		ScrArea *sa = CTX_wm_area(C);
 		if (sa && sa->spacetype == SPACE_VIEW3D) {
 			ARegion *ar = CTX_wm_region(C);
-			if (ar->regiontype == RGN_TYPE_WINDOW)
-				return 1;
+			if (ar->regiontype == RGN_TYPE_WINDOW) {
+				if (!check_tool || WM_toolsystem_active_tool_is_brush(C)) {
+					return 1;
+				}
+			}
 		}
 	}
 	return 0;
+}
+
+int vertex_paint_poll(bContext *C)
+{
+	return vertex_paint_poll_ex(C, true);
+}
+
+int vertex_paint_poll_ignore_tool(bContext *C)
+{
+	return vertex_paint_poll_ex(C, true);
 }
 
 int weight_paint_mode_poll(bContext *C)
@@ -228,7 +242,7 @@ int weight_paint_mode_poll(bContext *C)
 	return ob && ob->mode == OB_MODE_WEIGHT_PAINT && ((Mesh *)ob->data)->totpoly;
 }
 
-int weight_paint_poll(bContext *C)
+static int weight_paint_poll_ex(bContext *C, bool check_tool)
 {
 	Object *ob = CTX_data_active_object(C);
 	ScrArea *sa;
@@ -241,10 +255,22 @@ int weight_paint_poll(bContext *C)
 	{
 		ARegion *ar = CTX_wm_region(C);
 		if (ar->regiontype == RGN_TYPE_WINDOW) {
-			return 1;
+			if (!check_tool || WM_toolsystem_active_tool_is_brush(C)) {
+				return 1;
+			}
 		}
 	}
 	return 0;
+}
+
+int weight_paint_poll(bContext *C)
+{
+	return weight_paint_poll_ex(C, true);
+}
+
+int weight_paint_poll_ignore_tool(bContext *C)
+{
+	return weight_paint_poll_ex(C, false);
 }
 
 static VPaint *new_vpaint(void)
@@ -1192,6 +1218,7 @@ void ED_object_wpaintmode_exit(struct bContext *C)
  */
 static int wpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 {
+	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
 	Object *ob = CTX_data_active_object(C);
 	const int mode_flag = OB_MODE_WEIGHT_PAINT;
 	const bool is_mode_set = (ob->mode & mode_flag) != 0;
@@ -1209,7 +1236,7 @@ static int wpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 		ED_object_wpaintmode_exit_ex(ob);
 	}
 	else {
-		Depsgraph *depsgraph = CTX_data_depsgraph(C);
+		Depsgraph *depsgraph = CTX_data_depsgraph_on_load(C);
 		wmWindowManager *wm = CTX_wm_manager(C);
 		ED_object_wpaintmode_enter_ex(depsgraph, wm, scene, ob);
 	}
@@ -1222,6 +1249,8 @@ static int wpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 	DEG_id_tag_update(&me->id, 0);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);
+
+	WM_msg_publish_rna_prop(mbus, &ob->id, ob, Object, mode);
 
 	return OPERATOR_FINISHED;
 }
@@ -2324,6 +2353,7 @@ void PAINT_OT_weight_paint(wmOperatorType *ot)
  */
 static int vpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 {
+	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
 	Object *ob = CTX_data_active_object(C);
 	const int mode_flag = OB_MODE_VERTEX_PAINT;
 	const bool is_mode_set = (ob->mode & mode_flag) != 0;
@@ -2342,7 +2372,7 @@ static int vpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 		ED_object_vpaintmode_exit_ex(ob);
 	}
 	else {
-		Depsgraph *depsgraph = CTX_data_depsgraph(C);
+		Depsgraph *depsgraph = CTX_data_depsgraph_on_load(C);
 		wmWindowManager *wm = CTX_wm_manager(C);
 		ED_object_vpaintmode_enter_ex(depsgraph, wm, scene, ob);
 	}
@@ -2353,6 +2383,8 @@ static int vpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 	DEG_id_tag_update(&me->id, 0);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);
+
+	WM_msg_publish_rna_prop(mbus, &ob->id, ob, Object, mode);
 
 	return OPERATOR_FINISHED;
 }

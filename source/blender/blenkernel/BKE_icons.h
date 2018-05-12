@@ -43,6 +43,7 @@ enum {
 	ICON_DATA_PREVIEW,
 	/** 2D triangles: obj is #Icon_Geom */
 	ICON_DATA_GEOM,
+	ICON_DATA_STUDIOLIGHT,
 };
 
 struct Icon {
@@ -65,14 +66,19 @@ struct Icon {
 struct Icon_Geom {
 	int icon_id;
 	int coords_len;
+	int coords_range[2];
 	const unsigned char (*coords)[2];
 	const unsigned char (*colors)[4];
+	/* when not NULL, the memory of coords and colors is a sub-region of this pointer. */
+	const void *mem;
 };
 
 typedef struct Icon Icon;
 
+struct ImBuf;
 struct PreviewImage;
 struct ID;
+struct StudioLight;
 
 enum eIconSizes;
 
@@ -82,8 +88,6 @@ void BKE_icons_init(int first_dyn_id);
 int BKE_icon_id_ensure(struct ID *id);
 
 int BKE_icon_preview_ensure(struct ID *id, struct PreviewImage *preview);
-
-int BKE_icon_geom_ensure(struct Icon_Geom *geom);
 
 /* retrieve icon for id */
 struct Icon *BKE_icon_get(const int icon_id);
@@ -147,6 +151,16 @@ struct PreviewImage *BKE_previewimg_cached_thumbnail_read(
 
 void BKE_previewimg_cached_release(const char *name);
 void BKE_previewimg_cached_release_pointer(struct PreviewImage *prv);
+
+int BKE_icon_geom_ensure(struct Icon_Geom *geom);
+struct Icon_Geom *BKE_icon_geom_from_memory(const uchar *data, size_t data_len);
+struct Icon_Geom *BKE_icon_geom_from_file(const char *filename);
+
+struct ImBuf *BKE_icon_geom_rasterize(
+        const struct Icon_Geom *geom,
+        const unsigned int size_x, const unsigned int size_y);
+
+int BKE_icon_ensure_studio_light(struct StudioLight *sl);
 
 #define ICON_RENDER_DEFAULT_HEIGHT 32
 
