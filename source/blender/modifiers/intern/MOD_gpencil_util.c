@@ -103,7 +103,7 @@ bool is_stroke_affected_by_modifier(
 }
 
 /* verify if valid vertex group *and return weight */
-float is_point_affected_by_modifier(bGPDspoint *pt, int inverse, int vindex)
+float get_modifier_point_weight(bGPDspoint *pt, int inverse, int vindex)
 {
 	float weight = 1.0f;
 

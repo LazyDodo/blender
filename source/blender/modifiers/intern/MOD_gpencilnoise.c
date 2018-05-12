@@ -128,7 +128,7 @@ static void gp_deformStroke(
 		}
 
 		/* verify vertex group */
-		weight = is_point_affected_by_modifier(pt0, (int)(!(mmd->flag & GP_NOISE_INVERT_VGROUP) == 0), vindex);
+		weight = get_modifier_point_weight(pt0, (int)(!(mmd->flag & GP_NOISE_INVERT_VGROUP) == 0), vindex);
 		if (weight < 0) {
 			continue;
 		}

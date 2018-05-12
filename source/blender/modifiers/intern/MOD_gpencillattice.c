@@ -91,7 +91,7 @@ static void gp_deformStroke(
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		/* verify vertex group */
-		weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_LATTICE_INVERT_VGROUP) == 0), vindex);
+		weight = get_modifier_point_weight(pt, (int)(!(mmd->flag & GP_LATTICE_INVERT_VGROUP) == 0), vindex);
 		if (weight < 0) {
 			continue;
 		}

@@ -98,7 +98,7 @@ static void gp_deformStroke(
 			bGPDspoint *pt = &gps->points[i];
 			
 			/* verify vertex group */
-			float weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
+			float weight = get_modifier_point_weight(pt, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
 			if (weight < 0) {
 				pt->strength += mmd->factor - 1.0f;
 			}
@@ -117,7 +117,7 @@ static void gp_deformStroke(
 				pt->strength *= mmd->factor;
 			}
 			else {
-				float weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
+				float weight = get_modifier_point_weight(pt, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
 				if (weight >= 0) {
 					pt->strength *= mmd->factor * weight;
 				}
