@@ -351,7 +351,7 @@ typedef struct bGPdata {
 	short xray_mode;            /* xray mode for strokes (eGP_DepthOrdering) */
 
 	/* Palettes */
-	ListBase palettes;          /* list of bGPDpalette's   - Deprecated (2.78 - 2.79 only) */
+	ListBase palettes DNA_DEPRECATED;    /* list of bGPDpalette's   - Deprecated (2.78 - 2.79 only) */
 	
 	/* Runtime Only - Drawing Manager cache */
 	struct GHash *batch_cache_data;
