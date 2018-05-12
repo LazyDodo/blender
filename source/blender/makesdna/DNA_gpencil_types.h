@@ -213,6 +213,10 @@ typedef enum eGPDstroke_Flag {
 /* Grease-Pencil Annotations - 'Frame'
  *	-> Acts as storage for the 'image' formed by strokes
  */
+typedef struct bGPDframe_runtime {
+	float viewmatrix[4][4];     /* parent matrix for drawing */
+} bGPDframe_runtime;
+
 typedef struct bGPDframe {
 	struct bGPDframe *next, *prev;
 	
@@ -222,7 +226,8 @@ typedef struct bGPDframe {
 	
 	short flag;			/* temp settings */
 	short key_type;		/* keyframe type (eBezTriple_KeyframeType) */
-	float viewmatrix[4][4];     /* parent matrix for drawing */
+
+	bGPDframe_runtime runtime;
 } bGPDframe;
 
 /* bGPDframe->flag */

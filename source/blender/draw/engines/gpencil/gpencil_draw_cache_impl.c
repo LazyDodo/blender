@@ -157,35 +157,35 @@ Gwn_Batch *DRW_gpencil_get_stroke_geom(bGPDframe *gpf, bGPDstroke *gps, short th
 		/* first point for adjacency (not drawn) */
 		if (i == 0) {
 			if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
-				gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[totpoints - 1], idx, 
+				gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[totpoints - 1], idx, 
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 				idx++;
 			}
 			else {
-				gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[1], idx, 
+				gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[1], idx, 
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 				idx++;
 			}
 		}
 		/* set point */
-		gpencil_set_stroke_point(vbo, gpf->viewmatrix, pt, idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, pt, idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 		idx++;
 	}
 
 	if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
 		/* draw line to first point to complete the cycle */
-		gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[0], idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[0], idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 		idx++;
 		/* now add adjacency point (not drawn) */
-		gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[1], idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[1], idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 		idx++;
 	}
 	/* last adjacency point (not drawn) */
 	else {
-		gpencil_set_stroke_point(vbo, gpf->viewmatrix, &points[totpoints - 2], idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[totpoints - 2], idx, 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 	}
 

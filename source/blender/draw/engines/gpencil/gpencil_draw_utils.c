@@ -530,7 +530,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 				gpencil_batch_cache_check_free_slots(ob);
 				cache->batch_fill[cache->cache_idx] = DRW_gpencil_get_fill_geom(ob, gps, color);
 			}
-			DRW_shgroup_call_add(fillgrp, cache->batch_fill[cache->cache_idx], gpf->viewmatrix);
+			DRW_shgroup_call_add(fillgrp, cache->batch_fill[cache->cache_idx], gpf->runtime.viewmatrix);
 		}
 	}
 }
@@ -579,7 +579,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 			cache->batch_stroke[cache->cache_idx] = DRW_gpencil_get_point_geom(gps, sthickness, ink);
 		}
 	}
-	DRW_shgroup_call_add(strokegrp, cache->batch_stroke[cache->cache_idx], gpf->viewmatrix);
+	DRW_shgroup_call_add(strokegrp, cache->batch_stroke[cache->cache_idx], gpf->runtime.viewmatrix);
 }
 
 /* add edit points shading group to pass */
@@ -604,7 +604,7 @@ static void gpencil_add_editpoints_shgroup(
 		}
 		if (cache->batch_edlin[cache->cache_idx]) {
 			if ((obact) && (obact == ob) && (gpd->flag & GP_DATA_STROKE_SHOW_EDIT_LINES)) {
-				DRW_shgroup_call_add(stl->g_data->shgrps_edit_line, cache->batch_edlin[cache->cache_idx], gpf->viewmatrix);
+				DRW_shgroup_call_add(stl->g_data->shgrps_edit_line, cache->batch_edlin[cache->cache_idx], gpf->runtime.viewmatrix);
 			}
 		}
 		/* edit points */
@@ -617,7 +617,7 @@ static void gpencil_add_editpoints_shgroup(
 				if (cache->batch_edit[cache->cache_idx]) {
 					if ((obact) && (obact == ob)) {
 						/* edit pass */
-						DRW_shgroup_call_add(stl->g_data->shgrps_edit_point, cache->batch_edit[cache->cache_idx], gpf->viewmatrix);
+						DRW_shgroup_call_add(stl->g_data->shgrps_edit_point, cache->batch_edit[cache->cache_idx], gpf->runtime.viewmatrix);
 					}
 				}
 			}
@@ -635,7 +635,7 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 
 	/* get parent matrix and save as static data */
 	ED_gpencil_parent_location(ob, gpd, gpl, viewmatrix);
-	copy_m4_m4(gpf->viewmatrix, viewmatrix);
+	copy_m4_m4(gpf->runtime.viewmatrix, viewmatrix);
 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 		
@@ -694,7 +694,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 
 	/* get parent matrix and save as static data */
 	ED_gpencil_parent_location(ob, gpd, gpl, viewmatrix);
-	copy_m4_m4(derived_gpf->viewmatrix, viewmatrix);
+	copy_m4_m4(derived_gpf->runtime.viewmatrix, viewmatrix);
 
 	/* apply geometry modifiers */
 	if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
