@@ -43,8 +43,9 @@
 #include "MOD_util.h"
 
 
-static void uv_warp_from_mat4_pair(float uv_dst[2], const float uv_src[2], float warp_mat[4][4],
-                                   int axis_u, int axis_v)
+static void uv_warp_from_mat4_pair(
+        float uv_dst[2], const float uv_src[2], float warp_mat[4][4],
+        int axis_u, int axis_v)
 {
 	float tuv[3] = {0.0f};
 
@@ -63,15 +64,6 @@ static void initData(ModifierData *md)
 	umd->axis_u = 0;
 	umd->axis_v = 1;
 	copy_v2_fl(umd->center, 0.5f);
-}
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	UVWarpModifierData *umd  = (UVWarpModifierData *)md;
-	UVWarpModifierData *tumd = (UVWarpModifierData *)target;
-#endif
-	modifier_copyData_generic(md, target);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
@@ -146,9 +138,9 @@ static void uv_warp_compute(
 	}
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx),
-                                  Object *ob, DerivedMesh *dm,
-                                  ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	UVWarpModifierData *umd = (UVWarpModifierData *) md;
 	int numPolys, numLoops;
@@ -206,7 +198,7 @@ static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationConte
 	mloop = dm->getLoopArray(dm);
 	/* make sure we are not modifying the original UV map */
 	mloopuv = CustomData_duplicate_referenced_layer_named(&dm->loopData, CD_MLOOPUV, uvname, numLoops);
-	modifier_get_vgroup(ob, dm, umd->vgroup_name, &dvert, &defgrp_index);
+	modifier_get_vgroup(ctx->object, dm, umd->vgroup_name, &dvert, &defgrp_index);
 
 	UVWarpData data = {.mpoly = mpoly, .mloop = mloop, .mloopuv = mloopuv,
 	                   .dvert = dvert, .defgrp_index = defgrp_index,
@@ -232,9 +224,10 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 	walk(userData, ob, &umd->object_src, IDWALK_CB_NOP);
 }
 
-static void uv_warp_deps_object_bone_new(struct DepsNodeHandle *node,
-                                         Object *object,
-                                         const char *bonename)
+static void uv_warp_deps_object_bone_new(
+        struct DepsNodeHandle *node,
+        Object *object,
+        const char *bonename)
 {
 	if (object != NULL) {
 		if (bonename[0])
@@ -260,13 +253,23 @@ ModifierTypeInfo modifierType_UVWarp = {
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode,
-	/* copyData */          copyData,
+
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

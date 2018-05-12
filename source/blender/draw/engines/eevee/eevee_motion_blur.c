@@ -68,16 +68,13 @@ static void eevee_motion_blur_camera_get_matrix_at_time(
 	cam_cpy.data = &camdata_cpy;
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	/* We will be modifying time, so we create copy of eval_ctx. */
-	EvaluationContext eval_ctx = draw_ctx->eval_ctx;
-	eval_ctx.ctime = time;
 
 	/* Past matrix */
 	/* FIXME : This is a temporal solution that does not take care of parent animations */
 	/* Recalc Anim manualy */
 	BKE_animsys_evaluate_animdata(scene, &cam_cpy.id, cam_cpy.adt, time, ADT_RECALC_ALL);
 	BKE_animsys_evaluate_animdata(scene, &camdata_cpy.id, camdata_cpy.adt, time, ADT_RECALC_ALL);
-	BKE_object_where_is_calc_time(&eval_ctx, scene, &cam_cpy, time);
+	BKE_object_where_is_calc_time(draw_ctx->depsgraph, scene, &cam_cpy, time);
 
 	/* Compute winmat */
 	CameraParams params;
@@ -117,7 +114,6 @@ int EEVEE_motion_blur_init(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *veda
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	ARegion *ar = draw_ctx->ar;
 	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer,
-	                                                        COLLECTION_MODE_NONE,
 	                                                        RE_engine_id_BLENDER_EEVEE);
 
 	if (BKE_collection_engine_property_value_get_bool(props, "motion_blur_enable")) {
@@ -188,8 +184,8 @@ void EEVEE_motion_blur_cache_init(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Dat
 
 		DRWShadingGroup *grp = DRW_shgroup_create(e_data.motion_blur_sh, psl->motion_blur);
 		DRW_shgroup_uniform_int(grp, "samples", &effects->motion_blur_samples, 1);
-		DRW_shgroup_uniform_mat4(grp, "currInvViewProjMatrix", (float *)effects->current_ndc_to_world);
-		DRW_shgroup_uniform_mat4(grp, "pastViewProjMatrix", (float *)effects->past_world_to_ndc);
+		DRW_shgroup_uniform_mat4(grp, "currInvViewProjMatrix", effects->current_ndc_to_world);
+		DRW_shgroup_uniform_mat4(grp, "pastViewProjMatrix", effects->past_world_to_ndc);
 		DRW_shgroup_uniform_texture_ref(grp, "colorBuffer", &effects->source_buffer);
 		DRW_shgroup_uniform_texture_ref(grp, "depthBuffer", &dtxl->depth);
 		DRW_shgroup_call_add(grp, quad, NULL);

@@ -69,8 +69,10 @@ static void initData(ModifierData *md)
 	cloth_init(clmd);
 }
 
-static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_ctx, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3],
-                        int numVerts, ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *derivedData, float (*vertexCos)[3],
+        int numVerts)
 {
 	DerivedMesh *dm;
 	ClothModifierData *clmd = (ClothModifierData *) md;
@@ -83,7 +85,7 @@ static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_c
 			return;
 	}
 
-	dm = get_dm(ob, NULL, derivedData, NULL, false, false);
+	dm = get_dm(ctx->object, NULL, derivedData, NULL, false, false);
 	if (dm == derivedData)
 		dm = CDDM_copy(dm);
 
@@ -94,7 +96,7 @@ static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_c
 	 * Also hopefully new cloth system will arrive soon..
 	 */
 	if (derivedData == NULL && clmd->sim_parms->shapekey_rest) {
-		KeyBlock *kb = BKE_keyblock_from_key(BKE_key_from_object(ob),
+		KeyBlock *kb = BKE_keyblock_from_key(BKE_key_from_object(ctx->object),
 		                                     clmd->sim_parms->shapekey_rest);
 		if (kb && kb->data != NULL) {
 			float (*layerorco)[3];
@@ -109,7 +111,7 @@ static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_c
 
 	CDDM_apply_vert_coords(dm, vertexCos);
 
-	clothModifier_do(clmd, eval_ctx, md->scene, ob, dm, vertexCos);
+	clothModifier_do(clmd, ctx->depsgraph, md->scene, ctx->object, dm, vertexCos);
 
 	dm->release(dm);
 }
@@ -139,9 +141,9 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	ClothModifierData *clmd = (ClothModifierData *) md;
+	const ClothModifierData *clmd = (const ClothModifierData *) md;
 	ClothModifierData *tclmd = (ClothModifierData *) target;
 
 	if (tclmd->sim_parms) {
@@ -201,8 +203,9 @@ static void freeData(ModifierData *md)
 	}
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	ClothModifierData *clmd = (ClothModifierData *) md;
 
@@ -225,12 +228,21 @@ ModifierTypeInfo modifierType_Cloth = {
 	                        eModifierTypeFlag_Single,
 
 	/* copyData */          copyData,
-	/* deformVerts */       deformVerts,
+
+	/* deformVerts_DM */    deformVerts,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,

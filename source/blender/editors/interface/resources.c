@@ -156,14 +156,8 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case SPACE_CONSOLE:
 					ts = &btheme->tconsole;
 					break;
-				case SPACE_TIME:
-					ts = &btheme->ttime;
-					break;
 				case SPACE_NODE:
 					ts = &btheme->tnode;
-					break;
-				case SPACE_LOGIC:
-					ts = &btheme->tlogic;
 					break;
 				case SPACE_CLIP:
 					ts = &btheme->tclip;
@@ -178,7 +172,7 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 
 			switch (colorid) {
 				case TH_BACK:
-					if (theme_regionid == RGN_TYPE_WINDOW)
+					if (ELEM(theme_regionid, RGN_TYPE_WINDOW, RGN_TYPE_PREVIEW))
 						cp = ts->back;
 					else if (theme_regionid == RGN_TYPE_CHANNELS)
 						cp = ts->list;
@@ -236,6 +230,7 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 					headerdesel[0] = cp[0] > 10 ? cp[0] - 10 : 0;
 					headerdesel[1] = cp[1] > 10 ? cp[1] - 10 : 0;
 					headerdesel[2] = cp[2] > 10 ? cp[2] - 10 : 0;
+					headerdesel[3] = cp[3];
 					cp = headerdesel;
 					break;
 				case TH_HEADER_TEXT:
@@ -664,6 +659,9 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case TH_WIDGET_EMBOSS:
 					cp = btheme->tui.widget_emboss; break;
 
+				case TH_EDITOR_OUTLINE:
+					cp = btheme->tui.editor_outline;
+					break;
 				case TH_AXIS_X:
 					cp = btheme->tui.xaxis; break;
 				case TH_AXIS_Y:
@@ -887,6 +885,7 @@ void ui_theme_init_default(void)
 	btheme->tui.iconfile[0] = 0;
 	rgba_char_args_set(btheme->tui.wcol_tooltip.text, 255, 255, 255, 255);
 	rgba_char_args_set_fl(btheme->tui.widget_emboss, 1.0f, 1.0f, 1.0f, 0.02f);
+	rgba_char_args_set_fl(btheme->tui.editor_outline, 0.25f, 0.25f, 0.25f, 1.0f);
 
 	rgba_char_args_set(btheme->tui.xaxis, 220,   0,   0, 255);
 	rgba_char_args_set(btheme->tui.yaxis,   0, 220,   0, 255);
@@ -1213,10 +1212,6 @@ void ui_theme_init_default(void)
 	rgba_char_args_set(btheme->tnode.console_output, 223, 202, 53, 255);  /* interface nodes */
 	btheme->tnode.noodle_curving = 5;
 
-	/* space logic */
-	btheme->tlogic = btheme->tv3d;
-	rgba_char_args_set(btheme->tlogic.back, 100, 100, 100, 255);
-	
 	/* space clip */
 	btheme->tclip = btheme->tv3d;
 
@@ -1554,7 +1549,7 @@ void UI_GetThemeColorBlendShade3ubv(int colorid1, int colorid2, float fac, int o
 	blend[1] = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
 	blend[2] = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
 
-	F3TOCHAR3(blend, col);
+	unit_float_to_uchar_clamp_v3(col, blend);
 }
 
 void UI_GetThemeColorShade4ubv(int colorid, int offset, unsigned char col[4])
@@ -2115,13 +2110,6 @@ void init_userdef_do_versions(void)
 
 			if (btheme->tui.wcol_num.outline[3] == 0)
 				ui_widget_color_init(&btheme->tui);
-			
-			/* Logic editor theme, check for alpha==0 is safe, then color was never set */
-			if (btheme->tlogic.syntaxn[3] == 0) {
-				/* re-uses syntax color storage */
-				btheme->tlogic = btheme->tv3d;
-				rgba_char_args_set(btheme->tlogic.back, 100, 100, 100, 255);
-			}
 
 			rgba_char_args_set_fl(btheme->tinfo.back, 0.45, 0.45, 0.45, 1.0);
 			rgba_char_args_set_fl(btheme->tuserpref.back, 0.45, 0.45, 0.45, 1.0);
@@ -2158,8 +2146,6 @@ void init_userdef_do_versions(void)
 				strcpy(km->idname, "3D View Generic");
 			else if (STREQ(km->idname, "EditMesh"))
 				strcpy(km->idname, "Mesh");
-			else if (STREQ(km->idname, "TimeLine"))
-				strcpy(km->idname, "Timeline");
 			else if (STREQ(km->idname, "UVEdit"))
 				strcpy(km->idname, "UV Editor");
 			else if (STREQ(km->idname, "Animation_Channels"))
@@ -2185,10 +2171,6 @@ void init_userdef_do_versions(void)
 			else if (STREQ(km->idname, "Buttons Generic"))
 				strcpy(km->idname, "Property Editor");
 		}
-	}
-	if (!USER_VERSION_ATLEAST(250, 16)) {
-		if (U.wmdrawmethod == USER_DRAW_TRIPLE)
-			U.wmdrawmethod = USER_DRAW_AUTOMATIC;
 	}
 	
 	if (!USER_VERSION_ATLEAST(252, 3)) {
@@ -2492,9 +2474,6 @@ void init_userdef_do_versions(void)
 		}
 		if (U.memcachelimit <= 0) {
 			U.memcachelimit = 32;
-		}
-		if (U.frameserverport == 0) {
-			U.frameserverport = 8080;
 		}
 		if (U.dbl_click_time == 0) {
 			U.dbl_click_time = 350;
@@ -2802,10 +2781,6 @@ void init_userdef_do_versions(void)
 			rgba_char_args_set(btheme->tnode.gp_vertex, 0, 0, 0, 255);
 			rgba_char_args_set(btheme->tnode.gp_vertex_select, 255, 133, 0, 255);
 			btheme->tnode.gp_vertex_size = 3;
-			
-			/* Timeline Keyframe Indicators */
-			rgba_char_args_set(btheme->ttime.time_keyframe, 0xDD, 0xD7, 0x00, 0xFF);
-			rgba_char_args_set(btheme->ttime.time_gp_keyframe, 0xB5, 0xE6, 0x1D, 0xFF);
 		}
 	}
 
@@ -2935,14 +2910,11 @@ void init_userdef_do_versions(void)
 		U.transopts &= ~(
 		    USER_TR_DEPRECATED_2 | USER_TR_DEPRECATED_3 | USER_TR_DEPRECATED_4 |
 		    USER_TR_DEPRECATED_6 | USER_TR_DEPRECATED_7);
-		U.gameflags &= ~(
-		    USER_GL_RENDER_DEPRECATED_0 | USER_GL_RENDER_DEPRECATED_1 |
-		    USER_GL_RENDER_DEPRECATED_3 | USER_GL_RENDER_DEPRECATED_4);
 
 		U.uiflag |= USER_LOCK_CURSOR_ADJUST;
 	}
 
-	if (!USER_VERSION_ATLEAST(280, 2)) {
+	if (!USER_VERSION_ATLEAST(280, 9)) {
 		/* interface_widgets.c */
 		struct uiWidgetColors wcol_tab = {
 			{60, 60, 60, 255},
@@ -2968,12 +2940,74 @@ void init_userdef_do_versions(void)
 			copy_v4_v4_char(btheme->ttopbar.back, tmp);
 		}
 	}
+	
+	if (!USER_VERSION_ATLEAST(280, 9)) {
+		/* Timeline removal */
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			if (btheme->tipo.anim_active[3] == 0) {
+				rgba_char_args_set(btheme->tipo.anim_active,    204, 112, 26, 102);
+			}
+			if (btheme->tseq.anim_active[3] == 0) {
+				rgba_char_args_set(btheme->tseq.anim_active,    204, 112, 26, 102);	
+			}
+		}
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 10)) {
+		/* Roundness */
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			btheme->tui.wcol_regular.roundness = 0.25f;
+			btheme->tui.wcol_tool.roundness = 0.2f;
+			btheme->tui.wcol_text.roundness = 0.2f;
+			btheme->tui.wcol_radio.roundness = 0.2f;
+			btheme->tui.wcol_option.roundness = 0.333333f;
+			btheme->tui.wcol_toggle.roundness = 0.25f;
+			btheme->tui.wcol_num.roundness = 0.5f;
+			btheme->tui.wcol_numslider.roundness = 0.5f;
+			btheme->tui.wcol_tab.roundness = 0.25f;
+			btheme->tui.wcol_menu.roundness = 0.2f;
+			btheme->tui.wcol_pulldown.roundness = 0.2f;
+			btheme->tui.wcol_menu_back.roundness = 0.25f;
+			btheme->tui.wcol_menu_item.roundness = 0.25f;
+			btheme->tui.wcol_tooltip.roundness = 0.25f;
+			btheme->tui.wcol_box.roundness = 0.2f;
+			btheme->tui.wcol_scroll.roundness = 0.5f;
+			btheme->tui.wcol_progress.roundness = 0.25f;
+			btheme->tui.wcol_list_item.roundness = 0.2f;
+			btheme->tui.wcol_pie_menu.roundness = 0.5f;
+			rgba_char_args_set_fl(btheme->tui.editor_outline, 0.25f, 0.25f, 0.25f, 1.0f);
+		}
+	}
+
+	if (((bTheme *)U.themes.first)->tui.wcol_toolbar_item.text[3] == 0) {
+		struct uiWidgetColors wcol_toolbar_item = {
+			.outline = {0x0, 0x0, 0x0, 0xff},
+			.inner = {0x46, 0x46, 0x46, 0xff},
+			.inner_sel = {0xcc, 0xcc, 0xcc, 0xff},
+			.item = {0x0, 0x0, 0x0, 0xff},
+
+			.text = {0xff, 0xff, 0xff, 0xff},
+			.text_sel = {0x33, 0x33, 0x33, 0xff},
+
+			.shaded = 0,
+			.shadetop = 0,
+			.shadedown = 0,
+			.alpha_check = 0,
+			.roundness = 0.3f,
+		};
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			btheme->tui.wcol_toolbar_item = wcol_toolbar_item;
+			btheme->tui.icon_saturation = 1.0f;
+		}
+	}
 
 	/**
 	 * Include next version bump.
-	 *
-	 * (keep this block even if it becomes empty).
 	 */
+	{
+		/* (keep this block even if it becomes empty). */
+	}
+
 	if (((bTheme *)U.themes.first)->tui.manipulator_hi[3] == 0) {
 		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
 			ui_theme_space_init_manipulator_colors(btheme);

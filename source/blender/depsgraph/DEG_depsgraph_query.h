@@ -49,6 +49,22 @@ struct ViewLayer;
 extern "C" {
 #endif
 
+/* *********************** DEG input data ********************* */
+
+/* Get scene that depsgraph was built for. */
+struct Scene *DEG_get_input_scene(const Depsgraph *graph);
+
+/* Get view layer that depsgraph was built for. */
+struct ViewLayer *DEG_get_input_view_layer(const Depsgraph *graph);
+
+/* Get evaluation mode that depsgraph was built for. */
+eEvaluationMode DEG_get_mode(const Depsgraph *graph);
+
+/* Get time that depsgraph is being evaluated or was last evaluated at. */
+float DEG_get_ctime(const Depsgraph *graph);
+
+/* ********************* DEG evaluated data ******************* */
+
 /* Check if given ID type was tagged for update. */
 bool DEG_id_type_tagged(struct Main *bmain, short id_type);
 
@@ -68,6 +84,13 @@ struct Object *DEG_get_evaluated_object(const struct Depsgraph *depsgraph,
 /* Get evaluated version of given ID datablock. */
 struct ID *DEG_get_evaluated_id(const struct Depsgraph *depsgraph,
                                 struct ID *id);
+
+
+/* Get original version of object for given evaluated one. */
+struct Object *DEG_get_original_object(struct Object *object);
+
+/* Get original version of given evaluated ID datablock. */
+struct ID *DEG_get_original_id(struct ID *id);
 
 /* ************************ DEG iterators ********************* */
 
@@ -90,7 +113,6 @@ typedef struct DEGObjectIterData {
 	int flag;
 
 	struct Scene *scene;
-	struct EvaluationContext eval_ctx;
 
 	int visibility_check; /* eObjectVisibilityCheck. */
 
@@ -165,6 +187,9 @@ typedef void (*DEGForeachIDCallback)(ID *id, void *user_data);
 void DEG_foreach_dependent_ID(const Depsgraph *depsgraph,
                               const ID *id,
                               DEGForeachIDCallback callback, void *user_data);
+
+void DEG_foreach_ID(const Depsgraph *depsgraph,
+                    DEGForeachIDCallback callback, void *user_data);
 
 
 #ifdef __cplusplus

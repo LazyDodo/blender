@@ -196,14 +196,12 @@ void view3d_operatortypes(void)
 	WM_operatortype_append(VIEW3D_OT_render_border);
 	WM_operatortype_append(VIEW3D_OT_clear_render_border);
 	WM_operatortype_append(VIEW3D_OT_zoom_border);
-	WM_operatortype_append(VIEW3D_OT_enable_manipulator);
 	WM_operatortype_append(VIEW3D_OT_cursor3d);
 	WM_operatortype_append(VIEW3D_OT_select_lasso);
 	WM_operatortype_append(VIEW3D_OT_select_menu);
 	WM_operatortype_append(VIEW3D_OT_camera_to_view);
 	WM_operatortype_append(VIEW3D_OT_camera_to_view_selected);
 	WM_operatortype_append(VIEW3D_OT_object_as_camera);
-	WM_operatortype_append(VIEW3D_OT_game_start);
 	WM_operatortype_append(VIEW3D_OT_fly);
 	WM_operatortype_append(VIEW3D_OT_walk);
 	WM_operatortype_append(VIEW3D_OT_navigate);
@@ -406,12 +404,12 @@ void view3d_keymap(wmKeyConfig *keyconf)
 	/* drawtype */
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle_enum", ZKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.viewport_shade");
+	RNA_string_set(kmi->ptr, "data_path", "space_data.shading.type");
 	RNA_string_set(kmi->ptr, "value_1", "SOLID");
 	RNA_string_set(kmi->ptr, "value_2", "WIREFRAME");
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle_enum", ZKEY, KM_PRESS, KM_ALT, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.viewport_shade");
+	RNA_string_set(kmi->ptr, "data_path", "space_data.shading.type");
 	RNA_string_set(kmi->ptr, "value_1", "SOLID");
 	RNA_string_set(kmi->ptr, "value_2", "TEXTURED");
 

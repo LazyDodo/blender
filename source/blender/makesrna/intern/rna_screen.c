@@ -72,8 +72,10 @@ static void rna_Screen_redraw_update(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 {
 	bScreen *screen = (bScreen *)ptr->data;
 
-	/* the settings for this are currently only available from a menu in the TimeLine, hence refresh=SPACE_TIME */
-	ED_screen_animation_timer_update(screen, screen->redraws_flag, SPACE_TIME);
+	/* the settings for this are currently only available from a menu in the TimeLine,
+	 * hence refresh=SPACE_ACTION, as timeline is now in there
+	 */
+	ED_screen_animation_timer_update(screen, screen->redraws_flag, SPACE_ACTION);
 }
 
 static int rna_Screen_is_animation_playing_get(PointerRNA *UNUSED(ptr))
@@ -136,21 +138,41 @@ static int rna_Screen_fullscreen_get(PointerRNA *ptr)
 /* UI compatible list: should not be needed, but for now we need to keep EMPTY
  * at least in the static version of this enum for python scripts. */
 static const EnumPropertyItem *rna_Area_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr),
-                                             PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
+                                             PropertyRNA *UNUSED(prop), bool *r_free)
 {
+	EnumPropertyItem *item = NULL;
+	int totitem = 0;
+
 	/* +1 to skip SPACE_EMPTY */
-	return rna_enum_space_type_items + 1;
+	for (const EnumPropertyItem *item_from = rna_enum_space_type_items + 1; item_from->identifier; item_from++) {
+		if (ELEM(item_from->value, SPACE_TOPBAR)) {
+			continue;
+		}
+		RNA_enum_item_add(&item, &totitem, item_from);
+	}
+	RNA_enum_item_end(&item, &totitem);
+	*r_free = true;
+
+	return item;
 }
 
 static int rna_Area_type_get(PointerRNA *ptr)
 {
 	ScrArea *sa = (ScrArea *)ptr->data;
-	/* read from this instead of 'spacetype' for correct reporting: T41435 */
-	return sa->butspacetype;
+	/* Usually 'spacetype' is used. It lags behind a bit while switching area
+	 * type though, then we use 'butspacetype' instead (T41435). */
+	return (sa->butspacetype == SPACE_EMPTY) ? sa->spacetype : sa->butspacetype;
 }
 
 static void rna_Area_type_set(PointerRNA *ptr, int value)
 {
+	if (ELEM(value, SPACE_TOPBAR)) {
+		/* Special case: An area can not be set to show the top-bar editor (or
+		 * other global areas). However it should still be possible to identify
+		 * its type from Python. */
+		return;
+	}
+
 	ScrArea *sa = (ScrArea *)ptr->data;
 	sa->butspacetype = value;
 }
@@ -175,6 +197,9 @@ static void rna_Area_type_update(bContext *C, PointerRNA *ptr)
 
 			ED_area_newspace(C, sa, sa->butspacetype, true);
 			ED_area_tag_redraw(sa);
+
+			/* Unset so that rna_Area_type_get uses spacetype instead. */
+			sa->butspacetype = SPACE_EMPTY;
 
 			/* It is possible that new layers becomes visible. */
 			if (sa->spacetype == SPACE_VIEW3D) {

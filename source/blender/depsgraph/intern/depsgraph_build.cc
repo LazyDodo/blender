@@ -198,13 +198,16 @@ void DEG_graph_build_from_view_layer(Depsgraph *graph,
                                       Scene *scene,
                                       ViewLayer *view_layer)
 {
-	double start_time;
+	double start_time = 0.0;
 	if (G.debug & G_DEBUG_DEPSGRAPH_BUILD) {
 		start_time = PIL_check_seconds_timer();
 	}
 
 	DEG::Depsgraph *deg_graph = reinterpret_cast<DEG::Depsgraph *>(graph);
 	BLI_assert(BLI_findindex(&scene->view_layers, view_layer) != -1);
+
+	BLI_assert(deg_graph->scene == scene);
+	BLI_assert(deg_graph->view_layer == view_layer);
 
 	/* TODO(sergey): This is a bit tricky, but ensures that all the data
 	 * is evaluated properly when depsgraph is becoming "visible".
@@ -257,6 +260,9 @@ void DEG_graph_build_from_view_layer(Depsgraph *graph,
 	/* Relations are up to date. */
 	deg_graph->need_update = false;
 
+	/* Store pointers to commonly used valuated datablocks. */
+	deg_graph->scene_cow = (Scene *)deg_graph->get_cow_id(&deg_graph->scene->id);
+
 	if (need_on_visible_update) {
 		DEG_graph_on_visible_update(bmain, graph);
 	}
@@ -270,8 +276,22 @@ void DEG_graph_build_from_view_layer(Depsgraph *graph,
 /* Tag graph relations for update. */
 void DEG_graph_tag_relations_update(Depsgraph *graph)
 {
+	DEG_DEBUG_PRINTF(graph, TAG, "%s: Tagging relations for update.\n", __func__);
 	DEG::Depsgraph *deg_graph = reinterpret_cast<DEG::Depsgraph *>(graph);
 	deg_graph->need_update = true;
+	/* NOTE: When relations are updated, it's quite possible that
+	 * we've got new bases in the scene. This means, we need to
+	 * re-create flat array of bases in view layer.
+	 *
+	 * TODO(sergey): Try to make it so we don't flush updates
+	 * to the whole depsgraph.
+	 */
+	{
+		DEG::IDDepsNode *id_node = deg_graph->find_id_node(&deg_graph->scene->id);
+		if (id_node != NULL) {
+			id_node->tag_update(deg_graph);
+		}
+	}
 }
 
 /* Create or update relations in the specified graph. */
@@ -291,7 +311,7 @@ void DEG_graph_relations_update(Depsgraph *graph,
 /* Tag all relations for update. */
 void DEG_relations_tag_update(Main *bmain)
 {
-	DEG_DEBUG_PRINTF(TAG, "%s: Tagging relations for update.\n", __func__);
+	DEG_GLOBAL_DEBUG_PRINTF(TAG, "%s: Tagging relations for update.\n", __func__);
 	LISTBASE_FOREACH (Scene *, scene, &bmain->scene) {
 		LISTBASE_FOREACH (ViewLayer *, view_layer, &scene->view_layers) {
 			Depsgraph *depsgraph =

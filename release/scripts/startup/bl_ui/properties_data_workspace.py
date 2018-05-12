@@ -31,36 +31,6 @@ class WorkSpaceButtonsPanel:
     bl_context = "workspace"
 
 
-class WORKSPACE_PT_context(WorkSpaceButtonsPanel, Panel):
-    bl_label = ""
-    bl_options = {'HIDE_HEADER'}
-
-    def draw(self, context):
-        layout = self.layout
-
-        workspace = context.workspace
-        layout.prop(workspace, "use_scene_settings", icon='SCENE')
-
-
-class WORKSPACE_PT_workspace(WorkSpaceButtonsPanel, Panel):
-    bl_label = "Workspace"
-
-    def draw(self, context):
-        layout = self.layout
-
-        window = context.window
-        workspace = context.workspace
-        scene = context.scene
-        view_render = workspace.view_render
-
-        layout.enabled = not workspace.use_scene_settings
-
-        layout.template_search(window, "view_layer", scene, "view_layers")
-
-        if view_render.has_multiple_engines:
-            layout.prop(view_render, "engine", text="")
-
-
 class WORKSPACE_PT_owner_ids(WorkSpaceButtonsPanel, Panel):
     bl_label = "Workspace Add-ons"
     bl_options = {'DEFAULT_CLOSED'}
@@ -122,8 +92,6 @@ class WORKSPACE_PT_custom_props(WorkSpaceButtonsPanel, PropertyPanel, Panel):
 
 
 classes = (
-    WORKSPACE_PT_context,
-    WORKSPACE_PT_workspace,
     WORKSPACE_PT_owner_ids,
     WORKSPACE_PT_custom_props,
 )

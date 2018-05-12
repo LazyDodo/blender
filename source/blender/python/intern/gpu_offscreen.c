@@ -163,7 +163,7 @@ PyDoc_STRVAR(pygpu_offscreen_draw_view3d_doc,
 );
 static PyObject *pygpu_offscreen_draw_view3d(BPy_GPUOffScreen *self, PyObject *args, PyObject *kwds)
 {
-	/* TODO: This doesn't work currently because of eval_ctx. */
+	/* TODO: This doesn't work currently because of missing depsgraph. */
 #if 0
 	static const char *kwlist[] = {"scene", "view_layer", "view3d", "region", "projection_matrix", "modelview_matrix", NULL};
 
@@ -196,8 +196,6 @@ static PyObject *pygpu_offscreen_draw_view3d(BPy_GPUOffScreen *self, PyObject *a
 	fx = GPU_fx_compositor_create();
 
 	fx_settings = v3d->fx_settings;  /* full copy */
-
-	ED_view3d_draw_offscreen_init(scene, view_layer, v3d);
 
 	rv3d_mats = ED_view3d_mats_rv3d_backup(ar->regiondata);
 

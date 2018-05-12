@@ -109,6 +109,9 @@ enum {
 
 /*->flag*/
 enum {
+	/* This IDProp may be statically overridden. Should only be used/be relevant for custom properties. */
+	IDP_FLAG_OVERRIDABLE_STATIC = 1 << 0,
+
 	IDP_FLAG_GHOST       = 1 << 7,  /* this means the property is set but RNA will return false when checking
 	                                 * 'RNA_property_is_set', currently this is a runtime flag */
 };
@@ -178,12 +181,18 @@ typedef struct IDOverrideStatic {
 	struct ID *reference;  /* Reference linked ID which this one overrides. */
 	ListBase properties;  /* List of IDOverrideProperty structs. */
 
+	short flag;
+	short pad[3];
+
 	/* Read/write data. */
 	/* Temp ID storing extra override data (used for differential operations only currently).
 	 * Always NULL outside of read/write context. */
 	struct ID *storage;
 } IDOverrideStatic;
 
+enum eStaticOverride_Flag {
+	STATICOVERRIDE_AUTO    = 1 << 0,  /* Allow automatic generation of overriding rules. */
+};
 
 /* watch it: Sequence has identical beginning. */
 /**
@@ -384,6 +393,10 @@ typedef enum ID_Type {
 #define ID_IS_STATIC_OVERRIDE_TEMPLATE(_id) (((ID *)(_id))->override_static != NULL && \
                                              ((ID *)(_id))->override_static->reference == NULL)
 
+#define ID_IS_STATIC_OVERRIDE_AUTO(_id) (!ID_IS_LINKED((_id)) && \
+                                         ID_IS_STATIC_OVERRIDE((_id)) && \
+                                         (((ID *)(_id))->override_static->flag & STATICOVERRIDE_AUTO))
+
 #ifdef GS
 #  undef GS
 #endif
@@ -395,7 +408,6 @@ typedef enum ID_Type {
 
 /* id->flag (persitent). */
 enum {
-	LIB_OVERRIDE_STATIC_AUTO    = 1 << 0,  /* Allow automatic generation of overriding rules. */
 	LIB_FAKEUSER                = 1 << 9,
 };
 
@@ -432,7 +444,9 @@ enum {
 	LIB_TAG_MISSING         = 1 << 6,
 
 	/* RESET_NEVER tag datablock as being up-to-date regarding its reference. */
-	LIB_TAG_OVERRIDESTATIC_OK = 1 << 9,
+	LIB_TAG_OVERRIDESTATIC_REFOK = 1 << 9,
+	/* RESET_NEVER tag datablock as needing an auto-override execution, if enabled. */
+	LIB_TAG_OVERRIDESTATIC_AUTOREFRESH = 1 << 17,
 
 	/* tag datablock has having an extra user. */
 	LIB_TAG_EXTRAUSER       = 1 << 2,
@@ -448,18 +462,20 @@ enum {
 	/* RESET_AFTER_USE tag existing data before linking so we know what is new. */
 	LIB_TAG_PRE_EXISTING    = 1 << 11,
 
-	/* The datablock is a copy-on-write version. */
+	/* The datablock is a copy-on-write/localized version. */
 	LIB_TAG_COPY_ON_WRITE   = 1 << 12,
 	LIB_TAG_COPY_ON_WRITE_EVAL = 1 << 13,
+	LIB_TAG_LOCALIZED = 1 << 14,
 
 	/* RESET_NEVER tag datablock for freeing etc. behavior (usually set when copying real one into temp/runtime one). */
-	LIB_TAG_NO_MAIN          = 1 << 14,  /* Datablock is not listed in Main database. */
-	LIB_TAG_NO_USER_REFCOUNT = 1 << 15,  /* Datablock does not refcount usages of other IDs. */
+	LIB_TAG_NO_MAIN          = 1 << 15,  /* Datablock is not listed in Main database. */
+	LIB_TAG_NO_USER_REFCOUNT = 1 << 16,  /* Datablock does not refcount usages of other IDs. */
 	/* Datablock was not allocated by standard system (BKE_libblock_alloc), do not free its memory
 	 * (usual type-specific freeing is called though). */
-	LIB_TAG_NOT_ALLOCATED     = 1 << 16,
+	LIB_TAG_NOT_ALLOCATED     = 1 << 17,
 };
 
+/* WARNING - when adding flags check on PSYS_RECALC */
 enum {
 	/* RESET_AFTER_USE, used by update code (depsgraph). */
 	ID_RECALC_NONE  = 0,
@@ -473,6 +489,7 @@ enum {
 	ID_RECALC_TRANSFORM   = 1 << 5,
 	ID_RECALC_COLLECTIONS = 1 << 6,
 	ID_RECALC_COPY_ON_WRITE = 1 << 7,
+	ID_RECALC_TIME          = 1 << 8,
 	/* Special flag to check if SOMETHING was changed. */
 	ID_RECALC_ALL   = (~(int)0),
 };

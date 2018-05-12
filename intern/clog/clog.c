@@ -29,10 +29,13 @@
 #include <assert.h>
 
 /* For 'isatty' to check for color. */
-#if defined(__unix__)
+#if defined(__unix__) || defined(__APPLE__)
 #  include <unistd.h>
 #endif
 
+#if defined(_MSC_VER)
+#  include <io.h>
+#endif
 /* Only other dependency (could use regular malloc too). */
 #include "MEM_guardedalloc.h"
 
@@ -68,7 +71,8 @@ typedef struct CLogContext {
 	bool use_basename;
 
 	/** Borrowed, not owned. */
-	FILE *output;
+	int output;
+	FILE *output_file;
 
 	/** For new types. */
 	struct {
@@ -400,13 +404,12 @@ void CLG_log_str(
 	clg_str_append(&cstr, "\n");
 
 	/* could be optional */
-	fwrite(cstr.data, cstr.len, 1, lg->ctx->output);
-	fflush(lg->ctx->output);
+	write(lg->ctx->output, cstr.data, cstr.len);
 
 	clg_str_free(&cstr);
 
 	if (severity == CLG_SEVERITY_FATAL) {
-		clg_ctx_fatal_action(lg->ctx, lg->ctx->output);
+		clg_ctx_fatal_action(lg->ctx, lg->ctx->output_file);
 	}
 }
 
@@ -432,13 +435,12 @@ void CLG_logf(
 	clg_str_append(&cstr, "\n");
 
 	/* could be optional */
-	fwrite(cstr.data, cstr.len, 1, lg->ctx->output);
-	fflush(lg->ctx->output);
+	write(lg->ctx->output, cstr.data, cstr.len);
 
 	clg_str_free(&cstr);
 
 	if (severity == CLG_SEVERITY_FATAL) {
-		clg_ctx_fatal_action(lg->ctx, lg->ctx->output);
+		clg_ctx_fatal_action(lg->ctx, lg->ctx->output_file);
 	}
 }
 
@@ -450,9 +452,10 @@ void CLG_logf(
 
 static void CLG_ctx_output_set(CLogContext *ctx, void *file_handle)
 {
-	ctx->output = file_handle;
-#if defined(__unix__)
-	ctx->use_color = isatty(fileno(file_handle));
+	ctx->output_file = file_handle;
+	ctx->output = fileno(file_handle);
+#if defined(__unix__) || defined(__APPLE__)
+	ctx->use_color = isatty(ctx->output);
 #endif
 }
 
@@ -487,6 +490,14 @@ static void CLG_ctx_type_filter_exclude(CLogContext *ctx, const char *type_match
 static void CLG_ctx_type_filter_include(CLogContext *ctx, const char *type_match, int type_match_len)
 {
 	clg_ctx_type_filter_append(&ctx->filters[1], type_match, type_match_len);
+}
+
+static void CLG_ctx_level_set(CLogContext *ctx, int level)
+{
+	ctx->default_type.level = level;
+	for (CLG_LogType *ty = ctx->types; ty; ty = ty->next) {
+		ty->level = level;
+	}
 }
 
 static CLogContext *CLG_ctx_init(void)
@@ -565,6 +576,12 @@ void CLG_type_filter_include(const char *type_match, int type_match_len)
 {
 	CLG_ctx_type_filter_include(g_ctx, type_match, type_match_len);
 }
+
+void CLG_level_set(int level)
+{
+	CLG_ctx_level_set(g_ctx, level);
+}
+
 
 /** \} */
 

@@ -137,12 +137,21 @@ class WindowManager(bpy_types.ID):
 
     def popup_menu(self, draw_func, title="", icon='NONE'):
         import bpy
-        popup = self.pupmenu_begin__internal(title, icon)
+        popup = self.popmenu_begin__internal(title, icon)
 
         try:
             draw_func(popup, bpy.context)
         finally:
-            self.pupmenu_end__internal(popup)
+            self.popmenu_end__internal(popup)
+
+    def popover(self, draw_func, title="", icon='NONE'):
+        import bpy
+        popup = self.popover_begin__internal(title, icon)
+
+        try:
+            draw_func(popup, bpy.context)
+        finally:
+            self.popover_end__internal(popup)
 
     def popup_menu_pie(self, event, draw_func, title="", icon='NONE'):
         import bpy
@@ -516,15 +525,6 @@ class Text(bpy_types.ID):
         """Replace text with this string."""
         self.clear()
         self.write(string)
-
-    @property
-    def users_logic(self):
-        """Logic bricks that use this text"""
-        import bpy
-        return tuple(obj for obj in bpy.data.objects
-                     if self in [cont.text for cont in obj.game.controllers
-                                 if cont.type == 'PYTHON']
-                     )
 
 
 # values are module: [(cls, path, line), ...]

@@ -42,14 +42,7 @@ typedef struct Base {
 	struct Object *object;
 	unsigned int lay;
 	int flag_legacy;
-	struct IDProperty *collection_properties; /* used by depsgraph, flushed from collection-tree */
 } Base;
-
-typedef struct CollectionOverride {
-	struct CollectionOverride *next, *prev;
-	char name[64]; /* MAX_NAME */
-	/* TODO proper data */
-} CollectionOverride;
 
 typedef struct ViewLayerEngineData {
 	struct ViewLayerEngineData *next, *prev;
@@ -66,10 +59,7 @@ typedef struct LayerCollection {
 	short flag_evaluated;
 	short pad[2];
 	ListBase object_bases; /* (ObjectBase *)LinkData->data - synced with collection->objects */
-	ListBase overrides;
 	ListBase layer_collections; /* synced with collection->collections */
-	struct IDProperty *properties;  /* overrides */
-	struct IDProperty *properties_evaluated;
 } LayerCollection;
 
 typedef struct ViewLayer {
@@ -82,7 +72,6 @@ typedef struct ViewLayer {
 	struct SceneStats *stats;   /* default allocated now */
 	struct Base *basact;
 	ListBase layer_collections; /* LayerCollection */
-	struct IDProperty *properties;  /* overrides */
 	struct IDProperty *properties_evaluated;
 
 	/* Old SceneRenderLayer data. */
@@ -140,21 +129,6 @@ enum {
 	COLLECTION_TYPE_NONE =  0,
 	COLLECTION_TYPE_GROUP_INTERNAL = 1,
 };
-
-/* *************************************************************** */
-/* Engine Settings */
-
-/* CollectionEngineSettings->type */
-typedef enum CollectionEngineSettingsType {
-	COLLECTION_MODE_NONE = 0,
-	COLLECTION_MODE_OBJECT = 1,
-	COLLECTION_MODE_EDIT = 2,
-	COLLECTION_MODE_PAINT_WEIGHT = 5,
-	COLLECTION_MODE_PAINT_VERTEX = 6,
-} CollectionModeSettingsType;
-
-/* *************************************************************** */
-
 
 #ifdef __cplusplus
 }

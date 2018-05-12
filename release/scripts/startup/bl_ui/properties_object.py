@@ -161,11 +161,10 @@ class OBJECT_PT_relations_extras(ObjectButtonsPanel, Panel):
 
         split = layout.split()
 
-        if context.engine != 'BLENDER_GAME':
-            col = split.column()
-            col.label(text="Tracking Axes:")
-            col.prop(ob, "track_axis", text="Axis")
-            col.prop(ob, "up_axis", text="Up Axis")
+        col = split.column()
+        col.label(text="Tracking Axes:")
+        col.prop(ob, "track_axis", text="Axis")
+        col.prop(ob, "up_axis", text="Up Axis")
 
         col = split.column()
         col.prop(ob, "use_slow_parent")
@@ -254,6 +253,8 @@ class OBJECT_PT_display(ObjectButtonsPanel, Panel):
 
         if is_geometry:
             col.prop(obj, "show_texture_space", text="Texture Space")
+            col.prop(obj.display, "show_shadows")
+
         col.prop(obj, "show_x_ray", text="X-Ray")
         if obj_type == 'MESH' or is_empty_image:
             col.prop(obj, "show_transparent", text="Transparency")
@@ -359,7 +360,7 @@ class OBJECT_PT_onion_skinning(OnionSkinButtonsPanel):  # , Panel): # inherit fr
 
 
 class OBJECT_PT_custom_props(ObjectButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
     _context_path = "object"
     _property_type = bpy.types.Object
 

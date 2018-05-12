@@ -66,6 +66,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -77,12 +78,15 @@
 #include "ED_mesh.h"
 #include "ED_gpencil.h"
 #include "ED_view3d.h"
+#include "ED_transform_snap_object_context.h"
 
 #include "UI_resources.h"
 
 #include "PIL_time.h"
 
 #include "view3d_intern.h"  /* own include */
+
+#include "DEG_depsgraph_query.h"
 
 /* -------------------------------------------------------------------- */
 /** \name Generic View Operator Properties
@@ -377,18 +381,15 @@ static void viewops_data_create(
 
 	/* we need the depth info before changing any viewport options */
 	if (viewops_flag & VIEWOPS_FLAG_DEPTH_NAVIGATE) {
-		EvaluationContext eval_ctx;
 		struct Depsgraph *graph = CTX_data_depsgraph(C);
 		float fallback_depth_pt[3];
-
-		CTX_data_eval_ctx(C, &eval_ctx);
 
 		view3d_operator_needs_opengl(C); /* needed for zbuf drawing */
 
 		negate_v3_v3(fallback_depth_pt, rv3d->ofs);
 
 		vod->use_dyn_ofs = ED_view3d_autodist(
-		        &eval_ctx, graph, vod->ar, vod->v3d,
+		        graph, vod->ar, vod->v3d,
 		        event->mval, vod->dyn_ofs, true, fallback_depth_pt);
 	}
 	else {
@@ -1800,7 +1801,7 @@ void viewzoom_modal_keymap(wmKeyConfig *keyconf)
  * \param zoom_xy: Optionally zoom to window location (coords compatible w/ #wmEvent.x, y). Use when not NULL.
  */
 static void view_zoom_to_window_xy_camera(
-        Scene *scene, const Depsgraph *depsgraph, View3D *v3d,
+        Scene *scene, Depsgraph *depsgraph, View3D *v3d,
         ARegion *ar, float dfac, const int zoom_xy[2])
 {
 	RegionView3D *rv3d = ar->regiondata;
@@ -2117,7 +2118,7 @@ static int viewzoom_modal(bContext *C, wmOperator *op, const wmEvent *event)
 
 static int viewzoom_exec(bContext *C, wmOperator *op)
 {
-	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d;
 	RegionView3D *rv3d;
@@ -2706,7 +2707,6 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Base *base;
-	float *curs;
 	const bool use_all_regions = RNA_boolean_get(op->ptr, "use_all_regions");
 	const bool skip_camera = (ED_view3d_camera_lock_check(v3d, ar->regiondata) ||
 	                          /* any one of the regions may be locked */
@@ -2719,10 +2719,11 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
 
 	if (center) {
 		/* in 2.4x this also move the cursor to (0, 0, 0) (with shift+c). */
-		curs = ED_view3d_cursor3d_get(scene, v3d);
+		View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
 		zero_v3(min);
 		zero_v3(max);
-		zero_v3(curs);
+		zero_v3(cursor->location);
+		unit_qt(cursor->rotation);
 	}
 	else {
 		INIT_MINMAX(min, max);
@@ -2795,12 +2796,13 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	ARegion *ar = CTX_wm_region(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	ViewLayer *view_layer_eval = DEG_get_evaluated_view_layer(depsgraph);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	const bool is_gp_edit = ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE));
 	const bool is_face_map = ((is_gp_edit == false) && ar->manipulator_map &&
 	                          WM_manipulatormap_is_any_selected(ar->manipulator_map));
-	Object *ob = OBACT(view_layer);
+	Object *ob_eval = OBACT(view_layer_eval);
 	Object *obedit = CTX_data_edit_object(C);
 	float min[3], max[3];
 	bool ok = false, ok_dist = true;
@@ -2812,23 +2814,26 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 
 	INIT_MINMAX(min, max);
 	if (is_gp_edit || is_face_map) {
-		ob = NULL;
+		ob_eval = NULL;
 	}
 
-	if (ob && (ob->mode & OB_MODE_WEIGHT_PAINT)) {
+	if (ob_eval && (ob_eval->mode & OB_MODE_WEIGHT_PAINT)) {
 		/* hard-coded exception, we look for the one selected armature */
 		/* this is weak code this way, we should make a generic active/selection callback interface once... */
-		Base *base;
-		for (base = view_layer->object_bases.first; base; base = base->next) {
-			if (TESTBASELIB(base)) {
-				if (base->object->type == OB_ARMATURE)
-					if (base->object->mode & OB_MODE_POSE)
+		Base *base_eval;
+		for (base_eval = view_layer_eval->object_bases.first; base_eval; base_eval = base_eval->next) {
+			if (TESTBASELIB(base_eval)) {
+				if (base_eval->object->type == OB_ARMATURE)
+					if (base_eval->object->mode & OB_MODE_POSE)
 						break;
 			}
 		}
+		if (base_eval)
+			ob_eval = base_eval->object;
 	}
 
 	if (is_gp_edit) {
+		/* TODO(sergey): Check on this after gpencil merge. */
 		CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
 		{
 			/* we're only interested in selected points here... */
@@ -2844,37 +2849,44 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 		ok = WM_manipulatormap_minmax(ar->manipulator_map, true, true, min, max);
 	}
 	else if (obedit) {
-		ok = ED_view3d_minmax_verts(obedit, min, max);    /* only selected */
+		/* only selected */
+		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, obedit->mode, ob_eval_iter) {
+			ok |= ED_view3d_minmax_verts(ob_eval_iter, min, max);
+		}
+		FOREACH_OBJECT_IN_MODE_END;
 	}
-	else if (ob && (ob->mode & OB_MODE_POSE)) {
-		ok = BKE_pose_minmax(ob, min, max, true, true);
+	else if (ob_eval && (ob_eval->mode & OB_MODE_POSE)) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, ob_eval->mode, ob_eval_iter) {
+			ok |= BKE_pose_minmax(ob_eval_iter, min, max, true, true);
+		}
+		FOREACH_OBJECT_IN_MODE_END;
 	}
-	else if (BKE_paint_select_face_test(ob)) {
-		ok = paintface_minmax(ob, min, max);
+	else if (BKE_paint_select_face_test(ob_eval)) {
+		ok = paintface_minmax(ob_eval, min, max);
 	}
-	else if (ob && (ob->mode & OB_MODE_PARTICLE_EDIT)) {
-		ok = PE_minmax(scene, view_layer, min, max);
+	else if (ob_eval && (ob_eval->mode & OB_MODE_PARTICLE_EDIT)) {
+		ok = PE_minmax(scene, view_layer_eval, min, max);
 	}
-	else if (ob &&
-	         (ob->mode & (OB_MODE_SCULPT | OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)))
+	else if (ob_eval &&
+	         (ob_eval->mode & (OB_MODE_SCULPT | OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)))
 	{
-		BKE_paint_stroke_get_average(scene, ob, min);
+		BKE_paint_stroke_get_average(scene, ob_eval, min);
 		copy_v3_v3(max, min);
 		ok = true;
 		ok_dist = 0; /* don't zoom */
 	}
 	else {
-		Base *base;
-		for (base = FIRSTBASE(view_layer); base; base = base->next) {
-			if (TESTBASE(base)) {
+		Base *base_eval;
+		for (base_eval = FIRSTBASE(view_layer_eval); base_eval; base_eval = base_eval->next) {
+			if (TESTBASE(base_eval)) {
 
-				if (skip_camera && base->object == v3d->camera) {
+				if (skip_camera && base_eval->object == v3d->camera) {
 					continue;
 				}
 
 				/* account for duplis */
-				if (BKE_object_minmax_dupli(scene, base->object, min, max, false) == 0)
-					BKE_object_minmax(base->object, min, max, false);  /* use if duplis not found */
+				if (BKE_object_minmax_dupli(depsgraph, scene, base_eval->object, min, max, false) == 0)
+					BKE_object_minmax(base_eval->object, min, max, false);  /* use if duplis not found */
 
 				ok = 1;
 			}
@@ -3027,7 +3039,7 @@ static int viewcenter_cursor_exec(bContext *C, wmOperator *op)
 
 		/* non camera center */
 		float new_ofs[3];
-		negate_v3_v3(new_ofs, ED_view3d_cursor3d_get(scene, v3d));
+		negate_v3_v3(new_ofs, ED_view3d_cursor3d_get(scene, v3d)->location);
 		ED_view3d_smooth_view(
 		        C, v3d, ar, smooth_viewtx,
 		        &(const V3D_SmoothParams) {.ofs = new_ofs});
@@ -3066,18 +3078,15 @@ static int viewcenter_pick_invoke(bContext *C, wmOperator *op, const wmEvent *ev
 	ARegion *ar = CTX_wm_region(C);
 
 	if (rv3d) {
-		EvaluationContext eval_ctx;
 		struct Depsgraph *graph = CTX_data_depsgraph(C);
 		float new_ofs[3];
 		const int smooth_viewtx = WM_operator_smooth_viewtx_get(op);
-
-		CTX_data_eval_ctx(C, &eval_ctx);
 
 		ED_view3d_smooth_view_force_finish(C, v3d, ar);
 
 		view3d_operator_needs_opengl(C);
 
-		if (ED_view3d_autodist(&eval_ctx, graph, ar, v3d, event->mval, new_ofs, false, NULL)) {
+		if (ED_view3d_autodist(graph, ar, v3d, event->mval, new_ofs, false, NULL)) {
 			/* pass */
 		}
 		else {
@@ -3117,7 +3126,7 @@ void VIEW3D_OT_view_center_pick(wmOperatorType *ot)
 
 static int view3d_center_camera_exec(bContext *C, wmOperator *UNUSED(op)) /* was view3d_home() in 2.4x */
 {
-	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	float xfac, yfac;
 	float size[2];
@@ -3201,7 +3210,7 @@ void VIEW3D_OT_view_center_lock(wmOperatorType *ot)
 
 static int render_border_exec(bContext *C, wmOperator *op)
 {
-	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	ARegion *ar = CTX_wm_region(C);
 	RegionView3D *rv3d = ED_view3d_context_rv3d(C);
@@ -3356,7 +3365,6 @@ void VIEW3D_OT_clear_render_border(wmOperatorType *ot)
 
 static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
 {
-	EvaluationContext eval_ctx;
 	ARegion *ar = CTX_wm_region(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	RegionView3D *rv3d = CTX_wm_region_view3d(C);
@@ -3378,8 +3386,6 @@ static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
 	/* note; otherwise opengl won't work */
 	view3d_operator_needs_opengl(C);
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-
 	/* get border select values using rna */
 	WM_operator_properties_border_to_rcti(op, &rect);
 
@@ -3389,7 +3395,7 @@ static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
 	ED_view3d_dist_range_get(v3d, dist_range);
 
 	/* Get Z Depths, needed for perspective, nice for ortho */
-	ED_view3d_draw_depth(&eval_ctx, CTX_data_depsgraph(C), ar, v3d, true);
+	ED_view3d_draw_depth(CTX_data_depsgraph(C), ar, v3d, true);
 
 	{
 		/* avoid allocating the whole depth buffer */
@@ -3529,7 +3535,7 @@ void VIEW3D_OT_zoom_border(wmOperatorType *ot)
  * Sets the view to 1:1 camera/render-pixel.
  * \{ */
 
-static void view3d_set_1_to_1_viewborder(Scene *scene, const Depsgraph *depsgraph, ARegion *ar, View3D *v3d)
+static void view3d_set_1_to_1_viewborder(Scene *scene, Depsgraph *depsgraph, ARegion *ar, View3D *v3d)
 {
 	RegionView3D *rv3d = ar->regiondata;
 	float size[2];
@@ -3543,7 +3549,7 @@ static void view3d_set_1_to_1_viewborder(Scene *scene, const Depsgraph *depsgrap
 
 static int view3d_zoom_1_to_1_camera_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 
 	View3D *v3d;
@@ -4548,13 +4554,10 @@ void ED_view3d_cursor3d_position(bContext *C, float fp[3], const int mval[2])
 	}
 
 	if (U.uiflag & USER_DEPTH_CURSOR) {  /* maybe this should be accessed some other way */
-		EvaluationContext eval_ctx;
 		struct Depsgraph *graph = CTX_data_depsgraph(C);
 
-		CTX_data_eval_ctx(C, &eval_ctx);
-
 		view3d_operator_needs_opengl(C);
-		if (ED_view3d_autodist(&eval_ctx, graph, ar, v3d, mval, fp, true, NULL)) {
+		if (ED_view3d_autodist(graph, ar, v3d, mval, fp, true, NULL)) {
 			depth_used = true;
 		}
 	}
@@ -4570,25 +4573,75 @@ void ED_view3d_cursor3d_update(bContext *C, const int mval[2])
 {
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
+	ARegion *ar = CTX_wm_region(C);
+	RegionView3D *rv3d = ar->regiondata;
 
-	float *fp_curr = ED_view3d_cursor3d_get(scene, v3d);
-	float  fp_prev[3];
+	View3DCursor *cursor_curr = ED_view3d_cursor3d_get(scene, v3d);
+	View3DCursor  cursor_prev = *cursor_curr;
 
-	copy_v3_v3(fp_prev, fp_curr);
+	ED_view3d_cursor3d_position(C, cursor_curr->location, mval);
+	copy_qt_qt(cursor_curr->rotation, rv3d->viewquat);
+	cursor_curr->rotation[0] *= -1.0f;
 
-	ED_view3d_cursor3d_position(C, fp_curr, mval);
+	{
+		struct Main *bmain = CTX_data_main(C);
+		const float mval_fl[2] = {UNPACK2(mval)};
+		float ray_no[3];
+
+		struct SnapObjectContext *snap_context = ED_transform_snap_object_context_create_view3d(
+		        bmain, scene, CTX_data_depsgraph(C), 0, ar, v3d);
+
+		float obmat[4][4];
+		Object *ob_dummy = NULL;
+		float dist_px = 0;
+		if (ED_transform_snap_object_project_view3d_ex(
+		        snap_context,
+		        SCE_SNAP_MODE_FACE,
+		        &(const struct SnapObjectParams){
+		            .snap_select = SNAP_ALL,
+		            .use_object_edit_cage = false,
+		        },
+		        mval_fl, &dist_px, NULL,
+		        cursor_curr->location, ray_no, NULL,
+		        &ob_dummy, obmat))
+		{
+			float tquat[4];
+			/* Math normal (Z). */
+			{
+				float z_src[3] = {0, 0, 1};
+				mul_qt_v3(cursor_curr->rotation, z_src);
+				rotation_between_vecs_to_quat(tquat, z_src, ray_no);
+				mul_qt_qtqt(cursor_curr->rotation, tquat, cursor_curr->rotation);
+			}
+
+			/* Match object matrix (X). */
+			{
+				const float ortho_axis_dot[3] = {
+					dot_v3v3(ray_no, obmat[0]),
+					dot_v3v3(ray_no, obmat[1]),
+					dot_v3v3(ray_no, obmat[2]),
+				};
+				const int ortho_axis = axis_dominant_v3_ortho_single(ortho_axis_dot);
+				float x_src[3] = {1, 0, 0};
+				float x_dst[3];
+				mul_qt_v3(cursor_curr->rotation, x_src);
+				project_plane_v3_v3v3(x_dst, obmat[ortho_axis], ray_no);
+				normalize_v3(x_dst);
+				rotation_between_vecs_to_quat(tquat, x_src, x_dst);
+				mul_qt_qtqt(cursor_curr->rotation, tquat, cursor_curr->rotation);
+			}
+		}
+		ED_transform_snap_object_context_destroy(snap_context);
+	}
 
 	/* offset the cursor lock to avoid jumping to new offset */
 	if (v3d->ob_centre_cursor) {
-		ARegion *ar = CTX_wm_region(C);
-		RegionView3D *rv3d = ar->regiondata;
-
 		if (U.uiflag & USER_LOCK_CURSOR_ADJUST) {
 
 			float co_curr[2], co_prev[2];
 
-			if ((ED_view3d_project_float_global(ar, fp_prev, co_prev, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) &&
-			    (ED_view3d_project_float_global(ar, fp_curr, co_curr, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK))
+			if ((ED_view3d_project_float_global(ar, cursor_prev.location, co_prev, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) &&
+			    (ED_view3d_project_float_global(ar, cursor_curr->location, co_curr, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK))
 			{
 				rv3d->ofs_lock[0] += (co_curr[0] - co_prev[0]) / (ar->winx * 0.5f);
 				rv3d->ofs_lock[1] += (co_curr[1] - co_prev[1]) / (ar->winy * 0.5f);
@@ -4604,6 +4657,14 @@ void ED_view3d_cursor3d_update(bContext *C, const int mval[2])
 		WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
 	else
 		WM_event_add_notifier(C, NC_SCENE | NA_EDITED, scene);
+
+	{
+		struct wmMsgBus *mbus = CTX_wm_message_bus(C);
+		WM_msg_publish_rna_prop(
+		        mbus, &scene->id, scene, Scene, cursor_location);
+	}
+
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 }
 
 static int view3d_cursor3d_invoke(bContext *C, wmOperator *UNUSED(op), const wmEvent *event)
@@ -4628,52 +4689,6 @@ void VIEW3D_OT_cursor3d(wmOperatorType *ot)
 
 	/* flags */
 //	ot->flag = OPTYPE_REGISTER|OPTYPE_UNDO;
-}
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Enable Transform Manipulator Operator
- * \{ */
-
-static int enable_manipulator_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
-{
-	View3D *v3d = CTX_wm_view3d(C);
-
-	v3d->twtype = 0;
-
-	if (RNA_boolean_get(op->ptr, "translate"))
-		v3d->twtype |= V3D_MANIP_TRANSLATE;
-	if (RNA_boolean_get(op->ptr, "rotate"))
-		v3d->twtype |= V3D_MANIP_ROTATE;
-	if (RNA_boolean_get(op->ptr, "scale"))
-		v3d->twtype |= V3D_MANIP_SCALE;
-
-	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
-
-	return OPERATOR_FINISHED;
-}
-
-void VIEW3D_OT_enable_manipulator(wmOperatorType *ot)
-{
-	PropertyRNA *prop;
-
-	/* identifiers */
-	ot->name = "Enable 3D Manipulator";
-	ot->description = "Enable the transform manipulator for use";
-	ot->idname = "VIEW3D_OT_enable_manipulator";
-
-	/* api callbacks */
-	ot->invoke = enable_manipulator_invoke;
-	ot->poll = ED_operator_view3d_active;
-
-	/* properties */
-	prop = RNA_def_boolean(ot->srna, "translate", 0, "Translate", "Enable the translate manipulator");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
-	prop = RNA_def_boolean(ot->srna, "rotate", 0, "Rotate", "Enable the rotate manipulator");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
-	prop = RNA_def_boolean(ot->srna, "scale", 0, "Scale", "Enable the scale manipulator");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
 /** \} */

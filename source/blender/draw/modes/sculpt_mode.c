@@ -123,8 +123,8 @@ static void SCULPT_engine_init(void *vedata)
 
 	/* Init Framebuffers like this: order is attachment order (for color texs) */
 	/*
-	 * DRWFboTexture tex[2] = {{&txl->depth, DRW_TEX_DEPTH_24, 0},
-	 *                         {&txl->color, DRW_TEX_RGBA_8, DRW_TEX_FILTER}};
+	 * DRWFboTexture tex[2] = {{&txl->depth, GPU_DEPTH_COMPONENT24, 0},
+	 *                         {&txl->color, GPU_RGBA8, DRW_TEX_FILTER}};
 	 */
 
 	/* DRW_framebuffer_init takes care of checking if
@@ -202,7 +202,7 @@ static void SCULPT_cache_populate(void *vedata, Object *ob)
 				 * but this avoids waiting on first stroke) */
 				Scene *scene = draw_ctx->scene;
 
-				BKE_sculpt_update_mesh_elements(&draw_ctx->eval_ctx, scene, scene->toolsettings->sculpt, ob, false, false);
+				BKE_sculpt_update_mesh_elements(draw_ctx->depsgraph, scene, scene->toolsettings->sculpt, ob, false, false);
 			}
 
 			PBVH *pbvh = ob->sculpt->pbvh;

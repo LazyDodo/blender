@@ -140,6 +140,27 @@ float dist_squared_ray_to_aabb_v3_simple(
         const float bb_min[3], const float bb_max[3],
         float r_point[3], float *r_depth);
 
+struct DistProjectedAABBPrecalc {
+	float ray_origin[3];
+	float ray_direction[3];
+	float ray_inv_dir[3];
+
+	float pmat[4][4];
+
+	float mval[2];
+	bool sign[3];
+};
+void dist_squared_to_projected_aabb_precalc(
+        struct DistProjectedAABBPrecalc *neasrest_precalc,
+        const float projmat[4][4], const float winsize[2], const float mval[2]);
+float dist_squared_to_projected_aabb(
+        struct DistProjectedAABBPrecalc *data,
+        const float bbmin[3], const float bbmax[3],
+        bool r_axis_closest[3]);
+float dist_squared_to_projected_aabb_simple(
+        const float projmat[4][4], const float winsize[2], const float mval[2],
+        const float bbmin[3], const float bbmax[3]);
+
 float closest_to_line_v2(float r_close[2], const float p[2], const float l1[2], const float l2[2]);
 float closest_to_line_v3(float r_close[3], const float p[3], const float l1[3], const float l2[3]);
 void closest_to_line_segment_v2(float r_close[2], const float p[2], const float l1[2], const float l2[2]);
@@ -356,12 +377,18 @@ void transform_point_by_seg_v3(
         const float l_dst_p1[3], const float l_dst_p2[3],
         const float l_src_p1[3], const float l_src_p2[3]);
 
-void barycentric_weights_v2(const float v1[2], const float v2[2], const float v3[2],
-                            const float co[2], float w[3]);
-void barycentric_weights_v2_persp(const float v1[4], const float v2[4], const float v3[4],
-                                  const float co[2], float w[3]);
-void barycentric_weights_v2_quad(const float v1[2], const float v2[2], const float v3[2], const float v4[2],
-                                 const float co[2], float w[4]);
+void barycentric_weights_v2(
+        const float v1[2], const float v2[2], const float v3[2],
+        const float co[2], float w[3]);
+void barycentric_weights_v2_clamped(
+        const float v1[2], const float v2[2], const float v3[2],
+        const float co[2], float w[3]);
+void barycentric_weights_v2_persp(
+        const float v1[4], const float v2[4], const float v3[4],
+        const float co[2], float w[3]);
+void barycentric_weights_v2_quad(
+        const float v1[2], const float v2[2], const float v3[2], const float v4[2],
+        const float co[2], float w[4]);
 
 bool barycentric_coords_v2(const float v1[2], const float v2[2], const float v3[2], const float co[2], float w[3]);
 int barycentric_inside_triangle_v2(const float w[3]);

@@ -71,10 +71,27 @@
  *
  * \{ */
 
-float *ED_view3d_cursor3d_get(Scene *scene, View3D *v3d)
+View3DCursor *ED_view3d_cursor3d_get(Scene *scene, View3D *v3d)
 {
-	if (v3d && v3d->localvd) return v3d->cursor;
-	else return scene->cursor;
+	if (v3d && v3d->localvd) {
+		return &v3d->cursor;
+	}
+	else {
+		return &scene->cursor;
+	}
+}
+
+void ED_view3d_cursor3d_calc_mat3(const Scene *scene, const View3D *v3d, float mat[3][3])
+{
+	const View3DCursor *cursor = ED_view3d_cursor3d_get((Scene *)scene, (View3D *)v3d);
+	quat_to_mat3(mat, cursor->rotation);
+}
+
+void ED_view3d_cursor3d_calc_mat4(const Scene *scene, const View3D *v3d, float mat[4][4])
+{
+	const View3DCursor *cursor = ED_view3d_cursor3d_get((Scene *)scene, (View3D *)v3d);
+	quat_to_mat4(mat, cursor->rotation);
+	copy_v3_v3(mat[3], cursor->location);
 }
 
 Camera *ED_view3d_camera_data_get(View3D *v3d, RegionView3D *rv3d)
@@ -100,7 +117,7 @@ void ED_view3d_dist_range_get(
  * \note copies logic of #ED_view3d_viewplane_get(), keep in sync.
  */
 bool ED_view3d_clip_range_get(
-        const Depsgraph *depsgraph,
+        Depsgraph *depsgraph,
         const View3D *v3d, const RegionView3D *rv3d,
         float *r_clipsta, float *r_clipend,
         const bool use_ortho_factor)
@@ -123,7 +140,7 @@ bool ED_view3d_clip_range_get(
 }
 
 bool ED_view3d_viewplane_get(
-        const Depsgraph *depsgraph,
+        Depsgraph *depsgraph,
         const View3D *v3d, const RegionView3D *rv3d, int winx, int winy,
         rctf *r_viewplane, float *r_clipsta, float *r_clipend, float *r_pixsize)
 {
@@ -878,7 +895,7 @@ static float view_autodist_depth_margin(ARegion *ar, const int mval[2], int marg
  * \param fallback_depth_pt: Use this points depth when no depth can be found.
  */
 bool ED_view3d_autodist(
-        const EvaluationContext *eval_ctx, struct Depsgraph *graph, ARegion *ar, View3D *v3d,
+        struct Depsgraph *graph, ARegion *ar, View3D *v3d,
         const int mval[2], float mouse_worldloc[3],
         const bool alphaoverride, const float fallback_depth_pt[3])
 {
@@ -888,7 +905,7 @@ bool ED_view3d_autodist(
 	bool depth_ok = false;
 
 	/* Get Z Depths, needed for perspective, nice for ortho */
-	ED_view3d_draw_depth(eval_ctx, graph, ar, v3d, alphaoverride);
+	ED_view3d_draw_depth(graph, ar, v3d, alphaoverride);
 
 	/* Attempt with low margin's first */
 	i = 0;
@@ -916,18 +933,18 @@ bool ED_view3d_autodist(
 }
 
 void ED_view3d_autodist_init(
-        const EvaluationContext *eval_ctx, struct Depsgraph *graph,
+        struct Depsgraph *graph,
         ARegion *ar, View3D *v3d, int mode)
 {
 	/* Get Z Depths, needed for perspective, nice for ortho */
 	switch (mode) {
 		case 0:
-			ED_view3d_draw_depth(eval_ctx, graph, ar, v3d, true);
+			ED_view3d_draw_depth(graph, ar, v3d, true);
 			break;
 		case 1:
 		{
 			Scene *scene = DEG_get_evaluated_scene(graph);
-			ED_view3d_draw_depth_gpencil(eval_ctx, scene, ar, v3d);
+			ED_view3d_draw_depth_gpencil(graph, scene, ar, v3d);
 			break;
 		}
 	}

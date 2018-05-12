@@ -108,7 +108,7 @@ static EditBone *rna_Armature_edit_bone_new(bArmature *arm, ReportList *reports,
 		BKE_reportf(reports, RPT_ERROR, "Armature '%s' not in edit mode, cannot add an editbone", arm->id.name + 2);
 		return NULL;
 	}
-	return ED_armature_edit_bone_add(arm, name);
+	return ED_armature_ebone_add(arm, name);
 }
 
 static void rna_Armature_edit_bone_remove(bArmature *arm, ReportList *reports, PointerRNA *ebone_ptr)
@@ -124,7 +124,7 @@ static void rna_Armature_edit_bone_remove(bArmature *arm, ReportList *reports, P
 		return;
 	}
 
-	ED_armature_edit_bone_remove(arm, ebone);
+	ED_armature_ebone_remove(arm, ebone);
 	RNA_POINTER_INVALIDATE(ebone_ptr);
 }
 
@@ -147,6 +147,7 @@ static void rna_Armature_redraw_data(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 {
 	ID *id = ptr->id.data;
 	
+	DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, id);
 }
 
@@ -427,7 +428,7 @@ static void rna_Armature_editbone_transform_update(Main *bmain, Scene *scene, Po
 			copy_v3_v3(child->head, ebone->tail);
 
 	if (arm->flag & ARM_MIRROR_EDIT) {
-		eboflip = ED_armature_bone_get_mirrored(arm->edbo, ebone);
+		eboflip = ED_armature_ebone_get_mirrored(arm->edbo, ebone);
 
 		if (eboflip) {
 			eboflip->roll = -ebone->roll;
@@ -989,11 +990,6 @@ static void rna_def_armature(BlenderRNA *brna)
 		{ARM_WIRE, "WIRE", 0, "Wire", "Display bones as thin wires, showing subdivision and B-Splines"},
 		{0, NULL, 0, NULL, NULL}
 	};
-	static const EnumPropertyItem prop_vdeformer[] = {
-		{ARM_VDEF_BLENDER, "BLENDER", 0, "Blender", "Use Blender's armature vertex deformation"},
-		{ARM_VDEF_BGE_CPU, "BGE_CPU", 0, "BGE", "Use vertex deformation code optimized for the BGE"},
-		{0, NULL, 0, NULL, NULL}
-	};
 	static const EnumPropertyItem prop_ghost_type_items[] = {
 		{ARM_GHOST_CUR, "CURRENT_FRAME", 0, "Around Frame",
 		                "Display Ghosts of poses within a fixed number of frames around the current frame"},
@@ -1050,13 +1046,6 @@ static void rna_def_armature(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
 	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
 
-	prop = RNA_def_property(srna, "deform_method", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "gevertdeformer");
-	RNA_def_property_enum_items(prop, prop_vdeformer);
-	RNA_def_property_ui_text(prop, "Vertex Deformer", "Vertex Deformer Method (Game Engine only)");
-	RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
-	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
-	
 /* XXX deprecated ....... old animviz for armatures only */
 	prop = RNA_def_property(srna, "ghost_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "ghosttype");

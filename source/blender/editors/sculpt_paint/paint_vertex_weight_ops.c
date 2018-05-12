@@ -125,17 +125,14 @@ static int weight_from_bones_poll(bContext *C)
 
 static int weight_from_bones_exec(bContext *C, wmOperator *op)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
 	Object *armob = modifiers_isDeformedByArmature(ob);
 	Mesh *me = ob->data;
 	int type = RNA_enum_get(op->ptr, "type");
 
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	create_vgroups_from_armature(op->reports, &eval_ctx, scene, ob, armob, type, (me->editflag & ME_EDIT_MIRROR_X));
+	ED_object_vgroup_calc_from_armature(op->reports, depsgraph, scene, ob, armob, type, (me->editflag & ME_EDIT_MIRROR_X));
 
 	DEG_id_tag_update(&me->id, 0);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, me);
@@ -726,11 +723,9 @@ static int paint_weight_gradient_exec(bContext *C, wmOperator *op)
 	float sco_end[2] = {x_end, y_end};
 	const bool is_interactive = (gesture != NULL);
 
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	DerivedMesh *dm = mesh_get_derived_final(&eval_ctx, scene, ob, scene->customdata_mask);
+	DerivedMesh *dm = mesh_get_derived_final(depsgraph, scene, ob, scene->customdata_mask);
 
 	DMGradient_userData data = {NULL};
 
@@ -854,7 +849,7 @@ void PAINT_OT_weight_gradient(wmOperatorType *ot)
 	ot->invoke = paint_weight_gradient_invoke;
 	ot->modal = paint_weight_gradient_modal;
 	ot->exec = paint_weight_gradient_exec;
-	ot->poll = weight_paint_poll;
+	ot->poll = weight_paint_poll_ignore_tool;
 	ot->cancel = WM_gesture_straightline_cancel;
 
 	/* flags */

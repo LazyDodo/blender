@@ -82,7 +82,6 @@ set(SRC
 	intern/boids.c
 	intern/bpath.c
 	intern/brush.c
-	intern/bullet.c
 	intern/bvhutils.c
 	intern/cachefile.c
 	intern/camera.c
@@ -117,8 +116,10 @@ set(SRC
 	intern/gpencil.c
 	intern/group.c
 	intern/icons.c
+	intern/icons_rasterize.c
 	intern/idcode.c
 	intern/idprop.c
+	intern/idprop_utils.c
 	intern/image.c
 	intern/image_gen.c
 	intern/ipo.c
@@ -138,9 +139,12 @@ set(SRC
 	intern/mball.c
 	intern/mball_tessellate.c
 	intern/mesh.c
+	intern/mesh_convert.c
 	intern/mesh_evaluate.c
 	intern/mesh_mapping.c
+	intern/mesh_merge.c
 	intern/mesh_remap.c
+	intern/mesh_runtime.c
 	intern/mesh_tangent.c
 	intern/mesh_validate.c
 	intern/modifier.c
@@ -165,12 +169,11 @@ set(SRC
 	intern/pbvh.c
 	intern/pbvh_bmesh.c
 	intern/pointcache.c
-	intern/property.c
 	intern/layer.c
+	intern/layer_utils.c
 	intern/lightprobe.c
 	intern/report.c
 	intern/rigidbody.c
-	intern/sca.c
 	intern/scene.c
 	intern/screen.c
 	intern/seqcache.c
@@ -178,11 +181,11 @@ set(SRC
 	intern/seqmodifier.c
 	intern/sequencer.c
 	intern/shrinkwrap.c
-	intern/sketch.c
 	intern/smoke.c
 	intern/softbody.c
 	intern/sound.c
 	intern/speaker.c
+	intern/studiolight.c
 	intern/subsurf_ccg.c
 	intern/suggestions.c
 	intern/text.c
@@ -200,7 +203,6 @@ set(SRC
 	intern/workspace.c
 	intern/world.c
 	intern/writeavi.c
-	intern/writeframeserver.c
 
 	BKE_DerivedMesh.h
 	BKE_action.h
@@ -220,7 +222,6 @@ set(SRC
 	BKE_boids.h
 	BKE_bpath.h
 	BKE_brush.h
-	BKE_bullet.h
 	BKE_bvhutils.h
 	BKE_cachefile.h
 	BKE_camera.h
@@ -291,21 +292,19 @@ set(SRC
 	BKE_particle.h
 	BKE_pbvh.h
 	BKE_pointcache.h
-	BKE_property.h
 	BKE_layer.h
 	BKE_lightprobe.h
 	BKE_report.h
 	BKE_rigidbody.h
-	BKE_sca.h
 	BKE_scene.h
 	BKE_screen.h
 	BKE_sequencer.h
 	BKE_shrinkwrap.h
-	BKE_sketch.h
 	BKE_smoke.h
 	BKE_softbody.h
 	BKE_sound.h
 	BKE_speaker.h
+	BKE_studiolight.h
 	BKE_subsurf.h
 	BKE_suggestions.h
 	BKE_text.h
@@ -316,7 +315,6 @@ set(SRC
 	BKE_workspace.h
 	BKE_world.h
 	BKE_writeavi.h
-	BKE_writeframeserver.h
 
 	nla_private.h
 	tracking_private.h
@@ -486,18 +484,6 @@ if(WITH_LZMA)
 		../../../extern/lzma
 	)
 	add_definitions(-DWITH_LZMA)
-endif()
-
-if(WITH_GAMEENGINE)
-	list(APPEND INC_SYS
-		../../../extern/recastnavigation
-	)
-	list(APPEND SRC
-		intern/navmesh_conversion.c
-		BKE_navmesh_conversion.h
-	)
-
-	add_definitions(-DWITH_GAMEENGINE)
 endif()
 
 if(WITH_LIBMV)

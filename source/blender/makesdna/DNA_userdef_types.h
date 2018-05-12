@@ -131,6 +131,8 @@ typedef struct uiWidgetColors {
 	short shaded;
 	short shadetop, shadedown;
 	short alpha_check;
+	float roundness;
+	float pad;
 } uiWidgetColors;
 
 typedef struct uiWidgetStateColors {
@@ -162,7 +164,7 @@ typedef struct uiGradientColors {
 
 typedef struct ThemeUI {
 	/* Interface Elements (buttons, menus, icons) */
-	uiWidgetColors wcol_regular, wcol_tool, wcol_text;
+	uiWidgetColors wcol_regular, wcol_tool, wcol_toolbar_item, wcol_text;
 	uiWidgetColors wcol_radio, wcol_option, wcol_toggle;
 	uiWidgetColors wcol_num, wcol_numslider, wcol_tab;
 	uiWidgetColors wcol_menu, wcol_pulldown, wcol_menu_back, wcol_menu_item, wcol_tooltip;
@@ -178,10 +180,13 @@ typedef struct ThemeUI {
 	float menu_shadow_fac;
 	short menu_shadow_width;
 	
-	short pad[3];
+	char editor_outline[4];
+	short pad[1];
 	
 	char iconfile[256];	// FILE_MAXFILE length
 	float icon_alpha;
+	float icon_saturation;
+	char _pad[4];
 
 	/* Axis Colors */
 	char xaxis[4], yaxis[4], zaxis[4];
@@ -397,7 +402,6 @@ typedef struct bTheme {
 	ThemeSpace toops;
 	ThemeSpace ttime;
 	ThemeSpace tnode;
-	ThemeSpace tlogic;
 	ThemeSpace tuserpref;
 	ThemeSpace tconsole;
 	ThemeSpace tclip;
@@ -467,7 +471,7 @@ typedef struct UserDef {
 	short versions;
 	short dbl_click_time;
 	
-	short gameflags;
+	short pad;
 	short wheellinescroll;
 	int uiflag;   /* eUserpref_UI_Flag */
 	int uiflag2;  /* eUserpref_UI_Flag2 */
@@ -483,12 +487,16 @@ typedef struct UserDef {
 	int audioformat;
 	int audiochannels;
 
+	float ui_scale;     /* setting for UI scale */
+	int ui_line_width;  /* setting for UI line width */
+	int dpi;            /* runtime, full DPI divided by pixelsize */
+	float dpi_fac;      /* runtime, multiplier to scale UI elements based on DPI */
+	float pixelsize;	/* runtime, line width and point size based on DPI */
+	int virtual_pixel;	/* deprecated, for forward compatibility */
+
 	int scrollback;     /* console scrollback limit */
-	int dpi;            /* range 48-128? */
-	float ui_scale;     /* interface scale */
-	int ui_line_width;  /* interface line width */
 	char node_margin;   /* node insert offset (aka auto-offset) margin, but might be useful for later stuff as well */
-	char pad2;
+	char pad2[5];
 	short transopts;    /* eUserpref_Translation_Flags */
 	short menuthreshold1, menuthreshold2;
 
@@ -513,14 +521,13 @@ typedef struct UserDef {
 	short tb_leftmouse, tb_rightmouse;
 	struct SolidLight light[3];
 	short manipulator_flag, manipulator_size;
-	int pad6;
+	short pad6[3];
 	short textimeout, texcollectrate;
-	short wmdrawmethod; /* eWM_DrawMethod */
 	short dragthreshold;
 	int memcachelimit;
 	int prefetchframes;
 	float pad_rot_angle; /* control the rotation step of the view when PAD2, PAD4, PAD6&PAD8 is use */
-	short frameserverport;
+	short _pad0;
 	short obcenter_dia;
 	short rvisize;			/* rotating view icon size */
 	short rvibright;		/* rotating view icon brightness */
@@ -569,7 +576,7 @@ typedef struct UserDef {
 	float gpencil_new_layer_col[4]; /* default color for newly created Grease Pencil layers */
 
 	short tweak_threshold;
-	char navigation_mode, pad;
+	char navigation_mode, pad10;
 
 	char author[80];	/* author name for file formats supporting it */
 
@@ -580,8 +587,6 @@ typedef struct UserDef {
 	int compute_device_id;
 	
 	float fcu_inactive_alpha;	/* opacity of inactive F-Curves in F-Curve Editor */
-	float pixelsize;			/* private, set by GHOST, to multiply DPI with */
-	int virtual_pixel;			/* virtual pixelsize mode */
 
 	short pie_interaction_type;     /* if keeping a pie menu spawn button pressed after this time, it turns into
 	                             * a drag/release pie menu */
@@ -788,31 +793,12 @@ typedef enum eDupli_ID_Flags {
 	USER_DUP_PSYS			= (1 << 11)
 } eDupli_ID_Flags;
 
-/* UserDef.gameflags */
-typedef enum eOpenGL_RenderingOptions {
-	USER_GL_RENDER_DEPRECATED_0			= (1 << 0),
-	USER_GL_RENDER_DEPRECATED_1			= (1 << 1),
-	USER_DISABLE_MIPMAP					= (1 << 2),
-	USER_GL_RENDER_DEPRECATED_3			= (1 << 3),
-	USER_GL_RENDER_DEPRECATED_4			= (1 << 4),
-} eOpenGL_RenderingOptions;
-
 /* selection method for opengl gpu_select_method */
 typedef enum eOpenGL_SelectOptions {
 	USER_SELECT_AUTO = 0,
 	USER_SELECT_USE_OCCLUSION_QUERY = 1,
 	USER_SELECT_USE_SELECT_RENDERMODE = 2
 } eOpenGL_SelectOptions;
-
-/* wm draw method.
- * UserDef.wmdrawmethod */
-typedef enum eWM_DrawMethod {
-	USER_DRAW_TRIPLE		= 0,
-	USER_DRAW_OVERLAP		= 1,
-	USER_DRAW_FULL			= 2,
-	USER_DRAW_AUTOMATIC		= 3,
-	USER_DRAW_OVERLAP_FLIP	= 4,
-} eWM_DrawMethod;
 
 /* text draw options
  * UserDef.text_render */

@@ -542,14 +542,11 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
 		View3D *v3d = (View3D *)CTX_wm_space_data(C);
 		RegionView3D *rv3d = ar->regiondata;
 		
-		EvaluationContext eval_ctx;
-		CTX_data_eval_ctx(C, &eval_ctx);
-
 		/* init 3d depth buffers */
 		view3d_operator_needs_opengl(C);
 		
 		view3d_region_operator_needs_opengl(win, ar);
-		ED_view3d_autodist_init(&eval_ctx, graph, ar, v3d, 0);
+		ED_view3d_autodist_init(graph, ar, v3d, 0);
 		
 		/* for camera view set the subrect */
 		if (rv3d->persp == RV3D_CAMOB) {
@@ -748,7 +745,7 @@ bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, Scene *scene, const float screen
 {
 	View3D *v3d = gsc->sa->spacedata.first;
 	RegionView3D *rv3d = gsc->ar->regiondata;
-	float *rvec = ED_view3d_cursor3d_get(scene, v3d);
+	float *rvec = ED_view3d_cursor3d_get(scene, v3d)->location;
 	float ref[3] = {rvec[0], rvec[1], rvec[2]};
 	float zfac = ED_view3d_calc_zfac(rv3d, rvec, NULL);
 	

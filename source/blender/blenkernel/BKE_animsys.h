@@ -69,10 +69,10 @@ bool BKE_animdata_set_action(struct ReportList *reports, struct ID *id, struct b
 void BKE_animdata_free(struct ID *id, const bool do_id_user);
 
 /* Copy AnimData */
-struct AnimData *BKE_animdata_copy(struct Main *bmain, struct AnimData *adt, const bool do_action);
+struct AnimData *BKE_animdata_copy(struct Main *bmain, struct AnimData *adt, const bool do_action, const bool do_id_user);
 
 /* Copy AnimData */
-bool BKE_animdata_copy_id(struct Main *bmain, struct ID *id_to, struct ID *id_from, const bool do_action);
+bool BKE_animdata_copy_id(struct Main *bmain, struct ID *id_to, struct ID *id_from, const bool do_action, const bool do_id_user);
 
 /* Copy AnimData Actions */
 void BKE_animdata_copy_id_action(struct ID *id, const bool set_newid);
@@ -200,10 +200,10 @@ void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, 
 
 /* ------------ Evaluation API --------------- */
 
-struct EvaluationContext;
+struct Depsgraph;
 
-void BKE_animsys_eval_animdata(const struct EvaluationContext *eval_ctx, struct ID *id);
-void BKE_animsys_eval_driver(const struct EvaluationContext *eval_ctx, struct ID *id, struct FCurve *fcurve);
+void BKE_animsys_eval_animdata(struct Depsgraph *depsgraph, struct ID *id);
+void BKE_animsys_eval_driver(struct Depsgraph *depsgraph, struct ID *id, struct FCurve *fcurve);
 
 /* ************************************* */
 

@@ -42,7 +42,7 @@ extern "C" {
 #define ROOT_PROP "root"
 
 struct Base;
-struct EvaluationContext;
+struct Depsgraph;
 struct Group;
 struct ID;
 struct IDProperty;
@@ -58,7 +58,8 @@ struct WorkSpace;
 
 void BKE_layer_exit(void);
 
-struct ViewLayer *BKE_view_layer_from_scene_get(const struct Scene *scene);
+struct ViewLayer *BKE_view_layer_default_view(const struct Scene *scene);
+struct ViewLayer *BKE_view_layer_default_render(const struct Scene *scene);
 struct ViewLayer *BKE_view_layer_from_workspace_get(const struct Scene *scene, const struct WorkSpace *workspace);
 struct ViewLayer *BKE_view_layer_add(struct Scene *scene, const char *name);
 struct ViewLayer *BKE_view_layer_group_add(struct Group *group);
@@ -134,22 +135,17 @@ void BKE_override_layer_collection_boolean_add(struct LayerCollection *layer_col
 /* engine settings */
 typedef void (*EngineSettingsCB)(struct RenderEngine *engine, struct IDProperty *props);
 
-struct IDProperty *BKE_layer_collection_engine_evaluated_get(struct Object *ob, const int type, const char *engine_name);
-struct IDProperty *BKE_layer_collection_engine_collection_get(struct LayerCollection *lc, const int type, const char *engine_name);
-struct IDProperty *BKE_layer_collection_engine_scene_get(struct Scene *scene, const int type, const char *engine_name);
+struct IDProperty *BKE_layer_collection_engine_scene_get(struct Scene *scene, const char *engine_name);
 void BKE_layer_collection_engine_settings_callback_register(struct Main *bmain, const char *engine_name, EngineSettingsCB func);
 void BKE_layer_collection_engine_settings_callback_free(void);
 void BKE_layer_collection_engine_settings_create(struct IDProperty *root);
 void BKE_layer_collection_engine_settings_validate_scene(struct Scene *scene);
-void BKE_layer_collection_engine_settings_validate_collection(struct LayerCollection *lc);
 
-struct IDProperty *BKE_view_layer_engine_evaluated_get(struct ViewLayer *view_layer, const int type, const char *engine_name);
-struct IDProperty *BKE_view_layer_engine_layer_get(struct ViewLayer *view_layer, const int type, const char *engine_name);
-struct IDProperty *BKE_view_layer_engine_scene_get(struct Scene *scene, const int type, const char *engine_name);
+struct IDProperty *BKE_view_layer_engine_evaluated_get(struct ViewLayer *view_layer, const char *engine_name);
+struct IDProperty *BKE_view_layer_engine_scene_get(struct Scene *scene, const char *engine_name);
 void BKE_view_layer_engine_settings_callback_register(struct Main *bmain, const char *engine_name, EngineSettingsCB func);
 void BKE_view_layer_engine_settings_callback_free(void);
 void BKE_view_layer_engine_settings_validate_scene(struct Scene *scene);
-void BKE_view_layer_engine_settings_validate_layer(struct ViewLayer *view_layer);
 void BKE_view_layer_engine_settings_create(struct IDProperty *root);
 
 void BKE_collection_engine_property_add_float(struct IDProperty *props, const char *name, float value);
@@ -169,67 +165,116 @@ void BKE_collection_engine_property_value_set_bool(struct IDProperty *props, con
 
 /* evaluation */
 
-void BKE_layer_eval_view_layer(const struct EvaluationContext *eval_ctx,
-                               struct ID *owner_id,
-                               struct ViewLayer *view_layer);
+void BKE_layer_eval_view_layer(
+        struct Depsgraph *depsgraph,
+        struct ID *owner_id,
+        struct ViewLayer *view_layer);
 
-void BKE_layer_eval_view_layer_indexed(const struct EvaluationContext *eval_ctx,
-                                       struct ID *owner_id,
-                                       int view_layer_index);
+void BKE_layer_eval_view_layer_indexed(
+        struct Depsgraph *depsgraph,
+        struct ID *owner_id,
+        int view_layer_index);
 
 /* iterators */
 
-void BKE_selected_objects_iterator_begin(BLI_Iterator *iter, void *data_in);
-void BKE_selected_objects_iterator_next(BLI_Iterator *iter);
-void BKE_selected_objects_iterator_end(BLI_Iterator *iter);
+void BKE_view_layer_selected_objects_iterator_begin(BLI_Iterator *iter, void *data_in);
+void BKE_view_layer_selected_objects_iterator_next(BLI_Iterator *iter);
+void BKE_view_layer_selected_objects_iterator_end(BLI_Iterator *iter);
 
-void BKE_visible_objects_iterator_begin(BLI_Iterator *iter, void *data_in);
-void BKE_visible_objects_iterator_next(BLI_Iterator *iter);
-void BKE_visible_objects_iterator_end(BLI_Iterator *iter);
+void BKE_view_layer_visible_objects_iterator_begin(BLI_Iterator *iter, void *data_in);
+void BKE_view_layer_visible_objects_iterator_next(BLI_Iterator *iter);
+void BKE_view_layer_visible_objects_iterator_end(BLI_Iterator *iter);
 
-void BKE_renderable_objects_iterator_begin(BLI_Iterator *iter, void *data_in);
-void BKE_renderable_objects_iterator_next(BLI_Iterator *iter);
-void BKE_renderable_objects_iterator_end(BLI_Iterator *iter);
+struct ObjectsInModeIteratorData {
+	int object_mode;
+	struct ViewLayer *view_layer;
+	struct Base *base_active;
+};
 
-void BKE_selected_bases_iterator_begin(BLI_Iterator *iter, void *data_in);
-void BKE_selected_bases_iterator_next(BLI_Iterator *iter);
-void BKE_selected_bases_iterator_end(BLI_Iterator *iter);
+void BKE_view_layer_renderable_objects_iterator_begin(BLI_Iterator *iter, void *data_in);
+void BKE_view_layer_renderable_objects_iterator_next(BLI_Iterator *iter);
+void BKE_view_layer_renderable_objects_iterator_end(BLI_Iterator *iter);
 
-void BKE_visible_bases_iterator_begin(BLI_Iterator *iter, void *data_in);
-void BKE_visible_bases_iterator_next(BLI_Iterator *iter);
-void BKE_visible_bases_iterator_end(BLI_Iterator *iter);
+void BKE_view_layer_bases_in_mode_iterator_begin(BLI_Iterator *iter, void *data_in);
+void BKE_view_layer_bases_in_mode_iterator_next(BLI_Iterator *iter);
+void BKE_view_layer_bases_in_mode_iterator_end(BLI_Iterator *iter);
+
+void BKE_view_layer_selected_bases_iterator_begin(BLI_Iterator *iter, void *data_in);
+void BKE_view_layer_selected_bases_iterator_next(BLI_Iterator *iter);
+void BKE_view_layer_selected_bases_iterator_end(BLI_Iterator *iter);
+
+void BKE_view_layer_visible_bases_iterator_begin(BLI_Iterator *iter, void *data_in);
+void BKE_view_layer_visible_bases_iterator_next(BLI_Iterator *iter);
+void BKE_view_layer_visible_bases_iterator_end(BLI_Iterator *iter);
 
 #define FOREACH_SELECTED_OBJECT_BEGIN(view_layer, _instance)                  \
-	ITER_BEGIN(BKE_selected_objects_iterator_begin,                           \
-	           BKE_selected_objects_iterator_next,                            \
-	           BKE_selected_objects_iterator_end,                             \
+	ITER_BEGIN(BKE_view_layer_selected_objects_iterator_begin,                \
+	           BKE_view_layer_selected_objects_iterator_next,                 \
+	           BKE_view_layer_selected_objects_iterator_end,                  \
 	           view_layer, Object *, _instance)
 
 #define FOREACH_SELECTED_OBJECT_END                                           \
 	ITER_END
 
 #define FOREACH_VISIBLE_OBJECT_BEGIN(view_layer, _instance)                   \
-	ITER_BEGIN(BKE_visible_objects_iterator_begin,                            \
-	           BKE_visible_objects_iterator_next,                             \
-	           BKE_visible_objects_iterator_end,                              \
+	ITER_BEGIN(BKE_view_layer_visible_objects_iterator_begin,                 \
+	           BKE_view_layer_visible_objects_iterator_next,                  \
+	           BKE_view_layer_visible_objects_iterator_end,                   \
 	           view_layer, Object *, _instance)
 
 #define FOREACH_VISIBLE_OBJECT_END                                            \
 	ITER_END
 
-#define FOREACH_SELECTED_BASE_BEGIN(view_layer, _instance)                     \
-	ITER_BEGIN(BKE_selected_bases_iterator_begin,                              \
-	           BKE_selected_bases_iterator_next,                               \
-	           BKE_selected_bases_iterator_end,                                \
+
+#define FOREACH_BASE_IN_MODE_BEGIN(_view_layer, _object_mode, _instance)      \
+{ \
+	struct ObjectsInModeIteratorData data_ = {                                \
+		.object_mode = _object_mode,                                          \
+		.view_layer = _view_layer,                                            \
+		.base_active = _view_layer->basact,                                   \
+	};                                                                        \
+	ITER_BEGIN(BKE_view_layer_bases_in_mode_iterator_begin,                   \
+	           BKE_view_layer_bases_in_mode_iterator_next,                    \
+	           BKE_view_layer_bases_in_mode_iterator_end,                     \
+	           &data_, Base *, _instance)
+
+#define FOREACH_BASE_IN_MODE_END                                              \
+	ITER_END;                                                                 \
+} ((void)0)
+
+#define FOREACH_BASE_IN_EDIT_MODE_BEGIN(_view_layer, _instance)               \
+	FOREACH_BASE_IN_MODE_BEGIN(_view_layer, OB_MODE_EDIT, _instance)
+
+#define FOREACH_BASE_IN_EDIT_MODE_END                                         \
+	FOREACH_BASE_IN_MODE_END
+
+#define FOREACH_OBJECT_IN_MODE_BEGIN(_view_layer, _object_mode, _instance)    \
+	FOREACH_BASE_IN_MODE_BEGIN(_view_layer, _object_mode, _base) {            \
+		Object *_instance = _base->object;
+
+#define FOREACH_OBJECT_IN_MODE_END                                            \
+	} FOREACH_BASE_IN_MODE_END
+
+#define FOREACH_OBJECT_IN_EDIT_MODE_BEGIN(_view_layer, _instance)             \
+	FOREACH_BASE_IN_EDIT_MODE_BEGIN(_view_layer, _base) {                     \
+		Object *_instance = _base->object;
+
+#define FOREACH_OBJECT_IN_EDIT_MODE_END                                       \
+	} FOREACH_BASE_IN_EDIT_MODE_END
+
+#define FOREACH_SELECTED_BASE_BEGIN(view_layer, _instance)                    \
+	ITER_BEGIN(BKE_view_layer_selected_bases_iterator_begin,                  \
+	           BKE_view_layer_selected_bases_iterator_next,                   \
+	           BKE_view_layer_selected_bases_iterator_end,                    \
 	           view_layer, Base *, _instance)
 
-#define FOREACH_SELECTED_BASE_END                                              \
+#define FOREACH_SELECTED_BASE_END                                             \
 	ITER_END
 
 #define FOREACH_VISIBLE_BASE_BEGIN(view_layer, _instance)                     \
-	ITER_BEGIN(BKE_visible_bases_iterator_begin,                              \
-	           BKE_visible_bases_iterator_next,                               \
-	           BKE_visible_bases_iterator_end,                                \
+	ITER_BEGIN(BKE_view_layer_visible_bases_iterator_begin,                   \
+	           BKE_view_layer_visible_bases_iterator_next,                    \
+	           BKE_view_layer_visible_bases_iterator_end,                     \
 	           view_layer, Base *, _instance)
 
 #define FOREACH_VISIBLE_BASE_END                                              \
@@ -254,9 +299,9 @@ void BKE_visible_bases_iterator_end(BLI_Iterator *iter);
 	void *data_in;                                                            \
 	                                                                          \
 	if (flag == SELECT) {                                                     \
-	    func_begin = &BKE_selected_objects_iterator_begin;                    \
-	    func_next = &BKE_selected_objects_iterator_next;                      \
-	    func_end = &BKE_selected_objects_iterator_end;                        \
+	    func_begin = &BKE_view_layer_selected_objects_iterator_begin;         \
+	    func_next = &BKE_view_layer_selected_objects_iterator_next;           \
+	    func_end = &BKE_view_layer_selected_objects_iterator_end;             \
 	    data_in = (view_layer);                                               \
 	}                                                                         \
 	else {                                                                    \
@@ -286,18 +331,82 @@ struct ObjectsRenderableIteratorData {
 
 #define FOREACH_OBJECT_RENDERABLE_BEGIN(scene_, _instance)                    \
 {                                                                             \
-	struct ObjectsRenderableIteratorData data_ = {                                   \
+	struct ObjectsRenderableIteratorData data_ = {                            \
 	    .scene = (scene_),                                                    \
 	};                                                                        \
-	ITER_BEGIN(BKE_renderable_objects_iterator_begin,                         \
-	           BKE_renderable_objects_iterator_next,                          \
-	           BKE_renderable_objects_iterator_end,                           \
+	ITER_BEGIN(BKE_view_layer_renderable_objects_iterator_begin,              \
+	           BKE_view_layer_renderable_objects_iterator_next,               \
+	           BKE_view_layer_renderable_objects_iterator_end,                \
 	           &data_, Object *, _instance)
 
 
 #define FOREACH_OBJECT_RENDERABLE_END                                         \
 	ITER_END;                                                                 \
 } ((void)0)
+
+
+/* layer_utils.c */
+
+struct ObjectsInModeParams {
+	int object_mode;
+	uint no_dup_data : 1;
+
+	bool (*filter_fn)(struct Object *ob, void *user_data);
+	void  *filter_userdata;
+};
+
+Base **BKE_view_layer_array_from_bases_in_mode_params(
+        struct ViewLayer *view_layer, uint *r_len,
+        const struct ObjectsInModeParams *params);
+
+struct Object **BKE_view_layer_array_from_objects_in_mode_params(
+        struct ViewLayer *view_layer, uint *len,
+        const struct ObjectsInModeParams *params);
+
+#define BKE_view_layer_array_from_objects_in_mode(view_layer, r_len, ...) \
+	BKE_view_layer_array_from_objects_in_mode_params( \
+	        view_layer, r_len, \
+	        &(const struct ObjectsInModeParams)__VA_ARGS__)
+
+#define BKE_view_layer_array_from_bases_in_mode(view_layer, r_len, ...) \
+	BKE_view_layer_array_from_bases_in_mode_params( \
+	        view_layer, r_len, \
+	        &(const struct ObjectsInModeParams)__VA_ARGS__)
+
+bool BKE_view_layer_filter_edit_mesh_has_uvs(struct Object *ob, void *user_data);
+bool BKE_view_layer_filter_edit_mesh_has_edges(struct Object *ob, void *user_data);
+
+/* Utility macros that wrap common args (add more as needed). */
+
+#define BKE_view_layer_array_from_objects_in_edit_mode(view_layer, r_len) \
+	BKE_view_layer_array_from_objects_in_mode( \
+	view_layer, r_len, { \
+		.object_mode = OB_MODE_EDIT});
+
+#define BKE_view_layer_array_from_bases_in_edit_mode(view_layer, r_len) \
+	BKE_view_layer_array_from_bases_in_mode( \
+	view_layer, r_len, { \
+		.object_mode = OB_MODE_EDIT});
+
+#define BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, r_len) \
+	BKE_view_layer_array_from_objects_in_mode( \
+	view_layer, r_len, { \
+		.object_mode = OB_MODE_EDIT, \
+		.no_dup_data = true});
+
+#define BKE_view_layer_array_from_bases_in_edit_mode_unique_data(view_layer, r_len) \
+	BKE_view_layer_array_from_bases_in_mode( \
+	view_layer, r_len, { \
+		.object_mode = OB_MODE_EDIT, \
+		.no_dup_data = true});
+
+#define BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, r_len) \
+	BKE_view_layer_array_from_objects_in_mode( \
+	view_layer, r_len, { \
+		.object_mode = OB_MODE_EDIT, \
+		.no_dup_data = true, \
+		.filter_fn = BKE_view_layer_filter_edit_mesh_has_uvs});
+
 
 #ifdef __cplusplus
 }

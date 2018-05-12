@@ -67,6 +67,7 @@
 #include "NOD_composite.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 const EnumPropertyItem rna_enum_node_socket_in_out_items[] = {
 	{ SOCK_IN, "IN", 0, "Input", "" },
@@ -2338,14 +2339,6 @@ static void rna_NodeSocketStandard_value_update(struct bContext *C, PointerRNA *
 		/* fall back to searching node in the tree */
 		nodeFindNode(ntree, sock, &node, NULL);
 	}
-	
-	if (node) {
-		nodeSynchronizeID(node, true);
-
-		/* extra update for sockets that get synced to material */
-		if (node->id && ELEM(node->type, SH_NODE_MATERIAL, SH_NODE_MATERIAL_EXT))
-			WM_main_add_notifier(NC_MATERIAL | ND_SHADING_DRAW, node->id);
-	}
 }
 
 
@@ -2499,17 +2492,6 @@ static void rna_Node_tex_image_update(Main *bmain, Scene *UNUSED(scene), Pointer
 
 	ED_node_tag_update_nodetree(bmain, ntree, node);
 	WM_main_add_notifier(NC_IMAGE, NULL);
-}
-
-static void rna_Node_material_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
-{
-	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
-	bNode *node = (bNode *)ptr->data;
-
-	if (node->id)
-		nodeSetActive(ntree, node);
-
-	ED_node_tag_update_nodetree(bmain, ntree, node);
 }
 
 static void rna_NodeGroup_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
@@ -3034,7 +3016,7 @@ static void rna_ShaderNodeScript_update(Main *bmain, Scene *scene, PointerRNA *p
 {
 	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
 	bNode *node = (bNode *)ptr->data;
-	RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
+	RenderEngineType *engine_type = RE_engines_find(scene->r.engine);
 
 	if (engine_type && engine_type->update_script_node) {
 		/* auto update node */
@@ -3134,8 +3116,7 @@ static int point_density_vertex_color_source_from_shader(NodeShaderTexPointDensi
 }
 
 void rna_ShaderNodePointDensity_density_cache(bNode *self,
-                                              Depsgraph *depsgraph,
-                                              int settings)
+                                              Depsgraph *depsgraph)
 {
 	NodeShaderTexPointDensity *shader_point_density = self->storage;
 	PointDensity *pd = &shader_point_density->pd;
@@ -3143,12 +3124,6 @@ void rna_ShaderNodePointDensity_density_cache(bNode *self,
 	if (depsgraph == NULL) {
 		return;
 	}
-
-	EvaluationContext eval_ctx;
-	DEG_evaluation_context_init_from_depsgraph(&eval_ctx,
-	                                           depsgraph,
-	                                           settings == 1 ? DAG_EVAL_RENDER :
-	                                                           DAG_EVAL_VIEWPORT);
 
 	/* Make sure there's no cached data. */
 	BKE_texture_pointdensity_free_data(pd);
@@ -3178,13 +3153,11 @@ void rna_ShaderNodePointDensity_density_cache(bNode *self,
 	shader_point_density->cached_resolution = shader_point_density->resolution;
 
 	/* Single-threaded sampling of the voxel domain. */
-	RE_point_density_cache(&eval_ctx,
-	                       pd);
+	RE_point_density_cache(depsgraph, pd);
 }
 
 void rna_ShaderNodePointDensity_density_calc(bNode *self,
                                              Depsgraph *depsgraph,
-                                             int settings,
                                              int *length,
                                              float **values)
 {
@@ -3197,12 +3170,6 @@ void rna_ShaderNodePointDensity_density_calc(bNode *self,
 		return;
 	}
 
-	EvaluationContext eval_ctx;
-	DEG_evaluation_context_init_from_depsgraph(&eval_ctx,
-	                                           depsgraph,
-	                                           settings == 1 ? DAG_EVAL_RENDER :
-	                                                           DAG_EVAL_VIEWPORT);
-
 	/* TODO(sergey): Will likely overflow, but how to pass size_t via RNA? */
 	*length = 4 * resolution * resolution * resolution;
 
@@ -3211,10 +3178,7 @@ void rna_ShaderNodePointDensity_density_calc(bNode *self,
 	}
 
 	/* Single-threaded sampling of the voxel domain. */
-	RE_point_density_sample(&eval_ctx,
-	                        pd,
-	                        resolution,
-	                        *values);
+	RE_point_density_sample(depsgraph, pd, resolution, *values);
 
 	/* We're done, time to clean up. */
 	BKE_texture_pointdensity_free_data(pd);
@@ -3224,7 +3188,6 @@ void rna_ShaderNodePointDensity_density_calc(bNode *self,
 
 void rna_ShaderNodePointDensity_density_minmax(bNode *self,
                                                Depsgraph *depsgraph,
-                                               int settings,
                                                float r_min[3],
                                                float r_max[3])
 {
@@ -3237,13 +3200,7 @@ void rna_ShaderNodePointDensity_density_minmax(bNode *self,
 		return;
 	}
 
-	EvaluationContext eval_ctx;
-	DEG_evaluation_context_init_from_depsgraph(&eval_ctx,
-	                                           depsgraph,
-	                                           settings == 1 ? DAG_EVAL_RENDER :
-	                                                           DAG_EVAL_VIEWPORT);
-
-	RE_point_density_minmax(&eval_ctx, pd, r_min, r_max);
+	RE_point_density_minmax(depsgraph, pd, r_min, r_max);
 }
 
 #else
@@ -3572,33 +3529,6 @@ static void def_sh_output_linestyle(StructRNA *srna)
 	def_mix_rgb(srna);
 }
 
-static void def_sh_material(StructRNA *srna)
-{
-	PropertyRNA *prop;
-
-	prop = RNA_def_property(srna, "material", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "id");
-	RNA_def_property_struct_type(prop, "Material");
-	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Material", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_material_update");
-
-	prop = RNA_def_property(srna, "use_diffuse", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", SH_NODE_MAT_DIFF);
-	RNA_def_property_ui_text(prop, "Diffuse", "Material Node outputs Diffuse");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-
-	prop = RNA_def_property(srna, "use_specular", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", SH_NODE_MAT_SPEC);
-	RNA_def_property_ui_text(prop, "Specular", "Material Node outputs Specular");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-	
-	prop = RNA_def_property(srna, "invert_normal", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", SH_NODE_MAT_NEG);
-	RNA_def_property_ui_text(prop, "Invert Normal", "Material Node uses inverted normal");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-}
-
 static void def_sh_mapping(StructRNA *srna)
 {
 	static const EnumPropertyItem prop_vect_type_items[] = {
@@ -3659,36 +3589,6 @@ static void def_sh_mapping(StructRNA *srna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", TEXMAP_CLIP_MAX);
 	RNA_def_property_ui_text(prop, "Has Maximum", "Whether to use maximum clipping value");
 	RNA_def_property_update(prop, 0, "rna_Mapping_Node_update");
-}
-
-static void def_sh_geometry(StructRNA *srna)
-{
-	PropertyRNA *prop;
-	
-	RNA_def_struct_sdna_from(srna, "NodeGeometry", "storage");
-	
-	prop = RNA_def_property(srna, "uv_layer", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "uvname");
-	RNA_def_property_ui_text(prop, "UV Map", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-	
-	prop = RNA_def_property(srna, "color_layer", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "colname");
-	RNA_def_property_ui_text(prop, "Vertex Color Layer", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-}
-
-static void def_sh_lamp(StructRNA *srna)
-{
-	PropertyRNA *prop;
-	
-	prop = RNA_def_property(srna, "lamp_object", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "id");
-	RNA_def_property_struct_type(prop, "Object");
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
-	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_Lamp_object_poll");
-	RNA_def_property_ui_text(prop, "Lamp Object", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 }
 
 static void def_sh_attribute(StructRNA *srna)
@@ -4165,13 +4065,6 @@ static void def_sh_tex_pointdensity(StructRNA *srna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	/* TODO(sergey): Use some mnemonic names for the hardcoded values here. */
-	static const EnumPropertyItem calc_mode_items[] = {
-		{0, "VIEWPORT", 0, "Viewport", "Canculate density using viewport settings"},
-		{1, "RENDER", 0, "Render", "Canculate duplis using render settings"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "id");
 	RNA_def_property_struct_type(prop, "Object");
@@ -4234,12 +4127,10 @@ static void def_sh_tex_pointdensity(StructRNA *srna)
 	func = RNA_def_function(srna, "cache_point_density", "rna_ShaderNodePointDensity_density_cache");
 	RNA_def_function_ui_description(func, "Cache point density data for later calculation");
 	RNA_def_pointer(func, "depsgraph", "Depsgraph", "", "");
-	RNA_def_enum(func, "settings", calc_mode_items, 1, "", "Calculate density for rendering");
 
 	func = RNA_def_function(srna, "calc_point_density", "rna_ShaderNodePointDensity_density_calc");
 	RNA_def_function_ui_description(func, "Calculate point density");
 	RNA_def_pointer(func, "depsgraph", "Depsgraph", "", "");
-	RNA_def_enum(func, "settings", calc_mode_items, 1, "", "Calculate density for rendering");
 	/* TODO, See how array size of 0 works, this shouldnt be used. */
 	parm = RNA_def_float_array(func, "rgba_values", 1, NULL, 0, 0, "", "RGBA Values", 0, 0);
 	RNA_def_parameter_flags(parm, PROP_DYNAMIC, 0);
@@ -4248,7 +4139,6 @@ static void def_sh_tex_pointdensity(StructRNA *srna)
 	func = RNA_def_function(srna, "calc_point_density_minmax", "rna_ShaderNodePointDensity_density_minmax");
 	RNA_def_function_ui_description(func, "Calculate point density");
 	RNA_def_pointer(func, "depsgraph", "Depsgraph", "", "");
-	RNA_def_enum(func, "settings", calc_mode_items, 1, "", "Calculate density for rendering");
 	parm = RNA_def_property(func, "min", PROP_FLOAT, PROP_COORDS);
 	RNA_def_property_array(parm, 3);
 	RNA_def_parameter_flags(parm, PROP_THICK_WRAP, 0);

@@ -67,7 +67,7 @@ static int outliner_item_drag_drop_poll(bContext *C)
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	return ED_operator_outliner_active(C) &&
 	       /* Only collection display modes supported for now. Others need more design work */
-	       ELEM(soops->outlinevis, SO_VIEW_LAYER, SO_COLLECTIONS, SO_GROUPS);
+	       ELEM(soops->outlinevis, SO_COLLECTIONS, SO_GROUPS);
 }
 
 static TreeElement *outliner_item_drag_element_find(SpaceOops *soops, ARegion *ar, const wmEvent *event)
@@ -288,7 +288,8 @@ static int outliner_item_drag_drop_modal(bContext *C, wmOperator *op, const wmEv
  * It will fail when there is no next/prev TreeElement, or when the
  * element is an Override or something else in the future.
  */
-static bool tree_element_is_collection_get(const TreeElement *te) {
+static bool tree_element_is_collection_get(const TreeElement *te)
+{
 	if (te == NULL) {
 		return false;
 	}

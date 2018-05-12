@@ -69,7 +69,7 @@ def get_layer(scene, layer):
     name = layer.get(b'name')
 
     data['name'] = name
-    data['engine'] = scene.get((b'view_render', b'engine_id'))
+    data['engine'] = scene.get((b'r', b'engine'))
 
     active_base = layer.get_pointer(b'basact')
     if active_base:
@@ -182,7 +182,7 @@ def compare_files(file_a, file_b):
 
         if DUMP_DIFF:
             import subprocess
-            subprocess.call(["diff", "-u", file_a, file_b])
+            subprocess.call(["diff", "-u", file_b, file_a])
 
         if UPDATE_DIFF:
             import subprocess
@@ -191,7 +191,7 @@ def compare_files(file_a, file_b):
 
         if PDB:
             import pdb
-            print("Files differ:", file_a, file_b)
+            print("Files differ:", file_b, file_a)
             pdb.set_trace()
 
         return False
@@ -452,7 +452,6 @@ class ViewLayerTesting(unittest.TestCase):
         # real test
         layer = scene.view_layers.new('Visibility Test')
         layer.collections.unlink(layer.collections[0])
-        scene.view_layers.active = layer
 
         scene_collection = scene.master_collection.collections.new("Collection")
         layer.collections.link(scene_collection)
@@ -770,7 +769,6 @@ class Clay:
 
         layer = self._scene.view_layers.new('Evaluation Test')
         layer.collections.unlink(layer.collections[0])
-        self._scene.view_layers.active = layer
         bpy.context.window.view_layer = layer
 
         # remove all other layers

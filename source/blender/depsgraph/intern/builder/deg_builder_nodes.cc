@@ -170,7 +170,7 @@ IDDepsNode *DepsgraphNodeBuilder::add_id_node(ID *id)
 		ComponentDepsNode *comp_cow =
 		        id_node->add_component(DEG_NODE_TYPE_COPY_ON_WRITE);
 		OperationDepsNode *op_cow = comp_cow->add_operation(
-		        function_bind(deg_evaluate_copy_on_write, _1, graph_, id_node),
+		        function_bind(deg_evaluate_copy_on_write, _1, id_node),
 		        DEG_OPCODE_COPY_ON_WRITE,
 		        "", -1);
 		graph_->operations.push_back(op_cow);
@@ -382,6 +382,43 @@ void DepsgraphNodeBuilder::end_build()
 	}
 }
 
+void DepsgraphNodeBuilder::build_id(ID* id) {
+	if (id == NULL) {
+		return;
+	}
+	switch (GS(id->name)) {
+		case ID_GR:
+			build_group((Group *)id);
+			break;
+		case ID_OB:
+			build_object(-1, (Object *)id, DEG_ID_LINKED_INDIRECTLY);
+			break;
+		case ID_NT:
+			build_nodetree((bNodeTree *)id);
+			break;
+		case ID_MA:
+			build_material((Material *)id);
+			break;
+		case ID_TE:
+			build_texture((Tex *)id);
+			break;
+		case ID_IM:
+			build_image((Image *)id);
+			break;
+		case ID_WO:
+			build_world((World *)id);
+			break;
+		case ID_MSK:
+			build_mask((Mask *)id);
+			break;
+		case ID_MC:
+			build_movieclip((MovieClip *)id);
+			break;
+		default:
+			fprintf(stderr, "Unhandled ID %s\n", id->name);
+	}
+}
+
 void DepsgraphNodeBuilder::build_group(Group *group)
 {
 	if (built_map_.checkIsBuiltAndTag(group)) {
@@ -489,13 +526,16 @@ void DepsgraphNodeBuilder::build_object_flags(
 	if (base_index == -1) {
 		return;
 	}
-	/* TODO(sergey): Is this really best component to be used? */
+	Scene *scene_cow = get_cow_datablock(scene_);
 	Object *object_cow = get_cow_datablock(object);
 	const bool is_from_set = (linked_state == DEG_ID_LINKED_VIA_SET);
+	/* TODO(sergey): Is this really best component to be used? */
 	add_operation_node(&object->id,
 	                   DEG_NODE_TYPE_LAYER_COLLECTIONS,
 	                   function_bind(BKE_object_eval_flush_base_flags,
 	                                 _1,
+	                                 scene_cow,
+	                                 view_layer_index_,
 	                                 object_cow, base_index,
 	                                 is_from_set),
 	                   DEG_OPCODE_OBJECT_BASE_FLAGS);
@@ -637,11 +677,18 @@ void DepsgraphNodeBuilder::build_animdata(ID *id)
 	if (adt == NULL) {
 		return;
 	}
-
 	/* animation */
 	if (adt->action || adt->nla_tracks.first || adt->drivers.first) {
 		(void) add_id_node(id);
 		ID *id_cow = get_cow_id(id);
+
+		if (adt->action != NULL &&
+		    !built_map_.checkIsBuiltAndTag(&adt->action->id))
+		{
+			add_operation_node(&adt->action->id, DEG_NODE_TYPE_ANIMATION,
+			                   NULL,
+			                   DEG_OPCODE_ANIMATION);
+		}
 
 		// XXX: Hook up specific update callbacks for special properties which
 		// may need it...
@@ -698,6 +745,7 @@ void DepsgraphNodeBuilder::build_driver_variables(ID * id, FCurve *fcurve)
 	LISTBASE_FOREACH (DriverVar *, dvar, &fcurve->driver->variables) {
 		DRIVER_TARGETS_USED_LOOPER(dvar)
 		{
+			build_id(dtar->id);
 			build_driver_id_property(dtar->id, dtar->rna_path);
 		}
 		DRIVER_TARGETS_LOOPER_END
@@ -745,8 +793,6 @@ void DepsgraphNodeBuilder::build_world(World *world)
 	                                 _1,
 	                                 get_cow_datablock(world)),
 	                   DEG_OPCODE_WORLD_UPDATE);
-	/* textures */
-	build_texture_stack(world->mtex);
 	/* world's nodetree */
 	if (world->nodetree != NULL) {
 		build_nodetree(world->nodetree);
@@ -1151,8 +1197,6 @@ void DepsgraphNodeBuilder::build_lamp(Object *object)
 	                   DEG_OPCODE_PARAMETERS_EVAL);
 	/* lamp's nodetree */
 	build_nodetree(lamp->nodetree);
-	/* textures */
-	build_texture_stack(lamp->mtex);
 }
 
 void DepsgraphNodeBuilder::build_nodetree(bNodeTree *ntree)
@@ -1240,22 +1284,8 @@ void DepsgraphNodeBuilder::build_material(Material *material)
 	                   DEG_OPCODE_MATERIAL_UPDATE);
 	/* Material animation. */
 	build_animdata(&material->id);
-	/* Textures. */
-	build_texture_stack(material->mtex);
 	/* Material's nodetree. */
 	build_nodetree(material->nodetree);
-}
-
-/* Texture-stack attached to some shading datablock */
-void DepsgraphNodeBuilder::build_texture_stack(MTex **texture_stack)
-{
-	/* for now assume that all texture-stacks have same number of max items */
-	for (int i = 0; i < MAX_MTEX; i++) {
-		MTex *mtex = texture_stack[i];
-		if (mtex && mtex->tex) {
-			build_texture(mtex->tex);
-		}
-	}
 }
 
 /* Recursively build graph for texture */
@@ -1309,6 +1339,9 @@ void DepsgraphNodeBuilder::build_compositor(Scene *scene)
 
 void DepsgraphNodeBuilder::build_gpencil(bGPdata *gpd)
 {
+	if (built_map_.checkIsBuiltAndTag(gpd)) {
+		return;
+	}
 	ID *gpd_id = &gpd->id;
 
 	/* TODO(sergey): what about multiple users of same datablock? This should
@@ -1323,6 +1356,9 @@ void DepsgraphNodeBuilder::build_gpencil(bGPdata *gpd)
 
 void DepsgraphNodeBuilder::build_cachefile(CacheFile *cache_file)
 {
+	if (built_map_.checkIsBuiltAndTag(cache_file)) {
+		return;
+	}
 	ID *cache_file_id = &cache_file->id;
 	/* Animation, */
 	build_animdata(cache_file_id);
@@ -1333,6 +1369,9 @@ void DepsgraphNodeBuilder::build_cachefile(CacheFile *cache_file)
 
 void DepsgraphNodeBuilder::build_mask(Mask *mask)
 {
+	if (built_map_.checkIsBuiltAndTag(mask)) {
+		return;
+	}
 	ID *mask_id = &mask->id;
 	Mask *mask_cow = get_cow_datablock(mask);
 	/* F-Curve based animation. */
@@ -1351,6 +1390,9 @@ void DepsgraphNodeBuilder::build_mask(Mask *mask)
 
 void DepsgraphNodeBuilder::build_movieclip(MovieClip *clip)
 {
+	if (built_map_.checkIsBuiltAndTag(clip)) {
+		return;
+	}
 	ID *clip_id = &clip->id;
 	MovieClip *clip_cow = get_cow_datablock(clip);
 	/* Animation. */

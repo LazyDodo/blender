@@ -471,14 +471,11 @@ static int add_hook_object(const bContext *C, Main *bmain, Scene *scene, ViewLay
 {
 	ModifierData *md = NULL;
 	HookModifierData *hmd = NULL;
-	EvaluationContext eval_ctx;
 	float cent[3];
 	float pose_mat[4][4];
 	int tot, ok, *indexar;
 	char name[MAX_NAME];
 	
-	CTX_data_eval_ctx(C, &eval_ctx);
-
 	ok = object_hook_index_array(scene, obedit, &tot, &indexar, name, cent);
 
 	if (!ok) {
@@ -547,7 +544,7 @@ static int add_hook_object(const bContext *C, Main *bmain, Scene *scene, ViewLay
 	/* matrix calculus */
 	/* vert x (obmat x hook->imat) x hook->obmat x ob->imat */
 	/*        (parentinv         )                          */
-	BKE_object_where_is_calc(&eval_ctx, scene, ob);
+	BKE_object_where_is_calc(CTX_data_depsgraph(C), scene, ob);
 	
 	invert_m4_m4(ob->imat, ob->obmat);
 	/* apparently this call goes from right to left... */
@@ -784,7 +781,7 @@ static int object_hook_recenter_exec(bContext *C, wmOperator *op)
 	copy_m3_m4(bmat, ob->obmat);
 	invert_m3_m3(imat, bmat);
 	
-	sub_v3_v3v3(hmd->cent, scene->cursor, ob->obmat[3]);
+	sub_v3_v3v3(hmd->cent, scene->cursor.location, ob->obmat[3]);
 	mul_m3_v3(imat, hmd->cent);
 	
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);

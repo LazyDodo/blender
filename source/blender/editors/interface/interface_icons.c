@@ -35,6 +35,7 @@
 
 #include "GPU_draw.h"
 #include "GPU_matrix.h"
+#include "GPU_batch.h"
 #include "GPU_immediate.h"
 
 #include "BLI_blenlib.h"
@@ -57,6 +58,7 @@
 #include "BKE_global.h"
 #include "BKE_icons.h"
 #include "BKE_appdir.h"
+#include "BKE_studiolight.h"
 
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
@@ -65,6 +67,8 @@
 #include "BIF_glutil.h"
 
 #include "DEG_depsgraph.h"
+
+#include "DRW_engine.h"
 
 #include "ED_datafiles.h"
 #include "ED_keyframes_draw.h"
@@ -98,6 +102,7 @@ typedef void (*VectorDrawFunc)(int x, int y, int w, int h, float alpha);
 #define ICON_TYPE_TEXTURE   1
 #define ICON_TYPE_BUFFER    2
 #define ICON_TYPE_VECTOR    3
+#define ICON_TYPE_GEOM      4
 
 typedef struct DrawInfo {
 	int type;
@@ -107,6 +112,9 @@ typedef struct DrawInfo {
 		struct {
 			VectorDrawFunc func;
 		} vector;
+		struct {
+			ImBuf *image_cache;
+		} geom;
 		struct {
 			IconImage *image;
 		} buffer;
@@ -143,7 +151,7 @@ static DrawInfo *def_internal_icon(ImBuf *bbuf, int icon_id, int xofs, int yofs,
 	new_icon = MEM_callocN(sizeof(Icon), "texicon");
 
 	new_icon->obj = NULL; /* icon is not for library object */
-	new_icon->type = 0;
+	new_icon->id_type = 0;
 
 	di = MEM_callocN(sizeof(DrawInfo), "drawinfo");
 	di->type = type;
@@ -195,7 +203,7 @@ static void def_internal_vicon(int icon_id, VectorDrawFunc drawFunc)
 	new_icon = MEM_callocN(sizeof(Icon), "texicon");
 
 	new_icon->obj = NULL; /* icon is not for library object */
-	new_icon->type = 0;
+	new_icon->id_type = 0;
 
 	di = MEM_callocN(sizeof(DrawInfo), "drawinfo");
 	di->type = ICON_TYPE_VECTOR;
@@ -742,18 +750,57 @@ void UI_icons_free_drawinfo(void *drawinfo)
 				MEM_freeN(di->data.buffer.image);
 			}
 		}
+		else if (di->type == ICON_TYPE_GEOM) {
+			if (di->data.geom.image_cache) {
+				IMB_freeImBuf(di->data.geom.image_cache);
+			}
+		}
 
 		MEM_freeN(di);
 	}
 }
 
-static DrawInfo *icon_create_drawinfo(void)
+/**
+ * #Icon.data_type and #Icon.obj
+ */
+static DrawInfo *icon_create_drawinfo(Icon *icon)
 {
+	int  icon_data_type = icon->obj_type;
 	DrawInfo *di = NULL;
 
 	di = MEM_callocN(sizeof(DrawInfo), "di_icon");
-	di->type = ICON_TYPE_PREVIEW;
 
+	if (ELEM(icon_data_type, ICON_DATA_ID, ICON_DATA_PREVIEW)) {
+		di->type = ICON_TYPE_PREVIEW;
+	}
+	else if (icon_data_type == ICON_DATA_GEOM) {
+		di->type = ICON_TYPE_GEOM;
+	}
+	else if (icon_data_type == ICON_DATA_STUDIOLIGHT) {
+		const int STUDIOLIGHT_SIZE = 96;
+		StudioLight *sl = icon->obj;
+		di->type = ICON_TYPE_BUFFER;
+		IconImage *img = MEM_mallocN(sizeof(IconImage), __func__);
+		img->w = STUDIOLIGHT_SIZE;
+		img->h = STUDIOLIGHT_SIZE;
+		img->rect = BKE_studiolight_preview(sl, STUDIOLIGHT_SIZE);
+		di->data.buffer.image = img;
+	}
+	else {
+		BLI_assert(0);
+	}
+
+	return di;
+}
+
+static DrawInfo *icon_ensure_drawinfo(Icon *icon)
+{
+	if (icon->drawinfo) {
+		return icon->drawinfo;
+	}
+	DrawInfo *di = icon_create_drawinfo(icon);
+	icon->drawinfo = di;
+	icon->drawinfo_free = UI_icons_free_drawinfo;
 	return di;
 }
 
@@ -771,40 +818,27 @@ int UI_icon_get_width(int icon_id)
 		return 0;
 	}
 	
-	di = (DrawInfo *)icon->drawinfo;
-	if (!di) {
-		di = icon_create_drawinfo();
-		icon->drawinfo = di;
-	}
-
-	if (di)
+	di = icon_ensure_drawinfo(icon);
+	if (di) {
 		return ICON_DEFAULT_WIDTH;
+	}
 
 	return 0;
 }
 
 int UI_icon_get_height(int icon_id)
 {
-	Icon *icon = NULL;
-	DrawInfo *di = NULL;
-
-	icon = BKE_icon_get(icon_id);
-	
+	Icon *icon = BKE_icon_get(icon_id);
 	if (icon == NULL) {
 		if (G.debug & G_DEBUG)
 			printf("%s: Internal error, no icon for icon ID: %d\n", __func__, icon_id);
 		return 0;
 	}
-	
-	di = (DrawInfo *)icon->drawinfo;
 
-	if (!di) {
-		di = icon_create_drawinfo();
-		icon->drawinfo = di;
-	}
-	
-	if (di)
+	DrawInfo *di = icon_ensure_drawinfo(icon);
+	if (di) {
 		return ICON_DEFAULT_HEIGHT;
+	}
 
 	return 0;
 }
@@ -861,20 +895,13 @@ void ui_icon_ensure_deferred(const bContext *C, const int icon_id, const bool bi
 	Icon *icon = BKE_icon_get(icon_id);
 
 	if (icon) {
-		DrawInfo *di = (DrawInfo *)icon->drawinfo;
-
-		if (!di) {
-			di = icon_create_drawinfo();
-
-			icon->drawinfo = di;
-			icon->drawinfo_free = UI_icons_free_drawinfo;
-		}
+		DrawInfo *di = icon_ensure_drawinfo(icon);
 
 		if (di) {
 			switch (di->type) {
 				case ICON_TYPE_PREVIEW:
 				{
-					ID *id = (icon->type != 0) ? icon->obj : NULL;
+					ID *id = (icon->id_type != 0) ? icon->obj : NULL;
 					PreviewImage *prv = id ? BKE_previewimg_id_ensure(id) : icon->obj;
 					/* Using jobs for screen previews crashes due to offscreen rendering.
 					 * XXX would be nicer if PreviewImage could store if it supports jobs */
@@ -933,7 +960,7 @@ PreviewImage *UI_icon_to_preview(int icon_id)
 		DrawInfo *di = (DrawInfo *)icon->drawinfo;
 		if (di) {
 			if (di->type == ICON_TYPE_PREVIEW) {
-				PreviewImage *prv = (icon->type != 0) ? BKE_previewimg_id_ensure((ID *)icon->obj) : icon->obj;
+				PreviewImage *prv = (icon->id_type != 0) ? BKE_previewimg_id_ensure((ID *)icon->obj) : icon->obj;
 
 				if (prv) {
 					return BKE_previewimg_copy(prv);
@@ -964,7 +991,7 @@ PreviewImage *UI_icon_to_preview(int icon_id)
 }
 
 static void icon_draw_rect(float x, float y, int w, int h, float UNUSED(aspect), int rw, int rh,
-                           unsigned int *rect, float alpha, const float rgb[3], const bool UNUSED(is_preview))
+                           unsigned int *rect, float alpha, const float rgb[3], const float desaturate)
 {
 	ImBuf *ima = NULL;
 	int draw_w = w;
@@ -1013,7 +1040,19 @@ static void icon_draw_rect(float x, float y, int w, int h, float UNUSED(aspect),
 	UI_widgetbase_draw_cache_flush();
 
 	/* draw */
-	IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_COLOR);
+	GPUBuiltinShader shader;
+	if (desaturate != 0.0f) {
+		shader = GPU_SHADER_2D_IMAGE_DESATURATE_COLOR;
+	}
+	else {
+		shader = GPU_SHADER_2D_IMAGE_COLOR;
+	}
+	IMMDrawPixelsTexState state = immDrawPixelsTexSetup(shader);
+
+	if (shader == GPU_SHADER_2D_IMAGE_DESATURATE_COLOR) {
+		immUniform1f("factor", desaturate);
+	}
+
 	immDrawPixelsTex(&state, draw_x, draw_y, draw_w, draw_h, GL_RGBA, GL_UNSIGNED_BYTE, GL_NEAREST, rect,
 	                 1.0f, 1.0f, col);
 
@@ -1028,7 +1067,7 @@ static void icon_draw_rect(float x, float y, int w, int h, float UNUSED(aspect),
  * efficient than simple glUniform calls. */
 #define ICON_DRAW_CACHE_SIZE 16
 
-typedef struct IconDrawCall{
+typedef struct IconDrawCall {
 	rctf pos;
 	rctf tex;
 	float color[4];
@@ -1039,7 +1078,7 @@ static struct {
 	int calls; /* Number of calls batched together */
 	bool enabled;
 	float mat[4][4];
-} g_icon_draw_cache = {0};
+} g_icon_draw_cache = {{{{0}}}};
 
 void UI_icon_draw_cache_begin(void)
 {
@@ -1179,11 +1218,10 @@ static int get_draw_size(enum eIconSizes size)
 
 static void icon_draw_size(
         float x, float y, int icon_id, float aspect, float alpha, const float rgb[3],
-        enum eIconSizes size, int draw_size, const bool UNUSED(nocreate), const bool is_preview)
+        enum eIconSizes size, int draw_size, const float desaturate)
 {
 	bTheme *btheme = UI_GetTheme();
 	Icon *icon = NULL;
-	DrawInfo *di = NULL;
 	IconImage *iimg;
 	const float fdraw_size = (float)draw_size;
 	int w, h;
@@ -1197,23 +1235,49 @@ static void icon_draw_size(
 		return;
 	}
 
-	di = (DrawInfo *)icon->drawinfo;
-	
-	if (!di) {
-		di = icon_create_drawinfo();
-	
-		icon->drawinfo = di;
-		icon->drawinfo_free = UI_icons_free_drawinfo;
-	}
-	
 	/* scale width and height according to aspect */
 	w = (int)(fdraw_size / aspect + 0.5f);
 	h = (int)(fdraw_size / aspect + 0.5f);
-	
+
+	DrawInfo *di = icon_ensure_drawinfo(icon);
+
 	if (di->type == ICON_TYPE_VECTOR) {
+		/* We need to flush widget base first to ensure correct ordering. */
+		UI_widgetbase_draw_cache_flush();
 		/* vector icons use the uiBlock transformation, they are not drawn
 		 * with untransformed coordinates like the other icons */
 		di->data.vector.func((int)x, (int)y, w, h, 1.0f);
+	}
+	else if (di->type == ICON_TYPE_GEOM) {
+		/* We need to flush widget base first to ensure correct ordering. */
+		UI_widgetbase_draw_cache_flush();
+
+#ifdef USE_TOOLBAR_HACK
+		/* TODO(campbell): scale icons up for toolbar, we need a way to detect larger buttons and do this automatic. */
+		{
+			float scale = (float)ICON_DEFAULT_HEIGHT_TOOLBAR / (float)ICON_DEFAULT_HEIGHT;
+			y = (y + (h / 2)) - ((h * scale) / 2);
+			w *= scale;
+			h *= scale;
+		}
+#endif
+
+		/* This could re-generate often if rendered at different sizes in the one interface.
+		 * TODO(campbell): support caching multiple sizes. */
+		ImBuf *ibuf = di->data.geom.image_cache;
+		if ((ibuf == NULL) ||
+		    (ibuf->x != w) ||
+		    (ibuf->y != h))
+		{
+			if (ibuf) {
+				IMB_freeImBuf(ibuf);
+			}
+			ibuf = BKE_icon_geom_rasterize(icon->obj, w, h);
+			di->data.geom.image_cache = ibuf;
+		}
+		glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		icon_draw_rect(x, y, w, h, aspect, w, h, ibuf->rect, alpha, rgb, desaturate);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else if (di->type == ICON_TYPE_TEXTURE) {
 		/* texture image use premul alpha for correct scaling */
@@ -1231,11 +1295,11 @@ static void icon_draw_size(
 		if (!iimg->rect) return;  /* something has gone wrong! */
 
 		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-		icon_draw_rect(x, y, w, h, aspect, iimg->w, iimg->h, iimg->rect, alpha, rgb, is_preview);
+		icon_draw_rect(x, y, w, h, aspect, iimg->w, iimg->h, iimg->rect, alpha, rgb, desaturate);
 		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else if (di->type == ICON_TYPE_PREVIEW) {
-		PreviewImage *pi = (icon->type != 0) ? BKE_previewimg_id_ensure((ID *)icon->obj) : icon->obj;
+		PreviewImage *pi = (icon->id_type != 0) ? BKE_previewimg_id_ensure((ID *)icon->obj) : icon->obj;
 
 		if (pi) {
 			/* no create icon on this level in code */
@@ -1244,7 +1308,7 @@ static void icon_draw_size(
 			/* preview images use premul alpha ... */
 			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-			icon_draw_rect(x, y, w, h, aspect, pi->w[size], pi->h[size], pi->rect[size], alpha, rgb, is_preview);
+			icon_draw_rect(x, y, w, h, aspect, pi->w[size], pi->h[size], pi->rect[size], alpha, rgb, desaturate);
 			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		}
 	}
@@ -1468,7 +1532,7 @@ int UI_idcode_icon_get(const int idcode)
 		case ID_PC:
 			return ICON_CURVE_BEZCURVE;  /* TODO! this would need its own icon! */
 		case ID_LP:
-			return ICON_RADIO;
+			return ICON_LIGHTPROBE_CUBEMAP;
 		case ID_SCE:
 			return ICON_SCENE_DATA;
 		case ID_SPK:
@@ -1490,21 +1554,26 @@ int UI_idcode_icon_get(const int idcode)
 
 static void icon_draw_at_size(
         float x, float y, int icon_id, float aspect, float alpha,
-        enum eIconSizes size, const bool nocreate)
+        enum eIconSizes size, const float desaturate)
 {
 	int draw_size = get_draw_size(size);
-	icon_draw_size(x, y, icon_id, aspect, alpha, NULL, size, draw_size, nocreate, false);
+	icon_draw_size(x, y, icon_id, aspect, alpha, NULL, size, draw_size, desaturate);
 }
 
 void UI_icon_draw_aspect(float x, float y, int icon_id, float aspect, float alpha)
 {
-	icon_draw_at_size(x, y, icon_id, aspect, alpha, ICON_SIZE_ICON, 0);
+	icon_draw_at_size(x, y, icon_id, aspect, alpha, ICON_SIZE_ICON, 0.0f);
 }
 
 void UI_icon_draw_aspect_color(float x, float y, int icon_id, float aspect, const float rgb[3])
 {
 	int draw_size = get_draw_size(ICON_SIZE_ICON);
-	icon_draw_size(x, y, icon_id, aspect, 1.0f, rgb, ICON_SIZE_ICON, draw_size, false, false);
+	icon_draw_size(x, y, icon_id, aspect, 1.0f, rgb, ICON_SIZE_ICON, draw_size, false);
+}
+
+void UI_icon_draw_desaturate(float x, float y, int icon_id, float aspect, float alpha, float desaturate)
+{
+	icon_draw_at_size(x, y, icon_id, aspect, alpha, ICON_SIZE_ICON, desaturate);
 }
 
 /* draws icon with dpi scale factor */
@@ -1520,21 +1589,21 @@ void UI_icon_draw_alpha(float x, float y, int icon_id, float alpha)
 
 void UI_icon_draw_size(float x, float y, int size, int icon_id, float alpha)
 {
-	icon_draw_size(x, y, icon_id, 1.0f, alpha, NULL, ICON_SIZE_ICON, size, true, false);
+	icon_draw_size(x, y, icon_id, 1.0f, alpha, NULL, ICON_SIZE_ICON, size, false);
 }
 
 void UI_icon_draw_preview(float x, float y, int icon_id)
 {
-	icon_draw_at_size(x, y, icon_id, 1.0f, 1.0f, ICON_SIZE_PREVIEW, 0);
+	icon_draw_at_size(x, y, icon_id, 1.0f, 1.0f, ICON_SIZE_PREVIEW, false);
 }
 
 void UI_icon_draw_preview_aspect(float x, float y, int icon_id, float aspect)
 {
-	icon_draw_at_size(x, y, icon_id, aspect, 1.0f, ICON_SIZE_PREVIEW, 0);
+	icon_draw_at_size(x, y, icon_id, aspect, 1.0f, ICON_SIZE_PREVIEW, false);
 }
 
 void UI_icon_draw_preview_aspect_size(float x, float y, int icon_id, float aspect, float alpha, int size)
 {
-	icon_draw_size(x, y, icon_id, aspect, alpha, NULL, ICON_SIZE_PREVIEW, size, false, true);
+	icon_draw_size(x, y, icon_id, aspect, alpha, NULL, ICON_SIZE_PREVIEW, size, false);
 }
 

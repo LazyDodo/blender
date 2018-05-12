@@ -48,7 +48,6 @@
 #include "DNA_lightprobe_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_vfont_types.h"
-#include "DNA_actuator_types.h"
 #include "DNA_gpencil_types.h"
 
 #include "BLI_utildefines.h"
@@ -88,7 +87,6 @@
 #include "BKE_object.h"
 #include "BKE_particle.h"
 #include "BKE_report.h"
-#include "BKE_sca.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_speaker.h"
@@ -116,8 +114,6 @@
 #include "ED_view3d.h"
 
 #include "UI_resources.h"
-
-#include "GPU_lamp.h"
 
 #include "object_intern.h"
 
@@ -152,11 +148,11 @@ static const EnumPropertyItem field_type_items[] = {
 };
 
 static EnumPropertyItem lightprobe_type_items[] = {
-	{LIGHTPROBE_TYPE_CUBE, "SPHERE", ICON_MESH_UVSPHERE, "Reflection Cubemap",
+	{LIGHTPROBE_TYPE_CUBE, "CUBEMAP", ICON_LIGHTPROBE_CUBEMAP, "Reflection Cubemap",
      "Reflection probe with spherical or cubic attenuation"},
-	{LIGHTPROBE_TYPE_PLANAR, "PLANAR", ICON_MESH_PLANE, "Reflection Plane",
+	{LIGHTPROBE_TYPE_PLANAR, "PLANAR", ICON_LIGHTPROBE_PLANAR, "Reflection Plane",
      "Planar reflection probe"},
-	{LIGHTPROBE_TYPE_GRID, "GRID", ICON_MESH_GRID, "Irradiance Volume",
+	{LIGHTPROBE_TYPE_GRID, "GRID", ICON_LIGHTPROBE_GRID, "Irradiance Volume",
      "Irradiance probe to capture diffuse indirect lighting"},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -169,50 +165,49 @@ void ED_object_location_from_view(bContext *C, float loc[3])
 	Scene *scene = CTX_data_scene(C);
 	const float *cursor;
 
-	cursor = ED_view3d_cursor3d_get(scene, v3d);
+	cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
 
 	copy_v3_v3(loc, cursor);
+}
+
+void ED_object_rotation_from_quat(float rot[3], const float viewquat[4], const char align_axis)
+{
+	BLI_assert(align_axis >= 'X' && align_axis <= 'Z');
+
+	switch (align_axis) {
+		case 'X':
+		{
+			/* Same as 'rv3d->viewinv[1]' */
+			float axis_y[4] = {0.0f, 1.0f, 0.0f};
+			float quat_y[4], quat[4];
+			axis_angle_to_quat(quat_y, axis_y, M_PI_2);
+			mul_qt_qtqt(quat, viewquat, quat_y);
+			quat_to_eul(rot, quat);
+			break;
+		}
+		case 'Y':
+		{
+			quat_to_eul(rot, viewquat);
+			rot[0] -= (float)M_PI_2;
+			break;
+		}
+		case 'Z':
+		{
+			quat_to_eul(rot, viewquat);
+			break;
+		}
+	}
 }
 
 void ED_object_rotation_from_view(bContext *C, float rot[3], const char align_axis)
 {
 	RegionView3D *rv3d = CTX_wm_region_view3d(C);
-
 	BLI_assert(align_axis >= 'X' && align_axis <= 'Z');
-
 	if (rv3d) {
-		float quat[4];
-
-		switch (align_axis) {
-			case 'X':
-			{
-				float quat_y[4];
-				axis_angle_to_quat(quat_y, rv3d->viewinv[1], -M_PI_2);
-				mul_qt_qtqt(quat, rv3d->viewquat, quat_y);
-				quat[0] = -quat[0];
-
-				quat_to_eul(rot, quat);
-				break;
-			}
-			case 'Y':
-			{
-				copy_qt_qt(quat, rv3d->viewquat);
-				quat[0] = -quat[0];
-
-				quat_to_eul(rot, quat);
-				rot[0] -= (float)M_PI_2;
-				break;
-			}
-			case 'Z':
-			{
-				copy_qt_qt(quat, rv3d->viewquat);
-				quat[0] = -quat[0];
-
-				quat_to_eul(rot, quat);
-				break;
-			}
-		}
-
+		float viewquat[4];
+		copy_qt_qt(viewquat, rv3d->viewquat);
+		viewquat[0] *= -1.0f;
+		ED_object_rotation_from_quat(rot, viewquat, align_axis);
 	}
 	else {
 		zero_v3(rot);
@@ -223,11 +218,9 @@ void ED_object_base_init_transform(bContext *C, Base *base, const float loc[3], 
 {
 	Object *ob = base->object;
 	Scene *scene = CTX_data_scene(C);
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	if (!scene) return;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (loc)
 		copy_v3_v3(ob->loc, loc);
@@ -235,7 +228,7 @@ void ED_object_base_init_transform(bContext *C, Base *base, const float loc[3], 
 	if (rot)
 		copy_v3_v3(ob->rot, rot);
 
-	BKE_object_where_is_calc(&eval_ctx, scene, ob);
+	BKE_object_where_is_calc(depsgraph, scene, ob);
 }
 
 /* Uses context to figure out transform for primitive.
@@ -441,12 +434,6 @@ Object *ED_object_add_type(
 
 	/* more editor stuff */
 	ED_object_base_init_transform(C, view_layer->basact, loc, rot);
-
-	/* Ignore collisions by default for non-mesh objects */
-	if (type != OB_MESH) {
-		ob->body_type = OB_BODY_TYPE_NO_COLLISION;
-		ob->gameflag &= ~(OB_SENSOR | OB_RIGID_BODY | OB_SOFT_BODY | OB_COLLISION | OB_CHARACTER | OB_OCCLUDER | OB_DYNAMIC | OB_NAVMESH); /* copied from rna_object.c */
-	}
 
 	/* TODO(sergey): This is weird to manually tag objects for update, better to
 	 * use DEG_id_tag_update here perhaps.
@@ -850,7 +837,7 @@ static int object_armature_add_exec(bContext *C, wmOperator *op)
 	}
 
 	dia = RNA_float_get(op->ptr, "radius");
-	ED_armature_edit_bone_add_primitive(obedit, dia, view_aligned);
+	ED_armature_ebone_add_primitive(obedit, dia, view_aligned);
 
 	/* userdef */
 	if (newob && !enter_editmode)
@@ -1029,7 +1016,7 @@ static int object_lamp_add_exec(bContext *C, wmOperator *op)
 	la = (Lamp *)ob->data;
 	la->type = type;
 
-	if (BKE_scene_use_new_shading_nodes(scene)) {
+	if (BKE_scene_uses_cycles(scene)) {
 		ED_node_shader_default(C, &la->id);
 		la->use_nodes = true;
 	}
@@ -1194,17 +1181,6 @@ void OBJECT_OT_speaker_add(wmOperatorType *ot)
 
 /**************************** Delete Object *************************/
 
-static void object_delete_check_glsl_update(Object *ob)
-{
-	/* some objects could affect on GLSL shading, make sure GLSL settings
-	 * are being tagged to be updated when object is removing from scene
-	 */
-	if (ob->type == OB_LAMP) {
-		if (ob->gpulamp.first)
-			GPU_lamp_free(ob);
-	}
-}
-
 /* remove base from a specific scene */
 /* note: now unlinks constraints as well */
 void ED_object_base_free_and_unlink(Main *bmain, Scene *scene, Object *ob)
@@ -1220,7 +1196,6 @@ void ED_object_base_free_and_unlink(Main *bmain, Scene *scene, Object *ob)
 
 	DEG_id_tag_update_ex(bmain, &ob->id, DEG_TAG_BASE_FLAGS_UPDATE);
 
-	object_delete_check_glsl_update(ob);
 	BKE_collections_object_remove(bmain, &scene->id, ob, true);
 }
 
@@ -1349,8 +1324,6 @@ static void copy_object_set_idnew(bContext *C)
 	}
 	CTX_DATA_END;
 
-	set_sca_new_poins();
-
 	BKE_main_id_clear_newpoins(bmain);
 }
 
@@ -1431,6 +1404,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 {
 	Main *bmain = CTX_data_main(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ListBase *lb_duplis;
 	DupliObject *dob;
 	GHash *dupli_gh, *parent_gh = NULL;
@@ -1439,7 +1413,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 		return;
 	}
 
-	lb_duplis = object_duplilist(bmain->eval_ctx, scene, base->object);
+	lb_duplis = object_duplilist(depsgraph, scene, base->object);
 
 	dupli_gh = BLI_ghash_ptr_new(__func__);
 	if (use_hierarchy) {
@@ -1503,7 +1477,6 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 
 		/* Remap new object to itself, and clear again newid pointer of orig object. */
 		BKE_libblock_relink_to_newid(&ob_dst->id);
-		set_sca_new_poins_ob(ob_dst);
 
 		DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
 
@@ -1638,32 +1611,28 @@ static const EnumPropertyItem convert_target_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-static void convert_ensure_curve_cache(EvaluationContext *eval_ctx, Main *bmain, Scene *scene, Object *ob)
+static void convert_ensure_curve_cache(Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
 	if (ob->curve_cache == NULL) {
 		/* Force creation. This is normally not needed but on operator
 		 * redo we might end up with an object which isn't evaluated yet.
 		 */
 		if (ELEM(ob->type, OB_SURF, OB_CURVE, OB_FONT)) {
-			BKE_displist_make_curveTypes(eval_ctx, scene, ob, false);
+			BKE_displist_make_curveTypes(depsgraph, scene, ob, false);
 		}
 		else if (ob->type == OB_MBALL) {
-			BKE_displist_make_mball(bmain->eval_ctx, scene, ob);
+			BKE_displist_make_mball(depsgraph, scene, ob);
 		}
 	}
 }
 
-static void curvetomesh(EvaluationContext *eval_ctx, Main *bmain, Scene *scene, Object *ob)
+static void curvetomesh(Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
-	convert_ensure_curve_cache(eval_ctx, bmain, scene, ob);
+	convert_ensure_curve_cache(depsgraph, scene, ob);
 	BKE_mesh_from_nurbs(ob); /* also does users */
 
 	if (ob->type == OB_MESH) {
 		BKE_object_free_modifiers(ob, 0);
-
-		/* Game engine defaults for mesh objects */
-		ob->body_type = OB_BODY_TYPE_STATIC;
-		ob->gameflag = OB_PROP | OB_COLLISION;
 	}
 }
 
@@ -1700,9 +1669,9 @@ static Base *duplibase_for_convert(Main *bmain, Scene *scene, ViewLayer *view_la
 static int convert_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
-	EvaluationContext eval_ctx;
 	Base *basen = NULL, *basact = NULL;
 	Object *ob1, *newob, *obact = CTX_data_active_object(C);
 	DerivedMesh *dm;
@@ -1713,8 +1682,6 @@ static int convert_exec(bContext *C, wmOperator *op)
 	const short target = RNA_enum_get(op->ptr, "target");
 	bool keep_original = RNA_boolean_get(op->ptr, "keep_original");
 	int a, mballConverted = 0;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	/* don't forget multiple users! */
 
@@ -1766,10 +1733,9 @@ static int convert_exec(bContext *C, wmOperator *op)
 			DEG_id_tag_update(&base->object->id, OB_RECALC_DATA);
 		}
 
-		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
 		uint64_t customdata_mask_prev = scene->customdata_mask;
 		scene->customdata_mask |= CD_MASK_MESH;
-		BKE_scene_graph_update_tagged(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
 		scene->customdata_mask = customdata_mask_prev;
 	}
 
@@ -1810,7 +1776,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 				newob = ob;
 			}
 
-			BKE_mesh_to_curve(&eval_ctx, scene, newob);
+			BKE_mesh_to_curve(depsgraph, scene, newob);
 
 			if (newob->type == OB_CURVE) {
 				BKE_object_free_modifiers(newob, 0);   /* after derivedmesh calls! */
@@ -1840,7 +1806,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			/* note: get the mesh from the original, not from the copy in some
 			 * cases this doesnt give correct results (when MDEF is used for eg)
 			 */
-			dm = mesh_get_derived_final(&eval_ctx, scene, newob, CD_MASK_MESH);
+			dm = mesh_get_derived_final(depsgraph, scene, newob, CD_MASK_MESH);
 
 			DM_to_mesh(dm, newob->data, newob, CD_MASK_MESH, true);
 
@@ -1912,7 +1878,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			BKE_curve_curve_dimension_update(cu);
 
 			if (target == OB_MESH) {
-				curvetomesh(&eval_ctx, bmain, scene, newob);
+				curvetomesh(depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -1936,7 +1902,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 					newob = ob;
 				}
 
-				curvetomesh(&eval_ctx, bmain, scene, newob);
+				curvetomesh(depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -1974,7 +1940,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 					for (a = 0; a < newob->totcol; a++) id_us_plus((ID *)me->mat[a]);
 				}
 
-				convert_ensure_curve_cache(&eval_ctx, bmain, scene, baseob);
+				convert_ensure_curve_cache(depsgraph, scene, baseob);
 				BKE_mesh_from_metaball(&baseob->curve_cache->disp, newob->data);
 
 				if (obact->type == OB_MBALL) {
@@ -2281,24 +2247,9 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 			}
 
 			if (dupflag & USER_DUP_ACT) {
-				bActuator *act;
-
 				BKE_animdata_copy_id_action((ID *)obn->data, true);
 				if (key) {
 					BKE_animdata_copy_id_action((ID *)key, true);
-				}
-
-				/* Update the duplicated action in the action actuators */
-				/* XXX TODO this code is all wrong! actact->act is user-refcounted (see readfile.c),
-				 * and what about other ID pointers of other BGE logic bricks,
-				 * and since this is object-level, why is it only ran if obdata was duplicated??? -mont29 */
-				for (act = obn->actuators.first; act; act = act->next) {
-					if (act->type == ACT_ACTION) {
-						bActionActuator *actact = (bActionActuator *) act->data;
-						if (ob->adt && actact->act == ob->adt->action) {
-							actact->act = obn->adt->action;
-						}
-					}
 				}
 			}
 
@@ -2335,8 +2286,6 @@ Base *ED_object_add_duplicate(Main *bmain, Scene *scene, ViewLayer *view_layer, 
 	Base *basen;
 	Object *ob;
 
-	clear_sca_new_poins();  /* BGE logic */
-
 	basen = object_add_duplicate_internal(bmain, scene, view_layer, base->object, dupflag);
 	if (basen == NULL) {
 		return NULL;
@@ -2346,7 +2295,6 @@ Base *ED_object_add_duplicate(Main *bmain, Scene *scene, ViewLayer *view_layer, 
 
 	/* link own references to the newly duplicated data [#26816] */
 	BKE_libblock_relink_to_newid(&ob->id);
-	set_sca_new_poins_ob(ob);
 
 	/* DAG_relations_tag_update(bmain); */ /* caller must do */
 
@@ -2367,8 +2315,6 @@ static int duplicate_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	const bool linked = RNA_boolean_get(op->ptr, "linked");
 	int dupflag = (linked) ? 0 : U.dupflag;
-
-	clear_sca_new_poins();  /* BGE logic */
 
 	CTX_DATA_BEGIN (C, Base *, base, selected_bases)
 	{
@@ -2453,8 +2399,6 @@ static int add_named_exec(bContext *C, wmOperator *op)
 	}
 
 	/* prepare dupli */
-	clear_sca_new_poins();  /* BGE logic */
-
 	basen = object_add_duplicate_internal(bmain, scene, view_layer, ob, dupflag);
 
 	if (basen == NULL) {

@@ -171,9 +171,6 @@ void BKE_workspace_free(WorkSpace *workspace)
 
 	BLI_freelistN(&workspace->owner_ids);
 	BLI_freelistN(&workspace->layouts);
-	BLI_freelistN(&workspace->transform_orientations);
-
-	BKE_viewrender_free(&workspace->view_render);
 }
 
 /**
@@ -270,31 +267,6 @@ void BKE_workspace_view_layer_remove_references(
 	for (WorkSpace *workspace = bmain->workspaces.first; workspace; workspace = workspace->id.next) {
 		workspace_relation_remove_from_value(&workspace->scene_viewlayer_relations, view_layer);
 	}
-}
-
-void BKE_workspace_transform_orientation_remove(
-        WorkSpace *workspace, TransformOrientation *orientation)
-{
-	for (WorkSpaceLayout *layout = workspace->layouts.first; layout; layout = layout->next) {
-		BKE_screen_transform_orientation_remove(BKE_workspace_layout_screen_get(layout), workspace, orientation);
-	}
-
-	BLI_freelinkN(&workspace->transform_orientations, orientation);
-}
-
-TransformOrientation *BKE_workspace_transform_orientation_find(
-        const WorkSpace *workspace, const int index)
-{
-	return BLI_findlink(&workspace->transform_orientations, index);
-}
-
-/**
- * \return the index that \a orientation has within \a workspace's transform-orientation list or -1 if not found.
- */
-int BKE_workspace_transform_orientation_get_index(
-        const WorkSpace *workspace, const TransformOrientation *orientation)
-{
-	return BLI_findindex(&workspace->transform_orientations, orientation);
 }
 
 WorkSpaceLayout *BKE_workspace_layout_find(
@@ -423,11 +395,6 @@ Base *BKE_workspace_active_base_get(const WorkSpace *workspace, const Scene *sce
 	return view_layer->basact;
 }
 
-ListBase *BKE_workspace_transform_orientations_get(WorkSpace *workspace)
-{
-	return &workspace->transform_orientations;
-}
-
 ViewLayer *BKE_workspace_view_layer_get(const WorkSpace *workspace, const Scene *scene)
 {
 	return workspace_relation_get_data_matching_parent(&workspace->scene_viewlayer_relations, scene);
@@ -473,34 +440,9 @@ void BKE_workspace_hook_layout_for_workspace_set(
 	workspace_relation_ensure_updated(&workspace->hook_layout_relations, hook, layout);
 }
 
-/**
- * Get the render engine of a workspace, to be used in the viewport.
- */
-ViewRender *BKE_workspace_view_render_get(WorkSpace *workspace)
-{
-	return &workspace->view_render;
-}
-
-/* Flags */
-bool BKE_workspace_use_scene_settings_get(const WorkSpace *workspace)
-{
-	return (workspace->flags & WORKSPACE_USE_SCENE_SETTINGS) != 0;
-}
-
-void BKE_workspace_use_scene_settings_set(WorkSpace *workspace, bool value)
-{
-	if (value) {
-		workspace->flags |= WORKSPACE_USE_SCENE_SETTINGS;
-	}
-	else {
-		workspace->flags &= ~WORKSPACE_USE_SCENE_SETTINGS;
-	}
-}
-
 /* Update / evaluate */
 
-void BKE_workspace_update_tagged(struct EvaluationContext *eval_ctx,
-                                 Main *bmain,
+void BKE_workspace_update_tagged(Main *bmain,
                                  WorkSpace *workspace,
                                  Scene *scene)
 {
@@ -508,7 +450,7 @@ void BKE_workspace_update_tagged(struct EvaluationContext *eval_ctx,
 	struct Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene,
 	                                                      view_layer,
 	                                                      true);
-	BKE_scene_graph_update_tagged(eval_ctx, depsgraph, bmain, scene, view_layer);
+	BKE_scene_graph_update_tagged(depsgraph, bmain);
 }
 
 

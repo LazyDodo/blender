@@ -70,16 +70,18 @@ static void freeData(ModifierData *md)
 			psmd->dm_deformed = NULL;
 		}
 	}
+	psmd->totdmvert = psmd->totdmedge = psmd->totdmface = 0;
 
 	/* ED_object_modifier_remove may have freed this first before calling
 	 * modifier_free (which calls this function) */
 	if (psmd->psys)
 		psmd->psys->flag |= PSYS_DELETE;
 }
-static void copyData(ModifierData *md, ModifierData *target)
+
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 #if 0
-	ParticleSystemModifierData *psmd = (ParticleSystemModifierData *) md;
+	const ParticleSystemModifierData *psmd = (const ParticleSystemModifierData *) md;
 #endif
 	ParticleSystemModifierData *tpsmd = (ParticleSystemModifierData *) target;
 
@@ -97,11 +99,11 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 }
 
 /* saves the current emitter state for a particle system and calculates particles */
-static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_ctx,
-                        Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3],
-                        int UNUSED(numVerts),
-                        ModifierApplyFlag flag)
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *derivedData,
+        float (*vertexCos)[3],
+        int UNUSED(numVerts))
 {
 	DerivedMesh *dm = derivedData;
 	ParticleSystemModifierData *psmd = (ParticleSystemModifierData *) md;
@@ -109,16 +111,16 @@ static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_c
 	bool needsFree = false;
 	/* float cfra = BKE_scene_frame_get(md->scene); */  /* UNUSED */
 
-	if (ob->particlesystem.first)
+	if (ctx->object->particlesystem.first)
 		psys = psmd->psys;
 	else
 		return;
 	
-	if (!psys_check_enabled(ob, psys, (flag & MOD_APPLY_RENDER) != 0))
+	if (!psys_check_enabled(ctx->object, psys, (ctx->flag & MOD_APPLY_RENDER) != 0))
 		return;
 
 	if (dm == NULL) {
-		dm = get_dm(ob, NULL, NULL, vertexCos, false, true);
+		dm = get_dm(ctx->object, NULL, NULL, vertexCos, false, true);
 
 		if (!dm)
 			return;
@@ -163,11 +165,11 @@ static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_c
 	if (!psmd->dm_final->deformedOnly) {
 		/* XXX Think we can assume here that if current DM is not only-deformed, ob->deformedOnly has been set.
 		 *     This is awfully weak though. :| */
-		if (ob->derivedDeform) {
-			psmd->dm_deformed = CDDM_copy(ob->derivedDeform);
+		if (ctx->object->derivedDeform) {
+			psmd->dm_deformed = CDDM_copy(ctx->object->derivedDeform);
 		}
 		else {  /* Can happen in some cases, e.g. when rendering from Edit mode... */
-			psmd->dm_deformed = CDDM_from_mesh((Mesh *)ob->data);
+			psmd->dm_deformed = CDDM_from_mesh((Mesh *)ctx->object->data);
 		}
 		DM_ensure_tessface(psmd->dm_deformed);
 	}
@@ -184,9 +186,9 @@ static void deformVerts(ModifierData *md, const struct EvaluationContext *eval_c
 		psmd->totdmface = psmd->dm_final->getNumTessFaces(psmd->dm_final);
 	}
 
-	if (!(ob->transflag & OB_NO_PSYS_UPDATE)) {
+	if (!(ctx->object->transflag & OB_NO_PSYS_UPDATE)) {
 		psmd->flag &= ~eParticleSystemFlag_psys_updated;
-		particle_system_update(eval_ctx, md->scene, ob, psys, (flag & MOD_APPLY_RENDER) != 0);
+		particle_system_update(ctx->depsgraph, md->scene, ctx->object, psys, (ctx->flag & MOD_APPLY_RENDER) != 0);
 		psmd->flag |= eParticleSystemFlag_psys_updated;
 	}
 }
@@ -221,12 +223,21 @@ ModifierTypeInfo modifierType_ParticleSystem = {
 	                        eModifierTypeFlag_EnableInEditmode */,
 
 	/* copyData */          copyData,
-	/* deformVerts */       deformVerts,
-	/* deformVertsEM */     NULL,
+
+	/* deformVerts_DM */    deformVerts,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
+	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,

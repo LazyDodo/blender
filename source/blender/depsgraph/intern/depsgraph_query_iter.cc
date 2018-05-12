@@ -30,6 +30,9 @@
  * Implementation of Querying and Filtering API's
  */
 
+/* Silence warnings from copying deprecated fields. */
+#define DNA_DEPRECATED_ALLOW
+
 #include "MEM_guardedalloc.h"
 
 extern "C" {
@@ -122,17 +125,6 @@ static bool deg_objects_dupli_iterator_next(BLI_Iterator *iter)
 
 		temp_dupli_object->transflag &= ~OB_DUPLI;
 
-		if (dob->collection_properties != NULL) {
-			temp_dupli_object->base_collection_properties = dob->collection_properties;
-			IDP_MergeGroup(temp_dupli_object->base_collection_properties,
-			               dupli_parent->base_collection_properties,
-			               false);
-		}
-		else {
-			temp_dupli_object->base_collection_properties =
-			        dupli_parent->base_collection_properties;
-		}
-
 		copy_m4_m4(data->temp_dupli_object.obmat, dob->mat);
 		iter->current = &data->temp_dupli_object;
 		BLI_assert(
@@ -187,7 +179,7 @@ static void DEG_iterator_objects_step(BLI_Iterator *iter, DEG::IDDepsNode *id_no
 	    (object->transflag & OB_DUPLI))
 	{
 		data->dupli_parent = object;
-		data->dupli_list = object_duplilist(&data->eval_ctx, data->scene, object);
+		data->dupli_list = object_duplilist(data->graph, data->scene, object);
 		data->dupli_object_next = (DupliObject *)data->dupli_list->first;
 		if (BKE_object_is_visible(object, (eObjectVisibilityCheck)data->visibility_check) == false) {
 			return;
@@ -205,16 +197,10 @@ void DEG_iterator_objects_begin(BLI_Iterator *iter, DEGObjectIterData *data)
 	const size_t num_id_nodes = deg_graph->id_nodes.size();
 
 	if (num_id_nodes == 0) {
+		iter->data = NULL;
 		iter->valid = false;
 		return;
 	}
-
-	/* TODO(sergey): What evaluation type we want here? */
-	/* TODO(dfelinto): Get rid of evaluation context here, it's only used to do
-	 * direct dupli-objects update in group.c. Which is terribly bad, and all
-	 * objects are expected to be evaluated already. */
-	DEG_evaluation_context_init(&data->eval_ctx, DAG_EVAL_VIEWPORT);
-	data->eval_ctx.view_layer = DEG_get_evaluated_view_layer(depsgraph);
 
 	iter->data = data;
 	data->dupli_parent = NULL;
@@ -272,10 +258,13 @@ void DEG_iterator_objects_end(BLI_Iterator *iter)
 {
 #ifndef NDEBUG
 	DEGObjectIterData *data = (DEGObjectIterData *)iter->data;
-	/* Force crash in case the iterator data is referenced and accessed down
-	 * the line. (T51718)
-	 */
-	memset(&data->temp_dupli_object, 0xff, sizeof(data->temp_dupli_object));
+
+	if (data) {
+		/* Force crash in case the iterator data is referenced and accessed down
+		 * the line. (T51718)
+		 */
+		memset(&data->temp_dupli_object, 0xff, sizeof(data->temp_dupli_object));
+	}
 #else
 	(void) iter;
 #endif

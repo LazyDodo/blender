@@ -34,11 +34,11 @@
 #include "BLI_rand.h"
 
 #include "DNA_color_types.h"      /* CurveMapping. */
+#include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
 
-#include "BKE_cdderivedmesh.h"
 #include "BKE_colortools.h"       /* CurveMapping. */
 #include "BKE_deform.h"
 #include "BKE_library.h"
@@ -80,9 +80,9 @@ static void freeData(ModifierData *md)
 	curvemapping_free(wmd->cmap_curve);
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	WeightVGEditModifierData *wmd  = (WeightVGEditModifierData *) md;
+	const WeightVGEditModifierData *wmd  = (const WeightVGEditModifierData *) md;
 	WeightVGEditModifierData *twmd = (WeightVGEditModifierData *) target;
 
 	modifier_copyData_generic(md, target);
@@ -154,21 +154,21 @@ static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 	return (wmd->defgrp_name[0] == '\0');
 }
 
-static DerivedMesh *applyModifier(ModifierData *md,
-                                  const struct EvaluationContext *UNUSED(eval_ctx),
-                                  Object *ob,
-                                  DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
+static Mesh *applyModifier(
+        ModifierData *md,
+        const ModifierEvalContext *ctx,
+        Mesh *mesh)
 {
+	BLI_assert(mesh != NULL);
+
 	WeightVGEditModifierData *wmd = (WeightVGEditModifierData *) md;
-	DerivedMesh *dm = derivedData;
+
 	MDeformVert *dvert = NULL;
 	MDeformWeight **dw = NULL;
 	float *org_w; /* Array original weights. */
 	float *new_w; /* Array new weights. */
-	int numVerts;
-	int defgrp_index;
 	int i;
+
 	/* Flags. */
 	const bool do_add  = (wmd->edit_flags & MOD_WVG_EDIT_ADD2VG) != 0;
 	const bool do_rem  = (wmd->edit_flags & MOD_WVG_EDIT_REMFVG) != 0;
@@ -178,30 +178,50 @@ static DerivedMesh *applyModifier(ModifierData *md,
 #endif
 
 	/* Get number of verts. */
-	numVerts = dm->getNumVerts(dm);
+	const int numVerts = mesh->totvert;
 
 	/* Check if we can just return the original mesh.
 	 * Must have verts and therefore verts assigned to vgroups to do anything useful!
 	 */
-	if ((numVerts == 0) || BLI_listbase_is_empty(&ob->defbase))
-		return dm;
+	if ((numVerts == 0) || BLI_listbase_is_empty(&ctx->object->defbase)) {
+		return mesh;
+	}
 
 	/* Get vgroup idx from its name. */
-	defgrp_index = defgroup_name_index(ob, wmd->defgrp_name);
-	if (defgrp_index == -1)
-		return dm;
+	const int defgrp_index = defgroup_name_index(ctx->object, wmd->defgrp_name);
+	if (defgrp_index == -1) {
+		return mesh;
+	}
 
-	dvert = CustomData_duplicate_referenced_layer(&dm->vertData, CD_MDEFORMVERT, numVerts);
+	const bool has_mdef = CustomData_has_layer(&mesh->vdata, CD_MDEFORMVERT);
 	/* If no vertices were ever added to an object's vgroup, dvert might be NULL. */
-	if (!dvert) {
+	if (!has_mdef) {
 		/* If this modifier is not allowed to add vertices, just return. */
-		if (!do_add)
-			return dm;
-		/* Else, add a valid data layer! */
-		dvert = CustomData_add_layer(&dm->vertData, CD_MDEFORMVERT, CD_CALLOC, NULL, numVerts);
-		/* Ultimate security check. */
-		if (!dvert)
-			return dm;
+		if (!do_add) {
+			return mesh;
+		}
+	}
+
+	Mesh *result;
+	BKE_id_copy_ex(
+	        NULL, &mesh->id, (ID **)&result,
+	        LIB_ID_CREATE_NO_MAIN |
+	        LIB_ID_CREATE_NO_USER_REFCOUNT |
+	        LIB_ID_CREATE_NO_DEG_TAG |
+	        LIB_ID_COPY_NO_PREVIEW,
+	        false);
+
+	if (has_mdef) {
+		dvert = CustomData_get_layer(&result->vdata, CD_MDEFORMVERT);
+	}
+	else {
+		/* Add a valid data layer! */
+		dvert = CustomData_add_layer(&result->vdata, CD_MDEFORMVERT, CD_CALLOC, NULL, numVerts);
+	}
+	/* Ultimate security check. */
+	if (!dvert) {
+		BKE_id_free(NULL, result);
+		return mesh;
 	}
 
 	/* Get org weights, assuming 0.0 for vertices not in given vgroup. */
@@ -222,17 +242,19 @@ static DerivedMesh *applyModifier(ModifierData *md,
 	if (wmd->falloff_type != MOD_WVG_MAPPING_NONE) {
 		RNG *rng = NULL;
 
-		if (wmd->falloff_type == MOD_WVG_MAPPING_RANDOM)
-			rng = BLI_rng_new_srandom(BLI_ghashutil_strhash(ob->id.name + 2));
+		if (wmd->falloff_type == MOD_WVG_MAPPING_RANDOM) {
+			rng = BLI_rng_new_srandom(BLI_ghashutil_strhash(ctx->object->id.name + 2));
+		}
 
 		weightvg_do_map(numVerts, new_w, wmd->falloff_type, wmd->cmap_curve, rng);
 
-		if (rng)
+		if (rng) {
 			BLI_rng_free(rng);
+		}
 	}
 
 	/* Do masking. */
-	weightvg_do_mask(numVerts, NULL, org_w, new_w, ob, dm, wmd->mask_constant,
+	weightvg_do_mask(numVerts, NULL, org_w, new_w, ctx->object, result, wmd->mask_constant,
 	                 wmd->mask_defgrp_name, wmd->modifier.scene, wmd->mask_texture,
 	                 wmd->mask_tex_use_channel, wmd->mask_tex_mapping,
 	                 wmd->mask_tex_map_obj, wmd->mask_tex_uvlayer_name);
@@ -253,7 +275,7 @@ static DerivedMesh *applyModifier(ModifierData *md,
 	MEM_freeN(dw);
 
 	/* Return the vgroup-modified mesh. */
-	return dm;
+	return result;
 }
 
 
@@ -268,12 +290,21 @@ ModifierTypeInfo modifierType_WeightVGEdit = {
 	                        eModifierTypeFlag_UsesPreview,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,

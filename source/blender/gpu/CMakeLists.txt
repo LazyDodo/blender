@@ -62,7 +62,6 @@ set(SRC
 	intern/gpu_immediate.c
 	intern/gpu_immediate_util.c
 	intern/gpu_init_exit.c
-	intern/gpu_lamp.c
 	intern/gpu_material.c
 	intern/gpu_matrix.c
 	intern/gpu_select.c
@@ -105,7 +104,6 @@ set(SRC
 	GPU_immediate.h
 	GPU_immediate_util.h
 	GPU_init_exit.h
-	GPU_lamp.h
 	GPU_legacy_stubs.h
 	GPU_material.h
 	GPU_matrix.h
@@ -117,7 +115,6 @@ set(SRC
 
 	intern/gpu_codegen.h
 	intern/gpu_private.h
-	intern/gpu_lamp_private.h
 	intern/gpu_select_private.h
 	intern/gpu_shader_private.h
 )
@@ -131,6 +128,7 @@ data_to_c_simple(shaders/gpu_shader_simple_lighting_smooth_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_simple_lighting_smooth_color_alpha_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_flat_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_flat_color_alpha_test_0_frag.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_flat_id_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_widget_base_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_widget_base_frag.glsl SRC)
@@ -144,10 +142,12 @@ data_to_c_simple(shaders/gpu_shader_2D_line_dashed_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_line_dashed_geom.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_smooth_color_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_smooth_color_frag.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_2D_smooth_color_dithered_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_image_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_image_rect_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_image_multi_rect_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_image_frag.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_image_desaturate_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_image_linear_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_image_shuffle_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_image_mask_uniform_color_frag.glsl SRC)
@@ -158,6 +158,7 @@ data_to_c_simple(shaders/gpu_shader_image_varying_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_image_depth_linear_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_image_depth_copy_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_image_interlace_frag.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_image_multisample_resolve_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_3D_image_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_3D_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_3D_normal_vert.glsl SRC)
@@ -172,6 +173,7 @@ data_to_c_simple(shaders/gpu_shader_3D_clipped_uniform_color_vert.glsl SRC)
 
 data_to_c_simple(shaders/gpu_shader_instance_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_instance_variying_size_variying_color_vert.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_instance_variying_size_variying_id_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_instance_objectspace_variying_color_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_instance_screenspace_variying_color_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_instance_screen_aligned_vert.glsl SRC)
@@ -179,9 +181,6 @@ data_to_c_simple(shaders/gpu_shader_instance_camera_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_instance_distance_line_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_instance_edges_variying_color_geom.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_instance_edges_variying_color_vert.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_instance_bone_envelope_solid_vert.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_instance_bone_envelope_wire_vert.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_instance_mball_handles_vert.glsl SRC)
 
 data_to_c_simple(shaders/gpu_shader_3D_groundline_geom.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_3D_groundpoint_vert.glsl SRC)
@@ -231,10 +230,6 @@ data_to_c_simple(shaders/gpu_shader_vertex.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_vertex_world.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_vsm_store_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_vsm_store_vert.glsl SRC)
-
-if(WITH_GAMEENGINE)
-	add_definitions(-DWITH_GAMEENGINE)
-endif()
 
 if(WITH_MOD_SMOKE)
 	add_definitions(-DWITH_SMOKE)

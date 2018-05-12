@@ -370,7 +370,6 @@ static void image_init(Image *ima, short source, short type)
 
 	ima->ok = IMA_OK;
 
-	ima->xrep = ima->yrep = 1;
 	ima->aspx = ima->aspy = 1.0;
 	ima->gen_x = 1024; ima->gen_y = 1024;
 	ima->gen_type = IMA_GENTYPE_GRID;
@@ -473,12 +472,10 @@ void BKE_image_copy_data(Main *UNUSED(bmain), Image *ima_dst, const Image *ima_s
 
 	BLI_listbase_clear(&ima_dst->anims);
 
-	ima_dst->totbind = 0;
 	for (int i = 0; i < TEXTARGET_COUNT; i++) {
 		ima_dst->bindcode[i] = 0;
 		ima_dst->gputexture[i] = NULL;
 	}
-	ima_dst->repbind = NULL;
 
 	if ((flag & LIB_ID_COPY_NO_PREVIEW) == 0) {
 		BKE_previewimg_id_copy(&ima_dst->id, &ima_src->id);
@@ -1209,7 +1206,6 @@ bool BKE_imtype_is_movie(const char imtype)
 		case R_IMF_IMTYPE_H264:
 		case R_IMF_IMTYPE_THEORA:
 		case R_IMF_IMTYPE_XVID:
-		case R_IMF_IMTYPE_FRAMESERVER:
 			return true;
 	}
 	return false;
@@ -1350,7 +1346,6 @@ char BKE_imtype_from_arg(const char *imtype_arg)
 	else if (STREQ(imtype_arg, "MULTILAYER")) return R_IMF_IMTYPE_MULTILAYER;
 #endif
 	else if (STREQ(imtype_arg, "FFMPEG")) return R_IMF_IMTYPE_FFMPEG;
-	else if (STREQ(imtype_arg, "FRAMESERVER")) return R_IMF_IMTYPE_FRAMESERVER;
 #ifdef WITH_CINEON
 	else if (STREQ(imtype_arg, "CINEON")) return R_IMF_IMTYPE_CINEON;
 	else if (STREQ(imtype_arg, "DPX")) return R_IMF_IMTYPE_DPX;
@@ -3134,9 +3129,11 @@ static void image_create_multilayer(Image *ima, ImBuf *ibuf, int framenr)
 /* common stuff to do with images after loading */
 static void image_initialize_after_load(Image *ima, ImBuf *ibuf)
 {
-	/* preview is NULL when it has never been used as an icon before */
-	if (G.background == 0 && ima->preview == NULL)
+	/* Preview is NULL when it has never been used as an icon before.
+	 * Never handle previews/icons outside of main thread. */
+	if (G.background == 0 && ima->preview == NULL && BLI_thread_is_main()) {
 		BKE_icon_changed(BKE_icon_id_ensure(&ima->id));
+	}
 
 	/* fields */
 	if (ima->flag & IMA_FIELDS) {

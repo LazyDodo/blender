@@ -259,7 +259,7 @@ void BKE_camera_params_from_object(CameraParams *params, const Object *ob)
 	}
 }
 
-void BKE_camera_params_from_view3d(CameraParams *params, const Depsgraph *depsgraph, const View3D *v3d, const RegionView3D *rv3d)
+void BKE_camera_params_from_view3d(CameraParams *params, Depsgraph *depsgraph, const View3D *v3d, const RegionView3D *rv3d)
 {
 	/* common */
 	params->lens = v3d->lens;
@@ -304,10 +304,7 @@ void BKE_camera_params_compute_viewplane(CameraParams *params, int winx, int win
 	float pixsize, viewfac, sensor_size, dx, dy;
 	int sensor_fit;
 
-	/* fields rendering */
 	params->ycor = yasp / xasp;
-	if (params->use_fields)
-		params->ycor *= 2.0f;
 
 	if (params->is_ortho) {
 		/* orthographic camera */
@@ -348,18 +345,6 @@ void BKE_camera_params_compute_viewplane(CameraParams *params, int winx, int win
 	viewplane.ymin += dy;
 	viewplane.xmax += dx;
 	viewplane.ymax += dy;
-
-	/* fields offset */
-	if (params->field_second) {
-		if (params->field_odd) {
-			viewplane.ymin -= 0.5f * params->ycor;
-			viewplane.ymax -= 0.5f * params->ycor;
-		}
-		else {
-			viewplane.ymin += 0.5f * params->ycor;
-			viewplane.ymax += 0.5f * params->ycor;
-		}
-	}
 
 	/* the window matrix is used for clipping, and not changed during OSA steps */
 	/* using an offset of +0.5 here would give clip errors on edges */
@@ -664,7 +649,7 @@ static bool camera_frame_fit_calc_from_data(
 /* don't move the camera, just yield the fit location */
 /* r_scale only valid/useful for ortho cameras */
 bool BKE_camera_view_frame_fit_to_scene(
-        Scene *scene, ViewLayer *view_layer, Object *camera_ob, float r_co[3], float *r_scale)
+        Depsgraph *depsgraph, Scene *scene, ViewLayer *view_layer, Object *camera_ob, float r_co[3], float *r_scale)
 {
 	CameraParams params;
 	CameraViewFrameData data_cb;
@@ -675,7 +660,7 @@ bool BKE_camera_view_frame_fit_to_scene(
 	camera_frame_fit_data_init(scene, camera_ob, &params, &data_cb);
 
 	/* run callback on all visible points */
-	BKE_scene_foreach_display_point(scene, view_layer, camera_to_frame_view_cb, &data_cb);
+	BKE_scene_foreach_display_point(depsgraph, scene, view_layer, camera_to_frame_view_cb, &data_cb);
 
 	return camera_frame_fit_calc_from_data(&params, &data_cb, r_co, r_scale);
 }

@@ -62,8 +62,8 @@ void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
 	/* TODO 32 bit depth */
-	DRW_texture_ensure_fullscreen_2D(&dtxl->depth, DRW_TEX_DEPTH_24_STENCIL_8, 0);
-	DRW_texture_ensure_fullscreen_2D(&txl->color, DRW_TEX_RGBA_32, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
+	DRW_texture_ensure_fullscreen_2D(&dtxl->depth, GPU_DEPTH24_STENCIL8, 0);
+	DRW_texture_ensure_fullscreen_2D(&txl->color, GPU_RGBA32F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
 
 	GPU_framebuffer_ensure_config(&dfbl->default_fb, {
 		GPU_ATTACHMENT_TEXTURE(dtxl->depth),
@@ -149,9 +149,9 @@ void EEVEE_render_cache(
 	}
 
 	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT)) {
-		EEVEE_materials_cache_populate(vedata, sldata, ob);
+		bool cast_shadow;
 
-		const bool cast_shadow = true;
+		EEVEE_materials_cache_populate(vedata, sldata, ob, &cast_shadow);
 
 		if (cast_shadow) {
 			EEVEE_lights_cache_shcaster_object_add(sldata, ob);
@@ -256,8 +256,8 @@ static void eevee_render_result_normal(
 			}
 
 			float fenc[2];
-			fenc[0] = rp->rect[i+0] * 4.0f - 2.0f;
-			fenc[1] = rp->rect[i+1] * 4.0f - 2.0f;
+			fenc[0] = rp->rect[i + 0] * 4.0f - 2.0f;
+			fenc[1] = rp->rect[i + 1] * 4.0f - 2.0f;
 
 			float f = dot_v2v2(fenc, fenc);
 			float g = sqrtf(1.0f - f / 4.0f);
@@ -288,6 +288,7 @@ static void eevee_render_result_z(
 	if ((view_layer->passflag & SCE_PASS_Z) != 0) {
 		RenderPass *rp = RE_pass_find_by_name(rl, RE_PASSNAME_Z, viewname);
 
+		GPU_framebuffer_bind(vedata->fbl->main_fb);
 		GPU_framebuffer_read_depth(vedata->fbl->main_fb,
 		                           rect->xmin, rect->ymin,
 		                           BLI_rcti_size_x(rect), BLI_rcti_size_y(rect),
@@ -359,7 +360,7 @@ static void eevee_render_result_occlusion(
 
 		/* This is the accumulated color. Divide by the number of samples. */
 		for (int i = 0; i < rp->rectx * rp->recty * 3; i += 3) {
-			rp->rect[i] = rp->rect[i + 1] = rp->rect[i+2] = min_ff(1.0f, rp->rect[i] / (float)render_samples);
+			rp->rect[i] = rp->rect[i + 1] = rp->rect[i + 2] = min_ff(1.0f, rp->rect[i] / (float)render_samples);
 		}
 	}
 }
@@ -434,9 +435,9 @@ void EEVEE_render_draw(EEVEE_Data *vedata, RenderEngine *engine, RenderLayer *rl
 		EEVEE_occlusion_output_init(sldata, vedata);
 	}
 
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
-	unsigned int tot_sample = BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
-	unsigned int render_samples = 0;
+	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_EEVEE);
+	uint tot_sample = BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
+	uint render_samples = 0;
 
 	if (RE_engine_test_break(engine)) {
 		return;
@@ -445,8 +446,8 @@ void EEVEE_render_draw(EEVEE_Data *vedata, RenderEngine *engine, RenderLayer *rl
 	while (render_samples < tot_sample && !RE_engine_test_break(engine)) {
 		float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		float clear_depth = 1.0f;
-		unsigned int clear_stencil = 0xFF;
-		unsigned int primes[3] = {2, 3, 7};
+		uint clear_stencil = 0xFF;
+		uint primes[3] = {2, 3, 7};
 		double offset[3] = {0.0, 0.0, 0.0};
 		double r[3];
 
@@ -482,7 +483,7 @@ void EEVEE_render_draw(EEVEE_Data *vedata, RenderEngine *engine, RenderLayer *rl
 		DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
 
 		char info[42];
-		BLI_snprintf(info, sizeof(info), "Rendering %u / %u samples", render_samples+1, tot_sample);
+		BLI_snprintf(info, sizeof(info), "Rendering %u / %u samples", render_samples + 1, tot_sample);
 		RE_engine_update_stats(engine, NULL, info);
 
 		/* Refresh Shadows */

@@ -194,7 +194,7 @@ static void setup_app_data(
 		}
 		if (cur_view_layer == NULL) {
 			/* fallback to scene layer */
-			cur_view_layer = BKE_view_layer_from_scene_get(curscene);
+			cur_view_layer = BKE_view_layer_default_view(curscene);
 		}
 
 		if (track_undo_scene) {
@@ -578,7 +578,7 @@ WorkspaceConfigFileData *BKE_blendfile_workspace_config_read(const char *filepat
 
 bool BKE_blendfile_workspace_config_write(Main *bmain, const char *filepath, ReportList *reports)
 {
-	int fileflags = G.fileflags & ~(G_FILE_NO_UI | G_FILE_AUTOPLAY | G_FILE_HISTORY);
+	int fileflags = G.fileflags & ~(G_FILE_NO_UI | G_FILE_HISTORY);
 	bool retval = false;
 
 	BKE_blendfile_write_partial_begin(bmain);

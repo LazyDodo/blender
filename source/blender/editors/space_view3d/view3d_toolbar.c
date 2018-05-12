@@ -62,7 +62,6 @@
 
 #include "view3d_intern.h"  /* own include */
 
-
 /* ******************* */
 
 typedef struct CustomTool {

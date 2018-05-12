@@ -400,13 +400,13 @@ void UI_draw_icon_tri(float x, float y, char dir, const float color[4])
 	float f7 = 0.35 * U.widget_unit;
 	
 	if (dir == 'h') {
-		ui_draw_anti_tria(x - f3, y - f5, x - f3, y + f5, x + f7, y, color);
+		UI_draw_anti_tria(x - f3, y - f5, x - f3, y + f5, x + f7, y, color);
 	}
 	else if (dir == 't') {
-		ui_draw_anti_tria(x - f5, y - f7, x + f5, y - f7, x, y + f3, color);
+		UI_draw_anti_tria(x - f5, y - f7, x + f5, y - f7, x, y + f3, color);
 	}
 	else { /* 'v' = vertical, down */
-		ui_draw_anti_tria(x - f5, y + f3, x + f5, y + f3, x, y - f7, color);
+		UI_draw_anti_tria(x - f5, y + f3, x + f5, y + f3, x, y - f7, color);
 	}
 }
 
@@ -419,11 +419,11 @@ static void ui_draw_tria_rect(const rctf *rect, char dir)
 
 	if (dir == 'h') {
 		float half = 0.5f * BLI_rctf_size_y(rect);
-		ui_draw_anti_tria(rect->xmin, rect->ymin, rect->xmin, rect->ymax, rect->xmax, rect->ymin + half, color);
+		UI_draw_anti_tria(rect->xmin, rect->ymin, rect->xmin, rect->ymax, rect->xmax, rect->ymin + half, color);
 	}
 	else {
 		float half = 0.5f * BLI_rctf_size_x(rect);
-		ui_draw_anti_tria(rect->xmin, rect->ymax, rect->xmax, rect->ymax, rect->xmin + half, rect->ymin, color);
+		UI_draw_anti_tria(rect->xmin, rect->ymax, rect->xmax, rect->ymax, rect->xmin + half, rect->ymin, color);
 	}
 }
 
@@ -2016,6 +2016,11 @@ int ui_handler_panel_region(bContext *C, const wmEvent *event, ARegion *ar, cons
 	bool has_category_tabs = UI_panel_category_is_visible(ar);
 
 	retval = WM_UI_HANDLER_CONTINUE;
+
+	/* Scrollbars can overlap panels now, they have handling priority. */
+	if (UI_view2d_mouse_in_scrollers(ar, &ar->v2d, event->x, event->y)) {
+		return retval;
+	}
 
 	/* handle category tabs */
 	if (has_category_tabs) {

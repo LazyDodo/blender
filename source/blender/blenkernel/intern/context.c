@@ -775,26 +775,10 @@ struct SpaceNla *CTX_wm_space_nla(const bContext *C)
 	return NULL;
 }
 
-struct SpaceTime *CTX_wm_space_time(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_TIME)
-		return sa->spacedata.first;
-	return NULL;
-}
-
 struct SpaceNode *CTX_wm_space_node(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	if (sa && sa->spacetype == SPACE_NODE)
-		return sa->spacedata.first;
-	return NULL;
-}
-
-struct SpaceLogic *CTX_wm_space_logic(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_LOGIC)
 		return sa->spacedata.first;
 	return NULL;
 }
@@ -946,24 +930,10 @@ ViewLayer *CTX_data_view_layer(const bContext *C)
 	}
 }
 
-ViewRender *CTX_data_view_render(const bContext *C)
-{
-	ViewRender *view_render;
-
-	if (ctx_data_pointer_verify(C, "view_render", (void *)&view_render)) {
-		return view_render;
-	}
-	else {
-		Scene *scene = CTX_data_scene(C);
-		WorkSpace *workspace = CTX_wm_workspace(C);
-		return BKE_viewrender_get(scene, workspace);
-	}
-}
-
 RenderEngineType *CTX_data_engine_type(const bContext *C)
 {
-	ViewRender *view_render = CTX_data_view_render(C);
-	return RE_engines_find(view_render->engine_id);
+	Scene *scene = CTX_data_scene(C);
+	return RE_engines_find(scene->r.engine);
 }
 
 /**
@@ -1275,15 +1245,9 @@ Depsgraph *CTX_data_depsgraph(const bContext *C)
 	return BKE_scene_get_depsgraph(scene, view_layer, true);
 }
 
-void CTX_data_eval_ctx(const bContext *C, EvaluationContext *eval_ctx)
+Depsgraph *CTX_data_depsgraph_on_load(const bContext *C)
 {
-	BLI_assert(C != NULL);
-
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
-	RenderEngineType *engine_type = CTX_data_engine_type(C);
-	DEG_evaluation_context_init_from_scene(
-	        eval_ctx,
-	        scene, view_layer, engine_type,
-	        DAG_EVAL_VIEWPORT);
+	return BKE_scene_get_depsgraph(scene, view_layer, false);
 }

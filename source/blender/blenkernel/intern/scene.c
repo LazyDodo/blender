@@ -111,10 +111,9 @@
 
 #include "bmesh.h"
 
-const char *RE_engine_id_BLENDER_RENDER = "BLENDER_RENDER";
-const char *RE_engine_id_BLENDER_GAME = "BLENDER_GAME";
 const char *RE_engine_id_BLENDER_CLAY = "BLENDER_CLAY";
 const char *RE_engine_id_BLENDER_EEVEE = "BLENDER_EEVEE";
+const char *RE_engine_id_BLENDER_WORKBENCH = "BLENDER_WORKBENCH";
 const char *RE_engine_id_CYCLES = "CYCLES";
 
 void free_avicodecdata(AviCodecData *acd)
@@ -272,6 +271,7 @@ void BKE_scene_copy_data(Main *bmain, Scene *sce_dst, const Scene *sce_src, cons
 	}
 
 	BLI_duplicatelist(&(sce_dst->markers), &(sce_src->markers));
+	BLI_duplicatelist(&(sce_dst->transform_spaces), &(sce_src->transform_spaces));
 	BLI_duplicatelist(&(sce_dst->r.views), &(sce_src->r.views));
 	BKE_keyingsets_copy(&(sce_dst->keyingsets), &(sce_src->keyingsets));
 
@@ -346,11 +346,9 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 		rv = sce_copy->r.views;
 		curvemapping_free_data(&sce_copy->r.mblur_shutter_curve);
 		sce_copy->r = sce->r;
-		sce_copy->active_view_layer = 0;
 		sce_copy->r.views = rv;
 		sce_copy->unit = sce->unit;
 		sce_copy->physics_settings = sce->physics_settings;
-		sce_copy->gm = sce->gm;
 		sce_copy->audio = sce->audio;
 
 		if (sce->id.properties)
@@ -429,7 +427,7 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 			/* Remove sequencer if not full copy */
 			/* XXX Why in Hell? :/ */
 			remove_sequencer_fcurves(sce_copy);
-			BKE_sequencer_editing_free(sce_copy);
+			BKE_sequencer_editing_free(sce_copy, true);
 		}
 
 		/* NOTE: part of SCE_COPY_LINK_DATA and SCE_COPY_FULL operations
@@ -465,7 +463,7 @@ void BKE_scene_free_ex(Scene *sce, const bool do_id_user)
 	/* check all sequences */
 	BKE_sequencer_clear_scene_in_allseqs(G.main, sce);
 
-	BKE_sequencer_editing_free(sce);
+	BKE_sequencer_editing_free(sce, do_id_user);
 
 	BKE_keyingsets_free(&sce->keyingsets);
 
@@ -493,6 +491,7 @@ void BKE_scene_free_ex(Scene *sce, const bool do_id_user)
 	}
 
 	BLI_freelistN(&sce->markers);
+	BLI_freelistN(&sce->transform_spaces);
 	BLI_freelistN(&sce->r.views);
 	
 	BKE_toolsettings_free(sce->toolsettings);
@@ -553,7 +552,7 @@ void BKE_scene_init(Scene *sce)
 
 	sce->lay = sce->layact = 1;
 	
-	sce->r.mode = R_GAMMA | R_OSA | R_SHADOW | R_SSS | R_ENVMAP | R_RAYTRACE;
+	sce->r.mode = R_OSA;
 	sce->r.cfra = 1;
 	sce->r.sfra = 1;
 	sce->r.efra = 250;
@@ -564,8 +563,6 @@ void BKE_scene_init(Scene *sce)
 	sce->r.yasp = 1;
 	sce->r.tilex = 256;
 	sce->r.tiley = 256;
-	sce->r.mblur_samples = 1;
-	sce->r.filtertype = R_FILTER_MITCH;
 	sce->r.size = 50;
 
 	sce->r.im_format.planes = R_IMF_PLANES_RGBA;
@@ -581,8 +578,6 @@ void BKE_scene_init(Scene *sce)
 	sce->r.blurfac = 0.5;
 	sce->r.frs_sec = 24;
 	sce->r.frs_sec_base = 1;
-	sce->r.edgeint = 10;
-	sce->r.ocres = 128;
 
 	/* OCIO_TODO: for forwards compatibility only, so if no tonecurve are used,
 	 *            images would look in the same way as in current blender
@@ -591,18 +586,9 @@ void BKE_scene_init(Scene *sce)
 	 */
 	sce->r.color_mgt_flag |= R_COLOR_MANAGEMENT;
 
-	sce->r.gauss = 1.5f;
-	
-	/* deprecated but keep for upwards compat */
-	sce->r.postgamma = 1.0;
-	sce->r.posthue = 0.0;
-	sce->r.postsat = 1.0;
-
-	sce->r.bake_mode = 1;    /* prevent to include render stuff here */
+	sce->r.bake_mode = 0;
 	sce->r.bake_filter = 16;
-	sce->r.bake_osa = 5;
 	sce->r.bake_flag = R_BAKE_CLEAR;
-	sce->r.bake_normal_space = R_BAKE_SPACE_TANGENT;
 	sce->r.bake_samples = 256;
 	sce->r.bake_biasdist = 0.001;
 
@@ -630,7 +616,6 @@ void BKE_scene_init(Scene *sce)
 	sce->r.fg_stamp[3] = 1.0f;
 	sce->r.bg_stamp[0] = sce->r.bg_stamp[1] = sce->r.bg_stamp[2] = 0.0f;
 	sce->r.bg_stamp[3] = 0.25f;
-	sce->r.raytrace_options = R_RAYTRACE_USE_INSTANCES;
 
 	sce->r.seq_prev_type = OB_SOLID;
 	sce->r.seq_rend_type = OB_SOLID;
@@ -640,8 +625,6 @@ void BKE_scene_init(Scene *sce)
 
 	sce->r.simplify_subsurf = 6;
 	sce->r.simplify_particles = 1.0f;
-	sce->r.simplify_shadowsamples = 16;
-	sce->r.simplify_aosss = 1.0f;
 
 	sce->r.border.xmin = 0.0f;
 	sce->r.border.ymin = 0.0f;
@@ -670,25 +653,9 @@ void BKE_scene_init(Scene *sce)
 
 	sce->toolsettings->selectmode = SCE_SELECT_VERTEX;
 	sce->toolsettings->uv_selectmode = UV_SELECT_VERTEX;
-	sce->toolsettings->normalsize = 0.1;
 	sce->toolsettings->autokey_mode = U.autokey_mode;
 
 	sce->toolsettings->snap_node_mode = SCE_SNAP_MODE_GRID;
-
-	sce->toolsettings->skgen_resolution = 100;
-	sce->toolsettings->skgen_threshold_internal     = 0.01f;
-	sce->toolsettings->skgen_threshold_external     = 0.01f;
-	sce->toolsettings->skgen_angle_limit            = 45.0f;
-	sce->toolsettings->skgen_length_ratio           = 1.3f;
-	sce->toolsettings->skgen_length_limit           = 1.5f;
-	sce->toolsettings->skgen_correlation_limit      = 0.98f;
-	sce->toolsettings->skgen_symmetry_limit         = 0.1f;
-	sce->toolsettings->skgen_postpro = SKGEN_SMOOTH;
-	sce->toolsettings->skgen_postpro_passes = 1;
-	sce->toolsettings->skgen_options = SKGEN_FILTER_INTERNAL | SKGEN_FILTER_EXTERNAL | SKGEN_FILTER_SMART | SKGEN_HARMONIC | SKGEN_SUB_CORRELATION | SKGEN_STICK_TO_EMBEDDING;
-	sce->toolsettings->skgen_subdivisions[0] = SKGEN_SUB_CORRELATION;
-	sce->toolsettings->skgen_subdivisions[1] = SKGEN_SUB_LENGTH;
-	sce->toolsettings->skgen_subdivisions[2] = SKGEN_SUB_ANGLE;
 
 	sce->toolsettings->curve_paint_settings.curve_type = CU_BEZIER;
 	sce->toolsettings->curve_paint_settings.flag |= CURVE_PAINT_FLAG_CORNERS_DETECT;
@@ -743,12 +710,13 @@ void BKE_scene_init(Scene *sce)
 	sce->r.ffcodecdata.audio_bitrate = 192;
 	sce->r.ffcodecdata.audio_channels = 2;
 
-	BKE_viewrender_init(&sce->view_render);
+	BLI_strncpy(sce->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(sce->r.engine));
 
 	sce->audio.distance_model = 2.0f;
 	sce->audio.doppler_factor = 1.0f;
 	sce->audio.speed_of_sound = 343.3f;
 	sce->audio.volume = 1.0f;
+	sce->audio.flag = AUDIO_SYNC;
 
 	BLI_strncpy(sce->r.pic, U.renderdir, sizeof(sce->r.pic));
 
@@ -765,59 +733,6 @@ void BKE_scene_init(Scene *sce)
 	BKE_scene_add_render_view(sce, STEREO_RIGHT_NAME);
 	srv = sce->r.views.last;
 	BLI_strncpy(srv->suffix, STEREO_RIGHT_SUFFIX, sizeof(srv->suffix));
-
-	/* game data */
-	sce->gm.stereoflag = STEREO_NOSTEREO;
-	sce->gm.stereomode = STEREO_ANAGLYPH;
-	sce->gm.eyeseparation = 0.10;
-
-	sce->gm.dome.angle = 180;
-	sce->gm.dome.mode = DOME_FISHEYE;
-	sce->gm.dome.res = 4;
-	sce->gm.dome.resbuf = 1.0f;
-	sce->gm.dome.tilt = 0;
-
-	sce->gm.xplay = 640;
-	sce->gm.yplay = 480;
-	sce->gm.freqplay = 60;
-	sce->gm.depth = 32;
-
-	sce->gm.gravity = 9.8f;
-	sce->gm.physicsEngine = WOPHY_BULLET;
-	sce->gm.mode = 32; //XXX ugly harcoding, still not sure we should drop mode. 32 == 1 << 5 == use_occlusion_culling 
-	sce->gm.occlusionRes = 128;
-	sce->gm.ticrate = 60;
-	sce->gm.maxlogicstep = 5;
-	sce->gm.physubstep = 1;
-	sce->gm.maxphystep = 5;
-	sce->gm.lineardeactthreshold = 0.8f;
-	sce->gm.angulardeactthreshold = 1.0f;
-	sce->gm.deactivationtime = 0.0f;
-
-	sce->gm.flag = 0;
-	sce->gm.matmode = GAME_MAT_MULTITEX;
-
-	sce->gm.obstacleSimulation = OBSTSIMULATION_NONE;
-	sce->gm.levelHeight = 2.f;
-
-	sce->gm.recastData.cellsize = 0.3f;
-	sce->gm.recastData.cellheight = 0.2f;
-	sce->gm.recastData.agentmaxslope = M_PI_4;
-	sce->gm.recastData.agentmaxclimb = 0.9f;
-	sce->gm.recastData.agentheight = 2.0f;
-	sce->gm.recastData.agentradius = 0.6f;
-	sce->gm.recastData.edgemaxlen = 12.0f;
-	sce->gm.recastData.edgemaxerror = 1.3f;
-	sce->gm.recastData.regionminsize = 8.f;
-	sce->gm.recastData.regionmergesize = 20.f;
-	sce->gm.recastData.vertsperpoly = 6;
-	sce->gm.recastData.detailsampledist = 6.0f;
-	sce->gm.recastData.detailsamplemaxerror = 1.0f;
-
-	sce->gm.lodflag = SCE_LOD_USE_HYST;
-	sce->gm.scehysteresis = 10;
-
-	sce->gm.exitkey = 218; // Blender key code for ESC
 
 	BKE_sound_create_scene(sce);
 
@@ -889,6 +804,8 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->gpencil_seq_align = GP_PROJECT_VIEWSPACE;
 	sce->toolsettings->gpencil_ima_align = GP_PROJECT_VIEWSPACE;
 
+	sce->orientation_index_custom = -1;
+
 	/* Master Collection */
 	sce->collection = MEM_callocN(sizeof(SceneCollection), "Master Collection");
 	BLI_strncpy(sce->collection->name, "Master Collection", sizeof(sce->collection->name));
@@ -902,6 +819,10 @@ void BKE_scene_init(Scene *sce)
 	BKE_view_layer_engine_settings_create(sce->layer_properties);
 
 	BKE_view_layer_add(sce, "View Layer");
+
+	/* SceneDisplay */
+	static float default_light_direction[] = {-0.577350269, -0.577350269, 0.577350269};
+	copy_v3_v3(sce->display.light_direction, default_light_direction);
 }
 
 Scene *BKE_scene_add(Main *bmain, const char *name)
@@ -995,7 +916,7 @@ Scene *BKE_scene_set_name(Main *bmain, const char *name)
 
 /* Used by metaballs, return *all* objects (including duplis) existing in the scene (including scene's sets) */
 int BKE_scene_base_iter_next(
-        const EvaluationContext *eval_ctx, SceneBaseIter *iter,
+        Depsgraph *depsgraph, SceneBaseIter *iter,
         Scene **scene, int val, Base **base, Object **ob)
 {
 	bool run_again = true;
@@ -1014,7 +935,9 @@ int BKE_scene_base_iter_next(
 
 			/* the first base */
 			if (iter->phase == F_START) {
-				ViewLayer *view_layer = eval_ctx->view_layer;
+				ViewLayer *view_layer = (depsgraph) ?
+					DEG_get_evaluated_view_layer(depsgraph) :
+					BKE_view_layer_context_active_PLACEHOLDER(*scene);
 				*base = view_layer->object_bases.first;
 				if (*base) {
 					*ob = (*base)->object;
@@ -1024,7 +947,7 @@ int BKE_scene_base_iter_next(
 					/* exception: empty scene layer */
 					while ((*scene)->set) {
 						(*scene) = (*scene)->set;
-						ViewLayer *view_layer_set = BKE_view_layer_from_scene_get((*scene));
+						ViewLayer *view_layer_set = BKE_view_layer_default_render((*scene));
 						if (view_layer_set->object_bases.first) {
 							*base = view_layer_set->object_bases.first;
 							*ob = (*base)->object;
@@ -1045,7 +968,7 @@ int BKE_scene_base_iter_next(
 							/* (*scene) is finished, now do the set */
 							while ((*scene)->set) {
 								(*scene) = (*scene)->set;
-								ViewLayer *view_layer_set = BKE_view_layer_from_scene_get((*scene));
+								ViewLayer *view_layer_set = BKE_view_layer_default_render((*scene));
 								if (view_layer_set->object_bases.first) {
 									*base = view_layer_set->object_bases.first;
 									*ob = (*base)->object;
@@ -1062,12 +985,12 @@ int BKE_scene_base_iter_next(
 			}
 			else {
 				if (iter->phase != F_DUPLI) {
-					if ( (*base)->object->transflag & OB_DUPLI) {
+					if (depsgraph && (*base)->object->transflag & OB_DUPLI) {
 						/* groups cannot be duplicated for mballs yet, 
 						 * this enters eternal loop because of 
 						 * makeDispListMBall getting called inside of group_duplilist */
 						if ((*base)->object->dup_group == NULL) {
-							iter->duplilist = object_duplilist_ex(eval_ctx, (*scene), (*base)->object, false);
+							iter->duplilist = object_duplilist_ex(depsgraph, (*scene), (*base)->object, false);
 							
 							iter->dupob = iter->duplilist->first;
 
@@ -1328,21 +1251,19 @@ static bool check_rendered_viewport_visible(Main *bmain)
 	wmWindow *window;
 	for (window = wm->windows.first; window != NULL; window = window->next) {
 		const bScreen *screen = BKE_workspace_active_screen_get(window->workspace_hook);
-		WorkSpace *workspace = BKE_workspace_active_get(window->workspace_hook);
 		Scene *scene = window->scene;
-		ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-		ScrArea *area;
-		RenderEngineType *type = RE_engines_find(view_render->engine_id);
-		if ((type->draw_engine != NULL) || (type->render_to_view == NULL)) {
+		RenderEngineType *type = RE_engines_find(scene->r.engine);
+
+		if (type->draw_engine || !type->render_to_view) {
 			continue;
 		}
-		const bool use_legacy = (type->flag & RE_USE_LEGACY_PIPELINE) != 0;
-		for (area = screen->areabase.first; area != NULL; area = area->next) {
+
+		for (ScrArea *area = screen->areabase.first; area != NULL; area = area->next) {
 			View3D *v3d = area->spacedata.first;
 			if (area->spacetype != SPACE_VIEW3D) {
 				continue;
 			}
-			if (v3d->drawtype == OB_RENDER || !use_legacy) {
+			if (v3d->drawtype == OB_RENDER) {
 				return true;
 			}
 		}
@@ -1350,7 +1271,7 @@ static bool check_rendered_viewport_visible(Main *bmain)
 	return false;
 }
 
-/* TODO(campbell): shouldn't we be able to use 'eval_ctx->view_layer' here?
+/* TODO(campbell): shouldn't we be able to use 'DEG_get_view_layer' here?
  * Currently this is NULL on load, so don't. */
 static void prepare_mesh_for_viewport_render(
         Main *bmain, const ViewLayer *view_layer)
@@ -1387,17 +1308,12 @@ static void prepare_mesh_for_viewport_render(
 /* TODO(sergey): This actually should become view_layer_graph or so.
  * Same applies to update_for_newframe.
  */
-void BKE_scene_graph_update_tagged(EvaluationContext *eval_ctx,
-                                   Depsgraph *depsgraph,
-                                   Main *bmain,
-                                   Scene *scene,
-                                   ViewLayer *view_layer)
+void BKE_scene_graph_update_tagged(Depsgraph *depsgraph,
+                                   Main *bmain)
 {
-	/* TODO(sergey): Temporary solution for until pipeline.c is ported. */
-	if (view_layer == NULL) {
-		view_layer = DEG_get_evaluated_view_layer(depsgraph);
-		BLI_assert(view_layer != NULL);
-	}
+	Scene *scene = DEG_get_input_scene(depsgraph);
+	ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
+
 	/* TODO(sergey): Some functions here are changing global state,
 	 * for example, clearing update tags from bmain.
 	 */
@@ -1412,7 +1328,7 @@ void BKE_scene_graph_update_tagged(EvaluationContext *eval_ctx,
 	/* Update all objects: drivers, matrices, displists, etc. flags set
 	 * by depgraph or manual, no layer check here, gets correct flushed.
 	 */
-	DEG_evaluate_on_refresh(eval_ctx, depsgraph);
+	DEG_evaluate_on_refresh(depsgraph);
 	/* Update sound system animation (TODO, move to depsgraph). */
 	BKE_sound_update_scene(bmain, scene);
 	/* Inform editors about possible changes. */
@@ -1422,12 +1338,12 @@ void BKE_scene_graph_update_tagged(EvaluationContext *eval_ctx,
 }
 
 /* applies changes right away, does all sets too */
-void BKE_scene_graph_update_for_newframe(EvaluationContext *eval_ctx,
-                                         Depsgraph *depsgraph,
-                                         Main *bmain,
-                                         Scene *scene,
-                                         ViewLayer *view_layer)
+void BKE_scene_graph_update_for_newframe(Depsgraph *depsgraph,
+                                         Main *bmain)
 {
+	Scene *scene = DEG_get_input_scene(depsgraph);
+	ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
+
 	/* TODO(sergey): Some functions here are changing global state,
 	 * for example, clearing update tags from bmain.
 	 */
@@ -1452,7 +1368,7 @@ void BKE_scene_graph_update_for_newframe(EvaluationContext *eval_ctx,
 	/* Update all objects: drivers, matrices, displists, etc. flags set
 	 * by depgraph or manual, no layer check here, gets correct flushed.
 	 */
-	DEG_evaluate_on_framechange(eval_ctx, bmain, depsgraph, ctime);
+	DEG_evaluate_on_framechange(bmain, depsgraph, ctime);
 	/* Update sound system animation (TODO, move to depsgraph). */
 	BKE_sound_update_scene(bmain, scene);
 	/* Notify editors and python about recalc. */
@@ -1527,22 +1443,6 @@ int get_render_child_particle_number(const RenderData *r, int num, bool for_rend
 	}
 }
 
-int get_render_shadow_samples(const RenderData *r, int samples)
-{
-	if ((r->mode & R_SIMPLIFY) && samples > 0)
-		return min_ii(r->simplify_shadowsamples, samples);
-	else
-		return samples;
-}
-
-float get_render_aosss_error(const RenderData *r, float error)
-{
-	if (r->mode & R_SIMPLIFY)
-		return ((1.0f - r->simplify_aosss) * 10.0f + 1.0f) * error;
-	else
-		return error;
-}
-
 /**
   * Helper function for the SETLOOPER and SETLOOPER_VIEW_LAYER macros
   *
@@ -1568,7 +1468,7 @@ Base *_setlooper_base_step(Scene **sce_iter, ViewLayer *view_layer, Base *base)
 next_set:
 		/* Reached the end, get the next base in the set. */
 		while ((*sce_iter = (*sce_iter)->set)) {
-			ViewLayer *view_layer_set = BKE_view_layer_from_scene_get((*sce_iter));
+			ViewLayer *view_layer_set = BKE_view_layer_default_render((*sce_iter));
 			base = (Base *)view_layer_set->object_bases.first;
 
 			if (base) {
@@ -1580,41 +1480,26 @@ next_set:
 	return NULL;
 }
 
-bool BKE_scene_use_new_shading_nodes(const Scene *scene)
-{
-	return BKE_viewrender_use_new_shading_nodes(&scene->view_render);
-}
-
 bool BKE_scene_use_shading_nodes_custom(Scene *scene)
 {
-	return BKE_viewrender_use_shading_nodes_custom(&scene->view_render);
-}
-
-bool BKE_scene_use_world_space_shading(Scene *scene)
-{
-	RenderEngineType *type = RE_engines_find(scene->view_render.engine_id);
-	return ((scene->r.mode & R_USE_WS_SHADING) ||
-	        (type && (type->flag & RE_USE_SHADING_NODES)));
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
+	return (type && type->flag & RE_USE_SHADING_NODES_CUSTOM);
 }
 
 bool BKE_scene_use_spherical_stereo(Scene *scene)
 {
-	return BKE_viewrender_use_spherical_stereo(&scene->view_render);
-}
-
-bool BKE_scene_uses_blender_internal(const Scene *scene)
-{
-	return BKE_viewrender_uses_blender_internal(&scene->view_render);
-}
-
-bool BKE_scene_uses_blender_game(const Scene *scene)
-{
-	return BKE_viewrender_uses_blender_game(&scene->view_render);
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
+	return (type && type->flag & RE_USE_SPHERICAL_STEREO);
 }
 
 bool BKE_scene_uses_blender_eevee(const Scene *scene)
 {
-	return BKE_viewrender_uses_blender_eevee(&scene->view_render);
+	return STREQ(scene->r.engine, RE_engine_id_BLENDER_EEVEE);
+}
+
+bool BKE_scene_uses_cycles(const Scene *scene)
+{
+	return STREQ(scene->r.engine, RE_engine_id_CYCLES);
 }
 
 void BKE_scene_base_flag_to_objects(ViewLayer *view_layer)
@@ -1718,81 +1603,6 @@ int BKE_render_preview_pixel_size(const RenderData *r)
 	}
 	return r->preview_pixel_size;
 }
-
-/* ***************************************************** */
-/* render engine settings */
-
-ViewRender *BKE_viewrender_get(Scene *scene, WorkSpace *workspace)
-{
-	if (workspace == NULL || BKE_workspace_use_scene_settings_get(workspace)) {
-		return &scene->view_render;
-	}
-	return BKE_workspace_view_render_get(workspace);
-}
-
-/**
- * Initialize a static created struct for WorkSpace and Scene to store the viewport
- * related drawing data.
- */
-void BKE_viewrender_init(ViewRender *view_render)
-{
-	BLI_strncpy(view_render->engine_id, RE_engine_id_BLENDER_EEVEE, sizeof(view_render->engine_id));
-}
-
-/**
- * Do not free ViewRender itself since it's not even allocated.
- */
-void BKE_viewrender_free(ViewRender *UNUSED(view_render))
-{
-	/* Do nothing. */
-}
-
-/**
- * Copy used by libblock copying.
- */
-void BKE_viewrender_copy(ViewRender *to, const ViewRender *from)
-{
-	*to = *from;
-}
-
-bool BKE_viewrender_use_new_shading_nodes(const ViewRender *view_render)
-{
-	RenderEngineType *type = RE_engines_find(view_render->engine_id);
-	return (type && type->flag & RE_USE_SHADING_NODES);
-}
-
-bool BKE_viewrender_use_shading_nodes_custom(const ViewRender *view_render)
-{
-	RenderEngineType *type = RE_engines_find(view_render->engine_id);
-	return (type && type->flag & RE_USE_SHADING_NODES_CUSTOM);
-}
-
-bool BKE_viewrender_use_spherical_stereo(const ViewRender *view_render)
-{
-	const char *engine_id = view_render->engine_id;
-	RenderEngineType *type = RE_engines_find(engine_id);
-	return (type && type->flag & RE_USE_SPHERICAL_STEREO);
-}
-
-bool BKE_viewrender_uses_blender_internal(const ViewRender *view_render)
-{
-	const char *engine_id = view_render->engine_id;
-	return STREQ(engine_id, RE_engine_id_BLENDER_RENDER);
-}
-
-bool BKE_viewrender_uses_blender_game(const ViewRender *view_render)
-{
-	const char *engine_id = view_render->engine_id;
-	return STREQ(engine_id, RE_engine_id_BLENDER_GAME);
-}
-
-bool BKE_viewrender_uses_blender_eevee(const ViewRender *view_render)
-{
-	const char *engine_id = view_render->engine_id;
-	return STREQ(engine_id, RE_engine_id_BLENDER_EEVEE);
-}
-
-/* ***************************************************** */
 
 /* Apply the needed correction factor to value, based on unit_type (only length-related are affected currently)
  * and unit->scale_length.
@@ -2193,7 +2003,14 @@ Depsgraph *BKE_scene_get_depsgraph(Scene *scene,
 		{
 			*key_ptr = MEM_mallocN(sizeof(DepsgraphKey), __func__);
 			**key_ptr = key;
-			*depsgraph_ptr = DEG_graph_new();
+			*depsgraph_ptr = DEG_graph_new(scene, view_layer, DAG_EVAL_VIEWPORT);
+			/* TODO(sergey): Would be cool to avoid string format print,
+			 * but is a bit tricky because we can't know in advance  whether
+			 * we will ever enable debug messages for this depsgraph.
+			 */
+			char name[1024];
+			BLI_snprintf(name, sizeof(name), "%s :: %s", scene->id.name, view_layer->name);
+			DEG_debug_name_set(*depsgraph_ptr, name);
 		}
 		depsgraph = *depsgraph_ptr;
 	}
@@ -2202,3 +2019,36 @@ Depsgraph *BKE_scene_get_depsgraph(Scene *scene,
 	}
 	return depsgraph;
 }
+
+/* -------------------------------------------------------------------- */
+/** \name Scene Orientation
+ * \{ */
+
+void BKE_scene_transform_orientation_remove(
+        Scene *scene, TransformOrientation *orientation)
+{
+	const int orientation_index = BKE_scene_transform_orientation_get_index(scene, orientation);
+	if (scene->orientation_index_custom == orientation_index) {
+		/* could also use orientation_index-- */
+		scene->orientation_type = V3D_MANIP_GLOBAL;
+		scene->orientation_index_custom = -1;
+	}
+	BLI_freelinkN(&scene->transform_spaces, orientation);
+}
+
+TransformOrientation *BKE_scene_transform_orientation_find(
+        const Scene *scene, const int index)
+{
+	return BLI_findlink(&scene->transform_spaces, index);
+}
+
+/**
+ * \return the index that \a orientation has within \a scene's transform-orientation list or -1 if not found.
+ */
+int BKE_scene_transform_orientation_get_index(
+        const Scene *scene, const TransformOrientation *orientation)
+{
+	return BLI_findindex(&scene->transform_spaces, orientation);
+}
+
+/** \} */

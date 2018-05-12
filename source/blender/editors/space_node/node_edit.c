@@ -383,7 +383,6 @@ bool ED_node_is_texture(struct SpaceNode *snode)
 /* called from shading buttons or header */
 void ED_node_shader_default(const bContext *C, ID *id)
 {
-	ViewRender *view_render = CTX_data_view_render(C);
 	bNode *in, *out;
 	bNodeSocket *fromsock, *tosock, *sock;
 	bNodeTree *ntree;
@@ -398,18 +397,8 @@ void ED_node_shader_default(const bContext *C, ID *id)
 			Material *ma = (Material *)id;
 			ma->nodetree = ntree;
 
-			if (BKE_viewrender_uses_blender_eevee(view_render)) {
-				output_type = SH_NODE_OUTPUT_MATERIAL;
-				shader_type = SH_NODE_BSDF_PRINCIPLED;
-			}
-			else if (BKE_viewrender_use_new_shading_nodes(view_render)) {
-				output_type = SH_NODE_OUTPUT_MATERIAL;
-				shader_type = SH_NODE_BSDF_DIFFUSE;
-			}
-			else {
-				output_type = SH_NODE_OUTPUT;
-				shader_type = SH_NODE_MATERIAL;
-			}
+			output_type = SH_NODE_OUTPUT_MATERIAL;
+			shader_type = SH_NODE_BSDF_PRINCIPLED;
 
 			copy_v3_v3(color, &ma->r);
 			strength = 0.0f;
@@ -460,18 +449,16 @@ void ED_node_shader_default(const bContext *C, ID *id)
 	nodeAddLink(ntree, in, fromsock, out, tosock);
 
 	/* default values */
-	if (BKE_viewrender_use_new_shading_nodes(view_render)) {
-		PointerRNA sockptr;
-		sock = in->inputs.first;
-		RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
-		
-		RNA_float_set_array(&sockptr, "default_value", color);
+	PointerRNA sockptr;
+	sock = in->inputs.first;
+	RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
+	
+	RNA_float_set_array(&sockptr, "default_value", color);
 
-		if (strength != 0.0f) {
-			sock = in->inputs.last;
-			RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
-			RNA_float_set(&sockptr, "default_value", strength);
-		}
+	if (strength != 0.0f) {
+		sock = in->inputs.last;
+		RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &sockptr);
+		RNA_float_set(&sockptr, "default_value", strength);
 	}
 	
 	ntreeUpdateTree(CTX_data_main(C), ntree);
@@ -549,12 +536,6 @@ void snode_set_context(const bContext *C)
 	bNodeTreeType *treetype = ntreeTypeFind(snode->tree_idname);
 	bNodeTree *ntree = snode->nodetree;
 	ID *id = snode->id, *from = snode->from;
-	
-	/* we use this to signal warnings, when node shaders are drawn in wrong render engine */
-	if (BKE_scene_use_new_shading_nodes(CTX_data_scene(C)))
-		snode->flag |= SNODE_NEW_SHADERS;
-	else
-		snode->flag &= ~SNODE_NEW_SHADERS;
 	
 	/* check the tree type */
 	if (!treetype ||
@@ -643,7 +624,7 @@ void ED_node_set_active(Main *bmain, bNodeTree *ntree, bNode *node)
 			if (node->id && ELEM(GS(node->id->name), ID_MA, ID_LA, ID_WO))
 				nodeClearActiveID(ntree, ID_TE);
 			
-			if (ELEM(node->type, SH_NODE_OUTPUT, SH_NODE_OUTPUT_MATERIAL,
+			if (ELEM(node->type, SH_NODE_OUTPUT_MATERIAL,
 			         SH_NODE_OUTPUT_WORLD, SH_NODE_OUTPUT_LAMP, SH_NODE_OUTPUT_LINESTYLE))
 			{
 				bNode *tnode;
@@ -693,22 +674,6 @@ void ED_node_set_active(Main *bmain, bNodeTree *ntree, bNode *node)
 				
 				/* addnode() doesnt link this yet... */
 				node->id = (ID *)BKE_image_verify_viewer(IMA_TYPE_COMPOSITE, "Viewer Node");
-			}
-			else if (node->type == CMP_NODE_R_LAYERS) {
-				Scene *scene;
-
-				for (scene = bmain->scene.first; scene; scene = scene->id.next) {
-					if (scene->nodetree && scene->use_nodes && ntreeHasTree(scene->nodetree, ntree)) {
-						if (node->id == NULL || node->id == (ID *)scene) {
-							int num_layers = BLI_listbase_count(&scene->view_layers);
-							scene->active_view_layer = node->custom1;
-							/* Clamp the value, because it might have come from a different
-							 * scene which could have more render layers than new one.
-							 */
-							scene->active_view_layer = min_ff(scene->active_view_layer, num_layers - 1);
-						}
-					}
-				}
 			}
 			else if (node->type == CMP_NODE_COMPOSITE) {
 				if (was_output == 0) {
@@ -1314,40 +1279,6 @@ void NODE_OT_read_viewlayers(wmOperatorType *ot)
 	ot->description = "Read all render layers of all used scenes";
 	
 	ot->exec = node_read_viewlayers_exec;
-	
-	ot->poll = composite_node_active;
-	
-	/* flags */
-	ot->flag = 0;
-}
-
-static int node_read_fullsamplelayers_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	Main *bmain = CTX_data_main(C);
-	SpaceNode *snode = CTX_wm_space_node(C);
-	Scene *curscene = CTX_data_scene(C);
-	Render *re = RE_NewSceneRender(curscene);
-
-	WM_cursor_wait(1);
-	RE_MergeFullSample(re, bmain, curscene, snode->nodetree);
-	WM_cursor_wait(0);
-
-	/* note we are careful to send the right notifier, as otherwise the
-	 * compositor would reexecute and overwrite the full sample result */
-	WM_event_add_notifier(C, NC_SCENE | ND_COMPO_RESULT, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-
-void NODE_OT_read_fullsamplelayers(wmOperatorType *ot)
-{
-	
-	ot->name = "Read Full Sample Layers";
-	ot->idname = "NODE_OT_read_fullsamplelayers";
-	ot->description = "Read all render layers of current scene, in full sample";
-	
-	ot->exec = node_read_fullsamplelayers_exec;
 	
 	ot->poll = composite_node_active;
 	
@@ -2353,7 +2284,7 @@ void NODE_OT_tree_socket_move(wmOperatorType *ot)
 static int node_shader_script_update_poll(bContext *C)
 {
 	Scene *scene = CTX_data_scene(C);
-	RenderEngineType *type = RE_engines_find(scene->view_render.engine_id);
+	RenderEngineType *type = RE_engines_find(scene->r.engine);
 	SpaceNode *snode = CTX_wm_space_node(C);
 	bNode *node;
 	Text *text;
@@ -2423,7 +2354,7 @@ static int node_shader_script_update_exec(bContext *C, wmOperator *op)
 	bool found = false;
 
 	/* setup render engine */
-	type = RE_engines_find(scene->view_render.engine_id);
+	type = RE_engines_find(scene->r.engine);
 	engine = RE_engine_create(type);
 	engine->reports = op->reports;
 

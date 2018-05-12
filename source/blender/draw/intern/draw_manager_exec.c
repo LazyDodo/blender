@@ -42,7 +42,7 @@
 #endif
 
 #ifdef USE_GPU_SELECT
-void DRW_select_load_id(unsigned int id)
+void DRW_select_load_id(uint id)
 {
 	BLI_assert(G.f & G_PICKSEL);
 	DST.select_id = id;
@@ -162,12 +162,16 @@ void drw_state_set(DRWState state)
 
 	/* Wire Width */
 	{
-		if (CHANGED_ANY(DRW_STATE_WIRE)) {
-			if ((state & DRW_STATE_WIRE) != 0) {
+		if (CHANGED_ANY(DRW_STATE_WIRE | DRW_STATE_WIRE_SMOOTH)) {
+			if ((state & DRW_STATE_WIRE_SMOOTH) != 0) {
+				glLineWidth(2.0f);
+				glEnable(GL_LINE_SMOOTH);
+			}
+			else if ((state & DRW_STATE_WIRE) != 0) {
 				glLineWidth(1.0f);
 			}
 			else {
-				/* do nothing */
+				glDisable(GL_LINE_SMOOTH);
 			}
 		}
 	}
@@ -190,8 +194,8 @@ void drw_state_set(DRWState state)
 	{
 		int test;
 		if (CHANGED_ANY_STORE_VAR(
-		        DRW_STATE_BLEND | DRW_STATE_ADDITIVE | DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION |
-		        DRW_STATE_ADDITIVE_FULL,
+		        DRW_STATE_BLEND | DRW_STATE_BLEND_PREMUL | DRW_STATE_ADDITIVE |
+		        DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION | DRW_STATE_ADDITIVE_FULL,
 		        test))
 		{
 			if (test) {
@@ -200,6 +204,9 @@ void drw_state_set(DRWState state)
 				if ((state & DRW_STATE_BLEND) != 0) {
 					glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, /* RGB */
 					                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA); /* Alpha */
+				}
+				else if ((state & DRW_STATE_BLEND_PREMUL) != 0) {
+					glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 				}
 				else if ((state & DRW_STATE_MULTIPLY) != 0) {
 					glBlendFunc(GL_DST_COLOR, GL_ZERO);
@@ -222,6 +229,7 @@ void drw_state_set(DRWState state)
 			}
 			else {
 				glDisable(GL_BLEND);
+				glBlendFunc(GL_ONE, GL_ONE); /* Don't multiply incoming color by alpha. */
 			}
 		}
 	}
@@ -275,21 +283,27 @@ void drw_state_set(DRWState state)
 		DRWState test;
 		if (CHANGED_ANY_STORE_VAR(
 		        DRW_STATE_WRITE_STENCIL |
-		        DRW_STATE_STENCIL_EQUAL,
+		        DRW_STATE_WRITE_STENCIL_SHADOW |
+		        DRW_STATE_STENCIL_EQUAL |
+		        DRW_STATE_STENCIL_NEQUAL,
 		        test))
 		{
 			if (test) {
 				glEnable(GL_STENCIL_TEST);
-
 				/* Stencil Write */
 				if ((state & DRW_STATE_WRITE_STENCIL) != 0) {
 					glStencilMask(0xFF);
 					glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				}
+				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW) != 0) {
+					glStencilMask(0xFF);
+					glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_INCR_WRAP, GL_KEEP);
+					glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
+				}
 				/* Stencil Test */
-				else if ((state & DRW_STATE_STENCIL_EQUAL) != 0) {
+				else if ((state & (DRW_STATE_STENCIL_EQUAL | DRW_STATE_STENCIL_NEQUAL)) != 0) {
 					glStencilMask(0x00); /* disable write */
-					DST.stencil_mask = 0;
+					DST.stencil_mask = STENCIL_UNDEFINED;
 				}
 				else {
 					BLI_assert(0);
@@ -312,18 +326,20 @@ void drw_state_set(DRWState state)
 	DST.state = state;
 }
 
-static void drw_stencil_set(unsigned int mask)
+static void drw_stencil_set(uint mask)
 {
 	if (DST.stencil_mask != mask) {
+		DST.stencil_mask = mask;
 		/* Stencil Write */
 		if ((DST.state & DRW_STATE_WRITE_STENCIL) != 0) {
 			glStencilFunc(GL_ALWAYS, mask, 0xFF);
-			DST.stencil_mask = mask;
 		}
 		/* Stencil Test */
 		else if ((DST.state & DRW_STATE_STENCIL_EQUAL) != 0) {
 			glStencilFunc(GL_EQUAL, mask, 0xFF);
-			DST.stencil_mask = mask;
+		}
+		else if ((DST.state & DRW_STATE_STENCIL_NEQUAL) != 0) {
+			glStencilFunc(GL_NOTEQUAL, mask, 0xFF);
 		}
 	}
 }
@@ -348,10 +364,10 @@ void DRW_state_lock(DRWState state)
 
 void DRW_state_reset(void)
 {
+	DRW_state_reset_ex(DRW_STATE_DEFAULT);
+
 	/* Reset blending function */
 	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-
-	DRW_state_reset_ex(DRW_STATE_DEFAULT);
 }
 
 /* NOTE : Make sure to reset after use! */
@@ -366,7 +382,7 @@ void DRW_state_invert_facing(void)
  * and if the shaders have support for it (see usage of gl_ClipDistance).
  * Be sure to call DRW_state_clip_planes_reset() after you finish drawing.
  **/
-void DRW_state_clip_planes_count_set(unsigned int plane_ct)
+void DRW_state_clip_planes_count_set(uint plane_ct)
 {
 	BLI_assert(plane_ct <= MAX_CLIP_PLANES);
 	DST.num_clip_planes = plane_ct;
@@ -384,100 +400,53 @@ void DRW_state_clip_planes_reset(void)
 /** \name Clipping (DRW_clipping)
  * \{ */
 
-/* Extract the 8 corners (world space).
+/* Extract the 8 corners from a Projection Matrix.
  * Although less accurate, this solution can be simplified as follows:
- *
  * BKE_boundbox_init_from_minmax(&bbox, (const float[3]){-1.0f, -1.0f, -1.0f}, (const float[3]){1.0f, 1.0f, 1.0f});
- * for (int i = 0; i < 8; i++) {mul_project_m4_v3(viewprojinv, bbox.vec[i]);}
+ * for (int i = 0; i < 8; i++) {mul_project_m4_v3(projinv, bbox.vec[i]);}
  */
-static void draw_frustum_boundbox_calc(const float (*projmat)[4], const float (*viewinv)[4], BoundBox *r_bbox)
+static void draw_frustum_boundbox_calc(const float(*projmat)[4], BoundBox *r_bbox)
 {
-	float screenvecs[3][3], loc[3], near, far, w_half, h_half;
+	float near, far, left, right, bottom, top;
 	bool is_persp = projmat[3][3] == 0.0f;
-	copy_m3_m4(screenvecs, viewinv);
-	copy_v3_v3(loc, viewinv[3]);
 
-	/* get the values of the minimum and maximum clipping planes distances
-	 * and half the width and height of the nearplane rectangle. */
 	if (is_persp) {
-		near = projmat[3][2] / (projmat[2][2] - 1.0f);
-		far = projmat[3][2] / (projmat[2][2] + 1.0f);
-		w_half = near / projmat[0][0];
-		h_half = near / projmat[1][1];
+		near   = projmat[3][2] / (projmat[2][2] - 1.0f);
+		far    = projmat[3][2] / (projmat[2][2] + 1.0f);
+		left   = near * (projmat[2][0] - 1.0f) / projmat[0][0];
+		right  = near * (projmat[2][0] + 1.0f) / projmat[0][0];
+		bottom = near * (projmat[2][1] - 1.0f) / projmat[1][1];
+		top    = near * (projmat[2][1] + 1.0f) / projmat[1][1];
 	}
 	else {
-		near = (projmat[3][2] + 1.0f) / projmat[2][2];
-		far = (projmat[3][2] - 1.0f) / projmat[2][2];
-		w_half = 1.0f / projmat[0][0];
-		h_half = 1.0f / projmat[1][1];
+		near   = ( projmat[3][2] + 1.0f) / projmat[2][2];
+		far    = ( projmat[3][2] - 1.0f) / projmat[2][2];
+		left   = (-projmat[3][0] - 1.0f) / projmat[0][0];
+		right  = (-projmat[3][0] + 1.0f) / projmat[0][0];
+		bottom = (-projmat[3][1] - 1.0f) / projmat[1][1];
+		top    = (-projmat[3][1] + 1.0f) / projmat[1][1];
 	}
 
-	/* With vectors aligned to the screen, reconstruct
-	 * the near plane from the dimensions obtained earlier. */
-	float mid[3], hor[3], ver[3];
-	mul_v3_v3fl(hor, screenvecs[0], w_half);
-	mul_v3_v3fl(ver, screenvecs[1], h_half);
-	madd_v3_v3v3fl(mid, loc, screenvecs[2], -near);
-
-	/* The case below is for non-symmetric frustum. */
-	if (is_persp) {
-		madd_v3_v3fl(mid, hor, projmat[2][0]);
-		madd_v3_v3fl(mid, ver, projmat[2][1]);
-	}
-	else {
-		madd_v3_v3fl(mid, hor, projmat[3][0]);
-		madd_v3_v3fl(mid, ver, projmat[3][1]);
-	}
-
-	r_bbox->vec[0][0] = mid[0] - ver[0] - hor[0];
-	r_bbox->vec[0][1] = mid[1] - ver[1] - hor[1];
-	r_bbox->vec[0][2] = mid[2] - ver[2] - hor[2];
-
-	r_bbox->vec[3][0] = mid[0] + ver[0] - hor[0];
-	r_bbox->vec[3][1] = mid[1] + ver[1] - hor[1];
-	r_bbox->vec[3][2] = mid[2] + ver[2] - hor[2];
-
-	r_bbox->vec[7][0] = mid[0] + ver[0] + hor[0];
-	r_bbox->vec[7][1] = mid[1] + ver[1] + hor[1];
-	r_bbox->vec[7][2] = mid[2] + ver[2] + hor[2];
-
-	r_bbox->vec[4][0] = mid[0] - ver[0] + hor[0];
-	r_bbox->vec[4][1] = mid[1] - ver[1] + hor[1];
-	r_bbox->vec[4][2] = mid[2] - ver[2] + hor[2];
+	r_bbox->vec[0][2] = r_bbox->vec[3][2] = r_bbox->vec[7][2] = r_bbox->vec[4][2] = -near;
+	r_bbox->vec[0][0] = r_bbox->vec[3][0] = left;
+	r_bbox->vec[4][0] = r_bbox->vec[7][0] = right;
+	r_bbox->vec[0][1] = r_bbox->vec[4][1] = bottom;
+	r_bbox->vec[7][1] = r_bbox->vec[3][1] = top;
 
 	/* Get the coordinates of the far plane. */
 	if (is_persp) {
 		float sca_far = far / near;
-		mid[0] = mid[0] + (mid[0] - loc[0]) * sca_far;
-		mid[1] = mid[1] + (mid[1] - loc[1]) * sca_far;
-		mid[2] = mid[2] + (mid[2] - loc[2]) * sca_far;
-
-		mul_v3_fl(hor, sca_far);
-		mul_v3_fl(ver, sca_far);
-	}
-	else {
-		madd_v3_v3v3fl(mid, loc, screenvecs[2], -far);
-
-		/* Non-symmetric frustum. */
-		madd_v3_v3fl(mid, hor, projmat[3][0]);
-		madd_v3_v3fl(mid, ver, projmat[3][1]);
+		left   *= sca_far;
+		bottom *= sca_far;
+		right  *= sca_far;
+		top    *= sca_far;
 	}
 
-	r_bbox->vec[1][0] = mid[0] - ver[0] - hor[0];
-	r_bbox->vec[1][1] = mid[1] - ver[1] - hor[1];
-	r_bbox->vec[1][2] = mid[2] - ver[2] - hor[2];
-
-	r_bbox->vec[2][0] = mid[0] + ver[0] - hor[0];
-	r_bbox->vec[2][1] = mid[1] + ver[1] - hor[1];
-	r_bbox->vec[2][2] = mid[2] + ver[2] - hor[2];
-
-	r_bbox->vec[6][0] = mid[0] + ver[0] + hor[0];
-	r_bbox->vec[6][1] = mid[1] + ver[1] + hor[1];
-	r_bbox->vec[6][2] = mid[2] + ver[2] + hor[2];
-
-	r_bbox->vec[5][0] = mid[0] - ver[0] + hor[0];
-	r_bbox->vec[5][1] = mid[1] - ver[1] + hor[1];
-	r_bbox->vec[5][2] = mid[2] - ver[2] + hor[2];
+	r_bbox->vec[1][2] = r_bbox->vec[2][2] = r_bbox->vec[6][2] = r_bbox->vec[5][2] = -far;
+	r_bbox->vec[1][0] = r_bbox->vec[2][0] = left;
+	r_bbox->vec[6][0] = r_bbox->vec[5][0] = right;
+	r_bbox->vec[1][1] = r_bbox->vec[5][1] = bottom;
+	r_bbox->vec[2][1] = r_bbox->vec[6][1] = top;
 }
 
 static void draw_clipping_setup_from_view(void)
@@ -492,18 +461,31 @@ static void draw_clipping_setup_from_view(void)
 
 	/* Extract Clipping Planes */
 	BoundBox bbox;
-	draw_frustum_boundbox_calc(projmat, viewinv, &bbox);
+#if 0 /* It has accuracy problems. */
+	BKE_boundbox_init_from_minmax(&bbox, (const float[3]){-1.0f, -1.0f, -1.0f}, (const float[3]){1.0f, 1.0f, 1.0f});
+	for (int i = 0; i < 8; i++) {
+		mul_project_m4_v3(projinv, bbox.vec[i]);
+	}
+#else
+	draw_frustum_boundbox_calc(projmat, &bbox);
+#endif
+	/* Transform into world space. */
+	for (int i = 0; i < 8; i++) {
+		mul_m4_v3(viewinv, bbox.vec[i]);
+	}
+
+	memcpy(&DST.clipping.frustum_corners, &bbox, sizeof(BoundBox));
 
 	/* Compute clip planes using the world space frustum corners. */
 	for (int p = 0; p < 6; p++) {
 		int q, r;
 		switch (p) {
-			case 0:  q=1; r=2; break;
-			case 1:  q=0; r=5; break;
-			case 2:  q=1; r=5; break;
-			case 3:  q=2; r=6; break;
-			case 4:  q=0; r=3; break;
-			default: q=4; r=7; break;
+			case 0:  q = 1; r = 2; break;
+			case 1:  q = 0; r = 5; break;
+			case 2:  q = 1; r = 5; break;
+			case 3:  q = 2; r = 6; break;
+			case 4:  q = 0; r = 3; break;
+			default: q = 4; r = 7; break;
 		}
 		if (DST.frontface == GL_CW) {
 			SWAP(int, q, r);
@@ -519,9 +501,6 @@ static void draw_clipping_setup_from_view(void)
 		/* The most extreme points on the near and far plane. (normalized device coords). */
 		float *nearpoint = bbox.vec[0];
 		float *farpoint = bbox.vec[6];
-
-		mul_project_m4_v3(projinv, nearpoint);
-		mul_project_m4_v3(projinv, farpoint);
 
 		/* just use median point */
 		mid_v3_v3v3(bsphere->center, farpoint, nearpoint);
@@ -546,7 +525,6 @@ static void draw_clipping_setup_from_view(void)
 		float h_sq = len_squared_v3v3(mid_min, mid_max);
 
 		float fac = (4 * h_sq + b_sq - a_sq) / (8 * h_sq);
-		BLI_assert(fac >= 0.0f);
 
 		/* The goal is to get the smallest sphere,
 		 * not the sphere that passes through each corner */
@@ -605,16 +583,16 @@ static void draw_clipping_setup_from_view(void)
 		/* distance to view Z axis */
 		f = len_v2(farpoint);
 		/* get corresponding point on the near plane */
-		mul_v2_v2fl(farxy, farpoint, s/e);
+		mul_v2_v2fl(farxy, farpoint, s / e);
 		/* this formula preserve the sign of n */
 		sub_v2_v2(nearpoint, farxy);
 		n = f * s / e - len_v2(nearpoint);
 		c = len_v2(farcenter) / e;
 		/* the big formula, it simplifies to (F-N)/(2(e-s)) for the symmetric case */
-		z = (F-N) / (2.0f * (e-s + c*(f-n)));
+		z = (F - N) / (2.0f * (e - s + c * (f - n)));
 
-		bsphere->center[0] = farcenter[0] * z/e;
-		bsphere->center[1] = farcenter[1] * z/e;
+		bsphere->center[0] = farcenter[0] * z / e;
+		bsphere->center[1] = farcenter[1] * z / e;
 		bsphere->center[2] = z;
 		bsphere->radius = len_v3v3(bsphere->center, farpoint);
 
@@ -677,6 +655,22 @@ bool DRW_culling_box_test(BoundBox *bbox)
 	return true;
 }
 
+/* Return True if the current view frustum is inside or intersect the given plane */
+bool DRW_culling_plane_test(float plane[4])
+{
+	draw_clipping_setup_from_view();
+
+	/* Test against the 8 frustum corners. */
+	for (int c = 0; c < 8; c++) {
+		float dist = plane_point_side_v3(plane, DST.clipping.frustum_corners.vec[c]);
+		if (dist < 0.0f) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -684,22 +678,35 @@ bool DRW_culling_box_test(BoundBox *bbox)
 /** \name Draw (DRW_draw)
  * \{ */
 
+static void draw_visibility_eval(DRWCallState *st)
+{
+	bool culled = st->flag & DRW_CALL_CULLED;
+
+	if (st->cache_id != DST.state_cache_id) {
+		/* Update culling result for this view. */
+		culled = !DRW_culling_sphere_test(&st->bsphere);
+	}
+
+	if (st->visibility_cb) {
+		culled = !st->visibility_cb(!culled, st->user_data);
+	}
+
+	SET_FLAG_FROM_TEST(st->flag, culled, DRW_CALL_CULLED);
+}
+
 static void draw_matrices_model_prepare(DRWCallState *st)
 {
 	if (st->cache_id == DST.state_cache_id) {
-		return; /* Values are already updated for this view. */
+		/* Values are already updated for this view. */
+		return;
 	}
 	else {
 		st->cache_id = DST.state_cache_id;
 	}
 
-	if (DRW_culling_sphere_test(&st->bsphere)) {
-		st->flag &= ~DRW_CALL_CULLED;
-	}
-	else {
-		st->flag |= DRW_CALL_CULLED;
-		return; /* No need to go further the call will not be used. */
-	}
+	/* No need to go further the call will not be used. */
+	if (st->flag & DRW_CALL_CULLED)
+		return;
 
 	/* Order matters */
 	if (st->matflag & (DRW_CALL_MODELVIEW | DRW_CALL_MODELVIEWINVERSE |
@@ -768,7 +775,7 @@ static void draw_geometry_prepare(DRWShadingGroup *shgroup, DRWCallState *state)
 }
 
 static void draw_geometry_execute_ex(
-        DRWShadingGroup *shgroup, Gwn_Batch *geom, unsigned int start, unsigned int count, bool draw_instance)
+        DRWShadingGroup *shgroup, Gwn_Batch *geom, uint start, uint count, bool draw_instance)
 {
 	/* Special case: empty drawcall, placement is done via shader, don't bind anything. */
 	if (geom == NULL) {
@@ -907,53 +914,61 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	drw_stencil_set(shgroup->stencil_mask);
 
 	/* Binding Uniform */
-	/* Don't check anything, Interface should already contain the least uniform as possible */
 	for (DRWUniform *uni = shgroup->uniforms; uni; uni = uni->next) {
 		switch (uni->type) {
 			case DRW_UNIFORM_SHORT_TO_INT:
-				val = (int)*((short *)uni->value);
+				val = (int)*((short *)uni->pvalue);
 				GPU_shader_uniform_vector_int(
-				        shgroup->shader, uni->location, uni->length, uni->arraysize, (int *)&val);
+				        shgroup->shader, uni->location, uni->length, uni->arraysize, &val);
 				break;
 			case DRW_UNIFORM_SHORT_TO_FLOAT:
-				fval = (float)*((short *)uni->value);
+				fval = (float)*((short *)uni->pvalue);
 				GPU_shader_uniform_vector(
 				        shgroup->shader, uni->location, uni->length, uni->arraysize, (float *)&fval);
+				break;
+			case DRW_UNIFORM_BOOL_COPY:
+			case DRW_UNIFORM_INT_COPY:
+				GPU_shader_uniform_vector_int(
+				        shgroup->shader, uni->location, uni->length, uni->arraysize, &uni->ivalue);
 				break;
 			case DRW_UNIFORM_BOOL:
 			case DRW_UNIFORM_INT:
 				GPU_shader_uniform_vector_int(
-				        shgroup->shader, uni->location, uni->length, uni->arraysize, (int *)uni->value);
+				        shgroup->shader, uni->location, uni->length, uni->arraysize, (int *)uni->pvalue);
+				break;
+			case DRW_UNIFORM_FLOAT_COPY:
+				GPU_shader_uniform_vector(
+				        shgroup->shader, uni->location, uni->length, uni->arraysize, &uni->fvalue);
 				break;
 			case DRW_UNIFORM_FLOAT:
 				GPU_shader_uniform_vector(
-				        shgroup->shader, uni->location, uni->length, uni->arraysize, (float *)uni->value);
+				        shgroup->shader, uni->location, uni->length, uni->arraysize, (float *)uni->pvalue);
 				break;
 			case DRW_UNIFORM_TEXTURE:
-				tex = (GPUTexture *)uni->value;
+				tex = (GPUTexture *)uni->pvalue;
 				BLI_assert(tex);
 				bind_texture(tex, BIND_TEMP);
 				GPU_shader_uniform_texture(shgroup->shader, uni->location, tex);
 				break;
 			case DRW_UNIFORM_TEXTURE_PERSIST:
-				tex = (GPUTexture *)uni->value;
+				tex = (GPUTexture *)uni->pvalue;
 				BLI_assert(tex);
 				bind_texture(tex, BIND_PERSIST);
 				GPU_shader_uniform_texture(shgroup->shader, uni->location, tex);
 				break;
 			case DRW_UNIFORM_TEXTURE_REF:
-				tex = *((GPUTexture **)uni->value);
+				tex = *((GPUTexture **)uni->pvalue);
 				BLI_assert(tex);
 				bind_texture(tex, BIND_TEMP);
 				GPU_shader_uniform_texture(shgroup->shader, uni->location, tex);
 				break;
 			case DRW_UNIFORM_BLOCK:
-				ubo = (GPUUniformBuffer *)uni->value;
+				ubo = (GPUUniformBuffer *)uni->pvalue;
 				bind_ubo(ubo, BIND_TEMP);
 				GPU_shader_uniform_buffer(shgroup->shader, uni->location, ubo);
 				break;
 			case DRW_UNIFORM_BLOCK_PERSIST:
-				ubo = (GPUUniformBuffer *)uni->value;
+				ubo = (GPUUniformBuffer *)uni->pvalue;
 				bind_ubo(ubo, BIND_PERSIST);
 				GPU_shader_uniform_buffer(shgroup->shader, uni->location, ubo);
 				break;
@@ -1003,7 +1018,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 #  define GPU_SELECT_LOAD_IF_PICKSEL_LIST_END(start, count)
 #  define GPU_SELECT_LOAD_IF_PICKSEL_LIST(_shgroup, _start, _count) \
 	_start = 0;                                                     \
-	_count = _shgroup->interface.instance_count;
+	_count = _shgroup->instance_count;
 
 #endif
 
@@ -1020,7 +1035,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 			}
 			else {
 				if (shgroup->instance_count > 0) {
-					unsigned int count, start;
+					uint count, start;
 					draw_geometry_prepare(shgroup, NULL);
 					GPU_SELECT_LOAD_IF_PICKSEL_LIST(shgroup, start, count)
 					{
@@ -1033,7 +1048,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 		else { /* DRW_SHG_***_BATCH */
 			/* Some dynamic batch can have no geom (no call to aggregate) */
 			if (shgroup->instance_count > 0) {
-				unsigned int count, start;
+				uint count, start;
 				draw_geometry_prepare(shgroup, NULL);
 				GPU_SELECT_LOAD_IF_PICKSEL_LIST(shgroup, start, count)
 				{
@@ -1045,13 +1060,21 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	}
 	else {
 		bool prev_neg_scale = false;
+		int callid = 0;
 		for (DRWCall *call = shgroup->calls.first; call; call = call->next) {
 
 			/* OPTI/IDEA(clem): Do this preparation in another thread. */
+			draw_visibility_eval(call->state);
 			draw_matrices_model_prepare(call->state);
 
 			if ((call->state->flag & DRW_CALL_CULLED) != 0)
 				continue;
+
+			/* XXX small exception/optimisation for outline rendering. */
+			if (shgroup->callid != -1) {
+				GPU_shader_uniform_vector_int(shgroup->shader, shgroup->callid, 1, 1, &callid);
+				callid += 1;
+			}
 
 			/* Negative scale objects */
 			bool neg_scale = call->state->flag & DRW_CALL_NEGSCALE;
@@ -1114,6 +1137,9 @@ static void drw_update_view(void)
 
 static void drw_draw_pass_ex(DRWPass *pass, DRWShadingGroup *start_group, DRWShadingGroup *end_group)
 {
+	if (start_group == NULL)
+		return;
+
 	DST.shader = NULL;
 
 	BLI_assert(DST.buffer_finish_called && "DRW_render_instance_buffer_finish had not been called before drawing");

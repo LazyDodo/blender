@@ -29,8 +29,8 @@ struct BMVert;
 struct BMEdge;
 struct BMFace;
 
+struct Depsgraph;
 struct ListBase;
-struct RenderEngineType;
 struct Scene;
 struct ViewLayer;
 struct Main;
@@ -76,9 +76,9 @@ struct SnapObjectParams {
 
 typedef struct SnapObjectContext SnapObjectContext;
 SnapObjectContext *ED_transform_snap_object_context_create(
-        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer, struct RenderEngineType *engine_type, int flag);
+        struct Main *bmain, struct Scene *scene, struct Depsgraph *depsgraph, int flag);
 SnapObjectContext *ED_transform_snap_object_context_create_view3d(
-        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer, struct RenderEngineType *engine_type, int flag,
+        struct Main *bmain, struct Scene *scene, struct Depsgraph *depsgraph, int flag,
         /* extra args for view3d */
         const struct ARegion *ar, const struct View3D *v3d);
 void ED_transform_snap_object_context_destroy(SnapObjectContext *sctx);
@@ -117,7 +117,8 @@ bool ED_transform_snap_object_project_view3d_ex(
         const struct SnapObjectParams *params,
         const float mval[2], float *dist_px,
         float *ray_depth,
-        float r_loc[3], float r_no[3], int *r_index);
+        float r_loc[3], float r_no[3], int *r_index,
+        struct Object **r_ob, float r_obmat[4][4]);
 bool ED_transform_snap_object_project_view3d(
         struct SnapObjectContext *sctx,
         const unsigned short snap_to,

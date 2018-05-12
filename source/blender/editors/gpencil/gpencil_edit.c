@@ -1464,7 +1464,7 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 	View3D *v3d = CTX_wm_view3d(C);
 	
 	const bool use_offset = RNA_boolean_get(op->ptr, "use_offset");
-	const float *cursor_global = ED_view3d_cursor3d_get(scene, v3d);
+	const float *cursor_global = ED_view3d_cursor3d_get(scene, v3d)->location;
 	
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* only editable and visible layers are considered */
@@ -1551,7 +1551,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	
-	float *cursor = ED_view3d_cursor3d_get(scene, v3d);
+	float *cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
 	float centroid[3] = {0.0f};
 	float min[3], max[3];
 	size_t count = 0;
@@ -2109,12 +2109,9 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 	
 	/* init autodist for geometry projection */
 	if (mode == GP_REPROJECT_SURFACE) {
-		EvaluationContext eval_ctx;
-		CTX_data_eval_ctx(C, &eval_ctx);
-
 		struct Depsgraph *graph = CTX_data_depsgraph(C);
 		view3d_region_operator_needs_opengl(CTX_wm_window(C), gsc.ar);
-		ED_view3d_autodist_init(&eval_ctx, graph, gsc.ar, CTX_wm_view3d(C), 0);
+		ED_view3d_autodist_init(graph, gsc.ar, CTX_wm_view3d(C), 0);
 	}
 	
 	// TODO: For deforming geometry workflow, create new frames?

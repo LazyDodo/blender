@@ -376,6 +376,15 @@ void deg_graph_id_tag_update_single_flag(Main *bmain,
 	DepsNodeFactory *factory = deg_type_get_factory(component_type);
 	BLI_assert(factory != NULL);
 	id->recalc |= factory->id_recalc_tag();
+	/* NOTE: This way we clearly separate direct animation recalc flag from
+	 * a flushed one. Needed for auto-keyframe hack feature.
+	 *
+	 * TODO(sergey): Find a more generic way to set/access direct tagged ID
+	 * recalc flags.
+	 */
+	if (tag == DEG_TAG_TIME) {
+		id->recalc |= ID_RECALC_TIME;
+	}
 	/* Some sanity checks before moving forward. */
 	if (id_node == NULL) {
 		/* Happens when object is tagged for update and not yet in the
@@ -397,8 +406,49 @@ void deg_graph_id_tag_update_single_flag(Main *bmain,
 
 }
 
+string stringify_append_bit(const string& str, eDepsgraph_Tag tag)
+{
+	string result = str;
+	if (!result.empty()) {
+		result += ", ";
+	}
+	result += DEG_update_tag_as_string(tag);
+	return result;
+}
+
+string stringify_update_bitfield(int flag)
+{
+	if (flag == 0) {
+		return "LEGACY_0";
+	}
+	string result = "";
+	int current_flag = flag;
+	/* Special cases to avoid ALL flags form being split into
+	 * individual bits.
+	 */
+	if ((current_flag & DEG_TAG_PSYS_ALL) == DEG_TAG_PSYS_ALL) {
+		result = stringify_append_bit(result, DEG_TAG_PSYS_ALL);
+	}
+	/* Handle all the rest of the flags. */
+	while (current_flag != 0) {
+		eDepsgraph_Tag tag =
+		        (eDepsgraph_Tag)(1 << bitscan_forward_clear_i(&current_flag));
+		result = stringify_append_bit(result, tag);
+	}
+	return result;
+}
+
 void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
 {
+	const int debug_flags = (graph != NULL)
+	        ? DEG_debug_flags_get((::Depsgraph *)graph)
+	        : G.debug;
+	if (debug_flags & G_DEBUG_DEPSGRAPH_TAG) {
+		printf("%s: id=%s flags=%s\n",
+		       __func__,
+		       id->name,
+		       stringify_update_bitfield(flag).c_str());
+	}
 	IDDepsNode *id_node = (graph != NULL) ? graph->find_id_node(id)
 	                                      : NULL;
 	DEG_id_type_tag(bmain, GS(id->name));
@@ -410,7 +460,7 @@ void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
 		}
 		deg_graph_id_tag_legacy_compat(bmain, id, (eDepsgraph_Tag)0);
 	}
-	id->recalc |= flag;
+	id->recalc |= (flag & PSYS_RECALC);
 	int current_flag = flag;
 	while (current_flag != 0) {
 		eDepsgraph_Tag tag =
@@ -425,20 +475,6 @@ void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
 	id_tag_update_ntree_special(bmain, graph, id, flag);
 }
 
-/* TODO(sergey): Consider storing scene and view layer at depsgraph allocation
- * time.
- */
-void deg_ensure_scene_view_layer(Depsgraph *graph,
-                                 Scene *scene,
-                                 ViewLayer *view_layer)
-{
-	if (!graph->need_update) {
-		return;
-	}
-	graph->scene = scene;
-	graph->view_layer = view_layer;
-}
-
 void deg_id_tag_update(Main *bmain, ID *id, int flag)
 {
 	deg_graph_id_tag_update(bmain, NULL, id, flag);
@@ -449,11 +485,6 @@ void deg_id_tag_update(Main *bmain, ID *id, int flag)
 			                                             view_layer,
 			                                             false);
 			if (depsgraph != NULL) {
-				/* Make sure depsgraph is pointing to a correct scene and
-				 * view layer. This is mainly required in cases when depsgraph
-				 * was not built yet.
-				 */
-				deg_ensure_scene_view_layer(depsgraph, scene, view_layer);
 				deg_graph_id_tag_update(bmain, depsgraph, id, flag);
 			}
 		}
@@ -465,7 +496,7 @@ void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 	/* Make sure objects are up to date. */
 	foreach (DEG::IDDepsNode *id_node, graph->id_nodes) {
 		const ID_Type id_type = GS(id_node->id_orig->name);
-		int flag = 0;
+		int flag = DEG_TAG_TIME | DEG_TAG_COPY_ON_WRITE;
 		/* We only tag components which needs an update. Tagging everything is
 		 * not a good idea because that might reset particles cache (or any
 		 * other type of cache).
@@ -473,7 +504,7 @@ void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 		 * TODO(sergey): Need to generalize this somehow.
 		 */
 		if (id_type == ID_OB) {
-			flag |= OB_RECALC_OB | OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE;
+			flag |= OB_RECALC_OB | OB_RECALC_DATA;
 		}
 		deg_graph_id_tag_update(bmain, graph, id_node->id_orig, flag);
 	}
@@ -496,6 +527,28 @@ void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 
 }  // namespace DEG
 
+const char *DEG_update_tag_as_string(eDepsgraph_Tag flag)
+{
+	switch (flag) {
+		case DEG_TAG_TRANSFORM: return "TRANSFORM";
+		case DEG_TAG_GEOMETRY: return "GEOMETRY";
+		case DEG_TAG_TIME: return "TIME";
+		case DEG_TAG_PSYS_REDO: return "PSYS_REDO";
+		case DEG_TAG_PSYS_RESET: return "PSYS_RESET";
+		case DEG_TAG_PSYS_TYPE: return "PSYS_TYPE";
+		case DEG_TAG_PSYS_CHILD: return "PSYS_CHILD";
+		case DEG_TAG_PSYS_PHYS: return "PSYS_PHYS";
+		case DEG_TAG_PSYS_ALL: return "PSYS_ALL";
+		case DEG_TAG_COPY_ON_WRITE: return "COPY_ON_WRITE";
+		case DEG_TAG_SHADING_UPDATE: return "SHADING_UPDATE";
+		case DEG_TAG_SELECT_UPDATE: return "SELECT_UPDATE";
+		case DEG_TAG_BASE_FLAGS_UPDATE: return "BASE_FLAGS_UPDATE";
+		case DEG_TAG_EDITORS_UPDATE: return "EDITORS_UPDATE";
+	}
+	BLI_assert(!"Unhandled update flag, should never happen!");
+	return "UNKNOWN";
+}
+
 /* Data-Based Tagging  */
 
 /* Tag given ID for an update in all the dependency graphs. */
@@ -509,9 +562,6 @@ void DEG_id_tag_update_ex(Main *bmain, ID *id, int flag)
 	if (id == NULL) {
 		/* Ideally should not happen, but old depsgraph allowed this. */
 		return;
-	}
-	if (G.debug & G_DEBUG_DEPSGRAPH_TAG) {
-		printf("%s: id=%s flag=%d\n", __func__, id->name, flag);
 	}
 	DEG::deg_id_tag_update(bmain, id, flag);
 }

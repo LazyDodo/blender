@@ -26,6 +26,7 @@
 
 #include "DNA_scene_types.h"
 #include "DNA_layer_types.h"
+#include "DNA_view3d_types.h"
 
 #include "BLI_math.h"
 #include "BLI_string_utils.h"
@@ -45,14 +46,6 @@
 #include "RNA_define.h"
 
 #include "rna_internal.h"
-
-const EnumPropertyItem rna_enum_layer_collection_mode_settings_type_items[] = {
-	{COLLECTION_MODE_OBJECT, "OBJECT", 0, "Object", ""},
-	{COLLECTION_MODE_EDIT, "EDIT", 0, "Edit", ""},
-	{COLLECTION_MODE_PAINT_WEIGHT, "PAINT_WEIGHT", 0, "Weight Paint", ""},
-	{COLLECTION_MODE_PAINT_WEIGHT, "PAINT_VERTEX", 0, "Vertex Paint", ""},
-	{0, NULL, 0, NULL, NULL}
-};
 
 const EnumPropertyItem rna_enum_collection_type_items[] = {
 	{COLLECTION_TYPE_NONE, "NONE", 0, "Normal", ""},
@@ -101,7 +94,7 @@ static PointerRNA rna_SceneCollection_objects_get(CollectionPropertyIterator *it
 {
 	ListBaseIterator *internal = &iter->internal.listbase;
 
-	/* we are actually iterating a LinkData list, so override get */
+	/* we are actually iterating a LinkData list */
 	return rna_pointer_inherit_refine(&iter->parent, &RNA_Object, ((LinkData *)internal->link)->data);
 }
 
@@ -256,7 +249,7 @@ static void rna_SceneCollection_object_unlink(
 
 /****** layer collection engine settings *******/
 
-#define RNA_LAYER_ENGINE_GET_SET(_TYPE_, _ENGINE_, _MODE_, _NAME_)                 \
+#define RNA_LAYER_ENGINE_GET_SET(_TYPE_, _ENGINE_, _NAME_)                         \
 static _TYPE_ rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_get(PointerRNA *ptr) \
 {                                                                                  \
 	IDProperty *props = (IDProperty *)ptr->data;                                   \
@@ -269,7 +262,7 @@ static void rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_set(PointerRNA *ptr,
 	BKE_collection_engine_property_value_set_##_TYPE_(props, #_NAME_, value);      \
 }
 
-#define RNA_LAYER_ENGINE_GET_SET_ARRAY(_TYPE_, _ENGINE_, _MODE_, _NAME_, _LEN_)    \
+#define RNA_LAYER_ENGINE_GET_SET_ARRAY(_TYPE_, _ENGINE_, _NAME_, _LEN_)            \
 static void rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_get(PointerRNA *ptr, _TYPE_ *values) \
 {                                                                                  \
 	IDProperty *props = (IDProperty *)ptr->data;                                   \
@@ -286,54 +279,28 @@ static void rna_LayerEngineSettings_##_ENGINE_##_##_NAME_##_set(PointerRNA *ptr,
 }
 
 #define RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(float, Clay, COLLECTION_MODE_NONE, _NAME_)
+	RNA_LAYER_ENGINE_GET_SET(float, Clay, _NAME_)
 
 #define RNA_LAYER_ENGINE_CLAY_GET_SET_FLOAT_ARRAY(_NAME_, _LEN_) \
-	RNA_LAYER_ENGINE_GET_SET_ARRAY(float, Clay, COLLECTION_MODE_NONE, _NAME_, _LEN_)
+	RNA_LAYER_ENGINE_GET_SET_ARRAY(float, Clay, _NAME_, _LEN_)
 
 #define RNA_LAYER_ENGINE_CLAY_GET_SET_INT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(int, Clay, COLLECTION_MODE_NONE, _NAME_)
+	RNA_LAYER_ENGINE_GET_SET(int, Clay, _NAME_)
 
 #define RNA_LAYER_ENGINE_CLAY_GET_SET_BOOL(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(bool, Clay, COLLECTION_MODE_NONE, _NAME_)
+	RNA_LAYER_ENGINE_GET_SET(bool, Clay, _NAME_)
 
 #define RNA_LAYER_ENGINE_EEVEE_GET_SET_FLOAT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(float, Eevee, COLLECTION_MODE_NONE, _NAME_)
+	RNA_LAYER_ENGINE_GET_SET(float, Eevee, _NAME_)
 
 #define RNA_LAYER_ENGINE_EEVEE_GET_SET_FLOAT_ARRAY(_NAME_, _LEN_) \
-	RNA_LAYER_ENGINE_GET_SET_ARRAY(float, Eevee, COLLECTION_MODE_NONE, _NAME_, _LEN_)
+	RNA_LAYER_ENGINE_GET_SET_ARRAY(float, Eevee, _NAME_, _LEN_)
 
 #define RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(int, Eevee, COLLECTION_MODE_NONE, _NAME_)
+	RNA_LAYER_ENGINE_GET_SET(int, Eevee, _NAME_)
 
 #define RNA_LAYER_ENGINE_EEVEE_GET_SET_BOOL(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(bool, Eevee, COLLECTION_MODE_NONE, _NAME_)
-
-/* mode engines */
-
-#define RNA_LAYER_MODE_OBJECT_GET_SET_FLOAT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(float, ObjectMode, COLLECTION_MODE_OBJECT, _NAME_)
-
-#define RNA_LAYER_MODE_OBJECT_GET_SET_INT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(int, ObjectMode, COLLECTION_MODE_OBJECT, _NAME_)
-
-#define RNA_LAYER_MODE_OBJECT_GET_SET_BOOL(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(bool, ObjectMode, COLLECTION_MODE_OBJECT, _NAME_)
-
-#define RNA_LAYER_MODE_EDIT_GET_SET_FLOAT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(float, EditMode, COLLECTION_MODE_EDIT, _NAME_)
-
-#define RNA_LAYER_MODE_EDIT_GET_SET_INT(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(int, EditMode, COLLECTION_MODE_EDIT, _NAME_)
-
-#define RNA_LAYER_MODE_EDIT_GET_SET_BOOL(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(bool, EditMode, COLLECTION_MODE_EDIT, _NAME_)
-
-#define RNA_LAYER_MODE_PAINT_WEIGHT_GET_SET_BOOL(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(bool, PaintWeightMode, COLLECTION_MODE_PAINT_WEIGHT, _NAME_)
-
-#define RNA_LAYER_MODE_PAINT_VERTEX_GET_SET_BOOL(_NAME_) \
-	RNA_LAYER_ENGINE_GET_SET(bool, PaintVertexMode, COLLECTION_MODE_PAINT_VERTEX, _NAME_)
+	RNA_LAYER_ENGINE_GET_SET(bool, Eevee, _NAME_)
 
 /* clay engine */
 #ifdef WITH_CLAY_ENGINE
@@ -398,34 +365,15 @@ RNA_LAYER_ENGINE_EEVEE_GET_SET_FLOAT(ssr_thickness)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_FLOAT(ssr_border_fade)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_FLOAT(ssr_firefly_fac)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(shadow_method)
-RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(shadow_size)
+RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(shadow_cube_size)
+RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(shadow_cascade_size)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_BOOL(shadow_high_bitdepth)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(taa_samples)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(taa_render_samples)
+RNA_LAYER_ENGINE_EEVEE_GET_SET_BOOL(taa_reprojection)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(gi_diffuse_bounces)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(gi_cubemap_resolution)
 RNA_LAYER_ENGINE_EEVEE_GET_SET_INT(gi_visibility_resolution)
-
-/* object engine */
-RNA_LAYER_MODE_OBJECT_GET_SET_BOOL(show_wire)
-RNA_LAYER_MODE_OBJECT_GET_SET_BOOL(show_backface_culling)
-
-/* mesh engine */
-RNA_LAYER_MODE_EDIT_GET_SET_BOOL(show_occlude_wire)
-RNA_LAYER_MODE_EDIT_GET_SET_BOOL(show_weight)
-RNA_LAYER_MODE_EDIT_GET_SET_BOOL(face_normals_show)
-RNA_LAYER_MODE_EDIT_GET_SET_BOOL(vert_normals_show)
-RNA_LAYER_MODE_EDIT_GET_SET_BOOL(loop_normals_show)
-RNA_LAYER_MODE_EDIT_GET_SET_FLOAT(normals_length)
-RNA_LAYER_MODE_EDIT_GET_SET_FLOAT(backwire_opacity)
-
-/* weight paint engine */
-RNA_LAYER_MODE_PAINT_WEIGHT_GET_SET_BOOL(use_shading)
-RNA_LAYER_MODE_PAINT_WEIGHT_GET_SET_BOOL(use_wire)
-
-/* vertex paint engine */
-RNA_LAYER_MODE_PAINT_VERTEX_GET_SET_BOOL(use_shading)
-RNA_LAYER_MODE_PAINT_VERTEX_GET_SET_BOOL(use_wire)
 
 #undef RNA_LAYER_ENGINE_GET_SET
 
@@ -447,20 +395,6 @@ static void rna_LayerCollectionEngineSettings_update(bContext *UNUSED(C), Pointe
 	 * and when using NC_SCENE the id most match the active scene for the listener to receive the notification.*/
 
 	WM_main_add_notifier(NC_SCENE | ND_LAYER_CONTENT, NULL);
-}
-
-static void rna_LayerCollectionEngineSettings_wire_update(bContext *C, PointerRNA *UNUSED(ptr))
-{
-	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
-	Object *ob = OBACT(view_layer);
-
-	if (ob != NULL && ob->type == OB_MESH) {
-		BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
-	}
-
-	/* TODO(sergey): Use proper flag for tagging here. */
-	DEG_id_tag_update(&scene->id, 0);
 }
 
 /***********************************/
@@ -518,10 +452,6 @@ static StructRNA *rna_ViewLayerSettings_refine(PointerRNA *ptr)
 				return &RNA_ViewLayerEngineSettingsEevee;
 			}
 			break;
-		case IDP_GROUP_SUB_MODE_OBJECT:
-		case IDP_GROUP_SUB_MODE_EDIT:
-		case IDP_GROUP_SUB_MODE_PAINT_WEIGHT:
-		case IDP_GROUP_SUB_MODE_PAINT_VERTEX:
 		default:
 			BLI_assert(!"Mode not fully implemented");
 			break;
@@ -548,7 +478,7 @@ static void rna_ViewLayerSettings_use(ID *id, IDProperty *props, const char *ide
 	PointerRNA scene_props_ptr;
 	IDProperty *scene_props;
 
-	scene_props = BKE_view_layer_engine_scene_get(scene, COLLECTION_MODE_NONE, props->name);
+	scene_props = BKE_view_layer_engine_scene_get(scene, props->name);
 	RNA_pointer_create(id, &RNA_ViewLayerSettings, scene_props, &scene_props_ptr);
 
 	engine_settings_use(props, scene_props, &scene_props_ptr, identifier);
@@ -583,18 +513,6 @@ static StructRNA *rna_LayerCollectionSettings_refine(PointerRNA *ptr)
 				return &RNA_LayerCollectionSettings;
 			}
 			break;
-		case IDP_GROUP_SUB_MODE_OBJECT:
-			return &RNA_LayerCollectionModeSettingsObject;
-			break;
-		case IDP_GROUP_SUB_MODE_EDIT:
-			return &RNA_LayerCollectionModeSettingsEdit;
-			break;
-		case IDP_GROUP_SUB_MODE_PAINT_WEIGHT:
-			return &RNA_LayerCollectionModeSettingsPaintWeight;
-			break;
-		case IDP_GROUP_SUB_MODE_PAINT_VERTEX:
-			return &RNA_LayerCollectionModeSettingsPaintVertex;
-			break;
 		default:
 			BLI_assert(!"Mode not fully implemented");
 			break;
@@ -621,7 +539,7 @@ static void rna_LayerCollectionSettings_use(ID *id, IDProperty *props, const cha
 	PointerRNA scene_props_ptr;
 	IDProperty *scene_props;
 
-	scene_props = BKE_layer_collection_engine_scene_get(scene, COLLECTION_MODE_NONE, props->name);
+	scene_props = BKE_layer_collection_engine_scene_get(scene, props->name);
 	RNA_pointer_create(id, &RNA_LayerCollectionSettings, scene_props, &scene_props_ptr);
 	engine_settings_use(props, scene_props, &scene_props_ptr, identifier);
 
@@ -835,6 +753,15 @@ static void rna_LayerObjects_active_object_set(PointerRNA *ptr, PointerRNA value
 		view_layer->basact = NULL;
 }
 
+static char *rna_ViewLayer_path(PointerRNA *ptr)
+{
+	ViewLayer *srl = (ViewLayer *)ptr->data;
+	char name_esc[sizeof(srl->name) * 2];
+
+	BLI_strescape(name_esc, srl->name, sizeof(name_esc));
+	return BLI_sprintfN("view_layers[\"%s\"]", name_esc);
+}
+
 static IDProperty *rna_ViewLayer_idprops(PointerRNA *ptr, bool create)
 {
 	ViewLayer *view_layer = (ViewLayer *)ptr->data;
@@ -858,7 +785,7 @@ static PointerRNA rna_ViewLayer_objects_get(CollectionPropertyIterator *iter)
 {
 	ListBaseIterator *internal = &iter->internal.listbase;
 
-	/* we are actually iterating a ObjectBase list, so override get */
+	/* we are actually iterating a ObjectBase list */
 	Base *base = (Base *)internal->link;
 	return rna_pointer_inherit_refine(&iter->parent, &RNA_Object, base->object);
 }
@@ -916,90 +843,6 @@ static void rna_ObjectBase_select_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 	Base *base = (Base *)ptr->data;
 	short mode = (base->flag & BASE_SELECTED) ? BA_SELECT : BA_DESELECT;
 	ED_object_base_select(base, mode);
-}
-
-static char *rna_ViewRenderSettings_path(PointerRNA *UNUSED(ptr))
-{
-	return BLI_sprintfN("view_render");
-}
-
-static void rna_ViewRenderSettings_engine_set(PointerRNA *ptr, int value)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	RenderEngineType *type = BLI_findlink(&R_engines, value);
-
-	if (type) {
-		BLI_strncpy_utf8(view_render->engine_id, type->idname, sizeof(view_render->engine_id));
-		DEG_id_tag_update(ptr->id.data, DEG_TAG_COPY_ON_WRITE);
-	}
-}
-
-static const EnumPropertyItem *rna_ViewRenderSettings_engine_itemf(
-        bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
-{
-	RenderEngineType *type;
-	EnumPropertyItem *item = NULL;
-	EnumPropertyItem tmp = {0, "", 0, "", ""};
-	int a = 0, totitem = 0;
-
-	for (type = R_engines.first; type; type = type->next, a++) {
-		tmp.value = a;
-		tmp.identifier = type->idname;
-		tmp.name = type->name;
-		RNA_enum_item_add(&item, &totitem, &tmp);
-	}
-
-	RNA_enum_item_end(&item, &totitem);
-	*r_free = true;
-
-	return item;
-}
-
-static int rna_ViewRenderSettings_engine_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	RenderEngineType *type;
-	int a = 0;
-
-	for (type = R_engines.first; type; type = type->next, a++)
-		if (STREQ(type->idname, view_render->engine_id))
-			return a;
-
-	return 0;
-}
-
-static void rna_ViewRenderSettings_engine_update(Main *bmain, Scene *UNUSED(unused), PointerRNA *UNUSED(ptr))
-{
-	ED_render_engine_changed(bmain);
-}
-
-static int rna_ViewRenderSettings_multiple_engines_get(PointerRNA *UNUSED(ptr))
-{
-	return (BLI_listbase_count(&R_engines) > 1);
-}
-
-static int rna_ViewRenderSettings_use_shading_nodes_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	return BKE_viewrender_use_new_shading_nodes(view_render);
-}
-
-static int rna_ViewRenderSettings_use_spherical_stereo_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	return BKE_viewrender_use_spherical_stereo(view_render);
-}
-
-static int rna_ViewRenderSettings_use_game_engine_get(PointerRNA *ptr)
-{
-	ViewRender *view_render = (ViewRender *)ptr->data;
-	RenderEngineType *type;
-
-	for (type = R_engines.first; type; type = type->next)
-		if (STREQ(type->idname, view_render->engine_id))
-			return (type->flag & RE_GAME) != 0;
-
-	return 0;
 }
 
 #else
@@ -1072,6 +915,7 @@ static void rna_def_scene_collection(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "SceneCollection", NULL);
 	RNA_def_struct_ui_text(srna, "Scene Collection", "Collection");
+	RNA_def_struct_ui_icon(srna, ICON_COLLAPSEMENU);
 	RNA_def_struct_refine_func(srna, "rna_SceneCollection_refine");
 
 	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
@@ -1127,22 +971,6 @@ static void rna_def_scene_collection(BlenderRNA *brna)
 	RNA_def_function_return(func, parm);
 }
 
-static void rna_def_layer_collection_override(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "LayerCollectionOverride", NULL);
-	RNA_def_struct_sdna(srna, "CollectionOverride");
-	RNA_def_struct_ui_text(srna, "Collection Override", "Collection Override");
-
-	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Name", "Collection name");
-	RNA_def_struct_name_property(srna, prop);
-	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, NULL);
-}
-
-
 #ifdef WITH_CLAY_ENGINE
 static void rna_def_view_layer_engine_settings_clay(BlenderRNA *brna)
 {
@@ -1187,7 +1015,6 @@ static void rna_def_view_layer_engine_settings_eevee(BlenderRNA *brna)
 		{1024, "1024", 0, "1024px", ""},
 		{2048, "2048", 0, "2048px", ""},
 		{4096, "4096", 0, "4096px", ""},
-		{8192, "8192", 0, "8192px", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -1255,6 +1082,14 @@ static void rna_def_view_layer_engine_settings_eevee(BlenderRNA *brna)
 	                               "rna_LayerEngineSettings_Eevee_taa_render_samples_set", NULL);
 	RNA_def_property_ui_text(prop, "Render Samples", "Number of samples per pixels for rendering");
 	RNA_def_property_range(prop, 1, INT_MAX);
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
+
+	prop = RNA_def_property(srna, "taa_reprojection", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_Eevee_taa_reprojection_get",
+	                                     "rna_LayerEngineSettings_Eevee_taa_reprojection_set");
+	RNA_def_property_ui_text(prop, "Viewport Denoising", "Denoise image using temporal reprojection "
+	                                                     "(can leave some ghosting)");
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
 
@@ -1604,10 +1439,17 @@ static void rna_def_view_layer_engine_settings_eevee(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
 
-	prop = RNA_def_property(srna, "shadow_size", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_funcs(prop, "rna_LayerEngineSettings_Eevee_shadow_size_get", "rna_LayerEngineSettings_Eevee_shadow_size_set", NULL);
+	prop = RNA_def_property(srna, "shadow_cube_size", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_funcs(prop, "rna_LayerEngineSettings_Eevee_shadow_cube_size_get", "rna_LayerEngineSettings_Eevee_shadow_cube_size_set", NULL);
 	RNA_def_property_enum_items(prop, eevee_shadow_size_items);
-	RNA_def_property_ui_text(prop, "Size", "Size of every shadow maps");
+	RNA_def_property_ui_text(prop, "Cube Shadows Resolution", "Size of point and area lamps shadow maps");
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
+
+	prop = RNA_def_property(srna, "shadow_cascade_size", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_funcs(prop, "rna_LayerEngineSettings_Eevee_shadow_cascade_size_get", "rna_LayerEngineSettings_Eevee_shadow_cascade_size_set", NULL);
+	RNA_def_property_enum_items(prop, eevee_shadow_size_items);
+	RNA_def_property_ui_text(prop, "Directional Shadows Resolution", "Size of sun lamps shadow maps");
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_ViewLayerEngineSettings_update");
 
@@ -1736,143 +1578,6 @@ static void rna_def_layer_collection_engine_settings_clay(BlenderRNA *brna)
 }
 #endif /* WITH_CLAY_ENGINE */
 
-static void rna_def_layer_collection_mode_settings_object(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "LayerCollectionModeSettingsObject", "LayerCollectionSettings");
-	RNA_def_struct_ui_text(srna, "Collections Object Mode Settings", "Object Mode specific settings for this collection");
-	RNA_define_verify_sdna(0); /* not in sdna */
-
-	/* see RNA_LAYER_ENGINE_GET_SET macro */
-
-	prop = RNA_def_property(srna, "show_wire", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Wire", "Add the object's wireframe over solid drawing");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_ObjectMode_show_wire_get", "rna_LayerEngineSettings_ObjectMode_show_wire_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "show_backface_culling", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Backface Culling", "");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_ObjectMode_show_backface_culling_get", "rna_LayerEngineSettings_ObjectMode_show_backface_culling_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	RNA_define_verify_sdna(1); /* not in sdna */
-}
-
-static void rna_def_layer_collection_mode_settings_edit(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "LayerCollectionModeSettingsEdit", "LayerCollectionSettings");
-	RNA_def_struct_ui_text(srna, "Collections Edit Mode Settings", "Edit Mode specific settings to be overridden per collection");
-	RNA_define_verify_sdna(0); /* not in sdna */
-
-	/* see RNA_LAYER_ENGINE_GET_SET macro */
-
-	prop = RNA_def_property(srna, "show_occlude_wire", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Hidden Wire", "Use hidden wireframe display");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_EditMode_show_occlude_wire_get", "rna_LayerEngineSettings_EditMode_show_occlude_wire_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "show_weight", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Show Weights", "Draw weights in editmode");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_EditMode_show_weight_get", "rna_LayerEngineSettings_EditMode_show_weight_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "face_normals_show", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Draw Normals", "Display face normals as lines");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_EditMode_face_normals_show_get", "rna_LayerEngineSettings_EditMode_face_normals_show_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "vert_normals_show", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Draw Vertex Normals", "Display vertex normals as lines");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_EditMode_vert_normals_show_get", "rna_LayerEngineSettings_EditMode_vert_normals_show_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "loop_normals_show", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Draw Split Normals", "Display vertex-per-face normals as lines");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_EditMode_loop_normals_show_get", "rna_LayerEngineSettings_EditMode_loop_normals_show_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "normals_length", PROP_FLOAT, PROP_FACTOR);
-	RNA_def_property_ui_text(prop, "Normal Size", "Display size for normals in the 3D view");
-	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_EditMode_normals_length_get", "rna_LayerEngineSettings_EditMode_normals_length_set", NULL);
-	RNA_def_property_range(prop, 0.00001, 1000.0);
-	RNA_def_property_ui_range(prop, 0.01, 10.0, 10.0, 2);
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "backwire_opacity", PROP_FLOAT, PROP_FACTOR);
-	RNA_def_property_ui_text(prop, "Backwire Opacity", "Opacity when rendering transparent wires");
-	RNA_def_property_float_funcs(prop, "rna_LayerEngineSettings_EditMode_backwire_opacity_get", "rna_LayerEngineSettings_EditMode_backwire_opacity_set", NULL);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	RNA_define_verify_sdna(1); /* not in sdna */
-}
-
-static void rna_def_layer_collection_mode_settings_paint_weight(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "LayerCollectionModeSettingsPaintWeight", "LayerCollectionSettings");
-	RNA_def_struct_ui_text(srna, "Collections Weight Paint Mode Settings", "Weight Paint Mode specific settings to be overridden per collection");
-	RNA_define_verify_sdna(0); /* not in sdna */
-
-	/* see RNA_LAYER_ENGINE_GET_SET macro */
-
-	prop = RNA_def_property(srna, "use_shading", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Use Shading", "Whether to use shaded or shadeless drawing");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_PaintWeightMode_use_shading_get", "rna_LayerEngineSettings_PaintWeightMode_use_shading_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "use_wire", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Show Wire", "Whether to overlay wireframe onto the mesh");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_PaintWeightMode_use_wire_get", "rna_LayerEngineSettings_PaintWeightMode_use_wire_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_LayerCollectionEngineSettings_wire_update");
-
-	RNA_define_verify_sdna(1); /* not in sdna */
-}
-
-static void rna_def_layer_collection_mode_settings_paint_vertex(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	srna = RNA_def_struct(brna, "LayerCollectionModeSettingsPaintVertex", "LayerCollectionSettings");
-	RNA_def_struct_ui_text(srna, "Collections Vertex Paint Mode Settings", "Vertex Paint Mode specific settings to be overridden per collection");
-	RNA_define_verify_sdna(0); /* not in sdna */
-
-	/* see RNA_LAYER_ENGINE_GET_SET macro */
-
-	prop = RNA_def_property(srna, "use_shading", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Use Shading", "Whether to use shaded or shadeless drawing");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_PaintVertexMode_use_shading_get", "rna_LayerEngineSettings_PaintVertexMode_use_shading_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_LayerCollectionEngineSettings_update");
-
-	prop = RNA_def_property(srna, "use_wire", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Show Wire", "Whether to overlay wireframe onto the mesh");
-	RNA_def_property_boolean_funcs(prop, "rna_LayerEngineSettings_PaintVertexMode_use_wire_get", "rna_LayerEngineSettings_PaintVertexMode_use_wire_set");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_LayerCollectionEngineSettings_wire_update");
-
-	RNA_define_verify_sdna(1); /* not in sdna */
-}
-
 static void rna_def_view_layer_settings(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1910,13 +1615,6 @@ static void rna_def_view_layer_settings(BlenderRNA *brna)
 	rna_def_view_layer_engine_settings_clay(brna);
 #endif
 	rna_def_view_layer_engine_settings_eevee(brna);
-
-#if 0
-	rna_def_view_layer_mode_settings_object(brna);
-	rna_def_view_layer_mode_settings_edit(brna);
-	rna_def_view_layer_mode_settings_paint_weight(brna);
-	rna_def_view_layer_mode_settings_paint_vertex(brna);
-#endif
 
 	RNA_define_verify_sdna(1);
 }
@@ -1958,11 +1656,6 @@ static void rna_def_layer_collection_settings(BlenderRNA *brna)
 	rna_def_layer_collection_engine_settings_clay(brna);
 #endif
 
-	rna_def_layer_collection_mode_settings_object(brna);
-	rna_def_layer_collection_mode_settings_edit(brna);
-	rna_def_layer_collection_mode_settings_paint_weight(brna);
-	rna_def_layer_collection_mode_settings_paint_vertex(brna);
-
 	RNA_define_verify_sdna(1);
 }
 
@@ -1976,6 +1669,7 @@ static void rna_def_layer_collection(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "LayerCollection", NULL);
 	RNA_def_struct_ui_text(srna, "Layer Collection", "Layer collection");
+	RNA_def_struct_ui_icon(srna, ICON_COLLAPSEMENU);
 
 	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_funcs(prop, "rna_LayerCollection_name_get", "rna_LayerCollection_name_length", "rna_LayerCollection_name_set");
@@ -1999,17 +1693,6 @@ static void rna_def_layer_collection(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "Object");
 	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, "rna_LayerCollection_objects_get", NULL, NULL, NULL, NULL);
 	RNA_def_property_ui_text(prop, "Objects", "All the objects directly or indirectly added to this collection (not including sub-collection objects)");
-
-	prop = RNA_def_property(srna, "overrides", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "overrides", NULL);
-	RNA_def_property_struct_type(prop, "LayerCollectionOverride");
-	RNA_def_property_ui_text(prop, "Collection Overrides", "");
-
-	/* Override settings */
-	prop = RNA_def_property(srna, "engine_overrides", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "properties->data.group", NULL);
-	RNA_def_property_struct_type(prop, "LayerCollectionSettings");
-	RNA_def_property_ui_text(prop, "Collection Settings", "Override of engine specific render settings");
 
 	/* Functions */
 	func = RNA_def_function(srna, "move_above", "rna_LayerCollection_move_above");
@@ -2165,51 +1848,6 @@ static void rna_def_object_base(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_ObjectBase_select_update");
 }
 
-static void rna_def_scene_view_render(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-
-	static const EnumPropertyItem engine_items[] = {
-		{0, "BLENDER_RENDER", 0, "Blender Render", "Use the Blender internal rendering engine for rendering"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
-	srna = RNA_def_struct(brna, "ViewRenderSettings", NULL);
-	RNA_def_struct_sdna(srna, "ViewRender");
-	RNA_def_struct_path_func(srna, "rna_ViewRenderSettings_path");
-	RNA_def_struct_ui_text(srna, "View Render", "Rendering settings related to viewport drawing/rendering");
-
-	/* engine */
-	prop = RNA_def_property(srna, "engine", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, engine_items);
-	RNA_def_property_enum_funcs(prop, "rna_ViewRenderSettings_engine_get", "rna_ViewRenderSettings_engine_set",
-	                            "rna_ViewRenderSettings_engine_itemf");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_ui_text(prop, "Engine", "Engine to use for rendering");
-	RNA_def_property_update(prop, NC_WINDOW, "rna_ViewRenderSettings_engine_update");
-
-	prop = RNA_def_property(srna, "has_multiple_engines", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_multiple_engines_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Multiple Engines", "More than one rendering engine is available");
-
-	prop = RNA_def_property(srna, "use_shading_nodes", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_use_shading_nodes_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Use Shading Nodes", "Active render engine uses new shading nodes system");
-
-	prop = RNA_def_property(srna, "use_spherical_stereo", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_use_spherical_stereo_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Use Spherical Stereo", "Active render engine supports spherical stereo rendering");
-
-	prop = RNA_def_property(srna, "use_game_engine", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_ViewRenderSettings_use_game_engine_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Use Game Engine", "Current rendering engine is a game engine");
-}
-
 void RNA_def_view_layer(BlenderRNA *brna)
 {
 	FunctionRNA *func;
@@ -2218,7 +1856,8 @@ void RNA_def_view_layer(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "ViewLayer", NULL);
 	RNA_def_struct_ui_text(srna, "Render Layer", "Render layer");
-	RNA_def_struct_ui_icon(srna, ICON_RENDERLAYERS);
+	RNA_def_struct_ui_icon(srna, ICON_RENDER_RESULT);
+	RNA_def_struct_path_func(srna, "rna_ViewLayer_path");
 	RNA_def_struct_idprops_func(srna, "rna_ViewLayer_idprops");
 
 	rna_def_view_layer_common(srna, 1);
@@ -2260,12 +1899,6 @@ void RNA_def_view_layer(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "FreestyleSettings");
 	RNA_def_property_ui_text(prop, "Freestyle Settings", "");
 
-	/* Override settings */
-	prop = RNA_def_property(srna, "engine_overrides", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "properties->data.group", NULL);
-	RNA_def_property_struct_type(prop, "ViewLayerSettings");
-	RNA_def_property_ui_text(prop, "Layer Settings", "Override of engine specific render settings");
-
 	/* debug update routine */
 	func = RNA_def_function(srna, "update", "rna_ViewLayer_update_tagged");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
@@ -2283,13 +1916,11 @@ void RNA_def_view_layer(BlenderRNA *brna)
 	RNA_define_animate_sdna(false);
 	rna_def_scene_collection(brna);
 	rna_def_layer_collection(brna);
-	rna_def_layer_collection_override(brna);
 	rna_def_object_base(brna);
 	RNA_define_animate_sdna(true);
 	/* *** Animated *** */
 	rna_def_view_layer_settings(brna);
 	rna_def_layer_collection_settings(brna);
-	rna_def_scene_view_render(brna);
 }
 
 #endif

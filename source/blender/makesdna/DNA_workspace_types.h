@@ -54,9 +54,11 @@
 #define USE_WORKSPACE_TOOL
 
 typedef struct bToolDef {
-	/* either the keymap AND/OR manipulator_group must be defined. */
+	/* One of these must be defined. */
 	char keymap[64];
 	char manipulator_group[64];
+	char data_block[64];
+
 	int  spacetype;
 	/* index when a tool is a member of a group */
 	int  index;
@@ -95,9 +97,6 @@ typedef struct WorkSpace {
 	/* Feature tagging (use for addons) */
 	ListBase owner_ids DNA_PRIVATE_WORKSPACE_READ_WRITE; /* wmOwnerID */
 
-	/* Custom transform orientations */
-	ListBase transform_orientations DNA_PRIVATE_WORKSPACE;
-
 	int pad;
 	int flags DNA_PRIVATE_WORKSPACE; /* enum eWorkSpaceFlags */
 
@@ -105,7 +104,6 @@ typedef struct WorkSpace {
 	bToolDef tool;
 
 	struct ViewLayer *view_layer DNA_DEPRECATED;
-	struct ViewRender view_render;
 } WorkSpace;
 
 /* internal struct, but exported for read/write */
@@ -159,7 +157,6 @@ typedef struct WorkSpaceInstanceHook {
 } WorkSpaceInstanceHook;
 
 typedef enum eWorkSpaceFlags {
-	WORKSPACE_USE_SCENE_SETTINGS = (1 << 0),
 	WORKSPACE_USE_FILTER_BY_ORIGIN = (1 << 1),
 } eWorkSpaceFlags;
 

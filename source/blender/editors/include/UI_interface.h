@@ -109,7 +109,8 @@ enum {
 	UI_DIR_DOWN         = (1 << 1),
 	UI_DIR_LEFT         = (1 << 2),
 	UI_DIR_RIGHT        = (1 << 3),
-	UI_DIR_CENTER_Y     = (1 << 4),
+	UI_DIR_CENTER_X     = (1 << 4),
+	UI_DIR_CENTER_Y     = (1 << 5),
 
 	UI_DIR_ALL          = (UI_DIR_UP | UI_DIR_DOWN | UI_DIR_LEFT | UI_DIR_RIGHT),
 };
@@ -141,6 +142,7 @@ enum {
 #define UI_BLOCK_POPUP_HOLD  (1 << 18)
 #define UI_BLOCK_LIST_ITEM   (1 << 19)
 #define UI_BLOCK_RADIAL      (1 << 20)
+#define UI_BLOCK_POPOVER     (1 << 21)
 
 /* uiPopupBlockHandle->menuretval */
 #define UI_RETURN_CANCEL     (1 << 0)   /* cancel all menus cascading */
@@ -180,7 +182,7 @@ enum {
 	UI_BUT_COLOR_CUBIC     = (1 << 23),  /* cubic saturation for the color wheel */
 	UI_BUT_LIST_ITEM       = (1 << 24),  /* This but is "inside" a list item (currently used to change theme colors). */
 	UI_BUT_DRAG_MULTI      = (1 << 25),  /* edit this button as well as the active button (not just dragging) */
-	UI_BUT_SCA_LINK_GREY   = (1 << 26),  /* used to flag if sca links shoud be gray out */
+
 	UI_BUT_HAS_SEP_CHAR    = (1 << 27),  /* but->str contains UI_SEP_CHAR, used for key shortcuts */
 	UI_BUT_UPDATE_DELAY    = (1 << 28),  /* don't run updates while dragging (needed in rare cases). */
 	UI_BUT_TEXTEDIT_UPDATE = (1 << 29),  /* when widget is in textedit mode, update value on each char stroke */
@@ -222,11 +224,14 @@ enum {
 	UI_BUT_ALIGN_ALL         = (UI_BUT_ALIGN | UI_BUT_ALIGN_STITCH_TOP | UI_BUT_ALIGN_STITCH_LEFT),
 
 	UI_BUT_BOX_ITEM          = (1 << 20), /* This but is "inside" a box item (currently used to change theme colors). */
+
+	UI_BUT_ACTIVE_LEFT       = (1 << 21), /* Active left part of number button */
+	UI_BUT_ACTIVE_RIGHT      = (1 << 22), /* Active right part of number button */
 };
 
 /* scale fixed button widths by this to account for DPI */
 
-#define UI_DPI_FAC ((U.pixelsize * (float)U.dpi) / 72.0f)
+#define UI_DPI_FAC (U.dpi_fac)
 /* 16 to copy ICON_DEFAULT_HEIGHT */
 #define UI_DPI_ICON_SIZE ((float)16 * UI_DPI_FAC)
 
@@ -266,11 +271,10 @@ typedef enum {
 	UI_BTYPE_CHECKBOX_N             = (14 << 9),
 	UI_BTYPE_COLOR                  = (15 << 9),
 	UI_BTYPE_TAB                    = (16 << 9),
+	UI_BTYPE_POPOVER                = (17 << 9),
 	UI_BTYPE_SCROLL                 = (18 << 9),
 	UI_BTYPE_BLOCK                  = (19 << 9),
 	UI_BTYPE_LABEL                  = (20 << 9),
-	UI_BTYPE_LINK                   = (22 << 9),
-	UI_BTYPE_INLINK                 = (23 << 9),
 	UI_BTYPE_KEY_EVENT              = (24 << 9),
 	UI_BTYPE_HSVCUBE                = (26 << 9),
 	UI_BTYPE_PULLDOWN               = (27 << 9),  /* menu (often used in headers), **_MENU /w different draw-type */
@@ -317,6 +321,9 @@ typedef enum {
  *
  * Functions to draw various shapes, taking theme settings into account.
  * Used for code that draws its own UI style elements. */
+
+void UI_draw_anti_tria(float x1, float y1, float x2, float y2, float x3, float y3, const float color[4]);
+void UI_draw_anti_fan(float tri_array[][2], unsigned int length, const float color[4]);
 
 void UI_draw_roundbox_corner_set(int type);
 void UI_draw_roundbox_aa(bool filled, float minx, float miny, float maxx, float maxy, float rad, const float color[4]);
@@ -412,6 +419,14 @@ int UI_popup_menu_invoke(struct bContext *C, const char *idname, struct ReportLi
 void UI_popup_menu_retval_set(const uiBlock *block, const int retval, const bool enable);
 void UI_popup_menu_but_set(uiPopupMenu *pup, struct ARegion *butregion, uiBut *but);
 
+/* interface_region_popover.c */
+
+typedef struct uiPopover uiPopover;
+
+uiPopover *UI_popover_begin(struct bContext *C) ATTR_NONNULL();
+void UI_popover_end(struct bContext *C, struct uiPopover *head);
+struct uiLayout *UI_popover_layout(uiPopover *head);
+
 /* interface_region_menu_pie.c */
 /* Pie menus */
 typedef struct uiPieMenu uiPieMenu;
@@ -461,6 +476,8 @@ uiBlock *UI_block_begin(const struct bContext *C, struct ARegion *region, const 
 void UI_block_end_ex(const struct bContext *C, uiBlock *block, const int xy[2], int r_xy[2]);
 void UI_block_end(const struct bContext *C, uiBlock *block);
 void UI_block_draw(const struct bContext *C, struct uiBlock *block);
+void UI_blocklist_update_window_matrix(const struct bContext *C, const struct ListBase *lb);
+void UI_blocklist_draw(const struct bContext *C, const struct ListBase *lb);
 void UI_block_update_from_old(const struct bContext *C, struct uiBlock *block);
 
 uiBlock *UI_block_find_in_region(const char *name, struct ARegion *ar);
@@ -729,16 +746,6 @@ eAutoPropButsReturn uiDefAutoButsRNA(
         bool (*check_prop)(struct PointerRNA *, struct PropertyRNA *),
         eButLabelAlign label_align, const bool compact);
 
-/* Links
- *
- * Game engine logic brick links. Non-functional currently in 2.5,
- * code to handle and draw these is disabled internally. */
-
-void UI_but_link_set(struct uiBut *but,  void **poin,  void ***ppoin,  short *tot,  int from, int to);
-
-void UI_block_links_compose(uiBlock *block);
-uiBut *UI_block_links_find_inlink(uiBlock *block, void *poin);
-
 /* use inside searchfunc to add items */
 bool    UI_search_item_add(uiSearchItems *items, const char *name, void *poin, int iconid);
 /* bfunc gets search item *poin as arg2, or if NULL the old string */
@@ -929,6 +936,7 @@ void uiLayoutSetContextPointer(uiLayout *layout, const char *name, struct Pointe
 void uiLayoutContextCopy(uiLayout *layout, struct bContextStore *context);
 const char *uiLayoutIntrospect(uiLayout *layout); // XXX - testing
 struct MenuType *UI_but_menutype_get(uiBut *but);
+struct PanelType *UI_but_paneltype_get(uiBut *but);
 void UI_menutype_draw(struct bContext *C, struct MenuType *mt, struct uiLayout *layout);
 
 /* Only for convenience. */
@@ -998,7 +1006,9 @@ void uiTemplateSearchPreview(
 void uiTemplatePathBuilder(uiLayout *layout, struct PointerRNA *ptr, const char *propname, 
                            struct PointerRNA *root_ptr, const char *text);
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
-void uiTemplateOperatorRedoProperties(uiLayout *layout, struct bContext *C);
+
+void uiTemplateOperatorRedoProperties(uiLayout *layout, const struct bContext *C);
+
 uiLayout *uiTemplateConstraint(uiLayout *layout, struct PointerRNA *ptr);
 void uiTemplatePreview(uiLayout *layout, struct bContext *C, struct ID *id, int show_buttons, struct ID *parent,
                        struct MTex *slot, const char *preview_id);
@@ -1013,8 +1023,6 @@ void uiTemplateColorPicker(uiLayout *layout, struct PointerRNA *ptr, const char 
 void uiTemplatePalette(uiLayout *layout, struct PointerRNA *ptr, const char *propname, int color);
 void uiTemplateLayers(uiLayout *layout, struct PointerRNA *ptr, const char *propname,
                       PointerRNA *used_ptr, const char *used_propname, int active_layer);
-void uiTemplateGameStates(uiLayout *layout, struct PointerRNA *ptr, const char *propname,
-                      PointerRNA *used_ptr, const char *used_propname, int active_state);
 void uiTemplateImage(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname, struct PointerRNA *userptr, int compact, int multiview);
 void uiTemplateImageSettings(uiLayout *layout, struct PointerRNA *imfptr, int color_management);
 void uiTemplateImageStereo3d(uiLayout *layout, struct PointerRNA *stereo3d_format_ptr);
@@ -1029,15 +1037,11 @@ eAutoPropButsReturn uiTemplateOperatorPropertyButs(
         const struct bContext *C, uiLayout *layout, struct wmOperator *op,
         bool (*check_prop)(struct PointerRNA *, struct PropertyRNA *),
         const eButLabelAlign label_align, const short flag);
+void uiTemplateHeader3D_mode(uiLayout *layout, struct bContext *C);
 void uiTemplateHeader3D(uiLayout *layout, struct bContext *C);
 void uiTemplateEditModeSelection(uiLayout *layout, struct bContext *C);
 void uiTemplateReportsBanner(uiLayout *layout, struct bContext *C);
 void uiTemplateKeymapItemProperties(uiLayout *layout, struct PointerRNA *ptr);
-void uiTemplateOverrideProperty(
-        uiLayout *layout, struct PointerRNA *collection_props_ptr, struct PointerRNA *scene_props_ptr,
-        const char *propname,
-        const char *name, const char *text_ctxt, int translate, int icon,
-        const char *custom_template);
 void uiTemplateComponentMenu(uiLayout *layout, struct PointerRNA *ptr, const char *propname, const char *name);
 void uiTemplateNodeSocket(uiLayout *layout, struct bContext *C, float *color);
 void uiTemplateCacheFile(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname);
@@ -1107,6 +1111,19 @@ void uiItemLDrag(uiLayout *layout, struct PointerRNA *ptr, const char *name, int
 void uiItemM(uiLayout *layout, struct bContext *C, const char *menuname, const char *name, int icon); /* menu */
 void uiItemV(uiLayout *layout, const char *name, int icon, int argval); /* value */
 void uiItemS(uiLayout *layout); /* separator */
+
+void uiItemPopoverPanel_ptr(
+        uiLayout *layout, struct bContext *C,
+        struct PanelType *pt,
+        const char *name, int icon);
+void uiItemPopoverPanel(
+        uiLayout *layout, struct bContext *C,
+        int space_id, int region_id, const char *panelname,
+        const char *name, int icon);
+void uiItemPopoverPanelFromGroup(
+        uiLayout *layout, struct bContext *C,
+        int space_id, int region_id,
+        const char *context, const char *category);
 
 void uiItemMenuF(uiLayout *layout, const char *name, int icon, uiMenuCreateFunc func, void *arg);
 void uiItemMenuEnumO_ptr(uiLayout *layout, struct bContext *C, struct wmOperatorType *ot, const char *propname, const char *name, int icon);
@@ -1212,5 +1229,10 @@ int UI_calc_float_precision(int prec, double value);
 void UI_widgetbase_draw_cache_begin(void);
 void UI_widgetbase_draw_cache_flush(void);
 void UI_widgetbase_draw_cache_end(void);
+
+/* Special drawing for toolbar, mainly workarounds for inflexible icon sizing. */
+#define USE_TOOLBAR_HACK
+
+bool UI_but_is_tool(const uiBut *but);
 
 #endif  /* __UI_INTERFACE_H__ */

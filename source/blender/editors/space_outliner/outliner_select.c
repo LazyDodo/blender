@@ -43,13 +43,14 @@
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 
+#include "BKE_armature.h"
 #include "BKE_context.h"
 #include "BKE_group.h"
-#include "BKE_object.h"
 #include "BKE_layer.h"
+#include "BKE_object.h"
 #include "BKE_scene.h"
 #include "BKE_sequencer.h"
-#include "BKE_armature.h"
+#include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
 
@@ -75,7 +76,7 @@
 /* ****************************************************** */
 /* Outliner Element Selection/Activation on Click */
 
-static eOLDrawState tree_element_active_renderlayer(
+static eOLDrawState active_viewlayer(
         bContext *C, Scene *UNUSED(scene), ViewLayer *UNUSED(sl), TreeElement *te, TreeStoreElem *tselem, const eOLSetState set)
 {
 	Scene *sce;
@@ -85,12 +86,15 @@ static eOLDrawState tree_element_active_renderlayer(
 		return OL_DRAWSEL_NONE;
 	sce = (Scene *)tselem->id;
 	
+	WorkSpace *workspace = CTX_wm_workspace(C);
+	ViewLayer *view_layer = te->directdata;
+
 	if (set != OL_SETSEL_NONE) {
-		sce->active_view_layer = tselem->nr;
-		WM_event_add_notifier(C, NC_SCENE | ND_RENDER_OPTIONS, sce);
+		BKE_workspace_view_layer_set(workspace, view_layer, sce);
+		WM_event_add_notifier(C, NC_SCREEN | ND_LAYER, NULL);
 	}
 	else {
-		return sce->active_view_layer == tselem->nr;
+		return BKE_workspace_view_layer_get(workspace, sce) == view_layer;
 	}
 	return OL_DRAWSEL_NONE;
 }
@@ -252,93 +256,6 @@ static eOLDrawState tree_element_active_material(
 	}
 	return OL_DRAWSEL_NONE;
 }
-
-static eOLDrawState tree_element_active_texture(
-        bContext *C, Scene *scene, ViewLayer *view_layer, SpaceOops *UNUSED(soops),
-        TreeElement *te, const eOLSetState set)
-{
-	TreeElement *tep;
-	TreeStoreElem /* *tselem,*/ *tselemp;
-	Object *ob = OBACT(view_layer);
-	SpaceButs *sbuts = NULL;
-	
-	if (ob == NULL) {
-		/* no active object */
-		return OL_DRAWSEL_NONE;
-	}
-	
-	/*tselem = TREESTORE(te);*/ /*UNUSED*/
-	
-	/* find buttons region (note, this is undefined really still, needs recode in blender) */
-	/* XXX removed finding sbuts */
-	
-	/* where is texture linked to? */
-	tep = te->parent;
-	tselemp = TREESTORE(tep);
-	
-	if (tep->idcode == ID_WO) {
-		World *wrld = (World *)tselemp->id;
-
-		if (set != OL_SETSEL_NONE) {
-			if (sbuts) {
-				// XXX sbuts->tabo = TAB_SHADING_TEX;	// hack from header_buttonswin.c
-				// XXX sbuts->texfrom = 1;
-			}
-// XXX			extern_set_butspace(F6KEY, 0);	// force shading buttons texture
-			wrld->texact = te->index;
-		}
-		else if (tselemp->id == (ID *)(scene->world)) {
-			if (wrld->texact == te->index) {
-				return OL_DRAWSEL_NORMAL;
-			}
-		}
-	}
-	else if (tep->idcode == ID_LA) {
-		Lamp *la = (Lamp *)tselemp->id;
-		if (set != OL_SETSEL_NONE) {
-			if (sbuts) {
-				// XXX sbuts->tabo = TAB_SHADING_TEX;	// hack from header_buttonswin.c
-				// XXX sbuts->texfrom = 2;
-			}
-// XXX			extern_set_butspace(F6KEY, 0);	// force shading buttons texture
-			la->texact = te->index;
-		}
-		else {
-			if (tselemp->id == ob->data) {
-				if (la->texact == te->index) {
-					return OL_DRAWSEL_NORMAL;
-				}
-			}
-		}
-	}
-	else if (tep->idcode == ID_MA) {
-		Material *ma = (Material *)tselemp->id;
-		if (set != OL_SETSEL_NONE) {
-			if (sbuts) {
-				//sbuts->tabo = TAB_SHADING_TEX;	// hack from header_buttonswin.c
-				// XXX sbuts->texfrom = 0;
-			}
-// XXX			extern_set_butspace(F6KEY, 0);	// force shading buttons texture
-			ma->texact = (char)te->index;
-			
-			/* also set active material */
-			ob->actcol = tep->index + 1;
-		}
-		else if (tep->flag & TE_ACTIVE) {   // this is active material
-			if (ma->texact == te->index) {
-				return OL_DRAWSEL_NORMAL;
-			}
-		}
-	}
-	
-	if (set != OL_SETSEL_NONE) {
-		WM_event_add_notifier(C, NC_TEXTURE, NULL);
-	}
-
-	/* no active object */
-	return OL_DRAWSEL_NONE;
-}
-
 
 static eOLDrawState tree_element_active_lamp(
         bContext *UNUSED(C), Scene *UNUSED(scene), ViewLayer *view_layer, SpaceOops *soops,
@@ -575,7 +492,7 @@ static eOLDrawState tree_element_active_ebone(
 	if (set != OL_SETSEL_NONE) {
 		if (set == OL_SETSEL_NORMAL) {
 			if (!(ebone->flag & BONE_HIDDEN_A)) {
-				ED_armature_deselect_all(obedit);
+				ED_armature_edit_deselect_all(obedit);
 				tree_element_active_ebone__sel(C, obedit, arm, ebone, true);
 				status = OL_DRAWSEL_NORMAL;
 			}
@@ -827,8 +744,6 @@ eOLDrawState tree_element_active(bContext *C, Scene *scene, ViewLayer *view_laye
 			return tree_element_active_world(C, scene, view_layer, soops, te, set);
 		case ID_LA:
 			return tree_element_active_lamp(C, scene, view_layer, soops, te, set);
-		case ID_TE:
-			return tree_element_active_texture(C, scene, view_layer, soops, te, set);
 		case ID_TXT:
 			return tree_element_active_text(C, scene, view_layer, soops, te, set);
 		case ID_CA:
@@ -870,7 +785,12 @@ eOLDrawState tree_element_type_active(
 		case TSE_CONSTRAINT:
 			return tree_element_active_constraint(C, scene, view_layer, te, tselem, set);
 		case TSE_R_LAYER:
-			return tree_element_active_renderlayer(C, scene, view_layer, te, tselem, set);
+			if (soops->outlinevis == SO_SCENES) {
+				return active_viewlayer(C, scene, view_layer, te, tselem, set);
+			}
+			else {
+				return OL_DRAWSEL_NONE;
+			}
 		case TSE_POSEGRP:
 			return tree_element_active_posegroup(C, scene, view_layer, te, tselem, set);
 		case TSE_SEQUENCE:

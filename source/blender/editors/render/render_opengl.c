@@ -268,8 +268,8 @@ static void screen_opengl_views_setup(OGLRender *oglrender)
 
 static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, RenderResult *rr)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = oglrender->scene;
-	ViewLayer *view_layer = oglrender->view_layer;
 	ARegion *ar = oglrender->ar;
 	View3D *v3d = oglrender->v3d;
 	RegionView3D *rv3d = oglrender->rv3d;
@@ -277,14 +277,10 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 	int sizex = oglrender->sizex;
 	int sizey = oglrender->sizey;
 	const short view_context = (v3d != NULL);
-	bool draw_bgpic = true;
 	bool draw_sky = (scene->r.alphamode == R_ADDSKY);
 	float *rectf = NULL;
 	const char *viewname = RE_GetActiveRenderView(oglrender->re);
 	ImBuf *ibuf_result = NULL;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (oglrender->is_sequencer) {
 		SpaceSeq *sseq = oglrender->sseq;
@@ -358,10 +354,9 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 		draw_flags |= (oglrender->ofs_full_samples) ? V3D_OFSDRAW_USE_FULL_SAMPLE : 0;
 
 		if (view_context) {
-			draw_flags |= (draw_bgpic) ? V3D_OFSDRAW_USE_BACKGROUND : 0;
-
 			ibuf_view = ED_view3d_draw_offscreen_imbuf(
-			       &eval_ctx, scene, view_layer, v3d, ar, sizex, sizey,
+			       depsgraph, scene, v3d->drawtype,
+			       v3d, ar, sizex, sizey,
 			       IB_rectfloat, draw_flags, alpha_mode, oglrender->ofs_samples, viewname,
 			       oglrender->ofs, err_out);
 
@@ -371,10 +366,11 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 			}
 		}
 		else {
-			draw_flags |= (V3D_OFSDRAW_USE_GPENCIL | V3D_OFSDRAW_USE_BACKGROUND);
+			draw_flags |= V3D_OFSDRAW_USE_GPENCIL;
 			ibuf_view = ED_view3d_draw_offscreen_imbuf_simple(
-			        &eval_ctx, scene, view_layer, scene->camera, oglrender->sizex, oglrender->sizey,
-			        IB_rectfloat, draw_flags, OB_SOLID,
+			        depsgraph, scene, OB_SOLID,
+			        scene->camera, oglrender->sizex, oglrender->sizey,
+			        IB_rectfloat, draw_flags,
 			        alpha_mode, oglrender->ofs_samples, viewname,
 			        oglrender->ofs, err_out);
 			camera = scene->camera;
@@ -536,8 +532,8 @@ static void screen_opengl_render_apply(const bContext *C, OGLRender *oglrender)
 		int chanshown = sseq ? sseq->chanshown : 0;
 
 		BKE_sequencer_new_render_data(
-		        oglrender->bmain->eval_ctx, oglrender->bmain, scene,
-		        oglrender->sizex, oglrender->sizey, 100.0f,
+		        oglrender->bmain, scene,
+		        oglrender->sizex, oglrender->sizey, 100.0f, false,
 		        &context);
 
 		for (view_id = 0; view_id < oglrender->views_len; view_id++) {
@@ -707,8 +703,6 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 
 	/* create render */
 	oglrender->re = RE_NewSceneRender(scene);
-	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-	RE_SetEngineByID(oglrender->re, view_render->engine_id);
 
 	/* create image and image user */
 	oglrender->ima = BKE_image_verify_viewer(IMA_TYPE_R_RESULT, "Render Result");
@@ -719,7 +713,7 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 	oglrender->iuser.ok = 1;
 
 	/* create render result */
-	RE_InitState(oglrender->re, NULL, &scene->r, &scene->view_layers, scene->active_view_layer, view_render, NULL, sizex, sizey, NULL);
+	RE_InitState(oglrender->re, NULL, &scene->r, &scene->view_layers, NULL, sizex, sizey, NULL);
 
 	/* create render views */
 	screen_opengl_views_setup(oglrender);
@@ -817,9 +811,8 @@ static void screen_opengl_render_end(bContext *C, OGLRender *oglrender)
 
 	if (oglrender->timer) { /* exec will not have a timer */
 		Depsgraph *depsgraph = oglrender->depsgraph;
-		ViewLayer *view_layer = oglrender->view_layer;
 		scene->r.cfra = oglrender->cfrao;
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 		WM_event_remove_timer(oglrender->wm, oglrender->win, oglrender->timer);
 	}
@@ -1018,7 +1011,6 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 	Main *bmain = CTX_data_main(C);
 	OGLRender *oglrender = op->customdata;
 	Scene *scene = oglrender->scene;
-	ViewLayer *view_layer = oglrender->view_layer;
 	Depsgraph *depsgraph = oglrender->depsgraph;
 	char name[FILE_MAX];
 	bool ok = false;
@@ -1030,7 +1022,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 	if (CFRA < oglrender->nfra)
 		CFRA++;
 	while (CFRA < oglrender->nfra) {
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 		CFRA++;
 	}
 
@@ -1052,7 +1044,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 
 	WM_cursor_time(oglrender->win, scene->r.cfra);
 
-	BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 	if (view_context) {
 		if (oglrender->rv3d->persp == RV3D_CAMOB && oglrender->v3d->camera && oglrender->v3d->scenelock) {

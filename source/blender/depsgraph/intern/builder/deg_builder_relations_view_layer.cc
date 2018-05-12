@@ -123,12 +123,9 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 	}
 	/* Build all set scenes. */
 	if (scene->set != NULL) {
-		ViewLayer *set_view_layer = BKE_view_layer_from_scene_get(scene->set);
+		ViewLayer *set_view_layer = BKE_view_layer_default_render(scene->set);
 		build_view_layer(scene->set, set_view_layer);
 	}
-
-	graph_->scene = scene;
-	graph_->view_layer = view_layer;
 }
 
 }  // namespace DEG

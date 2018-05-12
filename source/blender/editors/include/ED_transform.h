@@ -130,7 +130,7 @@ void BIF_createTransformOrientation(struct bContext *C, struct ReportList *repor
                                     const char *name, const bool use_view,
                                     const bool activate, const bool overwrite);
 void BIF_selectTransformOrientation(struct bContext *C, struct TransformOrientation *ts);
-void BIF_selectTransformOrientationValue(struct View3D *v3d, int orientation);
+void BIF_selectTransformOrientationValue(struct Scene *scene, int orientation);
 
 void ED_getTransformOrientationMatrix(const struct bContext *C, float orientation_mat[3][3], const short around);
 
@@ -193,5 +193,25 @@ bool snapNodesTransform(
         struct TransInfo *t, const int mval[2],
         /* return args */
         float r_loc[2], float *r_dist_px, char *r_node_border);
+
+struct TransformBounds {
+	float center[3];		/* Center for transform widget. */
+	float min[3], max[3];	/* Boundbox of selection for transform widget. */
+
+	/* Normalized axis */
+	float axis[3][3];
+	float axis_min[3], axis_max[3];
+};
+
+struct TransformCalcParams {
+	uint use_only_center : 1;
+	uint use_local_axis : 1;
+	/* Use 'Scene.orientation_type' when zero, otherwise subtract one and use. */
+	ushort orientation_type;
+};
+int ED_transform_calc_manipulator_stats(
+        const struct bContext *C,
+        const struct TransformCalcParams *params,
+        struct TransformBounds *tbounds);
 
 #endif  /* __ED_TRANSFORM_H__ */

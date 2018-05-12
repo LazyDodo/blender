@@ -82,7 +82,6 @@ void ED_spacetypes_init(void)
 	
 	/* create space types */
 	ED_spacetype_outliner();
-	ED_spacetype_time();
 	ED_spacetype_view3d();
 	ED_spacetype_ipo();
 	ED_spacetype_image();
@@ -95,7 +94,6 @@ void ED_spacetypes_init(void)
 	ED_spacetype_script();
 	ED_spacetype_text();
 	ED_spacetype_sequencer();
-	ED_spacetype_logic();
 	ED_spacetype_console();
 	ED_spacetype_userpref();
 	ED_spacetype_clip();
@@ -122,7 +120,6 @@ void ED_spacetypes_init(void)
 	ED_operatortypes_metaball();
 	ED_operatortypes_sound();
 	ED_operatortypes_render();
-	ED_operatortypes_logic();
 	ED_operatortypes_mask();
 	ED_operatortypes_io();
 	
@@ -150,9 +147,6 @@ void ED_spacetypes_init(void)
 			type->operatortypes();
 		}
 	}
-
-	/* register internal render callbacks */
-	ED_render_internal_init();
 }
 
 void ED_spacemacros_init(void)
@@ -286,7 +280,7 @@ void ED_region_draw_cb_draw(const bContext *C, ARegion *ar, int type)
 void ED_spacetype_xxx(void);
 
 /* allocate and init some vars */
-static SpaceLink *xxx_new(const bContext *UNUSED(C))
+static SpaceLink *xxx_new(const ScrArea *UNUSED(sa), const Scene *UNUSED(scene))
 {
 	return NULL;
 }

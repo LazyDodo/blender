@@ -1388,6 +1388,21 @@ wmOperator *WM_operator_last_redo(const bContext *C)
 	return op;
 }
 
+IDProperty *WM_operator_last_properties_ensure_idprops(wmOperatorType *ot)
+{
+	if (ot->last_properties == NULL) {
+		IDPropertyTemplate val = {0};
+		ot->last_properties = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
+	}
+	return ot->last_properties;
+}
+
+void WM_operator_last_properties_ensure(wmOperatorType *ot, PointerRNA *ptr)
+{
+	IDProperty *props = WM_operator_last_properties_ensure_idprops(ot);
+	RNA_pointer_create(NULL, ot->srna, props, ptr);
+}
+
 /**
  * Use for drag & drop a path or name with operators invoke() function.
  */
@@ -1828,6 +1843,7 @@ static int wm_operator_tool_set_exec(bContext *C, wmOperator *op)
 	tool_def.spacetype = sa->spacetype;
 	RNA_string_get(op->ptr, "keymap", tool_def.keymap);
 	RNA_string_get(op->ptr, "manipulator_group", tool_def.manipulator_group);
+	RNA_string_get(op->ptr, "data_block", tool_def.data_block);
 
 	WM_toolsystem_set(C, &tool_def);
 
@@ -1849,6 +1865,7 @@ static void WM_OT_tool_set(wmOperatorType *ot)
 
 	RNA_def_string(ot->srna, "keymap", NULL, KMAP_MAX_NAME, "Key Map", "");
 	RNA_def_string(ot->srna, "manipulator_group", NULL, MAX_NAME, "Manipulator Group", "");
+	RNA_def_string(ot->srna, "data_block", NULL, MAX_NAME, "Data Block", "");
 	RNA_def_int(ot->srna, "index", 0, INT_MIN, INT_MAX, "Index", "", INT_MIN, INT_MAX);
 }
 #endif /* USE_WORKSPACE_TOOL */
@@ -2617,10 +2634,9 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 	immUnbindProgram();
 }
 
-static void radial_control_paint_cursor(bContext *C, int x, int y, void *customdata)
+static void radial_control_paint_cursor(bContext *UNUSED(C), int x, int y, void *customdata)
 {
 	RadialControl *rc = customdata;
-	ARegion *ar = CTX_wm_region(C);
 	uiStyle *style = UI_style_get();
 	const uiFontStyle *fstyle = &style->widget;
 	const int fontid = fstyle->uifont_id;
@@ -2671,8 +2687,8 @@ static void radial_control_paint_cursor(bContext *C, int x, int y, void *customd
 	}
 
 	/* Keep cursor in the original place */
-	x = rc->initial_mouse[0] - ar->winrct.xmin;
-	y = rc->initial_mouse[1] - ar->winrct.ymin;
+	x = rc->initial_mouse[0];
+	y = rc->initial_mouse[1];
 	gpuTranslate2f((float)x, (float)y);
 
 	glEnable(GL_BLEND);
@@ -3310,7 +3326,7 @@ static const EnumPropertyItem redraw_timer_type_items[] = {
 
 
 static void redraw_timer_step(
-        bContext *C, Main *bmain, Scene *scene, ViewLayer *view_layer,
+        bContext *C, Main *bmain, Scene *scene,
         struct Depsgraph *depsgraph,
         wmWindow *win, ScrArea *sa, ARegion *ar,
         const int type, const int cfra)
@@ -3358,7 +3374,7 @@ static void redraw_timer_step(
 	}
 	else if (type == eRTAnimationStep) {
 		scene->r.cfra += (cfra == scene->r.cfra) ? 1 : -1;
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 	else if (type == eRTAnimationPlay) {
 		/* play anim, return on same frame as started with */
@@ -3370,7 +3386,7 @@ static void redraw_timer_step(
 			if (scene->r.cfra > scene->r.efra)
 				scene->r.cfra = scene->r.sfra;
 
-			BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+			BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 			redraw_timer_window_swap(C);
 		}
 	}
@@ -3384,7 +3400,6 @@ static int redraw_timer_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	wmWindow *win = CTX_wm_window(C);
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -3402,7 +3417,7 @@ static int redraw_timer_exec(bContext *C, wmOperator *op)
 	time_start = PIL_check_seconds_timer();
 
 	for (a = 0; a < iter; a++) {
-		redraw_timer_step(C, bmain, scene, view_layer, depsgraph, win, sa, ar, type, cfra);
+		redraw_timer_step(C, bmain, scene, depsgraph, win, sa, ar, type, cfra);
 		iter_steps += 1;
 
 		if (time_limit != 0.0) {
@@ -3992,10 +4007,6 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 #endif
 
 	/* Space switching */
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", F2KEY, KM_PRESS, KM_SHIFT, 0); /* new in 2.5x, was DXF export */
-	RNA_string_set(kmi->ptr, "data_path", "area.type");
-	RNA_string_set(kmi->ptr, "value", "LOGIC_EDITOR");
-
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", F3KEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_string_set(kmi->ptr, "data_path", "area.type");
 	RNA_string_set(kmi->ptr, "value", "NODE_EDITOR");

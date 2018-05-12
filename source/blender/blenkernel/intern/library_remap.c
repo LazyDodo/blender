@@ -104,7 +104,6 @@
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_lightprobe.h"
-#include "BKE_sca.h"
 #include "BKE_speaker.h"
 #include "BKE_sound.h"
 #include "BKE_screen.h"
@@ -506,10 +505,6 @@ ATTR_NONNULL(1) static void libblock_remap_data(
 		}
 	}
 
-	if (old_id && GS(old_id->name) == ID_OB) {
-		BKE_sca_logic_links_remap(bmain, (Object *)old_id, (Object *)new_id);
-	}
-
 	/* XXX We may not want to always 'transfer' fakeuser from old to new id... Think for now it's desired behavior
 	 *     though, we can always add an option (flag) to control this later if needed. */
 	if (old_id && (old_id->flag & LIB_FAKEUSER)) {
@@ -785,7 +780,7 @@ void BKE_libblock_free_datablock(ID *id, const int UNUSED(flag))
 	const short type = GS(id->name);
 	switch (type) {
 		case ID_SCE:
-			BKE_scene_free((Scene *)id);
+			BKE_scene_free_ex((Scene *)id, false);
 			break;
 		case ID_LI:
 			BKE_library_free((Library *)id);
@@ -903,7 +898,7 @@ void BKE_id_free_ex(Main *bmain, void *idv, int flag, const bool use_flag_from_i
 
 	if (use_flag_from_idtag) {
 		if ((id->tag & LIB_TAG_NO_MAIN) != 0) {
-			flag |= LIB_ID_FREE_NO_MAIN;
+			flag |= LIB_ID_FREE_NO_MAIN | LIB_ID_FREE_NO_UI_USER | LIB_ID_FREE_NO_DEG_TAG;
 		}
 		else {
 			flag &= ~LIB_ID_FREE_NO_MAIN;

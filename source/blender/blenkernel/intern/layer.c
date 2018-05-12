@@ -26,6 +26,7 @@
 
 #include <string.h>
 
+#include "BLI_array.h"
 #include "BLI_listbase.h"
 #include "BLI_string.h"
 #include "BLI_string_utf8.h"
@@ -41,8 +42,7 @@
 #include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_workspace.h"
-
-#include "DEG_depsgraph.h"
+#include "BKE_object.h"
 
 #include "DNA_group_types.h"
 #include "DNA_ID.h"
@@ -52,6 +52,10 @@
 #include "DNA_scene_types.h"
 #include "DNA_windowmanager_types.h"
 #include "DNA_workspace_types.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_debug.h"
+#include "DEG_depsgraph_query.h"
 
 #include "DRW_engine.h"
 
@@ -65,22 +69,44 @@ static void layer_collection_objects_populate(ViewLayer *view_layer, LayerCollec
 static LayerCollection *layer_collection_add(ViewLayer *view_layer, LayerCollection *parent, SceneCollection *sc);
 static LayerCollection *find_layer_collection_by_scene_collection(LayerCollection *lc, const SceneCollection *sc);
 static IDProperty *collection_engine_settings_create(struct EngineSettingsCB_Type *ces_type, const bool populate);
-static IDProperty *collection_engine_get(IDProperty *root, const int type, const char *engine_name);
+static IDProperty *collection_engine_get(IDProperty *root, const char *engine_name);
 static void collection_engine_settings_init(IDProperty *root, const bool populate);
 static void layer_engine_settings_init(IDProperty *root, const bool populate);
 static void object_bases_iterator_next(BLI_Iterator *iter, const int flag);
 
 /* RenderLayer */
 
-/**
- * Returns the ViewLayer to be used for rendering
- * Most of the time BKE_view_layer_from_workspace_get should be used instead
- */
-ViewLayer *BKE_view_layer_from_scene_get(const Scene *scene)
+/* Returns the default view layer to view in workspaces if there is
+ * none linked to the workspace yet. */
+ViewLayer *BKE_view_layer_default_view(const Scene *scene)
 {
-	ViewLayer *view_layer = BLI_findlink(&scene->view_layers, scene->active_view_layer);
-	BLI_assert(view_layer);
-	return view_layer;
+	/* TODO: it makes more sense to have the Viewport layer as the default,
+	 * but this breaks view layer tests so change it later. */
+#if 0
+	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
+		if (!(view_layer->flag & VIEW_LAYER_RENDER)) {
+			return view_layer;
+		}
+	}
+
+	BLI_assert(scene->view_layers.first);
+	return scene->view_layers.first;
+#else
+	return BKE_view_layer_default_render(scene);
+#endif
+}
+
+/* Returns the default view layer to render if we need to render just one. */
+ViewLayer *BKE_view_layer_default_render(const Scene *scene)
+{
+	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
+		if (view_layer->flag & VIEW_LAYER_RENDER) {
+			return view_layer;
+		}
+	}
+
+	BLI_assert(scene->view_layers.first);
+	return scene->view_layers.first;
 }
 
 /**
@@ -88,12 +114,7 @@ ViewLayer *BKE_view_layer_from_scene_get(const Scene *scene)
  */
 ViewLayer *BKE_view_layer_from_workspace_get(const struct Scene *scene, const struct WorkSpace *workspace)
 {
-	if (BKE_workspace_use_scene_settings_get(workspace)) {
-		return BKE_view_layer_from_scene_get(scene);
-	}
-	else {
-		return BKE_workspace_view_layer_get(workspace, scene);
-	}
+	return BKE_workspace_view_layer_get(workspace, scene);
 }
 
 /**
@@ -102,7 +123,8 @@ ViewLayer *BKE_view_layer_from_workspace_get(const struct Scene *scene, const st
  */
 ViewLayer *BKE_view_layer_context_active_PLACEHOLDER(const Scene *scene)
 {
-	return BKE_view_layer_from_scene_get(scene);
+	BLI_assert(scene->view_layers.first);
+	return scene->view_layers.first;
 }
 
 static ViewLayer *view_layer_add(const char *name, SceneCollection *master_scene_collection)
@@ -111,12 +133,9 @@ static ViewLayer *view_layer_add(const char *name, SceneCollection *master_scene
 		name = DATA_("View Layer");
 	}
 
-	IDPropertyTemplate val = {0};
 	ViewLayer *view_layer = MEM_callocN(sizeof(ViewLayer), "View Layer");
 	view_layer->flag = VIEW_LAYER_RENDER | VIEW_LAYER_FREESTYLE;
 
-	view_layer->properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-	layer_engine_settings_init(view_layer->properties, false);
 	BLI_strncpy_utf8(view_layer->name, name, sizeof(view_layer->name));
 
 	/* Link the master collection by default. */
@@ -174,23 +193,12 @@ void BKE_view_layer_free_ex(ViewLayer *view_layer, const bool do_id_user)
 {
 	view_layer->basact = NULL;
 
-	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-		if (base->collection_properties) {
-			IDP_FreeProperty(base->collection_properties);
-			MEM_freeN(base->collection_properties);
-		}
-	}
 	BLI_freelistN(&view_layer->object_bases);
 
 	for (LayerCollection *lc = view_layer->layer_collections.first; lc; lc = lc->next) {
 		layer_collection_free(NULL, lc);
 	}
 	BLI_freelistN(&view_layer->layer_collections);
-
-	if (view_layer->properties) {
-		IDP_FreeProperty(view_layer->properties);
-		MEM_freeN(view_layer->properties);
-	}
 
 	if (view_layer->properties_evaluated) {
 		IDP_FreeProperty(view_layer->properties_evaluated);
@@ -360,15 +368,6 @@ static void layer_collection_sync_flags(
 {
 	layer_collection_dst->flag = layer_collection_src->flag;
 
-	if (layer_collection_dst->properties != NULL) {
-		IDP_FreeProperty(layer_collection_dst->properties);
-		MEM_SAFE_FREE(layer_collection_dst->properties);
-	}
-
-	if (layer_collection_src->properties != NULL) {
-		layer_collection_dst->properties = IDP_CopyProperty(layer_collection_src->properties);
-	}
-
 	layer_collections_sync_flags(&layer_collection_dst->layer_collections,
 	                             &layer_collection_src->layer_collections);
 }
@@ -470,8 +469,6 @@ void BKE_view_layer_copy_data(
         ViewLayer *view_layer_dst, ViewLayer *view_layer_src, SceneCollection *mc_dst, SceneCollection *mc_src,
         const int flag)
 {
-	IDPropertyTemplate val = {0};
-
 	if (view_layer_dst->id_properties != NULL) {
 		view_layer_dst->id_properties = IDP_CopyProperty_ex(view_layer_dst->id_properties, flag);
 	}
@@ -479,8 +476,6 @@ void BKE_view_layer_copy_data(
 
 	view_layer_dst->stats = NULL;
 	view_layer_dst->properties_evaluated = NULL;
-	view_layer_dst->properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-	IDP_MergeGroup_ex(view_layer_dst->properties, view_layer_src->properties, true, flag);
 
 	/* we start fresh with no overrides and no visibility flags set
 	 * instead of syncing both trees we simply unlink and relink the scene collection */
@@ -591,11 +586,6 @@ static void view_layer_object_base_unref(ViewLayer *view_layer, Base *base)
 			view_layer->basact = NULL;
 		}
 
-		if (base->collection_properties) {
-			IDP_FreeProperty(base->collection_properties);
-			MEM_freeN(base->collection_properties);
-		}
-
 		BLI_remlink(&view_layer->object_bases, base);
 		MEM_freeN(base);
 	}
@@ -616,9 +606,6 @@ static Base *object_base_add(ViewLayer *view_layer, Object *ob)
 		/* Do not bump user count, leave it for SceneCollections. */
 		base->object = ob;
 		BLI_addtail(&view_layer->object_bases, base);
-
-		IDPropertyTemplate val = {0};
-		base->collection_properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
 	}
 
 	base->refcount++;
@@ -645,17 +632,6 @@ static void layer_collection_objects_unpopulate(ViewLayer *view_layer, LayerColl
 static void layer_collection_free(ViewLayer *view_layer, LayerCollection *lc)
 {
 	layer_collection_objects_unpopulate(view_layer, lc);
-	BLI_freelistN(&lc->overrides);
-
-	if (lc->properties) {
-		IDP_FreeProperty(lc->properties);
-		MEM_freeN(lc->properties);
-	}
-
-	if (lc->properties_evaluated) {
-		IDP_FreeProperty(lc->properties_evaluated);
-		MEM_freeN(lc->properties_evaluated);
-	}
 
 	for (LayerCollection *nlc = lc->layer_collections.first; nlc; nlc = nlc->next) {
 		layer_collection_free(view_layer, nlc);
@@ -1262,14 +1238,10 @@ static void layer_collection_populate(ViewLayer *view_layer, LayerCollection *lc
 
 static LayerCollection *layer_collection_add(ViewLayer *view_layer, LayerCollection *parent, SceneCollection *sc)
 {
-	IDPropertyTemplate val = {0};
 	LayerCollection *lc = MEM_callocN(sizeof(LayerCollection), "Collection Base");
 
 	lc->scene_collection = sc;
 	lc->flag = COLLECTION_SELECTABLE | COLLECTION_VIEWPORT | COLLECTION_RENDER;
-
-	lc->properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-	collection_engine_settings_init(lc->properties, false);
 
 	if (parent != NULL) {
 		BLI_addtail(&parent->layer_collections, lc);
@@ -1436,7 +1408,7 @@ typedef struct EngineSettingsCB_Type {
 
 static void create_engine_settings_scene(IDProperty *root, EngineSettingsCB_Type *es_type)
 {
-	if (collection_engine_get(root, COLLECTION_MODE_NONE, es_type->name)) {
+	if (collection_engine_get(root, es_type->name)) {
 		return;
 	}
 
@@ -1454,46 +1426,16 @@ static void create_view_layer_engine_settings_scene(Scene *scene, EngineSettings
 	create_engine_settings_scene(scene->layer_properties, es_type);
 }
 
-static void create_layer_collection_engine_settings_collection(LayerCollection *lc, EngineSettingsCB_Type *es_type)
-{
-	if (BKE_layer_collection_engine_collection_get(lc, COLLECTION_MODE_NONE, es_type->name)) {
-		return;
-	}
-
-	IDProperty *props = collection_engine_settings_create(es_type, false);
-	IDP_AddToGroup(lc->properties, props);
-
-	for (LayerCollection *lcn = lc->layer_collections.first; lcn; lcn = lcn->next) {
-		create_layer_collection_engine_settings_collection(lcn, es_type);
-	}
-}
-
 static void create_layer_collection_engines_settings_scene(Scene *scene, EngineSettingsCB_Type *es_type)
 {
 	/* Populate the scene with the new settings. */
 	create_layer_collection_engine_settings_scene(scene, es_type);
-
-	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
-		for (LayerCollection *lc = view_layer->layer_collections.first; lc; lc = lc->next) {
-			create_layer_collection_engine_settings_collection(lc, es_type);
-		}
-	}
 }
 
 static void create_view_layer_engines_settings_scene(Scene *scene, EngineSettingsCB_Type *es_type)
 {
 	/* Populate the scene with the new settings. */
 	create_view_layer_engine_settings_scene(scene, es_type);
-}
-
-static void create_view_layer_engines_settings_layer(ViewLayer *view_layer, EngineSettingsCB_Type *es_type)
-{
-	if (BKE_view_layer_engine_layer_get(view_layer, COLLECTION_MODE_NONE, es_type->name)) {
-		return;
-	}
-
-	IDProperty *props = collection_engine_settings_create(es_type, false);
-	IDP_AddToGroup(view_layer->properties, props);
 }
 
 static EngineSettingsCB_Type *engine_settings_callback_register(const char *engine_name, EngineSettingsCB func, ListBase *lb)
@@ -1540,10 +1482,6 @@ void BKE_view_layer_engine_settings_callback_register(
 		/* Populate all of the collections of the scene with those settings. */
 		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 			create_view_layer_engines_settings_scene(scene, es_type);
-
-			for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
-				create_view_layer_engines_settings_layer(view_layer, es_type);
-			}
 		}
 	}
 }
@@ -1579,70 +1517,6 @@ static IDProperty *collection_engine_settings_create(EngineSettingsCB_Type *es_t
 	return props;
 }
 
-static void layer_collection_create_mode_settings_object(IDProperty *root, const bool populate)
-{
-	IDProperty *props;
-	IDPropertyTemplate val = {0};
-
-	props = IDP_New(IDP_GROUP, &val, "ObjectMode");
-	props->subtype = IDP_GROUP_SUB_MODE_OBJECT;
-
-	/* properties */
-	if (populate) {
-		OBJECT_collection_settings_create(props);
-	}
-
-	IDP_AddToGroup(root, props);
-}
-
-static void layer_collection_create_mode_settings_edit(IDProperty *root, const bool populate)
-{
-	IDProperty *props;
-	IDPropertyTemplate val = {0};
-
-	props = IDP_New(IDP_GROUP, &val, "EditMode");
-	props->subtype = IDP_GROUP_SUB_MODE_EDIT;
-
-	/* properties */
-	if (populate) {
-		EDIT_MESH_collection_settings_create(props);
-	}
-
-	IDP_AddToGroup(root, props);
-}
-
-static void layer_collection_create_mode_settings_paint_weight(IDProperty *root, const bool populate)
-{
-	IDProperty *props;
-	IDPropertyTemplate val = {0};
-
-	props = IDP_New(IDP_GROUP, &val, "WeightPaintMode");
-	props->subtype = IDP_GROUP_SUB_MODE_PAINT_WEIGHT;
-
-	/* properties */
-	if (populate) {
-		PAINT_WEIGHT_collection_settings_create(props);
-	}
-
-	IDP_AddToGroup(root, props);
-}
-
-static void layer_collection_create_mode_settings_paint_vertex(IDProperty *root, const bool populate)
-{
-	IDProperty *props;
-	IDPropertyTemplate val = {0};
-
-	props = IDP_New(IDP_GROUP, &val, "VertexPaintMode");
-	props->subtype = IDP_GROUP_SUB_MODE_PAINT_VERTEX;
-
-	/* properties */
-	if (populate) {
-		PAINT_VERTEX_collection_settings_create(props);
-	}
-
-	IDP_AddToGroup(root, props);
-}
-
 static void layer_collection_create_render_settings(IDProperty *root, const bool populate)
 {
 	EngineSettingsCB_Type *es_type;
@@ -1661,117 +1535,36 @@ static void view_layer_create_render_settings(IDProperty *root, const bool popul
 	}
 }
 
-static void collection_create_mode_settings(IDProperty *root, const bool populate)
-{
-	/* XXX TODO: put all those engines in the R_engines_settings_callbacks
-	 * and have IDP_AddToGroup outside the callbacks */
-	layer_collection_create_mode_settings_object(root, populate);
-	layer_collection_create_mode_settings_edit(root, populate);
-	layer_collection_create_mode_settings_paint_weight(root, populate);
-	layer_collection_create_mode_settings_paint_vertex(root, populate);
-}
-
-static void layer_create_mode_settings(IDProperty *root, const bool populate)
-{
-	TODO_LAYER; /* XXX like collection_create_mode_settings */
-	UNUSED_VARS(root, populate);
-}
-
-static int idproperty_group_subtype(const int mode_type)
-{
-	int idgroup_type;
-
-	switch (mode_type) {
-		case COLLECTION_MODE_OBJECT:
-			idgroup_type = IDP_GROUP_SUB_MODE_OBJECT;
-			break;
-		case COLLECTION_MODE_EDIT:
-			idgroup_type = IDP_GROUP_SUB_MODE_EDIT;
-			break;
-		case COLLECTION_MODE_PAINT_WEIGHT:
-			idgroup_type = IDP_GROUP_SUB_MODE_PAINT_WEIGHT;
-			break;
-		case COLLECTION_MODE_PAINT_VERTEX:
-			idgroup_type = IDP_GROUP_SUB_MODE_PAINT_VERTEX;
-			break;
-		default:
-		case COLLECTION_MODE_NONE:
-			return IDP_GROUP_SUB_ENGINE_RENDER;
-			break;
-	}
-
-	return idgroup_type;
-}
-
 /**
  * Return collection enginne settings for either Object s of LayerCollection s
  */
-static IDProperty *collection_engine_get(
-        IDProperty *root, const int type, const char *engine_name)
+static IDProperty *collection_engine_get(IDProperty *root, const char *engine_name)
 {
-	const int subtype = idproperty_group_subtype(type);
-
-	if (subtype == IDP_GROUP_SUB_ENGINE_RENDER) {
-		return IDP_GetPropertyFromGroup(root, engine_name);
-	}
-	else {
-		IDProperty *prop;
-		for (prop = root->data.group.first; prop; prop = prop->next) {
-			if (prop->subtype == subtype) {
-				return prop;
-			}
-		}
-	}
-
-	BLI_assert(false);
-	return NULL;
-}
-
-/**
- * Return collection engine settings from Object for specified engine of mode
- */
-IDProperty *BKE_layer_collection_engine_evaluated_get(Object *ob, const int type, const char *engine_name)
-{
-	return collection_engine_get(ob->base_collection_properties, type, engine_name);
-}
-/**
- * Return layer collection engine settings for specified engine
- */
-IDProperty *BKE_layer_collection_engine_collection_get(LayerCollection *lc, const int type, const char *engine_name)
-{
-	return collection_engine_get(lc->properties, type, engine_name);
+	return IDP_GetPropertyFromGroup(root, engine_name);
 }
 
 /**
  * Return layer collection engine settings for specified engine in the scene
  */
-IDProperty *BKE_layer_collection_engine_scene_get(Scene *scene, const int type, const char *engine_name)
+IDProperty *BKE_layer_collection_engine_scene_get(Scene *scene, const char *engine_name)
 {
-	return collection_engine_get(scene->collection_properties, type, engine_name);
+	return collection_engine_get(scene->collection_properties, engine_name);
 }
 
 /**
  * Return scene layer engine settings for specified engine in the scene
  */
-IDProperty *BKE_view_layer_engine_scene_get(Scene *scene, const int type, const char *engine_name)
+IDProperty *BKE_view_layer_engine_scene_get(Scene *scene, const char *engine_name)
 {
-	return collection_engine_get(scene->layer_properties, type, engine_name);
-}
-
-/**
- * Return scene layer engine settings for specified engine
- */
-IDProperty *BKE_view_layer_engine_layer_get(ViewLayer *view_layer, const int type, const char *engine_name)
-{
-	return collection_engine_get(view_layer->properties, type, engine_name);
+	return collection_engine_get(scene->layer_properties, engine_name);
 }
 
 /**
  * Return scene layer evaluated engine settings for specified engine
  */
-IDProperty *BKE_view_layer_engine_evaluated_get(ViewLayer *view_layer, const int type, const char *engine_name)
+IDProperty *BKE_view_layer_engine_evaluated_get(ViewLayer *view_layer, const char *engine_name)
 {
-	return collection_engine_get(view_layer->properties_evaluated, type, engine_name);
+	return collection_engine_get(view_layer->properties_evaluated, engine_name);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1865,9 +1658,6 @@ static void collection_engine_settings_init(IDProperty *root, const bool populat
 {
 	/* render engines */
 	layer_collection_create_render_settings(root, populate);
-
-	/* mode engines */
-	collection_create_mode_settings(root, populate);
 }
 
 /* get all the default settings defined in scene and merge them here */
@@ -1875,9 +1665,6 @@ static void layer_engine_settings_init(IDProperty *root, const bool populate)
 {
 	/* render engines */
 	view_layer_create_render_settings(root, populate);
-
-	/* mode engines */
-	layer_create_mode_settings(root, populate);
 }
 
 /**
@@ -1989,19 +1776,6 @@ void BKE_layer_collection_engine_settings_validate_scene(Scene *scene)
 }
 
 /**
- * Maker sure LayerCollection has all required collection settings.
- */
-void BKE_layer_collection_engine_settings_validate_collection(LayerCollection *lc)
-{
-	if (root_reference.layer_collection == NULL) {
-		engine_settings_validate_init();
-	}
-
-	BLI_assert(lc->properties != NULL);
-	IDP_MergeGroup(lc->properties, root_reference.layer_collection, false);
-}
-
-/**
  * Make sure Scene has all required collection settings.
  */
 void BKE_view_layer_engine_settings_validate_scene(Scene *scene)
@@ -2020,20 +1794,13 @@ void BKE_view_layer_engine_settings_validate_scene(Scene *scene)
 	}
 }
 
-/**
- * Make sure Scene has all required collection settings.
- */
-void BKE_view_layer_engine_settings_validate_layer(ViewLayer *view_layer)
-{
-	if (root_reference.view_layer == NULL) {
-		engine_settings_validate_init();
-	}
+/** \} */
 
-	IDP_MergeGroup(view_layer->properties, root_reference.view_layer, false);
-}
-
-/* ---------------------------------------------------------------------- */
 /* Iterators */
+
+/* -------------------------------------------------------------------- */
+/** \name Private Iterator Helpers
+ * \{ */
 
 static void object_bases_iterator_begin(BLI_Iterator *iter, void *data_in, const int flag)
 {
@@ -2090,67 +1857,96 @@ static void objects_iterator_next(BLI_Iterator *iter, const int flag)
 	}
 }
 
-void BKE_selected_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
+/* -------------------------------------------------------------------- */
+/** \name BKE_view_layer_selected_objects_iterator
+ * See: #FOREACH_SELECTED_OBJECT_BEGIN
+ * \{ */
+
+void BKE_view_layer_selected_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
 {
 	objects_iterator_begin(iter, data_in, BASE_SELECTED);
 }
 
-void BKE_selected_objects_iterator_next(BLI_Iterator *iter)
+void BKE_view_layer_selected_objects_iterator_next(BLI_Iterator *iter)
 {
 	objects_iterator_next(iter, BASE_SELECTED);
 }
 
-void BKE_selected_objects_iterator_end(BLI_Iterator *UNUSED(iter))
+void BKE_view_layer_selected_objects_iterator_end(BLI_Iterator *UNUSED(iter))
 {
 	/* do nothing */
 }
 
-void BKE_visible_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name BKE_view_layer_selected_objects_iterator
+ * \{ */
+
+void BKE_view_layer_visible_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
 {
 	objects_iterator_begin(iter, data_in, BASE_VISIBLED);
 }
 
-void BKE_visible_objects_iterator_next(BLI_Iterator *iter)
+void BKE_view_layer_visible_objects_iterator_next(BLI_Iterator *iter)
 {
 	objects_iterator_next(iter, BASE_VISIBLED);
 }
 
-void BKE_visible_objects_iterator_end(BLI_Iterator *UNUSED(iter))
+void BKE_view_layer_visible_objects_iterator_end(BLI_Iterator *UNUSED(iter))
 {
 	/* do nothing */
 }
 
-void BKE_selected_bases_iterator_begin(BLI_Iterator *iter, void *data_in)
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name BKE_view_layer_selected_bases_iterator
+ * \{ */
+
+void BKE_view_layer_selected_bases_iterator_begin(BLI_Iterator *iter, void *data_in)
 {
 	object_bases_iterator_begin(iter, data_in, BASE_SELECTED);
 }
 
-void BKE_selected_bases_iterator_next(BLI_Iterator *iter)
+void BKE_view_layer_selected_bases_iterator_next(BLI_Iterator *iter)
 {
 	object_bases_iterator_next(iter, BASE_SELECTED);
 }
 
-void BKE_selected_bases_iterator_end(BLI_Iterator *UNUSED(iter))
+void BKE_view_layer_selected_bases_iterator_end(BLI_Iterator *UNUSED(iter))
 {
 	/* do nothing */
 }
 
-void BKE_visible_bases_iterator_begin(BLI_Iterator *iter, void *data_in)
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name BKE_view_layer_visible_bases_iterator
+ * \{ */
+
+void BKE_view_layer_visible_bases_iterator_begin(BLI_Iterator *iter, void *data_in)
 {
 	object_bases_iterator_begin(iter, data_in, BASE_VISIBLED);
 }
 
-void BKE_visible_bases_iterator_next(BLI_Iterator *iter)
+void BKE_view_layer_visible_bases_iterator_next(BLI_Iterator *iter)
 {
 	object_bases_iterator_next(iter, BASE_VISIBLED);
 }
 
-void BKE_visible_bases_iterator_end(BLI_Iterator *UNUSED(iter))
+void BKE_view_layer_visible_bases_iterator_end(BLI_Iterator *UNUSED(iter))
 {
 	/* do nothing */
 }
 
-void BKE_renderable_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name BKE_view_layer_renderable_objects_iterator
+ * \{ */
+
+void BKE_view_layer_renderable_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
 {
 	struct ObjectsRenderableIteratorData *data = data_in;
 
@@ -2172,10 +1968,10 @@ void BKE_renderable_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
 	data->iter.set = NULL;
 
 	iter->data = data_in;
-	BKE_renderable_objects_iterator_next(iter);
+	BKE_view_layer_renderable_objects_iterator_next(iter);
 }
 
-void BKE_renderable_objects_iterator_next(BLI_Iterator *iter)
+void BKE_view_layer_renderable_objects_iterator_next(BLI_Iterator *iter)
 {
 	/* Set it early in case we need to exit and we are running from within a loop. */
 	iter->skip = true;
@@ -2221,7 +2017,7 @@ void BKE_renderable_objects_iterator_next(BLI_Iterator *iter)
 
 	/* Look for an object in the next set. */
 	while ((data->iter.set = data->iter.set->set)) {
-		ViewLayer *view_layer = BKE_view_layer_from_scene_get(data->iter.set);
+		ViewLayer *view_layer = BKE_view_layer_default_render(data->iter.set);
 		data->base_temp.next = view_layer->object_bases.first;
 		data->iter.base = &data->base_temp;
 		return;
@@ -2230,10 +2026,67 @@ void BKE_renderable_objects_iterator_next(BLI_Iterator *iter)
 	iter->valid = false;
 }
 
-void BKE_renderable_objects_iterator_end(BLI_Iterator *UNUSED(iter))
+void BKE_view_layer_renderable_objects_iterator_end(BLI_Iterator *UNUSED(iter))
 {
 	/* Do nothing - iter->data was static allocated, we can't free it. */
 }
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name BKE_view_layer_bases_in_mode_iterator
+ * \{ */
+
+void BKE_view_layer_bases_in_mode_iterator_begin(BLI_Iterator *iter, void *data_in)
+{
+	struct ObjectsInModeIteratorData *data = data_in;
+	Base *base = data->base_active;
+
+	/* when there are no objects */
+	if (base == NULL) {
+		iter->valid = false;
+		return;
+	}
+	iter->data = data_in;
+	iter->current = base;
+}
+
+void BKE_view_layer_bases_in_mode_iterator_next(BLI_Iterator *iter)
+{
+	struct ObjectsInModeIteratorData *data = iter->data;
+	Base *base = iter->current;
+
+	if (base == data->base_active) {
+		/* first step */
+		base = data->view_layer->object_bases.first;
+		if (base == data->base_active) {
+			base = base->next;
+		}
+	}
+	else {
+		base = base->next;
+	}
+
+	while (base) {
+		if ((base->flag & BASE_SELECTED) != 0 &&
+		    (base->object->type == data->base_active->object->type) &&
+		    (base != data->base_active) &&
+		    (base->object->mode & data->object_mode))
+		{
+			iter->current = base;
+			return;
+		}
+		base = base->next;
+	}
+	iter->valid = false;
+}
+
+void BKE_view_layer_bases_in_mode_iterator_end(BLI_Iterator *UNUSED(iter))
+{
+	/* do nothing */
+}
+
+/** \} */
 
 /* Evaluation  */
 
@@ -2257,19 +2110,23 @@ static void idproperty_reset(IDProperty **props, IDProperty *props_ref)
 	}
 }
 
-static void layer_eval_layer_collection_pre(ID *owner_id, ViewLayer *view_layer)
+static void layer_eval_layer_collection_pre(Depsgraph *depsgraph, ID *owner_id, ViewLayer *view_layer)
 {
-	DEG_debug_print_eval(__func__, view_layer->name, view_layer);
+	DEG_debug_print_eval(depsgraph, __func__, view_layer->name, view_layer);
 	Scene *scene = (GS(owner_id->name) == ID_SCE) ? (Scene *)owner_id : NULL;
 
 	for (Base *base = view_layer->object_bases.first; base != NULL; base = base->next) {
 		base->flag &= ~(BASE_VISIBLED | BASE_SELECTABLED);
-		idproperty_reset(&base->collection_properties, scene ? scene->collection_properties : NULL);
 	}
 
 	/* Sync properties from scene to scene layer. */
-	idproperty_reset(&view_layer->properties_evaluated, scene ? scene->layer_properties : NULL);
-	IDP_MergeGroup(view_layer->properties_evaluated, view_layer->properties, true);
+	if (scene) {
+		idproperty_reset(&view_layer->properties_evaluated, scene->layer_properties);
+		IDP_MergeGroup(view_layer->properties_evaluated, scene->collection_properties, true);
+	}
+	else {
+		idproperty_reset(&view_layer->properties_evaluated, NULL);
+	}
 
 	/* TODO(sergey): Is it always required? */
 	view_layer->flag |= VIEW_LAYER_ENGINE_DIRTY;
@@ -2285,13 +2142,13 @@ static const char *collection_type_lookup[] =
  * \note We can't use layer_collection->flag because of 3 level nesting (where parent is visible, but not grand-parent)
  * So layer_collection->flag_evaluated is expected to be up to date with layer_collection->flag.
  */
-static bool layer_collection_visible_get(const EvaluationContext *eval_ctx, LayerCollection *layer_collection)
+static bool layer_collection_visible_get(Depsgraph *depsgraph, LayerCollection *layer_collection)
 {
 	if (layer_collection->flag_evaluated & COLLECTION_DISABLED) {
 		return false;
 	}
 
-	if (eval_ctx->mode == DAG_EVAL_VIEWPORT) {
+	if (DEG_get_mode(depsgraph) == DAG_EVAL_VIEWPORT) {
 		return (layer_collection->flag_evaluated & COLLECTION_VIEWPORT) != 0;
 	}
 	else {
@@ -2299,28 +2156,27 @@ static bool layer_collection_visible_get(const EvaluationContext *eval_ctx, Laye
 	}
 }
 
-static void layer_eval_layer_collection(const EvaluationContext *eval_ctx,
+static void layer_eval_layer_collection(Depsgraph *depsgraph,
                                         LayerCollection *layer_collection,
                                         LayerCollection *parent_layer_collection)
 {
-	if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) {
-		/* TODO)sergey): Try to make it more generic and handled by depsgraph messaging. */
-		printf("%s on %s (%p) [%s], parent %s (%p) [%s]\n",
-		       __func__,
-		       layer_collection->scene_collection->name,
-		       layer_collection->scene_collection,
-		       collection_type_lookup[layer_collection->scene_collection->type],
-		       (parent_layer_collection != NULL) ? parent_layer_collection->scene_collection->name : "NONE",
-		       (parent_layer_collection != NULL) ? parent_layer_collection->scene_collection : NULL,
-		       (parent_layer_collection != NULL) ? collection_type_lookup[parent_layer_collection->scene_collection->type] : "");
-	}
+	DEG_debug_print_eval_parent_typed(
+	        depsgraph,
+	        __func__,
+	        layer_collection->scene_collection->name,
+	        layer_collection->scene_collection,
+	        collection_type_lookup[layer_collection->scene_collection->type],
+	        "parent",
+	        (parent_layer_collection != NULL) ? parent_layer_collection->scene_collection->name : "NONE",
+	        (parent_layer_collection != NULL) ? parent_layer_collection->scene_collection : NULL,
+	        (parent_layer_collection != NULL) ? collection_type_lookup[parent_layer_collection->scene_collection->type] : "");
 	BLI_assert(layer_collection != parent_layer_collection);
 
 	/* visibility */
 	layer_collection->flag_evaluated = layer_collection->flag;
 
 	if (parent_layer_collection != NULL) {
-		if (layer_collection_visible_get(eval_ctx, parent_layer_collection) == false) {
+		if (layer_collection_visible_get(depsgraph, parent_layer_collection) == false) {
 			layer_collection->flag_evaluated |= COLLECTION_DISABLED;
 		}
 
@@ -2331,25 +2187,13 @@ static void layer_eval_layer_collection(const EvaluationContext *eval_ctx,
 		}
 	}
 
-	const bool is_visible = layer_collection_visible_get(eval_ctx, layer_collection);
+	const bool is_visible = layer_collection_visible_get(depsgraph, layer_collection);
 	const bool is_selectable = is_visible && ((layer_collection->flag_evaluated & COLLECTION_SELECTABLE) != 0);
-
-	/* overrides */
-	if (is_visible) {
-		if (parent_layer_collection == NULL) {
-			idproperty_reset(&layer_collection->properties_evaluated, layer_collection->properties);
-		}
-		else {
-			idproperty_reset(&layer_collection->properties_evaluated, parent_layer_collection->properties_evaluated);
-			IDP_MergeGroup(layer_collection->properties_evaluated, layer_collection->properties, true);
-		}
-	}
 
 	for (LinkData *link = layer_collection->object_bases.first; link != NULL; link = link->next) {
 		Base *base = link->data;
 
 		if (is_visible) {
-			IDP_MergeGroup(base->collection_properties, layer_collection->properties_evaluated, true);
 			base->flag |= BASE_VISIBLED;
 		}
 
@@ -2359,9 +2203,9 @@ static void layer_eval_layer_collection(const EvaluationContext *eval_ctx,
 	}
 }
 
-static void layer_eval_layer_collection_post(ViewLayer *view_layer)
+static void layer_eval_layer_collection_post(Depsgraph *depsgraph, ViewLayer *view_layer)
 {
-	DEG_debug_print_eval(__func__, view_layer->name, view_layer);
+	DEG_debug_print_eval(depsgraph, __func__, view_layer->name, view_layer);
 	/* Create array of bases, for fast index-based lookup. */
 	const int num_object_bases = BLI_listbase_count(&view_layer->object_bases);
 	MEM_SAFE_FREE(view_layer->object_bases_array);
@@ -2378,7 +2222,7 @@ static void layer_eval_layer_collection_post(ViewLayer *view_layer)
 	}
 }
 
-static void layer_eval_collections_recurse(const EvaluationContext *eval_ctx,
+static void layer_eval_collections_recurse(Depsgraph *depsgraph,
                                            ListBase *layer_collections,
                                            LayerCollection *parent_layer_collection)
 {
@@ -2386,27 +2230,27 @@ static void layer_eval_collections_recurse(const EvaluationContext *eval_ctx,
 	     layer_collection != NULL;
 	     layer_collection = layer_collection->next)
 	{
-		layer_eval_layer_collection(eval_ctx,
+		layer_eval_layer_collection(depsgraph,
 		                            layer_collection,
 		                            parent_layer_collection);
-		layer_eval_collections_recurse(eval_ctx,
+		layer_eval_collections_recurse(depsgraph,
 		                               &layer_collection->layer_collections,
 		                               layer_collection);
 	}
 }
 
-void BKE_layer_eval_view_layer(const struct EvaluationContext *eval_ctx,
+void BKE_layer_eval_view_layer(struct Depsgraph *depsgraph,
                                struct ID *owner_id,
                                ViewLayer *view_layer)
 {
-	layer_eval_layer_collection_pre(owner_id, view_layer);
-	layer_eval_collections_recurse(eval_ctx,
+	layer_eval_layer_collection_pre(depsgraph, owner_id, view_layer);
+	layer_eval_collections_recurse(depsgraph,
 	                               &view_layer->layer_collections,
 	                               NULL);
-	layer_eval_layer_collection_post(view_layer);
+	layer_eval_layer_collection_post(depsgraph, view_layer);
 }
 
-void BKE_layer_eval_view_layer_indexed(const struct EvaluationContext *eval_ctx,
+void BKE_layer_eval_view_layer_indexed(struct Depsgraph *depsgraph,
                                        struct ID *owner_id,
                                        int view_layer_index)
 {
@@ -2415,7 +2259,7 @@ void BKE_layer_eval_view_layer_indexed(const struct EvaluationContext *eval_ctx,
 	Scene *scene = (Scene *)owner_id;
 	ViewLayer *view_layer = BLI_findlink(&scene->view_layers, view_layer_index);
 	BLI_assert(view_layer != NULL);
-	BKE_layer_eval_view_layer(eval_ctx, owner_id, view_layer);
+	BKE_layer_eval_view_layer(depsgraph, owner_id, view_layer);
 }
 
 /**

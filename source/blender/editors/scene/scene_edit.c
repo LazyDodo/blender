@@ -117,7 +117,7 @@ bool ED_scene_delete(bContext *C, Main *bmain, wmWindow *win, Scene *scene)
 static ViewLayer *scene_change_get_new_view_layer(const WorkSpace *workspace, const Scene *scene_new)
 {
 	ViewLayer *layer_new = BKE_workspace_view_layer_get(workspace, scene_new);
-	return layer_new ? layer_new : BKE_view_layer_from_scene_get(scene_new);
+	return layer_new ? layer_new : BKE_view_layer_default_view(scene_new);
 }
 
 void ED_scene_change_update(
@@ -132,8 +132,6 @@ void ED_scene_change_update(
 
 #if 0
 	/* mode syncing */
-	EvaluationContext eval_ctx_old;
-	CTX_data_eval_ctx(C, &eval_ctx_old);
 	eObjectMode object_mode_old = workspace->object_mode;
 	ViewLayer *layer_old = BKE_view_layer_from_workspace_get(scene_old, workspace);
 	Object *obact_old = OBACT(layer_old);
@@ -149,7 +147,7 @@ void ED_scene_change_update(
 
 	ED_screen_update_after_scene_change(screen, scene_new, layer_new);
 	ED_render_engine_changed(bmain);
-	ED_update_for_newframe(bmain, scene_new, layer_new, depsgraph);
+	ED_update_for_newframe(bmain, depsgraph);
 
 	/* complete redraw */
 	WM_event_add_notifier(C, NC_WINDOW, NULL);
@@ -202,7 +200,6 @@ bool ED_scene_view_layer_delete(
 
 	BLI_remlink(&scene->view_layers, layer);
 	BLI_assert(BLI_listbase_is_empty(&scene->view_layers) == false);
-	scene->active_view_layer = 0;
 
 	ED_workspace_view_layer_unset(bmain, scene, layer, scene->view_layers.first);
 	BKE_workspace_view_layer_remove_references(bmain, layer);

@@ -21,9 +21,8 @@ else()
 	message(FATAL_ERROR "Unknown build environment")
 endif()
 
-# Default to only build Blender, not the player
+# Default to only build Blender
 set(WITH_BLENDER             ON  CACHE BOOL "" FORCE)
-set(WITH_PLAYER              OFF CACHE BOOL "" FORCE)
 
 # ######## Linux-specific build options ########
 # Options which are specific to Linux-only platforms
@@ -140,6 +139,10 @@ set(ZLIB_LIBRARY        "/usr/lib${MULTILIB}/libz.a"     CACHE STRING "" FORCE)
 # OpenVDB
 set(OPENVDB_LIBRARY
 	/opt/lib/openvdb/lib/libopenvdb.a
+	CACHE BOOL "" FORCE
+)
+
+set(BLOSC_LIBRARY
 	/opt/lib/blosc/lib/libblosc.a
 	CACHE BOOL "" FORCE
 )

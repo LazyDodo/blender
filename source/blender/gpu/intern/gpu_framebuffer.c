@@ -87,7 +87,7 @@ static GLenum convert_attachment_type_to_gl(GPUAttachmentType type)
 		[GPU_FB_COLOR_ATTACHMENT2] = GL_COLOR_ATTACHMENT2,
 		[GPU_FB_COLOR_ATTACHMENT3] = GL_COLOR_ATTACHMENT3,
 		[GPU_FB_COLOR_ATTACHMENT4] = GL_COLOR_ATTACHMENT4
-		};
+	};
 	return table[type];
 }
 
@@ -210,8 +210,8 @@ static void gpu_framebuffer_texture_attach_ex(GPUFrameBuffer *fb, GPUTexture *te
 	GPUAttachment *attachment = &fb->attachments[type];
 
 	if ((attachment->tex == tex) &&
-		(attachment->mip == mip) &&
-		(attachment->layer == layer))
+	    (attachment->mip == mip) &&
+	    (attachment->layer == layer))
 	{
 		return; /* Exact same texture already bound here. */
 	}
@@ -543,7 +543,7 @@ void GPU_framebuffer_blit(
 		BLI_assert(GPU_texture_format(read_tex) == GPU_texture_format(write_tex));
 	}
 	if (GPU_texture_samples(write_tex) != 0 ||
-		GPU_texture_samples(read_tex) != 0)
+	    GPU_texture_samples(read_tex) != 0)
 	{
 		/* Can only blit multisample textures to another texture of the same size. */
 		BLI_assert((fb_read->width == fb_write->width) &&
@@ -657,18 +657,20 @@ GPUOffScreen *GPU_offscreen_create(int width, int height, int samples, bool dept
 
 	ofs = MEM_callocN(sizeof(GPUOffScreen), "GPUOffScreen");
 
-	ofs->color = GPU_texture_create_2D_custom_multisample(width, height, 4,
+	ofs->color = GPU_texture_create_2D_multisample(width, height,
 	        (high_bitdepth) ? GPU_RGBA16F : GPU_RGBA8, NULL, samples, err_out);
 
 	if (depth) {
-		ofs->depth = GPU_texture_create_depth_with_stencil_multisample(width, height, samples, err_out);
+		ofs->depth = GPU_texture_create_2D_multisample(width, height, GPU_DEPTH24_STENCIL8, NULL, samples, err_out);
 	}
 
-	if (!ofs->depth || !ofs->color) {
+	if ((depth && !ofs->depth) || !ofs->color) {
 		GPU_offscreen_free(ofs);
 		return NULL;
 	}
-	
+
+	gpuPushAttrib(GPU_VIEWPORT_BIT);
+
 	GPU_framebuffer_ensure_config(&ofs->fb, {
 		GPU_ATTACHMENT_TEXTURE(ofs->depth),
 		GPU_ATTACHMENT_TEXTURE(ofs->color)
@@ -677,10 +679,13 @@ GPUOffScreen *GPU_offscreen_create(int width, int height, int samples, bool dept
 	/* check validity at the very end! */
 	if (!GPU_framebuffer_check_valid(ofs->fb, err_out)) {
 		GPU_offscreen_free(ofs);
+		gpuPopAttrib();
 		return NULL;		
 	}
 
 	GPU_framebuffer_restore();
+
+	gpuPopAttrib();
 
 	return ofs;
 }
@@ -712,6 +717,24 @@ void GPU_offscreen_unbind(GPUOffScreen *UNUSED(ofs), bool restore)
 	if (restore) {
 		gpuPopAttrib();
 	}
+}
+
+void GPU_offscreen_draw_to_screen(GPUOffScreen *ofs, int x, int y)
+{
+	const int w = GPU_texture_width(ofs->color);
+	const int h = GPU_texture_height(ofs->color);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, ofs->fb->object);
+	GLenum status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+
+	if (status == GL_FRAMEBUFFER_COMPLETE) {
+		glBlitFramebuffer(0, 0, w, h, x, y, x + w, y + h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	}
+	else {
+		gpu_print_framebuffer_error(status, NULL);
+	}
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
 
 void GPU_offscreen_read_pixels(GPUOffScreen *ofs, int type, void *pixels)

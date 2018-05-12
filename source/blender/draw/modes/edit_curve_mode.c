@@ -27,6 +27,9 @@
 #include "DRW_render.h"
 
 #include "DNA_curve_types.h"
+#include "DNA_view3d_types.h"
+
+#include "BKE_object.h"
 
 /* If builtin shaders are needed */
 #include "GPU_shader.h"
@@ -142,8 +145,8 @@ static void EDIT_CURVE_engine_init(void *vedata)
 
 	/* Init Framebuffers like this: order is attachment order (for color texs) */
 	/*
-	 * DRWFboTexture tex[2] = {{&txl->depth, DRW_TEX_DEPTH_24, 0},
-	 *                         {&txl->color, DRW_TEX_RGBA_8, DRW_TEX_FILTER}};
+	 * DRWFboTexture tex[2] = {{&txl->depth, GPU_DEPTH_COMPONENT24, 0},
+	 *                         {&txl->color, GPU_RGBA8, DRW_TEX_FILTER}};
 	 */
 
 	/* DRW_framebuffer_init takes care of checking if
@@ -228,12 +231,17 @@ static void EDIT_CURVE_cache_populate(void *vedata, Object *ob)
 	EDIT_CURVE_PassList *psl = ((EDIT_CURVE_Data *)vedata)->psl;
 	EDIT_CURVE_StorageList *stl = ((EDIT_CURVE_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	const Scene *scene = draw_ctx->scene;
+	View3D *v3d = draw_ctx->v3d;
 
 	UNUSED_VARS(psl, stl);
 
 	if (ob->type == OB_CURVE) {
-		if (ob == draw_ctx->object_edit) {
+#if 0
+		if (ob == draw_ctx->object_edit)
+#else
+		if ((ob == draw_ctx->object_edit) || BKE_object_is_in_editmode_and_selected(ob))
+#endif
+		{
 			Curve *cu = ob->data;
 			/* Get geometry cache */
 			struct Gwn_Batch *geom;
@@ -242,7 +250,7 @@ static void EDIT_CURVE_cache_populate(void *vedata, Object *ob)
 			DRW_shgroup_call_add(stl->g_data->wire_shgrp, geom, ob->obmat);
 
 			if ((cu->flag & CU_3D) && (cu->drawflag & CU_HIDE_NORMALS) == 0) {
-				geom = DRW_cache_curve_edge_normal_get(ob, scene->toolsettings->normalsize);
+				geom = DRW_cache_curve_edge_normal_get(ob, v3d->overlay.normals_length);
 				DRW_shgroup_call_add(stl->g_data->wire_shgrp, geom, ob->obmat);
 			}
 
@@ -278,9 +286,9 @@ static void EDIT_CURVE_draw_scene(void *vedata)
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
-	UNUSED_VARS(fbl, dtxl);
+	UNUSED_VARS(fbl);
 
-	MULTISAMPLE_SYNC_ENABLE(dfbl)
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
 
 	/* Show / hide entire passes, swap framebuffers ... whatever you fancy */
 	/*
@@ -296,7 +304,7 @@ static void EDIT_CURVE_draw_scene(void *vedata)
 	DRW_draw_pass(psl->overlay_edge_pass);
 	DRW_draw_pass(psl->overlay_vert_pass);
 
-	MULTISAMPLE_SYNC_DISABLE(dfbl)
+	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 
 	/* If you changed framebuffer, double check you rebind
 	 * the default one with its textures attached before finishing */

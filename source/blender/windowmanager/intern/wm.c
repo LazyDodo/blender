@@ -506,7 +506,6 @@ void wm_add_default(Main *bmain, bContext *C)
 	WM_window_set_active_workspace(win, workspace);
 	WM_window_set_active_layout(win, workspace, layout);
 	screen->winid = win->winid;
-	ED_screen_global_areas_create(C, win);
 
 	wm->winactive = win;
 	wm->file_saved = 1;
@@ -526,7 +525,6 @@ void wm_close_and_free(bContext *C, wmWindowManager *wm)
 
 	while ((win = BLI_pophead(&wm->windows))) {
 		WM_window_set_active_workspace(win, NULL); /* prevent draw clear to use screen */
-		wm_draw_window_clear(win);
 		wm_window_free(C, wm, win);
 	}
 	

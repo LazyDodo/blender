@@ -68,7 +68,7 @@
 
 /* ******************** default callbacks for file space ***************** */
 
-static SpaceLink *file_new(const bContext *UNUSED(C))
+static SpaceLink *file_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceFile *sfile;
@@ -646,7 +646,7 @@ static void file_tools_region_listener(
 #if 0
 	/* context changes */
 	switch (wmn->category) {
-		
+		/* pass */
 	}
 #endif
 }

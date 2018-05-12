@@ -3509,6 +3509,68 @@ static PyObject *pyrna_struct_is_property_readonly(BPy_StructRNA *self, PyObject
 	return PyBool_FromLong(!RNA_property_editable(&self->ptr, prop));
 }
 
+
+PyDoc_STRVAR(pyrna_struct_is_property_overridable_static_doc,
+".. method:: is_property_overridable_static(property)\n"
+"\n"
+"   Check if a property is statically overridable.\n"
+"\n"
+"   :return: True when the property is statically overridable.\n"
+"   :rtype: boolean\n"
+);
+static PyObject *pyrna_struct_is_property_overridable_static(BPy_StructRNA *self, PyObject *args)
+{
+	PropertyRNA *prop;
+	const char *name;
+
+	PYRNA_STRUCT_CHECK_OBJ(self);
+
+	if (!PyArg_ParseTuple(args, "s:is_property_overridable_static", &name)) {
+		return NULL;
+	}
+
+	if ((prop = RNA_struct_find_property(&self->ptr, name)) == NULL) {
+		PyErr_Format(PyExc_TypeError,
+		             "%.200s.is_property_overridable_static(\"%.200s\") not found",
+		             RNA_struct_identifier(self->ptr.type), name);
+		return NULL;
+	}
+
+	return PyBool_FromLong((long)RNA_property_overridable_get(&self->ptr, prop));
+}
+
+PyDoc_STRVAR(pyrna_struct_property_overridable_static_set_doc,
+".. method:: property_overridable_static_set(property)\n"
+"\n"
+"   Define a property as statically overridable or not (only for custom properties!).\n"
+"\n"
+"   :return: True when the overridable status of the property was successfully set.\n"
+"   :rtype: boolean\n"
+);
+static PyObject *pyrna_struct_property_overridable_static_set(BPy_StructRNA *self, PyObject *args)
+{
+	PropertyRNA *prop;
+	const char *name;
+	int is_overridable;
+
+	PYRNA_STRUCT_CHECK_OBJ(self);
+
+	if (!PyArg_ParseTuple(args, "sp:property_overridable_static_set", &name, &is_overridable)) {
+		return NULL;
+	}
+
+	if ((prop = RNA_struct_find_property(&self->ptr, name)) == NULL) {
+		PyErr_Format(PyExc_TypeError,
+		             "%.200s.property_overridable_static_set(\"%.200s\") not found",
+		             RNA_struct_identifier(self->ptr.type), name);
+		return NULL;
+	}
+
+	return PyBool_FromLong((long)RNA_property_overridable_static_set(&self->ptr, prop, (bool)is_overridable));
+}
+
+
+
 PyDoc_STRVAR(pyrna_struct_path_resolve_doc,
 ".. method:: path_resolve(path, coerce=True)\n"
 "\n"
@@ -4652,6 +4714,56 @@ static PyObject *pyrna_struct_get(BPy_StructRNA *self, PyObject *args)
 	return Py_INCREF_RET(def);
 }
 
+PyDoc_STRVAR(pyrna_struct_pop_doc,
+".. method:: pop(key, default=None)\n"
+"\n"
+"   Remove and return the value of the custom property assigned to key or default\n"
+"   when not found (matches pythons dictionary function of the same name).\n"
+"\n"
+"   :arg key: The key associated with the custom property.\n"
+"   :type key: string\n"
+"   :arg default: Optional argument for the value to return if\n"
+"      *key* is not found.\n"
+"   :type default: Undefined\n"
+"\n"
+BPY_DOC_ID_PROP_TYPE_NOTE
+);
+static PyObject *pyrna_struct_pop(BPy_StructRNA *self, PyObject *args)
+{
+	IDProperty *group, *idprop;
+
+	const char *key;
+	PyObject *def = NULL;
+
+	PYRNA_STRUCT_CHECK_OBJ(self);
+
+	if (!PyArg_ParseTuple(args, "s|O:get", &key, &def))
+		return NULL;
+
+	/* mostly copied from BPy_IDGroup_Map_GetItem */
+	if (RNA_struct_idprops_check(self->ptr.type) == 0) {
+		PyErr_SetString(PyExc_TypeError, "this type doesn't support IDProperties");
+		return NULL;
+	}
+
+	group = RNA_struct_idprops(&self->ptr, 0);
+	if (group) {
+		idprop = IDP_GetPropertyFromGroup(group, key);
+
+		if (idprop) {
+			PyObject *ret = BPy_IDGroup_WrapData(self->ptr.id.data, idprop, group);
+			IDP_RemoveFromGroup(group, idprop);
+			return ret;
+		}
+	}
+
+	if (def == NULL) {
+		PyErr_SetString(PyExc_KeyError, "key not found");
+		return NULL;
+	}
+	return Py_INCREF_RET(def);
+}
+
 PyDoc_STRVAR(pyrna_struct_as_pointer_doc,
 ".. method:: as_pointer()\n"
 "\n"
@@ -5109,6 +5221,7 @@ static struct PyMethodDef pyrna_struct_methods[] = {
 	{"items", (PyCFunction)pyrna_struct_items, METH_NOARGS, pyrna_struct_items_doc},
 
 	{"get", (PyCFunction)pyrna_struct_get, METH_VARARGS, pyrna_struct_get_doc},
+	{"pop", (PyCFunction)pyrna_struct_pop, METH_VARARGS, pyrna_struct_pop_doc},
 
 	{"as_pointer", (PyCFunction)pyrna_struct_as_pointer, METH_NOARGS, pyrna_struct_as_pointer_doc},
 
@@ -5122,6 +5235,8 @@ static struct PyMethodDef pyrna_struct_methods[] = {
 	{"property_unset", (PyCFunction)pyrna_struct_property_unset, METH_VARARGS, pyrna_struct_property_unset_doc},
 	{"is_property_hidden", (PyCFunction)pyrna_struct_is_property_hidden, METH_VARARGS, pyrna_struct_is_property_hidden_doc},
 	{"is_property_readonly", (PyCFunction)pyrna_struct_is_property_readonly, METH_VARARGS, pyrna_struct_is_property_readonly_doc},
+	{"is_property_overridable_static", (PyCFunction)pyrna_struct_is_property_overridable_static, METH_VARARGS, pyrna_struct_is_property_overridable_static_doc},
+	{"property_overridable_static_set", (PyCFunction)pyrna_struct_property_overridable_static_set, METH_VARARGS, pyrna_struct_property_overridable_static_set_doc},
 	{"path_resolve", (PyCFunction)pyrna_struct_path_resolve, METH_VARARGS, pyrna_struct_path_resolve_doc},
 	{"path_from_id", (PyCFunction)pyrna_struct_path_from_id, METH_VARARGS, pyrna_struct_path_from_id_doc},
 	{"type_recast", (PyCFunction)pyrna_struct_type_recast, METH_NOARGS, pyrna_struct_type_recast_doc},

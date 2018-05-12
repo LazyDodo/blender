@@ -32,6 +32,7 @@
 #include <string.h>
 
 #include "DNA_windowmanager_types.h"
+#include "DNA_workspace_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -126,8 +127,9 @@ static ARegion *clip_has_tools_region(ScrArea *sa)
 	}
 
 	/* tool region hide/unhide also hides props */
-	if (artool)
+	if (artool) {
 		return artool;
+	}
 
 	if (artool == NULL) {
 		/* add subdiv level; after header */

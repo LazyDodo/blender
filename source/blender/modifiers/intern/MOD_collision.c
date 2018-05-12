@@ -69,7 +69,7 @@ static void freeData(ModifierData *md)
 {
 	CollisionModifierData *collmd = (CollisionModifierData *) md;
 	
-	if (collmd) {
+	if (collmd) {  /* Seriously? */
 		if (collmd->bvhtree) {
 			BLI_bvhtree_free(collmd->bvhtree);
 			collmd->bvhtree = NULL;
@@ -81,10 +81,7 @@ static void freeData(ModifierData *md)
 		MEM_SAFE_FREE(collmd->current_xnew);
 		MEM_SAFE_FREE(collmd->current_v);
 
-		if (collmd->tri) {
-			MEM_freeN((void *)collmd->tri);
-			collmd->tri = NULL;
-		}
+		MEM_SAFE_FREE(collmd->tri);
 
 		collmd->time_x = collmd->time_xnew = -1000;
 		collmd->mvert_num = 0;
@@ -98,15 +95,16 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
 	return true;
 }
 
-static void deformVerts(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx),
-                        Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3],
-                        int UNUSED(numVerts),
-                        ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *derivedData,
+        float (*vertexCos)[3],
+        int UNUSED(numVerts))
 {
 	CollisionModifierData *collmd = (CollisionModifierData *) md;
 	DerivedMesh *dm = NULL;
 	MVert *tempVert = NULL;
+	Object *ob = ctx->object;
 	
 	/* if possible use/create DerivedMesh */
 	if (derivedData) dm = CDDM_copy(derivedData);
@@ -254,12 +252,21 @@ ModifierTypeInfo modifierType_Collision = {
 	                        eModifierTypeFlag_Single,
 
 	/* copyData */          NULL,
-	/* deformVerts */       deformVerts,
+
+	/* deformVerts_DM */    deformVerts,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,

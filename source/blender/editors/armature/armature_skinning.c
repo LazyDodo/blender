@@ -60,10 +60,6 @@
 #include "armature_intern.h"
 #include "meshlaplacian.h"
 
-#if 0
-#include "reeb.h"
-#endif
-
 /* ********************************** Bone Skinning *********************************************** */
 
 static int bone_skinnable_cb(Object *UNUSED(ob), Bone *bone, void *datap)
@@ -251,7 +247,7 @@ static void envelope_bone_weighting(
 }
 
 static void add_verts_to_dgroups(
-        ReportList *reports, const EvaluationContext *eval_ctx, Scene *scene, Object *ob, Object *par,
+        ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *par,
         int heat, const bool mirror)
 {
 	/* This functions implements the automatic computation of vertex group
@@ -377,7 +373,7 @@ static void add_verts_to_dgroups(
 
 	if (wpmode) {
 		/* if in weight paint mode, use final verts from derivedmesh */
-		DerivedMesh *dm = mesh_get_derived_final(eval_ctx, scene, ob, CD_MASK_BAREMESH);
+		DerivedMesh *dm = mesh_get_derived_final(depsgraph, scene, ob, CD_MASK_BAREMESH);
 		
 		if (dm->foreachMappedVert) {
 			mesh_get_mapped_verts_coords(dm, verts, mesh->totvert);
@@ -431,8 +427,8 @@ static void add_verts_to_dgroups(
 	MEM_freeN(verts);
 }
 
-void create_vgroups_from_armature(
-        ReportList *reports, const EvaluationContext *eval_ctx, Scene *scene, Object *ob, Object *par,
+void ED_object_vgroup_calc_from_armature(
+        ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *par,
         const int mode, const bool mirror)
 {
 	/* Lets try to create some vertex groups 
@@ -459,6 +455,6 @@ void create_vgroups_from_armature(
 		 * that are populated with the vertices for which the
 		 * bone is closest.
 		 */
-		add_verts_to_dgroups(reports, eval_ctx, scene, ob, par, (mode == ARM_GROUPS_AUTO), mirror);
+		add_verts_to_dgroups(reports, depsgraph, scene, ob, par, (mode == ARM_GROUPS_AUTO), mirror);
 	}
 }

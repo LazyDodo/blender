@@ -36,6 +36,7 @@
 #include "CLG_log.h"
 
 #include "DNA_scene_types.h"
+#include "DNA_object_types.h"
 
 #include "BLI_utildefines.h"
 
@@ -46,6 +47,7 @@
 #include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_screen.h"
+#include "BKE_layer.h"
 #include "BKE_undo_system.h"
 
 #include "ED_gpencil.h"
@@ -344,9 +346,9 @@ int ED_undo_operator_repeat(bContext *C, wmOperator *op)
 	if (op) {
 		CLOG_INFO(&LOG, 1, "idname='%s'", op->type->idname);
 		wmWindowManager *wm = CTX_wm_manager(C);
-		struct Scene *cur_scene = CTX_data_scene(C);
-		const OperatorRepeatContextHandle *context_info;
+		struct Scene *scene = CTX_data_scene(C);
 
+		const OperatorRepeatContextHandle *context_info;
 		context_info = ED_operator_repeat_prepare_context(C, op);
 
 		if ((WM_operator_repeat_check(C, op)) &&
@@ -356,11 +358,9 @@ int ED_undo_operator_repeat(bContext *C, wmOperator *op)
 		      * (which copy their data), wont stop redo, see [#29579]],
 		      *
 		      * note, - WM_operator_check_ui_enabled() jobs test _must_ stay in sync with this */
-		    (WM_jobs_test(wm, cur_scene, WM_JOB_TYPE_ANY) == 0))
+		    (WM_jobs_test(wm, scene, WM_JOB_TYPE_ANY) == 0))
 		{
 			int retval;
-
-			ED_viewport_render_kill_jobs(wm, CTX_data_main(C), true);
 
 			if (G.debug & G_DEBUG)
 				printf("redo_cb: operator redo %s\n", op->type->name);
@@ -517,6 +517,27 @@ void ED_OT_undo_history(wmOperatorType *ot)
 
 	RNA_def_int(ot->srna, "item", 0, 0, INT_MAX, "Item", "", 0, INT_MAX);
 
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Undo Helper Functions
+ * \{ */
+
+void ED_undo_object_set_active_or_warn(ViewLayer *view_layer, Object *ob, const char *info, CLG_LogRef *log)
+{
+	Object *ob_prev = OBACT(view_layer);
+	if (ob_prev != ob) {
+		Base *base = BKE_view_layer_base_find(view_layer, ob);
+		if (base != NULL) {
+			view_layer->basact = base;
+		}
+		else {
+			/* Should never fail, may not crash but can give odd behavior. */
+			CLOG_WARN(log, "'%s' failed to restore active object: '%s'", info, ob->id.name + 2);
+		}
+	}
 }
 
 /** \} */

@@ -55,19 +55,16 @@ static void initData(ModifierData *md)
 	mcmd->read_flag = MOD_MESHSEQ_READ_ALL;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 #if 0
-	MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *)md;
+	const MeshSeqCacheModifierData *mcmd = (const MeshSeqCacheModifierData *)md;
 #endif
 	MeshSeqCacheModifierData *tmcmd = (MeshSeqCacheModifierData *)target;
 
 	modifier_copyData_generic(md, target);
 
-	if (tmcmd->cache_file) {
-		id_us_plus(&tmcmd->cache_file->id);
-		tmcmd->reader = NULL;
-	}
+	tmcmd->reader = NULL;
 }
 
 static void freeData(ModifierData *md)
@@ -90,15 +87,15 @@ static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 	return (mcmd->cache_file == NULL) || (mcmd->object_path[0] == '\0');
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx),
-                                  Object *ob, DerivedMesh *dm,
-                                  ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 #ifdef WITH_ALEMBIC
 	MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *) md;
 
 	/* Only used to check whether we are operating on org data or not... */
-	Mesh *me = (ob->type == OB_MESH) ? ob->data : NULL;
+	Mesh *me = (ctx->object->type == OB_MESH) ? ctx->object->data : NULL;
 	DerivedMesh *org_dm = dm;
 
 	Scene *scene = md->scene;
@@ -113,7 +110,7 @@ static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationConte
 	if (!mcmd->reader) {
 		mcmd->reader = CacheReader_open_alembic_object(cache_file->handle,
 		                                               NULL,
-		                                               ob,
+		                                               ctx->object,
 		                                               mcmd->object_path);
 		if (!mcmd->reader) {
 			modifier_setError(md, "Could not create Alembic reader for file %s", cache_file->filepath);
@@ -132,7 +129,7 @@ static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationConte
 	}
 
 	DerivedMesh *result = ABC_read_mesh(mcmd->reader,
-	                                    ob,
+	                                    ctx->object,
 	                                    dm,
 	                                    time,
 	                                    &err_str,
@@ -150,7 +147,7 @@ static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationConte
 	return result ? result : dm;
 #else
 	return dm;
-	UNUSED_VARS(md, ob);
+	UNUSED_VARS(ctx, md);
 #endif
 }
 
@@ -160,8 +157,9 @@ static bool dependsOnTime(ModifierData *md)
 	return true;
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *) md;
 
@@ -179,27 +177,37 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 ModifierTypeInfo modifierType_MeshSequenceCache = {
-    /* name */              "Mesh Sequence Cache",
-    /* structName */        "MeshSeqCacheModifierData",
-    /* structSize */        sizeof(MeshSeqCacheModifierData),
-    /* type */              eModifierTypeType_Constructive,
-    /* flags */             eModifierTypeFlag_AcceptsMesh |
-                            eModifierTypeFlag_AcceptsCVs,
-    /* copyData */          copyData,
-    /* deformVerts */       NULL,
-    /* deformMatrices */    NULL,
-    /* deformVertsEM */     NULL,
-    /* deformMatricesEM */  NULL,
-    /* applyModifier */     applyModifier,
-    /* applyModifierEM */   NULL,
-    /* initData */          initData,
-    /* requiredDataMask */  NULL,
-    /* freeData */          freeData,
-    /* isDisabled */        isDisabled,
-    /* updateDepsgraph */   updateDepsgraph,
-    /* dependsOnTime */     dependsOnTime,
-    /* dependsOnNormals */  NULL,
-    /* foreachObjectLink */ NULL,
-    /* foreachIDLink */     foreachIDLink,
-    /* foreachTexLink */    NULL,
+	/* name */              "Mesh Sequence Cache",
+	/* structName */        "MeshSeqCacheModifierData",
+	/* structSize */        sizeof(MeshSeqCacheModifierData),
+	/* type */              eModifierTypeType_Constructive,
+	/* flags */             eModifierTypeFlag_AcceptsMesh |
+	                        eModifierTypeFlag_AcceptsCVs,
+
+	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
+	/* deformMatrices */    NULL,
+	/* deformVertsEM */     NULL,
+	/* deformMatricesEM */  NULL,
+	/* applyModifier */     NULL,
+	/* applyModifierEM */   NULL,
+
+	/* initData */          initData,
+	/* requiredDataMask */  NULL,
+	/* freeData */          freeData,
+	/* isDisabled */        isDisabled,
+	/* updateDepsgraph */   updateDepsgraph,
+	/* dependsOnTime */     dependsOnTime,
+	/* dependsOnNormals */  NULL,
+	/* foreachObjectLink */ NULL,
+	/* foreachIDLink */     foreachIDLink,
+	/* foreachTexLink */    NULL,
 };
