@@ -27,7 +27,6 @@
  *  \ingroup draw
  */
 
-
 #include "BLI_polyfill_2d.h"
 #include "BLI_math_color.h"
 
@@ -50,7 +49,7 @@
 
 #include "gpencil_engine.h"
 
-/* set stroke point to vbo */
+/* Helper to add stroke point to vbo */
 static void gpencil_set_stroke_point(
         Gwn_VertBuf *vbo, float matrix[4][4], const bGPDspoint *pt, int idx,
         uint pos_id, uint color_id,
@@ -76,6 +75,16 @@ static void gpencil_set_stroke_point(
 	GWN_vertbuf_attr_set(vbo, thickness_id, idx, &thick);
 	
 	GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
+}
+
+/* Helper to add a new fill point and texture coordinates to vertex buffer */
+static void gpencil_set_fill_point(
+	Gwn_VertBuf *vbo, int idx, bGPDspoint *pt, const float fcolor[4], float uv[2],
+	uint pos_id, uint color_id, uint text_id)
+{
+	GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
+	GWN_vertbuf_attr_set(vbo, color_id, idx, fcolor);
+	GWN_vertbuf_attr_set(vbo, text_id, idx, uv);
 }
 
 /* create batch geometry data for points stroke shader */
@@ -385,212 +394,6 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 	return GWN_batch_create_ex(GWN_PRIM_TRIS, vbo, NULL, GWN_BATCH_OWNS_VBO);
 }
 
-
-/* Helper for doing all the checks on whether a stroke can be drawn */
-bool gpencil_can_draw_stroke(struct MaterialGPencilStyle *gp_style, const bGPDstroke *gps, const bool onion)
-{
-	/* skip stroke if it doesn't have any valid data */
-	if ((gps->points == NULL) || (gps->totpoints < 1) || (gp_style == NULL))
-		return false;
-
-	/* check if the color is visible */
-	if ((gp_style == NULL) ||
-	    (gp_style->flag & GP_STYLE_COLOR_HIDE) ||
-	    (onion && (gp_style->flag & GP_STYLE_COLOR_ONIONSKIN)))
-	{
-		return false;
-	}
-
-	/* stroke can be drawn */
-	return true;
-}
-
-/* calc bounding box in 2d using flat projection data */
-static void gpencil_calc_2d_bounding_box(
-        const float(*points2d)[2], int totpoints, float minv[2], float maxv[2], bool expand)
-{
-	minv[0] = points2d[0][0];
-	minv[1] = points2d[0][1];
-	maxv[0] = points2d[0][0];
-	maxv[1] = points2d[0][1];
-
-	for (int i = 1; i < totpoints; i++) {
-		/* min */
-		if (points2d[i][0] < minv[0]) {
-			minv[0] = points2d[i][0];
-		}
-		if (points2d[i][1] < minv[1]) {
-			minv[1] = points2d[i][1];
-		}
-		/* max */
-		if (points2d[i][0] > maxv[0]) {
-			maxv[0] = points2d[i][0];
-		}
-		if (points2d[i][1] > maxv[1]) {
-			maxv[1] = points2d[i][1];
-		}
-	}
-	/* If not expanded, use a perfect square */
-	if (expand == false) {
-		if (maxv[0] > maxv[1]) {
-			maxv[1] = maxv[0];
-		}
-		else {
-			maxv[0] = maxv[1];
-		}
-	}
-}
-
-/* calc texture coordinates using flat projected points */
-static void gpencil_calc_stroke_fill_uv(const float(*points2d)[2], int totpoints, float minv[2], float maxv[2], float(*r_uv)[2])
-{
-	float d[2];
-	d[0] = maxv[0] - minv[0];
-	d[1] = maxv[1] - minv[1];
-	for (int i = 0; i < totpoints; i++) {
-		r_uv[i][0] = (points2d[i][0] - minv[0]) / d[0];
-		r_uv[i][1] = (points2d[i][1] - minv[1]) / d[1];
-	}
-}
-
-/* Get points of stroke always flat to view not affected by camera view or view position */
-static void gpencil_stroke_2d_flat(const bGPDspoint *points, int totpoints, float(*points2d)[2], int *r_direction)
-{
-	const bGPDspoint *pt0 = &points[0];
-	const bGPDspoint *pt1 = &points[1];
-	const bGPDspoint *pt3 = &points[(int)(totpoints * 0.75)];
-
-	float locx[3];
-	float locy[3];
-	float loc3[3];
-	float normal[3];
-
-	/* local X axis (p0 -> p1) */
-	sub_v3_v3v3(locx, &pt1->x, &pt0->x);
-
-	/* point vector at 3/4 */
-	sub_v3_v3v3(loc3, &pt3->x, &pt0->x);
-
-	/* vector orthogonal to polygon plane */
-	cross_v3_v3v3(normal, locx, loc3);
-
-	/* local Y axis (cross to normal/x axis) */
-	cross_v3_v3v3(locy, normal, locx);
-
-	/* Normalize vectors */
-	normalize_v3(locx);
-	normalize_v3(locy);
-
-	/* Get all points in local space */
-	for (int i = 0; i < totpoints; i++) {
-		const bGPDspoint *pt = &points[i];
-		float loc[3];
-
-		/* Get local space using first point as origin */
-		sub_v3_v3v3(loc, &pt->x, &pt0->x);
-
-		points2d[i][0] = dot_v3v3(loc, locx);
-		points2d[i][1] = dot_v3v3(loc, locy);
-	}
-
-	/* Concave (-1), Convex (1), or Autodetect (0)? */
-	*r_direction = (int)locy[2];
-}
-
-/* Triangulate stroke for high quality fill (this is done only if cache is null or stroke was modified) */
-static void gp_triangulate_stroke_fill(bGPDstroke *gps)
-{
-	BLI_assert(gps->totpoints >= 3);
-
-	/* allocate memory for temporary areas */
-	gps->tot_triangles = gps->totpoints - 2;
-	uint(*tmp_triangles)[3] = MEM_mallocN(sizeof(*tmp_triangles) * gps->tot_triangles, "GP Stroke temp triangulation");
-	float(*points2d)[2] = MEM_mallocN(sizeof(*points2d) * gps->totpoints, "GP Stroke temp 2d points");
-	float(*uv)[2] = MEM_mallocN(sizeof(*uv) * gps->totpoints, "GP Stroke temp 2d uv data");
-
-	int direction = 0;
-
-	/* convert to 2d and triangulate */
-	gpencil_stroke_2d_flat(gps->points, gps->totpoints, points2d, &direction);
-	BLI_polyfill_calc(points2d, (uint)gps->totpoints, direction, tmp_triangles);
-
-	/* calc texture coordinates automatically */
-	float minv[2];
-	float maxv[2];
-	/* first needs bounding box data */
-	gpencil_calc_2d_bounding_box(points2d, gps->totpoints, minv, maxv, false);
-	/* calc uv data */
-	gpencil_calc_stroke_fill_uv(points2d, gps->totpoints, minv, maxv, uv);
-
-	/* Number of triangles */
-	gps->tot_triangles = gps->totpoints - 2;
-	/* save triangulation data in stroke cache */
-	if (gps->tot_triangles > 0) {
-		if (gps->triangles == NULL) {
-			gps->triangles = MEM_callocN(sizeof(*gps->triangles) * gps->tot_triangles, "GP Stroke triangulation");
-		}
-		else {
-			gps->triangles = MEM_recallocN(gps->triangles, sizeof(*gps->triangles) * gps->tot_triangles);
-		}
-
-		for (int i = 0; i < gps->tot_triangles; i++) {
-			bGPDtriangle *stroke_triangle = &gps->triangles[i];
-			memcpy(gps->triangles[i].verts, tmp_triangles[i], sizeof(uint[3]));
-			/* copy texture coordinates */
-			copy_v2_v2(stroke_triangle->uv[0], uv[tmp_triangles[i][0]]);
-			copy_v2_v2(stroke_triangle->uv[1], uv[tmp_triangles[i][1]]);
-			copy_v2_v2(stroke_triangle->uv[2], uv[tmp_triangles[i][2]]);
-		}
-	}
-	else {
-		/* No triangles needed - Free anything allocated previously */
-		if (gps->triangles)
-			MEM_freeN(gps->triangles);
-
-		gps->triangles = NULL;
-	}
-
-	/* disable recalculation flag */
-	if (gps->flag & GP_STROKE_RECALC_CACHES) {
-		gps->flag &= ~GP_STROKE_RECALC_CACHES;
-	}
-
-	/* clear memory */
-	MEM_SAFE_FREE(tmp_triangles);
-	MEM_SAFE_FREE(points2d);
-	MEM_SAFE_FREE(uv);
-}
-
-/* add a new fill point and texture coordinates to vertex buffer */
-static void gpencil_set_fill_point(
-        Gwn_VertBuf *vbo, int idx, bGPDspoint *pt, const float fcolor[4], float uv[2],
-        uint pos_id, uint color_id, uint text_id)
-{
-	GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-	GWN_vertbuf_attr_set(vbo, color_id, idx, fcolor);
-	GWN_vertbuf_attr_set(vbo, text_id, idx, uv);
-}
-
-/* recalc the internal geometry caches for fill and uvs */
-void DRW_gpencil_recalc_geometry_caches(Object *ob, MaterialGPencilStyle *gp_style, bGPDstroke *gps) {
-	if (gps->flag & GP_STROKE_RECALC_CACHES) {
-		/* Calculate triangles cache for filling area (must be done only after changes) */
-		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {
-			if ((gps->totpoints > 2) && 
-				((gp_style->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0))) 
-			{
-				gp_triangulate_stroke_fill(gps);
-			}
-		}
-
-		/* calc uv data along the stroke */
-		ED_gpencil_calc_stroke_uv(ob, gps);
-		
-		/* clear flag */
-		gps->flag &= ~GP_STROKE_RECALC_CACHES;
-	}
-}
-
 /* create batch geometry data for stroke shader */
 Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float color[4])
 {
@@ -598,7 +401,7 @@ Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float co
 
 	/* Calculate triangles cache for filling area (must be done only after changes) */
 	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
-		gp_triangulate_stroke_fill(gps);
+		DRW_gpencil_triangulate_stroke_fill(gps);
 		ED_gpencil_calc_stroke_uv(ob, gps);
 	}
 
