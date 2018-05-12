@@ -1303,10 +1303,11 @@ static Mesh *create_orco_mesh(Object *ob, Mesh *me, BMEditMesh *em, int layer)
 	int free;
 
 	if (em) {
-		//mesh = CDDM_from_editbmesh(em, false, false); // TODO(mai): need to find a mesh_from_editbmesh
+		mesh = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
 	}
 	else {
-		BKE_id_copy_ex(NULL, &me->id, (ID**)&mesh, LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT, false);
+		BKE_id_copy_ex(NULL, &me->id, (ID**)&mesh,
+			LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT | LIB_ID_CREATE_NO_DEG_TAG, false);
 	}
 
 	orco = get_orco_coords_dm(ob, em, layer, &free);
@@ -2137,9 +2138,11 @@ static void mesh_calc_modifiers(
 		 * coordinates (vpaint, etc.)
 		 */
 		if (r_deform_mesh) {
-			BKE_id_copy_ex(NULL, &me->id, (ID**)r_deform_mesh, LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT, false);
+			BKE_id_copy_ex(NULL, &me->id, (ID**)r_deform_mesh,
+				LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT | LIB_ID_CREATE_NO_DEG_TAG, false);
 
 			/* XXX: Is build_shapekey_layers ever even true? This should have crashed long ago... */
+			BLI_assert(!build_shapekey_layers);
 			//if (build_shapekey_layers)
 			//	add_shapekey_layers(*r_deform_mesh, me, ob);
 			
@@ -2282,7 +2285,8 @@ static void mesh_calc_modifiers(
 				}
 			}
 			else {
-				BKE_id_copy_ex(NULL, &me->id, (ID**)&mesh, LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT, false);
+				BKE_id_copy_ex(NULL, &me->id, (ID**)&mesh,
+					LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT | LIB_ID_CREATE_NO_DEG_TAG, false);
 				ASSERT_IS_VALID_MESH(mesh);
 
 				// XXX: port to Mesh if build_shapekey_layers can ever be true
@@ -2435,19 +2439,11 @@ static void mesh_calc_modifiers(
 	Mesh *final_mesh;
 
 	if (mesh && deformedVerts) {
-		BKE_id_copy_ex(NULL, &mesh->id, (ID**)&final_mesh, LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT, false);
-		BKE_id_free(NULL, mesh);
-
-		apply_vert_coords(final_mesh, deformedVerts);
-
-#if 0 /* For later nice mod preview! */
-		/* In case we need modified weights in CD_PREVIEW_MCOL, we have to re-compute it. */
-		if (do_final_wmcol)
-			mesh_update_weight_mcol(ob, final_mesh, draw_flag, NULL, 0, NULL);
-#endif
-	}
-	else if (mesh) {
 		final_mesh = mesh;
+
+		if (deformedVerts) {
+			apply_vert_coords(final_mesh, deformedVerts);
+		}
 
 #if 0 /* For later nice mod preview! */
 		/* In case we need modified weights in CD_PREVIEW_MCOL, we have to re-compute it. */
@@ -2456,12 +2452,13 @@ static void mesh_calc_modifiers(
 #endif
 	}
 	else {
-		BKE_id_copy_ex(NULL, &me->id, (ID**)&final_mesh, LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT, false);
-		
+		BKE_id_copy_ex(NULL, &me->id, (ID**)&final_mesh,
+			LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT | LIB_ID_CREATE_NO_DEG_TAG, false);
+
 		//if (build_shapekey_layers) {
 		//	add_shapekey_layers(final_mesh, me, ob);
 		//}
-		
+
 		if (deformedVerts) {
 			apply_vert_coords(final_mesh, deformedVerts);
 		}
