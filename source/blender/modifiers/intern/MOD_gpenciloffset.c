@@ -76,7 +76,7 @@ static void gp_deformStroke(
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 1, gpl, gps,
-	        mmd->flag & GP_OFFSET_INVERSE_LAYER, mmd->flag & GP_OFFSET_INVERSE_PASS))
+	        mmd->flag & GP_OFFSET_INVERT_LAYER, mmd->flag & GP_OFFSET_INVERT_PASS))
 	{
 		return;
 	}
@@ -85,7 +85,7 @@ static void gp_deformStroke(
 		bGPDspoint *pt = &gps->points[i];
 		
 		/* verify vertex group */
-		float weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OFFSET_INVERSE_VGROUP) == 0), vindex);
+		float weight = is_point_affected_by_modifier(pt, (int)(!(mmd->flag & GP_OFFSET_INVERT_VGROUP) == 0), vindex);
 		if (weight < 0) {
 			continue;
 		}

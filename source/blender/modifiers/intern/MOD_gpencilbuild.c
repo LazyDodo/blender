@@ -411,7 +411,7 @@ static void gp_generateStrokes(
 	
 	/* Omit layer if filter by layer */
 	if (mmd->layername[0] != '\0') {
-		if ((mmd->flag & GP_BUILD_INVERSE_LAYER) == 0) {
+		if ((mmd->flag & GP_BUILD_INVERT_LAYER) == 0) {
 			if (!STREQ(mmd->layername, gpl->info)) {
 				return;
 			}

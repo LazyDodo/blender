@@ -98,7 +98,7 @@ static void gp_deformStroke(
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
-	        mmd->flag & GP_NOISE_INVERSE_LAYER, mmd->flag & GP_NOISE_INVERSE_PASS))
+	        mmd->flag & GP_NOISE_INVERT_LAYER, mmd->flag & GP_NOISE_INVERT_PASS))
 	{
 		return;
 	}
@@ -128,7 +128,7 @@ static void gp_deformStroke(
 		}
 
 		/* verify vertex group */
-		weight = is_point_affected_by_modifier(pt0, (int)(!(mmd->flag & GP_NOISE_INVERSE_VGROUP) == 0), vindex);
+		weight = is_point_affected_by_modifier(pt0, (int)(!(mmd->flag & GP_NOISE_INVERT_VGROUP) == 0), vindex);
 		if (weight < 0) {
 			continue;
 		}
