@@ -421,17 +421,20 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 
 /* === Export === */
 
-BLI_INLINE int hair_get_strand_subdiv_numverts(int numstrands, int numverts, int subdiv)
-{
-	return ((numverts - numstrands) << subdiv) + numstrands;
-}
-
+/* Returns number of vertices in a curve after subdivision */
 BLI_INLINE int hair_get_strand_subdiv_length(int orig_length, int subdiv)
 {
 	return ((orig_length - 1) << subdiv) + 1;
 }
 
-static int hair_strand_subdivide(const HairGuideCurve* curve, const HairGuideVertex* verts, int subdiv, HairGuideVertex *r_verts)
+/* Returns total number of vertices after subdivision */
+BLI_INLINE int hair_get_strand_subdiv_numverts(int numstrands, int numverts, int subdiv)
+{
+	return ((numverts - numstrands) << subdiv) + numstrands;
+}
+
+/* Subdivide a curve */
+static int hair_guide_subdivide(const HairGuideCurve* curve, const HairGuideVertex* verts, int subdiv, HairGuideVertex *r_verts)
 {
 	{
 		/* Move vertex positions from the dense array to their initial configuration for subdivision. */
@@ -472,7 +475,55 @@ static int hair_strand_subdivide(const HairGuideCurve* curve, const HairGuideVer
 	return num_verts;
 }
 
-HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv)
+/* Calculate tangent and normal vector changes from one segment to the next */
+static void hair_guide_transport_frame(const float co1[3], const float co2[3],
+                                       float prev_tang[3], float prev_nor[3],
+                                       float r_tang[3], float r_nor[3])
+{
+	/* segment direction */
+	sub_v3_v3v3(r_tang, co2, co1);
+	normalize_v3(r_tang);
+	
+	/* rotate the frame */
+	float rot[3][3];
+	rotation_between_vecs_to_mat3(rot, prev_tang, r_tang);
+	mul_v3_m3v3(r_nor, rot, prev_nor);
+	
+	copy_v3_v3(prev_tang, r_tang);
+	copy_v3_v3(prev_nor, r_nor);
+}
+
+/* Calculate tangent and normal vectors for all vertices on a curve */
+static void hair_guide_calc_vectors(const HairGuideVertex* verts, int numverts, float rootmat[3][3],
+                                    float (*r_tangents)[3], float (*r_normals)[3])
+{
+	BLI_assert(numverts >= 2);
+	
+	float prev_tang[3], prev_nor[3];
+	
+	copy_v3_v3(prev_tang, rootmat[2]);
+	copy_v3_v3(prev_nor, rootmat[0]);
+	
+	hair_guide_transport_frame(
+	        verts[0].co, verts[1].co,
+	        prev_tang, prev_nor,
+	        r_tangents[0], r_normals[0]);
+	
+	for (int i = 1; i < numverts - 1; ++i)
+	{
+		hair_guide_transport_frame(
+		        verts[i-1].co, verts[i+1].co,
+		        prev_tang, prev_nor,
+		        r_tangents[i], r_normals[i]);
+	}
+	
+	hair_guide_transport_frame(
+	        verts[numverts-2].co, verts[numverts-1].co,
+	        prev_tang, prev_nor,
+	        r_tangents[numverts-1], r_normals[numverts-1]);
+}
+
+HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv, DerivedMesh *scalp)
 {
 	HairExportCache *cache = MEM_callocN(sizeof(HairExportCache), "hair export cache");
 
@@ -494,14 +545,28 @@ HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv)
 	
 	cache->totguideverts = totguideverts;
 	cache->guide_verts = MEM_mallocN(sizeof(HairGuideVertex) * totguideverts, "hair export guide verts");
+	cache->guide_tangents = MEM_mallocN(sizeof(float[3]) * totguideverts, "hair export guide tangents");
+	cache->guide_normals = MEM_mallocN(sizeof(float[3]) * totguideverts, "hair export guide normals");
 	
 	for (int i = 0; i < totguidecurves; ++i) {
 		const HairGuideCurve *curve_orig = &hsys->guides.curves[i];
 		const HairGuideVertex *verts_orig = &hsys->guides.verts[curve_orig->vertstart];
 		const HairGuideCurve *curve = &cache->guide_curves[i];
 		HairGuideVertex *verts = &cache->guide_verts[curve->vertstart];
+		float (*tangents)[3] = &cache->guide_tangents[curve->vertstart];
+		float (*normals)[3] = &cache->guide_normals[curve->vertstart];
 		
-		hair_strand_subdivide(curve_orig, verts_orig, subdiv, verts);
+		hair_guide_subdivide(curve_orig, verts_orig, subdiv, verts);
+		
+		{
+			/* Root matrix for defining the initial normal direction */
+			float rootpos[3];
+			float rootmat[3][3];
+			BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
+			cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
+			
+			hair_guide_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
+		}
 	}
 	
 	if (hsys->pattern)
@@ -511,10 +576,11 @@ HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv)
 		cache->follicles = hsys->pattern->follicles;
 		
 		cache->fiber_numverts = MEM_mallocN(sizeof(int) * totfibercurves, "fiber numverts");
+		cache->fiber_root_position = MEM_mallocN(sizeof(float[3]) * totfibercurves, "fiber root position");
 		
 		// Calculate the length of the fiber from the weighted average of its guide strands
 		cache->totfiberverts = 0;
-		HairFollicle *follicle = hsys->pattern->follicles;
+		const HairFollicle *follicle = hsys->pattern->follicles;
 		for (int i = 0; i < totfibercurves; ++i, ++follicle) {
 			float fiblen = 0.0f;
 			
@@ -529,10 +595,16 @@ HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv)
 				fiblen += (float)cache->guide_curves[si].numverts * sw;
 			}
 			
-			// Use rounded number of segments
+			/* Use rounded number of segments */
 			const int numverts = (int)(fiblen + 0.5f);
 			cache->fiber_numverts[i] = numverts;
 			cache->totfiberverts += numverts;
+			
+			/* Cache fiber root position */
+			{
+				float nor[3], tang[3];
+				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
+			}
 		}
 	}
 	
@@ -552,6 +624,18 @@ void BKE_hair_export_cache_free(HairExportCache *cache)
 	if (cache->guide_verts)
 	{
 		MEM_freeN(cache->guide_verts);
+	}
+	if (cache->guide_tangents)
+	{
+		MEM_freeN(cache->guide_tangents);
+	}
+	if (cache->guide_normals)
+	{
+		MEM_freeN(cache->guide_normals);
+	}
+	if (cache->fiber_root_position)
+	{
+		MEM_freeN(cache->fiber_root_position);
 	}
 	MEM_freeN(cache);
 }

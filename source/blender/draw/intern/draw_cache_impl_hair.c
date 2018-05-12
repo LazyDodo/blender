@@ -268,7 +268,7 @@ static void hair_batch_cache_ensure_fibers(const HairExportCache *hair_export, H
 	TIMEIT_END(hair_batch_cache_ensure_fibers);
 }
 
-static void hair_batch_cache_ensure_fiber_texbuffer(const HairExportCache *hair_export, struct DerivedMesh *scalp, HairBatchCache *cache)
+static void hair_batch_cache_ensure_fiber_texbuffer(const HairExportCache *hair_export, HairBatchCache *cache)
 {
 	DRWHairFiberTextureBuffer *buffer = &cache->texbuffer;
 	static const int elemsize = 8;
@@ -287,7 +287,7 @@ static void hair_batch_cache_ensure_fiber_texbuffer(const HairExportCache *hair_
 	const int height = size / width;
 	
 	buffer->data = MEM_mallocN(b_size, "hair fiber texture buffer");
-	BKE_hair_get_texture_buffer(hair_export, scalp, buffer->data);
+	BKE_hair_get_texture_buffer(hair_export, buffer->data);
 	
 	buffer->width = width;
 	buffer->height = height;
@@ -306,7 +306,7 @@ Gwn_Batch *DRW_hair_batch_cache_get_fibers(
 
 	TIMEIT_START(DRW_hair_batch_cache_get_fibers);
 
-	HairExportCache *hair_export = BKE_hair_export_cache_new(hsys, subdiv);
+	HairExportCache *hair_export = BKE_hair_export_cache_new(hsys, subdiv, scalp);
 
 	if (cache->fibers == NULL) {
 		TIMEIT_BENCH(hair_batch_cache_ensure_fibers(hair_export, cache),
@@ -315,7 +315,7 @@ Gwn_Batch *DRW_hair_batch_cache_get_fibers(
 		TIMEIT_BENCH(cache->fibers = GWN_batch_create(GWN_PRIM_TRIS, cache->fiber_verts, cache->fiber_edges),
 		             GWN_batch_create);
 
-		TIMEIT_BENCH(hair_batch_cache_ensure_fiber_texbuffer(hair_export, scalp, cache),
+		TIMEIT_BENCH(hair_batch_cache_ensure_fiber_texbuffer(hair_export, cache),
 		             hair_batch_cache_ensure_fiber_texbuffer);
 	}
 

@@ -89,90 +89,40 @@ typedef struct HairStrandMapTextureBuffer {
 } HairStrandMapTextureBuffer;
 BLI_STATIC_ASSERT_ALIGN(HairStrandMapTextureBuffer, 8)
 
-static void hair_strand_transport_frame(const float co1[3], const float co2[3],
-                                        float prev_tang[3], float prev_nor[3],
-                                        float r_tang[3], float r_nor[3])
-{
-	/* segment direction */
-	sub_v3_v3v3(r_tang, co2, co1);
-	normalize_v3(r_tang);
-	
-	/* rotate the frame */
-	float rot[3][3];
-	rotation_between_vecs_to_mat3(rot, prev_tang, r_tang);
-	mul_v3_m3v3(r_nor, rot, prev_nor);
-	
-	copy_v3_v3(prev_tang, r_tang);
-	copy_v3_v3(prev_nor, r_nor);
-}
-
-static void hair_strand_calc_vectors(const HairGuideVertex* verts, int num_verts, float rootmat[3][3],
-                                     HairStrandVertexTextureBuffer *strand)
-{
-	for (int i = 0; i < num_verts; ++i) {
-		copy_v3_v3(strand[i].co, verts[i].co);
-	}
-	
-	// Calculate tangent and normal vectors
-	{
-		BLI_assert(num_verts >= 2);
-		
-		float prev_tang[3], prev_nor[3];
-		
-		copy_v3_v3(prev_tang, rootmat[2]);
-		copy_v3_v3(prev_nor, rootmat[0]);
-		
-		hair_strand_transport_frame(strand[0].co, strand[1].co,
-		        prev_tang, prev_nor,
-		        strand[0].tang, strand[0].nor);
-		
-		for (int i = 1; i < num_verts - 1; ++i)
-		{
-			hair_strand_transport_frame(strand[i-1].co, strand[i+1].co,
-			        prev_tang, prev_nor,
-			        strand[i].tang, strand[i].nor);
-		}
-		
-		hair_strand_transport_frame(strand[num_verts-2].co, strand[num_verts-1].co,
-		        prev_tang, prev_nor,
-		        strand[num_verts-1].tang, strand[num_verts-1].nor);
-	}
-}
-
 static void hair_get_strand_buffer(
         const HairExportCache *cache,
-        DerivedMesh *scalp,
         HairStrandMapTextureBuffer *strand_map_buffer,
         HairStrandVertexTextureBuffer *strand_vertex_buffer)
 {
 	for (int i = 0; i < cache->totguidecurves; ++i) {
 		const HairGuideCurve *curve = &cache->guide_curves[i];
 		const HairGuideVertex *verts = &cache->guide_verts[curve->vertstart];
+		const float (*tangents)[3] = &cache->guide_tangents[curve->vertstart];
+		const float (*normals)[3] = &cache->guide_normals[curve->vertstart];
 		HairStrandMapTextureBuffer *smap = &strand_map_buffer[i];
 		HairStrandVertexTextureBuffer *svert = &strand_vertex_buffer[curve->vertstart];
 		
 		smap->vertex_start = curve->vertstart;
 		smap->vertex_count = curve->numverts;
 		
+		for (int j = 0; j < curve->numverts; ++j)
 		{
-			float pos[3];
-			float matrix[3][3];
-			BKE_mesh_sample_eval(scalp, &curve->mesh_sample, pos, matrix[2], matrix[0]);
-			cross_v3_v3v3(matrix[1], matrix[2], matrix[0]);
-			hair_strand_calc_vectors(verts, curve->numverts, matrix, svert);
+			copy_v3_v3(svert[j].co, verts[j].co);
+			copy_v3_v3(svert[j].tang, tangents[j]);
+			copy_v3_v3(svert[j].nor, normals[j]);
 		}
 	}
 }
 
-static void hair_get_fiber_buffer(const HairExportCache *cache, DerivedMesh *scalp,
+static void hair_get_fiber_buffer(const HairExportCache *cache,
                                   HairFiberTextureBuffer *fiber_buf)
 {
 	const int totfibers = cache->totfibercurves;
 	const HairFollicle *follicle = cache->follicles;
 	HairFiberTextureBuffer *fb = fiber_buf;
-	float nor[3], tang[3];
 	for (int i = 0; i < totfibers; ++i, ++fb, ++follicle) {
-		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, fb->root_position, nor, tang);
+		copy_v3_v3(fb->root_position, cache->fiber_root_position[i]);
+		
 		for (int k = 0; k < 4; ++k)
 		{
 			fb->parent_index[k] = follicle->parent_index[k];
@@ -196,32 +146,22 @@ void BKE_hair_get_texture_buffer_size(
 
 void BKE_hair_get_texture_buffer(
         const HairExportCache *cache,
-        DerivedMesh *scalp,
         void *buffer)
 {
 	int size, strand_map_start, strand_vertex_start, fiber_start;
 	BKE_hair_get_texture_buffer_size(cache, &size, &strand_map_start, &strand_vertex_start, &fiber_start);
 	
-	if (scalp)
-	{
-		HairStrandMapTextureBuffer *strand_map = (HairStrandMapTextureBuffer*)((char*)buffer + strand_map_start);
-		HairStrandVertexTextureBuffer *strand_verts = (HairStrandVertexTextureBuffer*)((char*)buffer + strand_vertex_start);
-		HairFiberTextureBuffer *fibers = (HairFiberTextureBuffer*)((char*)buffer + fiber_start);
-		
-		hair_get_strand_buffer(
-		            cache,
-		            scalp,
-		            strand_map,
-		            strand_verts);
-		hair_get_fiber_buffer(
-		            cache,
-		            scalp,
-		            fibers);
-	}
-	else
-	{
-		memset(buffer, 0, size);
-	}
+	HairStrandMapTextureBuffer *strand_map = (HairStrandMapTextureBuffer*)((char*)buffer + strand_map_start);
+	HairStrandVertexTextureBuffer *strand_verts = (HairStrandVertexTextureBuffer*)((char*)buffer + strand_vertex_start);
+	HairFiberTextureBuffer *fibers = (HairFiberTextureBuffer*)((char*)buffer + fiber_start);
+	
+	hair_get_strand_buffer(
+	            cache,
+	            strand_map,
+	            strand_verts);
+	hair_get_fiber_buffer(
+	            cache,
+	            fibers);
 }
 
 void (*BKE_hair_batch_cache_dirty_cb)(HairSystem* hsys, int mode) = NULL;

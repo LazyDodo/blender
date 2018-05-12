@@ -117,17 +117,20 @@ typedef struct HairExportCache
 {
 	int totguidecurves;
 	int totguideverts;
-
-	int totfibercurves;
-	int totfiberverts;
-	int *fiber_numverts;            /* Number of vertices in each fiber */
-
-	const struct HairFollicle *follicles;
 	struct HairGuideCurve *guide_curves;
 	struct HairGuideVertex *guide_verts;
+	float (*guide_tangents)[3];             /* Tangent vectors on guide curves */
+	float (*guide_normals)[3];              /* Normal vectors on guide curves */
+	
+	int totfibercurves;
+	int totfiberverts;
+	int *fiber_numverts;                    /* Number of vertices in each fiber */
+	float (*fiber_root_position)[3];        /* Root position of each fiber */
+	
+	const struct HairFollicle *follicles;
 } HairExportCache;
 
-struct HairExportCache* BKE_hair_export_cache_new(const struct HairSystem *hsys, int subdiv);
+struct HairExportCache* BKE_hair_export_cache_new(const struct HairSystem *hsys, int subdiv, struct DerivedMesh *scalp);
 void BKE_hair_export_cache_free(struct HairExportCache *cache);
 
 /* === Draw Cache === */
@@ -148,7 +151,6 @@ void BKE_hair_get_texture_buffer_size(
         int *r_fiber_start);
 void BKE_hair_get_texture_buffer(
         const struct HairExportCache *cache,
-        struct DerivedMesh *scalp,
         void *texbuffer);
 
 /* === Render API === */
