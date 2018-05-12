@@ -1145,26 +1145,6 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 		if (gpl->flag & GP_LAYER_HIDE)
 			continue;
 
-		/* don't draw layer if render (F12) and the view layer is not equal */
-		if ((!DRW_state_is_opengl_render()) && (stl->storage->is_render)) {
-			if (gpl->view_layer != NULL) {
-				/* the view layer must exist otherwise the filter is ignored */
-				ViewLayer *view = BLI_findstring(&scene->view_layers, gpl->view_layer, offsetof(ViewLayer, name));
-				if (view != NULL) {
-					if (gpl->flag & GP_LAYER_INVERT_VIEWLAYER) {
-						if (STREQ(gpl->view_layer, draw_ctx->view_layer->name)) {
-							continue;
-						}
-					}
-					else {
-						if (!STREQ(gpl->view_layer, draw_ctx->view_layer->name)) {
-							continue;
-						}
-					}
-				}
-			}
-		}
-
 		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0);
 		if (gpf == NULL)
 			continue;

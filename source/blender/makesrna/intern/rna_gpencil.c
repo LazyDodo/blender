@@ -1085,17 +1085,6 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 		"When draw new strokes in 3D view, use last stroke origin, as new stroke origin");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 	
-	/* Render View Layer */
-	prop = RNA_def_property(srna, "view_layer", PROP_STRING, PROP_NONE);
-	RNA_def_property_ui_text(prop, "View Layer", 
-		"Include this layer only in this view layer when render (empty to include in all view layers)");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
-
-	prop = RNA_def_property(srna, "invert_view_layer", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_INVERT_VIEWLAYER);
-	RNA_def_property_ui_text(prop, "Invert", "Invert view layer filter");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
-
 	/* Flags */
 	prop = RNA_def_property(srna, "hide", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_HIDE);

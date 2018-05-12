@@ -274,8 +274,6 @@ typedef struct bGPDlayer {
 	int onion_flag;         /* Per-layer onion-skinning flags, to overide datablock settings (eGPDlayer_OnionFlag) */
 	float onion_factor;     /* onion alpha factor change */
 	
-	char view_layer[64];    /* optional view layer name for filter for render (F12) */
-	
 	struct GHash *derived_data;     /* runtime data created by modifiers */
 } bGPDlayer;
 
@@ -296,8 +294,6 @@ typedef enum eGPDlayer_Flag {
 	GP_LAYER_FRAMELOCK		= (1 << 6),
 	/* don't render xray (which is default) */
 	GP_LAYER_NO_XRAY		= (1 << 7),
-	/* inverse view layer filter */
-	GP_LAYER_INVERT_VIEWLAYER = (1 << 8),
 	/* "volumetric" strokes */
 	GP_LAYER_VOLUMETRIC		= (1 << 10),
 	/* Unlock color */

@@ -184,12 +184,6 @@ class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
         if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
             sub.prop_search(gpl, "parent_bone", parent.data, "bones", text="")
 
-        row = layout.row()
-        row.label("Render Settings:")
-        row = layout.row(align=True)
-        row.prop_search(gpl, "view_layer", scene, "view_layers", text="View Layer")
-        row.prop(gpl, "invert_view_layer", text="", icon='ARROW_LEFTRIGHT')
-
 
 class GPENCIL_UL_vgroups(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
