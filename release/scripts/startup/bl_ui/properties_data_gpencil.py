@@ -287,9 +287,9 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         layout.separator()
 
         col = layout.column(align=True)
-        col.prop(gpd, "keep_stroke_thickness")
+        col.prop(gpd, "show_constant_thickness")
         sub = col.column()
-        sub.active = not gpd.keep_stroke_thickness
+        sub.active = not gpd.show_constant_thickness
         sub.prop(gpd, "pixfactor", text="Scale")
 
         layout.separator()
