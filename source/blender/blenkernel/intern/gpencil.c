@@ -452,7 +452,7 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 	ARRAY_SET_ITEMS(gpd->line_color, 0.6f, 0.6f, 0.6f, 0.5f);
 	
 	gpd->xray_mode = GP_XRAY_3DSPACE;
-	gpd->batch_cache_data = NULL;
+	gpd->runtime.batch_cache_data = NULL;
 	gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 	
 	/* onion-skinning settings (datablock level) */
@@ -652,7 +652,7 @@ bGPDlayer *BKE_gpencil_layer_duplicate(const bGPDlayer *gpl_src)
 void BKE_gpencil_copy_data(Main *UNUSED(bmain), bGPdata *gpd_dst, const bGPdata *gpd_src, const int UNUSED(flag))
 {
 	/* cache data is not duplicated */
-	gpd_dst->batch_cache_data = NULL;
+	gpd_dst->runtime.batch_cache_data = NULL;
 
 	/* duplicate material array */
 	if (gpd_src->mat) {
@@ -699,7 +699,7 @@ bGPdata *BKE_gpencil_data_duplicate(Main *bmain, const bGPdata *gpd_src, bool in
 	else {
 		/* make a copy when others use this */
 		gpd_dst = BKE_libblock_copy(bmain, &gpd_src->id);
-		gpd_dst->batch_cache_data = NULL;
+		gpd_dst->runtime.batch_cache_data = NULL;
 	}
 	
 	/* Copy internal data (layers, etc.) */

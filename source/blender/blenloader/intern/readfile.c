@@ -6331,7 +6331,7 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 	}
 
 	/* clear drawing cache */
-	gpd->batch_cache_data = NULL;
+	gpd->runtime.batch_cache_data = NULL;
 
 	/* materials */
 	gpd->mat = newdataadr(fd, gpd->mat);

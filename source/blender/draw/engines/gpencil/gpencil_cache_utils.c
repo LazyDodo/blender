@@ -111,12 +111,12 @@ void gpencil_object_cache_add(tGPencilObjectCache *cache_array, Object *ob, bool
 static GpencilBatchCache *gpencil_batch_get_element(Object *ob)
 {
 	bGPdata *gpd = ob->data;
-	if (gpd->batch_cache_data == NULL) {
-		gpd->batch_cache_data = BLI_ghash_str_new("GP batch cache data");
+	if (gpd->runtime.batch_cache_data == NULL) {
+		gpd->runtime.batch_cache_data = BLI_ghash_str_new("GP batch cache data");
 		return NULL;
 	}
 
-	return (GpencilBatchCache *) BLI_ghash_lookup(gpd->batch_cache_data, ob->id.name);
+	return (GpencilBatchCache *) BLI_ghash_lookup(gpd->runtime.batch_cache_data, ob->id.name);
 }
 
 /* verify if cache is valid */
@@ -183,7 +183,7 @@ static void gpencil_batch_cache_init(Object *ob, int cfra)
 
 	if (!cache) {
 		cache = MEM_callocN(sizeof(*cache), __func__);
-		BLI_ghash_insert(gpd->batch_cache_data, ob->id.name, cache);
+		BLI_ghash_insert(gpd->runtime.batch_cache_data, ob->id.name, cache);
 	}
 	else {
 		memset(cache, 0, sizeof(*cache));
@@ -247,7 +247,7 @@ GpencilBatchCache *gpencil_batch_cache_get(Object *ob, int cfra)
 		GpencilBatchCache *cache = gpencil_batch_get_element(ob);
 		if (cache) {
 			gpencil_batch_cache_clear(cache, gpd);
-			BLI_ghash_remove(gpd->batch_cache_data, ob->id.name, NULL, NULL);
+			BLI_ghash_remove(gpd->runtime.batch_cache_data, ob->id.name, NULL, NULL);
 		}
 		gpencil_batch_cache_init(ob, cfra);
 	}
@@ -258,11 +258,11 @@ GpencilBatchCache *gpencil_batch_cache_get(Object *ob, int cfra)
 /* set cache as dirty */
 void DRW_gpencil_batch_cache_dirty(bGPdata *gpd)
 {
-	if (gpd->batch_cache_data == NULL) {
+	if (gpd->runtime.batch_cache_data == NULL) {
 		return;
 	}
 
-	GHashIterator *ihash = BLI_ghashIterator_new(gpd->batch_cache_data);
+	GHashIterator *ihash = BLI_ghashIterator_new(gpd->runtime.batch_cache_data);
 	while (!BLI_ghashIterator_done(ihash)) {
 		GpencilBatchCache *cache = (GpencilBatchCache *)BLI_ghashIterator_getValue(ihash);
 		if (cache) {
@@ -276,11 +276,11 @@ void DRW_gpencil_batch_cache_dirty(bGPdata *gpd)
 /* free batch cache */
 void DRW_gpencil_batch_cache_free(bGPdata *gpd)
 {
-	if (gpd->batch_cache_data == NULL) {
+	if (gpd->runtime.batch_cache_data == NULL) {
 		return;
 	}
 
-	GHashIterator *ihash = BLI_ghashIterator_new(gpd->batch_cache_data);
+	GHashIterator *ihash = BLI_ghashIterator_new(gpd->runtime.batch_cache_data);
 	while (!BLI_ghashIterator_done(ihash)) {
 		GpencilBatchCache *cache = (GpencilBatchCache *)BLI_ghashIterator_getValue(ihash);
 		if (cache) {
@@ -291,8 +291,8 @@ void DRW_gpencil_batch_cache_free(bGPdata *gpd)
 	BLI_ghashIterator_free(ihash);
 
 	/* free hash */
-	if (gpd->batch_cache_data) {
-		BLI_ghash_free(gpd->batch_cache_data, NULL, NULL);
-		gpd->batch_cache_data = NULL;
+	if (gpd->runtime.batch_cache_data) {
+		BLI_ghash_free(gpd->runtime.batch_cache_data, NULL, NULL);
+		gpd->runtime.batch_cache_data = NULL;
 	}
 }

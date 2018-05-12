@@ -327,6 +327,10 @@ typedef enum eGPDlayer_OnionFlag {
 /* GP Datablock */
 
 /* Grease-Pencil Annotations - 'DataBlock' */
+typedef struct bGPdata_runtime {
+	/* Runtime Only - Drawing Manager cache */
+	struct GHash *batch_cache_data;
+} bGPdata_runtime;
 typedef struct bGPdata {
 	ID id;					/* Grease Pencil data is a datablock */
 	struct AnimData *adt;   /* animation data - for animating draw settings */
@@ -353,10 +357,8 @@ typedef struct bGPdata {
 	/* Palettes */
 	ListBase palettes DNA_DEPRECATED;    /* list of bGPDpalette's   - Deprecated (2.78 - 2.79 only) */
 	
-	/* Runtime Only - Drawing Manager cache */
-	struct GHash *batch_cache_data;
-	
-	
+	bGPdata_runtime runtime;
+
 	/* 3D Viewport/Appearance Settings */
 	float pixfactor;            /* factor to define pixel size conversion */
 	float line_color[4];        /* color for edit line */
