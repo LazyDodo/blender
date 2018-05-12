@@ -188,7 +188,7 @@ void GPENCIL_engine_init(void *vedata)
 
 	/* blank texture used if no texture defined for fill shader */
 	if (!e_data.gpencil_blank_texture) {
-		float rect[16][16][4] = { 0.0f };
+		float rect[16][16][4] = {{{0.0f}}};
 		e_data.gpencil_blank_texture = DRW_texture_create_2D(16, 16, GPU_RGBA8, DRW_TEX_FILTER, (float *)rect);
 	}
 }
