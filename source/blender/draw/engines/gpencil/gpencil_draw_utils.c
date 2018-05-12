@@ -19,7 +19,7 @@
  *
  */
 
-/** \file blender/draw/engines/gpencil/gpencil_draw_cache_impl.c
+/** \file blender/draw/engines/gpencil/gpencil_draw_utils.c
  *  \ingroup draw
  */
 
