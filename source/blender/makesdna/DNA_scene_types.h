@@ -1453,7 +1453,7 @@ typedef struct Scene {
 	struct UnitSettings unit;
 	
 	/* Grease Pencil */
-	struct bGPdata *gpd;
+	struct bGPdata *gpd DNA_DEPRECATED;
 
 	/* Movie Tracking */
 	struct MovieClip *clip;			/* active movie clip */
