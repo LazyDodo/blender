@@ -5304,7 +5304,7 @@ static void rna_def_modifier_gpencilthick(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "curve", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "cur_thickness");
+	RNA_def_property_pointer_sdna(prop, NULL, "curve_thickness");
 	RNA_def_property_ui_text(prop, "Curve", "Custom Thickness Curve");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }

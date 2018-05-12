@@ -1700,7 +1700,7 @@ typedef struct ThickGpencilModifierData {
 	int flag;                    /* flags */
 	int thickness;               /* Thickness change */
 	char pad[4];
-	struct CurveMapping *cur_thickness;
+	struct CurveMapping *curve_thickness;
 } ThickGpencilModifierData;
 
 typedef enum eThickGpencil_Flag {

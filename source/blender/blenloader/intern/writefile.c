@@ -1616,8 +1616,8 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 		else if (md->type == eModifierType_Gpencil_Thick) {
 			ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
 
-			if (gpmd->cur_thickness) {
-				write_curvemapping(wd, gpmd->cur_thickness);
+			if (gpmd->curve_thickness) {
+				write_curvemapping(wd, gpmd->curve_thickness);
 			}
 		}
 		else if (md->type == eModifierType_Gpencil_Hook) {

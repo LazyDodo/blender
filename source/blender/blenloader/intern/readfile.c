@@ -5382,11 +5382,11 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 		else if (md->type == eModifierType_Gpencil_Thick) {
 			ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
 
-			gpmd->cur_thickness = newdataadr(fd, gpmd->cur_thickness);
-			if (gpmd->cur_thickness) {
-				direct_link_curvemapping(fd, gpmd->cur_thickness);
+			gpmd->curve_thickness = newdataadr(fd, gpmd->curve_thickness);
+			if (gpmd->curve_thickness) {
+				direct_link_curvemapping(fd, gpmd->curve_thickness);
 				/* initialize the curve. Maybe this could be moved to modififer logic */
-				curvemapping_initialize(gpmd->cur_thickness);
+				curvemapping_initialize(gpmd->curve_thickness);
 			}
 		}
 
