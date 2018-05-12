@@ -1354,7 +1354,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
                 col = layout.column(align=True)
                 col.prop(brush, "gpencil_fill_leak", text="Leak Size")
                 col.prop(brush, "size", text="Thickness")
-                col.prop(brush, "gpencil_fill_simplyfy_lvl", text="Simplify")
+                col.prop(brush, "gpencil_fill_simplyfy_level", text="Simplify")
 
                 col = layout.row(align=True)
                 col.template_ID(brush, "material")

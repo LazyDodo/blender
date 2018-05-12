@@ -1697,7 +1697,7 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* fill simplify steps */
-	prop = RNA_def_property(srna, "gpencil_fill_simplyfy_lvl", PROP_INT, PROP_NONE);
+	prop = RNA_def_property(srna, "gpencil_fill_simplyfy_level", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "gp_fill_simplylvl");
 	RNA_def_property_range(prop, 0, 10);
 	RNA_def_property_ui_text(prop, "Simplify",
