@@ -67,8 +67,6 @@ extern char datatoc_gpencil_paper_frag_glsl[];
 extern char datatoc_gpencil_edit_point_vert_glsl[];
 extern char datatoc_gpencil_edit_point_geom_glsl[];
 extern char datatoc_gpencil_edit_point_frag_glsl[];
-extern char datatoc_gpencil_dof_vert_glsl[];
-extern char datatoc_gpencil_dof_frag_glsl[];
 
 /* *********** STATIC *********** */
 static GPENCIL_e_data e_data = {NULL}; /* Engine data */
@@ -390,7 +388,6 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
-	// bool playing = (bool)stl->storage->playing;
 
 	/* object datablock (this is not draw now) */
 	if (ob->type == OB_GPENCIL && ob->data) {
@@ -524,9 +521,6 @@ void GPENCIL_draw_scene(void *vedata)
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
-	// RegionView3D *rv3d = draw_ctx->rv3d;
-	// Scene *scene = draw_ctx->scene;
-	// ToolSettings *ts = scene->toolsettings;
 	Object *obact = draw_ctx->obact;
 	bool playing = (bool)stl->storage->playing;
 	bool is_render = stl->storage->is_render;
