@@ -2693,8 +2693,10 @@ class VIEW3D_MT_edit_mesh_vertices(Menu):
 
         layout.operator("mesh.merge")
         layout.operator("mesh.remove_doubles")
-        layout.operator("mesh.rip_move")
-        layout.operator("mesh.rip_move_fill")
+        props = layout.operator("mesh.rip_move")
+        props.MESH_OT_rip.use_fill = False
+        props = layout.operator("mesh.rip_move", text="Rip Fill")
+        props.MESH_OT_rip.use_fill = True
         layout.operator("mesh.rip_edge_move")
         layout.operator("mesh.split")
         layout.operator_menu_enum("mesh.separate", "type")
@@ -3953,7 +3955,6 @@ class VIEW3D_PT_view3d_curvedisplay(Panel):
         row = col.row()
         row.prop(curve, "show_handles", text="Handles")
         row.prop(curve, "show_normal_face", text="Normals")
-        col.prop(context.scene.tool_settings, "normal_size", text="Normal Size")
 
 
 class VIEW3D_PT_transform_orientations(Panel):
