@@ -510,8 +510,8 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 	if (gps->totpoints >= 3) {
 		float tfill[4];
 		/* set color using material, tint color and opacity */
-		interp_v3_v3v3(tfill, gps->tmp_fill, tintcolor, tintcolor[3]);
-		tfill[3] = gps->tmp_fill[3] * gpl->opacity;
+		interp_v3_v3v3(tfill, gps->runtime.tmp_fill, tintcolor, tintcolor[3]);
+		tfill[3] = gps->runtime.tmp_fill[3] * gpl->opacity;
 		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)) {
 			const float *color;
 			if (!onion) {
@@ -522,7 +522,7 @@ static void gpencil_add_fill_shgroup(GpencilBatchCache *cache, DRWShadingGroup *
 					color = tintcolor;
 				}
 				else {
-					ARRAY_SET_ITEMS(tfill, UNPACK3(gps->tmp_fill), tintcolor[3]);
+					ARRAY_SET_ITEMS(tfill, UNPACK3(gps->runtime.tmp_fill), tintcolor[3]);
 					color = tfill;
 				}
 			}
@@ -549,12 +549,12 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 	if (!onion) {
 		/* if special stroke, use fill color as stroke color */
 		if (gps->flag & GP_STROKE_NOFILL) {
-			interp_v3_v3v3(tcolor, gps->tmp_fill, tintcolor, tintcolor[3]);
-			tcolor[3] = gps->tmp_fill[3] * opacity;
+			interp_v3_v3v3(tcolor, gps->runtime.tmp_fill, tintcolor, tintcolor[3]);
+			tcolor[3] = gps->runtime.tmp_fill[3] * opacity;
 		}
 		else {
-			interp_v3_v3v3(tcolor, gps->tmp_rgb, tintcolor, tintcolor[3]);
-			tcolor[3] = gps->tmp_rgb[3] * opacity;
+			interp_v3_v3v3(tcolor, gps->runtime.tmp_rgb, tintcolor, tintcolor[3]);
+			tcolor[3] = gps->runtime.tmp_rgb[3] * opacity;
 		}
 		copy_v4_v4(ink, tcolor);
 	}
@@ -563,7 +563,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 			copy_v4_v4(ink, tintcolor);
 		}
 		else {
-			ARRAY_SET_ITEMS(tcolor, gps->tmp_rgb[0], gps->tmp_rgb[1], gps->tmp_rgb[2], opacity);
+			ARRAY_SET_ITEMS(tcolor, gps->runtime.tmp_rgb[0], gps->runtime.tmp_rgb[1], gps->runtime.tmp_rgb[2], opacity);
 			copy_v4_v4(ink, tcolor);
 		}
 	}
@@ -640,8 +640,8 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 		
 		MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-		copy_v4_v4(gps->tmp_rgb, gp_style->rgb);
-		copy_v4_v4(gps->tmp_fill, gp_style->fill);
+		copy_v4_v4(gps->runtime.tmp_rgb, gp_style->rgb);
+		copy_v4_v4(gps->runtime.tmp_fill, gp_style->fill);
 
 		int id = stl->storage->shgroup_id;
 		/* check if stroke can be drawn */
@@ -768,8 +768,8 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			strokegrp = stl->shgroups[id].shgrps_stroke;
 
 			/* copy color to temp fields to apply temporal changes in the stroke */
-			copy_v4_v4(gps->tmp_rgb, gp_style->rgb);
-			copy_v4_v4(gps->tmp_fill, gp_style->fill);
+			copy_v4_v4(gps->runtime.tmp_rgb, gp_style->rgb);
+			copy_v4_v4(gps->runtime.tmp_fill, gp_style->fill);
 
 			/* apply modifiers (only modify geometry, but not create ) */
 			if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {

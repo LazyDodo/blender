@@ -512,7 +512,7 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 				fsize = vsize;
 			}
 			else {
-				copy_v4_v4(fcolor, gps->tmp_rgb);
+				copy_v4_v4(fcolor, gps->runtime.tmp_rgb);
 				fsize = bsize;
 			}
 		}

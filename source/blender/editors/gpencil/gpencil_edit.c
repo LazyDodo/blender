@@ -558,7 +558,7 @@ static void gp_duplicate_points(const bGPDstroke *gps, ListBase *new_strokes, co
 				
 				/* make a stupid copy first of the entire stroke (to get the flags too) */
 				gpsd = MEM_dupallocN(gps);
-				BLI_strncpy(gpsd->tmp_layerinfo, layername, sizeof(gpsd->tmp_layerinfo)); /* saves original layer name */
+				BLI_strncpy(gpsd->runtime.tmp_layerinfo, layername, sizeof(gpsd->runtime.tmp_layerinfo)); /* saves original layer name */
 				
 				/* initialize triangle memory - will be calculated on next redraw */
 				gpsd->triangles = NULL;
@@ -630,7 +630,7 @@ static int gp_duplicate_exec(bContext *C, wmOperator *op)
 					
 					/* make direct copies of the stroke and its points */
 					gpsd = MEM_dupallocN(gps);
-					BLI_strncpy(gpsd->tmp_layerinfo, gpl->info, sizeof(gpsd->tmp_layerinfo));
+					BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
 					gpsd->points = MEM_dupallocN(gps->points);
 					BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
 
@@ -804,7 +804,7 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 					
 					/* make direct copies of the stroke and its points */
 					gpsd = MEM_dupallocN(gps);
-					BLI_strncpy(gpsd->tmp_layerinfo, gpl->info, sizeof(gpsd->tmp_layerinfo)); /* saves original layer name */
+					BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo)); /* saves original layer name */
 					gpsd->points = MEM_dupallocN(gps->points);
 					BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
 
@@ -960,7 +960,7 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 		if (ED_gpencil_stroke_can_use(C, gps)) {
 			/* Need to verify if layer exists */
 			if (type != GP_COPY_MERGE) {
-				gpl = BLI_findstring(&gpd->layers, gps->tmp_layerinfo, offsetof(bGPDlayer, info));
+				gpl = BLI_findstring(&gpd->layers, gps->runtime.tmp_layerinfo, offsetof(bGPDlayer, info));
 				if (gpl == NULL) {
 					/* no layer - use active (only if layer deleted before paste) */
 					gpl = CTX_data_active_gpencil_layer(C);
@@ -976,7 +976,7 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 			if (gpf) {
 				/* Create new stroke */
 				bGPDstroke *new_stroke = MEM_dupallocN(gps);
-				new_stroke->tmp_layerinfo[0] = '\0';
+				new_stroke->runtime.tmp_layerinfo[0] = '\0';
 				
 				new_stroke->points = MEM_dupallocN(gps->points);
 				BKE_gpencil_stroke_weights_duplicate(gps, new_stroke);

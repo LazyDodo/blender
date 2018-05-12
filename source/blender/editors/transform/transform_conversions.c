@@ -8240,7 +8240,7 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 							}
 #endif
 							/* save falloff factor */
-							gps->multi_frame_falloff = falloff;
+							gps->runtime.multi_frame_falloff = falloff;
 
 							/* add all necessary points... */
 							for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {

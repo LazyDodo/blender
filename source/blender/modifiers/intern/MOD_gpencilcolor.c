@@ -84,15 +84,15 @@ static void gp_deformStroke(
 	copy_v3_v3(factor, mmd->hsv);
 	add_v3_fl(factor, -1.0f);
 
-	rgb_to_hsv_v(gps->tmp_rgb, hsv);
+	rgb_to_hsv_v(gps->runtime.tmp_rgb, hsv);
 	add_v3_v3(hsv, factor);
 	CLAMP3(hsv, 0.0f, 1.0f);
-	hsv_to_rgb_v(hsv, gps->tmp_rgb);
+	hsv_to_rgb_v(hsv, gps->runtime.tmp_rgb);
 
-	rgb_to_hsv_v(gps->tmp_fill, hsv);
+	rgb_to_hsv_v(gps->runtime.tmp_fill, hsv);
 	add_v3_v3(hsv, factor);
 	CLAMP3(hsv, 0.0f, 1.0f);
-	hsv_to_rgb_v(hsv, gps->tmp_fill);
+	hsv_to_rgb_v(hsv, gps->runtime.tmp_fill);
 }
 
 static void gp_bakeModifier(
@@ -116,8 +116,8 @@ static void gp_bakeModifier(
 				if (ELEM(NULL, gp_style))
 					continue;
 
-				copy_v4_v4(gps->tmp_rgb, gp_style->rgb);
-				copy_v4_v4(gps->tmp_fill, gp_style->fill);
+				copy_v4_v4(gps->runtime.tmp_rgb, gp_style->rgb);
+				copy_v4_v4(gps->runtime.tmp_fill, gp_style->fill);
 
 				/* look for color */
 				if (mmd->flag & GP_TINT_CREATE_COLORS) {
@@ -127,8 +127,8 @@ static void gp_bakeModifier(
 						newmat = BKE_material_copy(bmain, mat);
 						assign_material(ob, newmat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 
-						copy_v4_v4(newmat->gp_style->rgb, gps->tmp_rgb);
-						copy_v4_v4(newmat->gp_style->fill, gps->tmp_fill);
+						copy_v4_v4(newmat->gp_style->rgb, gps->runtime.tmp_rgb);
+						copy_v4_v4(newmat->gp_style->fill, gps->runtime.tmp_fill);
 
 						BLI_ghash_insert(gh_color, mat->id.name, newmat);
 					}
@@ -138,8 +138,8 @@ static void gp_bakeModifier(
 				}
 				else {
 					/* reuse existing color */
-					copy_v4_v4(gp_style->rgb, gps->tmp_rgb);
-					copy_v4_v4(gp_style->fill, gps->tmp_fill);
+					copy_v4_v4(gp_style->rgb, gps->runtime.tmp_rgb);
+					copy_v4_v4(gp_style->fill, gps->runtime.tmp_fill);
 				}
 
 				gp_deformStroke(md, depsgraph, ob, gpl, gps);

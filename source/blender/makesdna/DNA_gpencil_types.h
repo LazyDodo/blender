@@ -152,6 +152,17 @@ typedef enum eGPDpalette_Flag {
  * 	-> A stroke represents a (simplified version) of the curve
  *	   drawn by the user in one 'mousedown'->'mouseup' operation
  */
+typedef struct bGPDstroke_runtime {
+	/* runtime final colors (result of original colors and modifiers) */
+	float tmp_rgb[4];
+	float tmp_fill[4];
+
+	/* temporary layer name only used during copy/paste to put the stroke in the original layer */
+	char tmp_layerinfo[128];
+
+	float multi_frame_falloff; /* runtime falloff factor (only for transform) */
+} bGPDstroke_runtime;
+
 typedef struct bGPDstroke {
 	struct bGPDstroke *next, *prev;
 
@@ -167,15 +178,11 @@ typedef struct bGPDstroke {
 
 	char colorname[128] DNA_DEPRECATED;    /* color name */
 
-	/* runtime final colors (result of original colors and modifiers) */
-	float tmp_rgb[4];
-	float tmp_fill[4];
-
-	/* temporary layer name only used during copy/paste to put the stroke in the original layer */
-	char tmp_layerinfo[128];
-
-	float multi_frame_falloff; /* runtime falloff factor (only for transform) */
 	int mat_nr;             /* material index */
+	char pad_[4];
+
+	bGPDstroke_runtime runtime;
+	char pad_1[4];
 } bGPDstroke;
 
 /* bGPDstroke->flag */
