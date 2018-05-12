@@ -174,7 +174,7 @@ typedef struct bGPDstroke {
 	/* temporary layer name only used during copy/paste to put the stroke in the original layer */
 	char tmp_layerinfo[128];
 
-	float falloff;          /* runtime falloff factor (only for transform) */
+	float multi_frame_falloff; /* runtime falloff factor (only for transform) */
 	int mat_nr;             /* material index */
 } bGPDstroke;
 

@@ -3501,7 +3501,7 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 	/* grease pencil falloff */
 	if (t->options & CTX_GPENCIL_STROKES) {
 		bGPDstroke *gps = (bGPDstroke *)td->extra;
-		mul_v3_fl(vec, td->factor * gps->falloff);
+		mul_v3_fl(vec, td->factor * gps->multi_frame_falloff);
 
 		/* scale stroke thickness */
 		if (td->val) {
@@ -3509,7 +3509,7 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 			applyNumInput(&t->num, t->values);
 
 			float ratio = t->values[0];
-			*td->val = td->ival * ratio * gps->falloff;
+			*td->val = td->ival * ratio * gps->multi_frame_falloff;
 			CLAMP_MIN(*td->val, 0.001f);
 		}
 
@@ -3877,7 +3877,7 @@ static void ElementRotation_ex(TransInfo *t, TransDataContainer *tc, TransData *
 			float sy = smat[1][1];
 			float sz = smat[2][2];
 
-			mul_m3_fl(smat, gps->falloff);
+			mul_m3_fl(smat, gps->multi_frame_falloff);
 			/* fix scale */
 			smat[0][0] = sx;
 			smat[1][1] = sy;
@@ -4561,7 +4561,7 @@ static void applyTranslationValue(TransInfo *t, const float vec[3])
 			if (t->options & CTX_GPENCIL_STROKES) {
 				/* grease pencil multiframe falloff */
 				bGPDstroke *gps = (bGPDstroke *)td->extra;
-				mul_v3_fl(tvec, td->factor * gps->falloff);
+				mul_v3_fl(tvec, td->factor * gps->multi_frame_falloff);
 			}
 			else {
 				/* proportional editing falloff */
