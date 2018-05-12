@@ -191,19 +191,15 @@ void DRW_hair_batch_cache_free(HairSystem *hsys)
 	MEM_SAFE_FREE(hsys->draw_batch_cache);
 }
 
-static void hair_batch_cache_ensure_fibers(HairSystem *hsys, int subdiv, HairBatchCache *cache)
+static void hair_batch_cache_ensure_fibers(const HairExportCache *hair_export, HairBatchCache *cache)
 {
 	TIMEIT_START(hair_batch_cache_ensure_fibers);
 
 	GWN_VERTBUF_DISCARD_SAFE(cache->fiber_verts);
 	GWN_INDEXBUF_DISCARD_SAFE(cache->fiber_edges);
 	
-	const int totfibers = hsys->pattern ? hsys->pattern->num_follicles : 0;
-	int *fiber_lengths = BKE_hair_get_fiber_lengths(hsys, subdiv);
-	int totpoint = 0;
-	for (int i = 0; i < totfibers; ++i) {
-		totpoint += fiber_lengths[i];
-	}
+	const int totfibers = hair_export->totfibercurves;
+	const int totpoint = hair_export->totfiberverts;
 	const int totseg = totpoint - totfibers;
 	
 	static Gwn_VertFormat format = { 0 };
@@ -236,7 +232,7 @@ static void hair_batch_cache_ensure_fibers(HairSystem *hsys, int subdiv, HairBat
 	TIMEIT_BLOCK_INIT(GWN_indexbuf_add_tri_verts);
 	int vi = 0;
 	for (int i = 0; i < totfibers; ++i) {
-		const int fiblen = fiber_lengths[i];
+		const int fiblen = hair_export->fiber_numverts[i];
 		const float da = fiblen > 1 ? 1.0f / (fiblen-1) : 0.0f;
 		
 		float a = 0.0f;
@@ -267,17 +263,12 @@ static void hair_batch_cache_ensure_fibers(HairSystem *hsys, int subdiv, HairBat
 	fflush(stdout);
 	TIMEIT_END(data_fill);
 	
-	if (fiber_lengths)
-	{
-		MEM_freeN(fiber_lengths);
-	}
-	
 	TIMEIT_BENCH(cache->fiber_edges = GWN_indexbuf_build(&elb), indexbuf_build);
-
+	
 	TIMEIT_END(hair_batch_cache_ensure_fibers);
 }
 
-static void hair_batch_cache_ensure_fiber_texbuffer(HairSystem *hsys, struct DerivedMesh *scalp, int subdiv, HairBatchCache *cache)
+static void hair_batch_cache_ensure_fiber_texbuffer(const HairExportCache *hair_export, struct DerivedMesh *scalp, HairBatchCache *cache)
 {
 	DRWHairFiberTextureBuffer *buffer = &cache->texbuffer;
 	static const int elemsize = 8;
@@ -286,7 +277,7 @@ static void hair_batch_cache_ensure_fiber_texbuffer(HairSystem *hsys, struct Der
 	
 	// Offsets in bytes
 	int b_size, b_strand_map_start, b_strand_vertex_start, b_fiber_start;
-	BKE_hair_get_texture_buffer_size(hsys, subdiv, &b_size, 
+	BKE_hair_get_texture_buffer_size(hair_export, &b_size, 
 	        &b_strand_map_start, &b_strand_vertex_start, &b_fiber_start);
 	// Pad for alignment
 	b_size += align - b_size % align;
@@ -296,7 +287,7 @@ static void hair_batch_cache_ensure_fiber_texbuffer(HairSystem *hsys, struct Der
 	const int height = size / width;
 	
 	buffer->data = MEM_mallocN(b_size, "hair fiber texture buffer");
-	BKE_hair_get_texture_buffer(hsys, scalp, subdiv, buffer->data);
+	BKE_hair_get_texture_buffer(hair_export, scalp, buffer->data);
 	
 	buffer->width = width;
 	buffer->height = height;
@@ -315,20 +306,24 @@ Gwn_Batch *DRW_hair_batch_cache_get_fibers(
 
 	TIMEIT_START(DRW_hair_batch_cache_get_fibers);
 
+	HairExportCache *hair_export = BKE_hair_export_cache_new(hsys, subdiv);
+
 	if (cache->fibers == NULL) {
-		TIMEIT_BENCH(hair_batch_cache_ensure_fibers(hsys, subdiv, cache),
+		TIMEIT_BENCH(hair_batch_cache_ensure_fibers(hair_export, cache),
 		             hair_batch_cache_ensure_fibers);
 		
 		TIMEIT_BENCH(cache->fibers = GWN_batch_create(GWN_PRIM_TRIS, cache->fiber_verts, cache->fiber_edges),
 		             GWN_batch_create);
 
-		TIMEIT_BENCH(hair_batch_cache_ensure_fiber_texbuffer(hsys, scalp, subdiv, cache),
+		TIMEIT_BENCH(hair_batch_cache_ensure_fiber_texbuffer(hair_export, scalp, cache),
 		             hair_batch_cache_ensure_fiber_texbuffer);
 	}
 
 	if (r_buffer) {
 		*r_buffer = &cache->texbuffer;
 	}
+
+	BKE_hair_export_cache_free(hair_export);
 
 	TIMEIT_END(DRW_hair_batch_cache_get_fibers);
 
@@ -365,6 +360,8 @@ static void hair_batch_cache_ensure_follicles(
 		
 		GWN_vertbuf_attr_set(cache->follicle_verts, pos_id, (unsigned int)i, co);
 	}
+	
+	UNUSED_VARS(mode);
 }
 
 Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(
@@ -387,6 +384,7 @@ Gwn_Batch *DRW_hair_batch_cache_get_follicle_axes(
         HairSystem *hsys,
         struct DerivedMesh *scalp)
 {
+	UNUSED_VARS(hsys, scalp);
 	return NULL;
 }
 
@@ -395,6 +393,7 @@ Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_points(
         struct DerivedMesh *scalp,
         int subdiv)
 {
+	UNUSED_VARS(hsys, scalp, subdiv);
 	return NULL;
 }
 
@@ -403,5 +402,6 @@ Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_edges(
         struct DerivedMesh *scalp,
         int subdiv)
 {
+	UNUSED_VARS(hsys, scalp, subdiv);
 	return NULL;
 }

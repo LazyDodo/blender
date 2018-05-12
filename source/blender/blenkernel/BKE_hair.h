@@ -110,6 +110,26 @@ struct HairDrawSettings* BKE_hair_draw_settings_new(void);
 struct HairDrawSettings* BKE_hair_draw_settings_copy(struct HairDrawSettings *draw_settings);
 void BKE_hair_draw_settings_free(struct HairDrawSettings *draw_settings);
 
+/* === Export === */
+
+/* Intermediate data for export */
+typedef struct HairExportCache
+{
+	int totguidecurves;
+	int totguideverts;
+
+	int totfibercurves;
+	int totfiberverts;
+	int *fiber_numverts;            /* Number of vertices in each fiber */
+
+	const struct HairFollicle *follicles;
+	struct HairGuideCurve *guide_curves;
+	struct HairGuideVertex *guide_verts;
+} HairExportCache;
+
+struct HairExportCache* BKE_hair_export_cache_new(const struct HairSystem *hsys, int subdiv);
+void BKE_hair_export_cache_free(struct HairExportCache *cache);
+
 /* === Draw Cache === */
 
 enum {
@@ -120,18 +140,33 @@ enum {
 void BKE_hair_batch_cache_dirty(struct HairSystem* hsys, int mode);
 void BKE_hair_batch_cache_free(struct HairSystem* hsys);
 
-int* BKE_hair_get_fiber_lengths(const struct HairSystem* hsys, int subdiv);
 void BKE_hair_get_texture_buffer_size(
-        const struct HairSystem* hsys,
-        int subdiv,
+        const struct HairExportCache *cache,
         int *r_size,
         int *r_strand_map_start,
         int *r_strand_vertex_start,
         int *r_fiber_start);
 void BKE_hair_get_texture_buffer(
-        const struct HairSystem* hsys,
+        const struct HairExportCache *cache,
         struct DerivedMesh *scalp,
-        int subdiv,
         void *texbuffer);
+
+/* === Render API === */
+
+/* Calculate required size for render buffers. */
+void BKE_hair_render_get_buffer_size(
+        const struct HairExportCache* cache,
+        int *r_totcurves,
+        int *r_totverts);
+
+/* Create render data in existing buffers.
+ * Buffers must be large enough according to BKE_hair_get_render_buffer_size.
+ */
+void BKE_hair_render_fill_buffers(
+        const struct HairExportCache* cache,
+        int vertco_stride,
+        int *r_curvestart,
+        int *r_curvelen,
+        float *r_vertco);
 
 #endif

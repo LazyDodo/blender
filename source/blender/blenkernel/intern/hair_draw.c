@@ -67,57 +67,6 @@ void BKE_hair_draw_settings_free(HairDrawSettings *draw_settings)
 
 /* === Draw Cache === */
 
-static int hair_get_strand_subdiv_numverts(int numstrands, int numverts, int subdiv)
-{
-	return ((numverts - numstrands) << subdiv) + numstrands;
-}
-
-BLI_INLINE int hair_get_strand_subdiv_length(int orig_length, int subdiv)
-{
-	return ((orig_length - 1) << subdiv) + 1;
-}
-
-int* BKE_hair_get_fiber_lengths(const HairSystem *hsys, int subdiv)
-{
-	if (!hsys->pattern) {
-		return NULL;
-	}
-	
-	const int totfibers = hsys->pattern->num_follicles;
-	int *fiber_length = MEM_mallocN(sizeof(int) * totfibers, "fiber length");
-	
-	const int num_strands = hsys->guides.totcurves;
-	/* Cache subdivided lengths for repeated lookup */
-	int *lengths = MEM_mallocN(sizeof(int) * num_strands, "strand length");
-	for (int i = 0; i < hsys->guides.totcurves; ++i) {
-		lengths[i] = hair_get_strand_subdiv_length(hsys->guides.curves[i].numverts, subdiv);
-	}
-	
-	// Calculate the length of the fiber from the weighted average of its guide strands
-	HairFollicle *follicle = hsys->pattern->follicles;
-	for (int i = 0; i < totfibers; ++i, ++follicle) {
-		float fiblen = 0.0f;
-		
-		for (int k = 0; k < 4; ++k) {
-			int si = follicle->parent_index[k];
-			float sw = follicle->parent_weight[k];
-			if (si == HAIR_STRAND_INDEX_NONE || sw == 0.0f) {
-				break;
-			}
-			BLI_assert(si < num_strands);
-			
-			fiblen += (float)lengths[si] * sw;
-		}
-		
-		// use rounded number of segments
-		fiber_length[i] = (int)(fiblen + 0.5f);
-	}
-	
-	MEM_freeN(lengths);
-	
-	return fiber_length;
-}
-
 typedef struct HairFiberTextureBuffer {
 	unsigned int parent_index[4];
 	float parent_weight[4];
@@ -157,11 +106,11 @@ static void hair_strand_transport_frame(const float co1[3], const float co2[3],
 	copy_v3_v3(prev_nor, r_nor);
 }
 
-static void hair_strand_calc_vectors(const float (*positions)[3], int num_verts, float rootmat[3][3],
+static void hair_strand_calc_vectors(const HairGuideVertex* verts, int num_verts, float rootmat[3][3],
                                      HairStrandVertexTextureBuffer *strand)
 {
 	for (int i = 0; i < num_verts; ++i) {
-		copy_v3_v3(strand[i].co, positions[i]);
+		copy_v3_v3(strand[i].co, verts[i].co);
 	}
 	
 	// Calculate tangent and normal vectors
@@ -190,134 +139,68 @@ static void hair_strand_calc_vectors(const float (*positions)[3], int num_verts,
 	}
 }
 
-static int hair_strand_subdivide(const HairSystem *hsys, const HairGuideCurve* curve, int subdiv, float (*verts)[3])
-{
-	{
-		/* Move vertex positions from the dense array to their initial configuration for subdivision. */
-		const int step = (1 << subdiv);
-		float (*dst)[3] = verts;
-		int vertend = curve->vertstart + curve->numverts;
-		for (int i = curve->vertstart; i < vertend; ++i) {
-			copy_v3_v3(*dst, hsys->guides.verts[i].co);
-			dst += step;
-		}
-	}
-	
-	/* Subdivide */
-	for (int d = 0; d < subdiv; ++d) {
-		const int num_edges = (curve->numverts - 1) << d;
-		const int hstep = 1 << (subdiv - d - 1);
-		const int step = 1 << (subdiv - d);
-		
-		/* Calculate edge points */
-		{
-			int index = 0;
-			for (int k = 0; k < num_edges; ++k, index += step) {
-				add_v3_v3v3(verts[index + hstep], verts[index], verts[index + step]);
-				mul_v3_fl(verts[index + hstep], 0.5f);
-			}
-		}
-		
-		/* Move original points */
-		{
-			int index = step;
-			for (int k = 1; k < num_edges; ++k, index += step) {
-				add_v3_v3v3(verts[index], verts[index - hstep], verts[index + hstep]);
-				mul_v3_fl(verts[index], 0.5f);
-			}
-		}
-	}
-	
-	const int num_verts = ((curve->numverts - 1) << subdiv) + 1;
-	return num_verts;
-}
-
 static void hair_get_strand_buffer(
-        const HairSystem *hsys,
+        const HairExportCache *cache,
         DerivedMesh *scalp,
-        int subdiv,
         HairStrandMapTextureBuffer *strand_map_buffer,
         HairStrandVertexTextureBuffer *strand_vertex_buffer)
 {
-	const int numverts = hair_get_strand_subdiv_numverts(hsys->guides.totcurves, hsys->guides.totverts, subdiv);
-	
-	float (*vertco)[3] = MEM_mallocN(sizeof(float[3]) * numverts, "strand vertex positions subdivided");
-	
-	HairStrandMapTextureBuffer *smap = strand_map_buffer;
-	HairStrandVertexTextureBuffer *svert = strand_vertex_buffer;
-	int vertex_start = 0;
-	for (int i = 0; i < hsys->guides.totcurves; ++i) {
-		const HairGuideCurve *curve = &hsys->guides.curves[i];
-		const int len_orig = curve->numverts;
-		const int len = hair_get_strand_subdiv_length(len_orig, subdiv);
-		smap->vertex_start = vertex_start;
-		smap->vertex_count = len;
+	for (int i = 0; i < cache->totguidecurves; ++i) {
+		const HairGuideCurve *curve = &cache->guide_curves[i];
+		const HairGuideVertex *verts = &cache->guide_verts[curve->vertstart];
+		HairStrandMapTextureBuffer *smap = &strand_map_buffer[i];
+		HairStrandVertexTextureBuffer *svert = &strand_vertex_buffer[curve->vertstart];
 		
-		hair_strand_subdivide(hsys, curve, subdiv, vertco + vertex_start);
+		smap->vertex_start = curve->vertstart;
+		smap->vertex_count = curve->numverts;
 		
 		{
 			float pos[3];
 			float matrix[3][3];
-			BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, pos, matrix[2], matrix[0]);
+			BKE_mesh_sample_eval(scalp, &curve->mesh_sample, pos, matrix[2], matrix[0]);
 			cross_v3_v3v3(matrix[1], matrix[2], matrix[0]);
-			hair_strand_calc_vectors(vertco + vertex_start, len, matrix, svert);
+			hair_strand_calc_vectors(verts, curve->numverts, matrix, svert);
 		}
-		
-		vertex_start += len;
-		++smap;
-		svert += len;
 	}
-	
-	MEM_freeN(vertco);
 }
 
-static void hair_get_fiber_buffer(const HairSystem* hsys, DerivedMesh *scalp,
+static void hair_get_fiber_buffer(const HairExportCache *cache, DerivedMesh *scalp,
                                   HairFiberTextureBuffer *fiber_buf)
 {
-	if (hsys->pattern)
-	{
-		const int totfibers = hsys->pattern->num_follicles;
-		HairFiberTextureBuffer *fb = fiber_buf;
-		
-		HairFollicle *follicle = hsys->pattern->follicles;
-		float nor[3], tang[3];
-		for (int i = 0; i < totfibers; ++i, ++fb, ++follicle) {
-			BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, fb->root_position, nor, tang);
-			for (int k = 0; k < 4; ++k)
-			{
-				fb->parent_index[k] = follicle->parent_index[k];
-				fb->parent_weight[k] = follicle->parent_weight[k];
-			}
+	const int totfibers = cache->totfibercurves;
+	const HairFollicle *follicle = cache->follicles;
+	HairFiberTextureBuffer *fb = fiber_buf;
+	float nor[3], tang[3];
+	for (int i = 0; i < totfibers; ++i, ++fb, ++follicle) {
+		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, fb->root_position, nor, tang);
+		for (int k = 0; k < 4; ++k)
+		{
+			fb->parent_index[k] = follicle->parent_index[k];
+			fb->parent_weight[k] = follicle->parent_weight[k];
 		}
 	}
 }
 
 void BKE_hair_get_texture_buffer_size(
-        const HairSystem *hsys,
-        int subdiv,
+        const HairExportCache *cache,
         int *r_size,
         int *r_strand_map_start,
         int *r_strand_vertex_start,
         int *r_fiber_start)
 {
-	int numstrands = hsys->guides.totcurves;
-	int numverts_orig = hsys->guides.totverts;
-	int numfibers = hsys->pattern ? hsys->pattern->num_follicles : 0;
-	const int numverts = hair_get_strand_subdiv_numverts(numstrands, numverts_orig, subdiv);
 	*r_strand_map_start = 0;
-	*r_strand_vertex_start = *r_strand_map_start + numstrands * sizeof(HairStrandMapTextureBuffer);
-	*r_fiber_start = *r_strand_vertex_start + numverts * sizeof(HairStrandVertexTextureBuffer);
-	*r_size = *r_fiber_start + numfibers * sizeof(HairFiberTextureBuffer);
+	*r_strand_vertex_start = *r_strand_map_start + cache->totguidecurves * sizeof(HairStrandMapTextureBuffer);
+	*r_fiber_start = *r_strand_vertex_start + cache->totguideverts * sizeof(HairStrandVertexTextureBuffer);
+	*r_size = *r_fiber_start + cache->totfibercurves * sizeof(HairFiberTextureBuffer);
 }
 
 void BKE_hair_get_texture_buffer(
-        const HairSystem *hsys,
+        const HairExportCache *cache,
         DerivedMesh *scalp,
-        int subdiv,
         void *buffer)
 {
 	int size, strand_map_start, strand_vertex_start, fiber_start;
-	BKE_hair_get_texture_buffer_size(hsys, subdiv, &size, &strand_map_start, &strand_vertex_start, &fiber_start);
+	BKE_hair_get_texture_buffer_size(cache, &size, &strand_map_start, &strand_vertex_start, &fiber_start);
 	
 	if (scalp)
 	{
@@ -326,13 +209,12 @@ void BKE_hair_get_texture_buffer(
 		HairFiberTextureBuffer *fibers = (HairFiberTextureBuffer*)((char*)buffer + fiber_start);
 		
 		hair_get_strand_buffer(
-		            hsys,
+		            cache,
 		            scalp,
-		            subdiv,
 		            strand_map,
 		            strand_verts);
 		hair_get_fiber_buffer(
-		            hsys,
+		            cache,
 		            scalp,
 		            fibers);
 	}
@@ -357,4 +239,29 @@ void BKE_hair_batch_cache_free(HairSystem* hsys)
 	if (hsys->draw_batch_cache || hsys->draw_texture_cache) {
 		BKE_hair_batch_cache_free_cb(hsys);
 	}
+}
+
+/* === Render API === */
+
+/* Calculate required size for render buffers. */
+void BKE_hair_render_get_buffer_size(
+        const HairExportCache* cache,
+        int *r_totcurves,
+        int *r_totverts)
+{
+	if (r_totcurves) *r_totcurves = cache->totfibercurves;
+	if (r_totverts) *r_totverts = cache->totfiberverts;
+}
+
+/* Create render data in existing buffers.
+ * Buffers must be large enough according to BKE_hair_get_render_buffer_size.
+ */
+void BKE_hair_render_fill_buffers(
+        const HairExportCache* cache,
+        int vertco_stride,
+        int *r_curvestart,
+        int *r_curvelen,
+        float *r_vertco)
+{
+	
 }
