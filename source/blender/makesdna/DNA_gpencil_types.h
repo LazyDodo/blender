@@ -242,6 +242,10 @@ typedef enum eGPDframe_Flag {
 /* GP Layer */
 
 /* Grease-Pencil Annotations - 'Layer' */
+typedef struct bGPDlayer_runtime {
+	struct GHash *derived_data;     /* runtime data created by modifiers */
+} bGPDlayer_runtime;
+
 typedef struct bGPDlayer {
 	struct bGPDlayer *next, *prev;
 	
@@ -274,7 +278,7 @@ typedef struct bGPDlayer {
 	int onion_flag;         /* Per-layer onion-skinning flags, to overide datablock settings (eGPDlayer_OnionFlag) */
 	float onion_factor;     /* onion alpha factor change */
 	
-	struct GHash *derived_data;     /* runtime data created by modifiers */
+	bGPDlayer_runtime runtime;
 } bGPDlayer;
 
 

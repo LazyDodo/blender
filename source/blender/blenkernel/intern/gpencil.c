@@ -207,11 +207,11 @@ static void BKE_gpencil_clear_derived(bGPDlayer *gpl)
 {
 	GHashIterator gh_iter;
 	
-	if (gpl->derived_data == NULL) {
+	if (gpl->runtime.derived_data == NULL) {
 		return;
 	}
 	
-	GHASH_ITER(gh_iter, gpl->derived_data) {
+	GHASH_ITER(gh_iter, gpl->runtime.derived_data) {
 		bGPDframe *gpf = (bGPDframe *)BLI_ghashIterator_getValue(&gh_iter);
 		if (gpf) {
 			BKE_gpencil_free_frame_runtime_data(gpf);
@@ -231,9 +231,9 @@ static void BKE_gpencil_free_layers_temp_data(ListBase *list)
 		gpl_next = gpl->next;
 		BKE_gpencil_clear_derived(gpl);
 
-		if (gpl->derived_data) {
-			BLI_ghash_free(gpl->derived_data, NULL, NULL);
-			gpl->derived_data = NULL;
+		if (gpl->runtime.derived_data) {
+			BLI_ghash_free(gpl->runtime.derived_data, NULL, NULL);
+			gpl->runtime.derived_data = NULL;
 		}
 	}
 }
@@ -246,9 +246,9 @@ void BKE_gpencil_free_derived_frames(bGPdata *gpd)
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		BKE_gpencil_clear_derived(gpl);
 
-		if (gpl->derived_data) {
-			BLI_ghash_free(gpl->derived_data, NULL, NULL);
-			gpl->derived_data = NULL;
+		if (gpl->runtime.derived_data) {
+			BLI_ghash_free(gpl->runtime.derived_data, NULL, NULL);
+			gpl->runtime.derived_data = NULL;
 		}
 	}
 }
@@ -623,7 +623,7 @@ bGPDlayer *BKE_gpencil_layer_duplicate(const bGPDlayer *gpl_src)
 	/* make a copy of source layer */
 	gpl_dst = MEM_dupallocN(gpl_src);
 	gpl_dst->prev = gpl_dst->next = NULL;
-	gpl_dst->derived_data = NULL;
+	gpl_dst->runtime.derived_data = NULL;
 	
 	/* copy frames */
 	BLI_listbase_clear(&gpl_dst->frames);
@@ -1007,9 +1007,9 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 	
 	/* free derived data */
 	BKE_gpencil_clear_derived(gpl);
-	if (gpl->derived_data) {
-		BLI_ghash_free(gpl->derived_data, NULL, NULL);
-		gpl->derived_data = NULL;
+	if (gpl->runtime.derived_data) {
+		BLI_ghash_free(gpl->runtime.derived_data, NULL, NULL);
+		gpl->runtime.derived_data = NULL;
 	}
 
 	BLI_freelinkN(&gpd->layers, gpl);
