@@ -60,8 +60,9 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 /* aply smooth effect based on stroke direction */
-static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+static void gp_deformStroke(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SmoothGpencilModifierData *mmd = (SmoothGpencilModifierData *)md;
 	bGPDspoint *pt;
@@ -109,8 +110,9 @@ static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-static void gp_bakeModifier(const bContext *UNUSED(C), Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *UNUSED(C), Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 

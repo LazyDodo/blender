@@ -394,8 +394,9 @@ static void build_concurrent(BuildGpencilModifierData *mmd, bGPDframe *gpf, floa
 /* --------------------------------------------- */
 
 /* Entry-point for Build Modifier */
-static void gp_generateStrokes(ModifierData *md, Depsgraph *depsgraph,
-	                        Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf)
+static void gp_generateStrokes(
+        ModifierData *md, Depsgraph *depsgraph,
+        Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf)
 {
 	BuildGpencilModifierData *mmd = (BuildGpencilModifierData *)md;
 	const bool reverse = (mmd->transition != GP_BUILD_TRANSITION_GROW);
@@ -509,8 +510,9 @@ static void gp_generateStrokes(ModifierData *md, Depsgraph *depsgraph,
  * which would in turn break how the modifier functions.
  */
 #if 0
-static void gp_bakeModifier(const bContext *C, const Depsgraph *UNUSED(depsgraph),
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *C, const Depsgraph *UNUSED(depsgraph),
+        ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 

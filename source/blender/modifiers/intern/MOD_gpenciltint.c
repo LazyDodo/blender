@@ -65,8 +65,9 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 /* tint strokes */
-static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+static void gp_deformStroke(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
 
@@ -101,8 +102,9 @@ static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *C, Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
 	Main *bmain = CTX_data_main(C);

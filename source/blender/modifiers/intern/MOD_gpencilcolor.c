@@ -66,8 +66,9 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 /* color correction strokes */
-static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+static void gp_deformStroke(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 
 	ColorGpencilModifierData *mmd = (ColorGpencilModifierData *)md;
@@ -94,8 +95,9 @@ static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	hsv_to_rgb_v(hsv, gps->tmp_fill);
 }
 
-static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *C, Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	ColorGpencilModifierData *mmd = (ColorGpencilModifierData *)md;
 	Main *bmain = CTX_data_main(C);

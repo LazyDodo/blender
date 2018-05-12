@@ -64,8 +64,9 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 /* opacity strokes */
-static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+static void gp_deformStroke(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	OpacityGpencilModifierData *mmd = (OpacityGpencilModifierData *)md;
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
@@ -127,8 +128,9 @@ static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 
 }
 
-static void gp_bakeModifier(const bContext *UNUSED(C), Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *UNUSED(C), Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 	

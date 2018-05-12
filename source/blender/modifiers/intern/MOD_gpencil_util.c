@@ -63,7 +63,7 @@ void gp_mod_fill_random_array(float *ar, int count)
 
 /* verify if valid layer and pass index */
 bool is_stroke_affected_by_modifier(
-		Object *ob, char *mlayername, int mpassindex, int minpoints,
+        Object *ob, char *mlayername, int mpassindex, int minpoints,
         bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2)
 {
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);

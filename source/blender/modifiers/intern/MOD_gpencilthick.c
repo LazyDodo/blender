@@ -84,8 +84,9 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 /* change stroke thickness */
-static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+static void gp_deformStroke(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	ThickGpencilModifierData *mmd = (ThickGpencilModifierData *)md;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
@@ -127,8 +128,9 @@ static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-static void gp_bakeModifier(const bContext *UNUSED(C), Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *UNUSED(C), Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 

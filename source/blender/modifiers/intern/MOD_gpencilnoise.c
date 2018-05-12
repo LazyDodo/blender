@@ -81,8 +81,9 @@ static bool dependsOnTime(ModifierData *md)
 }
 
 /* aply noise effect based on stroke direction */
-static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+static void gp_deformStroke(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 	bGPDspoint *pt0, *pt1;
@@ -219,8 +220,9 @@ static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 	}
 }
 
-static void gp_bakeModifier(const bContext *UNUSED(C), Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *UNUSED(C), Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 

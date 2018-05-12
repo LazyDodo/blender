@@ -69,8 +69,9 @@ static void copyData(const ModifierData *md, ModifierData *target)
 	modifier_copyData_generic(md, target);
 }
 
-static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-                         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+static void gp_deformStroke(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
@@ -102,8 +103,9 @@ static void gp_deformStroke(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 /* FIXME: Ideally we be doing this on a copy of the main depsgraph
  * (i.e. one where we don't have to worry about restoring state)
  */
-static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *C, Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 	Main *bmain = CTX_data_main(C);
@@ -173,8 +175,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 static void foreachObjectLink(
-	ModifierData *md, Object *ob,
-	ObjectWalkFunc walk, void *userData)
+        ModifierData *md, Object *ob,
+        ObjectWalkFunc walk, void *userData)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 

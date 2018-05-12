@@ -132,8 +132,9 @@ void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd
 
 /* array modifier - generate geometry callback (for viewport/rendering) */
 /* TODO: How to skip this for the simplify options?   -->  !GP_SIMPLIFY_MODIF(ts, playing) */
-static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
-	                          Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
+static void generate_geometry(
+        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 	ListBase stroke_cache = {NULL, NULL};
@@ -235,8 +236,9 @@ static void generate_geometry(ModifierData *md, Depsgraph *UNUSED(depsgraph),
 }
 
 /* gp_bakeModifier - "Bake to Data" Mode */
-static void bakeModifierGP_strokes(const bContext *UNUSED(C), Depsgraph *depsgraph,
-                                      ModifierData *md, Object *ob)
+static void bakeModifierGP_strokes(
+        const bContext *UNUSED(C), Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 	
@@ -337,8 +339,9 @@ static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *
 /* -------------------------------- */
 
 /* Generic "gp_generateStrokes" callback */
-static void gp_generateStrokes(ModifierData *md, Depsgraph *depsgraph,
-	                        Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
+static void gp_generateStrokes(
+        ModifierData *md, Depsgraph *depsgraph,
+        Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 	
@@ -356,8 +359,9 @@ static void gp_generateStrokes(ModifierData *md, Depsgraph *depsgraph,
 }
 
 /* Generic "gp_bakeModifier" callback */
-static void gp_bakeModifier(const bContext *C, Depsgraph *depsgraph,
-                           ModifierData *md, Object *ob)
+static void gp_bakeModifier(
+        const bContext *C, Depsgraph *depsgraph,
+        ModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 	
