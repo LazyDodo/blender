@@ -1375,6 +1375,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
+	ARegion *ar = CTX_wm_region(C);
 
 	GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -1512,7 +1513,8 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 		immBegin(GWN_PRIM_LINES, 2);
 		immVertex2f(pos, x, y);
-		immVertex2f(pos, last_mouse_position[0], last_mouse_position[1]);
+		immVertex2f(pos, last_mouse_position[0] + ar->winrct.xmin, 
+						 last_mouse_position[1] + ar->winrct.ymin);
 		immEnd();
 
 		glDisable(GL_BLEND);
