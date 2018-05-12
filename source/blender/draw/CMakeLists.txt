@@ -115,7 +115,7 @@ set(SRC
 	engines/gpencil/gpencil_render.c
 	engines/gpencil/gpencil_cache_utils.c
 	engines/gpencil/gpencil_draw_utils.c
-	engines/gpencil/gpencil_geom.c
+	engines/gpencil/gpencil_draw_cache_impl.c
 
 	DRW_engine.h
 	intern/DRW_render.h

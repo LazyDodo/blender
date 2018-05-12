@@ -23,7 +23,7 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file draw/engines/gpencil/gpencil_geom.c
+/** \file draw/engines/gpencil/gpencil_draw_cache_impl.c
  *  \ingroup draw
  */
 
