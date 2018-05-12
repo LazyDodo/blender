@@ -46,6 +46,7 @@
 #include "DNA_object_types.h"
 
 #include "BKE_DerivedMesh.h"
+#include "BKE_cdderivedmesh.h"
 #include "BKE_hair.h"
 #include "BKE_library.h"
 #include "BKE_mesh.h"
@@ -608,6 +609,15 @@ HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv, D
 		}
 	}
 	
+	return cache;
+}
+
+/* XXX Temporary hack to support usage with Mesh from Cycles */
+HairExportCache* BKE_hair_export_cache_new_mesh(const HairSystem *hsys, int subdiv, struct Mesh *scalp)
+{
+	DerivedMesh *dm = CDDM_from_mesh(scalp);
+	HairExportCache *cache = BKE_hair_export_cache_new(hsys, subdiv, dm);
+	dm->release(dm);
 	return cache;
 }
 

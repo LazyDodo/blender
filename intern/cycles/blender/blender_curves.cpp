@@ -298,6 +298,102 @@ static void ObtainCacheVColFromParticleSystem(BL::Mesh *b_mesh,
 	}
 }
 
+static void ObtainCacheDataFromHairSystem(Mesh *mesh,
+                                          BL::Object *b_ob,
+                                          BL::HairSystem *b_hsys,
+                                          ParticleCurveData *CData,
+                                          bool background,
+                                          int *curvenum,
+                                          int *keyno)
+{
+	Transform tfm = get_transform(b_ob->matrix_world());
+	Transform itfm = transform_quick_inverse(tfm);
+	
+	BL::Mesh b_mesh(b_ob->data());
+	void *hair_cache = BKE_hair_export_cache_new_mesh(b_hsys->ptr.data, 0, b_mesh.ptr.data);
+	
+	int totcurves, totverts;
+	BKE_hair_render_get_buffer_size(hair_cache, &totcurves, &totverts);
+	
+	if(totcurves == 0)
+	{
+		BKE_hair_export_cache_free(hair_cache);
+		return;
+	}
+	
+	CData->psys_firstcurve.push_back_slow(*curvenum);
+	CData->psys_curvenum.push_back_slow(totcurves);
+	
+	{
+		// Material
+		int shader = clamp(b_hsys->material_index()-1, 0, mesh->used_shaders.size()-1);
+		CData->psys_shader.push_back_slow(shader);
+	}
+	
+	{
+		// Cycles settings
+//		PointerRNA cpsys = RNA_pointer_get(&b_hsys->ptr, "cycles");
+//		float radius = get_float(cpsys, "radius_scale") * 0.5f;
+//		CData->psys_rootradius.push_back_slow(radius * get_float(cpsys, "root_width"));
+//		CData->psys_tipradius.push_back_slow(radius * get_float(cpsys, "tip_width"));
+//		CData->psys_shape.push_back_slow(get_float(cpsys, "shape"));
+//		CData->psys_closetip.push_back_slow(get_boolean(cpsys, "use_closetip"));
+		float radius = 0.01f * 0.5f;
+		CData->psys_rootradius.push_back_slow(radius * 1.0f);
+		CData->psys_tipradius.push_back_slow(radius * 0.0f);
+		CData->psys_shape.push_back_slow(0.0f);
+		CData->psys_closetip.push_back_slow(true);
+	}
+	
+	// Allocate buffers
+	const size_t firstkey_start = CData->curve_firstkey.size();
+	const size_t keynum_start = CData->curve_keynum.size();
+	const size_t length_start = CData->curve_length.size();
+	const size_t co_start = CData->curvekey_co.size();
+	const size_t time_start = CData->curvekey_time.size();
+	CData->curve_firstkey.resize(firstkey_start + totcurves);
+	CData->curve_keynum.resize(keynum_start + totcurves);
+	CData->curve_length.resize(length_start + totcurves);
+	CData->curvekey_co.resize(co_start + totverts);
+	CData->curvekey_time.resize(time_start + totverts);
+	
+	// Import render curves from hair system
+	BKE_hair_render_fill_buffers(
+	            hair_cache,
+	            (int)sizeof(float3),
+	            CData->curve_firstkey.data() + firstkey_start,
+	            CData->curve_keynum.data() + keynum_start,
+	            (float*)(CData->curvekey_co.data() + co_start));
+	
+	// Compute curve length and key times
+	for(int c = 0; c < totcurves; ++c) {
+		const int keynum = CData->curve_keynum[keynum_start + c];
+		
+		float curve_length = 0.0f;
+		float3 pcKey;
+		for(int v = 0; v < keynum; v++) {
+			float3 cKey = CData->curvekey_co[co_start + v];
+			cKey = transform_point(&itfm, cKey);
+			if(v > 0) {
+				float step_length = len(cKey - pcKey);
+				if(step_length == 0.0f)
+					continue;
+				curve_length += step_length;
+			}
+			
+			CData->curvekey_time.push_back_slow(curve_length);
+			pcKey = cKey;
+		}
+		
+		CData->curve_length.push_back_slow(curve_length);
+	}
+	
+	*curvenum += totcurves;
+	*keyno += totverts;
+	
+	BKE_hair_export_cache_free(hair_cache);
+}
+
 static bool ObtainCacheDataFromObject(Mesh *mesh,
                                       BL::Mesh *b_mesh,
                                       BL::Object *b_ob,
@@ -323,6 +419,17 @@ static bool ObtainCacheDataFromObject(Mesh *mesh,
 				                                  background,
 				                                  &curvenum,
 				                                  &keyno);
+			}
+			if((b_mod->type() == b_mod->type_FUR)) {
+				BL::FurModifier b_fmd((const PointerRNA)b_mod->ptr);
+				BL::HairSystem b_hsys = b_fmd.hair_system();
+				ObtainCacheDataFromHairSystem(mesh,
+				                              b_ob,
+				                              &b_hsys,
+				                              CData,
+				                              background,
+				                              &curvenum,
+				                              &keyno);
 			}
 		}
 	}

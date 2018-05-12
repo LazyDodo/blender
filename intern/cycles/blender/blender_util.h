@@ -36,6 +36,10 @@ void BKE_image_user_frame_calc(void *iuser, int cfra, int fieldnr);
 void BKE_image_user_file_path(void *iuser, void *ima, char *path);
 unsigned char *BKE_image_get_pixels_for_frame(void *image, int frame);
 float *BKE_image_get_float_pixels_for_frame(void *image, int frame);
+void* BKE_hair_export_cache_new_mesh(const void *hsys, int subdiv, void *scalp);
+void BKE_hair_export_cache_free(void *hcache);
+void BKE_hair_render_get_buffer_size(void* hcache, int *r_totcurves, int *r_totverts);
+void BKE_hair_render_fill_buffers(void* hcache, int vertco_stride, int *r_curvestart, int *r_curvelen, float *r_vertco);
 }
 
 CCL_NAMESPACE_BEGIN

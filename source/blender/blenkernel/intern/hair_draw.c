@@ -181,6 +181,147 @@ void BKE_hair_batch_cache_free(HairSystem* hsys)
 	}
 }
 
+/* === Fiber Curve Interpolation === */
+
+/* NOTE: Keep this code in sync with the GLSL version!
+ * see hair_lib.glsl
+ */
+
+static void interpolate_parent_curve(
+        float curve_param,
+        int numverts,
+        const HairGuideVertex *verts,
+        const float (*tangents)[3],
+        const float (*normals)[3],
+        float r_co[3],
+        float r_tang[3],
+        float r_nor[3])
+{
+	float maxlen = (float)(numverts - 1);
+	float arclength = curve_param * maxlen;
+	int segment = (int)(arclength);
+	float lerpfac;
+	if (segment < numverts-1)
+	{
+		lerpfac = arclength - floor(arclength);
+	}
+	else
+	{
+		segment = numverts-2;
+		lerpfac = 1.0f;
+	}
+	
+	mul_v3_v3fl(r_co, verts[segment].co, 1.0f - lerpfac);
+	madd_v3_v3fl(r_co, verts[segment + 1].co, lerpfac);
+	// Make relative to the parent root
+	sub_v3_v3(r_co, verts[0].co);
+	
+	mul_v3_v3fl(r_tang, tangents[segment], 1.0f - lerpfac);
+	madd_v3_v3fl(r_tang, tangents[segment + 1], lerpfac);
+	
+	mul_v3_v3fl(r_nor, normals[segment], 1.0f - lerpfac);
+	madd_v3_v3fl(r_nor, normals[segment + 1], lerpfac);
+}
+
+static void hair_fiber_interpolate_vertex(
+        float curve_param,
+        int parent_numverts,
+        const HairGuideVertex *parent_verts,
+        const float (*parent_tangents)[3],
+        const float (*parent_normals)[3],
+        float parent_weight,
+        float r_co[3],
+        float r_tangent[3],
+        float r_target_matrix[3][3])
+{
+	zero_v3(r_co);
+	zero_v3(r_tangent);
+	unit_m3(r_target_matrix);
+
+	float pco[3], ptang[3], pnor[3];
+	interpolate_parent_curve(
+	            curve_param,
+	            parent_numverts,
+	            parent_verts,
+	            parent_tangents,
+	            parent_normals,
+	            pco,
+	            ptang,
+	            pnor);
+	
+	madd_v3_v3fl(r_co, pco, parent_weight);
+	normalize_v3(ptang);
+	madd_v3_v3fl(r_tangent, ptang, parent_weight);
+	
+	if (r_target_matrix)
+	{
+		copy_v3_v3(r_target_matrix[0], pnor);
+		copy_v3_v3(r_target_matrix[1], ptang);
+		add_v3_v3v3(r_target_matrix[2], pco, parent_verts[0].co);
+	}
+}
+
+static void hair_fiber_interpolate(
+        const HairExportCache* cache,
+        int fiber_index,
+        int vertco_stride,
+        float *r_vertco)
+{
+	const int numverts = cache->fiber_numverts[fiber_index];
+	BLI_assert(numverts >= 2);
+	const float dcurve_param = 1.0f / (numverts - 1);
+	const float *rootco = cache->fiber_root_position[fiber_index];
+	
+	// Add weighted data from each parent
+	
+	for (int k = 0; k < 4; ++k)
+	{
+		const unsigned int parent_index = cache->follicles[fiber_index].parent_index[k];
+		if (parent_index == HAIR_STRAND_INDEX_NONE)
+		{
+			continue;
+		}
+		
+		const float parent_weight = cache->follicles[fiber_index].parent_weight[k];
+		const int parent_numverts = cache->guide_curves[parent_index].numverts;
+		const int parent_vertstart = cache->guide_curves[parent_index].vertstart;
+		const HairGuideVertex *parent_verts = &cache->guide_verts[parent_vertstart];
+		const float (*parent_tangents)[3] = &cache->guide_tangents[parent_vertstart];
+		const float (*parent_normals)[3] = &cache->guide_normals[parent_vertstart];
+		
+		float *vert = r_vertco;
+		float curve_param = 0.0f;
+		for (int i = 0; i < numverts; ++i, vert += vertco_stride)
+		{
+			float tangent[3];
+			float target_matrix[3][3];
+			
+			hair_fiber_interpolate_vertex(
+			            curve_param,
+			            parent_numverts,
+			            parent_verts,
+			            parent_tangents,
+			            parent_normals,
+			            parent_weight,
+			            vert,
+			            tangent,
+			            target_matrix);
+			
+			curve_param += dcurve_param;
+		}
+	}
+	
+	/* Offset to the root
+	 * Normalize tangents
+	 */
+	float *vert = r_vertco;
+	for (int i = 0; i < numverts; ++i, vert += vertco_stride)
+	{
+		add_v3_v3(vert, rootco);
+//		r_tangent = normalize(r_tangent);
+	}
+}
+
 /* === Render API === */
 
 /* Calculate required size for render buffers. */
@@ -189,8 +330,8 @@ void BKE_hair_render_get_buffer_size(
         int *r_totcurves,
         int *r_totverts)
 {
-	if (r_totcurves) *r_totcurves = cache->totfibercurves;
-	if (r_totverts) *r_totverts = cache->totfiberverts;
+	*r_totcurves = cache->totfibercurves;
+	*r_totverts = cache->totfiberverts;
 }
 
 /* Create render data in existing buffers.
@@ -203,5 +344,17 @@ void BKE_hair_render_fill_buffers(
         int *r_curvelen,
         float *r_vertco)
 {
-	
+	{
+		int vertstart = 0;
+		for (int i = 0; i < cache->totfibercurves; ++i)
+		{
+			const int numverts = cache->fiber_numverts[i];
+			r_curvestart[i] = vertstart;
+			r_curvelen[i] = numverts;
+			
+			hair_fiber_interpolate(cache, i, vertco_stride, &r_vertco[vertstart]);
+			
+			vertstart += numverts;
+		}
+	}
 }

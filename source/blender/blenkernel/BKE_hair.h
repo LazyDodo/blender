@@ -42,6 +42,7 @@ struct HairSystem;
 struct HairDrawSettings;
 struct HairGuideData;
 struct DerivedMesh;
+struct Mesh;
 struct MeshSample;
 struct Object;
 
@@ -131,6 +132,7 @@ typedef struct HairExportCache
 } HairExportCache;
 
 struct HairExportCache* BKE_hair_export_cache_new(const struct HairSystem *hsys, int subdiv, struct DerivedMesh *scalp);
+struct HairExportCache* BKE_hair_export_cache_new_mesh(const struct HairSystem *hsys, int subdiv, struct Mesh *scalp);
 void BKE_hair_export_cache_free(struct HairExportCache *cache);
 
 /* === Draw Cache === */
