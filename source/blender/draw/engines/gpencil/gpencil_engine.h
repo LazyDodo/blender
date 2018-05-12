@@ -171,11 +171,6 @@ typedef struct g_data {
 
 	int session_flag;
 
-	/* number of shading groups */
-	int tot_sh;         /* total shading groups */
-	int tot_sh_stroke;  /* total strokes groups */
-	int tot_sh_fill;    /* total fill groups */
-	int tot_sh_point;   /* total point groups */
 } g_data; /* Transient data */
 
 /* flags for fast drawing support */

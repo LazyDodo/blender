@@ -216,7 +216,6 @@ void GPENCIL_cache_init(void *vedata)
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
-	// RegionView3D *rv3d = draw_ctx->rv3d;
 
 	/* Special handling for when active object is GP object (e.g. for draw mode) */
 	Object *obact = draw_ctx->obact;
@@ -234,11 +233,6 @@ void GPENCIL_cache_init(void *vedata)
 		stl->storage->xray = GP_XRAY_FRONT; /* used for drawing */
 		stl->storage->stroke_style = GP_STYLE_STROKE_STYLE_SOLID; /* used for drawing */
 	}
-	/* reset total shading groups */
-	stl->g_data->tot_sh = 0;
-	stl->g_data->tot_sh_stroke = 0;
-	stl->g_data->tot_sh_fill = 0;
-	stl->g_data->tot_sh_point = 0;
 	stl->storage->tonemapping = 0;
 
 	stl->g_data->shgrps_edit_line = NULL;
@@ -339,7 +333,6 @@ void GPENCIL_cache_init(void *vedata)
 		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
 		psl->mix_pass = DRW_pass_create("GPencil Mix Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *mix_shgrp = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass);
-		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(mix_shgrp, quad, NULL);
 		DRW_shgroup_uniform_texture_ref(mix_shgrp, "strokeColor", &e_data.input_color_tx);
 		DRW_shgroup_uniform_texture_ref(mix_shgrp, "strokeDepth", &e_data.input_depth_tx);
@@ -348,7 +341,6 @@ void GPENCIL_cache_init(void *vedata)
 		/* mix pass no blend */
 		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
-		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(mix_shgrp_noblend, quad, NULL);
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.temp_color_tx_a);
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.temp_depth_tx_a);
@@ -357,7 +349,6 @@ void GPENCIL_cache_init(void *vedata)
 		/* Painting session pass (used only to speedup while the user is drawing ) */
 		psl->painting_pass = DRW_pass_create("GPencil Painting Session Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *painting_shgrp = DRW_shgroup_create(e_data.gpencil_painting_sh, psl->painting_pass);
-		stl->g_data->tot_sh++;
 		DRW_shgroup_call_add(painting_shgrp, quad, NULL);
 		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeColor", &e_data.painting_color_tx);
 		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeDepth", &e_data.painting_depth_tx);

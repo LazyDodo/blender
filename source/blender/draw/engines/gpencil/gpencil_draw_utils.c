@@ -259,8 +259,6 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(GPENCIL_e_data *e_data, 
 
 	/* e_data.gpencil_fill_sh */
 	DRWShadingGroup *grp = DRW_shgroup_create(shader, pass);
-	stl->g_data->tot_sh++;
-	stl->g_data->tot_sh_fill++;
 
 	DRW_shgroup_uniform_vec4(grp, "color2", gp_style->scolor, 1);
 	stl->shgroups[id].fill_style = gp_style->fill_style;
@@ -328,10 +326,6 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENC
 
 	/* e_data.gpencil_stroke_sh */
 	DRWShadingGroup *grp = DRW_shgroup_create(shader, pass);
-	stl->g_data->tot_sh++;
-	if (id != -1) {
-		stl->g_data->tot_sh_stroke++;
-	}
 
 	DRW_shgroup_uniform_vec2(grp, "Viewport", viewport_size, 1);
 
@@ -423,8 +417,6 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(GPENCIL_e_data *e_data,
 
 	/* e_data.gpencil_stroke_sh */
 	DRWShadingGroup *grp = DRW_shgroup_create(shader, pass);
-	stl->g_data->tot_sh++;
-	stl->g_data->tot_sh_point++;
 
 	DRW_shgroup_uniform_vec2(grp, "Viewport", viewport_size, 1);
 	DRW_shgroup_uniform_float(grp, "pixsize", stl->storage->pixsize, 1);
@@ -800,13 +792,11 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 		if ((src_gps) && (!playing) && (!is_render)) {
 			if (!stl->g_data->shgrps_edit_line) {
 				stl->g_data->shgrps_edit_line = DRW_shgroup_create(e_data->gpencil_line_sh, psl->edit_pass);
-				stl->g_data->tot_sh++;
 			}
 			if (!stl->g_data->shgrps_edit_point) {
 				stl->g_data->shgrps_edit_point = DRW_shgroup_create(e_data->gpencil_edit_point_sh, psl->edit_pass);
 				const float *viewport_size = DRW_viewport_size_get();
 				DRW_shgroup_uniform_vec2(stl->g_data->shgrps_edit_point, "Viewport", viewport_size, 1);
-				stl->g_data->tot_sh++;
 			}
 
 			gpencil_add_editpoints_shgroup(stl, cache, ts, ob, gpd, gpl, derived_gpf, src_gps);
@@ -878,7 +868,6 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 						gpd->sfill[3] = 0.5f;
 					}
 					stl->g_data->shgrps_drawing_fill = DRW_shgroup_create(e_data->gpencil_drawing_fill_sh, psl->drawing_pass);
-					stl->g_data->tot_sh++;
 					stl->g_data->batch_buffer_fill = DRW_gpencil_get_buffer_fill_geom(gpd);
 					DRW_shgroup_call_add(stl->g_data->shgrps_drawing_fill, stl->g_data->batch_buffer_fill, stl->storage->unit_matrix);
 				}
