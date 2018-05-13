@@ -50,6 +50,7 @@ extern "C" {
 #include "DNA_layer_types.h"
 #include "DNA_material_types.h"
 #include "DNA_userdef_types.h"
+#include "DNA_view3d_types.h"
 
 struct CurveMapping;
 struct Object;
@@ -431,7 +432,7 @@ typedef struct ImageFormatData {
 #define R_IMF_IMTYPE_TIFF           22
 #define R_IMF_IMTYPE_OPENEXR        23
 #define R_IMF_IMTYPE_FFMPEG         24
-#define R_IMF_IMTYPE_FRAMESERVER    25
+/* #define R_IMF_IMTYPE_FRAMESERVER    25 */ /* frame server is nomore */
 #define R_IMF_IMTYPE_CINEON         26
 #define R_IMF_IMTYPE_DPX            27
 #define R_IMF_IMTYPE_MULTILAYER     28
@@ -1288,9 +1289,12 @@ typedef struct ToolSettings {
 	char _pad1;
 
 	/* Transform */
+	char transform_pivot_point;
+	char transform_flag;
 	char snap_mode, snap_node_mode;
 	char snap_uv_mode;
-	short snap_flag, snap_target;
+	char snap_flag;
+	char snap_target;
 	short proportional, prop_mode;
 	char proportional_objects; /* proportional edit, object mode */
 	char proportional_mask; /* proportional edit, mask editing */
@@ -1371,6 +1375,13 @@ typedef struct DisplaySafeAreas {
 	float action_center[2];
 } DisplaySafeAreas;
 
+/* ------------------------------------------- */
+/* Scene Display - used for store scene specific display settings for the 3d view */
+typedef struct SceneDisplay {
+	float light_direction[3];      /* light direction for shadows/highlight */
+	int pad;
+} SceneDisplay;
+
 /* *************************************************************** */
 /* Scene ID-Block */
 
@@ -1387,8 +1398,7 @@ typedef struct Scene {
 	struct Base  *basact DNA_DEPRECATED; /* active base */
 	void *_pad1;
 	
-	float cursor[3];			/* 3d cursor location */
-	char _pad[4];
+	View3DCursor cursor;			/* 3d cursor location */
 	
 	unsigned int lay;			/* bitflags for layer visibility */
 	int layact;		/* active layer */
@@ -1463,6 +1473,8 @@ typedef struct Scene {
 
 	IDProperty *collection_properties;  /* settings to be overriden by layer collections */
 	IDProperty *layer_properties;  /* settings to be override by workspaces */
+
+	struct SceneDisplay display;
 } Scene;
 
 /* **************** RENDERDATA ********************* */
@@ -1688,6 +1700,8 @@ extern const char *RE_engine_id_CYCLES;
 	(((workspace)->object_mode & OD_MODE_EDIT) ? OBACT(_view_layer) : NULL)
 #define OBEDIT_FROM_OBACT(ob) \
 	((ob) ? (((ob)->mode & OB_MODE_EDIT) ? ob : NULL) : NULL)
+#define OBPOSE_FROM_OBACT(ob) \
+	((ob) ? (((ob)->mode & OB_MODE_POSE) ? ob : NULL) : NULL)
 #define OBEDIT_FROM_VIEW_LAYER(view_layer) \
 	OBEDIT_FROM_OBACT(OBACT(view_layer))
 
@@ -1706,6 +1720,11 @@ extern const char *RE_engine_id_CYCLES;
 #define FPS              (((double) scene->r.frs_sec) / (double)scene->r.frs_sec_base)
 
 /* Base.flag is in DNA_object_types.h */
+
+/* ToolSettings.transform_flag */
+enum {
+	SCE_XFORM_AXIS_ALIGN = (1 << 0),
+};
 
 /* ToolSettings.snap_flag */
 #define SCE_SNAP				1

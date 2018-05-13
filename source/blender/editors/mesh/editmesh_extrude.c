@@ -39,12 +39,15 @@
 #include "BKE_context.h"
 #include "BKE_report.h"
 #include "BKE_editmesh.h"
+#include "BKE_global.h"
+#include "BKE_idprop.h"
 
 #include "RNA_define.h"
 #include "RNA_access.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
 
 #include "ED_mesh.h"
 #include "ED_screen.h"
@@ -292,36 +295,44 @@ static bool edbm_extrude_ex(
 
 static int edbm_extrude_repeat_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
 	RegionView3D *rv3d = CTX_wm_region_view3d(C);
-
 	const int steps = RNA_int_get(op->ptr, "steps");
-
 	const float offs = RNA_float_get(op->ptr, "offset");
 	float dvec[3], tmat[3][3], bmat[3][3];
 	short a;
 
-	/* dvec */
-	normalize_v3_v3_length(dvec, rv3d->persinv[2], offs);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	/* base correction */
-	copy_m3_m4(bmat, obedit->obmat);
-	invert_m3_m3(tmat, bmat);
-	mul_m3_v3(tmat, dvec);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 
-	for (a = 0; a < steps; a++) {
-		edbm_extrude_ex(obedit, em, BM_ALL_NOLOOP, BM_ELEM_SELECT, false, false);
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-		BMO_op_callf(
-		        em->bm, BMO_FLAG_DEFAULTS,
-		        "translate vec=%v verts=%hv",
-		        dvec, BM_ELEM_SELECT);
+		/* dvec */
+		normalize_v3_v3_length(dvec, rv3d->persinv[2], offs);
+
+		/* base correction */
+		copy_m3_m4(bmat, obedit->obmat);
+		invert_m3_m3(tmat, bmat);
+		mul_m3_v3(tmat, dvec);
+
+		for (a = 0; a < steps; a++) {
+			edbm_extrude_ex(obedit, em, BM_ALL_NOLOOP, BM_ELEM_SELECT, false, false);
+
+			BMO_op_callf(
+				em->bm, BMO_FLAG_DEFAULTS,
+				"translate vec=%v verts=%hv",
+				dvec, BM_ELEM_SELECT);
+		}
+
+		EDBM_mesh_normals_update(em);
+
+		EDBM_update_generic(em, true, true);
 	}
 
-	EDBM_mesh_normals_update(em);
-
-	EDBM_update_generic(em, true, true);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -359,6 +370,8 @@ typedef struct ManipulatorExtrudeGroup {
 	struct wmManipulator *axis_arrow;
 	/* Redo Z-axis translation. */
 	struct wmManipulator *axis_redo;
+
+	wmOperatorType *ot_extrude;
 } ManipulatorExtrudeGroup;
 
 static bool manipulator_mesh_extrude_poll(const bContext *C, wmManipulatorGroupType *wgt)
@@ -386,21 +399,28 @@ static void manipulator_mesh_extrude_setup(const bContext *UNUSED(C), wmManipula
 	man->axis_arrow = WM_manipulator_new_ptr(wt_arrow, mgroup, NULL);
 	man->axis_redo = WM_manipulator_new_ptr(wt_grab, mgroup, NULL);
 
+	man->ot_extrude = WM_operatortype_find("MESH_OT_extrude_context_move", true);
+
 	UI_GetThemeColor3fv(TH_MANIPULATOR_PRIMARY, man->axis_arrow->color);
 	UI_GetThemeColor3fv(TH_MANIPULATOR_SECONDARY, man->axis_redo->color);
 
+	man->axis_redo->color[3] = 0.3f;
+	man->axis_redo->color_hi[3] = 0.3f;
+
 	WM_manipulator_set_scale(man->axis_arrow, 2.0);
-	WM_manipulator_set_scale(man->axis_redo, 2.0);
+	WM_manipulator_set_scale(man->axis_redo, 1.0);
 
 	RNA_enum_set(man->axis_arrow->ptr, "draw_style", ED_MANIPULATOR_ARROW_STYLE_NORMAL);
 	RNA_enum_set(man->axis_redo->ptr, "draw_style", ED_MANIPULATOR_GRAB_STYLE_RING_2D);
+
+	RNA_enum_set(man->axis_redo->ptr, "draw_options",
+	             ED_MANIPULATOR_GRAB_DRAW_FLAG_FILL);
 
 	WM_manipulator_set_flag(man->axis_redo, WM_MANIPULATOR_DRAW_VALUE, true);
 
 	/* New extrude. */
 	{
-		wmOperatorType *ot = WM_operatortype_find("MESH_OT_extrude_region_move", true);
-		PointerRNA *ptr = WM_manipulator_operator_set(man->axis_arrow, 0, ot, NULL);
+		PointerRNA *ptr = WM_manipulator_operator_set(man->axis_arrow, 0, man->ot_extrude, NULL);
 		{
 			PointerRNA macroptr = RNA_pointer_get(ptr, "TRANSFORM_OT_translate");
 			RNA_boolean_set(&macroptr, "release_confirm", true);
@@ -409,8 +429,7 @@ static void manipulator_mesh_extrude_setup(const bContext *UNUSED(C), wmManipula
 	}
 	/* Adjust extrude. */
 	{
-		wmOperatorType *ot = WM_operatortype_find("MESH_OT_extrude_region_move", true);
-		PointerRNA *ptr = WM_manipulator_operator_set(man->axis_redo, 0, ot, NULL);
+		PointerRNA *ptr = WM_manipulator_operator_set(man->axis_redo, 0, man->ot_extrude, NULL);
 		{
 			PointerRNA macroptr = RNA_pointer_get(ptr, "TRANSFORM_OT_translate");
 			RNA_boolean_set(&macroptr, "release_confirm", true);
@@ -428,8 +447,24 @@ static void manipulator_mesh_extrude_refresh(const bContext *C, wmManipulatorGro
 	WM_manipulator_set_flag(man->axis_arrow, WM_MANIPULATOR_HIDDEN, true);
 	WM_manipulator_set_flag(man->axis_redo, WM_MANIPULATOR_HIDDEN, true);
 
+	if (G.moving) {
+		return;
+	}
+
+	int orientation_type;
+	{
+		PointerRNA ot_ptr;
+		WM_operator_last_properties_ensure(man->ot_extrude, &ot_ptr);
+		PointerRNA macroptr = RNA_pointer_get(&ot_ptr, "TRANSFORM_OT_translate");
+		orientation_type = RNA_enum_get(&macroptr, "constraint_orientation");
+	}
+
 	struct TransformBounds tbounds;
-	if (!ED_transform_calc_manipulator_stats(C, false, &tbounds)) {
+	if (!ED_transform_calc_manipulator_stats(
+	            C, &(struct TransformCalcParams){
+	                .orientation_type = orientation_type + 1,
+	            }, &tbounds))
+	{
 		return;
 	}
 
@@ -441,10 +476,16 @@ static void manipulator_mesh_extrude_refresh(const bContext *C, wmManipulatorGro
 	WM_manipulator_set_matrix_location(man->axis_redo, tbounds.center);
 
 	wmOperator *op = WM_operator_last_redo(C);
-	bool has_redo = (op && STREQ(op->type->idname, "MESH_OT_extrude_region_move"));
+	bool has_redo = (op && op->type == man->ot_extrude);
 
 	WM_manipulator_set_flag(man->axis_arrow, WM_MANIPULATOR_HIDDEN, false);
 	WM_manipulator_set_flag(man->axis_redo, WM_MANIPULATOR_HIDDEN, !has_redo);
+
+	{
+		wmManipulatorOpElem *mpop = WM_manipulator_operator_get(man->axis_arrow, 0);
+		PointerRNA macroptr = RNA_pointer_get(&mpop->ptr, "TRANSFORM_OT_translate");
+		RNA_enum_set(&macroptr, "constraint_orientation", orientation_type);
+	}
 
 	/* Redo with current settings. */
 	if (has_redo) {
@@ -459,12 +500,30 @@ static void manipulator_mesh_extrude_refresh(const bContext *C, wmManipulatorGro
 		RNA_float_get_array(op_transform->ptr, "value", value);
 		RNA_float_set_array(&macroptr, "value", value);
 
-		/* Currently has glitch in re-applying. */
-#if 0
 		int constraint_axis[3];
 		RNA_boolean_get_array(op_transform->ptr, "constraint_axis", constraint_axis);
 		RNA_boolean_set_array(&macroptr, "constraint_axis", constraint_axis);
-#endif
+	}
+}
+
+static void manipulator_mesh_extrude_message_subscribe(
+        const bContext *C, wmManipulatorGroup *mgroup, struct wmMsgBus *mbus)
+{
+	ManipulatorExtrudeGroup *man = mgroup->customdata;
+	ARegion *ar = CTX_wm_region(C);
+
+	/* Subscribe to view properties */
+	wmMsgSubscribeValue msg_sub_value_mpr_tag_refresh = {
+		.owner = ar,
+		.user_data = mgroup->parent_mmap,
+		.notify = WM_manipulator_do_msg_notify_tag_refresh,
+	};
+
+	{
+		PointerRNA ot_ptr;
+		WM_operator_last_properties_ensure(man->ot_extrude, &ot_ptr);
+		PointerRNA macroptr = RNA_pointer_get(&ot_ptr, "TRANSFORM_OT_translate");
+		WM_msg_subscribe_rna(mbus, &macroptr, NULL, &msg_sub_value_mpr_tag_refresh, __func__);
 	}
 }
 
@@ -481,6 +540,7 @@ static void MESH_WGT_extrude(struct wmManipulatorGroupType *wgt)
 	wgt->poll = manipulator_mesh_extrude_poll;
 	wgt->setup = manipulator_mesh_extrude_setup;
 	wgt->refresh = manipulator_mesh_extrude_refresh;
+	wgt->message_subscribe = manipulator_mesh_extrude_message_subscribe;
 }
 
 #endif  /* USE_MANIPULATOR */
@@ -551,7 +611,9 @@ static int edbm_extrude_region_exec(bContext *C, wmOperator *op)
 			continue;
 		}
 
-		edbm_extrude_mesh(obedit, em, op);
+		if (!edbm_extrude_mesh(obedit, em, op)) {
+			continue;
+		}
 		/* This normally happens when pushing undo but modal operators
 		 * like this one don't push undo data until after modal mode is
 		 * done.*/
@@ -573,6 +635,58 @@ void MESH_OT_extrude_region(wmOperatorType *ot)
 	/* api callbacks */
 	//ot->invoke = mesh_extrude_region_invoke;
 	ot->exec = edbm_extrude_region_exec;
+	ot->poll = ED_operator_editmesh;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	Transform_Properties(ot, P_NO_DEFAULTS | P_MIRROR_DUMMY);
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Extrude Context Operator
+ *
+ * Guess what to do based on selection.
+ * \{ */
+
+/* extrude without transform */
+static int edbm_extrude_context_exec(bContext *C, wmOperator *op)
+{
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		if (em->bm->totvertsel == 0) {
+			continue;
+		}
+
+		edbm_extrude_mesh(obedit, em, op);
+		/* This normally happens when pushing undo but modal operators
+		 * like this one don't push undo data until after modal mode is
+		 * done.*/
+
+		EDBM_mesh_normals_update(em);
+
+		EDBM_update_generic(em, true, true);
+	}
+	MEM_freeN(objects);
+	return OPERATOR_FINISHED;
+}
+
+void MESH_OT_extrude_context(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Extrude Context";
+	ot->idname = "MESH_OT_extrude_context";
+	ot->description = "Extrude selection";
+
+	/* api callbacks */
+	ot->exec = edbm_extrude_context_exec;
 	ot->poll = ED_operator_editmesh;
 
 	/* flags */
@@ -862,7 +976,7 @@ static int edbm_dupli_extrude_cursor_invoke(bContext *C, wmOperator *op, const w
 		              BM_ELEM_SELECT, ofs);
 	}
 	else {
-		const float *cursor = ED_view3d_cursor3d_get(vc.scene, vc.v3d);
+		const float *cursor = ED_view3d_cursor3d_get(vc.scene, vc.v3d)->location;
 		BMOperator bmop;
 		BMOIter oiter;
 

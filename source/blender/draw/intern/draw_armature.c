@@ -82,6 +82,7 @@ static struct {
 	DRWShadingGroup *bone_box_wire;
 	DRWShadingGroup *bone_box_outline;
 	DRWShadingGroup *bone_wire_wire;
+	DRWShadingGroup *bone_stick;
 	DRWShadingGroup *bone_envelope_solid;
 	DRWShadingGroup *bone_envelope_distance;
 	DRWShadingGroup *bone_envelope_wire;
@@ -180,6 +181,20 @@ static void drw_shgroup_bone_wire_wire(const float (*bone_mat)[4], const float c
 	mul_m4_m4m4(final_bonemat, g_data.ob->obmat, bone_mat);
 	DRW_shgroup_call_dynamic_add(g_data.bone_wire_wire, final_bonemat, color);
 }
+
+static void drw_shgroup_bone_stick(
+        const float (*bone_mat)[4],
+        const float col_wire[4], const float col_bone[4], const float col_head[4], const float col_tail[4])
+{
+	if (g_data.bone_stick == NULL) {
+		g_data.bone_stick = shgroup_instance_bone_stick(g_data.passes.bone_wire);
+	}
+	float final_bonemat[4][4], tail[4];
+	mul_m4_m4m4(final_bonemat, g_data.ob->obmat, bone_mat);
+	add_v3_v3v3(tail, final_bonemat[3], final_bonemat[1]);
+	DRW_shgroup_call_dynamic_add(g_data.bone_stick, final_bonemat[3], tail, col_wire, col_bone, col_head, col_tail);
+}
+
 
 /* Envelope */
 static void drw_shgroup_bone_envelope_distance(
@@ -732,9 +747,7 @@ static float get_bone_wire_thickness(int boneflag)
 {
 	if (g_theme.const_color)
 		return g_theme.const_wire;
-	else if (boneflag & BONE_DRAW_ACTIVE)
-		return 3.0f;
-	else if (boneflag & BONE_SELECTED)
+	else if (boneflag & (BONE_DRAW_ACTIVE | BONE_SELECTED))
 		return 2.0f;
 	else
 		return 1.0f;
@@ -1030,7 +1043,7 @@ static void draw_axes(EditBone *eBone, bPoseChannel *pchan)
 	const float *col = (g_theme.const_color) ? g_theme.const_color :
 	                   (BONE_FLAG(eBone, pchan) & BONE_SELECTED) ? g_theme.text_hi_color : g_theme.text_color;
 	copy_v4_v4(final_col, col);
-	final_col[3] = (g_theme.const_color) ? 1.0 : 0.3; /* Mix with axes color. */
+	final_col[3] = (g_theme.const_color) ? 1.0 : (BONE_FLAG(eBone, pchan) & BONE_SELECTED) ? 0.3 : 0.8; /* Mix with axes color. */
 	drw_shgroup_bone_axes(BONE_VAR(eBone, pchan, disp_mat), final_col);
 }
 
@@ -1194,11 +1207,62 @@ static void draw_bone_envelope(
 }
 
 static void draw_bone_line(
-        EditBone *UNUSED(eBone), bPoseChannel *UNUSED(pchan), bArmature *UNUSED(arm),
-        const int UNUSED(boneflag), const short UNUSED(constflag),
-        const int UNUSED(select_id))
+        EditBone *eBone, bPoseChannel *pchan, bArmature *arm,
+        const int boneflag, const short constflag, const int select_id)
 {
-	/* work in progress  -- fclem */
+	const float *col_bone = get_bone_solid_with_consts_color(eBone, pchan, arm, boneflag, constflag);
+	const float *col_wire = get_bone_wire_color(eBone, pchan, arm, boneflag, constflag);
+	const float no_display[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	const float *col_head = no_display;
+	const float *col_tail = col_bone;
+
+	if (eBone) {
+		if (eBone->flag & BONE_TIPSEL) {
+			col_tail = g_theme.vertex_select_color;
+		}
+		if (boneflag & BONE_SELECTED) {
+			col_bone = g_theme.edge_select_color;
+		}
+		col_wire = g_theme.wire_color;
+	}
+
+	/*	Draw root point if we are not connected and parent are not hidden */
+	if ((BONE_FLAG(eBone, pchan) & BONE_CONNECTED) == 0) {
+		if (eBone && !(eBone->parent && !EBONE_VISIBLE(arm, eBone->parent))) {
+			col_head = (eBone->flag & BONE_ROOTSEL) ? g_theme.vertex_select_color : col_bone;
+		}
+		else if (pchan) {
+			Bone *bone = pchan->bone;
+			if (!(bone->parent && (bone->parent->flag & (BONE_HIDDEN_P | BONE_HIDDEN_PG)))) {
+				col_head = col_bone;
+			}
+		}
+	}
+
+	if (g_theme.const_color != NULL) {
+		col_wire = no_display; /* actually shrink the display. */
+		col_bone = col_head = col_tail = g_theme.const_color;
+	}
+
+	if (select_id == -1) {
+		/* Not in selection mode, draw everything at once. */
+		drw_shgroup_bone_stick(BONE_VAR(eBone, pchan, disp_mat), col_wire, col_bone, col_head, col_tail);
+	}
+	else {
+		/* In selection mode, draw bone, root and tip separatly. */
+		DRW_select_load_id(select_id | BONESEL_BONE);
+		drw_shgroup_bone_stick(BONE_VAR(eBone, pchan, disp_mat), col_wire, col_bone, no_display, no_display);
+
+		if (col_head[3] > 0.0f) {
+			DRW_select_load_id(select_id | BONESEL_ROOT);
+			drw_shgroup_bone_stick(BONE_VAR(eBone, pchan, disp_mat), col_wire, no_display, col_head, no_display);
+		}
+
+		DRW_select_load_id(select_id | BONESEL_TIP);
+		drw_shgroup_bone_stick(BONE_VAR(eBone, pchan, disp_mat), col_wire, no_display, no_display, col_tail);
+
+		DRW_select_load_id(-1);
+	}
 }
 
 static void draw_bone_wire(
@@ -1418,7 +1482,7 @@ static void draw_armature_edit(Object *ob)
 	for (eBone = arm->edbo->first, index = ob->select_color; eBone; eBone = eBone->next, index += 0x10000) {
 		if (eBone->layer & arm->layer) {
 			if ((eBone->flag & BONE_HIDDEN_A) == 0) {
-				const int select_id = is_select ? index : (unsigned int)-1;
+				const int select_id = is_select ? index : (uint)-1;
 
 				const short constflag = 0;
 
@@ -1522,7 +1586,7 @@ static void draw_armature_pose(Object *ob, const float const_color[4])
 		/* bone must be visible */
 		if ((bone->flag & (BONE_HIDDEN_P | BONE_HIDDEN_PG)) == 0) {
 			if (bone->layer & arm->layer) {
-				const int select_id = is_pose_select ? index : (unsigned int)-1;
+				const int select_id = is_pose_select ? index : (uint)-1;
 
 				const short constflag = pchan->constflag;
 

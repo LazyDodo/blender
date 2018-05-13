@@ -40,12 +40,16 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
 #include "BKE_mesh.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 #include "BKE_deform.h"
 
 #include "MOD_util.h"
+
+#include "bmesh.h"
 
 #define BEND_EPS 0.000001f
 
@@ -182,8 +186,9 @@ static void simpleDeform_bend(const float factor, const int axis, const float dc
 
 
 /* simple deform modifier */
-static void SimpleDeformModifier_do(SimpleDeformModifierData *smd, struct Object *ob, struct Mesh *mesh,
-                                    float (*vertexCos)[3], int numVerts)
+static void SimpleDeformModifier_do(
+        SimpleDeformModifierData *smd, struct Object *ob, struct Mesh *mesh,
+        float (*vertexCos)[3], int numVerts)
 {
 	const float base_limit[2] = {0.0f, 0.0f};
 	int i;
@@ -347,15 +352,6 @@ static void initData(ModifierData *md)
 	smd->limit[1] =  1.0f;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	SimpleDeformModifierData *smd  = (SimpleDeformModifierData *)md;
-	SimpleDeformModifierData *tsmd = (SimpleDeformModifierData *)target;
-#endif
-	modifier_copyData_generic(md, target);
-}
-
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 {
 	SimpleDeformModifierData *smd = (SimpleDeformModifierData *)md;
@@ -384,21 +380,35 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static void deformVerts(ModifierData *md, const ModifierEvalContext *ctx,
-                        struct Mesh *mesh,
-                        float (*vertexCos)[3],
-                        int numVerts)
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
-	SimpleDeformModifier_do((SimpleDeformModifierData *)md, ctx->object, mesh, vertexCos, numVerts);
+	Mesh *mesh_src = get_mesh(ctx->object, NULL, mesh, NULL, false, false);
+
+	SimpleDeformModifier_do((SimpleDeformModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
+
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
-static void deformVertsEM(ModifierData *md, const ModifierEvalContext *ctx,
-                          struct BMEditMesh *UNUSED(editData),
-                          struct Mesh *mesh,
-                          float (*vertexCos)[3],
-                          int numVerts)
+static void deformVertsEM(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct BMEditMesh *editData,
+        struct Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
-	SimpleDeformModifier_do((SimpleDeformModifierData *)md, ctx->object, mesh, vertexCos, numVerts);
+	Mesh *mesh_src = get_mesh(ctx->object, editData, mesh, NULL, false, false);
+
+	SimpleDeformModifier_do((SimpleDeformModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
+
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
 
@@ -414,7 +424,7 @@ ModifierTypeInfo modifierType_SimpleDeform = {
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
 
 	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,

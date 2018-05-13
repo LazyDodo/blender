@@ -466,9 +466,6 @@ void BKE_object_free(Object *ob)
 	}
 
 	BKE_previewimg_free(&ob->preview);
-
-	/* don't free, let the base free it */
-	ob->base_collection_properties = NULL;
 }
 
 /* actual check for internal data, not context or flags */
@@ -726,6 +723,8 @@ void BKE_object_init(Object *ob)
 	
 	/* Animation Visualization defaults */
 	animviz_settings_init(&ob->avs);
+
+	ob->display.flag = OB_SHOW_SHADOW;
 }
 
 /* more general add: creates minimum required data, but without vertices etc. */

@@ -2283,17 +2283,43 @@ static int laplaciandeform_poll(bContext *C)
 
 static int laplaciandeform_bind_exec(bContext *C, wmOperator *op)
 {
+	Scene *scene = CTX_data_scene(C);
 	Object *ob = ED_object_active_context(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	LaplacianDeformModifierData *lmd = (LaplacianDeformModifierData *)edit_modifier_property_get(op, ob, eModifierType_LaplacianDeform);
 
 	if (!lmd)
 		return OPERATOR_CANCELLED;
 	if (lmd->flag & MOD_LAPLACIANDEFORM_BIND) {
+		/* Un-binding happens inside the modifier when it's evaluated. */
 		lmd->flag &= ~MOD_LAPLACIANDEFORM_BIND;
 	}
 	else {
+		DerivedMesh *dm;
+		int mode = lmd->modifier.mode;
+
+		/* Force modifier to run, it will call binding routine. */
+		/* TODO(Sybren): deduplicate the code below, it's used multiple times here. */
+		lmd->modifier.mode |= eModifierMode_Realtime;
 		lmd->flag |= MOD_LAPLACIANDEFORM_BIND;
+
+		if (ob->type == OB_MESH) {
+			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
+			dm->release(dm);
+		}
+		else if (ob->type == OB_LATTICE) {
+			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
+		}
+		else if (ob->type == OB_MBALL) {
+			BKE_displist_make_mball(depsgraph, scene, ob);
+		}
+		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
+			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
+		}
+
+		lmd->modifier.mode = mode;
 	}
+
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	return OPERATOR_FINISHED;
@@ -2333,17 +2359,41 @@ static int surfacedeform_bind_poll(bContext *C)
 
 static int surfacedeform_bind_exec(bContext *C, wmOperator *op)
 {
+	Scene *scene = CTX_data_scene(C);
 	Object *ob = ED_object_active_context(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)edit_modifier_property_get(op, ob, eModifierType_SurfaceDeform);
 
 	if (!smd)
 		return OPERATOR_CANCELLED;
 
 	if (smd->flags & MOD_SDEF_BIND) {
+		/* Un-binding happens inside the modifier when it's evaluated. */
 		smd->flags &= ~MOD_SDEF_BIND;
 	}
 	else if (smd->target) {
+		DerivedMesh *dm;
+		int mode = smd->modifier.mode;
+
+		/* Force modifier to run, it will call binding routine. */
+		smd->modifier.mode |= eModifierMode_Realtime;
 		smd->flags |= MOD_SDEF_BIND;
+
+		if (ob->type == OB_MESH) {
+			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
+			dm->release(dm);
+		}
+		else if (ob->type == OB_LATTICE) {
+			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
+		}
+		else if (ob->type == OB_MBALL) {
+			BKE_displist_make_mball(depsgraph, scene, ob);
+		}
+		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
+			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
+		}
+
+		smd->modifier.mode = mode;
 	}
 
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);

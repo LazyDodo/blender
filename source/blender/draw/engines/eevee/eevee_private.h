@@ -228,8 +228,7 @@ typedef struct EEVEE_FramebufferList {
 	struct GPUFrameBuffer *sss_clear_fb;
 	struct GPUFrameBuffer *sss_accum_fb;
 	struct GPUFrameBuffer *dof_down_fb;
-	struct GPUFrameBuffer *dof_scatter_far_fb;
-	struct GPUFrameBuffer *dof_scatter_near_fb;
+	struct GPUFrameBuffer *dof_scatter_fb;
 	struct GPUFrameBuffer *volumetric_fb;
 	struct GPUFrameBuffer *volumetric_scat_fb;
 	struct GPUFrameBuffer *volumetric_integ_fb;
@@ -338,8 +337,8 @@ typedef struct EEVEE_ShadowCaster {
 typedef struct EEVEE_ShadowCasterBuffer {
 	struct EEVEE_ShadowCaster *shadow_casters;
 	char *flags;
-	unsigned int alloc_count;
-	unsigned int count;
+	uint alloc_count;
+	uint count;
 } EEVEE_ShadowCasterBuffer;
 
 /* ************ LIGHT DATA ************* */
@@ -355,7 +354,7 @@ typedef struct EEVEE_LampsInfo {
 	int shadow_cube_store_size;
 	int current_shadow_cascade;
 	int current_shadow_face;
-	unsigned int shadow_instance_count;
+	uint shadow_instance_count;
 	float filter_size;
 	/* List of lights in the scene. */
 	/* XXX This is fragile, can get out of sync quickly. */
@@ -547,13 +546,12 @@ typedef struct EEVEE_EffectsInfo {
 	float dof_near_far[2];
 	float dof_params[3];
 	float dof_bokeh[4];
-	float dof_layer_select[2];
+	float dof_bokeh_sides[4];
 	int dof_target_size[2];
 	struct GPUTexture *dof_down_near; /* Textures from pool */
 	struct GPUTexture *dof_down_far;
 	struct GPUTexture *dof_coc;
-	struct GPUTexture *dof_near_blur;
-	struct GPUTexture *dof_far_blur;
+	struct GPUTexture *dof_blur;
 	/* Other */
 	float prev_persmat[4][4];
 	/* Bloom */
@@ -753,7 +751,7 @@ typedef struct EEVEE_ObjectEngineData {
 	bool ob_vis, ob_vis_dirty;
 
 	bool need_update;
-	unsigned int shadow_caster_id;
+	uint shadow_caster_id;
 } EEVEE_ObjectEngineData;
 
 /* *********************************** */
@@ -887,7 +885,7 @@ int EEVEE_subsurface_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_subsurface_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_subsurface_output_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_subsurface_add_pass(
-        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, unsigned int sss_id, struct GPUUniformBuffer *sss_profile);
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, uint sss_id, struct GPUUniformBuffer *sss_profile);
 void EEVEE_subsurface_data_render(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_subsurface_compute(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_subsurface_output_accumulate(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
@@ -914,7 +912,7 @@ void EEVEE_temporal_sampling_free(void);
 
 /* eevee_volumes.c */
 int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
-void EEVEE_volumes_set_jitter(EEVEE_ViewLayerData *sldata, unsigned int current_sample);
+void EEVEE_volumes_set_jitter(EEVEE_ViewLayerData *sldata, uint current_sample);
 void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct Scene *scene, Object *ob);
 void EEVEE_volumes_compute(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);

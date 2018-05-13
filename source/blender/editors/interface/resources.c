@@ -172,7 +172,7 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 
 			switch (colorid) {
 				case TH_BACK:
-					if (theme_regionid == RGN_TYPE_WINDOW)
+					if (ELEM(theme_regionid, RGN_TYPE_WINDOW, RGN_TYPE_PREVIEW))
 						cp = ts->back;
 					else if (theme_regionid == RGN_TYPE_CHANNELS)
 						cp = ts->list;
@@ -1549,7 +1549,7 @@ void UI_GetThemeColorBlendShade3ubv(int colorid1, int colorid2, float fac, int o
 	blend[1] = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
 	blend[2] = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
 
-	F3TOCHAR3(blend, col);
+	unit_float_to_uchar_clamp_v3(col, blend);
 }
 
 void UI_GetThemeColorShade4ubv(int colorid, int offset, unsigned char col[4])
@@ -2475,9 +2475,6 @@ void init_userdef_do_versions(void)
 		if (U.memcachelimit <= 0) {
 			U.memcachelimit = 32;
 		}
-		if (U.frameserverport == 0) {
-			U.frameserverport = 8080;
-		}
 		if (U.dbl_click_time == 0) {
 			U.dbl_click_time = 350;
 		}
@@ -2984,10 +2981,10 @@ void init_userdef_do_versions(void)
 
 	if (((bTheme *)U.themes.first)->tui.wcol_toolbar_item.text[3] == 0) {
 		struct uiWidgetColors wcol_toolbar_item = {
-			.outline = {0x19, 0x19, 0x19, 0xff},
+			.outline = {0x0, 0x0, 0x0, 0xff},
 			.inner = {0x46, 0x46, 0x46, 0xff},
-			.inner_sel = {0xb4, 0xb4, 0xb4, 0xff},
-			.item = {0x19, 0x19, 0x19, 0xff},
+			.inner_sel = {0xcc, 0xcc, 0xcc, 0xff},
+			.item = {0x0, 0x0, 0x0, 0xff},
 
 			.text = {0xff, 0xff, 0xff, 0xff},
 			.text_sel = {0x33, 0x33, 0x33, 0xff},
@@ -3000,7 +2997,7 @@ void init_userdef_do_versions(void)
 		};
 		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
 			btheme->tui.wcol_toolbar_item = wcol_toolbar_item;
-			btheme->tui.icon_saturation = 0.4f;
+			btheme->tui.icon_saturation = 1.0f;
 		}
 	}
 

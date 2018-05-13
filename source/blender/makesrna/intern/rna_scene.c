@@ -289,9 +289,6 @@ const EnumPropertyItem rna_enum_image_type_items[] = {
 	{0, "", 0, N_("Movie"), NULL},
 	{R_IMF_IMTYPE_AVIJPEG, "AVI_JPEG", ICON_FILE_MOVIE, "AVI JPEG", "Output video in AVI JPEG format"},
 	{R_IMF_IMTYPE_AVIRAW, "AVI_RAW", ICON_FILE_MOVIE, "AVI Raw", "Output video in AVI Raw format"},
-#ifdef WITH_FRAMESERVER
-	{R_IMF_IMTYPE_FRAMESERVER, "FRAMESERVER", ICON_FILE_SCRIPT, "Frame Server", "Output image to a frameserver"},
-#endif
 #ifdef WITH_FFMPEG
 	{R_IMF_IMTYPE_FFMPEG, "FFMPEG", ICON_FILE_MOVIE, "FFmpeg video", "The most versatile way to output video files"},
 #endif
@@ -441,14 +438,28 @@ static const EnumPropertyItem rna_enum_gpencil_interpolation_mode_items[] = {
 
 #endif
 
+const EnumPropertyItem rna_enum_transform_pivot_items_full[] = {
+	{V3D_AROUND_CENTER_BOUNDS, "BOUNDING_BOX_CENTER", ICON_ROTATE, "Bounding Box Center",
+	             "Pivot around bounding box center of selected object(s)"},
+	{V3D_AROUND_CURSOR, "CURSOR", ICON_CURSOR, "3D Cursor", "Pivot around the 3D cursor"},
+	{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_ROTATECOLLECTION,
+	            "Individual Origins", "Pivot around each object's own origin"},
+	{V3D_AROUND_CENTER_MEAN, "MEDIAN_POINT", ICON_ROTATECENTER, "Median Point",
+	               "Pivot around the median point of selected objects"},
+	{V3D_AROUND_ACTIVE, "ACTIVE_ELEMENT", ICON_ROTACTIVE, "Active Element", "Pivot around active object"},
+	{0, NULL, 0, NULL, NULL}
+};
+
+/* Icons could be made a consistent set of images. */
 static const EnumPropertyItem transform_orientation_items[] = {
-	{V3D_MANIP_GLOBAL, "GLOBAL", 0, "Global", "Align the transformation axes to world space"},
-	{V3D_MANIP_LOCAL, "LOCAL", 0, "Local", "Align the transformation axes to the selected objects' local space"},
-	{V3D_MANIP_NORMAL, "NORMAL", 0, "Normal",
+	{V3D_MANIP_GLOBAL, "GLOBAL", ICON_SCENE_DATA, "Global", "Align the transformation axes to world space"},
+	{V3D_MANIP_LOCAL, "LOCAL", ICON_MANIPUL, "Local", "Align the transformation axes to the selected objects' local space"},
+	{V3D_MANIP_NORMAL, "NORMAL", ICON_SNAP_NORMAL, "Normal",
 	                   "Align the transformation axes to average normal of selected elements "
 	                   "(bone Y axis for pose mode)"},
-	{V3D_MANIP_GIMBAL, "GIMBAL", 0, "Gimbal", "Align each axis to the Euler rotation axis as used for input"},
-	{V3D_MANIP_VIEW, "VIEW", 0, "View", "Align the transformation axes to the window"},
+	{V3D_MANIP_GIMBAL, "GIMBAL", ICON_NDOF_DOM, "Gimbal", "Align each axis to the Euler rotation axis as used for input"},
+	{V3D_MANIP_VIEW, "VIEW", ICON_VISIBLE_IPO_ON, "View", "Align the transformation axes to the window"},
+	{V3D_MANIP_CURSOR, "CURSOR", ICON_CURSOR, "Cursor", "Align the transformation axes to the 3D cursor"},
 	// {V3D_MANIP_CUSTOM, "CUSTOM", 0, "Custom", "Use a custom transform orientation"},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -2591,6 +2602,19 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Double Threshold", "Limit for removing duplicates and 'Auto Merge'");
 	RNA_def_property_range(prop, 0.0, 1.0);
 	RNA_def_property_ui_range(prop, 0.0, 0.1, 0.01, 6);
+
+	/* Pivot Point */
+	prop = RNA_def_property(srna, "transform_pivot_point", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "transform_pivot_point");
+	RNA_def_property_enum_items(prop, rna_enum_transform_pivot_items_full);
+	RNA_def_property_ui_text(prop, "Pivot Point", "Pivot center for rotation/scaling");
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "use_transform_pivot_point_align", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "transform_flag", SCE_XFORM_AXIS_ALIGN);
+	RNA_def_property_ui_text(prop, "Align", "Manipulate center points (object, pose and weight paint mode only)");
+	RNA_def_property_ui_icon(prop, ICON_ALIGN, 0);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
 
 	prop = RNA_def_property(srna, "use_mesh_automerge", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "automerge", 0);
@@ -5649,6 +5673,25 @@ static void rna_def_display_safe_areas(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE | ND_DRAW_RENDER_VIEWPORT, NULL);
 }
 
+static void rna_def_scene_display(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	static float default_light_direction[3] = {-0.577350269, -0.577350269, 0.577350269};
+
+	srna = RNA_def_struct(brna, "SceneDisplay", NULL);
+	RNA_def_struct_ui_text(srna, "Scene Display", "Scene display settings for 3d viewport");
+	RNA_def_struct_sdna(srna, "SceneDisplay");
+
+	prop = RNA_def_property(srna, "light_direction", PROP_FLOAT, PROP_DIRECTION);
+	RNA_def_property_float_sdna(prop, NULL, "light_direction");
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_float_array_default(prop, default_light_direction);
+	RNA_def_property_ui_text(prop, "Light Direction", "Direction of the light for shadows and highlights");
+	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
+}
 
 void RNA_def_scene(BlenderRNA *brna)
 {
@@ -5704,9 +5747,14 @@ void RNA_def_scene(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE | ND_WORLD, "rna_Scene_world_update");
 
 	prop = RNA_def_property(srna, "cursor_location", PROP_FLOAT, PROP_XYZ_LENGTH);
-	RNA_def_property_float_sdna(prop, NULL, "cursor");
+	RNA_def_property_float_sdna(prop, NULL, "cursor.location");
 	RNA_def_property_ui_text(prop, "Cursor Location", "3D cursor location");
 	RNA_def_property_ui_range(prop, -10000.0, 10000.0, 10, 4);
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "cursor_rotation", PROP_FLOAT, PROP_QUATERNION);
+	RNA_def_property_float_sdna(prop, NULL, "cursor.rotation");
+	RNA_def_property_ui_text(prop, "Cursor Rotation", "3D cursor rotation in quaternions (keep normalized)");
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
 
 	prop = RNA_def_property(srna, "objects", PROP_COLLECTION, PROP_NONE);
@@ -5802,7 +5850,6 @@ void RNA_def_scene(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Lock Frame Selection",
 	                         "Don't allow frame to be selected with mouse outside of frame range");
 	RNA_def_property_update(prop, NC_SCENE | ND_FRAME, NULL);
-	RNA_def_property_ui_icon(prop, ICON_LOCKED, 0);
 
 	/* Preview Range (frame-range for UI playback) */
 	prop = RNA_def_property(srna, "use_preview_range", PROP_BOOLEAN, PROP_NONE);
@@ -5895,14 +5942,6 @@ void RNA_def_scene(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "SequenceEditor");
 	RNA_def_property_ui_text(prop, "Sequence Editor", "");
 	
-	func = RNA_def_function(srna, "sequence_editor_create", "BKE_sequencer_editing_ensure");
-	RNA_def_function_ui_description(func, "Ensure sequence editor is valid in this scene");
-	parm = RNA_def_pointer(func, "sequence_editor", "SequenceEditor", "", "New sequence editor data or NULL");
-	RNA_def_function_return(func, parm);
-
-	func = RNA_def_function(srna, "sequence_editor_clear", "BKE_sequencer_editing_free");
-	RNA_def_function_ui_description(func, "Clear sequence editor in this scene");
-
 	/* Keying Sets */
 	prop = RNA_def_property(srna, "keying_sets", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "keyingsets", NULL);
@@ -6103,6 +6142,12 @@ void RNA_def_scene(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "SceneCollection");
 	RNA_def_property_ui_text(prop, "Master Collection", "Collection that contains all other collections");
 
+	/* Scene Display */
+	prop = RNA_def_property(srna, "display", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "display");
+	RNA_def_property_struct_type(prop, "SceneDisplay");
+	RNA_def_property_ui_text(prop, "Scene Display", "Scene display settings for 3d viewport");
+
 	/* Nestled Data  */
 	/* *** Non-Animated *** */
 	RNA_define_animate_sdna(false);
@@ -6117,6 +6162,7 @@ void RNA_def_scene(BlenderRNA *brna)
 	rna_def_transform_orientation(brna);
 	rna_def_selected_uv_element(brna);
 	rna_def_display_safe_areas(brna);
+	rna_def_scene_display(brna);
 	RNA_define_animate_sdna(true);
 	/* *** Animated *** */
 	rna_def_scene_render_data(brna);

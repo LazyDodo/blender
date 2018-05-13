@@ -60,15 +60,6 @@ static void initData(ModifierData *md)
 	mmd->mirror_ob = NULL;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	MirrorModifierData *mmd = (MirrorModifierData *) md;
-	MirrorModifierData *tmmd = (MirrorModifierData *) target;
-#endif
-	modifier_copyData_generic(md, target);
-}
-
 static void foreachObjectLink(
         ModifierData *md, Object *ob,
         ObjectWalkFunc walk, void *userData)
@@ -87,10 +78,11 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Mirror Modifier");
 }
 
-static Mesh *doMirrorOnAxis(MirrorModifierData *mmd,
-                            Object *ob,
-                            const Mesh *mesh,
-                            int axis)
+static Mesh *doMirrorOnAxis(
+        MirrorModifierData *mmd,
+        Object *ob,
+        const Mesh *mesh,
+        int axis)
 {
 	const float tolerance_sq = mmd->tolerance * mmd->tolerance;
 	const bool do_vtargetmap = (mmd->flag & MOD_MIR_NO_MERGE) == 0;
@@ -133,7 +125,8 @@ static Mesh *doMirrorOnAxis(MirrorModifierData *mmd,
 		mul_m4_m4m4(mtx, itmp, mtx);
 	}
 
-	result = BKE_mesh_from_template(mesh, maxVerts * 2, maxEdges * 2, 0, maxLoops * 2, maxPolys * 2);
+	result = BKE_mesh_new_nomain_from_template(
+	        mesh, maxVerts * 2, maxEdges * 2, 0, maxLoops * 2, maxPolys * 2);
 
 	/*copy customdata to original geometry*/
 	CustomData_copy_data(&mesh->vdata, &result->vdata, 0, 0, maxVerts);
@@ -300,8 +293,9 @@ static Mesh *doMirrorOnAxis(MirrorModifierData *mmd,
 	return result;
 }
 
-static Mesh *mirrorModifier__doMirror(MirrorModifierData *mmd,
-                                      Object *ob, Mesh *mesh)
+static Mesh *mirrorModifier__doMirror(
+        MirrorModifierData *mmd,
+        Object *ob, Mesh *mesh)
 {
 	Mesh *result = mesh;
 
@@ -329,8 +323,9 @@ static Mesh *mirrorModifier__doMirror(MirrorModifierData *mmd,
 	return result;
 }
 
-static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
-                           Mesh *mesh)
+static Mesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *mesh)
 {
 	Mesh *result;
 	MirrorModifierData *mmd = (MirrorModifierData *) md;
@@ -357,7 +352,7 @@ ModifierTypeInfo modifierType_Mirror = {
 	                        /* this is only the case when 'MOD_MIR_VGROUP' is used */
 	                        eModifierTypeFlag_UsesPreview,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
 
 	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,

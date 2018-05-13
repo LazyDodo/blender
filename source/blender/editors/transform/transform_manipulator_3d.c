@@ -18,7 +18,7 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/editors/transform/transform_manipulator_2d.c
+/** \file blender/editors/transform/transform_manipulator_3d.c
  *  \ingroup edtransform
  *
  * \name 3D Transform Manipulator
@@ -581,7 +581,8 @@ bool gimbal_axis(Object *ob, float gmat[3][3])
 /* centroid, boundbox, of selection */
 /* returns total items selected */
 int ED_transform_calc_manipulator_stats(
-        const bContext *C, bool use_only_center,
+        const bContext *C,
+        const struct TransformCalcParams *params,
         struct TransformBounds *tbounds)
 {
 	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
@@ -599,6 +600,7 @@ int ED_transform_calc_manipulator_stats(
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	const bool is_gp_edit = ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE));
 	int a, totsel = 0;
+	const int pivot_point = scene->toolsettings->transform_pivot_point;
 
 	/* transform widget matrix */
 	unit_m4(rv3d->twmat);
@@ -615,8 +617,9 @@ int ED_transform_calc_manipulator_stats(
 	/* global, local or normal orientation?
 	 * if we could check 'totsel' now, this should be skipped with no selection. */
 	if (ob && !is_gp_edit) {
+		const short orientation_type = params->orientation_type ? (params->orientation_type - 1) : scene->orientation_type;
 
-		switch (scene->orientation_type) {
+		switch (orientation_type) {
 
 			case V3D_MANIP_GLOBAL:
 			{
@@ -636,7 +639,7 @@ int ED_transform_calc_manipulator_stats(
 			{
 				if (obedit || ob->mode & OB_MODE_POSE) {
 					float mat[3][3];
-					ED_getTransformOrientationMatrix(C, mat, v3d->around);
+					ED_getTransformOrientationMatrix(C, mat, pivot_point);
 					copy_m4_m3(rv3d->twmat, mat);
 					break;
 				}
@@ -651,7 +654,7 @@ int ED_transform_calc_manipulator_stats(
 					 * and users who select many bones will understand whats going on and what local means
 					 * when they start transforming */
 					float mat[3][3];
-					ED_getTransformOrientationMatrix(C, mat, v3d->around);
+					ED_getTransformOrientationMatrix(C, mat, pivot_point);
 					copy_m4_m3(rv3d->twmat, mat);
 					break;
 				}
@@ -664,6 +667,13 @@ int ED_transform_calc_manipulator_stats(
 				float mat[3][3];
 				copy_m3_m4(mat, rv3d->viewinv);
 				normalize_m3(mat);
+				copy_m4_m3(rv3d->twmat, mat);
+				break;
+			}
+			case V3D_MANIP_CURSOR:
+			{
+				float mat[3][3];
+				ED_view3d_cursor3d_calc_mat3(scene, v3d, mat);
 				copy_m4_m3(rv3d->twmat, mat);
 				break;
 			}
@@ -686,7 +696,7 @@ int ED_transform_calc_manipulator_stats(
 	zero_v3(tbounds->center);
 
 	copy_m3_m4(tbounds->axis, rv3d->twmat);
-	if (ob && ob->mode & OB_MODE_EDIT) {
+	if (params->use_local_axis && (ob && ob->mode & OB_MODE_EDIT)) {
 		float diff_mat[3][3];
 		copy_m3_m4(diff_mat, ob_eval->obmat);
 		normalize_m3(diff_mat);
@@ -758,7 +768,7 @@ int ED_transform_calc_manipulator_stats(
 			float vec[3] = {0, 0, 0};
 
 			/* USE LAST SELECTE WITH ACTIVE */
-			if ((v3d->around == V3D_AROUND_ACTIVE) && BM_select_history_active_get(em->bm, &ese)) {
+			if ((pivot_point == V3D_AROUND_ACTIVE) && BM_select_history_active_get(em->bm, &ese)) {
 				BM_editselection_center(&ese, vec);
 				calc_tw_center(tbounds, vec);
 				totsel = 1;
@@ -783,7 +793,7 @@ int ED_transform_calc_manipulator_stats(
 			bArmature *arm = obedit->data;
 			EditBone *ebo;
 
-			if ((v3d->around == V3D_AROUND_ACTIVE) && (ebo = arm->act_edbone)) {
+			if ((pivot_point == V3D_AROUND_ACTIVE) && (ebo = arm->act_edbone)) {
 				/* doesn't check selection or visibility intentionally */
 				if (ebo->flag & BONE_TIPSEL) {
 					calc_tw_center(tbounds, ebo->tail);
@@ -825,7 +835,7 @@ int ED_transform_calc_manipulator_stats(
 			Curve *cu = obedit->data;
 			float center[3];
 
-			if (v3d->around == V3D_AROUND_ACTIVE && ED_curve_active_center(cu, center)) {
+			if ((pivot_point == V3D_AROUND_ACTIVE) && ED_curve_active_center(cu, center)) {
 				calc_tw_center(tbounds, center);
 				totsel++;
 			}
@@ -857,11 +867,13 @@ int ED_transform_calc_manipulator_stats(
 							}
 							else {
 								if (bezt->f1 & SELECT) {
-									calc_tw_center(tbounds, bezt->vec[(v3d->around == V3D_AROUND_LOCAL_ORIGINS) ? 1 : 0]);
+									calc_tw_center(
+									        tbounds, bezt->vec[(pivot_point == V3D_AROUND_LOCAL_ORIGINS) ? 1 : 0]);
 									totsel++;
 								}
 								if (bezt->f3 & SELECT) {
-									calc_tw_center(tbounds, bezt->vec[(v3d->around == V3D_AROUND_LOCAL_ORIGINS) ? 1 : 2]);
+									calc_tw_center(
+									        tbounds, bezt->vec[(pivot_point == V3D_AROUND_LOCAL_ORIGINS) ? 1 : 2]);
 									totsel++;
 								}
 							}
@@ -887,7 +899,7 @@ int ED_transform_calc_manipulator_stats(
 			MetaBall *mb = (MetaBall *)obedit->data;
 			MetaElem *ml;
 
-			if ((v3d->around == V3D_AROUND_ACTIVE) && (ml = mb->lastelem)) {
+			if ((pivot_point == V3D_AROUND_ACTIVE) && (ml = mb->lastelem)) {
 				calc_tw_center(tbounds, &ml->x);
 				totsel++;
 			}
@@ -904,7 +916,7 @@ int ED_transform_calc_manipulator_stats(
 			Lattice *lt = ((Lattice *)obedit->data)->editlatt->latt;
 			BPoint *bp;
 
-			if ((v3d->around == V3D_AROUND_ACTIVE) && (bp = BKE_lattice_active_point_get(lt))) {
+			if ((pivot_point == V3D_AROUND_ACTIVE) && (bp = BKE_lattice_active_point_get(lt))) {
 				calc_tw_center(tbounds, bp->vec);
 				totsel++;
 			}
@@ -934,7 +946,7 @@ int ED_transform_calc_manipulator_stats(
 		int mode = TFM_ROTATION; // mislead counting bones... bah. We don't know the manipulator mode, could be mixed
 		bool ok = false;
 
-		if ((v3d->around == V3D_AROUND_ACTIVE) && (pchan = BKE_pose_channel_active(ob))) {
+		if ((pivot_point == V3D_AROUND_ACTIVE) && (pchan = BKE_pose_channel_active(ob))) {
 			/* doesn't check selection or visibility intentionally */
 			Bone *bone = pchan->bone;
 			if (bone) {
@@ -1010,7 +1022,7 @@ int ED_transform_calc_manipulator_stats(
 				ob = base->object;
 				ob_eval = base_object_eval;
 			}
-			if (use_only_center || base_object_eval->bb == NULL) {
+			if (params->use_only_center || base_object_eval->bb == NULL) {
 				calc_tw_center(tbounds, base_object_eval->obmat[3]);
 			}
 			else {
@@ -1058,14 +1070,15 @@ static void manipulator_prepare_mat(
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	switch (v3d->around) {
+	switch (scene->toolsettings->transform_pivot_point) {
 		case V3D_AROUND_CENTER_BOUNDS:
 		case V3D_AROUND_ACTIVE:
 		{
 			bGPdata *gpd = CTX_data_gpencil_data(C);
 			Object *ob = OBACT(view_layer);
 
-			if (((v3d->around == V3D_AROUND_ACTIVE) && (OBEDIT_FROM_OBACT(ob) == NULL)) &&
+			if (((scene->toolsettings->transform_pivot_point == V3D_AROUND_ACTIVE) &&
+			     (OBEDIT_FROM_OBACT(ob) == NULL)) &&
 			    ((gpd == NULL) || !(gpd->flag & GP_DATA_STROKE_EDITMODE)) &&
 			    (!(ob->mode & OB_MODE_POSE)))
 			{
@@ -1081,7 +1094,7 @@ static void manipulator_prepare_mat(
 			copy_v3_v3(rv3d->twmat[3], tbounds->center);
 			break;
 		case V3D_AROUND_CURSOR:
-			copy_v3_v3(rv3d->twmat[3], ED_view3d_cursor3d_get(scene, v3d));
+			copy_v3_v3(rv3d->twmat[3], ED_view3d_cursor3d_get(scene, v3d)->location);
 			break;
 	}
 }
@@ -1131,12 +1144,11 @@ static void manipulator_xform_message_subscribe(
 	RNA_id_pointer_create(&scene->id, &scene_ptr);
 
 	{
-		const View3D *v3d = sa->spacedata.first;
 		extern PropertyRNA rna_Scene_transform_orientation;
 		extern PropertyRNA rna_Scene_cursor_location;
 		const PropertyRNA *props[] = {
 			&rna_Scene_transform_orientation,
-			(v3d->around == V3D_AROUND_CURSOR) ? &rna_Scene_cursor_location : NULL,
+			(scene->toolsettings->transform_pivot_point == V3D_AROUND_CURSOR) ? &rna_Scene_cursor_location : NULL,
 		};
 		for (int i = 0; i < ARRAY_SIZE(props); i++) {
 			if (props[i]) {
@@ -1149,9 +1161,9 @@ static void manipulator_xform_message_subscribe(
 	RNA_pointer_create(&screen->id, &RNA_SpaceView3D, sa->spacedata.first, &space_ptr);
 
 	if (type_fn == TRANSFORM_WGT_manipulator) {
-		extern PropertyRNA rna_SpaceView3D_pivot_point;
+		extern PropertyRNA rna_ToolSettings_transform_pivot_point;
 		const PropertyRNA *props[] = {
-			&rna_SpaceView3D_pivot_point
+			&rna_ToolSettings_transform_pivot_point
 		};
 		for (int i = 0; i < ARRAY_SIZE(props); i++) {
 			WM_msg_subscribe_rna(mbus, &space_ptr, props[i], &msg_sub_value_mpr_tag_refresh, __func__);
@@ -1244,7 +1256,11 @@ static int manipulator_modal(
 	struct TransformBounds tbounds;
 
 
-	if (ED_transform_calc_manipulator_stats(C, true, &tbounds)) {
+	if (ED_transform_calc_manipulator_stats(
+	            C, &(struct TransformCalcParams){
+	                .use_only_center = true,
+	            }, &tbounds))
+	{
 		manipulator_prepare_mat(C, v3d, rv3d, &tbounds);
 		WM_manipulator_set_matrix_location(widget, rv3d->twmat[3]);
 	}
@@ -1404,8 +1420,14 @@ static void WIDGETGROUP_manipulator_refresh(const bContext *C, wmManipulatorGrou
 	struct TransformBounds tbounds;
 
 	/* skip, we don't draw anything anyway */
-	if ((man->all_hidden = (ED_transform_calc_manipulator_stats(C, true, &tbounds) == 0)))
+	if ((man->all_hidden =
+	     (ED_transform_calc_manipulator_stats(
+	             C, &(struct TransformCalcParams){
+	                 .use_only_center = true,
+	             }, &tbounds) == 0)))
+	{
 		return;
+	}
 
 	manipulator_prepare_mat(C, v3d, rv3d, &tbounds);
 
@@ -1637,7 +1659,10 @@ static void WIDGETGROUP_xform_cage_refresh(const bContext *C, wmManipulatorGroup
 
 	struct TransformBounds tbounds;
 
-	if ((ED_transform_calc_manipulator_stats(C, false, &tbounds) == 0) ||
+	if ((ED_transform_calc_manipulator_stats(
+	             C, &(struct TransformCalcParams) {
+	                 .use_local_axis = true,
+	             }, &tbounds) == 0) ||
 	    equals_v3v3(rv3d->tw_axis_min, rv3d->tw_axis_max))
 	{
 		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, true);

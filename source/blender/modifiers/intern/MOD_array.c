@@ -77,15 +77,6 @@ static void initData(ModifierData *md)
 	amd->flags = 0;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	ArrayModifierData *amd = (ArrayModifierData *) md;
-	ArrayModifierData *tamd = (ArrayModifierData *) target;
-#endif
-	modifier_copyData_generic(md, target);
-}
-
 static void foreachObjectLink(
         ModifierData *md, Object *ob,
         ObjectWalkFunc walk, void *userData)
@@ -399,7 +390,7 @@ static Mesh *arrayModifier_doArray(
 		vgroup_start_cap_remap = BKE_object_defgroup_index_map_create(
 		                             amd->start_cap, ctx->object, &vgroup_start_cap_remap_len);
 
-		start_cap_mesh = get_mesh_eval_for_modifier(amd->start_cap, ctx->flag);
+		start_cap_mesh = BKE_modifier_get_evaluated_mesh_from_object(amd->start_cap, ctx->flag);
 		if (start_cap_mesh) {
 			start_cap_nverts = start_cap_mesh->totvert;
 			start_cap_nedges = start_cap_mesh->totedge;
@@ -411,7 +402,7 @@ static Mesh *arrayModifier_doArray(
 		vgroup_end_cap_remap = BKE_object_defgroup_index_map_create(
 		                           amd->end_cap, ctx->object, &vgroup_end_cap_remap_len);
 
-		end_cap_mesh = get_mesh_eval_for_modifier(amd->end_cap, ctx->flag);
+		end_cap_mesh = BKE_modifier_get_evaluated_mesh_from_object(amd->end_cap, ctx->flag);
 		if (end_cap_mesh) {
 			end_cap_nverts = end_cap_mesh->totvert;
 			end_cap_nedges = end_cap_mesh->totedge;
@@ -497,7 +488,7 @@ static Mesh *arrayModifier_doArray(
 	result_npolys = chunk_npolys * count + start_cap_npolys + end_cap_npolys;
 
 	/* Initialize a result dm */
-	result = BKE_mesh_from_template(mesh, result_nverts, result_nedges, 0, result_nloops, result_npolys);
+	result = BKE_mesh_new_nomain_from_template(mesh, result_nverts, result_nedges, 0, result_nloops, result_npolys);
 	result_dm_verts = result->mvert;
 
 	if (use_merge) {
@@ -751,8 +742,9 @@ static Mesh *arrayModifier_doArray(
 }
 
 
-static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
-                           Mesh *mesh)
+static Mesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *mesh)
 {
 	ArrayModifierData *amd = (ArrayModifierData *) md;
 	return arrayModifier_doArray(amd, ctx, mesh);
@@ -770,7 +762,7 @@ ModifierTypeInfo modifierType_Array = {
 	                        eModifierTypeFlag_EnableInEditmode |
 	                        eModifierTypeFlag_AcceptsCVs,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
 
 	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,

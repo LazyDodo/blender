@@ -69,9 +69,9 @@ static void initData(ModifierData *md)
 	smd->time = -1;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	SmokeModifierData *smd  = (SmokeModifierData *)md;
+	const SmokeModifierData *smd  = (const SmokeModifierData *)md;
 	SmokeModifierData *tsmd = (SmokeModifierData *)target;
 	
 	smokeModifier_copy(smd, tsmd);
@@ -102,8 +102,9 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
-                                  DerivedMesh *dm)
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
 
@@ -143,8 +144,9 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
 

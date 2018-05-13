@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <windows.h>
 #endif
 
@@ -75,6 +75,7 @@
 #include "BKE_addon.h"
 #include "BKE_appdir.h"
 #include "BKE_sequencer.h" /* free seq clipboard */
+#include "BKE_studiolight.h"
 #include "BKE_material.h" /* clear_matcopybuf */
 #include "BKE_tracking.h" /* free tracking clipboard */
 #include "BKE_mask.h" /* free mask clipboard */
@@ -137,6 +138,8 @@ CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_HANDLERS, "wm.handler");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_EVENTS, "wm.event");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_KEYMAPS, "wm.keymap");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_TOOLS, "wm.tool");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_MSGBUS_PUB, "wm.msgbus.pub");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_MSGBUS_SUB, "wm.msgbus.sub");
 
 static void wm_init_reports(bContext *C)
 {
@@ -248,6 +251,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 		WM_init_opengl();
 
 		UI_init();
+		BKE_studiolight_init();
 	}
 	else {
 		/* Note: Currently only inits icons, which we now want in background mode too
@@ -256,7 +260,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 		 * Called from 'UI_init' above */
 		BKE_icons_init(1);
 	}
-
 
 	ED_spacemacros_init();
 
@@ -511,6 +514,7 @@ void WM_exit_ext(bContext *C, const bool do_python)
 		GPU_pass_cache_free();
 		DRW_opengl_context_destroy();
 	}
+	BKE_studiolight_free();
 
 #ifdef WITH_INTERNATIONAL
 	BLF_free_unifont();

@@ -64,10 +64,10 @@ static void initData(ModifierData *md)
 	amd->deformflag = ARM_DEF_VGROUP;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 #if 0
-	ArmatureModifierData *amd = (ArmatureModifierData *) md;
+	const ArmatureModifierData *amd = (const ArmatureModifierData *) md;
 #endif
 	ArmatureModifierData *tamd = (ArmatureModifierData *) target;
 
@@ -108,12 +108,14 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		DEG_add_object_relation(ctx->node, amd->object, DEG_OB_COMP_EVAL_POSE, "Armature Modifier");
 		DEG_add_object_relation(ctx->node, amd->object, DEG_OB_COMP_TRANSFORM, "Armature Modifier");
 	}
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Armature Modifier");
 }
 
-static void deformVerts(ModifierData *md, const ModifierEvalContext *ctx,
-                        Mesh *mesh,
-                        float (*vertexCos)[3],
-                        int numVerts)
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
 
@@ -134,11 +136,7 @@ static void deformVertsEM(
         Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *mesh_src = mesh;
-
-	if (!mesh) {
-		mesh_src = BKE_bmesh_to_mesh(em->bm, &(struct BMeshToMeshParams){0});
-	}
+	Mesh *mesh_src = get_mesh(ctx->object, em, mesh, NULL, false, false);
 
 	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
 
@@ -151,7 +149,7 @@ static void deformVertsEM(
 		amd->prevCos = NULL;
 	}
 
-	if (!mesh) {
+	if (mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
@@ -162,28 +160,29 @@ static void deformMatricesEM(
         float (*defMats)[3][3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *mesh_src = mesh;
-
-	if (!mesh) {
-		mesh_src = BKE_bmesh_to_mesh(em->bm, &(struct BMeshToMeshParams){0});
-	}
+	Mesh *mesh_src = get_mesh(ctx->object, em, mesh, NULL, false, false);
 
 	armature_deform_verts(amd->object, ctx->object, mesh_src, vertexCos, defMats, numVerts,
 	                      amd->deformflag, NULL, amd->defgrp_name);
 
-	if (!mesh) {
+	if (mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
 
-static void deformMatrices(ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh,
-                           float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
+static void deformMatrices(
+        ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh,
+        float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *mesh_src = mesh ? mesh : ctx->object->data;
+	Mesh *mesh_src = get_mesh(ctx->object, NULL, mesh, NULL, false, false);
 
 	armature_deform_verts(amd->object, ctx->object, mesh_src, vertexCos, defMats, numVerts,
 	                      amd->deformflag, NULL, amd->defgrp_name);
+
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
 ModifierTypeInfo modifierType_Armature = {

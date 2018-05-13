@@ -689,25 +689,6 @@ void do_versions_after_linking_280(Main *main)
 	}
 }
 
-static void do_version_layer_collections_idproperties(ListBase *lb)
-{
-	IDPropertyTemplate val = {0};
-	for (LayerCollection *lc = lb->first; lc; lc = lc->next) {
-		lc->properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-		BKE_layer_collection_engine_settings_create(lc->properties);
-
-		/* No overrides at first */
-		for (IDProperty *prop = lc->properties->data.group.first; prop; prop = prop->next) {
-			while (prop->data.group.first) {
-				IDP_FreeFromGroup(prop, prop->data.group.first);
-			}
-		}
-
-		/* Do it recursively */
-		do_version_layer_collections_idproperties(&lc->layer_collections);
-	}
-}
-
 static void do_version_view_layer_visibility(ViewLayer *view_layer)
 {
 	LayerCollection *layer_collection;
@@ -739,16 +720,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 			}
 		}
 
-		if (DNA_struct_elem_find(fd->filesdna, "LayerCollection", "ListBase", "engine_settings") &&
-		    !DNA_struct_elem_find(fd->filesdna, "LayerCollection", "IDProperty", "properties"))
-		{
-			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-				for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
-					do_version_layer_collections_idproperties(&view_layer->layer_collections);
-				}
-			}
-		}
-
 		for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
 			scene->r.gauss = 1.5f;
 		}
@@ -764,16 +735,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 		if (!DNA_struct_elem_find(fd->filesdna, "GPUDOFSettings", "float", "ratio")) {
 			for (Camera *ca = main->camera.first; ca; ca = ca->id.next) {
 				ca->gpu_dof.ratio = 1.0f;
-			}
-		}
-
-		if (!DNA_struct_elem_find(fd->filesdna, "ViewLayer", "IDProperty", "*properties")) {
-			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-				for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
-					IDPropertyTemplate val = {0};
-					view_layer->properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-					BKE_view_layer_engine_settings_create(view_layer->properties);
-				}
 			}
 		}
 
@@ -1097,6 +1058,44 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 						v3d->overlay.normals_length = 0.1f;
 					}
 				}
+			}
+		}
+
+		if (!DNA_struct_find(fd->filesdna, "View3DCursor")) {
+			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				unit_qt(scene->cursor.rotation);
+			}
+			for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							unit_qt(v3d->cursor.rotation);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "Scene", "SceneDisplay", "display")) {
+			/* Initialize new scene.SceneDisplay */
+			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				copy_v3_v3(scene->display.light_direction, (float[3]){-M_SQRT1_3, -M_SQRT1_3, M_SQRT1_3});
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "Object", "ObjectDisplay", "display")) {
+			/* Initialize new object.ObjectDisplay */
+			for (Object *ob = main->object.first; ob; ob = ob->id.next) {
+				ob->display.flag = OB_SHOW_SHADOW;
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "ToolSettings", "char", "transform_pivot_point")) {
+			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				scene->toolsettings->transform_pivot_point = V3D_AROUND_CENTER_MEAN;
 			}
 		}
 	}

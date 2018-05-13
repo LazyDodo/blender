@@ -92,6 +92,8 @@ void MESH_OT_primitive_monkey_add(struct wmOperatorType *ot);
 void MESH_OT_primitive_uv_sphere_add(struct wmOperatorType *ot);
 void MESH_OT_primitive_ico_sphere_add(struct wmOperatorType *ot);
 
+/* *** editmesh_add_manipulator.c *** */
+void MESH_OT_primitive_cube_add_manipulator(struct wmOperatorType *ot);
 
 /* *** editmesh_bevel.c *** */
 void MESH_OT_bevel(struct wmOperatorType *ot);
@@ -102,6 +104,7 @@ void MESH_OT_bisect(struct wmOperatorType *ot);
 /* *** editmesh_extrude.c *** */
 void MESH_OT_extrude_repeat(struct wmOperatorType *ot);
 void MESH_OT_extrude_region(struct wmOperatorType *ot);
+void MESH_OT_extrude_context(struct wmOperatorType *ot);
 void MESH_OT_extrude_verts_indiv(struct wmOperatorType *ot);
 void MESH_OT_extrude_edges_indiv(struct wmOperatorType *ot);
 void MESH_OT_extrude_faces_indiv(struct wmOperatorType *ot);

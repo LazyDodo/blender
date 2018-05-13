@@ -142,10 +142,12 @@ set(SRC
 	intern/mball.c
 	intern/mball_tessellate.c
 	intern/mesh.c
+	intern/mesh_convert.c
 	intern/mesh_evaluate.c
 	intern/mesh_mapping.c
 	intern/mesh_merge.c
 	intern/mesh_remap.c
+	intern/mesh_runtime.c
 	intern/mesh_sample.c
 	intern/mesh_tangent.c
 	intern/mesh_validate.c
@@ -187,6 +189,7 @@ set(SRC
 	intern/softbody.c
 	intern/sound.c
 	intern/speaker.c
+	intern/studiolight.c
 	intern/subsurf_ccg.c
 	intern/suggestions.c
 	intern/text.c
@@ -204,7 +207,6 @@ set(SRC
 	intern/workspace.c
 	intern/world.c
 	intern/writeavi.c
-	intern/writeframeserver.c
 
 	BKE_DerivedMesh.h
 	BKE_action.h
@@ -309,6 +311,7 @@ set(SRC
 	BKE_softbody.h
 	BKE_sound.h
 	BKE_speaker.h
+	BKE_studiolight.h
 	BKE_subsurf.h
 	BKE_suggestions.h
 	BKE_text.h
@@ -319,7 +322,6 @@ set(SRC
 	BKE_workspace.h
 	BKE_world.h
 	BKE_writeavi.h
-	BKE_writeframeserver.h
 
 	nla_private.h
 	tracking_private.h

@@ -75,6 +75,7 @@
 #include "ED_keyframing.h"
 
 #include "UI_interface.h"
+#include "UI_view2d.h"
 
 #include "BLF_api.h"
 
@@ -6662,7 +6663,7 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 		/*bool is_idprop = RNA_property_is_idprop(prop);*/ /* XXX does not work as expected, not strictly needed */
 		bool is_set = RNA_property_is_set(ptr, prop);
 
-		const int override_status = RNA_property_override_status(ptr, prop, -1);
+		const int override_status = RNA_property_static_override_status(ptr, prop, -1);
 		const bool is_overridable = (override_status & RNA_OVERRIDE_STATUS_OVERRIDABLE) != 0;
 
 		/* second slower test, saved people finding keyframe items in menus when its not possible */
@@ -7411,8 +7412,9 @@ static bool ui_region_contains_point_px(ARegion *ar, int x, int y)
 		ui_window_to_region(ar, &mx, &my);
 
 		/* check if in the rect */
-		if (!BLI_rcti_isect_pt(&v2d->mask, mx, my))
+		if (!BLI_rcti_isect_pt(&v2d->mask, mx, my) || UI_view2d_mouse_in_scrollers(ar, &ar->v2d, x, y)) {
 			return false;
+		}
 	}
 	
 	return true;
@@ -8495,8 +8497,8 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 		uiButtonActivateType post_type = data->posttype;
 
 		/* Reset the button value when empty text is typed. */
-		if ((data->str != NULL) && (data->str[0] == '\0') &&
-		    ELEM(RNA_property_type(but->rnaprop), PROP_FLOAT, PROP_INT))
+		if ((data->cancel == false) && (data->str != NULL) && (data->str[0] == '\0') &&
+		    (but->rnaprop && ELEM(RNA_property_type(but->rnaprop), PROP_FLOAT, PROP_INT)))
 		{
 			MEM_SAFE_FREE(data->str);
 			ui_button_value_default(but, &data->value);
@@ -10330,7 +10332,7 @@ bool UI_but_is_tool(const uiBut *but)
 	if (but->optype != NULL) {
 		static wmOperatorType *ot = NULL;
 		if (ot == NULL) {
-			ot = WM_operatortype_find("WM_OT_tool_set", false);
+			ot = WM_operatortype_find("WM_OT_tool_set_by_name", false);
 		}
 		if (but->optype == ot) {
 			return true;

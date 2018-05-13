@@ -777,7 +777,9 @@ static BHeadN *get_bhead(FileData *fd)
 						bh8_from_bh4(&bhead, &bhead4);
 					}
 					else {
-						memcpy(&bhead, &bhead4, sizeof(bhead));
+						/* MIN2 is only to quiet '-Warray-bounds' compiler warning. */
+						BLI_assert(sizeof(bhead) == sizeof(bhead4));
+						memcpy(&bhead, &bhead4, MIN2(sizeof(bhead), sizeof(bhead4)));
 					}
 				}
 				else {
@@ -798,7 +800,9 @@ static BHeadN *get_bhead(FileData *fd)
 						bh4_from_bh8(&bhead, &bhead8, (fd->flags & FD_FLAGS_SWITCH_ENDIAN));
 					}
 					else {
-						memcpy(&bhead, &bhead8, sizeof(bhead));
+						/* MIN2 is only to quiet '-Warray-bounds' compiler warning. */
+						BLI_assert(sizeof(bhead) == sizeof(bhead8));
+						memcpy(&bhead, &bhead8, MIN2(sizeof(bhead), sizeof(bhead8)));
 					}
 				}
 				else {
@@ -4683,8 +4687,8 @@ static void direct_link_mesh(FileData *fd, Mesh *mesh)
 
 	mesh->bb = NULL;
 	mesh->edit_btmesh = NULL;
-	mesh->runtime.batch_cache = NULL;
-	
+	BKE_mesh_runtime_reset(mesh);
+
 	/* happens with old files */
 	if (mesh->mselect == NULL) {
 		mesh->totselect = 0;
@@ -5562,8 +5566,6 @@ static void direct_link_object(FileData *fd, Object *ob)
 	ob->currentlod = ob->lodlevels.first;
 
 	ob->preview = direct_link_preview_image(fd, ob->preview);
-
-	ob->base_collection_properties = NULL;
 }
 
 /* ************ READ SCENE ***************** */
@@ -5640,18 +5642,6 @@ static void lib_link_scene_collection(FileData *fd, Library *lib, SceneCollectio
 	}
 }
 
-static void lib_link_layer_collection(FileData *fd, LayerCollection *layer_collection)
-{
-	IDP_LibLinkProperty(layer_collection->properties, fd);
-
-	for (LayerCollection *layer_collection_nested = layer_collection->layer_collections.first;
-	     layer_collection_nested != NULL;
-	     layer_collection_nested = layer_collection_nested->next)
-	{
-		lib_link_layer_collection(fd, layer_collection_nested);
-	}
-}
-
 static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_layer)
 {
 	/* tag scene layer to update for collection tree evaluation */
@@ -5670,17 +5660,8 @@ static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_laye
 		/* we only bump the use count for the collection objects */
 		base->object = newlibadr(fd, lib, base->object);
 		base->flag |= BASE_DIRTY_ENGINE_SETTINGS;
-		base->collection_properties = NULL;
 	}
 
-	for (LayerCollection *layer_collection = view_layer->layer_collections.first;
-	     layer_collection != NULL;
-	     layer_collection = layer_collection->next)
-	{
-		lib_link_layer_collection(fd, layer_collection);
-	}
-
-	IDP_LibLinkProperty(view_layer->properties, fd);
 	IDP_LibLinkProperty(view_layer->id_properties, fd);
 }
 
@@ -5955,15 +5936,6 @@ static void direct_link_layer_collections(FileData *fd, ListBase *lb)
 			link->data = newdataadr(fd, link->data);
 		}
 
-		link_list(fd, &lc->overrides);
-
-		if (lc->properties) {
-			lc->properties = newdataadr(fd, lc->properties);
-			IDP_DirectLinkGroup_OrFree(&lc->properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
-			BKE_layer_collection_engine_settings_validate_collection(lc);
-		}
-		lc->properties_evaluated = NULL;
-
 		direct_link_layer_collections(fd, &lc->layer_collections);
 	}
 }
@@ -5974,13 +5946,6 @@ static void direct_link_view_layer(FileData *fd, ViewLayer *view_layer)
 	link_list(fd, &view_layer->object_bases);
 	view_layer->basact = newdataadr(fd, view_layer->basact);
 	direct_link_layer_collections(fd, &view_layer->layer_collections);
-
-	if (view_layer->properties != NULL) {
-		view_layer->properties = newdataadr(fd, view_layer->properties);
-		BLI_assert(view_layer->properties != NULL);
-		IDP_DirectLinkGroup_OrFree(&view_layer->properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
-		BKE_view_layer_engine_settings_validate_layer(view_layer);
-	}
 
 	view_layer->id_properties = newdataadr(fd, view_layer->id_properties);
 	IDP_DirectLinkGroup_OrFree(&view_layer->id_properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
@@ -6413,6 +6378,8 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 	ar->v2d.tab_num = 0;
 	ar->v2d.tab_cur = 0;
 	ar->v2d.sms = NULL;
+	ar->v2d.alpha_hor = ar->v2d.alpha_vert = 0;
+	ar->v2d.size_hor = ar->v2d.size_vert = 0;
 	BLI_listbase_clear(&ar->panels_category);
 	BLI_listbase_clear(&ar->handlers);
 	BLI_listbase_clear(&ar->uiblocks);
@@ -7380,7 +7347,8 @@ void blo_lib_link_restore(Main *newmain, wmWindowManager *curwm, Scene *curscene
 		BKE_workspace_active_set(win->workspace_hook, workspace);
 
 		/* keep cursor location through undo */
-		copy_v3_v3(win->scene->cursor, oldscene->cursor);
+		copy_v3_v3(win->scene->cursor.location, oldscene->cursor.location);
+		copy_qt_qt(win->scene->cursor.rotation, oldscene->cursor.rotation);
 		lib_link_workspace_scene_data_restore(win, win->scene);
 
 		BLI_assert(win->screen == NULL);
@@ -9658,18 +9626,6 @@ static void expand_scene_collection(FileData *fd, Main *mainvar, SceneCollection
 	}
 }
 
-static void expand_layer_collection(FileData *fd, Main *mainvar, LayerCollection *layer_collection)
-{
-	expand_idprops(fd, mainvar, layer_collection->properties);
-
-	for (LayerCollection *layer_collection_nested = layer_collection->layer_collections.first;
-	     layer_collection_nested != NULL;
-	     layer_collection_nested = layer_collection_nested->next)
-	{
-		expand_layer_collection(fd, mainvar, layer_collection_nested);
-	}
-}
-
 static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 {
 	SceneRenderLayer *srl;
@@ -9706,7 +9662,6 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 	}
 
 	for (ViewLayer *view_layer = sce->view_layers.first; view_layer; view_layer = view_layer->next) {
-		expand_idprops(fd, mainvar, view_layer->properties);
 		expand_idprops(fd, mainvar, view_layer->id_properties);
 
 		for (module = view_layer->freestyle_config.modules.first; module; module = module->next) {
@@ -9720,13 +9675,6 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 				expand_doit(fd, mainvar, lineset->group);
 			}
 			expand_doit(fd, mainvar, lineset->linestyle);
-		}
-
-		for (LayerCollection *layer_collection = view_layer->layer_collections.first;
-		     layer_collection != NULL;
-		     layer_collection = layer_collection->next)
-		{
-			expand_layer_collection(fd, mainvar, layer_collection);
 		}
 	}
 
@@ -10120,7 +10068,7 @@ static void give_base_to_groups(
 			/* Assign the group. */
 			ob->dup_group = group;
 			ob->transflag |= OB_DUPLIGROUP;
-			copy_v3_v3(ob->loc, scene->cursor);
+			copy_v3_v3(ob->loc, scene->cursor.location);
 		}
 	}
 }

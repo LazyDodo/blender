@@ -257,7 +257,6 @@ class USERPREF_PT_interface(Panel):
         col.prop(view, "use_mouse_depth_navigate")
         col.prop(view, "use_zoom_to_mouse")
         col.prop(view, "use_rotate_around_active")
-        col.prop(view, "use_global_pivot")
         col.prop(view, "use_camera_lock_parent")
 
         col.separator()
@@ -480,7 +479,6 @@ class USERPREF_PT_system(Panel):
         col = colsplit.column()
         col.label(text="General:")
 
-        col.prop(system, "frame_server_port")
         col.prop(system, "scrollback", text="Console Scrollback")
 
         col.separator()

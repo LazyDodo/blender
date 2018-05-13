@@ -163,7 +163,7 @@ typedef struct ModifierTypeInfo {
 	/* Copy instance data for this modifier type. Should copy all user
 	 * level settings to the target modifier.
 	 */
-	void (*copyData)(struct ModifierData *md, struct ModifierData *target);
+	void (*copyData)(const struct ModifierData *md, struct ModifierData *target);
 
 
 	/********************* Deform modifier functions *********************/ /* DEPRECATED */
@@ -423,6 +423,7 @@ bool          modifiers_isClothEnabled(struct Object *ob);
 bool          modifiers_isParticleEnabled(struct Object *ob);
 
 struct Object *modifiers_isDeformedByArmature(struct Object *ob);
+struct Object *modifiers_isDeformedByMeshDeform(struct Object *ob);
 struct Object *modifiers_isDeformedByLattice(struct Object *ob);
 struct Object *modifiers_isDeformedByCurve(struct Object *ob);
 bool          modifiers_usesArmature(struct Object *ob, struct bArmature *arm);
@@ -547,6 +548,8 @@ struct DerivedMesh *modifier_applyModifier_DM_deprecated(
 struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(
         struct ModifierData *md, const struct ModifierEvalContext *ctx,
         struct BMEditMesh *editData, struct DerivedMesh *dm);
+
+struct Mesh *BKE_modifier_get_evaluated_mesh_from_object(struct Object *ob, const ModifierApplyFlag flag);
 
 #endif
 

@@ -996,7 +996,7 @@ static void OBJECT_cache_init(void *vedata)
 
 	{
 		/* Solid bones */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_BACK;
 		psl->bone_solid = DRW_pass_create("Bone Solid Pass", state);
 		psl->bone_outline = DRW_pass_create("Bone Outline Pass", state);
 	}
@@ -1691,7 +1691,7 @@ typedef struct OBJECT_LightProbeEngineData {
 	float increment_y[3];
 	float increment_z[3];
 	float corner[3];
-	unsigned int cell_count;
+	uint cell_count;
 } OBJECT_LightProbeEngineData;
 
 static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl, Object *ob, ViewLayer *view_layer)
@@ -1941,6 +1941,9 @@ static void DRW_shgroup_object_center(OBJECT_StorageList *stl, Object *ob, ViewL
 static void OBJECT_cache_populate_particles(Object *ob,
                                             OBJECT_PassList *psl)
 {
+	if (!DRW_check_particles_visible_within_active_context(ob)) {
+		return;
+	}
 	for (ParticleSystem *psys = ob->particlesystem.first; psys; psys = psys->next) {
 		if (psys_check_enabled(ob, psys, false)) {
 			ParticleSettings *part = psys->part;

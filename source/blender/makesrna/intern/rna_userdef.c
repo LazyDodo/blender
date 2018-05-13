@@ -3461,10 +3461,6 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	                         "Otherwise menus, etc will always be top to bottom, left to right, "
 	                         "no matter opening direction");
 
-	prop = RNA_def_property(srna, "use_global_pivot", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_LOCKAROUND);
-	RNA_def_property_ui_text(prop, "Global Pivot", "Lock the same rotation/scaling pivot in all 3D Views");
-
 	prop = RNA_def_property(srna, "use_mouse_depth_navigate", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_NAVIGATE);
 	RNA_def_property_ui_text(prop, "Auto Depth",
@@ -4068,11 +4064,6 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0, max_memory_in_megabytes_int());
 	RNA_def_property_ui_text(prop, "Memory Cache Limit", "Memory cache limit (in megabytes)");
 	RNA_def_property_update(prop, 0, "rna_Userdef_memcache_update");
-
-	prop = RNA_def_property(srna, "frame_server_port", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "frameserverport");
-	RNA_def_property_range(prop, 0, 32727);
-	RNA_def_property_ui_text(prop, "Frame Server Port", "Frameserver Port for Frameserver Rendering");
 
 	prop = RNA_def_property(srna, "gl_clip_alpha", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "glalphaclip");

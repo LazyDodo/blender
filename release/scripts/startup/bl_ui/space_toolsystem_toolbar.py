@@ -31,6 +31,7 @@ from .space_toolsystem_common import (
     ToolDef,
 )
 
+
 def generate_from_brushes_ex(
         context, *,
         icon_prefix,
@@ -83,36 +84,37 @@ class _defs_view3d_generic:
     @ToolDef.from_fn
     def cursor():
         return dict(
-        text="Cursor",
-        icon="ops.generic.cursor",
-        keymap=(
-            ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK')),
-        ),
-    )
+            text="Cursor",
+            icon="ops.generic.cursor",
+            keymap=(
+                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK')),
+            ),
+        )
 
     @ToolDef.from_fn
     def ruler():
         return dict(
-        text="Ruler/Protractor",
-        icon="ops.view3d.ruler",
-        widget="VIEW3D_WGT_ruler",
-        keymap=(
-            ("view3d.ruler_add", dict(), dict(type='EVT_TWEAK_A', value='ANY')),
-        ),
-    )
+            text="Ruler/Protractor",
+            icon="ops.view3d.ruler",
+            widget="VIEW3D_WGT_ruler",
+            keymap=(
+                ("view3d.ruler_add", dict(), dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
+
 
 class _defs_transform:
 
     @ToolDef.from_fn
     def translate():
         return dict(
-        text="Move",
-        icon="ops.transform.translate",
-        widget="TRANSFORM_WGT_manipulator",
-        keymap=(
-            ("transform.translate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
-        ),
-    )
+            text="Move",
+            icon="ops.transform.translate",
+            widget="TRANSFORM_WGT_manipulator",
+            keymap=(
+                ("transform.translate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
 
     @ToolDef.from_fn
     def rotate():
@@ -151,7 +153,8 @@ class _defs_transform:
             icon="ops.transform.transform",
             widget="TRANSFORM_WGT_manipulator",
             # No keymap default action, only for manipulators!
-    )
+        )
+
 
 class _defs_view3d_select:
 
@@ -205,6 +208,7 @@ class _defs_view3d_select:
 # -----------------------------------------------------------------------------
 # Object Modes (named based on context.mode)
 
+
 class _defs_edit_armature:
 
     @ToolDef.from_fn
@@ -241,18 +245,41 @@ class _defs_edit_armature:
                 ("armature.click_extrude", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
             ),
         )
+
+
 class _defs_edit_mesh:
+
+
+    @ToolDef.from_fn
+    def cube_add():
+        return dict(
+            text="Add Cube",
+            icon="ops.mesh.primitive_cube_add_manipulator",
+            widget=None,
+            keymap=(
+                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK')),
+                ("mesh.primitive_cube_add_manipulator", dict(), dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
 
     @ToolDef.from_fn
     def rip_region():
+        def draw_settings(context, layout):
+            wm = context.window_manager
+            props = wm.operator_properties_last("mesh.rip_move")
+            props_macro = props.MESH_OT_rip
+            layout.prop(props_macro, "use_fill")
+
         return dict(
             text="Rip Region",
             icon="ops.mesh.rip",
             widget=None,
             keymap=(
-                ("mesh.rip_move", dict(),
+                ("mesh.rip_move",
+                 dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -295,7 +322,7 @@ class _defs_edit_mesh:
             keymap=(
                 ("transform.edge_slide", dict(release_confirm=True),
                  dict(type='ACTIONMOUSE', value='PRESS')
-                ),
+                 ),
             ),
         )
 
@@ -337,6 +364,14 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def inset():
+        def draw_settings(context, layout):
+            wm = context.window_manager
+            props = wm.operator_properties_last("mesh.inset")
+            layout.prop(props, "use_outset")
+            layout.prop(props, "use_individual")
+            layout.prop(props, "use_even_offset")
+            layout.prop(props, "use_relative_offset")
+
         return dict(
             text="Inset Faces",
             icon="ops.mesh.inset",
@@ -345,6 +380,7 @@ class _defs_edit_mesh:
                 ("mesh.inset", dict(release_confirm=True),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -361,14 +397,21 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def extrude():
+        def draw_settings(context, layout):
+            wm = context.window_manager
+            props = wm.operator_properties_last("mesh.extrude_context_move")
+            props_xform = props.TRANSFORM_OT_translate
+            layout.prop(props_xform, "constraint_orientation")
+
         return dict(
             text="Extrude Region",
             icon="ops.mesh.extrude_region_move",
             widget="MESH_WGT_extrude",
             keymap=(
-                ("mesh.extrude_region_move", dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
+                ("mesh.extrude_context_move", dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -442,6 +485,11 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def shrink_fatten():
+        def draw_settings(context, layout):
+            wm = context.window_manager
+            props = wm.operator_properties_last("transform.shrink_fatten")
+            layout.prop(props, "use_even_offset")
+
         return dict(
             text="Shrink/Fatten",
             icon="ops.transform.shrink_fatten",
@@ -450,6 +498,7 @@ class _defs_edit_mesh:
                 ("transform.shrink_fatten", dict(release_confirm=True),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -467,8 +516,8 @@ class _defs_edit_mesh:
     @ToolDef.from_fn
     def knife():
         def draw_settings(context, layout):
-            wm=context.window_manager
-            props=wm.operator_properties_last("mesh.knife_tool")
+            wm = context.window_manager
+            props = wm.operator_properties_last("mesh.knife_tool")
             layout.prop(props, "use_occlude_geometry")
             layout.prop(props, "only_selected")
 
@@ -497,10 +546,29 @@ class _defs_edit_mesh:
             ),
         )
 
+
 class _defs_edit_curve:
 
     @ToolDef.from_fn
     def draw():
+        def draw_settings(context, layout):
+            # Tool settings initialize operator options.
+            tool_settings = context.tool_settings
+            cps = tool_settings.curve_paint_settings
+
+            col = layout.row()
+
+            col.prop(cps, "curve_type")
+
+            if cps.curve_type == 'BEZIER':
+                col.prop(cps, "error_threshold")
+                col.prop(cps, "fit_method")
+                col.prop(cps, "use_corners_detect")
+
+                col = layout.row()
+                col.active = cps.use_corners_detect
+                col.prop(cps, "corner_angle")
+
         return dict(
             text="Draw",
             icon=None,
@@ -508,6 +576,7 @@ class _defs_edit_curve:
             keymap=(
                 ("curve.draw", dict(wait_for_input=False), dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -520,6 +589,7 @@ class _defs_edit_curve:
                 ("curve.vertex_add", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
             ),
         )
+
 
 class _defs_sculpt:
 
@@ -535,7 +605,7 @@ class _defs_sculpt:
                 ('GRAB', 'THUMB'),
                 ('SNAKE_HOOK',),
                 ('BLOB', 'INFLATE'),
-                ('SMOOTH', 'SCRAPE' , 'FLATTEN'),
+                ('SMOOTH', 'SCRAPE', 'FLATTEN'),
                 ('CREASE', 'PINCH'),
                 ('CLAY', 'CLAY_STRIPS'),
                 ('LAYER',),
@@ -671,7 +741,6 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
                 else:
                     yield item
 
-
     @classmethod
     def tools_all(cls):
         yield from cls._tools.items()
@@ -728,6 +797,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             *_tools_select,
             None,
             *_tools_transform,
+            None,
+            _defs_edit_mesh.cube_add,
             None,
             (
                 _defs_edit_mesh.extrude,

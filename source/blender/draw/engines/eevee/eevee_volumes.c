@@ -131,13 +131,13 @@ static void eevee_create_shader_volumes(void)
 	        e_data.volumetric_common_lib, NULL);
 }
 
-void EEVEE_volumes_set_jitter(EEVEE_ViewLayerData *sldata, unsigned int current_sample)
+void EEVEE_volumes_set_jitter(EEVEE_ViewLayerData *sldata, uint current_sample)
 {
 	EEVEE_CommonUniformBuffer *common_data = &sldata->common_data;
 
 	double ht_point[3];
 	double ht_offset[3] = {0.0, 0.0};
-	unsigned int ht_primes[3] = {3, 7, 2};
+	uint ht_primes[3] = {3, 7, 2};
 
 	BLI_halton_3D(ht_primes, ht_offset, current_sample, ht_point);
 
@@ -241,8 +241,8 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		}
 
 		/* Temporal Super sampling jitter */
-		unsigned int ht_primes[3] = {3, 7, 2};
-		unsigned int current_sample = 0;
+		uint ht_primes[3] = {3, 7, 2};
+		uint current_sample = 0;
 
 		/* If TAA is in use do not use the history buffer. */
 		bool do_taa = ((effects->enabled_effects & EFFECT_TAA) != 0);
@@ -258,7 +258,7 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			effects->volume_current_sample = -1;
 		}
 		else {
-			const unsigned int max_sample = (ht_primes[0] * ht_primes[1] * ht_primes[2]);
+			const uint max_sample = (ht_primes[0] * ht_primes[1] * ht_primes[2]);
 			current_sample = effects->volume_current_sample = (effects->volume_current_sample + 1) % max_sample;
 			if (current_sample != max_sample - 1) {
 				DRW_viewport_request_redraw();
@@ -572,7 +572,11 @@ void EEVEE_volumes_resolve(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *veda
 		SWAP(GPUFrameBuffer *, fbl->main_fb, fbl->effect_fb);
 		SWAP(GPUFrameBuffer *, fbl->main_color_fb, fbl->effect_color_fb);
 		SWAP(GPUTexture *, txl->color, txl->color_post);
+
+		/* Restore */
+		GPU_framebuffer_texture_detach(fbl->effect_fb, dtxl->depth);
 		GPU_framebuffer_texture_attach(fbl->main_fb, dtxl->depth, 0, 0);
+		GPU_framebuffer_bind(fbl->main_fb);
 	}
 }
 

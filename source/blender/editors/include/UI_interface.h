@@ -142,6 +142,8 @@ enum {
 #define UI_BLOCK_LIST_ITEM   (1 << 19)
 #define UI_BLOCK_RADIAL      (1 << 20)
 #define UI_BLOCK_POPOVER     (1 << 21)
+/** Always show keymaps, even for non-menus. */
+#define UI_BLOCK_SHOW_SHORTCUT_ALWAYS (1 << 22)
 
 /* uiPopupBlockHandle->menuretval */
 #define UI_RETURN_CANCEL     (1 << 0)   /* cancel all menus cascading */
@@ -1036,11 +1038,6 @@ void uiTemplateHeader3D(uiLayout *layout, struct bContext *C);
 void uiTemplateEditModeSelection(uiLayout *layout, struct bContext *C);
 void uiTemplateReportsBanner(uiLayout *layout, struct bContext *C);
 void uiTemplateKeymapItemProperties(uiLayout *layout, struct PointerRNA *ptr);
-void uiTemplateOverrideProperty(
-        uiLayout *layout, struct PointerRNA *collection_props_ptr, struct PointerRNA *scene_props_ptr,
-        const char *propname,
-        const char *name, const char *text_ctxt, int translate, int icon,
-        const char *custom_template);
 void uiTemplateComponentMenu(uiLayout *layout, struct PointerRNA *ptr, const char *propname, const char *name);
 void uiTemplateNodeSocket(uiLayout *layout, struct bContext *C, float *color);
 void uiTemplateCacheFile(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname);

@@ -76,6 +76,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
 
 #include "ED_sculpt.h"
 #include "ED_object.h"
@@ -1126,6 +1127,8 @@ static float brush_strength(
 				case BRUSH_MASK_SMOOTH:
 					return alpha * pressure * feather;
 			}
+			BLI_assert(!"Not supposed to happen");
+			return 0.0f;
 
 		case SCULPT_TOOL_CREASE:
 		case SCULPT_TOOL_BLOB:
@@ -5793,6 +5796,7 @@ void ED_object_sculptmode_exit(bContext *C)
 
 static int sculpt_mode_toggle_exec(bContext *C, wmOperator *op)
 {
+	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph_on_load(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
@@ -5813,6 +5817,8 @@ static int sculpt_mode_toggle_exec(bContext *C, wmOperator *op)
 	}
 
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);
+
+	WM_msg_publish_rna_prop(mbus, &ob->id, ob, Object, mode);
 
 	return OPERATOR_FINISHED;
 }

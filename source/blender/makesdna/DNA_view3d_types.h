@@ -46,15 +46,6 @@ struct wmTimer;
 struct Material;
 struct GPUViewport;
 
-/* This is needed to not let VC choke on near and far... old
- * proprietary MS extensions... */
-#ifdef WIN32
-#undef near
-#undef far
-#define near clipsta
-#define far clipend
-#endif
-
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
 #include "DNA_image_types.h"
@@ -63,8 +54,12 @@ struct GPUViewport;
 
 /* ******************************** */
 
-/* The near/far thing is a Win EXCEPTION. Thus, leave near/far in the
- * code, and patch for windows. */
+/* The near/far thing is a Win EXCEPTION, caused by indirect includes from <windows.h>.
+ * Thus, leave near/far in the code, and undef for windows. */
+#ifdef _WIN32
+#  undef near
+#  undef far
+#endif
 
 typedef struct RegionView3D {
 	
@@ -131,13 +126,20 @@ typedef struct RegionView3D {
 	float rot_axis[3];
 } RegionView3D;
 
+typedef struct View3DCursor {
+	float location[3];
+	float rotation[4];
+	char _pad[4];
+} View3DCursor;
+
 /* 3D Viewport Shading setings */
 typedef struct View3DShading {
 	short flag;
 	short color_type;
 
 	short light;
-	short studio_light;
+	char pad[2];
+	char studio_light[256]; /* FILE_MAXFILE */
 
 	float shadow_intensity;
 	float single_color[3];
@@ -154,7 +156,9 @@ typedef struct View3DOverlay {
 
 	/* Paint mode settings */
 	int paint_flag;
-	int pad;
+
+	/* Armature edit/pose mode settings */
+	int arm_flag;
 } View3DOverlay;
 
 /* 3D ViewPort Struct */
@@ -189,13 +193,16 @@ typedef struct View3D {
 	int layact;
 	
 	short ob_centre_cursor;		/* optional bool for 3d cursor to define center */
-	short scenelock, around;
+	short scenelock, _pad0;
 	short flag, flag2, pad2;
 	
 	float lens, grid;
 	float near, far;
 	float ofs[3]  DNA_DEPRECATED;			/* XXX deprecated */
-	float cursor[3];
+
+	View3DCursor cursor;
+
+	char _pad[4];
 
 	short matcap_icon;			/* icon id */
 
@@ -248,12 +255,12 @@ typedef struct View3D {
 #define V3D_S3D_DISPVOLUME		(1 << 2)
 
 /* View3D->flag (short) */
-/*#define V3D_DISPIMAGE		1*/ /*UNUSED*/
-/*#define V3D_DISPBGPICS		2*/ /* UNUSED */
+/*#define V3D_FLAG_DEPRECATED_1 (1 << 0) */ /*UNUSED */
+/*#define V3D_FLAG_DEPRECATED_2 (1 << 1) */ /* UNUSED */
 #define V3D_HIDE_HELPLINES	4
 #define V3D_INVALID_BACKBUF	8
 
-#define V3D_ALIGN			1024
+/* #define V3D_FLAG_DEPRECATED_10 (1 << 10) */ /* UNUSED */
 #define V3D_SELECT_OUTLINE	2048
 #define V3D_ZBUF_SELECT		4096
 #define V3D_GLOBAL_STATS	8192
@@ -340,6 +347,7 @@ enum {
 enum {
 	V3D_OVERLAY_FACE_ORIENTATION  = (1 << 0),
 	V3D_OVERLAY_HIDE_CURSOR       = (1 << 1),
+	V3D_OVERLAY_BONE_SELECTION    = (1 << 2),
 };
 
 /* View3DOverlay->edit_flag */
@@ -351,6 +359,11 @@ enum {
 	V3D_OVERLAY_EDIT_OCCLUDE_WIRE = (1 << 3),
 
 	V3D_OVERLAY_EDIT_WEIGHT       = (1 << 4),
+};
+
+/* View3DOverlay->arm_flag */
+enum {
+	V3D_OVERLAY_ARM_TRANSP_BONES  = (1 << 0),
 };
 
 /* View3DOverlay->paint_flag */
@@ -394,7 +407,8 @@ enum {
 #define V3D_MANIP_NORMAL		2
 #define V3D_MANIP_VIEW			3
 #define V3D_MANIP_GIMBAL		4
-#define V3D_MANIP_CUSTOM		5
+#define V3D_MANIP_CURSOR		5
+#define V3D_MANIP_CUSTOM		1024
 
 /* View3d->twflag (also) */
 enum {

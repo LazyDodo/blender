@@ -293,6 +293,13 @@ void modifiers_foreachTexLink(Object *ob, TexWalkFunc walk, void *userData)
 void modifier_copyData_generic(const ModifierData *md_src, ModifierData *md_dst)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md_src->type);
+
+	/* md_dst may have alredy be fully initialized with some extra allocated data,
+	 * we need to free it now to avoid memleak. */
+	if (mti->freeData) {
+		mti->freeData(md_dst);
+	}
+
 	const size_t data_size = sizeof(ModifierData);
 	const char *md_src_data = ((const char *)md_src) + data_size;
 	char       *md_dst_data =       ((char *)md_dst) + data_size;
@@ -617,6 +624,27 @@ Object *modifiers_isDeformedByArmature(Object *ob)
 	if (amd) /* if were still here then return the last armature */
 		return amd->object;
 	
+	return NULL;
+}
+
+Object *modifiers_isDeformedByMeshDeform(Object *ob)
+{
+	VirtualModifierData virtualModifierData;
+	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
+	MeshDeformModifierData *mdmd = NULL;
+
+	/* return the first selected armature, this lets us use multiple armatures */
+	for (; md; md = md->next) {
+		if (md->type == eModifierType_MeshDeform) {
+			mdmd = (MeshDeformModifierData *) md;
+			if (mdmd->object && (mdmd->object->flag & SELECT))
+				return mdmd->object;
+		}
+	}
+
+	if (mdmd) /* if were still here then return the last armature */
+		return mdmd->object;
+
 	return NULL;
 }
 
@@ -955,7 +983,7 @@ struct Mesh *modifier_applyModifier(struct ModifierData *md, const ModifierEvalC
 
 		DerivedMesh *ndm = mti->applyModifier_DM(md, ctx, dm);
 
-		if(ndm != dm) {
+		if (ndm != dm) {
 			dm->release(dm);
 		}
 
@@ -979,7 +1007,7 @@ struct Mesh *modifier_applyModifierEM(struct ModifierData *md, const ModifierEva
 
 		DerivedMesh *ndm = mti->applyModifierEM_DM(md, ctx, editData, dm);
 
-		if(ndm != dm) {
+		if (ndm != dm) {
 			dm->release(dm);
 		}
 
@@ -1113,7 +1141,7 @@ struct DerivedMesh *modifier_applyModifier_DM_deprecated(struct ModifierData *md
 		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
 		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
 
-		if(new_mesh != mesh) {
+		if (new_mesh != mesh) {
 			BKE_id_free(NULL, new_mesh);
 		}
 		if (mesh != NULL) {
@@ -1146,7 +1174,7 @@ struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(struct ModifierData *
 		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
 		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
 
-		if(new_mesh != mesh) {
+		if (new_mesh != mesh) {
 			BKE_id_free(NULL, new_mesh);
 		}
 		if (mesh != NULL) {
@@ -1157,3 +1185,16 @@ struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(struct ModifierData *
 	}
 }
 
+/** Get evaluated mesh for other object, which is used as an operand for the modifier,
+ * i.e. second operand for boolean modifier.
+ */
+Mesh *BKE_modifier_get_evaluated_mesh_from_object(Object *ob, const ModifierApplyFlag flag)
+{
+	if (flag & MOD_APPLY_RENDER) {
+		/* TODO(sergey): Use proper derived render in the future. */
+		return ob->mesh_evaluated;
+	}
+	else {
+		return ob->mesh_evaluated;
+	}
+}

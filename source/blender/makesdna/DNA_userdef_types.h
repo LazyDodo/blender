@@ -527,7 +527,7 @@ typedef struct UserDef {
 	int memcachelimit;
 	int prefetchframes;
 	float pad_rot_angle; /* control the rotation step of the view when PAD2, PAD4, PAD6&PAD8 is use */
-	short frameserverport;
+	short _pad0;
 	short obcenter_dia;
 	short rvisize;			/* rotating view icon size */
 	short rvibright;		/* rotating view icon brightness */
@@ -694,7 +694,7 @@ typedef enum eUserpref_UI_Flag {
 	USER_MENUOPENAUTO		= (1 << 9),
 	USER_DEPTH_CURSOR		= (1 << 10),
 	USER_AUTOPERSP     		= (1 << 11),
-	USER_LOCKAROUND     	= (1 << 12),
+	/* USER_LOCKAROUND     	= (1 << 12), */  /* DEPRECATED */
 	USER_GLOBALUNDO     	= (1 << 13),
 	USER_ORBIT_SELECTION	= (1 << 14),
 	USER_DEPTH_NAVIGATE     = (1 << 15),

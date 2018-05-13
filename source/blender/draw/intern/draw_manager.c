@@ -45,6 +45,7 @@
 
 #include "ED_space_api.h"
 #include "ED_screen.h"
+#include "ED_particle.h"
 #include "ED_view3d.h"
 
 #include "GPU_draw.h"
@@ -218,6 +219,15 @@ int DRW_object_is_paint_mode(const Object *ob)
 	return false;
 }
 
+bool DRW_check_particles_visible_within_active_context(Object *object)
+{
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	if (object == draw_ctx->object_edit) {
+		return false;
+	}
+	return (object->mode != OB_MODE_PARTICLE_EDIT);
+}
+
 /** \} */
 
 
@@ -232,8 +242,8 @@ void DRW_transform_to_display(GPUTexture *tex)
 	drw_state_set(DRW_STATE_WRITE_COLOR);
 
 	Gwn_VertFormat *vert_format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(vert_format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int texco = GWN_vertformat_attr_add(vert_format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(vert_format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint texco = GWN_vertformat_attr_add(vert_format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	const float dither = 1.0f;
 
@@ -670,11 +680,11 @@ void *DRW_view_layer_engine_data_get(DrawEngineType *engine_type)
 	return NULL;
 }
 
-void **DRW_view_layer_engine_data_ensure(DrawEngineType *engine_type, void (*callback)(void *storage))
+void **DRW_view_layer_engine_data_ensure_ex(ViewLayer *view_layer, DrawEngineType *engine_type, void (*callback)(void *storage))
 {
 	ViewLayerEngineData *sled;
 
-	for (sled = DST.draw_ctx.view_layer->drawdata.first; sled; sled = sled->next) {
+	for (sled = view_layer->drawdata.first; sled; sled = sled->next) {
 		if (sled->engine_type == engine_type) {
 			return &sled->storage;
 		}
@@ -683,9 +693,14 @@ void **DRW_view_layer_engine_data_ensure(DrawEngineType *engine_type, void (*cal
 	sled = MEM_callocN(sizeof(ViewLayerEngineData), "ViewLayerEngineData");
 	sled->engine_type = engine_type;
 	sled->free = callback;
-	BLI_addtail(&DST.draw_ctx.view_layer->drawdata, sled);
+	BLI_addtail(&view_layer->drawdata, sled);
 
 	return &sled->storage;
+}
+
+void **DRW_view_layer_engine_data_ensure(DrawEngineType *engine_type, void (*callback)(void *storage))
+{
+	return DRW_view_layer_engine_data_ensure_ex(DST.draw_ctx.view_layer, engine_type, callback);
 }
 
 /** \} */
@@ -987,10 +1002,10 @@ static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int dr
 			break;
 
 		case OB_SOLID:
+		case OB_TEXTURE:
 			use_drw_engine(&draw_engine_workbench_solid);
 			break;
 
-		case OB_TEXTURE:
 		case OB_MATERIAL:
 		case OB_RENDER:
 		default:
@@ -1100,9 +1115,9 @@ static void drw_engines_disable(void)
 	BLI_freelistN(&DST.enabled_engines);
 }
 
-static unsigned int DRW_engines_get_hash(void)
+static uint DRW_engines_get_hash(void)
 {
-	unsigned int hash = 0;
+	uint hash = 0;
 	/* The cache depends on enabled engines */
 	/* FIXME : if collision occurs ... segfault */
 	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
@@ -1573,6 +1588,15 @@ void DRW_draw_select_loop(
 			obedit_mode = CTX_MODE_EDIT_ARMATURE;
 		}
 	}
+	bool use_bone_selection_overlay = false;
+	if (v3d->overlay.flag &= V3D_OVERLAY_BONE_SELECTION) {
+		if (!(v3d->flag2 &= V3D_RENDER_OVERRIDE)) {
+			Object *obpose = OBPOSE_FROM_OBACT(obact);
+			if (obpose) {
+				use_bone_selection_overlay = true;
+			}
+		}
+	}
 
 	struct GPUViewport *viewport = GPU_viewport_create();
 	GPU_viewport_size_set(viewport, (const int[2]){BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)});
@@ -1587,8 +1611,17 @@ void DRW_draw_select_loop(
 		drw_engines_enable_from_mode(obedit_mode);
 	}
 	else {
-		drw_engines_enable_basic();
-		drw_engines_enable_from_object_mode();
+		/* when in pose mode and overlays enable and bone selection overlay
+		   active, switch order as the bone selection must have more precedence
+		   than the rest of the scene */
+		if (use_bone_selection_overlay) {
+			drw_engines_enable_from_object_mode();
+			drw_engines_enable_basic();
+		}
+		else {
+			drw_engines_enable_basic();
+			drw_engines_enable_from_object_mode();
+		}
 	}
 
 	/* Setup viewport */
@@ -1696,8 +1729,8 @@ static void draw_depth_texture_to_screen(GPUTexture *texture)
 	const float h = (float)GPU_texture_height(texture);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int texcoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint texcoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_IMAGE_DEPTH_COPY);
 

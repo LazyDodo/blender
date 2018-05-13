@@ -987,7 +987,7 @@ static void shadecolors4(char coltop[4], char coldown[4], const char *color, sho
 
 static void round_box_shade_col4_r(unsigned char r_col[4], const char col1[4], const char col2[4], const float fac)
 {
-	const int faci = FTOCHAR(fac);
+	const int faci = unit_float_to_uchar_clamp(fac);
 	const int facm = 255 - faci;
 
 	r_col[0] = (faci * col1[0] + facm * col2[0]) / 256;
@@ -1868,7 +1868,7 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 #endif
 
 	/* cut string in 2 parts - only for menu entries */
-	if ((but->block->flag & UI_BLOCK_LOOP) &&
+	if ((but->block->flag & (UI_BLOCK_LOOP | UI_BLOCK_SHOW_SHORTCUT_ALWAYS)) &&
 	    (but->editstr == NULL))
 	{
 		if (but->flag & UI_BUT_HAS_SEP_CHAR) {
@@ -2316,8 +2316,8 @@ static struct uiWidgetColors wcol_tool = {
 static struct uiWidgetColors wcol_toolbar_item = {
 	.outline = {0x19, 0x19, 0x19, 0xff},
 	.inner = {0x46, 0x46, 0x46, 0xff},
-	.inner_sel = {0xb4, 0xb4, 0xb4, 0xff},
-	.item = {0x19, 0x19, 0x19, 0xff},
+	.inner_sel = {0xcc, 0xcc, 0xcc, 0xff},
+	.item = {0x0, 0x0, 0x0, 0xff},
 
 	.text = {0xff, 0xff, 0xff, 0xff},
 	.text_sel = {0x33, 0x33, 0x33, 0xff},

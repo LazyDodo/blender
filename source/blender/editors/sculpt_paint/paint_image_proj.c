@@ -112,10 +112,10 @@
 static void partial_redraw_array_init(ImagePaintPartialRedraw *pr);
 
 /* Defines and Structs */
-/* FTOCHAR as inline function */
+/* unit_float_to_uchar_clamp as inline function */
 BLI_INLINE unsigned char f_to_char(const float val)
 {
-	return FTOCHAR(val);
+	return unit_float_to_uchar_clamp(val);
 }
 
 /* ProjectionPaint defines */
@@ -3905,7 +3905,7 @@ static void paint_proj_begin_clone(ProjPaintState *ps, const float mouse[2])
 	/* setup clone offset */
 	if (ps->tool == PAINT_TOOL_CLONE) {
 		float projCo[4];
-		copy_v3_v3(projCo, ED_view3d_cursor3d_get(ps->scene, ps->v3d));
+		copy_v3_v3(projCo, ED_view3d_cursor3d_get(ps->scene, ps->v3d)->location);
 		mul_m4_v3(ps->obmat_imat, projCo);
 
 		projCo[3] = 1.0f;
@@ -4378,7 +4378,7 @@ static void do_projectpaint_draw(
 		float_to_byte_dither_v3(rgba_ub, rgb, dither, u, v);
 	}
 	else {
-		F3TOCHAR3(rgb, rgba_ub);
+		unit_float_to_uchar_clamp_v3(rgba_ub, rgb);
 	}
 	rgba_ub[3] = f_to_char(mask);
 
@@ -4582,9 +4582,9 @@ static void *do_projectpaint_thread(void *ph_v)
 								float_to_byte_dither_v3(projPixel->newColor.ch, color_f, ps->dither, projPixel->x_px, projPixel->y_px);
 							}
 							else {
-								F3TOCHAR3(color_f, projPixel->newColor.ch);
+								unit_float_to_uchar_clamp_v3(projPixel->newColor.ch, color_f);
 							}
-							projPixel->newColor.ch[3] = FTOCHAR(color_f[3]);
+							projPixel->newColor.ch[3] = unit_float_to_uchar_clamp(color_f[3]);
 							IMB_blend_color_byte(projPixel->pixel.ch_pt,  projPixel->origColor.ch_pt,
 							                     projPixel->newColor.ch, ps->blend);
 						}
@@ -5015,7 +5015,7 @@ void paint_proj_stroke(
 		struct Depsgraph *graph = CTX_data_depsgraph(C);
 		View3D *v3d = CTX_wm_view3d(C);
 		ARegion *ar = CTX_wm_region(C);
-		float *cursor = ED_view3d_cursor3d_get(scene, v3d);
+		float *cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
 		int mval_i[2] = {(int)pos[0], (int)pos[1]};
 
 		view3d_operator_needs_opengl(C);

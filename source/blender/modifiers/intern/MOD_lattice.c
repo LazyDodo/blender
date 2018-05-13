@@ -56,16 +56,6 @@ static void initData(ModifierData *md)
 	lmd->strength = 1.0f;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	LatticeModifierData *lmd = (LatticeModifierData *) md;
-	LatticeModifierData *tlmd = (LatticeModifierData *) target;
-#endif
-
-	modifier_copyData_generic(md, target);
-}
-
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 {
 	LatticeModifierData *lmd = (LatticeModifierData *)md;
@@ -103,33 +93,33 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Lattice Modifier");
 }
 
-static void deformVerts(ModifierData *md, const ModifierEvalContext *ctx,
-                        struct Mesh *mesh,
-                        float (*vertexCos)[3],
-                        int numVerts)
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
 	LatticeModifierData *lmd = (LatticeModifierData *) md;
-
+	struct Mesh *mesh_src = get_mesh(ctx->object, NULL, mesh, NULL, false, false);
 
 	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
 
-	lattice_deform_verts(lmd->object, ctx->object, mesh,
+	lattice_deform_verts(lmd->object, ctx->object, mesh_src,
 	                     vertexCos, numVerts, lmd->name, lmd->strength);
-}
+
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}}
 
 static void deformVertsEM(
         ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *em,
         struct Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
-	struct Mesh *mesh_src = mesh;
-
-	if (!mesh) {
-		mesh_src = BKE_bmesh_to_mesh(em->bm, &(struct BMeshToMeshParams){0});
-	}
+	struct Mesh *mesh_src = get_mesh(ctx->object, em, mesh, NULL, false, false);
 
 	deformVerts(md, ctx, mesh_src, vertexCos, numVerts);
 
-	if (!mesh) {
+	if (mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
@@ -143,7 +133,8 @@ ModifierTypeInfo modifierType_Lattice = {
 	/* flags */             eModifierTypeFlag_AcceptsCVs |
 	                        eModifierTypeFlag_AcceptsLattice |
 	                        eModifierTypeFlag_SupportsEditmode,
-	/* copyData */          copyData,
+
+	/* copyData */          modifier_copyData_generic,
 
 	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,

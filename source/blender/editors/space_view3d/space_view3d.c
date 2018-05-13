@@ -336,7 +336,6 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->far = 1000.0f;
 
 	v3d->twflag |= U.manipulator_flag & V3D_MANIPULATOR_DRAW;
-	v3d->around = V3D_AROUND_CENTER_MEAN;
 
 	v3d->bundle_size = 0.2f;
 	v3d->bundle_drawtype = OB_PLAINAXES;
@@ -1020,8 +1019,8 @@ static void view3d_main_region_listener(
 }
 
 static void view3d_main_region_message_subscribe(
-        const struct bContext *UNUSED(C),
-        struct WorkSpace *UNUSED(workspace), struct Scene *scene,
+        const struct bContext *C,
+        struct WorkSpace *workspace, struct Scene *scene,
         struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
         struct wmMsgBus *mbus)
 {
@@ -1085,16 +1084,38 @@ static void view3d_main_region_message_subscribe(
 		extern StructRNA RNA_ViewLayerEngineSettingsEevee;
 		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsEevee, &msg_sub_value_region_tag_redraw);
 	}
-	else if (STREQ(scene->r.engine, RE_engine_id_BLENDER_WORKBENCH)) {
-		extern StructRNA RNA_ViewLayerEngineSettingsWorkbench;
-		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsWorkbench, &msg_sub_value_region_tag_redraw);
-	}
 #ifdef WITH_CLAY_ENGINE
 	else if (STREQ(scene->r.engine, RE_engine_id_BLENDER_CLAY)) {
 		extern StructRNA RNA_ViewLayerEngineSettingsClay;
 		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsClay, &msg_sub_value_region_tag_redraw);
 	}
 #endif
+
+	WM_msg_subscribe_rna_anon_type(mbus, SceneDisplay, &msg_sub_value_region_tag_redraw);
+	WM_msg_subscribe_rna_anon_type(mbus, ObjectDisplay, &msg_sub_value_region_tag_redraw);
+
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *obact = OBACT(view_layer);
+	if (obact != NULL) {
+		switch (obact->mode) {
+			case OB_MODE_PARTICLE_EDIT:
+				WM_msg_subscribe_rna_anon_type(mbus, ParticleEdit, &msg_sub_value_region_tag_redraw);
+				break;
+			default:
+				break;
+		}
+	}
+
+	if (workspace->tool.spacetype == SPACE_VIEW3D) {
+		wmMsgSubscribeValue msg_sub_value_region_tag_refresh = {
+			.owner = ar,
+			.user_data = ar,
+			.notify = WM_toolsystem_do_msg_notify_tag_refresh,
+		};
+		WM_msg_subscribe_rna_anon_prop(
+		        mbus, Object, mode,
+		        &msg_sub_value_region_tag_refresh);
+	}
 }
 
 /* concept is to retrieve cursor type context-less */

@@ -66,12 +66,12 @@ static void freeData(ModifierData *md)
 {
 	ExplodeModifierData *emd = (ExplodeModifierData *) md;
 	
-	if (emd->facepa) MEM_freeN(emd->facepa);
+	MEM_SAFE_FREE(emd->facepa);
 }
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 #if 0
-	ExplodeModifierData *emd = (ExplodeModifierData *) md;
+	const ExplodeModifierData *emd = (const ExplodeModifierData *) md;
 #endif
 	ExplodeModifierData *temd = (ExplodeModifierData *) target;
 
@@ -94,9 +94,10 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static void createFacepa(ExplodeModifierData *emd,
-                         ParticleSystemModifierData *psmd,
-                         DerivedMesh *dm)
+static void createFacepa(
+        ExplodeModifierData *emd,
+        ParticleSystemModifierData *psmd,
+        DerivedMesh *dm)
 {
 	ParticleSystem *psys = psmd->psys;
 	MFace *fa = NULL, *mface = NULL;
@@ -995,8 +996,9 @@ static ParticleSystemModifierData *findPrecedingParticlesystem(Object *ob, Modif
 	}
 	return psmd;
 }
-static DerivedMesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
-                                  DerivedMesh *derivedData)
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *derivedData)
 {
 	DerivedMesh *dm = derivedData;
 	ExplodeModifierData *emd = (ExplodeModifierData *) md;

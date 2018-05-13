@@ -40,7 +40,7 @@
 
 #include "transform.h"
 
-#include "MEM_guardedalloc.h" 
+#include "MEM_guardedalloc.h"
 
 /* ************************** INPUT FROM MOUSE *************************** */
 
@@ -128,7 +128,7 @@ void setCustomPoints(TransInfo *UNUSED(t), MouseInput *mi, const int mval_start[
 	int *data;
 
 	mi->data = MEM_reallocN(mi->data, sizeof(int) * 4);
-	
+
 	data = mi->data;
 
 	data[0] = mval_start[0];
@@ -143,7 +143,7 @@ static void InputCustomRatioFlip(TransInfo *UNUSED(t), MouseInput *mi, const dou
 	double distance;
 	double dx, dy;
 	const int *data = mi->data;
-	
+
 	if (data) {
 		int mdx, mdy;
 		dx = data[2] - data[0];
@@ -419,7 +419,12 @@ void applyMouseInput(TransInfo *t, MouseInput *mi, const int mval[2], float outp
 
 	if (!is_zero_v3(t->values_modal_offset)) {
 		float values_ofs[3];
-		mul_v3_m3v3(values_ofs, t->spacemtx, t->values_modal_offset);
+		if (t->con.mode & CON_APPLY) {
+			mul_v3_m3v3(values_ofs, t->spacemtx, t->values_modal_offset);
+		}
+		else {
+			copy_v3_v3(values_ofs, t->values_modal_offset);
+		}
 		add_v3_v3(t->values, values_ofs);
 	}
 

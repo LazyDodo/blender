@@ -75,74 +75,6 @@ class VIEW3D_HT_header(Header):
                     (mode in {'WEIGHT_PAINT', 'VERTEX_PAINT'})):
                 row.prop(view, "use_occlude_geometry", text="")
 
-            # Proportional editing
-            if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
-                if toolsettings.proportional_edit != 'DISABLED':
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-            elif mode in {'EDIT', 'PARTICLE_EDIT'}:
-                row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
-                if toolsettings.proportional_edit != 'DISABLED':
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-            elif mode == 'OBJECT':
-                row = layout.row(align=True)
-                row.prop(toolsettings, "use_proportional_edit_objects", icon_only=True)
-                if toolsettings.use_proportional_edit_objects:
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-        else:
-            # Proportional editing
-            if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
-                if toolsettings.proportional_edit != 'DISABLED':
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-
-        # Snap
-        show_snap = False
-        if obj is None:
-            show_snap = True
-        else:
-            if mode not in {'SCULPT', 'VERTEX_PAINT', 'WEIGHT_PAINT', 'TEXTURE_PAINT'}:
-                show_snap = True
-            else:
-                paint_settings = UnifiedPaintPanel.paint_settings(context)
-                if paint_settings:
-                    brush = paint_settings.brush
-                    if brush and brush.stroke_method == 'CURVE':
-                        show_snap = True
-
-        if show_snap:
-            snap_element = toolsettings.snap_element
-            row = layout.row(align=True)
-            row.prop(toolsettings, "use_snap", text="")
-            row.prop(toolsettings, "snap_element", icon_only=True)
-            if snap_element == 'INCREMENT':
-                row.prop(toolsettings, "use_snap_grid_absolute", text="")
-            else:
-                row.prop(toolsettings, "snap_target", text="")
-                if obj:
-                    if mode == 'EDIT':
-                        row.prop(toolsettings, "use_snap_self", text="")
-                    if mode in {'OBJECT', 'POSE', 'EDIT'} and snap_element != 'VOLUME':
-                        row.prop(toolsettings, "use_snap_align_rotation", text="")
-
-            if snap_element == 'VOLUME':
-                row.prop(toolsettings, "use_snap_peel_object", text="")
-            elif snap_element == 'FACE':
-                row.prop(toolsettings, "use_snap_project", text="")
-
-        # AutoMerge editing
-        if obj:
-            if (mode == 'EDIT' and obj.type == 'MESH'):
-                layout.prop(toolsettings, "use_mesh_automerge", text="", icon='AUTOMERGE_ON')
-
-        # OpenGL render
-        row = layout.row(align=True)
-        row.operator("render.opengl", text="", icon='RENDER_STILL')
-        row.operator("render.opengl", text="", icon='RENDER_ANIMATION').animation = True
-
         # Pose
         if obj and mode == 'POSE':
             row = layout.row(align=True)
@@ -492,6 +424,11 @@ class VIEW3D_MT_view(Menu):
         layout.separator()
 
         layout.operator("screen.animation_play", text="Playback Animation")
+
+        layout.separator()
+
+        layout.operator("render.opengl", icon='RENDER_STILL')
+        layout.operator("render.opengl", text="OpenGL Render (Animation)", icon='RENDER_ANIMATION').animation = True
 
         layout.separator()
 
@@ -1392,7 +1329,7 @@ class INFO_MT_add(Menu):
 
         layout.menu("INFO_MT_lamp_add", icon='OUTLINER_OB_LAMP')
         layout.separator()
-        layout.menu("INFO_MT_lightprobe_add")
+        layout.menu("INFO_MT_lightprobe_add", icon='OUTLINER_OB_LIGHTPROBE')
         layout.separator()
 
         layout.operator_menu_enum("object.effector_add", "type", text="Force Field", icon='OUTLINER_OB_FORCE_FIELD')
@@ -2670,8 +2607,10 @@ class VIEW3D_MT_edit_mesh_vertices(Menu):
 
         layout.operator("mesh.merge")
         layout.operator("mesh.remove_doubles")
-        layout.operator("mesh.rip_move")
-        layout.operator("mesh.rip_move_fill")
+        props = layout.operator("mesh.rip_move")
+        props.MESH_OT_rip.use_fill = False
+        props = layout.operator("mesh.rip_move", text="Rip Fill")
+        props.MESH_OT_rip.use_fill = True
         layout.operator("mesh.rip_edge_move")
         layout.operator("mesh.split")
         layout.operator_menu_enum("mesh.separate", "type")
@@ -3592,6 +3531,7 @@ class VIEW3D_PT_shading(Panel):
                 col.separator()
                 col.row().prop(shading, "single_color", text="")
 
+        if shading.type in ('SOLID', 'TEXTURED'):
             col.separator()
             col.row().prop(shading, "light", expand=True)
             if shading.light == 'STUDIO':
@@ -3635,6 +3575,8 @@ class VIEW3D_PT_overlay(Panel):
         col.active = display_all
         col.prop(overlay, "show_cursor")
 
+        col.prop(view, "show_manipulator")
+
         col = layout.column()
         col.active = display_all
         col.prop(overlay, "show_outline_selected")
@@ -3663,6 +3605,8 @@ class VIEW3D_PT_overlay(Panel):
         subsub.active = scene.unit_settings.system == 'NONE'
         subsub.prop(overlay, "grid_subdivisions", text="Subdivisions")
 
+
+
         if context.mode == 'EDIT_MESH':
             col.separator()
             col.label(text="Edit Mode:")
@@ -3684,6 +3628,22 @@ class VIEW3D_PT_overlay(Panel):
             sub.active = overlay.show_vertex_normals or overlay.show_face_normals or overlay.show_split_normals
             sub.prop(overlay, "normals_length", text="Size")
 
+        elif context.mode == 'POSE':
+            col.separator()
+            col.label(text="Pose Mode:")
+
+            col = layout.column()
+            col.active = display_all
+            col.prop(overlay, "transparent_bones")
+            col.prop(overlay, "show_bone_selection")
+
+        elif context.mode == 'EDIT_ARMATURE':
+            col.separator()
+            col.label(text="Edit Armature:")
+
+            col = layout.column()
+            col.active = display_all
+            col.prop(overlay, "transparent_bones")
 
         elif context.mode in {'PAINT_WEIGHT', 'PAINT_VERTEX', 'PAINT_TEXTURE'}:
             col.separator()
@@ -3911,7 +3871,6 @@ class VIEW3D_PT_view3d_curvedisplay(Panel):
         row = col.row()
         row.prop(curve, "show_handles", text="Handles")
         row.prop(curve, "show_normal_face", text="Normals")
-        col.prop(context.scene.tool_settings, "normal_size", text="Normal Size")
 
 
 class VIEW3D_PT_transform_orientations(Panel):

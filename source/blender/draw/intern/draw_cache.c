@@ -46,6 +46,7 @@
 static struct DRWShapeCache {
 	Gwn_Batch *drw_single_vertice;
 	Gwn_Batch *drw_cursor;
+	Gwn_Batch *drw_cursor_only_circle;
 	Gwn_Batch *drw_fullscreen_quad;
 	Gwn_Batch *drw_quad;
 	Gwn_Batch *drw_sphere;
@@ -88,6 +89,7 @@ static struct DRWShapeCache {
 	Gwn_Batch *drw_bone_envelope_outline;
 	Gwn_Batch *drw_bone_point;
 	Gwn_Batch *drw_bone_point_wire;
+	Gwn_Batch *drw_bone_stick;
 	Gwn_Batch *drw_bone_arrows;
 	Gwn_Batch *drw_camera;
 	Gwn_Batch *drw_camera_frame;
@@ -115,8 +117,8 @@ void DRW_shape_cache_free(void)
  * \{ */
 
 static void add_fancy_edge(
-        Gwn_VertBuf *vbo, unsigned int pos_id, unsigned int n1_id, unsigned int n2_id,
-        unsigned int *v_idx, const float co1[3], const float co2[3],
+        Gwn_VertBuf *vbo, uint pos_id, uint n1_id, uint n2_id,
+        uint *v_idx, const float co1[3], const float co2[3],
 const float n1[3], const float n2[3])
 {
 	GWN_vertbuf_attr_set(vbo, n1_id, *v_idx, n1);
@@ -130,8 +132,8 @@ const float n1[3], const float n2[3])
 
 #if 0 /* UNUSED */
 static void add_lat_lon_vert(
-        Gwn_VertBuf *vbo, unsigned int pos_id, unsigned int nor_id,
-        unsigned int *v_idx, const float rad, const float lat, const float lon)
+        Gwn_VertBuf *vbo, uint pos_id, uint nor_id,
+        uint *v_idx, const float rad, const float lat, const float lon)
 {
 	float pos[3], nor[3];
 	nor[0] = sinf(lat) * cosf(lon);
@@ -871,7 +873,7 @@ Gwn_Batch *DRW_cache_field_vortex_get(void)
 #define SPIRAL_RESOL 32
 	if (!SHC.drw_field_vortex) {
 		float v[3] = {0.0f, 0.0f, 0.0f};
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
@@ -908,7 +910,7 @@ Gwn_Batch *DRW_cache_field_tube_limit_get(void)
 #define CIRCLE_RESOL 32
 	if (!SHC.drw_field_tube_limit) {
 		float v[3] = {0.0f, 0.0f, 0.0f};
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
@@ -957,7 +959,7 @@ Gwn_Batch *DRW_cache_field_cone_limit_get(void)
 #define CIRCLE_RESOL 32
 	if (!SHC.drw_field_cone_limit) {
 		float v[3] = {0.0f, 0.0f, 0.0f};
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
@@ -1283,7 +1285,7 @@ Gwn_Batch *DRW_cache_lamp_spot_square_get(void)
 		                 {-1.0f, -1.0f, -1.0f},
 		                 {-1.0f,  1.0f, -1.0f}};
 
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
@@ -1546,7 +1548,7 @@ static const float bone_octahedral_smooth_normals[6][3] = {
 	{ 0.0f,  1.0f,  0.0f}
 };
 
-static const unsigned int bone_octahedral_wire[24] = {
+static const uint bone_octahedral_wire[24] = {
 	0, 1,  1, 5,  5, 3,  3, 0,
 	0, 4,  4, 5,  5, 2,  2, 0,
 	1, 2,  2, 3,  3, 4,  4, 1,
@@ -1554,13 +1556,13 @@ static const unsigned int bone_octahedral_wire[24] = {
 
 /* aligned with bone_octahedral_wire
  * Contains adjacent normal index */
-static const unsigned int bone_octahedral_wire_adjacent_face[24] = {
+static const uint bone_octahedral_wire_adjacent_face[24] = {
 	0, 3,  4, 7,  5, 6,  1, 2,
 	2, 3,  6, 7,  4, 5,  0, 1,
 	0, 4,  1, 5,  2, 6,  3, 7,
 };
 
-static const unsigned int bone_octahedral_solid_tris[8][3] = {
+static const uint bone_octahedral_solid_tris[8][3] = {
 	{2, 1, 0}, /* bottom */
 	{3, 2, 0},
 	{4, 3, 0},
@@ -1583,7 +1585,7 @@ static const unsigned int bone_octahedral_solid_tris[8][3] = {
  * the first vertex of the first face aka. vertex 2):
  * {0, 12, 1, 10, 2, 3}
  **/
-static const unsigned int bone_octahedral_solid_tris_adjacency[8][6] = {
+static const uint bone_octahedral_solid_tris_adjacency[8][6] = {
 	{ 0, 12,  1, 10,  2,  3},
 	{ 3, 15,  4,  1,  5,  6},
 	{ 6, 18,  7,  4,  8,  9},
@@ -1610,7 +1612,7 @@ static const float bone_octahedral_solid_normals[8][3] = {
 Gwn_Batch *DRW_cache_bone_octahedral_get(void)
 {
 	if (!SHC.drw_bone_octahedral) {
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, nor, snor; } attr_id;
@@ -1651,7 +1653,7 @@ Gwn_Batch *DRW_cache_bone_octahedral_get(void)
 Gwn_Batch *DRW_cache_bone_octahedral_wire_outline_get(void)
 {
 	if (!SHC.drw_bone_octahedral_wire) {
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, n1, n2; } attr_id;
@@ -1702,7 +1704,7 @@ static const float bone_box_smooth_normals[8][3] = {
 	{-M_SQRT3,  M_SQRT3,  M_SQRT3},
 };
 
-static const unsigned int bone_box_wire[24] = {
+static const uint bone_box_wire[24] = {
 	0, 1,  1, 2,  2, 3,  3, 0,
 	4, 5,  5, 6,  6, 7,  7, 4,
 	0, 4,  1, 5,  2, 6,  3, 7,
@@ -1710,15 +1712,15 @@ static const unsigned int bone_box_wire[24] = {
 
 /* aligned with bone_octahedral_wire
  * Contains adjacent normal index */
-static const unsigned int bone_box_wire_adjacent_face[24] = {
+static const uint bone_box_wire_adjacent_face[24] = {
 	0,  2,   0,  4,   1,  6,   1,  8,
 	3, 10,   5, 10,   7, 11,   9, 11,
 	3,  8,   2,  5,   4,  7,   6,  9,
 };
 
-static const unsigned int bone_box_solid_tris[12][3] = {
-	{0, 1, 2}, /* bottom */
-	{0, 2, 3},
+static const uint bone_box_solid_tris[12][3] = {
+	{0, 2, 1}, /* bottom */
+	{0, 3, 2},
 
 	{0, 1, 5}, /* sides */
 	{0, 5, 4},
@@ -1740,9 +1742,9 @@ static const unsigned int bone_box_solid_tris[12][3] = {
  * Store indices of generated verts from bone_box_solid_tris to define adjacency infos.
  * See bone_octahedral_solid_tris for more infos.
  **/
-static const unsigned int bone_box_solid_tris_adjacency[12][6] = {
-	{ 0,  8,  1, 14,  2,  5},
-	{ 3,  1,  4, 20,  5, 26},
+static const uint bone_box_solid_tris_adjacency[12][6] = {
+	{ 0,  5,  1, 14,  2,  8},
+	{ 3, 26,  4, 20,  5,  1},
 
 	{ 6,  2,  7, 16,  8, 11},
 	{ 9,  7, 10, 32, 11, 24},
@@ -1784,7 +1786,7 @@ static const float bone_box_solid_normals[12][3] = {
 Gwn_Batch *DRW_cache_bone_box_get(void)
 {
 	if (!SHC.drw_bone_box) {
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, nor, snor; } attr_id;
@@ -1821,7 +1823,7 @@ Gwn_Batch *DRW_cache_bone_box_get(void)
 Gwn_Batch *DRW_cache_bone_box_wire_outline_get(void)
 {
 	if (!SHC.drw_bone_box_wire) {
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, n1, n2; } attr_id;
@@ -1852,7 +1854,7 @@ Gwn_Batch *DRW_cache_bone_box_wire_outline_get(void)
 Gwn_Batch *DRW_cache_bone_wire_wire_outline_get(void)
 {
 	if (!SHC.drw_bone_wire_wire) {
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, n1, n2; } attr_id;
@@ -1892,7 +1894,7 @@ Gwn_Batch *DRW_cache_bone_envelope_solid_get(void)
 		const int lat_res = 24;
 		const float lon_inc = 2.0f * M_PI / lon_res;
 		const float lat_inc = M_PI / lat_res;
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
@@ -1958,7 +1960,7 @@ Gwn_Batch *DRW_cache_bone_envelope_outline_get(void)
 		v1[1] = radius * cosf((2.0f * M_PI * -1) / ((float)CIRCLE_RESOL));
 
 		/* Output 4 verts for each position. See shader for explanation. */
-		unsigned int v = 0;
+		uint v = 0;
 		for (int a = 0; a < CIRCLE_RESOL; a++) {
 			v2[0] = radius * sinf((2.0f * M_PI * a) / ((float)CIRCLE_RESOL));
 			v2[1] = radius * cosf((2.0f * M_PI * a) / ((float)CIRCLE_RESOL));
@@ -1995,7 +1997,7 @@ Gwn_Batch *DRW_cache_bone_point_get(void)
 		const float rad = 0.05f;
 		const float lon_inc = 2 * M_PI / lon_res;
 		const float lat_inc = M_PI / lat_res;
-		unsigned int v_idx = 0;
+		uint v_idx = 0;
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, nor; } attr_id;
@@ -2080,7 +2082,7 @@ Gwn_Batch *DRW_cache_bone_point_wire_outline_get(void)
 		v0[0] = radius * sinf((2.0f * M_PI * -1) / ((float)CIRCLE_RESOL));
 		v0[1] = radius * cosf((2.0f * M_PI * -1) / ((float)CIRCLE_RESOL));
 
-		unsigned int v = 0;
+		uint v = 0;
 		for (int a = 0; a < CIRCLE_RESOL; a++) {
 			v1[0] = radius * sinf((2.0f * M_PI * a) / ((float)CIRCLE_RESOL));
 			v1[1] = radius * cosf((2.0f * M_PI * a) / ((float)CIRCLE_RESOL));
@@ -2104,9 +2106,85 @@ Gwn_Batch *DRW_cache_bone_point_wire_outline_get(void)
 	return SHC.drw_bone_point_wire;
 }
 
+/* keep in sync with armature_stick_vert.glsl */
+#define COL_WIRE (1 << 0)
+#define COL_HEAD (1 << 1)
+#define COL_TAIL (1 << 2)
+#define COL_BONE (1 << 3)
+
+#define POS_HEAD (1 << 4)
+#define POS_TAIL (1 << 5)
+#define POS_BONE (1 << 6)
+
+Gwn_Batch *DRW_cache_bone_stick_get(void)
+{
+	if (!SHC.drw_bone_stick) {
+#define CIRCLE_RESOL 12
+		uint v = 0;
+		uint flag;
+		const float radius = 2.0f; /* head/tail radius */
+		float pos[2];
+
+		/* Position Only 2D format */
+		static Gwn_VertFormat format = { 0 };
+		static struct { uint pos, flag; } attr_id;
+		if (format.attrib_ct == 0) {
+			attr_id.pos  = GWN_vertformat_attr_add(&format, "pos",  GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			attr_id.flag = GWN_vertformat_attr_add(&format, "flag", GWN_COMP_U32, 1, GWN_FETCH_INT);
+		}
+
+		const uint vcount = (CIRCLE_RESOL + 1) * 2 + 6;
+
+		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
+		GWN_vertbuf_data_alloc(vbo, vcount);
+
+		Gwn_IndexBufBuilder elb;
+		GWN_indexbuf_init_ex(&elb, GWN_PRIM_TRI_FAN, (CIRCLE_RESOL + 2) * 2 + 6 + 2, vcount, true);
+
+		/* head/tail points */
+		for (int i = 0; i < 2; ++i) {
+			/* center vertex */
+			copy_v2_fl(pos, 0.0f);
+			flag  = (i == 0) ? POS_HEAD : POS_TAIL;
+			flag |= (i == 0) ? COL_HEAD : COL_TAIL;
+			GWN_vertbuf_attr_set(vbo, attr_id.pos,  v, pos);
+			GWN_vertbuf_attr_set(vbo, attr_id.flag, v, &flag);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+			/* circle vertices */
+			flag |= COL_WIRE;
+			for (int a = 0; a < CIRCLE_RESOL; a++) {
+				pos[0] = radius * sinf((2.0f * M_PI * a) / ((float)CIRCLE_RESOL));
+				pos[1] = radius * cosf((2.0f * M_PI * a) / ((float)CIRCLE_RESOL));
+				GWN_vertbuf_attr_set(vbo, attr_id.pos,  v, pos);
+				GWN_vertbuf_attr_set(vbo, attr_id.flag, v, &flag);
+				GWN_indexbuf_add_generic_vert(&elb, v++);
+			}
+			/* Close the circle */
+			GWN_indexbuf_add_generic_vert(&elb, v - CIRCLE_RESOL);
+
+			GWN_indexbuf_add_primitive_restart(&elb);
+		}
+
+		/* Bone rectangle */
+		pos[0] = 0.0f;
+		for (int i = 0; i < 6; ++i) {
+			pos[1] = (i == 0 || i == 3) ? 0.0f : ((i < 3) ? 1.0f : -1.0f);
+			flag   = ((i <  2 || i >  4) ? POS_HEAD : POS_TAIL) |
+			         ((i == 0 || i == 3) ? 0 : COL_WIRE) | COL_BONE | POS_BONE;
+			GWN_vertbuf_attr_set(vbo, attr_id.pos,  v, pos);
+			GWN_vertbuf_attr_set(vbo, attr_id.flag, v, &flag);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+		}
+
+		SHC.drw_bone_stick = GWN_batch_create_ex(GWN_PRIM_TRI_FAN, vbo, GWN_indexbuf_build(&elb), GWN_BATCH_OWNS_VBO);
+#undef CIRCLE_RESOL
+	}
+	return SHC.drw_bone_stick;
+}
+
 static void set_bone_axis_vert(
         Gwn_VertBuf *vbo, uint axis, uint pos, uint col,
-        unsigned int *v, const float *a, const float *p, const float *c)
+        uint *v, const float *a, const float *p, const float *c)
 {
 	GWN_vertbuf_attr_set(vbo, axis, *v, a);
 	GWN_vertbuf_attr_set(vbo, pos,  *v, p);
@@ -2202,7 +2280,7 @@ Gwn_Batch *DRW_cache_bone_arrows_get(void)
 		GWN_vertbuf_data_alloc(vbo, (2 + MARKER_LEN * MARKER_FILL_LAYER) * 3 +
 		                            (X_LEN + Y_LEN + Z_LEN) * (1 + SHADOW_RES));
 
-		unsigned int v = 0;
+		uint v = 0;
 
 		for (int axis = 0; axis < 3; axis++) {
 			float pos[2] = {0.0f, 0.0f};
@@ -2839,6 +2917,30 @@ Gwn_Batch *DRW_cache_particles_get_dots(Object *object, ParticleSystem *psys)
 	return DRW_particles_batch_cache_get_dots(object, psys);
 }
 
+Gwn_Batch *DRW_cache_particles_get_edit_strands(
+        Object *object,
+        ParticleSystem *psys,
+        struct PTCacheEdit *edit)
+{
+	return DRW_particles_batch_cache_get_edit_strands(object, psys, edit);
+}
+
+Gwn_Batch *DRW_cache_particles_get_edit_inner_points(
+        Object *object,
+        ParticleSystem *psys,
+        struct PTCacheEdit *edit)
+{
+	return DRW_particles_batch_cache_get_edit_inner_points(object, psys, edit);
+}
+
+Gwn_Batch *DRW_cache_particles_get_edit_tip_points(
+        Object *object,
+        ParticleSystem *psys,
+        struct PTCacheEdit *edit)
+{
+	return DRW_particles_batch_cache_get_edit_tip_points(object, psys, edit);
+}
+
 Gwn_Batch *DRW_cache_particles_get_prim(int type)
 {
 	switch (type) {
@@ -3005,9 +3107,11 @@ Gwn_Batch *DRW_cache_hair_get_guide_curve_edges(struct HairSystem *hsys, struct 
 }
 
 /* 3D cursor */
-Gwn_Batch *DRW_cache_cursor_get(void)
+Gwn_Batch *DRW_cache_cursor_get(bool crosshair_lines)
 {
-	if (!SHC.drw_cursor) {
+	Gwn_Batch **drw_cursor = crosshair_lines ? &SHC.drw_cursor : &SHC.drw_cursor_only_circle;
+
+	if (*drw_cursor == NULL) {
 		const float f5 = 0.25f;
 		const float f10 = 0.5f;
 		const float f20 = 1.0f;
@@ -3018,8 +3122,6 @@ Gwn_Batch *DRW_cache_cursor_get(void)
 
 		unsigned char red[3] = {255, 0, 0};
 		unsigned char white[3] = {255, 255, 255};
-		unsigned char crosshair_color[3];
-		UI_GetThemeColor3ubv(TH_VIEW_OVERLAY, crosshair_color);
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, color; } attr_id;
@@ -3049,45 +3151,51 @@ Gwn_Batch *DRW_cache_cursor_get(void)
 			GWN_indexbuf_add_generic_vert(&elb, v++);
 		}
 		GWN_indexbuf_add_generic_vert(&elb, 0);
-		GWN_indexbuf_add_primitive_restart(&elb);
 
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){-f20, 0});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){-f5, 0});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
+		if (crosshair_lines) {
+			unsigned char crosshair_color[3];
+			UI_GetThemeColor3ubv(TH_VIEW_OVERLAY, crosshair_color);
 
-		GWN_indexbuf_add_primitive_restart(&elb);
+			GWN_indexbuf_add_primitive_restart(&elb);
 
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){+f5, 0});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){+f20, 0});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){-f20, 0});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){-f5, 0});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
 
-		GWN_indexbuf_add_primitive_restart(&elb);
+			GWN_indexbuf_add_primitive_restart(&elb);
 
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, -f20});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, -f5});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){+f5, 0});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){+f20, 0});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
 
-		GWN_indexbuf_add_primitive_restart(&elb);
+			GWN_indexbuf_add_primitive_restart(&elb);
 
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, +f5});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, +f20});
-		GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
-		GWN_indexbuf_add_generic_vert(&elb, v++);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, -f20});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, -f5});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+
+			GWN_indexbuf_add_primitive_restart(&elb);
+
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, +f5});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, v, (const float[2]){0, +f20});
+			GWN_vertbuf_attr_set(vbo, attr_id.color, v, crosshair_color);
+			GWN_indexbuf_add_generic_vert(&elb, v++);
+		}
 
 		Gwn_IndexBuf *ibo = GWN_indexbuf_build(&elb);
 
-		SHC.drw_cursor = GWN_batch_create_ex(GWN_PRIM_LINE_STRIP, vbo, ibo, GWN_BATCH_OWNS_VBO | GWN_BATCH_OWNS_INDEX);
+		*drw_cursor = GWN_batch_create_ex(GWN_PRIM_LINE_STRIP, vbo, ibo, GWN_BATCH_OWNS_VBO | GWN_BATCH_OWNS_INDEX);
 	}
-	return SHC.drw_cursor;
+	return *drw_cursor;
 }
