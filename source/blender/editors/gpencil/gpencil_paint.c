@@ -1507,7 +1507,7 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 		brush_dft = BKE_brush_add_gpencil(bmain, ts, "Soft Eraser");
 		brush_dft->size = 30.0f;
 		brush_dft->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
-		brush_dft->gp_icon_id = GPBRUSH_ERASE_SOFT;
+		brush_dft->gp_icon_id = GP_BRUSH_ICON_ERASE_SOFT;
 		brush_dft->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 		brush_dft->gp_eraser_mode = GP_BRUSH_ERASER_SOFT;
 

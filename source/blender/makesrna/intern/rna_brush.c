@@ -147,16 +147,16 @@ static EnumPropertyItem rna_enum_gpencil_fill_draw_modes_items[] = {
 };
 
 static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
-	{ GPBRUSH_PENCIL, "PENCIL", ICON_GPBRUSH_PENCIL, "Pencil", "" },
-	{ GPBRUSH_PEN, "PEN", ICON_GPBRUSH_PEN, "Pen", "" },
-	{ GPBRUSH_INK, "INK", ICON_GPBRUSH_INK, "Ink", "" },
-	{ GPBRUSH_INKNOISE, "INKNOISE", ICON_GPBRUSH_INKNOISE, "Ink Noise", "" },
-	{ GPBRUSH_BLOCK, "BLOCK", ICON_GPBRUSH_BLOCK, "Block", "" },
-	{ GPBRUSH_MARKER, "MARKER", ICON_GPBRUSH_MARKER, "Marker", "" },
-	{ GPBRUSH_FILL, "FILL", ICON_GPBRUSH_FILL, "Fill", "" },
-	{ GPBRUSH_ERASE_SOFT, "SOFT", ICON_GPBRUSH_ERASE_SOFT, "Eraser Soft", "" },
-	{ GPBRUSH_ERASE_HARD, "HARD", ICON_GPBRUSH_ERASE_HARD, "Eraser Hard", "" },
-	{ GPBRUSH_ERASE_STROKE, "STROKE", ICON_GPBRUSH_ERASE_STROKE, "Eraser Stroke", "" },
+	{ GP_BRUSH_ICON_PENCIL, "PENCIL", ICON_GPBRUSH_PENCIL, "Pencil", "" },
+	{ GP_BRUSH_ICON_PEN, "PEN", ICON_GPBRUSH_PEN, "Pen", "" },
+	{ GP_BRUSH_ICON_INK, "INK", ICON_GPBRUSH_INK, "Ink", "" },
+	{ GP_BRUSH_ICON_INKNOISE, "INKNOISE", ICON_GPBRUSH_INKNOISE, "Ink Noise", "" },
+	{ GP_BRUSH_ICON_BLOCK, "BLOCK", ICON_GPBRUSH_BLOCK, "Block", "" },
+	{ GP_BRUSH_ICON_MARKER, "MARKER", ICON_GPBRUSH_MARKER, "Marker", "" },
+	{ GP_BRUSH_ICON_FILL, "FILL", ICON_GPBRUSH_FILL, "Fill", "" },
+	{ GP_BRUSH_ICON_ERASE_SOFT, "SOFT", ICON_GPBRUSH_ERASE_SOFT, "Eraser Soft", "" },
+	{ GP_BRUSH_ICON_ERASE_HARD, "HARD", ICON_GPBRUSH_ERASE_HARD, "Eraser Hard", "" },
+	{ GP_BRUSH_ICON_ERASE_STROKE, "STROKE", ICON_GPBRUSH_ERASE_STROKE, "Eraser Stroke", "" },
 	{ 0, NULL, 0, NULL, NULL }
 };
 #endif
@@ -684,16 +684,16 @@ static void rna_brush_gpencil_eraser_mode(Main *UNUSED(bmain), Scene *scene, Poi
 	if ((brush) && (brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
 		switch (brush->gp_eraser_mode) {
 			case GP_BRUSH_ERASER_SOFT:
-				brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
+				brush->gp_icon_id = GP_BRUSH_ICON_ERASE_SOFT;
 				break;
 			case GP_BRUSH_ERASER_HARD:
-				brush->gp_icon_id = GPBRUSH_ERASE_HARD;
+				brush->gp_icon_id = GP_BRUSH_ICON_ERASE_HARD;
 				break;
 			case GP_BRUSH_ERASER_STROKE:
-				brush->gp_icon_id = GPBRUSH_ERASE_STROKE;
+				brush->gp_icon_id = GP_BRUSH_ICON_ERASE_STROKE;
 				break;
 			default:
-				brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
+				brush->gp_icon_id = GP_BRUSH_ICON_ERASE_SOFT;
 				break;
 		}
 	}

@@ -1416,34 +1416,34 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		/* reset the icon */
 		if (ob->mode & OB_MODE_GPENCIL_PAINT) {
 			switch (br->gp_icon_id) {
-				case GPBRUSH_PENCIL:
+				case GP_BRUSH_ICON_PENCIL:
 					br->id.icon_id = ICON_GPBRUSH_PENCIL;
 					break;
-				case GPBRUSH_PEN:
+				case GP_BRUSH_ICON_PEN:
 					br->id.icon_id = ICON_GPBRUSH_PEN;
 					break;
-				case GPBRUSH_INK:
+				case GP_BRUSH_ICON_INK:
 					br->id.icon_id = ICON_GPBRUSH_INK;
 					break;
-				case GPBRUSH_INKNOISE:
+				case GP_BRUSH_ICON_INKNOISE:
 					br->id.icon_id = ICON_GPBRUSH_INKNOISE;
 					break;
-				case GPBRUSH_BLOCK:
+				case GP_BRUSH_ICON_BLOCK:
 					br->id.icon_id = ICON_GPBRUSH_BLOCK;
 					break;
-				case GPBRUSH_MARKER:
+				case GP_BRUSH_ICON_MARKER:
 					br->id.icon_id = ICON_GPBRUSH_MARKER;
 					break;
-				case GPBRUSH_FILL:
+				case GP_BRUSH_ICON_FILL:
 					br->id.icon_id = ICON_GPBRUSH_FILL;
 					break;
-				case GPBRUSH_ERASE_SOFT:
+				case GP_BRUSH_ICON_ERASE_SOFT:
 					br->id.icon_id = ICON_GPBRUSH_ERASE_SOFT;
 					break;
-				case GPBRUSH_ERASE_HARD:
+				case GP_BRUSH_ICON_ERASE_HARD:
 					br->id.icon_id = ICON_GPBRUSH_ERASE_HARD;
 					break;
-				case GPBRUSH_ERASE_STROKE:
+				case GP_BRUSH_ICON_ERASE_STROKE:
 					br->id.icon_id = ICON_GPBRUSH_ERASE_STROKE;
 					break;
 				default:

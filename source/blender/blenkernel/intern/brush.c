@@ -141,7 +141,7 @@ static void brush_defaults(Brush *brush)
 	brush->draw_strength = 1.0f;
 	brush->draw_jitter = 0.0f;
 	brush->gp_flag |= GP_BRUSH_USE_JITTER_PRESSURE;
-	brush->gp_icon_id = GPBRUSH_PEN;
+	brush->gp_icon_id = GP_BRUSH_ICON_PEN;
 
 	/* curves */
 	brush->curve_sensitivity = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
@@ -291,7 +291,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	brush->gp_icon_id = GPBRUSH_PENCIL;
+	brush->gp_icon_id = GP_BRUSH_ICON_PENCIL;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
@@ -323,7 +323,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothfac = 1.0f;
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_random_sub = 0.0f;
-	brush->gp_icon_id = GPBRUSH_PEN;
+	brush->gp_icon_id = GP_BRUSH_ICON_PEN;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
@@ -352,7 +352,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	brush->gp_icon_id = GPBRUSH_INK;
+	brush->gp_icon_id = GP_BRUSH_ICON_INK;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
@@ -389,7 +389,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 2;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	brush->gp_icon_id = GPBRUSH_INKNOISE;
+	brush->gp_icon_id = GP_BRUSH_ICON_INKNOISE;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
@@ -425,7 +425,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 0;
 	brush->draw_random_sub = 0;
-	brush->gp_icon_id = GPBRUSH_BLOCK;
+	brush->gp_icon_id = GP_BRUSH_ICON_BLOCK;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
@@ -456,7 +456,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_thick_smoothlvl = 3;
 	brush->draw_subdivide = 1;
 	brush->draw_random_sub = 0.0f;
-	brush->gp_icon_id = GPBRUSH_MARKER;
+	brush->gp_icon_id = GP_BRUSH_ICON_MARKER;
 	brush->gp_brush_type = GP_BRUSH_TYPE_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
@@ -470,7 +470,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gp_fill_leak = 3;
 	brush->gp_fill_threshold = 0.1f;
 	brush->gp_fill_simplylvl = 1;
-	brush->gp_icon_id = GPBRUSH_FILL;
+	brush->gp_icon_id = GP_BRUSH_ICON_FILL;
 	brush->gp_brush_type = GP_BRUSH_TYPE_FILL;
 
 	brush->draw_smoothfac = 0.5f;
@@ -488,7 +488,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Soft");
 	brush->size = 30.0f;
 	brush->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
-	brush->gp_icon_id = GPBRUSH_ERASE_SOFT;
+	brush->gp_icon_id = GP_BRUSH_ICON_ERASE_SOFT;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 	brush->gp_eraser_mode = GP_BRUSH_ERASER_SOFT;
 
@@ -496,7 +496,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Hard");
 	brush->size = 30.0f;
 	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
-	brush->gp_icon_id = GPBRUSH_ERASE_HARD;
+	brush->gp_icon_id = GP_BRUSH_ICON_ERASE_HARD;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 	brush->gp_eraser_mode = GP_BRUSH_ERASER_HARD;
 
@@ -504,7 +504,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Stroke");
 	brush->size = 30.0f;
 	brush->gp_flag |= GP_BRUSH_ENABLE_CURSOR;
-	brush->gp_icon_id = GPBRUSH_ERASE_STROKE;
+	brush->gp_icon_id = GP_BRUSH_ICON_ERASE_STROKE;
 	brush->gp_brush_type = GP_BRUSH_TYPE_ERASE;
 	brush->gp_eraser_mode = GP_BRUSH_ERASER_STROKE;
 
