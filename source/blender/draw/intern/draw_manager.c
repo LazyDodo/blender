@@ -2032,6 +2032,7 @@ void DRW_engines_register(void)
 	DRW_engine_register(&draw_engine_edit_metaball_type);
 	DRW_engine_register(&draw_engine_edit_surface_type);
 	DRW_engine_register(&draw_engine_edit_text_type);
+	DRW_engine_register(&draw_engine_motion_path_type);
 	DRW_engine_register(&draw_engine_overlay_type);
 	DRW_engine_register(&draw_engine_paint_texture_type);
 	DRW_engine_register(&draw_engine_paint_vertex_type);

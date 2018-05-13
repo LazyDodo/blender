@@ -53,6 +53,7 @@ set(INC_SYS
 )
 
 set(SRC
+	intern/draw_anim_viz.c
 	intern/draw_armature.c
 	intern/draw_cache.c
 	intern/draw_cache_impl_curve.c

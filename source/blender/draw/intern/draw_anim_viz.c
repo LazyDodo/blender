@@ -15,18 +15,15 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * The Original Code is Copyright (C) 2009 by the Blender Foundation.
- * All rights reserved.
- *
- * The Original Code is: all of this file.
+ * The Original Code is Copyright (C) 2009/2018 by the Blender Foundation.
  *
  * Contributor(s): Joshua Leung
  *
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/editors/space_view3d/drawanimviz.c
- *  \ingroup spview3d
+/** \file blender/draw/intern/draw_anim_viz.c
+ *  \ingroup draw
  */
 
 
@@ -49,14 +46,52 @@
 #include "BKE_animsys.h"
 #include "BKE_action.h"
 
-#include "GPU_immediate.h"
-#include "GPU_matrix.h"
-
 #include "ED_keyframes_draw.h"
 
 #include "UI_resources.h"
 
-/* ************************************ Motion Paths ************************************* */
+#include "DRW_engine.h"
+#include "DRW_render.h"
+
+#include "GPU_shader.h"
+#include "GPU_immediate.h"
+#include "GPU_matrix.h"
+
+#include "draw_common.h"
+#include "draw_manager_text.h"
+
+#include "draw_mode_engines.h"
+
+/* ********************************* Lists ************************************** */
+/* All lists are per viewport specific datas.
+ * They are all free when viewport changes engines
+ * or is free itself.
+ */
+
+/* XXX: How to show frame numbers, etc.?  Currently only doing the dots and lines */
+typedef struct MPATH_PassList {
+	struct DRWPass *mpath_line;
+	struct DRWPass *mpath_frame_dots;
+	struct DRWPass *mpath_key_dots;
+} MPATH_PassList;
+
+typedef struct MPATH_StorageList {
+	struct MPATH_PrivateData *g_data;
+} MPATH_StorageList;
+
+typedef struct MPATH_Data {
+	void *engine_type;
+	DRWViewportEmptyList *fbl;
+	DRWViewportEmptyList *txl;
+	MPATH_PassList *psl;
+	MPATH_StorageList *stl;
+} MPATH_Data;
+
+/* ******************************** Static ************************************** */
+
+// ...
+
+/* *************************** Motion Path Drawing ****************************** */
 
 /* TODO:
  * - options to draw paths with lines
@@ -312,6 +347,8 @@ void draw_motion_path_instance(Scene *scene,
 	/* XXX, this isn't up to date but probably should be kept so. */
 	invert_m4_m4(ob->imat, ob->obmat);
 	
+#if 0 /* FIXME!!! How can we draw text in the new 3d Viewport */
+
 	/* Draw frame numbers at each framestep value */
 	if (avs->path_viewflag & MOTIONPATH_VIEW_FNUMS) {
 		unsigned char col[4];
@@ -420,6 +457,7 @@ void draw_motion_path_instance(Scene *scene,
 		
 		BLI_dlrbTree_free(&keys);
 	}
+#endif
 }
 
 /* Clean up drawing environment after drawing motion paths */
@@ -428,3 +466,119 @@ void draw_motion_paths_cleanup(View3D *v3d)
 	if (v3d->zbuf) glEnable(GL_DEPTH_TEST);
 	gpuPopMatrix();
 }
+
+/* ******************* Populate Cache from MotionPath Sources ******************* */
+
+/* Motion Paths from Object */
+
+
+/* *************************** Draw Engine Entrypoints ************************** */
+
+static void MPATH_engine_init(void *UNUSED(vedata))
+{
+	// if (!e_data.bone_selection_sh) {
+	// 	e_data.bone_selection_sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_UNIFORM_COLOR);
+	// }
+}
+
+static void MPATH_engine_free(void)
+{
+}
+
+/* Here init all passes and shading groups
+ * Assume that all Passes are NULL */
+static void MPATH_cache_init(void *vedata)
+{
+	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
+	MPATH_StorageList *stl = ((MPATH_Data *)vedata)->stl;
+
+	// if (!stl->g_data) {
+	// 	/* Alloc transient pointers */
+	// 	stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
+	// }
+
+	{
+		/* MPath Line */
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
+		psl->mpath_line = DRW_pass_create("Motionpath Line Pass", state);
+	}
+
+	{
+		/* MPath Frame Dots */
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
+		psl->mpath_frame_dots = DRW_pass_create("Motionpath Frame Dots Pass", state);
+	}
+	
+	{
+		/* MPath Keyframe Dots */
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
+		psl->mpath_key_dots = DRW_pass_create("Motionpath Keyframe Dots Pass", state);
+	}
+}
+
+/* Add geometry to shading groups. Execute for each objects */
+static void MPATH_cache_populate(void *vedata, Object *ob)
+{
+	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
+	MPATH_StorageList *stl = ((MPATH_Data *)vedata)->stl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+
+#if 0 // XXX: Sample code
+	if (ob->type == OB_ARMATURE) {
+		if (DRW_pose_mode_armature(ob, draw_ctx->obact)) {
+			DRWArmaturePasses passes = {
+			    .bone_solid = psl->bone_solid,
+			    .bone_outline = psl->bone_outline,
+			    .bone_wire = psl->bone_wire,
+			    .bone_envelope = psl->bone_envelope,
+			    .bone_axes = psl->bone_axes,
+			    .relationship_lines = psl->relationship,
+			};
+			DRW_shgroup_armature_pose(ob, passes);
+		}
+	}
+	else if (ob->type == OB_MESH && POSE_is_bone_selection_overlay_active() && POSE_is_driven_by_active_armature(ob)) {
+		struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
+		if (geom) {
+			DRW_shgroup_call_object_add(stl->g_data->bone_selection_shgrp, geom, ob);
+		}
+	}
+#endif
+}
+
+/* Draw time! Control rendering pipeline from here */
+static void MPATH_draw_scene(void *vedata)
+{
+	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
+	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
+
+	DRW_draw_pass(psl->mpath_line);
+	DRW_draw_pass(psl->mpath_frame_dots);
+	DRW_draw_pass(psl->mpath_key_dots);
+
+	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
+}
+
+/* *************************** Draw Engine Defines ****************************** */
+
+static const DrawEngineDataSize MPATH_data_size = DRW_VIEWPORT_DATA_SIZE(MPATH_Data);
+
+DrawEngineType draw_engine_motion_path_type = {
+	NULL, NULL,
+	N_("MotionPath"),
+	&MPATH_data_size,
+	&MPATH_engine_init,
+	&MPATH_engine_free,
+	&MPATH_cache_init,
+	&MPATH_cache_populate,
+	NULL,
+	NULL,
+	&MPATH_draw_scene,
+	NULL,
+	NULL,
+};
+
