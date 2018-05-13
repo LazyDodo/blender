@@ -719,7 +719,7 @@ int ED_transform_calc_manipulator_stats(
 			if (gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
 
 				/* calculate difference matrix */
-				ED_gpencil_parent_location(ob, gpd, gpl, diff_mat);
+				ED_gpencil_parent_location(depsgraph, ob, gpd, gpl, diff_mat);
 
 				for (bGPDstroke *gps = gpl->actframe->strokes.first; gps; gps = gps->next) {
 					/* skip strokes that are invalid for current view */

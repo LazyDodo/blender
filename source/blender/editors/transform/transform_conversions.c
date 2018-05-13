@@ -8042,6 +8042,7 @@ void flushTransPaintCurve(TransInfo *t)
 
 static void createTransGPencil(bContext *C, TransInfo *t)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 
@@ -8172,7 +8173,7 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 			}
 
 			/* calculate difference matrix */
-			ED_gpencil_parent_location(obact, gpd, gpl, diff_mat);
+			ED_gpencil_parent_location(depsgraph, obact, gpd, gpl, diff_mat);
 			/* undo matrix */
 			invert_m4_m4(inverse_diff_mat, diff_mat);
 

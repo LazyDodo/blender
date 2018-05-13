@@ -631,10 +631,13 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 {
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Depsgraph *depsgraph = draw_ctx->depsgraph;
+
 	float viewmatrix[4][4];
 
 	/* get parent matrix and save as static data */
-	ED_gpencil_parent_location(ob, gpd, gpl, viewmatrix);
+	ED_gpencil_parent_location(depsgraph, ob, gpd, gpl, viewmatrix);
 	copy_m4_m4(gpf->runtime.viewmatrix, viewmatrix);
 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
@@ -693,7 +696,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 	Depsgraph *depsgraph = draw_ctx->depsgraph;
 
 	/* get parent matrix and save as static data */
-	ED_gpencil_parent_location(ob, gpd, gpl, viewmatrix);
+	ED_gpencil_parent_location(depsgraph, ob, gpd, gpl, viewmatrix);
 	copy_m4_m4(derived_gpf->runtime.viewmatrix, viewmatrix);
 
 	/* apply geometry modifiers */

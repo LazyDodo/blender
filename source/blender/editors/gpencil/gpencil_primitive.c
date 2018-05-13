@@ -363,7 +363,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* if parented change position relative to parent object */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		gp_apply_parent_point(tgpi->ob, tgpi->gpd, tgpi->gpl, pt);
+		gp_apply_parent_point(tgpi->graph, tgpi->ob, tgpi->gpd, tgpi->gpl, pt);
 	}
 	
 	/* force fill recalc */

@@ -152,6 +152,7 @@ static void gp_strokepoint_convertcoords(
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	ARegion *ar = CTX_wm_region(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
 	Object *obact = CTX_data_active_object(C);   
 	bGPDspoint mypt, *pt;
 
@@ -160,7 +161,7 @@ static void gp_strokepoint_convertcoords(
 
 	/* apply parent transform */
 	float fpt[3];
-	ED_gpencil_parent_location(obact, gpd, gpl, diff_mat);
+	ED_gpencil_parent_location(depsgraph, obact, gpd, gpl, diff_mat);
 	mul_v3_m4v3(fpt, diff_mat, &source_pt->x);
 	copy_v3_v3(&pt->x, fpt);
 

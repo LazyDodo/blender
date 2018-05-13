@@ -1461,6 +1461,8 @@ void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const in
 	RegionView3D *rv3d = ar->regiondata;
 	tGPDinterpolate_layer *tgpil;
 	Object *obact = CTX_data_active_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
+
 	float color[4];
 
 	UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, color);
@@ -1472,6 +1474,7 @@ void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const in
 	}
 
 	tgpw.rv3d = rv3d;	
+	tgpw.depsgraph = depsgraph;
 	tgpw.ob = obact;
 	tgpw.gpd = tgpi->gpd;
 	tgpw.offsx = 0;
@@ -1484,7 +1487,7 @@ void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const in
 	glEnable(GL_BLEND);
 	for (tgpil = tgpi->ilayers.first; tgpil; tgpil = tgpil->next) {
 		/* calculate parent position */
-		ED_gpencil_parent_location(obact, tgpi->gpd, tgpil->gpl, tgpw.diff_mat);
+		ED_gpencil_parent_location(depsgraph, obact, tgpi->gpd, tgpil->gpl, tgpw.diff_mat);
 		if (tgpil->interFrame) {
 			tgpw.gpl = tgpil->gpl;
 			tgpw.gpf = tgpil->interFrame;
@@ -1515,6 +1518,8 @@ void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int typ
 	}
 
 	Object *obact = CTX_data_active_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
+
 	float color[4];
 	UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, color);
 	color[3] = 0.6f;
@@ -1525,6 +1530,7 @@ void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int typ
 	}
 
 	tgpw.rv3d = rv3d;
+	tgpw.depsgraph = depsgraph;
 	tgpw.ob = obact;
 	tgpw.gpd = tgpi->gpd;
 	tgpw.offsx = 0;
@@ -1536,7 +1542,7 @@ void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int typ
 	/* turn on alpha-blending */
 	glEnable(GL_BLEND);
 	/* calculate parent position */
-	ED_gpencil_parent_location(obact, tgpi->gpd, tgpi->gpl, tgpw.diff_mat);
+	ED_gpencil_parent_location(depsgraph, obact, tgpi->gpd, tgpi->gpl, tgpw.diff_mat);
 	if (tgpi->gpf) {
 		tgpw.gps = tgpi->gpf->strokes.first;
 		if (tgpw.gps->totpoints > 0) {
@@ -1571,6 +1577,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 	tGPDdraw tgpw;
 
 	tgpw.rv3d = rv3d;
+	tgpw.depsgraph = NULL; /* XXX: This is not used here */
 	tgpw.ob = ob;
 	tgpw.gpd = gpd;
 	tgpw.gpl = NULL;
@@ -1584,7 +1591,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* calculate parent position */
-		ED_gpencil_parent_location(ob, gpd, gpl, diff_mat);
+		ED_gpencil_parent_location(tgpw.depsgraph, ob, gpd, gpl, diff_mat);
 
 		short lthick = brush->size + gpl->thickness;
 

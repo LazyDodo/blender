@@ -105,7 +105,7 @@ static int gpencil_editmode_toggle_poll(bContext *C)
 static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 {
 	const int back = RNA_boolean_get(op->ptr, "back");
-
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bool is_object = false;
 	short mode;
@@ -125,7 +125,7 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 	gpd->flag ^= GP_DATA_STROKE_EDITMODE;
 	/* recalculate parent matrix */
 	if (gpd->flag & GP_DATA_STROKE_EDITMODE) {
-		ED_gpencil_reset_layers_parent(ob, gpd);
+		ED_gpencil_reset_layers_parent(depsgraph, ob, gpd);
 	}
 	/* set mode */
 	if (gpd->flag & GP_DATA_STROKE_EDITMODE) {
@@ -1919,6 +1919,7 @@ static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	RegionView3D *rv3d = CTX_wm_region_data(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
 	Object *obact = CTX_data_active_object(C);
 	const float gridf = rv3d->gridview;
 	
@@ -1929,7 +1930,7 @@ static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 			float diff_mat[4][4];
 			
 			/* calculate difference matrix object */
-			ED_gpencil_parent_location(obact, gpd, gpl, diff_mat);
+			ED_gpencil_parent_location(depsgraph, obact, gpd, gpl, diff_mat);
 			
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				bGPDspoint *pt;
@@ -1956,7 +1957,7 @@ static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 
 						/* return data */
 						copy_v3_v3(&pt->x, fpt);
-						gp_apply_parent_point(obact, gpd, gpl, pt);
+						gp_apply_parent_point(depsgraph, obact, gpd, gpl, pt);
 					}
 				}
 			}
@@ -1991,6 +1992,7 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 	
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
 	Object *obact = CTX_data_active_object(C);                                          \
 
 	const bool use_offset = RNA_boolean_get(op->ptr, "use_offset");
@@ -2003,7 +2005,7 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 			float diff_mat[4][4];
 			
 			/* calculate difference matrix */
-			ED_gpencil_parent_location(obact, gpd, gpl, diff_mat);
+			ED_gpencil_parent_location(depsgraph, obact, gpd, gpl, diff_mat);
 			
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				bGPDspoint *pt;
@@ -2036,7 +2038,7 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 					for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 						if (pt->flag & GP_SPOINT_SELECT) {
 							copy_v3_v3(&pt->x, cursor_global);
-							gp_apply_parent_point(obact, gpd, gpl, pt);
+							gp_apply_parent_point(depsgraph, obact, gpd, gpl, pt);
 						}
 					}
 				}
@@ -2077,6 +2079,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 	
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
 	Object *obact = CTX_data_active_object(C);                                          \
 
 	float *cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
@@ -2094,7 +2097,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 			float diff_mat[4][4];
 			
 			/* calculate difference matrix */
-			ED_gpencil_parent_location(obact, gpd, gpl, diff_mat);
+			ED_gpencil_parent_location(depsgraph, obact, gpd, gpl, diff_mat);
 			
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				bGPDspoint *pt;
@@ -2625,6 +2628,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *ob = CTX_data_active_object(C);
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -2647,9 +2651,8 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 
 	/* init autodist for geometry projection */
 	if (mode == GP_REPROJECT_SURFACE) {
-		struct Depsgraph *graph = CTX_data_depsgraph(C);
 		view3d_region_operator_needs_opengl(CTX_wm_window(C), gsc.ar);
-		ED_view3d_autodist_init(graph, gsc.ar, CTX_wm_view3d(C), 0);
+		ED_view3d_autodist_init(depsgraph, gsc.ar, CTX_wm_view3d(C), 0);
 	}
 	
 	// TODO: For deforming geometry workflow, create new frames?
@@ -2690,7 +2693,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 						copy_v3_v3(&pt->x, &pt2.x);
 
 						/* apply parent again */
-						gp_apply_parent_point(ob, gpd, gpl, pt);
+						gp_apply_parent_point(depsgraph, ob, gpd, gpl, pt);
 					}
 				}
 				/* Project screenspace back to 3D space (from current perspective)

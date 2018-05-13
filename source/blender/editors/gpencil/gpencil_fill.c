@@ -192,6 +192,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 
 	tGPDdraw tgpw;
 	tgpw.rv3d = tgpf->rv3d;
+	tgpw.depsgraph = tgpf->depsgraph;
 	tgpw.ob = ob;
 	tgpw.gpd = gpd;
 	tgpw.offsx = 0;
@@ -206,7 +207,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* calculate parent position */
-		ED_gpencil_parent_location(ob, gpd, gpl, tgpw.diff_mat);
+		ED_gpencil_parent_location(tgpw.depsgraph, ob, gpd, gpl, tgpw.diff_mat);
 
 		/* do not draw layer if hidden */
 		if (gpl->flag & GP_LAYER_HIDE)
@@ -888,7 +889,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	/* if parented change position relative to parent object */
 	for (int a = 0; a < tgpf->sbuffer_size; a++) {
 		pt = &gps->points[a];
-		gp_apply_parent_point(tgpf->ob, tgpf->gpd, tgpf->gpl, pt);
+		gp_apply_parent_point(tgpf->depsgraph, tgpf->ob, tgpf->gpd, tgpf->gpl, pt);
 	}
 
 	/* simplify stroke */

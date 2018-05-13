@@ -1121,7 +1121,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 						/* recalculate all strokes (all layers are considered without evaluating lock attributtes) */
 						for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 							/* calculate difference matrix */
-							ED_gpencil_parent_location(obact, gpd, gpl, diff_mat);
+							ED_gpencil_parent_location(depsgraph, obact, gpd, gpl, diff_mat);
 							/* undo matrix */
 							invert_m4_m4(inverse_diff_mat, diff_mat);
 							for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {

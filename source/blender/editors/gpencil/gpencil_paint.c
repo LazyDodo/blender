@@ -129,7 +129,7 @@ typedef struct tGPsdata {
 
 	Main *bmain;        /* main database pointer */
 	Scene *scene;       /* current scene from context */
-	struct Depsgraph *graph;
+	Depsgraph *depsgraph;
 	
 	Object *ob;         /* current object */
 	wmWindow *win;      /* window where painting originated */
@@ -565,7 +565,7 @@ static short gp_stroke_addpoint(
 	tGPspoint *pt;
 	ToolSettings *ts = p->scene->toolsettings;
 	Object *obact = (Object *)p->ownerPtr.data;
-	Object *ob_eval = DEG_get_evaluated_object(p->graph, obact);
+	Depsgraph *depsgraph = p->depsgraph;                                      \
 	RegionView3D *rv3d = p->ar->regiondata;
 	View3D *v3d = p->sa->spacedata.first;
 	MaterialGPencilStyle *gp_style = p->material->gp_style;
@@ -782,7 +782,7 @@ static short gp_stroke_addpoint(
 			if (gpencil_project_check(p)) {
 				view3d_region_operator_needs_opengl(p->win, p->ar);
 				ED_view3d_autodist_init(
-				        p->graph, p->ar, v3d, (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 1 : 0);
+				        p->depsgraph, p->ar, v3d, (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 1 : 0);
 			}
 			
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
@@ -790,7 +790,7 @@ static short gp_stroke_addpoint(
 			/* reproject to plane (only in 3d space) */
 			gp_reproject_toplane(p, gps);
 			/* if parented change position relative to parent object */
-			gp_apply_parent_point(ob_eval, gpd, gpl, pts);
+			gp_apply_parent_point(depsgraph, obact, gpd, gpl, pts);
 			/* copy pressure and time */
 			pts->pressure = pt->pressure;
 			pts->strength = pt->strength;
@@ -905,8 +905,8 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	tGPspoint *ptc;
 	Brush *brush = p->brush;
 	ToolSettings *ts = p->scene->toolsettings;
+	Depsgraph *depsgraph = p->depsgraph;
 	Object *obact = (Object *)p->ownerPtr.data;
-	Object *ob_eval = DEG_get_evaluated_object(p->graph, obact);
 
 	int i, totelem;
 	/* since strokes are so fine, when using their depth we need a margin otherwise they might get missed */
@@ -1006,7 +1006,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		pt = gps->points;
 		for (i = 0; i < gps->totpoints; i++, pt++) {
 			/* if parented change position relative to parent object */
-			gp_apply_parent_point(ob_eval, gpd, gpl, pt);
+			gp_apply_parent_point(depsgraph, obact, gpd, gpl, pt);
 		}
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW_POLY) {
@@ -1018,7 +1018,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		/* reproject to plane (only in 3d space) */
 		gp_reproject_toplane(p, gps);
 		/* if parented change position relative to parent object */
-		gp_apply_parent_point(ob_eval, gpd, gpl, pt);
+		gp_apply_parent_point(depsgraph, obact, gpd, gpl, pt);
 		/* copy pressure and time */
 		pt->pressure = ptc->pressure;
 		pt->strength = ptc->strength;
@@ -1143,7 +1143,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		/* reproject to plane (only in 3d space) */
 		gp_reproject_toplane(p, gps);
 		/* change position relative to parent object */
-		gp_apply_parent(ob_eval, gpd, gpl, gps);
+		gp_apply_parent(depsgraph, obact, gpd, gpl, gps);
 
 		if (depth_arr)
 			MEM_freeN(depth_arr);
@@ -1198,7 +1198,7 @@ static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, cons
 
 		float diff_mat[4][4];
 		/* calculate difference matrix if parent object */
-		ED_gpencil_parent_location(obact, p->gpd, gpl, diff_mat);
+		ED_gpencil_parent_location(p->depsgraph, obact, p->gpd, gpl, diff_mat);
 
 		if (ED_view3d_autodist_simple(p->ar, mval, mval_3d, 0, NULL)) {
 			const float depth_mval = view3d_point_depth(rv3d, mval_3d);
@@ -1251,6 +1251,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
                                       const int mval[2], const int mvalo[2],
                                       const int radius, const rcti *rect)
 {
+	Depsgraph *depsgraph = p->depsgraph;
 	Object *obact = (Object *)p->ownerPtr.data;
 	Brush *eraser = p->eraser;
 	bGPDspoint *pt1, *pt2;
@@ -1260,7 +1261,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 	float diff_mat[4][4];
 
 	/* calculate difference matrix */
-	ED_gpencil_parent_location(obact, p->gpd, gpl, diff_mat);
+	ED_gpencil_parent_location(depsgraph, obact, p->gpd, gpl, diff_mat);
 
 	if (gps->totpoints == 0) {
 		/* just free stroke */
@@ -1410,7 +1411,7 @@ static void gp_stroke_doeraser(tGPsdata *p)
 		if (p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH) {
 			View3D *v3d = p->sa->spacedata.first;
 			view3d_region_operator_needs_opengl(p->win, p->ar);
-			ED_view3d_autodist_init(p->graph, p->ar, v3d, 0);
+			ED_view3d_autodist_init(p->depsgraph, p->ar, v3d, 0);
 		}
 	}
 	
@@ -1629,7 +1630,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 	p->C = C;
 	p->bmain = CTX_data_main(C);
 	p->scene = CTX_data_scene(C);
-	p->graph = CTX_data_depsgraph(C);
+	p->depsgraph = CTX_data_depsgraph(C);
 	p->win = CTX_wm_window(C);
 	p->disable_fill = RNA_boolean_get(op->ptr, "disable_fill");
 	
@@ -2096,7 +2097,7 @@ static void gp_paint_strokeend(tGPsdata *p)
 		
 		/* need to restore the original projection settings before packing up */
 		view3d_region_operator_needs_opengl(p->win, p->ar);
-		ED_view3d_autodist_init(p->graph, p->ar, v3d, (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 1 : 0);
+		ED_view3d_autodist_init(p->depsgraph, p->ar, v3d, (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 1 : 0);
 	}
 	
 	/* check if doing eraser or not */

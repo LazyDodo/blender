@@ -53,6 +53,8 @@ struct View3D;
 struct View2D;
 struct wmOperatorType;
 
+struct Depsgraph;
+
 struct PointerRNA;
 struct PropertyRNA;
 struct EnumPropertyItem;
@@ -78,6 +80,7 @@ struct EnumPropertyItem;
 /* Temporary draw data (no draw manager mode) */
 typedef struct tGPDdraw {
 	struct RegionView3D *rv3d;          /* region to draw */
+	struct Depsgraph *depsgraph;        /* depsgraph */
 	struct Object *ob;                  /* GP object */
 	struct bGPdata *gpd;                /* current GP datablock */
 	struct bGPDlayer *gpl;              /* layer */
@@ -203,11 +206,11 @@ void gp_point_to_parent_space(bGPDspoint *pt, float diff_mat[4][4], bGPDspoint *
 /**
  * Change points position relative to parent object
  */
-void gp_apply_parent(struct Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps);
+void gp_apply_parent(struct Depsgraph *depsgraph, struct Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps);
 /**
  * Change point position relative to parent object
  */
-void gp_apply_parent_point(struct Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDspoint *pt);
+void gp_apply_parent_point(struct Depsgraph *depsgraph, struct Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDspoint *pt);
 
 bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, struct Scene *scene, const float screen_co[2], float r_out[3]);
 
@@ -476,6 +479,7 @@ typedef enum ACTCONT_TYPES {
 */
 #define GP_EDITABLE_STROKES_BEGIN(C, gpl, gps)                                          \
 {                                                                                       \
+	Depsgraph *depsgraph_ = CTX_data_depsgraph(C);                                      \
 	Object *obact_ = CTX_data_active_object(C);                                          \
 	bGPdata *gpd_ = CTX_data_gpencil_data(C);                                            \
 	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd_);                       \
@@ -489,7 +493,7 @@ typedef enum ACTCONT_TYPES {
 			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {  \
 				/* calculate difference matrix */                                               \
 				float diff_mat[4][4];                                                           \
-				ED_gpencil_parent_location(obact_, gpd_, gpl, diff_mat);                          \
+				ED_gpencil_parent_location(depsgraph_, obact_, gpd_, gpl, diff_mat);            \
 				/* loop over strokes */                                                         \
 				for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {    \
 					/* skip strokes that are invalid for current view */                        \

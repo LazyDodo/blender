@@ -1566,6 +1566,7 @@ static bool gpsculpt_brush_do_frame(
 static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
 	Object *obact = gso->object;
 	bGPdata *gpd = gso->gpd;
 	bool changed = false;
@@ -1610,7 +1611,7 @@ static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 		
 		/* calculate difference matrix */
 		float diff_mat[4][4];
-		ED_gpencil_parent_location(obact, gpd, gpl, diff_mat);
+		ED_gpencil_parent_location(depsgraph, obact, gpd, gpl, diff_mat);
 		
 		/* Active Frame or MultiFrame? */
 		if (gso->is_multiframe) {
