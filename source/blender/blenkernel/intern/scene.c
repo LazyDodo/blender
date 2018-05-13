@@ -659,6 +659,8 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->uv_selectmode = UV_SELECT_VERTEX;
 	sce->toolsettings->autokey_mode = U.autokey_mode;
 
+	
+	sce->toolsettings->transform_pivot_point = V3D_AROUND_CENTER_MEAN;
 	sce->toolsettings->snap_node_mode = SCE_SNAP_MODE_GRID;
 
 	sce->toolsettings->curve_paint_settings.curve_type = CU_BEZIER;
@@ -857,8 +859,7 @@ void BKE_scene_init(Scene *sce)
 	BKE_view_layer_add(sce, "View Layer");
 
 	/* SceneDisplay */
-	static float default_light_direction[] = {-0.577350269, -0.577350269, 0.577350269};
-	copy_v3_v3(sce->display.light_direction, default_light_direction);
+	copy_v3_v3(sce->display.light_direction, (float[3]){-M_SQRT1_3, -M_SQRT1_3, M_SQRT1_3});
 }
 
 Scene *BKE_scene_add(Main *bmain, const char *name)

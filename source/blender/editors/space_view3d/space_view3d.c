@@ -341,7 +341,6 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	ARRAY_SET_ITEMS(v3d->gpencil_paper_color, 1.0f, 1.0f, 1.0f, 0.7f);
 
 	v3d->twflag |= U.manipulator_flag & V3D_MANIPULATOR_DRAW;
-	v3d->around = V3D_AROUND_CENTER_MEAN;
 
 	v3d->bundle_size = 0.2f;
 	v3d->bundle_drawtype = OB_PLAINAXES;
