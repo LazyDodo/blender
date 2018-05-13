@@ -87,6 +87,7 @@
 #include "WM_types.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
@@ -564,6 +565,7 @@ static short gp_stroke_addpoint(
 	tGPspoint *pt;
 	ToolSettings *ts = p->scene->toolsettings;
 	Object *obact = (Object *)p->ownerPtr.data;
+	Object *ob_eval = DEG_get_evaluated_object(p->graph, obact);
 	RegionView3D *rv3d = p->ar->regiondata;
 	View3D *v3d = p->sa->spacedata.first;
 	MaterialGPencilStyle *gp_style = p->material->gp_style;
@@ -788,7 +790,7 @@ static short gp_stroke_addpoint(
 			/* reproject to plane (only in 3d space) */
 			gp_reproject_toplane(p, gps);
 			/* if parented change position relative to parent object */
-			gp_apply_parent_point(obact, gpd, gpl, pts);
+			gp_apply_parent_point(ob_eval, gpd, gpl, pts);
 			/* copy pressure and time */
 			pts->pressure = pt->pressure;
 			pts->strength = pt->strength;
@@ -904,6 +906,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	Brush *brush = p->brush;
 	ToolSettings *ts = p->scene->toolsettings;
 	Object *obact = (Object *)p->ownerPtr.data;
+	Object *ob_eval = DEG_get_evaluated_object(p->graph, obact);
 
 	int i, totelem;
 	/* since strokes are so fine, when using their depth we need a margin otherwise they might get missed */
@@ -1003,7 +1006,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		pt = gps->points;
 		for (i = 0; i < gps->totpoints; i++, pt++) {
 			/* if parented change position relative to parent object */
-			gp_apply_parent_point(obact, gpd, gpl, pt);
+			gp_apply_parent_point(ob_eval, gpd, gpl, pt);
 		}
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW_POLY) {
@@ -1015,7 +1018,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		/* reproject to plane (only in 3d space) */
 		gp_reproject_toplane(p, gps);
 		/* if parented change position relative to parent object */
-		gp_apply_parent_point(obact, gpd, gpl, pt);
+		gp_apply_parent_point(ob_eval, gpd, gpl, pt);
 		/* copy pressure and time */
 		pt->pressure = ptc->pressure;
 		pt->strength = ptc->strength;
@@ -1140,7 +1143,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		/* reproject to plane (only in 3d space) */
 		gp_reproject_toplane(p, gps);
 		/* change position relative to parent object */
-		gp_apply_parent(obact, gpd, gpl, gps);
+		gp_apply_parent(ob_eval, gpd, gpl, gps);
 
 		if (depth_arr)
 			MEM_freeN(depth_arr);
