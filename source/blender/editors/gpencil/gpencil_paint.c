@@ -87,7 +87,6 @@
 #include "WM_types.h"
 
 #include "DEG_depsgraph.h"
-#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
