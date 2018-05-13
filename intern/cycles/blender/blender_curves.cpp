@@ -346,33 +346,46 @@ static void ObtainCacheDataFromHairSystem(Mesh *mesh,
 	}
 	
 	// Allocate buffers
-	const size_t firstkey_start = CData->curve_firstkey.size();
-	const size_t keynum_start = CData->curve_keynum.size();
-	const size_t length_start = CData->curve_length.size();
-	const size_t co_start = CData->curvekey_co.size();
-	const size_t time_start = CData->curvekey_time.size();
-	CData->curve_firstkey.resize(firstkey_start + totcurves);
-	CData->curve_keynum.resize(keynum_start + totcurves);
-	CData->curve_length.resize(length_start + totcurves);
-	CData->curvekey_co.resize(co_start + totverts);
-	CData->curvekey_time.resize(time_start + totverts);
+	int *firstkey_data;
+	int *keynum_data;
+	float *length_data;
+	float3 *co_data;
+	float *time_data;
+	{
+		const size_t firstkey_start = CData->curve_firstkey.size();
+		const size_t keynum_start = CData->curve_keynum.size();
+		const size_t length_start = CData->curve_length.size();
+		const size_t co_start = CData->curvekey_co.size();
+		const size_t time_start = CData->curvekey_time.size();
+		CData->curve_firstkey.resize(firstkey_start + totcurves);
+		CData->curve_keynum.resize(keynum_start + totcurves);
+		CData->curve_length.resize(length_start + totcurves);
+		CData->curvekey_co.resize(co_start + totverts);
+		CData->curvekey_time.resize(time_start + totverts);
+		firstkey_data = CData->curve_firstkey.data() + firstkey_start;
+		keynum_data = CData->curve_keynum.data() + keynum_start;
+		length_data = CData->curve_length.data() + length_start;
+		co_data = CData->curvekey_co.data() + co_start;
+		time_data = CData->curvekey_time.data() + time_start;
+	}
 	
 	// Import render curves from hair system
 	BKE_hair_render_fill_buffers(
 	            hair_cache,
 	            (int)sizeof(float3),
-	            CData->curve_firstkey.data() + firstkey_start,
-	            CData->curve_keynum.data() + keynum_start,
-	            (float*)(CData->curvekey_co.data() + co_start));
+	            firstkey_data,
+	            keynum_data,
+	            (float*)co_data);
 	
 	// Compute curve length and key times
 	for(int c = 0; c < totcurves; ++c) {
-		const int keynum = CData->curve_keynum[keynum_start + c];
+		const int firstkey = firstkey_data[c];
+		const int keynum = keynum_data[c];
 		
 		float curve_length = 0.0f;
 		float3 pcKey;
 		for(int v = 0; v < keynum; v++) {
-			float3 cKey = CData->curvekey_co[co_start + v];
+			float3 cKey = co_data[firstkey + v];
 			cKey = transform_point(&itfm, cKey);
 			if(v > 0) {
 				float step_length = len(cKey - pcKey);
@@ -381,15 +394,16 @@ static void ObtainCacheDataFromHairSystem(Mesh *mesh,
 				curve_length += step_length;
 			}
 			
-			CData->curvekey_time.push_back_slow(curve_length);
+			co_data[firstkey + v] = cKey;
+			time_data[v] = curve_length;
 			pcKey = cKey;
 		}
 		
-		CData->curve_length.push_back_slow(curve_length);
+		firstkey_data[c] = *keyno;
+		length_data[c] = curve_length;
+		*keyno += keynum;
 	}
-	
 	*curvenum += totcurves;
-	*keyno += totverts;
 	
 	BKE_hair_export_cache_free(hair_cache);
 }

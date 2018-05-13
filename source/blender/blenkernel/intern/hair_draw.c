@@ -234,10 +234,6 @@ static void hair_fiber_interpolate_vertex(
         float r_tangent[3],
         float r_target_matrix[3][3])
 {
-	zero_v3(r_co);
-	zero_v3(r_tangent);
-	unit_m3(r_target_matrix);
-
 	float pco[3], ptang[3], pnor[3];
 	interpolate_parent_curve(
 	            curve_param,
@@ -272,8 +268,16 @@ static void hair_fiber_interpolate(
 	const float dcurve_param = 1.0f / (numverts - 1);
 	const float *rootco = cache->fiber_root_position[fiber_index];
 	
-	// Add weighted data from each parent
+	// Initialize
+	{
+		float *vert = r_vertco;
+		for (int i = 0; i < numverts; ++i, vert = POINTER_OFFSET(vert, vertco_stride))
+		{
+			zero_v3(vert);
+		}
+	}
 	
+	// Add weighted data from each parent
 	for (int k = 0; k < 4; ++k)
 	{
 		const unsigned int parent_index = cache->follicles[fiber_index].parent_index[k];
@@ -291,7 +295,7 @@ static void hair_fiber_interpolate(
 		
 		float *vert = r_vertco;
 		float curve_param = 0.0f;
-		for (int i = 0; i < numverts; ++i, vert += vertco_stride)
+		for (int i = 0; i < numverts; ++i, vert = POINTER_OFFSET(vert, vertco_stride))
 		{
 			float tangent[3];
 			float target_matrix[3][3];
@@ -315,7 +319,7 @@ static void hair_fiber_interpolate(
 	 * Normalize tangents
 	 */
 	float *vert = r_vertco;
-	for (int i = 0; i < numverts; ++i, vert += vertco_stride)
+	for (int i = 0; i < numverts; ++i, vert = POINTER_OFFSET(vert, vertco_stride))
 	{
 		add_v3_v3(vert, rootco);
 //		r_tangent = normalize(r_tangent);
@@ -344,17 +348,17 @@ void BKE_hair_render_fill_buffers(
         int *r_curvelen,
         float *r_vertco)
 {
+	int vertstart = 0;
+	float *vert = r_vertco;
+	for (int i = 0; i < cache->totfibercurves; ++i)
 	{
-		int vertstart = 0;
-		for (int i = 0; i < cache->totfibercurves; ++i)
-		{
-			const int numverts = cache->fiber_numverts[i];
-			r_curvestart[i] = vertstart;
-			r_curvelen[i] = numverts;
-			
-			hair_fiber_interpolate(cache, i, vertco_stride, &r_vertco[vertstart]);
-			
-			vertstart += numverts;
-		}
+		const int numverts = cache->fiber_numverts[i];
+		r_curvestart[i] = vertstart;
+		r_curvelen[i] = numverts;
+		
+		hair_fiber_interpolate(cache, i, vertco_stride, vert);
+		
+		vertstart += numverts;
+		vert = POINTER_OFFSET(vert, vertco_stride * numverts);
 	}
 }
