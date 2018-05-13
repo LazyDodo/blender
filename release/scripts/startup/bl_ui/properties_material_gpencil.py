@@ -35,8 +35,8 @@ class GPENCIL_UL_matslots(UIList):
                 split = layout.split(percentage=0.25)
                 row = split.row(align=True)
                 row.enabled = not gpcolor.lock
-                row.prop(gpcolor, "color_rgba", text="", emboss=gpcolor.is_stroke_visible)
-                row.prop(gpcolor, "fill_rgba", text="", emboss=gpcolor.is_fill_visible)
+                row.prop(gpcolor, "color", text="", emboss=gpcolor.is_stroke_visible)
+                row.prop(gpcolor, "fill_color", text="", emboss=gpcolor.is_fill_visible)
                 split.prop(ma, "name", text="", emboss=False)
 
                 row = layout.row(align=True)
