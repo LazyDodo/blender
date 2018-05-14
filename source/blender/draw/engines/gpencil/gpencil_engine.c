@@ -324,10 +324,12 @@ void GPENCIL_cache_init(void *vedata)
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
 		}
 
-		/* drawing buffer pass */
+		/* drawing buffer pass for drawing the stroke that is beeing drawing by the user. The data 
+		 * is stored in sbuffer
+		 */
 		psl->drawing_pass = DRW_pass_create("GPencil Drawing Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 
-		/* full screen pass to combine the result */
+		/* full screen pass to combine the result with default framebuffer */
 		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
 		psl->mix_pass = DRW_pass_create("GPencil Mix Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *mix_shgrp = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass);
@@ -336,7 +338,12 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(mix_shgrp, "strokeDepth", &e_data.input_depth_tx);
 		DRW_shgroup_uniform_int(mix_shgrp, "tonemapping", &stl->storage->tonemapping, 1);
 
-		/* mix pass no blend */
+		/* mix pass no blend used to copy between passes. A separated pass is required
+		 * because if the mix pass is used, the acumulation of blend degrade the colors.
+		 *
+		 * This pass is used too to take the snapshot used for painting_pass. This image 
+		 * will be used as the background while the user is drawing.
+		 */
 		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
 		DRW_shgroup_call_add(mix_shgrp_noblend, quad, NULL);
@@ -344,7 +351,12 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.temp_depth_tx_a);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
 
-		/* Painting session pass (used only to speedup while the user is drawing ) */
+		/* Painting session pass (used only to speedup while the user is drawing ) 
+		 * This pass is used to show the snapshot of the current grease pencil strokes captured 
+		 * when the user starts to draw.
+		 * In this way, the previous strokes don't need to be redraw and the drawing process
+		 * is far to agile.
+		 */
 		psl->painting_pass = DRW_pass_create("GPencil Painting Session Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *painting_shgrp = DRW_shgroup_create(e_data.gpencil_painting_sh, psl->painting_pass);
 		DRW_shgroup_call_add(painting_shgrp, quad, NULL);
@@ -353,6 +365,8 @@ void GPENCIL_cache_init(void *vedata)
 
 		/* pass for drawing paper (only if viewport)
 		 * In render, the v3d is null
+		 * The paper is way to isolate the drawing in complex scene and to have a cleaner
+		 * drawing area.
 		 */
 		if (v3d) {
 			psl->paper_pass = DRW_pass_create("GPencil Paper Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND);
