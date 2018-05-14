@@ -138,13 +138,12 @@ class VIEW3D_HT_header(Header):
                 col = row.column()
                 col.enabled = gpd.use_multiedit
                 col.prop(gpd, "show_multiedit_line_only", text="", icon="GHOST")
-        
-		VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
-
 
             if gpd.is_stroke_paint_mode:
                 row = layout.row(align=True)
                 row.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
+
+        VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
 
 class VIEW3D_MT_editor_menus(Menu):
     bl_space_type = 'VIEW3D_MT_editor_menus'
