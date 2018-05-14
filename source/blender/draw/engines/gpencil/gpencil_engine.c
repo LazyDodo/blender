@@ -413,11 +413,9 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
 
-			/* allocate memory for saving gp objects */
-			stl->g_data->gp_object_cache = gpencil_object_cache_allocate(stl->g_data->gp_object_cache, &stl->g_data->gp_cache_size, stl->g_data->gp_cache_used);
-			
-			/* add for drawing later */
-			gpencil_object_cache_add(stl->g_data->gp_object_cache, ob, false, &stl->g_data->gp_cache_used);
+			/* allocate memory for saving gp objects for drawing later */
+			stl->g_data->gp_object_cache = gpencil_object_cache_add(stl->g_data->gp_object_cache, ob, false,
+									&stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
 			
 			/* generate instances as separate cache objects for instance modifiers 
 			 * with the "Make as Objects" option enabled

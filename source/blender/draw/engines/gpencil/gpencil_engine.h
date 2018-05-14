@@ -251,8 +251,8 @@ struct Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(struct bGPdata *gpd);
 struct Gwn_Batch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
 
 /* object cache functions */
-struct tGPencilObjectCache *gpencil_object_cache_allocate(struct tGPencilObjectCache *cache, int *gp_cache_size, int gp_cache_used);
-void gpencil_object_cache_add(struct tGPencilObjectCache *cache, struct Object *ob, bool is_temp, int *gp_cache_used);
+struct tGPencilObjectCache *gpencil_object_cache_add(struct tGPencilObjectCache *cache_array, struct Object *ob,
+							  bool is_temp, int *gp_cache_size, int *gp_cache_used);
 
 /* geometry batch cache functions */
 void gpencil_batch_cache_check_free_slots(struct Object *ob);
