@@ -939,6 +939,10 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					CALLBACK_INVOKE(gpencil->mat[i], IDWALK_CB_USER);
 				}
 
+				for (bGPDlayer *gplayer = gpencil->layers.first; gplayer != NULL; gplayer = gplayer->next) {
+					CALLBACK_INVOKE(gplayer->parent, IDWALK_CB_NOP);
+				}
+
 				break;
 			}
 
