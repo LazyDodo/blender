@@ -407,8 +407,6 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					SEQ_END
 				}
 
-				CALLBACK_INVOKE(scene->gpd, IDWALK_CB_USER);
-
 				FOREACH_SCENE_COLLECTION_BEGIN(scene, sc)
 				{
 					for (LinkData *link = sc->objects.first; link; link = link->next) {
