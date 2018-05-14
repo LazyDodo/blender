@@ -402,7 +402,7 @@ typedef struct EEVEE_LightProbe {
 
 typedef struct EEVEE_LightGrid {
 	float mat[4][4];
-	int resolution[3], offset;
+	int resolution[3], offset; /* offset to the first irradiance sample in the pool. */
 	float corner[3], attenuation_scale;
 	float increment_x[3], attenuation_bias; /* world space vector between 2 opposite cells */
 	float increment_y[3], level_bias;
@@ -852,6 +852,7 @@ void EEVEE_lights_free(void);
 
 /* eevee_lightcache.c */
 struct EEVEE_LightCache *EEVEE_lightcache_ensure(EEVEE_ViewLayerData *sldata);
+void EEVEE_lightcache_add_reference(EEVEE_ViewLayerData *sldata, struct EEVEE_LightCache *lcache);
 void EEVEE_lightcache_free(struct EEVEE_LightCache *lcache);
 
 /* eevee_lightprobes.c */
@@ -864,6 +865,10 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_free(void);
+
+void EEVEE_irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3]);
+void EEVEE_lightprobes_grid_data_from_object(Object *ob, EEVEE_LightGrid *prb_data, int *offset);
+void EEVEE_lightprobes_cube_data_from_object(Object *ob, EEVEE_LightProbe *prb_data);
 
 /* eevee_depth_of_field.c */
 int EEVEE_depth_of_field_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object *camera);

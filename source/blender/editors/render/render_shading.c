@@ -715,7 +715,8 @@ static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
 
 	/* TODO abort if selected engine is not eevee. */
 	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene);
-	EEVEE_lightcache_bake_job(rj, NULL, NULL, NULL);
+	short stop = 0, do_update; float progress; /* Not actually used. */
+	EEVEE_lightcache_bake_job(rj, &stop, &do_update, &progress);
 	EEVEE_lightcache_job_data_free(rj);
 
 	// no redraw needed, we leave state as we entered it

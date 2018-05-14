@@ -120,7 +120,8 @@ extern GlobalsUboStorage ts;
 
 /* *********** FUNCTIONS *********** */
 
-static void irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3])
+/* TODO put it in eevee_lightcache.c */
+void EEVEE_irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3])
 {
 	/* Compute how many irradiance samples we can store per visibility sample. */
 	int irr_per_vis = (visibility_size / IRRADIANCE_SAMPLE_SIZE_X) *
@@ -807,6 +808,96 @@ static void EEVEE_planar_reflections_updates(EEVEE_ViewLayerData *sldata)
 	}
 }
 
+void EEVEE_lightprobes_grid_data_from_object(Object *ob, EEVEE_LightGrid *egrid, int *offset)
+{
+	LightProbe *probe = (LightProbe *)ob->data;
+
+	copy_v3_v3_int(egrid->resolution, &probe->grid_resolution_x);
+
+	/* Save current offset and advance it for the next grid. */
+	egrid->offset = *offset;
+	*offset += egrid->resolution[0] * egrid->resolution[1] * egrid->resolution[2];
+
+	/* Add one for level 0 */
+	float fac = 1.0f / max_ff(1e-8f, probe->falloff);
+	egrid->attenuation_scale = fac / max_ff(1e-8f, probe->distinf);
+	egrid->attenuation_bias = fac;
+
+	/* Update transforms */
+	float cell_dim[3], half_cell_dim[3];
+	cell_dim[0] = 2.0f / egrid->resolution[0];
+	cell_dim[1] = 2.0f / egrid->resolution[1];
+	cell_dim[2] = 2.0f / egrid->resolution[2];
+
+	mul_v3_v3fl(half_cell_dim, cell_dim, 0.5f);
+
+	/* Matrix converting world space to cell ranges. */
+	invert_m4_m4(egrid->mat, ob->obmat);
+
+	/* First cell. */
+	copy_v3_fl(egrid->corner, -1.0f);
+	add_v3_v3(egrid->corner, half_cell_dim);
+	mul_m4_v3(ob->obmat, egrid->corner);
+
+	/* Opposite neighbor cell. */
+	copy_v3_fl3(egrid->increment_x, cell_dim[0], 0.0f, 0.0f);
+	add_v3_v3(egrid->increment_x, half_cell_dim);
+	add_v3_fl(egrid->increment_x, -1.0f);
+	mul_m4_v3(ob->obmat, egrid->increment_x);
+	sub_v3_v3(egrid->increment_x, egrid->corner);
+
+	copy_v3_fl3(egrid->increment_y, 0.0f, cell_dim[1], 0.0f);
+	add_v3_v3(egrid->increment_y, half_cell_dim);
+	add_v3_fl(egrid->increment_y, -1.0f);
+	mul_m4_v3(ob->obmat, egrid->increment_y);
+	sub_v3_v3(egrid->increment_y, egrid->corner);
+
+	copy_v3_fl3(egrid->increment_z, 0.0f, 0.0f, cell_dim[2]);
+	add_v3_v3(egrid->increment_z, half_cell_dim);
+	add_v3_fl(egrid->increment_z, -1.0f);
+	mul_m4_v3(ob->obmat, egrid->increment_z);
+	sub_v3_v3(egrid->increment_z, egrid->corner);
+
+	/* Visibility bias */
+	egrid->visibility_bias = 0.05f * probe->vis_bias;
+	egrid->visibility_bleed = probe->vis_bleedbias;
+	egrid->visibility_range = 1.0f + sqrtf(max_fff(len_squared_v3(egrid->increment_x),
+	                                               len_squared_v3(egrid->increment_y),
+	                                               len_squared_v3(egrid->increment_z)));
+}
+
+void EEVEE_lightprobes_cube_data_from_object(Object *ob, EEVEE_LightProbe *eprobe)
+{
+	LightProbe *probe = (LightProbe *)ob->data;
+
+	/* Update transforms */
+	copy_v3_v3(eprobe->position, ob->obmat[3]);
+
+	/* Attenuation */
+	eprobe->attenuation_type = probe->attenuation_type;
+	eprobe->attenuation_fac = 1.0f / max_ff(1e-8f, probe->falloff);
+
+	unit_m4(eprobe->attenuationmat);
+	scale_m4_fl(eprobe->attenuationmat, probe->distinf);
+	mul_m4_m4m4(eprobe->attenuationmat, ob->obmat, eprobe->attenuationmat);
+	invert_m4(eprobe->attenuationmat);
+
+	/* Parallax */
+	unit_m4(eprobe->parallaxmat);
+
+	if ((probe->flag & LIGHTPROBE_FLAG_CUSTOM_PARALLAX) != 0) {
+		eprobe->parallax_type = probe->parallax_type;
+		scale_m4_fl(eprobe->parallaxmat, probe->distpar);
+	}
+	else {
+		eprobe->parallax_type = probe->attenuation_type;
+		scale_m4_fl(eprobe->parallaxmat, probe->distinf);
+	}
+
+	mul_m4_m4m4(eprobe->parallaxmat, ob->obmat, eprobe->parallaxmat);
+	invert_m4(eprobe->parallaxmat);
+}
+
 static void EEVEE_lightprobes_updates(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl, EEVEE_StorageList *stl)
 {
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
@@ -816,40 +907,14 @@ static void EEVEE_lightprobes_updates(EEVEE_ViewLayerData *sldata, EEVEE_PassLis
 	for (int i = 1; (ob = pinfo->probes_cube_ref[i]) && (i < MAX_PROBE); i++) {
 		LightProbe *probe = (LightProbe *)ob->data;
 		EEVEE_LightProbe *eprobe = &pinfo->probe_data[i];
-		EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
 
-		/* Update transforms */
-		copy_v3_v3(eprobe->position, ob->obmat[3]);
-
-		/* Attenuation */
-		eprobe->attenuation_type = probe->attenuation_type;
-		eprobe->attenuation_fac = 1.0f / max_ff(1e-8f, probe->falloff);
-
-		unit_m4(eprobe->attenuationmat);
-		scale_m4_fl(eprobe->attenuationmat, probe->distinf);
-		mul_m4_m4m4(eprobe->attenuationmat, ob->obmat, eprobe->attenuationmat);
-		invert_m4(eprobe->attenuationmat);
-
-		/* Parallax */
-		float dist;
-		if ((probe->flag & LIGHTPROBE_FLAG_CUSTOM_PARALLAX) != 0) {
-			eprobe->parallax_type = probe->parallax_type;
-			dist = probe->distpar;
-		}
-		else {
-			eprobe->parallax_type = probe->attenuation_type;
-			dist = probe->distinf;
-		}
-
-		unit_m4(eprobe->parallaxmat);
-		scale_m4_fl(eprobe->parallaxmat, dist);
-		mul_m4_m4m4(eprobe->parallaxmat, ob->obmat, eprobe->parallaxmat);
-		invert_m4(eprobe->parallaxmat);
+		EEVEE_lightprobes_cube_data_from_object(ob, eprobe);
 
 		/* Debug Display */
 		if (DRW_state_draw_support() &&
 		    (probe->flag & LIGHTPROBE_FLAG_SHOW_DATA))
 		{
+			EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
 			ped->probe_size = probe->data_draw_size * 0.1f;
 			DRW_shgroup_call_dynamic_add(
 			            stl->g_data->cube_display_shgrp, &ped->probe_id, ob->obmat[3], &ped->probe_size);
@@ -875,58 +940,7 @@ static void EEVEE_lightprobes_updates(EEVEE_ViewLayerData *sldata, EEVEE_PassLis
 		                                               probe->grid_resolution_y,
 		                                               probe->grid_resolution_z)));
 
-		egrid->offset = offset;
-		float fac = 1.0f / max_ff(1e-8f, probe->falloff);
-		egrid->attenuation_scale = fac / max_ff(1e-8f, probe->distinf);
-		egrid->attenuation_bias = fac;
-
-		/* Set offset for the next grid */
-		offset += ped->num_cell;
-
-		/* Update transforms */
-		float cell_dim[3], half_cell_dim[3];
-		cell_dim[0] = 2.0f / (float)(probe->grid_resolution_x);
-		cell_dim[1] = 2.0f / (float)(probe->grid_resolution_y);
-		cell_dim[2] = 2.0f / (float)(probe->grid_resolution_z);
-
-		mul_v3_v3fl(half_cell_dim, cell_dim, 0.5f);
-
-		/* Matrix converting world space to cell ranges. */
-		invert_m4_m4(egrid->mat, ob->obmat);
-
-		/* First cell. */
-		copy_v3_fl(egrid->corner, -1.0f);
-		add_v3_v3(egrid->corner, half_cell_dim);
-		mul_m4_v3(ob->obmat, egrid->corner);
-
-		/* Opposite neighbor cell. */
-		copy_v3_fl3(egrid->increment_x, cell_dim[0], 0.0f, 0.0f);
-		add_v3_v3(egrid->increment_x, half_cell_dim);
-		add_v3_fl(egrid->increment_x, -1.0f);
-		mul_m4_v3(ob->obmat, egrid->increment_x);
-		sub_v3_v3(egrid->increment_x, egrid->corner);
-
-		copy_v3_fl3(egrid->increment_y, 0.0f, cell_dim[1], 0.0f);
-		add_v3_v3(egrid->increment_y, half_cell_dim);
-		add_v3_fl(egrid->increment_y, -1.0f);
-		mul_m4_v3(ob->obmat, egrid->increment_y);
-		sub_v3_v3(egrid->increment_y, egrid->corner);
-
-		copy_v3_fl3(egrid->increment_z, 0.0f, 0.0f, cell_dim[2]);
-		add_v3_v3(egrid->increment_z, half_cell_dim);
-		add_v3_fl(egrid->increment_z, -1.0f);
-		mul_m4_v3(ob->obmat, egrid->increment_z);
-		sub_v3_v3(egrid->increment_z, egrid->corner);
-
-		copy_v3_v3_int(egrid->resolution, &probe->grid_resolution_x);
-
-		/* Visibility bias */
-		egrid->visibility_bias = 0.05f * probe->vis_bias;
-		egrid->visibility_bleed = probe->vis_bleedbias;
-		egrid->visibility_range = (
-		        sqrtf(max_fff(len_squared_v3(egrid->increment_x),
-		                      len_squared_v3(egrid->increment_y),
-		                      len_squared_v3(egrid->increment_z))) + 1.0f);
+		EEVEE_lightprobes_grid_data_from_object(ob, egrid, &offset);
 
 		/* Debug Display */
 		if (DRW_state_draw_support() &&
@@ -966,7 +980,7 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	}
 
 	int irr_size[3];
-	irradiance_pool_size_get(common_data->prb_irradiance_vis_size, pinfo->total_irradiance_samples, irr_size);
+	EEVEE_irradiance_pool_size_get(common_data->prb_irradiance_vis_size, pinfo->total_irradiance_samples, irr_size);
 
 	if ((irr_size[0] != pinfo->cache_irradiance_size[0]) ||
 	    (irr_size[1] != pinfo->cache_irradiance_size[1]) ||
@@ -1152,7 +1166,7 @@ static void diffuse_filter_probe(
 	pinfo->intensity_fac = intensity;
 
 	int pool_size[3];
-	irradiance_pool_size_get(common_data->prb_irradiance_vis_size, pinfo->total_irradiance_samples, pool_size);
+	EEVEE_irradiance_pool_size_get(common_data->prb_irradiance_vis_size, pinfo->total_irradiance_samples, pool_size);
 
 	/* find cell position on the virtual 3D texture */
 	/* NOTE : Keep in sync with load_irradiance_cell() */
