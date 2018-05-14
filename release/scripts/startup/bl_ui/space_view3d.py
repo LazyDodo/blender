@@ -37,28 +37,40 @@ class VIEW3D_HT_header(Header):
         shading = view.shading
         # mode_string = context.mode
         obj = context.active_object
+        overlay = view.overlay
         toolsettings = context.tool_settings
 
         row = layout.row(align=True)
         row.template_header()
 
         mode = 'OBJECT' if obj is None else obj.mode
+
+        # Testing move mode to topbar.
+        '''
         act_mode_item = bpy.types.Object.bl_rna.properties['mode'].enum_items[mode]
         layout.operator_menu_enum("object.mode_set", "mode", text=act_mode_item.name, icon=act_mode_item.icon)
         del act_mode_item
 
         layout.template_header_3D_mode()
-
-        VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
+        '''
 
         # Contains buttons like Mode, Pivot, Manipulator, Layer, Mesh Select Mode...
-        row = layout
         shading_type = view.shading.type
         shading_item = bpy.types.View3DShading.bl_rna.properties['type'].enum_items[shading_type]
-        row.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_shading", text=shading_item.name, icon=shading_item.icon)
-        row.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_overlay", text="Overlays", icon='WIRE')
 
-        layout.template_header_3D()
+        row = layout.row(align=True)
+        row.prop(shading, "type", text="", expand=True)
+
+        sub = row.row(align=True)
+        sub.enabled = shading.type != 'RENDERED'
+        sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_shading")
+
+        row = layout.row(align=True)
+        row.prop(overlay, "show_overlays", icon="WIRE", text="")
+
+        sub = row.row(align=True)
+        sub.active = overlay.show_overlays
+        sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_overlay")
 
         if obj:
             # Set above:
@@ -66,80 +78,14 @@ class VIEW3D_HT_header(Header):
 
             # Particle edit
             if mode == 'PARTICLE_EDIT':
+                row = layout.row()
                 row.prop(toolsettings.particle_edit, "select_mode", text="", expand=True)
 
             # Occlude geometry
             if ((shading.type not in {'BOUNDBOX', 'WIREFRAME'} and (mode == 'PARTICLE_EDIT' or (mode == 'EDIT' and obj.type == 'MESH'))) or
                     (mode in {'WEIGHT_PAINT', 'VERTEX_PAINT'})):
+                row = layout.row()
                 row.prop(view, "use_occlude_geometry", text="")
-
-            # Proportional editing
-            if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
-                if toolsettings.proportional_edit != 'DISABLED':
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-            elif mode in {'EDIT', 'PARTICLE_EDIT'}:
-                row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
-                if toolsettings.proportional_edit != 'DISABLED':
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-            elif mode == 'OBJECT':
-                row = layout.row(align=True)
-                row.prop(toolsettings, "use_proportional_edit_objects", icon_only=True)
-                if toolsettings.use_proportional_edit_objects:
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-        else:
-            # Proportional editing
-            if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
-                if toolsettings.proportional_edit != 'DISABLED':
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
-
-        # Snap
-        show_snap = False
-        if obj is None:
-            show_snap = True
-        else:
-            if mode not in {'SCULPT', 'VERTEX_PAINT', 'WEIGHT_PAINT', 'TEXTURE_PAINT'}:
-                show_snap = True
-            else:
-                paint_settings = UnifiedPaintPanel.paint_settings(context)
-                if paint_settings:
-                    brush = paint_settings.brush
-                    if brush and brush.stroke_method == 'CURVE':
-                        show_snap = True
-
-        if show_snap:
-            snap_element = toolsettings.snap_element
-            row = layout.row(align=True)
-            row.prop(toolsettings, "use_snap", text="")
-            row.prop(toolsettings, "snap_element", icon_only=True)
-            if snap_element == 'INCREMENT':
-                row.prop(toolsettings, "use_snap_grid_absolute", text="")
-            else:
-                row.prop(toolsettings, "snap_target", text="")
-                if obj:
-                    if mode == 'EDIT':
-                        row.prop(toolsettings, "use_snap_self", text="")
-                    if mode in {'OBJECT', 'POSE', 'EDIT'} and snap_element != 'VOLUME':
-                        row.prop(toolsettings, "use_snap_align_rotation", text="")
-
-            if snap_element == 'VOLUME':
-                row.prop(toolsettings, "use_snap_peel_object", text="")
-            elif snap_element == 'FACE':
-                row.prop(toolsettings, "use_snap_project", text="")
-
-        # AutoMerge editing
-        if obj:
-            if (mode == 'EDIT' and obj.type == 'MESH'):
-                layout.prop(toolsettings, "use_mesh_automerge", text="", icon='AUTOMERGE_ON')
-
-        # OpenGL render
-        row = layout.row(align=True)
-        row.operator("render.opengl", text="", icon='RENDER_STILL')
-        row.operator("render.opengl", text="", icon='RENDER_ANIMATION').animation = True
 
         # Pose
         if obj and mode == 'POSE':
@@ -160,6 +106,8 @@ class VIEW3D_HT_header(Header):
             row = layout.row(align=True)
             row.prop(context.tool_settings.gpencil_sculpt, "use_select_mask")
             row.prop(context.tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
+
+        VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
 
 
 class VIEW3D_MT_editor_menus(Menu):
@@ -488,6 +436,11 @@ class VIEW3D_MT_view(Menu):
         layout.separator()
 
         layout.operator("screen.animation_play", text="Playback Animation")
+
+        layout.separator()
+
+        layout.operator("render.opengl", icon='RENDER_STILL')
+        layout.operator("render.opengl", text="OpenGL Render (Animation)", icon='RENDER_ANIMATION').animation = True
 
         layout.separator()
 
@@ -1376,7 +1329,7 @@ class INFO_MT_add(Menu):
 
         layout.menu("INFO_MT_lamp_add", icon='OUTLINER_OB_LAMP')
         layout.separator()
-        layout.menu("INFO_MT_lightprobe_add")
+        layout.menu("INFO_MT_lightprobe_add", icon='OUTLINER_OB_LIGHTPROBE')
         layout.separator()
 
         layout.operator_menu_enum("object.effector_add", "type", text="Force Field", icon='OUTLINER_OB_FORCE_FIELD')
@@ -2654,8 +2607,10 @@ class VIEW3D_MT_edit_mesh_vertices(Menu):
 
         layout.operator("mesh.merge")
         layout.operator("mesh.remove_doubles")
-        layout.operator("mesh.rip_move")
-        layout.operator("mesh.rip_move_fill")
+        props = layout.operator("mesh.rip_move")
+        props.MESH_OT_rip.use_fill = False
+        props = layout.operator("mesh.rip_move", text="Rip Fill")
+        props.MESH_OT_rip.use_fill = True
         layout.operator("mesh.rip_edge_move")
         layout.operator("mesh.split")
         layout.operator_menu_enum("mesh.separate", "type")
@@ -3544,18 +3499,14 @@ class VIEW3D_PT_shading(Panel):
         shading = view.shading
 
         col = layout.column()
-        col.prop(shading, "type", expand=True)
 
         if shading.type == 'SOLID':
-            col.separator()
             col.row().prop(shading, "color_type", expand=True)
 
             if shading.color_type == 'SINGLE':
-                col.separator()
                 col.row().prop(shading, "single_color", text="")
 
         if shading.type in ('SOLID', 'TEXTURED'):
-            col.separator()
             col.row().prop(shading, "light", expand=True)
             if shading.light == 'STUDIO':
                 col.row().template_icon_view(shading, "studio_light")
@@ -3574,7 +3525,7 @@ class VIEW3D_PT_shading(Panel):
 class VIEW3D_PT_overlay(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
-    bl_label = "Overlay"
+    bl_label = "Overlays"
 
     @classmethod
     def poll(cls, context):
@@ -3590,13 +3541,13 @@ class VIEW3D_PT_overlay(Panel):
         display_all = overlay.show_overlays
 
         col = layout.column()
-        col.prop(overlay, "show_overlays")
-        col.separator()
         col.prop(view, "show_world")
 
         col = layout.column()
         col.active = display_all
-        col.prop(overlay, "show_cursor")
+        col.prop(overlay, "show_cursor", text="3D Cursor")
+
+        col.prop(view, "show_manipulator", text="Manipulators")
 
         col = layout.column()
         col.active = display_all
@@ -3892,7 +3843,6 @@ class VIEW3D_PT_view3d_curvedisplay(Panel):
         row = col.row()
         row.prop(curve, "show_handles", text="Handles")
         row.prop(curve, "show_normal_face", text="Normals")
-        col.prop(context.scene.tool_settings, "normal_size", text="Normal Size")
 
 
 class VIEW3D_PT_transform_orientations(Panel):

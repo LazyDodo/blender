@@ -1017,7 +1017,7 @@ static void uv_map_transform_center(
         float r_bounds[2][3])
 {
 	/* only operates on the edit object - this is all that's needed now */
-	const int around = (v3d) ? v3d->around : V3D_AROUND_CENTER_BOUNDS;
+	const int around = (v3d) ? scene->toolsettings->transform_pivot_point : V3D_AROUND_CENTER_BOUNDS;
 
 	float bounds[2][3];
 	INIT_MINMAX(bounds[0], bounds[1]);
@@ -1222,7 +1222,7 @@ static void uv_map_clip_correct_properties(wmOperatorType *ot)
 	                "Scale UV coordinates to bounds after unwrapping");
 }
 
-static void uv_map_clip_correct(Scene *scene, Object *ob, BMEditMesh *em, wmOperator *op)
+static void uv_map_clip_correct_multi(Scene *scene, Object **objects, uint objects_len, wmOperator *op)
 {
 	BMFace *efa;
 	BMLoop *l;
@@ -1233,25 +1233,46 @@ static void uv_map_clip_correct(Scene *scene, Object *ob, BMEditMesh *em, wmOper
 	const bool clip_to_bounds = RNA_boolean_get(op->ptr, "clip_to_bounds");
 	const bool scale_to_bounds = RNA_boolean_get(op->ptr, "scale_to_bounds");
 
-	const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
+	INIT_MINMAX2(min, max);
 
-	/* correct for image aspect ratio */
-	if (correct_aspect)
-		correct_uv_aspect(scene, ob, em);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
 
-	if (scale_to_bounds) {
-		INIT_MINMAX2(min, max);
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
 
-		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
-				continue;
+		/* correct for image aspect ratio */
+		if (correct_aspect)
+			correct_uv_aspect(scene, ob, em);
 
-			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
-				minmax_v2v2_v2(min, max, luv->uv);
+		if (scale_to_bounds) {
+			/* find uv limits */
+			BM_ITER_MESH(efa, &iter, em->bm, BM_FACES_OF_MESH) {
+				if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+					continue;
+
+				BM_ITER_ELEM(l, &liter, efa, BM_LOOPS_OF_FACE) {
+					luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+					minmax_v2v2_v2(min, max, luv->uv);
+				}
 			}
 		}
+		else if (clip_to_bounds) {
+			/* clipping and wrapping */
+			BM_ITER_MESH(efa, &iter, em->bm, BM_FACES_OF_MESH) {
+				if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+					continue;
 
+				BM_ITER_ELEM(l, &liter, efa, BM_LOOPS_OF_FACE) {
+					luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+					CLAMP(luv->uv[0], 0.0f, 1.0f);
+					CLAMP(luv->uv[1], 0.0f, 1.0f);
+				}
+			}
+		}
+	}
+
+	if (scale_to_bounds) {
 		/* rescale UV to be in 1/1 */
 		dx = (max[0] - min[0]);
 		dy = (max[1] - min[1]);
@@ -1261,31 +1282,30 @@ static void uv_map_clip_correct(Scene *scene, Object *ob, BMEditMesh *em, wmOper
 		if (dy > 0.0f)
 			dy = 1.0f / dy;
 
-		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
-				continue;
+		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+			Object *ob = objects[ob_index];
 
-			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+			BMEditMesh *em = BKE_editmesh_from_object(ob);
+			const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
 
-				luv->uv[0] = (luv->uv[0] - min[0]) * dx;
-				luv->uv[1] = (luv->uv[1] - min[1]) * dy;
+			BM_ITER_MESH(efa, &iter, em->bm, BM_FACES_OF_MESH) {
+				if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+					continue;
+
+				BM_ITER_ELEM(l, &liter, efa, BM_LOOPS_OF_FACE) {
+					luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+
+					luv->uv[0] = (luv->uv[0] - min[0]) * dx;
+					luv->uv[1] = (luv->uv[1] - min[1]) * dy;
+				}
 			}
 		}
 	}
-	else if (clip_to_bounds) {
-		/* clipping and wrapping */
-		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
-				continue;
+}
 
-			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
-				CLAMP(luv->uv[0], 0.0f, 1.0f);
-				CLAMP(luv->uv[1], 0.0f, 1.0f);
-			}
-		}
-	}
+static void uv_map_clip_correct(Scene *scene, Object *ob, wmOperator *op)
+{
+	uv_map_clip_correct_multi(scene, &ob, 1, op);
 }
 
 /* ******************** Unwrap operator **************** */
@@ -1466,9 +1486,9 @@ static int uv_from_view_exec(bContext *C, wmOperator *op)
 	float rotmat[4][4];
 	bool changed_multi = false;
 
+	/* Note: objects that aren't touched are set to NULL (to skip clipping). */
 	uint objects_len = 0;
 	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
-
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
@@ -1534,13 +1554,21 @@ static int uv_from_view_exec(bContext *C, wmOperator *op)
 
 		if (changed) {
 			changed_multi = true;
-			uv_map_clip_correct(scene, obedit, em, op);
-
 			DEG_id_tag_update(obedit->data, 0);
 			WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 		}
+		else {
+			ARRAY_DELETE_REORDER_LAST(objects, ob_index, 1, objects_len);
+			objects_len -= 1;
+			ob_index -= 1;
+		}
 	}
-	MEM_SAFE_FREE(objects);
+
+	if (changed_multi) {
+		uv_map_clip_correct_multi(scene, objects, objects_len, op);
+	}
+
+	MEM_freeN(objects);
 
 	if (changed_multi) {
 		return OPERATOR_FINISHED;
@@ -1587,19 +1615,31 @@ void UV_OT_project_from_view(wmOperatorType *ot)
 static int reset_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
-	Object *obedit = CTX_data_edit_object(C);
-	Mesh *me = (Mesh *)obedit->data;
 
-	/* add uvs if they don't exist yet */
-	if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
-		return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		Mesh *me = (Mesh *)obedit->data;
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
+
+		/* add uvs if they don't exist yet */
+		if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
+			continue;
+		}
+
+		ED_mesh_uv_loop_reset(C, me);
+
+		DEG_id_tag_update(obedit->data, 0);
+		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 	}
+	MEM_freeN(objects);
 
-	ED_mesh_uv_loop_reset(C, me);
-
-	DEG_id_tag_update(obedit->data, 0);
-	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
-	
 	return OPERATOR_FINISHED;
 }
 
@@ -1665,44 +1705,53 @@ static void uv_map_mirror(BMEditMesh *em, BMFace *efa)
 static int sphere_project_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
-	Object *obedit = CTX_data_edit_object(C);
 	View3D *v3d = CTX_wm_view3d(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-	BMFace *efa;
-	BMLoop *l;
-	BMIter iter, liter;
-	MLoopUV *luv;
-	float center[3], rotmat[4][4];
 
-	int cd_loop_uv_offset;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		BMFace *efa;
+		BMLoop *l;
+		BMIter iter, liter;
+		MLoopUV *luv;
 
-	/* add uvs if they don't exist yet */
-	if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
-
-	uv_map_transform(C, op, rotmat);
-	uv_map_transform_center(scene, v3d, obedit, em, center, NULL);
-
-	BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-		if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+		if (em->bm->totfacesel == 0) {
 			continue;
-
-		BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-			luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
-
-			uv_sphere_project(luv->uv, l->v->co, center, rotmat);
 		}
 
-		uv_map_mirror(em, efa);
+		/* add uvs if they don't exist yet */
+		if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
+			continue;
+		}
+
+		const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
+		float center[3], rotmat[4][4];
+
+		uv_map_transform(C, op, rotmat);
+		uv_map_transform_center(scene, v3d, obedit, em, center, NULL);
+
+		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
+			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+				continue;
+
+			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
+				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+
+				uv_sphere_project(luv->uv, l->v->co, center, rotmat);
+			}
+
+			uv_map_mirror(em, efa);
+		}
+
+		uv_map_clip_correct(scene, obedit, op);
+
+		DEG_id_tag_update(obedit->data, 0);
+		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 	}
-
-	uv_map_clip_correct(scene, obedit, em, op);
-
-	DEG_id_tag_update(obedit->data, 0);
-	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -1744,44 +1793,53 @@ static void uv_cylinder_project(float target[2], float source[3], float center[3
 static int cylinder_project_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
-	Object *obedit = CTX_data_edit_object(C);
 	View3D *v3d = CTX_wm_view3d(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-	BMFace *efa;
-	BMLoop *l;
-	BMIter iter, liter;
-	MLoopUV *luv;
-	float center[3], rotmat[4][4];
 
-	int cd_loop_uv_offset;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		BMFace *efa;
+		BMLoop *l;
+		BMIter iter, liter;
+		MLoopUV *luv;
 
-	/* add uvs if they don't exist yet */
-	if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
-
-	uv_map_transform(C, op, rotmat);
-	uv_map_transform_center(scene, v3d, obedit, em, center, NULL);
-
-	BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-		if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+		if (em->bm->totfacesel == 0) {
 			continue;
-
-		BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-			luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
-
-			uv_cylinder_project(luv->uv, l->v->co, center, rotmat);
 		}
 
-		uv_map_mirror(em, efa);
+		/* add uvs if they don't exist yet */
+		if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
+			continue;
+		}
+
+		const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
+		float center[3], rotmat[4][4];
+
+		uv_map_transform(C, op, rotmat);
+		uv_map_transform_center(scene, v3d, obedit, em, center, NULL);
+
+		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
+			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+				continue;
+
+			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
+				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+
+				uv_cylinder_project(luv->uv, l->v->co, center, rotmat);
+			}
+
+			uv_map_mirror(em, efa);
+		}
+
+		uv_map_clip_correct(scene, obedit, op);
+
+		DEG_id_tag_update(obedit->data, 0);
+		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 	}
-
-	uv_map_clip_correct(scene, obedit, em, op);
-
-	DEG_id_tag_update(obedit->data, 0);
-	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -1848,40 +1906,57 @@ static int cube_project_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
 	PropertyRNA *prop_cube_size = RNA_struct_find_property(op->ptr, "cube_size");
-	float cube_size = RNA_property_float_get(op->ptr, prop_cube_size);
-	float center[3];
-	float bounds[2][3];
-	float (*bounds_buf)[3] = NULL;
+	const float cube_size_init = RNA_property_float_get(op->ptr, prop_cube_size);
 
-	/* add uvs if they don't exist yet */
-	if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
-		return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
+
+		/* add uvs if they don't exist yet */
+		if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
+			continue;
+		}
+
+		float bounds[2][3];
+		float (*bounds_buf)[3] = NULL;
+
+		if (!RNA_property_is_set(op->ptr, prop_cube_size)) {
+			bounds_buf = bounds;
+		}
+
+		float center[3];
+		uv_map_transform_center(scene, v3d, obedit, em, center, bounds_buf);
+
+		/* calculate based on bounds */
+		float cube_size = cube_size_init;
+		if (bounds_buf) {
+			float dims[3];
+			sub_v3_v3v3(dims, bounds[1], bounds[0]);
+			cube_size = max_fff(UNPACK3(dims));
+			cube_size = cube_size ? 2.0f / cube_size : 1.0f;
+			if (ob_index == 0) {
+				/* This doesn't fit well with, multiple objects. */
+				RNA_property_float_set(op->ptr, prop_cube_size, cube_size);
+			}
+		}
+
+		ED_uvedit_unwrap_cube_project(em->bm, cube_size, true, center);
+
+		uv_map_clip_correct(scene, obedit, op);
+
+		DEG_id_tag_update(obedit->data, 0);
+		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 	}
-
-	if (!RNA_property_is_set(op->ptr, prop_cube_size)) {
-		bounds_buf = bounds;
-	}
-
-	uv_map_transform_center(scene, v3d, obedit, em, center, bounds_buf);
-
-	/* calculate based on bounds */
-	if (bounds_buf) {
-		float dims[3];
-		sub_v3_v3v3(dims, bounds[1], bounds[0]);
-		cube_size = max_fff(UNPACK3(dims));
-		cube_size = cube_size ? 2.0f / cube_size : 1.0f;
-		RNA_property_float_set(op->ptr, prop_cube_size, cube_size);
-	}
-
-	ED_uvedit_unwrap_cube_project(em->bm, cube_size, true, center);
-
-	uv_map_clip_correct(scene, obedit, em, op);
-
-	DEG_id_tag_update(obedit->data, 0);
-	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }

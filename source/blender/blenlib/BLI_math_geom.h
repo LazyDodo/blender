@@ -121,11 +121,14 @@ float dist_squared_ray_to_seg_v3(
         const float v0[3], const float v1[3],
         float r_point[3], float *r_depth);
 
+void aabb_get_near_far_from_plane(
+        const float plane_no[3], const float bbmin[3], const float bbmax[3],
+        float bb_near[3], float bb_afar[3]);
+
 struct DistRayAABB_Precalc {
 	float ray_origin[3];
 	float ray_direction[3];
 	float ray_inv_dir[3];
-	bool sign[3];
 };
 void dist_squared_ray_to_aabb_v3_precalc(
         struct DistRayAABB_Precalc *neasrest_precalc,
@@ -139,6 +142,24 @@ float dist_squared_ray_to_aabb_v3_simple(
         const float ray_origin[3], const float ray_direction[3],
         const float bb_min[3], const float bb_max[3],
         float r_point[3], float *r_depth);
+
+struct DistProjectedAABBPrecalc {
+	float ray_origin[3];
+	float ray_direction[3];
+	float ray_inv_dir[3];
+	float pmat[4][4];
+	float mval[2];
+};
+void dist_squared_to_projected_aabb_precalc(
+        struct DistProjectedAABBPrecalc *precalc,
+        const float projmat[4][4], const float winsize[2], const float mval[2]);
+float dist_squared_to_projected_aabb(
+        struct DistProjectedAABBPrecalc *data,
+        const float bbmin[3], const float bbmax[3],
+        bool r_axis_closest[3]);
+float dist_squared_to_projected_aabb_simple(
+        const float projmat[4][4], const float winsize[2], const float mval[2],
+        const float bbmin[3], const float bbmax[3]);
 
 float closest_to_line_v2(float r_close[2], const float p[2], const float l1[2], const float l2[2]);
 float closest_to_line_v3(float r_close[3], const float p[3], const float l1[3], const float l2[3]);
@@ -326,6 +347,14 @@ bool isect_ray_aabb_v3_simple(
         float *tmin, float *tmax);
 
 /* other */
+#define ISECT_AABB_PLANE_BEHIND_ANY   0
+#define ISECT_AABB_PLANE_CROSS_ANY    1
+#define ISECT_AABB_PLANE_IN_FRONT_ALL 2
+
+int isect_aabb_planes_v3(
+        const float (*planes)[4], const int totplane,
+        const float bbmin[3], const float bbmax[3]);
+
 bool isect_sweeping_sphere_tri_v3(const float p1[3], const float p2[3], const float radius,
                                   const float v0[3], const float v1[3], const float v2[3], float *r_lambda, float ipoint[3]);
 

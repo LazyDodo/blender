@@ -152,10 +152,11 @@ void get_texture_coords_mesh(
 	}
 }
 
-void get_texture_coords(MappingInfoModifierData *dmd, Object *ob,
-                        DerivedMesh *dm,
-                        float (*co)[3], float (*texco)[3],
-                        int numVerts)
+void get_texture_coords(
+        MappingInfoModifierData *dmd, Object *ob,
+        DerivedMesh *dm,
+        float (*co)[3], float (*texco)[3],
+        int numVerts)
 {
 	int i;
 	int texmapping = dmd->texmapping;
@@ -257,8 +258,9 @@ DerivedMesh *get_cddm(Object *ob, struct BMEditMesh *em, DerivedMesh *dm, float 
 }
 
 /* returns a derived mesh if dm == NULL, for deforming modifiers that need it */
-DerivedMesh *get_dm(Object *ob, struct BMEditMesh *em, DerivedMesh *dm,
-                    float (*vertexCos)[3], bool use_normals, bool use_orco)
+DerivedMesh *get_dm(
+        Object *ob, struct BMEditMesh *em, DerivedMesh *dm,
+        float (*vertexCos)[3], bool use_normals, bool use_orco)
 {
 	if (dm) {
 		/* pass */
@@ -290,15 +292,17 @@ DerivedMesh *get_dm(Object *ob, struct BMEditMesh *em, DerivedMesh *dm,
 }
 
 /* returns a mesh if mesh == NULL, for deforming modifiers that need it */
-Mesh *get_mesh(Object *ob, struct BMEditMesh *em, Mesh *mesh,
-               float (*vertexCos)[3], bool use_normals, bool use_orco)
+Mesh *get_mesh(
+        Object *ob, struct BMEditMesh *em, Mesh *mesh,
+        float (*vertexCos)[3], bool use_normals, bool use_orco)
 {
 	if (mesh) {
 		/* pass */
 	}
 	else if (ob->type == OB_MESH) {
-		struct BMeshToMeshParams bmtmp = {0};
-		if (em) mesh = BKE_bmesh_to_mesh_nomain(em->bm, &bmtmp);
+		if (em) {
+			mesh = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
+		}
 		else {
 			/* TODO(sybren): after modifier conversion of DM to Mesh is done, check whether
 			 * we really need a copy here. Maybe the CoW ob->data can be directly used. */
@@ -306,7 +310,8 @@ Mesh *get_mesh(Object *ob, struct BMEditMesh *em, Mesh *mesh,
 			        NULL, ob->data, (ID **)&mesh,
 			        LIB_ID_CREATE_NO_MAIN |
 			        LIB_ID_CREATE_NO_USER_REFCOUNT |
-			        LIB_ID_CREATE_NO_DEG_TAG,
+			        LIB_ID_CREATE_NO_DEG_TAG |
+			        LIB_ID_COPY_NO_PREVIEW,
 			        false);
 		}
 
