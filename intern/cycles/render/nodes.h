@@ -580,6 +580,21 @@ public:
 	float temperature;
 };
 
+class PrincipledHairBsdfNode : public BsdfBaseNode {
+public:
+    SHADER_NODE_CLASS(PrincipledHairBsdfNode)
+
+    float roughness_u;
+    float roughness_v;
+    float ior;
+    float offset;
+    float3 color;
+
+    float3 normal;
+    float surface_mix_weight;
+    NodePrincipledHairParametrization parametrization;
+};
+
 class HairBsdfNode : public BsdfNode {
 public:
 	SHADER_NODE_CLASS(HairBsdfNode)

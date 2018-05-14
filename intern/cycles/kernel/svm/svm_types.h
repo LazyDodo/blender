@@ -391,6 +391,14 @@ typedef enum ShaderType {
 	SHADER_TYPE_BUMP,
 } ShaderType;
 
+typedef enum NodePrincipledHairParametrization {
+    NODE_PRINCIPLED_HAIR_ABSORPTION = 0,
+    NODE_PRINCIPLED_HAIR_PHYSICAL = 1,
+    NODE_PRINCIPLED_HAIR_COLOR = 2,
+    NODE_PRINCIPLED_HAIR_HUMAN = 3,
+    NODE_PRINCIPLED_HAIR_NUM,
+} NodePrincipledHairParametrization;
+
 /* Closure */
 
 typedef enum ClosureType {
@@ -462,6 +470,7 @@ typedef enum ClosureType {
 	CLOSURE_VOLUME_HENYEY_GREENSTEIN_ID,
 
 	CLOSURE_BSDF_PRINCIPLED_ID,
+    CLOSURE_BSDF_HAIR_PRINCIPLED_ID,
 
 	NBUILTIN_CLOSURES
 } ClosureType;

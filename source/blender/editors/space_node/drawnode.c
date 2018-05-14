@@ -1109,6 +1109,11 @@ static void node_shader_buts_hair(uiLayout *layout, bContext *UNUSED(C), Pointer
 	uiItemR(layout, ptr, "component", 0, "", ICON_NONE);
 }
 
+static void node_shader_buts_principled_hair(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
+{
+    uiItemR(layout, ptr, "parametrization", 0, "", ICON_NONE);
+}
+
 static void node_shader_buts_script(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
 	uiLayout *row;
@@ -1277,6 +1282,9 @@ static void node_shader_set_butfunc(bNodeType *ntype)
 		case SH_NODE_BSDF_HAIR:
 			ntype->draw_buttons = node_shader_buts_hair;
 			break;
+        case SH_NODE_BSDF_HAIR_PRINCIPLED:
+            ntype->draw_buttons = node_shader_buts_principled_hair;
+            break;
 		case SH_NODE_SCRIPT:
 			ntype->draw_buttons = node_shader_buts_script;
 			ntype->draw_buttons_ex = node_shader_buts_script_ex;

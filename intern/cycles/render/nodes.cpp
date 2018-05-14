@@ -2944,6 +2944,73 @@ void PrincipledVolumeNode::compile(OSLCompiler& compiler)
 	compiler.add(this, "node_principled_volume");
 }
 
+/* Principled Hair BSDF Closure */
+
+NODE_DEFINE(PrincipledHairBsdfNode)
+{
+    NodeType* type = NodeType::add("newhair_bsdf", create, NodeType::SHADER);
+
+    SOCKET_IN_COLOR(color, "Color", make_float3(0.8f, 0.8f, 0.8f));
+    SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
+    SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
+
+    static NodeEnum parametrization_enum;
+    parametrization_enum.insert("absorption", NODE_PRINCIPLED_HAIR_ABSORPTION);
+    parametrization_enum.insert("physical", NODE_PRINCIPLED_HAIR_PHYSICAL);
+    parametrization_enum.insert("color", NODE_PRINCIPLED_HAIR_COLOR);
+    parametrization_enum.insert("human", NODE_PRINCIPLED_HAIR_HUMAN);
+    SOCKET_ENUM(parametrization, "Parametrization", parametrization_enum, NODE_PRINCIPLED_HAIR_COLOR);
+
+    SOCKET_IN_FLOAT(offset, "Offset", 0.0f);
+    SOCKET_IN_FLOAT(roughness_u, "RoughnessU", 0.2f);
+    SOCKET_IN_FLOAT(roughness_v, "RoughnessV", 0.2f);
+    SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
+
+    SOCKET_OUT_CLOSURE(BSDF, "BSDF");
+
+    return type;
+}
+
+PrincipledHairBsdfNode::PrincipledHairBsdfNode()
+: BsdfBaseNode(node_type)
+{
+    closure = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
+}
+
+void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
+{
+    compiler.add_node(NODE_CLOSURE_SET_WEIGHT, make_float3(1.0f, 1.0f, 1.0f));
+
+    ShaderInput *roughness_u_in = input("RoughnessU");
+    ShaderInput *roughness_v_in = input("RoughnessV");
+    ShaderInput *offset_in = input("Offset");
+    ShaderInput *ior_in = input("IOR");
+
+    int color_ofs = compiler.stack_assign(input("Color"));
+
+    compiler.add_node(NODE_CLOSURE_BSDF,
+        compiler.encode_uchar4(closure,
+            compiler.stack_assign_if_linked(roughness_u_in),
+            compiler.stack_assign_if_linked(roughness_v_in),
+            compiler.closure_mix_weight_offset()),
+        __float_as_int(roughness_u),
+        __float_as_int(roughness_v));
+
+    compiler.add_node(compiler.stack_assign_if_linked(input("Normal")),
+        compiler.encode_uchar4(
+            compiler.stack_assign_if_linked(offset_in),
+            compiler.stack_assign_if_linked(ior_in),
+            color_ofs,
+            parametrization),
+        __float_as_int(offset),
+        __float_as_int(ior));
+}
+
+void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)
+{
+    compiler.add(this, "node_principled_hair_bsdf");
+}
+
 /* Hair BSDF Closure */
 
 NODE_DEFINE(HairBsdfNode)
