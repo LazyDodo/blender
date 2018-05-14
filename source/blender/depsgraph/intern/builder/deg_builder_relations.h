@@ -195,8 +195,9 @@ struct DepsgraphRelationBuilder
 	                                       bool check_unique = false);
 
 	void build_id(ID* id);
+	void build_layer_collections(ListBase *lb);
 	void build_view_layer(Scene *scene, ViewLayer *view_layer);
-	void build_group(Object *object, Collection *collection);
+	void build_collection(Object *object, Collection *collection);
 	void build_object(Base *base, Object *object);
 	void build_object_flags(Base *base, Object *object);
 	void build_object_data(Object *object);

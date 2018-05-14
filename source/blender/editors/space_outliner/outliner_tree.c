@@ -1361,6 +1361,10 @@ static void outliner_collections_reorder(
 		return;
 	}
 
+	if (!to_parent) {
+		return;
+	}
+
 	BKE_collection_move(bmain, to_parent, from_parent, relative, relative_after, collection);
 
 	DEG_relations_tag_update(bmain);
@@ -2195,7 +2199,7 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 		for (collection = mainvar->collection.first; collection; collection = collection->id.next) {
 			if (soops->filter_collection == SO_FILTER_COLLECTION_UNLINKED) {
 				/* Skip collections used in a scene */
-				if (collection->flag & COLLECTION_IN_SCENE) {
+				if (BKE_collection_is_in_scene(collection)) {
 					continue;
 				}
 			}

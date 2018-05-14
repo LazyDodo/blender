@@ -230,11 +230,13 @@ static void unlink_collection_cb(
 		}
 		else if (GS(tsep->id->name) == ID_GR) {
 			Collection *parent = (Collection *)tsep->id;
+			id_fake_user_set(&collection->id);
 			BKE_collection_child_remove(bmain, parent, collection);
 			DEG_relations_tag_update(bmain);
 		}
 		else if (GS(tsep->id->name) == ID_SCE) {
 			Collection *parent = BKE_collection_master((Scene *)tsep->id);
+			id_fake_user_set(&collection->id);
 			BKE_collection_child_remove(bmain, parent, collection);
 			DEG_relations_tag_update(bmain);
 		}

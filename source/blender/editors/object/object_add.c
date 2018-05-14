@@ -1048,7 +1048,7 @@ void OBJECT_OT_lamp_add(wmOperatorType *ot)
 
 /********************* Add Collection Instance Operator ********************/
 
-static int group_instance_add_exec(bContext *C, wmOperator *op)
+static int collection_instance_add_exec(bContext *C, wmOperator *op)
 {
 	Collection *collection;
 	unsigned int layer;
@@ -1097,18 +1097,18 @@ static int group_instance_add_exec(bContext *C, wmOperator *op)
 }
 
 /* only used as menu */
-void OBJECT_OT_group_instance_add(wmOperatorType *ot)
+void OBJECT_OT_collection_instance_add(wmOperatorType *ot)
 {
 	PropertyRNA *prop;
 
 	/* identifiers */
 	ot->name = "Add Collection Instance";
 	ot->description = "Add a collection instance";
-	ot->idname = "OBJECT_OT_group_instance_add";
+	ot->idname = "OBJECT_OT_collection_instance_add";
 
 	/* api callbacks */
 	ot->invoke = WM_enum_search_invoke;
-	ot->exec = group_instance_add_exec;
+	ot->exec = collection_instance_add_exec;
 	ot->poll = ED_operator_objectmode;
 
 	/* flags */

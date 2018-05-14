@@ -89,7 +89,6 @@ enum {
 	COLLECTION_RESTRICT_RENDER     = (1 << 3), /* Hidden in renders. */
 	COLLECTION_HAS_OBJECT_CACHE    = (1 << 4), /* Runtime: object_cache is populated. */
 	COLLECTION_IS_MASTER           = (1 << 5), /* Is master collection embedded in the scene. */
-	COLLECTION_IN_SCENE            = (1 << 6), /* Runtime: collection is used in a scene. */
 };
 
 #endif  /* __DNA_GROUP_TYPES_H__ */

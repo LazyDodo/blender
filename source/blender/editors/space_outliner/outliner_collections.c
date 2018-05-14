@@ -437,6 +437,7 @@ static int collection_link_exec(bContext *C, wmOperator *UNUSED(op))
 	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
 		Collection *collection = BLI_gsetIterator_getKey(&collections_to_edit_iter);
 		BKE_collection_child_add(bmain, active_collection, collection);
+		id_fake_user_clear(&collection->id);
 	}
 
 	BLI_gset_free(data.collections_to_edit, NULL);

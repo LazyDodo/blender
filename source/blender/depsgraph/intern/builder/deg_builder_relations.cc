@@ -397,7 +397,7 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 	}
 	switch (GS(id->name)) {
 		case ID_GR:
-			build_group(NULL, (Collection *)id);
+			build_collection(NULL, (Collection *)id);
 			break;
 		case ID_OB:
 			build_object(NULL, (Object *)id);
@@ -425,7 +425,7 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 	}
 }
 
-void DepsgraphRelationBuilder::build_group(Object *object, Collection *collection)
+void DepsgraphRelationBuilder::build_collection(Object *object, Collection *collection)
 {
 	const bool group_done = built_map_.checkIsBuiltAndTag(collection);
 	OperationKey object_local_transform_key(object != NULL ? &object->id : NULL,
@@ -436,7 +436,7 @@ void DepsgraphRelationBuilder::build_group(Object *object, Collection *collectio
 			build_object(NULL, cob->ob);
 		}
 		LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
-			build_group(NULL, child->collection);
+			build_collection(NULL, child->collection);
 		}
 	}
 	if (object != NULL) {
@@ -553,7 +553,7 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
-		build_group(object, object->dup_group);
+		build_collection(object, object->dup_group);
 	}
 }
 
@@ -1535,7 +1535,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 				break;
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
-					build_group(NULL, part->dup_group);
+					build_collection(NULL, part->dup_group);
 					LISTBASE_FOREACH (CollectionObject *, go, &part->dup_group->gobject) {
 						build_particles_visualization_object(object,
 						                                     psys,

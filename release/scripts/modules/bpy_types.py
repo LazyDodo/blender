@@ -96,12 +96,12 @@ class Texture(bpy_types.ID):
                      )
 
 
-class Group(bpy_types.ID):
+class Collection(bpy_types.ID):
     __slots__ = ()
 
     @property
-    def users_dupli_group(self):
-        """The dupli group this group is used in"""
+    def users_dupli_collection(self):
+        """The collection instance objects this collection is used in"""
         import bpy
         return tuple(obj for obj in bpy.data.objects
                      if self == obj.dupli_group)

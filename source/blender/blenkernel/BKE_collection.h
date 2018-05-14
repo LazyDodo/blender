@@ -87,6 +87,7 @@ void BKE_collections_child_remove_nulls(struct Main *bmain, struct Collection *o
 
 /* Dependencies. */
 
+bool BKE_collection_is_in_scene(struct Collection *collection);
 void BKE_collections_after_lib_link(struct Main *bmain);
 bool BKE_collection_object_cyclic_check(struct Main *bmain, struct Object *object, struct Collection *collection);
 bool BKE_collection_is_animated(struct Collection *collection, struct Object *parent);

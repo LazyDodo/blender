@@ -174,14 +174,14 @@ static int objects_add_active_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void GROUP_OT_objects_add_active(wmOperatorType *ot)
+void COLLECTION_OT_objects_add_active(wmOperatorType *ot)
 {
 	PropertyRNA *prop;
 
 	/* identifiers */
 	ot->name = "Add Selected To Active Collection";
 	ot->description = "Add the object to an object collection that contains the active object";
-	ot->idname = "GROUP_OT_objects_add_active";
+	ot->idname = "COLLECTION_OT_objects_add_active";
 	
 	/* api callbacks */
 	ot->exec = objects_add_active_exec;
@@ -238,14 +238,14 @@ static int objects_remove_active_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void GROUP_OT_objects_remove_active(wmOperatorType *ot)
+void COLLECTION_OT_objects_remove_active(wmOperatorType *ot)
 {
 	PropertyRNA *prop;
 
 	/* identifiers */
 	ot->name = "Remove Selected From Active Collection";
 	ot->description = "Remove the object from an object collection that contains the active object";
-	ot->idname = "GROUP_OT_objects_remove_active";
+	ot->idname = "COLLECTION_OT_objects_remove_active";
 	
 	/* api callbacks */
 	ot->exec = objects_remove_active_exec;
@@ -278,12 +278,12 @@ static int collection_objects_remove_all_exec(bContext *C, wmOperator *UNUSED(op
 	return OPERATOR_FINISHED;
 }
 
-void GROUP_OT_objects_remove_all(wmOperatorType *ot)
+void COLLECTION_OT_objects_remove_all(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Remove From All Collections";
-	ot->description = "Remove selected objects from all collections";
-	ot->idname = "GROUP_OT_objects_remove_all";
+	ot->name = "Remove From All Unlinked Collections";
+	ot->description = "Remove selected objects from all collections not used in a scene";
+	ot->idname = "COLLECTION_OT_objects_remove_all";
 	
 	/* api callbacks */
 	ot->exec = collection_objects_remove_all_exec;
@@ -329,14 +329,14 @@ static int collection_objects_remove_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void GROUP_OT_objects_remove(wmOperatorType *ot)
+void COLLECTION_OT_objects_remove(wmOperatorType *ot)
 {
 	PropertyRNA *prop;
 
 	/* identifiers */
 	ot->name = "Remove From Collection";
 	ot->description = "Remove selected objects from a collection";
-	ot->idname = "GROUP_OT_objects_remove";
+	ot->idname = "COLLECTION_OT_objects_remove";
 
 	/* api callbacks */
 	ot->exec = collection_objects_remove_exec;
@@ -374,12 +374,12 @@ static int collection_create_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void GROUP_OT_create(wmOperatorType *ot)
+void COLLECTION_OT_create(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Create New Collection";
 	ot->description = "Create an object collection from selected objects";
-	ot->idname = "GROUP_OT_create";
+	ot->idname = "COLLECTION_OT_create";
 	
 	/* api callbacks */
 	ot->exec = collection_create_exec;
@@ -409,11 +409,11 @@ static int collection_add_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void OBJECT_OT_group_add(wmOperatorType *ot)
+void OBJECT_OT_collection_add(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Add to Collection";
-	ot->idname = "OBJECT_OT_group_add";
+	ot->idname = "OBJECT_OT_collection_add";
 	ot->description = "Add an object to a new collection";
 	
 	/* api callbacks */
@@ -458,13 +458,13 @@ static int collection_link_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void OBJECT_OT_group_link(wmOperatorType *ot)
+void OBJECT_OT_collection_link(wmOperatorType *ot)
 {
 	PropertyRNA *prop;
 
 	/* identifiers */
 	ot->name = "Link to Collection";
-	ot->idname = "OBJECT_OT_group_link";
+	ot->idname = "OBJECT_OT_collection_link";
 	ot->description = "Add an object to an existing collection";
 	
 	/* api callbacks */
@@ -498,11 +498,11 @@ static int collection_remove_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void OBJECT_OT_group_remove(wmOperatorType *ot)
+void OBJECT_OT_collection_remove(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Remove Collection";
-	ot->idname = "OBJECT_OT_group_remove";
+	ot->idname = "OBJECT_OT_collection_remove";
 	ot->description = "Remove the active object from this collection";
 	
 	/* api callbacks */
@@ -529,11 +529,11 @@ static int collection_unlink_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void OBJECT_OT_group_unlink(wmOperatorType *ot)
+void OBJECT_OT_collection_unlink(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Unlink Collection";
-	ot->idname = "OBJECT_OT_group_unlink";
+	ot->idname = "OBJECT_OT_collection_unlink";
 	ot->description = "Unlink the collection from all objects";
 
 	/* api callbacks */
@@ -566,11 +566,11 @@ static int select_grouped_exec(bContext *C, wmOperator *UNUSED(op))  /* Select o
 	return OPERATOR_FINISHED;
 }
 
-void OBJECT_OT_grouped_select(wmOperatorType *ot)
+void OBJECT_OT_collection_objects_select(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Select Grouped";
-	ot->idname = "OBJECT_OT_grouped_select";
+	ot->name = "Select Objects in Collection";
+	ot->idname = "OBJECT_OT_collection_objects_select";
 	ot->description = "Select all objects in collection";
 
 	/* api callbacks */

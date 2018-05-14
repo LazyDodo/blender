@@ -57,16 +57,15 @@
 
 /******************************** Prototypes ********************************/
 
-static bool collection_child_add(Collection *parent, Collection *collection);
+static bool collection_child_add(Collection *parent, Collection *collection, int flag, const bool add_us);
 static bool collection_child_remove(Collection *parent, Collection *collection);
-static bool collection_object_add(Collection *collection, Object *ob, int flag);
+static bool collection_object_add(Collection *collection, Object *ob, int flag, const bool add_us);
 static bool collection_object_remove(Main *bmain, Collection *collection, Object *ob, const bool free_us);
 
 static CollectionChild *collection_find_child(Collection *parent, Collection *collection);
 static CollectionParent *collection_find_parent(Collection *child, Collection *collection);
 
 static bool collection_find_child_recursive(Collection *parent, Collection *collection);
-static void collection_sync_in_scene_recursive(Collection *collection);
 
 /***************************** Add Collection *******************************/
 
@@ -86,13 +85,12 @@ static Collection *collection_add(Main *bmain, Collection *collection_parent, co
 	/* Create new collection. */
 	Collection *collection = BKE_libblock_alloc(bmain, ID_GR, name, 0);
 
-	/* Collections are not reference counted. */
+	/* We increase collection user count when linking to Collections. */
 	id_us_min(&collection->id);
-	id_us_ensure_real(&collection->id);
 
 	/* Optionally add to parent collection. */
 	if (collection_parent) {
-		collection_child_add(collection_parent, collection);
+		collection_child_add(collection_parent, collection, 0, true);
 	}
 
 	return collection;
@@ -156,7 +154,7 @@ bool BKE_collection_delete(Main *bmain, Collection *collection, bool hierarchy)
 		for (CollectionChild *child = collection->children.first; child; child = child->next) {
 			for (CollectionParent *cparent = collection->parents.first; cparent; cparent = cparent->next) {
 				Collection *parent = cparent->collection;
-				collection_child_add(parent, child->collection);
+				collection_child_add(parent, child->collection, 0, true);
 			}
 		}
 
@@ -165,7 +163,7 @@ bool BKE_collection_delete(Main *bmain, Collection *collection, bool hierarchy)
 			/* Link child object into parent collections. */
 			for (CollectionParent *cparent = collection->parents.first; cparent; cparent = cparent->next) {
 				Collection *parent = cparent->collection;
-				collection_object_add(parent, cob->ob, 0);
+				collection_object_add(parent, cob->ob, 0, true);
 			}
 
 			/* Remove child object. */
@@ -209,15 +207,10 @@ void BKE_collection_copy_data(Main *UNUSED(bmain), Collection *collection_dst, c
 	BLI_listbase_clear(&collection_dst->parents);
 
 	for (CollectionChild *child = collection_src->children.first; child; child = child->next) {
-		collection_child_add(collection_dst, child->collection);
+		collection_child_add(collection_dst, child->collection, flag, false);
 	}
 	for (CollectionObject *cob = collection_src->gobject.first; cob; cob = cob->next) {
-		collection_object_add(collection_dst, cob->ob, flag);
-	}
-
-	/* TODO: how to update collection in scene flag here? */
-	if (!(collection_dst->flag & COLLECTION_IS_MASTER)) {
-		collection_dst->flag &= ~COLLECTION_IN_SCENE;
+		collection_object_add(collection_dst, cob->ob, flag, false);
 	}
 }
 
@@ -240,7 +233,7 @@ Collection *BKE_collection_copy(Main *bmain, Collection *parent, Collection *col
 
 	/* Optionally add to parent. */
 	if (parent) {
-		if (collection_child_add(parent, collection_new)) {
+		if (collection_child_add(parent, collection_new, 0, true)) {
 			/* Put collection right after existing one. */
 			CollectionChild *child = collection_find_child(parent, collection);
 			CollectionChild *child_new = collection_find_child(parent, collection_new);
@@ -252,7 +245,6 @@ Collection *BKE_collection_copy(Main *bmain, Collection *parent, Collection *col
 		}
 	}
 
-	// TODO BKE_main_collection_users_sync(bmain);
 	BKE_main_collection_sync(bmain);
 
 	return collection_new;
@@ -344,11 +336,15 @@ static void collection_object_cache_fill(ListBase *lb, Collection *collection, i
 			base->object = cob->ob;
 
 			if ((child_restrict & COLLECTION_RESTRICT_VIEW) == 0) {
-				base->flag |= BASE_VISIBLED;
+				base->flag |= BASE_VISIBLED | BASE_VISIBLE_VIEWPORT;
 
 				if ((child_restrict & COLLECTION_RESTRICT_SELECT) == 0) {
 					base->flag |= BASE_SELECTABLED;
 				}
+			}
+
+			if ((child_restrict & COLLECTION_RESTRICT_RENDER) == 0) {
+				base->flag |= BASE_VISIBLE_RENDER;
 			}
 
 			BLI_addtail(lb, base);
@@ -432,7 +428,7 @@ Collection *BKE_collection_master_add()
 	/* Not an actual datablock, but owned by scene. */
 	Collection *master_collection = MEM_callocN(sizeof(Collection), "Master Collection");
 	STRNCPY(master_collection->id.name, "GRMaster Collection");
-	master_collection->flag |= COLLECTION_IS_MASTER | COLLECTION_IN_SCENE;
+	master_collection->flag |= COLLECTION_IS_MASTER;
 	return master_collection;
 }
 
@@ -520,7 +516,7 @@ Collection *BKE_collection_object_find(Main *bmain, Collection *collection, Obje
 
 /********************** Collection Objects *********************/
 
-static bool collection_object_add(Collection *collection, Object *ob, int flag)
+static bool collection_object_add(Collection *collection, Object *ob, int flag, const bool add_us)
 {
 	if (ob->dup_group) {
 		/* Cyclic dependency check. */
@@ -539,13 +535,8 @@ static bool collection_object_add(Collection *collection, Object *ob, int flag)
 	BLI_addtail(&collection->gobject, cob);
 	BKE_collection_object_cache_free(collection);
 
-	if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
-		if (collection->flag & COLLECTION_IN_SCENE) {
-			id_us_plus(&ob->id);
-		}
-		else {
-			id_us_ensure_real(&ob->id);
-		}
+	if (add_us && (flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
+		id_us_plus(&ob->id);
 	}
 
 	return true;
@@ -561,13 +552,11 @@ static bool collection_object_remove(Main *bmain, Collection *collection, Object
 	BLI_freelinkN(&collection->gobject, cob);
 	BKE_collection_object_cache_free(collection);
 
-	if (collection->flag & COLLECTION_IN_SCENE) {
-		if (free_us) {
-			BKE_libblock_free_us(bmain, ob);
-		}
-		else {
-			id_us_min(&ob->id);
-		}
+	if (free_us) {
+		BKE_libblock_free_us(bmain, ob);
+	}
+	else {
+		id_us_min(&ob->id);
 	}
 
 	return true;
@@ -582,11 +571,11 @@ bool BKE_collection_object_add(Main *bmain, Collection *collection, Object *ob)
 		return false;
 	}
 
-	if (!collection_object_add(collection, ob, 0)) {
+	if (!collection_object_add(collection, ob, 0, true)) {
 		return false;
 	}
 
-	if (collection->flag & COLLECTION_IN_SCENE) {
+	if (BKE_collection_is_in_scene(collection)) {
 		BKE_main_collection_sync(bmain);
 	}
 
@@ -602,7 +591,7 @@ void BKE_collection_object_add_from(Main *bmain, Scene *scene, Object *ob_src, O
 	FOREACH_SCENE_COLLECTION_BEGIN(scene, collection)
 	{
 		if (BKE_collection_has_object(collection, ob_src)) {
-			collection_object_add(collection, ob_dst, 0);
+			collection_object_add(collection, ob_dst, 0, true);
 		}
 	}
 	FOREACH_SCENE_COLLECTION_END;
@@ -623,7 +612,7 @@ bool BKE_collection_object_remove(Main *bmain, Collection *collection, Object *o
 		return false;
 	}
 
-	if (collection->flag & COLLECTION_IN_SCENE) {
+	if (BKE_collection_is_in_scene(collection)) {
 		BKE_main_collection_sync(bmain);
 	}
 
@@ -670,7 +659,7 @@ bool BKE_scene_collections_object_remove(Main *bmain, Scene *scene, Object *ob, 
 void BKE_collections_object_remove_nulls(Main *bmain)
 {
 	for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-		if (!(collection->flag & COLLECTION_IN_SCENE)) {
+		if (!BKE_collection_is_in_scene(collection)) {
 			bool changed = false;
 
 			for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
@@ -721,7 +710,6 @@ void BKE_collections_child_remove_nulls(Main *bmain, Collection *old_collection)
 	BLI_freelistN(&old_collection->parents);
 
 	if (changed) {
-		collection_sync_in_scene_recursive(old_collection);
 		BKE_main_collection_sync(bmain);
 	}
 }
@@ -750,79 +738,23 @@ void BKE_collection_object_move(Main *bmain, Scene *scene, Collection *collectio
 
 /***************** Collection Scene Membership ****************/
 
-static int collection_in_scene_flag(Collection *collection)
+bool BKE_collection_is_in_scene(Collection *collection)
 {
 	if (collection->flag & COLLECTION_IS_MASTER) {
-		return COLLECTION_IN_SCENE;
+		return true;
 	}
 
 	for (CollectionParent *cparent = collection->parents.first; cparent; cparent = cparent->next) {
-		if (collection_in_scene_flag(cparent->collection)) {
-			return COLLECTION_IN_SCENE;
+		if (BKE_collection_is_in_scene(cparent->collection)) {
+			return true;
 		}
 	}
 
-	return 0;
-}
-
-static bool collection_sync_in_scene(Collection *collection)
-{
-	/* For each collection we tag if it's used as a direct or indirect
-	 * child of the master collection in a scene. Such collections add
-	 * users for their child objects, so that if objects are not directly
-	 * used in any scene they will be deleted.
-	 *
-	 * Other collections act more like "tags" where they do not own any
-	 * of their child objects, and removing an object will automatically
-	 * remove it from those collections as well.
-	 *
-	 * When the linking changes, we automatically change the object ownership
-	 * along with it.*/
-
-	int old_flag = collection->flag & COLLECTION_IN_SCENE;
-	int new_flag = collection_in_scene_flag(collection);
-
-	if (old_flag == new_flag) {
-		return false;
-	}
-
-	if (collection->flag & COLLECTION_IN_SCENE) {
-		for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
-			id_us_min(&cob->ob->id);
-			id_us_ensure_real(&cob->ob->id);
-		}
-
-		collection->flag &= ~COLLECTION_IN_SCENE;
-	}
-	else {
-		for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
-			id_us_plus(&cob->ob->id);
-		}
-
-		collection->flag |= COLLECTION_IN_SCENE;
-	}
-
-	return true;
-}
-
-void collection_sync_in_scene_recursive(Collection *collection)
-{
-	if (collection_sync_in_scene(collection)) {
-		for (CollectionChild *child = collection->children.first; child; child = child->next) {
-			collection_sync_in_scene_recursive(child->collection);
-		}
-	}
+	return false;
 }
 
 void BKE_collections_after_lib_link(Main *bmain)
 {
-	/* This runs after lib linking in file load. We can only update the
-	 * COLLECTION_IN_SCENE flag once all the datablocks have been loaded.
-	 * Afterwards we do incremental updates as collections are edited. */
-	for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-		collection_sync_in_scene(collection);
-	}
-
 	/* Update view layer collections to match any changes in linked
 	 * collections after file load. */
 	BKE_main_collection_sync(bmain);
@@ -870,7 +802,7 @@ static CollectionParent *collection_find_parent(Collection *child, Collection *c
 	return BLI_findptr(&child->parents, collection, offsetof(CollectionParent, collection));
 }
 
-static bool collection_child_add(Collection *parent, Collection *collection)
+static bool collection_child_add(Collection *parent, Collection *collection, const int flag, const bool add_us)
 {
 	CollectionChild *child = collection_find_child(parent, collection);
 	if (child) {
@@ -884,12 +816,18 @@ static bool collection_child_add(Collection *parent, Collection *collection)
 	child->collection = collection;
 	BLI_addtail(&parent->children, child);
 
-	CollectionParent *cparent = MEM_callocN(sizeof(CollectionParent), "CollectionParent");
-	cparent->collection = parent;
-	BLI_addtail(&collection->parents, cparent);
+	/* Don't add parent links for depsgraph datablocks, these are not kept in sync. */
+	if ((flag & LIB_ID_CREATE_NO_MAIN) == 0) {
+		CollectionParent *cparent = MEM_callocN(sizeof(CollectionParent), "CollectionParent");
+		cparent->collection = parent;
+		BLI_addtail(&collection->parents, cparent);
+	}
+
+	if (add_us) {
+		id_us_plus(&collection->id);
+	}
 
 	BKE_collection_object_cache_free(parent);
-	collection_sync_in_scene_recursive(collection);
 
 	return true;
 }
@@ -905,15 +843,16 @@ static bool collection_child_remove(Collection *parent, Collection *collection)
 	BLI_freelinkN(&collection->parents, cparent);
 	BLI_freelinkN(&parent->children, child);
 
+	id_us_min(&collection->id);
+
 	BKE_collection_object_cache_free(parent);
-	collection_sync_in_scene_recursive(collection);
 
 	return true;
 }
 
 bool BKE_collection_child_add(Main *bmain, Collection *parent, Collection *child)
 {
-	if (!collection_child_add(parent, child)) {
+	if (!collection_child_add(parent, child, 0, true)) {
 		return false;
 	}
 
@@ -1035,7 +974,7 @@ bool BKE_collection_move(Main *bmain,
 		collection_child_remove(from_parent, collection);
 	}
 
-	collection_child_add(to_parent, collection);
+	collection_child_add(to_parent, collection, 0, true);
 
 	/* Move to specified location under parent. */
 	if (relative) {

@@ -5683,14 +5683,7 @@ static void lib_link_collection_data(FileData *fd, Library *lib, Collection *col
 {
 	for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
 		cob_next = cob->next;
-
-		/* Object ownership depends if the collection is used in a scene. */
-		if (collection->flag & COLLECTION_IN_SCENE) {
-			cob->ob = newlibadr_us(fd, lib, cob->ob);
-		}
-		else {
-			cob->ob = newlibadr_real_us(fd, lib, cob->ob);
-		}
+		cob->ob = newlibadr_us(fd, lib, cob->ob);
 
 		if (cob->ob == NULL) {
 			BLI_assert(!"Collection linked object got lost"); // TODO: remove, only for testing now
@@ -5700,7 +5693,7 @@ static void lib_link_collection_data(FileData *fd, Library *lib, Collection *col
 
 	for (CollectionChild *child = collection->children.first, *child_next = NULL; child; child = child_next) {
 		child_next = child->next;
-		child->collection = newlibadr(fd, lib, child->collection);
+		child->collection = newlibadr_us(fd, lib, child->collection);
 
 		if (child->collection == NULL ||
 		    BKE_collection_find_cycle(collection, child->collection))
@@ -5734,14 +5727,6 @@ static void lib_link_collection(FileData *fd, Main *main)
 #endif
 
 			lib_link_collection_data(fd, collection->id.lib, collection);
-
-			/* Collections are not reference counted, mark them as real to
-			 * ensure they keep existing. */
-			id_us_ensure_real(&collection->id);
-
-			/* TODO: empty groups used to get automatically deleted. We are no
-			 * longer doing that now, seems problematic. Why was that done in
-			 * the first place? */
 		}
 	}
 }
@@ -8650,8 +8635,6 @@ static void lib_link_all(FileData *fd, Main *main)
 	lib_link_cachefiles(fd, main);
 	lib_link_workspaces(fd, main);
 
-	BKE_collections_after_lib_link(main);
-
 	lib_link_library(fd, main);    /* only init users */
 }
 
@@ -8847,6 +8830,7 @@ BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
 	if (fd->memfile == NULL) {
 		/* Do not apply in undo case! */
 		BKE_main_override_static_update(bfd->main);
+		BKE_collections_after_lib_link(bfd->main);
 	}
 
 	lib_verify_nodetree(bfd->main, true);
@@ -10405,6 +10389,7 @@ static void library_link_end(Main *mainl, FileData **fd, const short flag, Main 
 	mainl = NULL; /* blo_join_main free's mainl, cant use anymore */
 
 	lib_link_all(*fd, mainvar);
+	BKE_collections_after_lib_link(mainvar);
 
 	/* Yep, second splitting... but this is a very cheap operation, so no big deal. */
 	blo_split_main((*fd)->mainlist, mainvar);

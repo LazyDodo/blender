@@ -475,7 +475,6 @@ enum {
 	OBJECT_GRPSEL_SIBLINGS           =  3,
 	OBJECT_GRPSEL_TYPE               =  4,
 	OBJECT_GRPSEL_COLLECTION         =  5,
-	OBJECT_GRPSEL_GROUP              =  6,
 	OBJECT_GRPSEL_HOOK               =  7,
 	OBJECT_GRPSEL_PASS               =  8,
 	OBJECT_GRPSEL_COLOR              =  9,
@@ -490,7 +489,6 @@ static const EnumPropertyItem prop_select_grouped_types[] = {
 	{OBJECT_GRPSEL_SIBLINGS, "SIBLINGS", 0, "Siblings", "Shared Parent"},
 	{OBJECT_GRPSEL_TYPE, "TYPE", 0, "Type", "Shared object type"},
 	{OBJECT_GRPSEL_COLLECTION, "COLLECTION", 0, "Collection", "Shared collection"},
-	{OBJECT_GRPSEL_GROUP, "GROUP", 0, "Group", "Shared group"},
 	{OBJECT_GRPSEL_HOOK, "HOOK", 0, "Hook", ""},
 	{OBJECT_GRPSEL_PASS, "PASS", 0, "Pass", "Render pass Index"},
 	{OBJECT_GRPSEL_COLOR, "COLOR", 0, "Color", "Object Color"},
@@ -542,16 +540,16 @@ static bool select_grouped_parent(bContext *C) /* Makes parent active and de-sel
 }
 
 
-#define GROUP_MENU_MAX  24
-static bool select_grouped_group(bContext *C, Object *ob)  /* Select objects in the same group as the active */
+#define COLLECTION_MENU_MAX  24
+static bool select_grouped_collection(bContext *C, Object *ob)  /* Select objects in the same group as the active */
 {
 	bool changed = false;
-	Collection *collection, *ob_collections[GROUP_MENU_MAX];
+	Collection *collection, *ob_collections[COLLECTION_MENU_MAX];
 	int collection_count = 0, i;
 	uiPopupMenu *pup;
 	uiLayout *layout;
 
-	for (collection = CTX_data_main(C)->collection.first; collection && collection_count < GROUP_MENU_MAX; collection = collection->id.next) {
+	for (collection = CTX_data_main(C)->collection.first; collection && collection_count < COLLECTION_MENU_MAX; collection = collection->id.next) {
 		if (BKE_collection_has_object(collection, ob)) {
 			ob_collections[collection_count] = collection;
 			collection_count++;
@@ -576,12 +574,12 @@ static bool select_grouped_group(bContext *C, Object *ob)  /* Select objects in 
 	}
 
 	/* build the menu. */
-	pup = UI_popup_menu_begin(C, IFACE_("Select Group"), ICON_NONE);
+	pup = UI_popup_menu_begin(C, IFACE_("Select Collection"), ICON_NONE);
 	layout = UI_popup_menu_layout(pup);
 
 	for (i = 0; i < collection_count; i++) {
 		collection = ob_collections[i];
-		uiItemStringO(layout, collection->id.name + 2, 0, "OBJECT_OT_select_same_group", "group", collection->id.name + 2);
+		uiItemStringO(layout, collection->id.name + 2, 0, "OBJECT_OT_select_same_collection", "collection", collection->id.name + 2);
 	}
 
 	UI_popup_menu_end(C, pup);
@@ -660,59 +658,6 @@ static bool select_grouped_type(bContext *C, Object *ob)
 	}
 	CTX_DATA_END;
 	return changed;
-}
-
-#define COLLECTION_MENU_MAX  24
-static bool select_grouped_collection(bContext *C, Object *ob)  /* Select objects in the same collection as the active */
-{
-	typedef struct EnumeratedCollection {
-		struct Collection *collection;
-		int index;
-	} EnumeratedCollection;
-
-	bool changed = false;
-	EnumeratedCollection ob_collections[COLLECTION_MENU_MAX];
-	int collection_count = 0, i;
-	uiPopupMenu *pup;
-	uiLayout *layout;
-
-	i = 0;
-	FOREACH_SCENE_COLLECTION_BEGIN(CTX_data_scene(C), collection)
-	{
-		if (BKE_collection_has_object(collection, ob)) {
-			ob_collections[collection_count].index = i;
-			ob_collections[collection_count].collection = collection;
-			if (++collection_count >= COLLECTION_MENU_MAX) {
-				break;
-			}
-		}
-		i++;
-	}
-	FOREACH_SCENE_COLLECTION_END;
-
-	if (!collection_count) {
-		return 0;
-	}
-	else if (collection_count == 1) {
-		Collection *collection = ob_collections[0].collection;
-		return BKE_collection_objects_select(CTX_data_view_layer(C), collection, false);
-	}
-
-	/* build the menu. */
-	pup = UI_popup_menu_begin(C, IFACE_("Select Collection"), ICON_NONE);
-	layout = UI_popup_menu_layout(pup);
-
-	for (i = 0; i < collection_count; i++) {
-		uiItemIntO(layout,
-		           ob_collections[i].collection->id.name + 2,
-		           ICON_NONE,
-		           "OBJECT_OT_select_same_collection",
-		           "collection_index",
-		           ob_collections[i].index);
-	}
-
-	UI_popup_menu_end(C, pup);
-	return changed;  /* The operator already handle this! */
 }
 
 static bool select_grouped_index_object(bContext *C, Object *ob)
@@ -840,9 +785,6 @@ static int object_select_grouped_exec(bContext *C, wmOperator *op)
 		case OBJECT_GRPSEL_COLLECTION:
 			changed |= select_grouped_collection(C, ob);
 			break;
-		case OBJECT_GRPSEL_GROUP:
-			changed |= select_grouped_group(C, ob);
-			break;
 		case OBJECT_GRPSEL_HOOK:
 			changed |= select_grouped_object_hooks(C, ob);
 			break;
@@ -959,9 +901,9 @@ void OBJECT_OT_select_all(wmOperatorType *ot)
 	WM_operator_properties_select_all(ot);
 }
 
-/**************************** Select In The Same Group ****************************/
+/**************************** Select In The Same Collection ****************************/
 
-static int object_select_same_group_exec(bContext *C, wmOperator *op)
+static int object_select_same_collection_exec(bContext *C, wmOperator *op)
 {
 	Collection *collection;
 	char collection_name[MAX_ID_NAME];
@@ -969,7 +911,7 @@ static int object_select_same_group_exec(bContext *C, wmOperator *op)
 	/* passthrough if no objects are visible */
 	if (CTX_DATA_COUNT(C, visible_bases) == 0) return OPERATOR_PASS_THROUGH;
 
-	RNA_string_get(op->ptr, "group", collection_name);
+	RNA_string_get(op->ptr, "collection", collection_name);
 
 	collection = (Collection *)BKE_libblock_find_name(ID_GR, collection_name);
 
@@ -992,67 +934,24 @@ static int object_select_same_group_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void OBJECT_OT_select_same_group(wmOperatorType *ot)
-{
-	
-	/* identifiers */
-	ot->name = "Select Same Group";
-	ot->description = "Select object in the same group";
-	ot->idname = "OBJECT_OT_select_same_group";
-	
-	/* api callbacks */
-	ot->exec = object_select_same_group_exec;
-	ot->poll = objects_selectable_poll;
-	
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	RNA_def_string(ot->srna, "group", NULL, MAX_ID_NAME, "Group", "Name of the group to select");
-}
-
-/**************************** Select In The Same Collection ****************************/
-
-static int object_select_same_collection_exec(bContext *C, wmOperator *op)
-{
-	Collection *collection;
-
-	/* passthrough if no objects are visible */
-	if (CTX_DATA_COUNT(C, visible_bases) == 0) return OPERATOR_PASS_THROUGH;
-
-	int collection_index = RNA_int_get(op->ptr, "collection_index");
-	collection = BKE_collection_from_index(CTX_data_scene(C), collection_index);
-
-	if (!collection) {
-		return OPERATOR_PASS_THROUGH;
-	}
-
-	if (BKE_collection_objects_select(CTX_data_view_layer(C), collection, false)) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
-	}
-
-	return OPERATOR_FINISHED;
-}
-
 void OBJECT_OT_select_same_collection(wmOperatorType *ot)
 {
-	PropertyRNA *prop;
-
+	
 	/* identifiers */
 	ot->name = "Select Same Collection";
 	ot->description = "Select object in the same collection";
 	ot->idname = "OBJECT_OT_select_same_collection";
-
+	
 	/* api callbacks */
 	ot->exec = object_select_same_collection_exec;
 	ot->poll = objects_selectable_poll;
-
+	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	prop = RNA_def_int(ot->srna, "collection_index", -1, -1, INT_MAX,
-	                   "Collection Index", "Index of the collection to select", 0, INT_MAX);
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_string(ot->srna, "collection", NULL, MAX_ID_NAME, "Collection", "Name of the collection to select");
 }
+
 /**************************** Select Mirror ****************************/
 static int object_select_mirror_exec(bContext *C, wmOperator *op)
 {

@@ -284,7 +284,7 @@ static void libblock_remap_data_preprocess_collection_unlink(
 {
 	Main *bmain = r_id_remap_data->bmain;
 	for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-		if (!(collection->flag & COLLECTION_IN_SCENE) && BKE_collection_has_object(collection, ob)) {
+		if (!BKE_collection_is_in_scene(collection) && BKE_collection_has_object(collection, ob)) {
 			if (skip_indirect && is_indirect) {
 				r_id_remap_data->skipped_indirect++;
 				r_id_remap_data->skipped_refcounted++;

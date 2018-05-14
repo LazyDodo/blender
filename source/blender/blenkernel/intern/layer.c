@@ -31,6 +31,7 @@
 #include "BLI_string.h"
 #include "BLI_string_utf8.h"
 #include "BLI_string_utils.h"
+#include "BLI_threads.h"
 #include "BLT_translation.h"
 
 #include "BKE_collection.h"
@@ -305,8 +306,29 @@ ViewLayer *BKE_view_layer_find_from_collection(const Scene *scene, LayerCollecti
 
 /* Base */
 
+static void view_layer_bases_hash_create(ViewLayer *view_layer)
+{
+	static ThreadMutex hash_lock = BLI_MUTEX_INITIALIZER;
+
+	if (!view_layer->object_bases_hash) {
+		BLI_mutex_lock(&hash_lock);
+
+		view_layer->object_bases_hash = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
+
+		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+			BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+		}
+
+		BLI_mutex_unlock(&hash_lock);
+	}
+}
+
 Base *BKE_view_layer_base_find(ViewLayer *view_layer, Object *ob)
 {
+	if (!view_layer->object_bases_hash) {
+		view_layer_bases_hash_create(view_layer);
+	}
+
 	return BLI_ghash_lookup(view_layer->object_bases_hash, ob);
 }
 
@@ -331,12 +353,12 @@ void BKE_view_layer_base_select(struct ViewLayer *view_layer, Base *selbase)
 
 static void layer_collections_copy_data(ListBase *layer_collections_dst, const ListBase *layer_collections_src)
 {
-	BLI_assert(BLI_listbase_count(layer_collections_dst) == BLI_listbase_count(layer_collections_src));
+	BLI_duplicatelist(layer_collections_dst, layer_collections_src);
+
 	LayerCollection *layer_collection_dst = layer_collections_dst->first;
 	const LayerCollection *layer_collection_src = layer_collections_src->first;
 
 	while (layer_collection_dst != NULL) {
-		layer_collection_dst->flag = layer_collection_src->flag;
 		layer_collections_copy_data(&layer_collection_dst->layer_collections,
 									 &layer_collection_src->layer_collections);
 
@@ -351,7 +373,7 @@ static void layer_collections_copy_data(ListBase *layer_collections_dst, const L
  * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_view_layer_copy_data(
-        Scene *scene_dst, const Scene *UNUSED(scene_src),
+        Scene *UNUSED(scene_dst), const Scene *UNUSED(scene_src),
         ViewLayer *view_layer_dst, const ViewLayer *view_layer_src,
         const int flag)
 {
@@ -363,29 +385,16 @@ void BKE_view_layer_copy_data(
 	view_layer_dst->stats = NULL;
 	view_layer_dst->properties_evaluated = NULL;
 
-	/* Clear all layer collections and bases and synchronize to create new ones. */
-	BLI_listbase_clear(&view_layer_dst->layer_collections);
-	BLI_listbase_clear(&view_layer_dst->object_bases);
+	/* Clear temporary data. */
 	BLI_listbase_clear(&view_layer_dst->drawdata);
 	view_layer_dst->object_bases_array = NULL;
 	view_layer_dst->object_bases_hash = NULL;
 
-	BKE_layer_collection_sync(scene_dst, view_layer_dst);
-
-	/* Now copy flags between layer collections and bases. Layer collections are assumed
-	 * to have exactly the same order as scene collection so should match. */
+	/* Copy layer collections and object bases. */
+	BLI_duplicatelist(&view_layer_dst->object_bases, &view_layer_src->object_bases);
 	layer_collections_copy_data(&view_layer_dst->layer_collections, &view_layer_src->layer_collections);
 
-	Object *active_ob_src = OBACT(view_layer_src);
-	for (Base *base_src = view_layer_src->object_bases.first; base_src; base_src = base_src->next) {
-		Base *base_dst = BKE_view_layer_base_find(view_layer_dst, base_src->object);
-		base_dst->flag = base_src->flag;
-		base_dst->flag_legacy = base_src->flag_legacy;
-
-		if (base_dst->object == active_ob_src) {
-			view_layer_dst->basact = base_dst;
-		}
-	}
+	// TODO: not always safe to free BKE_layer_collection_sync(scene_dst, view_layer_dst);
 }
 
 /* LayerCollection */
@@ -503,8 +512,9 @@ static void layer_collection_sync(ViewLayer *view_layer,
 
 	/* Remove layer collections that no longer have a corresponding scene collection. */
 	for (LayerCollection *lc = lb_layer->first; lc;) {
+		/* Note ID remap can set lc->collection to NULL when deleting collections. */
 		LayerCollection *lc_next = lc->next;
-		Collection *collection = BLI_findptr(lb_scene, lc->collection, offsetof(CollectionChild, collection));
+		Collection *collection = (lc->collection) ? BLI_findptr(lb_scene, lc->collection, offsetof(CollectionChild, collection)) : NULL;
 
 		if (!collection) {
 			/* Free recursively. */
@@ -557,36 +567,23 @@ static void layer_collection_sync(ViewLayer *view_layer,
 					BLI_remlink(&view_layer->object_bases, base);
 					BLI_addtail(new_object_bases, base);
 				}
-
-				if (child_restrict & COLLECTION_RESTRICT_VIEW) {
-					/* TODO: object used in multiple layer collections not handled
-					 * correctly this way. */
-					base->flag &= ~(BASE_VISIBLED | BASE_SELECTABLED);
-				}
-				else {
-					base->flag |= BASE_VISIBLED;
-
-					if (child_restrict & COLLECTION_RESTRICT_SELECT) {
-						base->flag &= ~BASE_SELECTABLED;
-					}
-					else {
-						base->flag |= BASE_SELECTABLED;
-					}
-				}
 			}
 			else {
 				/* Create new base. */
 				base = object_base_new(cob->ob);
 				BLI_addtail(new_object_bases, base);
 				BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+			}
 
-				if ((child_restrict & COLLECTION_RESTRICT_VIEW) == 0) {
-					base->flag |= BASE_VISIBLED;
+			if ((child_restrict & COLLECTION_RESTRICT_VIEW) == 0) {
+				base->flag |= BASE_VISIBLED | BASE_VISIBLE_VIEWPORT;
 
-					if ((child_restrict & COLLECTION_RESTRICT_SELECT) == 0) {
-						base->flag |= BASE_SELECTABLED;
-					}
+				if ((child_restrict & COLLECTION_RESTRICT_SELECT) == 0) {
+					base->flag |= BASE_SELECTABLED;
 				}
+			}
+			if ((child_restrict & COLLECTION_RESTRICT_RENDER) == 0) {
+				base->flag |= BASE_VISIBLE_RENDER;
 			}
 		}
 	}
@@ -613,11 +610,12 @@ void BKE_layer_collection_sync(const Scene *scene, ViewLayer *view_layer)
 
 	/* Create object to base hash if it does not exist yet. */
 	if (!view_layer->object_bases_hash) {
-		view_layer->object_bases_hash = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
+		view_layer_bases_hash_create(view_layer);
+	}
 
-		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
-		}
+	/* Clear visible and selectable flags to be reset. */
+	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+		base->flag &= ~(BASE_VISIBLED | BASE_SELECTABLED | BASE_VISIBLE_VIEWPORT | BASE_VISIBLE_RENDER);
 	}
 
 	/* Generate new layer connections and object bases when collections changed. */
@@ -668,14 +666,16 @@ void BKE_main_collection_sync(const Main *bmain)
 void BKE_main_collection_sync_remap(const Main *bmain)
 {
 	/* On remapping of object or collection pointers free caches. */
-
-	/* TODO: can we make this faster? */
+	/* TODO: try to make this faster */
 
 	for (const Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 		for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
 			MEM_SAFE_FREE(view_layer->object_bases_array);
-			BLI_ghash_free(view_layer->object_bases_hash, NULL, NULL);
-			view_layer->object_bases_hash = NULL;
+
+			if (view_layer->object_bases_hash) {
+				BLI_ghash_free(view_layer->object_bases_hash, NULL, NULL);
+				view_layer->object_bases_hash = NULL;
+			}
 		}
 	}
 
@@ -1536,12 +1536,23 @@ static void idproperty_reset(IDProperty **props, IDProperty *props_ref)
 	}
 }
 
-static void layer_eval_layer_collection_pre(Depsgraph *depsgraph, Scene *scene, ViewLayer *view_layer)
+void BKE_layer_eval_view_layer(struct Depsgraph *depsgraph,
+                               struct Scene *scene,
+                               ViewLayer *view_layer)
 {
 	DEG_debug_print_eval(depsgraph, __func__, view_layer->name, view_layer);
 
+	/* Set visibility based on depsgraph mode. */
+	const eEvaluationMode mode = DEG_get_mode(depsgraph);
+	const int base_flag = (mode == DAG_EVAL_VIEWPORT) ? BASE_VISIBLE_VIEWPORT : BASE_VISIBLE_RENDER;
+
 	for (Base *base = view_layer->object_bases.first; base != NULL; base = base->next) {
-		base->flag &= ~(BASE_VISIBLED | BASE_SELECTABLED);
+		if (base->flag & base_flag) {
+			base->flag |= BASE_VISIBLED;
+		}
+		else {
+			base->flag &= ~BASE_VISIBLED;
+		}
 	}
 
 	/* Sync properties from scene to scene layer. */
@@ -1555,76 +1566,7 @@ static void layer_eval_layer_collection_pre(Depsgraph *depsgraph, Scene *scene, 
 
 	/* TODO(sergey): Is it always required? */
 	view_layer->flag |= VIEW_LAYER_ENGINE_DIRTY;
-}
 
-/**
- * \note We can't use layer_collection->flag because of 3 level nesting (where parent is visible, but not grand-parent)
- * So layer_collection->flag_evaluated is expected to be up to date with layer_collection->flag.
- */
-static bool layer_collection_visible_get(Depsgraph *depsgraph, LayerCollection *layer_collection)
-{
-	if (DEG_get_mode(depsgraph) == DAG_EVAL_VIEWPORT) {
-		return (layer_collection->flag_evaluated & COLLECTION_RESTRICT_VIEW) == 0;
-	}
-	else {
-		return (layer_collection->flag_evaluated & COLLECTION_RESTRICT_RENDER) == 0;
-	}
-}
-
-static void layer_eval_layer_collection(Depsgraph *depsgraph,
-                                        ViewLayer *view_layer,
-                                        LayerCollection *layer_collection,
-                                        LayerCollection *parent_layer_collection)
-{
-	DEG_debug_print_eval_parent_typed(
-	        depsgraph,
-	        __func__,
-	        layer_collection->collection->id.name + 2,
-	        layer_collection->collection,
-	        "parent",
-	        (parent_layer_collection != NULL) ? parent_layer_collection->collection->id.name + 2: "NONE",
-	        (parent_layer_collection != NULL) ? parent_layer_collection->collection : NULL);
-	BLI_assert(layer_collection != parent_layer_collection);
-
-	/* visibility */
-	layer_collection->flag_evaluated = layer_collection->collection->flag;
-
-	if (parent_layer_collection != NULL) {
-		if (parent_layer_collection->flag_evaluated & COLLECTION_RESTRICT_VIEW) {
-			layer_collection->flag_evaluated |= COLLECTION_RESTRICT_VIEW;
-		}
-		if (parent_layer_collection->flag_evaluated & COLLECTION_RESTRICT_RENDER) {
-			layer_collection->flag_evaluated |= COLLECTION_RESTRICT_RENDER;
-		}
-		if (parent_layer_collection->flag_evaluated & COLLECTION_RESTRICT_SELECT) {
-			layer_collection->flag_evaluated |= COLLECTION_RESTRICT_SELECT;
-		}
-	}
-
-	const bool is_visible = layer_collection_visible_get(depsgraph, layer_collection);
-	const bool is_selectable = is_visible && ((layer_collection->flag_evaluated & COLLECTION_RESTRICT_SELECT) == 0);
-
-	if (!is_visible) {
-		layer_collection->flag_evaluated |= COLLECTION_RESTRICT_SELECT;
-	}
-
-	/* overrides */
-	for (CollectionObject *cob = layer_collection->collection->gobject.first; cob; cob = cob->next) {
-		Base *base = BKE_view_layer_base_find(view_layer, cob->ob);
-
-		if (is_visible) {
-			base->flag |= BASE_VISIBLED;
-		}
-
-		if (is_selectable) {
-			base->flag |= BASE_SELECTABLED;
-		}
-	}
-}
-
-static void layer_eval_layer_collection_post(Depsgraph *depsgraph, ViewLayer *view_layer)
-{
-	DEG_debug_print_eval(depsgraph, __func__, view_layer->name, view_layer);
 	/* Create array of bases, for fast index-based lookup. */
 	const int num_object_bases = BLI_listbase_count(&view_layer->object_bases);
 	MEM_SAFE_FREE(view_layer->object_bases_array);
@@ -1639,49 +1581,6 @@ static void layer_eval_layer_collection_post(Depsgraph *depsgraph, ViewLayer *vi
 		/* Store base in the array. */
 		view_layer->object_bases_array[base_index++] = base;
 	}
-}
-
-static void layer_eval_collections_recurse(Depsgraph *depsgraph,
-                                           ViewLayer *view_layer,
-                                           ListBase *layer_collections,
-                                           LayerCollection *parent_layer_collection)
-{
-	for (LayerCollection *layer_collection = layer_collections->first;
-	     layer_collection != NULL;
-	     layer_collection = layer_collection->next)
-	{
-		LayerCollection *parent;
-		const bool exclude = (layer_collection->flag & LAYER_COLLECTION_EXCLUDE) != 0;
-
-		if (!exclude) {
-			layer_eval_layer_collection(depsgraph,
-			                            view_layer,
-			                            layer_collection,
-			                            parent_layer_collection);
-
-			parent = layer_collection;
-		}
-		else {
-			parent = parent_layer_collection;
-		}
-
-		layer_eval_collections_recurse(depsgraph,
-		                               view_layer,
-		                               &layer_collection->layer_collections,
-		                               parent);
-	}
-}
-
-void BKE_layer_eval_view_layer(struct Depsgraph *depsgraph,
-                               struct Scene *scene,
-                               ViewLayer *view_layer)
-{
-	layer_eval_layer_collection_pre(depsgraph, scene, view_layer);
-	layer_eval_collections_recurse(depsgraph,
-	                               view_layer,
-	                               &view_layer->layer_collections,
-	                               NULL);
-	layer_eval_layer_collection_post(depsgraph, view_layer);
 }
 
 void BKE_layer_eval_view_layer_indexed(struct Depsgraph *depsgraph,

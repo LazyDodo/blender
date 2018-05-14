@@ -56,9 +56,7 @@ typedef struct LayerCollection {
 	struct Collection *collection;
 	struct SceneCollection *scene_collection DNA_DEPRECATED;
 	short flag;
-	/* TODO(sergey): Get rid of this once we've got CoW in DEG, */
-	short flag_evaluated;
-	short pad[2];
+	short pad[3];
 	ListBase layer_collections; /* synced with collection->children */
 } LayerCollection;
 
@@ -98,6 +96,8 @@ enum {
 	BASE_FROMDUPLI        = (1 << 3),
 	BASE_DIRTY_ENGINE_SETTINGS = (1 << 4),
 	BASE_FROM_SET         = (1 << 5), /* To be set only by the depsgraph */
+	BASE_VISIBLE_VIEWPORT = (1 << 6),
+	BASE_VISIBLE_RENDER   = (1 << 7),
 };
 
 /* LayerCollection->flag */

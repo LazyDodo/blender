@@ -179,8 +179,8 @@ class COLLECTION_MT_specials(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("object.group_unlink", icon='X')
-        layout.operator("object.grouped_select")
+        layout.operator("object.collection_unlink", icon='X')
+        layout.operator("object.collection_objects_select")
         layout.operator("object.dupli_offset_from_cursor")
 
 
@@ -195,14 +195,13 @@ class OBJECT_PT_collections(ObjectButtonsPanel, Panel):
 
         row = layout.row(align=True)
         if bpy.data.collections:
-            row.operator("object.group_link", text="Add to Collection")
+            row.operator("object.collection_link", text="Add to Collection")
         else:
-            row.operator("object.group_add", text="Add to Collection")
-        row.operator("object.group_add", text="", icon='ZOOMIN')
+            row.operator("object.collection_add", text="Add to Collection")
+        row.operator("object.collection_add", text="", icon='ZOOMIN')
 
         obj_name = obj.name
         for collection in bpy.data.collections:
-			# TODO: this is even slower now that all objects are in collections
             # XXX this is slow and stupid!, we need 2 checks, one thats fast
             # and another that we can be sure its not a name collision
             # from linked library data
@@ -210,11 +209,11 @@ class OBJECT_PT_collections(ObjectButtonsPanel, Panel):
             if obj_name in collection.objects and obj in collection_objects[:]:
                 col = layout.column(align=True)
 
-                col.context_pointer_set("group", collection)
+                col.context_pointer_set("collection", collection)
 
                 row = col.box().row()
                 row.prop(collection, "name", text="")
-                row.operator("object.group_remove", text="", icon='X', emboss=False)
+                row.operator("object.collection_remove", text="", icon='X', emboss=False)
                 row.menu("COLLECTION_MT_specials", icon='DOWNARROW_HLT', text="")
 
                 row = col.box().row()

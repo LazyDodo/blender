@@ -414,7 +414,7 @@ def do_previews(do_objects, do_groups, do_scenes, do_data_intern):
             scene = bpy.data.scenes[render_context.scene, None]
             bpy.context.screen.scene = scene
 
-            bpy.ops.object.group_instance_add(group=grp.name)
+            bpy.ops.object.collection_instance_add(group=grp.name)
             grp_ob = next((ob for ob in scene.objects if ob.dupli_group and ob.dupli_group.name == grp.name))
             grp_obname = grp_ob.name
             scene.update()

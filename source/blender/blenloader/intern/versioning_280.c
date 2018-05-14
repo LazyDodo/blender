@@ -268,6 +268,7 @@ static void do_version_group_collection_to_collection(Main *bmain, Collection *g
 	}
 
 	group->collection = NULL;
+	id_fake_user_set(&group->id);
 }
 
 static void do_version_scene_collection_to_collection(Main *bmain, Scene *scene)
@@ -628,6 +629,9 @@ void do_versions_after_linking_280(Main *main)
 					BKE_collection_object_remove(main, collection, ob, true);
 				}
 			}
+
+			/* Add fake user for all existing groups. */
+			id_fake_user_set(&collection->id);
 		}
 
 		/* Convert layers to collections. */

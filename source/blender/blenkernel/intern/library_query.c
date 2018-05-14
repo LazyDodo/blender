@@ -422,7 +422,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					CALLBACK_INVOKE(cob->ob, IDWALK_CB_USER);
 				}
 				for (CollectionChild *child = scene->master_collection->children.first; child; child = child->next) {
-					CALLBACK_INVOKE(child->collection, IDWALK_CB_NOP);
+					CALLBACK_INVOKE(child->collection, IDWALK_CB_USER);
 				}
 
 				ViewLayer *view_layer;
@@ -714,15 +714,10 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			{
 				Collection *collection = (Collection *) id;
 				for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
-					if (collection->flag & COLLECTION_IN_SCENE) {
-						CALLBACK_INVOKE(cob->ob, IDWALK_CB_USER);
-					}
-					else {
-						CALLBACK_INVOKE(cob->ob, IDWALK_CB_USER_ONE);
-					}
+					CALLBACK_INVOKE(cob->ob, IDWALK_CB_USER);
 				}
 				for (CollectionChild *child = collection->children.first; child; child = child->next) {
-					CALLBACK_INVOKE(child->collection, IDWALK_CB_NOP);
+					CALLBACK_INVOKE(child->collection, IDWALK_CB_USER);
 				}
 				break;
 			}
