@@ -5546,7 +5546,7 @@ static void direct_link_view_settings(FileData *fd, ColorManagedViewSettings *vi
 
 /* ***************** READ VIEW LAYER *************** */
 
-static void direct_link_layer_collections(FileData *fd, ListBase *lb)
+static void direct_link_layer_collections(FileData *fd, ListBase *lb, bool master)
 {
 	link_list(fd, lb);
 	for (LayerCollection *lc = lb->first; lc; lc = lc->next) {
@@ -5554,7 +5554,12 @@ static void direct_link_layer_collections(FileData *fd, ListBase *lb)
 		lc->scene_collection = newdataadr(fd, lc->scene_collection);
 #endif
 
-		direct_link_layer_collections(fd, &lc->layer_collections);
+		/* Master collection is not a real datablock. */
+		if (master) {
+			lc->collection = newdataadr(fd, lc->collection);
+		}
+
+		direct_link_layer_collections(fd, &lc->layer_collections, false);
 	}
 }
 
@@ -5564,7 +5569,7 @@ static void direct_link_view_layer(FileData *fd, ViewLayer *view_layer)
 	link_list(fd, &view_layer->object_bases);
 	view_layer->basact = newdataadr(fd, view_layer->basact);
 
-	direct_link_layer_collections(fd, &view_layer->layer_collections);
+	direct_link_layer_collections(fd, &view_layer->layer_collections, true);
 	view_layer->active_collection = newdataadr(fd, view_layer->active_collection);
 
 	view_layer->id_properties = newdataadr(fd, view_layer->id_properties);
@@ -5580,15 +5585,18 @@ static void direct_link_view_layer(FileData *fd, ViewLayer *view_layer)
 	view_layer->object_bases_hash = NULL;
 }
 
-static void lib_link_layer_collection(FileData *fd, Library *lib, LayerCollection *layer_collection)
+static void lib_link_layer_collection(FileData *fd, Library *lib, LayerCollection *layer_collection, bool master)
 {
-	layer_collection->collection = newlibadr(fd, lib, layer_collection->collection);
+	/* Master collection is not a real datablock. */
+	if (!master) {
+		layer_collection->collection = newlibadr(fd, lib, layer_collection->collection);
+	}
 
 	for (LayerCollection *layer_collection_nested = layer_collection->layer_collections.first;
 	     layer_collection_nested != NULL;
 	     layer_collection_nested = layer_collection_nested->next)
 	{
-		lib_link_layer_collection(fd, lib, layer_collection_nested);
+		lib_link_layer_collection(fd, lib, layer_collection_nested, false);
 	}
 }
 
@@ -5623,7 +5631,7 @@ static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_laye
 	     layer_collection != NULL;
 	     layer_collection = layer_collection->next)
 	{
-		lib_link_layer_collection(fd, lib, layer_collection);
+		lib_link_layer_collection(fd, lib, layer_collection, true);
 	}
 
 	IDP_LibLinkProperty(view_layer->id_properties, fd);

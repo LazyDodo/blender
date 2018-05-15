@@ -1072,7 +1072,7 @@ static int collection_instance_add_exec(bContext *C, wmOperator *op)
 		}
 	}
 	else
-		collection = BLI_findlink(&CTX_data_main(C)->collection, RNA_enum_get(op->ptr, "group"));
+		collection = BLI_findlink(&CTX_data_main(C)->collection, RNA_enum_get(op->ptr, "collection"));
 
 	if (!ED_object_add_generic_get_opts(C, op, 'Z', loc, rot, NULL, &layer, NULL))
 		return OPERATOR_CANCELLED;
@@ -1080,6 +1080,14 @@ static int collection_instance_add_exec(bContext *C, wmOperator *op)
 	if (collection) {
 		Main *bmain = CTX_data_main(C);
 		Scene *scene = CTX_data_scene(C);
+		ViewLayer *view_layer = CTX_data_view_layer(C);
+
+		/* Avoid dependency cycles. */
+		LayerCollection *active_lc = BKE_layer_collection_get_active(view_layer);
+		while (BKE_collection_find_cycle(active_lc->collection, collection)) {
+			active_lc = BKE_layer_collection_activate_parent(view_layer, active_lc);
+		}
+
 		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, loc, rot, false, layer);
 		ob->dup_group = collection;
 		ob->transflag |= OB_DUPLIGROUP;
@@ -1116,8 +1124,8 @@ void OBJECT_OT_collection_instance_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	RNA_def_string(ot->srna, "name", "Group", MAX_ID_NAME - 2, "Name", "Group name to add");
-	prop = RNA_def_enum(ot->srna, "group", DummyRNA_NULL_items, 0, "Group", "");
+	RNA_def_string(ot->srna, "name", "Collection", MAX_ID_NAME - 2, "Name", "Collection name to add");
+	prop = RNA_def_enum(ot->srna, "collection", DummyRNA_NULL_items, 0, "Collection", "");
 	RNA_def_enum_funcs(prop, RNA_collection_itemf);
 	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
 	ot->prop = prop;

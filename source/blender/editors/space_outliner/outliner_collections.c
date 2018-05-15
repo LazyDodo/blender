@@ -138,6 +138,7 @@ static int collection_new_exec(bContext *C, wmOperator *op)
 {
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
 
 	struct CollectionNewData data = {
 		.error = false,
@@ -149,6 +150,14 @@ static int collection_new_exec(bContext *C, wmOperator *op)
 	if (data.error) {
 		BKE_report(op->reports, RPT_ERROR, "More than one collection is selected");
 		return OPERATOR_CANCELLED;
+	}
+
+	if (!data.collection) {
+		if (!(soops->outlinevis == SO_COLLECTIONS &&
+		      ELEM(soops->filter_collection, SO_FILTER_COLLECTION_UNLINKED, SO_FILTER_COLLECTION_ALL)))
+		{
+			data.collection = BKE_collection_master(scene);
+		}
 	}
 
 	BKE_collection_add(
@@ -473,6 +482,7 @@ static int collection_instance_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	struct CollectionEditData data = {.scene = scene, .soops = soops};
 
@@ -481,12 +491,22 @@ static int collection_instance_exec(bContext *C, wmOperator *UNUSED(op))
 	/* We first walk over and find the Collections we actually want to instance (ignoring duplicates). */
 	outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, collection_find_data_to_edit, &data);
 
-	/* Effectively instance the collections. */
+	/* Find an active collection to add to, that doesn't give dependency cycles. */
+	LayerCollection *active_lc = BKE_layer_collection_get_active(view_layer);
+
 	GSetIterator collections_to_edit_iter;
 	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
 		Collection *collection = BLI_gsetIterator_getKey(&collections_to_edit_iter);
+
+		while (BKE_collection_find_cycle(active_lc->collection, collection)) {
+			active_lc = BKE_layer_collection_activate_parent(view_layer, active_lc);
+		}
+	}
+
+	/* Effectively instance the collections. */
+	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
+		Collection *collection = BLI_gsetIterator_getKey(&collections_to_edit_iter);
 		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, scene->cursor.location, NULL, false, scene->layact);
-		/* TODO: add to parent of active collection to avoid loop. */
 		ob->dup_group = collection;
 		ob->transflag |= OB_DUPLIGROUP;
 		id_lib_extern(&collection->id);

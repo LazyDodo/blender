@@ -436,6 +436,27 @@ LayerCollection *BKE_layer_collection_get_active(ViewLayer *view_layer)
 	return view_layer->active_collection;
 }
 
+/**
+ * Active parent collection
+ */
+LayerCollection *BKE_layer_collection_activate_parent(ViewLayer *view_layer, LayerCollection *lc)
+{
+	CollectionParent *parent = lc->collection->parents.first;
+
+	if (parent) {
+		lc = BKE_layer_collection_first_from_scene_collection(view_layer, parent->collection);
+	}
+	else {
+		lc = NULL;
+	}
+
+	if (!lc) {
+		lc = view_layer->layer_collections.first;
+	}
+
+	view_layer->active_collection = lc;
+	return lc;
+}
 
 /**
  * Recursively get the count of collections

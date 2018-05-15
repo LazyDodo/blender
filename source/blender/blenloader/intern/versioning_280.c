@@ -195,57 +195,79 @@ enum {
 static void do_version_view_layer_visibility(ViewLayer *view_layer)
 {
 	/* Convert from deprecated VISIBLE flag to DISABLED */
-	LayerCollection *layer_collection;
-	for (layer_collection = view_layer->layer_collections.first;
-	     layer_collection;
-	     layer_collection = layer_collection->next)
+	LayerCollection *lc;
+	for (lc = view_layer->layer_collections.first;
+	     lc;
+	     lc = lc->next)
 	{
-		if (layer_collection->flag & COLLECTION_DEPRECATED_DISABLED) {
-			layer_collection->flag &= ~COLLECTION_DEPRECATED_DISABLED;
+		if (lc->flag & COLLECTION_DEPRECATED_DISABLED) {
+			lc->flag &= ~COLLECTION_DEPRECATED_DISABLED;
 		}
 
-		if ((layer_collection->flag & COLLECTION_DEPRECATED_VISIBLE) == 0) {
-			layer_collection->flag |= COLLECTION_DEPRECATED_DISABLED;
+		if ((lc->flag & COLLECTION_DEPRECATED_VISIBLE) == 0) {
+			lc->flag |= COLLECTION_DEPRECATED_DISABLED;
 		}
 
-		layer_collection->flag |= COLLECTION_DEPRECATED_VIEWPORT | COLLECTION_DEPRECATED_RENDER;
+		lc->flag |= COLLECTION_DEPRECATED_VIEWPORT | COLLECTION_DEPRECATED_RENDER;
 	}
 }
 
-static void do_version_scene_collection_visibility(ViewLayer *view_layer, ListBase *lb)
+static void do_version_layer_collection_pre(ViewLayer *view_layer,
+                                            ListBase *lb,
+                                            GSet *enabled_set,
+                                            GSet *selectable_set)
 {
-	/* Convert from deprecated DISABLED in layer to VIEWPORT/RENDER in scene */
-	LayerCollection *layer_collection;
-	for (layer_collection = lb->first; layer_collection; layer_collection = layer_collection->next)
-	{
-		/* TODO: find a better heuristic? test on existing files */
-		if (layer_collection->collection) {
-			if (view_layer->flag & VIEW_LAYER_RENDER) {
-				if (layer_collection->flag & COLLECTION_DEPRECATED_DISABLED) {
-					layer_collection->collection->flag |= COLLECTION_RESTRICT_RENDER;
-				}
+	/* Convert from deprecated DISABLED to new layer collection and collection flags */
+	for (LayerCollection *lc = lb->first; lc; lc = lc->next) {
+		if (lc->scene_collection) {
+			if (!(lc->flag & COLLECTION_DEPRECATED_DISABLED)) {
+				BLI_gset_insert(enabled_set, lc->scene_collection);
 			}
-			else {
-				if (layer_collection->flag & COLLECTION_DEPRECATED_DISABLED) {
-					layer_collection->collection->flag |= COLLECTION_RESTRICT_VIEW;
-				}
-			}
-
-			if (!(layer_collection->flag & COLLECTION_DEPRECATED_SELECTABLE)) {
-				layer_collection->collection->flag |= COLLECTION_RESTRICT_SELECT;
+			if (lc->flag & COLLECTION_DEPRECATED_SELECTABLE) {
+				BLI_gset_insert(selectable_set, lc->scene_collection);
 			}
 		}
 
-		do_version_scene_collection_visibility(view_layer, &layer_collection->layer_collections);
+		do_version_layer_collection_pre(view_layer, &lc->layer_collections, enabled_set, selectable_set);
 	}
 }
 
-static void do_version_scene_collection_convert(Main *bmain, SceneCollection *sc, Collection *collection)
+static void do_version_layer_collection_post(ViewLayer *view_layer,
+                                             ListBase *lb,
+                                             GSet *enabled_set,
+                                             GSet *selectable_set,
+                                             GHash *collection_map)
 {
+	/* Apply layer collection exclude flags. */
+	for (LayerCollection *lc = lb->first; lc; lc = lc->next) {
+		SceneCollection *sc = BLI_ghash_lookup(collection_map, lc->collection);
+		const bool enabled = (sc && BLI_gset_haskey(enabled_set, sc));
+		const bool selectable = (sc && BLI_gset_haskey(selectable_set, sc));
+
+		if (!enabled) {
+			lc->flag |= LAYER_COLLECTION_EXCLUDE;
+		}
+		if (enabled && !selectable) {
+			lc->collection->flag |= COLLECTION_RESTRICT_SELECT;
+		}
+
+		do_version_layer_collection_post(view_layer, &lc->layer_collections, enabled_set, selectable_set, collection_map);
+	}
+}
+
+static void do_version_scene_collection_convert(Main *bmain,
+                                                SceneCollection *sc,
+                                                Collection *collection,
+                                                GHash *collection_map)
+{
+	if (collection_map) {
+		BLI_ghash_insert(collection_map, collection, sc);
+	}
+
 	for (SceneCollection *nsc = sc->scene_collections.first; nsc;) {
 		SceneCollection *nsc_next = nsc->next;
 		Collection *ncollection = BKE_collection_add(bmain, collection, nsc->name);
-		do_version_scene_collection_convert(bmain, nsc, ncollection);
+		do_version_scene_collection_convert(bmain, nsc, ncollection, collection_map);
 		nsc = nsc_next;
 	}
 
@@ -263,8 +285,9 @@ static void do_version_scene_collection_convert(Main *bmain, SceneCollection *sc
 
 static void do_version_group_collection_to_collection(Main *bmain, Collection *group)
 {
+	/* Convert old 2.8 group collections to new unified collections. */
 	if (group->collection) {
-		do_version_scene_collection_convert(bmain, group->collection, group);
+		do_version_scene_collection_convert(bmain, group->collection, group, NULL);
 	}
 
 	group->collection = NULL;
@@ -273,17 +296,43 @@ static void do_version_group_collection_to_collection(Main *bmain, Collection *g
 
 static void do_version_scene_collection_to_collection(Main *bmain, Scene *scene)
 {
+	/* Convert old 2.8 scene collections to new unified collections. */
+
+	/* Temporarily clear view layers so we don't do any layer collection syncing
+	 * and destroy old flags that we want to restore. */
+	ListBase view_layers = scene->view_layers;
+	BLI_listbase_clear(&scene->view_layers);
+
 	if (!scene->master_collection) {
 		scene->master_collection = BKE_collection_master_add();
 	}
 
-	/* TODO: convert layer collections? */
+	/* Convert scene collections. */
+	GHash *collection_map = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
 	if (scene->collection) {
-		do_version_scene_collection_convert(bmain, scene->collection, scene->master_collection);
+		do_version_scene_collection_convert(bmain, scene->collection, scene->master_collection, collection_map);
 		scene->collection = NULL;
 	}
 
-	BKE_scene_collection_sync(scene);
+	scene->view_layers = view_layers;
+
+	/* Convert layer collections. */
+	ViewLayer *view_layer;
+	for (view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
+		GSet *enabled_set = BLI_gset_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
+		GSet *selectable_set = BLI_gset_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
+
+		do_version_layer_collection_pre(view_layer, &view_layer->layer_collections, enabled_set, selectable_set);
+		BKE_layer_collection_sync(scene, view_layer);
+		do_version_layer_collection_post(view_layer, &view_layer->layer_collections, enabled_set, selectable_set, collection_map);
+
+		BLI_gset_free(enabled_set, NULL);
+		BLI_gset_free(selectable_set, NULL);
+
+		BKE_layer_collection_sync(scene, view_layer);
+	}
+
+	BLI_ghash_free(collection_map, NULL, NULL);
 }
 #endif
 
@@ -795,21 +844,11 @@ void do_versions_after_linking_280(Main *main)
 
 #ifdef USE_COLLECTION_COMPAT_28
 	if (use_collection_compat_28 && !MAIN_VERSION_ATLEAST(main, 280, 14)) {
-		/* TODO: test on existing files, including Hero. */
 		for (Collection *group = main->collection.first; group; group = group->id.next) {
-			if (group->view_layer) {
-				do_version_scene_collection_visibility(group->view_layer, &group->view_layer->layer_collections);
-			}
-
 			do_version_group_collection_to_collection(main, group);
 		}
 
 		for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-			ViewLayer *view_layer;
-			for (view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
-				do_version_scene_collection_visibility(view_layer, &view_layer->layer_collections);
-			}
-
 			do_version_scene_collection_to_collection(main, scene);
 		}
 	}

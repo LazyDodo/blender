@@ -105,8 +105,11 @@ static void set_operation_types(SpaceOops *soops, ListBase *lb,
 	for (te = lb->first; te; te = te->next) {
 		tselem = TREESTORE(te);
 		if (tselem->flag & TSE_SELECTED) {
-			/* Layer collection points to collection ID */
-			if (!ELEM(tselem->type, 0, TSE_LAYER_COLLECTION)) {
+			if (tselem->type == TSE_R_LAYER && soops->outlinevis == SO_COLLECTIONS) {
+				/* Don't let immutable render layer item affect menu. */
+			}
+			else if (!ELEM(tselem->type, 0, TSE_LAYER_COLLECTION)) {
+				/* Layer collection points to collection ID. */
 				if (*datalevel == 0)
 					*datalevel = tselem->type;
 				else if (*datalevel != tselem->type)

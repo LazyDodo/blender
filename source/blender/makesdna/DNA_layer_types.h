@@ -102,9 +102,11 @@ enum {
 
 /* LayerCollection->flag */
 enum {
-	LAYER_COLLECTION_EXCLUDE = (1 << 0),
+	/* LAYER_COLLECTION_DEPRECATED0 = (1 << 0), */
 	/* LAYER_COLLECTION_DEPRECATED1 = (1 << 1), */
 	/* LAYER_COLLECTION_DEPRECATED2 = (1 << 2), */
+	/* LAYER_COLLECTION_DEPRECATED3 = (1 << 3), */
+	LAYER_COLLECTION_EXCLUDE = (1 << 4),
 };
 
 /* ViewLayer->flag */

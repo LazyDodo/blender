@@ -84,6 +84,7 @@ void BKE_view_layer_copy_data(
         const int flag);
 
 struct LayerCollection *BKE_layer_collection_get_active(struct ViewLayer *view_layer);
+struct LayerCollection *BKE_layer_collection_activate_parent(struct ViewLayer *view_layer, struct LayerCollection *lc);
 
 int BKE_layer_collection_count(struct ViewLayer *view_layer);
 
