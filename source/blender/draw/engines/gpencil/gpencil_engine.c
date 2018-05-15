@@ -434,7 +434,6 @@ void GPENCIL_cache_finish(void *vedata)
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	ToolSettings *ts = scene->toolsettings;
 	bool is_multiedit = false; 
 
 	/* if painting session, don't need to do more */
@@ -454,7 +453,7 @@ void GPENCIL_cache_finish(void *vedata)
 			/* fill shading groups */
 			is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 			if (!is_multiedit) {
-				DRW_gpencil_populate_datablock(&e_data, vedata, scene, ob, ts, gpd);
+				DRW_gpencil_populate_datablock(&e_data, vedata, scene, ob, gpd);
 			}
 			else {
 				DRW_gpencil_populate_multiedit(&e_data, vedata, scene, ob, gpd);
