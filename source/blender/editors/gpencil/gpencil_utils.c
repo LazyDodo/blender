@@ -1047,8 +1047,9 @@ void gp_randomize_stroke(bGPDstroke *gps, Brush *brush)
 /* Layer Parenting  - Compute Parent Transforms */
 
 /* calculate difference matrix */
-void ED_gpencil_parent_location(Depsgraph *depsgraph, Object *obact, bGPdata *gpd, 
-								bGPDlayer *gpl, float diff_mat[4][4])
+void ED_gpencil_parent_location(
+        const Depsgraph *depsgraph, Object *obact, bGPdata *gpd,
+        bGPDlayer *gpl, float diff_mat[4][4])
 {
 	Object *ob_eval = depsgraph != NULL ? DEG_get_evaluated_object(depsgraph, obact) : obact;
 	Object *obparent = gpl->parent;
