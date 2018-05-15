@@ -588,6 +588,8 @@ static void gpencil_add_editpoints_shgroup(
 		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+	/* alpha factor for edit points/line to make them more subtle */
+	float edit_alpha = ts->gp_sculpt.alpha;
 
 	if (GPENCIL_ANY_EDIT_MODE(gpd)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -600,7 +602,7 @@ static void gpencil_add_editpoints_shgroup(
 		/* line of the original stroke */
 		if (cache->is_dirty) {
 			gpencil_batch_cache_check_free_slots(ob);
-			cache->batch_edlin[cache->cache_idx] = DRW_gpencil_get_edlin_geom(gps, ts->gp_sculpt.alpha, gpd->flag);
+			cache->batch_edlin[cache->cache_idx] = DRW_gpencil_get_edlin_geom(gps, edit_alpha, gpd->flag);
 		}
 		if (cache->batch_edlin[cache->cache_idx]) {
 			if ((obact) && (obact == ob) && (gpd->flag & GP_DATA_STROKE_SHOW_EDIT_LINES)) {
@@ -612,7 +614,7 @@ static void gpencil_add_editpoints_shgroup(
 			if ((gpl->flag & GP_LAYER_UNLOCK_COLOR) || ((gp_style->flag & GP_STYLE_COLOR_LOCKED) == 0)) {
 				if (cache->is_dirty) {
 					gpencil_batch_cache_check_free_slots(ob);
-					cache->batch_edit[cache->cache_idx] = DRW_gpencil_get_edit_geom(gps, ts->gp_sculpt.alpha, gpd->flag);
+					cache->batch_edit[cache->cache_idx] = DRW_gpencil_get_edit_geom(gps, edit_alpha, gpd->flag);
 				}
 				if (cache->batch_edit[cache->cache_idx]) {
 					if ((obact) && (obact == ob)) {
