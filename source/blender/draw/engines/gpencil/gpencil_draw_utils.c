@@ -29,12 +29,9 @@
 #include "DRW_render.h"
 
 #include "BKE_brush.h"
-#include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_image.h"
-#include "BKE_lattice.h"
 #include "BKE_material.h"
-#include "BKE_paint.h"
 
 #include "ED_gpencil.h"
 #include "ED_view3d.h"
@@ -53,7 +50,6 @@
 
 #include "IMB_imbuf_types.h"
 
-#include "draw_cache_impl.h"
 #include "gpencil_engine.h"
 
 /* Helper for doing all the checks on whether a stroke can be drawn */
@@ -404,7 +400,6 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(GPENCIL_e_data *e_data, GPENC
 		DRW_shgroup_uniform_texture(grp, "myTexture", e_data->gpencil_blank_texture);
 	}
 
-
 	return grp;
 }
 
@@ -592,8 +587,7 @@ static void gpencil_add_editpoints_shgroup(
 	float edit_alpha = ts->gp_sculpt.alpha;
 
 	if (GPENCIL_ANY_EDIT_MODE(gpd)) {
-		const DRWContextState *draw_ctx = DRW_context_state_get();
-		Object *obact = draw_ctx->obact;
+		Object *obact = DRW_context_state_get()->obact;
 		if ((!obact) || (obact->type != OB_GPENCIL)) {
 			return;
 		}
@@ -633,8 +627,7 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 {
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	Depsgraph *depsgraph = draw_ctx->depsgraph;
+	Depsgraph *depsgraph = DRW_context_state_get()->depsgraph;
 
 	float viewmatrix[4][4];
 
@@ -694,8 +687,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 	/* NOTE: We must check if C is valid, otherwise we get crashes when trying to save files
 	 * (i.e. the thumbnail offscreen rendering fails) 
 	 */
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	Depsgraph *depsgraph = draw_ctx->depsgraph;
+	Depsgraph *depsgraph = DRW_context_state_get()->depsgraph;
 
 	/* get parent matrix and save as static data */
 	ED_gpencil_parent_location(depsgraph, ob, gpd, gpl, viewmatrix);
