@@ -551,10 +551,6 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 		if (dvert_src->dw) {
 			dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
 		}
-		else {
-			dvert_dst->totweight = 0;
-			dvert_dst->dw = NULL;
-		}
 	}
 }
 
