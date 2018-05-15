@@ -584,7 +584,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 
 /* add edit points shading group to pass */
 static void gpencil_add_editpoints_shgroup(
-		GPENCIL_StorageList *stl, GpencilBatchCache *cache,ToolSettings *ts, Object *ob, 
+		GPENCIL_StorageList *stl, GpencilBatchCache *cache, ToolSettings *ts, Object *ob, 
 		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
@@ -1083,12 +1083,13 @@ static void gpencil_draw_onionskins(
 }
 
 /* populate a datablock for multiedit (no onions, no modifiers) */
-void DRW_gpencil_populate_multiedit(GPENCIL_e_data *e_data, void *vedata, Scene *scene, Object *ob, ToolSettings *ts, bGPdata *gpd)
+void DRW_gpencil_populate_multiedit(GPENCIL_e_data *e_data, void *vedata, Scene *scene, Object *ob, bGPdata *gpd)
 {
 	bGPDframe *gpf = NULL;
 
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, CFRA);
+	ToolSettings *ts = scene->toolsettings;
 	cache->cache_idx = 0;
 
 	/* check if playing animation */

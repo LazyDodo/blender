@@ -457,7 +457,7 @@ void GPENCIL_cache_finish(void *vedata)
 				DRW_gpencil_populate_datablock(&e_data, vedata, scene, ob, ts, gpd);
 			}
 			else {
-				DRW_gpencil_populate_multiedit(&e_data, vedata, scene, ob, ts, gpd);
+				DRW_gpencil_populate_multiedit(&e_data, vedata, scene, ob, gpd);
 			}
 
 			/* save end shading group */
