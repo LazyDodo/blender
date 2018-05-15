@@ -649,7 +649,7 @@ static void rna_def_gpencil_point_weight(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Grease Pencil Point Weight", "Data for point vertex groups");
 
 	prop = RNA_def_property(srna, "vertex_group", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "index");
+	RNA_def_property_int_sdna(prop, NULL, "def_nr");
 	RNA_def_property_ui_text(prop, "Index", "Index of the vertex group");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 

@@ -876,7 +876,7 @@ static bool gp_brush_weight_apply(
 	float curweight = 0.0f;
 	for (int i = 0; i < pt->totweight; ++i) {
 		bGPDweight *gpw = &pt->weights[i];
-		if (gpw->index == gso->vrgroup) {
+		if (gpw->def_nr == gso->vrgroup) {
 			curweight = gpw->factor;
 			break;
 		}

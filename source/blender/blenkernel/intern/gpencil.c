@@ -1295,12 +1295,12 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 						pt = &gps->points[i];
 						for (int i2 = 0; i2 < pt->totweight; i2++) {
 							gpw = &pt->weights[i2];
-							if (gpw->index == def_nr) {
+							if (gpw->def_nr == def_nr) {
 								BKE_gpencil_vgroup_remove_point_weight(pt, def_nr);
 							}
 							/* if index is greater, must be moved one back */
-							if (gpw->index > def_nr) {
-								gpw->index--;
+							if (gpw->def_nr > def_nr) {
+								gpw->def_nr--;
 							}
 						}
 					}
@@ -1322,7 +1322,7 @@ bGPDweight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float
 	/* need to verify if was used before to update */
 	for (int i = 0; i < pt->totweight; i++) {
 		tmp_gpw = &pt->weights[i];
-		if (tmp_gpw->index == index) {
+		if (tmp_gpw->def_nr == index) {
 			tmp_gpw->factor = weight;
 			return tmp_gpw;
 		}
@@ -1336,7 +1336,7 @@ bGPDweight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float
 		pt->weights = MEM_reallocN(pt->weights, sizeof(bGPDweight) * pt->totweight);
 	}
 	new_gpw = &pt->weights[pt->totweight - 1];
-	new_gpw->index = index;
+	new_gpw->def_nr = index;
 	new_gpw->factor = weight;
 
 	return new_gpw;
@@ -1348,7 +1348,7 @@ float BKE_gpencil_vgroup_use_index(bGPDspoint *pt, int index)
 	bGPDweight *gpw;
 	for (int i = 0; i < pt->totweight; i++) {
 		gpw = &pt->weights[i];
-		if (gpw->index == index) {
+		if (gpw->def_nr == index) {
 			return gpw->factor;
 		}
 	}
@@ -1379,8 +1379,8 @@ bool BKE_gpencil_vgroup_remove_point_weight(bGPDspoint *pt, int index)
 	for (int x = 0; x < pt->totweight; x++) {
 		bGPDweight *gpw = &tmp[e];
 		bGPDweight *final_gpw = &pt->weights[e];
-		if (gpw->index != index) {
-			final_gpw->index = gpw->index;
+		if (gpw->def_nr != index) {
+			final_gpw->def_nr = gpw->def_nr;
 			final_gpw->factor = gpw->factor;
 			e++;
 		}

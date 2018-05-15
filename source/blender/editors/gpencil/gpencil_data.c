@@ -1814,8 +1814,8 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 								bGPDspoint *pt;
 								int i;
 								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-									if ((pt->weights) && (pt->weights->index == old_idx)) {
-										pt->weights->index = idx;
+									if ((pt->weights) && (pt->weights->def_nr == old_idx)) {
+										pt->weights->def_nr = idx;
 									}
 								}
 							}
