@@ -807,7 +807,6 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_frame_clean_fill);
 
 	WM_operatortype_append(GPENCIL_OT_convert);
-	WM_operatortype_append(GPENCIL_OT_convert_scene_to_object);
 
 	WM_operatortype_append(GPENCIL_OT_stroke_arrange);
 	WM_operatortype_append(GPENCIL_OT_stroke_change_color);

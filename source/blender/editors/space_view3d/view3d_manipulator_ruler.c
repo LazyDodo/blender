@@ -43,6 +43,7 @@
 
 #include "BIF_gl.h"
 
+#include "ED_gpencil.h"
 #include "ED_screen.h"
 #include "ED_transform_snap_object_context.h"
 #include "ED_view3d.h"
@@ -393,11 +394,13 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 	RulerItem *ruler_item;
 	const char *ruler_name = RULER_ID;
 	bool changed = false;
+	float cur[3] = { 0 };
 
-	gpd = BKE_gpencil_data_addnew(CTX_data_main(C), "GPencil");
+	Object *gp_ob = ED_add_gpencil_object(C,scene, cur);
+	gpd = gp_ob->data;
 	gpl = BLI_findstring(&gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 	if (gpl == NULL) {
-		gpl = BKE_gpencil_layer_addnew(scene->gpd, ruler_name, false);
+		gpl = BKE_gpencil_layer_addnew(gpd, ruler_name, false);
 		gpl->thickness = 1;
 		gpl->flag |= GP_LAYER_HIDE;
 	}

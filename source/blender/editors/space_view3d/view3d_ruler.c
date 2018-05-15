@@ -52,6 +52,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
+#include "ED_gpencil.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
 #include "ED_transform_snap_object_context.h"
@@ -310,13 +311,12 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 	bool changed = false;
 
 	/* FIXME: This needs to be reviewed. Should it keep being done like this? */
-	if (scene->gpd == NULL) {
-		scene->gpd = BKE_gpencil_data_addnew(bmain, "Ruler GPencil");
-	}
-
-	gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
+	float cur[3] = { 0 };
+	Object *gp_ob = ED_add_gpencil_object(C, scene, cur);
+	bGPdata *gpd = gp_ob->data;
+	gpl = BLI_findstring(&gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 	if (gpl == NULL) {
-		gpl = BKE_gpencil_layer_addnew(scene->gpd, ruler_name, false);
+		gpl = BKE_gpencil_layer_addnew(gpd, ruler_name, false);
 		gpl->thickness = 1;
 		gpl->flag |= GP_LAYER_HIDE;
 	}

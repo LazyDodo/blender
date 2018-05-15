@@ -1774,10 +1774,7 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 		ts = scene->toolsettings;
 		brush = BKE_brush_getactive_gpencil(ts);
 
-		if (spacetype == SPACE_VIEW3D) {
-			gpd_source = (scene->gpd ? scene->gpd : NULL);
-		}
-		else if (spacetype == SPACE_CLIP && scene->clip) {
+		if (spacetype == SPACE_CLIP && scene->clip) {
 			/* currently drawing only gpencil data from either clip or track, but not both - XXX fix logic behind */
 			gpd_source = (scene->clip->gpd ? scene->clip->gpd : NULL);
 		}

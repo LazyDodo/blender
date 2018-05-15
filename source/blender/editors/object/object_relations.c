@@ -1633,17 +1633,6 @@ static Object *single_object_users_object(Main *bmain, Scene *scene, Object *ob,
 	else {
 		/* copy already clears */
 	}
-	/* remap gpencil parenting */
-
-	if (scene->gpd) {
-		bGPdata *gpd = scene->gpd;
-		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-			if (gpl->parent == ob) {
-				gpl->parent = obn;
-			}
-		}
-	}
-
 	id_us_min(&ob->id);
 	return obn;
 }
@@ -1964,10 +1953,6 @@ void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bo
 			for (bNode *node = scene->nodetree->nodes.first; node; node = node->next) {
 				IDP_RelinkProperty(node->prop);
 			}
-		}
-
-		if (scene->gpd) {
-			IDP_RelinkProperty(scene->gpd->id.properties);
 		}
 
 		if (scene->world) {

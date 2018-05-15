@@ -431,91 +431,6 @@ static void addAlphaOverFloat(float dest[4], const float source[4])
 
 }
 
-/* add renderlayer and renderpass for each grease pencil layer for using in composition */
-static void add_gpencil_renderpass(const bContext *C, OGLRender *oglrender, RenderResult *rr, RenderView *rv)
-{
-	bGPdata *gpd = oglrender->scene->gpd;
-	Scene *scene = oglrender->scene;
-
-	/* sanity checks */
-	if (gpd == NULL) {
-		return;
-	}
-	if (scene == NULL) {
-		return;
-	}
-	if (BLI_listbase_is_empty(&gpd->layers)) {
-		return;
-	}
-	if (oglrender->v3d != NULL && (oglrender->v3d->flag2 & V3D_SHOW_GPENCIL) == 0) {
-		return;
-	}
-
-	/* save old alpha mode */
-	short oldalphamode = scene->r.alphamode;
-	/* set alpha transparent for gp */
-	scene->r.alphamode = R_ALPHAPREMUL;
-	
-	/* saves layer status */
-	short *oldsts = MEM_mallocN(BLI_listbase_count(&gpd->layers) * sizeof(short), "temp_gplayers_flag");
-	int i = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		oldsts[i] = gpl->flag;
-		++i;
-	}
-	/* loop all layers to create separate render */
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		/* dont draw layer if hidden */
-		if (gpl->flag & GP_LAYER_HIDE)
-			continue;
-		/* hide all layer except current */
-		for (bGPDlayer *gph = gpd->layers.first; gph; gph = gph->next) {
-			if (gpl != gph) {
-				gph->flag |= GP_LAYER_HIDE;
-			}
-		}
-
-		/* render this gp layer */
-		screen_opengl_render_doit(C, oglrender, rr);
-		
-		/* add RendePass composite */
-		RenderPass *rp = RE_create_gp_pass(rr, gpl->info, rv->name);
-
-		/* copy image data from rectf */
-		// XXX: Needs conversion.
-		unsigned char *src = (unsigned char *)RE_RenderViewGetById(rr, oglrender->view_id)->rect32;
-		if (src != NULL) {
-			float *dest = rp->rect;
-
-			int x, y, rectx, recty;
-			rectx = rr->rectx;
-			recty = rr->recty;
-			for (y = 0; y < recty; y++) {
-				for (x = 0; x < rectx; x++) {
-					unsigned char *pixSrc = src + 4 * (rectx * y + x);
-					if (pixSrc[3] > 0) {
-						float *pixDest = dest + 4 * (rectx * y + x);
-						float float_src[4];
-						srgb_to_linearrgb_uchar4(float_src, pixSrc);
-						addAlphaOverFloat(pixDest, float_src);
-					}
-				}
-			}
-		}
-		/* back layer status */
-		i = 0;
-		for (bGPDlayer *gph = gpd->layers.first; gph; gph = gph->next) {
-			gph->flag = oldsts[i];
-			++i;
-		}
-	}
-	/* free memory */
-	MEM_freeN(oldsts);
-
-	/* back default alpha mode */
-	scene->r.alphamode = oldalphamode;
-}
-
 static void screen_opengl_render_apply(const bContext *C, OGLRender *oglrender)
 {
 	RenderResult *rr;
@@ -550,11 +465,6 @@ static void screen_opengl_render_apply(const bContext *C, OGLRender *oglrender)
 		BLI_assert(view_id < oglrender->views_len);
 		RE_SetActiveRenderView(oglrender->re, rv->name);
 		oglrender->view_id = view_id;
-		/* add grease pencil passes. For sequencer, the render does not include renderpasses
-		 * TODO: The sequencer render of grease pencil should be rethought */
-		if (!oglrender->is_sequencer) {
-			add_gpencil_renderpass(C, oglrender, rr, rv);
-		}
 		/* render composite */
 		screen_opengl_render_doit(C, oglrender, rr);
 	}

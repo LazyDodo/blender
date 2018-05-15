@@ -2508,7 +2508,6 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 	
 	/* populate tree with keyframe nodes */
 	scene_to_keylist(&ads, scene, &keys, NULL);
-	gpencil_to_keylist(&ads, scene->gpd, &keys, false);
 
 	if (ob) {
 		ob_to_keylist(&ads, ob, &keys, NULL);

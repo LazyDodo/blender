@@ -347,7 +347,6 @@ void GPENCIL_OT_frame_duplicate(struct wmOperatorType *ot);
 void GPENCIL_OT_frame_clean_fill(struct wmOperatorType *ot);
 
 void GPENCIL_OT_convert(struct wmOperatorType *ot);
-void GPENCIL_OT_convert_scene_to_object(struct wmOperatorType *ot);
 
 enum {
 	GP_STROKE_JOIN = -1,

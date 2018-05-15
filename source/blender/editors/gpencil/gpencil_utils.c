@@ -246,7 +246,7 @@ bGPdata *ED_gpencil_data_get_active_v3d(Scene *scene, ViewLayer *view_layer)
 		else
 			gpd = base->object->gpd;
 	}
-	return gpd ? gpd : scene->gpd;
+	return gpd ? gpd : NULL;
 }
 
 /* ******************************************************** */

@@ -1342,53 +1342,6 @@ void GPENCIL_OT_sculpt_select(wmOperatorType *ot)
 	RNA_def_int(ot->srna, "index", 0, 0, INT_MAX, "Index", "Index of Sculpt Brush", 0, INT_MAX);
 }
 
-/* ******************* Convert scene gp data to gp object ************************ */
-
-static int gp_convert_scene_to_object_poll(bContext *C)
-{
-	Scene *scene = CTX_data_scene(C);
-	if (scene->gpd) {
-		return true;
-	}
-	else {
-		return false;
-	}
-}
-
-/* convert scene datablock to gpencil object */
-static int gp_convert_scene_to_object_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	Scene *scene = CTX_data_scene(C);
-	bGPdata *gpd = scene->gpd;
-	float loc[3] = { 0.0f, 0.0f, 0.0f };
-
-	Object *ob = ED_add_gpencil_object(C, scene, loc); /* always in origin */
-	
-	// FIXME: This loses the datablock created above...
-	ob->data = gpd;
-	scene->gpd = NULL;
-
-	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_convert_scene_to_object(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Convert Scene Datablock to gpencil Object";
-	ot->idname = "GPENCIL_OT_convert_scene_to_object";
-	ot->description = "Convert scene grease pencil datablock to gpencil object";
-
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	/* callbacks */
-	ot->exec = gp_convert_scene_to_object_exec;
-	ot->poll = gp_convert_scene_to_object_poll;
-}
-
 /*********************** Vertex Groups ***********************************/
 
 static int gpencil_vertex_group_poll(bContext *C)
