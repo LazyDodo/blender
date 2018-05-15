@@ -6353,8 +6353,9 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 			for (gps = gpf->strokes.first; gps; gps = gps->next) {
 				/* relink stroke points array */
 				gps->points = newdataadr(fd, gps->points);
-				/* relink point weight data */
-				direct_link_dverts(fd,gps->totpoints, gps->dvert);
+				
+				/* relink weight data */
+				direct_link_dverts(fd, gps->totpoints, gps->dvert);
 
 				/* the triangulation is not saved, so need to be recalculated */
 				gps->triangles = NULL;

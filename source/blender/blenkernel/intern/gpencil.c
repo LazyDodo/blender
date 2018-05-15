@@ -113,7 +113,6 @@ void BKE_gpencil_free_stroke_weights(bGPDstroke *gps)
 	for (int i = 0; i < gps->totpoints; i++) {
 		MDeformVert *dvert = &gps->dvert[i];
 		BKE_gpencil_free_point_weights(dvert);
-		MEM_freeN(dvert);
 	}
 }
 
@@ -125,8 +124,11 @@ void BKE_gpencil_free_stroke(bGPDstroke *gps)
 	}
 	/* free stroke memory arrays, then stroke itself */
 	if (gps->points) {
-		BKE_gpencil_free_stroke_weights(gps);
 		MEM_freeN(gps->points);
+	}
+	if (gps->dvert) {
+		BKE_gpencil_free_stroke_weights(gps);
+		MEM_freeN(gps->dvert);
 	}
 	if (gps->triangles)
 		MEM_freeN(gps->triangles);
@@ -516,7 +518,8 @@ bGPDstroke *BKE_gpencil_add_stroke(bGPDframe *gpf, int mat_idx, int totpoints, s
 	
 	gps->totpoints = totpoints;
 	gps->points = MEM_callocN(sizeof(bGPDspoint) * gps->totpoints, "gp_stroke_points");
-	
+	gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
+
 	/* initialize triangle memory to dummy data */
 	gps->triangles = MEM_callocN(sizeof(bGPDtriangle), "GP Stroke triangulation");
 	gps->flag |= GP_STROKE_RECALC_CACHES;
@@ -543,9 +546,15 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 	BLI_assert(gps_src->totpoints == gps_dst->totpoints);
 
 	for (int i = 0; i < gps_src->totpoints; i++) {
-		MDeformVert *dvert_dst = &gps_dst->dvert[i];
 		MDeformVert *dvert_src = &gps_src->dvert[i];
-		dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
+		MDeformVert *dvert_dst = &gps_dst->dvert[i];
+		if (dvert_src->dw) {
+			dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
+		}
+		else {
+			dvert_dst->totweight = 0;
+			dvert_dst->dw = NULL;
+		}
 	}
 }
 
@@ -765,8 +774,11 @@ void BKE_gpencil_frame_delete_laststroke(bGPDlayer *gpl, bGPDframe *gpf)
 	
 	/* free the stroke and its data */
 	if (gps->points) {
-		BKE_gpencil_free_stroke_weights(gps);
 		MEM_freeN(gps->points);
+	}
+	if (gps->dvert) {
+		BKE_gpencil_free_stroke_weights(gps);
+		MEM_freeN(gps->dvert);
 	}
 	MEM_freeN(gps->triangles);
 	BLI_freelinkN(&gpf->strokes, gps);
@@ -1649,8 +1661,11 @@ void BKE_gpencil_material_index_remove(bGPdata *gpd, int index)
 					gpsn = gps->next;
 					if (gps->mat_nr == index) {
 						if (gps->points) {
-							BKE_gpencil_free_stroke_weights(gps);
 							MEM_freeN(gps->points);
+						}
+						if (gps->dvert) {
+							BKE_gpencil_free_stroke_weights(gps);
+							MEM_freeN(gps->dvert);
 						}
 						if (gps->triangles) MEM_freeN(gps->triangles);
 						BLI_freelinkN(&gpf->strokes, gps);

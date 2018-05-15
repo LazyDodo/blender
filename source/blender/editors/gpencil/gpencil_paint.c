@@ -963,6 +963,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 
 	gps->points = MEM_callocN(sizeof(bGPDspoint) * gps->totpoints, "gp_stroke_points");
 	gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
+
 	/* initialize triangle memory to dummy data */
 	gps->triangles = MEM_callocN(sizeof(bGPDtriangle), "GP Stroke triangulation");
 	gps->flag |= GP_STROKE_RECALC_CACHES;
@@ -1248,9 +1249,14 @@ static float gp_stroke_eraser_calc_influence(tGPsdata *p, const int mval[2], con
 static void gp_free_stroke(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps)
 {
 	if (gps->points) {
-		BKE_gpencil_free_stroke_weights(gps);
 		MEM_freeN(gps->points);
 	}
+
+	if (gps->dvert) {
+		BKE_gpencil_free_stroke_weights(gps);
+		MEM_freeN(gps->dvert);
+	}
+
 	if (gps->triangles)
 		MEM_freeN(gps->triangles);
 	BLI_freelinkN(&gpf->strokes, gps);

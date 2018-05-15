@@ -472,8 +472,11 @@ static int gp_frame_clean_fill_exec(bContext *C, wmOperator *op)
 					if (gps->flag & GP_STROKE_NOFILL) {
 						/* free stroke memory arrays, then stroke itself */
 						if (gps->points) {
-							BKE_gpencil_free_stroke_weights(gps);
 							MEM_freeN(gps->points);
+						}
+						if (gps->dvert) {
+							BKE_gpencil_free_stroke_weights(gps);
+							MEM_freeN(gps->dvert);
 						}
 						MEM_SAFE_FREE(gps->triangles);
 						BLI_freelinkN(&gpf->strokes, gps);

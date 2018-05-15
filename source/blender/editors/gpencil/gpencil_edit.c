@@ -725,9 +725,13 @@ void ED_gpencil_strokes_copybuf_free(void)
 		gpsn = gps->next;
 		
 		if (gps->points) {
-			BKE_gpencil_free_stroke_weights(gps);
 			MEM_freeN(gps->points);
 		}
+		if (gps->dvert) {
+			BKE_gpencil_free_stroke_weights(gps);
+			MEM_freeN(gps->dvert);
+		}
+
 		MEM_SAFE_FREE(gps->triangles);
 
 		BLI_freelinkN(&gp_strokes_copypastebuf, gps);
@@ -1400,8 +1404,11 @@ static int gp_delete_selected_strokes(bContext *C)
 					if (gps->flag & GP_STROKE_SELECT) {
 						/* free stroke memory arrays, then stroke itself */
 						if (gps->points) {
-							BKE_gpencil_free_stroke_weights(gps);
 							MEM_freeN(gps->points);
+						}
+						if (gps->dvert) {
+							BKE_gpencil_free_stroke_weights(gps);
+							MEM_freeN(gps->dvert);
 						}
 						MEM_SAFE_FREE(gps->triangles);
 						BLI_freelinkN(&gpf->strokes, gps);
@@ -1519,8 +1526,11 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 						if (tot <= 0) {
 							/* remove the entire stroke */
 							if (gps->points) {
-								BKE_gpencil_free_stroke_weights(gps);
 								MEM_freeN(gps->points);
+							}
+							if (gps->dvert) {
+								BKE_gpencil_free_stroke_weights(gps);
+								MEM_freeN(gps->dvert);
 							}
 							if (gps->triangles) {
 								MEM_freeN(gps->triangles);
@@ -1592,8 +1602,11 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 
 							/* free the old buffer */
 							if (gps->points) {
-								BKE_gpencil_free_stroke_weights(gps);
 								MEM_freeN(gps->points);
+							}
+							if (gps->dvert) {
+								BKE_gpencil_free_stroke_weights(gps);
+								MEM_freeN(gps->dvert);
 							}
 
 							/* save the new buffer */
@@ -1761,8 +1774,11 @@ void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke 
 	
 	/* Delete the old stroke */
 	if (gps->points) {
-		BKE_gpencil_free_stroke_weights(gps);
 		MEM_freeN(gps->points);
+	}
+	if (gps->dvert) {
+		BKE_gpencil_free_stroke_weights(gps);
+		MEM_freeN(gps->dvert);
 	}
 	if (gps->triangles) {
 		MEM_freeN(gps->triangles);
