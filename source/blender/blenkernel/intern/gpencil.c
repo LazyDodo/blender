@@ -542,8 +542,6 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 	}
 	BLI_assert(gps_src->totpoints == gps_dst->totpoints);
 
-	gps_dst->dvert = MEM_dupallocN(gps_src->dvert);
-
 	for (int i = 0; i < gps_src->totpoints; i++) {
 		MDeformVert *dvert_dst = &gps_dst->dvert[i];
 		MDeformVert *dvert_src = &gps_src->dvert[i];
@@ -560,6 +558,8 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src)
 	gps_dst->prev = gps_dst->next = NULL;
 
 	gps_dst->points = MEM_dupallocN(gps_src->points);
+
+	gps_dst->dvert = MEM_dupallocN(gps_src->dvert);
 	BKE_gpencil_stroke_weights_duplicate(gps_src, gps_dst);
 	
 	/* Don't clear triangles, so that modifier evaluation can just use
