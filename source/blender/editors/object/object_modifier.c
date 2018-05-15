@@ -2429,55 +2429,6 @@ void OBJECT_OT_surfacedeform_bind(wmOperatorType *ot)
 
 /************************ Fur follicle generate operator *********************/
 
-static void fur_create_guide_curves(struct HairSystem *hsys, unsigned int seed, DerivedMesh *scalp, int count)
-{
-	float area = BKE_hair_calc_surface_area(scalp);
-	float density = BKE_hair_calc_density_from_count(area, count);
-	float min_distance = BKE_hair_calc_min_distance_from_density(density);
-	MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(seed, min_distance, count, NULL, NULL);
-	
-	BKE_mesh_sample_generator_bind(gen, scalp);
-	
-	{
-		MeshSample *buffer = MEM_mallocN(sizeof(MeshSample) * count, "mesh sample buffer");
-		int totguides = BKE_mesh_sample_generate_batch(gen, buffer, count);
-		
-		{
-			BKE_hair_guide_curves_begin(hsys, totguides);
-			
-			MeshSample *sample = buffer;
-			for (int i = 0; i < totguides; ++i, ++sample)
-			{
-				BKE_hair_set_guide_curve(hsys, i, sample, 2);
-			}
-			
-			BKE_hair_guide_curves_end(hsys);
-		}
-		
-		{
-			int vertstart = 0;
-			MeshSample *sample = buffer;
-			for (int i = 0; i < totguides; ++i, ++sample)
-			{
-				float co[3], nor[3], tang[3];
-				BKE_mesh_sample_eval(scalp, sample, co, nor, tang);
-				BKE_hair_set_guide_vertex(hsys, vertstart, 0, co);
-				
-				madd_v3_v3fl(co, nor, 0.1f);
-				BKE_hair_set_guide_vertex(hsys, vertstart + 1, 0, co);
-				
-				vertstart += 2;
-			}
-		}
-		
-		MEM_freeN(buffer);
-	}
-	
-	BKE_mesh_sample_free_generator(gen);
-	
-	BKE_hair_bind_follicles(hsys, scalp);
-}
-
 static int fur_generate_follicles_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_FurModifier, 0);
@@ -2505,18 +2456,11 @@ static int fur_generate_follicles_exec(bContext *C, wmOperator *op)
 	            (unsigned int)fmd->follicle_seed,
 	            fmd->follicle_count);
 	
-	{
-		unsigned int guides_seed = fmd->follicle_seed ^ 0xFFFF;
-		fur_create_guide_curves(
-		            fmd->hair_system,
-		            guides_seed,
-		            dm,
-		            fmd->guides_count);
-	}
-
+	BKE_hair_bind_follicles(fmd->hair_system, dm);
+	
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
-
+	
 	return OPERATOR_FINISHED;
 }
 

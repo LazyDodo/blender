@@ -1667,9 +1667,6 @@ typedef struct FurModifierData {
 	int follicle_seed;
 	int follicle_count;
 
-	int guides_count;
-	int pad2;
-
 	ListBase guide_curves;
 } FurModifierData;
 

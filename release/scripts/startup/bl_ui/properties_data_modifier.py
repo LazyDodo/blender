@@ -1566,13 +1566,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label("Follicles:")
         col.prop(md, "follicle_seed")
         col.prop(md, "follicle_count")
+        col.operator("object.fur_generate_follicles", text="Generate")
 
         col = split.column()
-        col.label("Guide Curves:")
-        col.prop(md, "guides_count")
-
-        col = layout.column()
-        col.operator("object.fur_generate_follicles", text="Generate")
 
         col.separator()
 

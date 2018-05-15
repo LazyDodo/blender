@@ -60,7 +60,6 @@ static void initData(ModifierData *md)
 	fmd->flag |= 0;
 	
 	fmd->follicle_count = 100000;
-	fmd->guides_count = 1000;
 	
 	fmd->draw_settings = BKE_hair_draw_settings_new();
 }
