@@ -690,32 +690,37 @@ static bool raycastObj(
 {
 	bool retval = false;
 
-	if (ob->type == OB_MESH) {
-		if (use_obedit) {
-			BMEditMesh *em = BKE_editmesh_from_object(ob);
-			retval = raycastEditMesh(
-			        sctx,
-			        ray_start, ray_dir,
-			        ob, em, obmat, ob_index,
-			        ray_depth, r_loc, r_no, r_index, r_hit_list);
-		}
-		else {
-			retval = raycastMesh(
-			        sctx,
-			        ray_start, ray_dir,
-			        ob, ob->data, obmat, ob_index,
-			        ray_depth, r_loc, r_no, r_index, r_hit_list);
-		}
+	switch (ob->type) {
+		case OB_MESH:
+			if (use_obedit) {
+				BMEditMesh *em = BKE_editmesh_from_object(ob);
+				retval = raycastEditMesh(
+				        sctx,
+				        ray_start, ray_dir,
+				        ob, em, obmat, ob_index,
+				        ray_depth, r_loc, r_no, r_index, r_hit_list);
+			}
+			else {
+				retval = raycastMesh(
+				        sctx,
+				        ray_start, ray_dir,
+				        ob, ob->data, obmat, ob_index,
+				        ray_depth, r_loc, r_no, r_index, r_hit_list);
+			}
+			break;
 	}
 
 	if (retval) {
 		if (r_ob) {
 			*r_ob = ob;
+		}
+		if (r_obmat) {
 			copy_m4_m4(r_obmat, obmat);
 		}
+		return true;
 	}
 
-	return retval;
+	return false;
 }
 
 
@@ -896,7 +901,7 @@ static void cb_mlooptri_verts_get(
 }
 
 static bool test_projected_vert_dist(
-        struct DistProjectedAABBPrecalc *neasrest_precalc,
+        const struct DistProjectedAABBPrecalc *neasrest_precalc,
         const float depth_range[2],
         const bool is_persp, const float co[3],
         float *dist_px_sq, float r_co[3])
@@ -928,7 +933,7 @@ static bool test_projected_vert_dist(
 }
 
 static bool test_projected_edge_dist(
-        struct DistProjectedAABBPrecalc *neasrest_precalc,
+        const struct DistProjectedAABBPrecalc *neasrest_precalc,
         const float depth_range[2], const bool is_persp,
         const float va[3], const float vb[3],
         float *dist_px_sq, float r_co[3])
@@ -974,7 +979,7 @@ typedef struct Nearest2dUserData {
 
 static void cb_walk_leaf_snap_vert(
         void *userdata, int index,
-        struct DistProjectedAABBPrecalc *precalc,
+        const struct DistProjectedAABBPrecalc *precalc,
         BVHTreeNearest *nearest)
 {
 	struct Nearest2dUserData *data = userdata;
@@ -997,7 +1002,7 @@ static void cb_walk_leaf_snap_vert(
 
 static void cb_walk_leaf_snap_edge(
         void *userdata, int index,
-        struct DistProjectedAABBPrecalc *precalc,
+        const struct DistProjectedAABBPrecalc *precalc,
         BVHTreeNearest *nearest)
 {
 	struct Nearest2dUserData *data = userdata;
@@ -1034,7 +1039,7 @@ static void cb_walk_leaf_snap_edge(
 
 static void cb_walk_leaf_snap_tri(
         void *userdata, int index,
-        struct DistProjectedAABBPrecalc *precalc,
+        const struct DistProjectedAABBPrecalc *precalc,
         BVHTreeNearest *nearest)
 {
 	struct Nearest2dUserData *data = userdata;
@@ -1767,71 +1772,75 @@ static bool snapEditMesh(
  */
 static bool snapObject(
         SnapObjectContext *sctx, SnapData *snapdata,
-        Object *ob, float obmat[4][4],
-        bool use_obedit,
+        Object *ob, float obmat[4][4], bool use_obedit,
         /* read/write args */
         float *ray_depth, float *dist_px,
         /* return args */
         float r_loc[3], float r_no[3],
         Object **r_ob, float r_obmat[4][4])
 {
+	BLI_assert(snapdata->snap_to != SCE_SNAP_MODE_FACE);
 	bool retval = false;
 
-	if (ob->type == OB_MESH) {
-		BMEditMesh *em;
+	switch (ob->type) {
+		case OB_MESH:
+			if (use_obedit) {
+				BMEditMesh *em = BKE_editmesh_from_object(ob);
+				retval = snapEditMesh(
+				        sctx, snapdata, ob, em, obmat,
+				        ray_depth, dist_px,
+				        r_loc, r_no);
+			}
+			else {
+				retval = snapMesh(
+				        sctx, snapdata, ob, ob->data, obmat,
+				        ray_depth, dist_px,
+				        r_loc, r_no);
+			}
+			break;
 
-		if (use_obedit) {
-			em = BKE_editmesh_from_object(ob);
-			retval = snapEditMesh(
-			        sctx, snapdata, ob, em, obmat,
-			        ray_depth, dist_px,
-			        r_loc, r_no);
-		}
-		else {
-			retval = snapMesh(
-			        sctx, snapdata, ob, ob->data, obmat,
-			        ray_depth, dist_px,
-			        r_loc, r_no);
-		}
-	}
-	else if (snapdata->snap_to != SCE_SNAP_MODE_FACE) {
-		if (ob->type == OB_ARMATURE) {
+		case OB_ARMATURE:
 			retval = snapArmature(
 			        snapdata,
 			        ob, ob->data, obmat,
 			        ray_depth, dist_px,
 			        r_loc, r_no);
-		}
-		else if (ob->type == OB_CURVE) {
+			break;
+
+		case OB_CURVE:
 			retval = snapCurve(
 			        snapdata,
 			        ob, obmat, use_obedit,
 			        ray_depth, dist_px,
 			        r_loc, r_no);
-		}
-		else if (ob->type == OB_EMPTY) {
+			break;
+
+		case OB_EMPTY:
 			retval = snapEmpty(
-			        snapdata,
-			        ob, obmat,
+			        snapdata, ob, obmat,
 			        ray_depth, dist_px,
 			        r_loc, r_no);
-		}
-		else if (ob->type == OB_CAMERA) {
+			break;
+
+		case OB_CAMERA:
 			retval = snapCamera(
 			        sctx, snapdata, ob, obmat,
 			        ray_depth, dist_px,
 			        r_loc, r_no);
-		}
+			break;
 	}
 
 	if (retval) {
 		if (r_ob) {
 			*r_ob = ob;
+		}
+		if (r_obmat) {
 			copy_m4_m4(r_obmat, obmat);
 		}
+		return true;
 	}
 
-	return retval;
+	return false;
 }
 
 

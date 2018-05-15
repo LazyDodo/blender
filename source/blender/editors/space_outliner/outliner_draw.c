@@ -2013,7 +2013,4 @@ void draw_outliner(const bContext *C)
 
 	UI_block_end(C, block);
 	UI_block_draw(C, block);
-
-	/* clear flag that allows quick redraws */
-	soops->storeflag &= ~SO_TREESTORE_REDRAW;
 } 
