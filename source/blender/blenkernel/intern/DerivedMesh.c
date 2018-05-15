@@ -2438,7 +2438,7 @@ static void mesh_calc_modifiers(
 	 */
 	Mesh *final_mesh;
 
-	if (mesh && deformedVerts) {
+	if (mesh) {
 		final_mesh = mesh;
 
 		if (deformedVerts) {
