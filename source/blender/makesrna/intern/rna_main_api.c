@@ -269,7 +269,7 @@ static Material *rna_Main_materials_new(Main *bmain, const char *name)
 	return (Material *)id;
 }
 
-static void rna_Main_materials_gpencil_data(Main *bmain, struct PointerRNA *ma)
+static void rna_Main_materials_gpencil_data(Main *UNUSED(bmain), struct PointerRNA *ma)
 {
 	BKE_material_init_gpencil_settings((Material *)ma);
 }
