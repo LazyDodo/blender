@@ -638,6 +638,7 @@ static int rna_GPencil_info_total_points(PointerRNA *ptr)
 
 #else
 
+#if 0 /* GPXXX */
 /* information of vertex groups by point */
 static void rna_def_gpencil_point_weight(BlenderRNA *brna)
 {
@@ -659,6 +660,7 @@ static void rna_def_gpencil_point_weight(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Weight", "Factor of weight for this vertex group");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 }
+#endif
 
 static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
 {
@@ -705,11 +707,6 @@ static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Select", "Point is selected for viewport editing");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
-	/* Weights */
-	prop = RNA_def_property(srna, "weights", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "weights", "totweight");
-	RNA_def_property_struct_type(prop, "GPencilPointWeight");
-	RNA_def_property_ui_text(prop, "Point Weights", "Information of Vertex Groups by point");
 }
 
 static void rna_def_gpencil_stroke_points_api(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1470,7 +1467,7 @@ void RNA_def_gpencil(BlenderRNA *brna)
 	rna_def_gpencil_stroke_point(brna);
 	rna_def_gpencil_triangle(brna);
 	
-	rna_def_gpencil_point_weight(brna);
+	// GPXXX rna_def_gpencil_point_weight(brna);
 }
 
 #endif

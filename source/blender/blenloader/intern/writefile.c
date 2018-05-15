@@ -2675,10 +2675,7 @@ static void write_gpencil(WriteData *wd, bGPdata *gpd)
 				for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 					gps->colorname[0] = '\0'; /* field deprecated, clear data */
 					writestruct(wd, DATA, bGPDspoint, gps->totpoints, gps->points);
-					for (int i = 0; i < gps->totpoints; ++i) {
-						bGPDspoint *pt = &gps->points[i];
-						writestruct(wd, DATA, bGPDweight, pt->totweight, pt->weights);
-					}
+					write_dverts(wd, gps->totpoints, gps->dvert);
 				}
 			}
 		}

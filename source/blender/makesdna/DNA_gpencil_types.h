@@ -37,21 +37,13 @@
 struct AnimData;
 struct CurveMapping;
 struct GHash;
+struct MDeformVert;
 
 /* TODO: add size as userprefs parameter */
 #define GP_OBGPENCIL_DEFAULT_SIZE  0.2f 
 #define GP_DEFAULT_PIX_FACTOR 1.0f
 #define GP_DEFAULT_GRID_SIZE 100 
 #define GP_MAX_INPUT_SAMPLES 10
-
-/* ***************************************** */
-/* GP Point Weights */
-
-/* Vertex weight info for one GP point, in one group */
-typedef struct bGPDweight {
-	int def_nr;            /* vertex group index */
-	float weight;          /* weight factor */
-} bGPDweight;
 
 /* ***************************************** */
 /* GP Stroke Points */
@@ -70,9 +62,6 @@ typedef struct bGPDspoint {
 
 	float uv_fac;           /* factor of uv along the stroke */
 	float uv_rot;           /* uv rotation for dot mode */
-
-	int totweight;          /* number of vertexgroups used */
-	bGPDweight *weights;    /* vertex weight data */
 } bGPDspoint;
 
 /* bGPDspoint->flag */
@@ -180,6 +169,8 @@ typedef struct bGPDstroke {
 
 	int mat_nr;             /* material index */
 	char pad_[4];
+
+	struct MDeformVert *dvert;    /* vertex weight data */
 
 	bGPDstroke_runtime runtime;
 	char pad_1[4];

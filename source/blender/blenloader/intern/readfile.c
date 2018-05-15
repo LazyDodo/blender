@@ -6311,7 +6311,6 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
 	bGPDstroke *gps;
-	bGPDspoint *pt;
 	bGPDpalette *palette;
 
 	/* we must firstly have some grease-pencil data to link! */
@@ -6354,15 +6353,9 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 			for (gps = gpf->strokes.first; gps; gps = gps->next) {
 				/* relink stroke points array */
 				gps->points = newdataadr(fd, gps->points);
-				
 				/* relink point weight data */
-				for (int i = 0; i < gps->totpoints; ++i) {
-					pt = &gps->points[i];
-					if (pt->totweight > 0) {
-						pt->weights = newdataadr(fd, pt->weights);
-					}
-				}
-				
+				direct_link_dverts(fd,gps->totpoints, gps->dvert);
+
 				/* the triangulation is not saved, so need to be recalculated */
 				gps->triangles = NULL;
 				gps->tot_triangles = 0;

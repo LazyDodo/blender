@@ -47,6 +47,7 @@
 #include "BLT_translation.h"
 
 #include "DNA_anim_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_material_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_userdef_types.h"
@@ -1283,7 +1284,7 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 {
 	bGPdata *gpd = ob->data;
 	bGPDspoint *pt = NULL;
-	bGPDweight *gpw = NULL;
+	MDeformWeight *gpw = NULL;
 	const int def_nr = BLI_findindex(&ob->defbase, defgroup);
 
 	/* Remove points data */
@@ -1314,10 +1315,10 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 }
 
 /* add a new weight */
-bGPDweight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float weight)
+MDeformWeight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float weight)
 {
-	bGPDweight *new_gpw = NULL;
-	bGPDweight *tmp_gpw;
+	MDeformWeight *new_gpw = NULL;
+	MDeformWeight *tmp_gpw;
 
 	/* need to verify if was used before to update */
 	for (int i = 0; i < pt->totweight; i++) {
@@ -1330,10 +1331,10 @@ bGPDweight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float
 
 	pt->totweight++;
 	if (pt->totweight == 1) {
-		pt->weights = MEM_callocN(sizeof(bGPDweight), "gp_weight");
+		pt->weights = MEM_callocN(sizeof(MDeformWeight), "gp_weight");
 	}
 	else {
-		pt->weights = MEM_reallocN(pt->weights, sizeof(bGPDweight) * pt->totweight);
+		pt->weights = MEM_reallocN(pt->weights, sizeof(MDeformWeight) * pt->totweight);
 	}
 	new_gpw = &pt->weights[pt->totweight - 1];
 	new_gpw->def_nr = index;
@@ -1345,7 +1346,7 @@ bGPDweight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float
 /* return the weight if use index  or -1*/
 float BKE_gpencil_vgroup_use_index(bGPDspoint *pt, int index)
 {
-	bGPDweight *gpw;
+	MDeformWeight *gpw;
 	for (int i = 0; i < pt->totweight; i++) {
 		gpw = &pt->weights[i];
 		if (gpw->def_nr == index) {
@@ -1372,13 +1373,13 @@ bool BKE_gpencil_vgroup_remove_point_weight(bGPDspoint *pt, int index)
 	}
 
 	/* realloc weights */
-	bGPDweight *tmp = MEM_dupallocN(pt->weights);
+	MDeformWeight *tmp = MEM_dupallocN(pt->weights);
 	MEM_SAFE_FREE(pt->weights);
-	pt->weights = MEM_callocN(sizeof(bGPDweight) * pt->totweight - 1, "gp_weights");
+	pt->weights = MEM_callocN(sizeof(MDeformWeight) * pt->totweight - 1, "gp_weights");
 
 	for (int x = 0; x < pt->totweight; x++) {
-		bGPDweight *gpw = &tmp[e];
-		bGPDweight *final_gpw = &pt->weights[e];
+		MDeformWeight *gpw = &tmp[e];
+		MDeformWeight *final_gpw = &pt->weights[e];
 		if (gpw->def_nr != index) {
 			final_gpw->def_nr = gpw->def_nr;
 			final_gpw->weight = gpw->weight;

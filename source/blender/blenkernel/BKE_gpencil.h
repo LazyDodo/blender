@@ -52,6 +52,8 @@ struct SimplifyGpencilModifierData;
 struct InstanceGpencilModifierData;
 struct LatticeGpencilModifierData;
 
+struct MDeformWeight;
+
 /* ------------ Grease-Pencil API ------------------ */
 
 void BKE_gpencil_free_point_weights(struct bGPDspoint *pt);
@@ -151,7 +153,7 @@ void BKE_gpencil_centroid_3D(struct bGPdata *gpd, float r_centroid[3]);
 /* vertex groups */
 float BKE_gpencil_vgroup_use_index(struct bGPDspoint *pt, int index);
 void BKE_gpencil_vgroup_remove(struct Object *ob, struct bDeformGroup *defgroup);
-struct bGPDweight *BKE_gpencil_vgroup_add_point_weight(struct bGPDspoint *pt, int index, float weight);
+struct MDeformWeight *BKE_gpencil_vgroup_add_point_weight(struct bGPDspoint *pt, int index, float weight);
 bool BKE_gpencil_vgroup_remove_point_weight(struct bGPDspoint *pt, int index);
 void BKE_gpencil_stroke_weights_duplicate(struct bGPDstroke *gps_src, struct bGPDstroke *gps_dst);
 

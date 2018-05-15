@@ -46,6 +46,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
@@ -875,7 +876,7 @@ static bool gp_brush_weight_apply(
 	/* get current weight */
 	float curweight = 0.0f;
 	for (int i = 0; i < pt->totweight; ++i) {
-		bGPDweight *gpw = &pt->weights[i];
+		MDeformWeight *gpw = &pt->weights[i];
 		if (gpw->def_nr == gso->vrgroup) {
 			curweight = gpw->weight;
 			break;
