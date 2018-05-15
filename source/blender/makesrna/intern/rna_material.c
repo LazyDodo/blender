@@ -282,10 +282,7 @@ static void rna_GpencilColorData_stroke_image_set(PointerRNA *ptr, PointerRNA va
 	MaterialGPencilStyle *pcolor = (MaterialGPencilStyle *)ptr->data;
 	ID *id = value.data;
 
-	if (id) {
-		/* enable fake user */
-		id_fake_user_set(id);
-	}
+	id_us_plus(id);
 	pcolor->sima = (struct Image *)id;
 }
 
@@ -294,10 +291,7 @@ static void rna_GpencilColorData_fill_image_set(PointerRNA *ptr, PointerRNA valu
 	MaterialGPencilStyle *pcolor = (MaterialGPencilStyle *)ptr->data;
 	ID *id = value.data;
 
-	if (id) {
-		/* enable fake user */
-		id_fake_user_set(id);
-	}
+	id_us_plus(id);
 	pcolor->ima = (struct Image *)id;
 }
 
