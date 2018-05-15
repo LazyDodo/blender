@@ -654,7 +654,7 @@ static void rna_def_gpencil_point_weight(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_property(srna, "weight", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "factor");
+	RNA_def_property_float_sdna(prop, NULL, "weight");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Weight", "Factor of weight for this vertex group");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");

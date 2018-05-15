@@ -1535,11 +1535,11 @@ static int gpencil_vertex_group_invert_exec(bContext *C, wmOperator *UNUSED(op))
 			if (pt->weights == NULL) {
 				BKE_gpencil_vgroup_add_point_weight(pt, def_nr, 1.0f);
 			}
-			else if (pt->weights->factor == 1.0f) {
+			else if (pt->weights->weight == 1.0f) {
 				BKE_gpencil_vgroup_remove_point_weight(pt, def_nr);
 			}
 			else {
-				pt->weights->factor = 1.0f - pt->weights->factor;
+				pt->weights->weight = 1.0f - pt->weights->weight;
 			}
 		}
 	}

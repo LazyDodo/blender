@@ -50,7 +50,7 @@ struct GHash;
 /* Vertex weight info for one GP point, in one group */
 typedef struct bGPDweight {
 	int def_nr;            /* vertex group index */
-	float factor;         /* weight factor */
+	float weight;          /* weight factor */
 } bGPDweight;
 
 /* ***************************************** */

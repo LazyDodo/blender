@@ -1323,7 +1323,7 @@ bGPDweight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float
 	for (int i = 0; i < pt->totweight; i++) {
 		tmp_gpw = &pt->weights[i];
 		if (tmp_gpw->def_nr == index) {
-			tmp_gpw->factor = weight;
+			tmp_gpw->weight = weight;
 			return tmp_gpw;
 		}
 	}
@@ -1337,7 +1337,7 @@ bGPDweight *BKE_gpencil_vgroup_add_point_weight(bGPDspoint *pt, int index, float
 	}
 	new_gpw = &pt->weights[pt->totweight - 1];
 	new_gpw->def_nr = index;
-	new_gpw->factor = weight;
+	new_gpw->weight = weight;
 
 	return new_gpw;
 }
@@ -1349,7 +1349,7 @@ float BKE_gpencil_vgroup_use_index(bGPDspoint *pt, int index)
 	for (int i = 0; i < pt->totweight; i++) {
 		gpw = &pt->weights[i];
 		if (gpw->def_nr == index) {
-			return gpw->factor;
+			return gpw->weight;
 		}
 	}
 	return -1.0f;
@@ -1381,7 +1381,7 @@ bool BKE_gpencil_vgroup_remove_point_weight(bGPDspoint *pt, int index)
 		bGPDweight *final_gpw = &pt->weights[e];
 		if (gpw->def_nr != index) {
 			final_gpw->def_nr = gpw->def_nr;
-			final_gpw->factor = gpw->factor;
+			final_gpw->weight = gpw->weight;
 			e++;
 		}
 	}
