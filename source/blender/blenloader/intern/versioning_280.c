@@ -977,8 +977,8 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 							for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 								for (int i = 0; i < gps->totpoints; ++i) {
 									bGPDspoint *pt = &gps->points[i];
-									pt->totweight = 0;
-									pt->weights = NULL;
+									dvert->totweight = 0;
+									dvert->dw = NULL;
 								}
 							}
 						}

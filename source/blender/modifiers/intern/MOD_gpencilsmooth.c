@@ -30,6 +30,7 @@
 
 #include <stdio.h>
 
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_modifier_types.h"
@@ -82,8 +83,10 @@ static void gp_deformStroke(
 		for (int r = 0; r < mmd->step; r++) {
 			for (int i = 0; i < gps->totpoints; i++) {
 				pt = &gps->points[i];
+				MDeformVert *dvert = &gps->dvert[i];
+
 				/* verify vertex group */
-				weight = get_modifier_point_weight(pt, (int)(!(mmd->flag & GP_SMOOTH_INVERT_VGROUP) == 0), vindex);
+				weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_SMOOTH_INVERT_VGROUP) == 0), vindex);
 				if (weight < 0) {
 					continue;
 				}

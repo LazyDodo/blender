@@ -38,6 +38,7 @@
 #include "BLI_math_color.h"
 #include "BLI_rand.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -103,12 +104,12 @@ bool is_stroke_affected_by_modifier(
 }
 
 /* verify if valid vertex group *and return weight */
-float get_modifier_point_weight(bGPDspoint *pt, int inverse, int vindex)
+float get_modifier_point_weight(MDeformVert *dvert, int inverse, int vindex)
 {
 	float weight = 1.0f;
 
 	if (vindex >= 0) {
-		weight = BKE_gpencil_vgroup_use_index(pt, vindex);
+		weight = BKE_gpencil_vgroup_use_index(dvert, vindex);
 		if ((weight >= 0.0f) && (inverse == 1)) {
 			return -1.0f;
 		}

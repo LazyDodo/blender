@@ -35,6 +35,7 @@
 #include "BLI_math_vector.h"
 #include "BLI_rand.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -87,6 +88,7 @@ static void gp_deformStroke(
 {
 	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 	bGPDspoint *pt0, *pt1;
+	MDeformVert *dvert;
 	float shift, vran, vdir;
 	float normal[3];
 	float vec1[3], vec2[3];
@@ -119,16 +121,19 @@ static void gp_deformStroke(
 
 		/* last point is special */
 		if (i == gps->totpoints) {
+			dvert = &gps->dvert[i - 2];
 			pt0 = &gps->points[i - 2];
 			pt1 = &gps->points[i - 1];
 		}
 		else {
+			dvert = &gps->dvert[i - 1];
 			pt0 = &gps->points[i - 1];
 			pt1 = &gps->points[i];
+
 		}
 
 		/* verify vertex group */
-		weight = get_modifier_point_weight(pt0, (int)(!(mmd->flag & GP_NOISE_INVERT_VGROUP) == 0), vindex);
+		weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_NOISE_INVERT_VGROUP) == 0), vindex);
 		if (weight < 0) {
 			continue;
 		}

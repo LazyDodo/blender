@@ -45,6 +45,7 @@
 #include "rna_internal.h"
 
 #include "WM_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "ED_gpencil.h"
 
@@ -409,16 +410,21 @@ static void rna_GPencil_stroke_point_add(bGPDstroke *stroke, int count, float pr
 		stroke->points = MEM_recallocN_id(stroke->points,
 		                                  sizeof(bGPDspoint) * (stroke->totpoints + count),
 		                                  "gp_stroke_points");
-		
+		stroke->points = MEM_recallocN_id(stroke->dvert,
+										  sizeof(MDeformVert) * (stroke->totpoints + count),
+										  "gp_stroke_weight");
+
 		/* init the pressure and strength values so that old scripts won't need to
 		 * be modified to give these initial values...
 		 */
 		for (int i = 0; i < count; i++) {
 			bGPDspoint *pt = stroke->points + (stroke->totpoints + i);
+			MDeformVert *dvert = stroke->dvert + (stroke->totpoints + i);
 			pt->pressure = pressure;
 			pt->strength = strength;
-			pt->totweight = 0;
-			pt->weights = NULL;
+
+			dvert->totweight = 0;
+			dvert->dw = NULL;
 		}
 		
 		stroke->totpoints += count;

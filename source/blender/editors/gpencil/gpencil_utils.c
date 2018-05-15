@@ -40,6 +40,7 @@
 #include "BLT_translation.h"
 #include "BLI_rand.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_object_types.h"
@@ -937,16 +938,20 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 		for (int i = oldtotpoints - 1; i > 0; i--) {
 			bGPDspoint *pt = &temp_points[i];
 			bGPDspoint *pt_final = &gps->points[i2];
+			MDeformVert *dvert = &gps->dvert[i];
+			MDeformVert *dvert_final = &gps->dvert[i2];
 
 			copy_v3_v3(&pt_final->x, &pt->x);
 			pt_final->pressure = pt->pressure;
 			pt_final->strength = pt->strength;
 			pt_final->time = pt->time;
 			pt_final->flag = pt->flag;
-			pt_final->totweight = pt->totweight;
-			pt_final->weights = pt->weights;
 			pt_final->uv_fac = pt->uv_fac;
 			pt_final->uv_rot = pt->uv_rot;
+
+			dvert_final->totweight = dvert->totweight;
+			dvert_final->dw = dvert->dw;
+
 			i2 -= 2;
 		}
 		/* interpolate mid points */
@@ -955,6 +960,7 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 			bGPDspoint *pt = &temp_points[i];
 			bGPDspoint *next = &temp_points[i + 1];
 			bGPDspoint *pt_final = &gps->points[i2];
+			MDeformVert *dvert_final = &gps->dvert[i2];
 
 			/* add a half way point */
 			interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
@@ -962,10 +968,11 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 			pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
 			CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 			pt_final->time = interpf(pt->time, next->time, 0.5f);
-			pt_final->totweight = 0;
-			pt_final->weights = NULL;
 			pt_final->uv_fac = interpf(pt->uv_fac, next->uv_fac, 0.5f);
 			pt_final->uv_rot = interpf(pt->uv_rot, next->uv_rot, 0.5f);
+
+			dvert_final->totweight = 0;
+			dvert_final->dw = NULL;
 
 			i2 += 2;
 		}
@@ -1237,8 +1244,9 @@ void ED_gpencil_vgroup_assign(bContext *C, Object *ob, float weight)
 		if (gps->flag & GP_STROKE_SELECT) {
 			for (int i = 0; i < gps->totpoints; i++) {
 				bGPDspoint *pt = &gps->points[i];
+				MDeformVert *dvert = &gps->dvert[i];
 				if (pt->flag & GP_SPOINT_SELECT) {
-					BKE_gpencil_vgroup_add_point_weight(pt, def_nr, weight);
+					BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, weight);
 				}
 			}
 		}
@@ -1257,8 +1265,10 @@ void ED_gpencil_vgroup_remove(bContext *C, Object *ob)
 	{
 		for (int i = 0; i < gps->totpoints; i++) {
 			bGPDspoint *pt = &gps->points[i];
-			if ((pt->flag & GP_SPOINT_SELECT) && (pt->totweight > 0)) {
-				BKE_gpencil_vgroup_remove_point_weight(pt, def_nr);
+			MDeformVert *dvert = &gps->dvert[i];
+
+			if ((pt->flag & GP_SPOINT_SELECT) && (dvert->totweight > 0)) {
+				BKE_gpencil_vgroup_remove_point_weight(dvert, def_nr);
 			}
 		}
 	}
@@ -1276,7 +1286,9 @@ void ED_gpencil_vgroup_select(bContext *C, Object *ob)
 	{
 		for (int i = 0; i < gps->totpoints; i++) {
 			bGPDspoint *pt = &gps->points[i];
-			if (BKE_gpencil_vgroup_use_index(pt, def_nr) > -1.0f) {
+			MDeformVert *dvert = &gps->dvert[i];
+
+			if (BKE_gpencil_vgroup_use_index(dvert, def_nr) > -1.0f) {
 				pt->flag |= GP_SPOINT_SELECT;
 				gps->flag |= GP_STROKE_SELECT;
 			}
@@ -1296,7 +1308,9 @@ void ED_gpencil_vgroup_deselect(bContext *C, Object *ob)
 	{
 		for (int i = 0; i < gps->totpoints; i++) {
 			bGPDspoint *pt = &gps->points[i];
-			if (BKE_gpencil_vgroup_use_index(pt, def_nr) > -1.0f) {
+			MDeformVert *dvert = &gps->dvert[i];
+
+			if (BKE_gpencil_vgroup_use_index(dvert, def_nr) > -1.0f) {
 				pt->flag &= ~GP_SPOINT_SELECT;
 				gps->flag |= GP_STROKE_SELECT;
 			}

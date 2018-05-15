@@ -30,6 +30,7 @@
 #include "BLI_polyfill_2d.h"
 #include "BLI_math_color.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_view3d_types.h"
@@ -482,13 +483,15 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 
 	/* Draw all the stroke points (selected or not) */
 	bGPDspoint *pt = gps->points;
+	MDeformVert *dvert = gps->dvert;
+
 	int idx = 0;
 	float fcolor[4];
 	float fsize = 0;
-	for (int i = 0; i < gps->totpoints; i++, pt++) {
+	for (int i = 0; i < gps->totpoints; i++, pt++, dvert++) {
 		/* weight paint */
 		if (is_weight_paint) {
-			float weight = BKE_gpencil_vgroup_use_index(pt, vgindex);
+			float weight = BKE_gpencil_vgroup_use_index(dvert, vgindex);
 			CLAMP(weight, 0.0f, 1.0f);
 			float hue = 2.0f * (1.0f - weight) / 3.0f;
 			hsv_to_rgb(hue, 1.0f, 1.0f, &selectColor[0], &selectColor[1], &selectColor[2]);
@@ -557,12 +560,14 @@ Gwn_Batch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED
 
 	/* Draw all the stroke lines (selected or not) */
 	bGPDspoint *pt = gps->points;
+	MDeformVert *dvert = gps->dvert;
+
 	int idx = 0;
 	float fcolor[4];
-	for (int i = 0; i < gps->totpoints; i++, pt++) {
+	for (int i = 0; i < gps->totpoints; i++, pt++, dvert++) {
 		/* weight paint */
 		if (is_weight_paint) {
-			float weight = BKE_gpencil_vgroup_use_index(pt, vgindex);
+			float weight = BKE_gpencil_vgroup_use_index(dvert, vgindex);
 			CLAMP(weight, 0.0f, 1.0f);
 			float hue = 2.0f * (1.0f - weight) / 3.0f;
 			hsv_to_rgb(hue, 1.0f, 1.0f, &selectColor[0], &selectColor[1], &selectColor[2]);

@@ -1524,7 +1524,7 @@ static int gpencil_vertex_group_invert_exec(bContext *C, wmOperator *UNUSED(op))
 	if (ELEM(NULL, ts, ob, ob->data))
 		return OPERATOR_CANCELLED;
 
-	bGPDspoint *pt;
+	MDeformVert *dvert;
 	const int def_nr = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, def_nr))
 		return OPERATOR_CANCELLED;
@@ -1532,15 +1532,15 @@ static int gpencil_vertex_group_invert_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
 	{
 		for (int i = 0; i < gps->totpoints; i++) {
-			pt = &gps->points[i];
-			if (pt->weights == NULL) {
-				BKE_gpencil_vgroup_add_point_weight(pt, def_nr, 1.0f);
+			dvert = &gps->dvert[i];
+			if (dvert->dw == NULL) {
+				BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, 1.0f);
 			}
-			else if (pt->weights->weight == 1.0f) {
-				BKE_gpencil_vgroup_remove_point_weight(pt, def_nr);
+			else if (dvert->dw->weight == 1.0f) {
+				BKE_gpencil_vgroup_remove_point_weight(dvert, def_nr);
 			}
 			else {
-				pt->weights->weight = 1.0f - pt->weights->weight;
+				dvert->dw->weight = 1.0f - dvert->dw->weight;
 			}
 		}
 	}
@@ -1583,6 +1583,7 @@ static int gpencil_vertex_group_smooth_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	bGPDspoint *pta, *ptb, *ptc;
+	MDeformVert *dverta, *dvertb;
 
 	const int def_nr = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, def_nr))
@@ -1595,12 +1596,15 @@ static int gpencil_vertex_group_smooth_exec(bContext *C, wmOperator *op)
 				/* previous point */
 				if (i > 0) {
 					pta = &gps->points[i - 1];
+					dverta = &gps->dvert[i - 1];
 				}
 				else {
 					pta = &gps->points[i];
+					dverta = &gps->dvert[i];
 				}
 				/* current */
 				ptb = &gps->points[i];
+				dvertb = &gps->dvert[i];
 				/* next point */
 				if (i + 1 < gps->totpoints) {
 					ptc = &gps->points[i + 1];
@@ -1609,12 +1613,10 @@ static int gpencil_vertex_group_smooth_exec(bContext *C, wmOperator *op)
 					ptc = &gps->points[i];
 				}
 
-				float wa = BKE_gpencil_vgroup_use_index(pta, def_nr);
-				float wb = BKE_gpencil_vgroup_use_index(ptb, def_nr);
-				float wc = BKE_gpencil_vgroup_use_index(ptc, def_nr);
+				float wa = BKE_gpencil_vgroup_use_index(dverta, def_nr);
+				float wb = BKE_gpencil_vgroup_use_index(dvertb, def_nr);
 				CLAMP_MIN(wa, 0.0f);
 				CLAMP_MIN(wb, 0.0f);
-				CLAMP_MIN(wc, 0.0f);
 
 				/* the optimal value is the corresponding to the interpolation of the weight
 				*  at the distance of point b
@@ -1623,7 +1625,7 @@ static int gpencil_vertex_group_smooth_exec(bContext *C, wmOperator *op)
 				const float optimal = interpf(wa, wb, opfac);
 				/* Based on influence factor, blend between original and optimal */
 				wb = interpf(wb, optimal, fac);
-				BKE_gpencil_vgroup_add_point_weight(ptb, def_nr, wb);
+				BKE_gpencil_vgroup_add_point_weight(dvertb, def_nr, wb);
 			}
 		}
 	}
@@ -1812,11 +1814,11 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 					for (bGPDlayer *gpl_src = gpd->layers.first; gpl_src; gpl_src = gpl_src->next) {
 						for (bGPDframe *gpf = gpl_src->frames.first; gpf; gpf = gpf->next) {
 							for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-								bGPDspoint *pt;
+								MDeformVert *dvert;
 								int i;
-								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-									if ((pt->weights) && (pt->weights->def_nr == old_idx)) {
-										pt->weights->def_nr = idx;
+								for (i = 0, dvert = gps->dvert; i < gps->totpoints; i++, dvert++) {
+									if ((dvert->dw) && (dvert->dw->def_nr == old_idx)) {
+										dvert->dw->def_nr = idx;
 									}
 								}
 							}

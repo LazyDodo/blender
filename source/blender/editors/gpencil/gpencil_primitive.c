@@ -46,6 +46,7 @@
 
 #include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
@@ -334,16 +335,19 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* convert screen-coordinates to 3D coordinates */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
+		MDeformVert *dvert = &gps->dvert[i];
 		tGPspoint *p2d = &points2D[i];
-		
+
+
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->v3d, tgpi->ob, tgpi->gpl, p2d, NULL, &pt->x);
 
 		pt->pressure = 1.0f;
 		pt->strength = tgpi->brush->draw_strength;
 		pt->time = 0.0f;
-		pt->totweight = 0;
-		pt->weights = NULL;
+
+		dvert->totweight = 0;
+		dvert->dw = NULL;
 	}
 	
 	/* if axis locked, reproject to plane locked */

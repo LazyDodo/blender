@@ -36,6 +36,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_math_vector.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -210,6 +211,7 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 
 	/* adding points marked */
 	bGPDspoint *old_points = MEM_dupallocN(gps->points);
+	MDeformVert *old_dvert = MEM_dupallocN(gps->dvert);
 
 	/* resize gps */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
@@ -219,18 +221,24 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 	for (int i = 0; i < totpoints; i++) {
 		bGPDspoint *old_pt = &old_points[i];
 		bGPDspoint *pt = &gps->points[j];
+
+		MDeformVert *o_dvert = &old_dvert[i];
+		MDeformVert *dvert = &gps->dvert[i];
+
 		if ((marked[i]) || (i == 0) || (i == totpoints - 1)) {
 			memcpy(pt, old_pt, sizeof(bGPDspoint));
+			memcpy(dvert, o_dvert, sizeof(MDeformVert));
 			j++;
 		}
 		else {
-			BKE_gpencil_free_point_weights(old_pt);
+			BKE_gpencil_free_point_weights(o_dvert);
 		}
 	}
 
 	gps->totpoints = j;
 
 	MEM_SAFE_FREE(old_points);
+	MEM_SAFE_FREE(old_dvert);
 	MEM_SAFE_FREE(marked);
 }
 
@@ -256,6 +264,7 @@ void BKE_gpencil_simplify_fixed(bGPDlayer *UNUSED(gpl), bGPDstroke *gps)
 
 	/* save points */
 	bGPDspoint *old_points = MEM_dupallocN(gps->points);
+	MDeformVert *old_dvert = MEM_dupallocN(gps->dvert);
 
 	/* resize gps */
 	int newtot = (gps->totpoints - 2) / 2;
@@ -265,6 +274,7 @@ void BKE_gpencil_simplify_fixed(bGPDlayer *UNUSED(gpl), bGPDstroke *gps)
 	newtot += 2;
 
 	gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * newtot);
+	gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * newtot);
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 	gps->tot_triangles = 0;
 
@@ -273,18 +283,23 @@ void BKE_gpencil_simplify_fixed(bGPDlayer *UNUSED(gpl), bGPDstroke *gps)
 		bGPDspoint *old_pt = &old_points[i];
 		bGPDspoint *pt = &gps->points[j];
 
+		MDeformVert *o_dvert = &old_dvert[i];
+		MDeformVert *dvert = &gps->dvert[i];
+
 		if ((i == 0) || (i == gps->totpoints - 1) || ((i % 2) > 0.0)) {
 			memcpy(pt, old_pt, sizeof(bGPDspoint));
+			memcpy(dvert, o_dvert, sizeof(MDeformVert));
 			j++;
 		}
 		else {
-			BKE_gpencil_free_point_weights(old_pt);
+			BKE_gpencil_free_point_weights(o_dvert);
 		}
 	}
 
 	gps->totpoints = j;
 
 	MEM_SAFE_FREE(old_points);
+	MEM_SAFE_FREE(old_dvert);
 }
 
 /* *************************************************** */

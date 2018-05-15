@@ -33,6 +33,7 @@
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -96,9 +97,10 @@ static void gp_deformStroke(
 	if (mmd->factor > 1.0f) {
 		for (int i = 0; i < gps->totpoints; i++) {
 			bGPDspoint *pt = &gps->points[i];
-			
+			MDeformVert *dvert = &gps->dvert[i];
+
 			/* verify vertex group */
-			float weight = get_modifier_point_weight(pt, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
+			float weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
 			if (weight < 0) {
 				pt->strength += mmd->factor - 1.0f;
 			}
@@ -111,13 +113,14 @@ static void gp_deformStroke(
 	else {
 		for (int i = 0; i < gps->totpoints; i++) {
 			bGPDspoint *pt = &gps->points[i];
+			MDeformVert *dvert = &gps->dvert[i];
 
 			/* verify vertex group */
 			if (mmd->vgname == NULL) {
 				pt->strength *= mmd->factor;
 			}
 			else {
-				float weight = get_modifier_point_weight(pt, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
+				float weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
 				if (weight >= 0) {
 					pt->strength *= mmd->factor * weight;
 				}

@@ -41,6 +41,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_image_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_windowmanager_types.h"
 
@@ -813,6 +814,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	}
 
 	bGPDspoint *pt;
+	MDeformVert *dvert;
 	tGPspoint *point2D;
 
 	if (tgpf->sbuffer_size == 0) {
@@ -836,7 +838,8 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	/* allocate memory for storage points */
 	gps->totpoints = tgpf->sbuffer_size;
 	gps->points = MEM_callocN(sizeof(bGPDspoint) * tgpf->sbuffer_size, "gp_stroke_points");
-	
+	gps->dvert = MEM_callocN(sizeof(MDeformVert) * tgpf->sbuffer_size, "gp_stroke_weights");
+
 	/* initialize triangle memory to dummy data */
 	gps->tot_triangles = 0;
 	gps->triangles = NULL;
@@ -852,8 +855,9 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 
 	/* add points */
 	pt = gps->points;
+	dvert = gps->dvert;
 	point2D = (tGPspoint *)tgpf->sbuffer;
-	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++) {
+	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++, dvert++) {
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint(tgpf->scene, tgpf->ar, tgpf->v3d, tgpf->ob, 
 									   tgpf->gpl, point2D, 
@@ -863,8 +867,9 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		pt->pressure = 1.0f;
 		pt->strength = 1.0f;;
 		pt->time = 0.0f;
-		pt->totweight = 0;
-		pt->weights = NULL;
+
+		dvert->totweight = 0;
+		dvert->dw = NULL;
 	}
 
 	/* smooth stroke */

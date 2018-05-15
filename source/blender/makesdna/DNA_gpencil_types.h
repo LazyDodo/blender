@@ -58,7 +58,7 @@ typedef struct bGPDspoint {
 	float pressure;			/* pressure of input device (from 0 to 1) at this point */
 	float strength;			/* color strength (used for alpha factor) */
 	float time;				/* seconds since start of stroke */
-	int flag;				/* additional options (NOTE: can shrink this field down later if needed) */
+	int flag;				/* additional options */
 
 	float uv_fac;           /* factor of uv along the stroke */
 	float uv_rot;           /* uv rotation for dot mode */

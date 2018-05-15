@@ -36,12 +36,13 @@
 struct Object;
 struct bGPDlayer;
 struct bGPDstroke;
+struct MDeformVert;
 
 bool is_stroke_affected_by_modifier(
         struct Object *ob, char *mlayername, int mpassindex, int minpoints,
         bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2);
 
-float get_modifier_point_weight(bGPDspoint *pt, int inverse, int vindex);
+float get_modifier_point_weight(struct MDeformVert *dvert, int inverse, int vindex);
 
 void gp_mod_fill_random_array(float *ar, int count);
 

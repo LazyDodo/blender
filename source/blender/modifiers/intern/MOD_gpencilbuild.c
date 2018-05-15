@@ -32,6 +32,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -115,7 +116,8 @@ static void gpf_clear_all_strokes(bGPDframe *gpf)
 static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eBuildGpencil_Transition transition)
 {
 	bGPDspoint *new_points = MEM_callocN(sizeof(bGPDspoint) * num_points, "GP Build Modifier - Reduced Points");
-	
+	MDeformVert *new_dvert = MEM_callocN(sizeof(MDeformVert) * num_points, "GP Build Modifier - Reduced Weights");
+
 	/* Which end should points be removed from */
 	// TODO: free stroke weights
 	switch (transition) {
@@ -124,11 +126,12 @@ static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eB
 		{
 			/* copy over point data */
 			memcpy(new_points, gps->points, sizeof(bGPDspoint) * num_points);
-			
+			memcpy(new_dvert, gps->dvert, sizeof(MDeformVert) * num_points);
+
 			/* free unused point weights */
 			for (int i = num_points; i < gps->totpoints; i++) {
-				bGPDspoint *pt = &gps->points[i];
-				BKE_gpencil_free_point_weights(pt);
+				MDeformVert *dvert = &gps->dvert[i];
+				BKE_gpencil_free_point_weights(dvert);
 			}
 			
 			break;
@@ -144,13 +147,14 @@ static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eB
 			
 			/* copy over point data */
 			memcpy(new_points, gps->points + offset, sizeof(bGPDspoint) * num_points);
-			
-			/* free unused point weights */
+			memcpy(new_dvert, gps->dvert + offset, sizeof(MDeformVert) * num_points);
+
+			/* free unused weights */
 			for (int i = 0; i < offset; i++) {
-				bGPDspoint *pt = &gps->points[i];
-				BKE_gpencil_free_point_weights(pt);
+				MDeformVert *dvert = &gps->dvert[i];
+				BKE_gpencil_free_point_weights(dvert);
 			}
-			
+
 			break;
 		}
 		
@@ -160,8 +164,10 @@ static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eB
 	}
 	
 	/* replace stroke geometry */
-	MEM_freeN(gps->points);
+	MEM_SAFE_FREE(gps->points);
+	MEM_SAFE_FREE(gps->dvert);
 	gps->points = new_points;
+	gps->dvert = new_dvert;
 	gps->totpoints = num_points;
 	
 	/* mark stroke as needing to have its geometry caches rebuilt */

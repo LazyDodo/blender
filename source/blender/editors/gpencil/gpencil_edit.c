@@ -47,6 +47,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
@@ -567,14 +568,18 @@ static void gp_duplicate_points(const bGPDstroke *gps, ListBase *new_strokes, co
 				
 				/* now, make a new points array, and copy of the relevant parts */
 				gpsd->points = MEM_callocN(sizeof(bGPDspoint) * len, "gps stroke points copy");
+				gpsd->dvert = MEM_callocN(sizeof(MDeformVert) * len, "gps stroke weights copy");
+
 				memcpy(gpsd->points, gps->points + start_idx, sizeof(bGPDspoint) * len);
+				memcpy(gpsd->dvert, gps->dvert + start_idx, sizeof(MDeformVert) * len);
+
 				gpsd->totpoints = len;
 				/* Copy weights */
 				int e = start_idx;
 				for (int j = 0; j < gpsd->totpoints; j++) {
-					bGPDspoint *pt_src = &gps->points[e];
-					bGPDspoint *pt_dst = &gpsd->points[j];
-					pt_dst->weights = MEM_dupallocN(pt_src->weights);
+					MDeformVert *dvert_dst = &gps->dvert[e];
+					MDeformVert *dvert_src = &gps->dvert[j];
+					dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
 					e++;
 				}
 
@@ -1462,51 +1467,52 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 					/* the stroke must have at least one point selected for any operator */
 					if (gps->flag & GP_STROKE_SELECT) {
 						bGPDspoint *pt;
+						MDeformVert *dvert = NULL;
 						int i;
 
 						int tot = gps->totpoints; /* number of points in new buffer */
 
 						/* first pass: count points to remove */
 						switch (mode) {
-						case GP_DISSOLVE_POINTS:
-							/* Count how many points are selected (i.e. how many to remove) */
-							for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-								if (pt->flag & GP_SPOINT_SELECT) {
-									/* selected point - one of the points to remove */
-									tot--;
-								}
-							}
-							break;
-						case GP_DISSOLVE_BETWEEN:
-							/* need to find first and last point selected */
-							first = -1;
-							last = 0;
-							for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-								if (pt->flag & GP_SPOINT_SELECT) {
-									if (first < 0) {
-										first = i;
+							case GP_DISSOLVE_POINTS:
+								/* Count how many points are selected (i.e. how many to remove) */
+								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+									if (pt->flag & GP_SPOINT_SELECT) {
+										/* selected point - one of the points to remove */
+										tot--;
 									}
-									last = i;
 								}
-							}
-							/* count unselected points in the range */
-							for (i = first, pt = gps->points + first; i < last; i++, pt++) {
-								if ((pt->flag & GP_SPOINT_SELECT) == 0) {
-									tot--;
+								break;
+							case GP_DISSOLVE_BETWEEN:
+								/* need to find first and last point selected */
+								first = -1;
+								last = 0;
+								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+									if (pt->flag & GP_SPOINT_SELECT) {
+										if (first < 0) {
+											first = i;
+										}
+										last = i;
+									}
 								}
-							}
-							break;
-						case GP_DISSOLVE_UNSELECT:
-							/* count number of unselected points */
-							for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-								if ((pt->flag & GP_SPOINT_SELECT) == 0) {
-									tot--;
+								/* count unselected points in the range */
+								for (i = first, pt = gps->points + first; i < last; i++, pt++) {
+									if ((pt->flag & GP_SPOINT_SELECT) == 0) {
+										tot--;
+									}
 								}
-							}
-							break;
-						default:
-							return false;
-							break;
+								break;
+							case GP_DISSOLVE_UNSELECT:
+								/* count number of unselected points */
+								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+									if ((pt->flag & GP_SPOINT_SELECT) == 0) {
+										tot--;
+									}
+								}
+								break;
+							default:
+								return false;
+								break;
 						}
 
 						/* if no points are left, we simply delete the entire stroke */
@@ -1527,49 +1533,61 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 							bGPDspoint *new_points = MEM_callocN(sizeof(bGPDspoint) * tot, "new gp stroke points copy");
 							bGPDspoint *npt = new_points;
 
-							switch (mode) {
-							case GP_DISSOLVE_POINTS:
-								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-									if ((pt->flag & GP_SPOINT_SELECT) == 0) {
-										*npt = *pt;
-										npt->weights = MEM_dupallocN(pt->weights);
-										npt++;
-									}
-								}
-								break;
-							case GP_DISSOLVE_BETWEEN:
-								/* copy first segment */
-								for (i = 0, pt = gps->points; i < first; i++, pt++) {
-									*npt = *pt;
-									npt->weights = MEM_dupallocN(pt->weights);
-									npt++;
-								}
-								/* copy segment (selected points) */
-								for (i = first, pt = gps->points + first; i < last; i++, pt++) {
-									if (pt->flag & GP_SPOINT_SELECT) {
-										*npt = *pt;
-										npt->weights = MEM_dupallocN(pt->weights);
-										npt++;
-									}
-								}
-								/* copy last segment */
-								for (i = last, pt = gps->points + last; i < gps->totpoints; i++, pt++) {
-									*npt = *pt;
-									npt->weights = MEM_dupallocN(pt->weights);
-									npt++;
-								}
+							MDeformVert *new_dvert = MEM_callocN(sizeof(MDeformVert) * tot, "new gp stroke weights copy");
+							MDeformVert *ndvert = new_dvert;
 
-								break;
-							case GP_DISSOLVE_UNSELECT:
-								/* copy any selected point */
-								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-									if (pt->flag & GP_SPOINT_SELECT) {
-										*npt = *pt;
-										npt->weights = MEM_dupallocN(pt->weights);
-										npt++;
+							switch (mode) {
+								case GP_DISSOLVE_POINTS:
+									for (i = 0, pt = gps->points, dvert = gps->dvert; i < gps->totpoints; i++, pt++, dvert++) {
+										if ((pt->flag & GP_SPOINT_SELECT) == 0) {
+											*ndvert = *dvert;
+											ndvert->dw = MEM_dupallocN(dvert->dw);
+											npt++;
+											ndvert++;
+										}
 									}
-								}
-								break;
+									break;
+								case GP_DISSOLVE_BETWEEN:
+									/* copy first segment */
+									for (i = 0, pt = gps->points, dvert = gps->dvert; i < first; i++, pt++, dvert++) {
+										*npt = *pt;
+										*ndvert = *dvert;
+										ndvert->dw = MEM_dupallocN(dvert->dw);
+										npt++;
+										ndvert++;
+									}
+									/* copy segment (selected points) */
+									for (i = first, pt = gps->points, dvert = gps->dvert + first; i < last; i++, pt++, dvert++) {
+										if (pt->flag & GP_SPOINT_SELECT) {
+											*npt = *pt;
+											*ndvert = *dvert;
+											ndvert->dw = MEM_dupallocN(dvert->dw);
+											npt++;
+											ndvert++;
+										}
+									}
+									/* copy last segment */
+									for (i = last, pt = gps->points, dvert = gps->dvert + last; i < gps->totpoints; i++, pt++, dvert++) {
+										*npt = *pt;
+										*ndvert = *dvert;
+										ndvert->dw = MEM_dupallocN(dvert->dw);
+										npt++;
+										ndvert++;
+									}
+
+									break;
+								case GP_DISSOLVE_UNSELECT:
+									/* copy any selected point */
+									for (i = 0, pt = gps->points, dvert = gps->dvert; i < gps->totpoints; i++, pt++, dvert++) {
+										if (pt->flag & GP_SPOINT_SELECT) {
+											*npt = *pt;
+											*ndvert = *dvert;
+											ndvert->dw = MEM_dupallocN(dvert->dw);
+											npt++;
+											ndvert++;
+										}
+									}
+									break;
 							}
 
 							/* free the old buffer */
@@ -1580,6 +1598,7 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 
 							/* save the new buffer */
 							gps->points = new_points;
+							gps->dvert = new_dvert;
 							gps->totpoints = tot;
 
 							/* triangles cache needs to be recalculated */
@@ -1695,9 +1714,9 @@ void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke 
 			/* Copy weights */
 			int e = island->start_idx;
 			for (int i = 0; i < new_stroke->totpoints; i++) {
-				bGPDspoint *pt_src = &gps->points[e];
-				bGPDspoint *pt_dst = &new_stroke->points[i];
-				pt_dst->weights = MEM_dupallocN(pt_src->weights);
+				MDeformVert *dvert_dst = &gps->dvert[e];
+				MDeformVert *dvert_src = &new_stroke->dvert[i];
+				dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
 				e++;
 			}
 			
@@ -2337,15 +2356,20 @@ static void gpencil_flip_stroke(bGPDstroke *gps)
 }
 
 /* Helper: copy point between strokes */
-static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, float delta[3],
+static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, int idx, float delta[3],
                                       float pressure, float strength, float deltatime)
 {
 	bGPDspoint *newpoint;
+	MDeformVert *dvert, *newdvert;
 	
 	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * (gps->totpoints + 1));
+	gps->dvert = MEM_reallocN(gps->points, sizeof(MDeformVert) * (gps->totpoints + 1));
 	gps->totpoints++;
 	
+	dvert = &gps->dvert[idx];
 	newpoint = &gps->points[gps->totpoints - 1];
+	newdvert = &gps->dvert[gps->totpoints - 1];
+
 	newpoint->x = point->x * delta[0];
 	newpoint->y = point->y * delta[1];
 	newpoint->z = point->z * delta[2];
@@ -2353,8 +2377,9 @@ static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, float 
 	newpoint->pressure = pressure;
 	newpoint->strength = strength;
 	newpoint->time = point->time + deltatime;
-	newpoint->totweight = point->totweight;
-	newpoint->weights = MEM_dupallocN(point->weights);
+	
+	newdvert->totweight = dvert->totweight;
+	newdvert->dw = MEM_dupallocN(dvert->dw);
 }
 
 /* Helper: join two strokes using the shortest distance (reorder stroke if necessary ) */
@@ -2400,18 +2425,18 @@ static void gpencil_stroke_join_strokes(bGPDstroke *gps_a, bGPDstroke *gps_b, co
 		/* 1st: add one tail point to start invisible area */
 		point = gps_a->points[gps_a->totpoints - 1];
 		deltatime = point.time;
-		gpencil_stroke_copy_point(gps_a, &point, delta, 0.0f, 0.0f, 0.0f);
+		gpencil_stroke_copy_point(gps_a, &point, gps_a->totpoints - 1, delta, 0.0f, 0.0f, 0.0f);
 		
 		/* 2nd: add one head point to finish invisible area */
 		point = gps_b->points[0];
-		gpencil_stroke_copy_point(gps_a, &point, delta, 0.0f, 0.0f, deltatime);
+		gpencil_stroke_copy_point(gps_a, &point, 0, delta, 0.0f, 0.0f, deltatime);
 	}
 	
 	/* 3rd: add all points */
 	for (i = 0, pt = gps_b->points; i < gps_b->totpoints && pt; i++, pt++) {
 		/* check if still room in buffer */
 		if (gps_a->totpoints <= GP_STROKE_BUFFER_MAX - 2) {
-			gpencil_stroke_copy_point(gps_a, pt, delta, pt->pressure, pt->strength, deltatime);
+			gpencil_stroke_copy_point(gps_a, pt, i, delta, pt->pressure, pt->strength, deltatime);
 		}
 	}
 }
@@ -2819,6 +2844,7 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				/* resize the points arrys */
 				gps->totpoints += totnewpoints;
 				gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
+				gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
 				gps->flag |= GP_STROKE_RECALC_CACHES;
 
 				/* loop and interpolate */
@@ -2827,14 +2853,17 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 					bGPDspoint *pt = &temp_points[i];
 					bGPDspoint *pt_final = &gps->points[i2];
 
+					MDeformVert *dvert_final = &gps->dvert[i2];
+
 					/* copy current point */
 					copy_v3_v3(&pt_final->x, &pt->x);
 					pt_final->pressure = pt->pressure;
 					pt_final->strength = pt->strength;
 					pt_final->time = pt->time;
 					pt_final->flag = pt->flag;
-					pt_final->totweight = 0;
-					pt_final->weights = NULL;
+
+					dvert_final->totweight = 0;
+					dvert_final->dw = NULL;
 					i2++;
 
 					/* if next point is selected add a half way point */
@@ -2842,6 +2871,7 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 						if (i + 1 < oldtotpoints) {
 							if (temp_points[i + 1].flag & GP_SPOINT_SELECT) {
 								pt_final = &gps->points[i2];
+								dvert_final = &gps->dvert[i2];
 								/* Interpolate all values */
 								bGPDspoint *next = &temp_points[i + 1];
 								interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
@@ -2850,8 +2880,9 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 								CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 								pt_final->time = interpf(pt->time, next->time, 0.5f);
 								pt_final->flag |= GP_SPOINT_SELECT;
-								pt_final->totweight = 0;
-								pt_final->weights = NULL;
+
+								dvert_final->totweight = 0;
+								dvert_final->dw = NULL;
 
 								i2++;
 							}

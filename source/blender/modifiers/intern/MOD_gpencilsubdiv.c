@@ -32,6 +32,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
@@ -87,6 +88,7 @@ static void gp_deformStroke(
 		/* resize the points arrys */
 		gps->totpoints += totnewpoints;
 		gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
+		gps->points = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
 		gps->flag |= GP_STROKE_RECALC_CACHES;
 
 		/* move points from last to first to new place */
@@ -95,13 +97,17 @@ static void gp_deformStroke(
 			bGPDspoint *pt = &temp_points[i];
 			bGPDspoint *pt_final = &gps->points[i2];
 
+			MDeformVert *dvert = &gps->dvert[i];
+			MDeformVert *dvert_final = &gps->dvert[i2];
+
 			copy_v3_v3(&pt_final->x, &pt->x);
 			pt_final->pressure = pt->pressure;
 			pt_final->strength = pt->strength;
 			pt_final->time = pt->time;
 			pt_final->flag = pt->flag;
-			pt_final->totweight = pt->totweight;
-			pt_final->weights = pt->weights;
+
+			dvert_final->totweight = dvert->totweight;
+			dvert_final->dw = dvert->dw;
 			i2 -= 2;
 		}
 		/* interpolate mid points */
@@ -110,6 +116,7 @@ static void gp_deformStroke(
 			bGPDspoint *pt = &temp_points[i];
 			bGPDspoint *next = &temp_points[i + 1];
 			bGPDspoint *pt_final = &gps->points[i2];
+			MDeformVert *dvert_final = &gps->dvert[i2];
 
 			/* add a half way point */
 			interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
@@ -117,8 +124,9 @@ static void gp_deformStroke(
 			pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
 			CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 			pt_final->time = interpf(pt->time, next->time, 0.5f);
-			pt_final->totweight = 0;
-			pt_final->weights = NULL;
+
+			dvert_final->totweight = 0;
+			dvert_final->dw = NULL;
 			i2 += 2;
 		}
 

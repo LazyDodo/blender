@@ -47,6 +47,7 @@
 
 #include "DNA_color_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
@@ -110,11 +111,13 @@ static int gpencil_view3d_poll(bContext *C)
 static void gp_interpolate_update_points(bGPDstroke *gps_from, bGPDstroke *gps_to, bGPDstroke *new_stroke, float factor)
 {
 	bGPDspoint *prev, *pt, *next;
+	MDeformVert *dvert;
 	
 	/* update points */
 	for (int i = 0; i < new_stroke->totpoints; i++) {
 		prev = &gps_from->points[i];
 		pt = &new_stroke->points[i];
+		dvert = &new_stroke->dvert[i];
 		next = &gps_to->points[i];
 		
 		/* Interpolate all values */
@@ -122,8 +125,9 @@ static void gp_interpolate_update_points(bGPDstroke *gps_from, bGPDstroke *gps_t
 		pt->pressure = interpf(prev->pressure, next->pressure, 1.0f - factor);
 		pt->strength = interpf(prev->strength, next->strength, 1.0f - factor);
 		CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
-		pt->totweight = 0;
-		pt->weights = NULL;
+
+		dvert->totweight = 0;
+		dvert->dw = NULL;
 	}
 }
 
@@ -1002,10 +1006,12 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
 					/* free weights of removed points */
 					for (int i = gps_to->totpoints; i < gps_from->totpoints; i++) {
 						bGPDspoint *pt = &gps_from->points[i];
-						BKE_gpencil_free_point_weights(pt);
+						MDeformVert *dvert = &gps_from->dvert[i];
+						BKE_gpencil_free_point_weights(dvert);
 					}
 
 					new_stroke->points = MEM_recallocN(new_stroke->points, sizeof(*new_stroke->points) * gps_to->totpoints);
+					new_stroke->dvert = MEM_recallocN(new_stroke->dvert, sizeof(*new_stroke->dvert) * gps_to->totpoints);
 					new_stroke->totpoints = gps_to->totpoints;
 					new_stroke->tot_triangles = 0;
 					new_stroke->flag |= GP_STROKE_RECALC_CACHES;
