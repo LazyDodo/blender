@@ -773,10 +773,7 @@ static short gp_stroke_addpoint(
 			}
 			
 			pts = &gps->points[gps->totpoints - 1];
-
 			dvert = &gps->dvert[gps->totpoints - 1];
-			dvert->totweight = 0;
-			dvert->dw = NULL;
 
 			/* special case for poly lines: normally,
 			 * depth is needed only when creating new stroke from buffer,
@@ -1103,10 +1100,9 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		}
 
 		pt = gps->points;
-		dvert = gps->dvert;
 
 		/* convert all points (normal behavior) */
-		for (i = 0, ptc = gpd->sbuffer; i < gpd->sbuffer_size && ptc; i++, ptc++, pt++, dvert++) {
+		for (i = 0, ptc = gpd->sbuffer; i < gpd->sbuffer_size && ptc; i++, ptc++, pt++) {
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
 			gp_stroke_convertcoords(p, &ptc->x, &pt->x, depth_arr ? depth_arr + i : NULL);
 
@@ -1117,9 +1113,6 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			pt->time = ptc->time;
 			pt->uv_fac = ptc->uv_fac;
 			pt->uv_rot = ptc->uv_rot;
-
-			dvert->totweight = 0;
-			dvert->dw = NULL;
 		}
 
 		/* subdivide and smooth the stroke */
