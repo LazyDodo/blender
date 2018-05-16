@@ -314,6 +314,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* realloc points to new size */
 	/* TODO: only do this if the size has changed? */
 	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * tgpi->tot_edges);
+	gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * tgpi->tot_edges);
 	gps->totpoints = tgpi->tot_edges;
 	
 	/* compute screen-space coordinates for points */
