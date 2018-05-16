@@ -538,14 +538,17 @@ static short apply_targetless_ik(Object *ob)
 	return apply;
 }
 
-static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, TransDataContainer *tc, TransData *td)
+static void add_pose_transdata(
+        TransInfo *t, Object *ob, bPoseChannel *pchan,
+        Object *ob_eval, bPoseChannel *pchan_eval,
+        TransDataContainer *tc, TransData *td)
 {
-	Bone *bone = pchan->bone;
+	Bone *bone = pchan_eval->bone;
 	float pmat[3][3], omat[3][3];
 	float cmat[3][3], tmat[3][3];
 	float vec[3];
 
-	copy_v3_v3(vec, pchan->pose_mat[3]);
+	copy_v3_v3(vec, pchan_eval->pose_mat[3]);
 	copy_v3_v3(td->center, vec);
 
 	td->ob = ob;
@@ -596,14 +599,14 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 
 
 	/* proper way to get parent transform + own transform + constraints transform */
-	copy_m3_m4(omat, ob->obmat);
+	copy_m3_m4(omat, ob_eval->obmat);
 
 	/* New code, using "generic" BKE_pchan_to_pose_mat(). */
 	{
 		float rotscale_mat[4][4], loc_mat[4][4];
 		float rpmat[3][3];
 
-		BKE_pchan_to_pose_mat(pchan, rotscale_mat, loc_mat);
+		BKE_pchan_to_pose_mat(pchan_eval, rotscale_mat, loc_mat);
 		if (t->mode == TFM_TRANSLATION)
 			copy_m3_m4(pmat, loc_mat);
 		else
@@ -616,7 +619,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		copy_m3_m4(rpmat, rotscale_mat);
 
 		if (constraints_list_needinv(t, &pchan->constraints)) {
-			copy_m3_m4(tmat, pchan->constinv);
+			copy_m3_m4(tmat, pchan_eval->constinv);
 			invert_m3_m3(cmat, tmat);
 			mul_m3_series(td->mtx, cmat, omat, pmat);
 			mul_m3_series(td->ext->r_mtx, cmat, omat, rpmat);
@@ -636,7 +639,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		if (pchan->parent) {
 			/* same as td->smtx but without pchan->bone->bone_mat */
 			td->flag |= TD_PBONE_LOCAL_MTX_C;
-			mul_m3_m3m3(td->ext->l_smtx, pchan->bone->bone_mat, td->smtx);
+			mul_m3_m3m3(td->ext->l_smtx, pchan_eval->bone->bone_mat, td->smtx);
 		}
 		else {
 			td->flag |= TD_PBONE_LOCAL_MTX_P;
@@ -644,7 +647,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 	}
 
 	/* for axismat we use bone's own transform */
-	copy_m3_m4(pmat, pchan->pose_mat);
+	copy_m3_m4(pmat, pchan_eval->pose_mat);
 	mul_m3_m3m3(td->axismtx, omat, pmat);
 	normalize_m3(td->axismtx);
 
@@ -669,10 +672,10 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		bKinematicConstraint *data = has_targetless_ik(pchan);
 		if (data) {
 			if (data->flag & CONSTRAINT_IK_TIP) {
-				copy_v3_v3(data->grabtarget, pchan->pose_tail);
+				copy_v3_v3(data->grabtarget, pchan_eval->pose_tail);
 			}
 			else {
-				copy_v3_v3(data->grabtarget, pchan->pose_head);
+				copy_v3_v3(data->grabtarget, pchan_eval->pose_head);
 			}
 			td->loc = data->grabtarget;
 			copy_v3_v3(td->iloc, td->loc);
@@ -1088,7 +1091,6 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 		Object *ob = tc->poseobj;
 
 		bArmature *arm;
-		bPoseChannel *pchan;
 		TransData *td;
 		TransDataExtension *tdx;
 		short ik_on = 0;
@@ -1133,9 +1135,15 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 
 		/* use pose channels to fill trans data */
 		td = tc->data;
-		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+		Object *ob_eval = DEG_get_evaluated_object(CTX_data_depsgraph(t->context), ob);
+		bPoseChannel *pchan, *pchan_eval;
+		for (pchan = ob->pose->chanbase.first, pchan_eval = ob_eval->pose->chanbase.first;
+		     pchan && pchan_eval;
+		     pchan = pchan->next, pchan_eval = pchan_eval->next)
+		{
+			BLI_assert(pchan == pchan_eval || STREQ(pchan->bone->name, pchan_eval->bone->name));
 			if (pchan->bone->flag & BONE_TRANSFORM) {
-				add_pose_transdata(t, pchan, ob, tc, td);
+				add_pose_transdata(t, ob, pchan, ob_eval, pchan_eval, tc, td);
 				td++;
 			}
 		}
@@ -8546,6 +8554,7 @@ void createTransData(bContext *C, TransInfo *t)
 		if (t->mode == TFM_BONESIZE) {
 			t->flag &= ~(T_EDIT | T_POINTS);
 			t->flag |= T_POSE;
+			t->obedit_type = -1;
 
 			FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 				tc->poseobj = tc->obedit;
@@ -8624,4 +8633,6 @@ void createTransData(bContext *C, TransInfo *t)
 
 	/* Check that 'countAndCleanTransDataContainer' ran. */
 	BLI_assert(t->data_len_all != -1);
+
+	BLI_assert((!(t->flag & T_EDIT)) == (!(t->obedit_type != -1)));
 }
