@@ -359,7 +359,7 @@ static void collection_object_cache_fill(ListBase *lb, Collection *collection, i
 	}
 }
 
-const ListBase BKE_collection_object_cache_get(Collection *collection)
+ListBase BKE_collection_object_cache_get(Collection *collection)
 {
 	if (!(collection->flag & COLLECTION_HAS_OBJECT_CACHE)) {
 		static ThreadMutex cache_lock = BLI_MUTEX_INITIALIZER;

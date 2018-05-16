@@ -95,7 +95,7 @@ void BKE_collection_handle_recalc_and_update(struct Depsgraph *depsgraph, struct
 
 /* Object list cache. */
 
-const struct ListBase BKE_collection_object_cache_get(struct Collection *collection);
+struct ListBase BKE_collection_object_cache_get(struct Collection *collection);
 void BKE_collection_object_cache_free(struct Collection *collection);
 
 struct Base *BKE_collection_or_layer_objects(struct Depsgraph *depsgraph,
