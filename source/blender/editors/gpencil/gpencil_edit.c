@@ -637,6 +637,7 @@ static int gp_duplicate_exec(bContext *C, wmOperator *op)
 					gpsd = MEM_dupallocN(gps);
 					BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
 					gpsd->points = MEM_dupallocN(gps->points);
+					gpsd->dvert = MEM_dupallocN(gps->dvert);
 					BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
 
 					/* triangle information - will be calculated on next redraw */
@@ -815,6 +816,7 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 					gpsd = MEM_dupallocN(gps);
 					BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo)); /* saves original layer name */
 					gpsd->points = MEM_dupallocN(gps->points);
+					gpsd->dvert = MEM_dupallocN(gps->dvert);
 					BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
 
 					/* triangles cache - will be recalculated on next redraw */
@@ -988,6 +990,7 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 				new_stroke->runtime.tmp_layerinfo[0] = '\0';
 				
 				new_stroke->points = MEM_dupallocN(gps->points);
+				new_stroke->dvert = MEM_dupallocN(gps->dvert);
 				BKE_gpencil_stroke_weights_duplicate(gps, new_stroke);
 
 				new_stroke->flag |= GP_STROKE_RECALC_CACHES;
@@ -2518,6 +2521,7 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 					if (new_stroke == NULL) {
 						new_stroke = MEM_dupallocN(stroke_a);
 						new_stroke->points = MEM_dupallocN(stroke_a->points);
+						new_stroke->dvert = MEM_dupallocN(stroke_a->dvert);
 						BKE_gpencil_stroke_weights_duplicate(stroke_a, new_stroke);
 						new_stroke->triangles = NULL;
 						new_stroke->tot_triangles = 0;

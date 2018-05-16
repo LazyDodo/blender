@@ -299,6 +299,7 @@ static void gp_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
 				/* if destination stroke is smaller, resize new_stroke to size of gps_to stroke */
 				if (gps_from->totpoints > gps_to->totpoints) {
 					new_stroke->points = MEM_recallocN(new_stroke->points, sizeof(*new_stroke->points) * gps_to->totpoints);
+					new_stroke->dvert = MEM_recallocN(new_stroke->dvert, sizeof(*new_stroke->dvert) * gps_to->totpoints);
 					new_stroke->totpoints = gps_to->totpoints;
 					new_stroke->tot_triangles = 0;
 					new_stroke->flag |= GP_STROKE_RECALC_CACHES;
@@ -310,6 +311,7 @@ static void gp_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
 				/* need an empty stroke to keep index correct for lookup, but resize to smallest size */
 				new_stroke->totpoints = 0;
 				new_stroke->points = MEM_recallocN(new_stroke->points, sizeof(*new_stroke->points));
+				new_stroke->dvert = MEM_recallocN(new_stroke->dvert, sizeof(*new_stroke->dvert));
 				new_stroke->tot_triangles = 0;
 				new_stroke->triangles = MEM_recallocN(new_stroke->triangles, sizeof(*new_stroke->triangles));
 				new_stroke->flag |= GP_STROKE_RECALC_CACHES;
@@ -579,6 +581,7 @@ static int gpencil_interpolate_modal(bContext *C, wmOperator *op, const wmEvent 
 					/* make copy of source stroke, then adjust pointer to points too */
 					gps_dst = MEM_dupallocN(gps_src);
 					gps_dst->points = MEM_dupallocN(gps_src->points);
+					gps_dst->dvert = MEM_dupallocN(gps_src->dvert);
 					BKE_gpencil_stroke_weights_duplicate(gps_src, gps_dst);
 					gps_dst->triangles = MEM_dupallocN(gps_src->triangles);
 					gps_dst->flag |= GP_STROKE_RECALC_CACHES;
