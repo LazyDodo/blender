@@ -74,7 +74,7 @@ static void gp_deformStroke(
 	
 	if (mmd->mode == GP_SIMPLIFY_FIXED) {
 		for (int i = 0; i < mmd->step; i++) {
-			BKE_gpencil_simplify_fixed(gpl, gps);
+			BKE_gpencil_simplify_fixed(gps);
 		}
 	}
 	else {

@@ -256,7 +256,7 @@ void BKE_gpencil_simplify_stroke(bGPDstroke *gps, float factor)
 }
 
 /* Simplify alternate vertex of stroke except extrems */
-void BKE_gpencil_simplify_fixed(bGPDlayer *UNUSED(gpl), bGPDstroke *gps)
+void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 {
 	if (gps->totpoints < 5) {
 		return;

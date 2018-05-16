@@ -899,7 +899,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 
 	/* simplify stroke */
 	for (int b = 0; b < tgpf->fill_simplylvl; b++) {
-		BKE_gpencil_simplify_fixed(tgpf->gpl, gps);
+		BKE_gpencil_simplify_fixed(gps);
 	}
 }
 

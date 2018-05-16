@@ -3011,7 +3011,7 @@ static int gp_stroke_simplify_fixed_exec(bContext *C, wmOperator *op)
 	{
 		if (gps->flag & GP_STROKE_SELECT) {
 			for (int i = 0; i < steps; i++) {
-				BKE_gpencil_simplify_fixed(gpl, gps);
+				BKE_gpencil_simplify_fixed(gps);
 			}
 		}
 	}
