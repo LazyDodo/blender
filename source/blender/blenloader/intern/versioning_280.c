@@ -709,7 +709,7 @@ void do_versions_after_linking_280(Main *main)
 			ob = BKE_object_add_for_data(main, scene, view_layer, OB_GPENCIL, "GP_Scene", &scene->gpd->id, false);
 			zero_v3(ob->loc);
 
-			/* convert grease pencil palettes (version >= 2.78)  to materials */
+			/* convert grease pencil palettes (version >= 2.78)  to materials and weights */
 			bGPdata *gpd = scene->gpd;
 			for (const bGPDpalette *palette = gpd->palettes.first; palette; palette = palette->next) {
 				for (bGPDpalettecolor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
@@ -732,6 +732,8 @@ void do_versions_after_linking_280(Main *main)
 								if (STREQ(gps->colorname, palcolor->info)) {
 									gps->mat_nr = ob->totcol - 1;
 								}
+								/* create weights array */
+								gps->dvert = MEM_callocN(sizeof(gps->dvert) * gps->totpoints, "gp_stroke_weights");
 							}
 						}
 					}
@@ -967,25 +969,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 					}
 				}
 			}
-
-#if 0 /* GPXXX */
-			/* Init grease pencil vertex groups */
-			if (!DNA_struct_elem_find(fd->filesdna, "bGPDweight", "int", "index")) {
-				for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
-					for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-						for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-							for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-								for (int i = 0; i < gps->totpoints; ++i) {
-									bGPDspoint *pt = &gps->points[i];
-									dvert->totweight = 0;
-									dvert->dw = NULL;
-								}
-							}
-						}
-					}
-				}
-			}
-#endif
 
 			/* Init grease pencil edit line color */
 			if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "float", "line_color[4]")) {
