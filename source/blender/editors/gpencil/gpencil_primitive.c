@@ -179,6 +179,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	/* allocate memory for storage points, but keep empty */
 	gps->totpoints = 0;
 	gps->points = MEM_callocN(sizeof(bGPDspoint), "gp_stroke_points");
+	gps->dvert = MEM_callocN(sizeof(MDeformVert), "gp_stroke_weights");
 	/* initialize triangle memory to dummy data */
 	gps->tot_triangles = 0;
 	gps->triangles = NULL;
