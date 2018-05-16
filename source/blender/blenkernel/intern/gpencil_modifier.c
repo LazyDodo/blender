@@ -219,19 +219,19 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 
 	int j = 0;
 	for (int i = 0; i < totpoints; i++) {
-		bGPDspoint *old_pt = &old_points[i];
+		bGPDspoint *pt_src = &old_points[i];
 		bGPDspoint *pt = &gps->points[j];
 
-		MDeformVert *o_dvert = &old_dvert[i];
-		MDeformVert *dvert = &gps->dvert[i];
+		MDeformVert *dvert_src = &old_dvert[i];
+		MDeformVert *dvert = &gps->dvert[j];
 
 		if ((marked[i]) || (i == 0) || (i == totpoints - 1)) {
-			memcpy(pt, old_pt, sizeof(bGPDspoint));
-			memcpy(dvert, o_dvert, sizeof(MDeformVert));
+			memcpy(pt, pt_src, sizeof(bGPDspoint));
+			memcpy(dvert, dvert_src, sizeof(MDeformVert));
 			j++;
 		}
 		else {
-			BKE_gpencil_free_point_weights(o_dvert);
+			BKE_gpencil_free_point_weights(dvert_src);
 		}
 	}
 
@@ -280,19 +280,19 @@ void BKE_gpencil_simplify_fixed(bGPDlayer *UNUSED(gpl), bGPDstroke *gps)
 
 	int j = 0;
 	for (int i = 0; i < gps->totpoints; i++) {
-		bGPDspoint *old_pt = &old_points[i];
+		bGPDspoint *pt_src = &old_points[i];
 		bGPDspoint *pt = &gps->points[j];
 
-		MDeformVert *o_dvert = &old_dvert[i];
-		MDeformVert *dvert = &gps->dvert[i];
+		MDeformVert *dvert_src = &old_dvert[i];
+		MDeformVert *dvert = &gps->dvert[j];
 
 		if ((i == 0) || (i == gps->totpoints - 1) || ((i % 2) > 0.0)) {
-			memcpy(pt, old_pt, sizeof(bGPDspoint));
-			memcpy(dvert, o_dvert, sizeof(MDeformVert));
+			memcpy(pt, pt_src, sizeof(bGPDspoint));
+			memcpy(dvert, dvert_src, sizeof(MDeformVert));
 			j++;
 		}
 		else {
-			BKE_gpencil_free_point_weights(o_dvert);
+			BKE_gpencil_free_point_weights(dvert_src);
 		}
 	}
 
