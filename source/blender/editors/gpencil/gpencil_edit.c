@@ -2382,7 +2382,7 @@ static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, int id
 	MDeformVert *dvert, *newdvert;
 	
 	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * (gps->totpoints + 1));
-	gps->dvert = MEM_reallocN(gps->points, sizeof(MDeformVert) * (gps->totpoints + 1));
+	gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * (gps->totpoints + 1));
 	gps->totpoints++;
 	
 	dvert = &gps->dvert[idx];
