@@ -79,7 +79,7 @@ static void gp_deformStroke(
 	}
 	else {
 		/* simplify stroke using Ramer-Douglas-Peucker algorithm */
-		BKE_gpencil_simplify_stroke(gpl, gps, mmd->factor);
+		BKE_gpencil_simplify_stroke(gps, mmd->factor);
 	}
 }
 

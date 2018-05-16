@@ -2961,7 +2961,7 @@ static int gp_stroke_simplify_exec(bContext *C, wmOperator *op)
 	{
 		if (gps->flag & GP_STROKE_SELECT) {
 			/* simplify stroke using Ramer-Douglas-Peucker algorithm */
-			BKE_gpencil_simplify_stroke(gpl, gps, factor);
+			BKE_gpencil_simplify_stroke(gps, factor);
 		}
 	}
 	GP_EDITABLE_STROKES_END;

@@ -243,7 +243,7 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 }
 
 /* Simplify stroke using Ramer-Douglas-Peucker algorithm */
-void BKE_gpencil_simplify_stroke(bGPDlayer *UNUSED(gpl), bGPDstroke *gps, float factor)
+void BKE_gpencil_simplify_stroke(bGPDstroke *gps, float factor)
 {
 	/* first create temp data and convert points to 2D */
 	vec2f *points2d = MEM_mallocN(sizeof(vec2f) * gps->totpoints, "GP Stroke temp 2d points");
