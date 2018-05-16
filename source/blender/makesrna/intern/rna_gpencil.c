@@ -28,6 +28,7 @@
 
 #include "BLI_math.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_brush_types.h"
@@ -642,6 +643,18 @@ static int rna_GPencil_info_total_points(PointerRNA *ptr)
 	return tot;
 }
 
+static void rna_GpencilVertex_groups_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
+{
+	bGPDstroke *gps = ptr->data;
+
+	if (gps->dvert) {
+		MDeformVert *dvert = gps->dvert;
+
+		rna_iterator_array_begin(iter, (void *)dvert->dw, sizeof(MDeformWeight), dvert->totweight, 0, NULL);
+	}
+	else
+		rna_iterator_array_begin(iter, NULL, 0, 0, 0, NULL);
+}
 #else
 
 static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
@@ -763,6 +776,30 @@ static void rna_def_gpencil_triangle(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 }
 
+static void rna_def_gpencil_mvert_group(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "GpencilVertexGroupElement", NULL);
+	RNA_def_struct_sdna(srna, "MDeformWeight");
+	RNA_def_struct_ui_text(srna, "Vertex Group Element", "Weight value of a vertex in a vertex group");
+	RNA_def_struct_ui_icon(srna, ICON_GROUP_VERTEX);
+
+	/* we can't point to actual group, it is in the object and so
+	* there is no unique group to point to, hence the index */
+	prop = RNA_def_property(srna, "group", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_int_sdna(prop, NULL, "def_nr");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Group Index", "");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "weight", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Weight", "Vertex Weight");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+}
+
 static void rna_def_gpencil_stroke(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -787,6 +824,13 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Stroke Points", "Stroke data points");
 	rna_def_gpencil_stroke_points_api(brna, prop);
 	
+	/* vertex groups */
+	prop = RNA_def_property(srna, "groups", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_funcs(prop, "rna_GpencilVertex_groups_begin", "rna_iterator_array_next",
+		"rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
+	RNA_def_property_struct_type(prop, "GpencilVertexGroupElement");
+	RNA_def_property_ui_text(prop, "Groups", "Weights for the vertex groups this vertex is member of");
+
 	/* Triangles */
 	prop = RNA_def_property(srna, "triangles", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "triangles", "tot_triangles");
@@ -1449,6 +1493,7 @@ void RNA_def_gpencil(BlenderRNA *brna)
 	rna_def_gpencil_stroke_point(brna);
 	rna_def_gpencil_triangle(brna);
 	
+	rna_def_gpencil_mvert_group(brna);
 }
 
 #endif
