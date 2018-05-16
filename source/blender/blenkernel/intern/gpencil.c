@@ -548,8 +548,11 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 	for (int i = 0; i < gps_src->totpoints; i++) {
 		MDeformVert *dvert_src = &gps_src->dvert[i];
 		MDeformVert *dvert_dst = &gps_dst->dvert[i];
-		if (dvert_src->dw) {
+		if (dvert_src->totweight > 0) {
 			dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
+		}
+		else {
+			dvert_dst->dw = NULL;
 		}
 	}
 }

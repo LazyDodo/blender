@@ -931,6 +931,7 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 		/* resize the points arrys */
 		gps->totpoints += totnewpoints;
 		gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
+		gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
 		gps->flag |= GP_STROKE_RECALC_CACHES;
 
 		/* move points from last to first to new place */
