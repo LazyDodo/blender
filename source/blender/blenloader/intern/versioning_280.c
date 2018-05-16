@@ -240,15 +240,17 @@ static void do_version_layer_collection_post(ViewLayer *view_layer,
 {
 	/* Apply layer collection exclude flags. */
 	for (LayerCollection *lc = lb->first; lc; lc = lc->next) {
-		SceneCollection *sc = BLI_ghash_lookup(collection_map, lc->collection);
-		const bool enabled = (sc && BLI_gset_haskey(enabled_set, sc));
-		const bool selectable = (sc && BLI_gset_haskey(selectable_set, sc));
+		if (!(lc->collection->flag & COLLECTION_IS_MASTER)) {
+			SceneCollection *sc = BLI_ghash_lookup(collection_map, lc->collection);
+			const bool enabled = (sc && BLI_gset_haskey(enabled_set, sc));
+			const bool selectable = (sc && BLI_gset_haskey(selectable_set, sc));
 
-		if (!enabled) {
-			lc->flag |= LAYER_COLLECTION_EXCLUDE;
-		}
-		if (enabled && !selectable) {
-			lc->collection->flag |= COLLECTION_RESTRICT_SELECT;
+			if (!enabled) {
+				lc->flag |= LAYER_COLLECTION_EXCLUDE;
+			}
+			if (enabled && !selectable) {
+				lc->collection->flag |= COLLECTION_RESTRICT_SELECT;
+			}
 		}
 
 		do_version_layer_collection_post(view_layer, &lc->layer_collections, enabled_set, selectable_set, collection_map);
