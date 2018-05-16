@@ -102,19 +102,6 @@ static void mesh_init_origspace(Mesh *mesh);
 
 /* -------------------------------------------------------------------- */
 
-static void apply_vert_coords(Mesh *mesh, float (*vertCoords)[3])
-{
-	MVert *vert;
-	int i;
-
-	/* this will just return the pointer if it wasn't a referenced layer */
-	vert = CustomData_duplicate_referenced_layer(&mesh->vdata, CD_MVERT, mesh->totvert);
-	mesh->mvert = vert;
-
-	for (i = 0; i < mesh->totvert; ++i, ++vert)
-		copy_v3_v3(vert->co, vertCoords[i]);
-}
-
 static MVert *dm_getVertArray(DerivedMesh *dm)
 {
 	MVert *mvert = CustomData_get_layer(&dm->vertData, CD_MVERT);
@@ -1313,7 +1300,7 @@ static Mesh *create_orco_mesh(Object *ob, Mesh *me, BMEditMesh *em, int layer)
 	orco = get_orco_coords_dm(ob, em, layer, &free);
 
 	if (orco) {
-		apply_vert_coords(mesh, orco);
+		BKE_mesh_apply_vert_coords(mesh, orco);
 		if (free) MEM_freeN(orco);
 	}
 
@@ -2147,7 +2134,7 @@ static void mesh_calc_modifiers(
 			//	add_shapekey_layers(*r_deform_mesh, me, ob);
 			
 			if (deformedVerts) {
-				apply_vert_coords(*r_deform_mesh, deformedVerts);
+				BKE_mesh_apply_vert_coords(*r_deform_mesh, deformedVerts);
 			}
 		}
 	}
@@ -2260,7 +2247,7 @@ static void mesh_calc_modifiers(
 			if (isPrevDeform && mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 				/* XXX, this covers bug #23673, but we may need normal calc for other types */
 				if (mesh) {
-					apply_vert_coords(mesh, deformedVerts);
+					BKE_mesh_apply_vert_coords(mesh, deformedVerts);
 				}
 			}
 
@@ -2281,7 +2268,7 @@ static void mesh_calc_modifiers(
 					dm->release(dm);
 					dm = tdm; */
 
-					apply_vert_coords(mesh, deformedVerts);
+					BKE_mesh_apply_vert_coords(mesh, deformedVerts);
 				}
 			}
 			else {
@@ -2294,7 +2281,7 @@ static void mesh_calc_modifiers(
 				//	add_shapekey_layers(mesh, me, ob);
 
 				if (deformedVerts) {
-					apply_vert_coords(mesh, deformedVerts);
+					BKE_mesh_apply_vert_coords(mesh, deformedVerts);
 				}
 
 				if (do_init_wmcol)
@@ -2442,7 +2429,7 @@ static void mesh_calc_modifiers(
 		final_mesh = mesh;
 
 		if (deformedVerts) {
-			apply_vert_coords(final_mesh, deformedVerts);
+			BKE_mesh_apply_vert_coords(final_mesh, deformedVerts);
 		}
 
 #if 0 /* For later nice mod preview! */
@@ -2460,7 +2447,7 @@ static void mesh_calc_modifiers(
 		//}
 
 		if (deformedVerts) {
-			apply_vert_coords(final_mesh, deformedVerts);
+			BKE_mesh_apply_vert_coords(final_mesh, deformedVerts);
 		}
 
 		/* In this case, we should never have weight-modifying modifiers in stack... */
