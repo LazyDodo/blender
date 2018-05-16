@@ -1994,9 +1994,9 @@ static bool snapObject(
 			break;
 		case OB_GPENCIL:	
 			retval = snapEmpty(
-				snapdata, ob, obmat,
-				ray_depth, dist_px,
-				r_loc, r_no);
+					snapdata, ob, obmat,
+					dist_px,
+					r_loc, r_no, r_index);
 			break;
 		case OB_CAMERA:
 			retval = snapCamera(
