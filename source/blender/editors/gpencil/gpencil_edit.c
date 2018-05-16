@@ -1553,6 +1553,7 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 								case GP_DISSOLVE_POINTS:
 									for (i = 0, pt = gps->points, dvert = gps->dvert; i < gps->totpoints; i++, pt++, dvert++) {
 										if ((pt->flag & GP_SPOINT_SELECT) == 0) {
+											*npt = *pt;
 											*ndvert = *dvert;
 											ndvert->dw = MEM_dupallocN(dvert->dw);
 											npt++;
@@ -1570,7 +1571,7 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 										ndvert++;
 									}
 									/* copy segment (selected points) */
-									for (i = first, pt = gps->points, dvert = gps->dvert + first; i < last; i++, pt++, dvert++) {
+									for (i = first, pt = gps->points + first, dvert = gps->dvert + first; i < last; i++, pt++, dvert++) {
 										if (pt->flag & GP_SPOINT_SELECT) {
 											*npt = *pt;
 											*ndvert = *dvert;
@@ -1580,7 +1581,7 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 										}
 									}
 									/* copy last segment */
-									for (i = last, pt = gps->points, dvert = gps->dvert + last; i < gps->totpoints; i++, pt++, dvert++) {
+									for (i = last, pt = gps->points + last, dvert = gps->dvert + last; i < gps->totpoints; i++, pt++, dvert++) {
 										*npt = *pt;
 										*ndvert = *dvert;
 										ndvert->dw = MEM_dupallocN(dvert->dw);
