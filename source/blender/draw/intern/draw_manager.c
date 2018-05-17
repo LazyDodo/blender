@@ -1711,12 +1711,12 @@ void DRW_draw_select_loop(
 			obedit_mode = CTX_MODE_EDIT_ARMATURE;
 		}
 	}
-	bool use_bone_selection_overlay = false;
 	if (v3d->overlay.flag &= V3D_OVERLAY_BONE_SELECTION) {
 		if (!(v3d->flag2 &= V3D_RENDER_OVERRIDE)) {
 			Object *obpose = OBPOSE_FROM_OBACT(obact);
 			if (obpose) {
-				use_bone_selection_overlay = true;
+				use_obedit = true;
+				obedit_mode = CTX_MODE_POSE;
 			}
 		}
 	}
@@ -1734,17 +1734,8 @@ void DRW_draw_select_loop(
 		drw_engines_enable_from_mode(obedit_mode);
 	}
 	else {
-		/* when in pose mode and overlays enable and bone selection overlay
-		   active, switch order as the bone selection must have more precedence
-		   than the rest of the scene */
-		if (use_bone_selection_overlay) {
-			drw_engines_enable_from_object_mode();
-			drw_engines_enable_basic();
-		}
-		else {
-			drw_engines_enable_basic();
-			drw_engines_enable_from_object_mode();
-		}
+		drw_engines_enable_basic();
+		drw_engines_enable_from_object_mode();
 	}
 
 	/* Setup viewport */
@@ -2132,10 +2123,10 @@ void DRW_engine_register(DrawEngineType *draw_engine_type)
 void DRW_engines_register(void)
 {
 #ifdef WITH_CLAY_ENGINE
-	RE_engines_register(NULL, &DRW_engine_viewport_clay_type);
+	RE_engines_register(&DRW_engine_viewport_clay_type);
 #endif
-	RE_engines_register(NULL, &DRW_engine_viewport_eevee_type);
-	RE_engines_register(NULL, &DRW_engine_viewport_workbench_type);
+	RE_engines_register(&DRW_engine_viewport_eevee_type);
+	RE_engines_register(&DRW_engine_viewport_workbench_type);
 
 	DRW_engine_register(&draw_engine_workbench_solid);
 
