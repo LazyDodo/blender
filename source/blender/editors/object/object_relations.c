@@ -2287,8 +2287,6 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 	bool success = false;
 
 	if (!ID_IS_LINKED(obact) && obact->dup_group != NULL && ID_IS_LINKED(obact->dup_group)) {
-		// TODO: support making the group itself override and putting
-		// it directly into the scene collections
 		const ListBase dup_collection_objects = BKE_collection_object_cache_get(obact->dup_group);
 		Base *base = BLI_findlink(&dup_collection_objects, RNA_enum_get(op->ptr, "object"));
 		Object *obcollection = obact;
@@ -2305,6 +2303,19 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 
+		/* Then, we make static override of the whole set of objects in the collection. */
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)
+		{
+			if (ob->type == OB_ARMATURE && ob->pose != NULL) {
+				for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan != NULL; pchan = pchan->next) {
+					if (pchan->custom != NULL) {
+						pchan->custom->id.tag &= ~ LIB_TAG_DOIT;
+					}
+				}
+			}
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+
 		success = BKE_override_static_create_from_tag(bmain);
 
 		/* Intantiate our newly overridden objects in scene, if not yet done. */
@@ -2313,7 +2324,10 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		Collection *new_collection = (Collection *)collection->id.newid;
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(new_collection, new_ob)
 		{
-			if (new_ob != NULL && (base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL) {
+			if (new_ob != NULL &&
+			    new_ob->id.override_static != NULL &&
+			    (base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL)
+			{
 				BKE_collection_object_add_from(bmain, scene, obcollection, new_ob);
 				DEG_id_tag_update_ex(bmain, &new_ob->id, OB_RECALC_OB | DEG_TAG_BASE_FLAGS_UPDATE);
 				/* parent to 'collection' empty */

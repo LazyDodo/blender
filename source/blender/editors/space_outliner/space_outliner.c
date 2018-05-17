@@ -159,7 +159,7 @@ static int outliner_parent_clear_poll(bContext *C, wmDrag *drag, const wmEvent *
 
 	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &fmval[0], &fmval[1]);
 
-	if (!ELEM(soops->outlinevis, SO_SCENES, SO_COLLECTIONS, SO_OBJECTS)) {
+	if (!ELEM(soops->outlinevis, SO_VIEW_LAYER)) {
 		return false;
 	}
 
@@ -434,7 +434,7 @@ static void outliner_main_region_message_subscribe(
 		.notify = ED_region_do_msg_notify_tag_redraw,
 	};
 
-	if (ELEM(soops->outlinevis, SO_VIEW_LAYER, SO_COLLECTIONS, SO_OBJECTS)) {
+	if (ELEM(soops->outlinevis, SO_VIEW_LAYER, SO_SCENES)) {
 		WM_msg_subscribe_rna_anon_prop(mbus, Window, view_layer, &msg_sub_value_region_tag_redraw);
 	}
 }
@@ -483,6 +483,7 @@ static SpaceLink *outliner_new(const ScrArea *UNUSED(area), const Scene *UNUSED(
 
 	soutliner = MEM_callocN(sizeof(SpaceOops), "initoutliner");
 	soutliner->spacetype = SPACE_OUTLINER;
+	soutliner->filter_id_type = ID_GR;
 	
 	/* header */
 	ar = MEM_callocN(sizeof(ARegion), "header for outliner");

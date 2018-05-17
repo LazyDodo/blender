@@ -1629,9 +1629,17 @@ static void move_to_collection_menus_free(MoveToCollectionData **menu)
 static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout, void *menu_v)
 {
 	MoveToCollectionData *menu = menu_v;
+	const char *name;
+
+	if (menu->collection->flag & COLLECTION_IS_MASTER) {
+		name = IFACE_("Scene Collection");
+	}
+	else {
+		name = menu->collection->id.name + 2;
+	}
 
 	uiItemIntO(layout,
-	           menu->collection->id.name + 2,
+	           name,
 	           ICON_NONE,
 		       menu->ot->idname,
 	           "collection_index",

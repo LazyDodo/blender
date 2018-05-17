@@ -65,7 +65,7 @@ bool outliner_is_collection_tree_element(const TreeElement *te)
 		return false;
 	}
 
-	if (tselem->type == TSE_LAYER_COLLECTION) {
+	if (ELEM(tselem->type, TSE_LAYER_COLLECTION, TSE_SCENE_COLLECTION_BASE, TSE_VIEW_COLLECTION_BASE)) {
 		return true;
 	}
 	else if (tselem->type == 0 && te->idcode == ID_GR) {
@@ -87,7 +87,7 @@ Collection *outliner_collection_from_tree_element(const TreeElement *te)
 		LayerCollection *lc = te->directdata;
 		return lc->collection;
 	}
-	else if (ELEM(tselem->type, TSE_R_LAYER, TSE_SCENE_COLLECTION_BASE)) {
+	else if (ELEM(tselem->type, TSE_SCENE_COLLECTION_BASE, TSE_VIEW_COLLECTION_BASE)) {
 		Scene *scene = (Scene*)tselem->id;
 		return BKE_collection_master(scene);
 	}
@@ -104,7 +104,7 @@ Collection *outliner_collection_from_tree_element(const TreeElement *te)
 static int collections_editor_poll(bContext *C)
 {
 	SpaceOops *so = CTX_wm_space_outliner(C);
-	return (so != NULL) && ELEM(so->outlinevis, SO_COLLECTIONS, SO_VIEW_LAYER, SO_SCENES);
+	return (so != NULL) && ELEM(so->outlinevis, SO_VIEW_LAYER, SO_SCENES);
 }
 
 
@@ -145,19 +145,17 @@ static int collection_new_exec(bContext *C, wmOperator *op)
 		.collection = NULL,
 	};
 
-	outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, collection_find_selected_to_add, &data);
+	if (RNA_boolean_get(op->ptr, "nested")) {
+		outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, collection_find_selected_to_add, &data);
 
-	if (data.error) {
-		BKE_report(op->reports, RPT_ERROR, "More than one collection is selected");
-		return OPERATOR_CANCELLED;
+		if (data.error) {
+			BKE_report(op->reports, RPT_ERROR, "More than one collection is selected");
+			return OPERATOR_CANCELLED;
+		}
 	}
 
-	if (!data.collection) {
-		if (!(soops->outlinevis == SO_COLLECTIONS &&
-		      ELEM(soops->filter_collection, SO_FILTER_COLLECTION_UNLINKED, SO_FILTER_COLLECTION_ALL)))
-		{
-			data.collection = BKE_collection_master(scene);
-		}
+	if (!data.collection && (soops->outlinevis == SO_VIEW_LAYER)) {
+		data.collection = BKE_collection_master(scene);
 	}
 
 	BKE_collection_add(
@@ -184,6 +182,10 @@ void OUTLINER_OT_collection_new(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* properties */
+	PropertyRNA *prop = RNA_def_boolean(ot->srna, "nested", true, "Nested", "Add as child of selected collection");;
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
 /**************************** Delete Collection ******************************/
@@ -265,7 +267,8 @@ void OUTLINER_OT_collection_delete(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	RNA_def_boolean(ot->srna, "hierarchy", false, "Hierarchy", "Delete child objects and collections");
+	PropertyRNA *prop = RNA_def_boolean(ot->srna, "hierarchy", false, "Hierarchy", "Delete child objects and collections");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
 /****************************** Select Objects *******************************/
@@ -285,6 +288,8 @@ static TreeTraversalAction outliner_find_first_selected_layer_collection(TreeEle
 			data->layer_collection = te->directdata;
 			return TRAVERSE_BREAK;
 		case TSE_R_LAYER:
+		case TSE_SCENE_COLLECTION_BASE:
+		case TSE_VIEW_COLLECTION_BASE:
 			return TRAVERSE_CONTINUE;
 		default:
 			return TRAVERSE_SKIP_CHILDS;
@@ -365,6 +370,8 @@ static TreeTraversalAction outliner_find_first_selected_collection(TreeElement *
 			data->te = te;
 			return TRAVERSE_BREAK;
 		case TSE_R_LAYER:
+		case TSE_SCENE_COLLECTION_BASE:
+		case TSE_VIEW_COLLECTION_BASE:
 		default:
 			return TRAVERSE_CONTINUE;
 	}
@@ -400,7 +407,7 @@ static int collection_duplicate_exec(bContext *C, wmOperator *op)
 	switch (soops->outlinevis) {
 		case SO_SCENES:
 		case SO_VIEW_LAYER:
-		case SO_COLLECTIONS:
+		case SO_LIBRARIES:
 			BKE_collection_copy(bmain, parent, collection);
 			break;
 	}
@@ -534,6 +541,156 @@ void OUTLINER_OT_collection_instance(wmOperatorType *ot)
 	/* api callbacks */
 	ot->exec = collection_instance_exec;
 	ot->poll = collections_editor_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+/************************** Exclude Collection ******************************/
+
+static TreeTraversalAction layer_collection_find_data_to_edit(TreeElement *te, void *customdata)
+{
+	struct CollectionEditData *data = customdata;
+	TreeStoreElem *tselem = TREESTORE(te);
+
+	if (!(tselem && tselem->type == TSE_LAYER_COLLECTION)) {
+		return TRAVERSE_CONTINUE;
+	}
+
+	LayerCollection *lc = te->directdata;
+
+	if (lc->collection->flag & COLLECTION_IS_MASTER) {
+		/* skip - showing warning/error message might be missleading
+		 * when deleting multiple collections, so just do nothing */
+	}
+	else {
+		/* Delete, duplicate and link don't edit children, those will come along
+		 * with the parents. */
+		BLI_gset_add(data->collections_to_edit, lc);
+	}
+
+	return TRAVERSE_CONTINUE;
+}
+
+static int collections_view_layer_poll(bContext *C, bool include)
+{
+	/* Poll function so the right click menu show current state of selected collections. */
+	SpaceOops *soops = CTX_wm_space_outliner(C);
+	if (!(soops && soops->outlinevis == SO_VIEW_LAYER)) {
+		return false;
+	}
+
+	Scene *scene = CTX_data_scene(C);
+	struct CollectionEditData data = {.scene = scene, .soops = soops};
+	data.collections_to_edit = BLI_gset_ptr_new(__func__);
+	bool result = false;
+
+	outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, layer_collection_find_data_to_edit, &data);
+
+	GSetIterator collections_to_edit_iter;
+	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
+		LayerCollection *lc = BLI_gsetIterator_getKey(&collections_to_edit_iter);
+
+		if (include && (lc->flag & LAYER_COLLECTION_EXCLUDE)) {
+			result = true;
+		}
+		else if (!include && !(lc->flag & LAYER_COLLECTION_EXCLUDE)) {
+			result = true;
+		}
+	}
+
+	BLI_gset_free(data.collections_to_edit, NULL);
+	return result;
+}
+
+static int collections_exclude_poll(bContext *C)
+{
+	return collections_view_layer_poll(C, false);
+}
+
+static int collections_include_poll(bContext *C)
+{
+	return collections_view_layer_poll(C, true);
+}
+
+static void layer_collection_exclude_recursive_set(LayerCollection *lc)
+{
+	for (LayerCollection *nlc = lc->layer_collections.first; nlc; nlc = nlc->next) {
+		if (lc->flag & LAYER_COLLECTION_EXCLUDE) {
+			nlc->flag |= LAYER_COLLECTION_EXCLUDE;
+		}
+		else {
+			nlc->flag &= ~LAYER_COLLECTION_EXCLUDE;
+		}
+
+		layer_collection_exclude_recursive_set(nlc);
+	}
+}
+
+static int collection_view_layer_exec(bContext *C, wmOperator *op)
+{
+	Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	SpaceOops *soops = CTX_wm_space_outliner(C);
+	struct CollectionEditData data = {.scene = scene, .soops = soops};
+	bool include = STREQ(op->idname, "OUTLINER_OT_collection_include_set");
+
+	data.collections_to_edit = BLI_gset_ptr_new(__func__);
+
+	outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, layer_collection_find_data_to_edit, &data);
+
+	GSetIterator collections_to_edit_iter;
+	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
+		LayerCollection *lc = BLI_gsetIterator_getKey(&collections_to_edit_iter);
+
+		if (!(lc->collection->flag & COLLECTION_IS_MASTER)) {
+			if (include) {
+				lc->flag &= ~LAYER_COLLECTION_EXCLUDE;
+			}
+			else {
+				lc->flag |= LAYER_COLLECTION_EXCLUDE;
+			}
+
+			layer_collection_exclude_recursive_set(lc);
+		}
+	}
+
+	BLI_gset_free(data.collections_to_edit, NULL);
+
+	BKE_layer_collection_sync(scene, view_layer);
+	DEG_relations_tag_update(bmain);
+
+	WM_main_add_notifier(NC_SCENE | ND_LAYER, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void OUTLINER_OT_collection_exclude_set(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Exclude from View Layer";
+	ot->idname = "OUTLINER_OT_collection_exclude_set";
+	ot->description = "Exclude collection from the active view layer";
+
+	/* api callbacks */
+	ot->exec = collection_view_layer_exec;
+	ot->poll = collections_exclude_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+void OUTLINER_OT_collection_include_set(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Include in View Layer";
+	ot->idname = "OUTLINER_OT_collection_include_set";
+	ot->description = "Include collection in the active view layer";
+
+	/* api callbacks */
+	ot->exec = collection_view_layer_exec;
+	ot->poll = collections_include_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;

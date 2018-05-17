@@ -105,11 +105,8 @@ static void set_operation_types(SpaceOops *soops, ListBase *lb,
 	for (te = lb->first; te; te = te->next) {
 		tselem = TREESTORE(te);
 		if (tselem->flag & TSE_SELECTED) {
-			if (tselem->type == TSE_R_LAYER && soops->outlinevis == SO_COLLECTIONS) {
-				/* Don't let immutable render layer item affect menu. */
-			}
-			else if (!ELEM(tselem->type, 0, TSE_LAYER_COLLECTION)) {
-				/* Layer collection points to collection ID. */
+			/* Layer collection points to collection ID. */
+			if (!ELEM(tselem->type, 0, TSE_LAYER_COLLECTION)) {
 				if (*datalevel == 0)
 					*datalevel = tselem->type;
 				else if (*datalevel != tselem->type)
@@ -133,6 +130,9 @@ static void set_operation_types(SpaceOops *soops, ListBase *lb,
 					case ID_LI:
 						if (*idlevel == 0) *idlevel = idcode;
 						else if (*idlevel != idcode) *idlevel = -1;
+						if (ELEM(*datalevel, TSE_VIEW_COLLECTION_BASE, TSE_SCENE_COLLECTION_BASE)) {
+							*datalevel = 0;
+						}
 						break;
 				}
 			}
@@ -1824,11 +1824,8 @@ static int do_outliner_operation_event(bContext *C, ARegion *ar, SpaceOops *soop
 				else if (datalevel == TSE_LAYER_COLLECTION) {
 					WM_menu_name_call(C, "OUTLINER_MT_collection", WM_OP_INVOKE_REGION_WIN);
 				}
-				else if (datalevel == TSE_R_LAYER && ELEM(soops->outlinevis, SO_COLLECTIONS, SO_VIEW_LAYER)) {
+				else if (ELEM(datalevel, TSE_SCENE_COLLECTION_BASE, TSE_VIEW_COLLECTION_BASE)) {
 					WM_menu_name_call(C, "OUTLINER_MT_collection_new", WM_OP_INVOKE_REGION_WIN);
-				}
-				else if (ELEM(datalevel, TSE_R_LAYER_BASE, TSE_R_LAYER)) {
-					/*WM_operator_name_call(C, "OUTLINER_OT_renderdata_operation", WM_OP_INVOKE_REGION_WIN, NULL)*/
 				}
 				else if (datalevel == TSE_ID_BASE) {
 					/* do nothing... there are no ops needed here yet */
@@ -1880,7 +1877,7 @@ static int outliner_operation(bContext *C, wmOperator *UNUSED(op), const wmEvent
 
 	if (!found) {
 		/* Menus for clicking in empty space. */
-		if (ELEM(soops->outlinevis, SO_COLLECTIONS, SO_VIEW_LAYER)) {
+		if (soops->outlinevis == SO_VIEW_LAYER) {
 			WM_menu_name_call(C, "OUTLINER_MT_collection_new", WM_OP_INVOKE_REGION_WIN);
 		}
 	}

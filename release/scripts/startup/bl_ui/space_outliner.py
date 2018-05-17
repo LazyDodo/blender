@@ -37,17 +37,22 @@ class OUTLINER_HT_header(Header):
 
         layout.prop(space, "display_mode", text="")
 
-        row = layout.row()
-        if display_mode in {'OBJECTS', 'COLLECTIONS'}:
+        row = layout.row(align=True)
+        if display_mode in {'VIEW_LAYER'}:
             row.popover(space_type='OUTLINER',
                         region_type='HEADER',
                         panel_type="OUTLINER_PT_filter",
                         text="",
                         icon='FILTER')
+        elif display_mode in {'LIBRARIES', 'ORPHAN_DATA'}:
+            row.prop(space, "use_filter_id_type", text="", icon='FILTER')
+            sub = row.row(align=True)
+            sub.active = space.use_filter_id_type
+            sub.prop(space, "filter_id_type", text="", icon_only=True)
 
         OUTLINER_MT_editor_menus.draw_collapsible(context, layout)
 
-        if display_mode == 'DATABLOCKS':
+        if space.display_mode == 'DATA_API':
             layout.separator()
 
             row = layout.row(align=True)
@@ -86,7 +91,7 @@ class OUTLINER_MT_editor_menus(Menu):
 
         layout.menu("OUTLINER_MT_view")
 
-        if space.display_mode == 'DATABLOCKS':
+        if space.display_mode == 'DATA_API':
             layout.menu("OUTLINER_MT_edit_datablocks")
 
         elif space.display_mode == 'ORPHAN_DATA':
@@ -101,7 +106,7 @@ class OUTLINER_MT_view(Menu):
 
         space = context.space_data
 
-        if space.display_mode != 'DATABLOCKS':
+        if space.display_mode != 'DATA_API':
             layout.prop(space, "use_sort_alpha")
             layout.prop(space, "show_restrict_columns")
             layout.separator()
@@ -141,6 +146,18 @@ class OUTLINER_MT_edit_orphan_data(Menu):
         layout.operator("outliner.orphans_purge")
 
 
+class OUTLINER_MT_collection_view_layer(Menu):
+    bl_label = "View Layer"
+
+    def draw(self, context):
+        layout = self.layout
+
+        space = context.space_data
+
+        layout.operator("outliner.collection_exclude_set", text="Exclude")
+        layout.operator("outliner.collection_include_set", text="Include")
+
+
 class OUTLINER_MT_collection(Menu):
     bl_label = "Collection"
 
@@ -149,7 +166,7 @@ class OUTLINER_MT_collection(Menu):
 
         space = context.space_data
 
-        layout.operator("outliner.collection_new", text="New")
+        layout.operator("outliner.collection_new", text="New").nested = True
         layout.operator("outliner.collection_duplicate", text="Duplicate")
         layout.operator("outliner.collection_delete", text="Delete").hierarchy = False
         layout.operator("outliner.collection_delete", text="Delete Hierarchy").hierarchy = True
@@ -162,11 +179,14 @@ class OUTLINER_MT_collection(Menu):
         layout.separator()
 
         layout.operator("outliner.collection_instance", text="Instance to Scene")
-        if space.display_mode == 'COLLECTIONS' and space.filter_collection != 'SCENE':
+        if space.display_mode != 'VIEW_LAYER':
             layout.operator("outliner.collection_link", text="Link to Scene")
         layout.operator("outliner.id_operation", text="Unlink").type='UNLINK'
 
-        # TODO: needed for static override, but not all operators work
+        if space.display_mode == 'VIEW_LAYER':
+            layout.separator()
+            layout.menu("OUTLINER_MT_collection_view_layer")
+
         layout.separator()
         layout.operator_menu_enum("outliner.id_operation", 'type', text="ID Data")
 
@@ -177,7 +197,7 @@ class OUTLINER_MT_collection_new(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("outliner.collection_new", text="New")
+        layout.operator("outliner.collection_new", text="New").nested = False
 
 
 class OUTLINER_MT_object(Menu):
@@ -189,7 +209,7 @@ class OUTLINER_MT_object(Menu):
         space = context.space_data
 
         layout.operator("outliner.object_operation", text="Delete").type='DELETE'
-        if space.display_mode != 'COLLECTIONS':
+        if space.display_mode == 'VIEW_LAYER' and not space.use_filter_collection:
             layout.operator("outliner.object_operation", text="Delete Hierarchy").type='DELETE_HIERARCHY'
 
         layout.separator()
@@ -200,11 +220,10 @@ class OUTLINER_MT_object(Menu):
 
         layout.separator()
 
-        if space.display_mode == 'COLLECTIONS':
+        if not (space.display_mode == 'VIEW_LAYER' and not space.use_filter_collection):
             layout.operator("outliner.id_operation", text="Unlink").type='UNLINK'
             layout.separator()
 
-        # TODO: needed for static override, but not all operators work
         layout.operator_menu_enum("outliner.id_operation", 'type', text="ID Data")
 
 
@@ -219,20 +238,13 @@ class OUTLINER_PT_filter(Panel):
         space = context.space_data
         display_mode = space.display_mode
 
-        if display_mode == 'COLLECTIONS':
-            col = layout.column(align=True)
-            col.label(text="Collections:")
-            col.row().prop(space, "filter_collection", expand=True)
+        layout.prop(space, "use_filter_collection", text="Collections")
 
-            layout.separator()
+        layout.separator()
 
         col = layout.column()
-        if display_mode == 'COLLECTIONS':
-            col.prop(space, "use_filter_object", text="Objects")
-            active = space.use_filter_object
-        else:
-            col.label("Objects:")
-            active = True
+        col.prop(space, "use_filter_object", text="Objects")
+        active = space.use_filter_object
 
         sub = col.column(align=True)
         sub.active = active
@@ -272,6 +284,7 @@ classes = (
     OUTLINER_MT_edit_orphan_data,
     OUTLINER_MT_collection,
     OUTLINER_MT_collection_new,
+    OUTLINER_MT_collection_view_layer,
     OUTLINER_MT_object,
     OUTLINER_PT_filter,
 )

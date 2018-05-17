@@ -70,7 +70,6 @@ typedef struct ViewLayer {
 	struct Base *basact;
 	ListBase layer_collections; /* LayerCollection */
 	LayerCollection *active_collection;
-	struct IDProperty *properties_evaluated;
 
 	/* Old SceneRenderLayer data. */
 	int layflag;

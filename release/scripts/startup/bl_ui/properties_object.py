@@ -318,8 +318,8 @@ class OBJECT_PT_duplication(ObjectButtonsPanel, Panel):
             sub.active = ob.use_dupli_faces_scale
             sub.prop(ob, "dupli_faces_scale", text="Inherit Scale")
 
-        elif ob.dupli_type == 'GROUP':
-            layout.prop(ob, "dupli_group", text="Group")
+        elif ob.dupli_type == 'COLLECTION':
+            layout.prop(ob, "dupli_group", text="Collection")
 
 
 from .properties_animviz import (

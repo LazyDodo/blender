@@ -2640,18 +2640,13 @@ static void write_scene(WriteData *wd, Scene *sce)
 		write_view_layer(wd, view_layer);
 	}
 
-	if (sce->layer_properties) {
-		IDP_WriteProperty(sce->layer_properties, wd);
-	}
-
-	if (sce->collection_properties) {
-		IDP_WriteProperty(sce->collection_properties, wd);
-	}
-
 	if (sce->master_collection) {
 		writestruct(wd, DATA, Collection, 1, sce->master_collection);
 		write_collection_nolib(wd, sce->master_collection);
 	}
+
+	/* Freed on doversion. */
+	BLI_assert(sce->layer_properties == NULL);
 }
 
 static void write_gpencil(WriteData *wd, bGPdata *gpd)

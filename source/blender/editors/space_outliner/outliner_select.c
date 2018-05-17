@@ -681,6 +681,27 @@ static eOLDrawState tree_element_active_keymap_item(
 	return OL_DRAWSEL_NONE;
 }
 
+static eOLDrawState tree_element_active_master_collection(
+        bContext *C, TreeElement *UNUSED(te), const eOLSetState set)
+{
+	if (set == OL_SETSEL_NONE) {
+		ViewLayer *view_layer = CTX_data_view_layer(C);
+		LayerCollection *active = CTX_data_layer_collection(C);
+
+		if (active == view_layer->layer_collections.first) {
+			return OL_DRAWSEL_NORMAL;
+		}
+	}
+	else {
+		ViewLayer *view_layer = CTX_data_view_layer(C);
+		LayerCollection *layer_collection = view_layer->layer_collections.first;
+		BKE_layer_collection_activate(view_layer, layer_collection);
+		WM_main_add_notifier(NC_SCENE | ND_LAYER, NULL);
+	}
+
+	return OL_DRAWSEL_NONE;
+}
+
 static eOLDrawState tree_element_active_layer_collection(
         bContext *C, TreeElement *te, const eOLSetState set)
 {
@@ -695,7 +716,7 @@ static eOLDrawState tree_element_active_layer_collection(
 		Scene *scene = CTX_data_scene(C);
 		LayerCollection *layer_collection = te->directdata;
 		ViewLayer *view_layer = BKE_view_layer_find_from_collection(scene, layer_collection);
-		view_layer->active_collection = layer_collection;
+		BKE_layer_collection_activate(view_layer, layer_collection);
 		WM_main_add_notifier(NC_SCENE | ND_LAYER, NULL);
 	}
 
@@ -763,12 +784,7 @@ eOLDrawState tree_element_type_active(
 		case TSE_CONSTRAINT:
 			return tree_element_active_constraint(C, scene, view_layer, te, tselem, set);
 		case TSE_R_LAYER:
-			if (soops->outlinevis == SO_SCENES) {
-				return active_viewlayer(C, scene, view_layer, te, tselem, set);
-			}
-			else {
-				return OL_DRAWSEL_NONE;
-			}
+			return active_viewlayer(C, scene, view_layer, te, tselem, set);
 		case TSE_POSEGRP:
 			return tree_element_active_posegroup(C, scene, view_layer, te, tselem, set);
 		case TSE_SEQUENCE:
@@ -780,6 +796,8 @@ eOLDrawState tree_element_type_active(
 		case TSE_GP_LAYER:
 			//return tree_element_active_gplayer(C, scene, s, te, tselem, set);
 			break;
+		case TSE_VIEW_COLLECTION_BASE:
+			return tree_element_active_master_collection(C, te, set);
 		case TSE_LAYER_COLLECTION:
 			return tree_element_active_layer_collection(C, te, set);
 	}
@@ -905,7 +923,7 @@ static bool outliner_item_is_co_within_close_toggle(TreeElement *te, float view_
 
 static bool outliner_is_co_within_restrict_columns(const SpaceOops *soops, const ARegion *ar, float view_co_x)
 {
-	return ((soops->outlinevis != SO_DATABLOCKS) &&
+	return ((soops->outlinevis != SO_DATA_API) &&
 	        !(soops->flag & SO_HIDE_RESTRICTCOLS) &&
 	        (view_co_x > ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX));
 }

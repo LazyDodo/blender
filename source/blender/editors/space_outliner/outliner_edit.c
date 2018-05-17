@@ -264,7 +264,8 @@ static void do_item_rename(ARegion *ar, TreeElement *te, TreeStoreElem *tselem,
 		/* do nothing */;
 	}
 	else if (ELEM(tselem->type, TSE_ANIM_DATA, TSE_NLA, TSE_DEFGROUP_BASE, TSE_CONSTRAINT_BASE, TSE_MODIFIER_BASE,
-	              TSE_DRIVER_BASE, TSE_POSE_BASE, TSE_POSEGRP_BASE, TSE_R_LAYER_BASE))
+	              TSE_DRIVER_BASE, TSE_POSE_BASE, TSE_POSEGRP_BASE, TSE_R_LAYER_BASE, TSE_SCENE_COLLECTION_BASE,
+	              TSE_VIEW_COLLECTION_BASE))
 	{
 		BKE_report(reports, RPT_WARNING, "Cannot edit builtin name");
 	}
@@ -1338,7 +1339,7 @@ static int ed_operator_outliner_datablocks_active(bContext *C)
 	ScrArea *sa = CTX_wm_area(C);
 	if ((sa) && (sa->spacetype == SPACE_OUTLINER)) {
 		SpaceOops *so = CTX_wm_space_outliner(C);
-		return (so->outlinevis == SO_DATABLOCKS);
+		return (so->outlinevis == SO_DATA_API);
 	}
 	return 0;
 }
@@ -2063,7 +2064,12 @@ static int outliner_parenting_poll(bContext *C)
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 
 	if (soops) {
-		if (ELEM(soops->outlinevis, SO_SCENES, SO_OBJECTS)) {
+		if (soops->outlinevis == SO_SCENES) {
+			return true;
+		}
+		else if ((soops->outlinevis == SO_VIEW_LAYER) &&
+		         (soops->filter & SO_FILTER_NO_COLLECTION))
+		{
 			return true;
 		}
 	}

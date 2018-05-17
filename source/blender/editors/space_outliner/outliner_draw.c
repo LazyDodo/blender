@@ -262,38 +262,6 @@ static void restrictbutton_id_user_toggle(bContext *UNUSED(C), void *poin, void 
 	}
 }
 
-static void layer_collection_exclude_recursive_set(LayerCollection *lc)
-{
-	for (LayerCollection *nlc = lc->layer_collections.first; nlc; nlc = nlc->next) {
-		if (lc->flag & LAYER_COLLECTION_EXCLUDE) {
-			nlc->flag |= LAYER_COLLECTION_EXCLUDE;
-		}
-		else {
-			nlc->flag &= ~LAYER_COLLECTION_EXCLUDE;
-		}
-
-		layer_collection_exclude_recursive_set(nlc);
-	}
-}
-
-static void layer_collection_exclude_cb(bContext *C, void *poin, void *poin2)
-{
-	Main *bmain = CTX_data_main(C);
-	Scene *scene = (Scene *)poin;
-	LayerCollection *lc = (LayerCollection *)poin2;
-	ViewLayer *view_layer = BKE_view_layer_find_from_collection(scene, lc);
-
-	layer_collection_exclude_recursive_set(lc);
-
-	BKE_layer_collection_sync(scene, view_layer);
-
-	/* TODO(sergey): Use proper flag for tagging here. */
-	DEG_id_tag_update(&scene->id, 0);
-	DEG_relations_tag_update(bmain);
-	WM_main_add_notifier(NC_SCENE | ND_LAYER_CONTENT, NULL);
-}
-
-
 static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 {
 	Main *bmain = CTX_data_main(C);
@@ -423,10 +391,6 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 					WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, gpd);
 					break;
 				}
-				case TSE_R_LAYER:
-				{
-					break;
-				}
 				case TSE_LAYER_COLLECTION:
 				{
 					BLI_libblock_ensure_unique_name(bmain, tselem->id->name);
@@ -450,15 +414,12 @@ static void outliner_draw_restrictbuts(uiBlock *block, Scene *scene, ARegion *ar
 	PropertyRNA *collection_prop_hide_viewport;
 	PropertyRNA *collection_prop_hide_select;
 	PropertyRNA *collection_prop_hide_render;
-	PropertyRNA *collection_prop_exclude;
 	collection_prop_hide_select = RNA_struct_type_find_property(&RNA_Collection, "hide_select");
 	collection_prop_hide_viewport = RNA_struct_type_find_property(&RNA_Collection, "hide_viewport");
 	collection_prop_hide_render = RNA_struct_type_find_property(&RNA_Collection, "hide_render");
-	collection_prop_exclude = RNA_struct_type_find_property(&RNA_LayerCollection, "use");
 	BLI_assert(collection_prop_hide_viewport &&
 	           collection_prop_hide_select &&
-	           collection_prop_hide_render &&
-	           collection_prop_exclude);
+	           collection_prop_hide_render);
 
 	for (te = lb->first; te; te = te->next) {
 		tselem = TREESTORE(te);
@@ -568,20 +529,9 @@ static void outliner_draw_restrictbuts(uiBlock *block, Scene *scene, ARegion *ar
 
 				UI_block_emboss_set(block, UI_EMBOSS_NONE);
 
-				if (soops->outlinevis == SO_VIEW_LAYER) {
-					if (lc && !(collection->flag & COLLECTION_IS_MASTER)) {
-						PointerRNA layer_collection_ptr;
-						RNA_pointer_create(&scene->id, &RNA_LayerCollection, lc, &layer_collection_ptr);
-
-						bt = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0,
-						                        (lc->flag & LAYER_COLLECTION_EXCLUDE) ? ICON_CHECKBOX_DEHLT : ICON_CHECKBOX_HLT,
-						                        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_RENDERX), te->ys, UI_UNIT_X,
-						                        UI_UNIT_Y, &layer_collection_ptr, collection_prop_exclude, -1, 0, 0, 0, 0, NULL);
-						UI_but_func_set(bt, layer_collection_exclude_cb, scene, lc);
-						UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
-					}
-				}
-				else if (!lc || !(lc->flag & LAYER_COLLECTION_EXCLUDE)) {
+				if ((!lc || !(lc->flag & LAYER_COLLECTION_EXCLUDE)) &&
+				    !(collection->flag & COLLECTION_IS_MASTER))
+				{
 					PointerRNA collection_ptr;
 					RNA_id_pointer_create(&collection->id, &collection_ptr);
 
@@ -1111,6 +1061,7 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 				break;
 			case TSE_LAYER_COLLECTION:
 			case TSE_SCENE_COLLECTION_BASE:
+			case TSE_VIEW_COLLECTION_BASE:
 				ICON_DRAW(ICON_GROUP);
 				break;
 			/* Removed the icons from outliner. Need a better structure with Layers, Palettes and Colors */
@@ -1249,6 +1200,11 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 					}
 					break;
 				}
+				case ID_BR:
+					tselem_draw_icon_uibut(&arg, ICON_BRUSH_DATA); break;
+				case ID_SCR:
+				case ID_WS:
+					tselem_draw_icon_uibut(&arg, ICON_SPLITSCREEN); break;
 				default:
 					break;
 			}
@@ -1320,10 +1276,11 @@ static void outliner_draw_iconrow(
 		}
 		
 		/* this tree element always has same amount of branches, so don't draw */
-		if (tselem->type != TSE_R_LAYER)
+		if (tselem->type != TSE_R_LAYER) {
 			outliner_draw_iconrow(
 			        C, block, scene, view_layer, obedit, soops,
 			        &te->subtree, level + 1, xmax, offsx, ys, alpha_fac);
+		}
 	}
 	
 }
@@ -1442,8 +1399,8 @@ static void outliner_draw_tree_element(
 			te->flag |= TE_ACTIVE; // for lookup in display hierarchies
 		}
 		
-		if (tselem->type == TSE_R_LAYER && ELEM(soops->outlinevis, SO_VIEW_LAYER, SO_COLLECTIONS, SO_OBJECTS)) {
-			/* View layer in collections can't expand/collapse. */
+		if (tselem->type == TSE_VIEW_COLLECTION_BASE) {
+			/* Scene collection in view layer can't expand/collapse. */
 		}
 		else if (te->subtree.first || (tselem->type == 0 && te->idcode == ID_SCE) || (te->flag & TE_LAZY_CLOSED)) {
 			/* open/close icon, only when sublevels, except for scene */
@@ -1461,7 +1418,7 @@ static void outliner_draw_tree_element(
 		
 		/* datatype icon */
 		
-		if (!(ELEM(tselem->type, TSE_RNA_PROPERTY, TSE_RNA_ARRAY_ELEM))) {
+		if (!(ELEM(tselem->type, TSE_RNA_PROPERTY, TSE_RNA_ARRAY_ELEM, TSE_ID_BASE))) {
 			tselem_draw_icon(block, xmax, (float)startx + offsx, (float)*starty, tselem, te, alpha_fac);
 			offsx += UI_UNIT_X + 2 * ufac;
 		}
@@ -1746,7 +1703,7 @@ static void outliner_draw_highlights_recursive(
         int start_x, int *io_start_y)
 {
 	const bool is_searching = SEARCHING_OUTLINER(soops) ||
-	                          (soops->outlinevis == SO_DATABLOCKS &&
+	                          (soops->outlinevis == SO_DATA_API &&
 	                           (soops->filter & SO_FILTER_SEARCH) &&
 	                           soops->search_string[0] != 0);
 
@@ -1814,7 +1771,7 @@ static void outliner_draw_tree(
 
 	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // only once
 
-	if (soops->outlinevis == SO_DATABLOCKS) {
+	if (soops->outlinevis == SO_DATA_API) {
 		/* struct marks */
 		starty = (int)ar->v2d.tot.ymax - UI_UNIT_Y - OL_Y_OFFSET;
 		outliner_draw_struct_marks(ar, soops, &soops->tree, &starty);
@@ -1940,7 +1897,7 @@ void draw_outliner(const bContext *C)
 	/* get extents of data */
 	outliner_height(soops, &soops->tree, &sizey);
 
-	if (soops->outlinevis == SO_DATABLOCKS) {
+	if (soops->outlinevis == SO_DATA_API) {
 		/* RNA has two columns:
 		 *  - column 1 is (max_width + OL_RNA_COL_SPACEX) or
 		 *				 (OL_RNA_COL_X), whichever is wider...
@@ -1990,7 +1947,7 @@ void draw_outliner(const bContext *C)
 	        (bContext *)C, block, scene, view_layer, obedit,
 	        ar, soops, has_restrict_icons, &te_edit);
 
-	if (soops->outlinevis == SO_DATABLOCKS) {
+	if (soops->outlinevis == SO_DATA_API) {
 		/* draw rna buttons */
 		outliner_draw_rnacols(ar, sizex_rna);
 		outliner_draw_rnabuts(block, ar, soops, sizex_rna, &soops->tree);

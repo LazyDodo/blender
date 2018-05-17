@@ -163,7 +163,7 @@ typedef enum {
 
 /* The outliner display modes that support the filter system.
  * Note: keep it synced with space_outliner.py */
-#define SUPPORT_FILTER_OUTLINER(soops_) (ELEM((soops_)->outlinevis, SO_COLLECTIONS, SO_OBJECTS))
+#define SUPPORT_FILTER_OUTLINER(soops_) (ELEM((soops_)->outlinevis, SO_VIEW_LAYER))
 
 /* Outliner Searching --
  *
@@ -345,6 +345,8 @@ void OUTLINER_OT_collection_objects_select(struct wmOperatorType *ot);
 void OUTLINER_OT_collection_objects_deselect(struct wmOperatorType *ot);
 void OUTLINER_OT_collection_link(struct wmOperatorType *ot);
 void OUTLINER_OT_collection_instance(struct wmOperatorType *ot);
+void OUTLINER_OT_collection_exclude_set(struct wmOperatorType *ot);
+void OUTLINER_OT_collection_include_set(struct wmOperatorType *ot);
 
 /* outliner_utils.c ---------------------------------------------- */
 

@@ -299,7 +299,7 @@ static void outliner_add_scene_contents(SpaceOops *soops, ListBase *lb, Scene *s
 
 	/* Collections */
 	ten = outliner_add_element(soops, lb, &sce->id, te, TSE_SCENE_COLLECTION_BASE, 0);
-	ten->name = IFACE_("Collections");
+	ten->name = IFACE_("Scene Collection");
 	outliner_add_collection_recursive(soops, sce->master_collection, ten);
 
 	/* Objects */
@@ -877,7 +877,7 @@ static TreeElement *outliner_add_element(SpaceOops *soops, ListBase *lb, void *i
 	else if (type == TSE_GP_LAYER) {
 		/* pass */
 	}
-	else if (ELEM(type, TSE_LAYER_COLLECTION, TSE_SCENE_COLLECTION_BASE)) {
+	else if (ELEM(type, TSE_LAYER_COLLECTION, TSE_SCENE_COLLECTION_BASE, TSE_VIEW_COLLECTION_BASE)) {
 		/* pass */
 	}
 	else if (type == TSE_ID_BASE) {
@@ -896,8 +896,9 @@ static TreeElement *outliner_add_element(SpaceOops *soops, ListBase *lb, void *i
 		TreeStoreElem *tsepar = parent ? TREESTORE(parent) : NULL;
 		
 		/* ID datablock */
-		if (tsepar == NULL || tsepar->type != TSE_ID_BASE)
+		if (tsepar == NULL || tsepar->type != TSE_ID_BASE || soops->filter_id_type) {
 			outliner_add_id_contents(soops, te, tselem, id);
+		}
 	}
 	else if (type == TSE_ANIM_DATA) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)idv;
@@ -1252,16 +1253,56 @@ static void outliner_add_seq_dup(SpaceOops *soops, Sequence *seq, TreeElement *t
 
 /* ----------------------------------------------- */
 
+static const char *outliner_idcode_to_plural(short idcode)
+{
+	const char *propname = BKE_idcode_to_name_plural(idcode);
+	PropertyRNA *prop = RNA_struct_type_find_property(&RNA_BlendData, propname);
+	return (prop) ? RNA_property_ui_name(prop) : "UNKNOWN";
+}
+
+static bool outliner_library_id_show(Library *lib, ID *id, short filter_id_type)
+{
+	if (id->lib != lib) {
+		return false;
+	}
+
+	if (filter_id_type == ID_GR) {
+		/* Don't show child collections of non-scene master collection,
+		 * they are already shown as children. */
+		Collection *collection = (Collection *)id;
+		bool has_non_scene_parent = false;
+
+		for (CollectionParent *cparent = collection->parents.first; cparent; cparent = cparent->next) {
+			if (!(cparent->collection->flag & COLLECTION_IS_MASTER)) {
+				has_non_scene_parent = true;
+			}
+		}
+
+		if (has_non_scene_parent) {
+			return false;
+		}
+	}
+
+	return true;
+}
 
 static void outliner_add_library_contents(Main *mainvar, SpaceOops *soops, TreeElement *te, Library *lib)
 {
 	TreeElement *ten;
 	ListBase *lbarray[MAX_LIBARRAY];
 	int a, tot;
+	short filter_id_type = (soops->filter & SO_FILTER_ID_TYPE) ? soops->filter_id_type : 0;
 	
-	tot = set_listbasepointers(mainvar, lbarray);
+	if (filter_id_type) {
+		lbarray[0] = which_libbase(mainvar, soops->filter_id_type);
+		tot = 1;
+	}
+	else {
+		tot = set_listbasepointers(mainvar, lbarray);
+	}
+
 	for (a = 0; a < tot; a++) {
-		if (lbarray[a]->first) {
+		if (lbarray[a] && lbarray[a]->first) {
 			ID *id = lbarray[a]->first;
 			
 			/* check if there's data in current lib */
@@ -1270,21 +1311,23 @@ static void outliner_add_library_contents(Main *mainvar, SpaceOops *soops, TreeE
 					break;
 			
 			if (id) {
-				ten = outliner_add_element(soops, &te->subtree, lbarray[a], NULL, TSE_ID_BASE, 0);
-				ten->directdata = lbarray[a];
-				
-				ten->name = BKE_idcode_to_name_plural(GS(id->name));
-				if (ten->name == NULL)
-					ten->name = "UNKNOWN";
+				if (filter_id_type) {
+					ten = te;
+				}
+				else {
+					ten = outliner_add_element(soops, &te->subtree, lbarray[a], NULL, TSE_ID_BASE, 0);
+					ten->directdata = lbarray[a];
+					ten->name = outliner_idcode_to_plural(GS(id->name));
+				}
 				
 				for (id = lbarray[a]->first; id; id = id->next) {
-					if (id->lib == lib)
+					if (outliner_library_id_show(lib, id, filter_id_type)) {
 						outliner_add_element(soops, &ten->subtree, id, ten, 0, 0);
+					}
 				}
 			}
 		}
 	}
-	
 }
 
 static void outliner_add_orphaned_datablocks(Main *mainvar, SpaceOops *soops)
@@ -1292,10 +1335,18 @@ static void outliner_add_orphaned_datablocks(Main *mainvar, SpaceOops *soops)
 	TreeElement *ten;
 	ListBase *lbarray[MAX_LIBARRAY];
 	int a, tot;
+	short filter_id_type = (soops->filter & SO_FILTER_ID_TYPE) ? soops->filter_id_type : 0;
 	
-	tot = set_listbasepointers(mainvar, lbarray);
+	if (filter_id_type) {
+		lbarray[0] = which_libbase(mainvar, soops->filter_id_type);
+		tot = 1;
+	}
+	else {
+		tot = set_listbasepointers(mainvar, lbarray);
+	}
+
 	for (a = 0; a < tot; a++) {
-		if (lbarray[a]->first) {
+		if (lbarray[a] && lbarray[a]->first) {
 			ID *id = lbarray[a]->first;
 			
 			/* check if there are any datablocks of this type which are orphans */
@@ -1306,21 +1357,19 @@ static void outliner_add_orphaned_datablocks(Main *mainvar, SpaceOops *soops)
 			
 			if (id) {
 				/* header for this type of datablock */
-				/* TODO's:
-				 *   - Add a parameter to BKE_idcode_to_name_plural to get a sane "user-visible" name instead?
-				 *   - Ensure that this uses nice icons for the datablock type involved instead of the dot?
-				 */
-				ten = outliner_add_element(soops, &soops->tree, lbarray[a], NULL, TSE_ID_BASE, 0);
-				ten->directdata = lbarray[a];
-				
-				ten->name = BKE_idcode_to_name_plural(GS(id->name));
-				if (ten->name == NULL)
-					ten->name = "UNKNOWN";
+				if (filter_id_type) {
+					ten = NULL;
+				}
+				else {
+					ten = outliner_add_element(soops, &soops->tree, lbarray[a], NULL, TSE_ID_BASE, 0);
+					ten->directdata = lbarray[a];
+					ten->name = outliner_idcode_to_plural(GS(id->name));
+				}
 				
 				/* add the orphaned datablocks - these will not be added with any subtrees attached */
 				for (id = lbarray[a]->first; id; id = id->next) {
 					if (ID_REAL_USERS(id) <= 0)
-						outliner_add_element(soops, &ten->subtree, id, ten, 0, 0);
+						outliner_add_element(soops, (ten) ? &ten->subtree : &soops->tree, id, ten, 0, 0);
 				}
 			}
 		}
@@ -1412,33 +1461,12 @@ static void outliner_add_layer_collection_objects(
 	}
 }
 
-static bool outliner_layer_collection_is_visible(LayerCollection *lc)
-{
-	if (!(lc->flag & LAYER_COLLECTION_EXCLUDE)) {
-		return true;
-	}
-
-	for (LayerCollection *nlc = lc->layer_collections.first; nlc; nlc = nlc->next) {
-		if (outliner_layer_collection_is_visible(nlc)) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 static void outliner_add_layer_collections_recursive(
         SpaceOops *soops, ListBase *tree, ViewLayer *layer,
         ListBase *layer_collections, TreeElement *parent_ten,
         const bool show_objects)
 {
 	for (LayerCollection *lc = layer_collections->first; lc; lc = lc->next) {
-		if ((soops->outlinevis != SO_VIEW_LAYER) &&
-		    !outliner_layer_collection_is_visible(lc))
-		{
-			continue;
-		}
-
 		ID *id = &lc->collection->id;
 		TreeElement *ten = outliner_add_element(soops, tree, id, parent_ten, TSE_LAYER_COLLECTION, 0);
 
@@ -1477,7 +1505,7 @@ static void outliner_add_view_layer(SpaceOops *soops, ListBase *tree, TreeElemen
 BLI_INLINE void outliner_add_collection_init(TreeElement *te, Collection *collection)
 {
 	if (collection->flag & COLLECTION_IS_MASTER) {
-		te->name = IFACE_("Collections");
+		te->name = IFACE_("Scene Collection");
 	}
 	else {
 		te->name = collection->id.name + 2;
@@ -1776,7 +1804,8 @@ static TreeElement *outliner_find_first_desired_element_at_y(
 	te = outliner_find_item_at_y(soops, &soops->tree, view_co);
 
 	bool (*callback_test)(TreeElement *);
-	if (soops->outlinevis == SO_OBJECTS) {
+	if ((soops->outlinevis == SO_VIEW_LAYER) &&
+	     (soops->filter & SO_FILTER_NO_COLLECTION)) {
 		callback_test = test_object_callback;
 	}
 	else {
@@ -1855,7 +1884,7 @@ static int outliner_exclude_filter_get(SpaceOops *soops)
 		return (exclude_filter & SO_FILTER_SEARCH);
 	}
 
-	if (soops->outlinevis == SO_COLLECTIONS && (soops->filter & SO_FILTER_NO_OBJECT)) {
+	if (soops->filter & SO_FILTER_NO_OBJECT) {
 		exclude_filter |= SO_FILTER_OB_TYPE;
 	}
 
@@ -2070,7 +2099,7 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 	/* Are we looking for something - we want to tag parents to filter child matches
 	 * - NOT in datablocks view - searching all datablocks takes way too long to be useful
 	 * - this variable is only set once per tree build */
-	if (soops->search_string[0] != 0 && soops->outlinevis != SO_DATABLOCKS)
+	if (soops->search_string[0] != 0 && soops->outlinevis != SO_DATA_API)
 		soops->search_flags |= SO_SEARCH_RECURSIVE;
 	else
 		soops->search_flags &= ~SO_SEARCH_RECURSIVE;
@@ -2177,7 +2206,7 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 			seq = seq->next;
 		}
 	}
-	else if (soops->outlinevis == SO_DATABLOCKS) {
+	else if (soops->outlinevis == SO_DATA_API) {
 		PointerRNA mainptr;
 
 		RNA_main_pointer_create(mainvar, &mainptr);
@@ -2192,59 +2221,25 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 	else if (soops->outlinevis == SO_ID_ORPHANS) {
 		outliner_add_orphaned_datablocks(mainvar, soops);
 	}
-	else if (soops->outlinevis == SO_COLLECTIONS &&
-	         soops->filter_collection != SO_FILTER_COLLECTION_SCENE) {
-		Collection *collection;
-		for (collection = mainvar->collection.first; collection; collection = collection->id.next) {
-			if (soops->filter_collection == SO_FILTER_COLLECTION_UNLINKED) {
-				/* Skip collections used in a scene */
-				if (BKE_collection_is_in_scene(collection)) {
-					continue;
-				}
+	else if (soops->outlinevis == SO_VIEW_LAYER) {
+		if (soops->filter & SO_FILTER_NO_COLLECTION) {
+			/* Show objects in the view layer. */
+			for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+				TreeElement *te_object = outliner_add_element(soops, &soops->tree, base->object, NULL, 0, 0);
+				te_object->directdata = base;
 			}
 
-			if (collection->parents.first) {
-				/* Don't show child collections of non-scene master collection,
-				 * they are already shown as children. */
-				bool has_non_scene_parent = false;
-
-				for (CollectionParent *cparent = collection->parents.first; cparent; cparent = cparent->next) {
-					if (!(cparent->collection->flag & COLLECTION_IS_MASTER)) {
-						has_non_scene_parent = true;
-					}
-				}
-
-				if (has_non_scene_parent) {
-					continue;
-				}
-			}
-
-			te = outliner_add_element(soops, &soops->tree, collection, NULL, 0, 0);
+			outliner_make_object_parent_hierarchy(&soops->tree);
 		}
-	}
-	else if (ELEM(soops->outlinevis, SO_VIEW_LAYER, SO_COLLECTIONS)) {
-		/* Show collections and objects in the view layer. */
-		TreeElement *tenlay = outliner_add_element(soops, &soops->tree, scene, te, TSE_R_LAYER, 0);
-		tenlay->name = view_layer->name;
-		tenlay->directdata = view_layer;
-		TREESTORE(tenlay)->flag &= ~TSE_CLOSED;
+		else {
+			/* Show collections in the view layer. */
+			ten = outliner_add_element(soops, &soops->tree, scene, NULL, TSE_VIEW_COLLECTION_BASE, 0);
+			ten->name = IFACE_("Scene Collection");
+			TREESTORE(ten)->flag &= ~TSE_CLOSED;
 
-		bool show_objects = (soops->outlinevis == SO_COLLECTIONS) &&
-		                    !(soops->filter & SO_FILTER_NO_OBJECT);
-		outliner_add_view_layer(soops, &tenlay->subtree, tenlay, view_layer, show_objects);
-	}
-	else { /* SO_OBJECTS */
-		/* Show objects in the view layer. */
-		TreeElement *tenlay = outliner_add_element(soops, &soops->tree, scene, te, TSE_R_LAYER, 0);
-		tenlay->name = view_layer->name;
-		tenlay->directdata = view_layer;
-		TREESTORE(tenlay)->flag &= ~TSE_CLOSED;
-
-		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			TreeElement *te_object = outliner_add_element(soops, &tenlay->subtree, base->object, NULL, 0, 0);
-			te_object->directdata = base;
+			bool show_objects = !(soops->filter & SO_FILTER_NO_OBJECT);
+			outliner_add_view_layer(soops, &ten->subtree, ten, view_layer, show_objects);
 		}
-		outliner_make_object_parent_hierarchy(&tenlay->subtree);
 	}
 
 	if ((soops->flag & SO_SKIP_SORT_ALPHA) == 0) {
