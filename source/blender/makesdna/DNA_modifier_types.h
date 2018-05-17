@@ -664,7 +664,7 @@ typedef struct SurfaceModifierData {
 	struct MVert *x; /* old position */
 	struct MVert *v; /* velocity */
 
-	struct DerivedMesh *dm;
+	struct Mesh *mesh;
 
 	struct BVHTreeFromMesh *bvhtree; /* bounding volume hierarchy of the mesh faces */
 

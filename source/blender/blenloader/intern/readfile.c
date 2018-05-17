@@ -5241,7 +5241,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 		else if (md->type == eModifierType_Surface) {
 			SurfaceModifierData *surmd = (SurfaceModifierData *)md;
 			
-			surmd->dm = NULL;
+			surmd->mesh = NULL;
 			surmd->bvhtree = NULL;
 			surmd->x = NULL;
 			surmd->v = NULL;
