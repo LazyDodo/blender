@@ -75,6 +75,7 @@
 #include "BKE_main.h"
 #include "BKE_global.h"
 #include "BKE_groom.h"
+#include "BKE_hair.h"
 #include "BKE_idprop.h"
 #include "BKE_armature.h"
 #include "BKE_action.h"
@@ -866,6 +867,10 @@ ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int f
 	if (psys->part->type == PART_HAIR) {
 		for (p = 0, pa = psysn->particles; p < psysn->totpart; p++, pa++)
 			pa->hair = MEM_dupallocN(pa->hair);
+	}
+	if (psys->hair_system)
+	{
+		psys->hair_system = BKE_hair_copy(psys->hair_system);
 	}
 
 	if (psysn->particles && (psysn->particles->keys || psysn->particles->boid)) {

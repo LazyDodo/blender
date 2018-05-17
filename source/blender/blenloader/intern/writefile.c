@@ -1353,6 +1353,18 @@ static void write_pointcaches(WriteData *wd, ListBase *ptcaches)
 	}
 }
 
+static void write_hair(WriteData *wd, HairSystem *hsys)
+{
+	if ( hsys->pattern )
+	{
+		writestruct(wd, DATA, HairPattern, 1, hsys->pattern);
+		writestruct(wd, DATA, HairFollicle, hsys->pattern->num_follicles, hsys->pattern->follicles);
+	}
+	
+	writestruct(wd, DATA, HairGuideCurve, hsys->guides.totcurves, hsys->guides.curves);
+	writestruct(wd, DATA, HairGuideVertex, hsys->guides.totverts, hsys->guides.verts);
+}
+
 static void write_particlesettings(WriteData *wd, ParticleSettings *part)
 {
 	if (part->id.us > 0 || wd->use_memfile) {
@@ -1431,6 +1443,10 @@ static void write_particlesystems(WriteData *wd, ListBase *particles)
 				for (a = 0; a < psys->totpart; a++, pa++) {
 					writestruct(wd, DATA, HairKey, pa->totkey, pa->hair);
 				}
+			}
+			if (psys->hair_system)
+			{
+				write_hair(wd, psys->hair_system);
 			}
 
 			if (psys->particles->boid &&
@@ -1588,18 +1604,6 @@ static void write_fmaps(WriteData *wd, ListBase *fbase)
 	for (bFaceMap *fmap = fbase->first; fmap; fmap = fmap->next) {
 		writestruct(wd, DATA, bFaceMap, 1, fmap);
 	}
-}
-
-static void write_hair(WriteData *wd, HairSystem *hsys)
-{
-	if ( hsys->pattern )
-	{
-		writestruct(wd, DATA, HairPattern, 1, hsys->pattern);
-		writestruct(wd, DATA, HairFollicle, hsys->pattern->num_follicles, hsys->pattern->follicles);
-	}
-	
-	writestruct(wd, DATA, HairGuideCurve, hsys->guides.totcurves, hsys->guides.curves);
-	writestruct(wd, DATA, HairGuideVertex, hsys->guides.totverts, hsys->guides.verts);
 }
 
 static void write_modifiers(WriteData *wd, ListBase *modbase)

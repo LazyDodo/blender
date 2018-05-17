@@ -74,6 +74,7 @@
 #include "BKE_collision.h"
 #include "BKE_colortools.h"
 #include "BKE_effect.h"
+#include "BKE_hair.h"
 #include "BKE_library_query.h"
 #include "BKE_particle.h"
 
@@ -4109,6 +4110,11 @@ void psys_changed_type(Object *ob, ParticleSystem *psys)
 		CLAMP(part->path_end, 0.0f, 100.0f);
 
 		BKE_ptcache_id_clear(&pid, PTCACHE_CLEAR_ALL, 0);
+
+		if (!psys->hair_system)
+		{
+			psys->hair_system = BKE_hair_new();
+		}
 	}
 	else {
 		free_hair(ob, psys, 1);
