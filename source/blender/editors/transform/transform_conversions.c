@@ -8310,6 +8310,9 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 									/* Triangulation must be calculated again, so save the stroke for recalc function */
 									td->extra = gps;
 
+									/* save pointer to object */
+									td->ob = obact;
+
 									td++;
 									tail++;
 								}

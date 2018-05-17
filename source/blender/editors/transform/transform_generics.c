@@ -1808,16 +1808,13 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 		r_center[2] = 0.0f;
 	}
 	else if (t->options & CTX_GPENCIL_STROKES) {
-		/* TODO: GPXX (segment fault in some situations, maybe related to new multiedit) 
-		 *
-		 * Aded a fix to use the viewlayer active object, but this fix will need review
-		 * for multiedit 
-		 */
-		
 		 /* move cursor in local space */
-		Object *ob = OBACT(t->view_layer);
+		TransData *td = NULL;
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			float mat[3][3], imat[3][3];
+
+			td = tc->data;
+			Object *ob = td->ob;
 
 			sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
 			copy_m3_m4(mat, ob->obmat);
