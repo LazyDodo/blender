@@ -135,9 +135,61 @@ typedef struct HairExportCache
 	const struct HairFollicle *follicles;
 } HairExportCache;
 
+/* Identifiers for data stored in hair export caches.
+ * Note some flags include dependent parts, which automatically
+ * invalidates those parts when their dependencies are invalidated.
+ * 
+ * In particular: guide vertex locations can be changed without having to update fiber base data,
+ * which allows animation of guide curves without rebuilding fiber data apart from final locations.
+ */
+typedef enum eHairExportCacheUpdateFlags
+{
+	/* Follicle placement on the scalp mesh */
+	HAIR_EXPORT_FIBER_ROOT_POSITIONS      = (1 << 0),
+	/* Fiber vertex counts */
+	HAIR_EXPORT_FIBER_VERTEX_COUNTS     = (1 << 1),
+	/* Follicle parent indices and weights */
+	HAIR_EXPORT_FOLLICLE_BINDING        = (1 << 2) | HAIR_EXPORT_FIBER_ROOT_POSITIONS | HAIR_EXPORT_FIBER_VERTEX_COUNTS,
+	/* Guide vertex positions (deform only) */
+	HAIR_EXPORT_GUIDE_VERTICES          = (1 << 3),
+	/* Guide curve number and vertex counts (topology changes) */
+	HAIR_EXPORT_GUIDE_CURVES            = (1 << 4) | HAIR_EXPORT_GUIDE_VERTICES | HAIR_EXPORT_FOLLICLE_BINDING,
+	
+	HAIR_EXPORT_ALL                     =
+	    HAIR_EXPORT_FIBER_ROOT_POSITIONS |
+	    HAIR_EXPORT_FIBER_VERTEX_COUNTS |
+	    HAIR_EXPORT_FOLLICLE_BINDING |
+	    HAIR_EXPORT_GUIDE_VERTICES |
+	    HAIR_EXPORT_GUIDE_CURVES
+} eHairExportCacheUpdateFlags;
+
+/* Create a new export cache.
+ * This can be used to construct full fiber data for rendering.
+ */
 struct HairExportCache* BKE_hair_export_cache_new(const struct HairSystem *hsys, int subdiv, struct DerivedMesh *scalp);
+
+/* Create a new export cache.
+ * This can be used to construct full fiber data for rendering.
+ * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
+ */
 struct HairExportCache* BKE_hair_export_cache_new_mesh(const struct HairSystem *hsys, int subdiv, struct Mesh *scalp);
+
+/* Update an existing export cache when data is invalidated.
+ */
+int BKE_hair_export_cache_update(const struct HairSystem *hsys, int subdiv, struct DerivedMesh *scalp,
+                                 struct HairExportCache *cache, int data);
+
+/* Free the given export cache */
 void BKE_hair_export_cache_free(struct HairExportCache *cache);
+
+/* Returns flags for missing data parts */
+int BKE_hair_export_cache_get_required_updates(const struct HairExportCache *cache);
+
+/* Invalidate all data in a hair export cache */
+void BKE_hair_export_cache_clear(struct HairExportCache *cache);
+
+/* Invalidate part of the data in a hair export cache */
+void BKE_hair_export_cache_invalidate(struct HairExportCache *cache, int invalidate);
 
 /* === Draw Cache === */
 
