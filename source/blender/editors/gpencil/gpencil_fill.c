@@ -76,6 +76,7 @@
 #include "WM_types.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
@@ -190,6 +191,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 	Scene *scene = tgpf->scene;
 	Object *ob = tgpf->ob;
 	bGPdata *gpd = tgpf->gpd;
+	int cfra_eval = (int)DEG_get_ctime(tgpf->depsgraph);
 
 	tGPDdraw tgpw;
 	tgpw.rv3d = tgpf->rv3d;
@@ -215,7 +217,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 			continue;
 
 		/* get frame to draw */
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0);
+		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
 		if (gpf == NULL)
 			continue;
 
@@ -807,6 +809,8 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 {
 	Scene *scene = tgpf->scene;
 	ToolSettings *ts = tgpf->scene->toolsettings;
+	int cfra_eval = (int)DEG_get_ctime(tgpf->depsgraph);
+
 	Brush *brush;
 	brush = BKE_brush_getactive_gpencil(ts);
 	if (brush == NULL) {
@@ -822,7 +826,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	}
 
 	/* get frame or create a new one */
-	tgpf->gpf = BKE_gpencil_layer_getframe(tgpf->gpl, CFRA, GP_GETFRAME_ADD_NEW);
+	tgpf->gpf = BKE_gpencil_layer_getframe(tgpf->gpl, cfra_eval, GP_GETFRAME_ADD_NEW);
 
 	/* create new stroke */
 	bGPDstroke *gps = MEM_callocN(sizeof(bGPDstroke), "bGPDstroke");

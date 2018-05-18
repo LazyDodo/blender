@@ -40,6 +40,9 @@
 #include "BKE_main.h"
 #include "BKE_material.h"
 
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
+
 #include "ED_gpencil.h"
 
 /* Definition of the most important info from a color */
@@ -1424,6 +1427,8 @@ void ED_gpencil_create_monkey(bContext *C, float mat[4][4])
 	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 	bGPdata *gpd = (bGPdata *)ob->data;
 	bGPDstroke *gps;
 	
@@ -1442,8 +1447,8 @@ void ED_gpencil_create_monkey(bContext *C, float mat[4][4])
 
 	/* frames */
 	/* NOTE: No need to check for existing, as this will tkae care of it for us */
-	bGPDframe *frameColor = BKE_gpencil_frame_addnew(Colors, CFRA);
-	bGPDframe *frameLines = BKE_gpencil_frame_addnew(Lines, CFRA);
+	bGPDframe *frameColor = BKE_gpencil_frame_addnew(Colors, cfra_eval);
+	bGPDframe *frameLines = BKE_gpencil_frame_addnew(Lines, cfra_eval);
 
 	/* generate strokes */
 	gps = BKE_gpencil_add_stroke(frameColor, color_Skin, 538, 3);

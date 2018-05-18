@@ -64,6 +64,7 @@
 #include "ED_gpencil.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
@@ -358,10 +359,12 @@ typedef enum eGP_SelectGrouped {
 static void gp_select_same_layer(bContext *C)
 {
 	Scene *scene = CTX_data_scene(C);
-	
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
+
 	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
 	{
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0);
+		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
 		bGPDstroke *gps;
 		bool found = false;
 		

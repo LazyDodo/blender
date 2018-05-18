@@ -79,6 +79,7 @@
 #include "ED_space_api.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
@@ -136,6 +137,9 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 {
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
+
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
 	Brush *brush;
 
@@ -161,7 +165,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 
 	/* create a new temporary frame */
 	tgpi->gpf = MEM_callocN(sizeof(bGPDframe), "Temp bGPDframe");
-	tgpi->gpf->framenum = tgpi->cframe = CFRA;
+	tgpi->gpf->framenum = tgpi->cframe = cfra_eval;
 
 	/* create new temp stroke */
 	bGPDstroke *gps = MEM_callocN(sizeof(bGPDstroke), "Temp bGPDstroke");
@@ -431,6 +435,8 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 
 	/* create temporary operator data */
 	tGPDprimitive *tgpi = MEM_callocN(sizeof(tGPDprimitive), "GPencil Primitive Data");
@@ -447,7 +453,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	tgpi->win = CTX_wm_window(C);
 
 	/* set current frame number */
-	tgpi->cframe = CFRA;
+	tgpi->cframe = cfra_eval;
 	
 	/* set GP datablock */
 	tgpi->gpd = gpd;

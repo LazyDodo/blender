@@ -82,6 +82,7 @@
 #include "GPU_immediate_util.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
@@ -92,6 +93,7 @@
 typedef struct tGP_BrushEditData {
 	/* Current editor/region/etc. */
 	/* NOTE: This stuff is mainly needed to handle 3D view projection stuff... */
+	Depsgraph *depsgraph;
 	Scene *scene;
 	Object *object;
 
@@ -1011,7 +1013,10 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 	Scene *scene = gso->scene;
 	Object *ob = CTX_data_active_object(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
-	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
+
+	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, true);
 	bGPDstroke *gps;
 	
 	float delta[3];
@@ -1171,6 +1176,7 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 	gso = MEM_callocN(sizeof(tGP_BrushEditData), "tGP_BrushEditData");
 	op->customdata = gso;
 	
+	gso->depsgraph = CTX_data_depsgraph(C);
 	/* store state */
 	gso->settings = gpsculpt_get_settings(scene);
 	gso->brush = gpsculpt_get_brush(scene, is_weight_mode);
@@ -1333,11 +1339,12 @@ static void gpsculpt_brush_init_stroke(tGP_BrushEditData *gso)
 {
 	Scene *scene = gso->scene;
 	bGPdata *gpd = gso->gpd;
+	
 	bGPDlayer *gpl;
-	int cfra = CFRA;
+	int cfra_eval = (int)DEG_get_ctime(gso->depsgraph);
 	
 	/* only try to add a new frame if this is the first stroke, or the frame has changed */
-	if ((gpd == NULL) || (cfra == gso->cfra))
+	if ((gpd == NULL) || (cfra_eval == gso->cfra))
 		return;
 	
 	/* go through each layer, and ensure that we've got a valid frame to use */
@@ -1351,14 +1358,14 @@ static void gpsculpt_brush_init_stroke(tGP_BrushEditData *gso)
 			 *   spent too much time editing the wrong frame...
 			 */
 			// XXX: should this be allowed when framelock is enabled?
-			if (gpf->framenum != cfra) {
-				BKE_gpencil_frame_addcopy(gpl, cfra);
+			if (gpf->framenum != cfra_eval) {
+				BKE_gpencil_frame_addcopy(gpl, cfra_eval);
 			}
 		}
 	}
 	
 	/* save off new current frame, so that next update works fine */
-	gso->cfra = cfra;
+	gso->cfra = cfra_eval;
 }
 
 /* Apply ----------------------------------------------- */

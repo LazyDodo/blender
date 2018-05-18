@@ -71,6 +71,7 @@
 #include "BKE_tracking.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "UI_interface.h"
 
@@ -1124,7 +1125,10 @@ static void gp_layer_to_curve(bContext *C, ReportList *reports, bGPdata *gpd, bG
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	SceneCollection *sc = CTX_data_scene_collection(C);
-	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
+
+	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
 	bGPDstroke *gps, *prev_gps = NULL;
 	Object *ob;
 	Curve *cu;
@@ -1230,6 +1234,9 @@ static void gp_layer_to_curve(bContext *C, ReportList *reports, bGPdata *gpd, bG
 static bool gp_convert_check_has_valid_timing(bContext *C, bGPDlayer *gpl, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
+
 	bGPDframe *gpf = NULL;
 	bGPDstroke *gps = NULL;
 	bGPDspoint *pt;
@@ -1237,7 +1244,7 @@ static bool gp_convert_check_has_valid_timing(bContext *C, bGPDlayer *gpl, wmOpe
 	int i;
 	bool valid = true;
 	
-	if (!gpl || !(gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0)) || !(gps = gpf->strokes.first))
+	if (!gpl || !(gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0)) || !(gps = gpf->strokes.first))
 		return false;
 	
 	do {
@@ -1285,6 +1292,9 @@ static void gp_convert_set_end_frame(struct Main *UNUSED(main), struct Scene *UN
 static int gp_convert_poll(bContext *C)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	int cfra_eval = (int)DEG_get_ctime(depsgraph);
+
 	bGPDlayer *gpl = NULL;
 	bGPDframe *gpf = NULL;
 	ScrArea *sa = CTX_wm_area(C);
@@ -1296,7 +1306,7 @@ static int gp_convert_poll(bContext *C)
 	 */
 	return ((sa && sa->spacetype == SPACE_VIEW3D) &&
 	        (gpl = BKE_gpencil_layer_getactive(gpd)) &&
-	        (gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0)) &&
+	        (gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0)) &&
 	        (gpf->strokes.first) &&
 	        (OBEDIT_FROM_VIEW_LAYER(view_layer) == NULL));
 }
