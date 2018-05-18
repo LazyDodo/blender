@@ -47,6 +47,7 @@
 
 /* For EvaluationContext... */
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "IMB_imbuf_types.h"
 
@@ -1082,13 +1083,15 @@ void DRW_gpencil_populate_multiedit(GPENCIL_e_data *e_data, void *vedata, Scene 
 	bGPDframe *gpf = NULL;
 
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, CFRA);
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	int cfra_eval = (int)DEG_get_ctime(draw_ctx->depsgraph);
+	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, cfra_eval);
 	ToolSettings *ts = scene->toolsettings;
 	cache->cache_idx = 0;
 
 	/* check if playing animation */
 	bool playing = (bool)stl->storage->playing;
-
+	
 	/* draw strokes */
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* don't draw layer if hidden */
@@ -1105,7 +1108,7 @@ void DRW_gpencil_populate_multiedit(GPENCIL_e_data *e_data, void *vedata, Scene 
 			}
 		}
 		else {
-			gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0);
+			gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
 			if (gpf) {
 				gpencil_draw_strokes(cache, e_data, vedata, ts, ob, gpd, gpl, gpf, gpf,
 					gpl->opacity, gpl->tintcolor, false);
@@ -1121,6 +1124,8 @@ void DRW_gpencil_populate_multiedit(GPENCIL_e_data *e_data, void *vedata, Scene 
 void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene *scene, Object *ob, bGPdata *gpd)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	int cfra_eval = (int)DEG_get_ctime(draw_ctx->depsgraph);
 	ToolSettings *ts = scene->toolsettings;
 	bGPDframe *derived_gpf = NULL;
 	bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
@@ -1128,7 +1133,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	/* check if playing animation */
 	bool playing = (bool)stl->storage->playing;
 
-	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, CFRA);
+	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, cfra_eval);
 	cache->cache_idx = 0;
 
 	/* init general modifiers data */
@@ -1143,7 +1148,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 		if (gpl->flag & GP_LAYER_HIDE)
 			continue;
 
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0);
+		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
 		if (gpf == NULL)
 			continue;
 
