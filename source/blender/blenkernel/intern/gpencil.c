@@ -1040,7 +1040,9 @@ Material *BKE_gpencil_get_material_from_brush(Brush *brush)
 {
 	Material *ma = NULL;
 		
-	if ((brush != NULL) && (brush->gpencil_settings->material != NULL)) {
+	if ((brush != NULL) && (brush->gpencil_settings != NULL) && 
+		(brush->gpencil_settings->material != NULL)) 
+	{
 		ma = brush->gpencil_settings->material;
 	}
 
