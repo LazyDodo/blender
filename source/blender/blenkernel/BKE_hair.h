@@ -175,6 +175,7 @@ struct HairExportCache* BKE_hair_export_cache_new(const struct HairSystem *hsys,
 struct HairExportCache* BKE_hair_export_cache_new_mesh(const struct HairSystem *hsys, int subdiv, struct Mesh *scalp);
 
 /* Update an existing export cache when data is invalidated.
+ * Returns flags for data that has been updated.
  */
 int BKE_hair_export_cache_update(const struct HairSystem *hsys, int subdiv, struct DerivedMesh *scalp,
                                  struct HairExportCache *cache, int data);
