@@ -61,6 +61,7 @@
 #include "BKE_library.h"
 #include "BKE_report.h"
 #include "BKE_screen.h"
+#include "BKE_deform.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -1013,11 +1014,7 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
 				/* if destination stroke is smaller, resize new_stroke to size of gps_to stroke */
 				if (gps_from->totpoints > gps_to->totpoints) {
 					/* free weights of removed points */
-					for (int i = gps_to->totpoints; i < gps_from->totpoints; i++) {
-						bGPDspoint *pt = &gps_from->points[i];
-						MDeformVert *dvert = &gps_from->dvert[i];
-						BKE_gpencil_free_point_weights(dvert);
-					}
+					BKE_defvert_array_free_elems(gps_from->dvert + gps_to->totpoints, gps_from->totpoints - gps_to->totpoints);
 
 					new_stroke->points = MEM_recallocN(new_stroke->points, sizeof(*new_stroke->points) * gps_to->totpoints);
 					new_stroke->dvert = MEM_recallocN(new_stroke->dvert, sizeof(*new_stroke->dvert) * gps_to->totpoints);
