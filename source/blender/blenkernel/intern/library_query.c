@@ -751,7 +751,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				CALLBACK_INVOKE(brush->toggle_brush, IDWALK_CB_NOP);
 				CALLBACK_INVOKE(brush->clone.image, IDWALK_CB_NOP);
 				CALLBACK_INVOKE(brush->paint_curve, IDWALK_CB_USER);
-			    CALLBACK_INVOKE(brush->material, IDWALK_CB_USER);
+			    CALLBACK_INVOKE(brush->gpencil_settings->material, IDWALK_CB_USER);
 				library_foreach_mtex(&data, &brush->mtex);
 				library_foreach_mtex(&data, &brush->mask_mtex);
 				break;

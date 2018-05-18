@@ -3161,14 +3161,19 @@ static void write_brush(WriteData *wd, Brush *brush)
 		if (brush->curve) {
 			write_curvemapping(wd, brush->curve);
 		}
-		if (brush->curve_sensitivity) {
-			write_curvemapping(wd, brush->curve_sensitivity);
-		}
-		if (brush->curve_strength) {
-			write_curvemapping(wd, brush->curve_strength);
-		}
-		if (brush->curve_jitter) {
-			write_curvemapping(wd, brush->curve_jitter);
+
+		if (brush->gpencil_settings) {
+			writestruct(wd, DATA, BrushGpencilSettings, 1, brush->gpencil_settings);
+
+			if (brush->gpencil_settings->curve_sensitivity) {
+				write_curvemapping(wd, brush->gpencil_settings->curve_sensitivity);
+			}
+			if (brush->gpencil_settings->curve_strength) {
+				write_curvemapping(wd, brush->gpencil_settings->curve_strength);
+			}
+			if (brush->gpencil_settings->curve_jitter) {
+				write_curvemapping(wd, brush->gpencil_settings->curve_jitter);
+			}
 		}
 		if (brush->gradient) {
 			writestruct(wd, DATA, ColorBand, 1, brush->gradient);

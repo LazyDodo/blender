@@ -2339,7 +2339,9 @@ static void lib_link_brush(FileData *fd, Main *main)
 			brush->paint_curve = newlibadr_us(fd, brush->id.lib, brush->paint_curve);
 
 			/* link default grease pencil palette */
-			brush->material = newlibadr_us(fd, brush->id.lib, brush->material);
+			if (brush->gpencil_settings != NULL) {
+				brush->gpencil_settings->material = newlibadr_us(fd, brush->id.lib, brush->gpencil_settings->material);
+			}
 
 			brush->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
@@ -2360,19 +2362,22 @@ static void direct_link_brush(FileData *fd, Brush *brush)
 	else
 		BKE_brush_curve_preset(brush, CURVE_PRESET_SHARP);
 
-	/* grease pencil curves */
-	brush->curve_sensitivity = newdataadr(fd, brush->curve_sensitivity);
-	brush->curve_strength = newdataadr(fd, brush->curve_strength);
-	brush->curve_jitter = newdataadr(fd, brush->curve_jitter);
+	/* grease pencil */
+	brush->gpencil_settings = newdataadr(fd, brush->gpencil_settings);
+	if (brush->gpencil_settings != NULL) {
+		brush->gpencil_settings->curve_sensitivity = newdataadr(fd, brush->gpencil_settings->curve_sensitivity);
+		brush->gpencil_settings->curve_strength = newdataadr(fd, brush->gpencil_settings->curve_strength);
+		brush->gpencil_settings->curve_jitter = newdataadr(fd, brush->gpencil_settings->curve_jitter);
 
-	if (brush->curve_sensitivity)
-		direct_link_curvemapping(fd, brush->curve_sensitivity);
+		if (brush->gpencil_settings->curve_sensitivity)
+			direct_link_curvemapping(fd, brush->gpencil_settings->curve_sensitivity);
 
-	if (brush->curve_strength)
-		direct_link_curvemapping(fd, brush->curve_strength);
+		if (brush->gpencil_settings->curve_strength)
+			direct_link_curvemapping(fd, brush->gpencil_settings->curve_strength);
 
-	if (brush->curve_jitter)
-		direct_link_curvemapping(fd, brush->curve_jitter);
+		if (brush->gpencil_settings->curve_jitter)
+			direct_link_curvemapping(fd, brush->gpencil_settings->curve_jitter);
+	}
 
 	brush->preview = NULL;
 	brush->icon_imbuf = NULL;
@@ -9350,7 +9355,9 @@ static void expand_brush(FileData *fd, Main *mainvar, Brush *brush)
 	expand_doit(fd, mainvar, brush->mask_mtex.tex);
 	expand_doit(fd, mainvar, brush->clone.image);
 	expand_doit(fd, mainvar, brush->paint_curve);
-	expand_doit(fd, mainvar, brush->material);
+	if (brush->gpencil_settings != NULL) {
+		expand_doit(fd, mainvar, brush->gpencil_settings->material);
+	}
 }
 
 static void expand_material(FileData *fd, Main *mainvar, Material *ma)

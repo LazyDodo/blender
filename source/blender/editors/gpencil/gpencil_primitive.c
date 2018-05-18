@@ -349,7 +349,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->v3d, tgpi->ob, tgpi->gpl, p2d, NULL, &pt->x);
 
 		pt->pressure = 1.0f;
-		pt->strength = tgpi->brush->draw_strength;
+		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
 		pt->time = 0.0f;
 
 		dvert->totweight = 0;

@@ -309,8 +309,8 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	 * (so it doesn't distract when moving between colors)
 	 */
 	tgpk->brush = BKE_brush_getactive_gpencil(ts);
-	tgpk->bflag = tgpk->brush->gp_flag;
-	tgpk->brush->gp_flag &= ~GP_BRUSH_ENABLE_CURSOR;
+	tgpk->bflag = tgpk->brush->gpencil_settings->gp_flag;
+	tgpk->brush->gpencil_settings->gp_flag &= ~GP_BRUSH_ENABLE_CURSOR;
 
 	tgpk->center[0] = event->mval[0];
 	tgpk->center[1] = event->mval[1];
@@ -318,8 +318,8 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 	ED_region_visible_rect(tgpk->ar, &tgpk->rect);
 
 	/* get current material */
-	if ((tgpk->brush) && (tgpk->brush->material)) {
-		tgpk->mat = tgpk->brush->material;
+	if ((tgpk->brush) && (tgpk->brush->gpencil_settings->material)) {
+		tgpk->mat = tgpk->brush->gpencil_settings->material;
 	}
 	else {
 		tgpk->mat = NULL;
@@ -455,7 +455,7 @@ static void gpencil_colorpick_exit(bContext *C, wmOperator *op)
 		MEM_SAFE_FREE(tgpk->colors);
 
 		/* reset brush flags */
-		tgpk->brush->gp_flag = tgpk->bflag;
+		tgpk->brush->gpencil_settings->gp_flag = tgpk->bflag;
 
 		/* finally, free memory used by temp data */
 		MEM_freeN(tgpk);
@@ -529,7 +529,7 @@ static int gpencil_colorpick_modal(bContext *C, wmOperator *op, const wmEvent *e
 				int index = gpencil_colorpick_index_from_mouse(tgpk, event);
 				if (index != -1) {
 					tGPDpickColor *col = tgpk->colors + index;
-					tgpk->brush->material = col->mat;
+					tgpk->brush->gpencil_settings->material = col->mat;
 					tgpk->mat = col->mat;
 					estate = OPERATOR_FINISHED;
 				}

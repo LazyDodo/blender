@@ -1333,56 +1333,58 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
 
         col = row.column()
         brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
 
         sub = col.column(align=True)
         sub.operator("gpencil.brush_presets_create", icon='HELP', text="")
 
         if brush is not None:
             # XXX: Items in "sub" currently show up beside the brush selector in a separate column
-            if brush.gpencil_brush_type == 'ERASE':
-                sub.prop(brush, "default_eraser", text="")
+            if gp_settings.gpencil_brush_type == 'ERASE':
+                sub.prop(gp_settings, "default_eraser", text="")
 
             # Brush details
-            if brush.gpencil_brush_type == 'ERASE':
+            if gp_settings.gpencil_brush_type == 'ERASE':
                 col = layout.column(align=True)
                 col.prop(brush, "size", text="Radius")
 
                 col.separator()
                 row = col.row()
-                row.prop(brush, "eraser_mode", expand=True)
-            elif brush.gpencil_brush_type == 'FILL':
+                row.prop(gp_settings, "eraser_mode", expand=True)
+            elif gp_settings.gpencil_brush_type == 'FILL':
                 col = layout.column(align=True)
-                col.prop(brush, "gpencil_fill_leak", text="Leak Size")
+                col.prop(gp_settings, "gpencil_fill_leak", text="Leak Size")
                 col.prop(brush, "size", text="Thickness")
-                col.prop(brush, "gpencil_fill_simplyfy_level", text="Simplify")
+                col.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
+
 
                 col = layout.row(align=True)
-                col.template_ID(brush, "material")
+                col.template_ID(gp_settings, "material")
 
                 col = layout.column(align=True)
                 col.label(text="Boundary Draw Mode:")
                 row = col.row(align=True)
-                row.prop(brush, "gpencil_fill_draw_mode", text="")
-                row.prop(brush, "gpencil_fill_show_boundary", text="", icon='GRID')
+                row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
+                row.prop(gp_settings, "gpencil_fill_show_boundary", text="", icon='GRID')
 
                 col = layout.column(align=True)
-                col.enabled = brush.gpencil_fill_draw_mode != "STROKE"
-                col.prop(brush, "gpencil_fill_hide", text="Hide Transparent Lines")
+                col.enabled = gp_settings.gpencil_fill_draw_mode != "STROKE"
+                col.prop(gp_settings, "gpencil_fill_hide", text="Hide Transparent Lines")
                 sub = col.row(align=True)
-                sub.enabled = brush.gpencil_fill_hide
-                sub.prop(brush, "gpencil_fill_threshold", text="Threshold")
-            else: # brush.gpencil_brush_type == 'DRAW':
+                sub.enabled = gp_settings.gpencil_fill_hide
+                sub.prop(gp_settings, "gpencil_fill_threshold", text="Threshold")
+            else:  # bgpsettings.gpencil_brush_type == 'DRAW':
                 row = layout.row(align=True)
                 row.prop(brush, "size", text="Radius")
-                row.prop(brush, "use_pressure", text="", icon='STYLUS_PRESSURE')
+                row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
                 row = layout.row(align=True)
-                row.prop(brush, "pen_strength", slider=True)
-                row.prop(brush, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+                row.prop(gp_settings, "pen_strength", slider=True)
+                row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
                 row = layout.row(align=True)
-                row.template_ID(brush, "material")
+                row.template_ID(gp_settings, "material")
 
-            if brush.gpencil_brush_type != 'ERASE':
+            if gp_settings.gpencil_brush_type != 'ERASE':
                 layout.separator()
                 layout.prop(context.tool_settings, "use_gpencil_draw_onback", text="Draw on Back")
 
@@ -1408,57 +1410,59 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
     def draw(self, context):
         layout = self.layout
         brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+
         if brush is not None:
             col = layout.column(align=True)
-            col.prop(brush, "input_samples")
+            col.prop(gp_settings, "input_samples")
             col.separator()
 
-            col.prop(brush, "active_smooth_factor")
+            col.prop(gp_settings, "active_smooth_factor")
             col.separator()
 
             row = col.row(align=True)
-            row.prop(brush, "angle", slider=True)
-            row.prop(brush, "angle_factor", text="Factor", slider=True)
+            row.prop(gp_settings, "angle", slider=True)
+            row.prop(gp_settings, "angle_factor", text="Factor", slider=True)
             col.separator()
 
-            if brush.gpencil_brush_type == 'DRAW':
-                col.prop(brush, "use_stabilizer", text="Stabilizer")
-                if brush.use_stabilizer:
+            if gp_settings.gpencil_brush_type == 'DRAW':
+                col.prop(gp_settings, "use_stabilizer", text="Stabilizer")
+                if gp_settings.use_stabilizer:
                     col.separator()
-                    col.prop(brush, "smooth_stroke_radius", text="Distance")
-                    col.prop(brush, "smooth_stroke_factor", slider=True)
+                    col.prop(gp_settings, "smooth_stroke_radius", text="Distance")
+                    col.prop(gp_settings, "smooth_stroke_factor", slider=True)
                     col.separator()
 
-            col.prop(brush, "enable_random", text="Random Settings")
-            if brush.enable_random is True:
+            col.prop(gp_settings, "enable_random", text="Random Settings")
+            if gp_settings.enable_random is True:
                 col.label(text="Settings:")
-                col.prop(brush, "random_pressure", text="Pressure", slider=True)
+                col.prop(gp_settings, "random_pressure", text="Pressure", slider=True)
                 col.separator()
 
-                col.prop(brush, "random_strength", text="Strength", slider=True)
+                col.prop(gp_settings, "random_strength", text="Strength", slider=True)
                 col.separator()
 
-                col.prop(brush, "uv_random", text="UV", slider=True)
+                col.prop(gp_settings, "uv_random", text="UV", slider=True)
                 col.separator()
 
                 row = col.row(align=True)
-                row.prop(brush, "pen_jitter", slider=True)
-                row.prop(brush, "use_jitter_pressure", text="", icon='STYLUS_PRESSURE')
+                row.prop(gp_settings, "pen_jitter", slider=True)
+                row.prop(gp_settings, "use_jitter_pressure", text="", icon='STYLUS_PRESSURE')
                 col.separator()
 
-            col.prop(brush, "enable_settings", text="Post-processing Settings")
-            if brush.enable_settings is True:
+            col.prop(gp_settings, "enable_settings", text="Post-processing Settings")
+            if gp_settings.enable_settings is True:
                 col.label(text="Stroke Quality:")
-                col.prop(brush, "pen_smooth_factor")
-                col.prop(brush, "pen_smooth_steps")
+                col.prop(gp_settings, "pen_smooth_factor")
+                col.prop(gp_settings, "pen_smooth_steps")
 
                 col.label(text="Thickness:")
-                col.prop(brush, "pen_thick_smooth_factor")
-                col.prop(brush, "pen_thick_smooth_steps")
+                col.prop(gp_settings, "pen_thick_smooth_factor")
+                col.prop(gp_settings, "pen_thick_smooth_steps")
 
                 col.label(text="Subdivide:")
-                col.prop(brush, "pen_subdivision_steps")
-                col.prop(brush, "random_subdiv", text="Randomness", slider=True)
+                col.prop(gp_settings, "pen_subdivision_steps")
+                col.prop(gp_settings, "random_subdiv", text="Randomness", slider=True)
 
 
 # Grease Pencil drawingcurves
@@ -1486,18 +1490,20 @@ class VIEW3D_PT_tools_grease_pencil_brushcurves(Panel):
     def draw(self, context):
         layout = self.layout
         brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+
         # Brush
         layout.label("Sensitivity")
         box = layout.box()
-        box.template_curve_mapping(brush, "curve_sensitivity", brush=True)
+        box.template_curve_mapping(gp_settings, "curve_sensitivity", brush=True)
 
         layout.label("Strength")
         box = layout.box()
-        box.template_curve_mapping(brush, "curve_strength", brush=True)
+        box.template_curve_mapping(gp_settings, "curve_strength", brush=True)
 
         layout.label("Jitter")
         box = layout.box()
-        box.template_curve_mapping(brush, "curve_jitter", brush=True)
+        box.template_curve_mapping(gp_settings, "curve_jitter", brush=True)
 
 
 # Grease Pencil create shapes
@@ -1754,10 +1760,11 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
 
         if context.active_object.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
-            
+            gp_settings = brush.gpencil_settings
+
             col = layout.column(align=True)
             col.label("Brush Type:")
-            col.prop(brush, "gpencil_brush_type", text="")
+            col.prop(gp_settings, "gpencil_brush_type", text="")
             
             layout.separator()
             layout.separator()
@@ -1766,7 +1773,7 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
             col.label("Icon:")
             sub = col.column(align=True)
             sub.enabled = not brush.use_custom_icon
-            sub.prop(brush, "gp_icon", text="")
+            sub.prop(gp_settings, "gp_icon", text="")
 
             col.separator()
             col.prop(brush, "use_custom_icon")
@@ -1778,9 +1785,9 @@ class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
             layout.separator()
             
             col = layout.column(align=True)
-            col.prop(brush, "use_cursor", text="Show Brush")
+            col.prop(gp_settings, "use_cursor", text="Show Brush")
 
-            if brush.gpencil_brush_type == 'FILL':
+            if gp_settings.gpencil_brush_type == 'FILL':
                 row = col.row(align=True)
                 row.prop(brush, "cursor_color_add", text="Color")
 

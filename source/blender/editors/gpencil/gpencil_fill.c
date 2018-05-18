@@ -993,11 +993,11 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 
 	/* save filling parameters */
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	tgpf->flag = brush->gp_flag;
-	tgpf->fill_leak = brush->gp_fill_leak;
-	tgpf->fill_threshold = brush->gp_fill_threshold;
-	tgpf->fill_simplylvl = brush->gp_fill_simplylvl;
-	tgpf->fill_draw_mode = brush->gp_fill_draw_mode;
+	tgpf->flag = brush->gpencil_settings->gp_flag;
+	tgpf->fill_leak = brush->gpencil_settings->gp_fill_leak;
+	tgpf->fill_threshold = brush->gpencil_settings->gp_fill_threshold;
+	tgpf->fill_simplylvl = brush->gpencil_settings->gp_fill_simplylvl;
+	tgpf->fill_draw_mode = brush->gpencil_settings->gp_fill_draw_mode;
 	
 	/* get color info */
 	Material *ma = BKE_gpencil_get_material_from_brush(brush);
@@ -1005,7 +1005,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	if ((ma == NULL) || (ma->gp_style == NULL)) {
 		ma = BKE_gpencil_material_ensure(bmain, tgpf->ob);
 		/* assign always the first material to the brush */
-		brush->material = give_current_material(tgpf->ob, 1);
+		brush->gpencil_settings->material = give_current_material(tgpf->ob, 1);
 	}
 
 	tgpf->mat = ma;

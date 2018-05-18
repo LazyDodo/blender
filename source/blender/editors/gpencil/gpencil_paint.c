@@ -297,7 +297,7 @@ static bool gp_stroke_filtermval(tGPsdata *p, const int mval[2], int pmval[2])
 	Brush *brush = p->brush;
 	int dx = abs(mval[0] - pmval[0]);
 	int dy = abs(mval[1] - pmval[1]);
-	brush->gp_flag &= ~GP_BRUSH_STABILIZE_MOUSE_TEMP;
+	brush->gpencil_settings->gp_flag &= ~GP_BRUSH_STABILIZE_MOUSE_TEMP;
 
 	/* if buffer is empty, just let this go through (i.e. so that dots will work) */
 	if (p->gpd->sbuffer_size == 0) {
@@ -305,7 +305,7 @@ static bool gp_stroke_filtermval(tGPsdata *p, const int mval[2], int pmval[2])
 	}
 	/* if lazy mouse, check minimum distance */
 	else if (GPENCIL_LAZY_MODE(brush, p->shift)) {
-		brush->gp_flag |= GP_BRUSH_STABILIZE_MOUSE_TEMP;
+		brush->gpencil_settings->gp_flag |= GP_BRUSH_STABILIZE_MOUSE_TEMP;
 		if ((dx * dx + dy * dy) > (brush->smooth_stroke_radius * brush->smooth_stroke_radius)) {
 			return true;
 		}
@@ -426,11 +426,11 @@ static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int
 {
 	float pressure = pt->pressure;
 	float tmp_pressure = pt->pressure;
-	if (brush->draw_jitter > 0.0f) {
-		float curvef = curvemapping_evaluateF(brush->curve_jitter, 0, pressure);
-		tmp_pressure = curvef * brush->draw_sensitivity;
+	if (brush->gpencil_settings->draw_jitter > 0.0f) {
+		float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_jitter, 0, pressure);
+		tmp_pressure = curvef * brush->gpencil_settings->draw_sensitivity;
 	}
-	const float exfactor = (brush->draw_jitter + 2.0f) * (brush->draw_jitter + 2.0f); /* exponential value */
+	const float exfactor = (brush->gpencil_settings->draw_jitter + 2.0f) * (brush->gpencil_settings->draw_jitter + 2.0f); /* exponential value */
 	const float fac = BLI_frand() * exfactor * tmp_pressure;
 	/* Jitter is applied perpendicular to the mouse movement vector (2D space) */
 	float mvec[2], svec[2];
@@ -464,11 +464,11 @@ static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int
 static void gp_brush_angle(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int mval[2])
 {
 	float mvec[2];
-	float sen = brush->draw_angle_factor; /* sensitivity */;
+	float sen = brush->gpencil_settings->draw_angle_factor; /* sensitivity */;
 	float fac;
 	float mpressure;
 
-	float angle = brush->draw_angle; /* default angle of brush in radians */;
+	float angle = brush->gpencil_settings->draw_angle; /* default angle of brush in radians */;
 	float v0[2] = { cos(angle), sin(angle) }; /* angle vector of the brush with full thickness */
 
 	/* Apply to first point (only if there are 2 points because before no data to do it ) */
@@ -619,16 +619,16 @@ static short gp_stroke_addpoint(
 		
 		/* store settings */
 		/* pressure */
-		if (brush->gp_flag & GP_BRUSH_USE_PRESSURE) {
-			float curvef = curvemapping_evaluateF(brush->curve_sensitivity, 0, pressure);
-			pt->pressure = curvef * brush->draw_sensitivity;
+		if (brush->gpencil_settings->gp_flag & GP_BRUSH_USE_PRESSURE) {
+			float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_sensitivity, 0, pressure);
+			pt->pressure = curvef * brush->gpencil_settings->draw_sensitivity;
 		}
 		else {
 			pt->pressure = 1.0f;
 		}
 
 		/* Apply jitter to position */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->draw_jitter > 0.0f)) {
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->gpencil_settings->draw_jitter > 0.0f)) {
 			int r_mval[2];
 			gp_brush_jitter(gpd, brush, pt, mval, r_mval);
 			copy_v2_v2_int(&pt->x, r_mval);
@@ -637,27 +637,27 @@ static short gp_stroke_addpoint(
 			copy_v2_v2_int(&pt->x, mval);
 		}
 		/* apply randomness to pressure */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && 
-			(brush->draw_random_press > 0.0f)) 
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_RANDOM) &&
+			(brush->gpencil_settings->draw_random_press > 0.0f))
 		{
-			float curvef = curvemapping_evaluateF(brush->curve_sensitivity, 0, pressure);
-			float tmp_pressure = curvef * brush->draw_sensitivity;
+			float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_sensitivity, 0, pressure);
+			float tmp_pressure = curvef * brush->gpencil_settings->draw_sensitivity;
 			if (BLI_frand() > 0.5f) {
-				pt->pressure -= tmp_pressure * brush->draw_random_press * BLI_frand();
+				pt->pressure -= tmp_pressure * brush->gpencil_settings->draw_random_press * BLI_frand();
 			}
 			else {
-				pt->pressure += tmp_pressure * brush->draw_random_press * BLI_frand();
+				pt->pressure += tmp_pressure * brush->gpencil_settings->draw_random_press * BLI_frand();
 			}
 			CLAMP(pt->pressure, GPENCIL_STRENGTH_MIN, 1.0f);
 		}
 
 		/* apply randomness to uv texture rotation */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->gp_uv_random > 0.0f)) {
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->gpencil_settings->gp_uv_random > 0.0f)) {
 			if (BLI_frand() > 0.5f) {
-				pt->uv_rot = (BLI_frand() * M_PI * -1) * brush->gp_uv_random;
+				pt->uv_rot = (BLI_frand() * M_PI * -1) * brush->gpencil_settings->gp_uv_random;
 			}
 			else {
-				pt->uv_rot = (BLI_frand() * M_PI) * brush->gp_uv_random;
+				pt->uv_rot = (BLI_frand() * M_PI) * brush->gpencil_settings->gp_uv_random;
 			}
 			CLAMP(pt->uv_rot, -M_PI_2, M_PI_2);
 		}
@@ -666,31 +666,31 @@ static short gp_stroke_addpoint(
 		}
 
 		/* apply angle of stroke to brush size */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->draw_angle_factor > 0.0f)) {
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->gpencil_settings->draw_angle_factor > 0.0f)) {
 			gp_brush_angle(gpd, brush, pt, mval);
 		}
 
 		/* color strength */
-		if (brush->gp_flag & GP_BRUSH_USE_STENGTH_PRESSURE) {
-			float curvef = curvemapping_evaluateF(brush->curve_strength, 0, pressure);
-			float tmp_pressure = curvef * brush->draw_sensitivity;
+		if (brush->gpencil_settings->gp_flag & GP_BRUSH_USE_STENGTH_PRESSURE) {
+			float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_strength, 0, pressure);
+			float tmp_pressure = curvef * brush->gpencil_settings->draw_sensitivity;
 
-			pt->strength = tmp_pressure * brush->draw_strength;
+			pt->strength = tmp_pressure * brush->gpencil_settings->draw_strength;
 		}
 		else {
-			pt->strength = brush->draw_strength;
+			pt->strength = brush->gpencil_settings->draw_strength;
 		}
 		CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 
 		/* apply randomness to color strength */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && 
-			(brush->draw_random_strength > 0.0f)) 
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_RANDOM) &&
+			(brush->gpencil_settings->draw_random_strength > 0.0f))
 		{
 			if (BLI_frand() > 0.5f) {
-				pt->strength -= pt->strength * brush->draw_random_strength * BLI_frand();
+				pt->strength -= pt->strength * brush->gpencil_settings->draw_random_strength * BLI_frand();
 			}
 			else {
-				pt->strength += pt->strength * brush->draw_random_strength * BLI_frand();
+				pt->strength += pt->strength * brush->gpencil_settings->draw_random_strength * BLI_frand();
 			}
 			CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 		}
@@ -730,9 +730,9 @@ static short gp_stroke_addpoint(
 		gpd->sbuffer_size++;
 
 		/* smooth while drawing previous points with a reduction factor for previous */
-		if (brush->gp_active_smooth > 0.0f) {
+		if (brush->gpencil_settings->gp_active_smooth > 0.0f) {
 			for (int s = 0; s < 3; s++) {
-				gp_smooth_buffer(p, brush->gp_active_smooth * ((3.0f - s) / 3.0f), gpd->sbuffer_size - s);
+				gp_smooth_buffer(p, brush->gpencil_settings->gp_active_smooth * ((3.0f - s) / 3.0f), gpd->sbuffer_size - s);
 			}
 		}
 
@@ -957,7 +957,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 
 	/* allocate enough memory for a continuous array for storage points */
-	const int subdivide = brush->draw_subdivide;
+	const int subdivide = brush->gpencil_settings->draw_subdivide;
 
 	gps->points = MEM_callocN(sizeof(bGPDspoint) * gps->totpoints, "gp_stroke_points");
 	gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
@@ -1117,11 +1117,11 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		}
 
 		/* subdivide and smooth the stroke */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_SETTINGS) && (subdivide > 0)) {
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_SETTINGS) && (subdivide > 0)) {
 			gp_subdivide_stroke(gps, subdivide);
 		}
 		/* apply randomness to stroke */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->draw_random_sub > 0.0f)) {
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_RANDOM) && (brush->gpencil_settings->draw_random_sub > 0.0f)) {
 			gp_randomize_stroke(gps, brush);
 		}
 
@@ -1129,21 +1129,21 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		 * for each iteration, the factor is reduced to get a better smoothing without changing too much
 		 * the original stroke
 		 */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_SETTINGS) && (brush->draw_smoothfac > 0.0f)) {
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_SETTINGS) && (brush->gpencil_settings->draw_smoothfac > 0.0f)) {
 			float reduce = 0.0f;
-			for (int r = 0; r < brush->draw_smoothlvl; r++) {
+			for (int r = 0; r < brush->gpencil_settings->draw_smoothlvl; r++) {
 				for (i = 0; i < gps->totpoints; i++) {
-					BKE_gpencil_smooth_stroke(gps, i, brush->draw_smoothfac - reduce);
-					BKE_gpencil_smooth_stroke_strength(gps, i, brush->draw_smoothfac);
+					BKE_gpencil_smooth_stroke(gps, i, brush->gpencil_settings->draw_smoothfac - reduce);
+					BKE_gpencil_smooth_stroke_strength(gps, i, brush->gpencil_settings->draw_smoothfac);
 				}
 				reduce += 0.25f;  // reduce the factor
 			}
 		}
 		/* smooth thickness */
-		if ((brush->gp_flag & GP_BRUSH_GROUP_SETTINGS) && (brush->gp_thick_smoothfac > 0.0f)) {
-			for (int r = 0; r < brush->gp_thick_smoothlvl * 2; r++) {
+		if ((brush->gpencil_settings->gp_flag & GP_BRUSH_GROUP_SETTINGS) && (brush->gpencil_settings->gp_thick_smoothfac > 0.0f)) {
+			for (int r = 0; r < brush->gpencil_settings->gp_thick_smoothlvl * 2; r++) {
 				for (i = 0; i < gps->totpoints; i++) {
-					BKE_gpencil_smooth_stroke_thickness(gps, i, brush->gp_thick_smoothfac);
+					BKE_gpencil_smooth_stroke_thickness(gps, i, brush->gpencil_settings->gp_thick_smoothfac);
 				}
 			}
 		}
@@ -1296,7 +1296,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 			}
 		}
 	}
-	else if ((p->flags & GP_PAINTFLAG_STROKE_ERASER) || (eraser->gp_eraser_mode == GP_BRUSH_ERASER_STROKE)) {
+	else if ((p->flags & GP_PAINTFLAG_STROKE_ERASER) || (eraser->gpencil_settings->gp_eraser_mode == GP_BRUSH_ERASER_STROKE)) {
 		for (i = 0; (i + 1) < gps->totpoints; i++) {
 
 			/* only process if it hasn't been masked out... */
@@ -1386,11 +1386,15 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 						pt2->pressure -= gp_stroke_eraser_calc_influence(p, mval, radius, pc2) * strength / 2.0f;
 						
 						/* 2) Tag any point with overly low influence for removal in the next pass */
-						if ((pt1->pressure < cull_thresh) || (p->flags & GP_PAINTFLAG_HARD_ERASER) || (eraser->gp_eraser_mode == GP_BRUSH_ERASER_HARD)) {
+						if ((pt1->pressure < cull_thresh) || (p->flags & GP_PAINTFLAG_HARD_ERASER) || 
+							(eraser->gpencil_settings->gp_eraser_mode == GP_BRUSH_ERASER_HARD)) 
+						{
 							pt1->flag |= GP_SPOINT_TAG;
 							do_cull = true;
 						}
-						if ((pt2->pressure < cull_thresh) || (p->flags & GP_PAINTFLAG_HARD_ERASER) || (eraser->gp_eraser_mode == GP_BRUSH_ERASER_HARD)) {
+						if ((pt2->pressure < cull_thresh) || (p->flags & GP_PAINTFLAG_HARD_ERASER) || 
+							(eraser->gpencil_settings->gp_eraser_mode == GP_BRUSH_ERASER_HARD)) 
+						{
 							pt2->flag |= GP_SPOINT_TAG;
 							do_cull = true;
 						}
@@ -1490,7 +1494,7 @@ static void gp_session_validatebuffer(tGPsdata *p)
 
 	/* reset lazy */
 	if (brush) {
-		brush->gp_flag &= ~GP_BRUSH_STABILIZE_MOUSE_TEMP;
+		brush->gpencil_settings->gp_flag &= ~GP_BRUSH_STABILIZE_MOUSE_TEMP;
 	}
 }
 
@@ -1502,31 +1506,31 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 	Brush *brush_old = paint->brush;
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
 		if ((brush->ob_mode == OB_MODE_GPENCIL_PAINT) && 
-			(brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) 
+			(brush->gpencil_settings->gp_brush_type == GP_BRUSH_TYPE_ERASE))
 		{
 			/* save first eraser to use later if no default */
 			if (brush_dft == NULL) {
 				brush_dft = brush;
 			}
 			/* found default */
-			if(brush->gp_flag & GP_BRUSH_DEFAULT_ERASER) {
+			if(brush->gpencil_settings->gp_flag & GP_BRUSH_DEFAULT_ERASER) {
 				return brush;
 			}
 		}
 	}
 	/* if no default, but exist eraser brush, return this and set as default */
 	if (brush_dft) {
-		brush_dft->gp_flag |= GP_BRUSH_DEFAULT_ERASER;
+		brush_dft->gpencil_settings->gp_flag |= GP_BRUSH_DEFAULT_ERASER;
 		return brush_dft;
 	}
 	/* create a new soft eraser brush */
 	else {
 		brush_dft = BKE_brush_add_gpencil(bmain, ts, "Soft Eraser");
 		brush_dft->size = 30.0f;
-		brush_dft->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
-		brush_dft->gp_icon_id = GP_BRUSH_ICON_ERASE_SOFT;
-		brush_dft->gp_brush_type = GP_BRUSH_TYPE_ERASE;
-		brush_dft->gp_eraser_mode = GP_BRUSH_ERASER_SOFT;
+		brush_dft->gpencil_settings->gp_flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
+		brush_dft->gpencil_settings->gp_icon_id = GP_BRUSH_ICON_ERASE_SOFT;
+		brush_dft->gpencil_settings->gp_brush_type = GP_BRUSH_TYPE_ERASE;
+		brush_dft->gpencil_settings->gp_eraser_mode = GP_BRUSH_ERASER_SOFT;
 
 		/* reset current brush */
 		BKE_paint_brush_set(paint, brush_old);
@@ -1554,13 +1558,13 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 		brush = BKE_brush_getactive_gpencil(ts);
 	}
 	/* be sure curves are initializated */
-	curvemapping_initialize(brush->curve_sensitivity);
-	curvemapping_initialize(brush->curve_strength);
-	curvemapping_initialize(brush->curve_jitter);
+	curvemapping_initialize(brush->gpencil_settings->curve_sensitivity);
+	curvemapping_initialize(brush->gpencil_settings->curve_strength);
+	curvemapping_initialize(brush->gpencil_settings->curve_jitter);
 
 	/* asign to temp tGPsdata */
 	p->brush = brush;
-	if (brush->gp_brush_type != GP_BRUSH_TYPE_ERASE) {
+	if (brush->gpencil_settings->gp_brush_type != GP_BRUSH_TYPE_ERASE) {
 		p->eraser = gp_get_default_eraser(p->bmain, ts);
 	}
 	else {
@@ -1591,7 +1595,7 @@ static void gp_init_colors(tGPsdata *p)
 
 		/* assign always the first material to the brush */
 		p->material = give_current_material(p->ob, 1);
-		brush->material = p->material;
+		brush->gpencil_settings->material = p->material;
 	}
 	else {
 		p->material = ma;
@@ -2253,7 +2257,7 @@ static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 	
 	/* if mode is draw and the brush is eraser, cancel */
 	if (paintmode != GP_PAINTMODE_ERASER) {
-		if ((brush) && (brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
+		if ((brush) && (brush->gpencil_settings->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
 			return 0;
 		}
 	}
@@ -2293,7 +2297,9 @@ static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 static void gpencil_draw_cursor_set(tGPsdata *p)
 {
 	Brush *brush = p->brush;
-	if ((p->paintmode == GP_PAINTMODE_ERASER) || (brush->gp_brush_type == GP_BRUSH_TYPE_ERASE)) {
+	if ((p->paintmode == GP_PAINTMODE_ERASER) || 
+		(brush->gpencil_settings->gp_brush_type == GP_BRUSH_TYPE_ERASE)) 
+	{
 		WM_cursor_modal_set(p->win, BC_CROSSCURSOR);  /* XXX need a better cursor */
 	}
 	else {
@@ -2419,7 +2425,9 @@ static void gpencil_draw_apply(bContext *C, wmOperator *op, tGPsdata *p, Depsgra
 			ED_gpencil_toggle_brush_cursor(C, true, &pt->x);
 		}
 	}
-	else if ((p->brush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) && (gpd->sbuffer_size > 0)){
+	else if ((p->brush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) && 
+		(gpd->sbuffer_size > 0))
+	{
 		pt = (tGPspoint *)gpd->sbuffer + gpd->sbuffer_size - 1;
 		if (p->paintmode != GP_PAINTMODE_ERASER) {
 			ED_gpencil_toggle_brush_cursor(C, true, &pt->x);
@@ -2798,12 +2806,12 @@ static void gpencil_move_last_stroke_to_back(bContext *C)
 static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEvent *event, tGPsdata *p)
 {
 	Brush *brush = p->brush;
-	if (brush->gp_input_samples == 0) {
+	if (brush->gpencil_settings->gp_input_samples == 0) {
 		return;
 	}
 	RegionView3D *rv3d = p->ar->regiondata;
 	float defaultpixsize = rv3d->pixsize * 1000.0f;
-	int samples = (GP_MAX_INPUT_SAMPLES - brush->gp_input_samples + 1);
+	int samples = (GP_MAX_INPUT_SAMPLES - brush->gpencil_settings->gp_input_samples + 1);
 	float thickness = (float)brush->size;
 
 	float pt[2], a[2], b[2];

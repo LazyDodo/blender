@@ -1036,7 +1036,7 @@ void gp_randomize_stroke(bGPDstroke *gps, Brush *brush)
 	for (int i = 1; i < gps->totpoints - 1; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		/* get vector with shift (apply a division because random is too sensitive */
-		const float fac = BLI_frand() * (brush->draw_random_sub / 10.0f);
+		const float fac = BLI_frand() * (brush->gpencil_settings->draw_random_sub / 10.0f);
 		float svec[3];
 		copy_v3_v3(svec, ortho);
 		if (BLI_frand() > 0.5f) {
@@ -1379,19 +1379,19 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 		paintbrush = BKE_brush_getactive_gpencil(scene->toolsettings);
 		/* while drawing hide */
 		if ((gpd->sbuffer_size > 0) && 
-			(paintbrush) && ((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-			((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0))
+			(paintbrush) && ((paintbrush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+			((paintbrush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0))
 		{
 			return;
 		}
 
 		if (paintbrush) {
-			if ((paintbrush->gp_flag & GP_BRUSH_ENABLE_CURSOR) == 0) {
+			if ((paintbrush->gpencil_settings->gp_flag & GP_BRUSH_ENABLE_CURSOR) == 0) {
 				return;
 			}
 
 			/* eraser has special shape and use a different shader program */
-			if (paintbrush->gp_brush_type == GP_BRUSH_TYPE_ERASE) {
+			if (paintbrush->gpencil_settings->gp_brush_type == GP_BRUSH_TYPE_ERASE) {
 				ED_gpencil_brush_draw_eraser(paintbrush, x, y);
 				return;
 			}
@@ -1402,7 +1402,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 				BKE_gpencil_material_ensure(bmain, ob);
 				/* assign the first material to the brush */
 				ma = give_current_material(ob, 1);
-				paintbrush->material = ma;
+				paintbrush->gpencil_settings->material = ma;
 			}
 			gp_style = ma->gp_style;
 
@@ -1411,9 +1411,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			 * The decision was to use a fix size, instead of paintbrush->thickness value. 
 			 */
 			if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) && 
-				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-				((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-				(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
+				((paintbrush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+				((paintbrush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
+				(paintbrush->gpencil_settings->gp_brush_type == GP_BRUSH_TYPE_DRAW))
 			{
 				radius = 2.0f;
 				copy_v3_v3(color, gp_style->rgb);
@@ -1456,9 +1456,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	/* Inner Ring: Color from UI panel */
 	immUniformColor4f(color[0], color[1], color[2], 0.8f);
 	if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) && 
-		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-		((paintbrush->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-		(paintbrush->gp_brush_type == GP_BRUSH_TYPE_DRAW))
+		((paintbrush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+		((paintbrush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
+		(paintbrush->gpencil_settings->gp_brush_type == GP_BRUSH_TYPE_DRAW))
 	{
 		imm_draw_circle_fill_2d(pos, x, y, radius, 40);
 	}
