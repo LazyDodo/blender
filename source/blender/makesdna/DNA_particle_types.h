@@ -282,8 +282,6 @@ typedef struct ParticleSystem {
 	struct ParticleCacheKey **pathcache;	/* path cache (runtime) */
 	struct ParticleCacheKey **childcache;	/* child cache (runtime) */
 	ListBase pathcachebufs, childcachebufs;	/* buffers for the above */
-	struct HairSystem *hair_system;			/* Hair data */
-	struct HairExportCache *hair_cache;		/* Hair cache for drawing and rendering */
 
 	struct ClothModifierData *clmd;					/* cloth simulation for hair */
 	struct DerivedMesh *hair_in_dm, *hair_out_dm;	/* input/output for cloth simulation */

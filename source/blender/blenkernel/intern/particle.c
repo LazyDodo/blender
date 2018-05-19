@@ -68,7 +68,6 @@
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_group.h"
-#include "BKE_hair.h"
 #include "BKE_main.h"
 #include "BKE_lattice.h"
 
@@ -441,11 +440,6 @@ void free_hair(Object *UNUSED(ob), ParticleSystem *psys, int dynamics)
 		pa->hair = NULL;
 		pa->totkey = 0;
 	}
-	if (psys->hair_system)
-	{
-		BKE_hair_free(psys->hair_system);
-	}
-	psys->hair_system = NULL;
 
 	psys->flag &= ~PSYS_HAIR_DONE;
 
@@ -544,11 +538,6 @@ void psys_free_particles(ParticleSystem *psys)
 		MEM_freeN(psys->particles);
 		psys->particles = NULL;
 		psys->totpart = 0;
-	}
-
-	if (psys->hair_system)
-	{
-		BKE_hair_clear_guides(psys->hair_system);
 	}
 }
 void psys_free_pdd(ParticleSystem *psys)
@@ -2577,8 +2566,6 @@ void psys_cache_paths(ParticleSimulationData *sim, float cfra, const bool use_re
 	}
 
 	psys->totcached = totpart;
-
-	// TODO update hair export cache
 
 	if (psys->lattice_deform_data) {
 		end_latt_deform(psys->lattice_deform_data);

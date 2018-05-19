@@ -4197,25 +4197,6 @@ static void direct_link_pointcache_list(FileData *fd, ListBase *ptcaches, PointC
 	}
 }
 
-static void direct_link_hair(FileData *fd, HairSystem* hsys)
-{
-	if (!hsys) {
-		return;
-	}
-	
-	hsys->pattern = newdataadr(fd, hsys->pattern);
-	if ( hsys->pattern )
-	{
-		hsys->pattern->follicles = newdataadr(fd, hsys->pattern->follicles);
-	}
-	
-	hsys->guides.curves = newdataadr(fd, hsys->guides.curves);
-	hsys->guides.verts = newdataadr(fd, hsys->guides.verts);
-	
-	hsys->draw_batch_cache = NULL;
-	hsys->draw_texture_cache = NULL;
-}
-
 static void lib_link_partdeflect(FileData *fd, ID *id, PartDeflect *pd)
 {
 	if (pd && pd->tex)
@@ -4431,10 +4412,6 @@ static void direct_link_particlesystems(FileData *fd, ListBase *particles)
 		if (psys->particles && psys->particles->hair) {
 			for (a=0, pa=psys->particles; a<psys->totpart; a++, pa++)
 				pa->hair=newdataadr(fd, pa->hair);
-		}
-		if (psys->hair_system)
-		{
-			direct_link_hair(fd, psys->hair_system);
 		}
 		
 		if (psys->particles && psys->particles->keys) {
@@ -5031,6 +5008,25 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 	if (pose->ikparam != NULL) {
 		pose->ikparam = newdataadr(fd, pose->ikparam);
 	}
+}
+
+static void direct_link_hair(FileData *fd, HairSystem* hsys)
+{
+	if (!hsys) {
+		return;
+	}
+	
+	hsys->pattern = newdataadr(fd, hsys->pattern);
+	if ( hsys->pattern )
+	{
+		hsys->pattern->follicles = newdataadr(fd, hsys->pattern->follicles);
+	}
+	
+	hsys->guides.curves = newdataadr(fd, hsys->guides.curves);
+	hsys->guides.verts = newdataadr(fd, hsys->guides.verts);
+	
+	hsys->draw_batch_cache = NULL;
+	hsys->draw_texture_cache = NULL;
 }
 
 static void direct_link_modifiers(FileData *fd, ListBase *lb)

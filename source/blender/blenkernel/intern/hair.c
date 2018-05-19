@@ -285,32 +285,10 @@ void BKE_hair_set_hair_guides(HairSystem *hsys, HairGuideData *guides)
 	hsys->guides.verts = MEM_dupallocN(hsys->guides.verts);
 	hsys->guides.totverts = guides->totverts;
 
-#ifndef NDEBUG
 	const int vertcount = hair_guide_calc_vertstart(hsys);
 	BLI_assert(vertcount <= hsys->guides.totverts);
-#endif
 
 	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
-	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
-}
-
-void BKE_hair_clear_guides(HairSystem *hsys)
-{
-	if (hsys->guides.curves)
-	{
-		MEM_freeN(hsys->guides.curves);
-		hsys->guides.curves = NULL;
-	}
-	hsys->guides.totcurves = 0;
-
-	if (hsys->guides.verts)
-	{
-		MEM_freeN(hsys->guides.verts);
-		hsys->guides.verts = NULL;
-	}
-	hsys->guides.totverts = 0;
-
-	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
