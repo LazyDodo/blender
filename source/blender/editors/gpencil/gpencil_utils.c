@@ -172,9 +172,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 		}
 	}
 	
-	/* just fall back on the scene's GP data */
-	if (r_ptr) RNA_id_pointer_create((ID *)scene, r_ptr);
-	return (scene) ? &scene->gpd : NULL;
+	return NULL;
 }
 
 /* Get pointer to active Grease Pencil datablock, and an RNA-pointer to trace back to whatever owns it */
