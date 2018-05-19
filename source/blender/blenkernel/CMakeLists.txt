@@ -115,7 +115,6 @@ set(SRC
 	intern/freestyle.c
 	intern/gpencil.c
 	intern/gpencil_modifier.c
-	intern/group.c
 	intern/icons.c
 	intern/icons_rasterize.c
 	intern/idcode.c
@@ -254,7 +253,6 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
-	BKE_group.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h
