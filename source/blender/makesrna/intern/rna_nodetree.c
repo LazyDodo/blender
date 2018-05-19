@@ -3287,11 +3287,11 @@ static const EnumPropertyItem node_hair_items[] = {
 };
 
 static const EnumPropertyItem node_principled_hair_items[] = {
-    {SHD_PRINCIPLED_HAIR_ABSORPTION, "ABSORPTION", 0, "Absorption", ""},
-    {SHD_PRINCIPLED_HAIR_PHYSICAL,   "PHYSICAL",   0, "Physical", ""},
-    {SHD_PRINCIPLED_HAIR_COLOR,      "COLOR",      0, "Color", ""},
-    {SHD_PRINCIPLED_HAIR_HUMAN,      "HUMAN",      0, "Human", ""},
-    {0, NULL, 0, NULL, NULL}
+	{SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION,     "ABSORPTION", 0, "Absorption coefficient",   ""},
+	{SHD_PRINCIPLED_HAIR_PHYSICAL,              "PHYSICAL",   0, "Physical",                 ""},
+	{SHD_PRINCIPLED_HAIR_REFLECTANCE,           "COLOR",      0, "Direct coloring",          ""},
+	{SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION, "MELANIN",    0, "Melanin concentration",    ""},
+	{0, NULL, 0, NULL, NULL}
 };
 
 static const EnumPropertyItem node_script_mode_items[] = {
@@ -4324,8 +4324,9 @@ static void def_hair_principled(StructRNA *srna)
 
     prop = RNA_def_property(srna, "parametrization", PROP_ENUM, PROP_NONE);
     RNA_def_property_enum_sdna(prop, NULL, "custom1");
+    RNA_def_property_ui_text(prop, "Color parametrization", "Select the shader's color parametrization");
     RNA_def_property_enum_items(prop, node_principled_hair_items);
-    RNA_def_property_ui_text(prop, "Parametrization", "");
+    RNA_def_property_enum_default(prop, SHD_PRINCIPLED_HAIR_REFLECTANCE);
     RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 }
 

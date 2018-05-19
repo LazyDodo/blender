@@ -41,8 +41,8 @@ typedef map<string, ConvertNode*> ProxyMap;
 /* Find */
 
 void BlenderSync::find_shader(BL::ID& id,
-                              vector<Shader*>& used_shaders,
-                              Shader *default_shader)
+							  vector<Shader*>& used_shaders,
+							  Shader *default_shader)
 {
 	Shader *shader = (id)? shader_map.find(id): default_shader;
 
@@ -55,25 +55,25 @@ void BlenderSync::find_shader(BL::ID& id,
 static VolumeSampling get_volume_sampling(PointerRNA& ptr)
 {
 	return (VolumeSampling)get_enum(ptr,
-	                                "volume_sampling",
-	                                VOLUME_NUM_SAMPLING,
-	                                VOLUME_SAMPLING_DISTANCE);
+									"volume_sampling",
+									VOLUME_NUM_SAMPLING,
+									VOLUME_SAMPLING_DISTANCE);
 }
 
 static VolumeInterpolation get_volume_interpolation(PointerRNA& ptr)
 {
 	return (VolumeInterpolation)get_enum(ptr,
-	                                     "volume_interpolation",
-	                                     VOLUME_NUM_INTERPOLATION,
-	                                     VOLUME_INTERPOLATION_LINEAR);
+										 "volume_interpolation",
+										 VOLUME_NUM_INTERPOLATION,
+										 VOLUME_INTERPOLATION_LINEAR);
 }
 
 static DisplacementMethod get_displacement_method(PointerRNA& ptr)
 {
 	return (DisplacementMethod)get_enum(ptr,
-	                                    "displacement_method",
-	                                    DISPLACE_NUM_METHODS,
-	                                    DISPLACE_BUMP);
+										"displacement_method",
+										DISPLACE_NUM_METHODS,
+										DISPLACE_BUMP);
 }
 
 static int validate_enum_value(int value, int num_values, int default_value)
@@ -89,8 +89,8 @@ static InterpolationType get_image_interpolation(NodeType& b_node)
 {
 	int value = b_node.interpolation();
 	return (InterpolationType)validate_enum_value(value,
-	                                              INTERPOLATION_NUM_TYPES,
-	                                              INTERPOLATION_LINEAR);
+												  INTERPOLATION_NUM_TYPES,
+												  INTERPOLATION_LINEAR);
 }
 
 template<typename NodeType>
@@ -98,8 +98,8 @@ static ExtensionType get_image_extension(NodeType& b_node)
 {
 	int value = b_node.extension();
 	return (ExtensionType)validate_enum_value(value,
-	                                          EXTENSION_NUM_TYPES,
-	                                          EXTENSION_REPEAT);
+											  EXTENSION_NUM_TYPES,
+											  EXTENSION_REPEAT);
 }
 
 /* Graph */
@@ -161,9 +161,9 @@ static SocketType::Type convert_socket_type(BL::NodeSocket& b_socket)
 }
 
 static void set_default_value(ShaderInput *input,
-                              BL::NodeSocket& b_sock,
-                              BL::BlendData& b_data,
-                              BL::ID& b_id)
+							  BL::NodeSocket& b_sock,
+							  BL::BlendData& b_data,
+							  BL::ID& b_id)
 {
 	Node *node = input->parent;
 	const SocketType& socket = input->socket_type;
@@ -213,7 +213,7 @@ static void get_tex_mapping(TextureMapping *mapping, BL::TexMapping& b_mapping)
 }
 
 static void get_tex_mapping(TextureMapping *mapping,
-                            BL::ShaderNodeMapping& b_mapping)
+							BL::ShaderNodeMapping& b_mapping)
 {
 	if(!b_mapping)
 		return;
@@ -234,18 +234,18 @@ static void get_tex_mapping(TextureMapping *mapping,
 static bool is_output_node(BL::Node& b_node)
 {
 	return (b_node.is_a(&RNA_ShaderNodeOutputMaterial)
-		    || b_node.is_a(&RNA_ShaderNodeOutputWorld)
-		    || b_node.is_a(&RNA_ShaderNodeOutputLamp));
+			|| b_node.is_a(&RNA_ShaderNodeOutputWorld)
+			|| b_node.is_a(&RNA_ShaderNodeOutputLamp));
 }
 
 static ShaderNode *add_node(Scene *scene,
-                            BL::RenderEngine& b_engine,
-                            BL::BlendData& b_data,
-                            BL::Scene& b_scene,
-                            const bool background,
-                            ShaderGraph *graph,
-                            BL::ShaderNodeTree& b_ntree,
-                            BL::ShaderNode& b_node)
+							BL::RenderEngine& b_engine,
+							BL::BlendData& b_data,
+							BL::Scene& b_scene,
+							const bool background,
+							ShaderGraph *graph,
+							BL::ShaderNodeTree& b_ntree,
+							BL::ShaderNode& b_node)
 {
 	ShaderNode *node = NULL;
 
@@ -255,9 +255,9 @@ static ShaderNode *add_node(Scene *scene,
 		BL::CurveMapping mapping(b_curve_node.mapping());
 		RGBCurvesNode *curves = new RGBCurvesNode();
 		curvemapping_color_to_array(mapping,
-		                            curves->curves,
-		                            RAMP_TABLE_SIZE,
-		                            true);
+									curves->curves,
+									RAMP_TABLE_SIZE,
+									true);
 		curvemapping_minmax(mapping, true, &curves->min_x, &curves->max_x);
 		node = curves;
 	}
@@ -266,9 +266,9 @@ static ShaderNode *add_node(Scene *scene,
 		BL::CurveMapping mapping(b_curve_node.mapping());
 		VectorCurvesNode *curves = new VectorCurvesNode();
 		curvemapping_color_to_array(mapping,
-		                            curves->curves,
-		                            RAMP_TABLE_SIZE,
-		                            false);
+									curves->curves,
+									RAMP_TABLE_SIZE,
+									false);
 		curvemapping_minmax(mapping, false, &curves->min_x, &curves->max_x);
 		node = curves;
 	}
@@ -524,12 +524,12 @@ static ShaderNode *add_node(Scene *scene,
 		}
 		node = hair;
 	}
-    else if(b_node.is_a(&RNA_ShaderNodeBsdfHairPrincipled)) {
-        BL::ShaderNodeBsdfHairPrincipled b_principled_hair_node(b_node);
-        PrincipledHairBsdfNode *principled_hair = new PrincipledHairBsdfNode();
-        principled_hair->parametrization = (NodePrincipledHairParametrization) get_enum(b_principled_hair_node.ptr, "parametrization", NODE_PRINCIPLED_HAIR_NUM, NODE_PRINCIPLED_HAIR_COLOR);
-        node = principled_hair;
-    }
+	else if(b_node.is_a(&RNA_ShaderNodeBsdfHairPrincipled)) {
+		BL::ShaderNodeBsdfHairPrincipled b_principled_hair_node(b_node);
+		PrincipledHairBsdfNode *principled_hair = new PrincipledHairBsdfNode();
+		principled_hair->parametrization = (NodePrincipledHairParametrization) get_enum(b_principled_hair_node.ptr, "parametrization", NODE_PRINCIPLED_HAIR_NUM, NODE_PRINCIPLED_HAIR_REFLECTANCE);
+		node = principled_hair;
+	}
 	else if(b_node.is_a(&RNA_ShaderNodeBsdfPrincipled)) {
 		BL::ShaderNodeBsdfPrincipled b_principled_node(b_node);
 		PrincipledBsdfNode *principled = new PrincipledBsdfNode();
@@ -644,10 +644,10 @@ static ShaderNode *add_node(Scene *scene,
 			 * they could only be loaded correct from blender side
 			 */
 			bool is_builtin = b_image.packed_file() ||
-			                  b_image.source() == BL::Image::source_GENERATED ||
-			                  b_image.source() == BL::Image::source_MOVIE ||
-			                  (b_engine.is_preview() &&
-			                   b_image.source() != BL::Image::source_SEQUENCE);
+							  b_image.source() == BL::Image::source_GENERATED ||
+							  b_image.source() == BL::Image::source_MOVIE ||
+							  (b_engine.is_preview() &&
+							   b_image.source() != BL::Image::source_SEQUENCE);
 
 			if(is_builtin) {
 				/* for builtin images we're using image datablock name to find an image to
@@ -658,14 +658,14 @@ static ShaderNode *add_node(Scene *scene,
 				 */
 				int scene_frame = b_scene.frame_current();
 				int image_frame = image_user_frame_number(b_image_user,
-				                                          scene_frame);
+														  scene_frame);
 				image->filename = b_image.name() + "@" + string_printf("%d", image_frame);
 				image->builtin_data = b_image.ptr.data;
 			}
 			else {
 				image->filename = image_user_file_path(b_image_user,
-				                                       b_image,
-				                                       b_scene.frame_current());
+													   b_image,
+													   b_scene.frame_current());
 				image->builtin_data = NULL;
 			}
 
@@ -675,11 +675,11 @@ static ShaderNode *add_node(Scene *scene,
 			/* TODO(sergey): Does not work properly when we change builtin type. */
 			if(b_image.is_updated()) {
 				scene->image_manager->tag_reload_image(
-				        image->filename.string(),
-				        image->builtin_data,
-				        get_image_interpolation(b_image_node),
-				        get_image_extension(b_image_node),
-				        image->use_alpha);
+						image->filename.string(),
+						image->builtin_data,
+						get_image_interpolation(b_image_node),
+						get_image_extension(b_image_node),
+						image->use_alpha);
 			}
 		}
 		image->color_space = (NodeImageColorSpace)b_image_node.color_space();
@@ -698,22 +698,22 @@ static ShaderNode *add_node(Scene *scene,
 		EnvironmentTextureNode *env = new EnvironmentTextureNode();
 		if(b_image) {
 			bool is_builtin = b_image.packed_file() ||
-			                  b_image.source() == BL::Image::source_GENERATED ||
-			                  b_image.source() == BL::Image::source_MOVIE ||
-			                  (b_engine.is_preview() &&
-			                   b_image.source() != BL::Image::source_SEQUENCE);
+							  b_image.source() == BL::Image::source_GENERATED ||
+							  b_image.source() == BL::Image::source_MOVIE ||
+							  (b_engine.is_preview() &&
+							   b_image.source() != BL::Image::source_SEQUENCE);
 
 			if(is_builtin) {
 				int scene_frame = b_scene.frame_current();
 				int image_frame = image_user_frame_number(b_image_user,
-				                                          scene_frame);
+														  scene_frame);
 				env->filename = b_image.name() + "@" + string_printf("%d", image_frame);
 				env->builtin_data = b_image.ptr.data;
 			}
 			else {
 				env->filename = image_user_file_path(b_image_user,
-				                                     b_image,
-				                                     b_scene.frame_current());
+													 b_image,
+													 b_scene.frame_current());
 				env->builtin_data = NULL;
 			}
 
@@ -723,11 +723,11 @@ static ShaderNode *add_node(Scene *scene,
 			/* TODO(sergey): Does not work properly when we change builtin type. */
 			if(b_image.is_updated()) {
 				scene->image_manager->tag_reload_image(
-				        env->filename.string(),
-				        env->builtin_data,
-				        get_image_interpolation(b_env_node),
-				        EXTENSION_REPEAT,
-				        env->use_alpha);
+						env->filename.string(),
+						env->builtin_data,
+						get_image_interpolation(b_env_node),
+						EXTENSION_REPEAT,
+						env->use_alpha);
 			}
 		}
 		env->color_space = (NodeImageColorSpace)b_env_node.color_space();
@@ -861,11 +861,11 @@ static ShaderNode *add_node(Scene *scene,
 		if(true) {
 			b_point_density_node.cache_point_density(b_scene, settings);
 			scene->image_manager->tag_reload_image(
-			        point_density->filename.string(),
-			        point_density->builtin_data,
-			        point_density->interpolation,
-			        EXTENSION_CLIP,
-			        true);
+					point_density->filename.string(),
+					point_density->builtin_data,
+					point_density->interpolation,
+					EXTENSION_CLIP,
+					true);
 		}
 		node = point_density;
 
@@ -878,13 +878,13 @@ static ShaderNode *add_node(Scene *scene,
 		if(b_ob) {
 			float3 loc, size;
 			point_density_texture_space(b_scene,
-			                            b_point_density_node,
-			                            settings,
-			                            loc,
-			                            size);
+										b_point_density_node,
+										settings,
+										loc,
+										size);
 			point_density->tfm =
-			        transform_translate(-loc) * transform_scale(size) *
-			        transform_inverse(get_transform(b_ob.matrix_world()));
+					transform_translate(-loc) * transform_scale(size) *
+					transform_inverse(get_transform(b_ob.matrix_world()));
 		}
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeBevel)) {
@@ -924,8 +924,8 @@ static bool node_use_modified_socket_name(ShaderNode *node)
 }
 
 static ShaderInput *node_find_input_by_name(ShaderNode *node,
-                                            BL::Node& b_node,
-                                            BL::NodeSocket& b_socket)
+											BL::Node& b_node,
+											BL::NodeSocket& b_socket)
 {
 	string name = b_socket.name();
 	
@@ -957,8 +957,8 @@ static ShaderInput *node_find_input_by_name(ShaderNode *node,
 }
 
 static ShaderOutput *node_find_output_by_name(ShaderNode *node,
-                                              BL::Node& b_node,
-                                              BL::NodeSocket& b_socket)
+											  BL::Node& b_node,
+											  BL::NodeSocket& b_socket)
 {
 	string name = b_socket.name();
 
@@ -990,14 +990,14 @@ static ShaderOutput *node_find_output_by_name(ShaderNode *node,
 }
 
 static void add_nodes(Scene *scene,
-                      BL::RenderEngine& b_engine,
-                      BL::BlendData& b_data,
-                      BL::Scene& b_scene,
-                      const bool background,
-                      ShaderGraph *graph,
-                      BL::ShaderNodeTree& b_ntree,
-                      const ProxyMap &proxy_input_map,
-                      const ProxyMap &proxy_output_map)
+					  BL::RenderEngine& b_engine,
+					  BL::BlendData& b_data,
+					  BL::Scene& b_scene,
+					  const bool background,
+					  ShaderGraph *graph,
+					  BL::ShaderNodeTree& b_ntree,
+					  const ProxyMap &proxy_input_map,
+					  const ProxyMap &proxy_output_map)
 {
 	/* add nodes */
 	BL::ShaderNodeTree::nodes_iterator b_node;
@@ -1092,14 +1092,14 @@ static void add_nodes(Scene *scene,
 			
 			if(b_group_ntree) {
 				add_nodes(scene,
-				          b_engine,
-				          b_data,
-				          b_scene,
-				          background,
-				          graph,
-				          b_group_ntree,
-				          group_proxy_input_map,
-				          group_proxy_output_map);
+						  b_engine,
+						  b_data,
+						  b_scene,
+						  background,
+						  graph,
+						  b_group_ntree,
+						  group_proxy_input_map,
+						  group_proxy_output_map);
 			}
 		}
 		else if(b_node->is_a(&RNA_NodeGroupInput)) {
@@ -1141,13 +1141,13 @@ static void add_nodes(Scene *scene,
 			else {
 				BL::ShaderNode b_shader_node(*b_node);
 				node = add_node(scene,
-				                b_engine,
-				                b_data,
-				                b_scene,
-				                background,
-				                graph,
-				                b_ntree,
-				                b_shader_node);
+								b_engine,
+								b_data,
+								b_scene,
+								background,
+								graph,
+								b_ntree,
+								b_shader_node);
 			}
 
 			if(node) {
@@ -1204,23 +1204,23 @@ static void add_nodes(Scene *scene,
 }
 
 static void add_nodes(Scene *scene,
-                      BL::RenderEngine& b_engine,
-                      BL::BlendData& b_data,
-                      BL::Scene& b_scene,
-                      const bool background,
-                      ShaderGraph *graph,
-                      BL::ShaderNodeTree& b_ntree)
+					  BL::RenderEngine& b_engine,
+					  BL::BlendData& b_data,
+					  BL::Scene& b_scene,
+					  const bool background,
+					  ShaderGraph *graph,
+					  BL::ShaderNodeTree& b_ntree)
 {
 	static const ProxyMap empty_proxy_map;
 	add_nodes(scene,
-	          b_engine,
-	          b_data,
-	          b_scene,
-	          background,
-	          graph,
-	          b_ntree,
-	          empty_proxy_map,
-	          empty_proxy_map);
+			  b_engine,
+			  b_data,
+			  b_scene,
+			  background,
+			  graph,
+			  b_ntree,
+			  empty_proxy_map,
+			  empty_proxy_map);
 }
 
 /* Sync Materials */

@@ -740,19 +740,19 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 
                 float3 color = stack_load_float3(stack, color_ofs);
                 switch(parametrization) {
-                    case NODE_PRINCIPLED_HAIR_ABSORPTION:
+                    case NODE_PRINCIPLED_HAIR_DIRECT_ABSORPTION:
                         bsdf->sigma = color;
                         break;
                     case NODE_PRINCIPLED_HAIR_PHYSICAL:
                         bsdf->sigma = -log3(max(color, make_float3(1e-5f, 1e-5f, 1e-5f)));
                         break;
-                    case NODE_PRINCIPLED_HAIR_HUMAN:
-                       bsdf->sigma = color.x*make_float3(0.419f, 0.697f, 1.37f) + color.y*make_float3(0.187f, 0.4f, 1.05f);
+                    case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION:
+                        bsdf->sigma = color.x*make_float3(0.419f, 0.697f, 1.37f) + color.y*make_float3(0.187f, 0.4f, 1.05f);
                         break;
                     default:
-                        kernel_assert(!"Invalid NewHair parametrization!");
+                        kernel_assert(!"Invalid Principled Hair parametrization!");
                         //fallthrough
-                    case NODE_PRINCIPLED_HAIR_COLOR:
+                    case NODE_PRINCIPLED_HAIR_REFLECTANCE:
                         float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
                         bsdf->sigma = log3(color)/roughness_fac;
                         bsdf->sigma *= bsdf->sigma;
