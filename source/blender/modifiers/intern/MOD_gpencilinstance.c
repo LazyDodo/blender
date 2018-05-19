@@ -260,7 +260,7 @@ static Object *array_instance_add_ob_copy(const bContext *C, Object *from_ob)
 	Object *ob;
 	
 	ob = BKE_object_copy(bmain, from_ob);
-	BKE_collection_object_add_from(scene, from_ob, ob);
+	BKE_collection_object_add_from(bmain, scene, from_ob, ob);
 	
 	zero_v3(ob->loc);
 	zero_v3(ob->rot);
