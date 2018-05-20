@@ -79,6 +79,10 @@ struct uiPopover {
 
 	uiMenuCreateFunc menu_func;
 	void *menu_arg;
+
+#ifdef USE_POPOVER_ONCE
+	bool is_once;
+#endif
 };
 
 static void ui_popover_create_block(bContext *C, uiPopover *pup, int opcontext)
@@ -125,6 +129,11 @@ static uiBlock *ui_block_func_POPOVER(bContext *C, uiPopupBlockHandle *handle, v
 	UI_block_region_set(block, handle->region);
 	UI_block_layout_resolve(block, &width, &height);
 	UI_block_flag_enable(block, UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_KEEP_OPEN | UI_BLOCK_POPOVER);
+#ifdef USE_POPOVER_ONCE
+	if (pup->is_once) {
+		UI_block_flag_enable(block, UI_BLOCK_POPOVER_ONCE);
+	}
+#endif
 	UI_block_direction_set(block, UI_DIR_DOWN | UI_DIR_CENTER_X);
 
 	const int block_margin = U.widget_unit / 2;
@@ -169,10 +178,23 @@ static uiBlock *ui_block_func_POPOVER(bContext *C, uiPopupBlockHandle *handle, v
 	}
 	else {
 		/* Not attached to a button. */
-		int offset[2] = {0, 0};  /* Dummy. */
+		int offset[2] = {0, 0};
 		UI_block_flag_enable(block, UI_BLOCK_LOOP);
 		UI_block_direction_set(block, block->direction);
 		block->minbounds = UI_MENU_WIDTH_MIN;
+
+		uiBut *but = NULL;
+		for (but = block->buttons.first; but; but = but->next) {
+			if (but->flag & (UI_SELECT | UI_SELECT_DRAW)) {
+				break;
+			}
+		}
+
+		if (but) {
+			offset[0] = -(but->rect.xmin + 0.8f * BLI_rctf_size_x(&but->rect));
+			offset[1] = -(but->rect.ymin + 0.5f * BLI_rctf_size_y(&but->rect));
+		}
+
 		UI_block_bounds_set_popup(block, block_margin, offset[0], offset[1]);
 	}
 
@@ -194,6 +216,10 @@ uiPopupBlockHandle *ui_popover_panel_create(
 	pup->but = but;
 	pup->menu_func = menu_func;
 	pup->menu_arg = arg;
+
+#ifdef USE_POPOVER_ONCE
+	pup->is_once = true;
+#endif
 
 	/* Create popup block. */
 	uiPopupBlockHandle *handle;
@@ -261,6 +287,13 @@ uiLayout *UI_popover_layout(uiPopover *pup)
 {
 	return pup->layout;
 }
+
+#ifdef USE_POPOVER_ONCE
+void UI_popover_once_clear(uiPopover *pup)
+{
+	pup->is_once = false;
+}
+#endif
 
 /** \} */
 

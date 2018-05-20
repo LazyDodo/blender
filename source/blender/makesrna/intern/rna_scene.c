@@ -509,7 +509,6 @@ static const EnumPropertyItem transform_orientation_items[] = {
 #include "ED_image.h"
 #include "ED_scene.h"
 
-#include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
 
@@ -790,6 +789,7 @@ static void rna_Scene_frame_update(Main *bmain, Scene *UNUSED(current_scene), Po
 {
 	Scene *scene = (Scene *)ptr->id.data;
 	BKE_sound_seek_scene(bmain, scene);
+	WM_main_add_notifier(NC_SCENE | ND_FRAME, scene);
 }
 
 static PointerRNA rna_Scene_active_keying_set_get(PointerRNA *ptr)
