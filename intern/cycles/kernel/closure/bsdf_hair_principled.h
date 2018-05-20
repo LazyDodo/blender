@@ -146,12 +146,12 @@ ccl_device_inline float4 combine_with_energy(float3 c)
 
 ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, PrincipledHairBSDF *bsdf)
 {
-	// if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
-	// 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
-	// 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
-	// }
+	if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
+		bsdf->type = CLOSURE_BSDF_DIFFUSE_ID;
+		return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
+	}
 
-    printf("Initializing PrincipledHair closure \n");
+	printf("Initializing PrincipledHair closure \n");
 
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 0.999f);
@@ -252,13 +252,13 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 
 	float4 F;
 	F  = Ap[0] * azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t)
-	           * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+			   * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
 
 	F += Ap[1] * azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t)
-	           * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+			   * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
 
 	F += Ap[2] * azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t)
-	           * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+			   * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 
 	F += Ap[3] * longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v) * M_1_2PI_F;
 
@@ -354,13 +354,13 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 
 	float4 F;
 	F  = Ap[0] * azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t)
-	           * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+			   * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
 
 	F += Ap[1] * azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t)
-	           * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+			   * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
 
 	F += Ap[2] * azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t)
-	           * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+			   * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 
 	F += Ap[3] * longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v) * M_1_2PI_F;
 
