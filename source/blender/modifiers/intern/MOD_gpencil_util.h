@@ -44,6 +44,4 @@ bool is_stroke_affected_by_modifier(
 
 float get_modifier_point_weight(struct MDeformVert *dvert, int inverse, int vindex);
 
-void gp_mod_fill_random_array(float *ar, int count);
-
 #endif  /* __MOD_GPENCIL_UTIL_H__ */

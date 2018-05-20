@@ -54,14 +54,6 @@
 
 #include "MOD_gpencil_util.h"
 
-/* fill an array with random numbers */
-void gp_mod_fill_random_array(float *ar, int count)
-{
-	for (int i = 0; i < count; i++) {
-		ar[i] = BLI_frand();
-	}
-} 
-
 /* verify if valid layer and pass index */
 bool is_stroke_affected_by_modifier(
         Object *ob, char *mlayername, int mpassindex, int minpoints,

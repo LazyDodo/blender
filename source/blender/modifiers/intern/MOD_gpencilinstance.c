@@ -37,6 +37,7 @@
 #include "DNA_gpencil_types.h"
 
 #include "BLI_blenlib.h"
+#include "BLI_rand.h"
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
@@ -76,7 +77,7 @@ static void initData(ModifierData *md)
 	gpmd->flag |= GP_INSTANCE_MAKE_OBJECTS;
 	
 	/* fill random values */
-	gp_mod_fill_random_array(gpmd->rnd, 20);
+	BLI_array_frand(gpmd->rnd, 20, 1);
 	gpmd->rnd[0] = 1;
 }
 

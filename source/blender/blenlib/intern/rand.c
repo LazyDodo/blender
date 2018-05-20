@@ -288,6 +288,18 @@ void BLI_frand_unit_v3(float v[3])
 	BLI_rng_get_float_unit_v3(&theBLI_rng, v);
 }
 
+/* fill an array with random numbers */
+void BLI_array_frand(float *ar, int count, unsigned int seed)
+{
+	RNG rng;
+
+	BLI_rng_srandom(&rng, seed);
+
+	for (int i = 0; i < count; i++) {
+		ar[i] = BLI_rng_get_float(&rng);
+	}
+}
+
 float BLI_hash_frand(unsigned int seed)
 {
 	RNG rng;

@@ -74,6 +74,9 @@ int     BLI_rand(void) ATTR_WARN_UNUSED_RESULT;
 float   BLI_frand(void) ATTR_WARN_UNUSED_RESULT;
 void    BLI_frand_unit_v3(float v[3]);
 
+/* fill an array with random numbers */
+void    BLI_array_frand(float *ar, int count, unsigned int seed);
+
 /** Return a pseudo-random (hash) float from an integer value */
 float	BLI_hash_frand(unsigned int seed) ATTR_WARN_UNUSED_RESULT;
 
