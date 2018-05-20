@@ -1571,6 +1571,8 @@ bool calculateTransformCenter(bContext *C, int centerMode, float cent3d[3], floa
 	TransInfo *t = MEM_callocN(sizeof(TransInfo), "TransInfo data");
 	bool success;
 
+	t->context = C;
+
 	t->state = TRANS_RUNNING;
 
 	/* avoid calculating PET */
