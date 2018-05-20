@@ -32,7 +32,6 @@
 #include "kernel/closure/bsdf_principled_sheen.h"
 #include "kernel/closure/bssrdf.h"
 #include "kernel/closure/volume.h"
-
 CCL_NAMESPACE_BEGIN
 
 /* Returns the square of the roughness of the closure if it has roughness,
@@ -74,16 +73,18 @@ ccl_device_inline float bsdf_get_roughness_squared(const ShaderClosure *sc)
 }
 
 ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
-                                       ShaderData *sd,
-                                       const ShaderClosure *sc,
-                                       float randu,
-                                       float randv,
-                                       float3 *eval,
-                                       float3 *omega_in,
-                                       differential3 *domega_in,
-                                       float *pdf)
+									   ShaderData *sd,
+									   const ShaderClosure *sc,
+									   float randu,
+									   float randv,
+									   float3 *eval,
+									   float3 *omega_in,
+									   differential3 *domega_in,
+									   float *pdf)
 {
 	int label;
+    
+    printf("sample: %i\n", sc->type);
 
 	switch(sc->type) {
 		case CLOSURE_BSDF_DIFFUSE_ID:
@@ -134,12 +135,12 @@ ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_ID:
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_FRESNEL_ID:
 			label = bsdf_microfacet_multi_ggx_sample(kg, sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
-			        eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
+					eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
 			break;
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_GLASS_ID:
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_GLASS_FRESNEL_ID:
 			label = bsdf_microfacet_multi_ggx_glass_sample(kg, sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
-			        eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
+					eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
 			break;
 		case CLOSURE_BSDF_MICROFACET_BECKMANN_ID:
 		case CLOSURE_BSDF_MICROFACET_BECKMANN_ANISO_ID:
@@ -172,9 +173,9 @@ ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
 			label = bsdf_hair_transmission_sample(sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
 				eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
 			break;
-        case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
-            label = bsdf_principled_hair_sample(sd, sc, randu, randv, eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
-            break;
+		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+			label = bsdf_principled_hair_sample(sd, sc, randu, randv, eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
+			break;
 #ifdef __PRINCIPLED__
 		case CLOSURE_BSDF_PRINCIPLED_DIFFUSE_ID:
 		case CLOSURE_BSDF_BSSRDF_PRINCIPLED_ID:
@@ -217,17 +218,16 @@ ccl_device
 ccl_device_forceinline
 #endif
 float3 bsdf_eval(KernelGlobals *kg,
-                 ShaderData *sd,
-                 const ShaderClosure *sc,
-                 const float3 omega_in,
-                 float *pdf)
+				 ShaderData *sd,
+				 const ShaderClosure *sc,
+				 const float3 omega_in,
+				 float *pdf)
 {
 	float3 eval;
+    
+    printf("eval: %i\n", sc->type);
 
-    if(sc->type == CLOSURE_BSDF_HAIR_PRINCIPLED_ID) {
-        eval = bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
-    }
-    else if(dot(sd->Ng, omega_in) >= 0.0f) {
+	if(dot(sd->Ng, omega_in) >= 0.0f) {
 		switch(sc->type) {
 			case CLOSURE_BSDF_DIFFUSE_ID:
 			case CLOSURE_BSDF_BSSRDF_ID:
@@ -291,6 +291,10 @@ float3 bsdf_eval(KernelGlobals *kg,
 			case CLOSURE_BSDF_GLOSSY_TOON_ID:
 				eval = bsdf_glossy_toon_eval_reflect(sc, sd->I, omega_in, pdf);
 				break;
+			case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+                printf("eval'ing hair \n");
+				eval = bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
+				break;
 			case CLOSURE_BSDF_HAIR_REFLECTION_ID:
 				eval = bsdf_hair_reflection_eval_reflect(sc, sd->I, omega_in, pdf);
 				break;
@@ -321,7 +325,7 @@ float3 bsdf_eval(KernelGlobals *kg,
 		switch(sc->type) {
 			case CLOSURE_BSDF_DIFFUSE_ID:
 			case CLOSURE_BSDF_BSSRDF_ID:
-				eval = bsdf_diffuse_eval_transmit(sc, sd->I, omega_in, pdf);
+                eval = bsdf_diffuse_eval_transmit(sc, sd->I, omega_in, pdf);
 				break;
 #ifdef __SVM__
 			case CLOSURE_BSDF_OREN_NAYAR_ID:
@@ -372,6 +376,10 @@ float3 bsdf_eval(KernelGlobals *kg,
 				break;
 			case CLOSURE_BSDF_GLOSSY_TOON_ID:
 				eval = bsdf_glossy_toon_eval_transmit(sc, sd->I, omega_in, pdf);
+				break;
+			case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+                printf("eval'ing hair 2\n");
+				eval = bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
 				break;
 			case CLOSURE_BSDF_HAIR_REFLECTION_ID:
 				eval = bsdf_hair_reflection_eval_transmit(sc, sd->I, omega_in, pdf);

@@ -722,6 +722,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			break;
 		}
         case CLOSURE_BSDF_HAIR_PRINCIPLED_ID: {
+            printf("Creating PrincipledHair closure \n");
             float3 weight = sd->svm_closure_weight * mix_weight;
 
             uint offset_ofs, ior_ofs, color_ofs, parametrization;

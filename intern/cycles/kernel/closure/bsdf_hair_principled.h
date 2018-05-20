@@ -43,7 +43,7 @@ ccl_device_inline float cos_from_sin(const float s)
 
 /* Gives the change in direction in the normal plane for the given angles and p-th-order scattering. */
 ccl_device_inline float delta_phi(int p, float gamma_o, float gamma_t) {
-	return 2.0f*(p * (gamma_t + M_PI_2_F) - gamma_o);
+	return 2.0f * p * gamma_t - 2.0f * gamma_o + p * M_PI_F;
 }
 
 ccl_device_inline float wrap_angle(float a)
@@ -100,7 +100,7 @@ ccl_device_inline float trimmed_logistic(float x, float s)
 	/* The logistic distribution is symmetric and centered around zero,
 	 * so logistic_cdf(x, s) = 1 - logistic_cdf(-x, s).
 	 * Therefore, logistic_cdf(x, s)-logistic_cdf(-x, s) = 1 - 2*logistic_cdf(-x, s) */
-	float scaling_fac = 1.0f - 2.0f*logistic_cdf(-M_PI_F, s);
+	float scaling_fac = 1.0f - 2.0f*logistic_cdf(-x, s);
 	float val = logistic(x, s);
 	return val / scaling_fac;
 }
@@ -146,10 +146,12 @@ ccl_device_inline float4 combine_with_energy(float3 c)
 
 ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, PrincipledHairBSDF *bsdf)
 {
-	if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
-		bsdf->type = CLOSURE_BSDF_DIFFUSE_ID;
-		return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
-	}
+	// if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
+	// 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
+	// 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
+	// }
+
+    printf("Initializing PrincipledHair closure \n");
 
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 0.999f);
