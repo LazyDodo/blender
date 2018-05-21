@@ -1460,6 +1460,7 @@ static int psys_map_index_on_dm(Mesh *mesh, int from, int index, int index_dmcac
 
 int psys_get_index_on_dm(ParticleSystem *psys, DerivedMesh *dm, ParticleData *pa, int *mapindex, float mapfw[4])
 {
+	BLI_assert(false && "Replace DerivedMesh with Mesh!");
 	return psys_map_index_on_dm(dm, psys->part->from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, mapindex, mapfw);
 }
 
