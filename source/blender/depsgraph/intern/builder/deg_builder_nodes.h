@@ -44,6 +44,7 @@ struct ID;
 struct Image;
 struct FCurve;
 struct Collection;
+struct Groom;
 struct Key;
 struct LayerCollection;
 struct Main;

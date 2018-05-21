@@ -70,6 +70,7 @@
 #include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
 #include "BKE_global.h"
+#include "BKE_groom.h"
 #include "BKE_fcurve.h"
 #include "BKE_idprop.h"
 #include "BKE_lamp.h"
@@ -1811,6 +1812,9 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 						break;
 					case OB_SPEAKER:
 						ob->data = ID_NEW_SET(ob->data, BKE_speaker_copy(bmain, ob->data));
+						break;
+					case OB_GROOM:
+						ob->data = ID_NEW_SET(ob->data, BKE_groom_copy(bmain, ob->data));
 						break;
 					case OB_LIGHTPROBE:
 						ob->data = ID_NEW_SET(ob->data, BKE_lightprobe_copy(bmain, ob->data));

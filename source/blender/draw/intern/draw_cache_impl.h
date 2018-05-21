@@ -35,6 +35,7 @@ struct ListBase;
 struct ModifierData;
 struct ParticleSystem;
 struct PTCacheEdit;
+struct Groom;
 struct HairSystem;
 struct DRWHairFiberTextureBuffer;
 struct DerivedMesh;
@@ -59,6 +60,9 @@ void DRW_lattice_batch_cache_free(struct Lattice *lt);
 
 void DRW_particle_batch_cache_dirty(struct ParticleSystem *psys, int mode);
 void DRW_particle_batch_cache_free(struct ParticleSystem *psys);
+
+void DRW_groom_batch_cache_dirty(struct Groom *groom, int mode);
+void DRW_groom_batch_cache_free(struct Groom *groom);
 
 void DRW_hair_batch_cache_dirty(struct HairSystem *hsys, int mode);
 void DRW_hair_batch_cache_free(struct HairSystem *hsys);
@@ -94,6 +98,11 @@ struct Gwn_Batch **DRW_displist_batch_calc_tri_pos_normals_and_uv_split_by_mater
 struct Gwn_Batch *DRW_lattice_batch_cache_get_all_edges(struct Lattice *lt, bool use_weight, const int actdef);
 struct Gwn_Batch *DRW_lattice_batch_cache_get_all_verts(struct Lattice *lt);
 struct Gwn_Batch *DRW_lattice_batch_cache_get_overlay_verts(struct Lattice *lt);
+
+/* Groom */
+struct Gwn_Batch *DRW_groom_batch_cache_get_all_edges(struct Groom *groom);
+struct Gwn_Batch *DRW_groom_batch_cache_get_all_verts(struct Groom *groom);
+struct Gwn_Batch *DRW_groom_batch_cache_get_overlay_verts(struct Groom *groom, int mode);
 
 /* Mesh */
 

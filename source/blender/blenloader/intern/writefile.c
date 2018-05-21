@@ -116,6 +116,7 @@
 #include "DNA_constraint_types.h"
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_genfile.h"
+#include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_fileglobal_types.h"
@@ -3629,6 +3630,32 @@ static void write_workspace(WriteData *wd, WorkSpace *workspace)
 	writelist(wd, DATA, bToolRef, &workspace->tools);
 }
 
+static void write_groom(WriteData *wd, Groom *groom)
+{
+	writestruct(wd, ID_GM, Groom, 1, groom);
+	write_iddata(wd, &groom->id);
+	if (groom->adt) {
+		write_animdata(wd, groom->adt);
+	}
+
+	writelist(wd, DATA, GroomBundle, &groom->bundles);
+	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	{
+		writestruct(wd, DATA, GroomSection, bundle->totsections, bundle->sections);
+		writestruct(wd, DATA, GroomSectionVertex, bundle->totverts, bundle->verts);
+		writestruct(wd, DATA, MeshSample, bundle->numshapeverts + 1, bundle->scalp_region);
+	}
+	
+	if (groom->hair_system) {
+		writestruct(wd, DATA, HairSystem, 1, groom->hair_system);
+		write_hair(wd, groom->hair_system);
+	}
+	if (groom->hair_draw_settings)
+	{
+		writestruct(wd, DATA, HairDrawSettings, 1, groom->hair_draw_settings);
+	}
+}
+
 /* Keep it last of write_foodata functions. */
 static void write_libraries(WriteData *wd, Main *main)
 {
@@ -3930,6 +3957,9 @@ static bool write_file_handle(
 						break;
 					case ID_CF:
 						write_cachefile(wd, (CacheFile *)id);
+						break;
+					case ID_GM:
+						write_groom(wd, (Groom *)id);
 						break;
 					case ID_LI:
 						/* Do nothing, handled below - and should never be reached. */

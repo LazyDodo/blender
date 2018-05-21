@@ -610,6 +610,7 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_editor_datafiles
 		bf_editor_mask
 		bf_editor_io
+		bf_editor_groom
 
 		bf_render
 		bf_python

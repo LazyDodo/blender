@@ -1070,6 +1070,9 @@ static void drw_engines_enable_from_mode(int mode)
 		case CTX_MODE_EDIT_LATTICE:
 			use_drw_engine(&draw_engine_edit_lattice_type);
 			break;
+		case CTX_MODE_EDIT_GROOM:
+			use_drw_engine(&draw_engine_edit_groom_type);
+			break;
 		case CTX_MODE_POSE:
 			use_drw_engine(&draw_engine_pose_type);
 			break;
@@ -2027,6 +2030,7 @@ void DRW_engines_register(void)
 	DRW_engine_register(&draw_engine_object_type);
 	DRW_engine_register(&draw_engine_edit_armature_type);
 	DRW_engine_register(&draw_engine_edit_curve_type);
+	DRW_engine_register(&draw_engine_edit_groom_type);
 	DRW_engine_register(&draw_engine_edit_lattice_type);
 	DRW_engine_register(&draw_engine_edit_mesh_type);
 	DRW_engine_register(&draw_engine_edit_metaball_type);
@@ -2057,6 +2061,9 @@ void DRW_engines_register(void)
 		/* BKE: particle.c */
 		extern void *BKE_particle_batch_cache_dirty_cb;
 		extern void *BKE_particle_batch_cache_free_cb;
+		/* BKE: groom.c */
+		extern void *BKE_groom_batch_cache_dirty_cb;
+		extern void *BKE_groom_batch_cache_free_cb;
 		/* BKE: hair.c */
 		extern void *BKE_hair_batch_cache_dirty_cb;
 		extern void *BKE_hair_batch_cache_free_cb;
@@ -2075,6 +2082,9 @@ void DRW_engines_register(void)
 
 		BKE_particle_batch_cache_dirty_cb = DRW_particle_batch_cache_dirty;
 		BKE_particle_batch_cache_free_cb = DRW_particle_batch_cache_free;
+
+		BKE_groom_batch_cache_dirty_cb = DRW_groom_batch_cache_dirty;
+		BKE_groom_batch_cache_free_cb = DRW_groom_batch_cache_free;
 
 		BKE_hair_batch_cache_dirty_cb = DRW_hair_batch_cache_dirty;
 		BKE_hair_batch_cache_free_cb = DRW_hair_batch_cache_free;

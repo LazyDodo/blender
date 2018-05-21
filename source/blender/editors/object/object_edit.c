@@ -92,6 +92,7 @@
 
 #include "ED_armature.h"
 #include "ED_curve.h"
+#include "ED_groom.h"
 #include "ED_mesh.h"
 #include "ED_mball.h"
 #include "ED_lattice.h"
@@ -257,6 +258,10 @@ static bool ED_object_editmode_load_ex(Main *bmain, Object *obedit, const bool f
 			ED_mball_editmball_free(obedit);
 		}
 	}
+	else if (obedit->type == OB_GROOM) {
+		ED_groom_editgroom_load(obedit);
+		if (freedata) ED_groom_editgroom_free(obedit);
+	}
 
 	return true;
 }
@@ -404,6 +409,12 @@ void ED_object_editmode_enter_ex(Scene *scene, Object *ob, int flag)
 		ED_curve_editnurb_make(ob);
 
 		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_EDITMODE_CURVE, scene);
+	}
+	else if (ob->type == OB_GROOM) {
+		ok = 1;
+		ED_groom_editgroom_make(ob);
+
+		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_EDITMODE_GROOM, scene);
 	}
 
 	if (ok) {

@@ -51,6 +51,7 @@ extern "C" {
 #include "DNA_curve_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
@@ -77,6 +78,7 @@ extern "C" {
 #include "BKE_effect.h"
 #include "BKE_fcurve.h"
 #include "BKE_idcode.h"
+#include "BKE_groom.h"
 #include "BKE_key.h"
 #include "BKE_lattice.h"
 #include "BKE_library.h"
@@ -547,6 +549,7 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 		case OB_SURF:
 		case OB_MBALL:
 		case OB_LATTICE:
+		case OB_GROOM:
 			build_obdata_geom(object);
 			/* TODO(sergey): Only for until we support granular
 			 * update of curves.
@@ -1135,6 +1138,19 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 			                                           (Lattice *)obdata_cow),
 			                                           DEG_OPCODE_PLACEHOLDER,
 			                                           "Geometry Eval");
+			op_node->set_as_entry();
+			break;
+		}
+
+		case OB_GROOM:
+		{
+			/* Groom evaluation operations. */
+			op_node = add_operation_node(obdata, DEG_NODE_TYPE_GEOMETRY,
+			                             function_bind(BKE_groom_eval_geometry,
+			                                           _1,
+			                                           (Groom *)obdata_cow),
+			                             DEG_OPCODE_PLACEHOLDER,
+			                             "Geometry Eval");
 			op_node->set_as_entry();
 			break;
 		}

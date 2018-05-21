@@ -42,6 +42,7 @@
 #include "DNA_constraint_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_group_types.h"
+#include "DNA_groom_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_lattice_types.h"
@@ -73,6 +74,7 @@
 #include "BKE_pbvh.h"
 #include "BKE_main.h"
 #include "BKE_global.h"
+#include "BKE_groom.h"
 #include "BKE_idprop.h"
 #include "BKE_armature.h"
 #include "BKE_action.h"
@@ -323,6 +325,13 @@ void BKE_object_free_derived_caches(Object *ob)
 			atomic_fetch_and_or_int32(&cu->bb->flag, BOUNDBOX_DIRTY);
 		}
 	}
+	else if (ELEM(ob->type, OB_GROOM)) {
+		Groom *groom = ob->data;
+
+		if (groom && groom->bb) {
+			atomic_fetch_and_or_int32(&groom->bb->flag, BOUNDBOX_DIRTY);
+		}
+	}
 
 	if (ob->bb) {
 		MEM_freeN(ob->bb);
@@ -498,6 +507,11 @@ bool BKE_object_is_in_editmode(const Object *ob)
 		if (cu->editnurb)
 			return true;
 	}
+	else if (ob->type == OB_GROOM) {
+		Groom *groom = ob->data;
+		if (groom->editgroom)
+			return true;
+	}
 	return false;
 }
 
@@ -612,6 +626,7 @@ static const char *get_obdata_defname(int type)
 		case OB_SURF: return DATA_("Surf");
 		case OB_FONT: return DATA_("Text");
 		case OB_MBALL: return DATA_("Mball");
+		case OB_GROOM: return DATA_("Groom");
 		case OB_CAMERA: return DATA_("Camera");
 		case OB_LAMP: return DATA_("Lamp");
 		case OB_LATTICE: return DATA_("Lattice");
@@ -642,6 +657,7 @@ void *BKE_object_obdata_add_from_type(Main *bmain, int type, const char *name)
 		case OB_ARMATURE:  return BKE_armature_add(bmain, name);
 		case OB_SPEAKER:   return BKE_speaker_add(bmain, name);
 		case OB_LIGHTPROBE:return BKE_lightprobe_add(bmain, name);
+		case OB_GROOM:     return BKE_groom_add(bmain, name);
 		case OB_EMPTY:     return NULL;
 		default:
 			printf("%s: Internal error, bad type: %d\n", __func__, type);

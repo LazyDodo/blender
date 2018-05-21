@@ -700,6 +700,7 @@ void flushTransSeq(TransInfo *t);
 void flushTransTracking(TransInfo *t);
 void flushTransMasking(TransInfo *t);
 void flushTransPaintCurve(TransInfo *t);
+void flushTransGroom(TransInfo *t);
 void restoreBones(TransDataContainer *tc);
 
 /*********************** transform_manipulator.c ********** */

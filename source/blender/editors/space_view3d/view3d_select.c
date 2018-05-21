@@ -38,6 +38,7 @@
 #include "DNA_action_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_curve_types.h"
+#include "DNA_groom_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -68,6 +69,7 @@
 #include "BKE_armature.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_groom.h"
 #include "BKE_layer.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
@@ -95,6 +97,7 @@
 #include "ED_screen.h"
 #include "ED_sculpt.h"
 #include "ED_mball.h"
+#include "ED_groom.h"
 
 #include "UI_interface.h"
 
@@ -619,6 +622,49 @@ static void do_lasso_select_lattice(ViewContext *vc, const int mcords[][2], shor
 	lattice_foreachScreenVert(vc, do_lasso_select_lattice__doSelect, &data, V3D_PROJ_TEST_CLIP_DEFAULT);
 }
 
+static void do_lasso_select_groom__doSelect(
+        void *userData,
+        GroomBundle *bundle,
+        GroomSection *section,
+        GroomSectionVertex *vertex,
+        const float screen_co[2])
+{
+	LassoSelectUserData *data = userData;
+
+	if (BLI_rctf_isect_pt_v(data->rect_fl, screen_co) &&
+	    BLI_lasso_is_point_inside(data->mcords, data->moves, screen_co[0], screen_co[1], IS_CLIPPED))
+	{
+		if (vertex)
+		{
+			vertex->flag = data->select ? (vertex->flag | GM_VERTEX_SELECT) : (vertex->flag & ~GM_VERTEX_SELECT);
+		}
+		else if (section)
+		{
+			section->flag = data->select ? (section->flag | GM_SECTION_SELECT) : (section->flag & ~GM_SECTION_SELECT);
+		}
+		else if (bundle)
+		{
+			bundle->flag = data->select ? (bundle->flag | GM_BUNDLE_SELECT) : (bundle->flag & ~GM_BUNDLE_SELECT);
+		}
+	}
+}
+
+static void do_lasso_select_groom(ViewContext *vc, const int mcords[][2], short moves, bool extend, bool select)
+{
+	LassoSelectUserData data;
+	rcti rect;
+
+	BLI_lasso_boundbox(&rect, mcords, moves);
+
+	view3d_userdata_lassoselect_init(&data, vc, &rect, mcords, moves, select);
+
+	if (extend == false && select)
+		ED_lattice_flags_set(vc->obedit, 0);
+
+	ED_view3d_init_mats_rv3d(vc->obedit, vc->rv3d); /* for foreach's screen/vert projection */
+	groom_foreachScreenVert(vc, do_lasso_select_groom__doSelect, &data, V3D_PROJ_TEST_CLIP_DEFAULT);
+}
+
 static void do_lasso_select_armature__doSelectBone(void *userData, struct EditBone *ebone, const float screen_co_a[2], const float screen_co_b[2])
 {
 	LassoSelectUserData *data = userData;
@@ -877,6 +923,9 @@ static void view3d_lasso_select(
 				case OB_MBALL:
 					do_lasso_select_meta(vc, mcords, moves, extend, select);
 					break;
+			case OB_GROOM:
+				do_lasso_select_groom(vc, mcords, moves, extend, select);
+				break;
 				default:
 					assert(!"lasso select on incorrect object type");
 					break;
@@ -1806,6 +1855,47 @@ static int do_lattice_box_select(ViewContext *vc, rcti *rect, bool select, bool 
 	return OPERATOR_FINISHED;
 }
 
+static void do_groom_box_select__doSelect(
+        void *userData,
+        GroomBundle *bundle,
+        GroomSection *section,
+        GroomSectionVertex *vertex,
+        const float screen_co[2])
+{
+	BoxSelectUserData *data = userData;
+
+	if (BLI_rctf_isect_pt_v(data->rect_fl, screen_co))
+	{
+		if (vertex)
+		{
+			vertex->flag = data->select ? (vertex->flag | GM_VERTEX_SELECT) : (vertex->flag & ~GM_VERTEX_SELECT);
+		}
+		else if (section)
+		{
+			section->flag = data->select ? (section->flag | GM_SECTION_SELECT) : (section->flag & ~GM_SECTION_SELECT);
+		}
+		else if (bundle)
+		{
+			bundle->flag = data->select ? (bundle->flag | GM_BUNDLE_SELECT) : (bundle->flag & ~GM_BUNDLE_SELECT);
+		}
+	}
+}
+
+static int do_groom_box_select(ViewContext *vc, rcti *rect, bool select, bool extend)
+{
+	BoxSelectUserData data;
+
+	view3d_userdata_boxselect_init(&data, vc, rect, select);
+
+	if (extend == false && select)
+		ED_lattice_flags_set(vc->obedit, 0);
+
+	ED_view3d_init_mats_rv3d(vc->obedit, vc->rv3d); /* for foreach's screen/vert projection */
+	groom_foreachScreenVert(vc, do_groom_box_select__doSelect, &data, V3D_PROJ_TEST_CLIP_DEFAULT);
+	
+	return OPERATOR_FINISHED;
+}
+
 static void do_mesh_box_select__doSelectVert(void *userData, BMVert *eve, const float screen_co[2], int UNUSED(index))
 {
 	BoxSelectUserData *data = userData;
@@ -2239,6 +2329,12 @@ static int view3d_borderselect_exec(bContext *C, wmOperator *op)
 						WM_event_add_notifier(C, NC_GEOM | ND_SELECT, vc.obedit->data);
 					}
 					break;
+			case OB_GROOM:
+				ret = do_groom_box_select(&vc, &rect, select, extend);
+				if (ret & OPERATOR_FINISHED) {
+					WM_event_add_notifier(C, NC_GEOM | ND_SELECT, vc.obedit->data);
+				}
+				break;
 				default:
 					assert(!"border select on incorrect object type");
 					break;
@@ -2394,6 +2490,8 @@ static int view3d_select_exec(bContext *C, wmOperator *op)
 			retval = ED_mball_select_pick(C, location, extend, deselect, toggle);
 		else if (obedit->type == OB_FONT)
 			retval = ED_curve_editfont_select_pick(C, location, extend, deselect, toggle);
+		else if (obedit->type == OB_GROOM)
+			retval = ED_groom_select_pick(C, location, extend, deselect, toggle);
 			
 	}
 	else if (obact && obact->mode & OB_MODE_PARTICLE_EDIT)
@@ -2669,6 +2767,43 @@ static void lattice_circle_select(ViewContext *vc, const bool select, const int 
 }
 
 
+static void groom_circle_select__doSelect(
+        void *userData,
+        GroomBundle *bundle,
+        GroomSection *section,
+        GroomSectionVertex *vertex,
+        const float screen_co[2])
+{
+	CircleSelectUserData *data = userData;
+
+	if (len_squared_v2v2(data->mval_fl, screen_co) <= data->radius_squared)
+	{
+		if (vertex)
+		{
+			vertex->flag = data->select ? (vertex->flag | GM_VERTEX_SELECT) : (vertex->flag & ~GM_VERTEX_SELECT);
+		}
+		else if (section)
+		{
+			section->flag = data->select ? (section->flag | GM_SECTION_SELECT) : (section->flag & ~GM_SECTION_SELECT);
+		}
+		else if (bundle)
+		{
+			bundle->flag = data->select ? (bundle->flag | GM_BUNDLE_SELECT) : (bundle->flag & ~GM_BUNDLE_SELECT);
+		}
+	}
+}
+
+static void groom_circle_select(ViewContext *vc, const bool select, const int mval[2], float rad)
+{
+	CircleSelectUserData data;
+
+	view3d_userdata_circleselect_init(&data, vc, select, mval, rad);
+
+	ED_view3d_init_mats_rv3d(vc->obedit, vc->rv3d); /* for foreach's screen/vert projection */
+	groom_foreachScreenVert(vc, groom_circle_select__doSelect, &data, V3D_PROJ_TEST_CLIP_DEFAULT);
+}
+
+
 /* NOTE: pose-bone case is copied from editbone case... */
 static bool pchan_circle_doSelectJoint(void *userData, bPoseChannel *pchan, const float screen_co[2])
 {
@@ -2874,6 +3009,9 @@ static void obedit_circle_select(
 			break;
 		case OB_MBALL:
 			mball_circle_select(vc, select, mval, rad);
+			break;
+		case OB_GROOM:
+			groom_circle_select(vc, select, mval, rad);
 			break;
 		default:
 			return;

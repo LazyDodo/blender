@@ -995,6 +995,8 @@ int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectM
 				return CTX_MODE_EDIT_METABALL;
 			case OB_LATTICE:
 				return CTX_MODE_EDIT_LATTICE;
+			case OB_GROOM:
+				return CTX_MODE_EDIT_GROOM;
 		}
 	}
 	else {
@@ -1029,6 +1031,7 @@ static const char *data_mode_strings[] = {
 	"armature_edit",
 	"mball_edit",
 	"lattice_edit",
+	"groom_edit",
 	"posemode",
 	"sculpt_mode",
 	"weightpaint",

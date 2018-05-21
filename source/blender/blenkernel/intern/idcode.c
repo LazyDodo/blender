@@ -64,6 +64,7 @@ static IDType idtypes[] = {
 	{ ID_GR,   "Collection",         "collections",     BLT_I18NCONTEXT_ID_COLLECTION,         IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_CU,   "Curve",              "curves",          BLT_I18NCONTEXT_ID_CURVE,              IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_GD,   "GPencil",            "grease_pencil",   BLT_I18NCONTEXT_ID_GPENCIL,            IDTYPE_FLAGS_ISLINKABLE }, /* rename gpencil */
+	{ ID_GM,   "Groom",              "grooms",          BLT_I18NCONTEXT_ID_GROOM,              IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_IM,   "Image",              "images",          BLT_I18NCONTEXT_ID_IMAGE,              IDTYPE_FLAGS_ISLINKABLE },
 	{ ID_IP,   "Ipo",                "ipos",            "",                                    IDTYPE_FLAGS_ISLINKABLE }, /* deprecated */
 	{ ID_KE,   "Key",                "shape_keys",      BLT_I18NCONTEXT_ID_SHAPEKEY,           0                       },
@@ -281,6 +282,7 @@ int BKE_idcode_to_index(const short idcode)
 		CASE_IDINDEX(CF);
 		CASE_IDINDEX(CU);
 		CASE_IDINDEX(GD);
+		CASE_IDINDEX(GM);
 		CASE_IDINDEX(GR);
 		CASE_IDINDEX(IM);
 		CASE_IDINDEX(KE);
