@@ -52,6 +52,7 @@ struct Gwn_Batch *DRW_cache_screenspace_circle_get(void);
 
 /* Common Object */
 struct Gwn_Batch *DRW_cache_object_wire_outline_get(struct Object *ob);
+struct Gwn_Batch *DRW_cache_object_edge_detection_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_object_surface_get(struct Object *ob);
 struct Gwn_Batch **DRW_cache_object_surface_material_get(
         struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
@@ -101,10 +102,7 @@ struct Gwn_Batch *DRW_cache_lightprobe_planar_get(void);
 
 /* Bones */
 struct Gwn_Batch *DRW_cache_bone_octahedral_get(void);
-struct Gwn_Batch *DRW_cache_bone_octahedral_wire_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_box_get(void);
-struct Gwn_Batch *DRW_cache_bone_box_wire_outline_get(void);
-struct Gwn_Batch *DRW_cache_bone_wire_wire_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_envelope_solid_get(void);
 struct Gwn_Batch *DRW_cache_bone_envelope_outline_get(void);
 struct Gwn_Batch *DRW_cache_bone_envelope_head_wire_outline_get(void);
@@ -123,6 +121,7 @@ void DRW_cache_mesh_normals_overlay_get(
         struct Gwn_Batch **r_tris, struct Gwn_Batch **r_ledges, struct Gwn_Batch **r_lverts);
 struct Gwn_Batch *DRW_cache_face_centers_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_mesh_wire_outline_get(struct Object *ob);
+struct Gwn_Batch *DRW_cache_mesh_edge_detection_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_mesh_surface_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_mesh_surface_weights_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_mesh_surface_vert_colors_get(struct Object *ob);
@@ -176,7 +175,7 @@ struct Gwn_Batch *DRW_cache_groom_wire_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_groom_vert_overlay_get(struct Object *ob, int mode);
 
 /* Particles */
-struct Gwn_Batch *DRW_cache_particles_get_hair(struct ParticleSystem *psys, struct ModifierData *md);
+struct Gwn_Batch *DRW_cache_particles_get_hair(struct Object *object, struct ParticleSystem *psys, struct ModifierData *md);
 struct Gwn_Batch *DRW_cache_particles_get_dots(struct Object *object, struct ParticleSystem *psys);
 struct Gwn_Batch *DRW_cache_particles_get_edit_strands(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
 struct Gwn_Batch *DRW_cache_particles_get_edit_inner_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);

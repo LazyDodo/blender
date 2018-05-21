@@ -570,6 +570,8 @@ float dist_squared_to_ray_v3(
 	*r_depth = dot_v3v3(dvec, ray_direction);
 	return len_squared_v3(dvec) - SQUARE(*r_depth);
 }
+
+
 /**
  * Find the closest point in a seg to a ray and return the distance squared.
  * \param r_point: Is the point on segment closest to ray (or to ray_origin if the ray and the segment are parallel).
@@ -580,44 +582,37 @@ float dist_squared_ray_to_seg_v3(
         const float v0[3], const float v1[3],
         float r_point[3], float *r_depth)
 {
-	float a[3], t[3], n[3], lambda;
-	sub_v3_v3v3(a, v1, v0);
-	sub_v3_v3v3(t, v0, ray_origin);
-	cross_v3_v3v3(n, a, ray_direction);
-	const float nlen = len_squared_v3(n);
-
-	/* if (nlen == 0.0f) the lines are parallel,
-	 * has no nearest point, only distance squared.*/
-	if (nlen == 0.0f) {
-		/* Calculate the distance to the point v0 then */
-		copy_v3_v3(r_point, v0);
-		*r_depth = dot_v3v3(t, ray_direction);
-	}
-	else {
-		float c[3], cray[3];
-		sub_v3_v3v3(c, n, t);
-		cross_v3_v3v3(cray, c, ray_direction);
-		lambda = dot_v3v3(cray, n) / nlen;
-		if (lambda <= 0) {
+	float lambda, depth;
+	if (isect_ray_seg_v3(
+	        ray_origin, ray_direction, v0, v1, &lambda))
+	{
+		if (lambda <= 0.0f) {
 			copy_v3_v3(r_point, v0);
-
-			*r_depth = dot_v3v3(t, ray_direction);
 		}
-		else if (lambda >= 1) {
+		else if (lambda >= 1.0f) {
 			copy_v3_v3(r_point, v1);
-
-			sub_v3_v3v3(t, v1, ray_origin);
-			*r_depth = dot_v3v3(t, ray_direction);
 		}
 		else {
-			madd_v3_v3v3fl(r_point, v0, a, lambda);
-
-			sub_v3_v3v3(t, r_point, ray_origin);
-			*r_depth = dot_v3v3(t, ray_direction);
+			interp_v3_v3v3(r_point, v0, v1, lambda);
 		}
 	}
-	return len_squared_v3(t) - SQUARE(*r_depth);
+	else {
+		/* has no nearest point, only distance squared. */
+		/* Calculate the distance to the point v0 then */
+		copy_v3_v3(r_point, v0);
+	}
+
+	float dvec[3];
+	sub_v3_v3v3(dvec, r_point, ray_origin);
+	depth = dot_v3v3(dvec, ray_direction);
+
+	if (r_depth) {
+		*r_depth = depth;
+	}
+
+	return len_squared_v3(dvec) - SQUARE(depth);
 }
+
 
 /* Returns the coordinates of the nearest vertex and
  * the farthest vertex from a plane (or normal). */
@@ -1986,6 +1981,33 @@ bool isect_ray_seg_v2(
 	return false;
 }
 
+
+bool isect_ray_seg_v3(
+        const float ray_origin[3], const float ray_direction[3],
+        const float v0[3], const float v1[3],
+        float *r_lambda)
+{
+	float a[3], t[3], n[3];
+	sub_v3_v3v3(a, v1, v0);
+	sub_v3_v3v3(t, v0, ray_origin);
+	cross_v3_v3v3(n, a, ray_direction);
+	const float nlen = len_squared_v3(n);
+
+	if (nlen == 0.0f) {
+		/* the lines are parallel.*/
+		return false;
+	}
+
+	float c[3], cray[3];
+	sub_v3_v3v3(c, n, t);
+	cross_v3_v3v3(cray, c, ray_direction);
+
+	*r_lambda = dot_v3v3(cray, n) / nlen;
+
+	return true;
+}
+
+
 /**
  * Check if a point is behind all planes.
  */
@@ -2001,6 +2023,23 @@ bool isect_point_planes_v3(float (*planes)[4], int totplane, const float p[3])
 
 	return true;
 }
+
+/**
+ * Check if a point is in front all planes.
+ * Same as isect_point_planes_v3 but with planes facing the opposite direction.
+ */
+bool isect_point_planes_v3_negated(
+	const float(*planes)[4], const int totplane, const float p[3])
+{
+	for (int i = 0; i < totplane; i++) {
+		if (plane_point_side_v3(planes[i], p) <= 0.0f) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 
 /**
  * Intersect line/plane.
@@ -2283,7 +2322,7 @@ int isect_aabb_planes_v3(
 			return ISECT_AABB_PLANE_BEHIND_ANY;
 		}
 		else if ((ret != ISECT_AABB_PLANE_CROSS_ANY) &&
-		        (plane_point_side_v3(planes[i], bb_near) < 0.0f))
+		         (plane_point_side_v3(planes[i], bb_near) < 0.0f))
 		{
 			ret = ISECT_AABB_PLANE_CROSS_ANY;
 		}

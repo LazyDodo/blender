@@ -119,12 +119,12 @@ static void basic_cache_init(void *vedata)
 #ifdef USE_DEPTH
 	/* Depth Pass */
 	{
-		psl->depth_pass = DRW_pass_create("Depth Pass", DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE);
+		psl->depth_pass = DRW_pass_create("Depth Pass", DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WIRE);
 		stl->g_data->depth_shgrp = DRW_shgroup_create(e_data.depth_sh, psl->depth_pass);
 
 		psl->depth_pass_cull = DRW_pass_create(
 		        "Depth Pass Cull",
-		        DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_BACK);
+		        DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CULL_BACK);
 		stl->g_data->depth_shgrp_cull = DRW_shgroup_create(e_data.depth_sh, psl->depth_pass_cull);
 	}
 #endif
@@ -140,30 +140,27 @@ static void basic_cache_populate(void *vedata, Object *ob)
 {
 	BASIC_StorageList *stl = ((BASIC_Data *)vedata)->stl;
 
-	if (!DRW_object_is_renderable(ob))
-		return;
-
-	if (!DRW_check_particles_visible_within_active_context(ob)) {
+	if (!DRW_object_is_renderable(ob)) {
 		return;
 	}
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	if (ob == draw_ctx->object_edit) {
+		return;
+	}
 
-	if (ob != draw_ctx->object_edit) {
-		for (ParticleSystem *psys = ob->particlesystem.first; psys; psys = psys->next) {
-			if (psys_check_enabled(ob, psys, false)) {
-				ParticleSettings *part = psys->part;
-				int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
-
-				if (draw_as == PART_DRAW_PATH && !psys->pathcache && !psys->childcache) {
-					draw_as = PART_DRAW_DOT;
-				}
-
-				if (draw_as == PART_DRAW_PATH) {
-					struct Gwn_Batch *hairs = DRW_cache_particles_get_hair(psys, NULL);
-					DRW_shgroup_call_add(stl->g_data->depth_shgrp, hairs, NULL);
-				}
-			}
+	for (ParticleSystem *psys = ob->particlesystem.first; psys; psys = psys->next) {
+		if (!psys_check_enabled(ob, psys, false)) {
+			continue;
+		}
+		if (!DRW_check_psys_visible_within_active_context(ob, psys)) {
+			return;
+		}
+		ParticleSettings *part = psys->part;
+		const int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
+		if (draw_as == PART_DRAW_PATH) {
+			struct Gwn_Batch *hairs = DRW_cache_particles_get_hair(ob, psys, NULL);
+			DRW_shgroup_call_add(stl->g_data->depth_shgrp, hairs, NULL);
 		}
 	}
 
@@ -248,7 +245,7 @@ DrawEngineType draw_engine_basic_type = {
 RenderEngineType DRW_engine_viewport_basic_type = {
 	NULL, NULL,
 	BASIC_ENGINE, N_("Basic"), RE_INTERNAL,
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	&draw_engine_basic_type,
 	{NULL, NULL, NULL}
 };

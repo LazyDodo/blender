@@ -185,7 +185,6 @@ typedef enum eSpaceButtons_Context {
 	BCONTEXT_CONSTRAINT = 11,
 	BCONTEXT_BONE_CONSTRAINT = 12,
 	BCONTEXT_VIEW_LAYER = 13,
-	BCONTEXT_COLLECTION = 14,
 	BCONTEXT_WORKSPACE = 15,
 
 	/* always as last... */
@@ -201,12 +200,6 @@ typedef enum eSpaceButtons_Flag {
 	SB_TEX_USER_LIMITED = (1 << 3), /* Do not add materials, particles, etc. in TemplateTextureUser list. */
 	SB_SHADING_CONTEXT = (1 << 4),
 } eSpaceButtons_Flag;
-
-/* sbuts->collection_context */
-typedef enum eSpaceButtons_Collection_Context {
-	SB_COLLECTION_CTX_VIEW_LAYER = 0,
-	SB_COLLECTION_CTX_GROUP = 1,
-} eSpaceButtons_Collection_Context;
 
 /* sbuts->align */
 typedef enum eSpaceButtons_Align {
@@ -260,7 +253,8 @@ typedef struct SpaceOops {
 	short flag, outlinevis, storeflag, search_flags;
 	int filter;
 	char filter_state;
-	char pad[3];
+	char pad;
+	short filter_id_type;
 	
 	/* pointers to treestore elements, grouped by (id, type, nr) in hashtable for faster searching */
 	void *treehash;
@@ -280,7 +274,7 @@ typedef enum eSpaceOutliner_Flag {
 typedef enum eSpaceOutliner_Filter {
 	SO_FILTER_SEARCH           = (1 << 0),
 	/* SO_FILTER_ENABLE           = (1 << 1), */ /* Deprecated */
-	/* SO_FILTER_NO_OBJECT        = (1 << 2), */ /* Deprecated */
+	SO_FILTER_NO_OBJECT        = (1 << 2),
 	SO_FILTER_NO_OB_CONTENT    = (1 << 3), /* Not only mesh, but modifiers, constraints, ... */
 	SO_FILTER_NO_CHILDREN      = (1 << 4),
 
@@ -297,6 +291,8 @@ typedef enum eSpaceOutliner_Filter {
 	SO_FILTER_OB_STATE_SELECTED = (1 << 14), /* Not set via DNA. */
 	SO_FILTER_OB_STATE_ACTIVE   = (1 << 15), /* Not set via DNA. */
 	SO_FILTER_NO_COLLECTION     = (1 << 16),
+
+	SO_FILTER_ID_TYPE           = (1 << 17),
 } eSpaceOutliner_Filter;
 
 #define SO_FILTER_OB_TYPE (SO_FILTER_NO_OB_MESH | \
@@ -322,35 +318,33 @@ typedef enum eSpaceOutliner_StateFilter {
 	SO_FILTER_OB_VISIBLE       = 1,
 	SO_FILTER_OB_SELECTED      = 2,
 	SO_FILTER_OB_ACTIVE        = 3,
-	SO_FILTER_OB_NONE          = 4,
 } eSpaceOutliner_StateFilter;
 
 /* SpaceOops->outlinevis */
 typedef enum eSpaceOutliner_Mode {
-	SO_SCENES         = 0,
+	SO_SCENES            = 0,
 	/* SO_CUR_SCENE      = 1, */  /* deprecated! */
 	/* SO_VISIBLE        = 2, */  /* deprecated! */
 	/* SO_SELECTED       = 3, */  /* deprecated! */
 	/* SO_ACTIVE         = 4, */  /* deprecated! */
 	/* SO_SAME_TYPE      = 5, */  /* deprecated! */
-	SO_GROUPS         = 6,
-	SO_LIBRARIES      = 7,
+	/* SO_GROUPS         = 6, */  /* deprecated! */
+	SO_LIBRARIES         = 7,
 	/* SO_VERSE_SESSION  = 8, */  /* deprecated! */
 	/* SO_VERSE_MS       = 9, */  /* deprecated! */
-	SO_SEQUENCE       = 10,
-	SO_DATABLOCKS     = 11,
+	SO_SEQUENCE          = 10,
+	SO_DATA_API          = 11,
 	/* SO_USERDEF        = 12, */  /* deprecated! */
-	/* SO_KEYMAP      = 13, */    /* deprecated! */
-	SO_ID_ORPHANS     = 14,
-	SO_COLLECTIONS    = 15,
+	/* SO_KEYMAP         = 13, */  /* deprecated! */
+	SO_ID_ORPHANS        = 14,
+	SO_VIEW_LAYER        = 15,
 } eSpaceOutliner_Mode;
 
 /* SpaceOops->storeflag */
 typedef enum eSpaceOutliner_StoreFlag {
 	/* cleanup tree */
 	SO_TREESTORE_CLEANUP    = (1 << 0),
-	/* if set, it allows redraws. gets set for some allqueue events */
-	SO_TREESTORE_REDRAW     = (1 << 1),
+	/* SO_TREESTORE_REDRAW     = (1 << 1), */ /* Deprecated */
 	/* rebuild the tree, similar to cleanup,
 	 * but defer a call to BKE_outliner_treehash_rebuild_from_treestore instead */
 	SO_TREESTORE_REBUILD    = (1 << 2),
@@ -663,17 +657,6 @@ typedef struct SpaceFile {
 	short recentnr, bookmarknr;
 	short systemnr, system_bookmarknr;
 } SpaceFile;
-
-/* FSMenuEntry's without paths indicate separators */
-typedef struct FSMenuEntry {
-	struct FSMenuEntry *next;
-
-	char *path;
-	char name[256];  /* FILE_MAXFILE */
-	short save;
-	short valid;
-	short pad[2];
-} FSMenuEntry;
 
 /* FileSelectParams.display */
 enum eFileDisplayType {
@@ -1292,7 +1275,6 @@ typedef struct SpaceClip {
 	MaskSpaceInfo mask_info;
 } SpaceClip;
 
-
 /* SpaceClip->flag */
 typedef enum eSpaceClip_Flag {
 	SC_SHOW_MARKER_PATTERN      = (1 << 0),
@@ -1388,7 +1370,7 @@ typedef enum eSpace_Type {
 	SPACE_CLIP     = 20,
 	SPACE_TOPBAR   = 21,
 
-	SPACEICONMAX = SPACE_TOPBAR
+	SPACE_TYPE_LAST = SPACE_TOPBAR
 } eSpace_Type;
 
 /* use for function args */

@@ -75,7 +75,6 @@
 #include "BKE_freestyle.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
-#include "BKE_group.h"
 #include "BKE_icons.h"
 #include "BKE_idprop.h"
 #include "BKE_image.h"
@@ -244,30 +243,18 @@ void BKE_scene_copy_data(Main *bmain, Scene *sce_dst, const Scene *sce_src, cons
 	sce_dst->depsgraph_hash = NULL;
 	sce_dst->fps_info = NULL;
 
-	/* layers and collections */
-	sce_dst->collection = MEM_dupallocN(sce_src->collection);
-	SceneCollection *mc_src = BKE_collection_master(&sce_src->id);
-	SceneCollection *mc_dst = BKE_collection_master(&sce_dst->id);
+	/* Master Collection */
+	if (sce_src->master_collection) {
+		sce_dst->master_collection = BKE_collection_copy_master(bmain, sce_src->master_collection, flag);
+	}
 
-	/* Recursively creates a new SceneCollection tree. */
-	BKE_collection_copy_data(mc_dst, mc_src, flag_subdata);
-
-	IDPropertyTemplate val = {0};
+	/* View Layers */
 	BLI_duplicatelist(&sce_dst->view_layers, &sce_src->view_layers);
 	for (ViewLayer *view_layer_src = sce_src->view_layers.first, *view_layer_dst = sce_dst->view_layers.first;
 	     view_layer_src;
 	     view_layer_src = view_layer_src->next, view_layer_dst = view_layer_dst->next)
 	{
-		BKE_view_layer_copy_data(view_layer_dst, view_layer_src, mc_dst, mc_src, flag_subdata);
-	}
-
-	sce_dst->collection_properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-	if (sce_src->collection_properties) {
-		IDP_MergeGroup_ex(sce_dst->collection_properties, sce_src->collection_properties, true, flag_subdata);
-	}
-	sce_dst->layer_properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-	if (sce_src->layer_properties) {
-		IDP_MergeGroup_ex(sce_dst->layer_properties, sce_src->layer_properties, true, flag_subdata);
+		BKE_view_layer_copy_data(sce_dst, sce_src, view_layer_dst, view_layer_src, flag_subdata);
 	}
 
 	BLI_duplicatelist(&(sce_dst->markers), &(sce_src->markers));
@@ -417,6 +404,9 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 				BKE_id_copy_ex(bmain, (ID *)sce_copy->world, (ID **)&sce_copy->world, LIB_ID_COPY_ACTIONS, false);
 			}
 
+			/* Collections */
+			BKE_collection_copy_full(bmain, sce_copy->master_collection);
+
 			/* Full copy of GreasePencil. */
 			/* XXX Not copying anim/actions here? */
 			if (sce_copy->gpd) {
@@ -516,23 +506,18 @@ void BKE_scene_free_ex(Scene *sce, const bool do_id_user)
 	}
 
 	/* Master Collection */
-	BKE_collection_master_free(&sce->id, do_id_user);
-	MEM_freeN(sce->collection);
-	sce->collection = NULL;
-
-	/* LayerCollection engine settings. */
-	if (sce->collection_properties) {
-		IDP_FreeProperty(sce->collection_properties);
-		MEM_freeN(sce->collection_properties);
-		sce->collection_properties = NULL;
+	// TODO: what to do with do_id_user? it's also true when just
+	// closing the file which seems wrong? should decrement users
+	// for objects directly in the master collection? then other
+	// collections in the scene need to do it too?
+	if (sce->master_collection) {
+		BKE_collection_free(sce->master_collection);
+		MEM_freeN(sce->master_collection);
+		sce->master_collection = NULL;
 	}
 
-	/* Render engine setting. */
-	if (sce->layer_properties) {
-		IDP_FreeProperty(sce->layer_properties);
-		MEM_freeN(sce->layer_properties);
-		sce->layer_properties = NULL;
-	}
+	/* These are freed on doversion. */
+	BLI_assert(sce->layer_properties == NULL);
 }
 
 void BKE_scene_free(Scene *sce)
@@ -563,7 +548,7 @@ void BKE_scene_init(Scene *sce)
 	sce->r.yasp = 1;
 	sce->r.tilex = 256;
 	sce->r.tiley = 256;
-	sce->r.size = 50;
+	sce->r.size = 100;
 
 	sce->r.im_format.planes = R_IMF_PLANES_RGBA;
 	sce->r.im_format.imtype = R_IMF_IMTYPE_PNG;
@@ -571,7 +556,7 @@ void BKE_scene_init(Scene *sce)
 	sce->r.im_format.quality = 90;
 	sce->r.im_format.compress = 15;
 
-	sce->r.displaymode = R_OUTPUT_AREA;
+	sce->r.displaymode = R_OUTPUT_WINDOW;
 	sce->r.framapto = 100;
 	sce->r.images = 100;
 	sce->r.framelen = 1.0;
@@ -687,6 +672,7 @@ void BKE_scene_init(Scene *sce)
 	sce->physics_settings.gravity[2] = -9.81f;
 	sce->physics_settings.flag = PHYS_GLOBAL_GRAVITY;
 
+	sce->unit.system = USER_UNIT_METRIC;
 	sce->unit.scale_length = 1.0f;
 
 	pset = &sce->toolsettings->particle;
@@ -809,21 +795,78 @@ void BKE_scene_init(Scene *sce)
 	sce->orientation_index_custom = -1;
 
 	/* Master Collection */
-	sce->collection = MEM_callocN(sizeof(SceneCollection), "Master Collection");
-	BLI_strncpy(sce->collection->name, "Master Collection", sizeof(sce->collection->name));
-
-	/* Engine settings */
-	IDPropertyTemplate val = {0};
-	sce->collection_properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-	BKE_layer_collection_engine_settings_create(sce->collection_properties);
-
-	sce->layer_properties = IDP_New(IDP_GROUP, &val, ROOT_PROP);
-	BKE_view_layer_engine_settings_create(sce->layer_properties);
+	sce->master_collection = BKE_collection_master_add();
 
 	BKE_view_layer_add(sce, "View Layer");
 
 	/* SceneDisplay */
 	copy_v3_v3(sce->display.light_direction, (float[3]){-M_SQRT1_3, -M_SQRT1_3, M_SQRT1_3});
+	sce->display.shadow_shift = 0.1;
+
+	sce->display.matcap_icon = 1;
+	sce->display.matcap_type = CLAY_MATCAP_NONE;
+	sce->display.matcap_hue = 0.5f;
+	sce->display.matcap_saturation = 0.5f;
+	sce->display.matcap_value = 0.5f;
+	sce->display.matcap_ssao_distance = 0.2f;
+	sce->display.matcap_ssao_attenuation = 1.0f;
+	sce->display.matcap_ssao_factor_cavity = 1.0f;
+	sce->display.matcap_ssao_factor_edge = 1.0f;
+	sce->display.matcap_ssao_samples = 16;
+
+	/* SceneEEVEE */
+	sce->eevee.gi_diffuse_bounces = 3;
+	sce->eevee.gi_cubemap_resolution = 512;
+	sce->eevee.gi_visibility_resolution = 32;
+
+	sce->eevee.taa_samples = 16;
+	sce->eevee.taa_render_samples = 64;
+
+	sce->eevee.sss_samples = 7;
+	sce->eevee.sss_jitter_threshold = 0.3f;
+
+	sce->eevee.ssr_quality = 0.25f;
+	sce->eevee.ssr_max_roughness = 0.5f;
+	sce->eevee.ssr_thickness = 0.2f;
+	sce->eevee.ssr_border_fade = 0.075f;
+	sce->eevee.ssr_firefly_fac = 10.0f;
+
+	sce->eevee.volumetric_start = 0.1f;
+	sce->eevee.volumetric_end = 100.0f;
+	sce->eevee.volumetric_tile_size = 8;
+	sce->eevee.volumetric_samples = 64;
+	sce->eevee.volumetric_sample_distribution = 0.8f;
+	sce->eevee.volumetric_light_clamp = 0.0f;
+	sce->eevee.volumetric_shadow_samples = 16;
+
+	sce->eevee.gtao_distance = 0.2f;
+	sce->eevee.gtao_factor = 1.0f;
+	sce->eevee.gtao_quality = 0.25f;
+
+	sce->eevee.bokeh_max_size = 100.0f;
+	sce->eevee.bokeh_threshold = 1.0f;
+
+	copy_v3_fl(sce->eevee.bloom_color, 1.0f);
+	sce->eevee.bloom_threshold = 0.8f;
+	sce->eevee.bloom_knee = 0.5f;
+	sce->eevee.bloom_intensity = 0.8f;
+	sce->eevee.bloom_radius = 6.5f;
+	sce->eevee.bloom_clamp = 1.0f;
+
+	sce->eevee.motion_blur_samples = 8;
+	sce->eevee.motion_blur_shutter = 1.0f;
+
+	sce->eevee.shadow_method = SHADOW_ESM;
+	sce->eevee.shadow_cube_size = 512;
+	sce->eevee.shadow_cascade_size = 1024;
+
+	sce->eevee.flag =
+	        SCE_EEVEE_VOLUMETRIC_LIGHTS |
+	        SCE_EEVEE_VOLUMETRIC_COLORED |
+	        SCE_EEVEE_GTAO_BENT_NORMALS |
+	        SCE_EEVEE_GTAO_BOUNCE |
+	        SCE_EEVEE_TAA_REPROJECTION |
+	        SCE_EEVEE_SSR_HALF_RESOLUTION;
 }
 
 Scene *BKE_scene_add(Main *bmain, const char *name)
@@ -872,29 +915,19 @@ Object *BKE_scene_object_find_by_name(Scene *scene, const char *name)
 void BKE_scene_set_background(Main *bmain, Scene *scene)
 {
 	Object *ob;
-	Group *group;
 	
 	/* check for cyclic sets, for reading old files but also for definite security (py?) */
 	BKE_scene_validate_setscene(bmain, scene);
 	
 	/* deselect objects (for dataselect) */
 	for (ob = bmain->object.first; ob; ob = ob->id.next)
-		ob->flag &= ~(SELECT | OB_FROMGROUP);
-
-	/* group flags again */
-	for (group = bmain->group.first; group; group = group->id.next) {
-		FOREACH_GROUP_OBJECT_BEGIN(group, object)
-		{
-			object->flag |= OB_FROMGROUP;
-		}
-		FOREACH_GROUP_OBJECT_END;
-	}
+		ob->flag &= ~SELECT;
 
 	/* copy layers and flags from bases to objects */
 	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
 			ob = base->object;
-			/* group patch... */
+			/* collection patch... */
 			BKE_scene_object_base_flag_sync_from_base(base);
 		}
 	}
@@ -987,9 +1020,9 @@ int BKE_scene_base_iter_next(
 			else {
 				if (iter->phase != F_DUPLI) {
 					if (depsgraph && (*base)->object->transflag & OB_DUPLI) {
-						/* groups cannot be duplicated for mballs yet, 
+						/* collections cannot be duplicated for mballs yet, 
 						 * this enters eternal loop because of 
-						 * makeDispListMBall getting called inside of group_duplilist */
+						 * makeDispListMBall getting called inside of collection_duplilist */
 						if ((*base)->object->dup_group == NULL) {
 							iter->duplilist = object_duplilist_ex(depsgraph, (*scene), (*base)->object, false);
 							
@@ -1049,11 +1082,11 @@ int BKE_scene_base_iter_next(
 	return iter->phase;
 }
 
-Scene *BKE_scene_find_from_collection(const Main *bmain, const SceneCollection *scene_collection)
+Scene *BKE_scene_find_from_collection(const Main *bmain, const Collection *collection)
 {
 	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 		for (ViewLayer *layer = scene->view_layers.first; layer; layer = layer->next) {
-			if (BKE_view_layer_has_collection(layer, scene_collection)) {
+			if (BKE_view_layer_has_collection(layer, collection)) {
 				return scene;
 			}
 		}
@@ -1517,11 +1550,7 @@ void BKE_scene_object_base_flag_sync_from_base(Base *base)
 {
 	Object *ob = base->object;
 
-	/* keep the object only flags untouched */
-	int flag = ob->flag & OB_FROMGROUP;
-
 	ob->flag = base->flag;
-	ob->flag |= flag;
 
 	if ((base->flag & BASE_SELECTED) != 0) {
 		ob->flag |= SELECT;

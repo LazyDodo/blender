@@ -244,6 +244,9 @@ bool isect_ray_plane_v3(
         float *r_lambda, const bool clip);
 
 bool isect_point_planes_v3(float (*planes)[4], int totplane, const float p[3]);
+bool isect_point_planes_v3_negated(
+        const float (*planes)[4], const int totplane, const float p[3]);
+
 bool isect_line_plane_v3(
         float r_isect_co[3], const float l1[3], const float l2[3],
         const float plane_co[3], const float plane_no[3]) ATTR_WARN_UNUSED_RESULT;
@@ -311,6 +314,11 @@ bool isect_ray_seg_v2(
         const float ray_origin[2], const float ray_direction[2],
         const float v0[2], const float v1[2],
         float *r_lambda, float *r_u);
+
+bool isect_ray_seg_v3(
+        const float ray_origin[3], const float ray_direction[3],
+        const float v0[3], const float v1[3],
+        float *r_lambda);
 
 /* point in polygon */
 bool isect_point_poly_v2(const float pt[2], const float verts[][2], const unsigned int nr, const bool use_holes);

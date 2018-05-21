@@ -273,14 +273,11 @@ bool ED_object_editmode_load(Object *obedit)
 }
 
 /**
- * \param C: Can be NULL, only if #EM_DO_UNDO isn't set.
  * \param flag:
- * - Only in exceptional cases should #EM_DO_UNDO NOT be in the flag.
  * - If #EM_FREEDATA isn't in the flag, use ED_object_editmode_load directly.
  */
-void ED_object_editmode_exit_ex(bContext *C, Scene *scene, Object *obedit, int flag)
+void ED_object_editmode_exit_ex(Scene *scene, Object *obedit, int flag)
 {
-	BLI_assert(C || !(flag & EM_DO_UNDO));
 	const bool freedata = (flag & EM_FREEDATA) != 0;
 
 	if (flag & EM_WAITCURSOR) waitcursor(1);
@@ -312,16 +309,8 @@ void ED_object_editmode_exit_ex(bContext *C, Scene *scene, Object *obedit, int f
 
 		/* also flush ob recalc, doesn't take much overhead, but used for particles */
 		DEG_id_tag_update(&obedit->id, OB_RECALC_OB | OB_RECALC_DATA);
-	
-		if (flag & EM_DO_UNDO)
-			ED_undo_push(C, "Editmode");
 
-		if (C != NULL) {
-			WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
-		}
-		else {
-			WM_main_add_notifier(NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
-		}
+		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
 
 
 		obedit->mode &= ~OB_MODE_EDIT;
@@ -334,7 +323,7 @@ void ED_object_editmode_exit(bContext *C, int flag)
 {
 	Scene *scene = CTX_data_scene(C);
 	Object *obedit = CTX_data_edit_object(C);
-	ED_object_editmode_exit_ex(C, scene, obedit, flag);
+	ED_object_editmode_exit_ex(scene, obedit, flag);
 }
 
 void ED_object_editmode_enter_ex(Scene *scene, Object *ob, int flag)
@@ -439,7 +428,6 @@ void ED_object_editmode_enter_ex(Scene *scene, Object *ob, int flag)
 	}
 
 	if (flag & EM_WAITCURSOR) waitcursor(0);
-	BLI_assert((flag & EM_DO_UNDO) == 0);
 }
 
 void ED_object_editmode_enter(bContext *C, int flag)
@@ -457,8 +445,7 @@ void ED_object_editmode_enter(bContext *C, int flag)
 	if (ob == NULL) return;
 	if (ID_IS_LINKED(ob)) return;
 
-	ED_object_editmode_enter_ex(scene, ob, flag & ~EM_DO_UNDO);
-	if (flag & EM_DO_UNDO) ED_undo_push(C, "Enter Editmode");
+	ED_object_editmode_enter_ex(scene, ob, flag);
 }
 
 static int editmode_toggle_exec(bContext *C, wmOperator *op)
@@ -489,12 +476,12 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 		}
 	}
 	else {
-		ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);  /* had EM_DO_UNDO but op flag calls undo too [#24685] */
+		ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);
 		if ((obact->mode & mode_flag) == 0) {
 			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
 			{
 				if ((ob != obact) && (ob->type == obact->type)) {
-					ED_object_editmode_exit_ex(NULL, scene, ob, EM_FREEDATA | EM_WAITCURSOR);
+					ED_object_editmode_exit_ex(scene, ob, EM_FREEDATA | EM_WAITCURSOR);
 				}
 			}
 			FOREACH_SELECTED_OBJECT_END;
@@ -504,6 +491,8 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 	ED_space_image_uv_sculpt_update(CTX_wm_manager(C), scene);
 
 	WM_msg_publish_rna_prop(mbus, &obact->id, obact, Object, mode);
+
+	WM_toolsystem_update_from_context_view3d(C);
 
 	return OPERATOR_FINISHED;
 }
@@ -561,7 +550,7 @@ static int posemode_exec(bContext *C, wmOperator *op)
 	}
 
 	if (obact == CTX_data_edit_object(C)) {
-		ED_object_editmode_exit(C, EM_FREEDATA | EM_DO_UNDO);
+		ED_object_editmode_exit(C, EM_FREEDATA);
 		is_mode_set = false;
 	}
 
@@ -602,6 +591,8 @@ static int posemode_exec(bContext *C, wmOperator *op)
 	}
 
 	WM_msg_publish_rna_prop(mbus, &obact->id, obact, Object, mode);
+
+	WM_toolsystem_update_from_context_view3d(C);
 
 	return OPERATOR_FINISHED;
 }
@@ -1526,11 +1517,12 @@ bool ED_object_editmode_calc_active_center(Object *obedit, const bool select_onl
 
 static int move_to_collection_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	PropertyRNA *prop = RNA_struct_find_property(op->ptr, "collection_index");
-	const bool is_add = RNA_boolean_get(op->ptr, "is_add");
+	const bool is_link = STREQ(op->idname, "OBJECT_OT_link_to_collection");
 	const bool is_new = RNA_boolean_get(op->ptr, "is_new");
-	SceneCollection *scene_collection;
+	Collection *collection;
 
 	if (!RNA_property_is_set(op->ptr, prop)) {
 		BKE_report(op->reports, RPT_ERROR, "No collection selected");
@@ -1538,8 +1530,8 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	}
 
 	int collection_index = RNA_property_int_get(op->ptr, prop);
-	scene_collection = BKE_collection_from_index(CTX_data_scene(C), collection_index);
-	if (scene_collection == NULL) {
+	collection = BKE_collection_from_index(CTX_data_scene(C), collection_index);
+	if (collection == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "Unexpected error, collection not found");
 		return OPERATOR_CANCELLED;
 	}
@@ -1560,24 +1552,24 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	if (is_new) {
 		char new_collection_name[MAX_NAME];
 		RNA_string_get(op->ptr, "new_collection_name", new_collection_name);
-		scene_collection = BKE_collection_add(&scene->id, scene_collection, COLLECTION_TYPE_NONE, new_collection_name);
+		collection = BKE_collection_add(bmain, collection, new_collection_name);
 	}
 
 	if ((single_object != NULL) &&
-	    is_add &&
-	    BLI_findptr(&scene_collection->objects, single_object, offsetof(LinkData, data)))
+	    is_link &&
+	    BLI_findptr(&collection->gobject, single_object, offsetof(CollectionObject, ob)))
 	{
-		BKE_reportf(op->reports, RPT_ERROR, "%s already in %s", single_object->id.name + 2, scene_collection->name);
+		BKE_reportf(op->reports, RPT_ERROR, "%s already in %s", single_object->id.name + 2, collection->id.name + 2);
 		return OPERATOR_CANCELLED;
 	}
 
 	CTX_DATA_BEGIN (C, Object *, ob, selected_objects)
 	{
-		if (!is_add) {
-			BKE_collection_object_move(&scene->id, scene_collection, NULL, ob);
+		if (!is_link) {
+			BKE_collection_object_move(bmain, scene, collection, NULL, ob);
 		}
 		else {
-			BKE_collection_object_add(&scene->id, scene_collection, ob);
+			BKE_collection_object_add(bmain, collection, ob);
 		}
 	}
 	CTX_DATA_END;
@@ -1586,8 +1578,8 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	            RPT_INFO,
 	            "%s %s to %s",
 	            (single_object != NULL) ? single_object->id.name + 2 : "Objects",
-	            is_add ? "added" : "moved",
-	            scene_collection->name);
+	            is_link ? "linked" : "moved",
+	            collection->id.name + 2);
 
 	DEG_relations_tag_update(CTX_data_main(C));
 	DEG_id_tag_update(&scene->id, 0);
@@ -1599,26 +1591,27 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-typedef struct MoveToCollectionData {
+struct MoveToCollectionData {
 	struct MoveToCollectionData *next, *prev;
 	int index;
-	struct SceneCollection *collection;
+	struct Collection *collection;
 	struct ListBase submenus;
 	PointerRNA ptr;
 	struct wmOperatorType *ot;
-} MoveToCollectionData;
+};
 
 static int move_to_collection_menus_create(wmOperator *op, MoveToCollectionData *menu)
 {
 	int index = menu->index;
-	for (SceneCollection *scene_collection = menu->collection->scene_collections.first;
-	     scene_collection != NULL;
-	     scene_collection = scene_collection->next)
+	for (CollectionChild *child = menu->collection->children.first;
+	     child != NULL;
+	     child = child->next)
 	{
+		Collection *collection = child->collection;
 		MoveToCollectionData *submenu = MEM_callocN(sizeof(MoveToCollectionData),
 		                                            "MoveToCollectionData submenu - expected memleak");
 		BLI_addtail(&menu->submenus, submenu);
-		submenu->collection = scene_collection;
+		submenu->collection = collection;
 		submenu->index = ++index;
 		index = move_to_collection_menus_create(op, submenu);
 		submenu->ot = op->type;
@@ -1651,11 +1644,19 @@ static void move_to_collection_menus_free(MoveToCollectionData **menu)
 static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout, void *menu_v)
 {
 	MoveToCollectionData *menu = menu_v;
+	const char *name;
+
+	if (menu->collection->flag & COLLECTION_IS_MASTER) {
+		name = IFACE_("Scene Collection");
+	}
+	else {
+		name = menu->collection->id.name + 2;
+	}
 
 	uiItemIntO(layout,
-	           menu->collection->name,
+	           name,
 	           ICON_NONE,
-	           "OBJECT_OT_move_to_collection",
+	           menu->ot->idname,
 	           "collection_index",
 	           menu->index);
 	uiItemS(layout);
@@ -1678,7 +1679,6 @@ static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout
 	                "New Collection",
 	                ICON_ZOOMIN,
 	                menu->ptr.data,
-	                /* We use invoke here so we can read ctrl from event. */
 	                WM_OP_INVOKE_DEFAULT,
 	                0,
 	                NULL);
@@ -1688,15 +1688,15 @@ static void move_to_collection_menus_items(uiLayout *layout, MoveToCollectionDat
 {
 	if (BLI_listbase_is_empty(&menu->submenus)) {
 		uiItemIntO(layout,
-		           menu->collection->name,
+		           menu->collection->id.name + 2,
 		           ICON_NONE,
-		           "OBJECT_OT_move_to_collection",
+		           menu->ot->idname,
 		           "collection_index",
 		           menu->index);
 	}
 	else {
 		uiItemMenuF(layout,
-		            menu->collection->name,
+		            menu->collection->id.name + 2,
 		            ICON_NONE,
 		            move_to_collection_menu_create,
 		            menu);
@@ -1706,8 +1706,10 @@ static void move_to_collection_menus_items(uiLayout *layout, MoveToCollectionDat
 /* This is allocated statically because we need this available for the menus creation callback. */
 static MoveToCollectionData *master_collection_menu = NULL;
 
-static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
+	Scene *scene = CTX_data_scene(C);
+
 	/* Reset the menus data for the current master collection, and free previously allocated data. */
 	move_to_collection_menus_free(&master_collection_menu);
 
@@ -1715,16 +1717,15 @@ static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent 
 	prop = RNA_struct_find_property(op->ptr, "collection_index");
 	if (RNA_property_is_set(op->ptr, prop)) {
 		int collection_index = RNA_property_int_get(op->ptr, prop);
-		RNA_boolean_set(op->ptr, "is_add", event->ctrl);
 
 		if (RNA_boolean_get(op->ptr, "is_new")) {
 			prop = RNA_struct_find_property(op->ptr, "new_collection_name");
 			if (!RNA_property_is_set(op->ptr, prop)) {
 				char name[MAX_NAME];
-				SceneCollection *scene_collection;
+				Collection *collection;
 
-				scene_collection = BKE_collection_from_index(CTX_data_scene(C), collection_index);
-				BKE_collection_new_name_get(&CTX_data_scene(C)->id, scene_collection, name);
+				collection = BKE_collection_from_index(scene, collection_index);
+				BKE_collection_new_name_get(collection, name);
 
 				RNA_property_string_set(op->ptr, prop, name);
 				return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 5 * UI_UNIT_Y);
@@ -1733,7 +1734,7 @@ static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent 
 		return move_to_collection_exec(C, op);
 	}
 
-	SceneCollection *master_collection = BKE_collection_master(&CTX_data_scene(C)->id);
+	Collection *master_collection = BKE_collection_master(scene);
 
 	/* We need the data to be allocated so it's available during menu drawing.
 	 * Technically we could use wmOperator->customdata. However there is no free callback
@@ -1753,10 +1754,10 @@ static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent 
 	uiLayout *layout;
 
 	/* Build the menus. */
-	pup = UI_popup_menu_begin(C, IFACE_("Move to Collection"), ICON_NONE);
+	const char *title = CTX_IFACE_(op->type->translation_context, op->type->name);
+	pup = UI_popup_menu_begin(C, title, ICON_NONE);
 	layout = UI_popup_menu_layout(pup);
 
-	/* We use invoke here so we can read ctrl from event. */
 	uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
 
 	move_to_collection_menu_create(C, layout, master_collection_menu);
@@ -1772,7 +1773,7 @@ void OBJECT_OT_move_to_collection(wmOperatorType *ot)
 
 	/* identifiers */
 	ot->name = "Move to Collection";
-	ot->description = "Move to a collection only (Ctrl to add)";
+	ot->description = "Move objects to a scene collection";
 	ot->idname = "OBJECT_OT_move_to_collection";
 
 	/* api callbacks */
@@ -1786,7 +1787,32 @@ void OBJECT_OT_move_to_collection(wmOperatorType *ot)
 	prop = RNA_def_int(ot->srna, "collection_index", COLLECTION_INVALID_INDEX, COLLECTION_INVALID_INDEX, INT_MAX,
 	                   "Collection Index", "Index of the collection to move to", 0, INT_MAX);
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
-	prop = RNA_def_boolean(ot->srna, "is_add", false, "Add", "Keep object in original collections as well");
+	prop = RNA_def_boolean(ot->srna, "is_new", false, "New", "Move objects to a new collection");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
+	prop = RNA_def_string(ot->srna, "new_collection_name", NULL, MAX_NAME, "Name",
+	                      "Name of the newly added collection");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+}
+
+void OBJECT_OT_link_to_collection(wmOperatorType *ot)
+{
+	PropertyRNA *prop;
+
+	/* identifiers */
+	ot->name = "Link to Collection";
+	ot->description = "Link objects to a collection";
+	ot->idname = "OBJECT_OT_link_to_collection";
+
+	/* api callbacks */
+	ot->exec = move_to_collection_exec;
+	ot->invoke = move_to_collection_invoke;
+	ot->poll = ED_operator_object_active_editable;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	prop = RNA_def_int(ot->srna, "collection_index", COLLECTION_INVALID_INDEX, COLLECTION_INVALID_INDEX, INT_MAX,
+	                   "Collection Index", "Index of the collection to move to", 0, INT_MAX);
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
 	prop = RNA_def_boolean(ot->srna, "is_new", false, "New", "Move objects to a new collection");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);

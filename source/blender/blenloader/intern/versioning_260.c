@@ -2265,10 +2265,9 @@ void blo_do_versions_260(FileData *fd, Library *UNUSED(lib), Main *main)
 
 						if (!ELEM(so->outlinevis,
 						          SO_SCENES,
-						          SO_GROUPS,
 						          SO_LIBRARIES,
 						          SO_SEQUENCE,
-						          SO_DATABLOCKS))
+						          SO_DATA_API))
 						{
 							so->outlinevis = SO_SCENES;
 						}

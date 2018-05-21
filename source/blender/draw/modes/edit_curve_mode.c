@@ -196,7 +196,7 @@ static void EDIT_CURVE_cache_init(void *vedata)
 		/* Center-Line (wire) */
 		psl->wire_pass = DRW_pass_create(
 		        "Curve Wire",
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE);
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WIRE);
 
 		grp = DRW_shgroup_create(e_data.wire_sh, psl->wire_pass);
 		DRW_shgroup_uniform_vec4(grp, "color", ts.colorWireEdit, 1);
@@ -318,27 +318,6 @@ static void EDIT_CURVE_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.overlay_edge_sh);
 	DRW_SHADER_FREE_SAFE(e_data.overlay_vert_sh);
 }
-
-/* Create collection settings here.
- *
- * Be sure to add this function there :
- * source/blender/draw/DRW_engine.h
- * source/blender/blenkernel/intern/layer.c
- * source/blenderplayer/bad_level_call_stubs/stubs.c
- *
- * And relevant collection settings to :
- * source/blender/makesrna/intern/rna_scene.c
- * source/blender/blenkernel/intern/layer.c
- */
-#if 0
-void EDIT_CURVE_collection_settings_create(CollectionEngineSettings *ces)
-{
-	BLI_assert(ces);
-	// BKE_collection_engine_property_add_int(ces, "my_bool_prop", false);
-	// BKE_collection_engine_property_add_int(ces, "my_int_prop", 0);
-	// BKE_collection_engine_property_add_float(ces, "my_float_prop", 0.0f);
-}
-#endif
 
 static const DrawEngineDataSize EDIT_CURVE_data_size = DRW_VIEWPORT_DATA_SIZE(EDIT_CURVE_Data);
 

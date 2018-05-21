@@ -550,7 +550,7 @@ void ED_region_tag_redraw(ARegion *ar)
 	 * but python scripts can cause this to happen indirectly */
 	if (ar && !(ar->do_draw & RGN_DRAWING)) {
 		/* zero region means full region redraw */
-		ar->do_draw &= ~RGN_DRAW_PARTIAL;
+		ar->do_draw &= ~(RGN_DRAW_PARTIAL | RGN_DRAW_NO_REBUILD);
 		ar->do_draw |= RGN_DRAW;
 		memset(&ar->drawrct, 0, sizeof(ar->drawrct));
 	}
@@ -560,6 +560,15 @@ void ED_region_tag_redraw_overlay(ARegion *ar)
 {
 	if (ar)
 		ar->do_draw_overlay = RGN_DRAW;
+}
+
+void ED_region_tag_redraw_no_rebuild(ARegion *ar)
+{
+	if (ar && !(ar->do_draw & (RGN_DRAWING | RGN_DRAW))) {
+		ar->do_draw &= ~RGN_DRAW_PARTIAL;
+		ar->do_draw |= RGN_DRAW_NO_REBUILD;
+		memset(&ar->drawrct, 0, sizeof(ar->drawrct));
+	}
 }
 
 void ED_region_tag_refresh_ui(ARegion *ar)
@@ -572,7 +581,7 @@ void ED_region_tag_refresh_ui(ARegion *ar)
 void ED_region_tag_redraw_partial(ARegion *ar, const rcti *rct)
 {
 	if (ar && !(ar->do_draw & RGN_DRAWING)) {
-		if (!(ar->do_draw & (RGN_DRAW | RGN_DRAW_PARTIAL))) {
+		if (!(ar->do_draw & (RGN_DRAW | RGN_DRAW_NO_REBUILD | RGN_DRAW_PARTIAL))) {
 			/* no redraw set yet, set partial region */
 			ar->do_draw |= RGN_DRAW_PARTIAL;
 			ar->drawrct = *rct;
@@ -583,7 +592,7 @@ void ED_region_tag_redraw_partial(ARegion *ar, const rcti *rct)
 			BLI_rcti_union(&ar->drawrct, rct);
 		}
 		else {
-			BLI_assert((ar->do_draw & RGN_DRAW) != 0);
+			BLI_assert((ar->do_draw & (RGN_DRAW | RGN_DRAW_NO_REBUILD)) != 0);
 			/* Else, full redraw is already requested, nothing to do here. */
 		}
 	}
@@ -1384,7 +1393,10 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 /* called in screen_refresh, or screens_init, also area size changes */
 void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 {
-	const bScreen *screen = WM_window_get_active_screen(win);
+	WorkSpace *workspace = WM_window_get_active_workspace(win);
+	const bScreen *screen = BKE_workspace_active_screen_get(win->workspace_hook);
+	Scene *scene = WM_window_get_active_scene(win);
+
 	const int window_size_x = WM_window_pixels_x(win);
 	const int window_size_y = WM_window_pixels_y(win);
 	ARegion *ar;
@@ -1443,6 +1455,8 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 		/* Some AZones use View2D data which is only updated in region init, so call that first! */
 		region_azones_add(screen, sa, ar, ar->alignment & ~RGN_SPLIT_PREV);
 	}
+
+	WM_toolsystem_refresh_screen_area(workspace, scene, sa);
 }
 
 static void region_update_rect(ARegion *ar)
@@ -1477,6 +1491,9 @@ void ED_region_cursor_set(wmWindow *win, ScrArea *sa, ARegion *ar)
 		ar->type->cursor(win, sa, ar);
 	}
 	else {
+		if (WM_cursor_set_from_tool(win, sa, ar)) {
+			return;
+		}
 		WM_cursor_set(win, CURSOR_STD);
 	}
 }
@@ -2595,14 +2612,29 @@ void ED_region_visible_rect(ARegion *ar, rcti *rect)
 	for (; arn; arn = arn->next) {
 		if (ar != arn && arn->overlap) {
 			if (BLI_rcti_isect(rect, &arn->winrct, NULL)) {
-				
-				/* overlap left, also check 1 pixel offset (2 regions on one side) */
-				if (ABS(rect->xmin - arn->winrct.xmin) < 2)
-					rect->xmin = arn->winrct.xmax;
+				if (ELEM(arn->alignment, RGN_ALIGN_LEFT, RGN_ALIGN_RIGHT)) {
+					/* Overlap left, also check 1 pixel offset (2 regions on one side). */
+					if (ABS(rect->xmin - arn->winrct.xmin) < 2) {
+						rect->xmin = arn->winrct.xmax;
+					}
 
-				/* overlap right */
-				if (ABS(rect->xmax - arn->winrct.xmax) < 2)
-					rect->xmax = arn->winrct.xmin;
+					/* Overlap right. */
+					if (ABS(rect->xmax - arn->winrct.xmax) < 2) {
+						rect->xmax = arn->winrct.xmin;
+					}
+				}
+				else if (ELEM(arn->alignment, RGN_ALIGN_TOP, RGN_ALIGN_BOTTOM)) {
+					/* Same logic as above for vertical regions. */
+					if (ABS(rect->ymin - arn->winrct.ymin) < 2) {
+						rect->ymin = arn->winrct.ymax;
+					}
+					if (ABS(rect->ymax - arn->winrct.ymax) < 2) {
+						rect->ymax = arn->winrct.ymin;
+					}
+				}
+				else {
+					BLI_assert(!"Region overlap with unknown alignment");
+				}
 			}
 		}
 	}

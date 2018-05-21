@@ -331,7 +331,7 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->flag = V3D_SELECT_OUTLINE;
 	v3d->flag2 = V3D_SHOW_RECONSTRUCTION | V3D_SHOW_GPENCIL;
 	
-	v3d->lens = 35.0f;
+	v3d->lens = 50.0f;
 	v3d->near = 0.01f;
 	v3d->far = 1000.0f;
 
@@ -351,7 +351,7 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	
 	BLI_addtail(&v3d->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_BOTTOM;
+	ar->alignment = RGN_ALIGN_TOP;
 	
 	/* tool shelf */
 	ar = MEM_callocN(sizeof(ARegion), "toolshelf for view3d");
@@ -552,7 +552,7 @@ static int view3d_ob_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent 
 	return 0;
 }
 
-static int view3d_group_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static int view3d_collection_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
 {
 	if (drag->type == WM_DRAG_ID) {
 		ID *id = drag->poin;
@@ -627,7 +627,7 @@ static void view3d_ob_drop_copy(wmDrag *drag, wmDropBox *drop)
 	RNA_string_set(drop->ptr, "name", id->name + 2);
 }
 
-static void view3d_group_drop_copy(wmDrag *drag, wmDropBox *drop)
+static void view3d_collection_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
 	ID *id = drag->poin;
 	
@@ -667,7 +667,7 @@ static void view3d_dropboxes(void)
 	WM_dropbox_add(lb, "MESH_OT_drop_named_image", view3d_ima_mesh_drop_poll, view3d_id_path_drop_copy);
 	WM_dropbox_add(lb, "OBJECT_OT_drop_named_image", view3d_ima_empty_drop_poll, view3d_id_path_drop_copy);
 	WM_dropbox_add(lb, "VIEW3D_OT_background_image_add", view3d_ima_bg_drop_poll, view3d_id_path_drop_copy);
-	WM_dropbox_add(lb, "OBJECT_OT_group_instance_add", view3d_group_drop_poll, view3d_group_drop_copy);	
+	WM_dropbox_add(lb, "OBJECT_OT_collection_instance_add", view3d_collection_drop_poll, view3d_collection_drop_copy);
 }
 
 static void view3d_widgets(void)
@@ -1020,8 +1020,8 @@ static void view3d_main_region_listener(
 
 static void view3d_main_region_message_subscribe(
         const struct bContext *C,
-        struct WorkSpace *workspace, struct Scene *scene,
-        struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
+        struct WorkSpace *UNUSED(workspace), struct Scene *UNUSED(scene),
+        struct bScreen *UNUSED(screen), struct ScrArea *sa, struct ARegion *ar,
         struct wmMsgBus *mbus)
 {
 	/* Developer note: there are many properties that impact 3D view drawing,
@@ -1078,19 +1078,7 @@ static void view3d_main_region_message_subscribe(
 		WM_msg_subscribe_rna_anon_prop(mbus, RenderSettings, use_border, &msg_sub_value_region_tag_redraw);
 	}
 
-	/* Each engine could be responsible for its own engine data types.
-	 * For now this is simplest. */
-	if (STREQ(scene->r.engine, RE_engine_id_BLENDER_EEVEE)) {
-		extern StructRNA RNA_ViewLayerEngineSettingsEevee;
-		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsEevee, &msg_sub_value_region_tag_redraw);
-	}
-#ifdef WITH_CLAY_ENGINE
-	else if (STREQ(scene->r.engine, RE_engine_id_BLENDER_CLAY)) {
-		extern StructRNA RNA_ViewLayerEngineSettingsClay;
-		WM_msg_subscribe_rna_anon_type(mbus, ViewLayerEngineSettingsClay, &msg_sub_value_region_tag_redraw);
-	}
-#endif
-
+	WM_msg_subscribe_rna_anon_type(mbus, SceneEEVEE, &msg_sub_value_region_tag_redraw);
 	WM_msg_subscribe_rna_anon_type(mbus, SceneDisplay, &msg_sub_value_region_tag_redraw);
 	WM_msg_subscribe_rna_anon_type(mbus, ObjectDisplay, &msg_sub_value_region_tag_redraw);
 
@@ -1106,10 +1094,10 @@ static void view3d_main_region_message_subscribe(
 		}
 	}
 
-	if (workspace->tool.spacetype == SPACE_VIEW3D) {
+	{
 		wmMsgSubscribeValue msg_sub_value_region_tag_refresh = {
 			.owner = ar,
-			.user_data = ar,
+			.user_data = sa,
 			.notify = WM_toolsystem_do_msg_notify_tag_refresh,
 		};
 		WM_msg_subscribe_rna_anon_prop(
@@ -1119,8 +1107,12 @@ static void view3d_main_region_message_subscribe(
 }
 
 /* concept is to retrieve cursor type context-less */
-static void view3d_main_region_cursor(wmWindow *win, ScrArea *UNUSED(sa), ARegion *UNUSED(ar))
+static void view3d_main_region_cursor(wmWindow *win, ScrArea *sa, ARegion *ar)
 {
+	if (WM_cursor_set_from_tool(win, sa, ar)) {
+		return;
+	}
+
 	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 	if (obedit) {

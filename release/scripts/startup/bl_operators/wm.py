@@ -2335,14 +2335,66 @@ class WM_OT_tool_set_by_name(Operator):
             name="Text",
             description="Display name of the tool",
             )
+    space_type = EnumProperty(
+            name="Type",
+            items=tuple(
+                (e.identifier, e.name, "", e. value)
+                for e in bpy.types.Space.bl_rna.properties["type"].enum_items
+            ),
+            default='EMPTY',
+            )
 
     def execute(self, context):
         from bl_ui.space_toolsystem_common import activate_by_name
-        if activate_by_name(context, self.name):
+        space_type = self.space_type
+        if space_type == 'EMPTY':
+            space_type = context.space_data.type
+        if activate_by_name(context, space_type, self.name):
             return {'FINISHED'}
         else:
             self.report({'WARNING'}, f"Tool {self.name!r} not found.")
             return {'CANCELLED'}
+
+
+class WM_OT_toolbar(Operator):
+    bl_idname = "wm.toolbar"
+    bl_label = "Toolbar"
+
+    keymap = None
+
+    def execute(self, context):
+        space_type = context.space_data.type
+        from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
+        cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
+        if cls is None:
+            self.report({'WARNING'}, f"Toolbar not found for {space_type!r}")
+            return {'CANCELLED'}
+
+        wm = context.window_manager
+
+        if WM_OT_toolbar.keymap is None:
+            keyconf = wm.keyconfigs.active
+            km = keyconf.keymaps.new("Toolbar Popup", space_type='EMPTY', region_type='TEMPORARY')
+            WM_OT_toolbar.keymap = km
+
+            # Example
+            for key, value in (
+                    ('G', "Move"),
+                    ('R', "Rotate"),
+                    ('S', "Scale"),
+                    ('C', "Select Circle"),
+                    ('B', "Select Border"),
+            ):
+                kmi = km.keymap_items.new("wm.tool_set_by_name", key, 'PRESS')
+                kmi.properties.name = value
+
+        def draw_menu(popover, context):
+            layout = popover.layout
+            cls.draw_cls(layout, context, detect_layout=False)
+
+        # wm.popup_menu(draw_menu) # this also works
+        wm.popover(draw_menu, keymap=WM_OT_toolbar.keymap)
+        return {'FINISHED'}
 
 
 classes = (
@@ -2400,4 +2452,5 @@ classes = (
     WM_OT_owner_enable,
     WM_OT_url_open,
     WM_OT_tool_set_by_name,
+    WM_OT_toolbar,
 )

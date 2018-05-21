@@ -61,6 +61,8 @@ static SpaceLink *buttons_new(const ScrArea *UNUSED(area), const Scene *UNUSED(s
 	sbuts->spacetype = SPACE_BUTS;
 	sbuts->align = BUT_VERTICAL;
 
+	sbuts->mainb = sbuts->mainbuser = BCONTEXT_OBJECT;
+
 	/* header */
 	ar = MEM_callocN(sizeof(ARegion), "header for buts");
 	
@@ -154,8 +156,6 @@ static void buttons_main_region_draw(const bContext *C, ARegion *ar)
 		ED_region_panels(C, ar, "world", sbuts->mainb, vertical);
 	else if (sbuts->mainb == BCONTEXT_WORKSPACE)
 		ED_region_panels(C, ar, "workspace", sbuts->mainb, vertical);
-	else if (sbuts->mainb == BCONTEXT_COLLECTION)
-		ED_region_panels(C, ar, "collection", sbuts->mainb, vertical);
 	else if (sbuts->mainb == BCONTEXT_OBJECT)
 		ED_region_panels(C, ar, "object", sbuts->mainb, vertical);
 	else if (sbuts->mainb == BCONTEXT_DATA)

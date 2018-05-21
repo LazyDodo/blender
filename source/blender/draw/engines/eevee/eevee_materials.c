@@ -965,24 +965,24 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	}
 
 	{
-		DRWState state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE;
+		DRWState state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WIRE;
 		psl->depth_pass = DRW_pass_create("Depth Pass", state);
 		stl->g_data->depth_shgrp = DRW_shgroup_create(e_data.default_prepass_sh, psl->depth_pass);
 		stl->g_data->hair_fibers_depth_shgrp = DRW_shgroup_create(e_data.default_prepass_hair_fiber_sh, psl->depth_pass);
 
-		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_BACK;
+		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CULL_BACK;
 		psl->depth_pass_cull = DRW_pass_create("Depth Pass Cull", state);
 		stl->g_data->depth_shgrp_cull = DRW_shgroup_create(e_data.default_prepass_sh, psl->depth_pass_cull);
 		stl->g_data->hair_fibers_depth_shgrp_cull = DRW_shgroup_create(e_data.default_prepass_hair_fiber_sh, psl->depth_pass_cull);
 
-		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
+		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
 		psl->depth_pass_clip = DRW_pass_create("Depth Pass Clip", state);
 		stl->g_data->depth_shgrp_clip = DRW_shgroup_create(e_data.default_prepass_clip_sh, psl->depth_pass_clip);
 		stl->g_data->hair_fibers_depth_shgrp_clip = DRW_shgroup_create(e_data.default_prepass_hair_fiber_clip_sh, psl->depth_pass_clip);
 		DRW_shgroup_uniform_block(stl->g_data->depth_shgrp_clip, "clip_block", sldata->clip_ubo);
 		DRW_shgroup_uniform_block(stl->g_data->hair_fibers_depth_shgrp_clip, "clip_block", sldata->clip_ubo);
 
-		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CLIP_PLANES | DRW_STATE_CULL_BACK;
+		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CLIP_PLANES | DRW_STATE_CULL_BACK;
 		psl->depth_pass_clip_cull = DRW_pass_create("Depth Pass Cull Clip", state);
 		stl->g_data->depth_shgrp_clip_cull = DRW_shgroup_create(e_data.default_prepass_clip_sh, psl->depth_pass_clip_cull);
 		stl->g_data->hair_fibers_depth_shgrp_clip_cull = DRW_shgroup_create(e_data.default_prepass_hair_fiber_clip_sh, psl->depth_pass_clip_cull);
@@ -996,20 +996,20 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	}
 
 	{
-		DRWState state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE;
+		DRWState state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WIRE;
 		psl->refract_depth_pass = DRW_pass_create("Refract Depth Pass", state);
 		stl->g_data->refract_depth_shgrp = DRW_shgroup_create(e_data.default_prepass_sh, psl->refract_depth_pass);
 
-		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_BACK;
+		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CULL_BACK;
 		psl->refract_depth_pass_cull = DRW_pass_create("Refract Depth Pass Cull", state);
 		stl->g_data->refract_depth_shgrp_cull = DRW_shgroup_create(e_data.default_prepass_sh, psl->refract_depth_pass_cull);
 
-		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
+		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
 		psl->refract_depth_pass_clip = DRW_pass_create("Refract Depth Pass Clip", state);
 		stl->g_data->refract_depth_shgrp_clip = DRW_shgroup_create(e_data.default_prepass_clip_sh, psl->refract_depth_pass_clip);
 		DRW_shgroup_uniform_block(stl->g_data->refract_depth_shgrp_clip, "clip_block", sldata->clip_ubo);
 
-		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CLIP_PLANES | DRW_STATE_CULL_BACK;
+		state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CLIP_PLANES | DRW_STATE_CULL_BACK;
 		psl->refract_depth_pass_clip_cull = DRW_pass_create("Refract Depth Pass Cull Clip", state);
 		stl->g_data->refract_depth_shgrp_clip_cull = DRW_shgroup_create(e_data.default_prepass_clip_sh, psl->refract_depth_pass_clip_cull);
 		DRW_shgroup_uniform_block(stl->g_data->refract_depth_shgrp_clip_cull, "clip_block", sldata->clip_ubo);
@@ -1027,7 +1027,7 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	}
 
 	{
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
 		psl->transparent_pass = DRW_pass_create("Material Transparent Pass", state);
 	}
 
@@ -1301,11 +1301,11 @@ static void material_transparent(
 
 	const bool use_prepass = ((ma->blend_flag & MA_BL_HIDE_BACKSIDE) != 0);
 
-	DRWState all_state = DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR | DRW_STATE_CULL_BACK | DRW_STATE_DEPTH_LESS | DRW_STATE_DEPTH_EQUAL |
+	DRWState all_state = DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR | DRW_STATE_CULL_BACK | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_DEPTH_EQUAL |
 	                     DRW_STATE_BLEND | DRW_STATE_ADDITIVE | DRW_STATE_MULTIPLY;
 
 	DRWState cur_state = DRW_STATE_WRITE_COLOR;
-	cur_state |= (use_prepass) ? DRW_STATE_DEPTH_EQUAL : DRW_STATE_DEPTH_LESS;
+	cur_state |= (use_prepass) ? DRW_STATE_DEPTH_EQUAL : DRW_STATE_DEPTH_LESS_EQUAL;
 	cur_state |= (do_cull) ? DRW_STATE_CULL_BACK : 0;
 
 	switch (ma->blend_method) {
@@ -1332,7 +1332,7 @@ static void material_transparent(
 		*shgrp_depth = DRW_shgroup_create(e_data.default_prepass_clip_sh, psl->transparent_pass);
 		DRW_shgroup_uniform_block(*shgrp_depth, "clip_block", sldata->clip_ubo);
 
-		cur_state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		cur_state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL;
 		cur_state |= (do_cull) ? DRW_STATE_CULL_BACK : 0;
 
 		DRW_shgroup_state_disable(*shgrp_depth, all_state);
@@ -1356,12 +1356,15 @@ static void material_particle_hair(
 	if (!psys_check_enabled(ob, psys, false)) {
 		return;
 	}
-	ParticleSettings *part = psys->part;
-	int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
-	if (draw_as != PART_DRAW_PATH || (psys->pathcache == NULL && psys->childcache == NULL)) {
+	if (!DRW_check_psys_visible_within_active_context(ob, psys)) {
 		return;
 	}
-	struct Gwn_Batch *hair_geom = DRW_cache_particles_get_hair(psys, md);
+	ParticleSettings *part = psys->part;
+	const int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
+	if (draw_as != PART_DRAW_PATH) {
+		return;
+	}
+	struct Gwn_Batch *hair_geom = DRW_cache_particles_get_hair(ob, psys, md);
 	DRWShadingGroup *shgrp = NULL;
 	Material *ma = give_current_material(ob, part->omat);
 
@@ -1695,7 +1698,7 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 	}
 
 	if (ob->type == OB_MESH) {
-		if (DRW_check_particles_visible_within_active_context(ob)) {
+		if (ob != draw_ctx->object_edit) {
 			for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
 				if (md->type == eModifierType_ParticleSystem) {
 					ParticleSystem *psys = ((ParticleSystemModifierData *)md)->psys;

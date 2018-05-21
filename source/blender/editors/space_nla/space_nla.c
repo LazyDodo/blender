@@ -114,7 +114,7 @@ static SpaceLink *nla_new(const ScrArea *sa, const Scene *scene)
 	
 	BLI_addtail(&snla->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_BOTTOM;
+	ar->alignment = RGN_ALIGN_TOP;
 	
 	/* channel list region */
 	ar = MEM_callocN(sizeof(ARegion), "channel list for nla");
@@ -571,7 +571,7 @@ static void nla_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, ID *
 	
 	if (snla->ads) {
 		if ((ID *)snla->ads->filter_grp == old_id) {
-			snla->ads->filter_grp = (Group *)new_id;
+			snla->ads->filter_grp = (Collection *)new_id;
 		}
 		if ((ID *)snla->ads->source == old_id) {
 			snla->ads->source = new_id;

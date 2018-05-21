@@ -74,6 +74,7 @@ void    ED_region_init(struct bContext *C, struct ARegion *ar);
 void    ED_region_tag_redraw(struct ARegion *ar);
 void    ED_region_tag_redraw_partial(struct ARegion *ar, const struct rcti *rct);
 void    ED_region_tag_redraw_overlay(struct ARegion *ar);
+void    ED_region_tag_redraw_no_rebuild(struct ARegion *ar);
 void    ED_region_tag_refresh_ui(struct ARegion *ar);
 void    ED_region_panels_init(struct wmWindowManager *wm, struct ARegion *ar);
 void    ED_region_panels(
@@ -172,7 +173,7 @@ void    ED_screen_update_after_scene_change(
         const struct bScreen *screen,
         struct Scene *scene_new,
         struct ViewLayer *view_layer);
-void    ED_screen_set_active_region(struct bContext *C, const int xy[2]);
+void    ED_screen_set_active_region(struct bContext *C, struct wmWindow *win, const int xy[2]);
 void    ED_screen_exit(struct bContext *C, struct wmWindow *window, struct bScreen *screen);
 void    ED_screen_animation_timer(struct bContext *C, int redraws, int refresh, int sync, int enable);
 void    ED_screen_animation_timer_update(struct bScreen *screen, int redraws, int refresh);

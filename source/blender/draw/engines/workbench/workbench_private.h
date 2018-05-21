@@ -37,7 +37,6 @@
 
 #define WORKBENCH_ENGINE "BLENDER_WORKBENCH"
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
-#define WORKBENCH_ENCODE_NORMALS
 
 
 typedef struct WORKBENCH_FramebufferList {
@@ -51,7 +50,9 @@ typedef struct WORKBENCH_StorageList {
 
 typedef struct WORKBENCH_PassList {
 	struct DRWPass *prepass_pass;
-	struct DRWPass *shadow_pass;
+	struct DRWPass *shadow_depth_pass_pass;
+	struct DRWPass *shadow_depth_fail_pass;
+	struct DRWPass *shadow_depth_fail_caps_pass;
 	struct DRWPass *composite_pass;
 	struct DRWPass *composite_shadow_pass;
 	struct DRWPass *composite_light_pass;
@@ -88,6 +89,7 @@ typedef struct WORKBENCH_PrivateData {
 	struct GPUUniformBuffer *world_ubo;
 	struct DRWShadingGroup *shadow_shgrp;
 	WORKBENCH_UBO_World world_data;
+	float shadow_multiplier;
 } WORKBENCH_PrivateData; /* Transient data */
 
 typedef struct WORKBENCH_MaterialData {
@@ -108,6 +110,8 @@ typedef struct WORKBENCH_ObjectData {
 	ObjectEngineDataFreeCb free;
 	/* Accumulated recalc flags, which corresponds to ID->recalc flags. */
 	int recalc;
+	/* Shadow direction in local object space. */
+	float shadow_dir[3];
 
 	int object_id;
 } WORKBENCH_ObjectData;

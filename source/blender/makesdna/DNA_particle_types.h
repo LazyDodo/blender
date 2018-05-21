@@ -160,7 +160,7 @@ typedef struct ParticleSettings {
 	struct SPHFluidSettings *fluid;
 
 	struct EffectorWeights *effector_weights;
-	struct Group *collision_group;
+	struct Collection *collision_group;
 
 	int flag, rt;
 	short type, from, distr, texact;
@@ -244,9 +244,9 @@ typedef struct ParticleSettings {
 
 	struct MTex *mtex[18];		/* MAX_MTEX */
 
-	struct Group *dup_group;
+	struct Collection *dup_group;
 	struct ListBase dupliweights;
-	struct Group *eff_group  DNA_DEPRECATED;		// deprecated
+	struct Collection *eff_group  DNA_DEPRECATED;		// deprecated
 	struct Object *dup_ob;
 	struct Object *bb_ob;
 	struct Ipo *ipo  DNA_DEPRECATED;  /* old animation system, deprecated for 2.5 */
@@ -284,7 +284,7 @@ typedef struct ParticleSystem {
 	ListBase pathcachebufs, childcachebufs;	/* buffers for the above */
 
 	struct ClothModifierData *clmd;					/* cloth simulation for hair */
-	struct DerivedMesh *hair_in_dm, *hair_out_dm;	/* input/output for cloth simulation */
+	struct Mesh *hair_in_mesh, *hair_out_mesh;	/* input/output for cloth simulation */
 
 	struct Object *target_ob;
 
@@ -326,6 +326,15 @@ typedef struct ParticleSystem {
 	float lattice_strength;					/* influence of the lattice modifier */
 
 	void *batch_cache;
+
+	/* Set by dependency graph's copy-on-write, allows to quickly go
+	 * from evaluated particle system to original one.
+	 *
+	 * Original system will have this set to NULL.
+	 *
+	 * Use psys_orig_get() function to access,
+	 */
+	struct ParticleSystem *orig_psys;
 } ParticleSystem;
 
 typedef enum eParticleDrawFlag {

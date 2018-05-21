@@ -248,19 +248,6 @@ static void restrictbutton_gp_layer_flag_cb(bContext *C, void *UNUSED(poin), voi
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 }
 
-static void restrictbutton_collection_flag_cb(bContext *C, void *poin, void *UNUSED(poin2))
-{
-	ID *id = (ID *)poin;
-
-	/* TODO(sergey): Use proper flag for tagging here. */
-	DEG_id_tag_update(id, 0);
-
-	if (GS(id->name) == ID_SCE) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, id);
-	}
-	WM_event_add_notifier(C, NC_SCENE | ND_LAYER_CONTENT, NULL);
-}
-
 static void restrictbutton_id_user_toggle(bContext *UNUSED(C), void *poin, void *UNUSED(poin2))
 {
 	ID *id = (ID *)poin;
@@ -275,9 +262,9 @@ static void restrictbutton_id_user_toggle(bContext *UNUSED(C), void *poin, void 
 	}
 }
 
-
 static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 {
+	Main *bmain = CTX_data_main(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
@@ -289,7 +276,7 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 		TreeElement *te = outliner_find_tree_element(&soops->tree, tselem);
 		
 		if (tselem->type == 0) {
-			BLI_libblock_ensure_unique_name(G.main, tselem->id->name);
+			BLI_libblock_ensure_unique_name(bmain, tselem->id->name);
 			
 			switch (GS(tselem->id->name)) {
 				case ID_MA:
@@ -311,7 +298,7 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 				BKE_library_filepath_set(lib, lib->name);
 
 				BLI_strncpy(expanded, lib->name, sizeof(expanded));
-				BLI_path_abs(expanded, G.main->name);
+				BLI_path_abs(expanded, bmain->name);
 				if (!BLI_exists(expanded)) {
 					BKE_reportf(CTX_wm_reports(C), RPT_ERROR,
 					            "Library path '%s' does not exist, correct this before saving", expanded);
@@ -329,7 +316,7 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 					defgroup_unique_name(te->directdata, (Object *)tselem->id); //	id = object
 					break;
 				case TSE_NLA_ACTION:
-					BLI_libblock_ensure_unique_name(G.main, tselem->id->name);
+					BLI_libblock_ensure_unique_name(bmain, tselem->id->name);
 					break;
 				case TSE_EBONE:
 				{
@@ -404,14 +391,10 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 					WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, gpd);
 					break;
 				}
-				case TSE_R_LAYER:
-					break;
-				case TSE_SCENE_COLLECTION:
 				case TSE_LAYER_COLLECTION:
 				{
-					SceneCollection *sc = outliner_scene_collection_from_tree_element(te);
-					BKE_collection_rename(tselem->id, sc, te->name);
-					WM_event_add_notifier(C, NC_SCENE | ND_LAYER, scene);
+					BLI_libblock_ensure_unique_name(bmain, tselem->id->name);
+					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL); break;
 					break;
 				}
 			}
@@ -427,16 +410,16 @@ static void outliner_draw_restrictbuts(uiBlock *block, Scene *scene, ARegion *ar
 	TreeStoreElem *tselem;
 	Object *ob = NULL;
 
-#if 0
-	PropertyRNA *object_prop_hide, *object_prop_hide_select, *object_prop_hide_render;
-
-	/* get RNA properties (once) */
-	object_prop_hide = RNA_struct_type_find_property(&RNA_Object, "hide");
-	object_prop_hide_select = RNA_struct_type_find_property(&RNA_Object, "hide_select");
-	object_prop_hide_render = RNA_struct_type_find_property(&RNA_Object, "hide_render");
-	BLI_assert(object_prop_hide && object_prop_hide_select  && object_prop_hide_render);
-#endif
-
+	/* get RNA properties (once for speed) */
+	PropertyRNA *collection_prop_hide_viewport;
+	PropertyRNA *collection_prop_hide_select;
+	PropertyRNA *collection_prop_hide_render;
+	collection_prop_hide_select = RNA_struct_type_find_property(&RNA_Collection, "hide_select");
+	collection_prop_hide_viewport = RNA_struct_type_find_property(&RNA_Collection, "hide_viewport");
+	collection_prop_hide_render = RNA_struct_type_find_property(&RNA_Collection, "hide_render");
+	BLI_assert(collection_prop_hide_viewport &&
+	           collection_prop_hide_select &&
+	           collection_prop_hide_render);
 
 	for (te = lb->first; te; te = te->next) {
 		tselem = TREESTORE(te);
@@ -540,46 +523,33 @@ static void outliner_draw_restrictbuts(uiBlock *block, Scene *scene, ARegion *ar
 				
 				UI_block_emboss_set(block, UI_EMBOSS);
 			}
-			else if (tselem->type == TSE_LAYER_COLLECTION) {
-				LayerCollection *collection = te->directdata;
-
-				const bool is_enabled = (collection->flag & COLLECTION_DISABLED) == 0;
+			else if (outliner_is_collection_tree_element(te)) {
+				LayerCollection *lc = (tselem->type == TSE_LAYER_COLLECTION) ? te->directdata : NULL;
+				Collection *collection = outliner_collection_from_tree_element(te);
 
 				UI_block_emboss_set(block, UI_EMBOSS_NONE);
 
-				if (collection->scene_collection->type == COLLECTION_TYPE_NONE) {
-					bt = uiDefIconButBitS(block, UI_BTYPE_ICON_TOGGLE_N, COLLECTION_SELECTABLE, 0, ICON_RESTRICT_SELECT_OFF,
-					                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_SELECTX), te->ys, UI_UNIT_X,
-					                      UI_UNIT_Y, &collection->flag, 0, 0, 0, 0,
-					                      TIP_("Restrict/Allow 3D View selection of objects in the collection"));
-					UI_but_func_set(bt, restrictbutton_collection_flag_cb, scene, collection);
-					UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
-				}
-				else if ((soops->outlinevis == SO_GROUPS) &&
-				         (collection->scene_collection->type == COLLECTION_TYPE_GROUP_INTERNAL))
+				if ((!lc || !(lc->flag & LAYER_COLLECTION_EXCLUDE)) &&
+				    !(collection->flag & COLLECTION_IS_MASTER))
 				{
-					bt = uiDefIconButBitS(block, UI_BTYPE_ICON_TOGGLE_N, COLLECTION_VIEWPORT, 0, ICON_RESTRICT_VIEW_OFF,
-					                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), te->ys, UI_UNIT_X,
-					                      UI_UNIT_Y, &collection->flag, 0, 0, 0, 0,
-					                      TIP_("Restrict/Allow 3D View selection of objects in the collection"));
-					UI_but_func_set(bt, restrictbutton_collection_flag_cb, tselem->id, collection);
+					PointerRNA collection_ptr;
+					RNA_id_pointer_create(&collection->id, &collection_ptr);
+
+					bt = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0, ICON_RESTRICT_VIEW_OFF,
+					                        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), te->ys, UI_UNIT_X,
+					                        UI_UNIT_Y, &collection_ptr, collection_prop_hide_viewport, -1, 0, 0, 0, 0, NULL);
 					UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
 
-					bt = uiDefIconButBitS(block, UI_BTYPE_ICON_TOGGLE_N, COLLECTION_RENDER, 0, ICON_RESTRICT_RENDER_OFF,
-					                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_SELECTX), te->ys, UI_UNIT_X,
-					                      UI_UNIT_Y, &collection->flag, 0, 0, 0, 0,
-					                      TIP_("Restrict/Allow 3D View selection of objects in the collection"));
-					UI_but_func_set(bt, restrictbutton_collection_flag_cb, tselem->id, collection);
+					bt = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0, ICON_RESTRICT_RENDER_OFF,
+					                        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_RENDERX), te->ys, UI_UNIT_X,
+					                        UI_UNIT_Y, &collection_ptr, collection_prop_hide_render, -1, 0, 0, 0, 0, NULL);
+					UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
+
+					bt = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0, ICON_RESTRICT_SELECT_OFF,
+					                        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_SELECTX), te->ys, UI_UNIT_X,
+					                        UI_UNIT_Y, &collection_ptr, collection_prop_hide_select, -1, 0, 0, 0, 0, NULL);
 					UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
 				}
-
-				bt = uiDefIconButBitS(block, UI_BTYPE_BUT_TOGGLE, COLLECTION_DISABLED, 0,
-				                      is_enabled ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT,
-				                      (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_RENDERX), te->ys, UI_UNIT_X,
-				                      UI_UNIT_Y, &collection->flag, 0, 0, 0, 0,
-				                      TIP_("Enable/Disable collection"));
-				UI_but_func_set(bt, restrictbutton_collection_flag_cb, tselem->id, collection);
-				UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
 
 				UI_block_emboss_set(block, UI_EMBOSS);
 			}
@@ -1093,8 +1063,9 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 				}
 				break;
 			case TSE_LAYER_COLLECTION:
-			case TSE_SCENE_COLLECTION:
-				ICON_DRAW(ICON_COLLAPSEMENU);
+			case TSE_SCENE_COLLECTION_BASE:
+			case TSE_VIEW_COLLECTION_BASE:
+				ICON_DRAW(ICON_GROUP);
 				break;
 			/* Removed the icons from outliner. Need a better structure with Layers, Palettes and Colors */
 #if 0
@@ -1136,7 +1107,13 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 				case OB_LIGHTPROBE:
 					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_LIGHTPROBE); break;
 				case OB_EMPTY:
-					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_EMPTY); break;
+					if (ob->dup_group) {
+						tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_GROUP_INSTANCE);
+					}
+					else {
+						tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_EMPTY);
+					}
+					break;
 			}
 		}
 		else {
@@ -1228,6 +1205,11 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 					}
 					break;
 				}
+				case ID_BR:
+					tselem_draw_icon_uibut(&arg, ICON_BRUSH_DATA); break;
+				case ID_SCR:
+				case ID_WS:
+					tselem_draw_icon_uibut(&arg, ICON_SPLITSCREEN); break;
 				default:
 					break;
 			}
@@ -1299,10 +1281,11 @@ static void outliner_draw_iconrow(
 		}
 		
 		/* this tree element always has same amount of branches, so don't draw */
-		if (tselem->type != TSE_R_LAYER)
+		if (tselem->type != TSE_R_LAYER) {
 			outliner_draw_iconrow(
 			        C, block, scene, view_layer, obedit, soops,
 			        &te->subtree, level + 1, xmax, offsx, ys, alpha_fac);
+		}
 	}
 	
 }
@@ -1338,7 +1321,7 @@ static void outliner_draw_tree_element(
 	tselem = TREESTORE(te);
 
 	if (*starty + 2 * UI_UNIT_Y >= ar->v2d.cur.ymin && *starty <= ar->v2d.cur.ymax) {
-		const float alpha_fac = draw_grayed_out ? 0.5f : 1.0f;
+		const float alpha_fac = ((te->flag & TE_DISABLED) || draw_grayed_out) ? 0.5f : 1.0f;
 		const float alpha = 0.5f * alpha_fac;
 		int xmax = ar->v2d.cur.xmax;
 
@@ -1421,8 +1404,8 @@ static void outliner_draw_tree_element(
 			te->flag |= TE_ACTIVE; // for lookup in display hierarchies
 		}
 		
-		if ((soops->outlinevis == SO_COLLECTIONS) && (tselem->type == TSE_R_LAYER)) {
-			/* View layer in collections can't expand/collapse. */
+		if (tselem->type == TSE_VIEW_COLLECTION_BASE) {
+			/* Scene collection in view layer can't expand/collapse. */
 		}
 		else if (te->subtree.first || (tselem->type == 0 && te->idcode == ID_SCE) || (te->flag & TE_LAZY_CLOSED)) {
 			/* open/close icon, only when sublevels, except for scene */
@@ -1440,14 +1423,14 @@ static void outliner_draw_tree_element(
 		
 		/* datatype icon */
 		
-		if (!(ELEM(tselem->type, TSE_RNA_PROPERTY, TSE_RNA_ARRAY_ELEM))) {
+		if (!(ELEM(tselem->type, TSE_RNA_PROPERTY, TSE_RNA_ARRAY_ELEM, TSE_ID_BASE))) {
 			tselem_draw_icon(block, xmax, (float)startx + offsx, (float)*starty, tselem, te, alpha_fac);
 			offsx += UI_UNIT_X + 2 * ufac;
 		}
 		else
 			offsx += 2 * ufac;
 		
-		if (tselem->type == 0 && ID_IS_LINKED(tselem->id)) {
+		if (ELEM(tselem->type, 0, TSE_LAYER_COLLECTION) && ID_IS_LINKED(tselem->id)) {
 			if (tselem->id->tag & LIB_TAG_MISSING) {
 				UI_icon_draw_alpha((float)startx + offsx + 2 * ufac, (float)*starty + 2 * ufac, ICON_LIBRARY_DATA_BROKEN,
 				                   alpha_fac);
@@ -1462,7 +1445,7 @@ static void outliner_draw_tree_element(
 			}
 			offsx += UI_UNIT_X + 2 * ufac;
 		}
-		else if (tselem->type == 0 && ID_IS_STATIC_OVERRIDE(tselem->id)) {
+		else if (ELEM(tselem->type, 0, TSE_LAYER_COLLECTION) && ID_IS_STATIC_OVERRIDE(tselem->id)) {
 			UI_icon_draw_alpha((float)startx + offsx + 2 * ufac, (float)*starty + 2 * ufac, ICON_LIBRARY_DATA_OVERRIDE,
 			                   alpha_fac);
 			offsx += UI_UNIT_X + 2 * ufac;
@@ -1725,7 +1708,7 @@ static void outliner_draw_highlights_recursive(
         int start_x, int *io_start_y)
 {
 	const bool is_searching = SEARCHING_OUTLINER(soops) ||
-	                          (soops->outlinevis == SO_DATABLOCKS &&
+	                          (soops->outlinevis == SO_DATA_API &&
 	                           (soops->filter & SO_FILTER_SEARCH) &&
 	                           soops->search_string[0] != 0);
 
@@ -1793,7 +1776,7 @@ static void outliner_draw_tree(
 
 	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // only once
 
-	if (soops->outlinevis == SO_DATABLOCKS) {
+	if (soops->outlinevis == SO_DATA_API) {
 		/* struct marks */
 		starty = (int)ar->v2d.tot.ymax - UI_UNIT_Y - OL_Y_OFFSET;
 		outliner_draw_struct_marks(ar, soops, &soops->tree, &starty);
@@ -1919,7 +1902,7 @@ void draw_outliner(const bContext *C)
 	/* get extents of data */
 	outliner_height(soops, &soops->tree, &sizey);
 
-	if (soops->outlinevis == SO_DATABLOCKS) {
+	if (soops->outlinevis == SO_DATA_API) {
 		/* RNA has two columns:
 		 *  - column 1 is (max_width + OL_RNA_COL_SPACEX) or
 		 *				 (OL_RNA_COL_X), whichever is wider...
@@ -1969,7 +1952,7 @@ void draw_outliner(const bContext *C)
 	        (bContext *)C, block, scene, view_layer, obedit,
 	        ar, soops, has_restrict_icons, &te_edit);
 
-	if (soops->outlinevis == SO_DATABLOCKS) {
+	if (soops->outlinevis == SO_DATA_API) {
 		/* draw rna buttons */
 		outliner_draw_rnacols(ar, sizex_rna);
 		outliner_draw_rnabuts(block, ar, soops, sizex_rna, &soops->tree);
@@ -1992,7 +1975,4 @@ void draw_outliner(const bContext *C)
 
 	UI_block_end(C, block);
 	UI_block_draw(C, block);
-
-	/* clear flag that allows quick redraws */
-	soops->storeflag &= ~SO_TREESTORE_REDRAW;
 } 

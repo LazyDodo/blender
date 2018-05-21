@@ -652,7 +652,7 @@ typedef struct SurfaceModifierData {
 	struct MVert *x; /* old position */
 	struct MVert *v; /* velocity */
 
-	struct DerivedMesh *dm;
+	struct Mesh *mesh;
 
 	struct BVHTreeFromMesh *bvhtree; /* bounding volume hierarchy of the mesh faces */
 
@@ -739,8 +739,8 @@ typedef struct ParticleSystemModifierData {
 	ModifierData modifier;
 
 	struct ParticleSystem *psys;
-	struct DerivedMesh *dm_final;  /* Final DM - its topology may differ from orig mesh. */
-	struct DerivedMesh *dm_deformed;  /* Deformed-onle DM - its topology is same as orig mesh one. */
+	struct Mesh *mesh_final;  /* Final Mesh - its topology may differ from orig mesh. */
+	struct Mesh *mesh_deformed;  /* Deformed-only Mesh - its topology is same as orig mesh one. */
 	int totdmvert, totdmedge, totdmface;
 	short flag, pad;
 } ParticleSystemModifierData;

@@ -36,6 +36,8 @@
 #include "BKE_global.h"
 #include "BKE_mesh.h"
 #include "BKE_object.h"
+#include "BKE_particle.h"
+#include "BKE_pointcache.h"
 #include "BKE_workspace.h"
 
 #include "draw_manager.h"
@@ -219,13 +221,31 @@ int DRW_object_is_paint_mode(const Object *ob)
 	return false;
 }
 
-bool DRW_check_particles_visible_within_active_context(Object *object)
+bool DRW_check_psys_visible_within_active_context(
+        Object *object,
+        struct ParticleSystem *psys)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const Scene *scene = draw_ctx->scene;
 	if (object == draw_ctx->object_edit) {
 		return false;
 	}
-	return (object->mode != OB_MODE_PARTICLE_EDIT);
+	const ParticleSettings *part = psys->part;
+	const ParticleEditSettings *pset = &scene->toolsettings->particle;
+	if (object->mode == OB_MODE_PARTICLE_EDIT) {
+		if (psys_in_edit_mode(draw_ctx->depsgraph, psys)) {
+			if ((pset->flag & PE_DRAW_PART) == 0) {
+				return false;
+			}
+			if ((part->childtype == 0) &&
+			    (psys->flag & PSYS_HAIR_DYNAMICS &&
+			     psys->pointcache->flag & PTCACHE_BAKED) == 0)
+			{
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 /** \} */
@@ -310,7 +330,7 @@ void DRW_transform_to_display(GPUTexture *tex)
 void DRW_multisamples_resolve(GPUTexture *src_depth, GPUTexture *src_color)
 {
 	drw_state_set(DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND_PREMUL |
-	              DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+	              DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 	int samples = GPU_texture_samples(src_depth);
 
@@ -1588,12 +1608,12 @@ void DRW_draw_select_loop(
 			obedit_mode = CTX_MODE_EDIT_ARMATURE;
 		}
 	}
-	bool use_bone_selection_overlay = false;
 	if (v3d->overlay.flag &= V3D_OVERLAY_BONE_SELECTION) {
 		if (!(v3d->flag2 &= V3D_RENDER_OVERRIDE)) {
 			Object *obpose = OBPOSE_FROM_OBACT(obact);
 			if (obpose) {
-				use_bone_selection_overlay = true;
+				use_obedit = true;
+				obedit_mode = CTX_MODE_POSE;
 			}
 		}
 	}
@@ -1611,17 +1631,8 @@ void DRW_draw_select_loop(
 		drw_engines_enable_from_mode(obedit_mode);
 	}
 	else {
-		/* when in pose mode and overlays enable and bone selection overlay
-		   active, switch order as the bone selection must have more precedence
-		   than the rest of the scene */
-		if (use_bone_selection_overlay) {
-			drw_engines_enable_from_object_mode();
-			drw_engines_enable_basic();
-		}
-		else {
-			drw_engines_enable_basic();
-			drw_engines_enable_from_object_mode();
-		}
+		drw_engines_enable_basic();
+		drw_engines_enable_from_object_mode();
 	}
 
 	/* Setup viewport */
@@ -1687,7 +1698,7 @@ void DRW_draw_select_loop(
 	DRW_state_lock(
 	        DRW_STATE_WRITE_DEPTH |
 	        DRW_STATE_DEPTH_ALWAYS |
-	        DRW_STATE_DEPTH_LESS |
+	        DRW_STATE_DEPTH_LESS_EQUAL |
 	        DRW_STATE_DEPTH_EQUAL |
 	        DRW_STATE_DEPTH_GREATER |
 	        DRW_STATE_DEPTH_ALWAYS);
@@ -2009,10 +2020,10 @@ void DRW_engine_register(DrawEngineType *draw_engine_type)
 void DRW_engines_register(void)
 {
 #ifdef WITH_CLAY_ENGINE
-	RE_engines_register(NULL, &DRW_engine_viewport_clay_type);
+	RE_engines_register(&DRW_engine_viewport_clay_type);
 #endif
-	RE_engines_register(NULL, &DRW_engine_viewport_eevee_type);
-	RE_engines_register(NULL, &DRW_engine_viewport_workbench_type);
+	RE_engines_register(&DRW_engine_viewport_eevee_type);
+	RE_engines_register(&DRW_engine_viewport_workbench_type);
 
 	DRW_engine_register(&draw_engine_workbench_solid);
 

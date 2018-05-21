@@ -305,32 +305,28 @@ static void createTransTexspace(TransInfo *t)
 	ob = OBACT(view_layer);
 
 	if (ob == NULL) { // Shouldn't logically happen, but still...
-		t->data_len_all = 0;
 		return;
 	}
 
 	id = ob->data;
 	if (id == NULL || !ELEM(GS(id->name), ID_ME, ID_CU, ID_MB)) {
 		BKE_report(t->reports, RPT_ERROR, "Unsupported object type for text-space transform");
-		t->data_len_all = 0;
 		return;
 	}
 
 	if (BKE_object_obdata_is_libdata(ob)) {
 		BKE_report(t->reports, RPT_ERROR, "Linked data can't text-space transform");
-		t->data_len_all = 0;
 		return;
 	}
 
 
 	{
-		TransDataContainer *tc = t->data_container = MEM_callocN(sizeof(*t->data_container), __func__);
+		BLI_assert(t->data_container_len == 1);
+		TransDataContainer *tc = t->data_container;
 		tc->data_len = 1;
 		td = tc->data = MEM_callocN(sizeof(TransData), "TransTexspace");
 		td->ext = tc->data_ext = MEM_callocN(sizeof(TransDataExtension), "TransTexspace");
 	}
-
-	t->data_len_all = 1;
 
 	td->flag = TD_SELECTED;
 	copy_v3_v3(td->center, ob->obmat[3]);
@@ -543,14 +539,17 @@ static short apply_targetless_ik(Object *ob)
 	return apply;
 }
 
-static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, TransDataContainer *tc, TransData *td)
+static void add_pose_transdata(
+        TransInfo *t, Object *ob, bPoseChannel *pchan,
+        Object *ob_eval, bPoseChannel *pchan_eval,
+        TransDataContainer *tc, TransData *td)
 {
-	Bone *bone = pchan->bone;
+	Bone *bone = pchan_eval->bone;
 	float pmat[3][3], omat[3][3];
 	float cmat[3][3], tmat[3][3];
 	float vec[3];
 
-	copy_v3_v3(vec, pchan->pose_mat[3]);
+	copy_v3_v3(vec, pchan_eval->pose_mat[3]);
 	copy_v3_v3(td->center, vec);
 
 	td->ob = ob;
@@ -567,10 +566,10 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 	td->protectflag = pchan->protectflag;
 
 	td->loc = pchan->loc;
-	copy_v3_v3(td->iloc, pchan->loc);
+	copy_v3_v3(td->iloc, pchan_eval->loc);
 
 	td->ext->size = pchan->size;
-	copy_v3_v3(td->ext->isize, pchan->size);
+	copy_v3_v3(td->ext->isize, pchan_eval->size);
 
 	if (pchan->rotmode > 0) {
 		td->ext->rot = pchan->eul;
@@ -578,7 +577,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		td->ext->rotAngle = NULL;
 		td->ext->quat = NULL;
 
-		copy_v3_v3(td->ext->irot, pchan->eul);
+		copy_v3_v3(td->ext->irot, pchan_eval->eul);
 	}
 	else if (pchan->rotmode == ROT_MODE_AXISANGLE) {
 		td->ext->rot = NULL;
@@ -586,8 +585,8 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		td->ext->rotAngle = &pchan->rotAngle;
 		td->ext->quat = NULL;
 
-		td->ext->irotAngle = pchan->rotAngle;
-		copy_v3_v3(td->ext->irotAxis, pchan->rotAxis);
+		td->ext->irotAngle = pchan_eval->rotAngle;
+		copy_v3_v3(td->ext->irotAxis, pchan_eval->rotAxis);
 	}
 	else {
 		td->ext->rot = NULL;
@@ -595,20 +594,20 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		td->ext->rotAngle = NULL;
 		td->ext->quat = pchan->quat;
 
-		copy_qt_qt(td->ext->iquat, pchan->quat);
+		copy_qt_qt(td->ext->iquat, pchan_eval->quat);
 	}
 	td->ext->rotOrder = pchan->rotmode;
 
 
 	/* proper way to get parent transform + own transform + constraints transform */
-	copy_m3_m4(omat, ob->obmat);
+	copy_m3_m4(omat, ob_eval->obmat);
 
 	/* New code, using "generic" BKE_pchan_to_pose_mat(). */
 	{
 		float rotscale_mat[4][4], loc_mat[4][4];
 		float rpmat[3][3];
 
-		BKE_pchan_to_pose_mat(pchan, rotscale_mat, loc_mat);
+		BKE_pchan_to_pose_mat(pchan_eval, rotscale_mat, loc_mat);
 		if (t->mode == TFM_TRANSLATION)
 			copy_m3_m4(pmat, loc_mat);
 		else
@@ -621,7 +620,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		copy_m3_m4(rpmat, rotscale_mat);
 
 		if (constraints_list_needinv(t, &pchan->constraints)) {
-			copy_m3_m4(tmat, pchan->constinv);
+			copy_m3_m4(tmat, pchan_eval->constinv);
 			invert_m3_m3(cmat, tmat);
 			mul_m3_series(td->mtx, cmat, omat, pmat);
 			mul_m3_series(td->ext->r_mtx, cmat, omat, rpmat);
@@ -641,7 +640,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		if (pchan->parent) {
 			/* same as td->smtx but without pchan->bone->bone_mat */
 			td->flag |= TD_PBONE_LOCAL_MTX_C;
-			mul_m3_m3m3(td->ext->l_smtx, pchan->bone->bone_mat, td->smtx);
+			mul_m3_m3m3(td->ext->l_smtx, pchan_eval->bone->bone_mat, td->smtx);
 		}
 		else {
 			td->flag |= TD_PBONE_LOCAL_MTX_P;
@@ -649,7 +648,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 	}
 
 	/* for axismat we use bone's own transform */
-	copy_m3_m4(pmat, pchan->pose_mat);
+	copy_m3_m4(pmat, pchan_eval->pose_mat);
 	mul_m3_m3m3(td->axismtx, omat, pmat);
 	normalize_m3(td->axismtx);
 
@@ -674,10 +673,10 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		bKinematicConstraint *data = has_targetless_ik(pchan);
 		if (data) {
 			if (data->flag & CONSTRAINT_IK_TIP) {
-				copy_v3_v3(data->grabtarget, pchan->pose_tail);
+				copy_v3_v3(data->grabtarget, pchan_eval->pose_tail);
 			}
 			else {
-				copy_v3_v3(data->grabtarget, pchan->pose_head);
+				copy_v3_v3(data->grabtarget, pchan_eval->pose_head);
 			}
 			td->loc = data->grabtarget;
 			copy_v3_v3(td->iloc, td->loc);
@@ -1093,7 +1092,6 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 		Object *ob = tc->poseobj;
 
 		bArmature *arm;
-		bPoseChannel *pchan;
 		TransData *td;
 		TransDataExtension *tdx;
 		short ik_on = 0;
@@ -1138,9 +1136,15 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 
 		/* use pose channels to fill trans data */
 		td = tc->data;
-		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+		Object *ob_eval = DEG_get_evaluated_object(CTX_data_depsgraph(t->context), ob);
+		bPoseChannel *pchan, *pchan_eval;
+		for (pchan = ob->pose->chanbase.first, pchan_eval = ob_eval->pose->chanbase.first;
+		     pchan && pchan_eval;
+		     pchan = pchan->next, pchan_eval = pchan_eval->next)
+		{
+			BLI_assert(pchan == pchan_eval || STREQ(pchan->bone->name, pchan_eval->bone->name));
 			if (pchan->bone->flag & BONE_TRANSFORM) {
-				add_pose_transdata(t, pchan, ob, tc, td);
+				add_pose_transdata(t, ob, pchan, ob_eval, pchan_eval, tc, td);
 				td++;
 			}
 		}
@@ -2260,7 +2264,7 @@ static void createTransParticleVerts(bContext *C, TransInfo *t)
 			if (!(point->flag & PEP_TRANSFORM)) continue;
 
 			if (psys && !(psys->flag & PSYS_GLOBAL_HAIR))
-				psys_mat_hair_to_global(ob, psmd->dm_final, psys->part->from, psys->particles + i, mat);
+				psys_mat_hair_to_global(ob, psmd->mesh_final, psys->part->from, psys->particles + i, mat);
 
 			for (k = 0, key = point->keys; k < point->totkey; k++, key++) {
 				if (key->flag & PEK_USE_WCO) {
@@ -2338,7 +2342,7 @@ void flushTransParticles(TransInfo *t)
 			if (!(point->flag & PEP_TRANSFORM)) continue;
 
 			if (psys && !(psys->flag & PSYS_GLOBAL_HAIR)) {
-				psys_mat_hair_to_global(ob, psmd->dm_final, psys->part->from, psys->particles + i, mat);
+				psys_mat_hair_to_global(ob, psmd->mesh_final, psys->part->from, psys->particles + i, mat);
 				invert_m4_m4(imat, mat);
 
 				for (k = 0, key = point->keys; k < point->totkey; k++, key++) {
@@ -6125,6 +6129,7 @@ void autokeyframe_ob_cb_func(bContext *C, Scene *scene, ViewLayer *view_layer, O
 
 	// TODO: this should probably be done per channel instead...
 	if (autokeyframe_cfra_can_key(scene, id)) {
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		ReportList *reports = CTX_wm_reports(C);
 		ToolSettings *ts = scene->toolsettings;
 		KeyingSet *active_ks = ANIM_scene_get_active_keyingset(scene);
@@ -6151,7 +6156,7 @@ void autokeyframe_ob_cb_func(bContext *C, Scene *scene, ViewLayer *view_layer, O
 			if (adt && adt->action) {
 				for (fcu = adt->action->curves.first; fcu; fcu = fcu->next) {
 					fcu->flag &= ~FCURVE_SELECTED;
-					insert_keyframe(reports, id, adt->action,
+					insert_keyframe(depsgraph, reports, id, adt->action,
 					                (fcu->grp ? fcu->grp->name : NULL),
 					                fcu->rna_path, fcu->array_index, cfra,
 					                ts->keyframe_type, flag);
@@ -6249,6 +6254,7 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode,
 
 	// TODO: this should probably be done per channel instead...
 	if (autokeyframe_cfra_can_key(scene, id)) {
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		ReportList *reports = CTX_wm_reports(C);
 		ToolSettings *ts = scene->toolsettings;
 		KeyingSet *active_ks = ANIM_scene_get_active_keyingset(scene);
@@ -6292,7 +6298,7 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode,
 								 * NOTE: this will do constraints too, but those are ok to do here too?
 								 */
 								if (pchanName && STREQ(pchanName, pchan->name)) {
-									insert_keyframe(reports, id, act,
+									insert_keyframe(depsgraph, reports, id, act,
 									                ((fcu->grp) ? (fcu->grp->name) : (NULL)),
 									                fcu->rna_path, fcu->array_index, cfra,
 									                ts->keyframe_type, flag);
@@ -8558,6 +8564,7 @@ void createTransData(bContext *C, TransInfo *t)
 	/* if tests must match recalcData for correct updates */
 	if (t->options & CTX_TEXTURE) {
 		t->flag |= T_TEXTURE;
+		t->obedit_type = -1;
 
 		createTransTexspace(t);
 		countAndCleanTransDataContainer(t);
@@ -8747,6 +8754,7 @@ void createTransData(bContext *C, TransInfo *t)
 		if (t->mode == TFM_BONESIZE) {
 			t->flag &= ~(T_EDIT | T_POINTS);
 			t->flag |= T_POSE;
+			t->obedit_type = -1;
 
 			FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 				tc->poseobj = tc->obedit;
@@ -8825,4 +8833,6 @@ void createTransData(bContext *C, TransInfo *t)
 
 	/* Check that 'countAndCleanTransDataContainer' ran. */
 	BLI_assert(t->data_len_all != -1);
+
+	BLI_assert((!(t->flag & T_EDIT)) == (!(t->obedit_type != -1)));
 }

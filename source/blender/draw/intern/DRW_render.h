@@ -47,6 +47,7 @@
 
 #include "GPU_framebuffer.h"
 #include "GPU_texture.h"
+#include "GPU_shader.h"
 
 #include "draw_common.h"
 #include "draw_cache.h"
@@ -229,6 +230,9 @@ struct GPUShader *DRW_shader_create(
         const char *vert, const char *geom, const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_with_lib(
         const char *vert, const char *geom, const char *frag, const char *lib, const char *defines);
+struct GPUShader *DRW_shader_create_with_transform_feedback(
+        const char *vert, const char *geom, const char *defines,
+        const GPUShaderTFBType prim_type, const char **varying_names, const int varying_count);
 struct GPUShader *DRW_shader_create_2D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_fullscreen(const char *frag, const char *defines);
@@ -254,33 +258,36 @@ void DRW_shader_free(struct GPUShader *shader);
 typedef enum {
 	DRW_STATE_WRITE_DEPTH   = (1 << 0),
 	DRW_STATE_WRITE_COLOR   = (1 << 1),
-	DRW_STATE_DEPTH_LESS    = (1 << 2),
-	DRW_STATE_DEPTH_EQUAL   = (1 << 3),
-	DRW_STATE_DEPTH_GREATER = (1 << 4),
-	DRW_STATE_DEPTH_ALWAYS  = (1 << 5),
-	DRW_STATE_CULL_BACK     = (1 << 6),
-	DRW_STATE_CULL_FRONT    = (1 << 7),
-	DRW_STATE_WIRE          = (1 << 8),
-//	DRW_STATE_WIRE_LARGE    = (1 << 9), /* Removed from ogl in 3.0 */
-	DRW_STATE_POINT         = (1 << 10),
-	DRW_STATE_STIPPLE_2     = (1 << 11),
-	DRW_STATE_STIPPLE_3     = (1 << 12),
-	DRW_STATE_STIPPLE_4     = (1 << 13),
-	DRW_STATE_BLEND         = (1 << 14),
-	DRW_STATE_ADDITIVE      = (1 << 15),
-	DRW_STATE_MULTIPLY      = (1 << 16),
-	DRW_STATE_TRANSMISSION  = (1 << 17),
-	DRW_STATE_CLIP_PLANES   = (1 << 18),
-	DRW_STATE_ADDITIVE_FULL = (1 << 19), /* Same as DRW_STATE_ADDITIVE but let alpha accumulate without premult. */
-	DRW_STATE_BLEND_PREMUL  = (1 << 20), /* Use that if color is already premult by alpha. */
-	DRW_STATE_WIRE_SMOOTH   = (1 << 21),
+	DRW_STATE_DEPTH_ALWAYS  = (1 << 2),
+	DRW_STATE_DEPTH_LESS    = (1 << 3),
+	DRW_STATE_DEPTH_LESS_EQUAL = (1 << 4),
+	DRW_STATE_DEPTH_EQUAL   = (1 << 5),
+	DRW_STATE_DEPTH_GREATER = (1 << 6),
+	DRW_STATE_DEPTH_GREATER_EQUAL = (1 << 7),
+	DRW_STATE_CULL_BACK     = (1 << 8),
+	DRW_STATE_CULL_FRONT    = (1 << 9),
+	DRW_STATE_WIRE          = (1 << 10),
+	DRW_STATE_POINT         = (1 << 11),
+	DRW_STATE_STIPPLE_2     = (1 << 12),
+	DRW_STATE_STIPPLE_3     = (1 << 13),
+	DRW_STATE_STIPPLE_4     = (1 << 14),
+	DRW_STATE_BLEND         = (1 << 15),
+	DRW_STATE_ADDITIVE      = (1 << 16),
+	DRW_STATE_MULTIPLY      = (1 << 17),
+	DRW_STATE_TRANSMISSION  = (1 << 18),
+	DRW_STATE_CLIP_PLANES   = (1 << 19),
+	DRW_STATE_ADDITIVE_FULL = (1 << 20), /* Same as DRW_STATE_ADDITIVE but let alpha accumulate without premult. */
+	DRW_STATE_BLEND_PREMUL  = (1 << 21), /* Use that if color is already premult by alpha. */
+	DRW_STATE_WIRE_SMOOTH   = (1 << 22),
+	DRW_STATE_TRANS_FEEDBACK = (1 << 23),
 
 	DRW_STATE_WRITE_STENCIL          = (1 << 27),
-	DRW_STATE_WRITE_STENCIL_SHADOW   = (1 << 28),
-	DRW_STATE_STENCIL_EQUAL          = (1 << 29),
-	DRW_STATE_STENCIL_NEQUAL         = (1 << 30),
+	DRW_STATE_WRITE_STENCIL_SHADOW_PASS   = (1 << 28),
+	DRW_STATE_WRITE_STENCIL_SHADOW_FAIL   = (1 << 29),
+	DRW_STATE_STENCIL_EQUAL          = (1 << 30),
+	DRW_STATE_STENCIL_NEQUAL         = (1 << 31),
 } DRWState;
-#define DRW_STATE_DEFAULT (DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS)
+#define DRW_STATE_DEFAULT (DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL)
 
 typedef enum {
 	DRW_ATTRIB_INT,
@@ -310,8 +317,10 @@ DRWShadingGroup *DRW_shgroup_material_empty_tri_batch_create(struct GPUMaterial 
 DRWShadingGroup *DRW_shgroup_instance_create(
         struct GPUShader *shader, DRWPass *pass, struct Gwn_Batch *geom, struct Gwn_VertFormat *format);
 DRWShadingGroup *DRW_shgroup_point_batch_create(struct GPUShader *shader, DRWPass *pass);
+DRWShadingGroup *DRW_shgroup_line_batch_create_with_format(struct GPUShader *shader, DRWPass *pass, struct Gwn_VertFormat *format);
 DRWShadingGroup *DRW_shgroup_line_batch_create(struct GPUShader *shader, DRWPass *pass);
 DRWShadingGroup *DRW_shgroup_empty_tri_batch_create(struct GPUShader *shader, DRWPass *pass, int size);
+DRWShadingGroup *DRW_shgroup_transform_feedback_create(struct GPUShader *shader, DRWPass *pass, struct Gwn_VertBuf *tf_target);
 
 typedef void (DRWCallGenerateFn)(
         DRWShadingGroup *shgroup,
@@ -451,7 +460,7 @@ bool DRW_object_is_flat_normal(const struct Object *ob);
 int  DRW_object_is_mode_shade(const struct Object *ob);
 int  DRW_object_is_paint_mode(const struct Object *ob);
 
-bool DRW_check_particles_visible_within_active_context(struct Object *object);
+bool DRW_check_psys_visible_within_active_context(struct Object *object, struct ParticleSystem *psys);
 
 /* Draw commands */
 void DRW_draw_pass(DRWPass *pass);

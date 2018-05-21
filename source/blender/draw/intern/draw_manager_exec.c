@@ -102,6 +102,25 @@ void drw_state_set(DRWState state)
 		}
 	}
 
+	/* Raster Discard */
+	{
+		if (CHANGED_ANY(DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR |
+		                DRW_STATE_WRITE_STENCIL |
+		                DRW_STATE_WRITE_STENCIL_SHADOW_PASS |
+		                DRW_STATE_WRITE_STENCIL_SHADOW_FAIL))
+		{
+			if ((state & (DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR |
+			              DRW_STATE_WRITE_STENCIL | DRW_STATE_WRITE_STENCIL_SHADOW_PASS |
+			              DRW_STATE_WRITE_STENCIL_SHADOW_FAIL)) != 0)
+			{
+				glDisable(GL_RASTERIZER_DISCARD);
+			}
+			else {
+				glEnable(GL_RASTERIZER_DISCARD);
+			}
+		}
+	}
+
 	/* Cull */
 	{
 		DRWState test;
@@ -132,13 +151,17 @@ void drw_state_set(DRWState state)
 	{
 		DRWState test;
 		if (CHANGED_ANY_STORE_VAR(
-		        DRW_STATE_DEPTH_LESS | DRW_STATE_DEPTH_EQUAL | DRW_STATE_DEPTH_GREATER | DRW_STATE_DEPTH_ALWAYS,
+		        DRW_STATE_DEPTH_LESS | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_DEPTH_EQUAL |
+		        DRW_STATE_DEPTH_GREATER | DRW_STATE_DEPTH_GREATER_EQUAL | DRW_STATE_DEPTH_ALWAYS,
 		        test))
 		{
 			if (test) {
 				glEnable(GL_DEPTH_TEST);
 
 				if (state & DRW_STATE_DEPTH_LESS) {
+					glDepthFunc(GL_LESS);
+				}
+				else if (state & DRW_STATE_DEPTH_LESS_EQUAL) {
 					glDepthFunc(GL_LEQUAL);
 				}
 				else if (state & DRW_STATE_DEPTH_EQUAL) {
@@ -146,6 +169,9 @@ void drw_state_set(DRWState state)
 				}
 				else if (state & DRW_STATE_DEPTH_GREATER) {
 					glDepthFunc(GL_GREATER);
+				}
+				else if (state & DRW_STATE_DEPTH_GREATER_EQUAL) {
+					glDepthFunc(GL_GEQUAL);
 				}
 				else if (state & DRW_STATE_DEPTH_ALWAYS) {
 					glDepthFunc(GL_ALWAYS);
@@ -283,7 +309,8 @@ void drw_state_set(DRWState state)
 		DRWState test;
 		if (CHANGED_ANY_STORE_VAR(
 		        DRW_STATE_WRITE_STENCIL |
-		        DRW_STATE_WRITE_STENCIL_SHADOW |
+		        DRW_STATE_WRITE_STENCIL_SHADOW_PASS |
+		        DRW_STATE_WRITE_STENCIL_SHADOW_FAIL |
 		        DRW_STATE_STENCIL_EQUAL |
 		        DRW_STATE_STENCIL_NEQUAL,
 		        test))
@@ -295,7 +322,12 @@ void drw_state_set(DRWState state)
 					glStencilMask(0xFF);
 					glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				}
-				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW) != 0) {
+				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW_PASS) != 0) {
+					glStencilMask(0xFF);
+					glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+					glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+				}
+				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW_FAIL) != 0) {
 					glStencilMask(0xFF);
 					glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_INCR_WRAP, GL_KEEP);
 					glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
@@ -900,11 +932,19 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	int val;
 	float fval;
 	const bool shader_changed = (DST.shader != shgroup->shader);
+	bool use_tfeedback = false;
 
 	if (shader_changed) {
 		if (DST.shader) GPU_shader_unbind();
 		GPU_shader_bind(shgroup->shader);
 		DST.shader = shgroup->shader;
+	}
+
+	if ((pass_state & DRW_STATE_TRANS_FEEDBACK) != 0 &&
+	    (shgroup->type == DRW_SHG_FEEDBACK_TRANSFORM))
+	{
+		use_tfeedback = GPU_shader_transform_feedback_enable(shgroup->shader,
+		                                                     shgroup->tfeedback_target->vbo_id);
 	}
 
 	release_ubo_slots(shader_changed);
@@ -1023,7 +1063,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 #endif
 
 	/* Rendering Calls */
-	if (!ELEM(shgroup->type, DRW_SHG_NORMAL)) {
+	if (!ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM)) {
 		/* Replacing multiple calls with only one */
 		if (ELEM(shgroup->type, DRW_SHG_INSTANCE, DRW_SHG_INSTANCE_EXTERNAL)) {
 			if (shgroup->type == DRW_SHG_INSTANCE_EXTERNAL) {
@@ -1102,6 +1142,10 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 		}
 		/* Reset state */
 		glFrontFace(DST.frontface);
+	}
+
+	if (use_tfeedback) {
+		GPU_shader_transform_feedback_disable(shgroup->shader);
 	}
 
 	/* TODO: remove, (currently causes alpha issue with sculpt, need to investigate) */

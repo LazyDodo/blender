@@ -113,25 +113,25 @@ static void POSE_cache_init(void *vedata)
 
 	{
 		/* Solid bones */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_BACK;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CULL_BACK;
 		psl->bone_solid = DRW_pass_create("Bone Solid Pass", state);
 	}
 
 	{
 		/* Bones Outline */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL;
 		psl->bone_outline = DRW_pass_create("Bone Outline Pass", state);
 	}
 
 	{
 		/* Wire bones */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_BLEND;
 		psl->bone_wire = DRW_pass_create("Bone Wire Pass", state);
 	}
 
 	{
 		/* distance outline around envelope bones */
-		DRWState state = DRW_STATE_ADDITIVE | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_FRONT;
+		DRWState state = DRW_STATE_ADDITIVE | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CULL_FRONT;
 		psl->bone_envelope = DRW_pass_create("Bone Envelope Outline Pass", state);
 	}
 
@@ -143,7 +143,7 @@ static void POSE_cache_init(void *vedata)
 	{
 		/* Non Meshes Pass (Camera, empties, lamps ...) */
 		DRWState state =
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS |
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL |
 		        DRW_STATE_BLEND | DRW_STATE_WIRE;
 		psl->relationship = DRW_pass_create("Bone Relationship Pass", state);
 	}
@@ -202,7 +202,7 @@ static void POSE_cache_populate(void *vedata, Object *ob)
 			DRW_shgroup_armature_pose(ob, passes);
 		}
 	}
-	else if (ob->type == OB_MESH && POSE_is_bone_selection_overlay_active() && POSE_is_driven_by_active_armature(ob)) {
+	else if (ob->type == OB_MESH && !DRW_state_is_select() && POSE_is_bone_selection_overlay_active() && POSE_is_driven_by_active_armature(ob)) {
 		struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
 		if (geom) {
 			DRW_shgroup_call_object_add(stl->g_data->bone_selection_shgrp, geom, ob);
@@ -244,9 +244,16 @@ static void POSE_draw_scene(void *vedata)
 	const bool transparent_bones = (draw_ctx->v3d->overlay.arm_flag & V3D_OVERLAY_ARM_TRANSP_BONES) != 0;
 	const bool bone_selection_overlay = POSE_is_bone_selection_overlay_active();
 
-	if(bone_selection_overlay) {
+	if (DRW_state_is_select()) {
+		DRW_draw_pass(psl->bone_solid);
+		DRW_draw_pass(psl->bone_wire);
+		return;
+	}
+
+	if (bone_selection_overlay) {
 		GPU_framebuffer_bind(dfbl->default_fb);
 		DRW_draw_pass(psl->bone_selection);
+		GPU_framebuffer_bind(dfbl->depth_only_fb);
 		GPU_framebuffer_clear_depth(dfbl->depth_only_fb, 1.0);
 		GPU_framebuffer_bind(dfbl->default_fb);
 	}
@@ -274,25 +281,6 @@ static void POSE_draw_scene(void *vedata)
 	/* Draw axes with linesmooth and outside of multisample buffer. */
 	DRW_draw_pass(psl->bone_axes);
 }
-
-/* Create collection settings here.
- *
- * Be sure to add this function there :
- * source/blender/draw/DRW_engine.h
- * source/blender/blenkernel/intern/layer.c
- * source/blenderplayer/bad_level_call_stubs/stubs.c
- *
- * And relevant collection settings to :
- * source/blender/makesrna/intern/rna_scene.c
- * source/blender/blenkernel/intern/layer.c
- */
-#if 0
-void POSE_collection_settings_create(CollectionEngineSettings *ces)
-{
-	BLI_assert(ces);
-	// BKE_collection_engine_property_add_int(ces, "foo", 37);
-}
-#endif
 
 static const DrawEngineDataSize POSE_data_size = DRW_VIEWPORT_DATA_SIZE(POSE_Data);
 
