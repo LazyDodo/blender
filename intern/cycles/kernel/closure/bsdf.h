@@ -83,8 +83,6 @@ ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
 									   float *pdf)
 {
 	int label;
-    
-    printf("sample: %i\n", sc->type);
 
 	switch(sc->type) {
 		case CLOSURE_BSDF_DIFFUSE_ID:
@@ -224,8 +222,6 @@ float3 bsdf_eval(KernelGlobals *kg,
 				 float *pdf)
 {
 	float3 eval;
-    
-    printf("eval: %i\n", sc->type);
 
 	if(dot(sd->Ng, omega_in) >= 0.0f) {
 		switch(sc->type) {
@@ -292,7 +288,6 @@ float3 bsdf_eval(KernelGlobals *kg,
 				eval = bsdf_glossy_toon_eval_reflect(sc, sd->I, omega_in, pdf);
 				break;
 			case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
-                printf("eval'ing hair \n");
 				eval = bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
 				break;
 			case CLOSURE_BSDF_HAIR_REFLECTION_ID:
@@ -378,7 +373,6 @@ float3 bsdf_eval(KernelGlobals *kg,
 				eval = bsdf_glossy_toon_eval_transmit(sc, sd->I, omega_in, pdf);
 				break;
 			case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
-                printf("eval'ing hair 2\n");
 				eval = bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
 				break;
 			case CLOSURE_BSDF_HAIR_REFLECTION_ID:
