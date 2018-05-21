@@ -31,7 +31,6 @@ struct GPUMaterial;
 struct ModifierData;
 struct Object;
 struct PTCacheEdit;
-struct Groom;
 struct HairSystem;
 struct DRWHairFiberTextureBuffer;
 struct DerivedMesh;
@@ -168,11 +167,6 @@ struct Gwn_Batch **DRW_cache_surf_surface_shaded_get(
 struct Gwn_Batch *DRW_cache_lattice_verts_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_lattice_wire_get(struct Object *ob, bool use_weight);
 struct Gwn_Batch *DRW_cache_lattice_vert_overlay_get(struct Object *ob);
-
-/* Groom */
-struct Gwn_Batch *DRW_cache_groom_verts_get(struct Object *ob);
-struct Gwn_Batch *DRW_cache_groom_wire_get(struct Object *ob);
-struct Gwn_Batch *DRW_cache_groom_vert_overlay_get(struct Object *ob, int mode);
 
 /* Particles */
 struct Gwn_Batch *DRW_cache_particles_get_hair(struct Object *object, struct ParticleSystem *psys, struct ModifierData *md);

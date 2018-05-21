@@ -97,7 +97,6 @@ void depsgraph_geometry_tag_to_component(const ID *id,
 				case OB_FONT:
 				case OB_LATTICE:
 				case OB_MBALL:
-				case OB_GROOM:
 					*component_type = DEG_NODE_TYPE_GEOMETRY;
 					break;
 				case OB_ARMATURE:

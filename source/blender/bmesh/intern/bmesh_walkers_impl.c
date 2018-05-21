@@ -698,6 +698,8 @@ static void *bmw_IslandboundWalker_step(BMWalker *walker)
 {
 	BMwIslandboundWalker *iwalk, owalk;
 	BMVert *v;
+	BMEdge *e;
+	BMFace *f;
 	BMLoop *l;
 	/* int found = 0; */
 
@@ -706,24 +708,31 @@ static void *bmw_IslandboundWalker_step(BMWalker *walker)
 	iwalk = &owalk;
 
 	l = iwalk->curloop;
+	e = l->e;
 
-	v = BM_edge_other_vert(l->e, iwalk->lastv);
+	v = BM_edge_other_vert(e, iwalk->lastv);
 	
 	/* pop off current state */
 	BMW_state_remove(walker);
+	
+	f = l->f;
 	
 	while (1) {
 		l = BM_loop_other_edge_loop(l, v);
 		if (BM_loop_is_manifold(l)) {
 			l = l->radial_next;
+			f = l->f;
+			e = l->e;
 
-			if (!bmw_mask_check_face(walker, l->f)) {
+			if (!bmw_mask_check_face(walker, f)) {
 				l = l->radial_next;
 				break;
 			}
 		}
 		else {
 			/* treat non-manifold edges as boundaries */
+			f = l->f;
+			e = l->e;
 			break;
 		}
 	}

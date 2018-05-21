@@ -360,7 +360,6 @@ enum {
 	OB_SURF       = 3,
 	OB_FONT       = 4,
 	OB_MBALL      = 5,
-	OB_GROOM      = 6,
 
 	OB_LAMP       = 10,
 	OB_CAMERA     = 11,
@@ -386,16 +385,16 @@ enum {
 #define OB_TYPE_SUPPORT_VGROUP(_type) \
 	(ELEM(_type, OB_MESH, OB_LATTICE))
 #define OB_TYPE_SUPPORT_EDITMODE(_type) \
-	(ELEM(_type, OB_MESH, OB_FONT, OB_CURVE, OB_SURF, OB_MBALL, OB_LATTICE, OB_ARMATURE, OB_GROOM))
+	(ELEM(_type, OB_MESH, OB_FONT, OB_CURVE, OB_SURF, OB_MBALL, OB_LATTICE, OB_ARMATURE))
 #define OB_TYPE_SUPPORT_PARVERT(_type) \
 	(ELEM(_type, OB_MESH, OB_SURF, OB_CURVE, OB_LATTICE))
 
 /* is this ID type used as object data */
 #define OB_DATA_SUPPORT_ID(_id_type) \
-	(ELEM(_id_type, ID_ME, ID_CU, ID_MB, ID_LA, ID_SPK, ID_LP, ID_CA, ID_LT, ID_AR, ID_GM))
+	(ELEM(_id_type, ID_ME, ID_CU, ID_MB, ID_LA, ID_SPK, ID_LP, ID_CA, ID_LT, ID_AR))
 
 #define OB_DATA_SUPPORT_ID_CASE \
-	ID_ME: case ID_CU: case ID_MB: case ID_LA: case ID_SPK: case ID_LP: case ID_CA: case ID_LT: case ID_AR: case ID_GM
+	ID_ME: case ID_CU: case ID_MB: case ID_LA: case ID_SPK: case ID_LP: case ID_CA: case ID_LT: case ID_AR
 
 /* partype: first 4 bits: type */
 enum {

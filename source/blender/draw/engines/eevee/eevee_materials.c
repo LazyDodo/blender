@@ -32,7 +32,6 @@
 #include "BLI_string_utils.h"
 
 #include "BKE_DerivedMesh.h"
-#include "BKE_groom.h"
 #include "BKE_particle.h"
 #include "BKE_paint.h"
 #include "BKE_pbvh.h"
@@ -40,7 +39,6 @@
 #include "DNA_world_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_view3d_types.h"
-#include "DNA_groom_types.h"
 #include "DNA_hair_types.h"
 
 #include "GPU_material.h"
@@ -1710,10 +1708,6 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 				}
 			}
 		}
-	}
-	else if (ob->type == OB_GROOM) {
-		Groom *groom = ob->data;
-		material_hair(vedata, sldata, ob, groom->hair_system, BKE_groom_get_scalp(groom));
 	}
 }
 

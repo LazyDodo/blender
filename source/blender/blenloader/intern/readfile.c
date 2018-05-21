@@ -70,7 +70,6 @@
 #include "DNA_effect_types.h"
 #include "DNA_fileglobal_types.h"
 #include "DNA_genfile.h"
-#include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_hair_types.h"
@@ -8196,50 +8195,6 @@ static void direct_link_linestyle(FileData *fd, FreestyleLineStyle *linestyle)
 	}
 }
 
-/* ************ READ GROOM *************** */
-
-static void lib_link_groom(FileData *fd, Main *bmain)
-{
-	for (Groom *groom = bmain->grooms.first; groom; groom = groom->id.next) {
-		ID *id = (ID *)groom;
-
-		if ((id->tag & LIB_TAG_NEED_LINK) == 0) {
-			continue;
-		}
-		IDP_LibLinkProperty(id->properties, fd);
-		id_us_ensure_real(id);
-
-		groom->scalp_object = newlibadr(fd, id->lib, groom->scalp_object);
-
-		id->tag &= ~LIB_TAG_NEED_LINK;
-	}
-}
-
-static void direct_link_groom(FileData *fd, Groom *groom)
-{
-	groom->adt= newdataadr(fd, groom->adt);
-	direct_link_animdata(fd, groom->adt);
-	
-	link_list(fd, &groom->bundles);
-	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
-	{
-		bundle->sections = newdataadr(fd, bundle->sections);
-		bundle->verts = newdataadr(fd, bundle->verts);
-		bundle->scalp_region = newdataadr(fd, bundle->scalp_region);
-		bundle->curvecache = NULL;
-		bundle->curvesize = 0;
-		bundle->totcurvecache = 0;
-	}
-	
-	groom->hair_system = newdataadr(fd, groom->hair_system);
-	direct_link_hair(fd, groom->hair_system);
-	groom->hair_draw_settings = newdataadr(fd, groom->hair_draw_settings);
-	
-	groom->bb = NULL;
-	groom->editgroom = NULL;
-	groom->batch_cache = NULL;
-}
-
 /* ************** GENERAL & MAIN ******************** */
 
 
@@ -8537,9 +8492,6 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 		case ID_WS:
 			direct_link_workspace(fd, (WorkSpace *)id, main);
 			break;
-		case ID_GM:
-			direct_link_groom(fd, (Groom *)id);
-			break;
 	}
 	
 	oldnewmap_free_unused(fd->datamap);
@@ -8722,7 +8674,6 @@ static void lib_link_all(FileData *fd, Main *main)
 	lib_link_gpencil(fd, main);
 	lib_link_cachefiles(fd, main);
 	lib_link_workspaces(fd, main);
-	lib_link_groom(fd, main);
 
 	lib_link_library(fd, main);    /* only init users */
 }
@@ -9351,11 +9302,6 @@ static void expand_particlesettings(FileData *fd, Main *mainvar, ParticleSetting
 			}
 		}
 	}
-}
-
-static void expand_groom(FileData *fd, Main *mainvar, Groom *groom)
-{
-	expand_doit(fd, mainvar, groom->scalp_object);
 }
 
 static void expand_collection(FileData *fd, Main *mainvar, Collection *collection)
@@ -9995,9 +9941,6 @@ void BLO_expand_main(void *fdhandle, Main *mainvar)
 						break;
 					case ID_AC:
 						expand_action(fd, mainvar, (bAction *)id); // XXX deprecated - old animation system
-						break;
-					case ID_GM:
-						expand_groom(fd, mainvar, (Groom *)id);
 						break;
 					case ID_GR:
 						expand_collection(fd, mainvar, (Collection *)id);

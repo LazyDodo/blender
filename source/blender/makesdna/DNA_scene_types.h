@@ -861,22 +861,6 @@ typedef struct ParticleEditSettings {
 } ParticleEditSettings;
 
 /* ------------------------------------------- */
-/* Groom Edit */
-
-/* GroomEditSettings.mode */
-typedef enum GroomEditMode {
-	GM_EDIT_MODE_REGIONS,
-	GM_EDIT_MODE_CURVES,
-	GM_EDIT_MODE_SECTIONS,
-} GroomEditMode;
-
-/* Groom Edit Mode Settings */
-typedef struct GroomEditSettings {
-	int mode;
-	int pad;
-} GroomEditSettings;
-
-/* ------------------------------------------- */
 /* Sculpt */
 
 /* Sculpt */
@@ -1267,10 +1251,7 @@ typedef struct ToolSettings {
 
 	/* Particle Editing */
 	struct ParticleEditSettings particle;
-
-	/* Groom Editing */
-	struct GroomEditSettings groom_edit_settings;
-
+	
 	/* Transform Proportional Area of Effect */
 	float proportional_size;
 

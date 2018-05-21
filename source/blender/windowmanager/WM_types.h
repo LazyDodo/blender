@@ -256,7 +256,6 @@ typedef struct wmNotifier {
 #define NC_GPENCIL			(22<<24)
 #define NC_LINESTYLE			(23<<24)
 #define NC_CAMERA			(24<<24)
-#define NC_GROOM			(25<<24)
 
 /* data type, 256 entries is enough, it can overlap */
 #define NOTE_DATA			0x00FF0000
@@ -393,7 +392,6 @@ typedef struct wmNotifier {
 #define NS_EDITMODE_ARMATURE	(8<<8)
 #define NS_MODE_POSE			(9<<8)
 #define NS_MODE_PARTICLE		(10<<8)
-#define NS_EDITMODE_GROOM		(11<<8)
 
 /* subtype 3d view editing */
 #define NS_VIEW3D_GPU			(16<<8)

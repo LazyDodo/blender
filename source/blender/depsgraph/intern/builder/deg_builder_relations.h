@@ -75,7 +75,6 @@ struct ViewLayer;
 struct Tex;
 struct World;
 struct EffectorWeights;
-struct Groom;
 
 struct PropertyRNA;
 

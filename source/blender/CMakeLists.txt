@@ -46,7 +46,6 @@ set(SRC_DNA_INC
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_genfile.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_gpencil_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_gpu_types.h
-	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_groom_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_group_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_hair_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_image_types.h

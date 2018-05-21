@@ -51,7 +51,6 @@ extern "C" {
 #include "DNA_curve_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
@@ -79,7 +78,6 @@ extern "C" {
 #include "BKE_effect.h"
 #include "BKE_collision.h"
 #include "BKE_fcurve.h"
-#include "BKE_groom.h"
 #include "BKE_key.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -591,7 +589,6 @@ void DepsgraphRelationBuilder::build_object_data(Object *object)
 		case OB_SURF:
 		case OB_MBALL:
 		case OB_LATTICE:
-		case OB_GROOM:
 		{
 			build_obdata_geom(object);
 			break;
@@ -1821,19 +1818,6 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 
 		case OB_LATTICE: /* Lattice */
 		{
-			break;
-		}
-
-		case OB_GROOM: /* Groom */
-		{
-			Groom *groom = (Groom *)obdata;
-			ComponentKey geometry_key(&groom->id, DEG_NODE_TYPE_GEOMETRY);
-			
-			if (groom->scalp_object)
-			{
-				ID *scalp_id = &groom->scalp_object->id;
-				add_relation(ComponentKey(scalp_id, DEG_NODE_TYPE_GEOMETRY), geometry_key, "Scalp Object -> Groom");
-			}
 			break;
 		}
 	}
