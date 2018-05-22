@@ -2030,21 +2030,21 @@ typedef enum eGPencil_Flags {
 	/* When creating new frames, the last frame gets used as the basis for the new one */
 	GP_TOOL_FLAG_RETAIN_LAST            = (1 << 1),
 	/* Add the strokes below all strokes in the layer */
-	GP_TOOL_FLAG_PAINT_ONBACK = (1 << 2),
+	GP_TOOL_FLAG_PAINT_ONBACK           = (1 << 2),
 } eGPencil_Flags;
 
 /* scene->r.simplify_gpencil */
 typedef enum eGPencil_SimplifyFlags {
 	/* Simplify */
-	SIMPLIFY_GPENCIL_ENABLE = (1 << 0),
+	SIMPLIFY_GPENCIL_ENABLE           = (1 << 0),
 	/* Simplify on play */
-	SIMPLIFY_GPENCIL_ON_PLAY = (1 << 1),
+	SIMPLIFY_GPENCIL_ON_PLAY          = (1 << 1),
 	/* Simplify fill on viewport */
-	SIMPLIFY_GPENCIL_FILL = (1 << 2),
+	SIMPLIFY_GPENCIL_FILL             = (1 << 2),
 	/* Simplify modifier on viewport */
-	SIMPLIFY_GPENCIL_MODIFIER = (1 << 3),
+	SIMPLIFY_GPENCIL_MODIFIER         = (1 << 3),
 	/* Remove fill external line */
-	SIMPLIFY_GPENCIL_REMOVE_FILL_LINE = (1 << 8),
+	SIMPLIFY_GPENCIL_REMOVE_FILL_LINE = (1 << 4)
 } eGPencil_SimplifyFlags;
 
 /* ToolSettings.gpencil_*_align - Stroke Placement mode flags */
