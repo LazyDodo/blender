@@ -166,19 +166,20 @@ typedef enum eHairExportCacheUpdateFlags
 /* Create a new export cache.
  * This can be used to construct full fiber data for rendering.
  */
-struct HairExportCache* BKE_hair_export_cache_new(const struct HairSystem *hsys, int subdiv, struct DerivedMesh *scalp);
-
-/* Create a new export cache.
- * This can be used to construct full fiber data for rendering.
- * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
- */
-struct HairExportCache* BKE_hair_export_cache_new_mesh(const struct HairSystem *hsys, int subdiv, struct Mesh *scalp);
+struct HairExportCache* BKE_hair_export_cache_new(void);
 
 /* Update an existing export cache when data is invalidated.
  * Returns flags for data that has been updated.
  */
-int BKE_hair_export_cache_update(const struct HairSystem *hsys, int subdiv, struct DerivedMesh *scalp,
-                                 struct HairExportCache *cache, int data);
+int BKE_hair_export_cache_update(struct HairExportCache *cache, const struct HairSystem *hsys,
+                                 int subdiv, struct DerivedMesh *scalp, int data);
+
+/* Update an existing export cache when data is invalidated.
+ * Returns flags for data that has been updated.
+ * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
+ */
+int BKE_hair_export_cache_update_mesh(struct HairExportCache *cache, const struct HairSystem *hsys,
+                                      int subdiv, struct  Mesh *scalp, int data);
 
 /* Free the given export cache */
 void BKE_hair_export_cache_free(struct HairExportCache *cache);

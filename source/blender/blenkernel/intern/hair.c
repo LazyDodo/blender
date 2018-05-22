@@ -550,33 +550,18 @@ static void hair_guide_calc_vectors(const HairGuideVertex* verts, int numverts, 
  * This can be used to construct full fiber data for rendering.
  */
 
-HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv, DerivedMesh *scalp)
+HairExportCache* BKE_hair_export_cache_new(void)
 {
 	HairExportCache *cache = MEM_callocN(sizeof(HairExportCache), "hair export cache");
-	
-	BKE_hair_export_cache_update(hsys, subdiv, scalp, cache, HAIR_EXPORT_ALL);
-	
-	return cache;
-}
-
-/* Create a new export cache.
- * This can be used to construct full fiber data for rendering.
- * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
- */
-
-HairExportCache* BKE_hair_export_cache_new_mesh(const HairSystem *hsys, int subdiv, struct Mesh *scalp)
-{
-	DerivedMesh *dm = CDDM_from_mesh(scalp);
-	HairExportCache *cache = BKE_hair_export_cache_new(hsys, subdiv, dm);
-	dm->release(dm);
 	return cache;
 }
 
 /* Update an existing export cache when data is invalidated.
+ * Returns flags for data that has been updated.
  */
 
-int BKE_hair_export_cache_update(const HairSystem *hsys, int subdiv, DerivedMesh *scalp,
-                                 HairExportCache *cache, int data)
+int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
+                                 int subdiv, DerivedMesh *scalp, int data)
 {
 	/* Check for missing data */
 	data |= BKE_hair_export_cache_get_required_updates(cache);
@@ -701,6 +686,21 @@ int BKE_hair_export_cache_update(const HairSystem *hsys, int subdiv, DerivedMesh
 	}
 	
 	return data;
+}
+
+
+/* Update an existing export cache when data is invalidated.
+ * Returns flags for data that has been updated.
+ * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
+ */
+
+int BKE_hair_export_cache_update_mesh(HairExportCache *cache, const HairSystem *hsys,
+                                      int subdiv, struct Mesh *scalp, int data)
+{
+	DerivedMesh *dm = CDDM_from_mesh(scalp);
+	int result = BKE_hair_export_cache_update(cache, hsys, subdiv, dm, data);
+	dm->release(dm);
+	return result;
 }
 
 /* Free the given export cache */
