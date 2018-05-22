@@ -443,6 +443,19 @@ class SCENE_PT_viewport_display(SceneButtonsPanel, Panel):
         layout.prop(scene.display, "light_direction", text="")
         layout.prop(scene.display, "shadow_shift")
 
+class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
+    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    bl_label = "LANPR AHOY"
+    
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        layout.prop(scene.lanpr, "enable_post_processing")
+
 
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
@@ -465,6 +478,7 @@ classes = (
     SCENE_PT_rigid_body_cache,
     SCENE_PT_rigid_body_field_weights,
     SCENE_PT_simplify,
+    SCENE_PT_lanpr,
     SCENE_PT_custom_props,
 )
 

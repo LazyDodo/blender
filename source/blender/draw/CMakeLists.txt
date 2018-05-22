@@ -110,6 +110,11 @@ set(SRC
 	engines/workbench/workbench_studiolight.c
 	engines/workbench/solid_mode.c
 	engines/external/external_engine.c
+	#engines/lanpr/NUL_TNS_Kernel.c
+	#engines/lanpr/NUL_Util.c
+	#engines/lanpr/NUL_TNS_SoftwareRender.c
+    #engines/lanpr/NUL_TNS_EdgeRendering.c
+    #engines/lanpr/NUL_TNS_Mesh.c
 
 	DRW_engine.h
 	intern/DRW_render.h
@@ -129,6 +134,9 @@ set(SRC
 	engines/eevee/eevee_lut.h
 	engines/eevee/eevee_private.h
 	engines/external/external_engine.h
+
+	#engines/lanpr/NUL_TNS.h
+	#engines/lanpr/NUL_Util.h
 )
 
 if(WITH_CLAY_ENGINE)

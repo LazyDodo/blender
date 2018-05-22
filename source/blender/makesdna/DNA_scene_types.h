@@ -1424,6 +1424,14 @@ typedef struct SceneEEVEE {
 	int shadow_cascade_size;
 } SceneEEVEE;
 
+
+/* LANPR Global Config */
+
+typedef struct SceneLANPR{
+    int enable_post_processing;
+	int SizeCompensate;
+} SceneLANPR;
+
 /* *************************************************************** */
 /* Scene ID-Block */
 
@@ -1519,6 +1527,9 @@ typedef struct Scene {
 
 	struct SceneDisplay display;
 	struct SceneEEVEE eevee;
+
+	/* LANPR stuff */
+	struct SceneLANPR lanpr;
 } Scene;
 
 /* **************** RENDERDATA ********************* */

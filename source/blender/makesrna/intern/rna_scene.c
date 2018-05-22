@@ -39,6 +39,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_view3d_types.h"
 #include "DNA_screen_types.h" /* TransformOrientation */
+#include "DNA_lanpr_types.h"
 
 #include "IMB_imbuf_types.h"
 
@@ -6179,6 +6180,28 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 }
 
+static void rna_def_scene_lanpr(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	static const EnumPropertyItem rna_enum_lanpr_enable_post_processing[] = {
+	    {LANPR_POST_PROCESSING_DISABLED, "DISABLED", ICON_MESH_CUBE, "Disabled", "LANPR does not compute anything"},
+        {LANPR_POST_PROCESSING_ENABLED, "ENABLED", ICON_MESH_CUBE, "Enabled", "LANPR will compute feature lines in image post processing"},
+	    {0, NULL, 0, NULL, NULL}
+    };
+
+	srna = RNA_def_struct(brna, "SceneLANPR", NULL);
+	RNA_def_struct_sdna(srna, "SceneLANPR");
+	RNA_def_struct_ui_text(srna, "Scene LANPR Config", "LANPR global config");
+    
+    prop = RNA_def_property(srna, "enable_post_processing", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_lanpr_enable_post_processing);
+	RNA_def_property_enum_default(prop, LANPR_POST_PROCESSING_DISABLED);
+	RNA_def_property_ui_text(prop, "Enable Post Processing", "Draw image post processing line or not");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+}
+
 void RNA_def_scene(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -6626,6 +6649,12 @@ void RNA_def_scene(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "SceneEEVEE");
 	RNA_def_property_ui_text(prop, "EEVEE", "EEVEE settings for the scene");
 
+    /* LANPR */
+	prop = RNA_def_property(srna, "lanpr", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "lanpr");
+	RNA_def_property_struct_type(prop, "SceneLANPR");
+	RNA_def_property_ui_text(prop, "LANPR", "LANPR settings for the scene");
+
 	/* Nestled Data  */
 	/* *** Non-Animated *** */
 	RNA_define_animate_sdna(false);
@@ -6642,6 +6671,7 @@ void RNA_def_scene(BlenderRNA *brna)
 	rna_def_display_safe_areas(brna);
 	rna_def_scene_display(brna);
 	rna_def_scene_eevee(brna);
+	rna_def_scene_lanpr(brna);
 	RNA_define_animate_sdna(true);
 	/* *** Animated *** */
 	rna_def_scene_render_data(brna);

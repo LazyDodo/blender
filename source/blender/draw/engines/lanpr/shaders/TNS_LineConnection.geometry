@@ -1,0 +1,136 @@
+#version 330 
+
+layout (lines_adjacency) in;
+layout (triangle_strip, max_vertices = 6) out;
+
+in vec4 gColor[];
+in float gOffset[];
+
+out vec4 fColor;
+
+uniform float uValue0;
+#define LineWidth uValue0
+
+uniform float uValue1;
+#define TotalLength uValue1
+
+uniform float uValue2;
+#define TaperLDist uValue2
+
+uniform float uValue3;
+#define TaperRDist uValue3
+
+uniform float uValue4;
+#define TaperLStrength uValue4
+
+uniform float uValue5;
+#define TaperRStrength uValue5
+
+#define M_PI 3.1415926535897932384626433832795
+
+vec4 MakeLeftTaperLinear(vec4 L, vec4 a, float offset){
+    if(offset >= TaperLDist) return a;
+	a = mix(mix(a,L,TaperLStrength),a,offset/TaperLDist);
+	return a;
+}
+
+vec4 MakeRightTaperLinear(vec4 R, vec4 c, float offset){
+    if((TotalLength-offset) >= TaperRDist) return c;
+	c = mix(mix(c,R,TaperRStrength),c,(TotalLength-offset)/TaperRDist);
+	return c;
+}
+
+void main() {
+    fColor = gColor[0];
+
+	float LAngle,RAngle;
+
+	vec4 LL = gl_in[0].gl_Position,
+	     L  = gl_in[1].gl_Position,
+		 R  = gl_in[2].gl_Position,
+		 RR = gl_in[3].gl_Position;
+
+	float OffsetL = gOffset[1];
+	float OffsetR = gOffset[2];
+
+	//if(L==R) return;
+
+	vec4 a;
+	vec4 b;
+	vec4 c;
+	vec4 d;
+	vec4 Line = R-L;
+	vec4 Normal = normalize(vec4(-Line.y,Line.x,0,0));
+
+	a = L - LineWidth * Normal*0.001;
+	b = L + LineWidth * Normal*0.001;
+	c = R - LineWidth * Normal*0.001;
+	d = R + LineWidth * Normal*0.001;
+
+    //gl_Position = a;
+	//EmitVertex();
+	//gl_Position = b ;
+	//EmitVertex();
+	//gl_Position = c;
+	//EmitVertex();
+	//EndPrimitive();
+	//
+	//gl_Position = c;
+	//EmitVertex();
+	//gl_Position = d;
+	//EmitVertex();
+	//gl_Position = b;
+	//EmitVertex();
+    //EndPrimitive();
+	//
+	//
+	//return;
+
+    if(LL == L){
+		a = L - LineWidth * Normal*0.001;
+		b = L + LineWidth * Normal*0.001;
+	}else{
+	    vec4 Tangent = normalize( normalize(L-LL)+normalize(R-L));
+	    vec4 Minter = normalize(vec4(-Tangent.y,Tangent.x,0,0));
+	    float length = LineWidth/(dot(Minter,Normal))*0.001;
+	    a = L - length*Minter;
+	    b = L + length*Minter;
+	}
+
+	if (R == RR){
+		c = R - LineWidth * Normal*0.001;
+		d = R + LineWidth * Normal*0.001;
+	}else{
+	    vec4 Tangent = normalize( normalize(RR-R)+normalize(R-L));
+	    vec4 Minter = normalize(vec4(-Tangent.y,Tangent.x,0,0));
+	    float length = LineWidth/(dot(Minter,Normal))*0.001;
+	    c = R - length*Minter;
+	    d = R + length*Minter;
+	}
+
+	a = MakeLeftTaperLinear(L,a,OffsetL);
+	b = MakeLeftTaperLinear(L,b,OffsetL);
+	c = MakeLeftTaperLinear(R,c,OffsetR);
+	d = MakeLeftTaperLinear(R,d,OffsetR);
+
+	a = MakeRightTaperLinear(L,a,OffsetL);
+	b = MakeRightTaperLinear(L,b,OffsetL);
+	c = MakeRightTaperLinear(R,c,OffsetR);
+	d = MakeRightTaperLinear(R,d,OffsetR);
+
+	gl_Position = a;
+	EmitVertex();
+	gl_Position = b ;
+	EmitVertex();
+	gl_Position = c;
+	EmitVertex();
+	EndPrimitive();
+
+	gl_Position = c;
+	EmitVertex();
+	gl_Position = d;
+	EmitVertex();
+	gl_Position = b;
+	EmitVertex();
+    EndPrimitive();
+}
