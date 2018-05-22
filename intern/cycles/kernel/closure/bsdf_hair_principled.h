@@ -151,8 +151,6 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 		return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
 	}
 
-	printf("Initializing PrincipledHair closure \n");
-
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 0.999f);
 	bsdf->s = clamp(bsdf->s, 0.001f, 0.999f);
