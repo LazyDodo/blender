@@ -2033,7 +2033,7 @@ typedef enum eGPencil_Flags {
 	GP_TOOL_FLAG_PAINT_ONBACK = (1 << 2),
 } eGPencil_Flags;
 
-/* scene->simplify_gpencil */
+/* scene->r.simplify_gpencil */
 typedef enum eGPencil_SimplifyFlags {
 	/* Simplify */
 	SIMPLIFY_GPENCIL_ENABLE = (1 << 0),
