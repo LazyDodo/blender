@@ -1424,7 +1424,6 @@ static const ColorTemplate gp_monkey_pct_pupils = {
 /* add a 2D Suzanne (original model created by Matias Mendiola) */
 void ED_gpencil_create_monkey(bContext *C, float mat[4][4])
 {
-	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);

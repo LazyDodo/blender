@@ -1124,7 +1124,6 @@ static void gp_layer_to_curve(bContext *C, ReportList *reports, bGPdata *gpd, bG
                               const bool norm_weights, const float rad_fac, const bool link_strokes, tGpTimingData *gtd)
 {
 	struct Main *bmain = CTX_data_main(C);
-	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Collection *collection = CTX_data_collection(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
@@ -1235,7 +1234,6 @@ static void gp_layer_to_curve(bContext *C, ReportList *reports, bGPdata *gpd, bG
  */
 static bool gp_convert_check_has_valid_timing(bContext *C, bGPDlayer *gpl, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 
@@ -1300,7 +1298,6 @@ static int gp_convert_poll(bContext *C)
 	bGPDlayer *gpl = NULL;
 	bGPDframe *gpf = NULL;
 	ScrArea *sa = CTX_wm_area(C);
-	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	
 	/* only if the current view is 3D View, if there's valid data (i.e. at least one stroke!),

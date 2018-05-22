@@ -1923,7 +1923,7 @@ void ED_gpencil_draw_view3d(wmWindowManager *wm,
 
 	/* check that we have grease-pencil stuff to draw */
 	// XXX: This is the only place that still uses this function
-	bGPdata *gpd = ED_gpencil_data_get_active_v3d(scene, view_layer);
+	bGPdata *gpd = ED_gpencil_data_get_active_v3d(view_layer);
 	if (gpd == NULL) return;
 
 	/* when rendering to the offscreen buffer we don't want to

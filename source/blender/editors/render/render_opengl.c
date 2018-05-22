@@ -417,7 +417,7 @@ static void screen_opengl_render_write(OGLRender *oglrender)
 	else printf("OpenGL Render failed to write '%s'\n", name);
 }
 
-static void addAlphaOverFloat(float dest[4], const float source[4])
+static void UNUSED_FUNCTION(addAlphaOverFloat)(float dest[4], const float source[4])
 {
 	/* d = s + (1-alpha_s)d*/
 	float mul;

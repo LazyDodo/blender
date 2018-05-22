@@ -1010,7 +1010,6 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 {
 	tGPSB_CloneBrushData *data = gso->customdata;
 	
-	Scene *scene = gso->scene;
 	Object *ob = CTX_data_active_object(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
@@ -1337,7 +1336,6 @@ static int gpsculpt_brush_poll(bContext *C)
 
 static void gpsculpt_brush_init_stroke(tGP_BrushEditData *gso)
 {
-	Scene *scene = gso->scene;
 	bGPdata *gpd = gso->gpd;
 	
 	bGPDlayer *gpl;

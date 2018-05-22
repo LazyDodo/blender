@@ -471,7 +471,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		 * (as outlined above - see Campbell's #ifdefs). That causes the get_active function to fail when 
 		 * called from context. For that reason, we end up using an alternative where we pass everything in!
 		 */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
+		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
 		
 		if (gpd) {
 			CTX_data_id_pointer_set(result, &gpd->id);
@@ -486,7 +486,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		PointerRNA ptr;
 		
 		/* get pointer to Grease Pencil Data */
-		gpd_ptr = ED_gpencil_data_get_pointers_direct((ID *)sc, scene, sa, obact, &ptr);
+		gpd_ptr = ED_gpencil_data_get_pointers_direct((ID *)sc, sa, obact, &ptr);
 		
 		if (gpd_ptr) {
 			CTX_data_pointer_set(result, ptr.id.data, ptr.type, ptr.data);
@@ -495,7 +495,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "active_gpencil_layer")) {
 		/* XXX: see comment for gpencil_data case... */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
+		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
 		
 		if (gpd) {
 			bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
@@ -516,7 +516,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "active_gpencil_frame")) {
 		/* XXX: see comment for gpencil_data case... */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
+		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
 		
 		if (gpd) {
 			bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
@@ -529,7 +529,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "visible_gpencil_layers")) {
 		/* XXX: see comment for gpencil_data case... */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
+		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
 		
 		if (gpd) {
 			bGPDlayer *gpl;
@@ -545,7 +545,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "editable_gpencil_layers")) {
 		/* XXX: see comment for gpencil_data case... */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
+		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
 		
 		if (gpd) {
 			bGPDlayer *gpl;
@@ -561,7 +561,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "editable_gpencil_strokes")) {
 		/* XXX: see comment for gpencil_data case... */
-		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, scene, sa, obact);
+		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
 		bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
 		if (gpd) {

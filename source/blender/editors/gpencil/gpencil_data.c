@@ -383,7 +383,6 @@ enum {
 
 static int gp_frame_duplicate_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);

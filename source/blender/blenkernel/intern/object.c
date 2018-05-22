@@ -834,7 +834,7 @@ Object *BKE_object_add_from(
  *                 assigning it to the object.
  */
 Object *BKE_object_add_for_data(
-        Main *bmain, Scene *scene, ViewLayer *view_layer,
+        Main *bmain, ViewLayer *view_layer,
         int type, const char *name, ID *data, bool add_user)
 {
 	Object *ob;

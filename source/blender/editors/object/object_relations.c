@@ -1621,7 +1621,7 @@ void OBJECT_OT_make_links_data(wmOperatorType *ot)
 
 /**************************** Make Single User ********************************/
 
-static Object *single_object_users_object(Main *bmain, Scene *scene, Object *ob)
+static Object *single_object_users_object(Main *bmain, Object *ob)
 {
 	/* base gets copy of object */
 	Object *obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
@@ -1649,7 +1649,7 @@ static void single_object_users_collection(Main *bmain, Scene *scene, Collection
 		/* an object may be in more than one collection */
 		if ((ob->id.newid == NULL) && ((ob->flag & flag) == flag)) {
 			if (!ID_IS_LINKED(ob) && ob->id.us > 1) {
-				cob->ob = single_object_users_object(bmain, scene, cob->ob);
+				cob->ob = single_object_users_object(bmain, cob->ob);
 			}
 		}
 	}

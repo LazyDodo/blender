@@ -66,7 +66,6 @@ static void gp_deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SmoothGpencilModifierData *mmd = (SmoothGpencilModifierData *)md;
-	bGPDspoint *pt;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 	float weight = 1.0f;
 	float val;
@@ -82,7 +81,7 @@ static void gp_deformStroke(
 	if (mmd->factor > 0.0f) {
 		for (int r = 0; r < mmd->step; r++) {
 			for (int i = 0; i < gps->totpoints; i++) {
-				pt = &gps->points[i];
+				// bGPDspoint *pt = &gps->points[i];
 				MDeformVert *dvert = &gps->dvert[i];
 
 				/* verify vertex group */

@@ -109,7 +109,7 @@ struct Object *BKE_object_add_from(
         int type, const char *name, struct Object *ob_src)
         ATTR_NONNULL(1, 2, 3, 6) ATTR_RETURNS_NONNULL;
 struct Object *BKE_object_add_for_data(
-        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer,
+        struct Main *bmain, struct ViewLayer *view_layer,
         int type, const char *name, struct ID *data, bool add_user) ATTR_RETURNS_NONNULL;
 void *BKE_object_obdata_add_from_type(
         struct Main *bmain,

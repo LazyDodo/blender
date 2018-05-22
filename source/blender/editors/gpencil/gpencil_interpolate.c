@@ -495,7 +495,6 @@ static int gpencil_interpolate_init(bContext *C, wmOperator *op)
 static int gpencil_interpolate_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
 	wmWindow *win = CTX_wm_window(C);
-	Scene *scene = CTX_data_scene(C);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
@@ -917,7 +916,6 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
 	bGPDlayer *active_gpl = CTX_data_active_gpencil_layer(C);
 	bGPDframe *actframe = active_gpl->actframe;
 	
-	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);

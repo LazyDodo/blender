@@ -97,14 +97,16 @@ struct bGPdata  *ED_gpencil_data_get_active(const struct bContext *C);
 struct bGPdata  *ED_gpencil_data_get_active_evaluated(const struct bContext *C);
 
 /* Context independent (i.e. each required part is passed in instead) */
-struct bGPdata **ED_gpencil_data_get_pointers_direct(struct ID *screen_id, struct Scene *scene,
-                                                     struct ScrArea *sa, struct Object *ob,
-                                                     struct PointerRNA *r_ptr);
-struct bGPdata *ED_gpencil_data_get_active_direct(struct ID *screen_id, struct Scene *scene,
-                                                  struct ScrArea *sa, struct Object *ob);
+struct bGPdata **ED_gpencil_data_get_pointers_direct(
+        struct ID *screen_id,
+        struct ScrArea *sa, struct Object *ob,
+        struct PointerRNA *r_ptr);
+struct bGPdata *ED_gpencil_data_get_active_direct(
+        struct ID *screen_id,
+        struct ScrArea *sa, struct Object *ob);
 
 /* 3D View */
-struct bGPdata  *ED_gpencil_data_get_active_v3d(struct Scene *scene, struct ViewLayer *view_layer);
+struct bGPdata  *ED_gpencil_data_get_active_v3d(struct ViewLayer *view_layer);
 
 bool ED_gpencil_has_keyframe_v3d(struct Scene *scene, struct Object *ob, int cfra);
 

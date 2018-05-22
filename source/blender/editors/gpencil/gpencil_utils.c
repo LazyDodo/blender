@@ -89,7 +89,7 @@
 /* Get pointer to active Grease Pencil datablock, and an RNA-pointer to trace back to whatever owns it,
  * when context info is not available.
  */
-bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrArea *sa, Object *ob, PointerRNA *r_ptr)
+bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object *ob, PointerRNA *r_ptr)
 {
 	/* if there's an active area, check if the particular editor may
 	 * have defined any special Grease Pencil context for editing...
@@ -179,19 +179,18 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, Scene *scene, ScrAr
 bGPdata **ED_gpencil_data_get_pointers(const bContext *C, PointerRNA *r_ptr)
 {
 	ID *screen_id = (ID *)CTX_wm_screen(C);
-	Scene *scene = CTX_data_scene(C);
 	ScrArea *sa = CTX_wm_area(C);
 	Object *ob = CTX_data_active_object(C);
 
-	return ED_gpencil_data_get_pointers_direct(screen_id, scene, sa, ob, r_ptr);
+	return ED_gpencil_data_get_pointers_direct(screen_id, sa, ob, r_ptr);
 }
 
 /* -------------------------------------------------------- */
 
 /* Get the active Grease Pencil datablock, when context is not available */
-bGPdata *ED_gpencil_data_get_active_direct(ID *screen_id, Scene *scene, ScrArea *sa, Object *ob)
+bGPdata *ED_gpencil_data_get_active_direct(ID *screen_id, ScrArea *sa, Object *ob)
 {
-	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers_direct(screen_id, scene, sa, ob, NULL);
+	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers_direct(screen_id, sa, ob, NULL);
 	return (gpd_ptr) ? *(gpd_ptr) : NULL;
 }
 
@@ -217,7 +216,6 @@ bGPdata *ED_gpencil_data_get_active(const bContext *C)
 bGPdata *ED_gpencil_data_get_active_evaluated(const bContext *C)
 {
 	ID *screen_id = (ID *)CTX_wm_screen(C);
-	Scene *scene = CTX_data_scene(C);
 	ScrArea *sa = CTX_wm_area(C);
 	
 	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
@@ -225,13 +223,13 @@ bGPdata *ED_gpencil_data_get_active_evaluated(const bContext *C)
 	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	
 	/* if (ob && ob->type == OB_GPENCIL) BLI_assert(ob_eval->data == DEG_get_evaluated_id(ob->data)); */
-	return ED_gpencil_data_get_active_direct(screen_id, scene, sa, ob_eval);
+	return ED_gpencil_data_get_active_direct(screen_id, sa, ob_eval);
 }
 
 /* -------------------------------------------------------- */
 
 // XXX: this should be removed... We really shouldn't duplicate logic like this!
-bGPdata *ED_gpencil_data_get_active_v3d(Scene *scene, ViewLayer *view_layer)
+bGPdata *ED_gpencil_data_get_active_v3d(ViewLayer *view_layer)
 {
 	Base *base = view_layer->basact;
 	bGPdata *gpd = NULL;
@@ -1054,7 +1052,7 @@ void gp_randomize_stroke(bGPDstroke *gps, Brush *brush)
 
 /* calculate difference matrix */
 void ED_gpencil_parent_location(
-        const Depsgraph *depsgraph, Object *obact, bGPdata *gpd,
+        const Depsgraph *depsgraph, Object *obact, bGPdata *UNUSED(gpd),
         bGPDlayer *gpl, float diff_mat[4][4])
 {
 	Object *ob_eval = depsgraph != NULL ? DEG_get_evaluated_object(depsgraph, obact) : obact;

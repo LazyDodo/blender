@@ -188,7 +188,6 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 		GP_DRAWFILLS_ONLY3D = (1 << 1),   /* only draw 3d-strokes */
 	};
 
-	Scene *scene = tgpf->scene;
 	Object *ob = tgpf->ob;
 	bGPdata *gpd = tgpf->gpd;
 	int cfra_eval = (int)DEG_get_ctime(tgpf->depsgraph);
@@ -807,7 +806,6 @@ static void gpencil_points_from_stack(tGPDfill *tgpf)
 /* create a grease pencil stroke using points in buffer */
 static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 {
-	Scene *scene = tgpf->scene;
 	ToolSettings *ts = tgpf->scene->toolsettings;
 	int cfra_eval = (int)DEG_get_ctime(tgpf->depsgraph);
 

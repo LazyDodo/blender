@@ -895,7 +895,6 @@ typedef enum eGP_PasteMode {
 
 static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *gpl = CTX_data_active_gpencil_layer(C); /* only use active for copy merge */
@@ -1128,7 +1127,6 @@ static int gp_move_to_layer_exec(bContext *C, wmOperator *op)
 	
 	/* Paste them all in one go */
 	if (strokes.first) {
-		Scene *scene = CTX_data_scene(C);
 		bGPDframe *gpf = BKE_gpencil_layer_getframe(target_layer, cfra_eval, true);
 		
 		BLI_movelisttolist(&gpf->strokes, &strokes);
@@ -1185,7 +1183,6 @@ static int UNUSED_FUNCTION(gp_blank_frame_add_poll)(bContext *C)
 
 static int gp_blank_frame_add_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	int cfra_eval = (int)DEG_get_ctime(depsgraph);
@@ -1261,7 +1258,6 @@ static int gp_actframe_delete_poll(bContext *C)
 /* delete active frame - wrapper around API calls */
 static int gp_actframe_delete_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
 
@@ -1319,7 +1315,6 @@ static int gp_actframe_delete_all_poll(bContext *C)
 static int gp_actframe_delete_all_exec(bContext *C, wmOperator *op)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	Scene *scene = CTX_data_scene(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 
