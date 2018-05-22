@@ -52,7 +52,13 @@ void BKE_mesh_sample_weights_from_loc(struct MeshSample *sample, struct DerivedM
 bool BKE_mesh_sample_is_valid(const struct MeshSample *sample);
 bool BKE_mesh_sample_is_volume_sample(const struct MeshSample *sample);
 
-bool BKE_mesh_sample_eval(struct DerivedMesh *dm, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
+/* Evaluate position and normal on the given mesh */
+bool BKE_mesh_sample_eval(struct Mesh *mesh, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
+
+/* Evaluate position and normal on the given mesh */
+bool BKE_mesh_sample_eval_DM(struct DerivedMesh *dm, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
+
+/* Evaluate position for the given shapekey */
 bool BKE_mesh_sample_shapekey(struct Key *key, struct KeyBlock *kb, const struct MeshSample *sample, float loc[3]);
 
 void BKE_mesh_sample_clear(struct MeshSample *sample);

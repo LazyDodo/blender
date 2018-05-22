@@ -357,7 +357,7 @@ static void hair_batch_cache_ensure_follicles(
 	HairFollicle *follicle = pattern->follicles;
 	for (int i = 0; i < pattern->num_follicles; ++i, ++follicle) {
 		float co[3], nor[3], tang[3];
-		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, co, nor, tang);
+		BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, co, nor, tang);
 		
 		GWN_vertbuf_attr_set(cache->follicle_verts, pos_id, (unsigned int)i, co);
 	}

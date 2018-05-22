@@ -417,7 +417,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	{
 		for (int i = 0; i < num_strands; ++i) {
 			float nor[3], tang[3];
-			if (!BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
+			if (!BKE_mesh_sample_eval_DM(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
 				zero_v3(strandloc[i]);
 			}
 		}
@@ -432,7 +432,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	HairFollicle *follicle = pattern->follicles;
 	for (int i = 0; i < pattern->num_follicles; ++i, ++follicle) {
 		float loc[3], nor[3], tang[3];
-		if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang)) {
+		if (BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, loc, nor, tang)) {
 			hair_fiber_find_closest_strand(follicle, loc, tree, strandloc);
 			hair_fiber_verify_weights(follicle);
 		}
@@ -608,7 +608,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 				/* Root matrix for defining the initial normal direction */
 				float rootpos[3];
 				float rootmat[3][3];
-				BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
+				BKE_mesh_sample_eval_DM(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
 				cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
 				
 				hair_guide_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
@@ -664,7 +664,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 			for (int i = 0; i < totfibercurves; ++i, ++follicle) {
 				/* Cache fiber root position */
 				float nor[3], tang[3];
-				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
+				BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
 			}
 		}
 	}

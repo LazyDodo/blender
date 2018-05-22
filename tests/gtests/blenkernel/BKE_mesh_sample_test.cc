@@ -152,7 +152,7 @@ void MeshSampleTest::dump_samples()
 	}
 	for (int i = 0; i < m_numsamples; ++i) {
 		float nor[3], tang[3];
-		BKE_mesh_sample_eval(m_dm, &m_samples[i], dbg_verts[numverts + i], nor, tang);
+		BKE_mesh_sample_eval_DM(m_dm, &m_samples[i], dbg_verts[numverts + i], nor, tang);
 	}
 	int *dbg_faces = (int *)MEM_mallocN(sizeof(int) * m_mesh->totloop, "faces");
 	int *dbg_face_lengths = (int *)MEM_mallocN(sizeof(int) * m_mesh->totpoly, "face_lengths");
