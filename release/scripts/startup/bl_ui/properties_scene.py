@@ -437,28 +437,25 @@ class SCENE_PT_gp_simplify(SceneButtonsPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
 
     def draw_header(self, context):
-        ts = context.tool_settings
-        self.layout.prop(ts, "gpencil_simplify", text="")
+        rd = context.scene.render
+        self.layout.prop(rd, "simplify_gpencil", text="")
 
     def draw(self, context):
         layout = self.layout
 
-        ts = context.tool_settings
+        rd = context.scene.render
 
-        layout.active = ts.gpencil_simplify
+        layout.active = rd.simplify_gpencil
 
         row = layout.row()
-        row.prop(ts, "gpencil_simplify_onplay", text="Only on Play")
+        row.prop(rd, "simplify_gpencil_onplay", text="Only on Play")
 
         split = layout.split()
 
         col = split.column()
-        col.prop(ts, "gpencil_simplify_view_fill", text="Fill")
-        col.prop(ts, "gpencil_simplify_remove_lines", text="Remove Fill Lines")
-        col.prop(ts, "gpencil_simplify_view_modifier", text="Modifiers")
-
-        row = layout.row()
-        row.prop(ts, "gpencil_disable_fast_drawing")
+        col.prop(rd, "simplify_gpencil_view_fill", text="Fill")
+        col.prop(rd, "simplify_gpencil_remove_lines", text="Remove Fill Lines")
+        col.prop(rd, "simplify_gpencil_view_modifier", text="Modifiers")
 
 
 class SCENE_PT_viewport_display(SceneButtonsPanel, Panel):

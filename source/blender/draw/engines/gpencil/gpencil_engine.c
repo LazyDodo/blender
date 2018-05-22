@@ -282,8 +282,8 @@ void GPENCIL_cache_init(void *vedata)
 		stl->storage->is_render = DRW_state_is_image_render();
 
 		/* save simplify flags (can change while drawing, so it's better to save) */
-		stl->storage->simplify_fill = GP_SIMPLIFY_FILL(ts, stl->storage->playing);
-		stl->storage->simplify_modif = GP_SIMPLIFY_MODIF(ts, stl->storage->playing);
+		stl->storage->simplify_fill = GP_SIMPLIFY_FILL(scene, stl->storage->playing);
+		stl->storage->simplify_modif = GP_SIMPLIFY_MODIF(scene, stl->storage->playing);
 
 		/* save pixsize */
 		stl->storage->pixsize = DRW_viewport_pixelsize_get();
@@ -294,8 +294,7 @@ void GPENCIL_cache_init(void *vedata)
 		/* detect if painting session */
 		if ((obact_gpd) &&
 		    (obact_gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
-		    (stl->storage->playing == 0) &&
-		    ((ts->gpencil_simplify & GP_TOOL_FLAG_DISABLE_FAST_DRAWING) == 0))
+		    (stl->storage->playing == 0))
 		{
 			if (((obact_gpd->sbuffer_sflag & GP_STROKE_ERASER) == 0) && (obact_gpd->sbuffer_size > 1)) {
 				stl->g_data->session_flag = GP_DRW_PAINT_PAINTING;

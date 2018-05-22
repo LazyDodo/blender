@@ -2459,37 +2459,6 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Stroke Placement (Image Editor)", "");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
-	/* Grease Pencil - Simplify Options */
-	prop = RNA_def_property(srna, "gpencil_simplify", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_simplify", GP_TOOL_FLAG_SIMPLIFY);
-	RNA_def_property_ui_text(prop, "Simplify", "Simplify Grease Pencil Drawing");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "gpencil_simplify_onplay", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_simplify", GP_TOOL_FLAG_SIMPLIFY_ON_PLAY);
-	RNA_def_property_ui_text(prop, "On Play", "Simplify Grease Pencil only when play animation");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "gpencil_simplify_view_fill", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_simplify", GP_TOOL_FLAG_SIMPLIFY_VIEW_FILL);
-	RNA_def_property_ui_text(prop, "Fill", "Do not fill strokes on viewport");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "gpencil_simplify_remove_lines", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_simplify", GP_TOOL_FLAG_SIMPLIFY_REMOVE_LINE);
-	RNA_def_property_ui_text(prop, "Remove Lines", "Remove External Lines of Filling Strokes");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "gpencil_simplify_view_modifier", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_simplify", GP_TOOL_FLAG_SIMPLIFY_VIEW_MODIF);
-	RNA_def_property_ui_text(prop, "Fill", "Do not apply modifiers on viewport");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "gpencil_disable_fast_drawing", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_simplify", GP_TOOL_FLAG_DISABLE_FAST_DRAWING);
-	RNA_def_property_ui_text(prop, "Disable Fast Drawing", "Disable fast drawing while painting");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
 	/* Auto Keying */
 	prop = RNA_def_property(srna, "use_keyframe_insert_auto", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "autokey_mode", AUTOKEY_ON);
@@ -5175,6 +5144,32 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "simplify_particles_render");
 	RNA_def_property_ui_text(prop, "Simplify Child Particles", "Global child particles percentage during rendering");
 	RNA_def_property_update(prop, 0, "rna_Scene_simplify_update");
+
+	/* Grease Pencil - Simplify Options */
+	prop = RNA_def_property(srna, "simplify_gpencil", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_ENABLE);
+	RNA_def_property_ui_text(prop, "Simplify", "Simplify Grease Pencil Drawing");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "simplify_gpencil_onplay", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_ON_PLAY);
+	RNA_def_property_ui_text(prop, "On Play", "Simplify Grease Pencil only when play animation");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "simplify_gpencil_view_fill", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_FILL);
+	RNA_def_property_ui_text(prop, "Fill", "Do not fill strokes on viewport");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "simplify_gpencil_remove_lines", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_REMOVE_FILL_LINE);
+	RNA_def_property_ui_text(prop, "Remove Lines", "Remove External Lines of Filling Strokes");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "simplify_gpencil_view_modifier", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_MODIFIER);
+	RNA_def_property_ui_text(prop, "Fill", "Do not apply modifiers on viewport");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* persistent data */
 	prop = RNA_def_property(srna, "use_persistent_data", PROP_BOOLEAN, PROP_NONE);

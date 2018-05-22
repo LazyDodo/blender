@@ -685,7 +685,8 @@ typedef struct RenderData {
 	/* render simplify */
 	short simplify_subsurf;
 	short simplify_subsurf_render;
-	short pad9, pad10;
+	short simplify_gpencil;
+	short pad10;
 	float simplify_particles;
 	float simplify_particles_render;
 
@@ -1262,9 +1263,7 @@ typedef struct ToolSettings {
 	char gpencil_seq_align; /*                          : Sequencer Preview */
 	char gpencil_ima_align; /*                          : Image Editor */
 
-	short gpencil_simplify; /* simplify flags for grease pencil */
-	char pad6[2];
-
+	char pad6[4];
 	/* Grease Pencil Sculpt */
 	struct GP_BrushEdit_Settings gp_sculpt;
 
@@ -2034,20 +2033,18 @@ typedef enum eGPencil_Flags {
 	GP_TOOL_FLAG_PAINT_ONBACK = (1 << 2),
 } eGPencil_Flags;
 
-/* toolsettings->gpencil_simplify */
+/* scene->simplify_gpencil */
 typedef enum eGPencil_SimplifyFlags {
 	/* Simplify */
-	GP_TOOL_FLAG_SIMPLIFY = (1 << 0),
+	SIMPLIFY_GPENCIL_ENABLE = (1 << 0),
 	/* Simplify on play */
-	GP_TOOL_FLAG_SIMPLIFY_ON_PLAY = (1 << 1),
+	SIMPLIFY_GPENCIL_ON_PLAY = (1 << 1),
 	/* Simplify fill on viewport */
-	GP_TOOL_FLAG_SIMPLIFY_VIEW_FILL = (1 << 2),
+	SIMPLIFY_GPENCIL_FILL = (1 << 2),
 	/* Simplify modifier on viewport */
-	GP_TOOL_FLAG_SIMPLIFY_VIEW_MODIF = (1 << 3),
+	SIMPLIFY_GPENCIL_MODIFIER = (1 << 3),
 	/* Remove fill external line */
-	GP_TOOL_FLAG_SIMPLIFY_REMOVE_LINE = (1 << 8),
-	/* Disable fast drawing */
-	GP_TOOL_FLAG_DISABLE_FAST_DRAWING = (1 << 9),
+	SIMPLIFY_GPENCIL_REMOVE_FILL_LINE = (1 << 8),
 } eGPencil_SimplifyFlags;
 
 /* ToolSettings.gpencil_*_align - Stroke Placement mode flags */

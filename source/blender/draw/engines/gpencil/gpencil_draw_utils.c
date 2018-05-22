@@ -1,4 +1,5 @@
 /*
+/*
  * Copyright 2017, Blender Foundation.
  *
  * This program is free software; you can redistribute it and/or
@@ -676,6 +677,8 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 {
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = draw_ctx->scene;
 	bGPDstroke *gps, *src_gps;
 	DRWShadingGroup *fillgrp;
 	DRWShadingGroup *strokegrp;
@@ -729,7 +732,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 		}
 
 		/* if the fill has any value, it's considered a fill and is not drawn if simplify fill is enabled */
-		if ((stl->storage->simplify_fill) && (ts->gpencil_simplify & GP_TOOL_FLAG_SIMPLIFY_REMOVE_LINE)) {
+		if ((stl->storage->simplify_fill) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_REMOVE_FILL_LINE)) {
 			if ((gp_style->fill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || 
 			    (gp_style->fill_style > GP_STYLE_FILL_STYLE_SOLID))
 			{
