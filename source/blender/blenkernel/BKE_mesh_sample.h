@@ -28,6 +28,7 @@
 struct DerivedMesh;
 struct Key;
 struct KeyBlock;
+struct Mesh;
 struct MFace;
 struct MVert;
 
