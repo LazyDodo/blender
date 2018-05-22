@@ -1599,7 +1599,7 @@ int BKE_mesh_sample_generate_batch(MeshSampleGenerator *gen,
 #include "BKE_bvhutils.h"
 #include "BKE_particle.h"
 
-bool BKE_mesh_sample_from_particle(MeshSample *sample, ParticleSystem *psys, DerivedMesh *dm, ParticleData *pa)
+bool BKE_mesh_sample_from_particle(MeshSample *sample, ParticleSystem *psys, Mesh *mesh, ParticleData *pa)
 {
 	MVert *mverts;
 	MFace *mface;
@@ -1609,11 +1609,11 @@ bool BKE_mesh_sample_from_particle(MeshSample *sample, ParticleSystem *psys, Der
 	float vec[3];
 	float w[4];
 	
-	if (!psys_get_index_on_dm(psys, dm, pa, &mapindex, mapfw))
+	if (!psys_get_index_on_mesh(psys, mesh, pa, &mapindex, mapfw))
 		return false;
 	
-	mface = dm->getTessFaceData(dm, mapindex, CD_MFACE);
-	mverts = dm->getVertDataArray(dm, CD_MVERT);
+	mface = mesh->mface;
+	mverts = mesh->mvert;
 	
 	co1 = mverts[mface->v1].co;
 	co2 = mverts[mface->v2].co;
@@ -1651,19 +1651,19 @@ bool BKE_mesh_sample_from_particle(MeshSample *sample, ParticleSystem *psys, Der
 		return false;
 }
 
-bool BKE_mesh_sample_to_particle(MeshSample *sample, ParticleSystem *UNUSED(psys), DerivedMesh *dm, BVHTreeFromMesh *bvhtree, ParticleData *pa)
+bool BKE_mesh_sample_to_particle(MeshSample *sample, ParticleSystem *UNUSED(psys), Mesh *mesh, BVHTreeFromMesh *bvhtree, ParticleData *pa)
 {
 	BVHTreeNearest nearest;
 	float vec[3], nor[3], tang[3];
 	
-	BKE_mesh_sample_eval(dm, sample, vec, nor, tang);
+	BKE_mesh_sample_eval(mesh, sample, vec, nor, tang);
 	
 	nearest.index = -1;
 	nearest.dist_sq = FLT_MAX;
 	BLI_bvhtree_find_nearest(bvhtree->tree, vec, &nearest, bvhtree->nearest_callback, bvhtree);
 	if (nearest.index >= 0) {
-		MFace *mface = dm->getTessFaceData(dm, nearest.index, CD_MFACE);
-		MVert *mverts = dm->getVertDataArray(dm, CD_MVERT);
+		MFace *mface = mesh->mface;
+		MVert *mverts = mesh->mvert;
 		
 		float *co1 = mverts[mface->v1].co;
 		float *co2 = mverts[mface->v2].co;

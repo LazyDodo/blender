@@ -107,7 +107,7 @@ struct ParticleSystem;
 struct ParticleData;
 struct BVHTreeFromMesh;
 
-bool BKE_mesh_sample_from_particle(struct MeshSample *sample, struct ParticleSystem *psys, struct DerivedMesh *dm, struct ParticleData *pa);
-bool BKE_mesh_sample_to_particle(struct MeshSample *sample, struct ParticleSystem *psys, struct DerivedMesh *dm, struct BVHTreeFromMesh *bvhtree, struct ParticleData *pa);
+bool BKE_mesh_sample_from_particle(struct MeshSample *sample, struct ParticleSystem *psys, struct Mesh *mesh, struct ParticleData *pa);
+bool BKE_mesh_sample_to_particle(struct MeshSample *sample, struct ParticleSystem *psys, struct Mesh *mesh, struct BVHTreeFromMesh *bvhtree, struct ParticleData *pa);
 
 #endif  /* __BKE_MESH_SAMPLE_H__ */
