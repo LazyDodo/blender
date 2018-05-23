@@ -10,7 +10,6 @@ Author(s):WuYiming - xp8110@outlook.com
 #include <stdio.h>
 #include <time.h>
 #include "NUL_Util.h"
-#include "NUL_Interface.h"
 
 nSafeStringCollection SSC;
 

@@ -455,6 +455,10 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         layout = self.layout
         scene = context.scene
         layout.prop(scene.lanpr, "enable_post_processing")
+        layout.prop(scene.lanpr, "depth_clamp")
+        layout.prop(scene.lanpr, "depth_strength")
+        layout.prop(scene.lanpr, "normal_clamp")
+        layout.prop(scene.lanpr, "normal_strength")
 
 
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):

@@ -78,6 +78,7 @@
 #include "draw_mode_engines.h"
 #include "engines/clay/clay_engine.h"
 #include "engines/eevee/eevee_engine.h"
+#include "engines/lanpr/NUL_TNS.h"
 #include "engines/basic/basic_engine.h"
 #include "engines/workbench/workbench_engine.h"
 #include "engines/external/external_engine.h"
@@ -2021,7 +2022,7 @@ void DRW_engines_register(void)
 #endif
 	RE_engines_register(&DRW_engine_viewport_eevee_type);
 	RE_engines_register(&DRW_engine_viewport_workbench_type);
-
+    RE_engines_register(&DRW_engine_viewport_lanpr_type);
 	DRW_engine_register(&draw_engine_workbench_solid);
 
 	DRW_engine_register(&draw_engine_object_type);

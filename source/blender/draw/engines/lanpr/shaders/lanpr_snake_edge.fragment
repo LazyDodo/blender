@@ -1,17 +1,14 @@
-#version 330 core
-in vec4 fColor;
-in vec2 fUV;
-uniform sampler2DMS TexSample0;//depth
-uniform sampler2DMS TexSample1;//color
-uniform sampler2DMS TexSample2;//normal
+in vec4 uvcoordsvar;
+uniform sampler2D TexSample0;//depth
+uniform sampler2D TexSample1;//color
+uniform sampler2D TexSample2;//normal
 uniform float uValue0;//normal clamp
 uniform float uValue1;//normal strength
 uniform float uValue2;//depth clamp
 uniform float uValue3;//depth strength
-uniform float uValue4;//znear
-uniform float uValue5;//zfar
-#define zNear uValue4
-#define zFar uValue5
+uniform float zNear;//znear
+uniform float zFar;//zfar
+
 mat3 sx = mat3(
 	1.0, 2.0, 1.0, 
 	0.0, 0.0, 0.0, 
@@ -37,19 +34,16 @@ float linearDepth(float depthSample){
 	return zLinear;
 }
 
-vec4 DetectEdge(sampler2DMS tex){
+vec4 DetectEdge(sampler2D tex, float clamp, float strength){
 	mat3 I = mat3(0); 
     mat3 J = mat3(0); 
     mat3 K = mat3(0); 
 
-    ivec2 texSize = textureSize(tex);
-    ivec2 sp = ivec2(fUV * texSize);
+    ivec2 texSize = textureSize(tex, 0);
+    ivec2 sp = ivec2(uvcoordsvar.xy * texSize);
     vec4 cs=vec4(0);
 
-    float nc=uValue0;//(uValue0==0? 0.01:uValue0);
-    float ns=uValue1;//(uValue1==0? 5:   uValue1);
-    float dc=uValue2;//(uValue2==0? 0.2: uValue2);
-    float ds=uValue3;//(uValue3==0? 2.5: uValue3);
+    
     //for(int s=0;s<4;s++){
  	     for (int i = 0; i<3; i++) {
  		     for (int j = 0; j<3; j++) {
@@ -75,13 +69,23 @@ vec4 DetectEdge(sampler2DMS tex){
  	 float gx3 = dot(sx[0], K[0]) + dot(sx[1], K[1]) + dot(sx[2], K[2]); 
  	 float gy3 = dot(sy[0], K[0]) + dot(sy[1], K[1]) + dot(sy[2], K[2]); 
  	 float g3 = sqrt(pow(gx3, 2.0) + pow(gy3, 2.0)); 
+     
+	 float value = max(max(g1,g2),g3);
+	 return vec4(vec3(value),1);
 
-	 return vec4((max(max(g1,g2),g3)>1.4)?1:0);
+	 //if(value<clamp) value=0;
+
+	 //return vec4(pow(value,strength));
 }
 
 void main()
 {
- 	vec4 diffuse = fColor;
-    vec4 color = (DetectEdge(TexSample0)+DetectEdge(TexSample2));
+	float nc=uValue0;//(uValue0==0? 0.01:uValue0);
+    float ns=uValue1;//(uValue1==0? 5:   uValue1);
+    float dc=uValue2;//(uValue2==0? 0.2: uValue2);
+    float ds=uValue3;//(uValue3==0? 2.5: uValue3);
+
+ 	vec4 diffuse = vec4(1,1,1,1);
+    vec4 color = (DetectEdge(TexSample0,dc,ds)+DetectEdge(TexSample2,nc,ns));
  	gl_FragColor = color;
 };

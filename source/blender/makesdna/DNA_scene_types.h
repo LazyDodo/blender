@@ -1430,6 +1430,12 @@ typedef struct SceneEEVEE {
 typedef struct SceneLANPR{
     int enable_post_processing;
 	int SizeCompensate;
+
+	float depth_clamp;
+	float depth_strength;
+	float normal_clamp;
+	float normal_strength;
+
 } SceneLANPR;
 
 /* *************************************************************** */

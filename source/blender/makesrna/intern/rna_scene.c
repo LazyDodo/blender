@@ -6200,6 +6200,30 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_enum_default(prop, LANPR_POST_PROCESSING_DISABLED);
 	RNA_def_property_ui_text(prop, "Enable Post Processing", "Draw image post processing line or not");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
+
+	prop = RNA_def_property(srna, "depth_clamp", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 0.1f);
+	RNA_def_property_ui_text(prop, "Depth Clamp", "Depth clamp value for edge extraction");
+	RNA_def_property_ui_range(prop, 0.01f, 1.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+
+	prop = RNA_def_property(srna, "depth_strength", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 0.1f);
+	RNA_def_property_ui_text(prop, "Depth Strength", "Depth strength value for edge extraction");
+	RNA_def_property_ui_range(prop, 0.01f, 10.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+
+	prop = RNA_def_property(srna, "normal_clamp", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 0.1f);
+	RNA_def_property_ui_text(prop, "Normal Clamp", "Normal clamp value for edge extraction");
+	RNA_def_property_ui_range(prop, 0.01f, 1.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+
+	prop = RNA_def_property(srna, "normal_strength", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 0.1f);
+	RNA_def_property_ui_text(prop, "Normal Strength", "Normal strength value for edge extraction");
+	RNA_def_property_ui_range(prop, 0.01f, 10.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
 }
 
 void RNA_def_scene(BlenderRNA *brna)

@@ -113,7 +113,7 @@ set(SRC
 	#engines/lanpr/NUL_TNS_Kernel.c
 	#engines/lanpr/NUL_Util.c
 	#engines/lanpr/NUL_TNS_SoftwareRender.c
-    #engines/lanpr/NUL_TNS_EdgeRendering.c
+    engines/lanpr/NUL_TNS_EdgeRendering.c
     #engines/lanpr/NUL_TNS_Mesh.c
 
 	DRW_engine.h
@@ -135,8 +135,8 @@ set(SRC
 	engines/eevee/eevee_private.h
 	engines/external/external_engine.h
 
-	#engines/lanpr/NUL_TNS.h
-	#engines/lanpr/NUL_Util.h
+	engines/lanpr/NUL_TNS.h
+	engines/lanpr/NUL_Util.h
 )
 
 if(WITH_CLAY_ENGINE)
@@ -228,6 +228,14 @@ data_to_c_simple(engines/workbench/shaders/workbench_common_lib.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_data_lib.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_object_overlap_lib.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
+
+data_to_c_simple(engines/lanpr/shaders/lanpr_atlas_preview.geometry SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_atlas_project_clip.fragment SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_atlas_project_passthrough.vertex SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_image_peel.fragment SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_line_connection.geometry SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_snake_edge.fragment SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_snake_multichannel.fragment SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
