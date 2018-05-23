@@ -279,7 +279,7 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 	/* last sample is the center position */
 	MeshSample *center_sample = &bundle->scalp_region[numshapeverts];
 	float center_co[3], center_nor[3], center_tang[3], center_binor[3];
-	if (!BKE_mesh_sample_eval(dm, center_sample, center_co, center_nor, center_tang))
+	if (!BKE_mesh_sample_eval_DM(dm, center_sample, center_co, center_nor, center_tang))
 	{
 		result = false;
 		goto cleanup;
@@ -292,7 +292,7 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 	{
 		/* 3D position of the shape vertex origin on the mesh */
 		float co[3], nor[3], tang[3];
-		if (!BKE_mesh_sample_eval(dm, sample, co, nor, tang))
+		if (!BKE_mesh_sample_eval_DM(dm, sample, co, nor, tang))
 		{
 			result = false;
 			goto cleanup;
