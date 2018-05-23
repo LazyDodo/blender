@@ -948,6 +948,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 	}
 	else if (CTX_data_equals(member, "groom")) {
 		set_pointer_type(path, result, &RNA_Groom);
+		return 1;
 	}
 	else {
 		return 0; /* not found */
