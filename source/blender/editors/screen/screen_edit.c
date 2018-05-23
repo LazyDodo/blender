@@ -802,13 +802,15 @@ void ED_screen_refresh(wmWindowManager *wm, wmWindow *win)
 
 	/* exception for bg mode, we only need the screen context */
 	if (!G.background) {
+		WM_window_set_dpi(win);
+
+		/* Get window pixels __after__ updating window DPI! */
 		const int window_size_x = WM_window_pixels_x(win);
 		const int window_size_y = WM_window_pixels_y(win);
 		const int screen_size_x = WM_window_screen_pixels_x(win);
 		const int screen_size_y = WM_window_screen_pixels_y(win);
 
 		/* header size depends on DPI, let's verify */
-		WM_window_set_dpi(win);
 		screen_refresh_headersizes();
 
 		screen_vertices_scale(win, screen, window_size_x, window_size_y, screen_size_x, screen_size_y);
@@ -1041,7 +1043,7 @@ void ED_screen_set_active_region(bContext *C, wmWindow *win, const int xy[2])
 				if (do_draw) {
 					for (ar = area_iter->regionbase.first; ar; ar = ar->next) {
 						if (ar->regiontype == RGN_TYPE_HEADER) {
-							ED_region_tag_redraw(ar);
+							ED_region_tag_redraw_no_rebuild(ar);
 						}
 					}
 				}

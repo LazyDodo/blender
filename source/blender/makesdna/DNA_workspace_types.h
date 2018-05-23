@@ -56,11 +56,13 @@
 #
 #
 typedef struct bToolRef_Runtime {
-	/* One of these must be defined. */
 	int cursor;
+
+	/* One of these 3 must be defined. */
 	char keymap[64];
 	char manipulator_group[64];
 	char data_block[64];
+
 	/* index when a tool is a member of a group */
 	int index;
 } bToolRef_Runtime;
@@ -81,6 +83,15 @@ typedef struct bToolRef {
 	 * RNA needs to handle using item function.
 	 */
 	int mode;
+
+	/**
+	 * Use for tool options, each group's name must match a tool name:
+	 *
+	 *    {"Tool Name": {"SOME_OT_operator": {...}, ..}, ..}
+	 *
+	 * This is done since different tools may call the same operators with their own options.
+	 */
+	IDProperty *properties;
 
 	/** Variables needed to operate the tool. */
 	bToolRef_Runtime *runtime;
@@ -119,8 +130,6 @@ typedef struct WorkSpace {
 
 	/* Feature tagging (use for addons) */
 	ListBase owner_ids DNA_PRIVATE_WORKSPACE_READ_WRITE; /* wmOwnerID */
-
-	struct ViewLayer *view_layer DNA_DEPRECATED;
 
 	/* should be: '#ifdef USE_WORKSPACE_TOOL'. */
 
@@ -171,6 +180,9 @@ typedef struct WorkSpaceDataRelation {
 	void *parent;
 	/* The value for this parent-data/workspace relation */
 	void *value;
+
+	/** Use when we reference non-ID data, this allows use to look it up when linking in a workspace. */
+	char value_name[64];  /* MAX_NAME. */
 } WorkSpaceDataRelation;
 
 #endif /* DNA_PRIVATE_WORKSPACE_READ_WRITE */

@@ -52,6 +52,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
+#include "WM_toolsystem.h"
 
 #include "ED_screen.h"
 #include "ED_screen_types.h"
@@ -225,7 +226,7 @@ void ED_area_azones_update(ScrArea *sa, const int mouse_xy[2])
 
 	if (changed) {
 		sa->flag &= ~AREA_FLAG_ACTIONZONES_UPDATE;
-		ED_area_tag_redraw(sa);
+		ED_area_tag_redraw_no_rebuild(sa);
 	}
 }
 
@@ -605,6 +606,15 @@ void ED_area_tag_redraw(ScrArea *sa)
 	if (sa)
 		for (ar = sa->regionbase.first; ar; ar = ar->next)
 			ED_region_tag_redraw(ar);
+}
+
+void ED_area_tag_redraw_no_rebuild(ScrArea *sa)
+{
+	ARegion *ar;
+
+	if (sa)
+		for (ar = sa->regionbase.first; ar; ar = ar->next)
+			ED_region_tag_redraw_no_rebuild(ar);
 }
 
 void ED_area_tag_redraw_regiontype(ScrArea *sa, int regiontype)
