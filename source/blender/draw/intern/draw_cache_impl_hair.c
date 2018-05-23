@@ -307,7 +307,7 @@ Gwn_Batch *DRW_hair_batch_cache_get_fibers(
 	TIMEIT_START(DRW_hair_batch_cache_get_fibers);
 
 	HairExportCache *hair_export = BKE_hair_export_cache_new();
-	BKE_hair_export_update(hair_export, hsys, subdiv, scalp, HAIR_EXPORT_ALL);
+	BKE_hair_export_cache_update(hair_export, hsys, subdiv, scalp, HAIR_EXPORT_ALL);
 
 	if (cache->fibers == NULL) {
 		TIMEIT_BENCH(hair_batch_cache_ensure_fibers(hair_export, cache),
