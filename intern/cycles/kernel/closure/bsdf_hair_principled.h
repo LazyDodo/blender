@@ -160,6 +160,7 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 
 	float3 dPdCD, curve_P;
 	float h = curve_core_distance(kg, sd, &curve_P, &dPdCD);
+	assert(isfinite_safe(h));
 	dPdCD = normalize(dPdCD);
 	bsdf->geom = make_float4(dPdCD.x, dPdCD.y, dPdCD.z, h);
 
@@ -204,6 +205,8 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 {
 	//*pdf = 0.0f;
 	//return make_float3(0.0f, 0.0f, 0.0f);
+
+	assert(isfinite3_safe(sd->P) && isfinite_safe(sd->ray_length));
 
 	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
 	float3 dPdCD = float4_to_float3(bsdf->geom);
@@ -251,14 +254,18 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	float4 F;
 	F  = Ap[0] * azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t)
 			   * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+	assert(isfinite3_safe(F));
 
 	F += Ap[1] * azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t)
 			   * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+	assert(isfinite3_safe(F));
 
 	F += Ap[2] * azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t)
 			   * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	assert(isfinite3_safe(F));
 
 	F += Ap[3] * longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v) * M_1_2PI_F;
+	assert(isfinite3_safe(F));
 
 	//printf("%f %f %f %f\n", (double)F.x, (double)F.y, (double)F.z, (double)F.w);
 
@@ -353,14 +360,18 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 	float4 F;
 	F  = Ap[0] * azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t)
 			   * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+	assert(isfinite3_safe(F));
 
 	F += Ap[1] * azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t)
 			   * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+	assert(isfinite3_safe(F));
 
 	F += Ap[2] * azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t)
 			   * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	assert(isfinite3_safe(F));
 
 	F += Ap[3] * longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v) * M_1_2PI_F;
+	assert(isfinite3_safe(F));
 
 	*eval = float4_to_float3(F);
 	*pdf = F.w;
