@@ -58,6 +58,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 
 #include "view3d_intern.h"  /* own include */
 
