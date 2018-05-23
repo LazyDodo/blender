@@ -847,7 +847,6 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_color_select);
 	WM_operatortype_append(GPENCIL_OT_color_choose);
 
-
 	/* Editing (Time) --------------- */
 	
 	/* Interpolation */
@@ -857,6 +856,10 @@ void ED_operatortypes_gpencil(void)
 
 	/* Primitives */
 	WM_operatortype_append(GPENCIL_OT_primitive);
+
+	/* convert old 2.7 files to 2.8 */
+	WM_operatortype_append(GPENCIL_OT_convert_old_files);
+
 }
 
 void ED_operatormacros_gpencil(void)

@@ -2394,4 +2394,111 @@ void GPENCIL_OT_color_choose(wmOperatorType *ot)
 	RNA_def_int(ot->srna, "index", 0, 0, INT_MAX, "Index", "Index of Color", 0, INT_MAX);
 }
 
+/* ***************** Convert old 2.7 files to 2.8 ************************ */
+static int gpencil_convert_old_files_poll(bContext *C)
+{
+	Scene *scene = CTX_data_scene(C);
+
+	return (int) (scene->gpd != NULL);
+}
+
+static int gpencil_convert_old_files_exec(bContext *C, wmOperator *op)
+{
+	Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+
+	/* Convert grease pencil scene datablock to GP object */
+	if ((scene->gpd) && (view_layer != NULL)) {
+		Object *ob;
+		ob = BKE_object_add_for_data(bmain, view_layer, OB_GPENCIL, "GP_Scene", &scene->gpd->id, false);
+		zero_v3(ob->loc);
+
+		/* convert grease pencil palettes (version >= 2.78)  to materials and weights */
+		bGPdata *gpd = scene->gpd;
+		for (const bGPDpalette *palette = gpd->palettes.first; palette; palette = palette->next) {
+			for (bGPDpalettecolor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
+
+				/* create material slot */
+				BKE_object_material_slot_add(ob);
+				Material *ma = BKE_material_add_gpencil(bmain, palcolor->info);
+				assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+
+				/* copy color settings */
+				MaterialGPencilStyle *gp_style = ma->gp_style;
+				copy_v4_v4(gp_style->rgb, palcolor->color);
+				copy_v4_v4(gp_style->fill, palcolor->fill);
+				gp_style->flag = palcolor->flag;
+
+				/* fix strokes */
+				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+					for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+						for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+							if (STREQ(gps->colorname, palcolor->info)) {
+								gps->mat_nr = ob->totcol - 1;
+								/* create weights array */
+								gps->dvert = MEM_callocN(sizeof(gps->dvert) * gps->totpoints, "gp_stroke_weights");
+							}
+						}
+					}
+				}
+			}
+		}
+
+		/* set cache as dirty */
+		BKE_gpencil_batch_cache_dirty(ob->data);
+
+		scene->gpd = NULL;
+	}
+
+#if 0 /* GPXX */
+	/* Handle object-linked grease pencil datablocks */
+	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+		if (ob->gpd) {
+			if (ob->type == OB_GPENCIL) {
+				/* GP Object - remap the links */
+				ob->data = ob->gpd;
+				ob->gpd = NULL;
+			}
+			else if (ob->type == OB_EMPTY) {
+				/* Empty with GP data - This should be able to be converted
+				* to a GP object with little data loss
+				*/
+				ob->data = ob->gpd;
+				ob->gpd = NULL;
+				ob->type = OB_GPENCIL;
+			}
+			else {
+				/* FIXME: What to do in this case?
+				*
+				* We cannot create new objects for these, as we don't have a scene & scene layer
+				* to put them into from here...
+				*/
+				printf("WARNING: Old Grease Pencil data ('%s') still exists on Object '%s'\n",
+					ob->gpd->id.name + 2, ob->id.name + 2);
+			}
+		}
+	}
+#endif
+
+	/* notifiers */
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_convert_old_files(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Convert 2.7 Grease Pencil File";
+	ot->idname = "GPENCIL_OT_convert_old_files";
+	ot->description = "Convert 2.7x grease pencil files to 2.8";
+
+	/* callbacks */
+	ot->exec = gpencil_convert_old_files_exec;
+	ot->poll = gpencil_convert_old_files_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
 

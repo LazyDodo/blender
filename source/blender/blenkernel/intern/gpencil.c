@@ -545,6 +545,10 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 	}
 	BLI_assert(gps_src->totpoints == gps_dst->totpoints);
 
+	if ((gps_src->dvert == NULL) || (gps_dst->dvert == NULL)){
+		return;
+	}
+
 	for (int i = 0; i < gps_src->totpoints; i++) {
 		MDeformVert *dvert_src = &gps_src->dvert[i];
 		MDeformVert *dvert_dst = &gps_dst->dvert[i];
@@ -554,6 +558,7 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 		else {
 			dvert_dst->dw = NULL;
 		}
+
 	}
 }
 
