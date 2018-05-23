@@ -534,14 +534,27 @@ static void groom_generate_guide_curves(
 		BKE_mesh_sample_free_generator(gen);
 	}
 	
+	const int numverts = 20;
 	BKE_hair_guide_curves_begin(hsys, num_guides);
-	
 	for (int i = 0; i < num_guides; ++i)
 	{
-//		BKE_hair_set_guide_curve(hsys, i, &guide_samples[i], );
+		BKE_hair_set_guide_curve(hsys, i, &guide_samples[i], numverts);
 	}
-	
 	BKE_hair_guide_curves_end(hsys);
+
+	{
+		int idx = 0;
+		for (int i = 0; i < num_guides; ++i)
+		{
+			for (int j = 0; j < numverts; ++j)
+			{
+				float co[3];
+				zero_v3(co);
+				BKE_hair_set_guide_vertex(hsys, idx, 0, co);
+				++idx;
+			}
+		}
+	}
 	
 	MEM_freeN(guide_samples);
 }
