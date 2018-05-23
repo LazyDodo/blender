@@ -1398,7 +1398,7 @@ int psys_particle_dm_face_lookup(
 	return DMCACHE_NOTFOUND;
 }
 
-static int psys_map_index_on_dm(Mesh *mesh, int from, int index, int index_dmcache, const float fw[4], float UNUSED(foffset), int *mapindex, float mapfw[4])
+static int psys_map_index_on_mesh(Mesh *mesh, int from, int index, int index_dmcache, const float fw[4], float UNUSED(foffset), int *mapindex, float mapfw[4])
 {
 	if (index < 0)
 		return 0;
@@ -1458,9 +1458,9 @@ static int psys_map_index_on_dm(Mesh *mesh, int from, int index, int index_dmcac
 	return 1;
 }
 
-int psys_get_index_on_dm(ParticleSystem *psys, DerivedMesh *dm, ParticleData *pa, int *mapindex, float mapfw[4])
+int psys_get_index_on_mesh(ParticleSystem *psys, Mesh *mesh, ParticleData *pa, int *mapindex, float mapfw[4])
 {
-	return psys_map_index_on_dm(dm, psys->part->from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, mapindex, mapfw);
+	return psys_map_index_on_mesh(mesh, psys->part->from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, mapindex, mapfw);
 }
 
 /* interprets particle data to get a point on a mesh in object space */
@@ -1472,7 +1472,7 @@ void psys_particle_on_dm(Mesh *mesh_final, int from, int index, int index_dmcach
 	float (*orcodata)[3];
 	int mapindex;
 
-	if (!psys_map_index_on_dm(mesh_final, from, index, index_dmcache, fw, foffset, &mapindex, mapfw)) {
+	if (!psys_map_index_on_mesh(mesh_final, from, index, index_dmcache, fw, foffset, &mapindex, mapfw)) {
 		if (vec) { vec[0] = vec[1] = vec[2] = 0.0; }
 		if (nor) { nor[0] = nor[1] = 0.0; nor[2] = 1.0; }
 		if (orco) { orco[0] = orco[1] = orco[2] = 0.0; }
@@ -1537,7 +1537,7 @@ float psys_particle_value_from_verts(Mesh *mesh, short from, ParticleData *pa, f
 	float mapfw[4];
 	int mapindex;
 
-	if (!psys_map_index_on_dm(mesh, from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, &mapindex, mapfw))
+	if (!psys_map_index_on_mesh(mesh, from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, &mapindex, mapfw))
 		return 0.0f;
 	
 	return psys_interpolate_value_from_verts(mesh, from, mapindex, mapfw, values);

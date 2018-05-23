@@ -285,10 +285,32 @@ void BKE_hair_set_hair_guides(HairSystem *hsys, HairGuideData *guides)
 	hsys->guides.verts = MEM_dupallocN(hsys->guides.verts);
 	hsys->guides.totverts = guides->totverts;
 
+#ifndef NDEBUG
 	const int vertcount = hair_guide_calc_vertstart(hsys);
 	BLI_assert(vertcount <= hsys->guides.totverts);
+#endif
 
 	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
+	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
+}
+
+void BKE_hair_clear_guides(HairSystem *hsys)
+{
+	if (hsys->guides.curves)
+	{
+		MEM_freeN(hsys->guides.curves);
+		hsys->guides.curves = NULL;
+	}
+	hsys->guides.totcurves = 0;
+
+	if (hsys->guides.verts)
+	{
+		MEM_freeN(hsys->guides.verts);
+		hsys->guides.verts = NULL;
+	}
+	hsys->guides.totverts = 0;
+
+	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
@@ -395,7 +417,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	{
 		for (int i = 0; i < num_strands; ++i) {
 			float nor[3], tang[3];
-			if (!BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
+			if (!BKE_mesh_sample_eval_DM(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
 				zero_v3(strandloc[i]);
 			}
 		}
@@ -410,7 +432,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	HairFollicle *follicle = pattern->follicles;
 	for (int i = 0; i < pattern->num_follicles; ++i, ++follicle) {
 		float loc[3], nor[3], tang[3];
-		if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang)) {
+		if (BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, loc, nor, tang)) {
 			hair_fiber_find_closest_strand(follicle, loc, tree, strandloc);
 			hair_fiber_verify_weights(follicle);
 		}
@@ -528,33 +550,18 @@ static void hair_guide_calc_vectors(const HairGuideVertex* verts, int numverts, 
  * This can be used to construct full fiber data for rendering.
  */
 
-HairExportCache* BKE_hair_export_cache_new(const HairSystem *hsys, int subdiv, DerivedMesh *scalp)
+HairExportCache* BKE_hair_export_cache_new(void)
 {
 	HairExportCache *cache = MEM_callocN(sizeof(HairExportCache), "hair export cache");
-	
-	BKE_hair_export_cache_update(hsys, subdiv, scalp, cache, HAIR_EXPORT_ALL);
-	
-	return cache;
-}
-
-/* Create a new export cache.
- * This can be used to construct full fiber data for rendering.
- * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
- */
-
-HairExportCache* BKE_hair_export_cache_new_mesh(const HairSystem *hsys, int subdiv, struct Mesh *scalp)
-{
-	DerivedMesh *dm = CDDM_from_mesh(scalp);
-	HairExportCache *cache = BKE_hair_export_cache_new(hsys, subdiv, dm);
-	dm->release(dm);
 	return cache;
 }
 
 /* Update an existing export cache when data is invalidated.
+ * Returns flags for data that has been updated.
  */
 
-int BKE_hair_export_cache_update(const HairSystem *hsys, int subdiv, DerivedMesh *scalp,
-                                 HairExportCache *cache, int data)
+int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
+                                 int subdiv, DerivedMesh *scalp, int data)
 {
 	/* Check for missing data */
 	data |= BKE_hair_export_cache_get_required_updates(cache);
@@ -601,7 +608,7 @@ int BKE_hair_export_cache_update(const HairSystem *hsys, int subdiv, DerivedMesh
 				/* Root matrix for defining the initial normal direction */
 				float rootpos[3];
 				float rootmat[3][3];
-				BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
+				BKE_mesh_sample_eval_DM(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
 				cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
 				
 				hair_guide_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
@@ -657,7 +664,7 @@ int BKE_hair_export_cache_update(const HairSystem *hsys, int subdiv, DerivedMesh
 			for (int i = 0; i < totfibercurves; ++i, ++follicle) {
 				/* Cache fiber root position */
 				float nor[3], tang[3];
-				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
+				BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
 			}
 		}
 	}
@@ -679,6 +686,21 @@ int BKE_hair_export_cache_update(const HairSystem *hsys, int subdiv, DerivedMesh
 	}
 	
 	return data;
+}
+
+
+/* Update an existing export cache when data is invalidated.
+ * Returns flags for data that has been updated.
+ * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
+ */
+
+int BKE_hair_export_cache_update_mesh(HairExportCache *cache, const HairSystem *hsys,
+                                      int subdiv, struct Mesh *scalp, int data)
+{
+	DerivedMesh *dm = CDDM_from_mesh(scalp);
+	int result = BKE_hair_export_cache_update(cache, hsys, subdiv, dm, data);
+	dm->release(dm);
+	return result;
 }
 
 /* Free the given export cache */

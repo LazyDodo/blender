@@ -306,7 +306,8 @@ Gwn_Batch *DRW_hair_batch_cache_get_fibers(
 
 	TIMEIT_START(DRW_hair_batch_cache_get_fibers);
 
-	HairExportCache *hair_export = BKE_hair_export_cache_new(hsys, subdiv, scalp);
+	HairExportCache *hair_export = BKE_hair_export_cache_new();
+	BKE_hair_export_cache_update(hair_export, hsys, subdiv, scalp, HAIR_EXPORT_ALL);
 
 	if (cache->fibers == NULL) {
 		TIMEIT_BENCH(hair_batch_cache_ensure_fibers(hair_export, cache),
@@ -356,7 +357,7 @@ static void hair_batch_cache_ensure_follicles(
 	HairFollicle *follicle = pattern->follicles;
 	for (int i = 0; i < pattern->num_follicles; ++i, ++follicle) {
 		float co[3], nor[3], tang[3];
-		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, co, nor, tang);
+		BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, co, nor, tang);
 		
 		GWN_vertbuf_attr_set(cache->follicle_verts, pos_id, (unsigned int)i, co);
 	}
