@@ -155,7 +155,7 @@ static int region_bind_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = ED_object_context(C);
 	Groom *groom = ob->data;
-	const bool force_rebind = RNA_int_get(op->ptr, "force_rebind");
+	const bool force_rebind = RNA_boolean_get(op->ptr, "force_rebind");
 
 	GroomBundle *bundle = CTX_data_pointer_get_type(C, "groom_bundle", &RNA_GroomBundle).data;
 	if (!bundle)
