@@ -377,7 +377,8 @@ static void hair_batch_cache_ensure_guide_curves(
 	GWN_INDEXBUF_DISCARD_SAFE(cache->guide_curve_edges);
 	
 	const unsigned int point_count = hair_export->totguideverts;
-	const unsigned int elems_count = hair_export->totguideverts - hair_export->totguidecurves;
+	/* One segment for each point, plus one for primitive restart index */
+	const unsigned int elems_count = hair_export->totguideverts + hair_export->totguidecurves;
 	
 	static Gwn_VertFormat format = { 0 };
 	static unsigned pos_id;
