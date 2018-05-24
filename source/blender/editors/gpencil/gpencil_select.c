@@ -190,6 +190,10 @@ static int gpencil_select_all_exec(bContext *C, wmOperator *op)
 	
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -244,6 +248,10 @@ static int gpencil_select_linked_exec(bContext *C, wmOperator *op)
 	
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -317,6 +325,10 @@ static int gpencil_select_alternate_exec(bContext *C, wmOperator *op)
 
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -466,6 +478,10 @@ static int gpencil_select_grouped_exec(bContext *C, wmOperator *op)
 	
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -537,6 +553,10 @@ static int gpencil_select_first_exec(bContext *C, wmOperator *op)
 	
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -604,6 +624,10 @@ static int gpencil_select_last_exec(bContext *C, wmOperator *op)
 	
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -687,6 +711,10 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
 	
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -765,6 +793,10 @@ static int gpencil_select_less_exec(bContext *C, wmOperator *UNUSED(op))
 	
 	/* updates */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+	/* copy on write tag is needed, or else no refresh happens */
+	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 	WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -929,6 +961,10 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
 	/* updates */
 	if (changed) {
 		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+		/* copy on write tag is needed, or else no refresh happens */
+		DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	
@@ -1045,6 +1081,10 @@ static int gpencil_border_select_exec(bContext *C, wmOperator *op)
 	/* updates */
 	if (changed) {
 		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+		/* copy on write tag is needed, or else no refresh happens */
+		DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	
@@ -1162,6 +1202,10 @@ static int gpencil_lasso_select_exec(bContext *C, wmOperator *op)
 	/* updates */
 	if (changed) {
 		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+		/* copy on write tag is needed, or else no refresh happens */
+		DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	
@@ -1326,6 +1370,10 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 	/* updates */
 	if (hit_point != NULL) {
 		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+
+		/* copy on write tag is needed, or else no refresh happens */
+		DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
+
 		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
 	}
 	
