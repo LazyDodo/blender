@@ -400,6 +400,9 @@ class INFO_MT_editor_menus(Menu):
     @staticmethod
     def draw_menus(layout, context):
         layout.menu("INFO_MT_file")
+        layout.menu("INFO_MT_edit")
+
+        layout.menu("INFO_MT_render")
 
         layout.menu("INFO_MT_window")
         layout.menu("INFO_MT_help")
@@ -430,8 +433,6 @@ class INFO_MT_file(Menu):
         layout.operator("wm.save_as_mainfile", text="Save Copy...", icon='SAVE_COPY').copy = True
 
         layout.separator()
-
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
 
         layout.operator_context = 'INVOKE_AREA'
         layout.operator("wm.save_homefile", icon='SAVE_PREFS')
@@ -546,6 +547,40 @@ class INFO_MT_game(Menu):
         layout.prop(gs, "use_auto_start")
 
 
+class INFO_MT_render(Menu):
+    bl_label = "Render"
+
+    def draw(self, context):
+        layout = self.layout
+
+        rd = context.scene.render
+
+        layout.operator("render.render", text="Render Image", icon='RENDER_STILL').use_viewport = True
+        props = layout.operator("render.render", text="Render Animation", icon='RENDER_ANIMATION')
+        props.animation = True
+        props.use_viewport = True
+        layout.operator("sound.mixdown", text="Render Audio", icon='PLAY_AUDIO')
+
+        layout.separator()
+
+        layout.prop_menu_enum(rd, "display_mode", text="Display Mode", icon='IMAGE_COL')
+        layout.prop(rd, "use_lock_interface", text="Lock Interface")
+
+        layout.separator()
+
+        props = layout.operator("render.opengl", text="OpenGL Render Image", icon='RENDER_STILL')
+        props.view_context = False
+        props = layout.operator("render.opengl", text="OpenGL Render Animation", icon='RENDER_ANIMATION')
+        props.view_context = False
+        props.animation = True
+        layout.menu("INFO_MT_opengl_render", icon='SETTINGS')
+
+        layout.separator()
+
+        layout.operator("render.view_show")
+        layout.operator("render.play_rendered_anim", icon='PLAY')
+
+
 class INFO_MT_opengl_render(Menu):
     bl_label = "OpenGL Render Options"
 
@@ -560,6 +595,29 @@ class INFO_MT_opengl_render(Menu):
         layout.prop_menu_enum(rd, "alpha_mode")
 
 
+class INFO_MT_edit(Menu):
+    bl_label = "Edit"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("ed.undo")
+        layout.operator("ed.redo")
+
+        layout.separator()
+
+        layout.operator("ed.undo_history")
+
+        layout.separator()
+
+        layout.operator("view3d.copybuffer", text="Copy Objects", icon='COPYDOWN')
+        layout.operator("view3d.pastebuffer", text="Paste Objects", icon='PASTEDOWN')
+
+        layout.separator()
+
+        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+
+
 class INFO_MT_window(Menu):
     bl_label = "Window"
 
@@ -569,7 +627,6 @@ class INFO_MT_window(Menu):
         layout = self.layout
 
         layout.operator("wm.window_new")
-        layout.operator("render.view_show")
         layout.operator("wm.window_fullscreen_toggle", icon='FULLSCREEN_ENTER')
 
         layout.separator()
@@ -640,7 +697,9 @@ classes = (
     INFO_MT_file_export,
     INFO_MT_file_external_data,
     INFO_MT_file_previews,
+    INFO_MT_edit,
     INFO_MT_game,
+    INFO_MT_render,
     INFO_MT_opengl_render,
     INFO_MT_window,
     INFO_MT_help,
