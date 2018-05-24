@@ -108,16 +108,14 @@ void BKE_hair_generate_follicles(
         int count);
 
 /* Distribute hair follicles on a scalp mesh.
- * Loop weight function controls follicle density on the scalp.
+ * Optional per-loop weights control follicle density on the scalp.
  */
-typedef float (*HairMeshLoopWeightFp)(struct Mesh *mesh, struct MLoop *loop, unsigned int index, void *userdata);
 void BKE_hair_generate_follicles_ex(
         struct HairSystem* hsys,
         struct Mesh *scalp,
         unsigned int seed,
         int count,
-        HairMeshLoopWeightFp loop_weight_cb,
-        void *userdata);
+        const float *loop_weights);
 
 void BKE_hair_bind_follicles(struct HairSystem *hsys, struct Mesh *scalp);
 
