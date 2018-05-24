@@ -556,15 +556,61 @@ HairExportCache* BKE_hair_export_cache_new(void)
 	return cache;
 }
 
-/* Update an existing export cache when data is invalidated.
+/* Returns flags for missing data parts */
+
+static int hair_export_cache_get_required_updates(const HairExportCache *cache)
+{
+	int data = 0;
+	if (!cache->guide_curves)
+	{
+		data |= HAIR_EXPORT_GUIDE_CURVES;
+	}
+	if (!cache->guide_verts || !cache->guide_normals || !cache->guide_tangents)
+	{
+		data |= HAIR_EXPORT_GUIDE_VERTICES;
+	}
+	if (!cache->follicles)
+	{
+		data |= HAIR_EXPORT_FOLLICLE_BINDING;
+	}
+	if (!cache->fiber_root_position)
+	{
+		data |= HAIR_EXPORT_FIBER_ROOT_POSITIONS;
+	}
+	if (!cache->fiber_numverts)
+	{
+		data |= HAIR_EXPORT_FIBER_VERTEX_COUNTS;
+	}
+	return data;
+}
+
+/* Include data dependencies of the given flags */
+
+static int hair_export_cache_get_dependencies(int data)
+{
+	/* Ordering here is important to account for recursive dependencies */
+	
+	if (data & HAIR_EXPORT_GUIDE_CURVES)
+		data |= HAIR_EXPORT_GUIDE_VERTICES | HAIR_EXPORT_FOLLICLE_BINDING;
+	
+	if (data & HAIR_EXPORT_FOLLICLE_BINDING)
+		data |= HAIR_EXPORT_FIBER_ROOT_POSITIONS | HAIR_EXPORT_FIBER_VERTEX_COUNTS;
+	
+	return data;
+}
+
+/* Update an existing export cache to ensure it contains the requested data.
  * Returns flags for data that has been updated.
  */
 
 int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
-                                 int subdiv, DerivedMesh *scalp, int data)
+                                 int subdiv, DerivedMesh *scalp, int requested_data)
 {
-	/* Check for missing data */
-	data |= BKE_hair_export_cache_get_required_updates(cache);
+	/* Only update invalidated parts */
+	int data = requested_data & hair_export_cache_get_required_updates(cache);
+	
+	/* Invalid data should already include all dependencies */
+	BLI_assert(data == hair_export_cache_get_dependencies(data));
 	
 	if (data & HAIR_EXPORT_GUIDE_CURVES)
 	{
@@ -689,16 +735,16 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 }
 
 
-/* Update an existing export cache when data is invalidated.
+/* Update an existing export cache to ensure it contains the requested data.
  * Returns flags for data that has been updated.
  * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
  */
 
 int BKE_hair_export_cache_update_mesh(HairExportCache *cache, const HairSystem *hsys,
-                                      int subdiv, struct Mesh *scalp, int data)
+                                      int subdiv, struct Mesh *scalp, int requested_data)
 {
 	DerivedMesh *dm = CDDM_from_mesh(scalp);
-	int result = BKE_hair_export_cache_update(cache, hsys, subdiv, dm, data);
+	int result = BKE_hair_export_cache_update(cache, hsys, subdiv, dm, requested_data);
 	dm->release(dm);
 	return result;
 }
@@ -734,34 +780,6 @@ void BKE_hair_export_cache_free(HairExportCache *cache)
 	MEM_freeN(cache);
 }
 
-/* Returns flags for missing data parts */
-
-int BKE_hair_export_cache_get_required_updates(const HairExportCache *cache)
-{
-	int data = 0;
-	if (!cache->guide_curves)
-	{
-		data |= HAIR_EXPORT_GUIDE_CURVES;
-	}
-	if (!cache->guide_verts || !cache->guide_normals || !cache->guide_tangents)
-	{
-		data |= HAIR_EXPORT_GUIDE_VERTICES;
-	}
-	if (!cache->follicles)
-	{
-		data |= HAIR_EXPORT_FOLLICLE_BINDING;
-	}
-	if (!cache->fiber_root_position)
-	{
-		data |= HAIR_EXPORT_FIBER_ROOT_POSITIONS;
-	}
-	if (!cache->fiber_numverts)
-	{
-		data |= HAIR_EXPORT_FIBER_VERTEX_COUNTS;
-	}
-	return data;
-}
-
 /* Invalidate all data in a hair export cache */
 
 void BKE_hair_export_cache_clear(HairExportCache *cache)
@@ -770,11 +788,17 @@ void BKE_hair_export_cache_clear(HairExportCache *cache)
 	BKE_hair_export_cache_invalidate(cache, HAIR_EXPORT_ALL);
 }
 
-/* Invalidate part of the data in a hair export cache */
+/* Invalidate part of the data in a hair export cache.
+ *
+ * Note some parts may get invalidated automatically based on internal dependencies.
+ */
 
 void BKE_hair_export_cache_invalidate(HairExportCache *cache, int invalidate)
 {
-	if (invalidate & HAIR_EXPORT_GUIDE_CURVES)
+	/* Include dependencies */
+	int data = hair_export_cache_get_dependencies(invalidate);
+
+	if (data & HAIR_EXPORT_GUIDE_CURVES)
 	{
 		if (cache->guide_curves)
 		{
@@ -782,7 +806,7 @@ void BKE_hair_export_cache_invalidate(HairExportCache *cache, int invalidate)
 			cache->guide_curves = 0;
 		}
 	}
-	if (invalidate & HAIR_EXPORT_GUIDE_VERTICES)
+	if (data & HAIR_EXPORT_GUIDE_VERTICES)
 	{
 		if (cache->guide_verts)
 		{
@@ -800,11 +824,11 @@ void BKE_hair_export_cache_invalidate(HairExportCache *cache, int invalidate)
 			cache->guide_tangents = NULL;
 		}
 	}
-	if (invalidate & HAIR_EXPORT_FOLLICLE_BINDING)
+	if (data & HAIR_EXPORT_FOLLICLE_BINDING)
 	{
 		cache->follicles = NULL;
 	}
-	if (invalidate & HAIR_EXPORT_FIBER_ROOT_POSITIONS)
+	if (data & HAIR_EXPORT_FIBER_ROOT_POSITIONS)
 	{
 		if (cache->fiber_root_position)
 		{
@@ -812,7 +836,7 @@ void BKE_hair_export_cache_invalidate(HairExportCache *cache, int invalidate)
 			cache->fiber_root_position = NULL;
 		}
 	}
-	if (invalidate & HAIR_EXPORT_FIBER_VERTEX_COUNTS)
+	if (data & HAIR_EXPORT_FIBER_VERTEX_COUNTS)
 	{
 		if (cache->fiber_numverts)
 		{
