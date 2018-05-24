@@ -170,6 +170,20 @@ void BKE_hair_generate_follicles(
         unsigned int seed,
         int count)
 {
+	BKE_hair_generate_follicles_ex(hsys, scalp, seed, count, NULL, NULL);
+}
+
+/* Distribute hair follicles on a scalp mesh.
+ * Loop weight function controls follicle density on the scalp.
+ */
+void BKE_hair_generate_follicles_ex(
+        HairSystem* hsys,
+        struct Mesh *scalp,
+        unsigned int seed,
+        int count,
+        HairMeshLoopWeightFp loop_weight_cb,
+        void *userdata)
+{
 	HairPattern *pattern = hsys->pattern;
 	
 	// Limit max_count to theoretical limit based on area
@@ -184,7 +198,7 @@ void BKE_hair_generate_follicles(
 	pattern->follicles = MEM_callocN(sizeof(HairFollicle) * count, "hair follicles");
 	
 	{
-		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(seed, min_distance, count, NULL, NULL);
+		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(seed, min_distance, count, loop_weight_cb, userdata);
 		
 		BKE_mesh_sample_generator_bind(gen, scalp);
 		

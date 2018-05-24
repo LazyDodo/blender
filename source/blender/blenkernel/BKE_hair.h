@@ -43,6 +43,7 @@ struct HairDrawSettings;
 struct HairGuideData;
 struct Mesh;
 struct MeshSample;
+struct MLoop;
 struct Object;
 
 /* Create a new hair system instance */
@@ -105,6 +106,18 @@ void BKE_hair_generate_follicles(
         struct Mesh *scalp,
         unsigned int seed,
         int count);
+
+/* Distribute hair follicles on a scalp mesh.
+ * Loop weight function controls follicle density on the scalp.
+ */
+typedef float (*HairMeshLoopWeightFp)(struct Mesh *mesh, struct MLoop *loop, unsigned int index, void *userdata);
+void BKE_hair_generate_follicles_ex(
+        struct HairSystem* hsys,
+        struct Mesh *scalp,
+        unsigned int seed,
+        int count,
+        HairMeshLoopWeightFp loop_weight_cb,
+        void *userdata);
 
 void BKE_hair_bind_follicles(struct HairSystem *hsys, struct Mesh *scalp);
 
