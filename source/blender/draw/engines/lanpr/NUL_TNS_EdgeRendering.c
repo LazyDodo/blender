@@ -14,6 +14,7 @@ extern char datatoc_common_fullscreen_vert_glsl[];
 extern char datatoc_gpu_shader_3D_normal_smooth_color_vert_glsl[];
 extern char datatoc_lanpr_snake_multichannel_fragment[];
 extern char datatoc_lanpr_snake_edge_fragment[];
+extern char datatoc_lanpr_image_peel_fragment[];
 
 //==============================================================[ ATLAS / DPIX ]
 
@@ -28,6 +29,7 @@ extern char datatoc_lanpr_snake_edge_fragment[];
 typedef struct LANPROneTimeInit{
     GPUShader* multichannel_shader;
 	GPUShader* edge_detect_shader;
+	GPUShader* edge_thinning_shader;
 	void* ved;
 } LANPROneTimeInit;
 
@@ -73,6 +75,16 @@ static void lanpr_engine_init(void *ved){
 		GPU_ATTACHMENT_LEAVE
 	});
 
+	GPU_framebuffer_ensure_config(&fbl->edge_thinning, {
+		GPU_ATTACHMENT_TEXTURE(txl->depth),
+		GPU_ATTACHMENT_TEXTURE(txl->color),
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE
+	});
+
 
 	if (!OneTime.multichannel_shader) {
 	OneTime.multichannel_shader = 
@@ -88,6 +100,13 @@ static void lanpr_engine_init(void *ved){
 			datatoc_lanpr_snake_edge_fragment,NULL,NULL,NULL);
 
     }
+	if (!OneTime.edge_thinning_shader) {
+	OneTime.edge_thinning_shader = 
+		GPU_shader_create(
+			datatoc_common_fullscreen_vert_glsl,
+			datatoc_lanpr_image_peel_fragment,NULL,NULL,NULL);
+
+    }
 
 }
 static void lanpr_engine_free(void){
@@ -100,10 +119,16 @@ static void lanpr_engine_free(void){
     LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 
 	DRW_pass_free(psl->color_pass);
+	DRW_pass_free(psl->edge_intermediate);
+
+	GPU_framebuffer_free(fbl->passes);
+	GPU_framebuffer_free(fbl->edge_intermediate);
+	GPU_framebuffer_free(fbl->edge_thinning);
 
 	DRW_texture_free(txl->depth);
 	DRW_texture_free(txl->color);
 	DRW_texture_free(txl->normal);
+	DRW_texture_free(txl->edge_intermediate);
 }
 
 static void lanpr_cache_init(void *vedata){
@@ -118,21 +143,30 @@ static void lanpr_cache_init(void *vedata){
 		stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
 	}
 
-	{
-		psl->color_pass = DRW_pass_create("Color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
-		stl->g_data->multipass_shgrp = DRW_shgroup_create(OneTime.multichannel_shader, psl->color_pass);
-	}
+
+	psl->color_pass = DRW_pass_create("Color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
+	stl->g_data->multipass_shgrp = DRW_shgroup_create(OneTime.multichannel_shader, psl->color_pass);
+
 
 	struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
 
-	{
-		psl->edge_intermediate = DRW_pass_create("Edge Detection", DRW_STATE_WRITE_COLOR);
-		stl->g_data->edge_detect_shgrp = DRW_shgroup_create(OneTime.edge_detect_shader, psl->edge_intermediate);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample0", &txl->depth);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample1", &txl->color);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample2", &txl->normal);
-		DRW_shgroup_call_add(stl->g_data->edge_detect_shgrp, quad, NULL);
-	}
+
+	psl->edge_intermediate = DRW_pass_create("Edge Detection", DRW_STATE_WRITE_COLOR);
+	stl->g_data->edge_detect_shgrp = DRW_shgroup_create(OneTime.edge_detect_shader, psl->edge_intermediate);
+	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample0", &txl->depth);
+	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample1", &txl->color);
+	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample2", &txl->normal);
+	DRW_shgroup_call_add(stl->g_data->edge_detect_shgrp, quad, NULL);
+
+	psl->edge_thinning = DRW_pass_create("Edge Thinning Stage 1", DRW_STATE_WRITE_COLOR);
+	stl->g_data->edge_thinning_shgrp = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning);
+	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "TexSample0", &txl->edge_intermediate);
+	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
+
+	psl->edge_thinning_2 = DRW_pass_create("Edge Thinning Stage 2", DRW_STATE_WRITE_COLOR);
+	stl->g_data->edge_thinning_shgrp_2 = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning_2);
+	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp_2, "TexSample0", &txl->color);
+	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp_2, quad, NULL);
 }
 
 static void lanpr_cache_populate(void *vedata, Object *ob){
@@ -202,6 +236,18 @@ static void lanpr_draw_scene(void *vedata)
 	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue3", &depth_strength, 1);// depth strength
 
 	DRW_draw_pass(psl->edge_intermediate);
+
+    int stage = 0;
+    GPU_framebuffer_bind(fbl->edge_thinning);
+	GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
+	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "Stage", &stage, 1);
+    DRW_draw_pass(psl->edge_thinning);
+
+	stage = 1;
+	GPU_framebuffer_bind(fbl->edge_intermediate);
+	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
+	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp_2, "Stage", &stage, 1);
+    DRW_draw_pass(psl->edge_thinning_2);
 
 	GPU_framebuffer_bind(dfbl->default_fb);
 	

@@ -1,10 +1,7 @@
-#version 330
-in vec4 fColor;
-in vec2 fUV;
-uniform sampler2DMS TexSample0;
-uniform int uValue0;
 
-#define Stage uValue0
+in vec4 uvcoordsvar;
+uniform sampler2D TexSample0;
+uniform int Stage;
 
 int  decisions[256] = int[](0,0,1,1,0,0,1,1,1,1,0,1,1,1,0,1,
                             1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,1,
@@ -36,8 +33,8 @@ int PickPixel(ivec2 sp){
 
 void main(){
 
-    ivec2 texSize = textureSize(TexSample0);
-    ivec2 sp = ivec2(fUV * texSize);
+    ivec2 texSize = textureSize(TexSample0,0);
+    ivec2 sp = ivec2(uvcoordsvar.xy * texSize);
 	vec4 OriginalColor = texelFetch(TexSample0, sp, 0);
 
 	int p2 = PickPixel(sp+ivec2( 0,+1));

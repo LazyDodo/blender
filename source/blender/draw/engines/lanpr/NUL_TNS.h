@@ -16,11 +16,14 @@ typedef struct LANPR_PassList {
 	struct DRWPass *color_pass;
 	struct DRWPass *normal_pass;
 	struct DRWPass *edge_intermediate;
+	struct DRWPass *edge_thinning;
+	struct DRWPass *edge_thinning_2;
 } LANPR_PassList;
 
 typedef struct LANPR_FramebufferList {
 	struct GPUFrameBuffer *passes;
 	struct GPUFrameBuffer *edge_intermediate;
+	struct GPUFrameBuffer *edge_thinning;
 	struct GPUFrameBuffer *on_screen;
 	//and something...
 } LANPR_FramebufferList;
@@ -35,6 +38,8 @@ typedef struct LANPR_TextureList {
 typedef struct LANPR_PrivateData {
 	DRWShadingGroup *multipass_shgrp;
 	DRWShadingGroup *edge_detect_shgrp;
+	DRWShadingGroup *edge_thinning_shgrp;
+	DRWShadingGroup *edge_thinning_shgrp_2;
 } LANPR_PrivateData;
 
 typedef struct LANPR_StorageList {
