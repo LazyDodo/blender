@@ -82,6 +82,10 @@ static void groom_bundles_free(ListBase *bundles)
 		{
 			MEM_freeN(bundle->sections);
 		}
+		if (bundle->scalp_region)
+		{
+			MEM_freeN(bundle->scalp_region);
+		}
 	}
 	BLI_freelistN(bundles);
 }
@@ -102,6 +106,10 @@ static void groom_bundles_copy(ListBase *bundles_dst, ListBase *bundles_src)
 		if (bundle->verts)
 		{
 			bundle->verts = MEM_dupallocN(bundle->verts);
+		}
+		if (bundle->scalp_region)
+		{
+			bundle->scalp_region = MEM_dupallocN(bundle->scalp_region);
 		}
 	}
 }

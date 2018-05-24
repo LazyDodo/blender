@@ -113,6 +113,10 @@ static void groom_bundles_free(ListBase *bundles)
 		{
 			MEM_freeN(bundle->verts);
 		}
+		if (bundle->scalp_region)
+		{
+			MEM_freeN(bundle->scalp_region);
+		}
 	}
 	BLI_freelistN(bundles);
 }
@@ -174,6 +178,10 @@ void BKE_groom_copy_data(Main *UNUSED(bmain), Groom *groom_dst, const Groom *gro
 		if (bundle->verts)
 		{
 			bundle->verts = MEM_dupallocN(bundle->verts);
+		}
+		if (bundle->scalp_region)
+		{
+			bundle->scalp_region = MEM_dupallocN(bundle->scalp_region);
 		}
 	}
 	
