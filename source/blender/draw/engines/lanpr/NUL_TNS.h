@@ -40,6 +40,17 @@ typedef struct LANPR_PrivateData {
 	DRWShadingGroup *edge_detect_shgrp;
 	DRWShadingGroup *edge_thinning_shgrp;
 	DRWShadingGroup *edge_thinning_shgrp_2;
+
+	float normal_clamp;
+    float normal_strength;
+    float depth_clamp;
+    float depth_strength;
+
+	float zfar;
+	float znear;
+
+	int stage;//thinning
+
 } LANPR_PrivateData;
 
 typedef struct LANPR_StorageList {

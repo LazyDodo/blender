@@ -156,16 +156,26 @@ static void lanpr_cache_init(void *vedata){
 	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample0", &txl->depth);
 	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample1", &txl->color);
 	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample2", &txl->normal);
+
+	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zNear", &stl->g_data->znear, 1);
+    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zfFar", &stl->g_data->zfar, 1);
+
+	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue0", &stl->g_data->normal_clamp, 1);// normal clamp
+    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue1", &stl->g_data->normal_strength, 1);// normal strength
+    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue2", &stl->g_data->depth_clamp, 1);// depth clamp
+	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue3", &stl->g_data->depth_strength, 1);// depth strength
 	DRW_shgroup_call_add(stl->g_data->edge_detect_shgrp, quad, NULL);
 
 	psl->edge_thinning = DRW_pass_create("Edge Thinning Stage 1", DRW_STATE_WRITE_COLOR);
 	stl->g_data->edge_thinning_shgrp = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning);
 	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "TexSample0", &txl->edge_intermediate);
+	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "Stage", &stl->g_data->stage, 1);
 	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
 
 	psl->edge_thinning_2 = DRW_pass_create("Edge Thinning Stage 2", DRW_STATE_WRITE_COLOR);
 	stl->g_data->edge_thinning_shgrp_2 = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning_2);
 	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp_2, "TexSample0", &txl->color);
+	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp_2, "Stage", &stl->g_data->stage, 1);
 	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp_2, quad, NULL);
 }
 
@@ -216,41 +226,31 @@ static void lanpr_draw_scene(void *vedata)
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	float znear = camera? ((Camera*)camera->data)->clipsta:0.1;
-    float zfar = camera? ((Camera*)camera->data)->clipend:100;
+
+	stl->g_data->znear = camera? ((Camera*)camera->data)->clipsta:0.1;
+    stl->g_data->zfar = camera? ((Camera*)camera->data)->clipend:100;
+	stl->g_data->normal_clamp =    draw_ctx->scene->lanpr.normal_clamp;
+	stl->g_data->normal_strength = draw_ctx->scene->lanpr.normal_strength;
+	stl->g_data->depth_clamp =     draw_ctx->scene->lanpr.depth_clamp;
+	stl->g_data->depth_strength =  draw_ctx->scene->lanpr.depth_strength;
 
 	GPU_framebuffer_bind(fbl->edge_intermediate);
 	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
-
-	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zNear", &znear, 1);
-    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zfar", &zfar, 1);
-
-	float normal_clamp =    draw_ctx->scene->lanpr.normal_clamp;
-	float normal_strength = draw_ctx->scene->lanpr.normal_strength;
-	float depth_clamp =     draw_ctx->scene->lanpr.depth_clamp;
-	float depth_strength =  draw_ctx->scene->lanpr.depth_strength;
-
-	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue0", &normal_clamp, 1);// normal clamp
-    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue1", &normal_strength, 1);// normal strength
-    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue2", &depth_clamp, 1);// depth clamp
-	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue3", &depth_strength, 1);// depth strength
-
+	
 	DRW_draw_pass(psl->edge_intermediate);
-
-    int stage = 0;
+	
+    stl->g_data->stage = 0;
     GPU_framebuffer_bind(fbl->edge_thinning);
 	GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
-	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "Stage", &stage, 1);
     DRW_draw_pass(psl->edge_thinning);
 
-	stage = 1;
+	stl->g_data->stage = 1;
 	GPU_framebuffer_bind(fbl->edge_intermediate);
 	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
-	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp_2, "Stage", &stage, 1);
     DRW_draw_pass(psl->edge_thinning_2);
 
 	GPU_framebuffer_bind(dfbl->default_fb);
-	
+
 	DRW_transform_to_display(txl->edge_intermediate);
 }
 
