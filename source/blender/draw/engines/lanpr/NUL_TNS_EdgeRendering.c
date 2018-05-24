@@ -249,6 +249,16 @@ static void lanpr_draw_scene(void *vedata)
 	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
     DRW_draw_pass(psl->edge_thinning_2);
 
+	stl->g_data->stage = 0;
+    GPU_framebuffer_bind(fbl->edge_thinning);
+	GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
+    DRW_draw_pass(psl->edge_thinning);
+
+	stl->g_data->stage = 1;
+	GPU_framebuffer_bind(fbl->edge_intermediate);
+	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
+    DRW_draw_pass(psl->edge_thinning_2);
+
 	GPU_framebuffer_bind(dfbl->default_fb);
 
 	DRW_transform_to_display(txl->edge_intermediate);
