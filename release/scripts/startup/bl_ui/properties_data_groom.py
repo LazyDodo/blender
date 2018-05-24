@@ -111,9 +111,14 @@ class DATA_PT_groom_draw_settings(DataButtonsPanel, Panel):
         ds = groom.hair_draw_settings
 
         split = layout.split()
+
         col = split.column()
         col.label("Follicles:")
         col.prop(ds, "follicle_mode", expand=True)
+
+        col = split.column()
+        col.label("Guide Curves:")
+        col.prop(ds, "guide_mode", expand=True)
 
 
 class DATA_PT_custom_props_groom(DataButtonsPanel, PropertyPanel, Panel):
