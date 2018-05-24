@@ -79,9 +79,5 @@ void DRW_shgroup_hair(
 			DRW_shgroup_call_add(shgrp_verts, geom, ob->obmat);
 			break;
 		}
-		case HAIR_DRAW_FOLLICLE_AXES:
-		{
-			break;
-		}
 	}
 }

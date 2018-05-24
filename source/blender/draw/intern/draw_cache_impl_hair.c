@@ -381,14 +381,6 @@ Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(
 	
 }
 
-Gwn_Batch *DRW_hair_batch_cache_get_follicle_axes(
-        HairSystem *hsys,
-        struct DerivedMesh *scalp)
-{
-	UNUSED_VARS(hsys, scalp);
-	return NULL;
-}
-
 Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_points(
         HairSystem *hsys,
         struct DerivedMesh *scalp,

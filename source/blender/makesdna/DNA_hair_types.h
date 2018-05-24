@@ -118,7 +118,6 @@ typedef enum eHairDrawFollicleMode
 {
 	HAIR_DRAW_FOLLICLE_NONE     = 0,
 	HAIR_DRAW_FOLLICLE_POINTS   = 1,
-	HAIR_DRAW_FOLLICLE_AXES     = 2,
 } eHairDrawFollicleMode;
 
 #ifdef __cplusplus
