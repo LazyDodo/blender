@@ -73,26 +73,26 @@ static float calc_mesh_area(DerivedMesh *dm)
 	return totarea;
 }
 
-BLI_INLINE float triangle_weight(DerivedMesh *dm, const MLoopTri *tri, const float *vert_weights, float *r_area)
+BLI_INLINE float triangle_weight(DerivedMesh *dm, const MLoopTri *tri, const float *loop_weights, float *r_area)
 {
-	MVert *mverts = dm->getVertArray(dm);
-	MLoop *mloops = dm->getLoopArray(dm);
-	unsigned int index1 = mloops[tri->tri[0]].v;
-	unsigned int index2 = mloops[tri->tri[1]].v;
-	unsigned int index3 = mloops[tri->tri[2]].v;
-	MVert *v1 = &mverts[index1];
-	MVert *v2 = &mverts[index2];
-	MVert *v3 = &mverts[index3];
+	const MVert *mverts = dm->getVertArray(dm);
+	const MLoop *mloops = dm->getLoopArray(dm);
+	const unsigned int index1 = tri->tri[0];
+	const unsigned int index2 = tri->tri[1];
+	const unsigned int index3 = tri->tri[2];
+	const MVert *v1 = &mverts[mloops[index1].v];
+	const MVert *v2 = &mverts[mloops[index2].v];
+	const MVert *v3 = &mverts[mloops[index3].v];
 	
 	float weight = area_tri_v3(v1->co, v2->co, v3->co);
 	if (r_area) {
 		*r_area = weight;
 	}
 	
-	if (vert_weights) {
-		float w1 = vert_weights[index1];
-		float w2 = vert_weights[index2];
-		float w3 = vert_weights[index3];
+	if (loop_weights) {
+		float w1 = loop_weights[index1];
+		float w2 = loop_weights[index2];
+		float w3 = loop_weights[index3];
 		
 		weight *= (w1 + w2 + w3) / 3.0f;
 	}
@@ -100,19 +100,19 @@ BLI_INLINE float triangle_weight(DerivedMesh *dm, const MLoopTri *tri, const flo
 	return weight;
 }
 
-float* BKE_mesh_sample_calc_triangle_weights(DerivedMesh *dm, MeshSampleVertexWeightFp vertex_weight_cb, void *userdata, float *r_area)
+float* BKE_mesh_sample_calc_triangle_weights(DerivedMesh *dm, MeshSampleLoopWeightFp loop_weight_cb, void *userdata, float *r_area)
 {
-	int numverts = dm->getNumVerts(dm);
+	int numloops = dm->getNumLoops(dm);
 	int numtris = dm->getNumLoopTri(dm);
 	int numweights = numtris;
 	
-	float *vert_weights = NULL;
-	if (vertex_weight_cb) {
-		vert_weights = MEM_mallocN(sizeof(float) * (size_t)numverts, "mesh sample vertex weights");
+	float *loop_weights = NULL;
+	if (loop_weight_cb) {
+		loop_weights = MEM_mallocN(sizeof(float) * (size_t)numloops, "mesh sample loop weights");
 		{
-			MVert *mv = dm->getVertArray(dm);
-			for (int i = 0; i < numtris; ++i, ++mv) {
-				vert_weights[i] = vertex_weight_cb(dm, mv, (unsigned int)i, userdata);
+			MLoop *ml = dm->getLoopArray(dm);
+			for (int i = 0; i < numloops; ++i, ++ml) {
+				loop_weights[i] = loop_weight_cb(dm, ml, (unsigned int)i, userdata);
 			}
 		}
 	}
@@ -127,14 +127,14 @@ float* BKE_mesh_sample_calc_triangle_weights(DerivedMesh *dm, MeshSampleVertexWe
 			tri_weights[i] = totweight;
 			
 			float triarea;
-			float triweight = triangle_weight(dm, mt, vert_weights, &triarea);
+			float triweight = triangle_weight(dm, mt, loop_weights, &triarea);
 			totarea += triarea;
 			totweight += triweight;
 		}
 	}
 	
-	if (vert_weights) {
-		MEM_freeN(vert_weights);
+	if (loop_weights) {
+		MEM_freeN(loop_weights);
 	}
 	
 	/* normalize */
@@ -573,7 +573,7 @@ typedef struct MSurfaceSampleGenerator_Random {
 	
 	unsigned int seed;
 	bool use_area_weight;
-	MeshSampleVertexWeightFp vertex_weight_cb;
+	MeshSampleLoopWeightFp loop_weight_cb;
 	void *userdata;
 	
 	/* bind data */
@@ -597,7 +597,7 @@ static void generator_random_bind(MSurfaceSampleGenerator_Random *gen)
 	DM_ensure_normals(dm);
 	
 	if (gen->use_area_weight) {
-		gen->tri_weights = BKE_mesh_sample_calc_triangle_weights(dm, gen->vertex_weight_cb, gen->userdata, NULL);
+		gen->tri_weights = BKE_mesh_sample_calc_triangle_weights(dm, gen->loop_weight_cb, gen->userdata, NULL);
 		
 #ifdef USE_DEBUG_COUNT
 		gen->debug_count = MEM_callocN(sizeof(int) * (size_t)dm->getNumLoopTri(dm), "surface sample debug counts");
@@ -713,7 +713,7 @@ static bool generator_random_make_sample(const MSurfaceSampleGenerator_Random *g
 }
 
 MeshSampleGenerator *BKE_mesh_sample_gen_surface_random(unsigned int seed, bool use_area_weight,
-                                                        MeshSampleVertexWeightFp vertex_weight_cb, void *userdata)
+                                                        MeshSampleLoopWeightFp loop_weight_cb, void *userdata)
 {
 	MSurfaceSampleGenerator_Random *gen;
 	
@@ -729,7 +729,7 @@ MeshSampleGenerator *BKE_mesh_sample_gen_surface_random(unsigned int seed, bool 
 	
 	gen->seed = seed;
 	gen->use_area_weight = use_area_weight;
-	gen->vertex_weight_cb = vertex_weight_cb;
+	gen->loop_weight_cb = loop_weight_cb;
 	gen->userdata = userdata;
 	
 	return &gen->base;
@@ -1220,7 +1220,7 @@ static bool generator_poissondisk_make_sample(const MSurfaceSampleGenerator_Pois
 }
 
 MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, float mindist, unsigned int max_samples,
-                                                             MeshSampleVertexWeightFp vertex_weight_cb, void *userdata)
+                                                             MeshSampleLoopWeightFp loop_weight_cb, void *userdata)
 {
 	MSurfaceSampleGenerator_PoissonDisk *gen;
 	
@@ -1234,7 +1234,7 @@ MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, 
 	                      (GeneratorMakeSampleFp)generator_poissondisk_make_sample,
 	                      (GeneratorGetMaxSamplesFp)generator_poissondisk_get_max_samples);
 	
-	gen->uniform_gen = BKE_mesh_sample_gen_surface_random(seed, true, vertex_weight_cb, userdata);
+	gen->uniform_gen = BKE_mesh_sample_gen_surface_random(seed, true, loop_weight_cb, userdata);
 	gen->max_samples = max_samples;
 	gen->mindist_squared = mindist * mindist;
 	gen->cellsize = mindist / SQRT_3;
