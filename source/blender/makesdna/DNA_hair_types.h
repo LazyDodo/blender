@@ -110,8 +110,8 @@ typedef enum eHairSystemFlag
 typedef struct HairDrawSettings
 {
 	short follicle_mode;
-	short pad1;
-	int pad2;
+	short guide_mode;
+	int pad;
 } HairDrawSettings;
 
 typedef enum eHairDrawFollicleMode
@@ -119,6 +119,12 @@ typedef enum eHairDrawFollicleMode
 	HAIR_DRAW_FOLLICLE_NONE     = 0,
 	HAIR_DRAW_FOLLICLE_POINTS   = 1,
 } eHairDrawFollicleMode;
+
+typedef enum eHairDrawGuideMode
+{
+	HAIR_DRAW_GUIDE_NONE        = 0,
+	HAIR_DRAW_GUIDE_CURVES      = 1,
+} eHairDrawGuideMode;
 
 #ifdef __cplusplus
 }
