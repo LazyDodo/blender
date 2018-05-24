@@ -2996,11 +2996,6 @@ Gwn_Batch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, struct De
 	return DRW_hair_batch_cache_get_follicle_points(hsys, scalp);
 }
 
-Gwn_Batch *DRW_cache_hair_get_follicle_axes(struct HairSystem *hsys, struct DerivedMesh *scalp)
-{
-	return DRW_hair_batch_cache_get_follicle_axes(hsys, scalp);
-}
-
 Gwn_Batch *DRW_cache_hair_get_guide_curve_points(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv)
 {
 	return DRW_hair_batch_cache_get_guide_curve_points(hsys, scalp, subdiv);
