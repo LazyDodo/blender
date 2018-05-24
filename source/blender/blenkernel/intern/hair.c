@@ -606,11 +606,15 @@ static int hair_export_cache_get_dependencies(int data)
 int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
                                  int subdiv, DerivedMesh *scalp, int requested_data)
 {
-	/* Only update invalidated parts */
-	int data = requested_data & hair_export_cache_get_required_updates(cache);
+	/* Include dependencies */
+	int data = hair_export_cache_get_dependencies(requested_data);
 	
+	int uncached = hair_export_cache_get_required_updates(cache);
 	/* Invalid data should already include all dependencies */
-	BLI_assert(data == hair_export_cache_get_dependencies(data));
+	BLI_assert(uncached == hair_export_cache_get_dependencies(uncached));
+	
+	/* Only update invalidated parts */
+	data &= uncached;
 	
 	if (data & HAIR_EXPORT_GUIDE_CURVES)
 	{
