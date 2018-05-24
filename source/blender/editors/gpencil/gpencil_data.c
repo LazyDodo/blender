@@ -2442,10 +2442,13 @@ static int gpencil_convert_old_files_exec(bContext *C, wmOperator *op)
 				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 					for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 						for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-							if (STREQ(gps->colorname, palcolor->info)) {
+							if ((gps->colorname[0] != '\0') && 
+								(STREQ(gps->colorname, palcolor->info))) 
+							{
 								gps->mat_nr = ob->totcol - 1;
+								gps->colorname[0] = '\0';
 								/* create weights array */
-								gps->dvert = MEM_callocN(sizeof(gps->dvert) * gps->totpoints, "gp_stroke_weights");
+								gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
 							}
 						}
 					}
