@@ -1627,6 +1627,7 @@ static Object *single_object_users_object(Main *bmain, Object *ob)
 	Object *obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
 
 
+	id_us_plus(&obn->id);
 	id_us_min(&ob->id);
 	return obn;
 }

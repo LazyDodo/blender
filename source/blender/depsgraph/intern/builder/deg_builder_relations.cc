@@ -1790,9 +1790,12 @@ void DepsgraphRelationBuilder::build_obdata_geom(Object *object)
 			/* curve's dependencies */
 			// XXX: these needs geom data, but where is geom stored?
 			if (cu->bevobj) {
-				ComponentKey bevob_key(&cu->bevobj->id, DEG_NODE_TYPE_GEOMETRY);
+				ComponentKey bevob_geom_key(&cu->bevobj->id, DEG_NODE_TYPE_GEOMETRY);
+				add_relation(bevob_geom_key, obdata_geom_key, "Curve Bevel Geometry");
+				/* We only need scale, but we can't tag individual TRANSFORM components. */
+				ComponentKey bevob_key(&cu->bevobj->id, DEG_NODE_TYPE_TRANSFORM);
+				add_relation(bevob_key, obdata_geom_key, "Curve Bevel Scale");
 				build_object(NULL, cu->bevobj);
-				add_relation(bevob_key, geom_key, "Curve Bevel");
 			}
 			if (cu->taperobj) {
 				ComponentKey taperob_key(&cu->taperobj->id, DEG_NODE_TYPE_GEOMETRY);
@@ -2161,8 +2164,7 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		 */
 		OperationDepsNode *op_entry = comp_node->get_entry_operation();
 		if (op_entry != NULL) {
-			DepsRelation *rel = graph_->add_new_relation(op_cow, op_entry, "CoW Dependency");
-			rel->flag |= DEPSREL_FLAG_NO_FLUSH;
+			graph_->add_new_relation(op_cow, op_entry, "CoW Dependency");
 		}
 		/* All dangling operations should also be executed after copy-on-write. */
 		GHASH_FOREACH_BEGIN(OperationDepsNode *, op_node, comp_node->operations_map)
@@ -2186,8 +2188,7 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 					}
 				}
 				if (!has_same_comp_dependency) {
-					DepsRelation *rel_sub = graph_->add_new_relation(op_cow, op_node, "CoW Dependency");
-					rel_sub->flag |= DEPSREL_FLAG_NO_FLUSH;
+					graph_->add_new_relation(op_cow, op_node, "CoW Dependency");
 				}
 			}
 		}
