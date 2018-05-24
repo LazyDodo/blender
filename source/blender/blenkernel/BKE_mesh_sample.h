@@ -38,14 +38,13 @@ struct MeshSampleGenerator;
 
 typedef struct MeshSampleGenerator MeshSampleGenerator;
 
-typedef float (*MeshSampleLoopWeightFp)(struct Mesh *mesh, struct MLoop *loop, unsigned int index, void *userdata);
 typedef void* (*MeshSampleThreadContextCreateFp)(void *userdata, int start);
 typedef void (*MeshSampleThreadContextFreeFp)(void *userdata, void *thread_ctx);
 typedef bool (*MeshSampleRayFp)(void *userdata, void *thread_ctx, float ray_start[3], float ray_end[3]);
 
 /* ==== Utility Functions ==== */
 
-float* BKE_mesh_sample_calc_triangle_weights(struct Mesh *mesh, MeshSampleLoopWeightFp loop_weight_cb, void *userdata, float *r_area);
+float* BKE_mesh_sample_calc_triangle_weights(struct Mesh *mesh, const float *loop_weights, float *r_area);
 
 void BKE_mesh_sample_weights_from_loc(struct MeshSample *sample, struct Mesh *mesh, int looptri_index, const float loc[3]);
 
@@ -69,8 +68,7 @@ void BKE_mesh_sample_clear(struct MeshSample *sample);
 struct MeshSampleGenerator *BKE_mesh_sample_gen_surface_vertices(void);
 
 /* vertex_weight_cb is optional */
-struct MeshSampleGenerator *BKE_mesh_sample_gen_surface_random(unsigned int seed, bool use_area_weight,
-                                                               MeshSampleLoopWeightFp loop_weight_cb, void *userdata);
+struct MeshSampleGenerator *BKE_mesh_sample_gen_surface_random(unsigned int seed, bool use_area_weight, const float *loop_weights);
 
 struct MeshSampleGenerator *BKE_mesh_sample_gen_surface_raycast(
         MeshSampleThreadContextCreateFp thread_context_create_cb,
@@ -78,8 +76,7 @@ struct MeshSampleGenerator *BKE_mesh_sample_gen_surface_raycast(
         MeshSampleRayFp ray_cb,
         void *userdata);
 
-struct MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, float mindist, unsigned int max_samples,
-                                                                    MeshSampleLoopWeightFp loop_weight_cb, void *userdata);
+struct MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, float mindist, unsigned int max_samples, const float *loop_weights);
 
 struct MeshSampleGenerator *BKE_mesh_sample_gen_volume_random_bbray(unsigned int seed, float density);
 

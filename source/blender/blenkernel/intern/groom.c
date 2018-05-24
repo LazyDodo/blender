@@ -519,7 +519,6 @@ static void groom_generate_guide_curves(
 		            seed,
 		            min_distance,
 		            guide_curve_count,
-		            NULL,
 		            NULL);
 		
 		BKE_mesh_sample_generator_bind(gen, scalp);

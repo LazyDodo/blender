@@ -100,22 +100,10 @@ BLI_INLINE float triangle_weight(Mesh *mesh, const MLoopTri *tri, const float *l
 	return weight;
 }
 
-float* BKE_mesh_sample_calc_triangle_weights(Mesh *mesh, MeshSampleLoopWeightFp loop_weight_cb, void *userdata, float *r_area)
+float* BKE_mesh_sample_calc_triangle_weights(Mesh *mesh, const float *loop_weights, float *r_area)
 {
-	int numloops = mesh->totloop;
 	int numtris = BKE_mesh_runtime_looptri_len(mesh);
 	int numweights = numtris;
-	
-	float *loop_weights = NULL;
-	if (loop_weight_cb) {
-		loop_weights = MEM_mallocN(sizeof(float) * (size_t)numloops, "mesh sample loop weights");
-		{
-			MLoop *ml = mesh->mloop;
-			for (int i = 0; i < numloops; ++i, ++ml) {
-				loop_weights[i] = loop_weight_cb(mesh, ml, (unsigned int)i, userdata);
-			}
-		}
-	}
 	
 	float *tri_weights = MEM_mallocN(sizeof(float) * (size_t)numweights, "mesh sample triangle weights");
 	/* accumulate weights */
@@ -131,10 +119,6 @@ float* BKE_mesh_sample_calc_triangle_weights(Mesh *mesh, MeshSampleLoopWeightFp 
 			totarea += triarea;
 			totweight += triweight;
 		}
-	}
-	
-	if (loop_weights) {
-		MEM_freeN(loop_weights);
 	}
 	
 	/* normalize */
@@ -502,8 +486,7 @@ typedef struct MSurfaceSampleGenerator_Random {
 	
 	unsigned int seed;
 	bool use_area_weight;
-	MeshSampleLoopWeightFp loop_weight_cb;
-	void *userdata;
+	const float *loop_weights;
 	
 	/* bind data */
 	float *tri_weights;
@@ -526,7 +509,7 @@ static void generator_random_bind(MSurfaceSampleGenerator_Random *gen)
 	BKE_mesh_ensure_normals(mesh);
 	
 	if (gen->use_area_weight) {
-		gen->tri_weights = BKE_mesh_sample_calc_triangle_weights(mesh, gen->loop_weight_cb, gen->userdata, NULL);
+		gen->tri_weights = BKE_mesh_sample_calc_triangle_weights(mesh, gen->loop_weights, NULL);
 		
 #ifdef USE_DEBUG_COUNT
 		gen->debug_count = MEM_callocN(sizeof(int) * (size_t)dm->getNumLoopTri(dm), "surface sample debug counts");
@@ -641,8 +624,7 @@ static bool generator_random_make_sample(const MSurfaceSampleGenerator_Random *g
 	return true;
 }
 
-MeshSampleGenerator *BKE_mesh_sample_gen_surface_random(unsigned int seed, bool use_area_weight,
-                                                        MeshSampleLoopWeightFp loop_weight_cb, void *userdata)
+MeshSampleGenerator *BKE_mesh_sample_gen_surface_random(unsigned int seed, bool use_area_weight, const float *loop_weights)
 {
 	MSurfaceSampleGenerator_Random *gen;
 	
@@ -658,8 +640,7 @@ MeshSampleGenerator *BKE_mesh_sample_gen_surface_random(unsigned int seed, bool 
 	
 	gen->seed = seed;
 	gen->use_area_weight = use_area_weight;
-	gen->loop_weight_cb = loop_weight_cb;
-	gen->userdata = userdata;
+	gen->loop_weights = loop_weights;
 	
 	return &gen->base;
 }
@@ -1147,8 +1128,7 @@ static bool generator_poissondisk_make_sample(const MSurfaceSampleGenerator_Pois
 	return found_sample;
 }
 
-MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, float mindist, unsigned int max_samples,
-                                                             MeshSampleLoopWeightFp loop_weight_cb, void *userdata)
+MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, float mindist, unsigned int max_samples, const float *loop_weights)
 {
 	MSurfaceSampleGenerator_PoissonDisk *gen;
 	
@@ -1162,7 +1142,7 @@ MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, 
 	                      (GeneratorMakeSampleFp)generator_poissondisk_make_sample,
 	                      (GeneratorGetMaxSamplesFp)generator_poissondisk_get_max_samples);
 	
-	gen->uniform_gen = BKE_mesh_sample_gen_surface_random(seed, true, loop_weight_cb, userdata);
+	gen->uniform_gen = BKE_mesh_sample_gen_surface_random(seed, true, loop_weights);
 	gen->max_samples = max_samples;
 	gen->mindist_squared = mindist * mindist;
 	gen->cellsize = mindist / SQRT_3;
