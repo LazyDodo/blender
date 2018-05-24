@@ -212,7 +212,6 @@ void GPENCIL_cache_init(void *vedata)
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
 
 	/* Special handling for when active object is GP object (e.g. for draw mode) */
