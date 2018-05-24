@@ -65,7 +65,7 @@ void DRW_shgroup_hair(
         Object *ob,
         HairSystem *hsys,
         HairDrawSettings *draw_settings,
-        struct DerivedMesh *scalp,
+        struct Mesh *scalp,
         DRWShadingGroup *shgrp_verts,
         DRWShadingGroup *shgrp_edges)
 {

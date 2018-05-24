@@ -25,7 +25,7 @@
  *  \ingroup bke
  */
 
-struct DerivedMesh;
+struct Mesh;
 struct Key;
 struct KeyBlock;
 struct Mesh;
@@ -38,16 +38,16 @@ struct MeshSampleGenerator;
 
 typedef struct MeshSampleGenerator MeshSampleGenerator;
 
-typedef float (*MeshSampleLoopWeightFp)(struct DerivedMesh *dm, struct MLoop *loop, unsigned int index, void *userdata);
+typedef float (*MeshSampleLoopWeightFp)(struct Mesh *mesh, struct MLoop *loop, unsigned int index, void *userdata);
 typedef void* (*MeshSampleThreadContextCreateFp)(void *userdata, int start);
 typedef void (*MeshSampleThreadContextFreeFp)(void *userdata, void *thread_ctx);
 typedef bool (*MeshSampleRayFp)(void *userdata, void *thread_ctx, float ray_start[3], float ray_end[3]);
 
 /* ==== Utility Functions ==== */
 
-float* BKE_mesh_sample_calc_triangle_weights(struct DerivedMesh *dm, MeshSampleLoopWeightFp loop_weight_cb, void *userdata, float *r_area);
+float* BKE_mesh_sample_calc_triangle_weights(struct Mesh *mesh, MeshSampleLoopWeightFp loop_weight_cb, void *userdata, float *r_area);
 
-void BKE_mesh_sample_weights_from_loc(struct MeshSample *sample, struct DerivedMesh *dm, int face_index, const float loc[3]);
+void BKE_mesh_sample_weights_from_loc(struct MeshSample *sample, struct Mesh *mesh, int looptri_index, const float loc[3]);
 
 
 /* ==== Evaluate ==== */
@@ -57,9 +57,6 @@ bool BKE_mesh_sample_is_volume_sample(const struct MeshSample *sample);
 
 /* Evaluate position and normal on the given mesh */
 bool BKE_mesh_sample_eval(struct Mesh *mesh, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
-
-/* Evaluate position and normal on the given mesh */
-bool BKE_mesh_sample_eval_DM(struct DerivedMesh *dm, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
 
 /* Evaluate position for the given shapekey */
 bool BKE_mesh_sample_shapekey(struct Key *key, struct KeyBlock *kb, const struct MeshSample *sample, float loc[3]);
@@ -91,7 +88,7 @@ void BKE_mesh_sample_free_generator(struct MeshSampleGenerator *gen);
 
 /* ==== Sampling ==== */
 
-void BKE_mesh_sample_generator_bind(struct MeshSampleGenerator *gen, struct DerivedMesh *dm);
+void BKE_mesh_sample_generator_bind(struct MeshSampleGenerator *gen, struct Mesh *mesh);
 void BKE_mesh_sample_generator_unbind(struct MeshSampleGenerator *gen);
 
 unsigned int BKE_mesh_sample_gen_get_max_samples(const struct MeshSampleGenerator *gen);

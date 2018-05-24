@@ -31,7 +31,6 @@
 #include "BLI_rand.h"
 #include "BLI_string_utils.h"
 
-#include "BKE_DerivedMesh.h"
 #include "BKE_hair.h"
 #include "BKE_particle.h"
 #include "BKE_paint.h"
@@ -1434,7 +1433,7 @@ static void material_hair(
         EEVEE_ViewLayerData *sldata,
         Object *ob,
         HairSystem *hsys,
-        DerivedMesh *scalp)
+        struct Mesh *scalp)
 {
 	EEVEE_PassList *psl = ((EEVEE_Data *)vedata)->psl;
 	EEVEE_StorageList *stl = ((EEVEE_Data *)vedata)->stl;
@@ -1710,7 +1709,7 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 				}
 				else if (md->type == eModifierType_Fur) {
 					FurModifierData *fmd = (FurModifierData *)md;
-					material_hair(vedata, sldata, ob, fmd->hair_system, ob->derivedFinal);
+					material_hair(vedata, sldata, ob, fmd->hair_system, ob->data);
 				}
 			}
 		}

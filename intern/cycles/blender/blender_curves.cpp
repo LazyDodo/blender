@@ -311,7 +311,7 @@ static void ObtainCacheDataFromHairSystem(Mesh *mesh,
 	
 	BL::Mesh b_mesh(b_ob->data());
 	void *hair_cache = BKE_hair_export_cache_new();
-	BKE_hair_export_cache_update_mesh(hair_cache, b_hsys->ptr.data, 0, b_mesh.ptr.data, 0xFFFFFFFF);
+	BKE_hair_export_cache_update(hair_cache, b_hsys->ptr.data, 0, b_mesh.ptr.data, 0xFFFFFFFF);
 	
 	int totcurves, totverts;
 	BKE_hair_render_get_buffer_size(hair_cache, &totcurves, &totverts);

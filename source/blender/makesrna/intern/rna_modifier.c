@@ -299,6 +299,7 @@ const EnumPropertyItem rna_enum_axis_flag_xyz_items[] = {
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #ifdef WITH_ALEMBIC
 #  include "ABC_alembic.h"
@@ -1249,7 +1250,7 @@ static void rna_Fur_guide_curves_apply(ID *id, FurModifierData *fmd, bContext *C
 	}
 	
 	{
-		DerivedMesh *scalp = mesh_get_derived_final(CTX_data_depsgraph(C), CTX_data_scene(C), (Object*)id, CD_MASK_BAREMESH);
+		Mesh *scalp = (Mesh *)DEG_get_evaluated_id(CTX_data_depsgraph(C), ((Object*)id)->data);
 		BKE_hair_bind_follicles(fmd->hair_system, scalp);
 	}
 	

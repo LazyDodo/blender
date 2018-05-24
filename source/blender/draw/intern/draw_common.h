@@ -26,7 +26,7 @@
 #ifndef __DRAW_COMMON_H__
 #define __DRAW_COMMON_H__
 
-struct DerivedMesh;
+struct Mesh;
 struct DRWPass;
 struct DRWShadingGroup;
 struct Gwn_Batch;
@@ -173,7 +173,7 @@ void DRW_shgroup_hair(
         struct Object *ob,
         struct HairSystem *hsys,
         struct HairDrawSettings *draw_settings,
-        struct DerivedMesh *scalp,
+        struct Mesh *scalp,
         struct DRWShadingGroup *shgrp_verts,
         struct DRWShadingGroup *shgrp_edges);
 

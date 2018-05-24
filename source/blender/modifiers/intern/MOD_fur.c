@@ -40,7 +40,6 @@
 #include "DNA_object_types.h"
 #include "DNA_hair_types.h"
 
-#include "BKE_cdderivedmesh.h"
 #include "BKE_hair.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
@@ -109,14 +108,14 @@ static void freeData(ModifierData *md)
 	BLI_freelistN(&fmd->guide_curves);
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
-                                  DerivedMesh *derivedData)
+static struct Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
+                                  struct Mesh *mesh)
 {
 	FurModifierData *fmd = (FurModifierData *) md;
 	
 	UNUSED_VARS(fmd, ctx);
 	
-	return derivedData;
+	return mesh;
 }
 
 static void foreachObjectLink(
@@ -155,14 +154,14 @@ ModifierTypeInfo modifierType_Fur = {
 	/* deformMatrices_DM */ NULL,
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  applyModifier,
+	/* applyModifier_DM */  NULL,
 	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
+	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,

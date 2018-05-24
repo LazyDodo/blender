@@ -2153,7 +2153,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 	}
 
 	{
-		struct DerivedMesh *scalp = ob->derivedFinal;
+		struct Mesh *scalp = ob->data;
 		if (scalp)
 		{
 			for (ModifierData *md = ob->modifiers.first; md; md = md->next)
