@@ -33,8 +33,8 @@ struct Object;
 struct PTCacheEdit;
 struct Groom;
 struct HairSystem;
+struct HairExportCache;
 struct DRWHairFiberTextureBuffer;
-struct DerivedMesh;
 
 void DRW_shape_cache_free(void);
 
@@ -183,11 +183,10 @@ struct Gwn_Batch *DRW_cache_particles_get_edit_tip_points(struct Object *object,
 struct Gwn_Batch *DRW_cache_particles_get_prim(int type);
 
 /* Hair */
-struct Gwn_Batch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv,
+struct Gwn_Batch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export,
                                             const struct DRWHairFiberTextureBuffer **r_buffer);
-struct Gwn_Batch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, struct DerivedMesh *scalp);
-struct Gwn_Batch *DRW_cache_hair_get_guide_curve_points(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv);
-struct Gwn_Batch *DRW_cache_hair_get_guide_curve_edges(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv);
+struct Gwn_Batch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, const struct HairExportCache *hair_export);
+struct Gwn_Batch *DRW_cache_hair_get_guide_curve_edges(struct HairSystem *hsys, const struct HairExportCache *hair_export);
 
 /* Metaball */
 struct Gwn_Batch *DRW_cache_mball_surface_get(struct Object *ob);

@@ -33,6 +33,7 @@
 
 #include "BKE_DerivedMesh.h"
 #include "BKE_groom.h"
+#include "BKE_hair.h"
 #include "BKE_particle.h"
 #include "BKE_paint.h"
 #include "BKE_pbvh.h"
@@ -1447,8 +1448,13 @@ static void material_hair(
 	float mat[4][4];
 	copy_m4_m4(mat, ob->obmat);
 	
+	HairExportCache *hair_export = BKE_hair_export_cache_new();
+	BKE_hair_export_cache_update(hair_export, hsys, subdiv, scalp, HAIR_EXPORT_ALL);
+	
 	const DRWHairFiberTextureBuffer *fiber_buffer = NULL;
-	struct Gwn_Batch *hair_geom = DRW_cache_hair_get_fibers(hsys, scalp, subdiv, &fiber_buffer);
+	struct Gwn_Batch *hair_geom = DRW_cache_hair_get_fibers(hsys, hair_export, &fiber_buffer);
+	
+	BKE_hair_export_cache_free(hair_export);
 	
 	if (!hsys->draw_texture_cache) {
 		hsys->draw_texture_cache = DRW_texture_create_2D(fiber_buffer->width, fiber_buffer->height,
