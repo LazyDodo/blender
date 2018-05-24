@@ -39,7 +39,6 @@
 
 #include "DNA_hair_types.h"
 
-#include "BKE_DerivedMesh.h"
 #include "BKE_mesh_sample.h"
 #include "BKE_hair.h"
 

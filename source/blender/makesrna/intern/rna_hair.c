@@ -41,15 +41,16 @@
 
 #include "BLI_listbase.h"
 
+#include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 
 #include "BKE_context.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_hair.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "RNA_access.h"
 
@@ -73,13 +74,12 @@ static void rna_HairSystem_generate_follicles(
 		return;
 	}
 	
-	struct Scene *scene = CTX_data_scene(C);
 	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	
-	CustomDataMask datamask = CD_MASK_BAREMESH;
-	DerivedMesh *dm = mesh_get_derived_final(depsgraph, scene, scalp, datamask);
+	BLI_assert(scalp && scalp->type == OB_MESH);
+	Mesh *scalp_mesh = (Mesh *)DEG_get_evaluated_id(depsgraph, scalp->data);
 	
-	BKE_hair_generate_follicles(hsys, dm, (unsigned int)seed, count);
+	BKE_hair_generate_follicles(hsys, scalp_mesh, (unsigned int)seed, count);
 }
 
 static const EnumPropertyItem *rna_HairSystem_material_slot_itemf(

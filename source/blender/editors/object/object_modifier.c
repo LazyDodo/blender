@@ -2444,19 +2444,18 @@ static int fur_generate_follicles_exec(bContext *C, wmOperator *op)
 
 	BLI_assert(fmd->hair_system != NULL);
 	
-	struct Scene *scene = CTX_data_scene(C);
 	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	
-	CustomDataMask datamask = CD_MASK_BAREMESH;
-	DerivedMesh *dm = mesh_get_derived_final(depsgraph, scene, ob, datamask);
+	BLI_assert(ob && ob->type == OB_MESH);
+	Mesh *scalp = (Mesh *)DEG_get_evaluated_id(depsgraph, ob->data);
 	
 	BKE_hair_generate_follicles(
 	            fmd->hair_system,
-	            dm,
+	            scalp,
 	            (unsigned int)fmd->follicle_seed,
 	            fmd->follicle_count);
 	
-	BKE_hair_bind_follicles(fmd->hair_system, dm);
+	BKE_hair_bind_follicles(fmd->hair_system, scalp);
 	
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);

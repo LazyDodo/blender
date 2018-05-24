@@ -51,13 +51,13 @@
 
 #include "BKE_animsys.h"
 #include "BKE_customdata.h"
-#include "BKE_cdderivedmesh.h"
 #include "BKE_global.h"
 #include "BKE_groom.h"
 #include "BKE_hair.h"
 #include "BKE_bvhutils.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_mesh.h"
 #include "BKE_mesh_sample.h"
 #include "BKE_object.h"
 #include "BKE_object_facemap.h"
@@ -273,13 +273,11 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 	float (*shape)[2] = MEM_mallocN(sizeof(*shape) * numshapeverts, "groom section shape");
 	
 	Mesh *me = scalp_ob->data;
-	// XXX MeshSample will use Mesh instead of DerivedMesh in the future
-	DerivedMesh *dm = CDDM_from_mesh(me);
 	
 	/* last sample is the center position */
 	MeshSample *center_sample = &bundle->scalp_region[numshapeverts];
 	float center_co[3], center_nor[3], center_tang[3], center_binor[3];
-	if (!BKE_mesh_sample_eval_DM(dm, center_sample, center_co, center_nor, center_tang))
+	if (!BKE_mesh_sample_eval(me, center_sample, center_co, center_nor, center_tang))
 	{
 		result = false;
 		goto cleanup;
@@ -292,7 +290,7 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 	{
 		/* 3D position of the shape vertex origin on the mesh */
 		float co[3], nor[3], tang[3];
-		if (!BKE_mesh_sample_eval_DM(dm, sample, co, nor, tang))
+		if (!BKE_mesh_sample_eval(me, sample, co, nor, tang))
 		{
 			result = false;
 			goto cleanup;
@@ -322,7 +320,6 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 	
 cleanup:
 	MEM_freeN(shape);
-	dm->release(dm);
 	
 	return result;
 }
@@ -410,11 +407,8 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 	
 	{
 		/* BVH tree for binding the region center location */
-		DerivedMesh *dm = CDDM_from_mesh(me);
-		DM_ensure_tessface(dm);
 		BVHTreeFromMesh bvhtree;
-		//bvhtree_from_mesh_looptri(&bvhtree, dm, 0.0f, 4, 6);
-		bvhtree_from_mesh_get(&bvhtree, dm, BVHTREE_FROM_FACES, 2);
+		BKE_bvhtree_from_mesh_get(&bvhtree, me, BVHTREE_FROM_LOOPTRI, 2);
 		if (bvhtree.tree != NULL) {
 			BVHTreeNearest nearest;
 			nearest.index = -1;
@@ -425,7 +419,7 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 			{
 				/* last sample is the center position */
 				MeshSample *center_sample = &bundle->scalp_region[numshapeverts];
-				BKE_mesh_sample_weights_from_loc(center_sample, dm, nearest.index, nearest.co);
+				BKE_mesh_sample_weights_from_loc(center_sample, me, nearest.index, nearest.co);
 				BLI_assert(BKE_mesh_sample_is_valid(center_sample));
 			}
 		}
@@ -435,7 +429,6 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 		}
 	
 		free_bvhtree_from_mesh(&bvhtree);
-		dm->release(dm);
 	}
 	
 finalize:
@@ -500,7 +493,7 @@ void BKE_groom_bundle_unbind(GroomBundle *bundle)
  */
 static void groom_generate_guide_curves(
         Groom *groom,
-        DerivedMesh *scalp,
+        Mesh *scalp,
         unsigned int seed,
         int guide_curve_count)
 {
@@ -563,12 +556,8 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, 
 {
 	struct HairSystem *hsys = groom->hair_system;
 	
-	BLI_assert(groom->scalp_object);
-	DerivedMesh *scalp = object_get_derived_final(groom->scalp_object, false);
-	if (!scalp)
-	{
-		return;
-	}
+	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
+	Mesh *scalp = groom->scalp_object->data;
 	
 	BKE_hair_generate_follicles(hsys, scalp, seed, hair_count);
 	
@@ -877,9 +866,9 @@ void BKE_groom_batch_cache_free(Groom *groom)
 	}
 }
 
-/* === Utility functions (DerivedMesh SOON TO BE DEPRECATED!) === */
+/* === Utility functions === */
 
-struct DerivedMesh* BKE_groom_get_scalp(struct Groom *groom)
+struct Mesh* BKE_groom_get_scalp(struct Groom *groom)
 {
-	return groom->scalp_object ? groom->scalp_object->derivedFinal : NULL;
+	return groom->scalp_object ? groom->scalp_object->data : NULL;
 }

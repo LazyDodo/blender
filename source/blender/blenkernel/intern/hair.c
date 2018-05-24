@@ -43,10 +43,10 @@
 #include "BLI_string_utils.h"
 
 #include "DNA_hair_types.h"
+#include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 
-#include "BKE_DerivedMesh.h"
-#include "BKE_cdderivedmesh.h"
 #include "BKE_hair.h"
 #include "BKE_library.h"
 #include "BKE_mesh.h"
@@ -116,14 +116,14 @@ void BKE_hair_free(HairSystem *hsys)
 }
 
 /* Calculate surface area of a scalp mesh */
-float BKE_hair_calc_surface_area(struct DerivedMesh *scalp)
+float BKE_hair_calc_surface_area(const Mesh *scalp)
 {
 	BLI_assert(scalp != NULL);
 	
-	int numpolys = scalp->getNumPolys(scalp);
-	MPoly *mpolys = scalp->getPolyArray(scalp);
-	MLoop *mloops = scalp->getLoopArray(scalp);
-	MVert *mverts = scalp->getVertArray(scalp);
+	int numpolys = scalp->totpoly;
+	MPoly *mpolys = scalp->mpoly;
+	MLoop *mloops = scalp->mloop;
+	MVert *mverts = scalp->mvert;
 
 	float area = 0.0f;
 	for (int i = 0; i < numpolys; ++i)
@@ -166,7 +166,7 @@ float BKE_hair_calc_min_distance_from_density(float density)
 /* Distribute hair follicles on a scalp mesh */
 void BKE_hair_generate_follicles(
         HairSystem* hsys,
-        struct DerivedMesh *scalp,
+        struct Mesh *scalp,
         unsigned int seed,
         int count)
 {
@@ -400,7 +400,7 @@ static void hair_fiber_find_closest_strand(
 	hair_fiber_sort_weights(follicle);
 }
 
-void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
+void BKE_hair_bind_follicles(HairSystem *hsys, Mesh *scalp)
 {
 	if (!(hsys->flag & HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING))
 	{
@@ -417,7 +417,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	{
 		for (int i = 0; i < num_strands; ++i) {
 			float nor[3], tang[3];
-			if (!BKE_mesh_sample_eval_DM(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
+			if (!BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
 				zero_v3(strandloc[i]);
 			}
 		}
@@ -432,7 +432,7 @@ void BKE_hair_bind_follicles(HairSystem *hsys, DerivedMesh *scalp)
 	HairFollicle *follicle = pattern->follicles;
 	for (int i = 0; i < pattern->num_follicles; ++i, ++follicle) {
 		float loc[3], nor[3], tang[3];
-		if (BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, loc, nor, tang)) {
+		if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang)) {
 			hair_fiber_find_closest_strand(follicle, loc, tree, strandloc);
 			hair_fiber_verify_weights(follicle);
 		}
@@ -604,7 +604,7 @@ static int hair_export_cache_get_dependencies(int data)
  */
 
 int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
-                                 int subdiv, DerivedMesh *scalp, int requested_data)
+                                 int subdiv, Mesh *scalp, int requested_data)
 {
 	/* Include dependencies */
 	int data = hair_export_cache_get_dependencies(requested_data);
@@ -658,7 +658,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 				/* Root matrix for defining the initial normal direction */
 				float rootpos[3];
 				float rootmat[3][3];
-				BKE_mesh_sample_eval_DM(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
+				BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
 				cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
 				
 				hair_guide_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
@@ -714,7 +714,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 			for (int i = 0; i < totfibercurves; ++i, ++follicle) {
 				/* Cache fiber root position */
 				float nor[3], tang[3];
-				BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
+				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
 			}
 		}
 	}
@@ -736,21 +736,6 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 	}
 	
 	return data;
-}
-
-
-/* Update an existing export cache to ensure it contains the requested data.
- * Returns flags for data that has been updated.
- * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
- */
-
-int BKE_hair_export_cache_update_mesh(HairExportCache *cache, const HairSystem *hsys,
-                                      int subdiv, struct Mesh *scalp, int requested_data)
-{
-	DerivedMesh *dm = CDDM_from_mesh(scalp);
-	int result = BKE_hair_export_cache_update(cache, hsys, subdiv, dm, requested_data);
-	dm->release(dm);
-	return result;
 }
 
 /* Free the given export cache */

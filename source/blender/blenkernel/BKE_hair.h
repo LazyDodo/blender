@@ -41,7 +41,6 @@ struct HairPattern;
 struct HairSystem;
 struct HairDrawSettings;
 struct HairGuideData;
-struct DerivedMesh;
 struct Mesh;
 struct MeshSample;
 struct Object;
@@ -88,7 +87,7 @@ void BKE_hair_clear_guides(struct HairSystem *hsys);
 /* === Follicles === */
 
 /* Calculate surface area of a scalp mesh */
-float BKE_hair_calc_surface_area(struct DerivedMesh *scalp);
+float BKE_hair_calc_surface_area(const struct Mesh *scalp);
 
 /* Calculate a density value based on surface area and sample count */
 float BKE_hair_calc_density_from_count(float area, int count);
@@ -103,11 +102,11 @@ float BKE_hair_calc_min_distance_from_density(float density);
 /* Distribute hair follicles on a scalp mesh */
 void BKE_hair_generate_follicles(
         struct HairSystem* hsys,
-        struct DerivedMesh *scalp,
+        struct Mesh *scalp,
         unsigned int seed,
         int count);
 
-void BKE_hair_bind_follicles(struct HairSystem *hsys, struct DerivedMesh *scalp);
+void BKE_hair_bind_follicles(struct HairSystem *hsys, struct Mesh *scalp);
 
 /* === Draw Settings === */
 
@@ -173,14 +172,7 @@ struct HairExportCache* BKE_hair_export_cache_new(void);
  * Returns flags for data that has been updated.
  */
 int BKE_hair_export_cache_update(struct HairExportCache *cache, const struct HairSystem *hsys,
-                                 int subdiv, struct DerivedMesh *scalp, int requested_data);
-
-/* Update an existing export cache to ensure it contains the requested data.
- * Returns flags for data that has been updated.
- * XXX Mesh-based version for Cycles export, until DerivedMesh->Mesh conversion is done.
- */
-int BKE_hair_export_cache_update_mesh(struct HairExportCache *cache, const struct HairSystem *hsys,
-                                      int subdiv, struct  Mesh *scalp, int requested_data);
+                                 int subdiv, struct Mesh *scalp, int requested_data);
 
 /* Free the given export cache */
 void BKE_hair_export_cache_free(struct HairExportCache *cache);

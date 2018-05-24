@@ -19,8 +19,6 @@ extern "C" {
 #include "DNA_meshdata_types.h"
 
 #include "BKE_appdir.h"
-#include "BKE_cdderivedmesh.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
@@ -68,7 +66,6 @@ protected:
 	
 protected:
 	Mesh *m_mesh;
-	DerivedMesh *m_dm;
 	
 	MeshSample *m_samples;
 };
@@ -88,7 +85,6 @@ void MeshSampleTest::load_mesh(const float (*verts)[3], int numverts,
                                const int *faces, const int *face_lengths, int numfaces)
 {
 	m_mesh = BKE_mesh_test_from_data(verts, numverts, edges, numedges, faces, face_lengths, numfaces);
-	m_dm = CDDM_from_mesh(m_mesh);
 }
 
 void MeshSampleTest::load_mesh(const char *filename)
@@ -100,16 +96,11 @@ void MeshSampleTest::load_mesh(const char *filename)
 
 	if (path[0]) {
 		m_mesh = BKE_mesh_test_from_csv(path);
-		m_dm = CDDM_from_mesh(m_mesh);
 	}
 }
 
 void MeshSampleTest::unload_mesh()
 {
-	if (m_dm) {
-		m_dm->release(m_dm);
-		m_dm = NULL;
-	}
 	if (m_mesh) {
 		BKE_mesh_free(m_mesh);
 		MEM_freeN(m_mesh);
@@ -120,7 +111,7 @@ void MeshSampleTest::unload_mesh()
 void MeshSampleTest::SetUp()
 {
 	load_mesh("suzanne.csv");
-	if (!m_dm) {
+	if (!m_mesh) {
 		int numverts = ARRAY_SIZE(verts);
 		int numfaces = ARRAY_SIZE(face_lengths);
 		load_mesh(verts, numverts, NULL, 0, faces, face_lengths, numfaces);
@@ -152,7 +143,7 @@ void MeshSampleTest::dump_samples()
 	}
 	for (int i = 0; i < m_numsamples; ++i) {
 		float nor[3], tang[3];
-		BKE_mesh_sample_eval_DM(m_dm, &m_samples[i], dbg_verts[numverts + i], nor, tang);
+		BKE_mesh_sample_eval(m_mesh, &m_samples[i], dbg_verts[numverts + i], nor, tang);
 	}
 	int *dbg_faces = (int *)MEM_mallocN(sizeof(int) * m_mesh->totloop, "faces");
 	int *dbg_face_lengths = (int *)MEM_mallocN(sizeof(int) * m_mesh->totpoly, "face_lengths");
@@ -213,7 +204,7 @@ void MeshSampleTest::generate_samples_batch_threaded(MeshSampleGenerator *gen)
 
 void MeshSampleTest::test_samples(MeshSampleGenerator *gen, const MeshSample *ground_truth, int count)
 {
-	BKE_mesh_sample_generator_bind(gen, m_dm);
+	BKE_mesh_sample_generator_bind(gen, m_mesh);
 	
 	if (ground_truth) {
 		EXPECT_EQ(count, m_numsamples) << "Ground truth size does not match number of samples";
