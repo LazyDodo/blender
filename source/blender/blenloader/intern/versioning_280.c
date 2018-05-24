@@ -268,6 +268,7 @@ static void do_version_layer_collection_post(
 
 static void do_version_scene_collection_convert(
         Main *bmain,
+        ID *id,
         SceneCollection *sc,
         Collection *collection,
         GHash *collection_map)
@@ -279,7 +280,8 @@ static void do_version_scene_collection_convert(
 	for (SceneCollection *nsc = sc->scene_collections.first; nsc;) {
 		SceneCollection *nsc_next = nsc->next;
 		Collection *ncollection = BKE_collection_add(bmain, collection, nsc->name);
-		do_version_scene_collection_convert(bmain, nsc, ncollection, collection_map);
+		ncollection->id.lib = id->lib;
+		do_version_scene_collection_convert(bmain, id, nsc, ncollection, collection_map);
 		nsc = nsc_next;
 	}
 
@@ -299,7 +301,7 @@ static void do_version_group_collection_to_collection(Main *bmain, Collection *g
 {
 	/* Convert old 2.8 group collections to new unified collections. */
 	if (group->collection) {
-		do_version_scene_collection_convert(bmain, group->collection, group, NULL);
+		do_version_scene_collection_convert(bmain, &group->id, group->collection, group, NULL);
 	}
 
 	group->collection = NULL;
@@ -323,7 +325,7 @@ static void do_version_scene_collection_to_collection(Main *bmain, Scene *scene)
 	/* Convert scene collections. */
 	GHash *collection_map = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
 	if (scene->collection) {
-		do_version_scene_collection_convert(bmain, scene->collection, scene->master_collection, collection_map);
+		do_version_scene_collection_convert(bmain, &scene->id, scene->collection, scene->master_collection, collection_map);
 		scene->collection = NULL;
 	}
 
@@ -440,6 +442,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 						             collections[DO_VERSION_COLLECTION_VISIBLE].suffix);
 
 						Collection *collection = BKE_collection_add(bmain, collection_master, name);
+						collection->id.lib = scene->id.lib;
 						collection->flag |= collections[DO_VERSION_COLLECTION_VISIBLE].flag;
 						collections[DO_VERSION_COLLECTION_VISIBLE].collections[layer] = collection;
 						collections[DO_VERSION_COLLECTION_VISIBLE].created |= (1 << layer);
@@ -459,6 +462,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 						             collections[collection_index].suffix);
 
 						Collection *collection = BKE_collection_add(bmain, collection_parent, name);
+						collection->id.lib = scene->id.lib;
 						collection->flag |= collections[collection_index].flag;
 						collections[collection_index].collections[layer] = collection;
 						collections[collection_index].created |= (1 << layer);
@@ -682,12 +686,14 @@ void do_versions_after_linking_280(Main *main)
 
 		/* Convert group layer visibility flags to hidden nested collection. */
 		for (Collection *collection = main->collection.first; collection; collection = collection->id.next) {
-			Collection *collection_hidden = NULL;
+			/* Add fake user for all existing groups. */
+			id_fake_user_set(&collection->id);
 
 			if (collection->flag & (COLLECTION_RESTRICT_VIEW | COLLECTION_RESTRICT_RENDER)) {
 				continue;
 			}
 
+			Collection *collection_hidden = NULL;
 			for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
 				cob_next = cob->next;
 				Object *ob = cob->ob;
@@ -695,6 +701,7 @@ void do_versions_after_linking_280(Main *main)
 				if (!(ob->lay & collection->layer)) {
 					if (collection_hidden == NULL) {
 						collection_hidden = BKE_collection_add(main, collection, "Hidden");
+						collection_hidden->id.lib = collection->id.lib;
 						collection_hidden->flag |= COLLECTION_RESTRICT_VIEW | COLLECTION_RESTRICT_RENDER;
 					}
 
@@ -702,9 +709,6 @@ void do_versions_after_linking_280(Main *main)
 					BKE_collection_object_remove(main, collection, ob, true);
 				}
 			}
-
-			/* Add fake user for all existing groups. */
-			id_fake_user_set(&collection->id);
 		}
 
 		/* Convert layers to collections. */

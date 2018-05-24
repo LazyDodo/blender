@@ -5782,7 +5782,6 @@ static void lib_link_collection_data(FileData *fd, Library *lib, Collection *col
 		cob->ob = newlibadr_us(fd, lib, cob->ob);
 
 		if (cob->ob == NULL) {
-			BLI_assert(!"Collection linked object got lost"); // TODO: remove, only for testing now
 			BLI_freelinkN(&collection->gobject, cob);
 		}
 	}
@@ -5794,7 +5793,6 @@ static void lib_link_collection_data(FileData *fd, Library *lib, Collection *col
 		if (child->collection == NULL ||
 		    BKE_collection_find_cycle(collection, child->collection))
 		{
-			BLI_assert(!"Collection child got lost"); // TODO: remove, only for testing now
 			BLI_freelinkN(&collection->children, child);
 		}
 		else {
