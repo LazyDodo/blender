@@ -574,6 +574,8 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, 
 	
 	unsigned int guide_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom guide curves"));
 	groom_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count);
+	
+	BKE_hair_bind_follicles(hsys, scalp);
 }
 
 void BKE_groom_hair_update_guide_curves(Groom *groom)
