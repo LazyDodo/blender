@@ -298,16 +298,12 @@ static void hair_batch_cache_ensure_fiber_texbuffer(const HairExportCache *hair_
 
 Gwn_Batch *DRW_hair_batch_cache_get_fibers(
         HairSystem *hsys,
-        struct DerivedMesh *scalp,
-        int subdiv,
+        const HairExportCache *hair_export,
         const DRWHairFiberTextureBuffer **r_buffer)
 {
 	HairBatchCache *cache = hair_batch_cache_get(hsys);
 
 	TIMEIT_START(DRW_hair_batch_cache_get_fibers);
-
-	HairExportCache *hair_export = BKE_hair_export_cache_new();
-	BKE_hair_export_cache_update(hair_export, hsys, subdiv, scalp, HAIR_EXPORT_ALL);
 
 	if (cache->fibers == NULL) {
 		TIMEIT_BENCH(hair_batch_cache_ensure_fibers(hair_export, cache),
@@ -324,23 +320,20 @@ Gwn_Batch *DRW_hair_batch_cache_get_fibers(
 		*r_buffer = &cache->texbuffer;
 	}
 
-	BKE_hair_export_cache_free(hair_export);
-
 	TIMEIT_END(DRW_hair_batch_cache_get_fibers);
 
 	return cache->fibers;
 }
 
 static void hair_batch_cache_ensure_follicles(
-        HairSystem *hsys,
-        struct DerivedMesh *scalp,
+        const HairExportCache *hair_export,
         eHairDrawFollicleMode mode,
         HairBatchCache *cache)
 {
 	GWN_VERTBUF_DISCARD_SAFE(cache->follicle_verts);
 	GWN_INDEXBUF_DISCARD_SAFE(cache->follicle_edges);
 	
-	const HairPattern *pattern = hsys->pattern;
+	const unsigned int point_count = hair_export->totfibercurves;
 	
 	static Gwn_VertFormat format = { 0 };
 	static unsigned pos_id;
@@ -352,49 +345,88 @@ static void hair_batch_cache_ensure_follicles(
 	
 	cache->follicle_verts = GWN_vertbuf_create_with_format(&format);
 	
-	GWN_vertbuf_data_alloc(cache->follicle_verts, pattern->num_follicles);
+	GWN_vertbuf_data_alloc(cache->follicle_verts, point_count);
 	
-	HairFollicle *follicle = pattern->follicles;
-	for (int i = 0; i < pattern->num_follicles; ++i, ++follicle) {
-		float co[3], nor[3], tang[3];
-		BKE_mesh_sample_eval_DM(scalp, &follicle->mesh_sample, co, nor, tang);
-		
-		GWN_vertbuf_attr_set(cache->follicle_verts, pos_id, (unsigned int)i, co);
+	float (*root_co)[3] = hair_export->fiber_root_position;
+	for (int i = 0; i < hair_export->totfibercurves; ++i, ++root_co) {
+		GWN_vertbuf_attr_set(cache->follicle_verts, pos_id, (unsigned int)i, *root_co);
 	}
 	
 	UNUSED_VARS(mode);
 }
 
-Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(
-        HairSystem *hsys,
-        struct DerivedMesh *scalp)
+Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys, const HairExportCache *hair_export)
 {
 	HairBatchCache *cache = hair_batch_cache_get(hsys);
 
 	if (cache->follicles == NULL) {
-		hair_batch_cache_ensure_follicles(hsys, scalp, HAIR_DRAW_FOLLICLE_POINTS, cache);
+		hair_batch_cache_ensure_follicles(hair_export, HAIR_DRAW_FOLLICLE_POINTS, cache);
 		
 		cache->follicles = GWN_batch_create(GWN_PRIM_POINTS, cache->follicle_verts, NULL);
 	}
 
 	return cache->follicles;
+}
+
+static void hair_batch_cache_ensure_guide_curves(
+        const HairExportCache *hair_export,
+        eHairDrawGuideMode mode,
+        HairBatchCache *cache)
+{
+	GWN_VERTBUF_DISCARD_SAFE(cache->guide_curve_verts);
+	GWN_INDEXBUF_DISCARD_SAFE(cache->guide_curve_edges);
 	
+	const unsigned int point_count = hair_export->totguideverts;
+	const unsigned int elems_count = hair_export->totguideverts - hair_export->totguidecurves;
+	
+	static Gwn_VertFormat format = { 0 };
+	static unsigned pos_id;
+	
+	/* initialize vertex format */
+	if (format.attrib_ct == 0) {
+		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	}
+	
+	cache->guide_curve_verts = GWN_vertbuf_create_with_format(&format);
+	
+	GWN_vertbuf_data_alloc(cache->guide_curve_verts, point_count);
+	
+	Gwn_IndexBufBuilder elb;
+	GWN_indexbuf_init_ex(&elb,
+	                     GWN_PRIM_LINE_STRIP,
+	                     elems_count, point_count,
+	                     true);
+
+	unsigned int idx = 0;
+	const HairGuideCurve *curve = hair_export->guide_curves;
+	for (int i = 0; i < hair_export->totguidecurves; ++i, ++curve) {
+		const HairGuideVertex *vert = &hair_export->guide_verts[curve->vertstart];
+		for (int j = 0; j < curve->numverts; ++j, ++vert)
+		{
+			GWN_vertbuf_attr_set(cache->guide_curve_verts, pos_id, idx, vert->co);
+			
+			GWN_indexbuf_add_generic_vert(&elb, idx);
+			
+			++idx;
+		}
+		
+		GWN_indexbuf_add_primitive_restart(&elb);
+	}
+	
+	cache->guide_curve_edges = GWN_indexbuf_build(&elb);
+
+	UNUSED_VARS(mode);
 }
 
-Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_points(
-        HairSystem *hsys,
-        struct DerivedMesh *scalp,
-        int subdiv)
+Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_edges(HairSystem *hsys, const HairExportCache *hair_export)
 {
-	UNUSED_VARS(hsys, scalp, subdiv);
-	return NULL;
-}
+	HairBatchCache *cache = hair_batch_cache_get(hsys);
 
-Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_edges(
-        HairSystem *hsys,
-        struct DerivedMesh *scalp,
-        int subdiv)
-{
-	UNUSED_VARS(hsys, scalp, subdiv);
-	return NULL;
+	if (cache->guide_curves == NULL) {
+		hair_batch_cache_ensure_guide_curves(hair_export, HAIR_DRAW_GUIDE_CURVES, cache);
+		
+		cache->guide_curves = GWN_batch_create(GWN_PRIM_LINE_STRIP, cache->guide_curve_verts, cache->guide_curve_edges);
+	}
+
+	return cache->guide_curves;
 }

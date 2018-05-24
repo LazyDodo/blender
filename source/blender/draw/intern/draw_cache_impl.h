@@ -36,8 +36,8 @@ struct ModifierData;
 struct ParticleSystem;
 struct PTCacheEdit;
 struct HairSystem;
+struct HairExportCache;
 struct DRWHairFiberTextureBuffer;
-struct DerivedMesh;
 
 struct Curve;
 struct Lattice;
@@ -137,10 +137,9 @@ struct Gwn_Batch *DRW_particles_batch_cache_get_edit_inner_points(struct Object 
 struct Gwn_Batch *DRW_particles_batch_cache_get_edit_tip_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
 
 /* Hair */
-struct Gwn_Batch *DRW_hair_batch_cache_get_fibers(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv,
+struct Gwn_Batch *DRW_hair_batch_cache_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export,
                                                   const struct DRWHairFiberTextureBuffer **r_buffer);
-struct Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(struct HairSystem *hsys, struct DerivedMesh *scalp);
-struct Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_points(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv);
-struct Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_edges(struct HairSystem *hsys, struct DerivedMesh *scalp, int subdiv);
+struct Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(struct HairSystem *hsys, const struct HairExportCache *hair_export);
+struct Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_edges(struct HairSystem *hsys, const struct HairExportCache *hair_export);
 
 #endif /* __DRAW_CACHE_IMPL_H__ */
