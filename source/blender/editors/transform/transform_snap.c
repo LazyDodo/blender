@@ -406,11 +406,6 @@ void applyGridAbsolute(TransInfo *t)
 
 void applySnapping(TransInfo *t, float *vec)
 {
-	if (t->tsnap.project && t->tsnap.mode == SCE_SNAP_MODE_FACE) {
-		/* Each Trans Data already makes the snap to face */
-		return;
-	}
-
 	if (t->tsnap.status & SNAP_FORCED) {
 		t->tsnap.targetSnap(t);
 
@@ -585,7 +580,7 @@ static void initSnappingMode(TransInfo *t)
 	if (t->spacetype == SPACE_VIEW3D) {
 		if (t->tsnap.object_context == NULL) {
 			t->tsnap.object_context = ED_transform_snap_object_context_create_view3d(
-			        G.main, t->scene, t->depsgraph, 0, t->ar, t->view);
+			        t->scene, t->depsgraph, 0, t->ar, t->view);
 
 			ED_transform_snap_object_context_set_editmesh_callbacks(
 			        t->tsnap.object_context,

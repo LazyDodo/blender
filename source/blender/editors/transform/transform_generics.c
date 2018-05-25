@@ -1323,9 +1323,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 			prop_id = "use_even_offset";
 		}
 
-		if (prop_id && (prop = RNA_struct_find_property(op->ptr, prop_id)) &&
-		    RNA_property_is_set(op->ptr, prop))
-		{
+		if (prop_id && (prop = RNA_struct_find_property(op->ptr, prop_id))) {
 			SET_FLAG_FROM_TEST(t->flag, RNA_property_boolean_get(op->ptr, prop), T_ALT_TRANSFORM);
 		}
 	}
@@ -1628,6 +1626,10 @@ void postTrans(bContext *C, TransInfo *t)
 		ED_region_draw_cb_exit(t->ar->type, t->draw_handle_pixel);
 	if (t->draw_handle_cursor)
 		WM_paint_cursor_end(CTX_wm_manager(C), t->draw_handle_cursor);
+
+	if (t->flag & T_MODAL_CURSOR_SET) {
+		WM_cursor_modal_restore(CTX_wm_window(C));
+	}
 
 	/* Free all custom-data */
 	freeTransCustomDataContainer(t, NULL, &t->custom);
