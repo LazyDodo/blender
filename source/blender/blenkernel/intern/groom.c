@@ -559,6 +559,56 @@ static void groom_generate_guide_curves(
 	MEM_freeN(guide_samples);
 }
 
+static bool groom_add_bundle_loop_weights(const Groom *groom, const GroomBundle *bundle,
+                                          float *loop_weights)
+{
+	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
+	const Mesh *scalp = groom->scalp_object->data;
+	
+	const int fmap_nr = BKE_object_facemap_name_index(groom->scalp_object, bundle->scalp_facemap_name);
+	if (fmap_nr < 0)
+	{
+		return false;
+	}
+	
+	if (!CustomData_has_layer(&scalp->pdata, CD_FACEMAP))
+	{
+		return false;
+	}
+	
+	const int *map = CustomData_get_layer(&scalp->pdata, CD_FACEMAP);
+	if (!map)
+	{
+		return false;
+	}
+	
+	/* Find all polys of this bundle's face map */
+	const MPoly *mp = scalp->mpoly;
+	for (int i = 0; i < scalp->totpoly; ++i, ++mp)
+	{
+		int fmap_value = map[i];
+		if (fmap_value == fmap_nr)
+		{
+			/* Include poly by setting the weight for all its loops */
+			for (int j = 0; j < mp->totloop; ++j)
+			{
+				loop_weights[mp->loopstart + j] = 1.0f;
+			}
+		}
+	}
+	
+	return true;
+}
+
+static void groom_add_all_loop_weights(const Groom *groom,
+                                       float *loop_weights)
+{
+	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	{
+		groom_add_bundle_loop_weights(groom, bundle, loop_weights);
+	}
+}
+
 void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, int guide_curve_count)
 {
 	struct HairSystem *hsys = groom->hair_system;
@@ -566,10 +616,16 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, 
 	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
 	Mesh *scalp = groom->scalp_object->data;
 	
-	BKE_hair_generate_follicles(hsys, scalp, seed, hair_count);
+	/* Per-loop weights for limiting follicles to covered faces */
+	float *loop_weights = MEM_callocN(sizeof(float) * scalp->totloop, "groom scalp loop weights");
+	groom_add_all_loop_weights(groom, loop_weights);
+	
+	BKE_hair_generate_follicles_ex(hsys, scalp, seed, hair_count, loop_weights);
 	
 	unsigned int guide_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom guide curves"));
 	groom_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count);
+	
+	MEM_freeN(loop_weights);
 	
 	BKE_hair_bind_follicles(hsys, scalp);
 }
