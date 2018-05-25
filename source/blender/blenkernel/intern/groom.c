@@ -503,7 +503,8 @@ static void groom_generate_guide_curves(
         Groom *groom,
         Mesh *scalp,
         unsigned int seed,
-        int guide_curve_count)
+        int guide_curve_count,
+        const float *loop_weights)
 {
 	struct HairSystem *hsys = groom->hair_system;
 
@@ -519,7 +520,7 @@ static void groom_generate_guide_curves(
 		            seed,
 		            min_distance,
 		            guide_curve_count,
-		            NULL);
+		            loop_weights);
 		
 		BKE_mesh_sample_generator_bind(gen, scalp);
 		
@@ -623,7 +624,7 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, 
 	BKE_hair_generate_follicles_ex(hsys, scalp, seed, hair_count, loop_weights);
 	
 	unsigned int guide_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom guide curves"));
-	groom_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count);
+	groom_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count, loop_weights);
 	
 	MEM_freeN(loop_weights);
 	
