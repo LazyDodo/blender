@@ -35,8 +35,11 @@
 //#include "DNA_listBase.h"
 //#include "DNA_ID.h"
 
-#define LANPR_POST_PROCESSING_DISABLED 1
-#define LANPR_POST_PROCESSING_ENABLED  2
+#define LANPR_POST_PROCESSING_DISABLED 0
+#define LANPR_POST_PROCESSING_ENABLED  1
+
+#define LANPR_USE_DIFFERENT_TAPER      0
+#define LANPR_USE_SAME_TAPER           1
 
 typedef struct LANPRLineStyle{
 	struct LANPRLineStyle *next, *prev;

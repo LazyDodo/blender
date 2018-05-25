@@ -1436,6 +1436,14 @@ typedef struct SceneLANPR{
 	float normal_clamp;
 	float normal_strength;
 
+	float line_thickness;
+	
+	int   use_same_taper;
+	float taper_left_distance;
+	float taper_left_strength;	
+	float taper_right_distance;
+	float taper_right_strength;
+
 } SceneLANPR;
 
 /* *************************************************************** */

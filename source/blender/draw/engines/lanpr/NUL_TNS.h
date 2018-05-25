@@ -1,6 +1,15 @@
 #pragma once
 
 #include "NUL_Util.h"
+#include "BLI_mempool.h"
+#include "GPU_framebuffer.h"
+#include "GPU_batch.h"
+#include "GPU_framebuffer.h"
+#include "GPU_shader.h"
+#include "GPU_uniformbuffer.h"
+#include "GPU_viewport.h"
+
+
 
 #define LANPR_ENGINE "BLENDER_LANPR"
 
@@ -11,6 +20,24 @@
 
 
 
+typedef struct LANPR_TextureSample {
+	Link      Item;
+	int       X,Y;
+	float     Z;// for future usage
+} LANPR_TextureSample;
+
+typedef struct LANPR_LineStripPoint {
+	Link     Item;
+	float P[3];
+} LANPR_LineStripPoint;
+
+typedef struct LANPR_LineStrip{
+	Link     Item;
+	ListBase points;
+	int      point_count;
+	float    total_length;
+}LANPR_LineStrip;
+
 typedef struct LANPR_PassList {
 	struct DRWPass *depth_pass;
 	struct DRWPass *color_pass;
@@ -18,6 +45,7 @@ typedef struct LANPR_PassList {
 	struct DRWPass *edge_intermediate;
 	struct DRWPass *edge_thinning;
 	struct DRWPass *edge_thinning_2;
+	struct DRWPass *snake_pass;
 } LANPR_PassList;
 
 typedef struct LANPR_FramebufferList {
@@ -40,7 +68,8 @@ typedef struct LANPR_PrivateData {
 	DRWShadingGroup *edge_detect_shgrp;
 	DRWShadingGroup *edge_thinning_shgrp;
 	DRWShadingGroup *edge_thinning_shgrp_2;
-
+    DRWShadingGroup *snake_shgrp;
+	
 	float normal_clamp;
     float normal_strength;
     float depth_clamp;
@@ -50,6 +79,28 @@ typedef struct LANPR_PrivateData {
 	float znear;
 
 	int stage;//thinning
+
+	float         *line_result;
+	unsigned char *line_result_8bit;
+	int            width,height;// if not match recreate buffer.
+	void         **sample_table;
+
+	BLI_mempool*  mp_sample;
+	BLI_mempool*  mp_line_strip;
+	BLI_mempool*  mp_line_strip_point;
+	
+	ListBase      pending_samples;
+	ListBase      erased_samples;
+    ListBase      line_strips;
+
+	// drawing
+
+	unsigned        v_buf;
+	unsigned        i_buf;
+	unsigned        l_buf;
+    
+	Gwn_VertFormat   snake_gwn_format;
+	Gwn_Batch*       snake_batch;
 
 } LANPR_PrivateData;
 

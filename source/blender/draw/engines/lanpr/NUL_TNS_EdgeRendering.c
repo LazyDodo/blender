@@ -1,12 +1,21 @@
 #include "DRW_engine.h"
 #include "DRW_render.h"
 #include "BLI_listbase.h"
+#include "BLI_linklist.h"
 #include "NUL_TNS.h"
 #include "DRW_render.h"
 #include "BKE_object.h"
 #include "DNA_camera_types.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
+#include "GPU_framebuffer.h"
+
+#include "GPU_batch.h"
+#include "GPU_framebuffer.h"
+#include "GPU_shader.h"
+#include "GPU_uniformbuffer.h"
+#include "GPU_viewport.h"
+
 
 #include <math.h>
 
@@ -15,6 +24,9 @@ extern char datatoc_gpu_shader_3D_normal_smooth_color_vert_glsl[];
 extern char datatoc_lanpr_snake_multichannel_fragment[];
 extern char datatoc_lanpr_snake_edge_fragment[];
 extern char datatoc_lanpr_image_peel_fragment[];
+extern char datatoc_lanpr_line_connection_vertex[];
+extern char datatoc_lanpr_line_connection_fragment[];
+extern char datatoc_lanpr_line_connection_geometry[];
 
 //==============================================================[ ATLAS / DPIX ]
 
@@ -30,6 +42,7 @@ typedef struct LANPROneTimeInit{
     GPUShader* multichannel_shader;
 	GPUShader* edge_detect_shader;
 	GPUShader* edge_thinning_shader;
+	GPUShader* snake_connection_shader;
 	void* ved;
 } LANPROneTimeInit;
 
@@ -44,10 +57,13 @@ static void lanpr_engine_init(void *ved){
 	//LANPR_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
+	//if(!stl->g_data) stl->g_data = MEM_callocN(sizeof(*stl->g_data), __func__);
+
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+
 
 	/* Main Buffer */
 	DRW_texture_ensure_fullscreen_2D(&txl->depth, GPU_DEPTH_COMPONENT32F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
@@ -107,6 +123,14 @@ static void lanpr_engine_init(void *ved){
 			datatoc_lanpr_image_peel_fragment,NULL,NULL,NULL);
 
     }
+	if (!OneTime.snake_connection_shader) {
+	OneTime.snake_connection_shader = 
+		GPU_shader_create(
+			datatoc_lanpr_line_connection_vertex,
+			datatoc_lanpr_line_connection_fragment,
+			datatoc_lanpr_line_connection_geometry,
+			NULL,NULL);
+    }
 
 }
 static void lanpr_engine_free(void){
@@ -129,6 +153,14 @@ static void lanpr_engine_free(void){
 	DRW_texture_free(txl->color);
 	DRW_texture_free(txl->normal);
 	DRW_texture_free(txl->edge_intermediate);
+
+	BLI_mempool_destroy(stl->g_data->mp_line_strip);
+	BLI_mempool_destroy(stl->g_data->mp_line_strip_point);
+	BLI_mempool_destroy(stl->g_data->mp_sample);
+
+	MEM_freeN(stl->g_data->line_result_8bit);
+	MEM_freeN(stl->g_data->line_result);
+	MEM_freeN(stl->g_data);
 }
 
 static void lanpr_cache_init(void *vedata){
@@ -140,7 +172,10 @@ static void lanpr_cache_init(void *vedata){
 
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
-		stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
+		stl->g_data = MEM_callocN(sizeof(*stl->g_data), __func__);
+		stl->g_data->mp_sample = BLI_mempool_create(sizeof(LANPR_TextureSample), 0, 512, BLI_MEMPOOL_NOP);
+		stl->g_data->mp_line_strip = BLI_mempool_create(sizeof(LANPR_LineStrip), 0, 512, BLI_MEMPOOL_NOP);
+		stl->g_data->mp_line_strip_point = BLI_mempool_create(sizeof(LANPR_LineStripPoint), 0, 1024, BLI_MEMPOOL_NOP);
 	}
 
 
@@ -202,6 +237,260 @@ static void lanpr_cache_finish(void *vedata){
 
 }
 
+int _TNS_ColOffsets[] = { -1,0,1,1,1,0,-1,-1 };
+int _TNS_RowOffsets[] = { -1,-1,-1,0,1,1,1,0 };
+
+int _TNS_Deviates[8][8] = {
+	{ 0,1,2,3,4,3,2,1 },
+	{ 1,0,1,2,3,4,3,2 },
+	{ 2,1,0,1,2,3,4,3 },
+	{ 3,2,1,0,1,2,3,4 },
+	{ 4,3,2,1,0,1,2,3 },
+	{ 3,4,3,2,1,0,1,2 },
+	{ 2,3,4,3,2,1,0,1 },
+	{ 1,2,3,4,3,2,1,0 }
+};
+
+#define TNS_CLAMP_TEXTURE_W(t,Col)\
+	{if (Col >= t->width) Col = t->width - 1; if (Col < 0) Col = 0;}
+
+#define TNS_CLAMP_TEXTURE_H(t,Row)\
+	{if (Row >= t->height) Row = t->height - 1;if (Row < 0) Row = 0;}
+
+#define TNS_CLAMP_TEXTURE_CONTINUE(t,Col,Row)\
+	{if (Col >= t->width) continue; if (Col < 0) continue;\
+     if (Row >= t->height) continue; if (Row < 0)continue; }
+
+
+static LANPR_TextureSample* lanpr_any_uncovered_samples(LANPR_PrivateData* pd){
+	return BLI_pophead(&pd->pending_samples);
+}
+
+int lanpr_direction_deviate(int From, int To) {
+	return _TNS_Deviates[From - 1][To - 1];
+}
+
+int lanpr_detect_direction(LANPR_PrivateData* pd, int Col, int Row, int LastDirection) {
+	int Deviate[9] = {100};
+	int MinDeviate = 0;
+	int i;
+	LANPR_TextureSample* ts;
+
+	for (i = 0; i < 8; i++) {
+		TNS_CLAMP_TEXTURE_CONTINUE(pd, (_TNS_ColOffsets[i] + Col), (_TNS_RowOffsets[i] + Row));
+		if (ts = pd->sample_table[(_TNS_ColOffsets[i] + Col) + (_TNS_RowOffsets[i] + Row) * pd->width]) {
+			if (!LastDirection) return i + 1;
+			Deviate[i+1] = lanpr_direction_deviate(i, LastDirection);
+			if (!MinDeviate || Deviate[MinDeviate] > Deviate[i + 1]) MinDeviate = i + 1;
+		}
+	}
+
+	return MinDeviate;
+}
+
+LANPR_LineStrip* lanpr_create_line_strip(LANPR_PrivateData* pd) {
+	LANPR_LineStrip* ls = BLI_mempool_calloc(pd->mp_line_strip);
+	return ls;
+}
+LANPR_LineStripPoint* lanpr_append_point(LANPR_PrivateData* pd, LANPR_LineStrip* ls, real X, real Y, real Z) {
+	LANPR_LineStripPoint* lsp = BLI_mempool_calloc(pd->mp_line_strip_point);
+
+	lsp->P[0] = X;
+	lsp->P[1] = Y;
+	lsp->P[2] = Z;
+
+	BLI_addtail(&ls->points,lsp);
+
+	ls->point_count++;
+
+	return lsp;
+}
+LANPR_LineStripPoint* lanpr_push_point(LANPR_PrivateData* pd, LANPR_LineStrip* ls, real X, real Y, real Z) {
+	LANPR_LineStripPoint* lsp = BLI_mempool_calloc(pd->mp_line_strip_point);
+
+	lsp->P[0] = X;
+	lsp->P[1] = Y;
+	lsp->P[2] = Z;
+
+	BLI_addhead(&ls->points, lsp);
+
+	ls->point_count++;
+
+	return lsp;
+}
+
+//void lanpr_remove_point(LANPR_LineStrip* ls,tnsLineStripPoint* lsp) {
+//	lstRemoveItem(&ls->Points, lsp);
+//	FreeMem(lsp);
+//}
+
+void lanpr_destroy_line_strip(LANPR_PrivateData* pd, LANPR_LineStrip* ls) {
+	LANPR_LineStripPoint* lsp;
+	while (lsp = BLI_pophead(&ls->points)) {
+		BLI_mempool_free(pd->mp_line_strip_point, lsp);
+	}
+	BLI_mempool_free(pd->mp_line_strip, ls);
+}
+
+void lanpr_remove_sample(LANPR_PrivateData* pd, int Row, int Col) {
+	LANPR_TextureSample* ts;
+	ts = pd->sample_table[Row*pd->width + Col];
+	pd->sample_table[Row*pd->width + Col] = 0;
+	
+	BLI_remlink(&pd->pending_samples, ts);
+	BLI_addtail(&pd->erased_samples, ts);
+}
+
+int lanpr_grow_snake_r(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStripPoint* ThisP, int Direction) {
+	LANPR_LineStripPoint* NewP = ThisP,*p2;
+	int Length = 5;
+	int l = 0;
+	int Deviate,Dir=Direction,NewDir;
+	int AddPoint;
+	int TX = NewP->P[0], TY = NewP->P[1];
+
+	while (NewDir = lanpr_detect_direction(pd, TX, TY, Dir)) {
+		AddPoint = 0;
+		Deviate = lanpr_direction_deviate(NewDir, Dir);
+		Dir = NewDir;
+
+		l++;
+		TX += _TNS_ColOffsets[NewDir-1];
+		TY += _TNS_RowOffsets[NewDir-1];
+
+		if (Deviate < 2) {
+			lanpr_remove_sample(pd, TY, TX);
+		}elif(Deviate < 3) {
+			lanpr_remove_sample(pd, TY, TX);
+			AddPoint = 1;
+		}else {
+			lanpr_remove_sample(pd, TY, TX);
+			return;
+		}
+
+		if (AddPoint || l == Length) {
+			p2 = lanpr_append_point(pd, ls, TX, TY, 0);
+			NewP = p2;
+			l = 0;
+		}
+	}
+}
+
+int lanpr_grow_snake_l(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStripPoint* ThisP, int Direction) {
+	LANPR_LineStripPoint* NewP = ThisP, *p2;
+	int Length = 5;
+	int l = 0;
+	int Deviate, Dir = Direction, NewDir;
+	int AddPoint;
+	int TX = NewP->P[0], TY = NewP->P[1];
+
+	while (NewDir = lanpr_detect_direction(pd, TX, TY, Dir)) {
+		AddPoint = 0;
+		Deviate = lanpr_direction_deviate(NewDir, Dir);
+		Dir = NewDir;
+
+		l++;
+		TX += _TNS_ColOffsets[NewDir - 1];
+		TY += _TNS_RowOffsets[NewDir - 1];
+
+		if (Deviate < 2) {
+			lanpr_remove_sample(pd, TY, TX);
+		}elif(Deviate < 4) {
+			lanpr_remove_sample(pd, TY, TX);
+			AddPoint = 1;
+		}
+		else {
+			lanpr_remove_sample(pd, TY, TX);
+			return;
+		}
+
+		if (AddPoint || l == Length) {
+			p2 = lanpr_push_point(pd, ls, TX, TY, 0);
+			NewP = p2;
+			l = 0;
+		}
+	}
+}
+
+int lanpr_reverse_direction(int From) {
+	From -= 4;
+	if (From <= 0)From += 8;
+	return From;
+}
+
+#define tMatDist2v(p1,p2)\
+    sqrt(((p1)[0]-(p2)[0])*((p1)[0]-(p2)[0]) + ((p1)[1]-(p2)[1])*((p1)[1]-(p2)[1]))
+
+#define tnsLinearItp(L,R,T)\
+((L)*(1.0f - (T)) + (R)*(T))
+
+void lanpr_texture_to_ndc(int x,int y, int w,int h, float* x_ndc, float* y_ndc){
+    *x_ndc = tnsLinearItp(-1,1,(float)x/(float)w);
+	*y_ndc = tnsLinearItp(-1,1, (float)y/(float)h);
+}
+
+Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd, LANPR_LineStrip* ls){
+	int Count = ls->point_count;
+	int i;
+	LANPR_LineStripPoint* lsp,*plsp;
+	u32bit *Index_adjacent;
+	float* Verts;
+	float* Lengths;
+	float TotalLength=0;
+
+	Index_adjacent = MEM_callocN(sizeof(unsigned int) * (Count - 1) * 4, "Index_adjacent buffer pre alloc");
+	Verts = MEM_callocN(sizeof(float) * Count * 2, "Verts buffer pre alloc");
+	Lengths = MEM_callocN(sizeof(float)* Count, "Length buffer pre alloc");
+
+	Gwn_IndexBufBuilder elb;
+	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, (Count - 1) * 4, Count, true);
+
+	for (i = 0; i < Count-1; i++) {
+		Index_adjacent[i * 4 + 0] = i - 1;
+		Index_adjacent[i * 4 + 1] = i;
+		Index_adjacent[i * 4 + 2] = i + 1;
+		Index_adjacent[i * 4 + 3] = i + 2;
+		GWN_indexbuf_add_line_adj_verts(&elb, (i-1<0?0:i-1), i, i+1, (i+2>=Count-1?Count-1:i+2));
+	}
+	Index_adjacent[0] = 0;
+	Index_adjacent[(Count - 1) * 4 - 1] = Count-1;
+
+	i = 0;
+	float xf,yf;
+	for (lsp = (LANPR_LineStripPoint *)(ls->points.first); lsp; lsp = (LANPR_LineStripPoint *)(lsp->Item.next)) {
+		lanpr_texture_to_ndc(lsp->P[0],lsp->P[1],pd->width, pd->height, &xf,&yf);
+		Verts[i * 2 + 0] = xf;
+		Verts[i * 2 + 1] = yf;
+		if (plsp = (LANPR_LineStripPoint *)(lsp->Item.prev)) {
+			TotalLength += tMatDist2v(plsp->P, lsp->P);
+			Lengths[i] = TotalLength;
+		}
+		i++;
+	}
+	ls->total_length = TotalLength;
+
+	static Gwn_VertFormat format = { 0 };
+	static struct { uint pos, uvs; } attr_id;
+	if (format.attrib_ct == 0) {
+		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		attr_id.uvs = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
+	}
+
+	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
+	GWN_vertbuf_data_alloc(vbo, Count);
+
+	for (int i = 0; i < Count; ++i) {
+		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &Verts[i*2]);
+		GWN_vertbuf_attr_set(vbo, attr_id.uvs, i, &Lengths[i]);
+	}
+
+	MEM_freeN(Index_adjacent);
+	MEM_freeN(Verts);
+	MEM_freeN(Lengths);
+	
+	return GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_STREAM);
+}
+
 static void lanpr_draw_scene(void *vedata)
 {
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
@@ -224,6 +513,7 @@ static void lanpr_draw_scene(void *vedata)
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
+	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
 
@@ -258,6 +548,96 @@ static void lanpr_draw_scene(void *vedata)
 	GPU_framebuffer_bind(fbl->edge_intermediate);
 	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
     DRW_draw_pass(psl->edge_thinning_2);
+
+	int texw = GPU_texture_width(txl->edge_intermediate) ,texh = GPU_texture_height(txl->edge_intermediate);;
+    int size = texw*texh;
+	int recreate=0;
+	if(size != stl->g_data->width*stl->g_data->height) recreate =1;
+
+	if(recreate){
+		if(stl->g_data->line_result) MEM_freeN(stl->g_data->line_result);
+		stl->g_data->line_result = MEM_callocN(sizeof(float) * size,"Texture readback buffer");
+
+		if(stl->g_data->line_result_8bit) MEM_freeN(stl->g_data->line_result_8bit);
+        stl->g_data->line_result_8bit = MEM_callocN(sizeof(unsigned char) * size,"Texture readback buffer 8bit");
+
+		if(stl->g_data->sample_table) MEM_freeN(stl->g_data->sample_table);
+		stl->g_data->sample_table = MEM_callocN(sizeof(void*) * size,"Texture readback buffer 8bit");
+
+		stl->g_data->width = texw;
+		stl->g_data->height = texh;
+	}
+
+	GPU_framebuffer_read_color(fbl->edge_intermediate,0,0,texw, texh,1,0, stl->g_data->line_result);
+
+	float sample;
+	int h, w;
+	for (h = 0; h < texh; h++) {
+		for (w = 0; w < texw; w++) {
+			int index = h*texw + w;
+			if ((sample = stl->g_data->line_result[index]) > 0.99) {
+				stl->g_data->line_result_8bit[index] = 255;
+				LANPR_TextureSample* ts = BLI_mempool_calloc(stl->g_data->mp_sample);
+				BLI_addtail(&stl->g_data->pending_samples, ts);
+				stl->g_data->sample_table[index] = ts;
+				ts->X = w;
+				ts->Y = h;
+			}
+		}
+	}
+
+	LANPR_TextureSample *ts;
+    LANPR_LineStrip* ls;
+	LANPR_LineStripPoint* lsp;
+	while(ts = lanpr_any_uncovered_samples(stl->g_data)){
+		int Direction=0;
+		LANPR_LineStripPoint tlsp = { 0 };
+
+		tlsp.P[0] = ts->X;
+		tlsp.P[1] = ts->Y;
+
+		if (Direction = lanpr_detect_direction(stl->g_data, ts->X,ts->Y, Direction)) {
+			BLI_addtail(&stl->g_data->line_strips, (ls = lanpr_create_line_strip(stl->g_data)));
+			lsp = lanpr_append_point(stl->g_data, ls, ts->X, ts->Y, 0);
+			lanpr_remove_sample(stl->g_data, ts->Y, ts->X);
+
+			lanpr_grow_snake_r(stl->g_data, ls, lsp, Direction);
+
+			lanpr_grow_snake_l(stl->g_data, ls, lsp, lanpr_reverse_direction(Direction));
+		}
+
+		//count++;
+	}
+
+	//GPU_framebuffer_bind()
+
+	for (ls = (LANPR_LineStrip *)(stl->g_data->line_strips.first); ls; ls = (LANPR_LineStrip *)(ls->Item.next)) {
+		if (ls->point_count < 2) continue;
+
+		Gwn_Batch* snake_batch = lanpr_get_snake_batch(stl->g_data,ls);
+
+		psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR);
+		stl->g_data->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TotalLength", &ls->total_length, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLDist", &lanpr->taper_left_distance, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLStrength", &lanpr->taper_left_strength, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRDist", &lanpr->taper_right_distance, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRStrength", &lanpr->taper_right_strength, 1);
+		DRW_shgroup_call_add(stl->g_data->snake_shgrp, snake_batch, NULL);
+		DRW_draw_pass(psl->snake_pass);
+	}
+	
+
+	BLI_mempool_clear(stl->g_data->mp_sample);
+	BLI_mempool_clear(stl->g_data->mp_line_strip);
+	BLI_mempool_clear(stl->g_data->mp_line_strip_point);
+
+	stl->g_data->pending_samples.first = stl->g_data->pending_samples.last = 0;
+	stl->g_data->erased_samples.first = stl->g_data->erased_samples.last = 0;
+	stl->g_data->line_strips.first = stl->g_data->line_strips.last = 0;
+	//stl->g_data->line_strip_point.first = stl->g_data->line_strip_point.last = 0;
+
 
 	GPU_framebuffer_bind(dfbl->default_fb);
 

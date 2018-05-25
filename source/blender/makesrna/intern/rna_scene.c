@@ -6168,6 +6168,12 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	    {0, NULL, 0, NULL, NULL}
     };
 
+	static const EnumPropertyItem rna_enum_lanpr_use_same_taper[] = {
+	    {LANPR_USE_DIFFERENT_TAPER, "DISABLED", ICON_MESH_CUBE, "Different", "Use different taper value"},
+        {LANPR_USE_SAME_TAPER, "ENABLED", ICON_MESH_CUBE, "Same", "Use same taper value for both sides of the line"},
+	    {0, NULL, 0, NULL, NULL}
+    };
+
 	srna = RNA_def_struct(brna, "SceneLANPR", NULL);
 	RNA_def_struct_sdna(srna, "SceneLANPR");
 	RNA_def_struct_ui_text(srna, "Scene LANPR Config", "LANPR global config");
@@ -6206,6 +6212,49 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0.01f, 10.0f, 0.1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "line_thickness", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 2.0f);
+	RNA_def_property_ui_text(prop, "Line Thickness", "Thickness of extracted line");
+	RNA_def_property_ui_range(prop, 0.01f, 10.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "taper_left_distance", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 20.0f);
+	RNA_def_property_ui_text(prop, "Distance Left", "Left side taper distance");
+	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "taper_right_distance", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 20.0f);
+	RNA_def_property_ui_text(prop, "Distance right", "Right side taper distance");
+	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "taper_left_strength", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 20.0f);
+	RNA_def_property_ui_text(prop, "Strength left", "Left side taper strength");
+	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "taper_right_strength", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 20.0f);
+	RNA_def_property_ui_text(prop, "Strength right", "Right side taper strength");
+	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "use_same_taper", PROP_ENUM, PROP_NONE);
+    RNA_def_property_enum_items(prop, rna_enum_lanpr_use_same_taper);
+	RNA_def_property_enum_default(prop, LANPR_USE_DIFFERENT_TAPER);
+	RNA_def_property_ui_text(prop, "Taper", "Same/Different taper value");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
 }
 
 void RNA_def_scene(BlenderRNA *brna)
@@ -6657,7 +6706,7 @@ void RNA_def_scene(BlenderRNA *brna)
 
     /* LANPR */
 	prop = RNA_def_property(srna, "lanpr", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "lanpr");
+	//RNA_def_property_pointer_sdna(prop, NULL, "lanpr");
 	RNA_def_property_struct_type(prop, "SceneLANPR");
 	RNA_def_property_ui_text(prop, "LANPR", "LANPR settings for the scene");
 

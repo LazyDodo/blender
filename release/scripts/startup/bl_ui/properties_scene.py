@@ -454,11 +454,34 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        layout.prop(scene.lanpr, "enable_post_processing")
-        layout.prop(scene.lanpr, "depth_clamp")
-        layout.prop(scene.lanpr, "depth_strength")
-        layout.prop(scene.lanpr, "normal_clamp")
-        layout.prop(scene.lanpr, "normal_strength")
+        lanpr = scene.lanpr
+        layout.label(text="Global:")
+        layout.prop(lanpr, "enable_post_processing")
+        layout.prop(lanpr, "depth_clamp")
+        layout.prop(lanpr, "depth_strength")
+        layout.prop(lanpr, "normal_clamp")
+        layout.prop(lanpr, "normal_strength")
+        
+        layout.label(text="Taper Settings:")
+        layout.prop(lanpr, "line_thickness")
+        layout.label(text="Taper Settings:")
+        layout.prop(lanpr, "use_same_taper")
+
+        if lanpr.use_same_taper == "DISABLED":
+            split = layout.split()
+            col = split.column()
+            col.label(text="Left:")
+            col.prop(lanpr,"taper_left_distance")
+            col.prop(lanpr,"taper_left_strength")
+            col = split.column()
+            col.label(text="Right:")
+            col.prop(lanpr,"taper_right_distance")
+            col.prop(lanpr,"taper_right_strength")
+        else:
+            layout.prop(lanpr,"taper_left_distance")
+            layout.prop(lanpr,"taper_left_strength")
+            
+
 
 
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
