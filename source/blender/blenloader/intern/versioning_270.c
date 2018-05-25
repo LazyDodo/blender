@@ -1389,7 +1389,6 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 								for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 									/* set stroke to palette and force recalculation */
 									BLI_strncpy(gps->colorname, gpl->info, sizeof(gps->colorname));
-									gps->flag |= GP_STROKE_RECALC_COLOR;
 									gps->thickness = gpl->thickness;
 									
 									/* set alpha strength to 1 */

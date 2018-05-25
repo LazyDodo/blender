@@ -188,8 +188,6 @@ typedef enum eGPDstroke_Flag {
 	GP_STROKE_SELECT		= (1 << 3),
 	/* Recalculate triangulation for high quality fill (when true, force a new recalc) */
 	GP_STROKE_RECALC_CACHES = (1 << 4),
-	/* Recalculate the color pointer using the name as index (true force a new recalc) */
-	GP_STROKE_RECALC_COLOR = (1 << 5),
 	/* Flag used to indicate that stroke is closed and draw edge between last and first point */
 	GP_STROKE_CYCLIC = (1 << 7),
 	/* Flag used to indicate that stroke is used for fill close and must use fill color for stroke and no fill area */
@@ -272,7 +270,6 @@ typedef struct bGPDlayer {
 	bGPDlayer_runtime runtime;
 } bGPDlayer;
 
-
 /* bGPDlayer->flag */
 typedef enum eGPDlayer_Flag {
 	/* don't display layer */
@@ -322,6 +319,7 @@ typedef struct bGPdata_runtime {
 	/* Runtime Only - Drawing Manager cache */
 	struct GHash *batch_cache_data;
 } bGPdata_runtime;
+
 typedef struct bGPdata {
 	ID id;					/* Grease Pencil data is a datablock */
 	struct AnimData *adt;   /* animation data - for animating draw settings */
@@ -369,7 +367,6 @@ typedef struct bGPdata {
 	short totcol;               /* total materials */
 	char pad2[6];
 } bGPdata;
-
 
 /* bGPdata->flag */
 /* NOTE: A few flags have been deprecated since early 2.5,
