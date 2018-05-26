@@ -224,11 +224,10 @@ static DerivedMesh *applyModifier(
 	BooleanModifierData *bmd = (BooleanModifierData *)md;
 
 #ifdef USE_BMESH
-		return applyModifier_bmesh(md, ob, derivedData, flag);
+	return applyModifier_bmesh(md, ob, derivedData, flag);
 #else
-		return applyModifier_nop(md, ob, derivedData, flag);
+	return applyModifier_nop(md, ob, derivedData, flag);
 #endif
-	}
 }
 
 

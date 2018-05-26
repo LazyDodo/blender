@@ -317,6 +317,7 @@ set(SRC
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
 	intern/pbvh_intern.h
+	../modifiers/intern/MOD_boolean_util.h
 )
 
 if(WITH_BINRELOC)
@@ -510,7 +511,6 @@ if(WITH_VORO)
 	add_definitions(-DWITH_VORO)
 	list(APPEND INC
 		../../../extern/voro++
-		../../../extern/carve
 	)
 endif()
 

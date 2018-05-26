@@ -3241,6 +3241,12 @@ static void rna_def_modifier_simpledeform(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Lock Y Axis", "Do not allow deformation along the Y axis");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
+	prop = RNA_def_property(srna, "lock_z", PROP_BOOLEAN, PROP_NONE);
+        RNA_def_property_boolean_sdna(prop, NULL, "axis", MOD_SIMPLEDEFORM_LOCK_AXIS_Z);
+        RNA_def_property_ui_text(prop, "Lock Z Axis", "Do not allow deformation along the Z axis");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
 	prop = RNA_def_property(srna, "invert_vertex_group", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_SIMPLEDEFORM_FLAG_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Invert", "Invert vertex group influence");

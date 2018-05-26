@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Copyright (C) 2014 by Martin Felke.
+ * The Original Code is Copyright (C) Blender Foundation.
  * All rights reserved.
  *
  * The Original Code is: all of this file.
@@ -25,21 +25,23 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/blenkernel/BKE_fracture_util.h
- *  \ingroup blenkernel
- *  \brief CSG operations
+/** \file blender/modifiers/intern/MOD_boolean_util.h
+ *  \ingroup modifiers
  */
 
-#ifndef BKE_FRACTURE_UTIL_H
-#define BKE_FRACTURE_UTIL_H
 
-#include "DNA_fracture_types.h"
+#ifndef __MOD_BOOLEAN_UTIL_H__
+#define __MOD_BOOLEAN_UTIL_H__
 
-Shard *BKE_fracture_shard_boolean(Object *obj, DerivedMesh *dm_parent, Shard* child, short inner_material_index, int num_cuts, float fractal,
-                                  Shard **other, float mat[4][4], float radius, bool use_smooth_inner, int num_levels, char uv_layer[], float thresh);
+struct Object;
+struct DerivedMesh;
 
-Shard *BKE_fracture_shard_bisect(struct BMesh *bm_orig, Shard* child, float obmat[4][4], bool use_fill,
-                                 bool clear_inner, bool clear_outer, int cutlimit, float centroid[],
-                                 short inner_mat_index, char uv_layer[], struct KDTree *preselect_tree, float normal[]);
+/* Performs a boolean between two mesh objects, it is assumed that both objects
+ * are in fact mesh object. On success returns a DerivedMesh. On failure
+ * returns NULL and reports an error. */
 
-#endif /* BKE_FRACTURE_UTIL_H*/
+struct DerivedMesh *NewBooleanDerivedMeshBMesh(struct DerivedMesh *dm, struct Object *ob,
+                                               struct DerivedMesh *dm_other, struct Object *ob_other, int op_type,
+                                               float double_threshold, struct BooleanModifierData *bmd);
+
+#endif  /* MOD_BOOLEAN_UTILS */

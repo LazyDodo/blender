@@ -40,13 +40,13 @@
 #include "BKE_object.h"
 
 #include "BLI_alloca.h"
-#include "BLI_boxpack2d.h"
-#include "BLI_convexhull2d.h"
 #include "BLI_ghash.h"
 #include "BLI_math.h"
 #include "BLI_rand.h"
 #include "BLI_sys_types.h"
 #include "BLI_kdtree.h"
+#include "BLI_boxpack_2d.h"
+#include "BLI_convexhull_2d.h"
 
 #include "DNA_fracture_types.h"
 #include "DNA_meshdata_types.h"
@@ -58,6 +58,9 @@
 #include "bmesh.h"
 #include "bmesh_tools.h"
 #include "../../modifiers/intern/MOD_boolean_util.h"
+
+
+struct BoxPack;
 
 /*prototypes*/
 void uv_bbox(float uv[][2], int num_uv, float minv[2], float maxv[2]);
@@ -134,9 +137,9 @@ static void do_unwrap(MPoly *mp, MVert *mvert, MLoop* mloop, int i, MLoopUV **ml
 	float nor[3];
 	float mat[3][3];
 	float (*uv)[2] = MEM_mallocN(sizeof(float[2]) * mp->totloop, "unwrap_shard_dm_uv");
-	BoxPack *box;
 	float uvbbox[2][2];
 	float angle;
+	BoxPack *box;
 
 	/* uv unwrap cells, so inner faces get a uv map */
 	for (j = 0; j < mp->totloop; j++) {
@@ -574,7 +577,7 @@ static void do_set_inner_material(Shard **other, float mat[4][4], DerivedMesh* l
 
 Shard *BKE_fracture_shard_boolean(Object *obj, DerivedMesh *dm_parent, Shard *child, short inner_material_index,
                                   int num_cuts, float fractal, Shard** other, float mat[4][4], float radius,
-                                  bool use_smooth_inner, int num_levels, char uv_layer[64], int solver, float thresh)
+                                  bool use_smooth_inner, int num_levels, char uv_layer[64], float thresh)
 {
 	DerivedMesh *left_dm = NULL, *right_dm, *output_dm, *other_dm;
 	if (other != NULL && mat != NULL)
@@ -592,13 +595,9 @@ Shard *BKE_fracture_shard_boolean(Object *obj, DerivedMesh *dm_parent, Shard *ch
 
 	right_dm = dm_parent;
 
-	if (solver == eBooleanModifierSolver_Carve)
-	{
-		output_dm = NewBooleanDerivedMesh(right_dm, obj, left_dm, obj, 1); /*1 == intersection, 3 == difference*/
-	}
-	else {
-		output_dm = NewBooleanDerivedMeshBMesh(right_dm, obj, left_dm, obj, 0, thresh, NULL); /*0 == intersection, 2 == difference*/
-	}
+	
+	output_dm = NewBooleanDerivedMeshBMesh(right_dm, obj, left_dm, obj, 0, thresh, NULL); /*0 == intersection, 2 == difference*/
+
 
 	/*check for watertightness, but for fractal only*/
 	if (other != NULL && do_check_watertight(&output_dm, &left_dm, right_dm, other, mat))
@@ -608,13 +607,8 @@ Shard *BKE_fracture_shard_boolean(Object *obj, DerivedMesh *dm_parent, Shard *ch
 
 	if (other != NULL)
 	{
-		if (solver == eBooleanModifierSolver_Carve)
-		{
-			other_dm = NewBooleanDerivedMesh(left_dm, obj, right_dm, obj, 3);
-		}
-		else {
-			other_dm = NewBooleanDerivedMeshBMesh(left_dm, obj, right_dm, obj, 2, thresh, NULL);
-		}
+		
+		other_dm = NewBooleanDerivedMeshBMesh(left_dm, obj, right_dm, obj, 2, thresh, NULL);
 
 		/*check for watertightness again, true means do return NULL here*/
 		if (!other_dm || do_check_watertight_other(&other_dm, &output_dm, other, right_dm, &left_dm, mat))

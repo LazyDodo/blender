@@ -228,7 +228,6 @@ static void initData(ModifierData *md)
 	fmd->autohide_filter_group = NULL;
 	fmd->constraint_count = 0;
 
-	fmd->boolean_solver = eBooleanModifierSolver_Carve;
 	fmd->boolean_double_threshold = 1e-6f;
 	fmd->dynamic_percentage = 0.0f;
 	fmd->dynamic_new_constraints = MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS;
@@ -1685,7 +1684,7 @@ static void do_fracture_points(FractureModifierData *fmd, Object* obj, DerivedMe
 			BKE_fracture_shard_by_points(fmd->frac_mesh, id, &points, fmd->frac_algorithm, obj, dm, mat_index, mat,
 			                             fmd->fractal_cuts, fmd->fractal_amount, fmd->use_smooth, fmd->fractal_iterations,
 			                             fmd->fracture_mode, fmd->reset_shards, fmd->active_setting, num_settings, fmd->uvlayer_name,
-			                             fmd->execute_threaded, fmd->boolean_solver, fmd->boolean_double_threshold, fmd->shards_to_islands,
+			                             fmd->execute_threaded, fmd->boolean_double_threshold, fmd->shards_to_islands,
 			                             override_count, fmd->orthogonality_factor, fmd->point_source,
 			                             fmd->grid_resolution, fmd->grid_spacing);
 		}

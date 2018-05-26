@@ -1483,7 +1483,7 @@ static int make_links_scene_exec(bContext *C, wmOperator *op)
 	{
 		/* in case we link rigidbodies, copy the world of them as well (or we experience a crash if we try to access it */
 		if (scene_from->rigidbody_world != NULL && scene_to->rigidbody_world == NULL) {
-			scene_to->rigidbody_world = BKE_rigidbody_world_copy(scene_from->rigidbody_world);
+			scene_to->rigidbody_world = BKE_rigidbody_world_copy(scene_from->rigidbody_world, 0);
 		}
 		ED_object_scene_link(scene_to, base->object);
 	}

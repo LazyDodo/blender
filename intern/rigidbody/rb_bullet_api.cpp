@@ -80,6 +80,8 @@ subject to the following restrictions:
 
 #include "../../extern/glew/include/GL/glew.h"
 
+static inline void copy_v3_btvec3(float vec[3], const btVector3 &btvec);
+	
 typedef struct rbConstraint
 {
 	btTypedConstraint *con;
@@ -163,13 +165,6 @@ static btRigidBody* getBodyFromShape(void *shapePtr)
 		return fbody;
 	}*/
 	return body->body;
-}
-
-static inline void copy_v3_btvec3(float vec[3], const btVector3 &btvec)
-{
-	vec[0] = (float)btvec[0];
-	vec[1] = (float)btvec[1];
-	vec[2] = (float)btvec[2];
 }
 
 typedef void (*rbContactCallback)(rbContactPoint * cp, void *bworld);

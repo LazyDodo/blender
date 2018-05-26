@@ -2505,7 +2505,7 @@ static void apply_transform(Object* ob, Scene* scene, float smat[3][3]) {
 		Curve *cu = ob->data;
 
 		scale = mat3_to_scale(smat);
-		BKE_curve_transform_ex(cu, mat, true, scale);
+		BKE_curve_transform_ex(cu, mat, true, true, scale);
 	}
 	else if (ob->type == OB_FONT) {
 		Curve *cu = ob->data;

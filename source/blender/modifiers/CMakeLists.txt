@@ -112,6 +112,7 @@ set(SRC
 	intern/MOD_meshcache_util.h
 	intern/MOD_util.h
 	intern/MOD_weightvg_util.h
+	intern/MOD_boolean_util.h
 )
 
 if(WITH_LEGACY_DEPSGRAPH)

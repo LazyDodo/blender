@@ -67,6 +67,7 @@
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_fileglobal_types.h"
+#include "DNA_fracture_types.h"
 #include "DNA_genfile.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
@@ -5357,7 +5358,6 @@ static void load_fracture_modifier(FileData* fd, FractureModifierData *fmd)
 
 	//load useful defaults here for older blends, newer settings (better do this in do_versioning)
 	if (fd->fileversion < 278) {
-		fmd->boolean_solver = eBooleanModifierSolver_Carve;
 		fmd->boolean_double_threshold = 1e-6f;
 		fmd->keep_cutter_shards = MOD_FRACTURE_KEEP_BOTH;
 		fmd->dynamic_new_constraints = MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS;
