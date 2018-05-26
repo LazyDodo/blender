@@ -160,6 +160,10 @@ void BKE_mesh_sample_weights_from_loc(MeshSample *sample, Mesh *mesh, int looptr
 	sample->orig_verts[0] = i1;
 	sample->orig_verts[1] = i2;
 	sample->orig_verts[2] = i3;
+	sample->orig_loops[0] = looptri->tri[0];
+	sample->orig_loops[1] = looptri->tri[1];
+	sample->orig_loops[2] = looptri->tri[2];
+	sample->orig_poly = looptri->poly;
 	copy_v3_v3(sample->orig_weights, w);
 }
 
@@ -423,7 +427,7 @@ static bool generator_vertices_make_loop_sample(const Mesh *mesh, const int *loo
 		return false;
 	}
 	
-	sample->orig_poly = -1;
+	sample->orig_poly = SAMPLE_INDEX_INVALID;
 	
 	sample->orig_loops[0] = (unsigned int)loops[0];
 	sample->orig_loops[1] = (unsigned int)loops[1];
@@ -612,6 +616,10 @@ static bool generator_random_make_sample(const MSurfaceSampleGenerator_Random *g
 	sample->orig_verts[0] = mloops[mtri->tri[0]].v;
 	sample->orig_verts[1] = mloops[mtri->tri[1]].v;
 	sample->orig_verts[2] = mloops[mtri->tri[2]].v;
+	sample->orig_loops[0] = mtri->tri[0];
+	sample->orig_loops[1] = mtri->tri[1];
+	sample->orig_loops[2] = mtri->tri[2];
+	sample->orig_poly = mtri->poly;
 	
 	if (a + b > 1.0f) {
 		a = 1.0f - a;
@@ -756,8 +764,7 @@ MeshSampleGenerator *BKE_mesh_sample_gen_surface_raycast(
 #define SQRT_3 1.732050808
 
 typedef struct IndexedMeshSample {
-	unsigned int orig_verts[3];
-	float orig_weights[3];
+	MeshSample base;
 	float co[3];
 	int cell_index[3];
 } IndexedMeshSample;
@@ -832,8 +839,7 @@ static void generator_poissondisk_uniform_sample_eval(
 	IndexedMeshSample *isample = &gen->uniform_samples[iter];
 	const MeshSample *sample = &samples[iter];
 	
-	memcpy(isample->orig_verts, sample->orig_verts, sizeof(isample->orig_verts));
-	memcpy(isample->orig_weights, sample->orig_weights, sizeof(isample->orig_weights));
+	memcpy(&isample->base, sample, sizeof(MeshSample));
 	float nor[3], tang[3];
 	BKE_mesh_sample_eval(mesh, sample, isample->co, nor, tang);
 	
@@ -1102,10 +1108,7 @@ static bool generator_poissondisk_make_sample(const MSurfaceSampleGenerator_Pois
 				if (!conflict) {
 					cell->sample = sample_index;
 					
-					memcpy(sample->orig_verts, isample->orig_verts, sizeof(sample->orig_verts));
-					memcpy(sample->orig_weights, isample->orig_weights, sizeof(sample->orig_weights));
-					memset(sample->orig_loops, 0, sizeof(sample->orig_loops));
-					sample->orig_poly = 0;
+					memcpy(sample, &isample->base, sizeof(*sample));
 					
 					found_sample = true;
 				}
@@ -1374,6 +1377,10 @@ static bool generator_volume_random_make_sample(const MVolumeSampleGenerator_Ran
 		sample->orig_verts[0] = SAMPLE_INDEX_INVALID;
 		sample->orig_verts[1] = SAMPLE_INDEX_INVALID;
 		sample->orig_verts[2] = SAMPLE_INDEX_INVALID;
+		sample->orig_loops[0] = SAMPLE_INDEX_INVALID;
+		sample->orig_loops[1] = SAMPLE_INDEX_INVALID;
+		sample->orig_loops[2] = SAMPLE_INDEX_INVALID;
+		sample->orig_poly = SAMPLE_INDEX_INVALID;
 		
 		interp_v3_v3v3(sample->orig_weights, a->co, b->co, t);
 		
