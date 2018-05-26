@@ -373,6 +373,28 @@ static BMOpDefine bmo_automerge_def = {
 	 BMO_OPTYPE_FLAG_SELECT_VALIDATE),
 };
 
+
+/*
+ * Auto Merge (Keep Normals).
+ *
+ * Finds groups of vertices closer then **dist** and merges them together,
+ * using the weld verts bmop.  The merges must go from a vert not in
+ * **verts** to one in **verts**.
+ */
+static BMOpDefine bmo_automerge_keep_normal_def = {
+	"automerge_keep_normals",
+	/* slots_in */
+	{{"verts", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT}}, /* input verts */
+	 {"dist",         BMO_OP_SLOT_FLT}, /* minimum distance */
+	 {{'\0'}},
+	},
+	{{{'\0'}}},  /* no output */
+	bmo_remove_doubles_exec,
+	(BMO_OPTYPE_FLAG_UNTAN_MULTIRES |
+	 BMO_OPTYPE_FLAG_SELECT_FLUSH |
+	 BMO_OPTYPE_FLAG_SELECT_VALIDATE),
+};
+
 /*
  * Collapse Connected.
  *
@@ -1090,6 +1112,27 @@ static BMOpDefine bmo_dissolve_edges_def = {
 };
 
 /*
+ * Dissolve Edges (Keep Normals).
+ */
+static BMOpDefine bmo_dissolve_edges_keep_normal_def = {
+	"dissolve_edges_keep_normals",
+	/* slots_in */
+	{{"edges", BMO_OP_SLOT_ELEMENT_BUF, {BM_EDGE}},
+	 {"use_verts", BMO_OP_SLOT_BOOL},  /* dissolve verts left between only 2 edges. */
+	 {"use_face_split", BMO_OP_SLOT_BOOL},
+	 {{'\0'}},
+	},
+	/* slots_out */
+	{{"region.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_FACE}},
+	 {{'\0'}},
+	},
+	bmo_dissolve_edges_exec,
+	(BMO_OPTYPE_FLAG_UNTAN_MULTIRES |
+	 BMO_OPTYPE_FLAG_SELECT_FLUSH |
+	 BMO_OPTYPE_FLAG_SELECT_VALIDATE),
+};
+
+/*
  * Dissolve Faces.
  */
 static BMOpDefine bmo_dissolve_faces_def = {
@@ -1106,6 +1149,30 @@ static BMOpDefine bmo_dissolve_faces_def = {
 	bmo_dissolve_faces_exec,
 	(BMO_OPTYPE_FLAG_UNTAN_MULTIRES |
 	 BMO_OPTYPE_FLAG_NORMALS_CALC |
+	 BMO_OPTYPE_FLAG_SELECT_FLUSH |
+	 BMO_OPTYPE_FLAG_SELECT_VALIDATE),
+};
+
+/*
+ * Limited Dissolve (Keep Normals).
+ *
+ * Dissolve planar faces and co-linear edges.
+ */
+static BMOpDefine bmo_dissolve_limit_keep_normal_def = {
+	"dissolve_limit_keep_normals",
+	/* slots_in */
+	{{"angle_limit", BMO_OP_SLOT_FLT}, /* total rotation angle (radians) */
+	 {"use_dissolve_boundaries", BMO_OP_SLOT_BOOL},
+	 {"verts", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT}},
+	 {"edges", BMO_OP_SLOT_ELEMENT_BUF, {BM_EDGE}},
+	 {"delimit", BMO_OP_SLOT_INT},
+	 {{'\0'}},
+	},
+	/* slots_out */
+	{{"region.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_FACE}},
+	 {{'\0'}}},
+	bmo_dissolve_limit_exec,
+	(BMO_OPTYPE_FLAG_UNTAN_MULTIRES |
 	 BMO_OPTYPE_FLAG_SELECT_FLUSH |
 	 BMO_OPTYPE_FLAG_SELECT_VALIDATE),
 };
@@ -1309,6 +1376,24 @@ static BMOpDefine bmo_delete_def = {
 	bmo_delete_exec,
 	(BMO_OPTYPE_FLAG_NORMALS_CALC |
 	 BMO_OPTYPE_FLAG_SELECT_FLUSH |
+	 BMO_OPTYPE_FLAG_SELECT_VALIDATE),
+};
+
+/*
+ * Delete Geometry (Keep Normals).
+ *
+ * Utility operator to delete geometry.
+ */
+static BMOpDefine bmo_delete_keep_normal_def = {
+	"delete_keep_normals",
+	/* slots_in */
+	{{"geom", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT | BM_EDGE | BM_FACE}},
+	 {"context", BMO_OP_SLOT_INT},  /* enum DEL_VERTS ... */
+	 {{'\0'}},
+	},
+	{{{'\0'}}},  /* no output */
+	bmo_delete_exec,
+	(BMO_OPTYPE_FLAG_SELECT_FLUSH |
 	 BMO_OPTYPE_FLAG_SELECT_VALIDATE),
 };
 
@@ -1811,6 +1896,7 @@ static BMOpDefine bmo_solidify_def = {
 	/* slots_in */
 	{{"geom", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT | BM_EDGE | BM_FACE}},
 	 {"thickness", BMO_OP_SLOT_FLT},
+	 {"offset", BMO_OP_SLOT_FLT},
 	 {{'\0'}},
 	},
 	/* slots_out */
@@ -2019,6 +2105,7 @@ static BMOpDefine bmo_symmetrize_def = {
 
 const BMOpDefine *bmo_opdefines[] = {
 	&bmo_automerge_def,
+	&bmo_automerge_keep_normal_def,
 	&bmo_average_vert_facedata_def,
 	&bmo_beautify_fill_def,
 	&bmo_bevel_def,
@@ -2044,10 +2131,13 @@ const BMOpDefine *bmo_opdefines[] = {
 	&bmo_create_uvsphere_def,
 	&bmo_create_vert_def,
 	&bmo_delete_def,
+	&bmo_delete_keep_normal_def,
 	&bmo_dissolve_edges_def,
+	&bmo_dissolve_edges_keep_normal_def,
 	&bmo_dissolve_faces_def,
 	&bmo_dissolve_verts_def,
 	&bmo_dissolve_limit_def,
+	&bmo_dissolve_limit_keep_normal_def,
 	&bmo_dissolve_degenerate_def,
 	&bmo_duplicate_def,
 	&bmo_holes_fill_def,

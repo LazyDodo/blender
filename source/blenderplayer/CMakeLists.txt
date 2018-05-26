@@ -199,6 +199,10 @@ endif()
 	if(WITH_INTERNATIONAL)
 		list(APPEND BLENDER_SORTED_LIBS bf_intern_locale)
 	endif()
+	
+	if(WITH_VORO)
+		list(APPEND BLENDER_SORTED_LIBS extern_voro)
+	endif()
 
 	if(WITH_GAMEENGINE_DECKLINK)
 		list(APPEND BLENDER_SORTED_LIBS bf_intern_decklink)

@@ -925,6 +925,7 @@ static void layerInterp_mloopuv(
 	}
 
 	/* delay writing to the destination incase dest is in sources */
+	((MLoopUV *)dest)->flag = ((MLoopUV *)sources)->flag;
 	copy_v2_v2(((MLoopUV *)dest)->uv, uv);
 	((MLoopUV *)dest)->flag = flag;
 }
@@ -1940,7 +1941,6 @@ void *CustomData_add_layer_named(CustomData *data, int type, int alloctype,
 	return NULL;
 }
 
-
 bool CustomData_free_layer(CustomData *data, int type, int totelem, int index)
 {
 	const int index_first = CustomData_get_layer_index(data, type);
@@ -2158,7 +2158,7 @@ void CustomData_copy_elements(int type, void *src_data_ofs, void *dst_data_ofs, 
 		memcpy(dst_data_ofs, src_data_ofs, (size_t)count * typeInfo->size);
 }
 
-static void CustomData_copy_data_layer(
+void CustomData_copy_data_layer(
         const CustomData *source, CustomData *dest,
         int src_i, int dst_i,
         int src_index, int dst_index, int count)
@@ -2911,6 +2911,18 @@ void *CustomData_bmesh_get_n(const CustomData *data, void *block, int type, int 
 	if (layer_index == -1) return NULL;
 
 	return POINTER_OFFSET(block, data->layers[layer_index + n].offset);
+}
+
+/* why did this miss here before, useful ! */
+void *CustomData_bmesh_get_named(const CustomData *data, void *block, int type, const char *name)
+{
+	int layer_index;
+
+	/* get the layer index of the first layer of type */
+	layer_index = CustomData_get_named_layer_index(data, type, name);
+	if (layer_index == -1) return NULL;
+
+	return POINTER_OFFSET(block, data->layers[layer_index].offset);
 }
 
 /*gets from the layer at physical index n, note: doesn't check type.*/

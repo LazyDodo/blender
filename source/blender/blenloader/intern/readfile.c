@@ -124,6 +124,7 @@
 #include "BKE_depsgraph.h"
 #include "BKE_effect.h"
 #include "BKE_fcurve.h"
+#include "BKE_fracture.h"
 #include "BKE_global.h" // for G
 #include "BKE_group.h"
 #include "BKE_library.h" // for which_libbase
@@ -163,6 +164,8 @@
 
 
 #include <errno.h>
+
+#include "BKE_cdderivedmesh.h"  //for fracture meshisland handling
 
 /**
  * READ
@@ -389,6 +392,22 @@ static void *oldnewmap_lookup_and_inc(OldNewMap *onm, const void *addr, bool inc
 	int i;
 	
 	if (addr == NULL) return NULL;
+
+	/* try sorted approach here too, maybe it helps */
+	if (onm->sorted) {
+		OldNew entry_s, *entry = NULL;
+
+		entry_s.old = addr;
+
+		entry = bsearch(&entry_s, onm->entries, onm->nentries, sizeof(OldNew), verg_oldnewmap);
+		if (entry) {
+			if (increase_users)
+				entry->nr++;
+			return entry->newp;
+		}
+
+		return NULL;
+	}
 	
 	if (onm->lasthit < onm->nentries-1) {
 		OldNew *entry = &onm->entries[++onm->lasthit];
@@ -4597,6 +4616,50 @@ static void direct_link_grid_paint_mask(FileData *fd, int count, GridPaintMask *
 	}
 }
 
+/* used with fracture modifier */
+static void direct_link_customdata_fracture(FileData *fd, CustomData *data, int count)
+{
+	/*need to load the dverts here for fracture, so handle this in a special function, normally
+	 *the dverts arent loaded here, for what reason ever.... */
+
+	int i = 0;
+
+	data->layers = newdataadr(fd, data->layers);
+
+	/* annoying workaround for bug [#31079] loading legacy files with
+	 * no polygons _but_ have stale customdata */
+	if (UNLIKELY(count == 0 && data->layers == NULL && data->totlayer != 0)) {
+		CustomData_reset(data);
+		return;
+	}
+
+	data->external = newdataadr(fd, data->external);
+
+	while (i < data->totlayer) {
+		CustomDataLayer *layer = &data->layers[i];
+
+		if (layer->flag & CD_FLAG_EXTERNAL)
+			layer->flag &= ~CD_FLAG_IN_MEMORY;
+
+		layer->flag &= ~CD_FLAG_NOFREE;
+
+		if (CustomData_verify_versions(data, i)) {
+			layer->data = newdataadr(fd, layer->data);
+			if (layer->type == CD_MDISPS)
+				direct_link_mdisps(fd, count, layer->data, layer->flag & CD_FLAG_EXTERNAL);
+			else if (layer->type == CD_GRID_PAINT_MASK)
+				direct_link_grid_paint_mask(fd, count, layer->data);
+			else if (layer->type == CD_MDEFORMVERT) {
+				/* layer types that allocate own memory need special handling */
+				direct_link_dverts(fd, count, layer->data);
+			}
+			i++;
+		}
+	}
+
+	CustomData_update_typemap(data);
+}
+
 /*this isn't really a public api function, so prototyped here*/
 static void direct_link_customdata(FileData *fd, CustomData *data, int count)
 {
@@ -5116,6 +5179,484 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 	}
 }
 
+/* used with fracture modifier*/
+void direct_link_customdata_mtpoly_shard(FileData *fd, CustomData *pdata, int totface);
+void direct_link_customdata_mtpoly_shard(FileData *fd, CustomData *pdata, int totface)
+{
+	int i;
+
+	for (i=0; i < pdata->totlayer; i++) {
+		CustomDataLayer *layer = &pdata->layers[i];
+
+		if (layer->type == CD_MTEXPOLY) {
+			MTexPoly *tf= layer->data;
+			int j;
+
+			for (j = 0; j < totface; j++, tf++) {
+				tf->tpage = newdataadr(fd, tf->tpage);
+				if (tf->tpage && tf->tpage->id.us == 0) {
+					tf->tpage->id.us = 1;
+				}
+			}
+		}
+	}
+}
+
+static void read_shard(FileData *fd, Shard **address )
+{
+	Shard* s = *address;
+	s->mvert = newdataadr(fd, s->mvert);
+	s->mpoly = newdataadr(fd, s->mpoly);
+	s->mloop = newdataadr(fd, s->mloop);
+	s->medge = newdataadr(fd, s->medge);
+
+	direct_link_customdata_fracture(fd, &s->vertData, s->totvert);
+	direct_link_customdata_fracture(fd, &s->loopData, s->totloop);
+	direct_link_customdata_fracture(fd, &s->polyData, s->totpoly);
+	direct_link_customdata_fracture(fd, &s->edgeData, s->totedge);
+
+	s->neighbor_ids = newdataadr(fd, s->neighbor_ids);
+	s->cluster_colors = newdataadr(fd, s->cluster_colors);
+}
+
+static void read_meshIsland(FileData *fd, MeshIsland **address)
+{
+	MeshIsland* mi;
+
+	mi = *address;
+	mi->vertices = NULL;
+	mi->vertices_cached = NULL;
+	mi->vertco = newdataadr(fd, mi->vertco);
+	//legacy crap...
+	mi->temp = newdataadr(fd, mi->temp);
+	mi->temp = NULL;
+	//end legacy crap
+	mi->vertno = newdataadr(fd, mi->vertno);
+
+	mi->rigidbody = newdataadr(fd, mi->rigidbody);
+	if (mi->rigidbody)
+	{
+		/*should not happen that a mesh island has no rigidbody... */
+		/*maybe the modifier was inactive while saving ?*/
+		mi->rigidbody->physics_object = newdataadr(fd, mi->rigidbody->physics_object);
+		mi->rigidbody->physics_shape = newdataadr(fd, mi->rigidbody->physics_shape);
+		mi->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
+		mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
+	}
+
+	mi->neighbor_ids = newdataadr(fd, mi->neighbor_ids );
+	mi->bb = newdataadr(fd, mi->bb);
+	mi->vertex_indices = newdataadr(fd, mi->vertex_indices);
+
+	mi->locs = newdataadr(fd, mi->locs);
+	mi->rots = newdataadr(fd, mi->rots);
+	mi->acc_sequence = newdataadr(fd, mi->acc_sequence);
+
+	/* will be refreshed on the fly if not there*/
+	mi->participating_constraints = newdataadr(fd, mi->participating_constraints);
+	mi->participating_constraint_count = 0;
+}
+
+static int initialize_meshisland(FractureModifierData* fmd, MeshIsland** mii, MVert* mverts, int vertstart,
+                                 Shard* s)
+{
+	MVert *mv;
+	int k = 0, j = 0;
+	MeshIsland* mi = *mii;
+
+	mi->vertices_cached = MEM_mallocN(sizeof(MVert*) * mi->vertex_count, "mi->vertices_cached readfile");
+	mv = s->mvert;
+
+	for (k = 0; k < mi->vertex_count; k++) {
+		MVert* v = mverts + vertstart + k ;
+		MVert* v2 = k < s->totvert ? mv + k : NULL;
+		mi->vertices_cached[k] = v;
+		if (mi->vertex_indices) {
+			mi->vertex_indices[k] = vertstart + k;
+		}
+
+		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
+		{
+			mi->vertco[k*3] = v->co[0];
+			mi->vertco[k*3+1] = v->co[1];
+			mi->vertco[k*3+2] = v->co[2];
+		}
+
+		if (mi->vertno != NULL && fmd->fix_normals) {
+			short sno[3];
+			sno[0] = mi->vertno[k*3];
+			sno[1] = mi->vertno[k*3+1];
+			sno[2] = mi->vertno[k*3+2];
+			copy_v3_v3_short(v->no, sno);
+			if (v2)
+				copy_v3_v3_short(v2->no, sno);
+		}
+
+		if (v2)
+			sub_v3_v3(v2->co, s->centroid);
+	}
+
+	mi->physics_mesh = BKE_shard_create_dm(s, true);
+
+	for (mv = s->mvert, j = 0; j < s->totvert; j++, mv++)
+	{
+		add_v3_v3(mv->co, s->centroid);
+	}
+
+	return mi->vertex_count;
+}
+
+/*refactor this loading routine out, for better readability*/
+static void load_fracture_modifier(FileData* fd, FractureModifierData *fmd)
+{
+	FracMesh* fm;
+	bool autoexec = false;
+
+	fm = fmd->frac_mesh = newdataadr(fd, fmd->frac_mesh);
+	if (fm) {
+		fm->last_expected_shards = 0;
+		fm->progress_counter = 0;
+	}
+
+	autoexec = fmd->auto_execute;
+	fmd->auto_execute = false;
+	fmd->refresh = false;  /* do not execute modifier here yet*/
+	fmd->refresh_constraints = false;
+	fmd->nor_tree = NULL;
+	fmd->face_pairs = NULL;
+	fmd->vert_index_map = NULL;
+	fmd->vertex_island_map = NULL;
+	fmd->material_index_map = NULL;
+	fmd->defgrp_index_map = NULL;
+	fmd->fracture_ids.first = NULL;
+	fmd->fracture_ids.last = NULL;
+	fmd->update_dynamic = false;
+	fmd->visible_mesh = NULL;
+	fmd->dm = NULL;
+	fmd->visible_mesh_cached = NULL;
+
+	/*HARDCODING this for now, until we can version it properly, say with 2.75 ? */
+	if (fd->fileversion < 275) {
+		fmd->fracture_mode = MOD_FRACTURE_PREFRACTURED;
+		fmd->shard_sequence.first = NULL;
+		fmd->shard_sequence.last = NULL;
+		fmd->meshIsland_sequence.first = NULL;
+		fmd->meshIsland_sequence.last = NULL;
+
+		fmd->fracture_settings.first = NULL;
+		fmd->fracture_settings.last = NULL;
+		fmd->active_setting = -1;
+
+		fmd->current_mi_entry = NULL;
+		fmd->current_shard_entry = NULL;
+	}
+	else
+	{
+		link_list(fd, &fmd->fracture_settings);
+	}
+
+	//load useful defaults here for older blends, newer settings (better do this in do_versioning)
+	if (fd->fileversion < 278) {
+		fmd->boolean_solver = eBooleanModifierSolver_Carve;
+		fmd->boolean_double_threshold = 1e-6f;
+		fmd->keep_cutter_shards = MOD_FRACTURE_KEEP_BOTH;
+		fmd->dynamic_new_constraints = MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS;
+		fmd->dynamic_percentage = 0;
+		fmd->dynamic_min_size = 1.0f;
+	}
+
+	//if there is no constraint_type in blend, just set the default value "fixed"...
+	if (!DNA_struct_elem_find(fd->filesdna, "FractureModifierData", "int", "constraint_type"))
+	{
+		fmd->constraint_type = RBC_TYPE_FIXED;
+	}
+
+	//if there is no cached distortion element, there is none, set false
+	if (!DNA_struct_elem_find(fd->filesdna, "FractureModifierData", "int", "distortion_cached"))
+	{
+		fmd->distortion_cached = false;
+	}
+
+	//instead of version number, check just for existence of shared verts in DNA
+	if (DNA_struct_elem_find(fd->filesdna, "FractureModifierData", "ListBase", "shared_verts"))
+	{
+		SharedVertGroup *vg;
+		link_list(fd, &fmd->shared_verts);
+		for (vg = fmd->shared_verts.first; vg; vg = vg->next)
+		{
+			link_list(fd, &vg->verts);
+		}
+
+		if (BLI_listbase_is_empty(&fmd->shared_verts))
+		{
+			fmd->distortion_cached = false;
+		}
+		else {
+			fmd->distortion_cached = true;
+		}
+	}
+	else {
+		fmd->shared_verts.first = NULL;
+		fmd->shared_verts.last = NULL;
+	}
+
+	if (fm == NULL || fmd->dm_group) {
+		fmd->dm = NULL;
+		fmd->meshIslands.first = NULL;
+		fmd->meshIslands.last = NULL;
+		fmd->visible_mesh = NULL;
+		fmd->visible_mesh_cached = NULL;
+		zero_m4(fmd->origmat);
+		zero_m4(fmd->passive_parent_mat);
+		fmd->meshConstraints.first = NULL;
+		fmd->meshConstraints.last = NULL;
+		fmd->explo_shared = false;
+		fmd->refresh = false;  /* do not execute modifier */
+		fmd->refresh_constraints = false;
+		fmd->max_vol = 0;
+		fmd->refresh_images = false;
+		fmd->islandShards.first = NULL;
+		fmd->islandShards.last = NULL;
+		fmd->anim_bind = NULL;
+		fmd->anim_bind_len = 0;
+	}
+	else {
+		MeshIsland *mi;
+
+		fm->last_shard_tree = NULL;
+		fm->last_shards = NULL;
+
+		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED ||
+		    fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+		{
+			/*create temp array for quicker lookups*/
+			int count = 0, islandShardCount = 0;
+			int i = 0;
+			MVert *mverts;
+			int vertstart = 0;
+			Shard *s, **shards = NULL;
+			RigidBodyShardCon *con;
+
+			/*just to be sure we dont have stale data from dynamic*/
+			fmd->shard_sequence.first = NULL;
+			fmd->shard_sequence.last = NULL;
+			fmd->meshIsland_sequence.first = NULL;
+			fmd->meshIsland_sequence.last = NULL;
+			fmd->current_mi_entry = NULL;
+			fmd->current_shard_entry = NULL;
+
+			link_list(fd, &fmd->frac_mesh->shard_map);
+			link_list(fd, &fmd->islandShards);
+			islandShardCount = BLI_listbase_count(&fmd->islandShards);
+			fm->shard_count = BLI_listbase_count(&fmd->frac_mesh->shard_map);
+			count = fm->shard_count + islandShardCount;
+
+			shards = MEM_callocN(sizeof(Shard*) * count, "readfile shard_lookup_array");
+			for (s = fmd->frac_mesh->shard_map.first; s; s = s->next) {
+				read_shard(fd, &s);
+				shards[i] = s;
+				i++;
+			}
+
+			fmd->dm = NULL;
+			fmd->visible_mesh = NULL;
+
+			for (s = fmd->islandShards.first; s; s = s->next) {
+				read_shard(fd, &s);
+				shards[i] = s;
+				i++;
+			}
+
+			link_list(fd, &fmd->meshIslands);
+
+			if ((fmd->islandShards.first == NULL || islandShardCount == 0) && fm->shard_count > 0) {
+				/* oops, a refresh was missing, so disable this flag here better, otherwise
+				 * we attempt to load non existing data */
+				fmd->shards_to_islands = false;
+			}
+			else if (fm->shard_count == 0) {
+				fmd->shards_to_islands = true;
+			}
+
+			/* ugly ugly, need only the shard... the rest is to be generated on demand... */
+			BKE_fracture_create_dm(fmd, true, false);
+
+			if (fm->shard_count == 0) {
+				fmd->shards_to_islands = false;
+			}
+
+			fmd->visible_mesh_cached = CDDM_copy(fmd->dm);
+			if (fmd->visible_mesh == NULL) {
+				fmd->visible_mesh = DM_to_bmesh(fmd->visible_mesh_cached, true);
+			}
+
+			DM_ensure_tessface(fmd->visible_mesh_cached);
+			DM_ensure_normals(fmd->visible_mesh_cached);
+			//DM_update_tessface_data(fmd->visible_mesh_cached);
+
+
+			/* re-init cached verts here... */
+			mverts = CDDM_get_verts(fmd->visible_mesh_cached);
+
+			if (fmd->shards_to_islands)
+			{
+				i = fm->shard_count;
+			}
+			else
+			{
+				i = 0;
+			}
+
+			for (mi = fmd->meshIslands.first; mi; mi = mi->next) {
+				Shard *sh = NULL;
+				sh = shards[i]; //skip "empty" shards
+				while (sh && (sh->shard_id < mi->id))
+				{
+					if (sh->next) {
+						sh = sh->next;
+					}
+					else {
+						break;
+					}
+				}
+
+				if (sh)
+				{
+					read_meshIsland(fd, &mi);
+					vertstart += initialize_meshisland(fmd, &mi, mverts, vertstart, sh);
+				}
+				i++;
+			}
+
+			link_list(fd, &fmd->meshConstraints);
+
+			for (con = fmd->meshConstraints.first; con; con = con->next)
+			{
+				con->mi1 = newdataadr(fd, con->mi1);
+				con->mi2 = newdataadr(fd, con->mi2);
+				con->physics_constraint = NULL;
+				con->flag |= RBC_FLAG_NEEDS_VALIDATE;
+				if (con->mi1->participating_constraints != NULL)
+				{
+					con->mi1->participating_constraints[con->mi1->participating_constraint_count] = con;
+					con->mi1->participating_constraint_count++;
+				}
+
+				if (con->mi2->participating_constraints != NULL)
+				{
+					con->mi2->participating_constraints[con->mi2->participating_constraint_count] = con;
+					con->mi2->participating_constraint_count++;
+				}
+			}
+
+			if (fmd->meshConstraints.first == NULL || fmd->meshConstraints.last == NULL)
+			{	//fallback... rebuild constraints from scratch if none are found
+				if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+				{
+					fmd->refresh_constraints = true;
+					fmd->meshConstraints.first = NULL;
+					fmd->meshConstraints.last = NULL;
+				}
+			}
+
+			link_list(fd, &fmd->pack_storage);
+			for (s = fmd->pack_storage.first; s; s = s->next)
+			{
+				read_shard(fd, &s);
+			}
+
+			MEM_freeN(shards);
+		}
+		else if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
+		{
+			ShardSequence *ssq = NULL;
+			MeshIslandSequence *msq = NULL;
+			Shard *s;
+			bool temp = fmd->shards_to_islands;
+
+			fmd->dm = NULL;
+			fmd->refresh_constraints = true;
+			fmd->meshConstraints.first = NULL;
+			fmd->meshConstraints.last = NULL;
+
+			link_list(fd, &fmd->shard_sequence);
+
+			for (ssq = fmd->shard_sequence.first; ssq; ssq = ssq->next)
+			{
+				ssq->is_new = false;
+				ssq->frac_mesh = newdataadr(fd, ssq->frac_mesh);
+				link_list(fd, &ssq->frac_mesh->shard_map);
+
+				for (s = ssq->frac_mesh->shard_map.first; s; s = s->next) {
+					read_shard(fd, &s);
+				}
+			}
+
+			fmd->current_shard_entry = fmd->shard_sequence.first;
+
+			link_list(fd, &fmd->meshIsland_sequence);
+			for (msq = fmd->meshIsland_sequence.first; msq; msq = msq->next)
+			{
+				int vertstart = 0;
+				MVert* mverts;
+				Shard *sh;
+
+				msq->is_new = false;
+				fmd->frac_mesh = fmd->current_shard_entry->frac_mesh;
+				fmd->shards_to_islands = false;
+				BKE_fracture_create_dm(fmd, true, false);
+				fmd->shards_to_islands = temp;
+				fmd->visible_mesh_cached = CDDM_copy(fmd->dm);
+				msq->visible_dm = fmd->visible_mesh_cached;
+				mverts = CDDM_get_verts(fmd->visible_mesh_cached);
+				sh = fmd->frac_mesh->shard_map.first;
+				fmd->current_mi_entry = msq;
+
+				link_list(fd, &msq->meshIslands);
+				for (mi = msq->meshIslands.first; mi; mi = mi->next) {
+					read_meshIsland(fd, &mi);
+					while (sh->shard_id < mi->id)
+					{
+						sh = sh->next;
+					}
+					vertstart += initialize_meshisland(fmd, &mi, mverts, vertstart, sh);
+				}
+
+				fmd->current_shard_entry = fmd->current_shard_entry->next;
+			}
+
+			//initialize to 1st entries here, maybe one needs to advance this to the current frame ?
+			ssq = fmd->shard_sequence.first;
+			msq = fmd->meshIsland_sequence.first;
+
+			while (ssq && (ssq->frame < fmd->last_frame)) {
+				ssq = ssq->next;
+			}
+
+			while (msq && (msq->frame < fmd->last_frame)) {
+				msq = msq->next;
+			}
+
+			if (ssq) {
+				fmd->frac_mesh = ssq->frac_mesh;
+				fmd->current_shard_entry = ssq;
+			}
+
+			if (msq) {
+				fmd->meshIslands = msq->meshIslands;
+				fmd->visible_mesh_cached = fmd->dm = msq->visible_dm;
+				fmd->current_mi_entry = msq;
+			}
+		}
+
+		fmd->anim_bind = newdataadr(fd, fmd->anim_bind);
+
+		fmd->refresh_images = true;
+		fmd->auto_execute = autoexec;
+		fmd->refresh_autohide = true;
+	}
+}
+
 static void direct_link_modifiers(FileData *fd, ListBase *lb)
 {
 	ModifierData *md;
@@ -5129,6 +5670,13 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 		/* if modifiers disappear, or for upward compatibility */
 		if (NULL == modifierType_getInfo(md->type))
 			md->type = eModifierType_None;
+
+		/* XXX hack, in Fracture Modifier Branch prior to 2.74 no DataTransfer Modifier
+		 * existed, but after 2.74 it takes the place of Fracture Modifier in internal numbering
+		 * so fix this temporarily here,  BRANCH ONLY !!! */
+		if ((md->type == eModifierType_DataTransfer) && (fd->fileversion < 274)) {
+			md->type = eModifierType_Fracture;
+		}
 			
 		if (md->type == eModifierType_Subsurf) {
 			SubsurfModifierData *smd = (SubsurfModifierData *)md;
@@ -5387,6 +5935,10 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				BLI_endian_switch_float_array(lmd->vertexco, lmd->total_verts * 3);
 			}
 			lmd->cache_system = NULL;
+		}
+		else if (md->type == eModifierType_Fracture) {
+			FractureModifierData *fmd = (FractureModifierData *)md;
+			load_fracture_modifier(fd, fmd);
 		}
 		else if (md->type == eModifierType_CorrectiveSmooth) {
 			CorrectiveSmoothModifierData *csmd = (CorrectiveSmoothModifierData*)md;

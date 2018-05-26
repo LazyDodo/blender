@@ -117,6 +117,7 @@
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_fileglobal_types.h"
+#include "DNA_fracture_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_lamp_types.h"
@@ -160,6 +161,7 @@
 #include "BKE_bpath.h"
 #include "BKE_curve.h"
 #include "BKE_constraint.h"
+#include "BKE_fracture.h" // for writing a derivedmesh as shard
 #include "BKE_global.h" // for G
 #include "BKE_idcode.h"
 #include "BKE_library.h" // for  set_listbasepointers
@@ -1722,6 +1724,90 @@ static void write_defgroups(WriteData *wd, ListBase *defbase)
 	}
 }
 
+/* need a prototype of that here...*/
+static void write_customdata(WriteData *wd, ID *id, int count, CustomData *data, CustomDataLayer* layers, int partial_type, int partial_count);
+
+static void write_shard(WriteData* wd, Shard* s)
+{
+	CustomDataLayer *vlayers = NULL, vlayers_buff[CD_TEMP_CHUNK_SIZE];
+	CustomDataLayer *llayers = NULL, llayers_buff[CD_TEMP_CHUNK_SIZE];
+	CustomDataLayer *players = NULL, players_buff[CD_TEMP_CHUNK_SIZE];
+	CustomDataLayer *elayers = NULL, elayers_buff[CD_TEMP_CHUNK_SIZE];
+
+	writestruct(wd, DATA, Shard, 1, s);
+	writestruct(wd, DATA, MVert, s->totvert, s->mvert);
+	writestruct(wd, DATA, MPoly, s->totpoly, s->mpoly);
+	writestruct(wd, DATA, MLoop, s->totloop, s->mloop);
+	writestruct(wd, DATA, MEdge, s->totedge, s->medge);
+
+	CustomData_file_write_prepare(&s->vertData, &vlayers, vlayers_buff, ARRAY_SIZE(vlayers_buff));
+	CustomData_file_write_prepare(&s->loopData, &llayers, llayers_buff, ARRAY_SIZE(llayers_buff));
+	CustomData_file_write_prepare(&s->polyData, &players, players_buff, ARRAY_SIZE(players_buff));
+	CustomData_file_write_prepare(&s->edgeData, &elayers, elayers_buff, ARRAY_SIZE(elayers_buff));
+
+	write_customdata(wd, NULL, s->totvert, &s->vertData, vlayers, -1, s->totvert);
+	write_customdata(wd, NULL, s->totloop, &s->loopData, llayers, -1, s->totloop);
+	write_customdata(wd, NULL, s->totpoly, &s->polyData, players, -1, s->totpoly);
+	write_customdata(wd, NULL, s->totedge, &s->edgeData, elayers, -1, s->totedge);
+
+	writedata(wd, DATA, sizeof(int)*s->neighbor_count, s->neighbor_ids);
+	writedata(wd, DATA, sizeof(int), s->cluster_colors);
+
+	if (vlayers && vlayers != vlayers_buff) {
+		MEM_freeN(vlayers);
+	}
+
+	if (llayers && llayers != llayers_buff) {
+		MEM_freeN(llayers);
+	}
+
+	if (players && players != players_buff) {
+		MEM_freeN(players);
+	}
+
+	if (elayers && elayers != elayers_buff) {
+		MEM_freeN(elayers);
+	}
+}
+
+static void write_meshIsland(WriteData* wd, MeshIsland* mi, bool write_data)
+{
+	writestruct(wd, DATA, MeshIsland, 1, mi);
+	writedata(wd, DATA, sizeof(float) * 3 * mi->vertex_count, mi->vertco);
+	writedata(wd, DATA, sizeof(short) * 3 * mi->vertex_count, mi->vertno);
+
+	writestruct(wd, DATA, RigidBodyOb, 1, mi->rigidbody);
+	writedata(wd, DATA, sizeof(int) * mi->neighbor_count, mi->neighbor_ids);
+	writestruct(wd, DATA, BoundBox, 1, mi->bb);
+	writedata(wd, DATA, sizeof(int) * mi->vertex_count, mi->vertex_indices);
+
+	if (write_data) {
+		writedata(wd, DATA, sizeof(float) * 3 * mi->frame_count, mi->locs);
+		writedata(wd, DATA, sizeof(float) * 4 * mi->frame_count, mi->rots);
+		writedata(wd, DATA, sizeof(float) * mi->frame_count, mi->acc_sequence);
+	}
+	else {
+		if (mi->locs) {
+			MEM_freeN(mi->locs);
+			mi->locs = NULL;
+		}
+
+		if (mi->rots) {
+			MEM_freeN(mi->rots);
+			mi->rots = NULL;
+		}
+
+		if (mi->acc_sequence){
+			MEM_freeN(mi->acc_sequence);
+			mi->acc_sequence = NULL;
+		}
+
+		mi->frame_count = 0;
+	}
+
+	writedata(wd, DATA, sizeof(RigidBodyShardCon*) * mi->participating_constraint_count, mi->participating_constraints);
+}
+
 static void write_modifiers(WriteData *wd, ListBase *modbase)
 {
 	ModifierData *md;
@@ -1866,6 +1952,84 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 
 			if (csmd->bind_coords) {
 				writedata(wd, DATA, sizeof(float[3]) * csmd->bind_coords_num, csmd->bind_coords);
+			}
+		}
+		else if (md->type==eModifierType_Fracture) {
+			FractureModifierData *fmd = (FractureModifierData*)md;
+			FracMesh* fm = fmd->frac_mesh;
+			MeshIsland *mi;
+			Shard *s;
+			RigidBodyShardCon *con;
+			SharedVertGroup *vg;
+			bool mode = fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED ||
+			            fmd->fracture_mode == MOD_FRACTURE_EXTERNAL;
+
+			if (fm && mode)
+			{
+				if (fm->running == 0 && !fmd->dm_group)
+				{
+					if (mode)
+					{
+						writestruct(wd, DATA, FracMesh, 1, fm);
+
+						for (vg = fmd->shared_verts.first; vg; vg = vg->next)
+						{
+							SharedVert *sv;
+							writestruct(wd, DATA, SharedVertGroup, 1, vg);
+							for (sv = vg->verts.first; sv; sv = sv->next)
+							{
+								writestruct(wd, DATA, SharedVert, 1, sv);
+							}
+						}
+
+						for (s = fm->shard_map.first; s; s = s->next) {
+							write_shard(wd, s);
+						}
+
+						for (s = fmd->islandShards.first; s; s = s->next) {
+							write_shard(wd, s);
+						}
+
+						for (mi = fmd->meshIslands.first; mi; mi = mi->next) {
+							write_meshIsland(wd, mi, false);
+						}
+
+						for (con = fmd->meshConstraints.first; con; con = con->next)
+						{
+							writestruct(wd, DATA, RigidBodyShardCon, 1, con);
+						}
+
+						for (s = fmd->pack_storage.first; s; s = s->next) {
+							write_shard(wd, s);
+						}
+					}
+				}
+
+				writestruct(wd, DATA, AnimBind, fmd->anim_bind_len, fmd->anim_bind);
+			}
+			else if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
+			{
+				ShardSequence *ssq;
+				MeshIslandSequence *msq;
+
+				for (ssq = fmd->shard_sequence.first; ssq; ssq = ssq->next)
+				{
+					writestruct(wd, DATA, ShardSequence, 1, ssq);
+					writestruct(wd, DATA, FracMesh, 1, ssq->frac_mesh);
+					for (s = ssq->frac_mesh->shard_map.first; s; s = s->next) {
+						write_shard(wd, s);
+					}
+				}
+
+				for (msq = fmd->meshIsland_sequence.first; msq; msq = msq->next)
+				{
+					writestruct(wd, DATA, MeshIslandSequence, 1, msq);
+					for (mi = msq->meshIslands.first; mi; mi = mi->next) {
+						write_meshIsland(wd, mi, true);
+					}
+				}
+
+				writestruct(wd, DATA, AnimBind, fmd->anim_bind_len, fmd->anim_bind);
 			}
 		}
 		else if (md->type == eModifierType_SurfaceDeform) {

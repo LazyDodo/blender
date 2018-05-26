@@ -49,10 +49,39 @@ class PHYSICS_PT_rigid_body(PHYSICS_PT_rigidbody_panel, Panel):
             if rbo.type == 'ACTIVE':
                 row.prop(rbo, "enabled", text="Dynamic")
             row.prop(rbo, "kinematic", text="Animated")
+            if rbo.type == 'ACTIVE':
+                row = layout.row()
+                row.prop(rbo, "use_kinematic_deactivation", text="Triggered")
+                row.prop(rbo, "is_trigger")
 
             if rbo.type == 'ACTIVE':
                 layout.prop(rbo, "mass")
 
+class PHYSICS_PT_rigid_body_trigger_advanced(PHYSICS_PT_rigidbody_panel, Panel):
+    bl_label = "Rigid Body Trigger Advanced"
+    COMPAT_ENGINES = {'BLENDER_RENDER'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return (obj and obj.rigid_body and
+        (context.scene.render.engine in cls.COMPAT_ENGINES))
+
+    def draw(self, context):
+        layout = self.layout
+
+        ob = context.object
+        rbo = ob.rigid_body
+
+        row = layout.row()
+        row.prop(rbo, "is_ghost")
+        row.prop(rbo, "propagate_trigger")
+        row = layout.row()
+        row.prop(rbo, "constraint_dissolve")
+        row.prop(rbo, "dynamic_trigger")
+        row = layout.row()
+        row.prop(rbo, "plastic_dissolve")
+        row.prop(rbo, "stop_trigger")
 
 class PHYSICS_PT_rigid_body_collisions(PHYSICS_PT_rigidbody_panel, Panel):
     bl_label = "Rigid Body Collisions"
@@ -75,7 +104,7 @@ class PHYSICS_PT_rigid_body_collisions(PHYSICS_PT_rigidbody_panel, Panel):
         if rbo.collision_shape in {'MESH', 'CONVEX_HULL'}:
             layout.prop(rbo, "mesh_source", text="Source")
 
-        if rbo.collision_shape == 'MESH' and rbo.mesh_source == 'DEFORM':
+        if rbo.collision_shape == 'MESH' and rbo.mesh_source in {'DEFORM', 'FINAL', 'FINAL_SOLID'}:
             layout.prop(rbo, "use_deform", text="Deforming")
 
         split = layout.split()
@@ -89,11 +118,13 @@ class PHYSICS_PT_rigid_body_collisions(PHYSICS_PT_rigidbody_panel, Panel):
         col.label(text="Sensitivity:")
         if rbo.collision_shape in {'MESH', 'CONE'}:
             col.prop(rbo, "collision_margin", text="Margin")
+            col.prop(rbo, "use_random_margin", text="Randomize")
         else:
             col.prop(rbo, "use_margin")
             sub = col.column()
             sub.active = rbo.use_margin
             sub.prop(rbo, "collision_margin", text="Margin")
+            sub.prop(rbo, "use_random_margin", text="Randomize")
 
         layout.prop(rbo, "collision_groups")
 
@@ -131,6 +162,8 @@ class PHYSICS_PT_rigid_body_dynamics(PHYSICS_PT_rigidbody_panel, Panel):
         sub.prop(rbo, "deactivate_linear_velocity", text="Linear Vel")
         sub.prop(rbo, "deactivate_angular_velocity", text="Angular Vel")
         # TODO: other params such as time?
+        col.label(text="Activation:")
+        col.prop(rbo, "force_threshold", text="Force Thresh")
 
         col = split.column()
         col.label(text="Damping:")
@@ -140,6 +173,7 @@ class PHYSICS_PT_rigid_body_dynamics(PHYSICS_PT_rigidbody_panel, Panel):
 
 classes = (
     PHYSICS_PT_rigid_body,
+    PHYSICS_PT_rigid_body_trigger_advanced,
     PHYSICS_PT_rigid_body_collisions,
     PHYSICS_PT_rigid_body_dynamics,
 )

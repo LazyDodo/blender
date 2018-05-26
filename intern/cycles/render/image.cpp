@@ -517,6 +517,10 @@ bool ImageManager::file_load_image(Image *img,
 		/* Could be that we've run out of memory. */
 		return false;
 	}
+	if(pixels == NULL) {
+		/* Could be that we've run out of memory. */
+		return false;
+	}
 	bool cmyk = false;
 	const size_t num_pixels = ((size_t)width) * height * depth;
 	if(in) {

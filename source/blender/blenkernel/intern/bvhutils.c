@@ -497,6 +497,7 @@ BVHTree *bvhtree_from_editmesh_verts(
 	        epsilon, tree_type, axis);
 }
 
+
 /**
  * Builds a bvh tree where nodes are the given vertices (note: does not copy given mverts!).
  * \param vert_allocated if true, vert freeing will be done when freeing data.

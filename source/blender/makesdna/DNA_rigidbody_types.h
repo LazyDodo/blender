@@ -46,6 +46,8 @@ struct EffectorWeights;
  *
  * Represents a "simulation scene" existing within the parent scene.
  */
+struct RigidBodyOb;
+
 typedef struct RigidBodyWorld {
 	/* Sim World Settings ------------------------------------------------------------- */
 	struct EffectorWeights *effector_weights; /* effectors info */
@@ -71,6 +73,10 @@ typedef struct RigidBodyWorld {
 	
 	/* References to Physics Sim objects. Exist at runtime only ---------------------- */
 	void *physics_world;		/* Physics sim world (i.e. btDiscreteDynamicsWorld) */
+	struct RigidBodyOb **cache_index_map;		/* Maps the linear RigidbodyOb index to the nested Object(Modifier) Index, at runtime*/
+	int *cache_offset_map;		/* Maps the linear RigidbodyOb index to the nested Object(Modifier) cell offset, at runtime, so it does not need to be calced in cache*/
+	float internal_tick;		/* this is the current ? internal bullet time step, clumsy to put here but cannot expose custom callback parameters */
+	char pad2[4];
 } RigidBodyWorld;
 
 /* Flags for RigidBodyWorld */
@@ -79,8 +85,16 @@ typedef enum eRigidBodyWorld_Flag {
 	RBW_FLAG_MUTED				= (1 << 0),
 	/* sim data needs to be rebuilt */
 	RBW_FLAG_NEEDS_REBUILD		= (1 << 1),
-	/* usse split impulse when stepping the simulation */
-	RBW_FLAG_USE_SPLIT_IMPULSE	= (1 << 2)
+	/* use split impulse when stepping the simulation */
+	RBW_FLAG_USE_SPLIT_IMPULSE	= (1 << 2),
+	/* Flag changes to objects (especially those with modifiers)*/
+	RBW_FLAG_OBJECT_CHANGED		= (1 << 3),
+	/* If we have rigidbody modifiers, time to refresh them if flag is set*/
+	RBW_FLAG_REFRESH_MODIFIERS	= (1 << 4),
+	/* Flag rebuild of constraints in fracture modifier objects */
+	RBW_FLAG_REBUILD_CONSTRAINTS = (1 << 5),
+	/* Visualize physics objects like in game engine*/
+	RBW_FLAG_VISUALIZE_PHYSICS = (1 << 6),
 } eRigidBodyWorld_Flag;
 
 /* ******************************** */
@@ -103,8 +117,10 @@ typedef struct RigidBodyOb {
 	
 	int flag;				/* (eRigidBodyOb_Flag) */
 	int col_groups;			/* Collision groups that determines wich rigid bodies can collide with each other */
+	int meshisland_index;	/* determines "offset" inside an objects meshisland list, -1 for regular rigidbodies */
 	short mesh_source;		/* (eRigidBody_MeshSource) mesh source for mesh based collision shapes */
-	short pad;
+	short is_fractured;
+	char pad2[4];
 	
 	/* Physics Parameters */
 	float mass;				/* how much object 'weighs' (i.e. absolute 'amount of stuff' it holds) */
@@ -119,10 +135,13 @@ typedef struct RigidBodyOb {
 	
 	float lin_sleep_thresh;	/* deactivation threshold for linear velocities */
 	float ang_sleep_thresh;	/* deactivation threshold for angular velocities */
+	float force_thresh;		/* activation threshold for activation by force */
 	
 	float orn[4];			/* rigid body orientation */
 	float pos[3];			/* rigid body position */
-	float pad1;
+	float lin_vel[3];		/* rigid body linear velocity, important for dynamic fracture*/
+	float ang_vel[3];		/* rigid body angular velocity, important for dynamic fracture*/
+	//float pad1;
 } RigidBodyOb;
 
 
@@ -151,7 +170,30 @@ typedef enum eRigidBodyOb_Flag {
 	/* collision margin is not embedded (only used by convex hull shapes for now) */
 	RBO_FLAG_USE_MARGIN			= (1 << 6),
 	/* collision shape deforms during simulation (only for passive triangle mesh shapes) */
-	RBO_FLAG_USE_DEFORM			= (1 << 7)
+	RBO_FLAG_USE_DEFORM			= (1 << 7),
+	/* rebuild object after collision, (change kinematic state) */
+	RBO_FLAG_KINEMATIC_REBUILD	= (1 << 8),
+	/* enable / disable kinematic state change after collision */
+	RBO_FLAG_USE_KINEMATIC_DEACTIVATION = (1 << 9),
+	/* ghost flag, do not collide with object (but can activate although) */
+	RBO_FLAG_IS_GHOST = (1 << 10),
+	/* trigger flag, trigger kinematic state change on other objects */
+	RBO_FLAG_IS_TRIGGER = (1 << 11),
+	/* propagate trigger flag, pass the trigger impulse through to other objects nearby / touched */
+	RBO_FLAG_PROPAGATE_TRIGGER = (1 << 12),
+	/* dissolve constraints on activated shards */
+	RBO_FLAG_CONSTRAINT_DISSOLVE = (1 << 13),
+	/* trigger a dynamic fracture with this type */
+	RBO_FLAG_DYNAMIC_TRIGGER = (1 << 14),
+	/* dissolve plastic constraints too (if any) */
+	RBO_FLAG_PLASTIC_DISSOLVE = (1 << 15),
+	/* anti (stop) trigger flag, make simulated objects kinematic again */
+	RBO_FLAG_ANTI_TRIGGER = (1 << 16),
+	/* randomize margin for better packing (especially for spheres) */
+	RBO_FLAG_RANDOM_MARGIN = (1 << 17),
+	/* marks bound kinematic rigidbodies (to properly handle restoreKinematic for them) */
+	RBO_FLAG_KINEMATIC_BOUND = (1 << 18),
+
 } eRigidBodyOb_Flag;
 
 /* RigidBody Collision Shape */
@@ -182,7 +224,9 @@ typedef enum eRigidBody_MeshSource {
 	/* only deformations */
 	RBO_MESH_DEFORM,
 	/* final derived mesh */
-	RBO_MESH_FINAL
+	RBO_MESH_FINAL,
+	/* solidifed final mesh (physics only) */
+	RBO_MESH_FINAL_SOLID
 } eRigidBody_MeshSource;
 
 /* ******************************** */
@@ -247,6 +291,81 @@ typedef struct RigidBodyCon {
 	void *physics_constraint;	/* Physics object representation (i.e. btTypedConstraint) */
 } RigidBodyCon;
 
+/* RigidBodyConstraint (rbc)
+ *
+ * Represents an constraint connecting two shard rigid bodies.
+ */
+typedef struct RigidBodyShardCon {
+
+	struct RigidBodyShardCon *next, *prev;
+	struct MeshIsland *mi1;			/* First meshisland influenced by the constraint */
+	struct MeshIsland *mi2;			/* Second meshisland influenced by the constraint */
+
+	/* References to Physics Sim object. Exist at runtime only */
+	void *physics_constraint;	/* Physics object representation (i.e. btTypedConstraint) */
+
+	/* General Settings for this RigidBodyCon */
+	short type;					/* (eRigidBodyCon_Type) role of RigidBody in sim  */
+	short num_solver_iterations;/* number of constraint solver iterations made per simulation step */
+
+	int flag;					/* (eRigidBodyCon_Flag) */
+	char name[66]; /* MAX_ID_NAME */
+	char pad[2];
+
+	float breaking_threshold;	/* breaking impulse threshold */
+	float start_angle;			//needed for breaking by angle and dist
+	float start_dist;
+	float breaking_angle;
+	float breaking_dist;
+	float plastic_angle;
+	float plastic_dist;
+	float start_angle_deform;
+	float start_dist_deform;
+
+	float orn[4];
+	float pos[3];
+
+	/* limits */
+	/* translation limits */
+	float limit_lin_x_lower;
+	float limit_lin_x_upper;
+	float limit_lin_y_lower;
+	float limit_lin_y_upper;
+	float limit_lin_z_lower;
+	float limit_lin_z_upper;
+	/* rotation limits */
+	float limit_ang_x_lower;
+	float limit_ang_x_upper;
+	float limit_ang_y_lower;
+	float limit_ang_y_upper;
+	float limit_ang_z_lower;
+	float limit_ang_z_upper;
+
+	/* spring settings */
+	/* resistance to deformation */
+	float spring_stiffness_x;
+	float spring_stiffness_y;
+	float spring_stiffness_z;
+	float spring_stiffness_ang_x;
+	float spring_stiffness_ang_y;
+	float spring_stiffness_ang_z;
+	/* amount of velocity lost over time */
+	float spring_damping_x;
+	float spring_damping_y;
+	float spring_damping_z;
+	float spring_damping_ang_x;
+	float spring_damping_ang_y;
+	float spring_damping_ang_z;
+
+	/* motor settings */
+	float motor_lin_target_velocity;	/* linear velocity the motor tries to hold */
+	float motor_ang_target_velocity;	/* angular velocity the motor tries to hold */
+	float motor_lin_max_impulse;		/* maximum force used to reach linear target velocity */
+	float motor_ang_max_impulse;		/* maximum force used to reach angular target velocity */
+
+	char pad2[4];
+} RigidBodyShardCon;
+
 
 /* Participation types for RigidBodyOb */
 typedef enum eRigidBodyCon_Type {
@@ -273,7 +392,9 @@ typedef enum eRigidBodyCon_Type {
 	/* Simplified spring constraint with only once axis that's automatically placed between the connected bodies */
 	RBC_TYPE_SPRING,
 	/* dirves bodies by applying linear and angular forces */
-	RBC_TYPE_MOTOR
+	RBC_TYPE_MOTOR,
+	/* uses a compound internally, but needs connection info to build / manage it at fracturing */
+	RBC_TYPE_COMPOUND,
 } eRigidBodyCon_Type;
 
 /* Flags for RigidBodyCon */
@@ -305,7 +426,13 @@ typedef enum eRigidBodyCon_Flag {
 	/* angular springs */
 	RBC_FLAG_USE_SPRING_ANG_X			= (1 << 16),
 	RBC_FLAG_USE_SPRING_ANG_Y			= (1 << 17),
-	RBC_FLAG_USE_SPRING_ANG_Z			= (1 << 18)
+	RBC_FLAG_USE_SPRING_ANG_Z			= (1 << 18),
+	/* prevent multiple removal and crash with kinematic deactivation */
+	RBC_FLAG_USE_KINEMATIC_DEACTIVATION = (1 << 19),
+	/* mark this constraint to be able to go into "plastic" mode */
+	RBC_FLAG_USE_PLASTIC				= (1 << 20),
+	/* mark already active plastic constraints */
+	RBC_FLAG_PLASTIC_ACTIVE				= (1 << 21),
 } eRigidBodyCon_Flag;
 
 /* ******************************** */

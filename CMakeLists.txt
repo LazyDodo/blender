@@ -234,6 +234,7 @@ else()
 endif()
 option(WITH_PLAYER        "Build Player" OFF)
 option(WITH_OPENCOLORIO   "Enable OpenColorIO color management" ${_init_OPENCOLORIO})
+option(WITH_VORO    "Enable Voronoi Fracture based on Voro++" ON)
 
 # Compositor
 option(WITH_COMPOSITOR         "Enable the tile based nodal compositor" ON)
@@ -1760,6 +1761,7 @@ if(FIRST_RUN)
 	info_cfg_option(WITH_CYCLES)
 	info_cfg_option(WITH_FREESTYLE)
 	info_cfg_option(WITH_OPENCOLORIO)
+	info_cfg_option(WITH_VORO)
 	info_cfg_option(WITH_OPENVDB)
 	info_cfg_option(WITH_ALEMBIC)
 

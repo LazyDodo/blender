@@ -683,9 +683,7 @@ Object *BKE_object_add_only_object(Main *bmain, int type, const char *name)
 
 /* general add: to scene, with layer from area and default name */
 /* creates minimum required data, but without vertices etc. */
-Object *BKE_object_add(
-        Main *bmain, Scene *scene,
-        int type, const char *name)
+Object *BKE_object_add(Main *bmain, Scene *scene, int type, const char *name)
 {
 	Object *ob;
 	Base *base;
@@ -3197,6 +3195,7 @@ int BKE_object_is_deform_modified(Scene *scene, Object *ob)
 	{
 		const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 		bool can_deform = mti->type == eModifierTypeType_OnlyDeform ||
+		                  md->type == eModifierType_Fracture ||
 		                  is_modifier_animated;
 
 		if (!can_deform) {

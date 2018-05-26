@@ -69,7 +69,6 @@
 #include "DNA_scene_types.h"
 #include "DNA_world_types.h"
 #include "BKE_main.h"
-#include "BKE_fcurve.h"
 
 #include "BLI_math.h"
 
@@ -81,6 +80,7 @@ extern "C"
 #include "DNA_material_types.h"
 #include "BLI_blenlib.h"
 #include "MEM_guardedalloc.h"
+#include "BKE_fcurve.h"
 #include "BKE_global.h"
 #include "BKE_animsys.h"
 #include "BKE_library.h"
@@ -88,7 +88,6 @@ extern "C"
 #include "BKE_mesh.h" // BKE_mesh_copy
 #include "DNA_space_types.h"
 #include "DNA_anim_types.h"
-#include "DNA_action_types.h"
 #include "RNA_define.h"
 #include "../../blender/editors/include/ED_keyframing.h"
 }
@@ -742,7 +741,7 @@ void KX_BlenderSceneConverter::TestHandlesPhysicsObjectToAnimationIpo()
 #if 0
 					// XXX animato
 					Ipo* ipo = blenderObject->ipo;
-
+					
 					//create the curves, if not existing
 					//testhandles_ipocurve checks for NULL
 					testhandles_ipocurve(findIpoCurve((IpoCurve *)ipo->curve.first,"LocX"));

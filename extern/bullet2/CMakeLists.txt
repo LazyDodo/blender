@@ -130,6 +130,7 @@ set(SRC
 	src/BulletCollision/NarrowPhaseCollision/btVoronoiSimplexSolver.cpp
 
 	src/BulletDynamics/Character/btKinematicCharacterController.cpp
+	src/BulletDynamics/ConstraintSolver/btCompoundConstraint.cpp
 	src/BulletDynamics/ConstraintSolver/btConeTwistConstraint.cpp
 	src/BulletDynamics/ConstraintSolver/btContactConstraint.cpp
 	src/BulletDynamics/ConstraintSolver/btFixedConstraint.cpp
@@ -148,7 +149,9 @@ set(SRC
 	src/BulletDynamics/ConstraintSolver/btUniversalConstraint.cpp
 	src/BulletDynamics/Dynamics/Bullet-C-API.cpp
 	src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp
+	src/BulletDynamics/Dynamics/btFractureDynamicsWorld.cpp
 	src/BulletDynamics/Dynamics/btRigidBody.cpp
+	src/BulletDynamics/Dynamics/btFractureBody.cpp
 	src/BulletDynamics/Dynamics/btSimpleDynamicsWorld.cpp
 	src/BulletDynamics/Featherstone/btMultiBody.cpp
 	src/BulletDynamics/Featherstone/btMultiBodyConstraint.cpp
@@ -314,6 +317,7 @@ set(SRC
 
 	src/BulletDynamics/Character/btCharacterControllerInterface.h
 	src/BulletDynamics/Character/btKinematicCharacterController.h
+	src/BulletDynamics/ConstraintSolver/btCompoundConstraint.h
 	src/BulletDynamics/ConstraintSolver/btConeTwistConstraint.h
 	src/BulletDynamics/ConstraintSolver/btConstraintSolver.h
 	src/BulletDynamics/ConstraintSolver/btContactConstraint.h

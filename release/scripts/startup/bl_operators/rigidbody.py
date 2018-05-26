@@ -116,6 +116,14 @@ class BakeToKeyframes(Operator):
         obj = context.object
         return (obj and obj.rigid_body)
 
+    def has_fracture_modifier(self, ob, report=False):
+        for m in ob.modifiers:
+            if m.type == 'FRACTURE':
+               if (report == True):
+                   self.report({'WARNING'}, "Object '%s' has a fracture modifier, use 'Convert to Objects' before 'Bake to Keyframes'" % ob.name)
+               return True
+        return False
+
     def execute(self, context):
         bake = []
         objects = []
@@ -124,10 +132,13 @@ class BakeToKeyframes(Operator):
         frames_step = range(self.frame_start, self.frame_end + 1, self.step)
         frames_full = range(self.frame_start, self.frame_end + 1)
 
+        constraints = []
         # filter objects selection
         for obj in context.selected_objects:
-            if not obj.rigid_body or obj.rigid_body.type != 'ACTIVE':
+            if (not obj.rigid_body or obj.rigid_body.type != 'ACTIVE' or self.has_fracture_modifier(obj, True)):
                 obj.select = False
+            if (obj.rigid_body_constraint):
+               constraints.append(obj)
 
         objects = context.selected_objects
 
@@ -173,8 +184,29 @@ class BakeToKeyframes(Operator):
 
                 bpy.ops.anim.keyframe_insert(type='BUILTIN_KSI_LocRot', confirm_success=False)
 
-            # remove baked objects from simulation
-            bpy.ops.rigidbody.objects_remove()
+            # remove baked objects from simulation, only if no Fracture Modifier is detected (messes up bake possibly)!
+            hasFracture = False
+            for obj in bpy.data.objects:
+                 if (self.has_fracture_modifier(obj)):
+                     hasFracture = True
+                     break
+
+            if (hasFracture == False):
+                #remove (selected) constraints first
+                for obj in constraints:
+                    obj.select = True
+
+                bpy.ops.rigidbody.constraints_remove()
+
+                for obj in constraints:
+                    obj.select = False
+                    obj.hide = True
+
+                bpy.ops.rigidbody.objects_remove()
+            else:
+                 # set to kinematic only
+                 for obj in objects:
+                    obj.rigid_body.kinematic = True
 
             # clean up keyframes
             for obj in objects:

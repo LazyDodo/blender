@@ -53,7 +53,6 @@
 #include "BLI_alloca.h"
 #include "BLI_math_geom.h"
 #include "BKE_material.h"
-#include "BKE_global.h"  /* only to check G.debug */
 #include "MEM_guardedalloc.h"
 
 #include "bmesh.h"
@@ -157,20 +156,12 @@ static DerivedMesh *get_quick_derivedMesh(
 
 	return result;
 }
+/* -------------------------------------------------------------------- */
+/* BMESH */
 
+#ifdef USE_BMESH
 
-/* has no meaning for faces, do this so we can tell which face is which */
-#define BM_FACE_TAG BM_ELEM_DRAW
-
-/**
- * Compare selected/unselected.
- */
-static int bm_face_isect_pair(BMFace *f, void *UNUSED(user_data))
-{
-	return BM_elem_flag_test(f, BM_FACE_TAG) ? 1 : 0;
-}
-
-static DerivedMesh *applyModifier(
+static DerivedMesh *applyModifier_bmesh(
         ModifierData *md, Object *ob,
         DerivedMesh *dm,
         ModifierApplyFlag flag)
@@ -192,141 +183,7 @@ static DerivedMesh *applyModifier(
 		result = get_quick_derivedMesh(ob, dm, bmd->object, dm_other, bmd->operation);
 
 		if (result == NULL) {
-			const bool is_flip = (is_negative_m4(ob->obmat) != is_negative_m4(bmd->object->obmat));
-
-			BMesh *bm;
-			const BMAllocTemplate allocsize = BMALLOC_TEMPLATE_FROM_DM(dm, dm_other);
-
-#ifdef DEBUG_TIME
-			TIMEIT_START(boolean_bmesh);
-#endif
-			bm = BM_mesh_create(
-			         &allocsize,
-			         &((struct BMeshCreateParams){.use_toolflags = false,}));
-
-			DM_to_bmesh_ex(dm_other, bm, true);
-
-			if (UNLIKELY(is_flip)) {
-				const int cd_loop_mdisp_offset = CustomData_get_offset(&bm->ldata, CD_MDISPS);
-				BMIter iter;
-				BMFace *efa;
-				BM_ITER_MESH (efa, &iter, bm, BM_FACES_OF_MESH) {
-					BM_face_normal_flip_ex(bm, efa, cd_loop_mdisp_offset, true);
-				}
-			}
-
-			DM_to_bmesh_ex(dm, bm, true);
-
-			/* main bmesh intersection setup */
-			{
-				/* create tessface & intersect */
-				const int looptris_tot = poly_to_tri_count(bm->totface, bm->totloop);
-				int tottri;
-				BMLoop *(*looptris)[3];
-
-				looptris = MEM_malloc_arrayN(looptris_tot, sizeof(*looptris), __func__);
-
-				BM_mesh_calc_tessellation_beauty(bm, looptris, &tottri);
-
-				/* postpone this until after tessellating
-				 * so we can use the original normals before the vertex are moved */
-				{
-					BMIter iter;
-					int i;
-					const int i_verts_end = dm_other->getNumVerts(dm_other);
-					const int i_faces_end = dm_other->getNumPolys(dm_other);
-
-					float imat[4][4];
-					float omat[4][4];
-
-					invert_m4_m4(imat, ob->obmat);
-					mul_m4_m4m4(omat, imat, bmd->object->obmat);
-
-					BMVert *eve;
-					i = 0;
-					BM_ITER_MESH (eve, &iter, bm, BM_VERTS_OF_MESH) {
-						mul_m4_v3(omat, eve->co);
-						if (++i == i_verts_end) {
-							break;
-						}
-					}
-
-					/* we need face normals because of 'BM_face_split_edgenet'
-					 * we could calculate on the fly too (before calling split). */
-					{
-						float nmat[3][3];
-						copy_m3_m4(nmat, omat);
-						invert_m3(nmat);
-
-						if (UNLIKELY(is_flip)) {
-							negate_m3(nmat);
-						}
-
-						const short ob_src_totcol = bmd->object->totcol;
-						short *material_remap = BLI_array_alloca(material_remap, ob_src_totcol ? ob_src_totcol : 1);
-
-						BKE_material_remap_object_calc(ob, bmd->object, material_remap);
-
-						BMFace *efa;
-						i = 0;
-						BM_ITER_MESH (efa, &iter, bm, BM_FACES_OF_MESH) {
-							mul_transposed_m3_v3(nmat, efa->no);
-							normalize_v3(efa->no);
-							BM_elem_flag_enable(efa, BM_FACE_TAG);  /* temp tag to test which side split faces are from */
-
-							/* remap material */
-							if (LIKELY(efa->mat_nr < ob_src_totcol)) {
-								efa->mat_nr = material_remap[efa->mat_nr];
-							}
-
-							if (++i == i_faces_end) {
-								break;
-							}
-						}
-					}
-				}
-
-				/* not needed, but normals for 'dm' will be invalid,
-				 * currently this is ok for 'BM_mesh_intersect' */
-				// BM_mesh_normals_update(bm);
-
-				bool use_separate = false;
-				bool use_dissolve = true;
-				bool use_island_connect = true;
-
-				/* change for testing */
-				if (G.debug & G_DEBUG) {
-					use_separate = (bmd->bm_flag & eBooleanModifierBMeshFlag_BMesh_Separate) != 0;
-					use_dissolve = (bmd->bm_flag & eBooleanModifierBMeshFlag_BMesh_NoDissolve) == 0;
-					use_island_connect = (bmd->bm_flag & eBooleanModifierBMeshFlag_BMesh_NoConnectRegions) == 0;
-				}
-
-				BM_mesh_intersect(
-				        bm,
-				        looptris, tottri,
-				        bm_face_isect_pair, NULL,
-				        false,
-				        use_separate,
-				        use_dissolve,
-				        use_island_connect,
-				        false,
-				        bmd->operation,
-				        bmd->double_threshold);
-
-				MEM_freeN(looptris);
-			}
-
-			result = CDDM_from_bmesh(bm, true);
-
-			BM_mesh_free(bm);
-
-			result->dirty |= DM_DIRTY_NORMALS;
-
-#ifdef DEBUG_TIME
-			TIMEIT_END(boolean_bmesh);
-#endif
-
-			return result;
+			result = NewBooleanDerivedMeshBMesh(dm, ob, dm_other, bmd->object, bmd->operation, bmd->double_threshold, bmd);
 		}
 
 		/* if new mesh returned, return it; otherwise there was
@@ -339,6 +196,16 @@ static DerivedMesh *applyModifier(
 
 	return dm;
 }
+#endif  /* USE_BMESH */
+
+
+static DerivedMesh *applyModifier_nop(
+        ModifierData *UNUSED(md), Object *UNUSED(ob),
+        DerivedMesh *derivedData,
+        ModifierApplyFlag UNUSED(flag))
+{
+	return derivedData;
+}
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(md))
 {
@@ -348,6 +215,22 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(
 	
 	return dataMask;
 }
+
+static DerivedMesh *applyModifier(
+        ModifierData *md, Object *ob,
+        DerivedMesh *derivedData,
+        ModifierApplyFlag flag)
+{
+	BooleanModifierData *bmd = (BooleanModifierData *)md;
+
+#ifdef USE_BMESH
+		return applyModifier_bmesh(md, ob, derivedData, flag);
+#else
+		return applyModifier_nop(md, ob, derivedData, flag);
+#endif
+	}
+}
+
 
 ModifierTypeInfo modifierType_Boolean = {
 	/* name */              "Boolean",

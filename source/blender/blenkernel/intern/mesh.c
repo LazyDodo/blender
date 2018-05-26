@@ -902,6 +902,7 @@ void BKE_mesh_assign_object(Object *ob, Mesh *me)
 }
 
 
+
 void BKE_mesh_material_index_remove(Mesh *me, short index)
 {
 	MPoly *mp;

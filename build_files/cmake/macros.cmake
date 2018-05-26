@@ -753,6 +753,10 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		list(APPEND BLENDER_SORTED_LIBS bf_intern_gpudirect)
 	endif()
 
+	if(WITH_VORO)
+		list(APPEND BLENDER_SORTED_LIBS extern_voro)
+	endif()
+		
 	if(WITH_OPENSUBDIV OR WITH_CYCLES_OPENSUBDIV)
 		list(APPEND BLENDER_SORTED_LIBS bf_intern_opensubdiv)
 	endif()

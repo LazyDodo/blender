@@ -3905,7 +3905,8 @@ static void particles_fluid_step(ParticleSimulationData *sim, int UNUSED(cfra), 
 #endif // WITH_MOD_FLUID
 }
 
-static int emit_particles(ParticleSimulationData *sim, PTCacheID *pid, float UNUSED(cfra))
+static int emit_particles(ParticleSimulationData *sim, PTCacheID *pid, float UNUSED(cfra),
+                          ParticleSettings *part)
 {
 	ParticleSystem *psys = sim->psys;
 	int oldtotpart = psys->totpart;
@@ -3914,7 +3915,12 @@ static int emit_particles(ParticleSimulationData *sim, PTCacheID *pid, float UNU
 	if (totpart != oldtotpart)
 		realloc_particles(sim, totpart);
 
-	return totpart - oldtotpart;
+	//always allow redistribution of particles, except on grid and hair systems !
+	if (part->distr == PART_DISTR_GRID || part->type == PART_HAIR) {
+		return totpart - oldtotpart;
+	}
+
+	return totpart;
 }
 
 /* Calculates the next state for all particles of the system
@@ -3931,7 +3937,8 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 	PTCacheID ptcacheid, *pid = NULL;
 	PARTICLE_P;
 	float disp, cache_cfra = cfra; /*, *vg_vel= 0, *vg_tan= 0, *vg_rot= 0, *vg_size= 0; */
-	int startframe = 0, endframe = 100, oldtotpart = 0;
+	int startframe = 0, endframe = 100, oldtotpart = 0, emitcount = 0;
+	bool suppressed = false;
 
 	/* cache shouldn't be used for hair or "continue physics" */
 	if (part->type != PART_HAIR) {
@@ -3958,12 +3965,29 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 
 /* 1. emit particles and redo particles if needed */
 	oldtotpart = psys->totpart;
-	if (emit_particles(sim, pid, cfra) || psys->recalc & PSYS_RECALC_RESET) {
-		distribute_particles(sim, part->from);
-		initialize_all_particles(sim);
-		/* reset only just created particles (on startframe all particles are recreated) */
-		reset_all_particles(sim, 0.0, cfra, oldtotpart);
-		free_unexisting_particles(sim);
+	emitcount = emit_particles(sim, pid, cfra, part);
+	if (emitcount || psys->recalc & PSYS_RECALC_RESET)
+	{
+		if (distribute_particles(sim, part->from) || part->distr == PART_DISTR_GRID) {
+			initialize_all_particles(sim);
+			/* reset only just created particles (on startframe all particles are recreated) */
+			reset_all_particles(sim, 0.0, cfra, oldtotpart);
+		}
+		else if (emitcount == oldtotpart || oldtotpart == 0){
+			//throw away...
+			int i;
+			suppressed = true;
+			for (i = 0; i < sim->psys->totpart; i++)
+			{
+				if (sim->psys->particles[i].state.time <= 0)
+				{
+					sim->psys->particles[i].flag |= PARS_UNEXIST;
+				}
+			}
+		}
+
+		if (!suppressed)
+			free_unexisting_particles(sim);
 
 		if (psys->fluid_springs) {
 			MEM_freeN(psys->fluid_springs);
@@ -3975,11 +3999,13 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 		/* flag for possible explode modifiers after this system */
 		sim->psmd->flag |= eParticleSystemFlag_Pars;
 
-		BKE_ptcache_id_clear(pid, PTCACHE_CLEAR_AFTER, cfra);
+		if (psys->recalc & PSYS_RECALC_RESET) {
+			BKE_ptcache_id_clear(pid, PTCACHE_CLEAR_AFTER, cfra);
+		}
 	}
 
 /* 2. try to read from the cache */
-	if (pid) {
+	if (pid && !suppressed) {
 		int cache_result = BKE_ptcache_read(pid, cache_cfra, true);
 
 		if (ELEM(cache_result, PTCACHE_READ_EXACT, PTCACHE_READ_INTERPOLATED)) {
@@ -4075,6 +4101,11 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 	if (psys->lattice_deform_data) {
 		end_latt_deform(psys->lattice_deform_data);
 		psys->lattice_deform_data = NULL;
+	}
+
+	if (suppressed) {
+		//need dummy cache data, so free suppressed particles later
+		free_unexisting_particles(sim);
 	}
 }
 
@@ -4318,10 +4349,22 @@ void particle_system_update(Scene *scene, Object *ob, ParticleSystem *psys, cons
 					if (psys->recalc & PSYS_RECALC_RESET)
 						psys_reset(psys, PSYS_RESET_ALL);
 
-					if (emit_particles(&sim, NULL, cfra) || (psys->recalc & PSYS_RECALC_RESET)) {
+					if (emit_particles(&sim, NULL, cfra, part) || (psys->recalc & PSYS_RECALC_RESET)) {
 						free_keyed_keys(psys);
-						distribute_particles(&sim, part->from);
-						initialize_all_particles(&sim);
+						if (distribute_particles(&sim, part->from) || part->distr == PART_DISTR_GRID) {
+							initialize_all_particles(&sim);
+						}
+						else {
+							//throw away...
+							int i;
+							for (i = 0; i < sim.psys->totpart; i++)
+							{
+								if (sim.psys->particles[i].alive == PARS_UNBORN) {
+									sim.psys->particles[i].flag |= PARS_UNEXIST;
+								}
+							}
+						}
+
 						free_unexisting = true;
 
 						/* flag for possible explode modifiers after this system */

@@ -45,6 +45,7 @@
 #include "DNA_customdata_types.h"
 #include "DNA_ID.h"
 #include "DNA_meta_types.h"
+#include "DNA_modifier_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -57,6 +58,7 @@
 
 #include "BKE_animsys.h"
 #include "BKE_displist.h"
+#include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
 #include "BKE_depsgraph.h"
 #include "BKE_icons.h"
@@ -67,6 +69,7 @@
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_scene.h"
 #include "BKE_node.h"
 #include "BKE_curve.h"
@@ -1213,6 +1216,7 @@ bool BKE_object_material_slot_remove(Object *ob)
 	Material *mao, ***matarar;
 	short *totcolp;
 	short a, actcol;
+	FractureModifierData *fmd;
 	
 	if (ob == NULL || ob->totcol == 0) {
 		return false;
@@ -1292,6 +1296,14 @@ bool BKE_object_material_slot_remove(Object *ob)
 		if (ob->curve_cache) {
 			BKE_displist_free(&ob->curve_cache->disp);
 		}
+	}
+
+	/* also check the Fracture Modifier stored Derivedmesh, its polys may point to invalid index by now */
+	fmd = (FractureModifierData *)modifiers_findByType(ob, eModifierType_Fracture);
+	if (fmd && fmd->visible_mesh_cached) {
+		/* this effectively removes materials, but regenerates atleast 2 of them (as being necessary for modifier,
+		 * thus avoiding crashes and messing up the mesh, an ugly solution but better than crash... */
+		fmd->refresh = true;
 	}
 
 	return true;

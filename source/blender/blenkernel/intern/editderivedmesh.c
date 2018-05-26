@@ -1387,7 +1387,7 @@ static void emDM_drawFacesTex_common(
 					glVertex3fv(ltri[1]->v->co);
 
 					glTexCoord2fv(luv[2]->uv);
-					if (has_vcol_any) glColor4ubv((const GLubyte *)&(lcol[2]->r));
+					if (has_vcol_any) glColor3ubv((const GLubyte *)&(lcol[2]->r));
 					if (lnors) glNormal3fv(lnors[BM_elem_index_get(ltri[2])]);
 					else glNormal3fv(ltri[2]->v->no);
 					glVertex3fv(ltri[2]->v->co);

@@ -87,6 +87,7 @@ typedef enum ModifierType {
 	eModifierType_CorrectiveSmooth  = 51,
 	eModifierType_MeshSequenceCache = 52,
 	eModifierType_SurfaceDeform     = 53,
+	eModifierType_Fracture          = 54,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -892,7 +893,6 @@ enum {
 enum {
 	MOD_SIMPLEDEFORM_LOCK_AXIS_X = (1 << 0),
 	MOD_SIMPLEDEFORM_LOCK_AXIS_Y = (1 << 1),
-	MOD_SIMPLEDEFORM_LOCK_AXIS_Z = (1 << 2),
 };
 
 typedef struct ShapeKeyModifierData {
@@ -1243,7 +1243,23 @@ typedef enum eRemeshModifierMode {
 	MOD_REMESH_MASS_POINT     = 1,
 	/* keeps sharp edges */
 	MOD_REMESH_SHARP_FEATURES = 2,
+	/* turns vertices into metaballs */
+	MOD_REMESH_MBALL          = 3,
 } eRemeshModifierMode;
+
+
+typedef enum MetaballRemeshFlags {
+	MOD_REMESH_VERTICES = (1 << 0),
+	MOD_REMESH_PARTICLES = (1 << 1),
+} MetaballRemeshFlags;
+
+typedef enum {
+	eRemeshFlag_Alive    = (1 << 0),
+	eRemeshFlag_Dead     = (1 << 1),
+	eRemeshFlag_Unborn   = (1 << 2),
+	eRemeshFlag_Size     = (1 << 3),
+	eRemeshFlag_Verts    = (1 << 4),
+} MetaballRemeshPsysFlag;
 
 typedef struct RemeshModifierData {
 	ModifierData modifier;
@@ -1256,12 +1272,23 @@ typedef struct RemeshModifierData {
 
 	float hermite_num;
 
+	/*mball related params*/
+	float rendersize;
+	float wiresize;
+	float thresh;
+	float basesize[3];
+	int input;
+	int pflag;
+	int psys;
+	char size_defgrp_name[64];  /* MAX_VGROUP_NAME */
+
 	/* octree depth */
 	char depth;
 
 	char flag;
 	char mode;
 	char pad;
+	char pad2[4];
 } RemeshModifierData;
 
 /* Skin modifier */
@@ -1454,6 +1481,47 @@ enum {
 	MOD_MESHCACHE_PLAY_EVAL = 1,
 };
 
+typedef struct MeshIsland {
+	struct MeshIsland *next, *prev;
+	struct BMVert **vertices;
+	struct MVert **vertices_cached;
+	float *vertco;
+	short *vertno;
+	struct DerivedMesh *physics_mesh;
+	struct Shard *temp; /* storage for physics mesh, better omit derivedmesh here...*/
+	struct RigidBodyOb *rigidbody;
+	int *neighbor_ids;
+	int *vertex_indices;
+	struct BoundBox *bb;
+	struct RigidBodyShardCon **participating_constraints;
+	float *locs;
+	float *rots;
+	float *acc_sequence;
+
+	char name[66]; /* MAX_ID_NAME */
+	char pad1[2];
+
+	int start_frame;
+	int frame_count;
+	int participating_constraint_count;
+	int vertex_count, id, neighbor_count;
+	float centroid[3], start_co[3];
+	float rot[4]; /*hrm, need this for constraints probably */
+	float thresh_weight, ground_weight;
+	int linear_index;  /* index in rigidbody world */
+	int particle_index;
+	int constraint_index;
+	int object_index;
+	int totcol; /*store number of used materials here, from the original object*/
+	int totdef; /*store number of used vertexgroups here, from the original object*/
+	char pad[4];
+} MeshIsland;
+
+
+enum {
+	MOD_RIGIDBODY_CENTROIDS = 0,
+	MOD_RIGIDBODY_VERTICES = 1,
+};
 
 typedef struct LaplacianDeformModifierData {
 	ModifierData modifier;
@@ -1491,6 +1559,339 @@ enum {
 	MOD_WIREFRAME_CREASE        = (1 << 5),
 };
 
+/* Fracture Modifier */
+enum {
+	MOD_FRACTURE_BISECT_FAST      = (1 << 0),
+	MOD_FRACTURE_BISECT_FAST_FILL = (1 << 1),
+	MOD_FRACTURE_BOOLEAN          = (1 << 2),
+	MOD_FRACTURE_BISECT_FILL      = (1 << 3),
+	MOD_FRACTURE_BISECT           = (1 << 4),
+	MOD_FRACTURE_BOOLEAN_FRACTAL  = (1 << 5),
+};
+
+enum {
+	MOD_FRACTURE_OWN_VERTS       = (1 << 0),
+	MOD_FRACTURE_OWN_PARTICLES   = (1 << 1),
+	MOD_FRACTURE_EXTRA_VERTS     = (1 << 2),
+	MOD_FRACTURE_EXTRA_PARTICLES = (1 << 3),
+	MOD_FRACTURE_GREASEPENCIL    = (1 << 4),
+	MOD_FRACTURE_UNIFORM         = (1 << 5),
+	MOD_FRACTURE_GRID            = (1 << 6),
+};
+
+enum {
+	MOD_FRACTURE_SPLINTER_X      = (1 << 0),
+	MOD_FRACTURE_SPLINTER_Y      = (1 << 1),
+	MOD_FRACTURE_SPLINTER_Z      = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_CUTTER_X      = (1 << 0),
+	MOD_FRACTURE_CUTTER_Y      = (1 << 1),
+	MOD_FRACTURE_CUTTER_Z      = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_CENTROID      = (1 << 0),
+	MOD_FRACTURE_VERTEX        = (1 << 1),
+};
+
+enum {
+	MOD_FRACTURE_PREFRACTURED      = (1 << 0),
+	MOD_FRACTURE_DYNAMIC           = (1 << 1),
+	MOD_FRACTURE_EXTERNAL          = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_KEEP_BOTH          = (1 << 0),
+	MOD_FRACTURE_KEEP_INTERSECT      = (1 << 1),
+	MOD_FRACTURE_KEEP_DIFFERENCE     = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS     = (1 << 0),
+	MOD_FRACTURE_MIXED_DYNAMIC_CONSTRAINTS  = (1 << 1),
+	MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS     = (1 << 2),
+};
+
+typedef struct ShardSequence {
+	struct ShardSequence *next, *prev;
+	struct FracMesh *frac_mesh;
+	int frame;
+	int is_new;
+} ShardSequence;
+
+typedef struct MeshIslandSequence {
+	struct MeshIslandSequence *next, *prev;
+	struct DerivedMesh *visible_dm;
+	ListBase meshIslands;
+	int frame;
+	int is_new;
+} MeshIslandSequence;
+
+typedef struct FractureID {
+	struct FractureID *next, *prev;
+	int shardID;
+	char pad[4];
+} FractureID;
+
+/* TODO, UNUSED currently !!!! */
+/* fracture settings for different mesh parts, applies to prefracture only */
+typedef struct FractureSetting {
+	struct FractureSetting *next, *prev;
+
+	struct Group *extra_group;
+	struct Group *cluster_group;
+	struct Group *cutter_group;
+	struct Material *inner_material;
+
+	char name[64]; /* MAX_VGROUP_NAME, because this is the vgroup name (a copy)
+					  only to help determining what is what, index is used */
+	char thresh_defgrp_name[64];  /* MAX_VGROUP_NAME */
+	char ground_defgrp_name[64];  /* MAX_VGROUP_NAME */
+	char inner_defgrp_name[64];  /* MAX_VGROUP_NAME */
+
+	/* values */
+	int frac_algorithm;
+	int shard_count;
+	int point_source;
+	int point_seed;
+	int percentage;
+	int cluster_count;
+
+	int constraint_limit;
+	int solver_iterations_override;
+	int cluster_solver_iterations_override;
+	int breaking_percentage;
+	int cluster_breaking_percentage;
+	int splinter_axis;
+	int fractal_cuts;
+	int fractal_iterations;
+	int grease_decimate;
+	int cutter_axis;
+	int cluster_constraint_type;
+
+	float breaking_angle;
+	float breaking_distance;
+	float cluster_breaking_angle;
+	float cluster_breaking_distance;
+	float breaking_threshold;
+	float cluster_breaking_threshold;
+	float contact_dist;
+	float splinter_length;
+	float nor_range;
+	float fractal_amount;
+	float physics_mesh_scale;
+	float grease_offset;
+
+	float impulse_dampening;
+	float minimum_impulse;
+	float directional_factor;
+	float mass_threshold_factor;
+
+	int use_constraints;
+	int use_compounds;
+	int use_mass_dependent_thresholds;
+	int use_particle_birth_coordinates;
+	int use_breaking;
+	int use_smooth;
+	int use_greasepencil_edges;
+
+	int shards_to_islands;
+	int fix_normals;
+
+	int breaking_distance_weighted;
+	int breaking_angle_weighted;
+	int breaking_percentage_weighted;
+	int constraint_target; //type of constraints.... make this a list ?
+	int limit_impact;
+
+	/* internal flags */
+	int use_experimental;
+
+	//char pad[4];
+} FractureSetting;
+
+typedef struct AnimBind {
+	int v;
+	int v1;
+	int v2;
+	int mi;
+	int poly;
+	float offset[3];
+	float no[3];
+	float quat[4];
+} AnimBind;
+
+typedef struct FractureModifierData {
+	ModifierData modifier;
+	struct FracMesh *frac_mesh; /* store only the current fracmesh here first, later maybe an entire history...*/
+	struct DerivedMesh *dm;
+	struct Group *extra_group;
+	struct Group *dm_group;
+	struct Group *cluster_group;
+	struct Group *cutter_group;
+	struct Group *autohide_filter_group;
+	struct BMesh *visible_mesh;
+	struct DerivedMesh *visible_mesh_cached;
+	ListBase meshIslands, meshConstraints;
+	ListBase islandShards;
+	char thresh_defgrp_name[64];  /* MAX_VGROUP_NAME */
+	char ground_defgrp_name[64];  /* MAX_VGROUP_NAME */
+	char inner_defgrp_name[64];  /* MAX_VGROUP_NAME */
+	char acceleration_defgrp_name[64]; /* MAX_VGROUP_NAME */
+	char uvlayer_name[64];  /* MAX_CUSTOMDATA_LAYER_NAME */
+	struct KDTree *nor_tree; /* store original vertices here (coords), to find them later and reuse their normals */
+	struct Material *inner_material;
+	struct GHash *face_pairs;
+	struct GHash *vert_index_map; /*used for autoconversion of former objects to clusters, marks object membership of each vert*/
+	struct GHash *vertex_island_map; /* used for constraint building based on vertex proximity, temporary data */
+	struct GHash *material_index_map; /* used to collect materials from objects to be packed, temporary data */
+	struct GHash *defgrp_index_map; /*used to collect vertexgroups from objects to be packed, temporary data */
+	struct Object *anim_mesh_ob; /*input object for animated mesh */
+	struct AnimBind *anim_bind; /* bound animation data */
+
+	ListBase shard_sequence; /* used as mesh cache / history for dynamic fracturing, for shards (necessary for conversion to DM) */
+	ListBase meshIsland_sequence; /* used as mesh cache / history for dynamic fracturing, for meshIslands (necessary for loc/rot "pointcache") */
+	ShardSequence *current_shard_entry; /*volatile storage of current shard entry, so we dont have to search in the list */
+	MeshIslandSequence *current_mi_entry; /*analogous to current shard entry */
+	ListBase fracture_ids; /*volatile storage of shards being "hit" or fractured currently, needs to be cleaned up after usage! */
+	ListBase fracture_settings;
+	ListBase shared_verts; /* used for storing shared vertices for automerge */
+	ListBase pack_storage; /*used to store packed geometry when switching modes */
+
+	int active_setting;
+
+	int anim_bind_len;
+	int anim_mesh_rot;
+
+	/* values */
+	int frac_algorithm;
+	int shard_count;
+	int shard_id;
+	int point_source;
+	int point_seed;
+	int percentage;
+	int cluster_count;
+	int constraint_count;
+
+	int constraint_limit;
+	int solver_iterations_override;
+	int cluster_solver_iterations_override;
+	int breaking_percentage;
+	int cluster_breaking_percentage;
+	int splinter_axis;
+	int fractal_cuts;
+	int fractal_iterations;
+	int grease_decimate;
+	int cutter_axis;
+	int cluster_constraint_type;
+	int fracture_mode;
+	int boolean_solver;
+	int dynamic_percentage;
+	int constraint_type;
+	int grid_resolution[3];
+
+	float breaking_angle;
+	float breaking_distance;
+	float cluster_breaking_angle;
+	float cluster_breaking_distance;
+	float origmat[4][4];
+	float passive_parent_mat[4][4];
+	float breaking_threshold;
+	float cluster_breaking_threshold;
+	float contact_dist;
+	float autohide_dist;
+	float automerge_dist;
+	float splinter_length;
+	float nor_range;
+	float fractal_amount;
+	float physics_mesh_scale;
+	float grease_offset;
+	float dynamic_force;
+	float deform_angle;
+	float deform_distance;
+	float cluster_deform_angle;
+	float cluster_deform_distance;
+	float deform_weakening;
+
+	float impulse_dampening;
+	float minimum_impulse;
+	float directional_factor;
+	float mass_threshold_factor;
+	float boolean_double_threshold;
+	float dynamic_min_size;
+	float inner_crease;
+	float orthogonality_factor;
+	float min_acceleration;
+	float max_acceleration;
+	float acceleration_fade;
+	float anim_bind_limit;
+	float grid_offset[3];
+	float grid_spacing[3];
+
+	/* flags */
+	int refresh;
+	int refresh_constraints;
+	int refresh_autohide;
+	int reset_shards;
+
+	int use_constraints;
+	int use_compounds;
+	int use_mass_dependent_thresholds;
+	int use_particle_birth_coordinates;
+	int use_breaking;
+	int use_smooth;
+	int use_greasepencil_edges;
+	int use_constraint_collision;
+	int use_self_collision;
+	int use_animated_mesh;
+	int use_constraint_group;
+
+	int shards_to_islands;
+	int execute_threaded;
+	int fix_normals;
+	int auto_execute;
+
+	int breaking_distance_weighted;
+	int breaking_angle_weighted;
+	int breaking_percentage_weighted;
+	int constraint_target;
+	int limit_impact;
+	int fracture_all;
+	int dynamic_new_constraints;
+	int is_dynamic_external;
+	int keep_distort;
+	int do_merge;
+	int deform_angle_weighted;
+	int deform_distance_weighted;
+	int use_centroids;
+	int use_vertices;
+	int activate_broken;
+
+	/* internal flags */
+	int use_experimental;
+	int explo_shared;
+	int refresh_images;
+	int update_dynamic;
+	int distortion_cached;
+
+	/* internal values */
+	float max_vol;
+	int last_frame;
+	int constraint_island_count;
+
+	/*DANGER... what happens if the new compound object has more materials than fit into 1 short ? shouldnt happen but can...*/
+	/*so reserve an int here better */
+	int matstart;
+	int defstart;
+
+	int keep_cutter_shards;
+	short mat_ofs_intersect;
+	short mat_ofs_difference;
+
+	char pad[4];
+} FractureModifierData;
 
 typedef struct DataTransferModifierData {
 	ModifierData modifier;

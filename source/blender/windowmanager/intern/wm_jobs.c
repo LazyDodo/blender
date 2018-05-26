@@ -571,8 +571,9 @@ void wm_jobs_timer(const bContext *C, wmWindowManager *wm, wmTimer *wt)
 				
 				/* always call note and update when ready */
 				if (wm_job->do_update || wm_job->ready) {
-					if (wm_job->update)
+					if (wm_job->update) {
 						wm_job->update(wm_job->run_customdata);
+					}
 					if (wm_job->note)
 						WM_event_add_notifier(C, wm_job->note, NULL);
 

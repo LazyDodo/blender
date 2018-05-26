@@ -37,6 +37,9 @@
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
+#include "BLI_math.h"
+#include "BLI_listbase.h"
+
 #include "BKE_context.h"
 #include "BKE_depsgraph.h"
 #include "BKE_group.h"
@@ -84,7 +87,7 @@ bool ED_rigidbody_constraint_add(Main *bmain, Scene *scene, Object *ob, int type
 		rbw->constraints = BKE_group_add(bmain, "RigidBodyConstraints");
 	}
 	/* make rigidbody constraint settings */
-	ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, type);
+	ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, type, NULL);
 	ob->rigidbody_constraint->flag |= RBC_FLAG_NEEDS_VALIDATE;
 
 	/* add constraint to rigid body constraint group */
@@ -197,6 +200,51 @@ void RIGIDBODY_OT_constraint_remove(wmOperatorType *ot)
 	/* callbacks */
 	ot->exec = rigidbody_con_remove_exec;
 	ot->poll = ED_operator_rigidbody_con_active_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+/* ************ Remove Rigid Body Constraints ************** */
+
+static int rigidbody_constraints_remove_exec(bContext *C, wmOperator *op)
+{
+	Scene *scene = CTX_data_scene(C);
+	bool change = false;
+
+	/* apply this to all selected objects... */
+	CTX_DATA_BEGIN(C, Object *, ob, selected_objects)
+	{
+		if (ob->rigidbody_constraint) {
+			ED_rigidbody_constraint_remove(G.main, scene, ob);
+			change = true;
+		}
+	}
+	CTX_DATA_END;
+
+	if (change) {
+		/* send updates */
+		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+		WM_event_add_notifier(C, NC_OBJECT | ND_POINTCACHE, NULL);
+
+		/* done */
+		return OPERATOR_FINISHED;
+	}
+	else {
+		return OPERATOR_CANCELLED;
+	}
+}
+
+void RIGIDBODY_OT_constraints_remove(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->idname = "RIGIDBODY_OT_constraints_remove";
+	ot->name = "Remove Rigid Body Constraints";
+	ot->description = "Remove selected constraints from Rigid Body simulation";
+
+	/* callbacks */
+	ot->exec = rigidbody_constraints_remove_exec;
+	ot->poll = ED_operator_scene_editable;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;

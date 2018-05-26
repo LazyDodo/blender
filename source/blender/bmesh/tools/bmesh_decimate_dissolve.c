@@ -526,6 +526,10 @@ void BM_mesh_decimate_dissolve(
 	BMVert **vinput_arr = BM_iter_as_arrayN(bm, BM_VERTS_OF_MESH, NULL, &vinput_len, NULL, 0);
 	BMEdge **einput_arr = BM_iter_as_arrayN(bm, BM_EDGES_OF_MESH, NULL, &einput_len, NULL, 0);
 
+	/* caused crashes in conjunction with fracture modifier when using limited dissolve operator from there,
+	 * so added a sanity check here as crash prevention */
+	if (vinput_arr == NULL || einput_arr == NULL)
+		return;
 
 	BM_mesh_decimate_dissolve_ex(bm, angle_limit, do_dissolve_boundaries,
 	                             delimit,

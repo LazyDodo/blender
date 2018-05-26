@@ -228,7 +228,20 @@ class ExecutePreset(Operator):
 
         # execute the preset using script.python_file_run
         if ext == ".py":
-            bpy.ops.script.python_file_run(filepath=filepath)
+            #FRACTURE MODIFIER HACK, cant get bpy.context.fracture to be run via py script else...
+            #so fake a context here
+            mod = False
+            if context.object is not None:
+                for md in context.object.modifiers:
+                    if md.type == 'FRACTURE':
+                        mod = True
+                        break
+            if (mod):
+                ctx = bpy.context.copy()
+                ctx["fracture"] = md
+                bpy.ops.script.python_file_run(ctx, filepath=filepath)
+            else:
+                bpy.ops.script.python_file_run(filepath=filepath)
         elif ext == ".xml":
             import rna_xml
             rna_xml.xml_file_run(context,
@@ -601,6 +614,111 @@ class AddPresetKeyconfig(AddPresetBase, Operator):
         if self.remove_active:
             keyconfigs.remove(keyconfigs.active)
 
+class AddPresetFracture(AddPresetBase, Operator):
+    """Add or remove a Fracture Preset"""
+    bl_idname = "fracture.preset_add"
+    bl_label = "Add Fracture Preset"
+    preset_menu = "FRACTURE_MT_presets"
+
+    preset_defines = [
+        "fracture = bpy.context.fracture"
+    ]
+
+    preset_values = [
+        "fracture.frac_algorithm",
+        "fracture.shard_count",
+        "fracture.cluster_count",
+        "fracture.point_seed",
+        "fracture.shards_to_islands",
+        "fracture.auto_execute",
+        "fracture.use_constraints",
+        "fracture.constraint_limit",
+        "fracture.contact_dist",
+        "fracture.breaking_threshold",
+        "fracture.cluster_breaking_threshold",
+        "fracture.point_source",
+        "fracture.extra_group",
+        "fracture.dm_group",
+        "fracture.use_particle_birth_coordinates",
+        "fracture.splinter_axis",
+        "fracture.splinter_length",
+        "fracture.percentage",
+        "fracture.breaking_percentage",
+        "fracture.breaking_percentage_weighted",
+        "fracture.breaking_angle",
+        "fracture.breaking_angle_weighted",
+        "fracture.breaking_distance",
+        "fracture.breaking_distance_weighted",
+        "fracture.cluster_breaking_percentage",
+        "fracture.cluster_breaking_angle",
+        "fracture.cluster_breaking_distance",
+        "fracture.solver_iterations_override",
+        "fracture.use_mass_dependent_thresholds",
+        "fracture.thresh_vertex_group",
+        "fracture.ground_vertex_group",
+        "fracture.inner_vertex_group",
+        "fracture.autohide_dist",
+        "fracture.fix_normals",
+        "fracture.execute_threaded",
+        "fracture.use_breaking",
+        "fracture.nor_range",
+        "fracture.cluster_group",
+        "fracture.cutter_group",
+        "fracture.grease_offset",
+        "fracture.grease_decimate",
+        "fracture.use_greasepencil_edges",
+        "fracture.cutter_axis",
+        "fracture.cluster_constraint_type",
+        "fracture.constraint_target",
+        "fracture.fracture_mode",
+        "fracture.dynamic_force",
+        "fracture.limit_impact",
+        "fracture.use_compounds",
+       # "fracture.impulse_dampening",
+       # "fracture.directional_factor",
+        "fracture.minimum_impulse",
+        "fracture.mass_threshold_factor",
+        "fracture.autohide_filter_group",
+        "fracture.uv_layer",
+        "fracture.inner_material",
+        "fracture.boolean_solver",
+        "fracture.boolean_double_threshold",
+        "fracture.dynamic_percentage",
+        "fracture.dynamic_new_constraints",
+        "fracture.dynamic_min_size",
+        "fracture.use_constraint_collision",
+        "fracture.inner_crease",
+        "fracture.material_offset_difference",
+        "fracture.material_offset_intersect",
+        "fracture.orthogonality_factor",
+        "fracture.keep_distort",
+        "fracture.do_merge",
+        "fracture.constraint_type",
+        "fracture.automerge_dist",
+        "fracture.deform_distance",
+        "fracture.deform_distance_weighted",
+        "fracture.cluster_deform_distance",
+        "fracture.deform_angle",
+        "fracture.deform_angle_weighted",
+        "fracture.cluster_deform_angle",
+        "fracture.deform_weakening",
+        "fracture.use_centroids",
+        "fracture.use_vertices",
+        "fracture.use_self_collision",
+        "fracture.grid_resolution",
+        "fracture.min_acceleration",
+        "fracture.max_acceleration",
+        "fracture.acceleration_fade",
+        "fracture.use_animated_mesh",
+        "fracture.animated_mesh_input",
+        "fracture.use_animated_mesh_rotation",
+        "fracture.grid_offset",
+        "fracture.grid_spacing",
+        "fracture.use_constraint_group",
+    ]
+
+    preset_subdir = "fracture"
+
 
 class AddPresetOperator(AddPresetBase, Operator):
     """Add or remove an Operator Preset"""
@@ -688,6 +806,7 @@ classes = (
     AddPresetCamera,
     AddPresetCloth,
     AddPresetFluid,
+    AddPresetFracture,
     AddPresetHairDynamics,
     AddPresetInteraction,
     AddPresetInterfaceTheme,

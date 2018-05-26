@@ -51,6 +51,7 @@
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_particle_types.h"
+#include "DNA_rigidbody_types.h"
 #include "DNA_linestyle_types.h"
 #include "DNA_actuator_types.h"
 #include "DNA_view3d_types.h"
@@ -833,6 +834,20 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 		}
 	}
 
+	if (!MAIN_VERSION_ATLEAST(main, 274, 0)) {
+		Object *ob;
+		for (ob = main->object.first; ob != NULL; ob = ob->id.next) {
+			/*initialize older blends to useful values */
+			FractureModifierData *fmd = (FractureModifierData* )modifiers_findByType(ob, eModifierType_Fracture);
+			if (fmd != NULL)
+			{
+				fmd->cluster_constraint_type = RBC_TYPE_FIXED;
+				fmd->constraint_target = MOD_FRACTURE_CENTROID;
+				fmd->use_breaking = true;
+			}
+		}
+	}
+				
 	if (!MAIN_VERSION_ATLEAST(main, 274, 1)) {
 		/* particle systems need to be forced to redistribute for jitter mode fix */
 		{
@@ -1732,6 +1747,54 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 		/* Fix related to VGroup modifiers creating named defgroup CD layers! See T51520. */
 		for (Mesh *me = main->mesh.first; me; me = me->id.next) {
 			CustomData_set_layer_name(&me->vdata, CD_MDEFORMVERT, 0, "");
+		}
+
+		for (Object *ob = main->object.first; ob != NULL; ob = ob->id.next) {
+			/*initialize older blends to useful values */
+			FractureModifierData *fmd = (FractureModifierData* )modifiers_findByType(ob, eModifierType_Fracture);
+			if (fmd != NULL)
+			{
+				for (RigidBodyShardCon *rbsc = fmd->meshConstraints.first; rbsc != NULL; rbsc =  rbsc->next)
+				{
+					/* before 2.79, the FM constraint flag values were different, so adapt this here */
+					if (rbsc->flag & RBC_FLAG_USE_SPRING_ANG_X)
+					{
+						rbsc->flag &= ~RBC_FLAG_USE_SPRING_ANG_X;
+						rbsc->flag |= RBC_FLAG_USE_KINEMATIC_DEACTIVATION;
+					}
+
+					if (rbsc->flag & RBC_FLAG_USE_SPRING_ANG_Y)
+					{
+						rbsc->flag &= ~RBC_FLAG_USE_SPRING_ANG_Y;
+						rbsc->flag |= RBC_FLAG_USE_PLASTIC;
+					}
+
+					if (rbsc->flag & RBC_FLAG_USE_SPRING_ANG_Z)
+					{
+						rbsc->flag &= ~RBC_FLAG_USE_SPRING_ANG_Z;
+						rbsc->flag |= RBC_FLAG_PLASTIC_ACTIVE;
+					}
+
+					rbsc->spring_stiffness_ang_x = 10.0;
+					rbsc->spring_stiffness_ang_y = 10.0;
+					rbsc->spring_stiffness_ang_z = 10.0;
+					rbsc->spring_damping_ang_x = 0.5;
+					rbsc->spring_damping_ang_y = 0.5;
+					rbsc->spring_damping_ang_z = 0.5;
+				}
+
+				for (MeshIsland *mi = fmd->meshIslands.first; mi != NULL; mi = mi->next)
+				{
+					//set this new flag to distinguish between regular and fractured rigidbodies,
+					//its the same struct otherwise
+					mi->rigidbody->is_fractured = true;
+				}
+			}
+
+			if (ob->rigidbody_object)
+			{
+				ob->rigidbody_object->is_fractured = false;
+			}
 		}
 	}
 

@@ -1857,7 +1857,7 @@ static uiBlock *wm_block_create_splash(bContext *C, ARegion *ar, void *UNUSED(ar
 	/* label for 'a' bugfix releases, or 'Release Candidate 1'...
 	 *  avoids recreating splash for version updates */
 	if (STREQ(STRINGIFY(BLENDER_VERSION_CYCLE), "rc")) {
-		version_suffix = "Release Candidate";
+		version_suffix = STRINGIFY(BLENDER_VERSION_CHAR) " Release Candidate";
 	}
 	else if (STREQ(STRINGIFY(BLENDER_VERSION_CYCLE), "release")) {
 		version_suffix = STRINGIFY(BLENDER_VERSION_CHAR);
@@ -1865,7 +1865,7 @@ static uiBlock *wm_block_create_splash(bContext *C, ARegion *ar, void *UNUSED(ar
 	if (version_suffix != NULL && version_suffix[0]) {
 		/* placed after the version number in the image,
 		 * placing y is tricky to match baseline */
-		int x = 260 * U.pixelsize - (2 * UI_DPI_FAC);
+		int x = 252 * U.pixelsize - (2 * UI_DPI_FAC);
 		int y = 242 * U.pixelsize + (4 * UI_DPI_FAC);
 		int w = 240 * U.pixelsize;
 
@@ -2848,17 +2848,9 @@ static int radial_control_modal(bContext *C, wmOperator *op, const wmEvent *even
 	if (event->val == KM_PRESS && has_numInput && handleNumInput(C, &rc->num_input, event)) {
 		handled = true;
 		applyNumInput(&rc->num_input, &numValue);
-
-		if (rc->subtype == PROP_ANGLE) {
-			numValue = DEG2RADF(numValue);
-			numValue = fmod(numValue, 2.0f * (float)M_PI);
-			if (numValue < 0.0f)
-				numValue += 2.0f * (float)M_PI;
-		}
-		
 		CLAMP(numValue, rc->min_value, rc->max_value);
 		new_value = numValue;
-		
+
 		radial_control_set_value(rc, new_value);
 		rc->current_value = new_value;
 		radial_control_update_header(op, C);
@@ -2999,19 +2991,10 @@ static int radial_control_modal(bContext *C, wmOperator *op, const wmEvent *even
 		/* Modal numinput inactive, try to handle numeric inputs last... */
 		if (!handled && event->val == KM_PRESS && handleNumInput(C, &rc->num_input, event)) {
 			applyNumInput(&rc->num_input, &numValue);
-
-			if (rc->subtype == PROP_ANGLE) {
-				numValue = DEG2RADF(numValue);
-				numValue = fmod(numValue, 2.0f * (float)M_PI);
-				if (numValue < 0.0f)
-					numValue += 2.0f * (float)M_PI;
-			}
-
 			CLAMP(numValue, rc->min_value, rc->max_value);
 			new_value = numValue;
-			
+
 			radial_control_set_value(rc, new_value);
-			
 			rc->current_value = new_value;
 			radial_control_update_header(op, C);
 			return OPERATOR_RUNNING_MODAL;

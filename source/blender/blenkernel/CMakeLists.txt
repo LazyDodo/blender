@@ -111,6 +111,8 @@ set(SRC
 	intern/fluidsim.c
 	intern/fmodifier.c
 	intern/font.c
+	intern/fracture.c
+	intern/fracture_util.c
 	intern/freestyle.c
 	intern/gpencil.c
 	intern/group.c
@@ -242,6 +244,8 @@ set(SRC
 	BKE_fcurve.h
 	BKE_fluidsim.h
 	BKE_font.h
+	BKE_fracture.h
+	BKE_fracture_util.h
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
@@ -313,7 +317,6 @@ set(SRC
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
 	intern/pbvh_intern.h
-	intern/data_transfer_intern.h
 )
 
 if(WITH_BINRELOC)
@@ -501,6 +504,14 @@ endif()
 
 if(WITH_FREESTYLE)
 	add_definitions(-DWITH_FREESTYLE)
+endif()
+
+if(WITH_VORO)
+	add_definitions(-DWITH_VORO)
+	list(APPEND INC
+		../../../extern/voro++
+		../../../extern/carve
+	)
 endif()
 
 if(WITH_ALEMBIC)

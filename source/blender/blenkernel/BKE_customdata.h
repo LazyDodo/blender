@@ -225,6 +225,12 @@ void CustomData_bmesh_copy_data(const struct CustomData *source,
                                 struct CustomData *dest, void *src_block, 
                                 void **dest_block);
 
+/* need this function exposed to deal with customdata in Fracture Modifier properly */
+void CustomData_copy_data_layer(
+        const CustomData *source, CustomData *dest,
+        int src_i, int dst_i,
+        int src_index, int dst_index, int count);
+
 /* frees data in a CustomData object
  * return 1 on success, 0 on failure
  */
@@ -269,6 +275,7 @@ void *CustomData_get(const struct CustomData *data, int index, int type);
 void *CustomData_get_n(const struct CustomData *data, int type, int index, int n);
 void *CustomData_bmesh_get(const struct CustomData *data, void *block, int type);
 void *CustomData_bmesh_get_n(const struct CustomData *data, void *block, int type, int n);
+void *CustomData_bmesh_get_named(const CustomData *data, void *block, int type, const char *name);
 
 /* gets the layer at physical index n, with no type checking.
  */
@@ -282,7 +289,8 @@ const char *CustomData_get_layer_name(const struct CustomData *data, int type, i
  */
 void *CustomData_get_layer(const struct CustomData *data, int type);
 void *CustomData_get_layer_n(const struct CustomData *data, int type, int n);
-void *CustomData_get_layer_named(const struct CustomData *data, int type, const char *name);
+void *CustomData_get_layer_named(const struct CustomData *data, int type,
+                                 const char *name);
 int CustomData_get_offset(const struct CustomData *data, int type);
 int CustomData_get_n_offset(const struct CustomData *data, int type, int n);
 

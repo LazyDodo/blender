@@ -706,5 +706,8 @@ void ED_animedit_unlink_action(struct bContext *C, struct ID *id,
 
 /* ************************************************ */
 
+/* Fracture Modifier keyframe conversion cleanup necessary.... */
+void clean_action_keys(struct bAnimContext *ac, float thresh, bool clean_chan);
+
 #endif /* __ED_ANIM_API_H__ */
 

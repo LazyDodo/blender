@@ -63,6 +63,7 @@ set(SRC
 	intern/MOD_explode.c
 	intern/MOD_fluidsim.c
 	intern/MOD_fluidsim_util.c
+	intern/MOD_fracture.c
 	intern/MOD_hook.c
 	intern/MOD_laplaciandeform.c
 	intern/MOD_laplaciansmooth.c
@@ -121,6 +122,13 @@ if(WITH_ALEMBIC)
 	add_definitions(-DWITH_ALEMBIC)
 	list(APPEND INC
 		../alembic
+	)
+endif()
+
+if(WITH_MOD_BOOLEAN)
+	add_definitions(-DWITH_MOD_BOOLEAN)
+	list(APPEND SRC
+		intern/MOD_boolean_util_bmesh.c
 	)
 endif()
 
