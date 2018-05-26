@@ -252,19 +252,30 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	//printf("%f %f %f %f %f %f\n", (double)angles[0], (double)angles[1], (double)angles[2], (double)angles[3], (double)angles[4], (double)angles[5]);
 
 	float4 F;
-	F  = Ap[0] * azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t)
-			   * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+	float Mp, Np;
+	
+	// R
+	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
+	F  = Ap[0] * Mp * Np;
 	assert(isfinite3_safe(F));
 
-	F += Ap[1] * azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t)
-			   * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+	// TT
+	Mp = longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+	Np = azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t);
+	F += Ap[1] * Mp * Np;
 	assert(isfinite3_safe(F));
 
-	F += Ap[2] * azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t)
-			   * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	// TRT
+	Mp = longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	Np = azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t);
+	F += Ap[2] * Mp * Np;
 	assert(isfinite3_safe(F));
 
-	F += Ap[3] * longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v) * M_1_2PI_F;
+	// TRRT+
+	Mp = longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	Np = M_1_2PI_F;
+	F += Ap[3] * Mp * Np;
 	assert(isfinite3_safe(F));
 
 	//printf("%f %f %f %f\n", (double)F.x, (double)F.y, (double)F.z, (double)F.w);
@@ -358,19 +369,30 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 	//printf("%f %f %f %f %f %f\n", (double)angles[0], (double)angles[1], (double)angles[2], (double)angles[3], (double)angles[4], (double)angles[5]);
 
 	float4 F;
-	F  = Ap[0] * azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t)
-			   * longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+	float Mp, Np;
+
+	// R
+	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
+	F  = Ap[0] * Mp * Np;
 	assert(isfinite3_safe(F));
 
-	F += Ap[1] * azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t)
-			   * longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+	// TT
+	Mp = longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
+	Np = azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t);
+	F += Ap[1] * Mp * Np;
 	assert(isfinite3_safe(F));
 
-	F += Ap[2] * azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t)
-			   * longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	// TRT
+	Mp = longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	Np = azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t);
+	F += Ap[2] * Mp * Np;
 	assert(isfinite3_safe(F));
 
-	F += Ap[3] * longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v) * M_1_2PI_F;
+	// TRRT+
+	Mp = longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
+	Np = M_1_2PI_F;
+	F += Ap[3] * Mp * Np;
 	assert(isfinite3_safe(F));
 
 	*eval = float4_to_float3(F);
