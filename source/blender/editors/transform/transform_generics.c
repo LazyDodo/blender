@@ -1010,6 +1010,11 @@ static void recalcData_objects(TransInfo *t)
 	}
 }
 
+static void recalcData_cursor(TransInfo *t)
+{
+	DEG_id_tag_update(&t->scene->id, DEG_TAG_COPY_ON_WRITE);
+}
+
 /* helper for recalcData() - for sequencer transforms */
 static void recalcData_sequencer(TransInfo *t)
 {
@@ -1059,7 +1064,10 @@ static void recalcData_gpencil_strokes(TransInfo *t)
 void recalcData(TransInfo *t)
 {
 	/* if tests must match createTransData for correct updates */
-	if (t->options & CTX_TEXTURE) {
+	if (t->options & CTX_CURSOR) {
+		recalcData_cursor(t);
+	}
+	else if (t->options & CTX_TEXTURE) {
 		recalcData_objects(t);
 	}
 	else if (t->options & CTX_EDGE) {
