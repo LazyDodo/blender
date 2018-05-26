@@ -126,10 +126,13 @@ ccl_device float3 curve_attribute_float3(KernelGlobals *kg, const ShaderData *sd
 	}
 }
 
-ccl_device float curve_core_distance(KernelGlobals *kg, ShaderData *sd, float3 *curve_P, float3 *dPdCD)
+/* Curve center point and radius corresponding to shading position. */
+
+ccl_device float3 curve_center(KernelGlobals *kg, ShaderData *sd, float *radius)
 {
 	if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
-		return 0.0f;
+		*radius = 0.0f;
+		return sd->P;
 	}
 
 	assert(isfinite3_safe(sd->P));
@@ -139,7 +142,6 @@ ccl_device float curve_core_distance(KernelGlobals *kg, ShaderData *sd, float3 *
 	int k0 = __float_as_int(curvedata.x) + PRIMITIVE_UNPACK_SEGMENT(sd->type);
 	int k1 = k0 + 1;
 
-	float curve_r;
 	if(flag & CURVE_KN_INTERPOLATE) {
 		int ka = max(k0 - 1, __float_as_int(curvedata.x));
 		int kb = min(k1 + 1, __float_as_int(curvedata.x) + __float_as_int(curvedata.y) - 1);
@@ -155,12 +157,12 @@ ccl_device float curve_core_distance(KernelGlobals *kg, ShaderData *sd, float3 *
 			motion_cardinal_curve_keys(kg, sd->object, sd->prim, sd->time, ka, k0, k1, kb, P_curve);
 		}
 
-		*curve_P = curvepoint(sd->u,
-							 float4_to_float3(P_curve[0]),
-							 float4_to_float3(P_curve[1]),
-							 float4_to_float3(P_curve[2]),
-							 float4_to_float3(P_curve[3]));
-		curve_r = mix(P_curve[1].w, P_curve[2].w, sd->u);
+		*radius = mix(P_curve[1].w, P_curve[2].w, sd->u);
+		return curvepoint(sd->u,
+		                  float4_to_float3(P_curve[0]),
+		                  float4_to_float3(P_curve[1]),
+		                  float4_to_float3(P_curve[2]),
+		                  float4_to_float3(P_curve[3]));
 	}
 	else {
 		float4 P_curve[2];
@@ -171,14 +173,10 @@ ccl_device float curve_core_distance(KernelGlobals *kg, ShaderData *sd, float3 *
 		else {
 			motion_curve_keys(kg, sd->object, sd->prim, sd->time, k0, k1, P_curve);
 		}
-		*curve_P = mix(float4_to_float3(P_curve[0]), float4_to_float3(P_curve[1]), sd->u);
-		curve_r = mix(P_curve[0].w, P_curve[1].w, sd->u);
-	}
 
-	*dPdCD = normalize(cross(sd->dPdu, sd->I));
-	float h = dot(*dPdCD, sd->P - *curve_P)/curve_r;
-	assert(fabsf(h) <= 2.f);
-	return h;
+		*radius = mix(P_curve[0].w, P_curve[1].w, sd->u);
+		return mix(float4_to_float3(P_curve[0]), float4_to_float3(P_curve[1]), sd->u);
+	}
 }
 
 /* Curve thickness */

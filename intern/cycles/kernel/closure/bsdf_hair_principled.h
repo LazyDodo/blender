@@ -158,10 +158,15 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
 
-	float3 dPdCD, curve_P;
-	float h = curve_core_distance(kg, sd, &curve_P, &dPdCD);
+	float curve_r;
+	float3 curve_P = curve_center(kg, sd, &curve_r);
+	float3 dPdCD = normalize(cross(sd->dPdu, sd->I));
+	float h = safe_divide(dot(dPdCD, sd->P - curve_P), curve_r);
+
+	assert(isfinite3_safe(dPdCD));
 	assert(isfinite_safe(h));
-	dPdCD = normalize(dPdCD);
+	assert(fabsf(h) <= 2.0f);
+
 	bsdf->geom = make_float4(dPdCD.x, dPdCD.y, dPdCD.z, h);
 
 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
