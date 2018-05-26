@@ -470,14 +470,22 @@ BLI_INLINE int hair_get_strand_subdiv_numverts(int numstrands, int numverts, int
 }
 
 /* Subdivide a curve */
-static int hair_guide_subdivide(const HairGuideCurve* curve, const HairGuideVertex* verts, int subdiv, HairGuideVertex *r_verts)
+static int hair_guide_subdivide(const HairGuideCurve* curve, const HairGuideVertex* verts,
+                                int subdiv, const float rootpos[3], HairGuideVertex *r_verts)
 {
 	{
-		/* Move vertex positions from the dense array to their initial configuration for subdivision. */
+		/* Move vertex positions from the dense array to their initial configuration for subdivision.
+		 * Also add offset to ensure the curve starts on the scalp surface.
+		 */
 		const int step = (1 << subdiv);
+		
+		BLI_assert(curve->numverts > 0);
+		float offset[3];
+		sub_v3_v3v3(offset, rootpos, verts[0].co);
+		
 		HairGuideVertex *dst = r_verts;
 		for (int i = 0; i < curve->numverts; ++i) {
-			copy_v3_v3(dst->co, verts[i].co);
+			add_v3_v3v3(dst->co, verts[i].co, offset);
 			dst += step;
 		}
 	}
@@ -665,17 +673,15 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 			float (*tangents)[3] = &cache->guide_tangents[curve->vertstart];
 			float (*normals)[3] = &cache->guide_normals[curve->vertstart];
 			
-			hair_guide_subdivide(curve_orig, verts_orig, subdiv, verts);
+			/* Root matrix for offsetting to the scalp surface and for initial normal direction */
+			float rootpos[3];
+			float rootmat[3][3];
+			BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
+			cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
 			
-			{
-				/* Root matrix for defining the initial normal direction */
-				float rootpos[3];
-				float rootmat[3][3];
-				BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
-				cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
-				
-				hair_guide_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
-			}
+			hair_guide_subdivide(curve_orig, verts_orig, subdiv, rootpos, verts);
+			
+			hair_guide_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
 		}
 	}
 
