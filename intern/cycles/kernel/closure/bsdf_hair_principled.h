@@ -158,15 +158,35 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
 
+	/* Compute local frame, aligned to curve tangent and ray direction. */
+	float3 X = normalize(sd->dPdu);
+	float3 Y = safe_normalize(cross(X, sd->I));
+	float3 Z = safe_normalize(cross(X, Y));
+
+#if 0
+	/* TODO: this seems to give wrong results, and h should be in the -1..1 range? */
 	float curve_r;
 	float3 curve_P = curve_center(kg, sd, &curve_r);
-	float3 X = normalize(sd->dPdu);
-	float3 Y = normalize(cross(X, sd->I));
 	float h = safe_divide(dot(Y, sd->P - curve_P), curve_r);
+	kernel_assert(fabsf(h) <= 2.0f);
+#else
+	/* TODO: this only works for thick curves where sd->Ng is the normal
+	 * pointing from the center of the curve to the shading point. For
+	 * ribbons we need to find another solution. */
+
+	/* h -1..0..1 means the rays goes from grazing the hair, to hitting it at
+	 * the center, to grazing the other edge. This is the sine of the angle
+	 * between sd->Ng and Z, as seen from the tangent X. */
+
+	/* TODO: we convert this value to a cosine later and discard the sign, so
+	 * we could probably save some operations. */
+	float h = dot(cross(sd->Ng, X), Z);
+
+	kernel_assert(fabsf(h) < 1.0f + 1e-4f);
+#endif
 
 	kernel_assert(isfinite3_safe(Y));
 	kernel_assert(isfinite_safe(h));
-	kernel_assert(fabsf(h) <= 2.0f);
 
 	bsdf->geom = make_float4(Y.x, Y.y, Y.z, h);
 
