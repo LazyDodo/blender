@@ -35,6 +35,7 @@
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
 #include "DNA_ID.h"
+#include "DNA_meshdata_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,27 +74,38 @@ typedef struct GroomCurveCache
 	float co[3];                            /* Location vector */
 } GroomCurveCache;
 
+/* Data for generating hair guide curves */
+typedef struct GroomHairGuide
+{
+	struct MeshSample root;                 /* Root point */
+} GroomHairGuide;
+
 /* Bundle of hair strands following the same curve path */
 typedef struct GroomBundle {
 	struct GroomBundle *next, *prev;        /* Pointers for ListBase element */
 	
 	int flag;
+	int guides_count;                       /* Number of guides to generate (totguides can be smaller) */
 	
 	int numshapeverts;                      /* Vertices per section loop */
 	int totsections;                        /* Number of sections along the curve */
 	int totverts;                           /* Number of vertices of all sections combined */
-	int curvesize;                         /* Number of verticess in a curve = (totsections - 1) * curve_res + 1 */
+	int curvesize;                          /* Number of vertices in a curve = (totsections - 1) * groom.curve_res + 1 */
 	int totcurvecache;                      /* Number of cached curve steps = curve_size * (numshapeverts + 1) */
+	int totguides;                          /* Actual number of hair guide curves */
 	
 	struct GroomSection *sections;          /* List of sections [totsections] */
-	struct GroomSectionVertex *verts;       /* List of vertices [totsections][numloopverts] */
+	struct GroomSectionVertex *verts;       /* List of vertices [totsections][numshapeverts] */
 	struct GroomCurveCache *curvecache;     /* Cached curve steps [numshapeverts + 1][curve_size], last is center curve */
-	struct MeshSample *scalp_region;        /* Mesh samples bind to a scalp region [numloopverts + 1], last is center position */
+	struct MeshSample *scalp_region;        /* Mesh samples bind to a scalp region [numshapeverts + 1], last is center position */
+	
+	struct GroomHairGuide *guides;          /* Data for generating hair guide curves [totguides] */
+	float *guide_shape_weights;             /* Weights for interpolating hair guide curves [totguides][numshapeverts] */
 	
 	/* Scalp Region */
 	/* XXX Face maps are used temporarily for creating regions,
 	 * eventually should be replaced by a fully fledged 2D loop mesh */
-	char scalp_facemap_name[64];             /* Scalp face map to use as region, MAX_VGROUP_NAME */
+	char scalp_facemap_name[64];            /* Scalp face map to use as region, MAX_VGROUP_NAME */
 } GroomBundle;
 
 typedef enum GroomBundleFlag

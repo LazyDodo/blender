@@ -150,7 +150,11 @@ static void rna_def_groom_bundle(BlenderRNA *brna)
 	RNA_def_property_string_sdna(prop, NULL, "scalp_facemap_name");
 	RNA_def_property_ui_text(prop, "Scalp Vertex Group", "Face map name of the scalp region");
 	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GroomBundle_scalp_facemap_name_set");
-	RNA_def_property_update(prop, 0, "rna_Groom_update_data");
+	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
+	
+	prop = RNA_def_property(srna, "guides_count", PROP_INT, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Guides Count", "Number of hair guides to generate in this region");
+	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
 }
 
 /* groom.bundles */

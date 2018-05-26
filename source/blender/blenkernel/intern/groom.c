@@ -117,6 +117,14 @@ static void groom_bundles_free(ListBase *bundles)
 		{
 			MEM_freeN(bundle->scalp_region);
 		}
+		if (bundle->guides)
+		{
+			MEM_freeN(bundle->guides);
+		}
+		if (bundle->guide_shape_weights)
+		{
+			MEM_freeN(bundle->guide_shape_weights);
+		}
 	}
 	BLI_freelistN(bundles);
 }
@@ -182,6 +190,14 @@ void BKE_groom_copy_data(Main *UNUSED(bmain), Groom *groom_dst, const Groom *gro
 		if (bundle->scalp_region)
 		{
 			bundle->scalp_region = MEM_dupallocN(bundle->scalp_region);
+		}
+		if (bundle->guides)
+		{
+			bundle->guides = MEM_dupallocN(bundle->guides);
+		}
+		if (bundle->guide_shape_weights)
+		{
+			bundle->guide_shape_weights = MEM_dupallocN(bundle->guide_shape_weights);
 		}
 	}
 	
@@ -496,70 +512,7 @@ void BKE_groom_bundle_unbind(GroomBundle *bundle)
 
 /* === Hair System === */
 
-/* Distribute points on the scalp to use as guide curve origins,
- * then interpolate guide curves from bundles
- */
-static void groom_generate_guide_curves(
-        Groom *groom,
-        Mesh *scalp,
-        unsigned int seed,
-        int guide_curve_count,
-        const float *loop_weights)
-{
-	struct HairSystem *hsys = groom->hair_system;
-
-	MeshSample *guide_samples = MEM_mallocN(sizeof(*guide_samples) * guide_curve_count, "guide samples");
-	int num_guides;
-	{
-		/* Random distribution of points on the scalp mesh */
-		
-		float scalp_area = BKE_hair_calc_surface_area(scalp);
-		float density = BKE_hair_calc_density_from_count(scalp_area, guide_curve_count);
-		float min_distance = BKE_hair_calc_min_distance_from_density(density);
-		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(
-		            seed,
-		            min_distance,
-		            guide_curve_count,
-		            loop_weights);
-		
-		BKE_mesh_sample_generator_bind(gen, scalp);
-		
-		static const bool use_threads = false;
-		num_guides = BKE_mesh_sample_generate_batch_ex(
-		                 gen,
-		                 guide_samples,
-		                 sizeof(MeshSample),
-		                 guide_curve_count,
-		                 use_threads);
-		
-		BKE_mesh_sample_free_generator(gen);
-	}
-	
-	const int numverts = 20;
-	BKE_hair_guide_curves_begin(hsys, num_guides);
-	for (int i = 0; i < num_guides; ++i)
-	{
-		BKE_hair_set_guide_curve(hsys, i, &guide_samples[i], numverts);
-	}
-	BKE_hair_guide_curves_end(hsys);
-
-	{
-		int idx = 0;
-		for (int i = 0; i < num_guides; ++i)
-		{
-			for (int j = 0; j < numverts; ++j)
-			{
-				float co[3];
-				zero_v3(co);
-				BKE_hair_set_guide_vertex(hsys, idx, 0, co);
-				++idx;
-			}
-		}
-	}
-	
-	MEM_freeN(guide_samples);
-}
-
+/* Set loop weights for all faces covered by the bundle region */
 static bool groom_add_bundle_loop_weights(const Groom *groom, const GroomBundle *bundle,
                                           float *loop_weights)
 {
@@ -601,6 +554,7 @@ static bool groom_add_bundle_loop_weights(const Groom *groom, const GroomBundle 
 	return true;
 }
 
+/* Set loop weights for all faces covered */
 static void groom_add_all_loop_weights(const Groom *groom,
                                        float *loop_weights)
 {
@@ -610,30 +564,165 @@ static void groom_add_all_loop_weights(const Groom *groom,
 	}
 }
 
-void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count, int guide_curve_count)
+/* Distribute points on the scalp to use as guide curve origins */
+static void groom_generate_guides(
+        Groom *groom,
+        Mesh *scalp,
+        unsigned int seed)
+{
+	const size_t loop_weights_size = sizeof(float) * scalp->totloop;
+	float *loop_weights = MEM_mallocN(loop_weights_size, "groom scalp loop weights");
+	
+	int i = 0;
+	GroomBundle *bundle = groom->bundles.first;
+	for (; bundle; bundle = bundle->next, ++i)
+	{
+		bundle->guides = MEM_reallocN_id(bundle->guides, sizeof(GroomHairGuide) * bundle->guides_count, "groom bundle hair guides");
+		
+		/* Mask for the scalp region */
+		memset(loop_weights, 0, loop_weights_size);
+		groom_add_bundle_loop_weights(groom, bundle, loop_weights);
+		
+		{
+			const int count = bundle->guides_count;
+			unsigned int region_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_uinthash(i));
+			float scalp_area = BKE_hair_calc_surface_area(scalp);
+			float density = BKE_hair_calc_density_from_count(scalp_area, count);
+			float min_distance = BKE_hair_calc_min_distance_from_density(density);
+			MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(
+			                               region_seed,
+			                               min_distance,
+			                               count,
+			                               loop_weights);
+			
+			BKE_mesh_sample_generator_bind(gen, scalp);
+			
+			static const bool use_threads = false;
+			bundle->totguides = BKE_mesh_sample_generate_batch_ex(
+			                        gen,
+			                        &bundle->guides->root,
+			                        sizeof(GroomHairGuide),
+			                        count,
+			                        use_threads);
+			
+			BKE_mesh_sample_free_generator(gen);
+		}
+		
+		/* Calculate weights for interpolating the guide between shape vertices */
+		{
+			bundle->guide_shape_weights = MEM_reallocN_id(bundle->guide_shape_weights, sizeof(float) * bundle->totguides * bundle->numshapeverts, "groom guide shape weights");
+			
+			/* Use first section as shape for computing weights */
+			const int shapesize = bundle->numshapeverts;
+			float (*shape)[2] = MEM_mallocN(sizeof(float) * 2 * shapesize, "bundle shape verts");
+			/* Expecting at least one section */
+			BLI_assert(bundle->totsections >= 1 && bundle->totverts >= shapesize);
+			/* Need a dense array for the interp_weights_poly_v2 function */
+			for (int j = 0; j < shapesize; ++j)
+			{
+				copy_v2_v2(shape[j], bundle->verts[j].co);
+			}
+			
+			float *w = bundle->guide_shape_weights;
+			for (int j = 0; j < bundle->totguides; ++j)
+			{
+				/* Define interpolation point by projecting the guide root
+				 * onto the bundle base plane.
+				 */
+				float p[3], n[3], t[3];
+				BKE_mesh_sample_eval(scalp, &bundle->guides[j].root, p, n, t);
+				sub_v3_v3(p, bundle->sections[0].center);
+				mul_transposed_m3_v3(bundle->sections[0].mat, p);
+				
+				/* Calculate interpolation weights */
+				interp_weights_poly_v2(w, shape, shapesize, p);
+				
+				w += bundle->numshapeverts;
+			}
+			
+			MEM_freeN(shape);
+		}
+	}
+	
+	MEM_freeN(loop_weights);
+}
+
+void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count)
 {
 	struct HairSystem *hsys = groom->hair_system;
 	
 	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
 	Mesh *scalp = groom->scalp_object->data;
 	
-	/* Per-loop weights for limiting follicles to covered faces */
-	float *loop_weights = MEM_callocN(sizeof(float) * scalp->totloop, "groom scalp loop weights");
-	groom_add_all_loop_weights(groom, loop_weights);
+	{
+		/* Per-loop weights for limiting follicles to covered faces */
+		float *loop_weights = MEM_callocN(sizeof(float) * scalp->totloop, "groom scalp loop weights");
+		groom_add_all_loop_weights(groom, loop_weights);
+		
+		unsigned int hair_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom hair follicles"));
+		BKE_hair_generate_follicles_ex(hsys, scalp, hair_seed, hair_count, loop_weights);
+		
+		MEM_freeN(loop_weights);
+	}
 	
-	BKE_hair_generate_follicles_ex(hsys, scalp, seed, hair_count, loop_weights);
-	
-	unsigned int guide_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom guide curves"));
-	groom_generate_guide_curves(groom, scalp, guide_seed, guide_curve_count, loop_weights);
-	
-	MEM_freeN(loop_weights);
-	
-	BKE_hair_bind_follicles(hsys, scalp);
+	{
+		unsigned int guides_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom guide curves"));
+		groom_generate_guides(groom, scalp, guides_seed);
+	}
 }
 
 void BKE_groom_hair_update_guide_curves(Groom *groom)
 {
-	UNUSED_VARS(groom);
+	struct HairSystem *hsys = groom->hair_system;
+	
+	/* Count guides for all regions combined */
+	int totguides = 0;
+	for (const GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	{
+		totguides += bundle->totguides;
+	}
+	
+	/* First declare all guide curves and lengths */
+	BKE_hair_guide_curves_begin(hsys, totguides);
+	for (const GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	{
+		const int curvesize = bundle->curvesize;
+		for (int i = 0; i < bundle->totguides; ++i)
+		{
+			BKE_hair_set_guide_curve(hsys, i, &bundle->guides[i].root, curvesize);
+		}
+	}
+	BKE_hair_guide_curves_end(hsys);
+	
+	int idx = 0;
+	for (const GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	{
+		const int shapesize = bundle->numshapeverts;
+		const int curvesize = bundle->curvesize;
+		const float *weights = bundle->guide_shape_weights;
+		float co[3];
+		for (int guide_idx = 0; guide_idx < bundle->totguides; ++guide_idx)
+		{
+			for (int j = 0; j < curvesize; ++j)
+			{
+				/* Compute barycentric guide location from shape */
+				zero_v3(co);
+				for (int k = 0; k < shapesize; ++k)
+				{
+					madd_v3_v3fl(co, bundle->curvecache[k * curvesize + j].co, weights[k]);
+				}
+				
+				BKE_hair_set_guide_vertex(hsys, idx, 0, co);
+				++idx;
+			}
+			
+			weights += shapesize;
+		}
+	}
+	
+	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
+	Mesh *scalp = groom->scalp_object->data;
+	BKE_hair_bind_follicles(hsys, scalp);
 }
 
 

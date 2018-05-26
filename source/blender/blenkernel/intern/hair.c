@@ -422,9 +422,12 @@ void BKE_hair_bind_follicles(HairSystem *hsys, Mesh *scalp)
 	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	
 	HairPattern *pattern = hsys->pattern;
-	const int num_strands = hsys->guides.totcurves;
-	if (num_strands == 0 || !pattern)
+	if (!pattern)
 		return;
+	
+	const int num_strands = hsys->guides.totcurves;
+	/* Need at least one guide curve for binding */
+	BLI_assert(num_strands > 0);
 	
 	float (*strandloc)[3] = MEM_mallocN(sizeof(float) * 3 * num_strands, "strand locations");
 	{

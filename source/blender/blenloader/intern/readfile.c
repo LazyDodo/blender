@@ -8226,6 +8226,8 @@ static void direct_link_groom(FileData *fd, Groom *groom)
 		bundle->sections = newdataadr(fd, bundle->sections);
 		bundle->verts = newdataadr(fd, bundle->verts);
 		bundle->scalp_region = newdataadr(fd, bundle->scalp_region);
+		bundle->guides = newdataadr(fd, bundle->guides);
+		bundle->guide_shape_weights = newdataadr(fd, bundle->guide_shape_weights);
 		bundle->curvecache = NULL;
 		bundle->curvesize = 0;
 		bundle->totcurvecache = 0;

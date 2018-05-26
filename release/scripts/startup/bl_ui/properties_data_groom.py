@@ -76,10 +76,17 @@ class DATA_PT_groom(DataButtonsPanel, Panel):
         layout = self.layout
 
         groom = context.groom
+        bundle = context.groom.bundles.active
 
         layout.template_list("GROOM_UL_bundles", "bundles",
                              groom, "bundles",
                              groom.bundles, "active_index")
+        if bundle:
+            col = layout.column()
+            col.label("Region:")
+            col.prop(bundle, "guides_count")
+
+            layout.separator()
 
         split = layout.split()
 
