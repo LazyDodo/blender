@@ -160,14 +160,15 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 
 	float curve_r;
 	float3 curve_P = curve_center(kg, sd, &curve_r);
-	float3 dPdCD = normalize(cross(sd->dPdu, sd->I));
-	float h = safe_divide(dot(dPdCD, sd->P - curve_P), curve_r);
+	float3 X = normalize(sd->dPdu);
+	float3 Y = normalize(cross(X, sd->I));
+	float h = safe_divide(dot(Y, sd->P - curve_P), curve_r);
 
-	kernel_assert(isfinite3_safe(dPdCD));
+	kernel_assert(isfinite3_safe(Y));
 	kernel_assert(isfinite_safe(h));
 	kernel_assert(fabsf(h) <= 2.0f);
 
-	bsdf->geom = make_float4(dPdCD.x, dPdCD.y, dPdCD.z, h);
+	bsdf->geom = make_float4(Y.x, Y.y, Y.z, h);
 
 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
 }
@@ -224,15 +225,15 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	kernel_assert(isfinite3_safe(sd->P) && isfinite_safe(sd->ray_length));
 
 	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
-	float3 dPdCD = float4_to_float3(bsdf->geom);
+	float3 Y = float4_to_float3(bsdf->geom);
 
-	kernel_assert(fabsf(dot(sd->dPdu, dPdCD)) < 1e-5f);
-	float3 Z = normalize(cross(sd->dPdu, dPdCD));
-	float3 Y = dPdCD;
+	float3 X = normalize(sd->dPdu);
+	kernel_assert(fabsf(dot(X, Y)) < 1e-4f);
+	float3 Z = normalize(cross(X, Y));
 
-	float3 wo = make_float3(dot(sd->I, sd->dPdu), dot(sd->I, Y), dot(sd->I, Z));
-	float3 wi = make_float3(dot(omega_in, sd->dPdu), dot(omega_in, dPdCD), dot(omega_in, Z));
-	//kernel_assert(fabsf(wo.y) < 1e-5f);
+	float3 wo = make_float3(dot(sd->I, X), dot(sd->I, Y), dot(sd->I, Z));
+	float3 wi = make_float3(dot(omega_in, X), dot(omega_in, Y), dot(omega_in, Z));
+	//kernel_assert(fabsf(wo.y) < 1e-4f);
 	//scanf("%d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->geom.w, &wi.x, &wi.y, &wi.z);
 
 	float sin_theta_o = wo.x;
@@ -306,14 +307,14 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 #endif
 
 	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
-	float3 dPdCD = float4_to_float3(bsdf->geom);
+	float3 Y = float4_to_float3(bsdf->geom);
 
-	kernel_assert(fabsf(dot(sd->dPdu, dPdCD)) < 1e-5f);
-	float3 Z = normalize(cross(sd->dPdu, dPdCD));
-	float3 Y = dPdCD;
+	float3 X = normalize(sd->dPdu);
+	kernel_assert(fabsf(dot(X, Y)) < 1e-4f);
+	float3 Z = normalize(cross(X, Y));
 
-	float3 wo = make_float3(dot(sd->I, sd->dPdu), dot(sd->I, Y), dot(sd->I, Z));
-	//kernel_assert(fabsf(wo.y) < 1e-5f);
+	float3 wo = make_float3(dot(sd->I, X), dot(sd->I, Y), dot(sd->I, Z));
+	//kernel_assert(fabsf(wo.y) < 1e-4f);
 
 	float2 u[2];
 	u[0] = make_float2(randu, randv);
@@ -415,7 +416,7 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 
 	//printf("%f %f %f %f %f %f %f\n", (double)eval->x, (double)eval->y, (double)eval->z, (double)*pdf, (double)sin_theta_i, (double)cosf(phi_i), (double)sinf(phi_i));
 
-	*omega_in = sd->dPdu*sin_theta_i + Y*cos_theta_i*cosf(phi_i) + Z*cos_theta_i*sinf(phi_i);
+	*omega_in = X*sin_theta_i + Y*cos_theta_i*cosf(phi_i) + Z*cos_theta_i*sinf(phi_i);
 
 #ifdef __RAY_DIFFERENTIALS__
 	float3 N = normalize(sd->I + *omega_in);
