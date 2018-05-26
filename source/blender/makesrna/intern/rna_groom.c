@@ -153,6 +153,8 @@ static void rna_def_groom_bundle(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
 	
 	prop = RNA_def_property(srna, "guides_count", PROP_INT, PROP_NONE);
+	RNA_def_property_range(prop, 1, INT_MAX);
+	RNA_def_property_ui_range(prop, 1, 1000, 1, -1);
 	RNA_def_property_ui_text(prop, "Guides Count", "Number of hair guides to generate in this region");
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
 }
