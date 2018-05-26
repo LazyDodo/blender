@@ -163,9 +163,9 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 	float3 dPdCD = normalize(cross(sd->dPdu, sd->I));
 	float h = safe_divide(dot(dPdCD, sd->P - curve_P), curve_r);
 
-	assert(isfinite3_safe(dPdCD));
-	assert(isfinite_safe(h));
-	assert(fabsf(h) <= 2.0f);
+	kernel_assert(isfinite3_safe(dPdCD));
+	kernel_assert(isfinite_safe(h));
+	kernel_assert(fabsf(h) <= 2.0f);
 
 	bsdf->geom = make_float4(dPdCD.x, dPdCD.y, dPdCD.z, h);
 
@@ -221,18 +221,18 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	//*pdf = 0.0f;
 	//return make_float3(0.0f, 0.0f, 0.0f);
 
-	assert(isfinite3_safe(sd->P) && isfinite_safe(sd->ray_length));
+	kernel_assert(isfinite3_safe(sd->P) && isfinite_safe(sd->ray_length));
 
 	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
 	float3 dPdCD = float4_to_float3(bsdf->geom);
 
-	assert(fabsf(dot(sd->dPdu, dPdCD)) < 1e-5f);
+	kernel_assert(fabsf(dot(sd->dPdu, dPdCD)) < 1e-5f);
 	float3 Z = normalize(cross(sd->dPdu, dPdCD));
 	float3 Y = dPdCD;
 
 	float3 wo = make_float3(dot(sd->I, sd->dPdu), dot(sd->I, Y), dot(sd->I, Z));
 	float3 wi = make_float3(dot(omega_in, sd->dPdu), dot(omega_in, dPdCD), dot(omega_in, Z));
-	//assert(fabsf(wo.y) < 1e-5f);
+	//kernel_assert(fabsf(wo.y) < 1e-5f);
 	//scanf("%d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->geom.w, &wi.x, &wi.y, &wi.z);
 
 	float sin_theta_o = wo.x;
@@ -273,25 +273,25 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
 	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
 	F  = Ap[0] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	// TT
 	Mp = longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
 	Np = azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t);
 	F += Ap[1] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	// TRT
 	Mp = longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t);
 	F += Ap[2] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	// TRRT+
 	Mp = longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = M_1_2PI_F;
 	F += Ap[3] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	//printf("%f %f %f %f\n", (double)F.x, (double)F.y, (double)F.z, (double)F.w);
 
@@ -308,12 +308,12 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
 	float3 dPdCD = float4_to_float3(bsdf->geom);
 
-	assert(fabsf(dot(sd->dPdu, dPdCD)) < 1e-5f);
+	kernel_assert(fabsf(dot(sd->dPdu, dPdCD)) < 1e-5f);
 	float3 Z = normalize(cross(sd->dPdu, dPdCD));
 	float3 Y = dPdCD;
 
 	float3 wo = make_float3(dot(sd->I, sd->dPdu), dot(sd->I, Y), dot(sd->I, Z));
-	//assert(fabsf(wo.y) < 1e-5f);
+	//kernel_assert(fabsf(wo.y) < 1e-5f);
 
 	float2 u[2];
 	u[0] = make_float2(randu, randv);
@@ -390,25 +390,25 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
 	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
 	F  = Ap[0] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	// TT
 	Mp = longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
 	Np = azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t);
 	F += Ap[1] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	// TRT
 	Mp = longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t);
 	F += Ap[2] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	// TRRT+
 	Mp = longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = M_1_2PI_F;
 	F += Ap[3] * Mp * Np;
-	assert(isfinite3_safe(F));
+	kernel_assert(isfinite3_safe(F));
 
 	*eval = float4_to_float3(F);
 	*pdf = F.w;

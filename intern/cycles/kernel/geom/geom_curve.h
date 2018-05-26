@@ -135,7 +135,7 @@ ccl_device float3 curve_center(KernelGlobals *kg, ShaderData *sd, float *radius)
 		return sd->P;
 	}
 
-	assert(isfinite3_safe(sd->P));
+	kernel_assert(isfinite3_safe(sd->P));
 
 	int flag = kernel_data.curve.curveflags;
 	float4 curvedata = kernel_tex_fetch(__curves, sd->prim);
