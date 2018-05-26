@@ -34,7 +34,7 @@
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
 
 #include "MEM_guardedalloc.h"
@@ -62,7 +62,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
-EnumPropertyItem rna_enum_object_modifier_type_items[] = {
+const EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	{0, "", 0, N_("Modify"), ""},
 	{eModifierType_DataTransfer, "DATA_TRANSFER", ICON_MOD_DATA_TRANSFER, "Data Transfer", ""},
 	{eModifierType_MeshCache, "MESH_CACHE", ICON_MOD_MESHDEFORM, "Mesh Cache", ""},
@@ -124,7 +124,7 @@ EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_modifier_triangulate_quad_method_items[] = {
+const EnumPropertyItem rna_enum_modifier_triangulate_quad_method_items[] = {
 	{MOD_TRIANGULATE_QUAD_BEAUTY, "BEAUTY", 0, "Beauty ", "Split the quads in nice triangles, slower method"},
 	{MOD_TRIANGULATE_QUAD_FIXED, "FIXED", 0, "Fixed", "Split the quads on the first and third vertices"},
 	{MOD_TRIANGULATE_QUAD_ALTERNATE, "FIXED_ALTERNATE", 0, "Fixed Alternate",
@@ -134,7 +134,7 @@ EnumPropertyItem rna_enum_modifier_triangulate_quad_method_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_modifier_triangulate_ngon_method_items[] = {
+const EnumPropertyItem rna_enum_modifier_triangulate_ngon_method_items[] = {
 	{MOD_TRIANGULATE_NGON_BEAUTY, "BEAUTY", 0, "Beauty", "Arrange the new triangles evenly (slow)"},
 	{MOD_TRIANGULATE_NGON_EARCLIP, "CLIP", 0, "Clip", "Split the polygons with an ear clipping algorithm"},
 	{0, NULL, 0, NULL, NULL}
@@ -158,7 +158,7 @@ static EnumPropertyItem modifier_warp_falloff_items[] = {
 
 /* ***** Data Transfer ***** */
 
-EnumPropertyItem rna_enum_dt_method_vertex_items[] = {
+const EnumPropertyItem rna_enum_dt_method_vertex_items[] = {
 	{MREMAP_MODE_TOPOLOGY, "TOPOLOGY", 0, "Topology",
 	 "Copy from identical topology meshes"},
 	{MREMAP_MODE_VERT_NEAREST, "NEAREST", 0, "Nearest vertex",
@@ -176,7 +176,7 @@ EnumPropertyItem rna_enum_dt_method_vertex_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_dt_method_edge_items[] = {
+const EnumPropertyItem rna_enum_dt_method_edge_items[] = {
 	{MREMAP_MODE_TOPOLOGY, "TOPOLOGY", 0, "Topology",
 	 "Copy from identical topology meshes"},
 	{MREMAP_MODE_EDGE_VERT_NEAREST, "VERT_NEAREST", 0, "Nearest Vertices",
@@ -190,7 +190,7 @@ EnumPropertyItem rna_enum_dt_method_edge_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_dt_method_loop_items[] = {
+const EnumPropertyItem rna_enum_dt_method_loop_items[] = {
 	{MREMAP_MODE_TOPOLOGY, "TOPOLOGY", 0, "Topology",
 	 "Copy from identical topology meshes"},
 	{MREMAP_MODE_LOOP_NEAREST_LOOPNOR, "NEAREST_NORMAL", 0, "Nearest Corner And Best Matching Normal",
@@ -206,7 +206,7 @@ EnumPropertyItem rna_enum_dt_method_loop_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_dt_method_poly_items[] = {
+const EnumPropertyItem rna_enum_dt_method_poly_items[] = {
 	{MREMAP_MODE_TOPOLOGY, "TOPOLOGY", 0, "Topology",
 	 "Copy from identical topology meshes"},
 	{MREMAP_MODE_POLY_NEAREST, "NEAREST", 0, "Nearest Face",
@@ -218,7 +218,7 @@ EnumPropertyItem rna_enum_dt_method_poly_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_dt_mix_mode_items[] = {
+const EnumPropertyItem rna_enum_dt_mix_mode_items[] = {
 	{CDT_MIX_TRANSFER, "REPLACE", 0, "Replace",
 	 "Overwrite all elements' data"},
 	{CDT_MIX_REPLACE_ABOVE_THRESHOLD, "ABOVE_THRESHOLD", 0, "Above Threshold",
@@ -237,7 +237,7 @@ EnumPropertyItem rna_enum_dt_mix_mode_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_dt_layers_select_src_items[] = {
+const EnumPropertyItem rna_enum_dt_layers_select_src_items[] = {
 	{DT_LAYERS_ACTIVE_SRC, "ACTIVE", 0, "Active Layer",
 	 "Only transfer active data layer"},
 	{DT_LAYERS_ALL_SRC, "ALL", 0, "All Layers",
@@ -249,7 +249,7 @@ EnumPropertyItem rna_enum_dt_layers_select_src_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_dt_layers_select_dst_items[] = {
+const EnumPropertyItem rna_enum_dt_layers_select_dst_items[] = {
 	{DT_LAYERS_ACTIVE_DST, "ACTIVE", 0, "Active Layer",
 	 "Affect active data layer of all targets"},
 	{DT_LAYERS_NAME_DST, "NAME", 0, "By Name",
@@ -259,20 +259,20 @@ EnumPropertyItem rna_enum_dt_layers_select_dst_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_axis_xy_items[] = {
+const EnumPropertyItem rna_enum_axis_xy_items[] = {
 	{0, "X", 0, "X", ""},
 	{1, "Y", 0, "Y", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_axis_xyz_items[] = {
+const EnumPropertyItem rna_enum_axis_xyz_items[] = {
 	{0, "X", 0, "X", ""},
 	{1, "Y", 0, "Y", ""},
 	{2, "Z", 0, "Z", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem rna_enum_axis_flag_xyz_items[] = {
+const EnumPropertyItem rna_enum_axis_flag_xyz_items[] = {
 	{(1 << 0), "X", 0, "X", ""},
 	{(1 << 1), "Y", 0, "Y", ""},
 	{(1 << 2), "Z", 0, "Z", ""},
@@ -1945,12 +1945,6 @@ static void rna_def_modifier_boolean(BlenderRNA *brna)
 		                               "Keep the part of the mesh that intersects with the other selected object"},
 		{eBooleanModifierOp_Union, "UNION", 0, "Union", "Combine two meshes in an additive way"},
 		{eBooleanModifierOp_Difference, "DIFFERENCE", 0, "Difference", "Combine two meshes in a subtractive way"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
-	static EnumPropertyItem prop_solver_items[] = {
-		{eBooleanModifierSolver_BMesh, "BMESH", 0, "BMesh", "Use the BMesh boolean solver"},
-		{eBooleanModifierSolver_Carve, "CARVE", 0, "Carve", "Use the Carve boolean solver"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
