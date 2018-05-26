@@ -100,7 +100,7 @@ ccl_device_inline float trimmed_logistic(float x, float s)
 	/* The logistic distribution is symmetric and centered around zero,
 	 * so logistic_cdf(x, s) = 1 - logistic_cdf(-x, s).
 	 * Therefore, logistic_cdf(x, s)-logistic_cdf(-x, s) = 1 - 2*logistic_cdf(-x, s) */
-	float scaling_fac = 1.0f - 2.0f*logistic_cdf(-x, s);
+	float scaling_fac = 1.0f - 2.0f*logistic_cdf(-M_PI_F, s);
 	float val = logistic(x, s);
 	return val / scaling_fac;
 }
