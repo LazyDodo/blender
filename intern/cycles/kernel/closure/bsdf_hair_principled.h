@@ -169,15 +169,25 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 
 ccl_device_inline void hair_ap(float f, float3 T, float4 *Ap)
 {
+	/* Primary specular (R). */
 	Ap[0] = make_float4(f, f, f, f);
+
+	/* Transmission (TT). */
 	float3 col = sqr(1.0f - f) * T;
 	Ap[1] = combine_with_energy(col);
+
+	/* Secondary specular (TRT). */
 	col *= T*f;
 	Ap[2] = combine_with_energy(col);
-	col *= T*f;
-	Ap[3] = combine_with_energy(col / (make_float3(1.0f, 1.0f, 1.0f) - T*f));
 
-	float fac = 1.0f / (Ap[0].w + Ap[1].w + Ap[2].w + Ap[3].w);
+	/* Residual component. */
+	col *= safe_divide_color(T*f, make_float3(1.0f, 1.0f, 1.0f) - T*f);
+	Ap[3] = combine_with_energy(col);
+
+	/* Normalize sampling weights. */
+	float totweight = Ap[0].w + Ap[1].w + Ap[2].w + Ap[3].w;
+	float fac = safe_divide(1.0f, totweight);
+
 	Ap[0].w *= fac;
 	Ap[1].w *= fac;
 	Ap[2].w *= fac;
