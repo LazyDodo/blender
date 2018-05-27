@@ -587,7 +587,8 @@ static void drw_viewport_var_init(void)
 void DRW_viewport_matrix_get(float mat[4][4], DRWViewportMatrixType type)
 {
 	BLI_assert(type >= 0 && type < DRW_MAT_COUNT);
-	BLI_assert(((DST.override_mat & (1 << type)) != 0) || DST.draw_ctx.rv3d != NULL); /* Can't use this in render mode. */
+	/* Can't use this in render mode. */
+	BLI_assert(((DST.override_mat & (1 << type)) != 0) || DST.draw_ctx.rv3d != NULL);
 
 	copy_m4_m4(mat, DST.view_data.matstate.mat[type]);
 }
@@ -700,7 +701,8 @@ void *DRW_view_layer_engine_data_get(DrawEngineType *engine_type)
 	return NULL;
 }
 
-void **DRW_view_layer_engine_data_ensure_ex(ViewLayer *view_layer, DrawEngineType *engine_type, void (*callback)(void *storage))
+void **DRW_view_layer_engine_data_ensure_ex(
+        ViewLayer *view_layer, DrawEngineType *engine_type, void (*callback)(void *storage))
 {
 	ViewLayerEngineData *sled;
 
@@ -1015,7 +1017,7 @@ static void drw_engines_enable_external(void)
 /* TODO revisit this when proper layering is implemented */
 /* Gather all draw engines needed and store them in DST.enabled_engines
  * That also define the rendering order of engines */
-static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int drawtype)
+static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int drawtype, int shading_flags)
 {
 	switch (drawtype) {
 		case OB_WIRE:
@@ -1023,7 +1025,12 @@ static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int dr
 
 		case OB_SOLID:
 		case OB_TEXTURE:
-			use_drw_engine(&draw_engine_workbench_solid);
+			if (shading_flags & V3D_SHADING_XRAY) {
+				use_drw_engine(&draw_engine_workbench_transparent);
+			}
+			else {
+				use_drw_engine(&draw_engine_workbench_solid);
+			}
 			break;
 
 		case OB_MATERIAL:
@@ -1121,7 +1128,7 @@ static void drw_engines_enable(ViewLayer *view_layer, RenderEngineType *engine_t
 	View3D * v3d = DST.draw_ctx.v3d;
 	const int drawtype = v3d->drawtype;
 
-	drw_engines_enable_from_engine(engine_type, drawtype);
+	drw_engines_enable_from_engine(engine_type, drawtype, v3d->shading.flag);
 
 	if (DRW_state_draw_support()) {
 		drw_engines_enable_from_overlays(v3d->overlay.flag);
@@ -1271,6 +1278,8 @@ void DRW_draw_render_loop_ex(
 	/* Update ubos */
 	DRW_globals_update();
 
+	drw_debug_init();
+
 	/* No framebuffer allowed before drawing. */
 	BLI_assert(GPU_framebuffer_current_get() == 0);
 
@@ -1337,6 +1346,8 @@ void DRW_draw_render_loop_ex(
 	}
 
 	DRW_state_reset();
+
+	drw_debug_draw();
 
 	drw_engines_draw_text();
 
@@ -1556,7 +1567,8 @@ static void draw_select_framebuffer_setup(const rcti *rect)
 	}
 
 	if (g_select_buffer.texture_depth == NULL) {
-		g_select_buffer.texture_depth = GPU_texture_create_2D(BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), GPU_DEPTH_COMPONENT24, NULL, NULL);
+		g_select_buffer.texture_depth = GPU_texture_create_2D(
+		        BLI_rcti_size_x(rect), BLI_rcti_size_y(rect), GPU_DEPTH_COMPONENT24, NULL, NULL);
 
 		GPU_framebuffer_texture_attach(g_select_buffer.framebuffer, g_select_buffer.texture_depth, 0, 0);
 
@@ -2026,6 +2038,7 @@ void DRW_engines_register(void)
 	RE_engines_register(&DRW_engine_viewport_workbench_type);
 
 	DRW_engine_register(&draw_engine_workbench_solid);
+	DRW_engine_register(&draw_engine_workbench_transparent);
 
 	DRW_engine_register(&draw_engine_object_type);
 	DRW_engine_register(&draw_engine_edit_armature_type);

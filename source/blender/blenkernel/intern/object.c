@@ -120,6 +120,7 @@
 #include "BKE_image.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "DRW_engine.h"
 
@@ -387,9 +388,9 @@ void BKE_object_free_caches(Object *object)
 			if (psmd->mesh_final) {
 				BKE_id_free(NULL, psmd->mesh_final);
 				psmd->mesh_final = NULL;
-				if (psmd->mesh_deformed) {
-					BKE_id_free(NULL, psmd->mesh_deformed);
-					psmd->mesh_deformed = NULL;
+				if (psmd->mesh_original) {
+					BKE_id_free(NULL, psmd->mesh_original);
+					psmd->mesh_original = NULL;
 				}
 				psmd->flag |= eParticleSystemFlag_file_loaded;
 				update_flag |= OB_RECALC_DATA;
@@ -1236,6 +1237,10 @@ Object *BKE_object_copy(Main *bmain, const Object *ob)
 {
 	Object *ob_copy;
 	BKE_id_copy_ex(bmain, &ob->id, (ID **)&ob_copy, 0, false);
+
+	/* We increase object user count when linking to Collections. */
+	id_us_min(&ob_copy->id);
+
 	return ob_copy;
 }
 
@@ -2143,7 +2148,7 @@ void BKE_object_where_is_calc_time_ex(
 	/* solve constraints */
 	if (ob->constraints.first && !(ob->transflag & OB_NO_CONSTRAINTS)) {
 		bConstraintOb *cob;
-		cob = BKE_constraints_make_evalob(scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
+		cob = BKE_constraints_make_evalob(depsgraph, scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
 		BKE_constraints_solve(depsgraph, &ob->constraints, cob, ctime);
 		BKE_constraints_clear_evalob(cob);
 	}
@@ -2215,17 +2220,25 @@ void BKE_object_workob_calc_parent(Depsgraph *depsgraph, Scene *scene, Object *o
 	BKE_object_where_is_calc(depsgraph, scene, workob);
 }
 
-/* see BKE_pchan_apply_mat4() for the equivalent 'pchan' function */
-void BKE_object_apply_mat4(Object *ob, float mat[4][4], const bool use_compat, const bool use_parent)
+/**
+ * Applies the global transformation \a mat to the \a ob using a relative parent space if supplied.
+ *
+ * \param mat the global transformation mat that the object should be set object to.
+ * \param parent the parent space in which this object will be set relative to (should probably always be parent_eval).
+ * \param use_compat true to ensure that rotations are set using the min difference between the old and new orientation.
+ */
+void BKE_object_apply_mat4_ex(Object *ob, float mat[4][4], Object *parent, float parentinv[4][4], const bool use_compat)
 {
+	/* see BKE_pchan_apply_mat4() for the equivalent 'pchan' function */
+
 	float rot[3][3];
 
-	if (use_parent && ob->parent) {
+	if (parent != NULL) {
 		float rmat[4][4], diff_mat[4][4], imat[4][4], parent_mat[4][4];
 
-		BKE_object_get_parent_matrix(NULL, ob, ob->parent, parent_mat);
+		BKE_object_get_parent_matrix(NULL, ob, parent, parent_mat);
 
-		mul_m4_m4m4(diff_mat, parent_mat, ob->parentinv);
+		mul_m4_m4m4(diff_mat, parent_mat, parentinv);
 		invert_m4_m4(imat, diff_mat);
 		mul_m4_m4m4(rmat, imat, mat); /* get the parent relative matrix */
 
@@ -2245,6 +2258,12 @@ void BKE_object_apply_mat4(Object *ob, float mat[4][4], const bool use_compat, c
 	if (ob->dscale[2] != 0.0f) ob->size[2] /= ob->dscale[2];
 
 	/* BKE_object_mat3_to_rot handles delta rotations */
+}
+
+/* XXX: should be removed after COW operators port to use BKE_object_apply_mat4_ex directly */
+void BKE_object_apply_mat4(Object *ob, float mat[4][4], const bool use_compat, const bool use_parent)
+{
+	BKE_object_apply_mat4_ex(ob, mat, use_parent ? ob->parent : NULL, ob->parentinv, use_compat);
 }
 
 BoundBox *BKE_boundbox_alloc_unit(void)
@@ -2458,6 +2477,7 @@ void BKE_object_empty_draw_type_set(Object *ob, const int value)
 		if (!ob->iuser) {
 			ob->iuser = MEM_callocN(sizeof(ImageUser), "image user");
 			ob->iuser->ok = 1;
+			ob->iuser->flag |= IMA_ANIM_ALWAYS;
 			ob->iuser->frames = 100;
 			ob->iuser->sfra = 1;
 			ob->iuser->fie_ima = 2;
@@ -2801,6 +2821,15 @@ int BKE_object_obdata_texspace_get(Object *ob, short **r_texflag, float **r_loc,
 	}
 	return 1;
 }
+
+/** Get evaluated mesh for given (main, original) object and depsgraph. */
+Mesh *BKE_object_get_evaluated_mesh(const Depsgraph *depsgraph, Object *ob)
+{
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+
+	return ob_eval->mesh_evaluated;
+}
+
 
 static int pc_cmp(const void *a, const void *b)
 {

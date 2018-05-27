@@ -822,8 +822,11 @@ static void outliner_add_id_contents(SpaceOops *soops, TreeElement *te, TreeStor
 		}
 		case ID_GR:
 		{
-			Collection *collection = (Collection *)id;
-			outliner_add_collection_recursive(soops, collection, te);
+			/* Don't expand for instances, creates too many elements. */
+			if (!(te->parent && te->parent->idcode == ID_OB)) {
+				Collection *collection = (Collection *)id;
+				outliner_add_collection_recursive(soops, collection, te);
+			}
 		}
 		default:
 			break;
@@ -1295,9 +1298,9 @@ static bool outliner_library_id_show(Library *lib, ID *id, short filter_id_type)
 	return true;
 }
 
-static void outliner_add_library_contents(Main *mainvar, SpaceOops *soops, TreeElement *te, Library *lib)
+static TreeElement *outliner_add_library_contents(Main *mainvar, SpaceOops *soops, ListBase *lb, Library *lib)
 {
-	TreeElement *ten;
+	TreeElement *ten, *tenlib = NULL;
 	ListBase *lbarray[MAX_LIBARRAY];
 	int a, tot;
 	short filter_id_type = (soops->filter & SO_FILTER_ID_TYPE) ? soops->filter_id_type : 0;
@@ -1320,11 +1323,23 @@ static void outliner_add_library_contents(Main *mainvar, SpaceOops *soops, TreeE
 					break;
 			
 			if (id) {
+				if (!tenlib) {
+					/* Create library tree element on demand, depending if there are any datablocks. */
+					if (lib) {
+						tenlib = outliner_add_element(soops, lb, lib, NULL, 0, 0);
+					}
+					else {
+						tenlib = outliner_add_element(soops, lb, mainvar, NULL, TSE_ID_BASE, 0);
+						tenlib->name = IFACE_("Current File");
+					}
+				}
+
+				/* Create datablock list parent element on demand. */
 				if (filter_id_type) {
-					ten = te;
+					ten = tenlib;
 				}
 				else {
-					ten = outliner_add_element(soops, &te->subtree, lbarray[a], NULL, TSE_ID_BASE, 0);
+					ten = outliner_add_element(soops, &tenlib->subtree, lbarray[a], NULL, TSE_ID_BASE, 0);
 					ten->directdata = lbarray[a];
 					ten->name = outliner_idcode_to_plural(GS(id->name));
 				}
@@ -1337,6 +1352,8 @@ static void outliner_add_library_contents(Main *mainvar, SpaceOops *soops, TreeE
 			}
 		}
 	}
+
+	return tenlib;
 }
 
 static void outliner_add_orphaned_datablocks(Main *mainvar, SpaceOops *soops)
@@ -2134,20 +2151,18 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 		Library *lib;
 		
 		/* current file first - mainvar provides tselem with unique pointer - not used */
-		ten = outliner_add_element(soops, &soops->tree, mainvar, NULL, TSE_ID_BASE, 0);
-		ten->name = IFACE_("Current File");
-
-		tselem = TREESTORE(ten);
-		if (!tselem->used)
-			tselem->flag &= ~TSE_CLOSED;
-		
-		outliner_add_library_contents(mainvar, soops, ten, NULL);
+		ten = outliner_add_library_contents(mainvar, soops, &soops->tree, NULL);
+		if (ten) {
+			tselem = TREESTORE(ten);
+			if (!tselem->used)
+				tselem->flag &= ~TSE_CLOSED;
+		}
 		
 		for (lib = mainvar->library.first; lib; lib = lib->id.next) {
-			ten = outliner_add_element(soops, &soops->tree, lib, NULL, 0, 0);
-			lib->id.newid = (ID *)ten;
-			
-			outliner_add_library_contents(mainvar, soops, ten, lib);
+			ten = outliner_add_library_contents(mainvar, soops, &soops->tree, lib);
+			if (ten) {
+				lib->id.newid = (ID *)ten;
+			}
 
 		}
 		/* make hierarchy */
@@ -2167,9 +2182,10 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 				}
 				else {
 					/* Else, make a new copy of the libtree for our parent. */
-					TreeElement *dupten = outliner_add_element(soops, &par->subtree, lib, NULL, 0, 0);
-					outliner_add_library_contents(mainvar, soops, dupten, lib);
-					dupten->parent = par;
+					TreeElement *dupten = outliner_add_library_contents(mainvar, soops, &par->subtree, lib);
+					if (dupten) {
+						dupten->parent = par;
+					}
 				}
 			}
 			ten = nten;

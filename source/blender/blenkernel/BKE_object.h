@@ -45,6 +45,7 @@ struct View3D;
 struct SoftBody;
 struct MovieClip;
 struct Main;
+struct Mesh;
 struct RigidBodyWorld;
 struct HookModifierData;
 struct ModifierData;
@@ -125,6 +126,7 @@ void BKE_object_mat3_to_rot(struct Object *ob, float mat[3][3], bool use_compat)
 void BKE_object_to_mat3(struct Object *ob, float mat[3][3]);
 void BKE_object_to_mat4(struct Object *ob, float mat[4][4]);
 void BKE_object_apply_mat4(struct Object *ob, float mat[4][4], const bool use_compat, const bool use_parent);
+void BKE_object_apply_mat4_ex(struct Object *ob, float mat[4][4], struct Object *parent, float parentinv[4][4], const bool use_compat);
 void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4]);
 
 bool BKE_object_pose_context_check(const struct Object *ob);
@@ -267,6 +269,8 @@ void BKE_object_handle_update_ex(
 void BKE_object_sculpt_modifiers_changed(struct Object *ob);
 
 int BKE_object_obdata_texspace_get(struct Object *ob, short **r_texflag, float **r_loc, float **r_size, float **r_rot);
+
+struct Mesh *BKE_object_get_evaluated_mesh(const struct Depsgraph *depsgraph, struct Object *ob);
 
 int BKE_object_insert_ptcache(struct Object *ob);
 void BKE_object_delete_ptcache(struct Object *ob, int index);
