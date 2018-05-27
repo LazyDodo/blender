@@ -94,4 +94,4 @@ if(WITH_OPENVDB)
 	add_subdirectory(openvdb)
 endif()
 
-add_subdirectory(SLIM)
+add_subdirectory(slim)
