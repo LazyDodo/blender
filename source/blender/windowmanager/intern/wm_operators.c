@@ -2241,6 +2241,32 @@ static void WM_OT_call_menu_pie(wmOperatorType *ot)
 	RNA_def_string(ot->srna, "name", NULL, BKE_ST_MAXNAME, "Name", "Name of the pie menu");
 }
 
+static int wm_call_panel_exec(bContext *C, wmOperator *op)
+{
+	char idname[BKE_ST_MAXNAME];
+	RNA_string_get(op->ptr, "name", idname);
+	const int space_type = RNA_enum_get(op->ptr, "space_type");
+	const int region_type = RNA_enum_get(op->ptr, "region_type");
+
+	return UI_popover_panel_invoke(C, space_type, region_type, idname, true, op->reports);
+}
+
+static void WM_OT_call_panel(wmOperatorType *ot)
+{
+	ot->name = "Call Panel";
+	ot->idname = "WM_OT_call_panel";
+	ot->description = "Call (draw) a pre-defined panel";
+
+	ot->exec = wm_call_panel_exec;
+	ot->poll = WM_operator_winactive;
+
+	ot->flag = OPTYPE_INTERNAL;
+
+	RNA_def_string(ot->srna, "name", NULL, BKE_ST_MAXNAME, "Name", "Name of the menu");
+	RNA_def_enum(ot->srna, "space_type", rna_enum_space_type_items, SPACE_EMPTY, "Space Type", "");
+	RNA_def_enum(ot->srna, "region_type", rna_enum_region_type_items, RGN_TYPE_WINDOW, "Region Type", "");
+}
+
 /* ************ window / screen operator definitions ************** */
 
 /* this poll functions is needed in place of WM_operator_winactive
@@ -3706,6 +3732,7 @@ void wm_operatortype_init(void)
 	WM_operatortype_append(WM_OT_search_menu);
 	WM_operatortype_append(WM_OT_call_menu);
 	WM_operatortype_append(WM_OT_call_menu_pie);
+	WM_operatortype_append(WM_OT_call_panel);
 	WM_operatortype_append(WM_OT_radial_control);
 	WM_operatortype_append(WM_OT_stereo3d_set);
 #if defined(WIN32)
@@ -3954,12 +3981,16 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 	WM_keymap_verify_item(keymap, "WM_OT_debug_menu", DKEY, KM_PRESS, KM_ALT | KM_CTRL, 0);
 
 	/* menus that can be accessed anywhere in blender */
+
+#if 0  /* Now double-tap via toolbar. */
 	WM_keymap_verify_item(keymap, "WM_OT_search_menu", SPACEKEY, KM_PRESS, 0, 0);
+#endif
+
 #ifdef WITH_INPUT_NDOF
 	WM_keymap_add_menu(keymap, "USERPREF_MT_ndof_settings", NDOF_BUTTON_MENU, KM_PRESS, 0, 0);
 #endif
 
-	WM_keymap_add_item(keymap, "WM_OT_toolbar", SPACEKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "WM_OT_toolbar", SPACEKEY, KM_PRESS, 0, 0);
 
 	/* Space switching */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", F3KEY, KM_PRESS, KM_SHIFT, 0);

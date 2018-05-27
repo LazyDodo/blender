@@ -42,6 +42,7 @@ struct ID;
 struct IDProperty;
 struct ListBase;
 struct ARegion;
+struct ARegionType;
 struct ScrArea;
 struct bScreen;
 struct wmEvent;
@@ -427,6 +428,10 @@ void UI_popup_menu_but_set(uiPopupMenu *pup, struct ARegion *butregion, uiBut *b
 /* interface_region_popover.c */
 
 typedef struct uiPopover uiPopover;
+
+int UI_popover_panel_invoke(
+        struct bContext *C, int space_id, int region_id, const char *idname,
+        bool keep_open, struct ReportList *reports);
 
 uiPopover *UI_popover_begin(struct bContext *C) ATTR_NONNULL(1);
 void UI_popover_end(struct bContext *C, struct uiPopover *head, struct wmKeyMap *keymap);
@@ -836,6 +841,8 @@ struct PanelCategoryDyn   *UI_panel_category_find_mouse_over(struct ARegion *ar,
 void                       UI_panel_category_clear_all(struct ARegion *ar);
 void                       UI_panel_category_draw_all(struct ARegion *ar, const char *category_id_active);
 
+struct PanelType *UI_paneltype_find(int space_id, int region_id, const char *idname);
+
 /* Handlers
  *
  * Handlers that can be registered in regions, areas and windows for
@@ -940,6 +947,7 @@ const char *uiLayoutIntrospect(uiLayout *layout); // XXX - testing
 struct MenuType *UI_but_menutype_get(uiBut *but);
 struct PanelType *UI_but_paneltype_get(uiBut *but);
 void UI_menutype_draw(struct bContext *C, struct MenuType *mt, struct uiLayout *layout);
+void UI_paneltype_draw(struct bContext *C, struct PanelType *pt, struct uiLayout *layout);
 
 /* Only for convenience. */
 void uiLayoutSetContextFromBut(uiLayout *layout, uiBut *but);

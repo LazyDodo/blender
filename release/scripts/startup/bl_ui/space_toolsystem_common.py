@@ -237,14 +237,11 @@ class ToolSelectPanelHelper:
         """
         Return the active Python tool definition and icon name.
         """
-
         workspace = context.workspace
         cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
         if cls is not None:
-            tool_active_text = getattr(
-                ToolSelectPanelHelper._tool_active_from_context(context, space_type, mode),
-                "name", None)
-
+            tool_active = ToolSelectPanelHelper._tool_active_from_context(context, space_type, mode)
+            tool_active_text = getattr(tool_active, "name", None)
             for item in ToolSelectPanelHelper._tools_flatten(cls.tools_from_context(context, mode)):
                 if item is not None:
                     if item.text == tool_active_text:
@@ -252,8 +249,8 @@ class ToolSelectPanelHelper:
                             icon_value = ToolSelectPanelHelper._icon_value_from_icon_handle(item.icon)
                         else:
                             icon_value = 0
-                        return (item, icon_value)
-        return None, 0
+                        return (item, tool_active, icon_value)
+        return None, None, 0
 
     @staticmethod
     def _tool_get_by_name(context, space_type, text):
@@ -517,14 +514,14 @@ class ToolSelectPanelHelper:
         workspace = context.workspace
         space_type = workspace.tools_space_type
         mode = workspace.tools_mode
-        item, icon_value = ToolSelectPanelHelper._tool_get_active(context, space_type, mode, with_icon=True)
+        item, tool, icon_value = ToolSelectPanelHelper._tool_get_active(context, space_type, mode, with_icon=True)
         if item is None:
             return
         # Note: we could show 'item.text' here but it makes the layout jitter when switcuing tools.
         layout.label(" ", icon_value=icon_value)
         draw_settings = item.draw_settings
         if draw_settings is not None:
-            draw_settings(context, layout)
+            draw_settings(context, layout, tool)
 
 
 # The purpose of this menu is to be a generic popup to select between tools
@@ -582,6 +579,74 @@ def activate_by_name(context, space_type, text):
         return True
     return False
 
+
+def keymap_from_context(context, space_type):
+    """
+    Keymap for popup toolbar, currently generated each time.
+    """
+    use_simple_keymap = False
+    km_name = "Toolbar Popup"
+    wm = context.window_manager
+    keyconf = wm.keyconfigs.active
+    keymap = keyconf.keymaps.get(km_name)
+    if keymap is None:
+        keymap = keyconf.keymaps.new(km_name, space_type='EMPTY', region_type='TEMPORARY')
+    for kmi in keymap.keymap_items:
+        keymap.keymap_items.remove(kmi)
+
+
+    kmi_search = wm.keyconfigs.find_item_from_operator(idname="wm.toolbar")[1]
+    kmi_search_type = None if not kmi_search else kmi_search.type
+
+    items = []
+    cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
+    for i, item in enumerate(
+            ToolSelectPanelHelper._tools_flatten(cls.tools_from_context(context))
+    ):
+        if item is not None:
+            if use_simple_keymap:
+                # Simply assign a key from A-Z
+                items.append(((chr(ord('A') + i)), item.text))
+                kmi = keymap.keymap_items.new("wm.tool_set_by_name", key, 'PRESS')
+                kmi.properties.name = item.text
+                continue
+
+            if not item.keymap:
+                continue
+
+            # Only check the first item in the tools key-map (a little arbitrary).
+            kmi_first = item.keymap[0].keymap_items[0]
+            kmi_found = wm.keyconfigs.find_item_from_operator(
+                idname=kmi_first.idname,
+                # properties=kmi_first.properties,  # prevents matches, don't use.
+            )[1]
+            if kmi_found is not None:
+                kmi_found_type = kmi_found.type
+                # Only for single keys.
+                if len(kmi_found_type) == 1:
+                    kmi = keymap.keymap_items.new(
+                        idname="wm.tool_set_by_name",
+                        type=kmi_found_type,
+                        value='PRESS',
+                        any=kmi_found.any,
+                        shift=kmi_found.shift,
+                        ctrl=kmi_found.ctrl,
+                        alt=kmi_found.alt,
+                        oskey=kmi_found.oskey,
+                        key_modifier=kmi_found.key_modifier,
+                    )
+                    kmi.properties.name = item.text
+
+                    # Disallow overlap
+                    if kmi_search_type == kmi_found_type:
+                        kmi_search_type = None
+
+    # Support double-tap for search.
+    if kmi_search_type:
+        keymap.keymap_items.new("wm.search_menu", type=kmi_search_type, value='PRESS')
+
+    wm.keyconfigs.update()
+    return keymap
 
 classes = (
     WM_MT_toolsystem_submenu,

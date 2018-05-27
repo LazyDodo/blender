@@ -2118,6 +2118,12 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 
 	t->state = TRANS_STARTING;
 
+	if ((prop = RNA_struct_find_property(op->ptr, "cursor_transform")) && RNA_property_is_set(op->ptr, prop)) {
+		if (RNA_property_boolean_get(op->ptr, prop)) {
+			options |= CTX_CURSOR;
+		}
+	}
+
 	if ((prop = RNA_struct_find_property(op->ptr, "texture_space")) && RNA_property_is_set(op->ptr, prop)) {
 		if (RNA_property_boolean_get(op->ptr, prop)) {
 			options |= CTX_TEXTURE;
@@ -3007,7 +3013,7 @@ static void Bend(TransInfo *t, const int UNUSED(mval[2]))
 #else
 	/* hrmf, snapping radius is using 'angle' steps, need to convert to something else
 	 * this isnt essential but nicer to give reasonable snapping values for radius */
-	if (t->tsnap.mode == SCE_SNAP_MODE_INCREMENT) {
+	if (t->tsnap.mode & SCE_SNAP_MODE_INCREMENT) {
 		const float radius_snap = 0.1f;
 		const float snap_hack = (t->snap[1] * data->warp_init_dist) / radius_snap;
 		values.scale *= snap_hack;

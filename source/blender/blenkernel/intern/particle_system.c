@@ -311,7 +311,7 @@ int psys_get_tot_child(Scene *scene, ParticleSystem *psys, const bool use_render
 /*			Distribution						*/
 /************************************************/
 
-void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_deformed, ParticleSystem *psys)
+void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_original, ParticleSystem *psys)
 {
 	/* use for building derived mesh mapping info:
 	 *
@@ -350,7 +350,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_deformed, Partic
 				origindex_poly= NULL;
 			}
 			else {
-				totelem = mesh_deformed->totface;
+				totelem = mesh_original->totface;
 				origindex = CustomData_get_layer(&mesh_final->fdata, CD_ORIGINDEX);
 
 				/* for face lookups we need the poly origindex too */
@@ -414,7 +414,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_deformed, Partic
 						pa->num_dmcache = DMCACHE_NOTFOUND;
 				}
 				else { /* FROM_FACE/FROM_VOLUME */
-					pa->num_dmcache = psys_particle_dm_face_lookup(mesh_final, mesh_deformed, pa->num, pa->fuv, nodearray);
+					pa->num_dmcache = psys_particle_dm_face_lookup(mesh_final, mesh_original, pa->num, pa->fuv, nodearray);
 				}
 			}
 		}
@@ -3214,13 +3214,7 @@ static void do_hair_dynamics(ParticleSimulationData *sim)
 	            LIB_ID_COPY_NO_PREVIEW,
 	            false);
 	deformedVerts = BKE_mesh_vertexCos_get(psys->hair_out_mesh, NULL);
-
-	/* TODO(Sybren): after porting Cloth modifier, remove this conversion */
-	DerivedMesh *hair_in_dm = CDDM_from_mesh(psys->hair_in_mesh);
-	clothModifier_do(psys->clmd, sim->depsgraph, sim->scene, sim->ob, hair_in_dm, deformedVerts);
-	hair_in_dm->needsFree = 1;
-	hair_in_dm->release(hair_in_dm);
-
+	clothModifier_do(psys->clmd, sim->depsgraph, sim->scene, sim->ob, psys->hair_in_mesh, deformedVerts);
 	BKE_mesh_apply_vert_coords(psys->hair_out_mesh, deformedVerts);
 	
 	MEM_freeN(deformedVerts);
@@ -3248,7 +3242,7 @@ static void hair_step(ParticleSimulationData *sim, float cfra, const bool use_re
 
 	if (psys->recalc & PSYS_RECALC_RESET) {
 		/* need this for changing subsurf levels */
-		psys_calc_dmcache(sim->ob, sim->psmd->mesh_final, sim->psmd->mesh_deformed, psys);
+		psys_calc_dmcache(sim->ob, sim->psmd->mesh_final, sim->psmd->mesh_original, psys);
 
 		if (psys->clmd)
 			cloth_free_modifier(psys->clmd);
@@ -4259,9 +4253,6 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 
 	/* to verify if we need to restore object afterwards */
 	psys->flag &= ~PSYS_OB_ANIM_RESTORE;
-
-	if (psys->recalc & PSYS_RECALC_TYPE)
-		psys_changed_type(sim.ob, sim.psys);
 
 	if (psys->recalc & PSYS_RECALC_RESET)
 		psys->totunexist = 0;

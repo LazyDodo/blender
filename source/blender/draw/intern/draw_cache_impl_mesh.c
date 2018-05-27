@@ -1232,9 +1232,14 @@ static bool mesh_render_data_edge_vcos_manifold_pnors(
 			*r_pnor2 = eed->l->radial_next->f->no;
 			*r_is_manifold = true;
 		}
-		else {
+		else if (eed->l != NULL) {
 			*r_pnor1 = eed->l->f->no;
 			*r_pnor2 = eed->l->f->no;
+			*r_is_manifold = false;
+		}
+		else {
+			*r_pnor1 = eed->v1->no;
+			*r_pnor2 = eed->v1->no;
 			*r_is_manifold = false;
 		}
 	}
@@ -1248,9 +1253,14 @@ static bool mesh_render_data_edge_vcos_manifold_pnors(
 			const MLoop *mloop = rdata->mloop;
 			const MPoly *mpoly = rdata->mpoly;
 			const int poly_len = rdata->poly_len;
-			const bool do_pnors = (pnors == NULL);
+			const bool do_pnors = (poly_len != 0 && pnors == NULL);
 
-			eap = rdata->edges_adjacent_polys = MEM_callocN(sizeof(*eap) * rdata->edge_len, __func__);
+			eap = rdata->edges_adjacent_polys = MEM_mallocN(sizeof(*eap) * rdata->edge_len, __func__);
+			for (int i = 0; i < rdata->edge_len; i++) {
+				eap[i].count = 0;
+				eap[i].face_index[0] = -1;
+				eap[i].face_index[1] = -1;
+			}
 			if (do_pnors) {
 				pnors = rdata->poly_normals = MEM_mallocN(sizeof(*pnors) * poly_len, __func__);
 			}
@@ -1270,32 +1280,40 @@ static bool mesh_render_data_edge_vcos_manifold_pnors(
 				}
 			}
 		}
-		BLI_assert(eap && pnors);
+		BLI_assert(eap && (rdata->poly_len == 0 || pnors != NULL));
 
 		*r_vco1 = mvert[medge[edge_index].v1].co;
 		*r_vco2 = mvert[medge[edge_index].v2].co;
-		*r_pnor1 = pnors[eap[edge_index].face_index[0]];
-
-		float nor[3], v1[3], v2[3], r_center[3];
-		const MPoly *mpoly = rdata->mpoly + eap[edge_index].face_index[0];
-		const MLoop *mloop = rdata->mloop + mpoly->loopstart;
-
-		BKE_mesh_calc_poly_center(mpoly, mloop, mvert, r_center);
-		sub_v3_v3v3(v1, *r_vco2, *r_vco1);
-		sub_v3_v3v3(v2, r_center, *r_vco1);
-		cross_v3_v3v3(nor, v1, v2);
-
-		if (dot_v3v3(nor, *r_pnor1) < 0.0) {
-			SWAP(float *, *r_vco1, *r_vco2);
-		}
-
-		if (eap[edge_index].count == 2) {
-			*r_pnor2 = pnors[eap[edge_index].face_index[1]];
-			*r_is_manifold = true;
+		if (eap[edge_index].face_index[0] == -1) {
+			/* Edge has no poly... */
+			*r_pnor1 = *r_pnor2 = mvert[medge[edge_index].v1].co; /* XXX mvert.no are shorts... :( */
+			*r_is_manifold = false;
 		}
 		else {
-			*r_pnor2 = pnors[eap[edge_index].face_index[0]];
-			*r_is_manifold = false;
+			*r_pnor1 = pnors[eap[edge_index].face_index[0]];
+
+			float nor[3], v1[3], v2[3], r_center[3];
+			const MPoly *mpoly = rdata->mpoly + eap[edge_index].face_index[0];
+			const MLoop *mloop = rdata->mloop + mpoly->loopstart;
+
+			BKE_mesh_calc_poly_center(mpoly, mloop, mvert, r_center);
+			sub_v3_v3v3(v1, *r_vco2, *r_vco1);
+			sub_v3_v3v3(v2, r_center, *r_vco1);
+			cross_v3_v3v3(nor, v1, v2);
+
+			if (dot_v3v3(nor, *r_pnor1) < 0.0) {
+				SWAP(float *, *r_vco1, *r_vco2);
+			}
+
+			if (eap[edge_index].count == 2) {
+				BLI_assert(eap[edge_index].face_index[1] >= 0);
+				*r_pnor2 = pnors[eap[edge_index].face_index[1]];
+				*r_is_manifold = true;
+			}
+			else {
+				*r_pnor2 = pnors[eap[edge_index].face_index[0]];
+				*r_is_manifold = false;
+			}
 		}
 	}
 
@@ -1615,6 +1633,9 @@ typedef struct MeshBatchCache {
 
 	/* XXX, only keep for as long as sculpt mode uses shaded drawing. */
 	bool is_sculpt_points_tag;
+
+	/* Valid only if edges_adjacency is up to date. */
+	bool is_manifold;
 } MeshBatchCache;
 
 /* Gwn_Batch cache management. */
@@ -1935,7 +1956,8 @@ static Gwn_VertBuf *mesh_batch_cache_get_tri_shading_data(MeshRenderData *rdata,
 			GWN_vertformat_alias_add(format, attrib_name);
 
 			/* +1 include null terminator. */
-			auto_ofs += 1 + BLI_snprintf_rlen(cache->auto_layer_names + auto_ofs, auto_names_len - auto_ofs, "b%s", attrib_name);
+			auto_ofs += 1 + BLI_snprintf_rlen(
+			        cache->auto_layer_names + auto_ofs, auto_names_len - auto_ofs, "b%s", attrib_name);
 			cache->auto_layer_is_srgb[auto_id++] = 0; /* tag as not srgb */
 
 			if (i == rdata->cd.layers.uv_active) {
@@ -1970,7 +1992,8 @@ static Gwn_VertBuf *mesh_batch_cache_get_tri_shading_data(MeshRenderData *rdata,
 				GWN_vertformat_alias_add(format, attrib_name);
 
 				/* +1 include null terminator. */
-				auto_ofs += 1 + BLI_snprintf_rlen(cache->auto_layer_names + auto_ofs, auto_names_len - auto_ofs, "b%s", attrib_name);
+				auto_ofs += 1 + BLI_snprintf_rlen(
+				        cache->auto_layer_names + auto_ofs, auto_names_len - auto_ofs, "b%s", attrib_name);
 				cache->auto_layer_is_srgb[auto_id++] = 1; /* tag as srgb */
 			}
 
@@ -3214,6 +3237,8 @@ static Gwn_IndexBuf *mesh_batch_cache_get_edges_adjacency(MeshRenderData *rdata,
 		const int vert_len = mesh_render_data_verts_len_get(rdata);
 		const int tri_len = mesh_render_data_looptri_len_get(rdata);
 
+		cache->is_manifold = true;
+
 		/* Allocate max but only used indices are sent to GPU. */
 		Gwn_IndexBufBuilder elb;
 		GWN_indexbuf_init(&elb, GWN_PRIM_LINES_ADJ, tri_len * 3, vert_len);
@@ -3229,15 +3254,15 @@ static Gwn_IndexBuf *mesh_batch_cache_get_edges_adjacency(MeshRenderData *rdata,
 						break;
 					}
 					v0 = BM_elem_index_get(bm_looptri[e]->v);
-					v1 = BM_elem_index_get(bm_looptri[(e+1)%3]->v);
-					v2 = BM_elem_index_get(bm_looptri[(e+2)%3]->v);
+					v1 = BM_elem_index_get(bm_looptri[(e + 1) % 3]->v);
+					v2 = BM_elem_index_get(bm_looptri[(e + 2) % 3]->v);
 				}
 				else {
 					MLoop *mloop = rdata->mloop;
 					MLoopTri *mlt = rdata->mlooptri + i;
 					v0 = mloop[mlt->tri[e]].v;
-					v1 = mloop[mlt->tri[(e+1)%3]].v;
-					v2 = mloop[mlt->tri[(e+2)%3]].v;
+					v1 = mloop[mlt->tri[(e + 1) % 3]].v;
+					v2 = mloop[mlt->tri[(e + 2) % 3]].v;
 				}
 				bool inv_indices = (v1 > v2);
 				void **pval;
@@ -3259,11 +3284,12 @@ static Gwn_IndexBuf *mesh_batch_cache_get_edges_adjacency(MeshRenderData *rdata,
 						/* Don't share edge if triangles have non matching winding. */
 						GWN_indexbuf_add_line_adj_verts(&elb, v0, v1, v2, v0);
 						GWN_indexbuf_add_line_adj_verts(&elb, v_opposite, v1, v2, v_opposite);
+						cache->is_manifold = false;
 					}
 					else {
 						GWN_indexbuf_add_line_adj_verts(&elb, v0, v1, v2, v_opposite);
 					}
-				} 
+				}
 			}
 		}
 		/* Create edges for remaning non manifold edges. */
@@ -3283,6 +3309,7 @@ static Gwn_IndexBuf *mesh_batch_cache_get_edges_adjacency(MeshRenderData *rdata,
 				SWAP(unsigned int, v1, v2);
 			}
 			GWN_indexbuf_add_line_adj_verts(&elb, v0, v1, v2, v0);
+			cache->is_manifold = false;
 		}
 		BLI_edgehashIterator_free(ehi);
 		BLI_edgehash_free(eh, NULL);
@@ -3802,7 +3829,7 @@ Gwn_Batch *DRW_mesh_batch_cache_get_fancy_edges(Mesh *me)
 	return cache->fancy_edges;
 }
 
-Gwn_Batch *DRW_mesh_batch_cache_get_edge_detection(Mesh *me)
+Gwn_Batch *DRW_mesh_batch_cache_get_edge_detection(Mesh *me, bool *r_is_manifold)
 {
 	MeshBatchCache *cache = mesh_batch_cache_get(me);
 
@@ -3811,10 +3838,15 @@ Gwn_Batch *DRW_mesh_batch_cache_get_edge_detection(Mesh *me)
 
 		MeshRenderData *rdata = mesh_render_data_create(me, options);
 
-		cache->edge_detection = GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, mesh_batch_cache_get_vert_pos_and_nor_in_order(rdata, cache),
-		                                                                mesh_batch_cache_get_edges_adjacency(rdata, cache), 0);
+		cache->edge_detection = GWN_batch_create_ex(
+		        GWN_PRIM_LINES_ADJ, mesh_batch_cache_get_vert_pos_and_nor_in_order(rdata, cache),
+		        mesh_batch_cache_get_edges_adjacency(rdata, cache), 0);
 
 		mesh_render_data_free(rdata);
+	}
+
+	if (r_is_manifold) {
+		*r_is_manifold = cache->is_manifold;
 	}
 
 	return cache->edge_detection;
