@@ -139,7 +139,7 @@ static void eevee_cache_populate(void *vedata, Object *ob)
 		return;
 	}
 
-	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT)) {
+	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_GROOM)) {
 		bool cast_shadow;
 
 		EEVEE_materials_cache_populate(vedata, sldata, ob, &cast_shadow);
