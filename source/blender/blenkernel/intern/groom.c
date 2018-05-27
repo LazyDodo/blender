@@ -686,17 +686,18 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count)
 void BKE_groom_hair_update_guide_curves(Groom *groom)
 {
 	struct HairSystem *hsys = groom->hair_system;
+	const ListBase *bundles = groom->editgroom ? &groom->editgroom->bundles : &groom->bundles;
 	
 	/* Count guides for all regions combined */
 	int totguides = 0;
-	for (const GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	for (const GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
 	{
 		totguides += bundle->totguides;
 	}
 	
 	/* First declare all guide curves and lengths */
 	BKE_hair_guide_curves_begin(hsys, totguides);
-	for (const GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	for (const GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
 	{
 		const int curvesize = bundle->curvesize;
 		for (int i = 0; i < bundle->totguides; ++i)
@@ -707,7 +708,7 @@ void BKE_groom_hair_update_guide_curves(Groom *groom)
 	BKE_hair_guide_curves_end(hsys);
 	
 	int idx = 0;
-	for (const GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	for (const GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
 	{
 		const int shapesize = bundle->numshapeverts;
 		const int curvesize = bundle->curvesize;
