@@ -78,6 +78,7 @@ set(SRC
 	intern/blender_undo.c
 	intern/blendfile.c
 	intern/bmfont.c
+	intern/boolean.c
 	intern/boids.c
 	intern/bpath.c
 	intern/brush.c
@@ -214,6 +215,7 @@ set(SRC
 	BKE_bmfont.h
 	BKE_bmfont_types.h
 	BKE_boids.h
+	BKE_boolean.h
 	BKE_bpath.h
 	BKE_brush.h
 	BKE_bullet.h
@@ -317,7 +319,6 @@ set(SRC
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
 	intern/pbvh_intern.h
-	../modifiers/intern/MOD_boolean_util.h
 )
 
 if(WITH_BINRELOC)

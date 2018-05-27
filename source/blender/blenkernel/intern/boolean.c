@@ -23,11 +23,12 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/modifiers/intern/MOD_boolean_util_bmesh.c
- *  \ingroup modifiers
+/** \file blender/blenkernel/intern/boolean.c
+ *  \ingroup blenkernel
  */
 
 #include "BLI_alloca.h"
+#include "BKE_boolean.h"
 #include "BLI_math_geom.h"
 #include "BKE_material.h"
 #include "BKE_global.h"  /* only to check G.debug */
@@ -49,7 +50,6 @@
 #include "DNA_modifier_types.h"
 #include "BLI_utildefines.h"
 
-#include "MOD_boolean_util.h"
 
 /* has no meaning for faces, do this so we can tell which face is which */
 #define BM_FACE_TAG BM_ELEM_DRAW
@@ -62,7 +62,7 @@ static int bm_face_isect_pair(BMFace *f, void *UNUSED(user_data))
 	return BM_elem_flag_test(f, BM_FACE_TAG) ? 1 : 0;
 }
 
-DerivedMesh *NewBooleanDerivedMeshBMesh(DerivedMesh *dm, struct Object *ob,
+DerivedMesh *BKE_boolean_bmesh(DerivedMesh *dm, struct Object *ob,
                                    DerivedMesh *dm_other, struct Object *ob_other, int op_type,
                                    float double_threshold, struct BooleanModifierData *bmd)
 {

@@ -116,10 +116,7 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
         layout.prop(md, "frac_algorithm")
         if md.frac_algorithm in {'BOOLEAN', 'BOOLEAN_FRACTAL'}:
             col = layout.column(align=True)
-            col.label(text="Boolean Solver:")
-            col.prop(md, "boolean_solver", text="")
-            if md.boolean_solver == 'BMESH':
-                col.prop(md, "boolean_double_threshold")
+            col.prop(md, "boolean_double_threshold")
         col = layout.column(align=True)
         col.prop(md, "shard_count")
         col.prop(md, "point_seed")

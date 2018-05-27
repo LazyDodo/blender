@@ -30,6 +30,7 @@
  *  \brief CSG operations
  */
 
+#include "BKE_boolean.h"
 #include "BKE_cdderivedmesh.h"
 #include "BKE_deform.h"
 #include "BKE_editmesh.h"
@@ -57,7 +58,6 @@
 
 #include "bmesh.h"
 #include "bmesh_tools.h"
-#include "../../modifiers/intern/MOD_boolean_util.h"
 
 
 struct BoxPack;
@@ -596,7 +596,7 @@ Shard *BKE_fracture_shard_boolean(Object *obj, DerivedMesh *dm_parent, Shard *ch
 	right_dm = dm_parent;
 
 	
-	output_dm = NewBooleanDerivedMeshBMesh(right_dm, obj, left_dm, obj, 0, thresh, NULL); /*0 == intersection, 2 == difference*/
+	output_dm = BKE_boolean_bmesh(right_dm, obj, left_dm, obj, 0, thresh, NULL); /*0 == intersection, 2 == difference*/
 
 
 	/*check for watertightness, but for fractal only*/
@@ -608,7 +608,7 @@ Shard *BKE_fracture_shard_boolean(Object *obj, DerivedMesh *dm_parent, Shard *ch
 	if (other != NULL)
 	{
 		
-		other_dm = NewBooleanDerivedMeshBMesh(left_dm, obj, right_dm, obj, 2, thresh, NULL);
+		other_dm = BKE_boolean_bmesh(left_dm, obj, right_dm, obj, 2, thresh, NULL);
 
 		/*check for watertightness again, true means do return NULL here*/
 		if (!other_dm || do_check_watertight_other(&other_dm, &output_dm, other, right_dm, &left_dm, mat))

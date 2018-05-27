@@ -112,7 +112,6 @@ set(SRC
 	intern/MOD_meshcache_util.h
 	intern/MOD_util.h
 	intern/MOD_weightvg_util.h
-	intern/MOD_boolean_util.h
 )
 
 if(WITH_LEGACY_DEPSGRAPH)
@@ -123,13 +122,6 @@ if(WITH_ALEMBIC)
 	add_definitions(-DWITH_ALEMBIC)
 	list(APPEND INC
 		../alembic
-	)
-endif()
-
-if(WITH_MOD_BOOLEAN)
-	add_definitions(-DWITH_MOD_BOOLEAN)
-	list(APPEND SRC
-		intern/MOD_boolean_util_bmesh.c
 	)
 endif()
 
