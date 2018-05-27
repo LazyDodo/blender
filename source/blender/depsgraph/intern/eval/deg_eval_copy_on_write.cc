@@ -65,6 +65,7 @@ extern "C" {
 #include "DNA_ID.h"
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_groom_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
@@ -449,6 +450,14 @@ void updata_mesh_edit_mode_pointers(const Depsgraph *depsgraph,
 	mesh_cow->edit_btmesh->derivedCage = NULL;
 }
 
+void update_groom_edit_mode_pointers(const Depsgraph *UNUSED(depsgraph),
+                                     const ID *id_orig, ID *id_cow)
+{
+	const Groom *groom_orig = (const Groom *)id_orig;
+	Groom *groom_cow = (Groom *)id_cow;
+	groom_cow->editgroom = groom_orig->editgroom;
+}
+
 /* Edit data is stored and owned by original datablocks, copied ones
  * are simply referencing to them.
  */
@@ -465,6 +474,9 @@ void updata_edit_mode_pointers(const Depsgraph *depsgraph,
 			break;
 		case ID_CU:
 			updata_curve_edit_mode_pointers(depsgraph, id_orig, id_cow);
+			break;
+		case ID_GM:
+			update_groom_edit_mode_pointers(depsgraph, id_orig, id_cow);
 			break;
 		default:
 			break;
@@ -823,6 +835,12 @@ void discard_mesh_edit_mode_pointers(ID *id_cow)
 	mesh_cow->edit_btmesh = NULL;
 }
 
+void discard_groom_edit_mode_pointers(ID *id_cow)
+{
+	Groom *groom_cow = (Groom *)id_cow;
+	groom_cow->editgroom = NULL;
+}
+
 /* NULL-ify all edit mode pointers which points to data from
  * original object.
  */
@@ -838,6 +856,9 @@ void discard_edit_mode_pointers(ID *id_cow)
 			break;
 		case ID_CU:
 			discard_curve_edit_mode_pointers(id_cow);
+			break;
+		case ID_GM:
+			discard_groom_edit_mode_pointers(id_cow);
 			break;
 		default:
 			break;
