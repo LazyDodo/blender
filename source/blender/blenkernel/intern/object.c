@@ -2313,6 +2313,9 @@ BoundBox *BKE_object_boundbox_get(Object *ob)
 	else if (ob->type == OB_ARMATURE) {
 		bb = BKE_armature_boundbox_get(ob);
 	}
+	else if (ob->type == OB_GROOM) {
+		bb = BKE_groom_boundbox_get(ob);
+	}
 	return bb;
 }
 

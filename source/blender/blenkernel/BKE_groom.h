@@ -32,6 +32,7 @@
  *  \ingroup bke
  */
 
+struct BoundBox;
 struct Depsgraph;
 struct Groom;
 struct GroomBundle;
@@ -52,7 +53,8 @@ struct Groom *BKE_groom_copy(struct Main *bmain, const struct Groom *groom);
 void BKE_groom_make_local(struct Main *bmain, struct Groom *groom, const bool lib_local);
 
 bool BKE_groom_minmax(struct Groom *groom, float min[3], float max[3]);
-void BKE_groom_boundbox_calc(struct Groom *groom, float r_loc[3], float r_size[3]);
+void BKE_groom_boundbox_calc(struct Groom *groom);
+struct BoundBox *BKE_groom_boundbox_get(struct Object *ob);
 
 
 /* === Curve cache === */

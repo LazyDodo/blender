@@ -228,26 +228,44 @@ void BKE_groom_make_local(Main *bmain, Groom *groom, const bool lib_local)
 
 bool BKE_groom_minmax(Groom *groom, float min[3], float max[3])
 {
-	// TODO
-	UNUSED_VARS(groom, min, max);
-	return true;
+	bool result = false;
+	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	{
+		if (bundle->curvecache)
+		{
+			const int totcurvecache = (bundle->numshapeverts + 1) * bundle->curvesize;
+			GroomCurveCache *cc = bundle->curvecache;
+			for (int i = 0; i < totcurvecache; ++i, ++cc)
+			{
+				minmax_v3v3_v3(min, max, cc->co);
+			}
+			
+			result = true;
+		}
+	}
+	return result;
 }
 
-void BKE_groom_boundbox_calc(Groom *groom, float r_loc[3], float r_size[3])
+BoundBox *BKE_groom_boundbox_get(Object *ob)
+{
+	BLI_assert(ob->type == OB_GROOM);
+	Groom *groom = ob->data;
+
+	if (ob->bb)
+		return ob->bb;
+
+	if (groom->bb == NULL || (groom->bb->flag & BOUNDBOX_DIRTY)) {
+		BKE_groom_boundbox_calc(groom);
+	}
+
+	return groom->bb;
+}
+
+void BKE_groom_boundbox_calc(Groom *groom)
 {
 	if (groom->bb == NULL)
 	{
 		groom->bb = MEM_callocN(sizeof(BoundBox), "boundbox");
-	}
-
-	float mloc[3], msize[3];
-	if (!r_loc)
-	{
-		r_loc = mloc;
-	}
-	if (!r_size)
-	{
-		r_size = msize;
 	}
 
 	float min[3], max[3];
@@ -256,12 +274,6 @@ void BKE_groom_boundbox_calc(Groom *groom, float r_loc[3], float r_size[3])
 		min[0] = min[1] = min[2] = -1.0f;
 		max[0] = max[1] = max[2] = 1.0f;
 	}
-
-	mid_v3_v3v3(r_loc, min, max);
-
-	r_size[0] = (max[0] - min[0]) / 2.0f;
-	r_size[1] = (max[1] - min[1]) / 2.0f;
-	r_size[2] = (max[2] - min[2]) / 2.0f;
 
 	BKE_boundbox_init_from_minmax(groom->bb, min, max);
 	groom->bb->flag &= ~BOUNDBOX_DIRTY;
@@ -993,7 +1005,7 @@ void BKE_groom_eval_geometry(struct Depsgraph *UNUSED(depsgraph), Groom *groom)
 	BKE_groom_hair_update_guide_curves(groom);
 	
 	if (groom->bb == NULL || (groom->bb->flag & BOUNDBOX_DIRTY)) {
-		BKE_groom_boundbox_calc(groom, NULL, NULL);
+		BKE_groom_boundbox_calc(groom);
 	}
 }
 
