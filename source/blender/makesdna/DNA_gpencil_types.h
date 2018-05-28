@@ -479,7 +479,7 @@ typedef enum eGP_DepthOrdering {
 #define GPENCIL_NONE_EDIT_MODE(gpd) \
 	((gpd) && ((gpd->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | GP_DATA_STROKE_WEIGHTMODE)) == 0))
 #define GPENCIL_LAZY_MODE(brush, shift) \
-	(((brush) && ((brush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE) && (shift == 0))) || \
-	 (((brush->gpencil_settings->gp_flag & GP_BRUSH_STABILIZE_MOUSE) == 0) && (shift == 1)))
+	(((brush) && ((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) && (shift == 0))) || \
+	 (((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) && (shift == 1)))
 
 #endif /*  __DNA_GPENCIL_TYPES_H__ */

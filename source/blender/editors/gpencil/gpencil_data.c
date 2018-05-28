@@ -2402,7 +2402,7 @@ static int gpencil_convert_old_files_poll(bContext *C)
 	return (int) (scene->gpd != NULL);
 }
 
-static int gpencil_convert_old_files_exec(bContext *C, wmOperator *op)
+static int gpencil_convert_old_files_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);

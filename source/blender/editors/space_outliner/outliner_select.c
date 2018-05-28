@@ -353,12 +353,12 @@ static eOLDrawState tree_element_active_defgroup(
 	return OL_DRAWSEL_NONE;
 }
 
-static eOLDrawState tree_element_active_gplayer(
+static eOLDrawState UNUSED_FUNCTION(tree_element_active_gplayer)(
         bContext *C, Scene *UNUSED(scene), TreeElement *te, TreeStoreElem *tselem, const eOLSetState set)
 {
 	bGPdata *gpd = (bGPdata *)tselem->id;
 	bGPDlayer *gpl = te->directdata;
-	
+
 	/* We can only have a single "active" layer at a time
 	 * and there must always be an active layer...
 	 */
@@ -371,8 +371,7 @@ static eOLDrawState tree_element_active_gplayer(
 	else {
 		return OL_DRAWSEL_NORMAL;
 	}
-	
-	
+
 	return OL_DRAWSEL_NONE;
 }
 

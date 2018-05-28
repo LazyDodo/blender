@@ -65,25 +65,25 @@ typedef struct BrushGpencilSettings {
 	float draw_random_sub;    /* factor of randomness for subdivision */
 	short draw_smoothlvl;     /* number of times to apply smooth factor to new strokes */
 	short draw_subdivide;     /* number of times to subdivide new strokes */
-	short gp_flag;            /* internal grease pencil drawing flags */
+	short flag;               /* internal grease pencil drawing flags */
 
-	short gp_thick_smoothlvl; /* number of times to apply thickness smooth factor to new strokes */
-	float gp_thick_smoothfac; /* amount of thickness smoothing to apply to newly created strokes */
+	short thick_smoothlvl; /* number of times to apply thickness smooth factor to new strokes */
+	float thick_smoothfac; /* amount of thickness smoothing to apply to newly created strokes */
 
-	float gp_fill_threshold;  /* factor for transparency */
-	short gp_fill_leak;       /* number of pixel to consider the leak is too small (x 2) */
+	float fill_threshold;  /* factor for transparency */
+	short fill_leak;       /* number of pixel to consider the leak is too small (x 2) */
 	char pad_1[6];
 
-	int   gp_fill_simplylvl;  /* number of simplify steps */
-	int   gp_fill_draw_mode;  /* type of control lines drawing mode */
-	int   gp_icon_id;         /* icon identifier */
+	int   fill_simplylvl;  /* number of simplify steps */
+	int   fill_draw_mode;  /* type of control lines drawing mode */
+	int   icon_id;         /* icon identifier */
 
-	int   gp_input_samples;   /* maximum distance before generate new point for very fast mouse movements */
-	float gp_uv_random;       /* random factor for UV rotation */
+	int   input_samples;   /* maximum distance before generate new point for very fast mouse movements */
+	float uv_random;       /* random factor for UV rotation */
 
-	int   gp_brush_type;      /* type of brush (draw, fill, erase, etc..) */
-	int   gp_eraser_mode;     /* soft, hard or stroke */
-	float gp_active_smooth;   /* smooth while drawing factor */
+	int   brush_type;      /* type of brush (draw, fill, erase, etc..) */
+	int   eraser_mode;     /* soft, hard or stroke */
+	float active_smooth;   /* smooth while drawing factor */
 	char pad_2[4];
 
 	struct CurveMapping *curve_sensitivity;
