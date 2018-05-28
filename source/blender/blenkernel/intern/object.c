@@ -118,6 +118,7 @@
 #include "BKE_image.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "DRW_engine.h"
 
@@ -378,9 +379,9 @@ void BKE_object_free_caches(Object *object)
 			if (psmd->mesh_final) {
 				BKE_id_free(NULL, psmd->mesh_final);
 				psmd->mesh_final = NULL;
-				if (psmd->mesh_deformed) {
-					BKE_id_free(NULL, psmd->mesh_deformed);
-					psmd->mesh_deformed = NULL;
+				if (psmd->mesh_original) {
+					BKE_id_free(NULL, psmd->mesh_original);
+					psmd->mesh_original = NULL;
 				}
 				psmd->flag |= eParticleSystemFlag_file_loaded;
 				update_flag |= OB_RECALC_DATA;
@@ -2131,7 +2132,7 @@ void BKE_object_where_is_calc_time_ex(
 	/* solve constraints */
 	if (ob->constraints.first && !(ob->transflag & OB_NO_CONSTRAINTS)) {
 		bConstraintOb *cob;
-		cob = BKE_constraints_make_evalob(scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
+		cob = BKE_constraints_make_evalob(depsgraph, scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
 		BKE_constraints_solve(depsgraph, &ob->constraints, cob, ctime);
 		BKE_constraints_clear_evalob(cob);
 	}
@@ -2801,6 +2802,15 @@ int BKE_object_obdata_texspace_get(Object *ob, short **r_texflag, float **r_loc,
 	}
 	return 1;
 }
+
+/** Get evaluated mesh for given (main, original) object and depsgraph. */
+Mesh *BKE_object_get_evaluated_mesh(const Depsgraph *depsgraph, Object *ob)
+{
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+
+	return ob_eval->mesh_evaluated;
+}
+
 
 static int pc_cmp(const void *a, const void *b)
 {
