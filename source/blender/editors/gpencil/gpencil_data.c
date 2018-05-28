@@ -2434,16 +2434,16 @@ static int gpencil_convert_old_files_exec(bContext *C, wmOperator *UNUSED(op))
 
 				/* copy color settings */
 				MaterialGPencilStyle *gp_style = ma->gp_style;
-				copy_v4_v4(gp_style->rgb, palcolor->color);
-				copy_v4_v4(gp_style->fill, palcolor->fill);
+				copy_v4_v4(gp_style->stroke_rgba, palcolor->color);
+				copy_v4_v4(gp_style->fill_rgba, palcolor->fill);
 				gp_style->flag = palcolor->flag;
 
 				/* fix strokes */
 				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 					for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 						for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-							if ((gps->colorname[0] != '\0') && 
-								(STREQ(gps->colorname, palcolor->info))) 
+							if ((gps->colorname[0] != '\0') &&
+							    (STREQ(gps->colorname, palcolor->info)))
 							{
 								gps->mat_nr = ob->totcol - 1;
 								gps->colorname[0] = '\0';

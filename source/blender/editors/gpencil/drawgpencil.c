@@ -640,7 +640,7 @@ static void gp_draw_stroke_fill(
 	immBindBuiltinProgram(GPU_SHADER_GPENCIL_FILL);
 
 	immUniformColor4fv(color);
-	immUniform4fv("color2", gp_style->scolor);
+	immUniform4fv("color2", gp_style->mix_rgba);
 	immUniform1i("fill_type", gp_style->fill_style);
 	immUniform1f("mix_factor", gp_style->mix_factor);
 
@@ -1038,9 +1038,9 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 		}
 
 		/* if disable fill, the colors with fill must be omitted too except fill boundary strokes */
-		if ((tgpw->disable_fill == 1) && 
-			(gp_style->fill[3] > 0.0f) && 
-			((gps->flag & GP_STROKE_NOFILL) == 0))
+		if ((tgpw->disable_fill == 1) &&
+		    (gp_style->fill_rgba[3] > 0.0f) &&
+		    ((gps->flag & GP_STROKE_NOFILL) == 0))
 		{
 				continue;
 		}
@@ -1071,8 +1071,8 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			//if ((dflag & GP_DRAWDATA_FILL) && (gps->totpoints >= 3)) {
 			if ((gps->totpoints >= 3) && (tgpw->disable_fill != 1)) {
 				/* set color using material, tint color and opacity */
-				interp_v3_v3v3(tfill, gp_style->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tfill[3] = gp_style->fill[3] * tgpw->opacity;
+				interp_v3_v3v3(tfill, gp_style->fill_rgba, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tfill[3] = gp_style->fill_rgba[3] * tgpw->opacity;
 				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)) {
 					const float *color;
 					if (!tgpw->onion) {
@@ -1083,7 +1083,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 							color = tgpw->tintcolor;
 						}
 						else {
-							ARRAY_SET_ITEMS(tfill, UNPACK3(gp_style->fill), tgpw->tintcolor[3]);
+							ARRAY_SET_ITEMS(tfill, UNPACK3(gp_style->fill_rgba), tgpw->tintcolor[3]);
 							color = tfill;
 						}
 					}
@@ -1094,8 +1094,8 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			/* 3D Stroke */
 			/* set color using material tint color and opacity */
 			if (!tgpw->onion) {
-				interp_v3_v3v3(tcolor, gp_style->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tcolor[3] = gp_style->rgb[3] * tgpw->opacity;
+				interp_v3_v3v3(tcolor, gp_style->stroke_rgba, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tcolor[3] = gp_style->stroke_rgba[3] * tgpw->opacity;
 				copy_v4_v4(ink, tcolor);
 			}
 			else {
@@ -1103,7 +1103,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 					copy_v4_v4(ink, tgpw->tintcolor);
 				}
 				else {
-					ARRAY_SET_ITEMS(tcolor, gp_style->rgb[0], gp_style->rgb[1], gp_style->rgb[2], tgpw->opacity);
+					ARRAY_SET_ITEMS(tcolor, UNPACK3(gp_style->stroke_rgba), tgpw->opacity);
 					copy_v4_v4(ink, tcolor);
 				}
 			}
@@ -1138,8 +1138,8 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			/* 2D - Fill */
 			if (gps->totpoints >= 3) {
 				/* set color using material, tint color and opacity */
-				interp_v3_v3v3(tfill, gp_style->fill, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tfill[3] = gp_style->fill[3] * tgpw->opacity;
+				interp_v3_v3v3(tfill, gp_style->fill_rgba, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tfill[3] = gp_style->fill_rgba[3] * tgpw->opacity;
 				if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)) {
 					const float *color;
 					if (!tgpw->onion) {
@@ -1150,8 +1150,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 							color = tgpw->tintcolor;
 						}
 						else {
-							ARRAY_SET_ITEMS(tfill, gp_style->fill[0], gp_style->fill[1], gp_style->fill[2],
-								tgpw->tintcolor[3]);
+							ARRAY_SET_ITEMS(tfill, UNPACK3(gp_style->fill_rgba), tgpw->tintcolor[3]);
 							color = tfill;
 						}
 					}
@@ -1162,8 +1161,8 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			/* 2D Strokes... */
 			/* set color using material, tint color and opacity */
 			if (!tgpw->onion) {
-				interp_v3_v3v3(tcolor, gp_style->rgb, tgpw->tintcolor, tgpw->tintcolor[3]);
-				tcolor[3] = gp_style->rgb[3] * tgpw->opacity;
+				interp_v3_v3v3(tcolor, gp_style->stroke_rgba, tgpw->tintcolor, tgpw->tintcolor[3]);
+				tcolor[3] = gp_style->stroke_rgba[3] * tgpw->opacity;
 				copy_v4_v4(ink, tcolor);
 			}
 			else {
@@ -1171,7 +1170,7 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 					copy_v4_v4(ink, tgpw->tintcolor);
 				}
 				else {
-					ARRAY_SET_ITEMS(tcolor, gp_style->rgb[0], gp_style->rgb[1], gp_style->rgb[2], tgpw->opacity);
+					ARRAY_SET_ITEMS(tcolor, UNPACK3(gp_style->stroke_rgba), tgpw->opacity);
 					copy_v4_v4(ink, tcolor);
 				}
 			}
@@ -1315,7 +1314,7 @@ static void gp_draw_strokes_edit(
 				immAttrib1f(size, vsize);
 			}
 			else {
-				immAttrib3fv(color, gp_style->rgb);
+				immAttrib3fv(color, gp_style->stroke_rgba);
 				immAttrib1f(size, bsize);
 			}
 

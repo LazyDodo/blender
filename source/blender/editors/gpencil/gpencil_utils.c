@@ -1412,7 +1412,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 				(paintbrush->gpencil_settings->brush_type == GP_BRUSH_TYPE_DRAW))
 			{
 				radius = 2.0f;
-				copy_v3_v3(color, gp_style->rgb);
+				copy_v3_v3(color, gp_style->stroke_rgba);
 			}
 			else {
 				radius = 5.0f;

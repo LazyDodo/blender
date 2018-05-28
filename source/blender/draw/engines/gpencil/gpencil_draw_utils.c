@@ -639,7 +639,7 @@ static void gpencil_draw_onion_strokes(GpencilBatchCache *cache, GPENCIL_e_data 
 	for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 		
 		MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-		copy_v4_v4(gps->runtime.tmp_rgb, gp_style->rgb);
+		copy_v4_v4(gps->runtime.tmp_rgb, gp_style->stroke_rgba);
 		copy_v4_v4(gps->runtime.tmp_fill, gp_style->fill);
 
 		int id = stl->storage->shgroup_id;
@@ -768,7 +768,7 @@ static void gpencil_draw_strokes(GpencilBatchCache *cache, GPENCIL_e_data *e_dat
 			strokegrp = stl->shgroups[id].shgrps_stroke;
 
 			/* copy color to temp fields to apply temporal changes in the stroke */
-			copy_v4_v4(gps->runtime.tmp_rgb, gp_style->rgb);
+			copy_v4_v4(gps->runtime.tmp_rgb, gp_style->stroke_rgba);
 			copy_v4_v4(gps->runtime.tmp_fill, gp_style->fill);
 
 			/* apply modifiers (only modify geometry, but not create ) */

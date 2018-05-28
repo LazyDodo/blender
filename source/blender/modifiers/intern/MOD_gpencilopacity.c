@@ -73,25 +73,26 @@ static void gp_deformStroke(
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 
-	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 3, gpl, gps,
-	        mmd->flag & GP_OPACITY_INVERT_LAYER, mmd->flag & GP_OPACITY_INVERT_PASS))
+	if (!is_stroke_affected_by_modifier(
+	            ob,
+	            mmd->layername, mmd->pass_index, 3, gpl, gps,
+	            mmd->flag & GP_OPACITY_INVERT_LAYER, mmd->flag & GP_OPACITY_INVERT_PASS))
 	{
 		return;
 	}
-	
-	gp_style->fill[3]*= mmd->factor;
+
+	gp_style->fill_rgba[3]*= mmd->factor;
 
 	/* if factor is > 1, then force opacity */
 	if (mmd->factor > 1.0f) {
-		gp_style->rgb[3] += mmd->factor - 1.0f;
-		if (gp_style->fill[3] > 1e-5) {
-			gp_style->fill[3] += mmd->factor - 1.0f;
+		gp_style->stroke_rgba[3] += mmd->factor - 1.0f;
+		if (gp_style->fill_rgba[3] > 1e-5) {
+			gp_style->fill_rgba[3] += mmd->factor - 1.0f;
 		}
 	}
 
-	CLAMP(gp_style->rgb[3], 0.0f, 1.0f);
-	CLAMP(gp_style->fill[3], 0.0f, 1.0f);
+	CLAMP(gp_style->stroke_rgba[3], 0.0f, 1.0f);
+	CLAMP(gp_style->fill_rgba[3], 0.0f, 1.0f);
 
 	/* if opacity > 1.0, affect the strength of the stroke */
 	if (mmd->factor > 1.0f) {
@@ -100,7 +101,7 @@ static void gp_deformStroke(
 			MDeformVert *dvert = &gps->dvert[i];
 
 			/* verify vertex group */
-			float weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
+			float weight = get_modifier_point_weight(dvert, (!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
 			if (weight < 0) {
 				pt->strength += mmd->factor - 1.0f;
 			}
@@ -120,7 +121,7 @@ static void gp_deformStroke(
 				pt->strength *= mmd->factor;
 			}
 			else {
-				float weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
+				float weight = get_modifier_point_weight(dvert, (!(mmd->flag & GP_OPACITY_INVERT_VGROUP) == 0), vindex);
 				if (weight >= 0) {
 					pt->strength *= mmd->factor * weight;
 				}

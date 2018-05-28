@@ -405,8 +405,8 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 		MaterialGPencilStyle *gp_style = mat->gp_style;
 		tcolor->index = idx;
 		tcolor->mat = mat;
-		copy_v4_v4(tcolor->rgba, gp_style->rgb);
-		copy_v4_v4(tcolor->fill, gp_style->fill);
+		copy_v4_v4(tcolor->rgba, gp_style->stroke_rgba);
+		copy_v4_v4(tcolor->fill, gp_style->fill_rgba);
 
 		/* box position */
 		tcolor->rect.xmin = tgpk->panel.xmin + (tgpk->boxsize[0] * col) + (GP_BOX_GAP * (col + 1)) - (GP_BOX_GAP / 2);

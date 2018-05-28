@@ -67,9 +67,9 @@ typedef struct TexPaintSlot {
 typedef struct MaterialGPencilStyle {
 	struct Image *sima;      /* Texture image for strokes */
 	struct Image *ima;       /* Texture image for filling */
-	float rgb[4];            /* color for paint and strokes (alpha included) */
-	float fill[4];           /* color that should be used for drawing "fills" for strokes (alpha included) */
-	float scolor[4];         /* secondary color used for gradients and other stuff */
+	float stroke_rgba[4];    /* color for paint and strokes (alpha included) */
+	float fill_rgba[4];      /* color that should be used for drawing "fills" for strokes (alpha included) */
+	float mix_rgba[4];       /* secondary color used for gradients and other stuff */
 	short flag;              /* settings */
 	short index;             /* custom index for passes */
 	short stroke_style;      /* style for drawing strokes (used to select shader type) */

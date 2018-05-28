@@ -143,8 +143,8 @@ typedef enum eGPDpalette_Flag {
  */
 typedef struct bGPDstroke_runtime {
 	/* runtime final colors (result of original colors and modifiers) */
-	float tmp_rgb[4];
-	float tmp_fill[4];
+	float tmp_stroke_rgba[4];
+	float tmp_fill_rgba[4];
 
 	/* temporary layer name only used during copy/paste to put the stroke in the original layer */
 	char tmp_layerinfo[128];

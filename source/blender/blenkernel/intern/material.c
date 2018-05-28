@@ -118,10 +118,10 @@ void BKE_material_init_gpencil_settings(Material *ma)
 
 		MaterialGPencilStyle *gp_style = ma->gp_style;
 		/* set basic settings */
-		gp_style->rgb[3] = 1.0f;
+		gp_style->stroke_rgba[3] = 1.0f;
 		gp_style->gradient_boxsize = 0.1f;
 		gp_style->gradient_radius = 0.5f;
-		ARRAY_SET_ITEMS(gp_style->scolor, 1.0f, 1.0f, 1.0f, 0.2f);
+		ARRAY_SET_ITEMS(gp_style->mix_rgba, 1.0f, 1.0f, 1.0f, 0.2f);
 		ARRAY_SET_ITEMS(gp_style->gradient_scale, 1.0f, 1.0f);
 		ARRAY_SET_ITEMS(gp_style->texture_scale, 1.0f, 1.0f);
 		gp_style->texture_opacity = 1.0f;

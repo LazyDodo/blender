@@ -155,7 +155,7 @@ static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float di
 	for (int i = 0; i < totpoints; i++, pt++) {
 
 		if (flag & GP_BRUSH_FILL_HIDE) {
-			float alpha = gp_style->rgb[3] * pt->strength;
+			float alpha = gp_style->stroke_rgba[3] * pt->strength;
 			CLAMP(alpha, 0.0f, 1.0f);
 			col[3] = alpha <= thershold ? 0.0f : 1.0f;
 		}
