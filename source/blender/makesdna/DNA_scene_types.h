@@ -1444,6 +1444,9 @@ typedef struct SceneLANPR{
 	float taper_right_distance;
 	float taper_right_strength;
 
+	float line_color[4];
+	float background_color[4];
+
 } SceneLANPR;
 
 /* *************************************************************** */

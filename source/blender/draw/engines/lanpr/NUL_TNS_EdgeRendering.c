@@ -161,6 +161,7 @@ static void lanpr_engine_free(void){
 	MEM_freeN(stl->g_data->line_result_8bit);
 	MEM_freeN(stl->g_data->line_result);
 	MEM_freeN(stl->g_data);
+	stl->g_data=0;
 }
 
 static void lanpr_cache_init(void *vedata){
@@ -338,6 +339,7 @@ void lanpr_remove_sample(LANPR_PrivateData* pd, int Row, int Col) {
 	pd->sample_table[Row*pd->width + Col] = 0;
 	
 	BLI_remlink(&pd->pending_samples, ts);
+	ts->Item.prev=0;ts->Item.next=0;
 	BLI_addtail(&pd->erased_samples, ts);
 }
 
@@ -374,6 +376,8 @@ int lanpr_grow_snake_r(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStr
 			l = 0;
 		}
 	}
+	if(TX!=ThisP->P[0] || TY!=ThisP->P[1])
+		lanpr_append_point(pd, ls, TX, TY, 0);
 }
 
 int lanpr_grow_snake_l(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStripPoint* ThisP, int Direction) {
@@ -410,6 +414,8 @@ int lanpr_grow_snake_l(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStr
 			l = 0;
 		}
 	}
+	if(TX!=ThisP->P[0] || TY!=ThisP->P[1])
+		lanpr_push_point(pd, ls, TX, TY, 0);
 }
 
 int lanpr_reverse_direction(int From) {
@@ -531,6 +537,7 @@ static void lanpr_draw_scene(void *vedata)
 	
     stl->g_data->stage = 0;
     GPU_framebuffer_bind(fbl->edge_thinning);
+	clear_bits = GPU_COLOR_BIT;
 	GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
     DRW_draw_pass(psl->edge_thinning);
 
@@ -575,13 +582,15 @@ static void lanpr_draw_scene(void *vedata)
 	for (h = 0; h < texh; h++) {
 		for (w = 0; w < texw; w++) {
 			int index = h*texw + w;
-			if ((sample = stl->g_data->line_result[index]) > 0.99) {
+			if ((sample = stl->g_data->line_result[index]) > 0.9) {
 				stl->g_data->line_result_8bit[index] = 255;
 				LANPR_TextureSample* ts = BLI_mempool_calloc(stl->g_data->mp_sample);
 				BLI_addtail(&stl->g_data->pending_samples, ts);
 				stl->g_data->sample_table[index] = ts;
 				ts->X = w;
 				ts->Y = h;
+			}else{
+				stl->g_data->sample_table[index] = 0;
 			}
 		}
 	}
@@ -610,9 +619,14 @@ static void lanpr_draw_scene(void *vedata)
 	}
 
 	//GPU_framebuffer_bind()
+	GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+
 
 	for (ls = (LANPR_LineStrip *)(stl->g_data->line_strips.first); ls; ls = (LANPR_LineStrip *)(ls->Item.next)) {
 		if (ls->point_count < 2) continue;
+
+		float* tld = &lanpr->taper_left_distance, *tls = &lanpr->taper_left_strength,
+			*trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
 
 		Gwn_Batch* snake_batch = lanpr_get_snake_batch(stl->g_data,ls);
 
@@ -620,10 +634,13 @@ static void lanpr_draw_scene(void *vedata)
 		stl->g_data->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
 		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
 		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TotalLength", &ls->total_length, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLDist", &lanpr->taper_left_distance, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLStrength", &lanpr->taper_left_strength, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRDist", &lanpr->taper_right_distance, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRStrength", &lanpr->taper_right_strength, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLDist", tld, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLStrength", tls, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRDist", lanpr->use_same_taper?tld:trd, 1);
+		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRStrength", lanpr->use_same_taper?tls:trs, 1);
+		//lanpr->line_color[0] = lanpr->line_color[1] =lanpr->line_color[2] = lanpr->line_color[3] =1;
+		DRW_shgroup_uniform_vec4(stl->g_data->snake_shgrp, "LineColor", lanpr->line_color, 1);
+
 		DRW_shgroup_call_add(stl->g_data->snake_shgrp, snake_batch, NULL);
 		DRW_draw_pass(psl->snake_pass);
 	}

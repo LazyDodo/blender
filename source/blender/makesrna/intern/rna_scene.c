@@ -6195,7 +6195,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "depth_strength", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_default(prop, 0.1f);
 	RNA_def_property_ui_text(prop, "Depth Strength", "Depth strength value for edge extraction");
-	RNA_def_property_ui_range(prop, 0.01f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_range(prop, 0.01f, 30.0f, 0.1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
@@ -6234,17 +6234,17 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "taper_left_strength", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_default(prop, 20.0f);
+	prop = RNA_def_property(srna, "taper_left_strength", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Strength left", "Left side taper strength");
-	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "taper_right_strength", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_default(prop, 20.0f);
+	prop = RNA_def_property(srna, "taper_right_strength", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Strength right", "Right side taper strength");
-	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
@@ -6252,6 +6252,22 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
     RNA_def_property_enum_items(prop, rna_enum_lanpr_use_same_taper);
 	RNA_def_property_enum_default(prop, LANPR_USE_DIFFERENT_TAPER);
 	RNA_def_property_ui_text(prop, "Taper", "Same/Different taper value");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "line_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Line Color", "Drawing lines using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "background_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Background Color", "Background Color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 

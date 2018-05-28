@@ -37,7 +37,7 @@ void main() {
 	float OffsetL = gOffset[1];
 	float OffsetR = gOffset[2];
 
-	//if(L==R) return;
+	if(L==R || L==LL || R == RR || LL==RR || L==RR || R==LL) return;
 
 	vec4 a;
 	vec4 b;
@@ -70,6 +70,9 @@ void main() {
 	//
 	//return;
 
+	float lim = LineWidth*0.002;
+
+
     if(LL == L){
 		a = L - LineWidth * Normal*0.001;
 		b = L + LineWidth * Normal*0.001;
@@ -79,6 +82,7 @@ void main() {
 	    float length = LineWidth/(dot(Minter,Normal))*0.001;
 	    a = L - length*Minter;
 	    b = L + length*Minter;
+		if(distance(a,b)>2*lim){ a =  L - lim*Minter; b=L+lim*Minter;}
 	}
 
 	if (R == RR){
@@ -90,7 +94,10 @@ void main() {
 	    float length = LineWidth/(dot(Minter,Normal))*0.001;
 	    c = R - length*Minter;
 	    d = R + length*Minter;
+		if(distance(c,d)>2*lim){ c =  R - lim*Minter; d=R+lim*Minter;}
 	}
+
+
 
 	a = MakeLeftTaperLinear(L,a,OffsetL);
 	b = MakeLeftTaperLinear(L,b,OffsetL);
