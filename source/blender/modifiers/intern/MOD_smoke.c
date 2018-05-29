@@ -69,9 +69,9 @@ static void initData(ModifierData *md)
 	smd->time = -1;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	SmokeModifierData *smd  = (SmokeModifierData *)md;
+	const SmokeModifierData *smd  = (const SmokeModifierData *)md;
 	SmokeModifierData *tsmd = (SmokeModifierData *)target;
 	
 	smokeModifier_copy(smd, tsmd);
@@ -102,16 +102,16 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const EvaluationContext *eval_ctx,
-                                  Object *ob, DerivedMesh *dm,
-                                  ModifierApplyFlag flag)
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
 
-	if (flag & MOD_APPLY_ORCO)
+	if (ctx->flag & MOD_APPLY_ORCO)
 		return dm;
 
-	return smokeModifier_do(smd, eval_ctx, md->scene, ob, dm);
+	return smokeModifier_do(smd, ctx->depsgraph, md->scene, ctx->object, dm);
 }
 
 static bool dependsOnTime(ModifierData *UNUSED(md))
@@ -144,8 +144,9 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
 
@@ -174,12 +175,21 @@ ModifierTypeInfo modifierType_Smoke = {
 	                        eModifierTypeFlag_Single,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,

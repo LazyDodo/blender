@@ -40,6 +40,7 @@ extern "C" {
 struct ARegion;
 struct bScreen;
 struct CacheFile;
+struct Collection;
 struct Depsgraph;
 struct LayerCollection;
 struct ListBase;
@@ -49,7 +50,6 @@ struct Base;
 struct PointerRNA;
 struct ReportList;
 struct Scene;
-struct SceneCollection;
 struct ViewLayer;
 struct ScrArea;
 struct SpaceLink;
@@ -75,7 +75,6 @@ struct SpaceText;
 struct SpaceImage;
 struct SpaceClip;
 struct ID;
-struct EvaluationContext;
 
 #include "DNA_object_enums.h"
 
@@ -172,14 +171,13 @@ struct SpaceFile *CTX_wm_space_file(const bContext *C);
 struct SpaceSeq *CTX_wm_space_seq(const bContext *C);
 struct SpaceOops *CTX_wm_space_outliner(const bContext *C);
 struct SpaceNla *CTX_wm_space_nla(const bContext *C);
-struct SpaceTime *CTX_wm_space_time(const bContext *C);
 struct SpaceNode *CTX_wm_space_node(const bContext *C);
-struct SpaceLogic *CTX_wm_space_logic(const bContext *C);
 struct SpaceIpo *CTX_wm_space_graph(const bContext *C);
 struct SpaceAction *CTX_wm_space_action(const bContext *C);
 struct SpaceInfo *CTX_wm_space_info(const bContext *C);
 struct SpaceUserPref *CTX_wm_space_userpref(const bContext *C);
 struct SpaceClip *CTX_wm_space_clip(const bContext *C);
+struct SpaceTopBar *CTX_wm_space_topbar(const bContext *C);
 
 void CTX_wm_manager_set(bContext *C, struct wmWindowManager *wm);
 void CTX_wm_window_set(bContext *C, struct wmWindow *win);
@@ -245,6 +243,10 @@ void CTX_data_list_add(bContextDataResult *result, void *data);
 		BLI_freelistN(&ctx_data_list);                                        \
 } (void)0
 
+#define CTX_DATA_BEGIN_WITH_ID(C, Type, instance, member, Type_id, instance_id)      \
+	CTX_DATA_BEGIN(C, Type, instance, member) \
+	Type_id instance_id = ctx_link->ptr.id.data; \
+
 int ctx_data_list_count(const bContext *C, int (*func)(const bContext *, ListBase *));
 
 #define CTX_DATA_COUNT(C, member) \
@@ -255,9 +257,8 @@ int ctx_data_list_count(const bContext *C, int (*func)(const bContext *, ListBas
 struct Main *CTX_data_main(const bContext *C);
 struct Scene *CTX_data_scene(const bContext *C);
 struct LayerCollection *CTX_data_layer_collection(const bContext *C);
-struct SceneCollection *CTX_data_scene_collection(const bContext *C);
+struct Collection *CTX_data_collection(const bContext *C);
 struct ViewLayer *CTX_data_view_layer(const bContext *C);
-struct ViewRender *CTX_data_view_render(const bContext *C);
 struct RenderEngineType *CTX_data_engine_type(const bContext *C);
 struct ToolSettings *CTX_data_tool_settings(const bContext *C);
 
@@ -321,7 +322,10 @@ int CTX_data_editable_gpencil_strokes(const bContext *C, ListBase *list);
 
 struct Depsgraph *CTX_data_depsgraph(const bContext *C);
 
-void CTX_data_eval_ctx(const bContext *C, struct EvaluationContext *eval_ctx);
+/* Will Return NULL if depsgraph is not allocated yet.
+ * Only used by handful of operators which are run on file load.
+ */
+struct Depsgraph *CTX_data_depsgraph_on_load(const bContext *C);
 
 #ifdef __cplusplus
 }

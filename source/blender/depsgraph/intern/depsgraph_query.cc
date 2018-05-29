@@ -33,14 +33,20 @@
 #include "MEM_guardedalloc.h"
 
 extern "C" {
+#include <string.h> // XXX: memcpy
+
 #include "BLI_utildefines.h"
 #include "BKE_idcode.h"
 #include "BKE_main.h"
 #include "BLI_listbase.h"
+
+#include "BKE_action.h" // XXX: BKE_pose_channel_from_name
 } /* extern "C" */
 
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
+
+#include "RNA_access.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -48,6 +54,31 @@ extern "C" {
 #include "intern/eval/deg_eval_copy_on_write.h"
 #include "intern/depsgraph_intern.h"
 #include "intern/nodes/deg_node_id.h"
+
+struct Scene *DEG_get_input_scene(const Depsgraph *graph)
+{
+	const DEG::Depsgraph *deg_graph = reinterpret_cast<const DEG::Depsgraph *>(graph);
+	return deg_graph->scene;
+}
+
+struct ViewLayer *DEG_get_input_view_layer(const Depsgraph *graph)
+{
+	const DEG::Depsgraph *deg_graph = reinterpret_cast<const DEG::Depsgraph *>(graph);
+	return deg_graph->view_layer;
+}
+
+eEvaluationMode DEG_get_mode(const Depsgraph *graph)
+{
+	const DEG::Depsgraph *deg_graph = reinterpret_cast<const DEG::Depsgraph *>(graph);
+	return deg_graph->mode;
+}
+
+float DEG_get_ctime(const Depsgraph *graph)
+{
+	const DEG::Depsgraph *deg_graph = reinterpret_cast<const DEG::Depsgraph *>(graph);
+	return deg_graph->ctime;
+}
+
 
 bool DEG_id_type_tagged(Main *bmain, short id_type)
 {
@@ -80,13 +111,12 @@ Scene *DEG_get_evaluated_scene(const Depsgraph *graph)
 {
 	const DEG::Depsgraph *deg_graph =
 	        reinterpret_cast<const DEG::Depsgraph *>(graph);
-	Scene *scene_orig = deg_graph->scene;
-	Scene *scene_cow =
-	        reinterpret_cast<Scene *>(deg_graph->get_cow_id(&scene_orig->id));
+	Scene *scene_cow = deg_graph->scene_cow;
 	/* TODO(sergey): Shall we expand datablock here? Or is it OK to assume
 	 * that calleer is OK with just a pointer in case scene is not up[dated
 	 * yet?
 	 */
+	BLI_assert(DEG::deg_copy_on_write_is_expanded(&scene_cow->id));
 	return scene_cow;
 }
 
@@ -95,19 +125,6 @@ ViewLayer *DEG_get_evaluated_view_layer(const Depsgraph *graph)
 	const DEG::Depsgraph *deg_graph =
 	        reinterpret_cast<const DEG::Depsgraph *>(graph);
 	Scene *scene_cow = DEG_get_evaluated_scene(graph);
-	/* We update copy-on-write scene in the following cases:
-	 * - It was not expanded yet.
-	 * - It was tagged for update of CoW component.
-	 * This allows us to have proper view layer pointer.
-	 */
-	if (DEG_depsgraph_use_copy_on_write() &&
-	    (!DEG::deg_copy_on_write_is_expanded(&scene_cow->id) ||
-	     scene_cow->id.recalc & ID_RECALC_COPY_ON_WRITE))
-	{
-		const DEG::IDDepsNode *id_node =
-		        deg_graph->find_id_node(&deg_graph->scene->id);
-		DEG::deg_update_copy_on_write_datablock(deg_graph, id_node);
-	}
 	/* Do name-based lookup. */
 	/* TODO(sergey): Can this be optimized? */
 	ViewLayer *view_layer_orig = deg_graph->view_layer;
@@ -126,6 +143,9 @@ Object *DEG_get_evaluated_object(const Depsgraph *depsgraph, Object *object)
 
 ID *DEG_get_evaluated_id(const Depsgraph *depsgraph, ID *id)
 {
+	if (id == NULL) {
+		return NULL;
+	}
 	/* TODO(sergey): This is a duplicate of Depsgraph::get_cow_id(),
 	 * but here we never do assert, since we don't know nature of the
 	 * incoming ID datablock.
@@ -138,3 +158,73 @@ ID *DEG_get_evaluated_id(const Depsgraph *depsgraph, ID *id)
 	return id_node->id_cow;
 }
 
+/* Get evaluated version of data pointed to by RNA pointer */
+void DEG_get_evaluated_rna_pointer(const Depsgraph *depsgraph, PointerRNA *ptr, PointerRNA *r_ptr_eval)
+{
+	if ((ptr == NULL) || (r_ptr_eval == NULL)) {
+		return;
+	}
+	ID *orig_id = (ID *)ptr->id.data;
+	ID *cow_id = DEG_get_evaluated_id(depsgraph, orig_id);
+	if (ptr->id.data == ptr->data) {
+		/* For ID pointers, it's easy... */
+		r_ptr_eval->id.data = (void *)cow_id;
+		r_ptr_eval->data = (void *)cow_id;
+		r_ptr_eval->type = ptr->type;
+	}
+	else if (ptr->type == &RNA_PoseBone) {
+		/* HACK: Since bone keyframing is quite commonly used,
+		 * speed things up for this case by doing a special lookup
+		 * for bones
+		 */
+		const Object *ob_eval = (Object *)cow_id;
+		bPoseChannel *pchan = (bPoseChannel *)ptr->data;
+		const bPoseChannel *pchan_eval = BKE_pose_channel_find_name(ob_eval->pose, pchan->name);
+		r_ptr_eval->id.data = (void *)cow_id;
+		r_ptr_eval->data = (void *)pchan_eval;
+		r_ptr_eval->type = ptr->type;
+	}
+	else {
+		/* For everything else, try to get RNA Path of the BMain-pointer,
+		 * then use that to look up what the COW-domain one should be
+		 * given the COW ID pointer as the new lookup point
+		 */
+		/* TODO: Find a faster alternative, or implement support for other
+		 * common types too above (e.g. modifiers)
+		 */
+		char *path = RNA_path_from_ID_to_struct(ptr);
+		if (path) {
+			PointerRNA cow_id_ptr;
+			RNA_id_pointer_create(cow_id, &cow_id_ptr);
+			if (!RNA_path_resolve(&cow_id_ptr, path, r_ptr_eval, NULL)) {
+				/* Couldn't find COW copy of data */
+				fprintf(stderr,
+				        "%s: Couldn't resolve RNA path ('%s') relative to COW ID (%p) for '%s'\n",
+				        __func__, path, (void *)cow_id, orig_id->name);
+			}
+		}
+		else {
+			/* Path resolution failed - XXX: Hide this behind a debug flag */
+			fprintf(stderr,
+			        "%s: Couldn't get RNA path for %s relative to %s\n",
+			        __func__, RNA_struct_identifier(ptr->type), orig_id->name);
+		}
+	}
+}
+
+Object *DEG_get_original_object(Object *object)
+{
+	return (Object *)DEG_get_original_id(&object->id);
+}
+
+ID *DEG_get_original_id(ID *id)
+{
+	if (id == NULL) {
+		return NULL;
+	}
+	if (id->orig_id == NULL) {
+		return id;
+	}
+	BLI_assert((id->tag & LIB_TAG_COPY_ON_WRITE) != 0);
+	return (ID *)id->orig_id;
+}

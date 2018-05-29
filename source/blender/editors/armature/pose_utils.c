@@ -183,10 +183,8 @@ void poseAnim_mapping_free(ListBase *pfLinks)
 /* helper for apply() / reset() - refresh the data */
 void poseAnim_mapping_refresh(bContext *C, Scene *scene, Object *ob)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	bArmature *arm = (bArmature *)ob->data;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 	
 	/* old optimize trick... this enforces to bypass the depgraph 
 	 *	- note: code copied from transform_generics.c -> recalcData()
@@ -195,9 +193,9 @@ void poseAnim_mapping_refresh(bContext *C, Scene *scene, Object *ob)
 	if ((arm->flag & ARM_DELAYDEFORM) == 0)
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);  /* sets recalc flags */
 	else
-		BKE_pose_where_is(&eval_ctx, scene, ob);
+		BKE_pose_where_is(depsgraph, scene, ob);
 	
-	/* note, notifier might evolve */
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE); /* otherwise animation doesn't get updated */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
 }
 

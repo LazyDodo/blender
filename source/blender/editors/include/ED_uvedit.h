@@ -50,11 +50,14 @@ struct wmKeyConfig;
 void ED_operatortypes_uvedit(void);
 void ED_keymap_uvedit(struct wmKeyConfig *keyconf);
 
-void ED_uvedit_assign_image(
-        struct Main *bmain, struct Scene *scene, struct Object *obedit, struct Image *ima, struct Image *previma);
 bool ED_uvedit_minmax(struct Scene *scene, struct Image *ima, struct Object *obedit, float min[2], float max[2]);
 bool ED_uvedit_center(Scene *scene, Image *ima, struct Object *obedit, float cent[2], char mode);
 void ED_uvedit_select_all(struct BMesh *bm);
+
+bool ED_uvedit_minmax_multi(
+        struct Scene *scene, struct Image *ima, struct Object **objects_edit, uint objects_len, float r_min[2], float r_max[2]);
+bool ED_uvedit_center_multi(
+        Scene *scene, Image *ima, struct Object **objects_edit, uint objects_len, float r_cent[2], char mode);
 
 bool ED_object_get_active_image(
         struct Object *ob, int mat_nr,
@@ -119,17 +122,20 @@ void ED_uvedit_live_unwrap_end(short cancel);
 
 void ED_uvedit_live_unwrap(struct Scene *scene, struct Object *obedit);
 void ED_uvedit_pack_islands(
-struct Scene *scene, struct Object *ob, struct BMesh *bm, bool selected, bool correct_aspect, bool do_rotate);
+        struct Scene *scene, struct Object *ob, struct BMesh *bm, bool selected, bool correct_aspect, bool do_rotate);
+void ED_uvedit_pack_islands_multi(
+        struct Scene *scene, struct Object **objects, const uint objects_len,
+        bool selected, bool correct_aspect, bool do_rotate);
 void ED_uvedit_unwrap_cube_project(
         struct BMesh *bm, float cube_size, bool use_select, const float center[3]);
 
 /* single call up unwrap using scene settings, used for edge tag unwrapping */
-void ED_unwrap_lscm(struct Scene *scene, struct Object *obedit, const short sel);
+void ED_unwrap_lscm(struct Scene *scene, struct Object *obedit, const short sel, const bool pack);
 
 
 /* uvedit_draw.c */
 void ED_image_draw_cursor(
-struct ARegion *ar, const float cursor[2]);
+       struct ARegion *ar, const float cursor[2]);
 void ED_uvedit_draw_main(
         struct SpaceImage *sima,
         struct ARegion *ar, struct Scene *scene, struct ViewLayer *view_layer,

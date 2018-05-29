@@ -29,6 +29,8 @@
 
 #include "BLI_string_utils.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "eevee_private.h"
 #include "GPU_texture.h"
 
@@ -69,13 +71,12 @@ int EEVEE_subsurface_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	const int fs_size[2] = {(int)viewport_size[0], (int)viewport_size[1]};
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
-	if (BKE_collection_engine_property_value_get_bool(props, "sss_enable")) {
-		effects->sss_sample_count = 1 + BKE_collection_engine_property_value_get_int(props, "sss_samples") * 2;
-		effects->sss_separate_albedo = BKE_collection_engine_property_value_get_bool(props, "sss_separate_albedo");
-		common_data->sss_jitter_threshold = BKE_collection_engine_property_value_get_float(props, "sss_jitter_threshold");
+	if (scene_eval->eevee.flag & SCE_EEVEE_SSS_ENABLED) {
+		effects->sss_sample_count = 1 + scene_eval->eevee.sss_samples * 2;
+		effects->sss_separate_albedo = (scene_eval->eevee.flag & SCE_EEVEE_SSS_SEPARATE_ALBEDO) != 0;
+		common_data->sss_jitter_threshold = scene_eval->eevee.sss_jitter_threshold;
 
 		/* Force separate albedo for final render */
 		if (DRW_state_is_image_render()) {
@@ -91,11 +92,11 @@ int EEVEE_subsurface_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		 * as the depth buffer we are sampling from. This could be avoided if the stencil is
 		 * a separate texture but that needs OpenGL 4.4 or ARB_texture_stencil8.
 		 * OR OpenGL 4.3 / ARB_ES3_compatibility if using a renderbuffer instead */
-		effects->sss_stencil = DRW_texture_pool_query_2D(fs_size[0], fs_size[1], DRW_TEX_DEPTH_24_STENCIL_8,
+		effects->sss_stencil = DRW_texture_pool_query_2D(fs_size[0], fs_size[1], GPU_DEPTH24_STENCIL8,
 		                                                 &draw_engine_eevee_type);
-		effects->sss_blur =    DRW_texture_pool_query_2D(fs_size[0], fs_size[1], DRW_TEX_RGBA_16,
+		effects->sss_blur =    DRW_texture_pool_query_2D(fs_size[0], fs_size[1], GPU_RGBA16F,
 		                                                 &draw_engine_eevee_type);
-		effects->sss_data =    DRW_texture_pool_query_2D(fs_size[0], fs_size[1], DRW_TEX_RGBA_16,
+		effects->sss_data =    DRW_texture_pool_query_2D(fs_size[0], fs_size[1], GPU_RGBA16F,
 		                                                 &draw_engine_eevee_type);
 
 		GPU_framebuffer_ensure_config(&fbl->sss_blur_fb, {
@@ -114,7 +115,7 @@ int EEVEE_subsurface_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		});
 
 		if (effects->sss_separate_albedo) {
-			effects->sss_albedo = DRW_texture_pool_query_2D(fs_size[0], fs_size[1], DRW_TEX_RGB_11_11_10,
+			effects->sss_albedo = DRW_texture_pool_query_2D(fs_size[0], fs_size[1], GPU_R11F_G11F_B10F,
 			                                                &draw_engine_eevee_type);
 		}
 		else {
@@ -147,12 +148,11 @@ void EEVEE_subsurface_output_init(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Dat
 	EEVEE_EffectsInfo *effects = stl->effects;
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
-	if (BKE_collection_engine_property_value_get_bool(props, "sss_enable")) {
-		DRW_texture_ensure_fullscreen_2D(&txl->sss_dir_accum, DRW_TEX_RGBA_16, 0);
-		DRW_texture_ensure_fullscreen_2D(&txl->sss_col_accum, DRW_TEX_RGBA_16, 0);
+	if (scene_eval->eevee.flag & SCE_EEVEE_SSS_ENABLED) {
+		DRW_texture_ensure_fullscreen_2D(&txl->sss_dir_accum, GPU_RGBA16F, 0);
+		DRW_texture_ensure_fullscreen_2D(&txl->sss_col_accum, GPU_RGBA16F, 0);
 
 		GPU_framebuffer_ensure_config(&fbl->sss_accum_fb, {
 			GPU_ATTACHMENT_TEXTURE(effects->sss_stencil),
@@ -198,7 +198,7 @@ void EEVEE_subsurface_cache_init(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data
 }
 
 void EEVEE_subsurface_add_pass(
-        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, unsigned int sss_id, struct GPUUniformBuffer *sss_profile)
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, uint sss_id, struct GPUUniformBuffer *sss_profile)
 {
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 	EEVEE_PassList *psl = vedata->psl;

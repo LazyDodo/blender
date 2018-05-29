@@ -40,8 +40,8 @@
 #include "BLI_math_vector.h"
 #include "BLI_linklist.h"
 
-#include "BKE_layer.h"
 #include "BKE_library.h"
+#include "BKE_depsgraph.h"
 #include "BKE_context.h"
 #include "BKE_mesh.h"
 #include "BKE_scene.h"
@@ -58,8 +58,6 @@
 
 #include "recast-capi.h"
 
-#include "DEG_depsgraph.h"
-
 #include "mesh_intern.h"  /* own include */
 
 
@@ -74,13 +72,10 @@ static void createVertsTrisData(bContext *C, LinkNode *obs,
 	LinkNode *oblink, *dmlink;
 	DerivedMesh *dm;
 	Scene *scene = CTX_data_scene(C);
-	EvaluationContext eval_ctx;
 	LinkNodePair dms_pair = {NULL, NULL};
 
 	int nverts, ntris, *tris;
 	float *verts;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	nverts = 0;
 	ntris = 0;
@@ -88,7 +83,7 @@ static void createVertsTrisData(bContext *C, LinkNode *obs,
 	/* calculate number of verts and tris */
 	for (oblink = obs; oblink; oblink = oblink->next) {
 		ob = (Object *) oblink->link;
-		dm = mesh_create_derived_no_virtual(&eval_ctx, scene, ob, NULL, CD_MASK_MESH);
+		dm = mesh_create_derived_no_virtual(scene, ob, NULL, CD_MASK_MESH);
 		DM_ensure_tessface(dm);
 		BLI_linklist_append(&dms_pair, dm);
 
@@ -339,7 +334,7 @@ static Object *createRepresentation(bContext *C, struct recast_polyMesh *pmesh, 
 	int i, j, k;
 	unsigned short *v;
 	int face[3];
-	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Scene *scene = CTX_data_scene(C);
 	Object *obedit;
 	int createob = base == NULL;
 	int nverts, nmeshes, nvp;
@@ -357,13 +352,13 @@ static Object *createRepresentation(bContext *C, struct recast_polyMesh *pmesh, 
 	}
 	else {
 		obedit = base->object;
-		BKE_view_layer_base_deselect_all(view_layer);
-		BKE_view_layer_base_select(view_layer, base);
+		BKE_scene_base_deselect_all(scene);
+		BKE_scene_base_select(scene, base);
 		copy_v3_v3(obedit->loc, co);
 		copy_v3_v3(obedit->rot, rot);
 	}
 
-	ED_object_editmode_enter(C, EM_DO_UNDO | EM_IGNORE_LAYER);
+	ED_object_editmode_enter(C, EM_IGNORE_LAYER);
 	em = BKE_editmesh_from_object(obedit);
 
 	if (!createob) {
@@ -446,7 +441,7 @@ static Object *createRepresentation(bContext *C, struct recast_polyMesh *pmesh, 
 	recast_destroyPolyMesh(pmesh);
 	recast_destroyPolyMeshDetail(dmesh);
 
-	DEG_id_tag_update((ID *)obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update((ID *)obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 
 
@@ -467,7 +462,6 @@ static Object *createRepresentation(bContext *C, struct recast_polyMesh *pmesh, 
 static int navmesh_create_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	LinkNode *obs = NULL;
 	Base *navmeshBase = NULL;
 
@@ -475,7 +469,7 @@ static int navmesh_create_exec(bContext *C, wmOperator *op)
 	{
 		if (base->object->type == OB_MESH) {
 			if (base->object->body_type == OB_BODY_TYPE_NAVMESH) {
-				if (!navmeshBase || base == view_layer->basact) {
+				if (!navmeshBase || base == scene->basact) {
 					navmeshBase = base;
 				}
 			}
@@ -558,7 +552,7 @@ static int navmesh_face_copy_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	DEG_id_tag_update((ID *)obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update((ID *)obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 
 	return OPERATOR_FINISHED;
@@ -639,7 +633,7 @@ static int navmesh_face_add_exec(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 
-	DEG_id_tag_update((ID *)obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update((ID *)obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 
 	return OPERATOR_FINISHED;
@@ -688,7 +682,7 @@ static int navmesh_reset_exec(bContext *C, wmOperator *UNUSED(op))
 
 	BKE_mesh_ensure_navmesh(me);
 
-	DEG_id_tag_update(&me->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&me->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, &me->id);
 
 	return OPERATOR_FINISHED;
@@ -716,7 +710,7 @@ static int navmesh_clear_exec(bContext *C, wmOperator *UNUSED(op))
 
 	CustomData_free_layers(&me->pdata, CD_RECAST, me->totpoly);
 
-	DEG_id_tag_update(&me->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&me->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, &me->id);
 
 	return OPERATOR_FINISHED;

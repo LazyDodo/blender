@@ -139,6 +139,10 @@ typedef struct LodLevel {
 	int obhysteresis;
 } LodLevel;
 
+typedef struct ObjectDisplay {
+	int flag;
+} ObjectDisplay;
+
 typedef struct Object {
 	ID id;
 	struct AnimData *adt;		/* animation data (must be immediately after id for utilities to use it) */ 
@@ -212,9 +216,7 @@ typedef struct Object {
 	short transflag, protectflag;	/* transformation settings and transform locks  */
 	short trackflag, upflag;
 	short nlaflag;				/* used for DopeSheet filtering settings (expanded/collapsed) */
-	short scaflag;				/* ui state for game logic */
-	char scavisflag;			/* more display settings for game logic */
-	char pad;
+	short pad[2];
 
 	/* did last modifier stack generation need mapping support? */
 	char lastNeedMapping;  /* bool */
@@ -223,39 +225,9 @@ typedef struct Object {
 	/* dupli-frame settings */
 	int dupon, dupoff, dupsta, dupend;
 
-	/* during realtime */
-
-	/* note that inertia is only called inertia for historical reasons
-	 * and is not changed to avoid DNA surgery. It actually reflects the 
-	 * Size value in the GameButtons (= radius) */
-
-	float mass, damping, inertia;
-	/* The form factor k is introduced to give the user more control
-	 * and to fix incompatibility problems.
-	 * For rotational symmetric objects, the inertia value can be
-	 * expressed as: Theta = k * m * r^2
-	 * where m = Mass, r = Radius
-	 * For a Sphere, the form factor is by default = 0.4
-	 */
-
-	float formfactor;
-	float rdamping;
-	float margin;
-	float max_vel; /* clamp the maximum velocity 0.0 is disabled */
-	float min_vel; /* clamp the minimum velocity 0.0 is disabled */
-	float max_angvel; /* clamp the maximum angular velocity, 0.0 is disabled */
-	float min_angvel; /* clamp the minimum angular velocity, 0.0 is disabled */
-	float obstacleRad;
-	
-	/* "Character" physics properties */
-	float step_height;
-	float jump_speed;
-	float fall_speed;
-	unsigned char max_jumps;
-	char pad2;
-
 	/* Depsgraph */
 	short base_flag; /* used by depsgraph, flushed from base */
+	short pad8;
 
 	/** Collision mask settings */
 	unsigned short col_group, col_mask;
@@ -270,11 +242,6 @@ typedef struct Object {
 	char empty_drawtype;
 	float empty_drawsize;
 	float dupfacesca;	/* dupliface scale */
-	
-	ListBase prop;			/* game logic property list (not to be confused with IDProperties) */
-	ListBase sensors;		/* game logic sensors */
-	ListBase controllers;	/* game logic controllers */
-	ListBase actuators;		/* game logic actuators */
 
 	float sf; /* sf is time-offset */
 
@@ -284,25 +251,22 @@ typedef struct Object {
 	unsigned char pad5[6];
 	float col[4];			/* object color */
 
-	int gameflag;
-	int gameflag2;
-
 	char restrictflag;		/* for restricting view, select, render etc. accessible in outliner */
 	char pad3;
 	short softflag;			/* softbody settings */
-	float anisotropicFriction[3];
+	int pad2;
 
 	ListBase constraints;		/* object constraints */
 	ListBase nlastrips  DNA_DEPRECATED;			// XXX deprecated... old animation system
 	ListBase hooks  DNA_DEPRECATED;				// XXX deprecated... old animation system
 	ListBase particlesystem;	/* particle systems */
 	
-	struct BulletSoftBody *bsoft;	/* settings for game engine bullet soft body */
 	struct PartDeflect *pd;		/* particle deflector/attractor/collision data */
 	struct SoftBody *soft;		/* if exists, saved in file */
-	struct Group *dup_group;	/* object duplicator for group */
+	struct Collection *dup_group;	/* object duplicator for group */
+	void *pad10;
 
-	char  body_type;			/* for now used to temporarily holds the type of collision object */
+	char  pad4;
 	char  shapeflag;			/* flag for pinning */
 	short shapenr;				/* current shape key for menu or pinned */
 	float smoothresh;			/* smoothresh is phong interpolation ray_shadow correction in render */
@@ -313,38 +277,36 @@ typedef struct Object {
 	void *pad7;
 	uint64_t lastDataMask;   /* the custom data layer mask that was last used to calculate derivedDeform and derivedFinal */
 	uint64_t customdata_mask; /* (extra) custom data layer mask to use for creating derivedmesh, set by depsgraph */
-	unsigned int state;			/* bit masks of game controllers that are active */
-	unsigned int init_state;	/* bit masks of initial state as recorded by the users */
 
 	/* Runtime valuated curve-specific data, not stored in the file */
 	struct CurveCache *curve_cache;
 
 	ListBase gpulamp;		/* runtime, for glsl lamp display only */
 	ListBase pc_ids;
-	ListBase *duplilist;	/* for temporary dupli list storage, only for use by RNA API */
 	
 	struct RigidBodyOb *rigidbody_object;		/* settings for Bullet rigid body */
 	struct RigidBodyCon *rigidbody_constraint;	/* settings for Bullet constraint */
 
 	float ima_ofs[2];		/* offset for image empties */
 	ImageUser *iuser;		/* must be non-null when oject is an empty image */
-	void *pad4;
 
 	ListBase lodlevels;		/* contains data for levels of detail */
 	LodLevel *currentlod;
 
 	struct PreviewImage *preview;
 
-	struct IDProperty *base_collection_properties; /* used by depsgraph, flushed from base */
-
 	ListBase drawdata;		/* runtime, ObjectEngineData */
 	int pad6;
 	int select_color;
 
-	/* Mesh structure createrd during object evaluaiton.
+	/* Mesh structure created during object evaluation.
 	 * It has all modifiers applied.
 	 */
 	struct Mesh *mesh_evaluated;
+
+	/* Object Display */
+	struct ObjectDisplay display;
+	int pad9;
 } Object;
 
 /* Warning, this is not used anymore because hooks are now modifiers */
@@ -383,7 +345,6 @@ typedef struct DupliObject {
 	struct ParticleSystem *particle_system;
 	unsigned int random_id;
 	unsigned int pad;
-	struct IDProperty *collection_properties;
 } DupliObject;
 
 /* **************** OBJECT ********************* */
@@ -411,6 +372,11 @@ enum {
 
 /* 23 and 24 are for life and sector (old file compat.) */
 	OB_ARMATURE   = 25,
+};
+
+/* ObjectDisplay.flag */
+enum {
+	OB_SHOW_SHADOW = (1 << 0),
 };
 
 /* check if the object type supports materials */
@@ -457,7 +423,7 @@ enum {
 	OB_DUPLIROT         = 1 << 5,
 	OB_DUPLINOSPEED     = 1 << 6,
 	OB_DUPLICALCDERIVED = 1 << 7, /* runtime, calculate derivedmesh for dupli before it's used */
-	OB_DUPLIGROUP       = 1 << 8,
+	OB_DUPLICOLLECTION  = 1 << 8,
 	OB_DUPLIFACES       = 1 << 9,
 	OB_DUPLIFACES_SCALE = 1 << 10,
 	OB_DUPLIPARTS       = 1 << 11,
@@ -465,7 +431,7 @@ enum {
 	OB_NO_CONSTRAINTS   = 1 << 13,  /* runtime constraints disable */
 	OB_NO_PSYS_UPDATE   = 1 << 14,  /* hack to work around particle issue */
 
-	OB_DUPLI            = OB_DUPLIFRAMES | OB_DUPLIVERTS | OB_DUPLIGROUP | OB_DUPLIFACES | OB_DUPLIPARTS,
+	OB_DUPLI            = OB_DUPLIFRAMES | OB_DUPLIVERTS | OB_DUPLICOLLECTION | OB_DUPLIFACES | OB_DUPLIPARTS,
 };
 
 /* (short) trackflag / upflag */
@@ -478,8 +444,6 @@ enum {
 	OB_NEGZ = 5,
 };
 
-/* gameflag in game.h */
-
 /* dt: no flags */
 enum {
 	OB_BOUNDBOX  = 1,
@@ -488,8 +452,6 @@ enum {
 	OB_MATERIAL  = 4,
 	OB_TEXTURE   = 5,
 	OB_RENDER    = 6,
-
-	OB_PAINT     = 100,  /* temporary used in draw code */
 };
 
 /* dtx: flags (short) */
@@ -563,7 +525,7 @@ enum {
 #define OB_FROMDUPLI        (1 << 9)
 #define OB_DONE             (1 << 10)  /* unknown state, clear before use */
 /* #define OB_RADIO            (1 << 11) */  /* deprecated */
-#define OB_FROMGROUP        (1 << 12)
+/* #define OB_FROMGROUP        (1 << 12) */  /* deprecated */
 
 /* WARNING - when adding flags check on PSYS_RECALC */
 /* ob->recalc (flag bits!) */
@@ -581,84 +543,6 @@ enum {
 
 /* collision masks */
 #define OB_MAX_COL_MASKS    16
-
-/* ob->gameflag */
-enum {
-	OB_DYNAMIC               = 1 << 0,
-	OB_CHILD                 = 1 << 1,
-	OB_ACTOR                 = 1 << 2,
-	OB_INERTIA_LOCK_X        = 1 << 3,
-	OB_INERTIA_LOCK_Y        = 1 << 4,
-	OB_INERTIA_LOCK_Z        = 1 << 5,
-	OB_DO_FH                 = 1 << 6,
-	OB_ROT_FH                = 1 << 7,
-	OB_ANISOTROPIC_FRICTION  = 1 << 8,
-	OB_GHOST                 = 1 << 9,
-	OB_RIGID_BODY            = 1 << 10,
-	OB_BOUNDS                = 1 << 11,
-
-	OB_COLLISION_RESPONSE    = 1 << 12,
-	OB_SECTOR                = 1 << 13,
-	OB_PROP                  = 1 << 14,
-	OB_MAINACTOR             = 1 << 15,
-
-	OB_COLLISION             = 1 << 16,
-	OB_SOFT_BODY             = 1 << 17,
-	OB_OCCLUDER              = 1 << 18,
-	OB_SENSOR                = 1 << 19,
-	OB_NAVMESH               = 1 << 20,
-	OB_HASOBSTACLE           = 1 << 21,
-	OB_CHARACTER             = 1 << 22,
-
-	OB_RECORD_ANIMATION      = 1 << 23,
-};
-
-/* ob->gameflag2 */
-enum {
-	OB_NEVER_DO_ACTIVITY_CULLING    = 1 << 0,
-	OB_LOCK_RIGID_BODY_X_AXIS       = 1 << 2,
-	OB_LOCK_RIGID_BODY_Y_AXIS       = 1 << 3,
-	OB_LOCK_RIGID_BODY_Z_AXIS       = 1 << 4,
-	OB_LOCK_RIGID_BODY_X_ROT_AXIS   = 1 << 5,
-	OB_LOCK_RIGID_BODY_Y_ROT_AXIS   = 1 << 6,
-	OB_LOCK_RIGID_BODY_Z_ROT_AXIS   = 1 << 7,
-
-/*	OB_LIFE     = OB_PROP | OB_DYNAMIC | OB_ACTOR | OB_MAINACTOR | OB_CHILD, */
-};
-
-/* ob->body_type */
-enum {
-	OB_BODY_TYPE_NO_COLLISION   = 0,
-	OB_BODY_TYPE_STATIC         = 1,
-	OB_BODY_TYPE_DYNAMIC        = 2,
-	OB_BODY_TYPE_RIGID          = 3,
-	OB_BODY_TYPE_SOFT           = 4,
-	OB_BODY_TYPE_OCCLUDER       = 5,
-	OB_BODY_TYPE_SENSOR         = 6,
-	OB_BODY_TYPE_NAVMESH        = 7,
-	OB_BODY_TYPE_CHARACTER      = 8,
-};
-
-/* ob->scavisflag */
-enum {
-	OB_VIS_SENS     = 1 << 0,
-	OB_VIS_CONT     = 1 << 1,
-	OB_VIS_ACT      = 1 << 2,
-};
-
-/* ob->scaflag */
-enum {
-	OB_SHOWSENS     = 1 << 6,
-	OB_SHOWACT      = 1 << 7,
-	OB_ADDSENS      = 1 << 8,
-	OB_ADDCONT      = 1 << 9,
-	OB_ADDACT       = 1 << 10,
-	OB_SHOWCONT     = 1 << 11,
-	OB_ALLSTATE     = 1 << 12,
-	OB_INITSTBIT    = 1 << 13,
-	OB_DEBUGSTATE   = 1 << 14,
-	OB_SHOWSTATE    = 1 << 15,
-};
 
 /* ob->restrictflag */
 enum {

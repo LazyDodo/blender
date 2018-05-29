@@ -66,7 +66,7 @@ void BKE_camera_init(Camera *cam)
 {
 	BLI_assert(MEMCMP_STRUCT_OFS_IS_ZERO(cam, id));
 
-	cam->lens = 35.0f;
+	cam->lens = 50.0f;
 	cam->sensor_x = DEFAULT_SENSOR_WIDTH;
 	cam->sensor_y = DEFAULT_SENSOR_HEIGHT;
 	cam->clipsta = 0.1f;
@@ -259,7 +259,7 @@ void BKE_camera_params_from_object(CameraParams *params, const Object *ob)
 	}
 }
 
-void BKE_camera_params_from_view3d(CameraParams *params, const Depsgraph *depsgraph, const View3D *v3d, const RegionView3D *rv3d)
+void BKE_camera_params_from_view3d(CameraParams *params, Depsgraph *depsgraph, const View3D *v3d, const RegionView3D *rv3d)
 {
 	/* common */
 	params->lens = v3d->lens;
@@ -268,8 +268,8 @@ void BKE_camera_params_from_view3d(CameraParams *params, const Depsgraph *depsgr
 
 	if (rv3d->persp == RV3D_CAMOB) {
 		/* camera view */
-		Object *camera_object = DEG_get_evaluated_object(depsgraph, v3d->camera);
-		BKE_camera_params_from_object(params, camera_object);
+		const Object *ob_camera_eval = DEG_get_evaluated_object(depsgraph, v3d->camera);
+		BKE_camera_params_from_object(params, ob_camera_eval);
 
 		params->zoom = BKE_screen_view3d_zoom_to_fac(rv3d->camzoom);
 
@@ -304,10 +304,7 @@ void BKE_camera_params_compute_viewplane(CameraParams *params, int winx, int win
 	float pixsize, viewfac, sensor_size, dx, dy;
 	int sensor_fit;
 
-	/* fields rendering */
 	params->ycor = yasp / xasp;
-	if (params->use_fields)
-		params->ycor *= 2.0f;
 
 	if (params->is_ortho) {
 		/* orthographic camera */
@@ -348,18 +345,6 @@ void BKE_camera_params_compute_viewplane(CameraParams *params, int winx, int win
 	viewplane.ymin += dy;
 	viewplane.xmax += dx;
 	viewplane.ymax += dy;
-
-	/* fields offset */
-	if (params->field_second) {
-		if (params->field_odd) {
-			viewplane.ymin -= 0.5f * params->ycor;
-			viewplane.ymax -= 0.5f * params->ycor;
-		}
-		else {
-			viewplane.ymin += 0.5f * params->ycor;
-			viewplane.ymax += 0.5f * params->ycor;
-		}
-	}
 
 	/* the window matrix is used for clipping, and not changed during OSA steps */
 	/* using an offset of +0.5 here would give clip errors on edges */
@@ -664,7 +649,7 @@ static bool camera_frame_fit_calc_from_data(
 /* don't move the camera, just yield the fit location */
 /* r_scale only valid/useful for ortho cameras */
 bool BKE_camera_view_frame_fit_to_scene(
-        Scene *scene, ViewLayer *view_layer, Object *camera_ob, float r_co[3], float *r_scale)
+        Depsgraph *depsgraph, Scene *scene, ViewLayer *view_layer, Object *camera_ob, float r_co[3], float *r_scale)
 {
 	CameraParams params;
 	CameraViewFrameData data_cb;
@@ -675,22 +660,24 @@ bool BKE_camera_view_frame_fit_to_scene(
 	camera_frame_fit_data_init(scene, camera_ob, &params, &data_cb);
 
 	/* run callback on all visible points */
-	BKE_scene_foreach_display_point(scene, view_layer, camera_to_frame_view_cb, &data_cb);
+	BKE_scene_foreach_display_point(depsgraph, scene, view_layer, camera_to_frame_view_cb, &data_cb);
 
 	return camera_frame_fit_calc_from_data(&params, &data_cb, r_co, r_scale);
 }
 
 bool BKE_camera_view_frame_fit_to_coords(
-        const Scene *scene, const float (*cos)[3], int num_cos, const Object *camera_ob,
+        const Depsgraph *depsgraph, const float (*cos)[3], int num_cos, Object *camera_ob,
         float r_co[3], float *r_scale)
 {
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	Object *camera_ob_eval = DEG_get_evaluated_object(depsgraph, camera_ob);
 	CameraParams params;
 	CameraViewFrameData data_cb;
 
 	/* just in case */
 	*r_scale = 1.0f;
 
-	camera_frame_fit_data_init(scene, camera_ob, &params, &data_cb);
+	camera_frame_fit_data_init(scene_eval, camera_ob_eval, &params, &data_cb);
 
 	/* run callback on all given coordinates */
 	while (num_cos--) {
@@ -702,12 +689,12 @@ bool BKE_camera_view_frame_fit_to_coords(
 
 /******************* multiview matrix functions ***********************/
 
-static void camera_model_matrix(Object *camera, float r_modelmat[4][4])
+static void camera_model_matrix(const Object *camera, float r_modelmat[4][4])
 {
 	copy_m4_m4(r_modelmat, camera->obmat);
 }
 
-static void camera_stereo3d_model_matrix(Object *camera, const bool is_left, float r_modelmat[4][4])
+static void camera_stereo3d_model_matrix(const Object *camera, const bool is_left, float r_modelmat[4][4])
 {
 	Camera *data = (Camera *)camera->data;
 	float interocular_distance, convergence_distance;
@@ -805,7 +792,7 @@ static void camera_stereo3d_model_matrix(Object *camera, const bool is_left, flo
 }
 
 /* the view matrix is used by the viewport drawing, it is basically the inverted model matrix */
-void BKE_camera_multiview_view_matrix(RenderData *rd, Object *camera, const bool is_left, float r_viewmat[4][4])
+void BKE_camera_multiview_view_matrix(RenderData *rd, const Object *camera, const bool is_left, float r_viewmat[4][4])
 {
 	BKE_camera_multiview_model_matrix(rd, camera, is_left ? STEREO_LEFT_NAME : STEREO_RIGHT_NAME, r_viewmat);
 	invert_m4(r_viewmat);
@@ -820,7 +807,7 @@ static bool camera_is_left(const char *viewname)
 	return true;
 }
 
-void BKE_camera_multiview_model_matrix(RenderData *rd, Object *camera, const char *viewname, float r_modelmat[4][4])
+void BKE_camera_multiview_model_matrix(RenderData *rd, const Object *camera, const char *viewname, float r_modelmat[4][4])
 {
 	const bool is_multiview = (rd && rd->scemode & R_MULTIVIEW) != 0;
 
@@ -837,7 +824,7 @@ void BKE_camera_multiview_model_matrix(RenderData *rd, Object *camera, const cha
 	normalize_m4(r_modelmat);
 }
 
-bool BKE_camera_multiview_spherical_stereo(RenderData *rd, Object *camera)
+bool BKE_camera_multiview_spherical_stereo(RenderData *rd, const Object *camera)
 {
 	Camera *cam;
 	const bool is_multiview = (rd && rd->scemode & R_MULTIVIEW) != 0;
@@ -910,7 +897,7 @@ Object *BKE_camera_multiview_render(Scene *scene, Object *camera, const char *vi
 	}
 }
 
-static float camera_stereo3d_shift_x(Object *camera, const char *viewname)
+static float camera_stereo3d_shift_x(const Object *camera, const char *viewname)
 {
 	Camera *data = camera->data;
 	float shift = data->shiftx;
@@ -948,7 +935,7 @@ static float camera_stereo3d_shift_x(Object *camera, const char *viewname)
 	return shift;
 }
 
-float BKE_camera_multiview_shift_x(RenderData *rd, Object *camera, const char *viewname)
+float BKE_camera_multiview_shift_x(RenderData *rd, const Object *camera, const char *viewname)
 {
 	const bool is_multiview = (rd && rd->scemode & R_MULTIVIEW) != 0;
 	Camera *data = camera->data;
@@ -966,7 +953,7 @@ float BKE_camera_multiview_shift_x(RenderData *rd, Object *camera, const char *v
 	}
 }
 
-void BKE_camera_multiview_params(RenderData *rd, CameraParams *params, Object *camera, const char *viewname)
+void BKE_camera_multiview_params(RenderData *rd, CameraParams *params, const Object *camera, const char *viewname)
 {
 	if (camera->type == OB_CAMERA) {
 		params->shiftx = BKE_camera_multiview_shift_x(rd, camera, viewname);
@@ -992,6 +979,7 @@ CameraBGImage *BKE_camera_background_image_new(Camera *cam)
 	bgpic->alpha = 0.5f;
 	bgpic->iuser.fie_ima = 2;
 	bgpic->iuser.ok = 1;
+	bgpic->iuser.flag |= IMA_ANIM_ALWAYS;
 	bgpic->flag |= CAM_BGIMG_FLAG_EXPANDED;
 
 	BLI_addtail(&cam->bg_images, bgpic);

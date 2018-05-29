@@ -89,6 +89,8 @@ static const EnumPropertyItem space_items[] = {
 #include "DNA_scene_types.h"
 #include "DNA_view3d_types.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "MEM_guardedalloc.h"
 
 static void rna_Object_select_set(Object *ob, bContext *C, ReportList *reports, int action)
@@ -97,7 +99,7 @@ static void rna_Object_select_set(Object *ob, bContext *C, ReportList *reports, 
 	Base *base = BKE_view_layer_base_find(view_layer, ob);
 
 	if (!base) {
-		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in Render Layer '%s'!", ob->id.name + 2, view_layer->name);
+		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in View Layer '%s'!", ob->id.name + 2, view_layer->name);
 		return;
 	}
 
@@ -173,13 +175,14 @@ static void rna_Object_mat_convert_space(Object *ob, ReportList *reports, bPoseC
 }
 
 static void rna_Object_calc_matrix_camera(
-        Object *ob, float mat_ret[16], int width, int height, float scalex, float scaley)
+        Object *ob, Depsgraph *depsgraph, float mat_ret[16], int width, int height, float scalex, float scaley)
 {
+	const Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	CameraParams params;
 
 	/* setup parameters */
 	BKE_camera_params_init(&params);
-	BKE_camera_params_from_object(&params, ob);
+	BKE_camera_params_from_object(&params, ob_eval);
 
 	/* compute matrix, viewplane, .. */
 	BKE_camera_params_compute_viewplane(&params, width, height, scalex, scaley);
@@ -189,102 +192,20 @@ static void rna_Object_calc_matrix_camera(
 }
 
 static void rna_Object_camera_fit_coords(
-        Object *ob, Scene *scene, int num_cos, float *cos, float co_ret[3], float *scale_ret)
+        Object *ob, Depsgraph *depsgraph, int num_cos, float *cos, float co_ret[3], float *scale_ret)
 {
-	BKE_camera_view_frame_fit_to_coords(scene, (const float (*)[3])cos, num_cos / 3, ob, co_ret, scale_ret);
+	BKE_camera_view_frame_fit_to_coords(depsgraph, (const float (*)[3])cos, num_cos / 3, ob, co_ret, scale_ret);
 }
 
 /* copied from Mesh_getFromObject and adapted to RNA interface */
 /* settings: 0 - preview, 1 - render */
 static Mesh *rna_Object_to_mesh(
-        Object *ob, bContext *C, ReportList *reports, Scene *sce, ViewLayer *view_layer,
-        int apply_modifiers, int settings, int calc_tessface, int calc_undeformed)
+        Object *ob, bContext *C, ReportList *reports, Depsgraph *depsgraph,
+        int apply_modifiers, int calc_tessface, int calc_undeformed)
 {
 	Main *bmain = CTX_data_main(C);
 
-	return rna_Main_meshes_new_from_object(bmain, reports, sce, view_layer, ob, apply_modifiers, settings, calc_tessface, calc_undeformed);
-}
-
-/* mostly a copy from convertblender.c */
-static void dupli_render_particle_set(EvaluationContext *eval_ctx, Scene *scene, Object *ob, int level, int enable)
-{
-	/* ugly function, but we need to set particle systems to their render
-	 * settings before calling object_duplilist, to get render level duplis */
-	Group *group;
-	GroupObject *go;
-	ParticleSystem *psys;
-	DerivedMesh *dm;
-	float mat[4][4];
-
-	unit_m4(mat);
-
-	if (level >= MAX_DUPLI_RECUR)
-		return;
-	
-	if (ob->transflag & OB_DUPLIPARTS) {
-		for (psys = ob->particlesystem.first; psys; psys = psys->next) {
-			if (ELEM(psys->part->ren_as, PART_DRAW_OB, PART_DRAW_GR)) {
-				if (enable)
-					psys_render_set(ob, psys, mat, mat, 1, 1, 0.f);
-				else
-					psys_render_restore(ob, psys);
-			}
-		}
-
-		if (enable) {
-			/* this is to make sure we get render level duplis in groups:
-			 * the derivedmesh must be created before init_render_mesh,
-			 * since object_duplilist does dupliparticles before that */
-			dm = mesh_create_derived_render(eval_ctx, scene, ob, CD_MASK_BAREMESH | CD_MASK_MLOOPUV | CD_MASK_MLOOPCOL);
-			dm->release(dm);
-
-			for (psys = ob->particlesystem.first; psys; psys = psys->next)
-				psys_get_modifier(ob, psys)->flag &= ~eParticleSystemFlag_psys_updated;
-		}
-	}
-
-	if (ob->dup_group == NULL) return;
-	group = ob->dup_group;
-
-	for (go = group->gobject.first; go; go = go->next)
-		dupli_render_particle_set(eval_ctx, scene, go->ob, level + 1, enable);
-}
-/* When no longer needed, duplilist should be freed with Object.free_duplilist */
-static void rna_Object_create_duplilist(Object *ob, bContext *C, ReportList *reports, Scene *sce, int settings)
-{
-	bool for_render = (settings == DAG_EVAL_RENDER);
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	eval_ctx.mode = settings;
-
-	if (!(ob->transflag & OB_DUPLI)) {
-		BKE_report(reports, RPT_ERROR, "Object does not have duplis");
-		return;
-	}
-
-	/* free duplilist if a user forgets to */
-	if (ob->duplilist) {
-		BKE_report(reports, RPT_WARNING, "Object.dupli_list has not been freed");
-
-		free_object_duplilist(ob->duplilist);
-		ob->duplilist = NULL;
-	}
-	if (for_render)
-		dupli_render_particle_set(&eval_ctx, sce, ob, 0, 1);
-	ob->duplilist = object_duplilist(&eval_ctx, sce, ob);
-	if (for_render)
-		dupli_render_particle_set(&eval_ctx, sce, ob, 0, 0);
-	/* ob->duplilist should now be freed with Object.free_duplilist */
-}
-
-static void rna_Object_free_duplilist(Object *ob)
-{
-	if (ob->duplilist) {
-		free_object_duplilist(ob->duplilist);
-		ob->duplilist = NULL;
-	}
+	return rna_Main_meshes_new_from_object(bmain, reports, depsgraph, ob, apply_modifiers, calc_tessface, calc_undeformed);
 }
 
 static PointerRNA rna_Object_shape_key_add(Object *ob, bContext *C, ReportList *reports,
@@ -393,7 +314,7 @@ static void rna_Object_ray_cast(
 		BVHTreeFromMesh treeData = {NULL};
 
 		/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
-		bvhtree_from_mesh_looptri(&treeData, ob->derivedFinal, 0.0f, 4, 6);
+		bvhtree_from_mesh_get(&treeData, ob->derivedFinal, BVHTREE_FROM_LOOPTRI, 4);
 
 		/* may fail if the mesh has no faces, in that case the ray-cast misses */
 		if (treeData.tree != NULL) {
@@ -442,7 +363,7 @@ static void rna_Object_closest_point_on_mesh(
 	}
 
 	/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
-	bvhtree_from_mesh_looptri(&treeData, ob->derivedFinal, 0.0f, 4, 6);
+	bvhtree_from_mesh_get(&treeData, ob->derivedFinal, BVHTREE_FROM_LOOPTRI, 4);
 
 	if (treeData.tree == NULL) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' could not create internal data for finding nearest point",
@@ -542,13 +463,6 @@ void RNA_api_object(StructRNA *srna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static const EnumPropertyItem dupli_eval_mode_items[] = {
-		{DAG_EVAL_VIEWPORT, "VIEWPORT", 0, "Viewport", "Generate duplis using viewport settings"},
-		{DAG_EVAL_PREVIEW, "PREVIEW", 0, "Preview", "Generate duplis using preview settings"},
-		{DAG_EVAL_RENDER, "RENDER", 0, "Render", "Generate duplis using render settings"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 #ifndef NDEBUG
 	static const EnumPropertyItem mesh_dm_info_items[] = {
 		{0, "SOURCE", 0, "Source", "Source mesh"},
@@ -607,6 +521,9 @@ void RNA_api_object(StructRNA *srna)
 	func = RNA_def_function(srna, "calc_matrix_camera", "rna_Object_calc_matrix_camera");
 	RNA_def_function_ui_description(func, "Generate the camera projection matrix of this object "
 	                                      "(mostly useful for Camera and Lamp types)");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "",
+	                       "Depsgraph to get evaluated data from");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_property(func, "result", PROP_FLOAT, PROP_MATRIX);
 	RNA_def_property_multi_array(parm, 2, rna_matrix_dimsize_4x4);
 	RNA_def_property_ui_text(parm, "", "The camera projection matrix");
@@ -619,7 +536,8 @@ void RNA_api_object(StructRNA *srna)
 	func = RNA_def_function(srna, "camera_fit_coords", "rna_Object_camera_fit_coords");
 	RNA_def_function_ui_description(func, "Compute the coordinate (and scale for ortho cameras) "
 	                                      "given object should be to 'see' all given coordinates");
-	parm = RNA_def_pointer(func, "scene", "Scene", "", "Scene to get render size information from, if available");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "",
+	                       "Depsgraph to get evaluated data from");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_float_array(func, "coordinates", 1, NULL, -FLT_MAX, FLT_MAX, "", "Coordinates to fit in",
 	                           -FLT_MAX, FLT_MAX);
@@ -636,32 +554,15 @@ void RNA_api_object(StructRNA *srna)
 	func = RNA_def_function(srna, "to_mesh", "rna_Object_to_mesh");
 	RNA_def_function_ui_description(func, "Create a Mesh data-block with modifiers applied");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS | FUNC_USE_CONTEXT);
-	parm = RNA_def_pointer(func, "scene", "Scene", "", "Scene within which to evaluate modifiers");
-	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
-	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "Scene layer within which to evaluate modifiers");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "Dependency Graph", "Evaluated dependency graph within wich to evaluate modifiers");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_boolean(func, "apply_modifiers", 0, "", "Apply modifiers");
-	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_enum(func, "settings", mesh_type_items, 0, "", "Modifier settings to apply");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	RNA_def_boolean(func, "calc_tessface", true, "Calculate Tessellation", "Calculate tessellation faces");
 	RNA_def_boolean(func, "calc_undeformed", false, "Calculate Undeformed", "Calculate undeformed vertex coordinates");
 	parm = RNA_def_pointer(func, "mesh", "Mesh", "",
 	                       "Mesh created from object, remove it if it is only used for export");
 	RNA_def_function_return(func, parm);
-
-	/* duplis */
-	func = RNA_def_function(srna, "dupli_list_create", "rna_Object_create_duplilist");
-	RNA_def_function_ui_description(func, "Create a list of dupli objects for this object, needs to "
-	                                "be freed manually with free_dupli_list to restore the "
-	                                "objects real matrix and layers");
-	parm = RNA_def_pointer(func, "scene", "Scene", "", "Scene within which to evaluate duplis");
-	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
-	RNA_def_enum(func, "settings", dupli_eval_mode_items, 0, "", "Generate texture coordinates for rendering");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS | FUNC_USE_CONTEXT);
-
-	func = RNA_def_function(srna, "dupli_list_clear", "rna_Object_free_duplilist");
-	RNA_def_function_ui_description(func, "Free the list of dupli objects");
 
 	/* Armature */
 	func = RNA_def_function(srna, "find_armature", "modifiers_isDeformedByArmature");

@@ -257,7 +257,6 @@ class USERPREF_PT_interface(Panel):
         col.prop(view, "use_mouse_depth_navigate")
         col.prop(view, "use_zoom_to_mouse")
         col.prop(view, "use_rotate_around_active")
-        col.prop(view, "use_global_pivot")
         col.prop(view, "use_camera_lock_parent")
 
         col.separator()
@@ -480,7 +479,6 @@ class USERPREF_PT_system(Panel):
         col = colsplit.column()
         col.label(text="General:")
 
-        col.prop(system, "frame_server_port")
         col.prop(system, "scrollback", text="Console Scrollback")
 
         col.separator()
@@ -520,7 +518,6 @@ class USERPREF_PT_system(Panel):
         col = colsplit.column()
         col.label(text="OpenGL:")
         col.prop(system, "gl_clip_alpha", slider=True)
-        col.prop(system, "use_mipmaps")
         col.prop(system, "use_gpu_mipmap")
         col.prop(system, "use_16bit_textures")
 
@@ -536,8 +533,6 @@ class USERPREF_PT_system(Panel):
 
         col.separator()
 
-        col.label(text="Window Draw Method:")
-        col.prop(system, "window_draw_method", text="")
         col.prop(system, "multi_sample", text="")
         if sys.platform == "linux" and system.multi_sample != 'NONE':
             col.label(text="Might fail for Mesh editing selection!")
@@ -727,6 +722,7 @@ class USERPREF_PT_theme(Panel):
         colsub.row().prop(widget_style, "item", slider=True)
         colsub.row().prop(widget_style, "inner", slider=True)
         colsub.row().prop(widget_style, "inner_sel", slider=True)
+        colsub.row().prop(widget_style, "roundness")
 
         subsplit = row.split(percentage=0.85)
 
@@ -806,6 +802,9 @@ class USERPREF_PT_theme(Panel):
             col.label(text="Tool:")
             self._theme_widget_style(col, ui.wcol_tool)
 
+            col.label(text="Toolbar Item:")
+            self._theme_widget_style(col, ui.wcol_toolbar_item)
+
             col.label(text="Radio Buttons:")
             self._theme_widget_style(col, ui.wcol_radio)
 
@@ -854,6 +853,9 @@ class USERPREF_PT_theme(Panel):
             col.label(text="List Item:")
             self._theme_widget_style(col, ui.wcol_list_item)
 
+            col.label(text="Tab:")
+            self._theme_widget_style(col, ui.wcol_tab)
+
             ui_state = theme.user_interface.wcol_state
             col.label(text="State:")
 
@@ -893,6 +895,9 @@ class USERPREF_PT_theme(Panel):
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui, "menu_shadow_fac")
+            colsub.row().prop(ui, "icon_alpha")
+            colsub.row().prop(ui, "icon_saturation")
+            colsub.row().prop(ui, "editor_outline")
 
             subsplit = row.split(percentage=0.85)
 
@@ -900,21 +905,6 @@ class USERPREF_PT_theme(Panel):
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui, "menu_shadow_width")
-
-            row = col.row()
-
-            subsplit = row.split(percentage=0.95)
-
-            padding = subsplit.split(percentage=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "icon_alpha")
-
-            subsplit = row.split(percentage=0.85)
-
-            padding = subsplit.split(percentage=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
             colsub.row().prop(ui, "widget_emboss")
 
             col.separator()

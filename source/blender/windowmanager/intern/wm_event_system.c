@@ -81,6 +81,8 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
+#include "WM_toolsystem.h"
+
 #include "wm.h"
 #include "wm_window.h"
 #include "wm_event_system.h"
@@ -339,7 +341,7 @@ void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
 
 			WorkSpace *workspace = WM_window_get_active_workspace(win);
 
-			BKE_workspace_update_tagged(bmain->eval_ctx, bmain, workspace, scene);
+			BKE_workspace_update_tagged(bmain, workspace, scene);
 		}
 	}
 
@@ -387,6 +389,13 @@ void wm_event_do_notifiers(bContext *C)
 						if (G.debug & G_DEBUG_EVENTS)
 							printf("%s: Workspace set %p\n", __func__, note->reference);
 					}
+					else if (note->data == ND_WORKSPACE_DELETE) {
+						WorkSpace *workspace = note->reference;
+
+						ED_workspace_delete(workspace, CTX_data_main(C), C, wm);   // XXX hrms, think this over!
+						if (G.debug & G_DEBUG_EVENTS)
+							printf("%s: Workspace delete %p\n", __func__, workspace);
+					}
 					else if (note->data == ND_LAYOUTBROWSE) {
 						bScreen *ref_screen = BKE_workspace_layout_screen_get(note->reference);
 
@@ -430,9 +439,8 @@ void wm_event_do_notifiers(bContext *C)
 			 * twice which can depgraph update the same object at once */
 			if (G.is_rendering == false) {
 				/* depsgraph gets called, might send more notifiers */
-				ViewLayer *view_layer = CTX_data_view_layer(C);
 				Depsgraph *depsgraph = CTX_data_depsgraph(C);
-				ED_update_for_newframe(CTX_data_main(C), scene, view_layer, depsgraph);
+				ED_update_for_newframe(CTX_data_main(C), depsgraph);
 			}
 		}
 	}
@@ -457,7 +465,6 @@ void wm_event_do_notifiers(bContext *C)
 				/* pass */
 			}
 			else {
-				ScrArea *sa;
 				ARegion *ar;
 
 				/* XXX context in notifiers? */
@@ -469,8 +476,8 @@ void wm_event_do_notifiers(bContext *C)
 				for (ar = screen->regionbase.first; ar; ar = ar->next) {
 					ED_region_do_listen(screen, NULL, ar, note, scene);
 				}
-				
-				for (sa = screen->areabase.first; sa; sa = sa->next) {
+
+				ED_screen_areas_iter(win, screen, sa) {
 					ED_area_do_listen(screen, sa, note, scene, workspace);
 					for (ar = sa->regionbase.first; ar; ar = ar->next) {
 						ED_region_do_listen(screen, sa, ar, note, scene);
@@ -608,6 +615,39 @@ int WM_operator_poll(bContext *C, wmOperatorType *ot)
 int WM_operator_poll_context(bContext *C, wmOperatorType *ot, short context)
 {
 	return wm_operator_call_internal(C, ot, NULL, NULL, context, true);
+}
+
+bool WM_operator_check_ui_empty(wmOperatorType *ot)
+{
+	if (ot->macro.first != NULL) {
+		/* for macros, check all have exec() we can call */
+		wmOperatorTypeMacro *otmacro;
+		for (otmacro = ot->macro.first; otmacro; otmacro = otmacro->next) {
+			wmOperatorType *otm = WM_operatortype_find(otmacro->idname, 0);
+			if (otm && !WM_operator_check_ui_empty(otm)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/* Assume a ui callback will draw something. */
+	if (ot->ui) {
+		return false;
+	}
+
+	PointerRNA ptr;
+	WM_operator_properties_create_ptr(&ptr, ot);
+	RNA_STRUCT_BEGIN (&ptr, prop)
+	{
+		int flag = RNA_property_flag(prop);
+		if (flag & PROP_HIDDEN) {
+			continue;
+		}
+		return false;
+	}
+	RNA_STRUCT_END;
+	return true;
 }
 
 /**
@@ -751,7 +791,7 @@ void WM_reportf(ReportType type, const char *format, ...)
 /* (caller_owns_reports == true) when called from python */
 static void wm_operator_reports(bContext *C, wmOperator *op, int retval, bool caller_owns_reports)
 {
-	if (caller_owns_reports == false) { /* popup */
+	if (G.background == 0 && caller_owns_reports == false) { /* popup */
 		if (op->reports->list.first) {
 			/* FIXME, temp setting window, see other call to UI_popup_menu_reports for why */
 			wmWindow *win_prev = CTX_wm_window(C);
@@ -940,7 +980,14 @@ int WM_operator_call_notest(bContext *C, wmOperator *op)
  */
 int WM_operator_repeat(bContext *C, wmOperator *op)
 {
-	return wm_operator_exec(C, op, true, true);
+	const OperatorRepeatContextHandle *context_info;
+	int retval;
+
+	context_info = ED_operator_repeat_prepare_context(C, op);
+	retval = wm_operator_exec(C, op, true, true);
+	ED_operator_repeat_reset_context(C, context_info);
+
+	return retval;
 }
 /**
  * \return true if #WM_operator_repeat can run
@@ -1086,48 +1133,60 @@ static void wm_region_mouse_co(bContext *C, wmEvent *event)
 }
 
 #if 1 /* may want to disable operator remembering previous state for testing */
-bool WM_operator_last_properties_init(wmOperator *op)
+
+static bool operator_last_properties_init_impl(wmOperator *op, IDProperty *last_properties)
 {
 	bool changed = false;
+	IDPropertyTemplate val = {0};
+	IDProperty *replaceprops = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
+	PropertyRNA *iterprop;
 
-	if (op->type->last_properties) {
-		IDPropertyTemplate val = {0};
-		IDProperty *replaceprops = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
-		PropertyRNA *iterprop;
+	CLOG_INFO(WM_LOG_OPERATORS, 1, "loading previous properties for '%s'", op->type->idname);
 
-		CLOG_INFO(WM_LOG_OPERATORS, 1, "loading previous properties for '%s'", op->type->idname);
+	iterprop = RNA_struct_iterator_property(op->type->srna);
 
-		iterprop = RNA_struct_iterator_property(op->type->srna);
+	RNA_PROP_BEGIN (op->ptr, itemptr, iterprop)
+	{
+		PropertyRNA *prop = itemptr.data;
+		if ((RNA_property_flag(prop) & PROP_SKIP_SAVE) == 0) {
+			if (!RNA_property_is_set(op->ptr, prop)) { /* don't override a setting already set */
+				const char *identifier = RNA_property_identifier(prop);
+				IDProperty *idp_src = IDP_GetPropertyFromGroup(last_properties, identifier);
+				if (idp_src) {
+					IDProperty *idp_dst = IDP_CopyProperty(idp_src);
 
-		RNA_PROP_BEGIN (op->ptr, itemptr, iterprop)
-		{
-			PropertyRNA *prop = itemptr.data;
-			if ((RNA_property_flag(prop) & PROP_SKIP_SAVE) == 0) {
-				if (!RNA_property_is_set(op->ptr, prop)) { /* don't override a setting already set */
-					const char *identifier = RNA_property_identifier(prop);
-					IDProperty *idp_src = IDP_GetPropertyFromGroup(op->type->last_properties, identifier);
-					if (idp_src) {
-						IDProperty *idp_dst = IDP_CopyProperty(idp_src);
+					/* note - in the future this may need to be done recursively,
+					 * but for now RNA doesn't access nested operators */
+					idp_dst->flag |= IDP_FLAG_GHOST;
 
-						/* note - in the future this may need to be done recursively,
-						 * but for now RNA doesn't access nested operators */
-						idp_dst->flag |= IDP_FLAG_GHOST;
-
-						/* add to temporary group instead of immediate replace,
-						 * because we are iterating over this group */
-						IDP_AddToGroup(replaceprops, idp_dst);
-						changed = true;
-					}
+					/* add to temporary group instead of immediate replace,
+					 * because we are iterating over this group */
+					IDP_AddToGroup(replaceprops, idp_dst);
+					changed = true;
 				}
 			}
 		}
-		RNA_PROP_END;
-
-		IDP_MergeGroup(op->properties, replaceprops, true);
-		IDP_FreeProperty(replaceprops);
-		MEM_freeN(replaceprops);
 	}
+	RNA_PROP_END;
 
+	IDP_MergeGroup(op->properties, replaceprops, true);
+	IDP_FreeProperty(replaceprops);
+	MEM_freeN(replaceprops);
+	return changed;
+}
+
+bool WM_operator_last_properties_init(wmOperator *op)
+{
+	bool changed = false;
+	if (op->type->last_properties) {
+		changed |= operator_last_properties_init_impl(op, op->type->last_properties);
+		for (wmOperator *opm = op->macro.first; opm; opm = opm->next) {
+			IDProperty *idp_src = IDP_GetPropertyFromGroup(op->type->last_properties, opm->idname);
+			if (idp_src) {
+				changed |= operator_last_properties_init_impl(opm, idp_src);
+			}
+		}
+	}
 	return changed;
 }
 
@@ -1142,11 +1201,22 @@ bool WM_operator_last_properties_store(wmOperator *op)
 	if (op->properties) {
 		CLOG_INFO(WM_LOG_OPERATORS, 1, "storing properties for '%s'", op->type->idname);
 		op->type->last_properties = IDP_CopyProperty(op->properties);
-		return true;
 	}
-	else {
-		return false;
+
+	if (op->macro.first != NULL) {
+		for (wmOperator *opm = op->macro.first; opm; opm = opm->next) {
+			if (opm->properties) {
+				if (op->type->last_properties == NULL) {
+					op->type->last_properties = IDP_New(IDP_GROUP, &(IDPropertyTemplate){0}, "wmOperatorProperties");
+				}
+				IDProperty *idp_macro = IDP_CopyProperty(opm->properties);
+				STRNCPY(idp_macro->name, opm->idname);
+				IDP_ReplaceInGroup(op->type->last_properties, idp_macro);
+			}
+		}
 	}
+
+	return (op->type->last_properties != NULL);
 }
 
 #else
@@ -1168,7 +1238,8 @@ bool WM_operator_last_properties_store(wmOperator *UNUSED(op))
  */
 static int wm_operator_invoke(
         bContext *C, wmOperatorType *ot, wmEvent *event,
-        PointerRNA *properties, ReportList *reports, const bool poll_only)
+        PointerRNA *properties, ReportList *reports,
+        const bool poll_only, bool use_last_properties)
 {
 	int retval = OPERATOR_PASS_THROUGH;
 
@@ -1186,7 +1257,7 @@ static int wm_operator_invoke(
 		}
 
 		/* initialize setting from previous run */
-		if (!is_nested_call) { /* not called by py script */
+		if (!is_nested_call && use_last_properties) { /* not called by py script */
 			WM_operator_last_properties_init(op);
 		}
 
@@ -1234,7 +1305,7 @@ static int wm_operator_invoke(
 			/* do nothing, wm_operator_exec() has been called somewhere */
 		}
 		else if (retval & OPERATOR_FINISHED) {
-			const bool store = !is_nested_call;
+			const bool store = !is_nested_call && use_last_properties;
 			wm_operator_finished(C, op, false, store);
 		}
 		else if (retval & OPERATOR_RUNNING_MODAL) {
@@ -1397,7 +1468,7 @@ static int wm_operator_call_internal(
 						CTX_wm_region_set(C, ar1);
 				}
 				
-				retval = wm_operator_invoke(C, ot, event, properties, reports, poll_only);
+				retval = wm_operator_invoke(C, ot, event, properties, reports, poll_only, true);
 				
 				/* set region back */
 				CTX_wm_region_set(C, ar);
@@ -1411,7 +1482,7 @@ static int wm_operator_call_internal(
 				ARegion *ar = CTX_wm_region(C);
 
 				CTX_wm_region_set(C, NULL);
-				retval = wm_operator_invoke(C, ot, event, properties, reports, poll_only);
+				retval = wm_operator_invoke(C, ot, event, properties, reports, poll_only, true);
 				CTX_wm_region_set(C, ar);
 
 				return retval;
@@ -1425,7 +1496,7 @@ static int wm_operator_call_internal(
 
 				CTX_wm_region_set(C, NULL);
 				CTX_wm_area_set(C, NULL);
-				retval = wm_operator_invoke(C, ot, event, properties, reports, poll_only);
+				retval = wm_operator_invoke(C, ot, event, properties, reports, poll_only, true);
 				CTX_wm_area_set(C, area);
 				CTX_wm_region_set(C, ar);
 
@@ -1433,7 +1504,7 @@ static int wm_operator_call_internal(
 			}
 			case WM_OP_EXEC_DEFAULT:
 			case WM_OP_INVOKE_DEFAULT:
-				return wm_operator_invoke(C, ot, event, properties, reports, poll_only);
+				return wm_operator_invoke(C, ot, event, properties, reports, poll_only, true);
 		}
 	}
 	
@@ -1530,17 +1601,22 @@ void wm_event_free_handler(wmEventHandler *handler)
 /* only set context when area/region is part of screen */
 static void wm_handler_op_context(bContext *C, wmEventHandler *handler, const wmEvent *event)
 {
+	wmWindow *win = CTX_wm_window(C);
 	bScreen *screen = CTX_wm_screen(C);
 	
 	if (screen && handler->op) {
 		if (handler->op_area == NULL)
 			CTX_wm_area_set(C, NULL);
 		else {
-			ScrArea *sa;
-			
-			for (sa = screen->areabase.first; sa; sa = sa->next)
-				if (sa == handler->op_area)
+			ScrArea *sa = NULL;
+
+			ED_screen_areas_iter(win, screen, sa_iter) {
+				if (sa_iter == handler->op_area) {
+					sa = sa_iter;
 					break;
+				}
+			}
+
 			if (sa == NULL) {
 				/* when changing screen layouts with running modal handlers (like render display), this
 				 * is not an error to print */
@@ -1900,9 +1976,21 @@ static int wm_handler_operator_call(bContext *C, ListBase *handlers, wmEventHand
 	else {
 		wmOperatorType *ot = WM_operatortype_find(event->keymap_idname, 0);
 
-		if (ot) {
-			if (wm_operator_check_locked_interface(C, ot)) {
-				retval = wm_operator_invoke(C, ot, event, properties, NULL, false);
+		if (ot && wm_operator_check_locked_interface(C, ot)) {
+			bool use_last_properties = true;
+			PointerRNA tool_properties = {{0}};
+			bool use_tool_properties = (handler->keymap_tool != NULL);
+			
+			if (use_tool_properties) {
+				WM_toolsystem_ref_properties_init_for_keymap(handler->keymap_tool, &tool_properties, properties, ot);
+				properties = &tool_properties;
+				use_last_properties = false;
+			}
+
+			retval = wm_operator_invoke(C, ot, event, properties, NULL, false, use_last_properties);
+
+			if (use_tool_properties) {
+				WM_operator_properties_free(&tool_properties);
 			}
 		}
 	}
@@ -1930,13 +2018,14 @@ static int wm_handler_fileselect_do(bContext *C, ListBase *handlers, wmEventHand
 	int action = WM_HANDLER_CONTINUE;
 
 	switch (val) {
-		case EVT_FILESELECT_FULL_OPEN: 
+		case EVT_FILESELECT_FULL_OPEN:
 		{
 			ScrArea *sa;
-				
-			/* sa can be null when window A is active, but mouse is over window B */
-			/* in this case, open file select in original window A */
-			if (handler->op_area == NULL) {
+
+			/* sa can be null when window A is active, but mouse is over window B
+			 * in this case, open file select in original window A. Also don't
+			 * use global areas. */
+			if (handler->op_area == NULL || ED_area_is_global(handler->op_area)) {
 				bScreen *screen = CTX_wm_screen(C);
 				sa = (ScrArea *)screen->areabase.first;
 			}
@@ -2176,6 +2265,7 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 
 					for (kmi = keymap->items.first; kmi; kmi = kmi->next) {
 						if (wm_eventmatch(event, kmi)) {
+							struct wmEventHandler_KeymapFn keymap_callback = handler->keymap_callback;
 
 							PRINT("%s:     item matched '%s'\n", __func__, kmi->idname);
 
@@ -2183,9 +2273,13 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 							event->keymap_idname = kmi->idname;
 
 							action |= wm_handler_operator_call(C, handlers, handler, event, kmi->ptr);
+							
 							if (action & WM_HANDLER_BREAK) {
 								/* not always_pass here, it denotes removed handler */
 								CLOG_INFO(WM_LOG_HANDLERS, 2, "handled! '%s'", kmi->idname);
+								if (keymap_callback.handle_post_fn != NULL) {
+									keymap_callback.handle_post_fn(keymap, kmi, keymap_callback.user_data);
+								}
 								break;
 							}
 							else {
@@ -2312,15 +2406,16 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 							continue;
 						}
 
-						const wmKeyMap *keymap = WM_keymap_active(wm, mgroup->type->keymap);
+						wmKeyMap *keymap = WM_keymap_active(wm, mgroup->type->keymap);
 						wmKeyMapItem *kmi;
 
 						PRINT("%s:   checking '%s' ...", __func__, keymap->idname);
 
-						if (!keymap->poll || keymap->poll(C)) {
+						if (WM_keymap_poll(C, keymap)) {
 							PRINT("pass\n");
 							for (kmi = keymap->items.first; kmi; kmi = kmi->next) {
 								if (wm_eventmatch(event, kmi)) {
+									struct wmEventHandler_KeymapFn keymap_callback = handler->keymap_callback;
 									wmOperator *op = handler->op;
 
 									PRINT("%s:     item matched '%s'\n", __func__, kmi->idname);
@@ -2338,6 +2433,10 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 									CTX_wm_manipulator_group_set(C, NULL);
 
 									if (action & WM_HANDLER_BREAK) {
+										if (keymap_callback.handle_post_fn != NULL) {
+											keymap_callback.handle_post_fn(keymap, kmi, keymap_callback.user_data);
+										}
+
 										if (G.debug & (G_DEBUG_EVENTS | G_DEBUG_HANDLERS)) {
 											printf("%s:       handled - and pass on! '%s'\n",
 											       __func__, kmi->idname);
@@ -2495,13 +2594,15 @@ static int wm_event_inside_i(wmEvent *event, rcti *rect)
 
 static ScrArea *area_event_inside(bContext *C, const int xy[2])
 {
+	wmWindow *win = CTX_wm_window(C);
 	bScreen *screen = CTX_wm_screen(C);
-	ScrArea *sa;
 	
-	if (screen)
-		for (sa = screen->areabase.first; sa; sa = sa->next)
+	if (screen) {
+		ED_screen_areas_iter(win, screen, sa) {
 			if (BLI_rcti_isect_pt_v(&sa->totrct, xy))
 				return sa;
+		}
+	}
 	return NULL;
 }
 
@@ -2592,12 +2693,6 @@ static void wm_event_drag_test(wmWindowManager *wm, wmWindow *win, wmEvent *even
 		/* restore cursor (disabled, see wm_dragdrop.c) */
 		// WM_cursor_modal_restore(win);
 	}
-	
-	/* overlap fails otherwise */
-	if (screen->do_draw_drag)
-		if (win->drawmethod == USER_DRAW_OVERLAP)
-			screen->do_draw = true;
-	
 }
 
 /* filter out all events of the pie that spawned the last pie unless it's a release event */
@@ -2664,9 +2759,8 @@ void wm_event_do_handlers(bContext *C)
 							int ncfra = time * (float)FPS + 0.5f;
 							if (ncfra != scene->r.cfra) {
 								scene->r.cfra = ncfra;
-								ViewLayer *view_layer = CTX_data_view_layer(C);
 								Depsgraph *depsgraph = CTX_data_depsgraph(C);
-								ED_update_for_newframe(CTX_data_main(C), scene, view_layer, depsgraph);
+								ED_update_for_newframe(CTX_data_main(C), depsgraph);
 								WM_event_add_notifier(C, NC_WINDOW, NULL);
 							}
 						}
@@ -2742,13 +2836,12 @@ void wm_event_do_handlers(bContext *C)
 			wm_tweakevent_test(C, event, action);
 
 			if ((action & WM_HANDLER_BREAK) == 0) {
-				ScrArea *sa;
 				ARegion *ar;
 	
 				/* Note: setting subwin active should be done here, after modal handlers have been done */
 				if (event->type == MOUSEMOVE) {
 					/* state variables in screen, cursors. Also used in wm_draw.c, fails for modal handlers though */
-					ED_screen_set_active_region(C, event);
+					ED_screen_set_active_region(C, win, &event->x);
 					/* for regions having custom cursors */
 					wm_paintcursor_test(C, event);
 				}
@@ -2758,7 +2851,7 @@ void wm_event_do_handlers(bContext *C)
 				}
 #endif
 
-				for (sa = screen->areabase.first; sa; sa = sa->next) {
+				ED_screen_areas_iter(win, screen, sa) {
 					/* after restoring a screen from SCREENMAXIMIZED we have to wait
 					 * with the screen handling till the region coordinates are updated */
 					if (screen->skip_handling == true) {
@@ -2804,14 +2897,14 @@ void wm_event_do_handlers(bContext *C)
 									 */
 									wmEventHandler sneaky_handler = {NULL};
 									if (ar->regiontype == RGN_TYPE_WINDOW) {
-										WorkSpace *workspace = WM_window_get_active_workspace(win);
-										if (workspace->tool.keymap[0] &&
-										    workspace->tool.spacetype == sa->spacetype)
-										{
+										bToolRef_Runtime *tref_rt = sa->runtime.tool ? sa->runtime.tool->runtime : NULL;
+										if (tref_rt && tref_rt->keymap[0]) {
 											wmKeyMap *km = WM_keymap_find_all(
-											        C, workspace->tool.keymap, sa->spacetype, RGN_TYPE_WINDOW);
+											        C, tref_rt->keymap, sa->spacetype, RGN_TYPE_WINDOW);
 											if (km != NULL) {
 												sneaky_handler.keymap = km;
+												sneaky_handler.keymap_tool = sa->runtime.tool;
+
 												/* Handle widgets first. */
 												wmEventHandler *handler_last = ar->handlers.last;
 												while (handler_last && handler_last->manipulator_map == NULL) {
@@ -2938,24 +3031,26 @@ void WM_event_add_fileselect(bContext *C, wmOperator *op)
 		
 		if (handler->type == WM_HANDLER_FILESELECT) {
 			bScreen *screen = CTX_wm_screen(C);
-			ScrArea *sa;
+			bool cancel_handler = true;
 
 			/* find the area with the file selector for this handler */
-			for (sa = screen->areabase.first; sa; sa = sa->next) {
+			ED_screen_areas_iter(win, screen, sa) {
 				if (sa->spacetype == SPACE_FILE) {
 					SpaceFile *sfile = sa->spacedata.first;
 
 					if (sfile->op == handler->op) {
 						CTX_wm_area_set(C, sa);
 						wm_handler_fileselect_do(C, &win->modalhandlers, handler, EVT_FILESELECT_CANCEL);
+						cancel_handler = false;
 						break;
 					}
 				}
 			}
 
 			/* if not found we stop the handler without changing the screen */
-			if (!sa)
+			if (cancel_handler) {
 				wm_handler_fileselect_do(C, &win->modalhandlers, handler, EVT_FILESELECT_EXTERNAL_CANCEL);
+			}
 		}
 	}
 	
@@ -3094,6 +3189,15 @@ void WM_event_remove_keymap_handler(ListBase *handlers, wmKeyMap *keymap)
 			break;
 		}
 	}
+}
+
+void WM_event_set_keymap_handler_callback(
+        wmEventHandler *handler,
+        void (keymap_tag)(wmKeyMap *keymap, wmKeyMapItem *kmi, void *user_data),
+        void *user_data)
+{
+	handler->keymap_callback.handle_post_fn = keymap_tag;
+	handler->keymap_callback.user_data = user_data;
 }
 
 wmEventHandler *WM_event_add_ui_handler(

@@ -508,6 +508,14 @@ wmKeyMapItem *WM_keymap_add_menu_pie(wmKeyMap *keymap, const char *idname, int t
 	return kmi;
 }
 
+/* tool wrapper for WM_keymap_add_item */
+wmKeyMapItem *WM_keymap_add_tool(wmKeyMap *keymap, const char *idname, int type, int val, int modifier, int keymodifier)
+{
+	wmKeyMapItem *kmi = WM_keymap_add_item(keymap, "WM_OT_tool_set_by_name", type, val, modifier, keymodifier);
+	RNA_string_set(kmi->ptr, "name", idname);
+	return kmi;
+}
+
 bool WM_keymap_remove_item(wmKeyMap *keymap, wmKeyMapItem *kmi)
 {
 	if (BLI_findindex(&keymap->items, kmi) != -1) {
@@ -1134,9 +1142,9 @@ static wmKeyMapItem *wm_keymap_item_find_handlers(
 						if (kmi->ptr) {
 							if (STREQ("MESH_OT_rip_move", opname)) {
 								printf("OPERATOR\n");
-								IDP_spit(properties);
+								IDP_print(properties);
 								printf("KEYMAP\n");
-								IDP_spit(kmi->ptr->data);
+								IDP_print(kmi->ptr->data);
 							}
 						}
 #endif
@@ -1167,9 +1175,9 @@ static wmKeyMapItem *wm_keymap_item_find_handlers(
 #ifndef NDEBUG
 #ifdef WITH_PYTHON
 										printf("OPERATOR\n");
-										IDP_spit(properties);
+										IDP_print(properties);
 										printf("KEYMAP\n");
-										IDP_spit(kmi->ptr->data);
+										IDP_print(kmi->ptr->data);
 #endif
 #endif
 										printf("\n");
@@ -1206,8 +1214,14 @@ static wmKeyMapItem *wm_keymap_item_find_props(
 	wmKeyMapItem *found = NULL;
 
 	/* look into multiple handler lists to find the item */
-	if (win)
-		found = wm_keymap_item_find_handlers(C, &win->handlers, opname, opcontext, properties, is_strict, is_hotkey, r_keymap);
+	if (win) {
+		found = wm_keymap_item_find_handlers(
+		        C, &win->modalhandlers, opname, opcontext, properties, is_strict, is_hotkey, r_keymap);
+		if (found == NULL) {
+			found = wm_keymap_item_find_handlers(
+			        C, &win->handlers, opname, opcontext, properties, is_strict, is_hotkey, r_keymap);
+		}
+	}
 
 	if (sa && found == NULL)
 		found = wm_keymap_item_find_handlers(C, &sa->handlers, opname, opcontext, properties, is_strict, is_hotkey, r_keymap);
@@ -1316,9 +1330,9 @@ static wmKeyMapItem *wm_keymap_item_find(
 #ifndef NDEBUG
 #ifdef WITH_PYTHON
 					printf("OPERATOR\n");
-					IDP_spit(properties);
+					IDP_print(properties);
 					printf("KEYMAP\n");
-					IDP_spit(kmi->ptr->data);
+					IDP_print(kmi->ptr->data);
 #endif
 #endif
 					printf("\n");
@@ -1816,10 +1830,6 @@ wmKeyMap *WM_keymap_guess_opname(const bContext *C, const char *opname)
 				km = WM_keymap_find_all(C, "Image Paint", 0, 0);
 				break;
 		}
-	}
-	/* Timeline */
-	else if (STRPREFIX(opname, "TIME_OT")) {
-		km = WM_keymap_find_all(C, "Timeline", sl->spacetype, 0);
 	}
 	/* Image Editor */
 	else if (STRPREFIX(opname, "IMAGE_OT")) {

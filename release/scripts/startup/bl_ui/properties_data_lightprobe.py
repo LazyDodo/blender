@@ -104,14 +104,21 @@ class DATA_PT_lightprobe(DataButtonsPanel, Panel):
         if probe.type == 'GRID':
             col.separator()
 
-            col.label("Visibily:")
+            col.label("Visibility:")
             col.prop(probe, "visibility_buffer_bias", "Bias")
             col.prop(probe, "visibility_bleed_bias", "Bleed Bias")
             col.prop(probe, "visibility_blur", "Blur")
 
+        col.separator()
+
+        col.label("Visibility Collection:")
+        row = col.row(align=True)
+        row.prop(probe, "visibility_collection", text="")
+        row.prop(probe, "invert_visibility_collection", text="", icon='ARROW_LEFTRIGHT')
+
 
 class DATA_PT_lightprobe_parallax(DataButtonsPanel, Panel):
-    bl_label = "Parallax"
+    bl_label = "Custom Parallax"
     COMPAT_ENGINES = {'BLENDER_CLAY', 'BLENDER_EEVEE'}
 
     @classmethod
@@ -119,13 +126,14 @@ class DATA_PT_lightprobe_parallax(DataButtonsPanel, Panel):
         engine = context.engine
         return context.lightprobe and context.lightprobe.type == 'CUBEMAP' and (engine in cls.COMPAT_ENGINES)
 
+    def draw_header(self, context):
+        probe = context.lightprobe
+        self.layout.prop(probe, "use_custom_parallax", text="")
+
     def draw(self, context):
         layout = self.layout
 
-        ob = context.object
         probe = context.lightprobe
-
-        layout.prop(probe, "use_custom_parallax")
 
         col = layout.column()
         col.active = probe.use_custom_parallax

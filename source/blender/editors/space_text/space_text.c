@@ -62,7 +62,7 @@
 
 /* ******************** default callbacks for text space ***************** */
 
-static SpaceLink *text_new(const bContext *UNUSED(C))
+static SpaceLink *text_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceText *stext;
@@ -79,7 +79,7 @@ static SpaceLink *text_new(const bContext *UNUSED(C))
 	
 	BLI_addtail(&stext->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_BOTTOM;
+	ar->alignment = RGN_ALIGN_TOP;
 
 	/* properties region */
 	ar = MEM_callocN(sizeof(ARegion), "properties region for text");

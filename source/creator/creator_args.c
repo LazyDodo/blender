@@ -45,6 +45,7 @@
 #include "BLI_path_util.h"
 #include "BLI_fileops.h"
 #include "BLI_mempool.h"
+#include "BLI_system.h"
 
 #include "BLO_readfile.h"  /* only for BLO_has_bfile_extension */
 
@@ -75,13 +76,6 @@
 #include "WM_api.h"
 
 #include "GPU_draw.h"
-
-/* for passing information between creator and gameengine */
-#ifdef WITH_GAMEENGINE
-#  include "BL_System.h"
-#else /* dummy */
-#  define SYS_SystemHandle int
-#endif
 
 #ifdef WITH_LIBMV
 #  include "libmv-capi.h"
@@ -511,11 +505,6 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--start-console");
 	BLI_argsPrintArgDoc(ba, "--no-native-pixels");
 
-
-	printf("\n");
-	printf("Game Engine Specific Options:\n");
-	BLI_argsPrintArgDoc(ba, "-g");
-
 	printf("\n");
 	printf("Python Options:\n");
 	BLI_argsPrintArgDoc(ba, "--enable-autoexec");
@@ -535,6 +524,7 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--log");
 	BLI_argsPrintArgDoc(ba, "--log-level");
 	BLI_argsPrintArgDoc(ba, "--log-show-basename");
+	BLI_argsPrintArgDoc(ba, "--log-show-backtrace");
 	BLI_argsPrintArgDoc(ba, "--log-file");
 
 	printf("\n");
@@ -581,7 +571,6 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--env-system-scripts");
 	BLI_argsPrintArgDoc(ba, "--env-system-python");
 	printf("\n");
-	BLI_argsPrintArgDoc(ba, "-nojoystick");
 	BLI_argsPrintArgDoc(ba, "-noaudio");
 	BLI_argsPrintArgDoc(ba, "-setaudio");
 
@@ -599,7 +588,7 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 
 	printf("\n");
 	printf("Experimental Features:\n");
-	BLI_argsPrintArgDoc(ba, "--enable-copy-on-write");
+	BLI_argsPrintArgDoc(ba, "--disable-copy-on-write");
 
 	/* Other options _must_ be last (anything not handled will show here) */
 	printf("\n");
@@ -723,8 +712,11 @@ static int arg_handle_log_level_set(int argc, const char **argv, void *UNUSED(da
 		if (!parse_int_clamp(argv[1], NULL, -1, INT_MAX, &G.log.level, &err_msg)) {
 			printf("\nError: %s '%s %s'.\n", err_msg, arg_id, argv[1]);
 		}
-		if (G.log.level == -1) {
-			G.log.level = INT_MAX;
+		else {
+			if (G.log.level == -1) {
+				G.log.level = INT_MAX;
+			}
+			CLG_level_set(G.log.level);
 		}
 		return 1;
 	}
@@ -740,6 +732,17 @@ static const char arg_handle_log_show_basename_set_doc[] =
 static int arg_handle_log_show_basename_set(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
 {
 	CLG_output_use_basename_set(true);
+	return 0;
+}
+
+static const char arg_handle_log_show_backtrace_set_doc[] =
+"\n\tShow a back trace for each log message (debug builds only)."
+;
+static int arg_handle_log_show_backtrace_set(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
+{
+	/* Ensure types don't become incompatible. */
+	void (*fn)(FILE *fp) = BLI_system_backtrace;
+	CLG_backtrace_fn_set((void (*)(void *))fn);
 	return 0;
 }
 
@@ -856,7 +859,7 @@ static const char arg_handle_debug_mode_generic_set_doc_events[] =
 static const char arg_handle_debug_mode_generic_set_doc_handlers[] =
 "\n\tEnable debug messages for event handling.";
 static const char arg_handle_debug_mode_generic_set_doc_wm[] =
-"\n\tEnable debug messages for the window manager, also prints every operator call.";
+"\n\tEnable debug messages for the window manager, shows all operators in search, shows keymap errors.";
 static const char arg_handle_debug_mode_generic_set_doc_jobs[] =
 "\n\tEnable time profiling for background jobs.";
 static const char arg_handle_debug_mode_generic_set_doc_gpu[] =
@@ -1125,27 +1128,6 @@ static int arg_handle_register_extension(int UNUSED(argc), const char **UNUSED(a
 	return 0;
 }
 
-static const char arg_handle_joystick_disable_doc[] =
-"\n\tDisable joystick support."
-;
-static int arg_handle_joystick_disable(int UNUSED(argc), const char **UNUSED(argv), void *data)
-{
-#ifndef WITH_GAMEENGINE
-	(void)data;
-#else
-	SYS_SystemHandle *syshandle = data;
-
-	/**
-	 * don't initialize joysticks if user doesn't want to use joysticks
-	 * failed joystick initialization delays over 5 seconds, before game engine start
-	 */
-	SYS_WriteCommandLineInt(*syshandle, "nojoystick", 1);
-	if (G.debug & G_DEBUG) printf("disabling nojoystick\n");
-#endif
-
-	return 0;
-}
-
 static const char arg_handle_audio_disable_doc[] =
 "\n\tForce sound system to None."
 ;
@@ -1224,7 +1206,7 @@ static int arg_handle_engine_set(int argc, const char **argv, void *data)
 			Scene *scene = CTX_data_scene(C);
 			if (scene) {
 				if (BLI_findstring(&R_engines, argv[1], offsetof(RenderEngineType, idname))) {
-					BLI_strncpy_utf8(scene->view_render.engine_id, argv[1], sizeof(scene->view_render.engine_id));
+					BLI_strncpy_utf8(scene->r.engine, argv[1], sizeof(scene->r.engine));
 				}
 				else {
 					printf("\nError: engine not found '%s'\n", argv[1]);
@@ -1251,7 +1233,7 @@ static const char arg_handle_image_type_set_doc[] =
 "\tValid options are 'TGA' 'RAWTGA' 'JPEG' 'IRIS' 'IRIZ' 'AVIRAW' 'AVIJPEG' 'PNG' 'BMP'\n"
 "\n"
 "\tFormats that can be compiled into Blender, not available on all systems: 'HDR' 'TIFF' 'EXR' 'MULTILAYER'\n"
-"\t'MPEG' 'FRAMESERVER' 'CINEON' 'DPX' 'DDS' 'JP2'"
+"\t'MPEG' 'CINEON' 'DPX' 'DDS' 'JP2'"
 ;
 static int arg_handle_image_type_set(int argc, const char **argv, void *data)
 {
@@ -1312,8 +1294,8 @@ static const char arg_handle_use_copy_on_write_doc[] =
 ;
 static int arg_handle_use_copy_on_write(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
 {
-	printf("Using copy on write. This is highly EXPERIMENTAL!\n");
-	DEG_depsgraph_enable_copy_on_write();
+	printf("Disabling copy on write. Only use for testing whether something else is at fault\n");
+	DEG_depsgraph_disable_copy_on_write();
 	return 0;
 }
 
@@ -1377,76 +1359,6 @@ static int arg_handle_extension_set(int argc, const char **argv, void *data)
 		printf("\nError: you must specify a path after '- '.\n");
 		return 0;
 	}
-}
-
-static const char arg_handle_ge_parameters_set_doc[] =
-"Game Engine specific options\n"
-"\n"
-"\t'fixedtime'\n"
-"\t\tRun on 50 hertz without dropping frames.\n"
-"\t'vertexarrays'\n"
-"\t\tUse Vertex Arrays for rendering (usually faster).\n"
-"\t'nomipmap'\n"
-"\t\tNo Texture Mipmapping.\n"
-"\t'linearmipmap'\n"
-"\t\tLinear Texture Mipmapping instead of Nearest (default)."
-;
-static int arg_handle_ge_parameters_set(int argc, const char **argv, void *data)
-{
-	int a = 0;
-#ifdef WITH_GAMEENGINE
-	SYS_SystemHandle syshandle = *(SYS_SystemHandle *)data;
-#else
-	(void)data;
-#endif
-
-	/**
-	 * gameengine parameters are automatically put into system
-	 * -g [paramname = value]
-	 * -g [boolparamname]
-	 * example:
-	 * -g novertexarrays
-	 * -g maxvertexarraysize = 512
-	 */
-
-	if (argc >= 1) {
-		const char *paramname = argv[a];
-		/* check for single value versus assignment */
-		if (a + 1 < argc && (*(argv[a + 1]) == '=')) {
-			a++;
-			if (a + 1 < argc) {
-				a++;
-				/* assignment */
-#ifdef WITH_GAMEENGINE
-				SYS_WriteCommandLineString(syshandle, paramname, argv[a]);
-#endif
-			}
-			else {
-				printf("Error: argument assignment (%s) without value.\n", paramname);
-				return 0;
-			}
-			/* name arg eaten */
-
-		}
-		else {
-#ifdef WITH_GAMEENGINE
-			SYS_WriteCommandLineInt(syshandle, argv[a], 1);
-#endif
-			/* doMipMap */
-			if (STREQ(argv[a], "nomipmap")) {
-				GPU_set_mipmap(0); //doMipMap = 0;
-			}
-			/* linearMipMap */
-			if (STREQ(argv[a], "linearmipmap")) {
-				GPU_set_mipmap(1);
-				GPU_set_linear_mipmap(1); //linearMipMap = 1;
-			}
-
-
-		} /* if (*(argv[a + 1]) == '=') */
-	}
-
-	return a;
 }
 
 static const char arg_handle_render_frame_doc[] =
@@ -1890,7 +1802,7 @@ static int arg_handle_load_file(int UNUSED(argc), const char **argv, void *data)
 }
 
 
-void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
+void main_args_setup(bContext *C, bArgs *ba)
 {
 
 #define CB(a) a##_doc, a
@@ -1921,6 +1833,7 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	BLI_argsAdd(ba, 1, NULL, "--log", CB(arg_handle_log_set), ba);
 	BLI_argsAdd(ba, 1, NULL, "--log-level", CB(arg_handle_log_level_set), ba);
 	BLI_argsAdd(ba, 1, NULL, "--log-show-basename", CB(arg_handle_log_show_basename_set), ba);
+	BLI_argsAdd(ba, 1, NULL, "--log-show-backtrace", CB(arg_handle_log_show_backtrace_set), ba);
 	BLI_argsAdd(ba, 1, NULL, "--log-file", CB(arg_handle_log_file_set), ba);
 
 	BLI_argsAdd(ba, 1, "-d", "--debug", CB(arg_handle_debug_mode_set), ba);
@@ -1983,7 +1896,7 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	BLI_argsAdd(ba, 1, NULL, "--debug-gpu-shaders",
 	            CB_EX(arg_handle_debug_mode_generic_set, gpumem), (void *)G_DEBUG_GPU_SHADERS);
 
-	BLI_argsAdd(ba, 1, NULL, "--enable-copy-on-write", CB(arg_handle_use_copy_on_write), NULL);
+	BLI_argsAdd(ba, 1, NULL, "--disable-copy-on-write", CB(arg_handle_use_copy_on_write), NULL);
 
 	BLI_argsAdd(ba, 1, NULL, "--verbose", CB(arg_handle_verbosity_set), NULL);
 
@@ -2004,12 +1917,10 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	BLI_argsAdd(ba, 2, NULL, "--no-native-pixels", CB(arg_handle_native_pixels_set), ba);
 
 	/* third pass: disabling things and forcing settings */
-	BLI_argsAddCase(ba, 3, "-nojoystick", 1, NULL, 0, CB(arg_handle_joystick_disable), syshandle);
 	BLI_argsAddCase(ba, 3, "-noaudio", 1, NULL, 0, CB(arg_handle_audio_disable), NULL);
 	BLI_argsAddCase(ba, 3, "-setaudio", 1, NULL, 0, CB(arg_handle_audio_set), NULL);
 
 	/* fourth pass: processing arguments */
-	BLI_argsAdd(ba, 4, "-g", NULL, CB(arg_handle_ge_parameters_set), syshandle);
 	BLI_argsAdd(ba, 4, "-f", "--render-frame", CB(arg_handle_render_frame), C);
 	BLI_argsAdd(ba, 4, "-a", "--render-anim", CB(arg_handle_render_animation), C);
 	BLI_argsAdd(ba, 4, "-S", "--scene", CB(arg_handle_scene_set), C);

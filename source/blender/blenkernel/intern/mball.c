@@ -314,6 +314,26 @@ bool BKE_mball_is_basis_for(Object *ob1, Object *ob2)
 	}
 }
 
+bool BKE_mball_is_any_selected(const MetaBall *mb)
+{
+	for (const MetaElem *ml = mb->editelems->first; ml != NULL; ml = ml->next) {
+		if (ml->flag & SELECT) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool BKE_mball_is_any_unselected(const MetaBall *mb)
+{
+	for (const MetaElem *ml = mb->editelems->first; ml != NULL; ml = ml->next) {
+		if ((ml->flag & SELECT) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* \brief copy some properties from object to other metaball object with same base name
  *
  * When some properties (wiresize, threshold, update flags) of metaball are changed, then this properties
@@ -329,12 +349,14 @@ void BKE_mball_properties_copy(Scene *scene, Object *active_object)
 	int basisnr, obnr;
 	char basisname[MAX_ID_NAME], obname[MAX_ID_NAME];
 	SceneBaseIter iter;
-	struct EvaluationContext *eval_ctx = G.main->eval_ctx;
 
 	BLI_split_name_num(basisname, &basisnr, active_object->id.name + 2, '.');
 
-	BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 0, NULL, NULL);
-	while (BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 1, &base, &ob)) {
+	/* Pass depsgraph as NULL, which means we will not expand into
+	 * duplis unlike when we generate the mball. Expanding duplis
+	 * would not be compatible when editing multiple view layers. */
+	BKE_scene_base_iter_next(NULL, &iter, &sce_iter, 0, NULL, NULL);
+	while (BKE_scene_base_iter_next(NULL, &iter, &sce_iter, 1, &base, &ob)) {
 		if (ob->type == OB_MBALL) {
 			if (ob != active_object) {
 				BLI_split_name_num(obname, &obnr, ob->id.name + 2, '.');
@@ -541,38 +563,12 @@ void BKE_mball_select_swap(struct MetaBall *mb)
 
 /* **** Depsgraph evaluation **** */
 
-void BKE_mball_eval_geometry(const struct EvaluationContext *UNUSED(eval_ctx),
+void BKE_mball_eval_geometry(struct Depsgraph *UNUSED(depsgraph),
                              MetaBall *UNUSED(mball))
 {
 }
 
 /* Draw Engine */
-
-/* use for draw-manager only. */
-void BKE_mball_element_calc_scale_xform(float r_scale_xform[3][4],
-                                        const float obmat[4][4],
-                                        const float local_pos[3])
-{
-	float world_pos[3], scamat[3][3];
-	mul_v3_m4v3(world_pos, obmat, local_pos);
-	copy_m3_m4(scamat, obmat);
-	{
-		/* Get the normalized inverse matrix to extract only
-		 * the scale of Scamat */
-		float iscamat[3][3];
-		invert_m3_m3(iscamat, scamat);
-		normalize_m3(iscamat);
-		mul_m3_m3_post(scamat, iscamat);
-	}
-
-	copy_v3_v3(r_scale_xform[0], scamat[0]);
-	copy_v3_v3(r_scale_xform[1], scamat[1]);
-	copy_v3_v3(r_scale_xform[2], scamat[2]);
-
-	r_scale_xform[0][3] = world_pos[0];
-	r_scale_xform[1][3] = world_pos[1];
-	r_scale_xform[2][3] = world_pos[2];
-}
 
 void (*BKE_mball_batch_cache_dirty_cb)(MetaBall *mb, int mode) = NULL;
 void (*BKE_mball_batch_cache_free_cb)(MetaBall *mb) = NULL;

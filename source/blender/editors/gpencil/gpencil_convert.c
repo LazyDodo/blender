@@ -48,6 +48,7 @@
 
 #include "DNA_anim_types.h"
 #include "DNA_curve_types.h"
+#include "DNA_group_types.h"
 #include "DNA_object_types.h"
 #include "DNA_node_types.h"
 #include "DNA_scene_types.h"
@@ -176,7 +177,7 @@ static void gp_strokepoint_convertcoords(
 		copy_v3_v3(p3d, &pt->x);
 	}
 	else {
-		const float *fp = ED_view3d_cursor3d_get(scene, v3d);
+		const float *fp = ED_view3d_cursor3d_get(scene, v3d)->location;
 		float mvalf[2];
 		
 		/* get screen coordinate */
@@ -372,7 +373,7 @@ static void gp_stroke_path_animation_preprocess_gaps(tGpTimingData *gtd, RNG *rn
 	}
 }
 
-static void gp_stroke_path_animation_add_keyframes(ReportList *reports, PointerRNA ptr, PropertyRNA *prop, FCurve *fcu,
+static void gp_stroke_path_animation_add_keyframes(Depsgraph *depsgraph, ReportList *reports, PointerRNA ptr, PropertyRNA *prop, FCurve *fcu,
                                                    Curve *cu, tGpTimingData *gtd, RNG *rng, const float time_range,
                                                    const int nbr_gaps, const float tot_gaps_time)
 {
@@ -421,7 +422,7 @@ static void gp_stroke_path_animation_add_keyframes(ReportList *reports, PointerR
 				if ((cfra - last_valid_time) < MIN_TIME_DELTA) {
 					cfra = last_valid_time + MIN_TIME_DELTA;
 				}
-				insert_keyframe_direct(reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
+				insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
 				last_valid_time = cfra;
 			}
 			else if (G.debug & G_DEBUG) {
@@ -433,7 +434,7 @@ static void gp_stroke_path_animation_add_keyframes(ReportList *reports, PointerR
 			if ((cfra - last_valid_time) < MIN_TIME_DELTA) {
 				cfra = last_valid_time + MIN_TIME_DELTA;
 			}
-			insert_keyframe_direct(reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
+			insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
 			last_valid_time = cfra;
 		}
 		else {
@@ -441,7 +442,7 @@ static void gp_stroke_path_animation_add_keyframes(ReportList *reports, PointerR
 			 * and also far enough from (not yet added!) end_stroke keyframe!
 			 */
 			if ((cfra - last_valid_time) > MIN_TIME_DELTA && (end_stroke_time - cfra) > MIN_TIME_DELTA) {
-				insert_keyframe_direct(reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_BREAKDOWN, INSERTKEY_FAST);
+				insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_BREAKDOWN, INSERTKEY_FAST);
 				last_valid_time = cfra;
 			}
 			else if (G.debug & G_DEBUG) {
@@ -454,6 +455,7 @@ static void gp_stroke_path_animation_add_keyframes(ReportList *reports, PointerR
 
 static void gp_stroke_path_animation(bContext *C, ReportList *reports, Curve *cu, tGpTimingData *gtd)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	bAction *act;
 	FCurve *fcu;
@@ -495,7 +497,7 @@ static void gp_stroke_path_animation(bContext *C, ReportList *reports, Curve *cu
 		
 		cu->ctime = 0.0f;
 		cfra = (float)gtd->start_frame;
-		insert_keyframe_direct(reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
+		insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
 		
 		cu->ctime = cu->pathlen;
 		if (gtd->realtime) {
@@ -504,7 +506,7 @@ static void gp_stroke_path_animation(bContext *C, ReportList *reports, Curve *cu
 		else {
 			cfra = (float)gtd->end_frame;
 		}
-		insert_keyframe_direct(reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
+		insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, BEZT_KEYTYPE_KEYFRAME, INSERTKEY_FAST);
 	}
 	else {
 		/* Use actual recorded timing! */
@@ -530,7 +532,7 @@ static void gp_stroke_path_animation(bContext *C, ReportList *reports, Curve *cu
 			printf("GP Stroke Path Conversion: Starting keying!\n");
 		}
 		
-		gp_stroke_path_animation_add_keyframes(reports, ptr, prop, fcu, cu, gtd, rng, time_range,
+		gp_stroke_path_animation_add_keyframes(depsgraph, reports, ptr, prop, fcu, cu, gtd, rng, time_range,
 		                                       nbr_gaps, tot_gaps_time);
 		
 		BLI_rng_free(rng);
@@ -1128,7 +1130,7 @@ static void gp_layer_to_curve(bContext *C, ReportList *reports, bGPdata *gpd, bG
 	struct Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
-	SceneCollection *sc = CTX_data_scene_collection(C);
+	Collection *collection = CTX_data_collection(C);
 	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, CFRA, 0);
 	bGPDstroke *gps, *prev_gps = NULL;
 	Object *ob;
@@ -1158,7 +1160,7 @@ static void gp_layer_to_curve(bContext *C, ReportList *reports, bGPdata *gpd, bG
 	 */
 	ob = BKE_object_add_only_object(bmain, OB_CURVE, gpl->info);
 	cu = ob->data = BKE_curve_add(bmain, gpl->info, OB_CURVE);
-	BKE_collection_object_add(&scene->id, sc, ob);
+	BKE_collection_object_add(bmain, collection, ob);
 	base_new = BKE_view_layer_base_find(view_layer, ob);
 	
 	cu->flag |= CU_3D;
@@ -1450,7 +1452,7 @@ static void gp_convert_ui(bContext *C, wmOperator *op)
 	RNA_pointer_create(&wm->id, op->type->srna, op->properties, &ptr);
 	
 	/* Main auto-draw call */
-	uiDefAutoButsRNA(layout, &ptr, gp_convert_draw_check_prop, '\0');
+	uiDefAutoButsRNA(layout, &ptr, gp_convert_draw_check_prop, UI_BUT_LABEL_ALIGN_NONE, false);
 }
 
 void GPENCIL_OT_convert(wmOperatorType *ot)

@@ -37,6 +37,7 @@
 #include "DNA_meta_types.h"
 #include "DNA_scene_types.h"
 
+#include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
@@ -271,36 +272,26 @@ static void stats_object_sculpt_dynamic_topology(Object *ob, SceneStats *stats)
 	stats->tottri = ob->sculpt->bm->totface;
 }
 
-static void stats_dupli_object_group_count(SceneCollection *scene_collection, int *count)
+static void stats_dupli_object_group_count(Collection *collection, int *count)
 {
-	for (LinkData *link = scene_collection->objects.first; link; link = link->next) {
-		(*count)++;
-	}
+	*count += BLI_listbase_count(&collection->gobject);
 
-	SceneCollection *scene_collection_nested;
-	for (scene_collection_nested = scene_collection->scene_collections.first;
-	     scene_collection_nested;
-	     scene_collection_nested = scene_collection_nested->next)
-	{
-		stats_dupli_object_group_count(scene_collection_nested, count);
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		stats_dupli_object_group_count(child->collection, count);
 	}
 }
 
-static void stats_dupli_object_group_doit(SceneCollection *scene_collection, SceneStats *stats, ParticleSystem *psys,
+static void stats_dupli_object_group_doit(Collection *collection, SceneStats *stats, ParticleSystem *psys,
                                           const int totgroup, int *cur)
 {
-	for (LinkData *link = scene_collection->objects.first; link; link = link->next) {
+	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
 		int tot = count_particles_mod(psys, totgroup, *cur);
-		stats_object(link->data, 0, tot, stats);
+		stats_object(cob->ob, 0, tot, stats);
 		(*cur)++;
 	}
 
-	SceneCollection *scene_collection_nested;
-	for (scene_collection_nested = scene_collection->scene_collections.first;
-	     scene_collection_nested;
-	     scene_collection_nested = scene_collection_nested->next)
-	{
-		stats_dupli_object_group_doit(scene_collection_nested, stats, psys, totgroup, cur);
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		stats_dupli_object_group_doit(child->collection, stats, psys, totgroup, cur);
 	}
 }
 
@@ -323,9 +314,9 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 			else if (part->draw_as == PART_DRAW_GR && part->dup_group) {
 				int totgroup = 0, cur = 0;
 
-				SceneCollection *scene_collection = part->dup_group->collection;
-				stats_dupli_object_group_count(scene_collection, &totgroup);
-				stats_dupli_object_group_doit(scene_collection, stats, psys, totgroup, &cur);
+				Collection *collection = part->dup_group;
+				stats_dupli_object_group_count(collection, &totgroup);
+				stats_dupli_object_group_doit(collection, stats, psys, totgroup, &cur);
 			}
 		}
 		
@@ -353,7 +344,7 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 		stats->totobj += tot;
 		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
 	}
-	else if ((ob->transflag & OB_DUPLIGROUP) && ob->dup_group) {
+	else if ((ob->transflag & OB_DUPLICOLLECTION) && ob->dup_group) {
 		/* Dupli Group */
 		int tot = count_duplilist(ob);
 		stats->totobj += tot;
@@ -419,6 +410,7 @@ static void stats_string(ViewLayer *view_layer)
 	uintptr_t mem_in_use, mmap_in_use;
 	char memstr[MAX_INFO_MEM_LEN];
 	char gpumemstr[MAX_INFO_MEM_LEN] = "";
+	char formatted_mem[15];
 	char *s;
 	size_t ofs = 0;
 
@@ -454,20 +446,25 @@ static void stats_string(ViewLayer *view_layer)
 
 
 	/* get memory statistics */
-	ofs = BLI_snprintf(memstr, MAX_INFO_MEM_LEN, IFACE_(" | Mem:%.2fM"),
-	                    (double)((mem_in_use - mmap_in_use) >> 10) / 1024.0);
-	if (mmap_in_use)
-		BLI_snprintf(memstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_(" (%.2fM)"), (double)((mmap_in_use) >> 10) / 1024.0);
+	BLI_str_format_byte_unit(formatted_mem, mem_in_use - mmap_in_use, true);
+	ofs = BLI_snprintf(memstr, MAX_INFO_MEM_LEN, IFACE_(" | Mem: %s"), formatted_mem);
+
+	if (mmap_in_use) {
+		BLI_str_format_byte_unit(formatted_mem, mmap_in_use, true);
+		BLI_snprintf(memstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_(" (%s)"), formatted_mem);
+	}
 
 	if (GPU_mem_stats_supported()) {
 		int gpu_free_mem, gpu_tot_memory;
 
 		GPU_mem_stats_get(&gpu_tot_memory, &gpu_free_mem);
 
-		ofs = BLI_snprintf(gpumemstr, MAX_INFO_MEM_LEN, IFACE_(" | Free GPU Mem:%.2fM"), (double)((gpu_free_mem)) / 1024.0);
+		BLI_str_format_byte_unit(formatted_mem, gpu_free_mem, true);
+		ofs = BLI_snprintf(gpumemstr, MAX_INFO_MEM_LEN, IFACE_(" | Free GPU Mem: %s"), formatted_mem);
 
 		if (gpu_tot_memory) {
-			BLI_snprintf(gpumemstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_("/%.2fM"), (double)((gpu_tot_memory)) / 1024.0);
+			BLI_str_format_byte_unit(formatted_mem, gpu_tot_memory, true);
+			BLI_snprintf(gpumemstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_("/%s"), formatted_mem);
 		}
 	}
 

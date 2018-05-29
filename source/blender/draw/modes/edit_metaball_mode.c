@@ -28,6 +28,7 @@
 
 #include "DNA_meta_types.h"
 
+#include "BKE_object.h"
 #include "BKE_mball.h"
 
 /* If builtin shaders are needed */
@@ -115,50 +116,14 @@ static void EDIT_METABALL_cache_init(void *vedata)
 
 	{
 		/* Create a pass */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND | DRW_STATE_WIRE;
+		DRWState state = (
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL |
+		        DRW_STATE_BLEND | DRW_STATE_WIRE);
 		psl->pass = DRW_pass_create("My Pass", state);
 
 		/* Create a shadingGroup using a function in draw_common.c or custom one */
-		stl->g_data->group = shgroup_instance_mball_handles(psl->pass, DRW_cache_screenspace_circle_get());
+		stl->g_data->group = shgroup_instance_mball_handles(psl->pass);
 	}
-}
-
-static void EDIT_METABALL_cache_populate_radius(
-        DRWShadingGroup *group, MetaElem *ml, const float scale_xform[3][4],
-        const float *radius, const int selection_id)
-{
-	const float *color;
-	static const float col_radius[3] =        {0.63, 0.19, 0.19}; /* 0x3030A0 */
-	static const float col_radius_select[3] = {0.94, 0.63, 0.63}; /* 0xA0A0F0 */
-
-	if ((ml->flag & SELECT) && (ml->flag & MB_SCALE_RAD)) color = col_radius_select;
-	else color = col_radius;
-
-	if (selection_id != -1) {
-		ml->selcol1 = selection_id;
-		DRW_select_load_id(selection_id);
-	}
-
-	DRW_shgroup_call_dynamic_add(group, scale_xform, radius, color);
-}
-
-static void EDIT_METABALL_cache_populate_stiffness(
-        DRWShadingGroup *group, MetaElem *ml, const float scale_xform[3][4],
-        const float *radius, const int selection_id)
-{
-	const float *color;
-	static const float col_stiffness[3] =        {0.19, 0.63, 0.19}; /* 0x30A030 */
-	static const float col_stiffness_select[3] = {0.63, 0.94, 0.63}; /* 0xA0F0A0 */
-
-	if ((ml->flag & SELECT) && !(ml->flag & MB_SCALE_RAD)) color = col_stiffness_select;
-	else color = col_stiffness;
-
-	if (selection_id != -1) {
-		ml->selcol2 = selection_id;
-		DRW_select_load_id(selection_id);
-	}
-
-	DRW_shgroup_call_dynamic_add(group, scale_xform, radius, color);
 }
 
 /* Add geometry to shadingGroups. Execute for each objects */
@@ -171,22 +136,63 @@ static void EDIT_METABALL_cache_populate(void *vedata, Object *ob)
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		DRWShadingGroup *group = stl->g_data->group;
 
-		if (ob == draw_ctx->object_edit) {
+		if ((ob == draw_ctx->object_edit) || BKE_object_is_in_editmode_and_selected(ob)) {
 			MetaBall *mb = ob->data;
+
+			const float *color;
+			const float col_radius[3]           = {0.63, 0.19, 0.19}; /* 0x3030A0 */
+			const float col_radius_select[3]    = {0.94, 0.63, 0.63}; /* 0xA0A0F0 */
+			const float col_stiffness[3]        = {0.19, 0.63, 0.19}; /* 0x30A030 */
+			const float col_stiffness_select[3] = {0.63, 0.94, 0.63}; /* 0xA0F0A0 */
 
 			const bool is_select = DRW_state_is_select();
 
 			int selection_id = 0;
 
+			float draw_scale_xform[3][4]; /* Matrix of Scale and Translation */
+			{
+				float scamat[3][3];
+				copy_m3_m4(scamat, ob->obmat);
+				/* Get the normalized inverse matrix to extract only
+				* the scale of Scamat */
+				float iscamat[3][3];
+				invert_m3_m3(iscamat, scamat);
+				normalize_m3(iscamat);
+				mul_m3_m3_post(scamat, iscamat);
+
+				copy_v3_v3(draw_scale_xform[0], scamat[0]);
+				copy_v3_v3(draw_scale_xform[1], scamat[1]);
+				copy_v3_v3(draw_scale_xform[2], scamat[2]);
+			}
+
 			for (MetaElem *ml = mb->editelems->first; ml != NULL; ml = ml->next) {
-				BKE_mball_element_calc_scale_xform(ml->draw_scale_xform, ob->obmat, &ml->x);
-				ml->draw_stiffness_radius = ml->rad * atanf(ml->s) / (float)M_PI_2;
+				float world_pos[3];
+				mul_v3_m4v3(world_pos, ob->obmat, &ml->x);
+				draw_scale_xform[0][3] = world_pos[0];
+				draw_scale_xform[1][3] = world_pos[1];
+				draw_scale_xform[2][3] = world_pos[2];
 
-				EDIT_METABALL_cache_populate_radius(
-				        group, ml, ml->draw_scale_xform, &ml->rad, is_select ? ++selection_id : -1);
+				float draw_stiffness_radius = ml->rad * atanf(ml->s) / (float)M_PI_2;
 
-				EDIT_METABALL_cache_populate_stiffness(
-				        group, ml, ml->draw_scale_xform, &ml->draw_stiffness_radius, is_select ? ++selection_id : -1);
+				if ((ml->flag & SELECT) && (ml->flag & MB_SCALE_RAD)) color = col_radius_select;
+				else color = col_radius;
+
+				if (is_select) {
+					ml->selcol1 = ++selection_id;
+					DRW_select_load_id(selection_id);
+				}
+
+				DRW_shgroup_call_dynamic_add(group, draw_scale_xform, &ml->rad, color);
+
+				if ((ml->flag & SELECT) && !(ml->flag & MB_SCALE_RAD)) color = col_stiffness_select;
+				else color = col_stiffness;
+
+				if (is_select) {
+					ml->selcol2 = ++selection_id;
+					DRW_select_load_id(selection_id);
+				}
+
+				DRW_shgroup_call_dynamic_add(group, draw_scale_xform, &draw_stiffness_radius, color);
 			}
 		}
 	}
@@ -210,27 +216,6 @@ static void EDIT_METABALL_engine_free(void)
 {
 	// DRW_SHADER_FREE_SAFE(custom_shader);
 }
-
-/* Create collection settings here.
- *
- * Be sure to add this function there :
- * source/blender/draw/DRW_engine.h
- * source/blender/blenkernel/intern/layer.c
- * source/blenderplayer/bad_level_call_stubs/stubs.c
- *
- * And relevant collection settings to :
- * source/blender/makesrna/intern/rna_scene.c
- * source/blender/blenkernel/intern/layer.c
- */
-#if 0
-void EDIT_METABALL_collection_settings_create(CollectionEngineSettings *ces)
-{
-	BLI_assert(ces);
-	// BKE_collection_engine_property_add_int(ces, "my_bool_prop", false);
-	// BKE_collection_engine_property_add_int(ces, "my_int_prop", 0);
-	// BKE_collection_engine_property_add_float(ces, "my_float_prop", 0.0f);
-}
-#endif
 
 static const DrawEngineDataSize EDIT_METABALL_data_size = DRW_VIEWPORT_DATA_SIZE(EDIT_METABALL_Data);
 

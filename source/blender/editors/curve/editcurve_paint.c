@@ -93,7 +93,7 @@ struct StrokeElem {
 };
 
 struct CurveDrawData {
-	const Depsgraph *depsgraph;
+	Depsgraph *depsgraph;
 
 	short init_event_type;
 	short curve_type;
@@ -711,7 +711,7 @@ static void curve_draw_exec_precalc(wmOperator *op)
 			const struct StrokeElem *selem, *selem_first, *selem_last;
 
 			BLI_mempool_iternew(cdd->stroke_elem_pool, &iter);
-			selem_first = BLI_mempool_iterstep(&iter);
+			selem_first = selem_last = BLI_mempool_iterstep(&iter);
 			for (selem = BLI_mempool_iterstep(&iter); selem; selem = BLI_mempool_iterstep(&iter)) {
 				selem_last = selem;
 			}
@@ -1007,9 +1007,16 @@ static int curve_draw_exec(bContext *C, wmOperator *op)
 		const struct StrokeElem *selem;
 
 		nu->pntsu = stroke_len;
+		nu->pntsv = 1;
 		nu->type = CU_POLY;
 		nu->bp = MEM_callocN(nu->pntsu * sizeof(BPoint), __func__);
 
+		/* Misc settings. */
+		nu->resolu = cu->resolu;
+		nu->resolv = 1;
+		nu->orderu = 4;
+		nu->orderv = 1;
+		
 		BPoint *bp = nu->bp;
 
 		BLI_mempool_iternew(cdd->stroke_elem_pool, &iter);
@@ -1095,13 +1102,10 @@ static int curve_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 			if ((cps->depth_mode == CURVE_PAINT_PROJECT_SURFACE) &&
 			    (v3d->drawtype > OB_WIRE))
 			{
-				EvaluationContext eval_ctx;
-				CTX_data_eval_ctx(C, &eval_ctx);
-
 				/* needed or else the draw matrix can be incorrect */
 				view3d_operator_needs_opengl(C);
 
-				ED_view3d_autodist_init(&eval_ctx, cdd->vc.depsgraph, cdd->vc.ar, cdd->vc.v3d, 0);
+				ED_view3d_autodist_init(cdd->vc.depsgraph, cdd->vc.ar, cdd->vc.v3d, 0);
 
 				if (cdd->vc.rv3d->depths) {
 					cdd->vc.rv3d->depths->damaged = true;
@@ -1120,7 +1124,7 @@ static int curve_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 			/* use view plane (when set or as fallback when surface can't be found) */
 			if (cdd->project.use_depth == false) {
-				plane_co = ED_view3d_cursor3d_get(cdd->vc.scene, v3d);
+				plane_co = ED_view3d_cursor3d_get(cdd->vc.scene, v3d)->location;
 				plane_no = rv3d->viewinv[2];
 				cdd->project.use_plane = true;
 			}

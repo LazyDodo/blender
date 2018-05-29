@@ -57,7 +57,7 @@ struct wmWindowManager;
 struct PointerRNA;
 struct PropertyRNA;
 struct EnumPropertyItem;
-struct EvaluationContext;
+struct Depsgraph;
 
 #include "DNA_object_enums.h"
 
@@ -122,12 +122,14 @@ void ED_object_parent(struct Object *ob, struct Object *parent, const int type, 
 enum {
 	EM_FREEDATA         = (1 << 0),
 	EM_WAITCURSOR       = (1 << 1),
-	EM_DO_UNDO          = (1 << 2),
 	EM_IGNORE_LAYER     = (1 << 3),
+	EM_NO_CONTEXT       = (1 << 4),
 };
 void ED_object_editmode_exit_ex(
-        struct bContext *C, struct Scene *scene, struct Object *obedit, int flag);
+        struct Scene *scene, struct Object *obedit, int flag);
 void ED_object_editmode_exit(struct bContext *C, int flag);
+
+void ED_object_editmode_enter_ex(struct Scene *scene, struct Object *ob, int flag);
 void ED_object_editmode_enter(struct bContext *C, int flag);
 bool ED_object_editmode_load(struct Object *obedit);
 
@@ -135,11 +137,11 @@ bool ED_object_editmode_calc_active_center(struct Object *obedit, const bool sel
 
 
 void ED_object_vpaintmode_enter_ex(
-        const struct EvaluationContext *eval_ctx, struct wmWindowManager *wm,
+        struct Depsgraph *depsgraph, struct wmWindowManager *wm,
         struct Scene *scene, struct Object *ob);
 void ED_object_vpaintmode_enter(struct bContext *C);
 void ED_object_wpaintmode_enter_ex(
-        const struct EvaluationContext *eval_ctx, struct wmWindowManager *wm,
+        struct Depsgraph *depsgraph, struct wmWindowManager *wm,
         struct Scene *scene, struct Object *ob);
 void ED_object_wpaintmode_enter(struct bContext *C);
 
@@ -149,16 +151,17 @@ void ED_object_wpaintmode_exit_ex(struct Object *ob);
 void ED_object_wpaintmode_exit(struct bContext *C);
 
 void ED_object_sculptmode_enter_ex(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct Scene *scene, struct Object *ob,
         struct ReportList *reports);
 void ED_object_sculptmode_enter(struct bContext *C, struct ReportList *reports);
 void ED_object_sculptmode_exit_ex(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct Scene *scene, struct Object *ob);
 void ED_object_sculptmode_exit(struct bContext *C);
 
 void ED_object_location_from_view(struct bContext *C, float loc[3]);
+void ED_object_rotation_from_quat(float rot[3], const float quat[4], const char align_axis);
 void ED_object_rotation_from_view(struct bContext *C, float rot[3], const char align_axis);
 void ED_object_base_init_transform(struct bContext *C, struct Base *base, const float loc[3], const float rot[3]);
 float ED_object_new_primitive_matrix(
@@ -213,10 +216,10 @@ bool ED_object_mode_generic_enter(
         struct bContext *C,
         eObjectMode object_mode);
 void ED_object_mode_generic_exit(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct Scene *scene, struct Object *ob);
 bool ED_object_mode_generic_has_data(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct Object *ob);
 
 bool ED_object_mode_generic_exists(
@@ -238,7 +241,7 @@ int ED_object_modifier_move_down(struct ReportList *reports, struct Object *ob, 
 int ED_object_modifier_move_up(struct ReportList *reports, struct Object *ob, struct ModifierData *md);
 int ED_object_modifier_convert(struct ReportList *reports, struct Main *bmain, struct Scene *scene,
                                struct ViewLayer *view_layer, struct Object *ob, struct ModifierData *md);
-int ED_object_modifier_apply(struct ReportList *reports, const struct EvaluationContext *eval_ctx, struct Scene *scene,
+int ED_object_modifier_apply(struct ReportList *reports, struct Depsgraph *depsgraph, struct Scene *scene,
                              struct Object *ob, struct ModifierData *md, int mode);
 int ED_object_modifier_copy(struct ReportList *reports, struct Object *ob, struct ModifierData *md);
 

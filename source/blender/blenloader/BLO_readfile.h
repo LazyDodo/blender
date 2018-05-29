@@ -138,13 +138,14 @@ struct ID *BLO_library_link_named_part(struct Main *mainl, BlendHandle **bh, con
 struct ID *BLO_library_link_named_part_ex(
         struct Main *mainl, BlendHandle **bh,
         const short idcode, const char *name, const int flag,
-        struct Scene *scene, struct ViewLayer *view_layer);
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
 struct ID *BLO_library_link_named_part_asset(
         struct Main *mainl, BlendHandle **bh, const struct AssetEngineType *aet, const char *root,
         const short idcode, const char *name, const struct AssetUUID *uuid, const int flag,
-        struct Scene *scene, struct ViewLayer *view_layer);
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
 void BLO_library_link_end(
-        struct Main *mainl, BlendHandle **bh, int flag, struct Scene *scene, struct ViewLayer *view_layer);
+        struct Main *mainl, BlendHandle **bh, int flag,
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
 
 void BLO_library_link_copypaste(struct Main *mainl, BlendHandle *bh);
 

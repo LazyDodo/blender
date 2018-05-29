@@ -202,7 +202,7 @@ static void grab3d_draw_intern(
 		}
 
 		glEnable(GL_BLEND);
-		grab_geom_draw(mpr, (const float [4]){0.5f, 0.5f, 0.5f, 0.5f}, select, draw_options);
+		grab_geom_draw(mpr, (const float[4]){0.5f, 0.5f, 0.5f, 0.5f}, select, draw_options);
 		glDisable(GL_BLEND);
 		gpuPopMatrix();
 	}
@@ -323,7 +323,7 @@ static void manipulator_grab_property_update(wmManipulator *mpr, wmManipulatorPr
 
 static int manipulator_grab_cursor_get(wmManipulator *UNUSED(mpr))
 {
-	return BC_HANDCURSOR;
+	return BC_NSEW_SCROLLCURSOR;
 }
 
 /* -------------------------------------------------------------------- */

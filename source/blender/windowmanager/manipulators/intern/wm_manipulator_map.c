@@ -420,7 +420,15 @@ static void manipulators_draw_list(const wmManipulatorMap *mmap, const bContext 
 			is_depth_prev = is_depth;
 		}
 
+		/* XXX force AntiAlias Manipulators. */
+		glEnable(GL_LINE_SMOOTH);
+		glEnable(GL_POLYGON_SMOOTH);
+
 		mpr->type->draw(C, mpr);
+
+		glDisable(GL_LINE_SMOOTH);
+		glDisable(GL_POLYGON_SMOOTH);
+
 		/* free/remove manipulator link after drawing */
 		BLI_freelinkN(draw_manipulators, link);
 	}
@@ -487,7 +495,6 @@ static int manipulator_find_intersected_3d_intern(
         ListBase *visible_manipulators, const bContext *C, const int co[2],
         const int hotspot)
 {
-	EvaluationContext eval_ctx;
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
 	View3D *v3d = sa->spacedata.first;
@@ -499,9 +506,7 @@ static int manipulator_find_intersected_3d_intern(
 
 	BLI_rcti_init_pt_radius(&rect, co, hotspot);
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	ED_view3d_draw_setup_view(CTX_wm_window(C), &eval_ctx, CTX_data_scene(C), ar, v3d, NULL, NULL, &rect);
+	ED_view3d_draw_setup_view(CTX_wm_window(C), CTX_data_depsgraph(C), CTX_data_scene(C), ar, v3d, NULL, NULL, &rect);
 
 	if (do_passes)
 		GPU_select_begin(buffer, ARRAY_SIZE(buffer), &rect, GPU_SELECT_NEAREST_FIRST_PASS, 0);
@@ -518,7 +523,7 @@ static int manipulator_find_intersected_3d_intern(
 		GPU_select_end();
 	}
 
-	ED_view3d_draw_setup_view(CTX_wm_window(C), &eval_ctx, CTX_data_scene(C), ar, v3d, NULL, NULL, NULL);
+	ED_view3d_draw_setup_view(CTX_wm_window(C), CTX_data_depsgraph(C), CTX_data_scene(C), ar, v3d, NULL, NULL, NULL);
 
 	const GLuint *hit_near = GPU_select_buffer_near(buffer, hits);
 
@@ -860,13 +865,14 @@ void wm_manipulatormap_highlight_set(
 
 			if (C && mpr->type->cursor_get) {
 				wmWindow *win = CTX_wm_window(C);
+				win->lastcursor = win->cursor;
 				WM_cursor_set(win, mpr->type->cursor_get(mpr));
 			}
 		}
 		else {
 			if (C) {
 				wmWindow *win = CTX_wm_window(C);
-				WM_cursor_set(win, CURSOR_STD);
+				WM_cursor_set(win, win->lastcursor);
 			}
 		}
 
@@ -1145,6 +1151,7 @@ void WM_manipulatorconfig_update(struct Main *bmain)
 				{
 					wgt_ref_next = wgt_ref->next;
 					if (wgt_ref->type->type_update_flag & WM_MANIPULATORMAPTYPE_UPDATE_REMOVE) {
+						wgt_ref->type->type_update_flag &= ~WM_MANIPULATORMAPTYPE_UPDATE_REMOVE;
 						WM_manipulatormaptype_group_unlink(NULL, bmain, mmap_type, wgt_ref->type);
 					}
 				}

@@ -51,7 +51,7 @@
 
 /* ******************** default callbacks for userpref space ***************** */
 
-static SpaceLink *userpref_new(const bContext *UNUSED(C))
+static SpaceLink *userpref_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceUserPref *spref;
@@ -64,7 +64,7 @@ static SpaceLink *userpref_new(const bContext *UNUSED(C))
 
 	BLI_addtail(&spref->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_BOTTOM;
+	ar->alignment = RGN_ALIGN_TOP;
 
 	/* main region */
 	ar = MEM_callocN(sizeof(ARegion), "main region for userpref");

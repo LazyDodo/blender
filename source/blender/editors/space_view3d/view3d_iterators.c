@@ -35,6 +35,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_rect.h"
 
+#include "BKE_action.h"
 #include "BKE_armature.h"
 #include "BKE_curve.h"
 #include "BKE_DerivedMesh.h"
@@ -43,6 +44,7 @@
 #include "BKE_context.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "bmesh.h"
 
@@ -107,14 +109,14 @@ static void meshobject_foreachScreenVert__mapFunc(void *userData, int index, con
 }
 
 void meshobject_foreachScreenVert(
-        const EvaluationContext *eval_ctx, ViewContext *vc,
+        ViewContext *vc,
         void (*func)(void *userData, MVert *eve, const float screen_co[2], int index),
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenObjectVert_userData data;
 	DerivedMesh *dm;
 
-	dm = mesh_get_derived_deform(eval_ctx, vc->scene, vc->obact, CD_MASK_BAREMESH);
+	dm = mesh_get_derived_deform(vc->depsgraph, vc->scene, vc->obact, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -150,14 +152,14 @@ static void mesh_foreachScreenVert__mapFunc(void *userData, int index, const flo
 }
 
 void mesh_foreachScreenVert(
-        const EvaluationContext *eval_ctx, ViewContext *vc,
+        ViewContext *vc,
         void (*func)(void *userData, BMVert *eve, const float screen_co[2], int index),
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenVert_userData data;
 	DerivedMesh *dm;
 
-	dm = editbmesh_get_derived_cage(eval_ctx, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -206,14 +208,14 @@ static void mesh_foreachScreenEdge__mapFunc(void *userData, int index, const flo
 }
 
 void mesh_foreachScreenEdge(
-        const EvaluationContext *eval_ctx, ViewContext *vc,
+        ViewContext *vc,
         void (*func)(void *userData, BMEdge *eed, const float screen_co_a[2], const float screen_co_b[2], int index),
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenEdge_userData data;
 	DerivedMesh *dm;
 
-	dm = editbmesh_get_derived_cage(eval_ctx, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -254,14 +256,14 @@ static void mesh_foreachScreenFace__mapFunc(void *userData, int index, const flo
 }
 
 void mesh_foreachScreenFace(
-        const EvaluationContext *eval_ctx, ViewContext *vc,
+        ViewContext *vc,
         void (*func)(void *userData, BMFace *efa, const float screen_co_b[2], int index),
         void *userData, const eV3DProjTest clip_flag)
 {
 	foreachScreenFace_userData data;
 	DerivedMesh *dm;
 
-	dm = editbmesh_get_derived_cage(eval_ctx, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -449,19 +451,21 @@ void pose_foreachScreenBone(
         void (*func)(void *userData, struct bPoseChannel *pchan, const float screen_co_a[2], const float screen_co_b[2]),
         void *userData, const eV3DProjTest clip_flag)
 {
-	bArmature *arm = vc->obact->data;
+	const Object *ob_eval = DEG_get_evaluated_object(vc->depsgraph, vc->obact);
+	const bArmature *arm_eval = ob_eval->data;
 	bPose *pose = vc->obact->pose;
 	bPoseChannel *pchan;
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
 	for (pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
-		if (PBONE_VISIBLE(arm, pchan->bone)) {
+		if (PBONE_VISIBLE(arm_eval, pchan->bone)) {
+			bPoseChannel *pchan_eval = BKE_pose_channel_find_name(ob_eval->pose, pchan->name);
 			float screen_co_a[2], screen_co_b[2];
 			int points_proj_tot = 0;
 
 			/* project head location to screenspace */
-			if (ED_view3d_project_float_object(vc->ar, pchan->pose_head, screen_co_a, clip_flag) == V3D_PROJ_RET_OK) {
+			if (ED_view3d_project_float_object(vc->ar, pchan_eval->pose_head, screen_co_a, clip_flag) == V3D_PROJ_RET_OK) {
 				points_proj_tot++;
 			}
 			else {
@@ -470,7 +474,7 @@ void pose_foreachScreenBone(
 			}
 
 			/* project tail location to screenspace */
-			if (ED_view3d_project_float_object(vc->ar, pchan->pose_tail, screen_co_b, clip_flag) == V3D_PROJ_RET_OK) {
+			if (ED_view3d_project_float_object(vc->ar, pchan_eval->pose_tail, screen_co_b, clip_flag) == V3D_PROJ_RET_OK) {
 				points_proj_tot++;
 			}
 			else {

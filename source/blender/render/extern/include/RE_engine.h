@@ -41,8 +41,6 @@ struct bNode;
 struct bNodeTree;
 struct BakePixel;
 struct Depsgraph;
-struct Depsgraph;
-struct EvaluationContext;
 struct IDProperty;
 struct Main;
 struct Object;
@@ -60,7 +58,7 @@ struct ViewLayer;
 
 /* RenderEngineType.flag */
 #define RE_INTERNAL				1
-#define RE_GAME					2
+/* #define RE_FLAG_DEPRECATED	2 */
 #define RE_USE_PREVIEW			4
 #define RE_USE_POSTPROCESS		8
 #define RE_USE_SHADING_NODES	16
@@ -69,7 +67,6 @@ struct ViewLayer;
 #define RE_USE_TEXTURE_PREVIEW		128
 #define RE_USE_SHADING_NODES_CUSTOM 	256
 #define RE_USE_SPHERICAL_STEREO 512
-#define RE_USE_LEGACY_PIPELINE	1024 /* XXX Temporary flag, to be removed once draw manager is finished. */
 
 /* RenderEngine.flag */
 #define RE_ENGINE_ANIMATION		1
@@ -95,10 +92,10 @@ typedef struct RenderEngineType {
 	char name[64];
 	int flag;
 
-	void (*update)(struct RenderEngine *engine, struct Main *bmain, struct Scene *scene);
+	void (*update)(struct RenderEngine *engine, struct Main *bmain, struct Depsgraph *depsgraph);
 	void (*render_to_image)(struct RenderEngine *engine, struct Depsgraph *depsgraph);
 	void (*bake)(struct RenderEngine *engine, struct Depsgraph *depsgraph,
-	             struct Scene *scene, struct Object *object, const int pass_type,
+	             struct Object *object, const int pass_type,
 	             const int pass_filter, const int object_id, const struct BakePixel *pixel_array, const int num_pixels,
 	             const int depth, void *result);
 
@@ -107,9 +104,6 @@ typedef struct RenderEngineType {
 
 	void (*update_script_node)(struct RenderEngine *engine, struct bNodeTree *ntree, struct bNode *node);
 	void (*update_render_passes)(struct RenderEngine *engine, struct Scene *scene, struct ViewLayer *view_layer);
-
-	void (*collection_settings_create)(struct RenderEngine *engine, struct IDProperty *props);
-	void (*render_settings_create)(struct RenderEngine *engine, struct IDProperty *props);
 
 	struct DrawEngineType *draw_engine;
 
@@ -137,9 +131,7 @@ typedef struct RenderEngine {
 	struct ReportList *reports;
 
 	/* Depsgraph */
-	struct EvaluationContext *eval_ctx;
 	struct Depsgraph *depsgraph;
-	struct ViewLayer *view_layer;
 
 	/* for blender internal only */
 	int update_flag;
@@ -190,7 +182,7 @@ void RE_engine_register_pass(struct RenderEngine *engine, struct Scene *scene, s
 
 void RE_engines_init(void);
 void RE_engines_exit(void);
-void RE_engines_register(struct Main *bmain, RenderEngineType *render_type);
+void RE_engines_register(RenderEngineType *render_type);
 
 bool RE_engine_is_opengl(RenderEngineType *render_type);
 

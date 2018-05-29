@@ -67,6 +67,7 @@
 #include "NOD_composite.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 const EnumPropertyItem rna_enum_node_socket_in_out_items[] = {
 	{ SOCK_IN, "IN", 0, "Input", "" },
@@ -142,6 +143,7 @@ const EnumPropertyItem rna_enum_node_math_items[] = {
 	{NODE_MATH_GREATER, "GREATER_THAN", 0, "Greater Than", ""},
 	{NODE_MATH_MOD,     "MODULO",       0, "Modulo",       ""},
 	{NODE_MATH_ABS,     "ABSOLUTE",     0, "Absolute",     ""},
+	{NODE_MATH_ATAN2,   "ARCTAN2",      0, "Arctan2",      ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -729,7 +731,7 @@ static bNode *rna_NodeTree_node_new(bNodeTree *ntree, bContext *C, ReportList *r
 	return node;
 }
 
-static void rna_NodeTree_node_remove(bNodeTree *ntree, ReportList *reports, PointerRNA *node_ptr)
+static void rna_NodeTree_node_remove(bNodeTree *ntree, Main *bmain, ReportList *reports, PointerRNA *node_ptr)
 {
 	bNode *node = node_ptr->data;
 	
@@ -745,11 +747,11 @@ static void rna_NodeTree_node_remove(bNodeTree *ntree, ReportList *reports, Poin
 	nodeFreeNode(ntree, node);
 	RNA_POINTER_INVALIDATE(node_ptr);
 
-	ntreeUpdateTree(G.main, ntree); /* update group node socket links */
+	ntreeUpdateTree(bmain, ntree); /* update group node socket links */
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_NodeTree_node_clear(bNodeTree *ntree, ReportList *reports)
+static void rna_NodeTree_node_clear(bNodeTree *ntree, Main *bmain, ReportList *reports)
 {
 	bNode *node = ntree->nodes.first;
 
@@ -767,7 +769,7 @@ static void rna_NodeTree_node_clear(bNodeTree *ntree, ReportList *reports)
 		node = next_node;
 	}
 
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
@@ -790,7 +792,7 @@ static void rna_NodeTree_active_node_set(PointerRNA *ptr, const PointerRNA value
 		nodeClearActive(ntree);
 }
 
-static bNodeLink *rna_NodeTree_link_new(bNodeTree *ntree, ReportList *reports,
+static bNodeLink *rna_NodeTree_link_new(bNodeTree *ntree, Main *bmain, ReportList *reports,
                                         bNodeSocket *fromsock, bNodeSocket *tosock,
                                         int verify_limits)
 {
@@ -832,15 +834,15 @@ static bNodeLink *rna_NodeTree_link_new(bNodeTree *ntree, ReportList *reports,
 		if (tonode)
 			nodeUpdate(ntree, tonode);
 
-		ntreeUpdateTree(G.main, ntree);
+		ntreeUpdateTree(bmain, ntree);
 
-		ED_node_tag_update_nodetree(G.main, ntree, ret->tonode);
+		ED_node_tag_update_nodetree(bmain, ntree, ret->tonode);
 		WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 	}
 	return ret;
 }
 
-static void rna_NodeTree_link_remove(bNodeTree *ntree, ReportList *reports, PointerRNA *link_ptr)
+static void rna_NodeTree_link_remove(bNodeTree *ntree, Main *bmain, ReportList *reports, PointerRNA *link_ptr)
 {
 	bNodeLink *link = link_ptr->data;
 
@@ -855,11 +857,11 @@ static void rna_NodeTree_link_remove(bNodeTree *ntree, ReportList *reports, Poin
 	nodeRemLink(ntree, link);
 	RNA_POINTER_INVALIDATE(link_ptr);
 
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_NodeTree_link_clear(bNodeTree *ntree, ReportList *reports)
+static void rna_NodeTree_link_clear(bNodeTree *ntree, Main *bmain, ReportList *reports)
 {
 	bNodeLink *link = ntree->links.first;
 
@@ -873,7 +875,7 @@ static void rna_NodeTree_link_clear(bNodeTree *ntree, ReportList *reports)
 
 		link = next_link;
 	}
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
@@ -936,7 +938,7 @@ static void rna_NodeTree_active_output_set(PointerRNA *ptr, int value)
 	}
 }
 
-static bNodeSocket *rna_NodeTree_inputs_new(bNodeTree *ntree, ReportList *reports, const char *type, const char *name)
+static bNodeSocket *rna_NodeTree_inputs_new(bNodeTree *ntree, Main *bmain, ReportList *reports, const char *type, const char *name)
 {
 	bNodeSocket *sock;
 	
@@ -945,13 +947,13 @@ static bNodeSocket *rna_NodeTree_inputs_new(bNodeTree *ntree, ReportList *report
 	
 	sock = ntreeAddSocketInterface(ntree, SOCK_IN, type, name);
 	
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 	
 	return sock;
 }
 
-static bNodeSocket *rna_NodeTree_outputs_new(bNodeTree *ntree, ReportList *reports, const char *type, const char *name)
+static bNodeSocket *rna_NodeTree_outputs_new(bNodeTree *ntree, Main *bmain, ReportList *reports, const char *type, const char *name)
 {
 	bNodeSocket *sock;
 	
@@ -960,13 +962,13 @@ static bNodeSocket *rna_NodeTree_outputs_new(bNodeTree *ntree, ReportList *repor
 	
 	sock = ntreeAddSocketInterface(ntree, SOCK_OUT, type, name);
 	
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 	
 	return sock;
 }
 
-static void rna_NodeTree_socket_remove(bNodeTree *ntree, ReportList *reports, bNodeSocket *sock)
+static void rna_NodeTree_socket_remove(bNodeTree *ntree, Main *bmain, ReportList *reports, bNodeSocket *sock)
 {
 	if (!rna_NodeTree_check(ntree, reports))
 		return;
@@ -977,12 +979,12 @@ static void rna_NodeTree_socket_remove(bNodeTree *ntree, ReportList *reports, bN
 	else {
 		ntreeRemoveSocketInterface(ntree, sock);
 		
-		ntreeUpdateTree(G.main, ntree);
+		ntreeUpdateTree(bmain, ntree);
 		WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 	}
 }
 
-static void rna_NodeTree_inputs_clear(bNodeTree *ntree, ReportList *reports)
+static void rna_NodeTree_inputs_clear(bNodeTree *ntree, Main *bmain, ReportList *reports)
 {
 	bNodeSocket *sock, *nextsock;
 	
@@ -994,11 +996,11 @@ static void rna_NodeTree_inputs_clear(bNodeTree *ntree, ReportList *reports)
 		ntreeRemoveSocketInterface(ntree, sock);
 	}
 
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_NodeTree_outputs_clear(bNodeTree *ntree, ReportList *reports)
+static void rna_NodeTree_outputs_clear(bNodeTree *ntree, Main *bmain, ReportList *reports)
 {
 	bNodeSocket *sock, *nextsock;
 	
@@ -1010,11 +1012,11 @@ static void rna_NodeTree_outputs_clear(bNodeTree *ntree, ReportList *reports)
 		ntreeRemoveSocketInterface(ntree, sock);
 	}
 
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_NodeTree_inputs_move(bNodeTree *ntree, int from_index, int to_index)
+static void rna_NodeTree_inputs_move(bNodeTree *ntree, Main *bmain, int from_index, int to_index)
 {
 	bNodeSocket *sock;
 	
@@ -1041,11 +1043,11 @@ static void rna_NodeTree_inputs_move(bNodeTree *ntree, int from_index, int to_in
 	
 	ntree->update |= NTREE_UPDATE_GROUP_IN;
 	
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_NodeTree_outputs_move(bNodeTree *ntree, int from_index, int to_index)
+static void rna_NodeTree_outputs_move(bNodeTree *ntree, Main *bmain, int from_index, int to_index)
 {
 	bNodeSocket *sock;
 	
@@ -1072,16 +1074,18 @@ static void rna_NodeTree_outputs_move(bNodeTree *ntree, int from_index, int to_i
 	
 	ntree->update |= NTREE_UPDATE_GROUP_OUT;
 	
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
 static void rna_NodeTree_interface_update(bNodeTree *ntree, bContext *C)
 {
+	Main *bmain = CTX_data_main(C);
+
 	ntree->update |= NTREE_UPDATE_GROUP;
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	
-	ED_node_tag_update_nodetree(CTX_data_main(C), ntree, NULL);
+	ED_node_tag_update_nodetree(bmain, ntree, NULL);
 }
 
 
@@ -1611,7 +1615,7 @@ static void rna_Node_name_set(PointerRNA *ptr, const char *value)
 	BKE_animdata_fix_paths_rename_all(NULL, "nodes", oldname, node->name);
 }
 
-static bNodeSocket *rna_Node_inputs_new(ID *id, bNode *node, ReportList *reports, const char *type, const char *name, const char *identifier)
+static bNodeSocket *rna_Node_inputs_new(ID *id, bNode *node, Main *bmain, ReportList *reports, const char *type, const char *name, const char *identifier)
 {
 	bNodeTree *ntree = (bNodeTree *)id;
 	bNodeSocket *sock;
@@ -1622,14 +1626,14 @@ static bNodeSocket *rna_Node_inputs_new(ID *id, bNode *node, ReportList *reports
 		BKE_report(reports, RPT_ERROR, "Unable to create socket");
 	}
 	else {
-		ntreeUpdateTree(G.main, ntree);
+		ntreeUpdateTree(bmain, ntree);
 		WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 	}
 	
 	return sock;
 }
 
-static bNodeSocket *rna_Node_outputs_new(ID *id, bNode *node, ReportList *reports, const char *type, const char *name, const char *identifier)
+static bNodeSocket *rna_Node_outputs_new(ID *id, bNode *node, Main *bmain, ReportList *reports, const char *type, const char *name, const char *identifier)
 {
 	bNodeTree *ntree = (bNodeTree *)id;
 	bNodeSocket *sock;
@@ -1640,14 +1644,14 @@ static bNodeSocket *rna_Node_outputs_new(ID *id, bNode *node, ReportList *report
 		BKE_report(reports, RPT_ERROR, "Unable to create socket");
 	}
 	else {
-		ntreeUpdateTree(G.main, ntree);
+		ntreeUpdateTree(bmain, ntree);
 		WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 	}
 	
 	return sock;
 }
 
-static void rna_Node_socket_remove(ID *id, bNode *node, ReportList *reports, bNodeSocket *sock)
+static void rna_Node_socket_remove(ID *id, bNode *node, Main *bmain, ReportList *reports, bNodeSocket *sock)
 {
 	bNodeTree *ntree = (bNodeTree *)id;
 	
@@ -1657,12 +1661,12 @@ static void rna_Node_socket_remove(ID *id, bNode *node, ReportList *reports, bNo
 	else {
 		nodeRemoveSocket(ntree, node, sock);
 		
-		ntreeUpdateTree(G.main, ntree);
+		ntreeUpdateTree(bmain, ntree);
 		WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 	}
 }
 
-static void rna_Node_inputs_clear(ID *id, bNode *node)
+static void rna_Node_inputs_clear(ID *id, bNode *node, Main *bmain)
 {
 	bNodeTree *ntree = (bNodeTree *)id;
 	bNodeSocket *sock, *nextsock;
@@ -1672,11 +1676,11 @@ static void rna_Node_inputs_clear(ID *id, bNode *node)
 		nodeRemoveSocket(ntree, node, sock);
 	}
 
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_Node_outputs_clear(ID *id, bNode *node)
+static void rna_Node_outputs_clear(ID *id, bNode *node, Main *bmain)
 {
 	bNodeTree *ntree = (bNodeTree *)id;
 	bNodeSocket *sock, *nextsock;
@@ -1686,11 +1690,11 @@ static void rna_Node_outputs_clear(ID *id, bNode *node)
 		nodeRemoveSocket(ntree, node, sock);
 	}
 
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_Node_inputs_move(ID *id, bNode *node, int from_index, int to_index)
+static void rna_Node_inputs_move(ID *id, bNode *node, Main *bmain, int from_index, int to_index)
 {
 	bNodeTree *ntree = (bNodeTree *)id;
 	bNodeSocket *sock;
@@ -1716,11 +1720,11 @@ static void rna_Node_inputs_move(ID *id, bNode *node, int from_index, int to_ind
 		}
 	}
 	
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
-static void rna_Node_outputs_move(ID *id, bNode *node, int from_index, int to_index)
+static void rna_Node_outputs_move(ID *id, bNode *node, Main *bmain, int from_index, int to_index)
 {
 	bNodeTree *ntree = (bNodeTree *)id;
 	bNodeSocket *sock;
@@ -1746,7 +1750,7 @@ static void rna_Node_outputs_move(ID *id, bNode *node, int from_index, int to_in
 		}
 	}
 	
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	WM_main_add_notifier(NC_NODE | NA_EDITED, ntree);
 }
 
@@ -2219,7 +2223,7 @@ static void rna_NodeSocketInterface_update(Main *bmain, Scene *UNUSED(scene), Po
 		return;
 	
 	ntree->update |= NTREE_UPDATE_GROUP;
-	ntreeUpdateTree(G.main, ntree);
+	ntreeUpdateTree(bmain, ntree);
 	
 	ED_node_tag_update_nodetree(bmain, ntree, NULL);
 }
@@ -2337,14 +2341,6 @@ static void rna_NodeSocketStandard_value_update(struct bContext *C, PointerRNA *
 		
 		/* fall back to searching node in the tree */
 		nodeFindNode(ntree, sock, &node, NULL);
-	}
-	
-	if (node) {
-		nodeSynchronizeID(node, true);
-
-		/* extra update for sockets that get synced to material */
-		if (node->id && ELEM(node->type, SH_NODE_MATERIAL, SH_NODE_MATERIAL_EXT))
-			WM_main_add_notifier(NC_MATERIAL | ND_SHADING_DRAW, node->id);
 	}
 }
 
@@ -2499,17 +2495,6 @@ static void rna_Node_tex_image_update(Main *bmain, Scene *UNUSED(scene), Pointer
 
 	ED_node_tag_update_nodetree(bmain, ntree, node);
 	WM_main_add_notifier(NC_IMAGE, NULL);
-}
-
-static void rna_Node_material_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
-{
-	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
-	bNode *node = (bNode *)ptr->data;
-
-	if (node->id)
-		nodeSetActive(ntree, node);
-
-	ED_node_tag_update_nodetree(bmain, ntree, node);
 }
 
 static void rna_NodeGroup_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
@@ -2967,6 +2952,30 @@ static bNodeSocket *rna_NodeOutputFile_slots_new(ID *id, bNode *node, bContext *
 	return sock;
 }
 
+static void rna_ShaderNodeTexIES_mode_set(PointerRNA *ptr, int value)
+{
+	bNode *node = (bNode *)ptr->data;
+	NodeShaderTexIES *nss = node->storage;
+
+	if (nss->mode != value) {
+		nss->mode = value;
+		nss->filepath[0] = '\0';
+
+		/* replace text datablock by filepath */
+		if (node->id) {
+			Text *text = (Text *)node->id;
+
+			if (value == NODE_IES_EXTERNAL && text->name) {
+				BLI_strncpy(nss->filepath, text->name, sizeof(nss->filepath));
+				BLI_path_rel(nss->filepath, G.main->name);
+			}
+
+			id_us_min(node->id);
+			node->id = NULL;
+		}
+	}
+}
+
 static void rna_ShaderNodeScript_mode_set(PointerRNA *ptr, int value)
 {
 	bNode *node = (bNode *)ptr->data;
@@ -3034,7 +3043,7 @@ static void rna_ShaderNodeScript_update(Main *bmain, Scene *scene, PointerRNA *p
 {
 	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
 	bNode *node = (bNode *)ptr->data;
-	RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
+	RenderEngineType *engine_type = RE_engines_find(scene->r.engine);
 
 	if (engine_type && engine_type->update_script_node) {
 		/* auto update node */
@@ -3134,8 +3143,7 @@ static int point_density_vertex_color_source_from_shader(NodeShaderTexPointDensi
 }
 
 void rna_ShaderNodePointDensity_density_cache(bNode *self,
-                                              Depsgraph *depsgraph,
-                                              int settings)
+                                              Depsgraph *depsgraph)
 {
 	NodeShaderTexPointDensity *shader_point_density = self->storage;
 	PointDensity *pd = &shader_point_density->pd;
@@ -3143,12 +3151,6 @@ void rna_ShaderNodePointDensity_density_cache(bNode *self,
 	if (depsgraph == NULL) {
 		return;
 	}
-
-	EvaluationContext eval_ctx;
-	DEG_evaluation_context_init_from_depsgraph(&eval_ctx,
-	                                           depsgraph,
-	                                           settings == 1 ? DAG_EVAL_RENDER :
-	                                                           DAG_EVAL_VIEWPORT);
 
 	/* Make sure there's no cached data. */
 	BKE_texture_pointdensity_free_data(pd);
@@ -3178,13 +3180,11 @@ void rna_ShaderNodePointDensity_density_cache(bNode *self,
 	shader_point_density->cached_resolution = shader_point_density->resolution;
 
 	/* Single-threaded sampling of the voxel domain. */
-	RE_point_density_cache(&eval_ctx,
-	                       pd);
+	RE_point_density_cache(depsgraph, pd);
 }
 
 void rna_ShaderNodePointDensity_density_calc(bNode *self,
                                              Depsgraph *depsgraph,
-                                             int settings,
                                              int *length,
                                              float **values)
 {
@@ -3197,12 +3197,6 @@ void rna_ShaderNodePointDensity_density_calc(bNode *self,
 		return;
 	}
 
-	EvaluationContext eval_ctx;
-	DEG_evaluation_context_init_from_depsgraph(&eval_ctx,
-	                                           depsgraph,
-	                                           settings == 1 ? DAG_EVAL_RENDER :
-	                                                           DAG_EVAL_VIEWPORT);
-
 	/* TODO(sergey): Will likely overflow, but how to pass size_t via RNA? */
 	*length = 4 * resolution * resolution * resolution;
 
@@ -3211,10 +3205,7 @@ void rna_ShaderNodePointDensity_density_calc(bNode *self,
 	}
 
 	/* Single-threaded sampling of the voxel domain. */
-	RE_point_density_sample(&eval_ctx,
-	                        pd,
-	                        resolution,
-	                        *values);
+	RE_point_density_sample(depsgraph, pd, resolution, *values);
 
 	/* We're done, time to clean up. */
 	BKE_texture_pointdensity_free_data(pd);
@@ -3224,7 +3215,6 @@ void rna_ShaderNodePointDensity_density_calc(bNode *self,
 
 void rna_ShaderNodePointDensity_density_minmax(bNode *self,
                                                Depsgraph *depsgraph,
-                                               int settings,
                                                float r_min[3],
                                                float r_max[3])
 {
@@ -3237,13 +3227,7 @@ void rna_ShaderNodePointDensity_density_minmax(bNode *self,
 		return;
 	}
 
-	EvaluationContext eval_ctx;
-	DEG_evaluation_context_init_from_depsgraph(&eval_ctx,
-	                                           depsgraph,
-	                                           settings == 1 ? DAG_EVAL_RENDER :
-	                                                           DAG_EVAL_VIEWPORT);
-
-	RE_point_density_minmax(&eval_ctx, pd, r_min, r_max);
+	RE_point_density_minmax(depsgraph, pd, r_min, r_max);
 }
 
 #else
@@ -3331,6 +3315,12 @@ static const EnumPropertyItem node_hair_items[] = {
 static const EnumPropertyItem node_script_mode_items[] = {
 	{NODE_SCRIPT_INTERNAL, "INTERNAL", 0, "Internal", "Use internal text data-block"},
 	{NODE_SCRIPT_EXTERNAL, "EXTERNAL", 0, "External", "Use external .osl or .oso file"},
+	{0, NULL, 0, NULL, NULL}
+};
+
+static EnumPropertyItem node_ies_mode_items[] = {
+	{NODE_IES_INTERNAL, "INTERNAL", 0, "Internal", "Use internal text datablock"},
+	{NODE_IES_EXTERNAL, "EXTERNAL", 0, "External", "Use external .ies file"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -3572,33 +3562,6 @@ static void def_sh_output_linestyle(StructRNA *srna)
 	def_mix_rgb(srna);
 }
 
-static void def_sh_material(StructRNA *srna)
-{
-	PropertyRNA *prop;
-
-	prop = RNA_def_property(srna, "material", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "id");
-	RNA_def_property_struct_type(prop, "Material");
-	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Material", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_material_update");
-
-	prop = RNA_def_property(srna, "use_diffuse", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", SH_NODE_MAT_DIFF);
-	RNA_def_property_ui_text(prop, "Diffuse", "Material Node outputs Diffuse");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-
-	prop = RNA_def_property(srna, "use_specular", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", SH_NODE_MAT_SPEC);
-	RNA_def_property_ui_text(prop, "Specular", "Material Node outputs Specular");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-	
-	prop = RNA_def_property(srna, "invert_normal", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", SH_NODE_MAT_NEG);
-	RNA_def_property_ui_text(prop, "Invert Normal", "Material Node uses inverted normal");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-}
-
 static void def_sh_mapping(StructRNA *srna)
 {
 	static const EnumPropertyItem prop_vect_type_items[] = {
@@ -3659,36 +3622,6 @@ static void def_sh_mapping(StructRNA *srna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", TEXMAP_CLIP_MAX);
 	RNA_def_property_ui_text(prop, "Has Maximum", "Whether to use maximum clipping value");
 	RNA_def_property_update(prop, 0, "rna_Mapping_Node_update");
-}
-
-static void def_sh_geometry(StructRNA *srna)
-{
-	PropertyRNA *prop;
-	
-	RNA_def_struct_sdna_from(srna, "NodeGeometry", "storage");
-	
-	prop = RNA_def_property(srna, "uv_layer", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "uvname");
-	RNA_def_property_ui_text(prop, "UV Map", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-	
-	prop = RNA_def_property(srna, "color_layer", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "colname");
-	RNA_def_property_ui_text(prop, "Vertex Color Layer", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-}
-
-static void def_sh_lamp(StructRNA *srna)
-{
-	PropertyRNA *prop;
-	
-	prop = RNA_def_property(srna, "lamp_object", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "id");
-	RNA_def_property_struct_type(prop, "Object");
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
-	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_Lamp_object_poll");
-	RNA_def_property_ui_text(prop, "Lamp Object", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 }
 
 static void def_sh_attribute(StructRNA *srna)
@@ -4165,13 +4098,6 @@ static void def_sh_tex_pointdensity(StructRNA *srna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	/* TODO(sergey): Use some mnemonic names for the hardcoded values here. */
-	static const EnumPropertyItem calc_mode_items[] = {
-		{0, "VIEWPORT", 0, "Viewport", "Canculate density using viewport settings"},
-		{1, "RENDER", 0, "Render", "Canculate duplis using render settings"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "id");
 	RNA_def_property_struct_type(prop, "Object");
@@ -4234,12 +4160,10 @@ static void def_sh_tex_pointdensity(StructRNA *srna)
 	func = RNA_def_function(srna, "cache_point_density", "rna_ShaderNodePointDensity_density_cache");
 	RNA_def_function_ui_description(func, "Cache point density data for later calculation");
 	RNA_def_pointer(func, "depsgraph", "Depsgraph", "", "");
-	RNA_def_enum(func, "settings", calc_mode_items, 1, "", "Calculate density for rendering");
 
 	func = RNA_def_function(srna, "calc_point_density", "rna_ShaderNodePointDensity_density_calc");
 	RNA_def_function_ui_description(func, "Calculate point density");
 	RNA_def_pointer(func, "depsgraph", "Depsgraph", "", "");
-	RNA_def_enum(func, "settings", calc_mode_items, 1, "", "Calculate density for rendering");
 	/* TODO, See how array size of 0 works, this shouldnt be used. */
 	parm = RNA_def_float_array(func, "rgba_values", 1, NULL, 0, 0, "", "RGBA Values", 0, 0);
 	RNA_def_parameter_flags(parm, PROP_DYNAMIC, 0);
@@ -4248,7 +4172,6 @@ static void def_sh_tex_pointdensity(StructRNA *srna)
 	func = RNA_def_function(srna, "calc_point_density_minmax", "rna_ShaderNodePointDensity_density_minmax");
 	RNA_def_function_ui_description(func, "Calculate point density");
 	RNA_def_pointer(func, "depsgraph", "Depsgraph", "", "");
-	RNA_def_enum(func, "settings", calc_mode_items, 1, "", "Calculate density for rendering");
 	parm = RNA_def_property(func, "min", PROP_FLOAT, PROP_COORDS);
 	RNA_def_property_array(parm, 3);
 	RNA_def_parameter_flags(parm, PROP_THICK_WRAP, 0);
@@ -4510,6 +4433,32 @@ static void def_sh_subsurface(StructRNA *srna)
 	RNA_def_property_enum_items(prop, prop_subsurface_falloff_items);
 	RNA_def_property_ui_text(prop, "Falloff", "Function to determine how much light nearby points contribute based on their distance to the shading point");
 	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNodeSubsurface_update");
+}
+
+static void def_sh_tex_ies(StructRNA *srna)
+{
+	PropertyRNA *prop;
+
+	prop = RNA_def_property(srna, "ies", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "id");
+	RNA_def_property_struct_type(prop, "Text");
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
+	RNA_def_property_ui_text(prop, "IES Text", "Internal IES file");
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
+
+	RNA_def_struct_sdna_from(srna, "NodeShaderTexIES", "storage");
+
+	prop = RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
+	RNA_def_property_ui_text(prop, "File Path", "IES light path");
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
+
+	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_funcs(prop, NULL, "rna_ShaderNodeTexIES_mode_set", NULL);
+	RNA_def_property_enum_items(prop, node_ies_mode_items);
+	RNA_def_property_ui_text(prop, "Source", "Whether the IES file is loaded from disk or from a Text datablock");
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
+
+	RNA_def_struct_sdna_from(srna, "bNode", NULL);
 }
 
 static void def_sh_script(StructRNA *srna)
@@ -5007,17 +4956,17 @@ static void rna_def_cmp_output_file_slots_api(BlenderRNA *brna, PropertyRNA *cpr
 
 	func = RNA_def_function(srna, "remove", "rna_Node_socket_remove");
 	RNA_def_function_ui_description(func, "Remove a file slot from this node");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "socket", "NodeSocket", "", "The socket to remove");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	func = RNA_def_function(srna, "clear", "rna_Node_inputs_clear");
 	RNA_def_function_ui_description(func, "Remove all file slots from this node");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN);
 
 	func = RNA_def_function(srna, "move", "rna_Node_inputs_move");
 	RNA_def_function_ui_description(func, "Move a file slot to another position");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN);
 	parm = RNA_def_int(func, "from_index", -1, 0, INT_MAX, "From Index", "Index of the socket to move", 0, 10000);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_int(func, "to_index", -1, 0, INT_MAX, "To Index", "Target index for the socket", 0, 10000);
@@ -7750,7 +7699,7 @@ static void rna_def_node_sockets_api(BlenderRNA *brna, PropertyRNA *cprop, int i
 
 	func = RNA_def_function(srna, "new", newfunc);
 	RNA_def_function_ui_description(func, "Add a socket to this node");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_string(func, "type", NULL, MAX_NAME, "Type", "Data type");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_string(func, "name", NULL, MAX_NAME, "Name", "");
@@ -7762,17 +7711,17 @@ static void rna_def_node_sockets_api(BlenderRNA *brna, PropertyRNA *cprop, int i
 
 	func = RNA_def_function(srna, "remove", "rna_Node_socket_remove");
 	RNA_def_function_ui_description(func, "Remove a socket from this node");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "socket", "NodeSocket", "", "The socket to remove");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	func = RNA_def_function(srna, "clear", clearfunc);
 	RNA_def_function_ui_description(func, "Remove all sockets from this node");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN);
 
 	func = RNA_def_function(srna, "move", movefunc);
 	RNA_def_function_ui_description(func, "Move a socket to another position");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN);
 	parm = RNA_def_int(func, "from_index", -1, 0, INT_MAX, "From Index", "Index of the socket to move", 0, 10000);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_int(func, "to_index", -1, 0, INT_MAX, "To Index", "Target index for the socket", 0, 10000);
@@ -8143,14 +8092,14 @@ static void rna_def_nodetree_nodes_api(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "remove", "rna_NodeTree_node_remove");
 	RNA_def_function_ui_description(func, "Remove a node from this node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "node", "Node", "", "The node to remove");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 
 	func = RNA_def_function(srna, "clear", "rna_NodeTree_node_clear");
 	RNA_def_function_ui_description(func, "Remove all nodes from this node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 
 	prop = RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Node");
@@ -8173,7 +8122,7 @@ static void rna_def_nodetree_link_api(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "new", "rna_NodeTree_link_new");
 	RNA_def_function_ui_description(func, "Add a node link to this node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "input", "NodeSocket", "", "The input socket");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "output", "NodeSocket", "", "The output socket");
@@ -8185,14 +8134,14 @@ static void rna_def_nodetree_link_api(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "remove", "rna_NodeTree_link_remove");
 	RNA_def_function_ui_description(func, "remove a node link from the node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "link", "NodeLink", "", "The node link to remove");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 
 	func = RNA_def_function(srna, "clear", "rna_NodeTree_link_clear");
 	RNA_def_function_ui_description(func, "remove all node links from the node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 }
 
 static void rna_def_node_tree_sockets_api(BlenderRNA *brna, PropertyRNA *cprop, int in_out)
@@ -8213,7 +8162,7 @@ static void rna_def_node_tree_sockets_api(BlenderRNA *brna, PropertyRNA *cprop, 
 
 	func = RNA_def_function(srna, "new", newfunc);
 	RNA_def_function_ui_description(func, "Add a socket to this node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_string(func, "type", NULL, MAX_NAME, "Type", "Data type");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_string(func, "name", NULL, MAX_NAME, "Name", "");
@@ -8224,16 +8173,17 @@ static void rna_def_node_tree_sockets_api(BlenderRNA *brna, PropertyRNA *cprop, 
 
 	func = RNA_def_function(srna, "remove", "rna_NodeTree_socket_remove");
 	RNA_def_function_ui_description(func, "Remove a socket from this node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "socket", "NodeSocketInterface", "", "The socket to remove");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	func = RNA_def_function(srna, "clear", clearfunc);
 	RNA_def_function_ui_description(func, "Remove all sockets from this node tree");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_REPORTS);
 
 	func = RNA_def_function(srna, "move", movefunc);
 	RNA_def_function_ui_description(func, "Move a socket to another position");
+	RNA_def_function_flag(func, FUNC_USE_MAIN);
 	parm = RNA_def_int(func, "from_index", -1, 0, INT_MAX, "From Index", "Index of the socket to move", 0, 10000);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_int(func, "to_index", -1, 0, INT_MAX, "To Index", "Target index for the socket", 0, 10000);

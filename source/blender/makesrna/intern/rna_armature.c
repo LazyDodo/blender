@@ -108,7 +108,7 @@ static EditBone *rna_Armature_edit_bone_new(bArmature *arm, ReportList *reports,
 		BKE_reportf(reports, RPT_ERROR, "Armature '%s' not in edit mode, cannot add an editbone", arm->id.name + 2);
 		return NULL;
 	}
-	return ED_armature_edit_bone_add(arm, name);
+	return ED_armature_ebone_add(arm, name);
 }
 
 static void rna_Armature_edit_bone_remove(bArmature *arm, ReportList *reports, PointerRNA *ebone_ptr)
@@ -124,7 +124,7 @@ static void rna_Armature_edit_bone_remove(bArmature *arm, ReportList *reports, P
 		return;
 	}
 
-	ED_armature_edit_bone_remove(arm, ebone);
+	ED_armature_ebone_remove(arm, ebone);
 	RNA_POINTER_INVALIDATE(ebone_ptr);
 }
 
@@ -140,6 +140,7 @@ static void rna_Armature_update_layers(Main *bmain, Scene *UNUSED(scene), Pointe
 			ob->pose->proxy_layer = arm->layer;
 	}
 
+	DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, arm);
 }
 
@@ -147,6 +148,7 @@ static void rna_Armature_redraw_data(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 {
 	ID *id = ptr->id.data;
 	
+	DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, id);
 }
 
@@ -166,8 +168,10 @@ static void rna_Bone_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 {
 	ID *id = ptr->id.data;
 	
-	/* special updates for cases where rigs try to hook into armature drawing stuff 
-	 * e.g. Mask Modifier - 'Armature' option
+	/* 1) special updates for cases where rigs try to hook into armature drawing stuff
+	 *    e.g. Mask Modifier - 'Armature' option
+	 * 2) tag armature for copy-on-write, so that selection status (set by addons)
+	 *    will update properly, like standard tools do already
 	 */
 	if (id) {
 		if (GS(id->name) == ID_AR) {
@@ -176,6 +180,8 @@ static void rna_Bone_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 			if (arm->flag & ARM_HAS_VIZ_DEPS) {
 				DEG_id_tag_update(id, OB_RECALC_DATA);
 			}
+			
+			DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
 		}
 		else if (GS(id->name) == ID_OB) {
 			Object *ob = (Object *)id;
@@ -184,6 +190,8 @@ static void rna_Bone_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 			if (arm->flag & ARM_HAS_VIZ_DEPS) {
 				DEG_id_tag_update(id, OB_RECALC_DATA);
 			}
+			
+			DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
 		}
 	}
 	
@@ -238,6 +246,18 @@ static IDProperty *rna_EditBone_idprops(PointerRNA *ptr, bool create)
 	return ebone->prop;
 }
 
+/* Update the layers_used variable after bones are moved between layer
+ * NOTE: Used to be done in drawing code in 2.7, but that won't work with
+ *       Copy-on-Write, as drawing uses evaluated copies.
+ */
+static void rna_Armature_layer_used_refresh(bArmature *arm, ListBase *bones)
+{
+	for (Bone *bone = bones->first; bone; bone = bone->next) {
+		arm->layer_used |= bone->layer;
+		rna_Armature_layer_used_refresh(arm, &bone->childbase);
+	}
+}
+
 static void rna_bone_layer_set(int *layer, const int *values)
 {
 	int i, tot = 0;
@@ -258,8 +278,13 @@ static void rna_bone_layer_set(int *layer, const int *values)
 
 static void rna_Bone_layer_set(PointerRNA *ptr, const int *values)
 {
+	bArmature *arm = (bArmature *)ptr->id.data;
 	Bone *bone = (Bone *)ptr->data;
+	
 	rna_bone_layer_set(&bone->layer, values);
+	
+	arm->layer_used = 0;
+	rna_Armature_layer_used_refresh(arm, &arm->bonebase);
 }
 
 static void rna_Armature_layer_set(PointerRNA *ptr, const int *values)
@@ -427,7 +452,7 @@ static void rna_Armature_editbone_transform_update(Main *bmain, Scene *scene, Po
 			copy_v3_v3(child->head, ebone->tail);
 
 	if (arm->flag & ARM_MIRROR_EDIT) {
-		eboflip = ED_armature_bone_get_mirrored(arm->edbo, ebone);
+		eboflip = ED_armature_ebone_get_mirrored(arm->edbo, ebone);
 
 		if (eboflip) {
 			eboflip->roll = -ebone->roll;
@@ -989,11 +1014,6 @@ static void rna_def_armature(BlenderRNA *brna)
 		{ARM_WIRE, "WIRE", 0, "Wire", "Display bones as thin wires, showing subdivision and B-Splines"},
 		{0, NULL, 0, NULL, NULL}
 	};
-	static const EnumPropertyItem prop_vdeformer[] = {
-		{ARM_VDEF_BLENDER, "BLENDER", 0, "Blender", "Use Blender's armature vertex deformation"},
-		{ARM_VDEF_BGE_CPU, "BGE_CPU", 0, "BGE", "Use vertex deformation code optimized for the BGE"},
-		{0, NULL, 0, NULL, NULL}
-	};
 	static const EnumPropertyItem prop_ghost_type_items[] = {
 		{ARM_GHOST_CUR, "CURRENT_FRAME", 0, "Around Frame",
 		                "Display Ghosts of poses within a fixed number of frames around the current frame"},
@@ -1050,13 +1070,6 @@ static void rna_def_armature(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
 	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
 
-	prop = RNA_def_property(srna, "deform_method", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "gevertdeformer");
-	RNA_def_property_enum_items(prop, prop_vdeformer);
-	RNA_def_property_ui_text(prop, "Vertex Deformer", "Vertex Deformer Method (Game Engine only)");
-	RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
-	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
-	
 /* XXX deprecated ....... old animviz for armatures only */
 	prop = RNA_def_property(srna, "ghost_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "ghosttype");

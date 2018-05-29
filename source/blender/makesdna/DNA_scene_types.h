@@ -47,9 +47,11 @@ extern "C" {
 #include "DNA_ID.h"
 #include "DNA_freestyle_types.h"
 #include "DNA_gpu_types.h"
+#include "DNA_group_types.h"
 #include "DNA_layer_types.h"
 #include "DNA_material_types.h"
 #include "DNA_userdef_types.h"
+#include "DNA_view3d_types.h"
 
 struct CurveMapping;
 struct Object;
@@ -57,7 +59,7 @@ struct Brush;
 struct World;
 struct Scene;
 struct Image;
-struct Group;
+struct Collection;
 struct Text;
 struct bNodeTree;
 struct AnimData;
@@ -431,7 +433,7 @@ typedef struct ImageFormatData {
 #define R_IMF_IMTYPE_TIFF           22
 #define R_IMF_IMTYPE_OPENEXR        23
 #define R_IMF_IMTYPE_FFMPEG         24
-#define R_IMF_IMTYPE_FRAMESERVER    25
+/* #define R_IMF_IMTYPE_FRAMESERVER    25 */ /* frame server is nomore */
 #define R_IMF_IMTYPE_CINEON         26
 #define R_IMF_IMTYPE_DPX            27
 #define R_IMF_IMTYPE_MULTILAYER     28
@@ -571,29 +573,14 @@ typedef struct RenderData {
 
 	float framelen, blurfac;
 
-	/** For UR edge rendering: give the edges this color */
-	float edgeR, edgeG, edgeB;
-
-
-	/* standalone player */  //  XXX deprecated since 2.5
-	short fullscreen  DNA_DEPRECATED, xplay  DNA_DEPRECATED, yplay  DNA_DEPRECATED;
-	short freqplay  DNA_DEPRECATED;
-	/* standalone player */  //  XXX deprecated since 2.5
-	short depth  DNA_DEPRECATED, attrib  DNA_DEPRECATED;
-
-
 	int frame_step;		/* frames to jump during render/playback */
 
 	short stereomode  DNA_DEPRECATED;	/* standalone player stereo settings */  //  XXX deprecated since 2.5
 	
 	short dimensionspreset;		/* for the dimensions presets menu */
 
-	short filtertype;	/* filter is box, tent, gauss, mitch, etc */
-
 	short size; /* size in % */
 	
-	short maximsize DNA_DEPRECATED; /* max in Kb */
-
 	short pad6;
 
 	/* from buttons: */
@@ -605,15 +592,6 @@ typedef struct RenderData {
 	 * The desired number of pixels in the y direction
 	 */
 	int ysch;
-
-	/**
-	 * The number of part to use in the x direction
-	 */
-	short xparts DNA_DEPRECATED;
-	/**
-	 * The number of part to use in the y direction
-	 */
-	short yparts DNA_DEPRECATED;
 
 	/**
 	 * render tile dimensions
@@ -640,22 +618,6 @@ typedef struct RenderData {
 	int mode;
 
 	/**
-	 * Flags for raytrace settings. Use bit-masking to access the settings.
-	 */
-	int raytrace_options;
-	
-	/**
-	 * Raytrace acceleration structure
-	 */
-	short raytrace_structure;
-
-	short pad1;
-
-	/* octree resolution */
-	short ocres;
-	short pad4;
-	
-	/**
 	 * What to do with the sky/background. Picks sky/premul/key
 	 * blending for the background
 	 */
@@ -666,7 +628,7 @@ typedef struct RenderData {
 	 */
 	short osa;
 
-	short frs_sec, edgeint;
+	short frs_sec, pad[7];
 
 	
 	/* safety, border and display rect */
@@ -676,9 +638,7 @@ typedef struct RenderData {
 	/* information on different layers to be rendered */
 	ListBase layers DNA_DEPRECATED; /* Converted to Scene->view_layers. */
 	short actlay DNA_DEPRECATED; /* Converted to Scene->active_layer. */
-	
-	/* number of mblur samples */
-	short mblur_samples;
+	short pad1;
 	
 	/**
 	 * Adjustment factors for the aspect ratio in the x direction, was a short in 2.45
@@ -695,18 +655,13 @@ typedef struct RenderData {
 	/* color management settings - color profiles, gamma correction, etc */
 	int color_mgt_flag;
 	
-	/** post-production settings. deprecated, but here for upwards compat (initialized to 1) */
-	float postgamma, posthue, postsat;
-	
 	 /* Dither noise intensity */
 	float dither_intensity;
 	
 	/* Bake Render options */
-	short bake_osa, bake_filter, bake_mode, bake_flag;
-	short bake_normal_space, bake_quad_split;
-	float bake_maxdist, bake_biasdist;
-	short bake_samples, bake_pad;
-	float bake_user_scale, bake_pad1;
+	short bake_mode, bake_flag;
+	short bake_filter, bake_samples;
+	float bake_biasdist, bake_user_scale;
 
 	/* path to render output */
 	char pic[1024]; /* 1024 = FILE_MAX */
@@ -729,35 +684,19 @@ typedef struct RenderData {
 	char pad5[5];
 
 	/* render simplify */
-	int simplify_flag;
 	short simplify_subsurf;
 	short simplify_subsurf_render;
-	short simplify_shadowsamples, pad9;
+	short pad9, pad10;
 	float simplify_particles;
 	float simplify_particles_render;
-	float simplify_aosss;
-
-	/* cineon */
-	short cineonwhite  DNA_DEPRECATED, cineonblack  DNA_DEPRECATED;  /*deprecated*/
-	float cineongamma  DNA_DEPRECATED;  /*deprecated*/
-	
-	/* jpeg2000 */
-	short jp2_preset  DNA_DEPRECATED, jp2_depth  DNA_DEPRECATED;  /*deprecated*/
-	int rpad3;
-
-	/* Dome variables */ //  XXX deprecated since 2.5
-	short domeres  DNA_DEPRECATED, domemode  DNA_DEPRECATED;	//  XXX deprecated since 2.5
-	short domeangle  DNA_DEPRECATED, dometilt  DNA_DEPRECATED;	//  XXX deprecated since 2.5
-	float domeresbuf  DNA_DEPRECATED;	//  XXX deprecated since 2.5
-	float pad2;
-	struct Text *dometext  DNA_DEPRECATED;	//  XXX deprecated since 2.5
 
 	/* Freestyle line thickness options */
 	int line_thickness_mode;
 	float unit_line_thickness; /* in pixels */
 
 	/* render engine */
-	char engine[32] DNA_DEPRECATED; // XXX deprecated since 2.8
+	char engine[32];
+	int pad2;
 
 	/* Cycles baking */
 	struct BakeData bake;
@@ -781,12 +720,6 @@ typedef struct RenderData {
 } RenderData;
 
 /* *************************************************************** */
-/* Settings related to viewport drawing/render, only settings used by WorkSpace and Scene. */
-typedef struct ViewRender {
-	char engine_id[32];
-} ViewRender;
-
-/* *************************************************************** */
 /* Render Conversion/Simplfication Settings */
 
 /* control render convert and shading engine */
@@ -802,180 +735,6 @@ typedef struct RenderProfile {
 	float ao_error, pad2;
 	
 } RenderProfile;
-
-/* *************************************************************** */
-/* Game Engine - Dome */
-
-typedef struct GameDome {
-	short res, mode;
-	short angle, tilt;
-	float resbuf, pad2;
-	struct Text *warptext;
-} GameDome;
-
-/* GameDome.mode */
-#define DOME_FISHEYE			1
-#define DOME_TRUNCATED_FRONT	2
-#define DOME_TRUNCATED_REAR		3
-#define DOME_ENVMAP				4
-#define DOME_PANORAM_SPH		5
-#define DOME_NUM_MODES			6
-
-/* *************************************************************** */
-/* Game Engine */
-
-typedef struct GameFraming {
-	float col[3];
-	char type, pad1, pad2, pad3;
-} GameFraming;
-
-/* GameFraming.type */
-#define SCE_GAMEFRAMING_BARS   0
-#define SCE_GAMEFRAMING_EXTEND 1
-#define SCE_GAMEFRAMING_SCALE  2
-
-typedef struct RecastData {
-	float cellsize;
-	float cellheight;
-	float agentmaxslope;
-	float agentmaxclimb;
-	float agentheight;
-	float agentradius;
-	float edgemaxlen;
-	float edgemaxerror;
-	float regionminsize;
-	float regionmergesize;
-	int vertsperpoly;
-	float detailsampledist;
-	float detailsamplemaxerror;
-	char partitioning;
-	char pad1;
-	short pad2;
-} RecastData;
-
-/* RecastData.partitioning */
-#define RC_PARTITION_WATERSHED 0
-#define RC_PARTITION_MONOTONE 1
-#define RC_PARTITION_LAYERS 2
-
-typedef struct GameData {
-
-	/* standalone player */
-	struct GameFraming framing;
-	short playerflag, xplay, yplay, freqplay;
-	short depth, attrib, rt1, rt2;
-	short aasamples, pad4[3];
-
-	/* stereo/dome mode */
-	struct GameDome dome;
-	short stereoflag, stereomode;
-	float eyeseparation;
-	RecastData recastData;
-
-
-	/* physics (it was in world)*/
-	float gravity; /*Gravitation constant for the game world*/
-
-	/*
-	 * Radius of the activity bubble, in Manhattan length. Objects
-	 * outside the box are activity-culled. */
-	float activityBoxRadius;
-
-	/*
-	 * bit 3: (gameengine): Activity culling is enabled.
-	 * bit 5: (gameengine) : enable Bullet DBVT tree for view frustum culling
-	 */
-	int flag;
-	short mode, matmode;
-	short occlusionRes;		/* resolution of occlusion Z buffer in pixel */
-	short physicsEngine;
-	short exitkey;
-	short vsync; /* Controls vsync: off, on, or adaptive (if supported) */
-	short ticrate, maxlogicstep, physubstep, maxphystep;
-	short obstacleSimulation;
-	short raster_storage;
-	float levelHeight;
-	float deactivationtime, lineardeactthreshold, angulardeactthreshold;
-
-	/* Scene LoD */
-	short lodflag, pad2;
-	int scehysteresis, pad5;
-
-} GameData;
-
-/* GameData.stereoflag */
-#define STEREO_NOSTEREO		1
-#define STEREO_ENABLED		2
-#define STEREO_DOME			3
-
-/* GameData.stereomode */
-//#define STEREO_NOSTEREO		 1
-#define STEREO_QUADBUFFERED 2
-#define STEREO_ABOVEBELOW	 3
-#define STEREO_INTERLACED	 4
-#define STEREO_ANAGLYPH		5
-#define STEREO_SIDEBYSIDE	6
-#define STEREO_VINTERLACE	7
-//#define STEREO_DOME		8
-#define STEREO_3DTVTOPBOTTOM 9
-
-/* GameData.physicsEngine */
-#define WOPHY_NONE		0
-#define WOPHY_BULLET	5
-
-/* obstacleSimulation */
-#define OBSTSIMULATION_NONE		0
-#define OBSTSIMULATION_TOI_rays		1
-#define OBSTSIMULATION_TOI_cells	2
-
-/* GameData.raster_storage */
-#define RAS_STORE_AUTO		0
-/* #define RAS_STORE_IMMEDIATE	1 */  /* DEPRECATED */
-#define RAS_STORE_VA		2
-#define RAS_STORE_VBO		3
-
-/* GameData.vsync */
-#define VSYNC_ON	0
-#define VSYNC_OFF	1
-#define VSYNC_ADAPTIVE	2
-
-/* GameData.flag */
-#define GAME_RESTRICT_ANIM_UPDATES			(1 << 0)
-#define GAME_ENABLE_ALL_FRAMES				(1 << 1)
-#define GAME_SHOW_DEBUG_PROPS				(1 << 2)
-#define GAME_SHOW_FRAMERATE					(1 << 3)
-#define GAME_SHOW_PHYSICS					(1 << 4)
-// #define GAME_DISPLAY_LISTS					(1 << 5)   /* deprecated */
-#define GAME_GLSL_NO_LIGHTS					(1 << 6)
-#define GAME_GLSL_NO_SHADERS				(1 << 7)
-#define GAME_GLSL_NO_SHADOWS				(1 << 8)
-#define GAME_GLSL_NO_RAMPS					(1 << 9)
-#define GAME_GLSL_NO_NODES					(1 << 10)
-#define GAME_GLSL_NO_EXTRA_TEX				(1 << 11)
-#define GAME_IGNORE_DEPRECATION_WARNINGS	(1 << 12)
-#define GAME_ENABLE_ANIMATION_RECORD		(1 << 13)
-#define GAME_SHOW_MOUSE						(1 << 14)
-#define GAME_GLSL_NO_COLOR_MANAGEMENT		(1 << 15)
-#define GAME_SHOW_OBSTACLE_SIMULATION		(1 << 16)
-#define GAME_NO_MATERIAL_CACHING			(1 << 17)
-#define GAME_GLSL_NO_ENV_LIGHTING			(1 << 18)
-/* Note: GameData.flag is now an int (max 32 flags). A short could only take 16 flags */
-
-/* GameData.playerflag */
-#define GAME_PLAYER_FULLSCREEN				(1 << 0)
-#define GAME_PLAYER_DESKTOP_RESOLUTION		(1 << 1)
-
-/* GameData.matmode */
-enum {
-#ifdef DNA_DEPRECATED
-	GAME_MAT_TEXFACE    = 0, /* deprecated */
-#endif
-	GAME_MAT_MULTITEX   = 1,
-	GAME_MAT_GLSL       = 2,
-};
-
-/* GameData.lodflag */
-#define SCE_LOD_USE_HYST		(1 << 0)
 
 /* UV Paint */
 /* ToolSettings.uv_sculpt_settings */
@@ -1451,7 +1210,6 @@ typedef struct ToolSettings {
 	float vgroup_weight;
 
 	float doublimit;	/* remove doubles limit */
-	float normalsize;	/* size of normals */
 	short automerge;
 
 	/* Selection Mode for Mesh */
@@ -1476,6 +1234,8 @@ typedef struct ToolSettings {
 	char gpencil_v2d_align; /*                          : General 2D Editor */
 	char gpencil_seq_align; /*                          : Sequencer Preview */
 	char gpencil_ima_align; /*                          : Image Editor */
+
+	char _pad3[4];
 	
 	/* Grease Pencil Sculpt */
 	struct GP_BrushEdit_Settings gp_sculpt;
@@ -1505,42 +1265,18 @@ typedef struct ToolSettings {
 	/* Multires */
 	char multires_subdiv_type;
 
-	/* Skeleton generation */
-	short skgen_resolution;
-	float skgen_threshold_internal;
-	float skgen_threshold_external;
-	float skgen_length_ratio;
-	float skgen_length_limit;
-	float skgen_angle_limit;
-	float skgen_correlation_limit;
-	float skgen_symmetry_limit;
-	float skgen_retarget_angle_weight;
-	float skgen_retarget_length_weight;
-	float skgen_retarget_distance_weight;
-	short skgen_options;
-	char  skgen_postpro;
-	char  skgen_postpro_passes;
-	char  skgen_subdivisions[3];
-	char  skgen_multi_level;
-
-	/* Skeleton Sketching */
-	struct Object *skgen_template;
-	char bone_sketching;
-	char bone_sketching_convert;
-	char skgen_subdivision_number;
-	char skgen_retarget_options;
-	char skgen_retarget_roll;
-	char skgen_side_string[8];
-	char skgen_num_string[8];
-	
 	/* Alt+RMB option */
 	char edge_mode;
 	char edge_mode_live_unwrap;
+	char _pad1;
 
 	/* Transform */
+	char transform_pivot_point;
+	char transform_flag;
 	char snap_mode, snap_node_mode;
 	char snap_uv_mode;
-	short snap_flag, snap_target;
+	char snap_flag;
+	char snap_target;
 	short proportional, prop_mode;
 	char proportional_objects; /* proportional edit, object mode */
 	char proportional_mask; /* proportional edit, mask editing */
@@ -1555,10 +1291,11 @@ typedef struct ToolSettings {
 	char vgroupsubset; /* subset selection filter in wpaint */
 
 	/* UV painting */
-	int use_uv_sculpt;
-	int uv_sculpt_settings;
-	int uv_sculpt_tool;
-	int uv_relax_method;
+	char _pad2[2];
+	char use_uv_sculpt;
+	char uv_sculpt_settings;
+	char uv_sculpt_tool;
+	char uv_relax_method;
 	/* XXX: these sculpt_paint_* fields are deprecated, use the
 	 * unified_paint_settings field instead! */
 	short sculpt_paint_settings DNA_DEPRECATED;	short pad5;
@@ -1620,6 +1357,73 @@ typedef struct DisplaySafeAreas {
 	float action_center[2];
 } DisplaySafeAreas;
 
+/* ------------------------------------------- */
+/* Scene Display - used for store scene specific display settings for the 3d view */
+typedef struct SceneDisplay {
+	float light_direction[3];      /* light direction for shadows/highlight */
+	float shadow_shift;
+
+	int matcap_icon;
+	int matcap_type;
+	float matcap_rotation;
+	float matcap_hue;
+	float matcap_saturation;
+	float matcap_value;
+	float matcap_ssao_distance;
+	float matcap_ssao_attenuation;
+	float matcap_ssao_factor_cavity;
+	float matcap_ssao_factor_edge;
+	float matcap_hair_brightness_randomness;
+	int matcap_ssao_samples;
+} SceneDisplay;
+
+typedef struct SceneEEVEE {
+	int flag;
+	int gi_diffuse_bounces;
+	int gi_cubemap_resolution;
+	int gi_visibility_resolution;
+
+	int taa_samples;
+	int taa_render_samples;
+	int sss_samples;
+	float sss_jitter_threshold;
+
+	float ssr_quality;
+	float ssr_max_roughness;
+	float ssr_thickness;
+	float ssr_border_fade;
+	float ssr_firefly_fac;
+
+	float volumetric_start;
+	float volumetric_end;
+	int volumetric_tile_size;
+	int volumetric_samples;
+	float volumetric_sample_distribution;
+	float volumetric_light_clamp;
+	int volumetric_shadow_samples;
+
+	float gtao_distance;
+	float gtao_factor;
+	float gtao_quality;
+
+	float bokeh_max_size;
+	float bokeh_threshold;
+
+	float bloom_color[3];
+	float bloom_threshold;
+	float bloom_knee;
+	float bloom_intensity;
+	float bloom_radius;
+	float bloom_clamp;
+
+	int motion_blur_samples;
+	float motion_blur_shutter;
+
+	int shadow_method;
+	int shadow_cube_size;
+	int shadow_cascade_size;
+} SceneEEVEE;
+
 /* *************************************************************** */
 /* Scene ID-Block */
 
@@ -1636,8 +1440,7 @@ typedef struct Scene {
 	struct Base  *basact DNA_DEPRECATED; /* active base */
 	void *_pad1;
 	
-	float cursor[3];			/* 3d cursor location */
-	char _pad[4];
+	View3DCursor cursor;			/* 3d cursor location */
 	
 	unsigned int lay;			/* bitflags for layer visibility */
 	int layact;		/* active layer */
@@ -1662,7 +1465,10 @@ typedef struct Scene {
 	struct AudioData audio;
 
 	ListBase markers;
-	ListBase transform_spaces DNA_DEPRECATED;
+	ListBase transform_spaces;
+
+	int orientation_index_custom;
+	int orientation_type;
 
 	void *sound_scene;
 	void *playback_handle;
@@ -1678,10 +1484,6 @@ typedef struct Scene {
 	/* User-Defined KeyingSets */
 	int active_keyingset;			/* index of the active KeyingSet. first KeyingSet has index 1, 'none' active is 0, 'add new' is -1 */
 	ListBase keyingsets;			/* KeyingSets for this scene */
-	
-	/* Game Settings */
-	struct GameFraming framing  DNA_DEPRECATED; // XXX  deprecated since 2.5
-	struct GameData gm;
 
 	/* Units */
 	struct UnitSettings unit;
@@ -1709,16 +1511,14 @@ typedef struct Scene {
 	struct PreviewImage *preview;
 
 	ListBase view_layers;
-	struct SceneCollection *collection;
-	int active_view_layer;
-	int pad4;
+	/* Not an actual datablock, but memory owned by scene. */
+	Collection *master_collection;
+	struct SceneCollection *collection DNA_DEPRECATED;
 
-	IDProperty *collection_properties;  /* settings to be overriden by layer collections */
 	IDProperty *layer_properties;  /* settings to be override by workspaces */
 
-	int pad5[2];
-
-	ViewRender view_render;
+	struct SceneDisplay display;
+	struct SceneEEVEE eevee;
 } Scene;
 
 /* **************** RENDERDATA ********************* */
@@ -1732,25 +1532,25 @@ typedef struct Scene {
 
 /* RenderData.mode */
 #define R_OSA			0x0001
-#define R_SHADOW		0x0002
-#define R_GAMMA			0x0004
-#define R_ORTHO			0x0008
-#define R_ENVMAP		0x0010
-#define R_EDGE			0x0020
-#define R_FIELDS		0x0040
-#define R_FIELDSTILL	0x0080
+/* #define R_SHADOW		0x0002 */
+/* #define R_GAMMA			0x0004 */
+#define R_ORTHO			0x0008 
+/* #define R_ENVMAP		0x0010 */
+/* #define R_EDGE			0x0020 */
+/* #define R_FIELDS		0x0040 */
+/*#define R_FIELDSTILL	0x0080 */
 /*#define R_RADIO			0x0100 */ /* deprecated */
 #define R_BORDER		0x0200
-#define R_PANORAMA		0x0400	/* deprecated as scene option, still used in renderer */
+#define R_PANORAMA		0x0400
 #define R_CROP			0x0800
 		/* Disable camera switching: runtime (DURIAN_CAMERA_SWITCH) */
 #define R_NO_CAMERA_SWITCH	0x1000
-#define R_ODDFIELD		0x2000
+/* #define R_ODDFIELD		0x2000 */
 #define R_MBLUR			0x4000
 		/* unified was here */
-#define R_RAYTRACE      0x10000
+/* #define R_RAYTRACE      0x10000 */
 		/* R_GAUSS is obsolete, but used to retrieve setting from old files */
-#define R_GAUSS      	0x20000
+/* #define R_GAUSS      	0x20000 */
 		/* fbuf obsolete... */
 /*#define R_FBUF			0x40000*/
 		/* threads obsolete... is there for old files, now use for autodetect threads */
@@ -1758,14 +1558,14 @@ typedef struct Scene {
 		/* Use the same flag for autothreads */
 #define R_FIXED_THREADS		0x80000 
 
-#define R_SPEED				0x100000
-#define R_SSS				0x200000
+/* #define R_SPEED				0x100000 */
+/* #define R_SSS				0x200000 */
 #define R_NO_OVERWRITE		0x400000  /* skip existing files */
 #define R_TOUCH				0x800000  /* touch files before rendering */
 #define R_SIMPLIFY			0x1000000
 #define R_EDGE_FRS			0x2000000 /* R_EDGE reserved for Freestyle */
 #define R_PERSISTENT_DATA	0x4000000 /* keep data around for re-render */
-#define R_USE_WS_SHADING	0x8000000 /* use world space interpretation of lighting data */
+/* #define R_USE_WS_SHADING	0x8000000 */ /* use world space interpretation of lighting data */
 
 /* RenderData.seq_flag */
 enum {
@@ -1782,7 +1582,7 @@ enum {
 #define R_OUTPUT_NONE	3
 /*#define R_OUTPUT_FORKED	4*/
 
-/* RenderData.filtertype */
+/* RenderData.filtertype (used for nodes) */
 #define R_FILTER_BOX	0
 #define R_FILTER_TENT	1
 #define R_FILTER_QUAD	2
@@ -1790,19 +1590,7 @@ enum {
 #define R_FILTER_CATROM	4
 #define R_FILTER_GAUSS	5
 #define R_FILTER_MITCH	6
-#define R_FILTER_FAST_GAUSS	7 /* note, this is only used for nodes at the moment */
-
-/* RenderData.raytrace_structure */
-#define R_RAYSTRUCTURE_AUTO				0
-#define R_RAYSTRUCTURE_OCTREE			1
-#define R_RAYSTRUCTURE_BLIBVH			2	/* removed */
-#define R_RAYSTRUCTURE_VBVH				3
-#define R_RAYSTRUCTURE_SIMD_SVBVH		4	/* needs SIMD */
-#define R_RAYSTRUCTURE_SIMD_QBVH		5	/* needs SIMD */
-
-/* RenderData.raytrace_options */
-#define R_RAYTRACE_USE_LOCAL_COORDS		0x0001
-#define R_RAYTRACE_USE_INSTANCES		0x0002
+#define R_FILTER_FAST_GAUSS	7
 
 /* RenderData.scemode (int now) */
 #define R_DOSEQ				0x0001
@@ -1814,12 +1602,12 @@ enum {
 #define R_MATNODE_PREVIEW	0x0020
 #define R_DOCOMP			0x0040
 #define R_COMP_CROP			0x0080
-#define R_FREE_IMAGE		0x0100
+/* #define R_FREE_IMAGE		0x0100 */
 #define R_SINGLE_LAYER		0x0200
 #define R_EXR_TILE_FILE		0x0400
 /* #define R_COMP_FREE			0x0800 */
 #define R_NO_IMAGE_LOAD		0x1000
-#define R_NO_TEX			0x2000
+/* #define R_NO_TEX			0x2000 */
 #define R_NO_FRAME_UPDATE	0x4000
 #define R_FULL_SAMPLE		0x8000
 /* #define R_DEPRECATED		0x10000 */
@@ -1882,12 +1670,12 @@ enum {
 /* bake_mode: same as RE_BAKE_xxx defines */
 /* RenderData.bake_flag */
 #define R_BAKE_CLEAR		1
-#define R_BAKE_OSA			2
+/* #define R_BAKE_OSA		2 */ /* deprecated */
 #define R_BAKE_TO_ACTIVE	4
-#define R_BAKE_NORMALIZE	8
+/* #define R_BAKE_NORMALIZE	8 */ /* deprecated */
 #define R_BAKE_MULTIRES		16
 #define R_BAKE_LORES_MESH	32
-#define R_BAKE_VCOL			64
+/* #define R_BAKE_VCOL		64 */ /* deprecated */
 #define R_BAKE_USERSCALE	128
 #define R_BAKE_CAGE			256
 #define R_BAKE_SPLIT_MAT	512
@@ -1899,9 +1687,6 @@ enum {
 #define R_BAKE_SPACE_OBJECT	 2
 #define R_BAKE_SPACE_TANGENT 3
 
-/* RenderData.simplify_flag */
-#define R_SIMPLE_NO_TRIANGULATE		1
-
 /* RenderData.line_thickness_mode */
 #define R_LINE_THICKNESS_ABSOLUTE 1
 #define R_LINE_THICKNESS_RELATIVE 2
@@ -1909,10 +1694,9 @@ enum {
 /* sequencer seq_prev_type seq_rend_type */
 
 /* RenderData.engine (scene.c) */
-extern const char *RE_engine_id_BLENDER_RENDER;
-extern const char *RE_engine_id_BLENDER_GAME;
 extern const char *RE_engine_id_BLENDER_CLAY;
 extern const char *RE_engine_id_BLENDER_EEVEE;
+extern const char *RE_engine_id_BLENDER_WORKBENCH;
 extern const char *RE_engine_id_CYCLES;
 
 /* **************** SCENE ********************* */
@@ -1960,6 +1744,8 @@ extern const char *RE_engine_id_CYCLES;
 	(((workspace)->object_mode & OD_MODE_EDIT) ? OBACT(_view_layer) : NULL)
 #define OBEDIT_FROM_OBACT(ob) \
 	((ob) ? (((ob)->mode & OB_MODE_EDIT) ? ob : NULL) : NULL)
+#define OBPOSE_FROM_OBACT(ob) \
+	((ob) ? (((ob)->mode & OB_MODE_POSE) ? ob : NULL) : NULL)
 #define OBEDIT_FROM_VIEW_LAYER(view_layer) \
 	OBEDIT_FROM_OBACT(OBACT(view_layer))
 
@@ -1979,6 +1765,11 @@ extern const char *RE_engine_id_CYCLES;
 
 /* Base.flag is in DNA_object_types.h */
 
+/* ToolSettings.transform_flag */
+enum {
+	SCE_XFORM_AXIS_ALIGN = (1 << 0),
+};
+
 /* ToolSettings.snap_flag */
 #define SCE_SNAP				1
 #define SCE_SNAP_ROTATE			2
@@ -1992,16 +1783,18 @@ extern const char *RE_engine_id_CYCLES;
 #define SCE_SNAP_TARGET_CENTER	1
 #define SCE_SNAP_TARGET_MEDIAN	2
 #define SCE_SNAP_TARGET_ACTIVE	3
+
 /* ToolSettings.snap_mode */
-#define SCE_SNAP_MODE_INCREMENT	0
-#define SCE_SNAP_MODE_VERTEX	1
-#define SCE_SNAP_MODE_EDGE		2
-#define SCE_SNAP_MODE_FACE		3
-#define SCE_SNAP_MODE_VOLUME	4
-#define SCE_SNAP_MODE_NODE_X	5
-#define SCE_SNAP_MODE_NODE_Y	6
-#define SCE_SNAP_MODE_NODE_XY	7
-#define SCE_SNAP_MODE_GRID		8
+#define SCE_SNAP_MODE_VERTEX    (1 << 0)
+#define SCE_SNAP_MODE_EDGE      (1 << 1)
+#define SCE_SNAP_MODE_FACE      (1 << 2)
+#define SCE_SNAP_MODE_VOLUME    (1 << 3)
+#define SCE_SNAP_MODE_INCREMENT (1 << 4)
+
+/* ToolSettings.snap_node_mode */
+#define SCE_SNAP_MODE_GRID      (1 << 5)
+#define SCE_SNAP_MODE_NODE_X    (1 << 6)
+#define SCE_SNAP_MODE_NODE_Y    (1 << 7)
 
 /* ToolSettings.selectmode */
 #define SCE_SELECT_VERTEX	1 /* for mesh */
@@ -2260,52 +2053,6 @@ typedef enum eGPencil_Placement_Flags {
 #define PE_TYPE_SOFTBODY	1
 #define PE_TYPE_CLOTH		2
 
-/* ToolSettings.skgen_options */
-#define SKGEN_FILTER_INTERNAL	(1 << 0)
-#define SKGEN_FILTER_EXTERNAL	(1 << 1)
-#define	SKGEN_SYMMETRY			(1 << 2)
-#define	SKGEN_CUT_LENGTH		(1 << 3)
-#define	SKGEN_CUT_ANGLE			(1 << 4)
-#define	SKGEN_CUT_CORRELATION	(1 << 5)
-#define	SKGEN_HARMONIC			(1 << 6)
-#define	SKGEN_STICK_TO_EMBEDDING	(1 << 7)
-#define	SKGEN_ADAPTIVE_DISTANCE		(1 << 8)
-#define SKGEN_FILTER_SMART		(1 << 9)
-#define SKGEN_DISP_LENGTH		(1 << 10)
-#define SKGEN_DISP_WEIGHT		(1 << 11)
-#define SKGEN_DISP_ORIG			(1 << 12)
-#define SKGEN_DISP_EMBED		(1 << 13)
-#define SKGEN_DISP_INDEX		(1 << 14)
-
-#define	SKGEN_SUB_LENGTH		0
-#define	SKGEN_SUB_ANGLE			1
-#define	SKGEN_SUB_CORRELATION	2
-#define	SKGEN_SUB_TOTAL			3
-
-/* ToolSettings.skgen_postpro */
-#define SKGEN_SMOOTH			0
-#define SKGEN_AVERAGE			1
-#define SKGEN_SHARPEN			2
-
-/* ToolSettings.bone_sketching */
-#define BONE_SKETCHING			1
-#define BONE_SKETCHING_QUICK	2
-#define BONE_SKETCHING_ADJUST	4
-
-/* ToolSettings.bone_sketching_convert */
-#define	SK_CONVERT_CUT_FIXED			0
-#define	SK_CONVERT_CUT_LENGTH			1
-#define	SK_CONVERT_CUT_ADAPTATIVE		2
-#define	SK_CONVERT_RETARGET				3
-
-/* ToolSettings.skgen_retarget_options */
-#define	SK_RETARGET_AUTONAME			1
-
-/* ToolSettings.skgen_retarget_roll */
-#define	SK_RETARGET_ROLL_NONE			0
-#define	SK_RETARGET_ROLL_VIEW			1
-#define	SK_RETARGET_ROLL_JOINT			2
-
 /* PhysicsSettings.flag */
 #define PHYS_GLOBAL_GRAVITY		1
 
@@ -2318,6 +2065,34 @@ typedef enum eGPencil_Placement_Flags {
 /* UnitSettings.flag */
 #define	USER_UNIT_OPT_SPLIT		1
 #define USER_UNIT_ROT_RADIANS	2
+
+/* SceneEEVEE->flag */
+enum {
+	SCE_EEVEE_VOLUMETRIC_ENABLED	= (1 << 0),
+	SCE_EEVEE_VOLUMETRIC_LIGHTS		= (1 << 1),
+	SCE_EEVEE_VOLUMETRIC_SHADOWS	= (1 << 2),
+	SCE_EEVEE_VOLUMETRIC_COLORED	= (1 << 3),
+	SCE_EEVEE_GTAO_ENABLED			= (1 << 4),
+	SCE_EEVEE_GTAO_BENT_NORMALS		= (1 << 5),
+	SCE_EEVEE_GTAO_BOUNCE			= (1 << 6),
+	SCE_EEVEE_DOF_ENABLED			= (1 << 7),
+	SCE_EEVEE_BLOOM_ENABLED			= (1 << 8),
+	SCE_EEVEE_MOTION_BLUR_ENABLED	= (1 << 9),
+	SCE_EEVEE_SHADOW_HIGH_BITDEPTH	= (1 << 10),
+	SCE_EEVEE_TAA_REPROJECTION		= (1 << 11),
+	SCE_EEVEE_SSS_ENABLED			= (1 << 12),
+	SCE_EEVEE_SSS_SEPARATE_ALBEDO	= (1 << 13),
+	SCE_EEVEE_SSR_ENABLED			= (1 << 14),
+	SCE_EEVEE_SSR_REFRACTION		= (1 << 15),
+	SCE_EEVEE_SSR_HALF_RESOLUTION	= (1 << 16),
+};
+
+/* SceneEEVEE->shadow_method */
+enum {
+	SHADOW_ESM = 1,
+	SHADOW_VSM = 2,
+	SHADOW_METHOD_MAX = 3,
+};
 
 #ifdef __cplusplus
 }

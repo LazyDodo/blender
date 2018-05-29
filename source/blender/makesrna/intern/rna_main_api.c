@@ -51,6 +51,7 @@
 
 #include "BKE_main.h"
 #include "BKE_camera.h"
+#include "BKE_collection.h"
 #include "BKE_curve.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
@@ -69,7 +70,6 @@
 #include "BKE_sound.h"
 #include "BKE_text.h"
 #include "BKE_action.h"
-#include "BKE_group.h"
 #include "BKE_brush.h"
 #include "BKE_lattice.h"
 #include "BKE_mball.h"
@@ -298,27 +298,11 @@ static Mesh *rna_Main_meshes_new(Main *bmain, const char *name)
 }
 
 /* copied from Mesh_getFromObject and adapted to RNA interface */
-/* settings: 1 - preview, 2 - render */
 Mesh *rna_Main_meshes_new_from_object(
-        Main *bmain, ReportList *reports, Scene *sce, ViewLayer *view_layer,
-        Object *ob, int apply_modifiers, int settings, int calc_tessface, int calc_undeformed)
+        Main *bmain, ReportList *reports, Depsgraph *depsgraph,
+        Object *ob, int apply_modifiers, int calc_tessface, int calc_undeformed)
 {
-	EvaluationContext eval_ctx;
-
-	/* XXX: This should never happen, but render pipeline is not ready to give
-	 * proper view_layer, and will always pass NULL here. For until we port
-	 * pipeline form SceneRenderLayer to ViewLayer we have this stub to prevent
-	 * some obvious crashes.
-	 *                                                         - sergey -
-	 */
-	if (view_layer == NULL) {
-		view_layer = sce->view_layers.first;
-	}
-
-	DEG_evaluation_context_init(&eval_ctx, settings);
-	eval_ctx.ctime = (float)sce->r.cfra + sce->r.subframe;
-	eval_ctx.view_layer = view_layer;
-	eval_ctx.depsgraph = BKE_scene_get_depsgraph(sce, view_layer, false);
+	Scene *sce = DEG_get_evaluated_scene(depsgraph);
 
 	switch (ob->type) {
 		case OB_FONT:
@@ -332,7 +316,7 @@ Mesh *rna_Main_meshes_new_from_object(
 			return NULL;
 	}
 
-	return BKE_mesh_new_from_object(&eval_ctx, bmain, sce, ob, apply_modifiers, settings, calc_tessface, calc_undeformed);
+	return BKE_mesh_new_from_object(depsgraph, bmain, sce, ob, apply_modifiers, calc_tessface, calc_undeformed);
 }
 
 static Lamp *rna_Main_lamps_new(Main *bmain, const char *name, int type)
@@ -459,12 +443,12 @@ static World *rna_Main_worlds_new(Main *bmain, const char *name)
 	return world;
 }
 
-static Group *rna_Main_groups_new(Main *bmain, const char *name)
+static Collection *rna_Main_collections_new(Main *bmain, const char *name)
 {
 	char safe_name[MAX_ID_NAME - 2];
 	rna_idname_validate(name, safe_name);
 
-	return BKE_group_add(bmain, safe_name);
+	return BKE_collection_add(bmain, NULL, safe_name);
 }
 
 static Speaker *rna_Main_speakers_new(Main *bmain, const char *name)
@@ -634,7 +618,7 @@ RNA_MAIN_ID_TAG_FUNCS_DEF(fonts, vfont, ID_VF)
 RNA_MAIN_ID_TAG_FUNCS_DEF(textures, tex, ID_TE)
 RNA_MAIN_ID_TAG_FUNCS_DEF(brushes, brush, ID_BR)
 RNA_MAIN_ID_TAG_FUNCS_DEF(worlds, world, ID_WO)
-RNA_MAIN_ID_TAG_FUNCS_DEF(groups, group, ID_GR)
+RNA_MAIN_ID_TAG_FUNCS_DEF(collections, collection, ID_GR)
 //RNA_MAIN_ID_TAG_FUNCS_DEF(shape_keys, key, ID_KE)
 RNA_MAIN_ID_TAG_FUNCS_DEF(texts, text, ID_TXT)
 RNA_MAIN_ID_TAG_FUNCS_DEF(speakers, speaker, ID_SPK)
@@ -893,12 +877,6 @@ void RNA_def_main_meshes(BlenderRNA *brna, PropertyRNA *cprop)
 	PropertyRNA *parm;
 	PropertyRNA *prop;
 
-	static const EnumPropertyItem mesh_type_items[] = {
-		{eModifierMode_Realtime, "PREVIEW", 0, "Preview", "Apply modifier preview settings"},
-		{eModifierMode_Render, "RENDER", 0, "Render", "Apply modifier render settings"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	RNA_def_property_srna(cprop, "BlendDataMeshes");
 	srna = RNA_def_struct(brna, "BlendDataMeshes", NULL);
 	RNA_def_struct_sdna(srna, "Main");
@@ -915,15 +893,11 @@ void RNA_def_main_meshes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "new_from_object", "rna_Main_meshes_new_from_object");
 	RNA_def_function_ui_description(func, "Add a new mesh created from object with modifiers applied");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	parm = RNA_def_pointer(func, "scene", "Scene", "", "Scene within which to evaluate modifiers");
-	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
-	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "Scene layer within which to evaluate modifiers");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "Dependency Graph", "Evaluated dependency graph within wich to evaluate modifiers");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "object", "Object", "", "Object to create mesh from");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_boolean(func, "apply_modifiers", 0, "", "Apply modifiers");
-	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_enum(func, "settings", mesh_type_items, 0, "", "Modifier settings to apply");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	RNA_def_boolean(func, "calc_tessface", true, "Calculate Tessellation", "Calculate tessellation faces");
 	RNA_def_boolean(func, "calc_undeformed", false, "Calculate Undeformed", "Calculate undeformed vertex coordinates");
@@ -1298,7 +1272,7 @@ void RNA_def_main_textures(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_property_srna(cprop, "BlendDataTextures");
 	srna = RNA_def_struct(brna, "BlendDataTextures", NULL);
 	RNA_def_struct_sdna(srna, "Main");
-	RNA_def_struct_ui_text(srna, "Main Textures", "Collection of groups");
+	RNA_def_struct_ui_text(srna, "Main Textures", "Collection of textures");
 
 	func = RNA_def_function(srna, "new", "rna_Main_textures_new");
 	RNA_def_function_ui_description(func, "Add a new texture to the main database");
@@ -1413,45 +1387,45 @@ void RNA_def_main_worlds(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_property_boolean_funcs(prop, "rna_Main_worlds_is_updated_get", NULL);
 }
 
-void RNA_def_main_groups(BlenderRNA *brna, PropertyRNA *cprop)
+void RNA_def_main_collections(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
 	PropertyRNA *prop;
 
-	RNA_def_property_srna(cprop, "BlendDataGroups");
-	srna = RNA_def_struct(brna, "BlendDataGroups", NULL);
+	RNA_def_property_srna(cprop, "BlendDataCollections");
+	srna = RNA_def_struct(brna, "BlendDataCollections", NULL);
 	RNA_def_struct_sdna(srna, "Main");
-	RNA_def_struct_ui_text(srna, "Main Groups", "Collection of groups");
+	RNA_def_struct_ui_text(srna, "Main Collections", "Collection of collections");
 
-	func = RNA_def_function(srna, "new", "rna_Main_groups_new");
-	RNA_def_function_ui_description(func, "Add a new group to the main database");
-	parm = RNA_def_string(func, "name", "Group", 0, "", "New name for the data-block");
+	func = RNA_def_function(srna, "new", "rna_Main_collections_new");
+	RNA_def_function_ui_description(func, "Add a new collection to the main database");
+	parm = RNA_def_string(func, "name", "Collection", 0, "", "New name for the data-block");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
-	parm = RNA_def_pointer(func, "group", "Group", "", "New group data-block");
+	parm = RNA_def_pointer(func, "collection", "Collection", "", "New collection data-block");
 	RNA_def_function_return(func, parm);
 
 	func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
-	RNA_def_function_ui_description(func, "Remove a group from the current blendfile");
+	RNA_def_function_ui_description(func, "Remove a collection from the current blendfile");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	parm = RNA_def_pointer(func, "group", "Group", "", "Group to remove");
+	parm = RNA_def_pointer(func, "collection", "Collection", "", "Collection to remove");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
-	RNA_def_boolean(func, "do_unlink", true, "", "Unlink all usages of this group before deleting it");
+	RNA_def_boolean(func, "do_unlink", true, "", "Unlink all usages of this collection before deleting it");
 	RNA_def_boolean(func, "do_id_user", true, "",
-	                "Decrement user counter of all datablocks used by this group");
+	                "Decrement user counter of all datablocks used by this collection");
 	RNA_def_boolean(func, "do_ui_user", true, "",
-	                "Make sure interface does not reference this group");
+	                "Make sure interface does not reference this collection");
 
-	func = RNA_def_function(srna, "tag", "rna_Main_groups_tag");
+	func = RNA_def_function(srna, "tag", "rna_Main_collections_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_groups_is_updated_get", NULL);
+	RNA_def_property_boolean_funcs(prop, "rna_Main_collections_is_updated_get", NULL);
 }
 
 void RNA_def_main_speakers(BlenderRNA *brna, PropertyRNA *cprop)

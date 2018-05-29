@@ -219,7 +219,7 @@ static void cmp_node_rlayer_create_outputs(bNodeTree *ntree, bNode *node, LinkNo
 	Scene *scene = (Scene *)node->id;
 
 	if (scene) {
-		RenderEngineType *engine_type = RE_engines_find(scene->view_render.engine_id);
+		RenderEngineType *engine_type = RE_engines_find(scene->r.engine);
 		if (engine_type && engine_type->update_render_passes) {
 			ViewLayer *view_layer = BLI_findlink(&scene->view_layers, node->custom1);
 			if (view_layer) {
@@ -306,6 +306,7 @@ static void node_composit_init_image(bNodeTree *ntree, bNode *node)
 	iuser->sfra = 1;
 	iuser->fie_ima = 2;
 	iuser->ok = 1;
+	iuser->flag |= IMA_ANIM_ALWAYS;
 	
 	/* setup initial outputs */
 	cmp_node_image_verify_outputs(ntree, node, false);

@@ -37,12 +37,11 @@ public:
 	BlenderSession(BL::RenderEngine& b_engine,
 	               BL::UserPreferences& b_userpref,
 	               BL::BlendData& b_data,
-	               BL::Scene& b_scene);
+	               bool preview_osl);
 
 	BlenderSession(BL::RenderEngine& b_engine,
 	               BL::UserPreferences& b_userpref,
 	               BL::BlendData& b_data,
-	               BL::Scene& b_scene,
 	               BL::SpaceView3D& b_v3d,
 	               BL::RegionView3D& b_rv3d,
 	               int width, int height);
@@ -56,7 +55,7 @@ public:
 	void free_session();
 
 	void reset_session(BL::BlendData& b_data,
-	                   BL::Scene& b_scene);
+	                   BL::Depsgraph& b_depsgraph);
 
 	/* offline render */
 	void render(BL::Depsgraph& b_depsgraph);
@@ -106,6 +105,7 @@ public:
 	BL::UserPreferences b_userpref;
 	BL::BlendData b_data;
 	BL::RenderSettings b_render;
+	BL::Depsgraph b_depsgraph;
 	BL::Scene b_scene;
 	BL::SpaceView3D b_v3d;
 	BL::RegionView3D b_rv3d;
@@ -118,6 +118,7 @@ public:
 	double last_status_time;
 
 	int width, height;
+	bool preview_osl;
 	double start_resize_time;
 
 	void *python_thread_state;

@@ -213,27 +213,8 @@ Paint *BKE_paint_get_active_from_context(const bContext *C)
 				return &ts->imapaint.paint;
 			}
 		}
-		else if (obact) {
-			switch (obact->mode) {
-				case OB_MODE_SCULPT:
-					return &ts->sculpt->paint;
-				case OB_MODE_VERTEX_PAINT:
-					return &ts->vpaint->paint;
-				case OB_MODE_WEIGHT_PAINT:
-					return &ts->wpaint->paint;
-				case OB_MODE_TEXTURE_PAINT:
-					return &ts->imapaint.paint;
-				case OB_MODE_EDIT:
-					if (ts->use_uv_sculpt)
-						return &ts->uvsculpt->paint;
-					return &ts->imapaint.paint;
-				default:
-					return &ts->imapaint.paint;
-			}
-		}
 		else {
-			/* default to image paint */
-			return &ts->imapaint.paint;
+			return BKE_paint_get_active(sce, view_layer);
 		}
 	}
 
@@ -357,8 +338,8 @@ void BKE_paint_palette_set(Paint *p, Palette *palette)
 {
 	if (p) {
 		id_us_min((ID *)p->palette);
-		id_us_plus((ID *)palette);
 		p->palette = palette;
+		id_us_plus((ID *)p->palette);
 	}
 }
 
@@ -366,8 +347,8 @@ void BKE_paint_curve_set(Brush *br, PaintCurve *pc)
 {
 	if (br) {
 		id_us_min((ID *)br->paint_curve);
-		id_us_plus((ID *)pc);
 		br->paint_curve = pc;
+		id_us_plus((ID *)br->paint_curve);
 	}
 }
 
@@ -400,9 +381,7 @@ void BKE_palette_clear(Palette *palette)
 
 Palette *BKE_palette_add(Main *bmain, const char *name)
 {
-	Palette *palette;
-
-	palette = BKE_libblock_alloc(bmain, ID_PAL, name, 0);
+	Palette *palette = BKE_id_new(bmain, ID_PAL, name);
 
 	/* enable fake user by default */
 	id_fake_user_set(&palette->id);
@@ -443,7 +422,7 @@ void BKE_palette_free(Palette *palette)
 
 PaletteColor *BKE_palette_color_add(Palette *palette)
 {
-	PaletteColor *color = MEM_callocN(sizeof(*color), "Pallete Color");
+	PaletteColor *color = MEM_callocN(sizeof(*color), "Palette Color");
 	BLI_addtail(&palette->colors, color);
 	return color;
 }
@@ -881,9 +860,18 @@ static bool sculpt_modifiers_active(Scene *scene, Sculpt *sd, Object *ob)
  * \param need_mask So the DerivedMesh thats returned has mask data
  */
 void BKE_sculpt_update_mesh_elements(
-        const EvaluationContext *eval_ctx, Scene *scene, Sculpt *sd, Object *ob,
+        Depsgraph *depsgraph, Scene *scene, Sculpt *sd, Object *ob,
         bool need_pmap, bool need_mask)
 {
+	if (depsgraph == NULL) {
+		/* Happens on file load.
+		 *
+		 * We do nothing in this case, it will be taken care about on depsgraph
+		 * evaluation.
+		 */
+		return;
+	}
+
 	DerivedMesh *dm;
 	SculptSession *ss = ob->sculpt;
 	Mesh *me = ob->data;
@@ -921,7 +909,7 @@ void BKE_sculpt_update_mesh_elements(
 
 	ss->kb = (mmd == NULL) ? BKE_keyblock_from_object(ob) : NULL;
 
-	dm = mesh_get_derived_final(eval_ctx, scene, ob, CD_MASK_BAREMESH);
+	dm = mesh_get_derived_final(depsgraph, scene, ob, CD_MASK_BAREMESH);
 
 	/* VWPaint require mesh info for loop lookup, so require sculpt mode here */
 	if (mmd && ob->mode & OB_MODE_SCULPT) {
@@ -956,7 +944,7 @@ void BKE_sculpt_update_mesh_elements(
 
 			ss->orig_cos = (ss->kb) ? BKE_keyblock_convert_to_vertcos(ob, ss->kb) : BKE_mesh_vertexCos_get(me, NULL);
 
-			BKE_crazyspace_build_sculpt(eval_ctx, scene, ob, &ss->deform_imats, &ss->deform_cos);
+			BKE_crazyspace_build_sculpt(depsgraph, scene, ob, &ss->deform_imats, &ss->deform_cos);
 			BKE_pbvh_apply_vertCos(ss->pbvh, ss->deform_cos);
 
 			for (a = 0; a < me->totvert; ++a) {

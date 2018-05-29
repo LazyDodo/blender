@@ -80,8 +80,8 @@
 #include "BLI_memarena.h"
 #include "BLI_mempool.h"
 #include "BLI_string_utils.h"
-
 #include "BLI_threads.h"
+
 #include "BLT_translation.h"
 
 #include "BKE_action.h"
@@ -91,11 +91,11 @@
 #include "BKE_brush.h"
 #include "BKE_camera.h"
 #include "BKE_cachefile.h"
+#include "BKE_collection.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_font.h"
 #include "BKE_global.h"
-#include "BKE_group.h"
 #include "BKE_gpencil.h"
 #include "BKE_idcode.h"
 #include "BKE_idprop.h"
@@ -441,7 +441,7 @@ bool id_make_local(Main *bmain, ID *id, const bool test, const bool lib_local)
 			if (!test) BKE_sound_make_local(bmain, (bSound *)id, lib_local);
 			return true;
 		case ID_GR:
-			if (!test) BKE_group_make_local(bmain, (Group *)id, lib_local);
+			if (!test) BKE_collection_make_local(bmain, (Collection *)id, lib_local);
 			return true;
 		case ID_AR:
 			if (!test) BKE_armature_make_local(bmain, (bArmature *)id, lib_local);
@@ -619,7 +619,7 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 			BKE_text_copy_data(bmain, (Text *)*r_newid, (Text *)id, flag);
 			break;
 		case ID_GR:
-			BKE_group_copy_data(bmain, (Group *)*r_newid, (Group *)id, flag);
+			BKE_collection_copy_data(bmain, (Collection *)*r_newid, (Collection *)id, flag);
 			break;
 		case ID_AR:
 			BKE_armature_copy_data(bmain, (bArmature *)*r_newid, (bArmature *)id, flag);
@@ -695,7 +695,7 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
  */
 bool id_copy(Main *bmain, const ID *id, ID **newid, bool test)
 {
-	return BKE_id_copy_ex(bmain, id, newid, 0, test);
+	return BKE_id_copy_ex(bmain, id, newid, LIB_ID_COPY_SHAPEKEY, test);
 }
 
 /** Does a mere memory swap over the whole IDs data (including type-specific memory).
@@ -733,7 +733,7 @@ void BKE_id_swap(Main *bmain, ID *id_a, ID *id_b)
 		CASE_SWAP(ID_TXT, Text);
 		CASE_SWAP(ID_SPK, Speaker);
 		CASE_SWAP(ID_SO, bSound);
-		CASE_SWAP(ID_GR, Group);
+		CASE_SWAP(ID_GR, Collection);
 		CASE_SWAP(ID_AR, bArmature);
 		CASE_SWAP(ID_AC, bAction);
 		CASE_SWAP(ID_NT, bNodeTree);
@@ -939,7 +939,7 @@ ListBase *which_libbase(Main *mainlib, short type)
 		case ID_SO:
 			return &(mainlib->sound);
 		case ID_GR:
-			return &(mainlib->group);
+			return &(mainlib->collection);
 		case ID_AR:
 			return &(mainlib->armature);
 		case ID_AC:
@@ -1100,7 +1100,7 @@ int set_listbasepointers(Main *main, ListBase **lb)
 
 	lb[INDEX_ID_TXT] = &(main->text);
 	lb[INDEX_ID_SO]  = &(main->sound);
-	lb[INDEX_ID_GR]  = &(main->group);
+	lb[INDEX_ID_GR]  = &(main->collection);
 	lb[INDEX_ID_PAL] = &(main->palettes);
 	lb[INDEX_ID_PC]  = &(main->paintcurves);
 	lb[INDEX_ID_BR]  = &(main->brush);
@@ -1169,7 +1169,7 @@ size_t BKE_libblock_get_alloc_info(short type, const char **name)
 		CASE_RETURN(ID_SPK, Speaker);
 		CASE_RETURN(ID_LP,  LightProbe);
 		CASE_RETURN(ID_SO,  bSound);
-		CASE_RETURN(ID_GR,  Group);
+		CASE_RETURN(ID_GR,  Collection);
 		CASE_RETURN(ID_AR,  bArmature);
 		CASE_RETURN(ID_AC,  bAction);
 		CASE_RETURN(ID_NT,  bNodeTree);
@@ -1372,6 +1372,41 @@ void BKE_libblock_init_empty(ID *id)
 	}
 }
 
+/** Generic helper to create a new empty datablock of given type in given \a bmain database.
+ *
+ * \param name can be NULL, in which case we get default name for this ID type. */
+void *BKE_id_new(Main *bmain, const short type, const char *name)
+{
+	BLI_assert(bmain != NULL);
+
+	if (name == NULL) {
+		name = DATA_(BKE_idcode_to_name(type));
+	}
+
+	ID *id = BKE_libblock_alloc(bmain, type, name, 0);
+	BKE_libblock_init_empty(id);
+
+	return id;
+}
+
+/** Generic helper to create a new temporary empty datablock of given type, *outside* of any Main database.
+ *
+ * \param name can be NULL, in which case we get default name for this ID type. */
+void *BKE_id_new_nomain(const short type, const char *name)
+{
+	if (name == NULL) {
+		name = DATA_(BKE_idcode_to_name(type));
+	}
+
+	ID *id = BKE_libblock_alloc(NULL, type, name,
+	                            LIB_ID_CREATE_NO_MAIN |
+	                            LIB_ID_CREATE_NO_USER_REFCOUNT |
+	                            LIB_ID_CREATE_NO_DEG_TAG);
+	BKE_libblock_init_empty(id);
+
+	return id;
+}
+
 /* by spec, animdata is first item after ID */
 /* and, trust that BKE_animdata_from_id() will only find AnimData for valid ID-types */
 static void id_copy_animdata(Main *bmain, ID *id, const bool do_action)
@@ -1380,7 +1415,7 @@ static void id_copy_animdata(Main *bmain, ID *id, const bool do_action)
 	
 	if (adt) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)id;
-		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action); /* could be set to false, need to investigate */
+		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action, true); /* could be set to false, need to investigate */
 	}
 }
 
@@ -1396,6 +1431,8 @@ void BKE_libblock_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int fla
 	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) != 0 || bmain != NULL);
 	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) != 0 || (flag & LIB_ID_CREATE_NO_ALLOCATE) == 0);
 	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) == 0 || (flag & LIB_ID_CREATE_NO_USER_REFCOUNT) != 0);
+	/* Never implicitely copy shapekeys when generating temp data outside of Main database. */
+	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) == 0 || (flag & LIB_ID_COPY_SHAPEKEY) == 0);
 
 	if ((flag & LIB_ID_CREATE_NO_ALLOCATE) != 0) {
 		/* r_newid already contains pointer to allocated memory. */
@@ -1433,7 +1470,14 @@ void BKE_libblock_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int fla
 #endif
 
 	/* the duplicate should get a copy of the animdata */
-	id_copy_animdata(bmain, new_id, (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0);
+	if ((flag & LIB_ID_COPY_NO_ANIMDATA) == 0) {
+		BLI_assert((flag & LIB_ID_COPY_ACTIONS) == 0 || (flag & LIB_ID_CREATE_NO_MAIN) == 0);
+		id_copy_animdata(bmain, new_id, (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0);
+	}
+	else if (id_can_have_animdata(new_id)) {
+		IdAdtTemplate *iat = (IdAdtTemplate *)new_id;
+		iat->adt = NULL;
+	}
 
 	if ((flag & LIB_ID_CREATE_NO_DEG_TAG) == 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0) {
 		DEG_id_type_tag(bmain, GS(new_id->name));
@@ -1472,7 +1516,6 @@ void BKE_library_free(Library *lib)
 Main *BKE_main_new(void)
 {
 	Main *bmain = MEM_callocN(sizeof(Main), "new main");
-	bmain->eval_ctx = DEG_evaluation_context_new(DAG_EVAL_VIEWPORT);
 	bmain->lock = MEM_mallocN(sizeof(SpinLock), "main lock");
 	BLI_spin_init((SpinLock *)bmain->lock);
 	return bmain;
@@ -1547,7 +1590,6 @@ void BKE_main_free(Main *mainvar)
 
 	BLI_spin_end((SpinLock *)mainvar->lock);
 	MEM_freeN(mainvar->lock);
-	DEG_evaluation_context_free(mainvar->eval_ctx);
 	MEM_freeN(mainvar);
 }
 
@@ -2500,7 +2542,9 @@ void BKE_library_filepath_set(Library *lib, const char *filepath)
 		 * outliner, and its not really supported but allow from here for now
 		 * since making local could cause this to be directly linked - campbell
 		 */
-		const char *basepath = lib->parent ? lib->parent->filepath : G.main->name;
+		/* Never make paths relative to parent lib - reading code (blenloader) always set *all* lib->name relative to
+		 * current G.main, not to their parent for indirectly linked ones. */
+		const char *basepath = G.main->name;
 		BLI_path_abs(lib->filepath, basepath);
 	}
 }

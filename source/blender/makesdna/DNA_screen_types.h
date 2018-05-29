@@ -44,16 +44,24 @@ struct ARegionType;
 struct PanelType;
 struct Scene;
 struct uiLayout;
+struct wmDrawBuffer;
 struct wmTimer;
 struct wmTooltipState;
 
 
+/* TODO Doing this is quite ugly :)
+ * Once the top-bar is merged bScreen should be refactored to use ScrAreaMap. */
+#define AREAMAP_FROM_SCREEN(screen) ((ScrAreaMap *)&(screen)->vertbase)
+
 typedef struct bScreen {
 	ID id;
-	
+
+	/* TODO Should become ScrAreaMap now.
+	 * ** NOTE: KEEP ORDER IN SYNC WITH ScrAreaMap! (see AREAMAP_FROM_SCREEN macro above) ** */
 	ListBase vertbase;					/* screens have vertices/edges to define areas */
 	ListBase edgebase;
 	ListBase areabase;
+
 	ListBase regionbase;				/* screen level regions (menus), runtime only */
 
 	struct Scene *scene DNA_DEPRECATED;
@@ -68,10 +76,9 @@ typedef struct bScreen {
 	char do_draw_gesture;				/* notifier for gesture draw. */
 	char do_draw_paintcursor;			/* notifier for paint cursor draw. */
 	char do_draw_drag;					/* notifier for dragging draw. */
-	char swap;							/* indicator to survive swap-exchange systems */
 	char skip_handling;					/* set to delay screen handling after switching back from maximized area */
 	char scrubbing;						/* set when scrubbing to avoid some costly updates */
-	char pad[2];
+	char pad[3];
 	
 	struct ARegion *active_region;		/* active region that has mouse focus */
 
@@ -97,6 +104,14 @@ typedef struct ScrEdge {
 	short flag;
 	int pad;
 } ScrEdge;
+
+typedef struct ScrAreaMap {
+	/* ** NOTE: KEEP ORDER IN SYNC WITH LISTBASES IN bScreen! ** */
+
+	ListBase vertbase;  /* ScrVert - screens have vertices/edges to define areas */
+	ListBase edgebase;  /* ScrEdge */
+	ListBase areabase;  /* ScrArea */
+} ScrAreaMap;
 
 typedef struct Panel {		/* the part from uiBlock that needs saved in file */
 	struct Panel *next, *prev;
@@ -211,6 +226,41 @@ typedef struct uiPreview {           /* some preview UI data need to be saved in
 	short pad1[3];
 } uiPreview;
 
+/* These two lines with # tell makesdna this struct can be excluded.
+ * Should be: #ifndef WITH_GLOBAL_AREA_WRITING */
+#
+#
+typedef struct ScrGlobalAreaData {
+	/* Global areas have a non-dynamic size. That means, changing the window
+	 * size doesn't affect their size at all. However, they can still be
+	 * 'collapsed', by changing this value. Ignores DPI (ED_area_global_size_y
+	 * and winx/winy don't) */
+	short cur_fixed_height;
+	/* For global areas, this is the min and max size they can use depending on
+	 * if they are 'collapsed' or not. Value is set on area creation and not
+	 * touched afterwards. */
+	short size_min, size_max;
+	short align; /* GlobalAreaAlign */
+
+	short flag; /* GlobalAreaFlag */
+	short pad;
+} ScrGlobalAreaData;
+
+enum GlobalAreaFlag {
+	GLOBAL_AREA_IS_HIDDEN = (1 << 0),
+};
+
+typedef enum GlobalAreaAlign {
+	GLOBAL_AREA_ALIGN_TOP,
+	GLOBAL_AREA_ALIGN_BOTTOM,
+} GlobalAreaAlign;
+
+typedef struct ScrArea_Runtime {
+	struct bToolRef *tool;
+	char          is_tool_set;
+	char _pad0[7];
+} ScrArea_Runtime;
+
 typedef struct ScrArea {
 	struct ScrArea *next, *prev;
 	
@@ -219,10 +269,15 @@ typedef struct ScrArea {
 
 	rcti totrct;			/* rect bound by v1 v2 v3 v4 */
 
-	char spacetype, butspacetype;	/* SPACE_..., butspacetype is button arg  */
+	char spacetype;     /* eSpace_Type (SPACE_FOO) */
+	/* Temporarily used while switching area type, otherwise this should be
+	 * SPACE_EMPTY. Also, versioning uses it to nicely replace deprecated
+	 * editors. It's been there for ages, name doesn't fit any more... */
+	char butspacetype;  /* eSpace_Type (SPACE_FOO) */
+
 	short winx, winy;				/* size */
-	
-	short headertype;				/* OLD! 0=no header, 1= down, 2= up */
+
+	short headertype DNA_DEPRECATED;/* OLD! 0=no header, 1= down, 2= up */
 	short do_refresh;				/* private, for spacetype refresh callback */
 	short flag;
 	short region_active_win;		/* index of last used region of 'RGN_TYPE_WINDOW'
@@ -230,6 +285,9 @@ typedef struct ScrArea {
 	char temp, pad;
 	
 	struct SpaceType *type;		/* callbacks for this space type */
+
+	/* Non-NULL if this area is global. */
+	ScrGlobalAreaData *global;
 
 	/* A list of space links (editors) that were open in this area before. When
 	 * changing the editor type, we try to reuse old editor data from this list.
@@ -243,6 +301,8 @@ typedef struct ScrArea {
 	ListBase handlers;   /* wmEventHandler */
 
 	ListBase actionzones;	/* AZone */
+
+	ScrArea_Runtime runtime;
 } ScrArea;
 
 typedef struct ARegion {
@@ -263,10 +323,9 @@ typedef struct ARegion {
 	
 	short do_draw;				/* private, cached notifier events */
 	short do_draw_overlay;		/* private, cached notifier events */
-	short swap;					/* private, indicator to survive swap-exchange */
 	short overlap;				/* private, set for indicate drawing overlapped */
 	short flagfullscreen;		/* temporary copy of flag settings for clean fullscreen */
-	short pad;
+	short pad1, pad2;
 	
 	struct ARegionType *type;	/* callbacks for this region type */
 	
@@ -280,22 +339,22 @@ typedef struct ARegion {
 
 	struct wmManipulatorMap *manipulator_map; /* manipulator-map of this region */
 	struct wmTimer *regiontimer; /* blend in/out */
+	struct wmDrawBuffer *draw_buffer;
 
 	char *headerstr;			/* use this string to draw info */
 	void *regiondata;			/* XXX 2.50, need spacedata equivalent? */
 } ARegion;
-
-/* swap */
-#define WIN_BACK_OK		1
-#define WIN_FRONT_OK	2
-// #define WIN_EQUAL		3  // UNUSED
 
 /* area->flag */
 enum {
 	HEADER_NO_PULLDOWN           = (1 << 0),
 //	AREA_FLAG_DEPRECATED_1       = (1 << 1),
 //	AREA_FLAG_DEPRECATED_2       = (1 << 2),
-	AREA_TEMP_INFO               = (1 << 3),
+#ifdef DNA_DEPRECATED_ALLOW
+	AREA_TEMP_INFO               = (1 << 3), /* versioned to make slot reusable */
+#endif
+	/* update size of regions within the area */
+	AREA_FLAG_REGION_SIZE_UPDATE = (1 << 3),
 //	AREA_FLAG_DEPRECATED_4       = (1 << 4),
 //	AREA_FLAG_DEPRECATED_5       = (1 << 5),
 	/* used to check if we should switch back to prevspace (of a different type) */
@@ -310,9 +369,6 @@ enum {
 #define AREAGRID	4
 #define AREAMINX	32
 #define HEADERY		26
-
-#define HEADERDOWN	1
-#define HEADERTOP	2
 
 /* screen->state */
 enum {
@@ -413,13 +469,20 @@ enum {
 #define RGN_SPLIT_PREV		32
 
 /* region flag */
-#define RGN_FLAG_HIDDEN		1
-#define RGN_FLAG_TOO_SMALL	2
+enum {
+	RGN_FLAG_HIDDEN             = (1 << 0),
+	RGN_FLAG_TOO_SMALL          = (1 << 1),
+	/* Force delayed reinit of region size data, so that region size is calculated
+	 * just big enough to show all its content (if enough space is available).
+	 * Note that only ED_region_header supports this right now. */
+	RGN_FLAG_DYNAMIC_SIZE     = (1 << 2),
+};
 
 /* region do_draw */
 #define RGN_DRAW			1
 #define RGN_DRAW_PARTIAL	2
 #define RGN_DRAWING			4
 #define RGN_DRAW_REFRESH_UI	8  /* re-create uiBlock's where possible */
+#define RGN_DRAW_NO_REBUILD	16
 #endif
 

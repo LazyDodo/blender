@@ -165,6 +165,9 @@ void wm_operator_register(bContext *C, wmOperator *op)
 	wmWindowManager *wm = CTX_wm_manager(C);
 	int tot = 0;
 
+	op->execution_area = CTX_wm_area(C);
+	op->execution_region = CTX_wm_region(C);
+
 	BLI_addtail(&wm->operators, op);
 
 	/* only count registered operators */
@@ -465,7 +468,7 @@ void wm_add_default(Main *bmain, bContext *C)
 	WM_window_set_active_workspace(win, workspace);
 	WM_window_set_active_layout(win, workspace, layout);
 	screen->winid = win->winid;
-	
+
 	wm->winactive = win;
 	wm->file_saved = 1;
 	wm_window_make_drawable(wm, win);
@@ -484,7 +487,6 @@ void wm_close_and_free(bContext *C, wmWindowManager *wm)
 
 	while ((win = BLI_pophead(&wm->windows))) {
 		WM_window_set_active_workspace(win, NULL); /* prevent draw clear to use screen */
-		wm_draw_window_clear(win);
 		wm_window_free(C, wm, win);
 	}
 	

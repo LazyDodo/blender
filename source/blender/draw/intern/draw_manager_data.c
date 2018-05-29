@@ -78,9 +78,23 @@ static void drw_shgroup_uniform_create_ex(DRWShadingGroup *shgroup, int loc,
 	DRWUniform *uni = BLI_mempool_alloc(DST.vmempool->uniforms);
 	uni->location = loc;
 	uni->type = type;
-	uni->value = value;
 	uni->length = length;
 	uni->arraysize = arraysize;
+
+	switch (type) {
+		case DRW_UNIFORM_INT_COPY:
+			uni->ivalue = *((int *)value);
+			break;
+		case DRW_UNIFORM_BOOL_COPY:
+			uni->ivalue = (int)*((bool *)value);
+			break;
+		case DRW_UNIFORM_FLOAT_COPY:
+			uni->fvalue = *((float *)value);
+			break;
+		default:
+			uni->pvalue = value;
+			break;
+	}
 
 	BLI_LINKS_PREPEND(shgroup->uniforms, uni);
 }
@@ -201,15 +215,32 @@ void DRW_shgroup_uniform_ivec3(DRWShadingGroup *shgroup, const char *name, const
 	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_INT, value, 3, arraysize);
 }
 
-void DRW_shgroup_uniform_mat3(DRWShadingGroup *shgroup, const char *name, const float *value)
+void DRW_shgroup_uniform_mat3(DRWShadingGroup *shgroup, const char *name, const float (*value)[3])
 {
-	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_FLOAT, value, 9, 1);
+	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_FLOAT, (float *)value, 9, 1);
 }
 
-void DRW_shgroup_uniform_mat4(DRWShadingGroup *shgroup, const char *name, const float *value)
+void DRW_shgroup_uniform_mat4(DRWShadingGroup *shgroup, const char *name, const float (*value)[4])
 {
-	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_FLOAT, value, 16, 1);
+	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_FLOAT, (float *)value, 16, 1);
 }
+
+/* Stores the int instead of a pointer. */
+void DRW_shgroup_uniform_int_copy(DRWShadingGroup *shgroup, const char *name, const int value)
+{
+	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_INT_COPY, &value, 1, 1);
+}
+
+void DRW_shgroup_uniform_bool_copy(DRWShadingGroup *shgroup, const char *name, const bool value)
+{
+	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_BOOL_COPY, &value, 1, 1);
+}
+
+void DRW_shgroup_uniform_float_copy(DRWShadingGroup *shgroup, const char *name, const float value)
+{
+	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_FLOAT_COPY, &value, 1, 1);
+}
+
 
 /** \} */
 
@@ -268,6 +299,7 @@ static DRWCallState *drw_call_state_create(DRWShadingGroup *shgroup, float (*obm
 	DRWCallState *state = BLI_mempool_alloc(DST.vmempool->states);
 	state->flag = 0;
 	state->cache_id = 0;
+	state->visibility_cb = NULL;
 	state->matflag = shgroup->matflag;
 
 	/* Matrices */
@@ -321,7 +353,7 @@ static DRWCallState *drw_call_state_object(DRWShadingGroup *shgroup, float (*obm
 void DRW_shgroup_call_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, float (*obmat)[4])
 {
 	BLI_assert(geom != NULL);
-	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
 
 	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
 	call->state = drw_call_state_create(shgroup, obmat, NULL);
@@ -351,7 +383,27 @@ void DRW_shgroup_call_object_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, Obje
 	BLI_LINKS_APPEND(&shgroup->calls, call);
 }
 
-void DRW_shgroup_call_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, float (*obmat)[4], unsigned int *count)
+void DRW_shgroup_call_object_add_with_callback(
+        DRWShadingGroup *shgroup, Gwn_Batch *geom, Object *ob,
+        DRWCallVisibilityFn *callback, void *user_data)
+{
+	BLI_assert(geom != NULL);
+	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+
+	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
+	call->state = drw_call_state_object(shgroup, ob->obmat, ob);
+	call->state->visibility_cb = callback;
+	call->state->user_data = user_data;
+	call->type = DRW_CALL_SINGLE;
+	call->single.geometry = geom;
+#ifdef USE_GPU_SELECT
+	call->select_id = DST.select_id;
+#endif
+
+	BLI_LINKS_APPEND(&shgroup->calls, call);
+}
+
+void DRW_shgroup_call_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, float (*obmat)[4], uint *count)
 {
 	BLI_assert(geom != NULL);
 	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
@@ -369,7 +421,7 @@ void DRW_shgroup_call_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, f
 }
 
 /* These calls can be culled and are optimized for redraw */
-void DRW_shgroup_call_object_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, Object *ob, unsigned int *count)
+void DRW_shgroup_call_object_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, Object *ob, uint *count)
 {
 	BLI_assert(geom != NULL);
 	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
@@ -426,7 +478,7 @@ void DRW_shgroup_call_sculpt_add(DRWShadingGroup *shgroup, Object *ob, float (*o
 	DRW_shgroup_call_generate_add(shgroup, sculpt_draw_cb, ob, obmat);
 }
 
-void DRW_shgroup_call_dynamic_add_array(DRWShadingGroup *shgroup, const void *attr[], unsigned int attr_len)
+void DRW_shgroup_call_dynamic_add_array(DRWShadingGroup *shgroup, const void *attr[], uint attr_len)
 {
 #ifdef USE_GPU_SELECT
 	if (G.f & G_PICKSEL) {
@@ -498,6 +550,7 @@ static void drw_shgroup_init(DRWShadingGroup *shgroup, GPUShader *shader)
 	shgroup->normalworld = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_WORLDNORMAL);
 	shgroup->orcotexfac = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_ORCO);
 	shgroup->eye = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_EYE);
+	shgroup->callid = GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_CALLID);
 
 	shgroup->matflag = 0;
 	if (shgroup->modelinverse > -1)
@@ -630,10 +683,10 @@ static DRWShadingGroup *drw_shgroup_material_inputs(DRWShadingGroup *grp, struct
 					/* Should already be in the material ubo. */
 					break;
 				case GPU_MAT3:
-					DRW_shgroup_uniform_mat3(grp, input->shadername, (float *)input->dynamicvec);
+					DRW_shgroup_uniform_mat3(grp, input->shadername, (float (*)[3])input->dynamicvec);
 					break;
 				case GPU_MAT4:
-					DRW_shgroup_uniform_mat4(grp, input->shadername, (float *)input->dynamicvec);
+					DRW_shgroup_uniform_mat4(grp, input->shadername, (float (*)[4])input->dynamicvec);
 					break;
 				default:
 					break;
@@ -744,16 +797,22 @@ DRWShadingGroup *DRW_shgroup_point_batch_create(struct GPUShader *shader, DRWPas
 	return shgroup;
 }
 
+DRWShadingGroup *DRW_shgroup_line_batch_create_with_format(
+        struct GPUShader *shader, DRWPass *pass, Gwn_VertFormat *format)
+{
+	DRWShadingGroup *shgroup = drw_shgroup_create_ex(shader, pass);
+	shgroup->type = DRW_SHG_LINE_BATCH;
+
+	drw_shgroup_batching_init(shgroup, shader, format);
+
+	return shgroup;
+}
+
 DRWShadingGroup *DRW_shgroup_line_batch_create(struct GPUShader *shader, DRWPass *pass)
 {
 	DRW_shgroup_instance_format(g_pos_format, {{"pos", DRW_ATTRIB_FLOAT, 3}});
 
-	DRWShadingGroup *shgroup = drw_shgroup_create_ex(shader, pass);
-	shgroup->type = DRW_SHG_LINE_BATCH;
-
-	drw_shgroup_batching_init(shgroup, shader, g_pos_format);
-
-	return shgroup;
+	return DRW_shgroup_line_batch_create_with_format(shader, pass, g_pos_format);
 }
 
 /* Very special batch. Use this if you position
@@ -771,6 +830,18 @@ DRWShadingGroup *DRW_shgroup_empty_tri_batch_create(struct GPUShader *shader, DR
 
 	shgroup->type = DRW_SHG_TRIANGLE_BATCH;
 	shgroup->instance_count = tri_count * 3;
+
+	return shgroup;
+}
+
+DRWShadingGroup *DRW_shgroup_transform_feedback_create(struct GPUShader *shader, DRWPass *pass, Gwn_VertBuf *tf_target)
+{
+	DRWShadingGroup *shgroup = drw_shgroup_create_ex(shader, pass);
+	shgroup->type = DRW_SHG_FEEDBACK_TRANSFORM;
+
+	drw_shgroup_init(shgroup, shader);
+
+	shgroup->tfeedback_target = tf_target;
 
 	return shgroup;
 }
@@ -796,7 +867,7 @@ void DRW_shgroup_instance_batch(DRWShadingGroup *shgroup, struct Gwn_Batch *batc
 #endif
 }
 
-unsigned int DRW_shgroup_get_instance_count(const DRWShadingGroup *shgroup)
+uint DRW_shgroup_get_instance_count(const DRWShadingGroup *shgroup)
 {
 	return shgroup->instance_count;
 }
@@ -815,7 +886,7 @@ void DRW_shgroup_state_disable(DRWShadingGroup *shgroup, DRWState state)
 	shgroup->state_extra_disable &= ~state;
 }
 
-void DRW_shgroup_stencil_mask(DRWShadingGroup *shgroup, unsigned int mask)
+void DRW_shgroup_stencil_mask(DRWShadingGroup *shgroup, uint mask)
 {
 	BLI_assert(mask <= 255);
 	shgroup->stencil_mask = mask;
@@ -845,6 +916,16 @@ DRWPass *DRW_pass_create(const char *name, DRWState state)
 void DRW_pass_state_set(DRWPass *pass, DRWState state)
 {
 	pass->state = state;
+}
+
+void DRW_pass_state_add(DRWPass *pass, DRWState state)
+{
+	pass->state |= state;
+}
+
+void DRW_pass_state_remove(DRWPass *pass, DRWState state)
+{
+	pass->state &= ~state;
 }
 
 void DRW_pass_free(DRWPass *pass)

@@ -23,12 +23,14 @@
  *  \ingroup modifiers
  */
 
+#include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 
 #include "BLI_utildefines.h"
 
 #include "BKE_cdderivedmesh.h"
 #include "BKE_deform.h"
+#include "BKE_mesh.h"
 
 #include "MOD_modifiertypes.h"
 
@@ -41,15 +43,6 @@ static void initData(ModifierData *md)
 	wmd->offset = 0.02f;
 	wmd->flag = MOD_WIREFRAME_REPLACE | MOD_WIREFRAME_OFS_EVEN;
 	wmd->crease_weight = 1.0f;
-}
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	WireframeModifierData *wmd = (WireframeModifierData *)md;
-	WireframeModifierData *twmd = (WireframeModifierData *)target;
-#endif
-	modifier_copyData_generic(md, target);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
@@ -69,14 +62,22 @@ static bool dependsOnNormals(ModifierData *UNUSED(md))
 	return true;
 }
 
-static DerivedMesh *WireframeModifier_do(WireframeModifierData *wmd, Object *ob, DerivedMesh *dm)
+static Mesh *WireframeModifier_do(WireframeModifierData *wmd, Object *ob, Mesh *mesh)
 {
-	DerivedMesh *result;
+	Mesh *result;
 	BMesh *bm;
 
 	const int defgrp_index = defgroup_name_index(ob, wmd->defgrp_name);
 
-	bm = DM_to_bmesh(dm, true);
+	bm = BKE_mesh_to_bmesh_ex(
+	        mesh,
+	        &(struct BMeshCreateParams){0},
+	        &(struct BMeshFromMeshParams){
+	            .calc_face_normal = true,
+	            .add_key_index = false,
+	            .use_shapekey = true,
+	            .active_shapekey = ob->shapenr,
+	        });
 
 	BM_mesh_wireframe(
 	       bm,
@@ -93,19 +94,21 @@ static DerivedMesh *WireframeModifier_do(WireframeModifierData *wmd, Object *ob,
 	       MAX2(ob->totcol - 1, 0),
 	       false);
 
-	result = CDDM_from_bmesh(bm, true);
+	result = BKE_bmesh_to_mesh_nomain(bm, &(struct BMeshToMeshParams){0});
 	BM_mesh_free(bm);
 
-	result->dirty |= DM_DIRTY_NORMALS;
+	result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
 
 	return result;
 
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx), Object *ob,
-                                  DerivedMesh *dm, ModifierApplyFlag UNUSED(flag))
+static Mesh *applyModifier(
+        ModifierData *md,
+        const struct ModifierEvalContext *ctx,
+        struct Mesh *mesh)
 {
-	return WireframeModifier_do((WireframeModifierData *)md, ob, dm);
+	return WireframeModifier_do((WireframeModifierData *)md, ctx->object, mesh);
 }
 
 
@@ -117,13 +120,22 @@ ModifierTypeInfo modifierType_Wireframe = {
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_SupportsEditmode,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

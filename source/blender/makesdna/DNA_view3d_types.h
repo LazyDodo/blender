@@ -44,17 +44,7 @@ struct bGPdata;
 struct SmoothView3DStore;
 struct wmTimer;
 struct Material;
-struct GPUFX;
 struct GPUViewport;
-
-/* This is needed to not let VC choke on near and far... old
- * proprietary MS extensions... */
-#ifdef WIN32
-#undef near
-#undef far
-#define near clipsta
-#define far clipend
-#endif
 
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
@@ -64,16 +54,12 @@ struct GPUViewport;
 
 /* ******************************** */
 
-/* The near/far thing is a Win EXCEPTION. Thus, leave near/far in the
- * code, and patch for windows. */
-
-typedef struct View3DDebug {
-	float znear, zfar;
-	char background;
-	char pad[7];
-} View3DDebug;
-
-/* ********************************* */
+/* The near/far thing is a Win EXCEPTION, caused by indirect includes from <windows.h>.
+ * Thus, leave near/far in the code, and undef for windows. */
+#ifdef _WIN32
+#  undef near
+#  undef far
+#endif
 
 typedef struct RegionView3D {
 	
@@ -108,7 +94,8 @@ typedef struct RegionView3D {
 	/* min/max dot product on twmat xyz axis. */
 	float tw_axis_min[3], tw_axis_max[3];
 	float tw_axis_matrix[3][3];
-	char _pad[4];
+
+	float gridview;
 
 	float viewquat[4];			/* view rotation, must be kept normalized */
 	float dist;					/* distance from 'ofs' along -viewinv[2] vector, where result is negative as is 'ofs' */
@@ -134,17 +121,51 @@ typedef struct RegionView3D {
 	float lviewquat[4];
 	short lpersp, lview; /* lpersp can never be set to 'RV3D_CAMOB' */
 
-	float gridview;
-	float tw_idot[3];  /* manipulator runtime: (1 - dot) product with view vector (used to check view alignment) */
-
-
 	/* active rotation from NDOF or elsewhere */
 	float rot_angle;
 	float rot_axis[3];
-
-	struct GPUFX *compositor;
-	struct GPUViewport *viewport;
 } RegionView3D;
+
+typedef struct View3DCursor {
+	float location[3];
+	float rotation[4];
+	char _pad[4];
+} View3DCursor;
+
+/* 3D Viewport Shading setings */
+typedef struct View3DShading {
+	short flag;
+	short color_type;
+
+	short light;
+	char pad[2];
+	char studio_light[256]; /* FILE_MAXFILE */
+
+	float shadow_intensity;
+	float single_color[3];
+
+	float studiolight_rot_z;
+	float pad2;
+
+	float object_outline_color[3];
+	float pad3;
+} View3DShading;
+
+/* 3D Viewport Overlay setings */
+typedef struct View3DOverlay {
+	int flag;
+
+	/* Edit mode settings */
+	int edit_flag;
+	float normals_length;
+	float backwire_opacity;
+
+	/* Paint mode settings */
+	int paint_flag;
+
+	/* Armature edit/pose mode settings */
+	int arm_flag;
+} View3DOverlay;
 
 /* 3D ViewPort Struct */
 typedef struct View3D {
@@ -177,18 +198,17 @@ typedef struct View3D {
 	unsigned int lay;
 	int layact;
 	
-	/**
-	 * The drawing mode for the 3d display. Set to OB_BOUNDBOX, OB_WIRE, OB_SOLID,
-	 * OB_TEXTURE, OB_MATERIAL or OB_RENDER */
-	short drawtype;
 	short ob_centre_cursor;		/* optional bool for 3d cursor to define center */
-	short scenelock, around;
-	short flag, flag2;
+	short scenelock, _pad0;
+	short flag, flag2, pad2;
 	
 	float lens, grid;
 	float near, far;
 	float ofs[3]  DNA_DEPRECATED;			/* XXX deprecated */
-	float cursor[3];
+
+	View3DCursor cursor;
+
+	char _pad[4];
 
 	short matcap_icon;			/* icon id */
 
@@ -197,36 +217,27 @@ typedef struct View3D {
 	char gridflag;
 
 	/* transform manipulator info */
-	char twtype, twmode, twflag;
+	char twtype, _pad5, twflag;
 	
 	short flag3;
-	
-	/* afterdraw, for xray & transparent */
-	struct ListBase afterdraw_transp;
-	struct ListBase afterdraw_xray;
-	struct ListBase afterdraw_xraytransp;
 
 	/* drawflags, denoting state */
 	char zbuf, transp, xray;
 
 	char multiview_eye;				/* multiview current eye - for internal use */
 
-	/* The active custom transform orientation of this 3D view. */
-	short custom_orientation_index;
-	char pad3[2];
+	char pad3[4];
 
 	/* note, 'fx_settings.dof' is currently _not_ allocated,
 	 * instead set (temporarily) from camera */
 	struct GPUFXSettings fx_settings;
 
 	void *properties_storage;		/* Nkey panel stores stuff here (runtime only!) */
-	/* Allocated per view, not library data (used by matcap). */
-	struct Material *defmaterial;
 
 	/* XXX deprecated? */
 	struct bGPdata *gpd  DNA_DEPRECATED;		/* Grease-Pencil Data (annotation layers) */
 
-	 /* multiview - stereo 3d */
+	/* Stereoscopy settings */
 	short stereo3d_flag;
 	char stereo3d_camera;
 	char pad4;
@@ -234,13 +245,13 @@ typedef struct View3D {
 	float stereo3d_volume_alpha;
 	float stereo3d_convergence_alpha;
 
-	/* Previous viewport draw type.
-	 * Runtime-only, set in the rendered viewport toggle operator.
-	 */
-	short prev_drawtype;
-	short pad1;
-	float pad2;
-	View3DDebug debug;
+	/* Display settings */
+	short drawtype;         /* Shading mode (OB_SOLID, OB_TEXTURE, ..) */
+	short prev_drawtype;    /* Runtime, for toggle between rendered viewport. */
+	int pad5;
+
+	View3DShading shading;
+	View3DOverlay overlay;
 } View3D;
 
 
@@ -250,12 +261,12 @@ typedef struct View3D {
 #define V3D_S3D_DISPVOLUME		(1 << 2)
 
 /* View3D->flag (short) */
-/*#define V3D_DISPIMAGE		1*/ /*UNUSED*/
-/*#define V3D_DISPBGPICS		2*/ /* UNUSED */
+/*#define V3D_FLAG_DEPRECATED_1 (1 << 0) */ /*UNUSED */
+/*#define V3D_FLAG_DEPRECATED_2 (1 << 1) */ /* UNUSED */
 #define V3D_HIDE_HELPLINES	4
 #define V3D_INVALID_BACKBUF	8
 
-#define V3D_ALIGN			1024
+/* #define V3D_FLAG_DEPRECATED_10 (1 << 10) */ /* UNUSED */
 #define V3D_SELECT_OUTLINE	2048
 #define V3D_ZBUF_SELECT		4096
 #define V3D_GLOBAL_STATS	8192
@@ -270,7 +281,7 @@ typedef struct View3D {
 #define RV3D_CLIPPING				4
 #define RV3D_NAVIGATING				8
 #define RV3D_GPULIGHT_UPDATE		16
-#define RV3D_IS_GAME_ENGINE			32  /* runtime flag, used to check if LoD's should be used */
+/*#define RV3D_IS_GAME_ENGINE			32 *//* UNUSED */
 /**
  * Disable zbuffer offset, skip calls to #ED_view3d_polygon_offset.
  * Use when precise surface depth is needed and picking bias isn't, see T45434).
@@ -317,11 +328,55 @@ typedef struct View3D {
 /* View3d->flag3 (short) */
 #define V3D_SHOW_WORLD			(1 << 0)
 
-/* View3d->debug.background */
+/* View3DShading->light */
 enum {
-	V3D_DEBUG_BACKGROUND_NONE     = (1 << 0),
-	V3D_DEBUG_BACKGROUND_GRADIENT = (1 << 1),
-	V3D_DEBUG_BACKGROUND_WORLD    = (1 << 2),
+	V3D_LIGHTING_FLAT   = 0,
+	V3D_LIGHTING_STUDIO = 1,
+	V3D_LIGHTING_SCENE  = 2
+};
+
+/* View3DShading->flag */
+enum {
+	V3D_SHADING_OBJECT_OUTLINE = (1 << 0),
+	V3D_SHADING_XRAY   = (1 << 1),
+	V3D_SHADING_SHADOW         = (1 << 2),
+};
+
+/* View3DShading->single_color_type */
+enum {
+	V3D_SHADING_MATERIAL_COLOR = 0,
+	V3D_SHADING_RANDOM_COLOR   = 1,
+	V3D_SHADING_SINGLE_COLOR   = 2,
+	V3D_SHADING_OBJECT_COLOR   = 3,
+};
+
+/* View3DOverlay->flag */
+enum {
+	V3D_OVERLAY_FACE_ORIENTATION  = (1 << 0),
+	V3D_OVERLAY_HIDE_CURSOR       = (1 << 1),
+	V3D_OVERLAY_BONE_SELECTION    = (1 << 2),
+	V3D_OVERLAY_LOOK_DEV          = (1 << 3),
+};
+
+/* View3DOverlay->edit_flag */
+enum {
+	V3D_OVERLAY_EDIT_VERT_NORMALS = (1 << 0),
+	V3D_OVERLAY_EDIT_LOOP_NORMALS = (1 << 1),
+	V3D_OVERLAY_EDIT_FACE_NORMALS = (1 << 2),
+
+	V3D_OVERLAY_EDIT_OCCLUDE_WIRE = (1 << 3),
+
+	V3D_OVERLAY_EDIT_WEIGHT       = (1 << 4),
+};
+
+/* View3DOverlay->arm_flag */
+enum {
+	V3D_OVERLAY_ARM_TRANSP_BONES  = (1 << 0),
+};
+
+/* View3DOverlay->paint_flag */
+enum {
+	V3D_OVERLAY_PAINT_WIRE        = (1 << 0),
 };
 
 /* View3D->around */
@@ -354,18 +409,14 @@ enum {
 #define V3D_SHOW_Y				4
 #define V3D_SHOW_Z				8
 
-/* View3d->twtype (bits, we can combine them) */
-#define V3D_MANIP_TRANSLATE		1
-#define V3D_MANIP_ROTATE		2
-#define V3D_MANIP_SCALE			4
-
-/* View3d->twmode */
+/* Scene.orientation_type */
 #define V3D_MANIP_GLOBAL		0
 #define V3D_MANIP_LOCAL			1
 #define V3D_MANIP_NORMAL		2
 #define V3D_MANIP_VIEW			3
 #define V3D_MANIP_GIMBAL		4
-#define V3D_MANIP_CUSTOM		5
+#define V3D_MANIP_CURSOR		5
+#define V3D_MANIP_CUSTOM		1024
 
 /* View3d->twflag (also) */
 enum {

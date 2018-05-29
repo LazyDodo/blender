@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <windows.h>
 #endif
 
@@ -79,6 +79,7 @@
 #include "BKE_addon.h"
 #include "BKE_appdir.h"
 #include "BKE_sequencer.h" /* free seq clipboard */
+#include "BKE_studiolight.h"
 #include "BKE_material.h" /* clear_matcopybuf */
 #include "BKE_tracking.h" /* free tracking clipboard */
 #include "BKE_mask.h" /* free mask clipboard */
@@ -90,9 +91,6 @@
 #include "BPY_extern.h"
 #endif
 
-#ifdef WITH_GAMEENGINE
-#  include "BL_System.h"
-#endif
 #include "GHOST_Path-api.h"
 #include "GHOST_C-api.h"
 
@@ -123,7 +121,6 @@
 #include "BLT_lang.h"
 
 #include "GPU_material.h"
-#include "GPU_buffers.h"
 #include "GPU_draw.h"
 #include "GPU_init_exit.h"
 
@@ -142,6 +139,9 @@ CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_OPERATORS, "wm.operator");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_HANDLERS, "wm.handler");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_EVENTS, "wm.event");
 CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_KEYMAPS, "wm.keymap");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_TOOLS, "wm.tool");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_MSGBUS_PUB, "wm.msgbus.pub");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_MSGBUS_SUB, "wm.msgbus.sub");
 
 static void wm_init_reports(bContext *C)
 {
@@ -160,6 +160,40 @@ static void wm_free_reports(bContext *C)
 
 bool wm_start_with_console = false; /* used in creator.c */
 
+/**
+ * Since we cannot know in advance if we will require the draw manager
+ * context when starting blender in background mode (specially true with
+ * scripts) we deferre the ghost initialization the most as possible
+ * so that it does not break anything that can run in headless mode (as in
+ * without display server attached).
+ **/
+static bool opengl_is_init = false;
+
+void WM_init_opengl(void)
+{
+	/* must be called only once */
+	BLI_assert(opengl_is_init == false);
+
+	if (G.background) {
+		/* Ghost is still not init elsewhere in background mode. */
+		wm_ghost_init(NULL);
+	}
+
+	/* Needs to be first to have an ogl context bound. */
+	DRW_opengl_context_create();
+
+	GPU_init();
+	GPU_set_mipmap(true);
+	GPU_set_linear_mipmap(true);
+	GPU_set_anisotropic(U.anisotropic_filter);
+	GPU_set_gpu_mipmapping(U.use_gpu_mipmap);
+
+#ifdef WITH_OPENSUBDIV
+	BKE_subsurf_osd_init();
+#endif
+	opengl_is_init = true;
+}
+
 /* only called once, for startup */
 void WM_init(bContext *C, int argc, const char **argv)
 {
@@ -168,6 +202,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 		wm_ghost_init(C);   /* note: it assigns C to ghost! */
 		wm_init_cursor_data();
 	}
+
 	GHOST_CreateSystemPaths();
 
 	BKE_addon_pref_type_init();
@@ -195,7 +230,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 	ED_file_init();         /* for fsmenu */
 	ED_node_init_butfuncs();
 	
-	BLF_init(); /* Please update source/gamengine/GamePlayer/GPG_ghost.cpp if you change this */
+	BLF_init();
 	BLT_lang_init();
 
 	/* reports cant be initialized before the wm,
@@ -206,7 +241,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 
 	/* get the default database, plus a wm */
 	wm_homefile_read(C, NULL, G.factory_startup, false, true, NULL, NULL);
-	
 
 	BLT_lang_set(NULL);
 
@@ -216,20 +250,10 @@ void WM_init(bContext *C, int argc, const char **argv)
 		/* sets 3D mouse deadzone */
 		WM_ndof_deadzone_set(U.ndof_deadzone);
 #endif
-		DRW_opengl_context_create();
-
-		GPU_init();
-
-		GPU_set_mipmap(!(U.gameflags & USER_DISABLE_MIPMAP));
-		GPU_set_linear_mipmap(true);
-		GPU_set_anisotropic(U.anisotropic_filter);
-		GPU_set_gpu_mipmapping(U.use_gpu_mipmap);
-
-#ifdef WITH_OPENSUBDIV
-		BKE_subsurf_osd_init();
-#endif
+		WM_init_opengl();
 
 		UI_init();
+		BKE_studiolight_init();
 	}
 	else {
 		/* Note: Currently only inits icons, which we now want in background mode too
@@ -238,7 +262,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 		 * Called from 'UI_init' above */
 		BKE_icons_init(1);
 	}
-
 
 	ED_spacemacros_init();
 
@@ -326,96 +349,6 @@ void WM_init_splash(bContext *C)
 	}
 }
 
-bool WM_init_game(bContext *C)
-{
-	wmWindowManager *wm = CTX_wm_manager(C);
-	wmWindow *win;
-
-	ScrArea *sa;
-	ARegion *ar = NULL;
-
-	Scene *scene = CTX_data_scene(C);
-
-	if (!scene) {
-		/* XXX, this should not be needed. */
-		Main *bmain = CTX_data_main(C);
-		scene = bmain->scene.first;
-	}
-
-	win = wm->windows.first;
-
-	/* first to get a valid window */
-	if (win)
-		CTX_wm_window_set(C, win);
-
-	sa = BKE_screen_find_big_area(CTX_wm_screen(C), SPACE_VIEW3D, 0);
-	ar = BKE_area_find_region_type(sa, RGN_TYPE_WINDOW);
-
-	/* if we have a valid 3D view */
-	if (sa && ar) {
-		ARegion *arhide;
-
-		CTX_wm_area_set(C, sa);
-		CTX_wm_region_set(C, ar);
-
-		/* disable quad view */
-		if (ar->alignment == RGN_ALIGN_QSPLIT)
-			WM_operator_name_call(C, "SCREEN_OT_region_quadview", WM_OP_EXEC_DEFAULT, NULL);
-
-		/* toolbox, properties panel and header are hidden */
-		for (arhide = sa->regionbase.first; arhide; arhide = arhide->next) {
-			if (arhide->regiontype != RGN_TYPE_WINDOW) {
-				if (!(arhide->flag & RGN_FLAG_HIDDEN)) {
-					ED_region_toggle_hidden(C, arhide);
-				}
-			}
-		}
-
-		/* full screen the area */
-		if (!sa->full) {
-			ED_screen_state_toggle(C, win, sa, SCREENMAXIMIZED);
-		}
-
-		/* Fullscreen */
-		if ((scene->gm.playerflag & GAME_PLAYER_FULLSCREEN)) {
-			WM_operator_name_call(C, "WM_OT_window_fullscreen_toggle", WM_OP_EXEC_DEFAULT, NULL);
-			wm_get_screensize(&ar->winrct.xmax, &ar->winrct.ymax);
-			ar->winx = ar->winrct.xmax + 1;
-			ar->winy = ar->winrct.ymax + 1;
-		}
-		else {
-			GHOST_RectangleHandle rect = GHOST_GetClientBounds(win->ghostwin);
-			ar->winrct.ymax = GHOST_GetHeightRectangle(rect);
-			ar->winrct.xmax = GHOST_GetWidthRectangle(rect);
-			ar->winx = ar->winrct.xmax + 1;
-			ar->winy = ar->winrct.ymax + 1;
-			GHOST_DisposeRectangle(rect);
-		}
-
-		WM_operator_name_call(C, "VIEW3D_OT_game_start", WM_OP_EXEC_DEFAULT, NULL);
-
-		BKE_sound_exit();
-
-		return true;
-	}
-	else {
-		ReportTimerInfo *rti;
-
-		BKE_report(&wm->reports, RPT_ERROR, "No valid 3D View found, game auto start is not possible");
-
-		/* After adding the report to the global list, reset the report timer. */
-		WM_event_remove_timer(wm, NULL, wm->reports.reporttimer);
-
-		/* Records time since last report was added */
-		wm->reports.reporttimer = WM_event_add_timer(wm, CTX_wm_window(C), TIMER, 0.02);
-
-		rti = MEM_callocN(sizeof(ReportTimerInfo), "ReportTimerInfo");
-		wm->reports.reporttimer->customdata = rti;
-
-		return false;
-	}
-}
-
 /* free strings of open recent files */
 static void free_openrecent(void)
 {
@@ -493,7 +426,7 @@ void WM_exit_ext(bContext *C, const bool do_python)
 				/* save the undo state as quit.blend */
 				char filename[FILE_MAX];
 				bool has_edited;
-				int fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_AUTOPLAY | G_FILE_HISTORY);
+				int fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_HISTORY);
 
 				BLI_make_file_string("/", filename, BKE_tempdir_base(), BLENDER_QUIT_FILE);
 
@@ -530,11 +463,6 @@ void WM_exit_ext(bContext *C, const bool do_python)
 
 	ED_undosys_type_free();
 
-//	XXX	
-//	BIF_GlobalReebFree();
-//	BIF_freeRetarget();
-	BIF_freeTemplates(C);
-
 	free_openrecent();
 	
 	BKE_mball_cubeTable_free();
@@ -559,12 +487,11 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	COM_deinitialize();
 #endif
 
-	if (!G.background) {
+	if (opengl_is_init) {
 #ifdef WITH_OPENSUBDIV
 		BKE_subsurf_osd_cleanup();
 #endif
 
-		GPU_global_buffer_pool_free();
 		GPU_free_unused_buffers();
 
 		GPU_exit();
@@ -587,10 +514,11 @@ void WM_exit_ext(bContext *C, const bool do_python)
 
 	BLF_exit();
 
-	if (!G.background) {
+	if (opengl_is_init) {
 		GPU_pass_cache_free();
 		DRW_opengl_context_destroy();
 	}
+	BKE_studiolight_free();
 
 #ifdef WITH_INTERNATIONAL
 	BLF_free_unifont();
@@ -629,9 +557,6 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	wm_ghost_exit();
 
 	CTX_free(C);
-#ifdef WITH_GAMEENGINE
-	SYS_DeleteSystem(SYS_GetSystem());
-#endif
 	
 	GHOST_DisposeSystemPaths();
 

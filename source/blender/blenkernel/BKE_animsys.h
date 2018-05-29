@@ -31,23 +31,22 @@
  *  \author Joshua Leung
  */
 
+struct AnimData;
+struct AnimMapper;
+struct FCurve;
 struct ID;
+struct KS_Path;
+struct KeyingSet;
 struct ListBase;
 struct Main;
-struct AnimData;
-struct FCurve;
-struct KeyingSet;
-struct KS_Path;
 struct PathResolvedRNA;
-struct bContext;
-
 struct PointerRNA;
 struct PropertyRNA;
 struct ReportList;
+struct Scene;
 struct bAction;
 struct bActionGroup;
-struct AnimMapper;
-struct FCurve;
+struct bContext;
 
 /* ************************************* */
 /* AnimData API */
@@ -69,10 +68,10 @@ bool BKE_animdata_set_action(struct ReportList *reports, struct ID *id, struct b
 void BKE_animdata_free(struct ID *id, const bool do_id_user);
 
 /* Copy AnimData */
-struct AnimData *BKE_animdata_copy(struct Main *bmain, struct AnimData *adt, const bool do_action);
+struct AnimData *BKE_animdata_copy(struct Main *bmain, struct AnimData *adt, const bool do_action, const bool do_id_user);
 
 /* Copy AnimData */
-bool BKE_animdata_copy_id(struct Main *bmain, struct ID *id_to, struct ID *id_from, const bool do_action);
+bool BKE_animdata_copy_id(struct Main *bmain, struct ID *id_to, struct ID *id_from, const bool do_action, const bool do_id_user);
 
 /* Copy AnimData Actions */
 void BKE_animdata_copy_id_action(struct ID *id, const bool set_newid);
@@ -119,7 +118,7 @@ void BKE_keyingsets_free(struct ListBase *list);
 /* Path Fixing API */
 
 /* Get a "fixed" version of the given path (oldPath) */
-char *BKE_animsys_fix_rna_path_rename(ID *owner_id, char *old_path, const char *prefix, const char *oldName,
+char *BKE_animsys_fix_rna_path_rename(struct ID *owner_id, char *old_path, const char *prefix, const char *oldName,
                                       const char *newName, int oldSubscript, int newSubscript, bool verify_paths);
 
 /* Fix all the paths for the given ID + Action */
@@ -132,7 +131,7 @@ void BKE_animdata_fix_paths_rename(struct ID *owner_id, struct AnimData *adt, st
                                    bool verify_paths);
 
 /* Fix all the paths for the entire database... */
-void BKE_animdata_fix_paths_rename_all(ID *ref_id, const char *prefix, const char *oldName, const char *newName);
+void BKE_animdata_fix_paths_rename_all(struct ID *ref_id, const char *prefix, const char *oldName, const char *newName);
 
 /* Fix the path after removing elements that are not ID (e.g., node) */
 void BKE_animdata_fix_paths_remove(struct ID *id, const char *path);
@@ -200,10 +199,10 @@ void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, 
 
 /* ------------ Evaluation API --------------- */
 
-struct EvaluationContext;
+struct Depsgraph;
 
-void BKE_animsys_eval_animdata(const struct EvaluationContext *eval_ctx, struct ID *id);
-void BKE_animsys_eval_driver(const struct EvaluationContext *eval_ctx, struct ID *id, struct FCurve *fcurve);
+void BKE_animsys_eval_animdata(struct Depsgraph *depsgraph, struct ID *id);
+void BKE_animsys_eval_driver(struct Depsgraph *depsgraph, struct ID *id, struct FCurve *fcurve);
 
 /* ************************************* */
 

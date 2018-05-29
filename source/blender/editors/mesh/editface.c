@@ -51,7 +51,6 @@
 #include "WM_types.h"
 
 #include "GPU_draw.h"
-#include "GPU_buffers.h"
 
 /* own include */
 
@@ -97,11 +96,6 @@ void paintface_flush_flags(Object *ob, short flag)
 
 			}
 		}
-	}
-
-	if (flag & ME_HIDE) {
-		/* draw-object caches hidden faces, force re-generation T46867 */
-		GPU_drawobject_free(dm);
 	}
 
 	BKE_mesh_batch_cache_dirty(me, BKE_MESH_BATCH_DIRTY_ALL);
@@ -393,7 +387,7 @@ bool paintface_mouse_select(struct bContext *C, Object *ob, const int mval[2], b
 	return true;
 }
 
-int do_paintface_box_select(const struct EvaluationContext *eval_ctx, ViewContext *vc, rcti *rect, bool select, bool extend)
+int do_paintface_box_select(ViewContext *vc, rcti *rect, bool select, bool extend)
 {
 	Object *ob = vc->obact;
 	Mesh *me;
@@ -424,7 +418,7 @@ int do_paintface_box_select(const struct EvaluationContext *eval_ctx, ViewContex
 		}
 	}
 
-	ED_view3d_backbuf_validate(eval_ctx, vc);
+	ED_view3d_backbuf_validate(vc);
 
 	ibuf = IMB_allocImBuf(size[0], size[1], 32, IB_rect);
 	rt = ibuf->rect;

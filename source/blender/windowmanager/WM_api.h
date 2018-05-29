@@ -47,12 +47,15 @@ extern "C" {
 #endif
 
 struct bContext;
+struct bToolRef_Runtime;
 struct GHashIterator;
 struct IDProperty;
 struct wmEvent;
 struct wmEventHandler;
 struct wmGesture;
 struct wmJob;
+struct wmMsgSubscribeKey;
+struct wmMsgSubscribeValue;
 struct wmOperatorType;
 struct wmOperator;
 struct rcti;
@@ -66,8 +69,8 @@ struct ImageFormatData;
 struct ARegion;
 struct ScrArea;
 struct Main;
-struct bToolDef;
 struct ViewLayer;
+struct GPUViewport;
 
 #ifdef WITH_INPUT_NDOF
 struct wmNDOFMotionData;
@@ -91,15 +94,17 @@ void		WM_exit				(struct bContext *C) ATTR_NORETURN;
 
 void		WM_main				(struct bContext *C) ATTR_NORETURN;
 
-bool 		WM_init_game		(struct bContext *C);
 void		WM_init_splash		(struct bContext *C);
 
+void		WM_init_opengl		(void);
 
 void		WM_check			(struct bContext *C);
 
-int			WM_window_pixels_x		(struct wmWindow *win);
-int			WM_window_pixels_y		(struct wmWindow *win);
-bool		WM_window_is_fullscreen	(struct wmWindow *win);
+int WM_window_pixels_x(const struct wmWindow *win);
+int WM_window_pixels_y(const struct wmWindow *win);
+void WM_window_rect_calc(const struct wmWindow *win, struct rcti *r_rect);
+void WM_window_screen_rect_calc(const struct wmWindow *win, struct rcti *r_rect);
+bool WM_window_is_fullscreen(struct wmWindow *win);
 
 void WM_windows_scene_data_sync(const ListBase *win_lb, struct Scene *scene) ATTR_NONNULL();
 struct Scene *WM_windows_scene_get_from_screen(const struct wmWindowManager *wm, const struct bScreen *screen) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
@@ -130,6 +135,7 @@ void WM_opengl_context_release(void *context);
 enum {
 	WM_WINDOW_RENDER = 1,
 	WM_WINDOW_USERPREFS,
+	WM_WINDOW_DRIVERS,
 	// WM_WINDOW_FILESEL // UNUSED
 };
 
@@ -137,9 +143,6 @@ struct wmWindow	*WM_window_open(struct bContext *C, const struct rcti *rect);
 struct wmWindow *WM_window_open_temp(struct bContext *C, int x, int y, int sizex, int sizey, int type);
 void             WM_window_set_dpi(wmWindow *win);
 			
-			/* returns true if draw method is triple buffer */
-bool		WM_is_draw_triple(struct wmWindow *win);
-
 bool		WM_stereo3d_enabled(struct wmWindow *win, bool only_fullscreen_test);
 
 
@@ -154,6 +157,7 @@ void        WM_lib_reload(struct Library *lib, struct bContext *C, struct Report
 
 			/* mouse cursors */
 void		WM_cursor_set(struct wmWindow *win, int curs);
+bool		WM_cursor_set_from_tool(struct wmWindow *win, const ScrArea *sa, const ARegion *ar);
 void		WM_cursor_modal_set(struct wmWindow *win, int curs);
 void		WM_cursor_modal_restore(struct wmWindow *win);
 void		WM_cursor_wait		(bool val);
@@ -186,6 +190,11 @@ struct wmEventHandler *WM_event_add_keymap_handler_bb(ListBase *handlers, wmKeyM
 struct wmEventHandler *WM_event_add_keymap_handler_priority(ListBase *handlers, wmKeyMap *keymap, int priority);
 
 void		WM_event_remove_keymap_handler(ListBase *handlers, wmKeyMap *keymap);
+
+void WM_event_set_keymap_handler_callback(
+        struct wmEventHandler *handler,
+        void (keymap_tag)(wmKeyMap *keymap, wmKeyMapItem *kmi, void *user_data),
+        void *user_data);
 
 typedef int (*wmUIHandlerFunc)(struct bContext *C, const struct wmEvent *event, void *userdata);
 typedef void (*wmUIHandlerRemoveFunc)(struct bContext *C, void *userdata);
@@ -338,7 +347,11 @@ void		WM_operator_properties_create_ptr(struct PointerRNA *ptr, struct wmOperato
 void        WM_operator_properties_clear(struct PointerRNA *ptr);
 void		WM_operator_properties_free(struct PointerRNA *ptr);
 
+bool        WM_operator_check_ui_empty(struct wmOperatorType *ot);
 bool        WM_operator_check_ui_enabled(const struct bContext *C, const char *idname);
+
+IDProperty *WM_operator_last_properties_ensure_idprops(struct wmOperatorType *ot);
+void        WM_operator_last_properties_ensure(struct wmOperatorType *ot, struct PointerRNA *ptr);
 wmOperator *WM_operator_last_redo(const struct bContext *C);
 ID         *WM_operator_drop_load_path(struct bContext *C, struct wmOperator *op, const short idcode);
 
@@ -561,6 +574,11 @@ void        *WM_draw_cb_activate(
 void        WM_draw_cb_exit(struct wmWindow *win, void *handle);
 void		WM_redraw_windows(struct bContext *C);
 
+			/* Region drawing */
+void                WM_draw_region_free(struct ARegion *ar);
+struct GPUViewport *WM_draw_region_get_viewport(struct ARegion *ar, int view);
+struct GPUViewport *WM_draw_region_get_bound_viewport(struct ARegion *ar);
+
 void        WM_main_playanim(int argc, const char **argv);
 
 /* debugging only, convenience function to write on crash */
@@ -583,13 +601,6 @@ bool        WM_event_is_tablet(const struct wmEvent *event);
 #ifdef WITH_INPUT_IME
 bool        WM_event_is_ime_switch(const struct wmEvent *event);
 #endif
-
-/* wm_toolsystem.c  */
-void WM_toolsystem_unlink(struct bContext *C, struct WorkSpace *workspace);
-void WM_toolsystem_link(struct bContext *C, struct WorkSpace *workspace);
-
-void WM_toolsystem_set(struct bContext *C, const struct bToolDef *tool);
-void WM_toolsystem_init(struct bContext *C);
 
 /* wm_tooltip.c */
 typedef struct ARegion *(*wmTooltipInitFn)(struct bContext *, struct ARegion *, bool *);

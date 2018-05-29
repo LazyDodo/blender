@@ -50,6 +50,7 @@
 #include "BLI_blenlib.h"
 #include "BLI_threads.h"
 #include "BLI_math.h"
+#include "BLI_string.h"
 #include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
@@ -59,6 +60,7 @@
 #include "BKE_appdir.h"
 #include "BKE_anim.h"
 #include "BKE_cloth.h"
+#include "BKE_collection.h"
 #include "BKE_dynamicpaint.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
@@ -71,6 +73,8 @@
 #include "BKE_softbody.h"
 
 #include "BIK_api.h"
+
+#include "DEG_depsgraph.h"
 
 #ifdef WITH_BULLET
 #  include "RBI_api.h"
@@ -441,9 +445,9 @@ static void ptcache_particle_extra_write(void *psys_v, PTCacheMem *pm, int UNUSE
 	PTCacheExtra *extra = NULL;
 
 	if (psys->part->phystype == PART_PHYS_FLUID &&
-		psys->part->fluid && psys->part->fluid->flag & SPH_VISCOELASTIC_SPRINGS &&
-		psys->tot_fluidsprings && psys->fluid_springs) {
-
+	    psys->part->fluid && psys->part->fluid->flag & SPH_VISCOELASTIC_SPRINGS &&
+	    psys->tot_fluidsprings && psys->fluid_springs)
+	{
 		extra = MEM_callocN(sizeof(PTCacheExtra), "Point cache: fluid extra data");
 
 		extra->type = BPHYS_EXTRA_FLUID_SPRINGS;
@@ -790,8 +794,9 @@ static int ptcache_smoke_read(PTCacheFile *pf, void *smoke_v)
 
 	/* check if resolution has changed */
 	if (sds->res[0] != ch_res[0] ||
-		sds->res[1] != ch_res[1] ||
-		sds->res[2] != ch_res[2]) {
+	    sds->res[1] != ch_res[1] ||
+	    sds->res[2] != ch_res[2])
+	{
 		if (sds->flags & MOD_SMOKE_ADAPTIVE_DOMAIN)
 			reallocate = 1;
 		else
@@ -1738,8 +1743,8 @@ void BKE_ptcache_ids_from_object(ListBase *lb, Object *ob, Scene *scene, int dup
 	 * for baking with linking dupligroups. Once we have better overrides
 	 * this can be revisited so users select the local objects directly. */
 	if (scene && (duplis-- > 0) && (ob->dup_group)) {
-		Group *group = ob->dup_group;
-		Base *base = group->view_layer->object_bases.first;
+		Collection *collection = ob->dup_group;
+		Base *base = BKE_collection_object_cache_get(collection).first;
 
 		for (; base; base = base->next) {
 			if (base->object != ob) {
@@ -2214,8 +2219,8 @@ static void ptcache_data_copy(void *from[], void *to[])
 {
 	int i;
 	for (i=0; i<BPHYS_TOT_DATA; i++) {
-	/* note, durian file 03.4b_comp crashes if to[i] is not tested
-	 * its NULL, not sure if this should be fixed elsewhere but for now its needed */
+		/* note, durian file 03.4b_comp crashes if to[i] is not tested
+		 * its NULL, not sure if this should be fixed elsewhere but for now its needed */
 		if (from[i] && to[i])
 			memcpy(to[i], from[i], ptcache_data_size[i]);
 	}
@@ -3372,6 +3377,7 @@ int  BKE_ptcache_object_reset(Scene *scene, Object *ob, int mode)
 	if (ob->type == OB_ARMATURE)
 		BIK_clear_cache(ob->pose);
 
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	return reset;
 }
 
@@ -3679,7 +3685,7 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 	stime = ptime = PIL_check_seconds_timer();
 
 	for (int fr = CFRA; fr <= endframe; fr += baker->quick_step, CFRA = fr) {
-		BKE_scene_graph_update_for_newframe(G.main->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 		if (baker->update_progress) {
 			float progress = ((float)(CFRA - startframe)/(float)(endframe - startframe));
@@ -3765,7 +3771,7 @@ void BKE_ptcache_bake(PTCacheBaker *baker)
 	CFRA = cfrao;
 	
 	if (bake) { /* already on cfra unless baking */
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 
 	/* TODO: call redraw all windows somehow */
@@ -4066,9 +4072,11 @@ void BKE_ptcache_update_info(PTCacheID *pid)
 	}
 	else {
 		PTCacheMem *pm = cache->mem_cache.first;
-		float bytes = 0.0f;
-		int i, mb;
-		
+		char formatted_tot[16];
+		char formatted_mem[15];
+		long long int bytes = 0.0f;
+		int i;
+
 		for (; pm; pm=pm->next) {
 			for (i=0; i<BPHYS_TOT_DATA; i++)
 				bytes += MEM_allocN_len(pm->data[i]);
@@ -4083,12 +4091,10 @@ void BKE_ptcache_update_info(PTCacheID *pid)
 			totframes++;
 		}
 
-		mb = (bytes > 1024.0f * 1024.0f);
+		BLI_str_format_int_grouped(formatted_tot, totframes);
+		BLI_str_format_byte_unit(formatted_mem, bytes, true);
 
-		BLI_snprintf(mem_info, sizeof(mem_info), IFACE_("%i frames in memory (%.1f %s)"),
-		             totframes,
-		             bytes / (mb ? 1024.0f * 1024.0f : 1024.0f),
-		             mb ? IFACE_("Mb") : IFACE_("kb"));
+		BLI_snprintf(mem_info, sizeof(mem_info), IFACE_("%s frames in memory (%s)"), formatted_tot, formatted_mem);
 	}
 
 	if (cache->flag & PTCACHE_OUTDATED) {

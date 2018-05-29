@@ -1035,7 +1035,6 @@ void ED_operatortypes_paint(void)
 	WM_operatortype_append(PAINT_OT_image_from_view);
 	WM_operatortype_append(PAINT_OT_brush_colors_flip);
 	WM_operatortype_append(PAINT_OT_add_texture_paint_slot);
-	WM_operatortype_append(PAINT_OT_delete_texture_paint_slot);
 	WM_operatortype_append(PAINT_OT_add_simple_uvs);
 
 	/* weight */
@@ -1375,8 +1374,6 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	ed_keymap_paint_brush_switch(keymap, "weight_paint");
 	ed_keymap_paint_brush_size(keymap, "tool_settings.weight_paint.brush.size");
 	ed_keymap_paint_brush_radial_control(keymap, "weight_paint", RC_WEIGHT);
-
-	ed_keymap_stencil(keymap);
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", EKEY, KM_PRESS, 0, 0);
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.vertex_paint.brush.stroke_method");

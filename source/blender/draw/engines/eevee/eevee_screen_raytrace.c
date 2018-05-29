@@ -30,6 +30,8 @@
 #include "BLI_dynstr.h"
 #include "BLI_string_utils.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "eevee_private.h"
 #include "GPU_texture.h"
 
@@ -68,9 +70,9 @@ static struct GPUShader *eevee_effects_screen_raytrace_shader_get(int options)
 		        datatoc_common_uniforms_lib_glsl,
 		        datatoc_bsdf_common_lib_glsl,
 		        datatoc_bsdf_sampling_lib_glsl,
+		        datatoc_ambient_occlusion_lib_glsl,
 		        datatoc_octahedron_lib_glsl,
 		        datatoc_lightprobe_lib_glsl,
-		        datatoc_ambient_occlusion_lib_glsl,
 		        datatoc_raytrace_lib_glsl,
 		        datatoc_effect_ssr_frag_glsl);
 
@@ -111,21 +113,18 @@ int EEVEE_screen_raytrace_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	const float *viewport_size = DRW_viewport_size_get();
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer,
-	                                                        COLLECTION_MODE_NONE,
-	                                                        RE_engine_id_BLENDER_EEVEE);
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
 	/* Compute pixel size, (shared with contact shadows) */
 	copy_v2_v2(common_data->ssr_pixelsize, viewport_size);
 	invert_v2(common_data->ssr_pixelsize);
 
-	if (BKE_collection_engine_property_value_get_bool(props, "ssr_enable")) {
-		const bool use_refraction = BKE_collection_engine_property_value_get_bool(props, "ssr_refraction");
+	if (scene_eval->eevee.flag & SCE_EEVEE_SSR_ENABLED) {
+		const bool use_refraction = (scene_eval->eevee.flag & SCE_EEVEE_SSR_REFRACTION) != 0;
 
 		if (use_refraction) {
 			/* TODO: Opti: Could be shared. */
-			DRW_texture_ensure_fullscreen_2D(&txl->refract_color, DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
+			DRW_texture_ensure_fullscreen_2D(&txl->refract_color, GPU_R11F_G11F_B10F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
 
 			GPU_framebuffer_ensure_config(&fbl->refract_fb, {
 				GPU_ATTACHMENT_NONE,
@@ -133,12 +132,12 @@ int EEVEE_screen_raytrace_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			});
 		}
 
-		effects->reflection_trace_full = !BKE_collection_engine_property_value_get_bool(props, "ssr_halfres");
-		common_data->ssr_thickness = BKE_collection_engine_property_value_get_float(props, "ssr_thickness");
-		common_data->ssr_border_fac = BKE_collection_engine_property_value_get_float(props, "ssr_border_fade");
-		common_data->ssr_firefly_fac = BKE_collection_engine_property_value_get_float(props, "ssr_firefly_fac");
-		common_data->ssr_max_roughness = BKE_collection_engine_property_value_get_float(props, "ssr_max_roughness");
-		common_data->ssr_quality = 1.0f - 0.95f * BKE_collection_engine_property_value_get_float(props, "ssr_quality");
+		effects->reflection_trace_full = (scene_eval->eevee.flag & SCE_EEVEE_SSR_HALF_RESOLUTION) == 0;
+		common_data->ssr_thickness = scene_eval->eevee.ssr_thickness;
+		common_data->ssr_border_fac = scene_eval->eevee.ssr_border_fade;
+		common_data->ssr_firefly_fac = scene_eval->eevee.ssr_firefly_fac;
+		common_data->ssr_max_roughness = scene_eval->eevee.ssr_max_roughness;
+		common_data->ssr_quality = 1.0f - 0.95f * scene_eval->eevee.ssr_quality;
 		common_data->ssr_brdf_bias = 0.1f + common_data->ssr_quality * 0.6f; /* Range [0.1, 0.7]. */
 
 		if (common_data->ssr_firefly_fac < 1e-8f) {
@@ -149,7 +148,7 @@ int EEVEE_screen_raytrace_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		int tracing_res[2] = {(int)viewport_size[0] / divisor, (int)viewport_size[1] / divisor};
 		int size_fs[2] = {(int)viewport_size[0], (int)viewport_size[1]};
 		const bool high_qual_input = true; /* TODO dither low quality input */
-		const DRWTextureFormat format = (high_qual_input) ? DRW_TEX_RGBA_16 : DRW_TEX_RGBA_8;
+		const GPUTextureFormat format = (high_qual_input) ? GPU_RGBA16F : GPU_RGBA8;
 
 		/* MRT for the shading pass in order to output needed data for the SSR pass. */
 		effects->ssr_specrough_input = DRW_texture_pool_query_2D(size_fs[0], size_fs[1], format,
@@ -158,9 +157,9 @@ int EEVEE_screen_raytrace_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		GPU_framebuffer_texture_attach(fbl->main_fb, effects->ssr_specrough_input, 2, 0);
 
 		/* Raytracing output */
-		effects->ssr_hit_output = DRW_texture_pool_query_2D(tracing_res[0], tracing_res[1], DRW_TEX_RG_16I,
+		effects->ssr_hit_output = DRW_texture_pool_query_2D(tracing_res[0], tracing_res[1], GPU_RG16I,
 		                                                    &draw_engine_eevee_type);
-		effects->ssr_pdf_output = DRW_texture_pool_query_2D(tracing_res[0], tracing_res[1], DRW_TEX_R_16,
+		effects->ssr_pdf_output = DRW_texture_pool_query_2D(tracing_res[0], tracing_res[1], GPU_R16F,
 		                                                    &draw_engine_eevee_type);
 
 		GPU_framebuffer_ensure_config(&fbl->screen_tracing_fb, {

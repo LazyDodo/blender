@@ -1989,9 +1989,6 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 	if (ntree) {
 		bNodeTree *ltree;
 		bNode *node;
-		AnimData *adt;
-
-		bAction *action_backup = NULL, *tmpact_backup = NULL;
 
 		BLI_spin_lock(&spin);
 		if (!ntree->duplilock) {
@@ -2001,23 +1998,16 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 
 		BLI_mutex_lock(ntree->duplilock);
 
-		/* Workaround for copying an action on each render!
-		 * set action to NULL so animdata actions don't get copied */
-		adt = BKE_animdata_from_id(&ntree->id);
-
-		if (adt) {
-			action_backup = adt->action;
-			tmpact_backup = adt->tmpact;
-
-			adt->action = NULL;
-			adt->tmpact = NULL;
-		}
-
 		/* Make full copy outside of Main database.
 		 * Note: previews are not copied here.
 		 */
-		BKE_id_copy_ex(G.main, (ID *)ntree, (ID **)&ltree,
-		               LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT | LIB_ID_COPY_NO_PREVIEW, false);
+		BKE_id_copy_ex(
+		        NULL, &ntree->id, (ID **)&ltree,
+		        (LIB_ID_CREATE_NO_MAIN |
+		         LIB_ID_CREATE_NO_USER_REFCOUNT |
+		         LIB_ID_COPY_NO_PREVIEW |
+		         LIB_ID_COPY_NO_ANIMDATA),
+		        false);
 		ltree->flag |= NTREE_IS_LOCALIZED;
 
 		for (node = ltree->nodes.first; node; node = node->next) {
@@ -2025,20 +2015,6 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 				node->id = (ID *)ntreeLocalize((bNodeTree *)node->id);
 			}
 		}
-
-		if (adt) {
-			AnimData *ladt = BKE_animdata_from_id(&ltree->id);
-
-			adt->action = ladt->action = action_backup;
-			adt->tmpact = ladt->tmpact = tmpact_backup;
-
-			if (action_backup)
-				id_us_plus(&action_backup->id);
-			if (tmpact_backup)
-				id_us_plus(&tmpact_backup->id);
-
-		}
-		/* end animdata uglyness */
 
 		/* ensures only a single output node is enabled */
 		ntreeSetOutput(ntree);
@@ -2050,6 +2026,8 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 
 		if (ntree->typeinfo->localize)
 			ntree->typeinfo->localize(ltree, ntree);
+
+		ltree->id.tag |= LIB_TAG_LOCALIZED;
 
 		BLI_mutex_unlock(ntree->duplilock);
 
@@ -3120,77 +3098,6 @@ void nodeUpdateInternalLinks(bNodeTree *ntree, bNode *node)
 }
 
 
-/* nodes that use ID data get synced with local data */
-void nodeSynchronizeID(bNode *node, bool copy_to_id)
-{
-	if (node->id == NULL) return;
-	
-	if (ELEM(node->type, SH_NODE_MATERIAL, SH_NODE_MATERIAL_EXT)) {
-		bNodeSocket *sock;
-		Material *ma = (Material *)node->id;
-		int a;
-		short check_flags = SOCK_UNAVAIL;
-
-		if (!copy_to_id)
-			check_flags |= SOCK_HIDDEN;
-		
-		/* hrmf, case in loop isn't super fast, but we don't edit 100s of material at same time either! */
-		for (a = 0, sock = node->inputs.first; sock; sock = sock->next, a++) {
-			if (!(sock->flag & check_flags)) {
-				if (copy_to_id) {
-					switch (a) {
-						case MAT_IN_COLOR:
-							copy_v3_v3(&ma->r, ((bNodeSocketValueRGBA *)sock->default_value)->value); break;
-						case MAT_IN_SPEC:
-							copy_v3_v3(&ma->specr, ((bNodeSocketValueRGBA *)sock->default_value)->value); break;
-						case MAT_IN_REFL:
-							ma->ref = ((bNodeSocketValueFloat *)sock->default_value)->value; break;
-						case MAT_IN_MIR:
-							copy_v3_v3(&ma->mirr, ((bNodeSocketValueRGBA *)sock->default_value)->value); break;
-						case MAT_IN_AMB:
-							ma->amb = ((bNodeSocketValueFloat *)sock->default_value)->value; break;
-						case MAT_IN_EMIT:
-							ma->emit = ((bNodeSocketValueFloat *)sock->default_value)->value; break;
-						case MAT_IN_SPECTRA:
-							ma->spectra = ((bNodeSocketValueFloat *)sock->default_value)->value; break;
-						case MAT_IN_RAY_MIRROR:
-							ma->ray_mirror = ((bNodeSocketValueFloat *)sock->default_value)->value; break;
-						case MAT_IN_ALPHA:
-							ma->alpha = ((bNodeSocketValueFloat *)sock->default_value)->value; break;
-						case MAT_IN_TRANSLUCENCY:
-							ma->translucency = ((bNodeSocketValueFloat *)sock->default_value)->value; break;
-					}
-				}
-				else {
-					switch (a) {
-						case MAT_IN_COLOR:
-							copy_v3_v3(((bNodeSocketValueRGBA *)sock->default_value)->value, &ma->r); break;
-						case MAT_IN_SPEC:
-							copy_v3_v3(((bNodeSocketValueRGBA *)sock->default_value)->value, &ma->specr); break;
-						case MAT_IN_REFL:
-							((bNodeSocketValueFloat *)sock->default_value)->value = ma->ref; break;
-						case MAT_IN_MIR:
-							copy_v3_v3(((bNodeSocketValueRGBA *)sock->default_value)->value, &ma->mirr); break;
-						case MAT_IN_AMB:
-							((bNodeSocketValueFloat *)sock->default_value)->value = ma->amb; break;
-						case MAT_IN_EMIT:
-							((bNodeSocketValueFloat *)sock->default_value)->value = ma->emit; break;
-						case MAT_IN_SPECTRA:
-							((bNodeSocketValueFloat *)sock->default_value)->value = ma->spectra; break;
-						case MAT_IN_RAY_MIRROR:
-							((bNodeSocketValueFloat *)sock->default_value)->value = ma->ray_mirror; break;
-						case MAT_IN_ALPHA:
-							((bNodeSocketValueFloat *)sock->default_value)->value = ma->alpha; break;
-						case MAT_IN_TRANSLUCENCY:
-							((bNodeSocketValueFloat *)sock->default_value)->value = ma->translucency; break;
-					}
-				}
-			}
-		}
-	}
-}
-
-
 /* ************* node type access ********** */
 
 void nodeLabel(bNodeTree *ntree, bNode *node, char *label, int maxlen)
@@ -3555,10 +3462,7 @@ static void registerShaderNodes(void)
 {
 	register_node_type_sh_group();
 
-	register_node_type_sh_output();
-	register_node_type_sh_material();
 	register_node_type_sh_camera();
-	register_node_type_sh_lamp();
 	register_node_type_sh_gamma();
 	register_node_type_sh_brightcontrast();
 	register_node_type_sh_value();
@@ -3569,9 +3473,8 @@ static void registerShaderNodes(void)
 	register_node_type_sh_mix_rgb();
 	register_node_type_sh_valtorgb();
 	register_node_type_sh_rgbtobw();
-	register_node_type_sh_texture();
+	register_node_type_sh_shadertorgb();
 	register_node_type_sh_normal();
-	register_node_type_sh_geom();
 	register_node_type_sh_mapping();
 	register_node_type_sh_curve_vec();
 	register_node_type_sh_curve_rgb();
@@ -3579,7 +3482,6 @@ static void registerShaderNodes(void)
 	register_node_type_sh_vect_math();
 	register_node_type_sh_vect_transform();
 	register_node_type_sh_squeeze();
-	register_node_type_sh_material_ext();
 	register_node_type_sh_invert();
 	register_node_type_sh_seprgb();
 	register_node_type_sh_combrgb();
@@ -3643,6 +3545,7 @@ static void registerShaderNodes(void)
 	register_node_type_sh_tex_checker();
 	register_node_type_sh_tex_brick();
 	register_node_type_sh_tex_pointdensity();
+	register_node_type_sh_tex_ies();
 }
 
 static void registerTextureNodes(void)
@@ -3869,10 +3772,10 @@ void BKE_nodetree_copy_default_values(bNodeTree *ntree_dst,
 	}
 }
 
-void BKE_nodetree_shading_params_eval(const struct EvaluationContext *UNUSED(eval_ctx),
+void BKE_nodetree_shading_params_eval(struct Depsgraph *depsgraph,
                                       bNodeTree *ntree_dst,
                                       const bNodeTree *ntree_src)
 {
-	DEG_debug_print_eval(__func__, ntree_src->id.name, ntree_dst);
+	DEG_debug_print_eval(depsgraph, __func__, ntree_src->id.name, ntree_dst);
 	BKE_nodetree_copy_default_values(ntree_dst, ntree_src);
 }

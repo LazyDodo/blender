@@ -55,7 +55,7 @@ struct ListBase;
 struct GHash;
 struct ID;
 struct FCurve;
-struct Group;
+struct Collection;
 struct Key;
 struct LayerCollection;
 struct Main;
@@ -83,6 +83,7 @@ namespace DEG {
 struct Depsgraph;
 struct DepsNode;
 struct DepsNodeHandle;
+struct DepsRelation;
 struct RootDepsNode;
 struct IDDepsNode;
 struct TimeSourceDepsNode;
@@ -176,25 +177,27 @@ struct DepsgraphRelationBuilder
 	void begin_build();
 
 	template <typename KeyFrom, typename KeyTo>
-	void add_relation(const KeyFrom& key_from,
-	                  const KeyTo& key_to,
-	                  const char *description,
-	                  bool check_unique = false);
+	DepsRelation *add_relation(const KeyFrom& key_from,
+	                           const KeyTo& key_to,
+	                           const char *description,
+	                           bool check_unique = false);
 
 	template <typename KeyTo>
-	void add_relation(const TimeSourceKey& key_from,
-	                  const KeyTo& key_to,
-	                  const char *description,
-	                  bool check_unique = false);
+	DepsRelation *add_relation(const TimeSourceKey& key_from,
+	                           const KeyTo& key_to,
+	                           const char *description,
+	                           bool check_unique = false);
 
 	template <typename KeyType>
-	void add_node_handle_relation(const KeyType& key_from,
-	                              const DepsNodeHandle *handle,
-	                              const char *description,
-	                              bool check_unique = false);
+	DepsRelation *add_node_handle_relation(const KeyType& key_from,
+	                                       const DepsNodeHandle *handle,
+	                                       const char *description,
+	                                       bool check_unique = false);
 
+	void build_id(ID *id);
+	void build_layer_collections(ListBase *lb);
 	void build_view_layer(Scene *scene, ViewLayer *view_layer);
-	void build_group(Object *object, Group *group);
+	void build_collection(Object *object, Collection *collection);
 	void build_object(Base *base, Object *object);
 	void build_object_flags(Base *base, Object *object);
 	void build_object_data(Object *object);
@@ -243,7 +246,6 @@ struct DepsgraphRelationBuilder
 	void build_nodetree(bNodeTree *ntree);
 	void build_material(Material *ma);
 	void build_texture(Tex *tex);
-	void build_texture_stack(MTex **texture_stack);
 	void build_compositor(Scene *scene);
 	void build_gpencil(bGPdata *gpd);
 	void build_cachefile(CacheFile *cache_file);
@@ -251,10 +253,14 @@ struct DepsgraphRelationBuilder
 	void build_movieclip(MovieClip *clip);
 	void build_lightprobe(Object *object);
 
+	void build_nested_datablock(ID *owner, ID *id);
+	void build_nested_nodetree(ID *owner, bNodeTree *ntree);
+	void build_nested_shapekey(ID *owner, Key *key);
+
 	void add_collision_relations(const OperationKey &key,
 	                             Scene *scene,
 	                             Object *object,
-	                             Group *group,
+	                             Collection *collection,
 	                             bool dupli,
 	                             const char *name);
 	void add_forcefield_relations(const OperationKey &key,
@@ -281,14 +287,14 @@ protected:
 	OperationDepsNode *find_node(const OperationKey &key) const;
 	bool has_node(const OperationKey &key) const;
 
-	void add_time_relation(TimeSourceDepsNode *timesrc,
-	                       DepsNode *node_to,
-	                       const char *description,
-	                       bool check_unique = false);
-	void add_operation_relation(OperationDepsNode *node_from,
-	                            OperationDepsNode *node_to,
-	                            const char *description,
-	                            bool check_unique = false);
+	DepsRelation *add_time_relation(TimeSourceDepsNode *timesrc,
+	                                DepsNode *node_to,
+	                                const char *description,
+	                                bool check_unique = false);
+	DepsRelation *add_operation_relation(OperationDepsNode *node_from,
+	                                     OperationDepsNode *node_to,
+	                                     const char *description,
+	                                     bool check_unique = false);
 
 	template <typename KeyType>
 	DepsNodeHandle create_node_handle(const KeyType& key,

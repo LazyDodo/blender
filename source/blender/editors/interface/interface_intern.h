@@ -72,21 +72,22 @@ typedef enum {
 	UI_WTYPE_NUMBER,
 	UI_WTYPE_SLIDER,
 	UI_WTYPE_EXEC,
+	UI_WTYPE_TOOLBAR_ITEM,
 	UI_WTYPE_TAB,
 	UI_WTYPE_TOOLTIP,
-	
+
 	/* strings */
 	UI_WTYPE_NAME,
 	UI_WTYPE_NAME_LINK,
 	UI_WTYPE_POINTER_LINK,
 	UI_WTYPE_FILENAME,
-	
+
 	/* menus */
 	UI_WTYPE_MENU_RADIO,
 	UI_WTYPE_MENU_ICON_RADIO,
 	UI_WTYPE_MENU_POINTER_LINK,
 	UI_WTYPE_MENU_NODE_LINK,
-	
+
 	UI_WTYPE_PULLDOWN,
 	UI_WTYPE_MENU_ITEM,
 	UI_WTYPE_MENU_ITEM_RADIAL,
@@ -104,6 +105,8 @@ typedef enum {
 	UI_WTYPE_PROGRESSBAR,
 } uiWidgetTypeEnum;
 
+#define UI_MENU_WIDTH_MIN (UI_UNIT_Y * 9)
+
 /* menu scrolling */
 #define UI_MENU_SCROLL_ARROW	12
 #define UI_MENU_SCROLL_MOUSE	(UI_MENU_SCROLL_ARROW + 2)
@@ -112,6 +115,9 @@ typedef enum {
 /* panel limits */
 #define UI_PANEL_MINX   100
 #define UI_PANEL_MINY   70
+
+/* popover width (multiplied by 'U.widget_unit') */
+#define UI_POPOVER_WIDTH_UNITS 10
 
 /* uiBut->flag */
 enum {
@@ -188,23 +194,6 @@ enum {
 /* max amount of items a radial menu (pie menu) can contain */
 #define PIE_MAX_ITEMS 8
 
-typedef struct uiLinkLine {  /* only for draw/edit */
-	struct uiLinkLine *next, *prev;
-	struct uiBut *from, *to;
-	short flag, deactive;
-} uiLinkLine;
-
-typedef struct {
-	void **poin;        /* pointer to original pointer */
-	void ***ppoin;      /* pointer to original pointer-array */
-	short *totlink;     /* if pointer-array, here is the total */
-	
-	short maxlink, pad;
-	short fromcode, tocode;
-	
-	ListBase lines;
-} uiLink;
-
 struct uiBut {
 	struct uiBut *next, *prev;
 	int flag, drawflag;
@@ -256,7 +245,7 @@ struct uiBut {
 
 	uiButCompleteFunc autocomplete_func;
 	void *autofunc_arg;
-	
+
 	uiButSearchCreateFunc search_create_func;
 	uiButSearchFunc search_func;
 	bool free_search_arg;
@@ -270,9 +259,6 @@ struct uiBut {
 	uiButHandleHoldFunc hold_func;
 	void *hold_argN;
 
-	uiLink *link;
-	short linkto[2];  /* region relative coords */
-	
 	const char *tip;
 	uiButToolTipFunc tip_func;
 	void *tip_argN;
@@ -316,7 +302,7 @@ struct uiBut {
 	void *dragpoin;
 	struct ImBuf *imb;
 	float imb_scale;
-	
+
 	/* active button data */
 	struct uiHandleButtonData *active;
 
@@ -328,10 +314,15 @@ struct uiBut {
 	float *editvec;
 	void *editcoba;
 	void *editcumap;
-	
+
 	/* pointer back */
 	uiBlock *block;
 };
+
+typedef struct uiButTab {
+	uiBut but;
+	struct wmOperatorType *unlink_ot;
+} uiButTab;
 
 typedef struct ColorPicker {
 	struct ColorPicker *next, *prev;
@@ -371,9 +362,9 @@ struct uiBlock {
 	struct uiLayout *curlayout;
 
 	ListBase contexts;
-	
+
 	char name[UI_MAX_NAME_STR];
-	
+
 	float winmat[4][4];
 
 	rctf rect;
@@ -393,10 +384,10 @@ struct uiBlock {
 
 	uiBlockHandleFunc handle_func;
 	void *handle_func_arg;
-	
+
 	/* custom extra handling */
 	int (*block_event_func)(const struct bContext *C, struct uiBlock *, const struct wmEvent *);
-	
+
 	/* extra draw function for custom blocks */
 	void (*drawextra)(const struct bContext *C, void *idv, void *arg1, void *arg2, rcti *rect);
 	void *drawextra_arg1;
@@ -450,8 +441,6 @@ typedef struct uiSafetyRct {
 } uiSafetyRct;
 
 /* interface.c */
-
-extern void ui_linkline_remove(uiLinkLine *line, uiBut *but);
 
 void ui_fontscale(short *points, float aspect);
 
@@ -512,7 +501,6 @@ extern int  ui_but_is_pushed(uiBut *but) ATTR_WARN_UNUSED_RESULT;
 void ui_but_override_flag(uiBut *but);
 
 extern void ui_block_bounds_calc(uiBlock *block);
-extern void ui_block_translate(uiBlock *block, int x, int y);
 
 extern struct ColorManagedDisplay *ui_block_cm_display_get(uiBlock *block);
 void ui_block_cm_to_display_space_v3(uiBlock *block, float pixel[3]);
@@ -529,16 +517,19 @@ struct uiKeyNavLock {
 };
 
 typedef uiBlock * (*uiBlockHandleCreateFunc)(struct bContext *C, struct uiPopupBlockHandle *handle, void *arg1);
+typedef void (*uiBlockHandleFreeFunc)(struct uiPopupBlockHandle *handle, void *arg1);
 
 struct uiPopupBlockCreate {
-	uiBlockCreateFunc              create_func;
+	uiBlockCreateFunc       create_func;
 	uiBlockHandleCreateFunc handle_create_func;
+	uiBlockHandleFreeFunc   free_func;
 	void *arg;
 
 	int event_xy[2];
 
 	/* when popup is initialized from a button */
 	ARegion *butregion;
+	uiBut *but;
 };
 
 struct uiPopupBlockHandle {
@@ -554,13 +545,15 @@ struct uiPopupBlockHandle {
 	void (*popup_func)(struct bContext *C, void *arg, int event);
 	void (*cancel_func)(struct bContext *C, void *arg);
 	void *popup_arg;
-	
+
 	/* store data for refreshing popups */
 	struct uiPopupBlockCreate popup_create_vars;
 	/* true if we can re-create the popup using 'popup_create_vars' */
 	bool can_refresh;
+	bool refresh;
 
 	struct wmTimer *scrolltimer;
+	float scrolloffset;
 
 	struct uiKeyNavLock keynav_state;
 
@@ -570,7 +563,7 @@ struct uiPopupBlockHandle {
 	ScrArea *ctx_area;
 	ARegion *ctx_region;
 	int opcontext;
-	
+
 	/* return values */
 	int butretval;
 	int menuretval;
@@ -579,6 +572,15 @@ struct uiPopupBlockHandle {
 
 	/* menu direction */
 	int direction;
+
+	/* Previous values so we don't resize or reposition on refresh. */
+	rctf prev_block_rect;
+	rctf prev_butrct;
+	short prev_dir1, prev_dir2;
+	int prev_mx, prev_my;
+
+	/* Maximum estimated size to avoid having to reposition on refresh. */
+	float max_size_x, max_size_y;
 
 /* #ifdef USE_DRAG_POPUP */
 	bool is_grab;
@@ -629,6 +631,18 @@ uiPopupBlockHandle *ui_popup_block_create(
         uiBlockCreateFunc create_func, uiBlockHandleCreateFunc handle_create_func,
         void *arg);
 uiPopupBlockHandle *ui_popup_menu_create(
+        struct bContext *C, struct ARegion *butregion, uiBut *but,
+        uiMenuCreateFunc create_func, void *arg);
+
+/* interface_region_popover.c */
+uiBlock *ui_popover_block_refresh(
+        struct bContext *C, uiPopupBlockHandle *handle,
+        ARegion *butregion, uiBut *but);
+uiPopupBlockHandle *ui_popover_block_create(
+        struct bContext *C, struct ARegion *butregion, uiBut *but,
+        uiBlockCreateFunc create_func, uiBlockHandleCreateFunc handle_create_func,
+        void *arg);
+uiPopupBlockHandle *ui_popover_panel_create(
         struct bContext *C, struct ARegion *butregion, uiBut *but,
         uiMenuCreateFunc create_func, void *arg);
 
@@ -684,6 +698,8 @@ extern uiBut *ui_but_find_active_in_region(struct ARegion *ar);
 extern uiBut *ui_but_find_mouse_over(struct ARegion *ar, const struct wmEvent *event);
 bool ui_but_is_editable(const uiBut *but);
 bool ui_but_is_editable_as_text(const uiBut *but);
+bool ui_but_is_toggle(const uiBut *but);
+bool ui_but_is_popover_once_compat(const uiBut *but);
 void ui_but_pie_dir_visual(RadialDirection dir, float vec[2]);
 void ui_but_pie_dir(RadialDirection dir, float vec[2]);
 float ui_block_calc_pie_segment(struct uiBlock *block, const float event_xy[2]);
@@ -712,7 +728,12 @@ typedef struct uiWidgetBaseParameters {
 	float color_tria[4];
 	float tria1_center[2], tria2_center[2];
 	float tria1_size, tria2_size;
-	float shade_dir, do_alpha_check;
+	float shade_dir;
+	/* We pack alpha check and discard factor in alpha_discard.
+	 * If the value is negative then we do alpha check.
+	 * The absolute value itself is the discard factor.
+	 * Initialize value to 1.0.f if you don't want discard */
+	float alpha_discard;
 } uiWidgetBaseParameters;
 
 enum {
@@ -721,6 +742,7 @@ enum {
 	ROUNDBOX_TRIA_SCROLL,
 	ROUNDBOX_TRIA_MENU,
 	ROUNDBOX_TRIA_CHECK,
+	ROUNDBOX_TRIA_HOLD_ACTION_ARROW,
 
 	ROUNDBOX_TRIA_MAX, /* don't use */
 };
@@ -729,16 +751,14 @@ struct Gwn_Batch *ui_batch_roundbox_get(bool filled, bool antialiased);
 struct Gwn_Batch *ui_batch_roundbox_widget_get(int tria);
 struct Gwn_Batch *ui_batch_roundbox_shadow_get(void);
 
-void ui_draw_anti_tria(float x1, float y1, float x2, float y2, float x3, float y3, const float color[4]);
 void ui_draw_anti_roundbox(int mode, float minx, float miny, float maxx, float maxy,
                            float rad, bool use_alpha, const float color[4]);
 void ui_draw_menu_back(struct uiStyle *style, uiBlock *block, rcti *rect);
+void ui_draw_popover_back(ARegion *ar, struct uiStyle *style, uiBlock *block, rcti *rect);
 void ui_draw_pie_center(uiBlock *block);
 uiWidgetColors *ui_tooltip_get_theme(void);
 void ui_draw_tooltip_background(uiStyle *UNUSED(style), uiBlock *block, rcti *rect);
 void ui_draw_search_back(struct uiStyle *style, uiBlock *block, rcti *rect);
-bool ui_link_bezier_points(const rcti *rect, float coord_array[][2], int resol);
-void ui_draw_link_bezier(const rcti *rect, const float color[4]);
 
 extern void ui_draw_but(const struct bContext *C, ARegion *ar, struct uiStyle *style, uiBut *but, rcti *rect);
 /* theme color init */
@@ -752,6 +772,9 @@ void ui_draw_preview_item(struct uiFontStyle *fstyle, rcti *rect, const char *na
 #define UI_POPUP_MARGIN (UI_DPI_FAC * 12)
 /* margin at top of screen for popups */
 #define UI_POPUP_MENU_TOP (int)(8 * UI_DPI_FAC)
+
+#define UI_PIXEL_AA_JITTER 8
+const float ui_pixel_jitter[UI_PIXEL_AA_JITTER][2];
 
 /* interface_style.c */
 void uiStyleInit(void);
@@ -771,10 +794,12 @@ void ui_resources_free(void);
 void ui_layout_add_but(uiLayout *layout, uiBut *but);
 void ui_but_add_search(uiBut *but, PointerRNA *ptr, PropertyRNA *prop, PointerRNA *searchptr, PropertyRNA *searchprop);
 void ui_layout_list_set_labels_active(uiLayout *layout);
+/* menu callback */
+void ui_item_paneltype_func(struct bContext *C, struct uiLayout *layout, void *arg_pt);
 
 /* interface_align.c */
 bool ui_but_can_align(const uiBut *but) ATTR_WARN_UNUSED_RESULT;
-void ui_block_align_calc(uiBlock *block);
+void ui_block_align_calc(uiBlock *block, const ARegion *region);
 
 /* interface_anim.c */
 void ui_but_anim_flag(uiBut *but, float cfra);

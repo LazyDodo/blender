@@ -52,21 +52,22 @@ int BlenderSession::end_resumable_chunk = 0;
 BlenderSession::BlenderSession(BL::RenderEngine& b_engine,
                                BL::UserPreferences& b_userpref,
                                BL::BlendData& b_data,
-                               BL::Scene& b_scene)
-: b_engine(b_engine),
+                               bool preview_osl)
+: session(NULL),
+  b_engine(b_engine),
   b_userpref(b_userpref),
   b_data(b_data),
   b_render(b_engine.render()),
-  b_scene(b_scene),
+  b_depsgraph(PointerRNA_NULL),
+  b_scene(PointerRNA_NULL),
   b_v3d(PointerRNA_NULL),
   b_rv3d(PointerRNA_NULL),
+  width(0),
+  height(0),
+  preview_osl(preview_osl),
   python_thread_state(NULL)
 {
 	/* offline render */
-
-	width = render_resolution_x(b_render);
-	height = render_resolution_y(b_render);
-
 	background = true;
 	last_redraw_time = 0.0;
 	start_resize_time = 0.0;
@@ -76,23 +77,24 @@ BlenderSession::BlenderSession(BL::RenderEngine& b_engine,
 BlenderSession::BlenderSession(BL::RenderEngine& b_engine,
                                BL::UserPreferences& b_userpref,
                                BL::BlendData& b_data,
-                               BL::Scene& b_scene,
                                BL::SpaceView3D& b_v3d,
                                BL::RegionView3D& b_rv3d,
                                int width, int height)
-: b_engine(b_engine),
+: session(NULL),
+  b_engine(b_engine),
   b_userpref(b_userpref),
   b_data(b_data),
-  b_render(b_scene.render()),
-  b_scene(b_scene),
+  b_render(b_engine.render()),
+  b_depsgraph(PointerRNA_NULL),
+  b_scene(PointerRNA_NULL),
   b_v3d(b_v3d),
   b_rv3d(b_rv3d),
   width(width),
   height(height),
+  preview_osl(false),
   python_thread_state(NULL)
 {
 	/* 3d view render */
-
 	background = false;
 	last_redraw_time = 0.0;
 	start_resize_time = 0.0;
@@ -166,17 +168,39 @@ void BlenderSession::create_session()
 	update_resumable_tile_manager(session_params.samples);
 }
 
-void BlenderSession::reset_session(BL::BlendData& b_data_, BL::Scene& b_scene_)
+void BlenderSession::reset_session(BL::BlendData& b_data, BL::Depsgraph& b_depsgraph)
 {
-	b_data = b_data_;
-	b_render = b_engine.render();
-	b_scene = b_scene_;
+	this->b_data = b_data;
+	this->b_depsgraph = b_depsgraph;
+	this->b_scene = b_depsgraph.scene_eval();
+
+	if (preview_osl) {
+		PointerRNA cscene = RNA_pointer_get(&b_scene.ptr, "cycles");
+		RNA_boolean_set(&cscene, "shading_system", preview_osl);
+	}
+
+	if (b_v3d) {
+		this->b_render = b_scene.render();
+	}
+	else {
+		this->b_render = b_engine.render();
+		width = render_resolution_x(b_render);
+		height = render_resolution_y(b_render);
+	}
+
+	if (session == NULL) {
+		create();
+	}
+
+	if (b_v3d) {
+		/* NOTE: We need to create session, but all the code from below
+		 * will make viewport render to stuck on initialization.
+		 */
+		return;
+	}
 
 	SessionParams session_params = BlenderSync::get_session_params(b_engine, b_userpref, b_scene, background);
 	SceneParams scene_params = BlenderSync::get_scene_params(b_scene, background);
-
-	width = render_resolution_x(b_render);
-	height = render_resolution_y(b_render);
 
 	if(scene->params.modified(scene_params) ||
 	   session->params.modified(session_params) ||
@@ -357,8 +381,10 @@ void BlenderSession::update_render_tile(RenderTile& rtile, bool highlight)
 		do_write_update_render_tile(rtile, false, false);
 }
 
-void BlenderSession::render(BL::Depsgraph& b_depsgraph)
+void BlenderSession::render(BL::Depsgraph& b_depsgraph_)
 {
+	b_depsgraph = b_depsgraph_;
+
 	/* set callback to write out render results */
 	session->write_render_tile_cb = function_bind(&BlenderSession::write_render_tile, this, _1);
 	session->update_render_tile_cb = function_bind(&BlenderSession::update_render_tile, this, _1, _2);
@@ -368,7 +394,7 @@ void BlenderSession::render(BL::Depsgraph& b_depsgraph)
 	BufferParams buffer_params = BlenderSync::get_buffer_params(b_render, b_v3d, b_rv3d, scene->camera, width, height);
 
 	/* render each layer */
-	BL::ViewLayer b_view_layer = b_depsgraph.view_layer();
+	BL::ViewLayer b_view_layer = b_depsgraph.view_layer_eval();
 
 	/* We do some special meta attributes when we only have single layer. */
 	const bool is_single_layer = (b_scene.view_layers.length() == 1);
@@ -539,7 +565,7 @@ static int bake_pass_filter_get(const int pass_filter)
 	return flag;
 }
 
-void BlenderSession::bake(BL::Depsgraph& b_depsgraph,
+void BlenderSession::bake(BL::Depsgraph& b_depsgraph_,
                           BL::Object& b_object,
                           const string& pass_type,
                           const int pass_filter,
@@ -549,6 +575,8 @@ void BlenderSession::bake(BL::Depsgraph& b_depsgraph,
                           const int /*depth*/,
                           float result[])
 {
+	b_depsgraph = b_depsgraph_;
+
 	ShaderEvalType shader_type = get_shader_type(pass_type);
 
 	/* Set baking flag in advance, so kernel loading can check if we need
@@ -719,7 +747,7 @@ void BlenderSession::update_render_result(BL::RenderResult& b_rr,
 	do_write_update_render_result(b_rr, b_rlay, rtile, true);
 }
 
-void BlenderSession::synchronize(BL::Depsgraph& b_depsgraph)
+void BlenderSession::synchronize(BL::Depsgraph& b_depsgraph_)
 {
 	/* only used for viewport render */
 	if(!b_v3d)
@@ -760,6 +788,8 @@ void BlenderSession::synchronize(BL::Depsgraph& b_depsgraph)
 	}
 
 	/* data and camera synchronize */
+	b_depsgraph = b_depsgraph_;
+
 	BL::Object b_camera_override(b_engine.camera_override());
 	sync->sync_data(b_render,
 	                b_depsgraph,
@@ -1280,10 +1310,8 @@ bool BlenderSession::builtin_image_float_pixels(const string &builtin_name,
 		fprintf(stderr, "Cycles error: unexpected smoke volume resolution, skipping\n");
 	}
 	else {
-		/* TODO: fix point density to work with new view layer depsgraph */
-#if 0
-		/* We originally were passing view_layer here but in reality we need a whole EvaluationContext or at the
-		 * very least a dpesgraph to pass to the RE_point_density_minmax() function.
+		/* We originally were passing view_layer here but in reality we need a
+		 * a depsgraph to pass to the RE_point_density_minmax() function.
 		 */
 		/* TODO(sergey): Check we're indeed in shader node tree. */
 		PointerRNA ptr;
@@ -1292,10 +1320,8 @@ bool BlenderSession::builtin_image_float_pixels(const string &builtin_name,
 		if(b_node.is_a(&RNA_ShaderNodeTexPointDensity)) {
 			BL::ShaderNodeTexPointDensity b_point_density_node(b_node);
 			int length;
-			int settings = background ? 1 : 0;  /* 1 - render settings, 0 - vewport settings. */
-			b_point_density_node.calc_point_density(b_depsgraph, settings, &length, &pixels);
+			b_point_density_node.calc_point_density(b_depsgraph, &length, &pixels);
 		}
-#endif
 	}
 
 	return false;

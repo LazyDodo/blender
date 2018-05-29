@@ -236,7 +236,6 @@ static ShaderNode *add_node(Scene *scene,
                             BL::BlendData& b_data,
                             BL::Depsgraph& b_depsgraph,
                             BL::Scene& b_scene,
-                            const bool background,
                             ShaderGraph *graph,
                             BL::ShaderNodeTree& b_ntree,
                             BL::ShaderNode& b_node)
@@ -812,6 +811,22 @@ static ShaderNode *add_node(Scene *scene,
 		get_tex_mapping(&sky->tex_mapping, b_texture_mapping);
 		node = sky;
 	}
+	else if(b_node.is_a(&RNA_ShaderNodeTexIES)) {
+		BL::ShaderNodeTexIES b_ies_node(b_node);
+		IESLightNode *ies = new IESLightNode();
+		switch(b_ies_node.mode()) {
+			case BL::ShaderNodeTexIES::mode_EXTERNAL:
+				ies->filename = blender_absolute_path(b_data, b_ntree, b_ies_node.filepath());
+				break;
+			case BL::ShaderNodeTexIES::mode_INTERNAL:
+				ies->ies = get_text_datablock_content(b_ies_node.ies().ptr);
+				if(ies->ies.empty()) {
+					ies->ies = "\n";
+				}
+				break;
+		}
+		node = ies;
+	}
 	else if(b_node.is_a(&RNA_ShaderNodeNormalMap)) {
 		BL::ShaderNodeNormalMap b_normal_map_node(b_node);
 		NormalMapNode *nmap = new NormalMapNode();
@@ -835,7 +850,6 @@ static ShaderNode *add_node(Scene *scene,
 		node = uvm;
 	}
 	else if(b_node.is_a(&RNA_ShaderNodeTexPointDensity)) {
-		/* TODO: fix point density to work with new view layer depsgraph */
 		BL::ShaderNodeTexPointDensity b_point_density_node(b_node);
 		PointDensityTextureNode *point_density = new PointDensityTextureNode();
 		point_density->filename = b_point_density_node.name();
@@ -843,12 +857,9 @@ static ShaderNode *add_node(Scene *scene,
 		point_density->interpolation = get_image_interpolation(b_point_density_node);
 		point_density->builtin_data = b_point_density_node.ptr.data;
 
-		/* 1 - render settings, 0 - vewport settings. */
-		int settings = background ? 1 : 0;
-
 		/* TODO(sergey): Use more proper update flag. */
 		if(true) {
-			b_point_density_node.cache_point_density(b_depsgraph, settings);
+			b_point_density_node.cache_point_density(b_depsgraph);
 			scene->image_manager->tag_reload_image(
 			        point_density->filename.string(),
 			        point_density->builtin_data,
@@ -868,7 +879,6 @@ static ShaderNode *add_node(Scene *scene,
 			float3 loc, size;
 			point_density_texture_space(b_depsgraph,
 			                            b_point_density_node,
-			                            settings,
 			                            loc,
 			                            size);
 			point_density->tfm =
@@ -1008,7 +1018,6 @@ static void add_nodes(Scene *scene,
                       BL::BlendData& b_data,
                       BL::Depsgraph& b_depsgraph,
                       BL::Scene& b_scene,
-                      const bool background,
                       ShaderGraph *graph,
                       BL::ShaderNodeTree& b_ntree,
                       const ProxyMap &proxy_input_map,
@@ -1095,7 +1104,6 @@ static void add_nodes(Scene *scene,
 				          b_data,
 				          b_depsgraph,
 				          b_scene,
-				          background,
 				          graph,
 				          b_group_ntree,
 				          group_proxy_input_map,
@@ -1143,7 +1151,6 @@ static void add_nodes(Scene *scene,
 				                b_data,
 				                b_depsgraph,
 				                b_scene,
-				                background,
 				                graph,
 				                b_ntree,
 				                b_shader_node);
@@ -1207,7 +1214,6 @@ static void add_nodes(Scene *scene,
                       BL::BlendData& b_data,
                       BL::Depsgraph& b_depsgraph,
                       BL::Scene& b_scene,
-                      const bool background,
                       ShaderGraph *graph,
                       BL::ShaderNodeTree& b_ntree)
 {
@@ -1217,7 +1223,6 @@ static void add_nodes(Scene *scene,
 	          b_data,
 	          b_depsgraph,
 	          b_scene,
-	          background,
 	          graph,
 	          b_ntree,
 	          empty_proxy_map,
@@ -1240,7 +1245,7 @@ void BlenderSync::sync_materials(BL::Depsgraph& b_depsgraph, bool update_all)
 	    ++b_mat_orig)
 	{
 		/* TODO(sergey): Iterate over evaluated data rather than using mapping. */
-		BL::Material b_mat_(b_depsgraph.evaluated_id_get(*b_mat_orig));
+		BL::Material b_mat_(b_depsgraph.id_eval_get(*b_mat_orig));
 		BL::Material *b_mat = &b_mat_;
 		Shader *shader;
 
@@ -1255,7 +1260,7 @@ void BlenderSync::sync_materials(BL::Depsgraph& b_depsgraph, bool update_all)
 			if(b_mat->use_nodes() && b_mat->node_tree()) {
 				BL::ShaderNodeTree b_ntree(b_mat->node_tree());
 
-				add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, !preview, graph, b_ntree);
+				add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, graph, b_ntree);
 			}
 			else {
 				DiffuseBsdfNode *diffuse = new DiffuseBsdfNode();
@@ -1326,7 +1331,7 @@ void BlenderSync::sync_world(BL::Depsgraph& b_depsgraph, bool update_all)
 		if(b_world && b_world.use_nodes() && b_world.node_tree()) {
 			BL::ShaderNodeTree b_ntree(b_world.node_tree());
 
-			add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, !preview, graph, b_ntree);
+			add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, graph, b_ntree);
 
 			/* volume */
 			PointerRNA cworld = RNA_pointer_get(&b_world.ptr, "cycles");
@@ -1414,7 +1419,7 @@ void BlenderSync::sync_lamps(BL::Depsgraph& b_depsgraph, bool update_all)
 	    ++b_lamp_orig)
 	{
 		/* TODO(sergey): Iterate over evaluated data rather than using mapping. */
-		BL::Lamp b_lamp_(b_depsgraph.evaluated_id_get(*b_lamp_orig));
+		BL::Lamp b_lamp_(b_depsgraph.id_eval_get(*b_lamp_orig));
 		BL::Lamp *b_lamp = &b_lamp_;
 		Shader *shader;
 
@@ -1428,7 +1433,7 @@ void BlenderSync::sync_lamps(BL::Depsgraph& b_depsgraph, bool update_all)
 
 				BL::ShaderNodeTree b_ntree(b_lamp->node_tree());
 
-				add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, !preview, graph, b_ntree);
+				add_nodes(scene, b_engine, b_data, b_depsgraph, b_scene, graph, b_ntree);
 			}
 			else {
 				float strength = 1.0f;

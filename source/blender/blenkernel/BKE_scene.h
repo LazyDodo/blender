@@ -38,17 +38,17 @@ extern "C" {
 #endif
 
 struct AviCodecData;
+struct Collection;
 struct Depsgraph;
-struct EvaluationContext;
 struct Main;
 struct Object;
 struct RenderData;
 struct Scene;
-struct SceneCollection;
 struct ViewLayer;
 struct UnitSettings;
 struct ViewRender;
 struct WorkSpace;
+struct TransformOrientation;
 
 typedef enum eSceneCopyMethod {
 	SCE_COPY_NEW       = 0,
@@ -60,7 +60,7 @@ typedef enum eSceneCopyMethod {
 
 /* Use as the contents of a 'for' loop: for (SETLOOPER(...)) { ... */
 #define SETLOOPER(_sce_basis, _sce_iter, _base)                               \
-	_sce_iter = _sce_basis, _base = _setlooper_base_step(&_sce_iter, BKE_view_layer_from_scene_get(_sce_basis), NULL); \
+	_sce_iter = _sce_basis, _base = _setlooper_base_step(&_sce_iter, BKE_view_layer_context_active_PLACEHOLDER(_sce_basis), NULL); \
 	_base;                                                                    \
 	_base = _setlooper_base_step(&_sce_iter, NULL, _base)
 
@@ -100,7 +100,7 @@ typedef struct SceneBaseIter {
 } SceneBaseIter;
 
 int BKE_scene_base_iter_next(
-        const struct EvaluationContext *eval_ctx, struct SceneBaseIter *iter,
+        struct Depsgraph *depsgraph, struct SceneBaseIter *iter,
         struct Scene **scene, int val, struct Base **base, struct Object **ob);
 
 void BKE_scene_base_flag_to_objects(struct ViewLayer *view_layer);
@@ -120,7 +120,7 @@ void BKE_scene_groups_relink(struct Scene *sce);
 
 void BKE_scene_make_local(struct Main *bmain, struct Scene *sce, const bool lib_local);
 
-struct Scene *BKE_scene_find_from_collection(const struct Main *bmain, const struct SceneCollection *scene_collection);
+struct Scene *BKE_scene_find_from_collection(const struct Main *bmain, const struct Collection *collection);
 
 #ifdef DURIAN_CAMERA_SWITCH
 struct Object *BKE_scene_camera_switch_find(struct Scene *scene); // DURIAN_CAMERA_SWITCH
@@ -139,17 +139,11 @@ void  BKE_scene_frame_set(struct Scene *scene, double cfra);
 
 /* **  Scene evaluation ** */
 
-void BKE_scene_graph_update_tagged(struct EvaluationContext *eval_ctx,
-                                   struct Depsgraph *depsgraph,
-                                   struct Main *bmain,
-                                   struct Scene *scene,
-                                   struct ViewLayer *view_layer);
+void BKE_scene_graph_update_tagged(struct Depsgraph *depsgraph,
+                                   struct Main *bmain);
 
-void BKE_scene_graph_update_for_newframe(struct EvaluationContext *eval_ctx,
-                                         struct Depsgraph *depsgraph,
-                                         struct Main *bmain,
-                                         struct Scene *scene,
-                                         struct ViewLayer *view_layer);
+void BKE_scene_graph_update_for_newframe(struct Depsgraph *depsgraph,
+                                         struct Main *bmain);
 
 struct SceneRenderView *BKE_scene_add_render_view(struct Scene *sce, const char *name);
 bool BKE_scene_remove_render_view(struct Scene *scene, struct SceneRenderView *srv);
@@ -157,17 +151,12 @@ bool BKE_scene_remove_render_view(struct Scene *scene, struct SceneRenderView *s
 /* render profile */
 int get_render_subsurf_level(const struct RenderData *r, int level, bool for_render);
 int get_render_child_particle_number(const struct RenderData *r, int num, bool for_render);
-int get_render_shadow_samples(const struct RenderData *r, int samples);
-float get_render_aosss_error(const struct RenderData *r, float error);
 
-bool BKE_scene_use_new_shading_nodes(const struct Scene *scene);
 bool BKE_scene_use_shading_nodes_custom(struct Scene *scene);
-bool BKE_scene_use_world_space_shading(struct Scene *scene);
 bool BKE_scene_use_spherical_stereo(struct Scene *scene);
 
-bool BKE_scene_uses_blender_internal(const struct Scene *scene);
-bool BKE_scene_uses_blender_game(const struct Scene *scene);
 bool BKE_scene_uses_blender_eevee(const struct Scene *scene);
+bool BKE_scene_uses_cycles(const struct Scene *scene);
 
 void BKE_scene_disable_color_management(struct Scene *scene);
 bool BKE_scene_check_color_management_enabled(const struct Scene *scene);
@@ -177,20 +166,6 @@ int BKE_scene_num_threads(const struct Scene *scene);
 int BKE_render_num_threads(const struct RenderData *r);
 
 int BKE_render_preview_pixel_size(const struct RenderData *r);
-
-/**********************************/
-
-struct ViewRender *BKE_viewrender_get(struct Scene *scene, struct WorkSpace *workspace);
-void BKE_viewrender_init(struct ViewRender *view_render);
-void BKE_viewrender_free(struct ViewRender *view_render);
-void BKE_viewrender_copy(struct ViewRender *view_render_dst, const struct ViewRender *view_render_src);
-bool BKE_viewrender_use_new_shading_nodes(const struct ViewRender *view_render);
-bool BKE_viewrender_use_shading_nodes_custom(const struct ViewRender *view_render);
-bool BKE_viewrender_use_world_space_shading(const struct ViewRender *view_render);
-bool BKE_viewrender_use_spherical_stereo(const struct ViewRender *view_render);
-bool BKE_viewrender_uses_blender_internal(const struct ViewRender *view_render);
-bool BKE_viewrender_uses_blender_game(const struct ViewRender *view_render);
-bool BKE_viewrender_uses_blender_eevee(const struct ViewRender *view_render);
 
 /**********************************/
 
@@ -219,6 +194,13 @@ void BKE_scene_ensure_depsgraph_hash(struct Scene *scene);
 void BKE_scene_free_depsgraph_hash(struct Scene *scene);
 
 struct Depsgraph *BKE_scene_get_depsgraph(struct Scene *scene, struct ViewLayer *view_layer, bool allocate);
+
+void BKE_scene_transform_orientation_remove(
+        struct Scene *scene, struct TransformOrientation *orientation);
+struct TransformOrientation *BKE_scene_transform_orientation_find(
+        const struct Scene *scene, const int index);
+int BKE_scene_transform_orientation_get_index(
+        const struct Scene *scene, const struct TransformOrientation *orientation);
 
 #ifdef __cplusplus
 }

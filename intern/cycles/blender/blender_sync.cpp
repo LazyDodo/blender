@@ -195,7 +195,7 @@ void BlenderSync::sync_data(BL::RenderSettings& b_render,
                             int width, int height,
                             void **python_thread_state)
 {
-	BL::ViewLayer b_view_layer = b_depsgraph.view_layer();
+	BL::ViewLayer b_view_layer = b_depsgraph.view_layer_eval();
 
 	sync_view_layer(b_v3d, b_view_layer);
 	sync_integrator();
@@ -796,7 +796,8 @@ SessionParams BlenderSync::get_session_params(BL::RenderEngine& b_engine,
 	params.text_timeout = (double)get_float(cscene, "debug_text_timeout");
 
 	/* progressive refine */
-	params.progressive_refine = get_boolean(cscene, "use_progressive_refine") &&
+	params.progressive_refine = (b_engine.is_preview() ||
+	                             get_boolean(cscene, "use_progressive_refine")) &&
 	                            !b_r.use_save_buffers();
 
 	if(params.progressive_refine) {

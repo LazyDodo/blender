@@ -66,21 +66,12 @@ endif()
 # set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
 
 # global compile definitions since add_definitions() adds for all.
-
-if(NOT (${CMAKE_VERSION} VERSION_LESS 3.0))
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS
-		$<$<CONFIG:Debug>:DEBUG;_DEBUG>
-		$<$<CONFIG:Release>:NDEBUG>
-		$<$<CONFIG:MinSizeRel>:NDEBUG>
-		$<$<CONFIG:RelWithDebInfo>:NDEBUG>
-	)
-else()
-	# keep until CMake-3.0 is min requirement
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_DEBUG           DEBUG _DEBUG)
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_RELEASE         NDEBUG)
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_MINSIZEREL      NDEBUG)
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_RELWITHDEBINFO  NDEBUG)
-endif()
+set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS
+	$<$<CONFIG:Debug>:DEBUG;_DEBUG>
+	$<$<CONFIG:Release>:NDEBUG>
+	$<$<CONFIG:MinSizeRel>:NDEBUG>
+	$<$<CONFIG:RelWithDebInfo>:NDEBUG>
+)
 
 #-----------------------------------------------------------------------------
 # Set policy
@@ -165,7 +156,6 @@ option_defaults_init(
 	_init_OPENCOLORIO
 	_init_SDL
 	_init_FFTW3
-	_init_GAMEENGINE
 	_init_OPENSUBDIV
 )
 
@@ -235,13 +225,6 @@ option(WITH_FFTW3         "Enable FFTW3 support (Used for smoke, ocean sim, and 
 option(WITH_BULLET        "Enable Bullet (Physics Engine)" ON)
 option(WITH_SYSTEM_BULLET "Use the systems bullet library (currently unsupported due to missing features in upstream!)" )
 mark_as_advanced(WITH_SYSTEM_BULLET)
-option(WITH_GAMEENGINE    "Enable Game Engine" ${_init_GAMEENGINE})
-if(APPLE)
-	set(WITH_GAMEENGINE_DECKLINK OFF)
-else()
-	option(WITH_GAMEENGINE_DECKLINK "Support BlackMagicDesign DeckLink cards in the Game Engine" ON)
-endif()
-option(WITH_PLAYER        "Build Player" OFF)
 option(WITH_OPENCOLORIO   "Enable OpenColorIO color management" ${_init_OPENCOLORIO})
 
 option(WITH_CLAY_ENGINE    "Enable Clay engine" ON)
@@ -327,7 +310,6 @@ option(WITH_IMAGE_TIFF          "Enable LibTIFF Support" ON)
 option(WITH_IMAGE_DDS           "Enable DDS Image Support" ON)
 option(WITH_IMAGE_CINEON        "Enable CINEON and DPX Image Support" ON)
 option(WITH_IMAGE_HDR           "Enable HDR Image Support" ON)
-option(WITH_IMAGE_FRAMESERVER   "Enable image FrameServer Support for rendering" ON)
 
 # Audio/Video format support
 option(WITH_CODEC_AVI           "Enable Blenders own AVI file support (raw/jpeg)" ON)
@@ -529,6 +511,45 @@ if(CMAKE_COMPILER_IS_GNUCC)
 	mark_as_advanced(WITH_LINKER_GOLD)
 endif()
 
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang")
+	option(WITH_COMPILER_ASAN "Build and link against address sanitizer (only for Debug & RelWithDebInfo targets)." OFF)
+	mark_as_advanced(WITH_COMPILER_ASAN)
+
+	if(WITH_COMPILER_ASAN)
+		set(_asan_defaults "\
+-fsanitize=address \
+-fsanitize=bool \
+-fsanitize=bounds \
+-fsanitize=enum \
+-fsanitize=float-cast-overflow \
+-fsanitize=float-divide-by-zero \
+-fsanitize=leak \
+-fsanitize=nonnull-attribute \
+-fsanitize=object-size \
+-fsanitize=returns-nonnull-attribute \
+-fsanitize=signed-integer-overflow \
+-fsanitize=undefined \
+-fsanitize=vla-bound \
+-fno-sanitize=alignment \
+")
+
+		set(COMPILER_ASAN_CFLAGS "${_asan_defaults}" CACHE STRING "C flags for address sanitizer")
+		mark_as_advanced(COMPILER_ASAN_CFLAGS)
+		set(COMPILER_ASAN_CXXFLAGS "${_asan_defaults}" CACHE STRING "C++ flags for address sanitizer")
+		mark_as_advanced(COMPILER_ASAN_CXXFLAGS)
+
+		unset(_asan_defaults)
+
+		find_library(COMPILER_ASAN_LIBRARY asan ${CMAKE_C_IMPLICIT_LINK_DIRECTORIES})
+		mark_as_advanced(COMPILER_ASAN_LIBRARY)
+
+	endif()
+endif()
+
+# Dependency graph
+option(WITH_LEGACY_DEPSGRAPH "Build Blender with legacy dependency graph" ON)
+mark_as_advanced(WITH_LEGACY_DEPSGRAPH)
+
 if(WIN32)
 	# Use hardcoded paths or find_package to find externals
 	option(WITH_WINDOWS_FIND_MODULES "Use find_package to locate libraries" OFF)
@@ -580,15 +601,11 @@ endif()
 #-----------------------------------------------------------------------------
 # Check for conflicting/unsupported configurations
 
-if(NOT WITH_BLENDER AND NOT WITH_PLAYER AND NOT WITH_CYCLES_STANDALONE)
+if(NOT WITH_BLENDER AND NOT WITH_CYCLES_STANDALONE)
 	message(FATAL_ERROR
-		"At least one of WITH_BLENDER or WITH_PLAYER or "
-		"WITH_CYCLES_STANDALONE must be enabled, nothing to do!"
+		"At least one of WITH_BLENDER or WITH_CYCLES_STANDALONE "
+		"must be enabled, nothing to do!"
 	)
-endif()
-
-if(NOT WITH_GAMEENGINE AND WITH_PLAYER)
-	message(FATAL_ERROR "WITH_PLAYER requires WITH_GAMEENGINE")
 endif()
 
 if(NOT WITH_CXX11)
@@ -604,9 +621,6 @@ if(NOT WITH_AUDASPACE)
 	if(WITH_JACK)
 		message(FATAL_ERROR "WITH_JACK requires WITH_AUDASPACE")
 	endif()
-	if(WITH_GAMEENGINE)
-		message(FATAL_ERROR "WITH_GAMEENGINE requires WITH_AUDASPACE")
-	endif()
 endif()
 
 if(NOT WITH_SDL AND WITH_GHOST_SDL)
@@ -614,10 +628,6 @@ if(NOT WITH_SDL AND WITH_GHOST_SDL)
 endif()
 
 # python module, needs some different options
-if(WITH_PYTHON_MODULE AND WITH_PLAYER)
-	message(FATAL_ERROR "WITH_PYTHON_MODULE requires WITH_PLAYER to be OFF")
-endif()
-
 if(WITH_PYTHON_MODULE AND WITH_PYTHON_INSTALL)
 	message(FATAL_ERROR "WITH_PYTHON_MODULE requires WITH_PYTHON_INSTALL to be OFF")
 endif()
@@ -800,6 +810,15 @@ set(PLATFORM_LINKLIBS "")
 set(PLATFORM_LINKFLAGS "")
 set(PLATFORM_LINKFLAGS_DEBUG "")
 
+if(WITH_COMPILER_ASAN)
+	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${COMPILER_ASAN_CFLAGS}")
+	set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} ${COMPILER_ASAN_CFLAGS}")
+
+	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${COMPILER_ASAN_CXXFLAGS}")
+	set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${COMPILER_ASAN_CXXFLAGS}")
+
+	set(PLATFORM_LINKFLAGS_DEBUG "${COMPILER_ASAN_LIBRARY}")
+endif()
 
 #-----------------------------------------------------------------------------
 #Platform specifics
@@ -1529,7 +1548,12 @@ else()
 endif()
 
 # Visual Studio has all standards it supports available by default
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_C_COMPILER_ID MATCHES "Intel")
+# Clang on windows copies this behavior and does not support these switches
+if(
+	CMAKE_COMPILER_IS_GNUCC OR
+	(CMAKE_C_COMPILER_ID MATCHES "Clang" AND (NOT MSVC)) OR
+	(CMAKE_C_COMPILER_ID MATCHES "Intel")
+)
 	# Use C99 + GNU extensions, works with GCC, Clang, ICC
 	if(WITH_C11)
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11")
@@ -1583,7 +1607,7 @@ if(WITH_GTESTS)
 	include(GTestTesting)
 endif()
 
-if(WITH_BLENDER OR WITH_PLAYER)
+if(WITH_BLENDER)
 	add_subdirectory(intern)
 	add_subdirectory(extern)
 
@@ -1609,13 +1633,6 @@ endif()
 
 
 #-----------------------------------------------------------------------------
-# Blender Player
-if(WITH_PLAYER)
-	add_subdirectory(source/blenderplayer)
-endif()
-
-
-#-----------------------------------------------------------------------------
 # Testing
 add_subdirectory(tests)
 
@@ -1628,9 +1645,6 @@ include(build_files/cmake/packaging.cmake)
 # Use dynamic loading for OpenMP
 if(WITH_BLENDER)
 	openmp_delayload(blender)
-endif()
-if(WITH_PLAYER)
-	openmp_delayload(blenderplayer)
 endif()
 
 #-----------------------------------------------------------------------------
@@ -1665,8 +1679,6 @@ if(FIRST_RUN)
 	message(STATUS "C++ Compiler: \"${CMAKE_CXX_COMPILER_ID}\"")
 
 	info_cfg_text("Build Options:")
-	info_cfg_option(WITH_GAMEENGINE)
-	info_cfg_option(WITH_PLAYER)
 	info_cfg_option(WITH_BULLET)
 	info_cfg_option(WITH_IK_SOLVER)
 	info_cfg_option(WITH_IK_ITASC)

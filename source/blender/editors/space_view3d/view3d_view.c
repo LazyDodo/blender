@@ -48,6 +48,7 @@
 #include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "UI_resources.h"
 
@@ -61,17 +62,6 @@
 #include "ED_screen.h"
 
 #include "DRW_engine.h"
-
-#include "DEG_depsgraph_query.h"
-
-#ifdef WITH_GAMEENGINE
-#  include "BLI_listbase.h"
-#  include "BLI_callbacks.h"
-
-#  include "GPU_draw.h"
-
-#  include "BL_System.h"
-#endif
 
 #include "view3d_intern.h"  /* own include */
 
@@ -130,14 +120,14 @@ static void view3d_smooth_view_state_restore(const struct SmoothView3DState *sms
 /* the arguments are the desired situation */
 void ED_view3d_smooth_view_ex(
         /* avoid passing in the context */
-        wmWindowManager *wm, wmWindow *win, ScrArea *sa,
+        const Depsgraph *depsgraph, wmWindowManager *wm, wmWindow *win, ScrArea *sa,
         View3D *v3d, ARegion *ar, const int smooth_viewtx,
         const V3D_SmoothParams *sview)
 {
 	RegionView3D *rv3d = ar->regiondata;
 	struct SmoothView3DStore sms = {{0}};
 	bool ok = false;
-	
+
 	/* initialize sms */
 	view3d_smooth_view_state_backup(&sms.dst, v3d, rv3d);
 	view3d_smooth_view_state_backup(&sms.src, v3d, rv3d);
@@ -161,7 +151,7 @@ void ED_view3d_smooth_view_ex(
 	 * we allow camera option locking to initialize the view settings from the camera.
 	 */
 	if (sview->camera == NULL && sview->camera_old == NULL) {
-		ED_view3d_camera_lock_init(v3d, rv3d);
+		ED_view3d_camera_lock_init(depsgraph, v3d, rv3d);
 	}
 
 	/* store the options we want to end with */
@@ -186,8 +176,9 @@ void ED_view3d_smooth_view_ex(
 	}
 
 	if (sview->camera) {
-		sms.dst.dist = ED_view3d_offset_distance(sview->camera->obmat, sview->ofs, VIEW3D_DIST_FALLBACK);
-		ED_view3d_from_object(sview->camera, sms.dst.ofs, sms.dst.quat, &sms.dst.dist, &sms.dst.lens);
+		Object *ob_camera_eval = DEG_get_evaluated_object(depsgraph, sview->camera);
+		sms.dst.dist = ED_view3d_offset_distance(ob_camera_eval->obmat, sview->ofs, VIEW3D_DIST_FALLBACK);
+		ED_view3d_from_object(ob_camera_eval, sms.dst.ofs, sms.dst.quat, &sms.dst.dist, &sms.dst.lens);
 		sms.to_camera = true; /* restore view3d values in end */
 	}
 	
@@ -211,9 +202,10 @@ void ED_view3d_smooth_view_ex(
 		if (changed) {
 			/* original values */
 			if (sview->camera_old) {
-				sms.src.dist = ED_view3d_offset_distance(sview->camera_old->obmat, rv3d->ofs, 0.0f);
+				Object *ob_camera_old_eval = DEG_get_evaluated_object(depsgraph, sview->camera_old);
+				sms.src.dist = ED_view3d_offset_distance(ob_camera_old_eval->obmat, rv3d->ofs, 0.0f);
 				/* this */
-				ED_view3d_from_object(sview->camera_old, sms.src.ofs, sms.src.quat, &sms.src.dist, &sms.src.lens);
+				ED_view3d_from_object(ob_camera_old_eval, sms.src.ofs, sms.src.quat, &sms.src.dist, &sms.src.lens);
 			}
 			/* grid draw as floor */
 			if ((rv3d->viewlock & RV3D_LOCKED) == 0) {
@@ -235,9 +227,10 @@ void ED_view3d_smooth_view_ex(
 			/* ensure it shows correct */
 			if (sms.to_camera) {
 				/* use ortho if we move from an ortho view to an ortho camera */
+				Object *ob_camera_eval = DEG_get_evaluated_object(depsgraph, sview->camera);
 				rv3d->persp = (((rv3d->is_persp == false) &&
-				                (sview->camera->type == OB_CAMERA) &&
-				                (((Camera *)sview->camera->data)->type == CAM_ORTHO)) ?
+				                (ob_camera_eval->type == OB_CAMERA) &&
+				                (((Camera *)ob_camera_eval->data)->type == CAM_ORTHO)) ?
 				                RV3D_ORTHO : RV3D_PERSP);
 			}
 
@@ -270,7 +263,7 @@ void ED_view3d_smooth_view_ex(
 			rv3d->dist = sms.dst.dist;
 			v3d->lens = sms.dst.lens;
 
-			ED_view3d_camera_lock_sync(v3d, rv3d);
+			ED_view3d_camera_lock_sync(depsgraph, v3d, rv3d);
 		}
 
 		if (rv3d->viewlock & RV3D_BOXVIEW) {
@@ -286,11 +279,13 @@ void ED_view3d_smooth_view(
         View3D *v3d, ARegion *ar, const int smooth_viewtx,
         const struct V3D_SmoothParams *sview)
 {
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
 	ScrArea *sa = CTX_wm_area(C);
 
 	ED_view3d_smooth_view_ex(
+	        depsgraph,
 	        wm, win, sa,
 	        v3d, ar, smooth_viewtx,
 	        sview);
@@ -299,6 +294,7 @@ void ED_view3d_smooth_view(
 /* only meant for timer usage */
 static void view3d_smoothview_apply(bContext *C, View3D *v3d, ARegion *ar, bool sync_boxview)
 {
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	RegionView3D *rv3d = ar->regiondata;
 	struct SmoothView3DStore *sms = rv3d->sms;
 	float step, step_inv;
@@ -319,7 +315,7 @@ static void view3d_smoothview_apply(bContext *C, View3D *v3d, ARegion *ar, bool 
 		else {
 			view3d_smooth_view_state_restore(&sms->dst, v3d, rv3d);
 
-			ED_view3d_camera_lock_sync(v3d, rv3d);
+			ED_view3d_camera_lock_sync(depsgraph, v3d, rv3d);
 			ED_view3d_camera_lock_autokey(v3d, rv3d, C, true, true);
 		}
 		
@@ -352,7 +348,7 @@ static void view3d_smoothview_apply(bContext *C, View3D *v3d, ARegion *ar, bool 
 		rv3d->dist = sms->dst.dist * step + sms->src.dist * step_inv;
 		v3d->lens  = sms->dst.lens * step + sms->src.lens * step_inv;
 
-		ED_view3d_camera_lock_sync(v3d, rv3d);
+		ED_view3d_camera_lock_sync(depsgraph, v3d, rv3d);
 		if (ED_screen_animation_playing(CTX_wm_manager(C))) {
 			ED_view3d_camera_lock_autokey(v3d, rv3d, C, true, true);
 		}
@@ -403,9 +399,6 @@ void ED_view3d_smooth_view_force_finish(
         View3D *v3d, ARegion *ar)
 {
 	RegionView3D *rv3d = ar->regiondata;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (rv3d && rv3d->sms) {
 		rv3d->sms->time_allowed = 0.0;  /* force finishing */
@@ -413,8 +406,9 @@ void ED_view3d_smooth_view_force_finish(
 
 		/* force update of view matrix so tools that run immediately after
 		 * can use them without redrawing first */
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		Scene *scene = CTX_data_scene(C);
-		ED_view3d_update_viewmat(&eval_ctx, scene, v3d, ar, NULL, NULL, NULL);
+		ED_view3d_update_viewmat(depsgraph, scene, v3d, ar, NULL, NULL, NULL);
 	}
 }
 
@@ -442,6 +436,7 @@ void VIEW3D_OT_smoothview(wmOperatorType *ot)
 
 static int view3d_camera_to_view_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	View3D *v3d;
 	ARegion *ar;
 	RegionView3D *rv3d;
@@ -455,7 +450,7 @@ static int view3d_camera_to_view_exec(bContext *C, wmOperator *UNUSED(op))
 
 	BKE_object_tfm_protected_backup(v3d->camera, &obtfm);
 
-	ED_view3d_to_object(v3d->camera, rv3d->ofs, rv3d->viewquat, rv3d->dist);
+	ED_view3d_to_object(depsgraph, v3d->camera, rv3d->ofs, rv3d->viewquat, rv3d->dist);
 
 	BKE_object_tfm_protected_restore(v3d->camera, &obtfm, v3d->camera->protectflag);
 
@@ -512,29 +507,31 @@ void VIEW3D_OT_camera_to_view(wmOperatorType *ot)
  * meant to take into account vertex/bone selection for eg. */
 static int view3d_camera_to_view_selected_exec(bContext *C, wmOperator *op)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	View3D *v3d = CTX_wm_view3d(C);  /* can be NULL */
 	Object *camera_ob = v3d ? v3d->camera : scene->camera;
+	Object *camera_ob_eval = DEG_get_evaluated_object(depsgraph, camera_ob);
 
 	float r_co[3]; /* the new location to apply */
 	float r_scale; /* only for ortho cameras */
 
-	if (camera_ob == NULL) {
+	if (camera_ob_eval == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "No active camera");
 		return OPERATOR_CANCELLED;
 	}
 
 	/* this function does all the important stuff */
-	if (BKE_camera_view_frame_fit_to_scene(scene, view_layer, camera_ob, r_co, &r_scale)) {
+	if (BKE_camera_view_frame_fit_to_scene(depsgraph, scene, view_layer, camera_ob_eval, r_co, &r_scale)) {
 		ObjectTfmProtectedChannels obtfm;
 		float obmat_new[4][4];
 
-		if ((camera_ob->type == OB_CAMERA) && (((Camera *)camera_ob->data)->type == CAM_ORTHO)) {
+		if ((camera_ob_eval->type == OB_CAMERA) && (((Camera *)camera_ob_eval->data)->type == CAM_ORTHO)) {
 			((Camera *)camera_ob->data)->ortho_scale = r_scale;
 		}
 
-		copy_m4_m4(obmat_new, camera_ob->obmat);
+		copy_m4_m4(obmat_new, camera_ob_eval->obmat);
 		copy_v3_v3(obmat_new[3], r_co);
 
 		/* only touch location */
@@ -698,7 +695,7 @@ void VIEW3D_OT_object_as_camera(wmOperatorType *ot)
 /**
  * \param rect optional for picking (can be NULL).
  */
-void view3d_winmatrix_set(const Depsgraph *depsgraph, ARegion *ar, const View3D *v3d, const rcti *rect)
+void view3d_winmatrix_set(Depsgraph *depsgraph, ARegion *ar, const View3D *v3d, const rcti *rect)
 {
 	RegionView3D *rv3d = ar->regiondata;
 	rctf viewplane;
@@ -750,7 +747,7 @@ static void obmat_to_viewmat(RegionView3D *rv3d, Object *ob)
 /**
  * Sets #RegionView3D.viewmat
  *
- * \param eval_ctx: Context.
+ * \param depsgraph: Depsgraph.
  * \param scene: Scene for camera and cursor location.
  * \param v3d: View 3D space data.
  * \param rv3d: 3D region which stores the final matrices.
@@ -760,15 +757,14 @@ static void obmat_to_viewmat(RegionView3D *rv3d, Object *ob)
  * \note don't set windows active in here, is used by renderwin too.
  */
 void view3d_viewmatrix_set(
-        const EvaluationContext *eval_ctx, Scene *scene,
+        Depsgraph *depsgraph, Scene *scene,
         const View3D *v3d, RegionView3D *rv3d, const float rect_scale[2])
 {
 	if (rv3d->persp == RV3D_CAMOB) {      /* obs/camera */
 		if (v3d->camera) {
-			const Depsgraph *depsgraph = eval_ctx->depsgraph;
-			Object *camera_object = DEG_get_evaluated_object(depsgraph, v3d->camera);
-			BKE_object_where_is_calc(eval_ctx, scene, camera_object);
-			obmat_to_viewmat(rv3d, camera_object);
+			Object *ob_camera_eval = DEG_get_evaluated_object(depsgraph, v3d->camera);
+			BKE_object_where_is_calc(depsgraph, scene, ob_camera_eval);
+			obmat_to_viewmat(rv3d, ob_camera_eval);
 		}
 		else {
 			quat_to_mat4(rv3d->viewmat, rv3d->viewquat);
@@ -786,15 +782,15 @@ void view3d_viewmatrix_set(
 		quat_to_mat4(rv3d->viewmat, rv3d->viewquat);
 		if (rv3d->persp == RV3D_PERSP) rv3d->viewmat[3][2] -= rv3d->dist;
 		if (v3d->ob_centre) {
-			Object *ob = v3d->ob_centre;
+			Object *ob_eval = DEG_get_evaluated_object(depsgraph, v3d->ob_centre);
 			float vec[3];
 			
-			copy_v3_v3(vec, ob->obmat[3]);
-			if (ob->type == OB_ARMATURE && v3d->ob_centre_bone[0]) {
-				bPoseChannel *pchan = BKE_pose_channel_find_name(ob->pose, v3d->ob_centre_bone);
+			copy_v3_v3(vec, ob_eval->obmat[3]);
+			if (ob_eval->type == OB_ARMATURE && v3d->ob_centre_bone[0]) {
+				bPoseChannel *pchan = BKE_pose_channel_find_name(ob_eval->pose, v3d->ob_centre_bone);
 				if (pchan) {
 					copy_v3_v3(vec, pchan->pose_mat[3]);
-					mul_m4_v3(ob->obmat, vec);
+					mul_m4_v3(ob_eval->obmat, vec);
 				}
 			}
 			translate_m4(rv3d->viewmat, -vec[0], -vec[1], -vec[2]);
@@ -802,7 +798,7 @@ void view3d_viewmatrix_set(
 		}
 		else if (v3d->ob_centre_cursor) {
 			float vec[3];
-			copy_v3_v3(vec, ED_view3d_cursor3d_get(scene, (View3D *)v3d));
+			copy_v3_v3(vec, ED_view3d_cursor3d_get(scene, (View3D *)v3d)->location);
 			translate_m4(rv3d->viewmat, -vec[0], -vec[1], -vec[2]);
 			use_lock_ofs = true;
 		}
@@ -908,7 +904,7 @@ static bool drw_select_loop_pass(eDRWSelectStage stage, void *user_data)
  * \note (vc->obedit == NULL) can be set to explicitly skip edit-object selection.
  */
 int view3d_opengl_select(
-        const EvaluationContext *eval_ctx, ViewContext *vc, unsigned int *buffer, unsigned int bufsize, const rcti *input,
+        ViewContext *vc, unsigned int *buffer, unsigned int bufsize, const rcti *input,
         eV3DSelectMode select_mode)
 {
 	struct bThemeState theme_state;
@@ -979,7 +975,7 @@ int view3d_opengl_select(
 
 	/* Important we use the 'viewmat' and don't re-calculate since
 	 * the object & bone view locking takes 'rect' into account, see: T51629. */
-	ED_view3d_draw_setup_view(vc->win, eval_ctx, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
+	ED_view3d_draw_setup_view(vc->win, graph, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
 
 	if (v3d->drawtype > OB_WIRE) {
 		v3d->zbuf = true;
@@ -1024,7 +1020,7 @@ int view3d_opengl_select(
 #endif /* WITH_OPENGL_LEGACY */
 
 	G.f &= ~G_PICKSEL;
-	ED_view3d_draw_setup_view(vc->win, eval_ctx, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
+	ED_view3d_draw_setup_view(vc->win, graph, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
 	
 	if (v3d->drawtype > OB_WIRE) {
 		v3d->zbuf = 0;
@@ -1089,216 +1085,6 @@ int ED_view3d_view_layer_set(int lay, const int *values, int *active)
 	}
 	
 	return lay;
-}
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Game Engine Operator
- *
- * Start the game engine (handles context switching).
- * \{ */
-
-#ifdef WITH_GAMEENGINE
-
-static ListBase queue_back;
-static void game_engine_save_state(bContext *C, wmWindow *win)
-{
-	Object *obact = CTX_data_active_object(C);
-
-	glPushAttrib(GL_ALL_ATTRIB_BITS);
-
-	if (obact && obact->mode & OB_MODE_TEXTURE_PAINT) {
-		GPU_paint_set_mipmap(1);
-	}
-
-	queue_back = win->queue;
-
-	BLI_listbase_clear(&win->queue);
-}
-
-static void game_engine_restore_state(bContext *C, wmWindow *win)
-{
-	Object *obact = CTX_data_active_object(C);
-
-	if (obact && obact->mode & OB_MODE_TEXTURE_PAINT) {
-		GPU_paint_set_mipmap(0);
-	}
-	/* check because closing win can set to NULL */
-	if (win) {
-		win->queue = queue_back;
-	}
-
-	GPU_state_init();
-
-	glPopAttrib();
-}
-
-/* was space_set_commmandline_options in 2.4x */
-static void game_set_commmandline_options(GameData *gm)
-{
-	SYS_SystemHandle syshandle;
-	int test;
-
-	if ((syshandle = SYS_GetSystem())) {
-		/* User defined settings */
-		test = (U.gameflags & USER_DISABLE_MIPMAP);
-		GPU_set_mipmap(!test);
-		SYS_WriteCommandLineInt(syshandle, "nomipmap", test);
-
-		/* File specific settings: */
-		/* Only test the first one. These two are switched
-		 * simultaneously. */
-		test = (gm->flag & GAME_SHOW_FRAMERATE);
-		SYS_WriteCommandLineInt(syshandle, "show_framerate", test);
-		SYS_WriteCommandLineInt(syshandle, "show_profile", test);
-
-		test = (gm->flag & GAME_SHOW_DEBUG_PROPS);
-		SYS_WriteCommandLineInt(syshandle, "show_properties", test);
-
-		test = (gm->flag & GAME_SHOW_PHYSICS);
-		SYS_WriteCommandLineInt(syshandle, "show_physics", test);
-
-		test = (gm->flag & GAME_ENABLE_ALL_FRAMES);
-		SYS_WriteCommandLineInt(syshandle, "fixedtime", test);
-
-		test = (gm->flag & GAME_ENABLE_ANIMATION_RECORD);
-		SYS_WriteCommandLineInt(syshandle, "animation_record", test);
-
-		test = (gm->flag & GAME_IGNORE_DEPRECATION_WARNINGS);
-		SYS_WriteCommandLineInt(syshandle, "ignore_deprecation_warnings", test);
-
-		test = (gm->matmode == GAME_MAT_MULTITEX);
-		SYS_WriteCommandLineInt(syshandle, "blender_material", test);
-		test = (gm->matmode == GAME_MAT_GLSL);
-		SYS_WriteCommandLineInt(syshandle, "blender_glsl_material", test);
-	}
-}
-
-#endif /* WITH_GAMEENGINE */
-
-static int game_engine_poll(bContext *C)
-{
-	const wmWindow *win = CTX_wm_window(C);
-	const Scene *scene = WM_window_get_active_scene(win);
-
-	/* we need a context and area to launch BGE
-	 * it's a temporary solution to avoid crash at load time
-	 * if we try to auto run the BGE. Ideally we want the
-	 * context to be set as soon as we load the file. */
-
-	if (win == NULL) return 0;
-	if (CTX_wm_screen(C) == NULL) return 0;
-
-	if (CTX_data_mode_enum(C) != CTX_MODE_OBJECT)
-		return 0;
-
-	if (!BKE_scene_uses_blender_game(scene))
-		return 0;
-
-	return 1;
-}
-
-static int game_engine_exec(bContext *C, wmOperator *op)
-{
-#ifdef WITH_GAMEENGINE
-	Scene *startscene = CTX_data_scene(C);
-	Main *bmain = CTX_data_main(C);
-	ScrArea /* *sa, */ /* UNUSED */ *prevsa = CTX_wm_area(C);
-	ARegion *ar, *prevar = CTX_wm_region(C);
-	wmWindow *prevwin = CTX_wm_window(C);
-	RegionView3D *rv3d;
-	rcti cam_frame;
-
-	UNUSED_VARS(op);
-
-	/* bad context switch .. */
-	if (!ED_view3d_context_activate(C))
-		return OPERATOR_CANCELLED;
-
-	/* redraw to hide any menus/popups, we don't go back to
-	 * the window manager until after this operator exits */
-	WM_redraw_windows(C);
-
-	BLI_callback_exec(bmain, &startscene->id, BLI_CB_EVT_GAME_PRE);
-
-	rv3d = CTX_wm_region_view3d(C);
-	/* sa = CTX_wm_area(C); */ /* UNUSED */
-	ar = CTX_wm_region(C);
-
-	view3d_operator_needs_opengl(C);
-
-	game_set_commmandline_options(&startscene->gm);
-
-	if ((rv3d->persp == RV3D_CAMOB) &&
-	    (startscene->gm.framing.type == SCE_GAMEFRAMING_BARS) &&
-	    (startscene->gm.stereoflag != STEREO_DOME))
-	{
-		const Depsgraph *depsgraph = CTX_data_depsgraph(C);
-		/* Letterbox */
-		rctf cam_framef;
-		ED_view3d_calc_camera_border(startscene, depsgraph, ar, CTX_wm_view3d(C), rv3d, &cam_framef, false);
-		cam_frame.xmin = cam_framef.xmin + ar->winrct.xmin;
-		cam_frame.xmax = cam_framef.xmax + ar->winrct.xmin;
-		cam_frame.ymin = cam_framef.ymin + ar->winrct.ymin;
-		cam_frame.ymax = cam_framef.ymax + ar->winrct.ymin;
-		BLI_rcti_isect(&ar->winrct, &cam_frame, &cam_frame);
-	}
-	else {
-		cam_frame.xmin = ar->winrct.xmin;
-		cam_frame.xmax = ar->winrct.xmax;
-		cam_frame.ymin = ar->winrct.ymin;
-		cam_frame.ymax = ar->winrct.ymax;
-	}
-
-
-	game_engine_save_state(C, prevwin);
-
-	StartKetsjiShell(C, ar, &cam_frame, 1);
-
-	/* window wasnt closed while the BGE was running */
-	if (BLI_findindex(&CTX_wm_manager(C)->windows, prevwin) == -1) {
-		prevwin = NULL;
-		CTX_wm_window_set(C, NULL);
-	}
-
-	ED_area_tag_redraw(CTX_wm_area(C));
-
-	if (prevwin) {
-		/* restore context, in case it changed in the meantime, for
-		 * example by working in another window or closing it */
-		CTX_wm_region_set(C, prevar);
-		CTX_wm_window_set(C, prevwin);
-		CTX_wm_area_set(C, prevsa);
-	}
-
-	game_engine_restore_state(C, prevwin);
-
-	//XXX restore_all_scene_cfra(scene_cfra_store);
-	BKE_scene_set_background(CTX_data_main(C), startscene);
-	//XXX BKE_scene_graph_update_for_newframe(bmain->eval_ctx, bmain, scene, depsgraph);
-
-	BLI_callback_exec(bmain, &startscene->id, BLI_CB_EVT_GAME_POST);
-
-	return OPERATOR_FINISHED;
-#else
-	UNUSED_VARS(C);
-	BKE_report(op->reports, RPT_ERROR, "Game engine is disabled in this build");
-	return OPERATOR_CANCELLED;
-#endif
-}
-
-void VIEW3D_OT_game_start(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Start Game Engine";
-	ot->description = "Start game engine";
-	ot->idname = "VIEW3D_OT_game_start";
-
-	/* api callbacks */
-	ot->exec = game_engine_exec;
-
-	ot->poll = game_engine_poll;
 }
 
 /** \} */

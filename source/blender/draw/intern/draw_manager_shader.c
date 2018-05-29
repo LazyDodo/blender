@@ -90,7 +90,7 @@ static void drw_deferred_shader_free(DRWDeferredShader *dsh)
 static void drw_deferred_shader_queue_free(ListBase *queue)
 {
 	DRWDeferredShader *dsh;
-	while((dsh = BLI_pophead(queue))) {
+	while ((dsh = BLI_pophead(queue))) {
 		drw_deferred_shader_free(dsh);
 	}
 }
@@ -138,7 +138,7 @@ static void drw_deferred_shader_compilation_exec(void *custom_data, short *stop,
 		*progress = (float)comp->shaders_done / (float)total;
 		*do_update = true;
 
-		glFinish();
+		glFlush();
 		BLI_mutex_unlock(&comp->compilation_lock);
 
 		drw_deferred_shader_free(comp->mat_compiling);
@@ -295,6 +295,14 @@ GPUShader *DRW_shader_create_with_lib(
 	return sh;
 }
 
+GPUShader *DRW_shader_create_with_transform_feedback(
+        const char *vert, const char *geom, const char *defines,
+        const GPUShaderTFBType prim_type, const char **varying_names, const int varying_count)
+{
+	return GPU_shader_create_ex(vert, NULL, geom, NULL, defines, GPU_SHADER_FLAGS_NONE,
+	                            prim_type, varying_names, varying_count);
+}
+
 GPUShader *DRW_shader_create_2D(const char *frag, const char *defines)
 {
 	return GPU_shader_create(datatoc_gpu_shader_2D_vert_glsl, frag, NULL, NULL, defines);
@@ -352,8 +360,7 @@ GPUMaterial *DRW_shader_create_from_world(
 
 	if (mat == NULL) {
 		mat = GPU_material_from_nodetree(
-		        scene, wo->nodetree, &wo->gpumaterial, engine_type, options,
-		        vert, geom, frag_lib, defines, true);
+		        scene, wo->nodetree, &wo->gpumaterial, engine_type, options);
 	}
 
 	drw_deferred_shader_add(mat, vert, geom, frag_lib, defines);
@@ -372,8 +379,7 @@ GPUMaterial *DRW_shader_create_from_material(
 
 	if (mat == NULL) {
 		mat = GPU_material_from_nodetree(
-		        scene, ma->nodetree, &ma->gpumaterial, engine_type, options,
-		        vert, geom, frag_lib, defines, true);
+		        scene, ma->nodetree, &ma->gpumaterial, engine_type, options);
 	}
 
 	drw_deferred_shader_add(mat, vert, geom, frag_lib, defines);

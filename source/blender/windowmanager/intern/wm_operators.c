@@ -1388,6 +1388,21 @@ wmOperator *WM_operator_last_redo(const bContext *C)
 	return op;
 }
 
+IDProperty *WM_operator_last_properties_ensure_idprops(wmOperatorType *ot)
+{
+	if (ot->last_properties == NULL) {
+		IDPropertyTemplate val = {0};
+		ot->last_properties = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
+	}
+	return ot->last_properties;
+}
+
+void WM_operator_last_properties_ensure(wmOperatorType *ot, PointerRNA *ptr)
+{
+	IDProperty *props = WM_operator_last_properties_ensure_idprops(ot);
+	RNA_pointer_create(NULL, ot->srna, props, ptr);
+}
+
 /**
  * Use for drag & drop a path or name with operators invoke() function.
  */
@@ -1498,13 +1513,15 @@ static uiBlock *wm_block_create_redo(bContext *C, ARegion *ar, void *arg_op)
 
 	if (op->type->flag & OPTYPE_MACRO) {
 		for (op = op->macro.first; op; op = op->next) {
-			uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'H', UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+			uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+			                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 			if (op->next)
 				uiItemS(layout);
 		}
 	}
 	else {
-		uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'H', UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+		uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+		                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 	}
 	
 	UI_block_bounds_set_popup(block, 4, 0, 0);
@@ -1573,7 +1590,8 @@ static uiBlock *wm_block_dialog_create(bContext *C, ARegion *ar, void *userData)
 
 	layout = UI_block_layout(block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 0, 0, data->width, data->height, 0, style);
 	
-	uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'H', UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+	uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+	                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 	
 	/* clear so the OK button is left alone */
 	UI_block_func_set(block, NULL, NULL, NULL);
@@ -1612,7 +1630,7 @@ static uiBlock *wm_operator_ui_create(bContext *C, ARegion *ar, void *userData)
 	layout = UI_block_layout(block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 0, 0, data->width, data->height, 0, style);
 
 	/* since ui is defined the auto-layout args are not used */
-	uiTemplateOperatorPropertyButs(C, layout, op, NULL, 'V', 0);
+	uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_COLUMN, 0);
 
 	UI_block_func_set(block, NULL, NULL, NULL);
 
@@ -1807,48 +1825,6 @@ static void WM_OT_operator_defaults(wmOperatorType *ot)
 
 	ot->flag = OPTYPE_INTERNAL;
 }
-
-#ifdef USE_WORKSPACE_TOOL
-/* ***************** Set Active Tool ************************* */
-
-/* Developers note: in it's current form this doesn't need to be an operator,
- * keep this as-is for now since it may end up setting an active key-map.
- */
-
-static int wm_operator_tool_set_exec(bContext *C, wmOperator *op)
-{
-	ScrArea *sa = CTX_wm_area(C);
-
-	bToolDef tool_def = {{0}};
-
-	tool_def.index = RNA_int_get(op->ptr, "index");
-	tool_def.spacetype = sa->spacetype;
-	RNA_string_get(op->ptr, "keymap", tool_def.keymap);
-	RNA_string_get(op->ptr, "manipulator_group", tool_def.manipulator_group);
-
-	WM_toolsystem_set(C, &tool_def);
-
-	/* For some reason redraw fails with menus (even though 'ar' isn't the menu's region). */
-	ED_area_tag_redraw(sa);
-
-	return OPERATOR_FINISHED;
-}
-
-static void WM_OT_tool_set(wmOperatorType *ot)
-{
-	ot->name = "Set Active Tool";
-	ot->idname = "WM_OT_tool_set";
-	ot->description = "Set the active tool";
-
-	ot->exec = wm_operator_tool_set_exec;
-
-	ot->flag = OPTYPE_INTERNAL;
-
-	RNA_def_string(ot->srna, "keymap", NULL, KMAP_MAX_NAME, "Key Map", "");
-	RNA_def_string(ot->srna, "manipulator_group", NULL, MAX_NAME, "Manipulator Group", "");
-	RNA_def_int(ot->srna, "index", 0, INT_MIN, INT_MAX, "Index", "", INT_MIN, INT_MAX);
-}
-#endif /* USE_WORKSPACE_TOOL */
 
 /* ***************** Splash Screen ************************* */
 
@@ -2265,6 +2241,32 @@ static void WM_OT_call_menu_pie(wmOperatorType *ot)
 	RNA_def_string(ot->srna, "name", NULL, BKE_ST_MAXNAME, "Name", "Name of the pie menu");
 }
 
+static int wm_call_panel_exec(bContext *C, wmOperator *op)
+{
+	char idname[BKE_ST_MAXNAME];
+	RNA_string_get(op->ptr, "name", idname);
+	const int space_type = RNA_enum_get(op->ptr, "space_type");
+	const int region_type = RNA_enum_get(op->ptr, "region_type");
+
+	return UI_popover_panel_invoke(C, space_type, region_type, idname, true, op->reports);
+}
+
+static void WM_OT_call_panel(wmOperatorType *ot)
+{
+	ot->name = "Call Panel";
+	ot->idname = "WM_OT_call_panel";
+	ot->description = "Call (draw) a pre-defined panel";
+
+	ot->exec = wm_call_panel_exec;
+	ot->poll = WM_operator_winactive;
+
+	ot->flag = OPTYPE_INTERNAL;
+
+	RNA_def_string(ot->srna, "name", NULL, BKE_ST_MAXNAME, "Name", "Name of the menu");
+	RNA_def_enum(ot->srna, "space_type", rna_enum_space_type_items, SPACE_EMPTY, "Space Type", "");
+	RNA_def_enum(ot->srna, "region_type", rna_enum_region_type_items, RGN_TYPE_WINDOW, "Region Type", "");
+}
+
 /* ************ window / screen operator definitions ************** */
 
 /* this poll functions is needed in place of WM_operator_winactive
@@ -2614,10 +2616,9 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 	immUnbindProgram();
 }
 
-static void radial_control_paint_cursor(bContext *C, int x, int y, void *customdata)
+static void radial_control_paint_cursor(bContext *UNUSED(C), int x, int y, void *customdata)
 {
 	RadialControl *rc = customdata;
-	ARegion *ar = CTX_wm_region(C);
 	uiStyle *style = UI_style_get();
 	const uiFontStyle *fstyle = &style->widget;
 	const int fontid = fstyle->uifont_id;
@@ -2668,8 +2669,8 @@ static void radial_control_paint_cursor(bContext *C, int x, int y, void *customd
 	}
 
 	/* Keep cursor in the original place */
-	x = rc->initial_mouse[0] - ar->winrct.xmin;
-	y = rc->initial_mouse[1] - ar->winrct.ymin;
+	x = rc->initial_mouse[0];
+	y = rc->initial_mouse[1];
 	gpuTranslate2f((float)x, (float)y);
 
 	glEnable(GL_BLEND);
@@ -3307,7 +3308,7 @@ static const EnumPropertyItem redraw_timer_type_items[] = {
 
 
 static void redraw_timer_step(
-        bContext *C, Main *bmain, Scene *scene, ViewLayer *view_layer,
+        bContext *C, Main *bmain, Scene *scene,
         struct Depsgraph *depsgraph,
         wmWindow *win, ScrArea *sa, ARegion *ar,
         const int type, const int cfra)
@@ -3355,7 +3356,7 @@ static void redraw_timer_step(
 	}
 	else if (type == eRTAnimationStep) {
 		scene->r.cfra += (cfra == scene->r.cfra) ? 1 : -1;
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 	else if (type == eRTAnimationPlay) {
 		/* play anim, return on same frame as started with */
@@ -3367,7 +3368,7 @@ static void redraw_timer_step(
 			if (scene->r.cfra > scene->r.efra)
 				scene->r.cfra = scene->r.sfra;
 
-			BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+			BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 			redraw_timer_window_swap(C);
 		}
 	}
@@ -3381,7 +3382,6 @@ static int redraw_timer_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	wmWindow *win = CTX_wm_window(C);
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -3399,7 +3399,7 @@ static int redraw_timer_exec(bContext *C, wmOperator *op)
 	time_start = PIL_check_seconds_timer();
 
 	for (a = 0; a < iter; a++) {
-		redraw_timer_step(C, bmain, scene, view_layer, depsgraph, win, sa, ar, type, cfra);
+		redraw_timer_step(C, bmain, scene, depsgraph, win, sa, ar, type, cfra);
 		iter_steps += 1;
 
 		if (time_limit != 0.0) {
@@ -3562,7 +3562,7 @@ static const EnumPropertyItem preview_id_type_items[] = {
 static int previews_clear_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
-	ListBase *lb[] = {&bmain->object, &bmain->group,
+	ListBase *lb[] = {&bmain->object, &bmain->collection,
 	                  &bmain->mat, &bmain->world, &bmain->lamp, &bmain->tex, &bmain->image, NULL};
 	int i;
 
@@ -3730,13 +3730,11 @@ void wm_operatortype_init(void)
 	WM_operatortype_append(WM_OT_memory_statistics);
 	WM_operatortype_append(WM_OT_debug_menu);
 	WM_operatortype_append(WM_OT_operator_defaults);
-#ifdef USE_WORKSPACE_TOOL
-	WM_operatortype_append(WM_OT_tool_set);
-#endif
 	WM_operatortype_append(WM_OT_splash);
 	WM_operatortype_append(WM_OT_search_menu);
 	WM_operatortype_append(WM_OT_call_menu);
 	WM_operatortype_append(WM_OT_call_menu_pie);
+	WM_operatortype_append(WM_OT_call_panel);
 	WM_operatortype_append(WM_OT_radial_control);
 	WM_operatortype_append(WM_OT_stereo3d_set);
 #if defined(WIN32)
@@ -3985,16 +3983,18 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 	WM_keymap_verify_item(keymap, "WM_OT_debug_menu", DKEY, KM_PRESS, KM_ALT | KM_CTRL, 0);
 
 	/* menus that can be accessed anywhere in blender */
+
+#if 0  /* Now double-tap via toolbar. */
 	WM_keymap_verify_item(keymap, "WM_OT_search_menu", SPACEKEY, KM_PRESS, 0, 0);
+#endif
+
 #ifdef WITH_INPUT_NDOF
 	WM_keymap_add_menu(keymap, "USERPREF_MT_ndof_settings", NDOF_BUTTON_MENU, KM_PRESS, 0, 0);
 #endif
 
-	/* Space switching */
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", F2KEY, KM_PRESS, KM_SHIFT, 0); /* new in 2.5x, was DXF export */
-	RNA_string_set(kmi->ptr, "data_path", "area.type");
-	RNA_string_set(kmi->ptr, "value", "LOGIC_EDITOR");
+	WM_keymap_add_item(keymap, "WM_OT_toolbar", SPACEKEY, KM_PRESS, 0, 0);
 
+	/* Space switching */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", F3KEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_string_set(kmi->ptr, "data_path", "area.type");
 	RNA_string_set(kmi->ptr, "value", "NODE_EDITOR");
@@ -4111,13 +4111,13 @@ const EnumPropertyItem *RNA_action_local_itemf(bContext *C, PointerRNA *ptr, Pro
 }
 #endif
 
-const EnumPropertyItem *RNA_group_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+const EnumPropertyItem *RNA_collection_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
 {
-	return rna_id_itemf(C, ptr, r_free, C ? (ID *)CTX_data_main(C)->group.first : NULL, false, NULL, NULL);
+	return rna_id_itemf(C, ptr, r_free, C ? (ID *)CTX_data_main(C)->collection.first : NULL, false, NULL, NULL);
 }
-const EnumPropertyItem *RNA_group_local_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+const EnumPropertyItem *RNA_collection_local_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
 {
-	return rna_id_itemf(C, ptr, r_free, C ? (ID *)CTX_data_main(C)->group.first : NULL, true, NULL, NULL);
+	return rna_id_itemf(C, ptr, r_free, C ? (ID *)CTX_data_main(C)->collection.first : NULL, true, NULL, NULL);
 }
 
 const EnumPropertyItem *RNA_image_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)

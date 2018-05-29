@@ -36,17 +36,49 @@
 
 typedef void (*DrawInfoFreeFP)(void *drawinfo);
 
+enum {
+	/** ID preview: obj is #ID. */
+	ICON_DATA_ID = 0,
+	/** Preview: obj is #PreviewImage */
+	ICON_DATA_PREVIEW,
+	/** 2D triangles: obj is #Icon_Geom */
+	ICON_DATA_GEOM,
+	ICON_DATA_STUDIOLIGHT,
+};
+
 struct Icon {
 	void *drawinfo;
+	/**
+	 * Data defined by #obj_type
+	 * \note for #ICON_DATA_GEOM the memory is owned by the icon,
+	 * could be made into a flag if we want that to be optional.
+	 */
 	void *obj;
-	short type;
+	char  obj_type;
+	/** Internal use only. */
+	char flag;
+	/** #ID_Type or 0 when not used for ID preview. */
+	short id_type;
 	DrawInfoFreeFP drawinfo_free;
+};
+
+/** Used for #ICON_DATA_GEOM, assigned to #Icon.obj. */
+struct Icon_Geom {
+	int icon_id;
+	int coords_len;
+	int coords_range[2];
+	const unsigned char (*coords)[2];
+	const unsigned char (*colors)[4];
+	/* when not NULL, the memory of coords and colors is a sub-region of this pointer. */
+	const void *mem;
 };
 
 typedef struct Icon Icon;
 
+struct ImBuf;
 struct PreviewImage;
 struct ID;
+struct StudioLight;
 
 enum eIconSizes;
 
@@ -67,13 +99,17 @@ void BKE_icon_set(const int icon_id, struct Icon *icon);
 /* remove icon and free data if library object becomes invalid */
 void BKE_icon_id_delete(struct ID *id);
 
-void BKE_icon_delete(const int icon_id);
+bool BKE_icon_delete(const int icon_id);
+bool BKE_icon_delete_unmanaged(const int icon_id);
 
 /* report changes - icon needs to be recalculated */
 void BKE_icon_changed(const int icon_id);
 
 /* free all icons */
 void BKE_icons_free(void);
+
+/* free all icons marked for deferred deletion */
+void BKE_icons_deferred_free(void);
 
 /* free the preview image for use in list */
 void BKE_previewimg_freefunc(void *link);
@@ -115,6 +151,16 @@ struct PreviewImage *BKE_previewimg_cached_thumbnail_read(
 
 void BKE_previewimg_cached_release(const char *name);
 void BKE_previewimg_cached_release_pointer(struct PreviewImage *prv);
+
+int BKE_icon_geom_ensure(struct Icon_Geom *geom);
+struct Icon_Geom *BKE_icon_geom_from_memory(const uchar *data, size_t data_len);
+struct Icon_Geom *BKE_icon_geom_from_file(const char *filename);
+
+struct ImBuf *BKE_icon_geom_rasterize(
+        const struct Icon_Geom *geom,
+        const unsigned int size_x, const unsigned int size_y);
+
+int BKE_icon_ensure_studio_light(struct StudioLight *sl, int id_type);
 
 #define ICON_RENDER_DEFAULT_HEIGHT 32
 

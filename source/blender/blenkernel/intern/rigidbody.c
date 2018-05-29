@@ -55,9 +55,9 @@
 #include "DNA_scene_types.h"
 
 #include "BKE_cdderivedmesh.h"
+#include "BKE_collection.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
-#include "BKE_group.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_mesh.h"
@@ -67,6 +67,7 @@
 #include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 /* ************************************** */
 /* Memory Management */
@@ -94,7 +95,7 @@ void BKE_rigidbody_free_world(RigidBodyWorld *rbw)
 	if (rbw->physics_world) {
 		/* free physics references, we assume that all physics objects in will have been added to the world */
 		if (rbw->constraints) {
-			FOREACH_GROUP_OBJECT_BEGIN(rbw->constraints, object)
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->constraints, object)
 			{
 				if (object->rigidbody_constraint) {
 					RigidBodyCon *rbc = object->rigidbody_constraint;
@@ -103,11 +104,11 @@ void BKE_rigidbody_free_world(RigidBodyWorld *rbw)
 					}
 				}
 			}
-			FOREACH_GROUP_OBJECT_END;
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 		}
 
 		if (rbw->group) {
-			FOREACH_GROUP_OBJECT_BEGIN(rbw->group, object)
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 			{
 				if (object->rigidbody_object) {
 					RigidBodyOb *rbo = object->rigidbody_object;
@@ -116,7 +117,7 @@ void BKE_rigidbody_free_world(RigidBodyWorld *rbw)
 					}
 				}
 			}
-			FOREACH_GROUP_OBJECT_END;
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 		}
 		/* free dynamics world */
 		RB_dworld_delete(rbw->physics_world);
@@ -1024,8 +1025,8 @@ RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type)
 	rbo->lin_sleep_thresh = 0.4f; /* 0.4 is half of Bullet default */
 	rbo->ang_sleep_thresh = 0.5f; /* 0.5 is half of Bullet default */
 
-	rbo->lin_damping = 0.04f; /* 0.04 is game engine default */
-	rbo->ang_damping = 0.1f; /* 0.1 is game engine default */
+	rbo->lin_damping = 0.04f;
+	rbo->ang_damping = 0.1f;
 
 	rbo->col_groups = 1;
 
@@ -1156,7 +1157,7 @@ void BKE_rigidbody_remove_object(Scene *scene, Object *ob)
 
 		/* remove object from rigid body constraints */
 		if (rbw->constraints) {
-			FOREACH_GROUP_OBJECT_BEGIN(rbw->constraints, obt)
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->constraints, obt)
 			{
 				if (obt && obt->rigidbody_constraint) {
 					rbc = obt->rigidbody_constraint;
@@ -1165,7 +1166,7 @@ void BKE_rigidbody_remove_object(Scene *scene, Object *ob)
 					}
 				}
 			}
-			FOREACH_GROUP_OBJECT_END;
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 		}
 	}
 
@@ -1199,9 +1200,10 @@ void BKE_rigidbody_remove_constraint(Scene *scene, Object *ob)
 /* Update object array and rigid body count so they're in sync with the rigid body group */
 static void rigidbody_update_ob_array(RigidBodyWorld *rbw)
 {
+	const ListBase objects = BKE_collection_object_cache_get(rbw->group);
 	int i, n;
 
-	n = BLI_listbase_count(&rbw->group->view_layer->object_bases);
+	n = BLI_listbase_count(&objects);
 
 	if (rbw->numbodies != n) {
 		rbw->numbodies = n;
@@ -1209,12 +1211,12 @@ static void rigidbody_update_ob_array(RigidBodyWorld *rbw)
 	}
 
 	i = 0;
-	FOREACH_GROUP_OBJECT_BEGIN(rbw->group, object)
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 	{
 		rbw->objects[i] = object;
 		i++;
 	}
-	FOREACH_GROUP_OBJECT_END;
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 }
 
 static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw)
@@ -1237,7 +1239,7 @@ static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw)
 	rigidbody_update_ob_array(rbw);
 }
 
-static void rigidbody_update_sim_ob(const struct EvaluationContext *eval_ctx, Scene *scene, RigidBodyWorld *rbw, Object *ob, RigidBodyOb *rbo)
+static void rigidbody_update_sim_ob(struct Depsgraph *depsgraph, Scene *scene, RigidBodyWorld *rbw, Object *ob, RigidBodyOb *rbo)
 {
 	float loc[3];
 	float rot[4];
@@ -1285,7 +1287,7 @@ static void rigidbody_update_sim_ob(const struct EvaluationContext *eval_ctx, Sc
 		ListBase *effectors;
 
 		/* get effectors present in the group specified by effector_weights */
-		effectors = pdInitEffectors(eval_ctx, scene, ob, NULL, effector_weights, true);
+		effectors = pdInitEffectors(depsgraph, scene, ob, NULL, effector_weights, true);
 		if (effectors) {
 			float eff_force[3] = {0.0f, 0.0f, 0.0f};
 			float eff_loc[3], eff_vel[3];
@@ -1326,7 +1328,7 @@ static void rigidbody_update_sim_ob(const struct EvaluationContext *eval_ctx, Sc
  *
  * \param rebuild Rebuild entire simulation
  */
-static void rigidbody_update_simulation(const struct EvaluationContext *eval_ctx, Scene *scene, RigidBodyWorld *rbw, bool rebuild)
+static void rigidbody_update_simulation(struct Depsgraph *depsgraph, Scene *scene, RigidBodyWorld *rbw, bool rebuild)
 {
 	/* update world */
 	if (rebuild)
@@ -1340,7 +1342,7 @@ static void rigidbody_update_simulation(const struct EvaluationContext *eval_ctx
 	 * Memory management needs redesign here, this is just a dirty workaround.
 	 */
 	if (rebuild && rbw->constraints) {
-		FOREACH_GROUP_OBJECT_BEGIN(rbw->constraints, ob)
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->constraints, ob)
 		{
 			RigidBodyCon *rbc = ob->rigidbody_constraint;
 			if (rbc && rbc->physics_constraint) {
@@ -1349,17 +1351,17 @@ static void rigidbody_update_simulation(const struct EvaluationContext *eval_ctx
 				rbc->physics_constraint = NULL;
 			}
 		}
-		FOREACH_GROUP_OBJECT_END;
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
 	/* update objects */
-	FOREACH_GROUP_OBJECT_BEGIN(rbw->group, ob)
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, ob)
 	{
 		if (ob->type == OB_MESH) {
 			/* validate that we've got valid object set up here... */
 			RigidBodyOb *rbo = ob->rigidbody_object;
 			/* update transformation matrix of the object so we don't get a frame of lag for simple animations */
-			BKE_object_where_is_calc(eval_ctx, scene, ob);
+			BKE_object_where_is_calc(depsgraph, scene, ob);
 
 			if (rbo == NULL) {
 				/* Since this object is included in the sim group but doesn't have
@@ -1393,21 +1395,21 @@ static void rigidbody_update_simulation(const struct EvaluationContext *eval_ctx
 			}
 
 			/* update simulation object... */
-			rigidbody_update_sim_ob(eval_ctx, scene, rbw, ob, rbo);
+			rigidbody_update_sim_ob(depsgraph, scene, rbw, ob, rbo);
 		}
 	}
-	FOREACH_GROUP_OBJECT_END;
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	
 	/* update constraints */
 	if (rbw->constraints == NULL) /* no constraints, move on */
 		return;
 
-	FOREACH_GROUP_OBJECT_BEGIN(rbw->constraints, ob)
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->constraints, ob)
 	{
 		/* validate that we've got valid object set up here... */
 		RigidBodyCon *rbc = ob->rigidbody_constraint;
 		/* update transformation matrix of the object so we don't get a frame of lag for simple animations */
-		BKE_object_where_is_calc(eval_ctx, scene, ob);
+		BKE_object_where_is_calc(depsgraph, scene, ob);
 
 		if (rbc == NULL) {
 			/* Since this object is included in the group but doesn't have
@@ -1430,12 +1432,12 @@ static void rigidbody_update_simulation(const struct EvaluationContext *eval_ctx
 			rbc->flag &= ~RBC_FLAG_NEEDS_VALIDATE;
 		}
 	}
-	FOREACH_GROUP_OBJECT_END;
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 }
 
 static void rigidbody_update_simulation_post_step(RigidBodyWorld *rbw)
 {
-	FOREACH_GROUP_BASE_BEGIN(rbw->group, base)
+	FOREACH_COLLECTION_BASE_RECURSIVE_BEGIN(rbw->group, base)
 	{
 		Object *ob = base->object;
 		RigidBodyOb *rbo = ob->rigidbody_object;
@@ -1448,7 +1450,7 @@ static void rigidbody_update_simulation_post_step(RigidBodyWorld *rbw)
 				RB_body_deactivate(rbo->physics_object);
 		}
 	}
-	FOREACH_GROUP_BASE_END
+	FOREACH_COLLECTION_BASE_RECURSIVE_END
 }
 
 bool BKE_rigidbody_check_sim_running(RigidBodyWorld *rbw, float ctime)
@@ -1563,7 +1565,7 @@ void BKE_rigidbody_cache_reset(RigidBodyWorld *rbw)
 
 /* Rebuild rigid body world */
 /* NOTE: this needs to be called before frame update to work correctly */
-void BKE_rigidbody_rebuild_world(const struct EvaluationContext *eval_ctx, Scene *scene, float ctime)
+void BKE_rigidbody_rebuild_world(struct Depsgraph *depsgraph, Scene *scene, float ctime)
 {
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 	PointCache *cache;
@@ -1575,14 +1577,15 @@ void BKE_rigidbody_rebuild_world(const struct EvaluationContext *eval_ctx, Scene
 	cache = rbw->pointcache;
 
 	/* flag cache as outdated if we don't have a world or number of objects in the simulation has changed */
-	if (rbw->physics_world == NULL || rbw->numbodies != BLI_listbase_count(&rbw->group->view_layer->object_bases)) {
+	const ListBase objects = BKE_collection_object_cache_get(rbw->group);
+	if (rbw->physics_world == NULL || rbw->numbodies != BLI_listbase_count(&objects)) {
 		cache->flag |= PTCACHE_OUTDATED;
 	}
 
 	if (ctime == startframe + 1 && rbw->ltime == startframe) {
 		if (cache->flag & PTCACHE_OUTDATED) {
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
-			rigidbody_update_simulation(eval_ctx, scene, rbw, true);
+			rigidbody_update_simulation(depsgraph, scene, rbw, true);
 			BKE_ptcache_validate(cache, (int)ctime);
 			cache->last_exact = 0;
 			cache->flag &= ~PTCACHE_REDO_NEEDED;
@@ -1591,7 +1594,7 @@ void BKE_rigidbody_rebuild_world(const struct EvaluationContext *eval_ctx, Scene
 }
 
 /* Run RigidBody simulation for the specified physics world */
-void BKE_rigidbody_do_simulation(const struct EvaluationContext *eval_ctx, Scene *scene, float ctime)
+void BKE_rigidbody_do_simulation(struct Depsgraph *depsgraph, Scene *scene, float ctime)
 {
 	float timestep;
 	RigidBodyWorld *rbw = scene->rigidbody_world;
@@ -1636,7 +1639,7 @@ void BKE_rigidbody_do_simulation(const struct EvaluationContext *eval_ctx, Scene
 		}
 
 		/* update and validate simulation */
-		rigidbody_update_simulation(eval_ctx, scene, rbw, false);
+		rigidbody_update_simulation(depsgraph, scene, rbw, false);
 
 		/* calculate how much time elapsed since last step in seconds */
 		timestep = 1.0f / (float)FPS * (ctime - rbw->ltime) * rbw->time_scale;
@@ -1657,7 +1660,7 @@ void BKE_rigidbody_do_simulation(const struct EvaluationContext *eval_ctx, Scene
 #else  /* WITH_BULLET */
 
 /* stubs */
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
@@ -1680,10 +1683,10 @@ void BKE_rigidbody_sync_transforms(RigidBodyWorld *rbw, Object *ob, float ctime)
 void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], float quat[4], float rotAxis[3], float rotAngle) {}
 bool BKE_rigidbody_check_sim_running(RigidBodyWorld *rbw, float ctime) { return false; }
 void BKE_rigidbody_cache_reset(RigidBodyWorld *rbw) {}
-void BKE_rigidbody_rebuild_world(const struct EvaluationContext *eval_ctx, Scene *scene, float ctime) {}
-void BKE_rigidbody_do_simulation(const struct EvaluationContext *eval_ctx, Scene *scene, float ctime) {}
+void BKE_rigidbody_rebuild_world(struct Depsgraph *depsgraph, Scene *scene, float ctime) {}
+void BKE_rigidbody_do_simulation(struct Depsgraph *depsgraph, Scene *scene, float ctime) {}
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #  pragma GCC diagnostic pop
 #endif
 
@@ -1692,35 +1695,35 @@ void BKE_rigidbody_do_simulation(const struct EvaluationContext *eval_ctx, Scene
 /* -------------------- */
 /* Depsgraph evaluation */
 
-void BKE_rigidbody_rebuild_sim(const struct EvaluationContext *eval_ctx,
+void BKE_rigidbody_rebuild_sim(struct Depsgraph *depsgraph,
                                Scene *scene)
 {
-	float ctime = BKE_scene_frame_get(scene);
-	DEG_debug_print_eval_time(__func__, scene->id.name, scene, ctime);
+	float ctime = DEG_get_ctime(depsgraph);
+	DEG_debug_print_eval_time(depsgraph, __func__, scene->id.name, scene, ctime);
 	/* rebuild sim data (i.e. after resetting to start of timeline) */
 	if (BKE_scene_check_rigidbody_active(scene)) {
-		BKE_rigidbody_rebuild_world(eval_ctx, scene, ctime);
+		BKE_rigidbody_rebuild_world(depsgraph, scene, ctime);
 	}
 }
 
-void BKE_rigidbody_eval_simulation(const struct EvaluationContext *eval_ctx,
+void BKE_rigidbody_eval_simulation(struct Depsgraph *depsgraph,
                                    Scene *scene)
 {
-	float ctime = BKE_scene_frame_get(scene);
-	DEG_debug_print_eval_time(__func__, scene->id.name, scene, ctime);
+	float ctime = DEG_get_ctime(depsgraph);
+	DEG_debug_print_eval_time(depsgraph, __func__, scene->id.name, scene, ctime);
 	/* evaluate rigidbody sim */
 	if (BKE_scene_check_rigidbody_active(scene)) {
-		BKE_rigidbody_do_simulation(eval_ctx, scene, ctime);
+		BKE_rigidbody_do_simulation(depsgraph, scene, ctime);
 	}
 }
 
-void BKE_rigidbody_object_sync_transforms(const struct EvaluationContext *UNUSED(eval_ctx),
+void BKE_rigidbody_object_sync_transforms(struct Depsgraph *depsgraph,
                                           Scene *scene,
                                           Object *ob)
 {
 	RigidBodyWorld *rbw = scene->rigidbody_world;
-	float ctime = BKE_scene_frame_get(scene);
-	DEG_debug_print_eval_time(__func__, ob->id.name, ob, ctime);
+	float ctime = DEG_get_ctime(depsgraph);
+	DEG_debug_print_eval_time(depsgraph, __func__, ob->id.name, ob, ctime);
 	/* read values pushed into RBO from sim/cache... */
 	BKE_rigidbody_sync_transforms(rbw, ob, ctime);
 }

@@ -230,7 +230,6 @@ static void find_iobject(const IObject &object, IObject &ret,
 }
 
 struct ExportJobData {
-	EvaluationContext eval_ctx;
 	Scene *scene;
 	ViewLayer *view_layer;
 	Depsgraph *depsgraph;
@@ -265,18 +264,17 @@ static void export_startjob(void *customdata, short *stop, short *do_update, flo
 
 	try {
 		Scene *scene = data->scene;
-		ViewLayer *view_layer = data->view_layer;
-		AbcExporter exporter(data->bmain, &data->eval_ctx, scene, view_layer, data->depsgraph, data->filename, data->settings);
+		AbcExporter exporter(data->bmain, scene, data->depsgraph, data->filename, data->settings);
 
 		const int orig_frame = CFRA;
 
 		data->was_canceled = false;
-		exporter(data->bmain, *data->progress, data->was_canceled);
+		exporter(*data->progress, data->was_canceled);
 
 		if (CFRA != orig_frame) {
 			CFRA = orig_frame;
 
-			BKE_scene_graph_update_for_newframe(data->bmain->eval_ctx, data->depsgraph, data->bmain, scene, data->view_layer);
+			BKE_scene_graph_update_for_newframe(data->depsgraph, data->bmain);
 		}
 
 		data->export_ok = !data->was_canceled;
@@ -314,8 +312,6 @@ bool ABC_export(
         bool as_background_job)
 {
 	ExportJobData *job = static_cast<ExportJobData *>(MEM_mallocN(sizeof(ExportJobData), "ExportJobData"));
-
-	CTX_data_eval_ctx(C, &job->eval_ctx);
 
 	job->scene = scene;
 	job->view_layer = CTX_data_view_layer(C);
@@ -650,6 +646,7 @@ struct ImportJobData {
 	bool import_ok;
 };
 
+#if 0
 ABC_INLINE bool is_mesh_and_strands(const IObject &object)
 {
 	bool has_mesh = false;
@@ -680,6 +677,7 @@ ABC_INLINE bool is_mesh_and_strands(const IObject &object)
 
 	return has_mesh && has_curve;
 }
+#endif
 
 static void import_startjob(void *user_data, short *stop, short *do_update, float *progress)
 {
@@ -842,18 +840,12 @@ static void import_endjob(void *user_data)
 		BKE_view_layer_base_deselect_all(view_layer);
 
 		lc = BKE_layer_collection_get_active(view_layer);
-		if (lc == NULL) {
-			BLI_assert(BLI_listbase_count_at_most(&view_layer->layer_collections, 1) == 0);
-			/* when there is no collection linked to this ViewLayer, create one */
-			SceneCollection *sc = BKE_collection_add(&data->scene->id, NULL, COLLECTION_TYPE_NONE, NULL);
-			lc = BKE_collection_link(view_layer, sc);
-		}
 
 		for (iter = data->readers.begin(); iter != data->readers.end(); ++iter) {
 			Object *ob = (*iter)->object();
 			ob->lay = data->scene->lay;
 
-			BKE_collection_object_add(&data->scene->id, lc->scene_collection, ob);
+			BKE_collection_object_add(data->bmain, lc->collection, ob);
 
 			base = BKE_view_layer_base_find(view_layer, ob);
 			BKE_view_layer_base_select(view_layer, base);

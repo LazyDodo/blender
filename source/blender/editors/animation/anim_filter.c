@@ -84,12 +84,12 @@
 #include "BLI_ghash.h"
 #include "BLI_string.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
-#include "BKE_fcurve.h"
+#include "BKE_animsys.h"
+#include "BKE_collection.h"
 #include "BKE_context.h"
+#include "BKE_fcurve.h"
 #include "BKE_global.h"
-#include "BKE_group.h"
 #include "BKE_key.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
@@ -230,11 +230,22 @@ static bool actedit_get_context(bAnimContext *ac, SpaceAction *saction)
 			ac->mode = saction->mode;
 			return true;
 		}
+		
 		case SACTCONT_DOPESHEET: /* DopeSheet */
 			/* update scene-pointer (no need to check for pinning yet, as not implemented) */
 			saction->ads.source = (ID *)ac->scene;
 			
 			ac->datatype = ANIMCONT_DOPESHEET;
+			ac->data = &saction->ads;
+			
+			ac->mode = saction->mode;
+			return true;
+		
+		case SACTCONT_TIMELINE: /* Timeline */
+			/* update scene-pointer (no need to check for pinning yet, as not implemented) */
+			saction->ads.source = (ID *)ac->scene;
+			
+			ac->datatype = ANIMCONT_TIMELINE;
 			ac->data = &saction->ads;
 			
 			ac->mode = saction->mode;
@@ -381,6 +392,7 @@ bool ANIM_animdata_get_context(const bContext *C, bAnimContext *ac)
 	if (scene) {
 		ac->markers = ED_context_get_markers(C);
 	}
+	ac->depsgraph = CTX_data_depsgraph(C);
 	ac->view_layer = CTX_data_view_layer(C);
 	ac->obact = (ac->view_layer->basact) ? ac->view_layer->basact->object : NULL;
 	ac->sa = sa;
@@ -1716,7 +1728,7 @@ static size_t animdata_filter_gpencil(bAnimContext *ac, ListBase *anim_data, voi
 				 *	- used to ease the process of doing multiple-character choreographies
 				 */
 				if (ads->filterflag & ADS_FILTER_ONLYOBGROUP) {
-					if (BKE_group_object_exists(ads->filter_grp, ob) == 0)
+					if (BKE_collection_has_object_recursive(ads->filter_grp, ob) == 0)
 						continue;
 				}
 				
@@ -2050,7 +2062,9 @@ static size_t animdata_filter_ds_texture(bAnimContext *ac, ListBase *anim_data, 
 	return items;
 }
 
-/* NOTE: owner_id is either material, lamp, or world block, which is the direct owner of the texture stack in question */
+/* NOTE: owner_id is the direct owner of the texture stack in question
+ *       It used to be Material/Lamp/World before the Blender Internal removal for 2.8
+ */
 static size_t animdata_filter_ds_textures(bAnimContext *ac, ListBase *anim_data, bDopeSheet *ads, ID *owner_id, int filter_mode)
 {
 	MTex **mtex = NULL;
@@ -2062,24 +2076,6 @@ static size_t animdata_filter_ds_textures(bAnimContext *ac, ListBase *anim_data,
 		return 0;
 	
 	switch (GS(owner_id->name)) {
-		case ID_MA:
-		{
-			Material *ma = (Material *)owner_id;
-			mtex = (MTex **)(&ma->mtex);
-			break;
-		}
-		case ID_LA:
-		{
-			Lamp *la = (Lamp *)owner_id;
-			mtex = (MTex **)(&la->mtex);
-			break;
-		}
-		case ID_WO:
-		{
-			World *wo = (World *)owner_id;
-			mtex = (MTex **)(&wo->mtex);
-			break;
-		}
 		case ID_PA:
 		{
 			ParticleSettings *part = (ParticleSettings *)owner_id;
@@ -2123,10 +2119,6 @@ static size_t animdata_filter_ds_material(bAnimContext *ac, ListBase *anim_data,
 	{
 		/* material's animation data */
 		tmp_items += animfilter_block_data(ac, &tmp_data, ads, (ID *)ma, filter_mode);
-			
-		/* textures */
-		if (!(ads->filterflag & ADS_FILTER_NOTEX))
-			tmp_items += animdata_filter_ds_textures(ac, &tmp_data, ads, (ID *)ma, filter_mode);
 			
 		/* nodes */
 		if ((ma->nodetree) && !(ads->filterflag & ADS_FILTER_NONTREE)) 
@@ -2446,10 +2438,6 @@ static size_t animdata_filter_ds_obdata(bAnimContext *ac, ListBase *anim_data, b
 				/* nodetree */
 				if ((ntree) && !(ads->filterflag & ADS_FILTER_NONTREE))
 					tmp_items += animdata_filter_ds_nodetree(ac, &tmp_data, ads, &la->id, ntree, filter_mode);
-				
-				/* textures */
-				if (!(ads->filterflag & ADS_FILTER_NOTEX))
-					tmp_items += animdata_filter_ds_textures(ac, &tmp_data, ads, &la->id, filter_mode);
 				break;
 			}
 		}
@@ -2654,10 +2642,6 @@ static size_t animdata_filter_ds_world(bAnimContext *ac, ListBase *anim_data, bD
 		/* animation data filtering */
 		tmp_items += animfilter_block_data(ac, &tmp_data, ads, (ID *)wo, filter_mode);
 		
-		/* textures for world */
-		if (!(ads->filterflag & ADS_FILTER_NOTEX))
-			tmp_items += animdata_filter_ds_textures(ac, &tmp_data, ads, (ID *)wo, filter_mode);
-			
 		/* nodes */
 		if ((wo->nodetree) && !(ads->filterflag & ADS_FILTER_NONTREE)) 
 			tmp_items += animdata_filter_ds_nodetree(ac, &tmp_data, ads, (ID *)wo, wo->nodetree, filter_mode);
@@ -2911,7 +2895,7 @@ static bool animdata_filter_base_is_ok(bDopeSheet *ads, Base *base, int filter_m
 	 *	- used to ease the process of doing multiple-character choreographies
 	 */
 	if (ads->filterflag & ADS_FILTER_ONLYOBGROUP) {
-		if (BKE_group_object_exists(ads->filter_grp, ob) == 0)
+		if (BKE_collection_has_object_recursive(ads->filter_grp, ob) == 0)
 			return false;
 	}
 	
@@ -3261,6 +3245,15 @@ size_t ANIM_animdata_filter(bAnimContext *ac, ListBase *anim_data, eAnimFilter_F
 				break;
 			}
 			
+			
+			/* Timeline Mode - Basically the same as dopesheet, except we only have the summary for now */
+			case ANIMCONT_TIMELINE:
+			{
+				/* the DopeSheet editor is the primary place where the DopeSheet summaries are useful */
+				if (animdata_filter_dopesheet_summary(ac, anim_data, filter_mode, &items))
+					items += animdata_filter_dopesheet(ac, anim_data, data, filter_mode);
+				break;
+			}
 			
 			/* Special/Internal Use */
 			case ANIMCONT_CHANNEL: /* animation channel */

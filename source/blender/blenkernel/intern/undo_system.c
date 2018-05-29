@@ -252,6 +252,15 @@ void BKE_undosys_stack_init_from_main(UndoStack *ustack, struct Main *bmain)
 	undosys_stack_push_main(ustack, "original", bmain);
 }
 
+/* called after 'BKE_undosys_stack_init_from_main' */
+void BKE_undosys_stack_init_from_context(UndoStack *ustack, bContext *C)
+{
+	const UndoType *ut = BKE_undosys_type_from_context(C);
+	if ((ut != NULL) && (ut != BKE_UNDOSYS_TYPE_MEMFILE) && (ut->mode == BKE_UNDOTYPE_MODE_STORE)) {
+		BKE_undosys_step_push_with_type(ustack, C, "original mode", ut);
+	}
+}
+
 /* name optional */
 bool BKE_undosys_stack_has_undo(UndoStack *ustack, const char *name)
 {
@@ -387,6 +396,9 @@ UndoStep *BKE_undosys_step_push_init(UndoStack *ustack, bContext *C, const char 
 	return BKE_undosys_step_push_init_with_type(ustack, C, name, ut);
 }
 
+/**
+ * \param C: Can be NULL from some callers if their encoding function doesn't need it
+ */
 bool BKE_undosys_step_push_with_type(UndoStack *ustack, bContext *C, const char *name, const UndoType *ut)
 {
 	UNDO_NESTED_ASSERT(false);
@@ -395,7 +407,7 @@ bool BKE_undosys_step_push_with_type(UndoStack *ustack, bContext *C, const char 
 
 	/* Might not be final place for this to be called - probably only want to call it from some
 	 * undo handlers, not all of them? */
-	BKE_main_override_static_operations_create(CTX_data_main(C));
+	BKE_main_override_static_operations_create(G.main, false);
 
 	/* Remove all undos after (also when 'ustack->step_active == NULL'). */
 	while (ustack->steps.last != ustack->step_active) {
@@ -503,6 +515,16 @@ UndoStep *BKE_undosys_step_find_by_name_with_type(UndoStack *ustack, const char 
 UndoStep *BKE_undosys_step_find_by_name(UndoStack *ustack, const char *name)
 {
 	return BLI_rfindstring(&ustack->steps, name, offsetof(UndoStep, name));
+}
+
+UndoStep *BKE_undosys_step_find_by_type(UndoStack *ustack, const UndoType *ut)
+{
+	for (UndoStep *us = ustack->steps.last; us; us = us->prev) {
+		if (us->type == ut) {
+			return us;
+		}
+	}
+	return NULL;
 }
 
 bool BKE_undosys_step_undo_with_data_ex(

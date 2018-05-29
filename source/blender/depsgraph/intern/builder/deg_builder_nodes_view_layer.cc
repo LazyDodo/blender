@@ -65,11 +65,21 @@ extern "C" {
 
 namespace DEG {
 
+void DepsgraphNodeBuilder::build_layer_collections(ListBase *lb)
+{
+	for (LayerCollection *lc = (LayerCollection *)lb->first; lc; lc = lc->next) {
+		build_collection(lc->collection);
+		build_layer_collections(&lc->layer_collections);
+	}
+}
+
 void DepsgraphNodeBuilder::build_view_layer(
         Scene *scene,
         ViewLayer *view_layer,
         eDepsNode_LinkedState_Type linked_state)
 {
+	view_layer_index_ = BLI_findindex(&scene->view_layers, view_layer);
+	BLI_assert(view_layer_index_ != -1);
 	/* Scene ID block. */
 	add_id_node(&scene->id);
 	/* Time source. */
@@ -98,6 +108,7 @@ void DepsgraphNodeBuilder::build_view_layer(
 		base->object->select_color = select_color++;
 		++base_index;
 	}
+	build_layer_collections(&view_layer->layer_collections);
 	if (scene->camera != NULL) {
 		build_object(-1, scene->camera, DEG_ID_LINKED_INDIRECTLY);
 	}
@@ -134,14 +145,12 @@ void DepsgraphNodeBuilder::build_view_layer(
 		build_movieclip(clip);
 	}
 	/* Collections. */
-	int view_layer_index = BLI_findindex(&scene->view_layers, view_layer);
-	BLI_assert(view_layer_index != -1);
 	add_operation_node(&scene->id,
 	                   DEG_NODE_TYPE_LAYER_COLLECTIONS,
 	                   function_bind(BKE_layer_eval_view_layer_indexed,
 	                                 _1,
-	                                 &scene_cow->id,
-	                                 view_layer_index),
+	                                 scene_cow,
+	                                 view_layer_index_),
 	                   DEG_OPCODE_VIEW_LAYER_EVAL);
 	/* Parameters evaluation for scene relations mainly. */
 	add_operation_node(&scene->id,
@@ -151,7 +160,7 @@ void DepsgraphNodeBuilder::build_view_layer(
 	                   "Scene Eval");
 	/* Build all set scenes. */
 	if (scene->set != NULL) {
-		ViewLayer *set_view_layer = BKE_view_layer_from_scene_get(scene->set);
+		ViewLayer *set_view_layer = BKE_view_layer_default_render(scene->set);
 		build_view_layer(scene->set, set_view_layer, DEG_ID_LINKED_VIA_SET);
 	}
 }

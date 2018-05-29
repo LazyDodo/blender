@@ -438,6 +438,7 @@ typedef enum eDriver_Types {
 } eDriver_Types;
 
 /* driver flags */
+/* note: (1<<5) is deprecated; was "DRIVER_FLAG_SHOWDEBUG" */
 typedef enum eDriver_Flags {
 		/* driver has invalid settings (internal flag)  */
 	DRIVER_FLAG_INVALID		= (1<<0),
@@ -450,8 +451,6 @@ typedef enum eDriver_Flags {
 	DRIVER_FLAG_RECOMPILE	= (1<<3),
 		/* the names are cached so they don't need have python unicode versions created each time */
 	DRIVER_FLAG_RENAMEVAR	= (1<<4),
-		/* intermediate values of driver should be shown in the UI for debugging purposes */
-	DRIVER_FLAG_SHOWDEBUG	= (1<<5),
 		/* include 'self' in the drivers namespace. */
 	DRIVER_FLAG_USE_SELF	= (1<<6),
 } eDriver_Flags;
@@ -488,11 +487,13 @@ typedef struct FCurve {
 	
 		/* value cache + settings */
 	float curval;			/* value stored from last time curve was evaluated (not threadsafe, debug display only!) */
+	/* Value which comes from original DNA ddatablock at a time f-curve was evaluated. */
+	float orig_dna_val;
 	short flag;				/* user-editable settings for this curve */
 	short extend;			/* value-extending mode for this curve (does not cover  */
 	char auto_smoothing;	/* auto-handle smoothing mode */
 	
-	char pad[7];
+	char pad[3];
 
 		/* RNA - data link */
 	int array_index;		/* if applicable, the index of the RNA-array item to get */
@@ -840,17 +841,18 @@ typedef enum eKS_Settings {
 
 /* Flags for use by keyframe creation/deletion calls */
 typedef enum eInsertKeyFlags {
+	INSERTKEY_NOFLAGS       = 0,
 	INSERTKEY_NEEDED 	= (1<<0),	/* only insert keyframes where they're needed */
 	INSERTKEY_MATRIX 	= (1<<1),	/* insert 'visual' keyframes where possible/needed */
 	INSERTKEY_FAST 		= (1<<2),	/* don't recalculate handles,etc. after adding key */
 	INSERTKEY_FASTR		= (1<<3),	/* don't realloc mem (or increase count, as array has already been set out) */
 	INSERTKEY_REPLACE 	= (1<<4),	/* only replace an existing keyframe (this overrides INSERTKEY_NEEDED) */
 	INSERTKEY_XYZ2RGB	= (1<<5),	/* transform F-Curves should have XYZ->RGB color mode */
-	INSERTKEY_NO_USERPREF	= (1 << 6),	/* ignore user-prefs (needed for predictable API use) */
+	INSERTKEY_NO_USERPREF	= (1<<6),	/* ignore user-prefs (needed for predictable API use) */
 	/* Allow to make a full copy of new key into existing one, if any, instead of 'reusing' existing handles.
 	 * Used by copy/paste code. */
 	INSERTKEY_OVERWRITE_FULL = (1<<7),
-	INSERTKEY_DRIVER    = (1<<8),	/* for driver FCurves, use driver's "input" value - for easier corrective driver setup */
+	INSERTKEY_DRIVER         = (1<<8),	/* for driver FCurves, use driver's "input" value - for easier corrective driver setup */
 } eInsertKeyFlags;
 
 /* ************************************************ */
@@ -959,6 +961,8 @@ typedef enum eAnimData_Flag {
 typedef enum eAnimData_Recalc {
 	ADT_RECALC_DRIVERS      = (1 << 0),
 	ADT_RECALC_ANIM         = (1 << 1),
+	/* Only apply f-curve value if its original DNA value matches current DNA value. */
+	ADT_RECALC_CHECK_ORIG_DNA = (1 << 2),
 	ADT_RECALC_ALL          = (ADT_RECALC_DRIVERS | ADT_RECALC_ANIM)
 } eAnimData_Recalc;
 

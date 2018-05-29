@@ -1,5 +1,6 @@
 
-uniform sampler2DArray shadowTexture;
+uniform sampler2DArray shadowCubeTexture;
+uniform sampler2DArray shadowCascadeTexture;
 
 #define LAMPS_LIB
 
@@ -14,27 +15,41 @@ layout(std140) uniform light_block {
 };
 
 /* type */
-#define POINT    0.0
-#define SUN      1.0
-#define SPOT     2.0
-#define HEMI     3.0
-#define AREA     4.0
+#define POINT          0.0
+#define SUN            1.0
+#define SPOT           2.0
+#define HEMI           3.0
+#define AREA_RECT      4.0
+/* Used to define the area lamp shape, doesn't directly correspond to a Blender lamp type. */
+#define AREA_ELLIPSE 100.0
+
+#if defined(SHADOW_VSM)
+#define ShadowSample vec2
+#define sample_cube(vec, id)    texture_octahedron(shadowCubeTexture, vec4(vec, id)).rg
+#define sample_cascade(vec, id) texture(shadowCascadeTexture, vec3(vec, id)).rg
+#elif defined(SHADOW_ESM)
+#define ShadowSample float
+#define sample_cube(vec, id)    texture_octahedron(shadowCubeTexture, vec4(vec, id)).r
+#define sample_cascade(vec, id) texture(shadowCascadeTexture, vec3(vec, id)).r
+#else
+#define ShadowSample float
+#define sample_cube(vec, id)    texture_octahedron(shadowCubeTexture, vec4(vec, id)).r
+#define sample_cascade(vec, id) texture(shadowCascadeTexture, vec3(vec, id)).r
+#endif
+
+#if defined(SHADOW_VSM)
+#define get_depth_delta(s) (dist - s.x)
+#else
+#define get_depth_delta(s) (dist - s)
+#endif
 
 /* ----------------------------------------------------------- */
 /* ----------------------- Shadow tests ---------------------- */
 /* ----------------------------------------------------------- */
 
-float shadow_test_esm(float z, float dist, float exponent)
-{
-	return saturate(exp(exponent * (z - dist)));
-}
+#if defined(SHADOW_VSM)
 
-float shadow_test_pcf(float z, float dist)
-{
-	return step(0, z - dist);
-}
-
-float shadow_test_vsm(vec2 moments, float dist, float bias, float bleed_bias)
+float shadow_test(ShadowSample moments, float dist, ShadowData sd)
 {
 	float p = 0.0;
 
@@ -42,17 +57,32 @@ float shadow_test_vsm(vec2 moments, float dist, float bias, float bleed_bias)
 		p = 1.0;
 
 	float variance = moments.y - (moments.x * moments.x);
-	variance = max(variance, bias / 10.0);
+	variance = max(variance, sd.sh_bias / 10.0);
 
 	float d = moments.x - dist;
 	float p_max = variance / (variance + d * d);
 
 	/* Now reduce light-bleeding by removing the [0, x] tail and linearly rescaling (x, 1] */
-	p_max = clamp((p_max - bleed_bias) / (1.0 - bleed_bias), 0.0, 1.0);
+	p_max = clamp((p_max - sd.sh_bleed) / (1.0 - sd.sh_bleed), 0.0, 1.0);
 
 	return max(p, p_max);
 }
 
+#elif defined(SHADOW_ESM)
+
+float shadow_test(ShadowSample z, float dist, ShadowData sd)
+{
+	return saturate(exp(sd.sh_exp * (z - dist + sd.sh_bias)));
+}
+
+#else
+
+float shadow_test(ShadowSample z, float dist, ShadowData sd)
+{
+	return step(0, z - dist + sd.sh_bias);
+}
+
+#endif
 
 /* ----------------------------------------------------------- */
 /* ----------------------- Shadow types ---------------------- */
@@ -71,19 +101,8 @@ float shadow_cubemap(ShadowData sd, ShadowCubeData scd, float texid, vec3 W)
 
 	cubevec /= dist;
 
-#if defined(SHADOW_VSM)
-	vec2 moments = texture_octahedron(shadowTexture, vec4(cubevec, texid)).rg;
-#else
-	float z = texture_octahedron(shadowTexture, vec4(cubevec, texid)).r;
-#endif
-
-#if defined(SHADOW_VSM)
-	return shadow_test_vsm(moments, dist, sd.sh_bias, sd.sh_bleed);
-#elif defined(SHADOW_ESM)
-	return shadow_test_esm(z, dist - sd.sh_bias, sd.sh_exp);
-#else
-	return shadow_test_pcf(z, dist - sd.sh_bias);
-#endif
+	ShadowSample s = sample_cube(cubevec, texid);
+	return shadow_test(s, dist, sd);
 }
 
 float evaluate_cascade(ShadowData sd, mat4 shadowmat, vec3 W, float range, float texid)
@@ -91,20 +110,8 @@ float evaluate_cascade(ShadowData sd, mat4 shadowmat, vec3 W, float range, float
 	vec4 shpos = shadowmat * vec4(W, 1.0);
 	float dist = shpos.z * range;
 
-#if defined(SHADOW_VSM)
-	vec2 moments = texture(shadowTexture, vec3(shpos.xy, texid)).rg;
-#else
-	float z = texture(shadowTexture, vec3(shpos.xy, texid)).r;
-#endif
-
-	float vis;
-#if defined(SHADOW_VSM)
-	vis = shadow_test_vsm(moments, dist, sd.sh_bias, sd.sh_bleed);
-#elif defined(SHADOW_ESM)
-	vis = shadow_test_esm(z, dist - sd.sh_bias, sd.sh_exp);
-#else
-	vis = shadow_test_pcf(z, dist - sd.sh_bias);
-#endif
+	ShadowSample s = sample_cascade(shpos.xy, texid);
+	float vis = shadow_test(s, dist, sd);
 
 	/* If fragment is out of shadowmap range, do not occlude */
 	if (shpos.z < 1.0 && shpos.z > 0.0) {
@@ -125,6 +132,7 @@ float shadow_cascade(ShadowData sd, ShadowCascadeData scd, float texid, vec3 W)
 	float range = abs(sd.sh_far - sd.sh_near); /* Same factor as in get_cascade_world_distance(). */
 
 	/* Branching using (weights > 0.0) is reaally slooow on intel so avoid it for now. */
+	/* TODO OPTI: Only do 2 samples and blend. */
 	vis.x = evaluate_cascade(sd, scd.shadowmat[0], W, range, texid + 0);
 	vis.y = evaluate_cascade(sd, scd.shadowmat[1], W, range, texid + 1);
 	vis.z = evaluate_cascade(sd, scd.shadowmat[2], W, range, texid + 2);
@@ -168,7 +176,7 @@ float light_visibility(LightData ld, vec3 W,
 		vis *= spotmask;
 		vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 	}
-	else if (ld.l_type == AREA) {
+	else if (ld.l_type == AREA_RECT || ld.l_type == AREA_ELLIPSE) {
 		vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 	}
 
@@ -204,7 +212,6 @@ float light_visibility(LightData ld, vec3 W,
 			make_orthonormal_basis(L.xyz / L.w, T, B);
 
 			vec4 rand = texelfetch_noise_tex(gl_FragCoord.xy);
-			/* WATCH THIS : This still seems to have correlation artifacts for low samples. */
 			rand.zw *= fast_sqrt(rand.y) * data.sh_contact_spread;
 
 			/* We use the full l_vector.xyz so that the spread is minimize
@@ -212,15 +219,27 @@ float light_visibility(LightData ld, vec3 W,
 			vec3 ray_dir = L.xyz + T * rand.z + B * rand.w;
 			ray_dir = transform_direction(ViewMatrix, ray_dir);
 			ray_dir = normalize(ray_dir);
-			vec3 ray_origin = viewPosition + viewNormal * data.sh_contact_offset;
-			vec3 hit_pos = raycast(-1, ray_origin, ray_dir * trace_distance, data.sh_contact_thickness, rand.x,
-			                       0.75, 0.01, false);
+
+			vec3 ray_ori = viewPosition;
+
+			float bias = 0.5; /* Constant Bias */
+			bias += 1.0 - abs(dot(viewNormal, ray_dir)); /* Angle dependant bias */
+			bias *= gl_FrontFacing ? data.sh_contact_offset : -data.sh_contact_offset;
+
+			vec3 nor_bias = viewNormal * bias;
+			ray_ori += nor_bias;
+
+			ray_dir *= trace_distance;
+			ray_dir -= nor_bias;
+
+			vec3 hit_pos = raycast(-1, ray_ori, ray_dir, data.sh_contact_thickness, rand.x,
+			                       0.1, 0.001, false);
 
 			if (hit_pos.z > 0.0) {
 				hit_pos = get_view_space_from_depth(hit_pos.xy, hit_pos.z);
 				float hit_dist = distance(viewPosition, hit_pos);
 				float dist_ratio = hit_dist / trace_distance;
-				return mix(0.0, vis, dist_ratio * dist_ratio * dist_ratio);
+				return vis * saturate(dist_ratio * dist_ratio * dist_ratio);
 			}
 		}
 #endif
@@ -236,8 +255,11 @@ float light_diffuse(LightData ld, vec3 N, vec3 V, vec4 l_vector)
 	if (ld.l_type == SUN) {
 		return direct_diffuse_unit_disc(ld, N, V);
 	}
-	else if (ld.l_type == AREA) {
+	else if (ld.l_type == AREA_RECT) {
 		return direct_diffuse_rectangle(ld, N, V, l_vector);
+	}
+	else if (ld.l_type == AREA_ELLIPSE) {
+		return direct_diffuse_ellipse(ld, N, V, l_vector);
 	}
 	else {
 		return direct_diffuse_sphere(ld, N, l_vector);
@@ -258,8 +280,11 @@ vec3 light_specular(LightData ld, vec3 N, vec3 V, vec4 l_vector, float roughness
 	if (ld.l_type == SUN) {
 		return direct_ggx_unit_disc(ld, N, V, roughness, f0);
 	}
-	else if (ld.l_type == AREA) {
+	else if (ld.l_type == AREA_RECT) {
 		return direct_ggx_rectangle(ld, N, V, l_vector, roughness, f0);
+	}
+	else if (ld.l_type == AREA_ELLIPSE) {
+		return direct_ggx_ellipse(ld, N, V, l_vector, roughness, f0);
 	}
 	else {
 		return direct_ggx_sphere(ld, N, V, l_vector, roughness, f0);
@@ -309,7 +334,6 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 		make_orthonormal_basis(L.xyz / L.w, T, B);
 
 		vec4 rand = texelfetch_noise_tex(gl_FragCoord.xy);
-		/* WATCH THIS : This still seems to have correlation artifacts for low samples. */
 		rand.zw *= fast_sqrt(rand.y) * data.sh_blur;
 
 		/* We use the full l_vector.xyz so that the spread is minimize
@@ -336,13 +360,8 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 				return vec3(0.0);
 			}
 
-#if defined(SHADOW_VSM)
-			vec2 moments = texture(shadowTexture, vec3(shpos.xy, data.sh_tex_start + id)).rg;
-			delta = dist - moments.x;
-#else
-			float z = texture(shadowTexture, vec3(shpos.xy, data.sh_tex_start + id)).r;
-			delta = dist - z;
-#endif
+			ShadowSample s = sample_cascade(shpos.xy, data.sh_tex_start + id);
+			delta = get_depth_delta(s);
 		}
 		else {
 			vec3 cubevec = W - shadows_cube_data[int(data.sh_data_start)].position.xyz;
@@ -354,21 +373,19 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 			if (dist < data.sh_far) {
 				cubevec /= dist;
 
-#if defined(SHADOW_VSM)
-				vec2 moments = texture_octahedron(shadowTexture, vec4(cubevec, data.sh_tex_start)).rg;
-				delta = dist - moments.x;
-#else
-				float z = texture_octahedron(shadowTexture, vec4(cubevec, data.sh_tex_start)).r;
-				delta = dist - z;
-#endif
+				ShadowSample s = sample_cube(cubevec, data.sh_tex_start);
+				delta = get_depth_delta(s);
 			}
 		}
 
 		/* XXX : Removing Area Power. */
 		/* TODO : put this out of the shader. */
 		float falloff;
-		if (ld.l_type == AREA) {
+		if (ld.l_type == AREA_RECT || ld.l_type == AREA_ELLIPSE) {
 			vis *= (ld.l_sizex * ld.l_sizey * 4.0 * M_PI) * (1.0 / 80.0);
+			if (ld.l_type == AREA_ELLIPSE) {
+				vis *= M_PI * 0.25;
+			}
 			vis *= 0.3 * 20.0 * max(0.0, dot(-ld.l_forward, l_vector.xyz / l_vector.w)); /* XXX ad hoc, empirical */
 			vis /= (l_vector.w * l_vector.w);
 			falloff = dot(N, l_vector.xyz / l_vector.w);
@@ -406,7 +423,7 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 			vis *= spotmask;
 			vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 		}
-		else if (ld.l_type == AREA) {
+		else if (ld.l_type == AREA_RECT || ld.l_type == AREA_ELLIPSE) {
 			vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 		}
 	}
@@ -417,31 +434,3 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 	return vis;
 #endif
 }
-
-#ifdef HAIR_SHADER
-void light_hair_common(
-        LightData ld, vec3 N, vec3 V, vec4 l_vector, vec3 norm_view,
-        out float occlu_trans, out float occlu,
-        out vec3 norm_lamp, out vec3 view_vec)
-{
-	const float transmission = 0.3; /* Uniform internal scattering factor */
-
-	vec3 lamp_vec;
-
-	if (ld.l_type == SUN || ld.l_type == AREA) {
-		lamp_vec = ld.l_forward;
-	}
-	else {
-		lamp_vec = -l_vector.xyz;
-	}
-
-	norm_lamp = cross(lamp_vec, N);
-	norm_lamp = normalize(cross(N, norm_lamp)); /* Normal facing lamp */
-
-	/* Rotate view vector onto the cross(tangent, light) plane */
-	view_vec = normalize(norm_lamp * dot(norm_view, V) + N * dot(N, V));
-
-	occlu = (dot(norm_view, norm_lamp) * 0.5 + 0.5);
-	occlu_trans = transmission + (occlu * (1.0 - transmission)); /* Includes transmission component */
-}
-#endif

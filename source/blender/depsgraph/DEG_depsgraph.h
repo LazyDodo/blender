@@ -60,7 +60,6 @@ typedef struct Depsgraph Depsgraph;
 
 /* ------------------------------------------------ */
 
-struct EvaluationContext;
 struct Main;
 
 struct PointerRNA;
@@ -74,20 +73,6 @@ typedef enum eEvaluationMode {
 	DAG_EVAL_PREVIEW        = 1,    /* evaluate for render with preview settings */
 	DAG_EVAL_RENDER         = 2,    /* evaluate for render purposes */
 } eEvaluationMode;
-
-/* Dependency graph evaluation context
- *
- * This structure stores all the local dependency graph data,
- * which is needed for it's evaluation,
- */
-typedef struct EvaluationContext {
-	eEvaluationMode mode;
-	float ctime;
-
-	struct Depsgraph *depsgraph;
-	struct ViewLayer *view_layer;
-	struct RenderEngineType *engine_type;
-} EvaluationContext;
 
 /* DagNode->eval_flags */
 enum {
@@ -107,7 +92,7 @@ extern "C" {
 #endif
 
 bool DEG_depsgraph_use_copy_on_write(void);
-void DEG_depsgraph_enable_copy_on_write(void);
+void DEG_depsgraph_disable_copy_on_write(void);
 
 /* ************************************************ */
 /* Depsgraph API */
@@ -118,7 +103,9 @@ void DEG_depsgraph_enable_copy_on_write(void);
 
 /* Create new Depsgraph instance */
 // TODO: what args are needed here? What's the building-graph entry point?
-Depsgraph *DEG_graph_new(void);
+Depsgraph *DEG_graph_new(struct Scene *scene,
+                         struct ViewLayer *view_layer,
+                         eEvaluationMode mode);
 
 /* Free Depsgraph itself and all its data */
 void DEG_graph_free(Depsgraph *graph);
@@ -169,6 +156,9 @@ typedef enum eDepsgraph_Tag {
 	/* Only inform editors about the change. Don't modify datablock itself. */
 	DEG_TAG_EDITORS_UPDATE = (1 << 12),
 } eDepsgraph_Tag;
+
+const char *DEG_update_tag_as_string(eDepsgraph_Tag flag);
+
 void DEG_id_tag_update(struct ID *id, int flag);
 void DEG_id_tag_update_ex(struct Main *bmain, struct ID *id, int flag);
 
@@ -202,54 +192,20 @@ void DEG_ids_check_recalc(struct Main *bmain,
 /* ************************************************ */
 /* Evaluation Engine API */
 
-/* Evaluation Context ---------------------------- */
-
-/* Create new evaluation context. */
-struct EvaluationContext *DEG_evaluation_context_new(eEvaluationMode mode);
-
-/* Initialize evaluation context.
- * Used by the areas which currently overrides the context or doesn't have
- * access to a proper one.
- */
-void DEG_evaluation_context_init(struct EvaluationContext *eval_ctx,
-                                 eEvaluationMode mode);
-void DEG_evaluation_context_init_from_scene(
-        struct EvaluationContext *eval_ctx,
-        struct Scene *scene,
-        struct ViewLayer *view_layer,
-        struct RenderEngineType *engine_type,
-        eEvaluationMode mode);
-
-void DEG_evaluation_context_init_from_view_layer_for_render(
-        struct EvaluationContext *eval_ctx,
-        struct Depsgraph *depsgraph,
-        struct Scene *scene,
-        struct ViewLayer *view_layer);
-
-void DEG_evaluation_context_init_from_depsgraph(
-        struct EvaluationContext *eval_ctx,
-        struct Depsgraph *depsgraph,
-        eEvaluationMode mode);
-
-/* Free evaluation context. */
-void DEG_evaluation_context_free(struct EvaluationContext *eval_ctx);
-
 /* Graph Evaluation  ----------------------------- */
 
 /* Frame changed recalculation entry point
  * < context_type: context to perform evaluation for
  * < ctime: (frame) new frame to evaluate values on
  */
-void DEG_evaluate_on_framechange(struct EvaluationContext *eval_ctx,
-                                 struct Main *bmain,
+void DEG_evaluate_on_framechange(struct Main *bmain,
                                  Depsgraph *graph,
                                  float ctime);
 
 /* Data changed recalculation entry point.
  * < context_type: context to perform evaluation for
  */
-void DEG_evaluate_on_refresh(struct EvaluationContext *eval_ctx,
-                             Depsgraph *graph);
+void DEG_evaluate_on_refresh(Depsgraph *graph);
 
 bool DEG_needs_eval(Depsgraph *graph);
 
@@ -278,18 +234,23 @@ void DEG_editors_set_update_cb(DEG_EditorUpdateIDCb id_func,
 
 /* Evaluation Debug ------------------------------ */
 
-void DEG_debug_print_eval(const char* function_name,
+void DEG_debug_print_begin(struct Depsgraph *depsgraph);
+
+void DEG_debug_print_eval(struct Depsgraph *depsgraph,
+                          const char* function_name,
                           const char* object_name,
                           const void* object_address);
 
-void DEG_debug_print_eval_subdata(const char *function_name,
+void DEG_debug_print_eval_subdata(struct Depsgraph *depsgraph,
+                                  const char *function_name,
                                   const char *object_name,
                                   const void *object_address,
                                   const char *subdata_comment,
                                   const char *subdata_name,
                                   const void *subdata_address);
 
-void DEG_debug_print_eval_subdata_index(const char *function_name,
+void DEG_debug_print_eval_subdata_index(struct Depsgraph *depsgraph,
+                                        const char *function_name,
                                         const char *object_name,
                                         const void *object_address,
                                         const char *subdata_comment,
@@ -297,7 +258,16 @@ void DEG_debug_print_eval_subdata_index(const char *function_name,
                                         const void *subdata_address,
                                         const int subdata_index);
 
-void DEG_debug_print_eval_time(const char* function_name,
+void DEG_debug_print_eval_parent_typed(struct Depsgraph *depsgraph,
+                                       const char *function_name,
+                                       const char *object_name,
+                                       const void *object_address,
+                                       const char *parent_comment,
+                                       const char *parent_name,
+                                       const void *parent_address);
+
+void DEG_debug_print_eval_time(struct Depsgraph *depsgraph,
+                               const char* function_name,
                                const char* object_name,
                                const void* object_address,
                                float time);

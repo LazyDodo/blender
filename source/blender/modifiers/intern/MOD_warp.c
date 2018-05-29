@@ -29,18 +29,23 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_object_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
+#include "DNA_object_types.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
-#include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
 #include "BKE_deform.h"
 #include "BKE_texture.h"
 #include "BKE_colortools.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RE_shader_ext.h"
 
@@ -59,14 +64,10 @@ static void initData(ModifierData *md)
 	wmd->flag = 0;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	WarpModifierData *wmd = (WarpModifierData *) md;
+	const WarpModifierData *wmd = (const WarpModifierData *) md;
 	WarpModifierData *twmd = (WarpModifierData *) target;
-
-	if (twmd->curfalloff != NULL) {
-		curvemapping_free(twmd->curfalloff);
-	}
 
 	modifier_copyData_generic(md, target);
 
@@ -149,9 +150,12 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static void warpModifier_do(WarpModifierData *wmd, Object *ob,
-                            DerivedMesh *dm, float (*vertexCos)[3], int numVerts)
+static void warpModifier_do(
+        WarpModifierData *wmd, const ModifierEvalContext *ctx,
+        Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
+	Object *ob = ctx->object;
+	Depsgraph *depsgraph = ctx->depsgraph;
 	float obinv[4][4];
 	float mat_from[4][4];
 	float mat_from_inv[4][4];
@@ -173,7 +177,7 @@ static void warpModifier_do(WarpModifierData *wmd, Object *ob,
 	if (!(wmd->object_from && wmd->object_to))
 		return;
 
-	modifier_get_vgroup(ob, dm, wmd->defgrp_name, &dvert, &defgrp_index);
+	modifier_get_vgroup_mesh(ob, mesh, wmd->defgrp_name, &dvert, &defgrp_index);
 	if (dvert == NULL) {
 		defgrp_index = -1;
 	}
@@ -211,9 +215,9 @@ static void warpModifier_do(WarpModifierData *wmd, Object *ob,
 
 	if (wmd->texture) {
 		tex_co = MEM_malloc_arrayN(numVerts, sizeof(*tex_co), "warpModifier_do tex_co");
-		get_texture_coords((MappingInfoModifierData *)wmd, ob, dm, vertexCos, tex_co, numVerts);
+		get_texture_coords_mesh((MappingInfoModifierData *)wmd, ob, mesh, vertexCos, tex_co);
 
-		modifier_init_texture(wmd->modifier.scene, wmd->texture);
+		modifier_init_texture(depsgraph, wmd->texture);
 	}
 
 	for (i = 0; i < numVerts; i++) {
@@ -299,48 +303,42 @@ static void warpModifier_do(WarpModifierData *wmd, Object *ob,
 		}
 	}
 
-	if (tex_co)
+	if (tex_co) {
 		MEM_freeN(tex_co);
-
-}
-
-static int warp_needs_dm(WarpModifierData *wmd)
-{
-	return wmd->texture || wmd->defgrp_name[0];
-}
-
-static void deformVerts(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx), Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3], int numVerts, ModifierApplyFlag UNUSED(flag))
-{
-	DerivedMesh *dm = NULL;
-	int use_dm = warp_needs_dm((WarpModifierData *)md);
-
-	if (use_dm) {
-		dm = get_cddm(ob, NULL, derivedData, vertexCos, false);
-	}
-
-	warpModifier_do((WarpModifierData *)md, ob, dm, vertexCos, numVerts);
-
-	if (use_dm) {
-		if (dm != derivedData) dm->release(dm);
 	}
 }
 
-static void deformVertsEM(ModifierData *md, const struct EvaluationContext *eval_ctx, Object *ob, struct BMEditMesh *em,
-                          DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh,
+        float (*vertexCos)[3], int numVerts)
 {
-	DerivedMesh *dm = derivedData;
-	int use_dm = warp_needs_dm((WarpModifierData *)md);
+	Mesh *mesh_src = mesh;
 
-	if (use_dm) {
-		if (!derivedData)
-			dm = CDDM_from_editbmesh(em, false, false);
+	if (mesh_src == NULL) {
+		mesh_src = ctx->object->data;
 	}
 
-	deformVerts(md, eval_ctx, ob, dm, vertexCos, numVerts, 0);
+	BLI_assert(mesh_src->totvert == numVerts);
 
-	if (use_dm) {
-		if (!derivedData) dm->release(dm);
+	warpModifier_do((WarpModifierData *)md, ctx, mesh_src, vertexCos, numVerts);
+}
+
+static void deformVertsEM(
+        ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *em,
+        Mesh *mesh, float (*vertexCos)[3], int numVerts)
+{
+	Mesh *mesh_src = mesh;
+
+	if (mesh_src == NULL) {
+		mesh_src = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
+	}
+
+	BLI_assert(mesh_src->totvert == numVerts);
+
+	warpModifier_do((WarpModifierData *)md, ctx, mesh_src, vertexCos, numVerts);
+
+	if (!mesh) {
+		BKE_id_free(NULL, mesh_src);
 	}
 }
 
@@ -354,12 +352,21 @@ ModifierTypeInfo modifierType_Warp = {
 	                        eModifierTypeFlag_AcceptsLattice |
 	                        eModifierTypeFlag_SupportsEditmode,
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,

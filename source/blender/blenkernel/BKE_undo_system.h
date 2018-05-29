@@ -137,6 +137,7 @@ void            BKE_undosys_stack_destroy(UndoStack *ustack);
 void            BKE_undosys_stack_clear(UndoStack *ustack);
 bool            BKE_undosys_stack_has_undo(UndoStack *ustack, const char *name);
 void            BKE_undosys_stack_init_from_main(UndoStack *ustack, struct Main *bmain);
+void            BKE_undosys_stack_init_from_context(UndoStack *ustack, struct bContext *C);
 UndoStep       *BKE_undosys_stack_active_with_type(UndoStack *ustack, const UndoType *ut);
 UndoStep       *BKE_undosys_stack_init_or_active_with_type(UndoStack *ustack, const UndoType *ut);
 void            BKE_undosys_stack_limit_steps_and_memory(UndoStack *ustack, int steps, size_t memory_limit);
@@ -149,6 +150,7 @@ bool BKE_undosys_step_push_with_type(UndoStack *ustack, struct bContext *C, cons
 bool BKE_undosys_step_push(UndoStack *ustack, struct bContext *C, const char *name);
 
 UndoStep *BKE_undosys_step_find_by_name_with_type(UndoStack *ustack, const char *name, const UndoType *ut);
+UndoStep *BKE_undosys_step_find_by_type(UndoStack *ustack, const UndoType *ut);
 UndoStep *BKE_undosys_step_find_by_name(UndoStack *ustack, const char *name);
 
 bool BKE_undosys_step_undo_with_data_ex(UndoStack *ustack, struct bContext *C, UndoStep *us, bool use_skip);

@@ -41,7 +41,6 @@ void ED_spacemacros_init(void);
 
 /* calls for registering default spaces */
 void ED_spacetype_outliner(void);
-void ED_spacetype_time(void);
 void ED_spacetype_view3d(void);
 void ED_spacetype_ipo(void);
 void ED_spacetype_image(void);
@@ -58,6 +57,8 @@ void ED_spacetype_logic(void);
 void ED_spacetype_console(void);
 void ED_spacetype_userpref(void);
 void ED_spacetype_clip(void);
+void ED_spacetype_statusbar(void);
+void ED_spacetype_topbar(void);
 
 /* calls for instancing and freeing spacetype static data 
  * called in WM_init_exit */

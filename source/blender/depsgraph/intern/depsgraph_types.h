@@ -49,8 +49,8 @@ struct bAction;
 struct ChannelDriver;
 struct ModifierData;
 struct PointerRNA;
-struct EvaluationContext;
 struct FCurve;
+struct Depsgraph;
 
 namespace DEG {
 
@@ -61,7 +61,7 @@ using std::max;
 
 /* Evaluation Operation for atomic operation */
 // XXX: move this to another header that can be exposed?
-typedef function<void(struct EvaluationContext *)> DepsEvalOperationCb;
+typedef function<void(struct ::Depsgraph *)> DepsEvalOperationCb;
 
 /* Metatype of Nodes - The general "level" in the graph structure
  * the node serves.
@@ -154,6 +154,8 @@ typedef enum eDepsNode_Type {
 	/* Total number of meaningful node types. */
 	NUM_DEG_NODE_TYPES,
 } eDepsNode_Type;
+
+const char *nodeTypeAsString(eDepsNode_Type type);
 
 /* Identifiers for common operations (as an enum). */
 typedef enum eDepsOperation_Code {
@@ -268,16 +270,6 @@ typedef enum eDepsOperation_Code {
 	DEG_NUM_OPCODES,
 } eDepsOperation_Code;
 
-/* Some magic to stringify operation codes. */
-class DepsOperationStringifier {
-public:
-	DepsOperationStringifier();
-	const char *operator[](eDepsOperation_Code opcodex);
-protected:
-	const char *names_[DEG_NUM_OPCODES];
-};
-
-/* String defines for these opcodes, defined in depsgraph_type_defines.cpp */
-extern DepsOperationStringifier DEG_OPNAMES;
+const char *operationCodeAsString(eDepsOperation_Code opcode);
 
 }  // namespace DEG

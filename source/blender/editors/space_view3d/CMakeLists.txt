@@ -43,11 +43,7 @@ set(INC_SYS
 )
 
 set(SRC
-	drawanimviz.c
-	drawarmature.c
-	drawmesh.c
 	drawobject.c
-	drawsimdebug.c
 	drawvolume.c
 	space_view3d.c
 	view3d_buttons.c
@@ -82,13 +78,6 @@ set(SRC
 if(WITH_PYTHON)
 	blender_include_dirs(../../python)
 	add_definitions(-DWITH_PYTHON)
-endif()
-
-if(WITH_GAMEENGINE)
-	list(APPEND INC
-		../../../gameengine/BlenderRoutines
-	)
-	add_definitions(-DWITH_GAMEENGINE)
 endif()
 
 add_definitions(${GL_DEFINITIONS})

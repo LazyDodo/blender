@@ -30,8 +30,10 @@
 #include "BLI_math.h"
 #include "BLI_string.h"
 
+#include "DNA_camera_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_freestyle_types.h"
+#include "DNA_lamp_types.h"
 #include "DNA_linestyle_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
@@ -57,8 +59,7 @@
  */
 void BLO_update_defaults_userpref_blend(void)
 {
-	/* defaults from T37518 */
-
+	/* Defaults from T37518. */
 	U.uiflag |= USER_DEPTH_CURSOR;
 	U.uiflag |= USER_QUIT_PROMPT;
 	U.uiflag |= USER_CONTINUOUS_MOUSE;
@@ -66,11 +67,17 @@ void BLO_update_defaults_userpref_blend(void)
 	/* See T45301 */
 	U.uiflag |= USER_LOCK_CURSOR_ADJUST;
 
+	/* Default from T47064. */
+	U.audiorate = 48000;
+
+	/* Defaults from T54943 (phase 1). */
+	U.flag &= ~USER_TOOLTIPS_PYTHON;
+	U.uiflag |= USER_AUTOPERSP;
+	U.manipulator_flag |= USER_MANIPULATOR_DRAW_NAVIGATE;
+	U.uiflag2 |= USER_REGION_OVERLAP;
+
 	U.versions = 1;
 	U.savetime = 2;
-
-	/* default from T47064 */
-	U.audiorate = 48000;
 
 	/* Keep this a very small, non-zero number so zero-alpha doesn't mask out objects behind it.
 	 * but take care since some hardware has driver bugs here (T46962).
@@ -110,7 +117,6 @@ static void update_defaults_startup_workspaces(Main *bmain)
 		if (STREQ(workspace->id.name + 2, "Default")) {
 			/* don't rename within iterator, renaming causes listbase to be re-sorted */
 			workspace_default = workspace;
-			BKE_viewrender_init(&workspace->view_render);
 		}
 		else {
 			BKE_workspace_remove(bmain, workspace);
@@ -128,7 +134,7 @@ static void update_defaults_startup_workspaces(Main *bmain)
 void BLO_update_defaults_startup_blend(Main *bmain)
 {
 	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
-		BLI_strncpy(scene->view_render.engine_id, RE_engine_id_BLENDER_EEVEE, sizeof(scene->view_render.engine_id));
+		BLI_strncpy(scene->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(scene->r.engine));
 
 		scene->r.im_format.planes = R_IMF_PLANES_RGBA;
 		scene->r.im_format.compress = 15;
@@ -140,6 +146,8 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 
 		if (scene->toolsettings) {
 			ToolSettings *ts = scene->toolsettings;
+
+			ts->uvcalc_flag |= UVCALC_TRANSFORM_CORRECT;
 
 			if (ts->sculpt) {
 				Sculpt *sculpt = ts->sculpt;
@@ -216,10 +224,11 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 			pset->brush[PE_BRUSH_CUT].strength = 1.0f;
 		}
 
-		scene->gm.lodflag |= SCE_LOD_USE_HYST;
-		scene->gm.scehysteresis = 10;
-
 		scene->r.ffcodecdata.audio_mixrate = 48000;
+		
+		/* set av sync by default */
+		scene->audio.flag |= AUDIO_SYNC;
+		scene->flag &= ~SCE_FRAME_DROP;
 	}
 
 	for (FreestyleLineStyle *linestyle = bmain->linestyle.first; linestyle; linestyle = linestyle->id.next) {
@@ -345,6 +354,57 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Flatten/Contrast");
 		if (br) {
 			br->flag |= BRUSH_ACCUMULATE;
+		}
+	}
+
+	/* Defaults from T54943. */
+	{
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			scene->r.displaymode = R_OUTPUT_WINDOW;
+			scene->r.size = 100;
+			scene->r.dither_intensity = 1.0f;
+			scene->unit.system = USER_UNIT_METRIC;
+			STRNCPY(scene->view_settings.view_transform, "Filmic");
+		}
+
+		for (bScreen *sc = bmain->screen.first; sc; sc = sc->id.next) {
+			for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					switch (sl->spacetype) {
+						case SPACE_VIEW3D:
+						{
+							View3D *v3d = (View3D *)sl;
+							v3d->lens = 50;
+							break;
+						}
+						case SPACE_BUTS:
+						{
+							SpaceButs *sbuts = (SpaceButs *)sl;
+							sbuts->mainb = sbuts->mainbuser = BCONTEXT_OBJECT;
+							break;
+						}
+					}
+
+					ListBase *lb = (sl == sa->spacedata.first) ? &sa->regionbase : &sl->regionbase;
+					for (ARegion *ar = lb->first; ar; ar = ar->next) {
+						if (ar->regiontype == RGN_TYPE_HEADER) {
+							if (sl->spacetype != SPACE_ACTION) {
+								ar->alignment = RGN_ALIGN_TOP;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		for (Camera *ca = bmain->camera.first; ca; ca = ca->id.next) {
+			ca->lens = 50;
+			ca->sensor_x = DEFAULT_SENSOR_WIDTH;
+			ca->sensor_y = DEFAULT_SENSOR_HEIGHT;
+		}
+
+		for (Lamp *la = bmain->lamp.first; la; la = la->id.next) {
+			la->energy = 10.0;
 		}
 	}
 }

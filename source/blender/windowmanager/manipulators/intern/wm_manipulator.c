@@ -53,6 +53,8 @@
 #include "ED_screen.h"
 #include "ED_view3d.h"
 
+#include "UI_interface.h"
+
 #ifdef WITH_PYTHON
 #include "BPY_extern.h"
 #endif
@@ -467,10 +469,30 @@ bool wm_manipulator_select_and_highlight(bContext *C, wmManipulatorMap *mmap, wm
 	}
 }
 
+/**
+ * Special function to run from setup so manipulators start out interactive.
+ *
+ * We could do this when linking them, but this complicates things since the window update code needs to run first.
+ */
+void WM_manipulator_modal_set_from_setup(
+        struct wmManipulatorMap *mmap, struct bContext *C,
+        struct wmManipulator *mpr, int part_index, const wmEvent *event)
+{
+	mpr->highlight_part = part_index;
+	WM_manipulator_highlight_set(mmap, mpr);
+	if (false) {
+		wm_manipulatormap_modal_set(mmap, C, mpr, event, true);
+	}
+	else {
+		/* WEAK: but it works. */
+		WM_operator_name_call(C, "MANIPULATORGROUP_OT_manipulator_tweak", WM_OP_INVOKE_DEFAULT, NULL);
+	}
+}
+
 void wm_manipulator_calculate_scale(wmManipulator *mpr, const bContext *C)
 {
 	const RegionView3D *rv3d = CTX_wm_region_view3d(C);
-	float scale = U.ui_scale;
+	float scale = UI_DPI_FAC;
 
 	if ((mpr->parent_mgroup->type->flag & WM_MANIPULATORGROUPTYPE_SCALE) == 0) {
 		scale *= U.manipulator_size;
@@ -487,7 +509,7 @@ void wm_manipulator_calculate_scale(wmManipulator *mpr, const bContext *C)
 			}
 
 			/* Exclude matrix_offset from scale. */
-			scale *= ED_view3d_pixel_size(rv3d, matrix_world[3]) / U.pixelsize;
+			scale *= ED_view3d_pixel_size_no_ui_scale(rv3d, matrix_world[3]);
 		}
 		else {
 			scale *= 0.02f;
@@ -574,6 +596,22 @@ void WM_manipulator_calc_matrix_final_params(
 	}
 
 	mul_m4_m4m4(r_mat, matrix_space, final_matrix);
+}
+
+void WM_manipulator_calc_matrix_final_no_offset(const wmManipulator *mpr, float r_mat[4][4])
+{
+	float mat_identity[4][4];
+	unit_m4(mat_identity);
+
+	WM_manipulator_calc_matrix_final_params(
+	        mpr,
+	        &((struct WM_ManipulatorMatrixParams) {
+	            .matrix_space = NULL,
+	            .matrix_basis = NULL,
+	            .matrix_offset = mat_identity,
+	            .scale_final = NULL,
+	        }), r_mat
+	);
 }
 
 void WM_manipulator_calc_matrix_final(const wmManipulator *mpr, float r_mat[4][4])

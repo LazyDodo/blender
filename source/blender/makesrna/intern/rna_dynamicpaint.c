@@ -425,9 +425,9 @@ static void rna_def_canvas_surface(BlenderRNA *brna)
 	RNA_def_struct_name_property(srna, prop);
 
 	prop = RNA_def_property(srna, "brush_group", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "Group");
+	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Brush Group", "Only use brush objects from this group");
+	RNA_def_property_ui_text(prop, "Brush Collection", "Only use brush objects from this collection");
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_DynamicPaint_reset_dependency");
 
 
@@ -823,18 +823,6 @@ static void rna_def_dynamic_paint_brush_settings(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0, 1.0);
 	RNA_def_property_ui_range(prop, 0.0, 1.0, 5, 2);
 	RNA_def_property_ui_text(prop, "Paint Alpha", "Paint alpha");
-	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_DynamicPaint_redoModifier");
-	
-	prop = RNA_def_property(srna, "use_material", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flags", MOD_DPAINT_USE_MATERIAL);
-	RNA_def_property_ui_text(prop, "Use object material", "Use object material to define color and influence");
-	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_DynamicPaint_redoModifier");
-
-	prop = RNA_def_property(srna, "material", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "mat");
-	RNA_def_property_ui_text(prop, "Material",
-	                         "Material to use (if not defined, material linked to the mesh is used)");
-	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_DynamicPaint_redoModifier");
 	
 	prop = RNA_def_property(srna, "use_absolute_alpha", PROP_BOOLEAN, PROP_NONE);

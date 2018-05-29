@@ -27,6 +27,9 @@
 #include "DRW_render.h"
 
 #include "DNA_curve_types.h"
+#include "DNA_view3d_types.h"
+
+#include "BKE_object.h"
 
 /* If builtin shaders are needed */
 #include "GPU_shader.h"
@@ -142,8 +145,8 @@ static void EDIT_CURVE_engine_init(void *vedata)
 
 	/* Init Framebuffers like this: order is attachment order (for color texs) */
 	/*
-	 * DRWFboTexture tex[2] = {{&txl->depth, DRW_TEX_DEPTH_24, 0},
-	 *                         {&txl->color, DRW_TEX_RGBA_8, DRW_TEX_FILTER}};
+	 * DRWFboTexture tex[2] = {{&txl->depth, GPU_DEPTH_COMPONENT24, 0},
+	 *                         {&txl->color, GPU_RGBA8, DRW_TEX_FILTER}};
 	 */
 
 	/* DRW_framebuffer_init takes care of checking if
@@ -193,7 +196,7 @@ static void EDIT_CURVE_cache_init(void *vedata)
 		/* Center-Line (wire) */
 		psl->wire_pass = DRW_pass_create(
 		        "Curve Wire",
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE);
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WIRE);
 
 		grp = DRW_shgroup_create(e_data.wire_sh, psl->wire_pass);
 		DRW_shgroup_uniform_vec4(grp, "color", ts.colorWireEdit, 1);
@@ -228,12 +231,17 @@ static void EDIT_CURVE_cache_populate(void *vedata, Object *ob)
 	EDIT_CURVE_PassList *psl = ((EDIT_CURVE_Data *)vedata)->psl;
 	EDIT_CURVE_StorageList *stl = ((EDIT_CURVE_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	const Scene *scene = draw_ctx->scene;
+	View3D *v3d = draw_ctx->v3d;
 
 	UNUSED_VARS(psl, stl);
 
 	if (ob->type == OB_CURVE) {
-		if (ob == draw_ctx->object_edit) {
+#if 0
+		if (ob == draw_ctx->object_edit)
+#else
+		if ((ob == draw_ctx->object_edit) || BKE_object_is_in_editmode_and_selected(ob))
+#endif
+		{
 			Curve *cu = ob->data;
 			/* Get geometry cache */
 			struct Gwn_Batch *geom;
@@ -242,7 +250,7 @@ static void EDIT_CURVE_cache_populate(void *vedata, Object *ob)
 			DRW_shgroup_call_add(stl->g_data->wire_shgrp, geom, ob->obmat);
 
 			if ((cu->flag & CU_3D) && (cu->drawflag & CU_HIDE_NORMALS) == 0) {
-				geom = DRW_cache_curve_edge_normal_get(ob, scene->toolsettings->normalsize);
+				geom = DRW_cache_curve_edge_normal_get(ob, v3d->overlay.normals_length);
 				DRW_shgroup_call_add(stl->g_data->wire_shgrp, geom, ob->obmat);
 			}
 
@@ -278,9 +286,9 @@ static void EDIT_CURVE_draw_scene(void *vedata)
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
-	UNUSED_VARS(fbl, dtxl);
+	UNUSED_VARS(fbl);
 
-	MULTISAMPLE_SYNC_ENABLE(dfbl)
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
 
 	/* Show / hide entire passes, swap framebuffers ... whatever you fancy */
 	/*
@@ -296,7 +304,7 @@ static void EDIT_CURVE_draw_scene(void *vedata)
 	DRW_draw_pass(psl->overlay_edge_pass);
 	DRW_draw_pass(psl->overlay_vert_pass);
 
-	MULTISAMPLE_SYNC_DISABLE(dfbl)
+	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 
 	/* If you changed framebuffer, double check you rebind
 	 * the default one with its textures attached before finishing */
@@ -310,27 +318,6 @@ static void EDIT_CURVE_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.overlay_edge_sh);
 	DRW_SHADER_FREE_SAFE(e_data.overlay_vert_sh);
 }
-
-/* Create collection settings here.
- *
- * Be sure to add this function there :
- * source/blender/draw/DRW_engine.h
- * source/blender/blenkernel/intern/layer.c
- * source/blenderplayer/bad_level_call_stubs/stubs.c
- *
- * And relevant collection settings to :
- * source/blender/makesrna/intern/rna_scene.c
- * source/blender/blenkernel/intern/layer.c
- */
-#if 0
-void EDIT_CURVE_collection_settings_create(CollectionEngineSettings *ces)
-{
-	BLI_assert(ces);
-	// BKE_collection_engine_property_add_int(ces, "my_bool_prop", false);
-	// BKE_collection_engine_property_add_int(ces, "my_int_prop", 0);
-	// BKE_collection_engine_property_add_float(ces, "my_float_prop", 0.0f);
-}
-#endif
 
 static const DrawEngineDataSize EDIT_CURVE_data_size = DRW_VIEWPORT_DATA_SIZE(EDIT_CURVE_Data);
 

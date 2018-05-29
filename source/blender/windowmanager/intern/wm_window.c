@@ -208,6 +208,8 @@ void wm_window_free(bContext *C, wmWindowManager *wm, wmWindow *win)
 			CTX_wm_window_set(C, NULL);
 	}
 
+	BKE_screen_area_map_free(&win->global_areas);
+
 	/* end running jobs, a job end also removes its timer */
 	for (wt = wm->timers.first; wt; wt = wtnext) {
 		wtnext = wt->next;
@@ -225,8 +227,6 @@ void wm_window_free(bContext *C, wmWindowManager *wm, wmWindow *win)
 	if (win->eventstate) MEM_freeN(win->eventstate);
 	
 	wm_event_free_all(win);
-
-	wm_draw_data_free(win);
 
 	wm_ghostwindow_destroy(wm, win);
 
@@ -302,10 +302,6 @@ wmWindow *wm_window_copy(bContext *C, wmWindow *win_src, const bool duplicate_la
 	WM_window_set_active_workspace(win_dst, workspace);
 	layout_new = duplicate_layout ? ED_workspace_layout_duplicate(workspace, layout_old, win_dst) : layout_old;
 	WM_window_set_active_layout(win_dst, workspace, layout_new);
-
-	win_dst->drawmethod = U.wmdrawmethod;
-
-	BLI_listbase_clear(&win_dst->drawdata);
 
 	*win_dst->stereo3d_format = *win_src->stereo3d_format;
 
@@ -506,8 +502,6 @@ void wm_window_close(bContext *C, wmWindowManager *wm, wmWindow *win)
 
 		BLI_remlink(&wm->windows, win);
 		
-		wm_draw_window_clear(win);
-		
 		CTX_wm_window_set(C, win);  /* needed by handlers */
 		WM_event_remove_handlers(C, &win->handlers);
 		WM_event_remove_handlers(C, &win->modalhandlers);
@@ -608,9 +602,20 @@ void WM_window_set_dpi(wmWindow *win)
 	U.dpi = dpi / pixelsize;
 	U.virtual_pixel = (pixelsize == 1) ? VIRTUAL_PIXEL_NATIVE : VIRTUAL_PIXEL_DOUBLE;
 	U.widget_unit = (U.pixelsize * U.dpi * 20 + 36) / 72;
+	U.dpi_fac = ((U.pixelsize * (float)U.dpi) / 72.0f);
 
 	/* update font drawing */
 	BLF_default_dpi(U.pixelsize * U.dpi);
+}
+
+static void wm_window_ensure_eventstate(wmWindow *win)
+{
+	if (win->eventstate) {
+		return;
+	}
+
+	win->eventstate = MEM_callocN(sizeof(wmEvent), "window event state");
+	wm_get_cursor_position(win, &win->eventstate->x, &win->eventstate->y);
 }
 
 /* belongs to below */
@@ -656,8 +661,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 		win->ghostwin = ghostwin;
 		GHOST_SetWindowUserData(ghostwin, win); /* pointer back */
 		
-		if (win->eventstate == NULL)
-			win->eventstate = MEM_callocN(sizeof(wmEvent), "window event state");
+		wm_window_ensure_eventstate(win);
 
 		/* store actual window size in blender window */
 		bounds = GHOST_GetClientBounds(win->ghostwin);
@@ -763,8 +767,7 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 			wm_window_ghostwindow_add(wm, "Blender", win);
 		}
 		/* happens after fileread */
-		if (win->eventstate == NULL)
-			win->eventstate = MEM_callocN(sizeof(wmEvent), "window event state");
+		wm_window_ensure_eventstate(win);
 
 		/* add keymap handlers (1 handler for all keys in map!) */
 		keymap = WM_keymap_find(wm->defaultconf, "Window", 0, 0);
@@ -782,6 +785,11 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 			WM_event_add_dropbox_handler(&win->handlers, lb);
 		}
 		wm_window_title(wm, win);
+
+		/* add topbar */
+		if (BLI_listbase_is_empty(&win->global_areas.areabase)) {
+			ED_screen_global_areas_create(win);
+		}
 	}
 }
 
@@ -818,8 +826,6 @@ wmWindow *WM_window_open(bContext *C, const rcti *rect)
 	win->posy = rect->ymin;
 	win->sizex = BLI_rcti_size_x(rect);
 	win->sizey = BLI_rcti_size_y(rect);
-
-	win->drawmethod = U.wmdrawmethod;
 
 	WM_check(C);
 
@@ -931,6 +937,9 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 	if (type == WM_WINDOW_RENDER) {
 		ED_area_newspace(C, sa, SPACE_IMAGE, false);
 	}
+	else if (type == WM_WINDOW_DRIVERS) {
+		ED_area_newspace(C, sa, SPACE_IPO, false);
+	}
 	else {
 		ED_area_newspace(C, sa, SPACE_USERPREF, false);
 	}
@@ -938,12 +947,42 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 	ED_screen_change(C, screen);
 	ED_screen_refresh(CTX_wm_manager(C), win); /* test scale */
 	
+	/* do additional setup for specific editor type */
+	if (type == WM_WINDOW_DRIVERS) {
+		/* Configure editor - mode, tabs, framing */
+		SpaceIpo *sipo = (SpaceIpo *)sa->spacedata.first;
+		sipo->mode = SIPO_MODE_DRIVERS;
+		
+		ARegion *ar_props = BKE_area_find_region_type(sa, RGN_TYPE_UI);
+		if (ar_props) {
+			UI_panel_category_active_set(ar_props, "Drivers");
+			
+			ar_props->flag &= ~RGN_FLAG_HIDDEN;
+			/* XXX: Adjust width of this too? */
+			
+			ED_region_visibility_change_update(C, ar_props);
+		}
+		
+		ARegion *ar_main = BKE_area_find_region_type(sa, RGN_TYPE_WINDOW);
+		if (ar_main) {
+			/* XXX: Ideally we recenter based on the range instead... */
+			ar_main->v2d.tot.xmin = -2.0f;
+			ar_main->v2d.tot.ymin = -2.0f;
+			ar_main->v2d.tot.xmax = 2.0f;
+			ar_main->v2d.tot.ymax = 2.0f;
+			
+			ar_main->v2d.cur = ar_main->v2d.tot;
+		}
+	}
+	
 	if (sa->spacetype == SPACE_IMAGE)
 		title = IFACE_("Blender Render");
 	else if (ELEM(sa->spacetype, SPACE_OUTLINER, SPACE_USERPREF))
 		title = IFACE_("Blender User Preferences");
 	else if (sa->spacetype == SPACE_FILE)
 		title = IFACE_("Blender File View");
+	else if (sa->spacetype == SPACE_IPO)
+		title = IFACE_("Blender Drivers Editor");
 	else
 		title = "Blender";
 
@@ -1008,6 +1047,7 @@ int wm_window_new_exec(bContext *C, wmOperator *op)
 		win_dst->scene = win_src->scene;
 		screen_new->winid = win_dst->winid;
 		CTX_wm_window_set(C, win_dst);
+
 		ED_screen_refresh(CTX_wm_manager(C), win_dst);
 	}
 
@@ -1473,7 +1513,6 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_ptr
 						}
 					
 						wm_window_make_drawable(wm, win);
-						wm_draw_window_clear(win);
 						BKE_icon_changed(screen->id.icon_id);
 						WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
 						WM_event_add_notifier(C, NC_WINDOW | NA_EDITED, NULL);
@@ -1596,7 +1635,6 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_ptr
 					CTX_wm_window_set(C, oldWindow);
 
 					wm_window_make_drawable(wm, win);
-					wm_draw_window_clear(win);
 
 					WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
 					WM_event_add_notifier(C, NC_WINDOW | NA_EDITED, NULL);
@@ -1727,13 +1765,22 @@ void wm_window_testbreak(void)
 
 /* **************** init ********************** */
 
+/* bContext can be null in background mode because we don't
+ * need to event handling. */
 void wm_ghost_init(bContext *C)
 {
 	if (!g_system) {
-		GHOST_EventConsumerHandle consumer = GHOST_CreateEventConsumer(ghost_event_proc, C);
+		GHOST_EventConsumerHandle consumer;
+
+		if (C != NULL) {
+			consumer = GHOST_CreateEventConsumer(ghost_event_proc, C);
+		}
 		
 		g_system = GHOST_CreateSystem();
-		GHOST_AddEventConsumer(g_system, consumer);
+
+		if (C != NULL) {
+			GHOST_AddEventConsumer(g_system, consumer);
+		}
 		
 		if (wm_init_state.native_pixels) {
 			GHOST_UseNativePixels();
@@ -2074,19 +2121,58 @@ float WM_cursor_pressure(const struct wmWindow *win)
 
 /* support for native pixel size */
 /* mac retina opens window in size X, but it has up to 2 x more pixels */
-int WM_window_pixels_x(wmWindow *win)
+int WM_window_pixels_x(const wmWindow *win)
 {
 	float f = GHOST_GetNativePixelSize(win->ghostwin);
 	
 	return (int)(f * (float)win->sizex);
 }
-
-int WM_window_pixels_y(wmWindow *win)
+int WM_window_pixels_y(const wmWindow *win)
 {
 	float f = GHOST_GetNativePixelSize(win->ghostwin);
 	
 	return (int)(f * (float)win->sizey);
-	
+}
+
+/**
+ * Get boundaries usable by all window contents, including global areas.
+ */
+void WM_window_rect_calc(const wmWindow *win, rcti *r_rect)
+{
+	BLI_rcti_init(r_rect, 0, WM_window_pixels_x(win), 0, WM_window_pixels_y(win));
+}
+/**
+ * Get boundaries usable by screen-layouts, excluding global areas.
+ * \note Depends on U.dpi_fac. Should that be outdated, call #WM_window_set_dpi first.
+ */
+void WM_window_screen_rect_calc(const wmWindow *win, rcti *r_rect)
+{
+	rcti rect;
+
+	BLI_rcti_init(&rect, 0, WM_window_pixels_x(win), 0, WM_window_pixels_y(win));
+
+	/* Substract global areas from screen rectangle. */
+	for (ScrArea *global_area = win->global_areas.areabase.first; global_area; global_area = global_area->next) {
+		if (global_area->global->flag & GLOBAL_AREA_IS_HIDDEN) {
+			continue;
+		}
+
+		switch (global_area->global->align) {
+			case GLOBAL_AREA_ALIGN_TOP:
+				rect.ymax -= ED_area_global_size_y(global_area);
+				break;
+			case GLOBAL_AREA_ALIGN_BOTTOM:
+				rect.ymin += ED_area_global_size_y(global_area);
+				break;
+			default:
+				BLI_assert(0);
+				break;
+		}
+	}
+
+	BLI_assert(rect.xmin < rect.xmax);
+	BLI_assert(rect.ymin < rect.ymax);
+	*r_rect = rect;
 }
 
 bool WM_window_is_fullscreen(wmWindow *win)

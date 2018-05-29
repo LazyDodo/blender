@@ -653,11 +653,6 @@ typedef struct NodeTwoFloats {
 	float x, y;
 } NodeTwoFloats;
 
-typedef struct NodeGeometry {
-	char uvname[64];	/* MAX_CUSTOMDATA_LAYER_NAME */
-	char colname[64];
-} NodeGeometry;
-
 typedef struct NodeVertexCol {
 	char name[64];
 } NodeVertexCol;
@@ -896,6 +891,12 @@ typedef struct NodeShaderUVMap {
 	char uv_map[64];
 } NodeShaderUVMap;
 
+typedef struct NodeShaderTexIES {
+	int mode;
+
+	char filepath[1024]; /* 1024 = FILE_MAX */
+} NodeShaderTexIES;
+
 typedef struct NodeSunBeams {
 	float source[2];
 
@@ -909,6 +910,9 @@ typedef struct NodeSunBeams {
 /* script node flag */
 #define NODE_SCRIPT_AUTO_UPDATE		1
 
+/* ies node mode */
+#define NODE_IES_INTERNAL		0
+#define NODE_IES_EXTERNAL		1
 
 /* frame node flags */
 #define NODE_FRAME_SHRINK		1	/* keep the bounding box minimal */
@@ -1063,6 +1067,7 @@ enum {
 	NODE_MATH_GREATER = 16,
 	NODE_MATH_MOD     = 17,
 	NODE_MATH_ABS     = 18,
+	NODE_MATH_ATAN2   = 19,
 };
 
 /* mix rgb node flags */

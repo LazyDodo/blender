@@ -100,8 +100,7 @@ KerningCacheBLF *blf_kerning_cache_new(FontBLF *font)
 			GlyphBLF *g_prev = blf_glyph_search(font->glyph_cache, j);
 
 			FT_Vector delta = {.x = 0, .y = 0};
-			if (FT_Get_Kerning(font->face, g_prev->idx, g->idx, kc->mode,
-			                   &delta) == 0) {
+			if (FT_Get_Kerning(font->face, g_prev->idx, g->idx, kc->mode, &delta) == 0) {
 				kc->table[i][j] = (int)delta.x >> 6;
 			}
 			else {
@@ -520,6 +519,7 @@ void blf_glyph_render(FontBLF *font, GlyphBLF *g, float x, float y)
 	}
 
 	if (font->tex_bind_state != g->tex) {
+		blf_batch_draw();
 		glBindTexture(GL_TEXTURE_2D, (font->tex_bind_state = g->tex));
 	}
 

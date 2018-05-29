@@ -32,6 +32,8 @@
  * (ONLY ADD NEW ITEMS AT THE END)
  */
 
+struct Mesh;
+
 typedef enum ModifierType {
 	eModifierType_None              = 0,
 	eModifierType_Subsurf           = 1,
@@ -105,7 +107,9 @@ typedef struct ModifierData {
 	struct ModifierData *next, *prev;
 
 	int type, mode;
-	int stackindex, pad;
+	int stackindex;
+	short flag;
+	short pad;
 	char name[64];  /* MAX_NAME */
 
 	/* XXX for timing info set by caller... solve later? (ton) */
@@ -113,6 +117,11 @@ typedef struct ModifierData {
 
 	char *error;
 } ModifierData;
+
+typedef enum {
+	/* This modifier has been inserted in local override, and hence can be fully edited. */
+	eModifierFlag_StaticOverride_Local  = (1 << 0),
+} ModifierFlag;
 
 typedef enum {
 	eSubsurfModifierFlag_Incremental  = (1 << 0),
@@ -419,7 +428,6 @@ typedef struct UVProjectModifierData {
 
 	/* the objects which do the projecting */
 	struct Object *projectors[10]; /* MOD_UVPROJECT_MAXPROJECTORS */
-	struct Image *image;           /* the image to project */
 	int pad2;
 	int num_projectors;
 	float aspectx, aspecty;
@@ -599,7 +607,7 @@ typedef struct SoftbodyModifierData {
 typedef struct ClothModifierData {
 	ModifierData modifier;
 
-	struct Scene *scene;                  /* the context, time etc is here */
+	struct Scene *scene;                  /* the context is here */
 	struct Cloth *clothObject;            /* The internal data structure for cloth. */
 	struct ClothSimSettings *sim_parms;   /* definition is in DNA_cloth_types.h */
 	struct ClothCollSettings *coll_parms; /* definition is in DNA_cloth_types.h */
@@ -643,7 +651,7 @@ typedef struct SurfaceModifierData {
 	struct MVert *x; /* old position */
 	struct MVert *v; /* velocity */
 
-	struct DerivedMesh *dm;
+	struct Mesh *mesh;
 
 	struct BVHTreeFromMesh *bvhtree; /* bounding volume hierarchy of the mesh faces */
 
@@ -712,7 +720,7 @@ typedef struct MeshDeformModifierData {
 	float *bindcos;                 /* deprecated storage of cage coords */
 
 	/* runtime */
-	void (*bindfunc)(struct Scene *scene, struct MeshDeformModifierData *mmd, struct DerivedMesh *cagedm,
+	void (*bindfunc)(struct Scene *scene, struct MeshDeformModifierData *mmd, struct Mesh *cagemesh,
 	                 float *vertexcos, int totvert, float cagemat[4][4]);
 } MeshDeformModifierData;
 
@@ -730,8 +738,8 @@ typedef struct ParticleSystemModifierData {
 	ModifierData modifier;
 
 	struct ParticleSystem *psys;
-	struct DerivedMesh *dm_final;  /* Final DM - its topology may differ from orig mesh. */
-	struct DerivedMesh *dm_deformed;  /* Deformed-onle DM - its topology is same as orig mesh one. */
+	struct Mesh *mesh_final;  /* Final Mesh - its topology may differ from orig mesh. */
+	struct Mesh *mesh_original;  /* Original mesh that particles are attached to. */
 	int totdmvert, totdmedge, totdmface;
 	short flag, pad;
 } ParticleSystemModifierData;
@@ -753,12 +761,21 @@ typedef enum {
 	eParticleInstanceFlag_UseSize   = (1 << 7),
 } ParticleInstanceModifierFlag;
 
+typedef enum {
+	eParticleInstanceSpace_World    = 0,
+	eParticleInstanceSpace_Local    = 1,
+} ParticleInstanceModifierSpace;
+
 typedef struct ParticleInstanceModifierData {
 	ModifierData modifier;
 
 	struct Object *ob;
-	short psys, flag, axis, pad;
+	short psys, flag, axis, space;
 	float position, random_position;
+	float rotation, random_rotation;
+	float particle_amount, particle_offset;
+	char index_layer_name[64]; /* MAX_CUSTOMDATA_LAYER_NAME */
+	char value_layer_name[64]; /* MAX_CUSTOMDATA_LAYER_NAME */
 } ParticleInstanceModifierData;
 
 typedef enum {
@@ -1597,6 +1614,7 @@ typedef struct SDefVert {
 typedef struct SurfaceDeformModifierData {
 	ModifierData modifier;
 
+	struct Depsgraph *depsgraph;
 	struct Object *target;	/* bind target object */
 	SDefVert *verts;		/* vertex bind data */
 	float falloff;
@@ -1607,7 +1625,9 @@ typedef struct SurfaceDeformModifierData {
 
 /* Surface Deform modifier flags */
 enum {
+	/* This indicates "do bind on next modifier evaluation" as well as "is bound". */
 	MOD_SDEF_BIND = (1 << 0),
+
 	MOD_SDEF_USES_LOOPTRI = (1 << 1),
 	MOD_SDEF_HAS_CONCAVE = (1 << 2),
 };

@@ -79,13 +79,13 @@ class SEQUENCER_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
+        layout.prop(st, "view_type", text="")
+
         SEQUENCER_MT_editor_menus.draw_collapsible(context, layout)
 
         row = layout.row(align=True)
         row.prop(scene, "use_preview_range", text="", toggle=True)
         row.prop(scene, "lock_frame_selection_to_range", text="", toggle=True)
-
-        layout.prop(st, "view_type", expand=True, text="")
 
         if st.view_type in {'PREVIEW', 'SEQUENCER_PREVIEW'}:
             layout.prop(st, "display_mode", expand=True, text="")
@@ -237,9 +237,7 @@ class SEQUENCER_MT_view(Menu):
             layout.prop(st, "use_marker_sync")
             layout.separator()
 
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class SEQUENCER_MT_select(Menu):
@@ -430,10 +428,6 @@ class SEQUENCER_MT_strip(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_REGION_WIN'
-
-        layout.operator("ed.undo")
-        layout.operator("ed.redo")
-        layout.operator("ed.undo_history")
 
         layout.separator()
         layout.menu("SEQUENCER_MT_strip_transform")
@@ -1288,7 +1282,7 @@ class SEQUENCER_PT_grease_pencil_tools(GreasePencilToolsPanel, SequencerButtonsP
 
 
 class SEQUENCER_PT_custom_props(SequencerButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
     _context_path = "scene.sequence_editor.active_strip"
     _property_type = (bpy.types.Sequence,)
     bl_category = "Strip"

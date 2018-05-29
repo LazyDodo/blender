@@ -32,6 +32,7 @@
  *  \since March 2001
  *  \author nzc
  */
+struct Depsgraph;
 struct Main;
 struct MetaBall;
 struct Object;
@@ -46,6 +47,8 @@ struct MetaBall *BKE_mball_copy(struct Main *bmain, const struct MetaBall *mb);
 
 void BKE_mball_make_local(struct Main *bmain, struct MetaBall *mb, const bool lib_local);
 
+bool BKE_mball_is_any_selected(const struct MetaBall *mb);
+bool BKE_mball_is_any_unselected(const struct MetaBall *mb);
 bool BKE_mball_is_basis_for(struct Object *ob1, struct Object *ob2);
 bool BKE_mball_is_basis(struct Object *ob);
 struct Object *BKE_mball_basis_find(struct Scene *scene, struct Object *ob);
@@ -71,15 +74,11 @@ void BKE_mball_select_swap(struct MetaBall *mb);
 
 /* **** Depsgraph evaluation **** */
 
-struct EvaluationContext;
+struct Depsgraph;
 
-void BKE_mball_eval_geometry(const struct EvaluationContext *eval_ctx,
+void BKE_mball_eval_geometry(struct Depsgraph *depsgraph,
                              struct MetaBall *mball);
 /* Draw Cache */
-
-void BKE_mball_element_calc_scale_xform(float r_scale_xform[3][4],
-                                        const float obmat[4][4],
-                                        const float local_pos[3]);
 
 enum {
 	BKE_MBALL_BATCH_DIRTY_ALL = 0,

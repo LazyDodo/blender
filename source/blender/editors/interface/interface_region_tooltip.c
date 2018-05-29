@@ -518,7 +518,7 @@ static uiTooltipData *ui_tooltip_data_from_button(bContext *C, uiBut *but)
 		WM_operator_pystring_abbreviate(str, 32);
 
 		/* operator info */
-		if ((U.flag & USER_TOOLTIPS_PYTHON) == 0) {
+		if (U.flag & USER_TOOLTIPS_PYTHON) {
 			uiTooltipField *field = text_field_add(
 			        data, &(uiTooltipFormat){
 			            .style = UI_TIP_STYLE_MONO,
@@ -556,7 +556,7 @@ static uiTooltipData *ui_tooltip_data_from_button(bContext *C, uiBut *but)
 		}
 	}
 
-	if ((U.flag & USER_TOOLTIPS_PYTHON) == 0 && !but->optype && rna_struct.strinfo) {
+	if ((U.flag & USER_TOOLTIPS_PYTHON) && !but->optype && rna_struct.strinfo) {
 		{
 			uiTooltipField *field = text_field_add(
 			        data, &(uiTooltipFormat){
@@ -901,11 +901,17 @@ ARegion *UI_tooltip_create_from_button(bContext *C, ARegion *butregion, uiBut *b
 
 	/* custom tips for pre-defined operators */
 	if (but->optype) {
-		if (STREQ(but->optype->idname, "WM_OT_tool_set")) {
+		/* TODO(campbell): we now use 'WM_OT_tool_set_by_name', this logic will be moved into the status bar. */
+		if (false && STREQ(but->optype->idname, "WM_OT_tool_set")) {
 			char keymap[64] = "";
 			RNA_string_get(but->opptr, "keymap", keymap);
 			if (keymap[0]) {
 				ScrArea *sa = CTX_wm_area(C);
+				/* It happens in rare cases, for tooltips originated from the toolbar.
+				 * It is hard to reproduce, but it happens when the mouse is nowhere near the actual tool. */
+				if (sa == NULL) {
+					return NULL;
+				}
 				wmKeyMap *km = WM_keymap_find_all(C, keymap, sa->spacetype, RGN_TYPE_WINDOW);
 				if (km != NULL) {
 					data = ui_tooltip_data_from_keymap(C, km);

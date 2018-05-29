@@ -94,8 +94,10 @@ void paint_cursor_delete_textures(void);
 
 /* paint_vertex.c */
 int weight_paint_poll(struct bContext *C);
+int weight_paint_poll_ignore_tool(bContext *C);
 int weight_paint_mode_poll(struct bContext *C);
 int vertex_paint_poll(struct bContext *C);
+int vertex_paint_poll_ignore_tool(struct bContext *C);
 int vertex_paint_mode_poll(struct bContext *C);
 
 typedef void (*VPaintTransform_Callback)(const float col[3], const void *user_data, float r_col[3]);
@@ -157,10 +159,10 @@ void PAINT_OT_weight_sample_group(struct wmOperatorType *ot);
 /* paint_vertex_proj.c */
 struct VertProjHandle;
 struct VertProjHandle *ED_vpaint_proj_handle_create(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob,
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
         struct DMCoNo **r_vcosnos);
 void  ED_vpaint_proj_handle_update(
-        const struct EvaluationContext *eval_ctx, struct VertProjHandle *vp_handle,
+        struct Depsgraph *depsgraph, struct VertProjHandle *vp_handle,
         /* runtime vars */
         struct ARegion *ar, const float mval_fl[2]);
 void  ED_vpaint_proj_handle_free(
@@ -216,7 +218,6 @@ void PAINT_OT_texture_paint_toggle(struct wmOperatorType *ot);
 void PAINT_OT_project_image(struct wmOperatorType *ot);
 void PAINT_OT_image_from_view(struct wmOperatorType *ot);
 void PAINT_OT_add_texture_paint_slot(struct wmOperatorType *ot);
-void PAINT_OT_delete_texture_paint_slot(struct wmOperatorType *ot);
 void PAINT_OT_image_paint(struct wmOperatorType *ot);
 void PAINT_OT_add_simple_uvs(struct wmOperatorType *ot);
 

@@ -129,6 +129,8 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
+#include "WM_toolsystem.h"
+
 #include "wm.h"
 #include "wm_files.h"
 #include "wm_window.h"
@@ -443,9 +445,8 @@ void wm_file_read_report(bContext *C)
 	Scene *sce;
 
 	for (sce = G.main->scene.first; sce; sce = sce->id.next) {
-		ViewRender *view_render = &sce->view_render;
-		if (view_render->engine_id[0] &&
-		    BLI_findstring(&R_engines, view_render->engine_id, offsetof(RenderEngineType, idname)) == NULL)
+		if (sce->r.engine[0] &&
+		    BLI_findstring(&R_engines, sce->r.engine, offsetof(RenderEngineType, idname)) == NULL)
 		{
 			if (reports == NULL) {
 				reports = CTX_wm_reports(C);
@@ -453,7 +454,7 @@ void wm_file_read_report(bContext *C)
 
 			BKE_reportf(reports, RPT_ERROR,
 			            "Engine '%s' not available for scene '%s' (an add-on may need to be installed or enabled)",
-			            view_render->engine_id, sce->id.name + 2);
+			            sce->r.engine, sce->id.name + 2);
 		}
 	}
 
@@ -527,16 +528,6 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 	}
 
 	if (!G.background) {
-		/* in background mode this makes it hard to load
-		 * a blend file and do anything since the screen
-		 * won't be set to a valid value again */
-		CTX_wm_window_set(C, NULL); /* exits queues */
-
-		/* Ensure tools are registered. */
-		WM_toolsystem_init(C);
-	}
-
-	if (!G.background) {
 		if (wm->undo_stack == NULL) {
 			wm->undo_stack = BKE_undosys_stack_create();
 		}
@@ -544,6 +535,17 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 			BKE_undosys_stack_clear(wm->undo_stack);
 		}
 		BKE_undosys_stack_init_from_main(wm->undo_stack, CTX_data_main(C));
+		BKE_undosys_stack_init_from_context(wm->undo_stack, C);
+	}
+
+	if (!G.background) {
+		/* in background mode this makes it hard to load
+		 * a blend file and do anything since the screen
+		 * won't be set to a valid value again */
+		CTX_wm_window_set(C, NULL); /* exits queues */
+
+		/* Ensure tools are registered. */
+		WM_toolsystem_init(C);
 	}
 }
 
@@ -883,17 +885,8 @@ int wm_homefile_read(
 
 	G.main->name[0] = '\0';
 
-	if (use_userdef) {
-		/* When loading factory settings, the reset solid OpenGL lights need to be applied. */
-		if (!G.background) {
-			GPU_default_lights();
-		}
-	}
-
 	/* start with save preference untitled.blend */
 	G.save_over = 0;
-	/* disable auto-play in startup.blend... */
-	G.fileflags &= ~G_FILE_AUTOPLAY;
 
 	wm_file_read_post(C, true, use_userdef);
 
@@ -1024,7 +1017,7 @@ static void wm_history_file_update(void)
 
 
 /* screen can be NULL */
-static ImBuf *blend_file_thumb(const bContext *C, Scene *scene, ViewLayer *view_layer, bScreen *screen, BlendThumbnail **thumb_pt)
+static ImBuf *blend_file_thumb(const bContext *C, Scene *scene, bScreen *screen, BlendThumbnail **thumb_pt)
 {
 	/* will be scaled down, but gives some nice oversampling */
 	ImBuf *ibuf;
@@ -1035,10 +1028,6 @@ static ImBuf *blend_file_thumb(const bContext *C, Scene *scene, ViewLayer *view_
 	ScrArea *sa = NULL;
 	ARegion *ar = NULL;
 	View3D *v3d = NULL;
-
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	/* In case we are given a valid thumbnail data, just generate image from it. */
 	if (*thumb_pt) {
@@ -1063,16 +1052,18 @@ static ImBuf *blend_file_thumb(const bContext *C, Scene *scene, ViewLayer *view_
 	}
 
 	/* gets scaled to BLEN_THUMB_SIZE */
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+
 	if (scene->camera) {
 		ibuf = ED_view3d_draw_offscreen_imbuf_simple(
-		        &eval_ctx, scene, view_layer, scene->camera,
+		        depsgraph, scene, OB_SOLID, scene->camera,
 		        BLEN_THUMB_SIZE * 2, BLEN_THUMB_SIZE * 2,
-		        IB_rect, V3D_OFSDRAW_NONE, OB_SOLID, R_ALPHAPREMUL, 0, NULL,
+		        IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
 		        NULL, err_out);
 	}
 	else {
 		ibuf = ED_view3d_draw_offscreen_imbuf(
-		        &eval_ctx, scene, view_layer, v3d, ar,
+		        depsgraph, scene, OB_SOLID, v3d, ar,
 		        BLEN_THUMB_SIZE * 2, BLEN_THUMB_SIZE * 2,
 		        IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
 		        NULL, err_out);
@@ -1168,7 +1159,7 @@ static int wm_file_write(bContext *C, const char *filepath, int fileflags, Repor
 	/* Main now can store a .blend thumbnail, usefull for background mode or thumbnail customization. */
 	main_thumb = thumb = CTX_data_main(C)->blen_thumb;
 	if ((U.flag & USER_SAVE_PREVIEWS) && BLI_thread_is_main()) {
-		ibuf_thumb = blend_file_thumb(C, CTX_data_scene(C), CTX_data_view_layer(C), CTX_wm_screen(C), &thumb);
+		ibuf_thumb = blend_file_thumb(C, CTX_data_scene(C), CTX_wm_screen(C), &thumb);
 	}
 
 	/* operator now handles overwrite checks */
@@ -1204,7 +1195,6 @@ static int wm_file_write(bContext *C, const char *filepath, int fileflags, Repor
 		}
 
 		SET_FLAG_FROM_TEST(G.fileflags, fileflags & G_FILE_COMPRESS, G_FILE_COMPRESS);
-		SET_FLAG_FROM_TEST(G.fileflags, fileflags & G_FILE_AUTOPLAY, G_FILE_AUTOPLAY);
 
 		/* prevent background mode scripts from clobbering history */
 		if (do_history) {
@@ -1312,7 +1302,7 @@ void wm_autosave_timer(const bContext *C, wmWindowManager *wm, wmTimer *UNUSED(w
 	}
 	else {
 		/*  save as regular blend file */
-		int fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_AUTOPLAY | G_FILE_HISTORY);
+		int fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_HISTORY);
 
 		ED_editors_flush_edits(C, false);
 
@@ -1439,7 +1429,7 @@ static int wm_homefile_write_exec(bContext *C, wmOperator *op)
 	ED_editors_flush_edits(C, false);
 
 	/*  force save as regular blend file */
-	fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_AUTOPLAY | G_FILE_HISTORY);
+	fileflags = G.fileflags & ~(G_FILE_COMPRESS | G_FILE_HISTORY);
 
 	if (BLO_write_file(CTX_data_main(C), filepath, fileflags | G_FILE_USERPREFS, op->reports, NULL) == 0) {
 		printf("fail\n");
@@ -2152,9 +2142,11 @@ static int wm_save_as_mainfile_exec(bContext *C, wmOperator *op)
 
 	WM_event_add_notifier(C, NC_WM | ND_FILESAVE, NULL);
 
+#if 0 /* XXX: Remove? This is not currently defined as a valid property */
 	if (RNA_boolean_get(op->ptr, "exit")) {
 		wm_exit_schedule_delayed(C);
 	}
+#endif
 
 	return OPERATOR_FINISHED;
 }

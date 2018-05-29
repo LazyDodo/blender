@@ -905,7 +905,7 @@ static char *rna_def_property_set_func(FILE *f, StructRNA *srna, PropertyRNA *pr
 				}
 				else {
 					PointerPropertyRNA *pprop = (PointerPropertyRNA *)dp->prop;
-					StructRNA *type = rna_find_struct((const char *)pprop->type);
+					StructRNA *type = (pprop->type) ? rna_find_struct((const char *)pprop->type) : NULL;
 					if (type && (type->flag & STRUCT_ID)) {
 						fprintf(f, "	if (value.data)\n");
 						fprintf(f, "		id_lib_extern((ID *)value.data);\n\n");
@@ -970,7 +970,7 @@ static char *rna_def_property_set_func(FILE *f, StructRNA *srna, PropertyRNA *pr
 							fprintf(f, ";\n");
 						}
 						else if (rna_color_quantize(prop, dp)) {
-							fprintf(f, "		data->%s[i] = FTOCHAR(values[i]);\n", dp->dnaname);
+							fprintf(f, "		data->%s[i] = unit_float_to_uchar_clamp(values[i]);\n", dp->dnaname);
 						}
 						else {
 							if (dp->dnatype)
@@ -2092,8 +2092,16 @@ static void rna_def_struct_function_call_impl_cpp(FILE *f, StructRNA *srna, Func
 		if (dp->prop->type == PROP_POINTER)
 			if ((dp->prop->flag_parameter & PARM_RNAPTR) && !(dp->prop->flag & PROP_THICK_WRAP))
 				fprintf(f, "(::%s *) &%s.ptr", rna_parameter_type_name(dp->prop), rna_safe_id(dp->prop->identifier));
-			else if (dp->prop->flag_parameter & PARM_OUTPUT)
-				fprintf(f, "(::%s **) &%s->ptr.data", rna_parameter_type_name(dp->prop), rna_safe_id(dp->prop->identifier));
+			else if (dp->prop->flag_parameter & PARM_OUTPUT) {
+				if (dp->prop->flag_parameter & PARM_RNAPTR) {
+					fprintf(f, "&%s->ptr",
+					        rna_safe_id(dp->prop->identifier));
+				}
+				else {
+					fprintf(f, "(::%s **) &%s->ptr.data",
+					        rna_parameter_type_name(dp->prop), rna_safe_id(dp->prop->identifier));
+				}
+			}
 			else
 				fprintf(f, "(::%s *) %s.ptr.data", rna_parameter_type_name(dp->prop), rna_safe_id(dp->prop->identifier));
 		else
@@ -2458,12 +2466,24 @@ static void rna_auto_types(void)
 
 	for (ds = DefRNA.structs.first; ds; ds = ds->cont.next) {
 		/* DNA name for Screen is patched in 2.5, we do the reverse here .. */
-		if (ds->dnaname && STREQ(ds->dnaname, "Screen"))
-			ds->dnaname = "bScreen";
+		if (ds->dnaname) {
+			if (STREQ(ds->dnaname, "Screen"))
+				ds->dnaname = "bScreen";
+			if (STREQ(ds->dnaname, "Group"))
+				ds->dnaname = "Collection";
+			if (STREQ(ds->dnaname, "GroupObject"))
+				ds->dnaname = "CollectionObject";
+		}
 
 		for (dp = ds->cont.properties.first; dp; dp = dp->next) {
-			if (dp->dnastructname && STREQ(dp->dnastructname, "Screen"))
-				dp->dnastructname = "bScreen";
+			if (dp->dnastructname) {
+				if (STREQ(dp->dnastructname, "Screen"))
+					dp->dnastructname = "bScreen";
+				if (STREQ(dp->dnastructname, "Group"))
+					dp->dnastructname = "Collection";
+				if (STREQ(dp->dnastructname, "GroupObject"))
+					dp->dnastructname = "CollectionObject";
+			}
 
 			if (dp->dnatype) {
 				if (dp->prop->type == PROP_POINTER) {
@@ -2831,6 +2851,10 @@ static void rna_generate_struct_prototypes(FILE *f)
 					if (dp->prop->type == PROP_POINTER) {
 						int a, found = 0;
 						const char *struct_name = rna_parameter_type_name(dp->prop);
+						if (struct_name == NULL) {
+							printf("No struct found for property '%s'\n", dp->prop->identifier);
+							exit(1);
+						}
 
 						for (a = 0; a < all_structures; a++) {
 							if (STREQ(struct_name, structures[a])) {
@@ -3350,7 +3374,6 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_action.c", "rna_action_api.c", RNA_def_action},
 	{"rna_animation.c", "rna_animation_api.c", RNA_def_animation},
 	{"rna_animviz.c", NULL, RNA_def_animviz},
-	{"rna_actuator.c", "rna_actuator_api.c", RNA_def_actuator},
 	{"rna_armature.c", "rna_armature_api.c", RNA_def_armature},
 	{"rna_asset.c", NULL, RNA_def_asset},
 	{"rna_boid.c", NULL, RNA_def_boid},
@@ -3361,13 +3384,12 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_color.c", NULL, RNA_def_color},
 	{"rna_constraint.c", NULL, RNA_def_constraint},
 	{"rna_context.c", NULL, RNA_def_context},
-	{"rna_controller.c", "rna_controller_api.c", RNA_def_controller},
 	{"rna_curve.c", "rna_curve_api.c", RNA_def_curve},
 	{"rna_dynamicpaint.c", NULL, RNA_def_dynamic_paint},
 	{"rna_fcurve.c", "rna_fcurve_api.c", RNA_def_fcurve},
 	{"rna_fluidsim.c", NULL, RNA_def_fluidsim},
 	{"rna_gpencil.c", NULL, RNA_def_gpencil},
-	{"rna_group.c", NULL, RNA_def_group},
+	{"rna_group.c", NULL, RNA_def_collections},
 	{"rna_image.c", "rna_image_api.c", RNA_def_image},
 	{"rna_key.c", NULL, RNA_def_key},
 	{"rna_lamp.c", NULL, RNA_def_lamp},
@@ -3389,13 +3411,11 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_particle.c", NULL, RNA_def_particle},
 	{"rna_pose.c", "rna_pose_api.c", RNA_def_pose},
 	{"rna_lightprobe.c", NULL, RNA_def_lightprobe},
-	{"rna_property.c", NULL, RNA_def_gameproperty},
 	{"rna_render.c", NULL, RNA_def_render},
 	{"rna_rigidbody.c", NULL, RNA_def_rigidbody},
 	{"rna_scene.c", "rna_scene_api.c", RNA_def_scene},
 	{"rna_screen.c", NULL, RNA_def_screen},
 	{"rna_sculpt_paint.c", NULL, RNA_def_sculpt_paint},
-	{"rna_sensor.c", "rna_sensor_api.c", RNA_def_sensor},
 	{"rna_sequencer.c", "rna_sequencer_api.c", RNA_def_sequencer},
 	{"rna_smoke.c", NULL, RNA_def_smoke},
 	{"rna_space.c", "rna_space_api.c", RNA_def_space},
@@ -3409,7 +3429,7 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_vfont.c", "rna_vfont_api.c", RNA_def_vfont},
 	{"rna_wm.c", "rna_wm_api.c", RNA_def_wm},
 	{"rna_wm_manipulator.c", "rna_wm_manipulator_api.c", RNA_def_wm_manipulator},
-	{"rna_workspace.c", NULL, RNA_def_workspace},
+	{"rna_workspace.c", "rna_workspace_api.c", RNA_def_workspace},
 	{"rna_world.c", NULL, RNA_def_world},
 	{"rna_movieclip.c", NULL, RNA_def_movieclip},
 	{"rna_tracking.c", NULL, RNA_def_tracking},
@@ -3463,7 +3483,7 @@ static void rna_generate(BlenderRNA *brna, FILE *f, const char *filename, const 
 
 	/* we want the included C files to have warnings enabled but for the generated code
 	 * ignore unused-parameter warnings which are hard to prevent */
-#ifdef __GNUC__
+#if defined( __GNUC__) || defined(__clang__)
 	fprintf(f, "#pragma GCC diagnostic ignored \"-Wunused-parameter\"\n\n");
 #endif
 
@@ -3727,7 +3747,7 @@ static const char *cpp_classes = ""
 "	COLLECTION_PROPERTY_LENGTH_##has_length(sname, identifier) \\\n"
 "	COLLECTION_PROPERTY_LOOKUP_INT_##has_lookup_int(sname, identifier) \\\n"
 "	COLLECTION_PROPERTY_LOOKUP_STRING_##has_lookup_string(sname, identifier) \\\n"
-"	Collection<sname, type, sname##_##identifier##_begin, \\\n"
+"	CollectionRef<sname, type, sname##_##identifier##_begin, \\\n"
 "		sname##_##identifier##_next, sname##_##identifier##_end, \\\n"
 "		sname##_##identifier##_length_wrap, \\\n"
 "		sname##_##identifier##_lookup_int_wrap, sname##_##identifier##_lookup_string_wrap, collection_funcs> identifier;\n"
@@ -3824,9 +3844,9 @@ static const char *cpp_classes = ""
 "template<typename Tp, typename T, TBeginFunc Tbegin, TNextFunc Tnext, TEndFunc Tend,\n"
 "         TLengthFunc Tlength, TLookupIntFunc Tlookup_int, TLookupStringFunc Tlookup_string,\n"
 "         typename Tcollection_funcs>\n"
-"class Collection : public Tcollection_funcs {\n"
+"class CollectionRef : public Tcollection_funcs {\n"
 "public:\n"
-"	Collection(const PointerRNA &p) : Tcollection_funcs(p), ptr(p) {}\n"
+"	CollectionRef(const PointerRNA &p) : Tcollection_funcs(p), ptr(p) {}\n"
 "\n"
 "	void begin(CollectionIterator<T, Tbegin, Tnext, Tend>& iter)\n"
 "	{ iter.begin(ptr); }\n"

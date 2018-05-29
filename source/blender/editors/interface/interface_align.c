@@ -320,13 +320,43 @@ static int ui_block_align_butal_cmp(const void *a, const void *b)
 	return 0;
 }
 
+static void ui_block_align_but_to_region(uiBut *but, const ARegion *region)
+{
+	rctf *rect = &but->rect;
+	const float but_width = BLI_rctf_size_x(rect);
+	const float but_height = BLI_rctf_size_y(rect);
+	const float px = U.pixelsize;
+
+	switch (but->drawflag & UI_BUT_ALIGN) {
+		case UI_BUT_ALIGN_TOP:
+			rect->ymax = region->winy + px;
+			rect->ymin = but->rect.ymax - but_height;
+			break;
+		case UI_BUT_ALIGN_DOWN:
+			rect->ymin = -px;
+			rect->ymax = rect->ymin + but_height;
+			break;
+		case UI_BUT_ALIGN_LEFT:
+			rect->xmin = -px;
+			rect->xmax = rect->xmin + but_width;
+			break;
+		case UI_BUT_ALIGN_RIGHT:
+			rect->xmax = region->winx + px;
+			rect->xmin = rect->xmax - but_width;
+			break;
+		default:
+			BLI_assert(0);
+			break;
+	}
+}
+
 /**
  * Compute the alignment of all 'align groups' of buttons in given block.
  *
  * This is using an order-independent algorithm, i.e. alignment of buttons should be OK regardless of order in which
  * they are added to the block.
  */
-void ui_block_align_calc(uiBlock *block)
+void ui_block_align_calc(uiBlock *block, const ARegion *region)
 {
 	uiBut *but;
 	int num_buttons = 0;
@@ -338,10 +368,17 @@ void ui_block_align_calc(uiBlock *block)
 	int side;
 	int i, j;
 
-	/* First loop: we count number of buttons belonging to an align group, and clear their align flag. */
+	/* First loop: we count number of buttons belonging to an align group, and clear their align flag.
+	 * Tabs get some special treatment here, they get aligned to region border. */
 	for (but = block->buttons.first; but; but = but->next) {
-		/* Clear old align flags. */
-		but->drawflag &= ~UI_BUT_ALIGN_ALL;
+		/* special case: tabs need to be aligned to a region border, drawflag tells which one */
+		if (but->type == UI_BTYPE_TAB) {
+			ui_block_align_but_to_region(but, region);
+		}
+		else {
+			/* Clear old align flags. */
+			but->drawflag &= ~UI_BUT_ALIGN_ALL;
+		}
 
 		if (but->alignnr != 0) {
 			num_buttons++;
@@ -487,7 +524,7 @@ static void ui_block_align_calc_but(uiBut *first, short nr)
 {
 	uiBut *prev, *but = NULL, *next;
 	int flag = 0, cols = 0, rows = 0;
-	
+
 	/* auto align */
 
 	for (but = first; but && but->alignnr == nr; but = but->next) {
@@ -498,7 +535,7 @@ static void ui_block_align_calc_but(uiBut *first, short nr)
 	}
 
 	/* rows == 0: 1 row, cols == 0: 1 column */
-	
+
 	/* note;  how it uses 'flag' in loop below (either set it, or OR it) is confusing */
 	for (but = first, prev = NULL; but && but->alignnr == nr; prev = but, but = but->next) {
 		next = but->next;
@@ -507,13 +544,13 @@ static void ui_block_align_calc_but(uiBut *first, short nr)
 
 		/* clear old flag */
 		but->drawflag &= ~UI_BUT_ALIGN;
-			
+
 		if (flag == 0) {  /* first case */
 			if (next) {
 				if (buts_are_horiz(but, next)) {
 					if (rows == 0)
 						flag = UI_BUT_ALIGN_RIGHT;
-					else 
+					else
 						flag = UI_BUT_ALIGN_DOWN | UI_BUT_ALIGN_RIGHT;
 				}
 				else {
@@ -560,14 +597,14 @@ static void ui_block_align_calc_but(uiBut *first, short nr)
 				flag |= UI_BUT_ALIGN_TOP;
 			}
 			else {  /* next button switches to new row */
-				
+
 				if (prev && buts_are_horiz(prev, but))
 					flag |= UI_BUT_ALIGN_LEFT;
 				else {
 					flag &= ~UI_BUT_ALIGN_LEFT;
 					flag |= UI_BUT_ALIGN_TOP;
 				}
-				
+
 				if ((flag & UI_BUT_ALIGN_TOP) == 0) {  /* still top row */
 					if (prev) {
 						if (next && buts_are_horiz(but, next))
@@ -577,16 +614,16 @@ static void ui_block_align_calc_but(uiBut *first, short nr)
 							flag = UI_BUT_ALIGN_DOWN | UI_BUT_ALIGN_LEFT;
 						}
 					}
-					else 
+					else
 						flag |= UI_BUT_ALIGN_DOWN;
 				}
-				else 
+				else
 					flag |= UI_BUT_ALIGN_TOP;
 			}
 		}
-		
+
 		but->drawflag |= flag;
-		
+
 		/* merge coordinates */
 		if (prev) {
 			/* simple cases */
@@ -609,7 +646,7 @@ static void ui_block_align_calc_but(uiBut *first, short nr)
 					/* the previous button is a single one in its row */
 					but->rect.ymax = (prev->rect.ymin + but->rect.ymax) / 2.0f;
 					prev->rect.ymin = but->rect.ymax;
-					
+
 					but->rect.xmin = prev->rect.xmin;
 					if (next && buts_are_horiz(but, next) == 0)
 						but->rect.xmax = prev->rect.xmax;
