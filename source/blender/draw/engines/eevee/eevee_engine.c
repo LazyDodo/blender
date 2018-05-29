@@ -148,6 +148,9 @@ static void eevee_cache_populate(void *vedata, Object *ob)
 			EEVEE_lights_cache_shcaster_object_add(sldata, ob);
 		}
 	}
+	else if (!USE_SCENE_LIGHT(draw_ctx->v3d)) {
+		/* do not add any light sources to the cache */
+	}
 	else if (ob->type == OB_LIGHTPROBE) {
 		if ((ob->base_flag & BASE_FROMDUPLI) != 0) {
 			/* TODO: Special case for dupli objects because we cannot save the object pointer. */
@@ -187,7 +190,6 @@ static void eevee_draw_background(void *vedata)
 	/* Default framebuffer and texture */
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
-
 	/* Sort transparents before the loop. */
 	DRW_pass_sort_shgroup_z(psl->transparent_pass);
 
@@ -309,6 +311,11 @@ static void eevee_draw_background(void *vedata)
 			DRW_viewport_matrix_override_unset_all();
 		}
 	}
+
+	/* LookDev */
+	EEVEE_lookdev_draw_background(vedata);
+	/* END */
+	
 
 	/* Tonemapping and transfer result to default framebuffer. */
 	GPU_framebuffer_bind(dfbl->default_fb);

@@ -502,15 +502,6 @@ bool BKE_object_is_in_editmode(const Object *ob)
 	return false;
 }
 
-bool BKE_object_is_in_editmode_and_selected(const Object *ob)
-{
-	if ((ob->base_flag & BASE_SELECTED) && (BKE_object_is_in_editmode(ob))) {
-		return true;
-	}
-	return false;
-}
-
-
 bool BKE_object_is_in_editmode_vgroup(const Object *ob)
 {
 	return (OB_TYPE_SUPPORT_VGROUP(ob->type) &&
@@ -557,6 +548,12 @@ bool BKE_object_has_mode_data(const struct Object *ob, eObjectMode object_mode)
 		}
 	}
 	return false;
+}
+
+bool BKE_object_is_mode_compat(const struct Object *ob, eObjectMode object_mode)
+{
+	return ((ob->mode == object_mode) ||
+	        (ob->mode & object_mode) != 0);
 }
 
 /**
@@ -891,8 +888,7 @@ ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int f
 	BLI_listbase_clear(&psysn->pathcachebufs);
 	BLI_listbase_clear(&psysn->childcachebufs);
 	
-	/* XXX Never copy caches here? */
-	psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag & ~LIB_ID_COPY_CACHES);
+	psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag);
 
 	/* XXX - from reading existing code this seems correct but intended usage of
 	 * pointcache should /w cloth should be added in 'ParticleSystem' - campbell */
@@ -2178,28 +2174,37 @@ void BKE_object_where_is_calc(Depsgraph *depsgraph, Scene *scene, Object *ob)
 	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, BKE_scene_frame_get(scene), NULL, NULL);
 }
 
-/* for calculation of the inverse parent transform, only used for editor */
+/**
+ * For calculation of the inverse parent transform, only used for editor.
+ *
+ * It assumes the object parent is already in the depsgraph.
+ * Otherwise, after changing ob->parent you need to call:
+ *  DEG_relations_tag_update(bmain);
+ *  BKE_scene_graph_update_tagged(depsgraph, bmain);
+ */
 void BKE_object_workob_calc_parent(Depsgraph *depsgraph, Scene *scene, Object *ob, Object *workob)
 {
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	BKE_object_workob_clear(workob);
 	
 	unit_m4(workob->obmat);
 	unit_m4(workob->parentinv);
 	unit_m4(workob->constinv);
-	workob->parent = ob->parent;
 
-	workob->trackflag = ob->trackflag;
-	workob->upflag = ob->upflag;
+	/* Since this is used while calculating parenting, at this moment ob_eval->parent is still NULL. */
+	workob->parent = DEG_get_evaluated_object(depsgraph, ob->parent);
+
+	workob->trackflag = ob_eval->trackflag;
+	workob->upflag = ob_eval->upflag;
 	
-	workob->partype = ob->partype;
-	workob->par1 = ob->par1;
-	workob->par2 = ob->par2;
-	workob->par3 = ob->par3;
+	workob->partype = ob_eval->partype;
+	workob->par1 = ob_eval->par1;
+	workob->par2 = ob_eval->par2;
+	workob->par3 = ob_eval->par3;
 
-	workob->constraints.first = ob->constraints.first;
-	workob->constraints.last = ob->constraints.last;
+	workob->constraints = ob_eval->constraints;
 
-	BLI_strncpy(workob->parsubstr, ob->parsubstr, sizeof(workob->parsubstr));
+	BLI_strncpy(workob->parsubstr, ob_eval->parsubstr, sizeof(workob->parsubstr));
 
 	BKE_object_where_is_calc(depsgraph, scene, workob);
 }
