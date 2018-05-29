@@ -130,7 +130,7 @@ typedef struct tGPsdata {
 
 	Main *bmain;        /* main database pointer */
 	Scene *scene;       /* current scene from context */
-	Depsgraph *depsgraph;
+	struct Depsgraph *depsgraph;
 	
 	Object *ob;         /* current object */
 	wmWindow *win;      /* window where painting originated */
