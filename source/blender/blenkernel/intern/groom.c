@@ -63,6 +63,7 @@
 #include "BKE_object_facemap.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "bmesh.h"
 
@@ -522,6 +523,28 @@ void BKE_groom_bundle_unbind(GroomBundle *bundle)
 }
 
 
+/* === Constraints === */
+
+/* Apply constraints on groom geometry */
+void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
+{
+	ListBase *bundles = (groom->editgroom ? &groom->editgroom->bundles : &groom->bundles);
+	for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	{
+		/* For bound regions the bundle should be attached to the scalp */
+		if (scalp && bundle->scalp_region && bundle->totsections > 0)
+		{
+			float co[3], nor[3], tang[3];
+			/* Last in scalp_region is the center curve root point */
+			if (BKE_mesh_sample_eval(scalp, &bundle->scalp_region[bundle->numshapeverts], co, nor, tang))
+			{
+				copy_v3_v3(bundle->sections[0].center, co);
+			}
+		}
+	}
+}
+
+
 /* === Hair System === */
 
 /* Set loop weights for all faces covered by the bundle region */
@@ -733,9 +756,12 @@ void BKE_groom_hair_update_guide_curves(Groom *groom)
 		}
 	}
 	
-	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
-	Mesh *scalp = groom->scalp_object->data;
-	BKE_hair_bind_follicles(hsys, scalp);
+	if (groom->scalp_object)
+	{
+		BLI_assert(groom->scalp_object->type == OB_MESH);
+		Mesh *scalp = groom->scalp_object->data;
+		BKE_hair_bind_follicles(hsys, scalp);
+	}
 }
 
 
@@ -993,11 +1019,16 @@ void BKE_groom_curve_cache_clear(Groom *groom)
 
 /* === Depsgraph evaluation === */
 
-void BKE_groom_eval_geometry(struct Depsgraph *UNUSED(depsgraph), Groom *groom)
+void BKE_groom_eval_geometry(const struct Depsgraph *depsgraph, Groom *groom)
 {
 	if (G.debug & G_DEBUG_DEPSGRAPH) {
 		printf("%s on %s\n", __func__, groom->id.name);
 	}
+	
+	/* Apply constraints from scalp mesh to the groom geometry */
+	Mesh *scalp = groom->scalp_object ? groom->scalp_object->data : NULL;
+	Mesh *scalp_eval = (Mesh *)DEG_get_evaluated_id(depsgraph, &scalp->id);
+	BKE_groom_apply_constraints(groom, scalp_eval);
 	
 	/* calculate curves for interpolating shapes */
 	BKE_groom_curve_cache_update(groom);

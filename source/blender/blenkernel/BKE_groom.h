@@ -72,6 +72,12 @@ bool BKE_groom_bundle_bind(struct Groom *groom, struct GroomBundle *bundle, bool
 void BKE_groom_bundle_unbind(struct GroomBundle *bundle);
 
 
+/* === Constraints === */
+
+/* Apply constraints on groom geometry */
+void BKE_groom_apply_constraints(struct Groom *groom, struct Mesh *scalp);
+
+
 /* === Hair System === */
 
 /* Create follicles on the scalp surface for hair fiber rendering */
@@ -83,7 +89,7 @@ void BKE_groom_hair_update_guide_curves(struct Groom *groom);
 
 /* === Depsgraph evaluation === */
 
-void BKE_groom_eval_geometry(struct Depsgraph *depsgraph, struct Groom *groom);
+void BKE_groom_eval_geometry(const struct Depsgraph *depsgraph, struct Groom *groom);
 
 
 /* === Draw Cache === */
