@@ -148,6 +148,7 @@ static void rna_def_groom_bundle(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "scalp_facemap", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "scalp_facemap_name");
+	RNA_def_property_flag(prop, PROP_NEVER_UNLINK);
 	RNA_def_property_ui_text(prop, "Scalp Vertex Group", "Face map name of the scalp region");
 	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GroomBundle_scalp_facemap_name_set");
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
