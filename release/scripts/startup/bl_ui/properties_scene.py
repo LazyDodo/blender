@@ -456,43 +456,52 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         scene = context.scene
         lanpr = scene.lanpr
         layout.label(text="Global:")
-        layout.prop(lanpr, "enable_post_processing")
-        layout.label(text="Enter 0.0001 to 0.002:")
+        layout.prop(lanpr, "enable_vector_trace")
+
+        if lanpr.enable_vector_trace == "DISABLED":
+            layout.prop(lanpr, "display_thinning_result")
+
         layout.prop(lanpr, "depth_clamp")
-        layout.label(text="Enter 500 to 1000:")
         layout.prop(lanpr, "depth_strength")
-        layout.label(text="Enter 2:")
         layout.prop(lanpr, "normal_clamp")
-        layout.label(text="Enter 10:")
         layout.prop(lanpr, "normal_strength")
 
-        split = layout.split()
-        col = split.column()
-        col.label(text="Background Color:")
-        col.prop(lanpr, "background_color")
-        col = split.column()
-        col.label(text="Line Color:")
-        col.prop(lanpr, "line_color")
-        
-        layout.label(text="Thickness:")
-        layout.prop(lanpr, "line_thickness")
-        layout.label(text="Taper Settings:")
-        layout.prop(lanpr, "use_same_taper")
+        if lanpr.enable_vector_trace == "ENABLED":
 
-        if lanpr.use_same_taper == "DISABLED":
             split = layout.split()
             col = split.column()
-            col.label(text="Left:")
-            col.prop(lanpr,"taper_left_distance")
-            col.prop(lanpr,"taper_left_strength")
+            col.prop(lanpr, "background_color")
             col = split.column()
-            col.label(text="Right:")
-            col.prop(lanpr,"taper_right_distance")
-            col.prop(lanpr,"taper_right_strength")
-        else:
-            layout.prop(lanpr,"taper_left_distance")
-            layout.prop(lanpr,"taper_left_strength")
+            col.prop(lanpr, "line_color")
             
+            layout.label(text="Thickness:")
+            layout.prop(lanpr, "line_thickness")
+
+            layout.label(text="Effect Settings:")
+
+            layout.prop(lanpr, "use_same_taper")
+
+            if lanpr.use_same_taper == "DISABLED":
+                split = layout.split()
+                col = split.column()
+                col.label(text="Left:")
+                col.prop(lanpr,"taper_left_distance")
+                col.prop(lanpr,"taper_left_strength")
+                col = split.column()
+                col.label(text="Right:")
+                col.prop(lanpr,"taper_right_distance")
+                col.prop(lanpr,"taper_right_strength")
+            else:
+                layout.prop(lanpr,"taper_left_distance")
+                layout.prop(lanpr,"taper_left_strength") 
+
+            layout.prop(lanpr, "enable_tip_extend")
+            if lanpr.enable_tip_extend == "ENABLED":
+                layout.prop(lanpr,"extend_length")
+        
+        else: #disabled vectorization
+            layout.label(text="Adjust values to avoid large pure white regions!")
+                
 
 
 

@@ -6167,9 +6167,21 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	    {0, NULL, 0, NULL, NULL}
     };
 
+	static const EnumPropertyItem rna_enum_lanpr_display_thinning_result[] = {
+	    {LANPR_POST_PROCESSING_DISABLED, "DISABLED", ICON_MESH_CUBE, "Edge Detection", "Display edge detector result"},
+        {LANPR_POST_PROCESSING_ENABLED, "ENABLED", ICON_MESH_CUBE, "Thinning", "Apply thinning filters for vector usage"},
+	    {0, NULL, 0, NULL, NULL}
+    };
+
 	static const EnumPropertyItem rna_enum_lanpr_use_same_taper[] = {
 	    {LANPR_USE_DIFFERENT_TAPER, "DISABLED", ICON_MESH_CUBE, "Different", "Use different taper value"},
         {LANPR_USE_SAME_TAPER, "ENABLED", ICON_MESH_CUBE, "Same", "Use same taper value for both sides of the line"},
+	    {0, NULL, 0, NULL, NULL}
+    };
+
+	static const EnumPropertyItem rna_enum_lanpr_enable_tip_extend[] = {
+	    {LANPR_DISABLE_TIP_EXTEND, "DISABLED", ICON_MESH_CUBE, "Disable", "Do not extend curve tips"},
+        {LANPR_ENABLE_TIP_EXTEND, "ENABLED", ICON_MESH_CUBE, "Enable", "Extend curve tips to a user specified length"},
 	    {0, NULL, 0, NULL, NULL}
     };
 
@@ -6177,38 +6189,45 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "SceneLANPR");
 	RNA_def_struct_ui_text(srna, "Scene LANPR Config", "LANPR global config");
     
-    prop = RNA_def_property(srna, "enable_post_processing", PROP_ENUM, PROP_NONE);
+    prop = RNA_def_property(srna, "enable_vector_trace", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rna_enum_lanpr_enable_post_processing);
 	RNA_def_property_enum_default(prop, LANPR_POST_PROCESSING_DISABLED);
 	RNA_def_property_ui_text(prop, "Enable Post Processing", "Draw image post processing line or not");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "depth_clamp", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "display_thinning_result", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_lanpr_display_thinning_result);
+	RNA_def_property_enum_default(prop, LANPR_POST_PROCESSING_DISABLED);
+	RNA_def_property_ui_text(prop, "Display", "Display mode");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "depth_clamp", PROP_FLOAT, PROP_PERCENTAGE);
 	RNA_def_property_float_default(prop, 0.1f);
 	RNA_def_property_ui_text(prop, "Depth Clamp", "Depth clamp value for edge extraction");
-	RNA_def_property_ui_range(prop, 0.01f, 1.0f, 0.1, 2);
+	RNA_def_property_ui_range(prop, 0.0, 0.01, 0.0001, 5);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "depth_strength", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_default(prop, 0.1f);
+	prop = RNA_def_property(srna, "depth_strength", PROP_FLOAT, PROP_PERCENTAGE);
+	RNA_def_property_float_default(prop, 800);
 	RNA_def_property_ui_text(prop, "Depth Strength", "Depth strength value for edge extraction");
-	RNA_def_property_ui_range(prop, 0.01f, 30.0f, 0.1, 2);
+	RNA_def_property_ui_range(prop, 0, 1000, 10, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "normal_clamp", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_default(prop, 0.1f);
+	prop = RNA_def_property(srna, "normal_clamp", PROP_FLOAT, PROP_PERCENTAGE);
+	RNA_def_property_float_default(prop, 2);
 	RNA_def_property_ui_text(prop, "Normal Clamp", "Normal clamp value for edge extraction");
-	RNA_def_property_ui_range(prop, 0.01f, 1.0f, 0.1, 2);
+	RNA_def_property_ui_range(prop, 0, 5, 0.1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "normal_strength", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_default(prop, 0.1f);
+	prop = RNA_def_property(srna, "normal_strength", PROP_FLOAT, PROP_PERCENTAGE);
+	RNA_def_property_float_default(prop, 10);
 	RNA_def_property_ui_text(prop, "Normal Strength", "Normal strength value for edge extraction");
-	RNA_def_property_ui_range(prop, 0.01f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_range(prop, 0, 5, 1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
@@ -6270,6 +6289,19 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
+	prop = RNA_def_property(srna, "enable_tip_extend", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_lanpr_enable_tip_extend);
+	RNA_def_property_enum_default(prop, LANPR_DISABLE_TIP_EXTEND);
+	RNA_def_property_ui_text(prop, "Extend Tips", "Extending tips of curves");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "extend_length", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Extend Length", "Extend lenght of curves");
+	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
 }
 
 void RNA_def_scene(BlenderRNA *brna)

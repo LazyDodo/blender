@@ -69,7 +69,7 @@ static void lanpr_engine_init(void *ved){
 	DRW_texture_ensure_fullscreen_2D(&txl->depth, GPU_DEPTH_COMPONENT32F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
 	DRW_texture_ensure_fullscreen_2D(&txl->color, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
 	DRW_texture_ensure_fullscreen_2D(&txl->normal, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
-    DRW_texture_ensure_fullscreen_2D(&txl->edge_intermediate, GPU_RGBA8, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
+    DRW_texture_ensure_fullscreen_2D(&txl->edge_intermediate, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
 	
 	GPU_framebuffer_ensure_config(&fbl->passes, {
 		GPU_ATTACHMENT_TEXTURE(txl->depth),
@@ -435,45 +435,66 @@ void lanpr_texture_to_ndc(int x,int y, int w,int h, float* x_ndc, float* y_ndc){
 	*y_ndc = tnsLinearItp(-1,1, (float)y/(float)h);
 }
 
-Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd, LANPR_LineStrip* ls){
-	int Count = ls->point_count;
+void lanpr_count_drawing_elements(LANPR_PrivateData* pd, int* vert_count, int* index_adjacent_count){
+    int v_count=0;
+	int e_count=0;
+	LANPR_LineStrip* ls;
+	for (ls = (LANPR_LineStrip *)(pd->line_strips.first); ls; ls = (LANPR_LineStrip *)(ls->Item.next)) {
+		v_count += (ls->point_count);
+		e_count += ((ls->point_count - 1) * 4);
+	}
+	*vert_count = v_count;
+	*index_adjacent_count = e_count;
+}
+
+Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
+	LANPR_LineStrip* ls;
+	LANPR_LineStripPoint* lsp, *plsp;
 	int i;
-	LANPR_LineStripPoint* lsp,*plsp;
 	u32bit *Index_adjacent;
 	float* Verts;
 	float* Lengths;
 	float TotalLength=0;
+	int v_count,e_count;
 
-	Index_adjacent = MEM_callocN(sizeof(unsigned int) * (Count - 1) * 4, "Index_adjacent buffer pre alloc");
-	Verts = MEM_callocN(sizeof(float) * Count * 2, "Verts buffer pre alloc");
-	Lengths = MEM_callocN(sizeof(float)* Count, "Length buffer pre alloc");
+	lanpr_count_drawing_elements(pd,&v_count,&e_count);
+
+	//Index_adjacent = MEM_callocN(sizeof(unsigned int) * e_count, "Index_adjacent buffer pre alloc");
+	Verts = MEM_callocN(sizeof(float) * v_count * 2, "Verts buffer pre alloc");
+	Lengths = MEM_callocN(sizeof(float)* v_count, "Length buffer pre alloc");
 
 	Gwn_IndexBufBuilder elb;
-	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, (Count - 1) * 4, Count, true);
+	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, e_count, v_count, true);
 
-	for (i = 0; i < Count-1; i++) {
-		Index_adjacent[i * 4 + 0] = i - 1;
-		Index_adjacent[i * 4 + 1] = i;
-		Index_adjacent[i * 4 + 2] = i + 1;
-		Index_adjacent[i * 4 + 3] = i + 2;
-		GWN_indexbuf_add_line_adj_verts(&elb, (i-1<0?0:i-1), i, i+1, (i+2>=Count-1?Count-1:i+2));
-	}
-	Index_adjacent[0] = 0;
-	Index_adjacent[(Count - 1) * 4 - 1] = Count-1;
+	int vert_offset=0;
 
-	i = 0;
-	float xf,yf;
-	for (lsp = (LANPR_LineStripPoint *)(ls->points.first); lsp; lsp = (LANPR_LineStripPoint *)(lsp->Item.next)) {
-		lanpr_texture_to_ndc(lsp->P[0],lsp->P[1],pd->width, pd->height, &xf,&yf);
-		Verts[i * 2 + 0] = xf;
-		Verts[i * 2 + 1] = yf;
-		if (plsp = (LANPR_LineStripPoint *)(lsp->Item.prev)) {
-			TotalLength += tMatDist2v(plsp->P, lsp->P);
-			Lengths[i] = TotalLength;
+	for (ls = (LANPR_LineStrip *)(pd->line_strips.first); ls; ls = (LANPR_LineStrip *)(ls->Item.next)) {
+		for (i = 0; i < ls->point_count-1; i++) {
+			int v1 = i+vert_offset-1;
+			int v2 = i+vert_offset;
+			int v3 = i+vert_offset+1;
+			int v4 = i+vert_offset+2;
+			if(v1<0) v1=0;
+			if(v4>= v_count) v4 = v_count -1;
+			GWN_indexbuf_add_line_adj_verts(&elb, v1,v2,v3,v4);
 		}
-		i++;
+
+		i = 0;
+		float xf,yf;
+		for (lsp = (LANPR_LineStripPoint *)(ls->points.first); lsp; lsp = (LANPR_LineStripPoint *)(lsp->Item.next)) {
+			lanpr_texture_to_ndc(lsp->P[0],lsp->P[1],pd->width, pd->height, &xf,&yf);
+			Verts[vert_offset*2 + i * 2 + 0] = xf;
+			Verts[vert_offset*2 + i * 2 + 1] = yf;
+			if (plsp = (LANPR_LineStripPoint *)(lsp->Item.prev)) {
+				TotalLength += tMatDist2v(plsp->P, lsp->P);
+				Lengths[vert_offset + i] = TotalLength;
+			}
+			i++;
+		}
+		ls->total_length = TotalLength;
+
+		vert_offset+=(ls->point_count);
 	}
-	ls->total_length = TotalLength;
 
 	static Gwn_VertFormat format = { 0 };
 	static struct { uint pos, uvs; } attr_id;
@@ -483,14 +504,13 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd, LANPR_LineStrip* ls){
 	}
 
 	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, Count);
+	GWN_vertbuf_data_alloc(vbo, v_count);
 
-	for (int i = 0; i < Count; ++i) {
+	for (int i = 0; i < v_count; ++i) {
 		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &Verts[i*2]);
 		GWN_vertbuf_attr_set(vbo, attr_id.uvs, i, &Lengths[i]);
 	}
 
-	MEM_freeN(Index_adjacent);
 	MEM_freeN(Verts);
 	MEM_freeN(Lengths);
 	
@@ -525,36 +545,49 @@ static void lanpr_draw_scene(void *vedata)
 
 	stl->g_data->znear = camera? ((Camera*)camera->data)->clipsta:0.1;
     stl->g_data->zfar = camera? ((Camera*)camera->data)->clipend:100;
-	stl->g_data->normal_clamp =    draw_ctx->scene->lanpr.normal_clamp;
-	stl->g_data->normal_strength = draw_ctx->scene->lanpr.normal_strength;
-	stl->g_data->depth_clamp =     draw_ctx->scene->lanpr.depth_clamp;
-	stl->g_data->depth_strength =  draw_ctx->scene->lanpr.depth_strength;
-
-	GPU_framebuffer_bind(fbl->edge_intermediate);
+	stl->g_data->normal_clamp =    lanpr->normal_clamp;
+	stl->g_data->normal_strength = lanpr->normal_strength;
+	stl->g_data->depth_clamp =     lanpr->depth_clamp;
+	stl->g_data->depth_strength =  lanpr->depth_strength;
 	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
-	
+	GPU_framebuffer_bind(fbl->edge_intermediate);
 	DRW_draw_pass(psl->edge_intermediate);
-	
-    stl->g_data->stage = 0;
-    GPU_framebuffer_bind(fbl->edge_thinning);
-	clear_bits = GPU_COLOR_BIT;
-	GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
-    DRW_draw_pass(psl->edge_thinning);
 
-	stl->g_data->stage = 1;
-	GPU_framebuffer_bind(fbl->edge_intermediate);
-	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
-    DRW_draw_pass(psl->edge_thinning_2);
+	if((!lanpr->enable_vector_trace) && (!lanpr->display_thinning_result)){
+		GPU_framebuffer_bind(dfbl->default_fb);
+		DRW_transform_to_display(txl->edge_intermediate);
+		return;
+	}
 
-	stl->g_data->stage = 0;
-    GPU_framebuffer_bind(fbl->edge_thinning);
-	GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
-    DRW_draw_pass(psl->edge_thinning);
+	if(lanpr->display_thinning_result || lanpr->enable_vector_trace){
+		stl->g_data->stage = 0;
+		GPU_framebuffer_bind(fbl->edge_thinning);
+		clear_bits = GPU_COLOR_BIT;
+		GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
+		DRW_draw_pass(psl->edge_thinning);
 
-	stl->g_data->stage = 1;
-	GPU_framebuffer_bind(fbl->edge_intermediate);
-	//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
-    DRW_draw_pass(psl->edge_thinning_2);
+		stl->g_data->stage = 1;
+		GPU_framebuffer_bind(fbl->edge_intermediate);
+		//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
+		DRW_draw_pass(psl->edge_thinning_2);
+
+		stl->g_data->stage = 0;
+		GPU_framebuffer_bind(fbl->edge_thinning);
+		GPU_framebuffer_clear(fbl->edge_thinning, clear_bits, clear_col, clear_depth, clear_stencil);
+		DRW_draw_pass(psl->edge_thinning);
+
+		stl->g_data->stage = 1;
+		GPU_framebuffer_bind(fbl->edge_intermediate);
+		//GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, clear_col, clear_depth, clear_stencil);
+		DRW_draw_pass(psl->edge_thinning_2);
+
+		if(!lanpr->enable_vector_trace){
+			GPU_framebuffer_bind(dfbl->default_fb);
+			DRW_transform_to_display(txl->edge_intermediate);
+			return;
+		}
+	}
+    
 
 	int texw = GPU_texture_width(txl->edge_intermediate) ,texh = GPU_texture_height(txl->edge_intermediate);;
     int size = texw*texh;
@@ -621,29 +654,24 @@ static void lanpr_draw_scene(void *vedata)
 	//GPU_framebuffer_bind()
 	GPU_framebuffer_clear(fbl->edge_intermediate, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 
+	float* tld = &lanpr->taper_left_distance, *tls = &lanpr->taper_left_strength,
+		 *trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
 
-	for (ls = (LANPR_LineStrip *)(stl->g_data->line_strips.first); ls; ls = (LANPR_LineStrip *)(ls->Item.next)) {
-		if (ls->point_count < 2) continue;
+	Gwn_Batch* snake_batch = lanpr_get_snake_batch(stl->g_data);
 
-		float* tld = &lanpr->taper_left_distance, *tls = &lanpr->taper_left_strength,
-			*trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
+	psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR);
+	stl->g_data->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
+	DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
+	DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TotalLength", &ls->total_length, 1);
+	DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLDist", tld, 1);
+	DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLStrength", tls, 1);
+	DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRDist", lanpr->use_same_taper?tld:trd, 1);
+	DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRStrength", lanpr->use_same_taper?tls:trs, 1);
+	//lanpr->line_color[0] = lanpr->line_color[1] =lanpr->line_color[2] = lanpr->line_color[3] =1;
+	DRW_shgroup_uniform_vec4(stl->g_data->snake_shgrp, "LineColor", lanpr->line_color, 1);
 
-		Gwn_Batch* snake_batch = lanpr_get_snake_batch(stl->g_data,ls);
-
-		psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR);
-		stl->g_data->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TotalLength", &ls->total_length, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLDist", tld, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperLStrength", tls, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRDist", lanpr->use_same_taper?tld:trd, 1);
-		DRW_shgroup_uniform_float(stl->g_data->snake_shgrp, "TaperRStrength", lanpr->use_same_taper?tls:trs, 1);
-		//lanpr->line_color[0] = lanpr->line_color[1] =lanpr->line_color[2] = lanpr->line_color[3] =1;
-		DRW_shgroup_uniform_vec4(stl->g_data->snake_shgrp, "LineColor", lanpr->line_color, 1);
-
-		DRW_shgroup_call_add(stl->g_data->snake_shgrp, snake_batch, NULL);
-		DRW_draw_pass(psl->snake_pass);
-	}
+	DRW_shgroup_call_add(stl->g_data->snake_shgrp, snake_batch, NULL);
+	DRW_draw_pass(psl->snake_pass);
 	
 
 	BLI_mempool_clear(stl->g_data->mp_sample);

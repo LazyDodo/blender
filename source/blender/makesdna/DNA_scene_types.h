@@ -1428,7 +1428,9 @@ typedef struct SceneEEVEE {
 /* LANPR Global Config */
 
 typedef struct SceneLANPR{
-    int enable_post_processing;
+    int enable_vector_trace;
+	int display_thinning_result;
+
 	int SizeCompensate;
 
 	float depth_clamp;
@@ -1440,9 +1442,14 @@ typedef struct SceneLANPR{
 	
 	int   use_same_taper;
 	float taper_left_distance;
-	float taper_left_strength;	
+	float taper_left_strength;
 	float taper_right_distance;
 	float taper_right_strength;
+
+	int   enable_tip_extend;
+	float extend_length;
+
+	int   snake_sensitivity;
 
 	float line_color[4];
 	float background_color[4];

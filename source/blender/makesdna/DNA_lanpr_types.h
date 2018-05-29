@@ -41,6 +41,9 @@
 #define LANPR_USE_DIFFERENT_TAPER      0
 #define LANPR_USE_SAME_TAPER           1
 
+#define LANPR_DISABLE_TIP_EXTEND       0
+#define LANPR_ENABLE_TIP_EXTEND        1
+
 typedef struct LANPRLineStyle{
 	struct LANPRLineStyle *next, *prev;
 
