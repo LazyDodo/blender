@@ -1621,7 +1621,7 @@ static void gp_init_colors(tGPsdata *p)
 		
 		/* set colors */
 		copy_v4_v4(gpd->scolor, gp_style->stroke_rgba);
-		copy_v4_v4(gpd->sfill, gp_style->fill);
+		copy_v4_v4(gpd->sfill, gp_style->fill_rgba);
 		/* add some alpha to make easy the filling without hide strokes */
 		if (gpd->sfill[3] > 0.8f) {
 			gpd->sfill[3] = 0.8f;
