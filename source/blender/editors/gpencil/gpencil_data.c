@@ -1841,8 +1841,8 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				for (short i = 0; i < *totcol; i++) {
 					Material *tmp_ma = (*matar)[i];
 					if (BKE_object_material_slot_find_index(ob_dst, tmp_ma) == 0) {
-						BKE_object_material_slot_add(ob_dst);
-						assign_material(ob_dst, tmp_ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
+						BKE_object_material_slot_add(bmain, ob_dst);
+						assign_material(bmain, ob_dst, tmp_ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
 					}
 				}
 
@@ -2428,9 +2428,9 @@ static int gpencil_convert_old_files_exec(bContext *C, wmOperator *UNUSED(op))
 			for (bGPDpalettecolor *palcolor = palette->colors.first; palcolor; palcolor = palcolor->next) {
 
 				/* create material slot */
-				BKE_object_material_slot_add(ob);
+				BKE_object_material_slot_add(bmain, ob);
 				Material *ma = BKE_material_add_gpencil(bmain, palcolor->info);
-				assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+				assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 
 				/* copy color settings */
 				MaterialGPencilStyle *gp_style = ma->gp_style;

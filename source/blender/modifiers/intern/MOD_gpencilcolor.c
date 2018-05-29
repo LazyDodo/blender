@@ -123,9 +123,9 @@ static void gp_bakeModifier(
 				if (mmd->flag & GP_TINT_CREATE_COLORS) {
 					Material *newmat = BLI_ghash_lookup(gh_color, mat->id.name);
 					if (newmat == NULL) {
-						BKE_object_material_slot_add(ob);
+						BKE_object_material_slot_add(bmain, ob);
 						newmat = BKE_material_copy(bmain, mat);
-						assign_material(ob, newmat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+						assign_material(bmain, ob, newmat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 
 						copy_v4_v4(newmat->gp_style->stroke_rgba, gps->runtime.tmp_stroke_rgba);
 						copy_v4_v4(newmat->gp_style->fill_rgba, gps->runtime.tmp_fill_rgba);

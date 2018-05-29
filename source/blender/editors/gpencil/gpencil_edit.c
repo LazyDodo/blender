@@ -747,6 +747,7 @@ void ED_gpencil_strokes_copybuf_free(void)
  */
 GHash *gp_copybuf_validate_colormap(bContext *C)
 {
+	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
 	GHash *new_colors = BLI_ghash_str_new("GPencil Paste Dst Colors");
 	GHashIterator gh_iter;
@@ -758,8 +759,8 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 		Material *ma = BLI_ghashIterator_getValue(&gh_iter);
 		
 		if (BKE_object_material_slot_find_index(ob, ma) == 0) {
-			BKE_object_material_slot_add(ob);
-			assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+			BKE_object_material_slot_add(bmain, ob);
+			assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 		}
 	
 		/* Store this mapping (for use later when pasting) */
@@ -3162,10 +3163,10 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 								ob_dst->totcol = totadd;
 
 								if (totadd > totslots) {
-									BKE_object_material_slot_add(ob_dst);
+									BKE_object_material_slot_add(bmain, ob_dst);
 								}
 
-								assign_material(ob_dst, ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
+								assign_material(bmain, ob_dst, ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
 								idx = totadd;
 							}
 

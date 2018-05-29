@@ -66,9 +66,9 @@ static int gpencil_monkey_color(Main *bmain, Object *ob, const ColorTemplate *pc
 	}
 
 	/* create a new one */
-	BKE_object_material_slot_add(ob);
+	BKE_object_material_slot_add(bmain, ob);
 	ma = BKE_material_add_gpencil(bmain, pct->name);
-	assign_material(ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+	assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
 
 	copy_v4_v4(ma->gp_style->stroke_rgba, pct->line);
 	copy_v4_v4(ma->gp_style->fill_rgba, pct->fill);
