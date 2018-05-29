@@ -151,6 +151,23 @@ void GROOM_OT_region_add(wmOperatorType *ot)
 
 /* GROOM_OT_region_bind */
 
+static int region_bind_poll(bContext *C)
+{
+	if (!ED_operator_scene_editable(C))
+	{
+		return 0;
+	}
+	
+	Object *ob = ED_object_context(C);
+	Groom *groom = ob->data;
+	if (groom->editgroom)
+	{
+		return 0;
+	}
+	
+	return 1;
+}
+
 static int region_bind_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = ED_object_context(C);
@@ -184,7 +201,7 @@ void GROOM_OT_region_bind(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->exec = region_bind_exec;
-	ot->poll = ED_operator_scene_editable;
+	ot->poll = region_bind_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
