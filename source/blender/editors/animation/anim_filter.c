@@ -2600,7 +2600,9 @@ static size_t animdata_filter_dopesheet_ob(bAnimContext *ac, ListBase *anim_data
 		}
 		
 		/* grease pencil */
-		if ((ob->data) && !(ads->filterflag & ADS_FILTER_NOGPENCIL)) {
+		if ((ob->type == OB_GPENCIL) && 
+			(ob->data) && !(ads->filterflag & ADS_FILTER_NOGPENCIL)) 
+		{
 			tmp_items += animdata_filter_ds_gpencil(ac, &tmp_data, ads, ob->data, filter_mode);
 		}
 	}
