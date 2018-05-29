@@ -35,6 +35,7 @@
 #include "BLT_translation.h"
 #include "BLI_string_utils.h"
 
+#include "BKE_animsys.h"
 #include "BKE_collection.h"
 #include "BKE_icons.h"
 #include "BKE_idprop.h"
@@ -112,7 +113,8 @@ Collection *BKE_collection_add(Main *bmain, Collection *collection_parent, const
 /** Free (or release) any data used by this collection (does not free the collection itself). */
 void BKE_collection_free(Collection *collection)
 {
-	/* No animdata here. */
+	BKE_animdata_free(&collection->id, false);
+
 	BKE_previewimg_free(&collection->preview);
 
 	BLI_freelistN(&collection->gobject);

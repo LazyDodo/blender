@@ -444,6 +444,8 @@ void DepsgraphRelationBuilder::build_collection(Object *object, Collection *coll
 		LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
 			build_collection(NULL, child->collection);
 		}
+		/* Animation data - should only need one set of relations per collection, not once per instance */
+		build_animdata(&collection->id);
 	}
 	if (object != NULL) {
 		const ListBase group_objects = BKE_collection_object_cache_get(collection);

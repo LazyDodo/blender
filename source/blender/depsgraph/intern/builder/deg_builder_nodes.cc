@@ -435,6 +435,8 @@ void DepsgraphNodeBuilder::build_collection(Collection *collection)
 	LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
 		build_collection(child->collection);
 	}
+	/* Build animation data. */
+	build_animdata(&collection->id);
 
 	add_id_node(&collection->id);
 }

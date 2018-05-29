@@ -2376,6 +2376,10 @@ static void write_collection(WriteData *wd, Collection *collection)
 		/* write LibData */
 		writestruct(wd, ID_GR, Collection, 1, collection);
 		write_iddata(wd, &collection->id);
+		
+		if (collection->adt) {
+			write_animdata(wd, collection->adt);
+		}
 
 		write_collection_nolib(wd, collection);
 	}

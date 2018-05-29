@@ -104,6 +104,7 @@ bool id_type_can_have_animdata(const short id_type)
 		case ID_MSK:
 		case ID_GD:
 		case ID_CF:
+		case ID_GR:
 			return true;
 		
 		/* no AnimData */
@@ -1135,6 +1136,9 @@ void BKE_animdata_main_cb(Main *mainptr, ID_AnimData_Edit_Callback func, void *u
 	/* masks */
 	ANIMDATA_IDS_CB(mainptr->mask.first);
 	
+	/* collections */
+	ANIMDATA_IDS_CB(mainptr->collection.first);
+	
 	/* worlds */
 	ANIMDATA_NODETREE_IDS_CB(mainptr->world.first, World);
 
@@ -1233,6 +1237,9 @@ void BKE_animdata_fix_paths_rename_all(ID *ref_id, const char *prefix, const cha
 	
 	/* worlds */
 	RENAMEFIX_ANIM_NODETREE_IDS(mainptr->world.first, World);
+	
+	/* collections */
+	RENAMEFIX_ANIM_IDS(mainptr->collection.first);
 	
 	/* linestyles */
 	RENAMEFIX_ANIM_IDS(mainptr->linestyle.first);
@@ -2934,6 +2941,9 @@ void BKE_animsys_evaluate_all_animation(Main *main, Depsgraph *depsgraph, Scene 
 
 	/* masks */
 	EVAL_ANIM_IDS(main->mask.first, ADT_RECALC_ANIM);
+	
+	/* collections */
+	EVAL_ANIM_IDS(main->collection.first, ADT_RECALC_ANIM);
 	
 	/* worlds */
 	EVAL_ANIM_NODETREE_IDS(main->world.first, World, ADT_RECALC_ANIM);

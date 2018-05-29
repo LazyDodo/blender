@@ -5679,6 +5679,9 @@ static void direct_link_collection(FileData *fd, Collection *collection)
 	link_list(fd, &collection->gobject);
 	link_list(fd, &collection->children);
 
+	collection->adt = newdataadr(fd, collection->adt);
+	direct_link_animdata(fd, collection->adt);
+
 	collection->preview = direct_link_preview_image(fd, collection->preview);
 
 	collection->flag &= ~COLLECTION_HAS_OBJECT_CACHE;
@@ -5733,6 +5736,7 @@ static void lib_link_collection(FileData *fd, Main *main)
 		if (collection->id.tag & LIB_TAG_NEED_LINK) {
 			collection->id.tag &= ~LIB_TAG_NEED_LINK;
 			IDP_LibLinkProperty(collection->id.properties, fd);
+			lib_link_animdata(fd, &collection->id, collection->adt);
 
 #ifdef USE_COLLECTION_COMPAT_28
 			if (collection->collection) {
@@ -9272,6 +9276,10 @@ static void expand_particlesettings(FileData *fd, Main *mainvar, ParticleSetting
 
 static void expand_collection(FileData *fd, Main *mainvar, Collection *collection)
 {
+	if (collection->adt) {
+		expand_animdata(fd, mainvar, collection->adt);
+	}
+	
 	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
 		expand_doit(fd, mainvar, cob->ob);
 	}

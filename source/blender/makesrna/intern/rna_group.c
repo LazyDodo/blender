@@ -275,6 +275,9 @@ void RNA_def_collections(BlenderRNA *brna)
 	RNA_def_property_ui_icon(prop, ICON_RESTRICT_RENDER_OFF, 1);
 	RNA_def_property_ui_text(prop, "Restrict Render", "Hide collection objects in renders");
 	RNA_def_property_update(prop, NC_SCENE | ND_LAYER_CONTENT, "rna_Collection_flag_update");
+
+	/* Animation Data */
+	rna_def_animdata_common(srna);
 }
 
 #endif

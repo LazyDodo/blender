@@ -127,6 +127,7 @@ bool nla_panel_context(const bContext *C, PointerRNA *adt_ptr, PointerRNA *nlt_p
 				break;
 			}
 			case ANIMTYPE_SCENE:    /* Top-Level Widgets doubling up as datablocks */
+			case ANIMTYPE_COLLECTION:
 			case ANIMTYPE_OBJECT:
 			case ANIMTYPE_DSMAT:    /* Datablock AnimData Expanders */
 			case ANIMTYPE_DSLAM:

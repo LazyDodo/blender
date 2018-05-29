@@ -122,6 +122,25 @@ static int mouse_nla_channels(bContext *C, bAnimContext *ac, float x, int channe
 			notifierFlags |= (ND_ANIMCHAN | NA_SELECTED);
 			break;
 		}
+		case ANIMTYPE_COLLECTION:
+		{
+			Collection *collection = (Collection *)ale->data;
+			AnimData *adt = collection->adt;
+			
+			/* set selection status */
+			if (selectmode == SELECT_INVERT) {
+				/* swap select */
+				collection->flag ^= COLLECTION_DS_SELECTED;
+				if (adt) adt->flag ^= ADT_UI_SELECTED;
+			}
+			else {
+				collection->flag |= COLLECTION_DS_SELECTED;
+				if (adt) adt->flag |= ADT_UI_SELECTED;
+			}
+			
+			notifierFlags |= (ND_ANIMCHAN | NA_SELECTED);
+			break;
+		}
 		case ANIMTYPE_OBJECT:
 		{
 			ViewLayer *view_layer = ac->view_layer;

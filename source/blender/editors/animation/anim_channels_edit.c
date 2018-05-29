@@ -280,6 +280,10 @@ void ANIM_deselect_anim_channels(bAnimContext *ac, void *data, eAnimCont_Types d
 					if (ale->flag & SCE_DS_SELECTED)
 						sel = ACHANNEL_SETFLAG_CLEAR;
 					break;
+				case ANIMTYPE_COLLECTION:
+					if (ale->flag & COLLECTION_DS_SELECTED)
+						sel = ACHANNEL_SETFLAG_CLEAR;
+					break;
 				case ANIMTYPE_OBJECT:
 #if 0   /* for now, do not take object selection into account, since it gets too annoying */
 					if (ale->flag & SELECT)
@@ -351,6 +355,17 @@ void ANIM_deselect_anim_channels(bAnimContext *ac, void *data, eAnimCont_Types d
 				
 				if (scene->adt) {
 					ACHANNEL_SET_FLAG(scene, sel, ADT_UI_SELECTED);
+				}
+				break;
+			}
+			case ANIMTYPE_COLLECTION:
+			{
+				Collection *collection = (Collection *)ale->data;
+				
+				ACHANNEL_SET_FLAG(collection, sel, COLLECTION_DS_SELECTED);
+				
+				if (collection->adt) {
+					ACHANNEL_SET_FLAG(collection, sel, ADT_UI_SELECTED);
 				}
 				break;
 			}
@@ -2675,6 +2690,25 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 			}
 			else {
 				sce->flag |= SCE_DS_SELECTED;
+				if (adt) adt->flag |= ADT_UI_SELECTED;
+			}
+			
+			notifierFlags |= (ND_ANIMCHAN | NA_SELECTED);
+			break;
+		}
+		case ANIMTYPE_COLLECTION:
+		{
+			Collection *collection = (Collection *)ale->data;
+			AnimData *adt = collection->adt;
+			
+			/* set selection status */
+			if (selectmode == SELECT_INVERT) {
+				/* swap select */
+				collection->flag ^= COLLECTION_DS_SELECTED;
+				if (adt) adt->flag ^= ADT_UI_SELECTED;
+			}
+			else {
+				collection->flag |= COLLECTION_DS_SELECTED;
 				if (adt) adt->flag |= ADT_UI_SELECTED;
 			}
 			

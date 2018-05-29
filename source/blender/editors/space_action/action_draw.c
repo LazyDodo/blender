@@ -243,6 +243,7 @@ void draw_channel_strips(bAnimContext *ac, SpaceAction *saction, ARegion *ar)
 							break;
 						}
 						case ANIMTYPE_SCENE:
+						case ANIMTYPE_COLLECTION:
 						case ANIMTYPE_OBJECT:
 						{
 							immUniformColor3ubvAlpha(col1b, sel ? 0x45 : 0x22);

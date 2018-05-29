@@ -614,6 +614,19 @@ static bAnimListElem *make_new_animlistelem(void *data, short datatype, ID *owne
 				ale->adt = BKE_animdata_from_id(data);
 				break;
 			}
+			case ANIMTYPE_COLLECTION:
+			{
+				Collection *collection = (Collection *)data;
+				
+				ale->flag = collection->flag;
+				
+				/* XXX: Nothing to include here for now... to be populated later */
+				ale->key_data = NULL;
+				ale->datatype = ALE_NONE;
+				
+				ale->adt = BKE_animdata_from_id(data);
+				break;
+			}
 			case ANIMTYPE_OBJECT:
 			{
 				Base *base = (Base *)data;
@@ -2630,6 +2643,102 @@ static size_t animdata_filter_dopesheet_ob(bAnimContext *ac, ListBase *anim_data
 	return items;
 }
 
+/* animation channels for collection */
+static size_t animdata_filter_ds_collection(bAnimContext *ac, ListBase *anim_data, bDopeSheet *ads, Collection *collection, int filter_mode)
+{
+	ListBase tmp_data = {NULL, NULL};
+	size_t tmp_items = 0;
+	size_t items = 0;
+	
+	AnimData *adt = collection->adt;
+	short type = 0, expanded = 1;
+	void *cdata = NULL;
+	
+	/* determine the type of expander channels to use */
+	// this is the best way to do this for now...
+	ANIMDATA_FILTER_CASES(collection,
+		{ /* AnimData - no channel, but consider data */},
+		{ /* NLA - no channel, but consider data */},
+		{ /* Drivers */
+			type = ANIMTYPE_FILLDRIVERS;
+			cdata = adt;
+			expanded = EXPANDED_DRVD(adt);
+		},
+		{ /* NLA Strip Controls - no dedicated channel for now (XXX) */ },
+		{ /* Keyframes */
+			type = ANIMTYPE_FILLACTD;
+			cdata = adt->action;
+			expanded = EXPANDED_ACTC(adt->action);
+		});
+		
+	/* add scene-level animation channels */
+	BEGIN_ANIMFILTER_SUBCHANNELS(expanded)
+	{
+		/* animation data filtering */
+		tmp_items += animfilter_block_data(ac, &tmp_data, ads, (ID *)collection, filter_mode);
+	}
+	END_ANIMFILTER_SUBCHANNELS;
+	
+	/* did we find anything? */
+	if (tmp_items) {
+		/* include anim-expand widget first */
+		if (filter_mode & ANIMFILTER_LIST_CHANNELS) {
+			if (type != ANIMTYPE_NONE) {
+				/* NOTE: active-status (and the associated checks) don't apply here... */
+				ANIMCHANNEL_NEW_CHANNEL(cdata, type, collection);
+			}
+		}
+		
+		/* now add the list of collected channels */
+		BLI_movelisttolist(anim_data, &tmp_data);
+		BLI_assert(BLI_listbase_is_empty(&tmp_data));
+		items += tmp_items;
+	}
+	
+	/* return the number of items added to the list */
+	return items;
+}
+
+/* collection animation */
+static size_t animdata_filter_dopesheet_collection(bAnimContext *ac, ListBase *anim_data, bDopeSheet *ads, Collection *collection, int filter_mode)
+{
+	ListBase tmp_data = {NULL, NULL};
+	size_t tmp_items = 0;
+	size_t items = 0;
+	
+	/* filter data contained under collection first */
+	BEGIN_ANIMFILTER_SUBCHANNELS(EXPANDED_COLLECTIONC(collection))
+	{
+		/* Action, Drivers, or NLA for Collection itself */
+		//if ((ads->filterflag & ADS_FILTER_NOSCE) == 0) {
+			tmp_items += animdata_filter_ds_collection(ac, &tmp_data, ads, collection, filter_mode);
+		//}
+		
+		/* TODO: Allow showing for stuff inside collection? */
+	}
+	END_ANIMFILTER_SUBCHANNELS;
+
+	/* if we collected some channels, add these to the new list... */
+	if (tmp_items) {
+		/* firstly add object expander if required */
+		if (filter_mode & ANIMFILTER_LIST_CHANNELS) {
+			/* check if filtering by selection */
+			if (ANIMCHANNEL_SELOK((collection->flag & COLLECTION_DS_SELECTED))) {
+				/* NOTE: active-status doesn't matter for this! */
+				ANIMCHANNEL_NEW_CHANNEL(collection, ANIMTYPE_COLLECTION, collection);
+			}
+		}
+		
+		/* now add the list of collected channels */
+		BLI_movelisttolist(anim_data, &tmp_data);
+		BLI_assert(BLI_listbase_is_empty(&tmp_data));
+		items += tmp_items;
+	}
+	
+	/* return the number of items added */
+	return items;
+}
+
 static size_t animdata_filter_ds_world(bAnimContext *ac, ListBase *anim_data, bDopeSheet *ads, Scene *sce, World *wo, int filter_mode)
 {
 	ListBase tmp_data = {NULL, NULL};
@@ -2729,7 +2838,7 @@ static size_t animdata_filter_dopesheet_scene(bAnimContext *ac, ListBase *anim_d
 	size_t tmp_items = 0;
 	size_t items = 0;
 	
-	/* filter data contained under object first */
+	/* filter data contained under scene first */
 	BEGIN_ANIMFILTER_SUBCHANNELS(EXPANDED_SCEC(sce))
 	{
 		bNodeTree *ntree = sce->nodetree;
@@ -2969,7 +3078,13 @@ static size_t animdata_filter_dopesheet(bAnimContext *ac, ListBase *anim_data, b
 
 	/* scene-linked animation - e.g. world, compositing nodes, scene anim (including sequencer currently) */
 	items += animdata_filter_dopesheet_scene(ac, anim_data, ads, scene, filter_mode);
-
+	
+	/* collection animation */
+	/* XXX: Just list all collections for now */
+	for (Collection *collection = G.main->collection.first; collection; collection = collection->id.next) {
+		items += animdata_filter_dopesheet_collection(ac, anim_data, ads, collection, filter_mode);
+	}
+	
 	/* If filtering for channel drawing, we want the objects in alphabetical order,
 	 * to make it easier to predict where items are in the hierarchy
 	 *  - This order only really matters if we need to show all channels in the list (e.g. for drawing)
@@ -3073,6 +3188,10 @@ static size_t animdata_filter_animchan(bAnimContext *ac, ListBase *anim_data, bD
 			
 		case ANIMTYPE_SCENE:
 			items += animdata_filter_dopesheet_scene(ac, anim_data, ads, channel->data, filter_mode);
+			break;
+			
+		case ANIMTYPE_COLLECTION:
+			items += animdata_filter_dopesheet_collection(ac, anim_data, ads, channel->data, filter_mode);
 			break;
 		
 		case ANIMTYPE_OBJECT:

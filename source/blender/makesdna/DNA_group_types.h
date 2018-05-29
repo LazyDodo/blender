@@ -40,6 +40,7 @@
 
 struct Object;
 struct Collection;
+struct AnimData;
 
 typedef struct CollectionObject {
 	struct CollectionObject *next, *prev;
@@ -55,6 +56,7 @@ typedef struct CollectionChild {
 
 typedef struct Collection {
 	ID id;
+	struct AnimData *adt;
 	
 	ListBase gobject;   /* CollectionObject */
 	ListBase children;  /* CollectionChild */
@@ -89,6 +91,9 @@ enum {
 	COLLECTION_RESTRICT_RENDER     = (1 << 3), /* Hidden in renders. */
 	COLLECTION_HAS_OBJECT_CACHE    = (1 << 4), /* Runtime: object_cache is populated. */
 	COLLECTION_IS_MASTER           = (1 << 5), /* Is master collection embedded in the scene. */
+
+	COLLECTION_DS_SELECTED         = (1 << 10), /* Channel is selected in animation editors */
+	COLLECTION_DS_COLLAPSED        = (1 << 11), /* Channel is collapsed in animation editors (defaults open) */
 };
 
 #endif  /* __DNA_GROUP_TYPES_H__ */

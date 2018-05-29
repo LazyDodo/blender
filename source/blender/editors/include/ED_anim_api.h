@@ -155,6 +155,7 @@ typedef enum eAnim_ChannelType {
 	ANIMTYPE_SUMMARY,
 	
 	ANIMTYPE_SCENE,
+	ANIMTYPE_COLLECTION,
 	ANIMTYPE_OBJECT,
 	ANIMTYPE_GROUP,
 	ANIMTYPE_FCURVE,
@@ -281,6 +282,9 @@ typedef enum eAnimFilter_Flags {
 /* 'Sub-Scene' channels (flags stored in Data block) */
 #define FILTER_WOR_SCED(wo) (CHECK_TYPE_INLINE(wo, World *), (wo->flag & WO_DS_EXPAND))
 #define FILTER_LS_SCED(linestyle) ((linestyle->flag & LS_DS_EXPAND))
+/* 'Collection' channels */
+#define SEL_COLLECTIONC(collection) (CHECK_TYPE_INLINE(collection, Collection *), ((collection->flag & COLLECTION_DS_SELECTED)))
+#define EXPANDED_COLLECTIONC(collection) (CHECK_TYPE_INLINE(collection, Collection *), ((collection->flag & COLLECTION_DS_COLLAPSED) == 0))
 /* 'Object' channels */
 #define SEL_OBJC(base)          (CHECK_TYPE_INLINE(base, Base *), ((base->flag & SELECT)))
 #define EXPANDED_OBJC(ob)       (CHECK_TYPE_INLINE(ob, Object *), ((ob->nlaflag & OB_ADS_COLLAPSED) == 0))

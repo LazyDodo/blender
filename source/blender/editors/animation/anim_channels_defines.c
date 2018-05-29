@@ -626,6 +626,111 @@ static bAnimChannelType ACF_SCENE =
 	acf_scene_setting_ptr           /* pointer for setting */
 };
 
+/* Collection ------------------------------------------- */
+
+// TODO: just get this from RNA?
+static int acf_collection_icon(bAnimListElem *UNUSED(ale))
+{
+	return ICON_GROUP;
+}
+
+/* check if some setting exists for this channel */
+static bool acf_collection_setting_valid(bAnimContext *ac, bAnimListElem *UNUSED(ale), eAnimChannel_Settings setting)
+{
+	switch (setting) {
+		/* muted only in NLA */
+		case ACHANNEL_SETTING_MUTE: 
+			return ((ac) && (ac->spacetype == SPACE_NLA));
+			
+		/* visible only in Graph Editor */
+		case ACHANNEL_SETTING_VISIBLE: 
+			return ((ac) && (ac->spacetype == SPACE_IPO));
+		
+		/* only select and expand supported otherwise */
+		case ACHANNEL_SETTING_SELECT:
+		case ACHANNEL_SETTING_EXPAND:
+			return true;
+
+		case ACHANNEL_SETTING_ALWAYS_VISIBLE:
+			return false;
+
+		default:
+			return false;
+	}
+}
+
+/* get the appropriate flag(s) for the setting when it is valid  */
+static int acf_collection_setting_flag(bAnimContext *UNUSED(ac), eAnimChannel_Settings setting, bool *neg)
+{
+	/* clear extra return data first */
+	*neg = false;
+	
+	switch (setting) {
+		case ACHANNEL_SETTING_SELECT: /* selected */
+			return COLLECTION_DS_SELECTED;
+			
+		case ACHANNEL_SETTING_EXPAND: /* expanded */
+			*neg = true;
+			return COLLECTION_DS_COLLAPSED;
+			
+		case ACHANNEL_SETTING_MUTE: /* mute (only in NLA) */
+			return ADT_NLA_EVAL_OFF;
+			
+		case ACHANNEL_SETTING_VISIBLE: /* visible (only in Graph Editor) */
+			*neg = true;
+			return ADT_CURVES_NOT_VISIBLE;
+
+		default: /* unsupported */
+			return 0;
+	}
+}
+
+/* get pointer to the setting */
+static void *acf_collection_setting_ptr(bAnimListElem *ale, eAnimChannel_Settings setting, short *type)
+{
+	Collection *collection = (Collection *)ale->data;
+	
+	/* clear extra return data first */
+	*type = 0;
+	
+	switch (setting) {
+		case ACHANNEL_SETTING_SELECT: /* selected */
+			return GET_ACF_FLAG_PTR(collection->flag, type);
+			
+		case ACHANNEL_SETTING_EXPAND: /* expanded */
+			return GET_ACF_FLAG_PTR(collection->flag, type);
+		
+		case ACHANNEL_SETTING_MUTE: /* mute (only in NLA) */
+		case ACHANNEL_SETTING_VISIBLE: /* visible (for Graph Editor only) */
+			if (collection->adt)
+				return GET_ACF_FLAG_PTR(collection->adt->flag, type);
+			return NULL;
+			
+		default: /* unsupported */
+			return NULL;
+	}
+}
+
+/* collection type define */
+static bAnimChannelType ACF_COLLECTION = 
+{
+	"Collection",                   /* type name */
+	ACHANNEL_ROLE_EXPANDER,         /* role */
+
+	acf_generic_root_color,         /* backdrop color */
+	acf_generic_root_backdrop,      /* backdrop */
+	acf_generic_indention_0,        /* indent level */
+	NULL,                           /* offset */
+
+	acf_generic_idblock_name,       /* name */
+	acf_generic_idblock_name_prop,  /* name prop */
+	acf_collection_icon,            /* icon */
+
+	acf_collection_setting_valid,   /* has setting */
+	acf_collection_setting_flag,    /* flag for setting */
+	acf_collection_setting_ptr      /* pointer for setting */
+};
+
 /* Object ------------------------------------------- */
 
 static int acf_object_icon(bAnimListElem *ale)
@@ -3567,8 +3672,9 @@ static void ANIM_init_channel_typeinfo_data(void)
 		animchannelTypeInfo[type++] = &ACF_SUMMARY;      /* Motion Summary */
 		
 		animchannelTypeInfo[type++] = &ACF_SCENE;        /* Scene */
+		animchannelTypeInfo[type++] = &ACF_COLLECTION;   /* Collection */
 		animchannelTypeInfo[type++] = &ACF_OBJECT;       /* Object */
-		animchannelTypeInfo[type++] = &ACF_GROUP;        /* Group */
+		animchannelTypeInfo[type++] = &ACF_GROUP;        /* ActionGroup */
 		animchannelTypeInfo[type++] = &ACF_FCURVE;       /* F-Curve */
 		
 		animchannelTypeInfo[type++] = &ACF_NLACONTROLS;  /* NLA Control FCurve Expander */
