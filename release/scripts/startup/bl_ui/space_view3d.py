@@ -3576,7 +3576,7 @@ class VIEW3D_PT_shading(Panel):
             col.row().template_icon_view(shading, "studio_light")
             if shading.studio_light_orientation == 'WORLD':
                 col.row().prop(shading, "studiolight_rot_z")
-                col.row().prop(shading, "studiolight_fadeout")
+                col.row().prop(shading, "studiolight_background")
             col.row().prop(shading, "use_scene_light")
 
 
@@ -3869,7 +3869,7 @@ class VIEW3D_PT_view3d_meshdisplay(Panel):
         col.prop(mesh, "show_extra_face_area", text="Area")
         col.prop(mesh, "show_extra_face_angle", text="Angle")
         if bpy.app.debug:
-            layout.prop(mesh, "show_extra_indices")
+            layout.prop(mesh, "show_extra_indices", text="Indices")
 
 
 class VIEW3D_PT_view3d_meshstatvis(Panel):
