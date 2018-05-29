@@ -372,7 +372,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* if parented change position relative to parent object */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		gp_apply_parent_point(tgpi->graph, tgpi->ob, tgpi->gpd, tgpi->gpl, pt);
+		gp_apply_parent_point(tgpi->depsgraph, tgpi->ob, tgpi->gpd, tgpi->gpl, pt);
 	}
 	
 	/* force fill recalc */
@@ -448,7 +448,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	tgpi->ar = CTX_wm_region(C);
 	tgpi->rv3d = tgpi->ar->regiondata;
 	tgpi->v3d = tgpi->sa->spacedata.first;
-	tgpi->graph = CTX_data_depsgraph(C);
+	tgpi->depsgraph = CTX_data_depsgraph(C);
 	tgpi->win = CTX_wm_window(C);
 
 	/* set current frame number */

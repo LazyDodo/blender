@@ -137,7 +137,7 @@ typedef struct tGPDinterpolate {
 
 /* Temporary primitive operation data */
 typedef struct tGPDprimitive {
-	struct Depsgraph *graph;
+	struct Depsgraph *depsgraph;
 	struct wmWindow *win;             /* window where painting originated */
 	struct Scene *scene;              /* current scene from context */
 	struct Object *ob;                /* current active gp object */
