@@ -366,11 +366,30 @@ void DRW_shgroup_call_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, float (*obm
 	BLI_LINKS_APPEND(&shgroup->calls, call);
 }
 
+void DRW_shgroup_call_range_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, float (*obmat)[4], uint v_sta, uint v_count)
+{
+	BLI_assert(geom != NULL);
+	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
+	BLI_assert(v_count);
+
+	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
+	call->state = drw_call_state_create(shgroup, obmat, NULL);
+	call->type = DRW_CALL_RANGE;
+	call->range.geometry = geom;
+	call->range.start = v_sta;
+	call->range.count = v_count;
+#ifdef USE_GPU_SELECT
+	call->select_id = DST.select_id;
+#endif
+
+	BLI_LINKS_APPEND(&shgroup->calls, call);
+}
+
 /* These calls can be culled and are optimized for redraw */
 void DRW_shgroup_call_object_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, Object *ob)
 {
 	BLI_assert(geom != NULL);
-	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
 
 	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
 	call->state = drw_call_state_object(shgroup, ob->obmat, ob);
@@ -388,7 +407,7 @@ void DRW_shgroup_call_object_add_with_callback(
         DRWCallVisibilityFn *callback, void *user_data)
 {
 	BLI_assert(geom != NULL);
-	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
 
 	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
 	call->state = drw_call_state_object(shgroup, ob->obmat, ob);
@@ -406,7 +425,7 @@ void DRW_shgroup_call_object_add_with_callback(
 void DRW_shgroup_call_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, float (*obmat)[4], uint *count)
 {
 	BLI_assert(geom != NULL);
-	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
 
 	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
 	call->state = drw_call_state_create(shgroup, obmat, NULL);
@@ -424,7 +443,7 @@ void DRW_shgroup_call_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, f
 void DRW_shgroup_call_object_instances_add(DRWShadingGroup *shgroup, Gwn_Batch *geom, Object *ob, uint *count)
 {
 	BLI_assert(geom != NULL);
-	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
 
 	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
 	call->state = drw_call_state_object(shgroup, ob->obmat, ob);
@@ -444,7 +463,7 @@ void DRW_shgroup_call_generate_add(
         float (*obmat)[4])
 {
 	BLI_assert(geometry_fn != NULL);
-	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
 
 	DRWCall *call = BLI_mempool_alloc(DST.vmempool->calls);
 	call->state = drw_call_state_create(shgroup, obmat, NULL);
