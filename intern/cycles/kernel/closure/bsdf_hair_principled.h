@@ -451,6 +451,14 @@ ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *
 	return LABEL_GLOSSY|((p == 0)? LABEL_REFLECT : LABEL_TRANSMIT);
 }
 
+ccl_device void bsdf_principled_hair_blur(ShaderClosure *sc, float roughness)
+{
+	PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)sc;
+	
+	bsdf->v = fmaxf(roughness, bsdf->v);
+	bsdf->s = fmaxf(roughness, bsdf->s);
+}
+
 CCL_NAMESPACE_END
 
 #endif /* __BSDF_HAIR_PRINCIPLED_H__ */

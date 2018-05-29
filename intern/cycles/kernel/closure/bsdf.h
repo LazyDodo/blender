@@ -433,6 +433,9 @@ ccl_device void bsdf_blur(KernelGlobals *kg, ShaderClosure *sc, float roughness)
 		case CLOSURE_BSDF_ASHIKHMIN_SHIRLEY_ANISO_ID:
 			bsdf_ashikhmin_shirley_blur(sc, roughness);
 			break;
+		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+			bsdf_principled_hair_blur(sc, roughness);
+			break;
 		default:
 			break;
 	}
