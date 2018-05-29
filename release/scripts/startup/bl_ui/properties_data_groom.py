@@ -31,10 +31,7 @@ class GROOM_UL_bundles(bpy.types.UIList):
             row = layout.row(align=True)
             if not bundle.is_bound:
                 row.label(icon='ERROR')
-            if groom.scalp_object:
-                row.prop_search(bundle, "scalp_facemap", groom.scalp_object, "face_maps", text="")
-            else:
-                row.prop(bundle, "scalp_facemap", text="")
+            row.label(bundle.scalp_facemap)
 
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
@@ -74,19 +71,7 @@ class DATA_PT_groom(DataButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
-
         groom = context.groom
-        bundle = context.groom.bundles.active
-
-        layout.template_list("GROOM_UL_bundles", "bundles",
-                             groom, "bundles",
-                             groom.bundles, "active_index")
-        if bundle:
-            col = layout.column()
-            col.label("Region:")
-            col.prop(bundle, "guides_count")
-
-            layout.separator()
 
         split = layout.split()
 
@@ -97,6 +82,29 @@ class DATA_PT_groom(DataButtonsPanel, Panel):
         col = split.column()
         col.label("Curves:")
         col.prop(groom, "curve_resolution", "Resolution")
+
+
+class DATA_PT_groom_regions(DataButtonsPanel, Panel):
+    bl_label = "Regions"
+
+    def draw(self, context):
+        layout = self.layout
+
+        groom = context.groom
+        bundle = context.groom.bundles.active
+
+        layout.template_list("GROOM_UL_bundles", "bundles",
+                             groom, "bundles",
+                             groom.bundles, "active_index")
+        if bundle:
+            col = layout.column()
+
+            if groom.scalp_object:
+                col.prop_search(bundle, "scalp_facemap", groom.scalp_object, "face_maps", text="")
+            else:
+                col.prop(bundle, "scalp_facemap", text="")
+
+            col.prop(bundle, "guides_count")
 
 
 class DATA_PT_groom_hair(DataButtonsPanel, Panel):
@@ -137,6 +145,7 @@ classes = (
     GROOM_UL_bundles,
     DATA_PT_context_groom,
     DATA_PT_groom,
+    DATA_PT_groom_regions,
     DATA_PT_groom_hair,
     DATA_PT_groom_draw_settings,
     DATA_PT_custom_props_groom,
