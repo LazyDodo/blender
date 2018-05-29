@@ -90,11 +90,15 @@ static void rna_GroomBundle_scalp_facemap_name_set(PointerRNA *ptr, const char *
 		if (fm) {
 			/* no need for BLI_strncpy_utf8, since this matches an existing facemap */
 			BLI_strncpy(bundle->scalp_facemap_name, value, sizeof(bundle->scalp_facemap_name));
+			/* Bind to the region right away */
+			BKE_groom_bundle_bind(groom, bundle, true);
 			return;
 		}
 	}
 	
 	bundle->scalp_facemap_name[0] = '\0';
+	/* Unbind from region */
+	BKE_groom_bundle_unbind(bundle);
 }
 
 static PointerRNA rna_Groom_active_bundle_get(PointerRNA *ptr)
