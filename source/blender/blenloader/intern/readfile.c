@@ -2962,6 +2962,10 @@ static void direct_link_motionpath(FileData *fd, bMotionPath *mpath)
 	
 	/* relink points cache */
 	mpath->points = newdataadr(fd, mpath->points);
+
+	mpath->points_vbo = NULL;
+	mpath->batch_line = NULL;
+	mpath->batch_points = NULL;
 }
 
 /* ************ READ NODE TREE *************** */

@@ -62,6 +62,8 @@
 
 #include "draw_mode_engines.h"
 
+extern struct GPUUniformBuffer *globals_ubo; /* draw_common.c */
+
 /* ********************************* Lists ************************************** */
 /* All lists are per viewport specific datas.
  * They are all free when viewport changes engines
@@ -70,9 +72,8 @@
 
 /* XXX: How to show frame numbers, etc.?  Currently only doing the dots and lines */
 typedef struct MPATH_PassList {
-	struct DRWPass *mpath_line;
-	struct DRWPass *mpath_frame_dots;
-	struct DRWPass *mpath_key_dots;
+	struct DRWPass *lines;
+	struct DRWPass *points;
 } MPATH_PassList;
 
 typedef struct MPATH_StorageList {
@@ -87,9 +88,47 @@ typedef struct MPATH_Data {
 	MPATH_StorageList *stl;
 } MPATH_Data;
 
-/* ******************************** Static ************************************** */
+struct {
+	GPUShader *mpath_line_sh;
+	GPUShader *mpath_points_sh;
+} e_data = {0};
 
-// ...
+/* *************************** Path Cache *********************************** */
+
+/* Just convert the CPU cache to GPU cache. */
+static Gwn_VertBuf *mpath_vbo_get(bMotionPath *mpath)
+{
+	if (!mpath->points_vbo) {
+		Gwn_VertFormat format = {0};
+		/* Match structure of bMotionPathVert. */
+		uint pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		GWN_vertformat_attr_add(&format, "flag", GWN_COMP_U32, 1, GWN_FETCH_INT);
+		mpath->points_vbo = GWN_vertbuf_create_with_format(&format);
+		GWN_vertbuf_data_alloc(mpath->points_vbo, mpath->length);
+
+		/* meh... a useless memcpy. */
+		Gwn_VertBufRaw raw_data;
+		GWN_vertbuf_attr_get_raw_data(mpath->points_vbo, pos, &raw_data);
+		memcpy(GWN_vertbuf_raw_step(&raw_data), mpath->points, sizeof(bMotionPathVert) * mpath->length);
+	}
+	return mpath->points_vbo;
+}
+
+static Gwn_Batch *mpath_batch_line_get(bMotionPath *mpath)
+{
+	if (!mpath->batch_line) {
+		mpath->batch_line = GWN_batch_create(GWN_PRIM_LINE_STRIP, mpath_vbo_get(mpath), NULL);
+	}
+	return mpath->batch_line;
+}
+
+static Gwn_Batch *mpath_batch_points_get(bMotionPath *mpath)
+{
+	if (!mpath->batch_points) {
+		mpath->batch_points = GWN_batch_create(GWN_PRIM_POINTS, mpath_vbo_get(mpath), NULL);
+	}
+	return mpath->batch_points;
+}
 
 /* *************************** Motion Path Drawing ****************************** */
 
@@ -258,7 +297,7 @@ void draw_motion_path_instance(Scene *scene,
 	/* get pointers to parts of path */
 	sind = sfra - mpath->start_frame;
 	mpv_start = (mpath->points + sind);
-	
+
 	/* draw curve-line of path */
 	/* Draw lines only if line drawing option is enabled */
 	if (mpath->flag & MOTIONPATH_FLAG_LINES) {
@@ -272,7 +311,6 @@ void draw_motion_path_instance(Scene *scene,
 		immBindBuiltinProgram(GPU_SHADER_3D_SMOOTH_COLOR);
 
 		immBegin(GWN_PRIM_LINE_STRIP, len);
-
 		for (i = 0, mpv = mpv_start; i < len; i++, mpv++) {
 			short sel = (pchan) ? (pchan->bone->flag & BONE_SELECTED) : (ob->flag & SELECT);
 
@@ -282,7 +320,6 @@ void draw_motion_path_instance(Scene *scene,
 			/* draw a vertex with this color */
 			immVertex3fv(pos, mpv->co);
 		}
-
 		immEnd();
 
 		immUnbindProgram();
@@ -476,9 +513,6 @@ void draw_motion_paths_cleanup(View3D *v3d)
 
 static void MPATH_engine_init(void *UNUSED(vedata))
 {
-	// if (!e_data.bone_selection_sh) {
-	// 	e_data.bone_selection_sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_UNIFORM_COLOR);
-	// }
 }
 
 static void MPATH_engine_free(void)
@@ -490,29 +524,138 @@ static void MPATH_engine_free(void)
 static void MPATH_cache_init(void *vedata)
 {
 	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
-	MPATH_StorageList *stl = ((MPATH_Data *)vedata)->stl;
-
-	// if (!stl->g_data) {
-	// 	/* Alloc transient pointers */
-	// 	stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
-	// }
 
 	{
-		/* MPath Line */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
-		psl->mpath_line = DRW_pass_create("Motionpath Line Pass", state);
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		psl->lines = DRW_pass_create("Motionpath Line Pass", state);
 	}
 
 	{
-		/* MPath Frame Dots */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
-		psl->mpath_frame_dots = DRW_pass_create("Motionpath Frame Dots Pass", state);
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_POINT;
+		psl->points = DRW_pass_create("Motionpath Point Pass", state);
 	}
-	
-	{
-		/* MPath Keyframe Dots */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND;
-		psl->mpath_key_dots = DRW_pass_create("Motionpath Keyframe Dots Pass", state);
+}
+
+static void MPATH_cache_motion_path(MPATH_PassList *psl, Scene *scene,
+                                    Object *ob, bPoseChannel *pchan,
+                                    bAnimVizSettings *avs, bMotionPath *mpath)
+{
+	struct DRWTextStore *dt = DRW_text_cache_ensure();
+	int txt_flag = DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_ASCII;
+	int stepsize = avs->path_step;
+	int sfra, efra, sind, len;
+	bool sel = (pchan) ? (pchan->bone->flag & BONE_SELECTED) : (ob->flag & SELECT);
+	bool show_keyframes = (avs->path_viewflag & MOTIONPATH_VIEW_KFRAS) != 0;
+	bMotionPathVert *mpv, *mpv_start;
+
+	/* get frame ranges */
+	if (avs->path_type == MOTIONPATH_TYPE_ACFRA) {
+		/* With "Around Current", we only choose frames from around
+		 * the current frame to draw.
+		 */
+		sfra = CFRA - avs->path_bc;
+		efra = CFRA + avs->path_ac + 1;
+	}
+	else {
+		/* Use the current display range */
+		sfra = avs->path_sf;
+		efra = avs->path_ef;
+	}
+
+	/* no matter what, we can only show what is in the cache and no more
+	 * - abort if whole range is past ends of path
+	 * - otherwise clamp endpoints to extents of path
+	 */
+	if (sfra < mpath->start_frame) {
+		/* start clamp */
+		sfra = mpath->start_frame;
+	}
+	if (efra > mpath->end_frame) {
+		/* end clamp */
+		efra = mpath->end_frame;
+	}
+
+	if ((sfra > mpath->end_frame) || (efra < mpath->start_frame)) {
+		/* whole path is out of bounds */
+		return;
+	}
+
+	len = efra - sfra;
+
+	if ((len <= 0) || (mpath->points == NULL)) {
+		return;
+	}
+
+	sind = sfra - mpath->start_frame;
+	mpv_start = (mpath->points + sind);
+
+	bool use_custom_col = (mpath->flag & MOTIONPATH_FLAG_CUSTOM) != 0;
+
+	/* draw curve-line of path */
+	/* Draw lines only if line drawing option is enabled */
+	if (mpath->flag & MOTIONPATH_FLAG_LINES) {
+		DRWShadingGroup *shgrp = DRW_shgroup_create(mpath_line_shader_get(), psl->lines);
+		DRW_shgroup_uniform_int_copy(shgrp, "frameCurrent", CFRA);
+		DRW_shgroup_uniform_int_copy(shgrp, "frameStart", sfra);
+		DRW_shgroup_uniform_int_copy(shgrp, "frameEnd", efra);
+		DRW_shgroup_uniform_int_copy(shgrp, "cacheStart", mpath->start_frame);
+		DRW_shgroup_uniform_int_copy(shgrp, "lineThickness", mpath->line_thickness);
+		DRW_shgroup_uniform_bool_copy(shgrp, "selected", sel);
+		DRW_shgroup_uniform_bool_copy(shgrp, "useCustomColor", use_custom_col);
+		DRW_shgroup_uniform_vec2(shgrp, "viewportSize", DRW_viewport_size_get(), 1);
+		DRW_shgroup_uniform_block(shgrp, "globalsBlock", globals_ubo);
+		if (use_custom_col) {
+			DRW_shgroup_uniform_vec3(shgrp, "customColor", mpath->color, 1);
+		}
+		/* Only draw the required range. */
+		DRW_shgroup_call_range_add(shgrp, mpath_batch_line_get(mpath), NULL, sind, len);
+	}
+
+	/* Draw points. */
+	DRWShadingGroup *shgrp = DRW_shgroup_create(mpath_points_shader_get(), psl->points);
+	DRW_shgroup_uniform_int_copy(shgrp, "frameCurrent", CFRA);
+	DRW_shgroup_uniform_int_copy(shgrp, "cacheStart", mpath->start_frame);
+	DRW_shgroup_uniform_int_copy(shgrp, "pointSize", mpath->line_thickness);
+	DRW_shgroup_uniform_int_copy(shgrp, "stepSize", stepsize);
+	DRW_shgroup_uniform_bool_copy(shgrp, "selected", sel);
+	DRW_shgroup_uniform_bool_copy(shgrp, "showKeyFrames", show_keyframes);
+	DRW_shgroup_uniform_bool_copy(shgrp, "useCustomColor", use_custom_col);
+	DRW_shgroup_uniform_block(shgrp, "globalsBlock", globals_ubo);
+	if (use_custom_col) {
+		DRW_shgroup_uniform_vec3(shgrp, "customColor", mpath->color, 1);
+	}
+	/* Only draw the required range. */
+	DRW_shgroup_call_range_add(shgrp, mpath_batch_points_get(mpath), NULL, sind, len);
+
+	/* Draw frame numbers at each framestep value */
+	if (avs->path_viewflag & MOTIONPATH_VIEW_FNUMS) {
+		int i;
+		unsigned char col[4];
+		UI_GetThemeColor3ubv(TH_TEXT_HI, col);
+		col[3] = 255;
+
+		for (i = 0, mpv = mpv_start; i < len; i += stepsize, mpv += stepsize) {
+			int frame = sfra + i;
+			char numstr[32];
+			size_t numstr_len;
+			float co[3];
+
+			if (i == 0) {
+				numstr_len = sprintf(numstr, " %d", frame);
+				mul_v3_m4v3(co, ob->imat, mpv->co);
+				DRW_text_cache_add(dt, co, numstr, numstr_len, 0, txt_flag, col);
+			}
+			else {
+				bMotionPathVert *mpvP = (mpv - stepsize);
+				bMotionPathVert *mpvN = (mpv + stepsize);
+				/* only draw framenum if several consecutive highlighted points don't occur on same point */
+				if ((equals_v3v3(mpv->co, mpvP->co) == 0) || (equals_v3v3(mpv->co, mpvN->co) == 0)) {
+					numstr_len = sprintf(numstr, " %d", frame);
+					mul_v3_m4v3(co, ob->imat, mpv->co);
+					DRW_text_cache_add(dt, co, numstr, numstr_len, 0, txt_flag, col);
+				}
+			}
+		}
 	}
 }
 
@@ -520,30 +663,22 @@ static void MPATH_cache_init(void *vedata)
 static void MPATH_cache_populate(void *vedata, Object *ob)
 {
 	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
-	MPATH_StorageList *stl = ((MPATH_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 
-#if 0 // XXX: Sample code
 	if (ob->type == OB_ARMATURE) {
 		if (DRW_pose_mode_armature(ob, draw_ctx->obact)) {
-			DRWArmaturePasses passes = {
-			    .bone_solid = psl->bone_solid,
-			    .bone_outline = psl->bone_outline,
-			    .bone_wire = psl->bone_wire,
-			    .bone_envelope = psl->bone_envelope,
-			    .bone_axes = psl->bone_axes,
-			    .relationship_lines = psl->relationship,
-			};
-			DRW_shgroup_armature_pose(ob, passes);
+			for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+				if (pchan->mpath) {
+					MPATH_cache_motion_path(psl, draw_ctx->scene, ob, pchan, &ob->pose->avs, pchan->mpath);
+				}
+			}
 		}
 	}
-	else if (ob->type == OB_MESH && POSE_is_bone_selection_overlay_active() && POSE_is_driven_by_active_armature(ob)) {
-		struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
-		if (geom) {
-			DRW_shgroup_call_object_add(stl->g_data->bone_selection_shgrp, geom, ob);
+	else {
+		if (ob->mpath) {
+			MPATH_cache_motion_path(psl, draw_ctx->scene, ob, NULL, &ob->avs, ob->mpath);
 		}
 	}
-#endif
 }
 
 /* Draw time! Control rendering pipeline from here */
@@ -552,13 +687,11 @@ static void MPATH_draw_scene(void *vedata)
 	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-	const DRWContextState *draw_ctx = DRW_context_state_get();
 	
 	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
 
-	DRW_draw_pass(psl->mpath_line);
-	DRW_draw_pass(psl->mpath_frame_dots);
-	DRW_draw_pass(psl->mpath_key_dots);
+	DRW_draw_pass(psl->lines);
+	DRW_draw_pass(psl->points);
 
 	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 }

@@ -59,6 +59,8 @@
 #include "DEG_depsgraph_query.h"
 #include "DEG_depsgraph_build.h"
 
+#include "GPU_batch.h"
+
 // XXX bad level call...
 
 /* --------------------- */
@@ -106,9 +108,21 @@ void animviz_free_motionpath_cache(bMotionPath *mpath)
 	/* free the path if necessary */
 	if (mpath->points)
 		MEM_freeN(mpath->points);
+
+	if (mpath->points_vbo)
+		GWN_vertbuf_discard(mpath->points_vbo);
+
+	if (mpath->batch_line)
+		GWN_batch_discard(mpath->batch_line);
+
+	if (mpath->batch_points)
+		GWN_batch_discard(mpath->batch_points);
 	
 	/* reset the relevant parameters */
 	mpath->points = NULL;
+	mpath->points_vbo = NULL;
+	mpath->batch_line = NULL;
+	mpath->batch_points = NULL;
 	mpath->length = 0;
 }
 

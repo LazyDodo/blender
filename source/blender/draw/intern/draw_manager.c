@@ -1044,6 +1044,8 @@ static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int dr
 static void drw_engines_enable_from_object_mode(void)
 {
 	use_drw_engine(&draw_engine_object_type);
+	/* TODO(fclem) remove this, it does not belong to it's own engine. */
+	use_drw_engine(&draw_engine_motion_path_type);
 }
 
 static void drw_engines_enable_from_mode(int mode)
