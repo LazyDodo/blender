@@ -1303,12 +1303,10 @@ class VIEW3D_PT_tools_particlemode(View3DPanel, Panel):
 # ********** grease pencil object tool panels ****************
 
 # Grease Pencil drawing brushes
-class VIEW3D_PT_tools_grease_pencil_brush(Panel):
-    bl_space_type = 'VIEW_3D'
-    
-    bl_label = "Drawing Brushes"
+class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
     bl_category = "Tools"
-    bl_region_type = 'TOOLS'
+    bl_label = "Drawing Brushes"
 
     @classmethod
     def poll(cls, context):
@@ -1392,20 +1390,11 @@ class VIEW3D_PT_tools_grease_pencil_brush(Panel):
 
 
 # Grease Pencil drawing brushes options
-class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Strokes"
+class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
     bl_category = "Tools"
-    bl_region_type = 'TOOLS'
+    bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        return gpd.is_stroke_paint_mode
 
     @staticmethod
     def draw(self, context):
@@ -1467,25 +1456,11 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(Panel):
 
 
 # Grease Pencil drawingcurves
-class VIEW3D_PT_tools_grease_pencil_brushcurves(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Brush Curves"
+class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
     bl_category = "Tools"
-    bl_region_type = 'TOOLS'
+    bl_label = "Brush Curves"
     bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        if context.active_gpencil_brush is None:
-            return False
-
-        is_3d_view = context.space_data.type == 'VIEW_3D'
-        brush = context.active_gpencil_brush
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        return gpd.is_stroke_paint_mode
 
     @staticmethod
     def draw(self, context):
@@ -1623,26 +1598,10 @@ class VIEW3D_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel)
 
 
 # Grease Pencil weight painting tools
-class VIEW3D_PT_tools_grease_pencil_weight_paint(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Weight Paint"
+class VIEW3D_PT_tools_grease_pencil_weight_paint(View3DPanel, Panel):
+    bl_context = ".greasepencil_weight"
     bl_category = "Tools"
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        if context.editable_gpencil_strokes:
-            is_3d_view = context.space_data.type == 'VIEW_3D'
-            if not is_3d_view:
-                return bool(gpd.use_stroke_edit_mode)
-            else:
-                return bool(gpd.is_stroke_weight_mode)
-
-        return False
+    bl_label = "Weight Paint"
 
     @staticmethod
     def draw(self, context):
@@ -1663,22 +1622,10 @@ class VIEW3D_PT_tools_grease_pencil_weight_paint(Panel):
 
 
 # Grease Pencil weight painting operators
-class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Weight Tools"
+class VIEW3D_PT_tools_grease_pencil_weight_tools(View3DPanel, Panel):
+    bl_context = ".greasepencil_weight"
     bl_category = "Tools"
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        if context.editable_gpencil_strokes:
-            return bool(gpd.is_stroke_weight_mode)
-
-        return False
+    bl_label = "Weight Tools"
 
     @staticmethod
     def draw(self, context):

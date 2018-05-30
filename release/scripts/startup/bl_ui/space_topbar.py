@@ -142,6 +142,14 @@ class TOPBAR_HT_lower_bar(Header):
             layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".posemode", category="")
         elif mode == 'PARTICLE':
             layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+        elif mode == 'GPENCIL_PAINT':
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".greasepencil_paint", category="")
+        elif mode == 'GPENCIL_EDIT':
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".greasepencil_edit", category="")
+        elif mode == 'GPENCIL_SCULPT':
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".greasepencil_sculpt", category="")
+        elif mode == 'GPENCIL_WEIGHT':
+            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".greasepencil_weight", category="")
 
     def draw_right(self, context):
         layout = self.layout
