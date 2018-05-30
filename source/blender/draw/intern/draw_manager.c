@@ -1337,7 +1337,9 @@ void DRW_draw_render_loop_ex(
 
 	DRW_state_reset();
 
+	glDisable(GL_DEPTH_TEST);
 	drw_engines_draw_text();
+	glEnable(GL_DEPTH_TEST);
 
 	if (DST.draw_ctx.evil_C) {
 		/* needed so manipulator isn't obscured */
