@@ -107,11 +107,10 @@ static void gp_deformStroke(
  * (i.e. one where we don't have to worry about restoring state)
  */
 static void gp_bakeModifier(
-        const bContext *C, Depsgraph *depsgraph,
+		Main *bmain, Depsgraph *depsgraph,
         ModifierData *md, Object *ob)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
-	Main *bmain = CTX_data_main(C);
 	Scene *scene = md->scene;
 	struct LatticeDeformData *ldata = NULL;
 	bGPdata *gpd = ob->data;

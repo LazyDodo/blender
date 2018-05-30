@@ -517,7 +517,7 @@ static void gp_generateStrokes(
  */
 #if 0
 static void gp_bakeModifier(
-        const bContext *C, const Depsgraph *UNUSED(depsgraph),
+		Main *bmain, const Depsgraph *UNUSED(depsgraph),
         ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;

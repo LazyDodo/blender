@@ -84,7 +84,7 @@ static void gp_deformStroke(
 }
 
 static void gp_bakeModifier(
-        const bContext *UNUSED(C), Depsgraph *depsgraph,
+		struct Main *UNUSED(bmain), Depsgraph *depsgraph,
         ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;

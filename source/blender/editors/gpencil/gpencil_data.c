@@ -1804,7 +1804,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				for (ModifierData *md = base->object->modifiers.first; md; md = md->next) {
 					const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 					if (mti->gp_bakeModifier) {
-						mti->gp_bakeModifier(C, depsgraph, md, base->object);
+						mti->gp_bakeModifier(bmain, depsgraph, md, base->object);
 					}
 				}
 

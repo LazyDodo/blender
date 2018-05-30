@@ -103,11 +103,10 @@ static void gp_deformStroke(
 }
 
 static void gp_bakeModifier(
-        const bContext *C, Depsgraph *depsgraph,
+		Main *bmain, Depsgraph *depsgraph,
         ModifierData *md, Object *ob)
 {
 	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
-	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ob->data;
 
 	GHash *gh_color = BLI_ghash_str_new("GP_Tint modifier");

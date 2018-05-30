@@ -239,7 +239,7 @@ static void generate_geometry(
 
 /* gp_bakeModifier - "Bake to Data" Mode */
 static void bakeModifierGP_strokes(
-        const bContext *UNUSED(C), Depsgraph *depsgraph,
+        Depsgraph *depsgraph,
         ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
@@ -254,10 +254,8 @@ static void bakeModifierGP_strokes(
 /* -------------------------------- */
 
 /* helper to create a new object */
-static Object *array_instance_add_ob_copy(const bContext *C, Object *from_ob)
+static Object *array_instance_add_ob_copy(Main *bmain, Scene *scene, Object *from_ob)
 {
-	Main *bmain = CTX_data_main(C);
-	Scene *scene = CTX_data_scene(C);
 	Object *ob;
 	
 	ob = BKE_object_copy(bmain, from_ob);
@@ -274,10 +272,10 @@ static Object *array_instance_add_ob_copy(const bContext *C, Object *from_ob)
 }
 
 /* gp_bakeModifier - "Make Objects" Mode */
-static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *ob)
+static void bakeModifierGP_objects(Main *bmain, ModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-	
+	Scene *scene = md->scene;
 	/* reset random */
 	mmd->rnd[0] = 1;
 	
@@ -318,7 +316,7 @@ static void bakeModifierGP_objects(const bContext *C, ModifierData *md, Object *
 				 * to make them unique (if necessary), without too
 				 * much extra memory usage.
 				 */
-				newob = array_instance_add_ob_copy(C, ob);
+				newob = array_instance_add_ob_copy(bmain, scene, ob);
 				
 				/* remove array on destination object */
 				fmd = (ModifierData *)BLI_findstring(&newob->modifiers, md->name, offsetof(ModifierData, name));
@@ -362,7 +360,7 @@ static void gp_generateStrokes(
 
 /* Generic "gp_bakeModifier" callback */
 static void gp_bakeModifier(
-        const bContext *C, Depsgraph *depsgraph,
+		Main *bmain, Depsgraph *depsgraph,
         ModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
@@ -371,10 +369,10 @@ static void gp_bakeModifier(
 	 * Sometimes it's useful to have the option to do either of these...
 	 */
 	if (mmd->flag & GP_INSTANCE_MAKE_OBJECTS) {
-		bakeModifierGP_objects(C, md, ob);
+		bakeModifierGP_objects(bmain, md, ob);
 	}
 	else {
-		bakeModifierGP_strokes(C, depsgraph, md, ob);
+		bakeModifierGP_strokes(depsgraph, md, ob);
 	}
 }
 

@@ -260,11 +260,10 @@ static void gp_deformStroke(
  * (i.e. one where we don't have to worry about restoring state)
  */
 static void gp_bakeModifier(
-        const bContext *C, Depsgraph *depsgraph,
+		Main *bmain, Depsgraph *depsgraph,
         ModifierData *md, Object *ob)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
-	Main *bmain = CTX_data_main(C);
 	Scene *scene = md->scene;
 	bGPdata *gpd = ob->data;
 	int oldframe = CFRA;
