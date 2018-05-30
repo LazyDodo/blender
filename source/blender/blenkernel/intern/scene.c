@@ -1329,7 +1329,7 @@ static bool check_rendered_viewport_visible(Main *bmain)
 		Scene *scene = window->scene;
 		RenderEngineType *type = RE_engines_find(scene->r.engine);
 
-		if (type->draw_engine || !type->render_to_view) {
+		if (type->draw_engine || !type->render) {
 			continue;
 		}
 
