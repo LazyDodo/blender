@@ -578,7 +578,6 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
-#endif
 
 	/* Select drawing brush using index */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_select", ONEKEY, KM_PRESS, 0, 0);
@@ -601,6 +600,7 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 	RNA_int_set(kmi->ptr, "index", 8);
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_select", ZEROKEY, KM_PRESS, 0, 0);
 	RNA_int_set(kmi->ptr, "index", 9);
+#endif
 
 	/* FKEY = Brush Size */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
@@ -658,6 +658,7 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
 
+#if 0 /* GPXX: Remove */
 	/* Select sculpt brush using index */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculpt_select", ONEKEY, KM_PRESS, 0, 0);
 	RNA_int_set(kmi->ptr, "index", 0);
@@ -678,7 +679,6 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculpt_select", NINEKEY, KM_PRESS, 0, 0);
 	RNA_int_set(kmi->ptr, "index", 8);
 
-#if 0 /* GPXX: Remove */
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
