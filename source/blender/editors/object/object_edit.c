@@ -1384,6 +1384,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 		}
 	}
 
+#if 0 /* GPXX */
 	if (gpd) {
 		/* GP Mode is not bound to a specific object. Therefore,
 		 * we don't want it to be actually saved on any objects,
@@ -1401,6 +1402,8 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 			WM_operator_name_call(C, "GPENCIL_OT_editmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
 		}
 	}
+#endif
+
 	
 	if (!ob || !ED_object_mode_compat_test(ob, mode))
 		return OPERATOR_PASS_THROUGH;
