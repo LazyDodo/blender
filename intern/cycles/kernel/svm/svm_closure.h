@@ -721,6 +721,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			}
 			break;
 		}
+#ifdef __HAIR__
 		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID: {
 			float3 weight = sd->svm_closure_weight * mix_weight;
 
@@ -763,7 +764,6 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			}
 			break;
 		}
-#ifdef __HAIR__
 		case CLOSURE_BSDF_HAIR_REFLECTION_ID:
 		case CLOSURE_BSDF_HAIR_TRANSMISSION_ID: {
 			float3 weight = sd->svm_closure_weight * mix_weight;
@@ -806,7 +806,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 
 			break;
 		}
-#endif
+#endif  /* __HAIR__ */
 
 #ifdef __SUBSURFACE__
 		case CLOSURE_BSSRDF_CUBIC_ID:

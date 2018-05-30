@@ -144,6 +144,8 @@ ccl_device_inline float4 combine_with_energy(float3 c)
 	return make_float4(c.x, c.y, c.z, linear_rgb_to_gray(c));
 }
 
+#ifdef __HAIR__
+
 ccl_device int bsdf_principled_hair_setup(PrincipledHairBSDF *bsdf)
 {
 	// if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
@@ -160,6 +162,8 @@ ccl_device int bsdf_principled_hair_setup(PrincipledHairBSDF *bsdf)
 
 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
 }
+
+#endif /* __HAIR__ */
 
 ccl_device_inline void setup_geometry(KernelGlobals *kg, ShaderData *sd, PrincipledHairBSDF *bsdf)
 {
@@ -478,4 +482,3 @@ ccl_device void bsdf_principled_hair_blur(ShaderClosure *sc, float roughness)
 CCL_NAMESPACE_END
 
 #endif /* __BSDF_HAIR_PRINCIPLED_H__ */
-
