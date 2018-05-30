@@ -48,7 +48,6 @@ shader node_principled_hair_bsdf(
 		Sigma *= Sigma;
 	}
 
-	// El incoming está OK, falta el outgoing
 	//printf("Info: color %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, Scale deviation %f, IOR %f\n", Color, Normal, parametrization, Sigma, RoughnessU, RoughnessV, Offset, IOR);
 
 	BSDF = principled_hair(Normal, Sigma, RoughnessU, RoughnessV, Offset, IOR);
