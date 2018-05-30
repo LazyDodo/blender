@@ -1355,10 +1355,52 @@ static int object_mode_set_poll(bContext *C)
 
 static int object_mode_set_exec(bContext *C, wmOperator *op)
 {
+	bool use_submode = STREQ(op->idname, "OBJECT_OT_mode_set_or_submode");
 	Object *ob = CTX_data_active_object(C);
 	eObjectMode mode = RNA_enum_get(op->ptr, "mode");
 	eObjectMode restore_mode = (ob) ? ob->mode : OB_MODE_OBJECT;
 	const bool toggle = RNA_boolean_get(op->ptr, "toggle");
+
+	if (use_submode) {
+		/* Apply arbitrary fallback modes, see: T55162. */
+		if (ob) {
+			if (ob->type == OB_ARMATURE) {
+				if (mode == OB_MODE_TEXTURE_PAINT) {
+					mode = OB_MODE_POSE;
+				}
+			}
+		}
+
+		if (toggle == false) {
+			if (mode == restore_mode) {
+				switch (mode) {
+					case OB_MODE_EDIT:
+						WM_menu_name_call(C, "VIEW3D_MT_edit_mesh_select_mode", WM_OP_INVOKE_REGION_WIN);
+						return OPERATOR_INTERFACE;
+					default:
+						break;
+				}
+			}
+		}
+	}
+
+	if (gpd) {
+		/* GP Mode is not bound to a specific object. Therefore,
+		 * we don't want it to be actually saved on any objects,
+		 * as weirdness can happen if you select other objects,
+		 * or load old files.
+		 *
+		 * Instead, we use the following 2 rules to ensure that
+		 * the mode selector works as expected:
+		 *  1) If there's no object, we want to enter editmode.
+		 *     (i.e. with no object, we're in object mode)
+		 *  2) Otherwise, exit stroke editmode, so that we can
+		 *     enter another mode...
+		 */
+		if (!ob || (gpd->flag & GP_DATA_STROKE_EDITMODE)) {
+			WM_operator_name_call(C, "GPENCIL_OT_editmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
+		}
+	}
 	
 	if (!ob || !ED_object_mode_compat_test(ob, mode))
 		return OPERATOR_PASS_THROUGH;
@@ -1416,6 +1458,31 @@ void OBJECT_OT_mode_set(wmOperatorType *ot)
 	/* flags */
 	ot->flag = 0; /* no register/undo here, leave it to operators being called */
 	
+	ot->prop = RNA_def_enum(ot->srna, "mode", rna_enum_object_mode_items, OB_MODE_OBJECT, "Mode", "");
+	RNA_def_enum_funcs(ot->prop, object_mode_set_itemsf);
+	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
+
+	prop = RNA_def_boolean(ot->srna, "toggle", 0, "Toggle", "");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+}
+
+void OBJECT_OT_mode_set_or_submode(wmOperatorType *ot)
+{
+	PropertyRNA *prop;
+
+	/* identifiers */
+	ot->name = "Set Object Mode or Submode";
+	ot->description = "Sets the object interaction mode";
+	ot->idname = "OBJECT_OT_mode_set_or_submode";
+
+	/* api callbacks */
+	ot->exec = object_mode_set_exec;
+
+	ot->poll = object_mode_set_poll; //ED_operator_object_active_editable;
+
+	/* flags */
+	ot->flag = 0; /* no register/undo here, leave it to operators being called */
+
 	ot->prop = RNA_def_enum(ot->srna, "mode", rna_enum_object_mode_items, OB_MODE_OBJECT, "Mode", "");
 	RNA_def_enum_funcs(ot->prop, object_mode_set_itemsf);
 	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
