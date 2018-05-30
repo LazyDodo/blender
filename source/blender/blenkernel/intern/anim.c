@@ -35,6 +35,7 @@
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
+#include "BLI_dlrbTree.h"
 
 #include "BLT_translation.h"
 
@@ -44,6 +45,7 @@
 #include "DNA_scene_types.h"
 
 #include "BKE_anim.h"
+#include "BKE_animsys.h"
 #include "BKE_action.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
@@ -62,6 +64,9 @@
 #include "GPU_batch.h"
 
 // XXX bad level call...
+extern short compare_ak_cfraPtr(void *node, void *data);
+extern void agroup_to_keylist(struct AnimData *adt, struct bActionGroup *agrp, struct DLRBT_Tree *keys, struct DLRBT_Tree *blocks);
+extern void action_to_keylist(struct AnimData *adt, struct bAction *act, struct DLRBT_Tree *keys, struct DLRBT_Tree *blocks);
 
 /* --------------------- */
 /* forward declarations */
@@ -109,20 +114,12 @@ void animviz_free_motionpath_cache(bMotionPath *mpath)
 	if (mpath->points)
 		MEM_freeN(mpath->points);
 
-	if (mpath->points_vbo)
-		GWN_vertbuf_discard(mpath->points_vbo);
-
-	if (mpath->batch_line)
-		GWN_batch_discard(mpath->batch_line);
-
-	if (mpath->batch_points)
-		GWN_batch_discard(mpath->batch_points);
+	GWN_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
+	GWN_BATCH_DISCARD_SAFE(mpath->batch_line);
+	GWN_BATCH_DISCARD_SAFE(mpath->batch_points);
 	
 	/* reset the relevant parameters */
 	mpath->points = NULL;
-	mpath->points_vbo = NULL;
-	mpath->batch_line = NULL;
-	mpath->batch_points = NULL;
 	mpath->length = 0;
 }
 
@@ -246,6 +243,8 @@ typedef struct MPathTarget {
 	struct MPathTarget *next, *prev;
 	
 	bMotionPath *mpath;         /* motion path in question */
+
+	DLRBT_Tree keys;         /* temp, to know where the keyframes are */
 	
 	/* Original (Source Objects) */
 	Object *ob;                 /* source object */
@@ -358,6 +357,13 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 			/* worldspace object location */
 			copy_v3_v3(mpv->co, ob_eval->obmat[3]);
 		}
+
+		float mframe = (float)(CFRA);
+
+		/* Tag if it's a keyframe */
+		if (BLI_dlrbTree_search_exact(&mpt->keys, compare_ak_cfraPtr, &mframe)) {
+			mpv->flag |= MOTIONPATH_VERT_KEY;
+		}
 	}
 }
 
@@ -401,13 +407,44 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 		if (mpt->pchan) {
 			mpt->pchan_eval = BKE_pose_channel_find_name(mpt->ob_eval->pose, mpt->pchan->name);
 		}
+
+		AnimData *adt = BKE_animdata_from_id(&mpt->ob_eval->id);
+
+		/* build list of all keyframes in active action for object or pchan */
+		BLI_dlrbTree_init(&mpt->keys);
+
+		if (adt) {
+			bAnimVizSettings *avs;
+
+			/* get pointer to animviz settings for each target */
+			if (mpt->pchan)
+				avs = &mpt->ob->pose->avs;
+			else
+				avs = &mpt->ob->avs;
+
+			/* it is assumed that keyframes for bones are all grouped in a single group
+			 * unless an option is set to always use the whole action
+			 */
+			if ((mpt->pchan) && (avs->path_viewflag & MOTIONPATH_VIEW_KFACT) == 0) {
+				bActionGroup *agrp = BKE_action_group_find_name(adt->action, mpt->pchan->name);
+
+				if (agrp) {
+					agroup_to_keylist(adt, agrp, &mpt->keys, NULL);
+					BLI_dlrbTree_linkedlist_sync(&mpt->keys);
+				}
+			}
+			else {
+				action_to_keylist(adt, adt->action, &mpt->keys, NULL);
+				BLI_dlrbTree_linkedlist_sync(&mpt->keys);
+			}
+		}
 	}
-	
+
 	/* calculate path over requested range */
 	for (CFRA = sfra; CFRA <= efra; CFRA++) {
 		/* update relevant data for new frame */
 		motionpaths_calc_update_scene(bmain, depsgraph);
-		
+
 		/* perform baking for targets */
 		motionpaths_calc_bake_targets(scene, targets);
 	}
@@ -420,6 +457,7 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 	/* clear recalc flags from targets */
 	for (mpt = targets->first; mpt; mpt = mpt->next) {
 		bAnimVizSettings *avs;
+		bMotionPath *mpath = mpt->mpath;
 		
 		/* get pointer to animviz settings for each target */
 		if (mpt->pchan)
@@ -429,6 +467,14 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 		
 		/* clear the flag requesting recalculation of targets */
 		avs->recalc &= ~ANIMVIZ_RECALC_PATHS;
+
+		/* Clean temp data */
+		BLI_dlrbTree_free(&mpt->keys);
+
+		/* Free previous batches to force update. */
+		GWN_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
+		GWN_BATCH_DISCARD_SAFE(mpath->batch_line);
+		GWN_BATCH_DISCARD_SAFE(mpath->batch_points);
 	}
 }
 

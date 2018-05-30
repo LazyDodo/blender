@@ -61,7 +61,8 @@ typedef struct bMotionPathVert {
 /* bMotionPathVert->flag */
 typedef enum eMotionPathVert_Flag {
 	/* vert is selected */
-	MOTIONPATH_VERT_SEL     = (1 << 0)
+	MOTIONPATH_VERT_SEL     = (1 << 0),
+	MOTIONPATH_VERT_KEY     = (1 << 1),
 } eMotionPathVert_Flag;
 
 /* ........ */

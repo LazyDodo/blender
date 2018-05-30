@@ -102,7 +102,7 @@ static Gwn_VertBuf *mpath_vbo_get(bMotionPath *mpath)
 		Gwn_VertFormat format = {0};
 		/* Match structure of bMotionPathVert. */
 		uint pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		GWN_vertformat_attr_add(&format, "flag", GWN_COMP_U32, 1, GWN_FETCH_INT);
+		GWN_vertformat_attr_add(&format, "flag", GWN_COMP_I32, 1, GWN_FETCH_INT);
 		mpath->points_vbo = GWN_vertbuf_create_with_format(&format);
 		GWN_vertbuf_data_alloc(mpath->points_vbo, mpath->length);
 
@@ -628,24 +628,29 @@ static void MPATH_cache_motion_path(MPATH_PassList *psl, Scene *scene,
 	DRW_shgroup_call_range_add(shgrp, mpath_batch_points_get(mpath), NULL, sind, len);
 
 	/* Draw frame numbers at each framestep value */
-	if (avs->path_viewflag & MOTIONPATH_VIEW_FNUMS) {
+	bool show_kf_no = (avs->path_viewflag & MOTIONPATH_VIEW_KFNOS) != 0;
+	if ((avs->path_viewflag & (MOTIONPATH_VIEW_FNUMS)) || (show_kf_no && show_keyframes)) {
 		int i;
-		unsigned char col[4];
+		unsigned char col[4], col_kf[4];
 		UI_GetThemeColor3ubv(TH_TEXT_HI, col);
-		col[3] = 255;
+		UI_GetThemeColor3ubv(TH_VERTEX_SELECT, col_kf);
+		col[3] = col_kf[3] = 255;
 
 		for (i = 0, mpv = mpv_start; i < len; i += stepsize, mpv += stepsize) {
 			int frame = sfra + i;
 			char numstr[32];
 			size_t numstr_len;
 			float co[3];
+			bool is_keyframe = (mpv->flag & MOTIONPATH_VERT_KEY) != 0;
 
-			if (i == 0) {
+			if ((show_keyframes && show_kf_no && is_keyframe) ||
+			    ((avs->path_viewflag & MOTIONPATH_VIEW_FNUMS) && (i == 0)))
+			{
 				numstr_len = sprintf(numstr, " %d", frame);
 				mul_v3_m4v3(co, ob->imat, mpv->co);
-				DRW_text_cache_add(dt, co, numstr, numstr_len, 0, txt_flag, col);
+				DRW_text_cache_add(dt, co, numstr, numstr_len, 0, txt_flag, (is_keyframe) ? col_kf : col);
 			}
-			else {
+			else if (avs->path_viewflag & MOTIONPATH_VIEW_FNUMS) {
 				bMotionPathVert *mpvP = (mpv - stepsize);
 				bMotionPathVert *mpvN = (mpv + stepsize);
 				/* only draw framenum if several consecutive highlighted points don't occur on same point */
