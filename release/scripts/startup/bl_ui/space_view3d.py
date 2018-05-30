@@ -3554,6 +3554,9 @@ class VIEW3D_PT_shading(Panel):
                 if shading.studio_light_orientation == 'WORLD':
                     col.row().prop(shading, "studiolight_rot_z")
 
+                row = col.row()
+                row.prop(shading, "show_specular_highlight")
+
             col.separator()
 
             row = col.row()

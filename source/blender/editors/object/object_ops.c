@@ -292,7 +292,6 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 	/* modes */
 	{
 		short key_mode_pair[][2] = {
-			{ACCENTGRAVEKEY, OB_MODE_OBJECT},
 			{ONEKEY, OB_MODE_OBJECT},
 			{TWOKEY, OB_MODE_EDIT},            /* or OB_MODE_GPENCIL_EDIT */
 			{THREEKEY, OB_MODE_SCULPT},        /* or OB_MODE_GPENCIL_SCULPT */
