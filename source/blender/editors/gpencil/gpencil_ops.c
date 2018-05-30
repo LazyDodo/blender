@@ -313,14 +313,15 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 	keymap->poll = gp_stroke_editmode_poll;
 	
 	/* ----------------------------------------------- */
-	
+
+#if 0 /* GPXX: Remove */
 	/* Exit EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
-
+#endif
 	/* Brush Settings */
 	/* NOTE: We cannot expose these in the standard keymap, as they will interfere with regular hotkeys
 	 *       in other modes. However, when we are dealing with Stroke Edit Mode, we know for certain
@@ -431,12 +432,14 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 	ED_keymap_proportional_cycle(keyconf, keymap);
 	ED_keymap_proportional_editmode(keyconf, keymap, true);
 
+#if 0 /* GPXX: Remove */
 	/* Enter PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", DKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter SculptMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculptmode_toggle", EKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
+#endif
 
 	/* menu - add GP object (3d view only) */
 	WM_keymap_add_item(keymap, "OBJECT_OT_gpencil_add", AKEY, KM_PRESS, KM_SHIFT, 0);
@@ -568,12 +571,14 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 	/* set poll callback - so that this keymap only gets enabled when stroke paintmode is enabled */
 	keymap->poll = gp_stroke_paintmode_poll;
 
+#if 0 /* GPXX: Remove */
 	/* Exit PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
+#endif
 
 	/* Select drawing brush using index */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_select", ONEKEY, KM_PRESS, 0, 0);
@@ -605,12 +610,14 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_string_set(kmi->ptr, "data_path_primary", "user_preferences.edit.grease_pencil_eraser_radius");
 
+#if 0 /* GPXX: Remove */
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter SculptMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculptmode_toggle", EKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
+#endif
 
 	/* menu draw specials (add two keys to make more easy for user) */
 	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_draw_specials", WKEY, KM_PRESS, 0, 0);
@@ -629,12 +636,14 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 	/* set poll callback - so that this keymap only gets enabled when stroke sculptmode is enabled */
 	keymap->poll = gp_stroke_sculptmode_poll;
 
+#if 0 /* GPXX: Remove */
 	/* Exit SculptMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 	
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculptmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
+#endif
 
 	/* Selection */
 	ed_keymap_gpencil_selection(keymap);
@@ -669,12 +678,14 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_sculpt_select", NINEKEY, KM_PRESS, 0, 0);
 	RNA_int_set(kmi->ptr, "index", 8);
 
+#if 0 /* GPXX: Remove */
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", DKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
+#endif
 }
 
 /* Stroke Weight Paint Keymap - Only when weight is enabled */
@@ -686,12 +697,14 @@ static void ed_keymap_gpencil_weightpainting(wmKeyConfig *keyconf)
 	/* set poll callback - so that this keymap only gets enabled when stroke sculptmode is enabled */
 	keymap->poll = gp_stroke_weightmode_poll;
 
+#if 0 /* GPXX: Remove */
 	/* Exit WeightMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_weightmode_toggle", TABKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
+#endif
 
 	/* Selection */
 	ed_keymap_gpencil_selection(keymap);
@@ -714,12 +727,15 @@ static void ed_keymap_gpencil_weightpainting(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
 
+#if 0 /* GPXX: Remove */
 	/* Enter EditMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
 	/* Enter PaintMode */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_paintmode_toggle", DKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "back", 1);
+#endif
+
 }
 /* ==================== */
 
