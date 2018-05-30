@@ -1098,6 +1098,11 @@ static void drw_engines_enable_from_mode(int mode)
 			break;
 		case CTX_MODE_OBJECT:
 			break;
+		case CTX_MODE_GPENCIL_PAINT:
+		case CTX_MODE_GPENCIL_EDIT:
+		case CTX_MODE_GPENCIL_SCULPT:
+		case CTX_MODE_GPENCIL_WEIGHT:
+			break;
 		default:
 			BLI_assert(!"Draw mode invalid");
 			break;

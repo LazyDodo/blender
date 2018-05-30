@@ -1006,6 +1006,10 @@ int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectM
 			else if (object_mode & OB_MODE_VERTEX_PAINT) return CTX_MODE_PAINT_VERTEX;
 			else if (object_mode & OB_MODE_TEXTURE_PAINT) return CTX_MODE_PAINT_TEXTURE;
 			else if (object_mode & OB_MODE_PARTICLE_EDIT) return CTX_MODE_PARTICLE;
+			else if (object_mode & OB_MODE_GPENCIL_PAINT) return CTX_MODE_GPENCIL_PAINT;
+			else if (object_mode & OB_MODE_GPENCIL_EDIT) return CTX_MODE_GPENCIL_EDIT;
+			else if (object_mode & OB_MODE_GPENCIL_SCULPT) return CTX_MODE_GPENCIL_SCULPT;
+			else if (object_mode & OB_MODE_GPENCIL_WEIGHT) return CTX_MODE_GPENCIL_WEIGHT;
 		}
 	}
 
@@ -1036,6 +1040,10 @@ static const char *data_mode_strings[] = {
 	"imagepaint",
 	"particlemode",
 	"objectmode",
+	"greasepencil_paint",
+	"greasepencil_edit",
+	"greasepencil_sculpt",
+	"greasepencil_weight",
 	NULL
 };
 BLI_STATIC_ASSERT(ARRAY_SIZE(data_mode_strings) == CTX_MODE_NUM + 1, "Must have a string for each context mode")
