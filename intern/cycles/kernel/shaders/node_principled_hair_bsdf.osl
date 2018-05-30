@@ -45,7 +45,7 @@ shader node_principled_hair_bsdf(
 	else {
 		float roughness_fac = (((((0.245*RoughnessU) + 5.574)*RoughnessU - 10.73)*RoughnessU + 2.532)*RoughnessU - 0.215)*RoughnessU + 5.969;
 		Sigma = log3(Color)/roughness_fac;
-		Sigma *= Color;
+		Sigma *= Sigma;
 	}
 
 	// El incoming está OK, falta el outgoing
