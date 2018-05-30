@@ -1353,6 +1353,26 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 	const bool toggle = RNA_boolean_get(op->ptr, "toggle");
 
 	if (use_submode) {
+		/* grease pencil modes that reuse the same modes but only
+		* for grease pencil objects
+		*/
+		if (ob) {
+			if (ob->type == OB_GPENCIL) {
+				if (mode == OB_MODE_EDIT) {
+					mode = OB_MODE_GPENCIL_EDIT;
+				}
+				if (mode == OB_MODE_SCULPT) {
+					mode = OB_MODE_GPENCIL_SCULPT;
+				}
+				if (mode == OB_MODE_VERTEX_PAINT) {
+					mode = OB_MODE_GPENCIL_PAINT;
+				}
+				if (mode == OB_MODE_WEIGHT_PAINT) {
+					mode = OB_MODE_GPENCIL_WEIGHT;
+				}
+			}
+		}
+
 		/* When not changing modes use submodes, see: T55162. */
 		if (toggle == false) {
 			if (mode == restore_mode) {
