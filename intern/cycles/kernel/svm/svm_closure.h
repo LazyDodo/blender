@@ -758,10 +758,10 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 						bsdf->sigma = log3(color)/roughness_fac;
 						bsdf->sigma *= bsdf->sigma;
 						break;
-				}
+					}
 				}
 
-				sd->flag |= bsdf_principled_hair_setup(bsdf);
+				sd->flag |= bsdf_principled_hair_setup(sd, bsdf);
 			}
 			break;
 		}

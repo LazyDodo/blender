@@ -146,7 +146,7 @@ ccl_device_inline float4 combine_with_energy(float3 c)
 
 #ifdef __HAIR__
 
-ccl_device int bsdf_principled_hair_setup(PrincipledHairBSDF *bsdf)
+ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bsdf)
 {
 	// if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
 	// 	bsdf->type = CLOSURE_BSDF_DIFFUSE_ID;
@@ -160,45 +160,45 @@ ccl_device int bsdf_principled_hair_setup(PrincipledHairBSDF *bsdf)
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
 
-	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
-}
-
-#endif /* __HAIR__ */
-
-ccl_device_inline void setup_geometry(KernelGlobals *kg, ShaderData *sd, PrincipledHairBSDF *bsdf)
-{
 	/* Compute local frame, aligned to curve tangent and ray direction. */
 	float3 X = normalize(sd->dPdu);
 	float3 Y = safe_normalize(cross(X, sd->I));
 	float3 Z = safe_normalize(cross(X, Y));
-
-#if 0
-	/* TODO: this seems to give wrong results, and h should be in the -1..1 range? */
-	float curve_r;
-	float3 curve_P = curve_center(kg, sd, &curve_r);
-	float h = safe_divide(dot(Y, sd->P - curve_P), curve_r);
-	kernel_assert(fabsf(h) <= 2.0f);
-#else
+	
+//#if 0
+//    /* TODO: this seems to give wrong results, and h should be in the -1..1 range? */
+//    /* It doesn't work either if you call it from OSL */
+//    float curve_r;
+//    float3 curve_P = curve_center(kg, sd, &curve_r);
+//    float h = safe_divide(dot(Y, sd->P - curve_P), curve_r);
+//    kernel_assert(fabsf(h) <= 2.0f);
+//#else
 	/* TODO: this only works for thick curves where sd->Ng is the normal
 	 * pointing from the center of the curve to the shading point. For
 	 * ribbons we need to find another solution. */
-
+	/* Amyspark: it works for ribbons too, but NOT triangles.
+	 * See https://developer.blender.org/T43625 */
+	
 	/* h -1..0..1 means the rays goes from grazing the hair, to hitting it at
 	 * the center, to grazing the other edge. This is the sine of the angle
 	 * between sd->Ng and Z, as seen from the tangent X. */
-
+	
 	/* TODO: we convert this value to a cosine later and discard the sign, so
 	 * we could probably save some operations. */
 	float h = dot(cross(sd->Ng, X), Z);
-
+	
 	kernel_assert(fabsf(h) < 1.0f + 1e-4f);
-#endif
-
+//#endif
+	
 	kernel_assert(isfinite3_safe(Y));
 	kernel_assert(isfinite_safe(h));
-
+	
 	bsdf->geom = make_float4(Y.x, Y.y, Y.z, h);
+
+	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
 }
+
+#endif /* __HAIR__ */
 
 ccl_device_inline void hair_ap(float f, float3 T, float4 *Ap)
 {
@@ -244,7 +244,7 @@ ccl_device_inline void hair_alpha_angles(float sin_theta_i, float cos_theta_i, f
 	angles[5] = fabsf(cos_theta_i*cos_4alpha + sin_theta_i*sin_4alpha);
 }
 
-ccl_device_noinline float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
+ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
 {
 	//*pdf = 0.0f;
 	//return make_float3(0.0f, 0.0f, 0.0f);
@@ -327,16 +327,6 @@ ccl_device_noinline float3 bsdf_principled_hair_eval(const ShaderData *sd, const
 	return float4_to_float3(F);
 }
 
-ccl_device_noinline float3 bsdf_principled_hair_eval_reflect(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
-{
-    return bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
-}
-
-ccl_device_noinline float3 bsdf_principled_hair_eval_transmit(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
-{
-    return bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
-}
-
 ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosure *sc, ShaderData *sd, float randu, float randv, float3 *eval, float3 *omega_in, float3 *domega_in_dx, float3 *domega_in_dy, float *pdf)
 {
 #ifdef __KERNEL_CPU__
@@ -344,8 +334,6 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 #endif
 
 	PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*) sc;
-
-	setup_geometry(kg, sd, bsdf);
 
 	float3 Y = float4_to_float3(bsdf->geom);
 

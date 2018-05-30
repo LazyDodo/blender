@@ -3100,6 +3100,7 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 
 void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)
 {
+	compiler.parameter(this, "parametrization");
 	compiler.add(this, "node_principled_hair_bsdf");
 }
 

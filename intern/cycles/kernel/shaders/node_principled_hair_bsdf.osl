@@ -17,29 +17,29 @@
 #include "stdosl.h"
 
 color log3 (color a) {
-    return color(log(a[0]), log(a[1]), log(a[2]));
+	return color(log(a[0]), log(a[1]), log(a[2]));
 }
 
 shader node_principled_hair_bsdf(
 	color Color = 0.0, 
-	normal Normal = N,
-	string Parametrization = "Direct coloring",
-	float Offset = 2.0,
-	float RoughnessU = 0.2,
-	float RoughnessV = 0.2,
-	float IOR = 1.55,
+	normal Normal = 0.0,
+	string parametrization = "Absorption coefficient",
+	float Offset = 0,
+	float RoughnessU = 0,
+	float RoughnessV = 0,
+	float IOR = 0,
 
 	output closure color BSDF = 0)
 {
-    color Sigma;
+	color Sigma;
 
-	if (Parametrization == "Direct coloring") {
+	if (parametrization == "Absorption coefficient") {
 		Sigma = Color;
 	}
-	else if (Parametrization == "physical") {
+	else if (parametrization == "physical") {
 		Sigma = -log3(max(Color, 1e-5));
 	}
-	else if (Parametrization == "Melanin concentration") {
+	else if (parametrization == "Melanin concentration") {
 		Sigma = Color[0]*color(0.419, 0.697, 1.37) + Color[1]*color(0.187, 0.4, 1.05);
 	}
 	else {
@@ -48,5 +48,8 @@ shader node_principled_hair_bsdf(
 		Sigma *= Color;
 	}
 
-	BSDF = principled_hair(Ng, Color, RoughnessU, RoughnessV, Offset, IOR);
+	// El incoming está OK, falta el outgoing
+	//printf("Info: color %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, Scale deviation %f, IOR %f\n", Color, Normal, parametrization, Sigma, RoughnessU, RoughnessV, Offset, IOR);
+
+	BSDF = principled_hair(Normal, Sigma, RoughnessU, RoughnessV, Offset, IOR);
 }
