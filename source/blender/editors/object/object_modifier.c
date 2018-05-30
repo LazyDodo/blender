@@ -590,7 +590,7 @@ static int modifier_apply_shape(ReportList *reports, Depsgraph *depsgraph, Scene
 	return 1;
 }
 
-static int modifier_apply_obdata(ReportList *reports, bContext *C, Depsgraph *depsgraph, Scene *scene, Object *ob, ModifierData *md)
+static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, ModifierData *md)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 
@@ -664,9 +664,11 @@ static int modifier_apply_obdata(ReportList *reports, bContext *C, Depsgraph *de
 			BKE_report(reports, RPT_ERROR, "Not implemented");
 			return 0;
 		}
-		
+#if 0 /* GPXX: Now is passing the context, but this must be removed 
+	   * disable to compile while found a better solution */	
 		mti->gp_bakeModifier(C, depsgraph, md, ob);
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+#endif
 	}
 	else {
 		BKE_report(reports, RPT_ERROR, "Cannot apply modifier for this object type");
@@ -691,7 +693,7 @@ static int modifier_apply_obdata(ReportList *reports, bContext *C, Depsgraph *de
 }
 
 int ED_object_modifier_apply(
-        ReportList *reports, bContext *C, Depsgraph *depsgraph,
+        ReportList *reports, Depsgraph *depsgraph,
         Scene *scene, Object *ob, ModifierData *md, int mode)
 {
 	int prev_mode;
@@ -737,7 +739,7 @@ int ED_object_modifier_apply(
 		}
 	}
 	else {
-		if (!modifier_apply_obdata(reports, C, depsgraph, scene, ob, md)) {
+		if (!modifier_apply_obdata(reports, depsgraph, scene, ob, md)) {
 			md->mode = prev_mode;
 			return 0;
 		}
@@ -1051,7 +1053,7 @@ static int modifier_apply_exec(bContext *C, wmOperator *op)
 	ModifierData *md = edit_modifier_property_get(op, ob, 0);
 	int apply_as = RNA_enum_get(op->ptr, "apply_as");
 
-	if (!md || !ED_object_modifier_apply(op->reports, C, depsgraph, scene, ob, md, apply_as)) {
+	if (!md || !ED_object_modifier_apply(op->reports, depsgraph, scene, ob, md, apply_as)) {
 		return OPERATOR_CANCELLED;
 	}
 
