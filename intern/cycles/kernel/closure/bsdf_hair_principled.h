@@ -144,12 +144,12 @@ ccl_device_inline float4 combine_with_energy(float3 c)
 	return make_float4(c.x, c.y, c.z, linear_rgb_to_gray(c));
 }
 
-ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, PrincipledHairBSDF *bsdf)
+ccl_device int bsdf_principled_hair_setup(PrincipledHairBSDF *bsdf)
 {
-	if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
-		bsdf->type = CLOSURE_BSDF_DIFFUSE_ID;
-		return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
-	}
+	// if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
+	// 	bsdf->type = CLOSURE_BSDF_DIFFUSE_ID;
+	// 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
+	// }
 
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 0.999f);
@@ -158,6 +158,11 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
 
+	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
+}
+
+ccl_device_inline void setup_geometry(KernelGlobals *kg, ShaderData *sd, PrincipledHairBSDF *bsdf)
+{
 	/* Compute local frame, aligned to curve tangent and ray direction. */
 	float3 X = normalize(sd->dPdu);
 	float3 Y = safe_normalize(cross(X, sd->I));
@@ -189,8 +194,6 @@ ccl_device int bsdf_principled_hair_setup(KernelGlobals *kg, ShaderData *sd, Pri
 	kernel_assert(isfinite_safe(h));
 
 	bsdf->geom = make_float4(Y.x, Y.y, Y.z, h);
-
-	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
 }
 
 ccl_device_inline void hair_ap(float f, float3 T, float4 *Ap)
@@ -237,7 +240,7 @@ ccl_device_inline void hair_alpha_angles(float sin_theta_i, float cos_theta_i, f
 	angles[5] = fabsf(cos_theta_i*cos_4alpha + sin_theta_i*sin_4alpha);
 }
 
-ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
+ccl_device_noinline float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
 {
 	//*pdf = 0.0f;
 	//return make_float3(0.0f, 0.0f, 0.0f);
@@ -320,13 +323,26 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	return float4_to_float3(F);
 }
 
-ccl_device int bsdf_principled_hair_sample(ShaderData *sd, const ShaderClosure *sc, float randu, float randv, float3 *eval, float3 *omega_in, float3 *domega_in_dx, float3 *domega_in_dy, float *pdf)
+ccl_device_noinline float3 bsdf_principled_hair_eval_reflect(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
+{
+    return bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
+}
+
+ccl_device_noinline float3 bsdf_principled_hair_eval_transmit(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
+{
+    return bsdf_principled_hair_eval(sd, sc, omega_in, pdf);
+}
+
+ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosure *sc, ShaderData *sd, float randu, float randv, float3 *eval, float3 *omega_in, float3 *domega_in_dx, float3 *domega_in_dy, float *pdf)
 {
 #ifdef __KERNEL_CPU__
 	//feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
 #endif
 
-	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
+	PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*) sc;
+
+	setup_geometry(kg, sd, bsdf);
+
 	float3 Y = float4_to_float3(bsdf->geom);
 
 	float3 X = normalize(sd->dPdu);

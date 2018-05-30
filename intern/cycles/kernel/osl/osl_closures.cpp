@@ -59,6 +59,7 @@
 #include "kernel/closure/bsdf_ashikhmin_shirley.h"
 #include "kernel/closure/bsdf_toon.h"
 #include "kernel/closure/bsdf_hair.h"
+#include "kernel/closure/bsdf_hair_principled.h"
 #include "kernel/closure/bsdf_principled_diffuse.h"
 #include "kernel/closure/bsdf_principled_sheen.h"
 #include "kernel/closure/volume.h"
@@ -166,6 +167,16 @@ BSDF_CLOSURE_CLASS_BEGIN(HairTransmission, hair_transmission, HairBsdf, LABEL_GL
 	CLOSURE_FLOAT3_PARAM(HairReflectionClosure, params.T),
 	CLOSURE_FLOAT_PARAM(HairReflectionClosure, params.offset),
 BSDF_CLOSURE_CLASS_END(HairTransmission, hair_transmission)
+
+BSDF_CLOSURE_CLASS_BEGIN(PrincipledHair, principled_hair, PrincipledHairBSDF,
+LABEL_GLOSSY)
+	CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.N),
+	CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.sigma),
+	CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.v),
+	CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.s),
+    CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.alpha),
+	CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.eta),
+BSDF_CLOSURE_CLASS_END(PrincipledHair, principled_hair)
 
 BSDF_CLOSURE_CLASS_BEGIN(PrincipledDiffuse, principled_diffuse, PrincipledDiffuseBsdf, LABEL_DIFFUSE)
 	CLOSURE_FLOAT3_PARAM(PrincipledDiffuseClosure, params.N),
@@ -323,6 +334,9 @@ void OSLShader::register_closures(OSLShadingSystem *ss_)
 		bsdf_hair_reflection_params(), bsdf_hair_reflection_prepare);
 	register_closure(ss, "hair_transmission", id++,
 		bsdf_hair_transmission_params(), bsdf_hair_transmission_prepare);
+
+	register_closure(ss, "principled_hair", id++,
+		bsdf_principled_hair_params(), bsdf_principled_hair_prepare);
 
 	register_closure(ss, "henyey_greenstein", id++,
 		closure_henyey_greenstein_params(), closure_henyey_greenstein_prepare);

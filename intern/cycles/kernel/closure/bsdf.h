@@ -172,7 +172,8 @@ ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
 				eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
 			break;
 		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
-			label = bsdf_principled_hair_sample(sd, sc, randu, randv, eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
+			label = bsdf_principled_hair_sample(kg, sc, sd, randu, randv,
+				eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
 			break;
 #ifdef __PRINCIPLED__
 		case CLOSURE_BSDF_PRINCIPLED_DIFFUSE_ID:
@@ -320,7 +321,7 @@ float3 bsdf_eval(KernelGlobals *kg,
 		switch(sc->type) {
 			case CLOSURE_BSDF_DIFFUSE_ID:
 			case CLOSURE_BSDF_BSSRDF_ID:
-                eval = bsdf_diffuse_eval_transmit(sc, sd->I, omega_in, pdf);
+				eval = bsdf_diffuse_eval_transmit(sc, sd->I, omega_in, pdf);
 				break;
 #ifdef __SVM__
 			case CLOSURE_BSDF_OREN_NAYAR_ID:

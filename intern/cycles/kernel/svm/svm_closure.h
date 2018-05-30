@@ -759,7 +759,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 						break;
 				}
 
-				sd->flag |= bsdf_principled_hair_setup(kg, sd, bsdf);
+				sd->flag |= bsdf_principled_hair_setup(bsdf);
 			}
 			break;
 		}
