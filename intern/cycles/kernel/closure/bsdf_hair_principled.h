@@ -35,7 +35,7 @@ typedef ccl_addr_space struct PrincipledHairBSDF {
 	float s;
 	float alpha;
 	float eta;
-    float m0_roughness;
+	float m0_roughness;
 
 	PrincipledHairExtra *extra;
 } PrincipledHairBSDF;
@@ -163,23 +163,23 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 0.999f);
 	bsdf->s = clamp(bsdf->s, 0.001f, 0.999f);
-	bsdf->m0_roughness = clamp(bsdf->m0_roughness, 0.001f, 9.999f);
 
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
+	bsdf->m0_roughness = clamp(bsdf->m0_roughness*bsdf->v, 0.001f, 0.999f);
 
 	/* Compute local frame, aligned to curve tangent and ray direction. */
 	float3 X = normalize(sd->dPdu);
 	float3 Y = safe_normalize(cross(X, sd->I));
 	float3 Z = safe_normalize(cross(X, Y));
 	
-//#if 0
-//    /* TODO: this seems to give wrong results, and h should be in the -1..1 range? */
-//    /* It doesn't work either if you call it from OSL */
-//    float curve_r;
-//    float3 curve_P = curve_center(kg, sd, &curve_r);
-//    float h = safe_divide(dot(Y, sd->P - curve_P), curve_r);
-//    kernel_assert(fabsf(h) <= 2.0f);
+// #if 0
+	// /* TODO: this seems to give wrong results, and h should be in the -1..1 range? */
+	// /* It doesn't work either if you call it from OSL */
+	// float curve_r;
+	// float3 curve_P = curve_center(kg, sd, &curve_r);
+	// float h = safe_divide(dot(Y, sd->P - curve_P), curve_r);
+	// kernel_assert(fabsf(h) <= 2.0f);
 //#else
 	/* TODO: this only works for thick curves where sd->Ng is the normal
 	 * pointing from the center of the curve to the shading point. For
@@ -306,7 +306,7 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	float Mp, Np;
 	
 	// R
-	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness*bsdf->v);
+	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness);
 	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
 	F  = Ap[0] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
@@ -424,8 +424,8 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	float Mp, Np;
 
 	// R
-    Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness*bsdf->v);
-    Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
+	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness);
+	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
 	F  = Ap[0] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
@@ -473,6 +473,7 @@ ccl_device void bsdf_principled_hair_blur(ShaderClosure *sc, float roughness)
 	
 	bsdf->v = fmaxf(roughness, bsdf->v);
 	bsdf->s = fmaxf(roughness, bsdf->s);
+	bsdf->m0_roughness = fmaxf(roughness, bsdf->m0_roughness);
 }
 
 CCL_NAMESPACE_END
