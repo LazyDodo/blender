@@ -730,6 +730,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			uint offset_ofs, ior_ofs, color_ofs, parametrization;
 			decode_node_uchar4(data_node.y, &offset_ofs, &ior_ofs, &color_ofs, &parametrization);
 
+			float m0_roughness = (stack_valid(data_node2.x))? stack_load_float(stack, data_node2.x): __uint_as_float(data_node2.y);
 			float alpha = (stack_valid(offset_ofs))? stack_load_float(stack, offset_ofs): __uint_as_float(data_node.z);
 			float ior = (stack_valid(ior_ofs))? stack_load_float(stack, ior_ofs): __uint_as_float(data_node.w);
 
@@ -743,7 +744,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				bsdf->N = N;
 				bsdf->v = param1;
 				bsdf->s = param2;
-				bsdf->m0_roughness = __uint_as_float(data_node2.y);
+				bsdf->m0_roughness = m0_roughness;
 				bsdf->alpha = alpha;
 				bsdf->eta = ior;
 				bsdf->extra = extra;
