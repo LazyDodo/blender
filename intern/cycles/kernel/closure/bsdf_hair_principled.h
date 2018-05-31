@@ -23,18 +23,25 @@
 
 CCL_NAMESPACE_BEGIN
 
+typedef ccl_addr_space struct PrincipledHairExtra {
+	float4 geom;
+} PrincipledHairExtra;
+
 typedef ccl_addr_space struct PrincipledHairBSDF {
 	SHADER_CLOSURE_BASE;
 
 	float3 sigma;
-	float4 geom;
 	float v;
 	float s;
 	float alpha;
 	float eta;
+    float m0_roughness;
+
+	PrincipledHairExtra *extra;
 } PrincipledHairBSDF;
 
 static_assert(sizeof(ShaderClosure) >= sizeof(PrincipledHairBSDF), "PrincipledHairBSDF is too large!");
+static_assert(sizeof(ShaderClosure) >= sizeof(PrincipledHairExtra), "PrincipledHairExtra is too large!");
 
 ccl_device_inline float cos_from_sin(const float s)
 {
@@ -156,6 +163,7 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 0.999f);
 	bsdf->s = clamp(bsdf->s, 0.001f, 0.999f);
+	bsdf->m0_roughness = clamp(bsdf->m0_roughness, 0.001f, 9.999f);
 
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
@@ -193,7 +201,7 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	kernel_assert(isfinite3_safe(Y));
 	kernel_assert(isfinite_safe(h));
 	
-	bsdf->geom = make_float4(Y.x, Y.y, Y.z, h);
+	bsdf->extra->geom = make_float4(Y.x, Y.y, Y.z, h);
 
 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
 }
@@ -252,7 +260,7 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	kernel_assert(isfinite3_safe(sd->P) && isfinite_safe(sd->ray_length));
 
 	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
-	float3 Y = float4_to_float3(bsdf->geom);
+	float3 Y = float4_to_float3(bsdf->extra->geom);
 
 	float3 X = normalize(sd->dPdu);
 	kernel_assert(fabsf(dot(X, Y)) < 1e-4f);
@@ -261,7 +269,7 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	float3 wo = make_float3(dot(sd->I, X), dot(sd->I, Y), dot(sd->I, Z));
 	float3 wi = make_float3(dot(omega_in, X), dot(omega_in, Y), dot(omega_in, Z));
 	//kernel_assert(fabsf(wo.y) < 1e-4f);
-	//scanf("%d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->geom.w, &wi.x, &wi.y, &wi.z);
+	//scanf("%d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->extra->geom.w, &wi.x, &wi.y, &wi.z);
 
 	float sin_theta_o = wo.x;
 	float cos_theta_o = cos_from_sin(sin_theta_o);
@@ -270,7 +278,7 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	float sin_theta_t = sin_theta_o / bsdf->eta;
 	float cos_theta_t = cos_from_sin(sin_theta_t);
 
-	float sin_gamma_o = bsdf->geom.w;
+	float sin_gamma_o = bsdf->extra->geom.w;
 	float cos_gamma_o = cos_from_sin(sin_gamma_o);
 	float gamma_o = safe_asinf(sin_gamma_o);
 
@@ -298,7 +306,7 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 	float Mp, Np;
 	
 	// R
-	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
+	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness*bsdf->v);
 	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
 	F  = Ap[0] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
@@ -335,7 +343,7 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 
 	PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*) sc;
 
-	float3 Y = float4_to_float3(bsdf->geom);
+	float3 Y = float4_to_float3(bsdf->extra->geom);
 
 	float3 X = normalize(sd->dPdu);
 	kernel_assert(fabsf(dot(X, Y)) < 1e-4f);
@@ -348,7 +356,7 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	u[0] = make_float2(randu, randv);
 	u[1] = make_float2(lcg_step_float_addrspace(&sd->lcg_state), lcg_step_float_addrspace(&sd->lcg_state));
 	//printf("Enter sample data: ");
-	//scanf("%d %d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->geom.w, &u[0].x, &u[0].y, &u[1].x, &u[1].y);
+	//scanf("%d %d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->extra->geom.w, &u[0].x, &u[0].y, &u[1].x, &u[1].y);
 
 	float sin_theta_o = wo.x;
 	float cos_theta_o = cos_from_sin(sin_theta_o);
@@ -357,7 +365,7 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	float sin_theta_t = sin_theta_o / bsdf->eta;
 	float cos_theta_t = cos_from_sin(sin_theta_t);
 
-	float sin_gamma_o = bsdf->geom.w;
+	float sin_gamma_o = bsdf->extra->geom.w;
 	float cos_gamma_o = cos_from_sin(sin_gamma_o);
 	float gamma_o = safe_asinf(sin_gamma_o);
 
@@ -416,8 +424,8 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	float Mp, Np;
 
 	// R
-	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->v);
-	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
+    Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness*bsdf->v);
+    Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
 	F  = Ap[0] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 

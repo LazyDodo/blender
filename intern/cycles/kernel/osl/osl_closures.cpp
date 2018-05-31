@@ -191,32 +191,51 @@ BSDF_CLOSURE_CLASS_END(PrincipledSheen, principled_sheen)
 
 class PrincipledHairClosure : public CBSDFClosure {
 public:
-    PrincipledHairBSDF params;
-    float3 unused;
-    
-    void setup(ShaderData *sd, int path_flag, float3 weight)
-    {
-        if(!skip(sd, path_flag, LABEL_GLOSSY)) {
-            PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc_osl(sd, sizeof(PrincipledHairBSDF), weight, &params); \
-            sd->flag |= (bsdf) ? bsdf_principled_hair_setup(sd, bsdf) : 0;
-        }
-    }
+	PrincipledHairBSDF params;
+	float3 unused;
+
+	PrincipledHairBSDF *alloc(ShaderData *sd, int path_flag, float3 weight)
+	{
+		PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc_osl(sd, sizeof(PrincipledHairBSDF), weight, &params);
+		if(!bsdf) {
+			return NULL;
+		}
+
+		PrincipledHairExtra *extra = (PrincipledHairExtra*)closure_alloc_extra(sd, sizeof(PrincipledHairExtra));
+		if(!extra) {
+			return NULL;
+		}
+
+		bsdf->extra = extra;
+		return bsdf;
+	}
+
+	void setup(ShaderData *sd, int path_flag, float3 weight)
+	{
+		if(!skip(sd, path_flag, LABEL_GLOSSY)) {
+			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc_osl(sd, sizeof(PrincipledHairBSDF), weight, &params);
+			PrincipledHairExtra *extra = (PrincipledHairExtra*)closure_alloc_extra(sd, sizeof(PrincipledHairExtra));
+			bsdf->extra = extra;
+			sd->flag |= (bsdf) ? bsdf_principled_hair_setup(sd, bsdf) : 0;
+		}
+	}
 };
 
 static ClosureParam *bsdf_principled_hair_params()
 {
-    static ClosureParam params[] = {
-        CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.N),
-        CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.sigma),
-        CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.v),
-        CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.s),
-        CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.alpha),
-        CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.eta),
-        CLOSURE_STRING_KEYPARAM(PrincipledHairClosure, label, "label"),
-        CLOSURE_FINISH_PARAM(PrincipledHairClosure)
-    };
-    
-    return params;
+	static ClosureParam params[] = {
+		CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.N),
+		CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.sigma),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.v),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.s),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.m0_roughness),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.alpha),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.eta),
+		CLOSURE_STRING_KEYPARAM(PrincipledHairClosure, label, "label"),
+		CLOSURE_FINISH_PARAM(PrincipledHairClosure)
+	};
+
+	return params;
 }
 
 CCLOSURE_PREPARE(bsdf_principled_hair_prepare, PrincipledHairClosure)
@@ -369,8 +388,8 @@ void OSLShader::register_closures(OSLShadingSystem *ss_)
 	register_closure(ss, "hair_transmission", id++,
 		bsdf_hair_transmission_params(), bsdf_hair_transmission_prepare);
 
-    register_closure(ss, "principled_hair", id++,
-        bsdf_principled_hair_params(), bsdf_principled_hair_prepare);
+	register_closure(ss, "principled_hair", id++,
+		bsdf_principled_hair_params(), bsdf_principled_hair_prepare);
 
 	register_closure(ss, "henyey_greenstein", id++,
 		closure_henyey_greenstein_params(), closure_henyey_greenstein_prepare);
@@ -505,7 +524,7 @@ public:
 		/* Technically, the MultiGGX closure may also transmit. However,
 		 * since this is set statically and only used for caustic flags, this
 		 * is probably as good as it gets. */
-	    if(skip(sd, path_flag, LABEL_GLOSSY|LABEL_REFLECT)) {
+		if(skip(sd, path_flag, LABEL_GLOSSY|LABEL_REFLECT)) {
 			return NULL;
 		}
 
@@ -797,7 +816,7 @@ public:
 	{
 		volume_extinction_setup(sd, weight);
 
-	    HenyeyGreensteinVolume *volume = (HenyeyGreensteinVolume*)bsdf_alloc_osl(sd, sizeof(HenyeyGreensteinVolume), weight, &params);
+		HenyeyGreensteinVolume *volume = (HenyeyGreensteinVolume*)bsdf_alloc_osl(sd, sizeof(HenyeyGreensteinVolume), weight, &params);
 		if(!volume) {
 			return;
 		}

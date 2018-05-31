@@ -21,13 +21,14 @@ color log3 (color a) {
 }
 
 shader node_principled_hair_bsdf(
-	color Color = 0.0, 
-	normal Normal = 0.0,
+	color Color = 0.8, 
+	normal Normal = Ng,
 	string parametrization = "Absorption coefficient",
 	float Offset = 0,
-	float RoughnessU = 0,
-	float RoughnessV = 0,
-	float IOR = 0,
+	float RoughnessU = 0.2,
+	float RoughnessV = 0.2,
+	float PrimaryRefractionRoughness = 1.0,
+	float IOR = 1.55,
 
 	output closure color BSDF = 0)
 {
@@ -50,5 +51,5 @@ shader node_principled_hair_bsdf(
 
 	//printf("Info: color %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, Scale deviation %f, IOR %f\n", Color, Normal, parametrization, Sigma, RoughnessU, RoughnessV, Offset, IOR);
 
-	BSDF = principled_hair(Normal, Sigma, RoughnessU, RoughnessV, Offset, IOR);
+	BSDF = principled_hair(Normal, Sigma, RoughnessU, RoughnessV, PrimaryRefractionRoughness, Offset, IOR);
 }

@@ -723,6 +723,8 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 		}
 #ifdef __HAIR__
 		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID: {
+			uint4 data_node2 = read_node(kg, offset);
+
 			float3 weight = sd->svm_closure_weight * mix_weight;
 
 			uint offset_ofs, ior_ofs, color_ofs, parametrization;
@@ -733,11 +735,18 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
+				PrincipledHairExtra *extra = (PrincipledHairExtra*)closure_alloc_extra(sd, sizeof(PrincipledHairExtra));
+
+				if (!extra)
+					break;
+
 				bsdf->N = N;
 				bsdf->v = param1;
 				bsdf->s = param2;
+				bsdf->m0_roughness = __uint_as_float(data_node2.y);
 				bsdf->alpha = alpha;
 				bsdf->eta = ior;
+				bsdf->extra = extra;
 
 				float3 color = stack_load_float3(stack, color_ofs);
 				switch(parametrization) {
