@@ -608,7 +608,7 @@ public:
 
     float roughness_u;
     float roughness_v;
-    float primary_refraction_roughness;
+    float primary_reflection_roughness;
     float ior;
     float offset;
     float3 color;

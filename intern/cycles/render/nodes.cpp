@@ -3056,7 +3056,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(offset, "Offset", 0.0f);
 	SOCKET_IN_FLOAT(roughness_u, "RoughnessU", 0.2f);
 	SOCKET_IN_FLOAT(roughness_v, "RoughnessV", 0.2f);
-	SOCKET_IN_FLOAT(primary_refraction_roughness, "PrimaryRefractionRoughness", 1.0f);
+	SOCKET_IN_FLOAT(primary_reflection_roughness, "PrimaryReflectionRoughness", 1.0f);
 	SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
 
 	SOCKET_OUT_CLOSURE(BSDF, "BSDF");
@@ -3077,7 +3077,7 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	ShaderInput *roughness_u_in = input("RoughnessU");
 	ShaderInput *roughness_v_in = input("RoughnessV");
 	ShaderInput *offset_in = input("Offset");
-	ShaderInput *primary_refraction_roughness_in = input("PrimaryRefractionRoughness");
+	ShaderInput *primary_reflection_roughness_in = input("PrimaryReflectionRoughness");
 	ShaderInput *ior_in = input("IOR");
 
 	int color_ofs = compiler.stack_assign(input("Color"));
@@ -3099,8 +3099,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		__float_as_int(offset),
 		__float_as_int(ior));
 
-    compiler.add_node(compiler.stack_assign_if_linked(primary_refraction_roughness_in),
-		__float_as_int(primary_refraction_roughness),
+    compiler.add_node(compiler.stack_assign_if_linked(primary_reflection_roughness_in),
+		__float_as_int(primary_reflection_roughness),
 		SVM_STACK_INVALID,
 		SVM_STACK_INVALID);
 }
