@@ -332,9 +332,8 @@ class GreasePencilMultiFramePanel:
         col.prop(settings, "use_multiframe_falloff")
 
         # Falloff curve
-        box = col.box()
-        box.enabled = gpd.use_multiedit and settings.use_multiframe_falloff
-        box.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
+        if gpd.use_multiedit and settings.use_multiframe_falloff:
+            layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
 
 
 class GreasePencilAppearancePanel:

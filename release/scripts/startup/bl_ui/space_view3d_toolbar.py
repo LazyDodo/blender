@@ -1473,16 +1473,13 @@ class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
 
         # Brush
         layout.label("Sensitivity")
-        box = layout.box()
-        box.template_curve_mapping(gp_settings, "curve_sensitivity", brush=True)
+        layout.template_curve_mapping(gp_settings, "curve_sensitivity", brush=True)
 
         layout.label("Strength")
-        box = layout.box()
-        box.template_curve_mapping(gp_settings, "curve_strength", brush=True)
+        layout.template_curve_mapping(gp_settings, "curve_strength", brush=True)
 
         layout.label("Jitter")
-        box = layout.box()
-        box.template_curve_mapping(gp_settings, "curve_jitter", brush=True)
+        layout.template_curve_mapping(gp_settings, "curve_jitter", brush=True)
 
 
 # Grease Pencil create shapes
@@ -1549,9 +1546,8 @@ class VIEW3D_PT_tools_grease_pencil_interpolate(Panel):
         col.label(text="Sequence Options:")
         col.prop(settings, "type")
         if settings.type == 'CUSTOM':
-            box = layout.box()
             # TODO: Options for loading/saving curve presets?
-            box.template_curve_mapping(settings, "interpolation_curve", brush=True)
+            col.template_curve_mapping(settings, "interpolation_curve", brush=True)
         elif settings.type != 'LINEAR':
             col.prop(settings, "easing")
 
