@@ -109,7 +109,7 @@ class TOPBAR_HT_lower_bar(Header):
                     gpd.is_stroke_sculpt_mode or
                     gpd.is_stroke_weight_mode):
             row = layout.row(align=True)
-            row.prop(gpd, "use_multiedit", text="", icon="PARTICLE_POINT")
+            row.prop(gpd, "use_multiedit", text="", icon="FORCE_HARMONIC")
 
             sub = row.row(align=True)
             sub.active = gpd.use_multiedit
