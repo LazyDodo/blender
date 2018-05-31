@@ -1486,9 +1486,10 @@ class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
 
 
 # Grease Pencil create shapes
-class VIEW3D_PT_tools_grease_pencil_shapes(View3DPanel, Panel):
-    bl_context = ".greasepencil_paint"
-    bl_category = "Tools"
+class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_category = "Create"
+    bl_region_type = 'TOOLS'
     bl_label = "Shapes"
 
     @classmethod
@@ -1509,24 +1510,24 @@ class VIEW3D_PT_tools_grease_pencil_shapes(View3DPanel, Panel):
 
 
 # Grease Pencil stroke editing tools
-class VIEW3D_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_edit"
-    bl_category = "Tools"
+class VIEW3D_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
+    bl_space_type = 'VIEW_3D'
 
 
 # Grease Pencil stroke interpolation tools
-class VIEW3D_PT_tools_grease_pencil_interpolate(View3DPanel, Panel):
-    bl_context = ".greasepencil_edit"
-    bl_category = "Tools"
+class VIEW3D_PT_tools_grease_pencil_interpolate(Panel):
+    bl_space_type = 'VIEW_3D'
     bl_label = "Interpolate Strokes"
+    bl_category = "Animation"
+    bl_region_type = 'TOOLS'
 
-    # @classmethod
-    # def poll(cls, context):
-    #     if context.gpencil_data is None:
-    #         return False
-    #
-    #     gpd = context.gpencil_data
-    #     return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
+    @classmethod
+    def poll(cls, context):
+        if context.gpencil_data is None:
+            return False
+
+        gpd = context.gpencil_data
+        return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
 
     @staticmethod
     def draw(self, context):
@@ -1594,9 +1595,10 @@ class VIEW3D_PT_tools_grease_pencil_weight_paint(View3DPanel, Panel):
 
 
 # Grease Pencil weight painting operators
-class VIEW3D_PT_tools_grease_pencil_weight_tools(View3DPanel, Panel):
-    bl_context = ".greasepencil_weight"
+class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
+    bl_space_type = 'VIEW_3D'
     bl_category = "Tools"
+    bl_region_type = 'TOOLS'
     bl_label = "Weight Tools"
 
     @staticmethod
@@ -1643,25 +1645,12 @@ class VIEW3D_PT_tools_grease_pencil_weight_appearance(GreasePencilAppearancePane
     bl_category = "Tools"
     bl_label = "Brush Appearance"
 
-# Grease Pencil Animation Tools (one for each mode)
-class VIEW3D_PT_tools_grease_pencil_paint_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_paint"
-    bl_category = "Tools"
-
-
-class VIEW3D_PT_tools_grease_pencil_edit_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_edit"
-    bl_category = "Tools"
-
-
-class VIEW3D_PT_tools_grease_pencil_sculpt_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_sculpt"
-    bl_category = "Tools"
-
-
-class VIEW3D_PT_tools_grease_pencil_weight_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_weight"
-    bl_category = "Tools"
+# Grease Pencil Animation Tools
+class VIEW3D_PT_tools_grease_pencil_animation(GreasePencilAnimationPanel, Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_label = "Animation"
+    bl_category = "Animation"
+    bl_region_type = 'TOOLS'
 
 classes = (
     VIEW3D_PT_tools_meshedit_options,
@@ -1710,10 +1699,7 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
     VIEW3D_PT_tools_grease_pencil_interpolate,
-    VIEW3D_PT_tools_grease_pencil_paint_animation,
-    VIEW3D_PT_tools_grease_pencil_edit_animation,
-    VIEW3D_PT_tools_grease_pencil_sculpt_animation,
-    VIEW3D_PT_tools_grease_pencil_weight_animation,
+    VIEW3D_PT_tools_grease_pencil_animation,
 )
 
 if __name__ == "__main__":  # only for live edit.

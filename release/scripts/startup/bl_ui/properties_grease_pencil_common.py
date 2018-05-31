@@ -150,13 +150,13 @@ class GreasePencilStrokeEditPanel:
     bl_category = "Tools"
     bl_region_type = 'TOOLS'
 
-    # @classmethod
-    # def poll(cls, context):
-    #     if context.gpencil_data is None:
-    #         return False
-    #
-    #     gpd = context.gpencil_data
-    #     return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
+    @classmethod
+    def poll(cls, context):
+        if context.gpencil_data is None:
+            return False
+
+        gpd = context.gpencil_data
+        return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
 
     @staticmethod
     def draw(self, context):
@@ -404,14 +404,14 @@ class GreasePencilAppearancePanel:
 class GreasePencilAnimationPanel:
     bl_label = "Animation"
 
-    # @classmethod
-    # def poll(cls, context):
-    #     if context.gpencil_data is None:
-    #         return False
-    #     elif context.active_object.mode == 'OBJECT':
-    #         return False
-    #
-    #     return True
+    @classmethod
+    def poll(cls, context):
+        if context.gpencil_data is None:
+            return False
+        elif context.active_object.mode == 'OBJECT':
+            return False
+
+        return True
 
     @staticmethod
     def draw(self, context):
