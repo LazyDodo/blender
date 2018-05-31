@@ -1596,6 +1596,17 @@ class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
     bl_region_type = 'TOOLS'
     bl_label = "Weight Tools"
 
+    @classmethod
+    def poll(cls, context):
+        if context.gpencil_data is None:
+            return False
+
+        if context.active_object:
+            return context.active_object.mode == 'GPENCIL_WEIGHT'
+
+        return False
+
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
