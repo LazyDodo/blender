@@ -1709,22 +1709,32 @@ bool BKE_animsys_execute_fcurve(PointerRNA *ptr, AnimMapper *remap, FCurve *fcu,
 	return ok;
 }
 
-/* Evaluate all the F-Curves in the given list 
- * This performs a set of standard checks. If extra checks are required, separate code should be used
- */
-static void animsys_evaluate_fcurves(PointerRNA *ptr, ListBase *list, AnimMapper *remap, float ctime, short recalc)
+static void animsys_write_orig_anim_rna(
+        PointerRNA *ptr,
+        AnimMapper *remap,
+        FCurve *fcu,
+        float value)
 {
-	FCurve *fcu;
-
 	/* Pointer is expected to be an ID pointer, if it's not -- we are doomed. */
 	PointerRNA orig_ptr = *ptr;
 	orig_ptr.id.data = ((ID *)orig_ptr.id.data)->orig_id;
 	orig_ptr.data = orig_ptr.id.data;
+	PathResolvedRNA orig_anim_rna;
+	/* TODO(sergey): Is there a faster way to get anim_rna of original ID? */
+	if (animsys_store_rna_setting(&orig_ptr, remap, fcu->rna_path, fcu->array_index, &orig_anim_rna)) {
+		animsys_write_rna_setting(&orig_anim_rna, value);
+	}
+}
 
-	const bool copy_on_write = orig_ptr.id.data != NULL;
-
+/* Evaluate all the F-Curves in the given list
+ * This performs a set of standard checks. If extra checks are required, separate code should be used
+ */
+static void animsys_evaluate_fcurves(
+        Depsgraph *depsgraph, PointerRNA *ptr, ListBase *list, AnimMapper *remap, float ctime)
+{
+	const bool is_active_depsgraph = DEG_is_active(depsgraph);
 	/* Calculate then execute each curve. */
-	for (fcu = list->first; fcu; fcu = fcu->next) {
+	for (FCurve *fcu = list->first; fcu; fcu = fcu->next) {
 		/* Check if this F-Curve doesn't belong to a muted group. */
 		if ((fcu->grp != NULL) && (fcu->grp->flag & AGRP_MUTED)) {
 			continue;
@@ -1734,37 +1744,11 @@ static void animsys_evaluate_fcurves(PointerRNA *ptr, ListBase *list, AnimMapper
 			continue;
 		}
 		PathResolvedRNA anim_rna;
-		/* Read current value from original datablock. */
-		float dna_val;
-
-		if (copy_on_write) {
-			if (animsys_store_rna_setting(&orig_ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
-				if (!animsys_read_rna_setting(&anim_rna, &dna_val)) {
-					continue;
-				}
-			}
-			else {
-				continue;
-			}
-		}
-
 		if (animsys_store_rna_setting(ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
-			if (copy_on_write) {
-				const bool check_orig_dna = ((recalc & ADT_RECALC_CHECK_ORIG_DNA) != 0);
-				/* If we are tweaking DNA without changing frame, we don't write f-curves,
-				 * since otherwise we will not be able to change properties which has animation.
-				 */
-				if (check_orig_dna && fcu->orig_dna_val != dna_val) {
-					continue;
-				}
-			}
-
 			const float curval = calculate_fcurve(&anim_rna, fcu, ctime);
 			animsys_write_rna_setting(&anim_rna, curval);
-
-			if (copy_on_write) {
-				/* Store original DNA value f-curve was written for. */
-				fcu->orig_dna_val = dna_val;
+			if (is_active_depsgraph) {
+				animsys_write_orig_anim_rna(ptr, remap, fcu, curval);
 			}
 		}
 	}
@@ -1876,7 +1860,8 @@ void animsys_evaluate_action_group(PointerRNA *ptr, bAction *act, bActionGroup *
 }
 
 /* Evaluate Action (F-Curve Bag) */
-static void animsys_evaluate_action_ex(PointerRNA *ptr, bAction *act, AnimMapper *remap, float ctime, short recalc)
+static void animsys_evaluate_action_ex(
+        Depsgraph *depsgraph, PointerRNA *ptr, bAction *act, AnimMapper *remap, float ctime)
 {
 	/* check if mapper is appropriate for use here (we set to NULL if it's inappropriate) */
 	if (act == NULL) return;
@@ -1885,12 +1870,12 @@ static void animsys_evaluate_action_ex(PointerRNA *ptr, bAction *act, AnimMapper
 	action_idcode_patch_check(ptr->id.data, act);
 	
 	/* calculate then execute each curve */
-	animsys_evaluate_fcurves(ptr, &act->curves, remap, ctime, recalc);
+	animsys_evaluate_fcurves(depsgraph, ptr, &act->curves, remap, ctime);
 }
 
-void animsys_evaluate_action(PointerRNA *ptr, bAction *act, AnimMapper *remap, float ctime)
+void animsys_evaluate_action(Depsgraph *depsgraph, PointerRNA *ptr, bAction *act, AnimMapper *remap, float ctime)
 {
-	animsys_evaluate_action_ex(ptr, act, remap, ctime, 0);
+	animsys_evaluate_action_ex(depsgraph, ptr, act, remap, ctime);
 }
 
 /* ***************************************** */
@@ -1919,7 +1904,7 @@ static float nlastrip_get_influence(NlaStrip *strip, float cframe)
 }
 
 /* evaluate the evaluation time and influence for the strip, storing the results in the strip */
-static void nlastrip_evaluate_controls(NlaStrip *strip, float ctime)
+static void nlastrip_evaluate_controls(Depsgraph *depsgraph, NlaStrip *strip, float ctime)
 {
 	/* now strip's evaluate F-Curves for these settings (if applicable) */
 	if (strip->fcurves.first) {
@@ -1929,7 +1914,7 @@ static void nlastrip_evaluate_controls(NlaStrip *strip, float ctime)
 		RNA_pointer_create(NULL, &RNA_NlaStrip, strip, &strip_ptr);
 		
 		/* execute these settings as per normal */
-		animsys_evaluate_fcurves(&strip_ptr, &strip->fcurves, NULL, ctime, 0);
+		animsys_evaluate_fcurves(depsgraph, &strip_ptr, &strip->fcurves, NULL, ctime);
 	}
 	
 	/* analytically generate values for influence and time (if applicable)
@@ -1951,7 +1936,7 @@ static void nlastrip_evaluate_controls(NlaStrip *strip, float ctime)
 }
 
 /* gets the strip active at the current time for a list of strips for evaluation purposes */
-NlaEvalStrip *nlastrips_ctime_get_strip(ListBase *list, ListBase *strips, short index, float ctime)
+NlaEvalStrip *nlastrips_ctime_get_strip(Depsgraph *depsgraph, ListBase *list, ListBase *strips, short index, float ctime)
 {
 	NlaStrip *strip, *estrip = NULL;
 	NlaEvalStrip *nes;
@@ -2028,7 +2013,7 @@ NlaEvalStrip *nlastrips_ctime_get_strip(ListBase *list, ListBase *strips, short 
 	 *	- negative influence is not supported yet... how would that be defined?
 	 */
 	/* TODO: this sounds a bit hacky having a few isolated F-Curves stuck on some data it operates on... */
-	nlastrip_evaluate_controls(estrip, ctime);
+	nlastrip_evaluate_controls(depsgraph, estrip, ctime);
 	if (estrip->influence <= 0.0f)
 		return NULL;
 		
@@ -2047,8 +2032,8 @@ NlaEvalStrip *nlastrips_ctime_get_strip(ListBase *list, ListBase *strips, short 
 				return NULL;
 				
 			/* evaluate controls for the relevant extents of the bordering strips... */
-			nlastrip_evaluate_controls(estrip->prev, estrip->start);
-			nlastrip_evaluate_controls(estrip->next, estrip->end);
+			nlastrip_evaluate_controls(depsgraph, estrip->prev, estrip->start);
+			nlastrip_evaluate_controls(depsgraph, estrip->next, estrip->end);
 			break;
 	}
 	
@@ -2394,7 +2379,8 @@ static void nlastrip_evaluate_actionclip(PointerRNA *ptr, ListBase *channels, Li
 }
 
 /* evaluate transition strip */
-static void nlastrip_evaluate_transition(PointerRNA *ptr, ListBase *channels, ListBase *modifiers, NlaEvalStrip *nes)
+static void nlastrip_evaluate_transition(
+        Depsgraph *depsgraph, PointerRNA *ptr, ListBase *channels, ListBase *modifiers, NlaEvalStrip *nes)
 {
 	ListBase tmp_channels = {NULL, NULL};
 	ListBase tmp_modifiers = {NULL, NULL};
@@ -2434,12 +2420,12 @@ static void nlastrip_evaluate_transition(PointerRNA *ptr, ListBase *channels, Li
 	/* first strip */
 	tmp_nes.strip_mode = NES_TIME_TRANSITION_START;
 	tmp_nes.strip = s1;
-	nlastrip_evaluate(ptr, &tmp_channels, &tmp_modifiers, &tmp_nes);
+	nlastrip_evaluate(depsgraph, ptr, &tmp_channels, &tmp_modifiers, &tmp_nes);
 	
 	/* second strip */
 	tmp_nes.strip_mode = NES_TIME_TRANSITION_END;
 	tmp_nes.strip = s2;
-	nlastrip_evaluate(ptr, &tmp_channels, &tmp_modifiers, &tmp_nes);
+	nlastrip_evaluate(depsgraph, ptr, &tmp_channels, &tmp_modifiers, &tmp_nes);
 	
 	
 	/* accumulate temp-buffer and full-buffer, using the 'real' strip */
@@ -2450,7 +2436,8 @@ static void nlastrip_evaluate_transition(PointerRNA *ptr, ListBase *channels, Li
 }
 
 /* evaluate meta-strip */
-static void nlastrip_evaluate_meta(PointerRNA *ptr, ListBase *channels, ListBase *modifiers, NlaEvalStrip *nes)
+static void nlastrip_evaluate_meta(
+        Depsgraph *depsgraph, PointerRNA *ptr, ListBase *channels, ListBase *modifiers, NlaEvalStrip *nes)
 {
 	ListBase tmp_modifiers = {NULL, NULL};
 	NlaStrip *strip = nes->strip;
@@ -2470,13 +2457,13 @@ static void nlastrip_evaluate_meta(PointerRNA *ptr, ListBase *channels, ListBase
 	
 	/* find the child-strip to evaluate */
 	evaltime = (nes->strip_time * (strip->end - strip->start)) + strip->start;
-	tmp_nes = nlastrips_ctime_get_strip(NULL, &strip->strips, -1, evaltime);
+	tmp_nes = nlastrips_ctime_get_strip(depsgraph, NULL, &strip->strips, -1, evaltime);
 	
 	/* directly evaluate child strip into accumulation buffer... 
 	 * - there's no need to use a temporary buffer (as it causes issues [T40082])
 	 */
 	if (tmp_nes) {
-		nlastrip_evaluate(ptr, channels, &tmp_modifiers, tmp_nes);
+		nlastrip_evaluate(depsgraph, ptr, channels, &tmp_modifiers, tmp_nes);
 		
 		/* free temp eval-strip */
 		MEM_freeN(tmp_nes);
@@ -2487,7 +2474,7 @@ static void nlastrip_evaluate_meta(PointerRNA *ptr, ListBase *channels, ListBase
 }
 
 /* evaluates the given evaluation strip */
-void nlastrip_evaluate(PointerRNA *ptr, ListBase *channels, ListBase *modifiers, NlaEvalStrip *nes)
+void nlastrip_evaluate(Depsgraph *depsgraph, PointerRNA *ptr, ListBase *channels, ListBase *modifiers, NlaEvalStrip *nes)
 {
 	NlaStrip *strip = nes->strip;
 	
@@ -2505,10 +2492,10 @@ void nlastrip_evaluate(PointerRNA *ptr, ListBase *channels, ListBase *modifiers,
 			nlastrip_evaluate_actionclip(ptr, channels, modifiers, nes);
 			break;
 		case NLASTRIP_TYPE_TRANSITION: /* transition */
-			nlastrip_evaluate_transition(ptr, channels, modifiers, nes);
+			nlastrip_evaluate_transition(depsgraph, ptr, channels, modifiers, nes);
 			break;
 		case NLASTRIP_TYPE_META: /* meta */
-			nlastrip_evaluate_meta(ptr, channels, modifiers, nes);
+			nlastrip_evaluate_meta(depsgraph, ptr, channels, modifiers, nes);
 			break;
 			
 		default: /* do nothing */
@@ -2574,7 +2561,7 @@ void nladata_flush_channels(ListBase *channels)
  *
  * \param[out] echannels Evaluation channels with calculated values
  */
-static void animsys_evaluate_nla(ListBase *echannels, PointerRNA *ptr, AnimData *adt, float ctime)
+static void animsys_evaluate_nla(Depsgraph *depsgraph, ListBase *echannels, PointerRNA *ptr, AnimData *adt, float ctime)
 {
 	NlaTrack *nlt;
 	short track_index = 0;
@@ -2612,7 +2599,7 @@ static void animsys_evaluate_nla(ListBase *echannels, PointerRNA *ptr, AnimData 
 			has_strips = true;
 			
 		/* otherwise, get strip to evaluate for this channel */
-		nes = nlastrips_ctime_get_strip(&estrips, &nlt->strips, track_index, ctime);
+		nes = nlastrips_ctime_get_strip(depsgraph, &estrips, &nlt->strips, track_index, ctime);
 		if (nes) nes->track = nlt;
 	}
 	
@@ -2653,14 +2640,14 @@ static void animsys_evaluate_nla(ListBase *echannels, PointerRNA *ptr, AnimData 
 			}
 			
 			/* add this to our list of evaluation strips */
-			nlastrips_ctime_get_strip(&estrips, &dummy_trackslist, -1, ctime);
+			nlastrips_ctime_get_strip(depsgraph, &estrips, &dummy_trackslist, -1, ctime);
 		}
 		else {
 			/* special case - evaluate as if there isn't any NLA data */
 			/* TODO: this is really just a stop-gap measure... */
 			if (G.debug & G_DEBUG) printf("NLA Eval: Stopgap for active action on NLA Stack - no strips case\n");
 			
-			animsys_evaluate_action(ptr, adt->action, adt->remap, ctime);
+			animsys_evaluate_action(depsgraph, ptr, adt->action, adt->remap, ctime);
 			BLI_freelistN(&estrips);
 			return;
 		}
@@ -2673,7 +2660,7 @@ static void animsys_evaluate_nla(ListBase *echannels, PointerRNA *ptr, AnimData 
 	
 	/* 2. for each strip, evaluate then accumulate on top of existing channels, but don't set values yet */
 	for (nes = estrips.first; nes; nes = nes->next)
-		nlastrip_evaluate(ptr, echannels, NULL, nes);
+		nlastrip_evaluate(depsgraph, ptr, echannels, NULL, nes);
 		
 	/* 3. free temporary evaluation data that's not used elsewhere */
 	BLI_freelistN(&estrips);
@@ -2683,7 +2670,7 @@ static void animsys_evaluate_nla(ListBase *echannels, PointerRNA *ptr, AnimData 
  *	- All channels that will be affected are not cleared anymore. Instead, we just evaluate into 
  *		some temp channels, where values can be accumulated in one go.
  */
-static void animsys_calculate_nla(PointerRNA *ptr, AnimData *adt, float ctime)
+static void animsys_calculate_nla(Depsgraph *depsgraph, PointerRNA *ptr, AnimData *adt, float ctime)
 {
 	ListBase echannels = {NULL, NULL};
 
@@ -2691,7 +2678,7 @@ static void animsys_calculate_nla(PointerRNA *ptr, AnimData *adt, float ctime)
 	 * and also when the user jumps between different times instead of moving sequentially... */
 
 	/* evaluate the NLA stack, obtaining a set of values to flush */
-	animsys_evaluate_nla(&echannels, ptr, adt, ctime);
+	animsys_evaluate_nla(depsgraph, &echannels, ptr, adt, ctime);
 	
 	/* flush effects of accumulating channels in NLA to the actual data they affect */
 	nladata_flush_channels(&echannels);
@@ -2770,7 +2757,7 @@ static void animsys_evaluate_overrides(PointerRNA *ptr, AnimData *adt)
  * and that the flags for which parts of the anim-data settings need to be recalculated 
  * have been set already by the depsgraph. Now, we use the recalc 
  */
-void BKE_animsys_evaluate_animdata(Scene *scene, ID *id, AnimData *adt, float ctime, short recalc)
+void BKE_animsys_evaluate_animdata(Depsgraph *depsgraph, Scene *scene, ID *id, AnimData *adt, float ctime, short recalc)
 {
 	PointerRNA id_ptr;
 	
@@ -2792,11 +2779,11 @@ void BKE_animsys_evaluate_animdata(Scene *scene, ID *id, AnimData *adt, float ct
 			/* evaluate NLA-stack 
 			 *	- active action is evaluated as part of the NLA stack as the last item
 			 */
-			animsys_calculate_nla(&id_ptr, adt, ctime);
+			animsys_calculate_nla(depsgraph, &id_ptr, adt, ctime);
 		}
 		/* evaluate Active Action only */
 		else if (adt->action)
-			animsys_evaluate_action_ex(&id_ptr, adt->action, adt->remap, ctime, recalc);
+			animsys_evaluate_action_ex(depsgraph, &id_ptr, adt->action, adt->remap, ctime);
 		
 		/* reset tag */
 		adt->recalc &= ~ADT_RECALC_ANIM;
@@ -2840,7 +2827,7 @@ void BKE_animsys_evaluate_animdata(Scene *scene, ID *id, AnimData *adt, float ct
  * 'local' (i.e. belonging in the nearest ID-block that setting is related to, not a
  * standard 'root') block are overridden by a larger 'user'
  */
-void BKE_animsys_evaluate_all_animation(Main *main, Scene *scene, float ctime)
+void BKE_animsys_evaluate_all_animation(Main *main, Depsgraph *depsgraph, Scene *scene, float ctime)
 {
 	ID *id;
 
@@ -2856,7 +2843,7 @@ void BKE_animsys_evaluate_all_animation(Main *main, Scene *scene, float ctime)
 	for (id = first; id; id = id->next) { \
 		if (ID_REAL_USERS(id) > 0) { \
 			AnimData *adt = BKE_animdata_from_id(id); \
-			BKE_animsys_evaluate_animdata(scene, id, adt, ctime, aflag); \
+			BKE_animsys_evaluate_animdata(depsgraph, scene, id, adt, ctime, aflag); \
 		} \
 	} (void)0
 
@@ -2873,9 +2860,9 @@ void BKE_animsys_evaluate_all_animation(Main *main, Scene *scene, float ctime)
 			NtId_Type *ntp = (NtId_Type *)id; \
 			if (ntp->nodetree) { \
 				AnimData *adt2 = BKE_animdata_from_id((ID *)ntp->nodetree); \
-				BKE_animsys_evaluate_animdata(scene, (ID *)ntp->nodetree, adt2, ctime, ADT_RECALC_ANIM); \
+				BKE_animsys_evaluate_animdata(depsgraph, scene, (ID *)ntp->nodetree, adt2, ctime, ADT_RECALC_ANIM); \
 			} \
-			BKE_animsys_evaluate_animdata(scene, id, adt, ctime, aflag); \
+			BKE_animsys_evaluate_animdata(depsgraph, scene, id, adt, ctime, aflag); \
 		} \
 	} (void)0
 	
@@ -2979,14 +2966,7 @@ void BKE_animsys_eval_animdata(Depsgraph *depsgraph, ID *id)
 	                      */
 	DEG_debug_print_eval_time(depsgraph, __func__, id->name, id, ctime);
 	short recalc = ADT_RECALC_ANIM;
-	const Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
-	/* If animation component is directly tagged for update, we always apply f-curves. */
-	if (((scene_eval->id.recalc & ID_RECALC_TIME) == 0) &&
-	    (id->recalc & ID_RECALC_TIME) == 0)
-	{
-		recalc |= ADT_RECALC_CHECK_ORIG_DNA;
-	}
-	BKE_animsys_evaluate_animdata(scene, id, adt, ctime, recalc);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, id, adt, ctime, recalc);
 }
 
 void BKE_animsys_update_driver_array(ID *id)
@@ -3049,6 +3029,9 @@ void BKE_animsys_eval_driver(Depsgraph *depsgraph,
 				const float ctime = DEG_get_ctime(depsgraph);
 				const float curval = calculate_fcurve(&anim_rna, fcu, ctime);
 				ok = animsys_write_rna_setting(&anim_rna, curval);
+				if (ok && DEG_is_active(depsgraph)) {
+					animsys_write_orig_anim_rna(&id_ptr, NULL, fcu, curval);
+				}
 			}
 
 			//printf("\tnew val = %f\n", fcu->curval);

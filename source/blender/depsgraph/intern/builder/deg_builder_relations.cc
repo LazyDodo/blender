@@ -2162,12 +2162,18 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 			/* Component explicitly requests to not add relation. */
 			continue;
 		}
+		int rel_flag = 0;
+		if (comp_node->type == DEG_NODE_TYPE_ANIMATION) {
+			rel_flag |= DEPSREL_FLAG_NO_FLUSH;
+		}
 		/* All entry operations of each component should wait for a proper
 		 * copy of ID.
 		 */
 		OperationDepsNode *op_entry = comp_node->get_entry_operation();
 		if (op_entry != NULL) {
-			graph_->add_new_relation(op_cow, op_entry, "CoW Dependency");
+			DepsRelation *rel = graph_->add_new_relation(
+			        op_cow, op_entry, "CoW Dependency");
+			rel->flag |= rel_flag;
 		}
 		/* All dangling operations should also be executed after copy-on-write. */
 		GHASH_FOREACH_BEGIN(OperationDepsNode *, op_node, comp_node->operations_map)
@@ -2176,22 +2182,27 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 				continue;
 			}
 			if (op_node->inlinks.size() == 0) {
-				graph_->add_new_relation(op_cow, op_node, "CoW Dependency");
+				DepsRelation *rel = graph_->add_new_relation(
+				        op_cow, op_node, "CoW Dependency");
+				rel->flag |= rel_flag;
 			}
 			else {
 				bool has_same_comp_dependency = false;
-				foreach (DepsRelation *rel, op_node->inlinks) {
-					if (rel->from->type != DEG_NODE_TYPE_OPERATION) {
+				foreach (DepsRelation *rel_current, op_node->inlinks) {
+					if (rel_current->from->type != DEG_NODE_TYPE_OPERATION) {
 						continue;
 					}
-					OperationDepsNode *op_node_from = (OperationDepsNode *)rel->from;
+					OperationDepsNode *op_node_from =
+					        (OperationDepsNode *)rel_current->from;
 					if (op_node_from->owner == op_node->owner) {
 						has_same_comp_dependency = true;
 						break;
 					}
 				}
 				if (!has_same_comp_dependency) {
-					graph_->add_new_relation(op_cow, op_node, "CoW Dependency");
+					DepsRelation *rel = graph_->add_new_relation(
+					        op_cow, op_node, "CoW Dependency");
+					rel->flag |= rel_flag;
 				}
 			}
 		}
