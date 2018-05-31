@@ -1419,8 +1419,8 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
                 col.prop(gp_settings, "use_stabilizer", text="Stabilizer")
                 if gp_settings.use_stabilizer:
                     col.separator()
-                    col.prop(gp_settings, "smooth_stroke_radius", text="Distance")
-                    col.prop(gp_settings, "smooth_stroke_factor", slider=True)
+                    col.prop(brush, "smooth_stroke_radius", text="Radius", slider=True)
+                    col.prop(brush, "smooth_stroke_factor", text="Factor", slider=True)
                     col.separator()
 
             col.prop(gp_settings, "enable_random", text="Random Settings")
