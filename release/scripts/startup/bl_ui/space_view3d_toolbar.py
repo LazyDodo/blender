@@ -21,7 +21,10 @@ import bpy
 from bpy.types import Menu, Panel, UIList
 from .properties_grease_pencil_common import (
         GreasePencilStrokeEditPanel,
-        GreasePencilStrokeSculptPanel
+        GreasePencilStrokeSculptPanel,
+        GreasePencilMultiFramePanel,
+        GreasePencilAppearancePanel,
+        GreasePencilAnimationPanel
         )
 from .properties_paint_common import (
         UnifiedPaintPanel,
@@ -1483,11 +1486,10 @@ class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
 
 
 # Grease Pencil create shapes
-class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
-    bl_space_type = 'VIEW_3D'
+class VIEW3D_PT_tools_grease_pencil_shapes(View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
+    bl_category = "Tools"
     bl_label = "Shapes"
-    bl_category = "Create"
-    bl_region_type = 'TOOLS'
 
     @classmethod
     def poll(cls, context):
@@ -1507,56 +1509,24 @@ class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
 
 
 # Grease Pencil stroke editing tools
-class VIEW3D_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
-    bl_space_type = 'VIEW_3D'
-
-
-# Grease Pencil stroke animation
-class VIEW3D_PT_tools_grease_pencil_animation(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Animation"
-    bl_category = "Animation"
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-        elif context.active_object.mode == 'OBJECT':
-            return False
-
-        return True
-
-    @staticmethod
-    def draw(self, context):
-        layout = self.layout
-
-        col = layout.column(align=True)
-        col.operator("gpencil.blank_frame_add", icon='NEW')
-        col.operator("gpencil.active_frames_delete_all", icon='X', text="Delete Frame(s)")
-
-        col.separator()
-        col.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
-        col.operator("gpencil.frame_duplicate", text="Duplicate All Layers").mode = 'ALL'
-
-        col.separator()
-        col.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
+class VIEW3D_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_edit"
+    bl_category = "Tools"
 
 
 # Grease Pencil stroke interpolation tools
-class VIEW3D_PT_tools_grease_pencil_interpolate(Panel):
-    bl_space_type = 'VIEW_3D'
+class VIEW3D_PT_tools_grease_pencil_interpolate(View3DPanel, Panel):
+    bl_context = ".greasepencil_edit"
+    bl_category = "Tools"
     bl_label = "Interpolate Strokes"
-    bl_category = "Animation"
-    bl_region_type = 'TOOLS'
 
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
+    # @classmethod
+    # def poll(cls, context):
+    #     if context.gpencil_data is None:
+    #         return False
+    #
+    #     gpd = context.gpencil_data
+    #     return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
 
     @staticmethod
     def draw(self, context):
@@ -1593,8 +1563,10 @@ class VIEW3D_PT_tools_grease_pencil_interpolate(Panel):
 
 
 # Grease Pencil stroke sculpting tools
-class VIEW3D_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
-    bl_space_type = 'VIEW_3D'
+class VIEW3D_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_sculpt"
+    bl_category = "Tools"
+    bl_label = "Sculpt Strokes"
 
 
 # Grease Pencil weight painting tools
@@ -1635,119 +1607,61 @@ class VIEW3D_PT_tools_grease_pencil_weight_tools(View3DPanel, Panel):
         col.operator("gpencil.vertex_group_smooth", text="Smooth")
 
 
-# Grease Pencil multiframe falloff tools
-class VIEW3D_PT_tools_grease_pencil_falloff(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Multi Frame"
+# Grease Pencil multiframe falloff tools (one for each mode)
+class VIEW3D_PT_tools_grease_pencil_edit_falloff(GreasePencilMultiFramePanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_edit"
     bl_category = "Tools"
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        if context.editable_gpencil_strokes:
-            is_3d_view = context.space_data.type == 'VIEW_3D'
-            if is_3d_view:
-                return bool(gpd.use_stroke_edit_mode or 
-                            gpd.is_stroke_sculpt_mode or
-                            gpd.is_stroke_weight_mode)
-
-        return False
-
-    @staticmethod
-    def draw_header(self, context):
-        layout = self.layout
-
-        gpd = context.gpencil_data
-        layout.prop(gpd, "use_multiedit", text="")
-
-    @staticmethod
-    def draw(self, context):
-        gpd = context.gpencil_data
-        settings = context.tool_settings.gpencil_sculpt
-
-        layout = self.layout
-        layout.enabled = gpd.use_multiedit
-
-        col = layout.column(align=True)
-        col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
-        col.prop(settings, "use_multiframe_falloff")
-
-        # Falloff curve
-        box = col.box()
-        box.enabled = gpd.use_multiedit and settings.use_multiframe_falloff
-        box.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
+    bl_label = "Multi Frame"
 
 
-# Grease Pencil drawing brushes
-class VIEW3D_PT_tools_grease_pencil_appearance(Panel):
-    bl_space_type = 'VIEW_3D'
+class VIEW3D_PT_tools_grease_pencil_sculpt_falloff(GreasePencilMultiFramePanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_sculpt"
+    bl_category = "Tools"
+    bl_label = "Multi Frame"
+
+
+class VIEW3D_PT_tools_grease_pencil_weight_falloff(GreasePencilMultiFramePanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_weight"
+    bl_category = "Tools"
+    bl_label = "Multi Frame"
+
+# Grease Pencil Brush Appeareance (one for each mode)
+class VIEW3D_PT_tools_grease_pencil_paint_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
+    bl_category = "Tools"
     bl_label = "Brush Appearance"
-    bl_category = "Options"
-    bl_region_type = 'TOOLS'
 
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
 
-        workspace = context.workspace
-        if context.active_object:
-            brush = context.active_gpencil_brush
-            return context.active_object.mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
-            
-        return False
+class VIEW3D_PT_tools_grease_pencil_sculpt_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_sculpt"
+    bl_category = "Tools"
+    bl_label = "Brush Appearance"
 
-    @staticmethod
-    def draw(self, context):
-        layout = self.layout
-        workspace = context.workspace
 
-        if context.active_object.mode == 'GPENCIL_PAINT':
-            brush = context.active_gpencil_brush
-            gp_settings = brush.gpencil_settings
+class VIEW3D_PT_tools_grease_pencil_weight_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_weight"
+    bl_category = "Tools"
+    bl_label = "Brush Appearance"
 
-            col = layout.column(align=True)
-            col.label("Brush Type:")
-            col.prop(gp_settings, "gpencil_brush_type", text="")
-            
-            layout.separator()
-            layout.separator()
+# Grease Pencil Animation Tools (one for each mode)
+class VIEW3D_PT_tools_grease_pencil_paint_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
+    bl_category = "Tools"
 
-            col = layout.column(align=True)
-            col.label("Icon:")
-            sub = col.column(align=True)
-            sub.enabled = not brush.use_custom_icon
-            sub.prop(gp_settings, "gp_icon", text="")
 
-            col.separator()
-            col.prop(brush, "use_custom_icon")
-            sub = col.column()
-            sub.active = brush.use_custom_icon
-            sub.prop(brush, "icon_filepath", text="")
+class VIEW3D_PT_tools_grease_pencil_edit_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_edit"
+    bl_category = "Tools"
 
-            layout.separator()
-            layout.separator()
-            
-            col = layout.column(align=True)
-            col.prop(gp_settings, "use_cursor", text="Show Brush")
 
-            if gp_settings.gpencil_brush_type == 'FILL':
-                row = col.row(align=True)
-                row.prop(brush, "cursor_color_add", text="Color")
+class VIEW3D_PT_tools_grease_pencil_sculpt_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_sculpt"
+    bl_category = "Tools"
 
-        elif context.active_object.mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
-            settings = context.tool_settings.gpencil_sculpt
-            brush = settings.brush
 
-            col = layout.column(align=True)
-            col.prop(brush, "use_cursor", text="Show Brush")
-            col.row().prop(brush, "cursor_color_add", text="Add")
-            col.row().prop(brush, "cursor_color_sub", text="Subtract")
-
+class VIEW3D_PT_tools_grease_pencil_weight_animation(GreasePencilAnimationPanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_weight"
+    bl_category = "Tools"
 
 classes = (
     VIEW3D_PT_tools_meshedit_options,
@@ -1780,6 +1694,7 @@ classes = (
     VIEW3D_PT_tools_particlemode,
 
     # FIXME: After GP Branch merge, fix up the UI to work with toolbar/topbar
+    # some panels have been moved to toolbar already
     VIEW3D_PT_tools_grease_pencil_brush,
     VIEW3D_PT_tools_grease_pencil_brush_option,
     VIEW3D_PT_tools_grease_pencil_brushcurves,
@@ -1788,10 +1703,17 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt,
     VIEW3D_PT_tools_grease_pencil_weight_paint,
     VIEW3D_PT_tools_grease_pencil_weight_tools,
-    VIEW3D_PT_tools_grease_pencil_falloff,
-    VIEW3D_PT_tools_grease_pencil_animation,
+    VIEW3D_PT_tools_grease_pencil_edit_falloff,
+    VIEW3D_PT_tools_grease_pencil_sculpt_falloff,
+    VIEW3D_PT_tools_grease_pencil_weight_falloff,
+    VIEW3D_PT_tools_grease_pencil_paint_appearance,
+    VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
+    VIEW3D_PT_tools_grease_pencil_weight_appearance,
     VIEW3D_PT_tools_grease_pencil_interpolate,
-    VIEW3D_PT_tools_grease_pencil_appearance,
+    VIEW3D_PT_tools_grease_pencil_paint_animation,
+    VIEW3D_PT_tools_grease_pencil_edit_animation,
+    VIEW3D_PT_tools_grease_pencil_sculpt_animation,
+    VIEW3D_PT_tools_grease_pencil_weight_animation,
 )
 
 if __name__ == "__main__":  # only for live edit.

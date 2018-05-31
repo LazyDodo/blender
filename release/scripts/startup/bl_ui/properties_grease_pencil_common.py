@@ -150,13 +150,13 @@ class GreasePencilStrokeEditPanel:
     bl_category = "Tools"
     bl_region_type = 'TOOLS'
 
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
+    # @classmethod
+    # def poll(cls, context):
+    #     if context.gpencil_data is None:
+    #         return False
+    #
+    #     gpd = context.gpencil_data
+    #     return bool(context.editable_gpencil_strokes) and bool(gpd.use_stroke_edit_mode)
 
     @staticmethod
     def draw(self, context):
@@ -178,7 +178,6 @@ class GreasePencilStrokeEditPanel:
             col.operator("gpencil.select_more")
             col.operator("gpencil.select_less")
             col.operator("gpencil.select_alternate")
-            col.operator("gpencil.palettecolor_select")
 
         layout.label(text="Edit:")
         row = layout.row(align=True)
@@ -248,21 +247,6 @@ class GreasePencilStrokeSculptPanel:
     bl_category = "Tools"
     bl_region_type = 'TOOLS'
 
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        gpd = context.gpencil_data
-        if context.editable_gpencil_strokes:
-            is_3d_view = context.space_data.type == 'VIEW_3D'
-            if not is_3d_view:
-                return bool(gpd.use_stroke_edit_mode)
-            else:
-                return bool(gpd.is_stroke_sculpt_mode)
-
-        return False
-
     @staticmethod
     def draw(self, context):
         layout = self.layout
@@ -307,6 +291,142 @@ class GreasePencilStrokeSculptPanel:
 
         if tool == 'SMOOTH':
             layout.prop(brush, "affect_pressure")
+
+
+# Grease Pencil multiframe falloff tools
+class GreasePencilMultiFramePanel:
+    bl_label = "Multi Frame"
+
+    # @classmethod
+    # def poll(cls, context):
+    #     if context.gpencil_data is None:
+    #         return False
+    #
+    #     gpd = context.gpencil_data
+    #     if context.editable_gpencil_strokes:
+    #         is_3d_view = context.space_data.type == 'VIEW_3D'
+    #         if is_3d_view:
+    #             return bool(gpd.use_stroke_edit_mode or
+    #                         gpd.is_stroke_sculpt_mode or
+    #                         gpd.is_stroke_weight_mode)
+    #
+    #     return False
+
+    @staticmethod
+    def draw_header(self, context):
+        layout = self.layout
+
+        gpd = context.gpencil_data
+        layout.prop(gpd, "use_multiedit", text="")
+
+    @staticmethod
+    def draw(self, context):
+        gpd = context.gpencil_data
+        settings = context.tool_settings.gpencil_sculpt
+
+        layout = self.layout
+        layout.enabled = gpd.use_multiedit
+
+        col = layout.column(align=True)
+        col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
+        col.prop(settings, "use_multiframe_falloff")
+
+        # Falloff curve
+        box = col.box()
+        box.enabled = gpd.use_multiedit and settings.use_multiframe_falloff
+        box.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
+
+
+class GreasePencilAppearancePanel:
+    bl_label = "Brush Appearance"
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+        # if context.gpencil_data is None:
+        #     return False
+        #
+        # workspace = context.workspace
+        # if context.active_object:
+        #     brush = context.active_gpencil_brush
+        #     return context.active_object.mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
+        #
+        # return False
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        workspace = context.workspace
+
+        if context.active_object.mode == 'GPENCIL_PAINT':
+            brush = context.active_gpencil_brush
+            gp_settings = brush.gpencil_settings
+
+            col = layout.column(align=True)
+            col.label("Brush Type:")
+            col.prop(gp_settings, "gpencil_brush_type", text="")
+
+            layout.separator()
+            layout.separator()
+
+            col = layout.column(align=True)
+            col.label("Icon:")
+            sub = col.column(align=True)
+            sub.enabled = not brush.use_custom_icon
+            sub.prop(gp_settings, "gp_icon", text="")
+
+            col.separator()
+            col.prop(brush, "use_custom_icon")
+            sub = col.column()
+            sub.active = brush.use_custom_icon
+            sub.prop(brush, "icon_filepath", text="")
+
+            layout.separator()
+            layout.separator()
+
+            col = layout.column(align=True)
+            col.prop(gp_settings, "use_cursor", text="Show Brush")
+
+            if gp_settings.gpencil_brush_type == 'FILL':
+                row = col.row(align=True)
+                row.prop(brush, "cursor_color_add", text="Color")
+
+        elif context.active_object.mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
+            settings = context.tool_settings.gpencil_sculpt
+            brush = settings.brush
+
+            col = layout.column(align=True)
+            col.prop(brush, "use_cursor", text="Show Brush")
+            col.row().prop(brush, "cursor_color_add", text="Add")
+            col.row().prop(brush, "cursor_color_sub", text="Subtract")
+
+class GreasePencilAnimationPanel:
+    bl_label = "Animation"
+
+    # @classmethod
+    # def poll(cls, context):
+    #     if context.gpencil_data is None:
+    #         return False
+    #     elif context.active_object.mode == 'OBJECT':
+    #         return False
+    #
+    #     return True
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+
+        col = layout.column(align=True)
+        col.operator("gpencil.blank_frame_add", icon='NEW')
+        col.operator("gpencil.active_frames_delete_all", icon='X', text="Delete Frame(s)")
+
+        col.separator()
+        col.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
+        col.operator("gpencil.frame_duplicate", text="Duplicate All Layers").mode = 'ALL'
+
+        col.separator()
+        col.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
 
 
 ###############################
