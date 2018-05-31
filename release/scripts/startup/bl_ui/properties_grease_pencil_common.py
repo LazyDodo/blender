@@ -313,27 +313,20 @@ class GreasePencilMultiFramePanel:
     #     return False
 
     @staticmethod
-    def draw_header(self, context):
-        layout = self.layout
-
-        gpd = context.gpencil_data
-        layout.prop(gpd, "use_multiedit", text="")
-
-    @staticmethod
     def draw(self, context):
         gpd = context.gpencil_data
         settings = context.tool_settings.gpencil_sculpt
 
         layout = self.layout
-        layout.enabled = gpd.use_multiedit
+        layout.prop(gpd, "use_multiedit")
+        if gpd.use_multiedit is True:
+            col = layout.column(align=True)
+            col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
+            col.prop(settings, "use_multiframe_falloff")
 
-        col = layout.column(align=True)
-        col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
-        col.prop(settings, "use_multiframe_falloff")
-
-        # Falloff curve
-        if gpd.use_multiedit and settings.use_multiframe_falloff:
-            layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
+            # Falloff curve
+            if gpd.use_multiedit and settings.use_multiframe_falloff:
+                layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
 
 
 class GreasePencilAppearancePanel:
