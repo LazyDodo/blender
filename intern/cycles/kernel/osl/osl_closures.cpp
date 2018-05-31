@@ -212,11 +212,22 @@ public:
 
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
-		if(!skip(sd, path_flag, LABEL_GLOSSY)) {
+		if(!skip(sd, path_flag, LABEL_GLOSSY))
+		{
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc_osl(sd, sizeof(PrincipledHairBSDF), weight, &params);
+			if (!bsdf)
+			{
+				return;
+			}
+
 			PrincipledHairExtra *extra = (PrincipledHairExtra*)closure_alloc_extra(sd, sizeof(PrincipledHairExtra));
+			if (!extra)
+			{
+				return;
+			}
+
 			bsdf->extra = extra;
-			sd->flag |= (bsdf) ? bsdf_principled_hair_setup(sd, bsdf) : 0;
+			sd->flag |= (bsdf && extra) ? bsdf_principled_hair_setup(sd, bsdf) : 0;
 		}
 	}
 };
