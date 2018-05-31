@@ -18,7 +18,7 @@
 #define rad(d) d*TNS_PI/180.0
 
 
-
+#define TNS_DPIX_TEXTURE_SIZE 2048
 
 typedef struct LANPR_TextureSample {
 	Link      Item;
@@ -39,6 +39,7 @@ typedef struct LANPR_LineStrip{
 }LANPR_LineStrip;
 
 typedef struct LANPR_PassList {
+	/* Snake */
 	struct DRWPass *depth_pass;
 	struct DRWPass *color_pass;
 	struct DRWPass *normal_pass;
@@ -46,21 +47,40 @@ typedef struct LANPR_PassList {
 	struct DRWPass *edge_thinning;
 	struct DRWPass *edge_thinning_2;
 	struct DRWPass *snake_pass;
+
+	/* DPIX */
+	struct DRWPass *dpix_transform_pass;
+
 } LANPR_PassList;
 
 typedef struct LANPR_FramebufferList {
+
+	/* Snake */
 	struct GPUFrameBuffer *passes;
 	struct GPUFrameBuffer *edge_intermediate;
 	struct GPUFrameBuffer *edge_thinning;
-	struct GPUFrameBuffer *on_screen;
-	//and something...
+
+    /* DPIX */
+	struct GPUFrameBuffer *dpix_transform;
+
 } LANPR_FramebufferList;
 
 typedef struct LANPR_TextureList {
+
 	struct GPUTexture *color;
     struct GPUTexture *normal;
 	struct GPUTexture *depth;
 	struct GPUTexture *edge_intermediate;
+
+	struct GPUTexture *dpix_in_pl;/* point L */
+	struct GPUTexture *dpix_in_pr;/* point R */
+	struct GPUTexture *dpix_in_nl;/* normal L */
+	struct GPUTexture *dpix_in_nr;/* normal R */
+	
+	struct GPUTexture *dpix_out_pl;
+	struct GPUTexture *dpix_out_pr;
+	struct GPUTexture *dpix_out_length;
+
 } LANPR_TextureList;
 
 typedef struct LANPR_PrivateData {
@@ -69,6 +89,8 @@ typedef struct LANPR_PrivateData {
 	DRWShadingGroup *edge_thinning_shgrp;
 	DRWShadingGroup *edge_thinning_shgrp_2;
     DRWShadingGroup *snake_shgrp;
+	
+	DRWShadingGroup *dpix_transform_shgrp;
 	
 	float normal_clamp;
     float normal_strength;

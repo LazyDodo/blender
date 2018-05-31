@@ -1428,6 +1428,9 @@ typedef struct SceneEEVEE {
 /* LANPR Global Config */
 
 typedef struct SceneLANPR{
+
+	int master_mode;
+
     int enable_vector_trace;
 	int display_thinning_result;
 
@@ -1450,6 +1453,8 @@ typedef struct SceneLANPR{
 	float extend_length;
 
 	int   snake_sensitivity;
+
+	/* shared */
 
 	float line_color[4];
 	float background_color[4];

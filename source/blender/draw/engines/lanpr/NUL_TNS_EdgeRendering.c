@@ -28,9 +28,511 @@ extern char datatoc_lanpr_line_connection_vertex[];
 extern char datatoc_lanpr_line_connection_fragment[];
 extern char datatoc_lanpr_line_connection_geometry[];
 
+typedef struct LANPROneTimeInit{
+    
+	/* Snake */
+
+	GPUShader* multichannel_shader;
+	GPUShader* edge_detect_shader;
+	GPUShader* edge_thinning_shader;
+	GPUShader* snake_connection_shader;
+
+	/* DPIX */
+
+	GPUShader* dpix_transform_shader;
+
+	void* ved;
+} LANPROneTimeInit;
+
 //==============================================================[ ATLAS / DPIX ]
 
-// will be updated here very soon(-ish).....
+
+void lanpr_init_atlas_inputs(void *ved){
+	OneTime.ved = ved;
+	LANPR_Data *vedata = (LANPR_Data *)ved;
+	LANPR_TextureList *txl = vedata->txl;
+	LANPR_FramebufferList *fbl = vedata->fbl;
+	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
+	//LANPR_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+
+	txl->dpix_in_pl = 
+
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
+	RegionView3D *rv3d = draw_ctx->rv3d;
+	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+
+
+	/* Main Buffer */
+	DRW_texture_ensure_2D(&txl->dpix_in_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGB32F, DRW_TEX_FILTER);
+	DRW_texture_ensure_2D(&txl->dpix_in_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGB32F, DRW_TEX_FILTER);
+	DRW_texture_ensure_2D(&txl->dpix_in_nl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGB32F, DRW_TEX_FILTER);
+	DRW_texture_ensure_2D(&txl->dpix_in_nr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGB32F, DRW_TEX_FILTER);
+
+	DRW_texture_ensure_2D(&txl->dpix_out_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGB32F, DRW_TEX_FILTER);
+	DRW_texture_ensure_2D(&txl->dpix_out_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGB32F, DRW_TEX_FILTER);
+	DRW_texture_ensure_2D(&txl->dpix_out_length, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGB32F, DRW_TEX_FILTER);
+
+	GPU_framebuffer_ensure_config(&fbl->dpix_transform, {
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_TEXTURE(txl->dpix_out_pl),
+		GPU_ATTACHMENT_TEXTURE(txl->dpix_out_pr),
+		GPU_ATTACHMENT_TEXTURE(txl->dpix_out_length),
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE
+	});
+
+	if (!OneTime.dpix_transform_shader) {
+	OneTime.dpix_transform_shader = 
+		GPU_shader_create(
+			datatoc_gpu_shader_3D_normal_smooth_color_vert_glsl,
+			datatoc_lanpr_snake_multichannel_fragment,NULL,NULL,NULL);
+    }
+}
+void lanpr_destroy_atlas(void *ved){
+	OneTime.ved = ved;
+	LANPR_Data *vedata = (LANPR_Data *)ved;
+	LANPR_TextureList *txl = vedata->txl;
+	LANPR_FramebufferList *fbl = vedata->fbl;
+	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
+
+	DRW_pass_free(psl->dpix_transform_pass);
+
+	GPU_framebuffer_free(fbl->dpix_transform);
+
+	DRW_texture_free(txl->dpix_in_pl);
+	DRW_texture_free(txl->dpix_in_pr);
+	DRW_texture_free(txl->dpix_in_nl);
+	DRW_texture_free(txl->dpix_in_nr);
+	DRW_texture_free(txl->dpix_out_pl);
+	DRW_texture_free(txl->dpix_out_pr);
+}
+
+static Gwn_VertBuf *lanpr_mesh_get_tri_pos_and_normals_raw(
+        MeshRenderData *rdata, const bool use_hide,
+        Gwn_VertBuf **r_vbo)
+{
+	BLI_assert(rdata->types & (MR_DATATYPE_VERT | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOP | MR_DATATYPE_POLY));
+
+	if (*r_vbo == NULL) {
+		static Gwn_VertFormat format = { 0 };
+		static struct { uint pos, nor; } attr_id;
+		if (format.attrib_ct == 0) {
+			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_I10, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+		}
+
+		const int tri_len = mesh_render_data_looptri_len_get(rdata);
+
+		Gwn_VertBuf *vbo = *r_vbo = GWN_vertbuf_create_with_format(&format);
+
+		const int vbo_len_capacity = tri_len * 3;
+		int vbo_len_used = 0;
+		GWN_vertbuf_data_alloc(vbo, vbo_len_capacity);
+
+		Gwn_VertBufRaw pos_step, nor_step;
+		GWN_vertbuf_attr_get_raw_data(vbo, attr_id.pos, &pos_step);
+		GWN_vertbuf_attr_get_raw_data(vbo, attr_id.nor, &nor_step);
+
+		float (*lnors)[3] = rdata->loop_normals;
+
+		if (rdata->edit_bmesh) {
+			Gwn_PackedNormal *pnors_pack, *vnors_pack;
+
+			if (lnors == NULL) {
+				mesh_render_data_ensure_poly_normals_pack(rdata);
+				mesh_render_data_ensure_vert_normals_pack(rdata);
+
+				pnors_pack = rdata->poly_normals_pack;
+				vnors_pack = rdata->vert_normals_pack;
+			}
+
+			for (int i = 0; i < tri_len; i++) {
+				const BMLoop **bm_looptri = (const BMLoop **)rdata->edit_bmesh->looptris[i];
+				const BMFace *bm_face = bm_looptri[0]->f;
+
+				/* use_hide always for edit-mode */
+				if (BM_elem_flag_test(bm_face, BM_ELEM_HIDDEN)) {
+					continue;
+				}
+
+				if (lnors) {
+					for (uint t = 0; t < 3; t++) {
+						const float *nor = lnors[BM_elem_index_get(bm_looptri[t])];
+						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = GWN_normal_convert_i10_v3(nor);
+					}
+				}
+				else if (BM_elem_flag_test(bm_face, BM_ELEM_SMOOTH)) {
+					for (uint t = 0; t < 3; t++) {
+						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = vnors_pack[BM_elem_index_get(bm_looptri[t]->v)];
+					}
+				}
+				else {
+					const Gwn_PackedNormal *snor_pack = &pnors_pack[BM_elem_index_get(bm_face)];
+					for (uint t = 0; t < 3; t++) {
+						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = *snor_pack;
+					}
+				}
+
+				/* TODO(sybren): deduplicate this and all the other places it's pasted to in this file. */
+				if (rdata->edit_data && rdata->edit_data->vertexCos) {
+					for (uint t = 0; t < 3; t++) {
+						int vidx = BM_elem_index_get(bm_looptri[t]->v);
+						const float *pos = rdata->edit_data->vertexCos[vidx];
+						copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), pos);
+					}
+				}
+				else {
+					for (uint t = 0; t < 3; t++) {
+						copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), bm_looptri[t]->v->co);
+					}
+				}
+			}
+		}
+		else {
+			if (lnors == NULL) {
+				/* Use normals from vertex. */
+				mesh_render_data_ensure_poly_normals_pack(rdata);
+			}
+
+			for (int i = 0; i < tri_len; i++) {
+				const MLoopTri *mlt = &rdata->mlooptri[i];
+				const MPoly *mp = &rdata->mpoly[mlt->poly];
+
+				if (use_hide && (mp->flag & ME_HIDE)) {
+					continue;
+				}
+
+				const uint vtri[3] = {
+					rdata->mloop[mlt->tri[0]].v,
+					rdata->mloop[mlt->tri[1]].v,
+					rdata->mloop[mlt->tri[2]].v,
+				};
+
+				if (lnors) {
+					for (uint t = 0; t < 3; t++) {
+						const float *nor = lnors[mlt->tri[t]];
+						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = GWN_normal_convert_i10_v3(nor);
+					}
+				}
+				else if (mp->flag & ME_SMOOTH) {
+					for (uint t = 0; t < 3; t++) {
+						const MVert *mv = &rdata->mvert[vtri[t]];
+						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = GWN_normal_convert_i10_s3(mv->no);
+					}
+				}
+				else {
+					const Gwn_PackedNormal *pnors_pack = &rdata->poly_normals_pack[mlt->poly];
+					for (uint t = 0; t < 3; t++) {
+						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = *pnors_pack;
+					}
+				}
+
+				for (uint t = 0; t < 3; t++) {
+					const MVert *mv = &rdata->mvert[vtri[t]];
+					copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), mv->co);
+				}
+			}
+		}
+
+		vbo_len_used = GWN_vertbuf_raw_used(&pos_step);
+		BLI_assert(vbo_len_used == GWN_vertbuf_raw_used(&nor_step));
+
+		if (vbo_len_capacity != vbo_len_used) {
+			GWN_vertbuf_data_resize(vbo, vbo_len_used);
+		}
+	}
+	return *r_vbo;
+}
+
+void DRW_cache_mesh_surface_get(Object *ob)
+{
+	BLI_assert(ob->type == OB_MESH);
+
+	Mesh *me = ob->data;	
+		
+	MeshBatchCache *cache = mesh_batch_cache_get(me);
+
+	if (cache->triangles_with_normals == NULL) {
+		const int datatype = MR_DATATYPE_VERT | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOP | MR_DATATYPE_POLY;
+		MeshRenderData *rdata = mesh_render_data_create(me, datatype);
+
+		cache->triangles_with_normals = GWN_batch_create(
+		        GWN_PRIM_TRIS, mesh_batch_cache_get_tri_pos_and_normals(rdata, cache), NULL);
+
+		mesh_render_data_free(rdata);
+	}
+
+}
+
+int lanpr_feed_atlas_data_obj(
+	float* AtlasPointsL, float* AtlasPointsR,
+	float* AtlasFaceNormalL, float* AtlasFaceNormalR,
+	tns3DObject* o, int Begin) {
+	
+	tnsVert* v;
+	tnsEdge* e;
+	tnsFace* f;
+	tns3DObject* io;
+	tnsMeshObject* mo;
+	int NextBegin = Begin;
+	int ThisCount=0;
+
+	for (io = o->ChildObjects.pFirst; io; io = io->Item.pNext) {
+		NextBegin = tns_FeedAtlasDataRecursive(
+			AtlasPointsL, AtlasPointsR, AtlasFaceNormalL, AtlasFaceNormalR, io, NextBegin);
+	}
+
+	if (o->Type != TNS_OBJECT_MESH) return Begin;
+
+	tObjRefreshGeometeryIndex(o);
+	mo = o;
+
+	for (e = mo->E.pFirst; e; e = e->Item.pNext) {
+		int offset = ThisCount + NextBegin;
+		AtlasPointsL[offset + 0] = e->VL->P[0];
+		AtlasPointsL[offset + 1] = e->VL->P[1];
+		AtlasPointsL[offset + 2] = e->VL->P[2];
+		AtlasPointsR[offset + 0] = e->VR->P[0];
+		AtlasPointsR[offset + 1] = e->VR->P[1];
+		AtlasPointsR[offset + 2] = e->VR->P[2];
+		AtlasFaceNormalL[offset + 0] = e->FL ? e->FL->FaceNormal[0] : 0;
+		AtlasFaceNormalL[offset + 1] = e->FL ? e->FL->FaceNormal[1] : 0;
+		AtlasFaceNormalL[offset + 2] = e->FL ? e->FL->FaceNormal[2] : 0;
+		AtlasFaceNormalR[offset + 0] = e->FR ? e->FR->FaceNormal[0] : 0;
+		AtlasFaceNormalR[offset + 1] = e->FR ? e->FR->FaceNormal[1] : 0;
+		AtlasFaceNormalR[offset + 2] = e->FR ? e->FR->FaceNormal[2] : 0;
+		ThisCount += 3;
+	}
+
+	return ThisCount + NextBegin;
+
+}
+void lanpr_feed_atlas_data(tnsScene* s) {
+	tns3DObject* o;
+	int NextBegin = 0;
+	float* AtlasPointsL,*AtlasPointsR,
+	       *AtlasFaceNormalL,*AtlasFaceNormalR;
+
+
+	if (!s || !s->AtlasPointsL) return;
+
+	int width = s->AtlasPointsL->Width;
+	int count = width*width*3;
+
+	AtlasPointsL = CreateNewBuffer(float, count);
+	AtlasPointsR = CreateNewBuffer(float, count);
+	AtlasFaceNormalL = CreateNewBuffer(float, count);
+	AtlasFaceNormalR = CreateNewBuffer(float, count);
+
+	for (o = s->Objects.pFirst; o; o = o->Item.pNext) {
+		NextBegin = tns_FeedAtlasDataRecursive(
+			AtlasPointsL, AtlasPointsR, AtlasFaceNormalL, AtlasFaceNormalR, o, NextBegin);
+	}
+
+	//NextBegin = AtlasCount;
+
+	tnsFeed2DRectTextureData(s->AtlasPointsL, AtlasPointsL);
+	tnsFeed2DRectTextureData(s->AtlasPointsR, AtlasPointsR);
+	tnsFeed2DRectTextureData(s->AtlasFaceNormalL, AtlasFaceNormalL);
+	tnsFeed2DRectTextureData(s->AtlasFaceNormalR, AtlasFaceNormalR);
+
+	FreeMem(AtlasPointsL);
+	FreeMem(AtlasPointsR);
+	FreeMem(AtlasFaceNormalL);
+	FreeMem(AtlasFaceNormalR);
+}
+
+void lanpr_get_atlas_buffer_position(int index, float* x, float* y) {
+	int px, py;
+	px = index % TNS_ATLAS_DEFAULT_INPUT_WIDTH;
+	py = index / TNS_ATLAS_DEFAULT_INPUT_WIDTH;
+
+	*x = (float)px / TNS_ATLAS_DEFAULT_INPUT_WIDTH * 2 - 1;
+	*y = (float)py / TNS_ATLAS_DEFAULT_INPUT_WIDTH * 2 - 1;
+}
+
+int lanpr_make_trigger_batch_recursive(int Begin, tns3DObject* o) {
+	tnsMeshObject* mo = o,*io;
+	int i;
+	int Next = Begin;
+
+	for (io = o->ChildObjects.pFirst; io; io = io->Base.Item.pNext) {
+		Next = tns_MakeAtlasTriggerBatchRecursive(Next, io);
+	}
+
+	if (o->Type != TNS_OBJECT_MESH) return Begin;
+
+	float* data = CreateNewBuffer(float, mo->numE*2);
+
+	for (i = 0; i < mo->numE; i++) {
+		tns_GetAtlasBufferPosition(Begin+i, &data[i*2], &data[i*2 + 1]);
+	}
+
+	mo->AtlasTriggerBatch = tnsCreateBatch(mo->numE, 2, data, 0);
+	//mo->AtlasTriggerBatch->BeginElementOffset = Begin;
+
+	Next = Begin + mo->numE;
+
+	
+
+	return Next;
+}
+
+void lanpr_calculate_view_direction(tnsScene* s, tnsCamera* c, tnsVector3d Vec) {
+	tnsVector3d Direction = { 0,0,-1 };
+	tnsVector3d Trans;
+	tnsMatrix44d inv;
+	tMatInverse44d(inv, c->Base.GlobalTransform);
+	tMatApplyRotation43d(Trans, inv, Direction);
+	//tMatVectorCopy3d(Trans, Vec);
+	//tMatVectorMultiSelf3d(Trans, -1);
+	tMatVectorCopy3d(Trans, Vec);
+
+}
+
+void lanpr_trigger_this_object(tns3DObject* o) {
+	tnsMeshObject *mo = o;
+	tnsShader* cs = T->AtlasTransformShader;
+
+	if (o->Type != TNS_OBJECT_MESH || !mo->AtlasTriggerBatch) return;
+
+	glBindBuffer(GL_ARRAY_BUFFER, mo->AtlasTriggerBatch->VBO);
+	glEnableVertexAttribArray(cs->vertexIndex);
+	glVertexAttribPointer(cs->vertexIndex, mo->AtlasTriggerBatch->Dimention, GL_FLOAT, 0, 0, 0);
+
+	glPointSize(1);
+	glDrawArrays(GL_POINTS, 0,
+		//mo->AtlasTriggerBatch->BeginElementOffset*mo->AtlasTriggerBatch->Dimention,
+		mo->AtlasTriggerBatch->NumVert*mo->AtlasTriggerBatch->Dimention);
+}
+
+void lanpr_trigger_atlas_transform_object(tns3DObject* o) {
+
+	tnsMeshObject* mo = o, *io;
+	int i;
+	
+	for (io = o->ChildObjects.pFirst; io; io = io->Base.Item.pNext) {
+		tnsPushMatrix();
+		tnsApplyObjectMatrix(io);
+		tns_TriggerThisObject(io);
+		if (o->ChildObjects.pFirst) {
+			tns_TriggerAtlasTransformRecursive(io);
+		}
+		tnsPopMatrix();
+	}
+}
+void lanpr_trigger_atlas_transform(tnsScene* s, n3DViewUiExtra* e) {
+	tns3DObject* o;
+	tnsShader* sd = T->AtlasTransformShader;
+	//if (!s) return;
+	for (o = s->Objects.pFirst; o; o = o->Item.pNext) {
+		tnsPushMatrix();
+		tnsApplyObjectMatrix(o);
+		tns_TriggerThisObject(o);
+		if (o->ChildObjects.pFirst) {
+			tns_TriggerAtlasTransformRecursive(o);
+		}
+		tnsPopMatrix();
+	}
+
+}
+
+extern const GLuint TNS_ATTACHMENT_ARRAY_0_1_2[];
+
+void lanpr_make_atlas_trigger_batch(tnsScene* s) {
+	tns3DObject* o;
+	int Begin = 0;
+	for (o = s->Objects.pFirst; o; o = o->Item.pNext) {
+		Begin = tns_MakeAtlasTriggerBatchRecursive(Begin, o);
+	}
+}
+
+void lanpr_atlas_draw_transform(n3DViewUiExtra* e) {
+	tns3DObject* o; tnsScene* s = e->CurrentScene;
+	tnsShader* sd = T->AtlasTransformShader;
+	if (!s) return;
+	int W = e->AtlasPointsOutL->Width, H = e->AtlasPointsOutL->Height;
+
+	tnsUseShader(sd);
+	tnsEnableShaderv(sd);
+
+	tnsDrawToOffscreen(e->AtlasFBO, 3, TNS_ATTACHMENT_ARRAY_0_1_2);
+	tnsViewportWithScissor(0, 0,W, H);
+	//tnsOrtho(0, W, H, 0, -100, 100);
+
+	glClearColor(0, 0, 0, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	tnsActiveTexture(GL_TEXTURE0);
+	tnsBindTexture0(s->AtlasPointsL);
+	tnsActiveTexture(GL_TEXTURE1);
+	tnsBindTexture1(s->AtlasPointsR);
+	tnsActiveTexture(GL_TEXTURE2);
+	tnsBindTexture2(s->AtlasFaceNormalL);
+	tnsActiveTexture(GL_TEXTURE3);
+	tnsBindTexture3(s->AtlasFaceNormalR);
+
+	tnsVector3d Viewdir;
+	real* camloc = e->ViewingCamera->Base.GLocation;
+
+	tnsApplyCameraView(W, H, e->ViewingCamera);
+
+	tns_CalculateViewDir(s, e->ViewingCamera, Viewdir);
+
+	glUniform4f(sd->uniform0Index, 0, 0, e->OffScr->pColorTextures[0]->Width, e->OffScr->pColorTextures[0]->Height);
+	glUniform3f(sd->uniform4Index, (GLfloat)camloc[0], (GLfloat)camloc[1], (GLfloat)camloc[2]);
+	glUniform3f(sd->uniform5Index, (GLfloat)Viewdir[0], (GLfloat)Viewdir[1], (GLfloat)Viewdir[2]);
+	glUniform1f(sd->uniform6Index, 1);
+	glUniform1f(sd->uniform7Index, TNS_ATLAS_DEFAULT_INPUT_WIDTH);
+
+	
+	//tnsVertex2d(10, 10);
+	//tnsVertex2d(10, 90);
+	//tnsVertex2d(90, 90);
+	//tnsVertex2d(90, 10);
+	//tnsPackAs(GL_POINTS);
+	//tnsFlush();
+
+	tns_TriggerAtlasTransform(s, e);
+}
+
+void lanpr_atlas_draw_edge_preview(n3DViewUiExtra* e) {
+	tnsEnableShaderv(T->AtlasPreviewShader);
+	glDisableVertexAttribArray(T->AtlasPreviewShader->colorIndex);
+	glVertexAttrib4f(T->AtlasPreviewShader->colorIndex, 1, 1, 1, 1);
+
+	tnsActiveTexture(GL_TEXTURE0);
+	tnsBindTexture0(e->AtlasPointsOutL);
+
+	tnsActiveTexture(GL_TEXTURE1);
+	tnsBindTexture1(e->AtlasPointsOutR);
+
+	//tnsUseUiShader();
+	//tnsUseShader(T->AtlasPreviewShader);
+
+	//tnsColor4d(1, 1, 1, 1);
+	//tnsVertex2d(0.10, 0.10);
+	//tnsVertex2d(0.90, 0.10);
+	//tnsVertex2d(0.90, 0.90);
+	//tnsVertex2d(0.10, 0.90);
+	//tnsPackAs(GL_LINE_LOOP);
+	//tnsFlush();
+
+	glUniform2f(T->AtlasPreviewShader->uniform1Index, e->OffScr->pColorTextures[0]->Width, e->OffScr->pColorTextures[0]->Height);
+	glUniform1f(T->AtlasPreviewShader->uniform0Index, TNS_ATLAS_DEFAULT_INPUT_WIDTH);
+
+	glLineWidth(2);
+	glEnable(GL_LINE_SMOOTH);
+
+	tns_TriggerAtlasTransform(e->CurrentScene, e);
+
+	glLineWidth(1);
+	glDisable(GL_LINE_SMOOTH);
+
+}
 
 
 //=====================================================================[ SNAKE ]
@@ -38,13 +540,6 @@ extern char datatoc_lanpr_line_connection_geometry[];
 
 //==============================================[ ENGINE ]
 
-typedef struct LANPROneTimeInit{
-    GPUShader* multichannel_shader;
-	GPUShader* edge_detect_shader;
-	GPUShader* edge_thinning_shader;
-	GPUShader* snake_connection_shader;
-	void* ved;
-} LANPROneTimeInit;
 
 LANPROneTimeInit OneTime;
 
@@ -213,6 +708,12 @@ static void lanpr_cache_init(void *vedata){
 	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp_2, "TexSample0", &txl->color);
 	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp_2, "Stage", &stl->g_data->stage, 1);
 	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp_2, quad, NULL);
+
+	psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
+	stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
+	//DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "TexSample0", &txl->color);
+	//DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "Stage", &stl->g_data->stage, 1);
+	//DRW_shgroup_call_add(stl->g_data->dpix_transform_shgrp, quad, NULL);
 }
 
 static void lanpr_cache_populate(void *vedata, Object *ob){
