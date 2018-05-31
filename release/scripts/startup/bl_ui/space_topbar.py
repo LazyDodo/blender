@@ -103,6 +103,23 @@ class TOPBAR_HT_lower_bar(Header):
 
         layout.template_header_3D_mode()
 
+        # graese pencil multiedit
+        gpd = context.gpencil_data
+        if gpd and (gpd.use_stroke_edit_mode or
+                    gpd.is_stroke_sculpt_mode or
+                    gpd.is_stroke_weight_mode):
+            row = layout.row(align=True)
+            row.prop(gpd, "use_multiedit", text="", icon="PARTICLE_POINT")
+
+            sub = row.row(align=True)
+            sub.active = gpd.use_multiedit
+            sub.popover(
+                space_type='TOPBAR',
+                region_type='HEADER',
+                panel_type="TOPBAR_PT_GreasePencilMultiFrame",
+                text="Multiframe"
+            )
+
     def draw_center(self, context):
         layout = self.layout
         mode = context.mode
@@ -396,6 +413,27 @@ class TOPBAR_PT_snapping(Panel):
         if obj:
             if (object_mode == 'EDIT' and obj.type == 'MESH'):
                 col.prop(toolsettings, "use_mesh_automerge", icon='AUTOMERGE_ON')
+
+
+# Grease Pencil multiframe falloff tools
+class TOPBAR_PT_GreasePencilMultiFrame(Panel):
+    bl_space_type = 'TOPBAR'
+    bl_region_type = 'HEADER'
+    bl_label = "Multi Frame"
+
+    @staticmethod
+    def draw(self, context):
+        gpd = context.gpencil_data
+        settings = context.tool_settings.gpencil_sculpt
+
+        layout = self.layout
+        col = layout.column(align=True)
+        col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
+        col.prop(settings, "use_multiframe_falloff")
+
+        # Falloff curve
+        if gpd.use_multiedit and settings.use_multiframe_falloff:
+            layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
 
 
 class INFO_MT_editor_menus(Menu):
@@ -694,6 +732,7 @@ classes = (
     TOPBAR_HT_lower_bar,
     TOPBAR_PT_pivot_point,
     TOPBAR_PT_snapping,
+    TOPBAR_PT_GreasePencilMultiFrame,
     INFO_MT_editor_menus,
     INFO_MT_file,
     INFO_MT_file_import,

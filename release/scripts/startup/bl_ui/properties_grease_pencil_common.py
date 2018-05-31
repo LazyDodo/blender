@@ -293,42 +293,6 @@ class GreasePencilStrokeSculptPanel:
             layout.prop(brush, "affect_pressure")
 
 
-# Grease Pencil multiframe falloff tools
-class GreasePencilMultiFramePanel:
-    bl_label = "Multi Frame"
-
-    # @classmethod
-    # def poll(cls, context):
-    #     if context.gpencil_data is None:
-    #         return False
-    #
-    #     gpd = context.gpencil_data
-    #     if context.editable_gpencil_strokes:
-    #         is_3d_view = context.space_data.type == 'VIEW_3D'
-    #         if is_3d_view:
-    #             return bool(gpd.use_stroke_edit_mode or
-    #                         gpd.is_stroke_sculpt_mode or
-    #                         gpd.is_stroke_weight_mode)
-    #
-    #     return False
-
-    @staticmethod
-    def draw(self, context):
-        gpd = context.gpencil_data
-        settings = context.tool_settings.gpencil_sculpt
-
-        layout = self.layout
-        layout.prop(gpd, "use_multiedit")
-        if gpd.use_multiedit is True:
-            col = layout.column(align=True)
-            col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
-            col.prop(settings, "use_multiframe_falloff")
-
-            # Falloff curve
-            if gpd.use_multiedit and settings.use_multiframe_falloff:
-                layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
-
-
 class GreasePencilAppearancePanel:
     bl_label = "Brush Appearance"
 

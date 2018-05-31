@@ -22,7 +22,6 @@ from bpy.types import Menu, Panel, UIList
 from .properties_grease_pencil_common import (
         GreasePencilStrokeEditPanel,
         GreasePencilStrokeSculptPanel,
-        GreasePencilMultiFramePanel,
         GreasePencilAppearancePanel,
         GreasePencilAnimationPanel
         )
@@ -1605,24 +1604,6 @@ class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
         col.operator("gpencil.vertex_group_smooth", text="Smooth")
 
 
-# Grease Pencil multiframe falloff tools (one for each mode)
-class VIEW3D_PT_tools_grease_pencil_edit_falloff(GreasePencilMultiFramePanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_edit"
-    bl_category = "Tools"
-    bl_label = "Multi Frame"
-
-
-class VIEW3D_PT_tools_grease_pencil_sculpt_falloff(GreasePencilMultiFramePanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_sculpt"
-    bl_category = "Tools"
-    bl_label = "Multi Frame"
-
-
-class VIEW3D_PT_tools_grease_pencil_weight_falloff(GreasePencilMultiFramePanel, View3DPanel, Panel):
-    bl_context = ".greasepencil_weight"
-    bl_category = "Tools"
-    bl_label = "Multi Frame"
-
 # Grease Pencil Brush Appeareance (one for each mode)
 class VIEW3D_PT_tools_grease_pencil_paint_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
@@ -1688,9 +1669,6 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt,
     VIEW3D_PT_tools_grease_pencil_weight_paint,
     VIEW3D_PT_tools_grease_pencil_weight_tools,
-    VIEW3D_PT_tools_grease_pencil_edit_falloff,
-    VIEW3D_PT_tools_grease_pencil_sculpt_falloff,
-    VIEW3D_PT_tools_grease_pencil_weight_falloff,
     VIEW3D_PT_tools_grease_pencil_paint_appearance,
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
