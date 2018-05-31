@@ -117,10 +117,11 @@ class VIEW3D_HT_header(Header):
                 row.operator("gpencil.paste", text="", icon='PASTEDOWN')
 
             view = context.space_data
-            row = layout.row(align=True)
+            row = layout.row()
             row.prop(view, "use_gpencil_paper", text="", icon='GHOST')
 
-            layout.prop(gpd, "use_onion_skinning", text="Onion Skins", icon='PARTICLE_PATH')
+            row.prop(gpd, "use_onion_skinning", text="Onion Skins", icon='PARTICLE_PATH')
+            row.prop(gpd, "show_edit_lines", text="", icon="PARTICLE_POINT")
 
             if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
                 row = layout.row(align=True)
