@@ -67,9 +67,17 @@ namespace DEG {
 
 void DepsgraphNodeBuilder::build_layer_collections(ListBase *lb)
 {
+	const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		COLLECTION_RESTRICT_VIEW : COLLECTION_RESTRICT_RENDER;
+
 	for (LayerCollection *lc = (LayerCollection *)lb->first; lc; lc = lc->next) {
-		build_collection(lc->collection);
-		build_layer_collections(&lc->layer_collections);
+		if (!(lc->collection->flag & restrict_flag)) {
+			if (!(lc->flag & LAYER_COLLECTION_EXCLUDE)) {
+				build_collection(lc->collection);
+			}
+
+			build_layer_collections(&lc->layer_collections);
+		}
 	}
 }
 
@@ -102,10 +110,14 @@ void DepsgraphNodeBuilder::build_view_layer(
 	 * tricks here iterating over the view layer.
 	 */
 	int base_index = 0;
+	const int base_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		BASE_VISIBLE_VIEWPORT : BASE_VISIBLE_RENDER;
 	LISTBASE_FOREACH(Base *, base, &view_layer->object_bases) {
 		/* object itself */
-		build_object(base_index, base->object, linked_state);
-		base->object->select_color = select_color++;
+		if (base->flag & base_flag) {
+			build_object(base_index, base->object, linked_state);
+			base->object->select_color = select_color++;
+		}
 		++base_index;
 	}
 	build_layer_collections(&view_layer->layer_collections);

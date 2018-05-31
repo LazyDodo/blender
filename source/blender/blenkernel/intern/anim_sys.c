@@ -251,6 +251,9 @@ void BKE_animdata_free(ID *id, const bool do_id_user)
 			
 			/* free drivers - stored as a list of F-Curves */
 			free_fcurves(&adt->drivers);
+
+			/* free driver array cache */
+			MEM_SAFE_FREE(adt->driver_array);
 			
 			/* free overrides */
 			/* TODO... */
@@ -290,6 +293,7 @@ AnimData *BKE_animdata_copy(Main *bmain, AnimData *adt, const bool do_action, co
 	
 	/* duplicate drivers (F-Curves) */
 	copy_fcurves(&dadt->drivers, &adt->drivers);
+	dadt->driver_array = NULL;
 	
 	/* don't copy overrides */
 	BLI_listbase_clear(&dadt->overrides);
@@ -1719,46 +1723,48 @@ static void animsys_evaluate_fcurves(PointerRNA *ptr, ListBase *list, AnimMapper
 
 	const bool copy_on_write = orig_ptr.id.data != NULL;
 
-	/* calculate then execute each curve */
+	/* Calculate then execute each curve. */
 	for (fcu = list->first; fcu; fcu = fcu->next) {
-		/* check if this F-Curve doesn't belong to a muted group */
-		if ((fcu->grp == NULL) || (fcu->grp->flag & AGRP_MUTED) == 0) {
-			/* check if this curve should be skipped */
-			if ((fcu->flag & (FCURVE_MUTED | FCURVE_DISABLED)) == 0) {
-				PathResolvedRNA anim_rna;
-				/* Read current value from original datablock. */
-				float dna_val;
+		/* Check if this F-Curve doesn't belong to a muted group. */
+		if ((fcu->grp != NULL) && (fcu->grp->flag & AGRP_MUTED)) {
+			continue;
+		}
+		/* Check if this curve should be skipped. */
+		if ((fcu->flag & (FCURVE_MUTED | FCURVE_DISABLED))) {
+			continue;
+		}
+		PathResolvedRNA anim_rna;
+		/* Read current value from original datablock. */
+		float dna_val;
 
-				if (copy_on_write) {
-					if (animsys_store_rna_setting(&orig_ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
-						if (!animsys_read_rna_setting(&anim_rna, &dna_val)) {
-							continue;
-						}
-					}
-					else {
-						continue;
-					}
+		if (copy_on_write) {
+			if (animsys_store_rna_setting(&orig_ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
+				if (!animsys_read_rna_setting(&anim_rna, &dna_val)) {
+					continue;
 				}
+			}
+			else {
+				continue;
+			}
+		}
 
-				if (animsys_store_rna_setting(ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
-					if (copy_on_write) {
-						const bool check_orig_dna = ((recalc & ADT_RECALC_CHECK_ORIG_DNA) != 0);
-						/* If we are tweaking DNA without changing frame, we don't write f-curves,
-						 * since otherwise we will not be able to change properties which has animation.
-						 */
-						if (check_orig_dna && fcu->orig_dna_val != dna_val) {
-							continue;
-						}
-					}
-
-					const float curval = calculate_fcurve(&anim_rna, fcu, ctime);
-					animsys_write_rna_setting(&anim_rna, curval);
-
-					if (copy_on_write) {
-						/* Store original DNA value f-curve was written for. */
-						fcu->orig_dna_val = dna_val;
-					}
+		if (animsys_store_rna_setting(ptr, remap, fcu->rna_path, fcu->array_index, &anim_rna)) {
+			if (copy_on_write) {
+				const bool check_orig_dna = ((recalc & ADT_RECALC_CHECK_ORIG_DNA) != 0);
+				/* If we are tweaking DNA without changing frame, we don't write f-curves,
+				 * since otherwise we will not be able to change properties which has animation.
+				 */
+				if (check_orig_dna && fcu->orig_dna_val != dna_val) {
+					continue;
 				}
+			}
+
+			const float curval = calculate_fcurve(&anim_rna, fcu, ctime);
+			animsys_write_rna_setting(&anim_rna, curval);
+
+			if (copy_on_write) {
+				/* Store original DNA value f-curve was written for. */
+				fcu->orig_dna_val = dna_val;
 			}
 		}
 	}
@@ -2983,34 +2989,45 @@ void BKE_animsys_eval_animdata(Depsgraph *depsgraph, ID *id)
 	BKE_animsys_evaluate_animdata(scene, id, adt, ctime, recalc);
 }
 
-/* TODO(sergey): This is slow lookup of driver from CoW datablock.
- * Keep this for until we've got something smarter for depsgraph
- * building.\
- */
-static FCurve *find_driver_from_evaluated_id(ID *id, FCurve *fcu)
+void BKE_animsys_update_driver_array(ID *id)
 {
-	/* We've got non-CoW datablock, can use f-curve as-is. */
-	if (id->orig_id == NULL) {
-		return fcu;
+	AnimData *adt = BKE_animdata_from_id(id);
+
+	/* Runtime driver map to avoid O(n^2) lookups in BKE_animsys_eval_driver.
+	 * Ideally the depsgraph could pass a pointer to the COW driver directly,
+	 * but this is difficult in the current design. */
+	if (adt && adt->drivers.first) {
+		BLI_assert(!adt->driver_array);
+
+		int num_drivers = BLI_listbase_count(&adt->drivers);
+		adt->driver_array = MEM_mallocN(sizeof(FCurve*) * num_drivers, "adt->driver_array");
+
+		int driver_index = 0;
+		for (FCurve *fcu = adt->drivers.first; fcu; fcu = fcu->next) {
+			adt->driver_array[driver_index++] = fcu;
+		}
 	}
-	/*const*/ ID *id_orig = id->orig_id;
-	const AnimData *adt_orig = BKE_animdata_from_id(id_orig);
-	const AnimData *adt_cow = BKE_animdata_from_id(id);
-	const int fcu_index = BLI_findindex(&adt_orig->drivers, fcu);
-	BLI_assert(fcu_index != -1);
-	return BLI_findlink(&adt_cow->drivers, fcu_index);
 }
 
 void BKE_animsys_eval_driver(Depsgraph *depsgraph,
                              ID *id,
-                             FCurve *fcu)
+                             int driver_index,
+                             ChannelDriver *driver_orig)
 {
 	/* TODO(sergey): De-duplicate with BKE animsys. */
-	ChannelDriver *driver = fcu->driver;
 	PointerRNA id_ptr;
 	bool ok = false;
 
-	fcu = find_driver_from_evaluated_id(id, fcu);
+	/* Lookup driver, accelerated with driver array map. */
+	const AnimData *adt = BKE_animdata_from_id(id);
+	FCurve* fcu;
+
+	if (adt->driver_array) {
+		fcu = adt->driver_array[driver_index];
+	}
+	else {
+		fcu = BLI_findlink(&adt->drivers, driver_index);
+	}
 
 	DEG_debug_print_eval_subdata_index(
 	        depsgraph, __func__, id->name, id, "fcu", fcu->rna_path, fcu, fcu->array_index);
@@ -3021,7 +3038,7 @@ void BKE_animsys_eval_driver(Depsgraph *depsgraph,
 	if ((fcu->flag & (FCURVE_MUTED | FCURVE_DISABLED)) == 0) {
 		/* check if driver itself is tagged for recalculation */
 		/* XXX driver recalc flag is not set yet by depsgraph! */
-		if ((driver) && !(driver->flag & DRIVER_FLAG_INVALID) /*&& (driver->flag & DRIVER_FLAG_RECALC)*/) {
+		if ((driver_orig) && !(driver_orig->flag & DRIVER_FLAG_INVALID) /*&& (driver_orig->flag & DRIVER_FLAG_RECALC)*/) {
 			/* evaluate this using values set already in other places
 			 * NOTE: for 'layering' option later on, we should check if we should remove old value before adding
 			 *       new to only be done when drivers only changed */
@@ -3037,12 +3054,12 @@ void BKE_animsys_eval_driver(Depsgraph *depsgraph,
 			//printf("\tnew val = %f\n", fcu->curval);
 
 			/* clear recalc flag */
-			driver->flag &= ~DRIVER_FLAG_RECALC;
+			driver_orig->flag &= ~DRIVER_FLAG_RECALC;
 
 			/* set error-flag if evaluation failed */
 			if (ok == 0) {
 				printf("invalid driver - %s[%d]\n", fcu->rna_path, fcu->array_index);
-				driver->flag |= DRIVER_FLAG_INVALID;
+				driver_orig->flag |= DRIVER_FLAG_INVALID;
 			}
 		}
 	}
