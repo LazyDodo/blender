@@ -317,6 +317,10 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 
 	ED_region_visible_rect(tgpk->ar, &tgpk->rect);
 
+	/* GPXX: set xmin to 0 because toolbar is not computed properly 
+	 * by ED_region_visible_rect function */
+	tgpk->rect.xmin = 0;
+
 	/* get current material */
 	if ((tgpk->brush) && (tgpk->brush->gpencil_settings->material)) {
 		tgpk->mat = tgpk->brush->gpencil_settings->material;
