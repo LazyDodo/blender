@@ -1141,9 +1141,7 @@ static void drw_engines_enable(ViewLayer *view_layer, RenderEngineType *engine_t
 	}
 	else {
 		/* if gpencil must draw the strokes, but not the object */
-		if (mode == CTX_MODE_OBJECT) {
-			drw_engines_enable_from_mode(mode);
-		}
+		drw_engines_enable_from_mode(mode);
 	}
 }
 
