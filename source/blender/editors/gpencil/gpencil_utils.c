@@ -101,6 +101,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 			case SPACE_VIEW3D: /* 3D-View */
 			case SPACE_BUTS: /* properties */
 			case SPACE_INFO: /* header info (needed after workspaces merge) */
+			case SPACE_TOPBAR: /* Topbar (needed after topbar merge) */
 			{
 				/* return obgpencil datablock */
 				if (ob && (ob->type == OB_GPENCIL)) {
