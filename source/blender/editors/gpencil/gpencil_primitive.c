@@ -97,9 +97,7 @@ static int gpencil_primitive_add_poll(bContext *C)
 {
 	/* only 3D view */
 	ScrArea *sa = CTX_wm_area(C);
-	if ((sa) && (sa->spacetype != SPACE_VIEW3D) && 
-				(sa->spacetype != SPACE_TOPBAR)) 
-	{
+	if (sa && sa->spacetype != SPACE_VIEW3D) {
 		return 0;
 	}
 	
