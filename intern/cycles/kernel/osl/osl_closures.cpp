@@ -207,6 +207,7 @@ public:
 		}
 
 		bsdf->extra = extra;
+		bsdf->extra->geom = params.extra->geom;
 		return bsdf;
 	}
 
