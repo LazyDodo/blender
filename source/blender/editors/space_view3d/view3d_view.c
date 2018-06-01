@@ -48,6 +48,7 @@
 #include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "UI_resources.h"
 
@@ -61,8 +62,6 @@
 #include "ED_screen.h"
 
 #include "DRW_engine.h"
-
-#include "DEG_depsgraph_query.h"
 
 #include "view3d_intern.h"  /* own include */
 
@@ -513,25 +512,26 @@ static int view3d_camera_to_view_selected_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	View3D *v3d = CTX_wm_view3d(C);  /* can be NULL */
 	Object *camera_ob = v3d ? v3d->camera : scene->camera;
+	Object *camera_ob_eval = DEG_get_evaluated_object(depsgraph, camera_ob);
 
 	float r_co[3]; /* the new location to apply */
 	float r_scale; /* only for ortho cameras */
 
-	if (camera_ob == NULL) {
+	if (camera_ob_eval == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "No active camera");
 		return OPERATOR_CANCELLED;
 	}
 
 	/* this function does all the important stuff */
-	if (BKE_camera_view_frame_fit_to_scene(depsgraph, scene, view_layer, camera_ob, r_co, &r_scale)) {
+	if (BKE_camera_view_frame_fit_to_scene(depsgraph, scene, view_layer, camera_ob_eval, r_co, &r_scale)) {
 		ObjectTfmProtectedChannels obtfm;
 		float obmat_new[4][4];
 
-		if ((camera_ob->type == OB_CAMERA) && (((Camera *)camera_ob->data)->type == CAM_ORTHO)) {
+		if ((camera_ob_eval->type == OB_CAMERA) && (((Camera *)camera_ob_eval->data)->type == CAM_ORTHO)) {
 			((Camera *)camera_ob->data)->ortho_scale = r_scale;
 		}
 
-		copy_m4_m4(obmat_new, camera_ob->obmat);
+		copy_m4_m4(obmat_new, camera_ob_eval->obmat);
 		copy_v3_v3(obmat_new[3], r_co);
 
 		/* only touch location */
@@ -908,7 +908,7 @@ int view3d_opengl_select(
         eV3DSelectMode select_mode)
 {
 	struct bThemeState theme_state;
-	Depsgraph *graph = vc->depsgraph;
+	Depsgraph *depsgraph = vc->depsgraph;
 	Scene *scene = vc->scene;
 	View3D *v3d = vc->v3d;
 	ARegion *ar = vc->ar;
@@ -975,7 +975,7 @@ int view3d_opengl_select(
 
 	/* Important we use the 'viewmat' and don't re-calculate since
 	 * the object & bone view locking takes 'rect' into account, see: T51629. */
-	ED_view3d_draw_setup_view(vc->win, graph, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
+	ED_view3d_draw_setup_view(vc->win, depsgraph, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
 
 	if (v3d->drawtype > OB_WIRE) {
 		v3d->zbuf = true;
@@ -1012,7 +1012,7 @@ int view3d_opengl_select(
 			.gpu_select_mode = gpu_select_mode,
 		};
 		DRW_draw_select_loop(
-		        graph, ar, v3d,
+		        depsgraph, ar, v3d,
 		        use_obedit_skip, use_nearest, &rect,
 		        drw_select_loop_pass, &drw_select_loop_user_data);
 		hits = drw_select_loop_user_data.hits;
@@ -1020,7 +1020,7 @@ int view3d_opengl_select(
 #endif /* WITH_OPENGL_LEGACY */
 
 	G.f &= ~G_PICKSEL;
-	ED_view3d_draw_setup_view(vc->win, graph, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
+	ED_view3d_draw_setup_view(vc->win, depsgraph, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
 	
 	if (v3d->drawtype > OB_WIRE) {
 		v3d->zbuf = 0;

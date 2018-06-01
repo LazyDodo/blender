@@ -571,6 +571,8 @@ void BKE_scene_init(Scene *sce)
 	 */
 	sce->r.color_mgt_flag |= R_COLOR_MANAGEMENT;
 
+	sce->r.dither_intensity = 1.0f;
+
 	sce->r.bake_mode = 0;
 	sce->r.bake_filter = 16;
 	sce->r.bake_flag = R_BAKE_CLEAR;
@@ -633,6 +635,7 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->doublimit = 0.001;
 	sce->toolsettings->vgroup_weight = 1.0f;
 	sce->toolsettings->uvcalc_margin = 0.001f;
+	sce->toolsettings->uvcalc_flag = UVCALC_TRANSFORM_CORRECT;
 	sce->toolsettings->unwrapper = 1;
 	sce->toolsettings->select_thresh = 0.01f;
 
@@ -642,7 +645,9 @@ void BKE_scene_init(Scene *sce)
 
 	
 	sce->toolsettings->transform_pivot_point = V3D_AROUND_CENTER_MEAN;
+	sce->toolsettings->snap_mode = SCE_SNAP_MODE_INCREMENT;
 	sce->toolsettings->snap_node_mode = SCE_SNAP_MODE_GRID;
+	sce->toolsettings->snap_uv_mode = SCE_SNAP_MODE_INCREMENT;
 
 	sce->toolsettings->curve_paint_settings.curve_type = CU_BEZIER;
 	sce->toolsettings->curve_paint_settings.flag |= CURVE_PAINT_FLAG_CORNERS_DETECT;
@@ -937,7 +942,7 @@ void BKE_scene_set_background(Main *bmain, Scene *scene)
 /* called from creator_args.c */
 Scene *BKE_scene_set_name(Main *bmain, const char *name)
 {
-	Scene *sce = (Scene *)BKE_libblock_find_name_ex(bmain, ID_SCE, name);
+	Scene *sce = (Scene *)BKE_libblock_find_name(bmain, ID_SCE, name);
 	if (sce) {
 		BKE_scene_set_background(bmain, sce);
 		printf("Scene switch for render: '%s' in file: '%s'\n", name, bmain->name);
@@ -1263,10 +1268,10 @@ void BKE_scene_frame_set(struct Scene *scene, double cfra)
 #define POSE_ANIMATION_WORKAROUND
 
 #ifdef POSE_ANIMATION_WORKAROUND
-static void scene_armature_depsgraph_workaround(Main *bmain)
+static void scene_armature_depsgraph_workaround(Main *bmain, Depsgraph *depsgraph)
 {
 	Object *ob;
-	if (BLI_listbase_is_empty(&bmain->armature) || !DEG_id_type_tagged(bmain, ID_OB)) {
+	if (BLI_listbase_is_empty(&bmain->armature) || !DEG_id_type_updated(depsgraph, ID_OB)) {
 		return;
 	}
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
@@ -1288,7 +1293,7 @@ static bool check_rendered_viewport_visible(Main *bmain)
 		Scene *scene = window->scene;
 		RenderEngineType *type = RE_engines_find(scene->r.engine);
 
-		if (type->draw_engine || !type->render_to_view) {
+		if (type->draw_engine || !type->render) {
 			continue;
 		}
 
@@ -1368,7 +1373,7 @@ void BKE_scene_graph_update_tagged(Depsgraph *depsgraph,
 	/* Inform editors about possible changes. */
 	DEG_ids_check_recalc(bmain, depsgraph, scene, view_layer, false);
 	/* Clear recalc flags. */
-	DEG_ids_clear_recalc(bmain);
+	DEG_ids_clear_recalc(bmain, depsgraph);
 }
 
 /* applies changes right away, does all sets too */
@@ -1394,10 +1399,10 @@ void BKE_scene_graph_update_for_newframe(Depsgraph *depsgraph,
 	 *
 	 * TODO(sergey): Make this a depsgraph node?
 	 */
-	BKE_cachefile_update_frame(bmain, scene, ctime,
+	BKE_cachefile_update_frame(bmain, depsgraph, scene, ctime,
 	                           (((double)scene->r.frs_sec) / (double)scene->r.frs_sec_base));
 #ifdef POSE_ANIMATION_WORKAROUND
-	scene_armature_depsgraph_workaround(bmain);
+	scene_armature_depsgraph_workaround(bmain, depsgraph);
 #endif
 	/* Update all objects: drivers, matrices, displists, etc. flags set
 	 * by depgraph or manual, no layer check here, gets correct flushed.
@@ -1410,7 +1415,7 @@ void BKE_scene_graph_update_for_newframe(Depsgraph *depsgraph,
 	/* Inform editors about possible changes. */
 	DEG_ids_check_recalc(bmain, depsgraph, scene, view_layer, true);
 	/* clear recalc flags */
-	DEG_ids_clear_recalc(bmain);
+	DEG_ids_clear_recalc(bmain, depsgraph);
 }
 
 /* return default view */

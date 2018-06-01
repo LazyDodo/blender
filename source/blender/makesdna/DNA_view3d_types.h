@@ -145,6 +145,9 @@ typedef struct View3DShading {
 	float single_color[3];
 
 	float studiolight_rot_z;
+	float studiolight_background;
+
+	float object_outline_color[3];
 	float pad2;
 } View3DShading;
 
@@ -334,8 +337,11 @@ enum {
 
 /* View3DShading->flag */
 enum {
-	V3D_SHADING_OBJECT_OUTLINE = (1 << 0),
-	V3D_SHADING_SHADOW         = (1 << 2),
+	V3D_SHADING_OBJECT_OUTLINE      = (1 << 0),
+	V3D_SHADING_XRAY                = (1 << 1),
+	V3D_SHADING_SHADOW              = (1 << 2),
+	V3D_SHADING_SCENE_LIGHT         = (1 << 3),
+	V3D_SHADING_SPECULAR_HIGHLIGHT  = (1 << 4),
 };
 
 /* View3DShading->single_color_type */
@@ -343,7 +349,6 @@ enum {
 	V3D_SHADING_MATERIAL_COLOR = 0,
 	V3D_SHADING_RANDOM_COLOR   = 1,
 	V3D_SHADING_SINGLE_COLOR   = 2,
-	V3D_SHADING_OBJECT_COLOR   = 3,
 };
 
 /* View3DOverlay->flag */
@@ -351,7 +356,10 @@ enum {
 	V3D_OVERLAY_FACE_ORIENTATION  = (1 << 0),
 	V3D_OVERLAY_HIDE_CURSOR       = (1 << 1),
 	V3D_OVERLAY_BONE_SELECTION    = (1 << 2),
-	V3D_OVERLAY_MOTION_PATHS      = (1 << 3),
+	V3D_OVERLAY_LOOK_DEV          = (1 << 3),
+	V3D_OVERLAY_WIREFRAMES        = (1 << 4),
+	V3D_OVERLAY_HIDE_TEXT         = (1 << 5),
+	V3D_OVERLAY_MOTION_PATHS      = (1 << 6),
 };
 
 /* View3DOverlay->edit_flag */

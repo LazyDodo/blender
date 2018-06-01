@@ -138,6 +138,20 @@ static void outliner_rna_width(SpaceOops *soops, ListBase *lb, int *w, int start
 	}
 }
 
+/**
+ * The active object is only needed for reference.
+ */
+static bool is_object_data_in_editmode(const ID *id, const Object *obact)
+{
+	const short id_type = GS(id->name);
+	return (
+	        (obact && (obact->mode & OB_MODE_EDIT)) &&
+	        (id && OB_DATA_SUPPORT_EDITMODE(id_type)) &&
+	        (GS(((ID *)obact->data)->name) == id_type) &&
+	        BKE_object_data_is_in_editmode(id)
+	);
+}
+
 /* ****************************************************** */
 
 static void restrictbutton_recursive_ebone(bContext *C, EditBone *ebone_parent, int flag, bool set_flag)
@@ -266,8 +280,6 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 {
 	Main *bmain = CTX_data_main(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
-	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *obedit = CTX_data_edit_object(C);
 	BLI_mempool *ts = soops->treestore;
 	TreeStoreElem *tselem = tsep;
@@ -295,7 +307,7 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 				Library *lib = (Library *)tselem->id;
 				char expanded[FILE_MAX];
 
-				BKE_library_filepath_set(lib, lib->name);
+				BKE_library_filepath_set(bmain, lib, lib->name);
 
 				BLI_strncpy(expanded, lib->name, sizeof(expanded));
 				BLI_path_abs(expanded, bmain->name);
@@ -329,37 +341,39 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 						BLI_strncpy(newname, ebone->name, sizeof(ebone->name));
 						BLI_strncpy(ebone->name, oldname, sizeof(ebone->name));
 						ED_armature_bone_rename(obedit->data, oldname, newname);
-						WM_event_add_notifier(C, NC_OBJECT | ND_POSE, OBACT(view_layer));
+						WM_event_add_notifier(C, NC_OBJECT | ND_POSE, NULL);
 					}
 					break;
 				}
 
 				case TSE_BONE:
 				{
+					ViewLayer *view_layer = CTX_data_view_layer(C);
+					Scene *scene = CTX_data_scene(C);
+					bArmature *arm = (bArmature *)tselem->id;
 					Bone *bone = te->directdata;
-					Object *ob;
 					char newname[sizeof(bone->name)];
 					
 					/* always make current object active */
 					tree_element_active(C, scene, view_layer, soops, te, OL_SETSEL_NORMAL, true);
-					ob = OBACT(view_layer);
 					
 					/* restore bone name */
 					BLI_strncpy(newname, bone->name, sizeof(bone->name));
 					BLI_strncpy(bone->name, oldname, sizeof(bone->name));
-					ED_armature_bone_rename(ob->data, oldname, newname);
-					WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+					ED_armature_bone_rename(arm, oldname, newname);
+					WM_event_add_notifier(C, NC_OBJECT | ND_POSE, NULL);
 					break;
 				}
 				case TSE_POSE_CHANNEL:
 				{
+					Scene *scene = CTX_data_scene(C);
+					ViewLayer *view_layer = CTX_data_view_layer(C);
+					Object *ob = (Object *)tselem->id;
 					bPoseChannel *pchan = te->directdata;
-					Object *ob;
 					char newname[sizeof(pchan->name)];
 					
 					/* always make current pose-bone active */
 					tree_element_active(C, scene, view_layer, soops, te, OL_SETSEL_NORMAL, true);
-					ob = OBACT(view_layer);
 
 					BLI_assert(ob->type == OB_ARMATURE);
 					
@@ -367,7 +381,7 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 					BLI_strncpy(newname, pchan->name, sizeof(pchan->name));
 					BLI_strncpy(pchan->name, oldname, sizeof(pchan->name));
 					ED_armature_bone_rename(ob->data, oldname, newname);
-					WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+					WM_event_add_notifier(C, NC_OBJECT | ND_POSE, NULL);
 					break;
 				}
 				case TSE_POSEGRP:
@@ -391,10 +405,25 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 					WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, gpd);
 					break;
 				}
+				case TSE_R_LAYER:
+				{
+					Scene *scene = (Scene *)tselem->id;
+					ViewLayer *view_layer = te->directdata;
+
+					/* Restore old name. */
+					char newname[sizeof(view_layer->name)];
+					BLI_strncpy(newname, view_layer->name, sizeof(view_layer->name));
+					BLI_strncpy(view_layer->name, oldname, sizeof(view_layer->name));
+
+					/* Rename, preserving animation and compositing data. */
+					BKE_view_layer_rename(bmain, scene, view_layer, newname);
+					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL);
+					break;
+				}
 				case TSE_LAYER_COLLECTION:
 				{
 					BLI_libblock_ensure_unique_name(bmain, tselem->id->name);
-					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL); break;
+					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL);
 					break;
 				}
 			}
@@ -1215,12 +1244,13 @@ static void tselem_draw_icon(uiBlock *block, int xmax, float x, float y, TreeSto
 }
 
 static void outliner_draw_iconrow(
-        bContext *C, uiBlock *block, Scene *scene, ViewLayer *view_layer, Object *obedit, SpaceOops *soops,
+        bContext *C, uiBlock *block, Scene *scene, ViewLayer *view_layer, SpaceOops *soops,
         ListBase *lb, int level, int xmax, int *offsx, int ys, float alpha_fac)
 {
 	TreeElement *te;
 	TreeStoreElem *tselem;
 	eOLDrawState active;
+	const Object *obact = OBACT(view_layer);
 
 	for (te = lb->first; te; te = te->next) {
 		/* exit drawing early */
@@ -1228,16 +1258,15 @@ static void outliner_draw_iconrow(
 			break;
 
 		tselem = TREESTORE(te);
-		
+
 		/* object hierarchy always, further constrained on level */
 		if (level < 1 || (tselem->type == 0 && te->idcode == ID_OB)) {
-
 			/* active blocks get white circle */
 			if (tselem->type == 0) {
 				if (te->idcode == ID_OB) {
 					active = (OBACT(view_layer) == (Object *)tselem->id) ? OL_DRAWSEL_NORMAL : OL_DRAWSEL_NONE;
 				}
-				else if (obedit && obedit->data == tselem->id) {
+				else if (is_object_data_in_editmode(tselem->id, obact)) {
 					active = OL_DRAWSEL_NORMAL;
 				}
 				else {
@@ -1278,7 +1307,7 @@ static void outliner_draw_iconrow(
 		/* this tree element always has same amount of branches, so don't draw */
 		if (tselem->type != TSE_R_LAYER) {
 			outliner_draw_iconrow(
-			        C, block, scene, view_layer, obedit, soops,
+			        C, block, scene, view_layer, soops,
 			        &te->subtree, level + 1, xmax, offsx, ys, alpha_fac);
 		}
 	}
@@ -1304,7 +1333,7 @@ static void outliner_set_coord_tree_element(TreeElement *te, int startx, int sta
 
 
 static void outliner_draw_tree_element(
-        bContext *C, uiBlock *block, const uiFontStyle *fstyle, Scene *scene, ViewLayer *view_layer, Object *obedit,
+        bContext *C, uiBlock *block, const uiFontStyle *fstyle, Scene *scene, ViewLayer *view_layer,
         ARegion *ar, SpaceOops *soops, TreeElement *te, bool draw_grayed_out,
         int startx, int *starty, TreeElement **te_edit, TreeElement **te_floating)
 {
@@ -1335,6 +1364,7 @@ static void outliner_draw_tree_element(
 
 		/* colors for active/selected data */
 		if (tselem->type == 0) {
+			const Object *obact = OBACT(view_layer);
 			if (te->idcode == ID_SCE) {
 				if (tselem->id == (ID *)scene) {
 					rgba_float_args_set(color, 1.0f, 1.0f, 1.0f, alpha);
@@ -1346,13 +1376,13 @@ static void outliner_draw_tree_element(
 				Base *base = (Base *)te->directdata;
 				const bool is_selected = (base != NULL) && ((base->flag & BASE_SELECTED) != 0);
 
-				if (ob == OBACT(view_layer) || is_selected) {
+				if (ob == obact || is_selected) {
 					char col[4] = {0, 0, 0, 0};
 					
 					/* outliner active ob: always white text, circle color now similar to view3d */
 					
 					active = OL_DRAWSEL_ACTIVE;
-					if (ob == OBACT(view_layer)) {
+					if (ob == obact) {
 						if (is_selected) {
 							UI_GetThemeColorType4ubv(TH_ACTIVE, SPACE_VIEW3D, col);
 							col[3] = alpha;
@@ -1366,9 +1396,8 @@ static void outliner_draw_tree_element(
 					}
 					rgba_float_args_set(color, (float)col[0] / 255, (float)col[1] / 255, (float)col[2] / 255, alpha);
 				}
-			
 			}
-			else if (obedit && obedit->data == tselem->id) {
+			else if (is_object_data_in_editmode(tselem->id, obact)) {
 				rgba_float_args_set(color, 1.0f, 1.0f, 1.0f, alpha);
 				active = OL_DRAWSEL_ACTIVE;
 			}
@@ -1499,7 +1528,7 @@ static void outliner_draw_tree_element(
 					}
 
 					outliner_draw_iconrow(
-					        C, block, scene, view_layer, obedit, soops, &te->subtree, 0, xmax, &tempx,
+					        C, block, scene, view_layer, soops, &te->subtree, 0, xmax, &tempx,
 					        *starty, alpha_fac);
 
 					glDisable(GL_BLEND);
@@ -1520,7 +1549,7 @@ static void outliner_draw_tree_element(
 			 * childs of a grayed out parent (pass on draw_grayed_out to childs) */
 			bool draw_childs_grayed_out = draw_grayed_out || (ten->drag_data != NULL);
 			outliner_draw_tree_element(
-			        C, block, fstyle, scene, view_layer, obedit,
+			        C, block, fstyle, scene, view_layer,
 			        ar, soops, ten, draw_childs_grayed_out,
 			        startx + UI_UNIT_X, starty, te_edit, te_floating);
 		}
@@ -1761,7 +1790,7 @@ static void outliner_draw_highlights(ARegion *ar, SpaceOops *soops, int startx, 
 }
 
 static void outliner_draw_tree(
-        bContext *C, uiBlock *block, Scene *scene, ViewLayer *view_layer, Object *obedit,
+        bContext *C, uiBlock *block, Scene *scene, ViewLayer *view_layer,
         ARegion *ar, SpaceOops *soops, const bool has_restrict_icons,
         TreeElement **te_edit)
 {
@@ -1803,7 +1832,7 @@ static void outliner_draw_tree(
 	startx = 0;
 	for (TreeElement *te = soops->tree.first; te; te = te->next) {
 		outliner_draw_tree_element(
-		        C, block, fstyle, scene, view_layer, obedit,
+		        C, block, fstyle, scene, view_layer,
 		        ar, soops, te, te->drag_data != NULL,
 		        startx, &starty, te_edit, &te_floating);
 	}
@@ -1883,7 +1912,6 @@ void draw_outliner(const bContext *C)
 	Main *mainvar = CTX_data_main(C); 
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
-	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 	ARegion *ar = CTX_wm_region(C);
 	View2D *v2d = &ar->v2d;
 	SpaceOops *soops = CTX_wm_space_outliner(C);
@@ -1944,7 +1972,7 @@ void draw_outliner(const bContext *C)
 	outliner_back(ar);
 	block = UI_block_begin(C, ar, __func__, UI_EMBOSS);
 	outliner_draw_tree(
-	        (bContext *)C, block, scene, view_layer, obedit,
+	        (bContext *)C, block, scene, view_layer,
 	        ar, soops, has_restrict_icons, &te_edit);
 
 	if (soops->outlinevis == SO_DATA_API) {

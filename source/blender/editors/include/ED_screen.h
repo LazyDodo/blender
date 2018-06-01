@@ -79,7 +79,7 @@ void    ED_region_tag_refresh_ui(struct ARegion *ar);
 void    ED_region_panels_init(struct wmWindowManager *wm, struct ARegion *ar);
 void    ED_region_panels(
             const struct bContext *C, struct ARegion *ar,
-            const char *context, int contextnr,
+            const char *contexts[], int contextnr,
             const bool vertical);
 void    ED_region_header_init(struct ARegion *ar);
 void    ED_region_header(const struct bContext *C, struct ARegion *ar);
@@ -119,14 +119,12 @@ int     ED_area_header_switchbutton(const struct bContext *C, struct uiBlock *bl
 void    ED_area_initialize(struct wmWindowManager *wm, struct wmWindow *win, struct ScrArea *sa);
 void    ED_area_exit(struct bContext *C, struct ScrArea *sa);
 int     ED_screen_area_active(const struct bContext *C);
-void    ED_screen_global_topbar_area_create(
-            struct wmWindow *win,
-            const struct bScreen *screen);
 void    ED_screen_global_areas_create(
             struct wmWindow *win);
 void    ED_area_do_listen(struct bScreen *sc, ScrArea *sa, struct wmNotifier *note, Scene *scene,
                           struct WorkSpace *workspace);
 void    ED_area_tag_redraw(ScrArea *sa);
+void    ED_area_tag_redraw_no_rebuild(ScrArea *sa);
 void    ED_area_tag_redraw_regiontype(ScrArea *sa, int type);
 void    ED_area_tag_refresh(ScrArea *sa);
 void    ED_area_do_refresh(struct bContext *C, ScrArea *sa);
@@ -250,6 +248,7 @@ int     ED_operator_screen_mainwinactive(struct bContext *C);
 int     ED_operator_areaactive(struct bContext *C);
 int     ED_operator_regionactive(struct bContext *C);
 
+int     ED_operator_scene(struct bContext *C);
 int     ED_operator_scene_editable(struct bContext *C);
 int     ED_operator_objectmode(struct bContext *C);
 

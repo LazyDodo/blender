@@ -81,6 +81,7 @@
 #include "BKE_texture.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "UI_interface.h"
 
@@ -3083,7 +3084,7 @@ static void proj_paint_state_non_cddm_init(ProjPaintState *ps)
 }
 
 static void proj_paint_state_viewport_init(
-        ProjPaintState *ps, const char symmetry_flag)
+        ProjPaintState *ps, const Depsgraph *depsgraph, const char symmetry_flag)
 {
 	float mat[3][3];
 	float viewmat[4][4];
@@ -3144,17 +3145,17 @@ static void proj_paint_state_viewport_init(
 			invert_m4_m4(viewinv, viewmat);
 		}
 		else if (ps->source == PROJ_SRC_IMAGE_CAM) {
-			Object *cam_ob = ps->scene->camera;
+			Object *cam_ob_eval = DEG_get_evaluated_object(depsgraph, ps->scene->camera);
 			CameraParams params;
 
 			/* viewmat & viewinv */
-			copy_m4_m4(viewinv, cam_ob->obmat);
+			copy_m4_m4(viewinv, cam_ob_eval->obmat);
 			normalize_m4(viewinv);
 			invert_m4_m4(viewmat, viewinv);
 
 			/* window matrix, clipping and ortho */
 			BKE_camera_params_init(&params);
-			BKE_camera_params_from_object(&params, cam_ob);
+			BKE_camera_params_from_object(&params, cam_ob_eval);
 			BKE_camera_params_compute_viewplane(&params, ps->winx, ps->winy, 1.0f, 1.0f);
 			BKE_camera_params_compute_matrix(&params);
 
@@ -3858,7 +3859,7 @@ static void project_paint_begin(
 		proj_paint_state_cavity_init(ps);
 	}
 
-	proj_paint_state_viewport_init(ps, symmetry_flag);
+	proj_paint_state_viewport_init(ps, CTX_data_depsgraph(C), symmetry_flag);
 
 	/* calculate vert screen coords
 	 * run this early so we can calculate the x/y resolution of our bucket rect */
@@ -5012,7 +5013,7 @@ void paint_proj_stroke(
 	/* clone gets special treatment here to avoid going through image initialization */
 	if (ps_handle->is_clone_cursor_pick) {
 		Scene *scene = ps_handle->scene;
-		struct Depsgraph *graph = CTX_data_depsgraph(C);
+		struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		View3D *v3d = CTX_wm_view3d(C);
 		ARegion *ar = CTX_wm_region(C);
 		float *cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
@@ -5020,7 +5021,7 @@ void paint_proj_stroke(
 
 		view3d_operator_needs_opengl(C);
 
-		if (!ED_view3d_autodist(graph, ar, v3d, mval_i, cursor, false, NULL)) {
+		if (!ED_view3d_autodist(depsgraph, ar, v3d, mval_i, cursor, false, NULL)) {
 			return;
 		}
 
@@ -5723,14 +5724,15 @@ static int texture_paint_add_texture_paint_slot_exec(bContext *C, wmOperator *op
 static int texture_paint_add_texture_paint_slot_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
 	char imagename[MAX_ID_NAME - 2];
+	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
 	Material *ma = give_current_material(ob, ob->actcol);
 	int type = RNA_enum_get(op->ptr, "type");
 
 	if (!ma) {
-		ma = BKE_material_add(CTX_data_main(C), "Material");
+		ma = BKE_material_add(bmain, "Material");
 		/* no material found, just assign to first slot */
-		assign_material(ob, ma, ob->actcol, BKE_MAT_ASSIGN_USERPREF);
+		assign_material(bmain, ob, ma, ob->actcol, BKE_MAT_ASSIGN_USERPREF);
 	}
 	
 	type = RNA_enum_from_value(layer_type_items, type);

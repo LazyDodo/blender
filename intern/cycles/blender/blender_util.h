@@ -53,6 +53,7 @@ static inline BL::Mesh object_to_mesh(BL::BlendData& data,
 	bool subsurf_mod_show_render = false;
 	bool subsurf_mod_show_viewport = false;
 
+	/* TODO: make this work with copy-on-write, modifiers are already evaluated. */
 	if(subdivision_type != Mesh::SUBDIVISION_NONE) {
 		BL::Modifier subsurf_mod = object.modifiers[object.modifiers.length()-1];
 
@@ -465,6 +466,21 @@ static inline string blender_absolute_path(BL::BlendData& b_data,
 	}
 
 	return path;
+}
+
+static inline string get_text_datablock_content(const PointerRNA& ptr)
+{
+	if(ptr.data == NULL) {
+		return "";
+	}
+
+	string content;
+	BL::Text::lines_iterator iter;
+	for(iter.begin(ptr); iter; ++iter) {
+		content += iter->body() + "\n";
+	}
+
+	return content;
 }
 
 /* Texture Space */

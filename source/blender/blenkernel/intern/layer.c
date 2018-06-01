@@ -34,6 +34,7 @@
 #include "BLI_threads.h"
 #include "BLT_translation.h"
 
+#include "BKE_animsys.h"
 #include "BKE_collection.h"
 #include "BKE_freestyle.h"
 #include "BKE_global.h"
@@ -381,10 +382,48 @@ void BKE_view_layer_copy_data(
 	view_layer_dst->object_bases_hash = NULL;
 
 	/* Copy layer collections and object bases. */
-	BLI_duplicatelist(&view_layer_dst->object_bases, &view_layer_src->object_bases);
+	/* Inline 'BLI_duplicatelist' and update the active base. */
+	BLI_listbase_clear(&view_layer_dst->object_bases);
+	for (Base *base_src = view_layer_src->object_bases.first; base_src; base_src = base_src->next) {
+		Base *base_dst = MEM_dupallocN(base_src);
+		BLI_addtail(&view_layer_dst->object_bases, base_dst);
+		if (view_layer_src->basact == base_src) {
+			view_layer_dst->basact = base_dst;
+		}
+	}
+
 	layer_collections_copy_data(&view_layer_dst->layer_collections, &view_layer_src->layer_collections);
 
 	// TODO: not always safe to free BKE_layer_collection_sync(scene_dst, view_layer_dst);
+}
+
+void BKE_view_layer_rename(Main *bmain, Scene *scene, ViewLayer *view_layer, const char *newname)
+{
+	char oldname[sizeof(view_layer->name)];
+
+	BLI_strncpy(oldname, view_layer->name, sizeof(view_layer->name));
+
+	BLI_strncpy_utf8(view_layer->name, newname, sizeof(view_layer->name));
+	BLI_uniquename(&scene->view_layers, view_layer, DATA_("ViewLayer"), '.', offsetof(ViewLayer, name), sizeof(view_layer->name));
+
+	if (scene->nodetree) {
+		bNode *node;
+		int index = BLI_findindex(&scene->view_layers, view_layer);
+
+		for (node = scene->nodetree->nodes.first; node; node = node->next) {
+			if (node->type == CMP_NODE_R_LAYERS && node->id == NULL) {
+				if (node->custom1 == index)
+					BLI_strncpy(node->name, view_layer->name, NODE_MAXSTR);
+			}
+		}
+	}
+
+	/* fix all the animation data and workspace which may link to this */
+	BKE_animdata_fix_paths_rename_all(NULL, "view_layers", oldname, view_layer->name);
+	BKE_workspace_view_layer_rename(bmain, scene, oldname, view_layer->name);
+
+	/* Dependency graph uses view layer name based lookups. */
+	DEG_id_tag_update(&scene->id, 0);
 }
 
 /* LayerCollection */
@@ -945,7 +984,7 @@ void BKE_view_layer_selected_objects_iterator_end(BLI_Iterator *UNUSED(iter))
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name BKE_view_layer_selected_objects_iterator
+/** \name BKE_view_layer_visible_objects_iterator
  * \{ */
 
 void BKE_view_layer_visible_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
@@ -959,6 +998,40 @@ void BKE_view_layer_visible_objects_iterator_next(BLI_Iterator *iter)
 }
 
 void BKE_view_layer_visible_objects_iterator_end(BLI_Iterator *UNUSED(iter))
+{
+	/* do nothing */
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name BKE_view_layer_selected_editable_objects_iterator
+ * \{ */
+
+void BKE_view_layer_selected_editable_objects_iterator_begin(BLI_Iterator *iter, void *data_in)
+{
+	objects_iterator_begin(iter, data_in, BASE_SELECTED);
+	if (iter->valid) {
+		if (BKE_object_is_libdata((Object *)iter->current) == false) {
+			// First object is valid (selectable and not libdata) -> all good.
+			return;
+		}
+		else {
+			// Object is selectable but not editable -> search for another one.
+			BKE_view_layer_selected_editable_objects_iterator_next(iter);
+		}
+	}
+}
+
+void BKE_view_layer_selected_editable_objects_iterator_next(BLI_Iterator *iter)
+{
+	// Search while there are objects and the one we have is not editable (editable = not libdata).
+	do {
+		objects_iterator_next(iter, BASE_SELECTED);
+	} while (iter->valid && BKE_object_is_libdata((Object *)iter->current) != false);
+}
+
+void BKE_view_layer_selected_editable_objects_iterator_end(BLI_Iterator *UNUSED(iter))
 {
 	/* do nothing */
 }
@@ -1133,8 +1206,7 @@ void BKE_view_layer_bases_in_mode_iterator_next(BLI_Iterator *iter)
 	}
 
 	while (base) {
-		if ((base->flag & BASE_SELECTED) != 0 &&
-		    (base->object->type == data->base_active->object->type) &&
+		if ((base->object->type == data->base_active->object->type) &&
 		    (base != data->base_active) &&
 		    (base->object->mode & data->object_mode))
 		{

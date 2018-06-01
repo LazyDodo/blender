@@ -52,6 +52,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
+#include "WM_toolsystem.h"
 
 #include "ED_screen.h"
 #include "ED_screen_types.h"
@@ -225,7 +226,7 @@ void ED_area_azones_update(ScrArea *sa, const int mouse_xy[2])
 
 	if (changed) {
 		sa->flag &= ~AREA_FLAG_ACTIONZONES_UPDATE;
-		ED_area_tag_redraw(sa);
+		ED_area_tag_redraw_no_rebuild(sa);
 	}
 }
 
@@ -607,6 +608,15 @@ void ED_area_tag_redraw(ScrArea *sa)
 			ED_region_tag_redraw(ar);
 }
 
+void ED_area_tag_redraw_no_rebuild(ScrArea *sa)
+{
+	ARegion *ar;
+
+	if (sa)
+		for (ar = sa->regionbase.first; ar; ar = ar->next)
+			ED_region_tag_redraw_no_rebuild(ar);
+}
+
 void ED_area_tag_redraw_regiontype(ScrArea *sa, int regiontype)
 {
 	ARegion *ar;
@@ -837,8 +847,7 @@ static void region_azone_edge_initialize(ScrArea *sa, ARegion *ar, AZEdge edge, 
 
 	if (is_hidden) {
 		region_azone_tab_plus(sa, az, ar);
-	}
-	else {
+	} else if (!is_hidden && (ar->regiontype != RGN_TYPE_HEADER)) {
 		region_azone_edge(az, ar);
 	}
 }
@@ -1249,7 +1258,7 @@ static void region_rect_recursive(wmWindow *win, ScrArea *sa, ARegion *ar, rcti 
 	region_rect_recursive(win, sa, ar->next, remainder, overlap_remainder, quad);
 }
 
-static void area_calc_totrct(ScrArea *sa, int window_size_x, int window_size_y)
+static void area_calc_totrct(ScrArea *sa, const rcti *window_rect)
 {
 	short px = (short)U.pixelsize;
 
@@ -1259,16 +1268,16 @@ static void area_calc_totrct(ScrArea *sa, int window_size_x, int window_size_y)
 	sa->totrct.ymax = sa->v2->vec.y;
 
 	/* scale down totrct by 1 pixel on all sides not matching window borders */
-	if (sa->totrct.xmin > 0) {
+	if (sa->totrct.xmin > window_rect->xmin) {
 		sa->totrct.xmin += px;
 	}
-	if (sa->totrct.xmax < (window_size_x - 1)) {
+	if (sa->totrct.xmax < (window_rect->xmax - 1)) {
 		sa->totrct.xmax -= px;
 	}
-	if (sa->totrct.ymin > 0) {
+	if (sa->totrct.ymin > window_rect->ymin) {
 		sa->totrct.ymin += px;
 	}
-	if (sa->totrct.ymax < (window_size_y - 1)) {
+	if (sa->totrct.ymax < (window_rect->ymax - 1)) {
 		sa->totrct.ymax -= px;
 	}
 	/* Although the following asserts are correct they lead to a very unstable Blender.
@@ -1363,15 +1372,15 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 
 void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *area)
 {
+	rcti rect, overlap_rect;
+	rcti window_rect;
+
 	if (!(area->flag & AREA_FLAG_REGION_SIZE_UPDATE)) {
 		return;
 	}
 
-	const int size_x = WM_window_pixels_x(win);
-	const int size_y = WM_window_pixels_y(win);
-	rcti rect, overlap_rect;
-
-	area_calc_totrct(area, size_x, size_y);
+	WM_window_rect_calc(win, &window_rect);
+	area_calc_totrct(area, &window_rect);
 
 	/* region rect sizes */
 	rect = area->totrct;
@@ -1396,15 +1405,14 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 	WorkSpace *workspace = WM_window_get_active_workspace(win);
 	const bScreen *screen = BKE_workspace_active_screen_get(win->workspace_hook);
 	Scene *scene = WM_window_get_active_scene(win);
-
-	const int window_size_x = WM_window_pixels_x(win);
-	const int window_size_y = WM_window_pixels_y(win);
 	ARegion *ar;
 	rcti rect, overlap_rect;
+	rcti window_rect;
 
 	if (ED_area_is_global(sa) && (sa->global->flag & GLOBAL_AREA_IS_HIDDEN)) {
 		return;
 	}
+	WM_window_rect_calc(win, &window_rect);
 
 	/* set typedefinitions */
 	sa->type = BKE_spacetype_from_id(sa->spacetype);
@@ -1418,7 +1426,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 		ar->type = BKE_regiontype_from_id(sa->type, ar->regiontype);
 
 	/* area sizes */
-	area_calc_totrct(sa, window_size_x, window_size_y);
+	area_calc_totrct(sa, &window_rect);
 
 	/* region rect sizes */
 	rect = sa->totrct;
@@ -1744,7 +1752,7 @@ int ED_area_header_switchbutton(const bContext *C, uiBlock *block, int yco)
 	RNA_pointer_create(&(scr->id), &RNA_Area, sa, &areaptr);
 
 	uiDefButR(block, UI_BTYPE_MENU, 0, "", xco, yco, 1.6 * U.widget_unit, U.widget_unit,
-	          &areaptr, "type", 0, 0.0f, 0.0f, 0.0f, 0.0f, "");
+	          &areaptr, "ui_type", 0, 0.0f, 0.0f, 0.0f, 0.0f, "");
 
 	return xco + 1.7 * U.widget_unit;
 }
@@ -1787,7 +1795,22 @@ static void region_clear_color(const bContext *C, const ARegion *ar, ThemeColorI
 	}
 }
 
-void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int contextnr, const bool vertical)
+BLI_INLINE bool streq_array_any(const char *s, const char *arr[])
+{
+	for (uint i = 0; arr[i]; i++) {
+		if (STREQ(arr[i], s)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * \param contexts: A NULL terminated array of context strings to match against.
+ * Matching against any of these strings will draw the panel.
+ * Can be NULL to skip context checks.
+ */
+void ED_region_panels(const bContext *C, ARegion *ar, const char *contexts[], int contextnr, const bool vertical)
 {
 	const WorkSpace *workspace = CTX_wm_workspace(C);
 	ScrArea *sa = CTX_wm_area(C);
@@ -1801,7 +1824,8 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int c
 	bool is_context_new = 0;
 	int scroll;
 
-	bool use_category_tabs = (ELEM(ar->regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI));  /* XXX, should use some better check? */
+	/* XXX, should use some better check? */
+	bool use_category_tabs = (ELEM(ar->regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_WINDOW));
 	/* offset panels for small vertical tab area */
 	const char *category = NULL;
 	const int category_tabs_width = UI_PANEL_CATEGORY_MARGIN_WIDTH;
@@ -1835,7 +1859,7 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int c
 	/* collect panels to draw */
 	for (pt = ar->type->paneltypes.last; pt; pt = pt->prev) {
 		/* verify context */
-		if (context && pt->context[0] && !STREQ(context, pt->context)) {
+		if (contexts && pt->context[0] && !streq_array_any(pt->context, contexts)) {
 			continue;
 		}
 
@@ -2233,8 +2257,7 @@ void ED_region_info_draw_multiline(ARegion *ar, const char *text_array[], float 
 		}
 	}
 
-	rect.ymin = BLI_rcti_size_y(&ar->winrct) - header_height * num_lines;
-	rect.ymax = BLI_rcti_size_y(&ar->winrct);
+	rect.ymin = rect.ymax - header_height * num_lines;
 
 	/* setup scissor */
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);

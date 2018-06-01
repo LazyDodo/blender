@@ -438,6 +438,7 @@ typedef enum eDriver_Types {
 } eDriver_Types;
 
 /* driver flags */
+/* note: (1<<5) is deprecated; was "DRIVER_FLAG_SHOWDEBUG" */
 typedef enum eDriver_Flags {
 		/* driver has invalid settings (internal flag)  */
 	DRIVER_FLAG_INVALID		= (1<<0),
@@ -450,8 +451,6 @@ typedef enum eDriver_Flags {
 	DRIVER_FLAG_RECOMPILE	= (1<<3),
 		/* the names are cached so they don't need have python unicode versions created each time */
 	DRIVER_FLAG_RENAMEVAR	= (1<<4),
-		/* intermediate values of driver should be shown in the UI for debugging purposes */
-	DRIVER_FLAG_SHOWDEBUG	= (1<<5),
 		/* include 'self' in the drivers namespace. */
 	DRIVER_FLAG_USE_SELF	= (1<<6),
 } eDriver_Flags;
@@ -918,6 +917,8 @@ typedef struct AnimData {
 	ListBase    drivers;    /* standard user-created Drivers/Expressions (used as part of a rig) */
 	ListBase    overrides;  /* temp storage (AnimOverride) of values for settings that are animated (but the value hasn't been keyframed) */
 
+	FCurve **driver_array;  /* runtime data, for depsgraph evaluation */
+
 		/* settings for animation evaluation */
 	int flag;               /* user-defined settings */
 	int recalc;             /* depsgraph recalculation flags */
@@ -962,8 +963,6 @@ typedef enum eAnimData_Flag {
 typedef enum eAnimData_Recalc {
 	ADT_RECALC_DRIVERS      = (1 << 0),
 	ADT_RECALC_ANIM         = (1 << 1),
-	/* Only apply f-curve value if its original DNA value matches current DNA value. */
-	ADT_RECALC_CHECK_ORIG_DNA = (1 << 2),
 	ADT_RECALC_ALL          = (ADT_RECALC_DRIVERS | ADT_RECALC_ANIM)
 } eAnimData_Recalc;
 

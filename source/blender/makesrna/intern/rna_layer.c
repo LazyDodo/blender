@@ -165,9 +165,9 @@ static void rna_LayerObjects_selected_begin(CollectionPropertyIterator *iter, Po
 
 static void rna_ViewLayer_update_tagged(ViewLayer *UNUSED(view_layer), bContext *C)
 {
-	Depsgraph *graph = CTX_data_depsgraph(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	DEG_OBJECT_ITER_BEGIN(
-	        graph, ob, DEG_ITER_OBJECT_MODE_VIEWPORT,
+	        depsgraph, ob, DEG_ITER_OBJECT_MODE_VIEWPORT,
 	        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
 	        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
 	        DEG_ITER_OBJECT_FLAG_LINKED_INDIRECTLY |
@@ -305,7 +305,7 @@ void RNA_def_view_layer(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	srna = RNA_def_struct(brna, "ViewLayer", NULL);
-	RNA_def_struct_ui_text(srna, "Render Layer", "Render layer");
+	RNA_def_struct_ui_text(srna, "View Layer", "View layer");
 	RNA_def_struct_ui_icon(srna, ICON_RENDER_RESULT);
 	RNA_def_struct_path_func(srna, "rna_ViewLayer_path");
 	RNA_def_struct_idprops_func(srna, "rna_ViewLayer_idprops");

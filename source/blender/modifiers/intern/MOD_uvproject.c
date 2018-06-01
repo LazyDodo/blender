@@ -55,7 +55,9 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 static void initData(ModifierData *md)
 {
@@ -159,7 +161,6 @@ static Mesh *uvprojectModifier_do(
 		projectors[i].uci = NULL;
 
 		if (projectors[i].ob->type == OB_CAMERA) {
-			
 			cam = (Camera *)projectors[i].ob->data;
 			if (cam->type == CAM_PANO) {
 				projectors[i].uci = BLI_uvproject_camera_info(projectors[i].ob, NULL, aspx, aspy);

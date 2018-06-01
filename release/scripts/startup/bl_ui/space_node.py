@@ -48,7 +48,8 @@ class NODE_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
-        layout.prop(snode, "tree_type", text="")
+        # Now expanded via the 'ui_type'
+        # layout.prop(snode, "tree_type", text="")
 
         NODE_MT_editor_menus.draw_collapsible(context, layout)
 
@@ -193,9 +194,7 @@ class NODE_MT_view(Menu):
 
         layout.separator()
 
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class NODE_MT_select(Menu):

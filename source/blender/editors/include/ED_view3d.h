@@ -106,9 +106,11 @@ void   ED_view3d_cursor3d_update(struct bContext *C, const int mval[2]);
 struct Camera *ED_view3d_camera_data_get(struct View3D *v3d, struct RegionView3D *rv3d);
 
 void ED_view3d_to_m4(float mat[4][4], const float ofs[3], const float quat[4], const float dist);
-void ED_view3d_from_m4(float mat[4][4], float ofs[3], float quat[4], float *dist);
+void ED_view3d_from_m4(const float mat[4][4], float ofs[3], float quat[4], float *dist);
 
-void ED_view3d_from_object(struct Object *ob, float ofs[3], float quat[4], float *dist, float *lens);
+void ED_view3d_from_object(
+        const struct Object *ob,
+        float ofs[3], float quat[4], float *dist, float *lens);
 void ED_view3d_to_object(
         const struct Depsgraph *depsgraph, struct Object *ob,
         const float ofs[3], const float quat[4], const float dist);
@@ -227,6 +229,7 @@ eV3DProjStatus ED_view3d_project_float_global(const struct ARegion *ar, const fl
 eV3DProjStatus ED_view3d_project_float_object(const struct ARegion *ar, const float co[3], float r_co[2], const eV3DProjTest flag);
 
 float ED_view3d_pixel_size(const struct RegionView3D *rv3d, const float co[3]);
+float ED_view3d_pixel_size_no_ui_scale(const struct RegionView3D *rv3d, const float co[3]);
 
 float ED_view3d_calc_zfac(const struct RegionView3D *rv3d, const float co[3], bool *r_flip);
 bool ED_view3d_clip_segment(const struct RegionView3D *rv3d, float ray_start[3], float ray_end[3]);
@@ -304,12 +307,14 @@ float ED_view3d_radius_to_dist_persp(const float angle, const float radius);
 float ED_view3d_radius_to_dist_ortho(const float lens, const float radius);
 float ED_view3d_radius_to_dist(
         const struct View3D *v3d, const struct ARegion *ar,
+        const struct Depsgraph *depsgraph,
         const char persp, const bool use_aspect,
         const float radius);
 
 void imm_drawcircball(const float cent[3], float rad, const float tmat[4][4], unsigned pos);
 
 /* backbuffer select and draw support */
+void          ED_view3d_backbuf_validate_with_select_mode(struct ViewContext *vc, short select_mode);
 void          ED_view3d_backbuf_validate(struct ViewContext *vc);
 struct ImBuf *ED_view3d_backbuf_read(
         struct ViewContext *vc, int xmin, int ymin, int xmax, int ymax);
@@ -321,12 +326,12 @@ unsigned int ED_view3d_backbuf_sample(
         struct ViewContext *vc, int x, int y);
 
 bool ED_view3d_autodist(
-        struct Depsgraph *graph, struct ARegion *ar, struct View3D *v3d,
+        struct Depsgraph *depsgraph, struct ARegion *ar, struct View3D *v3d,
         const int mval[2], float mouse_worldloc[3],
         const bool alphaoverride, const float fallback_depth_pt[3]);
 
 /* only draw so ED_view3d_autodist_simple can be called many times after */
-void ED_view3d_autodist_init(struct Depsgraph *graph, struct ARegion *ar, struct View3D *v3d, int mode);
+void ED_view3d_autodist_init(struct Depsgraph *depsgraph, struct ARegion *ar, struct View3D *v3d, int mode);
 bool ED_view3d_autodist_simple(struct ARegion *ar, const int mval[2], float mouse_worldloc[3], int margin, float *force_depth);
 bool ED_view3d_autodist_depth(struct ARegion *ar, const int mval[2], int margin, float *depth);
 bool ED_view3d_autodist_depth_seg(struct ARegion *ar, const int mval_sta[2], const int mval_end[2], int margin, float *depth);

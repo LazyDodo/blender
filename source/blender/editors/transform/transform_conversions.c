@@ -345,6 +345,43 @@ static void createTransTexspace(TransInfo *t)
 	copy_v3_v3(td->ext->isize, td->ext->size);
 }
 
+static void createTransCursor3D(TransInfo *t)
+{
+	TransData *td;
+
+	Scene *scene = t->scene;
+	View3D *v3d = ((t->spacetype == SPACE_VIEW3D) && (t->ar->regiontype == RGN_TYPE_WINDOW)) ? t->view : NULL;
+	View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
+
+	if ((cursor == &scene->cursor) && ID_IS_LINKED(scene)) {
+		BKE_report(t->reports, RPT_ERROR, "Linked data can't text-space transform");
+		return;
+	}
+
+	{
+		BLI_assert(t->data_container_len == 1);
+		TransDataContainer *tc = t->data_container;
+		tc->data_len = 1;
+		td = tc->data = MEM_callocN(sizeof(TransData), "TransTexspace");
+		td->ext = tc->data_ext = MEM_callocN(sizeof(TransDataExtension), "TransTexspace");
+	}
+
+	td->flag = TD_SELECTED;
+	copy_v3_v3(td->center, cursor->location);
+	td->ob = NULL;
+
+	unit_m3(td->mtx);
+	quat_to_mat3(td->axismtx, cursor->rotation);
+	normalize_m3(td->axismtx);
+	pseudoinverse_m3_m3(td->smtx, td->mtx, PSEUDOINVERSE_EPSILON);
+
+	td->loc = cursor->location;
+	copy_v3_v3(td->iloc, cursor->location);
+
+	td->ext->quat = cursor->rotation;
+	copy_qt_qt(td->ext->iquat, cursor->rotation);
+}
+
 /* ********************* edge (for crease) ***** */
 
 static void createTransEdge(TransInfo *t)
@@ -773,13 +810,18 @@ int count_set_pose_transflags(int *out_mode, short around, Object *ob)
 		}
 	}
 
-	/* if there are no translatable bones, do rotation */
-	if (mode == TFM_TRANSLATION && !has_translation) {
-		if (has_rotation) {
-			*out_mode = TFM_ROTATION;
-		}
-		else {
-			*out_mode = TFM_RESIZE;
+	/* only modify transform mode if there are bones here that do something...
+	 * otherwise we get problems when multiple objects are selected
+	 */
+	if (total) {
+		/* if there are no translatable bones, do rotation */
+		if (mode == TFM_TRANSLATION && !has_translation) {
+			if (has_rotation) {
+				*out_mode = TFM_ROTATION;
+			}
+			else {
+				*out_mode = TFM_RESIZE;
+			}
 		}
 	}
 
@@ -1134,15 +1176,9 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 
 		/* use pose channels to fill trans data */
 		td = tc->data;
-		Object *ob_eval = DEG_get_evaluated_object(CTX_data_depsgraph(t->context), ob);
-		bPoseChannel *pchan, *pchan_eval;
-		for (pchan = ob->pose->chanbase.first, pchan_eval = ob_eval->pose->chanbase.first;
-		     pchan && pchan_eval;
-		     pchan = pchan->next, pchan_eval = pchan_eval->next)
-		{
-			BLI_assert(pchan == pchan_eval || STREQ(pchan->bone->name, pchan_eval->bone->name));
+		for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 			if (pchan->bone->flag & BONE_TRANSFORM) {
-				add_pose_transdata(t, ob, pchan, ob_eval, pchan_eval, tc, td);
+				add_pose_transdata(t, ob, pchan, ob, pchan, tc, td);
 				td++;
 			}
 		}
@@ -5583,17 +5619,18 @@ static bool constraints_list_needinv(TransInfo *t, ListBase *list)
 /* transcribe given object into TransData for Transforming */
 static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 {
+	Depsgraph *depsgraph = t->depsgraph;
 	Scene *scene = t->scene;
 	bool constinv;
 	bool skip_invert = false;
 
 	if (t->mode != TFM_DUMMY && ob->rigidbody_object) {
 		float rot[3][3], scale[3];
-		float ctime = BKE_scene_frame_get(scene);
+		float ctime = DEG_get_ctime(depsgraph);
 
 		/* only use rigid body transform if simulation is running, avoids problems with initial setup of rigid bodies */
+		// XXX: This needs fixing for COW. May need rigidbody_world from scene
 		if (BKE_rigidbody_check_sim_running(scene->rigidbody_world, ctime)) {
-
 			/* save original object transform */
 			copy_v3_v3(td->ext->oloc, ob->loc);
 
@@ -5628,21 +5665,26 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 	constinv = constraints_list_needinv(t, &ob->constraints);
 
 	/* disable constraints inversion for dummy pass */
+	// XXX: Should this use ob or ob_eval?! It's not clear!
 	if (t->mode == TFM_DUMMY)
 		skip_invert = true;
 
+	Scene *scene_eval = DEG_get_evaluated_scene(t->depsgraph);
 	if (skip_invert == false && constinv == false) {
-		ob->transflag |= OB_NO_CONSTRAINTS;  /* BKE_object_where_is_calc_time checks this */
-		BKE_object_where_is_calc(t->depsgraph, t->scene, ob);
-		ob->transflag &= ~OB_NO_CONSTRAINTS;
+		Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+		ob_eval->transflag |= OB_NO_CONSTRAINTS;  /* BKE_object_where_is_calc_time checks this */
+		BKE_object_where_is_calc(t->depsgraph, scene_eval, ob_eval);
+		ob_eval->transflag &= ~OB_NO_CONSTRAINTS;
 	}
-	else
-		BKE_object_where_is_calc(t->depsgraph, t->scene, ob);
+	else {
+		Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+		BKE_object_where_is_calc(t->depsgraph, scene_eval, ob_eval);
+	}
 
 	td->ob = ob;
 
 	td->loc = ob->loc;
-	copy_v3_v3(td->iloc, td->loc);
+	copy_v3_v3(td->iloc, ob->loc);
 
 	if (ob->rotmode > 0) {
 		td->ext->rot = ob->rot;
@@ -6691,6 +6733,9 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 	         (ob->mode & OB_MODE_PARTICLE_EDIT) &&
 	         PE_get_current(t->scene, ob))
 	{
+		/* do nothing */
+	}
+	else if (t->flag & T_CURSOR) {
 		/* do nothing */
 	}
 	else { /* Objects */
@@ -8325,7 +8370,14 @@ void createTransData(bContext *C, TransInfo *t)
 	t->data_len_all = -1;
 
 	/* if tests must match recalcData for correct updates */
-	if (t->options & CTX_TEXTURE) {
+	if (t->options & CTX_CURSOR) {
+		t->flag |= T_CURSOR;
+		t->obedit_type = -1;
+
+		createTransCursor3D(t);
+		countAndCleanTransDataContainer(t);
+	}
+	else if (t->options & CTX_TEXTURE) {
 		t->flag |= T_TEXTURE;
 		t->obedit_type = -1;
 

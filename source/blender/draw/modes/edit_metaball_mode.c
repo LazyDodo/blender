@@ -116,7 +116,9 @@ static void EDIT_METABALL_cache_init(void *vedata)
 
 	{
 		/* Create a pass */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_BLEND | DRW_STATE_WIRE;
+		DRWState state = (
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL |
+		        DRW_STATE_BLEND | DRW_STATE_WIRE);
 		psl->pass = DRW_pass_create("My Pass", state);
 
 		/* Create a shadingGroup using a function in draw_common.c or custom one */
@@ -134,7 +136,7 @@ static void EDIT_METABALL_cache_populate(void *vedata, Object *ob)
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		DRWShadingGroup *group = stl->g_data->group;
 
-		if ((ob == draw_ctx->object_edit) || BKE_object_is_in_editmode_and_selected(ob)) {
+		if ((ob == draw_ctx->object_edit) || BKE_object_is_in_editmode(ob)) {
 			MetaBall *mb = ob->data;
 
 			const float *color;

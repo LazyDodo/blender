@@ -243,17 +243,10 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		}
 	}
 
-	Mesh *result;
-	BKE_id_copy_ex(
-	        NULL, &mesh->id, (ID **)&result,
-	        LIB_ID_CREATE_NO_MAIN |
-	        LIB_ID_CREATE_NO_USER_REFCOUNT |
-	        LIB_ID_CREATE_NO_DEG_TAG |
-	        LIB_ID_COPY_NO_PREVIEW,
-	        false);
+	Mesh *result = mesh;
 
 	if (has_mdef) {
-		dvert = CustomData_get_layer(&result->vdata, CD_MDEFORMVERT);
+		dvert = CustomData_duplicate_referenced_layer(&result->vdata, CD_MDEFORMVERT, numVerts);
 	}
 	else {
 		/* Add a valid data layer! */
@@ -366,7 +359,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	}
 
 	/* Do masking. */
-	weightvg_do_mask(numIdx, indices, org_w, new_w, ctx->object, result, wmd->mask_constant,
+	weightvg_do_mask(ctx, numIdx, indices, org_w, new_w, ctx->object, result, wmd->mask_constant,
 	                 wmd->mask_defgrp_name, wmd->modifier.scene, wmd->mask_texture,
 	                 wmd->mask_tex_use_channel, wmd->mask_tex_mapping,
 	                 wmd->mask_tex_map_obj, wmd->mask_tex_uvlayer_name);

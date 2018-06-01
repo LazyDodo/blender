@@ -174,9 +174,9 @@ class EEVEE_MATERIAL_PT_surface(MaterialButtonsPanel, Panel):
         else:
             raym = mat.raytrace_mirror
             layout.prop(mat, "diffuse_color", text="Base Color")
-            layout.prop(raym, "reflect_factor", text="Metallic")
+            layout.prop(raym, "metallic")
             layout.prop(mat, "specular_intensity", text="Specular")
-            layout.prop(raym, "gloss_factor", text="Roughness")
+            layout.prop(mat, "roughness")
 
 
 class EEVEE_MATERIAL_PT_options(MaterialButtonsPanel, Panel):
@@ -204,7 +204,7 @@ class EEVEE_MATERIAL_PT_options(MaterialButtonsPanel, Panel):
             row.prop(mat, "alpha_threshold")
 
         if mat.blend_method not in {"OPAQUE", "CLIP", "HASHED"}:
-            layout.prop(mat, "transparent_hide_backside")
+            layout.prop(mat, "show_transparent_backside")
 
         layout.prop(mat, "use_screen_refraction")
         layout.prop(mat, "refraction_depth")
@@ -215,6 +215,27 @@ class EEVEE_MATERIAL_PT_options(MaterialButtonsPanel, Panel):
         row.prop(mat, "use_sss_translucency")
 
 
+class MATERIAL_PT_viewport(MaterialButtonsPanel, Panel):
+    bl_label = "Viewport"
+    bl_context = "material"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.material
+
+    def draw(self, context):
+        mat = context.material
+
+        layout = self.layout
+        layout.use_property_split = True
+
+        col = layout.column()
+        col.prop(mat, "diffuse_color")
+        col.prop(mat, "specular_color")
+        col.prop(mat, "roughness")
+
+
 classes = (
     MATERIAL_MT_specials,
     MATERIAL_UL_matslots,
@@ -223,7 +244,9 @@ classes = (
     EEVEE_MATERIAL_PT_context_material,
     EEVEE_MATERIAL_PT_surface,
     EEVEE_MATERIAL_PT_options,
+    MATERIAL_PT_viewport,
 )
+
 
 if __name__ == "__main__":  # only for live edit.
     from bpy.utils import register_class

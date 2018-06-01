@@ -36,8 +36,8 @@ from .properties_paint_common import (
 
 
 class View3DPanel:
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
 
 
 # **************** standard tool clusters ******************
@@ -69,7 +69,7 @@ def draw_vpaint_symmetry(layout, vpaint):
 
 
 class VIEW3D_PT_tools_meshedit_options(View3DPanel, Panel):
-    bl_category = ""
+    bl_category = "Options"
     bl_context = ".mesh_edit" # dot on purpose (access from topbar)
     bl_label = "Mesh Options"
 
@@ -182,13 +182,14 @@ class VIEW3D_PT_tools_posemode_options(View3DPanel, Panel):
         arm = context.active_object.data
 
         self.layout.prop(arm, "use_auto_ik")
+        self.layout.prop(arm, "use_mirror_x")
 
 # ********** default tools for paint modes ****************
 
 
 class View3DPaintPanel(UnifiedPaintPanel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
 
 
 class VIEW3D_PT_imapaint_tools_missing(Panel, View3DPaintPanel):
@@ -569,7 +570,7 @@ class VIEW3D_PT_slots_projectpaint(View3DPanel, Panel):
                 else:
                     slot = None
 
-                if slot and slot.valid:
+                if slot and slot.is_valid:
                     col.label("UV Map:")
                     col.prop_search(slot, "uv_layer", ob.data, "uv_layers", text="")
 

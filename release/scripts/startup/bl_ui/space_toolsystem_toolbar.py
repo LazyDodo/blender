@@ -87,6 +87,20 @@ class _defs_view3d_generic:
             text="Cursor",
             icon="ops.generic.cursor",
             keymap=(
+                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
+                ("transform.translate",
+                 dict(release_confirm=True, cursor_transform=True),
+                 dict(type='EVT_TWEAK_A', value='ANY'),
+                ),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def cursor_click():
+        return dict(
+            text="Cursor Click",
+            icon="ops.generic.cursor",
+            keymap=(
                 ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK')),
             ),
         )
@@ -293,9 +307,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def rip_region():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("mesh.rip_move")
+            props = tool.operator_properties("mesh.rip_move")
             props_macro = props.MESH_OT_rip
             layout.prop(props_macro, "use_fill")
 
@@ -393,9 +407,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def inset():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("mesh.inset")
+            props = tool.operator_properties("mesh.inset")
             layout.prop(props, "use_outset")
             layout.prop(props, "use_individual")
             layout.prop(props, "use_even_offset")
@@ -507,9 +521,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def shrink_fatten():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("transform.shrink_fatten")
+            props = tool.operator_properties("transform.shrink_fatten")
             layout.prop(props, "use_even_offset")
 
         return dict(
@@ -537,9 +551,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def knife():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("mesh.knife_tool")
+            props = tool.operator_properties("mesh.knife_tool")
             layout.prop(props, "use_occlude_geometry")
             layout.prop(props, "only_selected")
 
@@ -573,7 +587,7 @@ class _defs_edit_curve:
 
     @ToolDef.from_fn
     def draw():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             # Tool settings initialize operator options.
             tool_settings = context.tool_settings
             cps = tool_settings.curve_paint_settings
@@ -765,9 +779,9 @@ class _defs_weight_paint:
 
     @ToolDef.from_fn
     def gradient():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("paint.weight_gradient")
+            props = tool.operator_properties("paint.weight_gradient")
             layout.prop(props, "type")
 
         return dict(
@@ -1017,6 +1031,11 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             None,
             _defs_edit_curve.draw,
             _defs_edit_curve.extrude_cursor,
+        ],
+        'PARTICLE': [
+            # TODO(campbell): use cursor click tool to allow paint tools to run,
+            # we need to integrate particle system tools properly.
+            _defs_view3d_generic.cursor_click,
         ],
         'SCULPT': [
             _defs_sculpt.generate_from_brushes,

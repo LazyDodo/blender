@@ -481,6 +481,18 @@ static void rna_FCurve_update_data(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 	rna_FCurve_update_data_ex((FCurve *)ptr->data);
 }
 
+/* RNA update callback for F-Curves to indicate that there are copy-on-write tagging/flushing needed
+ * (e.g. for properties that affect how animation gets evaluated)
+ */
+static void rna_FCurve_update_eval(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+{
+	IdAdtTemplate *iat = (IdAdtTemplate *)ptr->id.data;
+	if (iat && iat->adt && iat->adt->action) {
+		/* action is separate datablock, needs separate tag */
+		DEG_id_tag_update(&iat->adt->action->id, DEG_TAG_COPY_ON_WRITE);
+	}
+}
+
 
 static PointerRNA rna_FCurve_active_modifier_get(PointerRNA *ptr)
 {
@@ -590,10 +602,22 @@ static void rna_FModifier_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Poin
 	ID *id = ptr->id.data;
 	FModifier *fcm = (FModifier *)ptr->data;
 	AnimData *adt = BKE_animdata_from_id(id);
+	
 	DEG_id_tag_update(id, (GS(id->name) == ID_OB) ? OB_RECALC_OB : OB_RECALC_DATA);
+	
+	/* tag datablock for time update so that animation is recalculated,
+	 * as FModifiers affect how animation plays...
+	 */
+	DEG_id_tag_update(id, DEG_TAG_TIME);
 	if (adt != NULL) {
 		adt->recalc |= ADT_RECALC_ANIM;
+		
+		if (adt->action != NULL) {
+			/* action is separate datablock, needs separate tag */
+			DEG_id_tag_update(&adt->action->id, DEG_TAG_COPY_ON_WRITE);
+		}
 	}
+	
 	if (fcm->curve && fcm->type == FMODIFIER_TYPE_CYCLES) {
 		calchandles_fcurve(fcm->curve);
 	}
@@ -1640,11 +1664,6 @@ static void rna_def_channeldriver(BlenderRNA *brna)
 	rna_def_channeldriver_variables(brna, prop);
 	
 	/* Settings */
-	prop = RNA_def_property(srna, "show_debug_info", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", DRIVER_FLAG_SHOWDEBUG);
-	RNA_def_property_ui_text(prop, "Show Debug Info",
-	                         "Show intermediate values for the driver calculations to allow debugging of drivers");
-
 	prop = RNA_def_property(srna, "use_self", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", DRIVER_FLAG_USE_SELF);
 	RNA_def_property_ui_text(prop, "Use Self",
@@ -1972,7 +1991,7 @@ static void rna_def_fcurve(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "mute", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", FCURVE_MUTED);
 	RNA_def_property_ui_text(prop, "Muted", "F-Curve is not evaluated");
-	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
+	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, "rna_FCurve_update_eval");
 	
 	prop = RNA_def_property(srna, "hide", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", FCURVE_VISIBLE);

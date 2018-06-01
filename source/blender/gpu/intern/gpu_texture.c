@@ -187,6 +187,7 @@ static GLenum gpu_texture_get_format(
 			break;
 		case GPU_RG32F:
 		case GPU_RGBA16F:
+		case GPU_RGBA16:
 			*bytesize = 16;
 			break;
 		case GPU_RGB16F:
@@ -202,6 +203,7 @@ static GLenum gpu_texture_get_format(
 		case GPU_R11F_G11F_B10F:
 		case GPU_R32F:
 		case GPU_R32UI:
+		case GPU_R32I:
 			*bytesize = 4;
 			break;
 		case GPU_DEPTH_COMPONENT24:
@@ -227,6 +229,7 @@ static GLenum gpu_texture_get_format(
 		/* Formats texture & renderbuffer */
 		case GPU_RGBA32F: return GL_RGBA32F;
 		case GPU_RGBA16F: return GL_RGBA16F;
+		case GPU_RGBA16: return GL_RGBA16;
 		case GPU_RG32F: return GL_RG32F;
 		case GPU_RGB16F: return GL_RGB16F;
 		case GPU_RG16F: return GL_RG16F;
@@ -235,6 +238,7 @@ static GLenum gpu_texture_get_format(
 		case GPU_RGBA8: return GL_RGBA8;
 		case GPU_R32F: return GL_R32F;
 		case GPU_R32UI: return GL_R32UI;
+		case GPU_R32I: return GL_R32I;
 		case GPU_R16F: return GL_R16F;
 		case GPU_R16I: return GL_R16I;
 		case GPU_R16UI: return GL_R16UI;
@@ -263,6 +267,7 @@ static int gpu_texture_get_component_count(GPUTextureFormat format)
 	switch (format) {
 		case GPU_RGBA8:
 		case GPU_RGBA16F:
+		case GPU_RGBA16:
 		case GPU_RGBA32F:
 			return 4;
 		case GPU_RGB16F:
@@ -613,7 +618,7 @@ static GPUTexture *GPU_texture_cube_create(
 }
 
 /* Special buffer textures. data_type must be compatible with the buffer content. */
-static GPUTexture *GPU_texture_create_buffer(GPUTextureFormat data_type, const GLuint buffer)
+GPUTexture *GPU_texture_create_buffer(GPUTextureFormat data_type, const GLuint buffer)
 {
 	GPUTexture *tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
 	tex->number = -1;
@@ -886,6 +891,7 @@ GPUTexture *GPU_texture_create_from_vertbuf(Gwn_VertBuf *vert)
 			break;
 		default:
 			BLI_assert(0);
+			return NULL;
 	}
 
 	return GPU_texture_create_buffer(data_type, vert->vbo_id);

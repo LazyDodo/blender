@@ -302,6 +302,7 @@ static void view3d_camera_border(
 {
 	CameraParams params;
 	rctf rect_view, rect_camera;
+	Object *camera_eval = DEG_get_evaluated_object(depsgraph, v3d->camera);
 
 	/* get viewport viewplane */
 	BKE_camera_params_init(&params);
@@ -316,7 +317,7 @@ static void view3d_camera_border(
 	/* fallback for non camera objects */
 	params.clipsta = v3d->near;
 	params.clipend = v3d->far;
-	BKE_camera_params_from_object(&params, v3d->camera);
+	BKE_camera_params_from_object(&params, camera_eval);
 	if (no_shift) {
 		params.shiftx = 0.0f;
 		params.shifty = 0.0f;
@@ -1172,7 +1173,7 @@ static void draw_selected_name(Scene *scene, Object *ob, rcti *rect)
 	if (U.uiflag & USER_SHOW_ROTVIEWICON)
 		offset = U.widget_unit + (U.rvisize * 2) + rect->xmin;
 
-	BLF_draw_default(offset, 0.5f * U.widget_unit, 0.0f, info, sizeof(info));
+	BLF_draw_default(offset, rect->ymin + 0.5f * U.widget_unit, 0.0f, info, sizeof(info));
 }
 
 /* ******************** view loop ***************** */
@@ -1206,33 +1207,37 @@ void view3d_draw_region_info(const bContext *C, ARegion *ar, const int offset)
 		draw_view_axis(rv3d, &rect);
 	}
 
-	if ((U.uiflag & USER_SHOW_FPS) && ED_screen_animation_no_scrub(wm)) {
-		ED_scene_draw_fps(scene, &rect);
-	}
-	else if (U.uiflag & USER_SHOW_VIEWPORTNAME) {
-		draw_viewport_name(ar, v3d, &rect);
-	}
-
-	if (U.uiflag & USER_DRAWVIEWINFO) {
-		ViewLayer *view_layer = CTX_data_view_layer(C);
-		Object *ob = OBACT(view_layer);
-		draw_selected_name(scene, ob, &rect);
-	}
-
-#if 0 /* TODO */
-	if (grid_unit) { /* draw below the viewport name */
-		char numstr[32] = "";
-
-		UI_FontThemeColor(BLF_default(), TH_TEXT_HI);
-		if (v3d->grid != 1.0f) {
-			BLI_snprintf(numstr, sizeof(numstr), "%s x %.4g", grid_unit, v3d->grid);
+	if ((v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) == 0) {
+		if ((U.uiflag & USER_SHOW_FPS) && ED_screen_animation_no_scrub(wm)) {
+			ED_scene_draw_fps(scene, &rect);
+		}
+		else if (U.uiflag & USER_SHOW_VIEWPORTNAME) {
+			draw_viewport_name(ar, v3d, &rect);
 		}
 
-		BLF_draw_default_ascii(rect.xmin + U.widget_unit,
-		                       rect.ymax - (USER_SHOW_VIEWPORTNAME ? 2 * U.widget_unit : U.widget_unit), 0.0f,
-		                       numstr[0] ? numstr : grid_unit, sizeof(numstr));
-	}
+		if (U.uiflag & USER_DRAWVIEWINFO) {
+			ViewLayer *view_layer = CTX_data_view_layer(C);
+			Object *ob = OBACT(view_layer);
+			draw_selected_name(scene, ob, &rect);
+		}
+
+#if 0 /* TODO */
+		if (grid_unit) { /* draw below the viewport name */
+			char numstr[32] = "";
+
+			UI_FontThemeColor(BLF_default(), TH_TEXT_HI);
+			if (v3d->grid != 1.0f) {
+				BLI_snprintf(numstr, sizeof(numstr), "%s x %.4g", grid_unit, v3d->grid);
+			}
+
+			BLF_draw_default_ascii(
+			        rect.xmin + U.widget_unit,
+			        rect.ymax - (USER_SHOW_VIEWPORTNAME ? 2 * U.widget_unit : U.widget_unit), 0.0f,
+			        numstr[0] ? numstr : grid_unit, sizeof(numstr));
+		}
 #endif
+	}
+
 	BLF_batch_draw_end();
 }
 
@@ -1417,13 +1422,16 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(
 	if (rv3d->persp == RV3D_CAMOB && v3d->camera) {
 		CameraParams params;
 		Object *camera = BKE_camera_multiview_render(scene, v3d->camera, viewname);
+		const Object *camera_eval = DEG_get_evaluated_object(
+		                                depsgraph,
+		                                camera);
 
 		BKE_camera_params_init(&params);
 		/* fallback for non camera objects */
 		params.clipsta = v3d->near;
 		params.clipend = v3d->far;
-		BKE_camera_params_from_object(&params, camera);
-		BKE_camera_multiview_params(&scene->r, &params, camera, viewname);
+		BKE_camera_params_from_object(&params, camera_eval);
+		BKE_camera_multiview_params(&scene->r, &params, camera_eval, viewname);
 		BKE_camera_params_compute_viewplane(&params, sizex, sizey, scene->r.xasp, scene->r.yasp);
 		BKE_camera_params_compute_matrix(&params);
 
@@ -1597,11 +1605,13 @@ ImBuf *ED_view3d_draw_offscreen_imbuf_simple(
 
 	{
 		CameraParams params;
-		Object *view_camera = BKE_camera_multiview_render(scene, v3d.camera, viewname);
+		const Object *view_camera_eval = DEG_get_evaluated_object(
+		                                     depsgraph,
+		                                     BKE_camera_multiview_render(scene, v3d.camera, viewname));
 
 		BKE_camera_params_init(&params);
-		BKE_camera_params_from_object(&params, view_camera);
-		BKE_camera_multiview_params(&scene->r, &params, view_camera, viewname);
+		BKE_camera_params_from_object(&params, view_camera_eval);
+		BKE_camera_multiview_params(&scene->r, &params, view_camera_eval, viewname);
 		BKE_camera_params_compute_viewplane(&params, width, height, scene->r.xasp, scene->r.yasp);
 		BKE_camera_params_compute_matrix(&params);
 

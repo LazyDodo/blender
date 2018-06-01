@@ -118,6 +118,7 @@
 #include "BKE_image.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "DRW_engine.h"
 
@@ -340,15 +341,23 @@ void BKE_object_free_derived_caches(Object *ob)
 		ob->derivedDeform = NULL;
 	}
 
-	if (ob->mesh_evaluated != NULL) {
+	if (ob->runtime.mesh_eval != NULL) {
+		Mesh *mesh_eval = ob->runtime.mesh_eval;
 		/* Restore initial pointer. */
-		ob->data = ob->mesh_evaluated->id.orig_id;
+		ob->data = mesh_eval->id.orig_id;
 		/* Evaluated mesh points to edit mesh, but does not own it. */
-		ob->mesh_evaluated->edit_btmesh = NULL;
-		BKE_mesh_free(ob->mesh_evaluated);
-		BKE_libblock_free_data(&ob->mesh_evaluated->id, false);
-		MEM_freeN(ob->mesh_evaluated);
-		ob->mesh_evaluated = NULL;
+		mesh_eval->edit_btmesh = NULL;
+		BKE_mesh_free(mesh_eval);
+		BKE_libblock_free_data(&mesh_eval->id, false);
+		MEM_freeN(mesh_eval);
+		ob->runtime.mesh_eval = NULL;
+	}
+	if (ob->runtime.mesh_deform_eval != NULL) {
+		Mesh *mesh_deform_eval = ob->runtime.mesh_deform_eval;
+		BKE_mesh_free(mesh_deform_eval);
+		BKE_libblock_free_data(&mesh_deform_eval->id, false);
+		MEM_freeN(mesh_deform_eval);
+		ob->runtime.mesh_deform_eval = NULL;
 	}
 
 	BKE_object_free_curve_cache(ob);
@@ -378,9 +387,9 @@ void BKE_object_free_caches(Object *object)
 			if (psmd->mesh_final) {
 				BKE_id_free(NULL, psmd->mesh_final);
 				psmd->mesh_final = NULL;
-				if (psmd->mesh_deformed) {
-					BKE_id_free(NULL, psmd->mesh_deformed);
-					psmd->mesh_deformed = NULL;
+				if (psmd->mesh_original) {
+					BKE_id_free(NULL, psmd->mesh_original);
+					psmd->mesh_original = NULL;
 				}
 				psmd->flag |= eParticleSystemFlag_file_loaded;
 				update_flag |= OB_RECALC_DATA;
@@ -501,19 +510,34 @@ bool BKE_object_is_in_editmode(const Object *ob)
 	return false;
 }
 
-bool BKE_object_is_in_editmode_and_selected(const Object *ob)
-{
-	if ((ob->base_flag & BASE_SELECTED) && (BKE_object_is_in_editmode(ob))) {
-		return true;
-	}
-	return false;
-}
-
-
 bool BKE_object_is_in_editmode_vgroup(const Object *ob)
 {
 	return (OB_TYPE_SUPPORT_VGROUP(ob->type) &&
 	        BKE_object_is_in_editmode(ob));
+}
+
+bool BKE_object_data_is_in_editmode(const ID *id)
+{
+	const short type = GS(id->name);
+	BLI_assert(OB_DATA_SUPPORT_EDITMODE(type));
+	switch (type) {
+		case ID_ME:
+			return ((const Mesh *)id)->edit_btmesh != NULL;
+		case ID_CU:
+			return (
+			        (((const Curve *)id)->editnurb != NULL) ||
+			        (((const Curve *)id)->editfont != NULL)
+			);
+		case ID_MB:
+			return ((const MetaBall *)id)->editelems != NULL;
+		case ID_LT:
+			return ((const Lattice *)id)->editlatt != NULL;
+		case ID_AR:
+			return ((const bArmature *)id)->edbo != NULL;
+		default:
+			BLI_assert(0);
+			return false;
+	}
 }
 
 bool BKE_object_is_in_wpaint_select_vert(const Object *ob)
@@ -558,6 +582,12 @@ bool BKE_object_has_mode_data(const struct Object *ob, eObjectMode object_mode)
 	return false;
 }
 
+bool BKE_object_is_mode_compat(const struct Object *ob, eObjectMode object_mode)
+{
+	return ((ob->mode == object_mode) ||
+	        (ob->mode & object_mode) != 0);
+}
+
 /**
  * Return if the object is visible, as evaluated by depsgraph
  */
@@ -588,13 +618,13 @@ bool BKE_object_is_visible(Object *ob, const eObjectVisibilityCheck mode)
 	}
 }
 
-bool BKE_object_exists_check(const Object *obtest)
+bool BKE_object_exists_check(Main *bmain, const Object *obtest)
 {
 	Object *ob;
 	
 	if (obtest == NULL) return false;
 	
-	ob = G.main->object.first;
+	ob = bmain->object.first;
 	while (ob) {
 		if (ob == obtest) return true;
 		ob = ob->id.next;
@@ -890,8 +920,7 @@ ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int f
 	BLI_listbase_clear(&psysn->pathcachebufs);
 	BLI_listbase_clear(&psysn->childcachebufs);
 	
-	/* XXX Never copy caches here? */
-	psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag & ~LIB_ID_COPY_CACHES);
+	psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag);
 
 	/* XXX - from reading existing code this seems correct but intended usage of
 	 * pointcache should /w cloth should be added in 'ParticleSystem' - campbell */
@@ -1220,6 +1249,10 @@ Object *BKE_object_copy(Main *bmain, const Object *ob)
 {
 	Object *ob_copy;
 	BKE_id_copy_ex(bmain, &ob->id, (ID **)&ob_copy, 0, false);
+
+	/* We increase object user count when linking to Collections. */
+	id_us_min(&ob_copy->id);
+
 	return ob_copy;
 }
 
@@ -1680,7 +1713,7 @@ void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4])
 	if (ob->parent) {
 		float par_imat[4][4];
 
-		BKE_object_get_parent_matrix(NULL, ob, ob->parent, par_imat);
+		BKE_object_get_parent_matrix(NULL, NULL, ob, ob->parent, par_imat);
 		invert_m4(par_imat);
 		mul_m4_m4m4(mat, par_imat, ob->obmat);
 	}
@@ -1693,10 +1726,10 @@ void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4])
 int enable_cu_speed = 1;
 
 /**
- * \param scene: Used when curve cache needs to be calculated, or for dupli-frame time.
+ * \param depsgraph: Used for dupli-frame time.
  * \return success if \a mat is set.
  */
-static bool ob_parcurve(Scene *scene, Object *ob, Object *par, float mat[4][4])
+static bool ob_parcurve(Depsgraph *depsgraph, Scene *UNUSED(scene), Object *ob, Object *par, float mat[4][4])
 {
 	Curve *cu = par->data;
 	float vec[4], dir[3], quat[4], radius, ctime;
@@ -1735,11 +1768,11 @@ static bool ob_parcurve(Scene *scene, Object *ob, Object *par, float mat[4][4])
 	}
 	else {
 		/* For dupli-frames only */
-		if (scene == NULL) {
+		if (depsgraph == NULL) {
 			return false;
 		}
 
-		ctime = BKE_scene_frame_get(scene);
+		ctime = DEG_get_ctime(depsgraph);
 		if (cu->pathlen) {
 			ctime /= cu->pathlen;
 		}
@@ -1990,7 +2023,7 @@ static void ob_parvert3(Object *ob, Object *par, float mat[4][4])
 }
 
 
-void BKE_object_get_parent_matrix(Scene *scene, Object *ob, Object *par, float parentmat[4][4])
+void BKE_object_get_parent_matrix(Depsgraph *depsgraph, Scene *scene, Object *ob, Object *par, float parentmat[4][4])
 {
 	float tmat[4][4];
 	float vec[3];
@@ -2001,7 +2034,7 @@ void BKE_object_get_parent_matrix(Scene *scene, Object *ob, Object *par, float p
 			ok = 0;
 			if (par->type == OB_CURVE) {
 				if ((((Curve *)par->data)->flag & CU_PATH) &&
-				    (ob_parcurve(scene, ob, par, tmat)))
+				    (ob_parcurve(depsgraph, scene, ob, par, tmat)))
 				{
 					ok = 1;
 				}
@@ -2037,7 +2070,8 @@ void BKE_object_get_parent_matrix(Scene *scene, Object *ob, Object *par, float p
 /**
  * \param r_originmat  Optional matrix that stores the space the object is in (without its own matrix applied)
  */
-static void solve_parenting(Scene *scene, Object *ob, Object *par, float obmat[4][4], float slowmat[4][4],
+static void solve_parenting(Depsgraph *depsgraph,
+                            Scene *scene, Object *ob, Object *par, float obmat[4][4], float slowmat[4][4],
                             float r_originmat[3][3], const bool set_origin)
 {
 	float totmat[4][4];
@@ -2048,7 +2082,7 @@ static void solve_parenting(Scene *scene, Object *ob, Object *par, float obmat[4
 	
 	if (ob->partype & PARSLOW) copy_m4_m4(slowmat, obmat);
 
-	BKE_object_get_parent_matrix(scene, ob, par, totmat);
+	BKE_object_get_parent_matrix(depsgraph, scene, ob, par, totmat);
 	
 	/* total */
 	mul_m4_m4m4(tmat, totmat, ob->parentinv);
@@ -2098,14 +2132,14 @@ void BKE_object_where_is_calc_time_ex(
 	if (ob == NULL) return;
 	
 	/* execute drivers only, as animation has already been done */
-	BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, ctime, ADT_RECALC_DRIVERS);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, ctime, ADT_RECALC_DRIVERS);
 	
 	if (ob->parent) {
 		Object *par = ob->parent;
 		float slowmat[4][4];
 		
 		/* calculate parent matrix */
-		solve_parenting(scene, ob, par, ob->obmat, slowmat, r_originmat, true);
+		solve_parenting(depsgraph, scene, ob, par, ob->obmat, slowmat, r_originmat, true);
 		
 		/* "slow parent" is definitely not threadsafe, and may also give bad results jumping around 
 		 * An old-fashioned hack which probably doesn't really cut it anymore
@@ -2127,7 +2161,7 @@ void BKE_object_where_is_calc_time_ex(
 	/* solve constraints */
 	if (ob->constraints.first && !(ob->transflag & OB_NO_CONSTRAINTS)) {
 		bConstraintOb *cob;
-		cob = BKE_constraints_make_evalob(scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
+		cob = BKE_constraints_make_evalob(depsgraph, scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
 		BKE_constraints_solve(depsgraph, &ob->constraints, cob, ctime);
 		BKE_constraints_clear_evalob(cob);
 	}
@@ -2146,7 +2180,7 @@ void BKE_object_where_is_calc_time(Depsgraph *depsgraph, Scene *scene, Object *o
  * constraints -- assume dependencies are already solved by depsgraph.
  * no changes to object and it's parent would be done.
  * used for bundles orientation in 3d space relative to parented blender camera */
-void BKE_object_where_is_calc_mat4(Scene *scene, Object *ob, float obmat[4][4])
+void BKE_object_where_is_calc_mat4(Depsgraph *depsgraph, Scene *scene, Object *ob, float obmat[4][4])
 {
 
 	if (ob->parent) {
@@ -2154,7 +2188,7 @@ void BKE_object_where_is_calc_mat4(Scene *scene, Object *ob, float obmat[4][4])
 
 		Object *par = ob->parent;
 		
-		solve_parenting(scene, ob, par, obmat, slowmat, NULL, false);
+		solve_parenting(depsgraph, scene, ob, par, obmat, slowmat, NULL, false);
 		
 		if (ob->partype & PARSLOW)
 			where_is_object_parslow(ob, obmat, slowmat);
@@ -2166,35 +2200,44 @@ void BKE_object_where_is_calc_mat4(Scene *scene, Object *ob, float obmat[4][4])
 
 void BKE_object_where_is_calc_ex(Depsgraph *depsgraph, Scene *scene, RigidBodyWorld *rbw, Object *ob, float r_originmat[3][3])
 {
-	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, BKE_scene_frame_get(scene), rbw, r_originmat);
+	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, DEG_get_ctime(depsgraph), rbw, r_originmat);
 }
 void BKE_object_where_is_calc(Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
-	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, BKE_scene_frame_get(scene), NULL, NULL);
+	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, DEG_get_ctime(depsgraph), NULL, NULL);
 }
 
-/* for calculation of the inverse parent transform, only used for editor */
+/**
+ * For calculation of the inverse parent transform, only used for editor.
+ *
+ * It assumes the object parent is already in the depsgraph.
+ * Otherwise, after changing ob->parent you need to call:
+ *  DEG_relations_tag_update(bmain);
+ *  BKE_scene_graph_update_tagged(depsgraph, bmain);
+ */
 void BKE_object_workob_calc_parent(Depsgraph *depsgraph, Scene *scene, Object *ob, Object *workob)
 {
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	BKE_object_workob_clear(workob);
 	
 	unit_m4(workob->obmat);
 	unit_m4(workob->parentinv);
 	unit_m4(workob->constinv);
-	workob->parent = ob->parent;
 
-	workob->trackflag = ob->trackflag;
-	workob->upflag = ob->upflag;
+	/* Since this is used while calculating parenting, at this moment ob_eval->parent is still NULL. */
+	workob->parent = DEG_get_evaluated_object(depsgraph, ob->parent);
+
+	workob->trackflag = ob_eval->trackflag;
+	workob->upflag = ob_eval->upflag;
 	
-	workob->partype = ob->partype;
-	workob->par1 = ob->par1;
-	workob->par2 = ob->par2;
-	workob->par3 = ob->par3;
+	workob->partype = ob_eval->partype;
+	workob->par1 = ob_eval->par1;
+	workob->par2 = ob_eval->par2;
+	workob->par3 = ob_eval->par3;
 
-	workob->constraints.first = ob->constraints.first;
-	workob->constraints.last = ob->constraints.last;
+	workob->constraints = ob_eval->constraints;
 
-	BLI_strncpy(workob->parsubstr, ob->parsubstr, sizeof(workob->parsubstr));
+	BLI_strncpy(workob->parsubstr, ob_eval->parsubstr, sizeof(workob->parsubstr));
 
 	BKE_object_where_is_calc(depsgraph, scene, workob);
 }
@@ -2215,7 +2258,7 @@ void BKE_object_apply_mat4_ex(Object *ob, float mat[4][4], Object *parent, float
 	if (parent != NULL) {
 		float rmat[4][4], diff_mat[4][4], imat[4][4], parent_mat[4][4];
 
-		BKE_object_get_parent_matrix(NULL, ob, parent, parent_mat);
+		BKE_object_get_parent_matrix(NULL, NULL, ob, parent, parent_mat);
 
 		mul_m4_m4m4(diff_mat, parent_mat, parentinv);
 		invert_m4_m4(imat, diff_mat);
@@ -2453,6 +2496,7 @@ void BKE_object_empty_draw_type_set(Object *ob, const int value)
 		if (!ob->iuser) {
 			ob->iuser = MEM_callocN(sizeof(ImageUser), "image user");
 			ob->iuser->ok = 1;
+			ob->iuser->flag |= IMA_ANIM_ALWAYS;
 			ob->iuser->frames = 100;
 			ob->iuser->sfra = 1;
 			ob->iuser->fie_ima = 2;
@@ -2796,6 +2840,14 @@ int BKE_object_obdata_texspace_get(Object *ob, short **r_texflag, float **r_loc,
 	}
 	return 1;
 }
+
+/** Get evaluated mesh for given (main, original) object and depsgraph. */
+Mesh *BKE_object_get_evaluated_mesh(const Depsgraph *depsgraph, Object *ob)
+{
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+	return ob_eval->runtime.mesh_eval;
+}
+
 
 static int pc_cmp(const void *a, const void *b)
 {
@@ -3299,6 +3351,10 @@ MovieClip *BKE_object_movieclip_get(Scene *scene, Object *ob, bool use_default)
 	return clip;
 }
 
+void BKE_object_runtime_reset(Object *object)
+{
+	memset(&object->runtime, 0, sizeof(object->runtime));
+}
 
 /*
  * Find an associated Armature object
@@ -3694,7 +3750,7 @@ bool BKE_object_modifier_update_subframe(
 	/* was originally OB_RECALC_ALL - TODO - which flags are really needed??? */
 	/* TODO(sergey): What about animation? */
 	ob->id.recalc |= ID_RECALC_ALL;
-	BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, frame, ADT_RECALC_ANIM);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, frame, ADT_RECALC_ANIM);
 	if (update_mesh) {
 		/* ignore cache clear during subframe updates
 		 *  to not mess up cache validity */
@@ -3708,12 +3764,12 @@ bool BKE_object_modifier_update_subframe(
 	/* for curve following objects, parented curve has to be updated too */
 	if (ob->type == OB_CURVE) {
 		Curve *cu = ob->data;
-		BKE_animsys_evaluate_animdata(scene, &cu->id, cu->adt, frame, ADT_RECALC_ANIM);
+		BKE_animsys_evaluate_animdata(depsgraph, scene, &cu->id, cu->adt, frame, ADT_RECALC_ANIM);
 	}
 	/* and armatures... */
 	if (ob->type == OB_ARMATURE) {
 		bArmature *arm = ob->data;
-		BKE_animsys_evaluate_animdata(scene, &arm->id, arm->adt, frame, ADT_RECALC_ANIM);
+		BKE_animsys_evaluate_animdata(depsgraph, scene, &arm->id, arm->adt, frame, ADT_RECALC_ANIM);
 		BKE_pose_where_is(depsgraph, scene, ob);
 	}
 

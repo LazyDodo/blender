@@ -1454,7 +1454,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						ob_dst->data = obdata_id;
 
 						/* if amount of material indices changed: */
-						test_object_materials(ob_dst, ob_dst->data);
+						test_object_materials(bmain, ob_dst, ob_dst->data);
 
 						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
 						break;
@@ -1462,7 +1462,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						/* new approach, using functions from kernel */
 						for (a = 0; a < ob_src->totcol; a++) {
 							Material *ma = give_current_material(ob_src, a + 1);
-							assign_material(ob_dst, ma, a + 1, BKE_MAT_ASSIGN_USERPREF); /* also works with ma==NULL */
+							assign_material(bmain, ob_dst, ma, a + 1, BKE_MAT_ASSIGN_USERPREF); /* also works with ma==NULL */
 						}
 						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
 						break;
@@ -1636,6 +1636,7 @@ static Object *single_object_users_object(Main *bmain, Scene *scene, Object *ob)
 		}
 	}
 
+	id_us_plus(&obn->id);
 	id_us_min(&ob->id);
 	return obn;
 }
@@ -1874,7 +1875,7 @@ static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, c
 						BKE_animdata_copy_id_action(&man->id, false);
 
 						man->id.us = 0;
-						assign_material(ob, man, a, BKE_MAT_ASSIGN_USERPREF);
+						assign_material(bmain, ob, man, a, BKE_MAT_ASSIGN_USERPREF);
 					}
 				}
 			}
@@ -2503,16 +2504,17 @@ void OBJECT_OT_make_single_user(wmOperatorType *ot)
 
 static int drop_named_material_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
+	Main *bmain = CTX_data_main(C);
 	Base *base = ED_view3d_give_base_under_cursor(C, event->mval);
 	Material *ma;
 	char name[MAX_ID_NAME - 2];
 
 	RNA_string_get(op->ptr, "name", name);
-	ma = (Material *)BKE_libblock_find_name(ID_MA, name);
+	ma = (Material *)BKE_libblock_find_name(bmain, ID_MA, name);
 	if (base == NULL || ma == NULL)
 		return OPERATOR_CANCELLED;
 
-	assign_material(base->object, ma, 1, BKE_MAT_ASSIGN_USERPREF);
+	assign_material(CTX_data_main(C), base->object, ma, 1, BKE_MAT_ASSIGN_USERPREF);
 
 	DEG_id_tag_update(&base->object->id, OB_RECALC_OB);
 

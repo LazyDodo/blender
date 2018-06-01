@@ -713,11 +713,20 @@ typedef struct RenderData {
 	ListBase views;  /* SceneRenderView */
 	short actview;
 	short views_format;
-	short pad8[2];
+
+	/* Hair Display */
+	short hair_type, hair_subdiv;
 
 	/* Motion blur shutter */
 	struct CurveMapping mblur_shutter_curve;
 } RenderData;
+
+/* RenderData.hair_type */
+typedef enum eHairType {
+	SCE_HAIR_SHAPE_STRAND      = 0,
+	SCE_HAIR_SHAPE_STRIP       = 1,
+} eHairType;
+
 
 /* *************************************************************** */
 /* Render Conversion/Simplfication Settings */
@@ -1375,6 +1384,7 @@ typedef struct SceneDisplay {
 	float matcap_ssao_factor_edge;
 	float matcap_hair_brightness_randomness;
 	int matcap_ssao_samples;
+
 } SceneDisplay;
 
 typedef struct SceneEEVEE {
@@ -1783,16 +1793,18 @@ enum {
 #define SCE_SNAP_TARGET_CENTER	1
 #define SCE_SNAP_TARGET_MEDIAN	2
 #define SCE_SNAP_TARGET_ACTIVE	3
+
 /* ToolSettings.snap_mode */
-#define SCE_SNAP_MODE_INCREMENT	0
-#define SCE_SNAP_MODE_VERTEX	1
-#define SCE_SNAP_MODE_EDGE		2
-#define SCE_SNAP_MODE_FACE		3
-#define SCE_SNAP_MODE_VOLUME	4
-#define SCE_SNAP_MODE_NODE_X	5
-#define SCE_SNAP_MODE_NODE_Y	6
-#define SCE_SNAP_MODE_NODE_XY	7
-#define SCE_SNAP_MODE_GRID		8
+#define SCE_SNAP_MODE_VERTEX    (1 << 0)
+#define SCE_SNAP_MODE_EDGE      (1 << 1)
+#define SCE_SNAP_MODE_FACE      (1 << 2)
+#define SCE_SNAP_MODE_VOLUME    (1 << 3)
+#define SCE_SNAP_MODE_INCREMENT (1 << 4)
+
+/* ToolSettings.snap_node_mode */
+#define SCE_SNAP_MODE_GRID      (1 << 5)
+#define SCE_SNAP_MODE_NODE_X    (1 << 6)
+#define SCE_SNAP_MODE_NODE_Y    (1 << 7)
 
 /* ToolSettings.selectmode */
 #define SCE_SELECT_VERTEX	1 /* for mesh */
@@ -2050,43 +2062,6 @@ typedef enum eGPencil_Placement_Flags {
 #define PE_TYPE_PARTICLES	0
 #define PE_TYPE_SOFTBODY	1
 #define PE_TYPE_CLOTH		2
-
-/* ToolSettings.skgen_options */
-#define SKGEN_FILTER_INTERNAL	(1 << 0)
-#define SKGEN_FILTER_EXTERNAL	(1 << 1)
-#define	SKGEN_SYMMETRY			(1 << 2)
-#define	SKGEN_CUT_LENGTH		(1 << 3)
-#define	SKGEN_CUT_ANGLE			(1 << 4)
-#define	SKGEN_CUT_CORRELATION	(1 << 5)
-#define	SKGEN_HARMONIC			(1 << 6)
-#define	SKGEN_STICK_TO_EMBEDDING	(1 << 7)
-#define	SKGEN_ADAPTIVE_DISTANCE		(1 << 8)
-#define SKGEN_FILTER_SMART		(1 << 9)
-#define SKGEN_DISP_LENGTH		(1 << 10)
-#define SKGEN_DISP_WEIGHT		(1 << 11)
-#define SKGEN_DISP_ORIG			(1 << 12)
-#define SKGEN_DISP_EMBED		(1 << 13)
-#define SKGEN_DISP_INDEX		(1 << 14)
-
-#define	SKGEN_SUB_LENGTH		0
-#define	SKGEN_SUB_ANGLE			1
-#define	SKGEN_SUB_CORRELATION	2
-#define	SKGEN_SUB_TOTAL			3
-
-/* ToolSettings.skgen_postpro */
-#define SKGEN_SMOOTH			0
-#define SKGEN_AVERAGE			1
-#define SKGEN_SHARPEN			2
-
-/* ToolSettings.bone_sketching */
-#define BONE_SKETCHING			1
-#define BONE_SKETCHING_QUICK	2
-#define BONE_SKETCHING_ADJUST	4
-
-/* ToolSettings.skgen_retarget_roll */
-#define	SK_RETARGET_ROLL_NONE			0
-#define	SK_RETARGET_ROLL_VIEW			1
-#define	SK_RETARGET_ROLL_JOINT			2
 
 /* PhysicsSettings.flag */
 #define PHYS_GLOBAL_GRAVITY		1

@@ -607,7 +607,7 @@ typedef struct SoftbodyModifierData {
 typedef struct ClothModifierData {
 	ModifierData modifier;
 
-	struct Scene *scene;                  /* the context, time etc is here */
+	struct Scene *scene;                  /* the context is here */
 	struct Cloth *clothObject;            /* The internal data structure for cloth. */
 	struct ClothSimSettings *sim_parms;   /* definition is in DNA_cloth_types.h */
 	struct ClothCollSettings *coll_parms; /* definition is in DNA_cloth_types.h */
@@ -739,7 +739,7 @@ typedef struct ParticleSystemModifierData {
 
 	struct ParticleSystem *psys;
 	struct Mesh *mesh_final;  /* Final Mesh - its topology may differ from orig mesh. */
-	struct Mesh *mesh_deformed;  /* Deformed-only Mesh - its topology is same as orig mesh one. */
+	struct Mesh *mesh_original;  /* Original mesh that particles are attached to. */
 	int totdmvert, totdmedge, totdmface;
 	short flag, pad;
 } ParticleSystemModifierData;
@@ -1614,6 +1614,7 @@ typedef struct SDefVert {
 typedef struct SurfaceDeformModifierData {
 	ModifierData modifier;
 
+	struct Depsgraph *depsgraph;
 	struct Object *target;	/* bind target object */
 	SDefVert *verts;		/* vertex bind data */
 	float falloff;

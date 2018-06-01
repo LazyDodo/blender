@@ -397,6 +397,10 @@ typedef enum ID_Type {
                                          ID_IS_STATIC_OVERRIDE((_id)) && \
                                          (((ID *)(_id))->override_static->flag & STATICOVERRIDE_AUTO))
 
+/* No copy-on-write for these types. */
+#define ID_TYPE_IS_COW(_id_type) \
+	(!ELEM(_id_type, ID_WM, ID_SCR, ID_SCRN, ID_IM, ID_MC, ID_LI))
+
 #ifdef GS
 #  undef GS
 #endif
@@ -487,9 +491,7 @@ enum {
 	ID_RECALC_DRAW_CACHE  = 1 << 3,
 	ID_RECALC_GEOMETRY    = 1 << 4,
 	ID_RECALC_TRANSFORM   = 1 << 5,
-	ID_RECALC_COLLECTIONS = 1 << 6,
-	ID_RECALC_COPY_ON_WRITE = 1 << 7,
-	ID_RECALC_TIME          = 1 << 8,
+	ID_RECALC_COPY_ON_WRITE = 1 << 6,
 	/* Special flag to check if SOMETHING was changed. */
 	ID_RECALC_ALL   = (~(int)0),
 };

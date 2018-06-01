@@ -563,6 +563,10 @@ void Transform_Properties(struct wmOperatorType *ot, int flags)
 		RNA_def_boolean(ot->srna, "gpencil_strokes", 0, "Edit Grease Pencil", "Edit selected Grease Pencil strokes");
 	}
 
+	if (flags & P_CURSOR_EDIT) {
+		RNA_def_boolean(ot->srna, "cursor_transform", 0, "Transform Cursor", "");
+	}
+
 	if ((flags & P_OPTIONS) && !(flags & P_NO_TEXSPACE)) {
 		RNA_def_boolean(ot->srna, "texture_space", 0, "Edit Texture Space", "Edit Object data texture space");
 		prop = RNA_def_boolean(ot->srna, "remove_on_cancel", 0, "Remove on Cancel", "Remove elements on cancel");
@@ -570,7 +574,7 @@ void Transform_Properties(struct wmOperatorType *ot, int flags)
 	}
 
 	if (flags & P_CORRECT_UV) {
-		RNA_def_boolean(ot->srna, "correct_uv", 0, "Correct UVs", "Correct UV coordinates when transforming");
+		RNA_def_boolean(ot->srna, "correct_uv", true, "Correct UVs", "Correct UV coordinates when transforming");
 	}
 
 	if (flags & P_CENTER) {
@@ -609,7 +613,10 @@ static void TRANSFORM_OT_translate(struct wmOperatorType *ot)
 
 	WM_operatortype_props_advanced_begin(ot);
 
-	Transform_Properties(ot, P_CONSTRAINT | P_PROPORTIONAL | P_MIRROR | P_ALIGN_SNAP | P_OPTIONS | P_GPENCIL_EDIT);
+	Transform_Properties(
+	        ot,
+	        P_CONSTRAINT | P_PROPORTIONAL | P_MIRROR | P_ALIGN_SNAP | P_OPTIONS |
+	        P_GPENCIL_EDIT | P_CURSOR_EDIT);
 }
 
 static void TRANSFORM_OT_resize(struct wmOperatorType *ot)
@@ -1106,9 +1113,6 @@ void transform_keymap_for_space(wmKeyConfig *keyconf, wmKeyMap *keymap, int spac
 
 			kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
 			RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_snap");
-
-			kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", TABKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
-			RNA_string_set(kmi->ptr, "data_path", "tool_settings.snap_element");
 
 			/* Will fall-through to texture-space transform. */
 			kmi = WM_keymap_add_item(keymap, "OBJECT_OT_transform_axis_target", TKEY, KM_PRESS, KM_SHIFT, 0);

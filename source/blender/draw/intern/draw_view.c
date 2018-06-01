@@ -28,6 +28,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_userdef_types.h"
+#include "DNA_world_types.h"
 #include "DNA_view3d_types.h"
 
 #include "ED_screen.h"
@@ -61,11 +62,13 @@ void DRW_draw_region_info(void)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ARegion *ar = draw_ctx->ar;
-	int offset;
+	int offset = 0;
 
 	DRW_draw_cursor();
 
-	offset = DRW_draw_region_engine_info_offset();
+	if ((draw_ctx->v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) == 0) {
+		offset = DRW_draw_region_engine_info_offset();
+	}
 
 	view3d_draw_region_info(draw_ctx->evil_C, ar, offset);
 
@@ -558,12 +561,21 @@ void DRW_draw_grid(void)
 
 void DRW_draw_background(void)
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+
 	/* Just to make sure */
 	glDepthMask(GL_TRUE);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glStencilMask(0xFF);
 
-	if (UI_GetThemeValue(TH_SHOW_BACK_GRAD)) {
+	if ((draw_ctx->v3d->flag3 & V3D_SHOW_WORLD) &&
+	    (draw_ctx->scene->world != NULL))
+	{
+		const World *world = draw_ctx->scene->world;
+		glClearColor(world->horr, world->horg, world->horb, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	}
+	else if (UI_GetThemeValue(TH_SHOW_BACK_GRAD)) {
 		float m[4][4];
 		unit_m4(m);
 
@@ -661,7 +673,7 @@ void DRW_draw_cursor(void)
 		int co[2];
 		const View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
 		if (ED_view3d_project_int_global(
-		            ar, cursor->location, co, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK)
+		            ar, cursor->location, co, V3D_PROJ_TEST_NOP | V3D_PROJ_TEST_CLIP_NEAR) == V3D_PROJ_RET_OK)
 		{
 			RegionView3D *rv3d = ar->regiondata;
 
@@ -682,7 +694,7 @@ void DRW_draw_cursor(void)
 				immUniformThemeColor3(TH_VIEW_OVERLAY);
 				immBegin(GWN_PRIM_LINES, 12);
 
-				const float scale = ED_view3d_pixel_size(rv3d, cursor->location) * 20;
+				const float scale = ED_view3d_pixel_size_no_ui_scale(rv3d, cursor->location) * U.widget_unit;
 
 #define CURSOR_VERT(axis_vec, axis, fac) \
 				immVertex3f( \

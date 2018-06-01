@@ -557,6 +557,8 @@ typedef struct TransInfo {
 #define T_TEXTURE		(1 << 3)
 	/* transforming the camera while in camera view */
 #define T_CAMERA		(1 << 4)
+	/* transforming the 3D cursor. */
+#define T_CURSOR		(1 << 5)
 		 // trans on points, having no rotation/scale
 #define T_POINTS		(1 << 6)
 /**
@@ -600,6 +602,8 @@ typedef struct TransInfo {
 
 	/** #TransInfo.center has been set, don't change it. */
 #define T_OVERRIDE_CENTER	(1 << 25)
+
+#define T_MODAL_CURSOR_SET	(1 << 26)
 
 /* TransInfo->modifiers */
 #define	MOD_CONSTRAINT_SELECT	0x01
@@ -881,7 +885,6 @@ void projectVertSlideData(TransInfo *t, bool is_final);
 /* TODO. transform_queries.c */
 bool checkUseAxisMatrix(TransInfo *t);
 
-#define TRANSFORM_DIST_MAX_PX 1000.0f
 #define TRANSFORM_SNAP_MAX_PX 100.0f
 #define TRANSFORM_DIST_INVALID -FLT_MAX
 

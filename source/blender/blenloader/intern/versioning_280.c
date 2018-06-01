@@ -262,6 +262,7 @@ static void do_version_layer_collection_post(
 
 static void do_version_scene_collection_convert(
         Main *bmain,
+        ID *id,
         SceneCollection *sc,
         Collection *collection,
         GHash *collection_map)
@@ -273,7 +274,8 @@ static void do_version_scene_collection_convert(
 	for (SceneCollection *nsc = sc->scene_collections.first; nsc;) {
 		SceneCollection *nsc_next = nsc->next;
 		Collection *ncollection = BKE_collection_add(bmain, collection, nsc->name);
-		do_version_scene_collection_convert(bmain, nsc, ncollection, collection_map);
+		ncollection->id.lib = id->lib;
+		do_version_scene_collection_convert(bmain, id, nsc, ncollection, collection_map);
 		nsc = nsc_next;
 	}
 
@@ -293,10 +295,11 @@ static void do_version_group_collection_to_collection(Main *bmain, Collection *g
 {
 	/* Convert old 2.8 group collections to new unified collections. */
 	if (group->collection) {
-		do_version_scene_collection_convert(bmain, group->collection, group, NULL);
+		do_version_scene_collection_convert(bmain, &group->id, group->collection, group, NULL);
 	}
 
 	group->collection = NULL;
+	group->view_layer = NULL;
 	id_fake_user_set(&group->id);
 }
 
@@ -316,7 +319,7 @@ static void do_version_scene_collection_to_collection(Main *bmain, Scene *scene)
 	/* Convert scene collections. */
 	GHash *collection_map = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
 	if (scene->collection) {
-		do_version_scene_collection_convert(bmain, scene->collection, scene->master_collection, collection_map);
+		do_version_scene_collection_convert(bmain, &scene->id, scene->collection, scene->master_collection, collection_map);
 		scene->collection = NULL;
 	}
 
@@ -433,6 +436,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 						             collections[DO_VERSION_COLLECTION_VISIBLE].suffix);
 
 						Collection *collection = BKE_collection_add(bmain, collection_master, name);
+						collection->id.lib = scene->id.lib;
 						collection->flag |= collections[DO_VERSION_COLLECTION_VISIBLE].flag;
 						collections[DO_VERSION_COLLECTION_VISIBLE].collections[layer] = collection;
 						collections[DO_VERSION_COLLECTION_VISIBLE].created |= (1 << layer);
@@ -452,6 +456,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 						             collections[collection_index].suffix);
 
 						Collection *collection = BKE_collection_add(bmain, collection_parent, name);
+						collection->id.lib = scene->id.lib;
 						collection->flag |= collections[collection_index].flag;
 						collections[collection_index].collections[layer] = collection;
 						collections[collection_index].created |= (1 << layer);
@@ -675,12 +680,14 @@ void do_versions_after_linking_280(Main *main)
 
 		/* Convert group layer visibility flags to hidden nested collection. */
 		for (Collection *collection = main->collection.first; collection; collection = collection->id.next) {
-			Collection *collection_hidden = NULL;
+			/* Add fake user for all existing groups. */
+			id_fake_user_set(&collection->id);
 
 			if (collection->flag & (COLLECTION_RESTRICT_VIEW | COLLECTION_RESTRICT_RENDER)) {
 				continue;
 			}
 
+			Collection *collection_hidden = NULL;
 			for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
 				cob_next = cob->next;
 				Object *ob = cob->ob;
@@ -688,6 +695,7 @@ void do_versions_after_linking_280(Main *main)
 				if (!(ob->lay & collection->layer)) {
 					if (collection_hidden == NULL) {
 						collection_hidden = BKE_collection_add(main, collection, "Hidden");
+						collection_hidden->id.lib = collection->id.lib;
 						collection_hidden->flag |= COLLECTION_RESTRICT_VIEW | COLLECTION_RESTRICT_RENDER;
 					}
 
@@ -695,9 +703,6 @@ void do_versions_after_linking_280(Main *main)
 					BKE_collection_object_remove(main, collection, ob, true);
 				}
 			}
-
-			/* Add fake user for all existing groups. */
-			id_fake_user_set(&collection->id);
 		}
 
 		/* Convert layers to collections. */
@@ -769,24 +774,6 @@ void do_versions_after_linking_280(Main *main)
 					psys->part->draw_size = 0.1f;
 				}
 			}
-		}
-	}
-
-	if (!MAIN_VERSION_ATLEAST(main, 280, 4)) {
-		for (WorkSpace *workspace = main->workspaces.first; workspace; workspace = workspace->id.next) {
-			if (workspace->view_layer) {
-				/* During 2.8 work we temporarly stored view-layer in the
-				 * workspace directly, but should be stored there per-scene. */
-				for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
-					if (BLI_findindex(&scene->view_layers, workspace->view_layer) != -1) {
-						BKE_workspace_view_layer_set(workspace, workspace->view_layer, scene);
-						workspace->view_layer = NULL;
-					}
-				}
-			}
-			/* While this should apply to most cases, it fails when reading workspaces.blend
-			 * to get its list of workspaces without actually appending any of them. */
-//			BLI_assert(workspace->view_layer == NULL);
 		}
 	}
 
@@ -1219,6 +1206,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 
 						v3d->overlay.backwire_opacity = 0.5f;
 						v3d->overlay.normals_length = 0.1f;
+						v3d->overlay.flag = V3D_OVERLAY_LOOK_DEV;
 					}
 				}
 			}
@@ -1449,7 +1437,8 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 			}
 		}
 
-		if (!DNA_struct_elem_find(fd->filesdna, "SceneDisplay", "int", "matcap_icon")) {
+
+		if (!MAIN_VERSION_ATLEAST(main, 280, 15)) {
 			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
 				scene->display.matcap_icon = 1;
 				scene->display.matcap_type = CLAY_MATCAP_NONE;
@@ -1462,9 +1451,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 				scene->display.matcap_ssao_factor_edge = 1.0f;
 				scene->display.matcap_ssao_samples = 16;
 			}
-		}
 
-		if (!DNA_struct_elem_find(fd->filesdna, "SpaceOops", "short", "filter_id_type")) {
 			for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
 				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
 					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
@@ -1472,6 +1459,64 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 							SpaceOops *soops = (SpaceOops *)sl;
 							soops->filter_id_type = ID_GR;
 							soops->outlinevis = SO_VIEW_LAYER;
+						}
+					}
+				}
+			}
+
+			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				switch (scene->toolsettings->snap_mode) {
+					case 0: scene->toolsettings->snap_mode = SCE_SNAP_MODE_INCREMENT; break;
+					case 1: scene->toolsettings->snap_mode = SCE_SNAP_MODE_VERTEX   ; break;
+					case 2: scene->toolsettings->snap_mode = SCE_SNAP_MODE_EDGE     ; break;
+					case 3: scene->toolsettings->snap_mode = SCE_SNAP_MODE_FACE     ; break;
+					case 4: scene->toolsettings->snap_mode = SCE_SNAP_MODE_VOLUME   ; break;
+				}
+				switch (scene->toolsettings->snap_node_mode) {
+					case 5: scene->toolsettings->snap_node_mode = SCE_SNAP_MODE_NODE_X; break;
+					case 6: scene->toolsettings->snap_node_mode = SCE_SNAP_MODE_NODE_Y; break;
+					case 7: scene->toolsettings->snap_node_mode = SCE_SNAP_MODE_NODE_X | SCE_SNAP_MODE_NODE_Y; break;
+					case 8: scene->toolsettings->snap_node_mode = SCE_SNAP_MODE_GRID  ; break;
+				}
+				switch (scene->toolsettings->snap_uv_mode) {
+					case 0: scene->toolsettings->snap_uv_mode = SCE_SNAP_MODE_INCREMENT; break;
+					case 1: scene->toolsettings->snap_uv_mode = SCE_SNAP_MODE_VERTEX   ; break;
+				}
+			}
+
+			ParticleSettings *part;
+			for (part = main->particle.first; part; part = part->id.next) {
+				part->shape_flag = PART_SHAPE_CLOSE_TIP;
+				part->shape = 0.0f;
+				part->rad_root = 1.0f;
+				part->rad_tip = 0.0f;
+				part->rad_scale = 0.01f;
+			}
+		}
+
+	}
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "Material", "float", "roughness")) {
+			for (Material *mat = main->mat.first; mat; mat = mat->id.next) {
+				if (mat->use_nodes) {
+					if (MAIN_VERSION_ATLEAST(main, 280, 0)) {
+						mat->roughness = mat->gloss_mir;
+					} else {
+						mat->roughness = 0.25f;
+					}
+				}
+				else {
+					mat->roughness = 1.0f - mat->gloss_mir;
+				}
+				mat->metallic = mat->ray_mirror;
+			}
+
+			for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.flag |= V3D_SHADING_SPECULAR_HIGHLIGHT;
 						}
 					}
 				}

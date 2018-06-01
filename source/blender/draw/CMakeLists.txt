@@ -63,6 +63,8 @@ set(SRC
 	intern/draw_cache_impl_metaball.c
 	intern/draw_cache_impl_particles.c
 	intern/draw_common.c
+	intern/draw_debug.c
+	intern/draw_hair.c
 	intern/draw_instance_data.c
 	intern/draw_manager.c
 	intern/draw_manager_data.c
@@ -97,6 +99,7 @@ set(SRC
 	engines/eevee/eevee_engine.c
 	engines/eevee/eevee_lightprobes.c
 	engines/eevee/eevee_lights.c
+	engines/eevee/eevee_lookdev.c
 	engines/eevee/eevee_materials.c
 	engines/eevee/eevee_mist.c
 	engines/eevee/eevee_motion_blur.c
@@ -106,10 +109,14 @@ set(SRC
 	engines/eevee/eevee_subsurface.c
 	engines/eevee/eevee_temporal_sampling.c
 	engines/eevee/eevee_volumes.c
+	engines/workbench/workbench_data.c
 	engines/workbench/workbench_engine.c
+	engines/workbench/workbench_deferred.c
+	engines/workbench/workbench_forward.c
 	engines/workbench/workbench_materials.c
 	engines/workbench/workbench_studiolight.c
 	engines/workbench/solid_mode.c
+	engines/workbench/transparent_mode.c
 	engines/external/external_engine.c
 
 	DRW_engine.h
@@ -117,6 +124,8 @@ set(SRC
 	intern/draw_cache.h
 	intern/draw_cache_impl.h
 	intern/draw_common.h
+	intern/draw_debug.h
+	intern/draw_hair_private.h
 	intern/draw_instance_data.h
 	intern/draw_manager.h
 	intern/draw_manager_text.h
@@ -209,20 +218,27 @@ data_to_c_simple(engines/eevee/shaders/volumetric_resolve_frag.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/volumetric_scatter_frag.glsl SRC)
 data_to_c_simple(engines/eevee/shaders/volumetric_integration_frag.glsl SRC)
 
+data_to_c_simple(engines/workbench/shaders/workbench_background_lib.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_checkerboard_depth_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_common_lib.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_data_lib.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_deferred_composite_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_forward_composite_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_forward_depth_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_forward_transparent_accum_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_forward_transparent_revealage_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_object_outline_lib.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_prepass_vert.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_prepass_frag.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_composite_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_shadow_vert.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_shadow_geom.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_shadow_caps_geom.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_shadow_debug_frag.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_background_lib.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_common_lib.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_data_lib.glsl SRC)
-data_to_c_simple(engines/workbench/shaders/workbench_object_overlap_lib.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
+data_to_c_simple(modes/shaders/common_hair_lib.glsl SRC)
+data_to_c_simple(modes/shaders/common_hair_refine_vert.glsl SRC)
 data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fxaa_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fullscreen_vert.glsl SRC)
@@ -262,6 +278,8 @@ data_to_c_simple(modes/shaders/edit_normals_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_normals_geom.glsl SRC)
 data_to_c_simple(modes/shaders/overlay_face_orientation_frag.glsl SRC)
 data_to_c_simple(modes/shaders/overlay_face_orientation_vert.glsl SRC)
+data_to_c_simple(modes/shaders/overlay_face_wireframe_vert.glsl SRC)
+data_to_c_simple(modes/shaders/overlay_face_wireframe_frag.glsl SRC)
 data_to_c_simple(modes/shaders/object_empty_image_frag.glsl SRC)
 data_to_c_simple(modes/shaders/object_empty_image_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_outline_resolve_frag.glsl SRC)

@@ -366,16 +366,16 @@ void EMBM_project_snap_verts(bContext *C, ARegion *ar, BMEditMesh *em)
 	ED_view3d_init_mats_rv3d(obedit, ar->regiondata);
 
 	struct SnapObjectContext *snap_context = ED_transform_snap_object_context_create_view3d(
-	        CTX_data_main(C), CTX_data_scene(C), CTX_data_depsgraph(C), 0,
+	        CTX_data_scene(C), CTX_data_depsgraph(C), 0,
 	        ar, CTX_wm_view3d(C));
 
 	BM_ITER_MESH (eve, &iter, em->bm, BM_VERTS_OF_MESH) {
 		if (BM_elem_flag_test(eve, BM_ELEM_SELECT)) {
 			float mval[2], co_proj[3];
 			if (ED_view3d_project_float_object(ar, eve->co, mval, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) {
-				if (ED_transform_snap_object_project_view3d_mixed(
+				if (ED_transform_snap_object_project_view3d(
 				        snap_context,
-				        SCE_SELECT_FACE,
+				        SCE_SNAP_MODE_FACE,
 				        &(const struct SnapObjectParams){
 				            .snap_select = SNAP_NOT_ACTIVE,
 				            .use_object_edit_cage = false,
@@ -438,7 +438,7 @@ static int edbm_delete_exec(bContext *C, wmOperator *op)
 				break;
 			case MESH_DELETE_EDGE: /* Erase Edges */
 				if (!(em->bm->totedgesel &&
-				      EDBM_op_callf(em, op, "delete geom=%he context=%i", BM_ELEM_SELECT, DEL_FACES)))
+				      EDBM_op_callf(em, op, "delete geom=%he context=%i", BM_ELEM_SELECT, DEL_EDGES)))
 				{
 					continue;
 				}
@@ -2312,7 +2312,7 @@ void MESH_OT_vertices_smooth_laplacian(wmOperatorType *ot)
 
 	RNA_def_int(ot->srna, "repeat", 1, 1, 1000,
 	            "Number of iterations to smooth the mesh", "", 1, 200);
-	RNA_def_float(ot->srna, "lambda_factor", 5e-5f, 1e-7f, 1000.0f,
+	RNA_def_float(ot->srna, "lambda_factor", 1.0f, 1e-7f, 1000.0f,
 	              "Lambda factor", "", 1e-7f, 1000.0f);
 	RNA_def_float(ot->srna, "lambda_border", 5e-5f, 1e-7f, 1000.0f,
 	              "Lambda factor in border", "", 1e-7f, 1000.0f);
@@ -3624,7 +3624,7 @@ static Base *mesh_separate_tagged(Main *bmain, Scene *scene, ViewLayer *view_lay
 
 	base_new = ED_object_add_duplicate(bmain, scene, view_layer, base_old, USER_DUP_MESH);
 	/* DAG_relations_tag_update(bmain); */ /* normally would call directly after but in this case delay recalc */
-	assign_matarar(base_new->object, give_matarar(obedit), *give_totcolp(obedit)); /* new in 2.5 */
+	assign_matarar(bmain, base_new->object, give_matarar(obedit), *give_totcolp(obedit)); /* new in 2.5 */
 
 	ED_object_base_select(base_new, BA_SELECT);
 
@@ -5447,11 +5447,12 @@ static int edbm_split_exec(bContext *C, wmOperator *op)
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
-
-		if (em->bm->totfacesel == 0) {
+		if ((em->bm->totvertsel == 0) &&
+		    (em->bm->totedgesel == 0) &&
+		    (em->bm->totfacesel == 0))
+		{
 			continue;
 		}
-
 		BMOperator bmop;
 		EDBM_op_init(em, &bmop, op, "split geom=%hvef use_only_faces=%b", BM_ELEM_SELECT, false);
 		BMO_op_exec(em->bm, &bmop);

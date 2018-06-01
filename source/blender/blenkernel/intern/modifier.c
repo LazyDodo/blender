@@ -60,20 +60,23 @@
 
 #include "BKE_appdir.h"
 #include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
+#include "BKE_global.h"
 #include "BKE_idcode.h"
 #include "BKE_key.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_mesh.h"
 #include "BKE_multires.h"
+#include "BKE_object.h"
 #include "BKE_DerivedMesh.h"
 
 /* may move these, only for modifier_path_relbase */
-#include "BKE_global.h" /* ugh, G.main->name only */
 #include "BKE_main.h"
 /* end */
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 
@@ -794,10 +797,10 @@ void test_object_modifiers(Object *ob)
  * - else if the file has been saved return the blend file path.
  * - else if the file isn't saved and the ID isn't from a library, return the temp dir.
  */
-const char *modifier_path_relbase(Object *ob)
+const char *modifier_path_relbase(Main *bmain, Object *ob)
 {
 	if (G.relbase_valid || ID_IS_LINKED(ob)) {
-		return ID_BLEND_PATH(G.main, &ob->id);
+		return ID_BLEND_PATH(bmain, &ob->id);
 	}
 	else {
 		/* last resort, better then using "" which resolves to the current
@@ -890,7 +893,7 @@ void modifier_deformVerts(struct ModifierData *md, const ModifierEvalContext *ct
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformVerts_DM(md, ctx, dm, vertexCos, numVerts);
@@ -926,7 +929,7 @@ void modifier_deformMatrices(struct ModifierData *md, const ModifierEvalContext 
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformMatrices_DM(md, ctx, dm, vertexCos, defMats, numVerts);
@@ -949,7 +952,7 @@ void modifier_deformVertsEM(struct ModifierData *md, const ModifierEvalContext *
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformVertsEM_DM(md, ctx, editData, dm, vertexCos, numVerts);
@@ -972,7 +975,7 @@ void modifier_deformMatricesEM(struct ModifierData *md, const ModifierEvalContex
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformMatricesEM_DM(md, ctx, editData, dm, vertexCos, defMats, numVerts);
@@ -992,7 +995,7 @@ struct Mesh *modifier_applyModifier(struct ModifierData *md, const ModifierEvalC
 		return mti->applyModifier(md, ctx, mesh);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 
 		DerivedMesh *ndm = mti->applyModifier_DM(md, ctx, dm);
 
@@ -1028,7 +1031,7 @@ struct Mesh *modifier_applyModifierEM(struct ModifierData *md, const ModifierEva
 		return mti->applyModifierEM(md, ctx, editData, mesh);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 
 		DerivedMesh *ndm = mti->applyModifierEM_DM(md, ctx, editData, dm);
 
@@ -1164,7 +1167,7 @@ struct DerivedMesh *modifier_applyModifier_DM_deprecated(struct ModifierData *md
 		struct Mesh *new_mesh = mti->applyModifier(md, ctx, mesh);
 
 		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
-		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
+		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE, CD_MASK_EVERYTHING);
 
 		if (new_mesh != mesh) {
 			BKE_id_free(NULL, new_mesh);
@@ -1197,7 +1200,7 @@ struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(struct ModifierData *
 		struct Mesh *new_mesh = mti->applyModifierEM(md, ctx, editData, mesh);
 
 		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
-		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
+		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE, CD_MASK_EVERYTHING);
 
 		if (new_mesh != mesh) {
 			BKE_id_free(NULL, new_mesh);
@@ -1210,16 +1213,26 @@ struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(struct ModifierData *
 	}
 }
 
-/** Get evaluated mesh for other object, which is used as an operand for the modifier,
- * i.e. second operand for boolean modifier.
+/**
+ * Get evaluated mesh for other evaluated object, which is used as an operand for the modifier,
+ * e.g. second operand for boolean modifier.
+ * Note thqt modifiers in stack always get fully evaluated COW ID pointers, never original ones. Makes things simpler.
  */
-Mesh *BKE_modifier_get_evaluated_mesh_from_object(Object *ob, const ModifierApplyFlag flag)
+Mesh *BKE_modifier_get_evaluated_mesh_from_evaluated_object(Object *ob_eval, bool *r_free_mesh)
 {
-	if (flag & MOD_APPLY_RENDER) {
-		/* TODO(sergey): Use proper derived render in the future. */
-		return ob->mesh_evaluated;
+	Mesh *me;
+
+	if ((ob_eval->type == OB_MESH) && (ob_eval->mode & OB_MODE_EDIT)) {
+		/* Note: currently we have no equivalent to derived cagemesh or even final dm in BMEditMesh...
+		 * This is TODO in core depsgraph/modifier stack code still. */
+		BMEditMesh *em = BKE_editmesh_from_object(ob_eval);
+		me = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
+		*r_free_mesh = true;
 	}
 	else {
-		return ob->mesh_evaluated;
+		me = ob_eval->runtime.mesh_eval;
+		*r_free_mesh = false;
 	}
+
+	return me;
 }

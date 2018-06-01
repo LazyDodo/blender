@@ -113,7 +113,6 @@ typedef struct SnapObjectData_EditMesh {
 } SnapObjectData_EditMesh;
 
 struct SnapObjectContext {
-	Main *bmain;
 	Scene *scene;
 	Depsgraph *depsgraph;
 
@@ -534,6 +533,10 @@ static bool raycastEditMesh(
 		if (treedata->tree == NULL) {
 			return retval;
 		}
+	}
+	else {
+		/* COW hack: Update pointers */
+		treedata->em = em;
 	}
 
 	float imat[4][4];
@@ -1125,8 +1128,8 @@ static short snap_mesh_polygon(
 
 		MPoly *mp = &((Mesh *)ob->data)->mpoly[*r_index];
 		const MLoop *ml;
-		if (snapdata->snap_to_flag & SCE_SELECT_EDGE) {
-			elem = SCE_SELECT_EDGE;
+		if (snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
+			elem = SCE_SNAP_MODE_EDGE;
 			treedata->edge = ((Mesh *)ob->data)->medge;
 			ml = &treedata->loop[mp->loopstart];
 			for (int i = mp->totloop; i--; ml++) {
@@ -1137,7 +1140,7 @@ static short snap_mesh_polygon(
 			}
 		}
 		else {
-			elem = SCE_SELECT_VERTEX;
+			elem = SCE_SNAP_MODE_VERTEX;
 			ml = &treedata->loop[mp->loopstart];
 			for (int i = mp->totloop; i--; ml++) {
 				cb_snap_vert(
@@ -1160,8 +1163,8 @@ static short snap_mesh_polygon(
 		BMFace *f = BM_face_at_index(em->bm, *r_index);
 		BMLoop *l_iter, *l_first;
 		l_iter = l_first = BM_FACE_FIRST_LOOP(f);
-		if (snapdata->snap_to_flag & SCE_SELECT_EDGE) {
-			elem = SCE_SELECT_EDGE;
+		if (snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
+			elem = SCE_SNAP_MODE_EDGE;
 			BM_mesh_elem_table_ensure(em->bm, BM_VERT | BM_EDGE);
 			do {
 				cb_snap_edge(
@@ -1172,7 +1175,7 @@ static short snap_mesh_polygon(
 			} while ((l_iter = l_iter->next) != l_first);
 		}
 		else {
-			elem = SCE_SELECT_VERTEX;
+			elem = SCE_SNAP_MODE_VERTEX;
 			BM_mesh_elem_table_ensure(em->bm, BM_VERT);
 			do {
 				cb_snap_vert(
@@ -1218,7 +1221,7 @@ static short snap_mesh_edge_verts_mixed(
         /* return args */
         float r_loc[3], float r_no[3], int *r_index)
 {
-	short elem = SCE_SELECT_EDGE;
+	short elem = SCE_SNAP_MODE_EDGE;
 
 	if (ob->type != OB_MESH) {
 		return elem;
@@ -1282,7 +1285,7 @@ static short snap_mesh_edge_verts_mixed(
 		{
 			nearest.index = vindex[v_id];
 			nearest2d.copy_vert_no(vindex[v_id], nearest.no, nearest2d.userdata);
-			elem = SCE_SELECT_VERTEX;
+			elem = SCE_SNAP_MODE_VERTEX;
 		}
 	}
 
@@ -1319,7 +1322,7 @@ static short snapArmature(
 {
 	short retval = 0;
 
-	if (snapdata->snap_to_flag == SCE_SELECT_FACE) { /* Currently only edge and vert */
+	if (snapdata->snap_to_flag == SCE_SNAP_MODE_FACE) { /* Currently only edge and vert */
 		return retval;
 	}
 
@@ -1361,7 +1364,7 @@ static short snapArmature(
 				if ((eBone->flag & (BONE_HIDDEN_A | BONE_ROOTSEL | BONE_TIPSEL)) == 0) {
 					bool has_vert_snap = false;
 
-					if (snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+					if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 						has_vert_snap = test_projected_vert_dist(
 						        &neasrest_precalc,
 						        clip_planes_local, snapdata->clip_plane_len,
@@ -1372,17 +1375,17 @@ static short snapArmature(
 						        is_persp, eBone->tail, &dist_px_sq, r_loc);
 
 						if (has_vert_snap) {
-							retval = SCE_SELECT_VERTEX;
+							retval = SCE_SNAP_MODE_VERTEX;
 						}
 					}
-					if (!has_vert_snap && snapdata->snap_to_flag & SCE_SELECT_EDGE) {
+					if (!has_vert_snap && snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
 						if (test_projected_edge_dist(
 						        &neasrest_precalc,
 						        clip_planes_local, snapdata->clip_plane_len,
 						        is_persp, eBone->head, eBone->tail,
 						        &dist_px_sq, r_loc))
 						{
-							retval = SCE_SELECT_EDGE;
+							retval = SCE_SNAP_MODE_EDGE;
 						}
 					}
 				}
@@ -1398,7 +1401,7 @@ static short snapArmature(
 				const float *head_vec = pchan->pose_head;
 				const float *tail_vec = pchan->pose_tail;
 
-				if (snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+				if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 					has_vert_snap = test_projected_vert_dist(
 					        &neasrest_precalc,
 					        clip_planes_local, snapdata->clip_plane_len,
@@ -1409,17 +1412,17 @@ static short snapArmature(
 					        is_persp, tail_vec, &dist_px_sq, r_loc);
 
 					if (has_vert_snap) {
-						retval = SCE_SELECT_VERTEX;
+						retval = SCE_SNAP_MODE_VERTEX;
 					}
 				}
-				if (!has_vert_snap && snapdata->snap_to_flag & SCE_SELECT_EDGE) {
+				if (!has_vert_snap && snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
 					if (test_projected_edge_dist(
 					        &neasrest_precalc,
 					        clip_planes_local, snapdata->clip_plane_len,
 					        is_persp, head_vec, tail_vec,
 					        &dist_px_sq, r_loc))
 					{
-						retval = SCE_SELECT_EDGE;
+						retval = SCE_SNAP_MODE_EDGE;
 					}
 				}
 			}
@@ -1450,7 +1453,7 @@ static short snapCurve(
 	bool has_snap = false;
 
 	/* only vertex snapping mode (eg control points and handles) supported for now) */
-	if (snapdata->snap_to_flag != SCE_SELECT_VERTEX) {
+	if (snapdata->snap_to_flag != SCE_SNAP_MODE_VERTEX) {
 		return 0;
 	}
 
@@ -1489,7 +1492,7 @@ static short snapCurve(
 
 	for (Nurb *nu = (use_obedit ? cu->editnurb->nurbs.first : cu->nurb.first); nu; nu = nu->next) {
 		for (int u = 0; u < nu->pntsu; u++) {
-			if (snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+			if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 				if (use_obedit) {
 					if (nu->bezt) {
 						/* don't snap to selected (moving) or hidden */
@@ -1562,7 +1565,7 @@ static short snapCurve(
 			/* Does not support index yet. */
 			*r_index = -1;
 		}
-		return SCE_SELECT_VERTEX;
+		return SCE_SNAP_MODE_VERTEX;
 	}
 
 	return 0;
@@ -1584,7 +1587,7 @@ static short snapEmpty(
 	}
 
 	/* for now only vertex supported */
-	if (snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+	if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 		struct DistProjectedAABBPrecalc neasrest_precalc;
 		dist_squared_to_projected_aabb_precalc(
 		        &neasrest_precalc, snapdata->pmat, snapdata->win_size, snapdata->mval);
@@ -1605,7 +1608,7 @@ static short snapEmpty(
 		        is_persp, co, &dist_px_sq, r_loc))
 		{
 			*dist_px = sqrtf(dist_px_sq);
-			retval = SCE_SELECT_VERTEX;
+			retval = SCE_SNAP_MODE_VERTEX;
 		}
 	}
 
@@ -1630,6 +1633,7 @@ static short snapCamera(
 {
 	short retval = 0;
 
+	Depsgraph *depsgraph = sctx->depsgraph;
 	Scene *scene = sctx->scene;
 
 	bool is_persp = snapdata->view_proj == VIEW_PROJ_PERSP;
@@ -1654,12 +1658,12 @@ static short snapCamera(
 
 	tracking = &clip->tracking;
 
-	BKE_tracking_get_camera_object_matrix(scene, object, orig_camera_mat);
+	BKE_tracking_get_camera_object_matrix(depsgraph, scene, object, orig_camera_mat);
 
 	invert_m4_m4(orig_camera_imat, orig_camera_mat);
 	invert_m4_m4(imat, obmat);
 
-	if (snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+	if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 		struct DistProjectedAABBPrecalc neasrest_precalc;
 		dist_squared_to_projected_aabb_precalc(
 		        &neasrest_precalc, snapdata->pmat, snapdata->win_size, snapdata->mval);
@@ -1704,7 +1708,7 @@ static short snapCamera(
 				        clip_planes_local, snapdata->clip_plane_len,
 				        is_persp, bundle_pos, &dist_px_sq, r_loc))
 				{
-					retval = SCE_SELECT_VERTEX;
+					retval = SCE_SNAP_MODE_VERTEX;
 				}
 			}
 		}
@@ -1730,9 +1734,9 @@ static short snapMesh(
         /* return args */
         float r_loc[3], float r_no[3], int *r_index)
 {
-	BLI_assert(snapdata->snap_to_flag != SCE_SELECT_FACE);
+	BLI_assert(snapdata->snap_to_flag != SCE_SNAP_MODE_FACE);
 
-	if ((snapdata->snap_to_flag & ~SCE_SELECT_FACE) == SCE_SELECT_EDGE) {
+	if ((snapdata->snap_to_flag & ~SCE_SNAP_MODE_FACE) == SCE_SNAP_MODE_EDGE) {
 		if (me->totedge == 0) {
 			return 0;
 		}
@@ -1822,7 +1826,7 @@ static short snapMesh(
 			treedata->edge_allocated = dummy_treedata.edge_allocated;
 		}
 	}
-	if (snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+	if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 		if (sod->has_loose_vert && bvhtree[1] == NULL) {
 			bvhtree[1] = BKE_bvhtree_from_mesh_get(&dummy_treedata, me, BVHTREE_FROM_LOOSEVERTS, 2);
 			sod->has_loose_vert = bvhtree[1] != NULL;
@@ -1871,7 +1875,7 @@ static short snapMesh(
 		.dist_sq = dist_px_sq,
 	};
 	int last_index = nearest.index;
-	short elem = SCE_SELECT_VERTEX;
+	short elem = SCE_SNAP_MODE_VERTEX;
 
 	float tobmat[4][4], clip_planes_local[MAX_CLIPPLANE_LEN][4];
 	transpose_m4_m4(tobmat, obmat);
@@ -1879,7 +1883,7 @@ static short snapMesh(
 		mul_v4_m4v4(clip_planes_local[i], tobmat, snapdata->clip_plane[i]);
 	}
 
-	if (bvhtree[1] && (snapdata->snap_to_flag & SCE_SELECT_VERTEX)) {
+	if (bvhtree[1] && (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX)) {
 		/* snap to loose verts */
 		BLI_bvhtree_find_nearest_projected(
 		        bvhtree[1], lpmat, snapdata->win_size, snapdata->mval,
@@ -1889,7 +1893,7 @@ static short snapMesh(
 		last_index = nearest.index;
 	}
 
-	if (snapdata->snap_to_flag & SCE_SELECT_EDGE) {
+	if (snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
 		if (bvhtree[0]) {
 			/* snap to loose edges */
 			BLI_bvhtree_find_nearest_projected(
@@ -1907,11 +1911,11 @@ static short snapMesh(
 		}
 
 		if (last_index != nearest.index) {
-			elem = SCE_SELECT_EDGE;
+			elem = SCE_SNAP_MODE_EDGE;
 		}
 	}
 	else {
-		BLI_assert(snapdata->snap_to_flag & SCE_SELECT_VERTEX);
+		BLI_assert(snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX);
 		if (bvhtree[0]) {
 			/* snap to loose edges */
 			BLI_bvhtree_find_nearest_projected(
@@ -1961,9 +1965,9 @@ static short snapEditMesh(
         /* return args */
         float r_loc[3], float r_no[3], int *r_index)
 {
-	BLI_assert(snapdata->snap_to_flag != SCE_SELECT_FACE);
+	BLI_assert(snapdata->snap_to_flag != SCE_SNAP_MODE_FACE);
 
-	if ((snapdata->snap_to_flag & ~SCE_SELECT_FACE) == SCE_SELECT_EDGE) {
+	if ((snapdata->snap_to_flag & ~SCE_SNAP_MODE_FACE) == SCE_SNAP_MODE_EDGE) {
 		if (em->bm->totedge == 0) {
 			return 0;
 		}
@@ -1986,7 +1990,7 @@ static short snapEditMesh(
 		sod->sd.type = SNAP_EDIT_MESH;
 	}
 
-	if (snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+	if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 		if (sod->bvh_trees[0] == NULL) {
 			sod->bvh_trees[0] = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(**sod->bvh_trees));
 		}
@@ -2006,7 +2010,7 @@ static short snapEditMesh(
 		}
 	}
 
-	if (snapdata->snap_to_flag & SCE_SELECT_EDGE) {
+	if (snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
 		if (sod->bvh_trees[1] == NULL) {
 			sod->bvh_trees[1] = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(**sod->bvh_trees));
 		}
@@ -2040,7 +2044,7 @@ static short snapEditMesh(
 		.dist_sq = SQUARE(*dist_px),
 	};
 	int last_index = nearest.index;
-	short elem = SCE_SELECT_VERTEX;
+	short elem = SCE_SNAP_MODE_VERTEX;
 
 	float lpmat[4][4], tobmat[4][4], clip_planes_local[MAX_CLIPPLANE_LEN][4];
 	mul_m4_m4m4(lpmat, snapdata->pmat, obmat);
@@ -2050,7 +2054,7 @@ static short snapEditMesh(
 		mul_v4_m4v4(clip_planes_local[i], tobmat, snapdata->clip_plane[i]);
 	}
 
-	if (treedata_vert && snapdata->snap_to_flag & SCE_SELECT_VERTEX) {
+	if (treedata_vert && snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 		BM_mesh_elem_table_ensure(em->bm, BM_VERT);
 		BLI_bvhtree_find_nearest_projected(
 		        treedata_vert->tree, lpmat, snapdata->win_size, snapdata->mval,
@@ -2060,7 +2064,7 @@ static short snapEditMesh(
 		last_index = nearest.index;
 	}
 
-	if (treedata_edge && snapdata->snap_to_flag & SCE_SELECT_EDGE) {
+	if (treedata_edge && snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
 		BM_mesh_elem_table_ensure(em->bm, BM_EDGE | BM_VERT);
 		BLI_bvhtree_find_nearest_projected(
 		        treedata_edge->tree, lpmat, snapdata->win_size, snapdata->mval,
@@ -2068,7 +2072,7 @@ static short snapEditMesh(
 		        &nearest, cb_snap_edge, &nearest2d);
 
 		if (last_index != nearest.index) {
-			elem = SCE_SELECT_EDGE;
+			elem = SCE_SNAP_MODE_EDGE;
 		}
 	}
 
@@ -2265,13 +2269,12 @@ static short snapObjectsRay(
  * \{ */
 
 SnapObjectContext *ED_transform_snap_object_context_create(
-        Main *bmain, Scene *scene, Depsgraph *depsgraph, int flag)
+        Scene *scene, Depsgraph *depsgraph, int flag)
 {
 	SnapObjectContext *sctx = MEM_callocN(sizeof(*sctx), __func__);
 
 	sctx->flag = flag;
 
-	sctx->bmain = bmain;
 	sctx->scene = scene;
 	sctx->depsgraph = depsgraph;
 
@@ -2282,11 +2285,11 @@ SnapObjectContext *ED_transform_snap_object_context_create(
 }
 
 SnapObjectContext *ED_transform_snap_object_context_create_view3d(
-        Main *bmain, Scene *scene, Depsgraph *depsgraph, int flag,
+        Scene *scene, Depsgraph *depsgraph, int flag,
         /* extra args for view3d */
         const ARegion *ar, const View3D *v3d)
 {
-	SnapObjectContext *sctx = ED_transform_snap_object_context_create(bmain, scene, depsgraph, flag);
+	SnapObjectContext *sctx = ED_transform_snap_object_context_create(scene, depsgraph, flag);
 
 	sctx->use_v3d = true;
 	sctx->v3d_data.ar = ar;
@@ -2448,8 +2451,11 @@ static short transform_snap_context_project_view3d_mixed_impl(
         float r_loc[3], float r_no[3], int *r_index,
         Object **r_ob, float r_obmat[4][4])
 {
-	BLI_assert(snap_to_flag != 0);
-	BLI_assert((snap_to_flag & ~(1 | 2 | 4)) == 0);
+	BLI_assert(
+	        (snap_to_flag & (
+	        SCE_SNAP_MODE_VERTEX |
+	        SCE_SNAP_MODE_EDGE   |
+	        SCE_SNAP_MODE_FACE)) != 0);
 
 	short retval = 0;
 	bool has_hit = false;
@@ -2461,7 +2467,7 @@ static short transform_snap_context_project_view3d_mixed_impl(
 	const ARegion *ar = sctx->v3d_data.ar;
 	const RegionView3D *rv3d = ar->regiondata;
 
-	if (snap_to_flag & SCE_SELECT_FACE || params->use_occlusion_test) {
+	if (snap_to_flag & SCE_SNAP_MODE_FACE || params->use_occlusion_test) {
 		float ray_start[3], ray_normal[3];
 
 		if (!ED_view3d_win_to_ray_ex(
@@ -2480,12 +2486,12 @@ static short transform_snap_context_project_view3d_mixed_impl(
 		        &dummy_ray_depth, loc, no,
 		        &index, &ob, obmat, NULL);
 
-		if (has_hit && (snap_to_flag & SCE_SELECT_FACE)) {
-			retval = SCE_SELECT_FACE;
+		if (has_hit && (snap_to_flag & SCE_SNAP_MODE_FACE)) {
+			retval = SCE_SNAP_MODE_FACE;
 		}
 	}
 
-	if (snap_to_flag & (SCE_SELECT_VERTEX | SCE_SELECT_EDGE)) {
+	if (snap_to_flag & (SCE_SNAP_MODE_VERTEX | SCE_SNAP_MODE_EDGE)) {
 		short elem;
 		float dist_px_tmp = *dist_px;
 
@@ -2508,6 +2514,10 @@ static short transform_snap_context_project_view3d_mixed_impl(
 			/* Compute the new clip_pane but do not add it yet. */
 			float new_clipplane[4];
 			plane_from_point_normal_v3(new_clipplane, loc, no);
+			if (dot_v3v3(snapdata.clip_plane[0], new_clipplane) > 0.0f) {
+				/* The plane is facing the wrong direction. */
+				negate_v4(new_clipplane);
+			}
 
 			/* Try to snap only to the polygon. */
 			elem = snap_mesh_polygon(
@@ -2534,8 +2544,8 @@ static short transform_snap_context_project_view3d_mixed_impl(
 			retval = elem;
 		}
 
-		if ((retval == SCE_SELECT_EDGE) &&
-		    (snapdata.snap_to_flag & SCE_SELECT_VERTEX))
+		if ((retval == SCE_SNAP_MODE_EDGE) &&
+		    (snapdata.snap_to_flag & SCE_SNAP_MODE_VERTEX))
 		{
 			retval = snap_mesh_edge_verts_mixed(
 			        sctx, &snapdata,
@@ -2566,6 +2576,21 @@ static short transform_snap_context_project_view3d_mixed_impl(
 	return 0;
 }
 
+bool ED_transform_snap_object_project_view3d_ex(
+        SnapObjectContext *sctx,
+        const unsigned short snap_to,
+        const struct SnapObjectParams *params,
+        const float mval[2], float *dist_px,
+        float r_loc[3], float r_no[3], int *r_index,
+        Object **r_ob, float r_obmat[4][4])
+{
+	return transform_snap_context_project_view3d_mixed_impl(
+	        sctx,
+	        snap_to, params,
+	        mval, dist_px,
+	        r_loc, r_no, r_index, r_ob, r_obmat) != 0;
+}
+
 /**
  * Convenience function for performing snapping.
  *
@@ -2578,50 +2603,6 @@ static short transform_snap_context_project_view3d_mixed_impl(
  * \param r_no: hit normal (optional).
  * \return Snap success
  */
-bool ED_transform_snap_object_project_view3d_mixed(
-        SnapObjectContext *sctx,
-        const unsigned short snap_to_flag,
-        const struct SnapObjectParams *params,
-        const float mval_fl[2], float *dist_px,
-        float r_co[3], float r_no[3])
-{
-	return transform_snap_context_project_view3d_mixed_impl(
-	        sctx,
-	        snap_to_flag, params,
-	        mval_fl, dist_px,
-	        r_co, r_no, NULL, NULL, NULL) != 0;
-}
-
-bool ED_transform_snap_object_project_view3d_ex(
-        SnapObjectContext *sctx,
-        const unsigned short snap_to,
-        const struct SnapObjectParams *params,
-        const float mval[2], float *dist_px,
-        float r_loc[3], float r_no[3], int *r_index,
-        Object **r_ob, float r_obmat[4][4])
-{
-	short snap_to_flag;
-	switch (snap_to) {
-		case SCE_SNAP_MODE_FACE:
-			snap_to_flag = SCE_SELECT_FACE;
-			break;
-		case SCE_SNAP_MODE_VERTEX:
-			snap_to_flag = SCE_SELECT_VERTEX;
-			break;
-		case SCE_SNAP_MODE_EDGE:
-			snap_to_flag = SCE_SELECT_EDGE;
-			break;
-		default:
-			return false;
-	}
-
-	return transform_snap_context_project_view3d_mixed_impl(
-	        sctx,
-	        snap_to_flag, params,
-	        mval, dist_px,
-	        r_loc, r_no, r_index, r_ob, r_obmat) != 0;
-}
-
 bool ED_transform_snap_object_project_view3d(
         SnapObjectContext *sctx,
         const unsigned short snap_to,

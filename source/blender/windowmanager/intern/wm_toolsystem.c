@@ -45,6 +45,7 @@
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_paint.h"
+#include "BKE_idprop.h"
 #include "BKE_workspace.h"
 
 #include "RNA_access.h"
@@ -52,6 +53,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
+#include "WM_toolsystem.h"  /* own include */
 
 static void toolsystem_reinit_with_toolref(
         bContext *C, WorkSpace *UNUSED(workspace), bToolRef *tref);
@@ -184,7 +186,7 @@ static void toolsystem_ref_link(bContext *C, WorkSpace *workspace, bToolRef *tre
 		Main *bmain = CTX_data_main(C);
 
 		/* Currently only brush data-blocks supported. */
-		struct Brush *brush = (struct Brush *)BKE_libblock_find_name(ID_BR, tref_rt->data_block);
+		struct Brush *brush = (struct Brush *)BKE_libblock_find_name(bmain, ID_BR, tref_rt->data_block);
 
 		if (brush) {
 			wmWindowManager *wm = bmain->wm.first;
@@ -281,7 +283,7 @@ void WM_toolsystem_ref_set_from_runtime(
         const bToolRef_Runtime *tref_rt, const char *idname)
 {
 	Main *bmain = CTX_data_main(C);
-	
+
 	if (tref->runtime) {
 		toolsystem_unlink_ref(C, workspace, tref);
 	}
@@ -404,7 +406,7 @@ void WM_toolsystem_refresh_screen_area(WorkSpace *workspace, Scene *scene, ScrAr
 	sa->runtime.is_tool_set = true;
 	const int mode = WM_toolsystem_mode_from_spacetype(workspace, scene, sa, sa->spacetype);
 	for (bToolRef *tref = workspace->tools.first; tref; tref = tref->next) {
-		if ((tref->space_type == sa->spacetype)) {
+		if (tref->space_type == sa->spacetype) {
 			if (tref->mode == mode) {
 				sa->runtime.tool = tref;
 				break;
@@ -459,23 +461,52 @@ static void toolsystem_refresh_screen_from_active_tool(
 	}
 }
 
-static void toolsystem_reinit_with_toolref(
-        bContext *C, WorkSpace *workspace, bToolRef *tref)
+bToolRef *WM_toolsystem_ref_set_by_name(
+        bContext *C, WorkSpace *workspace, const bToolKey *tkey,
+        const char *name, bool cycle)
 {
 	wmOperatorType *ot = WM_operatortype_find("WM_OT_tool_set_by_name", false);
 	/* On startup, Python operatores are not yet loaded. */
 	if (ot == NULL) {
-		return;
+		return NULL;
 	}
 	PointerRNA op_props;
 	WM_operator_properties_create_ptr(&op_props, ot);
-	RNA_string_set(&op_props, "name", tref->idname);
-	RNA_enum_set(&op_props, "space_type", tref->space_type);
+	RNA_string_set(&op_props, "name", name);
+
+	/* Will get from context if not set. */
+	bToolKey tkey_from_context;
+	if (tkey == NULL) {
+		Scene *scene = CTX_data_scene(C);
+		ScrArea *sa = CTX_wm_area(C);
+		WM_toolsystem_key_from_context(workspace, scene, sa, &tkey_from_context);
+		tkey = &tkey_from_context;
+	}
+
+	RNA_enum_set(&op_props, "space_type", tkey->space_type);
+	RNA_boolean_set(&op_props, "cycle", cycle);
+
 	WM_operator_name_call_ptr(C, ot, WM_OP_EXEC_DEFAULT, &op_props);
 	WM_operator_properties_free(&op_props);
 
-	Main *bmain = CTX_data_main(C);
-	toolsystem_refresh_screen_from_active_tool(bmain, workspace, tref);
+	bToolRef *tref = WM_toolsystem_ref_find(workspace, tkey);
+
+	if (tref) {
+		Main *bmain = CTX_data_main(C);
+		toolsystem_refresh_screen_from_active_tool(bmain, workspace, tref);
+	}
+
+	return (tref && STREQ(tref->idname, name)) ? tref : NULL;
+}
+
+static void toolsystem_reinit_with_toolref(
+        bContext *C, WorkSpace *workspace, bToolRef *tref)
+{
+	bToolKey tkey = {
+		.space_type = tref->space_type,
+		.mode = tref->mode,
+	};
+	WM_toolsystem_ref_set_by_name(C, workspace, &tkey, tref->idname, false);
 }
 
 /**
@@ -526,4 +557,49 @@ void WM_toolsystem_do_msg_notify_tag_refresh(
 		.mode = WM_toolsystem_mode_from_spacetype(workspace, scene, sa, sa->spacetype),
 	};
 	WM_toolsystem_refresh(C, workspace, &tkey);
+}
+
+IDProperty *WM_toolsystem_ref_properties_ensure_idprops(bToolRef *tref)
+{
+	if (tref->properties == NULL) {
+		IDPropertyTemplate val = {0};
+		tref->properties = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
+	}
+	return tref->properties;
+}
+
+void WM_toolsystem_ref_properties_ensure(bToolRef *tref, wmOperatorType *ot, PointerRNA *ptr)
+{
+	IDProperty *group = WM_toolsystem_ref_properties_ensure_idprops(tref);
+	IDProperty *prop = IDP_GetPropertyFromGroup(group, ot->idname);
+	if (prop == NULL) {
+		IDPropertyTemplate val = {0};
+		prop = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
+		STRNCPY(prop->name, ot->idname);
+		IDP_ReplaceInGroup_ex(group, prop, NULL);
+	}
+	else {
+		BLI_assert(prop->type == IDP_GROUP);
+	}
+
+	RNA_pointer_create(NULL, ot->srna, prop, ptr);
+}
+
+void WM_toolsystem_ref_properties_init_for_keymap(
+        bToolRef *tref, PointerRNA *dst_ptr, PointerRNA *src_ptr, wmOperatorType *ot)
+{
+	*dst_ptr = *src_ptr;
+	if (dst_ptr->data) {
+		dst_ptr->data = IDP_CopyProperty(dst_ptr->data);
+	}
+	else {
+		IDPropertyTemplate val = {0};
+		dst_ptr->data = IDP_New(IDP_GROUP, &val, "wmOpItemProp");
+	}
+	if (tref->properties != NULL) {
+		IDProperty *prop = IDP_GetPropertyFromGroup(tref->properties, ot->idname);
+		if (prop) {
+			IDP_MergeGroup(dst_ptr->data, prop, true);
+		}
+	}
 }

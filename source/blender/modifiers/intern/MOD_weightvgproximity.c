@@ -421,17 +421,10 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		return mesh;
 	}
 
-	Mesh *result;
-	BKE_id_copy_ex(
-	        NULL, &mesh->id, (ID **)&result,
-	        LIB_ID_CREATE_NO_MAIN |
-	        LIB_ID_CREATE_NO_USER_REFCOUNT |
-	        LIB_ID_CREATE_NO_DEG_TAG |
-	        LIB_ID_COPY_NO_PREVIEW,
-	        false);
+	Mesh *result = mesh;
 
 	if (has_mdef) {
-		dvert = CustomData_get_layer(&result->vdata, CD_MDEFORMVERT);
+		dvert = CustomData_duplicate_referenced_layer(&result->vdata, CD_MDEFORMVERT, numVerts);
 	}
 	else {
 		/* Add a valid data layer! */
@@ -506,7 +499,8 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		const bool use_trgt_faces = (wmd->proximity_flags & MOD_WVG_PROXIMITY_GEOM_FACES) != 0;
 
 		if (use_trgt_verts || use_trgt_edges || use_trgt_faces) {
-			Mesh *target_mesh = BKE_modifier_get_evaluated_mesh_from_object(obr, ctx->flag);
+			bool target_mesh_free;
+			Mesh *target_mesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(obr, &target_mesh_free);
 
 			/* We must check that we do have a valid target_mesh! */
 			if (target_mesh != NULL) {
@@ -529,6 +523,10 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 				MEM_SAFE_FREE(dists_v);
 				MEM_SAFE_FREE(dists_e);
 				MEM_SAFE_FREE(dists_f);
+
+				if (target_mesh_free) {
+					BKE_id_free(NULL, target_mesh);
+				}
 			}
 			/* Else, fall back to default obj2vert behavior. */
 			else {
@@ -544,7 +542,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	do_map(ob, new_w, numIdx, wmd->min_dist, wmd->max_dist, wmd->falloff_type);
 
 	/* Do masking. */
-	weightvg_do_mask(numIdx, indices, org_w, new_w, ob, result, wmd->mask_constant,
+	weightvg_do_mask(ctx, numIdx, indices, org_w, new_w, ob, result, wmd->mask_constant,
 	                 wmd->mask_defgrp_name, wmd->modifier.scene, wmd->mask_texture,
 	                 wmd->mask_tex_use_channel, wmd->mask_tex_mapping,
 	                 wmd->mask_tex_map_obj, wmd->mask_tex_uvlayer_name);

@@ -534,15 +534,22 @@ Mesh *BKE_mesh_add(Main *bmain, const char *name)
 void BKE_mesh_copy_data(Main *bmain, Mesh *me_dst, const Mesh *me_src, const int flag)
 {
 	const bool do_tessface = ((me_src->totface != 0) && (me_src->totpoly == 0)); /* only do tessface if we have no polys */
+	CustomDataMask mask = CD_MASK_MESH;
+
+	if (me_src->id.tag & LIB_TAG_NO_MAIN) {
+		/* For copies in depsgraph, keep data like origindex and orco. */
+		mask |= CD_MASK_DERIVEDMESH;
+	}
 
 	me_dst->mat = MEM_dupallocN(me_src->mat);
 
-	CustomData_copy(&me_src->vdata, &me_dst->vdata, CD_MASK_MESH, CD_DUPLICATE, me_dst->totvert);
-	CustomData_copy(&me_src->edata, &me_dst->edata, CD_MASK_MESH, CD_DUPLICATE, me_dst->totedge);
-	CustomData_copy(&me_src->ldata, &me_dst->ldata, CD_MASK_MESH, CD_DUPLICATE, me_dst->totloop);
-	CustomData_copy(&me_src->pdata, &me_dst->pdata, CD_MASK_MESH, CD_DUPLICATE, me_dst->totpoly);
+	const eCDAllocType alloc_type = (flag & LIB_ID_COPY_CD_REFERENCE) ? CD_REFERENCE : CD_DUPLICATE;
+	CustomData_copy(&me_src->vdata, &me_dst->vdata, mask, alloc_type, me_dst->totvert);
+	CustomData_copy(&me_src->edata, &me_dst->edata, mask, alloc_type, me_dst->totedge);
+	CustomData_copy(&me_src->ldata, &me_dst->ldata, mask, alloc_type, me_dst->totloop);
+	CustomData_copy(&me_src->pdata, &me_dst->pdata, mask, alloc_type, me_dst->totpoly);
 	if (do_tessface) {
-		CustomData_copy(&me_src->fdata, &me_dst->fdata, CD_MASK_MESH, CD_DUPLICATE, me_dst->totface);
+		CustomData_copy(&me_src->fdata, &me_dst->fdata, mask, alloc_type, me_dst->totface);
 	}
 	else {
 		mesh_tessface_clear_intern(me_dst, false);
@@ -1020,7 +1027,7 @@ Mesh *BKE_mesh_from_object(Object *ob)
 	else return NULL;
 }
 
-void BKE_mesh_assign_object(Object *ob, Mesh *me)
+void BKE_mesh_assign_object(Main *bmain, Object *ob, Mesh *me)
 {
 	Mesh *old = NULL;
 
@@ -1036,7 +1043,7 @@ void BKE_mesh_assign_object(Object *ob, Mesh *me)
 		id_us_plus((ID *)me);
 	}
 	
-	test_object_materials(ob, (ID *)me);
+	test_object_materials(bmain, ob, (ID *)me);
 
 	test_object_modifiers(ob);
 }

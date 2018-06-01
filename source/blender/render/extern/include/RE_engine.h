@@ -41,8 +41,6 @@ struct bNode;
 struct bNodeTree;
 struct BakePixel;
 struct Depsgraph;
-struct Depsgraph;
-struct Depsgraph;
 struct IDProperty;
 struct Main;
 struct Object;
@@ -94,15 +92,15 @@ typedef struct RenderEngineType {
 	char name[64];
 	int flag;
 
-	void (*update)(struct RenderEngine *engine, struct Main *bmain, struct Scene *scene);
-	void (*render_to_image)(struct RenderEngine *engine, struct Depsgraph *depsgraph);
+	void (*update)(struct RenderEngine *engine, struct Main *bmain, struct Depsgraph *depsgraph);
+	void (*render)(struct RenderEngine *engine, struct Depsgraph *depsgraph);
 	void (*bake)(struct RenderEngine *engine, struct Depsgraph *depsgraph,
-	             struct Scene *scene, struct Object *object, const int pass_type,
+	             struct Object *object, const int pass_type,
 	             const int pass_filter, const int object_id, const struct BakePixel *pixel_array, const int num_pixels,
 	             const int depth, void *result);
 
 	void (*view_update)(struct RenderEngine *engine, const struct bContext *context);
-	void (*render_to_view)(struct RenderEngine *engine, const struct bContext *context);
+	void (*view_draw)(struct RenderEngine *engine, const struct bContext *context);
 
 	void (*update_script_node)(struct RenderEngine *engine, struct bNodeTree *ntree, struct bNode *node);
 	void (*update_render_passes)(struct RenderEngine *engine, struct Scene *scene, struct ViewLayer *view_layer);

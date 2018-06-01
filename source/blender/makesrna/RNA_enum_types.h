@@ -57,6 +57,7 @@ extern const EnumPropertyItem rna_enum_mesh_select_mode_items[];
 extern const EnumPropertyItem rna_enum_mesh_delimit_mode_items[];
 extern const EnumPropertyItem rna_enum_space_type_items[];
 extern const EnumPropertyItem rna_enum_space_image_mode_items[];
+extern const EnumPropertyItem rna_enum_space_button_mode_items[];
 extern const EnumPropertyItem rna_enum_region_type_items[];
 extern const EnumPropertyItem rna_enum_object_modifier_type_items[];
 extern const EnumPropertyItem rna_enum_constraint_type_items[];
@@ -244,5 +245,8 @@ const EnumPropertyItem *RNA_movieclip_itemf(struct bContext *C, struct PointerRN
 const EnumPropertyItem *RNA_movieclip_local_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
 const EnumPropertyItem *RNA_mask_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
 const EnumPropertyItem *RNA_mask_local_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
+
+/* Non confirming, utility function. */
+const EnumPropertyItem *RNA_enum_node_tree_types_itemf_impl(struct bContext *C, bool *r_free);
 
 #endif /* __RNA_ENUM_TYPES_H__ */

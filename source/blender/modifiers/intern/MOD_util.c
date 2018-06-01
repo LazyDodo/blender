@@ -53,6 +53,9 @@
 
 #include "BKE_modifier.h"
 
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
+
 #include "MOD_util.h"
 #include "MOD_modifiertypes.h"
 
@@ -60,13 +63,13 @@
 
 #include "bmesh.h"
 
-void modifier_init_texture(const Scene *scene, Tex *tex)
+void modifier_init_texture(const Depsgraph *depsgraph, Tex *tex)
 {
 	if (!tex)
 		return;
 
 	if (tex->ima && BKE_image_is_animated(tex->ima)) {
-		BKE_image_user_frame_calc(&tex->iuser, scene->r.cfra, 0);
+		BKE_image_user_frame_calc(&tex->iuser, DEG_get_ctime(depsgraph), 0);
 	}
 }
 
@@ -308,10 +311,11 @@ Mesh *get_mesh(
 			 * we really need a copy here. Maybe the CoW ob->data can be directly used. */
 			BKE_id_copy_ex(
 			        NULL, ob->data, (ID **)&mesh,
-			        LIB_ID_CREATE_NO_MAIN |
-			        LIB_ID_CREATE_NO_USER_REFCOUNT |
-			        LIB_ID_CREATE_NO_DEG_TAG |
-			        LIB_ID_COPY_NO_PREVIEW,
+			        (LIB_ID_CREATE_NO_MAIN |
+			         LIB_ID_CREATE_NO_USER_REFCOUNT |
+			         LIB_ID_CREATE_NO_DEG_TAG |
+			         LIB_ID_COPY_NO_PREVIEW |
+			         LIB_ID_COPY_CD_REFERENCE),
 			        false);
 			mesh->runtime.deformed_only = 1;
 		}

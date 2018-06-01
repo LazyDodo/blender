@@ -141,6 +141,8 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		if (scene->toolsettings) {
 			ToolSettings *ts = scene->toolsettings;
 
+			ts->uvcalc_flag |= UVCALC_TRANSFORM_CORRECT;
+
 			if (ts->sculpt) {
 				Sculpt *sculpt = ts->sculpt;
 				sculpt->paint.symmetry_flags |= PAINT_SYMM_X;
@@ -219,7 +221,6 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		scene->r.ffcodecdata.audio_mixrate = 48000;
 		
 		/* set av sync by default */
-		printf("setting new default audio\n");
 		scene->audio.flag |= AUDIO_SYNC;
 		scene->flag &= ~SCE_FRAME_DROP;
 	}
@@ -269,7 +270,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 	{
 		Object *ob;
 
-		ob = (Object *)BKE_libblock_find_name_ex(bmain, ID_OB, "Camera");
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, "Camera");
 		if (ob) {
 			ob->rot[1] = 0.0f;
 		}
@@ -278,7 +279,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 	{
 		Brush *br;
 
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Fill");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Fill");
 		if (!br) {
 			br = BKE_brush_add(bmain, "Fill", OB_MODE_TEXTURE_PAINT);
 			id_us_min(&br->id);  /* fake user only */
@@ -287,14 +288,14 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		}
 
 		/* Vertex/Weight Paint */
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Average");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Average");
 		if (!br) {
 			br = BKE_brush_add(bmain, "Average", OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT);
 			id_us_min(&br->id);  /* fake user only */
 			br->vertexpaint_tool = PAINT_BLEND_AVERAGE;
 			br->ob_mode = OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT;
 		}
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Smear");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Smear");
 		if (!br) {
 			br = BKE_brush_add(bmain, "Smear", OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT);
 			id_us_min(&br->id);  /* fake user only */
@@ -302,49 +303,49 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 			br->ob_mode = OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT;
 		}
 
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Mask");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Mask");
 		if (br) {
 			br->imagepaint_tool = PAINT_TOOL_MASK;
 			br->ob_mode |= OB_MODE_TEXTURE_PAINT;
 		}
 
 		/* remove polish brush (flatten/contrast does the same) */
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Polish");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Polish");
 		if (br) {
 			BKE_libblock_delete(bmain, br);
 		}
 
 		/* remove brush brush (huh?) from some modes (draw brushes do the same) */
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Brush");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Brush");
 		if (br) {
 			BKE_libblock_delete(bmain, br);
 		}
 
 		/* remove draw brush from texpaint (draw brushes do the same) */
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Draw");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Draw");
 		if (br) {
 			br->ob_mode &= ~OB_MODE_TEXTURE_PAINT;
 		}
 
 		/* rename twist brush to rotate brush to match rotate tool */
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Twist");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Twist");
 		if (br) {
 			BKE_libblock_rename(bmain, &br->id, "Rotate");
 		}
 
 		/* use original normal for grab brush (otherwise flickers with normal weighting). */
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Grab");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Grab");
 		if (br) {
 			br->flag |= BRUSH_ORIGINAL_NORMAL;
 		}
 
 		/* increase strength, better for smoothing method */
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Blur");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Blur");
 		if (br) {
 			br->alpha = 1.0f;
 		}
 
-		br = (Brush *)BKE_libblock_find_name_ex(bmain, ID_BR, "Flatten/Contrast");
+		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Flatten/Contrast");
 		if (br) {
 			br->flag |= BRUSH_ACCUMULATE;
 		}
@@ -355,6 +356,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 			scene->r.displaymode = R_OUTPUT_WINDOW;
 			scene->r.size = 100;
+			scene->r.dither_intensity = 1.0f;
 			scene->unit.system = USER_UNIT_METRIC;
 			STRNCPY(scene->view_settings.view_transform, "Filmic");
 		}

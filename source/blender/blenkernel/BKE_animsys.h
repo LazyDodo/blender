@@ -31,23 +31,24 @@
  *  \author Joshua Leung
  */
 
+struct AnimData;
+struct AnimMapper;
+struct ChannelDriver;
+struct Depsgraph;
+struct FCurve;
 struct ID;
+struct KS_Path;
+struct KeyingSet;
 struct ListBase;
 struct Main;
-struct AnimData;
-struct FCurve;
-struct KeyingSet;
-struct KS_Path;
 struct PathResolvedRNA;
-struct bContext;
-
 struct PointerRNA;
 struct PropertyRNA;
 struct ReportList;
+struct Scene;
 struct bAction;
 struct bActionGroup;
-struct AnimMapper;
-struct FCurve;
+struct bContext;
 
 /* ************************************* */
 /* AnimData API */
@@ -119,7 +120,7 @@ void BKE_keyingsets_free(struct ListBase *list);
 /* Path Fixing API */
 
 /* Get a "fixed" version of the given path (oldPath) */
-char *BKE_animsys_fix_rna_path_rename(ID *owner_id, char *old_path, const char *prefix, const char *oldName,
+char *BKE_animsys_fix_rna_path_rename(struct ID *owner_id, char *old_path, const char *prefix, const char *oldName,
                                       const char *newName, int oldSubscript, int newSubscript, bool verify_paths);
 
 /* Fix all the paths for the given ID + Action */
@@ -132,7 +133,7 @@ void BKE_animdata_fix_paths_rename(struct ID *owner_id, struct AnimData *adt, st
                                    bool verify_paths);
 
 /* Fix all the paths for the entire database... */
-void BKE_animdata_fix_paths_rename_all(ID *ref_id, const char *prefix, const char *oldName, const char *newName);
+void BKE_animdata_fix_paths_rename_all(struct ID *ref_id, const char *prefix, const char *oldName, const char *newName);
 
 /* Fix the path after removing elements that are not ID (e.g., node) */
 void BKE_animdata_fix_paths_remove(struct ID *id, const char *path);
@@ -174,10 +175,10 @@ void BKE_fcurves_main_cb(struct Main *bmain, ID_FCurve_Edit_Callback func, void 
 /* In general, these ones should be called to do all animation evaluation */
 
 /* Evaluation loop for evaluating animation data  */
-void BKE_animsys_evaluate_animdata(struct Scene *scene, struct ID *id, struct AnimData *adt, float ctime, short recalc);
+void BKE_animsys_evaluate_animdata(struct Depsgraph *depsgraph, struct Scene *scene, struct ID *id, struct AnimData *adt, float ctime, short recalc);
 
 /* Evaluation of all ID-blocks with Animation Data blocks - Animation Data Only */
-void BKE_animsys_evaluate_all_animation(struct Main *main, struct Scene *scene, float ctime);
+void BKE_animsys_evaluate_all_animation(struct Main *main, struct Depsgraph *depsgraph, struct Scene *scene, float ctime);
 
 /* TODO(sergey): This is mainly a temp public function. */
 bool BKE_animsys_execute_fcurve(struct PointerRNA *ptr, struct AnimMapper *remap, struct FCurve *fcu, float curval);
@@ -191,7 +192,7 @@ bool BKE_animsys_execute_fcurve(struct PointerRNA *ptr, struct AnimMapper *remap
  */
 
 /* Evaluate Action (F-Curve Bag) */
-void animsys_evaluate_action(struct PointerRNA *ptr, struct bAction *act, struct AnimMapper *remap, float ctime);
+void animsys_evaluate_action(struct Depsgraph *depsgraph, struct PointerRNA *ptr, struct bAction *act, struct AnimMapper *remap, float ctime);
 
 /* Evaluate Action Group */
 void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, struct bActionGroup *agrp, struct AnimMapper *remap, float ctime);
@@ -203,7 +204,9 @@ void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, 
 struct Depsgraph;
 
 void BKE_animsys_eval_animdata(struct Depsgraph *depsgraph, struct ID *id);
-void BKE_animsys_eval_driver(struct Depsgraph *depsgraph, struct ID *id, struct FCurve *fcurve);
+void BKE_animsys_eval_driver(struct Depsgraph *depsgraph, struct ID *id, int driver_index, struct ChannelDriver *driver_orig);
+
+void BKE_animsys_update_driver_array(struct ID *id);
 
 /* ************************************* */
 

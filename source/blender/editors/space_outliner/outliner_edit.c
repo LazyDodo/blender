@@ -1057,7 +1057,7 @@ static int outliner_scroll_page_exec(bContext *C, wmOperator *op)
 	ar->v2d.cur.ymin += dy;
 	ar->v2d.cur.ymax += dy;
 	
-	ED_region_tag_redraw(ar);
+	ED_region_tag_redraw_no_rebuild(ar);
 	
 	return OPERATOR_FINISHED;
 }
@@ -1887,9 +1887,9 @@ static int parent_drop_exec(bContext *C, wmOperator *op)
 
 	partype = RNA_enum_get(op->ptr, "type");
 	RNA_string_get(op->ptr, "parent", parname);
-	par = (Object *)BKE_libblock_find_name(ID_OB, parname);
+	par = (Object *)BKE_libblock_find_name(bmain, ID_OB, parname);
 	RNA_string_get(op->ptr, "child", childname);
-	ob = (Object *)BKE_libblock_find_name(ID_OB, childname);
+	ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, childname);
 
 	if (ID_IS_LINKED(ob)) {
 		BKE_report(op->reports, RPT_INFO, "Can't edit library linked object");
@@ -1928,9 +1928,9 @@ static int parent_drop_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		RNA_string_set(op->ptr, "parent", te->name);
 		/* Identify parent and child */
 		RNA_string_get(op->ptr, "child", childname);
-		ob = (Object *)BKE_libblock_find_name(ID_OB, childname);
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, childname);
 		RNA_string_get(op->ptr, "parent", parname);
-		par = (Object *)BKE_libblock_find_name(ID_OB, parname);
+		par = (Object *)BKE_libblock_find_name(bmain, ID_OB, parname);
 		
 		if (ELEM(NULL, ob, par)) {
 			if (par == NULL) printf("par==NULL\n");
@@ -2085,7 +2085,7 @@ static int parent_clear_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 	char obname[MAX_ID_NAME];
 
 	RNA_string_get(op->ptr, "dragged_obj", obname);
-	ob = (Object *)BKE_libblock_find_name(ID_OB, obname);
+	ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, obname);
 
 	/* search forwards to find the object */
 	outliner_find_id(soops, &soops->tree, (ID *)ob);
@@ -2136,10 +2136,10 @@ static int scene_drop_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 	if (te) {
 		RNA_string_set(op->ptr, "scene", te->name);
-		scene = (Scene *)BKE_libblock_find_name(ID_SCE, te->name);
+		scene = (Scene *)BKE_libblock_find_name(bmain, ID_SCE, te->name);
 
 		RNA_string_get(op->ptr, "object", obname);
-		ob = (Object *)BKE_libblock_find_name(ID_OB, obname);
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, obname);
 
 		if (ELEM(NULL, ob, scene) || ID_IS_LINKED(scene)) {
 			return OPERATOR_CANCELLED;
@@ -2201,6 +2201,7 @@ static int material_drop_invoke(bContext *C, wmOperator *op, const wmEvent *even
 {
 	Material *ma = NULL;
 	Object *ob = NULL;
+	Main *bmain = CTX_data_main(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	ARegion *ar = CTX_wm_region(C);
 	TreeElement *te = NULL;
@@ -2214,16 +2215,16 @@ static int material_drop_invoke(bContext *C, wmOperator *op, const wmEvent *even
 
 	if (te) {
 		RNA_string_set(op->ptr, "object", te->name);
-		ob = (Object *)BKE_libblock_find_name(ID_OB, te->name);
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, te->name);
 
 		RNA_string_get(op->ptr, "material", mat_name);
-		ma = (Material *)BKE_libblock_find_name(ID_MA, mat_name);
+		ma = (Material *)BKE_libblock_find_name(bmain, ID_MA, mat_name);
 
 		if (ELEM(NULL, ob, ma)) {
 			return OPERATOR_CANCELLED;
 		}
 
-		assign_material(ob, ma, ob->totcol + 1, BKE_MAT_ASSIGN_USERPREF);
+		assign_material(bmain, ob, ma, ob->totcol + 1, BKE_MAT_ASSIGN_USERPREF);
 
 		WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, CTX_wm_view3d(C));
 		WM_event_add_notifier(C, NC_MATERIAL | ND_SHADING_LINKS, ma);
@@ -2310,7 +2311,7 @@ static int collection_drop_invoke(bContext *C, wmOperator *op, const wmEvent *ev
 	Scene *scene = BKE_scene_find_from_collection(bmain, collection);
 	BLI_assert(scene);
 	RNA_string_get(op->ptr, "child", childname);
-	Object *ob = (Object *)BKE_libblock_find_name(ID_OB, childname);
+	Object *ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, childname);
 	BKE_collection_object_add(bmain, collection, ob);
 
 	DEG_relations_tag_update(bmain);

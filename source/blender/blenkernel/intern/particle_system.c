@@ -74,8 +74,10 @@
 #include "BKE_collision.h"
 #include "BKE_colortools.h"
 #include "BKE_effect.h"
+#include "BKE_global.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_main.h"
 #include "BKE_particle.h"
 
 #include "BKE_collection.h"
@@ -311,7 +313,7 @@ int psys_get_tot_child(Scene *scene, ParticleSystem *psys, const bool use_render
 /*			Distribution						*/
 /************************************************/
 
-void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_deformed, ParticleSystem *psys)
+void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_original, ParticleSystem *psys)
 {
 	/* use for building derived mesh mapping info:
 	 *
@@ -350,7 +352,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_deformed, Partic
 				origindex_poly= NULL;
 			}
 			else {
-				totelem = mesh_deformed->totface;
+				totelem = mesh_original->totface;
 				origindex = CustomData_get_layer(&mesh_final->fdata, CD_ORIGINDEX);
 
 				/* for face lookups we need the poly origindex too */
@@ -414,7 +416,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_deformed, Partic
 						pa->num_dmcache = DMCACHE_NOTFOUND;
 				}
 				else { /* FROM_FACE/FROM_VOLUME */
-					pa->num_dmcache = psys_particle_dm_face_lookup(mesh_final, mesh_deformed, pa->num, pa->fuv, nodearray);
+					pa->num_dmcache = psys_particle_dm_face_lookup(mesh_final, mesh_original, pa->num, pa->fuv, nodearray);
 				}
 			}
 		}
@@ -995,7 +997,7 @@ static void evaluate_emitter_anim(struct Depsgraph *depsgraph, Scene *scene, Obj
 		evaluate_emitter_anim(depsgraph, scene, ob->parent, cfra);
 	
 	/* we have to force RECALC_ANIM here since where_is_objec_time only does drivers */
-	BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, cfra, ADT_RECALC_ANIM);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, cfra, ADT_RECALC_ANIM);
 	BKE_object_where_is_calc_time(depsgraph, scene, ob, cfra);
 }
 
@@ -3043,6 +3045,7 @@ static void hair_create_input_mesh(ParticleSimulationData *sim, int totpoint, in
 	if (!mesh) {
 		*r_mesh = mesh = BKE_mesh_new_nomain(totpoint, totedge, 0, 0, 0);
 		CustomData_add_layer(&mesh->vdata, CD_MDEFORMVERT, CD_CALLOC, NULL, mesh->totvert);
+		BKE_mesh_update_customdata_pointers(mesh, false);
 	}
 	mvert = mesh->mvert;
 	medge = mesh->medge;
@@ -3214,13 +3217,7 @@ static void do_hair_dynamics(ParticleSimulationData *sim)
 	            LIB_ID_COPY_NO_PREVIEW,
 	            false);
 	deformedVerts = BKE_mesh_vertexCos_get(psys->hair_out_mesh, NULL);
-
-	/* TODO(Sybren): after porting Cloth modifier, remove this conversion */
-	DerivedMesh *hair_in_dm = CDDM_from_mesh(psys->hair_in_mesh);
-	clothModifier_do(psys->clmd, sim->depsgraph, sim->scene, sim->ob, hair_in_dm, deformedVerts);
-	hair_in_dm->needsFree = 1;
-	hair_in_dm->release(hair_in_dm);
-
+	clothModifier_do(psys->clmd, sim->depsgraph, sim->scene, sim->ob, psys->hair_in_mesh, deformedVerts);
 	BKE_mesh_apply_vert_coords(psys->hair_out_mesh, deformedVerts);
 	
 	MEM_freeN(deformedVerts);
@@ -3248,7 +3245,7 @@ static void hair_step(ParticleSimulationData *sim, float cfra, const bool use_re
 
 	if (psys->recalc & PSYS_RECALC_RESET) {
 		/* need this for changing subsurf levels */
-		psys_calc_dmcache(sim->ob, sim->psmd->mesh_final, sim->psmd->mesh_deformed, psys);
+		psys_calc_dmcache(sim->ob, sim->psmd->mesh_final, sim->psmd->mesh_original, psys);
 
 		if (psys->clmd)
 			cloth_free_modifier(psys->clmd);
@@ -3810,7 +3807,7 @@ static void cached_step(ParticleSimulationData *sim, float cfra, const bool use_
 	}
 }
 
-static void particles_fluid_step(ParticleSimulationData *sim, int UNUSED(cfra), const bool use_render_params)
+static void particles_fluid_step(Main *bmain, ParticleSimulationData *sim, int UNUSED(cfra), const bool use_render_params)
 {	
 	ParticleSystem *psys = sim->psys;
 	if (psys->particles) {
@@ -3841,7 +3838,7 @@ static void particles_fluid_step(ParticleSimulationData *sim, int UNUSED(cfra), 
 			// ok, start loading
 			BLI_join_dirfile(filename, sizeof(filename), fss->surfdataPath, OB_FLUIDSIM_SURF_PARTICLES_FNAME);
 
-			BLI_path_abs(filename, modifier_path_relbase(sim->ob));
+			BLI_path_abs(filename, modifier_path_relbase(bmain, sim->ob));
 
 			BLI_path_frame(filename, curFrame, 0); // fixed #frame-no 
 
@@ -3915,7 +3912,7 @@ static void particles_fluid_step(ParticleSimulationData *sim, int UNUSED(cfra), 
 		} // fluid sim particles done
 	}
 #else
-	UNUSED_VARS(use_render_params);
+	UNUSED_VARS(bmain, use_render_params);
 #endif // WITH_MOD_FLUID
 }
 
@@ -4255,13 +4252,10 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	}
 
 	/* execute drivers only, as animation has already been done */
-	BKE_animsys_evaluate_animdata(scene, &part->id, part->adt, cfra, ADT_RECALC_DRIVERS);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &part->id, part->adt, cfra, ADT_RECALC_DRIVERS);
 
 	/* to verify if we need to restore object afterwards */
 	psys->flag &= ~PSYS_OB_ANIM_RESTORE;
-
-	if (psys->recalc & PSYS_RECALC_TYPE)
-		psys_changed_type(sim.ob, sim.psys);
 
 	if (psys->recalc & PSYS_RECALC_RESET)
 		psys->totunexist = 0;
@@ -4297,7 +4291,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 				for (i=0; i<=part->hair_step; i++) {
 					hcfra=100.0f*(float)i/(float)psys->part->hair_step;
 					if ((part->flag & PART_HAIR_REGROW)==0)
-						BKE_animsys_evaluate_animdata(scene, &part->id, part->adt, hcfra, ADT_RECALC_ANIM);
+						BKE_animsys_evaluate_animdata(depsgraph, scene, &part->id, part->adt, hcfra, ADT_RECALC_ANIM);
 					system_step(&sim, hcfra, use_render_params);
 					psys->cfra = hcfra;
 					psys->recalc = 0;
@@ -4316,7 +4310,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 		}
 		case PART_FLUID:
 		{
-			particles_fluid_step(&sim, (int)cfra, use_render_params);
+			particles_fluid_step(G.main  /* Yuck :/ */, &sim, (int)cfra, use_render_params);
 			break;
 		}
 		default:

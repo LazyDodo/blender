@@ -28,6 +28,7 @@
 
 struct CurveCache;
 struct GPUMaterial;
+struct GPUTexture;
 struct Gwn_Batch;
 struct Gwn_IndexBuf;
 struct Gwn_VertBuf;
@@ -64,7 +65,8 @@ struct Gwn_Batch *DRW_curve_batch_cache_get_normal_edge(
 struct Gwn_Batch *DRW_curve_batch_cache_get_overlay_edges(struct Curve *cu);
 struct Gwn_Batch *DRW_curve_batch_cache_get_overlay_verts(struct Curve *cu);
 
-struct Gwn_Batch *DRW_curve_batch_cache_get_triangles_with_normals(struct Curve *cu, struct CurveCache *ob_curve_cache);
+struct Gwn_Batch *DRW_curve_batch_cache_get_triangles_with_normals(
+        struct Curve *cu, struct CurveCache *ob_curve_cache);
 struct Gwn_Batch **DRW_curve_batch_cache_get_surface_shaded(
         struct Curve *cu, struct CurveCache *ob_curve_cache,
         struct GPUMaterial **gpumat_array, uint gpumat_array_len);
@@ -106,10 +108,11 @@ struct Gwn_Batch *DRW_mesh_batch_cache_get_triangles_with_normals_and_weights(st
 struct Gwn_Batch *DRW_mesh_batch_cache_get_triangles_with_normals_and_vert_colors(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_triangles_with_select_id(struct Mesh *me, bool use_hide, uint select_id_offset);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_triangles_with_select_mask(struct Mesh *me, bool use_hide);
+struct Gwn_Batch *DRW_mesh_batch_cache_get_loose_edges_with_normals(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_points_with_normals(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_all_verts(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_fancy_edges(struct Mesh *me);
-struct Gwn_Batch *DRW_mesh_batch_cache_get_edge_detection(struct Mesh *me);
+struct Gwn_Batch *DRW_mesh_batch_cache_get_edge_detection(struct Mesh *me, bool *r_is_manifold);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_overlay_triangles(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_overlay_triangles_nor(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_overlay_loose_edges(struct Mesh *me);
@@ -120,14 +123,22 @@ struct Gwn_Batch *DRW_mesh_batch_cache_get_overlay_facedots(struct Mesh *me);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_facedots_with_select_id(struct Mesh *me, uint select_id_offset);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_edges_with_select_id(struct Mesh *me, uint select_id_offset);
 struct Gwn_Batch *DRW_mesh_batch_cache_get_verts_with_select_id(struct Mesh *me, uint select_id_offset);
+/* Object mode Wireframe overlays */
+void DRW_mesh_batch_cache_get_wireframes_face_texbuf(
+        struct Mesh *me, struct GPUTexture **verts_data, struct GPUTexture **face_indices, int *tri_count);
 
 void DRW_mesh_cache_sculpt_coords_ensure(struct Mesh *me);
 
 /* Particles */
-struct Gwn_Batch *DRW_particles_batch_cache_get_hair(struct Object *object, struct ParticleSystem *psys, struct ModifierData *md);
-struct Gwn_Batch *DRW_particles_batch_cache_get_dots(struct Object *object, struct ParticleSystem *psys);
-struct Gwn_Batch *DRW_particles_batch_cache_get_edit_strands(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
-struct Gwn_Batch *DRW_particles_batch_cache_get_edit_inner_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
-struct Gwn_Batch *DRW_particles_batch_cache_get_edit_tip_points(struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_particles_batch_cache_get_hair(
+        struct Object *object, struct ParticleSystem *psys, struct ModifierData *md);
+struct Gwn_Batch *DRW_particles_batch_cache_get_dots(
+        struct Object *object, struct ParticleSystem *psys);
+struct Gwn_Batch *DRW_particles_batch_cache_get_edit_strands(
+        struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_particles_batch_cache_get_edit_inner_points(
+        struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+struct Gwn_Batch *DRW_particles_batch_cache_get_edit_tip_points(
+        struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
 
 #endif /* __DRAW_CACHE_IMPL_H__ */

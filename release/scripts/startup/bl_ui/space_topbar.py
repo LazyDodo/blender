@@ -57,26 +57,6 @@ class TOPBAR_HT_upper_bar(Header):
                 text="Back to Previous",
             )
 
-        layout.separator()
-
-        layout.template_running_jobs()
-
-        layout.template_reports_banner()
-
-        row = layout.row(align=True)
-
-        if bpy.app.autoexec_fail is True and bpy.app.autoexec_fail_quiet is False:
-            row.label("Auto-run disabled", icon='ERROR')
-            if bpy.data.is_saved:
-                props = row.operator("wm.revert_mainfile", icon='SCREEN_BACK', text="Reload Trusted")
-                props.use_scripts = True
-
-            row.operator("script.autoexec_warn_clear", text="Ignore")
-
-            # include last so text doesn't push buttons out of the header
-            row.label(bpy.app.autoexec_fail_message)
-            return
-
     def draw_right(self, context):
         layout = self.layout
 
@@ -145,13 +125,13 @@ class TOPBAR_HT_lower_bar(Header):
 
         # Note: general mode options should be added to 'draw_right'.
         if mode == 'SCULPT':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
         elif mode == 'PAINT_VERTEX':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
         elif mode == 'PAINT_WEIGHT':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
         elif mode == 'PAINT_TEXTURE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
         elif mode == 'EDIT_ARMATURE':
             pass
         elif mode == 'EDIT_CURVE':
@@ -159,9 +139,9 @@ class TOPBAR_HT_lower_bar(Header):
         elif mode == 'EDIT_MESH':
             pass
         elif mode == 'POSE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".posemode", category="")
+            pass
         elif mode == 'PARTICLE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".paint_common", category="")
+            pass
 
     def draw_right(self, context):
         layout = self.layout
@@ -171,23 +151,23 @@ class TOPBAR_HT_lower_bar(Header):
         mode = context.mode
 
         if mode == 'SCULPT':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".sculpt_mode", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".sculpt_mode", category="")
         elif mode == 'PAINT_VERTEX':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".vertexpaint", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".vertexpaint", category="")
         elif mode == 'PAINT_WEIGHT':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".weightpaint", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".weightpaint", category="")
         elif mode == 'PAINT_TEXTURE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".imagepaint", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".imagepaint", category="")
         elif mode == 'EDIT_ARMATURE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".armature_edit", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".armature_edit", category="")
         elif mode == 'EDIT_CURVE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".curve_edit", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".curve_edit", category="")
         elif mode == 'EDIT_MESH':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".mesh_edit", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".mesh_edit", category="")
         elif mode == 'POSE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".posemode", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".posemode", category="")
         elif mode == 'PARTICLE':
-            layout.popover_group(space_type='VIEW_3D', region_type='TOOLS', context=".particlemode", category="")
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".particlemode", category="")
 
         # 3D View Options, tsk. maybe users aren't always using 3D view?
         toolsettings = context.tool_settings
@@ -259,8 +239,14 @@ class TOPBAR_HT_lower_bar(Header):
                         show_snap = True
 
         if show_snap:
-            snap_element = toolsettings.snap_element
-            act_snap_element = bpy.types.ToolSettings.bl_rna.properties['snap_element'].enum_items[snap_element]
+            snap_items = bpy.types.ToolSettings.bl_rna.properties['snap_elements'].enum_items
+            for elem in toolsettings.snap_elements:
+                # TODO: Display multiple icons.
+                # (Currently only one of the enabled modes icons is displayed)
+                icon = snap_items[elem].icon
+                break
+            else:
+                icon = 'NONE'
 
             row = layout.row(align=True)
             row.prop(toolsettings, "use_snap", text="")
@@ -270,7 +256,7 @@ class TOPBAR_HT_lower_bar(Header):
                 space_type='TOPBAR',
                 region_type='HEADER',
                 panel_type="TOPBAR_PT_snapping",
-                icon=act_snap_element.icon,
+                icon=icon,
                 text=""
             )
 
@@ -367,7 +353,7 @@ class TOPBAR_PT_snapping(Panel):
 
     def draw(self, context):
         toolsettings = context.tool_settings
-        snap_element = toolsettings.snap_element
+        snap_elements = toolsettings.snap_elements
         obj = context.active_object
         mode = context.mode
         object_mode = 'OBJECT' if obj is None else obj.mode
@@ -375,13 +361,13 @@ class TOPBAR_PT_snapping(Panel):
         layout = self.layout
         col = layout.column()
         col.label("Snapping")
-        col.prop(toolsettings, "snap_element", expand=True)
+        col.prop(toolsettings, "snap_elements", expand=True)
 
         col.separator()
-
-        if snap_element == 'INCREMENT':
+        if 'INCREMENT' in snap_elements:
             col.prop(toolsettings, "use_snap_grid_absolute")
-        else:
+
+        if snap_elements != {'INCREMENT'}:
             col.label("Target")
             row = col.row(align=True)
             row.prop(toolsettings, "snap_target", expand=True)
@@ -389,13 +375,14 @@ class TOPBAR_PT_snapping(Panel):
             if obj:
                 if object_mode == 'EDIT':
                     col.prop(toolsettings, "use_snap_self")
-                if object_mode in {'OBJECT', 'POSE', 'EDIT'} and snap_element != 'VOLUME':
+                if object_mode in {'OBJECT', 'POSE', 'EDIT'}:
                     col.prop(toolsettings, "use_snap_align_rotation", text="Align Rotation")
 
-        if snap_element == 'VOLUME':
-            col.prop(toolsettings, "use_snap_peel_object")
-        elif snap_element == 'FACE':
-            col.prop(toolsettings, "use_snap_project", text="Project Elements")
+            if 'FACE' in snap_elements:
+                col.prop(toolsettings, "use_snap_project", text="Project Elements")
+
+            if 'VOLUME' in snap_elements:
+                col.prop(toolsettings, "use_snap_peel_object")
 
         # Auto-Merge Editing
         if obj:
@@ -413,6 +400,7 @@ class INFO_MT_editor_menus(Menu):
     @staticmethod
     def draw_menus(layout, context):
         layout.menu("INFO_MT_file")
+        layout.menu("INFO_MT_edit")
 
         layout.menu("INFO_MT_render")
 
@@ -445,8 +433,6 @@ class INFO_MT_file(Menu):
         layout.operator("wm.save_as_mainfile", text="Save Copy...", icon='SAVE_COPY').copy = True
 
         layout.separator()
-
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
 
         layout.operator_context = 'INVOKE_AREA'
         layout.operator("wm.save_homefile", icon='SAVE_PREFS')
@@ -567,16 +553,27 @@ class INFO_MT_render(Menu):
     def draw(self, context):
         layout = self.layout
 
+        rd = context.scene.render
+
         layout.operator("render.render", text="Render Image", icon='RENDER_STILL').use_viewport = True
         props = layout.operator("render.render", text="Render Animation", icon='RENDER_ANIMATION')
         props.animation = True
         props.use_viewport = True
+        layout.operator("sound.mixdown", text="Render Audio", icon='PLAY_AUDIO')
 
         layout.separator()
 
-        layout.operator("render.opengl", text="OpenGL Render Image")
-        layout.operator("render.opengl", text="OpenGL Render Animation").animation = True
-        layout.menu("INFO_MT_opengl_render")
+        layout.prop_menu_enum(rd, "display_mode", text="Display Mode", icon='IMAGE_COL')
+        layout.prop(rd, "use_lock_interface", text="Lock Interface")
+
+        layout.separator()
+
+        props = layout.operator("render.opengl", text="OpenGL Render Image", icon='RENDER_STILL')
+        props.view_context = False
+        props = layout.operator("render.opengl", text="OpenGL Render Animation", icon='RENDER_ANIMATION')
+        props.view_context = False
+        props.animation = True
+        layout.menu("INFO_MT_opengl_render", icon='SETTINGS')
 
         layout.separator()
 
@@ -596,6 +593,24 @@ class INFO_MT_opengl_render(Menu):
 
         layout.prop_menu_enum(rd, "antialiasing_samples")
         layout.prop_menu_enum(rd, "alpha_mode")
+
+
+class INFO_MT_edit(Menu):
+    bl_label = "Edit"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("ed.undo")
+        layout.operator("ed.redo")
+
+        layout.separator()
+
+        layout.operator("ed.undo_history")
+
+        layout.separator()
+
+        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
 
 
 class INFO_MT_window(Menu):
@@ -677,6 +692,7 @@ classes = (
     INFO_MT_file_export,
     INFO_MT_file_external_data,
     INFO_MT_file_previews,
+    INFO_MT_edit,
     INFO_MT_game,
     INFO_MT_render,
     INFO_MT_opengl_render,

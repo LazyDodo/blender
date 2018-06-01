@@ -96,6 +96,7 @@
 #include "ED_mball.h"
 #include "ED_lattice.h"
 #include "ED_object.h"
+#include "ED_outliner.h"
 #include "ED_screen.h"
 #include "ED_undo.h"
 #include "ED_image.h"
@@ -112,6 +113,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
+#include "WM_toolsystem.h"
 
 #include "object_intern.h"  // own include
 
@@ -271,7 +273,7 @@ bool ED_object_editmode_load(Object *obedit)
  * \param flag:
  * - If #EM_FREEDATA isn't in the flag, use ED_object_editmode_load directly.
  */
-void ED_object_editmode_exit_ex(Scene *scene, Object *obedit, int flag)
+bool ED_object_editmode_exit_ex(Scene *scene, Object *obedit, int flag)
 {
 	const bool freedata = (flag & EM_FREEDATA) != 0;
 
@@ -284,7 +286,7 @@ void ED_object_editmode_exit_ex(Scene *scene, Object *obedit, int flag)
 			obedit->mode &= ~OB_MODE_EDIT;
 		}
 		if (flag & EM_WAITCURSOR) waitcursor(0);
-		return;
+		return true;
 	}
 
 	/* freedata only 0 now on file saves and render */
@@ -299,7 +301,7 @@ void ED_object_editmode_exit_ex(Scene *scene, Object *obedit, int flag)
 				pid->cache->flag |= PTCACHE_OUTDATED;
 		}
 		BLI_freelistN(&pidlist);
-		
+
 		BKE_ptcache_object_reset(scene, obedit, PTCACHE_RESET_OUTDATED);
 
 		/* also flush ob recalc, doesn't take much overhead, but used for particles */
@@ -307,34 +309,37 @@ void ED_object_editmode_exit_ex(Scene *scene, Object *obedit, int flag)
 
 		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
 
-
 		obedit->mode &= ~OB_MODE_EDIT;
 	}
 
 	if (flag & EM_WAITCURSOR) waitcursor(0);
+
+	return (obedit->mode & OB_MODE_EDIT) == 0;
 }
 
-void ED_object_editmode_exit(bContext *C, int flag)
+bool ED_object_editmode_exit(bContext *C, int flag)
 {
 	Scene *scene = CTX_data_scene(C);
 	Object *obedit = CTX_data_edit_object(C);
-	ED_object_editmode_exit_ex(scene, obedit, flag);
+	return ED_object_editmode_exit_ex(scene, obedit, flag);
 }
 
-void ED_object_editmode_enter_ex(Scene *scene, Object *ob, int flag)
+bool ED_object_editmode_enter_ex(Scene *scene, Object *ob, int flag)
 {
 	bool ok = false;
 
-	if (ELEM(NULL, ob, ob->data)) return;
-	if (ID_IS_LINKED(ob)) return;
+	if (ELEM(NULL, ob, ob->data) || ID_IS_LINKED(ob)) {
+		return false;
+	}
 
 	/* this checks actual object->data, for cases when other scenes have it in editmode context */
-	if (BKE_object_is_in_editmode(ob))
-		return;
-	
+	if (BKE_object_is_in_editmode(ob)) {
+		return true;
+	}
+
 	if (BKE_object_obdata_is_libdata(ob)) {
 		error_libdata();
-		return;
+		return false;
 	}
 
 	if (flag & EM_WAITCURSOR) waitcursor(1);
@@ -360,22 +365,8 @@ void ED_object_editmode_enter_ex(Scene *scene, Object *ob, int flag)
 		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_EDITMODE_MESH, NULL);
 	}
 	else if (ob->type == OB_ARMATURE) {
-		bArmature *arm = ob->data;
-		if (!arm) return;
-		/*
-		 * The function BKE_object_obdata_is_libdata make a problem here, the
-		 * check for ob->proxy return 0 and let blender enter to edit mode
-		 * this causes a crash when you try leave the edit mode.
-		 * The problem is that i can't remove the ob->proxy check from
-		 * BKE_object_obdata_is_libdata that prevent the bugfix #6614, so
-		 * i add this little hack here.
-		 */
-		if (ID_IS_LINKED(arm)) {
-			error_libdata();
-			return;
-		}
 		ok = 1;
-		ED_armature_to_edit(arm);
+		ED_armature_to_edit(ob->data);
 		/* to ensure all goes in restposition and without striding */
 		DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME); /* XXX: should this be OB_RECALC_DATA? */
 
@@ -417,9 +408,11 @@ void ED_object_editmode_enter_ex(Scene *scene, Object *ob, int flag)
 	}
 
 	if (flag & EM_WAITCURSOR) waitcursor(0);
+
+	return (ob->mode & OB_MODE_EDIT) != 0;
 }
 
-void ED_object_editmode_enter(bContext *C, int flag)
+bool ED_object_editmode_enter(bContext *C, int flag)
 {
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
@@ -431,10 +424,10 @@ void ED_object_editmode_enter(bContext *C, int flag)
 	else {
 		ob = view_layer->basact->object;
 	}
-	if (ob == NULL) return;
-	if (ID_IS_LINKED(ob)) return;
-
-	ED_object_editmode_enter_ex(scene, ob, flag);
+	if ((ob == NULL) || ID_IS_LINKED(ob)) {
+		return false;
+	}
+	return ED_object_editmode_enter_ex(scene, ob, flag);
 }
 
 static int editmode_toggle_exec(bContext *C, wmOperator *op)
@@ -467,16 +460,16 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 	else {
 		ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);
 		if ((obact->mode & mode_flag) == 0) {
-			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
+			FOREACH_OBJECT_BEGIN(view_layer, ob)
 			{
 				if ((ob != obact) && (ob->type == obact->type)) {
 					ED_object_editmode_exit_ex(scene, ob, EM_FREEDATA | EM_WAITCURSOR);
 				}
 			}
-			FOREACH_SELECTED_OBJECT_END;
+			FOREACH_OBJECT_END;
 		}
 	}
-	
+
 	ED_space_image_uv_sculpt_update(CTX_wm_manager(C), scene);
 
 	WM_msg_publish_rna_prop(mbus, &obact->id, obact, Object, mode);
@@ -548,7 +541,7 @@ static int posemode_exec(bContext *C, wmOperator *op)
 		if (ok) {
 			struct Main *bmain = CTX_data_main(C);
 			ViewLayer *view_layer = CTX_data_view_layer(C);
-			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
+			FOREACH_OBJECT_BEGIN(view_layer, ob)
 			{
 				if ((ob != obact) &&
 				    (ob->type == OB_ARMATURE) &&
@@ -557,7 +550,7 @@ static int posemode_exec(bContext *C, wmOperator *op)
 					ED_object_posemode_exit_ex(bmain, ob);
 				}
 			}
-			FOREACH_SELECTED_OBJECT_END;
+			FOREACH_OBJECT_END;
 		}
 	}
 	else {
@@ -1369,12 +1362,28 @@ static int object_mode_set_poll(bContext *C)
 
 static int object_mode_set_exec(bContext *C, wmOperator *op)
 {
+	bool use_submode = STREQ(op->idname, "OBJECT_OT_mode_set_or_submode");
 	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	eObjectMode mode = RNA_enum_get(op->ptr, "mode");
 	eObjectMode restore_mode = (ob) ? ob->mode : OB_MODE_OBJECT;
 	const bool toggle = RNA_boolean_get(op->ptr, "toggle");
-	
+
+	if (use_submode) {
+		/* When not changing modes use submodes, see: T55162. */
+		if (toggle == false) {
+			if (mode == restore_mode) {
+				switch (mode) {
+					case OB_MODE_EDIT:
+						WM_menu_name_call(C, "VIEW3D_MT_edit_mesh_select_mode", WM_OP_INVOKE_REGION_WIN);
+						return OPERATOR_INTERFACE;
+					default:
+						break;
+				}
+			}
+		}
+	}
+
 	if (gpd) {
 		/* GP Mode is not bound to a specific object. Therefore,
 		 * we don't want it to be actually saved on any objects,
@@ -1449,6 +1458,31 @@ void OBJECT_OT_mode_set(wmOperatorType *ot)
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
+void OBJECT_OT_mode_set_or_submode(wmOperatorType *ot)
+{
+	PropertyRNA *prop;
+
+	/* identifiers */
+	ot->name = "Set Object Mode or Submode";
+	ot->description = "Sets the object interaction mode";
+	ot->idname = "OBJECT_OT_mode_set_or_submode";
+
+	/* api callbacks */
+	ot->exec = object_mode_set_exec;
+
+	ot->poll = object_mode_set_poll; //ED_operator_object_active_editable;
+
+	/* flags */
+	ot->flag = 0; /* no register/undo here, leave it to operators being called */
+
+	ot->prop = RNA_def_enum(ot->srna, "mode", rna_enum_object_mode_items, OB_MODE_OBJECT, "Mode", "");
+	RNA_def_enum_funcs(ot->prop, object_mode_set_itemsf);
+	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
+
+	prop = RNA_def_boolean(ot->srna, "toggle", 0, "Toggle", "");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+}
+
 bool ED_object_editmode_calc_active_center(Object *obedit, const bool select_only, float r_center[3])
 {
 	switch (obedit->type) {
@@ -1513,6 +1547,16 @@ bool ED_object_editmode_calc_active_center(Object *obedit, const bool select_onl
 
 #define COLLECTION_INVALID_INDEX -1
 
+static int move_to_collection_poll(bContext *C)
+{
+	if (CTX_wm_space_outliner(C) != NULL) {
+		return ED_outliner_collections_editor_poll(C);
+	}
+	else {
+		return ED_operator_object_active_editable(C);
+	}
+}
+
 static int move_to_collection_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
@@ -1521,6 +1565,7 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	const bool is_link = STREQ(op->idname, "OBJECT_OT_link_to_collection");
 	const bool is_new = RNA_boolean_get(op->ptr, "is_new");
 	Collection *collection;
+	ListBase objects = {NULL};
 
 	if (!RNA_property_is_set(op->ptr, prop)) {
 		BKE_report(op->reports, RPT_ERROR, "No collection selected");
@@ -1534,18 +1579,16 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	Object *single_object = NULL;
-	CTX_DATA_BEGIN (C, Object *, ob, selected_objects)
-	{
-		if (single_object != NULL) {
-			single_object = NULL;
-			break;
-		}
-		else {
-			single_object = ob;
-		}
+	if (CTX_wm_space_outliner(C) != NULL) {
+		ED_outliner_selected_objects_get(C, &objects);
 	}
-	CTX_DATA_END;
+	else {
+		CTX_DATA_BEGIN (C, Object *, ob, selected_objects)
+		{
+			BLI_addtail(&objects, BLI_genericNodeN(ob));
+		}
+		CTX_DATA_END;
+	}
 
 	if (is_new) {
 		char new_collection_name[MAX_NAME];
@@ -1553,16 +1596,21 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 		collection = BKE_collection_add(bmain, collection, new_collection_name);
 	}
 
+	Object *single_object = BLI_listbase_is_single(&objects) ?
+	                            ((LinkData *)objects.first)->data : NULL;
+
 	if ((single_object != NULL) &&
 	    is_link &&
 	    BLI_findptr(&collection->gobject, single_object, offsetof(CollectionObject, ob)))
 	{
 		BKE_reportf(op->reports, RPT_ERROR, "%s already in %s", single_object->id.name + 2, collection->id.name + 2);
+		BLI_freelistN(&objects);
 		return OPERATOR_CANCELLED;
 	}
 
-	CTX_DATA_BEGIN (C, Object *, ob, selected_objects)
-	{
+	for (LinkData *link = objects.first; link; link = link->next) {
+		Object *ob = link->data;
+
 		if (!is_link) {
 			BKE_collection_object_move(bmain, scene, collection, NULL, ob);
 		}
@@ -1570,7 +1618,7 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 			BKE_collection_object_add(bmain, collection, ob);
 		}
 	}
-	CTX_DATA_END;
+	BLI_freelistN(&objects);
 
 	BKE_reportf(op->reports,
 	            RPT_INFO,
@@ -1777,7 +1825,7 @@ void OBJECT_OT_move_to_collection(wmOperatorType *ot)
 	/* api callbacks */
 	ot->exec = move_to_collection_exec;
 	ot->invoke = move_to_collection_invoke;
-	ot->poll = ED_operator_object_active_editable;
+	ot->poll = move_to_collection_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -1804,7 +1852,7 @@ void OBJECT_OT_link_to_collection(wmOperatorType *ot)
 	/* api callbacks */
 	ot->exec = move_to_collection_exec;
 	ot->invoke = move_to_collection_invoke;
-	ot->poll = ED_operator_object_active_editable;
+	ot->poll = move_to_collection_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
