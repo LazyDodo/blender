@@ -50,6 +50,8 @@
 
 #include "UI_resources.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "DRW_engine.h"
 #include "DRW_render.h"
 
@@ -540,10 +542,12 @@ static void MPATH_cache_motion_path(MPATH_PassList *psl, Scene *scene,
                                     Object *ob, bPoseChannel *pchan,
                                     bAnimVizSettings *avs, bMotionPath *mpath)
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
 	struct DRWTextStore *dt = DRW_text_cache_ensure();
 	int txt_flag = DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_ASCII;
 	int stepsize = avs->path_step;
 	int sfra, efra, sind, len;
+	int cfra = (int)DEG_get_ctime(draw_ctx->depsgraph);
 	bool sel = (pchan) ? (pchan->bone->flag & BONE_SELECTED) : (ob->flag & SELECT);
 	bool show_keyframes = (avs->path_viewflag & MOTIONPATH_VIEW_KFRAS) != 0;
 	bMotionPathVert *mpv, *mpv_start;
@@ -553,8 +557,8 @@ static void MPATH_cache_motion_path(MPATH_PassList *psl, Scene *scene,
 		/* With "Around Current", we only choose frames from around
 		 * the current frame to draw.
 		 */
-		sfra = CFRA - avs->path_bc;
-		efra = CFRA + avs->path_ac + 1;
+		sfra = cfra - avs->path_bc;
+		efra = cfra + avs->path_ac + 1;
 	}
 	else {
 		/* Use the current display range */
@@ -595,7 +599,7 @@ static void MPATH_cache_motion_path(MPATH_PassList *psl, Scene *scene,
 	/* Draw lines only if line drawing option is enabled */
 	if (mpath->flag & MOTIONPATH_FLAG_LINES) {
 		DRWShadingGroup *shgrp = DRW_shgroup_create(mpath_line_shader_get(), psl->lines);
-		DRW_shgroup_uniform_int_copy(shgrp, "frameCurrent", CFRA);
+		DRW_shgroup_uniform_int_copy(shgrp, "frameCurrent", cfra);
 		DRW_shgroup_uniform_int_copy(shgrp, "frameStart", sfra);
 		DRW_shgroup_uniform_int_copy(shgrp, "frameEnd", efra);
 		DRW_shgroup_uniform_int_copy(shgrp, "cacheStart", mpath->start_frame);
@@ -613,7 +617,7 @@ static void MPATH_cache_motion_path(MPATH_PassList *psl, Scene *scene,
 
 	/* Draw points. */
 	DRWShadingGroup *shgrp = DRW_shgroup_create(mpath_points_shader_get(), psl->points);
-	DRW_shgroup_uniform_int_copy(shgrp, "frameCurrent", CFRA);
+	DRW_shgroup_uniform_int_copy(shgrp, "frameCurrent", cfra);
 	DRW_shgroup_uniform_int_copy(shgrp, "cacheStart", mpath->start_frame);
 	DRW_shgroup_uniform_int_copy(shgrp, "pointSize", mpath->line_thickness);
 	DRW_shgroup_uniform_int_copy(shgrp, "stepSize", stepsize);
@@ -678,14 +682,14 @@ static void MPATH_cache_populate(void *vedata, Object *ob)
 		if (DRW_pose_mode_armature(ob, draw_ctx->obact)) {
 			for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 				if (pchan->mpath) {
-					MPATH_cache_motion_path(psl, draw_ctx->scene, ob, pchan, &ob->pose->avs, pchan->mpath);
+					MPATH_cache_motion_path(psl, scene_eval, ob, pchan, &ob->pose->avs, pchan->mpath);
 				}
 			}
 		}
 	}
 	else {
 		if (ob->mpath) {
-			MPATH_cache_motion_path(psl, draw_ctx->scene, ob, NULL, &ob->avs, ob->mpath);
+			MPATH_cache_motion_path(psl, scene_eval, ob, NULL, &ob->avs, ob->mpath);
 		}
 	}
 }
