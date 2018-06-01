@@ -670,6 +670,10 @@ static void MPATH_cache_populate(void *vedata, Object *ob)
 	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 
+	if ((draw_ctx->v3d->overlay.flag & V3D_OVERLAY_MOTION_PATHS) == 0) {
+		return;
+	}
+
 	if (ob->type == OB_ARMATURE) {
 		if (DRW_pose_mode_armature(ob, draw_ctx->obact)) {
 			for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
