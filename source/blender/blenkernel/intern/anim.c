@@ -141,6 +141,27 @@ void animviz_free_motionpath(bMotionPath *mpath)
 
 /* ------------------- */
 
+/* Make a copy of motionpath data, so that viewing with copy on write works */
+bMotionPath *animviz_copy_motionpath(const bMotionPath *mpath_src)
+{
+	bMotionPath *mpath_dst;
+
+	if (mpath_src == NULL)
+		return NULL;
+
+	mpath_dst = MEM_dupallocN(mpath_src);
+	mpath_dst->points = MEM_dupallocN(mpath_src->points);
+
+	/* should get recreated on draw... */
+	mpath_dst->points_vbo = NULL;
+	mpath_dst->batch_line = NULL;
+	mpath_dst->batch_points = NULL;
+
+	return mpath_dst;
+}
+
+/* ------------------- */
+
 /**
  * Setup motion paths for the given data.
  * \note Only used when explicitly calculating paths on bones which may/may not be consider already
