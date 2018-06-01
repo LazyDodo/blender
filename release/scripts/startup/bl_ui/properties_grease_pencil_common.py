@@ -245,7 +245,6 @@ class GreasePencilStrokeSculptPanel:
     # bl_space_type = 'IMAGE_EDITOR'
     bl_label = "Sculpt Strokes"
     bl_category = "Tools"
-    bl_region_type = 'TOOLS'
 
     @staticmethod
     def draw(self, context):

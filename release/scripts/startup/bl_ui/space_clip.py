@@ -1157,30 +1157,36 @@ class CLIP_PT_grease_pencil(GreasePencilDataPanel, CLIP_PT_clip_view_panel, Pane
 # Grease Pencil palette colors
 class CLIP_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
+    bl_region_type = 'TOOLS'
 
 # Grease Pencil drawing tools
 class CLIP_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil stroke editing tools
 class CLIP_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil stroke sculpting tools
 class CLIP_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil drawing brushes
 class CLIP_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil drawing curves
 class CLIP_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
+    bl_region_type = 'TOOLS'
 
 class CLIP_MT_view(Menu):
     bl_label = "View"

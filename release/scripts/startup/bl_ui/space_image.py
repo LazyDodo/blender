@@ -1264,6 +1264,7 @@ class IMAGE_PT_grease_pencil(GreasePencilDataPanel, Panel):
 # Grease Pencil palette colors
 class IMAGE_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'TOOLS'
 
     # NOTE: this is just a wrapper around the generic GP Panel
 
@@ -1271,26 +1272,31 @@ class IMAGE_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, Panel):
 # Grease Pencil drawing tools
 class IMAGE_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil stroke editing tools
 class IMAGE_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil stroke sculpting tools
 class IMAGE_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil drawing brushes
 class IMAGE_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 # Grease Pencil drawing curves
 class IMAGE_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 classes = (
