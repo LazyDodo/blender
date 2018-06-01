@@ -44,6 +44,11 @@ static bNodeSocketTemplate sh_node_bsdf_hair_principled_out[] = {
 	{	-1, 0, ""	}
 };
 
+static void node_shader_init_hair_principled(bNodeTree *UNUSED(ntree), bNode *node)
+{
+	node->custom1 = SHD_PRINCIPLED_HAIR_REFLECTANCE;
+}
+
 /* node type definition */
 void register_node_type_sh_bsdf_hair_principled(void)
 {
@@ -53,7 +58,7 @@ void register_node_type_sh_bsdf_hair_principled(void)
 	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, sh_node_bsdf_hair_principled_in, sh_node_bsdf_hair_principled_out);
 	node_type_size(&ntype, 150, 60, 200);
-	node_type_init(&ntype, NULL);
+	node_type_init(&ntype, node_shader_init_hair_principled);
 	node_type_storage(&ntype, "", NULL, NULL);
 
 	nodeRegisterType(&ntype);
