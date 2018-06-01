@@ -187,11 +187,11 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 					else
 						cp = ts->button;
 
-						copy_v4_v4_char(back, cp);
-						if (!ED_region_is_overlap(spacetype, theme_regionid)) {
-							back[3] = 255;
-						}
-						cp = back;
+					copy_v4_v4_char(back, cp);
+					if (!ED_region_is_overlap(spacetype, theme_regionid)) {
+						back[3] = 255;
+					}
+					cp = back;
 					break;
 				case TH_LOW_GRAD:
 					cp = ts->gradients.gradient;

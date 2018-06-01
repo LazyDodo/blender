@@ -1588,7 +1588,8 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 				if (mat->use_nodes) {
 					if (MAIN_VERSION_ATLEAST(main, 280, 0)) {
 						mat->roughness = mat->gloss_mir;
-					} else {
+					}
+					else {
 						mat->roughness = 0.25f;
 					}
 				}
@@ -1604,6 +1605,19 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
 							v3d->shading.flag |= V3D_SHADING_SPECULAR_HIGHLIGHT;
+						}
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "float", "xray_alpha")) {
+			for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.xray_alpha = 0.5f;
 						}
 					}
 				}

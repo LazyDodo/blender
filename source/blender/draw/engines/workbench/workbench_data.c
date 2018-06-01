@@ -38,12 +38,12 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 	else {
 		UI_GetThemeColor3fv(UI_GetThemeValue(TH_SHOW_BACK_GRAD) ? TH_LOW_GRAD : TH_HIGH_GRAD, wd->background_color_low);
 		UI_GetThemeColor3fv(TH_HIGH_GRAD, wd->background_color_high);
-	}
 
-	/* XXX: Really quick conversion to avoid washed out background.
-	 * Needs to be adressed properly (color managed using ocio). */
-	srgb_to_linearrgb_v3_v3(wd->background_color_high, wd->background_color_high);
-	srgb_to_linearrgb_v3_v3(wd->background_color_low, wd->background_color_low);
+		/* XXX: Really quick conversion to avoid washed out background.
+		 * Needs to be adressed properly (color managed using ocio). */
+		srgb_to_linearrgb_v3_v3(wd->background_color_high, wd->background_color_high);
+		srgb_to_linearrgb_v3_v3(wd->background_color_low, wd->background_color_low);
+	}
 
 	studiolight_update_world(wpd->studio_light, wd);
 
@@ -73,8 +73,7 @@ void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, floa
 
 	if (STUDIOLIGHT_ORIENTATION_CAMERA_ENABLED(wpd)) {
 		int light_index = 0;
-		for (int index = 0 ; index < 3; index++)
-		{
+		for (int index = 0 ; index < 3; index++) {
 			SolidLight *sl = &U.light[index];
 			if (sl->flag) {
 				WORKBENCH_UBO_Light *light = &wd->lights[light_index++];
@@ -105,16 +104,15 @@ void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, floa
 	DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
 }
 
-static void workbench_private_material_free(void* data)
+static void workbench_private_material_free(void *data)
 {
-	WORKBENCH_MaterialData *material_data = (WORKBENCH_MaterialData*)data;
+	WORKBENCH_MaterialData *material_data = data;
 	DRW_UBO_FREE_SAFE(material_data->material_ubo);
 	MEM_freeN(material_data);
 }
 
 void workbench_private_data_free(WORKBENCH_PrivateData *wpd)
 {
-	
 	BLI_ghash_free(wpd->material_hash, NULL, workbench_private_material_free);
 	DRW_UBO_FREE_SAFE(wpd->world_ubo);
 }
