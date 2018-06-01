@@ -244,7 +244,7 @@ bMotionPath *animviz_verify_motionpaths(ReportList *reports, Scene *scene, Objec
 	mpath->color[1] = 0.0;
 	mpath->color[2] = 0.0;
 
-	mpath->line_thickness = 1;
+	mpath->line_thickness = 2;
 	mpath->flag |= MOTIONPATH_FLAG_LINES;  /* draw lines by default */
 
 	/* allocate a cache */
