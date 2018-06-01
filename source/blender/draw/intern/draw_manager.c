@@ -152,7 +152,7 @@ bool DRW_object_is_renderable(Object *ob)
 	BLI_assert(BKE_object_is_visible(ob, OB_VISIBILITY_CHECK_UNKNOWN_RENDER_MODE));
 
 	if (ob->type == OB_MESH) {
-		if (ob == DST.draw_ctx.object_edit) {
+		if ((ob == DST.draw_ctx.object_edit) || BKE_object_is_in_editmode(ob)) {
 			View3D *v3d = DST.draw_ctx.v3d;
 			const int mask = (V3D_OVERLAY_EDIT_OCCLUDE_WIRE | V3D_OVERLAY_EDIT_WEIGHT);
 
@@ -1241,6 +1241,7 @@ void DRW_draw_view(const bContext *C)
 
 	/* Reset before using it. */
 	drw_state_prepare_clean_for_draw(&DST);
+	DST.options.draw_text = (v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) != 0;
 	DRW_draw_render_loop_ex(depsgraph, engine_type, ar, v3d, viewport, C);
 }
 
@@ -1726,8 +1727,8 @@ void DRW_draw_select_loop(
 			obedit_mode = CTX_MODE_EDIT_ARMATURE;
 		}
 	}
-	if (v3d->overlay.flag &= V3D_OVERLAY_BONE_SELECTION) {
-		if (!(v3d->flag2 &= V3D_RENDER_OVERRIDE)) {
+	if (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECTION) {
+		if (!(v3d->flag2 & V3D_RENDER_OVERRIDE)) {
 			Object *obpose = OBPOSE_FROM_OBACT(obact);
 			if (obpose) {
 				use_obedit = true;
@@ -2078,7 +2079,8 @@ bool DRW_state_show_text(void)
 {
 	return (DST.options.is_select) == 0 &&
 	       (DST.options.is_depth) == 0 &&
-	       (DST.options.is_scene_render) == 0;
+	       (DST.options.is_scene_render) == 0 &&
+	       (DST.options.draw_text) == 0;
 }
 
 /**
