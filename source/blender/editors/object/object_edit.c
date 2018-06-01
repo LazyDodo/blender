@@ -1365,7 +1365,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 				if (mode == OB_MODE_SCULPT) {
 					mode = OB_MODE_GPENCIL_SCULPT;
 				}
-				if (mode == OB_MODE_VERTEX_PAINT) {
+				if (mode == OB_MODE_TEXTURE_PAINT) {
 					mode = OB_MODE_GPENCIL_PAINT;
 				}
 				if (mode == OB_MODE_WEIGHT_PAINT) {
