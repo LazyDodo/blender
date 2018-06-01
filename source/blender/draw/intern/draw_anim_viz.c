@@ -682,14 +682,14 @@ static void MPATH_cache_populate(void *vedata, Object *ob)
 		if (DRW_pose_mode_armature(ob, draw_ctx->obact)) {
 			for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 				if (pchan->mpath) {
-					MPATH_cache_motion_path(psl, scene_eval, ob, pchan, &ob->pose->avs, pchan->mpath);
+					MPATH_cache_motion_path(psl, draw_ctx->scene, ob, pchan, &ob->pose->avs, pchan->mpath);
 				}
 			}
 		}
 	}
 	else {
 		if (ob->mpath) {
-			MPATH_cache_motion_path(psl, scene_eval, ob, NULL, &ob->avs, ob->mpath);
+			MPATH_cache_motion_path(psl, draw_ctx->scene, ob, NULL, &ob->avs, ob->mpath);
 		}
 	}
 }
