@@ -414,7 +414,7 @@ int rna_IDMaterials_assign_int(PointerRNA *ptr, int key, const PointerRNA *assig
 	short *totcol = give_totcolp_id(id);
 	Material *mat_id = assign_ptr->id.data;
 	if (totcol && (key >= 0 && key < *totcol)) {
-		assign_material_id(id, mat_id, key + 1);
+		assign_material_id(G.main, id, mat_id, key + 1);
 		return 1;
 	}
 	else {
@@ -470,7 +470,7 @@ static void rna_IDMaterials_clear_id(ID *id, Main *bmain, int remove_material_sl
 static void rna_Library_filepath_set(PointerRNA *ptr, const char *value)
 {
 	Library *lib = (Library *)ptr->data;
-	BKE_library_filepath_set(lib, value);
+	BKE_library_filepath_set(G.main, lib, value);
 }
 
 /* ***** ImagePreview ***** */
