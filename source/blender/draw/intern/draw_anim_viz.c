@@ -674,7 +674,7 @@ static void MPATH_cache_populate(void *vedata, Object *ob)
 	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 
-	if ((draw_ctx->v3d->overlay.flag & V3D_OVERLAY_MOTION_PATHS) == 0) {
+	if (draw_ctx->v3d->overlay.flag & V3D_OVERLAY_HIDE_MOTION_PATHS) {
 		return;
 	}
 
