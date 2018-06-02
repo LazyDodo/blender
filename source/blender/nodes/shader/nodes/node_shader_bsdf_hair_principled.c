@@ -83,7 +83,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Absorption Coefficient")) {
-			if (parametrization == SHD_PRINCIPLED_HAIR_PHYSICAL || parametrization == SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION){
+			if ((parametrization == SHD_PRINCIPLED_HAIR_PHYSICAL) || (parametrization == SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION)){
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
