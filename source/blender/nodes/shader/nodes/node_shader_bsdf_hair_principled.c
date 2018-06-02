@@ -34,7 +34,7 @@ static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
 	{	SOCK_FLOAT, 1, N_("Offset"),						0.0f, 0.0f, 0.0f, 0.0f, -M_PI_2, M_PI_2, PROP_ANGLE},
 	{	SOCK_FLOAT, 1, N_("RoughnessU"),					0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT, 1, N_("RoughnessV"),					0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
-	{	SOCK_FLOAT, 1, N_("PrimaryReflectionRoughness"),	1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
+	{	SOCK_FLOAT, 1, N_("Primary Reflection Roughness"),	1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT, 1, N_("IOR"),							1.55f, 0.0f, 0.0f, 0.0f, 0.0f, 1000.0f},
 	{	-1, 0, ""	},
 };
