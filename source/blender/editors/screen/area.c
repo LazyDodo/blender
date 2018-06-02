@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -63,6 +63,7 @@
 
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
+#include "IMB_metadata.h"
 
 #include "UI_interface.h"
 #include "UI_interface_icons.h"
@@ -663,6 +664,10 @@ static void area_azone_initialize(wmWindow *win, bScreen *screen, ScrArea *sa)
 	BLI_freelistN(&sa->actionzones);
 
 	if (screen->state != SCREENNORMAL) {
+		return;
+	}
+
+	if (U.app_flag & USER_APP_LOCK_UI_LAYOUT) {
 		return;
 	}
 
@@ -1749,7 +1754,7 @@ int ED_area_header_switchbutton(const bContext *C, uiBlock *block, int yco)
 
 	RNA_pointer_create(&(scr->id), &RNA_Area, sa, &areaptr);
 
-	uiDefButR(block, UI_BTYPE_MENU, 0, "", xco, yco, 1.5 * U.widget_unit, U.widget_unit,
+	uiDefButR(block, UI_BTYPE_MENU, 0, "", xco, yco, 1.6 * U.widget_unit, U.widget_unit,
 	          &areaptr, "type", 0, 0.0f, 0.0f, 0.0f, 0.0f, "");
 
 	return xco + 1.7 * U.widget_unit;
@@ -1934,15 +1939,29 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int c
 		/* before setting the view */
 		if (vertical) {
 			/* we always keep the scroll offset - so the total view gets increased with the scrolled away part */
-			if (v2d->cur.ymax < - 0.001f)
-				y = min_ii(y, v2d->cur.ymin);
-			
+			if (v2d->cur.ymax < -FLT_EPSILON) {
+				/* Clamp to lower view boundary */
+				if (v2d->tot.ymin < -v2d->winy) {
+					y = min_ii(y, 0);
+				}
+				else {
+					y = min_ii(y, v2d->cur.ymin);
+				}
+			}
+
 			y = -y;
 		}
 		else {
 			/* don't jump back when panels close or hide */
-			if (!is_context_new)
-				x = max_ii(x, v2d->cur.xmax);
+			if (!is_context_new) {
+				if (v2d->tot.xmax > v2d->winx) {
+					x = max_ii(x, 0);
+				}
+				else {
+					x = max_ii(x, v2d->cur.xmax);
+				}
+			}
+
 			y = -y;
 		}
 		
@@ -2134,7 +2153,7 @@ static const char *meta_data_list[] =
 
 BLI_INLINE bool metadata_is_valid(ImBuf *ibuf, char *r_str, short index, int offset)
 {
-	return (IMB_metadata_get_field(ibuf, meta_data_list[index], r_str + offset, MAX_METADATA_STR - offset) && r_str[0]);
+	return (IMB_metadata_get_field(ibuf->metadata, meta_data_list[index], r_str + offset, MAX_METADATA_STR - offset) && r_str[0]);
 }
 
 static void metadata_draw_imbuf(ImBuf *ibuf, const rctf *rect, int fontid, const bool is_top)

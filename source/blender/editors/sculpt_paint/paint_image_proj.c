@@ -62,6 +62,7 @@
 #include "DNA_object_types.h"
 
 #include "BKE_camera.h"
+#include "BKE_colorband.h"
 #include "BKE_context.h"
 #include "BKE_colortools.h"
 #include "BKE_depsgraph.h"
@@ -110,10 +111,10 @@
 static void partial_redraw_array_init(ImagePaintPartialRedraw *pr);
 
 /* Defines and Structs */
-/* FTOCHAR as inline function */
+/* unit_float_to_uchar_clamp as inline function */
 BLI_INLINE unsigned char f_to_char(const float val)
 {
-	return FTOCHAR(val);
+	return unit_float_to_uchar_clamp(val);
 }
 
 /* ProjectionPaint defines */
@@ -1498,15 +1499,16 @@ static int project_paint_undo_subtiles(const TileInfo *tinf, int tx, int ty)
 
 
 	if (generate_tile) {
+		ListBase *undo_tiles = ED_image_undo_get_tiles();
 		volatile void *undorect;
 		if (tinf->masked) {
 			undorect = image_undo_push_tile(
-			        pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
+			        undo_tiles, pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
 			        tx, ty, &pjIma->maskRect[tile_index], &pjIma->valid[tile_index], true, false);
 		}
 		else {
 			undorect = image_undo_push_tile(
-			        pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
+			        undo_tiles, pjIma->ima, pjIma->ibuf, tinf->tmpibuf,
 			        tx, ty, NULL, &pjIma->valid[tile_index], true, false);
 		}
 
@@ -2691,7 +2693,7 @@ static void project_paint_face_init(
 		int face_seam_flag;
 
 		if (threaded)
-			BLI_lock_thread(LOCK_CUSTOM1);  /* Other threads could be modifying these vars */
+			BLI_thread_lock(LOCK_CUSTOM1);  /* Other threads could be modifying these vars */
 
 		face_seam_flag = ps->faceSeamFlags[tri_index];
 
@@ -2708,7 +2710,7 @@ static void project_paint_face_init(
 		if ((face_seam_flag & (PROJ_FACE_SEAM1 | PROJ_FACE_SEAM2 | PROJ_FACE_SEAM3)) == 0) {
 
 			if (threaded)
-				BLI_unlock_thread(LOCK_CUSTOM1);  /* Other threads could be modifying these vars */
+				BLI_thread_unlock(LOCK_CUSTOM1);  /* Other threads could be modifying these vars */
 
 		}
 		else {
@@ -2734,7 +2736,7 @@ static void project_paint_face_init(
 
 			/* ps->faceSeamUVs cant be modified when threading, now this is done we can unlock */
 			if (threaded)
-				BLI_unlock_thread(LOCK_CUSTOM1);  /* Other threads could be modifying these vars */
+				BLI_thread_unlock(LOCK_CUSTOM1);  /* Other threads could be modifying these vars */
 
 			vCoSS[0] = ps->screenCoords[lt_vtri[0]];
 			vCoSS[1] = ps->screenCoords[lt_vtri[1]];
@@ -2777,7 +2779,7 @@ static void project_paint_face_init(
 						interp_v3_v3v3(edge_verts_inset_clip[1], insetCos[fidx1], insetCos[fidx2], fac2);
 
 
-						if (pixel_bounds_uv((const float (*)[2])seam_subsection, &bounds_px, ibuf->x, ibuf->y)) {
+						if (pixel_bounds_uv(seam_subsection, &bounds_px, ibuf->x, ibuf->y)) {
 							/* bounds between the seam rect and the uvspace bucket pixels */
 
 							has_isect = 0;
@@ -3712,8 +3714,12 @@ static void project_paint_prepare_all_faces(
 				}
 
 				/* don't allow using the same inage for painting and stencilling */
-				if (slot->ima == ps->stencil_ima)
+				if (slot->ima == ps->stencil_ima) {
+					/* While this shouldn't be used, face-winding reads all polys.
+					 * It's less trouble to set all faces to valid UV's, avoiding NULL checks all over. */
+					ps->dm_mloopuv[lt->poly] = mloopuv_base;
 					continue;
+				}
 				
 				tpage = slot->ima;
 			}
@@ -4128,7 +4134,7 @@ static bool project_bucket_iter_next(
 	const int diameter = 2 * ps->brush_size;
 
 	if (ps->thread_tot > 1)
-		BLI_lock_thread(LOCK_CUSTOM1);
+		BLI_thread_lock(LOCK_CUSTOM1);
 
 	//printf("%d %d\n", ps->context_bucket_x, ps->context_bucket_y);
 
@@ -4145,7 +4151,7 @@ static bool project_bucket_iter_next(
 				ps->context_bucket_x++;
 
 				if (ps->thread_tot > 1)
-					BLI_unlock_thread(LOCK_CUSTOM1);
+					BLI_thread_unlock(LOCK_CUSTOM1);
 
 				return 1;
 			}
@@ -4154,7 +4160,7 @@ static bool project_bucket_iter_next(
 	}
 
 	if (ps->thread_tot > 1)
-		BLI_unlock_thread(LOCK_CUSTOM1);
+		BLI_thread_unlock(LOCK_CUSTOM1);
 	return 0;
 }
 
@@ -4291,7 +4297,7 @@ static void do_projectpaint_soften_f(ProjPaintState *ps, ProjPixel *projPixel, f
 				return;
 		}
 		else {
-			blend_color_interpolate_float(rgba, rgba, projPixel->pixel.f_pt, mask);
+			blend_color_interpolate_float(rgba, projPixel->pixel.f_pt, rgba, mask);
 		}
 
 		BLI_linklist_prepend_arena(softenPixels, (void *)projPixel, softenArena);
@@ -4386,7 +4392,7 @@ static void do_projectpaint_draw(
 		float_to_byte_dither_v3(rgba_ub, rgb, dither, u, v);
 	}
 	else {
-		F3TOCHAR3(rgb, rgba_ub);
+		unit_float_to_uchar_clamp_v3(rgba_ub, rgb);
 	}
 	rgba_ub[3] = f_to_char(mask);
 
@@ -4574,7 +4580,7 @@ static void *do_projectpaint_thread(void *ph_v)
 								break;
 							}
 						}
-						do_colorband(brush->gradient, f, color_f);
+						BKE_colorband_evaluate(brush->gradient, f, color_f);
 						color_f[3] *= ((float)projPixel->mask) * (1.0f / 65535.0f) * brush->alpha;
 
 						if (is_floatbuf) {
@@ -4590,9 +4596,9 @@ static void *do_projectpaint_thread(void *ph_v)
 								float_to_byte_dither_v3(projPixel->newColor.ch, color_f, ps->dither, projPixel->x_px, projPixel->y_px);
 							}
 							else {
-								F3TOCHAR3(color_f, projPixel->newColor.ch);
+								unit_float_to_uchar_clamp_v3(projPixel->newColor.ch, color_f);
 							}
-							projPixel->newColor.ch[3] = FTOCHAR(color_f[3]);
+							projPixel->newColor.ch[3] = unit_float_to_uchar_clamp(color_f[3]);
 							IMB_blend_color_byte(projPixel->pixel.ch_pt,  projPixel->origColor.ch_pt,
 							                     projPixel->newColor.ch, ps->blend);
 						}
@@ -4750,6 +4756,9 @@ static void *do_projectpaint_thread(void *ph_v)
 							copy_v3_v3(texrgb, texrgba);
 							mask *= texrgba[3];
 						}
+						else {
+							zero_v3(texrgb);
+						}
 
 						/* extra mask for normal, layer stencil, .. */
 						mask *= ((float)projPixel->mask) * (1.0f / 65535.0f);
@@ -4870,7 +4879,7 @@ static bool project_paint_op(void *state, const float lastpos[2], const float po
 	}
 
 	if (ps->thread_tot > 1)
-		BLI_init_threads(&threads, do_projectpaint_thread, ps->thread_tot);
+		BLI_threadpool_init(&threads, do_projectpaint_thread, ps->thread_tot);
 
 	pool = BKE_image_pool_new();
 
@@ -4900,11 +4909,11 @@ static bool project_paint_op(void *state, const float lastpos[2], const float po
 		handles[a].pool = pool;
 
 		if (ps->thread_tot > 1)
-			BLI_insert_thread(&threads, &handles[a]);
+			BLI_threadpool_insert(&threads, &handles[a]);
 	}
 
 	if (ps->thread_tot > 1) /* wait for everything to be done */
-		BLI_end_threads(&threads);
+		BLI_threadpool_end(&threads);
 	else
 		do_projectpaint_thread(&handles[0]);
 
@@ -5376,8 +5385,7 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
 
 	scene->toolsettings->imapaint.flag |= IMAGEPAINT_DRAWING;
 
-	ED_undo_paint_push_begin(UNDO_PAINT_IMAGE, op->type->name,
-	                         ED_image_undo_restore, ED_image_undo_free, NULL);
+	ED_image_undo_push_begin(op->type->name);
 
 	/* allocate and initialize spatial data structures */
 	project_paint_begin(&ps, false, 0);
@@ -5453,7 +5461,7 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 
 	ibuf = ED_view3d_draw_offscreen_imbuf(
 	        scene, CTX_wm_view3d(C), CTX_wm_region(C),
-	        w, h, IB_rect, false, R_ALPHAPREMUL, 0, false, NULL,
+	        w, h, IB_rect, V3D_OFSDRAW_NONE, R_ALPHAPREMUL, 0, NULL,
 	        NULL, NULL, err_out);
 	if (!ibuf) {
 		/* Mostly happens when OpenGL offscreen buffer was failed to create, */
@@ -5624,7 +5632,7 @@ bool BKE_paint_proj_mesh_data_check(Scene *scene, Object *ob, bool *uvs, bool *m
 
 /* Add layer operator */
 
-static EnumPropertyItem layer_type_items[] = {
+static const EnumPropertyItem layer_type_items[] = {
 	{MAP_COL, "DIFFUSE_COLOR", 0, "Diffuse Color", ""},
 	{MAP_REF, "DIFFUSE_INTENSITY", 0, "Diffuse Intensity", ""},
 	{MAP_ALPHA, "ALPHA", 0, "Alpha", ""},
@@ -5711,21 +5719,16 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 			/* successful creation of mtex layer, now create set */
 			if (mtex) {
 				int type = MAP_COL;
-				int type_id = 0;
+				char imagename_buff[MAX_ID_NAME - 2];
+				const char *imagename = DATA_("Diffuse Color");
 
 				if (op) {
-					int i;
 					type = RNA_enum_get(op->ptr, "type");
-
-					for (i = 0; i < ARRAY_SIZE(layer_type_items); i++) {
-						if (layer_type_items[i].value == type) {
-							type_id = i;
-							break;
-						}
-					}
+					RNA_string_get(op->ptr, "name", imagename_buff);
+					imagename = imagename_buff;
 				}
 
-				mtex->tex = BKE_texture_add(bmain, DATA_(layer_type_items[type_id].name));
+				mtex->tex = BKE_texture_add(bmain, imagename);
 				mtex->mapto = type;
 
 				if (mtex->tex) {
@@ -5766,14 +5769,15 @@ static int texture_paint_add_texture_paint_slot_exec(bContext *C, wmOperator *op
 static int texture_paint_add_texture_paint_slot_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
 	char imagename[MAX_ID_NAME - 2];
+	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
 	Material *ma = give_current_material(ob, ob->actcol);
 	int type = RNA_enum_get(op->ptr, "type");
 
 	if (!ma) {
-		ma = BKE_material_add(CTX_data_main(C), "Material");
+		ma = BKE_material_add(bmain, "Material");
 		/* no material found, just assign to first slot */
-		assign_material(ob, ma, ob->actcol, BKE_MAT_ASSIGN_USERPREF);
+		assign_material(bmain, ob, ma, ob->actcol, BKE_MAT_ASSIGN_USERPREF);
 	}
 	
 	type = RNA_enum_from_value(layer_type_items, type);
@@ -5902,7 +5906,7 @@ static int add_simple_uvs_exec(bContext *C, wmOperator *UNUSED(op))
 	        }));
 	/* select all uv loops first - pack parameters needs this to make sure charts are registered */
 	ED_uvedit_select_all(bm);
-	ED_uvedit_unwrap_cube_project(ob, bm, 1.0, false);
+	ED_uvedit_unwrap_cube_project(bm, 1.0, false, NULL);
 	/* set the margin really quickly before the packing operation*/
 	scene->toolsettings->uvcalc_margin = 0.001f;
 	ED_uvedit_pack_islands(scene, ob, bm, false, false, true);

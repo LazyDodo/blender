@@ -30,8 +30,7 @@
  * in local memory on the GPU, as it would take too many register and indexes in
  * ways not known at compile time. This seems the only solution even though it
  * may be slow, with two positive factors. If the same shader is being executed,
- * memory access will be coalesced, and on fermi cards, memory will actually be
- * cached.
+ * memory access will be coalesced and cached.
  *
  * The result of shader execution will be a single closure. This means the
  * closure type, associated label, data and weight. Sampling from multiple
@@ -39,7 +38,7 @@
  * mostly taken care of in the SVM compiler.
  */
 
-#include "svm_types.h"
+#include "kernel/svm/svm_types.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -139,49 +138,54 @@ CCL_NAMESPACE_END
 
 /* Nodes */
 
-#include "svm_noise.h"
+#include "kernel/svm/svm_noise.h"
 #include "svm_texture.h"
 
-#include "svm_color_util.h"
-#include "svm_math_util.h"
+#include "kernel/svm/svm_color_util.h"
+#include "kernel/svm/svm_math_util.h"
 
-#include "svm_attribute.h"
-#include "svm_gradient.h"
-#include "svm_blackbody.h"
-#include "svm_closure.h"
-#include "svm_noisetex.h"
-#include "svm_convert.h"
-#include "svm_displace.h"
-#include "svm_fresnel.h"
-#include "svm_wireframe.h"
-#include "svm_wavelength.h"
-#include "svm_camera.h"
-#include "svm_geometry.h"
-#include "svm_hsv.h"
-#include "svm_image.h"
-#include "svm_gamma.h"
-#include "svm_brightness.h"
-#include "svm_invert.h"
-#include "svm_light_path.h"
-#include "svm_magic.h"
-#include "svm_mapping.h"
-#include "svm_normal.h"
-#include "svm_wave.h"
-#include "svm_math.h"
-#include "svm_mix.h"
-#include "svm_ramp.h"
-#include "svm_sepcomb_hsv.h"
-#include "svm_sepcomb_vector.h"
-#include "svm_musgrave.h"
-#include "svm_sky.h"
-#include "svm_tex_coord.h"
-#include "svm_value.h"
-#include "svm_voronoi.h"
-#include "svm_checker.h"
-#include "svm_brick.h"
-#include "svm_vector_transform.h"
-#include "svm_voxel.h"
-#include "svm_bump.h"
+#include "kernel/svm/svm_attribute.h"
+#include "kernel/svm/svm_gradient.h"
+#include "kernel/svm/svm_blackbody.h"
+#include "kernel/svm/svm_closure.h"
+#include "kernel/svm/svm_noisetex.h"
+#include "kernel/svm/svm_convert.h"
+#include "kernel/svm/svm_displace.h"
+#include "kernel/svm/svm_fresnel.h"
+#include "kernel/svm/svm_wireframe.h"
+#include "kernel/svm/svm_wavelength.h"
+#include "kernel/svm/svm_camera.h"
+#include "kernel/svm/svm_geometry.h"
+#include "kernel/svm/svm_hsv.h"
+#include "kernel/svm/svm_ies.h"
+#include "kernel/svm/svm_image.h"
+#include "kernel/svm/svm_gamma.h"
+#include "kernel/svm/svm_brightness.h"
+#include "kernel/svm/svm_invert.h"
+#include "kernel/svm/svm_light_path.h"
+#include "kernel/svm/svm_magic.h"
+#include "kernel/svm/svm_mapping.h"
+#include "kernel/svm/svm_normal.h"
+#include "kernel/svm/svm_wave.h"
+#include "kernel/svm/svm_math.h"
+#include "kernel/svm/svm_mix.h"
+#include "kernel/svm/svm_ramp.h"
+#include "kernel/svm/svm_sepcomb_hsv.h"
+#include "kernel/svm/svm_sepcomb_vector.h"
+#include "kernel/svm/svm_musgrave.h"
+#include "kernel/svm/svm_sky.h"
+#include "kernel/svm/svm_tex_coord.h"
+#include "kernel/svm/svm_value.h"
+#include "kernel/svm/svm_voronoi.h"
+#include "kernel/svm/svm_checker.h"
+#include "kernel/svm/svm_brick.h"
+#include "kernel/svm/svm_vector_transform.h"
+#include "kernel/svm/svm_voxel.h"
+#include "kernel/svm/svm_bump.h"
+
+#ifdef __SHADER_RAYTRACE__
+#  include "kernel/svm/svm_bevel.h"
+#endif
 
 CCL_NAMESPACE_BEGIN
 
@@ -192,7 +196,7 @@ CCL_NAMESPACE_BEGIN
 ccl_device_noinline void svm_eval_nodes(KernelGlobals *kg, ShaderData *sd, ccl_addr_space PathState *state, ShaderType type, int path_flag)
 {
 	float stack[SVM_STACK_SIZE];
-	int offset = ccl_fetch(sd, shader) & SHADER_MASK;
+	int offset = sd->shader & SHADER_MASK;
 
 	while(1) {
 		uint4 node = read_node(kg, &offset);
@@ -207,7 +211,7 @@ ccl_device_noinline void svm_eval_nodes(KernelGlobals *kg, ShaderData *sd, ccl_a
 				break;
 			}
 			case NODE_CLOSURE_BSDF:
-				svm_node_closure_bsdf(kg, sd, stack, node, path_flag, &offset);
+				svm_node_closure_bsdf(kg, sd, stack, node, type, path_flag, &offset);
 				break;
 			case NODE_CLOSURE_EMISSION:
 				svm_node_closure_emission(sd, stack, node);
@@ -262,6 +266,12 @@ ccl_device_noinline void svm_eval_nodes(KernelGlobals *kg, ShaderData *sd, ccl_a
 				break;
 			case NODE_SET_DISPLACEMENT:
 				svm_node_set_displacement(kg, sd, stack, node.y);
+				break;
+			case NODE_DISPLACEMENT:
+				svm_node_displacement(kg, sd, stack, node);
+				break;
+			case NODE_VECTOR_DISPLACEMENT:
+				svm_node_vector_displacement(kg, sd, stack, node, &offset);
 				break;
 #  endif  /* NODES_FEATURE(NODE_FEATURE_BUMP) */
 #  ifdef __TEXTURES__
@@ -325,7 +335,10 @@ ccl_device_noinline void svm_eval_nodes(KernelGlobals *kg, ShaderData *sd, ccl_a
 				break;
 #  if NODES_FEATURE(NODE_FEATURE_VOLUME)
 			case NODE_CLOSURE_VOLUME:
-				svm_node_closure_volume(kg, sd, stack, node, path_flag);
+				svm_node_closure_volume(kg, sd, stack, node, type);
+				break;
+			case NODE_PRINCIPLED_VOLUME:
+				svm_node_principled_volume(kg, sd, stack, node, type, path_flag, &offset);
 				break;
 #  endif  /* NODES_FEATURE(NODE_FEATURE_VOLUME) */
 #  ifdef __EXTRA_NODES__
@@ -409,6 +422,9 @@ ccl_device_noinline void svm_eval_nodes(KernelGlobals *kg, ShaderData *sd, ccl_a
 			case NODE_LIGHT_FALLOFF:
 				svm_node_light_falloff(sd, stack, node);
 				break;
+			case NODE_IES:
+				svm_node_ies(kg, sd, stack, node, &offset);
+				break;
 #  endif  /* __EXTRA_NODES__ */
 #endif  /* NODES_GROUP(NODE_GROUP_LEVEL_2) */
 
@@ -460,6 +476,11 @@ ccl_device_noinline void svm_eval_nodes(KernelGlobals *kg, ShaderData *sd, ccl_a
 				svm_node_tex_voxel(kg, sd, stack, node, &offset);
 				break;
 #  endif  /* NODES_FEATURE(NODE_FEATURE_VOLUME) */
+#  ifdef __SHADER_RAYTRACE__
+			case NODE_BEVEL:
+				svm_node_bevel(kg, sd, state, stack, node);
+				break;
+#  endif  /* __SHADER_RAYTRACE__ */
 #endif  /* NODES_GROUP(NODE_GROUP_LEVEL_3) */
 			case NODE_END:
 				return;

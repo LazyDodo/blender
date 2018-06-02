@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -81,42 +81,55 @@ Object *ED_pose_object_from_context(bContext *C)
 }
 
 /* This function is used to process the necessary updates for */
-void ED_armature_enter_posemode(bContext *C, Base *base)
+bool ED_object_posemode_enter_ex(Object *ob)
 {
-	ReportList *reports = CTX_wm_reports(C);
-	Object *ob = base->object;
-	
-	if (ID_IS_LINKED_DATABLOCK(ob)) {
-		BKE_report(reports, RPT_WARNING, "Cannot pose libdata");
-		return;
-	}
+	BLI_assert(!ID_IS_LINKED(ob));
+	bool ok = false;
 	
 	switch (ob->type) {
 		case OB_ARMATURE:
 			ob->restore_mode = ob->mode;
 			ob->mode |= OB_MODE_POSE;
-			
-			WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_POSE, NULL);
-			
+			ok = true;
+
 			break;
 		default:
-			return;
+			break;
 	}
-	
-	/* XXX: disabled as this would otherwise cause a nasty loop... */
-	//ED_object_toggle_modes(C, ob->mode);
+
+	return ok;
+}
+bool ED_object_posemode_enter(bContext *C, Object *ob)
+{
+	ReportList *reports = CTX_wm_reports(C);
+	if (ID_IS_LINKED(ob)) {
+		BKE_report(reports, RPT_WARNING, "Cannot pose libdata");
+		return false;
+	}
+	bool ok = ED_object_posemode_enter_ex(ob);
+	if (ok) {
+		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_POSE, NULL);
+	}
+	return ok;
 }
 
-void ED_armature_exit_posemode(bContext *C, Base *base)
+bool ED_object_posemode_exit_ex(Object *ob)
 {
-	if (base) {
-		Object *ob = base->object;
-		
+	bool ok = false;
+	if (ob) {
 		ob->restore_mode = ob->mode;
 		ob->mode &= ~OB_MODE_POSE;
-		
+		ok = true;
+	}
+	return ok;
+}
+bool ED_object_posemode_exit(bContext *C, Object *ob)
+{
+	bool ok = ED_object_posemode_exit_ex(ob);
+	if (ok) {
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, NULL);
 	}
+	return ok;
 }
 
 /* if a selected or active bone is protected, throw error (oonly if warn == 1) and return 1 */
@@ -152,7 +165,7 @@ static bool pose_has_protected_selected(Object *ob, short warn)
 /* For the object with pose/action: update paths for those that have got them
  * This should selectively update paths that exist...
  *
- * To be called from various tools that do incremental updates 
+ * To be called from various tools that do incremental updates
  */
 void ED_pose_recalculate_paths(Scene *scene, Object *ob)
 {
@@ -265,8 +278,8 @@ void POSE_OT_paths_calculate(wmOperatorType *ot)
 static int pose_update_paths_poll(bContext *C)
 {
 	if (ED_operator_posemode_exclusive(C)) {
-		bPoseChannel *pchan = CTX_data_active_pose_bone(C);
-		return (pchan && pchan->mpath);
+		Object *ob = CTX_data_active_object(C);
+		return (ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS) != 0;
 	}
 	
 	return false;
@@ -589,24 +602,30 @@ static void pose_copy_menu(Scene *scene)
 
 /* ********************************************** */
 
-static int pose_flip_names_exec(bContext *C, wmOperator *UNUSED(op))
+static int pose_flip_names_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
 	bArmature *arm;
-	
+
 	/* paranoia checks */
 	if (ELEM(NULL, ob, ob->pose)) 
 		return OPERATOR_CANCELLED;
+
+	const bool do_strip_numbers = RNA_boolean_get(op->ptr, "do_strip_numbers");
+
 	arm = ob->data;
-	
-	/* loop through selected bones, auto-naming them */
+
+	ListBase bones_names = {NULL};
+
 	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
 	{
-		char name_flip[MAXBONENAME];
-		BKE_deform_flip_side_name(name_flip, pchan->name, true);
-		ED_armature_bone_rename(arm, pchan->name, name_flip);
+		BLI_addtail(&bones_names, BLI_genericNodeN(pchan->name));
 	}
 	CTX_DATA_END;
+
+	ED_armature_bones_flip_names(arm, &bones_names, do_strip_numbers);
+
+	BLI_freelistN(&bones_names);
 	
 	/* since we renamed stuff... */
 	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
@@ -630,6 +649,10 @@ void POSE_OT_flip_names(wmOperatorType *ot)
 	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	RNA_def_boolean(ot->srna, "do_strip_numbers", false, "Strip Numbers",
+	                "Try to remove right-most dot-number from flipped names "
+	                "(WARNING: may result in incoherent naming in some cases)");
 }
 
 /* ------------------ */
@@ -666,7 +689,7 @@ static int pose_autoside_names_exec(bContext *C, wmOperator *op)
 
 void POSE_OT_autoside_names(wmOperatorType *ot)
 {
-	static EnumPropertyItem axis_items[] = {
+	static const EnumPropertyItem axis_items[] = {
 		{0, "XAXIS", 0, "X-Axis", "Left/Right"},
 		{1, "YAXIS", 0, "Y-Axis", "Front/Back"},
 		{2, "ZAXIS", 0, "Z-Axis", "Top/Bottom"},
@@ -1094,16 +1117,18 @@ void POSE_OT_hide(wmOperatorType *ot)
 	RNA_def_boolean(ot->srna, "unselected", 0, "Unselected", "");
 }
 
-static int show_pose_bone_cb(Object *ob, Bone *bone, void *UNUSED(ptr)) 
+static int show_pose_bone_cb(Object *ob, Bone *bone, void *data) 
 {
+	const bool select = GET_INT_FROM_POINTER(data);
+
 	bArmature *arm = ob->data;
 	
 	if (arm->layer & bone->layer) {
 		if (bone->flag & BONE_HIDDEN_P) {
-			bone->flag &= ~BONE_HIDDEN_P;
 			if (!(bone->flag & BONE_UNSELECTABLE)) {
-				bone->flag |= BONE_SELECTED;
+				SET_FLAG_FROM_TEST(bone->flag, select, BONE_SELECTED);
 			}
+			bone->flag &= ~BONE_HIDDEN_P;
 		}
 	}
 	
@@ -1111,12 +1136,13 @@ static int show_pose_bone_cb(Object *ob, Bone *bone, void *UNUSED(ptr))
 }
 
 /* active object is armature in posemode, poll checked */
-static int pose_reveal_exec(bContext *C, wmOperator *UNUSED(op)) 
+static int pose_reveal_exec(bContext *C, wmOperator *op) 
 {
 	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
 	bArmature *arm = ob->data;
+	const bool select = RNA_boolean_get(op->ptr, "select");
 	
-	bone_looper(ob, arm->bonebase.first, NULL, show_pose_bone_cb);
+	bone_looper(ob, arm->bonebase.first, SET_INT_IN_POINTER(select), show_pose_bone_cb);
 	
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT | ND_BONE_SELECT, ob);
@@ -1129,7 +1155,7 @@ void POSE_OT_reveal(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Reveal Selected";
 	ot->idname = "POSE_OT_reveal";
-	ot->description = "Unhide all bones that have been tagged to be hidden in Pose Mode";
+	ot->description = "Reveal all bones hidden in Pose Mode";
 	
 	/* api callbacks */
 	ot->exec = pose_reveal_exec;
@@ -1137,6 +1163,8 @@ void POSE_OT_reveal(wmOperatorType *ot)
 	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	RNA_def_boolean(ot->srna, "select", true, "Select", "");
 }
 
 /* ********************************************** */

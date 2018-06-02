@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation, Joshua Leung
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Joshua Leung (original author)
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -30,10 +30,10 @@
 
 
 /* This file contains a system used to provide a layer of abstraction between sources
- * of animation data and tools in Animation Editors. The method used here involves 
- * generating a list of edit structures which enable tools to naively perform the actions 
- * they require without all the boiler-plate associated with loops within loops and checking 
- * for cases to ignore. 
+ * of animation data and tools in Animation Editors. The method used here involves
+ * generating a list of edit structures which enable tools to naively perform the actions
+ * they require without all the boiler-plate associated with loops within loops and checking
+ * for cases to ignore.
  *
  * While this is primarily used for the Action/Dopesheet Editor (and its accessory modes),
  * the Graph Editor also uses this for its channel list and for determining which curves
@@ -42,7 +42,7 @@
  *
  * Note: much of the original system this was based on was built before the creation of the RNA
  * system. In future, it would be interesting to replace some parts of this code with RNA queries,
- * however, RNA does not eliminate some of the boiler-plate reduction benefits presented by this 
+ * however, RNA does not eliminate some of the boiler-plate reduction benefits presented by this
  * system, so if any such work does occur, it should only be used for the internals used here...
  *
  * -- Joshua Leung, Dec 2008 (Last revision July 2009)
@@ -114,7 +114,7 @@ static void animedit_get_yscale_factor(bAnimContext *ac)
 	
 	/* grab scale factor directly from action editor setting
 	 * NOTE: This theme setting doesn't have an ID, as it cannot be accessed normally
-	 *       since it is a float, and the theem settings methods can only handle chars.
+	 *       since it is a float, and the theme settings methods can only handle chars.
 	 */
 	ac->yscale_fac = btheme->tact.keyframe_scale_fac;
 	
@@ -403,8 +403,8 @@ bool ANIM_animdata_get_context(const bContext *C, bAnimContext *ac)
  * cases:
  *	1) Graph Edit main area (just data) OR channels visible in Channel List
  *	2) If not showing channels, we're only interested in the data (Action Editor's editing)
- *	3) We don't care what data, we just care there is some (so that a collapsed 
- *	   channel can be kept around). No need to clear channels-flag in order to 
+ *	3) We don't care what data, we just care there is some (so that a collapsed
+ *	   channel can be kept around). No need to clear channels-flag in order to
  *	   keep expander channels with no sub-data out, as those cases should get
  *	   dealt with by the recursive detection idiom in place.
  *
@@ -447,12 +447,12 @@ bool ANIM_animdata_get_context(const bContext *C, bAnimContext *ac)
 #define ANIMDATA_HAS_NLA(id) ((id)->adt && (id)->adt->nla_tracks.first)
 
 /* Quick macro to test for all three above usability tests, performing the appropriate provided 
- * action for each when the AnimData context is appropriate. 
+ * action for each when the AnimData context is appropriate.
  *
  * Priority order for this goes (most important, to least): AnimData blocks, NLA, Drivers, Keyframes.
  *
  * For this to work correctly, a standard set of data needs to be available within the scope that this
- * gets called in: 
+ * gets called in:
  *  - ListBase anim_data;
  *  - bDopeSheet *ads;
  *  - bAnimListElem *ale;
@@ -469,7 +469,7 @@ bool ANIM_animdata_get_context(const bContext *C, bAnimContext *ac)
  *	0) top level: checks for animdata and also that all the F-Curves for the block will be visible
  *	1) animdata check: for filtering animdata blocks only
  *	2A) nla tracks: include animdata block's data as there are NLA tracks+strips there
- *	2B) actions to convert to nla: include animdata block's data as there is an action that can be 
+ *	2B) actions to convert to nla: include animdata block's data as there is an action that can be
  *		converted to a new NLA strip, and the filtering options allow this
  *	2C) allow non-animated datablocks to be included so that datablocks can be added
  *	3) drivers: include drivers from animdata block (for Drivers mode in Graph Editor)
@@ -559,7 +559,7 @@ bool ANIM_animdata_get_context(const bContext *C, bAnimContext *ac)
 /* ----------- 'Private' Stuff --------------- */
 
 /* this function allocates memory for a new bAnimListElem struct for the 
- * provided animation channel-data. 
+ * provided animation channel-data.
  */
 static bAnimListElem *make_new_animlistelem(void *data, short datatype, ID *owner_id)
 {
@@ -877,6 +877,7 @@ static bAnimListElem *make_new_animlistelem(void *data, short datatype, ID *owne
 				break;
 			}
 			case ANIMTYPE_FCURVE:
+			case ANIMTYPE_NLACURVE: /* practically the same as ANIMTYPE_FCURVE. Differences are applied post-creation */
 			{
 				FCurve *fcu = (FCurve *)data;
 				
@@ -962,7 +963,7 @@ static bAnimListElem *make_new_animlistelem(void *data, short datatype, ID *owne
 /* ----------------------------------------- */
 
 /* 'Only Selected' selected data and/or 'Include Hidden' filtering
- * NOTE: when this function returns true, the F-Curve is to be skipped 
+ * NOTE: when this function returns true, the F-Curve is to be skipped
  */
 static bool skip_fcurve_selected_data(bDopeSheet *ads, FCurve *fcu, ID *owner_id, int filter_mode)
 {
@@ -1084,15 +1085,16 @@ static bool name_matches_dopesheet_filter(bDopeSheet *ads, char *name)
 }
 
 /* (Display-)Name-based F-Curve filtering
- * NOTE: when this function returns true, the F-Curve is to be skipped 
+ * NOTE: when this function returns true, the F-Curve is to be skipped
  */
-static bool skip_fcurve_with_name(bDopeSheet *ads, FCurve *fcu, ID *owner_id)
+static bool skip_fcurve_with_name(bDopeSheet *ads, FCurve *fcu, eAnim_ChannelType channel_type, void *owner, ID *owner_id)
 {
 	bAnimListElem ale_dummy = {NULL};
 	const bAnimChannelType *acf;
 	
-	/* create a dummy wrapper for the F-Curve */
-	ale_dummy.type = ANIMTYPE_FCURVE;
+	/* create a dummy wrapper for the F-Curve, so we can get typeinfo for it */
+	ale_dummy.type = channel_type;
+	ale_dummy.owner = owner;
 	ale_dummy.id = owner_id;
 	ale_dummy.data = fcu;
 	
@@ -1155,8 +1157,9 @@ static bool fcurve_has_errors(FCurve *fcu)
 }
 
 /* find the next F-Curve that is usable for inclusion */
-static FCurve *animfilter_fcurve_next(bDopeSheet *ads, FCurve *first, bActionGroup *grp, int filter_mode, ID *owner_id)
+static FCurve *animfilter_fcurve_next(bDopeSheet *ads, FCurve *first, eAnim_ChannelType channel_type, int filter_mode, void *owner, ID *owner_id)
 {
+	bActionGroup *grp = (channel_type == ANIMTYPE_FCURVE) ? owner : NULL;
 	FCurve *fcu = NULL;
 	
 	/* loop over F-Curves - assume that the caller of this has already checked that these should be included 
@@ -1190,7 +1193,7 @@ static FCurve *animfilter_fcurve_next(bDopeSheet *ads, FCurve *first, bActionGro
 					if (!(filter_mode & ANIMFILTER_ACTIVE) || (fcu->flag & FCURVE_ACTIVE)) {
 						/* name based filtering... */
 						if ( ((ads) && (ads->filterflag & ADS_FILTER_BY_FCU_NAME)) && (owner_id) ) {
-							if (skip_fcurve_with_name(ads, fcu, owner_id))
+							if (skip_fcurve_with_name(ads, fcu, channel_type, owner, owner_id))
 								continue;
 						}
 						
@@ -1213,7 +1216,10 @@ static FCurve *animfilter_fcurve_next(bDopeSheet *ads, FCurve *first, bActionGro
 	return NULL;
 }
 
-static size_t animfilter_fcurves(ListBase *anim_data, bDopeSheet *ads, FCurve *first, bActionGroup *grp, int filter_mode, ID *owner_id)
+static size_t animfilter_fcurves(ListBase *anim_data, bDopeSheet *ads,
+                                 FCurve *first, eAnim_ChannelType fcurve_type,
+                                 int filter_mode,
+                                 void *owner, ID *owner_id)
 {
 	FCurve *fcu;
 	size_t items = 0;
@@ -1227,8 +1233,18 @@ static size_t animfilter_fcurves(ListBase *anim_data, bDopeSheet *ads, FCurve *f
 	 *		4) the fcu pointer is set to the F-Curve after the one we just added, so that we can keep going through 
 	 *		   the rest of the F-Curve list without an eternal loop. Back to step 2 :)
 	 */
-	for (fcu = first; ( (fcu = animfilter_fcurve_next(ads, fcu, grp, filter_mode, owner_id)) ); fcu = fcu->next) {
-		ANIMCHANNEL_NEW_CHANNEL(fcu, ANIMTYPE_FCURVE, owner_id);
+	for (fcu = first; ( (fcu = animfilter_fcurve_next(ads, fcu, fcurve_type, filter_mode, owner, owner_id)) ); fcu = fcu->next) {
+		if (UNLIKELY(fcurve_type == ANIMTYPE_NLACURVE)) {
+			/* NLA Control Curve - Basically the same as normal F-Curves, except we need to set some stuff differently */
+			ANIMCHANNEL_NEW_CHANNEL_FULL(fcu, ANIMTYPE_NLACURVE, owner_id, {
+				ale->owner = owner; /* strip */
+				ale->adt = NULL;    /* to prevent time mapping from causing problems */
+			});
+		}
+		else {
+			/* Normal FCurve */
+			ANIMCHANNEL_NEW_CHANNEL(fcu, ANIMTYPE_FCURVE, owner_id);
+		}
 	}
 	
 	/* return the number of items added to the list */
@@ -1279,10 +1295,10 @@ static size_t animfilter_act_group(bAnimContext *ac, ListBase *anim_data, bDopeS
 				/* group must be editable for its children to be editable (if we care about this) */
 				if (!(filter_mode & ANIMFILTER_FOREDIT) || EDITABLE_AGRP(agrp)) {
 					/* get first F-Curve which can be used here */
-					FCurve *first_fcu = animfilter_fcurve_next(ads, agrp->channels.first, agrp, filter_mode, owner_id);
+					FCurve *first_fcu = animfilter_fcurve_next(ads, agrp->channels.first, ANIMTYPE_FCURVE, filter_mode, agrp, owner_id);
 					
 					/* filter list, starting from this F-Curve */
-					tmp_items += animfilter_fcurves(&tmp_data, ads, first_fcu, agrp, filter_mode, owner_id);
+					tmp_items += animfilter_fcurves(&tmp_data, ads, first_fcu, ANIMTYPE_FCURVE, filter_mode, agrp, owner_id);
 				}
 			}
 		}
@@ -1321,7 +1337,7 @@ static size_t animfilter_action(bAnimContext *ac, ListBase *anim_data, bDopeShee
 	/* don't include anything from this action if it is linked in from another file,
 	 * and we're getting stuff for editing...
 	 */
-	if ((filter_mode & ANIMFILTER_FOREDIT) && ID_IS_LINKED_DATABLOCK(act))
+	if ((filter_mode & ANIMFILTER_FOREDIT) && ID_IS_LINKED(act))
 		return 0;
 		
 	/* do groups */
@@ -1338,7 +1354,7 @@ static size_t animfilter_action(bAnimContext *ac, ListBase *anim_data, bDopeShee
 	/* un-grouped F-Curves (only if we're not only considering those channels in the active group) */
 	if (!(filter_mode & ANIMFILTER_ACTGROUPED)) {
 		FCurve *firstfcu = (lastchan) ? (lastchan->next) : (act->curves.first);
-		items += animfilter_fcurves(anim_data, ads, firstfcu, NULL, filter_mode, owner_id);
+		items += animfilter_fcurves(anim_data, ads, firstfcu, ANIMTYPE_FCURVE, filter_mode, NULL, owner_id);
 	}
 	
 	/* return the number of items added to the list */
@@ -1348,7 +1364,7 @@ static size_t animfilter_action(bAnimContext *ac, ListBase *anim_data, bDopeShee
 /* Include NLA-Data for NLA-Editor:
  *	- when ANIMFILTER_LIST_CHANNELS is used, that means we should be filtering the list for display
  *	  Although the evaluation order is from the first track to the last and then apply the Action on top,
- *	  we present this in the UI as the Active Action followed by the last track to the first so that we 
+ *	  we present this in the UI as the Active Action followed by the last track to the first so that we
  *	  get the evaluation order presented as per a stack.
  *	- for normal filtering (i.e. for editing), we only need the NLA-tracks but they can be in 'normal' evaluation
  *	  order, i.e. first to last. Otherwise, some tools may get screwed up.
@@ -1460,36 +1476,8 @@ static size_t animfilter_nla_controls(ListBase *anim_data, bDopeSheet *ads, Anim
 		/* for now, we only go one level deep - so controls on grouped FCurves are not handled */
 		for (nlt = adt->nla_tracks.first; nlt; nlt = nlt->next) {
 			for (strip = nlt->strips.first; strip; strip = strip->next) {
-				ListBase strip_curves = {NULL, NULL};
-				size_t strip_items = 0;
-				
-				/* create the raw items */
-				strip_items += animfilter_fcurves(&strip_curves, ads, strip->fcurves.first, NULL, filter_mode, owner_id);
-				
-				/* change their types and add extra data
-				 * - There is no point making a separate copy of animfilter_fcurves for this now/yet,
-				 *   unless we later get per-element control curves for other stuff too
-				 */
-				if (strip_items) {
-					bAnimListElem *ale, *ale_n = NULL;
-					
-					for (ale = strip_curves.first; ale; ale = ale_n) {
-						ale_n = ale->next;
-						
-						/* change the type to being a FCurve for editing NLA strip controls */
-						BLI_assert(ale->type == ANIMTYPE_FCURVE);
-						
-						ale->type = ANIMTYPE_NLACURVE;
-						ale->owner = strip;
-						
-						ale->adt  = NULL; /* XXX: This way, there are no problems with time mapping errors */
-					}
-				}
-				
-				/* add strip curves to the set of channels inside the group being collected */
-				BLI_movelisttolist(&tmp_data, &strip_curves);
-				BLI_assert(BLI_listbase_is_empty(&strip_curves));
-				tmp_items += strip_items;
+				/* pass strip as the "owner", so that the name lookups (used while filtering) will resolve */
+				tmp_items += animfilter_fcurves(&tmp_data, ads, strip->fcurves.first, ANIMTYPE_NLACURVE, filter_mode, strip, owner_id);
 			}
 		}
 	}
@@ -1540,7 +1528,7 @@ static size_t animfilter_block_data(bAnimContext *ac, ListBase *anim_data, bDope
 				items += animfilter_nla(ac, anim_data, ads, adt, filter_mode, id);
 			},
 			{ /* Drivers */
-				items += animfilter_fcurves(anim_data, ads, adt->drivers.first, NULL, filter_mode, id);
+				items += animfilter_fcurves(anim_data, ads, adt->drivers.first, ANIMTYPE_FCURVE, filter_mode, NULL, id);
 			},
 			{ /* NLA Control Keyframes */
 				items += animfilter_nla_controls(anim_data, ads, adt, filter_mode, id);
@@ -2223,7 +2211,7 @@ typedef struct tAnimFilterModifiersContext {
 
 
 /* dependency walker callback for modifier dependencies */
-static void animfilter_modifier_idpoin_cb(void *afm_ptr, Object *ob, ID **idpoin, int UNUSED(cd_flag))
+static void animfilter_modifier_idpoin_cb(void *afm_ptr, Object *ob, ID **idpoin, int UNUSED(cb_flag))
 {
 	tAnimFilterModifiersContext *afm = (tAnimFilterModifiersContext *)afm_ptr;
 	ID *owner_id = &ob->id;
@@ -2247,6 +2235,8 @@ static void animfilter_modifier_idpoin_cb(void *afm_ptr, Object *ob, ID **idpoin
 		}
 		
 		/* TODO: images? */
+		default:
+			break;
 	}
 }
 
@@ -3176,8 +3166,8 @@ static size_t animdata_filter_remove_duplis(ListBase *anim_data)
 /* ----------- Public API --------------- */
 
 /* This function filters the active data source to leave only animation channels suitable for
- * usage by the caller. It will return the length of the list 
- * 
+ * usage by the caller. It will return the length of the list
+ *
  *  *anim_data: is a pointer to a ListBase, to which the filtered animation channels
  *		will be placed for use.
  *	filter_mode: how should the data be filtered - bitmapping accessed flags

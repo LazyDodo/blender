@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -67,8 +67,9 @@ void snode_group_offset(struct SpaceNode *snode, float *x, float *y);	/* transfo
 
 /* node_draw.c */
 int node_get_colorid(struct bNode *node);
-void node_socket_circle_draw(const struct bContext *C, struct bNodeTree *ntree, struct bNode *node,
-                             struct bNodeSocket *sock, float size, int highlight);
+void node_socket_draw(
+        const struct bContext *C, struct bNodeTree *ntree, struct bNode *node,
+        struct bNodeSocket *sock, float size, bool highlight);
 int node_get_resize_cursor(int directions);
 void node_draw_shadow(struct SpaceNode *snode, struct bNode *node, float radius, float alpha);
 void node_draw_default(const struct bContext *C, struct ARegion *ar, struct SpaceNode *snode,

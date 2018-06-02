@@ -35,6 +35,9 @@
 #ifdef __LITTLE_ENDIAN__
 #  include "BLI_endian_switch.h"
 #endif
+#ifdef WIN32
+#  include "BLI_winstuff.h"
+#endif
 
 #include "MOD_meshcache_util.h"  /* own include */
 
@@ -45,9 +48,10 @@ typedef struct MDDHead {
 	int verts_tot;
 } MDDHead;  /* frames, verts */
 
-static bool meshcache_read_mdd_head(FILE *fp, const int verts_tot,
-                                    MDDHead *mdd_head,
-                                    const char **err_str)
+static bool meshcache_read_mdd_head(
+        FILE *fp, const int verts_tot,
+        MDDHead *mdd_head,
+        const char **err_str)
 {
 	if (!fread(mdd_head, sizeof(*mdd_head), 1, fp)) {
 		*err_str = "Missing header";
@@ -75,11 +79,12 @@ static bool meshcache_read_mdd_head(FILE *fp, const int verts_tot,
 /**
  * Gets the index frange and factor
  */
-static bool meshcache_read_mdd_range(FILE *fp,
-                                     const int verts_tot,
-                                     const float frame, const char interp,
-                                     int r_index_range[2], float *r_factor,
-                                     const char **err_str)
+static bool meshcache_read_mdd_range(
+        FILE *fp,
+        const int verts_tot,
+        const float frame, const char interp,
+        int r_index_range[2], float *r_factor,
+        const char **err_str)
 {
 	MDDHead mdd_head;
 
@@ -94,11 +99,12 @@ static bool meshcache_read_mdd_range(FILE *fp,
 	return true;
 }
 
-static bool meshcache_read_mdd_range_from_time(FILE *fp,
-                                               const int verts_tot,
-                                               const float time, const float UNUSED(fps),
-                                               float *r_frame,
-                                               const char **err_str)
+static bool meshcache_read_mdd_range_from_time(
+        FILE *fp,
+        const int verts_tot,
+        const float time, const float UNUSED(fps),
+        float *r_frame,
+        const char **err_str)
 {
 	MDDHead mdd_head;
 	int i;
@@ -141,10 +147,11 @@ static bool meshcache_read_mdd_range_from_time(FILE *fp,
 	return true;
 }
 
-bool MOD_meshcache_read_mdd_index(FILE *fp,
-                                  float (*vertexCos)[3], const int verts_tot,
-                                  const int index, const float factor,
-                                  const char **err_str)
+bool MOD_meshcache_read_mdd_index(
+        FILE *fp,
+        float (*vertexCos)[3], const int verts_tot,
+        const int index, const float factor,
+        const char **err_str)
 {
 	MDDHead mdd_head;
 
@@ -157,7 +164,7 @@ bool MOD_meshcache_read_mdd_index(FILE *fp,
 		return false;
 	}
 
-	if (fseek(fp, index * mdd_head.verts_tot * sizeof(float) * 3, SEEK_CUR) != 0) {
+	if (fseek(fp, sizeof(float) * 3 * index * mdd_head.verts_tot, SEEK_CUR) != 0) {
 		*err_str = "Failed to seek frame";
 		return false;
 	}
@@ -209,10 +216,11 @@ bool MOD_meshcache_read_mdd_index(FILE *fp,
 	return true;
 }
 
-bool MOD_meshcache_read_mdd_frame(FILE *fp,
-                                  float (*vertexCos)[3], const int verts_tot, const char interp,
-                                  const float frame,
-                                  const char **err_str)
+bool MOD_meshcache_read_mdd_frame(
+        FILE *fp,
+        float (*vertexCos)[3], const int verts_tot, const char interp,
+        const float frame,
+        const char **err_str)
 {
 	int index_range[2];
 	float factor;
@@ -250,10 +258,11 @@ bool MOD_meshcache_read_mdd_frame(FILE *fp,
 	}
 }
 
-bool MOD_meshcache_read_mdd_times(const char *filepath,
-                                  float (*vertexCos)[3], const int verts_tot, const char interp,
-                                  const float time, const float fps, const char time_mode,
-                                  const char **err_str)
+bool MOD_meshcache_read_mdd_times(
+        const char *filepath,
+        float (*vertexCos)[3], const int verts_tot, const char interp,
+        const float time, const float fps, const char time_mode,
+        const char **err_str)
 {
 	float frame;
 

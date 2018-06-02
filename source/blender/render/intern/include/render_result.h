@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -67,6 +67,11 @@ void render_result_views_new(struct RenderResult *rr, struct RenderData *rd);
 
 void render_result_merge(struct RenderResult *rr, struct RenderResult *rrpart);
 
+/* Add Passes */
+
+void render_result_clone_passes(struct Render *re, struct RenderResult *rr, const char *viewname);
+void render_result_add_pass(struct RenderResult *rr, const char *name, int channels, const char *chan_id, const char *layername, const char *viewname);
+
 /* Free */
 
 void render_result_free(struct RenderResult *rr);
@@ -84,7 +89,7 @@ void render_result_exr_file_begin(struct Render *re);
 void render_result_exr_file_end(struct Render *re);
 
 /* render pass wrapper for gpencil */
-struct RenderPass *gp_add_pass(struct RenderResult *rr, struct RenderLayer *rl, int channels, int passtype, const char *viewname);
+struct RenderPass *gp_add_pass(struct RenderResult *rr, struct RenderLayer *rl, int channels, const char *name, const char *viewname);
 
 void render_result_exr_file_merge(struct RenderResult *rr, struct RenderResult *rrpart, const char *viewname);
 
@@ -110,6 +115,7 @@ void render_result_rect_get_pixels(struct RenderResult *rr,
 
 void render_result_views_shallowcopy(struct RenderResult *dst, struct RenderResult *src);
 void render_result_views_shallowdelete(struct RenderResult *rr);
+bool render_result_has_views(struct RenderResult *rr);
 
 #endif /* __RENDER_RESULT_H__ */
 

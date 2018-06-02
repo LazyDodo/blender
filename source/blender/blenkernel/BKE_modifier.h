@@ -106,8 +106,8 @@ typedef enum {
 } ModifierTypeFlag;
 
 /* IMPORTANT! Keep ObjectWalkFunc and IDWalkFunc signatures compatible. */
-typedef void (*ObjectWalkFunc)(void *userData, struct Object *ob, struct Object **obpoin, int cd_flag);
-typedef void (*IDWalkFunc)(void *userData, struct Object *ob, struct ID **idpoin, int cd_flag);
+typedef void (*ObjectWalkFunc)(void *userData, struct Object *ob, struct Object **obpoin, int cb_flag);
+typedef void (*IDWalkFunc)(void *userData, struct Object *ob, struct ID **idpoin, int cb_flag);
 typedef void (*TexWalkFunc)(void *userData, struct Object *ob, struct ModifierData *md, const char *propname);
 
 typedef enum ModifierApplyFlag {
@@ -126,6 +126,18 @@ typedef enum ModifierApplyFlag {
 	                                */
 } ModifierApplyFlag;
 
+
+typedef struct ModifierUpdateDepsgraphContext {
+	struct Scene *scene;
+	struct Object *object;
+
+	/* Old depsgraph node handle. */
+	struct DagForest *forest;
+	struct DagNode *obNode;
+
+	/* new depsgraph node handle. */
+	struct DepsNodeHandle *node;
+} ModifierUpdateDepsgraphContext;
 
 typedef struct ModifierTypeInfo {
 	/* The user visible name for this modifier */
@@ -148,7 +160,7 @@ typedef struct ModifierTypeInfo {
 	/* Copy instance data for this modifier type. Should copy all user
 	 * level settings to the target modifier.
 	 */
-	void (*copyData)(struct ModifierData *md, struct ModifierData *target);
+	void (*copyData)(const struct ModifierData *md, struct ModifierData *target);
 
 	/********************* Deform modifier functions *********************/
 
@@ -265,20 +277,16 @@ typedef struct ModifierTypeInfo {
 	 *
 	 * This function is optional.
 	 */
-	void (*updateDepgraph)(struct ModifierData *md, struct DagForest *forest,
-	                       struct Main *bmain, struct Scene *scene,
-	                       struct Object *ob, struct DagNode *obNode);
+	void (*updateDepgraph)(struct ModifierData *md,
+	                       const ModifierUpdateDepsgraphContext *ctx);
 
 	/* Add the appropriate relations to the dependency graph.
 	 *
 	 * This function is optional.
 	 */
-	/* TODO(sergey): Remove once we finalyl switched to the new depsgraph. */
+	/* TODO(sergey): Remove once we finally switched to the new depsgraph. */
 	void (*updateDepsgraph)(struct ModifierData *md,
-	                        struct Main *bmain,
-	                        struct Scene *scene,
-	                        struct Object *ob,
-	                        struct DepsNodeHandle *node);
+	                        const ModifierUpdateDepsgraphContext *ctx);
 
 	/* Should return true if the modifier needs to be recalculated on time
 	 * changes.
@@ -338,12 +346,14 @@ const ModifierTypeInfo *modifierType_getInfo(ModifierType type);
  * default values if pointer is optional.
  */
 struct ModifierData  *modifier_new(int type);
+void          modifier_free_ex(struct ModifierData *md, const int flag);
 void          modifier_free(struct ModifierData *md);
 
 bool          modifier_unique_name(struct ListBase *modifiers, struct ModifierData *md);
 
 void          modifier_copyData_generic(const struct ModifierData *md, struct ModifierData *target);
 void          modifier_copyData(struct ModifierData *md, struct ModifierData *target);
+void          modifier_copyData_ex(struct ModifierData *md, struct ModifierData *target, const int flag);
 bool          modifier_dependsOnTime(struct ModifierData *md);
 bool          modifier_supportsMapping(struct ModifierData *md);
 bool          modifier_supportsCage(struct Scene *scene, struct ModifierData *md);
@@ -420,7 +430,7 @@ void test_object_modifiers(struct Object *ob);
 void modifier_mdef_compact_influences(struct ModifierData *md);
 
 void        modifier_path_init(char *path, int path_maxlen, const char *name);
-const char *modifier_path_relbase(struct Object *ob);
+const char *modifier_path_relbase(struct Main *bmain, struct Object *ob);
 
 
 /* wrappers for modifier callbacks */

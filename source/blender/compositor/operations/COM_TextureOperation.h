@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -59,8 +59,6 @@ protected:
 	 * Constructor
 	 */
 	TextureBaseOperation();
-
-	MemoryBuffer *createMemoryBuffer(rcti *rect2);
 public:
 	void executePixelSampled(float output[4], float x, float y, PixelSampler sampler);
 

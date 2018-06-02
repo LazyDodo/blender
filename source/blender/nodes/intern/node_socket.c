@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -112,22 +112,21 @@ static bNodeSocket *verify_socket_template(bNodeTree *ntree, bNode *node, int in
 			break;
 	}
 	if (sock) {
-		sock->type = stemp->type;
+		if (sock->type != stemp->type) {
+			nodeModifySocketType(ntree, node, sock, stemp->type, stemp->subtype);
+		}
+
 		sock->limit = (stemp->limit == 0 ? 0xFFF : stemp->limit);
 		sock->flag |= stemp->flag;
-		
-		BLI_remlink(socklist, sock);
-		
-		return sock;
 	}
 	else {
 		/* no socket for this template found, make a new one */
 		sock = node_add_socket_from_template(ntree, node, stemp, in_out);
-		/* remove the new socket from the node socket list first,
-		 * will be added back after verification.
-		 */
-		BLI_remlink(socklist, sock);
 	}
+
+	/* remove the new socket from the node socket list first,
+	 * will be added back after verification. */
+	BLI_remlink(socklist, sock);
 	
 	return sock;
 }
@@ -183,13 +182,14 @@ void node_verify_socket_templates(bNodeTree *ntree, bNode *node)
 {
 	bNodeType *ntype = node->typeinfo;
 	/* Don't try to match socket lists when there are no templates.
-	 * This prevents group node sockets from being removed, without the need to explicitly
-	 * check the node type here.
+	 * This prevents dynamically generated sockets to be removed, like for
+	 * group, image or render layer nodes. We have an explicit check for the
+	 * render layer node since it still has fixed sockets too.
 	 */
 	if (ntype) {
 		if (ntype->inputs && ntype->inputs[0].type >= 0)
 			verify_socket_template_list(ntree, node, SOCK_IN, &node->inputs, ntype->inputs);
-		if (ntype->outputs && ntype->outputs[0].type >= 0)
+		if (ntype->outputs && ntype->outputs[0].type >= 0 && node->type != CMP_NODE_R_LAYERS)
 			verify_socket_template_list(ntree, node, SOCK_OUT, &node->outputs, ntype->outputs);
 	}
 }

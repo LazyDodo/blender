@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -890,18 +890,18 @@ static void image_mipmap_test(Tex *tex, ImBuf *ibuf)
 		if ((ibuf->flags & IB_fields) == 0) {
 			
 			if (ibuf->mipmap[0] && (ibuf->userflags & IB_MIPMAP_INVALID)) {
-				BLI_lock_thread(LOCK_IMAGE);
+				BLI_thread_lock(LOCK_IMAGE);
 				if (ibuf->userflags & IB_MIPMAP_INVALID) {
 					IMB_remakemipmap(ibuf, tex->imaflag & TEX_GAUSS_MIP);
 					ibuf->userflags &= ~IB_MIPMAP_INVALID;
 				}
-				BLI_unlock_thread(LOCK_IMAGE);
+				BLI_thread_unlock(LOCK_IMAGE);
 			}
 			if (ibuf->mipmap[0] == NULL) {
-				BLI_lock_thread(LOCK_IMAGE);
+				BLI_thread_lock(LOCK_IMAGE);
 				if (ibuf->mipmap[0] == NULL) 
 					IMB_makemipmap(ibuf, tex->imaflag & TEX_GAUSS_MIP);
-				BLI_unlock_thread(LOCK_IMAGE);
+				BLI_thread_unlock(LOCK_IMAGE);
 			}
 			/* if no mipmap could be made, fall back on non-mipmap render */
 			if (ibuf->mipmap[0] == NULL) {
@@ -1172,7 +1172,7 @@ static int imagewraposa_aniso(Tex *tex, Image *ima, ImBuf *ibuf, const float tex
 			a = max_ff(a, 1.0f);
 			b = max_ff(b, 1.0f);
 			fProbes = 2.f*(a / b) - 1.f;
-			AFD.iProbes = iroundf(fProbes);
+			AFD.iProbes = round_fl_to_int(fProbes);
 			AFD.iProbes = MIN2(AFD.iProbes, tex->afmax);
 			if (AFD.iProbes < fProbes)
 				b = 2.f*a / (float)(AFD.iProbes + 1);
@@ -1277,7 +1277,7 @@ static int imagewraposa_aniso(Tex *tex, Image *ima, ImBuf *ibuf, const float tex
 			b = max_ff(b, 1.0f);
 			fProbes = 2.f*(a / b) - 1.f;
 			/* no limit to number of Probes here */
-			AFD.iProbes = iroundf(fProbes);
+			AFD.iProbes = round_fl_to_int(fProbes);
 			if (AFD.iProbes < fProbes) b = 2.f*a / (float)(AFD.iProbes + 1);
 			AFD.majrad = a/ff;
 			AFD.minrad = b/ff;

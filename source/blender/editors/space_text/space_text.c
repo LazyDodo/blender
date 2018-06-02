@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -158,7 +158,7 @@ static void text_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn)
 					}
 
 					ED_area_tag_redraw(sa);
-					/* fall-through */  /* fall down to tag redraw */
+					ATTR_FALLTHROUGH;  /* fall down to tag redraw */
 				case NA_ADDED:
 				case NA_REMOVED:
 					ED_area_tag_redraw(sa);
@@ -636,5 +636,7 @@ void ED_spacetype_text(void)
 	ED_text_format_register_py();
 	ED_text_format_register_osl();
 	ED_text_format_register_lua();
+	ED_text_format_register_pov();
+	ED_text_format_register_pov_ini();
 }
 

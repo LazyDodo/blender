@@ -54,6 +54,7 @@
 #include "BKE_node.h"
 
 #include "BKE_animsys.h"
+#include "BKE_colorband.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
@@ -161,15 +162,15 @@ static void tex_normal_derivate(Tex *tex, TexResult *texres)
 {
 	if (tex->flag & TEX_COLORBAND) {
 		float col[4];
-		if (do_colorband(tex->coba, texres->tin, col)) {
+		if (BKE_colorband_evaluate(tex->coba, texres->tin, col)) {
 			float fac0, fac1, fac2, fac3;
 			
 			fac0= (col[0]+col[1]+col[2]);
-			do_colorband(tex->coba, texres->nor[0], col);
+			BKE_colorband_evaluate(tex->coba, texres->nor[0], col);
 			fac1= (col[0]+col[1]+col[2]);
-			do_colorband(tex->coba, texres->nor[1], col);
+			BKE_colorband_evaluate(tex->coba, texres->nor[1], col);
 			fac2= (col[0]+col[1]+col[2]);
-			do_colorband(tex->coba, texres->nor[2], col);
+			BKE_colorband_evaluate(tex->coba, texres->nor[2], col);
 			fac3= (col[0]+col[1]+col[2]);
 			
 			texres->nor[0]= (fac0 - fac1) / 3.0f;
@@ -781,7 +782,8 @@ static int cubemap_glob(const float n[3], float x, float y, float z, float *adr1
 /* ------------------------------------------------------------------------- */
 
 /* mtex argument only for projection switches */
-static int cubemap(MTex *mtex, VlakRen *vlr, const float n[3], float x, float y, float z, float *adr1, float *adr2)
+static int cubemap(
+        const MTex *mtex, VlakRen *vlr, const float n[3], float x, float y, float z, float *adr1, float *adr2)
 {
 	int proj[4]={0, ME_PROJXY, ME_PROJXZ, ME_PROJYZ}, ret= 0;
 	
@@ -873,7 +875,8 @@ static int cubemap_ob(Object *ob, const float n[3], float x, float y, float z, f
 
 /* ------------------------------------------------------------------------- */
 
-static void do_2d_mapping(MTex *mtex, float texvec[3], VlakRen *vlr, const float n[3], float dxt[3], float dyt[3])
+static void do_2d_mapping(
+        const MTex *mtex, float texvec[3], VlakRen *vlr, const float n[3], float dxt[3], float dyt[3])
 {
 	Tex *tex;
 	Object *ob= NULL;
@@ -1112,14 +1115,15 @@ static int multitex(Tex *tex,
                     const short which_output,
                     struct ImagePool *pool,
                     const bool skip_load_image,
-                    const bool texnode_preview)
+                    const bool texnode_preview,
+                    const bool use_nodes)
 {
 	float tmpvec[3];
 	int retval = 0; /* return value, int:0, col:1, nor:2, everything:3 */
 
 	texres->talpha = false;  /* is set when image texture returns alpha (considered premul) */
 	
-	if (tex->use_nodes && tex->nodetree) {
+	if (use_nodes && tex->use_nodes && tex->nodetree) {
 		retval = ntreeTexExecTree(tex->nodetree, texres, texvec, dxt, dyt, osatex, thread,
 		                          tex, which_output, R.r.cfra, texnode_preview, NULL, NULL);
 	}
@@ -1215,7 +1219,7 @@ static int multitex(Tex *tex,
 
 	if (tex->flag & TEX_COLORBAND) {
 		float col[4];
-		if (do_colorband(tex->coba, texres->tin, col)) {
+		if (BKE_colorband_evaluate(tex->coba, texres->tin, col)) {
 			texres->talpha = true;
 			texres->tr= col[0];
 			texres->tg= col[1];
@@ -1239,7 +1243,8 @@ static int multitex_nodes_intern(Tex *tex,
                                  ImagePool *pool,
                                  const bool scene_color_manage,
                                  const bool skip_load_image,
-                                 const bool texnode_preview)
+                                 const bool texnode_preview,
+                                 const bool use_nodes)
 {
 	if (tex==NULL) {
 		memset(texres, 0, sizeof(TexResult));
@@ -1264,7 +1269,8 @@ static int multitex_nodes_intern(Tex *tex,
 			                  which_output,
 			                  pool,
 			                  skip_load_image,
-			                  texnode_preview);
+			                  texnode_preview,
+			                  use_nodes);
 
 			if (mtex->mapto & (MAP_COL+MAP_COLSPEC+MAP_COLMIR)) {
 				ImBuf *ibuf = BKE_image_pool_acquire_ibuf(tex->ima, &tex->iuser, pool);
@@ -1311,7 +1317,8 @@ static int multitex_nodes_intern(Tex *tex,
 			                  which_output,
 			                  pool,
 			                  skip_load_image,
-			                  texnode_preview);
+			                  texnode_preview,
+			                  use_nodes);
 
 			{
 				ImBuf *ibuf = BKE_image_pool_acquire_ibuf(tex->ima, &tex->iuser, pool);
@@ -1341,7 +1348,8 @@ static int multitex_nodes_intern(Tex *tex,
 		                which_output,
 		                pool,
 		                skip_load_image,
-		                texnode_preview);
+		                texnode_preview,
+		                use_nodes);
 	}
 }
 
@@ -1354,7 +1362,8 @@ int multitex_nodes(Tex *tex, float texvec[3], float dxt[3], float dyt[3], int os
 	return multitex_nodes_intern(tex, texvec, dxt, dyt, osatex, texres,
 	                             thread, which_output, shi, mtex, pool, R.scene_color_manage,
 	                             (R.r.scemode & R_NO_IMAGE_LOAD) != 0,
-	                             (R.r.scemode & R_TEXNODE_PREVIEW) != 0);
+	                             (R.r.scemode & R_TEXNODE_PREVIEW) != 0,
+	                             true);
 }
 
 /* this is called for surface shading */
@@ -1378,7 +1387,8 @@ static int multitex_mtex(ShadeInput *shi, MTex *mtex, float texvec[3], float dxt
 		                mtex->which_output,
 		                pool,
 		                skip_load_image,
-		                (R.r.scemode & R_TEXNODE_PREVIEW) != 0);
+		                (R.r.scemode & R_TEXNODE_PREVIEW) != 0,
+		                true);
 	}
 }
 
@@ -1408,7 +1418,8 @@ int multitex_ext(Tex *tex,
 	                             pool,
 	                             scene_color_manage,
 	                             skip_load_image,
-	                             false);
+	                             false,
+	                             true);
 }
 
 /* extern-tex doesn't support nodes (ntreeBeginExec() can't be called when rendering is going on)\
@@ -1417,13 +1428,19 @@ int multitex_ext(Tex *tex,
  */
 int multitex_ext_safe(Tex *tex, float texvec[3], TexResult *texres, struct ImagePool *pool, bool scene_color_manage, const bool skip_load_image)
 {
-	int use_nodes= tex->use_nodes, retval;
-	
-	tex->use_nodes = false;
-	retval= multitex_nodes_intern(tex, texvec, NULL, NULL, 0, texres, 0, 0, NULL, NULL, pool, scene_color_manage, skip_load_image, false);
-	tex->use_nodes= use_nodes;
-	
-	return retval;
+	return multitex_nodes_intern(tex,
+	                             texvec,
+	                             NULL, NULL,
+	                             0,
+	                             texres,
+	                             0,
+	                             0,
+	                             NULL, NULL,
+	                             pool,
+	                             scene_color_manage,
+	                             skip_load_image,
+	                             false,
+	                             false);
 }
 
 
@@ -1481,6 +1498,7 @@ void texture_rgb_blend(float in[3], const float tex[3], const float out[3], floa
 		
 	case MTEX_SUB:
 		fact= -fact;
+		ATTR_FALLTHROUGH;
 	case MTEX_ADD:
 		fact*= facg;
 		in[0]= (fact*tex[0] + out[0]);
@@ -1595,6 +1613,7 @@ float texture_value_blend(float tex, float out, float fact, float facg, int blen
 
 	case MTEX_SUB:
 		fact= -fact;
+		ATTR_FALLTHROUGH;
 	case MTEX_ADD:
 		in= fact*tex + out;
 		break;
@@ -2873,7 +2892,8 @@ void do_volume_tex(ShadeInput *shi, const float *xyz, int mapto_flag, float col_
 			                  mtex->which_output,
 			                  re->pool,
 			                  skip_load_image,
-			                  texnode_preview);	/* NULL = dxt/dyt, 0 = shi->osatex - not supported */
+			                  texnode_preview,
+			                  true);	/* NULL = dxt/dyt, 0 = shi->osatex - not supported */
 			
 			/* texture output */
 
@@ -3051,7 +3071,8 @@ void do_halo_tex(HaloRen *har, float xn, float yn, float col_r[4])
 	               mtex->which_output,
 	               har->pool,
 	               skip_load_image,
-	               texnode_preview);
+	               texnode_preview,
+	               true);
 
 	/* texture output */
 	if (rgb && (mtex->texflag & MTEX_RGBTOINT)) {
@@ -3274,7 +3295,8 @@ void do_sky_tex(
 			               mtex->which_output,
 			               R.pool,
 			               skip_load_image,
-			               texnode_preview);
+			               texnode_preview,
+			               true);
 			
 			/* texture output */
 			if (rgb && (mtex->texflag & MTEX_RGBTOINT)) {
@@ -3500,7 +3522,8 @@ void do_lamp_tex(LampRen *la, const float lavec[3], ShadeInput *shi, float col_r
 			               mtex->which_output,
 			               R.pool,
 			               skip_load_image,
-			               texnode_preview);
+			               texnode_preview,
+			               true);
 
 			/* texture output */
 			if (rgb && (mtex->texflag & MTEX_RGBTOINT)) {
@@ -3574,7 +3597,7 @@ void do_lamp_tex(LampRen *la, const float lavec[3], ShadeInput *shi, float col_r
 
 /* ------------------------------------------------------------------------- */
 
-int externtex(MTex *mtex,
+int externtex(const MTex *mtex,
               const float vec[3],
               float *tin, float *tr, float *tg, float *tb, float *ta,
               const int thread,
@@ -3614,7 +3637,8 @@ int externtex(MTex *mtex,
 	               mtex->which_output,
 	               pool,
 	               skip_load_image,
-	               texnode_preview);
+	               texnode_preview,
+	               true);
 	
 	if (rgb) {
 		texr.tin = IMB_colormanagement_get_luminance(&texr.tr);
@@ -3651,7 +3675,7 @@ void render_realtime_texture(ShadeInput *shi, Image *ima)
 	if (R.r.scemode & R_NO_TEX) return;
 
 	if (firsttime) {
-		BLI_lock_thread(LOCK_IMAGE);
+		BLI_thread_lock(LOCK_IMAGE);
 		if (firsttime) {
 			const int num_threads = BLI_system_thread_count();
 			for (a = 0; a < num_threads; a++) {
@@ -3662,7 +3686,7 @@ void render_realtime_texture(ShadeInput *shi, Image *ima)
 
 			firsttime= 0;
 		}
-		BLI_unlock_thread(LOCK_IMAGE);
+		BLI_thread_unlock(LOCK_IMAGE);
 	}
 	
 	tex= &imatex[shi->thread];
@@ -3730,7 +3754,7 @@ Material *RE_sample_material_init(Material *orig_mat, Scene *scene)
 	if (!orig_mat) return NULL;
 
 	/* copy material */
-	mat = localize_material(orig_mat);
+	mat = BKE_material_localize(orig_mat);
 
 	/* update material anims */
 	BKE_animsys_evaluate_animdata(scene, &mat->id, mat->adt, BKE_scene_frame_get(scene), ADT_RECALC_ANIM);

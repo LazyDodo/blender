@@ -24,6 +24,7 @@
 # ***** END GPL LICENSE BLOCK *****
 
 # add_subdirectory(atomic)  # header only
+add_subdirectory(clog)
 add_subdirectory(string)
 add_subdirectory(ghost)
 add_subdirectory(guardedalloc)
@@ -34,7 +35,7 @@ add_subdirectory(mikktspace)
 add_subdirectory(glew-mx)
 add_subdirectory(eigen)
 
-if (WITH_GAMEENGINE_DECKLINK)
+if(WITH_GAMEENGINE_DECKLINK)
 	add_subdirectory(decklink)
 endif()
 
@@ -62,7 +63,7 @@ if(WITH_IK_ITASC)
 	add_subdirectory(itasc)
 endif()
 
-if(WITH_IK_SOLVER OR WITH_GAMEENGINE OR WITH_MOD_BOOLEAN)
+if(WITH_GAMEENGINE)
 	add_subdirectory(moto)
 endif()
 

@@ -49,7 +49,7 @@
 #include "WM_api.h"
 
 #include "ED_screen.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -193,7 +193,7 @@ void CLIP_OT_tools(wmOperatorType *ot)
 
 static void clip_panel_operator_redo_buts(const bContext *C, Panel *pa, wmOperator *op)
 {
-	uiLayoutOperatorButs(C, pa->layout, op, NULL, 'V', 0);
+	uiTemplateOperatorPropertyButs(C, pa->layout, op, NULL, 'V', 0);
 }
 
 static void clip_panel_operator_redo_header(const bContext *C, Panel *pa)

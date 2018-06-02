@@ -33,20 +33,17 @@ set(INC
 	../makesdna
 	../makesrna
 	../windowmanager
+	../depsgraph
 	../../../intern/guardedalloc
 	../../../intern/utfconv
 )
 
 set(INC_SYS
 	${ALEMBIC_INCLUDE_DIRS}
+	${BOOST_INCLUDE_DIR}
 	${HDF5_INCLUDE_DIRS}
 	${OPENEXR_INCLUDE_DIRS}
 )
-if(APPLE OR WIN32)
-	list(APPEND INC_SYS
-		${BOOST_INCLUDE_DIR}
-	)
-endif()
 
 set(SRC
 	intern/abc_archive.cc
@@ -55,6 +52,7 @@ set(SRC
 	intern/abc_curves.cc
 	intern/abc_exporter.cc
 	intern/abc_hair.cc
+	intern/abc_mball.cc
 	intern/abc_mesh.cc
 	intern/abc_nurbs.cc
 	intern/abc_object.cc
@@ -70,6 +68,7 @@ set(SRC
 	intern/abc_curves.h
 	intern/abc_exporter.h
 	intern/abc_hair.h
+	intern/abc_mball.h
 	intern/abc_mesh.h
 	intern/abc_nurbs.h
 	intern/abc_object.h

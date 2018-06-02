@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -137,8 +137,22 @@ static void keymap_particle(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "PARTICLE_OT_hide", HKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "unselected", true);
 
-	kmi = WM_keymap_verify_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_ANY, 0);
+	/* Shift+LMB behavior first, so it has priority over KM_ANY item below. */
+	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "release_confirm", true);
+	RNA_boolean_set(kmi->ptr, "use_planar_constraint", true);
+	RNA_boolean_set(kmi->ptr, "use_accurate", false);
+
+	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);
+	RNA_boolean_set(kmi->ptr, "release_confirm", true);
+	RNA_boolean_set(kmi->ptr, "use_planar_constraint", false);
+	RNA_boolean_set(kmi->ptr, "use_accurate", true);
+
+	/* Using KM_ANY here to allow holding modifiers before starting to transform. */
+	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_ANY, 0);
+	RNA_boolean_set(kmi->ptr, "release_confirm", true);
+	RNA_boolean_set(kmi->ptr, "use_planar_constraint", false);
+	RNA_boolean_set(kmi->ptr, "use_accurate", false);
 
 	WM_keymap_add_item(keymap, "PARTICLE_OT_brush_edit", LEFTMOUSE, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "PARTICLE_OT_brush_edit", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);

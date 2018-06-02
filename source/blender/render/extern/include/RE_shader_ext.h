@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -178,6 +178,7 @@ typedef struct ShadeInput {
 	
 	unsigned int lay;
 	int layflag, passflag, combinedflag;
+	short object_pass_index;
 	struct Group *light_override;
 	struct Material *mat_override;
 
@@ -216,7 +217,9 @@ int multitex_nodes(struct Tex *tex, float texvec[3], float dxt[3], float dyt[3],
                    const short thread, short which_output, struct ShadeInput *shi, struct MTex *mtex,
                    struct ImagePool *pool);
 float RE_lamp_get_data(struct ShadeInput *shi, struct Object *lamp_obj, float col[4], float lv[3], float *dist, float shadow[4]);
-void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3]);
+void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *random, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3]);
+
+float RE_fresnel_dielectric(float incoming[3], float normal[3], float eta);
 
 /* shaded view and bake */
 struct Render;
@@ -238,6 +241,9 @@ enum {
 };
 
 const float (*RE_object_instance_get_matrix(struct ObjectInstanceRen *obi, int matrix_id))[4];
+
+float RE_object_instance_get_object_pass_index(struct ObjectInstanceRen *obi);
+float RE_object_instance_get_random_id(struct ObjectInstanceRen *obi);
 
 enum {
 	RE_VIEW_MATRIX,

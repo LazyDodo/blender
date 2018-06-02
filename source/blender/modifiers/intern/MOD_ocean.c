@@ -41,13 +41,17 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_cdderivedmesh.h"
+#include "BKE_global.h"
+#include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_ocean.h"
 
+#include "MOD_modifiertypes.h"
+
 #ifdef WITH_OCEANSIM
-static void init_cache_data(Object *ob, struct OceanModifierData *omd)
+static void init_cache_data(Main *bmain, Object *ob, struct OceanModifierData *omd)
 {
-	const char *relbase = modifier_path_relbase(ob);
+	const char *relbase = modifier_path_relbase(bmain, ob);
 
 	omd->oceancache = BKE_ocean_init_cache(omd->cachepath, relbase,
 	                                       omd->bakestart, omd->bakeend, omd->wave_scale,
@@ -157,43 +161,20 @@ static void freeData(ModifierData *md)
 #endif /* WITH_OCEANSIM */
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
 #ifdef WITH_OCEANSIM
-	OceanModifierData *omd = (OceanModifierData *) md;
+#if 0
+	const OceanModifierData *omd = (const OceanModifierData *) md;
+#endif
 	OceanModifierData *tomd = (OceanModifierData *) target;
 
-	tomd->geometry_mode = omd->geometry_mode;
-	tomd->resolution = omd->resolution;
-	tomd->spatial_size = omd->spatial_size;
-
-	tomd->wind_velocity = omd->wind_velocity;
-
-	tomd->damp = omd->damp;
-	tomd->smallest_wave = omd->smallest_wave;
-	tomd->depth = omd->depth;
-
-	tomd->wave_alignment = omd->wave_alignment;
-	tomd->wave_direction = omd->wave_direction;
-	tomd->wave_scale = omd->wave_scale;
-
-	tomd->chop_amount = omd->chop_amount;
-	tomd->foam_coverage = omd->foam_coverage;
-	tomd->time = omd->time;
-
-	tomd->seed = omd->seed;
-	tomd->flag = omd->flag;
+	modifier_copyData_generic(md, target);
 
 	tomd->refresh = 0;
 
-	tomd->size = omd->size;
-	tomd->repeat_x = omd->repeat_x;
-	tomd->repeat_y = omd->repeat_y;
-
 	/* XXX todo: copy cache runtime too */
 	tomd->cached = 0;
-	tomd->bakestart = omd->bakestart;
-	tomd->bakeend = omd->bakeend;
 	tomd->oceancache = NULL;
 
 	tomd->ocean = BKE_ocean_add();
@@ -280,7 +261,10 @@ typedef struct GenerateOceanGeometryData {
 	float ix, iy;
 } GenerateOceanGeometryData;
 
-static void generate_ocean_geometry_vertices(void *userdata, const int y)
+static void generate_ocean_geometry_vertices(
+        void *__restrict userdata,
+        const int y,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	GenerateOceanGeometryData *gogd = userdata;
 	int x;
@@ -294,7 +278,10 @@ static void generate_ocean_geometry_vertices(void *userdata, const int y)
 	}
 }
 
-static void generate_ocean_geometry_polygons(void *userdata, const int y)
+static void generate_ocean_geometry_polygons(
+        void *__restrict userdata,
+        const int y,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	GenerateOceanGeometryData *gogd = userdata;
 	int x;
@@ -324,7 +311,10 @@ static void generate_ocean_geometry_polygons(void *userdata, const int y)
 	}
 }
 
-static void generate_ocean_geometry_uvs(void *userdata, const int y)
+static void generate_ocean_geometry_uvs(
+        void *__restrict userdata,
+        const int y,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	GenerateOceanGeometryData *gogd = userdata;
 	int x;
@@ -386,11 +376,15 @@ static DerivedMesh *generate_ocean_geometry(OceanModifierData *omd)
 
 	gogd.origindex = CustomData_get_layer(&result->polyData, CD_ORIGINDEX);
 
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = use_threading;
+
 	/* create vertices */
-	BLI_task_parallel_range(0, gogd.res_y + 1, &gogd, generate_ocean_geometry_vertices, use_threading);
+	BLI_task_parallel_range(0, gogd.res_y + 1, &gogd, generate_ocean_geometry_vertices, &settings);
 
 	/* create faces */
-	BLI_task_parallel_range(0, gogd.res_y, &gogd, generate_ocean_geometry_polygons, use_threading);
+	BLI_task_parallel_range(0, gogd.res_y, &gogd, generate_ocean_geometry_polygons, &settings);
 
 	CDDM_calc_edges(result);
 
@@ -403,7 +397,7 @@ static DerivedMesh *generate_ocean_geometry(OceanModifierData *omd)
 			gogd.ix = 1.0 / gogd.rx;
 			gogd.iy = 1.0 / gogd.ry;
 
-			BLI_task_parallel_range(0, gogd.res_y, &gogd, generate_ocean_geometry_uvs, use_threading);
+			BLI_task_parallel_range(0, gogd.res_y, &gogd, generate_ocean_geometry_uvs, &settings);
 		}
 	}
 
@@ -412,9 +406,10 @@ static DerivedMesh *generate_ocean_geometry(OceanModifierData *omd)
 	return result;
 }
 
-static DerivedMesh *doOcean(ModifierData *md, Object *ob,
-                            DerivedMesh *derivedData,
-                            int UNUSED(useRenderParams))
+static DerivedMesh *doOcean(
+        ModifierData *md, Object *ob,
+        DerivedMesh *derivedData,
+        int UNUSED(useRenderParams))
 {
 	OceanModifierData *omd = (OceanModifierData *) md;
 
@@ -454,7 +449,7 @@ static DerivedMesh *doOcean(ModifierData *md, Object *ob,
 	/* do ocean simulation */
 	if (omd->cached == true) {
 		if (!omd->oceancache) {
-			init_cache_data(ob, omd);
+			init_cache_data(G.main, ob, omd);
 		}
 		BKE_ocean_simulate_cache(omd->oceancache, md->scene->r.cfra);
 	}
@@ -552,9 +547,10 @@ static DerivedMesh *doOcean(ModifierData *md, Object *ob,
 	return dm;
 }
 #else  /* WITH_OCEANSIM */
-static DerivedMesh *doOcean(ModifierData *md, Object *UNUSED(ob),
-                            DerivedMesh *derivedData,
-                            int UNUSED(useRenderParams))
+static DerivedMesh *doOcean(
+        ModifierData *md, Object *UNUSED(ob),
+        DerivedMesh *derivedData,
+        int UNUSED(useRenderParams))
 {
 	/* unused */
 	(void)md;
@@ -562,9 +558,10 @@ static DerivedMesh *doOcean(ModifierData *md, Object *UNUSED(ob),
 }
 #endif /* WITH_OCEANSIM */
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
-                                  DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(
+        ModifierData *md, Object *ob,
+        DerivedMesh *derivedData,
+        ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *result;
 

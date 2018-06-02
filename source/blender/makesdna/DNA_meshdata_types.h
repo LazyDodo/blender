@@ -164,8 +164,8 @@ typedef struct MLoop {
  *     MEdge *ed = &medge[mloop[lt->tri[j]].e];
  *     unsigned int tri_edge[2]  = {mloop[lt->tri[j]].v, mloop[lt->tri[j_next]].v};
  *
- *     if (ELEM(ed->v1, tri_edge[0], tri_edge[1]) &&
- *         ELEM(ed->v2, tri_edge[0], tri_edge[1]))
+ *     if (((ed->v1 == tri_edge[0]) && (ed->v1 == tri_edge[1])) ||
+ *         ((ed->v1 == tri_edge[1]) && (ed->v1 == tri_edge[0])))
  *     {
  *         printf("real edge found %u %u\n", tri_edge[0], tri_edge[1]);
  *     }
@@ -356,7 +356,7 @@ typedef struct GridPaintMask {
 	int pad;
 } GridPaintMask;
 
-typedef enum MVertSkinFlag {
+typedef enum eMVertSkinFlag {
 	/* Marks a vertex as the edge-graph root, used for calculating rotations for all connected edges (recursively).
 	 * Also used to choose a root when generating an armature.
 	 */
@@ -366,13 +366,13 @@ typedef enum MVertSkinFlag {
 	 * directly hulled together, rather than the default of generating intermediate frames.
 	 */
 	MVERT_SKIN_LOOSE = 2,
-} MVertSkinFlag;
+} eMVertSkinFlag;
 
 typedef struct MVertSkin {
 	/* Radii of the skin, define how big the generated frames are. Currently only the first two elements are used. */
 	float radius[3];
 
-	/* MVertSkinFlag */
+	/* eMVertSkinFlag */
 	int flag;
 } MVertSkin;
 

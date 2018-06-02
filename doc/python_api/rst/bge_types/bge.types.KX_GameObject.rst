@@ -1,8 +1,6 @@
 KX_GameObject(SCA_IObject)
 ==========================
 
-.. module:: bge.types
-
 base class --- :class:`SCA_IObject`
 
 .. class:: KX_GameObject(SCA_IObject)
@@ -405,7 +403,7 @@ base class --- :class:`SCA_IObject`
 
       .. note::
 
-         This attribute is experemental and may be removed (but probably wont be).
+         This attribute is experimental and may be removed (but probably wont be).
 
       .. note::
 
@@ -419,7 +417,7 @@ base class --- :class:`SCA_IObject`
 
       .. note::
 
-         This attribute is experemental and may be removed (but probably wont be).
+         This attribute is experimental and may be removed (but probably wont be).
 
       .. note::
 
@@ -453,7 +451,7 @@ base class --- :class:`SCA_IObject`
 
    .. attribute:: childrenRecursive
 
-      all children of this object including childrens children, (read-only).
+      all children of this object including children's children, (read-only).
 
       :type: :class:`CListValue` of :class:`KX_GameObject`'s
 
@@ -536,7 +534,7 @@ base class --- :class:`SCA_IObject`
 
    .. method:: getAxisVect(vect)
 
-      Returns the axis vector rotates by the objects worldspace orientation.
+      Returns the axis vector rotates by the object's worldspace orientation.
       This is the equivalent of multiplying the vector by the orientation matrix.
 
       :arg vect: a vector to align the axis.
@@ -596,7 +594,7 @@ base class --- :class:`SCA_IObject`
 
       Gets the game object's linear velocity.
 
-      This method returns the game object's velocity through it's centre of mass, ie no angular velocity component.
+      This method returns the game object's velocity through it's center of mass, ie no angular velocity component.
 
       :arg local:
          * False: you get the "global" velocity ie: relative to world orientation.
@@ -609,7 +607,7 @@ base class --- :class:`SCA_IObject`
 
       Sets the game object's linear velocity.
 
-      This method sets game object's velocity through it's centre of mass,
+      This method sets game object's velocity through it's center of mass,
       ie no angular velocity component.
 
       This requires a dynamic object.
@@ -814,7 +812,7 @@ base class --- :class:`SCA_IObject`
             # do something
             pass
 
-      The face paremeter determines the orientation of the normal.
+      The face parameter determines the orientation of the normal.
 
       * 0 => hit normal is always oriented towards the ray origin (as if you casted the ray from outside)
       * 1 => hit normal is the real face normal (only for mesh object, otherwise face has no effect)
@@ -911,7 +909,7 @@ base class --- :class:`SCA_IObject`
 
       .. note::
 
-         The gameObject argument has an advantage that it can convert from a mesh with modifiers applied (such as subsurf).
+         The gameObject argument has an advantage that it can convert from a mesh with modifiers applied (such as the Subdivision Surface modifier).
 
       .. warning::
 
@@ -919,7 +917,7 @@ base class --- :class:`SCA_IObject`
 
       .. warning::
 
-         If the object is a part of a combound object it will fail (parent or child)
+         If the object is a part of a compound object it will fail (parent or child)
 
       .. warning::
 

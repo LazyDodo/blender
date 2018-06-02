@@ -63,9 +63,6 @@
 
 #include "MEM_guardedalloc.h"
 
-/* local */
-#define UNIQUE_NAME_MAX 128
-
 /* Declarations */
 
 #ifdef WIN32
@@ -88,13 +85,13 @@ static bool BLI_path_is_abs(const char *name);
  */
 int BLI_stringdec(const char *string, char *head, char *tail, unsigned short *numlen)
 {
-	unsigned int nums = 0, nume = 0;
+	uint nums = 0, nume = 0;
 	int i;
 	bool found_digit = false;
 	const char * const lslash = BLI_last_slash(string);
-	const unsigned int string_len = strlen(string);
-	const unsigned int lslash_len = lslash != NULL ? (int)(lslash - string) : 0;
-	unsigned int name_end = string_len;
+	const uint string_len = strlen(string);
+	const uint lslash_len = lslash != NULL ? (int)(lslash - string) : 0;
+	uint name_end = string_len;
 
 	while (name_end > lslash_len && string[--name_end] != '.') {} /* name ends at dot if present */
 	if (name_end == lslash_len && string[name_end] != '.') name_end = string_len;
@@ -145,162 +142,6 @@ int BLI_stringdec(const char *string, char *head, char *tail, unsigned short *nu
 void BLI_stringenc(char *string, const char *head, const char *tail, unsigned short numlen, int pic)
 {
 	sprintf(string, "%s%.*d%s", head, numlen, MAX2(0, pic), tail);
-}
-
-/**
- * Looks for a numeric suffix preceded by delim character on the end of
- * name, puts preceding part into *left and value of suffix into *nr.
- * Returns the length of *left.
- *
- * Foo.001 -> "Foo", 1
- * Returning the length of "Foo"
- *
- * \param left  Where to return copy of part preceding delim
- * \param nr  Where to return value of numeric suffix
- * \param name  String to split
- * \param delim  Delimiter character
- * \return  Length of \a left
- */
-int BLI_split_name_num(char *left, int *nr, const char *name, const char delim)
-{
-	const int name_len = strlen(name);
-
-	*nr = 0;
-	memcpy(left, name, (name_len + 1) * sizeof(char));
-
-	/* name doesn't end with a delimiter "foo." */
-	if ((name_len > 1 && name[name_len - 1] == delim) == 0) {
-		int a = name_len;
-		while (a--) {
-			if (name[a] == delim) {
-				left[a] = '\0';  /* truncate left part here */
-				*nr = atol(name + a + 1);
-				/* casting down to an int, can overflow for large numbers */
-				if (*nr < 0)
-					*nr = 0;
-				return a;
-			}
-			else if (isdigit(name[a]) == 0) {
-				/* non-numeric suffix - give up */
-				break;
-			}
-		}
-	}
-
-	return name_len;
-}
-
-/**
- * Ensures name is unique (according to criteria specified by caller in unique_check callback),
- * incrementing its numeric suffix as necessary. Returns true if name had to be adjusted.
- *
- * \param unique_check  Return true if name is not unique
- * \param arg  Additional arg to unique_check--meaning is up to caller
- * \param defname  To initialize name if latter is empty
- * \param delim  Delimits numeric suffix in name
- * \param name  Name to be ensured unique
- * \param name_len  Maximum length of name area
- * \return true if there if the name was changed
- */
-bool BLI_uniquename_cb(bool (*unique_check)(void *arg, const char *name),
-                       void *arg, const char *defname, char delim, char *name, int name_len)
-{
-	if (name[0] == '\0') {
-		BLI_strncpy(name, defname, name_len);
-	}
-
-	if (unique_check(arg, name)) {
-		char numstr[16];
-		char tempname[UNIQUE_NAME_MAX];
-		char left[UNIQUE_NAME_MAX];
-		int number;
-		int len = BLI_split_name_num(left, &number, name, delim);
-		do {
-			/* add 1 to account for \0 */
-			const int numlen = BLI_snprintf(numstr, sizeof(numstr), "%c%03d", delim, ++number) + 1;
-
-			/* highly unlikely the string only has enough room for the number
-			 * but support anyway */
-			if ((len == 0) || (numlen >= name_len)) {
-				/* number is know not to be utf-8 */
-				BLI_strncpy(tempname, numstr, name_len);
-			}
-			else {
-				char *tempname_buf;
-				tempname_buf = tempname + BLI_strncpy_utf8_rlen(tempname, left, name_len - numlen);
-				memcpy(tempname_buf, numstr, numlen);
-			}
-		} while (unique_check(arg, tempname));
-
-		BLI_strncpy(name, tempname, name_len);
-		
-		return true;
-	}
-	
-	return false;
-}
-
-/* little helper macro for BLI_uniquename */
-#ifndef GIVE_STRADDR
-#  define GIVE_STRADDR(data, offset) ( ((char *)data) + offset)
-#endif
-
-/* Generic function to set a unique name. It is only designed to be used in situations
- * where the name is part of the struct, and also that the name is at most UNIQUE_NAME_MAX chars long.
- * 
- * For places where this is used, see constraint.c for example...
- *
- *  name_offs: should be calculated using offsetof(structname, membername) macro from stddef.h
- *  len: maximum length of string (to prevent overflows, etc.)
- *  defname: the name that should be used by default if none is specified already
- *  delim: the character which acts as a delimiter between parts of the name
- */
-static bool uniquename_find_dupe(ListBase *list, void *vlink, const char *name, int name_offs)
-{
-	Link *link;
-
-	for (link = list->first; link; link = link->next) {
-		if (link != vlink) {
-			if (STREQ(GIVE_STRADDR(link, name_offs), name)) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-static bool uniquename_unique_check(void *arg, const char *name)
-{
-	struct {ListBase *lb; void *vlink; int name_offs; } *data = arg;
-	return uniquename_find_dupe(data->lb, data->vlink, name, data->name_offs);
-}
-
-/**
- * Ensures that the specified block has a unique name within the containing list,
- * incrementing its numeric suffix as necessary. Returns true if name had to be adjusted.
- *
- * \param list  List containing the block
- * \param vlink  The block to check the name for
- * \param defname  To initialize block name if latter is empty
- * \param delim  Delimits numeric suffix in name
- * \param name_offs  Offset of name within block structure
- * \param name_len  Maximum length of name area
- */
-bool BLI_uniquename(ListBase *list, void *vlink, const char *defname, char delim, int name_offs, int name_len)
-{
-	struct {ListBase *lb; void *vlink; int name_offs; } data;
-	data.lb = list;
-	data.vlink = vlink;
-	data.name_offs = name_offs;
-
-	assert((name_len > 1) && (name_len <= UNIQUE_NAME_MAX));
-
-	/* See if we are given an empty string */
-	if (ELEM(NULL, vlink, defname))
-		return false;
-
-	return BLI_uniquename_cb(uniquename_unique_check, &data, defname, delim, GIVE_STRADDR(vlink, name_offs), name_len);
 }
 
 static int BLI_path_unc_prefix_len(const char *path); /* defined below in same file */
@@ -859,7 +700,7 @@ bool BLI_parent_dir(char *path)
  */
 static bool stringframe_chars(const char *path, int *char_start, int *char_end)
 {
-	unsigned int ch_sta, ch_end, i;
+	uint ch_sta, ch_end, i;
 	/* Insert current frame: file### -> file001 */
 	ch_sta = ch_end = 0;
 	for (i = 0; path[i] != '\0'; i++) {
@@ -1326,51 +1167,15 @@ bool BLI_path_program_search(
 }
 
 /**
- * Copies into *last the part of *dir following the second-last slash.
- */
-void BLI_getlastdir(const char *dir, char *last, const size_t maxlen)
-{
-	const char *s = dir;
-	const char *lslash = NULL;
-	const char *prevslash = NULL;
-	while (*s) {
-		if ((*s == '\\') || (*s == '/')) {
-			prevslash = lslash;
-			lslash = s;
-		}
-		s++;
-	}
-	if (prevslash) {
-		BLI_strncpy(last, prevslash + 1, maxlen);
-	}
-	else {
-		BLI_strncpy(last, dir, maxlen);
-	}
-}
-
-
-/**
  * Sets the specified environment variable to the specified value,
  * and clears it if val == NULL.
  */
 void BLI_setenv(const char *env, const char *val)
 {
 	/* free windows */
-#if (defined(WIN32) || defined(WIN64)) && defined(FREE_WINDOWS)
-	char *envstr;
 
-	if (val)
-		envstr = BLI_sprintfN("%s=%s", env, val);
-	else
-		envstr = BLI_sprintfN("%s=", env);
-
-	putenv(envstr);
-	MEM_freeN(envstr);
-
-	/* non-free windows */
-#elif (defined(WIN32) || defined(WIN64)) /* not free windows */
+#if (defined(WIN32) || defined(WIN64))
 	uputenv(env, val);
-
 
 #else
 	/* linux/osx/bsd */
@@ -1417,14 +1222,16 @@ void BLI_make_exist(char *dir)
 
 /**
  * Ensures that the parent directory of *name exists.
+ *
+ * \return true on success (i.e. given path now exists on FS), false otherwise.
  */
-void BLI_make_existing_file(const char *name)
+bool BLI_make_existing_file(const char *name)
 {
 	char di[FILE_MAX];
 	BLI_split_dir_part(name, di, sizeof(di));
 
 	/* make if the dir doesn't exist */
-	BLI_dir_create_recursive(di);
+	return BLI_dir_create_recursive(di);
 }
 
 /**
@@ -1774,6 +1581,90 @@ void BLI_join_dirfile(char *__restrict dst, const size_t maxlen, const char *__r
 }
 
 /**
+ * Join multiple strings into a path, ensuring only a single path separator between each,
+ * and trailing slash is kept.
+ *
+ * \note If you want a trailing slash, add ``SEP_STR`` as the last path argument,
+ * duplicate slashes will be cleaned up.
+ */
+size_t BLI_path_join(char *__restrict dst, const size_t dst_len, const char *path, ...)
+{
+	if (UNLIKELY(dst_len == 0)) {
+		return 0;
+	}
+	const size_t dst_last = dst_len - 1;
+	size_t ofs = BLI_strncpy_rlen(dst, path, dst_len);
+
+	if (ofs == dst_last) {
+		return ofs;
+	}
+
+	/* remove trailing slashes, unless there are _only_ trailing slashes
+	 * (allow "//" as the first argument). */
+	bool has_trailing_slash = false;
+	if (ofs != 0) {
+		size_t len = ofs;
+		while ((len != 0) && ELEM(path[len - 1], SEP, ALTSEP)) {
+			len -= 1;
+		}
+		if (len != 0) {
+			ofs = len;
+		}
+		has_trailing_slash = (path[len] != '\0');
+	}
+
+	va_list args;
+	va_start(args, path);
+	while ((path = (const char *) va_arg(args, const char *))) {
+		has_trailing_slash = false;
+		const char *path_init = path;
+		while (ELEM(path[0], SEP, ALTSEP)) {
+			path++;
+		}
+		size_t len = strlen(path);
+		if (len != 0) {
+			while ((len != 0) && ELEM(path[len - 1], SEP, ALTSEP)) {
+				len -= 1;
+			}
+
+			if (len != 0) {
+				/* the very first path may have a slash at the end */
+				if (ofs && !ELEM(dst[ofs - 1], SEP, ALTSEP)) {
+					dst[ofs++] = SEP;
+					if (ofs == dst_last) {
+						break;
+					}
+				}
+				has_trailing_slash = (path[len] != '\0');
+				if (ofs + len >= dst_last) {
+					len = dst_last - ofs;
+				}
+				memcpy(&dst[ofs], path, len);
+				ofs += len;
+				if (ofs == dst_last) {
+					break;
+				}
+			}
+		}
+		else {
+			has_trailing_slash = (path_init != path);
+		}
+	}
+	va_end(args);
+
+	if (has_trailing_slash) {
+		if ((ofs != dst_last) && (ofs != 0) && (ELEM(dst[ofs - 1], SEP, ALTSEP) == 0)) {
+			dst[ofs++] = SEP;
+		}
+	}
+
+	BLI_assert(ofs <= dst_last);
+	dst[ofs] = '\0';
+
+	return ofs;
+}
+
+/**
  * like pythons os.path.basename()
  *
  * \return The pointer into \a path string immediately after last slash,
@@ -1785,11 +1676,76 @@ const char *BLI_path_basename(const char *path)
 	return filename ? filename + 1 : path;
 }
 
+/**
+ * Get an element of the path at an index, eg:
+ * "/some/path/file.txt" where an index of...
+ * - 0 or -3: "some"
+ * - 1 or -2: "path"
+ * - 2 or -1: "file.txt"
+ *
+ * Ignores multiple slashes at any point in the path (including start/end).
+ */
+bool BLI_path_name_at_index(const char *path, const int index, int *r_offset, int *r_len)
+{
+	if (index >= 0) {
+		int index_step = 0;
+		int prev = -1;
+		int i = 0;
+		while (true) {
+			const char c = path[i];
+			if (ELEM(c, SEP, ALTSEP, '\0')) {
+				if (prev + 1 != i) {
+					prev += 1;
+					if (index_step == index) {
+						*r_offset = prev;
+						*r_len = i - prev;
+						/* printf("!!! %d %d\n", start, end); */
+						return true;
+					}
+					index_step += 1;
+				}
+				if (c == '\0') {
+					break;
+				}
+				prev = i;
+			}
+			i += 1;
+		}
+		return false;
+	}
+	else {
+		/* negative number, reverse where -1 is the last element */
+		int index_step = -1;
+		int prev = strlen(path);
+		int i = prev - 1;
+		while (true) {
+			const char c = i >= 0 ? path[i] : '\0';
+			if (ELEM(c, SEP, ALTSEP, '\0')) {
+				if (prev - 1 != i) {
+					i += 1;
+					if (index_step == index) {
+						*r_offset = i;
+						*r_len = prev - i;
+						return true;
+					}
+					index_step -= 1;
+				}
+				if (c == '\0') {
+					break;
+				}
+				prev = i;
+			}
+			i -= 1;
+		}
+		return false;
+	}
+}
+
 /* UNUSED */
 #if 0
 /**
  * Produce image export path.
- * 
+ *
  * Returns:
  * 0        if image filename is empty or if destination path
  *          matches image path (i.e. both are the same file).
@@ -1803,12 +1759,12 @@ const char *BLI_path_basename(const char *path)
  * - if an image is "below" current .blend file directory:
  *   rebuild the same dir structure in dest_dir
  *
- *   Example: 
+ *   Example:
  *   src : //textures/foo/bar.png
  *   dest: [dest_dir]/textures/foo/bar.png.
  *
  * - if an image is not "below" current .blend file directory,
- *   disregard it's path and copy it into the destination  
+ *   disregard it's path and copy it into the destination
  *   directory.
  *
  *   Example:

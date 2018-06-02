@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation, Joshua Leung
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -95,7 +95,7 @@ static void change_frame_apply(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	int frame = RNA_int_get(op->ptr, "frame");
+	float frame = RNA_float_get(op->ptr, "frame");
 	bool do_snap = RNA_boolean_get(op->ptr, "snap");
 
 	if (do_snap && CTX_wm_space_seq(C)) {
@@ -103,10 +103,16 @@ static void change_frame_apply(bContext *C, wmOperator *op)
 	}
 
 	/* set the new frame number */
-	CFRA = frame;
+	if (scene->r.flag & SCER_SHOW_SUBFRAME) {
+		CFRA = (int)frame;
+		SUBFRA = frame - (int)frame;
+	}
+	else {
+		CFRA = round_fl_to_int(frame);
+		SUBFRA = 0.0f;
+	}
 	FRAMENUMBER_MIN_CLAMP(CFRA);
-	SUBFRA = 0.0f;
-	
+
 	/* do updates */
 	BKE_sound_seek_scene(bmain, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, scene);
@@ -125,19 +131,16 @@ static int change_frame_exec(bContext *C, wmOperator *op)
 /* ---- */
 
 /* Get frame from mouse coordinates */
-static int frame_from_event(bContext *C, const wmEvent *event)
+static float frame_from_event(bContext *C, const wmEvent *event)
 {
 	ARegion *region = CTX_wm_region(C);
 	Scene *scene = CTX_data_scene(C);
-	float viewx;
-	int frame;
+	float frame;
 
 	/* convert from region coordinates to View2D 'tot' space */
-	viewx = UI_view2d_region_to_view_x(&region->v2d, event->mval[0]);
+	frame = UI_view2d_region_to_view_x(&region->v2d, event->mval[0]);
 	
-	/* round result to nearest int (frames are ints!) */
-	frame = iroundf(viewx);
-	
+	/* respect preview range restrictions (if only allowed to move around within that range) */
 	if (scene->r.flag & SCER_LOCK_FRAME_SELECTION) {
 		CLAMP(frame, PSFRA, PEFRA);
 	}
@@ -187,7 +190,7 @@ static int change_frame_invoke(bContext *C, wmOperator *op, const wmEvent *event
 	 * as user could click on a single frame (jump to frame) as well as
 	 * click-dragging over a range (modal scrubbing).
 	 */
-	RNA_int_set(op->ptr, "frame", frame_from_event(C, event));
+	RNA_float_set(op->ptr, "frame", frame_from_event(C, event));
 
 	change_frame_seq_preview_begin(C, event);
 
@@ -215,7 +218,7 @@ static int change_frame_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			break;
 
 		case MOUSEMOVE:
-			RNA_int_set(op->ptr, "frame", frame_from_event(C, event));
+			RNA_float_set(op->ptr, "frame", frame_from_event(C, event));
 			change_frame_apply(C, op);
 			break;
 		
@@ -268,7 +271,7 @@ static void ANIM_OT_change_frame(wmOperatorType *ot)
 	ot->undo_group = "FRAME_CHANGE";
 
 	/* rna */
-	ot->prop = RNA_def_int(ot->srna, "frame", 0, MINAFRAME, MAXFRAME, "Frame", "", MINAFRAME, MAXFRAME);
+	ot->prop = RNA_def_float(ot->srna, "frame", 0, MINAFRAME, MAXFRAME, "Frame", "", MINAFRAME, MAXFRAME);
 	prop = RNA_def_boolean(ot->srna, "snap", false, "Snap", "");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
@@ -298,8 +301,8 @@ static int previewrange_define_exec(bContext *C, wmOperator *op)
 	if (efra < sfra) efra = sfra;
 	
 	scene->r.flag |= SCER_PRV_RANGE;
-	scene->r.psfra = iroundf(sfra);
-	scene->r.pefra = iroundf(efra);
+	scene->r.psfra = round_fl_to_int(sfra);
+	scene->r.pefra = round_fl_to_int(efra);
 	
 	/* send notifiers */
 	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, scene);
@@ -315,10 +318,10 @@ static void ANIM_OT_previewrange_set(wmOperatorType *ot)
 	ot->description = "Interactively define frame range used for playback";
 	
 	/* api callbacks */
-	ot->invoke = WM_border_select_invoke;
+	ot->invoke = WM_gesture_border_invoke;
 	ot->exec = previewrange_define_exec;
-	ot->modal = WM_border_select_modal;
-	ot->cancel = WM_border_select_cancel;
+	ot->modal = WM_gesture_border_modal;
+	ot->cancel = WM_gesture_border_cancel;
 	
 	ot->poll = ED_operator_animview_active;
 	

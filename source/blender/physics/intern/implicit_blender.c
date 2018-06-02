@@ -37,7 +37,7 @@
 
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_texture_types.h"
 
@@ -48,7 +48,6 @@
 #include "BKE_cloth.h"
 #include "BKE_collision.h"
 #include "BKE_effect.h"
-#include "BKE_global.h"
 
 #include "BPH_mass_spring.h"
 
@@ -1579,8 +1578,7 @@ BLI_INLINE void apply_spring(Implicit_Data *data, int i, int j, const float f[3]
 }
 
 bool BPH_mass_spring_force_spring_linear(Implicit_Data *data, int i, int j, float restlen,
-                                         float stiffness, float damping, bool no_compress, float clamp_force,
-                                         float r_f[3], float r_dfdx[3][3], float r_dfdv[3][3])
+                                         float stiffness, float damping, bool no_compress, float clamp_force)
 {
 	float extent[3], length, dir[3], vel[3];
 	
@@ -1608,25 +1606,15 @@ bool BPH_mass_spring_force_spring_linear(Implicit_Data *data, int i, int j, floa
 		
 		apply_spring(data, i, j, f, dfdx, dfdv);
 		
-		if (r_f) copy_v3_v3(r_f, f);
-		if (r_dfdx) copy_m3_m3(r_dfdx, dfdx);
-		if (r_dfdv) copy_m3_m3(r_dfdv, dfdv);
-		
 		return true;
 	}
 	else {
-		if (r_f) zero_v3(r_f);
-		if (r_dfdx) zero_m3(r_dfdx);
-		if (r_dfdv) zero_m3(r_dfdv);
-		
 		return false;
 	}
 }
 
 /* See "Stable but Responsive Cloth" (Choi, Ko 2005) */
-bool BPH_mass_spring_force_spring_bending(Implicit_Data *data, int i, int j, float restlen,
-                                          float kb, float cb,
-                                          float r_f[3], float r_dfdx[3][3], float r_dfdv[3][3])
+bool BPH_mass_spring_force_spring_bending(Implicit_Data *data, int i, int j, float restlen, float kb, float cb)
 {
 	float extent[3], length, dir[3], vel[3];
 	
@@ -1646,17 +1634,9 @@ bool BPH_mass_spring_force_spring_bending(Implicit_Data *data, int i, int j, flo
 		
 		apply_spring(data, i, j, f, dfdx, dfdv);
 		
-		if (r_f) copy_v3_v3(r_f, f);
-		if (r_dfdx) copy_m3_m3(r_dfdx, dfdx);
-		if (r_dfdv) copy_m3_m3(r_dfdv, dfdv);
-		
 		return true;
 	}
 	else {
-		if (r_f) zero_v3(r_f);
-		if (r_dfdx) zero_m3(r_dfdx);
-		if (r_dfdv) zero_m3(r_dfdv);
-		
 		return false;
 	}
 }
@@ -1664,7 +1644,7 @@ bool BPH_mass_spring_force_spring_bending(Implicit_Data *data, int i, int j, flo
 /* Jacobian of a direction vector.
  * Basically the part of the differential orthogonal to the direction,
  * inversely proportional to the length of the edge.
- * 
+ *
  * dD_ij/dx_i = -dD_ij/dx_j = (D_ij * D_ij^T - I) / len_ij
  */
 BLI_INLINE void spring_grad_dir(Implicit_Data *data, int i, int j, float edge[3], float dir[3], float grad_dir[3][3])
@@ -1945,8 +1925,7 @@ bool BPH_mass_spring_force_spring_bending_angular(Implicit_Data *data, int i, in
 }
 
 bool BPH_mass_spring_force_spring_goal(Implicit_Data *data, int i, const float goal_x[3], const float goal_v[3],
-                                       float stiffness, float damping,
-                                       float r_f[3], float r_dfdx[3][3], float r_dfdv[3][3])
+                                       float stiffness, float damping)
 {
 	float root_goal_x[3], root_goal_v[3], extent[3], length, dir[3], vel[3];
 	float f[3], dfdx[3][3], dfdv[3][3];
@@ -1973,17 +1952,9 @@ bool BPH_mass_spring_force_spring_goal(Implicit_Data *data, int i, const float g
 		add_m3_m3m3(data->dFdX[i].m, data->dFdX[i].m, dfdx);
 		add_m3_m3m3(data->dFdV[i].m, data->dFdV[i].m, dfdv);
 		
-		if (r_f) copy_v3_v3(r_f, f);
-		if (r_dfdx) copy_m3_m3(r_dfdx, dfdx);
-		if (r_dfdv) copy_m3_m3(r_dfdv, dfdv);
-		
 		return true;
 	}
 	else {
-		if (r_f) zero_v3(r_f);
-		if (r_dfdx) zero_m3(r_dfdx);
-		if (r_dfdv) zero_m3(r_dfdv);
-		
 		return false;
 	}
 }

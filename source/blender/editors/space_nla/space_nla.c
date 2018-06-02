@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -505,13 +505,14 @@ static void nla_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn)
 static void nla_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, ID *new_id)
 {
 	SpaceNla *snla = (SpaceNla *)slink;
-
-	if (!ELEM(GS(old_id->name), ID_GR)) {
-		return;
-	}
-
-	if ((ID *)snla->ads->filter_grp == old_id) {
-		snla->ads->filter_grp = (Group *)new_id;
+	
+	if (snla->ads) {
+		if ((ID *)snla->ads->filter_grp == old_id) {
+			snla->ads->filter_grp = (Group *)new_id;
+		}
+		if ((ID *)snla->ads->source == old_id) {
+			snla->ads->source = new_id;
+		}
 	}
 }
 

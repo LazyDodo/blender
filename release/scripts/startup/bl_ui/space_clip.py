@@ -21,14 +21,15 @@
 import bpy
 from bpy.types import Panel, Header, Menu, UIList
 from bpy.app.translations import pgettext_iface as iface_
-from bl_ui.properties_grease_pencil_common import (
-        GreasePencilDrawingToolsPanel,
-        GreasePencilStrokeEditPanel,
-        GreasePencilStrokeSculptPanel,
-        GreasePencilBrushPanel,
-        GreasePencilBrushCurvesPanel,
-        GreasePencilDataPanel,
-        GreasePencilPaletteColorPanel)
+from .properties_grease_pencil_common import (
+    GreasePencilDrawingToolsPanel,
+    GreasePencilStrokeEditPanel,
+    GreasePencilStrokeSculptPanel,
+    GreasePencilBrushPanel,
+    GreasePencilBrushCurvesPanel,
+    GreasePencilDataPanel,
+    GreasePencilPaletteColorPanel,
+)
 
 
 class CLIP_UL_tracking_objects(UIList):
@@ -470,6 +471,7 @@ class CLIP_PT_tools_cleanup(CLIP_PT_tracking_panel, Panel):
         layout.prop(settings, "clean_frames", text="Frames")
         layout.prop(settings, "clean_error", text="Error")
         layout.prop(settings, "clean_action", text="")
+        layout.separator()
         layout.operator("clip.filter_tracks")
 
 
@@ -1033,11 +1035,11 @@ class CLIP_PT_proxy(CLIP_PT_clip_view_panel, Panel):
         if clip.source == 'MOVIE':
             col2 = col.column()
 
-            col2.label(text="Use timecode index:")
+            col2.label(text="Use Timecode Index:")
             col2.prop(clip.proxy, "timecode", text="")
 
         col2 = col.column()
-        col2.label(text="Proxy render size:")
+        col2.label(text="Proxy Render Size:")
 
         col.prop(sc.clip_user, "proxy_render_size", text="")
 
@@ -1045,16 +1047,16 @@ class CLIP_PT_proxy(CLIP_PT_clip_view_panel, Panel):
 # -----------------------------------------------------------------------------
 # Mask (similar code in space_image.py, keep in sync)
 
-from bl_ui.properties_mask_common import (
-        MASK_PT_mask,
-        MASK_PT_layers,
-        MASK_PT_spline,
-        MASK_PT_point,
-        MASK_PT_display,
-        MASK_PT_tools,
-        MASK_PT_transforms,
-        MASK_PT_add,
-        )
+from .properties_mask_common import (
+    MASK_PT_mask,
+    MASK_PT_layers,
+    MASK_PT_spline,
+    MASK_PT_point,
+    MASK_PT_display,
+    MASK_PT_tools,
+    MASK_PT_transforms,
+    MASK_PT_add,
+)
 
 
 class CLIP_PT_mask_layers(MASK_PT_layers, Panel):
@@ -1238,7 +1240,6 @@ class CLIP_MT_view(Menu):
 
             layout.prop(sc, "show_seconds")
             layout.prop(sc, "show_locked_time")
-            layout.separator()
 
         layout.separator()
         layout.operator("screen.area_dupli")
@@ -1419,7 +1420,7 @@ class CLIP_MT_tracking_specials(Menu):
                         text="Enable Markers").action = 'ENABLE'
 
         layout.operator("clip.disable_markers",
-                        text="Disable markers").action = 'DISABLE'
+                        text="Disable Markers").action = 'DISABLE'
 
         layout.separator()
         layout.operator("clip.set_origin")
@@ -1486,5 +1487,69 @@ class CLIP_MT_stabilize_2d_rotation_specials(Menu):
         layout.operator("clip.stabilize_2d_rotation_select")
 
 
+classes = (
+    CLIP_UL_tracking_objects,
+    CLIP_HT_header,
+    CLIP_MT_track,
+    CLIP_MT_tracking_editor_menus,
+    CLIP_MT_masking_editor_menus,
+    CLIP_PT_track,
+    CLIP_PT_tools_clip,
+    CLIP_PT_tools_marker,
+    CLIP_PT_tracking_settings,
+    CLIP_PT_tools_tracking,
+    CLIP_PT_tools_plane_tracking,
+    CLIP_PT_tools_solve,
+    CLIP_PT_tools_cleanup,
+    CLIP_PT_tools_geometry,
+    CLIP_PT_tools_orientation,
+    CLIP_PT_tools_object,
+    CLIP_PT_objects,
+    CLIP_PT_plane_track,
+    CLIP_PT_track_settings,
+    CLIP_PT_tracking_camera,
+    CLIP_PT_tracking_lens,
+    CLIP_PT_display,
+    CLIP_PT_marker,
+    CLIP_PT_marker_display,
+    CLIP_PT_stabilization,
+    CLIP_PT_proxy,
+    CLIP_PT_mask,
+    CLIP_PT_mask_layers,
+    CLIP_PT_mask_display,
+    CLIP_PT_active_mask_spline,
+    CLIP_PT_active_mask_point,
+    CLIP_PT_tools_mask,
+    CLIP_PT_tools_mask_add,
+    CLIP_PT_tools_mask_transforms,
+    CLIP_PT_footage,
+    CLIP_PT_footage_info,
+    CLIP_PT_tools_scenesetup,
+    CLIP_PT_grease_pencil,
+    CLIP_PT_grease_pencil_palettecolor,
+    CLIP_PT_tools_grease_pencil_draw,
+    CLIP_PT_tools_grease_pencil_edit,
+    CLIP_PT_tools_grease_pencil_sculpt,
+    CLIP_PT_tools_grease_pencil_brush,
+    CLIP_PT_tools_grease_pencil_brushcurves,
+    CLIP_MT_view,
+    CLIP_MT_clip,
+    CLIP_MT_proxy,
+    CLIP_MT_reconstruction,
+    CLIP_MT_track_visibility,
+    CLIP_MT_track_transform,
+    CLIP_MT_select,
+    CLIP_MT_select_grouped,
+    CLIP_MT_tracking_specials,
+    CLIP_MT_camera_presets,
+    CLIP_MT_track_color_presets,
+    CLIP_MT_tracking_settings_presets,
+    CLIP_MT_track_color_specials,
+    CLIP_MT_stabilize_2d_specials,
+    CLIP_MT_stabilize_2d_rotation_specials,
+)
+
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

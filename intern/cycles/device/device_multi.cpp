@@ -17,17 +17,17 @@
 #include <stdlib.h>
 #include <sstream>
 
-#include "device.h"
-#include "device_intern.h"
-#include "device_network.h"
+#include "device/device.h"
+#include "device/device_intern.h"
+#include "device/device_network.h"
 
-#include "buffers.h"
+#include "render/buffers.h"
 
-#include "util_foreach.h"
-#include "util_list.h"
-#include "util_logging.h"
-#include "util_map.h"
-#include "util_time.h"
+#include "util/util_foreach.h"
+#include "util/util_list.h"
+#include "util/util_logging.h"
+#include "util/util_map.h"
+#include "util/util_time.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -43,16 +43,22 @@ public:
 	};
 
 	list<SubDevice> devices;
-	device_ptr unique_ptr;
+	device_ptr unique_key;
 
 	MultiDevice(DeviceInfo& info, Stats &stats, bool background_)
-	: Device(info, stats, background_), unique_ptr(1)
+	: Device(info, stats, background_), unique_key(1)
 	{
-		Device *device;
-
 		foreach(DeviceInfo& subinfo, info.multi_devices) {
-			device = Device::create(subinfo, sub_stats_, background);
-			devices.push_back(SubDevice(device));
+			Device *device = Device::create(subinfo, sub_stats_, background);
+
+			/* Always add CPU devices at the back since GPU devices can change
+			 * host memory pointers, which CPU uses as device pointer. */
+			if(subinfo.type == DEVICE_CPU) {
+				devices.push_back(SubDevice(device));
+			}
+			else {
+				devices.push_front(SubDevice(device));
+			}
 		}
 
 #ifdef WITH_NETWORK
@@ -63,7 +69,7 @@ public:
 		vector<string> servers = discovery.get_server_list();
 
 		foreach(string& server, servers) {
-			device = device_network_create(info, stats, server.c_str());
+			Device *device = device_network_create(info, stats, server.c_str());
 			if(device)
 				devices.push_back(SubDevice(device));
 		}
@@ -106,71 +112,102 @@ public:
 		return true;
 	}
 
-	void mem_alloc(device_memory& mem, MemoryType type)
+	void mem_alloc(device_memory& mem)
 	{
+		device_ptr key = unique_key++;
+
 		foreach(SubDevice& sub, devices) {
+			mem.device = sub.device;
 			mem.device_pointer = 0;
-			sub.device->mem_alloc(mem, type);
-			sub.ptr_map[unique_ptr] = mem.device_pointer;
+			mem.device_size = 0;
+
+			sub.device->mem_alloc(mem);
+			sub.ptr_map[key] = mem.device_pointer;
 		}
 
-		mem.device_pointer = unique_ptr++;
+		mem.device = this;
+		mem.device_pointer = key;
 		stats.mem_alloc(mem.device_size);
 	}
 
 	void mem_copy_to(device_memory& mem)
 	{
-		device_ptr tmp = mem.device_pointer;
+		device_ptr existing_key = mem.device_pointer;
+		device_ptr key = (existing_key)? existing_key: unique_key++;
+		size_t existing_size = mem.device_size;
 
 		foreach(SubDevice& sub, devices) {
-			mem.device_pointer = sub.ptr_map[tmp];
+			mem.device = sub.device;
+			mem.device_pointer = (existing_key)? sub.ptr_map[existing_key]: 0;
+			mem.device_size = existing_size;
+
 			sub.device->mem_copy_to(mem);
+			sub.ptr_map[key] = mem.device_pointer;
 		}
 
-		mem.device_pointer = tmp;
+		mem.device = this;
+		mem.device_pointer = key;
+		stats.mem_alloc(mem.device_size - existing_size);
 	}
 
 	void mem_copy_from(device_memory& mem, int y, int w, int h, int elem)
 	{
-		device_ptr tmp = mem.device_pointer;
+		device_ptr key = mem.device_pointer;
 		int i = 0, sub_h = h/devices.size();
 
 		foreach(SubDevice& sub, devices) {
 			int sy = y + i*sub_h;
 			int sh = (i == (int)devices.size() - 1)? h - sub_h*i: sub_h;
 
-			mem.device_pointer = sub.ptr_map[tmp];
+			mem.device = sub.device;
+			mem.device_pointer = sub.ptr_map[key];
+
 			sub.device->mem_copy_from(mem, sy, w, sh, elem);
 			i++;
 		}
 
-		mem.device_pointer = tmp;
+		mem.device = this;
+		mem.device_pointer = key;
 	}
 
 	void mem_zero(device_memory& mem)
 	{
-		device_ptr tmp = mem.device_pointer;
+		device_ptr existing_key = mem.device_pointer;
+		device_ptr key = (existing_key)? existing_key: unique_key++;
+		size_t existing_size = mem.device_size;
 
 		foreach(SubDevice& sub, devices) {
-			mem.device_pointer = sub.ptr_map[tmp];
+			mem.device = sub.device;
+			mem.device_pointer = (existing_key)? sub.ptr_map[existing_key]: 0;
+			mem.device_size = existing_size;
+
 			sub.device->mem_zero(mem);
+			sub.ptr_map[key] = mem.device_pointer;
 		}
 
-		mem.device_pointer = tmp;
+		mem.device = this;
+		mem.device_pointer = key;
+		stats.mem_alloc(mem.device_size - existing_size);
 	}
 
 	void mem_free(device_memory& mem)
 	{
-		device_ptr tmp = mem.device_pointer;
+		device_ptr key = mem.device_pointer;
+		size_t existing_size = mem.device_size;
 
 		foreach(SubDevice& sub, devices) {
-			mem.device_pointer = sub.ptr_map[tmp];
+			mem.device = sub.device;
+			mem.device_pointer = sub.ptr_map[key];
+			mem.device_size = existing_size;
+
 			sub.device->mem_free(mem);
-			sub.ptr_map.erase(sub.ptr_map.find(tmp));
+			sub.ptr_map.erase(sub.ptr_map.find(key));
 		}
 
+		mem.device = this;
 		mem.device_pointer = 0;
-		stats.mem_free(mem.device_size);
+		mem.device_size = 0;
+		stats.mem_free(existing_size);
 	}
 
 	void const_copy_to(const char *name, void *host, size_t size)
@@ -179,85 +216,10 @@ public:
 			sub.device->const_copy_to(name, host, size);
 	}
 
-	void tex_alloc(const char *name,
-	               device_memory& mem,
-	               InterpolationType
-	               interpolation,
-	               ExtensionType extension)
-	{
-		VLOG(1) << "Texture allocate: " << name << ", "
-		        << string_human_readable_number(mem.memory_size()) << " bytes. ("
-		        << string_human_readable_size(mem.memory_size()) << ")";
-
-		foreach(SubDevice& sub, devices) {
-			mem.device_pointer = 0;
-			sub.device->tex_alloc(name, mem, interpolation, extension);
-			sub.ptr_map[unique_ptr] = mem.device_pointer;
-		}
-
-		mem.device_pointer = unique_ptr++;
-		stats.mem_alloc(mem.device_size);
-	}
-
-	void tex_free(device_memory& mem)
-	{
-		device_ptr tmp = mem.device_pointer;
-
-		foreach(SubDevice& sub, devices) {
-			mem.device_pointer = sub.ptr_map[tmp];
-			sub.device->tex_free(mem);
-			sub.ptr_map.erase(sub.ptr_map.find(tmp));
-		}
-
-		mem.device_pointer = 0;
-		stats.mem_free(mem.device_size);
-	}
-
-	void pixels_alloc(device_memory& mem)
-	{
-		foreach(SubDevice& sub, devices) {
-			mem.device_pointer = 0;
-			sub.device->pixels_alloc(mem);
-			sub.ptr_map[unique_ptr] = mem.device_pointer;
-		}
-
-		mem.device_pointer = unique_ptr++;
-	}
-
-	void pixels_free(device_memory& mem)
-	{
-		device_ptr tmp = mem.device_pointer;
-
-		foreach(SubDevice& sub, devices) {
-			mem.device_pointer = sub.ptr_map[tmp];
-			sub.device->pixels_free(mem);
-			sub.ptr_map.erase(sub.ptr_map.find(tmp));
-		}
-
-		mem.device_pointer = 0;
-	}
-
-	void pixels_copy_from(device_memory& mem, int y, int w, int h)
-	{
-		device_ptr tmp = mem.device_pointer;
-		int i = 0, sub_h = h/devices.size();
-
-		foreach(SubDevice& sub, devices) {
-			int sy = y + i*sub_h;
-			int sh = (i == (int)devices.size() - 1)? h - sub_h*i: sub_h;
-
-			mem.device_pointer = sub.ptr_map[tmp];
-			sub.device->pixels_copy_from(mem, sy, w, sh);
-			i++;
-		}
-
-		mem.device_pointer = tmp;
-	}
-
 	void draw_pixels(device_memory& rgba, int y, int w, int h, int dx, int dy, int width, int height, bool transparent,
 		const DeviceDrawParams &draw_params)
 	{
-		device_ptr tmp = rgba.device_pointer;
+		device_ptr key = rgba.device_pointer;
 		int i = 0, sub_h = h/devices.size();
 		int sub_height = height/devices.size();
 
@@ -268,12 +230,12 @@ public:
 			int sdy = dy + i*sub_height;
 			/* adjust math for w/width */
 
-			rgba.device_pointer = sub.ptr_map[tmp];
+			rgba.device_pointer = sub.ptr_map[key];
 			sub.device->draw_pixels(rgba, sy, w, sh, dx, sdy, width, sheight, transparent, draw_params);
 			i++;
 		}
 
-		rgba.device_pointer = tmp;
+		rgba.device_pointer = key;
 	}
 
 	void map_tile(Device *sub_device, RenderTile& tile)
@@ -281,7 +243,6 @@ public:
 		foreach(SubDevice& sub, devices) {
 			if(sub.device == sub_device) {
 				if(tile.buffer) tile.buffer = sub.ptr_map[tile.buffer];
-				if(tile.rng_state) tile.rng_state = sub.ptr_map[tile.rng_state];
 			}
 		}
 	}
@@ -297,6 +258,81 @@ public:
 		}
 
 		return -1;
+	}
+
+	void map_neighbor_tiles(Device *sub_device, RenderTile *tiles)
+	{
+		for(int i = 0; i < 9; i++) {
+			if(!tiles[i].buffers) {
+				continue;
+			}
+
+			/* If the tile was rendered on another device, copy its memory to
+			 * to the current device now, for the duration of the denoising task.
+			 * Note that this temporarily modifies the RenderBuffers and calls
+			 * the device, so this function is not thread safe. */
+			device_vector<float> &mem = tiles[i].buffers->buffer;
+			if(mem.device != sub_device) {
+				/* Only copy from device to host once. This is faster, but
+				 * also required for the case where a CPU thread is denoising
+				 * a tile rendered on the GPU. In that case we have to avoid
+				 * overwriting the buffer being denoised by the CPU thread. */
+				if(!tiles[i].buffers->map_neighbor_copied) {
+					tiles[i].buffers->map_neighbor_copied = true;
+					mem.copy_from_device(0, mem.data_size, 1);
+				}
+
+				Device *original_device = mem.device;
+				device_ptr original_ptr = mem.device_pointer;
+				size_t original_size = mem.device_size;
+
+				mem.device = sub_device;
+				mem.device_pointer = 0;
+				mem.device_size = 0;
+
+				mem.copy_to_device();
+				tiles[i].buffer = mem.device_pointer;
+
+				mem.device = original_device;
+				mem.device_pointer = original_ptr;
+				mem.device_size = original_size;
+			}
+		}
+	}
+
+	void unmap_neighbor_tiles(Device * sub_device, RenderTile * tiles)
+	{
+		for(int i = 0; i < 9; i++) {
+			if(!tiles[i].buffers) {
+				continue;
+			}
+
+			device_vector<float> &mem = tiles[i].buffers->buffer;
+			if(mem.device != sub_device) {
+				Device *original_device = mem.device;
+				device_ptr original_ptr = mem.device_pointer;
+				size_t original_size = mem.device_size;
+
+				mem.device = sub_device;
+				mem.device_pointer = tiles[i].buffer;
+
+				/* Copy denoised tile to the host. */
+				if(i == 4) {
+					mem.copy_from_device(0, mem.data_size, 1);
+				}
+
+				sub_device->mem_free(mem);
+
+				mem.device = original_device;
+				mem.device_pointer = original_ptr;
+				mem.device_size = original_size;
+
+				/* Copy denoised tile to the original device. */
+				if(i == 4) {
+					mem.copy_to_device();
+				}
+			}
+		}
 	}
 
 	int get_split_task_count(DeviceTask& task)
@@ -330,7 +366,6 @@ public:
 				if(task.rgba_half) subtask.rgba_half = sub.ptr_map[task.rgba_half];
 				if(task.shader_input) subtask.shader_input = sub.ptr_map[task.shader_input];
 				if(task.shader_output) subtask.shader_output = sub.ptr_map[task.shader_output];
-				if(task.shader_output_luma) subtask.shader_output_luma = sub.ptr_map[task.shader_output_luma];
 
 				sub.device->task_add(subtask);
 			}

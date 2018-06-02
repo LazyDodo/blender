@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -37,6 +37,7 @@
 #include "DNA_scene_types.h"
 
 #include "BLI_blenlib.h"
+#include "BLI_string_utils.h"
 #include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
@@ -65,7 +66,7 @@ static int edit_sensor_poll(bContext *C)
 {
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "sensor", &RNA_Sensor);
 
-	if (ptr.data && ID_IS_LINKED_DATABLOCK(ptr.id.data)) return 0;
+	if (ptr.data && ID_IS_LINKED(ptr.id.data)) return 0;
 	return 1;
 }
 
@@ -73,7 +74,7 @@ static int edit_controller_poll(bContext *C)
 {
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "controller", &RNA_Controller);
 
-	if (ptr.data && ID_IS_LINKED_DATABLOCK(ptr.id.data)) return 0;
+	if (ptr.data && ID_IS_LINKED(ptr.id.data)) return 0;
 	return 1;
 }
 
@@ -81,7 +82,7 @@ static int edit_actuator_poll(bContext *C)
 {
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "actuator", &RNA_Actuator);
 
-	if (ptr.data && ID_IS_LINKED_DATABLOCK(ptr.id.data)) return 0;
+	if (ptr.data && ID_IS_LINKED(ptr.id.data)) return 0;
 	return 1;
 }
 
@@ -561,7 +562,7 @@ static void LOGIC_OT_actuator_add(wmOperatorType *ot)
 }
 
 /* ************* Move Logic Bricks Operator ************* */
-static EnumPropertyItem logicbricks_move_direction[] = {
+static const EnumPropertyItem logicbricks_move_direction[] = {
 	{1, "UP", 0, "Move Up", ""},
 	{2, "DOWN", 0, "Move Down", ""},
 	{0, NULL, 0, NULL, NULL}

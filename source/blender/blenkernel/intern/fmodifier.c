@@ -58,14 +58,14 @@ void *fmodifiers_storage_get(FModifierStackStorage *storage, FModifier *fcm);
 /* Info ------------------------------- */
 
 /* F-Modifiers are modifiers which operate on F-Curves. However, they can also be defined
- * on NLA-Strips to affect all of the F-Curves referenced by the NLA-Strip. 
+ * on NLA-Strips to affect all of the F-Curves referenced by the NLA-Strip.
  */
 
 /* Template --------------------------- */
 
 /* Each modifier defines a set of functions, which will be called at the appropriate
  * times. In addition to this, each modifier should have a type-info struct, where
- * its functions are attached for use. 
+ * its functions are attached for use.
  */
  
 /* Template for type-info data:
@@ -74,7 +74,7 @@ void *fmodifiers_storage_get(FModifierStackStorage *storage, FModifier *fcm);
  *  - although the naming of functions doesn't matter, it would help for code
  *    readability, to follow the same naming convention as is presented here
  *  - any functions that a constraint doesn't need to define, don't define
- *    for such cases, just use NULL 
+ *    for such cases, just use NULL
  *  - these should be defined after all the functions have been defined, so that
  *    forward-definitions/prototypes don't need to be used!
  *	- keep this copy #if-def'd so that future constraints can get based off this
@@ -116,7 +116,7 @@ static void fcm_generator_free(FModifier *fcm)
 		MEM_freeN(data->coefficients);
 }
 
-static void fcm_generator_copy(FModifier *fcm, FModifier *src)
+static void fcm_generator_copy(FModifier *fcm, const FModifier *src)
 {
 	FMod_Generator *gen = (FMod_Generator *)fcm->data;
 	FMod_Generator *ogen = (FMod_Generator *)src->data;
@@ -260,7 +260,7 @@ static FModifierTypeInfo FMI_GENERATOR = {
  * x is the evaluation 'time', and 'y' is the resultant value
  *
  * Functions available are
- *	sin, cos, tan, sinc (normalized sin), natural log, square root 
+ *	sin, cos, tan, sinc (normalized sin), natural log, square root
  */
 
 static void fcm_fn_generator_new_data(void *mdata)
@@ -386,7 +386,7 @@ static void fcm_envelope_free(FModifier *fcm)
 		MEM_freeN(env->data);
 }
 
-static void fcm_envelope_copy(FModifier *fcm, FModifier *src)
+static void fcm_envelope_copy(FModifier *fcm, const FModifier *src)
 {
 	FMod_Envelope *env = (FMod_Envelope *)fcm->data;
 	FMod_Envelope *oenv = (FMod_Envelope *)src->data;
@@ -877,7 +877,7 @@ static void fcm_python_new_data(void *mdata)
 	data->prop->type = IDP_GROUP;
 }
 
-static void fcm_python_copy(FModifier *fcm, FModifier *src)
+static void fcm_python_copy(FModifier *fcm, const FModifier *src)
 {
 	FMod_Python *pymod = (FMod_Python *)fcm->data;
 	FMod_Python *opymod = (FMod_Python *)src->data;
@@ -1040,7 +1040,7 @@ static void fmods_init_typeinfo(void)
 /* This function should be used for getting the appropriate type-info when only
  * a F-Curve modifier type is known
  */
-const FModifierTypeInfo *get_fmodifier_typeinfo(int type)
+const FModifierTypeInfo *get_fmodifier_typeinfo(const int type)
 {
 	/* initialize the type-info list? */
 	if (FMI_INIT) {
@@ -1065,7 +1065,7 @@ const FModifierTypeInfo *get_fmodifier_typeinfo(int type)
 /* This function should always be used to get the appropriate type-info, as it
  * has checks which prevent segfaults in some weird cases.
  */
-const FModifierTypeInfo *fmodifier_get_typeinfo(FModifier *fcm)
+const FModifierTypeInfo *fmodifier_get_typeinfo(const FModifier *fcm)
 {
 	/* only return typeinfo for valid modifiers */
 	if (fcm)
@@ -1077,7 +1077,7 @@ const FModifierTypeInfo *fmodifier_get_typeinfo(FModifier *fcm)
 /* API --------------------------- */
 
 /* Add a new F-Curve Modifier to the given F-Curve of a certain type */
-FModifier *add_fmodifier(ListBase *modifiers, int type)
+FModifier *add_fmodifier(ListBase *modifiers, int type, FCurve *owner_fcu)
 {
 	const FModifierTypeInfo *fmi = get_fmodifier_typeinfo(type);
 	FModifier *fcm;
@@ -1098,6 +1098,7 @@ FModifier *add_fmodifier(ListBase *modifiers, int type)
 	fcm = MEM_callocN(sizeof(FModifier), "F-Curve Modifier");
 	fcm->type = type;
 	fcm->flag = FMODIFIER_FLAG_EXPANDED;
+	fcm->curve = owner_fcu;
 	fcm->influence = 1.0f;
 	BLI_addtail(modifiers, fcm);
 	
@@ -1111,13 +1112,17 @@ FModifier *add_fmodifier(ListBase *modifiers, int type)
 	/* init custom settings if necessary */
 	if (fmi->new_data)
 		fmi->new_data(fcm->data);
+
+	/* update the fcurve if the Cycles modifier is added */
+	if ((owner_fcu) && (type == FMODIFIER_TYPE_CYCLES))
+		calchandles_fcurve(owner_fcu);
 		
 	/* return modifier for further editing */
 	return fcm;
 }
 
 /* Make a copy of the specified F-Modifier */
-FModifier *copy_fmodifier(FModifier *src)
+FModifier *copy_fmodifier(const FModifier *src)
 {
 	const FModifierTypeInfo *fmi = fmodifier_get_typeinfo(src);
 	FModifier *dst;
@@ -1129,6 +1134,7 @@ FModifier *copy_fmodifier(FModifier *src)
 	/* copy the base data, clearing the links */
 	dst = MEM_dupallocN(src);
 	dst->next = dst->prev = NULL;
+	dst->curve = NULL;
 	
 	/* make a new copy of the F-Modifier's data */
 	dst->data = MEM_dupallocN(src->data);
@@ -1142,7 +1148,7 @@ FModifier *copy_fmodifier(FModifier *src)
 }
 
 /* Duplicate all of the F-Modifiers in the Modifier stacks */
-void copy_fmodifiers(ListBase *dst, ListBase *src)
+void copy_fmodifiers(ListBase *dst, const ListBase *src)
 {
 	FModifier *fcm, *srcfcm;
 	
@@ -1157,6 +1163,7 @@ void copy_fmodifiers(ListBase *dst, ListBase *src)
 		
 		/* make a new copy of the F-Modifier's data */
 		fcm->data = MEM_dupallocN(fcm->data);
+		fcm->curve = NULL;
 		
 		/* only do specific constraints if required */
 		if (fmi && fmi->copy_data)
@@ -1173,6 +1180,9 @@ bool remove_fmodifier(ListBase *modifiers, FModifier *fcm)
 	if (fcm == NULL)
 		return false;
 	
+	/* removing the cycles modifier requires a handle update */
+	FCurve *update_fcu = (fcm->type == FMODIFIER_TYPE_CYCLES) ? fcm->curve : NULL;
+
 	/* free modifier's special data (stored inside fcm->data) */
 	if (fcm->data) {
 		if (fmi && fmi->free_data)
@@ -1185,6 +1195,11 @@ bool remove_fmodifier(ListBase *modifiers, FModifier *fcm)
 	/* remove modifier from stack */
 	if (modifiers) {
 		BLI_freelinkN(modifiers, fcm);
+
+		/* update the fcurve if the Cycles modifier is removed */
+		if (update_fcu)
+			calchandles_fcurve(update_fcu);
+
 		return true;
 	}
 	else {
@@ -1382,7 +1397,7 @@ static float eval_fmodifier_influence(FModifier *fcm, float evaltime)
 }
 
 /* evaluate time modifications imposed by some F-Curve Modifiers
- *	- this step acts as an optimization to prevent the F-Curve stack being evaluated 
+ *	- this step acts as an optimization to prevent the F-Curve stack being evaluated
  *	  several times by modifiers requesting the time be modified, as the final result
  *	  would have required using the modified time
  *	- modifiers only ever receive the unmodified time, as subsequent modifiers should be

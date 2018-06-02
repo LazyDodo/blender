@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -213,13 +213,10 @@ void WM_cursor_grab_enable(wmWindow *win, bool wrap, bool hide, int bounds[4])
 	}
 	if ((G.debug & G_DEBUG) == 0) {
 		if (win->ghostwin) {
-			const GHOST_TabletData *tabletdata = GHOST_GetTabletData(win->ghostwin);
-			
 			/* Note: There is no tabletdata on Windows if no tablet device is connected. */
-			if (!tabletdata)
+			if (win->eventstate->is_motion_absolute == false) {
 				GHOST_SetCursorGrab(win->ghostwin, mode, bounds, NULL);
-			else if (tabletdata->Active == GHOST_kTabletModeNone)
-				GHOST_SetCursorGrab(win->ghostwin, mode, bounds, NULL);
+			}
 
 			win->grabcursor = mode;
 		}

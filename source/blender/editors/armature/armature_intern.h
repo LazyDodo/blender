@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -173,6 +173,7 @@ typedef struct tPChanFCurveLink {
 	float roll1, roll2;             /* old bbone values (to be restored along with the transform properties) */
 	float curveInX, curveInY;       /* (NOTE: we haven't renamed these this time, as their names are already long enough) */
 	float curveOutX, curveOutY;
+	float ease1, ease2;
 	float scaleIn, scaleOut;
 	
 	struct IDProperty *oldprops;    /* copy of custom properties at start of operator (to be restored before each modal step) */
@@ -247,8 +248,10 @@ void armature_select_mirrored_ex(struct bArmature *arm, const int flag);
 void armature_select_mirrored(struct bArmature *arm);
 void armature_tag_unselect(struct bArmature *arm);
 
-void *get_nearest_bone(struct bContext *C, short findunsel, int x, int y);
-void *get_bone_from_selectbuffer(struct Scene *scene, struct Base *base, unsigned int *buffer, short hits, short findunsel, bool do_nearest);
+void *get_nearest_bone(struct bContext *C, const int xy[2], bool findunsel);
+void *get_bone_from_selectbuffer(
+        struct Scene *scene, struct Base *base, const unsigned int *buffer, short hits,
+        bool findunsel, bool do_nearest);
 
 int bone_looper(struct Object *ob, struct Bone *bone, void *data,
                 int (*bone_func)(struct Object *, struct Bone *, void *));

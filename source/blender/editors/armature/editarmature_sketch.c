@@ -172,7 +172,7 @@ const char *BIF_listTemplates(const bContext *UNUSED(C))
 	GHashIterator ghi;
 	const char *menu_header = IFACE_("Template %t|None %x0|");
 	char *p;
-	const size_t template_size = (BLI_ghash_size(TEMPLATES_HASH) * 32 + 30);
+	const size_t template_size = (BLI_ghash_len(TEMPLATES_HASH) * 32 + 30);
 
 	if (TEMPLATES_MENU != NULL) {
 		MEM_freeN(TEMPLATES_MENU);
@@ -970,6 +970,9 @@ static int sk_getStrokeSnapPoint(bContext *C, SK_Point *pt, SK_Sketch *sketch, S
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	int point_added = 0;
 
+	/* TODO: Since the function `ED_transform_snap_object_context_create_view3d` creates a cache,
+	 * the ideal would be to call this function only at the beginning of the snap operation,
+	 * or at the beginning of the operator itself */
 	struct SnapObjectContext *snap_context = ED_transform_snap_object_context_create_view3d(
 	        CTX_data_main(C), CTX_data_scene(C), 0,
 	        CTX_wm_region(C), CTX_wm_view3d(C));
@@ -1038,6 +1041,8 @@ static int sk_getStrokeSnapPoint(bContext *C, SK_Point *pt, SK_Sketch *sketch, S
 		}
 	}
 
+	/* TODO: The ideal would be to call this function only once.
+	 * At the end of the operator */
 	ED_transform_snap_object_context_destroy(snap_context);
 	return point_added;
 }
@@ -1329,7 +1334,7 @@ static void sk_convertStroke(bContext *C, SK_Stroke *stk)
 				}
 
 				if (bone == NULL) {
-					bone = ED_armature_edit_bone_add(arm, "Bone");
+					bone = ED_armature_ebone_add(arm, "Bone");
 
 					copy_v3_v3(bone->head, head->p);
 					copy_v3_v3(bone->tail, pt->p);
@@ -1900,14 +1905,11 @@ static bool sk_selectStroke(bContext *C, SK_Sketch *sketch, const int mval[2], c
 	unsigned int buffer[MAXPICKBUF];
 	short hits;
 
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
-	rect.xmin = mval[0] - 5;
-	rect.xmax = mval[0] + 5;
-	rect.ymin = mval[1] - 5;
-	rect.ymax = mval[1] + 5;
+	BLI_rcti_init_pt_radius(&rect, mval, 5);
 
-	hits = view3d_opengl_select(&vc, buffer, MAXPICKBUF, &rect, true);
+	hits = view3d_opengl_select(&vc, buffer, MAXPICKBUF, &rect, VIEW3D_SELECT_PICK_NEAREST);
 
 	if (hits > 0) {
 		int besthitresult = -1;

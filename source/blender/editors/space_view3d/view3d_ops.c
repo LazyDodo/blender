@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -109,7 +109,7 @@ static void VIEW3D_OT_copybuffer(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec = view3d_copybuffer_exec;
-	ot->poll = ED_operator_view3d_active;
+	ot->poll = ED_operator_scene;
 }
 
 static int view3d_pastebuffer_exec(bContext *C, wmOperator *op)
@@ -146,7 +146,7 @@ static void VIEW3D_OT_pastebuffer(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec = view3d_pastebuffer_exec;
-	ot->poll = ED_operator_view3d_active;
+	ot->poll = ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -240,13 +240,23 @@ void view3d_keymap(wmKeyConfig *keyconf)
 	/* only for region 3D window */
 	keymap = WM_keymap_find(keyconf, "3D View", SPACE_VIEW3D, 0);
 
-	kmi = WM_keymap_verify_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_ANY, 0);
+	/* Shift+LMB behavior first, so it has priority over KM_ANY item below. */
+	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "release_confirm", true);
-	/*
-	 * Doesn't work with KM_SHIFT, have to use KM_ANY and filter in invoke
-	 * */
-	// WM_keymap_verify_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);
-	
+	RNA_boolean_set(kmi->ptr, "use_planar_constraint", true);
+	RNA_boolean_set(kmi->ptr, "use_accurate", false);
+
+	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);
+	RNA_boolean_set(kmi->ptr, "release_confirm", true);
+	RNA_boolean_set(kmi->ptr, "use_planar_constraint", false);
+	RNA_boolean_set(kmi->ptr, "use_accurate", true);
+
+	/* Using KM_ANY here to allow holding modifiers before starting to transform. */
+	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_manipulator", LEFTMOUSE, KM_PRESS, KM_ANY, 0);
+	RNA_boolean_set(kmi->ptr, "release_confirm", true);
+	RNA_boolean_set(kmi->ptr, "use_planar_constraint", false);
+	RNA_boolean_set(kmi->ptr, "use_accurate", false);
+
 	WM_keymap_verify_item(keymap, "VIEW3D_OT_cursor3d", ACTIONMOUSE, KM_PRESS, 0, 0);
 	
 	WM_keymap_verify_item(keymap, "VIEW3D_OT_rotate", MIDDLEMOUSE, KM_PRESS, 0, 0);

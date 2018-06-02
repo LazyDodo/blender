@@ -167,10 +167,12 @@ void BKE_displist_normals_add(ListBase *lb)
 			if (dl->nors == NULL) {
 				dl->nors = MEM_callocN(sizeof(float) * 3, "dlnors");
 
-				if (dl->verts[2] < 0.0f)
+				if (dl->flag & DL_BACK_CURVE) {
 					dl->nors[2] = -1.0f;
-				else
+				}
+				else {
 					dl->nors[2] = 1.0f;
+				}
 			}
 		}
 		else if (dl->type == DL_SURF) {
@@ -295,7 +297,10 @@ bool BKE_displist_surfindex_get(DispList *dl, int a, int *b, int *p1, int *p2, i
 }
 
 /* ****************** make displists ********************* */
-
+#ifdef __INTEL_COMPILER
+/* ICC with the optimization -02 causes crashes. */
+#   pragma intel optimization_level 1
+#endif
 static void curve_to_displist(Curve *cu, ListBase *nubase, ListBase *dispbase,
                               const bool for_render, const bool use_render_resolution)
 {
@@ -469,6 +474,7 @@ void BKE_displist_fill(ListBase *dispbase, ListBase *to, const float normal_proj
 	sf_arena = BLI_memarena_new(BLI_SCANFILL_ARENA_SIZE, __func__);
 
 	while (cont) {
+		int dl_flag_accum = 0;
 		cont = 0;
 		totvert = 0;
 		nextcol = 0;
@@ -514,6 +520,7 @@ void BKE_displist_fill(ListBase *dispbase, ListBase *to, const float normal_proj
 						nextcol = 1;
 					}
 				}
+				dl_flag_accum |= dl->flag;
 			}
 			dl = dl->next;
 		}
@@ -526,6 +533,7 @@ void BKE_displist_fill(ListBase *dispbase, ListBase *to, const float normal_proj
 			if (tot) {
 				dlnew = MEM_callocN(sizeof(DispList), "filldisplist");
 				dlnew->type = DL_INDEX3;
+				dlnew->flag = (dl_flag_accum & (DL_BACK_CURVE | DL_FRONT_CURVE));
 				dlnew->col = colnr;
 				dlnew->nr = totvert;
 				dlnew->parts = tot;
@@ -603,6 +611,7 @@ static void bevels_to_filledpoly(Curve *cu, ListBase *dispbase)
 					dlnew->nr = dl->parts;
 					dlnew->parts = 1;
 					dlnew->type = DL_POLY;
+					dlnew->flag = DL_BACK_CURVE;
 					dlnew->col = dl->col;
 					dlnew->charidx = dl->charidx;
 
@@ -623,6 +632,7 @@ static void bevels_to_filledpoly(Curve *cu, ListBase *dispbase)
 					dlnew->nr = dl->parts;
 					dlnew->parts = 1;
 					dlnew->type = DL_POLY;
+					dlnew->flag = DL_FRONT_CURVE;
 					dlnew->col = dl->col;
 					dlnew->charidx = dl->charidx;
 
@@ -721,7 +731,7 @@ void BKE_displist_make_mball(EvaluationContext *eval_ctx, Scene *scene, Object *
 	if (!ob || ob->type != OB_MBALL)
 		return;
 
-	if (ob == BKE_mball_basis_find(scene, ob)) {
+	if (ob == BKE_mball_basis_find(eval_ctx, scene, ob)) {
 		if (ob->curve_cache) {
 			BKE_displist_free(&(ob->curve_cache->disp));
 		}
@@ -819,7 +829,7 @@ static void curve_calc_modifiers_pre(Scene *scene, Object *ob, ListBase *nurb,
 	if (editmode)
 		required_mode |= eModifierMode_Editmode;
 
-	if (cu->editnurb == NULL) {
+	if (!editmode) {
 		keyVerts = BKE_key_evaluate_object(ob, &numVerts);
 
 		if (keyVerts) {

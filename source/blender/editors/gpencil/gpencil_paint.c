@@ -46,7 +46,6 @@
 
 #include "PIL_time.h"
 
-#include "BKE_main.h"
 #include "BKE_paint.h"
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
@@ -162,6 +161,8 @@ typedef struct tGPsdata {
 	bGPDbrush *brush; /* current drawing brush */
 	short straight[2];   /* 1: line horizontal, 2: line vertical, other: not defined, second element position */
 	int lock_axis;       /* lock drawing to one axis */
+
+	short keymodifier;   /* key used for invoking the operator */
 } tGPsdata;
 
 /* ------ */
@@ -484,7 +485,8 @@ static short gp_stroke_addpoint(tGPsdata *p, const int mval[2], float pressure, 
 	bGPdata *gpd = p->gpd;
 	bGPDbrush *brush = p->brush;
 	tGPspoint *pt;
-	
+	ToolSettings *ts = p->scene->toolsettings;
+
 	/* check painting mode */
 	if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
 		/* straight lines only - i.e. only store start and end point in buffer */
@@ -636,7 +638,7 @@ static short gp_stroke_addpoint(tGPsdata *p, const int mval[2], float pressure, 
 				View3D *v3d = p->sa->spacedata.first;
 				
 				view3d_region_operator_needs_opengl(p->win, p->ar);
-				ED_view3d_autodist_init(p->scene, p->ar, v3d, (p->gpd->flag & GP_DATA_DEPTH_STROKE) ? 1 : 0);
+				ED_view3d_autodist_init(p->scene, p->ar, v3d, (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 1 : 0);
 			}
 			
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
@@ -756,7 +758,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	
 	int i, totelem;
 	/* since strokes are so fine, when using their depth we need a margin otherwise they might get missed */
-	int depth_margin = (p->gpd->flag & GP_DATA_DEPTH_STROKE) ? 4 : 0;
+	int depth_margin = (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 4 : 0;
 	
 	/* get total number of points to allocate space for
 	 *	- drawing straight-lines only requires the endpoints
@@ -893,7 +895,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 				copy_v2_v2_int(mval, &ptc->x);
 
 				if ((ED_view3d_autodist_depth(p->ar, mval, depth_margin, depth_arr + i) == 0) &&
-					(i && (ED_view3d_autodist_depth_seg(p->ar, mval, mval_prev, depth_margin + 1, depth_arr + i) == 0)))
+				    (i && (ED_view3d_autodist_depth_seg(p->ar, mval, mval_prev, depth_margin + 1, depth_arr + i) == 0)))
 				{
 					interp_depth = true;
 				}
@@ -910,7 +912,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 					depth_arr[i] = 0.9999f;
 			}
 			else {
-				if (p->gpd->flag & GP_DATA_DEPTH_STROKE_ENDPOINTS) {
+				if (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_ENDPOINTS) {
 					/* remove all info between the valid endpoints */
 					int first_valid = 0;
 					int last_valid = 0;
@@ -1004,9 +1006,9 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
 
 	/* add stroke to frame, usually on tail of the listbase, but if on back is enabled the stroke is added on listbase head 
-	* because the drawing order is inverse and the head stroke is the first to draw. This is very useful for artist
-	* when drawing the background
-	*/
+	 * because the drawing order is inverse and the head stroke is the first to draw. This is very useful for artist
+	 * when drawing the background
+	 */
 	if ((ts->gpencil_flags & GP_TOOL_FLAG_PAINT_ONBACK) && (p->paintmode != GP_PAINTMODE_DRAW_POLY)) {
 		BLI_addhead(&p->gpf->strokes, gps);
 	}
@@ -1623,16 +1625,24 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode)
 		 * 2) Ensure that p->gpf refers to the frame used for the active layer
 		 *    (to avoid problems with other tools which expect it to exist)
 		 */
-		bGPDlayer *gpl;
-		for (gpl = p->gpd->layers.first; gpl; gpl = gpl->next) {
+		bool has_layer_to_erase = false;
+		
+		for (bGPDlayer *gpl = p->gpd->layers.first; gpl; gpl = gpl->next) {
 			/* Skip if layer not editable */
 			if (gpencil_layer_is_editable(gpl) == false)
 				continue;
 			
 			/* Add a new frame if needed (and based off the active frame,
 			 * as we need some existing strokes to erase)
+			 *
+			 * Note: We don't add a new frame if there's nothing there now, so
+			 *       -> If there are no frames at all, don't add one
+			 *       -> If there are no strokes in that frame, don't add a new empty frame
 			 */
-			gpl->actframe = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_ADD_COPY);
+			if (gpl->actframe && gpl->actframe->strokes.first) {
+				gpl->actframe = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_ADD_COPY);
+				has_layer_to_erase = true;
+			}
 			
 			/* XXX: we omit GP_FRAME_PAINT here for now,
 			 * as it is only really useful for doing
@@ -1652,10 +1662,10 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode)
 			}
 		}
 		
-		if (p->gpf == NULL) {
+		if (has_layer_to_erase == false) {
 			p->status = GP_STATUS_ERROR;
 			//if (G.debug & G_DEBUG)
-				printf("Error: No frame created (gpencil_paint_init)\n");
+				printf("Error: Eraser will not be affecting anything (gpencil_paint_init)\n");
 			return;
 		}
 	}
@@ -1786,6 +1796,7 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode)
 /* finish off a stroke (clears buffer, but doesn't finish the paint operation) */
 static void gp_paint_strokeend(tGPsdata *p)
 {
+	ToolSettings *ts = p->scene->toolsettings;
 	/* for surface sketching, need to set the right OpenGL context stuff so that
 	 * the conversions will project the values correctly...
 	 */
@@ -1794,7 +1805,7 @@ static void gp_paint_strokeend(tGPsdata *p)
 		
 		/* need to restore the original projection settings before packing up */
 		view3d_region_operator_needs_opengl(p->win, p->ar);
-		ED_view3d_autodist_init(p->scene, p->ar, v3d, (p->gpd->flag & GP_DATA_DEPTH_STROKE) ? 1 : 0);
+		ED_view3d_autodist_init(p->scene, p->ar, v3d, (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 1 : 0);
 	}
 	
 	/* check if doing eraser or not */
@@ -1930,7 +1941,7 @@ static void gpencil_draw_cancel(bContext *C, wmOperator *op)
 /* ------------------------------- */
 
 
-static int gpencil_draw_init(bContext *C, wmOperator *op)
+static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	tGPsdata *p;
 	eGPencil_PaintModes paintmode = RNA_enum_get(op->ptr, "mode");
@@ -1948,6 +1959,13 @@ static int gpencil_draw_init(bContext *C, wmOperator *op)
 	if (p->status == GP_STATUS_ERROR) {
 		gpencil_draw_exit(C, op);
 		return 0;
+	}
+
+	if (event != NULL) {
+		p->keymodifier = event->keymodifier;
+	}
+	else {
+		p->keymodifier = -1;
 	}
 	
 	/* everything is now setup ok */
@@ -2190,7 +2208,7 @@ static int gpencil_draw_exec(bContext *C, wmOperator *op)
 	/* printf("GPencil - Starting Re-Drawing\n"); */
 	
 	/* try to initialize context data needed while drawing */
-	if (!gpencil_draw_init(C, op)) {
+	if (!gpencil_draw_init(C, op, NULL)) {
 		if (op->customdata) MEM_freeN(op->customdata);
 		/* printf("\tGP - no valid data\n"); */
 		return OPERATOR_CANCELLED;
@@ -2265,7 +2283,7 @@ static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event
 		printf("GPencil - Starting Drawing\n");
 	
 	/* try to initialize context data needed while drawing */
-	if (!gpencil_draw_init(C, op)) {
+	if (!gpencil_draw_init(C, op, event)) {
 		if (op->customdata)
 			MEM_freeN(op->customdata);
 		if (G.debug & G_DEBUG)
@@ -2428,9 +2446,17 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			 *   is essential for ensuring that they can quickly return to that view
 			 */
 		}
-		else if ((ELEM(event->type, DKEY)) && (event->val == KM_RELEASE)) {
+		else if ((ELEM(event->type, p->keymodifier)) && (event->val == KM_RELEASE)) {
 			/* enable continuous if release D key in mid drawing */
 			p->scene->toolsettings->gpencil_flags |= GP_TOOL_FLAG_PAINTSESSIONS_ON;
+		}
+		else if ((event->type == BKEY) && (event->val == KM_RELEASE)) {
+			/* Add Blank Frame
+			 * - Since this operator is non-modal, we can just call it here, and keep going...
+	         * - This operator is especially useful when animating
+			 */
+			WM_operator_name_call(C, "GPENCIL_OT_blank_frame_add", WM_OP_EXEC_DEFAULT, NULL);
+			estate = OPERATOR_RUNNING_MODAL;
 		}
 		else {
 			estate = OPERATOR_RUNNING_MODAL;
@@ -2594,7 +2620,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			}
 			else if (p->status != GP_STATUS_ERROR) {
 				/* User clicked outside bounds of window while idling, so exit paintmode 
-				 * NOTE: Don't eter this case if an error occurred while finding the
+				 * NOTE: Don't enter this case if an error occurred while finding the
 				 *       region (as above)
 				 */
 				/* if drawing polygon and enable on back, must move stroke */
@@ -2708,7 +2734,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 
 /* ------------------------------- */
 
-static EnumPropertyItem prop_gpencil_drawmodes[] = {
+static const EnumPropertyItem prop_gpencil_drawmodes[] = {
 	{GP_PAINTMODE_DRAW, "DRAW", 0, "Draw Freehand", "Draw freehand stroke(s)"},
 	{GP_PAINTMODE_DRAW_STRAIGHT, "DRAW_STRAIGHT", 0, "Draw Straight Lines", "Draw straight line segment(s)"},
 	{GP_PAINTMODE_DRAW_POLY, "DRAW_POLY", 0, "Draw Poly Line", "Click to place endpoints of straight line segments (connected)"},
@@ -2718,6 +2744,8 @@ static EnumPropertyItem prop_gpencil_drawmodes[] = {
 
 void GPENCIL_OT_draw(wmOperatorType *ot)
 {
+	PropertyRNA *prop;
+	
 	/* identifiers */
 	ot->name = "Grease Pencil Draw";
 	ot->idname = "GPENCIL_OT_draw";
@@ -2735,8 +2763,11 @@ void GPENCIL_OT_draw(wmOperatorType *ot)
 	
 	/* settings for drawing */
 	ot->prop = RNA_def_enum(ot->srna, "mode", prop_gpencil_drawmodes, 0, "Mode", "Way to interpret mouse movements");
-	RNA_def_collection_runtime(ot->srna, "stroke", &RNA_OperatorStrokeElement, "Stroke", "");
+
+	prop = RNA_def_collection_runtime(ot->srna, "stroke", &RNA_OperatorStrokeElement, "Stroke", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 	
 	/* NOTE: wait for input is enabled by default, so that all UI code can work properly without needing users to know about this */
-	RNA_def_boolean(ot->srna, "wait_for_input", true, "Wait for Input", "Wait for first click instead of painting immediately");
+	prop = RNA_def_boolean(ot->srna, "wait_for_input", true, "Wait for Input", "Wait for first click instead of painting immediately");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }

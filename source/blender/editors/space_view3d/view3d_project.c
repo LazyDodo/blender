@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -28,6 +28,7 @@
  *  \ingroup spview3d
  */
 
+#include "DNA_camera_types.h"
 #include "DNA_object_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_scene_types.h"
@@ -40,6 +41,7 @@
 
 #include "BLI_math_vector.h"
 
+#include "BKE_camera.h"
 #include "BKE_screen.h"
 
 #include "ED_view3d.h"  /* own include */
@@ -276,6 +278,16 @@ eV3DProjStatus ED_view3d_project_float_object(const ARegion *ar, const float co[
 /* More Generic Window/Ray/Vector projection functions
  * *************************************************** */
 
+float ED_view3d_pixel_size(const RegionView3D *rv3d, const float co[3])
+{
+	return mul_project_m4_v3_zfac((float(*)[4])rv3d->persmat, co) * rv3d->pixsize * U.pixelsize;
+}
+
+float ED_view3d_pixel_size_no_ui_scale(const RegionView3D *rv3d, const float co[3])
+{
+	return mul_project_m4_v3_zfac((float(*)[4])rv3d->persmat, co) * rv3d->pixsize;
+}
+
 /**
  * Calculate a depth value from \a co, use with #ED_view3d_win_to_delta
  */
@@ -462,9 +474,12 @@ bool view3d_get_view_aligned_coordinate(ARegion *ar, float fp[3], const int mval
  * \param ar The region (used for the window width and height).
  * \param depth_pt The reference location used to calculate the Z depth.
  * \param mval The area relative location (such as event->mval converted to floats).
- * \param out The resulting world-space location.
+ * \param r_out The resulting world-space location.
  */
-void ED_view3d_win_to_3d(const ARegion *ar, const float depth_pt[3], const float mval[2], float out[3])
+void ED_view3d_win_to_3d(
+        const View3D *v3d, const ARegion *ar,
+        const float depth_pt[3], const float mval[2],
+        float r_out[3])
 {
 	RegionView3D *rv3d = ar->regiondata;
 
@@ -488,11 +503,19 @@ void ED_view3d_win_to_3d(const ARegion *ar, const float depth_pt[3], const float
 	else {
 		float dx = (2.0f * mval[0] / (float)ar->winx) - 1.0f;
 		float dy = (2.0f * mval[1] / (float)ar->winy) - 1.0f;
+
 		if (rv3d->persp == RV3D_CAMOB) {
 			/* ortho camera needs offset applied */
+			const Camera *cam = v3d->camera->data;
+			const int sensor_fit = BKE_camera_sensor_fit(cam->sensor_fit, ar->winx, ar->winy);
 			const float zoomfac = BKE_screen_view3d_zoom_to_fac(rv3d->camzoom) * 4.0f;
-			dx += rv3d->camdx * zoomfac;
-			dy += rv3d->camdy * zoomfac;
+			const float aspx = ar->winx / (float)ar->winy;
+			const float aspy = ar->winy / (float)ar->winx;
+			const float shiftx = cam->shiftx * 0.5f * (sensor_fit == CAMERA_SENSOR_FIT_HOR ? 1.0f : aspy);
+			const float shifty = cam->shifty * 0.5f * (sensor_fit == CAMERA_SENSOR_FIT_HOR ? aspx : 1.0f);
+
+			dx += (rv3d->camdx + shiftx) * zoomfac;
+			dy += (rv3d->camdy + shifty) * zoomfac;
 		}
 		ray_origin[0] = (rv3d->persinv[0][0] * dx) + (rv3d->persinv[1][0] * dy) + rv3d->viewinv[3][0];
 		ray_origin[1] = (rv3d->persinv[0][1] * dx) + (rv3d->persinv[1][1] * dy) + rv3d->viewinv[3][1];
@@ -502,13 +525,16 @@ void ED_view3d_win_to_3d(const ARegion *ar, const float depth_pt[3], const float
 		lambda = ray_point_factor_v3(depth_pt, ray_origin, ray_direction);
 	}
 
-	madd_v3_v3v3fl(out, ray_origin, ray_direction, lambda);
+	madd_v3_v3v3fl(r_out, ray_origin, ray_direction, lambda);
 }
 
-void ED_view3d_win_to_3d_int(const ARegion *ar, const float depth_pt[3], const int mval[2], float out[3])
+void ED_view3d_win_to_3d_int(
+        const View3D *v3d, const ARegion *ar,
+        const float depth_pt[3], const int mval[2],
+        float r_out[3])
 {
 	const float mval_fl[2] = {mval[0], mval[1]};
-	ED_view3d_win_to_3d(ar, depth_pt, mval_fl, out);
+	ED_view3d_win_to_3d(v3d, ar, depth_pt, mval_fl, r_out);
 }
 
 /**

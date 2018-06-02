@@ -17,12 +17,12 @@
 #ifndef __ATTRIBUTE_H__
 #define __ATTRIBUTE_H__
 
-#include "kernel_types.h"
+#include "kernel/kernel_types.h"
 
-#include "util_list.h"
-#include "util_param.h"
-#include "util_types.h"
-#include "util_vector.h"
+#include "util/util_list.h"
+#include "util/util_param.h"
+#include "util/util_types.h"
+#include "util/util_vector.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -120,8 +120,10 @@ public:
 
 	Attribute *find(AttributeRequest& req);
 
+	void remove(Attribute *attribute);
+
 	void resize(bool reserve_only = false);
-	void clear();
+	void clear(bool preserve_voxel_data = false);
 };
 
 /* AttributeRequest
@@ -157,6 +159,7 @@ public:
 	void add(ustring name);
 	void add(AttributeStandard std);
 	void add(AttributeRequestSet& reqs);
+	void add_standard(ustring name);
 
 	bool find(ustring name);
 	bool find(AttributeStandard std);

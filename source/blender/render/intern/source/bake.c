@@ -305,7 +305,7 @@ static void bake_shade(void *handle, Object *ob, ShadeInput *shi, int UNUSED(qua
 		}
 		
 		if (ELEM(bs->type, RE_BAKE_ALL, RE_BAKE_TEXTURE, RE_BAKE_VERTEX_COLORS)) {
-			col[3] = FTOCHAR(shr.alpha);
+			col[3] = unit_float_to_uchar_clamp(shr.alpha);
 		}
 		else {
 			col[3] = 255;
@@ -364,7 +364,7 @@ static void bake_displacement(void *handle, ShadeInput *UNUSED(shi), float dist,
 	else {
 		/* Target is char (LDR). */
 		unsigned char col[4];
-		col[0] = col[1] = col[2] = FTOCHAR(disp);
+		col[0] = col[1] = col[2] = unit_float_to_uchar_clamp(disp);
 		col[3] = 255;
 
 		if (bs->vcol) {
@@ -609,7 +609,7 @@ static int get_next_bake_face(BakeShade *bs)
 		return 0;
 	}
 	
-	BLI_lock_thread(LOCK_CUSTOM1);
+	BLI_thread_lock(LOCK_CUSTOM1);
 
 	for (; obi; obi = obi->next, v = 0) {
 		obr = obi->obr;
@@ -724,13 +724,13 @@ static int get_next_bake_face(BakeShade *bs)
 				bs->vlr = vlr;
 				bs->vdone++;  /* only for error message if nothing was rendered */
 				v++;
-				BLI_unlock_thread(LOCK_CUSTOM1);
+				BLI_thread_unlock(LOCK_CUSTOM1);
 				return 1;
 			}
 		}
 	}
 	
-	BLI_unlock_thread(LOCK_CUSTOM1);
+	BLI_thread_unlock(LOCK_CUSTOM1);
 	return 0;
 }
 
@@ -845,7 +845,7 @@ static void shade_tface(BakeShade *bs)
 	if (bs->use_mask || bs->use_displacement_buffer) {
 		BakeImBufuserData *userdata = bs->ibuf->userdata;
 		if (userdata == NULL) {
-			BLI_lock_thread(LOCK_CUSTOM1);
+			BLI_thread_lock(LOCK_CUSTOM1);
 			userdata = bs->ibuf->userdata;
 			if (userdata == NULL) /* since the thread was locked, its possible another thread alloced the value */
 				userdata = MEM_callocN(sizeof(BakeImBufuserData), "BakeImBufuserData");
@@ -864,7 +864,7 @@ static void shade_tface(BakeShade *bs)
 
 			bs->ibuf->userdata = userdata;
 
-			BLI_unlock_thread(LOCK_CUSTOM1);
+			BLI_thread_unlock(LOCK_CUSTOM1);
 		}
 
 		bs->rect_mask = userdata->mask_buffer;
@@ -972,7 +972,7 @@ void RE_bake_ibuf_normalize_displacement(ImBuf *ibuf, float *displacement, char 
 
 			if (ibuf->rect) {
 				unsigned char *cp = (unsigned char *) (ibuf->rect + i);
-				cp[0] = cp[1] = cp[2] = FTOCHAR(normalized_displacement);
+				cp[0] = cp[1] = cp[2] = unit_float_to_uchar_clamp(normalized_displacement);
 				cp[3] = 255;
 			}
 		}
@@ -1040,7 +1040,7 @@ int RE_bake_shade_all_selected(Render *re, int type, Object *actob, short *do_up
 		BKE_main_id_tag_listbase(&G.main->mesh, LIB_TAG_DOIT, false);
 	}
 
-	BLI_init_threads(&threads, do_bake_thread, re->r.threads);
+	BLI_threadpool_init(&threads, do_bake_thread, re->r.threads);
 
 	handles = MEM_callocN(sizeof(BakeShade) * re->r.threads, "BakeShade");
 
@@ -1077,7 +1077,7 @@ int RE_bake_shade_all_selected(Render *re, int type, Object *actob, short *do_up
 		handles[a].displacement_min = FLT_MAX;
 		handles[a].displacement_max = -FLT_MAX;
 
-		BLI_insert_thread(&threads, &handles[a]);
+		BLI_threadpool_insert(&threads, &handles[a]);
 	}
 	
 	/* wait for everything to be done */
@@ -1151,7 +1151,7 @@ int RE_bake_shade_all_selected(Render *re, int type, Object *actob, short *do_up
 
 	MEM_freeN(handles);
 	
-	BLI_end_threads(&threads);
+	BLI_threadpool_end(&threads);
 
 	if (vdone == 0) {
 		result = BAKE_RESULT_NO_OBJECTS;
@@ -1329,8 +1329,8 @@ float RE_bake_make_derivative(ImBuf *ibuf, float *heights_buffer, const char *ma
 			else {
 				char *rrgb = (char *)ibuf->rect + index * 4;
 
-				rrgb[0] = FTOCHAR(deriv_x);
-				rrgb[1] = FTOCHAR(deriv_y);
+				rrgb[0] = unit_float_to_uchar_clamp(deriv_x);
+				rrgb[1] = unit_float_to_uchar_clamp(deriv_y);
 				rrgb[2] = 0;
 				rrgb[3] = 255;
 			}

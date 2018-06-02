@@ -62,6 +62,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_dynstr.h"
+#include "BLI_string_utils.h"
 #include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
@@ -265,7 +266,7 @@ static const char *ob_adrcodes_to_paths(int adrcode, int *array_index)
 }
 
 /* PoseChannel types 
- * NOTE: pchan name comes from 'actname' added earlier... 
+ * NOTE: pchan name comes from 'actname' added earlier...
  */
 static const char *pchan_adrcodes_to_paths(int adrcode, int *array_index)
 {
@@ -328,7 +329,7 @@ static const char *constraint_adrcodes_to_paths(int adrcode, int *array_index)
 }
 
 /* ShapeKey types 
- * NOTE: as we don't have access to the keyblock where the data comes from (for now), 
+ * NOTE: as we don't have access to the keyblock where the data comes from (for now),
  *       we'll just use numerical indices for now...
  */
 static char *shapekey_adrcodes_to_paths(ID *id, int adrcode, int *UNUSED(array_index))
@@ -1191,7 +1192,7 @@ static void icu_to_fcurves(ID *id, ListBase *groups, ListBase *list, IpoCurve *i
 			/* Add a new FModifier (Cyclic) instead of setting extend value 
 			 * as that's the new equivalent of that option.
 			 */
-			FModifier *fcm = add_fmodifier(&fcu->modifiers, FMODIFIER_TYPE_CYCLES);
+			FModifier *fcm = add_fmodifier(&fcu->modifiers, FMODIFIER_TYPE_CYCLES, fcu);
 			FMod_Cycles *data = (FMod_Cycles *)fcm->data;
 			
 			/* if 'offset' one is in use, set appropriate settings */
@@ -1558,7 +1559,7 @@ static void ipo_to_animdata(ID *id, Ipo *ipo, char actname[], char constname[], 
 			
 			BLI_snprintf(nameBuf, sizeof(nameBuf), "CDA:%s", ipo->id.name + 2);
 			
-			adt->action = add_empty_action(G.main, nameBuf);
+			adt->action = BKE_action_add(G.main, nameBuf);
 			if (G.debug & G_DEBUG) printf("\t\tadded new action - '%s'\n", nameBuf);
 		}
 		
@@ -1662,7 +1663,7 @@ static void nlastrips_to_animdata(ID *id, ListBase *strips)
 				/* trying to add to the current failed (no space), 
 				 * so add a new track to the stack, and add to that...
 				 */
-				nlt = add_nlatrack(adt, NULL);
+				nlt = BKE_nlatrack_add(adt, NULL);
 				BKE_nlatrack_add_strip(nlt, strip);
 			}
 			
@@ -1686,10 +1687,10 @@ static void nlastrips_to_animdata(ID *id, ListBase *strips)
 /* Called from do_versions() in readfile.c to convert the old 'IPO/adrcode' system
  * to the new 'Animato/RNA' system.
  *
- * The basic method used here, is to loop over datablocks which have IPO-data, and 
- * add those IPO's to new AnimData blocks as Actions. 
+ * The basic method used here, is to loop over datablocks which have IPO-data, and
+ * add those IPO's to new AnimData blocks as Actions.
  * Action/NLA data only works well for Objects, so these only need to be checked for there.
- *  
+ *
  * Data that has been converted should be freed immediately, which means that it is immediately
  * clear which datablocks have yet to be converted, and also prevent freeing errors when we exit.
  */
@@ -2106,7 +2107,7 @@ void do_versions_ipos_to_animato(Main *main)
 			bAction *new_act;
 			
 			/* add a new action for this, and convert all data into that action */
-			new_act = add_empty_action(main, id->name + 2);
+			new_act = BKE_action_add(main, id->name + 2);
 			ipo_to_animato(NULL, ipo, NULL, NULL, NULL, NULL, &new_act->curves, &drivers);
 			new_act->idroot = ipo->blocktype;
 		}

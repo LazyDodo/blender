@@ -35,6 +35,7 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,10 +66,8 @@ int    BLI_create_symlink(const char *path, const char *to) ATTR_NONNULL();
 
 /* keep in sync with the definition of struct direntry in BLI_fileops_types.h */
 #ifdef WIN32
-#  if defined(_MSC_VER) || defined(__MINGW64__)
+#  if defined(_MSC_VER)
 typedef struct _stat64 BLI_stat_t;
-#  elif defined(__MINGW32__)
-typedef struct _stati64 BLI_stat_t;
 #  else
 typedef struct _stat BLI_stat_t;
 #  endif

@@ -16,21 +16,22 @@
 
 #include <Python.h>
 
-#include "CCL_api.h"
+#include "blender/CCL_api.h"
 
-#include "blender_sync.h"
-#include "blender_session.h"
+#include "blender/blender_sync.h"
+#include "blender/blender_session.h"
 
-#include "util_foreach.h"
-#include "util_logging.h"
-#include "util_md5.h"
-#include "util_opengl.h"
-#include "util_path.h"
-#include "util_string.h"
-#include "util_types.h"
+#include "util/util_debug.h"
+#include "util/util_foreach.h"
+#include "util/util_logging.h"
+#include "util/util_md5.h"
+#include "util/util_opengl.h"
+#include "util/util_path.h"
+#include "util/util_string.h"
+#include "util/util_types.h"
 
 #ifdef WITH_OSL
-#include "osl.h"
+#include "render/osl.h"
 
 #include <OSL/oslquery.h>
 #include <OSL/oslconfig.h>
@@ -60,15 +61,19 @@ bool debug_flags_sync_from_scene(BL::Scene b_scene)
 	/* Backup some settings for comparison. */
 	DebugFlags::OpenCL::DeviceType opencl_device_type = flags.opencl.device_type;
 	DebugFlags::OpenCL::KernelType opencl_kernel_type = flags.opencl.kernel_type;
+	/* Synchronize shared flags. */
+	flags.viewport_static_bvh = get_enum(cscene, "debug_bvh_type");
 	/* Synchronize CPU flags. */
 	flags.cpu.avx2 = get_boolean(cscene, "debug_use_cpu_avx2");
 	flags.cpu.avx = get_boolean(cscene, "debug_use_cpu_avx");
 	flags.cpu.sse41 = get_boolean(cscene, "debug_use_cpu_sse41");
 	flags.cpu.sse3 = get_boolean(cscene, "debug_use_cpu_sse3");
 	flags.cpu.sse2 = get_boolean(cscene, "debug_use_cpu_sse2");
-	flags.cpu.qbvh = get_boolean(cscene, "debug_use_qbvh");
+	flags.cpu.bvh_layout = (BVHLayout)get_enum(cscene, "debug_bvh_layout");
+	flags.cpu.split_kernel = get_boolean(cscene, "debug_use_cpu_split_kernel");
 	/* Synchronize CUDA flags. */
 	flags.cuda.adaptive_compile = get_boolean(cscene, "debug_use_cuda_adaptive_compile");
+	flags.cuda.split_kernel = get_boolean(cscene, "debug_use_cuda_split_kernel");
 	/* Synchronize OpenCL kernel type. */
 	switch(get_enum(cscene, "debug_opencl_kernel_type")) {
 		case 0:
@@ -104,6 +109,8 @@ bool debug_flags_sync_from_scene(BL::Scene b_scene)
 	}
 	/* Synchronize other OpenCL flags. */
 	flags.opencl.debug = get_boolean(cscene, "debug_use_opencl_debug");
+	flags.opencl.mem_limit = ((size_t)get_int(cscene, "debug_opencl_mem_limit"))*1024*1024;
+	flags.opencl.single_program = get_boolean(cscene, "debug_opencl_kernel_single_program");
 	return flags.opencl.device_type != opencl_device_type ||
 	       flags.opencl.kernel_type != opencl_kernel_type;
 }
@@ -399,13 +406,17 @@ static PyObject *available_devices_func(PyObject * /*self*/, PyObject * /*args*/
 
 static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 {
-	PyObject *pynodegroup, *pynode;
+	PyObject *pydata, *pynodegroup, *pynode;
 	const char *filepath = NULL;
 
-	if(!PyArg_ParseTuple(args, "OOs", &pynodegroup, &pynode, &filepath))
+	if(!PyArg_ParseTuple(args, "OOOs", &pydata, &pynodegroup, &pynode, &filepath))
 		return NULL;
 
 	/* RNA */
+	PointerRNA dataptr;
+	RNA_main_pointer_create((Main*)PyLong_AsVoidPtr(pydata), &dataptr);
+	BL::BlendData b_data(dataptr);
+
 	PointerRNA nodeptr;
 	RNA_pointer_create((ID*)PyLong_AsVoidPtr(pynodegroup), &RNA_ShaderNodeScript, (void*)PyLong_AsVoidPtr(pynode), &nodeptr);
 	BL::ShaderNodeScript b_node(nodeptr);
@@ -503,7 +514,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 			b_sock = b_node.outputs[param->name.string()];
 			/* remove if type no longer matches */
 			if(b_sock && b_sock.bl_idname() != socket_type) {
-				b_node.outputs.remove(b_sock);
+				b_node.outputs.remove(b_data, b_sock);
 				b_sock = BL::NodeSocket(PointerRNA_NULL);
 			}
 		}
@@ -511,7 +522,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 			b_sock = b_node.inputs[param->name.string()];
 			/* remove if type no longer matches */
 			if(b_sock && b_sock.bl_idname() != socket_type) {
-				b_node.inputs.remove(b_sock);
+				b_node.inputs.remove(b_data, b_sock);
 				b_sock = BL::NodeSocket(PointerRNA_NULL);
 			}
 		}
@@ -519,9 +530,9 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 		if(!b_sock) {
 			/* create new socket */
 			if(param->isoutput)
-				b_sock = b_node.outputs.create(socket_type.c_str(), param->name.c_str(), param->name.c_str());
+				b_sock = b_node.outputs.create(b_data, socket_type.c_str(), param->name.c_str(), param->name.c_str());
 			else
-				b_sock = b_node.inputs.create(socket_type.c_str(), param->name.c_str(), param->name.c_str());
+				b_sock = b_node.inputs.create(b_data, socket_type.c_str(), param->name.c_str(), param->name.c_str());
 
 			/* set default value */
 			if(data_type == BL::NodeSocket::type_VALUE) {
@@ -555,7 +566,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 
 		for(b_node.inputs.begin(b_input); b_input != b_node.inputs.end(); ++b_input) {
 			if(used_sockets.find(b_input->ptr.data) == used_sockets.end()) {
-				b_node.inputs.remove(*b_input);
+				b_node.inputs.remove(b_data, *b_input);
 				removed = true;
 				break;
 			}
@@ -563,7 +574,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 
 		for(b_node.outputs.begin(b_output); b_output != b_node.outputs.end(); ++b_output) {
 			if(used_sockets.find(b_output->ptr.data) == used_sockets.end()) {
-				b_node.outputs.remove(*b_output);
+				b_node.outputs.remove(b_data, *b_output);
 				removed = true;
 				break;
 			}
@@ -641,7 +652,7 @@ static PyObject *debug_flags_reset_func(PyObject * /*self*/, PyObject * /*args*/
 	Py_RETURN_NONE;
 }
 
-static PyObject *set_resumable_chunks_func(PyObject * /*self*/, PyObject *args)
+static PyObject *set_resumable_chunk_func(PyObject * /*self*/, PyObject *args)
 {
 	int num_resumable_chunks, current_resumable_chunk;
 	if(!PyArg_ParseTuple(args, "ii",
@@ -672,6 +683,53 @@ static PyObject *set_resumable_chunks_func(PyObject * /*self*/, PyObject *args)
 	printf("Cycles: Will render chunk %d of %d\n",
 	       current_resumable_chunk,
 	       num_resumable_chunks);
+
+	Py_RETURN_NONE;
+}
+
+static PyObject *set_resumable_chunk_range_func(PyObject * /*self*/, PyObject *args)
+{
+	int num_chunks, start_chunk, end_chunk;
+	if(!PyArg_ParseTuple(args, "iii",
+	                     &num_chunks,
+	                     &start_chunk,
+	                     &end_chunk)) {
+		Py_RETURN_NONE;
+	}
+
+	if(num_chunks <= 0) {
+		fprintf(stderr, "Cycles: Bad value for number of resumable chunks.\n");
+		abort();
+		Py_RETURN_NONE;
+	}
+	if(start_chunk < 1 || start_chunk > num_chunks) {
+		fprintf(stderr, "Cycles: Bad value for start chunk number.\n");
+		abort();
+		Py_RETURN_NONE;
+	}
+	if(end_chunk < 1 || end_chunk > num_chunks) {
+		fprintf(stderr, "Cycles: Bad value for start chunk number.\n");
+		abort();
+		Py_RETURN_NONE;
+	}
+	if(start_chunk > end_chunk) {
+		fprintf(stderr, "Cycles: End chunk should be higher than start one.\n");
+		abort();
+		Py_RETURN_NONE;
+	}
+
+	VLOG(1) << "Initialized resumable render: "
+	        << "num_resumable_chunks=" << num_chunks << ", "
+	        << "start_resumable_chunk=" << start_chunk
+	        << "end_resumable_chunk=" << end_chunk;
+	BlenderSession::num_resumable_chunks = num_chunks;
+	BlenderSession::start_resumable_chunk = start_chunk;
+	BlenderSession::end_resumable_chunk = end_chunk;
+
+	printf("Cycles: Will render chunks %d to %d of %d\n",
+	       start_chunk,
+	       end_chunk,
+	       num_chunks);
 
 	Py_RETURN_NONE;
 }
@@ -715,7 +773,8 @@ static PyMethodDef methods[] = {
 	{"debug_flags_reset", debug_flags_reset_func, METH_NOARGS, ""},
 
 	/* Resumable render */
-	{"set_resumable_chunks", set_resumable_chunks_func, METH_VARARGS, ""},
+	{"set_resumable_chunk", set_resumable_chunk_func, METH_VARARGS, ""},
+	{"set_resumable_chunk_range", set_resumable_chunk_range_func, METH_VARARGS, ""},
 
 	/* Compute Device selection */
 	{"get_device_types", get_device_types_func, METH_VARARGS, ""},
@@ -758,6 +817,14 @@ void *CCL_python_module_init()
 	Py_INCREF(Py_False);
 	PyModule_AddStringConstant(mod, "osl_version", "unknown");
 	PyModule_AddStringConstant(mod, "osl_version_string", "unknown");
+#endif
+
+#ifdef WITH_CYCLES_DEBUG
+	PyModule_AddObject(mod, "with_cycles_debug", Py_True);
+	Py_INCREF(Py_True);
+#else
+	PyModule_AddObject(mod, "with_cycles_debug", Py_False);
+	Py_INCREF(Py_False);
 #endif
 
 #ifdef WITH_NETWORK

@@ -36,6 +36,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
+#include "BLI_string_utils.h"
 
 #include "BKE_animsys.h"
 #include "BKE_action.h"
@@ -120,7 +121,7 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 	pose = ob->pose;
 	
 	for (pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
-		curbone = ED_armature_bone_find_name(arm->edbo, pchan->name);
+		curbone = ED_armature_ebone_find_name(arm->edbo, pchan->name);
 		
 		/* simply copy the head/tail values from pchan over to curbone */
 		copy_v3_v3(curbone->head, pchan->pose_head);
@@ -148,6 +149,28 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 			
 			/* just use this euler-y as new roll value */
 			curbone->roll = eul[1];
+		}
+		
+		/* combine pose and rest values for bendy bone settings,
+		 * then clear the pchan values (so we don't get a double-up)
+		 */
+		if (pchan->bone->segments > 1) {
+			curbone->curveInX += pchan->curveInX;
+			curbone->curveInY += pchan->curveInY;
+			curbone->curveOutX += pchan->curveOutX;
+			curbone->curveOutY += pchan->curveOutY;
+			curbone->roll1 += pchan->roll1;
+			curbone->roll2 += pchan->roll2;
+			curbone->ease1 += pchan->ease1;
+			curbone->ease2 += pchan->ease2;
+			curbone->scaleIn += pchan->scaleIn;
+			curbone->scaleOut += pchan->scaleOut;
+			
+			pchan->curveInX = pchan->curveOutX = 0.0f;
+			pchan->curveInY = pchan->curveOutY = 0.0f;
+			pchan->roll1 = pchan->roll2 = 0.0f;
+			pchan->ease1 = pchan->ease2 = 0.0f;
+			pchan->scaleIn = pchan->scaleOut = 1.0f;
 		}
 		
 		/* clear transform values for pchan */
@@ -286,7 +309,7 @@ static bPoseChannel *pose_bone_do_paste(Object *ob, bPoseChannel *chan, const bo
 	
 	/* get the name - if flipping, we must flip this first */
 	if (flip)
-		BKE_deform_flip_side_name(name, chan->name, false);
+		BLI_string_flip_side_name(name, chan->name, false, sizeof(name));
 	else
 		BLI_strncpy(name, chan->name, sizeof(name));
 	
@@ -354,6 +377,8 @@ static bPoseChannel *pose_bone_do_paste(Object *ob, bPoseChannel *chan, const bo
 		
 		pchan->roll1 = chan->roll1;
 		pchan->roll2 = chan->roll2;
+		pchan->ease1 = chan->ease1;
+		pchan->ease2 = chan->ease2;
 		pchan->scaleIn = chan->scaleIn;
 		pchan->scaleOut = chan->scaleOut;
 		
@@ -481,12 +506,15 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 	bPoseChannel *chan;
 	const bool flip = RNA_boolean_get(op->ptr, "flipped");
 	bool selOnly = RNA_boolean_get(op->ptr, "selected_mask");
+	
 	/* Get KeyingSet to use. */
 	KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, ANIM_KS_WHOLE_CHARACTER_ID);
+	
 	/* Sanity checks. */
 	if (ELEM(NULL, ob, ob->pose)) {
 		return OPERATOR_CANCELLED;
 	}
+	
 	/* Read copy buffer .blend file. */
 	char str[FILE_MAX];
 	Main *tmp_bmain = BKE_main_new();
@@ -497,11 +525,12 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 	/* Make sure data from this file is usable for pose paste. */
-	if (BLI_listbase_count_ex(&tmp_bmain->object, 2) != 1) {
+	if (BLI_listbase_count_at_most(&tmp_bmain->object, 2) != 1) {
 		BKE_report(op->reports, RPT_ERROR, "Copy buffer is not from pose mode");
 		BKE_main_free(tmp_bmain);
 		return OPERATOR_CANCELLED;
 	}
+	
 	Object *object_from = tmp_bmain->object.first;
 	bPose *pose_from = object_from->pose;
 	if (pose_from == NULL) {
@@ -509,6 +538,7 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 		BKE_main_free(tmp_bmain);
 		return OPERATOR_CANCELLED;
 	}
+	
 	/* If selOnly option is enabled, if user hasn't selected any bones,
 	 * just go back to default behavior to be more in line with other
 	 * pose tools.
@@ -518,6 +548,7 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 			selOnly = false;
 		}
 	}
+	
 	/* Safely merge all of the channels in the buffer pose into any
 	 * existing pose.
 	 */
@@ -532,8 +563,15 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 		}
 	}
 	BKE_main_free(tmp_bmain);
+	
 	/* Update event for pose and deformation children. */
 	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	
+	/* Recalculate paths if any of the bones have paths... */
+	if ((ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
+		ED_pose_recalculate_paths(scene, ob);
+	}
+	
 	/* Notifiers for updates, */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
 
@@ -576,6 +614,8 @@ static void pchan_clear_scale(bPoseChannel *pchan)
 	if ((pchan->protectflag & OB_LOCK_SCALEZ) == 0)
 		pchan->size[2] = 1.0f;
 	
+	pchan->ease1 = 0.0f;
+	pchan->ease2 = 0.0f; 
 	pchan->scaleIn = 1.0f;
 	pchan->scaleOut = 1.0f;
 }
@@ -734,7 +774,7 @@ static int pose_clear_transform_generic_exec(bContext *C, wmOperator *op,
 			/* clear any unkeyed tags */
 			if (pchan->bone)
 				pchan->bone->flag &= ~BONE_UNKEYED;
-				
+
 			/* tag for autokeying later */
 			autokey = 1;
 		}

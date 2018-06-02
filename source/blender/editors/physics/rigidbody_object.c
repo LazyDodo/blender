@@ -44,7 +44,6 @@
 
 #include "BKE_context.h"
 #include "BKE_depsgraph.h"
-#include "BKE_global.h"
 #include "BKE_group.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
@@ -455,7 +454,7 @@ static const int NUM_RB_MATERIAL_PRESETS = sizeof(RB_MATERIAL_DENSITY_TABLE) / s
  * - Although there is a runtime cost, this has a lower maintenance cost
  *   in the long run than other two-list solutions...
  */
-static EnumPropertyItem *rigidbody_materials_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *rigidbody_materials_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem item_tmp = {0};
 	EnumPropertyItem *item = NULL;

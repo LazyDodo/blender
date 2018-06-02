@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -55,7 +55,7 @@
 #include "RNA_access.h"
 
 #include "ED_screen.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -67,7 +67,7 @@
 
 static void view3d_panel_operator_redo_buts(const bContext *C, Panel *pa, wmOperator *op)
 {
-	uiLayoutOperatorButs(C, pa->layout, op, NULL, 'V', 0);
+	uiTemplateOperatorPropertyButs(C, pa->layout, op, NULL, 'V', 0);
 }
 
 static void view3d_panel_operator_redo_header(const bContext *C, Panel *pa)
@@ -218,7 +218,7 @@ static void view3d_panel_tool_shelf(const bContext *C, Panel *pa)
 		for (ct = st->toolshelf.first; ct; ct = ct->next) {
 			if (STREQLEN(context, ct->context, OP_MAX_TYPENAME)) {
 				col = uiLayoutColumn(pa->layout, true);
-				uiItemFullO(col, ct->opname, NULL, ICON_NONE, NULL, WM_OP_INVOKE_REGION_WIN, 0);
+				uiItemFullO(col, ct->opname, NULL, ICON_NONE, NULL, WM_OP_INVOKE_REGION_WIN, 0, NULL);
 			}
 		}
 	}

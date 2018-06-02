@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -68,7 +68,7 @@
 #include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_sequencer.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -235,8 +235,7 @@ static void unlink_group_cb(
 	}
 	else {
 		Main *bmain = CTX_data_main(C);
-		BKE_libblock_unlink(bmain, group, false, false);
-		BKE_libblock_free(bmain, group);
+		BKE_libblock_delete(bmain, group);
 	}
 }
 
@@ -279,7 +278,7 @@ typedef enum eOutliner_PropSceneOps {
 	OL_SCENE_OP_DELETE = 1
 } eOutliner_PropSceneOps;
 
-static EnumPropertyItem prop_scene_op_types[] = {
+static const EnumPropertyItem prop_scene_op_types[] = {
 	{OL_SCENE_OP_DELETE, "DELETE", ICON_X, "Delete", ""},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -373,16 +372,13 @@ static void object_select_cb(
 }
 
 static void object_select_hierarchy_cb(
-        bContext *C, ReportList *UNUSED(reports), Scene *UNUSED(scene), TreeElement *UNUSED(te),
-        TreeStoreElem *UNUSED(tsep), TreeStoreElem *UNUSED(tselem), void *UNUSED(user_data))
+        bContext *C, ReportList *UNUSED(reports), Scene *UNUSED(scene), TreeElement *te,
+        TreeStoreElem *UNUSED(tsep), TreeStoreElem *tselem, void *UNUSED(user_data))
 {
-	/* From where do i get the x,y coordinate of the mouse event ? */
-	wmWindow *win = CTX_wm_window(C);
-	int x = win->eventstate->mval[0];
-	int y = win->eventstate->mval[1];
-	outliner_item_do_activate(C, x, y, true, true);
+	/* Don't extend because this toggles, which is nice for Ctrl-Click but not for a menu item.
+	 * it's especially confusing when multiple items are selected since some toggle on/off. */
+	outliner_item_do_activate_from_tree_element(C, te, tselem, false, true);
 }
-
 
 static void object_deselect_cb(
         bContext *UNUSED(C), ReportList *UNUSED(reports), Scene *scene, TreeElement *te,
@@ -399,7 +395,7 @@ static void object_deselect_cb(
 
 static void object_delete_cb(
         bContext *C, ReportList *reports, Scene *scene, TreeElement *te,
-        TreeStoreElem *UNUSED(tsep), TreeStoreElem *tselem, void *UNUSED(user_data))
+        TreeStoreElem *tsep, TreeStoreElem *tselem, void *user_data)
 {
 	Base *base = (Base *)te->directdata;
 	
@@ -411,7 +407,9 @@ static void object_delete_cb(
 			BKE_reportf(reports, RPT_WARNING, "Cannot delete indirectly linked object '%s'", base->object->id.name + 2);
 			return;
 		}
-		else if (BKE_library_ID_is_indirectly_used(bmain, base->object) && ID_REAL_USERS(base->object) <= 1) {
+		else if (BKE_library_ID_is_indirectly_used(bmain, base->object) &&
+		         ID_REAL_USERS(base->object) <= 1 && ID_EXTRA_USERS(base->object) == 0)
+		{
 			BKE_reportf(reports, RPT_WARNING,
 			            "Cannot delete object '%s' from scene '%s', indirectly used objects need at least one user",
 			            base->object->id.name + 2, scene->id.name + 2);
@@ -419,8 +417,9 @@ static void object_delete_cb(
 		}
 
 		// check also library later
-		if (scene->obedit == base->object)
-			ED_object_editmode_exit(C, EM_FREEDATA | EM_FREEUNDO | EM_WAITCURSOR | EM_DO_UNDO);
+		if (scene->obedit == base->object) {
+			ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);
+		}
 		
 		ED_base_object_free_and_unlink(CTX_data_main(C), scene, base);
 		/* leave for ED_outliner_id_unref to handle */
@@ -429,13 +428,20 @@ static void object_delete_cb(
 		tselem->id = NULL;
 #endif
 	}
+	else {
+		/* No base, means object is no more instantiated in any scene.
+		 * Should not happen ideally, but does happens, see T51625.
+		 * Rather than twisting in all kind of ways to address all possible cases leading to that situation, simpler
+		 * to allow deleting such object as a mere generic data-block. */
+		id_delete_cb(C, reports, scene, te, tsep, tselem, user_data);
+	}
 }
 
 static void id_local_cb(
         bContext *C, ReportList *UNUSED(reports), Scene *UNUSED(scene), TreeElement *UNUSED(te),
         TreeStoreElem *UNUSED(tsep), TreeStoreElem *tselem, void *UNUSED(user_data))
 {
-	if (ID_IS_LINKED_DATABLOCK(tselem->id) && (tselem->id->tag & LIB_TAG_EXTERN)) {
+	if (ID_IS_LINKED(tselem->id) && (tselem->id->tag & LIB_TAG_EXTERN)) {
 		Main *bmain = CTX_data_main(C);
 		/* if the ID type has no special local function,
 		 * just clear the lib */
@@ -525,7 +531,7 @@ static void group_linkobs2scene_cb(
 		if (!base) {
 			/* link to scene */
 			base = BKE_scene_base_add(scene, gob->ob);
-			id_lib_extern((ID *)gob->ob); /* in case these are from a linked group */
+			id_us_plus(&gob->ob->id);
 		}
 		base->object->flag |= SELECT;
 		base->flag |= SELECT;
@@ -739,18 +745,19 @@ static void data_select_linked_cb(int event, TreeElement *te, TreeStoreElem *UNU
 static void constraint_cb(int event, TreeElement *te, TreeStoreElem *UNUSED(tselem), void *C_v)
 {
 	bContext *C = C_v;
+	Main *bmain = CTX_data_main(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	bConstraint *constraint = (bConstraint *)te->directdata;
 	Object *ob = (Object *)outliner_search_back(soops, te, ID_OB);
 
 	if (event == OL_CONSTRAINTOP_ENABLE) {
 		constraint->flag &= ~CONSTRAINT_OFF;
-		ED_object_constraint_update(ob);
+		ED_object_constraint_update(bmain, ob);
 		WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT, ob);
 	}
 	else if (event == OL_CONSTRAINTOP_DISABLE) {
 		constraint->flag = CONSTRAINT_OFF;
-		ED_object_constraint_update(ob);
+		ED_object_constraint_update(bmain, ob);
 		WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT, ob);
 	}
 	else if (event == OL_CONSTRAINTOP_DELETE) {
@@ -766,7 +773,7 @@ static void constraint_cb(int event, TreeElement *te, TreeStoreElem *UNUSED(tsel
 		if (BKE_constraint_remove_ex(lb, ob, constraint, true)) {
 			/* there's no active constraint now, so make sure this is the case */
 			BKE_constraints_active_set(&ob->constraints, NULL);
-			ED_object_constraint_update(ob); /* needed to set the flags on posebones correctly */
+			ED_object_constraint_update(bmain, ob); /* needed to set the flags on posebones correctly */
 			WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT | NA_REMOVED, ob);
 			te->store_elem->flag &= ~TSE_SELECTED;
 		}
@@ -842,7 +849,9 @@ static Base *outline_delete_hierarchy(bContext *C, ReportList *reports, Scene *s
 		BKE_reportf(reports, RPT_WARNING, "Cannot delete indirectly linked object '%s'", base->object->id.name + 2);
 		return base_next;
 	}
-	else if (BKE_library_ID_is_indirectly_used(bmain, base->object) && ID_REAL_USERS(base->object) <= 1) {
+	else if (BKE_library_ID_is_indirectly_used(bmain, base->object) &&
+	         ID_REAL_USERS(base->object) <= 1 && ID_EXTRA_USERS(base->object) == 0)
+	{
 		BKE_reportf(reports, RPT_WARNING,
 		            "Cannot delete object '%s' from scene '%s', indirectly used objects need at least one user",
 		            base->object->id.name + 2, scene->id.name + 2);
@@ -866,7 +875,7 @@ static void object_delete_hierarchy_cb(
 		/* Check also library later. */
 		for (; obedit && (obedit != base->object); obedit = obedit->parent);
 		if (obedit == base->object) {
-			ED_object_editmode_exit(C, EM_FREEDATA | EM_FREEUNDO | EM_WAITCURSOR | EM_DO_UNDO);
+			ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);
 		}
 
 		outline_delete_hierarchy(C, reports, scene, base);
@@ -896,7 +905,7 @@ enum {
 	OL_OP_RENAME,
 };
 
-static EnumPropertyItem prop_object_op_types[] = {
+static const EnumPropertyItem prop_object_op_types[] = {
 	{OL_OP_SELECT, "SELECT", 0, "Select", ""},
 	{OL_OP_DESELECT, "DESELECT", 0, "Deselect", ""},
 	{OL_OP_SELECT_HIERARCHY, "SELECT_HIERARCHY", 0, "Select Hierarchy", ""},
@@ -1043,11 +1052,11 @@ typedef enum eOutliner_PropGroupOps {
 	OL_GROUPOP_RENAME,
 } eOutliner_PropGroupOps;
 
-static EnumPropertyItem prop_group_op_types[] = {
+static const EnumPropertyItem prop_group_op_types[] = {
 	{OL_GROUPOP_UNLINK, "UNLINK",     0, "Unlink Group", ""},
 	{OL_GROUPOP_LOCAL, "LOCAL",       0, "Make Local Group", ""},
 	{OL_GROUPOP_LINK, "LINK",         0, "Link Group Objects to Scene", ""},
-	{OL_GROUPOP_DELETE, "DELETE",     0, "Delete Group", "WARNING: no undo"},
+	{OL_GROUPOP_DELETE, "DELETE",     0, "Delete Group", ""},
 	{OL_GROUPOP_REMAP, "REMAP",       0, "Remap Users",
 	 "Make all users of selected data-blocks to use instead current (clicked) one"},
 	{OL_GROUPOP_INSTANCE, "INSTANCE", 0, "Instance Groups in Scene", ""},
@@ -1086,7 +1095,7 @@ static int outliner_group_operation_exec(bContext *C, wmOperator *op)
 			DAG_relations_tag_update(CTX_data_main(C));
 			break;
 		case OL_GROUPOP_DELETE:
-			WM_operator_name_call(C, "OUTLINER_OT_id_delete", WM_OP_INVOKE_REGION_WIN, NULL);
+			outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_delete_cb, NULL);
 			break;
 		case OL_GROUPOP_REMAP:
 			outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_remap_cb, NULL);
@@ -1150,7 +1159,7 @@ typedef enum eOutlinerIdOpTypes {
 } eOutlinerIdOpTypes;
 
 // TODO: implement support for changing the ID-block used
-static EnumPropertyItem prop_id_op_types[] = {
+static const EnumPropertyItem prop_id_op_types[] = {
 	{OUTLINER_IDOP_UNLINK, "UNLINK", 0, "Unlink", ""},
 	{OUTLINER_IDOP_LOCAL, "LOCAL", 0, "Make Local", ""},
 	{OUTLINER_IDOP_SINGLE, "SINGLE", 0, "Make Single User", ""},
@@ -1250,6 +1259,7 @@ static int outliner_id_operation_exec(bContext *C, wmOperator *op)
 		{
 			if (idlevel > 0) {
 				outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_delete_cb, NULL);
+				ED_undo_push(C, "Delete");
 			}
 			break;
 		}
@@ -1257,6 +1267,7 @@ static int outliner_id_operation_exec(bContext *C, wmOperator *op)
 		{
 			if (idlevel > 0) {
 				outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_remap_cb, NULL);
+				ED_undo_push(C, "Remap");
 			}
 			break;
 		}
@@ -1335,7 +1346,7 @@ typedef enum eOutlinerLibOpTypes {
 	OL_LIB_RELOAD,
 } eOutlinerLibOpTypes;
 
-static EnumPropertyItem outliner_lib_op_type_items[] = {
+static const EnumPropertyItem outliner_lib_op_type_items[] = {
 	{OL_LIB_RENAME, "RENAME", 0, "Rename", ""},
 	{OL_LIB_DELETE, "DELETE", 0, "Delete", "Delete this library and all its item from Blender - WARNING: no undo"},
 	{OL_LIB_RELOCATE, "RELOCATE", 0, "Relocate", "Select a new path for this library, and reload all its data"},
@@ -1365,18 +1376,20 @@ static int outliner_lib_operation_exec(bContext *C, wmOperator *op)
 			outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, item_rename_cb, NULL);
 
 			WM_event_add_notifier(C, NC_ID | NA_EDITED, NULL);
-			ED_undo_push(C, "Rename");
+			ED_undo_push(C, "Rename Library");
 			break;
 		}
 		case OL_LIB_DELETE:
 		{
 			outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_delete_cb, NULL);
+			ED_undo_push(C, "Delete Library");
 			break;
 		}
 		case OL_LIB_RELOCATE:
 		{
 			/* rename */
 			outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, lib_relocate_cb, NULL);
+			ED_undo_push(C, "Relocate Library");
 			break;
 		}
 		case OL_LIB_RELOAD:
@@ -1543,7 +1556,7 @@ typedef enum eOutliner_AnimDataOps {
 	//OUTLINER_ANIMOP_PASTE_DRIVERS
 } eOutliner_AnimDataOps;
 
-static EnumPropertyItem prop_animdata_op_types[] = {
+static const EnumPropertyItem prop_animdata_op_types[] = {
 	{OUTLINER_ANIMOP_CLEAR_ADT, "CLEAR_ANIMDATA", 0, "Clear Animation Data", "Remove this animation data container"},
 	{OUTLINER_ANIMOP_SET_ACT, "SET_ACT", 0, "Set Action", ""},
 	{OUTLINER_ANIMOP_CLEAR_ACT, "CLEAR_ACT", 0, "Unlink Action", ""},
@@ -1643,7 +1656,7 @@ void OUTLINER_OT_animdata_operation(wmOperatorType *ot)
 
 /* **************************************** */
 
-static EnumPropertyItem prop_constraint_op_types[] = {
+static const EnumPropertyItem prop_constraint_op_types[] = {
 	{OL_CONSTRAINTOP_ENABLE, "ENABLE", ICON_RESTRICT_VIEW_OFF, "Enable", ""},
 	{OL_CONSTRAINTOP_DISABLE, "DISABLE", ICON_RESTRICT_VIEW_ON, "Disable", ""},
 	{OL_CONSTRAINTOP_DELETE, "DELETE", ICON_X, "Delete", ""},
@@ -1689,7 +1702,7 @@ void OUTLINER_OT_constraint_operation(wmOperatorType *ot)
 
 /* ******************** */
 
-static EnumPropertyItem prop_modifier_op_types[] = {
+static const EnumPropertyItem prop_modifier_op_types[] = {
 	{OL_MODIFIER_OP_TOGVIS, "TOGVIS", ICON_RESTRICT_VIEW_OFF, "Toggle viewport use", ""},
 	{OL_MODIFIER_OP_TOGREN, "TOGREN", ICON_RESTRICT_RENDER_OFF, "Toggle render use", ""},
 	{OL_MODIFIER_OP_DELETE, "DELETE", ICON_X, "Delete", ""},
@@ -1736,7 +1749,7 @@ void OUTLINER_OT_modifier_operation(wmOperatorType *ot)
 /* ******************** */
 
 // XXX: select linked is for RNA structs only
-static EnumPropertyItem prop_data_op_types[] = {
+static const EnumPropertyItem prop_data_op_types[] = {
 	{OL_DOP_SELECT, "SELECT", 0, "Select", ""},
 	{OL_DOP_DESELECT, "DESELECT", 0, "Deselect", ""},
 	{OL_DOP_HIDE, "HIDE", 0, "Hide", ""},

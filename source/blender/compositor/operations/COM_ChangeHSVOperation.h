@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -32,10 +32,9 @@
 class ChangeHSVOperation : public NodeOperation {
 private:
 	SocketReader *m_inputOperation;
-
-	float m_hue;
-	float m_saturation;
-	float m_value;
+	SocketReader *m_hueOperation;
+	SocketReader *m_saturationOperation;
+	SocketReader *m_valueOperation;
 
 public:
 	/**
@@ -50,10 +49,6 @@ public:
 	 * the inner loop of this program
 	 */
 	void executePixelSampled(float output[4], float x, float y, PixelSampler sampler);
-
-	void setHue(float hue) { this->m_hue = hue; }
-	void setSaturation(float saturation) { this->m_saturation = saturation; }
-	void setValue(float value) { this->m_value = value; }
 
 };
 #endif

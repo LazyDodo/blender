@@ -88,12 +88,14 @@ typedef int (*PropStringLengthFunc)(struct PointerRNA *ptr);
 typedef void (*PropStringSetFunc)(struct PointerRNA *ptr, const char *value);
 typedef int (*PropEnumGetFunc)(struct PointerRNA *ptr);
 typedef void (*PropEnumSetFunc)(struct PointerRNA *ptr, int value);
-typedef EnumPropertyItem *(*PropEnumItemFunc)(struct bContext *C, struct PointerRNA *ptr,
-                                              struct PropertyRNA *prop, bool *r_free);
+typedef const EnumPropertyItem *(*PropEnumItemFunc)(
+        struct bContext *C, struct PointerRNA *ptr,
+        struct PropertyRNA *prop, bool *r_free);
 typedef PointerRNA (*PropPointerGetFunc)(struct PointerRNA *ptr);
 typedef StructRNA *(*PropPointerTypeFunc)(struct PointerRNA *ptr);
 typedef void (*PropPointerSetFunc)(struct PointerRNA *ptr, const PointerRNA value);
 typedef int (*PropPointerPollFunc)(struct PointerRNA *ptr, const PointerRNA value);
+typedef int (*PropPointerPollFuncPy)(struct PointerRNA *ptr, const PointerRNA value, const PropertyRNA *prop);
 typedef void (*PropCollectionBeginFunc)(struct CollectionPropertyIterator *iter, struct PointerRNA *ptr);
 typedef void (*PropCollectionNextFunc)(struct CollectionPropertyIterator *iter);
 typedef void (*PropCollectionEndFunc)(struct CollectionPropertyIterator *iter);
@@ -162,6 +164,12 @@ struct PropertyRNA {
 	const char *identifier;
 	/* various options */
 	int flag;
+	/* Function parameters flags. */
+	short flag_parameter;
+	/* Internal ("private") flags. */
+	short flag_internal;
+	/* The subset of StructRNA.prop_tag_defines values that applies to this property. */
+	short tags;
 
 	/* user readable name */
 	const char *name;
@@ -183,7 +191,7 @@ struct PropertyRNA {
 	/* array lengths lengths for all dimensions (when arraydimension > 0) */
 	unsigned int arraylength[RNA_MAX_ARRAY_DIMENSION];
 	unsigned int totarraylength;
-	
+
 	/* callback for updates on change */
 	UpdateFunc update;
 	int noteflag;
@@ -208,6 +216,15 @@ struct PropertyRNA {
 	 * (in a pointer array at the moment, may later be a tuple) */
 	void *py_data;
 };
+
+/* internal flags WARNING! 16bits only! */
+typedef enum PropertyFlagIntern {
+	PROP_INTERN_BUILTIN                 = (1 << 0),
+	PROP_INTERN_RUNTIME                 = (1 << 1),
+	PROP_INTERN_RAW_ACCESS              = (1 << 2),
+	PROP_INTERN_RAW_ARRAY               = (1 << 3),
+	PROP_INTERN_FREE_POINTERS           = (1 << 4),
+} PropertyFlagIntern;
 
 /* Property Types */
 
@@ -302,7 +319,7 @@ typedef struct EnumPropertyRNA {
 	PropEnumSetFuncEx set_ex;
 	void *py_data; /* store py callback here */
 
-	EnumPropertyItem *item;
+	const EnumPropertyItem *item;
 	int totitem;
 
 	int defaultvalue;
@@ -347,9 +364,12 @@ struct StructRNA {
 	 * which is useful for subclassing RNA */
 	void *py_type;
 	void *blender_type;
-	
+
 	/* various options */
 	int flag;
+	/* Each StructRNA type can define own tags which properties can set
+	 * (PropertyRNA.tags) for changed behavior based on struct-type. */
+	const EnumPropertyItem *prop_tag_defines;
 
 	/* user readable name */
 	const char *name;
@@ -359,7 +379,7 @@ struct StructRNA {
 	const char *translation_context;
 	/* icon ID */
 	int icon;
-	
+
 	/* property that defines the name */
 	PropertyRNA *nameproperty;
 
@@ -399,6 +419,11 @@ struct StructRNA {
 
 struct BlenderRNA {
 	ListBase structs;
+	/* A map of structs: {StructRNA.identifier -> StructRNA}
+	 * These are ensured to have unique names (with STRUCT_PUBLIC_NAMESPACE enabled). */
+	struct GHash *structs_map;
+	/* Needed because types with an empty identifier aren't included in 'structs_map'. */
+	unsigned int  structs_len;
 };
 
 #define CONTAINER_RNA_ID(cont) (*(const char **)(((ContainerRNA *)(cont))+1))

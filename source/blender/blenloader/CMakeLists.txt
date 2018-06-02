@@ -46,6 +46,7 @@ set(INC_SYS
 )
 
 set(SRC
+	intern/blend_validate.c
 	intern/readblenentry.c
 	intern/readfile.c
 	intern/runtime.c
@@ -67,6 +68,12 @@ set(SRC
 
 if(WITH_BUILDINFO)
 	add_definitions(-DWITH_BUILDINFO)
+endif()
+
+if(WITH_PYTHON)
+	if(WITH_PYTHON_SECURITY)
+		add_definitions(-DWITH_PYTHON_SECURITY)
+	endif()
 endif()
 
 if(WITH_INTERNATIONAL)

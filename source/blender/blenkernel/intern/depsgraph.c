@@ -67,6 +67,7 @@
 #include "BKE_action.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_collision.h"
+#include "BKE_curve.h"
 #include "BKE_effect.h"
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
@@ -500,7 +501,51 @@ void dag_add_forcefield_relations(DagForest *dag, Scene *scene, Object *ob, DagN
 	pdEndEffectors(&effectors);
 }
 
-static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Scene *scene, Object *ob, int mask)
+static bool build_deg_tracking_constraints(DagForest *dag,
+                                           Scene *scene,
+                                           DagNode *scenenode,
+                                           bConstraint *con,
+                                           const bConstraintTypeInfo *cti,
+                                           DagNode *node,
+                                           bool is_data)
+{
+	if (!ELEM(cti->type, CONSTRAINT_TYPE_FOLLOWTRACK,
+	          CONSTRAINT_TYPE_CAMERASOLVER,
+	          CONSTRAINT_TYPE_OBJECTSOLVER))
+	{
+		return false;
+	}
+	bool depends_on_camera = false;
+	if (cti->type == CONSTRAINT_TYPE_FOLLOWTRACK) {
+		bFollowTrackConstraint *data = (bFollowTrackConstraint *)con->data;
+		if ((data->clip || data->flag & FOLLOWTRACK_ACTIVECLIP) && data->track[0]) {
+			depends_on_camera = true;
+		}
+		if (data->depth_ob != NULL) {
+			DagNode *node2 = dag_get_node(dag, data->depth_ob);
+			dag_add_relation(dag,
+			                 node2, node,
+			                 (is_data) ? (DAG_RL_DATA_DATA | DAG_RL_OB_DATA)
+			                           : (DAG_RL_DATA_OB | DAG_RL_OB_OB),
+			                 cti->name);
+		}
+	}
+	else if (cti->type == CONSTRAINT_TYPE_OBJECTSOLVER) {
+		depends_on_camera = true;
+	}
+	if (depends_on_camera && scene->camera != NULL) {
+		DagNode *node2 = dag_get_node(dag, scene->camera);
+		dag_add_relation(dag,
+		                 node2, node,
+		                 (is_data) ? (DAG_RL_DATA_DATA | DAG_RL_OB_DATA)
+		                           : (DAG_RL_DATA_OB | DAG_RL_OB_OB),
+		                 cti->name);
+	}
+	dag_add_relation(dag, scenenode, node, DAG_RL_SCENE, "Scene Relation");
+	return true;
+}
+
+static void build_dag_object(DagForest *dag, DagNode *scenenode, Scene *scene, Object *ob, int mask)
 {
 	bConstraint *con;
 	DagNode *node;
@@ -530,8 +575,15 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Sc
 					const bConstraintTypeInfo *cti = BKE_constraint_typeinfo_get(con);
 					ListBase targets = {NULL, NULL};
 					bConstraintTarget *ct;
-					
-					if (cti && cti->get_constraint_targets) {
+
+					if (!cti) {
+						continue;
+					}
+
+					if (build_deg_tracking_constraints(dag, scene, scenenode, con, cti, node, true)) {
+						/* pass */
+					}
+					else if (cti->get_constraint_targets) {
 						cti->get_constraint_targets(con, &targets);
 						
 						for (ct = targets.first; ct; ct = ct->next) {
@@ -544,10 +596,16 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Sc
 									if (ct->tar->type == OB_MESH)
 										node3->customdata_mask |= CD_MASK_MDEFORMVERT;
 								}
-								else if (ELEM(con->type, CONSTRAINT_TYPE_FOLLOWPATH, CONSTRAINT_TYPE_CLAMPTO, CONSTRAINT_TYPE_SPLINEIK))
+								else if (ELEM(con->type, CONSTRAINT_TYPE_FOLLOWPATH,
+								                         CONSTRAINT_TYPE_CLAMPTO,
+								                         CONSTRAINT_TYPE_SPLINEIK,
+								                         CONSTRAINT_TYPE_SHRINKWRAP))
+								{
 									dag_add_relation(dag, node3, node, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, cti->name);
-								else
+								}
+								else {
 									dag_add_relation(dag, node3, node, DAG_RL_OB_DATA, cti->name);
+								}
 							}
 						}
 						
@@ -587,11 +645,17 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Sc
 
 	if (ob->modifiers.first) {
 		ModifierData *md;
-		
+		ModifierUpdateDepsgraphContext ctx = {
+			.scene = scene,
+			.object = ob,
+
+			.forest = dag,
+			.obNode = node,
+		};
 		for (md = ob->modifiers.first; md; md = md->next) {
 			const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 			
-			if (mti->updateDepgraph) mti->updateDepgraph(md, dag, bmain, scene, ob, node);
+			if (mti->updateDepgraph) mti->updateDepgraph(md, &ctx);
 		}
 	}
 	if (ob->parent) {
@@ -676,7 +740,7 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Sc
 		}
 		case OB_MBALL: 
 		{
-			Object *mom = BKE_mball_basis_find(scene, ob);
+			Object *mom = BKE_mball_basis_find(G.main->eval_ctx, scene, ob);
 			
 			if (mom != ob) {
 				node2 = dag_get_node(dag, mom);
@@ -800,6 +864,10 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Sc
 				/* Actual code uses get_collider_cache */
 				dag_add_collision_relations(dag, scene, ob, node, part->collision_group, ob->lay, eModifierType_Collision, NULL, true, "Particle Collision");
 			}
+			else if ((psys->flag & PSYS_HAIR_DYNAMICS) && psys->clmd && psys->clmd->coll_parms) {
+				/* Hair uses cloth simulation, i.e. get_collision_objects */
+				dag_add_collision_relations(dag, scene, ob, node, psys->clmd->coll_parms->group, ob->lay | scene->lay, eModifierType_Collision, NULL, true, "Hair Collision");
+			}
 
 			dag_add_forcefield_relations(dag, scene, ob, node, part->effector_weights, part->type == PART_HAIR, 0, "Particle Force Field");
 
@@ -832,29 +900,7 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Sc
 			continue;
 
 		/* special case for camera tracking -- it doesn't use targets to define relations */
-		if (ELEM(cti->type, CONSTRAINT_TYPE_FOLLOWTRACK, CONSTRAINT_TYPE_CAMERASOLVER, CONSTRAINT_TYPE_OBJECTSOLVER)) {
-			int depends_on_camera = 0;
-
-			if (cti->type == CONSTRAINT_TYPE_FOLLOWTRACK) {
-				bFollowTrackConstraint *data = (bFollowTrackConstraint *)con->data;
-
-				if ((data->clip || data->flag & FOLLOWTRACK_ACTIVECLIP) && data->track[0])
-					depends_on_camera = 1;
-
-				if (data->depth_ob) {
-					node2 = dag_get_node(dag, data->depth_ob);
-					dag_add_relation(dag, node2, node, DAG_RL_DATA_OB | DAG_RL_OB_OB, cti->name);
-				}
-			}
-			else if (cti->type == CONSTRAINT_TYPE_OBJECTSOLVER)
-				depends_on_camera = 1;
-
-			if (depends_on_camera && scene->camera) {
-				node2 = dag_get_node(dag, scene->camera);
-				dag_add_relation(dag, node2, node, DAG_RL_DATA_OB | DAG_RL_OB_OB, cti->name);
-			}
-
-			dag_add_relation(dag, scenenode, node, DAG_RL_SCENE, "Scene Relation");
+		if (build_deg_tracking_constraints(dag, scene, scenenode, con, cti, node, false)) {
 			addtoroot = 0;
 		}
 		else if (cti->get_constraint_targets) {
@@ -877,8 +923,12 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Main *bmain, Sc
 						if (obt->type == OB_MESH)
 							node2->customdata_mask |= CD_MASK_MDEFORMVERT;
 					}
-					else
+					else if (cti->type == CONSTRAINT_TYPE_SHRINKWRAP) {
+						dag_add_relation(dag, node2, node, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, cti->name);
+					}
+					else {
 						dag_add_relation(dag, node2, node, DAG_RL_OB_OB, cti->name);
+					}
 				}
 				addtoroot = 0;
 			}
@@ -902,7 +952,7 @@ static void build_dag_group(DagForest *dag, DagNode *scenenode, Main *bmain, Sce
 	group->id.tag |= LIB_TAG_DOIT;
 
 	for (go = group->gobject.first; go; go = go->next) {
-		build_dag_object(dag, scenenode, bmain, scene, go->ob, mask);
+		build_dag_object(dag, scenenode, scene, go->ob, mask);
 		if (go->ob->dup_group)
 			build_dag_group(dag, scenenode, bmain, scene, go->ob->dup_group, mask);
 	}
@@ -940,9 +990,9 @@ DagForest *build_dag(Main *bmain, Scene *sce, short mask)
 	for (base = sce->base.first; base; base = base->next) {
 		ob = base->object;
 		ob->id.tag |= LIB_TAG_DOIT;
-		build_dag_object(dag, scenenode, bmain, sce, ob, mask);
+		build_dag_object(dag, scenenode, sce, ob, mask);
 		if (ob->proxy)
-			build_dag_object(dag, scenenode, bmain, sce, ob->proxy, mask);
+			build_dag_object(dag, scenenode, sce, ob->proxy, mask);
 		if (ob->dup_group) 
 			build_dag_group(dag, scenenode, bmain, sce, ob->dup_group, mask);
 	}
@@ -967,9 +1017,9 @@ DagForest *build_dag(Main *bmain, Scene *sce, short mask)
 			ob = node->ob;
 			if ((ob->id.tag & LIB_TAG_DOIT) == 0) {
 				ob->id.tag |= LIB_TAG_DOIT;
-				build_dag_object(dag, scenenode, bmain, sce, ob, mask);
+				build_dag_object(dag, scenenode, sce, ob, mask);
 				if (ob->proxy)
-					build_dag_object(dag, scenenode, bmain, sce, ob->proxy, mask);
+					build_dag_object(dag, scenenode, sce, ob->proxy, mask);
 				if (ob->dup_group)
 					build_dag_group(dag, scenenode, bmain, sce, ob->dup_group, mask);
 			}
@@ -1517,7 +1567,7 @@ static bool check_object_tagged_for_update(Object *object)
 
 	if (ELEM(object->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL, OB_LATTICE)) {
 		ID *data_id = object->data;
-		return (data_id->tag & (LIB_TAG_ID_RECALC_DATA | LIB_TAG_ID_RECALC)) != 0;
+		return (data_id->recalc & ID_RECALC_ALL) != 0;
 	}
 
 	return false;
@@ -1765,13 +1815,13 @@ void DAG_scene_free(Scene *sce)
 
 static void lib_id_recalc_tag(Main *bmain, ID *id)
 {
-	id->tag |= LIB_TAG_ID_RECALC;
+	id->recalc |= ID_RECALC;
 	DAG_id_type_tag(bmain, GS(id->name));
 }
 
 static void lib_id_recalc_data_tag(Main *bmain, ID *id)
 {
-	id->tag |= LIB_TAG_ID_RECALC_DATA;
+	id->recalc |= ID_RECALC_DATA;
 	DAG_id_type_tag(bmain, GS(id->name));
 }
 
@@ -2004,6 +2054,7 @@ void DAG_scene_flush_update(Main *bmain, Scene *sce, unsigned int lay, const sho
 	int lasttime;
 
 	if (!DEG_depsgraph_use_legacy()) {
+		DEG_scene_flush_update(bmain, sce);
 		return;
 	}
 
@@ -2252,8 +2303,18 @@ static void dag_object_time_update_flags(Main *bmain, Scene *scene, Object *ob)
 				break;
 			case OB_FONT:
 				cu = ob->data;
-				if (BLI_listbase_is_empty(&cu->nurb) && cu->str && cu->vfont)
-					ob->recalc |= OB_RECALC_DATA;
+				if (cu->str && cu->vfont) {
+					/* Can be in the curve-cache or the curve. */
+					if (ob->curve_cache && !BLI_listbase_is_empty(&ob->curve_cache->disp)) {
+						/* pass */
+					}
+					else if (!BLI_listbase_is_empty(&cu->nurb)) {
+						/* pass */
+					}
+					else {
+						ob->recalc |= OB_RECALC_DATA;
+					}
+				}
 				break;
 			case OB_LATTICE:
 				lt = ob->data;
@@ -2559,7 +2620,7 @@ void DAG_on_visible_update(Main *bmain, const bool do_time)
 }
 
 static void dag_id_flush_update__isDependentTexture(
-        void *userData, Object *UNUSED(ob), ID **idpoin, int UNUSED(cd_flag))
+        void *userData, Object *UNUSED(ob), ID **idpoin, int UNUSED(cb_flag))
 {
 	struct { ID *id; bool is_dependent; } *data = userData;
 	
@@ -2799,8 +2860,7 @@ void DAG_ids_flush_tagged(Main *bmain)
 
 		if (id && bmain->id_tag_update[BKE_idcode_to_index(GS(id->name))]) {
 			for (; id; id = id->next) {
-				if (id->tag & (LIB_TAG_ID_RECALC | LIB_TAG_ID_RECALC_DATA)) {
-					
+				if (id->recalc & ID_RECALC_ALL) {
 					for (dsl = listbase.first; dsl; dsl = dsl->next)
 						dag_id_flush_update(bmain, dsl->scene, id);
 					
@@ -2920,13 +2980,12 @@ void DAG_ids_clear_recalc(Main *bmain)
 
 		if (id && bmain->id_tag_update[BKE_idcode_to_index(GS(id->name))]) {
 			for (; id; id = id->next) {
-				if (id->tag & (LIB_TAG_ID_RECALC | LIB_TAG_ID_RECALC_DATA))
-					id->tag &= ~(LIB_TAG_ID_RECALC | LIB_TAG_ID_RECALC_DATA);
+				id->recalc &= ~ID_RECALC_ALL;
 
 				/* some ID's contain semi-datablock nodetree */
 				ntree = ntreeFromID(id);
-				if (ntree && (ntree->id.tag & (LIB_TAG_ID_RECALC | LIB_TAG_ID_RECALC_DATA)))
-					ntree->id.tag &= ~(LIB_TAG_ID_RECALC | LIB_TAG_ID_RECALC_DATA);
+				if (ntree)
+					ntree->id.recalc &= ~ID_RECALC_ALL;
 			}
 		}
 	}
@@ -2949,7 +3008,7 @@ void DAG_id_tag_update_ex(Main *bmain, ID *id, short flag)
 
 	if (id == NULL) return;
 
-	if (G.debug & G_DEBUG_DEPSGRAPH) {
+	if (G.debug & G_DEBUG_DEPSGRAPH_TAG) {
 		printf("%s: id=%s flag=%d\n", __func__, id->name, flag);
 	}
 
@@ -3039,7 +3098,7 @@ void DAG_id_type_tag(Main *bmain, short idtype)
 		DAG_id_type_tag(bmain, ID_SCE);
 	}
 
-	bmain->id_tag_update[BKE_idcode_to_index(idtype)] = 1;
+	atomic_fetch_and_or_uint8((uint8_t *)&bmain->id_tag_update[BKE_idcode_to_index(idtype)], 1);
 }
 
 int DAG_id_type_tagged(Main *bmain, short idtype)
@@ -3680,7 +3739,7 @@ void DAG_print_dependencies(Main *UNUSED(bmain),
                             Scene *scene,
                             Object *UNUSED(ob))
 {
-	DEG_debug_graphviz(scene->depsgraph, stdout, "Depsgraph", false);
+	DEG_debug_relations_graphviz(scene->depsgraph, stdout, "Depsgraph");
 }
 
 #endif

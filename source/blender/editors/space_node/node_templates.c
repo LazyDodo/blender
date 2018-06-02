@@ -53,7 +53,7 @@
 
 #include "ED_node.h"  /* own include */
 
-#include "ED_util.h"
+#include "ED_undo.h"
 
 
 /************************* Node Socket Manipulation **************************/
@@ -386,20 +386,13 @@ static void ui_node_link(bContext *C, void *arg_p, void *event_p)
 	ED_undo_push(C, "Node input modify");
 }
 
-static void ui_node_sock_name(bNodeSocket *sock, char name[UI_MAX_NAME_STR])
+static void ui_node_sock_name(bNodeTree *ntree, bNodeSocket *sock, char name[UI_MAX_NAME_STR])
 {
 	if (sock->link && sock->link->fromnode) {
 		bNode *node = sock->link->fromnode;
 		char node_name[UI_MAX_NAME_STR];
 
-		if (node->type == NODE_GROUP) {
-			if (node->id)
-				BLI_strncpy(node_name, node->id->name + 2, UI_MAX_NAME_STR);
-			else
-				BLI_strncpy(node_name, N_(node->typeinfo->ui_name), UI_MAX_NAME_STR);
-		}
-		else
-			BLI_strncpy(node_name, node->typeinfo->ui_name, UI_MAX_NAME_STR);
+		nodeLabel(ntree, node, node_name, sizeof(node_name));
 
 		if (BLI_listbase_is_empty(&node->inputs) &&
 		    node->outputs.first != node->outputs.last)
@@ -482,10 +475,10 @@ static void ui_node_menu_column(NodeLinkArg *arg, int nclass, const char *cname)
 	}
 	NODE_TYPES_END
 
-	qsort(sorted_ntypes, BLI_array_count(sorted_ntypes), sizeof(bNodeType *), ui_node_item_name_compare);
+	qsort(sorted_ntypes, BLI_array_len(sorted_ntypes), sizeof(bNodeType *), ui_node_item_name_compare);
 
 	/* generate UI */
-	for (int j = 0; j < BLI_array_count(sorted_ntypes); j++) {
+	for (int j = 0; j < BLI_array_len(sorted_ntypes); j++) {
 		bNodeType *ntype = sorted_ntypes[j];
 		NodeLinkItem *items;
 		int totitems;
@@ -612,7 +605,7 @@ void uiTemplateNodeLink(uiLayout *layout, bNodeTree *ntree, bNode *node, bNodeSo
 
 	if (sock->link || sock->type == SOCK_SHADER || (sock->flag & SOCK_HIDE_VALUE)) {
 		char name[UI_MAX_NAME_STR];
-		ui_node_sock_name(sock, name);
+		ui_node_sock_name(ntree, sock, name);
 		but = uiDefMenuBut(block, ui_template_node_link_menu, NULL, name, 0, 0, UI_UNIT_X * 4, UI_UNIT_Y, "");
 	}
 	else
@@ -683,10 +676,11 @@ static void ui_node_draw_input(uiLayout *layout, bContext *C, bNodeTree *ntree, 
 	RNA_pointer_create(&ntree->id, &RNA_Node, node, &nodeptr);
 
 	/* indented label */
-	for (i = 0; i < indent; i++)
+	for (i = 0; i < indent; i++) {
 		label[i] = ' ';
+	}
 	label[indent] = '\0';
-	BLI_snprintf(label, UI_MAX_NAME_STR, "%s%s:", label, IFACE_(input->name));
+	BLI_snprintf(label + indent, UI_MAX_NAME_STR - indent, "%s:", IFACE_(input->name));
 
 	/* split in label and value */
 	split = uiLayoutSplit(layout, 0.35f, false);

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -102,6 +102,8 @@ void            ED_text_format_register(TextFormatType *tft);
 void ED_text_format_register_py(void);
 void ED_text_format_register_osl(void);
 void ED_text_format_register_lua(void);
+void ED_text_format_register_pov(void);
+void ED_text_format_register_pov_ini(void);
 
 #define STR_LITERAL_STARTSWITH(str, str_literal, len_var) \
 	(strncmp(str, str_literal, len_var = (sizeof(str_literal) - 1)) == 0)

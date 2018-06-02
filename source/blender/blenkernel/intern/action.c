@@ -44,6 +44,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
+#include "BLI_string_utils.h"
 #include "BLI_utildefines.h"
 #include "BLI_ghash.h"
 
@@ -83,11 +84,11 @@
 
 /* ***************** Library data level operations on action ************** */
 
-bAction *add_empty_action(Main *bmain, const char name[])
+bAction *BKE_action_add(Main *bmain, const char name[])
 {
 	bAction *act;
 	
-	act = BKE_libblock_alloc(bmain, ID_AC, name);
+	act = BKE_libblock_alloc(bmain, ID_AC, name, 0);
 	
 	return act;
 }	
@@ -119,46 +120,56 @@ void BKE_action_free(bAction *act)
 
 /* .................................. */
 
-bAction *BKE_action_copy(Main *bmain, bAction *src)
+/**
+ * Only copy internal data of Action ID from source to already allocated/initialized destination.
+ * You probably nerver want to use that directly, use id_copy or BKE_id_copy_ex for typical needs.
+ *
+ * WARNING! This function will not handle ID user count!
+ *
+ * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ */
+void BKE_action_copy_data(Main *UNUSED(bmain), bAction *act_dst, const bAction *act_src, const int UNUSED(flag))
 {
-	bAction *dst = NULL;
-	bActionGroup *dgrp, *sgrp;
-	FCurve *dfcu, *sfcu;
-	
-	if (src == NULL) 
-		return NULL;
-	dst = BKE_libblock_copy(bmain, &src->id);
-	
+	bActionGroup *grp_dst, *grp_src;
+	FCurve *fcu_dst, *fcu_src;
+
 	/* duplicate the lists of groups and markers */
-	BLI_duplicatelist(&dst->groups, &src->groups);
-	BLI_duplicatelist(&dst->markers, &src->markers);
-	
+	BLI_duplicatelist(&act_dst->groups, &act_src->groups);
+	BLI_duplicatelist(&act_dst->markers, &act_src->markers);
+
 	/* copy F-Curves, fixing up the links as we go */
-	BLI_listbase_clear(&dst->curves);
-	
-	for (sfcu = src->curves.first; sfcu; sfcu = sfcu->next) {
+	BLI_listbase_clear(&act_dst->curves);
+
+	for (fcu_src = act_src->curves.first; fcu_src; fcu_src = fcu_src->next) {
 		/* duplicate F-Curve */
-		dfcu = copy_fcurve(sfcu);
-		BLI_addtail(&dst->curves, dfcu);
-		
+		fcu_dst = copy_fcurve(fcu_src);  /* XXX TODO pass subdata flag? But surprisingly does not seem to be doing any ID refcounting... */
+		BLI_addtail(&act_dst->curves, fcu_dst);
+
 		/* fix group links (kindof bad list-in-list search, but this is the most reliable way) */
-		for (dgrp = dst->groups.first, sgrp = src->groups.first; dgrp && sgrp; dgrp = dgrp->next, sgrp = sgrp->next) {
-			if (sfcu->grp == sgrp) {
-				dfcu->grp = dgrp;
-				
-				if (dgrp->channels.first == sfcu)
-					dgrp->channels.first = dfcu;
-				if (dgrp->channels.last == sfcu)
-					dgrp->channels.last = dfcu;
-					
+		for (grp_dst = act_dst->groups.first, grp_src = act_src->groups.first;
+		     grp_dst && grp_src;
+		     grp_dst = grp_dst->next, grp_src = grp_src->next)
+		{
+			if (fcu_src->grp == grp_src) {
+				fcu_dst->grp = grp_dst;
+
+				if (grp_dst->channels.first == fcu_src) {
+					grp_dst->channels.first = fcu_dst;
+				}
+				if (grp_dst->channels.last == fcu_src) {
+					grp_dst->channels.last = fcu_dst;
+				}
 				break;
 			}
 		}
 	}
-	
-	BKE_id_copy_ensure_local(bmain, &src->id, &dst->id);
+}
 
-	return dst;
+bAction *BKE_action_copy(Main *bmain, const bAction *act_src)
+{
+	bAction *act_copy;
+	BKE_id_copy_ex(bmain, &act_src->id, (ID **)&act_copy, 0, false);
+	return act_copy;
 }
 
 /* *************** Action Groups *************** */
@@ -253,7 +264,7 @@ bActionGroup *action_groups_add_new(bAction *act, const char name[])
 
 /* Add given channel into (active) group 
  *	- assumes that channel is not linked to anything anymore
- *	- always adds at the end of the group 
+ *	- always adds at the end of the group
  */
 void action_groups_add_channel(bAction *act, bActionGroup *agrp, FCurve *fcurve)
 {	
@@ -488,13 +499,13 @@ bPoseChannel *BKE_pose_channel_active(Object *ob)
 }
 
 /**
- * \see #ED_armature_bone_get_mirrored (edit-mode, matching function)
+ * \see #ED_armature_ebone_get_mirrored (edit-mode, matching function)
  */
 bPoseChannel *BKE_pose_channel_get_mirrored(const bPose *pose, const char *name)
 {
 	char name_flip[MAXBONENAME];
 
-	BKE_deform_flip_side_name(name_flip, name, false);
+	BLI_string_flip_side_name(name_flip, name, false, sizeof(name_flip));
 
 	if (!STREQ(name_flip, name)) {
 		return BKE_pose_channel_find_name(pose, name_flip);
@@ -522,7 +533,7 @@ const char *BKE_pose_ikparam_get_name(bPose *pose)
  *
  * \param dst  Should be freed already, makes entire duplicate.
  */
-void BKE_pose_copy_data(bPose **dst, bPose *src, const bool copy_constraints)
+void BKE_pose_copy_data_ex(bPose **dst, const bPose *src, const int flag, const bool copy_constraints)
 {
 	bPose *outPose;
 	bPoseChannel *pchan;
@@ -552,9 +563,8 @@ void BKE_pose_copy_data(bPose **dst, bPose *src, const bool copy_constraints)
 	outPose->avs = src->avs;
 	
 	for (pchan = outPose->chanbase.first; pchan; pchan = pchan->next) {
-
-		if (pchan->custom) {
-			id_us_plus(&pchan->custom->id);
+		if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
+			id_us_plus((ID *)pchan->custom);
 		}
 
 		/* warning, O(n2) here, if done without the hash, but these are rarely used features. */
@@ -569,13 +579,13 @@ void BKE_pose_copy_data(bPose **dst, bPose *src, const bool copy_constraints)
 		}
 
 		if (copy_constraints) {
-			BKE_constraints_copy(&listb, &pchan->constraints, true);  // BKE_constraints_copy NULLs listb
+			BKE_constraints_copy_ex(&listb, &pchan->constraints, flag, true);  // BKE_constraints_copy NULLs listb
 			pchan->constraints = listb;
 			pchan->mpath = NULL; /* motion paths should not get copied yet... */
 		}
 		
 		if (pchan->prop) {
-			pchan->prop = IDP_CopyProperty(pchan->prop);
+			pchan->prop = IDP_CopyProperty_ex(pchan->prop, flag);
 		}
 	}
 
@@ -585,6 +595,11 @@ void BKE_pose_copy_data(bPose **dst, bPose *src, const bool copy_constraints)
 	}
 	
 	*dst = outPose;
+}
+
+void BKE_pose_copy_data(bPose **dst, const bPose *src, const bool copy_constraints)
+{
+	BKE_pose_copy_data_ex(dst, src, 0, copy_constraints);
 }
 
 void BKE_pose_itasc_init(bItasc *itasc)
@@ -855,6 +870,8 @@ static void copy_pose_channel_data(bPoseChannel *pchan, const bPoseChannel *chan
 	pchan->curveInY = chan->curveInY;
 	pchan->curveOutX = chan->curveOutX;
 	pchan->curveOutY = chan->curveOutY;
+	pchan->ease1 = chan->ease1;
+	pchan->ease2 = chan->ease2;
 	pchan->scaleIn = chan->scaleIn;
 	pchan->scaleOut = chan->scaleOut;
 	
@@ -922,7 +939,7 @@ void BKE_pose_channel_copy_data(bPoseChannel *pchan, const bPoseChannel *pchan_f
 
 
 /* checks for IK constraint, Spline IK, and also for Follow-Path constraint.
- * can do more constraints flags later 
+ * can do more constraints flags later
  */
 /* pose should be entirely OK */
 void BKE_pose_update_constraint_flags(bPose *pose)
@@ -992,7 +1009,7 @@ void BKE_pose_tag_update_constraint_flags(bPose *pose)
  * This should only be called on frame changing, when it is acceptable to
  * do this. Otherwise, these flags should not get cleared as poses may get lost.
  */
-void framechange_poses_clear_unkeyed(void)
+void framechange_poses_clear_unkeyed(Main *bmain)
 {
 	Object *ob;
 	bPose *pose;
@@ -1000,7 +1017,7 @@ void framechange_poses_clear_unkeyed(void)
 	
 	/* This needs to be done for each object that has a pose */
 	/* TODO: proxies may/may not be correctly handled here... (this needs checking) */
-	for (ob = G.main->object.first; ob; ob = ob->id.next) {
+	for (ob = bmain->object.first; ob; ob = ob->id.next) {
 		/* we only need to do this on objects with a pose */
 		if ((pose = ob->pose)) {
 			for (pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
@@ -1114,9 +1131,13 @@ void calc_action_range(const bAction *act, float *start, float *end, short incl_
 			if (fcu->totvert) {
 				float nmin, nmax;
 				
-				/* get extents for this curve */
-				/* TODO: allow enabling/disabling this? */
-				calc_fcurve_range(fcu, &nmin, &nmax, false, true);
+				/* get extents for this curve
+				 * - no "selected only", since this is often used in the backend
+				 * - no "minimum length" (we will apply this later), otherwise
+				 *   single-keyframe curves will increase the overall length by
+				 *   a phantom frame (T50354)
+				 */
+				calc_fcurve_range(fcu, &nmin, &nmax, false, false);
 				
 				/* compare to the running tally */
 				min = min_ff(min, nmin);
@@ -1169,7 +1190,9 @@ void calc_action_range(const bAction *act, float *start, float *end, short incl_
 	}
 	
 	if (foundvert || foundmod) {
+		/* ensure that action is at least 1 frame long (for NLA strips to have a valid length) */
 		if (min == max) max += 1.0f;
+		
 		*start = min;
 		*end = max;
 	}
@@ -1340,6 +1363,7 @@ void BKE_pose_rest(bPose *pose)
 		pchan->roll1 = pchan->roll2 = 0.0f;
 		pchan->curveInX = pchan->curveInY = 0.0f;
 		pchan->curveOutX = pchan->curveOutY = 0.0f;
+		pchan->ease1 = pchan->ease2 = 0.0f;
 		pchan->scaleIn = pchan->scaleOut = 1.0f;
 		
 		pchan->flag &= ~(POSE_LOC | POSE_ROT | POSE_SIZE | POSE_BBONE_SHAPE);
@@ -1383,6 +1407,8 @@ bool BKE_pose_copy_result(bPose *to, bPose *from)
 			pchanto->curveInY = pchanfrom->curveInY;
 			pchanto->curveOutX = pchanfrom->curveOutX;
 			pchanto->curveOutY = pchanfrom->curveOutY;
+			pchanto->ease1 = pchanfrom->ease1;
+			pchanto->ease2 = pchanfrom->ease2;
 			pchanto->scaleIn = pchanfrom->scaleIn;
 			pchanto->scaleOut = pchanfrom->scaleOut;
 			
@@ -1406,7 +1432,7 @@ void BKE_pose_tag_recalc(Main *bmain, bPose *pose)
 }
 
 /* For the calculation of the effects of an Action at the given frame on an object 
- * This is currently only used for the Action Constraint 
+ * This is currently only used for the Action Constraint
  */
 void what_does_obaction(Object *ob, Object *workob, bPose *pose, bAction *act, char groupname[], float cframe)
 {

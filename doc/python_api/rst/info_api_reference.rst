@@ -53,7 +53,7 @@ Here are some characteristics ID Data-Blocks share.
 Simple Data Access
 ------------------
 
-Lets start with a simple case, say you wan't a python script to adjust the objects location.
+Lets start with a simple case, say you want a python script to adjust the objects location.
 
 Start by finding this setting in the interface ``Properties Window -> Object -> Transform -> Location``
 
@@ -204,7 +204,7 @@ Lets say we want to access the texture of a brush via Python, to adjust its ``co
 
 - Start in the default scene and enable 'Sculpt' mode from the 3D-View header.
 - From the toolbar expand the **Texture** panel and add a new texture.
-  *Notice the texture button its self doesn't have very useful links (you can check the tool-tips).*
+  *Notice the texture button its self doesn't have very useful links (you can check the tooltips).*
 - The contrast setting isn't exposed in the sculpt toolbar, so view the texture in the properties panel...
 
   - In the properties button select the Texture context.

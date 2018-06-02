@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -39,7 +39,16 @@ static bNodeSocketTemplate sh_node_object_info_out[] = {
 
 static int node_shader_gpu_object_info(GPUMaterial *mat, bNode *UNUSED(node), bNodeExecData *UNUSED(execdata), GPUNodeStack *in, GPUNodeStack *out)
 {
-	return GPU_stack_link(mat, "node_object_info", in, out);
+	return GPU_stack_link(mat, "node_object_info", in, out, GPU_builtin(GPU_OBJECT_MATRIX), GPU_builtin(GPU_OBJECT_INFO));
+}
+
+static void node_shader_exec_object_info(void *data, int UNUSED(thread), bNode *UNUSED(node), bNodeExecData *UNUSED(execdata), bNodeStack **UNUSED(in), bNodeStack **out)
+{
+	ShaderCallData *scd = (ShaderCallData *)data;
+	copy_v4_v4(out[0]->vec, RE_object_instance_get_matrix(scd->shi->obi, RE_OBJECT_INSTANCE_MATRIX_OB)[3]);
+	out[1]->vec[0] = RE_object_instance_get_object_pass_index(scd->shi->obi);
+	out[2]->vec[0] = scd->shi->mat->index;
+	out[3]->vec[0] = RE_object_instance_get_random_id(scd->shi->obi) * (1.0f / (float)0xFFFFFFFF);
 }
 
 /* node type definition */
@@ -53,6 +62,7 @@ void register_node_type_sh_object_info(void)
 	node_type_init(&ntype, NULL);
 	node_type_storage(&ntype, "", NULL, NULL);
 	node_type_gpu(&ntype, node_shader_gpu_object_info);
+	node_type_exec(&ntype, NULL, NULL, node_shader_exec_object_info);
 
 	nodeRegisterType(&ntype);
 }

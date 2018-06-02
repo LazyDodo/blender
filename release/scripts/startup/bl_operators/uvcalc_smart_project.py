@@ -18,7 +18,11 @@
 
 # TODO <pep8 compliant>
 
-from mathutils import Matrix, Vector, geometry
+from mathutils import (
+    Matrix,
+    Vector,
+    geometry,
+)
 import bpy
 from bpy.types import Operator
 
@@ -719,7 +723,7 @@ def main(context,
     global USER_FILL_HOLES_QUALITY
     global USER_STRETCH_ASPECT
     global USER_ISLAND_MARGIN
-    
+
     from math import cos
     import time
 
@@ -743,7 +747,7 @@ def main(context,
     USER_FILL_HOLES = 0
     USER_FILL_HOLES_QUALITY = 50 # Only for hole filling.
     USER_VIEW_INIT = 0 # Only for hole filling.
-    
+
     is_editmode = (context.active_object.mode == 'EDIT')
     if is_editmode:
         obList =  [ob for ob in [context.active_object] if ob and ob.type == 'MESH']
@@ -1063,6 +1067,7 @@ class SmartProject(Operator):
     island_margin = FloatProperty(
             name="Island Margin",
             description="Margin to reduce bleed from adjacent islands",
+            unit='LENGTH', subtype='DISTANCE',
             min=0.0, max=1.0,
             default=0.0,
             )
@@ -1100,3 +1105,8 @@ class SmartProject(Operator):
     def invoke(self, context, event):
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
+
+
+classes = (
+    SmartProject,
+)

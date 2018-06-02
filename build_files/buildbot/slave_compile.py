@@ -70,13 +70,12 @@ if 'cmake' in builder:
 
     if builder.startswith('mac'):
         # Set up OSX architecture
-        if builder.endswith('x86_64_10_6_cmake'):
+        if builder.endswith('x86_64_10_9_cmake'):
             cmake_extra_options.append('-DCMAKE_OSX_ARCHITECTURES:STRING=x86_64')
-        cmake_extra_options.append('-DCUDA_NVCC_EXECUTABLE=/usr/local/cuda8-hack/bin/nvcc')
-        cmake_extra_options.append('-DWITH_CODEC_QUICKTIME=OFF')
-        cmake_extra_options.append('-DCMAKE_OSX_DEPLOYMENT_TARGET=10.6')
-        build_cubins = False
-
+        cmake_extra_options.append('-DCMAKE_OSX_DEPLOYMENT_TARGET=10.9')
+        # Used to trick CUDFA to see CLang as an older version.
+        # cmake_extra_options.append('-DCUDA_HOST_COMPILER=/usr/local/cuda-hack/clang')
+        # cmake_extra_options.append('-DCUDA_NVCC_EXECUTABLE=/usr/local/cuda-hack/nvcc')
 
     elif builder.startswith('win'):
         if builder.endswith('_vc2015'):
@@ -93,7 +92,6 @@ if 'cmake' in builder:
             elif builder.startswith('win32'):
                 bits = 32
                 cmake_options.extend(['-G', 'Visual Studio 12 2013'])
-        cmake_extra_options.append('-DCUDA_NVCC_EXECUTABLE:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v8.0/bin/nvcc.exe')
 
     elif builder.startswith('linux'):
         tokens = builder.split("_")
@@ -110,25 +108,24 @@ if 'cmake' in builder:
         elif builder.endswith('i686_cmake'):
             bits = 32
             chroot_name = 'buildbot_' + deb_name + '_i686'
-            cuda_chroot_name = 'buildbot_' + deb_name + '_x86_64'
-            targets = ['player', 'blender', 'cuda']
-
-        cmake_extra_options.append('-DCUDA_NVCC_EXECUTABLE=/usr/local/cuda-8.0/bin/nvcc')
+            targets = ['player', 'blender']
+        cmake_extra_options.extend(["-DCMAKE_C_COMPILER=/usr/bin/gcc-7",
+                                    "-DCMAKE_CXX_COMPILER=/usr/bin/g++-7"])
 
     cmake_options.append("-C" + os.path.join(blender_dir, cmake_config_file))
 
-    # Prepare CMake options needed to configure cuda binaries compilation.
-    cuda_cmake_options.append("-DWITH_CYCLES_CUDA_BINARIES=%s" % ('ON' if build_cubins else 'OFF'))
-    cuda_cmake_options.append("-DCYCLES_CUDA_BINARIES_ARCH=sm_20;sm_21;sm_30;sm_35;sm_37;sm_50;sm_52;sm_60;sm_61")
-    if build_cubins or 'cuda' in targets:
-        if bits == 32:
-            cuda_cmake_options.append("-DCUDA_64_BIT_DEVICE_CODE=OFF")
-        else:
+    # Prepare CMake options needed to configure cuda binaries compilation, 64bit only.
+    if bits == 64:
+        cuda_cmake_options.append("-DWITH_CYCLES_CUDA_BINARIES=%s" % ('ON' if build_cubins else 'OFF'))
+        cuda_cmake_options.append("-DCYCLES_CUDA_BINARIES_ARCH=sm_30;sm_35;sm_37;sm_50;sm_52;sm_60;sm_61;sm_70")
+        if build_cubins or 'cuda' in targets:
             cuda_cmake_options.append("-DCUDA_64_BIT_DEVICE_CODE=ON")
 
-    # Only modify common cmake options if cuda doesn't require separate target.
-    if 'cuda' not in targets:
-        cmake_options += cuda_cmake_options
+        # Only modify common cmake options if cuda doesn't require separate target.
+        if 'cuda' not in targets:
+            cmake_options += cuda_cmake_options
+    else:
+        cuda_cmake_options.append("-DWITH_CYCLES_CUDA_BINARIES=OFF")
 
     cmake_options.append("-DCMAKE_INSTALL_PREFIX=%s" % (install_dir))
 
@@ -180,7 +177,7 @@ if 'cmake' in builder:
             os.remove('CMakeCache.txt')
         retcode = subprocess.call(target_chroot_prefix + ['cmake', blender_dir] + target_cmake_options)
         if retcode != 0:
-            print('Condifuration FAILED!')
+            print('Configuration FAILED!')
             sys.exit(retcode)
 
         if 'win32' in builder or 'win64' in builder:

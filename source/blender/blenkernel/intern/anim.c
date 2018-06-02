@@ -201,7 +201,15 @@ bMotionPath *animviz_verify_motionpaths(ReportList *reports, Scene *scene, Objec
 		mpath->flag |= MOTIONPATH_FLAG_BHEAD;
 	else
 		mpath->flag &= ~MOTIONPATH_FLAG_BHEAD;
-	
+
+	/* set default custom values */
+	mpath->color[0] = 1.0;    /* Red */
+	mpath->color[1] = 0.0;
+	mpath->color[2] = 0.0;
+
+	mpath->line_thickness = 1;
+	mpath->flag |= MOTIONPATH_FLAG_LINES;  /* draw lines by default */
+
 	/* allocate a cache */
 	mpath->points = MEM_callocN(sizeof(bMotionPathVert) * mpath->length, "bMotionPathVerts");
 	
@@ -268,7 +276,7 @@ void animviz_get_object_motionpaths(Object *ob, ListBase *targets)
 /* Note on evaluation optimizations:
  * Optimization's currently used here play tricks with the depsgraph in order to try and
  * evaluate as few objects as strictly necessary to get nicer performance under standard
- * production conditions. For those people who really need the accurate version, 
+ * production conditions. For those people who really need the accurate version,
  * disable the ifdef (i.e. 1 -> 0) and comment out the call to motionpaths_calc_optimise_depsgraph()
  */
 

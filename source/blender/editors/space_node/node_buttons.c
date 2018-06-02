@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -133,6 +133,7 @@ static void node_tree_interface_panel(const bContext *C, Panel *pa)
 	int in_out;
 	uiLayout *layout = pa->layout, *row, *split, *col;
 	PointerRNA ptr, sockptr, opptr;
+	wmOperatorType *ot;
 
 	if (!ntree)
 		return;
@@ -146,23 +147,25 @@ static void node_tree_interface_panel(const bContext *C, Panel *pa)
 	
 	split = uiLayoutRow(row, true);
 	col = uiLayoutColumn(split, true);
+	ot = WM_operatortype_find("NODE_OT_tree_socket_add", false);
 	uiItemL(col, IFACE_("Inputs:"), ICON_NONE);
 	uiTemplateList(col, (bContext *)C, "NODE_UL_interface_sockets", "inputs", &ptr, "inputs", &ptr, "active_input",
 	               NULL, 0, 0, 0, 0);
-	opptr = uiItemFullO(col, "NODE_OT_tree_socket_add", "", ICON_PLUS, NULL, WM_OP_EXEC_DEFAULT, UI_ITEM_O_RETURN_PROPS);
+	uiItemFullO_ptr(col, ot, "", ICON_PLUS, NULL, WM_OP_EXEC_DEFAULT, 0, &opptr);
 	RNA_enum_set(&opptr, "in_out", SOCK_IN);
 	
 	col = uiLayoutColumn(split, true);
 	uiItemL(col, IFACE_("Outputs:"), ICON_NONE);
 	uiTemplateList(col, (bContext *)C, "NODE_UL_interface_sockets", "outputs", &ptr, "outputs", &ptr, "active_output",
 	               NULL, 0, 0, 0, 0);
-	opptr = uiItemFullO(col, "NODE_OT_tree_socket_add", "", ICON_PLUS, NULL, WM_OP_EXEC_DEFAULT, UI_ITEM_O_RETURN_PROPS);
+	uiItemFullO_ptr(col, ot, "", ICON_PLUS, NULL, WM_OP_EXEC_DEFAULT, 0, &opptr);
 	RNA_enum_set(&opptr, "in_out", SOCK_OUT);
 	
+	ot = WM_operatortype_find("NODE_OT_tree_socket_move", false);
 	col = uiLayoutColumn(row, true);
-	opptr = uiItemFullO(col, "NODE_OT_tree_socket_move", "", ICON_TRIA_UP, NULL, WM_OP_EXEC_DEFAULT, UI_ITEM_O_RETURN_PROPS);
+	uiItemFullO_ptr(col, ot, "", ICON_TRIA_UP, NULL, WM_OP_EXEC_DEFAULT, 0, &opptr);
 	RNA_enum_set(&opptr, "direction", 1);
-	opptr = uiItemFullO(col, "NODE_OT_tree_socket_move", "", ICON_TRIA_DOWN, NULL, WM_OP_EXEC_DEFAULT, UI_ITEM_O_RETURN_PROPS);
+	uiItemFullO_ptr(col, ot, "", ICON_TRIA_DOWN, NULL, WM_OP_EXEC_DEFAULT, 0, &opptr);
 	RNA_enum_set(&opptr, "direction", 2);
 	
 	if (sock) {

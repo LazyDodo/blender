@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -97,12 +97,13 @@
 
 static int material_slot_add_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Main *bmain = CTX_data_main(C);
 	Object *ob = ED_object_context(C);
 
 	if (!ob)
 		return OPERATOR_CANCELLED;
 	
-	BKE_object_material_slot_add(ob);
+	BKE_object_material_slot_add(bmain, ob);
 
 	if (ob->mode & OB_MODE_TEXTURE_PAINT) {
 		Scene *scene = CTX_data_scene(C);
@@ -145,7 +146,7 @@ static int material_slot_remove_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 	
-	BKE_object_material_slot_remove(ob);
+	BKE_object_material_slot_remove(CTX_data_main(C), ob);
 
 	if (ob->mode & OB_MODE_TEXTURE_PAINT) {
 		Scene *scene = CTX_data_scene(C);
@@ -345,6 +346,7 @@ void OBJECT_OT_material_slot_deselect(wmOperatorType *ot)
 
 static int material_slot_copy_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Main *bmain = CTX_data_main(C);
 	Object *ob = ED_object_context(C);
 	Material ***matar;
 
@@ -355,7 +357,7 @@ static int material_slot_copy_exec(bContext *C, wmOperator *UNUSED(op))
 	{
 		if (ob != ob_iter && give_matarar(ob_iter)) {
 			if (ob->data != ob_iter->data)
-				assign_matarar(ob_iter, matar, ob->totcol);
+				assign_matarar(bmain, ob_iter, matar, ob->totcol);
 			
 			if (ob_iter->totcol == ob->totcol) {
 				ob_iter->actcol = ob->actcol;
@@ -425,14 +427,15 @@ static int material_slot_move_exec(bContext *C, wmOperator *op)
 	MEM_freeN(slot_remap);
 
 	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
-	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW | ND_DATA, ob);
+	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
+	WM_event_add_notifier(C, NC_OBJECT | ND_DATA, ob);
 
 	return OPERATOR_FINISHED;
 }
 
 void OBJECT_OT_material_slot_move(wmOperatorType *ot)
 {
-	static EnumPropertyItem material_slot_move[] = {
+	static const EnumPropertyItem material_slot_move[] = {
 		{1, "UP", 0, "Up", ""},
 		{-1, "DOWN", 0, "Down", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -580,7 +583,7 @@ static int new_world_exec(bContext *C, wmOperator *UNUSED(op))
 		wo = BKE_world_copy(bmain, wo);
 	}
 	else {
-		wo = add_world(bmain, DATA_("World"));
+		wo = BKE_world_add(bmain, DATA_("World"));
 
 		if (BKE_scene_use_new_shading_nodes(scene)) {
 			ED_node_shader_default(C, &wo->id);
@@ -611,7 +614,7 @@ void WORLD_OT_new(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "New World";
 	ot->idname = "WORLD_OT_new";
-	ot->description = "Add a new world";
+	ot->description = "Create a new world Data-Block";
 	
 	/* api callbacks */
 	ot->exec = new_world_exec;
@@ -839,7 +842,7 @@ static int freestyle_module_move_exec(bContext *C, wmOperator *op)
 
 void SCENE_OT_freestyle_module_move(wmOperatorType *ot)
 {
-	static EnumPropertyItem direction_items[] = {
+	static const EnumPropertyItem direction_items[] = {
 		{-1, "UP", 0, "Up", ""},
 		{1, "DOWN", 0, "Down", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -999,7 +1002,7 @@ static int freestyle_lineset_move_exec(bContext *C, wmOperator *op)
 
 void SCENE_OT_freestyle_lineset_move(wmOperatorType *ot)
 {
-	static EnumPropertyItem direction_items[] = {
+	static const EnumPropertyItem direction_items[] = {
 		{-1, "UP", 0, "Up", ""},
 		{1, "DOWN", 0, "Down", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -1298,16 +1301,16 @@ static int freestyle_modifier_copy_exec(bContext *C, wmOperator *op)
 
 	switch (freestyle_get_modifier_type(&ptr)) {
 		case LS_MODIFIER_TYPE_COLOR:
-			BKE_linestyle_color_modifier_copy(lineset->linestyle, modifier);
+			BKE_linestyle_color_modifier_copy(lineset->linestyle, modifier, 0);
 			break;
 		case LS_MODIFIER_TYPE_ALPHA:
-			BKE_linestyle_alpha_modifier_copy(lineset->linestyle, modifier);
+			BKE_linestyle_alpha_modifier_copy(lineset->linestyle, modifier, 0);
 			break;
 		case LS_MODIFIER_TYPE_THICKNESS:
-			BKE_linestyle_thickness_modifier_copy(lineset->linestyle, modifier);
+			BKE_linestyle_thickness_modifier_copy(lineset->linestyle, modifier, 0);
 			break;
 		case LS_MODIFIER_TYPE_GEOMETRY:
-			BKE_linestyle_geometry_modifier_copy(lineset->linestyle, modifier);
+			BKE_linestyle_geometry_modifier_copy(lineset->linestyle, modifier, 0);
 			break;
 		default:
 			BKE_report(op->reports, RPT_ERROR, "The object the data pointer refers to is not a valid modifier");
@@ -1376,7 +1379,7 @@ static int freestyle_modifier_move_exec(bContext *C, wmOperator *op)
 
 void SCENE_OT_freestyle_modifier_move(wmOperatorType *ot)
 {
-	static EnumPropertyItem direction_items[] = {
+	static const EnumPropertyItem direction_items[] = {
 		{-1, "UP", 0, "Up", ""},
 		{1, "DOWN", 0, "Down", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -1497,7 +1500,7 @@ static int texture_slot_move_exec(bContext *C, wmOperator *op)
 
 void TEXTURE_OT_slot_move(wmOperatorType *ot)
 {
-	static EnumPropertyItem slot_move[] = {
+	static const EnumPropertyItem slot_move[] = {
 		{-1, "UP", 0, "Up", ""},
 		{1, "DOWN", 0, "Down", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -1703,7 +1706,7 @@ static int copy_material_exec(bContext *C, wmOperator *UNUSED(op))
 	if (ma == NULL)
 		return OPERATOR_CANCELLED;
 
-	copy_matcopybuf(ma);
+	copy_matcopybuf(CTX_data_main(C), ma);
 
 	return OPERATOR_FINISHED;
 }
@@ -1729,7 +1732,7 @@ static int paste_material_exec(bContext *C, wmOperator *UNUSED(op))
 	if (ma == NULL)
 		return OPERATOR_CANCELLED;
 
-	paste_matcopybuf(ma);
+	paste_matcopybuf(CTX_data_main(C), ma);
 
 	WM_event_add_notifier(C, NC_MATERIAL | ND_SHADING_LINKS, ma);
 
@@ -1781,6 +1784,8 @@ static void copy_mtex_copybuf(ID *id)
 		case ID_LS:
 			mtex = &(((FreestyleLineStyle *)id)->mtex[(int)((FreestyleLineStyle *)id)->texact]);
 			break;
+		default:
+			break;
 	}
 	
 	if (mtex && *mtex) {
@@ -1818,7 +1823,7 @@ static void paste_mtex_copybuf(ID *id)
 			mtex = &(((FreestyleLineStyle *)id)->mtex[(int)((FreestyleLineStyle *)id)->texact]);
 			break;
 		default:
-			BLI_assert("invalid id type");
+			BLI_assert(!"invalid id type");
 			return;
 	}
 	

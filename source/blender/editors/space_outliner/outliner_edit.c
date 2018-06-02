@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -52,7 +52,6 @@
 #include "BKE_animsys.h"
 #include "BKE_context.h"
 #include "BKE_depsgraph.h"
-#include "BKE_global.h"
 #include "BKE_idcode.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
@@ -230,7 +229,7 @@ static void do_item_rename(ARegion *ar, TreeElement *te, TreeStoreElem *tselem, 
 	else if (ELEM(tselem->type, TSE_SEQUENCE, TSE_SEQ_STRIP, TSE_SEQUENCE_DUP)) {
 		BKE_report(reports, RPT_WARNING, "Cannot edit sequence name");
 	}
-	else if (ID_IS_LINKED_DATABLOCK(tselem->id)) {
+	else if (ID_IS_LINKED(tselem->id)) {
 		BKE_report(reports, RPT_WARNING, "Cannot edit external libdata");
 	}
 	else if (te->idcode == ID_LI && ((Library *)tselem->id)->parent) {
@@ -309,9 +308,12 @@ static void id_delete(bContext *C, ReportList *reports, TreeElement *te, TreeSto
 	ID *id = tselem->id;
 
 	BLI_assert(te->idcode != 0 && id != NULL);
-	BLI_assert(te->idcode != ID_LI || ((Library *)id)->parent == NULL);
 	UNUSED_VARS_NDEBUG(te);
 
+	if (te->idcode == ID_LI && ((Library *)id)->parent != NULL) {
+		BKE_reportf(reports, RPT_WARNING, "Cannot delete indirectly linked library '%s'", id->name);
+		return;
+	}
 	if (id->tag & LIB_TAG_INDIRECT) {
 		BKE_reportf(reports, RPT_WARNING, "Cannot delete indirectly linked id '%s'", id->name);
 		return;
@@ -418,7 +420,7 @@ static int outliner_id_remap_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	if (ID_IS_LINKED_DATABLOCK(old_id)) {
+	if (ID_IS_LINKED(old_id)) {
 		BKE_reportf(op->reports, RPT_WARNING,
 		            "Old ID '%s' is linked from a library, indirect usages of this data-block will not be remapped",
 		            old_id->name);
@@ -479,7 +481,7 @@ static int outliner_id_remap_invoke(bContext *C, wmOperator *op, const wmEvent *
 	return WM_operator_props_dialog_popup(C, op, 200, 100);
 }
 
-static EnumPropertyItem *outliner_id_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *outliner_id_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem item_tmp = {0}, *item = NULL;
 	int totitem = 0;
@@ -516,7 +518,8 @@ void OUTLINER_OT_id_remap(wmOperatorType *ot)
 
 	ot->flag = 0;
 
-	RNA_def_enum(ot->srna, "id_type", rna_enum_id_type_items, ID_OB, "ID Type", "");
+	prop = RNA_def_enum(ot->srna, "id_type", rna_enum_id_type_items, ID_OB, "ID Type", "");
+	RNA_def_property_translation_context(prop, BLT_I18NCONTEXT_ID_ID);
 
 	prop = RNA_def_enum(ot->srna, "old_id", DummyRNA_NULL_items, 0, "Old ID", "Old ID to replace");
 	RNA_def_property_enum_funcs_runtime(prop, NULL, NULL, outliner_id_itemf);
@@ -789,7 +792,7 @@ void object_toggle_visibility_cb(
 	Base *base = (Base *)te->directdata;
 	Object *ob = (Object *)tselem->id;
 
-	if (ID_IS_LINKED_DATABLOCK(tselem->id)) {
+	if (ID_IS_LINKED(tselem->id)) {
 		BKE_report(reports, RPT_WARNING, "Cannot edit external libdata");
 		return;
 	}
@@ -850,7 +853,7 @@ void object_toggle_selectability_cb(
 {
 	Base *base = (Base *)te->directdata;
 
-	if (ID_IS_LINKED_DATABLOCK(tselem->id)) {
+	if (ID_IS_LINKED(tselem->id)) {
 		BKE_report(reports, RPT_WARNING, "Cannot edit external libdata");
 		return;
 	}
@@ -905,7 +908,7 @@ void object_toggle_renderability_cb(
 {
 	Base *base = (Base *)te->directdata;
 
-	if (ID_IS_LINKED_DATABLOCK(tselem->id)) {
+	if (ID_IS_LINKED(tselem->id)) {
 		BKE_report(reports, RPT_WARNING, "Cannot edit external libdata");
 		return;
 	}
@@ -1088,7 +1091,7 @@ static int outliner_show_active_exec(bContext *C, wmOperator *UNUSED(op))
 
 	te = outliner_find_id(so, &so->tree, &obact->id);
 
-	if (obact->type == OB_ARMATURE) {
+	if (te != NULL && obact->type == OB_ARMATURE) {
 		/* traverse down the bone hierarchy in case of armature */
 		TreeElement *te_obact = te;
 
@@ -1449,7 +1452,7 @@ static int ed_operator_outliner_datablocks_active(bContext *C)
 
 /* Helper func to extract an RNA path from selected tree element 
  * NOTE: the caller must zero-out all values of the pointers that it passes here first, as
- * this function does not do that yet 
+ * this function does not do that yet
  */
 static void tree_element_to_path(TreeElement *te, TreeStoreElem *tselem,
                                  ID **id, char **path, int *array_index, short *flag, short *UNUSED(groupmode))
@@ -1940,7 +1943,7 @@ static int outliner_orphans_purge_invoke(bContext *C, wmOperator *op, const wmEv
 {
 	/* present a prompt to informing users that this change is irreversible */
 	return WM_operator_confirm_message(C, op,
-	                                   "Purging unused data-blocks cannot be undone. "
+	                                   "Purging unused data-blocks cannot be undone and saves to current .blend file. "
 	                                   "Click here to proceed...");
 }
 
@@ -1962,7 +1965,8 @@ void OUTLINER_OT_orphans_purge(wmOperatorType *ot)
 	/* identifiers */
 	ot->idname = "OUTLINER_OT_orphans_purge";
 	ot->name = "Purge All";
-	ot->description = "Clear all orphaned data-blocks without any users from the file (cannot be undone)";
+	ot->description = "Clear all orphaned data-blocks without any users from the file "
+	                  "(cannot be undone, saves to current .blend file)";
 	
 	/* callbacks */
 	ot->invoke = outliner_orphans_purge_invoke;
@@ -1988,11 +1992,11 @@ static int parent_drop_exec(bContext *C, wmOperator *op)
 
 	partype = RNA_enum_get(op->ptr, "type");
 	RNA_string_get(op->ptr, "parent", parname);
-	par = (Object *)BKE_libblock_find_name(ID_OB, parname);
+	par = (Object *)BKE_libblock_find_name(bmain, ID_OB, parname);
 	RNA_string_get(op->ptr, "child", childname);
-	ob = (Object *)BKE_libblock_find_name(ID_OB, childname);
+	ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, childname);
 
-	if (ID_IS_LINKED_DATABLOCK(ob)) {
+	if (ID_IS_LINKED(ob)) {
 		BKE_report(op->reports, RPT_INFO, "Can't edit library linked object");
 		return OPERATOR_CANCELLED;
 	}
@@ -2029,9 +2033,9 @@ static int parent_drop_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		RNA_string_set(op->ptr, "parent", te->name);
 		/* Identify parent and child */
 		RNA_string_get(op->ptr, "child", childname);
-		ob = (Object *)BKE_libblock_find_name(ID_OB, childname);
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, childname);
 		RNA_string_get(op->ptr, "parent", parname);
-		par = (Object *)BKE_libblock_find_name(ID_OB, parname);
+		par = (Object *)BKE_libblock_find_name(bmain, ID_OB, parname);
 		
 		if (ELEM(NULL, ob, par)) {
 			if (par == NULL) printf("par==NULL\n");
@@ -2040,7 +2044,7 @@ static int parent_drop_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		if (ob == par) {
 			return OPERATOR_CANCELLED;
 		}
-		if (ID_IS_LINKED_DATABLOCK(ob)) {
+		if (ID_IS_LINKED(ob)) {
 			BKE_report(op->reports, RPT_INFO, "Can't edit library linked object");
 			return OPERATOR_CANCELLED;
 		}
@@ -2068,74 +2072,62 @@ static int parent_drop_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 			wmOperatorType *ot = WM_operatortype_find("OUTLINER_OT_parent_drop", false);
 			uiPopupMenu *pup = UI_popup_menu_begin(C, IFACE_("Set Parent To"), ICON_NONE);
 			uiLayout *layout = UI_popup_menu_layout(pup);
-			
 			PointerRNA ptr;
 			
-			WM_operator_properties_create_ptr(&ptr, ot);
+			/* Cannot use uiItemEnumO()... have multiple properties to set. */
+			uiItemFullO_ptr(layout, ot, IFACE_("Object"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 			RNA_string_set(&ptr, "parent", parname);
 			RNA_string_set(&ptr, "child", childname);
 			RNA_enum_set(&ptr, "type", PAR_OBJECT);
-			/* Cannot use uiItemEnumO()... have multiple properties to set. */
-			uiItemFullO_ptr(layout, ot, IFACE_("Object"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
-			
+
 			/* par becomes parent, make the associated menus */
 			if (par->type == OB_ARMATURE) {
-				WM_operator_properties_create_ptr(&ptr, ot);
+				uiItemFullO_ptr(layout, ot, IFACE_("Armature Deform"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_ARMATURE);
-				uiItemFullO_ptr(layout, ot, IFACE_("Armature Deform"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
-				
-				WM_operator_properties_create_ptr(&ptr, ot);
+
+				uiItemFullO_ptr(layout, ot, IFACE_("   With Empty Groups"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_ARMATURE_NAME);
-				uiItemFullO_ptr(layout, ot, IFACE_("   With Empty Groups"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
-				
-				WM_operator_properties_create_ptr(&ptr, ot);
+
+				uiItemFullO_ptr(layout, ot, IFACE_("   With Envelope Weights"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_ARMATURE_ENVELOPE);
-				uiItemFullO_ptr(layout, ot, IFACE_("   With Envelope Weights"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
-				
-				WM_operator_properties_create_ptr(&ptr, ot);
+
+				uiItemFullO_ptr(layout, ot, IFACE_("   With Automatic Weights"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_ARMATURE_AUTO);
-				uiItemFullO_ptr(layout, ot, IFACE_("   With Automatic Weights"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
-				
-				WM_operator_properties_create_ptr(&ptr, ot);
+
+				uiItemFullO_ptr(layout, ot, IFACE_("Bone"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_BONE);
-				uiItemFullO_ptr(layout, ot, IFACE_("Bone"),
-				            0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
 			}
 			else if (par->type == OB_CURVE) {
-				WM_operator_properties_create_ptr(&ptr, ot);
+				uiItemFullO_ptr(layout, ot, IFACE_("Curve Deform"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_CURVE);
-				uiItemFullO_ptr(layout, ot, IFACE_("Curve Deform"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
-				
-				WM_operator_properties_create_ptr(&ptr, ot);
+
+				uiItemFullO_ptr(layout, ot, IFACE_("Follow Path"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_FOLLOW);
-				uiItemFullO_ptr(layout, ot, IFACE_("Follow Path"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
-				
-				WM_operator_properties_create_ptr(&ptr, ot);
+
+				uiItemFullO_ptr(layout, ot, IFACE_("Path Constraint"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_PATH_CONST);
-				uiItemFullO_ptr(layout, ot, IFACE_("Path Constraint"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
 			}
 			else if (par->type == OB_LATTICE) {
-				WM_operator_properties_create_ptr(&ptr, ot);
+				uiItemFullO_ptr(layout, ot, IFACE_("Lattice Deform"), 0, NULL, WM_OP_EXEC_DEFAULT, 0, &ptr);
 				RNA_string_set(&ptr, "parent", parname);
 				RNA_string_set(&ptr, "child", childname);
 				RNA_enum_set(&ptr, "type", PAR_LATTICE);
-				uiItemFullO_ptr(layout, ot, IFACE_("Lattice Deform"), 0, ptr.data, WM_OP_EXEC_DEFAULT, 0);
 			}
 			
 			UI_popup_menu_end(C, pup);
@@ -2191,7 +2183,7 @@ static int parent_clear_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 	char obname[MAX_ID_NAME];
 
 	RNA_string_get(op->ptr, "dragged_obj", obname);
-	ob = (Object *)BKE_libblock_find_name(ID_OB, obname);
+	ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, obname);
 
 	/* search forwards to find the object */
 	outliner_find_id(soops, &soops->tree, (ID *)ob);
@@ -2244,12 +2236,12 @@ static int scene_drop_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		Base *base;
 
 		RNA_string_set(op->ptr, "scene", te->name);
-		scene = (Scene *)BKE_libblock_find_name(ID_SCE, te->name);
+		scene = (Scene *)BKE_libblock_find_name(bmain, ID_SCE, te->name);
 
 		RNA_string_get(op->ptr, "object", obname);
-		ob = (Object *)BKE_libblock_find_name(ID_OB, obname);
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, obname);
 
-		if (ELEM(NULL, ob, scene) || ID_IS_LINKED_DATABLOCK(scene)) {
+		if (ELEM(NULL, ob, scene) || ID_IS_LINKED(scene)) {
 			return OPERATOR_CANCELLED;
 		}
 
@@ -2299,6 +2291,7 @@ static int material_drop_invoke(bContext *C, wmOperator *op, const wmEvent *even
 {
 	Material *ma = NULL;
 	Object *ob = NULL;
+	Main *bmain = CTX_data_main(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	ARegion *ar = CTX_wm_region(C);
 	TreeElement *te = NULL;
@@ -2312,16 +2305,16 @@ static int material_drop_invoke(bContext *C, wmOperator *op, const wmEvent *even
 
 	if (te) {
 		RNA_string_set(op->ptr, "object", te->name);
-		ob = (Object *)BKE_libblock_find_name(ID_OB, te->name);
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, te->name);
 
 		RNA_string_get(op->ptr, "material", mat_name);
-		ma = (Material *)BKE_libblock_find_name(ID_MA, mat_name);
+		ma = (Material *)BKE_libblock_find_name(bmain, ID_MA, mat_name);
 
 		if (ELEM(NULL, ob, ma)) {
 			return OPERATOR_CANCELLED;
 		}
 
-		assign_material(ob, ma, ob->totcol + 1, BKE_MAT_ASSIGN_USERPREF);
+		assign_material(bmain, ob, ma, ob->totcol + 1, BKE_MAT_ASSIGN_USERPREF);
 
 		WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, CTX_wm_view3d(C));
 		WM_event_add_notifier(C, NC_MATERIAL | ND_SHADING_LINKS, ma);
@@ -2370,10 +2363,10 @@ static int group_link_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 	te = outliner_dropzone_find(soops, fmval, true);
 
 	if (te) {
-		group = (Group *)BKE_libblock_find_name(ID_GR, te->name);
+		group = (Group *)BKE_libblock_find_name(bmain, ID_GR, te->name);
 
 		RNA_string_get(op->ptr, "object", ob_name);
-		ob = (Object *)BKE_libblock_find_name(ID_OB, ob_name);
+		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, ob_name);
 
 		if (ELEM(NULL, group, ob)) {
 			return OPERATOR_CANCELLED;

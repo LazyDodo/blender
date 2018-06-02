@@ -54,6 +54,7 @@ struct PointerRNA;
 struct PropertyRNA;
 struct EnumPropertyItem;
 
+#include "DNA_anim_types.h"
 #include "RNA_types.h"
 
 /* ************ Keyframing Management **************** */
@@ -91,22 +92,22 @@ void update_autoflags_fcurve(struct FCurve *fcu, struct bContext *C, struct Repo
  *  Use this when validation of necessary animation data isn't necessary as it already
  *  exists, and there is a beztriple that can be directly copied into the array.
  */
-int insert_bezt_fcurve(struct FCurve *fcu, const struct BezTriple *bezt, short flag);
+int insert_bezt_fcurve(struct FCurve *fcu, const struct BezTriple *bezt, eInsertKeyFlags flag);
 
 /* Main Keyframing API call: 
  *  Use this when validation of necessary animation data isn't necessary as it
  *  already exists. It will insert a keyframe using the current value being keyframed.
  *  Returns the index at which a keyframe was added (or -1 if failed)
  */
-int insert_vert_fcurve(struct FCurve *fcu, float x, float y, char keytype, short flag);
+int insert_vert_fcurve(struct FCurve *fcu, float x, float y, eBezTriple_KeyframeType keytype, eInsertKeyFlags flag);
 
 /* -------- */
 
 /* Secondary Keyframing API calls: 
- *	Use this to insert a keyframe using the current value being keyframed, in the 
+ *	Use this to insert a keyframe using the current value being keyframed, in the
  *	nominated F-Curve (no creation of animation data performed). Returns success.
  */
-bool insert_keyframe_direct(struct ReportList *reports, struct PointerRNA ptr, struct PropertyRNA *prop, struct FCurve *fcu, float cfra, char keytype, short flag);
+bool insert_keyframe_direct(struct ReportList *reports, struct PointerRNA ptr, struct PropertyRNA *prop, struct FCurve *fcu, float cfra, eBezTriple_KeyframeType keytype, eInsertKeyFlags flag);
 
 /* -------- */
 
@@ -114,12 +115,12 @@ bool insert_keyframe_direct(struct ReportList *reports, struct PointerRNA ptr, s
  *	Use this to create any necessary animation data, and then insert a keyframe
  *	using the current value being keyframed, in the relevant place. Returns success.
  */
-short insert_keyframe(struct ReportList *reports, struct ID *id, struct bAction *act, const char group[], const char rna_path[], int array_index, float cfra, char keytype, short flag);
+short insert_keyframe(struct ReportList *reports, struct ID *id, struct bAction *act, const char group[], const char rna_path[], int array_index, float cfra, eBezTriple_KeyframeType keytype, eInsertKeyFlags flag);
 
 /* Main Keyframing API call: 
  *  Use this to delete keyframe on current frame for relevant channel. Will perform checks just in case.
  */
-short delete_keyframe(struct ReportList *reports, struct ID *id, struct bAction *act, const char group[], const char rna_path[], int array_index, float cfra, short flag);
+short delete_keyframe(struct ReportList *reports, struct ID *id, struct bAction *act, const char group[], const char rna_path[], int array_index, float cfra, eInsertKeyFlags flag);
 
 /* ************ Keying Sets ********************** */
 
@@ -222,7 +223,7 @@ int ANIM_scene_get_keyingset_index(struct Scene *scene, struct KeyingSet *ks);
 struct KeyingSet *ANIM_get_keyingset_for_autokeying(struct Scene *scene, const char *tranformKSName);
 
 /* Dynamically populate an enum of Keying Sets */
-struct EnumPropertyItem *ANIM_keying_sets_enum_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
+const struct EnumPropertyItem *ANIM_keying_sets_enum_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
 
 /* Check if KeyingSet can be used in the current context */
 bool ANIM_keyingset_context_ok_poll(struct bContext *C, struct KeyingSet *ks);
@@ -306,7 +307,7 @@ bool ANIM_copy_driver(struct ReportList *reports, struct ID *id, const char rna_
 
 /* Main Driver Management API calls:
  *  Add a new driver for the specified property on the given ID block or replace an existing one
- *	with the driver + driver-curve data from the buffer 
+ *	with the driver + driver-curve data from the buffer
  */
 bool ANIM_paste_driver(struct ReportList *reports, struct ID *id, const char rna_path[], int array_index, short flag);
 

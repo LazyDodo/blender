@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -34,11 +34,13 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <windows.h>
 #endif
 
 #include "MEM_guardedalloc.h"
+
+#include "CLG_log.h"
 
 #include "DNA_genfile.h"
 #include "DNA_scene_types.h"
@@ -53,6 +55,7 @@
 #include "BLI_utildefines.h"
 
 #include "BLO_writefile.h"
+#include "BLO_undofile.h"
 
 #include "BKE_blender.h"
 #include "BKE_blender_undo.h"
@@ -110,6 +113,7 @@
 #include "ED_space_api.h"
 #include "ED_screen.h"
 #include "ED_util.h"
+#include "ED_undo.h"
 
 #include "UI_interface.h"
 #include "BLF_api.h"
@@ -127,6 +131,11 @@
 #  include "BKE_subsurf.h"
 #endif
 
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_OPERATORS, "wm.operator");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_HANDLERS, "wm.handler");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_EVENTS, "wm.event");
+CLG_LOGREF_DECLARE_GLOBAL(WM_LOG_KEYMAPS, "wm.keymap");
+
 static void wm_init_reports(bContext *C)
 {
 	ReportList *reports = CTX_wm_reports(C);
@@ -140,11 +149,6 @@ static void wm_free_reports(bContext *C)
 	ReportList *reports = CTX_wm_reports(C);
 
 	BKE_reports_clear(reports);
-}
-
-static void wm_undo_kill_callback(bContext *C)
-{
-	WM_jobs_kill_all_except(CTX_wm_manager(C), CTX_wm_screen(C));
 }
 
 bool wm_start_with_console = false; /* used in creator.c */
@@ -165,7 +169,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 	WM_menutype_init();
 	WM_uilisttype_init();
 
-	BKE_undo_callback_wm_kill_jobs_set(wm_undo_kill_callback);
+	ED_undosys_type_init();
 
 	BKE_library_callback_free_window_manager_set(wm_close_and_free);   /* library.c */
 	BKE_library_callback_free_notifier_reference_set(WM_main_remove_notifier_reference);   /* library.c */
@@ -181,18 +185,15 @@ void WM_init(bContext *C, int argc, const char **argv)
 	ED_file_init();         /* for fsmenu */
 	ED_node_init_butfuncs();
 	
-	BLF_init(11, U.dpi); /* Please update source/gamengine/GamePlayer/GPG_ghost.cpp if you change this */
+	BLF_init(); /* Please update source/gamengine/GamePlayer/GPG_ghost.cpp if you change this */
 	BLT_lang_init();
-
-	/* Enforce loading the UI for the initial homefile */
-	G.fileflags &= ~G_FILE_NO_UI;
 
 	/* reports cant be initialized before the wm,
 	 * but keep before file reading, since that may report errors */
 	wm_init_reports(C);
 
 	/* get the default database, plus a wm */
-	wm_homefile_read(C, NULL, G.factory_startup, NULL);
+	wm_homefile_read(C, NULL, G.factory_startup, false, true, NULL, NULL);
 	
 
 	BLT_lang_set(NULL);
@@ -437,14 +438,35 @@ static void wait_for_console_key(void)
 }
 #endif
 
+static int wm_exit_handler(bContext *C, const wmEvent *event, void *userdata)
+{
+	WM_exit(C);
+
+	UNUSED_VARS(event, userdata);
+	return WM_UI_HANDLER_BREAK;
+}
+
+/**
+ * Cause a delayed WM_exit() call to avoid leaking memory when trying to exit from within operators.
+ */
+void wm_exit_schedule_delayed(const bContext *C)
+{
+	/* What we do here is a little bit hacky, but quite simple and doesn't require bigger
+	 * changes: Add a handler wrapping WM_exit() to cause a delayed call of it. */
+
+	wmWindow *win = CTX_wm_window(C);
+
+	/* Use modal UI handler for now. Could add separate WM handlers or so, but probably not worth it. */
+	WM_event_add_ui_handler(C, &win->modalhandlers, wm_exit_handler, NULL, NULL, 0);
+	WM_event_add_mousemove(C); /* ensure handler actually gets called */
+}
+
 /**
  * \note doesn't run exit() call #WM_exit() for that.
  */
 void WM_exit_ext(bContext *C, const bool do_python)
 {
 	wmWindowManager *wm = C ? CTX_wm_manager(C) : NULL;
-
-	BKE_sound_exit();
 
 	/* first wrap up running stuff, we assume only the active WM is running */
 	/* modal handlers are on window level freed, others too? */
@@ -453,7 +475,8 @@ void WM_exit_ext(bContext *C, const bool do_python)
 		wmWindow *win;
 
 		if (!G.background) {
-			if ((U.uiflag2 & USER_KEEP_SESSION) || BKE_undo_is_valid(NULL)) {
+			struct MemFile *undo_memfile = wm->undo_stack ? ED_undosys_stack_memfile_get_active(wm->undo_stack) : NULL;
+			if ((U.uiflag2 & USER_KEEP_SESSION) || (undo_memfile != NULL)) {
 				/* save the undo state as quit.blend */
 				char filename[FILE_MAX];
 				bool has_edited;
@@ -464,7 +487,7 @@ void WM_exit_ext(bContext *C, const bool do_python)
 				has_edited = ED_editors_flush_edits(C, false);
 
 				if ((has_edited && BLO_write_file(CTX_data_main(C), filename, fileflags, NULL, NULL)) ||
-				    BKE_undo_save_file(filename))
+				    (undo_memfile && BLO_memfile_write_file(undo_memfile, filename)))
 				{
 					printf("Saved session recovery to '%s'\n", filename);
 				}
@@ -487,10 +510,12 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	wm_dropbox_free();
 	WM_menutype_free();
 	WM_uilisttype_free();
-	
+
 	/* all non-screen and non-space stuff editors did, like editmode */
 	if (C)
 		ED_editors_exit(C);
+
+	ED_undosys_type_free();
 
 //	XXX	
 //	BIF_GlobalReebFree();
@@ -569,12 +594,10 @@ void WM_exit_ext(bContext *C, const bool do_python)
 		GPU_exit();
 	}
 
-	BKE_undo_reset();
-	
 	ED_file_exit(); /* for fsmenu */
 
 	UI_exit();
-	BKE_blender_userdef_free();
+	BKE_blender_userdef_data_free(&U, false);
 
 	RNA_exit(); /* should be after BPY_python_end so struct python slots are cleared */
 	
@@ -591,6 +614,12 @@ void WM_exit_ext(bContext *C, const bool do_python)
 
 	BLI_threadapi_exit();
 
+	/* No need to call this early, rather do it late so that other pieces of Blender using sound may exit cleanly,
+	 * see also T50676. */
+	BKE_sound_exit();
+
+	CLG_exit();
+
 	BKE_blender_atexit();
 
 	if (MEM_get_memory_blocks_in_use() != 0) {
@@ -605,6 +634,10 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	BKE_tempdir_session_purge();
 }
 
+/**
+ * \brief Main exit function to close Blender ordinarily.
+ * \note Use #wm_exit_schedule_delayed() to close Blender from an operator. Might leak memory otherwise.
+ */
 void WM_exit(bContext *C)
 {
 	WM_exit_ext(C, 1);

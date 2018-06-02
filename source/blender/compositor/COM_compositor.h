@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -326,23 +326,10 @@ void COM_execute(RenderData *rd, Scene *scene, bNodeTree *editingtree, int rende
 void COM_deinitialize(void);
 
 /**
- * @brief Clear all compositor caches. (Compositor system will still remain available). 
+ * @brief Clear all compositor caches. (Compositor system will still remain available).
  * To deinitialize the compositor use the COM_deinitialize method.
  */
 // void COM_clearCaches(void); // NOT YET WRITTEN
-
-/**
- * @brief Return a list of highlighted bnodes pointers.
- * @return 
- */
-void COM_startReadHighlights(void);
-
-/**
- * @brief check if a bnode is highlighted
- * @param bnode
- * @return 
- */
-int COM_isHighlightedbNode(bNode *bnode);
 
 #ifdef __cplusplus
 }

@@ -53,6 +53,7 @@
 
 #include "BKE_global.h"
 #include "BKE_idprop.h"
+#include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_sound.h"
@@ -61,6 +62,8 @@
 #include "IMB_imbuf.h"
 
 #include "ffmpeg_compat.h"
+
+struct StampData;
 
 typedef struct FFMpegContext {
 	int ffmpeg_type;
@@ -75,7 +78,7 @@ typedef struct FFMpegContext {
 	bool ffmpeg_preview;
 
 	int ffmpeg_crf;  /* set to 0 to not use CRF mode; we have another flag for lossless anyway. */
-	int ffmpeg_preset; /* see FFMpegPreset */
+	int ffmpeg_preset; /* see eFFMpegPreset */
 
 	AVFormatContext *outfile;
 	AVStream *video_stream;
@@ -93,6 +96,8 @@ typedef struct FFMpegContext {
 	double audio_time;
 	bool audio_deinterleave;
 	int audio_sample_size;
+
+	struct StampData *stamp_data;
 
 #ifdef WITH_AUDASPACE
 	AUD_Device *audio_mixdown_device;
@@ -158,7 +163,7 @@ static int write_audio_frame(FFMpegContext *context)
 		for (channel = 0; channel < c->channels; channel++) {
 			for (i = 0; i < frame->nb_samples; i++) {
 				memcpy(context->audio_deinterleave_buffer + (i + channel * frame->nb_samples) * context->audio_sample_size,
-					   context->audio_input_buffer + (c->channels * i + channel) * context->audio_sample_size, context->audio_sample_size);
+				       context->audio_input_buffer + (c->channels * i + channel) * context->audio_sample_size, context->audio_sample_size);
 			}
 		}
 
@@ -444,7 +449,7 @@ static void set_ffmpeg_property_option(AVCodecContext *c, IDProperty *prop, AVDi
 	param = strchr(name, ':');
 
 	if (param) {
-		*param++ = 0;
+		*param++ = '\0';
 	}
 
 	switch (prop->type) {
@@ -568,7 +573,8 @@ static AVStream *alloc_video_stream(FFMpegContext *context, RenderData *rd, int 
 
 	if (context->ffmpeg_crf >= 0) {
 		ffmpeg_dict_set_int(&opts, "crf", context->ffmpeg_crf);
-	} else {
+	}
+	else {
 		c->bit_rate = context->ffmpeg_video_bitrate * 1000;
 		c->rc_max_rate = rd->ffcodecdata.rc_max_rate * 1000;
 		c->rc_min_rate = rd->ffcodecdata.rc_min_rate * 1000;
@@ -576,23 +582,32 @@ static AVStream *alloc_video_stream(FFMpegContext *context, RenderData *rd, int 
 	}
 
 	if (context->ffmpeg_preset) {
-		char const * preset_name;
-		switch(context->ffmpeg_preset) {
-			case FFM_PRESET_ULTRAFAST: preset_name = "ultrafast"; break;
-			case FFM_PRESET_SUPERFAST: preset_name = "superfast"; break;
-			case FFM_PRESET_VERYFAST: preset_name = "veryfast"; break;
-			case FFM_PRESET_FASTER: preset_name = "faster"; break;
-			case FFM_PRESET_FAST: preset_name = "fast"; break;
-			case FFM_PRESET_MEDIUM: preset_name = "medium"; break;
-			case FFM_PRESET_SLOW: preset_name = "slow"; break;
-			case FFM_PRESET_SLOWER: preset_name = "slower"; break;
-			case FFM_PRESET_VERYSLOW: preset_name = "veryslow"; break;
+		/* 'preset' is used by h.264, 'deadline' is used by webm/vp9. I'm not
+		 * setting those properties conditionally based on the video codec,
+		 * as the FFmpeg encoder simply ignores unknown settings anyway. */
+		char const *preset_name = NULL;  /* used by h.264 */
+		char const *deadline_name = NULL; /* used by webm/vp9 */
+		switch (context->ffmpeg_preset) {
+			case FFM_PRESET_GOOD:
+				preset_name = "medium";
+				deadline_name = "good";
+				break;
+			case FFM_PRESET_BEST:
+				preset_name = "slower";
+				deadline_name = "best";
+				break;
+			case FFM_PRESET_REALTIME:
+				preset_name = "superfast";
+				deadline_name = "realtime";
+				break;
 			default:
 				printf("Unknown preset number %i, ignoring.\n", context->ffmpeg_preset);
-				preset_name = NULL;
 		}
 		if (preset_name != NULL) {
 			av_dict_set(&opts, "preset", preset_name, 0);
+		}
+		if (deadline_name != NULL) {
+			av_dict_set(&opts, "deadline", deadline_name, 0);
 		}
 	}
 
@@ -604,7 +619,8 @@ static AVStream *alloc_video_stream(FFMpegContext *context, RenderData *rd, int 
 	c->rc_buffer_aggressivity = 1.0;
 #endif
 
-	c->me_method = ME_EPZS;
+	/* Deprecated and not doing anything since July 2015, deleted in recent ffmpeg */
+	//c->me_method = ME_EPZS;
 	
 	codec = avcodec_find_encoder(c->codec_id);
 	if (!codec)
@@ -680,6 +696,7 @@ static AVStream *alloc_video_stream(FFMpegContext *context, RenderData *rd, int 
 	/* xasp & yasp got float lately... */
 
 	st->sample_aspect_ratio = c->sample_aspect_ratio = av_d2q(((double) rd->xasp / (double) rd->yasp), 255);
+	st->avg_frame_rate = av_inv_q(c->time_base);
 
 	set_ffmpeg_properties(rd, c, "video", &opts);
 
@@ -832,6 +849,12 @@ static void ffmpeg_dict_set_float(AVDictionary **dict, const char *key, float va
 	BLI_snprintf(buffer, sizeof(buffer), "%.8f", value);
 
 	av_dict_set(dict, key, buffer, 0);
+}
+
+static void ffmpeg_add_metadata_callback(void *data, const char *propname, char *propvalue, int len)
+{
+	AVDictionary **metadata = (AVDictionary **)data;
+	av_dict_set(metadata, propname, propvalue, 0);
 }
 
 static int start_ffmpeg_impl(FFMpegContext *context, struct RenderData *rd, int rectx, int recty, const char *suffix, ReportList *reports)
@@ -992,6 +1015,11 @@ static int start_ffmpeg_impl(FFMpegContext *context, struct RenderData *rd, int 
 			goto fail;
 		}
 	}
+
+	if (context->stamp_data != NULL) {
+		BKE_stamp_info_callback(&of->metadata, context->stamp_data, ffmpeg_add_metadata_callback, false);
+	}
+
 	if (avformat_write_header(of, NULL) < 0) {
 		BKE_report(reports, RPT_ERROR, "Could not initialize streams, probably unsupported codec combination");
 		goto fail;
@@ -1025,19 +1053,19 @@ fail:
 }
 
 /**
- * Writes any delayed frames in the encoder. This function is called before 
+ * Writes any delayed frames in the encoder. This function is called before
  * closing the encoder.
  *
  * <p>
- * Since an encoder may use both past and future frames to predict 
- * inter-frames (H.264 B-frames, for example), it can output the frames 
+ * Since an encoder may use both past and future frames to predict
+ * inter-frames (H.264 B-frames, for example), it can output the frames
  * in a different order from the one it was given.
  * For example, when sending frames 1, 2, 3, 4 to the encoder, it may write
  * them in the order 1, 4, 2, 3 - first the two frames used for prediction,
- * and then the bidirectionally-predicted frames. What this means in practice 
- * is that the encoder may not immediately produce one output frame for each 
- * input frame. These delayed frames must be flushed before we close the 
- * stream. We do this by calling avcodec_encode_video with NULL for the last 
+ * and then the bidirectionally-predicted frames. What this means in practice
+ * is that the encoder may not immediately produce one output frame for each
+ * input frame. These delayed frames must be flushed before we close the
+ * stream. We do this by calling avcodec_encode_video with NULL for the last
  * parameter.
  * </p>
  */
@@ -1114,7 +1142,7 @@ static void ffmpeg_filepath_get(FFMpegContext *context, char *string, RenderData
 
 	BLI_make_existing_file(string);
 
-	autosplit[0] = 0;
+	autosplit[0] = '\0';
 
 	if ((rd->ffcodecdata.flags & FFMPEG_AUTOSPLIT_OUTPUT) != 0) {
 		if (context) {
@@ -1137,7 +1165,7 @@ static void ffmpeg_filepath_get(FFMpegContext *context, char *string, RenderData
 			strcat(string, *exts);
 		}
 		else {
-			*(string + strlen(string) - strlen(*fe)) = 0;
+			*(string + strlen(string) - strlen(*fe)) = '\0';
 			strcat(string, autosplit);
 			strcat(string, *fe);
 		}
@@ -1166,6 +1194,7 @@ int BKE_ffmpeg_start(void *context_v, struct Scene *scene, RenderData *rd, int r
 
 	context->ffmpeg_autosplit_count = 0;
 	context->ffmpeg_preview = preview;
+	context->stamp_data = BKE_stamp_info_from_scene_static(scene);
 
 	success = start_ffmpeg_impl(context, rd, rectx, recty, suffix, reports);
 #ifdef WITH_AUDASPACE
@@ -1267,7 +1296,7 @@ static void end_ffmpeg_impl(FFMpegContext *context, int is_autosplit)
 	if (is_autosplit == false) {
 		if (context->audio_mixdown_device) {
 			AUD_Device_free(context->audio_mixdown_device);
-			context->audio_mixdown_device = 0;
+			context->audio_mixdown_device = NULL;
 		}
 	}
 #endif
@@ -1283,50 +1312,50 @@ static void end_ffmpeg_impl(FFMpegContext *context, int is_autosplit)
 	
 	/* Close the video codec */
 
-	if (context->video_stream && context->video_stream->codec) {
+	if (context->video_stream != NULL && context->video_stream->codec != NULL) {
 		avcodec_close(context->video_stream->codec);
 		PRINT("zero video stream %p\n", context->video_stream);
-		context->video_stream = 0;
+		context->video_stream = NULL;
 	}
 
-	if (context->audio_stream && context->audio_stream->codec) {
+	if (context->audio_stream != NULL && context->audio_stream->codec != NULL) {
 		avcodec_close(context->audio_stream->codec);
-		context->audio_stream = 0;
+		context->audio_stream = NULL;
 	}
 
 	/* free the temp buffer */
-	if (context->current_frame) {
+	if (context->current_frame != NULL) {
 		delete_picture(context->current_frame);
-		context->current_frame = 0;
+		context->current_frame = NULL;
 	}
-	if (context->outfile && context->outfile->oformat) {
+	if (context->outfile != NULL && context->outfile->oformat) {
 		if (!(context->outfile->oformat->flags & AVFMT_NOFILE)) {
 			avio_close(context->outfile->pb);
 		}
 	}
-	if (context->outfile) {
+	if (context->outfile != NULL) {
 		avformat_free_context(context->outfile);
-		context->outfile = 0;
+		context->outfile = NULL;
 	}
-	if (context->audio_input_buffer) {
+	if (context->audio_input_buffer != NULL) {
 		av_free(context->audio_input_buffer);
-		context->audio_input_buffer = 0;
+		context->audio_input_buffer = NULL;
 	}
 #ifndef FFMPEG_HAVE_ENCODE_AUDIO2
-	if (context->audio_output_buffer) {
+	if (context->audio_output_buffer != NULL) {
 		av_free(context->audio_output_buffer);
-		context->audio_output_buffer = 0;
+		context->audio_output_buffer = NULL;
 	}
 #endif
 
-	if (context->audio_deinterleave_buffer) {
+	if (context->audio_deinterleave_buffer != NULL) {
 		av_free(context->audio_deinterleave_buffer);
-		context->audio_deinterleave_buffer = 0;
+		context->audio_deinterleave_buffer = NULL;
 	}
 
-	if (context->img_convert_ctx) {
+	if (context->img_convert_ctx != NULL) {
 		sws_freeContext(context->img_convert_ctx);
-		context->img_convert_ctx = 0;
+		context->img_convert_ctx = NULL;
 	}
 }
 
@@ -1425,8 +1454,8 @@ static IDProperty *BKE_ffmpeg_property_add(RenderData *rd, const char *type, con
 int BKE_ffmpeg_property_add_string(RenderData *rd, const char *type, const char *str)
 {
 	AVCodecContext c;
-	const AVOption *o = 0;
-	const AVOption *p = 0;
+	const AVOption *o = NULL;
+	const AVOption *p = NULL;
 	char name_[128];
 	char *name;
 	char *param;
@@ -1445,7 +1474,7 @@ int BKE_ffmpeg_property_add_string(RenderData *rd, const char *type, const char 
 		param = strchr(name, ' ');
 	}
 	if (param) {
-		*param++ = 0;
+		*param++ = '\0';
 		while (*param == ' ') param++;
 	}
 	
@@ -1657,7 +1686,7 @@ void BKE_ffmpeg_image_type_verify(RenderData *rd, ImageFormatData *imf)
 		{
 			BKE_ffmpeg_preset_set(rd, FFMPEG_PRESET_H264);
 			rd->ffcodecdata.constant_rate_factor = FFM_CRF_MEDIUM;
-			rd->ffcodecdata.ffmpeg_preset = FFM_PRESET_MEDIUM;
+			rd->ffcodecdata.ffmpeg_preset = FFM_PRESET_GOOD;
 			rd->ffcodecdata.type = FFMPEG_MKV;
 		}
 		if (rd->ffcodecdata.type == FFMPEG_OGG) {
@@ -1732,6 +1761,7 @@ void *BKE_ffmpeg_context_create(void)
 	context->ffmpeg_autosplit = 0;
 	context->ffmpeg_autosplit_count = 0;
 	context->ffmpeg_preview = false;
+	context->stamp_data = NULL;
 
 	return context;
 }
@@ -1739,9 +1769,13 @@ void *BKE_ffmpeg_context_create(void)
 void BKE_ffmpeg_context_free(void *context_v)
 {
 	FFMpegContext *context = context_v;
-	if (context) {
-		MEM_freeN(context);
+	if (context == NULL) {
+		return;
 	}
+	if (context->stamp_data) {
+		MEM_freeN(context->stamp_data);
+	}
+	MEM_freeN(context);
 }
 
 #endif /* WITH_FFMPEG */

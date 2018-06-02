@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -33,6 +33,8 @@ private:
 	SocketReader *m_inputProgram;
 	SocketReader *m_inputBrightnessProgram;
 	SocketReader *m_inputContrastProgram;
+
+	bool m_use_premultiply;
 
 public:
 	BrightnessOperation();
@@ -52,5 +54,6 @@ public:
 	 */
 	void deinitExecution();
 
+	void setUsePremultiply(bool use_premultiply);
 };
 #endif

@@ -55,7 +55,6 @@
 #include "BKE_curve.h"
 #include "BKE_depsgraph.h"
 #include "BKE_displist.h"
-#include "BKE_global.h"
 #include "BKE_key.h"
 #include "BKE_lattice.h"
 #include "BKE_library.h"
@@ -67,7 +66,7 @@
 
 #include "BKE_deform.h"
 
-/* Workaround for cyclic depenndnecy with curves.
+/* Workaround for cyclic dependency with curves.
  * In such case curve_cache might not be ready yet,
  */
 #define CYCLIC_DEPENDENCY_WORKAROUND
@@ -270,39 +269,46 @@ Lattice *BKE_lattice_add(Main *bmain, const char *name)
 {
 	Lattice *lt;
 
-	lt = BKE_libblock_alloc(bmain, ID_LT, name);
+	lt = BKE_libblock_alloc(bmain, ID_LT, name, 0);
 
 	BKE_lattice_init(lt);
 
 	return lt;
 }
 
-Lattice *BKE_lattice_copy(Main *bmain, Lattice *lt)
+/**
+ * Only copy internal data of Lattice ID from source to already allocated/initialized destination.
+ * You probably nerver want to use that directly, use id_copy or BKE_id_copy_ex for typical needs.
+ *
+ * WARNING! This function will not handle ID user count!
+ *
+ * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ */
+void BKE_lattice_copy_data(Main *bmain, Lattice *lt_dst, const Lattice *lt_src, const int flag)
 {
-	Lattice *ltn;
+	lt_dst->def = MEM_dupallocN(lt_src->def);
 
-	ltn = BKE_libblock_copy(bmain, &lt->id);
-	ltn->def = MEM_dupallocN(lt->def);
-
-	if (lt->key) {
-		ltn->key = BKE_key_copy(bmain, ltn->key);
-		ltn->key->from = (ID *)ltn;
-	}
-	
-	if (lt->dvert) {
-		int tot = lt->pntsu * lt->pntsv * lt->pntsw;
-		ltn->dvert = MEM_mallocN(sizeof(MDeformVert) * tot, "Lattice MDeformVert");
-		BKE_defvert_array_copy(ltn->dvert, lt->dvert, tot);
+	if (lt_src->key) {
+		BKE_id_copy_ex(bmain, &lt_src->key->id, (ID **)&lt_dst->key, flag, false);
 	}
 
-	ltn->editlatt = NULL;
+	if (lt_src->dvert) {
+		int tot = lt_src->pntsu * lt_src->pntsv * lt_src->pntsw;
+		lt_dst->dvert = MEM_mallocN(sizeof(MDeformVert) * tot, "Lattice MDeformVert");
+		BKE_defvert_array_copy(lt_dst->dvert, lt_src->dvert, tot);
+	}
 
-	BKE_id_copy_ensure_local(bmain, &lt->id, &ltn->id);
-
-	return ltn;
+	lt_dst->editlatt = NULL;
 }
 
-/** Free (or release) any data used by this lattice (does not free the lattice itself). */
+Lattice *BKE_lattice_copy(Main *bmain, const Lattice *lt)
+{
+	Lattice *lt_copy;
+	BKE_id_copy_ex(bmain, &lt->id, (ID **)&lt_copy, 0, false);
+	return lt_copy;
+}
+
+	/** Free (or release) any data used by this lattice (does not free the lattice itself). */
 void BKE_lattice_free(Lattice *lt)
 {
 	BKE_animdata_free(&lt->id, false);
@@ -853,47 +859,40 @@ void lattice_deform_verts(Object *laOb, Object *target, DerivedMesh *dm,
                           float (*vertexCos)[3], int numVerts, const char *vgroup, float fac)
 {
 	LatticeDeformData *lattice_deform_data;
+	MDeformVert *dvert = NULL;
+	int defgrp_index = -1;
 	int a;
-	bool use_vgroups;
 
 	if (laOb->type != OB_LATTICE)
 		return;
 
 	lattice_deform_data = init_latt_deform(laOb, target);
 
-	/* check whether to use vertex groups (only possible if target is a Mesh)
-	 * we want either a Mesh with no derived data, or derived data with
-	 * deformverts
+	/* Check whether to use vertex groups (only possible if target is a Mesh or Lattice).
+	 * We want either a Mesh/Lattice with no derived data, or derived data with deformverts.
 	 */
-	if (target && target->type == OB_MESH) {
-		/* if there's derived data without deformverts, don't use vgroups */
-		if (dm) {
-			use_vgroups = (dm->getVertDataArray(dm, CD_MDEFORMVERT) != NULL);
-		}
-		else {
-			Mesh *me = target->data;
-			use_vgroups = (me->dvert != NULL);
+	if (vgroup && vgroup[0] && target && ELEM(target->type, OB_MESH, OB_LATTICE)) {
+		defgrp_index = defgroup_name_index(target, vgroup);
+
+		if (defgrp_index != -1) {
+			/* if there's derived data without deformverts, don't use vgroups */
+			if (dm) {
+				dvert = dm->getVertDataArray(dm, CD_MDEFORMVERT);
+			}
+			else if (target->type == OB_LATTICE) {
+				dvert = ((Lattice *)target->data)->dvert;
+			}
+			else {
+				dvert = ((Mesh *)target->data)->dvert;
+			}
 		}
 	}
-	else {
-		use_vgroups = false;
-	}
-	
-	if (vgroup && vgroup[0] && use_vgroups) {
-		Mesh *me = target->data;
-		const int defgrp_index = defgroup_name_index(target, vgroup);
-		float weight;
-
-		if (defgrp_index >= 0 && (me->dvert || dm)) {
-			MDeformVert *dvert = me->dvert;
-			
-			for (a = 0; a < numVerts; a++, dvert++) {
-				if (dm) dvert = dm->getVertData(dm, a, CD_MDEFORMVERT);
-
-				weight = defvert_find_weight(dvert, defgrp_index);
-
-				if (weight > 0.0f)
-					calc_latt_deform(lattice_deform_data, vertexCos[a], weight * fac);
+	if (dvert) {
+		MDeformVert *dvert_iter;
+		for (a = 0, dvert_iter = dvert; a < numVerts; a++, dvert_iter++) {
+			const float weight = defvert_find_weight(dvert_iter, defgrp_index);
+			if (weight > 0.0f) {
+				calc_latt_deform(lattice_deform_data, vertexCos[a], weight * fac);
 			}
 		}
 	}

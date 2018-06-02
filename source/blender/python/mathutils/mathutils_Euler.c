@@ -65,7 +65,7 @@ static PyObject *Euler_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 		case 2:
 			if ((order = euler_order_from_string(order_str, "mathutils.Euler()")) == -1)
 				return NULL;
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		case 1:
 			if (mathutils_array_parse(eul, EULER_SIZE, EULER_SIZE, seq, "mathutils.Euler()") == -1)
 				return NULL;
@@ -370,7 +370,7 @@ static PyObject *Euler_richcmpr(PyObject *a, PyObject *b, int op)
 	switch (op) {
 		case Py_NE:
 			ok = !ok;
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		case Py_EQ:
 			res = ok ? Py_False : Py_True;
 			break;
@@ -688,6 +688,8 @@ PyDoc_STRVAR(euler_doc,
 ".. class:: Euler(angles, order='XYZ')\n"
 "\n"
 "   This object gives access to Eulers in Blender.\n"
+"\n"
+"   .. seealso:: `Euler angles <https://en.wikipedia.org/wiki/Euler_angles>`__ on Wikipedia.\n"
 "\n"
 "   :param angles: Three angles, in radians.\n"
 "   :type angles: 3d vector\n"

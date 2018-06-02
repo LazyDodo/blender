@@ -329,7 +329,7 @@ static void occ_face(const OccFace *face, float co[3], float normal[3], float *a
 		if (vlr->v4)
 			mid_v3_v3v3(co, vlr->v1->co, vlr->v3->co);
 		else
-			cent_tri_v3(co, vlr->v1->co, vlr->v2->co, vlr->v3->co);
+			mid_v3_v3v3v3(co, vlr->v1->co, vlr->v2->co, vlr->v3->co);
 
 		if (obi->flag & R_TRANSFORMED)
 			mul_m4_v3(obi->mat, co);
@@ -553,7 +553,7 @@ static void occ_build_recursive(OcclusionTree *tree, OccNode *node, int begin, i
 		occ_build_8_split(tree, begin, end, offset, count);
 
 		if (depth == 1 && tree->dothreadedbuild)
-			BLI_init_threads(&threads, exec_occ_build, tree->totbuildthread);
+			BLI_threadpool_init(&threads, exec_occ_build, tree->totbuildthread);
 
 		for (b = 0; b < TOTCHILD; b++) {
 			if (count[b] == 0) {
@@ -566,7 +566,7 @@ static void occ_build_recursive(OcclusionTree *tree, OccNode *node, int begin, i
 			}
 			else {
 				if (tree->dothreadedbuild)
-					BLI_lock_thread(LOCK_CUSTOM1);
+					BLI_thread_lock(LOCK_CUSTOM1);
 
 				child = BLI_memarena_alloc(tree->arena, sizeof(OccNode));
 				node->child[b].node = child;
@@ -576,7 +576,7 @@ static void occ_build_recursive(OcclusionTree *tree, OccNode *node, int begin, i
 					tree->maxdepth = depth + 1;
 
 				if (tree->dothreadedbuild)
-					BLI_unlock_thread(LOCK_CUSTOM1);
+					BLI_thread_unlock(LOCK_CUSTOM1);
 
 				if (depth == 1 && tree->dothreadedbuild) {
 					othreads[totthread].tree = tree;
@@ -584,7 +584,7 @@ static void occ_build_recursive(OcclusionTree *tree, OccNode *node, int begin, i
 					othreads[totthread].begin = offset[b];
 					othreads[totthread].end = offset[b] + count[b];
 					othreads[totthread].depth = depth + 1;
-					BLI_insert_thread(&threads, &othreads[totthread]);
+					BLI_threadpool_insert(&threads, &othreads[totthread]);
 					totthread++;
 				}
 				else
@@ -593,7 +593,7 @@ static void occ_build_recursive(OcclusionTree *tree, OccNode *node, int begin, i
 		}
 
 		if (depth == 1 && tree->dothreadedbuild)
-			BLI_end_threads(&threads);
+			BLI_threadpool_end(&threads);
 	}
 
 	/* combine area, position and sh */
@@ -1190,9 +1190,14 @@ static void sample_occ_surface(ShadeInput *shi)
 		co1 = mesh->co[face[0]];
 		co2 = mesh->co[face[1]];
 		co3 = mesh->co[face[2]];
-		co4 = (face[3]) ? mesh->co[face[3]] : NULL;
 
-		interp_weights_face_v3(w, co1, co2, co3, co4, strand->vert->co);
+		if (face[3]) {
+			co4 = mesh->co[face[3]];
+			interp_weights_quad_v3(w, co1, co2, co3, co4, strand->vert->co);
+		}
+		else {
+			interp_weights_tri_v3(w, co1, co2, co3, strand->vert->co);
+		}
 
 		zero_v3(shi->ao);
 		zero_v3(shi->env);
@@ -1245,7 +1250,7 @@ static void *exec_strandsurface_sample(void *data)
 			normal_quad_v3(n, co1, co2, co3, co4);
 		}
 		else {
-			cent_tri_v3(co, co1, co2, co3);
+			mid_v3_v3v3v3(co, co1, co2, co3);
 			normal_tri_v3(n, co1, co2, co3);
 		}
 		negate_v3(n);
@@ -1308,12 +1313,12 @@ void make_occ_tree(Render *re)
 				exec_strandsurface_sample(&othreads[0]);
 			}
 			else {
-				BLI_init_threads(&threads, exec_strandsurface_sample, totthread);
+				BLI_threadpool_init(&threads, exec_strandsurface_sample, totthread);
 
 				for (a = 0; a < totthread; a++)
-					BLI_insert_thread(&threads, &othreads[a]);
+					BLI_threadpool_insert(&threads, &othreads[a]);
 
-				BLI_end_threads(&threads);
+				BLI_threadpool_end(&threads);
 			}
 
 			for (a = 0; a < mesh->totface; a++) {

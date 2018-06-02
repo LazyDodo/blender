@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -91,6 +91,12 @@ void node_blend_label(bNodeTree *UNUSED(ntree), bNode *node, char *label, int ma
 	BLI_strncpy(label, IFACE_(name), maxlen);
 }
 
+void node_image_label(bNodeTree *UNUSED(ntree), bNode *node, char *label, int maxlen)
+{
+	/* if there is no loaded image, return an empty string, and let nodeLabel() fill in the proper type translation. */
+	BLI_strncpy(label, (node->id) ? node->id->name + 2 : "", maxlen);
+}
+
 void node_math_label(bNodeTree *UNUSED(ntree), bNode *node, char *label, int maxlen)
 {
 	const char *name;
@@ -118,6 +124,11 @@ void node_filter_label(bNodeTree *UNUSED(ntree), bNode *node, char *label, int m
 /* test if two sockets are interchangeable */
 static bool node_link_socket_match(bNodeSocket *a, bNodeSocket *b)
 {
+	/* check if sockets are of the same type */
+	if (a->typeinfo != b->typeinfo) {
+		return false;
+	}
+
 	/* tests if alphabetic prefix matches
 	 * this allows for imperfect matches, such as numeric suffixes,
 	 * like Color1/Color2

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -34,7 +34,7 @@
  * All data from a Blender scene is converted by the renderconverter/
  * into a special format that is used by the render module to make
  * images out of. These functions interface to the render-specific
- * database.  
+ * database.
  *
  * The blo{ha/ve/vl} arrays store pointers to blocks of 256 data
  * entries each.
@@ -53,7 +53,7 @@
  * to exist (as long as the malloc does not break). Since guarded
  * allocation is used, memory _must_ be available. Otherwise, an
  * exit(0) would occur.
- * 
+ *
  */
 
 #include <limits.h>
@@ -66,6 +66,7 @@
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
+#include "BLI_hash.h"
 
 #include "DNA_material_types.h" 
 #include "DNA_meshdata_types.h" 
@@ -1458,6 +1459,14 @@ ObjectInstanceRen *RE_addRenderInstance(
 		}
 	}
 
+	/* Fill object info */
+	if (dob) {
+		obi->random_id = dob->random_id;
+	}
+	else {
+		obi->random_id = BLI_hash_int_2d(BLI_hash_string(obi->ob->id.name + 2), 0);
+	}
+
 	RE_updateRenderInstance(re, obi, RE_OBJECT_INSTANCES_UPDATE_OBMAT | RE_OBJECT_INSTANCES_UPDATE_VIEW);
 
 	if (mat) {
@@ -1473,9 +1482,10 @@ ObjectInstanceRen *RE_addRenderInstance(
 	return obi;
 }
 
-void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3])
+void RE_instance_get_particle_info(struct ObjectInstanceRen *obi, float *index, float *random, float *age, float *lifetime, float co[3], float *size, float vel[3], float angvel[3])
 {
 	*index = obi->part_index;
+	*random = BLI_hash_int_01(obi->part_index);
 	*age = obi->part_age;
 	*lifetime = obi->part_lifetime;
 	copy_v3_v3(co, obi->part_co);

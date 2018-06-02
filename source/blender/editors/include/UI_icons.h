@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -313,9 +313,9 @@ DEF_ICON(OUTLINER_OB_ARMATURE)
 DEF_ICON(OUTLINER_OB_FONT)
 DEF_ICON(OUTLINER_OB_SURFACE)
 DEF_ICON(OUTLINER_OB_SPEAKER)
+DEF_ICON(OUTLINER_OB_FORCE_FIELD)
+DEF_ICON(OUTLINER_OB_GROUP_INSTANCE)
 #ifndef DEF_ICON_BLANK_SKIP
-	DEF_ICON(BLANK120)
-	DEF_ICON(BLANK121)
 	DEF_ICON(BLANK122)
 	DEF_ICON(BLANK123)
 	DEF_ICON(BLANK124)
@@ -653,9 +653,9 @@ DEF_ICON(IPO_BACK)
 DEF_ICON(IPO_EASE_IN)
 DEF_ICON(IPO_EASE_OUT)
 DEF_ICON(IPO_EASE_IN_OUT)
+DEF_ICON(NORMALIZE_FCURVES)
 #ifndef DEF_ICON_BLANK_SKIP
 	/* available */
-	DEF_ICON(BLANK203)
 	DEF_ICON(BLANK204)
 	DEF_ICON(BLANK205)
 	DEF_ICON(BLANK206)

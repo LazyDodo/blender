@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -59,6 +59,8 @@
 #include "UI_view2d.h"
 
 #include "IMB_imbuf.h"
+
+#include "GPU_compositing.h"
 
 #include "sequencer_intern.h"   // own include
 
@@ -218,6 +220,11 @@ static void sequencer_free(SpaceLink *sl)
 
 	if (scopes->histogram_ibuf)
 		IMB_freeImBuf(scopes->histogram_ibuf);
+
+	if (sseq->compositor != NULL) {
+		GPU_fx_compositor_destroy(sseq->compositor);
+		sseq->compositor = NULL;
+	}
 }
 
 
@@ -435,6 +442,7 @@ static void sequencer_dropboxes(void)
 
 /* ************* end drop *********** */
 
+/* DO NOT make this static, this hides the symbol and breaks API generation script. */
 const char *sequencer_context_dir[] = {"edit_mask", NULL};
 
 static int sequencer_context(const bContext *C, const char *member, bContextDataResult *result)

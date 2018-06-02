@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -379,7 +379,7 @@ static void wm_jobs_test_suspend_stop(wmWindowManager *wm, wmJob *test)
 		}
 	}
 	
-	/* possible suspend ourselfs, waiting for other jobs, or de-suspend */
+	/* Possible suspend ourselves, waiting for other jobs, or de-suspend. */
 	test->suspended = suspend;
 	// if (suspend) printf("job suspended: %s\n", test->name);
 }
@@ -418,8 +418,8 @@ void WM_jobs_start(wmWindowManager *wm, wmJob *wm_job)
 
 				// printf("job started: %s\n", wm_job->name);
 				
-				BLI_init_threads(&wm_job->threads, do_job_thread, 1);
-				BLI_insert_thread(&wm_job->threads, wm_job);
+				BLI_threadpool_init(&wm_job->threads, do_job_thread, 1);
+				BLI_threadpool_insert(&wm_job->threads, wm_job);
 			}
 			
 			/* restarted job has timer already */
@@ -450,7 +450,7 @@ static void wm_jobs_kill_job(wmWindowManager *wm, wmJob *wm_job)
 		wm_job->stop = true;
 
 		WM_job_main_thread_lock_release(wm_job);
-		BLI_end_threads(&wm_job->threads);
+		BLI_threadpool_end(&wm_job->threads);
 		WM_job_main_thread_lock_acquire(wm_job);
 
 		if (wm_job->endjob)
@@ -601,7 +601,7 @@ void wm_jobs_timer(const bContext *C, wmWindowManager *wm, wmTimer *wt)
 					wm_job->running = false;
 
 					WM_job_main_thread_lock_release(wm_job);
-					BLI_end_threads(&wm_job->threads);
+					BLI_threadpool_end(&wm_job->threads);
 					WM_job_main_thread_lock_acquire(wm_job);
 					
 					if (wm_job->endnote)

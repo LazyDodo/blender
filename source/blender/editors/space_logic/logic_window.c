@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -47,8 +47,8 @@
 #include "MEM_guardedalloc.h"
 
 #include "BLI_blenlib.h"
+#include "BLI_string_utils.h"
 #include "BLI_utildefines.h"
-#include "BLI_path_util.h"
 
 #include "BKE_action.h"
 #include "BKE_context.h"
@@ -56,7 +56,7 @@
 #include "BKE_main.h"
 #include "BKE_sca.h"
 
-#include "ED_util.h"
+#include "ED_undo.h"
 
 #include "BLT_translation.h"
 
@@ -2018,7 +2018,7 @@ static void draw_actuator_sound(uiLayout *layout, PointerRNA *ptr, bContext *C)
 {
 	uiLayout *row, *col;
 
-	uiTemplateID(layout, C, ptr, "sound", NULL, "SOUND_OT_open", NULL);
+	uiTemplateID(layout, C, ptr, "sound", NULL, "SOUND_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
 	if (!RNA_pointer_get(ptr, "sound").data) {
 		uiItemL(layout, IFACE_("Select a sound from the list or load a new one"), ICON_NONE);
 		return;

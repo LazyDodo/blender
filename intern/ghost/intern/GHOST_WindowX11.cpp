@@ -56,9 +56,8 @@
 #  include <X11/extensions/XInput2.h>
 #endif
 
-#if defined(__sun__) || defined(__sun) || defined(__sparc) || defined(__sparc__) || defined(_AIX)
-#  include <strings.h>
-#endif
+//For DPI value
+#include <X11/Xresource.h>
 
 #include <cstring>
 #include <cstdio>
@@ -68,6 +67,7 @@
 
 #include <algorithm>
 #include <string>
+#include <math.h>
 
 /* For obscure full screen mode stuff
  * lifted verbatim from blut. */
@@ -334,6 +334,7 @@ GHOST_WindowX11(GHOST_SystemX11 *system,
       m_empty_cursor(None),
       m_custom_cursor(None),
       m_visible_cursor(None),
+      m_taskbar("blender.desktop"),
 #ifdef WITH_XDND
       m_dropTarget(NULL),
 #endif
@@ -1526,7 +1527,6 @@ setWindowCursorGrab(
 	else {
 		if (m_cursorGrab == GHOST_kGrabHide) {
 			m_system->setCursorPosition(m_cursorGrabInitPos[0], m_cursorGrabInitPos[1]);
-			setWindowCursorVisibility(true);
 		}
 
 		if (m_cursorGrab != GHOST_kGrabNormal) {
@@ -1548,6 +1548,11 @@ setWindowCursorGrab(
 			{
 				XWarpPointer(m_display, None, None, 0, 0, 0, 0, 0, 0);
 			}
+		}
+
+		/* Perform this last so to workaround XWayland bug, see: T53004. */
+		if (m_cursorGrab == GHOST_kGrabHide) {
+			setWindowCursorVisibility(true);
 		}
 
 		/* Almost works without but important otherwise the mouse GHOST location can be incorrect on exit */
@@ -1671,4 +1676,66 @@ endFullScreen() const
 	XUngrabPointer(m_display, CurrentTime);
 
 	return GHOST_kSuccess;
+}
+
+GHOST_TUns16
+GHOST_WindowX11::
+getDPIHint()
+{
+	/* Try to read DPI setting set using xrdb */
+	char* resMan = XResourceManagerString(m_display);
+	if (resMan) {
+		XrmDatabase xrdb = XrmGetStringDatabase(resMan);
+		if (xrdb) {
+			char* type = NULL;
+			XrmValue val;
+
+			int success = XrmGetResource(xrdb, "Xft.dpi", "Xft.Dpi", &type, &val);
+			if (success && type) {
+				if (strcmp(type, "String") == 0) {
+					return atoi((char*)val.addr);
+				}
+			}
+		}
+	}
+
+	/* Fallback to calculating DPI using X reported DPI, set using xrandr --dpi */
+	XWindowAttributes attr;
+	if (!XGetWindowAttributes(m_display, m_window, &attr)) {
+		/* Failed to get window attributes, return X11 default DPI */
+		return 96;
+	}
+
+	Screen* screen = attr.screen;
+	int pixelWidth = WidthOfScreen(screen);
+	int pixelHeight = HeightOfScreen(screen);
+	int mmWidth = WidthMMOfScreen(screen);
+	int mmHeight = HeightMMOfScreen(screen);
+
+	double pixelDiagonal = sqrt((pixelWidth * pixelWidth) + (pixelHeight * pixelHeight));
+	double mmDiagonal = sqrt((mmWidth * mmWidth) + (mmHeight * mmHeight));
+	float inchDiagonal = mmDiagonal * 0.039f;
+	int dpi = pixelDiagonal / inchDiagonal;
+	return dpi;
+}
+
+GHOST_TSuccess GHOST_WindowX11::setProgressBar(float progress)
+{
+	if (m_taskbar.is_valid()) {
+		m_taskbar.set_progress(progress);
+		m_taskbar.set_progress_enabled(true);
+		return GHOST_kSuccess;
+	}
+
+	return GHOST_kFailure;
+}
+
+GHOST_TSuccess GHOST_WindowX11::endProgressBar()
+{
+	if (m_taskbar.is_valid()) {
+		m_taskbar.set_progress_enabled(false);
+		return GHOST_kSuccess;
+	}
+
+	return GHOST_kFailure;
 }

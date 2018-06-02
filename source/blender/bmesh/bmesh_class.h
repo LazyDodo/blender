@@ -225,7 +225,7 @@ typedef struct BMesh {
 	/* operator api stuff (must be all NULL or all alloc'd) */
 	struct BLI_mempool *vtoolflagpool, *etoolflagpool, *ftoolflagpool;
 
-	unsigned int use_toolflags : 1;
+	uint use_toolflags : 1;
 
 	int toolflag_index;
 	struct BMOperator *currentop;
@@ -341,9 +341,9 @@ enum {
 	/* spare tag, assumed dirty, use define in each function to name based on use */
 	// _BM_ELEM_TAG_ALT = (1 << 6),  // UNUSED
 	/**
-	 * for low level internal API tagging,
-	 * since tools may want to tag verts and
-	 * not have functions clobber them */
+	 * For low level internal API tagging,
+	 * since tools may want to tag verts and not have functions clobber them.
+	 * Leave cleared! */
 	BM_ELEM_INTERNAL_TAG = (1 << 7),
 };
 
@@ -382,7 +382,7 @@ typedef bool (*BMLoopFilterFunc)(const BMLoop *, void *user_data);
 	(assert(offset != -1), *((float *)((char *)(ele)->head.data + (offset))))
 
 #define BM_ELEM_CD_GET_FLOAT_AS_UCHAR(ele, offset) \
-	(assert(offset != -1), (unsigned char)(BM_ELEM_CD_GET_FLOAT(ele, offset) * 255.0f))
+	(assert(offset != -1), (uchar)(BM_ELEM_CD_GET_FLOAT(ele, offset) * 255.0f))
 
 /*forward declarations*/
 

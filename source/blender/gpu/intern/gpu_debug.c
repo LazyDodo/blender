@@ -29,6 +29,7 @@
  *  \ingroup gpu
  */
 
+#include "BLI_compiler_attrs.h"
 #include "BLI_utildefines.h"
 #include "BLI_sys_types.h"
 #include "BLI_system.h"
@@ -161,7 +162,7 @@ const char *gpuErrorString(GLenum err)
 #endif
 
 
-static const char* source_name(GLenum source)
+static const char *source_name(GLenum source)
 {
 	switch (source) {
 		case GL_DEBUG_SOURCE_API: return "API";
@@ -174,7 +175,7 @@ static const char* source_name(GLenum source)
 	}
 }
 
-static const char* message_type_name(GLenum message)
+static const char *message_type_name(GLenum message)
 {
 	switch (message) {
 		case GL_DEBUG_TYPE_ERROR: return "error";
@@ -188,7 +189,7 @@ static const char* message_type_name(GLenum message)
 	}
 }
 
-static const char* category_name_amd(GLenum category)
+static const char *category_name_amd(GLenum category)
 {
 	switch (category) {
 		case GL_DEBUG_CATEGORY_API_ERROR_AMD: return "API error";
@@ -219,7 +220,7 @@ static void APIENTRY gpu_debug_proc(
 	switch (severity) {
 		case GL_DEBUG_SEVERITY_HIGH:
 			backtrace = true;
-			/* fall through */
+			ATTR_FALLTHROUGH;
 		case GL_DEBUG_SEVERITY_MEDIUM:
 		case GL_DEBUG_SEVERITY_LOW:
 		case GL_DEBUG_SEVERITY_NOTIFICATION: /* KHR has this, ARB does not */
@@ -249,7 +250,7 @@ static void APIENTRY gpu_debug_proc_amd(
 	switch (severity) {
 		case GL_DEBUG_SEVERITY_HIGH:
 			backtrace = true;
-			/* fall through */
+			ATTR_FALLTHROUGH;
 		case GL_DEBUG_SEVERITY_MEDIUM:
 		case GL_DEBUG_SEVERITY_LOW:
 			fprintf(stderr, "GL %s: %s\n", category_name_amd(category), message);
@@ -424,9 +425,11 @@ void GPU_assert_no_gl_errors(const char *file, int line, const char *str)
 
 static void gpu_state_print_fl_ex(const char *name, GLenum type)
 {
+#define MAX_ARRAY_SIZE 64
+
 	const unsigned char err_mark[4] = {0xff, 0xff, 0xff, 0xff};
 
-	float value[32];
+	float value[MAX_ARRAY_SIZE];
 	int a;
 
 	memset(value, 0xff, sizeof(value));
@@ -434,7 +437,7 @@ static void gpu_state_print_fl_ex(const char *name, GLenum type)
 
 	if (glGetError() == GL_NO_ERROR) {
 		printf("%s: ", name);
-		for (a = 0; a < 32; a++) {
+		for (a = 0; a < MAX_ARRAY_SIZE; a++) {
 			if (memcmp(&value[a], err_mark, sizeof(value[a])) == 0) {
 				break;
 			}
@@ -442,6 +445,8 @@ static void gpu_state_print_fl_ex(const char *name, GLenum type)
 		}
 		printf("\n");
 	}
+
+#undef MAX_ARRAY_SIZE
 }
 
 #define gpu_state_print_fl(val) gpu_state_print_fl_ex(#val, val)
@@ -497,6 +502,7 @@ void GPU_state_print(void)
 	gpu_state_print_fl(GL_COLOR_SUM);
 	gpu_state_print_fl(GL_COLOR_TABLE);
 	gpu_state_print_fl(GL_COLOR_WRITEMASK);
+	gpu_state_print_fl(GL_NUM_COMPRESSED_TEXTURE_FORMATS);
 	gpu_state_print_fl(GL_COMPRESSED_TEXTURE_FORMATS);
 	gpu_state_print_fl(GL_CONVOLUTION_1D);
 	gpu_state_print_fl(GL_CONVOLUTION_2D);

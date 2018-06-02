@@ -81,24 +81,6 @@
 #include "RNA_define.h"
 #include "RNA_enum_types.h"
 
-/* Undo stuff */
-typedef struct {
-	ListBase nubase;
-	int actvert;
-	GHash *undoIndex;
-	ListBase fcurves, drivers;
-	int actnu;
-	int flag;
-} UndoCurve;
-
-/* Definitions needed for shape keys */
-typedef struct {
-	void *orig_cv;
-	int key_index, nu_index, pt_index, vertex_index;
-	bool switched;
-	Nurb *orig_nu;
-} CVKeyIndex;
-
 void selectend_nurb(Object *obedit, enum eEndPoint_Types selfirst, bool doswap, bool selstatus);
 static void adduplicateflagNurb(Object *obedit, ListBase *newnurb, const short flag, const bool split);
 static int curve_delete_segments(Object *obedit, const bool split);
@@ -138,9 +120,9 @@ void printknots(Object *obedit)
 
 /* ********************* Shape keys *************** */
 
-static CVKeyIndex *init_cvKeyIndex(void *cv, int key_index, int nu_index, int pt_index, int vertex_index, Nurb *orig_nu)
+static CVKeyIndex *init_cvKeyIndex(void *cv, int key_index, int nu_index, int pt_index, int vertex_index)
 {
-	CVKeyIndex *cvIndex = MEM_callocN(sizeof(CVKeyIndex), "init_cvKeyIndex");
+	CVKeyIndex *cvIndex = MEM_callocN(sizeof(CVKeyIndex), __func__);
 
 	cvIndex->orig_cv = cv;
 	cvIndex->key_index = key_index;
@@ -148,7 +130,6 @@ static CVKeyIndex *init_cvKeyIndex(void *cv, int key_index, int nu_index, int pt
 	cvIndex->pt_index = pt_index;
 	cvIndex->vertex_index = vertex_index;
 	cvIndex->switched = false;
-	cvIndex->orig_nu = orig_nu;
 
 	return cvIndex;
 }
@@ -174,7 +155,12 @@ static void init_editNurb_keyIndex(EditNurb *editnurb, ListBase *origBase)
 			origbezt = orignu->bezt;
 			pt_index = 0;
 			while (a--) {
-				keyIndex = init_cvKeyIndex(origbezt, key_index, nu_index, pt_index, vertex_index, orignu);
+				/* We cannot keep *any* reference to curve obdata,
+				 * it might be replaced and freed while editcurve remain in use (in viewport render case e.g.).
+				 * Note that we could use a pool to avoid lots of malloc's here, but... not really a problem for now. */
+				BezTriple *origbezt_cpy = MEM_mallocN(sizeof(*origbezt), __func__);
+				*origbezt_cpy = *origbezt;
+				keyIndex = init_cvKeyIndex(origbezt_cpy, key_index, nu_index, pt_index, vertex_index);
 				BLI_ghash_insert(gh, bezt, keyIndex);
 				key_index += 12;
 				vertex_index += 3;
@@ -189,7 +175,12 @@ static void init_editNurb_keyIndex(EditNurb *editnurb, ListBase *origBase)
 			origbp = orignu->bp;
 			pt_index = 0;
 			while (a--) {
-				keyIndex = init_cvKeyIndex(origbp, key_index, nu_index, pt_index, vertex_index, orignu);
+				/* We cannot keep *any* reference to curve obdata,
+				 * it might be replaced and freed while editcurve remain in use (in viewport render case e.g.).
+				 * Note that we could use a pool to avoid lots of malloc's here, but... not really a problem for now. */
+				BPoint *origbp_cpy = MEM_mallocN(sizeof(*origbp_cpy), __func__);
+				*origbp_cpy = *origbp;
+				keyIndex = init_cvKeyIndex(origbp_cpy, key_index, nu_index, pt_index, vertex_index);
 				BLI_ghash_insert(gh, bp, keyIndex);
 				key_index += 4;
 				bp++;
@@ -250,23 +241,22 @@ static int getKeyIndexOrig_keyIndex(EditNurb *editnurb, void *cv)
 	return index->key_index;
 }
 
-static void keyIndex_delCV(EditNurb *editnurb, const void *cv)
+static void keyIndex_delBezt(EditNurb *editnurb, BezTriple *bezt)
 {
 	if (!editnurb->keyindex) {
 		return;
 	}
 
-	BLI_ghash_remove(editnurb->keyindex, cv, NULL, MEM_freeN);
-}
-
-static void keyIndex_delBezt(EditNurb *editnurb, BezTriple *bezt)
-{
-	keyIndex_delCV(editnurb, bezt);
+	BKE_curve_editNurb_keyIndex_delCV(editnurb->keyindex, bezt);
 }
 
 static void keyIndex_delBP(EditNurb *editnurb, BPoint *bp)
 {
-	keyIndex_delCV(editnurb, bp);
+	if (!editnurb->keyindex) {
+		return;
+	}
+
+	BKE_curve_editNurb_keyIndex_delCV(editnurb->keyindex, bp);
 }
 
 static void keyIndex_delNurb(EditNurb *editnurb, Nurb *nu)
@@ -282,7 +272,7 @@ static void keyIndex_delNurb(EditNurb *editnurb, Nurb *nu)
 		a = nu->pntsu;
 
 		while (a--) {
-			BLI_ghash_remove(editnurb->keyindex, bezt, NULL, MEM_freeN);
+			BKE_curve_editNurb_keyIndex_delCV(editnurb->keyindex, bezt);
 			bezt++;
 		}
 	}
@@ -291,7 +281,7 @@ static void keyIndex_delNurb(EditNurb *editnurb, Nurb *nu)
 		a = nu->pntsu * nu->pntsv;
 
 		while (a--) {
-			BLI_ghash_remove(editnurb->keyindex, bp, NULL, MEM_freeN);
+			BKE_curve_editNurb_keyIndex_delCV(editnurb->keyindex, bp);
 			bp++;
 		}
 	}
@@ -343,7 +333,7 @@ static void keyIndex_updateBP(EditNurb *editnurb, BPoint *bp,
 	keyIndex_updateCV(editnurb, (char *)bp, (char *)newbp, count, sizeof(BPoint));
 }
 
-static void keyIndex_updateNurb(EditNurb *editnurb, Nurb *nu, Nurb *newnu)
+void ED_curve_keyindex_update_nurb(EditNurb *editnurb, Nurb *nu, Nurb *newnu)
 {
 	if (nu->bezt) {
 		keyIndex_updateBezt(editnurb, nu->bezt, newnu->bezt, newnu->pntsu);
@@ -522,12 +512,12 @@ static void keyData_switchDirectionNurb(Curve *cu, Nurb *nu)
 		switch_keys_direction(cu, nu);
 }
 
-static GHash *dupli_keyIndexHash(GHash *keyindex)
+GHash *ED_curve_keyindex_hash_duplicate(GHash *keyindex)
 {
 	GHash *gh;
 	GHashIterator gh_iter;
 
-	gh = BLI_ghash_ptr_new_ex("dupli_keyIndex gh", BLI_ghash_size(keyindex));
+	gh = BLI_ghash_ptr_new_ex("dupli_keyIndex gh", BLI_ghash_len(keyindex));
 
 	GHASH_ITER (gh_iter, keyindex) {
 		void *cv = BLI_ghashIterator_getKey(&gh_iter);
@@ -535,6 +525,7 @@ static GHash *dupli_keyIndexHash(GHash *keyindex)
 		CVKeyIndex *newIndex = MEM_mallocN(sizeof(CVKeyIndex), "dupli_keyIndexHash index");
 
 		memcpy(newIndex, index, sizeof(CVKeyIndex));
+		newIndex->orig_cv = MEM_dupallocN(index->orig_cv);
 
 		BLI_ghash_insert(gh, cv, newIndex);
 	}
@@ -591,7 +582,7 @@ static void calc_keyHandles(ListBase *nurb, float *key)
 				if (nextp) key_to_bezt(nextfp, nextp, &next);
 				if (prevp) key_to_bezt(prevfp, prevp, &prev);
 
-				BKE_nurb_handle_calc(&cur, prevp ? &prev : NULL, nextp ? &next : NULL, 0);
+				BKE_nurb_handle_calc(&cur, prevp ? &prev : NULL, nextp ? &next : NULL, 0, 0);
 				bezt_to_key(&cur, fp);
 
 				prevp = bezt;
@@ -624,7 +615,7 @@ static void calc_keyHandles(ListBase *nurb, float *key)
 	}
 }
 
-static void calc_shapeKeys(Object *obedit)
+static void calc_shapeKeys(Object *obedit, ListBase *newnurbs)
 {
 	Curve *cu = (Curve *)obedit->data;
 
@@ -636,7 +627,7 @@ static void calc_shapeKeys(Object *obedit)
 		KeyBlock *actkey = BLI_findlink(&cu->key->block, editnurb->shapenr - 1);
 		BezTriple *bezt, *oldbezt;
 		BPoint *bp, *oldbp;
-		Nurb *nu;
+		Nurb *nu, *newnu;
 		int totvert = BKE_nurbList_verts_count(&editnurb->nurbs);
 
 		float (*ofs)[3] = NULL;
@@ -706,20 +697,25 @@ static void calc_shapeKeys(Object *obedit)
 
 		currkey = cu->key->block.first;
 		while (currkey) {
-			int apply_offset = (ofs && (currkey != actkey) && (editnurb->shapenr - 1 == currkey->relative));
+			const bool apply_offset = (ofs && (currkey != actkey) && (editnurb->shapenr - 1 == currkey->relative));
 
 			float *fp = newkey = MEM_callocN(cu->key->elemsize * totvert,  "currkey->data");
 			ofp = oldkey = currkey->data;
 
 			nu = editnurb->nurbs.first;
+			/* We need to restore to original curve into newnurb, *not* editcurve's nurbs.
+			 * Otherwise, in case we update obdata *without* leaving editmode (e.g. viewport render), we would
+			 * invalidate editcurve. */
+			newnu = newnurbs->first;
 			i = 0;
 			while (nu) {
 				if (currkey == actkey) {
-					int restore = actkey != cu->key->refkey;
+					const bool restore = actkey != cu->key->refkey;
 
 					if (nu->bezt) {
 						bezt = nu->bezt;
 						a = nu->pntsu;
+						BezTriple *newbezt = newnu->bezt;
 						while (a--) {
 							int j;
 							oldbezt = getKeyIndexOrig_bezt(editnurb, bezt);
@@ -728,7 +724,7 @@ static void calc_shapeKeys(Object *obedit)
 								copy_v3_v3(fp, bezt->vec[j]);
 
 								if (restore && oldbezt) {
-									copy_v3_v3(bezt->vec[j], oldbezt->vec[j]);
+									copy_v3_v3(newbezt->vec[j], oldbezt->vec[j]);
 								}
 
 								fp += 3;
@@ -736,16 +732,18 @@ static void calc_shapeKeys(Object *obedit)
 							fp[0] = bezt->alfa;
 
 							if (restore && oldbezt) {
-								bezt->alfa = oldbezt->alfa;
+								newbezt->alfa = oldbezt->alfa;
 							}
 
 							fp += 3; ++i; /* alphas */
 							bezt++;
+							newbezt++;
 						}
 					}
 					else {
 						bp = nu->bp;
 						a = nu->pntsu * nu->pntsv;
+						BPoint *newbp = newnu->bp;
 						while (a--) {
 							oldbp = getKeyIndexOrig_bp(editnurb, bp);
 
@@ -754,12 +752,13 @@ static void calc_shapeKeys(Object *obedit)
 							fp[3] = bp->alfa;
 
 							if (restore && oldbp) {
-								copy_v3_v3(bp->vec, oldbp->vec);
-								bp->alfa = oldbp->alfa;
+								copy_v3_v3(newbp->vec, oldbp->vec);
+								newbp->alfa = oldbp->alfa;
 							}
 
 							fp += 4;
 							bp++;
+							newbp++;
 							i += 2;
 						}
 					}
@@ -1204,9 +1203,13 @@ void ED_curve_editnurb_load(Object *obedit)
 			}
 		}
 
+		/* We have to pass also new copied nurbs, since we want to restore original curve (without edited shapekey)
+		 * on obdata, but *not* on editcurve itself (ED_curve_editnurb_load call does not always implies freeing
+		 * of editcurve, e.g. when called to generate render data...). */
+		calc_shapeKeys(obedit, &newnurb);
+
 		cu->nurb = newnurb;
 
-		calc_shapeKeys(obedit);
 		ED_curve_updateAnimPaths(obedit->data);
 
 		BKE_nurbList_free(&oldnurb);
@@ -1226,14 +1229,15 @@ void ED_curve_editnurb_make(Object *obedit)
 
 		if (actkey) {
 			// XXX strcpy(G.editModeTitleExtra, "(Key) ");
+			/* TODO(campbell): undo_system: investigate why this was needed. */
+#if 0
 			undo_editmode_clear();
-			BKE_keyblock_convert_to_curve(actkey, cu, &cu->nurb);
+#endif
 		}
 
 		if (editnurb) {
 			BKE_nurbList_free(&editnurb->nurbs);
-			BKE_curve_editNurb_keyIndex_free(editnurb);
-			editnurb->keyindex = NULL;
+			BKE_curve_editNurb_keyIndex_free(&editnurb->keyindex);
 		}
 		else {
 			editnurb = MEM_callocN(sizeof(EditNurb), "editnurb");
@@ -1248,12 +1252,16 @@ void ED_curve_editnurb_make(Object *obedit)
 			nu = nu->next;
 		}
 
-		if (actkey)
-			editnurb->shapenr = obedit->shapenr;
-
 		/* animation could be added in editmode even if there was no animdata in
 		 * object mode hence we always need CVs index be created */
 		init_editNurb_keyIndex(editnurb, &cu->nurb);
+
+		if (actkey) {
+			editnurb->shapenr = obedit->shapenr;
+			/* Apply shapekey to new nurbs of editnurb, not those of original curve (and *after* we generated keyIndex),
+			 * else we do not have valid 'original' data to properly restore curve when leaving editmode. */
+			BKE_keyblock_convert_to_curve(actkey, cu, &editnurb->nurbs);
+		}
 	}
 }
 
@@ -1309,8 +1317,7 @@ static int separate_exec(bContext *C, wmOperator *op)
 	ED_curve_editnurb_make(newob);
 	newedit = newcu->editnurb;
 	BKE_nurbList_free(&newedit->nurbs);
-	BKE_curve_editNurb_keyIndex_free(newedit);
-	newedit->keyindex = NULL;
+	BKE_curve_editNurb_keyIndex_free(&newedit->keyindex);
 	BLI_movelisttolist(&newedit->nurbs, &newnurb);
 
 	/* 4. put old object out of editmode and delete separated geometry */
@@ -2912,7 +2919,7 @@ void CURVE_OT_hide(wmOperatorType *ot)
 
 /********************** reveal operator *********************/
 
-static int reveal_exec(bContext *C, wmOperator *UNUSED(op))
+static int reveal_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit = CTX_data_edit_object(C);
 	ListBase *editnurb = object_editcurve_get(obedit);
@@ -2920,6 +2927,7 @@ static int reveal_exec(bContext *C, wmOperator *UNUSED(op))
 	BPoint *bp;
 	BezTriple *bezt;
 	int a;
+	const bool select = RNA_boolean_get(op->ptr, "select");
 
 	for (nu = editnurb->first; nu; nu = nu->next) {
 		nu->hide = 0;
@@ -2928,7 +2936,7 @@ static int reveal_exec(bContext *C, wmOperator *UNUSED(op))
 			a = nu->pntsu;
 			while (a--) {
 				if (bezt->hide) {
-					select_beztriple(bezt, SELECT, SELECT, HIDDEN);
+					select_beztriple(bezt, select, SELECT, HIDDEN);
 					bezt->hide = 0;
 				}
 				bezt++;
@@ -2939,7 +2947,7 @@ static int reveal_exec(bContext *C, wmOperator *UNUSED(op))
 			a = nu->pntsu * nu->pntsv;
 			while (a--) {
 				if (bp->hide) {
-					select_bpoint(bp, SELECT, SELECT, HIDDEN);
+					select_bpoint(bp, select, SELECT, HIDDEN);
 					bp->hide = 0;
 				}
 				bp++;
@@ -2958,7 +2966,7 @@ void CURVE_OT_reveal(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Reveal Hidden";
 	ot->idname = "CURVE_OT_reveal";
-	ot->description = "Show again hidden control points";
+	ot->description = "Reveal hidden control points";
 	
 	/* api callbacks */
 	ot->exec = reveal_exec;
@@ -2966,6 +2974,8 @@ void CURVE_OT_reveal(wmOperatorType *ot)
 	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	RNA_def_boolean(ot->srna, "select", true, "Select", "");
 }
 
 /********************** subdivide operator *********************/
@@ -3578,7 +3588,7 @@ static int set_spline_type_exec(bContext *C, wmOperator *op)
 
 void CURVE_OT_spline_type_set(wmOperatorType *ot)
 {
-	static EnumPropertyItem type_items[] = {
+	static const EnumPropertyItem type_items[] = {
 		{CU_POLY, "POLY", 0, "Poly", ""},
 		{CU_BEZIER, "BEZIER", 0, "Bezier", ""},
 //		{CU_CARDINAL, "CARDINAL", 0, "Cardinal", ""},
@@ -3623,7 +3633,7 @@ static int set_handle_type_exec(bContext *C, wmOperator *op)
 void CURVE_OT_handle_type_set(wmOperatorType *ot)
 {
 	/* keep in sync with graphkeys_handle_type_items */
-	static EnumPropertyItem editcurve_handle_type_items[] = {
+	static const EnumPropertyItem editcurve_handle_type_items[] = {
 		{HD_AUTO, "AUTOMATIC", 0, "Automatic", ""},
 		{HD_VECT, "VECTOR", 0, "Vector", ""},
 		{5, "ALIGNED", 0, "Aligned", ""},
@@ -4146,7 +4156,7 @@ static int make_segment_exec(bContext *C, wmOperator *op)
 				 */
 
 				bp = nu->bp;
-				if (bp[nu->pntsu - 1].f1 & SELECT)  {
+				if (bp[nu->pntsu - 1].f1 & SELECT) {
 					if (nu2 == NULL) {
 						nu2 = nu;
 					}
@@ -4291,7 +4301,7 @@ bool ED_curve_editnurb_select_pick(bContext *C, const int mval[2], bool extend, 
 	short hand;
 	
 	view3d_operator_needs_opengl(C);
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 	
 	location[0] = mval[0];
 	location[1] = mval[1];
@@ -4777,13 +4787,13 @@ static int ed_editcurve_addvert(Curve *cu, EditNurb *editnurb, const float locat
 {
 	Nurb *nu;
 
-	float minmax[2][3];
+	float center[3];
 	float temp[3];
-	bool nu_has_select = false;
-
+	uint verts_len;
 	bool changed = false;
 
-	INIT_MINMAX(minmax[0], minmax[1]);
+	zero_v3(center);
+	verts_len = 0;
 
 	for (nu = editnurb->nurbs.first; nu; nu = nu->next) {
 		int i;
@@ -4792,8 +4802,8 @@ static int ed_editcurve_addvert(Curve *cu, EditNurb *editnurb, const float locat
 
 			for (i = 0, bezt = nu->bezt; i < nu->pntsu; i++, bezt++) {
 				if (BEZT_ISSEL_ANY_HIDDENHANDLES(cu, bezt)) {
-					minmax_v3v3_v3(UNPACK2(minmax), bezt->vec[1]);
-					nu_has_select = true;
+					add_v3_v3(center, bezt->vec[1]);
+					verts_len += 1;
 				}
 			}
 		}
@@ -4802,18 +4812,18 @@ static int ed_editcurve_addvert(Curve *cu, EditNurb *editnurb, const float locat
 
 			for (i = 0, bp = nu->bp; i < nu->pntsu; i++, bp++) {
 				if (bp->f1 & SELECT) {
-					minmax_v3v3_v3(UNPACK2(minmax), bp->vec);
-					nu_has_select = true;
+					add_v3_v3(center, bp->vec);
+					verts_len += 1;
 				}
 			}
 		}
 	}
 
-	if (nu_has_select && ed_editcurve_extrude(cu, editnurb)) {
-		float ofs[3], center[3];
+	if (verts_len && ed_editcurve_extrude(cu, editnurb)) {
+		float ofs[3];
 		int i;
 
-		mid_v3_v3v3(center, minmax[0], minmax[1]);
+		mul_v3_fl(center, 1.0f / (float)verts_len);
 		sub_v3_v3v3(ofs, location_init, center);
 
 		if ((cu->flag & CU_3D) == 0) {
@@ -4967,7 +4977,7 @@ static int add_vertex_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	ViewContext vc;
 
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	if (vc.rv3d && !RNA_struct_property_is_set(op->ptr, "location")) {
 		Curve *cu;
@@ -4993,7 +5003,7 @@ static int add_vertex_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 			copy_v3_v3(location, ED_view3d_cursor3d_get(vc.scene, vc.v3d));
 		}
 
-		ED_view3d_win_to_3d_int(vc.ar, location, event->mval, location);
+		ED_view3d_win_to_3d_int(vc.v3d, vc.ar, location, event->mval, location);
 
 		if (use_proj) {
 			const float mval[2] = {UNPACK2(event->mval)};
@@ -5240,7 +5250,7 @@ static int toggle_cyclic_invoke(bContext *C, wmOperator *op, const wmEvent *UNUS
 
 void CURVE_OT_cyclic_toggle(wmOperatorType *ot)
 {
-	static EnumPropertyItem direction_items[] = {
+	static const EnumPropertyItem direction_items[] = {
 		{0, "CYCLIC_U", 0, "Cyclic U", ""},
 		{1, "CYCLIC_V", 0, "Cyclic V", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -5734,13 +5744,13 @@ static int curve_delete_exec(bContext *C, wmOperator *op)
 	return retval;
 }
 
-static EnumPropertyItem curve_delete_type_items[] = {
+static const EnumPropertyItem curve_delete_type_items[] = {
 	{CURVE_VERTEX, "VERT", 0, "Vertices", ""},
 	{CURVE_SEGMENT, "SEGMENT", 0, "Segments", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
-static EnumPropertyItem *rna_curve_delete_type_itemf(bContext *C, PointerRNA *UNUSED(ptr),
+static const EnumPropertyItem *rna_curve_delete_type_itemf(bContext *C, PointerRNA *UNUSED(ptr),
                                                             PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem *item = NULL;
@@ -5836,6 +5846,7 @@ static int curve_dissolve_exec(bContext *C, wmOperator *UNUSED(op))
 					BLI_assert(points_stride + dims == points + (points_len * dims));
 
 					float tan_l[3], tan_r[3], error_sq_dummy;
+					unsigned int error_index_dummy;
 
 					sub_v3_v3v3(tan_l, bezt_prev->vec[1], bezt_prev->vec[2]);
 					normalize_v3(tan_l);
@@ -5846,7 +5857,7 @@ static int curve_dissolve_exec(bContext *C, wmOperator *UNUSED(op))
 					        points, points_len, NULL, dims, FLT_EPSILON,
 					        tan_l, tan_r,
 					        bezt_prev->vec[2], bezt_next->vec[0],
-					        &error_sq_dummy);
+					        &error_sq_dummy, &error_index_dummy);
 
 					if (!ELEM(bezt_prev->h2, HD_FREE, HD_ALIGN)) {
 						bezt_prev->h2 = (bezt_prev->h2 == HD_VECT) ? HD_FREE : HD_ALIGN;
@@ -5889,6 +5900,86 @@ void CURVE_OT_dissolve_verts(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
+
+static bool nurb_bezt_flag_any(const Nurb *nu, const char flag_test)
+{
+	BezTriple *bezt = nu->bezt;
+	int i;
+
+	for (i = nu->pntsu, bezt = nu->bezt; i--; bezt++) {
+		if (bezt->f2 & flag_test) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static int curve_decimate_exec(bContext *C, wmOperator *op)
+{
+	Object *obedit = CTX_data_edit_object(C);
+	Curve *cu = (Curve *)obedit->data;
+	bool all_supported = true;
+	bool changed = false;
+
+	{
+		const float error_sq_max = FLT_MAX;
+		float ratio = RNA_float_get(op->ptr, "ratio");
+
+		ListBase *editnurb = object_editcurve_get(obedit);
+		Nurb *nu;
+
+		for (nu = editnurb->first; nu; nu = nu->next) {
+			if (nu->type == CU_BEZIER) {
+				if ((nu->pntsu > 2) && nurb_bezt_flag_any(nu, SELECT)) {
+					const int error_target_len = max_ii(2, nu->pntsu * ratio);
+					if (error_target_len != nu->pntsu) {
+						BKE_curve_decimate_nurb(nu, cu->resolu, error_sq_max, error_target_len);
+						changed = true;
+					}
+				}
+			}
+			else {
+				all_supported = false;
+			}
+		}
+	}
+
+	if (all_supported == false) {
+		BKE_report(op->reports, RPT_WARNING, "Only bezier curves are supported");
+	}
+
+	if (changed) {
+		cu->actnu = cu->actvert = CU_ACT_NONE;
+		if (ED_curve_updateAnimPaths(obedit->data)) {
+			WM_event_add_notifier(C, NC_OBJECT | ND_KEYS, obedit);
+		}
+
+		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
+		DAG_id_tag_update(obedit->data, 0);
+	}
+
+	return OPERATOR_FINISHED;
+}
+
+void CURVE_OT_decimate(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Decimate Curve";
+	ot->description = "Simplify selected curves";
+	ot->idname = "CURVE_OT_decimate";
+
+	/* api callbacks */
+	ot->exec = curve_decimate_exec;
+	ot->poll = ED_operator_editcurve;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* properties */
+	RNA_def_float_factor(ot->srna, "ratio", 1.0f, 0.0f, 1.0f, "Ratio", "", 0.0f, 1.0f);
+}
+
 
 /********************** shade smooth/flat operator *********************/
 
@@ -6033,6 +6124,11 @@ int join_curve_exec(bContext *C, wmOperator *op)
 	cu = ob->data;
 	BLI_movelisttolist(&cu->nurb, &tempbase);
 	
+	if (ob->type == OB_CURVE) {
+		/* Account for mixed 2D/3D curves when joining */
+		BKE_curve_curve_dimension_update(cu);
+	}
+
 	DAG_relations_tag_update(bmain);   // because we removed object(s), call before editmode!
 
 	DAG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
@@ -6093,120 +6189,6 @@ void CURVE_OT_tilt_clear(wmOperatorType *ot)
 	
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-/****************** undo for curves ****************/
-
-static void undoCurve_to_editCurve(void *ucu, void *UNUSED(edata), void *cu_v)
-{
-	Curve *cu = cu_v;
-	UndoCurve *undoCurve = ucu;
-	ListBase *undobase = &undoCurve->nubase;
-	ListBase *editbase = BKE_curve_editNurbs_get(cu);
-	Nurb *nu, *newnu;
-	EditNurb *editnurb = cu->editnurb;
-	AnimData *ad = BKE_animdata_from_id(&cu->id);
-
-	BKE_nurbList_free(editbase);
-
-	if (undoCurve->undoIndex) {
-		BLI_ghash_free(editnurb->keyindex, NULL, MEM_freeN);
-		editnurb->keyindex = dupli_keyIndexHash(undoCurve->undoIndex);
-	}
-
-	if (ad) {
-		if (ad->action) {
-			free_fcurves(&ad->action->curves);
-			copy_fcurves(&ad->action->curves, &undoCurve->fcurves);
-		}
-
-		free_fcurves(&ad->drivers);
-		copy_fcurves(&ad->drivers, &undoCurve->drivers);
-	}
-
-	/* copy  */
-	for (nu = undobase->first; nu; nu = nu->next) {
-		newnu = BKE_nurb_duplicate(nu);
-
-		if (editnurb->keyindex) {
-			keyIndex_updateNurb(editnurb, nu, newnu);
-		}
-
-		BLI_addtail(editbase, newnu);
-	}
-
-	cu->actvert = undoCurve->actvert;
-	cu->actnu = undoCurve->actnu;
-	cu->flag = undoCurve->flag;
-	ED_curve_updateAnimPaths(cu);
-}
-
-static void *editCurve_to_undoCurve(void *UNUSED(edata), void *cu_v)
-{
-	Curve *cu = cu_v;
-	ListBase *nubase = BKE_curve_editNurbs_get(cu);
-	UndoCurve *undoCurve;
-	EditNurb *editnurb = cu->editnurb, tmpEditnurb;
-	Nurb *nu, *newnu;
-	AnimData *ad = BKE_animdata_from_id(&cu->id);
-
-	undoCurve = MEM_callocN(sizeof(UndoCurve), "undoCurve");
-
-	if (editnurb->keyindex) {
-		undoCurve->undoIndex = dupli_keyIndexHash(editnurb->keyindex);
-		tmpEditnurb.keyindex = undoCurve->undoIndex;
-	}
-
-	if (ad) {
-		if (ad->action)
-			copy_fcurves(&undoCurve->fcurves, &ad->action->curves);
-
-		copy_fcurves(&undoCurve->drivers, &ad->drivers);
-	}
-
-	/* copy  */
-	for (nu = nubase->first; nu; nu = nu->next) {
-		newnu = BKE_nurb_duplicate(nu);
-
-		if (undoCurve->undoIndex) {
-			keyIndex_updateNurb(&tmpEditnurb, nu, newnu);
-		}
-
-		BLI_addtail(&undoCurve->nubase, newnu);
-	}
-
-	undoCurve->actvert = cu->actvert;
-	undoCurve->actnu = cu->actnu;
-	undoCurve->flag = cu->flag;
-
-	return undoCurve;
-}
-
-static void free_undoCurve(void *ucv)
-{
-	UndoCurve *undoCurve = ucv;
-
-	BKE_nurbList_free(&undoCurve->nubase);
-
-	if (undoCurve->undoIndex)
-		BLI_ghash_free(undoCurve->undoIndex, NULL, MEM_freeN);
-
-	free_fcurves(&undoCurve->fcurves);
-	free_fcurves(&undoCurve->drivers);
-
-	MEM_freeN(undoCurve);
-}
-
-static void *get_data(bContext *C)
-{
-	Object *obedit = CTX_data_edit_object(C);
-	return obedit;
-}
-
-/* and this is all the undo system needs to know */
-void undo_push_curve(bContext *C, const char *name)
-{
-	undo_editmode_push(C, name, get_data, free_undoCurve, undoCurve_to_editCurve, editCurve_to_undoCurve, NULL);
 }
 
 void ED_curve_beztcpy(EditNurb *editnurb, BezTriple *dst, BezTriple *src, int count)

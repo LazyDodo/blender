@@ -65,6 +65,7 @@
 #include "BKE_sequencer.h"
 #include "BKE_screen.h"
 #include "BKE_scene.h"
+#include "BKE_undo_system.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -73,6 +74,7 @@
 #include "ED_render.h"
 #include "ED_screen.h"
 #include "ED_util.h"
+#include "ED_undo.h"
 #include "ED_view3d.h"
 
 #include "RE_pipeline.h"
@@ -88,6 +90,7 @@
 #include "RNA_access.h"
 #include "RNA_define.h"
 
+#include "BLO_undofile.h"
 
 #include "render_intern.h"
 
@@ -116,6 +119,7 @@ typedef struct RenderJob {
 	ScrArea *sa;
 	ColorManagedViewSettings view_settings;
 	ColorManagedDisplaySettings display_settings;
+	bool supports_glsl_draw;
 	bool interface_locked;
 } RenderJob;
 
@@ -210,7 +214,7 @@ static void image_buffer_rect_update(RenderJob *rj, RenderResult *rr, ImBuf *ibu
 			}
 			else {
 				if (rr->renlay == NULL) return;
-				rectf = RE_RenderLayerGetPass(rr->renlay, SCE_PASS_COMBINED, viewname);
+				rectf = RE_RenderLayerGetPass(rr->renlay, RE_PASSNAME_COMBINED, viewname);
 			}
 		}
 		if (rectf == NULL) return;
@@ -304,7 +308,7 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	re = RE_NewRender(scene->id.name);
+	re = RE_NewSceneRender(scene);
 	lay_override = (v3d && v3d->lay != scene->lay) ? v3d->lay : 0;
 
 	G.is_break = false;
@@ -322,12 +326,12 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 
 	RE_SetReports(re, op->reports);
 
-	BLI_begin_threaded_malloc();
+	BLI_threaded_malloc_begin();
 	if (is_animation)
 		RE_BlenderAnim(re, mainp, scene, camera_override, lay_override, scene->r.sfra, scene->r.efra, scene->r.frame_step);
 	else
 		RE_BlenderFrame(re, mainp, scene, srl, camera_override, lay_override, scene->r.cfra, is_write_still);
-	BLI_end_threaded_malloc();
+	BLI_threaded_malloc_end();
 
 	RE_SetReports(re, NULL);
 
@@ -520,10 +524,8 @@ static void render_image_update_pass_and_layer(RenderJob *rj, RenderResult *rr, 
 			int layer = BLI_findstringindex(&main_rr->layers,
 			                                (char *)rr->renlay->name,
 			                                offsetof(RenderLayer, name));
-			if (layer != rj->last_layer) {
-				sima->iuser.layer = layer;
-				rj->last_layer = layer;
-			}
+			sima->iuser.layer = layer;
+			rj->last_layer = layer;
 		}
 
 		iuser->pass = sima->iuser.pass;
@@ -569,6 +571,7 @@ static void image_rect_update(void *rjv, RenderResult *rr, volatile rcti *renrec
 		 * operate with.
 		 */
 		if (rr->do_exr_tile ||
+		    !rj->supports_glsl_draw ||
 		    ibuf->channels == 1 ||
 		    U.image_draw_method != IMAGE_DRAW_METHOD_GLSL)
 		{
@@ -619,7 +622,21 @@ static void render_image_restore_layer(RenderJob *rj)
 				if (sa == rj->sa) {
 					if (sa->spacetype == SPACE_IMAGE) {
 						SpaceImage *sima = sa->spacedata.first;
-						sima->iuser.layer = rj->orig_layer;
+
+						if (RE_HasSingleLayer(rj->re)) {
+							/* For single layer renders keep the active layer
+							 * visible, or show the compositing result. */
+							RenderResult *rr = RE_AcquireResultRead(rj->re);
+							if (RE_HasCombinedLayer(rr)) {
+								sima->iuser.layer = 0;
+							}
+							RE_ReleaseResult(rj->re);
+						}
+						else {
+							/* For multiple layer render, set back the layer
+							 * that was set at the start of rendering. */
+							sima->iuser.layer = rj->orig_layer;
+						}
 					}
 					return;
 				}
@@ -852,7 +869,8 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	/* get main */
 	if (G.debug_value == 101) {
 		/* thread-safety experiment, copy main from the undo buffer */
-		mainp = BKE_undo_get_main(&scene);
+		struct MemFile *memfile = ED_undosys_stack_memfile_get_active(CTX_wm_manager(C)->undo_stack);
+		mainp = BLO_memfile_main_get(memfile, CTX_data_main(C), &scene);
 	}
 	else
 		mainp = CTX_data_main(C);
@@ -904,6 +922,7 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	rj->orig_layer = 0;
 	rj->last_layer = 0;
 	rj->sa = sa;
+	rj->supports_glsl_draw = IMB_colormanagement_support_glsl_draw(&scene->view_settings);
 
 	BKE_color_managed_display_settings_copy(&rj->display_settings, &scene->display_settings);
 	BKE_color_managed_view_settings_copy(&rj->view_settings, &scene->view_settings);
@@ -961,7 +980,7 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	rj->image = ima;
 
 	/* setup new render */
-	re = RE_NewRender(scene->id.name);
+	re = RE_NewSceneRender(scene);
 	RE_test_break_cb(re, rj, render_breakjob);
 	RE_draw_lock_cb(re, rj, render_drawlock);
 	RE_display_update_cb(re, rj, image_rect_update);
@@ -1012,9 +1031,11 @@ void RENDER_OT_render(wmOperatorType *ot)
 
 	/*ot->poll = ED_operator_screenactive;*/ /* this isn't needed, causes failer in background mode */
 
-	RNA_def_boolean(ot->srna, "animation", 0, "Animation", "Render files from the animation range of this scene");
+	prop = RNA_def_boolean(ot->srna, "animation", 0, "Animation", "Render files from the animation range of this scene");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 	RNA_def_boolean(ot->srna, "write_still", 0, "Write Image", "Save rendered the image to the output path (used only when animation is disabled)");
-	RNA_def_boolean(ot->srna, "use_viewport", 0, "Use 3D Viewport", "When inside a 3D viewport, use layers and camera of the viewport");
+	prop = RNA_def_boolean(ot->srna, "use_viewport", 0, "Use 3D Viewport", "When inside a 3D viewport, use layers and camera of the viewport");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 	prop = RNA_def_string(ot->srna, "layer", NULL, RE_MAXNAME, "Render Layer", "Single render layer to re-render (used only when animation is disabled)");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 	prop = RNA_def_string(ot->srna, "scene", NULL, MAX_ID_NAME - 2, "Scene", "Scene to render, current scene if not specified");
@@ -1168,7 +1189,7 @@ static void render_update_resolution(Render *re, const RenderPreview *rp,
 	}
 
 	if (rp->has_freestyle) {
-		if (rp->resolution_divider == 1) {
+		if (rp->resolution_divider == BKE_render_preview_pixel_size(&rp->scene->r)) {
 			RE_ChangeModeFlag(re, R_EDGE_FRS, false);
 		}
 		else {
@@ -1234,7 +1255,7 @@ static void render_view3d_startjob(void *customdata, short *stop, short *do_upda
 	use_border = render_view3d_disprect(rp->scene, rp->ar, rp->v3d,
 	                                    rp->rv3d, &cliprct);
 
-	if ((update_flag & (PR_UPDATE_RENDERSIZE | PR_UPDATE_DATABASE)) || rstats->convertdone == 0) {
+	if ((update_flag & (PR_UPDATE_RENDERSIZE | PR_UPDATE_DATABASE | PR_UPDATE_VIEW)) || rstats->convertdone == 0) {
 		RenderData rdata;
 
 		/* no osa, blur, seq, layers, savebuffer etc for preview render */
@@ -1309,11 +1330,12 @@ static void render_view3d_startjob(void *customdata, short *stop, short *do_upda
 		RE_updateRenderInstances(re, ob_inst_update_flag);
 
 		for (;;) {
+			int pixel_size = BKE_render_preview_pixel_size(&rp->scene->r);
 			if (first_time == false) {
 				if (restore)
 					RE_DataBase_IncrementalView(re, rp->viewmat, 1);
 
-				rp->resolution_divider /= 2;
+				rp->resolution_divider = MAX2(rp->resolution_divider / 2, pixel_size);
 				*do_update = 1;
 
 				render_update_resolution(re, rp, use_border, &cliprct);
@@ -1330,7 +1352,7 @@ static void render_view3d_startjob(void *customdata, short *stop, short *do_upda
 
 			first_time = false;
 
-			if (*stop || rp->resolution_divider == 1) {
+			if (*stop || rp->resolution_divider == pixel_size) {
 				break;
 			}
 		}
@@ -1350,6 +1372,7 @@ static void render_view3d_free(void *customdata)
 
 static bool render_view3d_flag_changed(RenderEngine *engine, const bContext *C)
 {
+	Main *bmain = CTX_data_main(C);
 	RegionView3D *rv3d = CTX_wm_region_view3d(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -1386,7 +1409,7 @@ static bool render_view3d_flag_changed(RenderEngine *engine, const bContext *C)
 
 		/* load editmesh */
 		if (scene->obedit)
-			ED_object_editmode_load(scene->obedit);
+			ED_object_editmode_load(bmain, scene->obedit);
 	}
 	
 	engine->update_flag = 0;
@@ -1432,7 +1455,7 @@ static void render_view3d_do(RenderEngine *engine, const bContext *C)
 	Scene *scene = CTX_data_scene(C);
 	ARegion *ar = CTX_wm_region(C);
 	int width = ar->winx, height = ar->winy;
-	int divider = 1;
+	int divider = BKE_render_preview_pixel_size(&scene->r);
 	int resolution_threshold = scene->r.preview_start_resolution *
 	                           scene->r.preview_start_resolution;
 
@@ -1673,7 +1696,7 @@ static int render_shutter_curve_preset_exec(bContext *C, wmOperator *op)
 void RENDER_OT_shutter_curve_preset(wmOperatorType *ot)
 {
 	PropertyRNA *prop;
-	static EnumPropertyItem prop_shape_items[] = {
+	static const EnumPropertyItem prop_shape_items[] = {
 		{CURVE_PRESET_SHARP, "SHARP", 0, "Sharp", ""},
 		{CURVE_PRESET_SMOOTH, "SMOOTH", 0, "Smooth", ""},
 		{CURVE_PRESET_MAX, "MAX", 0, "Max", ""},

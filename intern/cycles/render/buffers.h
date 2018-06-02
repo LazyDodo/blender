@@ -17,16 +17,16 @@
 #ifndef __BUFFERS_H__
 #define __BUFFERS_H__
 
-#include "device_memory.h"
+#include "device/device_memory.h"
 
-#include "film.h"
+#include "render/film.h"
 
-#include "kernel_types.h"
+#include "kernel/kernel_types.h"
 
-#include "util_half.h"
-#include "util_string.h"
-#include "util_thread.h"
-#include "util_types.h"
+#include "util/util_half.h"
+#include "util/util_string.h"
+#include "util/util_thread.h"
+#include "util/util_types.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -51,6 +51,9 @@ public:
 
 	/* passes */
 	array<Pass> passes;
+	bool denoising_data_pass;
+	/* If only some light path types should be denoised, an additional pass is needed. */
+	bool denoising_clean_pass;
 
 	/* functions */
 	BufferParams();
@@ -59,6 +62,7 @@ public:
 	bool modified(const BufferParams& params);
 	void add_pass(PassType type);
 	int get_passes_size();
+	int get_denoising_offset();
 };
 
 /* Render Buffers */
@@ -70,21 +74,18 @@ public:
 
 	/* float buffer */
 	device_vector<float> buffer;
-	/* random number generator state */
-	device_vector<uint> rng_state;
+	bool map_neighbor_copied;
+	double render_time;
 
 	explicit RenderBuffers(Device *device);
 	~RenderBuffers();
 
-	void reset(Device *device, BufferParams& params);
+	void reset(BufferParams& params);
+	void zero();
 
 	bool copy_from_device();
 	bool get_pass_rect(PassType type, float exposure, int sample, int components, float *pixels);
-
-protected:
-	void device_free();
-
-	Device *device;
+	bool get_denoising_pass_rect(int offset, float exposure, int sample, int components, float *pixels);
 };
 
 /* Display Buffer
@@ -105,25 +106,17 @@ public:
 	/* use half float? */
 	bool half_float;
 	/* byte buffer for converted result */
-	device_vector<uchar4> rgba_byte;
-	device_vector<half4> rgba_half;
+	device_pixels<uchar4> rgba_byte;
+	device_pixels<half4> rgba_half;
 
 	DisplayBuffer(Device *device, bool linear = false);
 	~DisplayBuffer();
 
-	void reset(Device *device, BufferParams& params);
-	void write(Device *device, const string& filename);
+	void reset(BufferParams& params);
 
 	void draw_set(int width, int height);
 	void draw(Device *device, const DeviceDrawParams& draw_params);
 	bool draw_ready();
-
-	device_memory& rgba_data();
-
-protected:
-	void device_free();
-
-	Device *device;
 };
 
 /* Render Tile
@@ -131,6 +124,9 @@ protected:
 
 class RenderTile {
 public:
+	typedef enum { PATH_TRACE, DENOISE } Task;
+
+	Task task;
 	int x, y, w, h;
 	int start_sample;
 	int num_samples;
@@ -138,9 +134,9 @@ public:
 	int resolution;
 	int offset;
 	int stride;
+	int tile_index;
 
 	device_ptr buffer;
-	device_ptr rng_state;
 
 	RenderBuffers *buffers;
 

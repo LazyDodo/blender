@@ -61,9 +61,9 @@ static void initData(ModifierData *md)
 	wmd->flag = 0;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	WarpModifierData *wmd = (WarpModifierData *) md;
+	const WarpModifierData *wmd = (const WarpModifierData *) md;
 	WarpModifierData *twmd = (WarpModifierData *) target;
 
 	modifier_copyData_generic(md, target);
@@ -116,16 +116,16 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 {
 	WarpModifierData *wmd = (WarpModifierData *) md;
 
-	walk(userData, ob, &wmd->object_from, IDWALK_NOP);
-	walk(userData, ob, &wmd->object_to, IDWALK_NOP);
-	walk(userData, ob, &wmd->map_object, IDWALK_NOP);
+	walk(userData, ob, &wmd->object_from, IDWALK_CB_NOP);
+	walk(userData, ob, &wmd->object_to, IDWALK_CB_NOP);
+	walk(userData, ob, &wmd->map_object, IDWALK_CB_NOP);
 }
 
 static void foreachIDLink(ModifierData *md, Object *ob, IDWalkFunc walk, void *userData)
 {
 	WarpModifierData *wmd = (WarpModifierData *) md;
 
-	walk(userData, ob, (ID **)&wmd->texture, IDWALK_USER);
+	walk(userData, ob, (ID **)&wmd->texture, IDWALK_CB_USER);
 
 	foreachObjectLink(md, ob, (ObjectWalkFunc)walk, userData);
 }
@@ -135,45 +135,39 @@ static void foreachTexLink(ModifierData *md, Object *ob, TexWalkFunc walk, void 
 	walk(userData, ob, md, "texture");
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *UNUSED(scene),
-                           Object *UNUSED(ob), DagNode *obNode)
+static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	WarpModifierData *wmd = (WarpModifierData *) md;
 
 	if (wmd->object_from && wmd->object_to) {
-		DagNode *fromNode = dag_get_node(forest, wmd->object_from);
-		DagNode *toNode = dag_get_node(forest, wmd->object_to);
+		DagNode *fromNode = dag_get_node(ctx->forest, wmd->object_from);
+		DagNode *toNode = dag_get_node(ctx->forest, wmd->object_to);
 
-		dag_add_relation(forest, fromNode, obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier1");
-		dag_add_relation(forest, toNode, obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier2");
+		dag_add_relation(ctx->forest, fromNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier1");
+		dag_add_relation(ctx->forest, toNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier2");
 	}
 
 	if ((wmd->texmapping == MOD_DISP_MAP_OBJECT) && wmd->map_object) {
-		DagNode *curNode = dag_get_node(forest, wmd->map_object);
-		dag_add_relation(forest, curNode, obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier3");
+		DagNode *curNode = dag_get_node(ctx->forest, wmd->map_object);
+		dag_add_relation(ctx->forest, curNode, ctx->obNode, DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Warp Modifier3");
 	}
 }
 
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *UNUSED(ob),
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	WarpModifierData *wmd = (WarpModifierData *) md;
 	if (wmd->object_from != NULL && wmd->object_to != NULL) {
-		DEG_add_object_relation(node, wmd->object_from, DEG_OB_COMP_TRANSFORM, "Warp Modifier from");
-		DEG_add_object_relation(node, wmd->object_to, DEG_OB_COMP_TRANSFORM, "Warp Modifier to");
+		DEG_add_object_relation(ctx->node, wmd->object_from, DEG_OB_COMP_TRANSFORM, "Warp Modifier from");
+		DEG_add_object_relation(ctx->node, wmd->object_to, DEG_OB_COMP_TRANSFORM, "Warp Modifier to");
 	}
 	if ((wmd->texmapping == MOD_DISP_MAP_OBJECT) && wmd->map_object != NULL) {
-		DEG_add_object_relation(node, wmd->map_object, DEG_OB_COMP_TRANSFORM, "Warp Modifier map");
+		DEG_add_object_relation(ctx->node, wmd->map_object, DEG_OB_COMP_TRANSFORM, "Warp Modifier map");
 	}
 }
 
-static void warpModifier_do(WarpModifierData *wmd, Object *ob,
-                            DerivedMesh *dm, float (*vertexCos)[3], int numVerts)
+static void warpModifier_do(
+        WarpModifierData *wmd, Object *ob,
+        DerivedMesh *dm, float (*vertexCos)[3], int numVerts)
 {
 	float obinv[4][4];
 	float mat_from[4][4];
@@ -233,7 +227,7 @@ static void warpModifier_do(WarpModifierData *wmd, Object *ob,
 	weight = strength;
 
 	if (wmd->texture) {
-		tex_co = MEM_mallocN(sizeof(*tex_co) * numVerts, "warpModifier_do tex_co");
+		tex_co = MEM_malloc_arrayN(numVerts, sizeof(*tex_co), "warpModifier_do tex_co");
 		get_texture_coords((MappingInfoModifierData *)wmd, ob, dm, vertexCos, tex_co, numVerts);
 
 		modifier_init_texture(wmd->modifier.scene, wmd->texture);
@@ -332,8 +326,9 @@ static int warp_needs_dm(WarpModifierData *wmd)
 	return wmd->texture || wmd->defgrp_name[0];
 }
 
-static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3], int numVerts, ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, Object *ob, DerivedMesh *derivedData,
+        float (*vertexCos)[3], int numVerts, ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *dm = NULL;
 	int use_dm = warp_needs_dm((WarpModifierData *)md);
@@ -349,8 +344,9 @@ static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData,
 	}
 }
 
-static void deformVertsEM(ModifierData *md, Object *ob, struct BMEditMesh *em,
-                          DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
+static void deformVertsEM(
+        ModifierData *md, Object *ob, struct BMEditMesh *em,
+        DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
 {
 	DerivedMesh *dm = derivedData;
 	int use_dm = warp_needs_dm((WarpModifierData *)md);

@@ -17,12 +17,14 @@
 #ifndef __LIGHT_H__
 #define __LIGHT_H__
 
-#include "kernel_types.h"
+#include "kernel/kernel_types.h"
 
-#include "node.h"
+#include "graph/node.h"
 
-#include "util_types.h"
-#include "util_vector.h"
+#include "util/util_ies.h"
+#include "util/util_thread.h"
+#include "util/util_types.h"
+#include "util/util_vector.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -70,6 +72,7 @@ public:
 	Shader *shader;
 	int samples;
 	int max_bounces;
+	uint random_id;
 
 	void tag_update(Scene *scene);
 
@@ -84,6 +87,11 @@ public:
 
 	LightManager();
 	~LightManager();
+
+	/* IES texture management */
+	int add_ies(ustring ies);
+	int add_ies_from_file(ustring filename);
+	void remove_ies(int slot);
 
 	void device_update(Device *device,
 	                   DeviceScene *dscene,
@@ -114,9 +122,19 @@ protected:
 	                              DeviceScene *dscene,
 	                              Scene *scene,
 	                              Progress& progress);
+	void device_update_ies(DeviceScene *dscene);
 
 	/* Check whether light manager can use the object as a light-emissive. */
 	bool object_usable_as_light(Object *object);
+
+	struct IESSlot {
+		IESFile ies;
+		uint hash;
+		int users;
+	};
+
+	vector<IESSlot*> ies_slots;
+	thread_mutex ies_mutex;
 };
 
 CCL_NAMESPACE_END

@@ -49,6 +49,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
+#include "BLI_string_utils.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_global.h"
@@ -95,33 +96,36 @@ MetaBall *BKE_mball_add(Main *bmain, const char *name)
 {
 	MetaBall *mb;
 
-	mb = BKE_libblock_alloc(bmain, ID_MB, name);
+	mb = BKE_libblock_alloc(bmain, ID_MB, name, 0);
 
 	BKE_mball_init(mb);
 
 	return mb;
 }
 
-MetaBall *BKE_mball_copy(Main *bmain, MetaBall *mb)
+/**
+ * Only copy internal data of MetaBall ID from source to already allocated/initialized destination.
+ * You probably nerver want to use that directly, use id_copy or BKE_id_copy_ex for typical needs.
+ *
+ * WARNING! This function will not handle ID user count!
+ *
+ * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ */
+void BKE_mball_copy_data(Main *UNUSED(bmain), MetaBall *mb_dst, const MetaBall *mb_src, const int UNUSED(flag))
 {
-	MetaBall *mbn;
-	int a;
-	
-	mbn = BKE_libblock_copy(bmain, &mb->id);
+	BLI_duplicatelist(&mb_dst->elems, &mb_src->elems);
 
-	BLI_duplicatelist(&mbn->elems, &mb->elems);
-	
-	mbn->mat = MEM_dupallocN(mb->mat);
-	for (a = 0; a < mbn->totcol; a++) {
-		id_us_plus((ID *)mbn->mat[a]);
-	}
+	mb_dst->mat = MEM_dupallocN(mb_src->mat);
 
-	mbn->editelems = NULL;
-	mbn->lastelem = NULL;
-	
-	BKE_id_copy_ensure_local(bmain, &mb->id, &mbn->id);
+	mb_dst->editelems = NULL;
+	mb_dst->lastelem = NULL;
+}
 
-	return mbn;
+MetaBall *BKE_mball_copy(Main *bmain, const MetaBall *mb)
+{
+	MetaBall *mb_copy;
+	BKE_id_copy_ex(bmain, &mb->id, (ID **)&mb_copy, 0, false);
+	return mb_copy;
 }
 
 void BKE_mball_make_local(Main *bmain, MetaBall *mb, const bool lib_local)
@@ -269,7 +273,7 @@ float *BKE_mball_make_orco(Object *ob, ListBase *dispbase)
  * This really needs a rewrite/refactor its totally broken in anything other then basic cases
  * Multiple Scenes + Set Scenes & mixing mball basis SHOULD work but fails to update the depsgraph on rename
  * and linking into scenes or removal of basis mball. so take care when changing this code.
- * 
+ *
  * Main idiot thing here is that the system returns find_basis_mball() objects which fail a is_basis_mball() test.
  *
  * Not only that but the depsgraph and their areas depend on this behavior!, so making small fixes here isn't worth it.
@@ -312,7 +316,7 @@ bool BKE_mball_is_basis_for(Object *ob1, Object *ob2)
  * are copied to all metaballs in same "group" (metaballs with same base name: MBall,
  * MBall.001, MBall.002, etc). The most important is to copy properties to the base metaball,
  * because this metaball influence polygonisation of metaballs. */
-void BKE_mball_properties_copy(Scene *scene, Object *active_object)
+void BKE_mball_properties_copy(EvaluationContext *eval_ctx, Scene *scene, Object *active_object)
 {
 	Scene *sce_iter = scene;
 	Base *base;
@@ -321,7 +325,6 @@ void BKE_mball_properties_copy(Scene *scene, Object *active_object)
 	int basisnr, obnr;
 	char basisname[MAX_ID_NAME], obname[MAX_ID_NAME];
 	SceneBaseIter iter;
-	EvaluationContext *eval_ctx = G.main->eval_ctx;
 
 	BLI_split_name_num(basisname, &basisnr, active_object->id.name + 2, '.');
 
@@ -356,7 +359,7 @@ void BKE_mball_properties_copy(Scene *scene, Object *active_object)
  *
  * warning!, is_basis_mball() can fail on returned object, see long note above.
  */
-Object *BKE_mball_basis_find(Scene *scene, Object *basis)
+Object *BKE_mball_basis_find(EvaluationContext *eval_ctx, Scene *scene, Object *basis)
 {
 	Scene *sce_iter = scene;
 	Base *base;
@@ -364,7 +367,6 @@ Object *BKE_mball_basis_find(Scene *scene, Object *basis)
 	int basisnr, obnr;
 	char basisname[MAX_ID_NAME], obname[MAX_ID_NAME];
 	SceneBaseIter iter;
-	EvaluationContext *eval_ctx = G.main->eval_ctx;
 
 	BLI_split_name_num(basisname, &basisnr, basis->id.name + 2, '.');
 
@@ -469,7 +471,7 @@ bool BKE_mball_center_bounds(MetaBall *mb, float r_cent[3])
 	return false;
 }
 
-void BKE_mball_transform(MetaBall *mb, float mat[4][4])
+void BKE_mball_transform(MetaBall *mb, float mat[4][4], const bool do_props)
 {
 	MetaElem *me;
 	float quat[4];
@@ -481,14 +483,17 @@ void BKE_mball_transform(MetaBall *mb, float mat[4][4])
 	for (me = mb->elems.first; me; me = me->next) {
 		mul_m4_v3(mat, &me->x);
 		mul_qt_qtqt(me->quat, quat, me->quat);
-		me->rad *= scale;
-		/* hrmf, probably elems shouldn't be
-		 * treating scale differently - campbell */
-		if (!MB_TYPE_SIZE_SQUARED(me->type)) {
-			mul_v3_fl(&me->expx, scale);
-		}
-		else {
-			mul_v3_fl(&me->expx, scale_sqrt);
+
+		if (do_props) {
+			me->rad *= scale;
+			/* hrmf, probably elems shouldn't be
+			 * treating scale differently - campbell */
+			if (!MB_TYPE_SIZE_SQUARED(me->type)) {
+				mul_v3_fl(&me->expx, scale);
+			}
+			else {
+				mul_v3_fl(&me->expx, scale_sqrt);
+			}
 		}
 	}
 }

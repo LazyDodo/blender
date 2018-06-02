@@ -52,13 +52,13 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BKE_colorband.h"
 #include "BKE_colortools.h"
 #include "BKE_depsgraph.h"
 #include "BKE_image.h"
 #include "BKE_movieclip.h"
 #include "BKE_node.h"
 #include "BKE_sequencer.h"
-#include "BKE_texture.h"
 #include "BKE_linestyle.h"
 
 #include "ED_node.h"
@@ -361,12 +361,12 @@ static void rna_ColorRamp_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *
 
 static void rna_ColorRamp_eval(struct ColorBand *coba, float position, float color[4])
 {
-	do_colorband(coba, position, color);
+	BKE_colorband_evaluate(coba, position, color);
 }
 
 static CBData *rna_ColorRampElement_new(struct ColorBand *coba, ReportList *reports, float position)
 {
-	CBData *element = colorband_element_add(coba, position);
+	CBData *element = BKE_colorband_element_add(coba, position);
 
 	if (element == NULL)
 		BKE_reportf(reports, RPT_ERROR, "Unable to add element to colorband (limit %d)", MAXCOLORBAND);
@@ -378,7 +378,7 @@ static void rna_ColorRampElement_remove(struct ColorBand *coba, ReportList *repo
 {
 	CBData *element = element_ptr->data;
 	int index = (int)(element - coba->data);
-	if (colorband_element_remove(coba, index) == false) {
+	if (BKE_colorband_element_remove(coba, index) == false) {
 		BKE_report(reports, RPT_ERROR, "Element not found in element collection or last element");
 		return;
 	}
@@ -420,7 +420,7 @@ static void rna_ColorManagedDisplaySettings_display_device_set(struct PointerRNA
 	}
 }
 
-static EnumPropertyItem *rna_ColorManagedDisplaySettings_display_device_itemf(
+static const EnumPropertyItem *rna_ColorManagedDisplaySettings_display_device_itemf(
         bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem *items = NULL;
@@ -474,7 +474,7 @@ static void rna_ColorManagedViewSettings_view_transform_set(PointerRNA *ptr, int
 	}
 }
 
-static EnumPropertyItem *rna_ColorManagedViewSettings_view_transform_itemf(
+static const EnumPropertyItem *rna_ColorManagedViewSettings_view_transform_itemf(
         bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	Scene *scene = CTX_data_scene(C);
@@ -507,13 +507,14 @@ static void rna_ColorManagedViewSettings_look_set(PointerRNA *ptr, int value)
 	}
 }
 
-static EnumPropertyItem *rna_ColorManagedViewSettings_look_itemf(
-        bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *rna_ColorManagedViewSettings_look_itemf(
+        bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
 {
+	ColorManagedViewSettings *view = (ColorManagedViewSettings *) ptr->data;
 	EnumPropertyItem *items = NULL;
 	int totitem = 0;
 
-	IMB_colormanagement_look_items_add(&items, &totitem);
+	IMB_colormanagement_look_items_add(&items, &totitem, view->view_transform);
 	RNA_enum_item_end(&items, &totitem);
 
 	*r_free = true;
@@ -559,7 +560,7 @@ static void rna_ColorManagedColorspaceSettings_colorspace_set(struct PointerRNA 
 	}
 }
 
-static EnumPropertyItem *rna_ColorManagedColorspaceSettings_colorspace_itemf(
+static const EnumPropertyItem *rna_ColorManagedColorspaceSettings_colorspace_itemf(
         bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem *items = NULL;
@@ -688,7 +689,7 @@ static void rna_def_curvemappoint(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-	static EnumPropertyItem prop_handle_type_items[] = {
+	static const EnumPropertyItem prop_handle_type_items[] = {
 		{0, "AUTO", 0, "Auto Handle", ""},
 		{CUMA_HANDLE_AUTO_ANIM, "AUTO_CLAMPED", 0, "Auto Clamped Handle", ""},
 		{CUMA_HANDLE_VECTOR, "VECTOR", 0, "Vector Handle", ""},
@@ -727,9 +728,9 @@ static void rna_def_curvemap_points_api(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "new", "curvemap_insert");
 	RNA_def_function_ui_description(func, "Add point to CurveMap");
 	parm = RNA_def_float(func, "position", 0.0f, -FLT_MAX, FLT_MAX, "Position", "Position to add point", -FLT_MAX, FLT_MAX);
-	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_float(func, "value", 0.0f, -FLT_MAX, FLT_MAX, "Value", "Value of point", -FLT_MAX, FLT_MAX);
-	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "point", "CurveMapPoint", "", "New point");
 	RNA_def_function_return(func, parm);
 
@@ -737,8 +738,8 @@ static void rna_def_curvemap_points_api(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_function_ui_description(func, "Delete point from CurveMap");
 	parm = RNA_def_pointer(func, "point", "CurveMapPoint", "", "PointElement to remove");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 }
 
 static void rna_def_curvemap(BlenderRNA *brna)
@@ -747,7 +748,7 @@ static void rna_def_curvemap(BlenderRNA *brna)
 	PropertyRNA *prop, *parm;
 	FunctionRNA *func;
 
-	static EnumPropertyItem prop_extend_items[] = {
+	static const EnumPropertyItem prop_extend_items[] = {
 		{0, "HORIZONTAL", 0, "Horizontal", ""},
 		{CUMA_EXTEND_EXTRAPOLATE, "EXTRAPOLATED", 0, "Extrapolated", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -771,7 +772,7 @@ static void rna_def_curvemap(BlenderRNA *brna)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_function_ui_description(func, "Evaluate curve at given location");
 	parm = RNA_def_float(func, "position", 0.0f, -FLT_MAX, FLT_MAX, "Position", "Position to evaluate curve at", -FLT_MAX, FLT_MAX);
-	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_float(func, "value", 0.0f, -FLT_MAX, FLT_MAX, "Value", "Value of curve at given location", -FLT_MAX, FLT_MAX);
 	RNA_def_function_return(func, parm);
 }
@@ -889,7 +890,7 @@ static void rna_def_color_ramp_element_api(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_ui_description(func, "Add element to ColorRamp");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_float(func, "position", 0.0f, 0.0f, 1.0f, "Position", "Position to add element", 0.0f, 1.0f);
-	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
 	parm = RNA_def_pointer(func, "element", "ColorRampElement", "", "New element");
 	RNA_def_function_return(func, parm);
@@ -898,17 +899,19 @@ static void rna_def_color_ramp_element_api(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_ui_description(func, "Delete element from ColorRamp");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "element", "ColorRampElement", "", "Element to remove");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 }
 
 static void rna_def_color_ramp(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-	FunctionRNA *func;
 
-	static EnumPropertyItem prop_interpolation_items[] = {
+	FunctionRNA *func;
+	PropertyRNA *parm;
+
+	static const EnumPropertyItem prop_interpolation_items[] = {
 		{COLBAND_INTERP_EASE, "EASE", 0, "Ease", ""},
 		{COLBAND_INTERP_CARDINAL, "CARDINAL", 0, "Cardinal", ""},
 		{COLBAND_INTERP_LINEAR, "LINEAR", 0, "Linear", ""},
@@ -917,14 +920,14 @@ static void rna_def_color_ramp(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 	
-	static EnumPropertyItem prop_mode_items[] = {
+	static const EnumPropertyItem prop_mode_items[] = {
 		{COLBAND_BLEND_RGB, "RGB", 0, "RGB", ""},
 		{COLBAND_BLEND_HSV, "HSV", 0, "HSV", ""},
 		{COLBAND_BLEND_HSL, "HSL", 0, "HSL", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static EnumPropertyItem prop_hsv_items[] = {
+	static const EnumPropertyItem prop_hsv_items[] = {
 		{COLBAND_HUE_NEAR, "NEAR", 0, "Near", ""},
 		{COLBAND_HUE_FAR, "FAR", 0, "Far", ""},
 		{COLBAND_HUE_CW, "CW", 0, "Clockwise", ""},
@@ -974,13 +977,13 @@ static void rna_def_color_ramp(BlenderRNA *brna)
 	
 	func = RNA_def_function(srna, "evaluate", "rna_ColorRamp_eval");
 	RNA_def_function_ui_description(func, "Evaluate ColorRamp");
-	prop = RNA_def_float(func, "position", 1.0f, 0.0f, 1.0f, "Position", "Evaluate ColorRamp at position", 0.0f, 1.0f);
-	RNA_def_property_flag(prop, PROP_REQUIRED);
+	parm = RNA_def_float(func, "position", 1.0f, 0.0f, 1.0f, "Position", "Evaluate ColorRamp at position", 0.0f, 1.0f);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return */
-	prop = RNA_def_float_color(func, "color", 4, NULL, -FLT_MAX, FLT_MAX, "Color", "Color at given position",
+	parm = RNA_def_float_color(func, "color", 4, NULL, -FLT_MAX, FLT_MAX, "Color", "Color at given position",
 	                           -FLT_MAX, FLT_MAX);
-	RNA_def_property_flag(prop, PROP_THICK_WRAP);
-	RNA_def_function_output(func, prop);
+	RNA_def_parameter_flags(parm, PROP_THICK_WRAP, 0);
+	RNA_def_function_output(func, parm);
 }
 
 static void rna_def_histogram(BlenderRNA *brna)
@@ -988,7 +991,7 @@ static void rna_def_histogram(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 	
-	static EnumPropertyItem prop_mode_items[] = {
+	static const EnumPropertyItem prop_mode_items[] = {
 		{HISTO_MODE_LUMA, "LUMA", 0, "Luma", "Luma"},
 		{HISTO_MODE_RGB, "RGB", 0, "RGB", "Red Green Blue"},
 		{HISTO_MODE_R, "R", 0, "R", "Red"},
@@ -1017,7 +1020,7 @@ static void rna_def_scopes(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static EnumPropertyItem prop_wavefrm_mode_items[] = {
+	static const EnumPropertyItem prop_wavefrm_mode_items[] = {
 		{SCOPES_WAVEFRM_LUMA, "LUMA", ICON_COLOR, "Luma", ""},
 		{SCOPES_WAVEFRM_RGB_PARADE, "PARADE", ICON_COLOR, "Parade", ""},
 		{SCOPES_WAVEFRM_YCC_601, "YCBCR601", ICON_COLOR, "YCbCr (ITU 601)", ""},
@@ -1069,22 +1072,22 @@ static void rna_def_colormanage(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static EnumPropertyItem display_device_items[] = {
+	static const EnumPropertyItem display_device_items[] = {
 		{0, "DEFAULT", 0, "Default", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static EnumPropertyItem look_items[] = {
+	static const EnumPropertyItem look_items[] = {
 		{0, "NONE", 0, "None", "Do not modify image in an artistic manner"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static EnumPropertyItem view_transform_items[] = {
+	static const EnumPropertyItem view_transform_items[] = {
 		{0, "NONE", 0, "None", "Do not perform any color transform on display, use old non-color managed technique for display"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static EnumPropertyItem color_space_items[] = {
+	static const EnumPropertyItem color_space_items[] = {
 		{0, "NONE", 0, "None", "Do not perform any color transform on load, treat colors as in scene linear space already"},
 		{0, NULL, 0, NULL, NULL}
 	};

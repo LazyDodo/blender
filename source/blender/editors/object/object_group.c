@@ -63,7 +63,7 @@
 /********************* 3d view operators ***********************/
 
 /* can be called with C == NULL */
-static EnumPropertyItem *group_object_active_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *group_object_active_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	Object *ob;
 	EnumPropertyItem *item = NULL, item_tmp = {0};
@@ -528,8 +528,7 @@ static int group_unlink_exec(bContext *C, wmOperator *UNUSED(op))
 	if (!group)
 		return OPERATOR_CANCELLED;
 
-	BKE_libblock_unlink(bmain, group, false, false);
-	BKE_libblock_free(bmain, group);
+	BKE_libblock_delete(bmain, group);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, NULL);
 

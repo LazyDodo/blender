@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Joseph Eagar, Joshua Leung
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -517,9 +517,6 @@ static int ringsel_init(bContext *C, wmOperator *op, bool do_cut)
 	lcd->num.unit_type[0] = B_UNIT_NONE;
 	lcd->num.unit_type[1] = B_UNIT_NONE;
 
-	/* XXX, temp, workaround for [#	] */
-	EDBM_mesh_ensure_valid_dm_hack(scene, lcd->em);
-
 	em_setup_viewcontext(C, &lcd->vc);
 
 	ED_region_tag_redraw(lcd->ar);
@@ -743,7 +740,15 @@ static int loopcut_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				handled = true;
 				break;
 			case MOUSEMOVE:  /* mouse moved somewhere to select another loop */
-				if (!has_numinput) {
+
+				/* This is normally disabled for all modal operators.
+				 * This is an exception since mouse movement doesn't relate to numeric input.
+				 *
+				 * If numeric input changes we'll need to add this back see: D2973 */
+#if 0
+				if (!has_numinput)
+#endif
+				{
 					lcd->vc.mval[0] = event->mval[0];
 					lcd->vc.mval[1] = event->mval[1];
 					loopcut_mouse_move(lcd, (int)lcd->cuts);

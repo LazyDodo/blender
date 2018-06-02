@@ -53,8 +53,8 @@
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_movieclip_types.h"
-#include "DNA_object_fluidsim.h"
-#include "DNA_object_force.h"
+#include "DNA_object_fluidsim_types.h"
+#include "DNA_object_force_types.h"
 #include "DNA_object_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_sequence_types.h"
@@ -243,7 +243,7 @@ static bool missing_files_find__recursive(
 			continue;  /* cant stat, don't bother with this file, could print debug info here */
 
 		if (S_ISREG(status.st_mode)) { /* is file */
-			if (STREQLEN(filename, de->d_name, FILE_MAX)) { /* name matches */
+			if (BLI_path_ncmp(filename, de->d_name, FILE_MAX) == 0) { /* name matches */
 				/* open the file to read its size */
 				size = status.st_size;
 				if ((size > 0) && (size > *r_filesize)) { /* find the biggest file */
@@ -425,7 +425,7 @@ void BKE_bpath_traverse_id(Main *bmain, ID *id, BPathVisitor visit_cb, const int
 {
 	const char *absbase = (flag & BKE_BPATH_TRAVERSE_ABS) ? ID_BLEND_PATH(bmain, id) : NULL;
 
-	if ((flag & BKE_BPATH_TRAVERSE_SKIP_LIBRARY) && ID_IS_LINKED_DATABLOCK(id)) {
+	if ((flag & BKE_BPATH_TRAVERSE_SKIP_LIBRARY) && ID_IS_LINKED(id)) {
 		return;
 	}
 
@@ -560,6 +560,10 @@ void BKE_bpath_traverse_id(Main *bmain, ID *id, BPathVisitor visit_cb, const int
 						NodeShaderScript *nss = (NodeShaderScript *)node->storage;
 						rewrite_path_fixed(nss->filepath, visit_cb, absbase, bpath_user_data);
 					}
+					else if (node->type == SH_NODE_TEX_IES) {
+						NodeShaderTexIES *ies = (NodeShaderTexIES *)node->storage;
+						rewrite_path_fixed(ies->filepath, visit_cb, absbase, bpath_user_data);
+					}
 				}
 			}
 			break;
@@ -575,6 +579,10 @@ void BKE_bpath_traverse_id(Main *bmain, ID *id, BPathVisitor visit_cb, const int
 					if (node->type == SH_NODE_SCRIPT) {
 						NodeShaderScript *nss = (NodeShaderScript *)node->storage;
 						rewrite_path_fixed(nss->filepath, visit_cb, absbase, bpath_user_data);
+					}
+					else if (node->type == SH_NODE_TEX_IES) {
+						NodeShaderTexIES *ies = (NodeShaderTexIES *)node->storage;
+						rewrite_path_fixed(ies->filepath, visit_cb, absbase, bpath_user_data);
 					}
 				}
 			}
@@ -643,7 +651,7 @@ void BKE_bpath_traverse_id(Main *bmain, ID *id, BPathVisitor visit_cb, const int
 			/* keep packedfile paths always relative to the blend */
 			if (lib->packedfile == NULL) {
 				if (rewrite_path_fixed(lib->name, visit_cb, absbase, bpath_user_data)) {
-					BKE_library_filepath_set(lib, lib->name);
+					BKE_library_filepath_set(bmain, lib, lib->name);
 				}
 			}
 			break;

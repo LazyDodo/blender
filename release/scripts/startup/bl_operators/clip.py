@@ -21,7 +21,10 @@ import bpy
 import os
 from bpy.types import Operator
 from bpy.props import FloatProperty
-from mathutils import Vector, Matrix
+from mathutils import (
+    Vector,
+    Matrix,
+)
 
 
 def CLIP_spaces_walk(context, all_screens, tarea, tspace, callback, *args):
@@ -207,7 +210,7 @@ class CLIP_OT_set_active_clip(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         space = context.space_data
-        return space.type == 'CLIP_EDITOR'
+        return space.type == 'CLIP_EDITOR' and space.clip
 
     def execute(self, context):
         clip = context.space_data.clip
@@ -251,6 +254,11 @@ class CLIP_OT_track_to_empty(Operator):
         constraint.object = tracking_object.name
         constraint.camera = CLIP_camera_for_clip(context, clip)
 
+    @classmethod
+    def poll(cls, context):
+        space = context.space_data
+        return space.type == 'CLIP_EDITOR' and space.clip
+
     def execute(self, context):
         sc = context.space_data
         clip = sc.clip
@@ -293,20 +301,21 @@ class CLIP_OT_bundles_to_mesh(Operator):
             reconstructed_matrix = reconstruction.cameras.matrix_from_frame(framenr)
             matrix = camera.matrix_world * reconstructed_matrix.inverted()
 
-        mesh = bpy.data.meshes.new(name="Tracks")
         for track in tracking_object.tracks:
-            if track.has_bundle:
+            if track.has_bundle and track.select:
                 new_verts.append(track.bundle)
 
         if new_verts:
+            mesh = bpy.data.meshes.new(name="Tracks")
             mesh.vertices.add(len(new_verts))
             mesh.vertices.foreach_set("co", unpack_list(new_verts))
-
-        ob = bpy.data.objects.new(name="Tracks", object_data=mesh)
-
-        ob.matrix_world = matrix
-
-        context.scene.objects.link(ob)
+            ob = bpy.data.objects.new(name="Tracks", object_data=mesh)
+            ob.matrix_world = matrix
+            context.scene.objects.link(ob)
+            ob.select = True
+            context.scene.objects.active = ob
+        else:
+            self.report({'WARNING'}, "No usable tracks selected")
 
         return {'FINISHED'}
 
@@ -779,8 +788,8 @@ class CLIP_OT_setup_tracking_scene(Operator):
         tree.links.new(mul_shadow.outputs["Image"], mul_image.inputs[2])
 
         tree.links.new(rlayer_fg.outputs["Image"], vector_blur.inputs["Image"])
-        tree.links.new(rlayer_fg.outputs["Z"], vector_blur.inputs["Z"])
-        tree.links.new(rlayer_fg.outputs["Speed"], vector_blur.inputs["Speed"])
+        tree.links.new(rlayer_fg.outputs["Depth"], vector_blur.inputs["Z"])
+        tree.links.new(rlayer_fg.outputs["Vector"], vector_blur.inputs["Speed"])
 
         tree.links.new(mul_image.outputs["Image"], alphaover.inputs[1])
         tree.links.new(vector_blur.outputs["Image"], alphaover.inputs[2])
@@ -1071,3 +1080,17 @@ class CLIP_OT_track_settings_to_track(bpy.types.Operator):
                     setattr(marker_selected, attr, getattr(marker, attr))
 
         return {'FINISHED'}
+
+
+classes = (
+    CLIP_OT_bundles_to_mesh,
+    CLIP_OT_constraint_to_fcurve,
+    CLIP_OT_delete_proxy,
+    CLIP_OT_filter_tracks,
+    CLIP_OT_set_active_clip,
+    CLIP_OT_set_viewport_background,
+    CLIP_OT_setup_tracking_scene,
+    CLIP_OT_track_settings_as_default,
+    CLIP_OT_track_settings_to_track,
+    CLIP_OT_track_to_empty,
+)

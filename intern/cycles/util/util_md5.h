@@ -30,8 +30,8 @@
 #ifndef __UTIL_MD5_H__
 #define __UTIL_MD5_H__
 
-#include "util_string.h"
-#include "util_types.h"
+#include "util/util_string.h"
+#include "util/util_types.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -41,6 +41,7 @@ public:
 	~MD5Hash();
 
 	void append(const uint8_t *data, int size);
+	void append(const string& str);
 	bool append_file(const string& filepath);
 	string get_hex();
 

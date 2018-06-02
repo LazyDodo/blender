@@ -36,7 +36,7 @@
 #include "DNA_effect_types.h"
 #include "DNA_group_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_meshdata_types.h"
 
@@ -178,8 +178,8 @@ static void collision_compute_barycentric ( float pv[3], float p1[3], float p2[3
 	/* dot_v3v3 */
 #define INPR(v1, v2) ( (v1)[0] * (v2)[0] + (v1)[1] * (v2)[1] + (v1)[2] * (v2)[2])
 
-	double	tempV1[3], tempV2[3], tempV4[3];
-	double	a, b, c, d, e, f;
+	double tempV1[3], tempV2[3], tempV4[3];
+	double a, b, c, d, e, f;
 
 	VECSUB ( tempV1, p1, p3 );
 	VECSUB ( tempV2, p2, p3 );
@@ -801,8 +801,8 @@ int cloth_bvh_objcollision(Object *ob, ClothModifierData *clmd, float step, floa
 				if ( cloth->bvhselftree ) {
 					// search for overlapping collision pairs
 					overlap = BLI_bvhtree_overlap(cloth->bvhselftree, cloth->bvhselftree, &result, NULL, NULL);
-	
-	// #pragma omp parallel for private(k, i, j) schedule(static)
+
+					/* Could be parallelized (using BLI_task)... */
 					for ( k = 0; k < result; k++ ) {
 						float temp[3];
 						float length = 0;
@@ -1014,7 +1014,7 @@ static bool cloth_points_collision_response_static(ClothModifierData *clmd, Coll
 }
 
 BLI_INLINE bool cloth_point_face_collision_params(const float p1[3], const float p2[3], const float v0[3], const float v1[3], const float v2[3],
-                                                  float r_nor[3], float *r_lambda, float r_w[4])
+                                                  float r_nor[3], float *r_lambda, float r_w[3])
 {
 	float edge1[3], edge2[3], p2face[3], p1p2[3], v0p2[3];
 	float nor_v0p2, nor_p1p2;
@@ -1026,7 +1026,7 @@ BLI_INLINE bool cloth_point_face_collision_params(const float p1[3], const float
 	
 	nor_v0p2 = dot_v3v3(v0p2, r_nor);
 	madd_v3_v3v3fl(p2face, p2, r_nor, -nor_v0p2);
-	interp_weights_face_v3(r_w, v0, v1, v2, NULL, p2face);
+	interp_weights_tri_v3(r_w, v0, v1, v2, p2face);
 	
 	sub_v3_v3v3(p1p2, p2, p1);
 	sub_v3_v3v3(v0p2, p2, v0);
@@ -1085,7 +1085,7 @@ static CollPair *cloth_point_collpair(
 	const float *co1 = mverts[bp1].co, *co2 = mverts[bp2].co, *co3 = mverts[bp3].co;
 	float lambda /*, distance1 */, distance2;
 	float facenor[3], v1p1[3], v1p2[3];
-	float w[4];
+	float w[3];
 
 	if (!cloth_point_face_collision_params(p1, p2, co1, co2, co3, facenor, &lambda, w))
 		return collpair;
@@ -1147,9 +1147,10 @@ static CollPair *cloth_point_collision(
 	return collpair;
 }
 
-static void cloth_points_objcollisions_nearcheck(ClothModifierData * clmd, CollisionModifierData *collmd,
-                                                     CollPair **collisions, CollPair **collisions_index,
-                                                     int numresult, BVHTreeOverlap *overlap, float epsilon, double dt)
+static void cloth_points_objcollisions_nearcheck(
+        ClothModifierData *clmd, CollisionModifierData *collmd,
+        CollPair **collisions, CollPair **collisions_index,
+        int numresult, BVHTreeOverlap *overlap, float epsilon, double dt)
 {
 	int i;
 	
@@ -1163,8 +1164,9 @@ static void cloth_points_objcollisions_nearcheck(ClothModifierData * clmd, Colli
 	}
 }
 
-static int cloth_points_objcollisions_resolve(ClothModifierData * clmd, CollisionModifierData *collmd, PartDeflect *pd,
-                                              CollPair *collisions, CollPair *collisions_index, float dt)
+static int cloth_points_objcollisions_resolve(
+        ClothModifierData *clmd, CollisionModifierData *collmd, PartDeflect *pd,
+        CollPair *collisions, CollPair *collisions_index, float dt)
 {
 	Cloth *cloth = clmd->clothObject;
 	int i = 0, mvert_num = clmd->clothObject->mvert_num;

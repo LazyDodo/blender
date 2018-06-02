@@ -47,7 +47,9 @@
 extern "C" {
 #endif
 
-#if defined(__linux__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__FreeBSD_kernel__) || defined(__GNU__)
+#if defined(__linux__) || defined(__GNU__) || \
+	defined(__NetBSD__) || defined(__OpenBSD__) || defined(__FreeBSD_kernel__) || \
+	defined(__HAIKU__)
 
 /* Linux-i386, Linux-Alpha, Linux-ppc */
 #include <stdint.h>
@@ -65,8 +67,8 @@ typedef uint64_t u_int64_t;
 
 #include <inttypes.h>
 
-/* MinGW and MSVC >= 2010 */
-#elif defined(FREE_WINDOWS) || defined(_MSC_VER)
+/* MSVC >= 2010 */
+#elif defined(_MSC_VER)
 #include <stdint.h>
 
 #else
@@ -79,6 +81,11 @@ typedef uint64_t u_int64_t;
 
 #include <stddef.h>  /* size_t define */
 #include <stdbool.h>
+
+typedef unsigned int uint;
+typedef unsigned short ushort;
+typedef unsigned long ulong;
+typedef unsigned char uchar;
 
 #ifdef __cplusplus 
 }

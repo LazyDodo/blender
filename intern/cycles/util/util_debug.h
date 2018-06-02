@@ -20,7 +20,7 @@
 #include <cassert>
 #include <iostream>
 
-#include "util_static_assert.h"
+#include "bvh/bvh_params.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -30,6 +30,9 @@ CCL_NAMESPACE_BEGIN
  */
 class DebugFlags {
 public:
+	/* Use static BVH in viewport, to match final render exactly. */
+	bool viewport_static_bvh;
+
 	/* Descriptor of CPU feature-set to be used. */
 	struct CPU {
 		CPU();
@@ -44,8 +47,24 @@ public:
 		bool sse3;
 		bool sse2;
 
-		/* Whether QBVH usage is allowed or not. */
-		bool qbvh;
+		/* Check functions to see whether instructions up to the given one
+		 * are allowed for use.
+		 */
+		bool has_avx2()  { return has_avx()   && avx2; }
+		bool has_avx()   { return has_sse41() && avx; }
+		bool has_sse41() { return has_sse3()  && sse41; }
+		bool has_sse3()  { return has_sse2()  && sse3; }
+		bool has_sse2()  { return sse2; }
+
+		/* Requested BVH size.
+		 *
+		 * Rendering will use widest possible BVH which is below or equal
+		 * this one.
+		 */
+		BVHLayout bvh_layout;
+
+		/* Whether split kernel is used */
+		bool split_kernel;
 	};
 
 	/* Descriptor of CUDA feature-set to be used. */
@@ -58,6 +77,9 @@ public:
 		/* Whether adaptive feature based runtime compile is enabled or not.
 		 * Requires the CUDA Toolkit and only works on Linux atm. */
 		bool adaptive_compile;
+
+		/* Whether split kernel is used */
+		bool split_kernel;
 	};
 
 	/* Descriptor of OpenCL feature-set to be used. */
@@ -106,6 +128,13 @@ public:
 
 		/* Use debug version of the kernel. */
 		bool debug;
+
+		/* Use single program */
+		bool single_program;
+
+		/* TODO(mai): Currently this is only for OpenCL, but we should have it implemented for all devices. */
+		/* Artificial memory limit in bytes (0 if disabled). */
+		size_t mem_limit;
 	};
 
 	/* Get instance of debug flags registry. */

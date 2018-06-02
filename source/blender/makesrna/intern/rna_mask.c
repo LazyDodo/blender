@@ -52,12 +52,12 @@
 
 #ifdef RNA_RUNTIME
 
+#include "BLI_math.h"
+
 #include "DNA_movieclip_types.h"
 
 #include "BKE_depsgraph.h"
 #include "BKE_mask.h"
-
-#include "BLI_math.h"
 
 #include "RNA_access.h"
 
@@ -593,11 +593,11 @@ static void rna_def_maskParent(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static EnumPropertyItem mask_id_type_items[] = {
+	static const EnumPropertyItem mask_id_type_items[] = {
 		{ID_MC, "MOVIECLIP", ICON_SEQUENCE, "Movie Clip", ""},
 		{0, NULL, 0, NULL, NULL}};
 
-	static EnumPropertyItem parent_type_items[] = {
+	static const EnumPropertyItem parent_type_items[] = {
 		{MASK_PARENT_POINT_TRACK, "POINT_TRACK", 0, "Point Track", ""},
 		{MASK_PARENT_PLANE_TRACK, "PLANE_TRACK", 0, "Plane Track", ""},
 		{0, NULL, 0, NULL, NULL}};
@@ -677,7 +677,7 @@ static void rna_def_maskSplinePoint(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static EnumPropertyItem handle_type_items[] = {
+	static const EnumPropertyItem handle_type_items[] = {
 		{HD_AUTO, "AUTO", 0, "Auto", ""},
 		{HD_VECT, "VECTOR", 0, "Vector", ""},
 		{HD_ALIGN, "ALIGNED", 0, "Aligned Single", ""},
@@ -778,8 +778,8 @@ static void rna_def_mask_splines(BlenderRNA *brna)
 	RNA_def_function_ui_description(func, "Remove a spline from a layer");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "spline", "MaskSpline", "", "The spline to remove");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 
 	/* active spline */
 	prop = RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
@@ -818,19 +818,19 @@ static void rna_def_maskSplinePoints(BlenderRNA *brna)
 	RNA_def_function_ui_description(func, "Remove a point from a spline");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "point", "MaskSplinePoint", "", "The point to remove");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 }
 
 static void rna_def_maskSpline(BlenderRNA *brna)
 {
-	static EnumPropertyItem spline_interpolation_items[] = {
+	static const EnumPropertyItem spline_interpolation_items[] = {
 		{MASK_SPLINE_INTERP_LINEAR, "LINEAR", 0, "Linear", ""},
 		{MASK_SPLINE_INTERP_EASE, "EASE", 0, "Ease", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static EnumPropertyItem spline_offset_mode_items[] = {
+	static const EnumPropertyItem spline_offset_mode_items[] = {
 		{MASK_SPLINE_OFFSET_EVEN, "EVEN", 0, "Even", "Calculate even feather offset"},
 		{MASK_SPLINE_OFFSET_SMOOTH, "SMOOTH", 0, "Smooth", "Calculate feather offset as a second curve"},
 		{0, NULL, 0, NULL, NULL}
@@ -888,7 +888,7 @@ static void rna_def_maskSpline(BlenderRNA *brna)
 
 static void rna_def_mask_layer(BlenderRNA *brna)
 {
-	static EnumPropertyItem masklay_blend_mode_items[] = {
+	static const EnumPropertyItem masklay_blend_mode_items[] = {
 		{MASK_BLEND_MERGE_ADD, "MERGE_ADD", 0, "Merge Add", ""},
 		{MASK_BLEND_MERGE_SUBTRACT, "MERGE_SUBTRACT", 0, "Merge Subtract", ""},
 		{MASK_BLEND_ADD, "ADD", 0, "Add", ""},
@@ -1014,8 +1014,8 @@ static void rna_def_masklayers(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_function_ui_description(func, "Remove layer from this mask");
 	parm = RNA_def_pointer(func, "layer", "MaskLayer", "", "Shape to be removed");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 
 	/* clear all layers */
 	func = RNA_def_function(srna, "clear", "rna_Mask_layers_clear");

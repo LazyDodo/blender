@@ -168,7 +168,7 @@ static void format_draw_color(char formatchar)
  *     view_width    The maximum number of characters displayable in the region
  *                 This equals region_width/font_width for the region
  *     wrap_chars    Characters that allow wrapping. This equals [' ', '\t', '-']
- * 
+ *
  * def wrap(line, view_width, wrap_chars):
  *     draw_start = 0
  *     draw_end = view_width
@@ -182,7 +182,7 @@ static void format_draw_color(char formatchar)
  *             draw_end = pos+1
  *         pos += 1
  *     print line[draw_start:]
- * 
+ *
  */
 
 int wrap_width(const SpaceText *st, ARegion *ar)
@@ -594,7 +594,7 @@ static void text_update_drawcache(SpaceText *st, ARegion *ar)
 			drawcache->total_lines = 0;
 
 			if (st->showlinenrs)
-				st->linenrs_tot = (int)floor(log10((float)nlines)) + 1;
+				st->linenrs_tot = integer_digits_i(nlines);
 
 			while (line) {
 				if (drawcache->valid_head) { /* we're inside valid head lines */
@@ -628,7 +628,7 @@ static void text_update_drawcache(SpaceText *st, ARegion *ar)
 			nlines = BLI_listbase_count(&txt->lines);
 
 			if (st->showlinenrs)
-				st->linenrs_tot = (int)floor(log10((float)nlines)) + 1;
+				st->linenrs_tot = integer_digits_i(nlines);
 		}
 
 		drawcache->total_lines = nlines;
@@ -926,6 +926,7 @@ static void draw_textscroll(const SpaceText *st, rcti *scroll, rcti *back)
 
 /*********************** draw documentation *******************************/
 
+#if 0
 static void draw_documentation(const SpaceText *st, ARegion *ar)
 {
 	TextDrawContext tdc = {0};
@@ -1014,6 +1015,7 @@ static void draw_documentation(const SpaceText *st, ARegion *ar)
 		draw_documentation(st, ar);
 	}
 }
+#endif
 
 /*********************** draw suggestion list *******************************/
 
@@ -1487,7 +1489,7 @@ void draw_text_main(SpaceText *st, ARegion *ar)
 	/* draw other stuff */
 	draw_brackets(st, &tdc, ar);
 	draw_textscroll(st, &scroll, &back);
-	draw_documentation(st, ar);
+	/* draw_documentation(st, ar); - No longer supported */
 	draw_suggestion_list(st, &tdc, ar);
 	
 	text_font_end(&tdc);

@@ -31,6 +31,7 @@ extern "C" {
 #include "DNA_customdata_types.h"
 #include "DNA_meshdata_types.h"
 
+#include "BLI_math_base.h"
 #include "BKE_customdata.h"
 }
 
@@ -227,48 +228,6 @@ using Alembic::AbcGeom::IC3fGeomParam;
 using Alembic::AbcGeom::IC4fGeomParam;
 using Alembic::AbcGeom::IV2fGeomParam;
 
-static void read_mcols(const CDStreamConfig &config, void *data,
-                       const C3fArraySamplePtr &c3f_ptr, const C4fArraySamplePtr &c4f_ptr)
-{
-	MCol *cfaces = static_cast<MCol *>(data);
-	MPoly *polys = config.mpoly;
-	MLoop *mloops = config.mloop;
-
-	if (c3f_ptr) {
-		for (int i = 0; i < config.totpoly; ++i) {
-			MPoly *p = &polys[i];
-			MCol *cface = &cfaces[p->loopstart + p->totloop];
-			MLoop *mloop = &mloops[p->loopstart + p->totloop];
-
-			for (int j = 0; j < p->totloop; ++j) {
-				cface--;
-				mloop--;
-				const Imath::C3f &color = (*c3f_ptr)[mloop->v];
-				cface->a = FTOCHAR(color[0]);
-				cface->r = FTOCHAR(color[1]);
-				cface->g = FTOCHAR(color[2]);
-				cface->b = 255;
-			}
-		}
-	}
-	else if (c4f_ptr) {
-		for (int i = 0; i < config.totpoly; ++i) {
-			MPoly *p = &polys[i];
-			MCol *cface = &cfaces[p->loopstart + p->totloop];
-			MLoop *mloop = &mloops[p->loopstart + p->totloop];
-
-			for (int j = 0; j < p->totloop; ++j) {
-				cface--;
-				mloop--;
-				const Imath::C4f &color = (*c4f_ptr)[mloop->v];
-				cface->a = FTOCHAR(color[0]);
-				cface->r = FTOCHAR(color[1]);
-				cface->g = FTOCHAR(color[2]);
-				cface->b = FTOCHAR(color[3]);
-			}
-		}
-	}
-}
 
 static void read_uvs(const CDStreamConfig &config, void *data,
                      const Alembic::AbcGeom::V2fArraySamplePtr &uvs,
@@ -277,72 +236,183 @@ static void read_uvs(const CDStreamConfig &config, void *data,
 	MPoly *mpolys = config.mpoly;
 	MLoopUV *mloopuvs = static_cast<MLoopUV *>(data);
 
-	unsigned int uv_index, loop_index;
+	unsigned int uv_index, loop_index, rev_loop_index;
 
 	for (int i = 0; i < config.totpoly; ++i) {
 		MPoly &poly = mpolys[i];
+		unsigned int rev_loop_offset = poly.loopstart + poly.totloop - 1;
 
 		for (int f = 0; f < poly.totloop; ++f) {
 			loop_index = poly.loopstart + f;
+			rev_loop_index = rev_loop_offset - f;
 			uv_index = (*indices)[loop_index];
 			const Imath::V2f &uv = (*uvs)[uv_index];
 
-			MLoopUV &loopuv = mloopuvs[loop_index];
+			MLoopUV &loopuv = mloopuvs[rev_loop_index];
 			loopuv.uv[0] = uv[0];
 			loopuv.uv[1] = uv[1];
 		}
 	}
 }
 
-static void read_custom_data_ex(const ICompoundProperty &prop,
-                                const PropertyHeader &prop_header,
-                                const CDStreamConfig &config,
-                                const Alembic::Abc::ISampleSelector &iss,
-                                int data_type)
+static size_t mcols_out_of_bounds_check(
+        const size_t color_index,
+        const size_t array_size,
+        const std::string & iobject_full_name,
+        const PropertyHeader &prop_header,
+        bool &r_bounds_warning_given)
 {
-	if (data_type == CD_MLOOPCOL) {
-		C3fArraySamplePtr c3f_ptr = C3fArraySamplePtr();
-		C4fArraySamplePtr c4f_ptr = C4fArraySamplePtr();
-
-		if (IC3fGeomParam::matches(prop_header)) {
-			IC3fGeomParam color_param(prop, prop_header.getName());
-			IC3fGeomParam::Sample sample;
-			color_param.getIndexed(sample, iss);
-
-			c3f_ptr = sample.getVals();
-		}
-		else if (IC4fGeomParam::matches(prop_header)) {
-			IC4fGeomParam color_param(prop, prop_header.getName());
-			IC4fGeomParam::Sample sample;
-			color_param.getIndexed(sample, iss);
-
-			c4f_ptr = sample.getVals();
-		}
-
-		void *cd_data = config.add_customdata_cb(config.user_data,
-		                                         prop_header.getName().c_str(),
-		                                         data_type);
-
-		read_mcols(config, cd_data, c3f_ptr, c4f_ptr);
+	if (color_index < array_size) {
+		return color_index;
 	}
-	else if (data_type == CD_MLOOPUV) {
-		IV2fGeomParam uv_param(prop, prop_header.getName());
-		IV2fGeomParam::Sample sample;
-		uv_param.getIndexed(sample, iss);
 
-		if (uv_param.getScope() != kFacevaryingScope) {
-			return;
+	if (!r_bounds_warning_given) {
+		std::cerr << "Alembic: color index out of bounds "
+		             "reading face colors for object "
+		          << iobject_full_name
+		          << ", property "
+		          << prop_header.getName() << std::endl;
+		r_bounds_warning_given = true;
+	}
+
+	return 0;
+}
+
+static void read_custom_data_mcols(const std::string & iobject_full_name,
+                                   const ICompoundProperty &arbGeomParams,
+                                   const PropertyHeader &prop_header,
+                                   const CDStreamConfig &config,
+                                   const Alembic::Abc::ISampleSelector &iss)
+{
+	C3fArraySamplePtr c3f_ptr = C3fArraySamplePtr();
+	C4fArraySamplePtr c4f_ptr = C4fArraySamplePtr();
+	Alembic::Abc::UInt32ArraySamplePtr indices;
+	bool use_c3f_ptr;
+	bool is_facevarying;
+
+	/* Find the correct interpretation of the data */
+	if (IC3fGeomParam::matches(prop_header)) {
+		IC3fGeomParam color_param(arbGeomParams, prop_header.getName());
+		IC3fGeomParam::Sample sample;
+		BLI_assert(!strcmp("rgb", color_param.getInterpretation()));
+
+		color_param.getIndexed(sample, iss);
+		is_facevarying = sample.getScope() == kFacevaryingScope &&
+		                 config.totloop == sample.getIndices()->size();
+
+		c3f_ptr = sample.getVals();
+		indices = sample.getIndices();
+		use_c3f_ptr = true;
+	}
+	else if (IC4fGeomParam::matches(prop_header)) {
+		IC4fGeomParam color_param(arbGeomParams, prop_header.getName());
+		IC4fGeomParam::Sample sample;
+		BLI_assert(!strcmp("rgba", color_param.getInterpretation()));
+
+		color_param.getIndexed(sample, iss);
+		is_facevarying = sample.getScope() == kFacevaryingScope &&
+		                 config.totloop == sample.getIndices()->size();
+
+		c4f_ptr = sample.getVals();
+		indices = sample.getIndices();
+		use_c3f_ptr = false;
+	}
+	else {
+		/* this won't happen due to the checks in read_custom_data() */
+		return;
+	}
+	BLI_assert(c3f_ptr || c4f_ptr);
+
+	/* Read the vertex colors */
+	void *cd_data = config.add_customdata_cb(config.user_data,
+	                                         prop_header.getName().c_str(),
+	                                         CD_MLOOPCOL);
+	MCol *cfaces = static_cast<MCol *>(cd_data);
+	MPoly *mpolys = config.mpoly;
+	MLoop *mloops = config.mloop;
+
+	size_t face_index = 0;
+	size_t color_index;
+	bool bounds_warning_given = false;
+
+	/* The colors can go through two layers of indexing. Often the 'indices'
+	 * array doesn't do anything (i.e. indices[n] = n), but when it does, it's
+	 * important. Blender 2.79 writes indices incorrectly (see T53745), which
+	 * is why we have to check for indices->size() > 0 */
+	bool use_dual_indexing = is_facevarying && indices->size() > 0;
+
+	for (int i = 0; i < config.totpoly; ++i) {
+		MPoly *poly = &mpolys[i];
+		MCol *cface = &cfaces[poly->loopstart + poly->totloop];
+		MLoop *mloop = &mloops[poly->loopstart + poly->totloop];
+
+		for (int j = 0; j < poly->totloop; ++j, ++face_index) {
+			--cface;
+			--mloop;
+
+			color_index = is_facevarying ? face_index : mloop->v;
+			if (use_dual_indexing) {
+				color_index = (*indices)[color_index];
+			}
+			if (use_c3f_ptr) {
+				color_index = mcols_out_of_bounds_check(
+				                  color_index,
+				                  c3f_ptr->size(),
+				                  iobject_full_name, prop_header,
+				                  bounds_warning_given);
+
+				const Imath::C3f &color = (*c3f_ptr)[color_index];
+				cface->a = unit_float_to_uchar_clamp(color[0]);
+				cface->r = unit_float_to_uchar_clamp(color[1]);
+				cface->g = unit_float_to_uchar_clamp(color[2]);
+				cface->b = 255;
+			}
+			else {
+				color_index = mcols_out_of_bounds_check(
+				                  color_index,
+				                  c4f_ptr->size(),
+				                  iobject_full_name, prop_header,
+				                  bounds_warning_given);
+
+				const Imath::C4f &color = (*c4f_ptr)[color_index];
+				cface->a = unit_float_to_uchar_clamp(color[0]);
+				cface->r = unit_float_to_uchar_clamp(color[1]);
+				cface->g = unit_float_to_uchar_clamp(color[2]);
+				cface->b = unit_float_to_uchar_clamp(color[3]);
+			}
 		}
-
-		void *cd_data = config.add_customdata_cb(config.user_data,
-		                                         prop_header.getName().c_str(),
-		                                         data_type);
-
-		read_uvs(config, cd_data, sample.getVals(), sample.getIndices());
 	}
 }
 
-void read_custom_data(const ICompoundProperty &prop, const CDStreamConfig &config, const Alembic::Abc::ISampleSelector &iss)
+static void read_custom_data_uvs(const ICompoundProperty &prop,
+                                 const PropertyHeader &prop_header,
+                                 const CDStreamConfig &config,
+                                 const Alembic::Abc::ISampleSelector &iss)
+{
+	IV2fGeomParam uv_param(prop, prop_header.getName());
+
+	if (!uv_param.isIndexed()) {
+		return;
+	}
+
+	IV2fGeomParam::Sample sample;
+	uv_param.getIndexed(sample, iss);
+
+	if (uv_param.getScope() != kFacevaryingScope) {
+		return;
+	}
+
+	void *cd_data = config.add_customdata_cb(config.user_data,
+	                                         prop_header.getName().c_str(),
+	                                         CD_MLOOPUV);
+
+	read_uvs(config, cd_data, sample.getVals(), sample.getIndices());
+}
+
+void read_custom_data(const std::string & iobject_full_name,
+                      const ICompoundProperty &prop,
+                      const CDStreamConfig &config,
+                      const Alembic::Abc::ISampleSelector &iss)
 {
 	if (!prop.valid()) {
 		return;
@@ -362,7 +432,7 @@ void read_custom_data(const ICompoundProperty &prop, const CDStreamConfig &confi
 				continue;
 			}
 
-			read_custom_data_ex(prop, prop_header, config, iss, CD_MLOOPUV);
+			read_custom_data_uvs(prop, prop_header, config, iss);
 			continue;
 		}
 
@@ -372,7 +442,7 @@ void read_custom_data(const ICompoundProperty &prop, const CDStreamConfig &confi
 				continue;
 			}
 
-			read_custom_data_ex(prop, prop_header, config, iss, CD_MLOOPCOL);
+			read_custom_data_mcols(iobject_full_name, prop, prop_header, config, iss);
 			continue;
 		}
 	}

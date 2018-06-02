@@ -29,7 +29,7 @@ ccl_device_noinline float3 direct_emissive_eval(KernelGlobals *kg,
 	/* setup shading at emitter */
 	float3 eval;
 
-	int shader_flag = kernel_tex_fetch(__shader_flag, (ls->shader & SHADER_MASK)*SHADER_SIZE);
+	int shader_flag = kernel_tex_fetch(__shaders, (ls->shader & SHADER_MASK)).flags;
 
 #ifdef __BACKGROUND_MIS__
 	if(ls->type == LIGHT_BACKGROUND) {
@@ -37,25 +37,23 @@ ccl_device_noinline float3 direct_emissive_eval(KernelGlobals *kg,
 		ray.D = ls->D;
 		ray.P = ls->P;
 		ray.t = 1.0f;
-#  ifdef __OBJECT_MOTION__
 		ray.time = time;
-#  endif
 		ray.dP = differential3_zero();
 		ray.dD = dI;
 
 		shader_setup_from_background(kg, emission_sd, &ray);
 
 		path_state_modify_bounce(state, true);
-		eval = shader_eval_background(kg, emission_sd, state, 0, SHADER_CONTEXT_EMISSION);
+		eval = shader_eval_background(kg, emission_sd, state, 0);
 		path_state_modify_bounce(state, false);
 	}
 	else
 #endif
 	if(shader_flag & SD_HAS_CONSTANT_EMISSION)
 	{
-		eval.x = __int_as_float(kernel_tex_fetch(__shader_flag, (ls->shader & SHADER_MASK)*SHADER_SIZE + 2));
-		eval.y = __int_as_float(kernel_tex_fetch(__shader_flag, (ls->shader & SHADER_MASK)*SHADER_SIZE + 3));
-		eval.z = __int_as_float(kernel_tex_fetch(__shader_flag, (ls->shader & SHADER_MASK)*SHADER_SIZE + 4));
+		eval.x = kernel_tex_fetch(__shaders, (ls->shader & SHADER_MASK)).constant_emission[0];
+		eval.y = kernel_tex_fetch(__shaders, (ls->shader & SHADER_MASK)).constant_emission[1];
+		eval.z = kernel_tex_fetch(__shaders, (ls->shader & SHADER_MASK)).constant_emission[2];
 		if((ls->prim != PRIM_NONE) && dot(ls->Ng, I) < 0.0f) {
 			ls->Ng = -ls->Ng;
 		}
@@ -67,19 +65,16 @@ ccl_device_noinline float3 direct_emissive_eval(KernelGlobals *kg,
 		                         ls->shader, ls->object, ls->prim,
 		                         ls->u, ls->v, t, time, false, ls->lamp);
 
-		ls->Ng = ccl_fetch(emission_sd, Ng);
+		ls->Ng = emission_sd->Ng;
 
-		/* no path flag, we're evaluating this for all closures. that's weak but
-		 * we'd have to do multiple evaluations otherwise */
+		/* No proper path flag, we're evaluating this for all closures. that's
+		 * weak but we'd have to do multiple evaluations otherwise. */
 		path_state_modify_bounce(state, true);
-		shader_eval_surface(kg, emission_sd, NULL, state, 0.0f, 0, SHADER_CONTEXT_EMISSION);
+		shader_eval_surface(kg, emission_sd, state, PATH_RAY_EMISSION);
 		path_state_modify_bounce(state, false);
 
-		/* evaluate emissive closure */
-		if(ccl_fetch(emission_sd, flag) & SD_EMISSION)
-			eval = shader_emissive_eval(kg, emission_sd);
-		else
-			eval = make_float3(0.0f, 0.0f, 0.0f);
+		/* Evaluate emissive closure. */
+		eval = shader_emissive_eval(kg, emission_sd);
 	}
 	
 	eval *= ls->eval_fac;
@@ -112,7 +107,7 @@ ccl_device_noinline bool direct_emission(KernelGlobals *kg,
 	                                         -ls->D,
 	                                         dD,
 	                                         ls->t,
-	                                         ccl_fetch(sd, time));
+	                                         sd->time);
 
 	if(is_zero(light_eval))
 		return false;
@@ -120,7 +115,7 @@ ccl_device_noinline bool direct_emission(KernelGlobals *kg,
 	/* evaluate BSDF at shading point */
 
 #ifdef __VOLUME__
-	if(ccl_fetch(sd, prim) != PRIM_NONE)
+	if(sd->prim != PRIM_NONE)
 		shader_bsdf_eval(kg, sd, ls->D, eval, ls->pdf, ls->shader & SHADER_USE_MIS);
 	else {
 		float bsdf_pdf;
@@ -156,8 +151,13 @@ ccl_device_noinline bool direct_emission(KernelGlobals *kg,
 	if(bsdf_eval_is_zero(eval))
 		return false;
 
-	if(kernel_data.integrator.light_inv_rr_threshold > 0.0f) {
-		float probability = max3(bsdf_eval_sum(eval)) * kernel_data.integrator.light_inv_rr_threshold;
+	if(kernel_data.integrator.light_inv_rr_threshold > 0.0f
+#ifdef __SHADOW_TRICKS__
+	   && (state->flag & PATH_RAY_SHADOW_CATCHER) == 0
+#endif
+	  )
+	{
+		float probability = max3(fabs(bsdf_eval_sum(eval))) * kernel_data.integrator.light_inv_rr_threshold;
 		if(probability < 1.0f) {
 			if(rand_terminate >= probability) {
 				return false;
@@ -168,8 +168,8 @@ ccl_device_noinline bool direct_emission(KernelGlobals *kg,
 
 	if(ls->shader & SHADER_CAST_SHADOW) {
 		/* setup ray */
-		bool transmit = (dot(ccl_fetch(sd, Ng), ls->D) < 0.0f);
-		ray->P = ray_offset(ccl_fetch(sd, P), (transmit)? -ccl_fetch(sd, Ng): ccl_fetch(sd, Ng));
+		bool transmit = (dot(sd->Ng, ls->D) < 0.0f);
+		ray->P = ray_offset(sd->P, (transmit)? -sd->Ng: sd->Ng);
 
 		if(ls->t == FLT_MAX) {
 			/* distant light */
@@ -182,7 +182,7 @@ ccl_device_noinline bool direct_emission(KernelGlobals *kg,
 			ray->D = normalize_len(ray->D, &ray->t);
 		}
 
-		ray->dP = ccl_fetch(sd, dP);
+		ray->dP = sd->dP;
 		ray->dD = differential3_zero();
 	}
 	else {
@@ -204,14 +204,14 @@ ccl_device_noinline float3 indirect_primitive_emission(KernelGlobals *kg, Shader
 	float3 L = shader_emissive_eval(kg, sd);
 
 #ifdef __HAIR__
-	if(!(path_flag & PATH_RAY_MIS_SKIP) && (ccl_fetch(sd, flag) & SD_USE_MIS) && (ccl_fetch(sd, type) & PRIMITIVE_ALL_TRIANGLE))
+	if(!(path_flag & PATH_RAY_MIS_SKIP) && (sd->flag & SD_USE_MIS) && (sd->type & PRIMITIVE_ALL_TRIANGLE))
 #else
-	if(!(path_flag & PATH_RAY_MIS_SKIP) && (ccl_fetch(sd, flag) & SD_USE_MIS))
+	if(!(path_flag & PATH_RAY_MIS_SKIP) && (sd->flag & SD_USE_MIS))
 #endif
 	{
 		/* multiple importance sampling, get triangle light pdf,
 		 * and compute weight with respect to BSDF pdf */
-		float pdf = triangle_light_pdf(kg, ccl_fetch(sd, Ng), ccl_fetch(sd, I), t);
+		float pdf = triangle_light_pdf(kg, sd, t);
 		float mis_weight = power_heuristic(bsdf_pdf, pdf);
 
 		return L*mis_weight;
@@ -314,7 +314,7 @@ ccl_device_noinline float3 indirect_background(KernelGlobals *kg,
 #  endif
 
 	path_state_modify_bounce(state, true);
-	float3 L = shader_eval_background(kg, emission_sd, state, state->flag, SHADER_CONTEXT_EMISSION);
+	float3 L = shader_eval_background(kg, emission_sd, state, state->flag);
 	path_state_modify_bounce(state, false);
 
 #ifdef __BACKGROUND_MIS__

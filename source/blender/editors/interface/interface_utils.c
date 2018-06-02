@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,7 +17,7 @@
  *
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -71,7 +71,7 @@ uiBut *uiDefAutoButR(uiBlock *block, PointerRNA *ptr, PropertyRNA *prop, int ind
 
 			if (arraylen && index == -1)
 				return NULL;
-			
+
 			if (icon && name && name[0] == '\0')
 				but = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0, icon, x1, y1, x2, y2, ptr, prop, index, 0, 0, -1, -1, NULL);
 			else if (icon)
@@ -119,22 +119,18 @@ uiBut *uiDefAutoButR(uiBlock *block, PointerRNA *ptr, PropertyRNA *prop, int ind
 			else
 				but = uiDefButR_prop(block, UI_BTYPE_TEXT, 0, name, x1, y1, x2, y2, ptr, prop, index, 0, 0, -1, -1, NULL);
 
-			PropertySubType subtype = RNA_property_subtype(prop);
-			if (!(ELEM(subtype, PROP_FILEPATH, PROP_DIRPATH, PROP_FILENAME) || (block->flag & UI_BLOCK_LIST_ITEM))) {
-				UI_but_flag_enable(but, UI_BUT_VALUE_CLEAR);
-			}
 			if (RNA_property_flag(prop) & PROP_TEXTEDIT_UPDATE) {
-				UI_but_flag_enable(but, UI_BUT_TEXTEDIT_UPDATE);
+				/* TEXTEDIT_UPDATE is usally used for search buttons. For these we also want
+				 * the 'x' icon to clear search string, so setting VALUE_CLEAR flag, too. */
+				UI_but_flag_enable(but, UI_BUT_TEXTEDIT_UPDATE | UI_BUT_VALUE_CLEAR);
 			}
 			break;
 		case PROP_POINTER:
 		{
-			PointerRNA pptr;
-
-			pptr = RNA_property_pointer_get(ptr, prop);
-			if (!pptr.type)
-				pptr.type = RNA_property_pointer_type(ptr, prop);
-			icon = RNA_struct_ui_icon(pptr.type);
+			if (icon == 0) {
+				PointerRNA pptr = RNA_property_pointer_get(ptr, prop);
+				icon = RNA_struct_ui_icon(pptr.type ? pptr.type : RNA_property_pointer_type(ptr, prop));
+			}
 			if (icon == ICON_DOT)
 				icon = 0;
 
@@ -229,7 +225,7 @@ int UI_icon_from_id(ID *id)
 
 	if (id == NULL)
 		return ICON_NONE;
-	
+
 	idcode = GS(id->name);
 
 	/* exception for objects */
@@ -269,7 +265,7 @@ int UI_icon_from_report_type(int type)
  */
 int UI_calc_float_precision(int prec, double value)
 {
-	static const double pow10_neg[UI_PRECISION_FLOAT_MAX + 1] = {1e0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7};
+	static const double pow10_neg[UI_PRECISION_FLOAT_MAX + 1] = {1e0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6};
 	static const double max_pow = 10000000.0;  /* pow(10, UI_PRECISION_FLOAT_MAX) */
 
 	BLI_assert(prec <= UI_PRECISION_FLOAT_MAX);
@@ -384,6 +380,17 @@ uiButStore *UI_butstore_create(uiBlock *block)
 
 void UI_butstore_free(uiBlock *block, uiButStore *bs_handle)
 {
+	/* Workaround for button store being moved into new block,
+	 * which then can't use the previous buttons state ('ui_but_update_from_old_block' fails to find a match),
+	 * keeping the active button in the old block holding a reference to the button-state in the new block: see T49034.
+	 *
+	 * Ideally we would manage moving the 'uiButStore', keeping a correct state.
+	 * All things considered this is the most straightforward fix - Campbell.
+	 */
+	if (block != bs_handle->block && bs_handle->block != NULL) {
+		block = bs_handle->block;
+	}
+
 	BLI_freelistN(&bs_handle->items);
 	BLI_remlink(&block->butstore, bs_handle);
 

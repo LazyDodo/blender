@@ -24,15 +24,21 @@
 #  include <functional>
 #else
 #  include <boost/thread.hpp>
+#  include <pthread.h>
 #endif
-#include <pthread.h>
 #include <queue>
+
+#ifdef _WIN32
+#  include "util_windows.h"
+#else
+#  include <pthread.h>
+#endif
 
 #ifdef __APPLE__
 #  include <libkern/OSAtomic.h>
 #endif
 
-#include "util_function.h"
+#include "util/util_function.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -60,7 +66,11 @@ public:
 
 protected:
 	function<void(void)> run_cb_;
+#if (__cplusplus > 199711L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
+	std::thread thread_;
+#else
 	pthread_t pthread_id_;
+#endif
 	bool joined_;
 	int group_;
 };
@@ -81,7 +91,24 @@ public:
 	inline void unlock() {
 		OSSpinLockUnlock(&spin_);
 	}
-#else  /* __APPLE__ */
+#elif defined(_WIN32)
+	inline thread_spin_lock() {
+		const DWORD SPIN_COUNT = 50000;
+		InitializeCriticalSectionAndSpinCount(&cs_, SPIN_COUNT);
+	}
+
+	inline ~thread_spin_lock() {
+		DeleteCriticalSection(&cs_);
+	}
+
+	inline void lock() {
+		EnterCriticalSection(&cs_);
+	}
+
+	inline void unlock() {
+		LeaveCriticalSection(&cs_);
+	}
+#else
 	inline thread_spin_lock() {
 		pthread_spin_init(&spin_, 0);
 	}
@@ -97,13 +124,32 @@ public:
 	inline void unlock() {
 		pthread_spin_unlock(&spin_);
 	}
-#endif  /* __APPLE__ */
+#endif
 protected:
 #ifdef __APPLE__
 	OSSpinLock spin_;
+#elif defined(_WIN32)
+	CRITICAL_SECTION cs_;
 #else
 	pthread_spinlock_t spin_;
 #endif
+};
+
+class thread_scoped_spin_lock {
+public:
+	explicit thread_scoped_spin_lock(thread_spin_lock& lock)
+	        : lock_(lock) {
+		lock_.lock();
+	}
+
+	~thread_scoped_spin_lock() {
+		lock_.unlock();
+	}
+
+	/* TODO(sergey): Implement manual control over lock/unlock. */
+
+protected:
+	thread_spin_lock& lock_;
 };
 
 CCL_NAMESPACE_END

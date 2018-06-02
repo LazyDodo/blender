@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Andrea Weikert (c) 2008 Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -105,7 +105,7 @@ static void file_deselect_all(SpaceFile *sfile, unsigned int flag)
 	filelist_entries_select_index_range_set(sfile->files, &sel, FILE_SEL_REMOVE, flag, CHECK_ALL);
 }
 
-typedef enum FileSelect { 
+typedef enum FileSelect {
 	FILE_SELECT_NOTHING = 0,
 	FILE_SELECT_DIR = 1, 
 	FILE_SELECT_FILE = 2 
@@ -151,14 +151,24 @@ static FileSelection file_selection_get(bContext *C, const rcti *rect, bool fill
 
 	/* if desired, fill the selection up from the last selected file to the current one */
 	if (fill && (sel.last >= 0) && (sel.last < numfiles) ) {
-		int f = sel.last;
-		while (f >= 0) {
+		int f;
+		/* Try to find a smaller-index selected item. */
+		for (f = sel.last; f >= 0; f--) {
 			if (filelist_entry_select_index_get(sfile->files, f, CHECK_ALL) )
 				break;
-			f--;
 		}
 		if (f >= 0) {
 			sel.first = f + 1;
+		}
+		/* If none found, try to find a higher-index selected item. */
+		else {
+			for (f = sel.first; f < numfiles; f++) {
+				if (filelist_entry_select_index_get(sfile->files, f, CHECK_ALL) )
+					break;
+			}
+			if (f < numfiles) {
+				sel.last = f - 1;
+			}
 		}
 	}
 	return sel;
@@ -370,7 +380,7 @@ static int file_border_select_modal(bContext *C, wmOperator *op, const wmEvent *
 
 	int result;
 
-	result = WM_border_select_modal(C, op, event);
+	result = WM_gesture_border_modal(C, op, event);
 
 	if (result == OPERATOR_RUNNING_MODAL) {
 		WM_operator_properties_border_to_rcti(op, &rect);
@@ -419,7 +429,7 @@ static int file_border_select_exec(bContext *C, wmOperator *op)
 	SpaceFile *sfile = CTX_wm_space_file(C);
 	rcti rect;
 	FileSelect ret;
-	const bool select = (RNA_int_get(op->ptr, "gesture_mode") == GESTURE_MODAL_SELECT);
+	const bool select = !RNA_boolean_get(op->ptr, "deselect");
 	const bool extend = RNA_boolean_get(op->ptr, "extend");
 
 	WM_operator_properties_border_to_rcti(op, &rect);
@@ -452,14 +462,14 @@ void FILE_OT_select_border(wmOperatorType *ot)
 	ot->idname = "FILE_OT_select_border";
 	
 	/* api callbacks */
-	ot->invoke = WM_border_select_invoke;
+	ot->invoke = WM_gesture_border_invoke;
 	ot->exec = file_border_select_exec;
 	ot->modal = file_border_select_modal;
 	ot->poll = ED_operator_file_active;
-	ot->cancel = WM_border_select_cancel;
+	ot->cancel = WM_gesture_border_cancel;
 
 	/* properties */
-	WM_operator_properties_gesture_border(ot, 1);
+	WM_operator_properties_gesture_border_select(ot);
 }
 
 static int file_select_invoke(bContext *C, wmOperator *op, const wmEvent *event)
@@ -730,7 +740,7 @@ static int file_walk_select_invoke(bContext *C, wmOperator *op, const wmEvent *U
 
 void FILE_OT_select_walk(wmOperatorType *ot)
 {
-	static EnumPropertyItem direction_items[] = {
+	static const EnumPropertyItem direction_items[] = {
 		{FILE_SELECT_WALK_UP,    "UP",    0, "Prev",  ""},
 		{FILE_SELECT_WALK_DOWN,  "DOWN",  0, "Next",  ""},
 		{FILE_SELECT_WALK_LEFT,  "LEFT",  0, "Left",  ""},
@@ -1041,7 +1051,7 @@ static int bookmark_move_exec(bContext *C, wmOperator *op)
 
 void FILE_OT_bookmark_move(wmOperatorType *ot)
 {
-	static EnumPropertyItem slot_move[] = {
+	static const EnumPropertyItem slot_move[] = {
 		{FILE_BOOKMARK_MOVE_TOP, "TOP", 0, "Top", "Top of the list"},
 		{FILE_BOOKMARK_MOVE_UP, "UP", 0, "Up", ""},
 		{FILE_BOOKMARK_MOVE_DOWN, "DOWN", 0, "Down", ""},
@@ -1302,7 +1312,6 @@ void file_sfile_filepath_set(SpaceFile *sfile, const char *filepath)
 
 	if (BLI_is_dir(filepath)) {
 		BLI_strncpy(sfile->params->dir, filepath, sizeof(sfile->params->dir));
-		sfile->params->file[0] = '\0';
 	}
 	else {
 		if ((sfile->params->flag & FILE_DIRSEL_ONLY) == 0) {
@@ -1834,9 +1843,9 @@ static void file_expand_directory(bContext *C)
 	SpaceFile *sfile = CTX_wm_space_file(C);
 	
 	if (sfile->params) {
-		/* TODO, what about // when relbase isn't valid? */
-		if (G.relbase_valid && BLI_path_is_rel(sfile->params->dir)) {
-			BLI_path_abs(sfile->params->dir, G.main->name);
+		if (BLI_path_is_rel(sfile->params->dir)) {
+			/* Use of 'default' folder here is just to avoid an error message on '//' prefix. */
+			BLI_path_abs(sfile->params->dir, G.relbase_valid ? G.main->name : BKE_appdir_folder_default());
 		}
 		else if (sfile->params->dir[0] == '~') {
 			char tmpstr[sizeof(sfile->params->dir) - 1];
@@ -2204,7 +2213,7 @@ static int file_rename_poll(bContext *C)
 			poll = false;
 		}
 		else {
-			char dir[FILE_MAX];
+			char dir[FILE_MAX_LIBEXTRA];
 			if (filelist_islibrary(sfile->files, dir, NULL)) {
 				poll = false;
 			}
@@ -2236,7 +2245,7 @@ static int file_delete_poll(bContext *C)
 	SpaceFile *sfile = CTX_wm_space_file(C);
 
 	if (sfile && sfile->params) {
-		char dir[FILE_MAX];
+		char dir[FILE_MAX_LIBEXTRA];
 		int numfiles = filelist_files_ensure(sfile->files);
 		int i;
 		int num_selected = 0;

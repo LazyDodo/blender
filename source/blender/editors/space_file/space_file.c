@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -188,6 +188,9 @@ static SpaceLink *file_duplicate(SpaceLink *sl)
 	/* clear or remove stuff from old */
 	sfilen->op = NULL; /* file window doesn't own operators */
 
+	sfilen->previews_timer = NULL;
+	sfilen->smoothscroll_timer = NULL;
+
 	if (sfileo->params) {
 		sfilen->files = filelist_new(sfileo->params->type);
 		sfilen->params = MEM_dupallocN(sfileo->params);
@@ -223,9 +226,10 @@ static void file_refresh(const bContext *C, ScrArea *sa)
 	filelist_setdir(sfile->files, params->dir);
 	filelist_setrecursion(sfile->files, params->recursion_level);
 	filelist_setsorting(sfile->files, params->sort);
-	filelist_setfilter_options(sfile->files, (params->flag & FILE_HIDE_DOT) != 0,
+	filelist_setfilter_options(sfile->files, (params->flag & FILE_FILTER) != 0,
+	                                         (params->flag & FILE_HIDE_DOT) != 0,
 	                                         false, /* TODO hide_parent, should be controllable? */
-	                                         (params->flag & FILE_FILTER) ? params->filter : 0,
+	                                         params->filter,
 	                                         params->filter_id,
 	                                         params->filter_glob,
 	                                         params->filter_search);
@@ -602,7 +606,7 @@ static void file_tools_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa),
 #if 0
 	/* context changes */
 	switch (wmn->category) {
-		
+		/* pass */
 	}
 #endif
 }

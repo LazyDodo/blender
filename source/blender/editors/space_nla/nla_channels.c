@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation, Joshua Leung
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Joshua Leung (major recode)
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -129,7 +129,7 @@ static int mouse_nla_channels(bContext *C, bAnimContext *ac, float x, int channe
 			Object *ob = base->object;
 			AnimData *adt = ob->adt;
 			
-			if (nlaedit_is_tweakmode_on(ac) == 0) {
+			if (nlaedit_is_tweakmode_on(ac) == 0 && (ob->restrictflag & OB_RESTRICT_SELECT) == 0) {
 				/* set selection status */
 				if (selectmode == SELECT_INVERT) {
 					/* swap select */
@@ -596,12 +596,12 @@ bool nlaedit_add_tracks_existing(bAnimContext *ac, bool above_sel)
 			 */
 			if (above_sel) {
 				/* just add a new one above this one */
-				add_nlatrack(adt, nlt);
+				BKE_nlatrack_add(adt, nlt);
 				added = true;
 			}
 			else if ((lastAdt == NULL) || (adt != lastAdt)) {
 				/* add one track to the top of the owning AnimData's stack, then don't add anymore to this stack */
-				add_nlatrack(adt, NULL);
+				BKE_nlatrack_add(adt, NULL);
 				lastAdt = adt;
 				added = true;
 			}
@@ -636,7 +636,7 @@ bool nlaedit_add_tracks_empty(bAnimContext *ac)
 		/* ensure it is empty */
 		if (BLI_listbase_is_empty(&adt->nla_tracks)) {
 			/* add new track to this AnimData block then */
-			add_nlatrack(adt, NULL);
+			BKE_nlatrack_add(adt, NULL);
 			added = true;
 		}
 	}
@@ -731,7 +731,7 @@ static int nlaedit_delete_tracks_exec(bContext *C, wmOperator *UNUSED(op))
 				adt->flag &= ~ADT_NLA_SOLO_TRACK;
 			
 			/* call delete on this track - deletes all strips too */
-			free_nlatrack(&adt->nla_tracks, nlt);
+			BKE_nlatrack_free(&adt->nla_tracks, nlt);
 		}
 	}
 	
@@ -767,7 +767,7 @@ void NLA_OT_tracks_delete(wmOperatorType *ot)
 /* Include selected objects in NLA Editor, by giving them AnimData blocks 
  * NOTE: This doesn't help for non-object AnimData, where we do not have any effective
  *       selection mechanism in place. Unfortunately, this means that non-object AnimData
- *       once again becomes a second-class citizen here. However, at least for the most 
+ *       once again becomes a second-class citizen here. However, at least for the most
  *       common use case, we now have a nice shortcut again.
  */
 

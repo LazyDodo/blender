@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * The Original Code is Copyright (C) 2007 Blender Foundation but based 
+ * The Original Code is Copyright (C) 2007 Blender Foundation but based
  * on ghostwinlay.c (C) 2001-2002 by NaN Holding BV
  * All rights reserved.
  *
@@ -70,6 +70,7 @@
 #include "ED_fileselect.h"
 
 #include "UI_interface.h"
+#include "UI_resources.h"
 
 #include "PIL_time.h"
 
@@ -77,6 +78,7 @@
 #include "GPU_extensions.h"
 #include "GPU_init_exit.h"
 #include "GPU_glew.h"
+#include "BLF_api.h"
 
 /* for assert */
 #ifndef NDEBUG
@@ -294,11 +296,158 @@ wmWindow *wm_window_copy_test(bContext *C, wmWindow *win_src)
 	}
 }
 
+
+/* -------------------------------------------------------------------- */
+/** \name Quit Confirmation Dialog
+ * \{ */
+
+/** Cancel quitting and close the dialog */
+static void wm_block_confirm_quit_cancel(bContext *C, void *arg_block, void *UNUSED(arg))
+{
+	wmWindow *win = CTX_wm_window(C);
+	UI_popup_block_close(C, win, arg_block);
+}
+
+/** Discard the file changes and quit */
+static void wm_block_confirm_quit_discard(bContext *C, void *arg_block, void *UNUSED(arg))
+{
+	wmWindow *win = CTX_wm_window(C);
+	UI_popup_block_close(C, win, arg_block);
+	WM_exit(C);
+}
+
+/* Save changes and quit */
+static void wm_block_confirm_quit_save(bContext *C, void *arg_block, void *UNUSED(arg))
+{
+	PointerRNA props_ptr;
+	wmWindow *win = CTX_wm_window(C);
+
+	UI_popup_block_close(C, win, arg_block);
+
+	wmOperatorType *ot = WM_operatortype_find("WM_OT_save_mainfile", false);
+
+	WM_operator_properties_create_ptr(&props_ptr, ot);
+	RNA_boolean_set(&props_ptr, "exit", true);
+	/* No need for second confirmation popup. */
+	RNA_boolean_set(&props_ptr, "check_existing", false);
+	WM_operator_name_call_ptr(C, ot, WM_OP_INVOKE_DEFAULT, &props_ptr);
+	WM_operator_properties_free(&props_ptr);
+}
+
+
+/* Build the confirm dialog UI */
+static uiBlock *block_create_confirm_quit(struct bContext *C, struct ARegion *ar, void *UNUSED(arg1))
+{
+
+	uiStyle *style = UI_style_get();
+	uiBlock *block = UI_block_begin(C, ar, "confirm_quit_popup", UI_EMBOSS);
+
+	UI_block_flag_enable(block, UI_BLOCK_KEEP_OPEN | UI_BLOCK_LOOP | UI_BLOCK_NO_WIN_CLIP | UI_BLOCK_NUMSELECT);
+	UI_block_emboss_set(block, UI_EMBOSS);
+
+	uiLayout *layout = UI_block_layout(
+	        block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 10, 2, U.widget_unit * 24, U.widget_unit * 6, 0, style);
+
+	/* Text and some vertical space */
+	{
+		char *message;
+		if (G.main->name[0] == '\0') {
+			message = BLI_strdup(IFACE_("This file has not been saved yet. Save before closing?"));
+		}
+		else {
+			const char *basename = BLI_path_basename(G.main->name);
+			message = BLI_sprintfN(IFACE_("Save changes to \"%s\" before closing?"), basename);
+		}
+		uiItemL(layout, message, ICON_ERROR);
+		MEM_freeN(message);
+	}
+
+	uiItemS(layout);
+	uiItemS(layout);
+
+
+	/* Buttons */
+	uiBut *but;
+
+	uiLayout *split = uiLayoutSplit(layout, 0.0f, true);
+
+	uiLayout *col = uiLayoutColumn(split, false);
+
+	but = uiDefIconTextBut(
+	        block, UI_BTYPE_BUT, 0, ICON_SCREEN_BACK, IFACE_("Cancel"), 0, 0, 0, UI_UNIT_Y,
+	        NULL, 0, 0, 0, 0, TIP_("Do not quit"));
+	UI_but_func_set(but, wm_block_confirm_quit_cancel, block, NULL);
+
+	/* empty space between buttons */
+	col = uiLayoutColumn(split, false);
+	uiItemS(col);
+
+	col = uiLayoutColumn(split, 1);
+	but = uiDefIconTextBut(
+	        block, UI_BTYPE_BUT, 0, ICON_CANCEL, IFACE_("Discard Changes"), 0, 0, 50, UI_UNIT_Y,
+	        NULL, 0, 0, 0, 0, TIP_("Discard changes and quit"));
+	UI_but_func_set(but, wm_block_confirm_quit_discard, block, NULL);
+
+	col = uiLayoutColumn(split, 1);
+	but = uiDefIconTextBut(
+	        block, UI_BTYPE_BUT, 0, ICON_FILE_TICK, IFACE_("Save & Quit"), 0, 0, 50, UI_UNIT_Y,
+	        NULL, 0, 0, 0, 0, TIP_("Save and quit"));
+	UI_but_func_set(but, wm_block_confirm_quit_save, block, NULL);
+
+	UI_block_bounds_set_centered(block, 10);
+
+	return block;
+}
+
+
+/**
+ * Call the confirm dialog on quitting. It's displayed in the context window so
+ * caller should set it as desired.
+ */
+static void wm_confirm_quit(bContext *C)
+{
+	wmWindow *win = CTX_wm_window(C);
+
+	if (GHOST_SupportsNativeDialogs() == 0) {
+		UI_popup_block_invoke(C, block_create_confirm_quit, NULL);
+	}
+	else if (GHOST_confirmQuit(win->ghostwin)) {
+		wm_exit_schedule_delayed(C);
+	}
+}
+
+/**
+ * Call the quit confirmation prompt or exit directly if needed. The use can
+ * still cancel via the confirmation popup. Also, this may not quit Blender
+ * immediately, but rather schedule the closing.
+ *
+ * \param win The window to show the confirmation popup/window in.
+ */
+void wm_quit_with_optional_confirmation_prompt(bContext *C, wmWindow *win)
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+	wmWindow *win_ctx = CTX_wm_window(C);
+
+	/* The popup will be displayed in the context window which may not be set
+	 * here (this function gets called outside of normal event handling loop). */
+	CTX_wm_window_set(C, win);
+
+	if ((U.uiflag & USER_QUIT_PROMPT) && !wm->file_saved && !G.background) {
+		wm_confirm_quit(C);
+	}
+	else {
+		wm_exit_schedule_delayed(C);
+	}
+
+	CTX_wm_window_set(C, win_ctx);
+}
+
+/** \} */
+
 /* this is event from ghost, or exit-blender op */
 void wm_window_close(bContext *C, wmWindowManager *wm, wmWindow *win)
 {
 	wmWindow *tmpwin;
-	bool do_exit = false;
 	
 	/* first check if we have to quit (there are non-temp remaining windows) */
 	for (tmpwin = wm->windows.first; tmpwin; tmpwin = tmpwin->next) {
@@ -308,21 +457,11 @@ void wm_window_close(bContext *C, wmWindowManager *wm, wmWindow *win)
 			break;
 	}
 
-	if (tmpwin == NULL)
-		do_exit = 1;
-	
-	if ((U.uiflag & USER_QUIT_PROMPT) && !wm->file_saved) {
-		if (do_exit) {
-			if (!GHOST_confirmQuit(win->ghostwin))
-				return;
-		}
-	}
-
-	/* let WM_exit do all freeing, for correct quit.blend save */
-	if (do_exit) {
-		WM_exit(C);
+	if (tmpwin == NULL) {
+		wm_quit_with_optional_confirmation_prompt(C, win);
 	}
 	else {
+		/* We're just closing a window */
 		bScreen *screen = win->screen;
 		
 		BLI_remlink(&wm->windows, win);
@@ -374,14 +513,49 @@ void wm_window_title(wmWindowManager *wm, wmWindow *win)
 	}
 }
 
-static float wm_window_get_virtual_pixelsize(void)
+void WM_window_set_dpi(wmWindow *win)
 {
-	return ((U.virtual_pixel == VIRTUAL_PIXEL_NATIVE) ? 1.0f : 2.0f);
-}
+	float auto_dpi = GHOST_GetDPIHint(win->ghostwin);
 
-float wm_window_pixelsize(wmWindow *win)
-{
-	return (GHOST_GetNativePixelSize(win->ghostwin) * wm_window_get_virtual_pixelsize());
+	/* Clamp auto DPI to 96, since our font/interface drawing does not work well
+	 * with lower sizes. The main case we are interested in supporting is higher
+	 * DPI. If a smaller UI is desired it is still possible to adjust UI scale. */
+	auto_dpi = max_ff(auto_dpi, 96.0f);
+
+	/* Lazily init UI scale size, preserving backwards compatibility by
+	 * computing UI scale from ratio of previous DPI and auto DPI */
+	if (U.ui_scale == 0) {
+		int virtual_pixel = (U.virtual_pixel == VIRTUAL_PIXEL_NATIVE) ? 1 : 2;
+
+		if (U.dpi == 0) {
+			U.ui_scale = virtual_pixel;
+		}
+		else {
+			U.ui_scale = (virtual_pixel * U.dpi * 96.0f) / (auto_dpi * 72.0f);
+		}
+
+		CLAMP(U.ui_scale, 0.25f, 4.0f);
+	}
+
+	/* Blender's UI drawing assumes DPI 72 as a good default following macOS
+	 * while Windows and Linux use DPI 96. GHOST assumes a default 96 so we
+	 * remap the DPI to Blender's convention. */
+	auto_dpi *= GHOST_GetNativePixelSize(win->ghostwin);
+	int dpi = auto_dpi * U.ui_scale * (72.0 / 96.0f);
+
+	/* Automatically set larger pixel size for high DPI. */
+	int pixelsize = max_ii(1, (int)(dpi / 64));
+	/* User adjustment for pixel size. */
+	pixelsize = max_ii(1, pixelsize + U.ui_line_width);
+
+	/* Set user preferences globals for drawing, and for forward compatibility. */
+	U.pixelsize = pixelsize;
+	U.dpi = dpi / pixelsize;
+	U.virtual_pixel = (pixelsize == 1) ? VIRTUAL_PIXEL_NATIVE : VIRTUAL_PIXEL_DOUBLE;
+	U.widget_unit = (U.pixelsize * U.dpi * 20 + 36) / 72;
+
+	/* update font drawing */
+	BLF_default_dpi(U.pixelsize * U.dpi);
 }
 
 /* belongs to below */
@@ -412,12 +586,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	
 	ghostwin = GHOST_CreateWindow(g_system, title,
 	                              win->posx, posy, win->sizex, win->sizey,
-#ifdef __APPLE__
-	                              /* we agreed to not set any fullscreen or iconized state on startup */
-	                              GHOST_kWindowStateNormal,
-#else
 	                              (GHOST_TWindowState)win->windowstate,
-#endif
 	                              GHOST_kDrawingContextTypeOpenGL,
 	                              glSettings);
 	
@@ -441,8 +610,12 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 		
 		/* store actual window size in blender window */
 		bounds = GHOST_GetClientBounds(win->ghostwin);
-		win->sizex = GHOST_GetWidthRectangle(bounds);
-		win->sizey = GHOST_GetHeightRectangle(bounds);
+
+		/* win32: gives undefined window size when minimized */
+		if (GHOST_GetWindowState(win->ghostwin) != GHOST_kWindowStateMinimized) {
+			win->sizex = GHOST_GetWidthRectangle(bounds);
+			win->sizey = GHOST_GetHeightRectangle(bounds);
+		}
 		GHOST_DisposeRectangle(bounds);
 		
 #ifndef __APPLE__
@@ -456,10 +629,8 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 			glClear(GL_COLOR_BUFFER_BIT);
 		}
 		
-		/* displays with larger native pixels, like Macbook. Used to scale dpi with */
 		/* needed here, because it's used before it reads userdef */
-		U.pixelsize = wm_window_pixelsize(win);
-		BKE_blender_userdef_refresh();
+		WM_window_set_dpi(win);
 		
 		wm_window_swap_buffers(win);
 		
@@ -472,7 +643,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 }
 
 /**
- * Initialize #wmWindows without ghostwin, open these and clear.
+ * Initialize #wmWindow without ghostwin, open these and clear.
  *
  * window size is read from window, if 0 it uses prefsize
  * called in #WM_check, also inits stuff after file read.
@@ -618,15 +789,27 @@ wmWindow *WM_window_open(bContext *C, const rcti *rect)
  * \param type: WM_WINDOW_RENDER, WM_WINDOW_USERPREFS...
  * \return the window or NULL.
  */
-wmWindow *WM_window_open_temp(bContext *C, const rcti *rect_init, int type)
+wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, int type)
 {
 	wmWindow *win_prev = CTX_wm_window(C);
 	wmWindow *win;
 	ScrArea *sa;
 	Scene *scene = CTX_data_scene(C);
 	const char *title;
-	rcti rect = *rect_init;
-	const short px_virtual = (short)wm_window_get_virtual_pixelsize();
+
+	/* convert to native OS window coordinates */
+	const float native_pixel_size = GHOST_GetNativePixelSize(win_prev->ghostwin);
+	x /= native_pixel_size;
+	y /= native_pixel_size;
+	sizex /= native_pixel_size;
+	sizey /= native_pixel_size;
+
+	/* calculate postition */
+	rcti rect;
+	rect.xmin = x + win_prev->posx - sizex / 2;
+	rect.ymin = y + win_prev->posy - sizey / 2;
+	rect.xmax = rect.xmin + sizex;
+	rect.ymax = rect.ymin + sizey;
 
 	/* changes rect to fit within desktop */
 	wm_window_check_position(&rect);
@@ -644,9 +827,8 @@ wmWindow *WM_window_open_temp(bContext *C, const rcti *rect_init, int type)
 		win->posy = rect.ymin;
 	}
 
-	/* multiply with virtual pixelsize, ghost handles native one (e.g. for retina) */
-	win->sizex = BLI_rcti_size_x(&rect) * px_virtual;
-	win->sizey = BLI_rcti_size_y(&rect) * px_virtual;
+	win->sizex = BLI_rcti_size_x(&rect);
+	win->sizey = BLI_rcti_size_y(&rect);
 
 	if (win->ghostwin) {
 		wm_window_set_size(win, win->sizex, win->sizey);
@@ -835,8 +1017,7 @@ void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 		GHOST_ActivateWindowDrawingContext(win->ghostwin);
 		
 		/* this can change per window */
-		U.pixelsize = wm_window_pixelsize(win);
-		BKE_blender_userdef_refresh();
+		WM_window_set_dpi(win);
 	}
 }
 
@@ -1035,6 +1216,8 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_ptr
 				if (type == GHOST_kEventWindowSize) {
 					WM_jobs_stop(wm, win->screen, NULL);
 				}
+
+				WM_window_set_dpi(win);
 				
 				/* win32: gives undefined window size when minimized */
 				if (state != GHOST_kWindowStateMinimized) {
@@ -1118,7 +1301,18 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_ptr
 				}
 				break;
 			}
-				
+
+			case GHOST_kEventWindowDPIHintChanged:
+			{
+				WM_window_set_dpi(win);
+				/* font's are stored at each DPI level, without this we can easy load 100's of fonts */
+				BLF_cache_clear();
+
+				WM_main_add_notifier(NC_WINDOW, NULL);      /* full redraw */
+				WM_main_add_notifier(NC_SCREEN | NA_EDITED, NULL);    /* refresh region sizes */
+				break;
+			}
+
 			case GHOST_kEventOpenMainFile:
 			{
 				PointerRNA props_ptr;
@@ -1199,11 +1393,9 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_ptr
 			{
 				// only update if the actual pixel size changes
 				float prev_pixelsize = U.pixelsize;
-				U.pixelsize = wm_window_pixelsize(win);
+				WM_window_set_dpi(win);
 
 				if (U.pixelsize != prev_pixelsize) {
-					BKE_blender_userdef_refresh();
-
 					// close all popups since they are positioned with the pixel
 					// size baked in and it's difficult to correct them
 					wmWindow *oldWindow = CTX_wm_window(C);
@@ -1407,6 +1599,7 @@ wmTimer *WM_event_add_timer_notifier(wmWindowManager *wm, wmWindow *win, unsigne
 	wt->timestep = timestep;
 	wt->win = win;
 	wt->customdata = SET_UINT_IN_POINTER(type);
+	wt->flags |= WM_TIMER_NO_FREE_CUSTOM_DATA;
 
 	BLI_addtail(&wm->timers, wt);
 
@@ -1428,8 +1621,9 @@ void WM_event_remove_timer(wmWindowManager *wm, wmWindow *UNUSED(win), wmTimer *
 			wm->reports.reporttimer = NULL;
 		
 		BLI_remlink(&wm->timers, wt);
-		if (wt->customdata)
+		if (wt->customdata != NULL && (wt->flags & WM_TIMER_NO_FREE_CUSTOM_DATA) == 0) {
 			MEM_freeN(wt->customdata);
+		}
 		MEM_freeN(wt);
 		
 		/* there might be events in queue with this timer as customdata */

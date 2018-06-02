@@ -403,16 +403,6 @@ final:
 	BKE_image_release_renderresult(scene, image);
 }
 
-static const char *ui_imageuser_pass_fake_name(RenderLayer *rl)
-{
-	if (rl == NULL) {
-		return IFACE_("Combined");
-	}
-	else {
-		return NULL;
-	}
-}
-
 static void ui_imageuser_pass_menu(bContext *UNUSED(C), uiLayout *layout, void *rnd_pt)
 {
 	struct ImageUI_Data *rnd_data = rnd_pt;
@@ -424,11 +414,8 @@ static void ui_imageuser_pass_menu(bContext *UNUSED(C), uiLayout *layout, void *
 	Scene *scene = iuser->scene;
 	RenderResult *rr;
 	RenderLayer *rl;
-	RenderPass rpass_fake = {NULL};
 	RenderPass *rpass;
-	const char *fake_name;
 	int nr;
-	int passflag = 0;
 
 	/* may have been freed since drawing */
 	rr = BKE_image_acquire_renderresult(scene, image);
@@ -446,35 +433,25 @@ static void ui_imageuser_pass_menu(bContext *UNUSED(C), uiLayout *layout, void *
 
 	uiItemS(layout);
 
-	nr = 0;
-	fake_name = ui_imageuser_pass_fake_name(rl);
+	nr = (rl == NULL) ? 1 : 0;
 
-	if (fake_name) {
-		BLI_strncpy(rpass_fake.internal_name, fake_name, sizeof(rpass_fake.internal_name));
-		nr += 1;
-	}
+	ListBase added_passes;
+	BLI_listbase_clear(&added_passes);
 
 	/* rendered results don't have a Combined pass */
 	/* multiview: the ordering must be ascending, so the left-most pass is always the one picked */
 	for (rpass = rl ? rl->passes.first : NULL; rpass; rpass = rpass->next, nr++) {
-
 		/* just show one pass of each kind */
-		if (passflag & rpass->passtype)
+		if (BLI_findstring_ptr(&added_passes, rpass->name, offsetof(LinkData, data))) {
 			continue;
+		}
+		BLI_addtail(&added_passes, BLI_genericNodeN(rpass->name));
 
-		passflag |= rpass->passtype;
-
-final:
-		uiDefButS(block, UI_BTYPE_BUT_MENU, B_NOP, IFACE_(rpass->internal_name), 0, 0,
+		uiDefButS(block, UI_BTYPE_BUT_MENU, B_NOP, IFACE_(rpass->name), 0, 0,
 		          UI_UNIT_X * 5, UI_UNIT_X, &iuser->pass, (float) nr, 0.0, 0, -1, "");
 	}
 
-	if (fake_name) {
-		fake_name = NULL;
-		rpass = &rpass_fake;
-		nr = 0;
-		goto final;
-	}
+	BLI_freelistN(&added_passes);
 
 	BKE_image_release_renderresult(scene, image);
 }
@@ -571,7 +548,7 @@ static bool ui_imageuser_layer_menu_step(bContext *C, int direction, void *rnd_p
 	else if (direction == 1) {
 		int tot = BLI_listbase_count(&rr->layers);
 
-		if (RE_HasFakeLayer(rr))
+		if (RE_HasCombinedLayer(rr))
 			tot++;  /* fake compo/sequencer layer */
 
 		if (iuser->layer < tot - 1) {
@@ -611,7 +588,7 @@ static bool ui_imageuser_pass_menu_step(bContext *C, int direction, void *rnd_pt
 		return false;
 	}
 
-	if (RE_HasFakeLayer(rr)) {
+	if (RE_HasCombinedLayer(rr)) {
 		layer -= 1;
 	}
 
@@ -633,7 +610,7 @@ static bool ui_imageuser_pass_menu_step(bContext *C, int direction, void *rnd_pt
 		int rp_index = iuser->pass + 1;
 
 		for (rp = rpass->next; rp; rp = rp->next, rp_index++) {
-			if (rp->passtype != rpass->passtype) {
+			if (!STREQ(rp->name, rpass->name)) {
 				iuser->pass = rp_index;
 				changed = true;
 				break;
@@ -650,7 +627,7 @@ static bool ui_imageuser_pass_menu_step(bContext *C, int direction, void *rnd_pt
 		}
 
 		for (rp = rl->passes.first; rp; rp = rp->next, rp_index++) {
-			if (rp->passtype == rpass->passtype) {
+			if (STREQ(rp->name, rpass->name)) {
 				iuser->pass = rp_index - 1;
 				changed = true;
 				break;
@@ -712,6 +689,10 @@ static void uiblock_layer_pass_buttons(
 	const char *display_name = "";
 	const bool show_stereo = (iuser->flag & IMA_SHOW_STEREO) != 0;
 
+	if (iuser->scene == NULL) {
+		return;
+	}
+
 	uiLayoutRow(layout, true);
 
 	/* layer menu is 1/3 larger than pass */
@@ -766,21 +747,22 @@ static void uiblock_layer_pass_buttons(
 		}
 
 		/* pass */
-		fake_name = ui_imageuser_pass_fake_name(rl);
-		rpass = (rl ? BLI_findlink(&rl->passes, iuser->pass  - (fake_name ? 1 : 0)) : NULL);
+		rpass = (rl ? BLI_findlink(&rl->passes, iuser->pass) : NULL);
 
-		display_name = rpass ? rpass->internal_name : (fake_name ? fake_name : "");
-		rnd_pt = ui_imageuser_data_copy(&rnd_pt_local);
-		but = uiDefMenuBut(
-		        block, ui_imageuser_pass_menu, rnd_pt, IFACE_(display_name),
-		        0, 0, wmenu3, UI_UNIT_Y, TIP_("Select Pass"));
-		UI_but_func_menu_step_set(but, ui_imageuser_pass_menu_step);
-		UI_but_funcN_set(but, image_multi_cb, rnd_pt, rr);
-		UI_but_type_set_menu_from_pulldown(but);
-		rnd_pt = NULL;
+		if (rpass && RE_passes_have_name(rl)) {
+			display_name = rpass->name;
+			rnd_pt = ui_imageuser_data_copy(&rnd_pt_local);
+			but = uiDefMenuBut(
+			        block, ui_imageuser_pass_menu, rnd_pt, IFACE_(display_name),
+			        0, 0, wmenu3, UI_UNIT_Y, TIP_("Select Pass"));
+			UI_but_func_menu_step_set(but, ui_imageuser_pass_menu_step);
+			UI_but_funcN_set(but, image_multi_cb, rnd_pt, rr);
+			UI_but_type_set_menu_from_pulldown(but);
+			rnd_pt = NULL;
+		}
 
 		/* view */
-		if (BLI_listbase_count_ex(&rr->views, 2) > 1 &&
+		if (BLI_listbase_count_at_most(&rr->views, 2) > 1 &&
 		    ((!show_stereo) || (!RE_RenderResult_is_stereo(rr))))
 		{
 			rview = BLI_findlink(&rr->views, iuser->view);
@@ -889,8 +871,11 @@ void uiTemplateImage(uiLayout *layout, bContext *C, PointerRNA *ptr, const char 
 	uiLayoutSetContextPointer(layout, "edit_image", &imaptr);
 	uiLayoutSetContextPointer(layout, "edit_image_user", userptr);
 
-	if (!compact)
-		uiTemplateID(layout, C, ptr, propname, ima ? NULL : "IMAGE_OT_new", "IMAGE_OT_open", NULL);
+	if (!compact) {
+		uiTemplateID(
+		        layout, C, ptr, propname,
+		        ima ? NULL : "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+	}
 
 	if (ima) {
 		UI_block_funcN_set(block, rna_update_cb, MEM_dupallocN(cb), NULL);
@@ -1130,7 +1115,7 @@ void uiTemplateImageSettings(uiLayout *layout, PointerRNA *imfptr, int color_man
 		uiItemR(row, imfptr, "use_zbuffer", 0, NULL, ICON_NONE);
 	}
 
-	if (is_render_out && (imf->imtype == R_IMF_IMTYPE_OPENEXR)) {
+	if (is_render_out && ELEM(imf->imtype, R_IMF_IMTYPE_OPENEXR, R_IMF_IMTYPE_MULTILAYER)) {
 		show_preview = true;
 		uiItemR(row, imfptr, "use_preview", 0, NULL, ICON_NONE);
 	}
@@ -1204,7 +1189,7 @@ void uiTemplateImageStereo3d(uiLayout *layout, PointerRNA *stereo3d_format_ptr)
 		case S3D_DISPLAY_SIDEBYSIDE:
 		{
 			uiItemR(col, stereo3d_format_ptr, "use_sidebyside_crosseyed", 0, NULL, ICON_NONE);
-			/* fall-through */
+			ATTR_FALLTHROUGH;
 		}
 		case S3D_DISPLAY_TOPBOTTOM:
 		{

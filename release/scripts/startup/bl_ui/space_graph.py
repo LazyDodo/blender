@@ -26,7 +26,7 @@ class GRAPH_HT_header(Header):
     bl_space_type = 'GRAPH_EDITOR'
 
     def draw(self, context):
-        from bl_ui.space_dopesheet import dopesheet_filter
+        from .space_dopesheet import dopesheet_filter
 
         layout = self.layout
         toolsettings = context.tool_settings
@@ -42,10 +42,11 @@ class GRAPH_HT_header(Header):
 
         dopesheet_filter(layout, context)
 
-        layout.prop(st, "use_normalization", text="Normalize")
-        row = layout.row()
-        row.active = st.use_normalization
-        row.prop(st, "use_auto_normalization", text="Auto")
+        row = layout.row(align=True)
+        row.prop(st, "use_normalization", icon='NORMALIZE_FCURVES', text="Normalize", toggle=True)
+        sub = row.row(align=True)
+        sub.active = st.use_normalization
+        sub.prop(st, "use_auto_normalization", icon='FILE_REFRESH', text="", toggle=True)
 
         row = layout.row(align=True)
 
@@ -185,7 +186,7 @@ class GRAPH_MT_marker(Menu):
     def draw(self, context):
         layout = self.layout
 
-        from bl_ui.space_time import marker_menu_generic
+        from .space_time import marker_menu_generic
         marker_menu_generic(layout)
 
         # TODO: pose markers for action edit mode only?
@@ -200,6 +201,8 @@ class GRAPH_MT_channel(Menu):
         layout.operator_context = 'INVOKE_REGION_CHANNELS'
 
         layout.operator("anim.channels_delete")
+        if context.space_data.mode == 'DRIVERS':
+            layout.operator("graph.driver_delete_invalid")
 
         layout.separator()
         layout.operator("anim.channels_group")
@@ -298,6 +301,19 @@ class GRAPH_MT_delete(Menu):
         layout.operator("graph.clean").channels = False
         layout.operator("graph.clean", text="Clean Channels").channels = True
 
+classes = (
+    GRAPH_HT_header,
+    GRAPH_MT_editor_menus,
+    GRAPH_MT_view,
+    GRAPH_MT_select,
+    GRAPH_MT_marker,
+    GRAPH_MT_channel,
+    GRAPH_MT_key,
+    GRAPH_MT_key_transform,
+    GRAPH_MT_delete,
+)
 
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

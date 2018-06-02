@@ -16,17 +16,15 @@
 
 #include <stdlib.h>
 
-#include "buffers.h"
-#include "device.h"
+#include "render/buffers.h"
+#include "device/device.h"
 
-#include "util_debug.h"
-#include "util_foreach.h"
-#include "util_hash.h"
-#include "util_image.h"
-#include "util_math.h"
-#include "util_opengl.h"
-#include "util_time.h"
-#include "util_types.h"
+#include "util/util_foreach.h"
+#include "util/util_hash.h"
+#include "util/util_math.h"
+#include "util/util_opengl.h"
+#include "util/util_time.h"
+#include "util/util_types.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -41,6 +39,9 @@ BufferParams::BufferParams()
 	full_y = 0;
 	full_width = 0;
 	full_height = 0;
+
+	denoising_data_pass = false;
+	denoising_clean_pass = false;
 
 	Pass::add(PASS_COMBINED, passes);
 }
@@ -68,8 +69,23 @@ int BufferParams::get_passes_size()
 
 	for(size_t i = 0; i < passes.size(); i++)
 		size += passes[i].components;
-	
+
+	if(denoising_data_pass) {
+		size += DENOISING_PASS_SIZE_BASE;
+		if(denoising_clean_pass) size += DENOISING_PASS_SIZE_CLEAN;
+	}
+
 	return align_up(size, 4);
+}
+
+int BufferParams::get_denoising_offset()
+{
+	int offset = 0;
+
+	for(size_t i = 0; i < passes.size(); i++)
+		offset += passes[i].components;
+
+	return offset;
 }
 
 /* Render Buffer Task */
@@ -90,52 +106,35 @@ RenderTile::RenderTile()
 	stride = 0;
 
 	buffer = 0;
-	rng_state = 0;
 
 	buffers = NULL;
 }
 
 /* Render Buffers */
 
-RenderBuffers::RenderBuffers(Device *device_)
+RenderBuffers::RenderBuffers(Device *device)
+: buffer(device, "RenderBuffers", MEM_READ_WRITE),
+  map_neighbor_copied(false), render_time(0.0f)
 {
-	device = device_;
 }
 
 RenderBuffers::~RenderBuffers()
 {
-	device_free();
+	buffer.free();
 }
 
-void RenderBuffers::device_free()
-{
-	if(buffer.device_pointer) {
-		device->mem_free(buffer);
-		buffer.clear();
-	}
-
-	if(rng_state.device_pointer) {
-		device->mem_free(rng_state);
-		rng_state.clear();
-	}
-}
-
-void RenderBuffers::reset(Device *device, BufferParams& params_)
+void RenderBuffers::reset(BufferParams& params_)
 {
 	params = params_;
 
-	/* free existing buffers */
-	device_free();
-	
-	/* allocate buffer */
-	buffer.resize(params.width*params.height*params.get_passes_size());
-	device->mem_alloc(buffer, MEM_READ_WRITE);
-	device->mem_zero(buffer);
+	/* re-allocate buffer */
+	buffer.alloc(params.width*params.height*params.get_passes_size());
+	buffer.zero_to_device();
+}
 
-	/* allocate rng state */
-	rng_state.resize(params.width, params.height);
-
-	device->mem_alloc(rng_state, MEM_READ_WRITE);
+void RenderBuffers::zero()
+{
+	buffer.zero_to_device();
 }
 
 bool RenderBuffers::copy_from_device()
@@ -143,13 +142,88 @@ bool RenderBuffers::copy_from_device()
 	if(!buffer.device_pointer)
 		return false;
 
-	device->mem_copy_from(buffer, 0, params.width, params.height, params.get_passes_size()*sizeof(float));
+	buffer.copy_from_device(0, params.width * params.get_passes_size(), params.height);
+
+	return true;
+}
+
+bool RenderBuffers::get_denoising_pass_rect(int offset, float exposure, int sample, int components, float *pixels)
+{
+	if(buffer.data() == NULL) {
+		return false;
+	}
+
+	float invsample = 1.0f/sample;
+	float scale = invsample;
+	bool variance = (offset == DENOISING_PASS_NORMAL_VAR) ||
+	                (offset == DENOISING_PASS_ALBEDO_VAR) ||
+	                (offset == DENOISING_PASS_DEPTH_VAR) ||
+	                (offset == DENOISING_PASS_COLOR_VAR);
+
+	if(offset == DENOISING_PASS_COLOR) {
+		scale *= exposure;
+	}
+	else if(offset == DENOISING_PASS_COLOR_VAR) {
+		scale *= exposure*exposure;
+	}
+
+	offset += params.get_denoising_offset();
+	int pass_stride = params.get_passes_size();
+	int size = params.width*params.height;
+
+	if(variance) {
+		/* Approximate variance as E[x^2] - 1/N * (E[x])^2, since online variance
+		 * update does not work efficiently with atomics in the kernel. */
+		int mean_offset = offset - components;
+		float *mean = buffer.data() + mean_offset;
+		float *var = buffer.data() + offset;
+		assert(mean_offset >= 0);
+
+		if(components == 1) {
+			for(int i = 0; i < size; i++, mean += pass_stride, var += pass_stride, pixels++) {
+				pixels[0] = max(0.0f, var[0] - mean[0]*mean[0]*invsample)*scale;
+			}
+		}
+		else if(components == 3) {
+			for(int i = 0; i < size; i++, mean += pass_stride, var += pass_stride, pixels += 3) {
+				pixels[0] = max(0.0f, var[0] - mean[0]*mean[0]*invsample)*scale;
+				pixels[1] = max(0.0f, var[1] - mean[1]*mean[1]*invsample)*scale;
+				pixels[2] = max(0.0f, var[2] - mean[2]*mean[2]*invsample)*scale;
+			}
+		}
+		else {
+			return false;
+		}
+	}
+	else {
+		float *in = buffer.data() + offset;
+
+		if(components == 1) {
+			for(int i = 0; i < size; i++, in += pass_stride, pixels++) {
+				pixels[0] = in[0]*scale;
+			}
+		}
+		else if(components == 3) {
+			for(int i = 0; i < size; i++, in += pass_stride, pixels += 3) {
+				pixels[0] = in[0]*scale;
+				pixels[1] = in[1]*scale;
+				pixels[2] = in[2]*scale;
+			}
+		}
+		else {
+			return false;
+		}
+	}
 
 	return true;
 }
 
 bool RenderBuffers::get_pass_rect(PassType type, float exposure, int sample, int components, float *pixels)
 {
+	if(buffer.data() == NULL) {
+		return false;
+	}
+
 	int pass_offset = 0;
 
 	for(size_t j = 0; j < params.passes.size(); j++) {
@@ -160,7 +234,7 @@ bool RenderBuffers::get_pass_rect(PassType type, float exposure, int sample, int
 			continue;
 		}
 
-		float *in = (float*)buffer.data_pointer + pass_offset;
+		float *in = buffer.data() + pass_offset;
 		int pass_stride = params.get_passes_size();
 
 		float scale = (pass.filter)? 1.0f/(float)sample: 1.0f;
@@ -168,10 +242,17 @@ bool RenderBuffers::get_pass_rect(PassType type, float exposure, int sample, int
 
 		int size = params.width*params.height;
 
-		if(components == 1) {
+		if(components == 1 && type == PASS_RENDER_TIME) {
+			/* Render time is not stored by kernel, but measured per tile. */
+			float val = (float) (1000.0 * render_time/(params.width * params.height * sample));
+			for(int i = 0; i < size; i++, pixels++) {
+				pixels[0] = val;
+			}
+		}
+		else if(components == 1) {
 			assert(pass.components == components);
 
-			/* scalar */
+			/* Scalar */
 			if(type == PASS_DEPTH) {
 				for(int i = 0; i < size; i++, in += pass_stride, pixels++) {
 					float f = *in;
@@ -185,13 +266,11 @@ bool RenderBuffers::get_pass_rect(PassType type, float exposure, int sample, int
 				}
 			}
 #ifdef WITH_CYCLES_DEBUG
-			else if(type == PASS_BVH_TRAVERSAL_STEPS) {
-				for(int i = 0; i < size; i++, in += pass_stride, pixels++) {
-					float f = *in;
-					pixels[0] = f*scale;
-				}
-			}
-			else if(type == PASS_RAY_BOUNCES) {
+			else if(type == PASS_BVH_TRAVERSED_NODES ||
+			        type == PASS_BVH_TRAVERSED_INSTANCES ||
+			        type == PASS_BVH_INTERSECTIONS ||
+			        type == PASS_RAY_BOUNCES)
+			{
 				for(int i = 0; i < size; i++, in += pass_stride, pixels++) {
 					float f = *in;
 					pixels[0] = f*scale;
@@ -229,7 +308,7 @@ bool RenderBuffers::get_pass_rect(PassType type, float exposure, int sample, int
 					pass_offset += color_pass.components;
 				}
 
-				float *in_divide = (float*)buffer.data_pointer + pass_offset;
+				float *in_divide = buffer.data() + pass_offset;
 
 				for(int i = 0; i < size; i++, in += pass_stride, in_divide += pass_stride, pixels += 3) {
 					float3 f = make_float3(in[0], in[1], in[2]);
@@ -278,7 +357,7 @@ bool RenderBuffers::get_pass_rect(PassType type, float exposure, int sample, int
 					pass_offset += color_pass.components;
 				}
 
-				float *in_weight = (float*)buffer.data_pointer + pass_offset;
+				float *in_weight = buffer.data() + pass_offset;
 
 				for(int i = 0; i < size; i++, in += pass_stride, in_weight += pass_stride, pixels += 4) {
 					float4 f = make_float4(in[0], in[1], in[2], in[3]);
@@ -313,50 +392,35 @@ bool RenderBuffers::get_pass_rect(PassType type, float exposure, int sample, int
 
 /* Display Buffer */
 
-DisplayBuffer::DisplayBuffer(Device *device_, bool linear)
+DisplayBuffer::DisplayBuffer(Device *device, bool linear)
+: draw_width(0),
+  draw_height(0),
+  transparent(true), /* todo: determine from background */
+  half_float(linear),
+  rgba_byte(device, "display buffer byte"),
+  rgba_half(device, "display buffer half")
 {
-	device = device_;
-	draw_width = 0;
-	draw_height = 0;
-	transparent = true; /* todo: determine from background */
-	half_float = linear;
 }
 
 DisplayBuffer::~DisplayBuffer()
 {
-	device_free();
+	rgba_byte.free();
+	rgba_half.free();
 }
 
-void DisplayBuffer::device_free()
-{
-	if(rgba_byte.device_pointer) {
-		device->pixels_free(rgba_byte);
-		rgba_byte.clear();
-	}
-	if(rgba_half.device_pointer) {
-		device->pixels_free(rgba_half);
-		rgba_half.clear();
-	}
-}
-
-void DisplayBuffer::reset(Device *device, BufferParams& params_)
+void DisplayBuffer::reset(BufferParams& params_)
 {
 	draw_width = 0;
 	draw_height = 0;
 
 	params = params_;
 
-	/* free existing buffers */
-	device_free();
-
 	/* allocate display pixels */
 	if(half_float) {
-		rgba_half.resize(params.width, params.height);
-		device->pixels_alloc(rgba_half);
+		rgba_half.alloc_to_device(params.width, params.height);
 	}
 	else {
-		rgba_byte.resize(params.width, params.height);
-		device->pixels_alloc(rgba_byte);
+		rgba_byte.alloc_to_device(params.width, params.height);
 	}
 }
 
@@ -371,7 +435,8 @@ void DisplayBuffer::draw_set(int width, int height)
 void DisplayBuffer::draw(Device *device, const DeviceDrawParams& draw_params)
 {
 	if(draw_width != 0 && draw_height != 0) {
-		device_memory& rgba = rgba_data();
+		device_memory& rgba = (half_float)? (device_memory&)rgba_half:
+		                                    (device_memory&)rgba_byte;
 
 		device->draw_pixels(rgba, 0, draw_width, draw_height, params.full_x, params.full_y, params.width, params.height, transparent, draw_params);
 	}
@@ -380,48 +445,6 @@ void DisplayBuffer::draw(Device *device, const DeviceDrawParams& draw_params)
 bool DisplayBuffer::draw_ready()
 {
 	return (draw_width != 0 && draw_height != 0);
-}
-
-void DisplayBuffer::write(Device *device, const string& filename)
-{
-	int w = draw_width;
-	int h = draw_height;
-
-	if(w == 0 || h == 0)
-		return;
-	
-	if(half_float)
-		return;
-
-	/* read buffer from device */
-	device_memory& rgba = rgba_data();
-	device->pixels_copy_from(rgba, 0, w, h);
-
-	/* write image */
-	ImageOutput *out = ImageOutput::create(filename);
-	ImageSpec spec(w, h, 4, TypeDesc::UINT8);
-	int scanlinesize = w*4*sizeof(uchar);
-
-	out->open(filename, spec);
-
-	/* conversion for different top/bottom convention */
-	out->write_image(TypeDesc::UINT8,
-		(uchar*)rgba.data_pointer + (h-1)*scanlinesize,
-		AutoStride,
-		-scanlinesize,
-		AutoStride);
-
-	out->close();
-
-	delete out;
-}
-
-device_memory& DisplayBuffer::rgba_data()
-{
-	if(half_float)
-		return rgba_half;
-	else
-		return rgba_byte;
 }
 
 CCL_NAMESPACE_END

@@ -132,11 +132,11 @@ struct DelimitData_CD {
 };
 
 struct DelimitData {
-	unsigned int do_seam : 1;
-	unsigned int do_sharp : 1;
-	unsigned int do_mat : 1;
-	unsigned int do_angle_face : 1;
-	unsigned int do_angle_shape : 1;
+	uint do_seam : 1;
+	uint do_sharp : 1;
+	uint do_mat : 1;
+	uint do_angle_face : 1;
+	uint do_angle_shape : 1;
 
 	float angle_face;
 	float angle_face__cos;
@@ -270,9 +270,9 @@ void bmo_join_triangles_exec(BMesh *bm, BMOperator *op)
 	BMFace *f;
 	BMEdge *e;
 	/* data: edge-to-join, sort_value: error weight */
-	struct SortPointerByFloat *jedges;
+	struct SortPtrByFloat *jedges;
 	unsigned i, totedge;
-	unsigned int totedge_tag = 0;
+	uint totedge_tag = 0;
 
 	struct DelimitData delimit_data = {0};
 

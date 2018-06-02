@@ -301,8 +301,8 @@ void IMB_rectblend(ImBuf *dbuf, ImBuf *obuf, ImBuf *sbuf, unsigned short *dmask,
                    int destx,  int desty, int origx, int origy, int srcx, int srcy, int width, int height,
                    IMB_BlendMode mode, bool accumulate)
 {
-	unsigned int *drect = NULL, *orect, *srect = NULL, *dr, *or, *sr;
-	float *drectf = NULL, *orectf, *srectf = NULL, *drf, *orf, *srf;
+	unsigned int *drect = NULL, *orect = NULL, *srect = NULL, *dr, *or, *sr;
+	float *drectf = NULL, *orectf = NULL, *srectf = NULL, *drf, *orf, *srf;
 	unsigned short *cmaskrect = curvemask, *cmr;
 	unsigned short *dmaskrect = dmask, *dmr;
 	unsigned short *texmaskrect = texmask, *tmr;
@@ -424,6 +424,7 @@ void IMB_rectblend(ImBuf *dbuf, ImBuf *obuf, ImBuf *sbuf, unsigned short *dmask,
 	else {
 		switch (mode) {
 			case IMB_BLEND_MIX:
+			case IMB_BLEND_INTERPOLATE:
 				func = blend_color_mix_byte;
 				func_float = blend_color_mix_float;
 				break;
@@ -563,9 +564,15 @@ void IMB_rectblend(ImBuf *dbuf, ImBuf *obuf, ImBuf *sbuf, unsigned short *dmask,
 									mask_src[0] = src[0];
 									mask_src[1] = src[1];
 									mask_src[2] = src[2];
-									mask_src[3] = divide_round_i(src[3] * mask, 65535);
 
-									func((unsigned char *)dr, (unsigned char *)or, mask_src);
+									if (mode == IMB_BLEND_INTERPOLATE) {
+										mask_src[3] = src[3];
+										blend_color_interpolate_byte((unsigned char *)dr, (unsigned char *)or, mask_src, mask / 65535.0f);
+									}
+									else {
+										mask_src[3] = divide_round_i(src[3] * mask, 65535);
+										func((unsigned char *)dr, (unsigned char *)or, mask_src);
+									}
 								}
 							}
 						}
@@ -588,9 +595,15 @@ void IMB_rectblend(ImBuf *dbuf, ImBuf *obuf, ImBuf *sbuf, unsigned short *dmask,
 								mask_src[0] = src[0];
 								mask_src[1] = src[1];
 								mask_src[2] = src[2];
-								mask_src[3] = divide_round_i(src[3] * mask, 65535);
 
-								func((unsigned char *)dr, (unsigned char *)or, mask_src);
+								if (mode == IMB_BLEND_INTERPOLATE) {
+									mask_src[3] = src[3];
+									blend_color_interpolate_byte((unsigned char *)dr, (unsigned char *)or, mask_src, mask / 65535.0f);
+								}
+								else {
+									mask_src[3] = divide_round_i(src[3] * mask, 65535);
+									func((unsigned char *)dr, (unsigned char *)or, mask_src);
+								}
 							}
 						}
 					}
@@ -642,12 +655,16 @@ void IMB_rectblend(ImBuf *dbuf, ImBuf *obuf, ImBuf *sbuf, unsigned short *dmask,
 								mask = min_ff(mask, 65535.0);
 
 								if (mask > *dmr) {
-									float mask_srf[4];
-
 									*dmr = mask;
-									mul_v4_v4fl(mask_srf, srf, mask / 65535.0f);
 
-									func_float(drf, orf, mask_srf);
+									if (mode == IMB_BLEND_INTERPOLATE) {
+										blend_color_interpolate_float(drf, orf, srf, mask / 65535.0f);
+									}
+									else {
+										float mask_srf[4];
+										mul_v4_v4fl(mask_srf, srf, mask / 65535.0f);
+										func_float(drf, orf, mask_srf);
+									}
 								}
 							}
 						}
@@ -664,11 +681,15 @@ void IMB_rectblend(ImBuf *dbuf, ImBuf *obuf, ImBuf *sbuf, unsigned short *dmask,
 							mask = min_ff(mask, 65535.0);
 
 							if (srf[3] && (mask > 0.0f)) {
-								float mask_srf[4];
+								if (mode == IMB_BLEND_INTERPOLATE) {
+									blend_color_interpolate_float(drf, orf, srf, mask / 65535.0f);
+								}
+								else {
+									float mask_srf[4];
+									mul_v4_v4fl(mask_srf, srf, mask / 65535.0f);
+									func_float(drf, orf, mask_srf);
+								}
 
-								mul_v4_v4fl(mask_srf, srf, mask / 65535.0f);
-
-								func_float(drf, orf, mask_srf);
 							}
 						}
 					}
@@ -820,12 +841,12 @@ void buf_rectfill_area(unsigned char *rect, float *rectf, int width, int height,
 		unsigned char chr = 0, chg = 0, chb = 0;
 		float fr = 0, fg = 0, fb = 0;
 
-		const int alphaint = FTOCHAR(a);
+		const int alphaint = unit_float_to_uchar_clamp(a);
 		
 		if (a == 1.0f) {
-			chr = FTOCHAR(col[0]);
-			chg = FTOCHAR(col[1]);
-			chb = FTOCHAR(col[2]);
+			chr = unit_float_to_uchar_clamp(col[0]);
+			chg = unit_float_to_uchar_clamp(col[1]);
+			chb = unit_float_to_uchar_clamp(col[2]);
 		}
 		else {
 			fr = col[0] * a;

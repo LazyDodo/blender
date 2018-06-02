@@ -21,7 +21,10 @@
 import bpy
 from bpy.types import Operator
 
-from bpy.props import EnumProperty, IntProperty
+from bpy.props import (
+    EnumProperty,
+    IntProperty,
+)
 
 
 class MeshMirrorUV(Operator):
@@ -176,7 +179,7 @@ class MeshSelectNext(Operator):
 
 
 class MeshSelectPrev(Operator):
-    """Select the next element (using selection order)"""
+    """Select the previous element (using selection order)"""
     bl_idname = "mesh.select_prev_item"
     bl_label = "Select Previous Element"
     bl_options = {'REGISTER', 'UNDO'}
@@ -248,3 +251,10 @@ class MehsSetNormalsFromFaces(Operator):
 
         return {'FINISHED'}
 
+
+classes = (
+    MehsSetNormalsFromFaces,
+    MeshMirrorUV,
+    MeshSelectNext,
+    MeshSelectPrev,
+)

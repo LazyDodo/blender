@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation, Joshua Leung
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Joshua Leung (major recode)
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -285,15 +285,20 @@ static void nla_draw_strip_curves(NlaStrip *strip, float yminc, float ymaxc)
 		float cfra;
 		
 		/* plot the curve (over the strip's main region) */
-		glBegin(GL_LINE_STRIP);
-		/* sample at 1 frame intervals, and draw
-		 *	- min y-val is yminc, max is y-maxc, so clamp in those regions
-		 */
-		for (cfra = strip->start; cfra <= strip->end; cfra += 1.0f) {
-			float y = evaluate_fcurve(fcu, cfra);    // assume this to be in 0-1 range
-			glVertex2f(cfra, ((y * yheight) + yminc));
+		if (fcu) {
+			glBegin(GL_LINE_STRIP);
+			
+			/* sample at 1 frame intervals, and draw
+			 *	- min y-val is yminc, max is y-maxc, so clamp in those regions
+			 */
+			for (cfra = strip->start; cfra <= strip->end; cfra += 1.0f) {
+				float y = evaluate_fcurve(fcu, cfra);
+				CLAMP(y, 0.0f, 1.0f);
+				glVertex2f(cfra, ((y * yheight) + yminc));
+			}
+			
+			glEnd(); // GL_LINE_STRIP
 		}
-		glEnd(); // GL_LINE_STRIP
 	}
 	else {
 		/* use blend in/out values only if both aren't zero */
@@ -361,7 +366,7 @@ static void nla_draw_strip(SpaceNla *snla, AnimData *adt, NlaTrack *nlt, NlaStri
 					glVertex2f(strip->start, yminc);
 					glEnd();
 				}
-				/* fall-through */
+				ATTR_FALLTHROUGH;
 
 			/* this only draws after the strip */
 			case NLASTRIP_EXTEND_HOLD_FORWARD: 

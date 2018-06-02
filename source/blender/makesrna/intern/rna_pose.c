@@ -40,6 +40,7 @@
 #include "DNA_scene_types.h"
 
 #include "BLI_math.h"
+#include "BLI_string_utils.h"
 
 #include "BLT_translation.h"
 
@@ -51,7 +52,7 @@
 
 /* XXX: this RNA enum define is currently duplicated for objects,
  * since there is some text here which is not applicable */
-EnumPropertyItem rna_enum_posebone_rotmode_items[] = {
+const EnumPropertyItem rna_enum_posebone_rotmode_items[] = {
 	{ROT_MODE_QUAT, "QUATERNION", 0, "Quaternion (WXYZ)", "No Gimbal Lock (default)"},
 	{ROT_MODE_XYZ, "XYZ", 0, "XYZ Euler", "XYZ Rotation Order (prone to Gimbal Lock)"},
 	{ROT_MODE_XZY, "XZY", 0, "XZY Euler", "XZY Rotation Order (prone to Gimbal Lock)"},
@@ -65,7 +66,7 @@ EnumPropertyItem rna_enum_posebone_rotmode_items[] = {
 };
 
 /* Bone and Group Color Sets */
-EnumPropertyItem rna_enum_color_sets_items[] = {
+const EnumPropertyItem rna_enum_color_sets_items[] = {
 	{0, "DEFAULT", 0, "Default Colors", ""},
 	{1, "THEME01", VICO_COLORSET_01_VEC, "01 - Theme Color Set", ""},
 	{2, "THEME02", VICO_COLORSET_02_VEC, "02 - Theme Color Set", ""},
@@ -236,7 +237,7 @@ static void rna_Pose_ik_solver_update(Main *bmain, Scene *UNUSED(scene), Pointer
 	
 	BKE_pose_update_constraint_flags(pose);
 	
-	object_test_constraints(ob);
+	object_test_constraints(bmain, ob);
 
 	DAG_id_tag_update(&ob->id, OB_RECALC_DATA | OB_RECALC_OB);
 }
@@ -523,15 +524,19 @@ static void rna_PoseChannel_active_constraint_set(PointerRNA *ptr, PointerRNA va
 	BKE_constraints_active_set(&pchan->constraints, (bConstraint *)value.data);
 }
 
-static bConstraint *rna_PoseChannel_constraints_new(bPoseChannel *pchan, int type)
+static bConstraint *rna_PoseChannel_constraints_new(ID *id, bPoseChannel *pchan, Main *main, int type)
 {
-	/*WM_main_add_notifier(NC_OBJECT|ND_CONSTRAINT|NA_ADDED, object); */
-	/* TODO, pass object also */
-	/* TODO, new pose bones don't have updated draw flags */
-	return BKE_constraint_add_for_pose(NULL, pchan, NULL, type);
+	Object *ob = (Object *)id;
+	bConstraint *new_con = BKE_constraint_add_for_pose(ob, pchan, NULL, type);
+
+	ED_object_constraint_dependency_tag_update(main, ob, new_con);
+	WM_main_add_notifier(NC_OBJECT | ND_CONSTRAINT | NA_ADDED, id);
+
+	return new_con;
 }
 
-static void rna_PoseChannel_constraints_remove(ID *id, bPoseChannel *pchan, ReportList *reports, PointerRNA *con_ptr)
+static void rna_PoseChannel_constraints_remove(
+        ID *id, bPoseChannel *pchan, Main *bmain, ReportList *reports, PointerRNA *con_ptr)
 {
 	bConstraint *con = con_ptr->data;
 	const bool is_ik = ELEM(con->type, CONSTRAINT_TYPE_KINEMATIC, CONSTRAINT_TYPE_SPLINEIK);
@@ -545,7 +550,7 @@ static void rna_PoseChannel_constraints_remove(ID *id, bPoseChannel *pchan, Repo
 	BKE_constraint_remove(&pchan->constraints, con);
 	RNA_POINTER_INVALIDATE(con_ptr);
 
-	ED_object_constraint_update(ob);
+	ED_object_constraint_update(bmain, ob);
 
 	BKE_constraints_active_set(&pchan->constraints, NULL);  /* XXX, is this really needed? - Campbell */
 
@@ -725,13 +730,13 @@ static void rna_def_bone_group(BlenderRNA *brna)
 	rna_def_actionbone_group_common(srna, NC_OBJECT | ND_POSE, "rna_Pose_update");
 }
 
-static EnumPropertyItem prop_iksolver_items[] = {
+static const EnumPropertyItem prop_iksolver_items[] = {
 	{IKSOLVER_STANDARD, "LEGACY", 0, "Standard", "Original IK solver"},
 	{IKSOLVER_ITASC, "ITASC", 0, "iTaSC", "Multi constraint, stateful IK solver"},
 	{0, NULL, 0, NULL, NULL}
 };
 
-static EnumPropertyItem prop_solver_items[] = {
+static const EnumPropertyItem prop_solver_items[] = {
 	{ITASC_SOLVER_SDLS, "SDLS", 0, "SDLS", "Selective Damped Least Square"},
 	{ITASC_SOLVER_DLS, "DLS", 0, "DLS", "Damped Least Square with Numerical Filtering"},
 	{0, NULL, 0, NULL, NULL}
@@ -763,20 +768,21 @@ static void rna_def_pose_channel_constraints(BlenderRNA *brna, PropertyRNA *cpro
 	/* Constraint collection */
 	func = RNA_def_function(srna, "new", "rna_PoseChannel_constraints_new");
 	RNA_def_function_ui_description(func, "Add a constraint to this object");
+	RNA_def_function_flag(func, FUNC_USE_MAIN | FUNC_USE_SELF_ID); /* ID and Main needed for refresh */
 	/* return type */
 	parm = RNA_def_pointer(func, "constraint", "Constraint", "", "New constraint");
 	RNA_def_function_return(func, parm);
 	/* constraint to add */
 	parm = RNA_def_enum(func, "type", rna_enum_constraint_type_items, 1, "", "Constraint type to add");
-	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	func = RNA_def_function(srna, "remove", "rna_PoseChannel_constraints_remove");
 	RNA_def_function_ui_description(func, "Remove a constraint from this object");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS | FUNC_USE_SELF_ID); /* ID needed for refresh */
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_REPORTS ); /* ID needed for refresh */
 	/* constraint to remove */
 	parm = RNA_def_pointer(func, "constraint", "Constraint", "", "Removed constraint");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 }
 
 static void rna_def_pose_channel(BlenderRNA *brna)
@@ -1359,8 +1365,8 @@ static void rna_def_bone_groups(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS | FUNC_USE_SELF_ID); /* ID needed for refresh */
 	/* bone group to remove */
 	parm = RNA_def_pointer(func, "group", "BoneGroup", "", "Removed bone group");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 
 	prop = RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "BoneGroup");

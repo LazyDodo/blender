@@ -101,7 +101,7 @@ static void rna_MetaBall_update_data(Main *bmain, Scene *scene, PointerRNA *ptr)
 	if (mb->id.us > 0) {
 		for (ob = bmain->object.first; ob; ob = ob->id.next)
 			if (ob->data == mb)
-				BKE_mball_properties_copy(scene, ob);
+				BKE_mball_properties_copy(bmain->eval_ctx, scene, ob);
 	
 		DAG_id_tag_update(&mb->id, 0);
 		WM_main_add_notifier(NC_GEOM | ND_DATA, mb);
@@ -280,8 +280,8 @@ static void rna_def_metaball_elements(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_ui_description(func, "Remove an element from the metaball");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "element", "MetaElement", "", "The element to remove");
-	RNA_def_property_flag(parm, PROP_REQUIRED | PROP_NEVER_NULL | PROP_RNAPTR);
-	RNA_def_property_clear_flag(parm, PROP_THICK_WRAP);
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 
 	func = RNA_def_function(srna, "clear", "rna_MetaBall_elements_clear");
 	RNA_def_function_ui_description(func, "Remove all elements from the metaball");
@@ -295,7 +295,7 @@ static void rna_def_metaball(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-	static EnumPropertyItem prop_update_items[] = {
+	static const EnumPropertyItem prop_update_items[] = {
 		{MB_UPDATE_ALWAYS, "UPDATE_ALWAYS", 0, "Always", "While editing, update metaball always"},
 		{MB_UPDATE_HALFRES, "HALFRES", 0, "Half", "While editing, update metaball in half resolution"},
 		{MB_UPDATE_FAST, "FAST", 0, "Fast", "While editing, update metaball without polygonization"},

@@ -39,7 +39,7 @@
 #ifdef __GNUC__
 #  pragma GCC diagnostic push
 /* XXX suppress verbose warnings in eigen */
-#  pragma GCC diagnostic ignored "-Wlogical-op"
+//#  pragma GCC diagnostic ignored "-Wlogical-op"
 #endif
 
 #ifndef IMPLICIT_ENABLE_EIGEN_DEBUG
@@ -73,7 +73,7 @@
 extern "C" {
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_texture_types.h"
 
@@ -1019,7 +1019,7 @@ bool BPH_mass_spring_force_spring_bending(Implicit_Data *data, int i, int j, flo
 /* Jacobian of a direction vector.
  * Basically the part of the differential orthogonal to the direction,
  * inversely proportional to the length of the edge.
- * 
+ *
  * dD_ij/dx_i = -dD_ij/dx_j = (D_ij * D_ij^T - I) / len_ij
  */
 BLI_INLINE void spring_grad_dir(Implicit_Data *data, int i, int j, float edge[3], float dir[3], float grad_dir[3][3])

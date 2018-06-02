@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -28,6 +28,7 @@
 class BaseScaleOperation : public NodeOperation {
 public:
 	void setSampler(PixelSampler sampler) { this->m_sampler = (int) sampler; }
+	void setVariableSize(bool variable_size) { m_variable_size = variable_size; };
 
 protected:
 	BaseScaleOperation();
@@ -35,6 +36,7 @@ protected:
 	PixelSampler getEffectiveSampler(PixelSampler sampler) { return (m_sampler == -1) ? sampler : (PixelSampler) m_sampler;  }
 
 	int m_sampler;
+	bool m_variable_size;
 };
 
 class ScaleOperation : public BaseScaleOperation {

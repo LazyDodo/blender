@@ -72,7 +72,7 @@ void free_sensors(ListBase *lb)
 	}
 }
 
-bSensor *copy_sensor(bSensor *sens)
+bSensor *copy_sensor(bSensor *sens, const int UNUSED(flag))
 {
 	bSensor *sensn;
 	
@@ -87,14 +87,14 @@ bSensor *copy_sensor(bSensor *sens)
 	return sensn;
 }
 
-void copy_sensors(ListBase *lbn, ListBase *lbo)
+void copy_sensors(ListBase *lbn, const ListBase *lbo, const int flag)
 {
 	bSensor *sens, *sensn;
 	
 	lbn->first= lbn->last= NULL;
 	sens= lbo->first;
 	while (sens) {
-		sensn= copy_sensor(sens);
+		sensn= copy_sensor(sens, flag);
 		BLI_addtail(lbn, sensn);
 		sens= sens->next;
 	}
@@ -234,7 +234,7 @@ void free_controllers(ListBase *lb)
 	}
 }
 
-bController *copy_controller(bController *cont)
+bController *copy_controller(bController *cont, const int UNUSED(flag))
 {
 	bController *contn;
 	
@@ -251,14 +251,14 @@ bController *copy_controller(bController *cont)
 	return contn;
 }
 
-void copy_controllers(ListBase *lbn, ListBase *lbo)
+void copy_controllers(ListBase *lbn, const ListBase *lbo, const int flag)
 {
 	bController *cont, *contn;
 	
 	lbn->first= lbn->last= NULL;
 	cont= lbo->first;
 	while (cont) {
-		contn= copy_controller(cont);
+		contn= copy_controller(cont, flag);
 		BLI_addtail(lbn, contn);
 		cont= cont->next;
 	}
@@ -359,7 +359,7 @@ void free_actuators(ListBase *lb)
 	}
 }
 
-bActuator *copy_actuator(bActuator *act)
+bActuator *copy_actuator(bActuator *act, const int flag)
 {
 	bActuator *actn;
 	
@@ -374,29 +374,31 @@ bActuator *copy_actuator(bActuator *act)
 		case ACT_SHAPEACTION:
 		{
 			bActionActuator *aa = (bActionActuator *)act->data;
-			if (aa->act)
+			if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
 				id_us_plus((ID *)aa->act);
+			}
 			break;
 		}
 		case ACT_SOUND:
 		{
 			bSoundActuator *sa = (bSoundActuator *)act->data;
-			if (sa->sound)
+			if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
 				id_us_plus((ID *)sa->sound);
+			}
 			break;
 		}
 	}
 	return actn;
 }
 
-void copy_actuators(ListBase *lbn, ListBase *lbo)
+void copy_actuators(ListBase *lbn, const ListBase *lbo, const int flag)
 {
 	bActuator *act, *actn;
 	
 	lbn->first= lbn->last= NULL;
 	act= lbo->first;
 	while (act) {
-		actn= copy_actuator(act);
+		actn= copy_actuator(act, flag);
 		BLI_addtail(lbn, actn);
 		act= act->next;
 	}
@@ -783,11 +785,11 @@ void BKE_sca_logic_links_remap(Main *bmain, Object *ob_old, Object *ob_new)
  * Handle the copying of logic data into a new object, including internal logic links update.
  * External links (links between logic bricks of different objects) must be handled separately.
  */
-void BKE_sca_logic_copy(Object *ob_new, Object *ob)
+void BKE_sca_logic_copy(Object *ob_new, const Object *ob, const int flag)
 {
-	copy_sensors(&ob_new->sensors, &ob->sensors);
-	copy_controllers(&ob_new->controllers, &ob->controllers);
-	copy_actuators(&ob_new->actuators, &ob->actuators);
+	copy_sensors(&ob_new->sensors, &ob->sensors, flag);
+	copy_controllers(&ob_new->controllers, &ob->controllers, flag);
+	copy_actuators(&ob_new->actuators, &ob->actuators, flag);
 
 	for (bSensor *sens = ob_new->sensors.first; sens; sens = sens->next) {
 		if (sens->flag & SENS_NEW) {
@@ -992,19 +994,19 @@ void BKE_sca_sensors_id_loop(ListBase *senslist, SCASensorIDFunc func, void *use
 	bSensor *sensor;
 
 	for (sensor = senslist->first; sensor; sensor = sensor->next) {
-		func(sensor, (ID **)&sensor->ob, userdata, IDWALK_NOP);
+		func(sensor, (ID **)&sensor->ob, userdata, IDWALK_CB_NOP);
 
 		switch (sensor->type) {
 			case SENS_TOUCH:  /* DEPRECATED */
 			{
 				bTouchSensor *ts = sensor->data;
-				func(sensor, (ID **)&ts->ma, userdata, IDWALK_NOP);
+				func(sensor, (ID **)&ts->ma, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case SENS_MESSAGE:
 			{
 				bMessageSensor *ms = sensor->data;
-				func(sensor, (ID **)&ms->fromObject, userdata, IDWALK_NOP);
+				func(sensor, (ID **)&ms->fromObject, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case SENS_ALWAYS:
@@ -1035,7 +1037,7 @@ void BKE_sca_controllers_id_loop(ListBase *contlist, SCAControllerIDFunc func, v
 			case CONT_PYTHON:
 			{
 				bPythonCont *pc = controller->data;
-				func(controller, (ID **)&pc->text, userdata, IDWALK_NOP);
+				func(controller, (ID **)&pc->text, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case CONT_LOGIC_AND:
@@ -1056,89 +1058,89 @@ void BKE_sca_actuators_id_loop(ListBase *actlist, SCAActuatorIDFunc func, void *
 	bActuator *actuator;
 
 	for (actuator = actlist->first; actuator; actuator = actuator->next) {
-		func(actuator, (ID **)&actuator->ob, userdata, IDWALK_NOP);
+		func(actuator, (ID **)&actuator->ob, userdata, IDWALK_CB_NOP);
 
 		switch (actuator->type) {
 			case ACT_ADD_OBJECT:  /* DEPRECATED */
 			{
 				bAddObjectActuator *aoa = actuator->data;
-				func(actuator, (ID **)&aoa->ob, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&aoa->ob, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_ACTION:
 			{
 				bActionActuator *aa = actuator->data;
-				func(actuator, (ID **)&aa->act, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&aa->act, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_SOUND:
 			{
 				bSoundActuator *sa = actuator->data;
-				func(actuator, (ID **)&sa->sound, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&sa->sound, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_EDIT_OBJECT:
 			{
 				bEditObjectActuator *eoa = actuator->data;
-				func(actuator, (ID **)&eoa->ob, userdata, IDWALK_NOP);
-				func(actuator, (ID **)&eoa->me, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&eoa->ob, userdata, IDWALK_CB_NOP);
+				func(actuator, (ID **)&eoa->me, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_SCENE:
 			{
 				bSceneActuator *sa = actuator->data;
-				func(actuator, (ID **)&sa->scene, userdata, IDWALK_NOP);
-				func(actuator, (ID **)&sa->camera, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&sa->scene, userdata, IDWALK_CB_NOP);
+				func(actuator, (ID **)&sa->camera, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_PROPERTY:
 			{
 				bPropertyActuator *pa = actuator->data;
-				func(actuator, (ID **)&pa->ob, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&pa->ob, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_OBJECT:
 			{
 				bObjectActuator *oa = actuator->data;
-				func(actuator, (ID **)&oa->reference, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&oa->reference, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_CAMERA:
 			{
 				bCameraActuator *ca = actuator->data;
-				func(actuator, (ID **)&ca->ob, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&ca->ob, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_MESSAGE:
 			{
 				bMessageActuator *ma = actuator->data;
-				func(actuator, (ID **)&ma->toObject, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&ma->toObject, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_2DFILTER:
 			{
 				bTwoDFilterActuator *tdfa = actuator->data;
-				func(actuator, (ID **)&tdfa->text, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&tdfa->text, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_PARENT:
 			{
 				bParentActuator *pa = actuator->data;
-				func(actuator, (ID **)&pa->ob, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&pa->ob, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_ARMATURE:
 			{
 				bArmatureActuator *aa = actuator->data;
-				func(actuator, (ID **)&aa->target, userdata, IDWALK_NOP);
-				func(actuator, (ID **)&aa->subtarget, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&aa->target, userdata, IDWALK_CB_NOP);
+				func(actuator, (ID **)&aa->subtarget, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			case ACT_STEERING:
 			{
 				bSteeringActuator *sa = actuator->data;
-				func(actuator, (ID **)&sa->target, userdata, IDWALK_NOP);
-				func(actuator, (ID **)&sa->navmesh, userdata, IDWALK_NOP);
+				func(actuator, (ID **)&sa->target, userdata, IDWALK_CB_NOP);
+				func(actuator, (ID **)&sa->navmesh, userdata, IDWALK_CB_NOP);
 				break;
 			}
 			/* Note: some types seems to be non-implemented? ACT_LAMP, ACT_MATERIAL... */

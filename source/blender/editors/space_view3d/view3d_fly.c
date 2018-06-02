@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- * 
+ *
  * Contributor(s): Campbell Barton
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -97,7 +97,7 @@ typedef enum eFlyPanState {
 /* called in transform_ops.c, on each regeneration of keymaps  */
 void fly_modal_keymap(wmKeyConfig *keyconf)
 {
-	static EnumPropertyItem modal_items[] = {
+	static const EnumPropertyItem modal_items[] = {
 		{FLY_MODAL_CANCEL, "CANCEL", 0, "Cancel", ""},
 		{FLY_MODAL_CONFIRM, "CONFIRM", 0, "Confirm", ""},
 		{FLY_MODAL_ACCELERATE, "ACCELERATE", 0, "Accelerate", ""},
@@ -351,7 +351,7 @@ static bool initFlyInfo(bContext *C, FlyInfo *fly, wmOperator *op, const wmEvent
 		fly->rv3d->persp = RV3D_PERSP;
 	}
 
-	if (fly->rv3d->persp == RV3D_CAMOB && ID_IS_LINKED_DATABLOCK(fly->v3d->camera)) {
+	if (fly->rv3d->persp == RV3D_CAMOB && ID_IS_LINKED(fly->v3d->camera)) {
 		BKE_report(op->reports, RPT_ERROR, "Cannot fly a camera from an external library");
 		return false;
 	}

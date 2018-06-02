@@ -42,7 +42,7 @@
 #include "DNA_listBase.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_texture_types.h"
 #include "DNA_scene_types.h"
@@ -504,28 +504,28 @@ float effector_falloff(EffectorCache *eff, EffectorData *efd, EffectedPoint *UNU
 		falloff=0.0f;
 	else {
 		switch (eff->pd->falloff) {
-		case PFIELD_FALL_SPHERE:
-			falloff*= falloff_func_dist(eff->pd, efd->distance);
-			break;
-
-		case PFIELD_FALL_TUBE:
-			falloff*= falloff_func_dist(eff->pd, ABS(fac));
-			if (falloff == 0.0f)
+			case PFIELD_FALL_SPHERE:
+				falloff*= falloff_func_dist(eff->pd, efd->distance);
 				break;
 
-			madd_v3_v3v3fl(temp, efd->vec_to_point2, efd->nor, -fac);
-			r_fac= len_v3(temp);
-			falloff*= falloff_func_rad(eff->pd, r_fac);
-			break;
-		case PFIELD_FALL_CONE:
-			falloff*= falloff_func_dist(eff->pd, ABS(fac));
-			if (falloff == 0.0f)
+			case PFIELD_FALL_TUBE:
+				falloff*= falloff_func_dist(eff->pd, ABS(fac));
+				if (falloff == 0.0f)
+					break;
+
+				madd_v3_v3v3fl(temp, efd->vec_to_point2, efd->nor, -fac);
+				r_fac= len_v3(temp);
+				falloff*= falloff_func_rad(eff->pd, r_fac);
 				break;
+			case PFIELD_FALL_CONE:
+				falloff*= falloff_func_dist(eff->pd, ABS(fac));
+				if (falloff == 0.0f)
+					break;
 
-			r_fac= RAD2DEGF(saacos(fac/len_v3(efd->vec_to_point)));
-			falloff*= falloff_func_rad(eff->pd, r_fac);
+				r_fac= RAD2DEGF(saacos(fac/len_v3(efd->vec_to_point)));
+				falloff*= falloff_func_rad(eff->pd, r_fac);
 
-			break;
+				break;
 		}
 	}
 
@@ -770,7 +770,7 @@ static void do_texture_effector(EffectorCache *eff, EffectorData *efd, EffectedP
 		force[1] = (0.5f - result->tg) * strength;
 		force[2] = (0.5f - result->tb) * strength;
 	}
-	else {
+	else if (nabla != 0) {
 		strength/=nabla;
 
 		tex_co[0] += nabla;
@@ -810,6 +810,9 @@ static void do_texture_effector(EffectorCache *eff, EffectorData *efd, EffectedP
 			force[2] = (dgdx - drdy) * strength;
 		}
 	}
+	else {
+		zero_v3(force);
+	}
 
 	if (eff->pd->flag & PFIELD_TEX_2D) {
 		float fac = -dot_v3v3(force, efd->nor);
@@ -845,6 +848,14 @@ static void do_physical_effector(EffectorCache *eff, EffectorData *efd, Effected
 			break;
 		case PFIELD_FORCE:
 			normalize_v3(force);
+			if (pd->flag & PFIELD_GRAVITATION){ /* Option: Multiply by 1/distance^2 */
+				if (efd->distance < FLT_EPSILON){
+					strength = 0.0f;
+				}
+				else {
+					strength *= powf(efd->distance, -2.0f);
+				}
+			}
 			mul_v3_fl(force, strength * efd->falloff);
 			break;
 		case PFIELD_VORTEX:
@@ -975,19 +986,19 @@ static void do_physical_effector(EffectorCache *eff, EffectorData *efd, Effected
  */
 void pdDoEffectors(ListBase *effectors, ListBase *colliders, EffectorWeights *weights, EffectedPoint *point, float *force, float *impulse)
 {
-/*
- * Modifies the force on a particle according to its
- * relation with the effector object
- * Different kind of effectors include:
- *     Forcefields: Gravity-like attractor
- *     (force power is related to the inverse of distance to the power of a falloff value)
- *     Vortex fields: swirling effectors
- *     (particles rotate around Z-axis of the object. otherwise, same relation as)
- *     (Forcefields, but this is not done through a force/acceleration)
- *     Guide: particles on a path
- *     (particles are guided along a curve bezier or old nurbs)
- *     (is independent of other effectors)
- */
+	/*
+	 * Modifies the force on a particle according to its
+	 * relation with the effector object
+	 * Different kind of effectors include:
+	 *     Forcefields: Gravity-like attractor
+	 *     (force power is related to the inverse of distance to the power of a falloff value)
+	 *     Vortex fields: swirling effectors
+	 *     (particles rotate around Z-axis of the object. otherwise, same relation as)
+	 *     (Forcefields, but this is not done through a force/acceleration)
+	 *     Guide: particles on a path
+	 *     (particles are guided along a curve bezier or old nurbs)
+	 *     (is independent of other effectors)
+	 */
 	EffectorCache *eff;
 	EffectorData efd;
 	int p=0, tot = 1, step = 1;
@@ -1127,7 +1138,7 @@ static void debug_data_insert(SimDebugData *debug_data, SimDebugElement *elem)
 		BLI_ghash_insert(debug_data->gh, elem, elem);
 }
 
-void BKE_sim_debug_data_add_element(int type, const float v1[3], const float v2[3], float r, float g, float b, const char *category, unsigned int hash)
+void BKE_sim_debug_data_add_element(int type, const float v1[3], const float v2[3], const char *str, float r, float g, float b, const char *category, unsigned int hash)
 {
 	unsigned int category_hash = BLI_ghashutil_strhash_p(category);
 	SimDebugElement *elem;
@@ -1146,8 +1157,18 @@ void BKE_sim_debug_data_add_element(int type, const float v1[3], const float v2[
 	elem->color[0] = r;
 	elem->color[1] = g;
 	elem->color[2] = b;
-	copy_v3_v3(elem->v1, v1);
-	copy_v3_v3(elem->v2, v2);
+	if (v1)
+		copy_v3_v3(elem->v1, v1);
+	else
+		zero_v3(elem->v1);
+	if (v2)
+		copy_v3_v3(elem->v2, v2);
+	else
+		zero_v3(elem->v2);
+	if (str)
+		BLI_strncpy(elem->str, str, sizeof(elem->str));
+	else
+		elem->str[0] = '\0';
 	
 	debug_data_insert(_sim_debug_data, elem);
 }

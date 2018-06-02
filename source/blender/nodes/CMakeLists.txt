@@ -163,6 +163,7 @@ set(SRC
 	shader/nodes/node_shader_background.c
 	shader/nodes/node_shader_bsdf_anisotropic.c
 	shader/nodes/node_shader_bsdf_diffuse.c
+	shader/nodes/node_shader_bsdf_principled.c
 	shader/nodes/node_shader_bsdf_glass.c
 	shader/nodes/node_shader_bsdf_glossy.c
 	shader/nodes/node_shader_bsdf_toon.c
@@ -176,6 +177,7 @@ set(SRC
 	shader/nodes/node_shader_fresnel.c
 	shader/nodes/node_shader_geometry.c
 	shader/nodes/node_shader_holdout.c
+	shader/nodes/node_shader_ies_light.c
 	shader/nodes/node_shader_layer_weight.c
 	shader/nodes/node_shader_light_falloff.c
 	shader/nodes/node_shader_light_path.c
@@ -191,6 +193,9 @@ set(SRC
 	shader/nodes/node_shader_script.c
 	shader/nodes/node_shader_subsurface_scattering.c
 	shader/nodes/node_shader_tangent.c
+	shader/nodes/node_shader_bevel.c
+	shader/nodes/node_shader_displacement.c
+	shader/nodes/node_shader_vector_displacement.c
 	shader/nodes/node_shader_tex_brick.c
 	shader/nodes/node_shader_tex_checker.c
 	shader/nodes/node_shader_tex_coord.c
@@ -206,6 +211,7 @@ set(SRC
 	shader/nodes/node_shader_tex_wave.c
 	shader/nodes/node_shader_volume_scatter.c
 	shader/nodes/node_shader_volume_absorption.c
+	shader/nodes/node_shader_volume_principled.c
 	shader/nodes/node_shader_uvAlongStroke.c
 	shader/nodes/node_shader_uvmap.c
 	shader/node_shader_tree.c
@@ -286,10 +292,6 @@ add_definitions(${GL_DEFINITIONS})
 
 if(WITH_FREESTYLE)
 	add_definitions(-DWITH_FREESTYLE)
-endif()
-
-if(WITH_CYCLES AND WITH_CYCLES_DEBUG)
-	add_definitions(-DWITH_CYCLES_DEBUG)
 endif()
 
 blender_add_lib(bf_nodes "${SRC}" "${INC}" "${INC_SYS}")

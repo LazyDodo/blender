@@ -40,6 +40,7 @@
 #include "BLI_string.h"
 
 #include "DNA_anim_types.h"
+#include "DNA_object_types.h"
 #include "DNA_texture_types.h"
 
 #include "BKE_animsys.h"
@@ -66,8 +67,8 @@
 
 /* Get (or add relevant data to be able to do so) F-Curve from the driver stack, 
  * for the given Animation Data block. This assumes that all the destinations are valid.
- *	
- *	- add:	0 - don't add anything if not found, 
+ *
+ *	- add:	0 - don't add anything if not found,
  *			1 - add new Driver FCurve (with keyframes for visual tweaking),
  *			2 - add new Driver FCurve (with generator, for script backwards compatibility)
  *			-1 - add new Driver FCurve without driver stuff (for pasting)
@@ -101,6 +102,7 @@ FCurve *verify_driver_fcurve(ID *id, const char rna_path[], const int array_inde
 		fcu = MEM_callocN(sizeof(FCurve), "FCurve");
 		
 		fcu->flag = (FCURVE_VISIBLE | FCURVE_SELECTED);
+		fcu->auto_smoothing = FCURVE_SMOOTH_CONT_ACCEL;
 		
 		/* store path - make copy, and store that */
 		fcu->rna_path = BLI_strdup(rna_path);
@@ -122,7 +124,7 @@ FCurve *verify_driver_fcurve(ID *id, const char rna_path[], const int array_inde
 				 * Create FModifier so that old scripts won't break
 				 * for now before 2.7 series -- (September 4, 2013)
 				 */
-				add_fmodifier(&fcu->modifiers, FMODIFIER_TYPE_GENERATOR);
+				add_fmodifier(&fcu->modifiers, FMODIFIER_TYPE_GENERATOR, fcu);
 			}
 			else {
 				/* add 2 keyframes so that user has something to work with 
@@ -579,7 +581,7 @@ bool ANIM_copy_driver(ReportList *reports, ID *id, const char rna_path[], int ar
 
 /* Main Driver Management API calls:
  *  Add a new driver for the specified property on the given ID block or replace an existing one
- *	with the driver + driver-curve data from the buffer 
+ *	with the driver + driver-curve data from the buffer
  */
 bool ANIM_paste_driver(ReportList *reports, ID *id, const char rna_path[], int array_index, short UNUSED(flag))
 {	
@@ -764,7 +766,7 @@ EnumPropertyItem prop_driver_create_mapping_types[] = {
 };
 
 /* Filtering callback for driver mapping types enum */
-static EnumPropertyItem *driver_mapping_type_itemsf(bContext *C, PointerRNA *UNUSED(owner_ptr), PropertyRNA *UNUSED(owner_prop), bool *r_free)
+static const EnumPropertyItem *driver_mapping_type_itemsf(bContext *C, PointerRNA *UNUSED(owner_ptr), PropertyRNA *UNUSED(owner_prop), bool *r_free)
 {
 	EnumPropertyItem *input = prop_driver_create_mapping_types;
 	EnumPropertyItem *item = NULL;
@@ -1028,6 +1030,11 @@ static int paste_driver_button_exec(bContext *C, wmOperator *op)
 			success = ANIM_paste_driver(op->reports, ptr.id.data, path, index, 0);
 			
 			UI_context_update_anim_flag(C);
+			
+			DAG_relations_tag_update(CTX_data_main(C));
+			DAG_id_tag_update(ptr.id.data, OB_RECALC_OB | OB_RECALC_DATA);
+			
+			WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME_PROP, NULL);  // XXX
 			
 			MEM_freeN(path);
 		}

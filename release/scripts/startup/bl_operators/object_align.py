@@ -1,4 +1,5 @@
 # ##### BEGIN GPL LICENSE BLOCK #####
+
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -23,16 +24,17 @@ from bpy.types import Operator
 from mathutils import Vector
 
 
-def GlobalBB_LQ(bb_world):
+def worldspace_bounds_from_object_bounds(bb_world):
 
     # Initialize the variables with the 8th vertex
-    left, right, front, back, down, up = (bb_world[7][0],
-                                          bb_world[7][0],
-                                          bb_world[7][1],
-                                          bb_world[7][1],
-                                          bb_world[7][2],
-                                          bb_world[7][2],
-                                          )
+    left, right, front, back, down, up = (
+        bb_world[7][0],
+        bb_world[7][0],
+        bb_world[7][1],
+        bb_world[7][1],
+        bb_world[7][2],
+        bb_world[7][2],
+    )
 
     # Test against the other 7 verts
     for i in range(7):
@@ -64,29 +66,29 @@ def GlobalBB_LQ(bb_world):
     return (Vector((left, front, up)), Vector((right, back, down)))
 
 
-def GlobalBB_HQ(obj):
+def worldspace_bounds_from_object_data(scene, obj):
 
     matrix_world = obj.matrix_world.copy()
 
     # Initialize the variables with the last vertex
 
-    me = obj.to_mesh(scene=bpy.context.scene, apply_modifiers=True, settings='PREVIEW')
+    me = obj.to_mesh(scene=scene, apply_modifiers=True, settings='PREVIEW')
     verts = me.vertices
 
-    val = matrix_world * verts[-1].co
+    val = matrix_world * (verts[-1].co if verts else Vector((0.0, 0.0, 0.0)))
 
-    left, right, front, back, down, up = (val[0],
-                                          val[0],
-                                          val[1],
-                                          val[1],
-                                          val[2],
-                                          val[2],
-                                          )
+    left, right, front, back, down, up = (
+        val[0],
+        val[0],
+        val[1],
+        val[1],
+        val[2],
+        val[2],
+    )
 
     # Test against all other verts
-    for i in range(len(verts) - 1):
-
-        vco = matrix_world * verts[i].co
+    for v in verts:
+        vco = matrix_world * v.co
 
         # X Range
         val = vco[0]
@@ -130,6 +132,11 @@ def align_objects(context,
 
     cursor = (space if space and space.type == 'VIEW_3D' else scene).cursor_location
 
+    # We are accessing runtime data such as evaluated bounding box, so we need to
+    # be sure it is properly updated and valid (bounding box might be lost on operator
+    # redo).
+    scene.update()
+
     Left_Front_Up_SEL = [0.0, 0.0, 0.0]
     Right_Back_Down_SEL = [0.0, 0.0, 0.0]
 
@@ -148,9 +155,9 @@ def align_objects(context,
     for obj, bb_world in objects:
 
         if bb_quality and obj.type == 'MESH':
-            GBB = GlobalBB_HQ(obj)
+            GBB = worldspace_bounds_from_object_data(scene, obj)
         else:
-            GBB = GlobalBB_LQ(bb_world)
+            GBB = worldspace_bounds_from_object_bounds(bb_world)
 
         Left_Front_Up = GBB[0]
         Right_Back_Down = GBB[1]
@@ -212,9 +219,9 @@ def align_objects(context,
         bb_world = [matrix_world * Vector(v[:]) for v in obj.bound_box]
 
         if bb_quality and obj.type == 'MESH':
-            GBB = GlobalBB_HQ(obj)
+            GBB = worldspace_bounds_from_object_data(scene, obj)
         else:
-            GBB = GlobalBB_LQ(bb_world)
+            GBB = worldspace_bounds_from_object_bounds(bb_world)
 
         Left_Front_Up = GBB[0]
         Right_Back_Down = GBB[1]
@@ -345,9 +352,9 @@ def align_objects(context,
 
 
 from bpy.props import (
-        EnumProperty,
-        BoolProperty
-        )
+    BoolProperty,
+    EnumProperty,
+)
 
 
 class AlignObjects(Operator):
@@ -398,16 +405,23 @@ class AlignObjects(Operator):
 
     def execute(self, context):
         align_axis = self.align_axis
-        ret = align_objects(context,
-                            'X' in align_axis,
-                            'Y' in align_axis,
-                            'Z' in align_axis,
-                            self.align_mode,
-                            self.relative_to,
-                            self.bb_quality)
+        ret = align_objects(
+            context,
+            'X' in align_axis,
+            'Y' in align_axis,
+            'Z' in align_axis,
+            self.align_mode,
+            self.relative_to,
+            self.bb_quality,
+        )
 
         if not ret:
             self.report({'WARNING'}, "No objects with bound-box selected")
             return {'CANCELLED'}
         else:
             return {'FINISHED'}
+
+
+classes = (
+    AlignObjects,
+)

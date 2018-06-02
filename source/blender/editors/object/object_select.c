@@ -45,6 +45,7 @@
 #include "BLI_math.h"
 #include "BLI_listbase.h"
 #include "BLI_rand.h"
+#include "BLI_string_utils.h"
 #include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
@@ -197,7 +198,7 @@ enum {
 	OBJECT_SELECT_LINKED_LIBRARY_OBDATA
 };
 
-static EnumPropertyItem prop_select_linked_types[] = {
+static const EnumPropertyItem prop_select_linked_types[] = {
 	//{OBJECT_SELECT_LINKED_IPO, "IPO", 0, "Object IPO", ""}, // XXX deprecated animation system stuff...
 	{OBJECT_SELECT_LINKED_OBDATA, "OBDATA", 0, "Object Data", ""},
 	{OBJECT_SELECT_LINKED_MATERIAL, "MATERIAL", 0, "Material", ""},
@@ -526,7 +527,7 @@ enum {
 	OBJECT_GRPSEL_LAMP_TYPE          = 12,
 };
 
-static EnumPropertyItem prop_select_grouped_types[] = {
+static const EnumPropertyItem prop_select_grouped_types[] = {
 	{OBJECT_GRPSEL_CHILDREN_RECURSIVE, "CHILDREN_RECURSIVE", 0, "Children", ""},
 	{OBJECT_GRPSEL_CHILDREN, "CHILDREN", 0, "Immediate Children", ""},
 	{OBJECT_GRPSEL_PARENT, "PARENT", 0, "Parent", ""},
@@ -981,7 +982,7 @@ static int object_select_by_layer_exec(bContext *C, wmOperator *op)
 
 void OBJECT_OT_select_by_layer(wmOperatorType *ot)
 {
-	static EnumPropertyItem match_items[] = {
+	static const EnumPropertyItem match_items[] = {
 		{OB_SEL_LAYERMATCH_EXACT, "EXACT", 0, "Exact Match", ""},
 		{OB_SEL_LAYERMATCH_SHARED, "SHARED", 0, "Shared Layers", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -1075,6 +1076,7 @@ void OBJECT_OT_select_all(wmOperatorType *ot)
 
 static int object_select_same_group_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	Group *group;
 	char group_name[MAX_ID_NAME];
 
@@ -1083,7 +1085,7 @@ static int object_select_same_group_exec(bContext *C, wmOperator *op)
 
 	RNA_string_get(op->ptr, "group", group_name);
 
-	group = (Group *)BKE_libblock_find_name(ID_GR, group_name);
+	group = (Group *)BKE_libblock_find_name(bmain, ID_GR, group_name);
 
 	if (!group) {
 		return OPERATOR_PASS_THROUGH;
@@ -1122,6 +1124,7 @@ void OBJECT_OT_select_same_group(wmOperatorType *ot)
 /**************************** Select Mirror ****************************/
 static int object_select_mirror_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	bool extend;
 	
@@ -1131,10 +1134,10 @@ static int object_select_mirror_exec(bContext *C, wmOperator *op)
 	{
 		char name_flip[MAXBONENAME];
 
-		BKE_deform_flip_side_name(name_flip, primbase->object->id.name + 2, true);
+		BLI_string_flip_side_name(name_flip, primbase->object->id.name + 2, true, sizeof(name_flip));
 		
 		if (!STREQ(name_flip, primbase->object->id.name + 2)) {
-			Object *ob = (Object *)BKE_libblock_find_name(ID_OB, name_flip);
+			Object *ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, name_flip);
 			if (ob) {
 				Base *secbase = BKE_scene_base_find(scene, ob);
 

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -45,7 +45,7 @@
 #include "DNA_material_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
@@ -350,7 +350,7 @@ static void buttons_texture_users_from_context(ListBase *users, const bContext *
 	if (!scene)
 		scene = CTX_data_scene(C);
 
-	if (!(pinid || pinid == &scene->id)) {
+	if (!pinid || GS(pinid->name) == ID_SCE) {
 		ob = (scene->basact) ? scene->basact->object : NULL;
 		wrld = scene->world;
 		brush = BKE_paint_brush(BKE_paint_get_active_from_context(C));
@@ -470,7 +470,7 @@ void buttons_texture_context_compute(const bContext *C, SpaceButs *sbuts)
 	}
 	else {
 		/* set one user as active based on active index */
-		if (ct->index == BLI_listbase_count_ex(&ct->users, ct->index + 1))
+		if (ct->index >= BLI_listbase_count_at_most(&ct->users, ct->index + 1))
 			ct->index = 0;
 
 		ct->user = BLI_findlink(&ct->users, ct->index);

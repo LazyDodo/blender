@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -60,11 +60,13 @@ typedef enum eGPDspoint_Flag {
 } eGPSPoint_Flag;
 
 /* Grease-Pencil Annotations - 'Triangle'
- * 	-> A triangle contains the index of three vertices for filling the stroke
- *	   This is only used if high quality fill is enabled
+ * A triangle contains the index of three vertices for filling the stroke
+ * This is only used if high quality fill is enabled.
+ * (not saved to blend file).
  */
 typedef struct bGPDtriangle {
-	int v1, v2, v3;         /* indices for tesselated triangle used for GP Fill */
+	/* indices for tesselated triangle used for GP Fill */
+	unsigned int verts[3];
 } bGPDtriangle;
 
 /* GP brush (used for new strokes) */
@@ -244,6 +246,7 @@ typedef struct bGPDlayer {
 	float inverse[4][4];    /* inverse matrix (only used if parented) */
 	char parsubstr[64];     /* String describing subobject info, MAX_ID_NAME-2 */
 	short partype, pad;
+	
 	float tintcolor[4];     /* Color used to tint layer, alpha value is used as factor */
 	float opacity;          /* Opacity of the layer */
 } bGPDlayer;
@@ -275,7 +278,9 @@ typedef enum eGPDlayer_Flag {
 	/* Use high quality fill (instead of buggy legacy OpenGL Fill) */
 	GP_LAYER_HQ_FILL        = (1 << 11),
 	/* Unlock color */
-	GP_LAYER_UNLOCK_COLOR = (1 << 12)
+	GP_LAYER_UNLOCK_COLOR 	= (1 << 12),
+	/* always show onion skins (i.e. even during renders/animation playback) */
+	GP_LAYER_GHOST_ALWAYS	= (1 << 13),
 } eGPDlayer_Flag;
 
 /* Grease-Pencil Annotations - 'DataBlock' */

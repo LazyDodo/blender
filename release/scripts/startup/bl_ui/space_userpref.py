@@ -18,7 +18,11 @@
 
 # <pep8 compliant>
 import bpy
-from bpy.types import Header, Menu, Panel
+from bpy.types import (
+    Header,
+    Menu,
+    Panel,
+)
 from bpy.app.translations import pgettext_iface as iface_
 from bpy.app.translations import contexts as i18n_contexts
 
@@ -80,7 +84,7 @@ class USERPREF_PT_tabs(Panel):
 
         userpref = context.user_preferences
 
-        layout.prop(userpref, "active_section", expand=True)
+        layout.row().prop(userpref, "active_section", expand=True)
 
 
 class USERPREF_MT_interaction_presets(Menu):
@@ -88,6 +92,63 @@ class USERPREF_MT_interaction_presets(Menu):
     preset_subdir = "interaction"
     preset_operator = "script.execute_preset"
     draw = Menu.draw_preset
+
+
+class USERPREF_MT_app_templates(Menu):
+    bl_label = "Application Templates"
+    preset_subdir = "app_templates"
+
+    def draw_ex(self, context, *, use_splash=False, use_default=False, use_install=False):
+        import os
+
+        layout = self.layout
+
+        # now draw the presets
+        layout.operator_context = 'EXEC_DEFAULT'
+
+        if use_default:
+            props = layout.operator("wm.read_homefile", text="Default")
+            props.use_splash = True
+            props.app_template = ""
+            layout.separator()
+
+        template_paths = bpy.utils.app_template_paths()
+
+        # expand template paths
+        app_templates = []
+        for path in template_paths:
+            for d in os.listdir(path):
+                if d.startswith(("__", ".")):
+                    continue
+                template = os.path.join(path, d)
+                if os.path.isdir(template):
+                    # template_paths_expand.append(template)
+                    app_templates.append(d)
+
+        for d in sorted(app_templates):
+            props = layout.operator(
+                "wm.read_homefile",
+                text=bpy.path.display_name(d),
+            )
+            props.use_splash = True
+            props.app_template = d
+
+        if use_install:
+            layout.separator()
+            layout.operator_context = 'INVOKE_DEFAULT'
+            props = layout.operator("wm.app_template_install")
+
+
+    def draw(self, context):
+        self.draw_ex(context, use_splash=False, use_default=True, use_install=True)
+
+
+class USERPREF_MT_templates_splash(Menu):
+    bl_label = "Startup Templates"
+    preset_subdir = "templates"
+
+    def draw(self, context):
+        USERPREF_MT_app_templates.draw_ex(self, context, use_splash=True, use_default=True)
 
 
 class USERPREF_MT_appconfigs(Menu):
@@ -110,7 +171,17 @@ class USERPREF_MT_splash(Menu):
 
         split = layout.split()
         row = split.row()
-        row.label("")
+
+        if any(bpy.utils.app_template_paths()):
+            row.label("Template:")
+            template = context.user_preferences.app_template
+            row.menu(
+                "USERPREF_MT_templates_splash",
+                text=bpy.path.display_name(template) if template else "Default",
+            )
+        else:
+            row.label("")
+
         row = split.row()
         row.label("Interaction:")
 
@@ -140,7 +211,6 @@ class USERPREF_PT_interface(Panel):
         return (userpref.active_section == 'INTERFACE')
 
     def draw(self, context):
-        import sys
         layout = self.layout
 
         userpref = context.user_preferences
@@ -150,6 +220,8 @@ class USERPREF_PT_interface(Panel):
 
         col = row.column()
         col.label(text="Display:")
+        col.prop(view, "ui_scale", text="Scale")
+        col.prop(view, "ui_line_width", text="Line Width")
         col.prop(view, "show_tooltips")
         col.prop(view, "show_tooltips_python")
         col.prop(view, "show_object_info", text="Object Info")
@@ -171,9 +243,8 @@ class USERPREF_PT_interface(Panel):
 
         col.separator()
 
-        if sys.platform[:3] == "win":
-            col.label("Warnings")
-            col.prop(view, "use_quit_dialog")
+        col.label("Warnings")
+        col.prop(view, "use_quit_dialog")
 
         row.separator()
         row.separator()
@@ -181,6 +252,7 @@ class USERPREF_PT_interface(Panel):
         col = row.column()
         col.label(text="View Manipulation:")
         col.prop(view, "use_mouse_depth_cursor")
+        col.prop(view, "use_cursor_lock_adjust")
         col.prop(view, "use_mouse_depth_navigate")
         col.prop(view, "use_zoom_to_mouse")
         col.prop(view, "use_rotate_around_active")
@@ -200,9 +272,9 @@ class USERPREF_PT_interface(Panel):
         col.prop(view, "view2d_grid_spacing_min", text="Minimum Grid Spacing")
         col.prop(view, "timecode_style")
         col.prop(view, "view_frame_type")
-        if (view.view_frame_type == 'SECONDS'):
+        if view.view_frame_type == 'SECONDS':
             col.prop(view, "view_frame_seconds")
-        elif (view.view_frame_type == 'KEYFRAMES'):
+        elif view.view_frame_type == 'KEYFRAMES':
             col.prop(view, "view_frame_keyframes")
 
         row.separator()
@@ -243,10 +315,15 @@ class USERPREF_PT_interface(Panel):
         sub.prop(view, "pie_menu_threshold")
         sub.prop(view, "pie_menu_confirm")
         col.separator()
-        col.separator()
-        col.separator()
 
         col.prop(view, "show_splash")
+        col.separator()
+
+        col.label(text="App Template:")
+        col.label(text="Options intended for use with app-templates only.")
+        col.prop(view, "show_layout_ui")
+        col.prop(view, "show_view3d_cursor")
+
 
 
 class USERPREF_PT_edit(Panel):
@@ -400,11 +477,6 @@ class USERPREF_PT_system(Panel):
 
         col = colsplit.column()
         col.label(text="General:")
-        col.prop(system, "dpi")
-        col.label("Virtual Pixel Mode:")
-        col.prop(system, "virtual_pixel_mode", text="")
-
-        col.separator()
 
         col.prop(system, "frame_server_port")
         col.prop(system, "scrollback", text="Console Scrollback")
@@ -414,7 +486,7 @@ class USERPREF_PT_system(Panel):
         col.label(text="Sound:")
         col.row().prop(system, "audio_device", expand=False)
         sub = col.column()
-        sub.active = system.audio_device != 'NONE' and system.audio_device != 'Null'
+        sub.active = system.audio_device not in {'NONE', 'Null'}
         #sub.prop(system, "use_preview_images")
         sub.prop(system, "audio_channels", text="Channels")
         sub.prop(system, "audio_mixing_buffer", text="Mixing Buffer")
@@ -453,6 +525,7 @@ class USERPREF_PT_system(Panel):
         col.separator()
         col.label(text="Selection")
         col.prop(system, "select_method", text="")
+        col.prop(system, "use_select_pick_depth")
 
         col.separator()
 
@@ -496,7 +569,7 @@ class USERPREF_PT_system(Panel):
         # 3. Column
         column = split.column()
 
-        column.label(text="Solid OpenGL lights:")
+        column.label(text="Solid OpenGL Lights:")
 
         split = column.split(percentage=0.1)
         split.label()
@@ -548,7 +621,7 @@ class USERPREF_MT_interface_theme_presets(Menu):
     preset_xml_map = (
         ("user_preferences.themes[0]", "Theme"),
         ("user_preferences.ui_styles[0]", "ThemeStyle"),
-        )
+    )
     draw = Menu.draw_preset
 
 
@@ -568,20 +641,20 @@ class USERPREF_PT_theme(Panel):
             "split_normal",
             "bone_solid",
             "paint_curve_pivot",
-            },
+        },
         'GRAPH_EDITOR': {
             "handle_vertex_select",
-            },
+        },
         'IMAGE_EDITOR': {
             "paint_curve_pivot",
-            },
+        },
         'NODE_EDITOR': {
             "layout_node",
-            },
+        },
         'CLIP_EDITOR': {
             "handle_vertex_select",
-            }
         }
+    }
 
     @staticmethod
     def _theme_generic(split, themedata, theme_area):
@@ -867,8 +940,8 @@ class USERPREF_PT_theme(Panel):
         elif theme.theme_area == 'BONE_COLOR_SETS':
             col = split.column()
 
-            for i, ui in enumerate(theme.bone_color_sets):
-                col.label(text=iface_("Color Set %d:") % (i + 1), translate=False)  # i starts from 0
+            for i, ui in enumerate(theme.bone_color_sets, 1):
+                col.label(text=iface_("Color Set %d:") % i, translate=False)
 
                 row = col.row()
 
@@ -1041,29 +1114,29 @@ class USERPREF_MT_ndof_settings(Menu):
             layout.prop(input_prefs, "ndof_show_guide")
 
             layout.separator()
-            layout.label(text="Orbit style")
+            layout.label(text="Orbit Style")
             layout.row().prop(input_prefs, "ndof_view_navigate_method", text="")
             layout.row().prop(input_prefs, "ndof_view_rotate_method", text="")
             layout.separator()
-            layout.label(text="Orbit options")
+            layout.label(text="Orbit Options")
             layout.prop(input_prefs, "ndof_rotx_invert_axis")
             layout.prop(input_prefs, "ndof_roty_invert_axis")
             layout.prop(input_prefs, "ndof_rotz_invert_axis")
 
         # view2d use pan/zoom
         layout.separator()
-        layout.label(text="Pan options")
+        layout.label(text="Pan Options")
         layout.prop(input_prefs, "ndof_panx_invert_axis")
         layout.prop(input_prefs, "ndof_pany_invert_axis")
         layout.prop(input_prefs, "ndof_panz_invert_axis")
         layout.prop(input_prefs, "ndof_pan_yz_swap_axis")
 
-        layout.label(text="Zoom options")
+        layout.label(text="Zoom Options")
         layout.prop(input_prefs, "ndof_zoom_invert")
 
         if is_view3d:
             layout.separator()
-            layout.label(text="Fly/Walk options")
+            layout.label(text="Fly/Walk Options")
             layout.prop(input_prefs, "ndof_fly_helicopter", icon='NDOF_FLY')
             layout.prop(input_prefs, "ndof_lock_horizon", icon='NDOF_DOM')
 
@@ -1158,33 +1231,42 @@ class USERPREF_PT_input(Panel):
         sub = col.column()
         sub.label(text="View Navigation:")
         sub.row().prop(inputs, "navigation_mode", expand=True)
-        if inputs.navigation_mode == 'WALK':
-            walk = inputs.walk_navigation
 
-            sub.prop(walk, "use_mouse_reverse")
-            sub.prop(walk, "mouse_speed")
-            sub.prop(walk, "teleport_time")
+        sub.label(text="Walk Navigation:")
 
-            sub = col.column(align=True)
-            sub.prop(walk, "walk_speed")
-            sub.prop(walk, "walk_speed_factor")
+        walk = inputs.walk_navigation
 
-            sub.separator()
-            sub.prop(walk, "use_gravity")
-            sub = col.column(align=True)
-            sub.active = walk.use_gravity
-            sub.prop(walk, "view_height")
-            sub.prop(walk, "jump_height")
+        sub.prop(walk, "use_mouse_reverse")
+        sub.prop(walk, "mouse_speed")
+        sub.prop(walk, "teleport_time")
+
+        sub = col.column(align=True)
+        sub.prop(walk, "walk_speed")
+        sub.prop(walk, "walk_speed_factor")
+
+        sub.separator()
+        sub.prop(walk, "use_gravity")
+        sub = col.column(align=True)
+        sub.active = walk.use_gravity
+        sub.prop(walk, "view_height")
+        sub.prop(walk, "jump_height")
 
         if inputs.use_ndof:
             col.separator()
             col.label(text="NDOF Device:")
             sub = col.column(align=True)
-            sub.prop(inputs, "ndof_sensitivity", text="NDOF Sensitivity")
-            sub.prop(inputs, "ndof_orbit_sensitivity", text="NDOF Orbit Sensitivity")
-            sub.prop(inputs, "ndof_deadzone", text="NDOF Deadzone")
+            sub.prop(inputs, "ndof_sensitivity", text="Pan Sensitivity")
+            sub.prop(inputs, "ndof_orbit_sensitivity", text="Orbit Sensitivity")
+            sub.prop(inputs, "ndof_deadzone", text="Deadzone")
+
+            sub.separator()
+            col.label(text="Navigation Style:")
             sub = col.column(align=True)
             sub.row().prop(inputs, "ndof_view_navigate_method", expand=True)
+
+            sub.separator()
+            col.label(text="Rotation Style:")
+            sub = col.column(align=True)
             sub.row().prop(inputs, "ndof_view_rotate_method", expand=True)
 
         row.separator()
@@ -1221,22 +1303,23 @@ class USERPREF_MT_addons_online_resources(Menu):
         layout = self.layout
 
         layout.operator(
-                "wm.url_open", text="Add-ons Catalog", icon='URL',
-                ).url = "http://wiki.blender.org/index.php/Extensions:2.6/Py/Scripts"
+            "wm.url_open", text="Add-ons Catalog", icon='URL',
+        ).url = "http://wiki.blender.org/index.php/Extensions:2.6/Py/Scripts"
 
         layout.separator()
 
         layout.operator(
-                "wm.url_open", text="How to share your add-on", icon='URL',
-                ).url = "http://wiki.blender.org/index.php/Dev:Py/Sharing"
+            "wm.url_open", text="How to share your add-on", icon='URL',
+        ).url = "http://wiki.blender.org/index.php/Dev:Py/Sharing"
         layout.operator(
-                "wm.url_open", text="Add-on Guidelines", icon='URL',
-                ).url = "http://wiki.blender.org/index.php/Dev:2.5/Py/Scripts/Guidelines/Addons"
+            "wm.url_open", text="Add-on Guidelines", icon='URL',
+        ).url = "http://wiki.blender.org/index.php/Dev:2.5/Py/Scripts/Guidelines/Addons"
         layout.operator(
-                "wm.url_open", text="API Concepts", icon='URL',
-                ).url = bpy.types.WM_OT_doc_view._prefix + "/info_quickstart.html"
-        layout.operator("wm.url_open", text="Add-on Tutorial", icon='URL',
-                ).url = "http://www.blender.org/api/blender_python_api_current/info_tutorial_addon.html"
+            "wm.url_open", text="API Concepts", icon='URL',
+        ).url = bpy.types.WM_OT_doc_view._prefix + "/info_quickstart.html"
+        layout.operator(
+            "wm.url_open", text="Add-on Tutorial", icon='URL',
+        ).url = bpy.types.WM_OT_doc_view._prefix + "/info_tutorial_addon.html"
 
 
 class USERPREF_PT_addons(Panel):
@@ -1261,8 +1344,10 @@ class USERPREF_PT_addons(Panel):
         import os
 
         if not user_addon_paths:
-            for path in (bpy.utils.script_path_user(),
-                         bpy.utils.script_path_pref()):
+            for path in (
+                    bpy.utils.script_path_user(),
+                    bpy.utils.script_path_pref(),
+            ):
                 if path is not None:
                     user_addon_paths.append(os.path.join(path, "addons"))
 
@@ -1294,7 +1379,10 @@ class USERPREF_PT_addons(Panel):
         scripts_addons_folder = bpy.utils.user_resource('SCRIPTS', "addons")
 
         # collect the categories that can be filtered on
-        addons = [(mod, addon_utils.module_bl_info(mod)) for mod in addon_utils.modules(refresh=False)]
+        addons = [
+            (mod, addon_utils.module_bl_info(mod))
+            for mod in addon_utils.modules(refresh=False)
+        ]
 
         split = layout.split(percentage=0.2)
         col = split.column()
@@ -1310,17 +1398,25 @@ class USERPREF_PT_addons(Panel):
 
         # set in addon_utils.modules_refresh()
         if addon_utils.error_duplicates:
-            self.draw_error(col,
-                            "Multiple addons using the same name found!\n"
-                            "likely a problem with the script search path.\n"
-                            "(see console for details)",
-                            )
+            box = col.box()
+            row = box.row()
+            row.label("Multiple add-ons with the same name found!")
+            row.label(icon='ERROR')
+            box.label("Please delete one of each pair:")
+            for (addon_name, addon_file, addon_path) in addon_utils.error_duplicates:
+                box.separator()
+                sub_col = box.column(align=True)
+                sub_col.label(addon_name + ":")
+                sub_col.label("    " + addon_file)
+                sub_col.label("    " + addon_path)
+
 
         if addon_utils.error_encoding:
-            self.draw_error(col,
-                            "One or more addons do not have UTF-8 encoding\n"
-                            "(see console for details)",
-                            )
+            self.draw_error(
+                col,
+                "One or more addons do not have UTF-8 encoding\n"
+                "(see console for details)",
+            )
 
         filter = context.window_manager.addon_filter
         search = context.window_manager.addon_search.lower()
@@ -1343,8 +1439,7 @@ class USERPREF_PT_addons(Panel):
                 (filter == "Enabled" and is_enabled) or
                 (filter == "Disabled" and not is_enabled) or
                 (filter == "User" and (mod.__file__.startswith((scripts_addons_folder, userpref_addons_folder))))
-                ):
-
+            ):
                 if search and search not in info["name"].lower():
                     if info["author"]:
                         if search not in info["author"].lower():
@@ -1359,20 +1454,20 @@ class USERPREF_PT_addons(Panel):
                 row = colsub.row(align=True)
 
                 row.operator(
-                        "wm.addon_expand",
-                        icon='TRIA_DOWN' if info["show_expanded"] else 'TRIA_RIGHT',
-                        emboss=False,
-                        ).module = module_name
+                    "wm.addon_expand",
+                    icon='TRIA_DOWN' if info["show_expanded"] else 'TRIA_RIGHT',
+                    emboss=False,
+                ).module = module_name
 
                 row.operator(
-                        "wm.addon_disable" if is_enabled else "wm.addon_enable",
-                        icon='CHECKBOX_HLT' if is_enabled else 'CHECKBOX_DEHLT', text="",
-                        emboss=False,
-                        ).module = module_name
+                    "wm.addon_disable" if is_enabled else "wm.addon_enable",
+                    icon='CHECKBOX_HLT' if is_enabled else 'CHECKBOX_DEHLT', text="",
+                    emboss=False,
+                ).module = module_name
 
                 sub = row.row()
                 sub.active = is_enabled
-                sub.label(text='%s: %s' % (info["category"], info["name"]))
+                sub.label(text="%s: %s" % (info["category"], info["name"]))
                 if info["warning"]:
                     sub.label(icon='ERROR')
 
@@ -1400,11 +1495,11 @@ class USERPREF_PT_addons(Panel):
                     if info["version"]:
                         split = colsub.row().split(percentage=0.15)
                         split.label(text="Version:")
-                        split.label(text='.'.join(str(x) for x in info["version"]), translate=False)
+                        split.label(text=".".join(str(x) for x in info["version"]), translate=False)
                     if info["warning"]:
                         split = colsub.row().split(percentage=0.15)
                         split.label(text="Warning:")
-                        split.label(text='  ' + info["warning"], icon='ERROR')
+                        split.label(text="  " + info["warning"], icon='ERROR')
 
                     user_addon = USERPREF_PT_addons.is_user_addon(mod, user_addon_paths)
                     tot_row = bool(info["wiki_url"]) + bool(user_addon)
@@ -1413,12 +1508,22 @@ class USERPREF_PT_addons(Panel):
                         split = colsub.row().split(percentage=0.15)
                         split.label(text="Internet:")
                         if info["wiki_url"]:
-                            split.operator("wm.url_open", text="Documentation", icon='HELP').url = info["wiki_url"]
-                        split.operator("wm.url_open", text="Report a Bug", icon='URL').url = info.get(
+                            split.operator(
+                                "wm.url_open", text="Documentation", icon='HELP',
+                            ).url = info["wiki_url"]
+                        # Only add "Report a Bug" button if tracker_url is set
+                        # or the add-on is bundled (use official tracker then).
+                        if info.get("tracker_url") or not user_addon:
+                            split.operator(
+                                "wm.url_open", text="Report a Bug", icon='URL',
+                            ).url = info.get(
                                 "tracker_url",
-                                "https://developer.blender.org/maniphest/task/edit/form/2")
+                                "https://developer.blender.org/maniphest/task/edit/form/2",
+                            )
                         if user_addon:
-                            split.operator("wm.addon_remove", text="Remove", icon='CANCEL').module = mod.__name__
+                            split.operator(
+                                "wm.addon_remove", text="Remove", icon='CANCEL',
+                            ).module = mod.__name__
 
                         for i in range(4 - tot_row):
                             split.separator()
@@ -1461,10 +1566,36 @@ class USERPREF_PT_addons(Panel):
                 row.label(text="", icon='ERROR')
 
                 if is_enabled:
-                    row.operator("wm.addon_disable", icon='CHECKBOX_HLT', text="", emboss=False).module = module_name
+                    row.operator(
+                        "wm.addon_disable", icon='CHECKBOX_HLT', text="", emboss=False,
+                    ).module = module_name
 
                 row.label(text=module_name, translate=False)
 
 
+classes = (
+    USERPREF_HT_header,
+    USERPREF_PT_tabs,
+    USERPREF_MT_interaction_presets,
+    USERPREF_MT_templates_splash,
+    USERPREF_MT_app_templates,
+    USERPREF_MT_appconfigs,
+    USERPREF_MT_splash,
+    USERPREF_MT_splash_footer,
+    USERPREF_PT_interface,
+    USERPREF_PT_edit,
+    USERPREF_PT_system,
+    USERPREF_MT_interface_theme_presets,
+    USERPREF_PT_theme,
+    USERPREF_PT_file,
+    USERPREF_MT_ndof_settings,
+    USERPREF_MT_keyconfigs,
+    USERPREF_PT_input,
+    USERPREF_MT_addons_online_resources,
+    USERPREF_PT_addons,
+)
+
 if __name__ == "__main__":  # only for live edit.
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)

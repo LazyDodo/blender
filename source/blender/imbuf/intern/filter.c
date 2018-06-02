@@ -34,6 +34,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "BLI_utildefines.h"
+#include "BLI_math_base.h"
 
 #include "IMB_imbuf_types.h"
 #include "IMB_imbuf.h"
@@ -397,7 +398,7 @@ static int check_pixel_assigned(const void *buffer, const char *mask, const int 
 }
 
 /* if alpha is zero, it checks surrounding pixels and averages color. sets new alphas to 1.0
- * 
+ *
  * When a mask is given, only effect pixels with a mask value of 1, defined as BAKE_MASK_MARGIN in rendercore.c
  * */
 void IMB_filter_extend(struct ImBuf *ibuf, char *mask, int filter)
@@ -406,7 +407,7 @@ void IMB_filter_extend(struct ImBuf *ibuf, char *mask, int filter)
 	const int height = ibuf->y;
 	const int depth = 4;     /* always 4 channels */
 	const int chsize = ibuf->rect_float ? sizeof(float) : sizeof(unsigned char);
-	const int bsize = width * height * depth * chsize;
+	const size_t bsize = ((size_t)width) * height * depth * chsize;
 	const bool is_float = (ibuf->rect_float != NULL);
 	void *dstbuf = (void *) MEM_dupallocN(ibuf->rect_float ? (void *) ibuf->rect_float : (void *) ibuf->rect);
 	char *dstmask = mask == NULL ? NULL : (char *) MEM_dupallocN(mask);
@@ -499,7 +500,9 @@ void IMB_filter_extend(struct ImBuf *ibuf, char *mask, int filter)
 
 		/* keep the original buffer up to date. */
 		memcpy(srcbuf, dstbuf, bsize);
-		if (dstmask != NULL) memcpy(srcmask, dstmask, width * height);
+		if (dstmask != NULL) {
+			memcpy(srcmask, dstmask, ((size_t)width) * height);
+		}
 	}
 
 	/* free memory */
@@ -658,9 +661,9 @@ void IMB_unpremultiply_rect(unsigned int *rect, char planes, int w, int h)
 		for (y = 0; y < h; y++) {
 			for (x = 0; x < w; x++, cp += 4) {
 				val = cp[3] != 0 ? 1.0f / (float)cp[3] : 1.0f;
-				cp[0] = FTOCHAR(cp[0] * val);
-				cp[1] = FTOCHAR(cp[1] * val);
-				cp[2] = FTOCHAR(cp[2] * val);
+				cp[0] = unit_float_to_uchar_clamp(cp[0] * val);
+				cp[1] = unit_float_to_uchar_clamp(cp[1] * val);
+				cp[2] = unit_float_to_uchar_clamp(cp[2] * val);
 			}
 		}
 	}

@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -27,7 +27,6 @@
 #include "COM_MixOperation.h"
 #include "COM_SetColorOperation.h"
 #include "COM_SetValueOperation.h"
-#include "COM_ChangeHSVOperation.h"
 #include "DNA_node_types.h"
 #include "COM_HueSaturationValueCorrectOperation.h"
 

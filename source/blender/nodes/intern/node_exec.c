@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -78,7 +78,8 @@ void node_get_stack(bNode *node, bNodeStack *stack, bNodeStack **in, bNodeStack 
 
 static void node_init_input_index(bNodeSocket *sock, int *index)
 {
-	if (sock->link && sock->link->fromsock) {
+	/* Only consider existing link if from socket is valid! */
+	if (sock->link && sock->link->fromsock && sock->link->fromsock->stack_index >= 0) {
 		sock->stack_index = sock->link->fromsock->stack_index;
 	}
 	else {

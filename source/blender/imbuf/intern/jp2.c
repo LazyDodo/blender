@@ -119,7 +119,7 @@ static void info_callback(const char *msg, void *client_data)
 
 #   define PIXEL_LOOPER_END \
 	} \
-	} (void)0 \
+} (void)0 \
 
 struct ImBuf *imb_jp2_decode(const unsigned char *mem, size_t size, int flags, char colorspace[IM_MAX_SPACE])
 {
@@ -588,7 +588,7 @@ static opj_image_t *ibuftoimage(ImBuf *ibuf, opj_cparameters_t *parameters)
 	img_fol_t img_fol; /* only needed for cinema presets */
 	memset(&img_fol, 0, sizeof(img_fol_t));
 	
-	if (ibuf->float_colorspace) {
+	if (ibuf->float_colorspace || (ibuf->colormanage_flag & IMB_COLORMANAGE_IS_DATA)) {
 		/* float buffer was managed already, no need in color space conversion */
 		chanel_colormanage_cb = channel_colormanage_noop;
 	}
