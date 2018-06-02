@@ -192,7 +192,6 @@ BSDF_CLOSURE_CLASS_END(PrincipledSheen, principled_sheen)
 class PrincipledHairClosure : public CBSDFClosure {
 public:
 	PrincipledHairBSDF params;
-	float3 unused;
 
 	PrincipledHairBSDF *alloc(ShaderData *sd, int path_flag, float3 weight)
 	{
@@ -207,7 +206,6 @@ public:
 		}
 
 		bsdf->extra = extra;
-		bsdf->extra->geom = params.extra->geom;
 		return bsdf;
 	}
 
@@ -215,20 +213,13 @@ public:
 	{
 		if(!skip(sd, path_flag, LABEL_GLOSSY))
 		{
-			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc_osl(sd, sizeof(PrincipledHairBSDF), weight, &params);
+			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)alloc(sd, path_flag, weight);
 			if (!bsdf)
 			{
 				return;
 			}
 
-			PrincipledHairExtra *extra = (PrincipledHairExtra*)closure_alloc_extra(sd, sizeof(PrincipledHairExtra));
-			if (!extra)
-			{
-				return;
-			}
-
-			bsdf->extra = extra;
-			sd->flag |= (bsdf && extra) ? bsdf_principled_hair_setup(sd, bsdf) : 0;
+			sd->flag |= (bsdf) ? bsdf_principled_hair_setup(sd, bsdf) : 0;
 		}
 	}
 };
