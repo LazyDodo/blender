@@ -315,7 +315,7 @@ static bool rna_id_write_error(PointerRNA *ptr, PyObject *key)
 	ID *id = ptr->id.data;
 	if (id) {
 		const short idcode = GS(id->name);
-		if (!ELEM(idcode, ID_WM, ID_SCR)) { /* may need more added here */
+		if (!ELEM(idcode, ID_WM, ID_SCR, ID_WS)) { /* may need more added here */
 			const char *idtype = BKE_idcode_to_name(idcode);
 			const char *pyname;
 			if (key && PyUnicode_Check(key)) pyname = _PyUnicode_AsString(key);
@@ -1849,19 +1849,28 @@ static int pyrna_py_to_prop(
 				 * class mixing if this causes problems in the future it should be removed.
 				 */
 				if ((ptr_type == &RNA_AnyType) &&
-				    (BPy_StructRNA_Check(value)) &&
-				    (RNA_struct_is_a(((BPy_StructRNA *)value)->ptr.type, &RNA_Operator)))
+				    (BPy_StructRNA_Check(value)))
 				{
-					value = PyObject_GetAttrString(value, "properties");
-					value_new = value;
+					const StructRNA *base_type =
+					        RNA_struct_base_child_of(((const BPy_StructRNA *)value)->ptr.type, NULL);
+					if (ELEM(base_type, &RNA_Operator, &RNA_Manipulator)) {
+						value = PyObject_GetAttr(value, bpy_intern_str_properties);
+						value_new = value;
+					}
 				}
 
-
-				/* if property is an OperatorProperties pointer and value is a map,
+				/* if property is an OperatorProperties/ManipulatorProperties pointer and value is a map,
 				 * forward back to pyrna_pydict_to_props */
-				if (RNA_struct_is_a(ptr_type, &RNA_OperatorProperties) && PyDict_Check(value)) {
-					PointerRNA opptr = RNA_property_pointer_get(ptr, prop);
-					return pyrna_pydict_to_props(&opptr, value, false, error_prefix);
+				if (PyDict_Check(value)) {
+					const StructRNA *base_type = RNA_struct_base_child_of(ptr_type, NULL);
+					if (base_type == &RNA_OperatorProperties) {
+						PointerRNA opptr = RNA_property_pointer_get(ptr, prop);
+						return pyrna_pydict_to_props(&opptr, value, false, error_prefix);
+					}
+					else if (base_type == &RNA_ManipulatorProperties) {
+						PointerRNA opptr = RNA_property_pointer_get(ptr, prop);
+						return pyrna_pydict_to_props(&opptr, value, false, error_prefix);
+					}
 				}
 
 				/* another exception, allow to pass a collection as an RNA property */
@@ -3499,6 +3508,68 @@ static PyObject *pyrna_struct_is_property_readonly(BPy_StructRNA *self, PyObject
 
 	return PyBool_FromLong(!RNA_property_editable(&self->ptr, prop));
 }
+
+
+PyDoc_STRVAR(pyrna_struct_is_property_overridable_static_doc,
+".. method:: is_property_overridable_static(property)\n"
+"\n"
+"   Check if a property is statically overridable.\n"
+"\n"
+"   :return: True when the property is statically overridable.\n"
+"   :rtype: boolean\n"
+);
+static PyObject *pyrna_struct_is_property_overridable_static(BPy_StructRNA *self, PyObject *args)
+{
+	PropertyRNA *prop;
+	const char *name;
+
+	PYRNA_STRUCT_CHECK_OBJ(self);
+
+	if (!PyArg_ParseTuple(args, "s:is_property_overridable_static", &name)) {
+		return NULL;
+	}
+
+	if ((prop = RNA_struct_find_property(&self->ptr, name)) == NULL) {
+		PyErr_Format(PyExc_TypeError,
+		             "%.200s.is_property_overridable_static(\"%.200s\") not found",
+		             RNA_struct_identifier(self->ptr.type), name);
+		return NULL;
+	}
+
+	return PyBool_FromLong((long)RNA_property_overridable_get(&self->ptr, prop));
+}
+
+PyDoc_STRVAR(pyrna_struct_property_overridable_static_set_doc,
+".. method:: property_overridable_static_set(property)\n"
+"\n"
+"   Define a property as statically overridable or not (only for custom properties!).\n"
+"\n"
+"   :return: True when the overridable status of the property was successfully set.\n"
+"   :rtype: boolean\n"
+);
+static PyObject *pyrna_struct_property_overridable_static_set(BPy_StructRNA *self, PyObject *args)
+{
+	PropertyRNA *prop;
+	const char *name;
+	int is_overridable;
+
+	PYRNA_STRUCT_CHECK_OBJ(self);
+
+	if (!PyArg_ParseTuple(args, "sp:property_overridable_static_set", &name, &is_overridable)) {
+		return NULL;
+	}
+
+	if ((prop = RNA_struct_find_property(&self->ptr, name)) == NULL) {
+		PyErr_Format(PyExc_TypeError,
+		             "%.200s.property_overridable_static_set(\"%.200s\") not found",
+		             RNA_struct_identifier(self->ptr.type), name);
+		return NULL;
+	}
+
+	return PyBool_FromLong((long)RNA_property_overridable_static_set(&self->ptr, prop, (bool)is_overridable));
+}
+
+
 
 PyDoc_STRVAR(pyrna_struct_path_resolve_doc,
 ".. method:: path_resolve(path, coerce=True)\n"
@@ -5164,6 +5235,8 @@ static struct PyMethodDef pyrna_struct_methods[] = {
 	{"property_unset", (PyCFunction)pyrna_struct_property_unset, METH_VARARGS, pyrna_struct_property_unset_doc},
 	{"is_property_hidden", (PyCFunction)pyrna_struct_is_property_hidden, METH_VARARGS, pyrna_struct_is_property_hidden_doc},
 	{"is_property_readonly", (PyCFunction)pyrna_struct_is_property_readonly, METH_VARARGS, pyrna_struct_is_property_readonly_doc},
+	{"is_property_overridable_static", (PyCFunction)pyrna_struct_is_property_overridable_static, METH_VARARGS, pyrna_struct_is_property_overridable_static_doc},
+	{"property_overridable_static_set", (PyCFunction)pyrna_struct_property_overridable_static_set, METH_VARARGS, pyrna_struct_property_overridable_static_set_doc},
 	{"path_resolve", (PyCFunction)pyrna_struct_path_resolve, METH_VARARGS, pyrna_struct_path_resolve_doc},
 	{"path_from_id", (PyCFunction)pyrna_struct_path_from_id, METH_VARARGS, pyrna_struct_path_from_id_doc},
 	{"type_recast", (PyCFunction)pyrna_struct_type_recast, METH_NOARGS, pyrna_struct_type_recast_doc},
@@ -7645,7 +7718,8 @@ static int bpy_class_call(bContext *C, PointerRNA *ptr, FunctionRNA *func, Param
 	PyGILState_STATE gilstate;
 
 #ifdef USE_PEDANTIC_WRITE
-	const bool is_readonly_init = !RNA_struct_is_a(ptr->type, &RNA_Operator);
+	const bool is_readonly_init = !(RNA_struct_is_a(ptr->type, &RNA_Operator) ||
+	                                RNA_struct_is_a(ptr->type, &RNA_Manipulator));
 	// const char *func_id = RNA_function_identifier(func);  /* UNUSED */
 	/* testing, for correctness, not operator and not draw function */
 	const bool is_readonly = !(RNA_function_flag(func) & FUNC_ALLOW_WRITE);
@@ -8302,6 +8376,43 @@ static PyObject *pyrna_unregister_class(PyObject *UNUSED(self), PyObject *py_cla
 
 	Py_RETURN_NONE;
 }
+
+/* Access to 'owner_id' internal global. */
+
+static PyObject *pyrna_bl_owner_id_get(PyObject *UNUSED(self))
+{
+	const char *name = RNA_struct_state_owner_get();
+	if (name) {
+		return PyUnicode_FromString(name);
+	}
+	Py_RETURN_NONE;
+}
+
+static PyObject *pyrna_bl_owner_id_set(PyObject *UNUSED(self), PyObject *value)
+{
+	const char *name;
+	if (value == Py_None) {
+		name = NULL;
+	}
+	else if (PyUnicode_Check(value)) {
+		name = _PyUnicode_AsString(value);
+	}
+	else {
+		PyErr_Format(PyExc_ValueError,
+		             "owner_set(...): "
+		             "expected None or a string, not '%.200s'", Py_TYPE(value)->tp_name);
+		return NULL;
+	}
+	RNA_struct_state_owner_set(name);
+	Py_RETURN_NONE;
+}
+
+PyMethodDef meth_bpy_owner_id_get = {
+	"_bl_owner_id_get", (PyCFunction)pyrna_bl_owner_id_get, METH_NOARGS, NULL,
+};
+PyMethodDef meth_bpy_owner_id_set = {
+	"_bl_owner_id_set", (PyCFunction)pyrna_bl_owner_id_set, METH_O, NULL,
+};
 
 /* currently this is fairly limited, we would need to make some way to split up
  * pyrna_callback_classmethod_... if we want more than one callback per type */

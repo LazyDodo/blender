@@ -35,6 +35,7 @@
 
 #include "BKE_global.h"
 
+#include "GPU_batch.h"
 #include "GPU_debug.h"
 #include "GPU_draw.h"
 #include "GPU_extensions.h"
@@ -48,10 +49,25 @@ static struct GPUTextureGlobal {
 	GPUTexture *invalid_tex_3D;
 } GG = {NULL, NULL, NULL};
 
-/* GPUTexture */
+/* Maximum number of FBOs a texture can be attached to. */
+#define GPU_TEX_MAX_FBO_ATTACHED 8
 
+typedef enum GPUTextureFormatFlag {
+	GPU_FORMAT_DEPTH     = (1 << 0),
+	GPU_FORMAT_STENCIL   = (1 << 1),
+	GPU_FORMAT_INTEGER   = (1 << 2),
+	GPU_FORMAT_FLOAT     = (1 << 3),
+
+	GPU_FORMAT_1D        = (1 << 10),
+	GPU_FORMAT_2D        = (1 << 11),
+	GPU_FORMAT_3D        = (1 << 12),
+	GPU_FORMAT_CUBE      = (1 << 13),
+	GPU_FORMAT_ARRAY     = (1 << 14),
+} GPUTextureFormatFlag;
+
+/* GPUTexture */
 struct GPUTexture {
-	int w, h;           /* width/height */
+	int w, h, d;        /* width/height/depth */
 	int number;         /* number for multitexture binding */
 	int refcount;       /* reference count */
 	GLenum target;      /* GL_TEXTURE_* */
@@ -60,268 +76,224 @@ struct GPUTexture {
 	GLuint bindcode;    /* opengl identifier for texture */
 	int fromblender;    /* we got the texture from Blender */
 
-	GPUFrameBuffer *fb; /* GPUFramebuffer this texture is attached to */
-	int fb_attachment;  /* slot the texture is attached to */
-	int depth;          /* is a depth texture? if 3D how deep? */
+	GPUTextureFormat format;
+	GPUTextureFormatFlag format_flag;
+
+	unsigned int bytesize; /* number of byte for one pixel */
+	int components;     /* number of color/alpha channels */
+	int samples;        /* number of samples for multisamples textures. 0 if not multisample target */
+
+	int fb_attachment[GPU_TEX_MAX_FBO_ATTACHED];
+	GPUFrameBuffer *fb[GPU_TEX_MAX_FBO_ATTACHED];
 };
 
-static unsigned char *GPU_texture_convert_pixels(int length, const float *fpixels)
+/* ------ Memory Management ------- */
+/* Records every texture allocation / free
+ * to estimate the Texture Pool Memory consumption */
+static unsigned int memory_usage;
+
+static unsigned int gpu_texture_memory_footprint_compute(GPUTexture *tex)
 {
-	unsigned char *pixels, *p;
-	const float *fp = fpixels;
-	const int len = 4 * length;
-
-	p = pixels = MEM_callocN(sizeof(unsigned char) * len, "GPUTexturePixels");
-
-	for (int a = 0; a < len; a++, p++, fp++)
-		*p = unit_float_to_uchar_clamp((*fp));
-
-	return pixels;
-}
-
-static void gpu_glTexSubImageEmpty(GLenum target, GLenum format, int x, int y, int w, int h)
-{
-	void *pixels = MEM_callocN(sizeof(char) * 4 * w * h, "GPUTextureEmptyPixels");
-
-	if (target == GL_TEXTURE_1D)
-		glTexSubImage1D(target, 0, x, w, format, GL_UNSIGNED_BYTE, pixels);
-	else
-		glTexSubImage2D(target, 0, x, y, w, h, format, GL_UNSIGNED_BYTE, pixels);
-	
-	MEM_freeN(pixels);
-}
-
-static GPUTexture *GPU_texture_create_nD(
-        int w, int h, int n, const float *fpixels, int depth,
-        GPUHDRType hdr_type, int components, int samples,
-        char err_out[256])
-{
-	GLenum type, format, internalformat;
-	void *pixels = NULL;
-
-	if (samples) {
-		CLAMP_MAX(samples, GPU_max_color_texture_samples());
+	int samp = max_ii(tex->samples, 1);
+	switch (tex->target) {
+		case GL_TEXTURE_1D:
+			return tex->bytesize * tex->w * samp;
+		case GL_TEXTURE_1D_ARRAY:
+		case GL_TEXTURE_2D:
+			return tex->bytesize * tex->w * tex->h * samp;
+		case GL_TEXTURE_2D_ARRAY:
+		case GL_TEXTURE_3D:
+			return tex->bytesize * tex->w * tex->h * tex->d * samp;
+		case GL_TEXTURE_CUBE_MAP:
+			return tex->bytesize * 6 * tex->w * tex->h * samp;
+		case GL_TEXTURE_CUBE_MAP_ARRAY:
+			return tex->bytesize * 6 * tex->w * tex->h * tex->d * samp;
+		default:
+			return 0;
 	}
+}
 
-	GPUTexture *tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
-	tex->w = w;
-	tex->h = h;
-	tex->number = -1;
-	tex->refcount = 1;
-	tex->target = (n == 1) ? GL_TEXTURE_1D : (samples ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D);
-	tex->target_base = (n == 1) ? GL_TEXTURE_1D : GL_TEXTURE_2D;
-	tex->depth = depth;
-	tex->fb_attachment = -1;
+static void gpu_texture_memory_footprint_add(GPUTexture *tex)
+{
+	memory_usage += gpu_texture_memory_footprint_compute(tex);
+}
 
-	glGenTextures(1, &tex->bindcode);
+static void gpu_texture_memory_footprint_remove(GPUTexture *tex)
+{
+	memory_usage -= gpu_texture_memory_footprint_compute(tex);
+}
 
-	if (!tex->bindcode) {
-		if (err_out) {
-			BLI_snprintf(err_out, 256, "GPUTexture: texture create failed: %d",
-				(int)glGetError());
+unsigned int GPU_texture_memory_usage_get(void)
+{
+	return memory_usage;
+}
+
+/* -------------------------------- */
+
+static GLenum gpu_texture_get_format(
+        int components, GPUTextureFormat data_type,
+        GLenum *format, GLenum *data_format, GPUTextureFormatFlag *format_flag, unsigned int *bytesize)
+{
+	if (ELEM(data_type, GPU_DEPTH_COMPONENT24,
+	                    GPU_DEPTH_COMPONENT16,
+	                    GPU_DEPTH_COMPONENT32F))
+	{
+		*format_flag |= GPU_FORMAT_DEPTH;
+		*data_format = GL_FLOAT;
+		*format = GL_DEPTH_COMPONENT;
+	}
+	else if (data_type == GPU_DEPTH24_STENCIL8) {
+		*format_flag |= GPU_FORMAT_DEPTH | GPU_FORMAT_STENCIL;
+		*data_format = GL_UNSIGNED_INT_24_8;
+		*format = GL_DEPTH_STENCIL;
+	}
+	else {
+		/* Integer formats */
+		if (ELEM(data_type, GPU_RG16I, GPU_R16I, GPU_RG16UI, GPU_R16UI, GPU_R32UI)) {
+			if (ELEM(data_type, GPU_R16UI, GPU_RG16UI, GPU_R32UI)) {
+				*data_format = GL_UNSIGNED_INT;
+			}
+			else {
+				*data_format = GL_INT;
+			}
+
+			*format_flag |= GPU_FORMAT_INTEGER;
+
+			switch (components) {
+				case 1: *format = GL_RED_INTEGER; break;
+				case 2: *format = GL_RG_INTEGER; break;
+				case 3: *format = GL_RGB_INTEGER; break;
+				case 4: *format = GL_RGBA_INTEGER; break;
+				default: break;
+			}
 		}
 		else {
-			fprintf(stderr, "GPUTexture: texture create failed: %d\n",
-				(int)glGetError());
-		}
-		GPU_texture_free(tex);
-		return NULL;
-	}
+			*data_format = GL_FLOAT;
+			*format_flag |= GPU_FORMAT_FLOAT;
 
-	if (!GPU_full_non_power_of_two_support()) {
-		tex->w = power_of_2_max_i(tex->w);
-		tex->h = power_of_2_max_i(tex->h);
-	}
-
-	tex->number = 0;
-	glBindTexture(tex->target, tex->bindcode);
-
-	if (depth) {
-		type = GL_UNSIGNED_BYTE;
-		format = GL_DEPTH_COMPONENT;
-		internalformat = GL_DEPTH_COMPONENT;
-	}
-	else {
-		type = GL_FLOAT;
-
-		if (components == 4) {
-			format = GL_RGBA;
-			switch (hdr_type) {
-				case GPU_HDR_NONE:
-					internalformat = GL_RGBA8;
-					break;
-				/* the following formats rely on ARB_texture_float or OpenGL 3.0 */
-				case GPU_HDR_HALF_FLOAT:
-					internalformat = GL_RGBA16F_ARB;
-					break;
-				case GPU_HDR_FULL_FLOAT:
-					internalformat = GL_RGBA32F_ARB;
-					break;
-				default:
-					break;
-			}
-		}
-		else if (components == 2) {
-			/* these formats rely on ARB_texture_rg or OpenGL 3.0 */
-			format = GL_RG;
-			switch (hdr_type) {
-				case GPU_HDR_NONE:
-					internalformat = GL_RG8;
-					break;
-				case GPU_HDR_HALF_FLOAT:
-					internalformat = GL_RG16F;
-					break;
-				case GPU_HDR_FULL_FLOAT:
-					internalformat = GL_RG32F;
-					break;
-				default:
-					break;
-			}
-		}
-
-		if (fpixels && hdr_type == GPU_HDR_NONE) {
-			type = GL_UNSIGNED_BYTE;
-			pixels = GPU_texture_convert_pixels(w * h, fpixels);
-		}
-	}
-
-	if (tex->target == GL_TEXTURE_1D) {
-		glTexImage1D(tex->target, 0, internalformat, tex->w, 0, format, type, NULL);
-
-		if (fpixels) {
-			glTexSubImage1D(tex->target, 0, 0, w, format, type,
-				pixels ? pixels : fpixels);
-
-			if (tex->w > w) {
-				gpu_glTexSubImageEmpty(tex->target, format, w, 0, tex->w - w, 1);
-			}
-		}
-	}
-	else {
-		if (samples) {
-			glTexImage2DMultisample(tex->target, samples, internalformat, tex->w, tex->h, true);
-		}
-		else {
-			glTexImage2D(tex->target, 0, internalformat, tex->w, tex->h, 0,
-			             format, type, NULL);
-		}
-
-		if (fpixels) {
-			glTexSubImage2D(tex->target, 0, 0, 0, w, h,
-				format, type, pixels ? pixels : fpixels);
-
-			if (tex->w > w) {
-				gpu_glTexSubImageEmpty(tex->target, format, w, 0, tex->w - w, tex->h);
-			}
-			if (tex->h > h) {
-				gpu_glTexSubImageEmpty(tex->target, format, 0, h, w, tex->h - h);
+			switch (components) {
+				case 1: *format = GL_RED; break;
+				case 2: *format = GL_RG; break;
+				case 3: *format = GL_RGB; break;
+				case 4: *format = GL_RGBA; break;
+				default: break;
 			}
 		}
 	}
 
-	if (pixels)
-		MEM_freeN(pixels);
-
-	if (depth) {
-		glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(tex->target_base, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_R_TO_TEXTURE);
-		glTexParameteri(tex->target_base, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-		glTexParameteri(tex->target_base, GL_DEPTH_TEXTURE_MODE, GL_INTENSITY);
+	switch (data_type) {
+		case GPU_RGBA32F:
+			*bytesize = 32;
+			break;
+		case GPU_RG32F:
+		case GPU_RGBA16F:
+		case GPU_RGBA16:
+			*bytesize = 16;
+			break;
+		case GPU_RGB16F:
+			*bytesize = 12;
+			break;
+		case GPU_RG16F:
+		case GPU_RG16I:
+		case GPU_RG16UI:
+		case GPU_RG16:
+		case GPU_DEPTH24_STENCIL8:
+		case GPU_DEPTH_COMPONENT32F:
+		case GPU_RGBA8:
+		case GPU_R11F_G11F_B10F:
+		case GPU_R32F:
+		case GPU_R32UI:
+		case GPU_R32I:
+			*bytesize = 4;
+			break;
+		case GPU_DEPTH_COMPONENT24:
+			*bytesize = 3;
+			break;
+		case GPU_DEPTH_COMPONENT16:
+		case GPU_R16F:
+		case GPU_R16I:
+		case GPU_RG8:
+			*bytesize = 2;
+			break;
+		case GPU_R8:
+			*bytesize = 1;
+			break;
+		default:
+			*bytesize = 0;
+			break;
 	}
-	else {
-		glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	}
 
-	if (tex->target_base != GL_TEXTURE_1D) {
-		glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	/* You can add any of the available type to this list
+	 * For available types see GPU_texture.h */
+	switch (data_type) {
+		/* Formats texture & renderbuffer */
+		case GPU_RGBA32F: return GL_RGBA32F;
+		case GPU_RGBA16F: return GL_RGBA16F;
+		case GPU_RGBA16: return GL_RGBA16;
+		case GPU_RG32F: return GL_RG32F;
+		case GPU_RGB16F: return GL_RGB16F;
+		case GPU_RG16F: return GL_RG16F;
+		case GPU_RG16I: return GL_RG16I;
+		case GPU_RG16: return GL_RG16;
+		case GPU_RGBA8: return GL_RGBA8;
+		case GPU_R32F: return GL_R32F;
+		case GPU_R32UI: return GL_R32UI;
+		case GPU_R32I: return GL_R32I;
+		case GPU_R16F: return GL_R16F;
+		case GPU_R16I: return GL_R16I;
+		case GPU_R16UI: return GL_R16UI;
+		case GPU_RG8: return GL_RG8;
+		case GPU_RG16UI: return GL_RG16UI;
+		case GPU_R8: return GL_R8;
+		/* Special formats texture & renderbuffer */
+		case GPU_R11F_G11F_B10F: return GL_R11F_G11F_B10F;
+		case GPU_DEPTH24_STENCIL8: return GL_DEPTH24_STENCIL8;
+		/* Texture only format */
+		/* ** Add Format here **/
+		/* Special formats texture only */
+		/* ** Add Format here **/
+		/* Depth Formats */
+		case GPU_DEPTH_COMPONENT32F: return GL_DEPTH_COMPONENT32F;
+		case GPU_DEPTH_COMPONENT24: return GL_DEPTH_COMPONENT24;
+		case GPU_DEPTH_COMPONENT16: return GL_DEPTH_COMPONENT16;
+		default:
+			fprintf(stderr, "Texture format incorrect or unsupported\n");
+			return 0;
 	}
-	else
-		glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-
-	return tex;
 }
 
-
-GPUTexture *GPU_texture_create_3D(int w, int h, int depth, int channels, const float *fpixels)
+static int gpu_texture_get_component_count(GPUTextureFormat format)
 {
-	GLenum type, format, internalformat;
-	void *pixels = NULL;
-
-	GPUTexture *tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
-	tex->w = w;
-	tex->h = h;
-	tex->depth = depth;
-	tex->number = -1;
-	tex->refcount = 1;
-	tex->target = GL_TEXTURE_3D;
-	tex->target_base = GL_TEXTURE_3D;
-
-	glGenTextures(1, &tex->bindcode);
-
-	if (!tex->bindcode) {
-		fprintf(stderr, "GPUTexture: texture create failed: %d\n",
-			(int)glGetError());
-		GPU_texture_free(tex);
-		return NULL;
+	switch (format) {
+		case GPU_RGBA8:
+		case GPU_RGBA16F:
+		case GPU_RGBA16:
+		case GPU_RGBA32F:
+			return 4;
+		case GPU_RGB16F:
+		case GPU_R11F_G11F_B10F:
+			return 3;
+		case GPU_RG8:
+		case GPU_RG16:
+		case GPU_RG16F:
+		case GPU_RG16I:
+		case GPU_RG16UI:
+		case GPU_RG32F:
+			return 2;
+		default:
+			return 1;
 	}
+}
 
-	tex->number = 0;
-	glBindTexture(tex->target, tex->bindcode);
+static float *GPU_texture_3D_rescale(GPUTexture *tex, int w, int h, int d, int channels, const float *fpixels)
+{
+	const unsigned int xf = w / tex->w, yf = h / tex->h, zf = d / tex->d;
+	float *nfpixels = MEM_mallocN(channels * sizeof(float) * tex->w * tex->h * tex->d, "GPUTexture Rescaled 3Dtex");
 
-	GPU_ASSERT_NO_GL_ERRORS("3D glBindTexture");
-
-	type = GL_FLOAT;
-	if (channels == 4) {
-		format = GL_RGBA;
-		internalformat = GL_RGBA8;
-	}
-	else {
-		format = GL_RED;
-		internalformat = GL_INTENSITY8;
-	}
-
-	/* 3D textures are quite heavy, test if it's possible to create them first */
-	glTexImage3D(GL_PROXY_TEXTURE_3D, 0, internalformat, tex->w, tex->h, tex->depth, 0, format, type, NULL);
-
-	bool rescale = false;
-	int r_width;
-
-	glGetTexLevelParameteriv(GL_PROXY_TEXTURE_3D, 0, GL_TEXTURE_WIDTH, &r_width);
-
-	while (r_width == 0) {
-		rescale = true;
-		tex->w /= 2;
-		tex->h /= 2;
-		tex->depth /= 2;
-		glTexImage3D(GL_PROXY_TEXTURE_3D, 0, internalformat, tex->w, tex->h, tex->depth, 0, format, type, NULL);
-		glGetTexLevelParameteriv(GL_PROXY_TEXTURE_3D, 0, GL_TEXTURE_WIDTH, &r_width);
-	}
-
-	/* really unlikely to happen but keep this just in case */
-	tex->w = max_ii(tex->w, 1);
-	tex->h = max_ii(tex->h, 1);
-	tex->depth = max_ii(tex->depth, 1);
-
-#if 0
-	if (fpixels)
-		pixels = GPU_texture_convert_pixels(w*h*depth, fpixels);
-#endif
-
-	GPU_ASSERT_NO_GL_ERRORS("3D glTexImage3D");
-
-	/* hardcore stuff, 3D texture rescaling - warning, this is gonna hurt your performance a lot, but we need it
-	 * for gooseberry */
-	if (rescale && fpixels) {
-		/* FIXME: should these be floating point? */
-		const unsigned int xf = w / tex->w, yf = h / tex->h, zf = depth / tex->depth;
-		float *tex3d = MEM_mallocN(channels * sizeof(float) * tex->w * tex->h * tex->depth, "tex3d");
-
+	if (nfpixels) {
 		GPU_print_error_debug("You need to scale a 3D texture, feel the pain!");
 
-		for (unsigned k = 0; k < tex->depth; k++) {
+		for (unsigned k = 0; k < tex->d; k++) {
 			for (unsigned j = 0; j < tex->h; j++) {
 				for (unsigned i = 0; i < tex->w; i++) {
 					/* obviously doing nearest filtering here,
@@ -333,53 +305,379 @@ GPUTexture *GPU_texture_create_3D(int w, int h, int depth, int channels, const f
 					unsigned int offset_orig = (zb) * (w * h) + (xb) * h + (yb);
 
 					if (channels == 4) {
-						tex3d[offset * 4] = fpixels[offset_orig * 4];
-						tex3d[offset * 4 + 1] = fpixels[offset_orig * 4 + 1];
-						tex3d[offset * 4 + 2] = fpixels[offset_orig * 4 + 2];
-						tex3d[offset * 4 + 3] = fpixels[offset_orig * 4 + 3];
+						nfpixels[offset * 4] = fpixels[offset_orig * 4];
+						nfpixels[offset * 4 + 1] = fpixels[offset_orig * 4 + 1];
+						nfpixels[offset * 4 + 2] = fpixels[offset_orig * 4 + 2];
+						nfpixels[offset * 4 + 3] = fpixels[offset_orig * 4 + 3];
 					}
 					else
-						tex3d[offset] = fpixels[offset_orig];
+						nfpixels[offset] = fpixels[offset_orig];
 				}
 			}
 		}
-
-		glTexImage3D(tex->target, 0, internalformat, tex->w, tex->h, tex->depth, 0, format, type, tex3d);
-
-		MEM_freeN(tex3d);
 	}
-	else {
-		if (fpixels) {
-			glTexImage3D(tex->target, 0, internalformat, tex->w, tex->h, tex->depth, 0, format, type, fpixels);
-			GPU_ASSERT_NO_GL_ERRORS("3D glTexSubImage3D");
+
+	return nfpixels;
+}
+
+/* This tries to allocate video memory for a given texture
+ * If alloc fails, lower the resolution until it fits. */
+static bool gpu_texture_try_alloc(
+        GPUTexture *tex, GLenum proxy, GLenum internalformat, GLenum format, GLenum data_format,
+        int channels, bool try_rescale, const float *fpixels, float **rescaled_fpixels)
+{
+	int r_width;
+
+	switch (proxy) {
+		case GL_PROXY_TEXTURE_1D:
+			glTexImage1D(proxy, 0, internalformat, tex->w, 0, format, data_format, NULL);
+			break;
+		case GL_PROXY_TEXTURE_1D_ARRAY:
+		case GL_PROXY_TEXTURE_2D:
+			glTexImage2D(proxy, 0, internalformat, tex->w, tex->h, 0, format, data_format, NULL);
+			break;
+		case GL_PROXY_TEXTURE_2D_ARRAY:
+		case GL_PROXY_TEXTURE_3D:
+			glTexImage3D(proxy, 0, internalformat, tex->w, tex->h, tex->d, 0, format, data_format, NULL);
+			break;
+	}
+
+	glGetTexLevelParameteriv(proxy, 0, GL_TEXTURE_WIDTH, &r_width);
+
+	if (r_width == 0 && try_rescale) {
+		const int w = tex->w, h = tex->h, d = tex->d;
+
+		/* Find largest texture possible */
+		while (r_width == 0) {
+			tex->w /= 2;
+			tex->h /= 2;
+			tex->d /= 2;
+
+			/* really unlikely to happen but keep this just in case */
+			if (tex->w == 0) break;
+			if (tex->h == 0 && proxy != GL_PROXY_TEXTURE_1D) break;
+			if (tex->d == 0 && proxy == GL_PROXY_TEXTURE_3D) break;
+
+			if (proxy == GL_PROXY_TEXTURE_1D)
+				glTexImage1D(proxy, 0, internalformat, tex->w, 0, format, data_format, NULL);
+			else if (proxy == GL_PROXY_TEXTURE_2D)
+				glTexImage2D(proxy, 0, internalformat, tex->w, tex->h, 0, format, data_format, NULL);
+			else if (proxy == GL_PROXY_TEXTURE_3D)
+				glTexImage3D(proxy, 0, internalformat, tex->w, tex->h, tex->d, 0, format, data_format, NULL);
+
+			glGetTexLevelParameteriv(GL_PROXY_TEXTURE_3D, 0, GL_TEXTURE_WIDTH, &r_width);
+		}
+
+		/* Rescale */
+		if (r_width > 0) {
+			switch (proxy) {
+				case GL_PROXY_TEXTURE_1D:
+				case GL_PROXY_TEXTURE_2D:
+					/* Do nothing for now */
+					return false;
+				case GL_PROXY_TEXTURE_3D:
+					*rescaled_fpixels = GPU_texture_3D_rescale(tex, w, h, d, channels, fpixels);
+					return (bool)*rescaled_fpixels;
+			}
 		}
 	}
 
+	return (r_width > 0);
+}
 
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+static GPUTexture *GPU_texture_create_nD(
+        int w, int h, int d, int n, const float *fpixels,
+        GPUTextureFormat data_type, int samples,
+        const bool can_rescale, char err_out[256])
+{
+	if (samples) {
+		CLAMP_MAX(samples, GPU_max_color_texture_samples());
+	}
 
-	if (pixels)
-		MEM_freeN(pixels);
+	GPUTexture *tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
+	tex->w = w;
+	tex->h = h;
+	tex->d = d;
+	tex->samples = samples;
+	tex->number = -1;
+	tex->refcount = 1;
+	tex->format = data_type;
+	tex->components = gpu_texture_get_component_count(data_type);
+	tex->format_flag = 0;
 
-	GPU_texture_unbind(tex);
+	if (n == 2) {
+		if (d == 0)
+			tex->target_base = tex->target = GL_TEXTURE_2D;
+		else
+			tex->target_base = tex->target = GL_TEXTURE_2D_ARRAY;
+	}
+	else if (n == 1) {
+		if (h == 0)
+			tex->target_base = tex->target = GL_TEXTURE_1D;
+		else
+			tex->target_base = tex->target = GL_TEXTURE_1D_ARRAY;
+	}
+	else if (n == 3) {
+		tex->target_base = tex->target = GL_TEXTURE_3D;
+	}
+	else {
+		/* should never happen */
+		MEM_freeN(tex);
+		return NULL;
+	}
+
+	if (samples && n == 2 && d == 0)
+		tex->target = GL_TEXTURE_2D_MULTISAMPLE;
+
+	GLenum format, internalformat, data_format;
+	internalformat = gpu_texture_get_format(tex->components, data_type, &format, &data_format,
+	                                        &tex->format_flag, &tex->bytesize);
+
+	gpu_texture_memory_footprint_add(tex);
+
+	/* Generate Texture object */
+	glGenTextures(1, &tex->bindcode);
+
+	if (!tex->bindcode) {
+		if (err_out)
+			BLI_snprintf(err_out, 256, "GPUTexture: texture create failed");
+		else
+			fprintf(stderr, "GPUTexture: texture create failed");
+		GPU_texture_free(tex);
+		return NULL;
+	}
+
+	glBindTexture(tex->target, tex->bindcode);
+
+	/* Check if texture fit in VRAM */
+	GLenum proxy = GL_PROXY_TEXTURE_2D;
+
+	if (n == 2) {
+		if (d > 0)
+			proxy = GL_PROXY_TEXTURE_2D_ARRAY;
+	}
+	else if (n == 1) {
+		if (h == 0)
+			proxy = GL_PROXY_TEXTURE_1D;
+		else
+			proxy = GL_PROXY_TEXTURE_1D_ARRAY;
+	}
+	else if (n == 3) {
+		proxy = GL_PROXY_TEXTURE_3D;
+	}
+
+	float *rescaled_fpixels = NULL;
+	bool valid = gpu_texture_try_alloc(tex, proxy, internalformat, format, data_format, tex->components, can_rescale,
+	                                   fpixels, &rescaled_fpixels);
+	if (!valid) {
+		if (err_out)
+			BLI_snprintf(err_out, 256, "GPUTexture: texture alloc failed");
+		else
+			fprintf(stderr, "GPUTexture: texture alloc failed. Not enough Video Memory.");
+		GPU_texture_free(tex);
+		return NULL;
+	}
+
+	/* Upload Texture */
+	const float *pix = (rescaled_fpixels) ? rescaled_fpixels : fpixels;
+
+	if (tex->target == GL_TEXTURE_2D ||
+	    tex->target == GL_TEXTURE_2D_MULTISAMPLE ||
+	    tex->target == GL_TEXTURE_1D_ARRAY)
+	{
+		if (samples) {
+			glTexImage2DMultisample(tex->target, samples, internalformat, tex->w, tex->h, true);
+			if (pix)
+				glTexSubImage2D(tex->target, 0, 0, 0, tex->w, tex->h, format, data_format, pix);
+		}
+		else {
+			glTexImage2D(tex->target, 0, internalformat, tex->w, tex->h, 0, format, data_format, pix);
+		}
+	}
+	else if (tex->target == GL_TEXTURE_1D) {
+		glTexImage1D(tex->target, 0, internalformat, tex->w, 0, format, data_format, pix);
+	}
+	else {
+		glTexImage3D(tex->target, 0, internalformat, tex->w, tex->h, tex->d, 0, format, data_format, pix);
+	}
+
+	if (rescaled_fpixels)
+		MEM_freeN(rescaled_fpixels);
+
+	/* Texture Parameters */
+	if (GPU_texture_stencil(tex) || /* Does not support filtering */
+	    GPU_texture_integer(tex) || /* Does not support filtering */
+	    GPU_texture_depth(tex))
+	{
+		glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
+	else {
+		glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+
+	if (GPU_texture_depth(tex)) {
+		glTexParameteri(tex->target_base, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+		glTexParameteri(tex->target_base, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	}
+
+	glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	if (n > 1) {
+		glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	}
+	if (n > 2) {
+		glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	}
+
+	glBindTexture(tex->target, 0);
 
 	return tex;
 }
 
-GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget, bool is_data, double time, int mipmap)
+static GPUTexture *GPU_texture_cube_create(
+        int w, int d,
+        const float *fpixels_px, const float *fpixels_py, const float *fpixels_pz,
+        const float *fpixels_nx, const float *fpixels_ny, const float *fpixels_nz,
+        GPUTextureFormat data_type,
+        char err_out[256])
+{
+	GLenum format, internalformat, data_format;
+
+	GPUTexture *tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
+	tex->w = w;
+	tex->h = w;
+	tex->d = d;
+	tex->samples = 0;
+	tex->number = -1;
+	tex->refcount = 1;
+	tex->format = data_type;
+	tex->components = gpu_texture_get_component_count(data_type);
+	tex->format_flag = GPU_FORMAT_CUBE;
+
+	if (d == 0) {
+		tex->target_base = tex->target = GL_TEXTURE_CUBE_MAP;
+	}
+	else {
+		BLI_assert(false && "Cubemap array Not implemented yet");
+		// tex->target_base = tex->target = GL_TEXTURE_CUBE_MAP_ARRAY;
+	}
+
+	internalformat = gpu_texture_get_format(tex->components, data_type, &format, &data_format,
+	                                        &tex->format_flag, &tex->bytesize);
+
+	gpu_texture_memory_footprint_add(tex);
+
+	/* Generate Texture object */
+	glGenTextures(1, &tex->bindcode);
+
+	if (!tex->bindcode) {
+		if (err_out)
+			BLI_snprintf(err_out, 256, "GPUTexture: texture create failed");
+		else
+			fprintf(stderr, "GPUTexture: texture create failed");
+		GPU_texture_free(tex);
+		return NULL;
+	}
+
+	glBindTexture(tex->target, tex->bindcode);
+
+	/* Upload Texture */
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, internalformat, tex->w, tex->h, 0, format, data_format, fpixels_px);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, internalformat, tex->w, tex->h, 0, format, data_format, fpixels_py);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, internalformat, tex->w, tex->h, 0, format, data_format, fpixels_pz);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, internalformat, tex->w, tex->h, 0, format, data_format, fpixels_nx);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, internalformat, tex->w, tex->h, 0, format, data_format, fpixels_ny);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, internalformat, tex->w, tex->h, 0, format, data_format, fpixels_nz);
+
+	/* Texture Parameters */
+	if (GPU_texture_stencil(tex) || /* Does not support filtering */
+	    GPU_texture_integer(tex) || /* Does not support filtering */
+	    GPU_texture_depth(tex))
+	{
+		glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
+	else {
+		glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+
+	if (GPU_texture_depth(tex)) {
+		glTexParameteri(tex->target_base, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+		glTexParameteri(tex->target_base, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	}
+
+	glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	glBindTexture(tex->target, 0);
+
+	return tex;
+}
+
+/* Special buffer textures. data_type must be compatible with the buffer content. */
+GPUTexture *GPU_texture_create_buffer(GPUTextureFormat data_type, const GLuint buffer)
+{
+	GPUTexture *tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
+	tex->number = -1;
+	tex->refcount = 1;
+	tex->format = data_type;
+	tex->components = gpu_texture_get_component_count(data_type);
+	tex->format_flag = 0;
+	tex->target_base = tex->target = GL_TEXTURE_BUFFER;
+
+	GLenum format, internalformat, data_format;
+	internalformat = gpu_texture_get_format(tex->components, data_type, &format, &data_format,
+	                                        &tex->format_flag, &tex->bytesize);
+
+	if (!(ELEM(data_type, GPU_R8, GPU_R16) ||
+	      ELEM(data_type, GPU_R16F, GPU_R32F) ||
+	      ELEM(data_type, GPU_R8I, GPU_R16I, GPU_R32I) ||
+	      ELEM(data_type, GPU_R8UI, GPU_R16UI, GPU_R32UI) ||
+	      ELEM(data_type, GPU_RG8, GPU_RG16) ||
+	      ELEM(data_type, GPU_RG16F, GPU_RG32F) ||
+	      ELEM(data_type, GPU_RG8I, GPU_RG16I, GPU_RG32I) ||
+	      ELEM(data_type, GPU_RG8UI, GPU_RG16UI, GPU_RG32UI) ||
+	      //ELEM(data_type, GPU_RGB32F, GPU_RGB32I, GPU_RGB32UI) || /* Not available until gl 4.0 */
+	      ELEM(data_type, GPU_RGBA8, GPU_RGBA16) ||
+	      ELEM(data_type, GPU_RGBA16F, GPU_RGBA32F) ||
+	      ELEM(data_type, GPU_RGBA8I, GPU_RGBA16I, GPU_RGBA32I) ||
+	      ELEM(data_type, GPU_RGBA8UI, GPU_RGBA16UI, GPU_RGBA32UI)))
+	{
+		fprintf(stderr, "GPUTexture: invalid format for texture buffer");
+		GPU_texture_free(tex);
+		return NULL;
+	}
+
+	/* Generate Texture object */
+	glGenTextures(1, &tex->bindcode);
+
+	if (!tex->bindcode) {
+		fprintf(stderr, "GPUTexture: texture create failed");
+		GPU_texture_free(tex);
+		BLI_assert(0 && "glGenTextures failled: Are you sure a valid OGL context is active on this thread?");
+		return NULL;
+	}
+
+	glBindTexture(tex->target, tex->bindcode);
+	glTexBuffer(tex->target, internalformat, buffer);
+	glBindTexture(tex->target, 0);
+
+	return tex;
+}
+
+GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget, bool is_data, double UNUSED(time), int mipmap)
 {
 	int gputt;
 	/* this binds a texture, so that's why to restore it to 0 */
-	GLint bindcode = GPU_verify_image(ima, iuser, textarget, 0, 0, mipmap, is_data);
-	GPU_update_image_time(ima, time);
+	GLint bindcode = GPU_verify_image(ima, iuser, textarget, 0, mipmap, is_data);
 
 	/* see GPUInput::textarget: it can take two values - GL_TEXTURE_2D and GL_TEXTURE_CUBE_MAP
 	 * these values are correct for glDisable, so textarget can be safely used in
 	 * GPU_texture_bind/GPU_texture_unbind through tex->target_base */
+	/* (is any of this obsolete now that we don't glEnable/Disable textures?) */
 	if (textarget == GL_TEXTURE_2D)
 		gputt = TEXTARGET_TEXTURE_2D;
 	else
@@ -398,14 +696,17 @@ GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget
 	tex->target = textarget;
 	tex->target_base = textarget;
 	tex->fromblender = 1;
+	tex->format = -1;
+	tex->components = -1;
+	tex->samples = 0;
 
 	ima->gputexture[gputt] = tex;
 
 	if (!glIsTexture(tex->bindcode)) {
-		GPU_ASSERT_NO_GL_ERRORS("Blender Texture Not Loaded");
+		GPU_print_error_debug("Blender Texture Not Loaded");
 	}
 	else {
-		GLint w, h, border;
+		GLint w, h;
 
 		GLenum gettarget;
 
@@ -417,10 +718,8 @@ GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget
 		glBindTexture(textarget, tex->bindcode);
 		glGetTexLevelParameteriv(gettarget, 0, GL_TEXTURE_WIDTH, &w);
 		glGetTexLevelParameteriv(gettarget, 0, GL_TEXTURE_HEIGHT, &h);
-		glGetTexLevelParameteriv(gettarget, 0, GL_TEXTURE_BORDER, &border);
-
-		tex->w = w - border;
-		tex->h = h - border;
+		tex->w = w;
+		tex->h = h;
 	}
 
 	glBindTexture(textarget, 0);
@@ -452,11 +751,13 @@ GPUTexture *GPU_texture_from_preview(PreviewImage *prv, int mipmap)
 	tex->refcount = 1;
 	tex->target = GL_TEXTURE_2D;
 	tex->target_base = GL_TEXTURE_2D;
+	tex->format = -1;
+	tex->components = -1;
 	
 	prv->gputexture[0] = tex;
 	
 	if (!glIsTexture(tex->bindcode)) {
-		GPU_ASSERT_NO_GL_ERRORS("Blender Texture Not Loaded");
+		GPU_print_error_debug("Blender Texture Not Loaded");
 	}
 	else {
 		GLint w, h;
@@ -475,114 +776,165 @@ GPUTexture *GPU_texture_from_preview(PreviewImage *prv, int mipmap)
 
 }
 
-GPUTexture *GPU_texture_create_1D(int w, const float *fpixels, char err_out[256])
+GPUTexture *GPU_texture_create_1D(
+        int w, GPUTextureFormat data_type, const float *pixels, char err_out[256])
 {
-	GPUTexture *tex = GPU_texture_create_nD(w, 1, 1, fpixels, 0, GPU_HDR_NONE, 4, 0, err_out);
-
-	if (tex)
-		GPU_texture_unbind(tex);
-	
-	return tex;
+	return GPU_texture_create_nD(w, 0, 0, 1, pixels, data_type, 0, false, err_out);
 }
 
-GPUTexture *GPU_texture_create_2D(int w, int h, const float *fpixels, GPUHDRType hdr, char err_out[256])
+GPUTexture *GPU_texture_create_2D(
+        int w, int h, GPUTextureFormat data_type, const float *pixels, char err_out[256])
 {
-	GPUTexture *tex = GPU_texture_create_nD(w, h, 2, fpixels, 0, hdr, 4, 0, err_out);
-
-	if (tex)
-		GPU_texture_unbind(tex);
-	
-	return tex;
+	return GPU_texture_create_nD(w, h, 0, 2, pixels, data_type, 0, false, err_out);
 }
+
 GPUTexture *GPU_texture_create_2D_multisample(
-        int w, int h, const float *fpixels, GPUHDRType hdr, int samples, char err_out[256])
+        int w, int h, GPUTextureFormat data_type, const float *pixels, int samples, char err_out[256])
 {
-	GPUTexture *tex = GPU_texture_create_nD(w, h, 2, fpixels, 0, hdr, 4, samples, err_out);
-
-	if (tex)
-		GPU_texture_unbind(tex);
-
-	return tex;
+	return GPU_texture_create_nD(w, h, 0, 2, pixels, data_type, samples, false, err_out);
 }
 
-GPUTexture *GPU_texture_create_depth(int w, int h, char err_out[256])
+GPUTexture *GPU_texture_create_2D_array(
+        int w, int h, int d, GPUTextureFormat data_type, const float *pixels, char err_out[256])
 {
-	GPUTexture *tex = GPU_texture_create_nD(w, h, 2, NULL, 1, GPU_HDR_NONE, 1, 0, err_out);
-
-	if (tex)
-		GPU_texture_unbind(tex);
-	
-	return tex;
-}
-GPUTexture *GPU_texture_create_depth_multisample(int w, int h, int samples, char err_out[256])
-{
-	GPUTexture *tex = GPU_texture_create_nD(w, h, 2, NULL, 1, GPU_HDR_NONE, 1, samples, err_out);
-
-	if (tex)
-		GPU_texture_unbind(tex);
-
-	return tex;
+	return GPU_texture_create_nD(w, h, d, 2, pixels, data_type, 0, false, err_out);
 }
 
-/**
- * A shadow map for VSM needs two components (depth and depth^2)
- */
-GPUTexture *GPU_texture_create_vsm_shadow_map(int size, char err_out[256])
+GPUTexture *GPU_texture_create_3D(
+        int w, int h, int d, GPUTextureFormat data_type, const float *pixels, char err_out[256])
 {
-	GPUTexture *tex = GPU_texture_create_nD(size, size, 2, NULL, 0, GPU_HDR_FULL_FLOAT, 2, 0, err_out);
+	return GPU_texture_create_nD(w, h, d, 3, pixels, data_type, 0, true, err_out);
+}
 
-	if (tex) {
-		/* Now we tweak some of the settings */
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+GPUTexture *GPU_texture_create_cube(
+        int w, GPUTextureFormat data_type, const float *fpixels, char err_out[256])
+{
+	const float *fpixels_px, *fpixels_py, *fpixels_pz, *fpixels_nx, *fpixels_ny, *fpixels_nz;
+	const int channels = gpu_texture_get_component_count(data_type);
 
-		GPU_texture_unbind(tex);
+	if (fpixels) {
+		fpixels_px = fpixels + 0 * w * w * channels;
+		fpixels_nx = fpixels + 1 * w * w * channels;
+		fpixels_py = fpixels + 2 * w * w * channels;
+		fpixels_ny = fpixels + 3 * w * w * channels;
+		fpixels_pz = fpixels + 4 * w * w * channels;
+		fpixels_nz = fpixels + 5 * w * w * channels;
+	}
+	else {
+		fpixels_px = fpixels_py = fpixels_pz = fpixels_nx = fpixels_ny = fpixels_nz = NULL;
 	}
 
-	return tex;
+	return GPU_texture_cube_create(w, 0, fpixels_px, fpixels_py, fpixels_pz, fpixels_nx, fpixels_ny, fpixels_nz,
+	                               data_type, err_out);
 }
 
-GPUTexture *GPU_texture_create_2D_procedural(int w, int h, const float *pixels, bool repeat, char err_out[256])
+GPUTexture *GPU_texture_create_from_vertbuf(Gwn_VertBuf *vert)
 {
-	GPUTexture *tex = GPU_texture_create_nD(w, h, 2, pixels, 0, GPU_HDR_HALF_FLOAT, 2, 0, err_out);
+	Gwn_VertFormat *format = &vert->format;
+	Gwn_VertAttr *attr = &format->attribs[0];
 
-	if (tex) {
-		/* Now we tweak some of the settings */
-		if (repeat) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		}
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	/* Detect incompatible cases (not supported by texture buffers) */
+	BLI_assert(format->attrib_ct == 1 && vert->vbo_id != 0);
+	BLI_assert(attr->comp_ct != 3); /* Not until OGL 4.0 */
+	BLI_assert(attr->comp_type != GWN_COMP_I10);
+	BLI_assert(attr->fetch_mode != GWN_FETCH_INT_TO_FLOAT);
 
-		GPU_texture_unbind(tex);
+	unsigned int byte_per_comp = attr->sz / attr->comp_ct;
+	bool is_uint = ELEM(attr->comp_type, GWN_COMP_U8, GWN_COMP_U16, GWN_COMP_U32);
+
+	/* Cannot fetch signed int or 32bit ints as normalized float. */
+	if (attr->fetch_mode == GWN_FETCH_INT_TO_FLOAT_UNIT) {
+		BLI_assert(is_uint || byte_per_comp <= 2);
 	}
 
-	return tex;
+	GPUTextureFormat data_type;
+	switch (attr->fetch_mode) {
+		case GWN_FETCH_FLOAT:
+			switch (attr->comp_ct) {
+				case 1: data_type = GPU_R32F; break;
+				case 2: data_type = GPU_RG32F; break;
+				// case 3: data_type = GPU_RGB32F; break; /* Not supported */
+				default: data_type = GPU_RGBA32F; break;
+			}
+			break;
+		case GWN_FETCH_INT:
+			switch (attr->comp_ct) {
+				case 1:
+					switch (byte_per_comp) {
+						case 1: data_type = (is_uint) ? GPU_R8UI : GPU_R8I; break;
+						case 2: data_type = (is_uint) ? GPU_R16UI : GPU_R16I; break;
+						default: data_type = (is_uint) ? GPU_R32UI : GPU_R32I; break;
+					}
+					break;
+				case 2:
+					switch (byte_per_comp) {
+						case 1: data_type = (is_uint) ? GPU_RG8UI : GPU_RG8I; break;
+						case 2: data_type = (is_uint) ? GPU_RG16UI : GPU_RG16I; break;
+						default: data_type = (is_uint) ? GPU_RG32UI : GPU_RG32I; break;
+					}
+					break;
+				default:
+					switch (byte_per_comp) {
+						case 1: data_type = (is_uint) ? GPU_RGBA8UI : GPU_RGBA8I; break;
+						case 2: data_type = (is_uint) ? GPU_RGBA16UI : GPU_RGBA16I; break;
+						default: data_type = (is_uint) ? GPU_RGBA32UI : GPU_RGBA32I; break;
+					}
+					break;
+			}
+			break;
+		case GWN_FETCH_INT_TO_FLOAT_UNIT:
+			switch (attr->comp_ct) {
+				case 1: data_type = (byte_per_comp == 1) ? GPU_R8 : GPU_R16; break;
+				case 2: data_type = (byte_per_comp == 1) ? GPU_RG8 : GPU_RG16; break;
+				default: data_type = (byte_per_comp == 1) ? GPU_RGBA8 : GPU_RGBA16; break;
+			}
+			break;
+		default:
+			BLI_assert(0);
+			return NULL;
+	}
+
+	return GPU_texture_create_buffer(data_type, vert->vbo_id);
 }
 
-GPUTexture *GPU_texture_create_1D_procedural(int w, const float *pixels, char err_out[256])
+void GPU_texture_update(GPUTexture *tex, const float *pixels)
 {
-	GPUTexture *tex = GPU_texture_create_nD(w, 0, 1, pixels, 0, GPU_HDR_HALF_FLOAT, 2, 0, err_out);
+	BLI_assert(tex->format > -1);
+	BLI_assert(tex->components > -1);
 
-	if (tex) {
-		/* Now we tweak some of the settings */
-		glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	GLenum format, data_format;
+	gpu_texture_get_format(tex->components, tex->format, &format, &data_format,
+	                       &tex->format_flag, &tex->bytesize);
 
-		GPU_texture_unbind(tex);
+	glBindTexture(tex->target, tex->bindcode);
+
+	switch (tex->target) {
+		case GL_TEXTURE_2D:
+		case GL_TEXTURE_2D_MULTISAMPLE:
+		case GL_TEXTURE_1D_ARRAY:
+			glTexSubImage2D(tex->target, 0, 0, 0, tex->w, tex->h, format, data_format, pixels);
+			break;
+		case GL_TEXTURE_1D:
+			glTexSubImage1D(tex->target, 0, 0, tex->w, format, data_format, pixels);
+			break;
+		case GL_TEXTURE_3D:
+		case GL_TEXTURE_2D_ARRAY:
+			glTexSubImage3D(tex->target, 0, 0, 0, 0, tex->w, tex->h, tex->d, format, data_format, pixels);
+			break;
+		default:
+			BLI_assert(!"tex->target mode not supported");
 	}
 
-	return tex;
+	glBindTexture(tex->target, 0);
 }
 
 void GPU_invalid_tex_init(void)
 {
+	memory_usage = 0;
 	const float color[4] = {1.0f, 0.0f, 1.0f, 1.0f};
-	GG.invalid_tex_1D = GPU_texture_create_1D(1, color, NULL);
-	GG.invalid_tex_2D = GPU_texture_create_2D(1, 1, color, GPU_HDR_NONE, NULL);
-	GG.invalid_tex_3D = GPU_texture_create_3D(1, 1, 1, 4, color);
+	GG.invalid_tex_1D = GPU_texture_create_1D(1, GPU_RGBA8, color, NULL);
+	GG.invalid_tex_2D = GPU_texture_create_2D(1, 1, GPU_RGBA8, color, NULL);
+	GG.invalid_tex_3D = GPU_texture_create_3D(1, 1, 1, GPU_RGBA8, color, NULL);
 }
 
 void GPU_invalid_tex_bind(int mode)
@@ -610,61 +962,45 @@ void GPU_invalid_tex_free(void)
 		GPU_texture_free(GG.invalid_tex_3D);
 }
 
-
 void GPU_texture_bind(GPUTexture *tex, int number)
 {
+	BLI_assert(number >= 0);
+
 	if (number >= GPU_max_textures()) {
 		fprintf(stderr, "Not enough texture slots.\n");
 		return;
 	}
 
 	if ((G.debug & G_DEBUG)) {
-		if (tex->fb && GPU_framebuffer_bound(tex->fb)) {
-			fprintf(stderr, "Feedback loop warning!: Attempting to bind texture attached to current framebuffer!\n");
+		for (int i = 0; i < GPU_TEX_MAX_FBO_ATTACHED; ++i) {
+			if (tex->fb[i] && GPU_framebuffer_bound(tex->fb[i])) {
+				fprintf(stderr, "Feedback loop warning!: Attempting to bind "
+				                "texture attached to current framebuffer!\n");
+				BLI_assert(0); /* Should never happen! */
+				break;
+			}
 		}
 	}
 
-	if (number < 0)
-		return;
+	glActiveTexture(GL_TEXTURE0 + number);
 
-	GPU_ASSERT_NO_GL_ERRORS("Pre Texture Bind");
-
-	GLenum arbnumber = (GLenum)((GLuint)GL_TEXTURE0 + number);
-	if (number != 0) glActiveTexture(arbnumber);
-	if (tex->bindcode != 0) {
-		glBindTexture(tex->target_base, tex->bindcode);
-	}
+	if (tex->bindcode != 0)
+		glBindTexture(tex->target, tex->bindcode);
 	else
 		GPU_invalid_tex_bind(tex->target_base);
-	glEnable(tex->target_base);
-	if (number != 0) glActiveTexture(GL_TEXTURE0);
 
 	tex->number = number;
-
-	GPU_ASSERT_NO_GL_ERRORS("Post Texture Bind");
 }
 
 void GPU_texture_unbind(GPUTexture *tex)
 {
-	if (tex->number >= GPU_max_textures()) {
-		fprintf(stderr, "Not enough texture slots.\n");
-		return;
-	}
-
 	if (tex->number == -1)
 		return;
-	
-	GPU_ASSERT_NO_GL_ERRORS("Pre Texture Unbind");
 
-	GLenum arbnumber = (GLenum)((GLuint)GL_TEXTURE0 + tex->number);
-	if (tex->number != 0) glActiveTexture(arbnumber);
-	glBindTexture(tex->target_base, 0);
-	glDisable(tex->target_base);
-	if (tex->number != 0) glActiveTexture(GL_TEXTURE0);
+	glActiveTexture(GL_TEXTURE0 + tex->number);
+	glBindTexture(tex->target, 0);
 
 	tex->number = -1;
-
-	GPU_ASSERT_NO_GL_ERRORS("Post Texture Unbind");
 }
 
 int GPU_texture_bound_number(GPUTexture *tex)
@@ -672,39 +1008,79 @@ int GPU_texture_bound_number(GPUTexture *tex)
 	return tex->number;
 }
 
-void GPU_texture_filter_mode(GPUTexture *tex, bool compare, bool use_filter)
+#define WARN_NOT_BOUND(_tex) do { \
+	if (_tex->number == -1) { \
+		fprintf(stderr, "Warning : Trying to set parameter on a texture not bound.\n"); \
+		BLI_assert(0); \
+		return; \
+	} \
+} while (0);
+
+void GPU_texture_generate_mipmap(GPUTexture *tex)
 {
-	if (tex->number >= GPU_max_textures()) {
-		fprintf(stderr, "Not enough texture slots.\n");
+	WARN_NOT_BOUND(tex);
+
+	glActiveTexture(GL_TEXTURE0 + tex->number);
+	glGenerateMipmap(tex->target_base);
+}
+
+void GPU_texture_compare_mode(GPUTexture *tex, bool use_compare)
+{
+	WARN_NOT_BOUND(tex);
+
+	/* Could become an assertion ? (fclem) */
+	if (!GPU_texture_depth(tex))
 		return;
-	}
 
-	if (tex->number == -1)
-		return;
+	GLenum mode = (use_compare) ? GL_COMPARE_REF_TO_TEXTURE : GL_NONE;
 
-	GPU_ASSERT_NO_GL_ERRORS("Pre Texture Unbind");
+	glActiveTexture(GL_TEXTURE0 + tex->number);
+	glTexParameteri(tex->target_base, GL_TEXTURE_COMPARE_MODE, mode);
+}
 
-	GLenum arbnumber = (GLenum)((GLuint)GL_TEXTURE0 + tex->number);
-	if (tex->number != 0) glActiveTexture(arbnumber);
+void GPU_texture_filter_mode(GPUTexture *tex, bool use_filter)
+{
+	WARN_NOT_BOUND(tex);
 
-	if (tex->depth) {
-		if (compare)
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_R_TO_TEXTURE);
-		else
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
-	}
+	/* Stencil and integer format does not support filtering. */
+	BLI_assert(!use_filter || !(GPU_texture_stencil(tex) || GPU_texture_integer(tex)));
 
-	if (use_filter) {
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	}
-	else {
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	}
-	if (tex->number != 0) glActiveTexture(GL_TEXTURE0);
+	GLenum filter = (use_filter) ? GL_LINEAR : GL_NEAREST;
 
-	GPU_ASSERT_NO_GL_ERRORS("Post Texture Unbind");
+	glActiveTexture(GL_TEXTURE0 + tex->number);
+	glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, filter);
+	glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, filter);
+}
+
+void GPU_texture_mipmap_mode(GPUTexture *tex, bool use_mipmap, bool use_filter)
+{
+	WARN_NOT_BOUND(tex);
+
+	/* Stencil and integer format does not support filtering. */
+	BLI_assert((!use_filter && !use_mipmap) || !(GPU_texture_stencil(tex) || GPU_texture_integer(tex)));
+
+	GLenum filter = (use_filter) ? GL_LINEAR : GL_NEAREST;
+	GLenum mipmap = (use_filter)
+	       ? (use_mipmap) ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR
+	       : (use_mipmap) ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST;
+
+	glActiveTexture(GL_TEXTURE0 + tex->number);
+	glTexParameteri(tex->target_base, GL_TEXTURE_MIN_FILTER, mipmap);
+	glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, filter);
+}
+
+void GPU_texture_wrap_mode(GPUTexture *tex, bool use_repeat)
+{
+	WARN_NOT_BOUND(tex);
+
+	GLenum repeat = (use_repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE;
+
+	glActiveTexture(GL_TEXTURE0 + tex->number);
+	glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_S, repeat);
+	if (tex->target_base != GL_TEXTURE_1D)
+		glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_T, repeat);
+	if (tex->target_base == GL_TEXTURE_3D)
+		glTexParameteri(tex->target_base, GL_TEXTURE_WRAP_R, repeat);
 }
 
 void GPU_texture_free(GPUTexture *tex)
@@ -715,10 +1091,16 @@ void GPU_texture_free(GPUTexture *tex)
 		fprintf(stderr, "GPUTexture: negative refcount\n");
 	
 	if (tex->refcount == 0) {
-		if (tex->fb)
-			GPU_framebuffer_texture_detach(tex);
+		for (int i = 0; i < GPU_TEX_MAX_FBO_ATTACHED; ++i) {
+			if (tex->fb[i] != NULL) {
+				GPU_framebuffer_texture_detach_slot(tex->fb[i], tex, tex->fb_attachment[i]);
+			}
+		}
+
 		if (tex->bindcode && !tex->fromblender)
 			glDeleteTextures(1, &tex->bindcode);
+
+		gpu_texture_memory_footprint_remove(tex);
 
 		MEM_freeN(tex);
 	}
@@ -744,9 +1126,34 @@ int GPU_texture_height(const GPUTexture *tex)
 	return tex->h;
 }
 
-int GPU_texture_depth(const GPUTexture *tex)
+GPUTextureFormat GPU_texture_format(const GPUTexture *tex)
 {
-	return tex->depth;
+	return tex->format;
+}
+
+int GPU_texture_samples(const GPUTexture *tex)
+{
+	return tex->samples;
+}
+
+bool GPU_texture_depth(const GPUTexture *tex)
+{
+	return (tex->format_flag & GPU_FORMAT_DEPTH) != 0;
+}
+
+bool GPU_texture_stencil(const GPUTexture *tex)
+{
+	return (tex->format_flag & GPU_FORMAT_STENCIL) != 0;
+}
+
+bool GPU_texture_integer(const GPUTexture *tex)
+{
+	return (tex->format_flag & GPU_FORMAT_INTEGER) != 0;
+}
+
+bool GPU_texture_cube(const GPUTexture *tex)
+{
+	return (tex->format_flag & GPU_FORMAT_CUBE) != 0;
 }
 
 int GPU_texture_opengl_bindcode(const GPUTexture *tex)
@@ -754,19 +1161,29 @@ int GPU_texture_opengl_bindcode(const GPUTexture *tex)
 	return tex->bindcode;
 }
 
-GPUFrameBuffer *GPU_texture_framebuffer(GPUTexture *tex)
+void GPU_texture_attach_framebuffer(GPUTexture *tex, GPUFrameBuffer *fb, int attachment)
 {
-	return tex->fb;
+	for (int i = 0; i < GPU_TEX_MAX_FBO_ATTACHED; ++i) {
+		if (tex->fb[i] == NULL) {
+			tex->fb[i] = fb;
+			tex->fb_attachment[i] = attachment;
+			return;
+		}
+	}
+
+	BLI_assert(!"Error: Texture: Not enough Framebuffer slots");
 }
 
-int GPU_texture_framebuffer_attachment(GPUTexture *tex)
+/* Return previous attachment point */
+int GPU_texture_detach_framebuffer(GPUTexture *tex, GPUFrameBuffer *fb)
 {
-	return tex->fb_attachment;
-}
+	for (int i = 0; i < GPU_TEX_MAX_FBO_ATTACHED; ++i) {
+		if (tex->fb[i] == fb) {
+			tex->fb[i] = NULL;
+			return tex->fb_attachment[i];
+		}
+	}
 
-void GPU_texture_framebuffer_set(GPUTexture *tex, GPUFrameBuffer *fb, int attachment)
-{
-	tex->fb = fb;
-	tex->fb_attachment = attachment;
+	BLI_assert(!"Error: Texture: Framebuffer is not attached");
+	return 0;
 }
-

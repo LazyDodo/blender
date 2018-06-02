@@ -24,11 +24,13 @@ set(INC
 	../../blenlib
 	../../blentranslation
 	../../bmesh
+	../../depsgraph
 	../../gpu
 	../../ikplugin
 	../../imbuf
 	../../makesdna
 	../../makesrna
+	../../modifiers
 	../../python
 	../../render/extern/include
 	../../windowmanager
@@ -46,9 +48,9 @@ set(SRC
 	object_bake_api.c
 	object_constraint.c
 	object_edit.c
+	object_facemap_ops.c
 	object_group.c
 	object_hook.c
-	object_lod.c
 	object_modes.c
 	object_modifier.c
 	object_ops.c
@@ -68,10 +70,6 @@ add_definitions(${GL_DEFINITIONS})
 
 if(WITH_PYTHON)
 	add_definitions(-DWITH_PYTHON)
-endif()
-
-if(WITH_GAMEENGINE)
-	add_definitions(-DWITH_GAMEENGINE)
 endif()
 
 if(WITH_INTERNATIONAL)

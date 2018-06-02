@@ -43,9 +43,10 @@
 #include "BLI_math_vector.h"
 
 #include "BKE_deform.h"
-#include "BKE_depsgraph.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_mesh.h"
+
+#include "DEG_depsgraph.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -936,7 +937,7 @@ bool BKE_mesh_validate_all_customdata(CustomData *vdata, CustomData *edata,
 {
 	bool is_valid = true;
 	bool is_change_v, is_change_e, is_change_l, is_change_p;
-	int tot_texpoly, tot_uvloop, tot_vcolloop;
+	int tot_uvloop, tot_vcolloop;
 	CustomDataMask mask = check_meshmask ? CD_MASK_MESH : 0;
 
 	is_valid &= mesh_validate_customdata(vdata, mask, do_verbose, do_fixes, &is_change_v);
@@ -944,17 +945,8 @@ bool BKE_mesh_validate_all_customdata(CustomData *vdata, CustomData *edata,
 	is_valid &= mesh_validate_customdata(ldata, mask, do_verbose, do_fixes, &is_change_l);
 	is_valid &= mesh_validate_customdata(pdata, mask, do_verbose, do_fixes, &is_change_p);
 
-	tot_texpoly = CustomData_number_of_layers(pdata, CD_MTEXPOLY);
 	tot_uvloop = CustomData_number_of_layers(ldata, CD_MLOOPUV);
 	tot_vcolloop = CustomData_number_of_layers(ldata, CD_MLOOPCOL);
-	if (tot_texpoly != tot_uvloop) {
-		PRINT_ERR("\tCustomDataLayer mismatch, tot_texpoly(%d), tot_uvloop(%d)\n",
-		          tot_texpoly, tot_uvloop);
-	}
-	if (tot_texpoly > MAX_MTFACE) {
-		PRINT_ERR("\tMore UV layers than %d allowed, %d last ones won't be available for render, shaders, etc.\n",
-		          MAX_MTFACE, tot_texpoly - MAX_MTFACE);
-	}
 	if (tot_uvloop > MAX_MTFACE) {
 		PRINT_ERR("\tMore UV layers than %d allowed, %d last ones won't be available for render, shaders, etc.\n",
 		          MAX_MTFACE, tot_uvloop - MAX_MTFACE);
@@ -965,17 +957,9 @@ bool BKE_mesh_validate_all_customdata(CustomData *vdata, CustomData *edata,
 	}
 
 	/* check indices of clone/stencil */
-	if (do_fixes && CustomData_get_clone_layer(pdata, CD_MTEXPOLY) >= tot_texpoly) {
-		CustomData_set_layer_clone(pdata, CD_MTEXPOLY, 0);
-		is_change_p = true;
-	}
 	if (do_fixes && CustomData_get_clone_layer(ldata, CD_MLOOPUV) >= tot_uvloop) {
 		CustomData_set_layer_clone(ldata, CD_MLOOPUV, 0);
 		is_change_l = true;
-	}
-	if (do_fixes && CustomData_get_stencil_layer(pdata, CD_MTEXPOLY) >= tot_texpoly) {
-		CustomData_set_layer_stencil(pdata, CD_MTEXPOLY, 0);
-		is_change_p = true;
 	}
 	if (do_fixes && CustomData_get_stencil_layer(ldata, CD_MLOOPUV) >= tot_uvloop) {
 		CustomData_set_layer_stencil(ldata, CD_MLOOPUV, 0);
@@ -988,7 +972,7 @@ bool BKE_mesh_validate_all_customdata(CustomData *vdata, CustomData *edata,
 }
 
 /**
- * \see  #DM_is_valid to call on derived meshes
+ * Validates and corrects a Mesh.
  *
  * \returns true if a change is made.
  */
@@ -1019,7 +1003,7 @@ int BKE_mesh_validate(Mesh *me, const int do_verbose, const int cddata_check_mas
 	        &changed);
 
 	if (changed) {
-		DAG_id_tag_update(&me->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&me->id, OB_RECALC_DATA);
 		return true;
 	}
 	else {
@@ -1028,61 +1012,39 @@ int BKE_mesh_validate(Mesh *me, const int do_verbose, const int cddata_check_mas
 }
 
 /**
- * Duplicate of BM_mesh_cd_validate() for Mesh data.
+ * Checks if a Mesh is valid without any modification. This is always verbose.
+ *
+ * \see  #DM_is_valid to call on derived meshes
+ *
+ * \returns is_valid.
  */
-void BKE_mesh_cd_validate(Mesh *me)
+bool BKE_mesh_is_valid(Mesh *me)
 {
-	int totlayer_mtex = CustomData_number_of_layers(&me->pdata, CD_MTEXPOLY);
-	int totlayer_uv = CustomData_number_of_layers(&me->ldata, CD_MLOOPUV);
-	int totlayer_mcol = CustomData_number_of_layers(&me->ldata, CD_MLOOPCOL);
-	int mtex_index = CustomData_get_layer_index(&me->pdata, CD_MTEXPOLY);
-	int uv_index = CustomData_get_layer_index(&me->ldata, CD_MLOOPUV);
-	int i;
+	const bool do_verbose = true;
+	const bool do_fixes = false;
 
-	/* XXX For now, do not delete those, just warn they are not really usable. */
-	if (UNLIKELY(totlayer_mtex > MAX_MTFACE)) {
-		printf("WARNING! More UV layers than %d allowed, %d last ones won't be available for render, shaders, etc.\n",
-		       MAX_MTFACE, totlayer_mtex - MAX_MTFACE);
-	}
-	if (UNLIKELY(totlayer_uv > MAX_MTFACE)) {
-		printf("WARNING! More UV layers than %d allowed, %d last ones won't be available for render, shaders, etc.\n",
-		       MAX_MTFACE, totlayer_uv - MAX_MTFACE);
-	}
-	if (UNLIKELY(totlayer_mcol > MAX_MCOL)) {
-		printf("WARNING! More VCol layers than %d allowed, %d last ones won't be available for render, shaders, etc.\n",
-		       MAX_MCOL, totlayer_mcol - MAX_MCOL);
-	}
+	bool is_valid = true;
+	bool changed = true;
 
-	if (LIKELY(totlayer_mtex == totlayer_uv)) {
-		/* pass */
-	}
-	else if (totlayer_mtex < totlayer_uv) {
-		do {
-			const char *from_name =  me->ldata.layers[uv_index + totlayer_mtex].name;
-			CustomData_add_layer_named(&me->pdata, CD_MTEXPOLY, CD_DEFAULT, NULL, me->totpoly, from_name);
-			CustomData_set_layer_unique_name(&me->pdata, totlayer_mtex);
-		} while (totlayer_uv != ++totlayer_mtex);
-		mtex_index = CustomData_get_layer_index(&me->pdata, CD_MTEXPOLY);
-	}
-	else if (totlayer_uv < totlayer_mtex) {
-		do {
-			const char *from_name = me->pdata.layers[mtex_index + totlayer_uv].name;
-			CustomData_add_layer_named(&me->ldata, CD_MLOOPUV, CD_DEFAULT, NULL, me->totloop, from_name);
-			CustomData_set_layer_unique_name(&me->ldata, totlayer_uv);
-		} while (totlayer_mtex != ++totlayer_uv);
-		uv_index = CustomData_get_layer_index(&me->ldata, CD_MLOOPUV);
-	}
+	is_valid &= BKE_mesh_validate_all_customdata(
+	        &me->vdata, &me->edata, &me->ldata, &me->pdata,
+	        false,  /* setting mask here isn't useful, gives false positives */
+	        do_verbose, do_fixes, &changed);
 
-	BLI_assert(totlayer_mtex == totlayer_uv);
+	is_valid &= BKE_mesh_validate_arrays(
+	        me,
+	        me->mvert, me->totvert,
+	        me->medge, me->totedge,
+	        me->mface, me->totface,
+	        me->mloop, me->totloop,
+	        me->mpoly, me->totpoly,
+	        me->dvert,
+	        do_verbose, do_fixes,
+	        &changed);
 
-	/* Check uv/tex names match as well!!! */
-	for (i = 0; i < totlayer_mtex; i++, mtex_index++, uv_index++) {
-		const char *name_src = me->pdata.layers[mtex_index].name;
-		const char *name_dst = me->ldata.layers[uv_index].name;
-		if (!STREQ(name_src, name_dst)) {
-			BKE_mesh_uv_cdlayer_rename_index(me, mtex_index, uv_index, -1, name_src, false);
-		}
-	}
+	BLI_assert(changed == false);
+
+	return is_valid;
 }
 
 /**
@@ -1105,7 +1067,7 @@ int BKE_mesh_validate_material_indices(Mesh *me)
 	}
 
 	if (!is_valid) {
-		DAG_id_tag_update(&me->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&me->id, OB_RECALC_DATA);
 		return true;
 	}
 	else {

@@ -51,7 +51,6 @@
 
 #include "BKE_colorband.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_brush.h"
 #include "BKE_main.h"
@@ -60,6 +59,8 @@
 #include "BKE_paint.h"
 #include "BKE_undo_system.h"
 
+
+#include "DEG_depsgraph.h"
 
 #include "UI_interface.h"
 #include "UI_view2d.h"
@@ -72,15 +73,16 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
+#include "WM_toolsystem.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
 
 #include "GPU_draw.h"
-#include "GPU_buffers.h"
+#include "GPU_immediate.h"
 
 #include "BIF_gl.h"
-#include "BIF_glutil.h"
 
 #include "IMB_colormanagement.h"
 
@@ -264,7 +266,7 @@ static Brush *image_paint_brush(bContext *C)
 	return BKE_paint_brush(&settings->imapaint.paint);
 }
 
-static int image_paint_poll(bContext *C)
+static int image_paint_poll_ex(bContext *C, bool check_tool)
 {
 	Object *obact;
 
@@ -273,7 +275,9 @@ static int image_paint_poll(bContext *C)
 
 	obact = CTX_data_active_object(C);
 	if ((obact && obact->mode & OB_MODE_TEXTURE_PAINT) && CTX_wm_region_view3d(C)) {
-		return 1;
+		if (!check_tool || WM_toolsystem_active_tool_is_brush(C)) {
+			return 1;
+		}
 	}
 	else {
 		SpaceImage *sima = CTX_wm_space_image(C);
@@ -288,6 +292,16 @@ static int image_paint_poll(bContext *C)
 	}
 
 	return 0;
+}
+
+static int image_paint_poll(bContext *C)
+{
+	return image_paint_poll_ex(C, true);
+}
+
+static int image_paint_ignore_tool_poll(bContext *C)
+{
+	return image_paint_poll_ex(C, false);
 }
 
 static int image_paint_2d_clone_poll(bContext *C)
@@ -401,12 +415,28 @@ static void gradient_draw_line(bContext *UNUSED(C), int x, int y, void *customda
 		glEnable(GL_LINE_SMOOTH);
 		glEnable(GL_BLEND);
 
+		Gwn_VertFormat *format = immVertexFormat();
+		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+
+		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+
 		glLineWidth(4.0);
-		glColor4ub(0, 0, 0, 255);
-		sdrawline(x, y, pop->startmouse[0], pop->startmouse[1]);
+		immUniformColor4ub(0, 0, 0, 255);
+
+		immBegin(GWN_PRIM_LINES, 2);
+		immVertex2i(pos, x, y);
+		immVertex2i(pos, pop->startmouse[0], pop->startmouse[1]);
+		immEnd();
+
 		glLineWidth(2.0);
-		glColor4ub(255, 255, 255, 255);
-		sdrawline(x, y, pop->startmouse[0], pop->startmouse[1]);
+		immUniformColor4ub(255, 255, 255, 255);
+
+		immBegin(GWN_PRIM_LINES, 2);
+		immVertex2i(pos, x, y);
+		immVertex2i(pos, pop->startmouse[0], pop->startmouse[1]);
+		immEnd();
+
+		immUnbindProgram();
 
 		glDisable(GL_BLEND);
 		glDisable(GL_LINE_SMOOTH);
@@ -428,7 +458,8 @@ static PaintOperation *texture_paint_init(bContext *C, wmOperator *op, const flo
 
 	/* initialize from context */
 	if (CTX_wm_region_view3d(C)) {
-		Object *ob = OBACT;
+		ViewLayer *view_layer = CTX_data_view_layer(C);
+		Object *ob = OBACT(view_layer);
 		bool uvs, mat, tex, stencil;
 		if (!BKE_paint_proj_mesh_data_check(scene, ob, &uvs, &mat, &tex, &stencil)) {
 			BKE_paint_data_warning(op->reports, uvs, mat, tex, stencil);
@@ -711,16 +742,20 @@ static void toggle_paint_cursor(bContext *C, int enable)
 void ED_space_image_paint_update(wmWindowManager *wm, Scene *scene)
 {
 	ToolSettings *settings = scene->toolsettings;
-	wmWindow *win;
-	ScrArea *sa;
 	ImagePaintSettings *imapaint = &settings->imapaint;
 	bool enabled = false;
 
-	for (win = wm->windows.first; win; win = win->next)
-		for (sa = win->screen->areabase.first; sa; sa = sa->next)
-			if (sa->spacetype == SPACE_IMAGE)
-				if (((SpaceImage *)sa->spacedata.first)->mode == SI_MODE_PAINT)
+	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+		bScreen *screen = WM_window_get_active_screen(win);
+
+		for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+			if (sa->spacetype == SPACE_IMAGE) {
+				if (((SpaceImage *)sa->spacedata.first)->mode == SI_MODE_PAINT) {
 					enabled = true;
+				}
+			}
+		}
+	}
 
 	if (enabled) {
 		BKE_paint_init(scene, ePaintTexture2D, PAINT_CURSOR_TEXTURE_PAINT);
@@ -976,11 +1011,6 @@ static int sample_color_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static int sample_color_poll(bContext *C)
-{
-	return (image_paint_poll(C) || vertex_paint_poll(C));
-}
-
 void PAINT_OT_sample_color(wmOperatorType *ot)
 {
 	/* identifiers */
@@ -992,7 +1022,7 @@ void PAINT_OT_sample_color(wmOperatorType *ot)
 	ot->exec = sample_color_exec;
 	ot->invoke = sample_color_invoke;
 	ot->modal = sample_color_modal;
-	ot->poll = sample_color_poll;
+	ot->poll = image_paint_ignore_tool_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -1024,6 +1054,7 @@ static int texture_paint_toggle_poll(bContext *C)
 
 static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 {
+	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
 	const int mode_flag = OB_MODE_TEXTURE_PAINT;
@@ -1076,8 +1107,10 @@ static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 						if (sl->spacetype == SPACE_IMAGE) {
 							SpaceImage *sima = (SpaceImage *)sl;
 							
-							if (!sima->pin)
-								ED_space_image_set(bmain, sima, scene, scene->obedit, ima);
+							if (!sima->pin) {
+								Object *obedit = CTX_data_edit_object(C);
+								ED_space_image_set(sima, scene, obedit, ima);
+							}
 						}
 					}
 				}
@@ -1095,8 +1128,11 @@ static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 		toggle_paint_cursor(C, 1);
 	}
 
-	GPU_drawobject_free(ob->derivedFinal);
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);
+
+	WM_msg_publish_rna_prop(mbus, &ob->id, ob, Object, mode);
+
+	WM_toolsystem_update_from_context_view3d(C);
 
 	return OPERATOR_FINISHED;
 }
@@ -1121,8 +1157,8 @@ static int brush_colors_flip_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	UnifiedPaintSettings *ups = &CTX_data_tool_settings(C)->unified_paint_settings;
 
-	Brush *br;
 	Object *ob = CTX_data_active_object(C);
+	Brush *br;
 	if (!(ob && (ob->mode & OB_MODE_VERTEX_PAINT))) {
 		br = image_paint_brush(C);
 	}
@@ -1191,7 +1227,7 @@ void ED_imapaint_bucket_fill(struct bContext *C, float color[3], wmOperator *op)
 
 	BKE_undosys_step_push(wm->undo_stack, C, op->type->name);
 
-	DAG_id_tag_update(&ima->id, 0);
+	DEG_id_tag_update(&ima->id, 0);
 }
 
 

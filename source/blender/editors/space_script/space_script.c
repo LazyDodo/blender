@@ -62,7 +62,7 @@
 
 /* ******************** default callbacks for script space ***************** */
 
-static SpaceLink *script_new(const bContext *UNUSED(C))
+static SpaceLink *script_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceScript *sscript;
@@ -76,7 +76,7 @@ static SpaceLink *script_new(const bContext *UNUSED(C))
 	
 	BLI_addtail(&sscript->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_BOTTOM;
+	ar->alignment = RGN_ALIGN_TOP;
 	
 	/* main region */
 	ar = MEM_callocN(sizeof(ARegion), "main region for script");
@@ -176,7 +176,9 @@ static void script_header_region_draw(const bContext *C, ARegion *ar)
 	ED_region_header(C, ar);
 }
 
-static void script_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *UNUSED(ar), wmNotifier *UNUSED(wmn))
+static void script_main_region_listener(
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *UNUSED(ar),
+        wmNotifier *UNUSED(wmn), const Scene *UNUSED(scene))
 {
 	/* context changes */
 	// XXX - Todo, need the ScriptSpace accessible to get the python script to run.

@@ -90,6 +90,7 @@ struct ParticleKey;
 struct ParticleSystem;
 struct PointCache;
 struct Scene;
+struct ViewLayer;
 struct SmokeModifierData;
 struct SoftBody;
 struct RigidBodyWorld;
@@ -186,6 +187,8 @@ typedef struct PTCacheID {
 typedef struct PTCacheBaker {
 	struct Main *main;
 	struct Scene *scene;
+	struct ViewLayer *view_layer;
+	struct Depsgraph *depsgraph;
 	int bake;
 	int render;
 	int anim_init;
@@ -274,6 +277,7 @@ void BKE_ptcache_id_from_smoke(PTCacheID *pid, struct Object *ob, struct SmokeMo
 void BKE_ptcache_id_from_dynamicpaint(PTCacheID *pid, struct Object *ob, struct DynamicPaintSurface *surface);
 void BKE_ptcache_id_from_rigidbody(PTCacheID *pid, struct Object *ob, struct RigidBodyWorld *rbw);
 
+PTCacheID BKE_ptcache_id_find(struct Object *ob, struct Scene *scene, struct PointCache *cache);
 void BKE_ptcache_ids_from_object(struct ListBase *lb, struct Object *ob, struct Scene *scene, int duplis);
 
 /***************** Global funcs ****************************/
@@ -317,7 +321,7 @@ struct PointCache *BKE_ptcache_copy_list(struct ListBase *ptcaches_new, const st
 /********************** Baking *********************/
 
 /* Bakes cache with cache_step sized jumps in time, not accurate but very fast. */
-void BKE_ptcache_quick_cache_all(struct Main *bmain, struct Scene *scene);
+void BKE_ptcache_quick_cache_all(struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
 
 /* Bake cache or simulate to current frame with settings defined in the baker. */
 void BKE_ptcache_bake(struct PTCacheBaker *baker);

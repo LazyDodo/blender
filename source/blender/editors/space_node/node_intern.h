@@ -67,13 +67,11 @@ void snode_group_offset(struct SpaceNode *snode, float *x, float *y);	/* transfo
 
 /* node_draw.c */
 int node_get_colorid(struct bNode *node);
-void node_socket_draw(
-        const struct bContext *C, struct bNodeTree *ntree, struct bNode *node,
-        struct bNodeSocket *sock, float size, bool highlight);
 int node_get_resize_cursor(int directions);
 void node_draw_shadow(struct SpaceNode *snode, struct bNode *node, float radius, float alpha);
 void node_draw_default(const struct bContext *C, struct ARegion *ar, struct SpaceNode *snode,
                        struct bNodeTree *ntree, struct bNode *node, bNodeInstanceKey key);
+void node_draw_sockets(struct View2D *v2d, const struct bContext *C, struct bNodeTree *ntree, struct bNode *node, bool draw_outputs, bool select_all);
 void node_update_default(const struct bContext *C, struct bNodeTree *ntree, struct bNode *node);
 int node_select_area_default(struct bNode *node, int x, int y);
 int node_tweak_area_default(struct bNode *node, int x, int y);
@@ -132,8 +130,11 @@ void NODE_OT_backimage_fit(struct wmOperatorType *ot);
 void NODE_OT_backimage_sample(struct wmOperatorType *ot);
 
 /* drawnode.c */
+void nodelink_batch_start(struct SpaceNode *snode);
+void nodelink_batch_end(struct SpaceNode *snode);
+
 void node_draw_link(struct View2D *v2d, struct SpaceNode *snode, struct bNodeLink *link);
-void node_draw_link_bezier(struct View2D *v2d, struct SpaceNode *snode, struct bNodeLink *link, int th_col1, bool do_shaded, int th_col2, bool do_triple, int th_col3);
+void node_draw_link_bezier(struct View2D *v2d, struct SpaceNode *snode, struct bNodeLink *link, int th_col1, int th_col2, int th_col3);
 bool node_link_bezier_points(struct View2D *v2d, struct SpaceNode *snode, struct bNodeLink *link, float coord_array[][2], int resol);
 // void node_draw_link_straight(View2D *v2d, SpaceNode *snode, bNodeLink *link, int th_col1, int do_shaded, int th_col2, int do_triple, int th_col3 );
 void draw_nodespace_back_pix(const struct bContext *C, struct ARegion *ar, struct SpaceNode *snode, bNodeInstanceKey parent_key);
@@ -199,7 +200,7 @@ void NODE_OT_options_toggle(struct wmOperatorType *ot);
 void NODE_OT_node_copy_color(struct wmOperatorType *ot);
 
 void NODE_OT_read_fullsamplelayers(struct wmOperatorType *ot);
-void NODE_OT_read_renderlayers(struct wmOperatorType *ot);
+void NODE_OT_read_viewlayers(struct wmOperatorType *ot);
 void NODE_OT_render_changed(struct wmOperatorType *ot);
 
 void NODE_OT_output_file_add_socket(struct wmOperatorType *ot);
@@ -220,6 +221,13 @@ void NODE_OT_shader_script_update(struct wmOperatorType *ot);
 
 void NODE_OT_viewer_border(struct wmOperatorType *ot);
 void NODE_OT_clear_viewer_border(struct wmOperatorType *ot);
+
+/* node_widgets.c */
+void NODE_WGT_backdrop_transform(struct wmManipulatorGroupType *wgt);
+void NODE_WGT_backdrop_crop(struct wmManipulatorGroupType *wgt);
+void NODE_WGT_backdrop_sun_beams(struct wmManipulatorGroupType *wgt);
+void NODE_WGT_backdrop_corner_pin(struct wmManipulatorGroupType *wgt);
+
 
 extern const char *node_context_dir[];
 

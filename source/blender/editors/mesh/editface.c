@@ -51,7 +51,6 @@
 #include "WM_types.h"
 
 #include "GPU_draw.h"
-#include "GPU_buffers.h"
 
 /* own include */
 
@@ -99,10 +98,7 @@ void paintface_flush_flags(Object *ob, short flag)
 		}
 	}
 
-	if (flag & ME_HIDE) {
-		/* draw-object caches hidden faces, force re-generation T46867 */
-		GPU_drawobject_free(dm);
-	}
+	BKE_mesh_batch_cache_dirty(me, BKE_MESH_BATCH_DIRTY_ALL);
 }
 
 void paintface_hide(Object *ob, const bool unselected)
@@ -384,7 +380,7 @@ bool paintface_mouse_select(struct bContext *C, Object *ob, const int mval[2], b
 	}
 	
 	/* image window redraw */
-	
+
 	paintface_flush_flags(ob, SELECT);
 	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, ob->data);
 	ED_region_tag_redraw(CTX_wm_region(C)); // XXX - should redraw all 3D views
@@ -512,6 +508,8 @@ void paintvert_flush_flags(Object *ob)
 			dm_mv->flag = me->mvert[i].flag;
 		}
 	}
+
+	BKE_mesh_batch_cache_dirty(me, BKE_MESH_BATCH_DIRTY_ALL);
 }
 /*  note: if the caller passes false to flush_flags, then they will need to run paintvert_flush_flags(ob) themselves */
 void paintvert_deselect_all_visible(Object *ob, int action, bool flush_flags)

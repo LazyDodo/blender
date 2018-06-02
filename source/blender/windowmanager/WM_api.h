@@ -47,12 +47,15 @@ extern "C" {
 #endif
 
 struct bContext;
+struct bToolRef_Runtime;
 struct GHashIterator;
 struct IDProperty;
 struct wmEvent;
 struct wmEventHandler;
 struct wmGesture;
 struct wmJob;
+struct wmMsgSubscribeKey;
+struct wmMsgSubscribeValue;
 struct wmOperatorType;
 struct wmOperator;
 struct rcti;
@@ -64,12 +67,19 @@ struct wmDrag;
 struct ImBuf;
 struct ImageFormatData;
 struct ARegion;
+struct ScrArea;
+struct Main;
+struct ViewLayer;
+struct GPUViewport;
 
 #ifdef WITH_INPUT_NDOF
 struct wmNDOFMotionData;
 #endif
 
 typedef struct wmJob wmJob;
+typedef struct wmManipulator wmManipulator;
+typedef struct wmManipulatorMap wmManipulatorMap;
+typedef struct wmManipulatorMapType wmManipulatorMapType;
 
 /* general API */
 void		WM_init_state_size_set		(int stax, int stay, int sizx, int sizy);
@@ -84,20 +94,48 @@ void		WM_exit				(struct bContext *C) ATTR_NORETURN;
 
 void		WM_main				(struct bContext *C) ATTR_NORETURN;
 
-bool 		WM_init_game		(struct bContext *C);
 void		WM_init_splash		(struct bContext *C);
 
+void		WM_init_opengl		(void);
 
 void		WM_check			(struct bContext *C);
 
-int			WM_window_pixels_x		(struct wmWindow *win);
-int			WM_window_pixels_y		(struct wmWindow *win);
-bool		WM_window_is_fullscreen	(struct wmWindow *win);
+int WM_window_pixels_x(const struct wmWindow *win);
+int WM_window_pixels_y(const struct wmWindow *win);
+void WM_window_rect_calc(const struct wmWindow *win, struct rcti *r_rect);
+void WM_window_screen_rect_calc(const struct wmWindow *win, struct rcti *r_rect);
+bool WM_window_is_fullscreen(struct wmWindow *win);
+
+void WM_windows_scene_data_sync(const ListBase *win_lb, struct Scene *scene) ATTR_NONNULL();
+struct Scene *WM_windows_scene_get_from_screen(const struct wmWindowManager *wm, const struct bScreen *screen) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
+struct WorkSpace *WM_windows_workspace_get_from_screen(const wmWindowManager *wm, const struct bScreen *screen) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
+
+struct Scene *WM_window_get_active_scene(const struct wmWindow *win) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
+void          WM_window_change_active_scene(struct Main *bmain, struct bContext *C, struct wmWindow *win,
+                                            struct Scene *scene_new) ATTR_NONNULL();
+struct WorkSpace *WM_window_get_active_workspace(const struct wmWindow *win) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
+void              WM_window_set_active_workspace(struct wmWindow *win, struct WorkSpace *workspace) ATTR_NONNULL(1);
+struct WorkSpaceLayout *WM_window_get_active_layout(const struct wmWindow *win) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
+void                    WM_window_set_active_layout(
+        struct wmWindow *win, struct WorkSpace *workspace, struct WorkSpaceLayout *layout) ATTR_NONNULL(1);
+struct bScreen *WM_window_get_active_screen(const struct wmWindow *win) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
+void            WM_window_set_active_screen(struct wmWindow *win, struct WorkSpace *workspace, struct bScreen *screen) ATTR_NONNULL(1);
+
+struct ViewLayer *WM_window_get_active_view_layer_ex(const struct wmWindow *win, struct Scene **r_scene) ATTR_NONNULL(1) ATTR_WARN_UNUSED_RESULT;
+struct ViewLayer *WM_window_get_active_view_layer(const struct wmWindow *win) ATTR_NONNULL(1) ATTR_WARN_UNUSED_RESULT;
+
+bool WM_window_is_temp_screen(const struct wmWindow *win) ATTR_WARN_UNUSED_RESULT;
+
+void *WM_opengl_context_create(void);
+void WM_opengl_context_dispose(void *context);
+void WM_opengl_context_activate(void *context);
+void WM_opengl_context_release(void *context);
 
 /* defines for 'type' WM_window_open_temp */
 enum {
 	WM_WINDOW_RENDER = 1,
 	WM_WINDOW_USERPREFS,
+	WM_WINDOW_DRIVERS,
 	// WM_WINDOW_FILESEL // UNUSED
 };
 
@@ -105,9 +143,6 @@ struct wmWindow	*WM_window_open(struct bContext *C, const struct rcti *rect);
 struct wmWindow *WM_window_open_temp(struct bContext *C, int x, int y, int sizex, int sizey, int type);
 void             WM_window_set_dpi(wmWindow *win);
 			
-			/* returns true if draw method is triple buffer */
-bool		WM_is_draw_triple(struct wmWindow *win);
-
 bool		WM_stereo3d_enabled(struct wmWindow *win, bool only_fullscreen_test);
 
 
@@ -122,6 +157,7 @@ void        WM_lib_reload(struct Library *lib, struct bContext *C, struct Report
 
 			/* mouse cursors */
 void		WM_cursor_set(struct wmWindow *win, int curs);
+bool		WM_cursor_set_from_tool(struct wmWindow *win, const ScrArea *sa, const ARegion *ar);
 void		WM_cursor_modal_set(struct wmWindow *win, int curs);
 void		WM_cursor_modal_restore(struct wmWindow *win);
 void		WM_cursor_wait		(bool val);
@@ -143,6 +179,7 @@ float		WM_cursor_pressure	(const struct wmWindow *win);
 
 			/* event map */
 int			WM_userdef_event_map(int kmitype);
+int			WM_userdef_event_type_from_keymap_type(int kmitype);
 
 			/* handlers */
 
@@ -153,6 +190,11 @@ struct wmEventHandler *WM_event_add_keymap_handler_bb(ListBase *handlers, wmKeyM
 struct wmEventHandler *WM_event_add_keymap_handler_priority(ListBase *handlers, wmKeyMap *keymap, int priority);
 
 void		WM_event_remove_keymap_handler(ListBase *handlers, wmKeyMap *keymap);
+
+void WM_event_set_keymap_handler_callback(
+        struct wmEventHandler *handler,
+        void (keymap_tag)(wmKeyMap *keymap, wmKeyMapItem *kmi, void *user_data),
+        void *user_data);
 
 typedef int (*wmUIHandlerFunc)(struct bContext *C, const struct wmEvent *event, void *userdata);
 typedef void (*wmUIHandlerRemoveFunc)(struct bContext *C, void *userdata);
@@ -172,6 +214,9 @@ void WM_event_free_ui_handler_all(
         wmUIHandlerFunc ui_handle, wmUIHandlerRemoveFunc ui_remove);
 
 struct wmEventHandler *WM_event_add_modal_handler(struct bContext *C, struct wmOperator *op);
+void WM_event_modal_handler_area_replace(wmWindow *win, const struct ScrArea *old_area, struct ScrArea *new_area);
+void WM_event_modal_handler_region_replace(wmWindow *win, const struct ARegion *old_region, struct ARegion *new_region);
+
 void		WM_event_remove_handlers(struct bContext *C, ListBase *handlers);
 
 /* handler flag */
@@ -230,6 +275,7 @@ int			WM_operator_smooth_viewtx_get(const struct wmOperator *op);
 int			WM_menu_invoke_ex(struct bContext *C, struct wmOperator *op, int opcontext);
 int			WM_menu_invoke			(struct bContext *C, struct wmOperator *op, const struct wmEvent *event);
 void		WM_menu_name_call(struct bContext *C, const char *menu_name, short context);
+int         WM_enum_search_invoke_previews(struct bContext *C, struct wmOperator *op, short prv_cols, short prv_rows);
 int			WM_enum_search_invoke(struct bContext *C, struct wmOperator *op, const struct wmEvent *event);
 			/* invoke callback, confirm menu + exec */
 int			WM_operator_confirm		(struct bContext *C, struct wmOperator *op, const struct wmEvent *event);
@@ -267,6 +313,14 @@ void		WM_operatortype_append_macro_ptr(void (*opfunc)(struct wmOperatorType *, v
 void        WM_operatortype_remove_ptr(struct wmOperatorType *ot);
 bool        WM_operatortype_remove(const char *idname);
 void        WM_operatortype_last_properties_clear_all(void);
+void        WM_operatortype_props_advanced_begin(struct wmOperatorType *ot);
+void        WM_operatortype_props_advanced_end(struct wmOperatorType *ot);
+
+#define WM_operatortype_prop_tag(property, tags) \
+	{ \
+		CHECK_TYPE(tags, eOperatorPropTags); \
+		RNA_def_property_tags(prop, tags); \
+	} (void)0
 
 struct wmOperatorType *WM_operatortype_append_macro(const char *idname, const char *name, const char *description, int flag);
 struct wmOperatorTypeMacro *WM_operatortype_macro_define(struct wmOperatorType *ot, const char *idname);
@@ -293,7 +347,11 @@ void		WM_operator_properties_create_ptr(struct PointerRNA *ptr, struct wmOperato
 void        WM_operator_properties_clear(struct PointerRNA *ptr);
 void		WM_operator_properties_free(struct PointerRNA *ptr);
 
+bool        WM_operator_check_ui_empty(struct wmOperatorType *ot);
 bool        WM_operator_check_ui_enabled(const struct bContext *C, const char *idname);
+
+IDProperty *WM_operator_last_properties_ensure_idprops(struct wmOperatorType *ot);
+void        WM_operator_last_properties_ensure(struct wmOperatorType *ot, struct PointerRNA *ptr);
 wmOperator *WM_operator_last_redo(const struct bContext *C);
 ID         *WM_operator_drop_load_path(struct bContext *C, struct wmOperator *op, const short idcode);
 
@@ -420,17 +478,17 @@ struct wmDropBox	*WM_dropbox_add(ListBase *lb, const char *idname, int (*poll)(s
                                     void (*copy)(struct wmDrag *, struct wmDropBox *));
 ListBase	*WM_dropboxmap_find(const char *idname, int spaceid, int regionid);
 
-			/* Set a subwindow active in pixelspace view, with optional scissor subset */
-void		wmSubWindowSet			(struct wmWindow *win, int swinid);
-void		wmSubWindowScissorSet	(struct wmWindow *win, int swinid, const struct rcti *srct, bool srct_pad);
+			/* Set OpenGL viewport and scissor */
+void		wmViewport(const struct rcti *rect);
+void		wmPartialViewport(rcti *drawrct, const rcti *winrct, const rcti *partialrct);
+void		wmWindowViewport(struct wmWindow *win);
 
-			/* OpenGL utilities with safety check + working in modelview matrix mode */
-void		wmFrustum			(float x1, float x2, float y1, float y2, float n, float f);
-void		wmOrtho				(float x1, float x2, float y1, float y2, float n, float f);
+			/* OpenGL utilities with safety check */
 void		wmOrtho2			(float x1, float x2, float y1, float y2);
 			/* use for conventions (avoid hard-coded offsets all over) */
 void		wmOrtho2_region_pixelspace(const struct ARegion *ar);
 void		wmOrtho2_pixelspace(const float x, const float y);
+void		wmGetProjectionMatrix(float mat[4][4], const struct rcti *winrct);
 
 			/* threaded Jobs Manager */
 enum {
@@ -461,6 +519,7 @@ enum {
 	WM_JOB_TYPE_POINTCACHE,
 	WM_JOB_TYPE_DPAINT_BAKE,
 	WM_JOB_TYPE_ALEMBIC,
+	WM_JOB_TYPE_SHADER_COMPILATION,
 	/* add as needed, screencast, seq proxy build
 	 * if having hard coded values is a problem */
 };
@@ -509,10 +568,15 @@ void		WM_progress_clear(struct wmWindow *win);
 			/* Draw (for screenshot) */
 void        *WM_draw_cb_activate(
                     struct wmWindow *win,
-                    void(*draw)(const struct wmWindow *, void *),
+                    void (*draw)(const struct wmWindow *, void *),
                     void *customdata);
 void        WM_draw_cb_exit(struct wmWindow *win, void *handle);
 void		WM_redraw_windows(struct bContext *C);
+
+			/* Region drawing */
+void                WM_draw_region_free(struct ARegion *ar);
+struct GPUViewport *WM_draw_region_get_viewport(struct ARegion *ar, int view);
+struct GPUViewport *WM_draw_region_get_bound_viewport(struct ARegion *ar);
 
 void        WM_main_playanim(int argc, const char **argv);
 

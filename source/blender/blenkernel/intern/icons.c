@@ -42,6 +42,7 @@
 #include "DNA_material_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_screen_types.h"
 #include "DNA_texture_types.h"
 #include "DNA_world_types.h"
 #include "DNA_brush_types.h"
@@ -50,10 +51,12 @@
 #include "BLI_ghash.h"
 #include "BLI_linklist_lockfree.h"
 #include "BLI_string.h"
+#include "BLI_fileops.h"
 #include "BLI_threads.h"
 
 #include "BKE_icons.h"
 #include "BKE_global.h" /* only for G.background test */
+#include "BKE_studiolight.h"
 
 #include "BLI_sys_types.h" // for intptr_t support
 
@@ -62,6 +65,14 @@
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
 #include "IMB_thumbs.h"
+
+/**
+ * Only allow non-managed icons to be removed (by Python for eg).
+ * Previews & ID's have their own functions to remove icons.
+ */
+enum {
+	ICON_FLAG_MANAGED = (1 << 0),
+};
 
 /* GLOBALS */
 
@@ -85,6 +96,19 @@ static void icon_free(void *val)
 	Icon *icon = val;
 
 	if (icon) {
+		if (icon->obj_type == ICON_DATA_GEOM) {
+			struct Icon_Geom *obj = icon->obj;
+			if (obj->mem) {
+				/* coords & colors are part of this memory. */
+				MEM_freeN((void *)obj->mem);
+			}
+			else {
+				MEM_freeN((void *)obj->coords);
+				MEM_freeN((void *)obj->colors);
+			}
+			MEM_freeN(icon->obj);
+		}
+
 		if (icon->drawinfo_free) {
 			icon->drawinfo_free(icon->drawinfo);
 		}
@@ -92,6 +116,22 @@ static void icon_free(void *val)
 			MEM_freeN(icon->drawinfo);
 		}
 		MEM_freeN(icon);
+	}
+}
+
+static void icon_free_data(Icon *icon)
+{
+	if (icon->obj_type == ICON_DATA_ID) {
+		((ID *)(icon->obj))->icon_id = 0;
+	}
+	else if (icon->obj_type == ICON_DATA_PREVIEW) {
+		((PreviewImage *)(icon->obj))->icon_id = 0;
+	}
+	else if (icon->obj_type == ICON_DATA_GEOM) {
+		((struct Icon_Geom *)(icon->obj))->icon_id = 0;
+	}
+	else {
+		BLI_assert(0);
 	}
 }
 
@@ -282,8 +322,9 @@ PreviewImage **BKE_previewimg_id_get_p(const ID *id)
 		ID_PRV_CASE(ID_IM, Image);
 		ID_PRV_CASE(ID_BR, Brush);
 		ID_PRV_CASE(ID_OB, Object);
-		ID_PRV_CASE(ID_GR, Group);
+		ID_PRV_CASE(ID_GR, Collection);
 		ID_PRV_CASE(ID_SCE, Scene);
+		ID_PRV_CASE(ID_SCR, bScreen);
 #undef ID_PRV_CASE
 		default:
 			break;
@@ -476,6 +517,7 @@ void BKE_icon_changed(const int icon_id)
 	if (icon) {
 		/* We *only* expect ID-tied icons here, not non-ID icon/preview! */
 		BLI_assert(icon->id_type != 0);
+		BLI_assert(icon->obj_type == ICON_DATA_ID);
 
 		/* Do not enforce creation of previews for valid ID types using BKE_previewimg_id_ensure() here ,
 		 * we only want to ensure *existing* preview images are properly tagged as changed/invalid, that's all. */
@@ -492,22 +534,31 @@ void BKE_icon_changed(const int icon_id)
 	}
 }
 
-static int icon_id_ensure_create_icon(struct ID *id)
+static Icon *icon_create(int icon_id, int obj_type, void *obj)
 {
-	BLI_assert(BLI_thread_is_main());
+	Icon *new_icon = MEM_mallocN(sizeof(Icon), __func__);
 
-	Icon *new_icon = NULL;
-
-	new_icon = MEM_mallocN(sizeof(Icon), __func__);
-
-	new_icon->obj = id;
-	new_icon->id_type = GS(id->name);
+	new_icon->obj_type = obj_type;
+	new_icon->obj = obj;
+	new_icon->id_type = 0;
+	new_icon->flag = 0;
 
 	/* next two lines make sure image gets created */
 	new_icon->drawinfo = NULL;
 	new_icon->drawinfo_free = NULL;
 
-	BLI_ghash_insert(gIcons, SET_INT_IN_POINTER(id->icon_id), new_icon);
+	BLI_ghash_insert(gIcons, SET_INT_IN_POINTER(icon_id), new_icon);
+
+	return new_icon;
+}
+
+static int icon_id_ensure_create_icon(struct ID *id)
+{
+	BLI_assert(BLI_thread_is_main());
+
+	Icon *icon = icon_create(id->icon_id, ICON_DATA_ID, id);
+	icon->id_type = GS(id->name);
+	icon->flag = ICON_FLAG_MANAGED;
 
 	return id->icon_id;
 }
@@ -546,8 +597,6 @@ int BKE_icon_id_ensure(struct ID *id)
  */
 int BKE_icon_preview_ensure(ID *id, PreviewImage *preview)
 {
-	Icon *new_icon = NULL;
-
 	if (!preview || G.background)
 		return 0;
 
@@ -578,16 +627,8 @@ int BKE_icon_preview_ensure(ID *id, PreviewImage *preview)
 		return icon_id_ensure_create_icon(id);
 	}
 
-	new_icon = MEM_mallocN(sizeof(Icon), __func__);
-
-	new_icon->obj = preview;
-	new_icon->id_type = 0;  /* Special, tags as non-ID icon/preview. */
-
-	/* next two lines make sure image gets created */
-	new_icon->drawinfo = NULL;
-	new_icon->drawinfo_free = NULL;
-
-	BLI_ghash_insert(gIcons, SET_INT_IN_POINTER(preview->icon_id), new_icon);
+	Icon *icon = icon_create(preview->icon_id, ICON_DATA_PREVIEW, preview);
+	icon->flag = ICON_FLAG_MANAGED;
 
 	return preview->icon_id;
 }
@@ -649,21 +690,128 @@ void BKE_icon_id_delete(struct ID *id)
 /**
  * Remove icon and free data.
  */
-void BKE_icon_delete(const int icon_id)
+bool BKE_icon_delete(const int icon_id)
 {
-	Icon *icon;
+	if (icon_id == 0) {
+		/* no icon defined for library object */
+		return false;
+	}
 
-	if (!icon_id) return;  /* no icon defined for library object */
-
-	icon = BLI_ghash_popkey(gIcons, SET_INT_IN_POINTER(icon_id), NULL);
-
+	Icon *icon = BLI_ghash_popkey(gIcons, SET_INT_IN_POINTER(icon_id), NULL);
 	if (icon) {
-		if (icon->id_type != 0) {
-			((ID *)(icon->obj))->icon_id = 0;
-		}
-		else {
-			((PreviewImage *)(icon->obj))->icon_id = 0;
-		}
+		icon_free_data(icon);
 		icon_free(icon);
+		return true;
+	}
+	else {
+		return false;
 	}
 }
+
+bool BKE_icon_delete_unmanaged(const int icon_id)
+{
+	if (icon_id == 0) {
+		/* no icon defined for library object */
+		return false;
+	}
+
+	Icon *icon = BLI_ghash_popkey(gIcons, SET_INT_IN_POINTER(icon_id), NULL);
+	if (icon) {
+		if (UNLIKELY(icon->flag & ICON_FLAG_MANAGED)) {
+			BLI_ghash_insert(gIcons, SET_INT_IN_POINTER(icon_id), icon);
+			return false;
+		}
+		else {
+			icon_free_data(icon);
+			icon_free(icon);
+			return true;
+		}
+	}
+	else {
+		return false;
+	}
+}
+
+/* -------------------------------------------------------------------- */
+/** \name Geometry Icon
+ * \{ */
+
+int BKE_icon_geom_ensure(struct Icon_Geom *geom)
+{
+	BLI_assert(BLI_thread_is_main());
+
+	if (geom->icon_id) {
+		return geom->icon_id;
+	}
+
+	geom->icon_id = get_next_free_id();
+
+	icon_create(geom->icon_id, ICON_DATA_GEOM, geom);
+	/* Not managed for now, we may want this to be configurable per icon). */
+
+	return geom->icon_id;
+}
+
+struct Icon_Geom *BKE_icon_geom_from_memory(const uchar *data, size_t data_len)
+{
+	BLI_assert(BLI_thread_is_main());
+	if (data_len <= 8) {
+		goto fail;
+	}
+	/* Skip the header. */
+	data_len -= 8;
+	const int div = 3 * 2 * 3;
+	const int coords_len = data_len / div;
+	if (coords_len * div != data_len) {
+		goto fail;
+	}
+
+	const uchar header[4] = {'V', 'C', 'O', 0};
+	const uchar *p = data;
+	if (memcmp(p, header, ARRAY_SIZE(header)) != 0) {
+		goto fail;
+	}
+	p += 4;
+
+	struct Icon_Geom *geom = MEM_mallocN(sizeof(*geom), __func__);
+	geom->coords_range[0] = (int)*p++;
+	geom->coords_range[1] = (int)*p++;
+	/* x, y ignored for now */
+	p += 2;
+
+	geom->coords_len = coords_len;
+	geom->coords = (const void *)p;
+	geom->colors = (const void *)(p + (data_len / 3));
+	geom->icon_id = 0;
+	geom->mem = data;
+	return geom;
+
+fail:
+	MEM_freeN((void *)data);
+	return NULL;
+}
+
+struct Icon_Geom *BKE_icon_geom_from_file(const char *filename)
+{
+	BLI_assert(BLI_thread_is_main());
+	size_t data_len;
+	uchar *data = BLI_file_read_binary_as_mem(filename, 0, &data_len);
+	if (data == NULL) {
+		return NULL;
+	}
+	return BKE_icon_geom_from_memory(data, data_len);
+}
+
+/** \} */
+
+/** \name Studio Light Icon
+ * \{ */
+int BKE_icon_ensure_studio_light(struct StudioLight *sl, int id_type)
+{
+	int icon_id = get_next_free_id();
+	Icon *icon = icon_create(icon_id, ICON_DATA_STUDIOLIGHT, sl);
+	icon->id_type = id_type;
+	return icon_id;
+}
+/** \} */
+

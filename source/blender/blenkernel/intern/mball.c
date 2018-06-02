@@ -57,7 +57,6 @@
 
 #include "BKE_animsys.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_scene.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
@@ -67,12 +66,16 @@
 #include "BKE_object.h"
 #include "BKE_material.h"
 
+//#include "DEG_depsgraph.h"
+
 /* Functions */
 
 /** Free (or release) any data used by this mball (does not free the mball itself). */
 void BKE_mball_free(MetaBall *mb)
 {
 	BKE_animdata_free((ID *)mb, false);
+
+	BKE_mball_batch_cache_free(mb);
 
 	MEM_SAFE_FREE(mb->mat);
 
@@ -119,6 +122,7 @@ void BKE_mball_copy_data(Main *UNUSED(bmain), MetaBall *mb_dst, const MetaBall *
 
 	mb_dst->editelems = NULL;
 	mb_dst->lastelem = NULL;
+	mb_dst->batch_cache = NULL;
 }
 
 MetaBall *BKE_mball_copy(Main *bmain, const MetaBall *mb)
@@ -310,13 +314,33 @@ bool BKE_mball_is_basis_for(Object *ob1, Object *ob2)
 	}
 }
 
+bool BKE_mball_is_any_selected(const MetaBall *mb)
+{
+	for (const MetaElem *ml = mb->editelems->first; ml != NULL; ml = ml->next) {
+		if (ml->flag & SELECT) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool BKE_mball_is_any_unselected(const MetaBall *mb)
+{
+	for (const MetaElem *ml = mb->editelems->first; ml != NULL; ml = ml->next) {
+		if ((ml->flag & SELECT) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* \brief copy some properties from object to other metaball object with same base name
  *
  * When some properties (wiresize, threshold, update flags) of metaball are changed, then this properties
  * are copied to all metaballs in same "group" (metaballs with same base name: MBall,
  * MBall.001, MBall.002, etc). The most important is to copy properties to the base metaball,
  * because this metaball influence polygonisation of metaballs. */
-void BKE_mball_properties_copy(EvaluationContext *eval_ctx, Scene *scene, Object *active_object)
+void BKE_mball_properties_copy(Scene *scene, Object *active_object)
 {
 	Scene *sce_iter = scene;
 	Base *base;
@@ -328,8 +352,11 @@ void BKE_mball_properties_copy(EvaluationContext *eval_ctx, Scene *scene, Object
 
 	BLI_split_name_num(basisname, &basisnr, active_object->id.name + 2, '.');
 
-	BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 0, NULL, NULL);
-	while (BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 1, &base, &ob)) {
+	/* Pass depsgraph as NULL, which means we will not expand into
+	 * duplis unlike when we generate the mball. Expanding duplis
+	 * would not be compatible when editing multiple view layers. */
+	BKE_scene_base_iter_next(NULL, &iter, &sce_iter, 0, NULL, NULL);
+	while (BKE_scene_base_iter_next(NULL, &iter, &sce_iter, 1, &base, &ob)) {
 		if (ob->type == OB_MBALL) {
 			if (ob != active_object) {
 				BLI_split_name_num(obname, &obnr, ob->id.name + 2, '.');
@@ -359,28 +386,27 @@ void BKE_mball_properties_copy(EvaluationContext *eval_ctx, Scene *scene, Object
  *
  * warning!, is_basis_mball() can fail on returned object, see long note above.
  */
-Object *BKE_mball_basis_find(EvaluationContext *eval_ctx, Scene *scene, Object *basis)
+Object *BKE_mball_basis_find(Scene *scene, Object *basis)
 {
-	Scene *sce_iter = scene;
-	Base *base;
-	Object *ob, *bob = basis;
+	Object *bob = basis;
 	int basisnr, obnr;
 	char basisname[MAX_ID_NAME], obname[MAX_ID_NAME];
-	SceneBaseIter iter;
 
 	BLI_split_name_num(basisname, &basisnr, basis->id.name + 2, '.');
 
-	BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 0, NULL, NULL);
-	while (BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 1, &base, &ob)) {
-		if ((ob->type == OB_MBALL) && !(base->flag & OB_FROMDUPLI)) {
-			if (ob != bob) {
-				BLI_split_name_num(obname, &obnr, ob->id.name + 2, '.');
+	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
+		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+			Object *ob = base->object;
+			if ((ob->type == OB_MBALL) && !(base->flag & OB_FROMDUPLI)) {
+				if (ob != bob) {
+					BLI_split_name_num(obname, &obnr, ob->id.name + 2, '.');
 
-				/* object ob has to be in same "group" ... it means, that it has to have same base of its name */
-				if (STREQ(obname, basisname)) {
-					if (obnr < basisnr) {
-						basis = ob;
-						basisnr = obnr;
+					/* object ob has to be in same "group" ... it means, that it has to have same base of its name */
+					if (STREQ(obname, basisname)) {
+						if (obnr < basisnr) {
+							basis = ob;
+							basisnr = obnr;
+						}
 					}
 				}
 			}
@@ -537,7 +563,25 @@ void BKE_mball_select_swap(struct MetaBall *mb)
 
 /* **** Depsgraph evaluation **** */
 
-void BKE_mball_eval_geometry(EvaluationContext *UNUSED(eval_ctx),
+void BKE_mball_eval_geometry(struct Depsgraph *UNUSED(depsgraph),
                              MetaBall *UNUSED(mball))
 {
+}
+
+/* Draw Engine */
+
+void (*BKE_mball_batch_cache_dirty_cb)(MetaBall *mb, int mode) = NULL;
+void (*BKE_mball_batch_cache_free_cb)(MetaBall *mb) = NULL;
+
+void BKE_mball_batch_cache_dirty(MetaBall *mb, int mode)
+{
+	if (mb->batch_cache) {
+		BKE_mball_batch_cache_dirty_cb(mb, mode);
+	}
+}
+void BKE_mball_batch_cache_free(MetaBall *mb)
+{
+	if (mb->batch_cache) {
+		BKE_mball_batch_cache_free_cb(mb);
+	}
 }

@@ -48,8 +48,9 @@
 #include "BKE_main.h"
 #include "BKE_animsys.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_report.h"
+
+#include "DEG_depsgraph.h"
 
 #include "ED_keyframing.h"
 #include "ED_screen.h"
@@ -957,6 +958,7 @@ static short keyingset_apply_keying_flags(const short base_flags, const short ov
  */
 int ANIM_apply_keyingset(bContext *C, ListBase *dsources, bAction *act, KeyingSet *ks, short mode, float cfra)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	ReportList *reports = CTX_wm_reports(C);
 	KS_Path *ksp;
@@ -1037,7 +1039,7 @@ int ANIM_apply_keyingset(bContext *C, ListBase *dsources, bAction *act, KeyingSe
 		for (; i < arraylen; i++) {
 			/* action to take depends on mode */
 			if (mode == MODIFYKEY_MODE_INSERT)
-				success += insert_keyframe(reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, keytype, kflag2);
+				success += insert_keyframe(depsgraph, reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, keytype, kflag2);
 			else if (mode == MODIFYKEY_MODE_DELETE)
 				success += delete_keyframe(reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, kflag2);
 		}
@@ -1049,10 +1051,11 @@ int ANIM_apply_keyingset(bContext *C, ListBase *dsources, bAction *act, KeyingSe
 				Object *ob = (Object *)ksp->id;
 				
 				// XXX: only object transforms?
-				DAG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+				DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
 				break;
 			}
 			default:
+				DEG_id_tag_update(ksp->id, DEG_TAG_COPY_ON_WRITE);
 				break;
 		}
 		

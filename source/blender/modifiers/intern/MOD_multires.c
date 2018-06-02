@@ -59,14 +59,14 @@ static void initData(ModifierData *md)
 }
 
 static DerivedMesh *applyModifier(
-        ModifierData *md, Object *ob, DerivedMesh *dm,
-        ModifierApplyFlag flag)
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	MultiresModifierData *mmd = (MultiresModifierData *)md;
 	DerivedMesh *result;
-	Mesh *me = (Mesh *)ob->data;
-	const bool useRenderParams = (flag & MOD_APPLY_RENDER) != 0;
-	const bool ignore_simplify = (flag & MOD_APPLY_IGNORE_SIMPLIFY) != 0;
+	Mesh *me = (Mesh *)ctx->object->data;
+	const bool useRenderParams = (ctx->flag & MOD_APPLY_RENDER) != 0;
+	const bool ignore_simplify = (ctx->flag & MOD_APPLY_IGNORE_SIMPLIFY) != 0;
 	MultiresFlags flags = 0;
 	const bool has_mask = CustomData_has_layer(&me->ldata, CD_GRID_PAINT_MASK);
 
@@ -86,12 +86,12 @@ static DerivedMesh *applyModifier(
 	if (ignore_simplify)
 		flags |= MULTIRES_IGNORE_SIMPLIFY;
 
-	result = multires_make_derived_from_derived(dm, mmd, ob, flags);
+	result = multires_make_derived_from_derived(dm, mmd, ctx->object, flags);
 
 	if (result == dm)
 		return dm;
 
-	if (useRenderParams || !(flag & MOD_APPLY_USECACHE)) {
+	if (useRenderParams || !(ctx->flag & MOD_APPLY_USECACHE)) {
 		DerivedMesh *cddm;
 		
 		cddm = CDDM_copy(result);
@@ -145,17 +145,25 @@ ModifierTypeInfo modifierType_Multires = {
 	                        eModifierTypeFlag_RequiresOriginalData,
 
 	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

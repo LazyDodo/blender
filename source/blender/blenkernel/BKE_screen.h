@@ -41,7 +41,9 @@ struct Menu;
 struct Panel;
 struct Scene;
 struct ScrArea;
+struct ScrVert;
 struct SpaceType;
+struct TransformOrientation;
 struct View3D;
 struct bContext;
 struct bContextDataResult;
@@ -49,10 +51,14 @@ struct bScreen;
 struct uiLayout;
 struct uiList;
 struct wmKeyConfig;
+struct wmManipulatorMap;
 struct wmNotifier;
 struct wmWindow;
 struct wmWindowManager;
+struct WorkSpace;
 struct GPUFXSettings;
+struct wmMsgBus;
+struct ScrAreaMap;
 
 #include "BLI_compiler_attrs.h"
 
@@ -71,8 +77,9 @@ typedef struct SpaceType {
 	int spaceid;                                /* unique space identifier */
 	int iconid;                                 /* icon lookup for menus */
 	
-	/* initial allocation, after this WM will call init() too */
-	struct SpaceLink    *(*new)(const struct bContext *C);
+	/* Initial allocation, after this WM will call init() too. Some editors need
+	 * area and scene data (e.g. frame range) to set their initial scrolling. */
+	struct SpaceLink    *(*new)(const struct ScrArea *, const struct Scene *);
 	/* not free spacelink itself */
 	void (*free)(struct SpaceLink *);
 	
@@ -81,7 +88,9 @@ typedef struct SpaceType {
 	/* exit is called when the area is hidden or removed */
 	void (*exit)(struct wmWindowManager *, struct ScrArea *);
 	/* Listeners can react to bContext changes */
-	void (*listener)(struct bScreen *sc, struct ScrArea *, struct wmNotifier *);
+	void (*listener)(struct bScreen *sc, struct ScrArea *,
+	                 struct wmNotifier *, struct Scene *scene,
+	                 struct WorkSpace *workspace);
 	
 	/* refresh context, called after filereads, ED_area_tag_refresh() */
 	void (*refresh)(const struct bContext *, struct ScrArea *);
@@ -96,11 +105,18 @@ typedef struct SpaceType {
 	/* on startup, define dropboxes for spacetype+regions */
 	void (*dropboxes)(void);
 
+	/* initialize manipulator-map-types and manipulator-group-types with the region */
+	void (*manipulators)(void);
+
 	/* return context data */
 	int (*context)(const struct bContext *, const char *, struct bContextDataResult *);
 
 	/* Used when we want to replace an ID by another (or NULL). */
 	void (*id_remap)(struct ScrArea *, struct SpaceLink *, struct ID *, struct ID *);
+
+	int  (*space_subtype_get)(struct ScrArea *sa);
+	void (*space_subtype_set)(struct ScrArea *sa, int value);
+	void (*space_subtype_item_extend)(struct bContext *C, EnumPropertyItem **item, int *totitem);
 
 	/* region type definitions */
 	ListBase regiontypes;
@@ -128,9 +144,20 @@ typedef struct ARegionType {
 	void (*exit)(struct wmWindowManager *, struct ARegion *);
 	/* draw entirely, view changes should be handled here */
 	void (*draw)(const struct bContext *, struct ARegion *);
+	/* optional, compute button layout before drawing for dynamic size */
+	void (*layout)(const struct bContext *, struct ARegion *);
+	/* snap the size of the region (can be NULL for no snapping). */
+	int (*snap_size)(const struct ARegion *ar, int size, int axis);
 	/* contextual changes should be handled here */
-	void (*listener)(struct bScreen *sc, struct ScrArea *, struct ARegion *, struct wmNotifier *);
-	
+	void (*listener)(struct bScreen *, struct ScrArea *, struct ARegion *,
+	                 struct wmNotifier *, const struct Scene *scene);
+	/* Optional callback to generate subscriptions. */
+	void (*message_subscribe)(
+	        const struct bContext *C,
+	        struct WorkSpace *workspace, struct Scene *scene,
+	        struct bScreen *sc, struct ScrArea *sa, struct ARegion *ar,
+	        struct wmMsgBus *mbus);
+
 	void (*free)(struct ARegion *);
 
 	/* split region, copy data optionally */
@@ -178,6 +205,7 @@ typedef struct PanelType {
 	char translation_context[BKE_ST_MAXNAME];
 	char context[BKE_ST_MAXNAME];             /* for buttons window */
 	char category[BKE_ST_MAXNAME];            /* for category tabs */
+	char owner_id[BKE_ST_MAXNAME];              /* for work-spaces to selectively show. */
 	int space_type;
 	int region_type;
 
@@ -226,6 +254,7 @@ typedef struct HeaderType {
 
 	char idname[BKE_ST_MAXNAME];        /* unique name */
 	int space_type;
+	int region_type;
 
 	/* draw entirely, view changes should be handled here */
 	void (*draw)(const struct bContext *, struct Header *);
@@ -248,6 +277,7 @@ typedef struct MenuType {
 	char idname[BKE_ST_MAXNAME];        /* unique name */
 	char label[BKE_ST_MAXNAME];         /* for button text */
 	char translation_context[BKE_ST_MAXNAME];
+	char owner_id[BKE_ST_MAXNAME];  /* optional, see: #wmOwnerID */
 	const char *description;
 
 	/* verify if the menu should draw or not */
@@ -284,6 +314,9 @@ void BKE_spacedata_id_unref(struct ScrArea *sa, struct SpaceLink *sl, struct ID 
 struct ARegion *BKE_area_region_copy(struct SpaceType *st, struct ARegion *ar);
 void            BKE_area_region_free(struct SpaceType *st, struct ARegion *ar);
 void            BKE_screen_area_free(struct ScrArea *sa);
+/* Manipulator-maps of a region need to be freed with the region. Uses callback to avoid low-level call. */
+void BKE_region_callback_free_manipulatormap_set(void (*callback)(struct wmManipulatorMap *));
+void BKE_region_callback_refresh_tag_manipulatormap_set(void (*callback)(struct wmManipulatorMap *));
 
 struct ARegion *BKE_area_find_region_type(struct ScrArea *sa, int type);
 struct ARegion *BKE_area_find_region_active_win(struct ScrArea *sa);
@@ -299,12 +332,12 @@ unsigned int BKE_screen_view3d_layer_active(
 
 unsigned int BKE_screen_view3d_layer_all(const struct bScreen *sc) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1);
 
+void BKE_screen_manipulator_tag_refresh(struct bScreen *sc);
+
 void BKE_screen_view3d_sync(struct View3D *v3d, struct Scene *scene);
-void BKE_screen_view3d_scene_sync(struct bScreen *sc);
-void BKE_screen_view3d_main_sync(ListBase *screen_lb, struct Scene *scene);
-void BKE_screen_view3d_twmode_remove(struct View3D *v3d, const int i);
-void BKE_screen_view3d_main_twmode_remove(ListBase *screen_lb, struct Scene *scene, const int i);
-void BKE_screen_gpu_fx_validate(struct GPUFXSettings *fx_settings);
+void BKE_screen_view3d_scene_sync(struct bScreen *sc, struct Scene *scene);
+bool BKE_screen_is_fullscreen_area(const struct bScreen *screen) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL();
+bool BKE_screen_is_used(const struct bScreen *screen) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL();
 
 /* zoom factor conversion */
 float BKE_screen_view3d_zoom_to_fac(float camzoom);
@@ -312,7 +345,15 @@ float BKE_screen_view3d_zoom_from_fac(float zoomfac);
 
 /* screen */
 void BKE_screen_free(struct bScreen *sc); 
+void BKE_screen_area_map_free(struct ScrAreaMap *area_map) ATTR_NONNULL();
 unsigned int BKE_screen_visible_layers(struct bScreen *screen, struct Scene *scene);
+
+struct ScrEdge *BKE_screen_find_edge(struct bScreen *sc, struct ScrVert *v1, struct ScrVert *v2);
+void BKE_screen_sort_scrvert(struct ScrVert **v1, struct ScrVert **v2);
+void BKE_screen_remove_double_scrverts(struct bScreen *sc);
+void BKE_screen_remove_double_scredges(struct bScreen *sc);
+void BKE_screen_remove_unused_scredges(struct bScreen *sc);
+void BKE_screen_remove_unused_scrverts(struct bScreen *sc);
 
 #endif
 

@@ -41,7 +41,7 @@ void WM_tooltip_timer_init(
         bContext *C, wmWindow *win, ARegion *ar,
         wmTooltipInitFn init)
 {
-	bScreen *screen = win->screen;
+	bScreen *screen = WM_window_get_active_screen(win);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	if (screen->tool_tip == NULL) {
 		screen->tool_tip = MEM_callocN(sizeof(*screen->tool_tip), __func__);
@@ -54,7 +54,7 @@ void WM_tooltip_timer_init(
 void WM_tooltip_timer_clear(bContext *C, wmWindow *win)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
-	bScreen *screen = win->screen;
+	bScreen *screen = WM_window_get_active_screen(win);
 	if (screen->tool_tip != NULL) {
 		if (screen->tool_tip->timer != NULL) {
 			WM_event_remove_timer(wm, win, screen->tool_tip->timer);
@@ -66,7 +66,7 @@ void WM_tooltip_timer_clear(bContext *C, wmWindow *win)
 void WM_tooltip_clear(bContext *C, wmWindow *win)
 {
 	WM_tooltip_timer_clear(C, win);
-	bScreen *screen = win->screen;
+	bScreen *screen = WM_window_get_active_screen(win);
 	if (screen->tool_tip != NULL) {
 		if (screen->tool_tip->region) {
 			UI_tooltip_free(C, screen, screen->tool_tip->region);
@@ -80,7 +80,7 @@ void WM_tooltip_clear(bContext *C, wmWindow *win)
 void WM_tooltip_init(bContext *C, wmWindow *win)
 {
 	WM_tooltip_timer_clear(C, win);
-	bScreen *screen = win->screen;
+	bScreen *screen = WM_window_get_active_screen(win);
 	if (screen->tool_tip->region) {
 		UI_tooltip_free(C, screen, screen->tool_tip->region);
 		screen->tool_tip->region = NULL;
@@ -95,7 +95,7 @@ void WM_tooltip_init(bContext *C, wmWindow *win)
 void WM_tooltip_refresh(bContext *C, wmWindow *win)
 {
 	WM_tooltip_timer_clear(C, win);
-	bScreen *screen = win->screen;
+	bScreen *screen = WM_window_get_active_screen(win);
 	if (screen->tool_tip != NULL) {
 		if (screen->tool_tip->region) {
 			UI_tooltip_free(C, screen, screen->tool_tip->region);

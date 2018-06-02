@@ -36,9 +36,9 @@ class GRAPH_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
-        GRAPH_MT_editor_menus.draw_collapsible(context, layout)
-
         layout.prop(st, "mode", text="")
+
+        GRAPH_MT_editor_menus.draw_collapsible(context, layout)
 
         dopesheet_filter(layout, context)
 
@@ -129,9 +129,7 @@ class GRAPH_MT_view(Menu):
         layout.operator("graph.view_frame")
 
         layout.separator()
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class GRAPH_MT_select(Menu):

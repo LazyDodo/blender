@@ -45,6 +45,7 @@
 #include "BKE_nla.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_report.h"
 
@@ -123,40 +124,37 @@ static int mouse_nla_channels(bContext *C, bAnimContext *ac, float x, int channe
 		}
 		case ANIMTYPE_OBJECT:
 		{
-			bDopeSheet *ads = (bDopeSheet *)ac->data;
-			Scene *sce = (Scene *)ads->source;
+			ViewLayer *view_layer = ac->view_layer;
 			Base *base = (Base *)ale->data;
 			Object *ob = base->object;
 			AnimData *adt = ob->adt;
 			
-			if (nlaedit_is_tweakmode_on(ac) == 0 && (ob->restrictflag & OB_RESTRICT_SELECT) == 0) {
+			if (nlaedit_is_tweakmode_on(ac) == 0 && (base->flag & BASE_SELECTABLED)) {
 				/* set selection status */
 				if (selectmode == SELECT_INVERT) {
 					/* swap select */
-					base->flag ^= SELECT;
-					ob->flag = base->flag;
+					ED_object_base_select(base, BA_INVERT);
+					BKE_scene_object_base_flag_sync_from_base(base);
 					
 					if (adt) adt->flag ^= ADT_UI_SELECTED;
 				}
 				else {
-					Base *b;
-					
 					/* deselect all */
 					/* TODO: should this deselect all other types of channels too? */
-					for (b = sce->base.first; b; b = b->next) {
-						b->flag &= ~SELECT;
-						b->object->flag = b->flag;
+					for (Base *b = view_layer->object_bases.first; b; b = b->next) {
+						ED_object_base_select(b, BA_DESELECT);
+						BKE_scene_object_base_flag_sync_from_base(b);
 						if (b->object->adt) b->object->adt->flag &= ~(ADT_UI_SELECTED | ADT_UI_ACTIVE);
 					}
 					
 					/* select object now */
-					base->flag |= SELECT;
-					ob->flag |= SELECT;
+					ED_object_base_select(base, BA_SELECT);
+					BKE_scene_object_base_flag_sync_from_base(base);
 					if (adt) adt->flag |= ADT_UI_SELECTED;
 				}
 				
 				/* change active object - regardless of whether it is now selected [T37883] */
-				ED_base_object_activate(C, base); /* adds notifier */
+				ED_object_base_activate(C, base); /* adds notifier */
 				
 				if ((adt) && (adt->flag & ADT_UI_SELECTED))
 					adt->flag |= ADT_UI_ACTIVE;

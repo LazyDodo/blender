@@ -50,12 +50,13 @@
 #include "BKE_blendfile.h"
 #include "BKE_appdir.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
 
 #include "BLO_undofile.h"
 #include "BLO_writefile.h"
+
+#include "DEG_depsgraph.h"
 
 /* -------------------------------------------------------------------- */
 
@@ -87,7 +88,7 @@ bool BKE_memfile_undo_decode(MemFileUndoData *mfu, bContext *C)
 
 	if (success) {
 		/* important not to update time here, else non keyed tranforms are lost */
-		DAG_on_visible_update(G.main, false);
+		DEG_on_visible_update(G.main, false);
 	}
 
 	return success;

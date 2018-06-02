@@ -163,9 +163,6 @@ struct bPoseChannel *BKE_pose_channel_get_mirrored(const struct bPose *pose, con
 bool BKE_pose_channels_is_valid(const struct bPose *pose);
 #endif
 
-/* Copy the data from the action-pose (src) into the pose */
-void extract_pose_from_pose(struct bPose *pose, const struct bPose *src);
-
 /* sets constraint flags */
 void BKE_pose_update_constraint_flags(struct bPose *pose);
 
@@ -210,6 +207,7 @@ void BKE_pose_rest(struct bPose *pose);
 
 /* Tag pose for recalc. Also tag all related data to be recalc. */
 void BKE_pose_tag_recalc(struct Main *bmain, struct bPose *pose);
+
 
 #ifdef __cplusplus
 };

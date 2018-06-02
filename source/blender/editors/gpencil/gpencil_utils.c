@@ -65,6 +65,8 @@
 #include "ED_clip.h"
 #include "ED_view3d.h"
 
+#include "DEG_depsgraph.h"
+
 #include "gpencil_intern.h"
 
 /* ******************************************************** */
@@ -202,15 +204,15 @@ bGPdata *ED_gpencil_data_get_active(const bContext *C)
 /* -------------------------------------------------------- */
 
 // XXX: this should be removed... We really shouldn't duplicate logic like this!
-bGPdata *ED_gpencil_data_get_active_v3d(Scene *scene, View3D *v3d)
+bGPdata *ED_gpencil_data_get_active_v3d(Scene *scene, ViewLayer *view_layer)
 {
-	Base *base = scene->basact;
+	Base *base = view_layer->basact;
 	bGPdata *gpd = NULL;
 	/* We have to make sure active object is actually visible and selected, else we must use default scene gpd,
 	 * to be consistent with ED_gpencil_data_get_active's behavior.
 	 */
 	
-	if (base && TESTBASE(v3d, base)) {
+	if (base && TESTBASE(base)) {
 		gpd = base->object->gpd;
 	}
 	return gpd ? gpd : scene->gpd;
@@ -536,6 +538,7 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
 	if (sa->spacetype == SPACE_VIEW3D) {
 		wmWindow *win = CTX_wm_window(C);
 		Scene *scene = CTX_data_scene(C);
+		struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		View3D *v3d = (View3D *)CTX_wm_space_data(C);
 		RegionView3D *rv3d = ar->regiondata;
 		
@@ -543,11 +546,11 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
 		view3d_operator_needs_opengl(C);
 		
 		view3d_region_operator_needs_opengl(win, ar);
-		ED_view3d_autodist_init(scene, ar, v3d, 0);
+		ED_view3d_autodist_init(depsgraph, ar, v3d, 0);
 		
 		/* for camera view set the subrect */
 		if (rv3d->persp == RV3D_CAMOB) {
-			ED_view3d_calc_camera_border(scene, ar, v3d, rv3d, &r_gsc->subrect_data, true); /* no shift */
+			ED_view3d_calc_camera_border(scene, CTX_data_depsgraph(C), ar, v3d, rv3d, &r_gsc->subrect_data, true); /* no shift */
 			r_gsc->subrect = &r_gsc->subrect_data;
 		}
 	}
@@ -742,7 +745,7 @@ bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, Scene *scene, const float screen
 {
 	View3D *v3d = gsc->sa->spacedata.first;
 	RegionView3D *rv3d = gsc->ar->regiondata;
-	float *rvec = ED_view3d_cursor3d_get(scene, v3d);
+	float *rvec = ED_view3d_cursor3d_get(scene, v3d)->location;
 	float ref[3] = {rvec[0], rvec[1], rvec[2]};
 	float zfac = ED_view3d_calc_zfac(rv3d, rvec, NULL);
 	
@@ -912,8 +915,8 @@ bool gp_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf)
 	ptc = &gps->points[after];
 
 	/* the optimal value is the corresponding to the interpolation of the pressure
-	*  at the distance of point b
-	*/
+	 *  at the distance of point b
+	 */
 	float fac = line_point_factor_v3(&ptb->x, &pta->x, &ptc->x);
 	float optimal = (1.0f - fac) * pta->pressure + fac * ptc->pressure;
 

@@ -488,7 +488,7 @@ typedef enum eBConstraint_Types {
 	CONSTRAINT_TYPE_DISTLIMIT = 14,			/* limit distance */
 	CONSTRAINT_TYPE_STRETCHTO = 15,			/* claiming this to be mine :) is in tuhopuu bjornmose */ 
 	CONSTRAINT_TYPE_MINMAX = 16,  			/* floor constraint */
-	CONSTRAINT_TYPE_RIGIDBODYJOINT = 17,		/* rigidbody constraint */
+	/* CONSTRAINT_TYPE_DEPRECATED = 17 */
 	CONSTRAINT_TYPE_CLAMPTO = 18, 			/* clampto constraint */
 	CONSTRAINT_TYPE_TRANSFORM = 19,			/* transformation (loc/rot/size -> loc/rot/size) constraint */
 	CONSTRAINT_TYPE_SHRINKWRAP = 20,		/* shrinkwrap (loc/rot) constraint */
@@ -526,6 +526,8 @@ typedef enum eBConstraint_Flags {
 	CONSTRAINT_OFF = (1<<9),
 		/* use bbone curve shape when calculating headtail values */
 	CONSTRAINT_BBONE_SHAPE = (1<<10),
+		/* That constraint has been inserted in local override (i.e. it can be fully edited!). */
+	CONSTRAINT_STATICOVERRIDE_LOCAL = (1 << 11),
 } eBConstraint_Flags;
 
 /* bConstraint->ownspace/tarspace */
@@ -840,10 +842,6 @@ typedef enum eCameraSolver_Flags {
 typedef enum eObjectSolver_Flags {
 	OBJECTSOLVER_ACTIVECLIP	= (1<<0)
 } eObjectSolver_Flags;
-
-/* Rigid-Body Constraint */
-#define CONSTRAINT_DRAW_PIVOT 0x40
-#define 	CONSTRAINT_DISABLE_LINKED_COLLISION 0x80
 
 /* ObjectSolver Constraint -> flag */
 typedef enum eStretchTo_Flags {

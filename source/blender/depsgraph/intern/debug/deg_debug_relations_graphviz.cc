@@ -81,18 +81,21 @@ static const char *deg_debug_colors_light[] = {
 #ifdef COLOR_SCHEME_NODE_TYPE
 static const int deg_debug_node_type_color_map[][2] = {
     {DEG_NODE_TYPE_TIMESOURCE,   0},
-    {DEG_NODE_TYPE_ID_REF,       2},
+    {DEG_NODE_TYPE_ID_REF,       1},
 
     /* Outer Types */
-    {DEG_NODE_TYPE_PARAMETERS,   2},
-    {DEG_NODE_TYPE_PROXY,        3},
-    {DEG_NODE_TYPE_ANIMATION,    4},
-    {DEG_NODE_TYPE_TRANSFORM,    5},
-    {DEG_NODE_TYPE_GEOMETRY,     6},
-    {DEG_NODE_TYPE_SEQUENCER,    7},
-    {DEG_NODE_TYPE_SHADING,      8},
-    {DEG_NODE_TYPE_CACHE,        9},
-    {-1,                         0}
+    {DEG_NODE_TYPE_PARAMETERS,        2},
+    {DEG_NODE_TYPE_PROXY,             3},
+    {DEG_NODE_TYPE_ANIMATION,         4},
+    {DEG_NODE_TYPE_TRANSFORM,         5},
+    {DEG_NODE_TYPE_GEOMETRY,          6},
+    {DEG_NODE_TYPE_SEQUENCER,         7},
+    {DEG_NODE_TYPE_SHADING,           8},
+    {DEG_NODE_TYPE_SHADING_PARAMETERS, 9},
+    {DEG_NODE_TYPE_CACHE,             10},
+    {DEG_NODE_TYPE_LAYER_COLLECTIONS, 11},
+    {DEG_NODE_TYPE_COPY_ON_WRITE,     12},
+    {-1,                              0}
 };
 #endif
 
@@ -297,12 +300,6 @@ static void deg_debug_graphviz_node_single(const DebugContext &ctx,
 {
 	const char *shape = "box";
 	string name = node->identifier();
-	if (node->type == DEG_NODE_TYPE_ID_REF) {
-		IDDepsNode *id_node = (IDDepsNode *)node;
-		char buf[256];
-		BLI_snprintf(buf, sizeof(buf), " (Layers: %u)", id_node->layers);
-		name += buf;
-	}
 	deg_debug_fprintf(ctx, "// %s\n", name.c_str());
 	deg_debug_fprintf(ctx, "\"node_%p\"", node);
 	deg_debug_fprintf(ctx, "[");
@@ -323,12 +320,6 @@ static void deg_debug_graphviz_node_cluster_begin(const DebugContext &ctx,
                                                   const DepsNode *node)
 {
 	string name = node->identifier();
-	if (node->type == DEG_NODE_TYPE_ID_REF) {
-		IDDepsNode *id_node = (IDDepsNode *)node;
-		char buf[256];
-		BLI_snprintf(buf, sizeof(buf), " (Layers: %u)", id_node->layers);
-		name += buf;
-	}
 	deg_debug_fprintf(ctx, "// %s\n", name.c_str());
 	deg_debug_fprintf(ctx, "subgraph \"cluster_%p\" {" NL, node);
 //	deg_debug_fprintf(ctx, "label=<<B>%s</B>>;" NL, name);
@@ -390,8 +381,12 @@ static void deg_debug_graphviz_node(const DebugContext &ctx,
 		case DEG_NODE_TYPE_EVAL_POSE:
 		case DEG_NODE_TYPE_BONE:
 		case DEG_NODE_TYPE_SHADING:
+		case DEG_NODE_TYPE_SHADING_PARAMETERS:
 		case DEG_NODE_TYPE_CACHE:
+		case DEG_NODE_TYPE_LAYER_COLLECTIONS:
 		case DEG_NODE_TYPE_EVAL_PARTICLES:
+		case DEG_NODE_TYPE_COPY_ON_WRITE:
+		case DEG_NODE_TYPE_BATCH_CACHE:
 		{
 			ComponentDepsNode *comp_node = (ComponentDepsNode *)node;
 			if (!comp_node->operations.empty()) {
@@ -406,8 +401,12 @@ static void deg_debug_graphviz_node(const DebugContext &ctx,
 			}
 			break;
 		}
-		default:
+		case DEG_NODE_TYPE_UNDEFINED:
+		case DEG_NODE_TYPE_TIMESOURCE:
+		case DEG_NODE_TYPE_OPERATION:
 			deg_debug_graphviz_node_single(ctx, node);
+			break;
+		case NUM_DEG_NODE_TYPES:
 			break;
 	}
 }

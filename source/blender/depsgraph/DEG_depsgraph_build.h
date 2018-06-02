@@ -40,12 +40,14 @@ struct Depsgraph;
 
 /* ------------------------------------------------ */
 
-struct Main;
-struct Scene;
-struct Group;
+struct CacheFile;
 struct EffectorWeights;
+struct Collection;
+struct Main;
 struct ModifierData;
 struct Object;
+struct Scene;
+struct ViewLayer;
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,27 +58,22 @@ extern "C" {
 /* Build depsgraph for the given scene, and dump results in given
  * graph container.
  */
-void DEG_graph_build_from_scene(struct Depsgraph *graph,
-                                struct Main *bmain,
-                                struct Scene *scene);
+void DEG_graph_build_from_view_layer(struct Depsgraph *graph,
+                                      struct Main *bmain,
+                                      struct Scene *scene,
+                                      struct ViewLayer *view_layer);
 
 /* Tag relations from the given graph for update. */
 void DEG_graph_tag_relations_update(struct Depsgraph *graph);
 
+/* Create or update relations in the specified graph. */
+void DEG_graph_relations_update(struct Depsgraph *graph,
+                                struct Main *bmain,
+                                struct Scene *scene,
+                                struct ViewLayer *view_layer);
+
 /* Tag all relations in the database for update.*/
 void DEG_relations_tag_update(struct Main *bmain);
-
-/* Create new graph if didn't exist yet,
- * or update relations if graph was tagged for update.
- */
-void DEG_scene_relations_update(struct Main *bmain, struct Scene *scene);
-
-/* Rebuild dependency graph only for a given scene. */
-void DEG_scene_relations_rebuild(struct Main *bmain,
-                                 struct Scene *scene);
-
-/* Delete scene graph. */
-void DEG_scene_graph_free(struct Scene *scene);
 
 /* Add Dependencies  ----------------------------- */
 
@@ -86,9 +83,6 @@ void DEG_scene_graph_free(struct Scene *scene);
  * All relations will be defined in reference to that node.
  */
 struct DepsNodeHandle;
-
-struct CacheFile;
-struct Object;
 
 typedef enum eDepsSceneComponentType {
 	/* Parameters Component - Default when nothing else fits
@@ -165,8 +159,7 @@ typedef bool (*DEG_CollobjFilterFunction)(struct Object *obj, struct ModifierDat
 void DEG_add_collision_relations(struct DepsNodeHandle *handle,
                                  struct Scene *scene,
                                  struct Object *object,
-                                 struct Group *group,
-                                 int layer,
+                                 struct Collection *collection,
                                  unsigned int modifier_type,
                                  DEG_CollobjFilterFunction fn,
                                  bool dupli,

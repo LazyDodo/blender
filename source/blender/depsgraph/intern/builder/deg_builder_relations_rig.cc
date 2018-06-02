@@ -176,7 +176,8 @@ void DepsgraphRelationBuilder::build_ik_pose(Object *object,
 		}
 	}
 
-	DEG_DEBUG_PRINTF(BUILD, "\nStarting IK Build: pchan = %s, target = (%s, %s), segcount = %d\n",
+	DEG_DEBUG_PRINTF((::Depsgraph *)graph_,
+	                 BUILD, "\nStarting IK Build: pchan = %s, target = (%s, %s), segcount = %d\n",
 	                 pchan->name, data->tar->id.name, data->subtarget, data->rootbone);
 
 	bPoseChannel *parchan = pchan;
@@ -219,7 +220,7 @@ void DepsgraphRelationBuilder::build_ik_pose(Object *object,
 		root_map->add_bone(parchan->name, rootchan->name);
 
 		/* continue up chain, until we reach target number of items... */
-		DEG_DEBUG_PRINTF(BUILD, "  %d = %s\n", segcount, parchan->name);
+		DEG_DEBUG_PRINTF((::Depsgraph *)graph_, BUILD, "  %d = %s\n", segcount, parchan->name);
 		segcount++;
 		if ((segcount == data->rootbone) || (segcount > 255)) break;  /* 255 is weak */
 
@@ -387,16 +388,12 @@ void DepsgraphRelationBuilder::build_rig(Object *object)
 		OperationKey bone_pose_key(&object->id, DEG_NODE_TYPE_BONE, pchan->name, DEG_OPCODE_BONE_POSE_PARENT);
 		OperationKey bone_ready_key(&object->id, DEG_NODE_TYPE_BONE, pchan->name, DEG_OPCODE_BONE_READY);
 		OperationKey bone_done_key(&object->id, DEG_NODE_TYPE_BONE, pchan->name, DEG_OPCODE_BONE_DONE);
-
 		pchan->flag &= ~POSE_DONE;
-
-		/* pose init to bone local */
+		/* Pose init to bone local. */
 		add_relation(init_key, bone_local_key, "PoseEval Source-Bone Link");
-
-		/* local to pose parenting operation */
+		/* Local to pose parenting operation. */
 		add_relation(bone_local_key, bone_pose_key, "Bone Local - PoseSpace Link");
-
-		/* parent relation */
+		/* Parent relation. */
 		if (pchan->parent != NULL) {
 			eDepsOperation_Code parent_key_opcode;
 
@@ -411,8 +408,7 @@ void DepsgraphRelationBuilder::build_rig(Object *object)
 			OperationKey parent_key(&object->id, DEG_NODE_TYPE_BONE, pchan->parent->name, parent_key_opcode);
 			add_relation(parent_key, bone_pose_key, "Parent Bone -> Child Bone");
 		}
-
-		/* constraints */
+		/* Buil constraints. */
 		if (pchan->constraints.first != NULL) {
 			/* Build relations for indirectly linked objects. */
 			BuilderWalkUserData data;
@@ -447,7 +443,7 @@ void DepsgraphRelationBuilder::build_rig(Object *object)
 
 		/* Custom shape. */
 		if (pchan->custom != NULL) {
-			build_object(pchan->custom);
+			build_object(NULL, pchan->custom);
 		}
 	}
 }

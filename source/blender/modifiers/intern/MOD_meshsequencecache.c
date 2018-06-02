@@ -37,7 +37,6 @@
 #include "BKE_library_query.h"
 #include "BKE_scene.h"
 
-#include "depsgraph_private.h"
 #include "DEG_depsgraph_build.h"
 
 #include "MOD_modifiertypes.h"
@@ -89,15 +88,14 @@ static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 }
 
 static DerivedMesh *applyModifier(
-        ModifierData *md, Object *ob,
-        DerivedMesh *dm,
-        ModifierApplyFlag UNUSED(flag))
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 #ifdef WITH_ALEMBIC
 	MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *) md;
 
 	/* Only used to check whether we are operating on org data or not... */
-	Mesh *me = (ob->type == OB_MESH) ? ob->data : NULL;
+	Mesh *me = (ctx->object->type == OB_MESH) ? ctx->object->data : NULL;
 	DerivedMesh *org_dm = dm;
 
 	Scene *scene = md->scene;
@@ -112,7 +110,7 @@ static DerivedMesh *applyModifier(
 	if (!mcmd->reader) {
 		mcmd->reader = CacheReader_open_alembic_object(cache_file->handle,
 		                                               NULL,
-		                                               ob,
+		                                               ctx->object,
 		                                               mcmd->object_path);
 		if (!mcmd->reader) {
 			modifier_setError(md, "Could not create Alembic reader for file %s", cache_file->filepath);
@@ -131,7 +129,7 @@ static DerivedMesh *applyModifier(
 	}
 
 	DerivedMesh *result = ABC_read_mesh(mcmd->reader,
-	                                    ob,
+	                                    ctx->object,
 	                                    dm,
 	                                    time,
 	                                    &err_str,
@@ -149,7 +147,7 @@ static DerivedMesh *applyModifier(
 	return result ? result : dm;
 #else
 	return dm;
-	UNUSED_VARS(md, ob);
+	UNUSED_VARS(ctx, md);
 #endif
 }
 
@@ -169,18 +167,6 @@ static void foreachIDLink(
 }
 
 
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *) md;
-
-	if (mcmd->cache_file != NULL) {
-		DagNode *curNode = dag_get_node(ctx->forest, mcmd->cache_file);
-
-		dag_add_relation(ctx->forest, curNode, ctx->obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Cache File Modifier");
-	}
-}
-
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *) md;
@@ -191,28 +177,37 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 ModifierTypeInfo modifierType_MeshSequenceCache = {
-    /* name */              "Mesh Sequence Cache",
-    /* structName */        "MeshSeqCacheModifierData",
-    /* structSize */        sizeof(MeshSeqCacheModifierData),
-    /* type */              eModifierTypeType_Constructive,
-    /* flags */             eModifierTypeFlag_AcceptsMesh |
-                            eModifierTypeFlag_AcceptsCVs,
-    /* copyData */          copyData,
-    /* deformVerts */       NULL,
-    /* deformMatrices */    NULL,
-    /* deformVertsEM */     NULL,
-    /* deformMatricesEM */  NULL,
-    /* applyModifier */     applyModifier,
-    /* applyModifierEM */   NULL,
-    /* initData */          initData,
-    /* requiredDataMask */  NULL,
-    /* freeData */          freeData,
-    /* isDisabled */        isDisabled,
-    /* updateDepgraph */    updateDepgraph,
-    /* updateDepsgraph */   updateDepsgraph,
-    /* dependsOnTime */     dependsOnTime,
-    /* dependsOnNormals */  NULL,
-    /* foreachObjectLink */ NULL,
-    /* foreachIDLink */     foreachIDLink,
-    /* foreachTexLink */    NULL,
+	/* name */              "Mesh Sequence Cache",
+	/* structName */        "MeshSeqCacheModifierData",
+	/* structSize */        sizeof(MeshSeqCacheModifierData),
+	/* type */              eModifierTypeType_Constructive,
+	/* flags */             eModifierTypeFlag_AcceptsMesh |
+	                        eModifierTypeFlag_AcceptsCVs,
+
+	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
+	/* deformMatrices */    NULL,
+	/* deformVertsEM */     NULL,
+	/* deformMatricesEM */  NULL,
+	/* applyModifier */     NULL,
+	/* applyModifierEM */   NULL,
+
+	/* initData */          initData,
+	/* requiredDataMask */  NULL,
+	/* freeData */          freeData,
+	/* isDisabled */        isDisabled,
+	/* updateDepsgraph */   updateDepsgraph,
+	/* dependsOnTime */     dependsOnTime,
+	/* dependsOnNormals */  NULL,
+	/* foreachObjectLink */ NULL,
+	/* foreachIDLink */     foreachIDLink,
+	/* foreachTexLink */    NULL,
 };

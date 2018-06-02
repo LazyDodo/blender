@@ -39,6 +39,7 @@ struct ID;
 struct View3D;
 struct ARegion;
 struct bContext;
+struct Depsgraph;
 struct wmOperator;
 struct wmKeyConfig;
 struct ReportList;
@@ -47,7 +48,6 @@ struct bDeformGroup;
 struct MDeformVert;
 struct Scene;
 struct Mesh;
-struct MTexPoly;
 struct UvVertMap;
 struct UvMapVert;
 struct BMEditMesh;
@@ -114,8 +114,7 @@ struct UvElement    *BM_uv_element_get(struct UvElementMap *map, struct BMFace *
 
 bool           EDBM_uv_check(struct BMEditMesh *em);
 struct BMFace *EDBM_uv_active_face_get(
-        struct BMEditMesh *em, const bool sloppy, const bool selected,
-        struct MTexPoly **r_tf);
+        struct BMEditMesh *em, const bool sloppy, const bool selected);
 
 void              BM_uv_vert_map_free(struct UvVertMap *vmap);
 struct UvMapVert *BM_uv_vert_map_at_index(struct UvVertMap *vmap, unsigned int v);
@@ -127,6 +126,7 @@ void EDBM_flag_enable_all(struct BMEditMesh *em, const char hflag);
 void EDBM_flag_disable_all(struct BMEditMesh *em, const char hflag);
 
 bool BMBVH_EdgeVisible(struct BMBVHTree *tree, struct BMEdge *e,
+                       struct Depsgraph *depsgraph,
                        struct ARegion *ar, struct View3D *v3d, struct Object *obedit);
 
 /* editmesh_undo.c */
@@ -221,13 +221,18 @@ typedef struct MirrTopoStore_t {
 	intptr_t *index_lookup;
 	int prev_vert_tot;
 	int prev_edge_tot;
-	int prev_ob_mode;
+	bool prev_is_editmode;
 } MirrTopoStore_t;
 
 bool ED_mesh_mirrtopo_recalc_check(
-        struct Mesh *me, struct DerivedMesh *dm, const int ob_mode, MirrTopoStore_t *mesh_topo_store);
+        struct Mesh *me, struct DerivedMesh *dm, MirrTopoStore_t *mesh_topo_store);
+bool ED_mesh_mirrtopo_recalc_check__real_mesh(
+        struct Mesh *me, struct Mesh *dm, MirrTopoStore_t *mesh_topo_store);
 void ED_mesh_mirrtopo_init(
-        struct Mesh *me, struct DerivedMesh *dm, const int ob_mode, MirrTopoStore_t *mesh_topo_store,
+        struct Mesh *me, struct DerivedMesh *dm, MirrTopoStore_t *mesh_topo_store,
+        const bool skip_em_vert_array_init);
+void ED_mesh_mirrtopo_init__real_mesh(
+        struct Mesh *me, struct Mesh *dm, MirrTopoStore_t *mesh_topo_store,
         const bool skip_em_vert_array_init);
 void ED_mesh_mirrtopo_free(MirrTopoStore_t *mesh_topo_store);
 
@@ -265,7 +270,6 @@ void                 ED_vgroup_vert_add(struct Object *ob, struct bDeformGroup *
 void                 ED_vgroup_vert_remove(struct Object *ob, struct bDeformGroup *dg, int vertnum);
 float                ED_vgroup_vert_weight(struct Object *ob, struct bDeformGroup *dg, int vertnum);
 void                 ED_vgroup_vert_active_mirror(struct Object *ob, int def_nr);
-
 
 /* mesh_data.c */
 // void ED_mesh_geometry_add(struct Mesh *mesh, struct ReportList *reports, int verts, int edges, int faces);
@@ -319,16 +323,21 @@ int         join_mesh_shapes_exec(struct bContext *C, struct wmOperator *op);
 /* mirror lookup api */
 int ED_mesh_mirror_spatial_table(
         struct Object *ob, struct BMEditMesh *em, struct DerivedMesh *dm, const float co[3], char mode);
+int ED_mesh_mirror_spatial_table__real_mesh(
+        struct Object *ob, struct BMEditMesh *em, struct Mesh *mesh, const float co[3], char mode);
 int  ED_mesh_mirror_topo_table(struct Object *ob, struct DerivedMesh *dm, char mode);
+int ED_mesh_mirror_topo_table__real_mesh(struct Object *ob, struct Mesh *mesh, char mode);
 
 /* retrieves mirrored cache vert, or NULL if there isn't one.
  * note: calling this without ensuring the mirror cache state
  * is bad.*/
 int            mesh_get_x_mirror_vert(struct Object *ob, struct DerivedMesh *dm, int index, const bool use_topology);
+int mesh_get_x_mirror_vert__real_mesh(struct Object *ob, struct Mesh *mesh, int index, const bool use_topology);
 struct BMVert *editbmesh_get_x_mirror_vert(struct Object *ob, struct BMEditMesh *em,
                                            struct BMVert *eve, const float co[3],
                                            int index, const bool use_topology);
 int           *mesh_get_x_mirror_faces(struct Object *ob, struct BMEditMesh *em, struct DerivedMesh *dm);
+int *mesh_get_x_mirror_faces__real_mesh(struct Object *ob, struct BMEditMesh *em, struct Mesh *mesh);
 
 int ED_mesh_mirror_get_vert(struct Object *ob, int index);
 
@@ -340,6 +349,9 @@ bool ED_mesh_pick_face_vert(struct bContext *C, struct Object *ob, const int mva
 struct MDeformVert *ED_mesh_active_dvert_get_em(struct Object *ob, struct BMVert **r_eve);
 struct MDeformVert *ED_mesh_active_dvert_get_ob(struct Object *ob, int *r_index);
 struct MDeformVert *ED_mesh_active_dvert_get_only(struct Object *ob);
+
+void EDBM_mesh_stats_multi(struct Object **objects, const uint objects_len, int totelem[3], int totelem_sel[3]);
+void EDBM_mesh_elem_index_ensure_multi(struct Object **objects, const uint objects_len, const char htype);
 
 #define ED_MESH_PICK_DEFAULT_VERT_SIZE 50
 #define ED_MESH_PICK_DEFAULT_FACE_SIZE 3

@@ -42,6 +42,7 @@
 #include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_fcurve.h"
+#include "BKE_layer.h"
 #include "BKE_report.h"
 
 #include "WM_api.h"
@@ -452,32 +453,46 @@ void CURVE_OT_de_select_last(wmOperatorType *ot)
 
 static int de_select_all_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	Curve *cu = obedit->data;
 	int action = RNA_enum_get(op->ptr, "action");
+
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
 	if (action == SEL_TOGGLE) {
 		action = SEL_SELECT;
-		if (ED_curve_select_check(cu, cu->editnurb)) {
-			action = SEL_DESELECT;
+		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+			Object *obedit = objects[ob_index];
+			Curve *cu = obedit->data;
+
+			if (ED_curve_select_check(cu, cu->editnurb)) {
+				action = SEL_DESELECT;
+				break;
+			}
 		}
 	}
 
-	switch (action) {
-		case SEL_SELECT:
-			ED_curve_select_all(cu->editnurb);
-			break;
-		case SEL_DESELECT:
-			ED_curve_deselect_all(cu->editnurb);
-			break;
-		case SEL_INVERT:
-			ED_curve_select_swap(cu->editnurb, (cu->drawflag & CU_HIDE_HANDLES) != 0);
-			break;
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		Curve *cu = obedit->data;
+
+		switch (action) {
+			case SEL_SELECT:
+				ED_curve_select_all(cu->editnurb);
+				break;
+			case SEL_DESELECT:
+				ED_curve_deselect_all(cu->editnurb);
+				break;
+			case SEL_INVERT:
+				ED_curve_select_swap(cu->editnurb, (cu->drawflag & CU_HIDE_HANDLES) != 0);
+				break;
+		}
+
+		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
+		BKE_curve_nurb_vert_active_validate(cu);
 	}
 
-	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
-	BKE_curve_nurb_vert_active_validate(cu);
-
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
 
@@ -505,19 +520,30 @@ void CURVE_OT_select_all(wmOperatorType *ot)
 
 static int select_linked_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	Object *obedit = CTX_data_edit_object(C);
-	Curve *cu = (Curve *)obedit->data;
-	EditNurb *editnurb = cu->editnurb;
-	ListBase *nurbs = &editnurb->nurbs;
-	Nurb *nu;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	for (nu = nurbs->first; nu; nu = nu->next) {
-		if (ED_curve_nurb_select_check(cu, nu)) {
-			ED_curve_nurb_select_all(nu);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		Curve *cu = obedit->data;
+		EditNurb *editnurb = cu->editnurb;
+		ListBase *nurbs = &editnurb->nurbs;
+		Nurb *nu;
+		bool changed = false;
+
+		for (nu = nurbs->first; nu; nu = nu->next) {
+			if (ED_curve_nurb_select_check(cu, nu)) {
+				ED_curve_nurb_select_all(nu);
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
 		}
 	}
-
-	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -532,7 +558,7 @@ void CURVE_OT_select_linked(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Select Linked All";
 	ot->idname = "CURVE_OT_select_linked";
-	ot->description = "Select all control points linked to active one";
+	ot->description = "Select all control points linked to the current selection";
 
 	/* api callbacks */
 	ot->exec = select_linked_exec;
@@ -1040,17 +1066,31 @@ static void curve_select_random(ListBase *editnurb, float randfac, int seed, boo
 
 static int curve_select_random_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	ListBase *editnurb = object_editcurve_get(obedit);
 	const bool select = (RNA_enum_get(op->ptr, "action") == SEL_SELECT);
 	const float randfac = RNA_float_get(op->ptr, "percent") / 100.0f;
 	const int seed = WM_operator_properties_select_random_seed_increment_get(op);
 
-	curve_select_random(editnurb, randfac, seed, select);
-	BKE_curve_nurb_vert_active_validate(obedit->data);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		ListBase *editnurb = object_editcurve_get(obedit);
+		int seed_iter = seed;
 
+		/* This gives a consistent result regardless of object order. */
+		if (ob_index) {
+			seed_iter += BLI_ghashutil_strhash_p(obedit->id.name);
+		}
+
+		curve_select_random(editnurb, randfac, seed_iter, select);
+		BKE_curve_nurb_vert_active_validate(obedit->data);
+
+		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
+	}
+
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
 
@@ -1599,6 +1639,7 @@ static void curve_select_shortest_path_surf(Nurb *nu, int vert_src, int vert_dst
 	/* init heap */
 	heap = BLI_heap_new();
 
+	vert_curr = data[vert_src].vert;
 	BLI_heap_insert(heap, 0.0f, &data[vert_src].vert);
 	data[vert_src].cost = 0.0f;
 	data[vert_src].vert_prev = vert_src;  /* nop */

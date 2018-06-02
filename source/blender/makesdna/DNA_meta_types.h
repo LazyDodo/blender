@@ -59,7 +59,6 @@ typedef struct MetaElem {
 	float len;              /* old, only used for backwards compat. use dimensions now */
 	
 	float *mat, *imat;      /* matrix and inverted matrix */
-	
 } MetaElem;
 
 typedef struct MetaBall {
@@ -93,6 +92,8 @@ typedef struct MetaBall {
 	/* used in editmode */
 	/*ListBase edit_elems;*/
 	MetaElem *lastelem;
+
+	void *batch_cache;
 } MetaBall;
 
 /* **************** METABALL ********************* */

@@ -40,8 +40,6 @@
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 
@@ -141,9 +139,8 @@ static void uv_warp_compute(
 }
 
 static DerivedMesh *applyModifier(
-        ModifierData *md, Object *ob,
-        DerivedMesh *dm,
-        ModifierApplyFlag UNUSED(flag))
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	UVWarpModifierData *umd = (UVWarpModifierData *) md;
 	int numPolys, numLoops;
@@ -201,7 +198,7 @@ static DerivedMesh *applyModifier(
 	mloop = dm->getLoopArray(dm);
 	/* make sure we are not modifying the original UV map */
 	mloopuv = CustomData_duplicate_referenced_layer_named(&dm->loopData, CD_MLOOPUV, uvname, numLoops);
-	modifier_get_vgroup(ob, dm, umd->vgroup_name, &dvert, &defgrp_index);
+	modifier_get_vgroup(ctx->object, dm, umd->vgroup_name, &dvert, &defgrp_index);
 
 	UVWarpData data = {.mpoly = mpoly, .mloop = mloop, .mloopuv = mloopuv,
 	                   .dvert = dvert, .defgrp_index = defgrp_index,
@@ -225,28 +222,6 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 
 	walk(userData, ob, &umd->object_dst, IDWALK_CB_NOP);
 	walk(userData, ob, &umd->object_src, IDWALK_CB_NOP);
-}
-
-static void uv_warp_deps_object_bone(
-        DagForest *forest, DagNode *obNode,
-        Object *obj, const char *bonename)
-{
-	if (obj) {
-		DagNode *curNode = dag_get_node(forest, obj);
-
-		if (bonename[0])
-			dag_add_relation(forest, curNode, obNode, DAG_RL_OB_DATA | DAG_RL_DATA_DATA, "UVWarp Modifier");
-		else
-			dag_add_relation(forest, curNode, obNode, DAG_RL_OB_DATA, "UVWarp Modifier");
-	}
-}
-
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	UVWarpModifierData *umd = (UVWarpModifierData *) md;
-
-	uv_warp_deps_object_bone(ctx->forest, ctx->obNode, umd->object_src, umd->bone_src);
-	uv_warp_deps_object_bone(ctx->forest, ctx->obNode, umd->object_dst, umd->bone_dst);
 }
 
 static void uv_warp_deps_object_bone_new(
@@ -278,18 +253,27 @@ ModifierTypeInfo modifierType_UVWarp = {
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode,
+
 	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  NULL,

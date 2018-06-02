@@ -52,7 +52,7 @@
 #include "BKE_paint.h"
 #include "BKE_subsurf.h"
 
-#include "BIF_glutil.h"
+#include "DEG_depsgraph.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -323,12 +323,10 @@ static void clip_planes_from_rect(bContext *C,
 {
 	ViewContext vc;
 	BoundBox bb;
-	bglMats mats = {{0}};
 	
 	view3d_operator_needs_opengl(C);
 	ED_view3d_viewcontext_init(C, &vc);
-	view3d_get_transformation(vc.ar, vc.rv3d, vc.obact, &mats);
-	ED_view3d_clipping_calc(&bb, clip_planes, &mats, rect);
+	ED_view3d_clipping_calc(&bb, clip_planes, vc.ar, vc.obact, rect);
 	negate_m4(clip_planes);
 }
 
@@ -364,6 +362,7 @@ static int hide_show_exec(bContext *C, wmOperator *op)
 {
 	ARegion *ar = CTX_wm_region(C);
 	Object *ob = CTX_data_active_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Mesh *me = ob->data;
 	PartialVisAction action;
 	PartialVisArea area;
@@ -382,7 +381,7 @@ static int hide_show_exec(bContext *C, wmOperator *op)
 
 	clip_planes_from_rect(C, clip_planes, &rect);
 
-	dm = mesh_get_derived_final(CTX_data_scene(C), ob, CD_MASK_BAREMESH);
+	dm = mesh_get_derived_final(depsgraph, CTX_data_scene(C), ob, CD_MASK_BAREMESH);
 	pbvh = dm->getPBVH(ob, dm);
 	ob->sculpt->pbvh = pbvh;
 

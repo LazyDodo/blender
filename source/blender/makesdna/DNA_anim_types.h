@@ -438,6 +438,7 @@ typedef enum eDriver_Types {
 } eDriver_Types;
 
 /* driver flags */
+/* note: (1<<5) is deprecated; was "DRIVER_FLAG_SHOWDEBUG" */
 typedef enum eDriver_Flags {
 		/* driver has invalid settings (internal flag)  */
 	DRIVER_FLAG_INVALID		= (1<<0),
@@ -450,8 +451,6 @@ typedef enum eDriver_Flags {
 	DRIVER_FLAG_RECOMPILE	= (1<<3),
 		/* the names are cached so they don't need have python unicode versions created each time */
 	DRIVER_FLAG_RENAMEVAR	= (1<<4),
-		/* intermediate values of driver should be shown in the UI for debugging purposes */
-	DRIVER_FLAG_SHOWDEBUG	= (1<<5),
 		/* include 'self' in the drivers namespace. */
 	DRIVER_FLAG_USE_SELF	= (1<<6),
 } eDriver_Flags;
@@ -488,11 +487,13 @@ typedef struct FCurve {
 	
 		/* value cache + settings */
 	float curval;			/* value stored from last time curve was evaluated (not threadsafe, debug display only!) */
+	/* Value which comes from original DNA ddatablock at a time f-curve was evaluated. */
+	float orig_dna_val;
 	short flag;				/* user-editable settings for this curve */
 	short extend;			/* value-extending mode for this curve (does not cover  */
 	char auto_smoothing;	/* auto-handle smoothing mode */
 	
-	char pad[7];
+	char pad[3];
 
 		/* RNA - data link */
 	int array_index;		/* if applicable, the index of the RNA-array item to get */
@@ -915,6 +916,8 @@ typedef struct AnimData {
 	 */
 	ListBase    drivers;    /* standard user-created Drivers/Expressions (used as part of a rig) */
 	ListBase    overrides;  /* temp storage (AnimOverride) of values for settings that are animated (but the value hasn't been keyframed) */
+
+	FCurve **driver_array;  /* runtime data, for depsgraph evaluation */
 
 		/* settings for animation evaluation */
 	int flag;               /* user-defined settings */

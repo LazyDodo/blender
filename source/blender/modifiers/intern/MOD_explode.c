@@ -148,7 +148,7 @@ static void createFacepa(
 	/* make tree of emitter locations */
 	tree = BLI_kdtree_new(totpart);
 	for (p = 0, pa = psys->particles; p < totpart; p++, pa++) {
-		psys_particle_on_emitter(psmd, psys->part->from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, co, NULL, NULL, NULL, NULL, NULL);
+		psys_particle_on_emitter(psmd, psys->part->from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, co, NULL, NULL, NULL, NULL);
 		BLI_kdtree_insert(tree, p, co);
 	}
 	BLI_kdtree_balance(tree);
@@ -788,7 +788,7 @@ static DerivedMesh *cutEdges(ExplodeModifierData *emd, DerivedMesh *dm)
 }
 static DerivedMesh *explodeMesh(
         ExplodeModifierData *emd,
-        ParticleSystemModifierData *psmd, Scene *scene, Object *ob,
+        ParticleSystemModifierData *psmd, const ModifierEvalContext *ctx, Scene *scene,
         DerivedMesh *to_explode)
 {
 	DerivedMesh *explode, *dm = to_explode;
@@ -814,8 +814,9 @@ static DerivedMesh *explodeMesh(
 	mface = dm->getTessFaceArray(dm);
 	totpart = psmd->psys->totpart;
 
+	sim.depsgraph = ctx->depsgraph;
 	sim.scene = scene;
-	sim.ob = ob;
+	sim.ob = ctx->object;
 	sim.psys = psmd->psys;
 	sim.psmd = psmd;
 
@@ -870,7 +871,7 @@ static DerivedMesh *explodeMesh(
 	/*dupvert = CDDM_get_verts(explode);*/
 
 	/* getting back to object space */
-	invert_m4_m4(imat, ob->obmat);
+	invert_m4_m4(imat, ctx->object->obmat);
 
 	psmd->psys->lattice_deform_data = psys_create_lattice_deform_data(&sim);
 
@@ -901,7 +902,7 @@ static DerivedMesh *explodeMesh(
 			psys_get_particle_state(&sim, ed_v2, &state, 1);
 
 			vertco = CDDM_get_vert(explode, v)->co;
-			mul_m4_v3(ob->obmat, vertco);
+			mul_m4_v3(ctx->object->obmat, vertco);
 
 			sub_v3_v3(vertco, birth.co);
 
@@ -996,20 +997,19 @@ static ParticleSystemModifierData *findPrecedingParticlesystem(Object *ob, Modif
 	return psmd;
 }
 static DerivedMesh *applyModifier(
-        ModifierData *md, Object *ob,
-        DerivedMesh *derivedData,
-        ModifierApplyFlag UNUSED(flag))
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *derivedData)
 {
 	DerivedMesh *dm = derivedData;
 	ExplodeModifierData *emd = (ExplodeModifierData *) md;
-	ParticleSystemModifierData *psmd = findPrecedingParticlesystem(ob, md);
+	ParticleSystemModifierData *psmd = findPrecedingParticlesystem(ctx->object, md);
 
 	if (psmd) {
 		ParticleSystem *psys = psmd->psys;
 
 		if (psys == NULL || psys->totpart == 0) return derivedData;
 		if (psys->part == NULL || psys->particles == NULL) return derivedData;
-		if (psmd->dm_final == NULL) return derivedData;
+		if (psmd->mesh_final == NULL) return derivedData;
 
 		DM_ensure_tessface(dm); /* BMESH - UNTIL MODIFIER IS UPDATED FOR MPoly */
 
@@ -1031,7 +1031,7 @@ static DerivedMesh *applyModifier(
 		if (emd->flag & eExplodeFlag_EdgeCut) {
 			int *facepa = emd->facepa;
 			DerivedMesh *splitdm = cutEdges(emd, dm);
-			DerivedMesh *explode = explodeMesh(emd, psmd, md->scene, ob, splitdm);
+			DerivedMesh *explode = explodeMesh(emd, psmd, ctx, md->scene, splitdm);
 
 			MEM_freeN(emd->facepa);
 			emd->facepa = facepa;
@@ -1039,7 +1039,7 @@ static DerivedMesh *applyModifier(
 			return explode;
 		}
 		else
-			return explodeMesh(emd, psmd, md->scene, ob, derivedData);
+			return explodeMesh(emd, psmd, ctx, md->scene, derivedData);
 	}
 	return derivedData;
 }
@@ -1052,17 +1052,25 @@ ModifierTypeInfo modifierType_Explode = {
 	/* type */              eModifierTypeType_Constructive,
 	/* flags */             eModifierTypeFlag_AcceptsMesh,
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     dependsOnTime,
 	/* dependsOnNormals */  NULL,

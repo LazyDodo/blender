@@ -264,24 +264,23 @@ static void meshcache_do(
 }
 
 static void deformVerts(
-        ModifierData *md, Object *ob,
+        ModifierData *md, const ModifierEvalContext *ctx,
         DerivedMesh *derivedData,
         float (*vertexCos)[3],
-        int numVerts,
-        ModifierApplyFlag UNUSED(flag))
+        int numVerts)
 {
 	MeshCacheModifierData *mcmd = (MeshCacheModifierData *)md;
 
-	meshcache_do(mcmd, ob, derivedData, vertexCos, numVerts);
+	meshcache_do(mcmd, ctx->object, derivedData, vertexCos, numVerts);
 }
 
 static void deformVertsEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *UNUSED(editData),
+        ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *UNUSED(editData),
         DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
 {
 	MeshCacheModifierData *mcmd = (MeshCacheModifierData *)md;
 
-	meshcache_do(mcmd, ob, derivedData, vertexCos, numVerts);
+	meshcache_do(mcmd, ctx->object, derivedData, vertexCos, numVerts);
 }
 
 
@@ -295,17 +294,25 @@ ModifierTypeInfo modifierType_MeshCache = {
 	                        eModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          modifier_copyData_generic,
-	/* deformVerts */       deformVerts,
+
+	/* deformVerts_DM */    deformVerts,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  deformVertsEM,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
+	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
-	/* deformVertsEM */     deformVertsEM,
+	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     dependsOnTime,
 	/* dependsOnNormals */  NULL,

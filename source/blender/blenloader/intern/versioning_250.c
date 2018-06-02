@@ -39,7 +39,6 @@
 
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
-#include "DNA_actuator_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cloth_types.h"
@@ -84,7 +83,6 @@
 #include "BKE_sequencer.h"
 #include "BKE_texture.h"
 #include "BKE_sound.h"
-#include "BKE_sca.h"
 
 #include "NOD_socket.h"
 
@@ -101,7 +99,7 @@ static void area_add_header_region(ScrArea *sa, ListBase *lb)
 
 	BLI_addtail(lb, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	if (sa->headertype == HEADERDOWN)
+	if (sa->headertype == 1)
 		ar->alignment = RGN_ALIGN_BOTTOM;
 	else
 		ar->alignment = RGN_ALIGN_TOP;
@@ -287,19 +285,6 @@ static void area_add_window_regions(ScrArea *sa, SpaceLink *sl, ListBase *lb)
 					//ar->v2d.flag |= V2D_IS_INITIALISED;
 				}
 				break;
-			case SPACE_TIME:
-				{
-					SpaceTime *stime = (SpaceTime *)sl;
-					memcpy(&ar->v2d, &stime->v2d, sizeof(View2D));
-
-					ar->v2d.scroll |= (V2D_SCROLL_BOTTOM|V2D_SCROLL_SCALE_HORIZONTAL);
-					ar->v2d.align |= V2D_ALIGN_NO_NEG_Y;
-					ar->v2d.keepofs |= V2D_LOCKOFS_Y;
-					ar->v2d.keepzoom |= V2D_LOCKZOOM_Y;
-					ar->v2d.tot.ymin = ar->v2d.cur.ymin = -10.0;
-					ar->v2d.min[1] = ar->v2d.max[1] = 20.0;
-				}
-				break;
 			case SPACE_IPO:
 				{
 					SpaceIpo *sipo = (SpaceIpo *)sl;
@@ -444,9 +429,6 @@ static void do_versions_windowmanager_2_50(bScreen *screen)
 				sl->spacetype = SPACE_EMPTY;	/* spacedata then matches */
 		}
 
-		/* it seems to be possible in 2.5 to have this saved, filewindow probably */
-		sa->butspacetype = sa->spacetype;
-
 		/* pushed back spaces also need regions! */
 		if (sa->spacedata.first) {
 			sl = sa->spacedata.first;
@@ -517,70 +499,6 @@ static void do_versions_gpencil_2_50(Main *main, bScreen *screen)
 	}
 }
 
-static void do_version_mtex_factor_2_50(MTex **mtex_array, short idtype)
-{
-	MTex *mtex;
-	float varfac, colfac;
-	int a, neg;
-
-	if (!mtex_array)
-		return;
-
-	for (a = 0; a < MAX_MTEX; a++) {
-		if (mtex_array[a]) {
-			mtex = mtex_array[a];
-
-			neg = mtex->maptoneg;
-			varfac = mtex->varfac;
-			colfac = mtex->colfac;
-
-			if (neg & MAP_DISP) mtex->dispfac = -mtex->dispfac;
-			if (neg & MAP_NORM) mtex->norfac = -mtex->norfac;
-			if (neg & MAP_WARP) mtex->warpfac = -mtex->warpfac;
-
-			mtex->colspecfac = (neg & MAP_COLSPEC)? -colfac: colfac;
-			mtex->mirrfac = (neg & MAP_COLMIR)? -colfac: colfac;
-			mtex->alphafac = (neg & MAP_ALPHA)? -varfac: varfac;
-			mtex->difffac = (neg & MAP_REF)? -varfac: varfac;
-			mtex->specfac = (neg & MAP_SPEC)? -varfac: varfac;
-			mtex->emitfac = (neg & MAP_EMIT)? -varfac: varfac;
-			mtex->hardfac = (neg & MAP_HAR)? -varfac: varfac;
-			mtex->raymirrfac = (neg & MAP_RAYMIRR)? -varfac: varfac;
-			mtex->translfac = (neg & MAP_TRANSLU)? -varfac: varfac;
-			mtex->ambfac = (neg & MAP_AMB)? -varfac: varfac;
-			mtex->colemitfac = (neg & MAP_EMISSION_COL)? -colfac: colfac;
-			mtex->colreflfac = (neg & MAP_REFLECTION_COL)? -colfac: colfac;
-			mtex->coltransfac = (neg & MAP_TRANSMISSION_COL)? -colfac: colfac;
-			mtex->densfac = (neg & MAP_DENSITY)? -varfac: varfac;
-			mtex->scatterfac = (neg & MAP_SCATTERING)? -varfac: varfac;
-			mtex->reflfac = (neg & MAP_REFLECTION)? -varfac: varfac;
-
-			mtex->timefac = (neg & MAP_PA_TIME)? -varfac: varfac;
-			mtex->lengthfac = (neg & MAP_PA_LENGTH)? -varfac: varfac;
-			mtex->clumpfac = (neg & MAP_PA_CLUMP)? -varfac: varfac;
-			mtex->kinkfac = (neg & MAP_PA_KINK)? -varfac: varfac;
-			mtex->roughfac = (neg & MAP_PA_ROUGH)? -varfac: varfac;
-			mtex->padensfac = (neg & MAP_PA_DENS)? -varfac: varfac;
-			mtex->lifefac = (neg & MAP_PA_LIFE)? -varfac: varfac;
-			mtex->sizefac = (neg & MAP_PA_SIZE)? -varfac: varfac;
-			mtex->ivelfac = (neg & MAP_PA_IVEL)? -varfac: varfac;
-
-			mtex->shadowfac = (neg & LAMAP_SHAD)? -colfac: colfac;
-
-			mtex->zenupfac = (neg & WOMAP_ZENUP)? -colfac: colfac;
-			mtex->zendownfac = (neg & WOMAP_ZENDOWN)? -colfac: colfac;
-			mtex->blendfac = (neg & WOMAP_BLEND)? -varfac: varfac;
-
-			if (idtype == ID_MA)
-				mtex->colfac = (neg & MAP_COL)? -colfac: colfac;
-			else if (idtype == ID_LA)
-				mtex->colfac = (neg & LAMAP_COL)? -colfac: colfac;
-			else if (idtype == ID_WO)
-				mtex->colfac = (neg & WOMAP_HORIZ)? -colfac: colfac;
-		}
-	}
-}
-
 static void do_version_mdef_250(Main *main)
 {
 	Object *ob;
@@ -610,13 +528,7 @@ static void do_version_constraints_radians_degrees_250(ListBase *lb)
 	bConstraint *con;
 
 	for (con = lb->first; con; con = con->next) {
-		if (con->type == CONSTRAINT_TYPE_RIGIDBODYJOINT) {
-			bRigidBodyJointConstraint *data = con->data;
-			data->axX *= (float)(M_PI / 180.0);
-			data->axY *= (float)(M_PI / 180.0);
-			data->axZ *= (float)(M_PI / 180.0);
-		}
-		else if (con->type == CONSTRAINT_TYPE_KINEMATIC) {
+		if (con->type == CONSTRAINT_TYPE_KINEMATIC) {
 			bKinematicConstraint *data = con->data;
 			data->poleangle *= (float)(M_PI / 180.0);
 		}
@@ -750,40 +662,11 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 
 		bSound *sound;
 		Sequence *seq;
-		bActuator *act;
-		int a;
 
 		for (sound = main->sound.first; sound; sound = sound->id.next) {
 			if (sound->newpackedfile) {
 				sound->packedfile = sound->newpackedfile;
 				sound->newpackedfile = NULL;
-			}
-		}
-
-		for (ob = main->object.first; ob; ob = ob->id.next) {
-			for (act = ob->actuators.first; act; act = act->next) {
-				if (act->type == ACT_SOUND) {
-					bSoundActuator *sAct = (bSoundActuator*) act->data;
-					if (sAct->sound) {
-						sound = blo_do_versions_newlibadr(fd, lib, sAct->sound);
-						sAct->flag = (sound->flags & SOUND_FLAGS_3D) ? ACT_SND_3D_SOUND : 0;
-						sAct->pitch = sound->pitch;
-						sAct->volume = sound->volume;
-						sAct->sound3D.reference_distance = sound->distance;
-						sAct->sound3D.max_gain = sound->max_gain;
-						sAct->sound3D.min_gain = sound->min_gain;
-						sAct->sound3D.rolloff_factor = sound->attenuation;
-					}
-					else {
-						sAct->sound3D.reference_distance = 1.0f;
-						sAct->volume = 1.0f;
-						sAct->sound3D.max_gain = 1.0f;
-						sAct->sound3D.rolloff_factor = 1.0f;
-					}
-					sAct->sound3D.cone_inner_angle = 360.0f;
-					sAct->sound3D.cone_outer_angle = 360.0f;
-					sAct->sound3D.max_distance = FLT_MAX;
-				}
 			}
 		}
 
@@ -823,15 +706,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 		for (ma = main->mat.first; ma; ma = ma->id.next) {
 			if (ma->nodetree && ma->nodetree->id.name[0] == '\0')
 				strcpy(ma->nodetree->id.name, "NTShader Nodetree");
-
-			/* which_output 0 is now "not specified" */
-			for (a = 0; a < MAX_MTEX; a++) {
-				if (ma->mtex[a]) {
-					tx = blo_do_versions_newlibadr(fd, lib, ma->mtex[a]->tex);
-					if (tx && tx->use_nodes)
-						ma->mtex[a]->which_output++;
-				}
-			}
 		}
 
 		/* and composite trees */
@@ -917,7 +791,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 1)) {
 		Object *ob;
-		Material *ma;
 		Tex *tex;
 		Scene *sce;
 		ToolSettings *ts;
@@ -963,65 +836,9 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 				tex->afmax = 8;
 		}
 
-		for (ma = main->mat.first; ma; ma = ma->id.next) {
-			int a;
-
-			if (ma->mode & MA_WIRE) {
-				ma->material_type = MA_TYPE_WIRE;
-				ma->mode &= ~MA_WIRE;
-			}
-
-			if (ma->mode & MA_HALO) {
-				ma->material_type = MA_TYPE_HALO;
-				ma->mode &= ~MA_HALO;
-			}
-
-			if (ma->mode & (MA_ZTRANSP|MA_RAYTRANSP)) {
-				ma->mode |= MA_TRANSP;
-			}
-			else {
-				/* ma->mode |= MA_ZTRANSP; */ /* leave ztransp as is even if its not used [#28113] */
-				ma->mode &= ~MA_TRANSP;
-			}
-
-			/* set new bump for unused slots */
-			for (a = 0; a < MAX_MTEX; a++) {
-				if (ma->mtex[a]) {
-					tex = ma->mtex[a]->tex;
-					if (!tex) {
-						ma->mtex[a]->texflag |= MTEX_3TAP_BUMP;
-						ma->mtex[a]->texflag |= MTEX_BUMP_OBJECTSPACE;
-					}
-					else {
-						tex = (Tex*) blo_do_versions_newlibadr(fd, ma->id.lib, tex);
-						if (tex && tex->type == 0) { /* invalid type */
-							ma->mtex[a]->texflag |= MTEX_3TAP_BUMP;
-							ma->mtex[a]->texflag |= MTEX_BUMP_OBJECTSPACE;
-						}
-					}
-				}
-			}
-
-			/* volume rendering settings */
-			if (ma->vol.stepsize < 0.0001f) {
-				ma->vol.density = 1.0f;
-				ma->vol.emission = 0.0f;
-				ma->vol.scattering = 1.0f;
-				ma->vol.emission_col[0] = ma->vol.emission_col[1] = ma->vol.emission_col[2] = 1.0f;
-				ma->vol.density_scale = 1.0f;
-				ma->vol.depth_cutoff = 0.01f;
-				ma->vol.stepsize_type = MA_VOL_STEP_RANDOMIZED;
-				ma->vol.stepsize = 0.2f;
-				ma->vol.shade_type = MA_VOL_SHADE_SHADED;
-				ma->vol.shadeflag |= MA_VOL_PRECACHESHADING;
-				ma->vol.precache_resolution = 50;
-			}
-		}
-
 		for (sce = main->scene.first; sce; sce = sce->id.next) {
 			ts = sce->toolsettings;
-			if (ts->normalsize == 0.0f || !ts->uv_selectmode || ts->vgroup_weight == 0.0f) {
-				ts->normalsize = 0.1f;
+			if (!ts->uv_selectmode || ts->vgroup_weight == 0.0f) {
 				ts->selectmode = SCE_SELECT_VERTEX;
 
 				/* autokeying - setting should be taken from the user-prefs
@@ -1034,94 +851,11 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 				ts->uv_selectmode = UV_SELECT_VERTEX;
 				ts->vgroup_weight = 1.0f;
 			}
-
-			/* Game Settings */
-			/* Dome */
-			sce->gm.dome.angle = sce->r.domeangle;
-			sce->gm.dome.mode = sce->r.domemode;
-			sce->gm.dome.res = sce->r.domeres;
-			sce->gm.dome.resbuf = sce->r.domeresbuf;
-			sce->gm.dome.tilt = sce->r.dometilt;
-			sce->gm.dome.warptext = sce->r.dometext;
-
-			/* Stand Alone */
-			sce->gm.playerflag |= (sce->r.fullscreen ? GAME_PLAYER_FULLSCREEN : 0);
-			sce->gm.xplay = sce->r.xplay;
-			sce->gm.yplay = sce->r.yplay;
-			sce->gm.freqplay = sce->r.freqplay;
-			sce->gm.depth = sce->r.depth;
-			sce->gm.attrib = sce->r.attrib;
-
-			/* Stereo */
-			sce->gm.stereomode = sce->r.stereomode;
-			/* reassigning stereomode NO_STEREO and DOME to a separeted flag*/
-			if (sce->gm.stereomode == 1) { // 1 = STEREO_NOSTEREO
-				sce->gm.stereoflag = STEREO_NOSTEREO;
-				sce->gm.stereomode = STEREO_ANAGLYPH;
-			}
-			else if (sce->gm.stereomode == 8) { // 8 = STEREO_DOME
-				sce->gm.stereoflag = STEREO_DOME;
-				sce->gm.stereomode = STEREO_ANAGLYPH;
-			}
-			else
-				sce->gm.stereoflag = STEREO_ENABLED;
-
-			/* Framing */
-			sce->gm.framing = sce->framing;
-			sce->gm.xplay = sce->r.xplay;
-			sce->gm.yplay = sce->r.yplay;
-			sce->gm.freqplay = sce->r.freqplay;
-			sce->gm.depth = sce->r.depth;
-
-			/* Physic (previously stored in world) */
-			sce->gm.gravity =9.8f;
-			sce->gm.physicsEngine = WOPHY_BULLET; /* Bullet by default */
-			sce->gm.mode = WO_DBVT_CULLING;	/* DBVT culling by default */
-			sce->gm.occlusionRes = 128;
-			sce->gm.ticrate = 60;
-			sce->gm.maxlogicstep = 5;
-			sce->gm.physubstep = 1;
-			sce->gm.maxphystep = 5;
 		}
 	}
 
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 2)) {
-		Scene *sce;
 		Object *ob;
-
-		for (sce = main->scene.first; sce; sce = sce->id.next) {
-			if (fd->fileflags & G_FILE_ENABLE_ALL_FRAMES)
-				sce->gm.flag |= GAME_ENABLE_ALL_FRAMES;
-			if (fd->fileflags & G_FILE_SHOW_DEBUG_PROPS)
-				sce->gm.flag |= GAME_SHOW_DEBUG_PROPS;
-			if (fd->fileflags & G_FILE_SHOW_FRAMERATE)
-				sce->gm.flag |= GAME_SHOW_FRAMERATE;
-			if (fd->fileflags & G_FILE_SHOW_PHYSICS)
-				sce->gm.flag |= GAME_SHOW_PHYSICS;
-			if (fd->fileflags & G_FILE_GLSL_NO_SHADOWS)
-				sce->gm.flag |= GAME_GLSL_NO_SHADOWS;
-			if (fd->fileflags & G_FILE_GLSL_NO_SHADERS)
-				sce->gm.flag |= GAME_GLSL_NO_SHADERS;
-			if (fd->fileflags & G_FILE_GLSL_NO_RAMPS)
-				sce->gm.flag |= GAME_GLSL_NO_RAMPS;
-			if (fd->fileflags & G_FILE_GLSL_NO_NODES)
-				sce->gm.flag |= GAME_GLSL_NO_NODES;
-			if (fd->fileflags & G_FILE_GLSL_NO_EXTRA_TEX)
-				sce->gm.flag |= GAME_GLSL_NO_EXTRA_TEX;
-			if (fd->fileflags & G_FILE_GLSL_NO_ENV_LIGHTING)
-				sce->gm.flag |= GAME_GLSL_NO_ENV_LIGHTING;
-			if (fd->fileflags & G_FILE_IGNORE_DEPRECATION_WARNINGS)
-				sce->gm.flag |= GAME_IGNORE_DEPRECATION_WARNINGS;
-
-			if (fd->fileflags & G_FILE_GAME_MAT_GLSL)
-				sce->gm.matmode = GAME_MAT_GLSL;
-			else if (fd->fileflags & G_FILE_GAME_MAT)
-				sce->gm.matmode = GAME_MAT_MULTITEX;
-			else
-				sce->gm.matmode = GAME_MAT_TEXFACE;
-
-			sce->gm.flag |= GAME_DISPLAY_LISTS;
-		}
 
 		for (ob = main->object.first; ob; ob = ob->id.next) {
 			if (ob->flag & 8192) // OB_POSEMODE = 8192
@@ -1132,10 +866,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 4)) {
 		Scene *sce;
 		Object *ob;
-		Material *ma;
-		Lamp *la;
-		World *wo;
-		Tex *tex;
 		ParticleSettings *part;
 		bool do_gravity = false;
 
@@ -1152,27 +882,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 			/* rotation modes were added, but old objects would now default to being 'quaternion based' */
 			ob->rotmode = ROT_MODE_EUL;
 		}
-
-		for (ma = main->mat.first; ma; ma = ma->id.next) {
-			if (ma->vol.reflection == 0.f) {
-				ma->vol.reflection = 1.f;
-				ma->vol.transmission_col[0] = ma->vol.transmission_col[1] = ma->vol.transmission_col[2] = 1.0f;
-				ma->vol.reflection_col[0] = ma->vol.reflection_col[1] = ma->vol.reflection_col[2] = 1.0f;
-			}
-
-			do_version_mtex_factor_2_50(ma->mtex, ID_MA);
-		}
-
-		for (la = main->lamp.first; la; la = la->id.next)
-			do_version_mtex_factor_2_50(la->mtex, ID_LA);
-
-		for (wo = main->world.first; wo; wo = wo->id.next)
-			do_version_mtex_factor_2_50(wo->mtex, ID_WO);
-
-		for (tex = main->tex.first; tex; tex = tex->id.next)
-			if (tex->vd)
-				if (tex->vd->extend == 0)
-					tex->vd->extend = TEX_CLIP;
 
 		for (sce = main->scene.first; sce; sce = sce->id.next) {
 			if (sce->audio.main == 0.0f)
@@ -1234,7 +943,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 6)) {
 		Object *ob;
-		Lamp *la;
 
 		/* New variables for axis-angle rotations and/or quaternion rotations were added, and need proper initialization */
 		for (ob = main->object.first; ob; ob = ob->id.next) {
@@ -1252,9 +960,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 				}
 			}
 		}
-
-		for (la = main->lamp.first; la; la = la->id.next)
-			la->compressthresh = 0.05f;
 	}
 
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 7)) {
@@ -1323,8 +1028,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 			while (sce) {
 				if (sce->r.frame_step == 0)
 					sce->r.frame_step = 1;
-				if (sce->r.mblur_samples == 0)
-					sce->r.mblur_samples = sce->r.osa;
 
 				if (sce->ed && sce->ed->seqbase.first) {
 					do_versions_seq_unique_name_all_strips(sce, &sce->ed->seqbase);
@@ -1381,7 +1084,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 		if (main->versionfile == 250) {
 			Scene *sce = main->scene.first;
 			Material *ma = main->mat.first;
-			World *wo = main->world.first;
 			Tex *tex = main->tex.first;
 			int i, convert = 0;
 
@@ -1399,26 +1101,8 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 
 			if (convert) {
 				while (ma) {
-					if (ma->ramp_col) {
-						ColorBand *band = (ColorBand *)ma->ramp_col;
-						for (i = 0; i < band->tot; i++) {
-							CBData *data = band->data + i;
-							srgb_to_linearrgb_v3_v3(&data->r, &data->r);
-						}
-					}
-
-					if (ma->ramp_spec) {
-						ColorBand *band = (ColorBand *)ma->ramp_spec;
-						for (i = 0; i < band->tot; i++) {
-							CBData *data = band->data + i;
-							srgb_to_linearrgb_v3_v3(&data->r, &data->r);
-						}
-					}
-
 					srgb_to_linearrgb_v3_v3(&ma->r, &ma->r);
 					srgb_to_linearrgb_v3_v3(&ma->specr, &ma->specr);
-					srgb_to_linearrgb_v3_v3(&ma->mirr, &ma->mirr);
-					srgb_to_linearrgb_v3_v3(ma->sss_col, ma->sss_col);
 					ma = ma->id.next;
 				}
 
@@ -1431,13 +1115,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 						}
 					}
 					tex = tex->id.next;
-				}
-
-				while (wo) {
-					srgb_to_linearrgb_v3_v3(&wo->ambr, &wo->ambr);
-					srgb_to_linearrgb_v3_v3(&wo->horr, &wo->horr);
-					srgb_to_linearrgb_v3_v3(&wo->zenr, &wo->zenr);
-					wo = wo->id.next;
 				}
 			}
 		}
@@ -1567,15 +1244,8 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 	}
 
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 12)) {
-		Scene *sce;
 		Object *ob;
 		Brush *brush;
-		Material *ma;
-
-		/* game engine changes */
-		for (sce = main->scene.first; sce; sce = sce->id.next) {
-			sce->gm.eyeseparation = 0.10f;
-		}
 
 		/* anim viz changes */
 		for (ob = main->object.first; ob; ob = ob->id.next) {
@@ -1657,14 +1327,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 			BKE_texture_mtex_default(&brush->mtex);
 			BKE_texture_mtex_default(&brush->mask_mtex);
 		}
-
-		for (ma = main->mat.first; ma; ma = ma->id.next) {
-			if (ma->vol.ms_spread < 0.0001f) {
-				ma->vol.ms_spread = 0.2f;
-				ma->vol.ms_diff = 1.f;
-				ma->vol.ms_intensity = 1.f;
-			}
-		}
 	}
 
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 13)) {
@@ -1723,41 +1385,9 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 		}
 	}
 
-	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 15)) {
-		World *wo;
-		Material *ma;
-
-		/* ambient default from 0.5f to 1.0f */
-		for (ma = main->mat.first; ma; ma = ma->id.next)
-			ma->amb *= 2.0f;
-
-		for (wo = main->world.first; wo; wo = wo->id.next) {
-			/* ao splitting into ao/env/indirect */
-			wo->ao_env_energy = wo->aoenergy;
-			wo->aoenergy = 1.0f;
-
-			if (wo->ao_indirect_bounces == 0)
-				wo->ao_indirect_bounces = 1;
-			else
-				wo->mode |= WO_INDIRECT_LIGHT;
-
-			if (wo->aomix == WO_AOSUB)
-				wo->ao_env_energy = -wo->ao_env_energy;
-			else if (wo->aomix == WO_AOADDSUB)
-				wo->mode |= WO_AMB_OCC;
-
-			wo->aomix = WO_AOMUL;
-
-			/* ambient default from 0.5f to 1.0f */
-			mul_v3_fl(&wo->ambr, 0.5f);
-			wo->ao_env_energy *= 0.5f;
-		}
-	}
-
 	if (main->versionfile < 250 || (main->versionfile == 250 && main->subversionfile < 17)) {
 		Scene *sce;
 		Sequence *seq;
-		Material *ma;
 
 		/* initialize to sane default so toggling on border shows something */
 		for (sce = main->scene.first; sce; sce = sce->id.next) {
@@ -1788,10 +1418,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 			for (a = 0; a < ARRAY_SIZE(pset->brush); a++)
 				pset->brush[a].strength /= 100.0f;
 		}
-
-		for (ma = main->mat.first; ma; ma = ma->id.next)
-			if (ma->mode & MA_TRACEBLE)
-				ma->shade_flag |= MA_APPROX_OCCLUSION;
 
 		/* sequencer changes */
 		{
@@ -1969,14 +1595,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 									ar->v2d.maxzoom = 2.31f;
 							}
 						}
-					}
-					else if (sl->spacetype == SPACE_TIME) {
-						SpaceTime *stime = (SpaceTime *) sl;
-
-						/* enable all cache display */
-						stime->cache_display |= TIME_CACHE_DISPLAY;
-						stime->cache_display |= (TIME_CACHE_SOFTBODY|TIME_CACHE_PARTICLES);
-						stime->cache_display |= (TIME_CACHE_CLOTH|TIME_CACHE_SMOKE|TIME_CACHE_DYNAMICPAINT);
 					}
 				}
 			}
@@ -2197,7 +1815,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 		Brush *br;
 		ParticleSettings *part;
 		bScreen *sc;
-		Object *ob;
 
 		for (br = main->brush.first; br; br = br->id.next) {
 			if (br->ob_mode == 0)
@@ -2232,41 +1849,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 								ar->v2d.keeptot = V2D_KEEPTOT_BOUNDS;
 								ar->v2d.minzoom = ar->v2d.maxzoom = 1.0f;
 							}
-						}
-					}
-				}
-			}
-		}
-
-		/* fix rotation actuators for objects so they use real angles (radians)
-		 * since before blender went opensource this strange scalar was used: (1 / 0.02) * 2 * math.pi/360 */
-		for (ob = main->object.first; ob; ob = ob->id.next) {
-			bActuator *act = ob->actuators.first;
-			while (act) {
-				if (act->type == ACT_OBJECT) {
-					/* multiply velocity with 50 in old files */
-					bObjectActuator *oa = act->data;
-					mul_v3_fl(oa->drot, 0.8726646259971648f);
-				}
-				act = act->next;
-			}
-		}
-	}
-
-	/* init facing axis property of steering actuators */
-	{
-		Object *ob;
-		for (ob = main->object.first; ob; ob = ob->id.next) {
-			bActuator *act;
-			for (act = ob->actuators.first; act; act = act->next) {
-				if (act->type == ACT_STEERING) {
-					bSteeringActuator *stact = act->data;
-					if (stact == NULL) {//HG1
-						init_actuator(act);
-					}
-					else {
-						if (stact->facingaxis == 0) {
-							stact->facingaxis = 1;
 						}
 					}
 				}
@@ -2430,27 +2012,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 		Brush *brush;
 		Object *ob;
 		ParticleSettings *part;
-		Material *mat;
-		int tex_nr, transp_tex;
-
-		for (mat = main->mat.first; mat; mat = mat->id.next) {
-			if (!(mat->mode & MA_TRANSP) && !(mat->material_type & MA_TYPE_VOLUME)) {
-				transp_tex = 0;
-
-				for (tex_nr = 0; tex_nr < MAX_MTEX; tex_nr++) {
-					if (!mat->mtex[tex_nr])
-						continue;
-					if (mat->mtex[tex_nr]->mapto & MAP_ALPHA)
-						transp_tex = 1;
-				}
-
-				/* weak! material alpha could be animated */
-				if (mat->alpha < 1.0f || mat->fresnel_tra > 0.0f || transp_tex) {
-					mat->mode |= MA_TRANSP;
-					mat->mode &= ~(MA_ZTRANSP|MA_RAYTRANSP);
-				}
-			}
-		}
 
 		/* redraws flag in SpaceTime has been moved to Screen level */
 		for (sc = main->screen.first; sc; sc = sc->id.next) {
@@ -2538,41 +2099,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 								v2d->minzoom = v2d->maxzoom = v2d->scroll = v2d->keeptot = v2d->keepzoom = v2d->keepofs = v2d->align = 0;
 							}
 						}
-					}
-				}
-			}
-		}
-
-		{
-			/* Initialize texture point density curve falloff */
-			Tex *tex;
-			for (tex = main->tex.first; tex; tex = tex->id.next) {
-				if (tex->pd) {
-					if (tex->pd->falloff_speed_scale == 0.0f)
-						tex->pd->falloff_speed_scale = 100.0f;
-
-					if (!tex->pd->falloff_curve) {
-						tex->pd->falloff_curve = curvemapping_add(1, 0, 0, 1, 1);
-
-						tex->pd->falloff_curve->preset = CURVE_PRESET_LINE;
-						tex->pd->falloff_curve->cm->flag &= ~CUMA_EXTEND_EXTRAPOLATE;
-						curvemap_reset(tex->pd->falloff_curve->cm, &tex->pd->falloff_curve->clipr, tex->pd->falloff_curve->preset, CURVEMAP_SLOPE_POSITIVE);
-						curvemapping_changed(tex->pd->falloff_curve, false);
-					}
-				}
-			}
-		}
-
-		{
-			/* add default value for behind strength of camera actuator */
-			Object *ob;
-			bActuator *act;
-			for (ob = main->object.first; ob; ob = ob->id.next) {
-				for (act = ob->actuators.first; act; act = act->next) {
-					if (act->type == ACT_CAMERA) {
-						bCameraActuator *ba = act->data;
-
-						ba->damping = 1.0/32.0;
 					}
 				}
 			}
@@ -2669,50 +2195,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 				}
 			}
 		}
-
-		{
-			/* convert fcurve and shape action actuators to action actuators */
-			Object *ob;
-			bActuator *act;
-			bIpoActuator *ia;
-			bActionActuator *aa;
-
-			for (ob = main->object.first; ob; ob = ob->id.next) {
-				for (act = ob->actuators.first; act; act = act->next) {
-					if (act->type == ACT_IPO) {
-						/* Create the new actuator */
-						ia = act->data;
-						aa = MEM_callocN(sizeof(bActionActuator), "fcurve -> action actuator do_version");
-
-						/* Copy values */
-						aa->type = ia->type;
-						aa->flag = ia->flag;
-						aa->sta = ia->sta;
-						aa->end = ia->end;
-						BLI_strncpy(aa->name, ia->name, sizeof(aa->name));
-						BLI_strncpy(aa->frameProp, ia->frameProp, sizeof(aa->frameProp));
-						if (ob->adt)
-							aa->act = ob->adt->action;
-
-						/* Get rid of the old actuator */
-						MEM_freeN(ia);
-
-						/* Assign the new actuator */
-						act->data = aa;
-						act->type = act->otype = ACT_ACTION;
-
-						/* Fix for converting 2.4x files: if we don't have an action, but we have an
-						 * object IPO, then leave the actuator as an IPO actuator for now and let the
-						 * IPO conversion code handle it */
-						if (ob->ipo && !aa->act)
-							act->type = ACT_IPO;
-					}
-					else if (act->type == ACT_SHAPEACTION) {
-						act->type = act->otype = ACT_ACTION;
-					}
-				}
-			}
-		}
 	}
 
 	if (main->versionfile < 259 || (main->versionfile == 259 && main->subversionfile < 2)) {
@@ -2758,42 +2240,6 @@ void blo_do_versions_250(FileData *fd, Library *lib, Main *main)
 			for (part = main->particle.first; part; part = part->id.next) {
 				part->courant_target = 0.2f;
 				part->time_flag &= ~PART_TIME_AUTOSF;
-			}
-		}
-
-		{
-			/* set defaults for obstacle avoidance, recast data */
-			Scene *sce;
-			for (sce = main->scene.first; sce; sce = sce->id.next) {
-				if (sce->gm.levelHeight == 0.f)
-					sce->gm.levelHeight = 2.f;
-
-				if (sce->gm.recastData.cellsize == 0.0f)
-					sce->gm.recastData.cellsize = 0.3f;
-				if (sce->gm.recastData.cellheight == 0.0f)
-					sce->gm.recastData.cellheight = 0.2f;
-				if (sce->gm.recastData.agentmaxslope == 0.0f)
-					sce->gm.recastData.agentmaxslope = (float)M_PI/4;
-				if (sce->gm.recastData.agentmaxclimb == 0.0f)
-					sce->gm.recastData.agentmaxclimb = 0.9f;
-				if (sce->gm.recastData.agentheight == 0.0f)
-					sce->gm.recastData.agentheight = 2.0f;
-				if (sce->gm.recastData.agentradius == 0.0f)
-					sce->gm.recastData.agentradius = 0.6f;
-				if (sce->gm.recastData.edgemaxlen == 0.0f)
-					sce->gm.recastData.edgemaxlen = 12.0f;
-				if (sce->gm.recastData.edgemaxerror == 0.0f)
-					sce->gm.recastData.edgemaxerror = 1.3f;
-				if (sce->gm.recastData.regionminsize == 0.0f)
-					sce->gm.recastData.regionminsize = 8.f;
-				if (sce->gm.recastData.regionmergesize == 0.0f)
-					sce->gm.recastData.regionmergesize = 20.f;
-				if (sce->gm.recastData.vertsperpoly<3)
-					sce->gm.recastData.vertsperpoly = 6;
-				if (sce->gm.recastData.detailsampledist == 0.0f)
-					sce->gm.recastData.detailsampledist = 6.0f;
-				if (sce->gm.recastData.detailsamplemaxerror == 0.0f)
-					sce->gm.recastData.detailsamplemaxerror = 1.0f;
 			}
 		}
 	}

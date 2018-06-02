@@ -49,13 +49,16 @@
 #include "ED_node.h"
 #include "ED_render.h"
 #include "ED_screen.h"
-#include "WM_api.h"
-#include "WM_types.h"
 
 #include "UI_resources.h"
 #include "UI_view2d.h"
 
 #include "RNA_access.h"
+#include "RNA_define.h"
+#include "RNA_enum_types.h"
+
+#include "WM_api.h"
+#include "WM_types.h"
 
 #include "node_intern.h"  /* own include */
 
@@ -290,7 +293,7 @@ ARegion *node_has_tools_region(ScrArea *sa)
 
 /* ******************** default callbacks for node space ***************** */
 
-static SpaceLink *node_new(const bContext *UNUSED(C))
+static SpaceLink *node_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scene))
 {
 	ARegion *ar;
 	SpaceNode *snode;
@@ -316,7 +319,7 @@ static SpaceLink *node_new(const bContext *UNUSED(C))
 
 	BLI_addtail(&snode->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_BOTTOM;
+	ar->alignment = RGN_ALIGN_TOP;
 
 	/* buttons/list view */
 	ar = MEM_callocN(sizeof(ARegion), "buttons for node");
@@ -381,12 +384,13 @@ static void node_init(struct wmWindowManager *UNUSED(wm), ScrArea *UNUSED(sa))
 
 }
 
-static void node_area_listener(bScreen *sc, ScrArea *sa, wmNotifier *wmn)
+static void node_area_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene),
+                               WorkSpace *UNUSED(workspace))
 {
 	/* note, ED_area_tag_refresh will re-execute compositor */
 	SpaceNode *snode = sa->spacedata.first;
 	/* shaderfrom is only used for new shading nodes, otherwise all shaders are from objects */
-	short shader_type = BKE_scene_use_new_shading_nodes(sc->scene) ? snode->shaderfrom : SNODE_SHADER_OBJECT;
+	short shader_type = snode->shaderfrom;
 
 	/* preview renders */
 	switch (wmn->category) {
@@ -643,6 +647,14 @@ static void node_main_region_init(wmWindowManager *wm, ARegion *ar)
 
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_CUSTOM, ar->winx, ar->winy);
 
+	/* manipulators stay in the background for now - quick patchjob to make sure nodes themselves work */
+	if (ar->manipulator_map == NULL) {
+		ar->manipulator_map = WM_manipulatormap_new_from_type(
+		        &(const struct wmManipulatorMapType_Params){SPACE_NODE, RGN_TYPE_WINDOW});
+	}
+
+	WM_manipulatormap_add_handlers(ar, ar->manipulator_map);
+
 	/* own keymaps */
 	keymap = WM_keymap_find(wm->defaultconf, "Node Generic", SPACE_NODE, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
@@ -737,18 +749,32 @@ static void node_header_region_draw(const bContext *C, ARegion *ar)
 }
 
 /* used for header + main region */
-static void node_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn)
+static void node_region_listener(
+        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmNotifier *wmn, const Scene *UNUSED(scene))
 {
+	wmManipulatorMap *mmap = ar->manipulator_map;
+
 	/* context changes */
 	switch (wmn->category) {
 		case NC_SPACE:
-			if (wmn->data == ND_SPACE_NODE)
-				ED_region_tag_redraw(ar);
+			switch (wmn->data) {
+				case ND_SPACE_NODE:
+					ED_region_tag_redraw(ar);
+					break;
+				case ND_SPACE_NODE_VIEW:
+					WM_manipulatormap_tag_refresh(mmap);
+					break;
+			}
 			break;
 		case NC_SCREEN:
+			if (wmn->data == ND_LAYOUTSET || wmn->action == NA_EDITED) {
+				WM_manipulatormap_tag_refresh(mmap);
+			}
 			switch (wmn->data) {
 				case ND_SCREENCAST:
 				case ND_ANIMPLAY:
+				case ND_LAYER:
 					ED_region_tag_redraw(ar);
 					break;
 			}
@@ -758,10 +784,20 @@ static void node_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegi
 				ED_region_tag_redraw(ar);
 			break;
 		case NC_SCENE:
+			ED_region_tag_redraw(ar);
+			if (wmn->data == ND_RENDER_RESULT) {
+				WM_manipulatormap_tag_refresh(mmap);
+			}
+			break;
+		case NC_NODE:
+			ED_region_tag_redraw(ar);
+			if (ELEM(wmn->action, NA_EDITED, NA_SELECTED)) {
+				WM_manipulatormap_tag_refresh(mmap);
+			}
+			break;
 		case NC_MATERIAL:
 		case NC_TEXTURE:
 		case NC_WORLD:
-		case NC_NODE:
 		case NC_LINESTYLE:
 			ED_region_tag_redraw(ar);
 			break;
@@ -824,6 +860,17 @@ static int node_context(const bContext *C, const char *member, bContextDataResul
 	}
 
 	return 0;
+}
+
+static void node_widgets(void)
+{
+	/* create the widgetmap for the area here */
+	wmManipulatorMapType *mmap_type = WM_manipulatormaptype_ensure(
+	        &(const struct wmManipulatorMapType_Params){SPACE_NODE, RGN_TYPE_WINDOW});
+	WM_manipulatorgrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_transform);
+	WM_manipulatorgrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_crop);
+	WM_manipulatorgrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_sun_beams);
+	WM_manipulatorgrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_corner_pin);
 }
 
 static void node_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, ID *new_id)
@@ -897,6 +944,32 @@ static void node_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, ID 
 	}
 }
 
+
+static int node_space_subtype_get(ScrArea *sa)
+{
+	SpaceNode *snode = sa->spacedata.first;
+	return rna_node_tree_idname_to_enum(snode->tree_idname);
+}
+
+static void node_space_subtype_set(ScrArea *sa, int value)
+{
+	SpaceNode *snode = sa->spacedata.first;
+	ED_node_set_tree_type(snode, rna_node_tree_type_from_enum(value));
+}
+
+static void node_space_subtype_item_extend(
+        bContext *C, EnumPropertyItem **item, int *totitem)
+{
+	bool free;
+	const EnumPropertyItem *item_src = RNA_enum_node_tree_types_itemf_impl(C, &free);
+	for (const EnumPropertyItem *item_iter = item_src; item_iter->identifier; item_iter++) {
+		RNA_enum_item_add(item, totitem, item_iter);
+	}
+	if (free) {
+		MEM_freeN((void *)item_src);
+	}
+}
+
 /* only called once, from space/spacetypes.c */
 void ED_spacetype_node(void)
 {
@@ -916,7 +989,11 @@ void ED_spacetype_node(void)
 	st->refresh = node_area_refresh;
 	st->context = node_context;
 	st->dropboxes = node_dropboxes;
+	st->manipulators = node_widgets;
 	st->id_remap = node_id_remap;
+	st->space_subtype_item_extend = node_space_subtype_item_extend;
+	st->space_subtype_get = node_space_subtype_get;
+	st->space_subtype_set = node_space_subtype_set;
 
 	/* regions: main window */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype node region");

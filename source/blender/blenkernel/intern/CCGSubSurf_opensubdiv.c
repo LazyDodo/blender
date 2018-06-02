@@ -43,7 +43,7 @@
 #include "opensubdiv_capi.h"
 #include "opensubdiv_converter_capi.h"
 
-#include "GL/glew.h"
+#include "GPU_glew.h"
 #include "GPU_extensions.h"
 
 #define OSD_LOG if (false) printf
@@ -232,6 +232,9 @@ bool ccgSubSurf_prepareGLMesh(CCGSubSurf *ss,
 		CHECK_COMPUTE_TYPE(CUDA)
 		CHECK_COMPUTE_TYPE(GLSL_TRANSFORM_FEEDBACK)
 		CHECK_COMPUTE_TYPE(GLSL_COMPUTE)
+		default:
+			compute_type = OPENSUBDIV_EVALUATOR_CPU;
+			break;
 #undef CHECK_COMPUTE_TYPE
 	}
 
@@ -540,7 +543,7 @@ static void opensubdiv_evaluateQuadFaceGrids(CCGSubSurf *ss,
 	for (S = 0; S < face->numVerts; S++) {
 		int x, y, k;
 		CCGEdge *edge = NULL;
-		bool inverse_edge;
+		bool inverse_edge = false;
 
 		for (x = 0; x < gridSize; x++) {
 			for (y = 0; y < gridSize; y++) {
@@ -739,7 +742,7 @@ static void opensubdiv_evaluateNGonFaceGrids(CCGSubSurf *ss,
 	/* Evaluate edges. */
 	for (S = 0; S < face->numVerts; S++) {
 		CCGEdge *edge = FACE_getEdges(face)[S];
-		int x, S0, S1;
+		int x, S0 = 0, S1 = 0;
 		bool flip;
 
 		for (x = 0; x < face->numVerts; ++x) {
@@ -995,7 +998,7 @@ void ccgSubSurf__sync_subdivUvs(CCGSubSurf *ss, bool subdiv_uvs)
 
 void BKE_subsurf_osd_init(void)
 {
-	openSubdiv_init(GPU_legacy_support());
+	openSubdiv_init();
 	BLI_spin_init(&delete_spin);
 }
 

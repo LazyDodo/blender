@@ -214,7 +214,7 @@ void AnimationExporter::export_sampled_matrix_animation(Object *ob, std::vector<
 	for (std::vector<float>::iterator ctime = ctimes.begin(); ctime != ctimes.end(); ++ctime) {
 		float fmat[4][4];
 
-		bc_update_scene(scene, *ctime);
+		bc_update_scene(depsgraph, scene, *ctime);
 		BKE_object_matrix_local_get(ob, fmat);
 		if (this->export_settings->limit_precision)
 			bc_sanitize_mat(fmat, 6);
@@ -246,7 +246,7 @@ void AnimationExporter::export_sampled_transrotloc_animation(Object *ob, std::ve
 		float fsize[3];
 		float feul[3];
 
-		bc_update_scene(scene, *ctime);
+		bc_update_scene(depsgraph, scene, *ctime);
 		BKE_object_matrix_local_get(ob, fmat);
 		mat4_decompose(floc, fquat, fsize, fmat);
 		quat_to_eul(feul, fquat);
@@ -721,7 +721,7 @@ void AnimationExporter::sample_and_write_bone_animation_matrix(Object *ob_arm, B
 
 	if (flag & ARM_RESTPOS) {
 		arm->flag &= ~ARM_RESTPOS;
-		BKE_pose_where_is(scene, ob_arm);
+		BKE_pose_where_is(depsgraph, scene, ob_arm);
 	}
 
 	if (fra.size()) {
@@ -730,7 +730,7 @@ void AnimationExporter::sample_and_write_bone_animation_matrix(Object *ob_arm, B
 
 	if (flag & ARM_RESTPOS) 
 		arm->flag = flag;
-	BKE_pose_where_is(scene, ob_arm);
+	BKE_pose_where_is(depsgraph, scene, ob_arm);
 }
 
 void AnimationExporter::dae_baked_animation(std::vector<float> &fra, Object *ob_arm, Bone *bone)
@@ -1004,7 +1004,7 @@ std::string AnimationExporter::create_source_from_fcurve(COLLADASW::InputSemanti
 
 void AnimationExporter::evaluate_anim_with_constraints(Object *ob, float ctime)
 {
-	BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, ctime, ADT_RECALC_ALL);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, ctime, ADT_RECALC_ALL);
 	ListBase *conlist = get_active_constraints(ob);
 	bConstraint *con;
 	for (con = (bConstraint *)conlist->first; con; con = con->next) {
@@ -1020,8 +1020,8 @@ void AnimationExporter::evaluate_anim_with_constraints(Object *ob, float ctime)
 				obtar = ct->tar;
 
 				if (obtar) {
-					BKE_animsys_evaluate_animdata(scene, &obtar->id, obtar->adt, ctime, ADT_RECALC_ANIM);
-					BKE_object_where_is_calc_time(scene, obtar, ctime);
+					BKE_animsys_evaluate_animdata(depsgraph, scene, &obtar->id, obtar->adt, ctime, ADT_RECALC_ANIM);
+					BKE_object_where_is_calc_time(this->depsgraph, scene, obtar, ctime);
 				}
 			}
 
@@ -1029,7 +1029,7 @@ void AnimationExporter::evaluate_anim_with_constraints(Object *ob, float ctime)
 				cti->flush_constraint_targets(con, &targets, 1);
 		}
 	}
-	BKE_object_where_is_calc_time(scene, ob, ctime);
+	BKE_object_where_is_calc_time(this->depsgraph, scene, ob, ctime);
 }
 
 /*
@@ -1315,15 +1315,16 @@ std::string AnimationExporter::create_4x4_source(std::vector<float> &frames, Obj
 		float frame = *it;
 
 		float ctime = BKE_scene_frame_get_from_ctime(scene, frame);
-		bc_update_scene(scene, ctime);
+		bc_update_scene(depsgraph, scene, ctime);
 		if (is_bone_animation) {
+
 			if (pchan->flag & POSE_CHAIN) {
 				enable_fcurves(ob->adt->action, NULL);
-				BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, ctime, ADT_RECALC_ALL);
-				BKE_pose_where_is(scene, ob);
+				BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, ctime, ADT_RECALC_ALL);
+				BKE_pose_where_is(depsgraph, scene, ob);
 			}
 			else {
-				BKE_pose_where_is_bone(scene, ob, pchan, ctime, 1);
+				BKE_pose_where_is_bone(depsgraph, scene, ob, pchan, ctime, 1);
 			}
 			
 			// compute bone local mat
@@ -1841,7 +1842,7 @@ void AnimationExporter::sample_and_write_bone_animation(Object *ob_arm, Bone *bo
 	// exit rest position
 	if (flag & ARM_RESTPOS) {
 		arm->flag &= ~ARM_RESTPOS;
-		BKE_pose_where_is(scene, ob_arm);
+		BKE_pose_where_is(depsgraph, scene, ob_arm);
 	}
 	//v array will hold all values which will be exported. 
 	if (fra.size()) {
@@ -1871,7 +1872,7 @@ void AnimationExporter::sample_and_write_bone_animation(Object *ob_arm, Bone *bo
 	// restore restpos
 	if (flag & ARM_RESTPOS) 
 		arm->flag = flag;
-	BKE_pose_where_is(scene, ob_arm);
+	BKE_pose_where_is(depsgraph, scene, ob_arm);
 }
 
 void AnimationExporter::sample_animation(float *v, std::vector<float> &frames, int type, Bone *bone, Object *ob_arm, bPoseChannel *pchan)
@@ -1895,8 +1896,8 @@ void AnimationExporter::sample_animation(float *v, std::vector<float> &frames, i
 		float ctime = BKE_scene_frame_get_from_ctime(scene, *it);
 
 
-		BKE_animsys_evaluate_animdata(scene, &ob_arm->id, ob_arm->adt, ctime, ADT_RECALC_ANIM);
-		BKE_pose_where_is_bone(scene, ob_arm, pchan, ctime, 1);
+		BKE_animsys_evaluate_animdata(depsgraph, scene, &ob_arm->id, ob_arm->adt, ctime, ADT_RECALC_ANIM);
+		BKE_pose_where_is_bone(depsgraph, scene, ob_arm, pchan, ctime, 1);
 
 		// compute bone local mat
 		if (bone->parent) {

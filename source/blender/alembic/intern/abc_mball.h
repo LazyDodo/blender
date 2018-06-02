@@ -43,6 +43,7 @@ class AbcMBallWriter : public AbcObjectWriter {
 public:
 	AbcMBallWriter(
 	        Main *bmain,
+	        Depsgraph *depsgraph,
 	        Scene *scene,
 	        Object *ob,
 	        AbcTransformWriter *parent,
@@ -51,7 +52,7 @@ public:
 
 	~AbcMBallWriter();
 
-	static bool isBasisBall(EvaluationContext *eval_ctx, Scene *scene, Object *ob);
+	static bool isBasisBall(Scene *scene, Object *ob);
 
 private:
 	virtual void do_write();

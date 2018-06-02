@@ -51,9 +51,10 @@
 #include "DNA_object_types.h"
 
 #include "BKE_animsys.h"
-#include "BKE_depsgraph.h"
 #include "BKE_key.h"
 #include "BKE_main.h"
+
+#include "DEG_depsgraph.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -486,7 +487,7 @@ static void rna_Key_update_data(Main *bmain, Scene *UNUSED(scene), PointerRNA *p
 
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (BKE_key_from_object(ob) == key) {
-			DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ob);
 		}
 	}
@@ -712,7 +713,7 @@ static void rna_def_keyblock(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "relative_key", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "ShapeKey");
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_NULL);
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_NULL | PROP_PTR_NO_OWNERSHIP);
 	RNA_def_property_pointer_funcs(prop, "rna_ShapeKey_relative_key_get",
 	                               "rna_ShapeKey_relative_key_set", NULL, NULL);
 	RNA_def_property_ui_text(prop, "Relative Key", "Shape used as a relative key");

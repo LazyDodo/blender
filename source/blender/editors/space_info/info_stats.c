@@ -37,6 +37,7 @@
 #include "DNA_meta_types.h"
 #include "DNA_scene_types.h"
 
+#include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
@@ -49,9 +50,11 @@
 #include "BKE_displist.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_key.h"
+#include "BKE_layer.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_editmesh.h"
+#include "BKE_object.h"
 
 #include "ED_info.h"
 #include "ED_armature.h"
@@ -269,9 +272,32 @@ static void stats_object_sculpt_dynamic_topology(Object *ob, SceneStats *stats)
 	stats->tottri = ob->sculpt->bm->totface;
 }
 
+static void stats_dupli_object_group_count(Collection *collection, int *count)
+{
+	*count += BLI_listbase_count(&collection->gobject);
+
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		stats_dupli_object_group_count(child->collection, count);
+	}
+}
+
+static void stats_dupli_object_group_doit(Collection *collection, SceneStats *stats, ParticleSystem *psys,
+                                          const int totgroup, int *cur)
+{
+	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+		int tot = count_particles_mod(psys, totgroup, *cur);
+		stats_object(cob->ob, 0, tot, stats);
+		(*cur)++;
+	}
+
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		stats_dupli_object_group_doit(child->collection, stats, psys, totgroup, cur);
+	}
+}
+
 static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 {
-	if (base->flag & SELECT) stats->totobjsel++;
+	if (base->flag & BASE_SELECTED) stats->totobjsel++;
 
 	if (ob->transflag & OB_DUPLIPARTS) {
 		/* Dupli Particles */
@@ -286,21 +312,15 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 				stats_object(part->dup_ob, 0, tot, stats);
 			}
 			else if (part->draw_as == PART_DRAW_GR && part->dup_group) {
-				GroupObject *go;
-				int tot, totgroup = 0, cur = 0;
-				
-				for (go = part->dup_group->gobject.first; go; go = go->next)
-					totgroup++;
+				int totgroup = 0, cur = 0;
 
-				for (go = part->dup_group->gobject.first; go; go = go->next) {
-					tot = count_particles_mod(psys, totgroup, cur);
-					stats_object(go->ob, 0, tot, stats);
-					cur++;
-				}
+				Collection *collection = part->dup_group;
+				stats_dupli_object_group_count(collection, &totgroup);
+				stats_dupli_object_group_doit(collection, stats, psys, totgroup, &cur);
 			}
 		}
 		
-		stats_object(ob, base->flag & SELECT, 1, stats);
+		stats_object(ob, base->flag & BASE_SELECTED, 1, stats);
 		stats->totobj++;
 	}
 	else if (ob->parent && (ob->parent->transflag & (OB_DUPLIVERTS | OB_DUPLIFACES))) {
@@ -316,71 +336,77 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 		}
 
 		stats->totobj += tot;
-		stats_object(ob, base->flag & SELECT, tot, stats);
+		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
 	}
 	else if (ob->transflag & OB_DUPLIFRAMES) {
 		/* Dupli Frames */
 		int tot = count_duplilist(ob);
 		stats->totobj += tot;
-		stats_object(ob, base->flag & SELECT, tot, stats);
+		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
 	}
-	else if ((ob->transflag & OB_DUPLIGROUP) && ob->dup_group) {
+	else if ((ob->transflag & OB_DUPLICOLLECTION) && ob->dup_group) {
 		/* Dupli Group */
 		int tot = count_duplilist(ob);
 		stats->totobj += tot;
-		stats_object(ob, base->flag & SELECT, tot, stats);
+		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
 	}
 	else {
 		/* No Dupli */
-		stats_object(ob, base->flag & SELECT, 1, stats);
+		stats_object(ob, base->flag & BASE_SELECTED, 1, stats);
 		stats->totobj++;
 	}
 }
 
-static bool stats_is_object_dynamic_topology_sculpt(Object *ob)
+static bool stats_is_object_dynamic_topology_sculpt(Object *ob, const eObjectMode object_mode)
 {
-	return (ob && (ob->mode & OB_MODE_SCULPT) &&
+	return (ob &&
+	        (object_mode & OB_MODE_SCULPT) &&
 	        ob->sculpt && ob->sculpt->bm);
 }
 
 /* Statistics displayed in info header. Called regularly on scene changes. */
-static void stats_update(Scene *scene)
+static void stats_update(ViewLayer *view_layer)
 {
 	SceneStats stats = {0};
-	Object *ob = (scene->basact) ? scene->basact->object : NULL;
+	Object *ob = OBACT(view_layer);
+	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 	Base *base;
-	
-	if (scene->obedit) {
+
+	if (obedit) {
 		/* Edit Mode */
-		stats_object_edit(scene->obedit, &stats);
+		stats_object_edit(ob, &stats);
 	}
 	else if (ob && (ob->mode & OB_MODE_POSE)) {
 		/* Pose Mode */
 		stats_object_pose(ob, &stats);
 	}
-	else if (stats_is_object_dynamic_topology_sculpt(ob)) {
+	else if (ob && stats_is_object_dynamic_topology_sculpt(ob, ob->mode)) {
 		/* Dynamic-topology sculpt mode */
 		stats_object_sculpt_dynamic_topology(ob, &stats);
 	}
 	else {
 		/* Objects */
-		for (base = scene->base.first; base; base = base->next)
-			if (scene->lay & base->lay)
+		for (base = view_layer->object_bases.first; base; base = base->next)
+			if (base->flag & BASE_VISIBLED) {
 				stats_dupli_object(base, base->object, &stats);
+			}
 	}
 
-	if (!scene->stats)
-		scene->stats = MEM_callocN(sizeof(SceneStats), "SceneStats");
+	if (!view_layer->stats) {
+		view_layer->stats = MEM_callocN(sizeof(SceneStats), "SceneStats");
+	}
 
-	*(scene->stats) = stats;
+	*(view_layer->stats) = stats;
 }
 
-static void stats_string(Scene *scene)
+static void stats_string(ViewLayer *view_layer)
 {
 #define MAX_INFO_MEM_LEN  64
-	SceneStats *stats = scene->stats;
+	SceneStats *stats = view_layer->stats;
 	SceneStatsFmt stats_fmt;
-	Object *ob = (scene->basact) ? scene->basact->object : NULL;
+	Object *ob = OBACT(view_layer);
+	Object *obedit = OBEDIT_FROM_OBACT(ob);
+	eObjectMode object_mode = ob ? ob->mode : OB_MODE_OBJECT;
 	uintptr_t mem_in_use, mmap_in_use;
 	char memstr[MAX_INFO_MEM_LEN];
 	char gpumemstr[MAX_INFO_MEM_LEN] = "";
@@ -447,17 +473,17 @@ static void stats_string(Scene *scene)
 
 	ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, "%s | ", versionstr);
 
-	if (scene->obedit) {
-		if (BKE_keyblock_from_object(scene->obedit))
+	if (obedit) {
+		if (BKE_keyblock_from_object(obedit))
 			ofs += BLI_strncpy_rlen(s + ofs, IFACE_("(Key) "), MAX_INFO_LEN - ofs);
 
-		if (scene->obedit->type == OB_MESH) {
+		if (obedit->type == OB_MESH) {
 			ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs,
 			                    IFACE_("Verts:%s/%s | Edges:%s/%s | Faces:%s/%s | Tris:%s"),
 			                    stats_fmt.totvertsel, stats_fmt.totvert, stats_fmt.totedgesel, stats_fmt.totedge,
 			                    stats_fmt.totfacesel, stats_fmt.totface, stats_fmt.tottri);
 		}
-		else if (scene->obedit->type == OB_ARMATURE) {
+		else if (obedit->type == OB_ARMATURE) {
 			ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, IFACE_("Verts:%s/%s | Bones:%s/%s"), stats_fmt.totvertsel,
 			                    stats_fmt.totvert, stats_fmt.totbonesel, stats_fmt.totbone);
 		}
@@ -469,11 +495,11 @@ static void stats_string(Scene *scene)
 		ofs += BLI_strncpy_rlen(s + ofs, memstr, MAX_INFO_LEN - ofs);
 		ofs += BLI_strncpy_rlen(s + ofs, gpumemstr, MAX_INFO_LEN - ofs);
 	}
-	else if (ob && (ob->mode & OB_MODE_POSE)) {
+	else if (ob && (object_mode & OB_MODE_POSE)) {
 		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, IFACE_("Bones:%s/%s %s%s"),
 		                    stats_fmt.totbonesel, stats_fmt.totbone, memstr, gpumemstr);
 	}
-	else if (stats_is_object_dynamic_topology_sculpt(ob)) {
+	else if (stats_is_object_dynamic_topology_sculpt(ob, object_mode)) {
 		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, IFACE_("Verts:%s | Tris:%s%s"), stats_fmt.totvert,
 		                    stats_fmt.tottri, gpumemstr);
 	}
@@ -493,19 +519,19 @@ static void stats_string(Scene *scene)
 
 #undef MAX_INFO_LEN
 
-void ED_info_stats_clear(Scene *scene)
+void ED_info_stats_clear(ViewLayer *view_layer)
 {
-	if (scene->stats) {
-		MEM_freeN(scene->stats);
-		scene->stats = NULL;
+	if (view_layer->stats) {
+		MEM_freeN(view_layer->stats);
+		view_layer->stats = NULL;
 	}
 }
 
-const char *ED_info_stats_string(Scene *scene)
+const char *ED_info_stats_string(Scene *UNUSED(scene), ViewLayer *view_layer)
 {
-	if (!scene->stats)
-		stats_update(scene);
-	stats_string(scene);
-
-	return scene->stats->infostr;
+	if (!view_layer->stats) {
+		stats_update(view_layer);
+	}
+	stats_string(view_layer);
+	return view_layer->stats->infostr;
 }

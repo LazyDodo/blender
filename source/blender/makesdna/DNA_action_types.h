@@ -43,7 +43,7 @@
 
 struct SpaceLink;
 struct Object;
-struct Group;
+struct Collection;
 struct GHash;
 
 /* ************************************************ */
@@ -61,7 +61,8 @@ typedef struct bMotionPathVert {
 /* bMotionPathVert->flag */
 typedef enum eMotionPathVert_Flag {
 	/* vert is selected */
-	MOTIONPATH_VERT_SEL     = (1 << 0)
+	MOTIONPATH_VERT_SEL     = (1 << 0),
+	MOTIONPATH_VERT_KEY     = (1 << 1),
 } eMotionPathVert_Flag;
 
 /* ........ */
@@ -79,6 +80,12 @@ typedef struct bMotionPath {
 	float color[3];	            /* optional custom color */
 	int line_thickness;         /* line thickness */
 	int flag;                   /* baking settings - eMotionPath_Flag */
+
+	/* Used for drawing. */
+	struct Gwn_VertBuf *points_vbo;
+	struct Gwn_Batch *batch_line;
+	struct Gwn_Batch *batch_points;
+	void *pad;
 } bMotionPath;
 
 /* bMotionPath->flag */
@@ -180,6 +187,18 @@ typedef enum eMotionPaths_BakeFlag {
 	MOTIONPATH_BAKE_HAS_PATHS       = (1 << 2)
 } eMotionPath_BakeFlag;
 
+/* runtime */
+#
+#
+typedef struct bPoseChannelDrawData {
+	float solid_color[4];
+	float wire_color[4];
+
+	int bbone_matrix_len;
+	/* keep last */
+	float bbone_matrix[0][4][4];
+} bPoseChannelDrawData;
+
 /* ************************************************ */
 /* Poses */
 
@@ -238,6 +257,8 @@ typedef struct bPoseChannel {
 	float chan_mat[4][4];           /* matrix result of loc/quat/size, and where we put deform in, see next line */
 	float pose_mat[4][4];           /* constraints accumulate here. in the end, pose_mat = bone->arm_mat * chan_mat
 	                                 * this matrix is object space */
+	float disp_mat[4][4];           /* for display, pose_mat with bone length applied */
+	float disp_tail_mat[4][4];      /* for display, pose_mat with bone length applied and translated to tail*/
 	float constinv[4][4];           /* inverse result of constraints.
 	                                 * doesn't include effect of restposition, parent, and local transform*/
 	
@@ -259,8 +280,13 @@ typedef struct bPoseChannel {
 	
 	struct bPoseChannel *bbone_prev; /* next/prev bones to use as handle references when calculating bbones (optional) */
 	struct bPoseChannel *bbone_next;
-	
+
 	void        *temp;              /* use for outliner */
+	/* Runtime data for color and bbone segment matrix. */
+	bPoseChannelDrawData *draw_data;
+
+	/* Points to an original pose channel. */
+	struct bPoseChannel *orig_pchan;
 } bPoseChannel;
 
 
@@ -418,8 +444,7 @@ typedef enum ePose_Flags {
 	POSE_RECALCPATHS = (1 << 4),
 	/* set by BKE_pose_rebuild to give a chance to the IK solver to rebuild IK tree */
 	POSE_WAS_REBUILT = (1 << 5),
-	/* set by game_copy_pose to indicate that this pose is used in the game engine */
-	POSE_GAME_ENGINE = (1 << 6),
+	POSE_FLAG_DEPRECATED = (1 << 6), /* deprecated. */
 	/* pose constraint flags needs to be updated */
 	POSE_CONSTRAINTS_NEED_UPDATE_FLAGS = (1 << 7),
 } ePose_Flags;
@@ -573,7 +598,7 @@ typedef struct bDopeSheet {
 	ID      *source;            /* currently ID_SCE (for Dopesheet), and ID_SC (for Grease Pencil) */
 	ListBase chanbase; /* cache for channels (only initialized when pinned) */           // XXX not used!
 	
-	struct Group *filter_grp;   /* object group for ADS_FILTER_ONLYOBGROUP filtering option */
+	struct Collection *filter_grp;   /* object group for ADS_FILTER_ONLYOBGROUP filtering option */
 	char searchstr[64];         /* string to search for in displayed names of F-Curves for ADS_FILTER_BY_FCU_NAME filtering option */
 	
 	int filterflag;             /* flags to use for filtering data */
@@ -665,6 +690,9 @@ typedef struct SpaceAction {
 	char mode, autosnap;        /* mode: editing context; autosnap: automatic keyframe snapping mode   */
 	short flag;                 /* flag: bitmapped settings; */
 	float timeslide;            /* for Time-Slide transform mode drawing - current frame? */
+	
+	int cache_display;          /* (eTimeline_Cache_Flag) */
+	int pad;
 } SpaceAction;
 
 /* SpaceAction flag */
@@ -709,6 +737,8 @@ typedef enum eAnimEdit_Context {
 	SACTCONT_MASK = 4,
 	/* cache file */
 	SACTCONT_CACHEFILE = 5,
+	/* timeline - replacement for the standalone "timeline editor" */
+	SACTCONT_TIMELINE = 6,
 } eAnimEdit_Context;
 
 /* SpaceAction AutoSnap Settings (also used by other Animation Editors) */
@@ -726,6 +756,17 @@ typedef enum eAnimEdit_AutoSnap {
 	/* snap to 1.0 second increments */
 	SACTSNAP_TSTEP = 5
 } eAnimEdit_AutoSnap;
+
+/* SAction->cache_display */
+typedef enum eTimeline_Cache_Flag {
+	TIME_CACHE_DISPLAY       = (1 << 0),
+	TIME_CACHE_SOFTBODY      = (1 << 1),
+	TIME_CACHE_PARTICLES     = (1 << 2),
+	TIME_CACHE_CLOTH         = (1 << 3),
+	TIME_CACHE_SMOKE         = (1 << 4),
+	TIME_CACHE_DYNAMICPAINT  = (1 << 5),
+	TIME_CACHE_RIGIDBODY     = (1 << 6),
+} eTimeline_Cache_Flag;
 
 
 /* ************************************************ */

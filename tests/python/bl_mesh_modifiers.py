@@ -38,12 +38,12 @@ USE_QUICK_RENDER = False
 
 def render_gl(context, filepath, shade):
 
-    def ctx_viewport_shade(context, shade):
+    def ctx_shading_type(context, shade):
         for area in context.window.screen.areas:
             if area.type == 'VIEW_3D':
                 space = area.spaces.active
                 # rv3d = space.region_3d
-                space.viewport_shade = shade
+                space.shading.type = shade
 
     import bpy
     scene = context.scene
@@ -59,7 +59,7 @@ def render_gl(context, filepath, shade):
     render.resolution_x = 512
     render.resolution_y = 512
 
-    ctx_viewport_shade(context, shade)
+    ctx_shading_type(context, shade)
 
     #~ # stop to inspect!
     #~ if filepath == "test_cube_shell_solidify_subsurf_wp_wire":
@@ -248,7 +248,7 @@ def mesh_uv_add(obj):
            (1.0, 1.0),
            (1.0, 0.0))
 
-    uv_lay = obj.data.uv_textures.new()
+    uv_lay = obj.data.uv_layers.new()
 
     # XXX, odd that we need to do this. until UV's and texface
     # are separated we will need to keep it

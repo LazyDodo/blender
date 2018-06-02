@@ -48,7 +48,6 @@
 
 #include "BKE_context.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_fcurve.h"
 #include "BKE_screen.h"
 #include "BKE_unit.h"

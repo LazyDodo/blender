@@ -20,6 +20,7 @@
 
 import bpy
 from bpy.types import Header, Menu
+from .space_time import *
 
 
 #######################################
@@ -40,11 +41,11 @@ def dopesheet_filter(layout, context, genericFiltersOnly=False):
         row.prop(dopesheet, "show_only_errors", text="")
 
     if not genericFiltersOnly:
-        if bpy.data.groups:
+        if bpy.data.collections:
             row = layout.row(align=True)
-            row.prop(dopesheet, "show_only_group_objects", text="")
-            if dopesheet.show_only_group_objects:
-                row.prop(dopesheet, "filter_group", text="")
+            row.prop(dopesheet, "show_only_collection_objects", text="")
+            if dopesheet.show_only_collection_objects:
+                row.prop(dopesheet, "filter_collection", text="")
 
     if not is_nla:
         row = layout.row(align=True)
@@ -114,14 +115,35 @@ class DOPESHEET_HT_header(Header):
         layout = self.layout
 
         st = context.space_data
-        toolsettings = context.tool_settings
 
         row = layout.row(align=True)
         row.template_header()
-
-        DOPESHEET_MT_editor_menus.draw_collapsible(context, layout)
-
+        
+        # XXX: perhaps our mode menu can be retired eventually when we get editor submodes in the main menu?
         layout.prop(st, "mode", text="")
+
+        if st.mode == 'TIMELINE':
+            TIME_MT_editor_menus.draw_collapsible(context, layout)
+            TIME_HT_editor_buttons.draw_header(context, layout)
+        else:
+            DOPESHEET_MT_editor_menus.draw_collapsible(context, layout)
+            DOPESHEET_HT_editor_buttons.draw_header(context, layout)
+
+
+# Header for "normal" dopesheet editor modes (e.g. Dope Sheet, Action, Shape Keys, etc.)
+# XXX: Temporary, until we have editor submodes in the actual editors menu
+class DOPESHEET_HT_editor_buttons(Header):
+    bl_idname = "DOPESHEET_HT_editor_buttons"
+    bl_space_type = 'DOPESHEET_EDITOR'
+    bl_label = ""
+
+    def draw(self, context):
+        pass
+
+    @staticmethod
+    def draw_header(context, layout):
+        st = context.space_data
+        toolsettings = context.tool_settings
 
         if st.mode in {'ACTION', 'SHAPEKEY'}:
             row = layout.row(align=True)
@@ -233,9 +255,7 @@ class DOPESHEET_MT_view(Menu):
         layout.operator("action.view_frame")
 
         layout.separator()
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class DOPESHEET_MT_select(Menu):
@@ -451,6 +471,7 @@ class DOPESHEET_MT_delete(Menu):
 
 classes = (
     DOPESHEET_HT_header,
+    DOPESHEET_HT_editor_buttons,
     DOPESHEET_MT_editor_menus,
     DOPESHEET_MT_view,
     DOPESHEET_MT_select,

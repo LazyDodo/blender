@@ -221,8 +221,11 @@ typedef struct bNode {
 	 * and replacing all uses with per-instance data.
 	 */
 	short preview_xsize, preview_ysize;	/* reserved size of the preview rect */
-	int pad2;
+	short pad2[2];
 	struct uiBlock *block;	/* runtime during drawing */
+
+	float ssr_id; /* XXX: eevee only, id of screen space reflection layer, needs to be a float to feed GPU_uniform. */
+	float sss_id; /* XXX: eevee only, id of screen subsurface scatter layer, needs to be a float to feed GPU_uniform. */
 } bNode;
 
 /* node->flag */
@@ -649,11 +652,6 @@ typedef struct NodeTwoXYs {
 typedef struct NodeTwoFloats {
 	float x, y;
 } NodeTwoFloats;
-
-typedef struct NodeGeometry {
-	char uvname[64];	/* MAX_CUSTOMDATA_LAYER_NAME */
-	char colname[64];
-} NodeGeometry;
 
 typedef struct NodeVertexCol {
 	char name[64];

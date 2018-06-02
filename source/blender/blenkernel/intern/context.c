@@ -30,6 +30,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_group_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
@@ -38,6 +39,9 @@
 #include "DNA_object_types.h"
 #include "DNA_linestyle_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_workspace_types.h"
+
+#include "DEG_depsgraph.h"
 
 #include "BLI_listbase.h"
 #include "BLI_string.h"
@@ -47,9 +51,14 @@
 #include "BLT_translation.h"
 
 #include "BKE_context.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
+#include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sound.h"
+#include "BKE_workspace.h"
+
+#include "RE_engine.h"
 
 #include "RNA_access.h"
 
@@ -66,10 +75,12 @@ struct bContext {
 	struct {
 		struct wmWindowManager *manager;
 		struct wmWindow *window;
+		struct WorkSpace *workspace;
 		struct bScreen *screen;
 		struct ScrArea *area;
 		struct ARegion *region;
 		struct ARegion *menu;
+		struct wmManipulatorGroup *manipulator_group;
 		struct bContextStore *store;
 		const char *operator_poll_msg; /* reason for poll failing */
 	} wm;
@@ -627,6 +638,11 @@ wmWindow *CTX_wm_window(const bContext *C)
 	return ctx_wm_python_context_get(C, "window", &RNA_Window, C->wm.window);
 }
 
+WorkSpace *CTX_wm_workspace(const bContext *C)
+{
+	return ctx_wm_python_context_get(C, "workspace", &RNA_WorkSpace, C->wm.workspace);
+}
+
 bScreen *CTX_wm_screen(const bContext *C)
 {
 	return ctx_wm_python_context_get(C, "screen", &RNA_Screen, C->wm.screen);
@@ -657,6 +673,16 @@ void *CTX_wm_region_data(const bContext *C)
 struct ARegion *CTX_wm_menu(const bContext *C)
 {
 	return C->wm.menu;
+}
+
+struct wmManipulatorGroup *CTX_wm_manipulator_group(const bContext *C)
+{
+	return C->wm.manipulator_group;
+}
+
+struct wmMsgBus *CTX_wm_message_bus(const bContext *C)
+{
+	return C->wm.manager ? C->wm.manager->message_bus : NULL;
 }
 
 struct ReportList *CTX_wm_reports(const bContext *C)
@@ -750,26 +776,10 @@ struct SpaceNla *CTX_wm_space_nla(const bContext *C)
 	return NULL;
 }
 
-struct SpaceTime *CTX_wm_space_time(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_TIME)
-		return sa->spacedata.first;
-	return NULL;
-}
-
 struct SpaceNode *CTX_wm_space_node(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	if (sa && sa->spacetype == SPACE_NODE)
-		return sa->spacedata.first;
-	return NULL;
-}
-
-struct SpaceLogic *CTX_wm_space_logic(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_LOGIC)
 		return sa->spacedata.first;
 	return NULL;
 }
@@ -814,6 +824,14 @@ struct SpaceClip *CTX_wm_space_clip(const bContext *C)
 	return NULL;
 }
 
+struct SpaceTopBar *CTX_wm_space_topbar(const bContext *C)
+{
+	ScrArea *sa = CTX_wm_area(C);
+	if (sa && sa->spacetype == SPACE_TOPBAR)
+		return sa->spacedata.first;
+	return NULL;
+}
+
 void CTX_wm_manager_set(bContext *C, wmWindowManager *wm)
 {
 	C->wm.manager = wm;
@@ -826,9 +844,11 @@ void CTX_wm_manager_set(bContext *C, wmWindowManager *wm)
 void CTX_wm_window_set(bContext *C, wmWindow *win)
 {
 	C->wm.window = win;
-	C->wm.screen = (win) ? win->screen : NULL;
-	if (C->wm.screen)
-		C->data.scene = C->wm.screen->scene;
+	if (win) {
+		C->data.scene = win->scene;
+	}
+	C->wm.workspace = (win) ? BKE_workspace_active_get(win->workspace_hook) : NULL;
+	C->wm.screen = (win) ? BKE_workspace_active_screen_get(win->workspace_hook) : NULL;
 	C->wm.area = NULL;
 	C->wm.region = NULL;
 }
@@ -836,8 +856,6 @@ void CTX_wm_window_set(bContext *C, wmWindow *win)
 void CTX_wm_screen_set(bContext *C, bScreen *screen)
 {
 	C->wm.screen = screen;
-	if (C->wm.screen)
-		C->data.scene = C->wm.screen->scene;
 	C->wm.area = NULL;
 	C->wm.region = NULL;
 }
@@ -856,6 +874,11 @@ void CTX_wm_region_set(bContext *C, ARegion *region)
 void CTX_wm_menu_set(bContext *C, ARegion *menu)
 {
 	C->wm.menu = menu;
+}
+
+void CTX_wm_manipulator_group_set(bContext *C, struct wmManipulatorGroup *mgroup)
+{
+	C->wm.manipulator_group = mgroup;
 }
 
 void CTX_wm_operator_poll_msg_set(bContext *C, const char *msg)
@@ -896,10 +919,66 @@ Scene *CTX_data_scene(const bContext *C)
 		return C->data.scene;
 }
 
-int CTX_data_mode_enum(const bContext *C)
+ViewLayer *CTX_data_view_layer(const bContext *C)
 {
-	Object *obedit = CTX_data_edit_object(C);
+	ViewLayer *view_layer;
 
+	if (ctx_data_pointer_verify(C, "view_layer", (void *)&view_layer)) {
+		return view_layer;
+	}
+	else {
+		return BKE_view_layer_from_workspace_get(CTX_data_scene(C), CTX_wm_workspace(C));
+	}
+}
+
+RenderEngineType *CTX_data_engine_type(const bContext *C)
+{
+	Scene *scene = CTX_data_scene(C);
+	return RE_engines_find(scene->r.engine);
+}
+
+/**
+ * This is tricky. Sometimes the user overrides the render_layer
+ * but not the scene_collection. In this case what to do?
+ *
+ * If the scene_collection is linked to the ViewLayer we use it.
+ * Otherwise we fallback to the active one of the ViewLayer.
+ */
+LayerCollection *CTX_data_layer_collection(const bContext *C)
+{
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	LayerCollection *layer_collection;
+
+	if (ctx_data_pointer_verify(C, "layer_collection", (void *)&layer_collection)) {
+		if (BKE_view_layer_has_collection(view_layer, layer_collection->collection)) {
+			return layer_collection;
+		}
+	}
+
+	/* fallback */
+	return BKE_layer_collection_get_active(view_layer);
+}
+
+Collection *CTX_data_collection(const bContext *C)
+{
+	Collection *collection;
+	if (ctx_data_pointer_verify(C, "collection", (void *)&collection)) {
+		return collection;
+	}
+
+	LayerCollection *layer_collection = CTX_data_layer_collection(C);
+	if (layer_collection) {
+		return layer_collection->collection;
+	}
+
+	/* fallback */
+	Scene *scene = CTX_data_scene(C);
+	return BKE_collection_master(scene);
+}
+
+int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectMode object_mode)
+{
+	// Object *obedit = CTX_data_edit_object(C);
 	if (obedit) {
 		switch (obedit->type) {
 			case OB_MESH:
@@ -919,21 +998,26 @@ int CTX_data_mode_enum(const bContext *C)
 		}
 	}
 	else {
-		Object *ob = CTX_data_active_object(C);
-
+		// Object *ob = CTX_data_active_object(C);
 		if (ob) {
-			if (ob->mode & OB_MODE_POSE) return CTX_MODE_POSE;
-			else if (ob->mode & OB_MODE_SCULPT) return CTX_MODE_SCULPT;
-			else if (ob->mode & OB_MODE_WEIGHT_PAINT) return CTX_MODE_PAINT_WEIGHT;
-			else if (ob->mode & OB_MODE_VERTEX_PAINT) return CTX_MODE_PAINT_VERTEX;
-			else if (ob->mode & OB_MODE_TEXTURE_PAINT) return CTX_MODE_PAINT_TEXTURE;
-			else if (ob->mode & OB_MODE_PARTICLE_EDIT) return CTX_MODE_PARTICLE;
+			if (object_mode & OB_MODE_POSE) return CTX_MODE_POSE;
+			else if (object_mode & OB_MODE_SCULPT) return CTX_MODE_SCULPT;
+			else if (object_mode & OB_MODE_WEIGHT_PAINT) return CTX_MODE_PAINT_WEIGHT;
+			else if (object_mode & OB_MODE_VERTEX_PAINT) return CTX_MODE_PAINT_VERTEX;
+			else if (object_mode & OB_MODE_TEXTURE_PAINT) return CTX_MODE_PAINT_TEXTURE;
+			else if (object_mode & OB_MODE_PARTICLE_EDIT) return CTX_MODE_PARTICLE;
 		}
 	}
 
 	return CTX_MODE_OBJECT;
 }
 
+int CTX_data_mode_enum(const bContext *C)
+{
+	Object *obedit = CTX_data_edit_object(C);
+	Object *obact = obedit ? NULL : CTX_data_active_object(C);
+	return CTX_data_mode_enum_ex(obedit, obact, obact ? obact->mode : OB_MODE_OBJECT);
+}
 
 /* would prefer if we can use the enum version below over this one - Campbell */
 /* must be aligned with above enum  */
@@ -954,6 +1038,7 @@ static const char *data_mode_strings[] = {
 	"objectmode",
 	NULL
 };
+BLI_STATIC_ASSERT(ARRAY_SIZE(data_mode_strings) == CTX_MODE_NUM + 1, "Must have a string for each context mode")
 const char *CTX_data_mode_string(const bContext *C)
 {
 	return data_mode_strings[CTX_data_mode_enum(C)];
@@ -1154,3 +1239,16 @@ int CTX_data_editable_gpencil_strokes(const bContext *C, ListBase *list)
 	return ctx_data_collection_get(C, "editable_gpencil_strokes", list);
 }
 
+Depsgraph *CTX_data_depsgraph(const bContext *C)
+{
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	return BKE_scene_get_depsgraph(scene, view_layer, true);
+}
+
+Depsgraph *CTX_data_depsgraph_on_load(const bContext *C)
+{
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	return BKE_scene_get_depsgraph(scene, view_layer, false);
+}

@@ -36,6 +36,8 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_workspace.h"
+
 #include "RNA_access.h"
 #include "RNA_define.h"
 #include "RNA_enum_types.h"
@@ -442,6 +444,11 @@ const EnumPropertyItem rna_enum_operator_return_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
+const EnumPropertyItem rna_enum_operator_property_tags[] = {
+	{OP_PROP_TAG_ADVANCED, "ADVANCED", 0, "Advanced", "The property is advanced so UI is suggested to hide it"},
+	{0, NULL, 0, NULL, NULL}
+};
+
 /* flag/enum */
 const EnumPropertyItem rna_enum_wm_report_items[] = {
 	{RPT_DEBUG, "DEBUG", 0, "Debug", ""},
@@ -462,11 +469,22 @@ const EnumPropertyItem rna_enum_wm_report_items[] = {
 
 #include "WM_api.h"
 
+#include "DNA_object_types.h"
+#include "DNA_workspace_types.h"
+
+#include "ED_screen.h"
+
 #include "UI_interface.h"
 
+#include "BKE_global.h"
 #include "BKE_idprop.h"
 
 #include "MEM_guardedalloc.h"
+
+#ifdef WITH_PYTHON
+#  include "BPY_extern.h"
+#endif
+
 
 static wmOperator *rna_OperatorProperties_find_operator(PointerRNA *ptr)
 {
@@ -611,6 +629,17 @@ static PointerRNA rna_PopupMenu_layout_get(PointerRNA *ptr)
 	return rptr;
 }
 
+static PointerRNA rna_PopoverMenu_layout_get(PointerRNA *ptr)
+{
+	struct uiPopover *pup = ptr->data;
+	uiLayout *layout = UI_popover_layout(pup);
+
+	PointerRNA rptr;
+	RNA_pointer_create(ptr->id.data, &RNA_UILayout, layout, &rptr);
+
+	return rptr;
+}
+
 static PointerRNA rna_PieMenu_layout_get(PointerRNA *ptr)
 {
 	struct uiPieMenu *pie = ptr->data;
@@ -622,40 +651,141 @@ static PointerRNA rna_PieMenu_layout_get(PointerRNA *ptr)
 	return rptr;
 }
 
-static void rna_Window_screen_set(PointerRNA *ptr, PointerRNA value)
+static void rna_Window_scene_set(PointerRNA *ptr, PointerRNA value)
+{
+	wmWindow *win = ptr->data;
+
+	if (value.data == NULL) {
+		return;
+	}
+
+	win->new_scene = value.data;
+}
+
+static void rna_Window_scene_update(bContext *C, PointerRNA *ptr)
+{
+	Main *bmain = CTX_data_main(C);
+	wmWindow *win = ptr->data;
+
+	/* exception: must use context so notifier gets to the right window  */
+	if (win->new_scene) {
+#ifdef WITH_PYTHON
+		BPy_BEGIN_ALLOW_THREADS;
+#endif
+
+		WM_window_change_active_scene(bmain, C, win, win->new_scene);
+
+#ifdef WITH_PYTHON
+		BPy_END_ALLOW_THREADS;
+#endif
+
+		WM_event_add_notifier(C, NC_SCENE | ND_SCENEBROWSE, win->new_scene);
+
+		if (G.debug & G_DEBUG)
+			printf("scene set %p\n", win->new_scene);
+
+		win->new_scene = NULL;
+	}
+}
+
+static PointerRNA rna_Window_workspace_get(PointerRNA *ptr)
+{
+	wmWindow *win = ptr->data;
+	return rna_pointer_inherit_refine(ptr, &RNA_WorkSpace, BKE_workspace_active_get(win->workspace_hook));
+}
+
+static void rna_Window_workspace_set(PointerRNA *ptr, PointerRNA value)
 {
 	wmWindow *win = (wmWindow *)ptr->data;
 
 	/* disallow ID-browsing away from temp screens */
-	if (win->screen->temp) {
+	if (WM_window_is_temp_screen(win)) {
+		return;
+	}
+	if (value.data == NULL) {
 		return;
 	}
 
-	if (value.data == NULL)
+	/* exception: can't set workspaces inside of area/region handlers */
+	win->workspace_hook->temp_workspace_store = value.data;
+}
+
+static void rna_Window_workspace_update(bContext *C, PointerRNA *ptr)
+{
+	wmWindow *win = ptr->data;
+	WorkSpace *new_workspace = win->workspace_hook->temp_workspace_store;
+
+	/* exception: can't set screens inside of area/region handlers,
+	 * and must use context so notifier gets to the right window */
+	if (new_workspace) {
+		WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, new_workspace);
+		win->workspace_hook->temp_workspace_store = NULL;
+	}
+}
+
+PointerRNA rna_Window_screen_get(PointerRNA *ptr)
+{
+	wmWindow *win = ptr->data;
+	return rna_pointer_inherit_refine(ptr, &RNA_Screen, BKE_workspace_active_screen_get(win->workspace_hook));
+}
+
+static void rna_Window_screen_set(PointerRNA *ptr, PointerRNA value)
+{
+	wmWindow *win = ptr->data;
+	WorkSpace *workspace = BKE_workspace_active_get(win->workspace_hook);
+	WorkSpaceLayout *layout_new;
+	const bScreen *screen = BKE_workspace_active_screen_get(win->workspace_hook);
+
+	/* disallow ID-browsing away from temp screens */
+	if (screen->temp) {
 		return;
+	}
+	if (value.data == NULL) {
+		return;
+	}
 
 	/* exception: can't set screens inside of area/region handlers */
-	win->newscreen = value.data;
+	layout_new = BKE_workspace_layout_find(workspace, value.data);
+	win->workspace_hook->temp_layout_store = layout_new;
 }
 
 static int rna_Window_screen_assign_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
 {
-	bScreen *screen = (bScreen *)value.id.data;
-
+	bScreen *screen = value.id.data;
 	return !screen->temp;
 }
 
-
-static void rna_Window_screen_update(bContext *C, PointerRNA *ptr)
+static void rna_workspace_screen_update(bContext *C, PointerRNA *ptr)
 {
-	wmWindow *win = (wmWindow *)ptr->data;
+	wmWindow *win = ptr->data;
+	WorkSpaceLayout *layout_new = win->workspace_hook->temp_layout_store;
 
 	/* exception: can't set screens inside of area/region handlers,
 	 * and must use context so notifier gets to the right window */
-	if (win->newscreen) {
-		WM_event_add_notifier(C, NC_SCREEN | ND_SCREENBROWSE, win->newscreen);
-		win->newscreen = NULL;
+	if (layout_new) {
+		WM_event_add_notifier(C, NC_SCREEN | ND_LAYOUTBROWSE, layout_new);
+		win->workspace_hook->temp_layout_store = NULL;
 	}
+}
+
+static PointerRNA rna_Window_view_layer_get(PointerRNA *ptr)
+{
+	wmWindow *win = ptr->data;
+	Scene *scene;
+	ViewLayer *view_layer = WM_window_get_active_view_layer_ex(win, &scene);
+	PointerRNA scene_ptr;
+
+	RNA_id_pointer_create(&scene->id, &scene_ptr);
+	return rna_pointer_inherit_refine(&scene_ptr, &RNA_ViewLayer, view_layer);
+}
+
+static void rna_Window_view_layer_set(PointerRNA *ptr, PointerRNA value)
+{
+	wmWindow *win = ptr->data;
+	Scene *scene = WM_window_get_active_scene(win);
+	WorkSpace *workspace = WM_window_get_active_workspace(win);
+
+	BKE_workspace_view_layer_set(workspace, value.data, scene);
 }
 
 static PointerRNA rna_KeyMapItem_properties_get(PointerRNA *ptr)
@@ -1193,6 +1323,7 @@ static StructRNA *rna_Operator_register(
 	/* create a new operator type */
 	dummyot.ext.srna = RNA_def_struct_ptr(&BLENDER_RNA, dummyot.idname, &RNA_Operator);
 	RNA_def_struct_flag(dummyot.ext.srna, STRUCT_NO_IDPROPERTIES); /* operator properties are registered separately */
+	RNA_def_struct_property_tags(dummyot.ext.srna, rna_enum_operator_property_tags);
 	RNA_def_struct_translation_context(dummyot.ext.srna, dummyot.translation_context);
 	dummyot.ext.data = data;
 	dummyot.ext.call = call;
@@ -1552,6 +1683,7 @@ static void rna_def_operator(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Operator Properties", "Input properties of an Operator");
 	RNA_def_struct_refine_func(srna, "rna_OperatorProperties_refine");
 	RNA_def_struct_idprops_func(srna, "rna_OperatorProperties_idprops");
+	RNA_def_struct_property_tags(srna, rna_enum_operator_property_tags);
 	RNA_def_struct_flag(srna, STRUCT_NO_DATABLOCK_IDPROPERTIES);
 }
 
@@ -1857,6 +1989,11 @@ static void rna_def_popupmenu(BlenderRNA *brna)
 	rna_def_popup_menu_wrapper(brna, "UIPopupMenu", "uiPopupMenu", "rna_PopupMenu_layout_get");
 }
 
+static void rna_def_popovermenu(BlenderRNA *brna)
+{
+	rna_def_popup_menu_wrapper(brna, "UIPopover", "uiPopover", "rna_PopoverMenu_layout_get");
+}
+
 static void rna_def_piemenu(BlenderRNA *brna)
 {
 	rna_def_popup_menu_wrapper(brna, "UIPieMenu", "uiPieMenu", "rna_PieMenu_layout_get");
@@ -1904,14 +2041,35 @@ static void rna_def_window(BlenderRNA *brna)
 
 	rna_def_window_stereo3d(brna);
 
-	prop = RNA_def_property(srna, "screen", PROP_POINTER, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_NEVER_NULL);
-	RNA_def_property_struct_type(prop, "Screen");
-	RNA_def_property_ui_text(prop, "Screen", "Active screen showing in the window");
-	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_Window_screen_set", NULL, "rna_Window_screen_assign_poll");
+	prop = RNA_def_property(srna, "scene", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_NULL);
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_Window_scene_set", NULL, NULL);
+	RNA_def_property_ui_text(prop, "Scene", "Active scene to be edited in the window");
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_Window_screen_update");
+	RNA_def_property_update(prop, 0, "rna_Window_scene_update");
+
+	prop = RNA_def_property(srna, "workspace", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_NEVER_NULL);
+	RNA_def_property_struct_type(prop, "WorkSpace");
+	RNA_def_property_ui_text(prop, "Workspace", "Active workspace showing in the window");
+	RNA_def_property_pointer_funcs(prop, "rna_Window_workspace_get", "rna_Window_workspace_set", NULL, NULL);
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, 0, "rna_Window_workspace_update");
+
+	prop = RNA_def_property(srna, "screen", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "Screen");
+	RNA_def_property_ui_text(prop, "Screen", "Active workspace screen showing in the window");
+	RNA_def_property_pointer_funcs(prop, "rna_Window_screen_get", "rna_Window_screen_set", NULL,
+	                               "rna_Window_screen_assign_poll");
+	RNA_def_property_flag(prop, PROP_NEVER_NULL | PROP_EDITABLE | PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, 0, "rna_workspace_screen_update");
+
+	prop = RNA_def_property(srna, "view_layer", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "ViewLayer");
+	RNA_def_property_pointer_funcs(prop, "rna_Window_view_layer_get", "rna_Window_view_layer_set", NULL, NULL);
+	RNA_def_property_ui_text(prop, "Active View Layer", "The active workspace view layer showing in the window");
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_NULL);
+	RNA_def_property_update(prop, NC_SCREEN | ND_LAYER, NULL);
 
 	prop = RNA_def_property(srna, "x", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "posx");
@@ -2085,6 +2243,10 @@ static void rna_def_keyconfig(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Name", "Name of the key map");
 	RNA_def_struct_name_property(srna, prop);
+
+	prop = RNA_def_property(srna, "bl_owner_id", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "owner_id");
+	RNA_def_property_ui_text(prop, "Owner", "Internal owner");
 
 	prop = RNA_def_property(srna, "space_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "spaceid");
@@ -2269,6 +2431,7 @@ void RNA_def_wm(BlenderRNA *brna)
 	rna_def_event(brna);
 	rna_def_timer(brna);
 	rna_def_popupmenu(brna);
+	rna_def_popovermenu(brna);
 	rna_def_piemenu(brna);
 	rna_def_window(brna);
 	rna_def_windowmanager(brna);

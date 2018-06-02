@@ -58,7 +58,7 @@
 #include "DNA_view3d_types.h"
 #include "DNA_world_types.h"
 #include "DNA_object_types.h"
-#include "DNA_property_types.h"
+#include "DNA_lightprobe_types.h"
 #include "DNA_rigidbody_types.h"
 
 #include "BLI_blenlib.h"
@@ -76,21 +76,20 @@
 #include "BKE_idprop.h"
 #include "BKE_armature.h"
 #include "BKE_action.h"
-#include "BKE_bullet.h"
 #include "BKE_deform.h"
-#include "BKE_depsgraph.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_animsys.h"
 #include "BKE_anim.h"
+#include "BKE_collection.h"
 #include "BKE_constraint.h"
 #include "BKE_curve.h"
 #include "BKE_displist.h"
 #include "BKE_effect.h"
 #include "BKE_fcurve.h"
-#include "BKE_group.h"
 #include "BKE_icons.h"
 #include "BKE_key.h"
 #include "BKE_lamp.h"
+#include "BKE_layer.h"
 #include "BKE_lattice.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
@@ -103,12 +102,12 @@
 #include "BKE_multires.h"
 #include "BKE_node.h"
 #include "BKE_object.h"
+#include "BKE_object_facemap.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_pointcache.h"
-#include "BKE_property.h"
+#include "BKE_lightprobe.h"
 #include "BKE_rigidbody.h"
-#include "BKE_sca.h"
 #include "BKE_scene.h"
 #include "BKE_sequencer.h"
 #include "BKE_speaker.h"
@@ -117,6 +116,11 @@
 #include "BKE_material.h"
 #include "BKE_camera.h"
 #include "BKE_image.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
+
+#include "DRW_engine.h"
 
 #ifdef WITH_MOD_FLUID
 #include "LBM_fluidsim.h"
@@ -128,8 +132,6 @@
 
 #include "CCGSubSurf.h"
 #include "atomic_ops.h"
-
-#include "GPU_material.h"
 
 /* Vertex parent modifies original BMesh which is not safe for threading.
  * Ideally such a modification should be handled as a separate DAG update
@@ -152,16 +154,6 @@ void BKE_object_workob_clear(Object *workob)
 	workob->rotmode = ROT_MODE_EUL;
 }
 
-void BKE_object_update_base_layer(struct Scene *scene, Object *ob)
-{
-	Base *base = scene->base.first;
-
-	while (base) {
-		if (base->object == ob) base->lay = ob->lay;
-		base = base->next;
-	}
-}
-
 void BKE_object_free_particlesystems(Object *ob)
 {
 	ParticleSystem *psys;
@@ -176,14 +168,6 @@ void BKE_object_free_softbody(Object *ob)
 	if (ob->soft) {
 		sbFree(ob->soft);
 		ob->soft = NULL;
-	}
-}
-
-void BKE_object_free_bulletsoftbody(Object *ob)
-{
-	if (ob->bsoft) {
-		bsbFree(ob->bsoft);
-		ob->bsoft = NULL;
 	}
 }
 
@@ -356,7 +340,26 @@ void BKE_object_free_derived_caches(Object *ob)
 		ob->derivedDeform->release(ob->derivedDeform);
 		ob->derivedDeform = NULL;
 	}
-	
+
+	if (ob->runtime.mesh_eval != NULL) {
+		Mesh *mesh_eval = ob->runtime.mesh_eval;
+		/* Restore initial pointer. */
+		ob->data = mesh_eval->id.orig_id;
+		/* Evaluated mesh points to edit mesh, but does not own it. */
+		mesh_eval->edit_btmesh = NULL;
+		BKE_mesh_free(mesh_eval);
+		BKE_libblock_free_data(&mesh_eval->id, false);
+		MEM_freeN(mesh_eval);
+		ob->runtime.mesh_eval = NULL;
+	}
+	if (ob->runtime.mesh_deform_eval != NULL) {
+		Mesh *mesh_deform_eval = ob->runtime.mesh_deform_eval;
+		BKE_mesh_free(mesh_deform_eval);
+		BKE_libblock_free_data(&mesh_deform_eval->id, false);
+		MEM_freeN(mesh_deform_eval);
+		ob->runtime.mesh_deform_eval = NULL;
+	}
+
 	BKE_object_free_curve_cache(ob);
 }
 
@@ -381,14 +384,12 @@ void BKE_object_free_caches(Object *object)
 	for (md = object->modifiers.first; md != NULL; md = md->next) {
 		if (md->type == eModifierType_ParticleSystem) {
 			ParticleSystemModifierData *psmd = (ParticleSystemModifierData *) md;
-			if (psmd->dm_final != NULL) {
-				psmd->dm_final->needsFree = 1;
-				psmd->dm_final->release(psmd->dm_final);
-				psmd->dm_final = NULL;
-				if (psmd->dm_deformed != NULL) {
-					psmd->dm_deformed->needsFree = 1;
-					psmd->dm_deformed->release(psmd->dm_deformed);
-					psmd->dm_deformed = NULL;
+			if (psmd->mesh_final) {
+				BKE_id_free(NULL, psmd->mesh_final);
+				psmd->mesh_final = NULL;
+				if (psmd->mesh_original) {
+					BKE_id_free(NULL, psmd->mesh_original);
+					psmd->mesh_original = NULL;
 				}
 				psmd->flag |= eParticleSystemFlag_file_loaded;
 				update_flag |= OB_RECALC_DATA;
@@ -401,7 +402,7 @@ void BKE_object_free_caches(Object *object)
 	 * guaranteed to be in a known state.
 	 */
 	if (update_flag != 0) {
-		DAG_id_tag_update(&object->id, update_flag);
+		DEG_id_tag_update(&object->id, update_flag);
 	}
 }
 
@@ -419,6 +420,7 @@ void BKE_object_free(Object *ob)
 	MEM_SAFE_FREE(ob->bb);
 
 	BLI_freelistN(&ob->defbase);
+	BLI_freelistN(&ob->fmaps);
 	if (ob->pose) {
 		BKE_pose_free_ex(ob->pose, false);
 		ob->pose = NULL;
@@ -427,11 +429,6 @@ void BKE_object_free(Object *ob)
 		animviz_free_motionpath(ob->mpath);
 		ob->mpath = NULL;
 	}
-	BKE_bproperty_free_list(&ob->prop);
-
-	free_sensors(&ob->sensors);
-	free_controllers(&ob->controllers);
-	free_actuators(&ob->actuators);
 	
 	BKE_constraints_free_ex(&ob->constraints, false);
 	
@@ -443,11 +440,13 @@ void BKE_object_free(Object *ob)
 		sbFree(ob->soft);
 		ob->soft = NULL;
 	}
-	if (ob->bsoft) {
-		bsbFree(ob->bsoft);
-		ob->bsoft = NULL;
+
+	for (ObjectEngineData *oed = ob->drawdata.first; oed; oed = oed->next) {
+		if (oed->free != NULL) {
+			oed->free(oed);
+		}
 	}
-	GPU_lamp_free(ob);
+	BLI_freelistN(&ob->drawdata);
 
 	BKE_sculptsession_free(ob);
 
@@ -517,6 +516,30 @@ bool BKE_object_is_in_editmode_vgroup(const Object *ob)
 	        BKE_object_is_in_editmode(ob));
 }
 
+bool BKE_object_data_is_in_editmode(const ID *id)
+{
+	const short type = GS(id->name);
+	BLI_assert(OB_DATA_SUPPORT_EDITMODE(type));
+	switch (type) {
+		case ID_ME:
+			return ((const Mesh *)id)->edit_btmesh != NULL;
+		case ID_CU:
+			return (
+			        (((const Curve *)id)->editnurb != NULL) ||
+			        (((const Curve *)id)->editfont != NULL)
+			);
+		case ID_MB:
+			return ((const MetaBall *)id)->editelems != NULL;
+		case ID_LT:
+			return ((const Lattice *)id)->editlatt != NULL;
+		case ID_AR:
+			return ((const bArmature *)id)->edbo != NULL;
+		default:
+			BLI_assert(0);
+			return false;
+	}
+}
+
 bool BKE_object_is_in_wpaint_select_vert(const Object *ob)
 {
 	if (ob->type == OB_MESH) {
@@ -527,6 +550,72 @@ bool BKE_object_is_in_wpaint_select_vert(const Object *ob)
 	}
 
 	return false;
+}
+
+bool BKE_object_has_mode_data(const struct Object *ob, eObjectMode object_mode)
+{
+	if (object_mode & OB_MODE_EDIT) {
+		if (BKE_object_is_in_editmode(ob)) {
+			return true;
+		}
+	}
+	else if (object_mode & OB_MODE_VERTEX_PAINT) {
+		if (ob->sculpt && (ob->sculpt->mode_type == OB_MODE_VERTEX_PAINT)) {
+			return true;
+		}
+	}
+	else if (object_mode & OB_MODE_WEIGHT_PAINT) {
+		if (ob->sculpt && (ob->sculpt->mode_type == OB_MODE_WEIGHT_PAINT)) {
+			return true;
+		}
+	}
+	else if (object_mode & OB_MODE_SCULPT) {
+		if (ob->sculpt && (ob->sculpt->mode_type == OB_MODE_SCULPT)) {
+			return true;
+		}
+	}
+	else if (object_mode & OB_MODE_POSE) {
+		if (ob->pose != NULL) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool BKE_object_is_mode_compat(const struct Object *ob, eObjectMode object_mode)
+{
+	return ((ob->mode == object_mode) ||
+	        (ob->mode & object_mode) != 0);
+}
+
+/**
+ * Return if the object is visible, as evaluated by depsgraph
+ */
+bool BKE_object_is_visible(Object *ob, const eObjectVisibilityCheck mode)
+{
+	if ((ob->base_flag & BASE_VISIBLED) == 0) {
+		return false;
+	}
+
+	if (mode == OB_VISIBILITY_CHECK_UNKNOWN_RENDER_MODE) {
+		return true;
+	}
+
+	if (((ob->transflag & OB_DUPLI) == 0) &&
+	    (ob->particlesystem.first == NULL))
+	{
+		return true;
+	}
+
+	switch (mode) {
+		case OB_VISIBILITY_CHECK_FOR_VIEWPORT:
+			return ((ob->duplicator_visibility_flag & OB_DUPLI_FLAG_VIEWPORT) != 0);
+		case OB_VISIBILITY_CHECK_FOR_RENDER:
+			return ((ob->duplicator_visibility_flag & OB_DUPLI_FLAG_RENDER) != 0);
+		default:
+			BLI_assert(!"Object visible test mode not supported.");
+			return false;
+	}
 }
 
 bool BKE_object_exists_check(Main *bmain, const Object *obtest)
@@ -582,6 +671,7 @@ void *BKE_object_obdata_add_from_type(Main *bmain, int type, const char *name)
 		case OB_LATTICE:   return BKE_lattice_add(bmain, name);
 		case OB_ARMATURE:  return BKE_armature_add(bmain, name);
 		case OB_SPEAKER:   return BKE_speaker_add(bmain, name);
+		case OB_LIGHTPROBE:return BKE_lightprobe_add(bmain, name);
 		case OB_EMPTY:     return NULL;
 		default:
 			printf("%s: Internal error, bad type: %d\n", __func__, type);
@@ -633,26 +723,10 @@ void BKE_object_init(Object *ob)
 	ob->dupsta = 1; ob->dupend = 100;
 	ob->dupfacesca = 1.0;
 
-	/* Game engine defaults*/
-	ob->mass = ob->inertia = 1.0f;
-	ob->formfactor = 0.4f;
-	ob->damping = 0.04f;
-	ob->rdamping = 0.1f;
-	ob->anisotropicFriction[0] = 1.0f;
-	ob->anisotropicFriction[1] = 1.0f;
-	ob->anisotropicFriction[2] = 1.0f;
-	ob->gameflag = OB_PROP | OB_COLLISION;
-	ob->margin = 0.04f;
-	ob->init_state = 1;
-	ob->state = 1;
-	ob->obstacleRad = 1.0f;
-	ob->step_height = 0.15f;
-	ob->jump_speed = 10.0f;
-	ob->fall_speed = 55.0f;
-	ob->max_jumps = 1;
 	ob->col_group = 0x01;
 	ob->col_mask = 0xffff;
 	ob->preview = NULL;
+	ob->duplicator_visibility_flag = OB_DUPLI_FLAG_VIEWPORT | OB_DUPLI_FLAG_RENDER;
 
 	/* NT fluid sim defaults */
 	ob->fluidsimSettings = NULL;
@@ -661,6 +735,8 @@ void BKE_object_init(Object *ob)
 	
 	/* Animation Visualization defaults */
 	animviz_settings_init(&ob->avs);
+
+	ob->display.flag = OB_SHOW_SHADOW;
 }
 
 /* more general add: creates minimum required data, but without vertices etc. */
@@ -673,6 +749,9 @@ Object *BKE_object_add_only_object(Main *bmain, int type, const char *name)
 
 	ob = BKE_libblock_alloc(bmain, ID_OB, name, 0);
 
+	/* We increase object user count when linking to Collections. */
+	id_us_min(&ob->id);
+
 	/* default object vars */
 	ob->type = type;
 
@@ -681,162 +760,65 @@ Object *BKE_object_add_only_object(Main *bmain, int type, const char *name)
 	return ob;
 }
 
-/* general add: to scene, with layer from area and default name */
+
+static Object *object_add_common(Main *bmain, ViewLayer *view_layer, int type, const char *name)
+{
+	Object *ob;
+
+	ob = BKE_object_add_only_object(bmain, type, name);
+	ob->data = BKE_object_obdata_add_from_type(bmain, type, name);
+	BKE_view_layer_base_deselect_all(view_layer);
+
+	DEG_id_tag_update_ex(bmain, &ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	return ob;
+}
+
+/**
+ * General add: to scene, with layer from area and default name
+ *
+ * Object is added to the active Collection.
+ * If there is no linked collection to the active ViewLayer we create a new one.
+ */
 /* creates minimum required data, but without vertices etc. */
 Object *BKE_object_add(
-        Main *bmain, Scene *scene,
+        Main *bmain, Scene *UNUSED(scene), ViewLayer *view_layer,
         int type, const char *name)
 {
 	Object *ob;
 	Base *base;
+	LayerCollection *layer_collection;
 
-	ob = BKE_object_add_only_object(bmain, type, name);
+	ob = object_add_common(bmain, view_layer, type, name);
 
-	ob->data = BKE_object_obdata_add_from_type(bmain, type, name);
+	layer_collection = BKE_layer_collection_get_active(view_layer);
+	BKE_collection_object_add(bmain, layer_collection->collection, ob);
 
-	ob->lay = scene->lay;
-	
-	base = BKE_scene_base_add(scene, ob);
-	BKE_scene_base_deselect_all(scene);
-	BKE_scene_base_select(scene, base);
-	DAG_id_tag_update_ex(bmain, &ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	base = BKE_view_layer_base_find(view_layer, ob);
+	BKE_view_layer_base_select(view_layer, base);
 
 	return ob;
 }
 
-
-#ifdef WITH_GAMEENGINE
-
-void BKE_object_lod_add(Object *ob)
+/**
+ * Add a new object, using another one as a reference
+ *
+ * /param ob_src object to use to determine the collections of the new object.
+ */
+Object *BKE_object_add_from(
+        Main *bmain, Scene *scene, ViewLayer *view_layer,
+        int type, const char *name, Object *ob_src)
 {
-	LodLevel *lod = MEM_callocN(sizeof(LodLevel), "LoD Level");
-	LodLevel *last = ob->lodlevels.last;
+	Object *ob;
+	Base *base;
 
-	/* If the lod list is empty, initialize it with the base lod level */
-	if (!last) {
-		LodLevel *base = MEM_callocN(sizeof(LodLevel), "Base LoD Level");
-		BLI_addtail(&ob->lodlevels, base);
-		base->flags = OB_LOD_USE_MESH | OB_LOD_USE_MAT;
-		base->source = ob;
-		base->obhysteresis = 10;
-		last = ob->currentlod = base;
-	}
-	
-	lod->distance = last->distance + 25.0f;
-	lod->obhysteresis = 10;
-	lod->flags = OB_LOD_USE_MESH | OB_LOD_USE_MAT;
+	ob = object_add_common(bmain, view_layer, type, name);
+	BKE_collection_object_add_from(bmain, scene, ob_src, ob);
 
-	BLI_addtail(&ob->lodlevels, lod);
+	base = BKE_view_layer_base_find(view_layer, ob);
+	BKE_view_layer_base_select(view_layer, base);
+
+	return ob;
 }
-
-static int lod_cmp(const void *a, const void *b)
-{
-	const LodLevel *loda = a;
-	const LodLevel *lodb = b;
-
-	if (loda->distance < lodb->distance) return -1;
-	return loda->distance > lodb->distance;
-}
-
-void BKE_object_lod_sort(Object *ob)
-{
-	BLI_listbase_sort(&ob->lodlevels, lod_cmp);
-}
-
-bool BKE_object_lod_remove(Object *ob, int level)
-{
-	LodLevel *rem;
-
-	if (level < 1 || level > BLI_listbase_count(&ob->lodlevels) - 1)
-		return false;
-
-	rem = BLI_findlink(&ob->lodlevels, level);
-
-	if (rem == ob->currentlod) {
-		ob->currentlod = rem->prev;
-	}
-
-	BLI_remlink(&ob->lodlevels, rem);
-	MEM_freeN(rem);
-
-	/* If there are no user defined lods, remove the base lod as well */
-	if (BLI_listbase_is_single(&ob->lodlevels)) {
-		LodLevel *base = ob->lodlevels.first;
-		BLI_remlink(&ob->lodlevels, base);
-		MEM_freeN(base);
-		ob->currentlod = NULL;
-	}
-
-	return true;
-}
-
-static LodLevel *lod_level_select(Object *ob, const float camera_position[3])
-{
-	LodLevel *current = ob->currentlod;
-	float dist_sq;
-
-	if (!current) return NULL;
-
-	dist_sq = len_squared_v3v3(ob->obmat[3], camera_position);
-
-	if (dist_sq < SQUARE(current->distance)) {
-		/* check for higher LoD */
-		while (current->prev && dist_sq < SQUARE(current->distance)) {
-			current = current->prev;
-		}
-	}
-	else {
-		/* check for lower LoD */
-		while (current->next && dist_sq > SQUARE(current->next->distance)) {
-			current = current->next;
-		}
-	}
-
-	return current;
-}
-
-bool BKE_object_lod_is_usable(Object *ob, Scene *scene)
-{
-	bool active = (scene) ? ob == OBACT : false;
-	return (ob->mode == OB_MODE_OBJECT || !active);
-}
-
-void BKE_object_lod_update(Object *ob, const float camera_position[3])
-{
-	LodLevel *cur_level = ob->currentlod;
-	LodLevel *new_level = lod_level_select(ob, camera_position);
-
-	if (new_level != cur_level) {
-		ob->currentlod = new_level;
-	}
-}
-
-static Object *lod_ob_get(Object *ob, Scene *scene, int flag)
-{
-	LodLevel *current = ob->currentlod;
-
-	if (!current || !BKE_object_lod_is_usable(ob, scene))
-		return ob;
-
-	while (current->prev && (!(current->flags & flag) || !current->source || current->source->type != OB_MESH)) {
-		current = current->prev;
-	}
-
-	return current->source;
-}
-
-struct Object *BKE_object_lod_meshob_get(Object *ob, Scene *scene)
-{
-	return lod_ob_get(ob, scene, OB_LOD_USE_MESH);
-}
-
-struct Object *BKE_object_lod_matob_get(Object *ob, Scene *scene)
-{
-	return lod_ob_get(ob, scene, OB_LOD_USE_MAT);
-}
-
-#endif  /* WITH_GAMEENGINE */
-
 
 SoftBody *copy_softbody(const SoftBody *sb, const int flag)
 {
@@ -883,17 +865,6 @@ SoftBody *copy_softbody(const SoftBody *sb, const int flag)
 	return sbn;
 }
 
-BulletSoftBody *copy_bulletsoftbody(const BulletSoftBody *bsb, const int UNUSED(flag))
-{
-	BulletSoftBody *bsbn;
-
-	if (bsb == NULL)
-		return NULL;
-	bsbn = MEM_dupallocN(bsb);
-	/* no pointer in this structure yet */
-	return bsbn;
-}
-
 ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int flag)
 {
 	ParticleSystem *psysn;
@@ -932,7 +903,7 @@ ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int f
 	if (psys->clmd) {
 		psysn->clmd = (ClothModifierData *)modifier_new(eModifierType_Cloth);
 		modifier_copyData_ex((ModifierData *)psys->clmd, (ModifierData *)psysn->clmd, flag);
-		psys->hair_in_dm = psys->hair_out_dm = NULL;
+		psys->hair_in_mesh = psys->hair_out_mesh = NULL;
 	}
 
 	BLI_duplicatelist(&psysn->targets, &psys->targets);
@@ -944,13 +915,12 @@ ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int f
 	psysn->effectors = NULL;
 	psysn->tree = NULL;
 	psysn->bvhtree = NULL;
+	psysn->batch_cache = NULL;
 	
 	BLI_listbase_clear(&psysn->pathcachebufs);
 	BLI_listbase_clear(&psysn->childcachebufs);
-	psysn->renderdata = NULL;
 	
-	/* XXX Never copy caches here? */
-	psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag & ~LIB_ID_COPY_CACHES);
+	psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag);
 
 	/* XXX - from reading existing code this seems correct but intended usage of
 	 * pointcache should /w cloth should be added in 'ParticleSystem' - campbell */
@@ -1084,10 +1054,101 @@ Object *BKE_object_pose_armature_get(Object *ob)
 
 	ob = modifiers_isDeformedByArmature(ob);
 
+	/* Only use selected check when non-active. */
 	if (BKE_object_pose_context_check(ob))
 		return ob;
 
 	return NULL;
+}
+
+Object *BKE_object_pose_armature_get_visible(Object *ob, ViewLayer *view_layer)
+{
+	Object *ob_armature = BKE_object_pose_armature_get(ob);
+	if (ob_armature) {
+		Base *base = BKE_view_layer_base_find(view_layer, ob_armature);
+		if (base) {
+			if (BASE_VISIBLE(base)) {
+				return ob_armature;
+			}
+		}
+	}
+	return NULL;
+}
+
+/**
+ * Access pose array with special check to get pose object when in weight paint mode.
+ */
+Object **BKE_object_pose_array_get_ex(ViewLayer *view_layer, uint *r_objects_len, bool unique)
+{
+	Object *ob_active = OBACT(view_layer);
+	Object *ob_pose = BKE_object_pose_armature_get(ob_active);
+	Object **objects = NULL;
+	if (ob_pose == ob_active) {
+		objects = BKE_view_layer_array_from_objects_in_mode(
+		        view_layer, r_objects_len, {
+		            .object_mode = OB_MODE_POSE,
+		            .no_dup_data = unique});
+	}
+	else if (ob_pose != NULL) {
+		*r_objects_len = 1;
+		objects = MEM_mallocN(sizeof(*objects), __func__);
+		objects[0] = ob_pose;
+	}
+	else {
+		*r_objects_len = 0;
+		objects = MEM_mallocN(0, __func__);
+	}
+	return objects;
+}
+Object **BKE_object_pose_array_get_unique(ViewLayer *view_layer, uint *r_objects_len)
+{
+	return BKE_object_pose_array_get_ex(view_layer, r_objects_len, true);
+}
+Object **BKE_object_pose_array_get(ViewLayer *view_layer, uint *r_objects_len)
+{
+	return BKE_object_pose_array_get_ex(view_layer, r_objects_len, false);
+}
+
+Base **BKE_object_pose_base_array_get_ex(ViewLayer *view_layer, uint *r_bases_len, bool unique)
+{
+	Base *base_active = BASACT(view_layer);
+	Object *ob_pose = base_active ? BKE_object_pose_armature_get(base_active->object) : NULL;
+	Base *base_pose = NULL;
+	Base **bases = NULL;
+
+	if (base_active) {
+		if (ob_pose == base_active->object) {
+			base_pose = base_active;
+		}
+		else {
+			base_pose = BKE_view_layer_base_find(view_layer, ob_pose);
+		}
+	}
+
+	if (base_active && (base_pose == base_active)) {
+		bases = BKE_view_layer_array_from_bases_in_mode(
+		        view_layer, r_bases_len, {
+		            .object_mode = OB_MODE_POSE,
+		            .no_dup_data = unique});
+	}
+	else if (base_pose != NULL) {
+		*r_bases_len = 1;
+		bases = MEM_mallocN(sizeof(*bases), __func__);
+		bases[0] = base_pose;
+	}
+	else {
+		*r_bases_len = 0;
+		bases = MEM_mallocN(0, __func__);
+	}
+	return bases;
+}
+Base **BKE_object_pose_base_array_get_unique(ViewLayer *view_layer, uint *r_bases_len)
+{
+	return BKE_object_pose_base_array_get_ex(view_layer, r_bases_len, true);
+}
+Base **BKE_object_pose_base_array_get(ViewLayer *view_layer, uint *r_bases_len)
+{
+	return BKE_object_pose_base_array_get_ex(view_layer, r_bases_len, false);
 }
 
 void BKE_object_transform_copy(Object *ob_tar, const Object *ob_src)
@@ -1125,7 +1186,6 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 	if (ob_src->iuser) ob_dst->iuser = MEM_dupallocN(ob_src->iuser);
 	
 	if (ob_src->bb) ob_dst->bb = MEM_dupallocN(ob_src->bb);
-	ob_dst->flag &= ~OB_FROMGROUP;
 	
 	BLI_listbase_clear(&ob_dst->modifiers);
 	
@@ -1136,11 +1196,6 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 		BLI_addtail(&ob_dst->modifiers, nmd);
 	}
 
-	BLI_listbase_clear(&ob_dst->prop);
-	BKE_bproperty_copy_list(&ob_dst->prop, &ob_src->prop);
-
-	BKE_sca_logic_copy(ob_dst, ob_src, flag_subdata);
-
 	if (ob_src->pose) {
 		copy_object_pose(ob_dst, ob_src, flag_subdata);
 		/* backwards compat... non-armatures can get poses in older files? */
@@ -1148,6 +1203,7 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 			BKE_pose_rebuild(ob_dst, ob_dst->data);
 	}
 	defgroup_copy_list(&ob_dst->defbase, &ob_src->defbase);
+	BKE_object_facemap_copy_list(&ob_dst->fmaps, &ob_src->fmaps);
 	BKE_constraints_copy_ex(&ob_dst->constraints, &ob_src->constraints, flag_subdata, true);
 
 	ob_dst->mode = OB_MODE_OBJECT;
@@ -1160,7 +1216,6 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 		}
 	}
 	ob_dst->soft = copy_softbody(ob_src->soft, flag_subdata);
-	ob_dst->bsoft = copy_bulletsoftbody(ob_src->bsoft, flag_subdata);
 	ob_dst->rigidbody_object = BKE_rigidbody_copy_object(ob_src, flag_subdata);
 	ob_dst->rigidbody_constraint = BKE_rigidbody_copy_constraint(ob_src, flag_subdata);
 
@@ -1170,9 +1225,11 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 	ob_dst->derivedFinal = NULL;
 
 	BLI_listbase_clear(&ob_dst->gpulamp);
+	BLI_listbase_clear(&ob_dst->drawdata);
 	BLI_listbase_clear(&ob_dst->pc_ids);
 
-	ob_dst->mpath = NULL;
+	ob_dst->avs = ob_src->avs;
+	ob_dst->mpath = animviz_copy_motionpath(ob_src->mpath);
 
 	copy_object_lod(ob_dst, ob_src, flag_subdata);
 	
@@ -1193,6 +1250,10 @@ Object *BKE_object_copy(Main *bmain, const Object *ob)
 {
 	Object *ob_copy;
 	BKE_id_copy_ex(bmain, &ob->id, (ID **)&ob_copy, 0, false);
+
+	/* We increase object user count when linking to Collections. */
+	id_us_min(&ob_copy->id);
+
 	return ob_copy;
 }
 
@@ -1316,9 +1377,9 @@ void BKE_object_copy_proxy_drivers(Object *ob, Object *target)
 
 /* proxy rule: lib_object->proxy_from == the one we borrow from, set temporally while object_update */
 /*             local_object->proxy == pointer to library object, saved in files and read */
-/*             local_object->proxy_group == pointer to group dupli-object, saved in files and read */
+/*             local_object->proxy_group == pointer to collection dupli-object, saved in files and read */
 
-void BKE_object_make_proxy(Object *ob, Object *target, Object *gob)
+void BKE_object_make_proxy(Object *ob, Object *target, Object *cob)
 {
 	/* paranoia checks */
 	if (ID_IS_LINKED(ob) || !ID_IS_LINKED(target)) {
@@ -1327,24 +1388,24 @@ void BKE_object_make_proxy(Object *ob, Object *target, Object *gob)
 	}
 	
 	ob->proxy = target;
-	ob->proxy_group = gob;
+	ob->proxy_group = cob;
 	id_lib_extern(&target->id);
 	
-	DAG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
-	DAG_id_tag_update(&target->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update(&target->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
 	
 	/* copy transform
-	 * - gob means this proxy comes from a group, just apply the matrix
+	 * - cob means this proxy comes from a collection, just apply the matrix
 	 *   so the object wont move from its dupli-transform.
 	 *
-	 * - no gob means this is being made from a linked object,
+	 * - no cob means this is being made from a linked object,
 	 *   this is closer to making a copy of the object - in-place. */
-	if (gob) {
+	if (cob) {
 		ob->rotmode = target->rotmode;
-		mul_m4_m4m4(ob->obmat, gob->obmat, target->obmat);
-		if (gob->dup_group) { /* should always be true */
+		mul_m4_m4m4(ob->obmat, cob->obmat, target->obmat);
+		if (cob->dup_group) { /* should always be true */
 			float tvec[3];
-			mul_v3_mat3_m4v3(tvec, ob->obmat, gob->dup_group->dupli_ofs);
+			mul_v3_mat3_m4v3(tvec, ob->obmat, cob->dup_group->dupli_ofs);
 			sub_v3_v3(ob->obmat[3], tvec);
 		}
 		BKE_object_apply_mat4(ob, ob->obmat, false, true);
@@ -1653,7 +1714,7 @@ void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4])
 	if (ob->parent) {
 		float par_imat[4][4];
 
-		BKE_object_get_parent_matrix(NULL, ob, ob->parent, par_imat);
+		BKE_object_get_parent_matrix(NULL, NULL, ob, ob->parent, par_imat);
 		invert_m4(par_imat);
 		mul_m4_m4m4(mat, par_imat, ob->obmat);
 	}
@@ -1666,21 +1727,24 @@ void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4])
 int enable_cu_speed = 1;
 
 /**
- * \param scene: Used when curve cache needs to be calculated, or for dupli-frame time.
+ * \param depsgraph: Used for dupli-frame time.
  * \return success if \a mat is set.
  */
-static bool ob_parcurve(Scene *scene, Object *ob, Object *par, float mat[4][4])
+static bool ob_parcurve(Depsgraph *depsgraph, Scene *UNUSED(scene), Object *ob, Object *par, float mat[4][4])
 {
 	Curve *cu = par->data;
 	float vec[4], dir[3], quat[4], radius, ctime;
 
+	/* TODO: Make sure this doesn't crash. */
+#if 0
 	/* only happens on reload file, but violates depsgraph still... fix! */
 	if (par->curve_cache == NULL) {
 		if (scene == NULL) {
 			return false;
 		}
-		BKE_displist_make_curveTypes(scene, par, 0);
+		BKE_displist_make_curveTypes(depsgraph, scene, par, 0);
 	}
+#endif
 
 	if (par->curve_cache->path == NULL) {
 		return false;
@@ -1705,11 +1769,11 @@ static bool ob_parcurve(Scene *scene, Object *ob, Object *par, float mat[4][4])
 	}
 	else {
 		/* For dupli-frames only */
-		if (scene == NULL) {
+		if (depsgraph == NULL) {
 			return false;
 		}
 
-		ctime = BKE_scene_frame_get(scene);
+		ctime = DEG_get_ctime(depsgraph);
 		if (cu->pathlen) {
 			ctime /= cu->pathlen;
 		}
@@ -1960,7 +2024,7 @@ static void ob_parvert3(Object *ob, Object *par, float mat[4][4])
 }
 
 
-void BKE_object_get_parent_matrix(Scene *scene, Object *ob, Object *par, float parentmat[4][4])
+void BKE_object_get_parent_matrix(Depsgraph *depsgraph, Scene *scene, Object *ob, Object *par, float parentmat[4][4])
 {
 	float tmat[4][4];
 	float vec[3];
@@ -1971,7 +2035,7 @@ void BKE_object_get_parent_matrix(Scene *scene, Object *ob, Object *par, float p
 			ok = 0;
 			if (par->type == OB_CURVE) {
 				if ((((Curve *)par->data)->flag & CU_PATH) &&
-				    (ob_parcurve(scene, ob, par, tmat)))
+				    (ob_parcurve(depsgraph, scene, ob, par, tmat)))
 				{
 					ok = 1;
 				}
@@ -2007,7 +2071,8 @@ void BKE_object_get_parent_matrix(Scene *scene, Object *ob, Object *par, float p
 /**
  * \param r_originmat  Optional matrix that stores the space the object is in (without its own matrix applied)
  */
-static void solve_parenting(Scene *scene, Object *ob, Object *par, float obmat[4][4], float slowmat[4][4],
+static void solve_parenting(Depsgraph *depsgraph,
+                            Scene *scene, Object *ob, Object *par, float obmat[4][4], float slowmat[4][4],
                             float r_originmat[3][3], const bool set_origin)
 {
 	float totmat[4][4];
@@ -2018,7 +2083,7 @@ static void solve_parenting(Scene *scene, Object *ob, Object *par, float obmat[4
 	
 	if (ob->partype & PARSLOW) copy_m4_m4(slowmat, obmat);
 
-	BKE_object_get_parent_matrix(scene, ob, par, totmat);
+	BKE_object_get_parent_matrix(depsgraph, scene, ob, par, totmat);
 	
 	/* total */
 	mul_m4_m4m4(tmat, totmat, ob->parentinv);
@@ -2061,20 +2126,21 @@ static bool where_is_object_parslow(Object *ob, float obmat[4][4], float slowmat
 }
 
 /* note, scene is the active scene while actual_scene is the scene the object resides in */
-void BKE_object_where_is_calc_time_ex(Scene *scene, Object *ob, float ctime,
-                                      RigidBodyWorld *rbw, float r_originmat[3][3])
+void BKE_object_where_is_calc_time_ex(
+        Depsgraph *depsgraph, Scene *scene, Object *ob, float ctime,
+        RigidBodyWorld *rbw, float r_originmat[3][3])
 {
 	if (ob == NULL) return;
 	
 	/* execute drivers only, as animation has already been done */
-	BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, ctime, ADT_RECALC_DRIVERS);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, ctime, ADT_RECALC_DRIVERS);
 	
 	if (ob->parent) {
 		Object *par = ob->parent;
 		float slowmat[4][4];
 		
 		/* calculate parent matrix */
-		solve_parenting(scene, ob, par, ob->obmat, slowmat, r_originmat, true);
+		solve_parenting(depsgraph, scene, ob, par, ob->obmat, slowmat, r_originmat, true);
 		
 		/* "slow parent" is definitely not threadsafe, and may also give bad results jumping around 
 		 * An old-fashioned hack which probably doesn't really cut it anymore
@@ -2096,8 +2162,8 @@ void BKE_object_where_is_calc_time_ex(Scene *scene, Object *ob, float ctime,
 	/* solve constraints */
 	if (ob->constraints.first && !(ob->transflag & OB_NO_CONSTRAINTS)) {
 		bConstraintOb *cob;
-		cob = BKE_constraints_make_evalob(scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
-		BKE_constraints_solve(&ob->constraints, cob, ctime);
+		cob = BKE_constraints_make_evalob(depsgraph, scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
+		BKE_constraints_solve(depsgraph, &ob->constraints, cob, ctime);
 		BKE_constraints_clear_evalob(cob);
 	}
 	
@@ -2106,16 +2172,16 @@ void BKE_object_where_is_calc_time_ex(Scene *scene, Object *ob, float ctime,
 	else ob->transflag &= ~OB_NEG_SCALE;
 }
 
-void BKE_object_where_is_calc_time(Scene *scene, Object *ob, float ctime)
+void BKE_object_where_is_calc_time(Depsgraph *depsgraph, Scene *scene, Object *ob, float ctime)
 {
-	BKE_object_where_is_calc_time_ex(scene, ob, ctime, NULL, NULL);
+	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, ctime, NULL, NULL);
 }
 
 /* get object transformation matrix without recalculating dependencies and
  * constraints -- assume dependencies are already solved by depsgraph.
  * no changes to object and it's parent would be done.
  * used for bundles orientation in 3d space relative to parented blender camera */
-void BKE_object_where_is_calc_mat4(Scene *scene, Object *ob, float obmat[4][4])
+void BKE_object_where_is_calc_mat4(Depsgraph *depsgraph, Scene *scene, Object *ob, float obmat[4][4])
 {
 
 	if (ob->parent) {
@@ -2123,7 +2189,7 @@ void BKE_object_where_is_calc_mat4(Scene *scene, Object *ob, float obmat[4][4])
 
 		Object *par = ob->parent;
 		
-		solve_parenting(scene, ob, par, obmat, slowmat, NULL, false);
+		solve_parenting(depsgraph, scene, ob, par, obmat, slowmat, NULL, false);
 		
 		if (ob->partype & PARSLOW)
 			where_is_object_parslow(ob, obmat, slowmat);
@@ -2133,52 +2199,69 @@ void BKE_object_where_is_calc_mat4(Scene *scene, Object *ob, float obmat[4][4])
 	}
 }
 
-void BKE_object_where_is_calc_ex(Scene *scene, RigidBodyWorld *rbw, Object *ob, float r_originmat[3][3])
+void BKE_object_where_is_calc_ex(Depsgraph *depsgraph, Scene *scene, RigidBodyWorld *rbw, Object *ob, float r_originmat[3][3])
 {
-	BKE_object_where_is_calc_time_ex(scene, ob, BKE_scene_frame_get(scene), rbw, r_originmat);
+	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, DEG_get_ctime(depsgraph), rbw, r_originmat);
 }
-void BKE_object_where_is_calc(Scene *scene, Object *ob)
+void BKE_object_where_is_calc(Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
-	BKE_object_where_is_calc_time_ex(scene, ob, BKE_scene_frame_get(scene), NULL, NULL);
+	BKE_object_where_is_calc_time_ex(depsgraph, scene, ob, DEG_get_ctime(depsgraph), NULL, NULL);
 }
 
-/* for calculation of the inverse parent transform, only used for editor */
-void BKE_object_workob_calc_parent(Scene *scene, Object *ob, Object *workob)
+/**
+ * For calculation of the inverse parent transform, only used for editor.
+ *
+ * It assumes the object parent is already in the depsgraph.
+ * Otherwise, after changing ob->parent you need to call:
+ *  DEG_relations_tag_update(bmain);
+ *  BKE_scene_graph_update_tagged(depsgraph, bmain);
+ */
+void BKE_object_workob_calc_parent(Depsgraph *depsgraph, Scene *scene, Object *ob, Object *workob)
 {
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	BKE_object_workob_clear(workob);
 	
 	unit_m4(workob->obmat);
 	unit_m4(workob->parentinv);
 	unit_m4(workob->constinv);
-	workob->parent = ob->parent;
 
-	workob->trackflag = ob->trackflag;
-	workob->upflag = ob->upflag;
+	/* Since this is used while calculating parenting, at this moment ob_eval->parent is still NULL. */
+	workob->parent = DEG_get_evaluated_object(depsgraph, ob->parent);
+
+	workob->trackflag = ob_eval->trackflag;
+	workob->upflag = ob_eval->upflag;
 	
-	workob->partype = ob->partype;
-	workob->par1 = ob->par1;
-	workob->par2 = ob->par2;
-	workob->par3 = ob->par3;
+	workob->partype = ob_eval->partype;
+	workob->par1 = ob_eval->par1;
+	workob->par2 = ob_eval->par2;
+	workob->par3 = ob_eval->par3;
 
-	workob->constraints.first = ob->constraints.first;
-	workob->constraints.last = ob->constraints.last;
+	workob->constraints = ob_eval->constraints;
 
-	BLI_strncpy(workob->parsubstr, ob->parsubstr, sizeof(workob->parsubstr));
+	BLI_strncpy(workob->parsubstr, ob_eval->parsubstr, sizeof(workob->parsubstr));
 
-	BKE_object_where_is_calc(scene, workob);
+	BKE_object_where_is_calc(depsgraph, scene, workob);
 }
 
-/* see BKE_pchan_apply_mat4() for the equivalent 'pchan' function */
-void BKE_object_apply_mat4(Object *ob, float mat[4][4], const bool use_compat, const bool use_parent)
+/**
+ * Applies the global transformation \a mat to the \a ob using a relative parent space if supplied.
+ *
+ * \param mat the global transformation mat that the object should be set object to.
+ * \param parent the parent space in which this object will be set relative to (should probably always be parent_eval).
+ * \param use_compat true to ensure that rotations are set using the min difference between the old and new orientation.
+ */
+void BKE_object_apply_mat4_ex(Object *ob, float mat[4][4], Object *parent, float parentinv[4][4], const bool use_compat)
 {
+	/* see BKE_pchan_apply_mat4() for the equivalent 'pchan' function */
+
 	float rot[3][3];
 
-	if (use_parent && ob->parent) {
+	if (parent != NULL) {
 		float rmat[4][4], diff_mat[4][4], imat[4][4], parent_mat[4][4];
 
-		BKE_object_get_parent_matrix(NULL, ob, ob->parent, parent_mat);
+		BKE_object_get_parent_matrix(NULL, NULL, ob, parent, parent_mat);
 
-		mul_m4_m4m4(diff_mat, parent_mat, ob->parentinv);
+		mul_m4_m4m4(diff_mat, parent_mat, parentinv);
 		invert_m4_m4(imat, diff_mat);
 		mul_m4_m4m4(rmat, imat, mat); /* get the parent relative matrix */
 
@@ -2200,10 +2283,16 @@ void BKE_object_apply_mat4(Object *ob, float mat[4][4], const bool use_compat, c
 	/* BKE_object_mat3_to_rot handles delta rotations */
 }
 
+/* XXX: should be removed after COW operators port to use BKE_object_apply_mat4_ex directly */
+void BKE_object_apply_mat4(Object *ob, float mat[4][4], const bool use_compat, const bool use_parent)
+{
+	BKE_object_apply_mat4_ex(ob, mat, use_parent ? ob->parent : NULL, ob->parentinv, use_compat);
+}
+
 BoundBox *BKE_boundbox_alloc_unit(void)
 {
 	BoundBox *bb;
-	const float min[3] = {-1.0f, -1.0f, -1.0f}, max[3] = {-1.0f, -1.0f, -1.0f};
+	const float min[3] = {-1.0f, -1.0f, -1.0f}, max[3] = {1.0f, 1.0f, 1.0f};
 
 	bb = MEM_callocN(sizeof(BoundBox), "OB-BoundBox");
 	BKE_boundbox_init_from_minmax(bb, min, max);
@@ -2408,6 +2497,7 @@ void BKE_object_empty_draw_type_set(Object *ob, const int value)
 		if (!ob->iuser) {
 			ob->iuser = MEM_callocN(sizeof(ImageUser), "image user");
 			ob->iuser->ok = 1;
+			ob->iuser->flag |= IMA_ANIM_ALWAYS;
 			ob->iuser->frames = 100;
 			ob->iuser->sfra = 1;
 			ob->iuser->fie_ima = 2;
@@ -2421,9 +2511,7 @@ void BKE_object_empty_draw_type_set(Object *ob, const int value)
 	}
 }
 
-bool BKE_object_minmax_dupli(
-        Main *bmain, Scene *scene,
-        Object *ob, float r_min[3], float r_max[3], const bool use_hidden)
+bool BKE_object_minmax_dupli(Depsgraph *depsgraph, Scene *scene, Object *ob, float r_min[3], float r_max[3], const bool use_hidden)
 {
 	bool ok = false;
 	if ((ob->transflag & OB_DUPLI) == 0) {
@@ -2432,7 +2520,7 @@ bool BKE_object_minmax_dupli(
 	else {
 		ListBase *lb;
 		DupliObject *dob;
-		lb = object_duplilist(bmain->eval_ctx, scene, ob);
+		lb = object_duplilist(depsgraph, scene, ob);
 		for (dob = lb->first; dob; dob = dob->next) {
 			if ((use_hidden == false) && (dob->no_draw != 0)) {
 				/* pass */
@@ -2492,14 +2580,14 @@ void BKE_object_foreach_display_point(
 }
 
 void BKE_scene_foreach_display_point(
-        Main *bmain, Scene *scene, View3D *v3d, const short flag,
+        Depsgraph *depsgraph, Scene *scene, ViewLayer *view_layer,
         void (*func_cb)(const float[3], void *), void *user_data)
 {
 	Base *base;
 	Object *ob;
 
-	for (base = FIRSTBASE; base; base = base->next) {
-		if (BASE_VISIBLE_BGMODE(v3d, scene, base) && (base->flag & flag) == flag) {
+	for (base = FIRSTBASE(view_layer); base; base = base->next) {
+		if (((base->flag & BASE_VISIBLED) != 0) && ((base->flag & BASE_SELECTED) != 0)) {
 			ob = base->object;
 
 			if ((ob->transflag & OB_DUPLI) == 0) {
@@ -2509,7 +2597,7 @@ void BKE_scene_foreach_display_point(
 				ListBase *lb;
 				DupliObject *dob;
 
-				lb = object_duplilist(bmain->eval_ctx, scene, ob);
+				lb = object_duplilist(depsgraph, scene, ob);
 				for (dob = lb->first; dob; dob = dob->next) {
 					if (dob->no_draw == 0) {
 						BKE_object_foreach_display_point(dob->ob, dob->mat, func_cb, user_data);
@@ -2532,7 +2620,7 @@ typedef struct ObTfmBack {
 	float obmat[4][4];      /* final worldspace matrix with constraints & animsys applied */
 	float parentinv[4][4]; /* inverse result of parent, so that object doesn't 'stick' to parent */
 	float constinv[4][4]; /* inverse result of constraints. doesn't include effect of parent or object local transform */
-	float imat[4][4];   /* inverse matrix of 'obmat' for during render, old game engine, temporally: ipokeys of transform  */
+	float imat[4][4];   /* inverse matrix of 'obmat' for during render, temporally: ipokeys of transform  */
 } ObTfmBack;
 
 void *BKE_object_tfm_backup(Object *ob)
@@ -2589,24 +2677,24 @@ bool BKE_object_parent_loop_check(const Object *par, const Object *ob)
 	return BKE_object_parent_loop_check(par->parent, ob);
 }
 
-static void object_handle_update_proxy(EvaluationContext *eval_ctx,
+static void object_handle_update_proxy(Depsgraph *depsgraph,
                                        Scene *scene,
                                        Object *object,
                                        const bool do_proxy_update)
 {
-	/* The case when this is a group proxy, object_update is called in group.c */
+	/* The case when this is a collection proxy, object_update is called in collection.c */
 	if (object->proxy == NULL) {
 		return;
 	}
 	/* set pointer in library proxy target, for copying, but restore it */
 	object->proxy->proxy_from = object;
-	// printf("set proxy pointer for later group stuff %s\n", ob->id.name);
+	// printf("set proxy pointer for later collection stuff %s\n", ob->id.name);
 
 	/* the no-group proxy case, we call update */
 	if (object->proxy_group == NULL) {
 		if (do_proxy_update) {
 			// printf("call update, lib ob %s proxy %s\n", ob->proxy->id.name, ob->id.name);
-			BKE_object_handle_update(eval_ctx, scene, object->proxy);
+			BKE_object_handle_update(depsgraph, scene, object->proxy);
 		}
 	}
 }
@@ -2619,13 +2707,18 @@ static void object_handle_update_proxy(EvaluationContext *eval_ctx,
 /* the main object update call, for object matrix, constraints, keys and displist (modifiers) */
 /* requires flags to be set! */
 /* Ideally we shouldn't have to pass the rigid body world, but need bigger restructuring to avoid id */
-void BKE_object_handle_update_ex(EvaluationContext *eval_ctx,
+void BKE_object_handle_update_ex(Depsgraph *depsgraph,
                                  Scene *scene, Object *ob,
                                  RigidBodyWorld *rbw,
                                  const bool do_proxy_update)
 {
-	if ((ob->recalc & OB_RECALC_ALL) == 0) {
-		object_handle_update_proxy(eval_ctx, scene, ob, do_proxy_update);
+	const ID *object_data = ob->data;
+	const bool recalc_object = (ob->id.recalc & ID_RECALC) != 0;
+	const bool recalc_data =
+	        (object_data != NULL) ? ((object_data->recalc & ID_RECALC_ALL) != 0)
+	                              : 0;
+	if (!recalc_object && ! recalc_data) {
+		object_handle_update_proxy(depsgraph, scene, ob, do_proxy_update);
 		return;
 	}
 	/* Speed optimization for animation lookups. */
@@ -2635,7 +2728,7 @@ void BKE_object_handle_update_ex(EvaluationContext *eval_ctx,
 			BKE_pose_update_constraint_flags(ob->pose);
 		}
 	}
-	if (ob->recalc & OB_RECALC_DATA) {
+	if (recalc_data) {
 		if (ob->type == OB_ARMATURE) {
 			/* this happens for reading old files and to match library armatures
 			 * with poses we do it ahead of BKE_object_where_is_calc to ensure animation
@@ -2648,23 +2741,23 @@ void BKE_object_handle_update_ex(EvaluationContext *eval_ctx,
 	/* XXX new animsys warning: depsgraph tag OB_RECALC_DATA should not skip drivers,
 	 * which is only in BKE_object_where_is_calc now */
 	/* XXX: should this case be OB_RECALC_OB instead? */
-	if (ob->recalc & OB_RECALC_ALL) {
+	if (recalc_object || recalc_data) {
 		if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) {
 			printf("recalcob %s\n", ob->id.name + 2);
 		}
 		/* Handle proxy copy for target. */
-		if (!BKE_object_eval_proxy_copy(eval_ctx, ob)) {
-			BKE_object_where_is_calc_ex(scene, rbw, ob, NULL);
+		if (!BKE_object_eval_proxy_copy(depsgraph, ob)) {
+			BKE_object_where_is_calc_ex(depsgraph, scene, rbw, ob, NULL);
 		}
 	}
 
-	if (ob->recalc & OB_RECALC_DATA) {
-		BKE_object_handle_data_update(eval_ctx, scene, ob);
+	if (recalc_data) {
+		BKE_object_handle_data_update(depsgraph, scene, ob);
 	}
 
-	ob->recalc &= ~OB_RECALC_ALL;
+	ob->id.recalc &= ID_RECALC_ALL;
 
-	object_handle_update_proxy(eval_ctx, scene, ob, do_proxy_update);
+	object_handle_update_proxy(depsgraph, scene, ob, do_proxy_update);
 }
 
 /* WARNING: "scene" here may not be the scene object actually resides in. 
@@ -2672,9 +2765,9 @@ void BKE_object_handle_update_ex(EvaluationContext *eval_ctx,
  * e.g. "scene" <-- set 1 <-- set 2 ("ob" lives here) <-- set 3 <-- ... <-- set n
  * rigid bodies depend on their world so use BKE_object_handle_update_ex() to also pass along the corrent rigid body world
  */
-void BKE_object_handle_update(EvaluationContext *eval_ctx, Scene *scene, Object *ob)
+void BKE_object_handle_update(Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
-	BKE_object_handle_update_ex(eval_ctx, scene, ob, NULL, true);
+	BKE_object_handle_update_ex(depsgraph, scene, ob, NULL, true);
 }
 
 void BKE_object_sculpt_modifiers_changed(Object *ob)
@@ -2719,14 +2812,7 @@ int BKE_object_obdata_texspace_get(Object *ob, short **r_texflag, float **r_loc,
 	switch (GS(((ID *)ob->data)->name)) {
 		case ID_ME:
 		{
-			Mesh *me = ob->data;
-			if (me->bb == NULL || (me->bb->flag & BOUNDBOX_DIRTY)) {
-				BKE_mesh_texspace_calc(me);
-			}
-			if (r_texflag) *r_texflag = &me->texflag;
-			if (r_loc) *r_loc = me->loc;
-			if (r_size) *r_size = me->size;
-			if (r_rot) *r_rot = me->rot;
+			BKE_mesh_texspace_get_reference((Mesh *)ob->data, r_texflag, r_loc, r_rot, r_size);
 			break;
 		}
 		case ID_CU:
@@ -2755,6 +2841,14 @@ int BKE_object_obdata_texspace_get(Object *ob, short **r_texflag, float **r_loc,
 	}
 	return 1;
 }
+
+/** Get evaluated mesh for given (main, original) object and depsgraph. */
+Mesh *BKE_object_get_evaluated_mesh(const Depsgraph *depsgraph, Object *ob)
+{
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+	return ob_eval->runtime.mesh_eval;
+}
+
 
 static int pc_cmp(const void *a, const void *b)
 {
@@ -3258,6 +3352,10 @@ MovieClip *BKE_object_movieclip_get(Scene *scene, Object *ob, bool use_default)
 	return clip;
 }
 
+void BKE_object_runtime_reset(Object *object)
+{
+	memset(&object->runtime, 0, sizeof(object->runtime));
+}
 
 /*
  * Find an associated Armature object
@@ -3293,33 +3391,33 @@ static void obrel_list_add(LinkNode **links, Object *ob)
 }
 
 /*
- * Iterates over all objects of the given scene.
+ * Iterates over all objects of the given scene layer.
  * Depending on the eObjectSet flag:
  * collect either OB_SET_ALL, OB_SET_VISIBLE or OB_SET_SELECTED objects.
  * If OB_SET_VISIBLE or OB_SET_SELECTED are collected,
  * then also add related objects according to the given includeFilters.
  */
-LinkNode *BKE_object_relational_superset(struct Scene *scene, eObjectSet objectSet, eObRelationTypes includeFilter)
+LinkNode *BKE_object_relational_superset(struct ViewLayer *view_layer, eObjectSet objectSet, eObRelationTypes includeFilter)
 {
 	LinkNode *links = NULL;
 
 	Base *base;
 
 	/* Remove markers from all objects */
-	for (base = scene->base.first; base; base = base->next) {
+	for (base = view_layer->object_bases.first; base; base = base->next) {
 		base->object->id.tag &= ~LIB_TAG_DOIT;
 	}
 
 	/* iterate over all selected and visible objects */
-	for (base = scene->base.first; base; base = base->next) {
+	for (base = view_layer->object_bases.first; base; base = base->next) {
 		if (objectSet == OB_SET_ALL) {
 			/* as we get all anyways just add it */
 			Object *ob = base->object;
 			obrel_list_add(&links, ob);
 		}
 		else {
-			if ((objectSet == OB_SET_SELECTED && TESTBASELIB_BGMODE(((View3D *)NULL), scene, base)) ||
-			    (objectSet == OB_SET_VISIBLE  && BASE_EDITABLE_BGMODE(((View3D *)NULL), scene, base)))
+			if ((objectSet == OB_SET_SELECTED && TESTBASELIB_BGMODE(base)) ||
+			    (objectSet == OB_SET_VISIBLE  && BASE_EDITABLE_BGMODE(base)))
 			{
 				Object *ob = base->object;
 
@@ -3348,8 +3446,8 @@ LinkNode *BKE_object_relational_superset(struct Scene *scene, eObjectSet objectS
 				/* child relationship */
 				if (includeFilter & (OB_REL_CHILDREN | OB_REL_CHILDREN_RECURSIVE)) {
 					Base *local_base;
-					for (local_base = scene->base.first; local_base; local_base = local_base->next) {
-						if (BASE_EDITABLE_BGMODE(((View3D *)NULL), scene, local_base)) {
+					for (local_base = view_layer->object_bases.first; local_base; local_base = local_base->next) {
+						if (BASE_EDITABLE_BGMODE(local_base)) {
 
 							Object *child = local_base->object;
 							if (obrel_list_test(child)) {
@@ -3382,29 +3480,22 @@ LinkNode *BKE_object_relational_superset(struct Scene *scene, eObjectSet objectS
 /**
  * return all groups this object is apart of, caller must free.
  */
-struct LinkNode *BKE_object_groups(Object *ob)
+struct LinkNode *BKE_object_groups(Main *bmain, Object *ob)
 {
-	LinkNode *group_linknode = NULL;
-	Group *group = NULL;
-	while ((group = BKE_group_object_find(group, ob))) {
-		BLI_linklist_prepend(&group_linknode, group);
+	LinkNode *collection_linknode = NULL;
+	Collection *collection = NULL;
+	while ((collection = BKE_collection_object_find(bmain, collection, ob))) {
+		BLI_linklist_prepend(&collection_linknode, collection);
 	}
 
-	return group_linknode;
+	return collection_linknode;
 }
 
-void BKE_object_groups_clear(Scene *scene, Base *base, Object *object)
+void BKE_object_groups_clear(Main *bmain, Object *ob)
 {
-	Group *group = NULL;
-
-	BLI_assert((base == NULL) || (base->object == object));
-
-	if (scene && base == NULL) {
-		base = BKE_scene_base_find(scene, object);
-	}
-
-	while ((group = BKE_group_object_find(group, base->object))) {
-		BKE_group_object_unlink(group, object, scene, base);
+	Collection *collection = NULL;
+	while ((collection = BKE_collection_object_find(bmain, collection, ob))) {
+		BKE_collection_object_remove(bmain, collection, ob, false);
 	}
 }
 
@@ -3605,9 +3696,9 @@ static void object_cacheIgnoreClear(Object *ob, int state)
 /* Note: this function should eventually be replaced by depsgraph functionality.
  * Avoid calling this in new code unless there is a very good reason for it!
  */
-bool BKE_object_modifier_update_subframe(EvaluationContext *eval_ctx, Scene *scene, Object *ob, bool update_mesh,
-                                         int parent_recursion, float frame,
-                                         int type)
+bool BKE_object_modifier_update_subframe(
+        Depsgraph *depsgraph, Scene *scene, Object *ob, bool update_mesh,
+        int parent_recursion, float frame, int type)
 {
 	ModifierData *md = modifiers_findByType(ob, (ModifierType)type);
 	bConstraint *con;
@@ -3630,8 +3721,8 @@ bool BKE_object_modifier_update_subframe(EvaluationContext *eval_ctx, Scene *sce
 	if (parent_recursion) {
 		int recursion = parent_recursion - 1;
 		bool no_update = false;
-		if (ob->parent) no_update |= BKE_object_modifier_update_subframe(eval_ctx, scene, ob->parent, 0, recursion, frame, type);
-		if (ob->track) no_update |= BKE_object_modifier_update_subframe(eval_ctx, scene, ob->track, 0, recursion, frame, type);
+		if (ob->parent) no_update |= BKE_object_modifier_update_subframe(depsgraph, scene, ob->parent, 0, recursion, frame, type);
+		if (ob->track) no_update |= BKE_object_modifier_update_subframe(depsgraph, scene, ob->track, 0, recursion, frame, type);
 
 		/* skip subframe if object is parented
 		 *  to vertex of a dynamic paint canvas */
@@ -3648,7 +3739,7 @@ bool BKE_object_modifier_update_subframe(EvaluationContext *eval_ctx, Scene *sce
 				cti->get_constraint_targets(con, &targets);
 				for (ct = targets.first; ct; ct = ct->next) {
 					if (ct->tar)
-						BKE_object_modifier_update_subframe(eval_ctx, scene, ct->tar, 0, recursion, frame, type);
+						BKE_object_modifier_update_subframe(depsgraph, scene, ct->tar, 0, recursion, frame, type);
 				}
 				/* free temp targets */
 				if (cti->flush_constraint_targets)
@@ -3658,28 +3749,29 @@ bool BKE_object_modifier_update_subframe(EvaluationContext *eval_ctx, Scene *sce
 	}
 
 	/* was originally OB_RECALC_ALL - TODO - which flags are really needed??? */
-	ob->recalc |= OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME;
-	BKE_animsys_evaluate_animdata(scene, &ob->id, ob->adt, frame, ADT_RECALC_ANIM);
+	/* TODO(sergey): What about animation? */
+	ob->id.recalc |= ID_RECALC_ALL;
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, frame, ADT_RECALC_ANIM);
 	if (update_mesh) {
 		/* ignore cache clear during subframe updates
 		 *  to not mess up cache validity */
 		object_cacheIgnoreClear(ob, 1);
-		BKE_object_handle_update(eval_ctx, scene, ob);
+		BKE_object_handle_update(depsgraph, scene, ob);
 		object_cacheIgnoreClear(ob, 0);
 	}
 	else
-		BKE_object_where_is_calc_time(scene, ob, frame);
+		BKE_object_where_is_calc_time(depsgraph, scene, ob, frame);
 
 	/* for curve following objects, parented curve has to be updated too */
 	if (ob->type == OB_CURVE) {
 		Curve *cu = ob->data;
-		BKE_animsys_evaluate_animdata(scene, &cu->id, cu->adt, frame, ADT_RECALC_ANIM);
+		BKE_animsys_evaluate_animdata(depsgraph, scene, &cu->id, cu->adt, frame, ADT_RECALC_ANIM);
 	}
 	/* and armatures... */
 	if (ob->type == OB_ARMATURE) {
 		bArmature *arm = ob->data;
-		BKE_animsys_evaluate_animdata(scene, &arm->id, arm->adt, frame, ADT_RECALC_ANIM);
-		BKE_pose_where_is(scene, ob);
+		BKE_animsys_evaluate_animdata(depsgraph, scene, &arm->id, arm->adt, frame, ADT_RECALC_ANIM);
+		BKE_pose_where_is(depsgraph, scene, ob);
 	}
 
 	return false;

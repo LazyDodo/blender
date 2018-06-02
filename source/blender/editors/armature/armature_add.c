@@ -126,7 +126,6 @@ static int armature_click_extrude_exec(bContext *C, wmOperator *UNUSED(op))
 	bArmature *arm;
 	EditBone *ebone, *newbone, *flipbone;
 	float mat[3][3], imat[3][3];
-	const float *curs;
 	int a, to_root = 0;
 	Object *obedit;
 	Scene *scene;
@@ -188,8 +187,8 @@ static int armature_click_extrude_exec(bContext *C, wmOperator *UNUSED(op))
 			newbone->flag |= BONE_CONNECTED;
 		}
 		
-		curs = ED_view3d_cursor3d_get(scene, v3d);
-		copy_v3_v3(newbone->tail, curs);
+		const View3DCursor *curs = ED_view3d_cursor3d_get(scene, v3d);
+		copy_v3_v3(newbone->tail, curs->location);
 		sub_v3_v3v3(newbone->tail, newbone->tail, obedit->obmat[3]);
 		
 		if (a == 1)
@@ -221,26 +220,26 @@ static int armature_click_extrude_invoke(bContext *C, wmOperator *op, const wmEv
 	Scene *scene;
 	ARegion *ar;
 	View3D *v3d;
-	float *fp, tvec[3], oldcurs[3], mval_f[2];
+	float tvec[3], oldcurs[3], mval_f[2];
 	int retv;
 
 	scene = CTX_data_scene(C);
 	ar = CTX_wm_region(C);
 	v3d = CTX_wm_view3d(C);
 	
-	fp = ED_view3d_cursor3d_get(scene, v3d);
+	View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
 	
-	copy_v3_v3(oldcurs, fp);
+	copy_v3_v3(oldcurs, cursor->location);
 
 	VECCOPY2D(mval_f, event->mval);
-	ED_view3d_win_to_3d(v3d, ar, fp, mval_f, tvec);
-	copy_v3_v3(fp, tvec);
+	ED_view3d_win_to_3d(v3d, ar, cursor->location, mval_f, tvec);
+	copy_v3_v3(cursor->location, tvec);
 
 	/* extrude to the where new cursor is and store the operation result */
 	retv = armature_click_extrude_exec(C, op);
 
 	/* restore previous 3d cursor position */
-	copy_v3_v3(fp, oldcurs);
+	copy_v3_v3(cursor->location, oldcurs);
 
 	return retv;
 }
@@ -829,7 +828,7 @@ static int armature_extrude_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit;
 	bArmature *arm;
-	EditBone *newbone, *ebone, *flipbone, *first = NULL;
+	EditBone *newbone = NULL, *ebone, *flipbone, *first = NULL;
 	int a, totbone = 0, do_extrude;
 	bool forked = RNA_boolean_get(op->ptr, "forked");
 
@@ -1013,7 +1012,7 @@ static int armature_bone_primitive_add_exec(bContext *C, wmOperator *op)
 	
 	RNA_string_get(op->ptr, "name", name);
 	
-	copy_v3_v3(curs, ED_view3d_cursor3d_get(CTX_data_scene(C), CTX_wm_view3d(C)));
+	copy_v3_v3(curs, ED_view3d_cursor3d_get(CTX_data_scene(C), CTX_wm_view3d(C))->location);
 
 	/* Get inverse point for head and orientation for tail */
 	invert_m4_m4(obedit->imat, obedit->obmat);
@@ -1074,7 +1073,6 @@ void ARMATURE_OT_bone_primitive_add(wmOperatorType *ot)
 static int armature_subdivide_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit = CTX_data_edit_object(C);
-	bArmature *arm = obedit->data;
 	EditBone *newbone, *tbone;
 	int cuts, i;
 	
@@ -1083,7 +1081,7 @@ static int armature_subdivide_exec(bContext *C, wmOperator *op)
 	
 	/* loop over all editable bones */
 	// XXX the old code did this in reverse order though!
-	CTX_DATA_BEGIN(C, EditBone *, ebone, selected_editable_bones)
+	CTX_DATA_BEGIN_WITH_ID(C, EditBone *, ebone, selected_editable_bones, bArmature *, arm)
 	{
 		for (i = cuts + 1; i > 1; i--) {
 			/* compute cut ratio first */

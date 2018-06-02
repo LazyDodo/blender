@@ -37,14 +37,14 @@ class AbcTransformWriter : public AbcObjectWriter {
 	Alembic::Abc::M44d m_matrix;
 
 	bool m_is_animated;
-	bool m_visible;
 	bool m_inherits_xform;
 
 public:
 	Object *m_proxy_from;
 
 public:
-	AbcTransformWriter(Object *ob,
+	AbcTransformWriter(Depsgraph *depsgraph,
+	                   Object *ob,
 	                   const Alembic::AbcGeom::OObject &abc_parent,
 	                   AbcTransformWriter *parent,
 	                   unsigned int time_sampling,

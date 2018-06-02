@@ -60,7 +60,6 @@
 #include "BKE_anim.h"
 #include "BKE_constraint.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_deform.h"
 #include "BKE_displist.h"
@@ -74,7 +73,6 @@
 #include "BKE_scene.h"
 
 #include "BIK_api.h"
-#include "BKE_sketch.h"
 
 /* **************** Generic Functions, data level *************** */
 
@@ -135,12 +133,6 @@ void BKE_armature_free(bArmature *arm)
 
 		MEM_freeN(arm->edbo);
 		arm->edbo = NULL;
-	}
-
-	/* free sketch */
-	if (arm->sketch) {
-		freeSketch(arm->sketch);
-		arm->sketch = NULL;
 	}
 }
 
@@ -205,7 +197,6 @@ void BKE_armature_copy_data(Main *UNUSED(bmain), bArmature *arm_dst, const bArma
 
 	arm_dst->edbo = NULL;
 	arm_dst->act_edbone = NULL;
-	arm_dst->sketch = NULL;
 }
 
 bArmature *BKE_armature_copy(Main *bmain, const bArmature *arm)
@@ -972,7 +963,7 @@ static void armature_bbone_defmats_cb(void *userdata, Link *iter, int index)
 	}
 }
 
-void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm, float (*vertexCos)[3],
+void armature_deform_verts(Object *armOb, Object *target, const Mesh * mesh, float (*vertexCos)[3],
                            float (*defMats)[3][3], int numVerts, int deformflag,
                            float (*prevCos)[3], const char *defgrp_name)
 {
@@ -1048,9 +1039,9 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm, float
 	/* get a vertex-deform-index to posechannel array */
 	if (deformflag & ARM_DEF_VGROUP) {
 		if (ELEM(target->type, OB_MESH, OB_LATTICE)) {
-			/* if we have a DerivedMesh, only use dverts if it has them */
-			if (dm) {
-				use_dverts = (dm->getVertDataArray(dm, CD_MDEFORMVERT) != NULL);
+			/* if we have a Mesh, only use dverts if it has them */
+			if (mesh) {
+				use_dverts = (mesh->dvert != NULL);
 			}
 			else if (dverts) {
 				use_dverts = true;
@@ -1112,8 +1103,10 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm, float
 		}
 
 		if (use_dverts || armature_def_nr != -1) {
-			if (dm)
-				dvert = dm->getVertData(dm, i, CD_MDEFORMVERT);
+			if (mesh) {
+				BLI_assert(i < mesh->totvert);
+				dvert = mesh->dvert + i;
+			}
 			else if (dverts && i < target_totvert)
 				dvert = dverts + i;
 			else
@@ -1463,13 +1456,13 @@ void BKE_armature_loc_pose_to_bone(bPoseChannel *pchan, const float inloc[3], fl
 	copy_v3_v3(outloc, nLocMat[3]);
 }
 
-void BKE_armature_mat_pose_to_bone_ex(Object *ob, bPoseChannel *pchan, float inmat[4][4], float outmat[4][4])
+void BKE_armature_mat_pose_to_bone_ex(struct Depsgraph *depsgraph, Object *ob, bPoseChannel *pchan, float inmat[4][4], float outmat[4][4])
 {
 	bPoseChannel work_pchan = *pchan;
 
 	/* recalculate pose matrix with only parent transformations,
 	 * bone loc/sca/rot is ignored, scene and frame are not used. */
-	BKE_pose_where_is_bone(NULL, ob, &work_pchan, 0.0f, false);
+	BKE_pose_where_is_bone(depsgraph, NULL, ob, &work_pchan, 0.0f, false);
 
 	/* find the matrix, need to remove the bone transforms first so this is
 	 * calculated as a matrix to set rather then a difference ontop of whats
@@ -1950,9 +1943,18 @@ void BKE_pose_clear_pointers(bPose *pose)
 	}
 }
 
+void BKE_pose_remap_bone_pointers(bArmature *armature, bPose *pose)
+{
+	GHash *bone_hash = BKE_armature_bone_from_name_map(armature);
+	for (bPoseChannel *pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
+		pchan->bone = BLI_ghash_lookup(bone_hash, pchan->name);
+	}
+	BLI_ghash_free(bone_hash, NULL, NULL);
+}
+
 /* only after leave editmode, duplicating, validating older files, library syncing */
 /* NOTE: pose->flag is set for it */
-void BKE_pose_rebuild_ex(Object *ob, bArmature *arm, const bool sort_bones)
+void BKE_pose_rebuild(Object *ob, bArmature *arm)
 {
 	Bone *bone;
 	bPose *pose;
@@ -1989,32 +1991,20 @@ void BKE_pose_rebuild_ex(Object *ob, bArmature *arm, const bool sort_bones)
 	/* printf("rebuild pose %s, %d bones\n", ob->id.name, counter); */
 
 	/* synchronize protected layers with proxy */
-	if (ob->proxy) {
+	/* HACK! To preserve 2.7x behavior that you always can pose even locked bones,
+	 * do not do any restauration if this is a COW temp copy! */
+	/* Switched back to just NO_MAIN tag, for some reasons (c) using COW tag was working this morning, but not anymore... */
+	if (ob->proxy != NULL && (ob->id.tag & LIB_TAG_NO_MAIN) == 0) {
 		BKE_object_copy_proxy_drivers(ob, ob->proxy);
 		pose_proxy_synchronize(ob, ob->proxy, arm->layer_protected);
 	}
 
 	BKE_pose_update_constraint_flags(ob->pose); /* for IK detection for example */
 
-#ifdef WITH_LEGACY_DEPSGRAPH
-	/* the sorting */
-	/* Sorting for new dependnecy graph is done on the scene graph level. */
-	if (counter > 1 && sort_bones) {
-		DAG_pose_sort(ob);
-	}
-#else
-	UNUSED_VARS(sort_bones);
-#endif
-
 	ob->pose->flag &= ~POSE_RECALC;
 	ob->pose->flag |= POSE_WAS_REBUILT;
 
 	BKE_pose_channels_hash_make(ob->pose);
-}
-
-void BKE_pose_rebuild(Object *ob, bArmature *arm)
-{
-	BKE_pose_rebuild_ex(ob, arm, true);
 }
 
 /* ********************** THE POSE SOLVER ******************* */
@@ -2127,7 +2117,7 @@ static void do_strip_modifiers(Scene *scene, Object *armob, Bone *bone, bPoseCha
 							if (STREQ(pchan->name, amod->channel)) {
 								float mat4[4][4], mat3[3][3];
 
-								curve_deform_vector(scene, amod->ob, armob, bone->arm_mat[3], pchan->pose_mat[3], mat3, amod->no_rot_axis);
+								curve_deform_vector(amod->ob, armob, bone->arm_mat[3], pchan->pose_mat[3], mat3, amod->no_rot_axis);
 								copy_m4_m4(mat4, pchan->pose_mat);
 								mul_m4_m3m4(pchan->pose_mat, mat3, mat4);
 
@@ -2211,7 +2201,9 @@ void BKE_pose_where_is_bone_tail(bPoseChannel *pchan)
 /* pchan is validated, as having bone and parent pointer
  * 'do_extra': when zero skips loc/size/rot, constraints and strip modifiers.
  */
-void BKE_pose_where_is_bone(Scene *scene, Object *ob, bPoseChannel *pchan, float ctime, bool do_extra)
+void BKE_pose_where_is_bone(
+        struct Depsgraph *depsgraph, Scene *scene,
+        Object *ob, bPoseChannel *pchan, float ctime, bool do_extra)
 {
 	/* This gives a chan_mat with actions (ipos) results. */
 	if (do_extra)
@@ -2247,10 +2239,10 @@ void BKE_pose_where_is_bone(Scene *scene, Object *ob, bPoseChannel *pchan, float
 			/* prepare PoseChannel for Constraint solving
 			 * - makes a copy of matrix, and creates temporary struct to use
 			 */
-			cob = BKE_constraints_make_evalob(scene, ob, pchan, CONSTRAINT_OBTYPE_BONE);
+			cob = BKE_constraints_make_evalob(depsgraph, scene, ob, pchan, CONSTRAINT_OBTYPE_BONE);
 
 			/* Solve PoseChannel's Constraints */
-			BKE_constraints_solve(&pchan->constraints, cob, ctime); /* ctime doesnt alter objects */
+			BKE_constraints_solve(depsgraph, &pchan->constraints, cob, ctime); /* ctime doesnt alter objects */
 
 			/* cleanup after Constraint Solving
 			 * - applies matrix back to pchan, and frees temporary struct used
@@ -2272,7 +2264,7 @@ void BKE_pose_where_is_bone(Scene *scene, Object *ob, bPoseChannel *pchan, float
 
 /* This only reads anim data from channels, and writes to channels */
 /* This is the only function adding poses */
-void BKE_pose_where_is(Scene *scene, Object *ob)
+void BKE_pose_where_is(struct Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
 	bArmature *arm;
 	Bone *bone;
@@ -2311,7 +2303,7 @@ void BKE_pose_where_is(Scene *scene, Object *ob)
 		}
 
 		/* 2a. construct the IK tree (standard IK) */
-		BIK_initialize_tree(scene, ob, ctime);
+		BIK_initialize_tree(depsgraph, scene, ob, ctime);
 
 		/* 2b. construct the Spline IK trees
 		 *  - this is not integrated as an IK plugin, since it should be able
@@ -2323,15 +2315,15 @@ void BKE_pose_where_is(Scene *scene, Object *ob)
 		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 			/* 4a. if we find an IK root, we handle it separated */
 			if (pchan->flag & POSE_IKTREE) {
-				BIK_execute_tree(scene, ob, pchan, ctime);
+				BIK_execute_tree(depsgraph, scene, ob, pchan, ctime);
 			}
 			/* 4b. if we find a Spline IK root, we handle it separated too */
 			else if (pchan->flag & POSE_IKSPLINE) {
-				BKE_splineik_execute_tree(scene, ob, pchan, ctime);
+				BKE_splineik_execute_tree(depsgraph, scene, ob, pchan, ctime);
 			}
 			/* 5. otherwise just call the normal solver */
 			else if (!(pchan->flag & POSE_DONE)) {
-				BKE_pose_where_is_bone(scene, ob, pchan, ctime, 1);
+				BKE_pose_where_is_bone(depsgraph, scene, ob, pchan, ctime, 1);
 			}
 		}
 		/* 6. release the IK tree */

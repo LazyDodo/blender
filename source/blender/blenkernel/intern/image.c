@@ -82,6 +82,7 @@
 #include "BKE_scene.h"
 #include "BKE_node.h"
 #include "BKE_sequencer.h" /* seq_foreground_frame_get() */
+#include "BKE_workspace.h"
 
 #include "BLF_api.h"
 
@@ -369,7 +370,6 @@ static void image_init(Image *ima, short source, short type)
 
 	ima->ok = IMA_OK;
 
-	ima->xrep = ima->yrep = 1;
 	ima->aspx = ima->aspy = 1.0;
 	ima->gen_x = 1024; ima->gen_y = 1024;
 	ima->gen_type = IMA_GENTYPE_GRID;
@@ -472,12 +472,10 @@ void BKE_image_copy_data(Main *UNUSED(bmain), Image *ima_dst, const Image *ima_s
 
 	BLI_listbase_clear(&ima_dst->anims);
 
-	ima_dst->totbind = 0;
 	for (int i = 0; i < TEXTARGET_COUNT; i++) {
 		ima_dst->bindcode[i] = 0;
 		ima_dst->gputexture[i] = NULL;
 	}
-	ima_dst->repbind = NULL;
 
 	if ((flag & LIB_ID_COPY_NO_PREVIEW) == 0) {
 		BKE_previewimg_id_copy(&ima_dst->id, &ima_src->id);
@@ -1208,7 +1206,6 @@ bool BKE_imtype_is_movie(const char imtype)
 		case R_IMF_IMTYPE_H264:
 		case R_IMF_IMTYPE_THEORA:
 		case R_IMF_IMTYPE_XVID:
-		case R_IMF_IMTYPE_FRAMESERVER:
 			return true;
 	}
 	return false;
@@ -1349,7 +1346,6 @@ char BKE_imtype_from_arg(const char *imtype_arg)
 	else if (STREQ(imtype_arg, "MULTILAYER")) return R_IMF_IMTYPE_MULTILAYER;
 #endif
 	else if (STREQ(imtype_arg, "FFMPEG")) return R_IMF_IMTYPE_FFMPEG;
-	else if (STREQ(imtype_arg, "FRAMESERVER")) return R_IMF_IMTYPE_FRAMESERVER;
 #ifdef WITH_CINEON
 	else if (STREQ(imtype_arg, "CINEON")) return R_IMF_IMTYPE_CINEON;
 	else if (STREQ(imtype_arg, "DPX")) return R_IMF_IMTYPE_DPX;
@@ -2653,19 +2649,19 @@ void BKE_image_walk_all_users(const Main *mainp, void *customdata,
 		}
 	}
 
+	for (Camera *cam = mainp->camera.first; cam; cam = cam->id.next) {
+		for (CameraBGImage *bgpic = cam->bg_images.first; bgpic; bgpic = bgpic->next) {
+			callback(bgpic->ima, &bgpic->iuser, customdata);
+		}
+	}
+
 	/* image window, compo node users */
 	for (wm = mainp->wm.first; wm; wm = wm->id.next) { /* only 1 wm */
 		for (win = wm->windows.first; win; win = win->next) {
-			ScrArea *sa;
-			for (sa = win->screen->areabase.first; sa; sa = sa->next) {
-				if (sa->spacetype == SPACE_VIEW3D) {
-					View3D *v3d = sa->spacedata.first;
-					BGpic *bgpic;
-					for (bgpic = v3d->bgpicbase.first; bgpic; bgpic = bgpic->next) {
-						callback(bgpic->ima, &bgpic->iuser, customdata);
-					}
-				}
-				else if (sa->spacetype == SPACE_IMAGE) {
+			const bScreen *screen = BKE_workspace_active_screen_get(win->workspace_hook);
+
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				if (sa->spacetype == SPACE_IMAGE) {
 					SpaceImage *sima = sa->spacedata.first;
 					callback(sima->image, &sima->iuser, customdata);
 				}

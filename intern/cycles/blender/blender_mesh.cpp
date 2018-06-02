@@ -561,7 +561,7 @@ static void attr_create_subd_uv_map(Scene *scene,
 		int i = 0;
 
 		for(b_mesh.uv_layers.begin(l); l != b_mesh.uv_layers.end(); ++l, ++i) {
-			bool active_render = b_mesh.uv_textures[i].active_render();
+			bool active_render = l->active_render();
 			AttributeStandard uv_std = (active_render)? ATTR_STD_UV: ATTR_STD_NONE;
 			ustring uv_name = ustring(l->name().c_str());
 			AttributeStandard tangent_std = (active_render)? ATTR_STD_UV_TANGENT
@@ -1069,7 +1069,9 @@ static void sync_mesh_fluid_motion(BL::Object& b_ob, Scene *scene, Mesh *mesh)
 	}
 }
 
-Mesh *BlenderSync::sync_mesh(BL::Object& b_ob,
+Mesh *BlenderSync::sync_mesh(BL::Depsgraph& b_depsgraph,
+                             BL::Object& b_ob,
+                             BL::Object& b_ob_instance,
                              bool object_updated,
                              bool hide_tris)
 {
@@ -1083,8 +1085,8 @@ Mesh *BlenderSync::sync_mesh(BL::Object& b_ob,
 
 	/* test if we can instance or if the object is modified */
 	BL::ID b_ob_data = b_ob.data();
-	BL::ID key = (BKE_object_is_modified(b_ob))? b_ob: b_ob_data;
-	BL::Material material_override = render_layer.material_override;
+	BL::ID key = (BKE_object_is_modified(b_ob))? b_ob_instance: b_ob_data;
+	BL::Material material_override = view_layer.material_override;
 
 	/* find shader indices */
 	vector<Shader*> used_shaders;
@@ -1109,10 +1111,10 @@ Mesh *BlenderSync::sync_mesh(BL::Object& b_ob,
 
 	/* test if we need to sync */
 	int requested_geometry_flags = Mesh::GEOMETRY_NONE;
-	if(render_layer.use_surfaces) {
+	if(view_layer.use_surfaces) {
 		requested_geometry_flags |= Mesh::GEOMETRY_TRIANGLES;
 	}
-	if(render_layer.use_hair) {
+	if(view_layer.use_hair) {
 		requested_geometry_flags |= Mesh::GEOMETRY_CURVES;
 	}
 	Mesh *mesh;
@@ -1186,14 +1188,13 @@ Mesh *BlenderSync::sync_mesh(BL::Object& b_ob,
 
 		BL::Mesh b_mesh = object_to_mesh(b_data,
 		                                 b_ob,
-		                                 b_scene,
-		                                 true,
-		                                 !preview,
+		                                 b_depsgraph,
+		                                 false,
 		                                 need_undeformed,
 		                                 mesh->subdivision_type);
 
 		if(b_mesh) {
-			if(render_layer.use_surfaces && !hide_tris) {
+			if(view_layer.use_surfaces && !hide_tris) {
 				if(mesh->subdivision_type != Mesh::SUBDIVISION_NONE)
 					create_subd_mesh(scene, mesh, b_ob, b_mesh, used_shaders,
 					                 dicing_rate, max_subdivisions);
@@ -1203,7 +1204,7 @@ Mesh *BlenderSync::sync_mesh(BL::Object& b_ob,
 				create_mesh_volume_attributes(scene, b_ob, mesh, b_scene.frame_current());
 			}
 
-			if(render_layer.use_hair && mesh->subdivision_type == Mesh::SUBDIVISION_NONE)
+			if(view_layer.use_hair && mesh->subdivision_type == Mesh::SUBDIVISION_NONE)
 				sync_curves(mesh, b_mesh, b_ob, false);
 
 			if(can_free_caches) {
@@ -1231,7 +1232,8 @@ Mesh *BlenderSync::sync_mesh(BL::Object& b_ob,
 	return mesh;
 }
 
-void BlenderSync::sync_mesh_motion(BL::Object& b_ob,
+void BlenderSync::sync_mesh_motion(BL::Depsgraph& b_depsgraph,
+                                   BL::Object& b_ob,
                                    Object *object,
                                    float motion_time)
 {
@@ -1274,9 +1276,8 @@ void BlenderSync::sync_mesh_motion(BL::Object& b_ob,
 		/* get derived mesh */
 		b_mesh = object_to_mesh(b_data,
 		                        b_ob,
-		                        b_scene,
-		                        true,
-		                        !preview,
+		                        b_depsgraph,
+		                        false,
 		                        false,
 		                        Mesh::SUBDIVISION_NONE);
 	}

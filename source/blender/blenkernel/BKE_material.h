@@ -97,17 +97,7 @@ struct Material *BKE_material_pop_id(struct Main *bmain, struct ID *id, int inde
 void BKE_material_clear_id(struct Main *bmain, struct ID *id, bool update_data);
 /* rendering */
 
-void init_render_material(struct Main *bmain, struct Material *, int, float *);
-void init_render_materials(struct Main *, int r_mode, float *amd, bool do_default_material);
-void end_render_material(struct Material *);
-void end_render_materials(struct Main *);
-
-bool material_in_material(struct Material *parmat, struct Material *mat);
-
 void ramp_blend(int type, float r_col[3], const float fac, const float col[3]);
-
-/* driver update hacks */
-void material_drivers_update(struct Scene *scene, struct Material *mat, float ctime);
 
 /* copy/paste */
 void clear_matcopybuf(void);
@@ -115,8 +105,11 @@ void free_matcopybuf(void);
 void copy_matcopybuf(struct Main *bmain, struct Material *ma);
 void paste_matcopybuf(struct Main *bmain, struct Material *ma);
 
-/* handle backward compatibility for tface/materials called from doversion */	
-int do_version_tface(struct Main *main);
+/* Evaluation. */
+
+struct Depsgraph;
+
+void BKE_material_eval(struct Depsgraph *depsgraph, struct Material *material);
 
 #ifdef __cplusplus
 }

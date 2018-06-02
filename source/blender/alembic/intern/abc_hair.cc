@@ -49,13 +49,14 @@ using Alembic::AbcGeom::OV2fGeomParam;
 
 /* ************************************************************************** */
 
-AbcHairWriter::AbcHairWriter(Scene *scene,
+AbcHairWriter::AbcHairWriter(Depsgraph *depsgraph,
+                             Scene *scene,
                              Object *ob,
                              AbcTransformWriter *parent,
                              uint32_t time_sampling,
                              ExportSettings &settings,
                              ParticleSystem *psys)
-    : AbcObjectWriter(scene, ob, time_sampling, settings, parent)
+    : AbcObjectWriter(depsgraph, scene, ob, time_sampling, settings, parent)
     , m_uv_warning_shown(false)
 {
 	m_psys = psys;
@@ -72,11 +73,11 @@ void AbcHairWriter::do_write()
 
 	ParticleSystemModifierData *psmd = psys_get_modifier(m_object, m_psys);
 
-	if (!psmd->dm_final) {
+	if (!psmd->mesh_final) {
 		return;
 	}
 
-	DerivedMesh *dm = mesh_create_derived_render(m_scene, m_object, CD_MASK_MESH);
+	DerivedMesh *dm = mesh_create_derived_render(m_depsgraph, m_scene, m_object, CD_MASK_MESH);
 	DM_ensure_tessface(dm);
 
 	std::vector<Imath::V3f> verts;
@@ -164,7 +165,7 @@ void AbcHairWriter::write_hair_sample(DerivedMesh *dm,
 					psys_interpolate_uvs(tface, face->v4, pa->fuv, r_uv);
 					uv_values.push_back(Imath::V2f(r_uv[0], r_uv[1]));
 
-					psys_interpolate_face(mverts, face, tface, NULL, mapfw, vec, normal, NULL, NULL, NULL, NULL);
+					psys_interpolate_face(mverts, face, tface, NULL, mapfw, vec, normal, NULL, NULL, NULL);
 
 					copy_yup_from_zup(tmp_nor.getValue(), normal);
 					norm_values.push_back(tmp_nor);
@@ -272,7 +273,7 @@ void AbcHairWriter::write_hair_child_sample(DerivedMesh *dm,
 			psys_interpolate_uvs(tface, face->v4, pc->fuv, r_uv);
 			uv_values.push_back(Imath::V2f(r_uv[0], r_uv[1]));
 
-			psys_interpolate_face(mverts, face, tface, NULL, mapfw, vec, tmpnor, NULL, NULL, NULL, NULL);
+			psys_interpolate_face(mverts, face, tface, NULL, mapfw, vec, tmpnor, NULL, NULL, NULL);
 
 			/* Convert Z-up to Y-up. */
 			norm_values.push_back(Imath::V3f(tmpnor[0], tmpnor[2], -tmpnor[1]));

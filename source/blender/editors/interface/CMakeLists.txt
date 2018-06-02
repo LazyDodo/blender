@@ -24,6 +24,8 @@ set(INC
 	../../blenkernel
 	../../blenlib
 	../../blentranslation
+	../../depsgraph
+	../../draw
 	../../gpu
 	../../imbuf
 	../../makesdna
@@ -58,6 +60,7 @@ set(SRC
 	interface_region_color_picker.c
 	interface_region_menu_pie.c
 	interface_region_menu_popup.c
+	interface_region_popover.c
 	interface_region_popup.c
 	interface_region_search.c
 	interface_region_tooltip.c

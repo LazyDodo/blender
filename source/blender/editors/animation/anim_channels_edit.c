@@ -50,13 +50,15 @@
 
 #include "BKE_animsys.h"
 #include "BKE_action.h"
-#include "BKE_depsgraph.h"
 #include "BKE_fcurve.h"
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
+#include "BKE_library.h"
 #include "BKE_mask.h"
 #include "BKE_global.h"
-#include "BKE_library.h"
+#include "BKE_scene.h"
+
+#include "DEG_depsgraph_build.h"
 
 #include "UI_view2d.h"
 
@@ -1747,7 +1749,7 @@ static int animchannels_delete_exec(bContext *C, wmOperator *UNUSED(op))
 	
 	/* send notifier that things have changed */
 	WM_event_add_notifier(C, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
-	DAG_relations_tag_update(CTX_data_main(C));
+	DEG_relations_tag_update(CTX_data_main(C));
 
 	return OPERATOR_FINISHED;
 }
@@ -2681,18 +2683,21 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 		}
 		case ANIMTYPE_OBJECT:
 		{
+#if 0
 			bDopeSheet *ads = (bDopeSheet *)ac->data;
 			Scene *sce = (Scene *)ads->source;
+#endif
+			ViewLayer *view_layer = ac->view_layer;
 			Base *base = (Base *)ale->data;
 			Object *ob = base->object;
 			AnimData *adt = ob->adt;
 			
 			/* set selection status */
-			if ((ob->restrictflag & OB_RESTRICT_SELECT) == 0) {
+			if (base->flag & BASE_SELECTABLED) {
 				if (selectmode == SELECT_INVERT) {
 					/* swap select */
-					base->flag ^= SELECT;
-					ob->flag = base->flag;
+					ED_object_base_select(base, BA_INVERT);
+					BKE_scene_object_base_flag_sync_from_base(base);
 
 					if (adt) adt->flag ^= ADT_UI_SELECTED;
 				}
@@ -2701,26 +2706,26 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 
 					/* deselect all */
 					/* TODO: should this deselect all other types of channels too? */
-					for (b = sce->base.first; b; b = b->next) {
-						b->flag &= ~SELECT;
-						b->object->flag = b->flag;
+					for (b = view_layer->object_bases.first; b; b = b->next) {
+						ED_object_base_select(b, BA_DESELECT);
+						BKE_scene_object_base_flag_sync_from_base(b);
 						if (b->object->adt) b->object->adt->flag &= ~(ADT_UI_SELECTED | ADT_UI_ACTIVE);
 					}
 
 					/* select object now */
-					base->flag |= SELECT;
-					ob->flag |= SELECT;
+					ED_object_base_select(base, BA_SELECT);
+					BKE_scene_object_base_flag_sync_from_base(base);
 					if (adt) adt->flag |= ADT_UI_SELECTED;
 				}
 
 				/* change active object - regardless of whether it is now selected [T37883] */
-				ED_base_object_activate(C, base); /* adds notifier */
+				ED_object_base_activate(C, base); /* adds notifier */
 
 				if ((adt) && (adt->flag & ADT_UI_SELECTED))
 					adt->flag |= ADT_UI_ACTIVE;
 
 				/* ensure we exit editmode on whatever object was active before to avoid getting stuck there - T48747 */
-				if (ob != sce->obedit) {
+				if (ob != CTX_data_edit_object(C)) {
 					ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);
 				}
 

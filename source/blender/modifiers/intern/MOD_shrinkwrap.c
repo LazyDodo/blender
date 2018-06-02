@@ -35,17 +35,18 @@
 
 #include <string.h>
 
+#include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
-#include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
 #include "BKE_shrinkwrap.h"
-
-#include "depsgraph_private.h"
 
 #include "MOD_util.h"
 
@@ -97,56 +98,40 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 }
 
 static void deformVerts(
-        ModifierData *md, Object *ob,
-        DerivedMesh *derivedData,
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *mesh,
         float (*vertexCos)[3],
-        int numVerts,
-        ModifierApplyFlag flag)
+        int numVerts)
 {
-	DerivedMesh *dm = derivedData;
-	CustomDataMask dataMask = requiredDataMask(ob, md);
-	bool forRender = (flag & MOD_APPLY_RENDER) != 0;
+	Mesh *mesh_src = mesh;
 
-	/* ensure we get a CDDM with applied vertex coords */
-	if (dataMask) {
-		dm = get_cddm(ob, NULL, dm, vertexCos, dependsOnNormals(md));
+	if (mesh_src == NULL) {
+		mesh_src = ctx->object->data;
 	}
 
-	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ob, dm, vertexCos, numVerts, forRender);
+	BLI_assert(mesh_src->totvert == numVerts);
 
-	if (dm != derivedData)
-		dm->release(dm);
+	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
 }
 
 static void deformVertsEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *editData, DerivedMesh *derivedData,
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct BMEditMesh *editData, Mesh *mesh,
         float (*vertexCos)[3], int numVerts)
 {
-	DerivedMesh *dm = derivedData;
-	CustomDataMask dataMask = requiredDataMask(ob, md);
+	Mesh *mesh_src = mesh;
 
-	/* ensure we get a CDDM with applied vertex coords */
-	if (dataMask) {
-		dm = get_cddm(ob, editData, dm, vertexCos, dependsOnNormals(md));
+	if (mesh_src == NULL) {
+		mesh_src = BKE_bmesh_to_mesh_nomain(editData->bm, &(struct BMeshToMeshParams){0});
 	}
 
-	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ob, dm, vertexCos, numVerts, false);
+	BLI_assert(mesh_src->totvert == numVerts);
 
-	if (dm != derivedData)
-		dm->release(dm);
-}
+	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
 
-static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
-{
-	ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *) md;
-
-	if (smd->target)
-		dag_add_relation(ctx->forest, dag_get_node(ctx->forest, smd->target), ctx->obNode,
-		                 DAG_RL_OB_DATA | DAG_RL_DATA_DATA, "Shrinkwrap Modifier");
-
-	if (smd->auxTarget)
-		dag_add_relation(ctx->forest, dag_get_node(ctx->forest, smd->auxTarget), ctx->obNode,
-		                 DAG_RL_OB_DATA | DAG_RL_DATA_DATA, "Shrinkwrap Modifier");
+	if (!mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -184,17 +169,25 @@ ModifierTypeInfo modifierType_Shrinkwrap = {
 	                        eModifierTypeFlag_EnableInEditmode,
 
 	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  dependsOnNormals,

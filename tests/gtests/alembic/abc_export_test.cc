@@ -11,11 +11,16 @@ extern "C" {
 #include "DNA_scene_types.h"
 }
 
+#include "DEG_depsgraph.h"
+
 class TestableAbcExporter : public AbcExporter {
 public:
-	TestableAbcExporter(Main *bmain, Scene *scene, const char *filename, ExportSettings &settings)
-	    : AbcExporter(bmain, scene, filename, settings)
-	{}
+	TestableAbcExporter(Main *bmain,
+	                    Scene *scene, Depsgraph *depsgraph,
+	                    const char *filename, ExportSettings &settings)
+	    : AbcExporter(bmain, scene, depsgraph, filename, settings)
+	{
+	}
 
 	void getShutterSamples(unsigned int nr_of_samples,
 	                       bool time_relative,
@@ -28,7 +33,6 @@ public:
 	                 std::set<double> &frames) {
 		AbcExporter::getFrameSet(nr_of_samples, frames);
 	}
-
 };
 
 class AlembicExportTest : public testing::Test
@@ -36,6 +40,7 @@ class AlembicExportTest : public testing::Test
 protected:
 	ExportSettings settings;
 	Scene scene;
+	Depsgraph *depsgraph;
 	TestableAbcExporter *exporter;
 	Main *bmain;
 
@@ -50,19 +55,24 @@ protected:
 
 		bmain = BKE_main_new();
 
+		/* TODO(sergey): Pass scene layer somehow? */
+		ViewLayer *view_layer = (ViewLayer *)scene.view_layers.first;
+		depsgraph = DEG_graph_new(&scene, view_layer, DAG_EVAL_VIEWPORT);
+
 		exporter = NULL;
 	}
 
 	virtual void TearDown()
 	{
 		BKE_main_free(bmain);
+		DEG_graph_free(depsgraph);
 		delete exporter;
 	}
 
 	// Call after setting up the settings.
 	void createExporter()
 	{
-		exporter = new TestableAbcExporter(bmain, &scene, "somefile.abc", settings);
+		exporter = new TestableAbcExporter(bmain, &scene, depsgraph, "somefile.abc", settings);
 	}
 };
 

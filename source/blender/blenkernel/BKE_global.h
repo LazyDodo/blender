@@ -102,7 +102,6 @@ typedef struct Global {
 /* G.f */
 #define G_RENDER_OGL    (1 <<  0)
 #define G_SWAP_EXCHANGE (1 <<  1)
-/* also uses G_FILE_AUTOPLAY */
 /* #define G_RENDER_SHADOW	(1 <<  3) */ /* temp flag, removed */
 #define G_BACKBUFSEL    (1 <<  4)
 #define G_PICKSEL       (1 <<  5)
@@ -141,28 +140,19 @@ enum {
 	                     G_DEBUG_DEPSGRAPH_TIME),
 	G_DEBUG_SIMDATA =   (1 << 14), /* sim debug data display */
 	G_DEBUG_GPU_MEM =   (1 << 15), /* gpu memory in status bar */
-	G_DEBUG_GPU =       (1 << 16), /* gpu debug */
+	G_DEBUG_GPU =        (1 << 16), /* gpu debug */
 	G_DEBUG_IO = (1 << 17),   /* IO Debugging (for Collada, ...)*/
+	G_DEBUG_GPU_SHADERS = (1 << 18),   /* GLSL shaders */
 };
 
 #define G_DEBUG_ALL  (G_DEBUG | G_DEBUG_FFMPEG | G_DEBUG_PYTHON | G_DEBUG_EVENTS | G_DEBUG_WM | G_DEBUG_JOBS | \
-                      G_DEBUG_FREESTYLE | G_DEBUG_DEPSGRAPH | G_DEBUG_GPU_MEM | G_DEBUG_IO)
+                      G_DEBUG_FREESTYLE | G_DEBUG_DEPSGRAPH | G_DEBUG_GPU_MEM | G_DEBUG_IO | G_DEBUG_GPU_SHADERS)
 
 
 /* G.fileflags */
 
 #define G_AUTOPACK               (1 << 0)
 #define G_FILE_COMPRESS          (1 << 1)
-#define G_FILE_AUTOPLAY          (1 << 2)
-
-#ifdef DNA_DEPRECATED_ALLOW
-#define G_FILE_ENABLE_ALL_FRAMES (1 << 3)               /* deprecated */
-#define G_FILE_SHOW_DEBUG_PROPS  (1 << 4)               /* deprecated */
-#define G_FILE_SHOW_FRAMERATE    (1 << 5)               /* deprecated */
-/* #define G_FILE_SHOW_PROFILE   (1 << 6) */            /* deprecated */
-/* #define G_FILE_LOCK           (1 << 7) */            /* deprecated */
-/* #define G_FILE_SIGN           (1 << 8) */            /* deprecated */
-#endif  /* DNA_DEPRECATED_ALLOW */
 
 #define G_FILE_USERPREFS         (1 << 9)
 #define G_FILE_NO_UI             (1 << 10)

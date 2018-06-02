@@ -52,6 +52,7 @@ set(SRC
 	intern/BLI_linklist.c
 	intern/BLI_linklist_lockfree.c
 	intern/BLI_memarena.c
+	intern/BLI_memiter.c
 	intern/BLI_mempool.c
 	intern/DLRB_tree.c
 	intern/array_store.c
@@ -70,7 +71,6 @@ set(SRC
 	intern/fileops.c
 	intern/fnmatch.c
 	intern/freetypefont.c
-	intern/graph.c
 	intern/gsqueue.c
 	intern/hash_md5.c
 	intern/hash_mm2a.c
@@ -153,12 +153,12 @@ set(SRC
 	BLI_fileops_types.h
 	BLI_fnmatch.h
 	BLI_ghash.h
-	BLI_graph.h
 	BLI_gsqueue.h
 	BLI_hash.h
 	BLI_hash_md5.h
 	BLI_hash_mm2a.h
 	BLI_heap.h
+	BLI_iterator.h
 	BLI_jitter_2d.h
 	BLI_kdopbvh.h
 	BLI_kdtree.h
@@ -181,6 +181,7 @@ set(SRC
 	BLI_math_statistics.h
 	BLI_math_vector.h
 	BLI_memarena.h
+	BLI_memiter.h
 	BLI_memory_utils.h
 	BLI_mempool.h
 	BLI_noise.h

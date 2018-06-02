@@ -36,6 +36,7 @@
 #include <deque>
 
 #include "BLI_utildefines.h"
+#include "BLI_listbase.h"
 #include "BLI_task.h"
 #include "BLI_ghash.h"
 
@@ -51,6 +52,7 @@ extern "C" {
 #include "intern/nodes/deg_node_operation.h"
 
 #include "intern/depsgraph_intern.h"
+#include "intern/eval/deg_eval_copy_on_write.h"
 #include "util/deg_util_foreach.h"
 
 namespace DEG {
@@ -69,19 +71,6 @@ enum {
 typedef std::deque<OperationDepsNode *> FlushQueue;
 
 namespace {
-
-// TODO(sergey): De-duplicate with depsgraph_tag,cc
-void lib_id_recalc_tag(Main *bmain, ID *id)
-{
-	id->recalc |= ID_RECALC;
-	DEG_id_type_tag(bmain, GS(id->name));
-}
-
-void lib_id_recalc_data_tag(Main *bmain, ID *id)
-{
-	id->recalc |= ID_RECALC_DATA;
-	DEG_id_type_tag(bmain, GS(id->name));
-}
 
 void flush_init_operation_node_func(
         void *__restrict data_v,
@@ -146,8 +135,7 @@ BLI_INLINE void flush_handle_id_node(IDDepsNode *id_node)
 }
 
 /* TODO(sergey): We can reduce number of arguments here. */
-BLI_INLINE void flush_handle_component_node(Depsgraph * /*graph*/,
-                                            IDDepsNode *id_node,
+BLI_INLINE void flush_handle_component_node(IDDepsNode *id_node,
                                             ComponentDepsNode *comp_node,
                                             FlushQueue *queue)
 {
@@ -158,46 +146,17 @@ BLI_INLINE void flush_handle_component_node(Depsgraph * /*graph*/,
 	comp_node->done = COMPONENT_STATE_DONE;
 	/* Tag all required operations in component for update.  */
 	foreach (OperationDepsNode *op, comp_node->operations) {
+		/* We don't want to flush tags in "upstream" direction for
+		 * certain types of operations.
+		 *
+		 * TODO(sergey): Need a more generic solution for this.
+		 */
+		if (op->opcode == DEG_OPCODE_PARTICLE_SETTINGS_EVAL) {
+			continue;
+		}
 		op->flag |= DEPSOP_FLAG_NEEDS_UPDATE;
 	}
-	if (GS(id_node->id->name) == ID_OB) {
-		Object *object = (Object *)id_node->id;
-		/* This code is used to preserve those areas which does
-		 * direct object update,
-		 *
-		 * Plus it ensures visibility changes and relations and
-		 * layers visibility update has proper flags to work with.
-		 */
-		switch (comp_node->type) {
-			case DEG_NODE_TYPE_UNDEFINED:
-			case DEG_NODE_TYPE_OPERATION:
-			case DEG_NODE_TYPE_TIMESOURCE:
-			case DEG_NODE_TYPE_ID_REF:
-			case DEG_NODE_TYPE_SEQUENCER:
-			case NUM_DEG_NODE_TYPES:
-				/* Ignore, does not translate to object component. */
-				BLI_assert(!"This should never happen!");
-				break;
-			case DEG_NODE_TYPE_ANIMATION:
-				object->recalc |= OB_RECALC_TIME;
-				break;
-			case DEG_NODE_TYPE_TRANSFORM:
-				object->recalc |= OB_RECALC_OB;
-				break;
-			case DEG_NODE_TYPE_GEOMETRY:
-			case DEG_NODE_TYPE_EVAL_POSE:
-			case DEG_NODE_TYPE_BONE:
-			case DEG_NODE_TYPE_EVAL_PARTICLES:
-			case DEG_NODE_TYPE_SHADING:
-			case DEG_NODE_TYPE_CACHE:
-			case DEG_NODE_TYPE_PROXY:
-				object->recalc |= OB_RECALC_DATA;
-				break;
-			case DEG_NODE_TYPE_PARAMETERS:
-				break;
-		}
-	}
-	/* When some target changes bone, we might need to re-run the
+	/* when some target changes bone, we might need to re-run the
 	 * whole IK solver, otherwise result might be unpredictable.
 	 */
 	if (comp_node->type == DEG_NODE_TYPE_BONE) {
@@ -240,19 +199,59 @@ BLI_INLINE OperationDepsNode *flush_schedule_children(
 	return result;
 }
 
-BLI_INLINE void flush_editors_id_update(Main *bmain,
-                                        Depsgraph *graph)
+void flush_engine_data_update(ID *id)
+{
+	if (GS(id->name) != ID_OB) {
+		return;
+	}
+	Object *object = (Object *)id;
+	LISTBASE_FOREACH(ObjectEngineData *, engine_data, &object->drawdata) {
+		engine_data->recalc |= id->recalc;
+	}
+}
+
+/* NOTE: It will also accumulate flags from changed components. */
+void flush_editors_id_update(Main *bmain,
+                             Depsgraph *graph,
+                             const DEGEditorUpdateContext *update_ctx)
 {
 	foreach (IDDepsNode *id_node, graph->id_nodes) {
 		if (id_node->done != ID_STATE_MODIFIED) {
 			continue;
 		}
+		DEG_id_type_tag(bmain, GS(id_node->id_orig->name));
 		/* TODO(sergey): Do we need to pass original or evaluated ID here? */
-		ID *id = id_node->id;
-		deg_editors_id_update(bmain, id);
-		lib_id_recalc_tag(bmain, id);
-		/* TODO(sergey): For until we've got proper data nodes in the graph. */
-		lib_id_recalc_data_tag(bmain, id);
+		ID *id_orig = id_node->id_orig;
+		ID *id_cow = id_node->id_cow;
+		/* Copy tag from original data to CoW storage.
+		 * This is because DEG_id_tag_update() sets tags on original
+		 * data.
+		 */
+		id_cow->recalc |= (id_orig->recalc & ID_RECALC_ALL);
+		/* Gather recalc flags from all changed components. */
+		GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, id_node->components)
+		{
+			if (comp_node->done != COMPONENT_STATE_DONE) {
+				continue;
+			}
+			DepsNodeFactory *factory = deg_type_get_factory(comp_node->type);
+			BLI_assert(factory != NULL);
+			id_cow->recalc |= factory->id_recalc_tag();
+		}
+		GHASH_FOREACH_END();
+		DEG_DEBUG_PRINTF((::Depsgraph *)graph,
+		                 EVAL, "Accumulated recalc bits for %s: %u\n",
+		                 id_orig->name, (unsigned int)id_cow->recalc);
+		/* Inform editors. */
+		if (deg_copy_on_write_is_expanded(id_cow)) {
+			deg_editors_id_update(update_ctx, id_cow);
+			/* ID may need to get its auto-override operations refreshed. */
+			if (ID_IS_STATIC_OVERRIDE_AUTO(id_orig)) {
+				id_orig->tag |= LIB_TAG_OVERRIDESTATIC_AUTOREFRESH;
+			}
+			/* Inform draw engines that something was changed. */
+			flush_engine_data_update(id_cow);
+		}
 	}
 }
 
@@ -275,6 +274,12 @@ void deg_graph_flush_updates(Main *bmain, Depsgraph *graph)
 	/* Starting from the tagged "entry" nodes, flush outwards. */
 	FlushQueue queue;
 	flush_schedule_entrypoints(graph, &queue);
+	/* Prepare update context for editors. */
+	DEGEditorUpdateContext update_ctx;
+	update_ctx.bmain = bmain;
+	update_ctx.depsgraph = (::Depsgraph *)graph;
+	update_ctx.scene = graph->scene;
+	update_ctx.view_layer = graph->view_layer;
 	/* Do actual flush. */
 	while (!queue.empty()) {
 		OperationDepsNode *op_node = queue.front();
@@ -286,8 +291,7 @@ void deg_graph_flush_updates(Main *bmain, Depsgraph *graph)
 			ComponentDepsNode *comp_node = op_node->owner;
 			IDDepsNode *id_node = comp_node->owner;
 			flush_handle_id_node(id_node);
-			flush_handle_component_node(graph,
-			                            id_node,
+			flush_handle_component_node(id_node,
 			                            comp_node,
 			                            &queue);
 			/* Flush to nodes along links. */
@@ -295,10 +299,10 @@ void deg_graph_flush_updates(Main *bmain, Depsgraph *graph)
 		}
 	}
 	/* Inform editors about all changes. */
-	flush_editors_id_update(bmain, graph);
+	flush_editors_id_update(bmain, graph, &update_ctx);
 }
 
-static void graph_clear_func(
+static void graph_clear_operation_func(
         void *__restrict data_v,
         const int i,
         const ParallelRangeTLS *__restrict /*tls*/)
@@ -313,14 +317,16 @@ static void graph_clear_func(
 void deg_graph_clear_tags(Depsgraph *graph)
 {
 	/* Go over all operation nodes, clearing tags. */
-	const int num_operations = graph->operations.size();
-	ParallelRangeSettings settings;
-	BLI_parallel_range_settings_defaults(&settings);
-	settings.min_iter_per_thread = 1024;
-	BLI_task_parallel_range(0, num_operations,
-	                        graph,
-	                        graph_clear_func,
-	                        &settings);
+	{
+		const int num_operations = graph->operations.size();
+		ParallelRangeSettings settings;
+		BLI_parallel_range_settings_defaults(&settings);
+		settings.min_iter_per_thread = 1024;
+		BLI_task_parallel_range(0, num_operations,
+		                        graph,
+		                        graph_clear_operation_func,
+		                        &settings);
+	}
 	/* Clear any entry tags which haven't been flushed. */
 	BLI_gset_clear(graph->entry_tags, NULL);
 }

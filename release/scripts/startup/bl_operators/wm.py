@@ -55,6 +55,15 @@ rna_relative_prop = BoolProperty(
         default=False,
         )
 
+rna_space_type_prop = EnumProperty(
+        name="Type",
+        items=tuple(
+            (e.identifier, e.name, "", e. value)
+            for e in bpy.types.Space.bl_rna.properties["type"].enum_items
+           ),
+        default='EMPTY',
+        )
+
 
 def context_path_validate(context, data_path):
     try:
@@ -1089,6 +1098,11 @@ rna_use_soft_limits = BoolProperty(
         name="Use Soft Limits",
         )
 
+rna_is_overridable_static = BoolProperty(
+        name="Is Statically Overridable",
+        default=False,
+        )
+
 
 class WM_OT_properties_edit(Operator):
     bl_idname = "wm.properties_edit"
@@ -1102,6 +1116,7 @@ class WM_OT_properties_edit(Operator):
     min = rna_min
     max = rna_max
     use_soft_limits = rna_use_soft_limits
+    is_overridable_static = rna_is_overridable_static
     soft_min = rna_min
     soft_max = rna_max
     description = StringProperty(
@@ -1152,6 +1167,9 @@ class WM_OT_properties_edit(Operator):
         # Reassign
         exec_str = "item[%r] = %s" % (prop, repr(value_eval))
         # print(exec_str)
+        exec(exec_str)
+
+        exec_str = "item.property_overridable_static_set('[\"%s\"]', %s)" % (prop, self.is_overridable_static)
         exec(exec_str)
 
         rna_idprop_ui_prop_update(item, prop)
@@ -1281,7 +1299,9 @@ class WM_OT_properties_edit(Operator):
         row.prop(self, "min")
         row.prop(self, "max")
 
-        layout.prop(self, "use_soft_limits")
+        row = layout.row()
+        row.prop(self, "use_soft_limits")
+        row.prop(self, "is_overridable_static")
 
         row = layout.row(align=True)
         row.enabled = self.use_soft_limits
@@ -1490,54 +1510,6 @@ class WM_OT_copy_prev_settings(Operator):
             return {'FINISHED'}
 
         return {'CANCELLED'}
-
-
-class WM_OT_blenderplayer_start(Operator):
-    """Launch the blender-player with the current blend-file"""
-    bl_idname = "wm.blenderplayer_start"
-    bl_label = "Start Game In Player"
-
-    def execute(self, context):
-        import os
-        import sys
-        import subprocess
-
-        gs = context.scene.game_settings
-
-        # these remain the same every execution
-        blender_bin_path = bpy.app.binary_path
-        blender_bin_dir = os.path.dirname(blender_bin_path)
-        ext = os.path.splitext(blender_bin_path)[-1]
-        player_path = os.path.join(blender_bin_dir, "blenderplayer" + ext)
-        # done static vars
-
-        if sys.platform == "darwin":
-            player_path = os.path.join(blender_bin_dir, "../../../blenderplayer.app/Contents/MacOS/blenderplayer")
-
-        if not os.path.exists(player_path):
-            self.report({'ERROR'}, "Player path: %r not found" % player_path)
-            return {'CANCELLED'}
-
-        filepath = bpy.data.filepath + '~' if bpy.data.is_saved else os.path.join(bpy.app.tempdir, "game.blend")
-        bpy.ops.wm.save_as_mainfile('EXEC_DEFAULT', filepath=filepath, copy=True)
-
-        # start the command line call with the player path
-        args = [player_path]
-
-        # handle some UI options as command line arguments
-        args.extend([
-            "-g", "show_framerate", "=", "%d" % gs.show_framerate_profile,
-            "-g", "show_profile", "=", "%d" % gs.show_framerate_profile,
-            "-g", "show_properties", "=", "%d" % gs.show_debug_properties,
-            "-g", "ignore_deprecation_warnings", "=", "%d" % (not gs.use_deprecation_warnings),
-        ])
-
-        # finish the call with the path to the blend file
-        args.append(filepath)
-
-        subprocess.call(args)
-        os.remove(filepath)
-        return {'FINISHED'}
 
 
 class WM_OT_keyconfig_test(Operator):
@@ -1884,6 +1856,37 @@ class WM_OT_addon_disable(Operator):
         if err_str:
             self.report({'ERROR'}, err_str)
 
+        return {'FINISHED'}
+
+
+class WM_OT_owner_enable(Operator):
+    """Enable workspace owner ID"""
+    bl_idname = "wm.owner_enable"
+    bl_label = "Enable Add-on"
+
+    owner_id = StringProperty(
+            name="UI Tag",
+            )
+
+    def execute(self, context):
+        workspace = context.workspace
+        workspace.owner_ids.new(self.owner_id)
+        return {'FINISHED'}
+
+
+class WM_OT_owner_disable(Operator):
+    """Enable workspace owner ID"""
+    bl_idname = "wm.owner_disable"
+    bl_label = "Disable UI Tag"
+
+    owner_id = StringProperty(
+            name="UI Tag",
+            )
+
+    def execute(self, context):
+        workspace = context.workspace
+        owner_id = workspace.owner_ids[self.owner_id]
+        workspace.owner_ids.remove(owner_id)
         return {'FINISHED'}
 
 
@@ -2332,6 +2335,71 @@ class WM_OT_app_template_install(Operator):
         return {'RUNNING_MODAL'}
 
 
+class WM_OT_tool_set_by_name(Operator):
+    """Set the tool by name (for keymaps)"""
+    bl_idname = "wm.tool_set_by_name"
+    bl_label = "Set Tool By Name"
+
+    name = StringProperty(
+            name="Text",
+            description="Display name of the tool",
+            )
+
+    cycle = BoolProperty(
+            name="Cycle",
+            description="Cycle through tools in this group",
+            default=False,
+            options={'SKIP_SAVE'},
+            )
+
+    space_type = rna_space_type_prop
+
+    def execute(self, context):
+        from bl_ui.space_toolsystem_common import (
+            activate_by_name,
+            activate_by_name_or_cycle,
+        )
+
+        if self.properties.is_property_set("space_type"):
+            space_type = self.space_type
+        else:
+            space_type = context.space_data.type
+
+        fn = activate_by_name_or_cycle if self.cycle else activate_by_name
+        if fn(context, space_type, self.name):
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, f"Tool {self.name!r} not found.")
+            return {'CANCELLED'}
+
+
+class WM_OT_toolbar(Operator):
+    bl_idname = "wm.toolbar"
+    bl_label = "Toolbar"
+
+    def execute(self, context):
+        from bl_ui.space_toolsystem_common import (
+            ToolSelectPanelHelper,
+            keymap_from_context,
+        )
+        space_type = context.space_data.type
+
+        cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
+        if cls is None:
+            self.report({'WARNING'}, f"Toolbar not found for {space_type!r}")
+            return {'CANCELLED'}
+
+        wm = context.window_manager
+        keymap = keymap_from_context(context, space_type)
+
+        def draw_menu(popover, context):
+            layout = popover.layout
+            cls.draw_cls(layout, context, detect_layout=False)
+
+        wm.popover(draw_menu, keymap=keymap)
+        return {'FINISHED'}
+
+
 classes = (
     BRUSH_OT_active_index_set,
     WM_OT_addon_disable,
@@ -2344,7 +2412,6 @@ classes = (
     WM_OT_app_template_install,
     WM_OT_appconfig_activate,
     WM_OT_appconfig_default,
-    WM_OT_blenderplayer_start,
     WM_OT_context_collection_boolean_set,
     WM_OT_context_cycle_array,
     WM_OT_context_cycle_enum,
@@ -2384,5 +2451,9 @@ classes = (
     WM_OT_properties_remove,
     WM_OT_sysinfo,
     WM_OT_theme_install,
+    WM_OT_owner_disable,
+    WM_OT_owner_enable,
     WM_OT_url_open,
+    WM_OT_tool_set_by_name,
+    WM_OT_toolbar,
 )

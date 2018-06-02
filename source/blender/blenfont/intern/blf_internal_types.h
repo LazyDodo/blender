@@ -31,6 +31,36 @@
 #ifndef __BLF_INTERNAL_TYPES_H__
 #define __BLF_INTERNAL_TYPES_H__
 
+#include "../../../intern/gawain/gawain/gwn_vertex_buffer.h"
+
+#define BLF_BATCH_DRAW_LEN_MAX 2048 /* in glyph */
+
+typedef struct BatchBLF {
+	struct FontBLF *font; /* can only batch glyph from the same font */
+	struct Gwn_Batch *batch;
+	struct Gwn_VertBuf *verts;
+	struct Gwn_VertBufRaw pos_step, tex_step, col_step;
+	unsigned int pos_loc, tex_loc, col_loc;
+	unsigned int glyph_len;
+	float ofs[2];    /* copy of font->pos */
+	float mat[4][4]; /* previous call modelmatrix. */
+	bool enabled, active, simple_shader;
+	unsigned int tex_bind_state;
+} BatchBLF;
+
+extern BatchBLF g_batch;
+
+typedef struct KerningCacheBLF {
+	struct KerningCacheBLF *next, *prev;
+
+	/* kerning mode. */
+	FT_UInt mode;
+
+	/* only cache a ascii glyph pairs. Only store the x
+	 * offset we are interested in, instead of the full FT_Vector. */
+	int table[0x80][0x80];
+} KerningCacheBLF;
+
 typedef struct GlyphCacheBLF {
 	struct GlyphCacheBLF *next;
 	struct GlyphCacheBLF *prev;
@@ -175,8 +205,10 @@ typedef struct FontBLF {
 	/* angle in radians. */
 	float angle;
 	
+#if 0 /* BLF_BLUR_ENABLE */
 	/* blur: 3 or 5 large kernel */
 	int blur;
+#endif
 
 	/* shadow level. */
 	int shadow;
@@ -186,10 +218,10 @@ typedef struct FontBLF {
 	int shadow_y;
 
 	/* shadow color. */
-	float shadow_col[4];
+	unsigned char shadow_color[4];
 
-	/* store color here when drawing shadow or blur. */
-	float orig_col[4];
+	/* main text color. */
+	unsigned char color[4];
 
 	/* Multiplied this matrix with the current one before
 	 * draw the text! see blf_draw__start.
@@ -223,6 +255,12 @@ typedef struct FontBLF {
 	/* current glyph cache, size and dpi. */
 	GlyphCacheBLF *glyph_cache;
 
+	/* list of kerning cache for this font. */
+	ListBase kerning_caches;
+
+	/* current kerning cache for this font and kerning mode. */
+	KerningCacheBLF *kerning_cache;
+
 	/* freetype2 lib handle. */
 	FT_Library ft_lib;
 
@@ -231,6 +269,9 @@ typedef struct FontBLF {
 
 	/* freetype2 face. */
 	FT_Face face;
+
+	/* freetype kerning */
+	FT_UInt kerning_mode;
 
 	/* data for buffer usage (drawing into a texture buffer) */
 	FontBufInfoBLF buf_info;

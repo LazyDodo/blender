@@ -41,13 +41,16 @@
 
 #include "DNA_anim_types.h"
 #include "DNA_object_types.h"
+#include "DNA_space_types.h"
 #include "DNA_texture_types.h"
 
 #include "BKE_animsys.h"
-#include "BKE_depsgraph.h"
 #include "BKE_fcurve.h"
 #include "BKE_context.h"
 #include "BKE_report.h"
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #include "ED_keyframing.h"
 
@@ -115,7 +118,6 @@ FCurve *verify_driver_fcurve(ID *id, const char rna_path[], const int array_inde
 			
 			/* add some new driver data */
 			fcu->driver = MEM_callocN(sizeof(ChannelDriver), "ChannelDriver");
-			fcu->driver->flag |= DRIVER_FLAG_SHOWDEBUG;
 			
 			/* F-Modifier or Keyframes? */
 			// FIXME: replace these magic numbers with defines
@@ -843,7 +845,7 @@ static int add_driver_button_none(bContext *C, wmOperator *op, short mapping_typ
 	if (success) {
 		/* send updates */
 		UI_context_update_anim_flag(C);
-		DAG_relations_tag_update(CTX_data_main(C));
+		DEG_relations_tag_update(CTX_data_main(C));
 		WM_event_add_notifier(C, NC_ANIMATION | ND_FCURVES_ORDER, NULL);  // XXX
 		
 		return OPERATOR_FINISHED;
@@ -941,7 +943,7 @@ static int remove_driver_button_exec(bContext *C, wmOperator *op)
 	if (success) {
 		/* send updates */
 		UI_context_update_anim_flag(C);
-		DAG_relations_tag_update(CTX_data_main(C));
+		DEG_relations_tag_update(CTX_data_main(C));
 		WM_event_add_notifier(C, NC_ANIMATION | ND_FCURVES_ORDER, NULL);  // XXX
 	}
 	
@@ -964,6 +966,46 @@ void ANIM_OT_driver_button_remove(wmOperatorType *ot)
 
 	/* properties */
 	RNA_def_boolean(ot->srna, "all", 1, "All", "Delete drivers for all elements of the array");
+}
+
+/* Edit Driver Button Operator ------------------------ */
+
+static int edit_driver_button_exec(bContext *C, wmOperator *op)
+{
+	PointerRNA ptr = {{NULL}};
+	PropertyRNA *prop = NULL;
+	int index;
+	const bool all = 0; // RNA_boolean_get(op->ptr, "all");
+
+	/* try to find driver using property retrieved from UI */
+	UI_context_active_but_prop_get(C, &ptr, &prop, &index);
+
+	if (all)
+		index = -1;
+
+	if (ptr.id.data && ptr.data && prop) {
+		UI_popover_panel_invoke(C, SPACE_IPO, RGN_TYPE_UI, "GRAPH_PT_drivers_popover", true, op->reports);
+	}
+
+	return OPERATOR_INTERFACE;
+}
+
+void ANIM_OT_driver_button_edit(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Edit Driver";
+	ot->idname = "ANIM_OT_driver_button_edit";
+	ot->description = "Edit the drivers for the property connected represented by the highlighted button";
+	
+	/* callbacks */
+	ot->exec = edit_driver_button_exec;
+	//op->poll = ??? // TODO: need to have some driver to be able to do this...
+	
+	/* flags */
+	ot->flag = OPTYPE_UNDO | OPTYPE_INTERNAL;
+
+	/* properties */
+	//RNA_def_boolean(ot->srna, "all", 1, "All", "Edit drivers for all elements of the array");
 }
 
 /* Copy Driver Button Operator ------------------------ */
@@ -1031,8 +1073,8 @@ static int paste_driver_button_exec(bContext *C, wmOperator *op)
 			
 			UI_context_update_anim_flag(C);
 			
-			DAG_relations_tag_update(CTX_data_main(C));
-			DAG_id_tag_update(ptr.id.data, OB_RECALC_OB | OB_RECALC_DATA);
+			DEG_relations_tag_update(CTX_data_main(C));
+			DEG_id_tag_update(ptr.id.data, OB_RECALC_OB | OB_RECALC_DATA);
 			
 			WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME_PROP, NULL);  // XXX
 			

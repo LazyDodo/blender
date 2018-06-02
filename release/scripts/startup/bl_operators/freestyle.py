@@ -47,15 +47,15 @@ class SCENE_OT_freestyle_fill_range_by_selection(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        rl = context.scene.render.layers.active
-        return rl and rl.freestyle_settings.linesets.active
+        view_layer = context.view_layer
+        return view_layer and view_layer.freestyle_settings.linesets.active
 
     def execute(self, context):
         import sys
 
         scene = context.scene
-        rl = scene.render.layers.active
-        lineset = rl.freestyle_settings.linesets.active
+        view_layer = context.view_layer
+        lineset = view_layer.freestyle_settings.linesets.active
         linestyle = lineset.linestyle
         # Find the modifier to work on
         if self.type == 'COLOR':
@@ -104,7 +104,7 @@ class SCENE_OT_freestyle_fill_range_by_selection(bpy.types.Operator):
             m.range_max = max_dist
             return {'FINISHED'}
         # Find selected mesh objects
-        selection = [ob for ob in scene.objects if ob.select and ob.type == 'MESH' and ob.name != ref.name]
+        selection = [ob for ob in scene.objects if ob.select_get() and ob.type == 'MESH' and ob.name != source.name]
         if selection:
             # Compute the min/max distance from the reference to mesh vertices
             min_dist = sys.float_info.max
@@ -207,8 +207,8 @@ class SCENE_OT_freestyle_module_open(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        rl = context.scene.render.layers.active
-        return rl and rl.freestyle_settings.mode == 'SCRIPT'
+        view_layer = context.view_layer
+        return view_layer and view_layer.freestyle_settings.mode == 'SCRIPT'
 
     def invoke(self, context, event):
         self.freestyle_module = context.freestyle_module

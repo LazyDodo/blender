@@ -160,14 +160,15 @@ typedef struct ParticleSettings {
 	struct SPHFluidSettings *fluid;
 
 	struct EffectorWeights *effector_weights;
-	struct Group *collision_group;
+	struct Collection *collision_group;
 
 	int flag, rt;
 	short type, from, distr, texact;
 	/* physics modes */
 	short phystype, rotmode, avemode, reactevent;
-	int draw, pad1;
-	short draw_as, draw_size, childtype, pad2;
+	int draw;
+	float draw_size;
+	short draw_as, pad1, childtype, pad2;
 	short ren_as, subframes, draw_col;
 	/* number of path segments, power of 2 except */
 	short draw_step, ren_step;
@@ -186,11 +187,6 @@ typedef struct ParticleSettings {
 
 	/* draw color */
 	float color_vec_max;
-
-	/* simplification */
-	short simplify_flag, simplify_refsize;
-	float simplify_rate, simplify_transition;
-	float simplify_viewport;
 
 	/* time and emission */
 	float sta, end, lifetime, randlife;
@@ -248,9 +244,9 @@ typedef struct ParticleSettings {
 
 	struct MTex *mtex[18];		/* MAX_MTEX */
 
-	struct Group *dup_group;
+	struct Collection *dup_group;
 	struct ListBase dupliweights;
-	struct Group *eff_group  DNA_DEPRECATED;		// deprecated
+	struct Collection *eff_group  DNA_DEPRECATED;		// deprecated
 	struct Object *dup_ob;
 	struct Object *bb_ob;
 	struct Ipo *ipo  DNA_DEPRECATED;  /* old animation system, deprecated for 2.5 */
@@ -259,10 +255,18 @@ typedef struct ParticleSettings {
 
 	/* modified dm support */
 	short use_modifier_stack;
-	short pad5[3];
+	short pad5;
 
-	float twist;
-	float pad6;
+	/* hair shape */
+	short shape_flag;
+	short pad6;
+
+	float twist, pad8;
+
+	/* hair thickness shape */
+	float shape;
+	float rad_root, rad_tip, rad_scale;
+
 	struct CurveMapping *twistcurve;
 	void *pad7;
 } ParticleSettings;
@@ -286,7 +290,7 @@ typedef struct ParticleSystem {
 	ListBase pathcachebufs, childcachebufs;	/* buffers for the above */
 
 	struct ClothModifierData *clmd;					/* cloth simulation for hair */
-	struct DerivedMesh *hair_in_dm, *hair_out_dm;	/* input/output for cloth simulation */
+	struct Mesh *hair_in_mesh, *hair_out_mesh;	/* input/output for cloth simulation */
 
 	struct Object *target_ob;
 
@@ -310,9 +314,6 @@ typedef struct ParticleSystem {
 	short vgroup[13], vg_neg, rt3;			/* vertex groups, 0==disable, 1==starting index */
 	char pad[6];
 
-	/* temporary storage during render */
-	struct ParticleRenderData *renderdata;
-
 	/* point cache */
 	struct PointCache *pointcache;
 	struct ListBase ptcaches;
@@ -329,6 +330,17 @@ typedef struct ParticleSystem {
 
 	float dt_frac;							/* current time step, as a fraction of a frame */
 	float lattice_strength;					/* influence of the lattice modifier */
+
+	void *batch_cache;
+
+	/* Set by dependency graph's copy-on-write, allows to quickly go
+	 * from evaluated particle system to original one.
+	 *
+	 * Original system will have this set to NULL.
+	 *
+	 * Use psys_orig_get() function to access,
+	 */
+	struct ParticleSystem *orig_psys;
 } ParticleSystem;
 
 typedef enum eParticleDrawFlag {
@@ -442,6 +454,11 @@ typedef enum eParticleChildFlag {
 	PART_CHILD_USE_ROUGH_CURVE  = (1<<2),
 	PART_CHILD_USE_TWIST_CURVE  = (1<<3),
 } eParticleChildFlag;
+
+/* part->shape_flag */
+typedef enum eParticleShapeFlag {
+	PART_SHAPE_CLOSE_TIP     = (1<<0),
+} eParticleShapeFlag;
 
 /* part->draw_col */
 #define PART_DRAW_COL_NONE		0

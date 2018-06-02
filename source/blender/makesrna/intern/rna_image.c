@@ -33,8 +33,9 @@
 #include "BLI_math_base.h"
 
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_image.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -70,19 +71,6 @@ static const EnumPropertyItem image_source_items[] = {
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
 
-static void rna_Image_animated_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
-{
-	Image *ima = (Image *)ptr->data;
-	int nr;
-
-	if (ima->flag & IMA_TWINANIM) {
-		nr = ima->xrep * ima->yrep;
-		if (ima->twsta >= nr) ima->twsta = 1;
-		if (ima->twend >= nr) ima->twend = nr - 1;
-		if (ima->twsta > ima->twend) ima->twsta = 1;
-	}
-}
-
 static int rna_Image_is_stereo_3d_get(PointerRNA *ptr)
 {
 	return BKE_image_is_stereo((Image *)ptr->data);
@@ -105,7 +93,7 @@ static void rna_Image_source_set(PointerRNA *ptr, int value)
 	if (value != ima->source) {
 		ima->source = value;
 		BKE_image_signal(ima, NULL, IMA_SIGNAL_SRC_CHANGE);
-		DAG_id_tag_update(&ima->id, 0);
+		DEG_id_tag_update(&ima->id, 0);
 	}
 }
 
@@ -135,7 +123,7 @@ static void rna_Image_reload_update(Main *UNUSED(bmain), Scene *UNUSED(scene), P
 	Image *ima = ptr->id.data;
 	BKE_image_signal(ima, NULL, IMA_SIGNAL_RELOAD);
 	WM_main_add_notifier(NC_IMAGE | NA_EDITED, &ima->id);
-	DAG_id_tag_update(&ima->id, 0);
+	DEG_id_tag_update(&ima->id, 0);
 }
 
 static void rna_Image_generated_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -148,7 +136,7 @@ static void rna_Image_colormanage_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 {
 	Image *ima = ptr->id.data;
 	BKE_image_signal(ima, NULL, IMA_SIGNAL_COLORMANAGE);
-	DAG_id_tag_update(&ima->id, 0);
+	DEG_id_tag_update(&ima->id, 0);
 	WM_main_add_notifier(NC_IMAGE | ND_DISPLAY, &ima->id);
 	WM_main_add_notifier(NC_IMAGE | NA_EDITED, &ima->id);
 }
@@ -178,7 +166,7 @@ static void rna_ImageUser_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *
 
 	if (ptr->id.data) {
 		/* Update material or texture for render preview. */
-		DAG_id_tag_update(ptr->id.data, 0);
+		DEG_id_tag_update(ptr->id.data, 0);
 	}
 }
 
@@ -648,11 +636,6 @@ static void rna_def_image(BlenderRNA *brna)
 		{IMA_TYPE_COMPOSITE, "COMPOSITING", 0, "Compositing", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
-	static const EnumPropertyItem prop_mapping_items[] = {
-		{0, "UV", 0, "UV Coordinates", "Use UV coordinates for mapping the image"},
-		{IMA_REFLECT, "REFLECTION", 0, "Reflection", "Use reflection mapping for mapping the image"},
-		{0, NULL, 0, NULL, NULL}
-	};
 	static const EnumPropertyItem prop_field_order_items[] = {
 		{0, "EVEN", 0, "Upper First", "Upper field first"},
 		{IMA_STD_FIELD, "ODD", 0, "Lower First", "Lower field first"},
@@ -669,6 +652,7 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_struct_ui_icon(srna, ICON_IMAGE_DATA);
 
 	prop = RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_string_sdna(prop, NULL, "name");
 	RNA_def_property_ui_text(prop, "File Name", "Image/Movie file name");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_reload_update");
@@ -708,6 +692,7 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Packed Files", "Collection of packed images");
 
 	prop = RNA_def_property(srna, "field_order", PROP_ENUM, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");
 	RNA_def_property_enum_items(prop, prop_field_order_items);
 	RNA_def_property_ui_text(prop, "Field Order", "Order of video fields (select which lines are displayed first)");
@@ -715,6 +700,7 @@ static void rna_def_image(BlenderRNA *brna)
 
 	/* booleans */
 	prop = RNA_def_property(srna, "use_fields", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", IMA_FIELDS);
 	RNA_def_property_ui_text(prop, "Fields", "Use fields of the image");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_fields_update");
@@ -722,36 +708,43 @@ static void rna_def_image(BlenderRNA *brna)
 	
 
 	prop = RNA_def_property(srna, "use_view_as_render", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", IMA_VIEW_AS_RENDER);
 	RNA_def_property_ui_text(prop, "View as Render", "Apply render part of display transformation when displaying this image on the screen");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
 	prop = RNA_def_property(srna, "use_alpha", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", IMA_IGNORE_ALPHA);
 	RNA_def_property_ui_text(prop, "Use Alpha", "Use the alpha channel information from the image or make image fully opaque");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_colormanage_update");
 
 	prop = RNA_def_property(srna, "use_deinterlace", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", IMA_DEINTERLACE);
 	RNA_def_property_ui_text(prop, "Deinterlace", "Deinterlace movie file on load");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_reload_update");
 
 	prop = RNA_def_property(srna, "use_multiview", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", IMA_USE_VIEWS);
 	RNA_def_property_ui_text(prop, "Use Multi-View", "Use Multiple Views (when available)");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_views_format_update");
 
 	prop = RNA_def_property(srna, "is_stereo_3d", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_funcs(prop, "rna_Image_is_stereo_3d_get", NULL);
 	RNA_def_property_ui_text(prop, "Stereo 3D", "Image has left and right views");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_property(srna, "is_multiview", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_funcs(prop, "rna_Image_is_multiview_get", NULL);
 	RNA_def_property_ui_text(prop, "Multiple Views", "Image has more than one view");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_property(srna, "is_dirty", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_boolean_funcs(prop, "rna_Image_dirty_get", NULL);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Dirty", "Image has changed and is not saved");
@@ -793,70 +786,13 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_generated_update");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
-	/* realtime properties */
-	prop = RNA_def_property(srna, "mapping", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");
-	RNA_def_property_enum_items(prop, prop_mapping_items);
-	RNA_def_property_ui_text(prop, "Mapping", "Mapping type to use for this image in the game engine");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
 	prop = RNA_def_property(srna, "display_aspect", PROP_FLOAT, PROP_XYZ);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_float_sdna(prop, NULL, "aspx");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_range(prop, 0.1f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 0.1f, 5000.f, 1, 2);
 	RNA_def_property_ui_text(prop, "Display Aspect", "Display Aspect for this image, does not affect rendering");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
-	prop = RNA_def_property(srna, "use_animation", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "tpageflag", IMA_TWINANIM);
-	RNA_def_property_ui_text(prop, "Animated", "Use as animated texture in the game engine");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_animated_update");
-
-	prop = RNA_def_property(srna, "frame_start", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "twsta");
-	RNA_def_property_range(prop, 0, 255);
-	RNA_def_property_ui_text(prop, "Animation Start", "Start frame of an animated texture");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_animated_update");
-
-	prop = RNA_def_property(srna, "frame_end", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "twend");
-	RNA_def_property_range(prop, 0, 255);
-	RNA_def_property_ui_text(prop, "Animation End", "End frame of an animated texture");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_animated_update");
-
-	prop = RNA_def_property(srna, "fps", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "animspeed");
-	RNA_def_property_range(prop, 1, 100);
-	RNA_def_property_ui_text(prop, "Animation Speed", "Speed of the animation in frames per second");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
-	prop = RNA_def_property(srna, "use_tiles", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "tpageflag", IMA_TILES);
-	RNA_def_property_ui_text(prop, "Tiles",
-	                         "Use of tilemode for faces (default shift-LMB to pick the tile for selected faces)");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
-	prop = RNA_def_property(srna, "tiles_x", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "xrep");
-	RNA_def_property_range(prop, 1, 16);
-	RNA_def_property_ui_text(prop, "Tiles X", "Degree of repetition in the X direction");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
-	prop = RNA_def_property(srna, "tiles_y", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "yrep");
-	RNA_def_property_range(prop, 1, 16);
-	RNA_def_property_ui_text(prop, "Tiles Y", "Degree of repetition in the Y direction");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
-	prop = RNA_def_property(srna, "use_clamp_x", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "tpageflag", IMA_CLAMP_U);
-	RNA_def_property_ui_text(prop, "Clamp X", "Disable texture repeating horizontally");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
-	prop = RNA_def_property(srna, "use_clamp_y", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "tpageflag", IMA_CLAMP_V);
-	RNA_def_property_ui_text(prop, "Clamp Y", "Disable texture repeating vertically");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
 	prop = RNA_def_property(srna, "bindcode", PROP_INT, PROP_UNSIGNED);
@@ -893,6 +829,7 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_float_vector(srna, "resolution", 2, NULL, 0, 0, "Resolution", "X/Y pixels per meter", 0, 0);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_float_funcs(prop, "rna_Image_resolution_get", "rna_Image_resolution_set", NULL);
 
 	prop = RNA_def_property(srna, "frame_duration", PROP_INT, PROP_UNSIGNED);
@@ -927,12 +864,14 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Color Space Settings", "Input color space settings");
 
 	prop = RNA_def_property(srna, "alpha_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_enum_items(prop, alpha_mode_items);
 	RNA_def_property_ui_text(prop, "Alpha Mode", "Representation of alpha information in the RGBA pixels");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_colormanage_update");
 
 	/* multiview */
 	prop = RNA_def_property(srna, "views_format", PROP_ENUM, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_OVERRIDABLE_STATIC);
 	RNA_def_property_enum_sdna(prop, NULL, "views_format");
 	RNA_def_property_enum_items(prop, rna_enum_views_format_items);
 	RNA_def_property_ui_text(prop, "Views Format", "Mode to load image views");
