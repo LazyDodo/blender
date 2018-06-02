@@ -3043,6 +3043,8 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	NodeType* type = NodeType::add("principled_hair_bsdf", create, NodeType::SHADER);
 
 	SOCKET_IN_COLOR(color, "Color", make_float3(0.8f, 0.8f, 0.8f));
+	SOCKET_IN_FLOAT(eumelanin, "Melanin", 0.0f);
+	SOCKET_IN_FLOAT(pheomelanin, "Melanin Redness", 0.0f);
 	SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
 	SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
 
@@ -3079,6 +3081,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	ShaderInput *offset_in = input("Offset");
 	ShaderInput *primary_reflection_roughness_in = input("Primary Reflection Roughness");
 	ShaderInput *ior_in = input("IOR");
+	ShaderInput *eumelanin_in =  input("Melanin");
+	ShaderInput *pheomelanin_in = input("Melanin Redness");
 
 	int color_ofs = compiler.stack_assign(input("Color"));
 
@@ -3099,10 +3103,15 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		__float_as_int(offset),
 		__float_as_int(ior));
 
-    compiler.add_node(compiler.stack_assign_if_linked(primary_reflection_roughness_in),
-		__float_as_int(primary_reflection_roughness),
-		SVM_STACK_INVALID,
-		SVM_STACK_INVALID);
+		compiler.add_node(
+			compiler.encode_uchar4(
+				compiler.stack_assign_if_linked(primary_reflection_roughness_in),
+				compiler.stack_assign_if_linked(eumelanin_in),
+				compiler.stack_assign_if_linked(pheomelanin_in),
+				SVM_STACK_INVALID),
+			__float_as_int(primary_reflection_roughness),
+			__float_as_int(eumelanin),
+			__float_as_int(pheomelanin));
 }
 
 void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)

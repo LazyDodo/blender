@@ -3060,6 +3060,15 @@ static void rna_ShaderNodePrincipled_update(Main *bmain, Scene *scene, PointerRN
 	rna_Node_update(bmain, scene, ptr);
 }
 
+static void rna_ShaderNodeHairPrincipled_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
+	bNode *node = (bNode *)ptr->data;
+	
+	nodeUpdate(ntree, node);
+	rna_Node_update(bmain, scene, ptr);
+}
+
 static void rna_ShaderNodeSubsurface_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
@@ -3314,10 +3323,10 @@ static const EnumPropertyItem node_hair_items[] = {
 };
 
 static const EnumPropertyItem node_principled_hair_items[] = {
-	{SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION,     "ABSORPTION", 0, "Absorption coefficient",   "Absorption coefficient", "Directly set the absorption coefficient sigma_a. This is not the most intuitive way to color hair."},
-	{SHD_PRINCIPLED_HAIR_PHYSICAL,              "PHYSICAL",   0, "Physical",                 "Physical",               "Like Absorption, but uses a  logarithmic mapping. For debugging purposes."},
-	{SHD_PRINCIPLED_HAIR_REFLECTANCE,           "COLOR",      0, "Direct coloring",          "Direct coloring",        "Choose the color of your preference, and the shader will approximate the absorption coefficient to render lookalike hair."},
-	{SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION, "MELANIN",    0, "Melanin concentration",    "Melanin concentration",  "Define the melanin concentrations below to get the most realistic-looking hair. You can get the concentrations for different types of hair online."},
+	{SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION,     "ABSORPTION", 0, "Absorption coefficient",   "Directly set the absorption coefficient sigma_a. This is not the most intuitive way to color hair."},
+	{SHD_PRINCIPLED_HAIR_PHYSICAL,              "PHYSICAL",   0, "Physical",                 "Like Absorption, but uses a  logarithmic mapping. For debugging purposes."},
+	{SHD_PRINCIPLED_HAIR_REFLECTANCE,           "COLOR",      0, "Direct coloring",          "Choose the color of your preference, and the shader will approximate the absorption coefficient to render lookalike hair."},
+	{SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION, "MELANIN",    0, "Melanin concentration",    "Define the melanin concentrations below to get the most realistic-looking hair. You can get the concentrations for different types of hair online."},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -4353,14 +4362,14 @@ static void def_hair(StructRNA *srna)
 
 static void def_hair_principled(StructRNA *srna)
 {
-    PropertyRNA *prop;
+	PropertyRNA *prop;
 
-    prop = RNA_def_property(srna, "parametrization", PROP_ENUM, PROP_NONE);
-    RNA_def_property_enum_sdna(prop, NULL, "custom1");
-    RNA_def_property_ui_text(prop, "Color parametrization", "Select the shader's color parametrization");
-    RNA_def_property_enum_items(prop, node_principled_hair_items);
-    RNA_def_property_enum_default(prop, SHD_PRINCIPLED_HAIR_REFLECTANCE);
-    RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
+	prop = RNA_def_property(srna, "parametrization", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "custom1");
+	RNA_def_property_ui_text(prop, "Color parametrization", "Select the shader's color parametrization");
+	RNA_def_property_enum_items(prop, node_principled_hair_items);
+	RNA_def_property_enum_default(prop, SHD_PRINCIPLED_HAIR_REFLECTANCE);
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNodeHairPrincipled_update");
 }
 
 static void def_sh_uvmap(StructRNA *srna)

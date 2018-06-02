@@ -31,6 +31,8 @@
 
 static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
 	{	SOCK_RGBA,  1, N_("Color"),							0.8f, 0.8f, 0.8f, 1.0f, 0.0f, 1.0f},
+	{	SOCK_FLOAT, 1, N_("Melanin"),						0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, PROP_FACTOR},
+	{	SOCK_FLOAT, 1, N_("Melanin Redness"),				0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, PROP_FACTOR},
 	{	SOCK_FLOAT, 1, N_("Offset"),						0.0f, 0.0f, 0.0f, 0.0f, -M_PI_2, M_PI_2, PROP_ANGLE},
 	{	SOCK_FLOAT, 1, N_("RoughnessU"),					0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT, 1, N_("RoughnessV"),					0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
@@ -49,6 +51,39 @@ static void node_shader_init_hair_principled(bNodeTree *UNUSED(ntree), bNode *no
 	node->custom1 = SHD_PRINCIPLED_HAIR_REFLECTANCE;
 }
 
+static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *node)
+{
+	bNodeSocket *sock;
+	int parametrization = node->custom1;
+	
+	for (sock = node->inputs.first; sock; sock = sock->next) {
+		if (STREQ(sock->name, "Color")) {
+			if (parametrization == SHD_PRINCIPLED_HAIR_REFLECTANCE){
+				sock->flag &= ~SOCK_UNAVAIL;
+			}
+			else {
+				sock->flag |= SOCK_UNAVAIL;
+			}
+		}
+		else if (STREQ(sock->name, "Melanin")) {
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
+				sock->flag &= ~SOCK_UNAVAIL;
+			}
+			else {
+				sock->flag |= SOCK_UNAVAIL;
+			}
+		}
+		else if (STREQ(sock->name, "Melanin Redness"))  {
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
+				sock->flag &= ~SOCK_UNAVAIL;
+			}
+			else {
+				sock->flag |= SOCK_UNAVAIL;
+			}
+	   }
+	}
+}
+
 /* node type definition */
 void register_node_type_sh_bsdf_hair_principled(void)
 {
@@ -57,9 +92,10 @@ void register_node_type_sh_bsdf_hair_principled(void)
 	sh_node_type_base(&ntype, SH_NODE_BSDF_HAIR_PRINCIPLED, "Principled Hair BSDF", NODE_CLASS_SHADER, 0);
 	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, sh_node_bsdf_hair_principled_in, sh_node_bsdf_hair_principled_out);
-	node_type_size(&ntype, 150, 60, 200);
+	node_type_size_preset(&ntype, NODE_SIZE_LARGE);
 	node_type_init(&ntype, node_shader_init_hair_principled);
 	node_type_storage(&ntype, "", NULL, NULL);
+	node_type_update(&ntype, node_shader_update_hair_principled, NULL);
 
 	nodeRegisterType(&ntype);
 }

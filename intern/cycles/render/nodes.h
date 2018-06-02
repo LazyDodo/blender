@@ -604,18 +604,20 @@ public:
 
 class PrincipledHairBsdfNode : public BsdfBaseNode {
 public:
-    SHADER_NODE_CLASS(PrincipledHairBsdfNode)
+	SHADER_NODE_CLASS(PrincipledHairBsdfNode)
 
-    float roughness_u;
-    float roughness_v;
-    float primary_reflection_roughness;
-    float ior;
-    float offset;
-    float3 color;
+	float roughness_u;
+	float roughness_v;
+	float primary_reflection_roughness;
+	float ior;
+	float offset;
+	float3 color;
+	float eumelanin;
+	float pheomelanin;
 
-    float3 normal;
-    float surface_mix_weight;
-    NodePrincipledHairParametrization parametrization;
+	float3 normal;
+	float surface_mix_weight;
+	NodePrincipledHairParametrization parametrization;
 };
 
 class HairBsdfNode : public BsdfNode {

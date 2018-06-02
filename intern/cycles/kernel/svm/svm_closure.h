@@ -730,9 +730,15 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			uint offset_ofs, ior_ofs, color_ofs, parametrization;
 			decode_node_uchar4(data_node.y, &offset_ofs, &ior_ofs, &color_ofs, &parametrization);
 
-			float m0_roughness = (stack_valid(data_node2.x))? stack_load_float(stack, data_node2.x): __uint_as_float(data_node2.y);
 			float alpha = (stack_valid(offset_ofs))? stack_load_float(stack, offset_ofs): __uint_as_float(data_node.z);
 			float ior = (stack_valid(ior_ofs))? stack_load_float(stack, ior_ofs): __uint_as_float(data_node.w);
+
+			uint primary_reflection_roughness_ofs, eumelanin_ofs, pheomelanin_ofs;
+			decode_node_uchar4(data_node2.x, &primary_reflection_roughness_ofs, &eumelanin_ofs, &pheomelanin_ofs, NULL);
+
+			float m0_roughness = (stack_valid(primary_reflection_roughness_ofs))? stack_load_float(stack, primary_reflection_roughness_ofs): __uint_as_float(data_node2.y);
+			float eumelanin = (stack_valid(eumelanin_ofs)) ? stack_load_float(stack, eumelanin_ofs) : __uint_as_float(data_node2.z);
+			float pheomelanin = (stack_valid(pheomelanin_ofs)) ? stack_load_float(stack, pheomelanin_ofs) : __uint_as_float(data_node2.w);
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
@@ -758,7 +764,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 						bsdf->sigma = -log3(max(color, make_float3(1e-5f, 1e-5f, 1e-5f)));
 						break;
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION:
-						bsdf->sigma = color.x*make_float3(0.419f, 0.697f, 1.37f) + color.y*make_float3(0.187f, 0.4f, 1.05f);
+						bsdf->sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
 						break;
 					default:
 						kernel_assert(!"Invalid Principled Hair parametrization!");
