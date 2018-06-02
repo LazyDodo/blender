@@ -733,8 +733,8 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			float alpha = (stack_valid(offset_ofs))? stack_load_float(stack, offset_ofs): __uint_as_float(data_node.z);
 			float ior = (stack_valid(ior_ofs))? stack_load_float(stack, ior_ofs): __uint_as_float(data_node.w);
 
-			uint primary_reflection_roughness_ofs, eumelanin_ofs, pheomelanin_ofs;
-			decode_node_uchar4(data_node2.x, &primary_reflection_roughness_ofs, &eumelanin_ofs, &pheomelanin_ofs, NULL);
+			uint primary_reflection_roughness_ofs, eumelanin_ofs, pheomelanin_ofs, absorption_coefficient_ofs;
+			decode_node_uchar4(data_node2.x, &primary_reflection_roughness_ofs, &eumelanin_ofs, &pheomelanin_ofs, &absorption_coefficient_ofs);
 
 			float m0_roughness = (stack_valid(primary_reflection_roughness_ofs))? stack_load_float(stack, primary_reflection_roughness_ofs): __uint_as_float(data_node2.y);
 			float eumelanin = (stack_valid(eumelanin_ofs)) ? stack_load_float(stack, eumelanin_ofs) : __uint_as_float(data_node2.z);
@@ -756,12 +756,13 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				bsdf->extra = extra;
 
 				float3 color = stack_load_float3(stack, color_ofs);
+				float3 absorption_coefficient = stack_load_float3(stack, absorption_coefficient_ofs);
 				switch(parametrization) {
 					case NODE_PRINCIPLED_HAIR_DIRECT_ABSORPTION:
-						bsdf->sigma = color;
+						bsdf->sigma = absorption_coefficient;
 						break;
 					case NODE_PRINCIPLED_HAIR_PHYSICAL:
-						bsdf->sigma = -log3(max(color, make_float3(1e-5f, 1e-5f, 1e-5f)));
+						bsdf->sigma = -log3(max(absorption_coefficient, make_float3(1e-5f, 1e-5f, 1e-5f)));
 						break;
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION:
 						bsdf->sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
