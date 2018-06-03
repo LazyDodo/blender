@@ -326,10 +326,11 @@ static bool groom_get_bundle_transform_on_scalp(const GroomBundle *bundle, const
 	}
 }
 
-static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *scalp_ob)
+static bool groom_shape_rebuild(GroomBundle *bundle, Object *scalp_ob)
 {
 	BLI_assert(bundle->scalp_region != NULL);
 	BLI_assert(scalp_ob->type == OB_MESH);
+	const int numshapeverts = bundle->numshapeverts;
 	
 	bool result = true;
 	float (*shape)[2] = MEM_mallocN(sizeof(*shape) * numshapeverts, "groom section shape");
@@ -364,7 +365,6 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 		shape[i][1] = dot_v3v3(co, center_mat[1]);
 	}
 	
-	bundle->numshapeverts = numshapeverts;
 	bundle->totverts = numshapeverts * bundle->totsections;
 	bundle->verts = MEM_reallocN_id(bundle->verts, sizeof(*bundle->verts) * bundle->totverts, "groom bundle vertices");
 	/* Set the shape for all sections */
@@ -438,7 +438,7 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 		goto finalize;
 	}
 	
-	const int numshapeverts = BMO_slot_buffer_count(op.slots_out, "boundary");
+	const int numshapeverts = bundle->numshapeverts = BMO_slot_buffer_count(op.slots_out, "boundary");
 	bundle->scalp_region = MEM_callocN(sizeof(*bundle->scalp_region) * (numshapeverts + 1), "groom bundle scalp region");
 	
 	float center_co[3]; /* average vertex location for placing the center */
@@ -494,7 +494,7 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 finalize:
 	if (result == true)
 	{
-		groom_shape_rebuild(bundle, numshapeverts, scalp_ob);
+		groom_shape_rebuild(bundle, scalp_ob);
 	}
 	else
 	{
