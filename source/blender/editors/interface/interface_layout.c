@@ -37,6 +37,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_userdef_types.h"
 
+#include "BLI_alloca.h"
 #include "BLI_listbase.h"
 #include "BLI_string.h"
 #include "BLI_rect.h"
@@ -2837,11 +2838,38 @@ static void ui_litem_layout_column_flow(uiLayout *litem)
 }
 
 /* multi-column and multi-row layout. */
+typedef struct UILayoutGridFlowInput {
+	/* General layout controll settings. */
+	const bool row_major : 1;  /* Fill rows before columns */
+	const bool even_columns : 1;  /* All columns will have same width. */
+	const bool even_rows : 1;  /* All rows will have same height. */
+	const int space_x;  /* Space between columns. */
+	const int space_y;  /* Space between rows. */
+	/* Real data about current position and size of this layout item (either estimated, or final values). */
+	const int litem_w;  /* Layout item width. */
+	const int litem_x;  /* Layout item X position. */
+	const int litem_y;  /* Layout item Y position. */
+	/* Actual number of columns and rows to generate (computed from first pass usually). */
+	const int tot_columns;  /* Number of columns. */
+	const int tot_rows;  /* Number of rows. */
+} UILayoutGridFlowInput;
+
+typedef struct UILayoutGridFlowOutput {
+	int *tot_items;  /* Total number of items in this grid layout. */
+	/* Width / X pos data. */
+	float *global_avg_w;  /* Computed average width of the columns. */
+	int *cos_x_array;  /* Computed X coordinate of each column. */
+	int *widths_array;  /* Computed width of each column. */
+	int *tot_w;  /* Computed total width. */
+	/* Height / Y pos data. */
+	int *global_max_h;  /* Computed height of the tallest item in the grid. */
+	int *cos_y_array;  /* Computed Y coordinate of each column. */
+	int *heights_array;  /* Computed height of each column. */
+	int *tot_h;  /* Computed total height. */
+} UILayoutGridFlowOutput;
+
 static void ui_litem_grid_flow_compute(
-        ListBase *items, int *r_tot_items, const bool row_major, const bool even_cols, const bool even_rows,
-        const int litem_w, const int litem_x, const int litem_y, const int space_x, const int space_y,
-        float *r_global_avg_w, const int tot_cols, int *r_cos_x, int *r_widths, int *r_tot_w,
-        int *r_global_max_h, const int tot_rows, int *r_cos_y, int *r_heights, int *r_tot_h)
+        ListBase *items, UILayoutGridFlowInput *parameters, UILayoutGridFlowOutput *results)
 {
 	uiItem *item;
 	int i;
@@ -2853,32 +2881,32 @@ static void ui_litem_grid_flow_compute(
 	float *avg_w = NULL, *totweight_w = NULL;
 	int *max_h = NULL;
 
-	BLI_assert(tot_cols != 0 || (r_cos_x == NULL && r_widths == NULL && r_tot_w == NULL));
-	BLI_assert(tot_rows != 0 || (r_cos_y == NULL && r_heights == NULL && r_tot_h == NULL));
+	BLI_assert(parameters->tot_columns != 0 || (results->cos_x_array == NULL && results->widths_array == NULL && results->tot_w == NULL));
+	BLI_assert(parameters->tot_rows != 0 || (results->cos_y_array == NULL && results->heights_array == NULL && results->tot_h == NULL));
 
-	if (r_tot_items) {
-		*r_tot_items = 0;
+	if (results->tot_items) {
+		*results->tot_items = 0;
 	}
 
 	if (items->first == NULL) {
-		if (r_global_avg_w) {
-			*r_global_avg_w = 0.0f;
+		if (results->global_avg_w) {
+			*results->global_avg_w = 0.0f;
 		}
-		if (r_global_max_h) {
-			*r_global_max_h = 0;
+		if (results->global_max_h) {
+			*results->global_max_h = 0;
 		}
 		return;
 	}
 
-	if (tot_cols != 0) {
-		avg_w = alloca(sizeof(*avg_w) * tot_cols);
-		totweight_w = alloca(sizeof(*totweight_w) * tot_cols);
-		memset(avg_w, 0, sizeof(*avg_w) * tot_cols);
-		memset(totweight_w, 0, sizeof(*totweight_w) * tot_cols);
+	if (parameters->tot_columns != 0) {
+		avg_w = BLI_array_alloca(avg_w, parameters->tot_columns);
+		totweight_w = BLI_array_alloca(totweight_w, parameters->tot_columns);
+		memset(avg_w, 0, sizeof(*avg_w) * parameters->tot_columns);
+		memset(totweight_w, 0, sizeof(*totweight_w) * parameters->tot_columns);
 	}
-	if (tot_rows != 0) {
-		max_h = alloca(sizeof(*max_h) * tot_rows);
-		memset(max_h, 0, sizeof(*max_h) * tot_rows);
+	if (parameters->tot_rows != 0) {
+		max_h = BLI_array_alloca(max_h, parameters->tot_rows);
+		memset(max_h, 0, sizeof(*max_h) * parameters->tot_rows);
 	}
 
 	for (i = 0, item = items->first; item; item = item->next, i++) {
@@ -2889,9 +2917,9 @@ static void ui_litem_grid_flow_compute(
 		global_totweight_w += (float)item_w;
 		global_max_h = max_ii(global_max_h, item_h);
 
-		if (tot_rows != 0 && tot_cols != 0) {
-			const int index_col = row_major ? i % tot_cols : i / tot_rows;
-			const int index_row = row_major ? i / tot_cols : i % tot_rows;
+		if (parameters->tot_rows != 0 && parameters->tot_columns != 0) {
+			const int index_col = parameters->row_major ? i % parameters->tot_columns : i / parameters->tot_rows;
+			const int index_row = parameters->row_major ? i / parameters->tot_columns : i % parameters->tot_rows;
 
 			avg_w[index_col] += (float)(item_w * item_w);
 			totweight_w[index_col] += (float)item_w;
@@ -2899,75 +2927,75 @@ static void ui_litem_grid_flow_compute(
 			max_h[index_row] = max_ii(max_h[index_row], item_h);
 		}
 
-		if (r_tot_items) {
-			(*r_tot_items)++;
+		if (results->tot_items) {
+			(*results->tot_items)++;
 		}
 	}
 
 	/* Finalize computing of column average sizes */
 	global_avg_w /= global_totweight_w;
-	if (tot_cols != 0) {
-		for (i = 0; i < tot_cols; i++) {
+	if (parameters->tot_columns != 0) {
+		for (i = 0; i < parameters->tot_columns; i++) {
 			avg_w[i] /= totweight_w[i];
 			tot_w += avg_w[i];
 		}
-		if (even_cols) {
-			tot_w = ceilf(global_avg_w) * tot_cols;
+		if (parameters->even_columns) {
+			tot_w = ceilf(global_avg_w) * parameters->tot_columns;
 		}
 	}
 	/* Finalize computing of rows max sizes */
-	if (tot_rows != 0) {
-		for (i = 0; i < tot_rows; i++) {
+	if (parameters->tot_rows != 0) {
+		for (i = 0; i < parameters->tot_rows; i++) {
 			tot_h += max_h[i];
 		}
-		if (even_rows) {
-			tot_h = global_max_h * tot_cols;
+		if (parameters->even_rows) {
+			tot_h = global_max_h * parameters->tot_columns;
 		}
 	}
 
 	/* Compute positions and sizes of all cells. */
-	if (r_cos_x != NULL && r_widths != NULL) {
+	if (results->cos_x_array != NULL && results->widths_array != NULL) {
 		/* We enlarge/narrow columns evenly to match available width. */
-		const float wfac = (float)(litem_w - (tot_cols - 1) * space_x) / tot_w;
+		const float wfac = (float)(parameters->litem_w - (parameters->tot_columns - 1) * parameters->space_x) / tot_w;
 
-		for (int col = 0; col < tot_cols; col++) {
-			r_cos_x[col] = col ? r_cos_x[col - 1] + r_widths[col - 1] + space_x : litem_x;
-			if (even_cols) {
-				/*              (<        remaining width         > - <space between remain columns>) / <remain columns> */
-				r_widths[col] = ((litem_w - (r_cos_x[col] - litem_x)) - (tot_cols - col - 1) * space_x) / (tot_cols - col);
+		for (int col = 0; col < parameters->tot_columns; col++) {
+			results->cos_x_array[col] = col ? results->cos_x_array[col - 1] + results->widths_array[col - 1] + parameters->space_x : parameters->litem_x;
+			if (parameters->even_columns) {
+				/*                     (<                        remaining width                          > - <       space between remaining columns              >) / <     remaining columns    > */
+				results->widths_array[col] = ((parameters->litem_w - (results->cos_x_array[col] - parameters->litem_x)) - (parameters->tot_columns - col - 1) * parameters->space_x) / (parameters->tot_columns - col);
 			}
-			else if (col == tot_cols - 1) {
+			else if (col == parameters->tot_columns - 1) {
 				/* Last column copes width rounding errors... */
-				r_widths[col] = litem_w - (r_cos_x[col] - litem_x);
+				results->widths_array[col] = parameters->litem_w - (results->cos_x_array[col] - parameters->litem_x);
 			}
 			else {
-				r_widths[col] = (int)(avg_w[col] * wfac);
+				results->widths_array[col] = (int)(avg_w[col] * wfac);
 			}
 		}
 	}
-	if (r_cos_y != NULL && r_heights != NULL) {
-		for (int row = 0; row < tot_rows; row++) {
-			if (even_rows) {
-				r_heights[row] = global_max_h;
+	if (results->cos_y_array != NULL && results->heights_array != NULL) {
+		for (int row = 0; row < parameters->tot_rows; row++) {
+			if (parameters->even_rows) {
+				results->heights_array[row] = global_max_h;
 			}
 			else {
-				r_heights[row] = max_h[row];
+				results->heights_array[row] = max_h[row];
 			}
-			r_cos_y[row] = row ? r_cos_y[row - 1] - space_y - r_heights[row] : litem_y - r_heights[row];
+			results->cos_y_array[row] = row ? results->cos_y_array[row - 1] - parameters->space_y - results->heights_array[row] : parameters->litem_y - results->heights_array[row];
 		}
 	}
 
-	if (r_global_avg_w) {
-		*r_global_avg_w = global_avg_w;
+	if (results->global_avg_w) {
+		*results->global_avg_w = global_avg_w;
 	}
-	if (r_global_max_h) {
-		*r_global_max_h = global_max_h;
+	if (results->global_max_h) {
+		*results->global_max_h = global_max_h;
 	}
-	if (r_tot_w) {
-		*r_tot_w = (int)tot_w + space_x * (tot_cols - 1);
+	if (results->tot_w) {
+		*results->tot_w = (int)tot_w + parameters->space_x * (parameters->tot_columns - 1);
 	}
-	if (r_tot_h) {
-		*r_tot_h = tot_h + space_y * (tot_rows - 1);
+	if (results->tot_h) {
+		*results->tot_h = tot_h + parameters->space_y * (parameters->tot_rows - 1);
 	}
 }
 
@@ -2985,10 +3013,22 @@ static void ui_litem_estimate_grid_flow(uiLayout *litem)
 		int max_h;
 
 		ui_litem_grid_flow_compute(
-		        &litem->items, &gflow->tot_items, gflow->row_major, gflow->even_columns, gflow->even_rows,
-		        litem->w, litem->x, litem->y, space_x, space_y,
-		        &avg_w, 0, NULL, NULL, NULL,
-		        &max_h, 0, NULL, NULL, NULL);
+		            &litem->items,
+		            &((UILayoutGridFlowInput) {
+		                  .row_major = gflow->row_major,
+		                  .even_columns = gflow->even_columns,
+		                  .even_rows = gflow->even_rows,
+		                  .litem_w = litem->w,
+		                  .litem_x = litem->x,
+		                  .litem_y = litem->y,
+		                  .space_x = space_x,
+		                  .space_y = space_y,
+		              }),
+		            &((UILayoutGridFlowOutput) {
+		                  .tot_items = &gflow->tot_items,
+		                  .global_avg_w = &avg_w,
+		                  .global_max_h = &max_h,
+		              }));
 
 		if (gflow->tot_items == 0) {
 			litem->w = litem->h = 0;
@@ -3058,10 +3098,23 @@ static void ui_litem_estimate_grid_flow(uiLayout *litem)
 		int tot_w, tot_h;
 
 		ui_litem_grid_flow_compute(
-		        &litem->items, NULL, gflow->row_major, gflow->even_columns, gflow->even_rows,
-		        litem->w, litem->x, litem->y, space_x, space_y,
-		        NULL, gflow->tot_columns, NULL, NULL, &tot_w,
-		        NULL, gflow->tot_rows, NULL, NULL, &tot_h);
+		            &litem->items,
+		            &((UILayoutGridFlowInput) {
+		                  .row_major = gflow->row_major,
+		                  .even_columns = gflow->even_columns,
+		                  .even_rows = gflow->even_rows,
+		                  .litem_w = litem->w,
+		                  .litem_x = litem->x,
+		                  .litem_y = litem->y,
+		                  .space_x = space_x,
+		                  .space_y = space_y,
+		                  .tot_columns = gflow->tot_columns,
+		                  .tot_rows = gflow->tot_rows,
+		              }),
+		            &((UILayoutGridFlowOutput) {
+		                  .tot_w = &tot_w,
+		                  .tot_h = &tot_h,
+		              }));
 
 		litem->w = tot_w;
 		litem->h = tot_h;
@@ -3086,17 +3139,32 @@ static void ui_litem_layout_grid_flow(uiLayout *litem)
 	const int space_x = style->columnspace;
 	const int space_y = style->buttonspacey;
 
-	int *widths = alloca(sizeof(*widths) * gflow->tot_columns);
-	int *heights = alloca(sizeof(*heights) * gflow->tot_rows);
-	int *cos_x = alloca(sizeof(*cos_x) * gflow->tot_columns);
-	int *cos_y = alloca(sizeof(*cos_y) * gflow->tot_rows);
+	int *widths = BLI_array_alloca(widths, gflow->tot_columns);
+	int *heights = BLI_array_alloca(heights, gflow->tot_rows);
+	int *cos_x = BLI_array_alloca(cos_x, gflow->tot_columns);
+	int *cos_y = BLI_array_alloca(cos_y, gflow->tot_rows);
 
 	/* This time we directly compute coordinates and sizes of all cells. */
 	ui_litem_grid_flow_compute(
-	        &litem->items, NULL, gflow->row_major, gflow->even_columns, gflow->even_rows,
-	        litem->w, litem->x, litem->y, space_x, space_y,
-	        NULL, gflow->tot_columns, cos_x, widths, NULL,
-	        NULL, gflow->tot_rows, cos_y, heights, NULL);
+	            &litem->items,
+	            &((UILayoutGridFlowInput) {
+	                  .row_major = gflow->row_major,
+	                  .even_columns = gflow->even_columns,
+	                  .even_rows = gflow->even_rows,
+	                  .litem_w = litem->w,
+	                  .litem_x = litem->x,
+	                  .litem_y = litem->y,
+	                  .space_x = space_x,
+	                  .space_y = space_y,
+	                  .tot_columns = gflow->tot_columns,
+	                  .tot_rows = gflow->tot_rows,
+	              }),
+	            &((UILayoutGridFlowOutput) {
+	                  .cos_x_array = cos_x,
+	                  .cos_y_array = cos_y,
+	                  .widths_array = widths,
+	                  .heights_array = heights,
+	              }));
 
 	for (item = litem->items.first, i = 0; item; item = item->next, i++) {
 		const int col = gflow->row_major ? i % gflow->tot_columns : i / gflow->tot_rows;
