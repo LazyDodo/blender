@@ -635,6 +635,9 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 			{
 				Groom *groom = (Groom *) id;
 				CALLBACK_INVOKE(groom->scalp_object, IDWALK_CB_NOP);
+				for (i = 0; i < groom->totcol; i++) {
+					CALLBACK_INVOKE(groom->mat[i], IDWALK_CB_USER);
+				}
 				break;
 			}
 

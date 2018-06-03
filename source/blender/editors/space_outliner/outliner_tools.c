@@ -34,6 +34,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_linestyle_types.h"
@@ -178,6 +179,11 @@ static void unlink_material_cb(
 		MetaBall *mb = (MetaBall *)tsep->id;
 		totcol = mb->totcol;
 		matar = mb->mat;
+	}
+	else if (GS(tsep->id->name) == ID_GM) {
+		Groom *groom = (Groom *)tsep->id;
+		totcol = groom->totcol;
+		matar = groom->mat;
 	}
 	else {
 		BLI_assert(0);

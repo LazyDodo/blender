@@ -135,6 +135,11 @@ typedef struct Groom {
 	
 	struct Object *scalp_object;                    /* Surface for attaching hairs */
 	
+	struct Material **mat;      /* Material slots */
+	short totcol;               /* Number of material slots */
+	short pad3;
+	int pad4;
+	
 	struct BoundBox *bb;
 	
 	EditGroom *editgroom;

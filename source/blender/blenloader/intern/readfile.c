@@ -8193,6 +8193,10 @@ static void lib_link_groom(FileData *fd, Main *bmain)
 
 		groom->scalp_object = newlibadr(fd, id->lib, groom->scalp_object);
 
+		for (int a = 0; a < groom->totcol; a++) {
+			groom->mat[a] = newlibadr_us(fd, groom->id.lib, groom->mat[a]);
+		}
+
 		id->tag &= ~LIB_TAG_NEED_LINK;
 	}
 }
@@ -8218,6 +8222,9 @@ static void direct_link_groom(FileData *fd, Groom *groom)
 	groom->hair_system = newdataadr(fd, groom->hair_system);
 	direct_link_hair(fd, groom->hair_system);
 	groom->hair_draw_settings = newdataadr(fd, groom->hair_draw_settings);
+	
+	groom->mat = newdataadr(fd, groom->mat);
+	test_pointer_array(fd, (void **)&groom->mat);
 	
 	groom->bb = NULL;
 	groom->editgroom = NULL;
@@ -9348,6 +9355,10 @@ static void expand_particlesettings(FileData *fd, Main *mainvar, ParticleSetting
 static void expand_groom(FileData *fd, Main *mainvar, Groom *groom)
 {
 	expand_doit(fd, mainvar, groom->scalp_object);
+
+	for (int a = 0; a < groom->totcol; a++) {
+		expand_doit(fd, mainvar, groom->mat[a]);
+	}
 }
 
 static void expand_collection(FileData *fd, Main *mainvar, Collection *collection)

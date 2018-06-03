@@ -3664,6 +3664,8 @@ static void write_groom(WriteData *wd, Groom *groom)
 	{
 		writestruct(wd, DATA, HairDrawSettings, 1, groom->hair_draw_settings);
 	}
+	
+	writedata(wd, DATA, sizeof(void *) * groom->totcol, groom->mat);
 }
 
 /* Keep it last of write_foodata functions. */

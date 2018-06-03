@@ -158,6 +158,8 @@ void BKE_groom_free(Groom *groom)
 	
 	groom_bundles_free(&groom->bundles);
 	
+	MEM_SAFE_FREE(groom->mat);
+	
 	BKE_animdata_free(&groom->id, false);
 }
 
@@ -212,6 +214,8 @@ void BKE_groom_copy_data(Main *UNUSED(bmain), Groom *groom_dst, const Groom *gro
 	{
 		groom_dst->hair_draw_settings = BKE_hair_draw_settings_copy(groom_dst->hair_draw_settings);
 	}
+	
+	groom_dst->mat = MEM_dupallocN(groom_src->mat);
 }
 
 Groom *BKE_groom_copy(Main *bmain, const Groom *groom)

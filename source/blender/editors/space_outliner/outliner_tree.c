@@ -659,6 +659,9 @@ static void outliner_add_id_contents(SpaceOops *soops, TreeElement *te, TreeStor
 			
 			if (outliner_animdata_test(groom->adt))
 				outliner_add_element(soops, &te->subtree, groom, te, TSE_ANIM_DATA, 0);
+			
+			for (int a = 0; a < groom->totcol; a++)
+				outliner_add_element(soops, &te->subtree, groom->mat[a], te, 0, a);
 			break;
 		}
 		case ID_MA:

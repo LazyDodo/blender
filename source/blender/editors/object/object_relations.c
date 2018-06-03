@@ -38,6 +38,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_constraint_types.h"
+#include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_lattice_types.h"
@@ -1911,6 +1912,10 @@ static void single_mat_users_expand(Main *bmain)
 	for (mb = bmain->mball.first; mb; mb = mb->id.next)
 		if (mb->id.tag & LIB_TAG_NEW)
 			new_id_matar(bmain, mb->mat, mb->totcol);
+	
+	for (Groom *groom = bmain->grooms.first; groom; groom = groom->id.next)
+		if (groom->id.tag & LIB_TAG_NEW)
+			new_id_matar(bmain, groom->mat, groom->totcol);
 }
 
 /* used for copying scenes */
