@@ -53,16 +53,17 @@ static BMLoop* bmo_face_island_find_start_loop(BMesh *bm, BMOperator *op)
 		BMIter l_iter;
 		BM_ITER_ELEM(l, &l_iter, f, BM_LOOPS_OF_FACE)
 		{
+			if (!BM_loop_is_manifold(l)) {
+				/* treat non-manifold edges as boundaries */
+				return l;
+			}
+			
 			BMLoop *lr = l;
 			do
 			{
-				if (!BM_loop_is_manifold(lr)) {
-					/* treat non-manifold edges as boundaries */
-					return lr;
-				}
 				if (!BMO_face_flag_test(bm, lr->f, FACE_MARK))
 				{
-					return lr;
+					return l;
 				}
 				lr = lr->radial_next;
 			}
