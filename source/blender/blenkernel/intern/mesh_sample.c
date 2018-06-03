@@ -196,7 +196,7 @@ bool BKE_mesh_sample_is_volume_sample(const MeshSample *sample)
 
 /* Evaluate position and normal on the given mesh */
 
-bool BKE_mesh_sample_eval(Mesh *mesh, const MeshSample *sample, float loc[3], float nor[3], float tang[3])
+bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float loc[3], float nor[3], float tang[3])
 {
 	const MVert *mverts = mesh->mvert;
 	const unsigned int totverts = (unsigned int)mesh->totvert;

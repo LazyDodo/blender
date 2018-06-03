@@ -301,6 +301,31 @@ void BKE_groom_bind_scalp_regions(Groom *groom, bool force_rebind)
 	}
 }
 
+/* Returns the transform at the root of the bundle */
+static bool groom_get_bundle_transform_on_scalp(const GroomBundle *bundle, const Mesh *scalp, float r_loc[3], float r_rot[3][3])
+{
+	const int numshapeverts = bundle->numshapeverts;
+	if (numshapeverts == 0 || bundle->scalp_region == NULL)
+	{
+		return false;
+	}
+	
+	/* last sample is the center position */
+	const MeshSample *center_sample = &bundle->scalp_region[numshapeverts];
+	
+	if (BKE_mesh_sample_eval(scalp, center_sample, r_loc, r_rot[2], r_rot[1]))
+	{
+		cross_v3_v3v3(r_rot[0], r_rot[1], r_rot[2]);
+		return true;
+	}
+	else
+	{
+		zero_v3(r_loc);
+		unit_m3(r_rot);
+		return false;
+	}
+}
+
 static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *scalp_ob)
 {
 	BLI_assert(bundle->scalp_region != NULL);
@@ -311,15 +336,13 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 	
 	Mesh *me = scalp_ob->data;
 	
-	/* last sample is the center position */
-	MeshSample *center_sample = &bundle->scalp_region[numshapeverts];
-	float center_co[3], center_nor[3], center_tang[3], center_binor[3];
-	if (!BKE_mesh_sample_eval(me, center_sample, center_co, center_nor, center_tang))
+	float center_loc[3];
+	float center_mat[3][3];
+	if (!groom_get_bundle_transform_on_scalp(bundle, me, center_loc, center_mat))
 	{
 		result = false;
 		goto cleanup;
 	}
-	cross_v3_v3v3(center_binor, center_nor, center_tang);
 	
 	MeshSample *sample = bundle->scalp_region;
 	GroomSectionVertex *vert0 = bundle->verts;
@@ -333,12 +356,12 @@ static bool groom_shape_rebuild(GroomBundle *bundle, int numshapeverts, Object *
 			goto cleanup;
 		}
 		/* Get relative offset from the center */
-		sub_v3_v3(co, center_co);
+		sub_v3_v3(co, center_loc);
 		/* Convert mesh surface positions to 2D shape
 		 * by projecting onto the normal plane
 		 */
-		shape[i][0] = dot_v3v3(co, center_binor);
-		shape[i][1] = dot_v3v3(co, center_tang);
+		shape[i][0] = dot_v3v3(co, center_mat[0]);
+		shape[i][1] = dot_v3v3(co, center_mat[1]);
 	}
 	
 	bundle->numshapeverts = numshapeverts;
@@ -531,14 +554,31 @@ void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
 	ListBase *bundles = (groom->editgroom ? &groom->editgroom->bundles : &groom->bundles);
 	for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
 	{
-		/* For bound regions the bundle should be attached to the scalp */
-		if (scalp && bundle->scalp_region && bundle->totsections > 0)
+		if (bundle->totsections > 0)
 		{
-			float co[3], nor[3], tang[3];
-			/* Last in scalp_region is the center curve root point */
-			if (BKE_mesh_sample_eval(scalp, &bundle->scalp_region[bundle->numshapeverts], co, nor, tang))
+			GroomSection *section = &bundle->sections[0];
+			
+			if (scalp)
 			{
-				copy_v3_v3(bundle->sections[0].center, co);
+				/* For bound regions the bundle should be attached to the scalp */
+				groom_get_bundle_transform_on_scalp(bundle, scalp, section->center, section->mat);
+			}
+			else
+			{
+				if (bundle->totsections > 1)
+				{
+					/* align to the first segment */
+					float dir[3];
+					sub_v3_v3v3(dir, (section+1)->center, section->center);
+					normalize_v3(dir);
+					
+					const float dir_prev[3] = {0.0f, 1.0f, 0.0f};
+					rotation_between_vecs_to_mat3(section->mat, dir_prev, dir);
+				}
+				else
+				{
+					unit_m3(section->mat);
+				}
 			}
 		}
 	}
@@ -916,21 +956,19 @@ static void groom_eval_curve_step(float mat[3][3], const float mat_prev[3][3], c
 	mul_m3_m3m3(mat, rot, mat_prev);
 }
 
+/* Computes rotation matrices for all but the first segment of a bundle */
 static void groom_eval_section_mats(GroomBundle *bundle, int curve_res)
 {
 	const int curvesize = bundle->curvesize;
 	const int numshapeverts = bundle->numshapeverts;
 	
-	float mat[3][3];
-	unit_m3(mat); // TODO take from scalp mesh sample
-	
 	GroomSection *section = bundle->sections;
 	/* last curve cache is center curve */
 	const GroomCurveCache *cache = bundle->curvecache + bundle->curvesize * numshapeverts;
 	
-	/* align to first segment */
-	groom_eval_curve_step(mat, mat, cache[0].co, cache[1].co);
-	copy_m3_m3(section->mat, mat);
+	float mat[3][3];
+	/* initialize matrix */
+	copy_m3_m3(mat, section->mat);
 	++cache;
 	++section;
 	
@@ -978,8 +1016,6 @@ void BKE_groom_curve_cache_update(Groom *groom)
 		{
 			/* degenerate case */
 			copy_v3_v3(bundle->curvecache[numshapeverts].co, bundle->sections[0].center);
-			
-			unit_m3(bundle->sections[0].mat);
 			
 			for (int i = 0; i < numshapeverts; ++i)
 			{

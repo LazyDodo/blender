@@ -55,7 +55,7 @@ bool BKE_mesh_sample_is_valid(const struct MeshSample *sample);
 bool BKE_mesh_sample_is_volume_sample(const struct MeshSample *sample);
 
 /* Evaluate position and normal on the given mesh */
-bool BKE_mesh_sample_eval(struct Mesh *mesh, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
+bool BKE_mesh_sample_eval(const struct Mesh *mesh, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
 
 /* Evaluate position for the given shapekey */
 bool BKE_mesh_sample_shapekey(struct Key *key, struct KeyBlock *kb, const struct MeshSample *sample, float loc[3]);
