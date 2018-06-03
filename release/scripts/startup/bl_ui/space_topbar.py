@@ -656,6 +656,11 @@ class INFO_MT_edit(Menu):
 
         layout.separator()
 
+        layout.operator("screen.repeat_last")
+        layout.operator("screen.repeat_history")
+
+        layout.separator()
+
         layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
 
 

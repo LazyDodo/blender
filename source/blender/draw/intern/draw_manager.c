@@ -1290,6 +1290,7 @@ void DRW_draw_render_loop_ex(
 	DRW_globals_update();
 
 	drw_debug_init();
+	DRW_hair_init();
 
 	/* No framebuffer allowed before drawing. */
 	BLI_assert(GPU_framebuffer_current_get() == 0);
@@ -1319,6 +1320,7 @@ void DRW_draw_render_loop_ex(
 	}
 
 	DRW_stats_begin();
+	DRW_hair_update();
 
 	GPU_framebuffer_bind(DST.default_framebuffer);
 
@@ -1649,12 +1651,16 @@ void DRW_render_object_iter(
 	void *vedata, RenderEngine *engine, struct Depsgraph *depsgraph,
 	void (*callback)(void *vedata, Object *ob, RenderEngine *engine, struct Depsgraph *depsgraph))
 {
+	DRW_hair_init();
+
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
 	{
 		DST.ob_state = NULL;
 		callback(vedata, ob, engine, depsgraph);
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
+
+	DRW_hair_update();
 }
 
 static struct DRWSelectBuffer {
@@ -1775,6 +1781,7 @@ void DRW_draw_select_loop(
 
 	/* Init engines */
 	drw_engines_init();
+	DRW_hair_init();
 
 	{
 		drw_engines_cache_init();
@@ -1808,6 +1815,8 @@ void DRW_draw_select_loop(
 
 		DRW_render_instance_buffer_finish();
 	}
+
+	DRW_hair_update();
 
 	/* Setup framebuffer */
 	draw_select_framebuffer_setup(rect);
@@ -1948,6 +1957,7 @@ void DRW_draw_depth_loop(
 
 	/* Init engines */
 	drw_engines_init();
+	DRW_hair_init();
 
 	/* TODO : tag to refresh by the dependency graph */
 	/* ideally only refresh when objects are added/removed */
@@ -1965,6 +1975,8 @@ void DRW_draw_depth_loop(
 
 		DRW_render_instance_buffer_finish();
 	}
+
+	DRW_hair_update();
 
 	/* Start Drawing */
 	DRW_state_reset();
