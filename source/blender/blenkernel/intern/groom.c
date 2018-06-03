@@ -886,8 +886,30 @@ static void groom_eval_center_curve_section(
 	}
 }
 
+static void groom_eval_shape_vertex(const GroomBundle *bundle, const Mesh *scalp, int vertex_idx, int section_idx, float r_co[3])
+{
+	if (section_idx == 0 && bundle->scalp_region != NULL)
+	{
+		/* For bound regions use location on the scalp */
+		const MeshSample *bound_loc = &bundle->scalp_region[vertex_idx];
+		float nor[3], tang[3];
+		BKE_mesh_sample_eval(scalp, bound_loc, r_co, nor, tang);
+	}
+	else
+	{
+		const GroomSection *section = &bundle->sections[section_idx];
+		const GroomSectionVertex *vertex = &bundle->verts[vertex_idx + section_idx * bundle->numshapeverts];
+		
+		float tmp[3] = {0.0f, 0.0f, 0.0f};
+		copy_v2_v2(tmp, vertex->co);
+		mul_v3_m3v3(r_co, section->mat, tmp);
+		add_v3_v3(r_co, section->center);
+	}
+}
+
 static void groom_eval_shape_curves(
         GroomBundle *bundle,
+        const Mesh *scalp,
         int curve_res)
 {
 	BLI_assert(bundle->totsections >= 2);
@@ -898,42 +920,25 @@ static void groom_eval_shape_curves(
 		GroomCurveCache *cache = bundle->curvecache + i * bundle->curvesize;
 		for (int j = 0; j < bundle->totsections-1; ++j, cache += curve_res)
 		{
-			const GroomSection *section = &bundle->sections[j];
 			const float *co0 = NULL, *co1 = NULL, *co2 =NULL, *co3 = NULL;
 			
 			float vec0[3], vec1[3], vec2[3], vec3[3];
 			if (j > 0)
 			{
-				const GroomSectionVertex *v0 = &bundle->verts[(j-1) * bundle->numshapeverts + i];
-				float tmp[3] = {0.0f, 0.0f, 0.0f};
-				copy_v2_v2(tmp, v0->co);
-				mul_v3_m3v3(vec0, section[-1].mat, tmp);
-				add_v3_v3(vec0, section[-1].center);
+				groom_eval_shape_vertex(bundle, scalp, i, j-1, vec0);
 				co0 = vec0;
 			}
 			{
-				const GroomSectionVertex *v1 = &bundle->verts[(j) * bundle->numshapeverts + i];
-				float tmp[3] = {0.0f, 0.0f, 0.0f};
-				copy_v2_v2(tmp, v1->co);
-				mul_v3_m3v3(vec1, section[0].mat, tmp);
-				add_v3_v3(vec1, section[0].center);
+				groom_eval_shape_vertex(bundle, scalp, i, j, vec1);
 				co1 = vec1;
 			}
 			{
-				const GroomSectionVertex *v2 = &bundle->verts[(j+1) * bundle->numshapeverts + i];
-				float tmp[3] = {0.0f, 0.0f, 0.0f};
-				copy_v2_v2(tmp, v2->co);
-				mul_v3_m3v3(vec2, section[+1].mat, tmp);
-				add_v3_v3(vec2, section[+1].center);
+				groom_eval_shape_vertex(bundle, scalp, i, j+1, vec2);
 				co2 = vec2;
 			}
 			if (j < bundle->totsections - 2)
 			{
-				const GroomSectionVertex *v3 = &bundle->verts[(j+2) * bundle->numshapeverts + i];
-				float tmp[3] = {0.0f, 0.0f, 0.0f};
-				copy_v2_v2(tmp, v3->co);
-				mul_v3_m3v3(vec3, section[+2].mat, tmp);
-				add_v3_v3(vec3, section[+2].center);
+				groom_eval_shape_vertex(bundle, scalp, i, j+2, vec3);
 				co3 = vec3;
 			}
 			
@@ -991,7 +996,7 @@ static void groom_eval_section_mats(GroomBundle *bundle, int curve_res)
 	copy_m3_m3(section->mat, mat);
 }
 
-void BKE_groom_curve_cache_update(Groom *groom)
+void BKE_groom_curve_cache_update(Groom *groom, const Mesh *scalp)
 {
 	ListBase *bundles = (groom->editgroom ? &groom->editgroom->bundles : &groom->bundles);
 	
@@ -1033,7 +1038,7 @@ void BKE_groom_curve_cache_update(Groom *groom)
 		groom_eval_section_mats(bundle, curve_res);
 		
 		/* Calculate shape curves */
-		groom_eval_shape_curves(bundle, curve_res);
+		groom_eval_shape_curves(bundle, scalp, curve_res);
 	}
 }
 
@@ -1067,7 +1072,7 @@ void BKE_groom_eval_geometry(const struct Depsgraph *depsgraph, Groom *groom)
 	BKE_groom_apply_constraints(groom, scalp_eval);
 	
 	/* calculate curves for interpolating shapes */
-	BKE_groom_curve_cache_update(groom);
+	BKE_groom_curve_cache_update(groom, scalp_eval);
 	
 	/* generate actual guide curves for hair */
 	BKE_groom_hair_update_guide_curves(groom);

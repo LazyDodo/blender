@@ -59,7 +59,7 @@ struct BoundBox *BKE_groom_boundbox_get(struct Object *ob);
 
 /* === Curve cache === */
 
-void BKE_groom_curve_cache_update(struct Groom *groom);
+void BKE_groom_curve_cache_update(struct Groom *groom, const struct Mesh *scalp);
 void BKE_groom_curve_cache_clear(struct Groom *groom);
 
 
