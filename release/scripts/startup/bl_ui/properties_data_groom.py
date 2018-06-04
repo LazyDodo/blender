@@ -125,6 +125,8 @@ class DATA_PT_groom_draw_settings(DataButtonsPanel, Panel):
         groom = context.groom
         ds = groom.hair_draw_settings
 
+        layout.prop(groom, "material_slot")
+
         split = layout.split()
 
         col = split.column()

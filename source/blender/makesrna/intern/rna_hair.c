@@ -47,7 +47,6 @@
 #include "BKE_context.h"
 #include "BKE_hair.h"
 #include "BKE_main.h"
-#include "BKE_material.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -57,7 +56,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
-static void rna_HairSystem_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+static void UNUSED_FUNCTION(rna_HairSystem_update)(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
 }
@@ -80,49 +79,6 @@ static void rna_HairSystem_generate_follicles(
 	Mesh *scalp_mesh = (Mesh *)DEG_get_evaluated_id(depsgraph, scalp->data);
 	
 	BKE_hair_generate_follicles(hsys, scalp_mesh, (unsigned int)seed, count);
-}
-
-static const EnumPropertyItem *rna_HairSystem_material_slot_itemf(
-        bContext *C,
-        PointerRNA *UNUSED(ptr),
-        PropertyRNA *UNUSED(prop),
-        bool *r_free)
-{
-	Object *ob = CTX_data_pointer_get(C, "object").data;
-	Material *ma;
-	EnumPropertyItem *item = NULL;
-	EnumPropertyItem tmp = {0, "", 0, "", ""};
-	int totitem = 0;
-	int i;
-
-	if (ob && ob->totcol > 0) {
-		for (i = 1; i <= ob->totcol; i++) {
-			ma = give_current_material(ob, i);
-			tmp.value = i;
-			tmp.icon = ICON_MATERIAL_DATA;
-			if (ma) {
-				tmp.name = ma->id.name + 2;
-				tmp.identifier = tmp.name;
-			}
-			else {
-				tmp.name = "Default Material";
-				tmp.identifier = tmp.name;
-			}
-			RNA_enum_item_add(&item, &totitem, &tmp);
-		}
-	}
-	else {
-		tmp.value = 1;
-		tmp.icon = ICON_MATERIAL_DATA;
-		tmp.name = "Default Material";
-		tmp.identifier = tmp.name;
-		RNA_enum_item_add(&item, &totitem, &tmp);
-	}
-
-	RNA_enum_item_end(&item, &totitem);
-	*r_free = true;
-
-	return item;
 }
 
 #else
@@ -162,11 +118,6 @@ static void rna_def_hair_system(BlenderRNA *brna)
 	FunctionRNA *func;
 	PropertyRNA *prop, *parm;
 	
-	static const EnumPropertyItem material_slot_items[] = {
-		{0, "DUMMY", 0, "Dummy", ""},
-		{0, NULL, 0, NULL, NULL}
-	};
-	
 	srna = RNA_def_struct(brna, "HairSystem", NULL);
 	RNA_def_struct_ui_text(srna, "Hair System", "Hair rendering and deformation data");
 	RNA_def_struct_sdna(srna, "HairSystem");
@@ -175,19 +126,6 @@ static void rna_def_hair_system(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "pattern", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "HairPattern");
 	RNA_def_property_ui_text(prop, "Pattern", "Hair pattern");
-	
-	prop = RNA_def_property(srna, "material_index", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "material_index");
-	RNA_def_property_range(prop, 1, 32767);
-	RNA_def_property_ui_text(prop, "Material Index", "Index of material slot used for rendering hair fibers");
-	RNA_def_property_update(prop, 0, "rna_HairSystem_update");
-
-	prop = RNA_def_property(srna, "material_slot", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "material_index");
-	RNA_def_property_enum_items(prop, material_slot_items);
-	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_HairSystem_material_slot_itemf");
-	RNA_def_property_ui_text(prop, "Material Slot", "Material slot used for rendering particles");
-	RNA_def_property_update(prop, 0, "rna_HairSystem_update");
 	
 	func = RNA_def_function(srna, "generate_follicles", "rna_HairSystem_generate_follicles");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);

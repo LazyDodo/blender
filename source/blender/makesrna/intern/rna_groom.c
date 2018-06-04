@@ -58,6 +58,7 @@
 #include "WM_api.h"
 
 #include "BKE_groom.h"
+#include "BKE_material.h"
 #include "BKE_object_facemap.h"
 
 #include "DEG_depsgraph.h"
@@ -133,6 +134,49 @@ static void rna_Groom_active_bundle_index_range(
 	*max = max_ii(0, BLI_listbase_count(&groom->bundles) - 1);
 }
 
+static const EnumPropertyItem *rna_Groom_material_slot_itemf(
+        bContext *C,
+        PointerRNA *UNUSED(ptr),
+        PropertyRNA *UNUSED(prop),
+        bool *r_free)
+{
+	Object *ob = CTX_data_pointer_get(C, "object").data;
+	Material *ma;
+	EnumPropertyItem *item = NULL;
+	EnumPropertyItem tmp = {0, "", 0, "", ""};
+	int totitem = 0;
+	int i;
+
+	if (ob && ob->totcol > 0) {
+		for (i = 1; i <= ob->totcol; i++) {
+			ma = give_current_material(ob, i);
+			tmp.value = i;
+			tmp.icon = ICON_MATERIAL_DATA;
+			if (ma) {
+				tmp.name = ma->id.name + 2;
+				tmp.identifier = tmp.name;
+			}
+			else {
+				tmp.name = "Default Material";
+				tmp.identifier = tmp.name;
+			}
+			RNA_enum_item_add(&item, &totitem, &tmp);
+		}
+	}
+	else {
+		tmp.value = 1;
+		tmp.icon = ICON_MATERIAL_DATA;
+		tmp.name = "Default Material";
+		tmp.identifier = tmp.name;
+		RNA_enum_item_add(&item, &totitem, &tmp);
+	}
+
+	RNA_enum_item_end(&item, &totitem);
+	*r_free = true;
+
+	return item;
+}
+
 #else
 
 static void rna_def_groom_bundle(BlenderRNA *brna)
@@ -195,6 +239,11 @@ static void rna_def_groom(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 	
+	static const EnumPropertyItem material_slot_items[] = {
+		{0, "DUMMY", 0, "Dummy", ""},
+		{0, NULL, 0, NULL, NULL}
+	};
+	
 	srna = RNA_def_struct(brna, "Groom", "ID");
 	RNA_def_struct_sdna(srna, "Groom");
 	RNA_def_struct_ui_text(srna, "Groom", "Guide curve geometry for hair");
@@ -228,6 +277,19 @@ static void rna_def_groom(BlenderRNA *brna)
 	RNA_def_property_pointer_sdna(prop, NULL, "scalp_object");
 	RNA_def_property_ui_text(prop, "Scalp Object", "Surface for attaching hairs");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, 0, "rna_Groom_update_data");
+	
+	prop = RNA_def_property(srna, "material_index", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "material_index");
+	RNA_def_property_range(prop, 1, 32767);
+	RNA_def_property_ui_text(prop, "Material Index", "Index of material slot used for rendering hair fibers");
+	RNA_def_property_update(prop, 0, "rna_Groom_update_data");
+
+	prop = RNA_def_property(srna, "material_slot", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "material_index");
+	RNA_def_property_enum_items(prop, material_slot_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_Groom_material_slot_itemf");
+	RNA_def_property_ui_text(prop, "Material Slot", "Material slot used for rendering particles");
 	RNA_def_property_update(prop, 0, "rna_Groom_update_data");
 	
 	UNUSED_VARS(prop);

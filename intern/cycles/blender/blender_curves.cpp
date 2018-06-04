@@ -298,11 +298,11 @@ static void ObtainCacheVColFromParticleSystem(BL::Mesh *b_mesh,
 	}
 }
 
-static void ObtainCacheDataFromHairSystem(Mesh *mesh,
-                                          BL::Object *b_ob,
+static void ObtainCacheDataFromHairSystem(BL::Object *b_ob,
                                           BL::HairSystem *b_hsys,
+                                          int shader,
+                                          bool /*background*/,
                                           ParticleCurveData *CData,
-                                          bool background,
                                           int *curvenum,
                                           int *keyno)
 {
@@ -325,11 +325,8 @@ static void ObtainCacheDataFromHairSystem(Mesh *mesh,
 	CData->psys_firstcurve.push_back_slow(*curvenum);
 	CData->psys_curvenum.push_back_slow(totcurves);
 	
-	{
-		// Material
-		int shader = clamp(b_hsys->material_index()-1, 0, mesh->used_shaders.size()-1);
-		CData->psys_shader.push_back_slow(shader);
-	}
+	// Material
+	CData->psys_shader.push_back_slow(shader);
 	
 	{
 		// Cycles settings
@@ -438,11 +435,15 @@ static bool ObtainCacheDataFromObject(Mesh *mesh,
 			if((b_mod->type() == b_mod->type_FUR)) {
 				BL::FurModifier b_fmd((const PointerRNA)b_mod->ptr);
 				BL::HairSystem b_hsys = b_fmd.hair_system();
-				ObtainCacheDataFromHairSystem(mesh,
-				                              b_ob,
+				
+				const int material_index = 1; /* TODO */
+				int shader = clamp(material_index - 1, 0, mesh->used_shaders.size()-1);
+				
+				ObtainCacheDataFromHairSystem(b_ob,
 				                              &b_hsys,
-				                              CData,
+				                              shader,
 				                              background,
+				                              CData,
 				                              &curvenum,
 				                              &keyno);
 			}

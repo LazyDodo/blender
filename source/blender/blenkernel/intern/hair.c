@@ -60,8 +60,6 @@ HairSystem* BKE_hair_new(void)
 	
 	hair->pattern = MEM_callocN(sizeof(HairPattern), "hair pattern");
 	
-	hair->material_index = 1;
-	
 	return hair;
 }
 

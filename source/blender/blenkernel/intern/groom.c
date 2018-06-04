@@ -78,6 +78,8 @@ void BKE_groom_init(Groom *groom)
 	
 	groom->hair_system = BKE_hair_new();
 	groom->hair_draw_settings = BKE_hair_draw_settings_new();
+	
+	groom->material_index = 1;
 }
 
 void *BKE_groom_add(Main *bmain, const char *name)

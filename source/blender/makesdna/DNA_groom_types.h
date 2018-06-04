@@ -138,7 +138,11 @@ typedef struct Groom {
 	struct Material **mat;      /* Material slots */
 	short totcol;               /* Number of material slots */
 	short pad3;
-	int pad4;
+	
+	/* Material used for drawing and rendering hair fibers
+	 * TODO make this a per-region setting (requires separate shader group for each region)
+	 */
+	int material_index;
 	
 	struct BoundBox *bb;
 	

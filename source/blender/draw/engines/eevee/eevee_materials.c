@@ -1457,6 +1457,7 @@ static void material_hair(
         EEVEE_ViewLayerData *sldata,
         Object *ob,
         HairSystem *hsys,
+        Material *material,
         struct Mesh *scalp)
 {
 	EEVEE_PassList *psl = ((EEVEE_Data *)vedata)->psl;
@@ -1483,9 +1484,8 @@ static void material_hair(
 	}
 	GPUTexture **fiber_texture = (GPUTexture **)(&hsys->draw_texture_cache);
 
-	Material *ma = give_current_material(ob, hsys->material_index);
-	if (ma == NULL) {
-		ma = &defmaterial;
+	if (material == NULL) {
+		material = &defmaterial;
 	}
 	
 	DRW_shgroup_call_add(stl->g_data->hair_fibers_depth_shgrp, hair_geom, mat);
@@ -1496,20 +1496,20 @@ static void material_hair(
 	DRW_hair_shader_uniforms(stl->g_data->hair_fibers_depth_shgrp_clip, scene,
 	                         fiber_texture, fiber_buffer);
 	
-	DRWShadingGroup *shgrp = BLI_ghash_lookup(material_hash, (const void *)ma);
+	DRWShadingGroup *shgrp = BLI_ghash_lookup(material_hash, (const void *)material);
 	if (!shgrp) {
-		float *color_p = &ma->r;
-		float *metal_p = &ma->ray_mirror;
-		float *spec_p = &ma->spec;
-		float *rough_p = &ma->gloss_mir;
+		float *color_p = &material->r;
+		float *metal_p = &material->ray_mirror;
+		float *spec_p = &material->spec;
+		float *rough_p = &material->gloss_mir;
 		
-		if (ma->use_nodes && ma->nodetree) {
-			struct GPUMaterial *gpumat = EEVEE_material_hair_get(scene, ma, sldata->lamps->shadow_method, true);
+		if (material->use_nodes && material->nodetree) {
+			struct GPUMaterial *gpumat = EEVEE_material_hair_get(scene, material, sldata->lamps->shadow_method, true);
 			
 			shgrp = DRW_shgroup_material_create(gpumat, psl->material_pass);
 			if (shgrp) {
 				add_standard_uniforms(shgrp, sldata, vedata, NULL, NULL, false, false);
-				BLI_ghash_insert(material_hash, ma, shgrp);
+				BLI_ghash_insert(material_hash, material, shgrp);
 			}
 			else {
 				/* Shader failed : pink color */
@@ -1531,7 +1531,7 @@ static void material_hair(
 			DRW_shgroup_uniform_float(shgrp, "specular", spec_p, 1);
 			DRW_shgroup_uniform_float(shgrp, "roughness", rough_p, 1);
 			
-			BLI_ghash_insert(material_hash, ma, shgrp);
+			BLI_ghash_insert(material_hash, material, shgrp);
 		}
 	}
 	
@@ -1737,14 +1737,21 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 				}
 				else if (md->type == eModifierType_Fur) {
 					FurModifierData *fmd = (FurModifierData *)md;
-					material_hair(vedata, sldata, ob, fmd->hair_system, ob->data);
+					
+					const int material_index = 1; /* TODO */
+					Material *material = give_current_material(ob, material_index);
+					
+					material_hair(vedata, sldata, ob, fmd->hair_system, material, ob->data);
 				}
 			}
 		}
 	}
 	else if (ob->type == OB_GROOM) {
 		Groom *groom = ob->data;
-		material_hair(vedata, sldata, ob, groom->hair_system, BKE_groom_get_scalp(groom));
+		
+		Material *material = give_current_material(ob, groom->material_index);
+		
+		material_hair(vedata, sldata, ob, groom->hair_system, material, BKE_groom_get_scalp(groom));
 	}
 }
 

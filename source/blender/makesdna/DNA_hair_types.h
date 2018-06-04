@@ -91,10 +91,6 @@ typedef struct HairSystem {
 	/* Guide curve data */
 	HairGuideData guides;
 	
-	/* Material used for drawing and rendering hair fibers */
-	int material_index;
-	int pad2;
-	
 	/* Data buffers for drawing */
 	void *draw_batch_cache;
 	/* Texture buffer for drawing */
