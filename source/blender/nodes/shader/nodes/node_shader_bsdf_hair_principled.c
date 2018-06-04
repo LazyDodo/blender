@@ -31,8 +31,8 @@
 
 static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
 	{	SOCK_RGBA,   1, N_("Color"),						0.8f, 0.8f, 0.8f, 1.0f, 0.0f, 1.0f},
-	{	SOCK_FLOAT,  1, N_("Melanin"),						0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, PROP_FACTOR},
-	{	SOCK_FLOAT,  1, N_("Melanin Redness"),				0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, PROP_FACTOR},
+	{	SOCK_FLOAT,  1, N_("Melanin"),						0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1000.0f, PROP_FACTOR},
+	{	SOCK_FLOAT,  1, N_("Melanin Redness"),				0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1000.0f, PROP_FACTOR},
 	{	SOCK_VECTOR, 1, N_("Absorption Coefficient"),		0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1000.0f, PROP_FACTOR},
 	{	SOCK_FLOAT,  1, N_("Offset"),						0.0f, 0.0f, 0.0f, 0.0f, -M_PI_2, M_PI_2, PROP_ANGLE},
 	{	SOCK_FLOAT,  1, N_("RoughnessU"),					0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
