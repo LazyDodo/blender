@@ -82,7 +82,7 @@ static void GPENCIL_create_framebuffers(void *vedata)
 	if (DRW_state_is_fbo()) {
 		const float *viewport_size = DRW_viewport_size_get();
 		const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
-		
+
 		/* temp textures */
 		e_data.temp_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_object_type);
@@ -169,7 +169,7 @@ static void GPENCIL_create_shaders(void)
 void GPENCIL_engine_init(void *vedata)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	
+
 	/* create framebuffers */
 	GPENCIL_create_framebuffers(vedata);
 
@@ -234,7 +234,7 @@ void GPENCIL_cache_init(void *vedata)
 
 	stl->g_data->shgrps_edit_line = NULL;
 	stl->g_data->shgrps_edit_point = NULL;
-	
+
 	if (!stl->shgroups) {
 		/* Alloc maximum size because count strokes is very slow and can be very complex due onion skinning.
 		   I tried to allocate only one block and using realloc, increasing the size when read a new strokes
@@ -276,7 +276,7 @@ void GPENCIL_cache_init(void *vedata)
 				obact_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
 		}
-		
+
 		/* save render state */
 		stl->storage->is_render = DRW_state_is_image_render();
 
@@ -322,7 +322,7 @@ void GPENCIL_cache_init(void *vedata)
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
 		}
 
-		/* drawing buffer pass for drawing the stroke that is beeing drawing by the user. The data 
+		/* drawing buffer pass for drawing the stroke that is beeing drawing by the user. The data
 		 * is stored in sbuffer
 		 */
 		psl->drawing_pass = DRW_pass_create("GPencil Drawing Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
@@ -339,7 +339,7 @@ void GPENCIL_cache_init(void *vedata)
 		/* mix pass no blend used to copy between passes. A separated pass is required
 		 * because if the mix pass is used, the acumulation of blend degrade the colors.
 		 *
-		 * This pass is used too to take the snapshot used for painting_pass. This image 
+		 * This pass is used too to take the snapshot used for painting_pass. This image
 		 * will be used as the background while the user is drawing.
 		 */
 		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
@@ -349,8 +349,8 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.temp_depth_tx_a);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
 
-		/* Painting session pass (used only to speedup while the user is drawing ) 
-		 * This pass is used to show the snapshot of the current grease pencil strokes captured 
+		/* Painting session pass (used only to speedup while the user is drawing )
+		 * This pass is used to show the snapshot of the current grease pencil strokes captured
 		 * when the user starts to draw.
 		 * In this way, the previous strokes don't need to be redraw and the drawing process
 		 * is far to agile.
@@ -414,8 +414,8 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 			/* allocate memory for saving gp objects for drawing later */
 			stl->g_data->gp_object_cache = gpencil_object_cache_add(stl->g_data->gp_object_cache, ob, false,
 									&stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
-			
-			/* generate instances as separate cache objects for instance modifiers 
+
+			/* generate instances as separate cache objects for instance modifiers
 			 * with the "Make as Objects" option enabled
 			 */
 			if (!stl->storage->simplify_modif) {
@@ -432,7 +432,7 @@ void GPENCIL_cache_finish(void *vedata)
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	bool is_multiedit = false; 
+	bool is_multiedit = false;
 
 	/* if painting session, don't need to do more */
 	if (stl->g_data->session_flag & GP_DRW_PAINT_PAINTING) {
@@ -444,7 +444,7 @@ void GPENCIL_cache_finish(void *vedata)
 		for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
 			Object *ob = stl->g_data->gp_object_cache[i].ob;
 			bGPdata *gpd = ob->data;
-			
+
 			/* save init shading group */
 			stl->g_data->gp_object_cache[i].init_grp = stl->storage->shgroup_id;
 
@@ -546,7 +546,7 @@ void GPENCIL_draw_scene(void *vedata)
 		GPU_framebuffer_bind(dfbl->default_fb);
 
 		MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
-		
+
 		DRW_draw_pass(psl->painting_pass);
 		DRW_draw_pass(psl->drawing_pass);
 
@@ -598,10 +598,10 @@ void GPENCIL_draw_scene(void *vedata)
 				if ((!is_render) && (gpd->sbuffer_size > 0)) {
 					DRW_draw_pass(psl->drawing_pass);
 				}
-				
+
 				e_data.input_depth_tx = e_data.temp_depth_tx_a;
 				e_data.input_color_tx = e_data.temp_color_tx_a;
-				
+
 				/* Combine with scene buffer */
 				if ((!is_render) || (fbl->main == NULL)) {
 					GPU_framebuffer_bind(dfbl->default_fb);

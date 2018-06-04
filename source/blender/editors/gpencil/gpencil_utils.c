@@ -96,7 +96,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 	 */
 	if (sa) {
 		SpaceLink *sl = sa->spacedata.first;
-		
+
 		switch (sa->spacetype) {
 			case SPACE_VIEW3D: /* 3D-View */
 			case SPACE_BUTS: /* properties */
@@ -117,21 +117,21 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 			case SPACE_NODE: /* Nodes Editor */
 			{
 				SpaceNode *snode = (SpaceNode *)sl;
-				
+
 				/* return the GP data for the active node block/node */
 				if (snode && snode->nodetree) {
 					/* for now, as long as there's an active node tree, default to using that in the Nodes Editor */
 					if (r_ptr) RNA_id_pointer_create(&snode->nodetree->id, r_ptr);
 					return &snode->nodetree->gpd;
 				}
-				
+
 				/* even when there is no node-tree, don't allow this to flow to scene */
 				return NULL;
 			}
 			case SPACE_SEQ: /* Sequencer */
 			{
 				SpaceSeq *sseq = (SpaceSeq *)sl;
-			
+
 				/* for now, Grease Pencil data is associated with the space (actually preview region only) */
 				/* XXX our convention for everything else is to link to data though... */
 				if (r_ptr) RNA_pointer_create(screen_id, &RNA_SpaceSequenceEditor, sseq, r_ptr);
@@ -140,7 +140,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 			case SPACE_IMAGE: /* Image/UV Editor */
 			{
 				SpaceImage *sima = (SpaceImage *)sl;
-				
+
 				/* for now, Grease Pencil data is associated with the space... */
 				/* XXX our convention for everything else is to link to data though... */
 				if (r_ptr) RNA_pointer_create(screen_id, &RNA_SpaceImageEditor, sima, r_ptr);
@@ -150,14 +150,14 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 			{
 				SpaceClip *sc = (SpaceClip *)sl;
 				MovieClip *clip = ED_space_clip_get_clip(sc);
-				
+
 				if (clip) {
 					if (sc->gpencil_src == SC_GPENCIL_SRC_TRACK) {
 						MovieTrackingTrack *track = BKE_tracking_track_get_active(&clip->tracking);
-						
+
 						if (!track)
 							return NULL;
-						
+
 						if (r_ptr) RNA_pointer_create(&clip->id, &RNA_MovieTrackingTrack, track, r_ptr);
 						return &track->gpd;
 					}
@@ -172,7 +172,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 				return NULL;
 		}
 	}
-	
+
 	return NULL;
 }
 
@@ -218,11 +218,11 @@ bGPdata *ED_gpencil_data_get_active_evaluated(const bContext *C)
 {
 	ID *screen_id = (ID *)CTX_wm_screen(C);
 	ScrArea *sa = CTX_wm_area(C);
-	
+
 	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *ob = CTX_data_active_object(C);
 	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
-	
+
 	/* if (ob && ob->type == OB_GPENCIL) BLI_assert(ob_eval->data == DEG_get_evaluated_id(ob->data)); */
 	return ED_gpencil_data_get_active_direct(screen_id, sa, ob_eval);
 }
@@ -234,7 +234,7 @@ bGPdata *ED_gpencil_data_get_active_v3d(ViewLayer *view_layer)
 {
 	Base *base = view_layer->basact;
 	bGPdata *gpd = NULL;
-	
+
 	/* We have to make sure active object is actually visible and selected, else we must use default scene gpd,
 	 * to be consistent with ED_gpencil_data_get_active's behavior.
 	 */
@@ -266,7 +266,7 @@ bool ED_gpencil_has_keyframe_v3d(Scene *UNUSED(scene), Object *ob, int cfra)
 			}
 		}
 	}
-	
+
 	return false;
 }
 
@@ -285,7 +285,7 @@ int gp_active_layer_poll(bContext *C)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-	
+
 	return (gpl != NULL);
 }
 
@@ -315,25 +315,25 @@ const EnumPropertyItem *ED_gpencil_layers_enum_itemf(
 	EnumPropertyItem *item = NULL, item_tmp = {0};
 	int totitem = 0;
 	int i = 0;
-	
+
 	if (ELEM(NULL, C, gpd)) {
 		return DummyRNA_DEFAULT_items;
 	}
-	
+
 	/* Existing layers */
 	for (gpl = gpd->layers.first; gpl; gpl = gpl->next, i++) {
 		item_tmp.identifier = gpl->info;
 		item_tmp.name = gpl->info;
 		item_tmp.value = i;
-		
+
 		if (gpl->flag & GP_LAYER_ACTIVE)
 			item_tmp.icon = ICON_GREASEPENCIL;
-		else 
+		else
 			item_tmp.icon = ICON_NONE;
-		
+
 		RNA_enum_item_add(&item, &totitem, &item_tmp);
 	}
-	
+
 	RNA_enum_item_end(&item, &totitem);
 	*r_free = true;
 
@@ -349,11 +349,11 @@ const EnumPropertyItem *ED_gpencil_layers_with_new_enum_itemf(
 	EnumPropertyItem *item = NULL, item_tmp = {0};
 	int totitem = 0;
 	int i = 0;
-	
+
 	if (ELEM(NULL, C, gpd)) {
 		return DummyRNA_DEFAULT_items;
 	}
-	
+
 	/* Create new layer */
 	/* TODO: have some way of specifying that we don't want this? */
 	{
@@ -363,25 +363,25 @@ const EnumPropertyItem *ED_gpencil_layers_with_new_enum_itemf(
 		item_tmp.value = -1;
 		item_tmp.icon = ICON_ZOOMIN;
 		RNA_enum_item_add(&item, &totitem, &item_tmp);
-		
+
 		/* separator */
 		RNA_enum_item_add_separator(&item, &totitem);
 	}
-	
+
 	/* Existing layers */
 	for (gpl = gpd->layers.first, i = 0; gpl; gpl = gpl->next, i++) {
 		item_tmp.identifier = gpl->info;
 		item_tmp.name = gpl->info;
 		item_tmp.value = i;
-		
+
 		if (gpl->flag & GP_LAYER_ACTIVE)
 			item_tmp.icon = ICON_GREASEPENCIL;
-		else 
+		else
 			item_tmp.icon = ICON_NONE;
-		
+
 		RNA_enum_item_add(&item, &totitem, &item_tmp);
 	}
-	
+
 	RNA_enum_item_end(&item, &totitem);
 	*r_free = true;
 
@@ -409,11 +409,11 @@ bool gp_stroke_inside_circle(const int mval[2], const int UNUSED(mvalo[2]),
 	const float mval_fl[2]     = {mval[0], mval[1]};
 	const float screen_co_a[2] = {x0, y0};
 	const float screen_co_b[2] = {x1, y1};
-	
+
 	if (edge_inside_circle(mval_fl, rad, screen_co_a, screen_co_b)) {
 		return true;
 	}
-	
+
 	/* not inside */
 	return false;
 }
@@ -467,7 +467,7 @@ bool ED_gpencil_stroke_color_use(Object *ob, const bGPDlayer *gpl, const bGPDstr
 		if (((gpl->flag & GP_LAYER_UNLOCK_COLOR) == 0) && (gp_style->flag & GP_STYLE_COLOR_LOCKED))
 			return false;
 	}
-	
+
 	return true;
 }
 
@@ -483,16 +483,16 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
-	
+
 	/* zero out the storage (just in case) */
 	memset(r_gsc, 0, sizeof(GP_SpaceConversion));
 	unit_m4(r_gsc->mat);
-	
+
 	/* store settings */
 	r_gsc->sa = sa;
 	r_gsc->ar = ar;
 	r_gsc->v2d = &ar->v2d;
-	
+
 	/* init region-specific stuff */
 	if (sa->spacetype == SPACE_VIEW3D) {
 		wmWindow *win = CTX_wm_window(C);
@@ -500,13 +500,13 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
 		struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		View3D *v3d = (View3D *)CTX_wm_space_data(C);
 		RegionView3D *rv3d = ar->regiondata;
-		
+
 		/* init 3d depth buffers */
 		view3d_operator_needs_opengl(C);
-		
+
 		view3d_region_operator_needs_opengl(win, ar);
 		ED_view3d_autodist_init(depsgraph, ar, v3d, 0);
-		
+
 		/* for camera view set the subrect */
 		if (rv3d->persp == RV3D_CAMOB) {
 			ED_view3d_calc_camera_border(scene, CTX_data_depsgraph(C), ar, v3d, rv3d, &r_gsc->subrect_data, true); /* no shift */
@@ -522,7 +522,7 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
  * \param diff_mat   Matrix with the difference between original parent matrix
  * \param[out] r_pt  Pointer to new point after apply matrix
  */
-void gp_point_to_parent_space(bGPDspoint *pt, float diff_mat[4][4], bGPDspoint *r_pt) 
+void gp_point_to_parent_space(bGPDspoint *pt, float diff_mat[4][4], bGPDspoint *r_pt)
 {
 	float fpt[3];
 
@@ -531,7 +531,7 @@ void gp_point_to_parent_space(bGPDspoint *pt, float diff_mat[4][4], bGPDspoint *
 }
 
 /**
- * Change position relative to parent object 
+ * Change position relative to parent object
  */
 void gp_apply_parent(Depsgraph *depsgraph, Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps)
 {
@@ -553,8 +553,8 @@ void gp_apply_parent(Depsgraph *depsgraph, Object *obact, bGPdata *gpd, bGPDlaye
 	}
 }
 
-/** 
- * Change point position relative to parent object 
+/**
+ * Change point position relative to parent object
  */
 void gp_apply_parent_point(Depsgraph *depsgraph, Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDspoint *pt)
 {
@@ -585,12 +585,12 @@ void gp_point_to_xy(GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
 	View2D *v2d = gsc->v2d;
 	rctf *subrect = gsc->subrect;
 	int xyval[2];
-	
+
 	/* sanity checks */
 	BLI_assert(!(gps->flag & GP_STROKE_3DSPACE) || (gsc->sa->spacetype == SPACE_VIEW3D));
 	BLI_assert(!(gps->flag & GP_STROKE_2DSPACE) || (gsc->sa->spacetype != SPACE_VIEW3D));
-	
-	
+
+
 	if (gps->flag & GP_STROKE_3DSPACE) {
 		if (ED_view3d_project_int_global(ar, &pt->x, xyval, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) {
 			*r_x = xyval[0];
@@ -638,12 +638,12 @@ void gp_point_to_xy_fl(GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
 	View2D *v2d = gsc->v2d;
 	rctf *subrect = gsc->subrect;
 	float xyval[2];
-	
+
 	/* sanity checks */
 	BLI_assert(!(gps->flag & GP_STROKE_3DSPACE) || (gsc->sa->spacetype == SPACE_VIEW3D));
 	BLI_assert(!(gps->flag & GP_STROKE_2DSPACE) || (gsc->sa->spacetype != SPACE_VIEW3D));
-	
-	
+
+
 	if (gps->flag & GP_STROKE_3DSPACE) {
 		if (ED_view3d_project_float_global(ar, &pt->x, xyval, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) {
 			*r_x = xyval[0];
@@ -657,10 +657,10 @@ void gp_point_to_xy_fl(GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
 	else if (gps->flag & GP_STROKE_2DSPACE) {
 		float vec[3] = {pt->x, pt->y, 0.0f};
 		int t_x, t_y;
-		
+
 		mul_m4_v3(gsc->mat, vec);
 		UI_view2d_view_to_region_clip(v2d, vec[0], vec[1], &t_x, &t_y);
-		
+
 		if ((t_x == t_y) && (t_x == V2D_IS_CLIPPED)) {
 			/* XXX: Or should we just always use the values as-is? */
 			*r_x = 0.0f;
@@ -707,22 +707,22 @@ bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, Scene *scene, const float screen
 	float *rvec = ED_view3d_cursor3d_get(scene, v3d)->location;
 	float ref[3] = {rvec[0], rvec[1], rvec[2]};
 	float zfac = ED_view3d_calc_zfac(rv3d, rvec, NULL);
-	
+
 	float mval_f[2], mval_prj[2];
 	float dvec[3];
-	
+
 	copy_v2_v2(mval_f, screen_co);
-	
+
 	if (ED_view3d_project_float_global(gsc->ar, ref, mval_prj, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) {
 		sub_v2_v2v2(mval_f, mval_prj, mval_f);
 		ED_view3d_win_to_delta(gsc->ar, mval_f, dvec, zfac);
 		sub_v3_v3v3(r_out, rvec, dvec);
-		
+
 		return true;
 	}
 	else {
 		zero_v3(r_out);
-		
+
 		return false;
 	}
 }
@@ -754,13 +754,13 @@ void gp_stroke_convertcoords_tpoint(
 		float mval_prj[2];
 		float rvec[3], dvec[3];
 		float zfac;
-		
+
 		/* Current method just converts each point in screen-coordinates to
 		 * 3D-coordinates using the 3D-cursor as reference.
 		 */
 		ED_gp_get_drawing_reference(v3d, scene, ob, gpl, ts->gpencil_v3d_align, rvec);
 		zfac = ED_view3d_calc_zfac(ar->regiondata, rvec, NULL);
-		
+
 		if (ED_view3d_project_float_global(ar, rvec, mval_prj, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) {
 			sub_v2_v2v2(mval_f, mval_prj, mval_f);
 			ED_view3d_win_to_delta(ar, mval_f, dvec, zfac);
@@ -875,7 +875,7 @@ void ED_gp_project_point_to_plane(Object *ob, RegionView3D *rv3d, const float or
 	/* normal vector for a plane locked to axis */
 	zero_v3(plane_normal);
 	if (axis < 0) {
-		/* if the axis is not locked, need a vector to the view direction 
+		/* if the axis is not locked, need a vector to the view direction
 		 * in order to get the right size of the stroke.
 		 */
 		ED_view3d_global_to_vector(rv3d, origin, plane_normal);
@@ -1023,12 +1023,12 @@ void gp_randomize_stroke(bGPDstroke *gps, Brush *brush)
 	float normal[3];
 	cross_v3_v3v3(normal, v1, v2);
 	normalize_v3(normal);
-	
+
 	/* get orthogonal vector to plane to rotate random effect */
 	float ortho[3];
 	cross_v3_v3v3(ortho, v1, normal);
 	normalize_v3(ortho);
-	
+
 	/* Read all points and apply shift vector (first and last point not modified) */
 	for (int i = 1; i < gps->totpoints - 1; i++) {
 		bGPDspoint *pt = &gps->points[i];
@@ -1403,11 +1403,11 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 			}
 			gp_style = ma->gp_style;
 
-			/* after some testing, display the size of the brush is not practical because 
+			/* after some testing, display the size of the brush is not practical because
 			 * is too disruptive and the size of cursor does not change with zoom factor.
-			 * The decision was to use a fix size, instead of paintbrush->thickness value. 
+			 * The decision was to use a fix size, instead of paintbrush->thickness value.
 			 */
-			if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) && 
+			if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) &&
 				((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 				((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
 				(paintbrush->gpencil_settings->brush_type == GP_BRUSH_TYPE_DRAW))
@@ -1481,7 +1481,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 		immBegin(GWN_PRIM_LINES, 2);
 		immVertex2f(pos, x, y);
-		immVertex2f(pos, last_mouse_position[0] + ar->winrct.xmin, 
+		immVertex2f(pos, last_mouse_position[0] + ar->winrct.xmin,
 						 last_mouse_position[1] + ar->winrct.ymin);
 		immEnd();
 
@@ -1591,7 +1591,7 @@ void ED_gpencil_setup_modes(bContext *C, bGPdata *gpd, int newmode)
 }
 
 /* helper to convert 2d to 3d for simple drawing buffer */
-static void gpencil_stroke_convertcoords(ARegion *ar, const tGPspoint *point2D, float origin[3], float out[3]) 
+static void gpencil_stroke_convertcoords(ARegion *ar, const tGPspoint *point2D, float origin[3], float out[3])
 {
 	float mval_f[2] = { (float)point2D->x, (float)point2D->y };
 	float mval_prj[2];

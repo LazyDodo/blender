@@ -1485,7 +1485,7 @@ static void DRW_render_gpencil_to_image(RenderEngine *engine, struct Depsgraph *
 
 void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph)
 {
-	/* This function is only valid for Cycles 
+	/* This function is only valid for Cycles
 	 * Eevee done all work in the Eevee render directly.
 	 * Maybe it can be done equal for both engines?
 	*/

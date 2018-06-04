@@ -3,7 +3,7 @@ uniform mat4 ProjectionMatrix;
 
 uniform float pixsize;   /* rv3d->pixsize */
 uniform float pixelsize; /* U.pixelsize */
-uniform int keep_size;    
+uniform int keep_size;
 uniform float objscale;
 uniform float pixfactor;
 
@@ -32,6 +32,6 @@ void main()
 		float size = (ProjectionMatrix[3][3] == 0.0) ? (thickness / (gl_Position.z * defaultpixsize)) : (thickness / defaultpixsize);
 		finalThickness = max(size * objscale, 4.0); /* minimum 4 pixels */
 	}
-	
+
 	finaluvdata = uvdata;
 }

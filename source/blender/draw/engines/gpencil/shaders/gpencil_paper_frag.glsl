@@ -31,6 +31,6 @@ void main()
 			outcolor = gcolor;
 		}
 	}
-	
+
 	FragColor = outcolor;
 }

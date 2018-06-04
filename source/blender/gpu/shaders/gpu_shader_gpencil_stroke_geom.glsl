@@ -52,7 +52,7 @@ void main(void)
 	vec2 sp1 = toScreenSpace(P1);	// end of previous segment, start of current segment
 	vec2 sp2 = toScreenSpace(P2);	// end of current segment, start of next segment
 	vec2 sp3 = toScreenSpace(P3);   // end of next segment
-	
+
 	/* culling outside viewport */
 	vec2 area = Viewport * 4.0;
 	if (sp1.x < -area.x || sp1.x > area.x) return;
@@ -139,7 +139,7 @@ void main(void)
 		mColor = vec4(finalColor[1].rgb, finalColor[1].a * -1.0) ;
 		vec2 svn1 =  normalize(sp1 - sp2) * length_a * 4.0;
 		gl_Position = vec4((sp1 + svn1) / Viewport, getZdepth(P1), 1.0);
-		EmitVertex();	
+		EmitVertex();
 
 		mTexCoord = vec2(0, 0);
 		mColor = vec4(finalColor[1].rgb, finalColor[1].a * -1.0) ;
@@ -189,8 +189,8 @@ void main(void)
 		mColor = vec4(finalColor[2].rgb, finalColor[2].a * -1.0) ;
 		vec2 svn2 =  normalize(sp2 - sp1) * length_b * 4.0;
 		gl_Position = vec4((sp2 + svn2) / Viewport, getZdepth(P2), 1.0);
-		EmitVertex();	
+		EmitVertex();
 	}
-	
+
 	EndPrimitive();
 }

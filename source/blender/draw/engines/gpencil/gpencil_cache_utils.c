@@ -64,7 +64,7 @@ tGPencilObjectCache *gpencil_object_cache_add(tGPencilObjectCache *cache_array, 
 	/* zero out all pointers */
 	cache_elem = &cache_array[*gp_cache_used];
 	memset(cache_elem, 0, sizeof(*cache_elem));
-	
+
 	/* save object */
 	cache_elem->ob = ob;
 	cache_elem->temp_ob = is_temp;
@@ -72,7 +72,7 @@ tGPencilObjectCache *gpencil_object_cache_add(tGPencilObjectCache *cache_array, 
 
 	cache_elem->init_grp = 0;
 	cache_elem->end_grp = -1;
-	
+
 	/* calculate zdepth from point of view */
 	float zdepth = 0.0;
 	if (rv3d) {

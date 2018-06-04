@@ -429,7 +429,7 @@ static void init_brush_icons(void)
 	INIT_BRUSH_ICON(ICON_BRUSH_THUMB, thumb);
 	INIT_BRUSH_ICON(ICON_BRUSH_ROTATE, twist);
 	INIT_BRUSH_ICON(ICON_BRUSH_VERTEXDRAW, vertexdraw);
-	
+
 	/* grease pencil sculpt */
 	INIT_BRUSH_ICON(ICON_GPBRUSH_SMOOTH, gp_brush_smooth);
 	INIT_BRUSH_ICON(ICON_GPBRUSH_THICKNESS, gp_brush_thickness);

@@ -29,7 +29,7 @@
 
 #include <stdio.h>
 
-#include "MEM_guardedalloc.h" 
+#include "MEM_guardedalloc.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_blenlib.h"
@@ -45,18 +45,18 @@
 #include "DNA_object_types.h"
 #include "DNA_windowmanager_types.h"
 
-#include "BKE_main.h" 
-#include "BKE_brush.h" 
-#include "BKE_image.h" 
+#include "BKE_main.h"
+#include "BKE_brush.h"
+#include "BKE_image.h"
 #include "BKE_gpencil.h"
 #include "BKE_material.h"
 #include "BKE_context.h"
 #include "BKE_screen.h"
-#include "BKE_paint.h" 
+#include "BKE_paint.h"
 
 #include "ED_gpencil.h"
 #include "ED_screen.h"
-#include "ED_space_api.h" 
+#include "ED_space_api.h"
 #include "ED_view3d.h"
 
 #include "RNA_access.h"
@@ -98,7 +98,7 @@ typedef struct tGPDfill {
 	struct Material *mat;               /* current material */
 	struct bGPDlayer *gpl;              /* layer */
 	struct bGPDframe *gpf;              /* frame */
-	
+
 	short flag;                         /* flags */
 	short oldkey;                       /* avoid too fast events */
 	bool on_back;                       /* send to back stroke */
@@ -146,7 +146,7 @@ static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float di
 	unsigned color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR);
-	
+
 	/* draw stroke curve */
 	glLineWidth(1.0f);
 	immBeginAtMost(GWN_PRIM_LINE_STRIP, totpoints + cyclic_add);
@@ -204,7 +204,7 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 	tgpw.dflag = 0;
 	tgpw.disable_fill = 1;
 	tgpw.dflag |= (GP_DRAWFILLS_ONLY3D | GP_DRAWFILLS_NOSTATUS);
-	
+
 	glEnable(GL_BLEND);
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
@@ -246,22 +246,22 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 
 			/* normal strokes */
 			if ((tgpf->fill_draw_mode == GP_FILL_DMODE_STROKE) ||
-				(tgpf->fill_draw_mode == GP_FILL_DMODE_BOTH)) 
+				(tgpf->fill_draw_mode == GP_FILL_DMODE_BOTH))
 			{
 				ED_gp_draw_fill(&tgpw);
 
 			}
 
 			/* 3D Lines with basic shapes and invisible lines */
-			if ((tgpf->fill_draw_mode == GP_FILL_DMODE_CONTROL) || 
-				(tgpf->fill_draw_mode == GP_FILL_DMODE_BOTH)) 
+			if ((tgpf->fill_draw_mode == GP_FILL_DMODE_CONTROL) ||
+				(tgpf->fill_draw_mode == GP_FILL_DMODE_BOTH))
 			{
 				gp_draw_basic_stroke(tgpf, gps, tgpw.diff_mat, gps->flag & GP_STROKE_CYCLIC, ink,
 					tgpf->flag, tgpf->fill_threshold);
 			}
 		}
 	}
-	
+
 	glDisable(GL_BLEND);
 }
 
@@ -402,7 +402,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
 	bool t_a = false;
 	bool t_b = false;
 
-	/* Horizontal leak (check vertical pixels) 
+	/* Horizontal leak (check vertical pixels)
 	 *     X
 	 *	   X
 	 *	   xB7
@@ -442,7 +442,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
 		}
 	}
 
-	/* Vertical leak (check horizontal pixels) 
+	/* Vertical leak (check horizontal pixels)
 	 *
 	 *  XXXxB7XX
 	 *
@@ -487,7 +487,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
 	return (bool)(t_a && t_b);
 }
 
-/* Boundary fill inside strokes 
+/* Boundary fill inside strokes
  * Fills the space created by a set of strokes using the stroke color as the boundary
  * of the shape to fill.
  *
@@ -610,9 +610,9 @@ static void gpencil_clean_borders(tGPDfill *tgpf)
 	tgpf->ima->id.tag |= LIB_TAG_DOIT;
 }
 
-/* Get the outline points of a shape using Moore Neighborhood algorithm 
+/* Get the outline points of a shape using Moore Neighborhood algorithm
  *
- * This is a Blender customized version of the general algorithm described 
+ * This is a Blender customized version of the general algorithm described
  * in https://en.wikipedia.org/wiki/Moore_neighborhood
  */
 static  void gpencil_get_outline_points(tGPDfill *tgpf)
@@ -684,7 +684,7 @@ static  void gpencil_get_outline_points(tGPDfill *tgpf)
 			int offset_idx = (cur_back_offset + 1) % NEIGHBOR_COUNT;
 			current_check_co[0] = boundary_co[0] + offset[offset_idx][0];
 			current_check_co[1] = boundary_co[1] + offset[offset_idx][1];
-			
+
 			int image_idx = ibuf->x * current_check_co[1] + current_check_co[0];
 			get_pixel(ibuf, image_idx, rgba);
 
@@ -861,8 +861,8 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	point2D = (tGPspoint *)tgpf->sbuffer;
 	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++, dvert++) {
 		/* convert screen-coordinates to 3D coordinates */
-		gp_stroke_convertcoords_tpoint(tgpf->scene, tgpf->ar, tgpf->v3d, tgpf->ob, 
-									   tgpf->gpl, point2D, 
+		gp_stroke_convertcoords_tpoint(tgpf->scene, tgpf->ar, tgpf->v3d, tgpf->ob,
+									   tgpf->gpl, point2D,
 									   tgpf->depth_arr ? tgpf->depth_arr + i : NULL,
 									   &pt->x);
 
@@ -889,7 +889,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		float origin[3];
 		ED_gp_get_drawing_reference(tgpf->v3d, tgpf->scene, tgpf->ob, tgpf->gpl,
 			ts->gpencil_v3d_align, origin);
-		ED_gp_project_stroke_to_plane(tgpf->ob, tgpf->rv3d, gps, origin, 
+		ED_gp_project_stroke_to_plane(tgpf->ob, tgpf->rv3d, gps, origin,
 			tgpf->lock_axis - 1, ts->gpencil_src);
 	}
 
@@ -936,7 +936,7 @@ static void gpencil_fill_draw_3d(const bContext *C, ARegion *UNUSED(ar), void *a
 		return;
 	}
 
-	gpencil_draw_boundary_lines(C, tgpf); 
+	gpencil_draw_boundary_lines(C, tgpf);
 }
 
 /* check if context is suitable for filling */
@@ -983,7 +983,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->gpl = BKE_gpencil_layer_getactive(gpd);
 
 	tgpf->lock_axis = ts->gp_sculpt.lock_axis;
-	
+
 	tgpf->oldkey = -1;
 	tgpf->sbuffer_size = 0;
 	tgpf->sbuffer = NULL;
@@ -996,7 +996,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->fill_threshold = brush->gpencil_settings->fill_threshold;
 	tgpf->fill_simplylvl = brush->gpencil_settings->fill_simplylvl;
 	tgpf->fill_draw_mode = brush->gpencil_settings->fill_draw_mode;
-	
+
 	/* get color info */
 	Material *ma = BKE_gpencil_get_material_from_brush(brush);
 	/* if no brush defaults, get material and color info */
@@ -1116,7 +1116,7 @@ static int gpencil_fill_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 	}
 
 	WM_cursor_modal_set(CTX_wm_window(C), BC_PAINTBRUSHCURSOR);
-	
+
 	gpencil_fill_status_indicators(tgpf);
 
 	DEG_id_tag_update(&tgpf->gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
@@ -1209,15 +1209,15 @@ static int gpencil_fill_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			gpencil_fill_exit(C, op);
 			WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 			break;
-		
+
 		case OPERATOR_CANCELLED:
 			gpencil_fill_exit(C, op);
 			break;
-		
+
 		case OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH:
 			break;
 	}
-	
+
 	/* return status code */
 	return estate;
 }
@@ -1230,7 +1230,7 @@ void GPENCIL_OT_fill(wmOperatorType *ot)
 	ot->name = "Grease Pencil Fill";
 	ot->idname = "GPENCIL_OT_fill";
 	ot->description = "Fill with color the shape formed by strokes";
-	
+
 	/* api callbacks */
 	ot->invoke = gpencil_fill_invoke;
 	ot->modal = gpencil_fill_modal;

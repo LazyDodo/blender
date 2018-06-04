@@ -79,7 +79,7 @@ static const char *object_mode_op_string(eObjectMode mode)
 	if (mode == OB_MODE_GPENCIL_SCULPT)
 		return "GPENCIL_OT_sculptmode_toggle";
 	if (mode == OB_MODE_GPENCIL_WEIGHT)
-		return "GPENCIL_OT_weightmode_toggle"; 
+		return "GPENCIL_OT_weightmode_toggle";
 	return NULL;
 }
 

@@ -211,7 +211,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		bArmature *arm = (obedit && obedit->type == OB_ARMATURE) ? obedit->data : NULL;
 		EditBone *ebone, *flipbone = NULL;
 		const bool editable_bones = CTX_data_equals(member, "editable_bones");
-		
+
 		if (arm && arm->edbo) {
 			uint objects_len;
 			Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
@@ -262,7 +262,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		bArmature *arm = (obedit && obedit->type == OB_ARMATURE) ? obedit->data : NULL;
 		EditBone *ebone, *flipbone = NULL;
 		const bool selected_editable_bones = CTX_data_equals(member, "selected_editable_bones");
-		
+
 		if (arm && arm->edbo) {
 			uint objects_len;
 			Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
@@ -367,7 +367,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	else if (CTX_data_equals(member, "active_pose_bone")) {
 		bPoseChannel *pchan;
 		Object *obpose = BKE_object_pose_armature_get(obact);
-		
+
 		pchan = BKE_pose_channel_active(obpose);
 		if (pchan) {
 			CTX_data_pointer_set(result, &obpose->id, &RNA_PoseBone, pchan);
@@ -396,7 +396,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		/* convenience for now, 1 object per scene in editmode */
 		if (obedit)
 			CTX_data_id_pointer_set(result, &obedit->id);
-		
+
 		return 1;
 	}
 	else if (CTX_data_equals(member, "sculpt_object")) {
@@ -468,11 +468,11 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "gpencil_data")) {
 		/* FIXME: for some reason, CTX_data_active_object(C) returns NULL when called from these situations
-		 * (as outlined above - see Campbell's #ifdefs). That causes the get_active function to fail when 
+		 * (as outlined above - see Campbell's #ifdefs). That causes the get_active function to fail when
 		 * called from context. For that reason, we end up using an alternative where we pass everything in!
 		 */
 		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
-		
+
 		if (gpd) {
 			CTX_data_id_pointer_set(result, &gpd->id);
 			return 1;
@@ -480,14 +480,14 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "gpencil_data_owner")) {
 		/* pointer to which data/datablock owns the reference to the Grease Pencil data being used (as gpencil_data)
-		 * XXX: see comment for gpencil_data case... 
+		 * XXX: see comment for gpencil_data case...
 		 */
 		bGPdata **gpd_ptr = NULL;
 		PointerRNA ptr;
-		
+
 		/* get pointer to Grease Pencil Data */
 		gpd_ptr = ED_gpencil_data_get_pointers_direct((ID *)sc, sa, obact, &ptr);
-		
+
 		if (gpd_ptr) {
 			CTX_data_pointer_set(result, ptr.id.data, ptr.type, ptr.data);
 			return 1;
@@ -496,10 +496,10 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	else if (CTX_data_equals(member, "active_gpencil_layer")) {
 		/* XXX: see comment for gpencil_data case... */
 		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
-		
+
 		if (gpd) {
 			bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-			
+
 			if (gpl) {
 				CTX_data_pointer_set(result, &gpd->id, &RNA_GPencilLayer, gpl);
 				return 1;
@@ -517,10 +517,10 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	else if (CTX_data_equals(member, "active_gpencil_frame")) {
 		/* XXX: see comment for gpencil_data case... */
 		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
-		
+
 		if (gpd) {
 			bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-			
+
 			if (gpl) {
 				CTX_data_pointer_set(result, &gpd->id, &RNA_GPencilLayer, gpl->actframe);
 				return 1;
@@ -530,10 +530,10 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	else if (CTX_data_equals(member, "visible_gpencil_layers")) {
 		/* XXX: see comment for gpencil_data case... */
 		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
-		
+
 		if (gpd) {
 			bGPDlayer *gpl;
-			
+
 			for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 				if ((gpl->flag & GP_LAYER_HIDE) == 0) {
 					CTX_data_list_add(result, &gpd->id, &RNA_GPencilLayer, gpl);
@@ -546,10 +546,10 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	else if (CTX_data_equals(member, "editable_gpencil_layers")) {
 		/* XXX: see comment for gpencil_data case... */
 		bGPdata *gpd = ED_gpencil_data_get_active_direct((ID *)sc, sa, obact);
-		
+
 		if (gpd) {
 			bGPDlayer *gpl;
-			
+
 			for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 				if (gpencil_layer_is_editable(gpl)) {
 					CTX_data_list_add(result, &gpd->id, &RNA_GPencilLayer, gpl);
@@ -566,7 +566,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 
 		if (gpd) {
 			bGPDlayer *gpl;
-			
+
 			for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 				if (gpencil_layer_is_editable(gpl) && (gpl->actframe)) {
 					bGPDframe *gpf;

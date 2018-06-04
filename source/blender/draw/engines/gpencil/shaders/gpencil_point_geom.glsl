@@ -54,8 +54,8 @@ void main(void)
 	/* receive 4 points */
 	vec4 P0 = gl_in[0].gl_Position;
 	vec2 sp0 = toScreenSpace(P0);
-	
-	float size = finalThickness[0]; 
+
+	float size = finalThickness[0];
 	float aspect = 1.0;
 	/* generate the triangle strip */
 	mTexCoord = rotateUV(vec2(0, 1), finaluvdata[0].y);

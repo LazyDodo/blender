@@ -150,29 +150,29 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
 
             split = layout.split(percentage=1.0)
             split.active = not gpcolor.lock
-    
+
             col = split.column(align=True)
             row = col.row(align=True)
             row.enabled = not gpcolor.lock
             row.prop(gpcolor, "mode", expand=True)
             col.separator()
-    
+
             col.enabled = not gpcolor.lock
             col.prop(gpcolor, "stroke_style", text="")
-    
+
             if gpcolor.stroke_style == 'TEXTURE':
                 row = layout.row()
                 row.enabled = not gpcolor.lock
                 col = row.column(align=True)
                 col.template_ID(gpcolor, "stroke_image", open="image.open")
                 col.prop(gpcolor, "use_pattern", text="Use as Pattern")
-    
+
             if gpcolor.stroke_style == 'SOLID' or gpcolor.use_pattern is True:
                 row = layout.row()
                 col = row.column(align=True)
                 col.prop(gpcolor, "color", text="")
                 col.prop(gpcolor, "alpha", slider=True)
-    
+
             # Options
             row = layout.row()
             row.active = not gpcolor.lock
@@ -195,22 +195,22 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
             # color settings
             split = layout.split(percentage=1.0)
             split.active = not gpcolor.lock
-    
+
             row = layout.row()
             col = row.column(align=True)
             col.enabled = not gpcolor.lock
             col.prop(gpcolor, "fill_style", text="")
-    
+
             row = layout.row()
             col = row.column(align=True)
-    
+
             if gpcolor.fill_style != 'TEXTURE':
                 col.prop(gpcolor, "fill_color", text="")
                 col.prop(gpcolor, "fill_alpha", text="Opacity", slider=True)
                 col.separator()
                 if gpcolor.texture_mix is True or gpcolor.fill_style in ('GRADIENT', 'RADIAL'):
                     col.prop(gpcolor, "mix_factor", text="Mix", slider=True)
-    
+
             if gpcolor.fill_style in ('GRADIENT', 'RADIAL', 'CHESSBOARD'):
                 if gpcolor.texture_mix is False or gpcolor.fill_style == 'CHESSBOARD':
                     col.prop(gpcolor, "mix_color", text="")
@@ -222,7 +222,7 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
                     subrow.enabled = False
                 subrow.prop(gpcolor, "pattern_angle", text="Angle")
                 subcol.prop(gpcolor, "flip", text="Flip")
-    
+
                 subcol = split.column(align=True)
                 subcol.prop(gpcolor, "pattern_scale", text="Scale")
                 subrow = subcol.row(align=True)
@@ -233,7 +233,7 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
                 if gpcolor.fill_style != 'CHESSBOARD':
                     subrow.enabled = False
                 subrow.prop(gpcolor, "pattern_boxsize", text="Box")
-    
+
             col.separator()
             col.label("Texture")
             if gpcolor.fill_style not in ('TEXTURE', 'PATTERN'):

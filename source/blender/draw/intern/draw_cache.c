@@ -514,7 +514,7 @@ Gwn_Batch *DRW_cache_gpencil_axes_get(void)
 		}
 
 		Gwn_VertBuf *vbo =  GWN_vertbuf_create_with_format(&format);
-		
+
 		/* alloc 30 elements for cube and 3 axis */
 		GWN_vertbuf_data_alloc(vbo, ARRAY_SIZE(indices) + 6);
 

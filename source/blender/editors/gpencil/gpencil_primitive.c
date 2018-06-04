@@ -100,7 +100,7 @@ static int gpencil_primitive_add_poll(bContext *C)
 	if (sa && sa->spacetype != SPACE_VIEW3D) {
 		return 0;
 	}
-	
+
 	/* need data to create primitive */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	if (gpd == NULL) {
@@ -210,7 +210,7 @@ static void gpencil_primitive_status_indicators(tGPDprimitive *tgpi)
 	Scene *scene = tgpi->scene;
 	char status_str[UI_MAX_DRAW_STR];
 	char msg_str[UI_MAX_DRAW_STR];
-	
+
 	if (tgpi->type == GP_STROKE_BOX) {
 		BLI_strncpy(msg_str, IFACE_("Rectangle: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Shift to square"), UI_MAX_DRAW_STR);
 	}
@@ -230,22 +230,22 @@ static void gpencil_primitive_status_indicators(tGPDprimitive *tgpi)
 		}
 		else {
 			if (tgpi->flag == IN_PROGRESS) {
-				BLI_snprintf(status_str, sizeof(status_str), "%s: %d (%d, %d) (%d, %d)", msg_str, (int)tgpi->tot_edges, 
+				BLI_snprintf(status_str, sizeof(status_str), "%s: %d (%d, %d) (%d, %d)", msg_str, (int)tgpi->tot_edges,
 							 tgpi->top[0], tgpi->top[1], tgpi->bottom[0], tgpi->bottom[1]);
 			}
 			else {
-				BLI_snprintf(status_str, sizeof(status_str), "%s: %d (%d, %d)", msg_str, (int)tgpi->tot_edges, 
+				BLI_snprintf(status_str, sizeof(status_str), "%s: %d (%d, %d)", msg_str, (int)tgpi->tot_edges,
 							 tgpi->bottom[0], tgpi->bottom[1]);
 			}
 		}
 	}
 	else {
 		if (tgpi->flag == IN_PROGRESS) {
-			BLI_snprintf(status_str, sizeof(status_str), "%s: (%d, %d) (%d, %d)", msg_str, 
+			BLI_snprintf(status_str, sizeof(status_str), "%s: (%d, %d) (%d, %d)", msg_str,
 						 tgpi->top[0], tgpi->top[1], tgpi->bottom[0], tgpi->bottom[1]);
 		}
 		else {
-			BLI_snprintf(status_str, sizeof(status_str), "%s: (%d, %d)", msg_str, 
+			BLI_snprintf(status_str, sizeof(status_str), "%s: (%d, %d)", msg_str,
 				         tgpi->bottom[0], tgpi->bottom[1]);
 		}
 	}
@@ -258,16 +258,16 @@ static void gpencil_primitive_status_indicators(tGPDprimitive *tgpi)
 static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	BLI_assert(tgpi->tot_edges == 4);
-	
+
 	points2D[0].x = tgpi->top[0];
 	points2D[0].y = tgpi->top[1];
-	
+
 	points2D[1].x = tgpi->bottom[0];
 	points2D[1].y = tgpi->top[1];
-	
+
 	points2D[2].x = tgpi->bottom[0];
 	points2D[2].y = tgpi->bottom[1];
-	
+
 	points2D[3].x = tgpi->top[0];
 	points2D[3].y = tgpi->bottom[1];
 }
@@ -292,16 +292,16 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 	float center[2];
 	float radius[2];
 	float a = 0.0f;
-	
+
 	/* TODO: Use math-lib functions for these? */
 	center[0] = tgpi->top[0] + ((tgpi->bottom[0] - tgpi->top[0]) / 2.0f);
 	center[1] = tgpi->top[1] + ((tgpi->bottom[1] - tgpi->top[1]) / 2.0f);
 	radius[0] = fabsf(((tgpi->bottom[0] - tgpi->top[0]) / 2.0f));
 	radius[1] = fabsf(((tgpi->bottom[1] - tgpi->top[1]) / 2.0f));
-	
+
 	for (int i = 0; i < totpoints; i++) {
 		tGPspoint *p2d = &points2D[i];
-		
+
 		p2d->x = (int)(center[0] + cosf(a) * radius[0]);
 		p2d->y = (int)(center[1] + sinf(a) * radius[1]);
 		a += step;
@@ -314,13 +314,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	ToolSettings *ts = tgpi->scene->toolsettings;
 	bGPdata *gpd = tgpi->gpd;
 	bGPDstroke *gps = tgpi->gpf->strokes.first;
-	
+
 	/* realloc points to new size */
 	/* TODO: only do this if the size has changed? */
 	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * tgpi->tot_edges);
 	gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * tgpi->tot_edges);
 	gps->totpoints = tgpi->tot_edges;
-	
+
 	/* compute screen-space coordinates for points */
 	tGPspoint *points2D = MEM_callocN(sizeof(tGPspoint) * tgpi->tot_edges, "gp primitive points2D");
 	switch (tgpi->type) {
@@ -336,7 +336,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		default:
 			break;
 	}
-	
+
 	/* convert screen-coordinates to 3D coordinates */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
@@ -354,7 +354,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		dvert->totweight = 0;
 		dvert->dw = NULL;
 	}
-	
+
 	/* if axis locked, reproject to plane locked */
 	if (tgpi->lock_axis > GP_LOCKAXIS_NONE) {
 		bGPDspoint *tpt = gps->points;
@@ -368,19 +368,19 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			                             ts->gpencil_src, tpt);
 		}
 	}
-	
+
 	/* if parented change position relative to parent object */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		gp_apply_parent_point(tgpi->depsgraph, tgpi->ob, tgpi->gpd, tgpi->gpl, pt);
 	}
-	
+
 	/* force fill recalc */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
-	
+
 	/* free temp data */
 	MEM_SAFE_FREE(points2D);
-	
+
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 }
@@ -411,10 +411,10 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		if (tgpi->draw_handle_3d) {
 			ED_region_draw_cb_exit(tgpi->ar->type, tgpi->draw_handle_3d);
 		}
-		
+
 		/* clear status message area */
 		ED_area_headerprint(tgpi->sa, NULL);
-		
+
 		/* finally, free memory used by temp data */
 		BKE_gpencil_free_strokes(tgpi->gpf);
 		MEM_freeN(tgpi->gpf);
@@ -422,7 +422,7 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 	}
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
-	
+
 	/* clear pointer */
 	op->customdata = NULL;
 }
@@ -440,7 +440,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	/* create temporary operator data */
 	tGPDprimitive *tgpi = MEM_callocN(sizeof(tGPDprimitive), "GPencil Primitive Data");
 	op->customdata = tgpi;
-	
+
 	/* set current scene and window info */
 	tgpi->scene = scene;
 	tgpi->ob = CTX_data_active_object(C);
@@ -453,16 +453,16 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 
 	/* set current frame number */
 	tgpi->cframe = cfra_eval;
-	
+
 	/* set GP datablock */
 	tgpi->gpd = gpd;
-	
+
 	/* getcolor info */
 	tgpi->mat = BKE_gpencil_material_ensure(bmain, tgpi->ob);
 
 	/* set parameters */
 	tgpi->type = RNA_enum_get(op->ptr, "type");
-	
+
 	/* if circle set default to 32 */
 	if (tgpi->type == GP_STROKE_CIRCLE) {
 		RNA_int_set(op->ptr, "edges", 32);
@@ -491,30 +491,30 @@ static int gpencil_primitive_invoke(bContext *C, wmOperator *op, const wmEvent *
 	wmWindow *win = CTX_wm_window(C);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	tGPDprimitive *tgpi = NULL;
-	
+
 	/* initialize operator runtime data */
 	gpencil_primitive_init(C, op);
 	tgpi = op->customdata;
-	
+
 	/* if in tools region, wait till we get to the main (3d-space)
 	 * region before allowing drawing to take place.
 	 */
 	op->flag |= OP_IS_MODAL_CURSOR_REGION;
-	
+
 	/* Enable custom drawing handlers */
 	tgpi->draw_handle_3d = ED_region_draw_cb_activate(tgpi->ar->type, gpencil_primitive_draw_3d, tgpi, REGION_DRAW_POST_VIEW);
-	
+
 	/* set cursor to indicate modal */
 	WM_cursor_modal_set(win, BC_CROSSCURSOR);
-	
+
 	/* update sindicator in header */
 	gpencil_primitive_status_indicators(tgpi);
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
-	
+
 	/* add a modal handler for this operator */
 	WM_event_add_modal_handler(C, op);
-	
+
 	return OPERATOR_RUNNING_MODAL;
 }
 
@@ -523,14 +523,14 @@ static void gpencil_primitive_done(bContext *C, wmOperator *op, wmWindow *win, t
 {
 	bGPDframe *gpf;
 	bGPDstroke *gps;
-	
+
 	/* return to normal cursor and header status */
 	ED_area_headerprint(tgpi->sa, NULL);
 	WM_cursor_modal_restore(win);
-	
+
 	/* insert keyframes as required... */
 	gpf = BKE_gpencil_layer_getframe(tgpi->gpl, tgpi->cframe, GP_GETFRAME_ADD_NEW);
-	
+
 	/* prepare stroke to get transfered */
 	gps = tgpi->gpf->strokes.first;
 	if (gps) {
@@ -541,7 +541,7 @@ static void gpencil_primitive_done(bContext *C, wmOperator *op, wmWindow *win, t
 	/* transfer stroke from temporary buffer to the actual frame */
 	BLI_movelisttolist(&gpf->strokes, &tgpi->gpf->strokes);
 	BLI_assert(BLI_listbase_is_empty(&tgpi->gpf->strokes));
-	
+
 	/* clean up temp data */
 	gpencil_primitive_exit(C, op);
 }
@@ -552,17 +552,17 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 	tGPDprimitive *tgpi = op->customdata;
 	wmWindow *win = CTX_wm_window(C);
 	const bool has_numinput = hasNumInput(&tgpi->num);
-	
+
 	switch (event->type) {
 		case LEFTMOUSE:
 			if ((event->val == KM_PRESS) && (tgpi->flag == IDLE)) {
 				/* start drawing primitive */
 				/* TODO: Ignore if not in main region yet */
 				tgpi->flag = IN_PROGRESS;
-				
+
 				tgpi->top[0] = event->mval[0];
 				tgpi->top[1] = event->mval[1];
-				
+
 				tgpi->bottom[0] = event->mval[0];
 				tgpi->bottom[1] = event->mval[1];
 			}
@@ -593,14 +593,14 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			/* return to normal cursor and header status */
 			ED_area_headerprint(tgpi->sa, NULL);
 			WM_cursor_modal_restore(win);
-			
+
 			/* clean up temp data */
 			gpencil_primitive_exit(C, op);
-			
+
 			/* canceled! */
 			return OPERATOR_CANCELLED;
 		}
-		
+
 		case WHEELUPMOUSE:
 		{
 			if (tgpi->type == GP_STROKE_CIRCLE) {
@@ -649,18 +649,18 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		{
 			if ((event->val == KM_PRESS) && handleNumInput(C, &tgpi->num, event)) {
 				float value;
-				
+
 				/* Grab data from numeric input, and store this new value (the user see an int) */
 				value = tgpi->tot_edges;
 				applyNumInput(&tgpi->num, &value);
 				tgpi->tot_edges = value;
-				
+
 				CLAMP(tgpi->tot_edges, MIN_EDGES, MAX_EDGES);
 				RNA_int_set(op->ptr, "edges", tgpi->tot_edges);
-				
+
 				/* update screen */
 				gpencil_primitive_update(C, op, tgpi);
-				
+
 				break;
 			}
 			else {
@@ -669,7 +669,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			}
 		}
 	}
-	
+
 	/* still running... */
 	return OPERATOR_RUNNING_MODAL;
 }
@@ -694,16 +694,16 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 	ot->name = "Grease Pencil Shapes";
 	ot->idname = "GPENCIL_OT_primitive";
 	ot->description = "Create predefined grease pencil stroke shapes";
-	
+
 	/* callbacks */
 	ot->invoke = gpencil_primitive_invoke;
 	ot->modal = gpencil_primitive_modal;
 	ot->cancel = gpencil_primitive_cancel;
 	ot->poll = gpencil_primitive_add_poll;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_UNDO | OPTYPE_BLOCKING;
-	
+
 	/* properties */
 	RNA_def_int(ot->srna, "edges", 4, MIN_EDGES, MAX_EDGES, "Edges", "Number of polygon edges", MIN_EDGES, MAX_EDGES);
 	RNA_def_enum(ot->srna, "type", primitive_type, GP_STROKE_BOX, "Type", "Type of shape");

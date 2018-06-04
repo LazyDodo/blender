@@ -29,7 +29,7 @@
 
 #include <stdio.h>
 
-#include "MEM_guardedalloc.h" 
+#include "MEM_guardedalloc.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_blenlib.h"
@@ -45,19 +45,19 @@
 #include "DNA_windowmanager_types.h"
 #include "DNA_userdef_types.h"
 
-#include "BKE_main.h" 
-#include "BKE_brush.h" 
-#include "BKE_image.h" 
+#include "BKE_main.h"
+#include "BKE_brush.h"
+#include "BKE_image.h"
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
 #include "BKE_screen.h"
-#include "BKE_material.h" 
-#include "BKE_paint.h" 
-#include "BKE_report.h" 
+#include "BKE_material.h"
+#include "BKE_paint.h"
+#include "BKE_report.h"
 
 #include "ED_gpencil.h"
 #include "ED_screen.h"
-#include "ED_space_api.h" 
+#include "ED_space_api.h"
 #include "ED_view3d.h"
 
 #include "RNA_access.h"
@@ -108,7 +108,7 @@ typedef struct tGPDpick {
 	int center[2];                      /* mouse center position */
 	rcti rect;                          /* visible area */
 	rcti panel;                         /* panel area */
-	int row, col;                       /* number of rows and columns */ 
+	int row, col;                       /* number of rows and columns */
 	int boxsize[2];                     /* size of each box color */
 
 	int totcolor;                       /* number of colors */
@@ -142,7 +142,7 @@ static void gp_draw_color_name(tGPDpick *tgpk, tGPDpickColor *col, const uiFontS
 	/* color name */
 	BLI_strncpy(drawstr, ma->id.name + 2, sizeof(drawstr));
 	UI_text_clip_middle_ex((uiFontStyle *)fstyle, drawstr, okwidth, minwidth, max_len, '\0');
-	UI_fontstyle_draw_simple(fstyle, col->rect.xmin, col->rect.ymin - GP_PICK_NAME_HEIGHT, 
+	UI_fontstyle_draw_simple(fstyle, col->rect.xmin, col->rect.ymin - GP_PICK_NAME_HEIGHT,
 							 drawstr, text_col);
 }
 
@@ -317,7 +317,7 @@ static tGPDpick *gpencil_colorpick_init(bContext *C, wmOperator *op, const wmEve
 
 	ED_region_visible_rect(tgpk->ar, &tgpk->rect);
 
-	/* GPXX: set xmin to 0 because toolbar is not computed properly 
+	/* GPXX: set xmin to 0 because toolbar is not computed properly
 	 * by ED_region_visible_rect function */
 	tgpk->rect.xmin = 0;
 
@@ -515,7 +515,7 @@ static int gpencil_colorpick_modal(bContext *C, wmOperator *op, const wmEvent *e
 	tGPDpick *tgpk = op->customdata;
 	ARegion *ar = CTX_wm_region(C);
 
-	int estate = OPERATOR_RUNNING_MODAL; 
+	int estate = OPERATOR_RUNNING_MODAL;
 
 	switch (event->type) {
 		case ESCKEY:
@@ -557,11 +557,11 @@ static int gpencil_colorpick_modal(bContext *C, wmOperator *op, const wmEvent *e
 		case OPERATOR_CANCELLED:
 			gpencil_colorpick_exit(C, op);
 			break;
-		
+
 		case OPERATOR_RUNNING_MODAL:
 			break;
 	}
-	
+
 	/* return status code */
 	return estate;
 }
@@ -572,7 +572,7 @@ void GPENCIL_OT_colorpick(wmOperatorType *ot)
 	ot->name = "Grease Pencil Color Picker";
 	ot->idname = "GPENCIL_OT_colorpick";
 	ot->description = "Select a color from visual mat";
-	
+
 	/* api callbacks */
 	ot->invoke = gpencil_colorpick_invoke;
 	ot->modal = gpencil_colorpick_modal;

@@ -214,7 +214,7 @@ static const float data0[538 * GP_PRIM_DATABUF_SIZE] = {
 	-0.378f, 0.0f, -0.235f, 0.558f, 0.559f, -0.388f, 0.0f, -0.228f, 0.558f, 0.558f, -0.398f, 0.0f, -0.221f, 0.559f, 0.559f, -0.408f, 0.0f, -0.214f, 0.559f, 0.559f,
 	-0.418f, 0.0f, -0.208f, 0.559f, 0.559f, -0.427f, 0.0f, -0.202f, 0.559f, 0.558f, -0.436f, 0.0f, -0.196f, 0.559f, 0.559f, -0.445f, 0.0f, -0.191f, 0.559f, 0.559f,
 	-0.453f, 0.0f, -0.187f, 0.558f, 0.559f, -0.462f, 0.0f, -0.183f, 0.558f, 0.558f, -0.469f, 0.0f, -0.18f, 0.558f, 0.558f, -0.477f, 0.0f, -0.176f, 0.558f, 0.558f,
-	-0.484f, 0.0f, -0.174f, 0.557f, 0.558f, -0.493f, 0.0f, -0.17f, 0.555f, 0.559f, 
+	-0.484f, 0.0f, -0.174f, 0.557f, 0.558f, -0.493f, 0.0f, -0.17f, 0.555f, 0.559f,
 };
 
 
@@ -476,7 +476,7 @@ static const float data12[123 * GP_PRIM_DATABUF_SIZE] = {
 	-0.519f, 0.0f, 0.155f, 0.514f, 0.514f, -0.52f, 0.0f, 0.161f, 0.514f, 0.514f, -0.522f, 0.0f, 0.168f, 0.514f, 0.514f, -0.523f, 0.0f, 0.174f, 0.514f, 0.514f,
 	-0.525f, 0.0f, 0.18f, 0.514f, 0.514f, -0.526f, 0.0f, 0.185f, 0.514f, 0.514f, -0.527f, 0.0f, 0.191f, 0.513f, 0.513f,
 };
-	
+
 static const float data13[125 * GP_PRIM_DATABUF_SIZE] = {
 	0.184f, 0.0f, 0.22f, 0.026f, 0.026f, 0.182f, 0.0f, 0.21f, 0.275f, 0.275f, 0.18f, 0.0f, 0.203f, 0.301f, 0.301f, 0.178f, 0.0f, 0.195f, 0.322f, 0.322f,
 	0.176f, 0.0f, 0.186f, 0.343f, 0.343f, 0.173f, 0.0f, 0.176f, 0.36f, 0.36f, 0.17f, -0.0f, 0.166f, 0.367f, 0.367f, 0.168f, -0.0f, 0.156f, 0.38f, 0.38f,
@@ -756,7 +756,7 @@ static const float data21[353 * GP_PRIM_DATABUF_SIZE] = {
 	-0.282f, 0.0f, 0.383f, 0.001f, 1.0f, -0.284f, 0.0f, 0.385f, 0.0f, 1.0f, -0.286f, 0.0f, 0.387f, 0.0f, 1.0f, -0.287f, 0.0f, 0.388f, 0.0f, 1.0f,
 	-0.289f, 0.0f, 0.39f, 0.0f, 1.0f,
 };
-	
+
 static const float data22[309 * GP_PRIM_DATABUF_SIZE] = {
 	0.294f, 0.0f, 0.372f, 0.0f, 1.0f, 0.291f, 0.0f, 0.37f, 0.001f, 1.0f, 0.289f, 0.0f, 0.368f, 0.002f, 1.0f, 0.286f, 0.0f, 0.366f, 0.003f, 1.0f,
 	0.284f, 0.0f, 0.364f, 0.006f, 1.0f, 0.282f, 0.0f, 0.362f, 0.01f, 1.0f, 0.279f, 0.0f, 0.36f, 0.015f, 1.0f, 0.277f, 0.0f, 0.358f, 0.022f, 1.0f,
@@ -1409,13 +1409,13 @@ static const ColorTemplate gp_monkey_pct_skin_shadow = {
 static const ColorTemplate gp_monkey_pct_eyes = {
 	"Eyes",
 	{0.553f, 0.39f, 0.266f, 0.0f},
-	{0.773f, 0.762f, 0.73f, 1.0f},	
+	{0.773f, 0.762f, 0.73f, 1.0f},
 };
 
 static const ColorTemplate gp_monkey_pct_pupils = {
 	"Pupils",
 	{0.107f, 0.075f, 0.051f, 0.0f},
-	{0.153f, 0.057f, 0.063f, 1.0f},	
+	{0.153f, 0.057f, 0.063f, 1.0f},
 };
 
 /* ***************************************************************** */
@@ -1430,7 +1430,7 @@ void ED_gpencil_create_monkey(bContext *C, float mat[4][4])
 	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 	bGPdata *gpd = (bGPdata *)ob->data;
 	bGPDstroke *gps;
-	
+
 	/* create colors */
 	int color_Black = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_black);
 	int color_Skin = gpencil_monkey_color(bmain, ob, &gp_monkey_pct_skin);

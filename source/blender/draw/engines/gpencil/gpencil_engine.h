@@ -39,9 +39,9 @@ struct RenderEngine;
 struct RenderLayer;
 
  /* TODO: these could be system parameter in userprefs screen */
-#define GPENCIL_MAX_GP_OBJ 256 
+#define GPENCIL_MAX_GP_OBJ 256
 
-#define GPENCIL_CACHE_BLOCK_SIZE 8 
+#define GPENCIL_CACHE_BLOCK_SIZE 8
 #define GPENCIL_MAX_SHGROUPS 65536
 #define GPENCIL_MIN_BATCH_SLOTS_CHUNK 16
 
@@ -51,8 +51,8 @@ struct RenderLayer;
 
 #define GP_SIMPLIFY(scene) ((scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_ENABLE))
 #define GP_SIMPLIFY_ONPLAY(playing) (((playing == true) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_ON_PLAY)) || ((scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_ON_PLAY) == 0))
-#define GP_SIMPLIFY_FILL(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_FILL))) 
-#define GP_SIMPLIFY_MODIF(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_MODIFIER))) 
+#define GP_SIMPLIFY_FILL(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_FILL)))
+#define GP_SIMPLIFY_MODIF(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_MODIFIER)))
 
 #define GP_IS_CAMERAVIEW ((rv3d != NULL) && (rv3d->persp == RV3D_CAMOB && v3d->camera))
 
@@ -200,7 +200,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *painting_color_tx;
 
 	struct GPUTexture *gpencil_blank_texture;
-	
+
 	/* runtime pointers texture */
 	struct GPUTexture *input_depth_tx;
 	struct GPUTexture *input_color_tx;
@@ -233,7 +233,7 @@ typedef struct GpencilBatchCache {
 } GpencilBatchCache;
 
 /* general drawing functions */
-struct DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct DRWPass *pass, struct GPUShader *shader, 
+struct DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct DRWPass *pass, struct GPUShader *shader,
 														  struct Object *ob, struct bGPdata *gpd, struct MaterialGPencilStyle *gp_style, int id, bool onion);
 void DRW_gpencil_populate_datablock(struct GPENCIL_e_data *e_data, void *vedata, struct Scene *scene, struct Object *ob, struct bGPdata *gpd);
 void DRW_gpencil_populate_buffer_strokes(struct GPENCIL_e_data *e_data, void *vedata, struct ToolSettings *ts, struct Object *ob);

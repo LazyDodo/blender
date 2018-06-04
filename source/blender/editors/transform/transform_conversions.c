@@ -8123,13 +8123,13 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 
 	if (gpd == NULL)
 		return;
-	
+
 	/* initialize falloff curve */
 	if (is_multiedit) {
 		curvemapping_initialize(ts->gp_sculpt.cur_falloff);
 	}
 
-	/* First Pass: Count the number of datapoints required for the strokes, 
+	/* First Pass: Count the number of datapoints required for the strokes,
 	 * (and additional info about the configuration - e.g. 2D/3D?)
 	 */
 	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
@@ -8171,7 +8171,7 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 							if (gps->flag & GP_STROKE_SELECT) {
 								bGPDspoint *pt;
 								int i;
-								
+
 								// TODO: 2D vs 3D?
 								for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 									if (pt->flag & GP_SPOINT_SELECT)
@@ -8188,7 +8188,7 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 			}
 		}
 	}
-	
+
 	/* Stop trying if nothing selected */
 	if (tc->data_len == 0) {
 		return;

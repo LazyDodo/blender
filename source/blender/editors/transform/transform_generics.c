@@ -377,7 +377,7 @@ static void recalcData_actedit(TransInfo *t)
 		/* flush transform values back to actual coordinates */
 		flushTransIntFrameActionData(t);
 	}
-	
+
 	if (ac.datatype != ANIMCONT_MASK) {
 		/* get animdata blocks visible in editor, assuming that these will be the ones where things changed */
 		filter = (ANIMFILTER_DATA_VISIBLE | ANIMFILTER_ANIMDATA);

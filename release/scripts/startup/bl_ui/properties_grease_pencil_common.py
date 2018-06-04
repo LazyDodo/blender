@@ -229,7 +229,7 @@ class GreasePencilStrokeEditPanel:
 
         if is_3d_view:
             layout.separator()
-            
+
             col = layout.column(align=True)
             col.operator_menu_enum("gpencil.stroke_separate", text="Separate...", property="mode")
             col.operator("gpencil.stroke_split", text="Split")
@@ -998,13 +998,13 @@ class GreasePencilOnionPanel:
 # FIXME: Placeholder - Annotation views shouldn't use this anymore...
 class GreasePencilDeprecatedUIPanel:
     bl_region_type = 'TOOLS'
-    
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
         layout.label("FIXME: Placeholder for deprecated functionality", icon='ERROR')
 
-   
+
 class GreasePencilPaletteColorPanel(GreasePencilDeprecatedUIPanel):
     bl_label = "Grease Pencil Colors"
 

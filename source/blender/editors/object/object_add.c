@@ -990,68 +990,68 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = (ob && (ob->type == OB_GPENCIL)) ? ob->data : NULL;
-	
+
 	const int type = RNA_enum_get(op->ptr, "type");
-	
+
 	float loc[3], rot[3];
 	unsigned int layer;
 	bool newob = false;
-	
+
 	/* Hack: Force view-align to be on by default
 	 * since it's not nice for adding shapes in 2D
 	 * for them to end up aligned oddly
 	 */
 	if (RNA_struct_property_is_set(op->ptr, "view_align") == false)
 		RNA_boolean_set(op->ptr, "view_align", true);
-	
+
 	/* Note: We use 'Y' here (not 'Z'), as */
 	WM_operator_view3d_unit_defaults(C, op);
 	if (!ED_object_add_generic_get_opts(C, op, 'Y', loc, rot, NULL, &layer, NULL))
 		return OPERATOR_CANCELLED;
-	
+
 	/* add new object if not currently editing a GP object,
 	 * or if "empty" was chosen (i.e. user wants a blank GP canvas)
 	 */
 	if ((gpd == NULL) || (GPENCIL_ANY_MODE(gpd) == false) || (type == GP_EMPTY)) {
 		const char *ob_name = (type == GP_MONKEY) ? "Suzanne" : NULL;
 		float radius = RNA_float_get(op->ptr, "radius");
-		
+
 		ob = ED_object_add_type(C, OB_GPENCIL, ob_name, loc, rot, true, layer);
 		gpd = ob->data;
 		newob = true;
-		
+
 		BKE_object_obdata_size_init(ob, GP_OBGPENCIL_DEFAULT_SIZE * radius);
 	}
 	else {
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_ADDED, NULL);
 	}
-	
+
 	/* create relevant geometry */
 	switch (type) {
 		case GP_MONKEY:
 		{
 			float radius = RNA_float_get(op->ptr, "radius");
 			float mat[4][4];
-			
+
 			ED_object_new_primitive_matrix(C, ob, loc, rot, mat);
 			mul_v3_fl(mat[0], radius);
 			mul_v3_fl(mat[1], radius);
 			mul_v3_fl(mat[2], radius);
-			
+
 			ED_gpencil_create_monkey(C, mat);
 			break;
 		}
-		
+
 		case GP_EMPTY:
 			/* do nothing */
 			break;
-		
+
 		default:
 			BKE_report(op->reports, RPT_WARNING, "Not implemented");
 			break;
 	}
-	
+
 	/* if this is a new object, initialise default stuff (colors, etc.) */
 	if (newob) {
 		ED_gpencil_add_defaults(C);
@@ -1155,13 +1155,13 @@ static int collection_instance_add_exec(bContext *C, wmOperator *op)
 	Collection *collection;
 	unsigned int layer;
 	float loc[3], rot[3];
-	
+
 	if (RNA_struct_property_is_set(op->ptr, "name")) {
 		char name[MAX_ID_NAME - 2];
-		
+
 		RNA_string_get(op->ptr, "name", name);
 		collection = (Collection *)BKE_libblock_find_name(bmain, ID_GR, name);
-		
+
 		if (0 == RNA_struct_property_is_set(op->ptr, "location")) {
 			const wmEvent *event = CTX_wm_window(C)->eventstate;
 			ARegion *ar = CTX_wm_region(C);
@@ -1316,7 +1316,7 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 	const bool use_global = RNA_boolean_get(op->ptr, "use_global");
 	bool changed = false;
 
-	if (CTX_data_edit_object(C)) 
+	if (CTX_data_edit_object(C))
 		return OPERATOR_CANCELLED;
 
 	CTX_DATA_BEGIN (C, Object *, ob, selected_objects)
@@ -1400,7 +1400,7 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 
 		if (scene->id.tag & LIB_TAG_DOIT) {
 			scene->id.tag &= ~LIB_TAG_DOIT;
-			
+
 			DEG_relations_tag_update(bmain);
 
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
@@ -2156,7 +2156,7 @@ void OBJECT_OT_convert(wmOperatorType *ot)
 
 /**************************** Duplicate ************************/
 
-/* 
+/*
  * dupflag: a flag made from constants declared in DNA_userdef_types.h
  * The flag tells adduplicate() whether to copy data linked to the object, or to reference the existing data.
  * U.dupflag for default operations or you can construct a flag as python does
@@ -2548,7 +2548,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 		ED_object_location_from_view(C, basen->object->loc);
 		ED_view3d_cursor3d_position(C, basen->object->loc, mval);
 	}
-	
+
 	ED_object_base_select(basen, BA_SELECT);
 	ED_object_base_activate(C, basen);
 

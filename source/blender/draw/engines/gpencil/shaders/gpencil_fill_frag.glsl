@@ -36,7 +36,7 @@ in vec2 texCoord_interp;
 out vec4 fragColor;
 #define texture2D texture
 
-void set_color(in vec4 color, in vec4 color2, in vec4 tcolor, in float mixv, in float factor, 
+void set_color(in vec4 color, in vec4 color2, in vec4 tcolor, in float mixv, in float factor,
 			   in int tmix, in int flip, out vec4 ocolor)
 {
 	/* full color A */
@@ -108,10 +108,10 @@ void main()
 		if (fill_type == CHESS) {
 			vec2 pos = rot / g_boxsize;
 			if ((fract(pos.x) < 0.5 && fract(pos.y) < 0.5) || (fract(pos.x) > 0.5 && fract(pos.y) > 0.5)) {
-			    chesscolor = (t_flip == 0) ? finalColor : color2; 
+			    chesscolor = (t_flip == 0) ? finalColor : color2;
 			}
 			else {
-			    chesscolor = (t_flip == 0) ? color2 : finalColor; 
+			    chesscolor = (t_flip == 0) ? color2 : finalColor;
 			}
 			/* mix with texture */
 			fragColor = (t_mix == 1) ? mix(chesscolor, text_color, mix_factor) : chesscolor;

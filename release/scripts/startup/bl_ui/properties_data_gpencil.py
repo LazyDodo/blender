@@ -35,13 +35,13 @@ class DataButtonsPanel:
     @classmethod
     def poll(cls, context):
         return context.object and context.object.type == 'GPENCIL'
-        
+
 
 class LayerDataButtonsPanel:
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
-    
+
     @classmethod
     def poll(cls, context):
         return (context.object and
@@ -203,7 +203,7 @@ class DATA_PT_gpencil_vertexpanel(DataButtonsPanel, Panel):
     bl_context = "data"
     bl_label = "Vertex Groups"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
 

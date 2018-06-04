@@ -1816,7 +1816,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
     def GP_BUILD(self, layout, ob, md):
         gpd = ob.data
-        
+
         split = layout.split()
 
         col = split.column()
@@ -1840,7 +1840,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         sub.prop(md, "frame_start", text="Start")
         sub.prop(md, "frame_end", text="End")
         col.separator()
-        
+
         col.label("Layer:")
         row = col.row(align=True)
         row.prop_search(md, "layer", gpd, "layers", text="", icon='GREASEPENCIL')

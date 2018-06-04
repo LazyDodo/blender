@@ -74,7 +74,7 @@ static void gpencil_set_stroke_point(
 	mul_v3_m4v3(viewfpt, matrix, &pt->x);
 	float thick = max_ff(pt->pressure * thickness, 1.0f);
 	GWN_vertbuf_attr_set(vbo, thickness_id, idx, &thick);
-	
+
 	GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
 }
 
@@ -158,35 +158,35 @@ Gwn_Batch *DRW_gpencil_get_stroke_geom(bGPDframe *gpf, bGPDstroke *gps, short th
 		/* first point for adjacency (not drawn) */
 		if (i == 0) {
 			if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
-				gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[totpoints - 1], idx, 
+				gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[totpoints - 1], idx,
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 				idx++;
 			}
 			else {
-				gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[1], idx, 
+				gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[1], idx,
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 				idx++;
 			}
 		}
 		/* set point */
-		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, pt, idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, pt, idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 		idx++;
 	}
 
 	if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
 		/* draw line to first point to complete the cycle */
-		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[0], idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[0], idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 		idx++;
 		/* now add adjacency point (not drawn) */
-		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[1], idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[1], idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 		idx++;
 	}
 	/* last adjacency point (not drawn) */
 	else {
-		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[totpoints - 2], idx, 
+		gpencil_set_stroke_point(vbo, gpf->runtime.viewmatrix, &points[totpoints - 2], idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 	}
 
@@ -223,7 +223,7 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 	const tGPspoint *tpt = points;
 	bGPDspoint pt, pt2;
 	int idx = 0;
-	
+
 	/* get origin to reproject point */
 	float origin[3];
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
@@ -237,17 +237,17 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 		if (i == 0) {
 			if (totpoints > 1) {
 				ED_gpencil_tpoint_to_point(ar, origin, &points[1], &pt2);
-				gpencil_set_stroke_point(vbo, matrix, &pt2, idx, 
+				gpencil_set_stroke_point(vbo, matrix, &pt2, idx,
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
 			}
 			else {
-				gpencil_set_stroke_point(vbo, matrix, &pt, idx, 
+				gpencil_set_stroke_point(vbo, matrix, &pt, idx,
 										 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
 			}
 			idx++;
 		}
 		/* set point */
-		gpencil_set_stroke_point(vbo, matrix, &pt, idx, 
+		gpencil_set_stroke_point(vbo, matrix, &pt, idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
 		idx++;
 	}
@@ -255,11 +255,11 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 	/* last adjacency point (not drawn) */
 	if (totpoints > 2) {
 		ED_gpencil_tpoint_to_point(ar, origin, &points[totpoints - 2], &pt2);
-		gpencil_set_stroke_point(vbo, matrix, &pt2, idx, 
+		gpencil_set_stroke_point(vbo, matrix, &pt2, idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
 	}
 	else {
-		gpencil_set_stroke_point(vbo, matrix, &pt, idx, 
+		gpencil_set_stroke_point(vbo, matrix, &pt, idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
 	}
 
@@ -307,7 +307,7 @@ Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], s
 		ED_gp_project_point_to_plane(ob, rv3d, origin, ts->gp_sculpt.lock_axis - 1, ts->gpencil_src, &pt);
 
 		/* set point */
-		gpencil_set_stroke_point(vbo, matrix, &pt, idx, 
+		gpencil_set_stroke_point(vbo, matrix, &pt, idx,
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
 		idx++;
 	}

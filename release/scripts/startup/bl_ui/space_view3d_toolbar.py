@@ -1501,7 +1501,7 @@ class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
         col.operator("gpencil.primitive", text="Line", icon='IPO_CONSTANT').type = 'LINE'
         col.operator("gpencil.primitive", text="Rectangle", icon='UV_FACESEL').type = 'BOX'
         col.operator("gpencil.primitive", text="Circle", icon='ANTIALIASED').type = 'CIRCLE'
-        
+
         layout.operator("object.gpencil_add", text="Monkey", icon='MONKEY').type = 'MONKEY'
 
 

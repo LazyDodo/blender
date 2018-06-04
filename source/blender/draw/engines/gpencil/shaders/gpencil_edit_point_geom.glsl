@@ -20,8 +20,8 @@ void main(void)
 {
 	vec4 P0 = gl_in[0].gl_Position;
 	vec2 sp0 = toScreenSpace(P0);
-	
-	float size = finalThickness[0]; 
+
+	float size = finalThickness[0];
 
 	/* generate the triangle strip */
 	mTexCoord = vec2(0, 1);

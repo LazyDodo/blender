@@ -72,7 +72,7 @@ struct EnumPropertyItem;
  * code (in drawgpencil.c).
  *
  * NOTE: All this is within the gpencil module, so nothing needs
- * to be exported to other modules. 
+ * to be exported to other modules.
  */
 
 /* Internal Operator-State Data ------------------------ */
@@ -157,7 +157,7 @@ typedef struct tGPDprimitive {
 	int top[2];                       /* first box corner */
 	int bottom[2];                    /* last box corner */
 	int flag;                         /* flag to determine operations in progress */
-	
+
 	int lock_axis;                    /* lock to viewport axis */
 
 	NumInput num;                     /* numeric input */
@@ -215,9 +215,9 @@ void gp_apply_parent_point(struct Depsgraph *depsgraph, struct Object *obact, bG
 bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, struct Scene *scene, const float screen_co[2], float r_out[3]);
 
 /* helper to convert 2d to 3d */
-void gp_stroke_convertcoords_tpoint(struct Scene *scene, struct ARegion *ar, 
-									struct View3D *v3d, struct Object *ob, 
-									bGPDlayer *gpl, const struct tGPspoint *point2D, 
+void gp_stroke_convertcoords_tpoint(struct Scene *scene, struct ARegion *ar,
+									struct View3D *v3d, struct Object *ob,
+									bGPDlayer *gpl, const struct tGPspoint *point2D,
 									float *depth, float out[3]);
 
 /* Poll Callbacks ------------------------------------ */
@@ -238,7 +238,7 @@ struct GHash *gp_copybuf_validate_colormap(struct bContext *C);
 
 /* Stroke Editing ------------------------------------ */
 
-void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke *next_stroke, 
+void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke *next_stroke,
 									int tag_flags, bool select);
 int gp_delete_selected_point_wrap(bContext *C);
 

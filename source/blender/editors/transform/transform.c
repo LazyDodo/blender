@@ -3505,7 +3505,7 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 		sub_v3_v3(vec, td->iloc);
 	else
 		sub_v3_v3(vec, td->center);
-	
+
 	/* grease pencil falloff */
 	if (t->options & CTX_GPENCIL_STROKES) {
 		bGPDstroke *gps = (bGPDstroke *)td->extra;
@@ -3525,7 +3525,7 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 	else {
 		mul_v3_fl(vec, td->factor);
 	}
-	
+
 	if (t->flag & (T_OBJECT | T_POSE)) {
 		mul_m3_v3(td->smtx, vec);
 	}
