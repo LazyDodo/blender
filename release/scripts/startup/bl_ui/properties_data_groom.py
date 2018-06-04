@@ -26,13 +26,12 @@ class GROOM_UL_regions(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
         groom = data
         region = item
-        bundle = region.bundle
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
-            if not bundle.is_bound:
+            if not region.is_bound:
                 row.label(icon='ERROR')
-            row.label(bundle.scalp_facemap)
+            row.label(region.scalp_facemap)
 
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
@@ -98,15 +97,13 @@ class DATA_PT_groom_regions(DataButtonsPanel, Panel):
                              groom, "regions",
                              groom.regions, "active_index")
         if region:
-            bundle = region.bundle
-
             col = layout.column()
             if groom.scalp_object:
-                col.prop_search(bundle, "scalp_facemap", groom.scalp_object, "face_maps", text="")
+                col.prop_search(region, "scalp_facemap", groom.scalp_object, "face_maps", text="")
             else:
-                col.prop(bundle, "scalp_facemap", text="")
+                col.prop(region, "scalp_facemap", text="")
 
-            col.prop(bundle, "guides_count")
+            col.prop(region.bundle, "guides_count")
 
 
 class DATA_PT_groom_hair(DataButtonsPanel, Panel):

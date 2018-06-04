@@ -3649,12 +3649,13 @@ static void write_groom(WriteData *wd, Groom *groom)
 	writelist(wd, DATA, GroomRegion, &groom->regions);
 	for (GroomRegion *region = groom->regions.first; region; region = region->next)
 	{
+		writestruct(wd, DATA, MeshSample, region->numverts + 1, region->scalp_samples);
+		
 		GroomBundle *bundle = &region->bundle;
 		writestruct(wd, DATA, GroomSection, bundle->totsections, bundle->sections);
 		writestruct(wd, DATA, GroomSectionVertex, bundle->totverts, bundle->verts);
-		writestruct(wd, DATA, MeshSample, bundle->numshapeverts + 1, bundle->scalp_region);
 		writestruct(wd, DATA, GroomHairGuide, bundle->totguides, bundle->guides);
-		writedata(wd, DATA, sizeof(float) * bundle->totguides * bundle->numshapeverts, bundle->guide_shape_weights);
+		writedata(wd, DATA, sizeof(float) * bundle->totguides * region->numverts, bundle->guide_shape_weights);
 	}
 	
 	if (groom->hair_system) {

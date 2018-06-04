@@ -72,6 +72,11 @@ static void groom_regions_free(ListBase *regions)
 {
 	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
+		if (region->scalp_samples)
+		{
+			MEM_freeN(region->scalp_samples);
+		}
+		
 		GroomBundle *bundle = &region->bundle;
 		BKE_groom_bundle_curve_cache_clear(bundle);
 		
@@ -82,10 +87,6 @@ static void groom_regions_free(ListBase *regions)
 		if (bundle->sections)
 		{
 			MEM_freeN(bundle->sections);
-		}
-		if (bundle->scalp_region)
-		{
-			MEM_freeN(bundle->scalp_region);
 		}
 		if (bundle->guides)
 		{
@@ -104,6 +105,11 @@ static void groom_regions_copy(ListBase *regions_dst, ListBase *regions_src)
 	BLI_duplicatelist(regions_dst, regions_src);
 	for (GroomRegion *region = regions_dst->first; region; region = region->next)
 	{
+		if (region->scalp_samples)
+		{
+			region->scalp_samples = MEM_dupallocN(region->scalp_samples);
+		}
+		
 		GroomBundle *bundle = &region->bundle;
 		if (bundle->curvecache)
 		{
@@ -116,10 +122,6 @@ static void groom_regions_copy(ListBase *regions_dst, ListBase *regions_src)
 		if (bundle->verts)
 		{
 			bundle->verts = MEM_dupallocN(bundle->verts);
-		}
-		if (bundle->scalp_region)
-		{
-			bundle->scalp_region = MEM_dupallocN(bundle->scalp_region);
 		}
 		if (bundle->guides)
 		{

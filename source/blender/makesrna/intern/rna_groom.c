@@ -74,32 +74,32 @@ static void rna_Groom_update_data(Main *UNUSED(bmain), Scene *UNUSED(scene), Poi
 	WM_main_add_notifier(NC_GROOM | ND_DATA, ptr->id.data);
 }
 
-static int rna_GroomBundle_is_bound_get(PointerRNA *ptr)
+static int rna_GroomRegion_is_bound_get(PointerRNA *ptr)
 {
-	GroomBundle *bundle = (GroomBundle *)ptr->data;
-	return (bundle->scalp_region != NULL);
+	GroomRegion *region = (GroomRegion *)ptr->data;
+	return (region->scalp_samples != NULL);
 }
 
-static void rna_GroomBundle_scalp_facemap_name_set(PointerRNA *ptr, const char *value)
+static void rna_GroomRegion_scalp_facemap_name_set(PointerRNA *ptr, const char *value)
 {
 	Groom *groom = (Groom *)ptr->id.data;
-	GroomBundle *bundle = (GroomBundle *)ptr->data;
+	GroomRegion *region = (GroomRegion *)ptr->data;
 	
 	if (groom->scalp_object)
 	{
 		bFaceMap *fm = BKE_object_facemap_find_name(groom->scalp_object, value);
 		if (fm) {
 			/* no need for BLI_strncpy_utf8, since this matches an existing facemap */
-			BLI_strncpy(bundle->scalp_facemap_name, value, sizeof(bundle->scalp_facemap_name));
+			BLI_strncpy(region->scalp_facemap_name, value, sizeof(region->scalp_facemap_name));
 			/* Bind to the region right away */
-			BKE_groom_bundle_bind(groom, bundle, true);
+			BKE_groom_region_bind(groom, region, true);
 			return;
 		}
 	}
 	
-	bundle->scalp_facemap_name[0] = '\0';
+	region->scalp_facemap_name[0] = '\0';
 	/* Unbind from region */
-	BKE_groom_bundle_unbind(bundle);
+	BKE_groom_region_unbind(region);
 }
 
 static PointerRNA rna_Groom_active_region_get(PointerRNA *ptr)
@@ -188,19 +188,6 @@ static void rna_def_groom_bundle(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "GroomBundle");
 	RNA_def_struct_ui_text(srna, "Groom Bundle", "Bundle of hair originating from a scalp region");
 	
-	prop = RNA_def_property(srna, "is_bound", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, "rna_GroomBundle_is_bound_get", NULL);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Bound", "Bundle was successfully bound to a scalp region");
-	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, NULL);
-	
-	prop = RNA_def_property(srna, "scalp_facemap", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "scalp_facemap_name");
-	RNA_def_property_flag(prop, PROP_NEVER_UNLINK);
-	RNA_def_property_ui_text(prop, "Scalp Vertex Group", "Face map name of the scalp region");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GroomBundle_scalp_facemap_name_set");
-	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
-	
 	prop = RNA_def_property(srna, "guides_count", PROP_INT, PROP_NONE);
 	RNA_def_property_range(prop, 1, INT_MAX);
 	RNA_def_property_ui_range(prop, 1, 1000, 1, -1);
@@ -216,6 +203,19 @@ static void rna_def_groom_region(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "GroomRegion", NULL);
 	RNA_def_struct_sdna(srna, "GroomRegion");
 	RNA_def_struct_ui_text(srna, "Groom Region", "Region on the scalp");
+	
+	prop = RNA_def_property(srna, "is_bound", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_funcs(prop, "rna_GroomRegion_is_bound_get", NULL);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Bound", "Region was successfully bound to the scalp");
+	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, NULL);
+	
+	prop = RNA_def_property(srna, "scalp_facemap", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "scalp_facemap_name");
+	RNA_def_property_flag(prop, PROP_NEVER_UNLINK);
+	RNA_def_property_ui_text(prop, "Scalp Vertex Group", "Face map name of the scalp region");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GroomRegion_scalp_facemap_name_set");
+	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
 	
 	prop = RNA_def_property(srna, "bundle", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "bundle");

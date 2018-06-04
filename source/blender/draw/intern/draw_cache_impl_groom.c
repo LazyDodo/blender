@@ -222,7 +222,7 @@ static int groom_count_verts(Groom *groom, int parts, bool use_curve_cache)
 			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
-				vert_len += bundle->curvesize * bundle->numshapeverts;
+				vert_len += bundle->curvesize * region->numverts;
 			}
 			else
 			{
@@ -269,15 +269,15 @@ static int groom_count_edges(Groom *groom, int parts, bool use_curve_cache)
 		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
 			GroomBundle *bundle = &region->bundle;
-			if (bundle->numshapeverts > 1)
+			if (region->numverts > 1)
 			{
 				// Closed edge loop, 1 edge per vertex
 				if (use_curve_cache)
 				{
 					/* a curve for each shape vertex */
-					int numedges_curves = (bundle->curvesize - 1) * bundle->numshapeverts;
+					int numedges_curves = (bundle->curvesize - 1) * region->numverts;
 					/* a loop for each section */
-					int numedges_sections = bundle->numshapeverts * bundle->totsections;
+					int numedges_sections = region->numverts * bundle->totsections;
 					edge_len += numedges_curves + numedges_sections;
 				}
 				else
@@ -363,7 +363,7 @@ static void groom_get_verts(
 			if (use_curve_cache)
 			{
 				GroomCurveCache *cache = bundle->curvecache;
-				for (int i = 0; i < bundle->numshapeverts; ++i)
+				for (int i = 0; i < region->numverts; ++i)
 				{
 					for (int j = 0; j < bundle->curvesize; ++j, ++cache)
 					{
@@ -389,7 +389,7 @@ static void groom_get_verts(
 				{
 					const bool active = (region->flag & GM_REGION_SELECT) && (section->flag & GM_SECTION_SELECT);
 					
-					for (int j = 0; j < bundle->numshapeverts; ++j, ++vertex)
+					for (int j = 0; j < region->numverts; ++j, ++vertex)
 					{
 						if (id_pos != GM_ATTR_ID_UNUSED)
 						{
@@ -462,7 +462,7 @@ static void groom_get_edges(
 		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
 			GroomBundle *bundle = &region->bundle;
-			const int numshapeverts = bundle->numshapeverts;
+			const int numshapeverts = region->numverts;
 			if (numshapeverts > 1)
 			{
 				if (use_curve_cache)
@@ -498,7 +498,7 @@ static void groom_get_edges(
 						GWN_indexbuf_add_line_verts(&elb, idx0 + (numshapeverts-1) * curvesize, idx0);
 					}
 					
-					idx += bundle->curvesize * bundle->numshapeverts;
+					idx += bundle->curvesize * region->numverts;
 				}
 				else
 				{

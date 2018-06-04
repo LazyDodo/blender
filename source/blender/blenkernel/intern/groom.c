@@ -106,6 +106,11 @@ static void groom_regions_free(ListBase *regions)
 {
 	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
+		if (region->scalp_samples)
+		{
+			MEM_freeN(region->scalp_samples);
+		}
+		
 		GroomBundle *bundle = &region->bundle;
 		
 		BKE_groom_bundle_curve_cache_clear(bundle);
@@ -117,10 +122,6 @@ static void groom_regions_free(ListBase *regions)
 		if (bundle->verts)
 		{
 			MEM_freeN(bundle->verts);
-		}
-		if (bundle->scalp_region)
-		{
-			MEM_freeN(bundle->scalp_region);
 		}
 		if (bundle->guides)
 		{
@@ -182,6 +183,11 @@ void BKE_groom_copy_data(Main *UNUSED(bmain), Groom *groom_dst, const Groom *gro
 	BLI_duplicatelist(&groom_dst->regions, &groom_src->regions);
 	for (GroomRegion *region = groom_dst->regions.first; region; region = region->next)
 	{
+		if (region->scalp_samples)
+		{
+			region->scalp_samples = MEM_dupallocN(region->scalp_samples);
+		}
+		
 		GroomBundle *bundle = &region->bundle;
 		if (bundle->curvecache)
 		{
@@ -194,10 +200,6 @@ void BKE_groom_copy_data(Main *UNUSED(bmain), Groom *groom_dst, const Groom *gro
 		if (bundle->verts)
 		{
 			bundle->verts = MEM_dupallocN(bundle->verts);
-		}
-		if (bundle->scalp_region)
-		{
-			bundle->scalp_region = MEM_dupallocN(bundle->scalp_region);
 		}
 		if (bundle->guides)
 		{
@@ -244,7 +246,7 @@ bool BKE_groom_minmax(Groom *groom, float min[3], float max[3])
 		GroomBundle *bundle = &region->bundle;
 		if (bundle->curvecache)
 		{
-			const int totcurvecache = (bundle->numshapeverts + 1) * bundle->curvesize;
+			const int totcurvecache = (region->numverts + 1) * bundle->curvesize;
 			GroomCurveCache *cc = bundle->curvecache;
 			for (int i = 0; i < totcurvecache; ++i, ++cc)
 			{
@@ -299,29 +301,29 @@ void BKE_groom_bind_scalp_regions(Groom *groom, bool force_rebind)
 	{
 		for (GroomRegion *region = groom->editgroom->regions.first; region; region = region->next)
 		{
-			BKE_groom_bundle_bind(groom, &region->bundle, force_rebind);
+			BKE_groom_region_bind(groom, region, force_rebind);
 		}
 	}
 	else
 	{
 		for (GroomRegion *region = groom->regions.first; region; region = region->next)
 		{
-			BKE_groom_bundle_bind(groom, &region->bundle, force_rebind);
+			BKE_groom_region_bind(groom, region, force_rebind);
 		}
 	}
 }
 
 /* Returns the transform at the root of the bundle */
-static bool groom_get_bundle_transform_on_scalp(const GroomBundle *bundle, const Mesh *scalp, float r_loc[3], float r_rot[3][3])
+static bool groom_get_region_transform_on_scalp(const GroomRegion *region, const Mesh *scalp, float r_loc[3], float r_rot[3][3])
 {
-	const int numshapeverts = bundle->numshapeverts;
-	if (numshapeverts == 0 || bundle->scalp_region == NULL)
+	const int numverts = region->numverts;
+	if (numverts == 0 || region->scalp_samples == NULL)
 	{
 		return false;
 	}
 	
 	/* last sample is the center position */
-	const MeshSample *center_sample = &bundle->scalp_region[numshapeverts];
+	const MeshSample *center_sample = &region->scalp_samples[numverts];
 	
 	if (BKE_mesh_sample_eval(scalp, center_sample, r_loc, r_rot[2], r_rot[1]))
 	{
@@ -336,11 +338,12 @@ static bool groom_get_bundle_transform_on_scalp(const GroomBundle *bundle, const
 	}
 }
 
-static bool groom_shape_rebuild(GroomBundle *bundle, Object *scalp_ob)
+static bool groom_shape_rebuild(GroomRegion *region, Object *scalp_ob)
 {
-	BLI_assert(bundle->scalp_region != NULL);
+	GroomBundle *bundle = &region->bundle;
+	BLI_assert(region->scalp_samples != NULL);
 	BLI_assert(scalp_ob->type == OB_MESH);
-	const int numshapeverts = bundle->numshapeverts;
+	const int numshapeverts = region->numverts;
 	
 	bool result = true;
 	float (*shape)[2] = MEM_mallocN(sizeof(*shape) * numshapeverts, "groom section shape");
@@ -349,13 +352,13 @@ static bool groom_shape_rebuild(GroomBundle *bundle, Object *scalp_ob)
 	
 	float center_loc[3];
 	float center_mat[3][3];
-	if (!groom_get_bundle_transform_on_scalp(bundle, me, center_loc, center_mat))
+	if (!groom_get_region_transform_on_scalp(region, me, center_loc, center_mat))
 	{
 		result = false;
 		goto cleanup;
 	}
 	
-	MeshSample *sample = bundle->scalp_region;
+	MeshSample *sample = region->scalp_samples;
 	GroomSectionVertex *vert0 = bundle->verts;
 	for (int i = 0; i < numshapeverts; ++i, ++sample, ++vert0)
 	{
@@ -409,14 +412,14 @@ static BMesh *groom_create_scalp_bmesh(Mesh *me)
 	return bm;
 }
 
-static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scalp_ob)
+static bool groom_region_from_mesh_fmap(GroomRegion *region, Object *scalp_ob)
 {
 	BLI_assert(scalp_ob->type == OB_MESH);
 	
-	BKE_groom_bundle_curve_cache_clear(bundle);
+	BKE_groom_bundle_curve_cache_clear(&region->bundle);
 	
 	Mesh *me = scalp_ob->data;
-	const int scalp_fmap_nr = BKE_object_facemap_name_index(scalp_ob, bundle->scalp_facemap_name);
+	const int scalp_fmap_nr = BKE_object_facemap_name_index(scalp_ob, region->scalp_facemap_name);
 	const int cd_fmap_offset = CustomData_get_offset(&me->pdata, CD_FACEMAP);
 	if (scalp_fmap_nr < 0 || cd_fmap_offset < 0)
 	{
@@ -448,14 +451,14 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 		goto finalize;
 	}
 	
-	const int numshapeverts = bundle->numshapeverts = BMO_slot_buffer_count(op.slots_out, "boundary");
-	bundle->scalp_region = MEM_callocN(sizeof(*bundle->scalp_region) * (numshapeverts + 1), "groom bundle scalp region");
+	const int numverts = region->numverts = BMO_slot_buffer_count(op.slots_out, "boundary");
+	region->scalp_samples = MEM_callocN(sizeof(*region->scalp_samples) * (numverts + 1), "groom bundle scalp region");
 	
 	float center_co[3]; /* average vertex location for placing the center */
 	{
 		BMLoop *l;
 		BMOIter oiter;
-		MeshSample *sample = bundle->scalp_region;
+		MeshSample *sample = region->scalp_samples;
 		zero_v3(center_co);
 		BMO_ITER (l, &oiter, op.slots_out, "boundary", BM_LOOP)
 		{
@@ -469,9 +472,9 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 			
 			++sample;
 		}
-		if (numshapeverts > 0)
+		if (numverts > 0)
 		{
-			mul_v3_fl(center_co, 1.0f / (float)(numshapeverts));
+			mul_v3_fl(center_co, 1.0f / (float)(numverts));
 		}
 	}
 	
@@ -488,7 +491,7 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 			if (nearest.index >= 0)
 			{
 				/* last sample is the center position */
-				MeshSample *center_sample = &bundle->scalp_region[numshapeverts];
+				MeshSample *center_sample = &region->scalp_samples[numverts];
 				BKE_mesh_sample_weights_from_loc(center_sample, me, nearest.index, nearest.co);
 				BLI_assert(BKE_mesh_sample_is_valid(center_sample));
 			}
@@ -504,14 +507,14 @@ static bool groom_bundle_region_from_mesh_fmap(GroomBundle *bundle, Object *scal
 finalize:
 	if (result == true)
 	{
-		groom_shape_rebuild(bundle, scalp_ob);
+		groom_shape_rebuild(region, scalp_ob);
 	}
 	else
 	{
-		if (bundle->scalp_region)
+		if (region->scalp_samples)
 		{
-			MEM_freeN(bundle->scalp_region);
-			bundle->scalp_region = NULL;
+			MEM_freeN(region->scalp_samples);
+			region->scalp_samples = NULL;
 		}
 	}
 	
@@ -521,37 +524,37 @@ finalize:
 	return result;
 }
 
-bool BKE_groom_bundle_bind(Groom *groom, GroomBundle *bundle, bool force_rebind)
+bool BKE_groom_region_bind(Groom *groom, GroomRegion *region, bool force_rebind)
 {
-	if (bundle->scalp_region && !force_rebind)
+	if (region->scalp_samples && !force_rebind)
 	{
 		return true;
 	}
 	
-	BKE_groom_bundle_unbind(bundle);
+	BKE_groom_region_unbind(region);
 	if (!groom->scalp_object)
 	{
 		return false;
 	}
-	if (!BKE_object_facemap_find_name(groom->scalp_object, bundle->scalp_facemap_name))
+	if (!BKE_object_facemap_find_name(groom->scalp_object, region->scalp_facemap_name))
 	{
 		return false;
 	}
 	
 	if (groom->scalp_object->type == OB_MESH)
 	{
-		groom_bundle_region_from_mesh_fmap(bundle, groom->scalp_object);
+		groom_region_from_mesh_fmap(region, groom->scalp_object);
 	}
 	
-	return (bundle->scalp_region != NULL);
+	return (region->scalp_samples != NULL);
 }
 
-void BKE_groom_bundle_unbind(GroomBundle *bundle)
+void BKE_groom_region_unbind(GroomRegion *region)
 {
-	if (bundle->scalp_region)
+	if (region->scalp_samples)
 	{
-		MEM_freeN(bundle->scalp_region);
-		bundle->scalp_region = NULL;
+		MEM_freeN(region->scalp_samples);
+		region->scalp_samples = NULL;
 	}
 }
 
@@ -573,7 +576,7 @@ void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
 			if (scalp)
 			{
 				/* For bound regions the bundle should be attached to the scalp */
-				groom_get_bundle_transform_on_scalp(bundle, scalp, section->center, section->mat);
+				groom_get_region_transform_on_scalp(region, scalp, section->center, section->mat);
 			}
 			else
 			{
@@ -600,13 +603,13 @@ void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
 /* === Hair System === */
 
 /* Set loop weights for all faces covered by the bundle region */
-static bool groom_add_bundle_loop_weights(const Groom *groom, const GroomBundle *bundle,
+static bool groom_add_region_loop_weights(const Groom *groom, const GroomRegion *region,
                                           float *loop_weights)
 {
 	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
 	const Mesh *scalp = groom->scalp_object->data;
 	
-	const int fmap_nr = BKE_object_facemap_name_index(groom->scalp_object, bundle->scalp_facemap_name);
+	const int fmap_nr = BKE_object_facemap_name_index(groom->scalp_object, region->scalp_facemap_name);
 	if (fmap_nr < 0)
 	{
 		return false;
@@ -623,7 +626,7 @@ static bool groom_add_bundle_loop_weights(const Groom *groom, const GroomBundle 
 		return false;
 	}
 	
-	/* Find all polys of this bundle's face map */
+	/* Find all polys of this region's face map */
 	const MPoly *mp = scalp->mpoly;
 	for (int i = 0; i < scalp->totpoly; ++i, ++mp)
 	{
@@ -647,8 +650,7 @@ static void groom_add_all_loop_weights(const Groom *groom,
 {
 	for (GroomRegion* region = groom->regions.first; region; region = region->next)
 	{
-		GroomBundle *bundle = &region->bundle;
-		groom_add_bundle_loop_weights(groom, bundle, loop_weights);
+		groom_add_region_loop_weights(groom, region, loop_weights);
 	}
 }
 
@@ -670,7 +672,7 @@ static void groom_generate_guides(
 		
 		/* Mask for the scalp region */
 		memset(loop_weights, 0, loop_weights_size);
-		groom_add_bundle_loop_weights(groom, bundle, loop_weights);
+		groom_add_region_loop_weights(groom, region, loop_weights);
 		
 		{
 			const int count = bundle->guides_count;
@@ -699,10 +701,10 @@ static void groom_generate_guides(
 		
 		/* Calculate weights for interpolating the guide between shape vertices */
 		{
-			bundle->guide_shape_weights = MEM_reallocN_id(bundle->guide_shape_weights, sizeof(float) * bundle->totguides * bundle->numshapeverts, "groom guide shape weights");
+			bundle->guide_shape_weights = MEM_reallocN_id(bundle->guide_shape_weights, sizeof(float) * bundle->totguides * region->numverts, "groom guide shape weights");
 			
 			/* Use first section as shape for computing weights */
-			const int shapesize = bundle->numshapeverts;
+			const int shapesize = region->numverts;
 			float (*shape)[2] = MEM_mallocN(sizeof(float) * 2 * shapesize, "bundle shape verts");
 			/* Expecting at least one section */
 			BLI_assert(bundle->totsections >= 1 && bundle->totverts >= shapesize);
@@ -726,7 +728,7 @@ static void groom_generate_guides(
 				/* Calculate interpolation weights */
 				interp_weights_poly_v2(w, shape, shapesize, p);
 				
-				w += bundle->numshapeverts;
+				w += region->numverts;
 			}
 			
 			MEM_freeN(shape);
@@ -790,7 +792,7 @@ void BKE_groom_hair_update_guide_curves(Groom *groom)
 	for (const GroomRegion *region = regions->first; region; region = region->next)
 	{
 		const GroomBundle *bundle = &region->bundle;
-		const int shapesize = bundle->numshapeverts;
+		const int shapesize = region->numverts;
 		const int curvesize = bundle->curvesize;
 		const float *weights = bundle->guide_shape_weights;
 		float co[3];
@@ -884,14 +886,15 @@ static void groom_eval_curve_cache_section(GroomCurveCache *cache, int curve_res
 }
 
 static void groom_eval_center_curve_section(
-        GroomBundle *bundle,
+        GroomRegion *region,
         int curve_res)
 {
+	GroomBundle *bundle = &region->bundle;
 	BLI_assert(bundle->totsections >= 2);
 	BLI_assert(curve_res >= 1);
 	
 	/* last cache curve is the center curve */
-	GroomCurveCache *cache = bundle->curvecache + bundle->curvesize * bundle->numshapeverts;
+	GroomCurveCache *cache = bundle->curvecache + bundle->curvesize * region->numverts;
 	for (int i = 0; i < bundle->totsections-1; ++i, cache += curve_res)
 	{
 		const GroomSection *section = &bundle->sections[i];
@@ -903,19 +906,20 @@ static void groom_eval_center_curve_section(
 	}
 }
 
-static void groom_eval_shape_vertex(const GroomBundle *bundle, const Mesh *scalp, int vertex_idx, int section_idx, float r_co[3])
+static void groom_eval_shape_vertex(const GroomRegion *region, const Mesh *scalp, int vertex_idx, int section_idx, float r_co[3])
 {
-	if (section_idx == 0 && bundle->scalp_region != NULL)
+	if (section_idx == 0 && region->scalp_samples != NULL)
 	{
 		/* For bound regions use location on the scalp */
-		const MeshSample *bound_loc = &bundle->scalp_region[vertex_idx];
+		const MeshSample *bound_loc = &region->scalp_samples[vertex_idx];
 		float nor[3], tang[3];
 		BKE_mesh_sample_eval(scalp, bound_loc, r_co, nor, tang);
 	}
 	else
 	{
+		const GroomBundle *bundle = &region->bundle;
 		const GroomSection *section = &bundle->sections[section_idx];
-		const GroomSectionVertex *vertex = &bundle->verts[vertex_idx + section_idx * bundle->numshapeverts];
+		const GroomSectionVertex *vertex = &bundle->verts[vertex_idx + section_idx * region->numverts];
 		
 		float tmp[3] = {0.0f, 0.0f, 0.0f};
 		copy_v2_v2(tmp, vertex->co);
@@ -925,14 +929,15 @@ static void groom_eval_shape_vertex(const GroomBundle *bundle, const Mesh *scalp
 }
 
 static void groom_eval_shape_curves(
-        GroomBundle *bundle,
+        GroomRegion *region,
         const Mesh *scalp,
         int curve_res)
 {
+	GroomBundle *bundle = &region->bundle;
 	BLI_assert(bundle->totsections >= 2);
 	BLI_assert(curve_res >= 1);
 	
-	for (int i = 0; i < bundle->numshapeverts; ++i)
+	for (int i = 0; i < region->numverts; ++i)
 	{
 		GroomCurveCache *cache = bundle->curvecache + i * bundle->curvesize;
 		for (int j = 0; j < bundle->totsections-1; ++j, cache += curve_res)
@@ -942,20 +947,20 @@ static void groom_eval_shape_curves(
 			float vec0[3], vec1[3], vec2[3], vec3[3];
 			if (j > 0)
 			{
-				groom_eval_shape_vertex(bundle, scalp, i, j-1, vec0);
+				groom_eval_shape_vertex(region, scalp, i, j-1, vec0);
 				co0 = vec0;
 			}
 			{
-				groom_eval_shape_vertex(bundle, scalp, i, j, vec1);
+				groom_eval_shape_vertex(region, scalp, i, j, vec1);
 				co1 = vec1;
 			}
 			{
-				groom_eval_shape_vertex(bundle, scalp, i, j+1, vec2);
+				groom_eval_shape_vertex(region, scalp, i, j+1, vec2);
 				co2 = vec2;
 			}
 			if (j < bundle->totsections - 2)
 			{
-				groom_eval_shape_vertex(bundle, scalp, i, j+2, vec3);
+				groom_eval_shape_vertex(region, scalp, i, j+2, vec3);
 				co3 = vec3;
 			}
 			
@@ -979,10 +984,11 @@ static void groom_eval_curve_step(float mat[3][3], const float mat_prev[3][3], c
 }
 
 /* Computes rotation matrices for all but the first segment of a bundle */
-static void groom_eval_section_mats(GroomBundle *bundle, int curve_res)
+static void groom_eval_section_mats(GroomRegion *region, int curve_res)
 {
+	GroomBundle *bundle = &region->bundle;
 	const int curvesize = bundle->curvesize;
-	const int numshapeverts = bundle->numshapeverts;
+	const int numshapeverts = region->numverts;
 	
 	GroomSection *section = bundle->sections;
 	/* last curve cache is center curve */
@@ -1021,7 +1027,7 @@ void BKE_groom_curve_cache_update(Groom *groom, const Mesh *scalp)
 	{
 		GroomBundle *bundle = &region->bundle;
 		const int totsections = bundle->totsections;
-		const int numshapeverts = bundle->numshapeverts;
+		const int numshapeverts = region->numverts;
 		const int curve_res = groom->curve_res;
 		if (totsections == 0)
 		{
@@ -1050,13 +1056,13 @@ void BKE_groom_curve_cache_update(Groom *groom, const Mesh *scalp)
 		}
 		
 		/* Calculate center curve */
-		groom_eval_center_curve_section(bundle, curve_res);
+		groom_eval_center_curve_section(region, curve_res);
 		
 		/* Calculate coordinate frames for sections */
-		groom_eval_section_mats(bundle, curve_res);
+		groom_eval_section_mats(region, curve_res);
 		
 		/* Calculate shape curves */
-		groom_eval_shape_curves(bundle, scalp, curve_res);
+		groom_eval_shape_curves(region, scalp, curve_res);
 	}
 }
 

@@ -93,13 +93,13 @@ static GroomRegion* groom_add_region(float mat[4][4])
 	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
 	GroomBundle *bundle = &region->bundle;
 	
-	bundle->numshapeverts = 6;
+	region->numverts = 6;
 	bundle->totsections = 4;
-	bundle->totverts = bundle->numshapeverts * bundle->totsections;
+	bundle->totverts = region->numverts * bundle->totsections;
 	bundle->sections = MEM_mallocN(sizeof(GroomSection) * bundle->totsections, "groom bundle sections");
 	bundle->verts = MEM_mallocN(sizeof(GroomSectionVertex) * bundle->totverts, "groom bundle vertices");
 	
-	int numverts = bundle->numshapeverts;
+	int numverts = region->numverts;
 	groom_bundle_section_init(&bundle->sections[0], &bundle->verts[numverts * 0], numverts, mat, 0.0, 0.0, 0.0);
 	groom_bundle_section_init(&bundle->sections[1], &bundle->verts[numverts * 1], numverts, mat, 0.0, 0.0, 1.0);
 	groom_bundle_section_init(&bundle->sections[2], &bundle->verts[numverts * 2], numverts, mat, 0.4, -0.2, 1.2);
@@ -185,7 +185,7 @@ static int region_bind_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	BKE_groom_bundle_bind(groom, &region->bundle, force_rebind);
+	BKE_groom_region_bind(groom, region, force_rebind);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);

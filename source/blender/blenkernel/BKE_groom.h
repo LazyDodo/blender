@@ -36,6 +36,7 @@ struct BoundBox;
 struct Depsgraph;
 struct Groom;
 struct GroomBundle;
+struct GroomRegion;
 struct Main;
 struct Mesh;
 struct Object;
@@ -68,8 +69,8 @@ void BKE_groom_curve_cache_clear(struct Groom *groom);
 /* Try to bind bundles to their scalp regions */
 void BKE_groom_bind_scalp_regions(struct Groom *groom, bool force_rebind);
 
-bool BKE_groom_bundle_bind(struct Groom *groom, struct GroomBundle *bundle, bool force_rebind);
-void BKE_groom_bundle_unbind(struct GroomBundle *bundle);
+bool BKE_groom_region_bind(struct Groom *groom, struct GroomRegion *region, bool force_rebind);
+void BKE_groom_region_unbind(struct GroomRegion *region);
 
 
 /* === Constraints === */

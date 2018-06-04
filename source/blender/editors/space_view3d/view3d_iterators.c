@@ -455,7 +455,7 @@ void groom_foreachScreenVert(
 				GroomSection *section = bundle->sections;
 				for (int i = 0; i < bundle->totsections; ++i, ++section)
 				{
-					for (int j = 0; j < bundle->numshapeverts; ++j, ++vertex)
+					for (int j = 0; j < region->numverts; ++j, ++vertex)
 					{
 						float co[3] = {vertex->co[0], vertex->co[1], 0.0f};
 						mul_m3_v3(section->mat, co);

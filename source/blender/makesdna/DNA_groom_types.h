@@ -84,26 +84,18 @@ typedef struct GroomHairGuide
 typedef struct GroomBundle {
 	int guides_count;                       /* Number of guides to generate (totguides can be smaller) */
 	
-	int numshapeverts;                      /* Vertices per section loop */
 	int totsections;                        /* Number of sections along the curve */
 	int totverts;                           /* Number of vertices of all sections combined */
 	int curvesize;                          /* Number of vertices in a curve = (totsections - 1) * groom.curve_res + 1 */
 	int totcurvecache;                      /* Number of cached curve steps = curve_size * (numshapeverts + 1) */
 	int totguides;                          /* Actual number of hair guide curves */
-	int pad;
 	
 	struct GroomSection *sections;          /* List of sections [totsections] */
 	struct GroomSectionVertex *verts;       /* List of vertices [totsections][numshapeverts] */
 	struct GroomCurveCache *curvecache;     /* Cached curve steps [numshapeverts + 1][curve_size], last is center curve */
-	struct MeshSample *scalp_region;        /* Mesh samples bind to a scalp region [numshapeverts + 1], last is center position */
 	
 	struct GroomHairGuide *guides;          /* Data for generating hair guide curves [totguides] */
 	float *guide_shape_weights;             /* Weights for interpolating hair guide curves [totguides][numshapeverts] */
-	
-	/* Scalp Region */
-	/* XXX Face maps are used temporarily for creating regions,
-	 * eventually should be replaced by a fully fledged 2D loop mesh */
-	char scalp_facemap_name[64];            /* Scalp face map to use as region, MAX_VGROUP_NAME */
 } GroomBundle;
 
 /* Region on the scalp that generates hair guide curves */
@@ -112,7 +104,14 @@ typedef struct GroomRegion
 	struct GroomRegion *next, *prev;        /* Pointers for ListBase element */
 	
 	int flag;
-	int pad;
+	
+	int numverts;                           /* Number of vertices that make up the region */
+	
+	struct MeshSample *scalp_samples;       /* Mesh samples bind to a scalp region [numverts + 1], last is center position */
+	
+	/* XXX Face maps are used temporarily for creating regions,
+	 * eventually should be replaced by a fully fledged 2D loop mesh */
+	char scalp_facemap_name[64];            /* Scalp face map to use as region, MAX_VGROUP_NAME */
 	
 	GroomBundle bundle;                     /* Curve with sections for creating hair bundle */
 } GroomRegion;
