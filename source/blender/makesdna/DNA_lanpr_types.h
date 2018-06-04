@@ -35,6 +35,9 @@
 //#include "DNA_listBase.h"
 //#include "DNA_ID.h"
 
+#define LANPR_MASTER_MODE_DPIX         0
+#define LANPR_MASTER_MODE_SNAKE        1
+
 #define LANPR_POST_PROCESSING_DISABLED 0
 #define LANPR_POST_PROCESSING_ENABLED  1
 

@@ -245,6 +245,7 @@ data_to_c_simple(engines/workbench/shaders/workbench_shadow_debug_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
 
 data_to_c_simple(engines/lanpr/shaders/lanpr_atlas_preview.geometry SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_atlas_preview.fragment SRC)
 data_to_c_simple(engines/lanpr/shaders/lanpr_atlas_project_clip.fragment SRC)
 data_to_c_simple(engines/lanpr/shaders/lanpr_atlas_project_passthrough.vertex SRC)
 data_to_c_simple(engines/lanpr/shaders/lanpr_image_peel.fragment SRC)

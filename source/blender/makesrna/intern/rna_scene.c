@@ -6176,6 +6176,12 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	static const EnumPropertyItem rna_enum_lanpr_master_mode[] = {
+	    {LANPR_MASTER_MODE_DPIX, "DPIX", ICON_MESH_CUBE, "DPIX", "DPIX GPU edge calculation"},
+        {LANPR_MASTER_MODE_SNAKE, "SNAKE", ICON_MESH_CUBE, "Snake", "Image filter and GPU tracing method"},
+	    {0, NULL, 0, NULL, NULL}
+    };
+
 	static const EnumPropertyItem rna_enum_lanpr_enable_post_processing[] = {
 	    {LANPR_POST_PROCESSING_DISABLED, "DISABLED", ICON_MESH_CUBE, "Disabled", "LANPR does not compute anything"},
         {LANPR_POST_PROCESSING_ENABLED, "ENABLED", ICON_MESH_CUBE, "Enabled", "LANPR will compute feature lines in image post processing"},
@@ -6203,6 +6209,13 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "SceneLANPR", NULL);
 	RNA_def_struct_sdna(srna, "SceneLANPR");
 	RNA_def_struct_ui_text(srna, "Scene LANPR Config", "LANPR global config");
+
+	prop = RNA_def_property(srna, "master_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_lanpr_master_mode);
+	RNA_def_property_enum_default(prop, LANPR_MASTER_MODE_DPIX);
+	RNA_def_property_ui_text(prop, "Master Mode", "Choose calculation mode for NPR Line");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
     
     prop = RNA_def_property(srna, "enable_vector_trace", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rna_enum_lanpr_enable_post_processing);

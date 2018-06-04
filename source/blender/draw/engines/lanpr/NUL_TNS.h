@@ -50,6 +50,7 @@ typedef struct LANPR_PassList {
 
 	/* DPIX */
 	struct DRWPass *dpix_transform_pass;
+	struct DRWPass *dpix_preview_pass;
 
 } LANPR_PassList;
 
@@ -62,6 +63,7 @@ typedef struct LANPR_FramebufferList {
 
     /* DPIX */
 	struct GPUFrameBuffer *dpix_transform;
+	struct GPUFrameBuffer *dpix_preview;
 
 } LANPR_FramebufferList;
 
@@ -91,7 +93,10 @@ typedef struct LANPR_PrivateData {
     DRWShadingGroup *snake_shgrp;
 	
 	DRWShadingGroup *dpix_transform_shgrp;
-	
+	DRWShadingGroup *dpix_preview_shgrp;
+
+	//snake
+
 	float normal_clamp;
     float normal_strength;
     float depth_clamp;
@@ -114,6 +119,20 @@ typedef struct LANPR_PrivateData {
 	ListBase      pending_samples;
 	ListBase      erased_samples;
     ListBase      line_strips;
+
+	// dpix data
+
+	void*         atlas_pl;
+	void*         atlas_pr;
+	void*         atlas_nl;
+	void*         atlas_nr;	
+
+	int           begin_index;
+
+	int           dpix_sample_step;
+	int           dpix_is_perspective;
+	float         dpix_viewport[4];
+    int           dpix_buffer_width;
 
 	// drawing
 
