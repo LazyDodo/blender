@@ -158,6 +158,9 @@ static int gpencil_convert_old_files_exec(bContext *C, wmOperator *UNUSED(op))
 		/* free palettes */
 		free_palettes(&gpd->palettes);
 
+		/* disable all GP modes */
+		ED_gpencil_setup_modes(C, gpd, 0);
+
 		/* set cache as dirty */
 		BKE_gpencil_batch_cache_dirty(ob->data);
 
