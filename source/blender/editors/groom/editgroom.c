@@ -68,10 +68,11 @@
 
 /********************** Load/Make/Free ********************/
 
-static void groom_bundles_free(ListBase *bundles)
+static void groom_regions_free(ListBase *regions)
 {
-	for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		BKE_groom_bundle_curve_cache_clear(bundle);
 		
 		if (bundle->verts)
@@ -95,14 +96,15 @@ static void groom_bundles_free(ListBase *bundles)
 			MEM_freeN(bundle->guide_shape_weights);
 		}
 	}
-	BLI_freelistN(bundles);
+	BLI_freelistN(regions);
 }
 
-static void groom_bundles_copy(ListBase *bundles_dst, ListBase *bundles_src)
+static void groom_regions_copy(ListBase *regions_dst, ListBase *regions_src)
 {
-	BLI_duplicatelist(bundles_dst, bundles_src);
-	for (GroomBundle *bundle = bundles_dst->first; bundle; bundle = bundle->next)
+	BLI_duplicatelist(regions_dst, regions_src);
+	for (GroomRegion *region = regions_dst->first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		if (bundle->curvecache)
 		{
 			bundle->curvecache = MEM_dupallocN(bundle->curvecache);
@@ -137,15 +139,15 @@ void ED_groom_editgroom_make(Object *obedit)
 	ED_groom_editgroom_free(obedit);
 
 	groom->editgroom = MEM_callocN(sizeof(EditGroom), "editgroom");
-	groom_bundles_copy(&groom->editgroom->bundles, &groom->bundles);
+	groom_regions_copy(&groom->editgroom->regions, &groom->regions);
 }
 
 void ED_groom_editgroom_load(Object *obedit)
 {
 	Groom *groom = obedit->data;
 	
-	groom_bundles_free(&groom->bundles);
-	groom_bundles_copy(&groom->bundles, &groom->editgroom->bundles);
+	groom_regions_free(&groom->regions);
+	groom_regions_copy(&groom->regions, &groom->editgroom->regions);
 }
 
 void ED_groom_editgroom_free(Object *ob)
@@ -153,7 +155,7 @@ void ED_groom_editgroom_free(Object *ob)
 	Groom *groom = ob->data;
 	
 	if (groom->editgroom) {
-		groom_bundles_free(&groom->editgroom->bundles);
+		groom_regions_free(&groom->editgroom->regions);
 		
 		MEM_freeN(groom->editgroom);
 		groom->editgroom = NULL;

@@ -102,27 +102,27 @@ static void rna_GroomBundle_scalp_facemap_name_set(PointerRNA *ptr, const char *
 	BKE_groom_bundle_unbind(bundle);
 }
 
-static PointerRNA rna_Groom_active_bundle_get(PointerRNA *ptr)
+static PointerRNA rna_Groom_active_region_get(PointerRNA *ptr)
 {
 	Groom *groom = (Groom *)ptr->id.data;
 	PointerRNA r_ptr;
-	RNA_pointer_create(&groom->id, &RNA_GroomBundle, BLI_findlink(&groom->bundles, groom->active_bundle), &r_ptr);
+	RNA_pointer_create(&groom->id, &RNA_GroomRegion, BLI_findlink(&groom->regions, groom->active_region), &r_ptr);
 	return r_ptr;
 }
 
-static int rna_Groom_active_bundle_index_get(PointerRNA *ptr)
+static int rna_Groom_active_region_index_get(PointerRNA *ptr)
 {
 	Groom *groom = (Groom *)ptr->id.data;
-	return groom->active_bundle;
+	return groom->active_region;
 }
 
-static void rna_Groom_active_bundle_index_set(PointerRNA *ptr, int value)
+static void rna_Groom_active_region_index_set(PointerRNA *ptr, int value)
 {
 	Groom *groom = (Groom *)ptr->id.data;
-	groom->active_bundle = value;
+	groom->active_region = value;
 }
 
-static void rna_Groom_active_bundle_index_range(
+static void rna_Groom_active_region_index_range(
         PointerRNA *ptr,
         int *min,
         int *max,
@@ -131,7 +131,7 @@ static void rna_Groom_active_bundle_index_range(
 {
 	Groom *groom = (Groom *)ptr->id.data;
 	*min = 0;
-	*max = max_ii(0, BLI_listbase_count(&groom->bundles) - 1);
+	*max = max_ii(0, BLI_listbase_count(&groom->regions) - 1);
 }
 
 static const EnumPropertyItem *rna_Groom_material_slot_itemf(
@@ -208,29 +208,45 @@ static void rna_def_groom_bundle(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
 }
 
-/* groom.bundles */
-static void rna_def_groom_bundles(BlenderRNA *brna, PropertyRNA *cprop)
+static void rna_def_groom_region(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
 	
-	RNA_def_property_srna(cprop, "GroomBundles");
-	srna = RNA_def_struct(brna, "GroomBundles", NULL);
+	srna = RNA_def_struct(brna, "GroomRegion", NULL);
+	RNA_def_struct_sdna(srna, "GroomRegion");
+	RNA_def_struct_ui_text(srna, "Groom Region", "Region on the scalp");
+	
+	prop = RNA_def_property(srna, "bundle", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "bundle");
+	RNA_def_property_struct_type(prop, "GroomBundle");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Bundle", "Bundle geometry");
+}
+
+/* groom.regions */
+static void rna_def_groom_regions(BlenderRNA *brna, PropertyRNA *cprop)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+	
+	RNA_def_property_srna(cprop, "GroomRegions");
+	srna = RNA_def_struct(brna, "GroomRegions", NULL);
 	RNA_def_struct_sdna(srna, "Groom");
-	RNA_def_struct_ui_text(srna, "Groom Bundles", "Collection of groom bundles");
+	RNA_def_struct_ui_text(srna, "Groom Regions", "Collection of groom regions");
 	
 	prop = RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "GroomBundle");
-	RNA_def_property_pointer_funcs(prop, "rna_Groom_active_bundle_get", NULL, NULL, NULL);
-	RNA_def_property_ui_text(prop, "Active Groom Bundle", "Active groom bundle being displayed");
+	RNA_def_property_struct_type(prop, "GroomRegion");
+	RNA_def_property_pointer_funcs(prop, "rna_Groom_active_region_get", NULL, NULL, NULL);
+	RNA_def_property_ui_text(prop, "Active Groom Region", "Active groom region being displayed");
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, NULL);
 	
 	prop = RNA_def_property(srna, "active_index", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_int_funcs(prop, "rna_Groom_active_bundle_index_get",
-	                           "rna_Groom_active_bundle_index_set",
-	                           "rna_Groom_active_bundle_index_range");
-	RNA_def_property_ui_text(prop, "Active Groom Bundle Index", "Index of active groom bundle");
+	RNA_def_property_int_funcs(prop, "rna_Groom_active_region_index_get",
+	                           "rna_Groom_active_region_index_set",
+	                           "rna_Groom_active_region_index_range");
+	RNA_def_property_ui_text(prop, "Active Groom Region Index", "Index of active groom region");
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, NULL);
 }
 
@@ -252,11 +268,11 @@ static void rna_def_groom(BlenderRNA *brna)
 	/* Animation Data */
 	rna_def_animdata_common(srna);
 	
-	prop = RNA_def_property(srna, "bundles", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "bundles", NULL);
-	RNA_def_property_struct_type(prop, "GroomBundle");
-	RNA_def_property_ui_text(prop, "Bundles", "Bundles of hair");
-	rna_def_groom_bundles(brna, prop);
+	prop = RNA_def_property(srna, "regions", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "regions", NULL);
+	RNA_def_property_struct_type(prop, "GroomRegion");
+	RNA_def_property_ui_text(prop, "Regions", "Regions of hair");
+	rna_def_groom_regions(brna, prop);
 	
 	prop = RNA_def_property(srna, "curve_resolution", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "curve_res");
@@ -298,6 +314,7 @@ static void rna_def_groom(BlenderRNA *brna)
 void RNA_def_groom(BlenderRNA *brna)
 {
 	rna_def_groom(brna);
+	rna_def_groom_region(brna);
 	rna_def_groom_bundle(brna);
 }
 

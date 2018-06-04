@@ -3646,9 +3646,10 @@ static void write_groom(WriteData *wd, Groom *groom)
 		write_animdata(wd, groom->adt);
 	}
 
-	writelist(wd, DATA, GroomBundle, &groom->bundles);
-	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	writelist(wd, DATA, GroomRegion, &groom->regions);
+	for (GroomRegion *region = groom->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		writestruct(wd, DATA, GroomSection, bundle->totsections, bundle->sections);
 		writestruct(wd, DATA, GroomSectionVertex, bundle->totverts, bundle->verts);
 		writestruct(wd, DATA, MeshSample, bundle->numshapeverts + 1, bundle->scalp_region);

@@ -56,8 +56,9 @@
 
 bool ED_groom_select_check_regions(const EditGroom *edit)
 {
-	for (GroomBundle* bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		if (bundle->flag & GM_BUNDLE_SELECT)
 		{
 			return true;
@@ -69,8 +70,9 @@ bool ED_groom_select_check_regions(const EditGroom *edit)
 
 bool ED_groom_select_check_curves(const EditGroom *edit)
 {
-	for (GroomBundle* bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSection *section = bundle->sections;
 		for (int i = 0; i < bundle->totsections; ++i, ++section)
 		{
@@ -85,8 +87,9 @@ bool ED_groom_select_check_curves(const EditGroom *edit)
 
 bool ED_groom_select_check_sections(const EditGroom *edit)
 {
-	for (GroomBundle* bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSectionVertex *vertex = bundle->verts;
 		for (int i = 0; i < bundle->totverts; ++i, ++vertex)
 		{
@@ -102,8 +105,9 @@ bool ED_groom_select_check_sections(const EditGroom *edit)
 
 void ED_groom_select_regions(EditGroom *edit, EditGroomSelectCb select_cb, void *userdata)
 {
-	for (GroomBundle* bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		const bool select = select_cb(userdata, bundle->flag & GM_BUNDLE_SELECT);
 		if (select)
 		{
@@ -118,8 +122,9 @@ void ED_groom_select_regions(EditGroom *edit, EditGroomSelectCb select_cb, void 
 
 void ED_groom_select_curves(EditGroom *edit, EditGroomSelectCb select_cb, void *userdata)
 {
-	for (GroomBundle* bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSection *section = bundle->sections;
 		for (int i = 0; i < bundle->totsections; ++i, ++section)
 		{
@@ -138,8 +143,9 @@ void ED_groom_select_curves(EditGroom *edit, EditGroomSelectCb select_cb, void *
 
 void ED_groom_select_sections(EditGroom *edit, EditGroomSelectCb select_cb, void *userdata)
 {
-	for (GroomBundle* bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSectionVertex *vertex = bundle->verts;
 		for (int i = 0; i < bundle->totverts; ++i, ++vertex)
 		{
@@ -291,16 +297,18 @@ static void select_pick_findnearest_cb(
 
 static void groom_set_region_select_flags(Groom *groom, int flag)
 {
-	for (GroomBundle *bundle = groom->editgroom->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = groom->editgroom->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		bundle->flag = (bundle->flag & ~GM_BUNDLE_SELECT) | (flag & GM_BUNDLE_SELECT);
 	}
 }
 
 static void groom_set_curve_select_flags(Groom *groom, int flag)
 {
-	for (GroomBundle *bundle = groom->editgroom->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = groom->editgroom->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSection *section = bundle->sections;
 		for (int i = 0; i < bundle->totsections; ++i, ++section)
 		{
@@ -311,8 +319,9 @@ static void groom_set_curve_select_flags(Groom *groom, int flag)
 
 static void groom_set_section_select_flags(Groom *groom, int flag)
 {
-	for (GroomBundle *bundle = groom->editgroom->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = groom->editgroom->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSectionVertex *vertex = bundle->verts;
 		for (int i = 0; i < bundle->totverts; ++i, ++vertex)
 		{

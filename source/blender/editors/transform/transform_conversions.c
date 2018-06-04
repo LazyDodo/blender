@@ -2017,8 +2017,9 @@ static void groom_transdata_init_regions(
 static int groom_trans_count_curves(EditGroom *edit, bool is_prop_edit)
 {
 	int count = 0, countsel = 0;
-	for (GroomBundle *bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSection *section = bundle->sections;
 		for (int i = 0; i < bundle->totsections; ++i, ++section)
 		{
@@ -2049,8 +2050,9 @@ static void groom_transdata_init_curves(
 	pseudoinverse_m3_m3(smtx, mtx, PSEUDOINVERSE_EPSILON);
 	
 	TransData *td = tdata;
-	for (GroomBundle *bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSection *section = bundle->sections;
 		for (int i = 0; i < bundle->totsections; ++i, ++section)
 		{
@@ -2084,8 +2086,9 @@ static void groom_transdata_init_curves(
 static int groom_trans_count_verts(EditGroom *edit, bool is_prop_edit)
 {
 	int count = 0, countsel = 0;
-	for (GroomBundle *bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSectionVertex *vertex = bundle->verts;
 		for (int i = 0; i < bundle->totverts; ++i, ++vertex)
 		{
@@ -2117,8 +2120,9 @@ static void groom_transdata_init_verts(
 
 	TransData *td = tdata;
 	TransData2D *td2d = tdata2d;
-	for (GroomBundle *bundle = edit->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		GroomSection *section = bundle->sections;
 		GroomSectionVertex *vertex = bundle->verts;
 		for (int i = 0; i < bundle->totsections; ++i, ++section)

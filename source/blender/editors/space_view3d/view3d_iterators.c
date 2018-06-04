@@ -417,7 +417,7 @@ void groom_foreachScreenVert(
 	GroomEditSettings *edit_settings = &vc->scene->toolsettings->groom_edit_settings;
 	Object *obedit = vc->obedit;
 	Groom *groom = obedit->data;
-	ListBase *bundles = &groom->editgroom->bundles;
+	ListBase *regions = &groom->editgroom->regions;
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -432,8 +432,9 @@ void groom_foreachScreenVert(
 			break;
 
 		case GM_EDIT_MODE_CURVES:
-			for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+			for (GroomRegion* region = regions->first; region; region = region->next)
 			{
+				GroomBundle *bundle = &region->bundle;
 				GroomSection *section = bundle->sections;
 				for (int i = 0; i < bundle->totsections; ++i, ++section)
 				{
@@ -447,8 +448,9 @@ void groom_foreachScreenVert(
 			break;
 
 		case GM_EDIT_MODE_SECTIONS:
-			for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+			for (GroomRegion* region = regions->first; region; region = region->next)
 			{
+				GroomBundle *bundle = &region->bundle;
 				GroomSectionVertex *vertex = bundle->verts;
 				GroomSection *section = bundle->sections;
 				for (int i = 0; i < bundle->totsections; ++i, ++section)

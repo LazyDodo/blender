@@ -102,10 +102,12 @@ void BKE_groom_bundle_curve_cache_clear(GroomBundle *bundle)
 	}
 }
 
-static void groom_bundles_free(ListBase *bundles)
+static void groom_regions_free(ListBase *regions)
 {
-	for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
+		
 		BKE_groom_bundle_curve_cache_clear(bundle);
 		
 		if (bundle->sections)
@@ -129,7 +131,7 @@ static void groom_bundles_free(ListBase *bundles)
 			MEM_freeN(bundle->guide_shape_weights);
 		}
 	}
-	BLI_freelistN(bundles);
+	BLI_freelistN(regions);
 }
 
 /** Free (or release) any data used by this groom (does not free the groom itself). */
@@ -141,7 +143,7 @@ void BKE_groom_free(Groom *groom)
 	{
 		EditGroom *edit = groom->editgroom;
 		
-		groom_bundles_free(&edit->bundles);
+		groom_regions_free(&edit->regions);
 		
 		MEM_freeN(edit);
 		groom->editgroom = NULL;
@@ -158,7 +160,7 @@ void BKE_groom_free(Groom *groom)
 		BKE_hair_draw_settings_free(groom->hair_draw_settings);
 	}
 	
-	groom_bundles_free(&groom->bundles);
+	groom_regions_free(&groom->regions);
 	
 	MEM_SAFE_FREE(groom->mat);
 	
@@ -177,9 +179,10 @@ void BKE_groom_copy_data(Main *UNUSED(bmain), Groom *groom_dst, const Groom *gro
 {
 	groom_dst->bb = MEM_dupallocN(groom_src->bb);
 	
-	BLI_duplicatelist(&groom_dst->bundles, &groom_src->bundles);
-	for (GroomBundle *bundle = groom_dst->bundles.first; bundle; bundle = bundle->next)
+	BLI_duplicatelist(&groom_dst->regions, &groom_src->regions);
+	for (GroomRegion *region = groom_dst->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		if (bundle->curvecache)
 		{
 			bundle->curvecache = MEM_dupallocN(bundle->curvecache);
@@ -236,8 +239,9 @@ void BKE_groom_make_local(Main *bmain, Groom *groom, const bool lib_local)
 bool BKE_groom_minmax(Groom *groom, float min[3], float max[3])
 {
 	bool result = false;
-	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = groom->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		if (bundle->curvecache)
 		{
 			const int totcurvecache = (bundle->numshapeverts + 1) * bundle->curvesize;
@@ -293,16 +297,16 @@ void BKE_groom_bind_scalp_regions(Groom *groom, bool force_rebind)
 {
 	if (groom->editgroom)
 	{
-		for (GroomBundle *bundle = groom->editgroom->bundles.first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = groom->editgroom->regions.first; region; region = region->next)
 		{
-			BKE_groom_bundle_bind(groom, bundle, force_rebind);
+			BKE_groom_bundle_bind(groom, &region->bundle, force_rebind);
 		}
 	}
 	else
 	{
-		for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = groom->regions.first; region; region = region->next)
 		{
-			BKE_groom_bundle_bind(groom, bundle, force_rebind);
+			BKE_groom_bundle_bind(groom, &region->bundle, force_rebind);
 		}
 	}
 }
@@ -557,9 +561,11 @@ void BKE_groom_bundle_unbind(GroomBundle *bundle)
 /* Apply constraints on groom geometry */
 void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
 {
-	ListBase *bundles = (groom->editgroom ? &groom->editgroom->bundles : &groom->bundles);
-	for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
+	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
+		
 		if (bundle->totsections > 0)
 		{
 			GroomSection *section = &bundle->sections[0];
@@ -639,8 +645,9 @@ static bool groom_add_bundle_loop_weights(const Groom *groom, const GroomBundle 
 static void groom_add_all_loop_weights(const Groom *groom,
                                        float *loop_weights)
 {
-	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion* region = groom->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		groom_add_bundle_loop_weights(groom, bundle, loop_weights);
 	}
 }
@@ -655,9 +662,10 @@ static void groom_generate_guides(
 	float *loop_weights = MEM_mallocN(loop_weights_size, "groom scalp loop weights");
 	
 	int i = 0;
-	GroomBundle *bundle = groom->bundles.first;
-	for (; bundle; bundle = bundle->next, ++i)
+	GroomRegion* region = groom->regions.first;
+	for (; region; region = region->next, ++i)
 	{
+		GroomBundle *bundle = &region->bundle;
 		bundle->guides = MEM_reallocN_id(bundle->guides, sizeof(GroomHairGuide) * bundle->guides_count, "groom bundle hair guides");
 		
 		/* Mask for the scalp region */
@@ -755,19 +763,21 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count)
 void BKE_groom_hair_update_guide_curves(Groom *groom)
 {
 	struct HairSystem *hsys = groom->hair_system;
-	const ListBase *bundles = groom->editgroom ? &groom->editgroom->bundles : &groom->bundles;
+	const ListBase *regions = groom->editgroom ? &groom->editgroom->regions : &groom->regions;
 	
 	/* Count guides for all regions combined */
 	int totguides = 0;
-	for (const GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	for (const GroomRegion *region = regions->first; region; region = region->next)
 	{
+		const GroomBundle *bundle = &region->bundle;
 		totguides += bundle->totguides;
 	}
 	
 	/* First declare all guide curves and lengths */
 	BKE_hair_guide_curves_begin(hsys, totguides);
-	for (const GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	for (const GroomRegion *region = regions->first; region; region = region->next)
 	{
+		const GroomBundle *bundle = &region->bundle;
 		const int curvesize = bundle->curvesize;
 		for (int i = 0; i < bundle->totguides; ++i)
 		{
@@ -777,8 +787,9 @@ void BKE_groom_hair_update_guide_curves(Groom *groom)
 	BKE_hair_guide_curves_end(hsys);
 	
 	int idx = 0;
-	for (const GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	for (const GroomRegion *region = regions->first; region; region = region->next)
 	{
+		const GroomBundle *bundle = &region->bundle;
 		const int shapesize = bundle->numshapeverts;
 		const int curvesize = bundle->curvesize;
 		const float *weights = bundle->guide_shape_weights;
@@ -1004,10 +1015,11 @@ static void groom_eval_section_mats(GroomBundle *bundle, int curve_res)
 
 void BKE_groom_curve_cache_update(Groom *groom, const Mesh *scalp)
 {
-	ListBase *bundles = (groom->editgroom ? &groom->editgroom->bundles : &groom->bundles);
+	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
 	
-	for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		const int totsections = bundle->totsections;
 		const int numshapeverts = bundle->numshapeverts;
 		const int curve_res = groom->curve_res;
@@ -1050,15 +1062,15 @@ void BKE_groom_curve_cache_update(Groom *groom, const Mesh *scalp)
 
 void BKE_groom_curve_cache_clear(Groom *groom)
 {
-	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	for (GroomRegion *region = groom->regions.first; region; region = region->next)
 	{
-		BKE_groom_bundle_curve_cache_clear(bundle);
+		BKE_groom_bundle_curve_cache_clear(&region->bundle);
 	}
 	if (groom->editgroom)
 	{
-		for (GroomBundle *bundle = groom->editgroom->bundles.first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = groom->editgroom->regions.first; region; region = region->next)
 		{
-			BKE_groom_bundle_curve_cache_clear(bundle);
+			BKE_groom_bundle_curve_cache_clear(&region->bundle);
 		}
 	}
 }

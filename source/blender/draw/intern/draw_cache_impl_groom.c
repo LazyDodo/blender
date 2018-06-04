@@ -193,7 +193,7 @@ typedef enum GroomRenderPart
 
 static int groom_count_verts(Groom *groom, int parts, bool use_curve_cache)
 {
-	const ListBase *bundles = groom->editgroom ? &groom->editgroom->bundles : &groom->bundles;
+	const ListBase *regions = groom->editgroom ? &groom->editgroom->regions : &groom->regions;
 	int vert_len = 0;
 	
 	if (parts & GM_RENDER_REGIONS)
@@ -202,8 +202,9 @@ static int groom_count_verts(Groom *groom, int parts, bool use_curve_cache)
 	}
 	if (parts & GM_RENDER_CURVES)
 	{
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
 				vert_len += bundle->curvesize;
@@ -216,8 +217,9 @@ static int groom_count_verts(Groom *groom, int parts, bool use_curve_cache)
 	}
 	if (parts & GM_RENDER_SECTIONS)
 	{
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
 				vert_len += bundle->curvesize * bundle->numshapeverts;
@@ -234,7 +236,7 @@ static int groom_count_verts(Groom *groom, int parts, bool use_curve_cache)
 
 static int groom_count_edges(Groom *groom, int parts, bool use_curve_cache)
 {
-	const ListBase *bundles = groom->editgroom ? &groom->editgroom->bundles : &groom->bundles;
+	const ListBase *regions = groom->editgroom ? &groom->editgroom->regions : &groom->regions;
 	int edge_len = 0;
 	
 	if (parts & GM_RENDER_REGIONS)
@@ -243,8 +245,9 @@ static int groom_count_edges(Groom *groom, int parts, bool use_curve_cache)
 	}
 	if (parts & GM_RENDER_CURVES)
 	{
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
 				if (bundle->curvesize > 0)
@@ -263,8 +266,9 @@ static int groom_count_edges(Groom *groom, int parts, bool use_curve_cache)
 	}
 	if (parts & GM_RENDER_SECTIONS)
 	{
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			if (bundle->numshapeverts > 1)
 			{
 				// Closed edge loop, 1 edge per vertex
@@ -298,7 +302,7 @@ static void groom_get_verts(
         uint id_flag)
 {
 	int vert_len = groom_count_verts(groom, parts, use_curve_cache);
-	const ListBase *bundles = groom->editgroom ? &groom->editgroom->bundles : &groom->bundles;
+	const ListBase *regions = groom->editgroom ? &groom->editgroom->regions : &groom->regions;
 	
 	GWN_vertbuf_data_alloc(vbo, vert_len);
 	
@@ -309,8 +313,9 @@ static void groom_get_verts(
 	}
 	if (parts & GM_RENDER_CURVES)
 	{
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
 				GroomCurveCache *cache = bundle->curvecache;
@@ -352,8 +357,9 @@ static void groom_get_verts(
 	}
 	if (parts & GM_RENDER_SECTIONS)
 	{
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
 				GroomCurveCache *cache = bundle->curvecache;
@@ -416,7 +422,7 @@ static void groom_get_edges(
 	
 	int vert_len = groom_count_verts(groom, parts, use_curve_cache);
 	int edge_len = groom_count_edges(groom, parts, use_curve_cache);
-	const ListBase *bundles = groom->editgroom ? &groom->editgroom->bundles : &groom->bundles;
+	const ListBase *regions = groom->editgroom ? &groom->editgroom->regions : &groom->regions;
 	
 	GWN_indexbuf_init(&elb, GWN_PRIM_LINES, edge_len, vert_len);
 	
@@ -427,8 +433,9 @@ static void groom_get_edges(
 	}
 	if (parts & GM_RENDER_CURVES)
 	{
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
 				GroomCurveCache *cache = bundle->curvecache;
@@ -452,8 +459,9 @@ static void groom_get_edges(
 	if (parts & GM_RENDER_SECTIONS)
 	{
 		const int curve_res = groom->curve_res;
-		for (GroomBundle *bundle = bundles->first; bundle; bundle = bundle->next)
+		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
+			GroomBundle *bundle = &region->bundle;
 			const int numshapeverts = bundle->numshapeverts;
 			if (numshapeverts > 1)
 			{

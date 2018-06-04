@@ -22,10 +22,11 @@ from bpy.types import Menu, Panel
 from rna_prop_ui import PropertyPanel
 
 
-class GROOM_UL_bundles(bpy.types.UIList):
+class GROOM_UL_regions(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
         groom = data
-        bundle = item
+        region = item
+        bundle = region.bundle
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
@@ -91,14 +92,15 @@ class DATA_PT_groom_regions(DataButtonsPanel, Panel):
         layout = self.layout
 
         groom = context.groom
-        bundle = context.groom.bundles.active
+        region = context.groom.regions.active
 
-        layout.template_list("GROOM_UL_bundles", "bundles",
-                             groom, "bundles",
-                             groom.bundles, "active_index")
-        if bundle:
+        layout.template_list("GROOM_UL_regions", "regions",
+                             groom, "regions",
+                             groom.regions, "active_index")
+        if region:
+            bundle = region.bundle
+
             col = layout.column()
-
             if groom.scalp_object:
                 col.prop_search(bundle, "scalp_facemap", groom.scalp_object, "face_maps", text="")
             else:
@@ -144,7 +146,7 @@ class DATA_PT_custom_props_groom(DataButtonsPanel, PropertyPanel, Panel):
 
 
 classes = (
-    GROOM_UL_bundles,
+    GROOM_UL_regions,
     DATA_PT_context_groom,
     DATA_PT_groom,
     DATA_PT_groom_regions,

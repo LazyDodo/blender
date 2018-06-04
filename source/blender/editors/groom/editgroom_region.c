@@ -88,9 +88,10 @@ static void groom_bundle_section_init(
 	}
 }
 
-static GroomBundle* groom_add_bundle(float mat[4][4])
+static GroomRegion* groom_add_region(float mat[4][4])
 {
-	GroomBundle *bundle = MEM_callocN(sizeof(GroomBundle), "groom bundle");
+	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
+	GroomBundle *bundle = &region->bundle;
 	
 	bundle->numshapeverts = 6;
 	bundle->totsections = 4;
@@ -104,7 +105,7 @@ static GroomBundle* groom_add_bundle(float mat[4][4])
 	groom_bundle_section_init(&bundle->sections[2], &bundle->verts[numverts * 2], numverts, mat, 0.4, -0.2, 1.2);
 	groom_bundle_section_init(&bundle->sections[3], &bundle->verts[numverts * 3], numverts, mat, 0.01, 0.7, 1.6);
 	
-	return bundle;
+	return region;
 }
 
 static int region_add_exec(bContext *C, wmOperator *op)
@@ -123,8 +124,8 @@ static int region_add_exec(bContext *C, wmOperator *op)
 	float mat[4][4];
 	ED_object_new_primitive_matrix(C, obedit, loc, rot, mat);
 
-	GroomBundle *bundle = groom_add_bundle(mat);
-	BLI_addtail(&editgroom->bundles, bundle);
+	GroomRegion *region = groom_add_region(mat);
+	BLI_addtail(&editgroom->regions, region);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, obedit);
 	DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
@@ -174,17 +175,17 @@ static int region_bind_exec(bContext *C, wmOperator *op)
 	Groom *groom = ob->data;
 	const bool force_rebind = RNA_boolean_get(op->ptr, "force_rebind");
 
-	GroomBundle *bundle = CTX_data_pointer_get_type(C, "groom_bundle", &RNA_GroomBundle).data;
-	if (!bundle)
+	GroomRegion *region = CTX_data_pointer_get_type(C, "groom_region", &RNA_GroomRegion).data;
+	if (!region)
 	{
-		bundle = BLI_findlink(&groom->bundles, groom->active_bundle);
-		if (!bundle)
+		region = BLI_findlink(&groom->regions, groom->active_region);
+		if (!region)
 		{
 			return OPERATOR_CANCELLED;
 		}
 	}
 
-	BKE_groom_bundle_bind(groom, bundle, force_rebind);
+	BKE_groom_bundle_bind(groom, &region->bundle, force_rebind);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);

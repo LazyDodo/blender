@@ -82,8 +82,6 @@ typedef struct GroomHairGuide
 
 /* Bundle of hair strands following the same curve path */
 typedef struct GroomBundle {
-	struct GroomBundle *next, *prev;        /* Pointers for ListBase element */
-	
 	int flag;
 	int guides_count;                       /* Number of guides to generate (totguides can be smaller) */
 	
@@ -108,6 +106,14 @@ typedef struct GroomBundle {
 	char scalp_facemap_name[64];            /* Scalp face map to use as region, MAX_VGROUP_NAME */
 } GroomBundle;
 
+/* Region on the scalp that generates hair guide curves */
+typedef struct GroomRegion
+{
+	struct GroomRegion *next, *prev;        /* Pointers for ListBase element */
+	
+	GroomBundle bundle;                     /* Curve with sections for creating hair bundle */
+} GroomRegion;
+
 typedef enum GroomBundleFlag
 {
 	GM_BUNDLE_SELECT        = (1 << 0),
@@ -115,7 +121,7 @@ typedef enum GroomBundleFlag
 
 /* Editable groom data */
 typedef struct EditGroom {
-	ListBase bundles;           /* List of GroomBundle */
+	ListBase regions;           /* List of GroomBundle */
 } EditGroom;
 
 /* Groom curves for creating hair styles */
@@ -126,8 +132,8 @@ typedef struct Groom {
 	int curve_res;              /* Curve resolution */
 	int pad;
 	
-	ListBase bundles;           /* List of GroomBundle */
-	int active_bundle;          /* Index of active bundle in bundles list */
+	ListBase regions;           /* List of GroomRegion */
+	int active_region;          /* Index of active region in regions list */
 	int pad2;
 	
 	struct HairSystem *hair_system;                 /* Renderable hair geometry */

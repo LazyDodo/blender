@@ -8206,9 +8206,10 @@ static void direct_link_groom(FileData *fd, Groom *groom)
 	groom->adt= newdataadr(fd, groom->adt);
 	direct_link_animdata(fd, groom->adt);
 	
-	link_list(fd, &groom->bundles);
-	for (GroomBundle *bundle = groom->bundles.first; bundle; bundle = bundle->next)
+	link_list(fd, &groom->regions);
+	for (GroomRegion *region = groom->regions.first; region; region = region->next)
 	{
+		GroomBundle *bundle = &region->bundle;
 		bundle->sections = newdataadr(fd, bundle->sections);
 		bundle->verts = newdataadr(fd, bundle->verts);
 		bundle->scalp_region = newdataadr(fd, bundle->scalp_region);

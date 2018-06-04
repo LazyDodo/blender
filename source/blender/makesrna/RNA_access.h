@@ -283,6 +283,7 @@ extern StructRNA RNA_GlowSequence;
 extern StructRNA RNA_GreasePencil;
 extern StructRNA RNA_Groom;
 extern StructRNA RNA_GroomBundle;
+extern StructRNA RNA_GroomRegion;
 extern StructRNA RNA_HairGroup;
 extern StructRNA RNA_HairPattern;
 extern StructRNA RNA_Header;
