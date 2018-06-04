@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -72,6 +72,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
 
 #include "UI_resources.h"
 #include "UI_interface.h"
@@ -979,6 +980,21 @@ static void image_tools_region_listener(
 	}
 }
 
+static void image_tools_region_message_subscribe(
+        const struct bContext *UNUSED(C),
+        struct WorkSpace *UNUSED(workspace), struct Scene *UNUSED(scene),
+        struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
+        struct wmMsgBus *mbus)
+{
+	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
+		.owner = ar,
+		.user_data = ar,
+		.notify = ED_region_do_msg_notify_tag_redraw,
+	};
+	WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
+}
+
+
 /************************* header region **************************/
 
 /* add handlers, stuff you only do once or on area/region changes */
@@ -1100,6 +1116,7 @@ void ED_spacetype_image(void)
 	art->prefsizex = 220; // XXX
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->listener = image_tools_region_listener;
+	art->message_subscribe = image_tools_region_message_subscribe;
 	art->init = image_tools_region_init;
 	art->draw = image_tools_region_draw;
 	BLI_addhead(&st->regiontypes, art);

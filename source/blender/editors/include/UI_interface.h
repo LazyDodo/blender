@@ -476,7 +476,7 @@ void UI_popup_block_close(struct bContext *C, struct wmWindow *win, uiBlock *blo
  *
  * Functions for creating, drawing and freeing blocks. A Block is a
  * container of buttons and used for various purposes.
- * 
+ *
  * Begin/Define Buttons/End/Draw is the typical order in which these
  * function should be called, though for popup blocks Draw is left out.
  * Freeing blocks is done by the screen/ module automatically.
@@ -490,8 +490,6 @@ void UI_block_draw(const struct bContext *C, struct uiBlock *block);
 void UI_blocklist_update_window_matrix(const struct bContext *C, const struct ListBase *lb);
 void UI_blocklist_draw(const struct bContext *C, const struct ListBase *lb);
 void UI_block_update_from_old(const struct bContext *C, struct uiBlock *block);
-
-uiBlock *UI_block_find_in_region(const char *name, struct ARegion *ar);
 
 void UI_block_emboss_set(uiBlock *block, char dt);
 
@@ -824,9 +822,10 @@ void UI_panels_begin(const struct bContext *C, struct ARegion *ar);
 void UI_panels_end(const struct bContext *C, struct ARegion *ar, int *x, int *y);
 void UI_panels_draw(const struct bContext *C, struct ARegion *ar);
 
-struct Panel *UI_panel_find_by_type(struct ARegion *ar, struct PanelType *pt);
-struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, uiBlock *block,
-                             struct PanelType *pt, struct Panel *pa, bool *r_open);
+struct Panel *UI_panel_find_by_type(struct ListBase *lb, struct PanelType *pt);
+struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, struct ListBase *lb,
+                             uiBlock *block, struct PanelType *pt, struct Panel *pa,
+                             bool *r_open);
 void UI_panel_end(uiBlock *block, int width, int height);
 void UI_panels_scale(struct ARegion *ar, float new_width);
 

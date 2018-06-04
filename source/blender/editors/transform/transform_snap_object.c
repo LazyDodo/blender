@@ -1633,6 +1633,7 @@ static short snapCamera(
 {
 	short retval = 0;
 
+	Depsgraph *depsgraph = sctx->depsgraph;
 	Scene *scene = sctx->scene;
 
 	bool is_persp = snapdata->view_proj == VIEW_PROJ_PERSP;
@@ -1657,7 +1658,7 @@ static short snapCamera(
 
 	tracking = &clip->tracking;
 
-	BKE_tracking_get_camera_object_matrix(scene, object, orig_camera_mat);
+	BKE_tracking_get_camera_object_matrix(depsgraph, scene, object, orig_camera_mat);
 
 	invert_m4_m4(orig_camera_imat, orig_camera_mat);
 	invert_m4_m4(imat, obmat);
@@ -2466,7 +2467,11 @@ static short transform_snap_context_project_view3d_mixed_impl(
 	const ARegion *ar = sctx->v3d_data.ar;
 	const RegionView3D *rv3d = ar->regiondata;
 
-	if (snap_to_flag & SCE_SNAP_MODE_FACE || params->use_occlusion_test) {
+	bool use_occlusion_test =
+	        params->use_occlusion_test &&
+	        !(sctx->v3d_data.v3d->shading.flag & V3D_SHADING_XRAY);
+
+	if (snap_to_flag & SCE_SNAP_MODE_FACE || use_occlusion_test) {
 		float ray_start[3], ray_normal[3];
 
 		if (!ED_view3d_win_to_ray_ex(

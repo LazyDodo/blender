@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -828,7 +828,7 @@ static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 	}
 	/* rect needed for mouse pointer test */
 	BLI_rcti_init(&az->rect, az->x1, az->x2, az->y1, az->y2);
-}	
+}
 
 static void region_azone_edge_initialize(ScrArea *sa, ARegion *ar, AZEdge edge, const bool is_fullscreen)
 {
@@ -848,7 +848,7 @@ static void region_azone_edge_initialize(ScrArea *sa, ARegion *ar, AZEdge edge, 
 	if (is_hidden) {
 		region_azone_tab_plus(sa, az, ar);
 	}
-	else {
+	else if (!is_hidden && (ar->regiontype != RGN_TYPE_HEADER)) {
 		region_azone_edge(az, ar);
 	}
 }
@@ -1006,19 +1006,19 @@ static void region_overlap_fix(ScrArea *sa, ARegion *ar)
 }
 
 /* overlapping regions only in the following restricted cases */
-static bool region_is_overlap(ScrArea *sa, ARegion *ar)
+bool ED_region_is_overlap(int spacetype, int regiontype)
 {
 	if (U.uiflag2 & USER_REGION_OVERLAP) {
-		if (ELEM(sa->spacetype, SPACE_VIEW3D, SPACE_SEQ, SPACE_IMAGE)) {
-			if (ELEM(ar->regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_TOOL_PROPS))
+		if (ELEM(spacetype, SPACE_VIEW3D, SPACE_SEQ, SPACE_IMAGE)) {
+			if (ELEM(regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_TOOL_PROPS))
 				return 1;
 
-			if (ELEM(sa->spacetype, SPACE_VIEW3D, SPACE_IMAGE)) {
-				if (ar->regiontype == RGN_TYPE_HEADER)
+			if (ELEM(spacetype, SPACE_VIEW3D, SPACE_IMAGE)) {
+				if (regiontype == RGN_TYPE_HEADER)
 					return 1;
 			}
-			else if (sa->spacetype == SPACE_SEQ) {
-				if (ar->regiontype == RGN_TYPE_PREVIEW)
+			else if (spacetype == SPACE_SEQ) {
+				if (regiontype == RGN_TYPE_PREVIEW)
 					return 1;
 			}
 		}
@@ -1047,7 +1047,7 @@ static void region_rect_recursive(wmWindow *win, ScrArea *sa, ARegion *ar, rcti 
 	alignment = ar->alignment & ~RGN_SPLIT_PREV;
 	
 	/* set here, assuming userpref switching forces to call this again */
-	ar->overlap = region_is_overlap(sa, ar);
+	ar->overlap = ED_region_is_overlap(sa->spacetype, ar->regiontype);
 
 	/* clear state flags first */
 	ar->flag &= ~RGN_FLAG_TOO_SMALL;
@@ -1796,21 +1796,112 @@ static void region_clear_color(const bContext *C, const ARegion *ar, ThemeColorI
 	}
 }
 
-void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int contextnr, const bool vertical)
+BLI_INLINE bool streq_array_any(const char *s, const char *arr[])
+{
+	for (uint i = 0; arr[i]; i++) {
+		if (STREQ(arr[i], s)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void ed_panel_draw(const bContext *C,
+                          ScrArea *sa,
+                          ARegion *ar,
+                          ListBase *lb,
+                          PanelType *pt,
+                          Panel *panel,
+                          int w,
+                          int em,
+                          bool vertical)
+{
+	uiStyle *style = UI_style_get_dpi();
+
+	/* draw panel */
+	uiBlock *block = UI_block_begin(C, ar, pt->idname, UI_EMBOSS);
+
+	bool open;
+	panel = UI_panel_begin(sa, ar, lb, block, pt, panel, &open);
+
+	/* bad fixed values */
+	int triangle = (int)(UI_UNIT_Y * 1.1f);
+	int xco, yco, h = 0;
+
+	if (pt->draw_header && !(pt->flag & PNL_NO_HEADER) && (open || vertical)) {
+		/* for enabled buttons */
+		panel->layout = UI_block_layout(
+		        block, UI_LAYOUT_HORIZONTAL, UI_LAYOUT_HEADER,
+		        triangle, (UI_UNIT_Y * 1.1f) + style->panelspace, UI_UNIT_Y, 1, 0, style);
+
+		pt->draw_header(C, panel);
+
+		UI_block_layout_resolve(block, &xco, &yco);
+		panel->labelofs = xco - triangle;
+		panel->layout = NULL;
+	}
+	else {
+		panel->labelofs = 0;
+	}
+
+	if (open) {
+		short panelContext;
+
+		/* panel context can either be toolbar region or normal panels region */
+		if (ar->regiontype == RGN_TYPE_TOOLS)
+			panelContext = UI_LAYOUT_TOOLBAR;
+		else
+			panelContext = UI_LAYOUT_PANEL;
+
+		panel->layout = UI_block_layout(
+		        block, UI_LAYOUT_VERTICAL, panelContext,
+		        style->panelspace, 0, w - 2 * style->panelspace, em, 0, style);
+
+		pt->draw(C, panel);
+
+		UI_block_layout_resolve(block, &xco, &yco);
+		panel->layout = NULL;
+
+		if (yco != 0) {
+			h = -yco + 2 * style->panelspace;
+		}
+	}
+
+	UI_block_end(C, block);
+
+	/* Draw child panels. */
+	if (open) {
+		for (LinkData *link = pt->children.first; link; link = link->next) {
+			PanelType *child_pt = link->data;
+			Panel *child_panel = UI_panel_find_by_type(&panel->children, child_pt);
+
+			if (child_pt->draw && (!child_pt->poll || child_pt->poll(C, child_pt))) {
+				ed_panel_draw(C, sa, ar, &panel->children, child_pt, child_panel, w, em, vertical);
+			}
+		}
+	}
+
+	UI_panel_end(block, w, h);
+}
+
+/**
+ * \param contexts: A NULL terminated array of context strings to match against.
+ * Matching against any of these strings will draw the panel.
+ * Can be NULL to skip context checks.
+ */
+void ED_region_panels(const bContext *C, ARegion *ar, const char *contexts[], int contextnr, const bool vertical)
 {
 	const WorkSpace *workspace = CTX_wm_workspace(C);
 	ScrArea *sa = CTX_wm_area(C);
-	uiStyle *style = UI_style_get_dpi();
-	uiBlock *block;
 	PanelType *pt;
-	Panel *panel;
 	View2D *v2d = &ar->v2d;
 	View2DScrollers *scrollers;
-	int x, y, xco, yco, w, em, triangle;
+	int x, y, w, em;
 	bool is_context_new = 0;
 	int scroll;
 
-	bool use_category_tabs = (ELEM(ar->regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI));  /* XXX, should use some better check? */
+	/* XXX, should use some better check? */
+	bool use_category_tabs = (ELEM(ar->regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_WINDOW));
 	/* offset panels for small vertical tab area */
 	const char *category = NULL;
 	const int category_tabs_width = UI_PANEL_CATEGORY_MARGIN_WIDTH;
@@ -1843,8 +1934,13 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int c
 
 	/* collect panels to draw */
 	for (pt = ar->type->paneltypes.last; pt; pt = pt->prev) {
+		/* Only draw top level panels. */
+		if (pt->parent) {
+			continue;
+		}
+
 		/* verify context */
-		if (context && pt->context[0] && !STREQ(context, pt->context)) {
+		if (contexts && pt->context[0] && !streq_array_any(pt->context, contexts)) {
 			continue;
 		}
 
@@ -1904,9 +2000,7 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int c
 
 	BLI_SMALLSTACK_ITER_BEGIN(pt_stack, pt)
 	{
-		bool open;
-
-		panel = UI_panel_find_by_type(ar, pt);
+		Panel *panel = UI_panel_find_by_type(&ar->panels, pt);
 
 		if (use_category_tabs && pt->category[0] && !STREQ(category, pt->category)) {
 			if ((panel == NULL) || ((panel->flag & PNL_PIN) == 0)) {
@@ -1914,56 +2008,7 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *context, int c
 			}
 		}
 
-		/* draw panel */
-		block = UI_block_begin(C, ar, pt->idname, UI_EMBOSS);
-		panel = UI_panel_begin(sa, ar, block, pt, panel, &open);
-
-		/* bad fixed values */
-		triangle = (int)(UI_UNIT_Y * 1.1f);
-
-		if (pt->draw_header && !(pt->flag & PNL_NO_HEADER) && (open || vertical)) {
-			/* for enabled buttons */
-			panel->layout = UI_block_layout(
-			        block, UI_LAYOUT_HORIZONTAL, UI_LAYOUT_HEADER,
-			        triangle, (UI_UNIT_Y * 1.1f) + style->panelspace, UI_UNIT_Y, 1, 0, style);
-
-			pt->draw_header(C, panel);
-
-			UI_block_layout_resolve(block, &xco, &yco);
-			panel->labelofs = xco - triangle;
-			panel->layout = NULL;
-		}
-		else {
-			panel->labelofs = 0;
-		}
-
-		if (open) {
-			short panelContext;
-
-			/* panel context can either be toolbar region or normal panels region */
-			if (ar->regiontype == RGN_TYPE_TOOLS)
-				panelContext = UI_LAYOUT_TOOLBAR;
-			else
-				panelContext = UI_LAYOUT_PANEL;
-
-			panel->layout = UI_block_layout(
-			        block, UI_LAYOUT_VERTICAL, panelContext,
-			        style->panelspace, 0, w - 2 * style->panelspace, em, 0, style);
-
-			pt->draw(C, panel);
-
-			UI_block_layout_resolve(block, &xco, &yco);
-			panel->layout = NULL;
-
-			yco -= 2 * style->panelspace;
-			UI_panel_end(block, w, -yco);
-		}
-		else {
-			yco = 0;
-			UI_panel_end(block, w, 0);
-		}
-
-		UI_block_end(C, block);
+		ed_panel_draw(C, sa, ar, &ar->panels, pt, panel, w, em, vertical);
 	}
 	BLI_SMALLSTACK_ITER_END;
 
@@ -2242,8 +2287,7 @@ void ED_region_info_draw_multiline(ARegion *ar, const char *text_array[], float 
 		}
 	}
 
-	rect.ymin = BLI_rcti_size_y(&ar->winrct) - header_height * num_lines;
-	rect.ymax = BLI_rcti_size_y(&ar->winrct);
+	rect.ymin = rect.ymax - header_height * num_lines;
 
 	/* setup scissor */
 	glGetIntegerv(GL_SCISSOR_BOX, scissor);

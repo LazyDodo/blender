@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -382,10 +382,7 @@ void ED_keymap_mesh(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "MESH_OT_faces_select_linked_flat", FKEY, KM_PRESS, (KM_CTRL | KM_SHIFT | KM_ALT), 0);
 
 	WM_keymap_add_menu(keymap, "VIEW3D_MT_edit_mesh_select_similar", GKEY, KM_PRESS, KM_SHIFT, 0);
-	
-	/* selection mode */
-	WM_keymap_add_menu(keymap, "VIEW3D_MT_edit_mesh_select_mode", TABKEY, KM_PRESS, KM_CTRL, 0);
-	
+
 	/* hide */
 	kmi = WM_keymap_add_item(keymap, "MESH_OT_hide", HKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "unselected", false);

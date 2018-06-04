@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -608,21 +608,21 @@ static ARegion *screen_find_region_type(bContext *C, int type)
 
 /* operator state vars used:  
  * none
- * 
+ *
  * functions:
- * 
+ *
  * apply() set actionzone event
- * 
+ *
  * exit()	free customdata
- * 
+ *
  * callbacks:
- * 
+ *
  * exec()	never used
- * 
- * invoke() check if in zone  
+ *
+ * invoke() check if in zone
  * add customdata, put mouseco and area in it
  * add modal handler
- * 
+ *
  * modal()	accept modal events while doing it
  * call apply() with gesture info, active window, nonactive window
  * call exit() and remove handler when LMB confirm
@@ -1154,26 +1154,26 @@ static void SCREEN_OT_area_dupli(wmOperatorType *ot)
 /* operator state vars used:  
  * x, y             mouse coord near edge
  * delta            movement of edge
- * 
+ *
  * functions:
- * 
+ *
  * init()   set default property values, find edge based on mouse coords, test
  * if the edge can be moved, select edges, calculate min and max movement
- * 
+ *
  * apply()	apply delta on selection
- * 
+ *
  * exit()	cleanup, send notifier
- * 
+ *
  * cancel() cancel moving
- * 
+ *
  * callbacks:
- * 
+ *
  * exec()   execute without any user interaction, based on properties
  * call init(), apply(), exit()
- * 
+ *
  * invoke() gets called on mouse click near edge
  * call init(), add handler
- * 
+ *
  * modal()  accept modal events while doing it
  * call apply() with delta motion
  * call exit() and remove handler
@@ -1185,6 +1185,8 @@ typedef struct sAreaMoveData {
 	enum AreaMoveSnapType {
 		/* Snapping disabled */
 		SNAP_NONE = 0,
+		/* Snap to an invisible grid with a unit defined in AREAGRID */
+		SNAP_AREAGRID,
 		/* Snap to mid-point and adjacent edges. */
 		SNAP_MIDPOINT_AND_ADJACENT,
 		/* Snap to either bigger or smaller, nothing in-between (used for
@@ -1323,7 +1325,7 @@ static int area_move_init(bContext *C, wmOperator *op)
 	                     &md->bigger, &md->smaller,
 	                     &use_bigger_smaller_snap);
 
-	md->snap_type = use_bigger_smaller_snap ? SNAP_BIGGER_SMALLER_ONLY : SNAP_NONE;
+	md->snap_type = use_bigger_smaller_snap ? SNAP_BIGGER_SMALLER_ONLY : SNAP_AREAGRID;
 
 	return 1;
 }
@@ -1334,30 +1336,43 @@ static int area_snap_calc_location(
         const int bigger, const int smaller)
 {
 	BLI_assert(snap_type != SNAP_NONE);
-	if (snap_type == SNAP_BIGGER_SMALLER_ONLY) {
-		return ((origval + delta) >= bigger) ? bigger : smaller;
-	}
-
 	int final_loc = -1;
 	const int m_loc = origval + delta;
-	const int axis = (dir == 'v') ? 0 : 1;
-	int snap_dist;
-	int dist;
-	{
-		/* Test the snap to middle. */
-		int middle = origval + (bigger - smaller) / 2;
-		middle -= (middle % AREAGRID);
 
-		snap_dist = abs(m_loc - middle);
-		final_loc = middle;
-	}
+	switch (snap_type) {
+		case SNAP_AREAGRID:
+			final_loc = m_loc;
+			if (delta != bigger && delta != -smaller) {
+				final_loc -= (m_loc % AREAGRID);
+			}
+			break;
 
-	for (const ScrVert *v1 = sc->vertbase.first; v1; v1 = v1->next) {
-		if (v1->editflag) {
-			const int v_loc = (&v1->vec.x)[!axis];
+		case SNAP_BIGGER_SMALLER_ONLY:
+			final_loc = (m_loc >= bigger) ? bigger : smaller;
+			break;
 
-			for (const ScrVert *v2 = sc->vertbase.first; v2; v2 = v2->next) {
-				if (!v2->editflag) {
+		case SNAP_MIDPOINT_AND_ADJACENT:
+		{
+			const int axis = (dir == 'v') ? 0 : 1;
+			int snap_dist;
+			int dist;
+			{
+				/* Test the snap to middle. */
+				int middle = origval + (bigger - smaller) / 2;
+				snap_dist = abs(m_loc - middle);
+				final_loc = middle;
+			}
+
+			for (const ScrVert *v1 = sc->vertbase.first; v1; v1 = v1->next) {
+				if (!v1->editflag) {
+					continue;
+				}
+				const int v_loc = (&v1->vec.x)[!axis];
+
+				for (const ScrVert *v2 = sc->vertbase.first; v2; v2 = v2->next) {
+					if (v2->editflag) {
+						continue;
+					}
 					if (v_loc == (&v2->vec.x)[!axis]) {
 						const int v_loc2 = (&v2->vec.x)[axis];
 						/* Do not snap to the vertices at the ends. */
@@ -1371,7 +1386,10 @@ static int area_snap_calc_location(
 					}
 				}
 			}
+			break;
 		}
+		case SNAP_NONE:
+			break;
 	}
 
 	return final_loc;
@@ -1393,9 +1411,6 @@ static void area_move_apply_do(
 
 	if (snap_type == SNAP_NONE) {
 		final_loc = origval + delta;
-		if (delta != bigger && delta != -smaller) {
-			final_loc -= (final_loc % AREAGRID);
-		}
 	}
 	else {
 		final_loc = area_snap_calc_location(sc, snap_type, delta, origval, dir, bigger, smaller);
@@ -1526,13 +1541,14 @@ static int area_move_modal(bContext *C, wmOperator *op, const wmEvent *event)
 					return OPERATOR_CANCELLED;
 
 				case KM_MODAL_SNAP_ON:
-					if (md->snap_type == SNAP_NONE) {
+					if (md->snap_type != SNAP_BIGGER_SMALLER_ONLY) {
 						md->snap_type = SNAP_MIDPOINT_AND_ADJACENT;
 					}
 					break;
+
 				case KM_MODAL_SNAP_OFF:
-					if (md->snap_type == SNAP_MIDPOINT_AND_ADJACENT) {
-						md->snap_type = SNAP_NONE;
+					if (md->snap_type != SNAP_BIGGER_SMALLER_ONLY) {
+						md->snap_type = SNAP_AREAGRID;
 					}
 					break;
 			}
@@ -1652,7 +1668,7 @@ static int area_split_init(bContext *C, wmOperator *op)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	sAreaSplitData *sd;
-	int areaminy = ED_area_headersize() + 1;
+	int areaminy = ED_area_headersize();
 	int dir;
 	
 	/* required context */
@@ -1670,9 +1686,15 @@ static int area_split_init(bContext *C, wmOperator *op)
 	op->customdata = sd;
 	
 	sd->sarea = sa;
-	sd->origsize = dir == 'v' ? sa->winx : sa->winy;
-	sd->origmin = dir == 'v' ? sa->totrct.xmin : sa->totrct.ymin;
-	
+	if (dir == 'v') {
+		sd->origmin = sa->v1->vec.x;
+		sd->origsize = sa->v4->vec.x - sd->origmin;
+	}
+	else {
+		sd->origmin = sa->v1->vec.y;
+		sd->origsize = sa->v2->vec.y - sd->origmin;
+	}
+
 	return 1;
 }
 
@@ -1991,12 +2013,12 @@ static int area_split_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			if (sd->sarea) {
 				ScrArea *sa = sd->sarea;
 				if (dir == 'v') {
-					sd->origsize = sa->winx;
-					sd->origmin = sa->totrct.xmin;
+					sd->origmin = sa->v1->vec.x;
+					sd->origsize = sa->v4->vec.x - sd->origmin;
 				}
 				else {
-					sd->origsize = sa->winy;
-					sd->origmin = sa->totrct.ymin;
+					sd->origmin = sa->v1->vec.y;
+					sd->origsize = sa->v2->vec.y - sd->origmin;
 				}
 
 				if (sd->do_snap) {
@@ -2771,25 +2793,25 @@ static void SCREEN_OT_screen_full_area(wmOperatorType *ot)
 /* operator state vars used:  
  * x1, y1     mouse coord in first area, which will disappear
  * x2, y2     mouse coord in 2nd area, which will become joined
- * 
+ *
  * functions:
- * 
- * init()   find edge based on state vars 
- * test if the edge divides two areas, 
+ *
+ * init()   find edge based on state vars
+ * test if the edge divides two areas,
  * store active and nonactive area,
- * 
+ *
  * apply()  do the actual join
- * 
+ *
  * exit()	cleanup, send notifier
- * 
+ *
  * callbacks:
- * 
- * exec()	calls init, apply, exit 
- * 
+ *
+ * exec()	calls init, apply, exit
+ *
  * invoke() sets mouse coords in x,y
  * call init()
  * add modal handler
- * 
+ *
  * modal()	accept modal events while doing it
  * call apply() with active window and nonactive window
  * call exit() and remove handler when LMB confirm
@@ -3577,6 +3599,8 @@ void ED_screens_header_tools_menu_create(bContext *C, uiLayout *layout, void *UN
 	ARegion *ar = CTX_wm_region(C);
 	const char *but_flip_str = (ar->alignment == RGN_ALIGN_TOP) ? IFACE_("Flip to Bottom") : IFACE_("Flip to Top");
 
+	uiItemO(layout, IFACE_("Toggle Header"), ICON_NONE, "SCREEN_OT_header");
+
 	/* default is WM_OP_INVOKE_REGION_WIN, which we don't want here. */
 	uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
 
@@ -4075,21 +4099,21 @@ static void SCREEN_OT_animation_cancel(wmOperatorType *ot)
  * \{ */
 
 /* operator state vars used: (added by default WM callbacks)   
- * xmin, ymin     
- * xmax, ymax     
- * 
+ * xmin, ymin
+ * xmax, ymax
+ *
  * customdata: the wmGesture pointer
- * 
+ *
  * callbacks:
- * 
+ *
  * exec()	has to be filled in by user
- * 
+ *
  * invoke() default WM function
  * adds modal handler
- * 
- * modal()	default WM function 
+ *
+ * modal()	default WM function
  * accept modal events while doing it, calls exec(), handles ESC and border drawing
- * 
+ *
  * poll()	has to be filled in by user for context
  */
 #if 0
@@ -4533,11 +4557,10 @@ static int space_context_cycle_invoke(bContext *C, wmOperator *op, const wmEvent
 	PointerRNA ptr;
 	PropertyRNA *prop;
 	context_cycle_prop_get(CTX_wm_screen(C), CTX_wm_area(C), &ptr, &prop);
-
 	const int old_context = RNA_property_enum_get(&ptr, prop);
 	const int new_context = RNA_property_enum_step(
-	                  C, &ptr, prop, old_context,
-	                  direction == SPACE_CONTEXT_CYCLE_PREV ? -1 : 1);
+	        C, &ptr, prop, old_context,
+	        direction == SPACE_CONTEXT_CYCLE_PREV ? -1 : 1);
 	RNA_property_enum_set(&ptr, prop, new_context);
 	RNA_property_update(C, &ptr, prop);
 
@@ -4554,6 +4577,51 @@ static void SCREEN_OT_space_context_cycle(wmOperatorType *ot)
 	/* api callbacks */
 	ot->invoke = space_context_cycle_invoke;
 	ot->poll = space_context_cycle_poll;
+
+	ot->flag = 0;
+
+	RNA_def_enum(ot->srna, "direction", space_context_cycle_direction, SPACE_CONTEXT_CYCLE_NEXT, "Direction",
+	             "Direction to cycle through");
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Workspace Cycle Operator
+ * \{ */
+
+static int space_workspace_cycle_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	wmWindow *win = CTX_wm_window(C);
+	if (WM_window_is_temp_screen(win)) {
+		return OPERATOR_CANCELLED;
+	}
+	
+	Main *bmain = CTX_data_main(C);
+	const int direction = RNA_enum_get(op->ptr, "direction");
+	WorkSpace *workspace_src = WM_window_get_active_workspace(win);
+	WorkSpace *workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? workspace_src->id.prev : workspace_src->id.next;
+	if (workspace_dst == NULL) {
+		workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? bmain->workspaces.last : bmain->workspaces.first;
+	}
+	if (workspace_src != workspace_dst) {
+		win->workspace_hook->temp_workspace_store = workspace_dst;
+		WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, workspace_dst);
+		win->workspace_hook->temp_workspace_store = NULL;
+	}
+	return OPERATOR_FINISHED;
+}
+
+static void SCREEN_OT_workspace_cycle(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Cycle Workspace";
+	ot->description = "Cycle through workspaces";
+	ot->idname = "SCREEN_OT_workspace_cycle";
+
+	/* api callbacks */
+	ot->invoke = space_workspace_cycle_invoke;
+	ot->poll = ED_operator_screenactive;;
 
 	ot->flag = 0;
 
@@ -4599,6 +4667,7 @@ void ED_operatortypes_screen(void)
 	WM_operatortype_append(SCREEN_OT_drivers_editor_show);
 	WM_operatortype_append(SCREEN_OT_region_blend);
 	WM_operatortype_append(SCREEN_OT_space_context_cycle);
+	WM_operatortype_append(SCREEN_OT_workspace_cycle);
 	
 	/*frame changes*/
 	WM_operatortype_append(SCREEN_OT_frame_offset);
@@ -4728,6 +4797,11 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_space_context_cycle", TABKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_NEXT);
 	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_space_context_cycle", TABKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
+	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_PREV);
+
+	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", TABKEY, KM_PRESS, KM_CTRL, 0);
+	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_NEXT);
+	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", TABKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
 	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_PREV);
 
 	/* tests */

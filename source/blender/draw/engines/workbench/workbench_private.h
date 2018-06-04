@@ -31,21 +31,24 @@
 
 #include "DNA_image_types.h"
 #include "DNA_view3d_types.h"
+#include "DNA_world_types.h"
 
 #include "DRW_render.h"
 
 
 #define WORKBENCH_ENGINE "BLENDER_WORKBENCH"
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
-#define MAX_SHADERS 255
+#define MAX_SHADERS (1 << 10)
 
 
 #define OBJECT_ID_PASS_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE)
 #define SHADOW_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_SHADOW)
-#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (wpd->shading.light & V3D_LIGHTING_STUDIO || SHADOW_ENABLED(wpd))
+#define SPECULAR_HIGHLIGHT_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT)
+#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (wpd->shading.light & V3D_LIGHTING_STUDIO || SHADOW_ENABLED(wpd) || SPECULAR_HIGHLIGHT_ENABLED	(wpd))
 #define NORMAL_ENCODING_ENABLED() (true)
 #define WORKBENCH_REVEALAGE_ENABLED
 #define STUDIOLIGHT_ORIENTATION_WORLD_ENABLED(wpd) (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD)
+#define STUDIOLIGHT_ORIENTATION_CAMERA_ENABLED(wpd) (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_CAMERA)
 
 
 typedef struct WORKBENCH_FramebufferList {
@@ -69,6 +72,7 @@ typedef struct WORKBENCH_StorageList {
 typedef struct WORKBENCH_PassList {
 	/* deferred rendering */
 	struct DRWPass *prepass_pass;
+	struct DRWPass *prepass_hair_pass;
 	struct DRWPass *shadow_depth_pass_pass;
 	struct DRWPass *shadow_depth_pass_mani_pass;
 	struct DRWPass *shadow_depth_fail_pass;
@@ -96,6 +100,12 @@ typedef struct WORKBENCH_Data {
 	WORKBENCH_StorageList *stl;
 } WORKBENCH_Data;
 
+typedef struct WORKBENCH_UBO_Light {
+	float light_direction_vs[4];
+	float specular_color[3];
+	float energy;
+} WORKBENCH_UBO_Light;
+
 typedef struct WORKBENCH_UBO_World {
 	float diffuse_light_x_pos[4];
 	float diffuse_light_x_neg[4];
@@ -106,16 +116,32 @@ typedef struct WORKBENCH_UBO_World {
 	float background_color_low[4];
 	float background_color_high[4];
 	float object_outline_color[4];
+	float light_direction_vs[4];
+	WORKBENCH_UBO_Light lights[3];
+	int num_lights;
+	int pad[3];
 } WORKBENCH_UBO_World;
 BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_World, 16)
+
+typedef struct WORKBENCH_UBO_Material {
+	float diffuse_color[4];
+	float specular_color[4];
+	float roughness;
+	float pad[3];
+} WORKBENCH_UBO_Material;
+BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_Material, 16)
 
 typedef struct WORKBENCH_PrivateData {
 	struct GHash *material_hash;
 	struct GPUShader *prepass_solid_sh;
+	struct GPUShader *prepass_solid_hair_sh;
 	struct GPUShader *prepass_texture_sh;
+	struct GPUShader *prepass_texture_hair_sh;
 	struct GPUShader *composite_sh;
 	struct GPUShader *transparent_accum_sh;
+	struct GPUShader *transparent_accum_hair_sh;
 	struct GPUShader *transparent_accum_texture_sh;
+	struct GPUShader *transparent_accum_texture_hair_sh;
 	View3DShading shading;
 	StudioLight *studio_light;
 	int drawtype;
@@ -139,7 +165,9 @@ typedef struct WORKBENCH_PrivateData {
 
 typedef struct WORKBENCH_MaterialData {
 	/* Solid color */
-	float color[4];
+	WORKBENCH_UBO_Material material_data;
+	struct GPUUniformBuffer *material_ubo;
+
 	int object_id;
 	int drawtype;
 	Image *ima;
@@ -193,10 +221,10 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob);
 void workbench_forward_cache_finish(WORKBENCH_Data *vedata);
 
 /* workbench_materials.c */
-char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype);
-void workbench_material_get_solid_color(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, float *color);
+char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair);
+void workbench_material_update_data(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, WORKBENCH_MaterialData *data);
 uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template);
-int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype);
+int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair);
 void workbench_material_set_normal_world_matrix(
         DRWShadingGroup *grp, WORKBENCH_PrivateData *wpd, float persistent_matrix[3][3]);
 
@@ -209,6 +237,7 @@ bool studiolight_camera_in_object_shadow(WORKBENCH_PrivateData *wpd, Object *ob,
 /* workbench_data.c */
 void workbench_private_data_init(WORKBENCH_PrivateData *wpd);
 void workbench_private_data_free(WORKBENCH_PrivateData *wpd);
+void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, float light_direction[3]);
 
 extern DrawEngineType draw_engine_workbench_solid;
 extern DrawEngineType draw_engine_workbench_transparent;

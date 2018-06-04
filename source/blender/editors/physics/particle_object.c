@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -1044,7 +1044,7 @@ static bool copy_particle_systems_to_object(const bContext *C,
 	psys_start = totpsys > 0 ? tmp_psys[0] : NULL;
 	
 	/* get the DM (psys and their modifiers have not been appended yet) */
-	/* TODO(Sybren): use mesh_evaluated instead */
+	/* TODO(Sybren): use mesh_eval instead */
 	DerivedMesh *final_dm = mesh_get_derived_final(depsgraph, scene, ob_to, cdmask);
 	final_mesh = BKE_id_new_nomain(ID_ME, NULL);
 	DM_to_mesh(final_dm, final_mesh, ob_to, CD_MASK_EVERYTHING, false);

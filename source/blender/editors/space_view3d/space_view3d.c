@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -312,7 +312,6 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	
 	v3d = MEM_callocN(sizeof(View3D), "initview3d");
 	v3d->spacetype = SPACE_VIEW3D;
-	v3d->blockscale = 0.7f;
 	v3d->lay = v3d->layact = 1;
 	if (scene) {
 		v3d->lay = v3d->layact = scene->lay;
@@ -323,8 +322,10 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->gridlines = 16;
 	v3d->gridsubdiv = 10;
 	v3d->drawtype = OB_SOLID;
+	v3d->shading.flag = V3D_SHADING_SPECULAR_HIGHLIGHT;
 	v3d->shading.light = V3D_LIGHTING_STUDIO;
-	v3d->shading.shadow_intensity = 0.5;
+	v3d->shading.shadow_intensity = 0.5f;
+	v3d->shading.xray_alpha = 0.5f;
 	copy_v3_fl(v3d->shading.single_color, 0.8f);
 
 	v3d->overlay.flag = V3D_OVERLAY_LOOK_DEV;
@@ -1106,6 +1107,20 @@ static void view3d_main_region_message_subscribe(
 	}
 }
 
+static void view3d_tools_region_message_subscribe(
+        const struct bContext *UNUSED(C),
+        struct WorkSpace *UNUSED(workspace), struct Scene *UNUSED(scene),
+        struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
+        struct wmMsgBus *mbus)
+{
+	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
+		.owner = ar,
+		.user_data = ar,
+		.notify = ED_region_do_msg_notify_tag_redraw,
+	};
+	WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
+}
+
 /* concept is to retrieve cursor type context-less */
 static void view3d_main_region_cursor(wmWindow *win, ScrArea *sa, ARegion *ar)
 {
@@ -1342,7 +1357,7 @@ static void view3d_tools_region_init(wmWindowManager *wm, ARegion *ar)
 
 static void view3d_tools_region_draw(const bContext *C, ARegion *ar)
 {
-	ED_region_panels(C, ar, CTX_data_mode_string(C), -1, true);
+	ED_region_panels(C, ar, (const char * []){CTX_data_mode_string(C), NULL}, -1, true);
 }
 
 /* area (not region) level listener */
@@ -1524,6 +1539,7 @@ void ED_spacetype_view3d(void)
 	art->prefsizey = 50; /* XXX */
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->listener = view3d_buttons_region_listener;
+	art->message_subscribe = view3d_tools_region_message_subscribe;
 	art->snap_size = view3d_tools_region_snap_size;
 	art->init = view3d_tools_region_init;
 	art->draw = view3d_tools_region_draw;

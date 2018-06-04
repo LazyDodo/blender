@@ -782,7 +782,6 @@ typedef struct EEVEE_PrivateData {
 	struct DRWShadingGroup *cube_display_shgrp;
 	struct DRWShadingGroup *planar_display_shgrp;
 	struct GHash *material_hash;
-	struct GHash *hair_material_hash;
 	float background_alpha; /* TODO find a better place for this. */
 	/* For planar probes */
 	float planar_texel_size[2];
@@ -814,6 +813,7 @@ struct GPUTexture *EEVEE_materials_get_util_tex(void); /* XXX */
 void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, EEVEE_FramebufferList *fbl);
 void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, Object *ob, bool *cast_shadow);
+void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, Object *ob, bool *cast_shadow);
 void EEVEE_materials_cache_finish(EEVEE_Data *vedata);
 struct GPUMaterial *EEVEE_material_world_lightprobe_get(struct Scene *scene, struct World *wo);
 struct GPUMaterial *EEVEE_material_world_background_get(struct Scene *scene, struct World *wo);
@@ -942,7 +942,7 @@ void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct R
 void EEVEE_render_update_passes(struct RenderEngine *engine, struct Scene *scene, struct ViewLayer *view_layer);
 
 /** eevee_lookdev.c */
-void EEVEE_lookdev_cache_init(EEVEE_Data *vedata, DRWShadingGroup **grp, GPUShader *shader, DRWPass *pass, EEVEE_LightProbesInfo *pinfo);
+void EEVEE_lookdev_cache_init(EEVEE_Data *vedata, DRWShadingGroup **grp, GPUShader *shader, DRWPass *pass, struct World *world, EEVEE_LightProbesInfo *pinfo);
 void EEVEE_lookdev_draw_background(EEVEE_Data *vedata);
 
 /* Shadow Matrix */
