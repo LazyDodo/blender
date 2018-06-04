@@ -137,12 +137,6 @@ void BKE_gpencil_layer_delete(struct bGPdata *gpd, struct bGPDlayer *gpl);
 struct Material *BKE_gpencil_get_material_from_brush(struct Brush *brush);
 struct Material *BKE_gpencil_material_ensure(struct Main *bmain, struct Object *ob);
 
-/* Palettes - Deprecated (2.78-2.79) Only to convert old files  */
-void BKE_gpencil_free_palettes(struct ListBase *list);
-
-struct bGPDpalette *BKE_gpencil_palette_addnew(struct bGPdata *gpd, const char *name);
-struct bGPDpalettecolor *BKE_gpencil_palettecolor_addnew(struct bGPDpalette *palette, const char *name);
-
 /* object boundbox */
 bool BKE_gpencil_stroke_minmax(
         const struct bGPDstroke *gps, const bool use_select,

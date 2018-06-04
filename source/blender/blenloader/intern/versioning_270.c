@@ -76,6 +76,9 @@
 #include "BLI_math.h"
 #include "BLI_listbase.h"
 #include "BLI_string.h"
+#include "BLI_string_utils.h"
+
+#include "BLT_translation.h"
 
 #include "BLO_readfile.h"
 
@@ -86,6 +89,64 @@
 #include "readfile.h"
 
 #include "MEM_guardedalloc.h"
+
+/* ************************************************** */
+/* GP Palettes API (Deprecated) */
+
+/* add a new gp-palette */
+static bGPDpalette *BKE_gpencil_palette_addnew(bGPdata *gpd, const char *name)
+{
+	bGPDpalette *palette;
+
+	/* check that list is ok */
+	if (gpd == NULL) {
+		return NULL;
+	}
+
+	/* allocate memory and add to end of list */
+	palette = MEM_callocN(sizeof(bGPDpalette), "bGPDpalette");
+
+	/* add to datablock */
+	BLI_addtail(&gpd->palettes, palette);
+
+	/* set basic settings */
+	/* auto-name */
+	BLI_strncpy(palette->info, name, sizeof(palette->info));
+	BLI_uniquename(&gpd->palettes, palette, DATA_("GP_Palette"), '.', offsetof(bGPDpalette, info),
+		sizeof(palette->info));
+
+	/* return palette */
+	return palette;
+}
+
+/* add a new gp-palettecolor */
+static bGPDpalettecolor *BKE_gpencil_palettecolor_addnew(bGPDpalette *palette, const char *name)
+{
+	bGPDpalettecolor *palcolor;
+
+	/* check that list is ok */
+	if (palette == NULL) {
+		return NULL;
+	}
+
+	/* allocate memory and add to end of list */
+	palcolor = MEM_callocN(sizeof(bGPDpalettecolor), "bGPDpalettecolor");
+
+	/* add to datablock */
+	BLI_addtail(&palette->colors, palcolor);
+
+	/* set basic settings */
+	copy_v4_v4(palcolor->color, U.gpencil_new_layer_col);
+	ARRAY_SET_ITEMS(palcolor->fill, 1.0f, 1.0f, 1.0f);
+
+	/* auto-name */
+	BLI_strncpy(palcolor->info, name, sizeof(palcolor->info));
+	BLI_uniquename(&palette->colors, palcolor, DATA_("Color"), '.', offsetof(bGPDpalettecolor, info),
+		sizeof(palcolor->info));
+
+	/* return palette color */
+	return palcolor;
+}
 
 /**
  * Setup rotation stabilization from ancient single track spec.

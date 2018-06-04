@@ -281,9 +281,6 @@ void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 	if (free_all) {
 		/* clear cache */
 		BKE_gpencil_batch_cache_free(gpd);
-
-		/* free palettes (deprecated) */
-		BKE_gpencil_free_palettes(&gpd->palettes);
 	}
 }
 
@@ -1076,98 +1073,6 @@ Material *BKE_gpencil_material_ensure(Main *bmain, Object *ob)
 	}
 
 	return ma;
-}
-
-/* ************************************************** */
-/* GP Palettes API (Deprecated) */
-
-/* Free all of a gp-colors */
-static void free_gpencil_colors(bGPDpalette *palette)
-{
-	/* error checking */
-	if (palette == NULL) {
-		return;
-	}
-
-	/* free colors */
-	BLI_freelistN(&palette->colors);
-}
-
-/* Free all of the gp-palettes and colors */
-void BKE_gpencil_free_palettes(ListBase *list)
-{
-	bGPDpalette *palette_next;
-
-	/* error checking */
-	if (list == NULL) {
-		return;
-	}
-
-	/* delete palettes */
-	for (bGPDpalette *palette = list->first; palette; palette = palette_next) {
-		palette_next = palette->next;
-		/* free palette colors */
-		free_gpencil_colors(palette);
-
-		MEM_freeN(palette);
-	}
-	BLI_listbase_clear(list);
-}
-
-
-/* add a new gp-palette */
-bGPDpalette *BKE_gpencil_palette_addnew(bGPdata *gpd, const char *name)
-{
-	bGPDpalette *palette;
-
-	/* check that list is ok */
-	if (gpd == NULL) {
-		return NULL;
-	}
-
-	/* allocate memory and add to end of list */
-	palette = MEM_callocN(sizeof(bGPDpalette), "bGPDpalette");
-
-	/* add to datablock */
-	BLI_addtail(&gpd->palettes, palette);
-
-	/* set basic settings */
-	/* auto-name */
-	BLI_strncpy(palette->info, name, sizeof(palette->info));
-	BLI_uniquename(&gpd->palettes, palette, DATA_("GP_Palette"), '.', offsetof(bGPDpalette, info),
-	               sizeof(palette->info));
-
-	/* return palette */
-	return palette;
-}
-
-/* add a new gp-palettecolor */
-bGPDpalettecolor *BKE_gpencil_palettecolor_addnew(bGPDpalette *palette, const char *name)
-{
-	bGPDpalettecolor *palcolor;
-
-	/* check that list is ok */
-	if (palette == NULL) {
-		return NULL;
-	}
-
-	/* allocate memory and add to end of list */
-	palcolor = MEM_callocN(sizeof(bGPDpalettecolor), "bGPDpalettecolor");
-
-	/* add to datablock */
-	BLI_addtail(&palette->colors, palcolor);
-
-	/* set basic settings */
-	copy_v4_v4(palcolor->color, U.gpencil_new_layer_col);
-	ARRAY_SET_ITEMS(palcolor->fill, 1.0f, 1.0f, 1.0f);
-
-	/* auto-name */
-	BLI_strncpy(palcolor->info, name, sizeof(palcolor->info));
-	BLI_uniquename(&palette->colors, palcolor, DATA_("Color"), '.', offsetof(bGPDpalettecolor, info),
-	               sizeof(palcolor->info));
-
-	/* return palette color */
-	return palcolor;
 }
 
 /* ************************************************** */
