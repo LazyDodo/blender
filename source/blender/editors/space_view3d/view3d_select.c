@@ -624,7 +624,7 @@ static void do_lasso_select_lattice(ViewContext *vc, const int mcords[][2], shor
 
 static void do_lasso_select_groom__doSelect(
         void *userData,
-        GroomBundle *bundle,
+        GroomRegion *region,
         GroomSection *section,
         GroomSectionVertex *vertex,
         const float screen_co[2])
@@ -642,9 +642,9 @@ static void do_lasso_select_groom__doSelect(
 		{
 			section->flag = data->select ? (section->flag | GM_SECTION_SELECT) : (section->flag & ~GM_SECTION_SELECT);
 		}
-		else if (bundle)
+		else if (region)
 		{
-			bundle->flag = data->select ? (bundle->flag | GM_BUNDLE_SELECT) : (bundle->flag & ~GM_BUNDLE_SELECT);
+			region->flag = data->select ? (region->flag | GM_REGION_SELECT) : (region->flag & ~GM_REGION_SELECT);
 		}
 	}
 }
@@ -1857,7 +1857,7 @@ static int do_lattice_box_select(ViewContext *vc, rcti *rect, bool select, bool 
 
 static void do_groom_box_select__doSelect(
         void *userData,
-        GroomBundle *bundle,
+        GroomRegion *region,
         GroomSection *section,
         GroomSectionVertex *vertex,
         const float screen_co[2])
@@ -1874,9 +1874,9 @@ static void do_groom_box_select__doSelect(
 		{
 			section->flag = data->select ? (section->flag | GM_SECTION_SELECT) : (section->flag & ~GM_SECTION_SELECT);
 		}
-		else if (bundle)
+		else if (region)
 		{
-			bundle->flag = data->select ? (bundle->flag | GM_BUNDLE_SELECT) : (bundle->flag & ~GM_BUNDLE_SELECT);
+			region->flag = data->select ? (region->flag | GM_REGION_SELECT) : (region->flag & ~GM_REGION_SELECT);
 		}
 	}
 }
@@ -2774,7 +2774,7 @@ static void lattice_circle_select(ViewContext *vc, const bool select, const int 
 
 static void groom_circle_select__doSelect(
         void *userData,
-        GroomBundle *bundle,
+        GroomRegion *region,
         GroomSection *section,
         GroomSectionVertex *vertex,
         const float screen_co[2])
@@ -2791,9 +2791,9 @@ static void groom_circle_select__doSelect(
 		{
 			section->flag = data->select ? (section->flag | GM_SECTION_SELECT) : (section->flag & ~GM_SECTION_SELECT);
 		}
-		else if (bundle)
+		else if (region)
 		{
-			bundle->flag = data->select ? (bundle->flag | GM_BUNDLE_SELECT) : (bundle->flag & ~GM_BUNDLE_SELECT);
+			region->flag = data->select ? (region->flag | GM_REGION_SELECT) : (region->flag & ~GM_REGION_SELECT);
 		}
 	}
 }

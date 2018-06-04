@@ -82,7 +82,6 @@ typedef struct GroomHairGuide
 
 /* Bundle of hair strands following the same curve path */
 typedef struct GroomBundle {
-	int flag;
 	int guides_count;                       /* Number of guides to generate (totguides can be smaller) */
 	
 	int numshapeverts;                      /* Vertices per section loop */
@@ -91,6 +90,7 @@ typedef struct GroomBundle {
 	int curvesize;                          /* Number of vertices in a curve = (totsections - 1) * groom.curve_res + 1 */
 	int totcurvecache;                      /* Number of cached curve steps = curve_size * (numshapeverts + 1) */
 	int totguides;                          /* Actual number of hair guide curves */
+	int pad;
 	
 	struct GroomSection *sections;          /* List of sections [totsections] */
 	struct GroomSectionVertex *verts;       /* List of vertices [totsections][numshapeverts] */
@@ -111,13 +111,16 @@ typedef struct GroomRegion
 {
 	struct GroomRegion *next, *prev;        /* Pointers for ListBase element */
 	
+	int flag;
+	int pad;
+	
 	GroomBundle bundle;                     /* Curve with sections for creating hair bundle */
 } GroomRegion;
 
-typedef enum GroomBundleFlag
+typedef enum GroomRegionFlag
 {
-	GM_BUNDLE_SELECT        = (1 << 0),
-} GroomBundleFlag;
+	GM_REGION_SELECT        = (1 << 0),
+} GroomRegionFlag;
 
 /* Editable groom data */
 typedef struct EditGroom {

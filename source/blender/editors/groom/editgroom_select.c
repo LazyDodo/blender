@@ -58,8 +58,7 @@ bool ED_groom_select_check_regions(const EditGroom *edit)
 {
 	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
-		GroomBundle *bundle = &region->bundle;
-		if (bundle->flag & GM_BUNDLE_SELECT)
+		if (region->flag & GM_REGION_SELECT)
 		{
 			return true;
 		}
@@ -107,15 +106,14 @@ void ED_groom_select_regions(EditGroom *edit, EditGroomSelectCb select_cb, void 
 {
 	for (GroomRegion* region = edit->regions.first; region; region = region->next)
 	{
-		GroomBundle *bundle = &region->bundle;
-		const bool select = select_cb(userdata, bundle->flag & GM_BUNDLE_SELECT);
+		const bool select = select_cb(userdata, region->flag & GM_REGION_SELECT);
 		if (select)
 		{
-			bundle->flag |= GM_BUNDLE_SELECT;
+			region->flag |= GM_REGION_SELECT;
 		}
 		else
 		{
-			bundle->flag &= ~GM_BUNDLE_SELECT;
+			region->flag &= ~GM_REGION_SELECT;
 		}
 	}
 }
@@ -261,14 +259,14 @@ void GROOM_OT_select_all(wmOperatorType *ot)
 
 static void select_pick_findnearest_cb(
         void *userdata,
-        GroomBundle *bundle,
+        GroomRegion *region,
         GroomSection *section,
         GroomSectionVertex *vertex,
         const float screen_co[2])
 {
 	struct
 	{
-		GroomBundle *bundle;
+		GroomRegion *region;
 		GroomSection *section;
 		GroomSectionVertex *vertex;
 		float dist;
@@ -282,14 +280,14 @@ static void select_pick_findnearest_cb(
 	if (data->select &&
 	    ((vertex && vertex->flag & GM_VERTEX_SELECT) ||
 	     (section && section->flag & GM_SECTION_SELECT) ||
-	     (bundle && bundle->flag & GM_BUNDLE_SELECT)))
+	     (region && region->flag & GM_REGION_SELECT)))
 	{
 		dist_test += 5.0f;
 	}
 
 	if (dist_test < data->dist) {
 		data->dist = dist_test;
-		data->bundle = bundle;
+		data->region = region;
 		data->section = section;
 		data->vertex = vertex;
 	}
@@ -299,8 +297,7 @@ static void groom_set_region_select_flags(Groom *groom, int flag)
 {
 	for (GroomRegion* region = groom->editgroom->regions.first; region; region = region->next)
 	{
-		GroomBundle *bundle = &region->bundle;
-		bundle->flag = (bundle->flag & ~GM_BUNDLE_SELECT) | (flag & GM_BUNDLE_SELECT);
+		region->flag = (region->flag & ~GM_REGION_SELECT) | (flag & GM_REGION_SELECT);
 	}
 }
 
@@ -338,7 +335,7 @@ bool ED_groom_select_pick(bContext *C, const int mval[2], bool extend, bool dese
 
 	struct
 	{
-		GroomBundle *bundle;
+		GroomRegion *region;
 		GroomSection *section;
 		GroomSectionVertex *vertex;
 		float dist;
@@ -382,7 +379,7 @@ bool ED_groom_select_pick(bContext *C, const int mval[2], bool extend, bool dese
 			groom_set_region_select_flags(groom, 0);
 			groom_set_curve_select_flags(groom, 0);
 			data.section->flag |= GM_SECTION_SELECT;
-			data.bundle->flag |= GM_BUNDLE_SELECT;
+			data.region->flag |= GM_REGION_SELECT;
 		}
 		
 		found = true;
@@ -412,30 +409,30 @@ bool ED_groom_select_pick(bContext *C, const int mval[2], bool extend, bool dese
 		{
 			/* set active region */
 			groom_set_region_select_flags(groom, 0);
-			data.bundle->flag |= GM_BUNDLE_SELECT;
+			data.region->flag |= GM_REGION_SELECT;
 		}
 		
 		found = true;
 	}
-	else if (data.bundle)
+	else if (data.region)
 	{
 		if (extend)
 		{
-			data.bundle->flag |= GM_BUNDLE_SELECT;
+			data.region->flag |= GM_REGION_SELECT;
 		}
 		else if (deselect)
 		{
-			data.bundle->flag &= ~GM_BUNDLE_SELECT;
+			data.region->flag &= ~GM_REGION_SELECT;
 		}
 		else if (toggle)
 		{
-			data.bundle->flag ^= GM_BUNDLE_SELECT;
+			data.region->flag ^= GM_REGION_SELECT;
 		}
 		else
 		{
 			/* deselect all other regions */
 			groom_set_region_select_flags(groom, 0);
-			data.bundle->flag |= GM_BUNDLE_SELECT;
+			data.region->flag |= GM_REGION_SELECT;
 		}
 		
 		found = true;

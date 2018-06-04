@@ -408,7 +408,7 @@ void groom_foreachScreenVert(
         ViewContext *vc,
         void (*func)(
             void *userData,
-            GroomBundle *bundle,
+            GroomRegion *region,
             GroomSection *section,
             GroomSectionVertex *vert,
             const float screen_co[2]),
@@ -441,7 +441,7 @@ void groom_foreachScreenVert(
 					float screen_co[2];
 					if (ED_view3d_project_float_object(vc->ar, section->center, screen_co, clip_flag) == V3D_PROJ_RET_OK)
 					{
-						func(userData, bundle, section, NULL, screen_co);
+						func(userData, region, section, NULL, screen_co);
 					}
 				}
 			}
@@ -464,7 +464,7 @@ void groom_foreachScreenVert(
 						float screen_co[2];
 						if (ED_view3d_project_float_object(vc->ar, co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
 						{
-							func(userData, bundle, section, vertex, screen_co);
+							func(userData, region, section, vertex, screen_co);
 						}
 					}
 				}

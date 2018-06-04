@@ -336,7 +336,7 @@ static void groom_get_verts(
 			}
 			else
 			{
-				const bool active = bundle->flag & GM_BUNDLE_SELECT;
+				const bool active = region->flag & GM_REGION_SELECT;
 				GroomSection *section = bundle->sections;
 				for (int i = 0; i < bundle->totsections; ++i, ++section)
 				{
@@ -387,7 +387,7 @@ static void groom_get_verts(
 				GroomSectionVertex *vertex = bundle->verts;
 				for (int i = 0; i < bundle->totsections; ++i, ++section)
 				{
-					const bool active = (bundle->flag & GM_BUNDLE_SELECT) && (section->flag & GM_SECTION_SELECT);
+					const bool active = (region->flag & GM_REGION_SELECT) && (section->flag & GM_SECTION_SELECT);
 					
 					for (int j = 0; j < bundle->numshapeverts; ++j, ++vertex)
 					{

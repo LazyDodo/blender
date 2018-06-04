@@ -43,7 +43,7 @@ struct BoundBox;
 struct Camera;
 struct Depsgraph;
 struct EditBone;
-struct GroomBundle;
+struct GroomRegion;
 struct GroomSection;
 struct GroomSectionVertex;
 struct ImBuf;
@@ -208,7 +208,7 @@ void groom_foreachScreenVert(
         struct ViewContext *vc,
         void (*func)(
             void *userData,
-            struct GroomBundle *bundle,
+            struct GroomRegion *region,
             struct GroomSection *section,
             struct GroomSectionVertex *vert,
             const float screen_co[2]),
