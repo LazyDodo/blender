@@ -81,7 +81,8 @@ bool BlenderSync::object_is_mesh(BL::Object& b_ob)
 	else {
 		return (b_ob_data.is_a(&RNA_Mesh) ||
 		        b_ob_data.is_a(&RNA_Curve) ||
-		        b_ob_data.is_a(&RNA_MetaBall));
+		        b_ob_data.is_a(&RNA_MetaBall) ||
+		        b_ob_data.is_a(&RNA_Groom));
 	}
 }
 

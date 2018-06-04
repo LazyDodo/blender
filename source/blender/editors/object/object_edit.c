@@ -48,6 +48,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_groom_types.h"
 #include "DNA_group_types.h"
 #include "DNA_material_types.h"
 #include "DNA_meta_types.h"
@@ -260,6 +261,10 @@ static bool ED_object_editmode_load_ex(Main *bmain, Object *obedit, const bool f
 		}
 	}
 	else if (obedit->type == OB_GROOM) {
+		const Groom *groom = obedit->data;
+		if (groom->editgroom == NULL) {
+			return false;
+		}
 		ED_groom_editgroom_load(obedit);
 		if (freedata) ED_groom_editgroom_free(obedit);
 	}
