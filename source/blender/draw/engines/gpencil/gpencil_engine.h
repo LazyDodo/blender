@@ -75,9 +75,9 @@ typedef struct GPENCIL_shgroup {
 	int stroke_style;
 	int color_type;
 	int mode;
-	int t_mix;
-	int t_flip;
-	int t_clamp;
+	int texture_mix;
+	int texture_flip;
+	int texture_clamp;
 	int fill_style;
 	int keep_size;
 	float obj_scale;

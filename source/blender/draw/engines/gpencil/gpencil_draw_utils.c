@@ -276,11 +276,11 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 	DRW_shgroup_uniform_vec2(grp, "texture_offset", gp_style->texture_offset, 1);
 	DRW_shgroup_uniform_float(grp, "texture_opacity", &gp_style->texture_opacity, 1);
 
-	stl->shgroups[id].t_mix = gp_style->flag & GP_STYLE_COLOR_TEX_MIX ? 1 : 0;
-	DRW_shgroup_uniform_int(grp, "t_mix", &stl->shgroups[id].t_mix, 1);
+	stl->shgroups[id].texture_mix = gp_style->flag & GP_STYLE_COLOR_TEX_MIX ? 1 : 0;
+	DRW_shgroup_uniform_int(grp, "texture_mix", &stl->shgroups[id].texture_mix, 1);
 
-	stl->shgroups[id].t_flip = gp_style->flag & GP_STYLE_COLOR_FLIP_FILL ? 1 : 0;
-	DRW_shgroup_uniform_int(grp, "t_flip", &stl->shgroups[id].t_flip, 1);
+	stl->shgroups[id].texture_flip = gp_style->flag & GP_STYLE_COLOR_FLIP_FILL ? 1 : 0;
+	DRW_shgroup_uniform_int(grp, "texture_flip", &stl->shgroups[id].texture_flip, 1);
 
 	DRW_shgroup_uniform_int(grp, "xraymode", (const int *) &gpd->xray_mode, 1);
 	/* image texture */
@@ -303,8 +303,8 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 			GPUTexture *texture = GPU_texture_from_blender(gp_style->ima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
-			stl->shgroups[id].t_clamp = gp_style->flag & GP_STYLE_COLOR_TEX_CLAMP ? 1 : 0;
-			DRW_shgroup_uniform_int(grp, "t_clamp", &stl->shgroups[id].t_clamp, 1);
+			stl->shgroups[id].texture_clamp = gp_style->flag & GP_STYLE_COLOR_TEX_CLAMP ? 1 : 0;
+			DRW_shgroup_uniform_int(grp, "t_clamp", &stl->shgroups[id].texture_clamp, 1);
 
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
@@ -312,8 +312,8 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 	else {
 		/* if no texture defined, need a blank texture to avoid errors in draw manager */
 		DRW_shgroup_uniform_texture(grp, "myTexture", e_data->gpencil_blank_texture);
-		stl->shgroups[id].t_clamp = 0;
-		DRW_shgroup_uniform_int(grp, "t_clamp", &stl->shgroups[id].t_clamp, 1);
+		stl->shgroups[id].texture_clamp = 0;
+		DRW_shgroup_uniform_int(grp, "texture_clamp", &stl->shgroups[id].texture_clamp, 1);
 	}
 
 	return grp;
