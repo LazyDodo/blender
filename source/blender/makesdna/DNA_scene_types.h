@@ -1453,6 +1453,7 @@ typedef struct SceneLANPR{
 	float extend_length;
 
 	int   snake_sensitivity;
+	int   size;
 
 	/* shared */
 

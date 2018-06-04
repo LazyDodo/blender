@@ -47,6 +47,8 @@ typedef struct LANPROneTimeInit{
 //==============================================================[ ATLAS / DPIX ]
 
 
+#ifdef LANPR_DPIX
+
 void lanpr_init_atlas_inputs(void *ved){
 	OneTime.ved = ved;
 	LANPR_Data *vedata = (LANPR_Data *)ved;
@@ -110,161 +112,9 @@ void lanpr_destroy_atlas(void *ved){
 	DRW_texture_free(txl->dpix_out_pr);
 }
 
-static Gwn_VertBuf *lanpr_mesh_get_tri_pos_and_normals_raw(
-        MeshRenderData *rdata, const bool use_hide,
-        Gwn_VertBuf **r_vbo)
-{
-	BLI_assert(rdata->types & (MR_DATATYPE_VERT | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOP | MR_DATATYPE_POLY));
-
-	if (*r_vbo == NULL) {
-		static Gwn_VertFormat format = { 0 };
-		static struct { uint pos, nor; } attr_id;
-		if (format.attrib_ct == 0) {
-			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-			attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_I10, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
-		}
-
-		const int tri_len = mesh_render_data_looptri_len_get(rdata);
-
-		Gwn_VertBuf *vbo = *r_vbo = GWN_vertbuf_create_with_format(&format);
-
-		const int vbo_len_capacity = tri_len * 3;
-		int vbo_len_used = 0;
-		GWN_vertbuf_data_alloc(vbo, vbo_len_capacity);
-
-		Gwn_VertBufRaw pos_step, nor_step;
-		GWN_vertbuf_attr_get_raw_data(vbo, attr_id.pos, &pos_step);
-		GWN_vertbuf_attr_get_raw_data(vbo, attr_id.nor, &nor_step);
-
-		float (*lnors)[3] = rdata->loop_normals;
-
-		if (rdata->edit_bmesh) {
-			Gwn_PackedNormal *pnors_pack, *vnors_pack;
-
-			if (lnors == NULL) {
-				mesh_render_data_ensure_poly_normals_pack(rdata);
-				mesh_render_data_ensure_vert_normals_pack(rdata);
-
-				pnors_pack = rdata->poly_normals_pack;
-				vnors_pack = rdata->vert_normals_pack;
-			}
-
-			for (int i = 0; i < tri_len; i++) {
-				const BMLoop **bm_looptri = (const BMLoop **)rdata->edit_bmesh->looptris[i];
-				const BMFace *bm_face = bm_looptri[0]->f;
-
-				/* use_hide always for edit-mode */
-				if (BM_elem_flag_test(bm_face, BM_ELEM_HIDDEN)) {
-					continue;
-				}
-
-				if (lnors) {
-					for (uint t = 0; t < 3; t++) {
-						const float *nor = lnors[BM_elem_index_get(bm_looptri[t])];
-						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = GWN_normal_convert_i10_v3(nor);
-					}
-				}
-				else if (BM_elem_flag_test(bm_face, BM_ELEM_SMOOTH)) {
-					for (uint t = 0; t < 3; t++) {
-						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = vnors_pack[BM_elem_index_get(bm_looptri[t]->v)];
-					}
-				}
-				else {
-					const Gwn_PackedNormal *snor_pack = &pnors_pack[BM_elem_index_get(bm_face)];
-					for (uint t = 0; t < 3; t++) {
-						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = *snor_pack;
-					}
-				}
-
-				/* TODO(sybren): deduplicate this and all the other places it's pasted to in this file. */
-				if (rdata->edit_data && rdata->edit_data->vertexCos) {
-					for (uint t = 0; t < 3; t++) {
-						int vidx = BM_elem_index_get(bm_looptri[t]->v);
-						const float *pos = rdata->edit_data->vertexCos[vidx];
-						copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), pos);
-					}
-				}
-				else {
-					for (uint t = 0; t < 3; t++) {
-						copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), bm_looptri[t]->v->co);
-					}
-				}
-			}
-		}
-		else {
-			if (lnors == NULL) {
-				/* Use normals from vertex. */
-				mesh_render_data_ensure_poly_normals_pack(rdata);
-			}
-
-			for (int i = 0; i < tri_len; i++) {
-				const MLoopTri *mlt = &rdata->mlooptri[i];
-				const MPoly *mp = &rdata->mpoly[mlt->poly];
-
-				if (use_hide && (mp->flag & ME_HIDE)) {
-					continue;
-				}
-
-				const uint vtri[3] = {
-					rdata->mloop[mlt->tri[0]].v,
-					rdata->mloop[mlt->tri[1]].v,
-					rdata->mloop[mlt->tri[2]].v,
-				};
-
-				if (lnors) {
-					for (uint t = 0; t < 3; t++) {
-						const float *nor = lnors[mlt->tri[t]];
-						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = GWN_normal_convert_i10_v3(nor);
-					}
-				}
-				else if (mp->flag & ME_SMOOTH) {
-					for (uint t = 0; t < 3; t++) {
-						const MVert *mv = &rdata->mvert[vtri[t]];
-						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = GWN_normal_convert_i10_s3(mv->no);
-					}
-				}
-				else {
-					const Gwn_PackedNormal *pnors_pack = &rdata->poly_normals_pack[mlt->poly];
-					for (uint t = 0; t < 3; t++) {
-						*((Gwn_PackedNormal *)GWN_vertbuf_raw_step(&nor_step)) = *pnors_pack;
-					}
-				}
-
-				for (uint t = 0; t < 3; t++) {
-					const MVert *mv = &rdata->mvert[vtri[t]];
-					copy_v3_v3(GWN_vertbuf_raw_step(&pos_step), mv->co);
-				}
-			}
-		}
-
-		vbo_len_used = GWN_vertbuf_raw_used(&pos_step);
-		BLI_assert(vbo_len_used == GWN_vertbuf_raw_used(&nor_step));
-
-		if (vbo_len_capacity != vbo_len_used) {
-			GWN_vertbuf_data_resize(vbo, vbo_len_used);
-		}
-	}
-	return *r_vbo;
-}
-
-void DRW_cache_mesh_surface_get(Object *ob)
-{
-	BLI_assert(ob->type == OB_MESH);
-
-	Mesh *me = ob->data;	
-		
-	MeshBatchCache *cache = mesh_batch_cache_get(me);
-
-	if (cache->triangles_with_normals == NULL) {
-		const int datatype = MR_DATATYPE_VERT | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOP | MR_DATATYPE_POLY;
-		MeshRenderData *rdata = mesh_render_data_create(me, datatype);
-
-		cache->triangles_with_normals = GWN_batch_create(
-		        GWN_PRIM_TRIS, mesh_batch_cache_get_tri_pos_and_normals(rdata, cache), NULL);
-
-		mesh_render_data_free(rdata);
-	}
-
+int lanpr_mesh_get_tri_pos_and_normals_raw(Mesh* m, float* vert, float* normal, float* offset){
+	//BLI_assert(rdata->types & (MR_DATATYPE_VERT | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOP | MR_DATATYPE_POLY));
+    return 0;
 }
 
 int lanpr_feed_atlas_data_obj(
@@ -534,6 +384,8 @@ void lanpr_atlas_draw_edge_preview(n3DViewUiExtra* e) {
 
 }
 
+#endif // LANPR_DPIX
+
 
 //=====================================================================[ SNAKE ]
 
@@ -710,7 +562,7 @@ static void lanpr_cache_init(void *vedata){
 	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp_2, quad, NULL);
 
 	psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
-	stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
+	//stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
 	//DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "TexSample0", &txl->color);
 	//DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "Stage", &stl->g_data->stage, 1);
 	//DRW_shgroup_call_add(stl->g_data->dpix_transform_shgrp, quad, NULL);
