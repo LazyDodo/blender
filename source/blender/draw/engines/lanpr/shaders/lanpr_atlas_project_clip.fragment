@@ -474,11 +474,11 @@ void main(){
     //    unpackPathEnd(path_texel));
     //float total_padding = padding.x + padding.y;
 
-    if(v0_clipped_pre_div == v1_clipped_pre_div)gl_FragData[0] =vec4(1);
-    else gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);
+    //if(v0_clipped_pre_div == v1_clipped_pre_div)gl_FragData[0] =vec4(1);
+    //else gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);
 
 
-    //gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);//v0_clipped_pre_div;
+    gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);//v0_clipped_pre_div;
     gl_FragData[1] = vec4(v1_clipped_pre_div.xyz,1);//v1_clipped_pre_div;
     gl_FragData[2] = packOffsetTexel(num_samples, segment_screen_length,
 	                                 num_samples, segment_screen_length);
