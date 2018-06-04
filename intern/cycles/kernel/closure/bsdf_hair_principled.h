@@ -69,7 +69,7 @@ ccl_device_inline float logistic(float x, float s)
 ccl_device_inline float logistic_cdf(float x, float s)
 {
 	float arg = -x/s;
-//	if(arg > 100.0f) return 0.0f;
+	if(arg > 100.0f) return 0.0f;
 	return 1.0f / (1.0f + expf(arg));
 }
 
@@ -94,7 +94,7 @@ ccl_device_inline float bessel_I0(float x)
 ccl_device_inline float log_bessel_I0(float x)
 {
 	if (x > 12.0f) {
-		return x + 0.5f * (1.f / (8.0f * x) - M_LN_2PI_F - logf(1.f / x));
+		return x + 0.5f * (1.f / (8.0f * x) - M_LN_2PI_F - logf(x));
 	}
 	else {
 		return logf(bessel_I0(x));
