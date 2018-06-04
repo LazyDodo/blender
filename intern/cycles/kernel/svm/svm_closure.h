@@ -767,13 +767,16 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION:
 						bsdf->sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
 						break;
-					default:
-						kernel_assert(!"Invalid Principled Hair parametrization!");
-						//fallthrough
 					case NODE_PRINCIPLED_HAIR_REFLECTANCE: {
 						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
 						bsdf->sigma = log3(color)/roughness_fac;
 						bsdf->sigma *= bsdf->sigma;
+						break;
+					}
+					default: {
+						kernel_assert(!"Invalid Principled Hair parametrization!");
+						// Falling back to Benedikt Bitterli's brownish hair with Tungsten (via PHEOmelanin concentration)
+						bsdf->sigma = 0.0f*make_float3(0.419f, 0.697f, 1.37f) + 1.3f*make_float3(0.187f, 0.4f, 1.05f);
 						break;
 					}
 				}

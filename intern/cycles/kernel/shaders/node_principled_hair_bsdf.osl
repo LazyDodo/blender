@@ -22,14 +22,14 @@ color log3 (color a) {
 
 shader node_principled_hair_bsdf(
 	color Color = 0.8,
-	float Melanin = 0.0,
+	float Melanin = 1.3,
 	float MelaninRedness = 0.0,
-	color AbsorptionCoefficient = 0.0,
+	color AbsorptionCoefficient = color(0.245531, 0.52, 1.365),
 	normal Normal = Ng,
 	string parametrization = "Absorption coefficient",
-	float Offset = 0,
-	float RoughnessU = 0.2,
-	float RoughnessV = 0.2,
+	float Offset = radians(2),
+	float RoughnessU = 0.3,
+	float RoughnessV = 0.3,
 	float PrimaryReflectionRoughness = 1.0,
 	float IOR = 1.55,
 
@@ -46,10 +46,15 @@ shader node_principled_hair_bsdf(
 	else if (parametrization == "Melanin concentration") {
 		Sigma = Melanin*color(0.419, 0.697, 1.37) + MelaninRedness*color(0.187, 0.4, 1.05);
 	}
-	else {
+	else if (parametrization == "Direct coloring"){
 		float roughness_fac = (((((0.245*RoughnessU) + 5.574)*RoughnessU - 10.73)*RoughnessU + 2.532)*RoughnessU - 0.215)*RoughnessU + 5.969;
 		Sigma = log3(Color)/roughness_fac;
 		Sigma *= Sigma;
+	}
+	else {
+		// Falling back to Benedikt Bitterli's brownish hair with Tungsten (via PHEOmelanin concentration)
+		// This gives the exact amount set as default above
+		Sigma = 0.0*color(0.419, 0.697, 1.37) + 1.3*color(0.187, 0.4, 1.05);
 	}
 
 	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, Scale deviation %f, IOR %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, Sigma, RoughnessU, RoughnessV, Offset, IOR);
