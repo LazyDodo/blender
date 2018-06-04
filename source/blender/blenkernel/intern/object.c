@@ -376,7 +376,9 @@ void BKE_object_free_derived_caches(Object *ob)
 	if (ob->runtime.mesh_eval != NULL) {
 		Mesh *mesh_eval = ob->runtime.mesh_eval;
 		/* Restore initial pointer. */
-		ob->data = mesh_eval->id.orig_id;
+		if (ob->data == mesh_eval) {
+			ob->data = ob->runtime.mesh_orig;
+		}
 		/* Evaluated mesh points to edit mesh, but does not own it. */
 		mesh_eval->edit_btmesh = NULL;
 		BKE_mesh_free(mesh_eval);
@@ -2926,7 +2928,6 @@ Mesh *BKE_object_get_evaluated_mesh(const Depsgraph *depsgraph, Object *ob)
 	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	return ob_eval->runtime.mesh_eval;
 }
-
 
 static int pc_cmp(const void *a, const void *b)
 {
