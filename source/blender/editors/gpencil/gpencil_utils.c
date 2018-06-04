@@ -1585,6 +1585,7 @@ void ED_gpencil_setup_modes(bContext *C, bGPdata *gpd, int newmode)
 			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
 			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
 			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
+			gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
 			ED_gpencil_toggle_brush_cursor(C, false, NULL);
 			break;
 	}
