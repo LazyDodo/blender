@@ -516,12 +516,12 @@ static void draw_clipping_setup_from_view(void)
 	for (int p = 0; p < 6; p++) {
 		int q, r;
 		switch (p) {
-			case 0:  q = 1; r = 2; break;
-			case 1:  q = 0; r = 5; break;
-			case 2:  q = 1; r = 5; break;
-			case 3:  q = 2; r = 6; break;
-			case 4:  q = 0; r = 3; break;
-			default: q = 4; r = 7; break;
+			case 0:  q = 1; r = 2; break; /* -X */
+			case 1:  q = 0; r = 5; break; /* -Y */
+			case 2:  q = 1; r = 5; break; /* +Z (far) */
+			case 3:  q = 2; r = 6; break; /* +Y */
+			case 4:  q = 0; r = 3; break; /* -Z (near) */
+			default: q = 4; r = 7; break; /* +X */
 		}
 		if (DST.frontface == GL_CW) {
 			SWAP(int, q, r);
@@ -713,6 +713,13 @@ void DRW_culling_frustum_corners_get(BoundBox *corners)
 	memcpy(corners, &DST.clipping.frustum_corners, sizeof(BoundBox));
 }
 
+/* See draw_clipping_setup_from_view() for the plane order. */
+void DRW_culling_frustum_planes_get(float planes[6][4])
+{
+	draw_clipping_setup_from_view();
+	memcpy(planes, &DST.clipping.frustum_planes, sizeof(DST.clipping.frustum_planes));
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -747,12 +754,14 @@ static void draw_matrices_model_prepare(DRWCallState *st)
 	}
 
 	/* No need to go further the call will not be used. */
-	if (st->flag & DRW_CALL_CULLED)
+	if ((st->flag & DRW_CALL_CULLED) != 0 &&
+	    (st->flag & DRW_CALL_BYPASS_CULLING) == 0)
+	{
 		return;
-
+	}
 	/* Order matters */
 	if (st->matflag & (DRW_CALL_MODELVIEW | DRW_CALL_MODELVIEWINVERSE |
-	                  DRW_CALL_NORMALVIEW | DRW_CALL_EYEVEC))
+	                   DRW_CALL_NORMALVIEW | DRW_CALL_EYEVEC))
 	{
 		mul_m4_m4m4(st->modelview, DST.view_data.matstate.mat[DRW_MAT_VIEW], st->model);
 	}
@@ -820,6 +829,7 @@ static void draw_geometry_execute_ex(
         DRWShadingGroup *shgroup, Gwn_Batch *geom, uint start, uint count, bool draw_instance)
 {
 	/* Special case: empty drawcall, placement is done via shader, don't bind anything. */
+	/* TODO use DRW_CALL_PROCEDURAL instead */
 	if (geom == NULL) {
 		BLI_assert(shgroup->type == DRW_SHG_TRIANGLE_BATCH); /* Add other type if needed. */
 		/* Shader is already bound. */
@@ -1043,7 +1053,10 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	int *select_id = NULL;                                           \
 	if (G.f & G_PICKSEL) {                                           \
 		if (_shgroup->override_selectid == -1) {                        \
-			select_id = DRW_instance_data_get(_shgroup->inst_selectid); \
+			/* Hack : get vbo data without actually drawing. */     \
+			Gwn_VertBufRaw raw;                   \
+			GWN_vertbuf_attr_get_raw_data(_shgroup->inst_selectid, 0, &raw); \
+			select_id = GWN_vertbuf_raw_step(&raw);                               \
 			switch (_shgroup->type) {                                             \
 				case DRW_SHG_TRIANGLE_BATCH: _count = 3; break;                   \
 				case DRW_SHG_LINE_BATCH: _count = 2; break;                       \
@@ -1118,8 +1131,11 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 			draw_visibility_eval(call->state);
 			draw_matrices_model_prepare(call->state);
 
-			if ((call->state->flag & DRW_CALL_CULLED) != 0)
+			if ((call->state->flag & DRW_CALL_CULLED) != 0 &&
+			    (call->state->flag & DRW_CALL_BYPASS_CULLING) == 0)
+			{
 				continue;
+			}
 
 			/* XXX small exception/optimisation for outline rendering. */
 			if (shgroup->callid != -1) {
@@ -1141,11 +1157,17 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 				case DRW_CALL_SINGLE:
 					draw_geometry_execute(shgroup, call->single.geometry);
 					break;
+				case DRW_CALL_RANGE:
+					draw_geometry_execute_ex(shgroup, call->range.geometry, call->range.start, call->range.count, false);
+					break;
 				case DRW_CALL_INSTANCES:
 					draw_geometry_execute_ex(shgroup, call->instances.geometry, 0, *call->instances.count, true);
 					break;
 				case DRW_CALL_GENERATE:
 					call->generate.geometry_fn(shgroup, draw_geometry_execute, call->generate.user_data);
+					break;
+				case DRW_CALL_PROCEDURAL:
+					GWN_draw_primitive(call->procedural.prim_type, call->procedural.vert_count);
 					break;
 				default:
 					BLI_assert(0);

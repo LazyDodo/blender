@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -70,7 +70,7 @@ typedef struct SceneStats {
 	int totface, totfacesel;
 	int totbone, totbonesel;
 	int totobj,  totobjsel;
-	int totlamp, totlampsel; 
+	int totlamp, totlampsel;
 	int tottri;
 
 	char infostr[MAX_INFO_LEN];
@@ -154,10 +154,10 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 
 		stats->totvert = em->bm->totvert;
 		stats->totvertsel = em->bm->totvertsel;
-		
+
 		stats->totedge = em->bm->totedge;
 		stats->totedgesel = em->bm->totedgesel;
-		
+
 		stats->totface = em->bm->totface;
 		stats->totfacesel = em->bm->totfacesel;
 
@@ -170,15 +170,15 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 
 		for (ebo = arm->edbo->first; ebo; ebo = ebo->next) {
 			stats->totbone++;
-			
+
 			if ((ebo->flag & BONE_CONNECTED) && ebo->parent)
 				stats->totvert--;
-			
+
 			if (ebo->flag & BONE_TIPSEL)
 				stats->totvertsel++;
 			if (ebo->flag & BONE_ROOTSEL)
 				stats->totvertsel++;
-			
+
 			if (ebo->flag & BONE_SELECTED) stats->totbonesel++;
 
 			/* if this is a connected child and it's parent is being moved, remove our root */
@@ -227,7 +227,7 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 		/* MetaBall Edit */
 		MetaBall *mball = obedit->data;
 		MetaElem *ml;
-		
+
 		for (ml = mball->editelems->first; ml; ml = ml->next) {
 			stats->totvert++;
 			if (ml->flag & SELECT) stats->totvertsel++;
@@ -241,7 +241,7 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 		int a;
 
 		bp = editlatt->def;
-		
+
 		a = editlatt->pntsu * editlatt->pntsv * editlatt->pntsw;
 		while (a--) {
 			stats->totvert++;
@@ -319,7 +319,7 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 				stats_dupli_object_group_doit(collection, stats, psys, totgroup, &cur);
 			}
 		}
-		
+
 		stats_object(ob, base->flag & BASE_SELECTED, 1, stats);
 		stats->totobj++;
 	}
@@ -410,6 +410,7 @@ static void stats_string(ViewLayer *view_layer)
 	uintptr_t mem_in_use, mmap_in_use;
 	char memstr[MAX_INFO_MEM_LEN];
 	char gpumemstr[MAX_INFO_MEM_LEN] = "";
+	char formatted_mem[15];
 	char *s;
 	size_t ofs = 0;
 
@@ -445,20 +446,25 @@ static void stats_string(ViewLayer *view_layer)
 
 
 	/* get memory statistics */
-	ofs = BLI_snprintf(memstr, MAX_INFO_MEM_LEN, IFACE_(" | Mem:%.2fM"),
-	                    (double)((mem_in_use - mmap_in_use) >> 10) / 1024.0);
-	if (mmap_in_use)
-		BLI_snprintf(memstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_(" (%.2fM)"), (double)((mmap_in_use) >> 10) / 1024.0);
+	BLI_str_format_byte_unit(formatted_mem, mem_in_use - mmap_in_use, true);
+	ofs = BLI_snprintf(memstr, MAX_INFO_MEM_LEN, IFACE_(" | Mem: %s"), formatted_mem);
+
+	if (mmap_in_use) {
+		BLI_str_format_byte_unit(formatted_mem, mmap_in_use, true);
+		BLI_snprintf(memstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_(" (%s)"), formatted_mem);
+	}
 
 	if (GPU_mem_stats_supported()) {
 		int gpu_free_mem, gpu_tot_memory;
 
 		GPU_mem_stats_get(&gpu_tot_memory, &gpu_free_mem);
 
-		ofs = BLI_snprintf(gpumemstr, MAX_INFO_MEM_LEN, IFACE_(" | Free GPU Mem:%.2fM"), (double)((gpu_free_mem)) / 1024.0);
+		BLI_str_format_byte_unit(formatted_mem, gpu_free_mem, true);
+		ofs = BLI_snprintf(gpumemstr, MAX_INFO_MEM_LEN, IFACE_(" | Free GPU Mem: %s"), formatted_mem);
 
 		if (gpu_tot_memory) {
-			BLI_snprintf(gpumemstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_("/%.2fM"), (double)((gpu_tot_memory)) / 1024.0);
+			BLI_str_format_byte_unit(formatted_mem, gpu_tot_memory, true);
+			BLI_snprintf(gpumemstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_("/%s"), formatted_mem);
 		}
 	}
 

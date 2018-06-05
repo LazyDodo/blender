@@ -783,7 +783,7 @@ static DrawInfo *icon_create_drawinfo(Icon *icon)
 		IconImage *img = MEM_mallocN(sizeof(IconImage), __func__);
 		img->w = STUDIOLIGHT_SIZE;
 		img->h = STUDIOLIGHT_SIZE;
-		img->rect = BKE_studiolight_preview(sl, STUDIOLIGHT_SIZE);
+		img->rect = BKE_studiolight_preview(sl, STUDIOLIGHT_SIZE, icon->id_type);
 		di->data.buffer.image = img;
 	}
 	else {
@@ -1371,7 +1371,8 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		int tool = PAINT_TOOL_DRAW, mode = 0;
 		ScrArea *sa = CTX_wm_area(C);
 		char space_type = sa->spacetype;
-		if (space_type == SPACE_TOPBAR) {
+		/* When in an unsupported space. */
+		if (!ELEM(space_type, SPACE_VIEW3D, SPACE_IMAGE)) {
 			space_type = workspace->tools_space_type;
 		}
 

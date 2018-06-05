@@ -115,7 +115,7 @@ static const EnumPropertyItem part_ren_as_items[] = {
 	{PART_DRAW_LINE, "LINE", 0, "Line", ""},
 	{PART_DRAW_PATH, "PATH", 0, "Path", ""},
 	{PART_DRAW_OB, "OBJECT", 0, "Object", ""},
-	{PART_DRAW_GR, "GROUP", 0, "Group", ""},
+	{PART_DRAW_GR, "COLLECTION", 0, "Collection", ""},
 	{PART_DRAW_BB, "BILLBOARD", 0, "Billboard", ""},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -125,7 +125,7 @@ static const EnumPropertyItem part_hair_ren_as_items[] = {
 	{PART_DRAW_NOT, "NONE", 0, "None", ""},
 	{PART_DRAW_PATH, "PATH", 0, "Path", ""},
 	{PART_DRAW_OB, "OBJECT", 0, "Object", ""},
-	{PART_DRAW_GR, "GROUP", 0, "Group", ""},
+	{PART_DRAW_GR, "COLLECTION", 0, "Collection", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 #endif
@@ -134,6 +134,7 @@ static const EnumPropertyItem part_hair_ren_as_items[] = {
 
 #include "BLI_math.h"
 
+#include "BKE_boids.h"
 #include "BKE_context.h"
 #include "BKE_cloth.h"
 #include "BKE_colortools.h"
@@ -638,9 +639,31 @@ static void rna_Particle_change_type(Main *bmain, Scene *UNUSED(scene), PointerR
 	DEG_relations_tag_update(bmain);
 }
 
-static void rna_Particle_change_physics(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_Particle_change_physics_type(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	particle_recalc(bmain, scene, ptr, PSYS_RECALC_RESET | PSYS_RECALC_PHYS);
+	
+	ParticleSettings *part = (ParticleSettings *)ptr->data;
+
+	if (part->phystype == PART_PHYS_BOIDS && part->boids == NULL) {
+		BoidState *state;
+
+		part->boids = MEM_callocN(sizeof(BoidSettings), "Boid Settings");
+		boid_default_settings(part->boids);
+
+		state = boid_new_state(part->boids);
+		BLI_addtail(&state->rules, boid_new_rule(eBoidRuleType_Separate));
+		BLI_addtail(&state->rules, boid_new_rule(eBoidRuleType_Flock));
+
+		((BoidRule*)state->rules.first)->flag |= BOIDRULE_CURRENT;
+
+		state->flag |= BOIDSTATE_CURRENT;
+		BLI_addtail(&part->boids->states, state);
+	}
+	else if (part->phystype == PART_PHYS_FLUID && part->fluid == NULL) {
+		part->fluid = MEM_callocN(sizeof(SPHFluidSettings), "SPH Fluid Settings");
+		BKE_particlesettings_fluid_default_settings(part);
+	}
 }
 
 static void rna_Particle_redo_child(Main *bmain, Scene *scene, PointerRNA *ptr)
@@ -2227,7 +2250,7 @@ static void rna_def_particle_settings(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_enum_items(prop, phys_type_items);
 	RNA_def_property_ui_text(prop, "Physics Type", "Particle physics type");
-	RNA_def_property_update(prop, 0, "rna_Particle_change_physics");
+	RNA_def_property_update(prop, 0, "rna_Particle_change_physics_type");
 
 	prop = RNA_def_property(srna, "rotation_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "rotmode");
@@ -3147,6 +3170,38 @@ static void rna_def_particle_settings(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Twist Curve", "Curve defining twist");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo_child");
+
+	/* hair shape */
+	prop = RNA_def_property(srna, "use_close_tip", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "shape_flag", PART_SHAPE_CLOSE_TIP);
+	RNA_def_property_ui_text(prop, "Close Tip", "Set tip radius to zero");
+	RNA_def_property_update(prop, 0, "rna_Particle_redo"); /* TODO: Only need to tell the render engine to update. */
+
+	prop = RNA_def_property(srna, "shape", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_range(prop, -1.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Shape", "Strand shape parameter");
+	RNA_def_property_update(prop, 0, "rna_Particle_redo"); /* TODO: Only need to tell the render engine to update. */
+
+	prop = RNA_def_property(srna, "root_radius", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "rad_root");
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_ui_range(prop, 0.0f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_text(prop, "Root", "Strand width at the root");
+	RNA_def_property_update(prop, 0, "rna_Particle_redo"); /* TODO: Only need to tell the render engine to update. */
+
+	prop = RNA_def_property(srna, "tip_radius", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "rad_tip");
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_ui_range(prop, 0.0f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_text(prop, "Tip", "Strand width at the tip");
+	RNA_def_property_update(prop, 0, "rna_Particle_redo"); /* TODO: Only need to tell the render engine to update. */
+
+	prop = RNA_def_property(srna, "radius_scale", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "rad_scale");
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_ui_range(prop, 0.0f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_text(prop, "Scaling", "Multiplier of radius properties");
+	RNA_def_property_update(prop, 0, "rna_Particle_redo"); /* TODO: Only need to tell the render engine to update. */
 }
 
 static void rna_def_particle_target(BlenderRNA *brna)

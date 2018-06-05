@@ -53,6 +53,7 @@ set(INC_SYS
 )
 
 set(SRC
+	intern/draw_anim_viz.c
 	intern/draw_armature.c
 	intern/draw_cache.c
 	intern/draw_cache_impl_curve.c
@@ -65,6 +66,7 @@ set(SRC
 	intern/draw_common.c
 	intern/draw_debug.c
 	intern/draw_hair.c
+	intern/draw_hair_fibers.c
 	intern/draw_instance_data.c
 	intern/draw_manager.c
 	intern/draw_manager_data.c
@@ -99,6 +101,7 @@ set(SRC
 	engines/eevee/eevee_engine.c
 	engines/eevee/eevee_lightprobes.c
 	engines/eevee/eevee_lights.c
+	engines/eevee/eevee_lookdev.c
 	engines/eevee/eevee_materials.c
 	engines/eevee/eevee_mist.c
 	engines/eevee/eevee_motion_blur.c
@@ -124,6 +127,7 @@ set(SRC
 	intern/draw_cache_impl.h
 	intern/draw_common.h
 	intern/draw_debug.h
+	intern/draw_hair_private.h
 	intern/draw_instance_data.h
 	intern/draw_manager.h
 	intern/draw_manager_text.h
@@ -236,9 +240,14 @@ data_to_c_simple(engines/workbench/shaders/workbench_shadow_debug_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
+data_to_c_simple(modes/shaders/common_hair_lib.glsl SRC)
+data_to_c_simple(modes/shaders/common_hair_refine_vert.glsl SRC)
 data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fxaa_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fullscreen_vert.glsl SRC)
+data_to_c_simple(modes/shaders/animviz_mpath_lines_vert.glsl SRC)
+data_to_c_simple(modes/shaders/animviz_mpath_lines_geom.glsl SRC)
+data_to_c_simple(modes/shaders/animviz_mpath_points_vert.glsl SRC)
 data_to_c_simple(modes/shaders/armature_axes_vert.glsl SRC)
 data_to_c_simple(modes/shaders/armature_sphere_solid_vert.glsl SRC)
 data_to_c_simple(modes/shaders/armature_sphere_solid_frag.glsl SRC)
@@ -272,6 +281,9 @@ data_to_c_simple(modes/shaders/edit_normals_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_normals_geom.glsl SRC)
 data_to_c_simple(modes/shaders/overlay_face_orientation_frag.glsl SRC)
 data_to_c_simple(modes/shaders/overlay_face_orientation_vert.glsl SRC)
+data_to_c_simple(modes/shaders/overlay_face_wireframe_vert.glsl SRC)
+data_to_c_simple(modes/shaders/overlay_face_wireframe_geom.glsl SRC)
+data_to_c_simple(modes/shaders/overlay_face_wireframe_frag.glsl SRC)
 data_to_c_simple(modes/shaders/object_empty_image_frag.glsl SRC)
 data_to_c_simple(modes/shaders/object_empty_image_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_outline_resolve_frag.glsl SRC)

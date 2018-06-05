@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -836,7 +836,7 @@ bool nodeIsChildOf(const bNode *parent, const bNode *child)
 /**
  * Iterate over a chain of nodes, starting with \a node_start, executing
  * \a callback for each node (which can return false to end iterator).
- * 
+ *
  * \param reversed for backwards iteration
  * \note Recursive
  */
@@ -868,7 +868,7 @@ void nodeChainIter(
 
 /**
  * Iterate over all parents of \a node, executing \a callback for each parent (which can return false to end iterator)
- * 
+ *
  * \note Recursive
  */
 void nodeParentsIter(bNode *node, bool (*callback)(bNode *, void *), void *userdata)
@@ -1933,15 +1933,15 @@ void ntreeSetOutput(bNodeTree *ntree)
 	 * might be different for editor or for "real" use... */
 }
 
-bNodeTree *ntreeFromID(ID *id)
+bNodeTree *ntreeFromID(const ID *id)
 {
 	switch (GS(id->name)) {
-		case ID_MA:  return ((Material *)id)->nodetree;
-		case ID_LA:  return ((Lamp *)id)->nodetree;
-		case ID_WO:  return ((World *)id)->nodetree;
-		case ID_TE:  return ((Tex *)id)->nodetree;
-		case ID_SCE: return ((Scene *)id)->nodetree;
-		case ID_LS:  return ((FreestyleLineStyle *)id)->nodetree;
+		case ID_MA:  return ((const Material *)id)->nodetree;
+		case ID_LA:  return ((const Lamp *)id)->nodetree;
+		case ID_WO:  return ((const World *)id)->nodetree;
+		case ID_TE:  return ((const Tex *)id)->nodetree;
+		case ID_SCE: return ((const Scene *)id)->nodetree;
+		case ID_LS:  return ((const FreestyleLineStyle *)id)->nodetree;
 		default: return NULL;
 	}
 }
@@ -3545,6 +3545,7 @@ static void registerShaderNodes(void)
 	register_node_type_sh_tex_checker();
 	register_node_type_sh_tex_brick();
 	register_node_type_sh_tex_pointdensity();
+	register_node_type_sh_tex_ies();
 }
 
 static void registerTextureNodes(void)
