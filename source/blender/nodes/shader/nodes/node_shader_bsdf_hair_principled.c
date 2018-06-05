@@ -33,6 +33,7 @@ static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
 	{	SOCK_RGBA,   1, N_("Color"),						0.8f, 0.8f, 0.8f, 1.0f, 0.0f, 1.0f},
 	{	SOCK_FLOAT,  1, N_("Melanin"),						0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 10.0f},
 	{	SOCK_FLOAT,  1, N_("Melanin Redness"),				1.3f, 0.0f, 0.0f, 0.0f, 0.0f, 10.0f},
+	{   SOCK_RGBA,   1, N_("Tint"),                         1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f},
 	// Benedikt Bitterli's default brownish hair with PHEOmelanin
 	// The absorption coefficient below is 1.3f * pheomelanin mapping
 	{	SOCK_VECTOR, 1, N_("Absorption Coefficient"),		0.245531f, 0.52f, 1.365f, 0.0f, 0.0f, 1000.0f},
@@ -77,6 +78,14 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Melanin Redness"))  {
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
+				sock->flag &= ~SOCK_UNAVAIL;
+			}
+			else {
+				sock->flag |= SOCK_UNAVAIL;
+			}
+		}
+		else if (STREQ(sock->name, "Tint"))  {
 			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
 				sock->flag &= ~SOCK_UNAVAIL;
 			}

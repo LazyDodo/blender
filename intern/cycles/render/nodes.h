@@ -614,6 +614,7 @@ public:
 	float3 color;
 	float eumelanin;
 	float pheomelanin;
+	float3 tint;
 	float3 absorption_coefficient;
 
 	float3 normal;

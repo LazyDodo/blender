@@ -724,6 +724,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 #ifdef __HAIR__
 		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID: {
 			uint4 data_node2 = read_node(kg, offset);
+			uint4 data_node3 = read_node(kg, offset);
 
 			float3 weight = sd->svm_closure_weight * mix_weight;
 
@@ -739,6 +740,9 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			float m0_roughness = (stack_valid(primary_reflection_roughness_ofs))? stack_load_float(stack, primary_reflection_roughness_ofs): __uint_as_float(data_node2.y);
 			float eumelanin = (stack_valid(eumelanin_ofs)) ? stack_load_float(stack, eumelanin_ofs) : __uint_as_float(data_node2.z);
 			float pheomelanin = (stack_valid(pheomelanin_ofs)) ? stack_load_float(stack, pheomelanin_ofs) : __uint_as_float(data_node2.w);
+			
+			uint tint_ofs;
+			decode_node_uchar4(data_node3.x, &tint_ofs, NULL, NULL, NULL);
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
@@ -757,6 +761,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 
 				float3 color = stack_load_float3(stack, color_ofs);
 				float3 absorption_coefficient = stack_load_float3(stack, absorption_coefficient_ofs);
+				float3 tint = stack_load_float3(stack, tint_ofs);
 				switch(parametrization) {
 					case NODE_PRINCIPLED_HAIR_DIRECT_ABSORPTION:
 						bsdf->sigma = absorption_coefficient;
@@ -764,9 +769,14 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 					case NODE_PRINCIPLED_HAIR_PHYSICAL:
 						bsdf->sigma = -log3(max(absorption_coefficient, make_float3(1e-5f, 1e-5f, 1e-5f)));
 						break;
-					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION:
-						bsdf->sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
+					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION: {
+						float3 melanin_sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
+						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
+						float3 tint_sigma =  log3(tint)/roughness_fac;
+						tint_sigma *= tint_sigma;
+						bsdf->sigma = melanin_sigma + tint_sigma;
 						break;
+					}
 					case NODE_PRINCIPLED_HAIR_REFLECTANCE: {
 						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
 						bsdf->sigma = log3(color)/roughness_fac;
