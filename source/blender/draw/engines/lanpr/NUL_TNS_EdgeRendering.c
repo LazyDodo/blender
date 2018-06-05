@@ -535,6 +535,8 @@ static void lanpr_engine_init(void *ved){
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
 	SceneLANPR* lanpr = &draw_ctx->scene->lanpr;
 
+	lanpr->reloaded = 1;
+
 	if (!lanpr->InitComplete) {
 		lanpr->depth_clamp = 0.01;
 		lanpr->depth_strength = 800;
@@ -908,7 +910,7 @@ void lanpr_remove_sample(LANPR_PrivateData* pd, int Row, int Col) {
 	BLI_addtail(&pd->erased_samples, ts);
 }
 
-int lanpr_grow_snake_r(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStripPoint* ThisP, int Direction) {
+void lanpr_grow_snake_r(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStripPoint* ThisP, int Direction) {
 	LANPR_LineStripPoint* NewP = ThisP,*p2;
 	int Length = 5;
 	int l = 0;
@@ -945,7 +947,7 @@ int lanpr_grow_snake_r(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStr
 		lanpr_append_point(pd, ls, TX, TY, 0);
 }
 
-int lanpr_grow_snake_l(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStripPoint* ThisP, int Direction) {
+void lanpr_grow_snake_l(LANPR_PrivateData* pd, LANPR_LineStrip* ls, LANPR_LineStripPoint* ThisP, int Direction) {
 	LANPR_LineStripPoint* NewP = ThisP, *p2;
 	int Length = 5;
 	int l = 0;
@@ -1012,7 +1014,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 	LANPR_LineStrip* ls;
 	LANPR_LineStripPoint* lsp, *plsp;
 	int i;
-	u32bit *Index_adjacent;
+	//u32bit *Index_adjacent;
 	float* Verts;
 	float* Lengths;
 	float TotalLength=0;
