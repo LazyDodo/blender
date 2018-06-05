@@ -70,6 +70,7 @@
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
+#include "BKE_studiolight.h"
 #include "BKE_workspace.h"
 #include "BKE_gpencil.h"
 #include "BKE_paint.h"
@@ -1618,6 +1619,22 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *main)
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
 							v3d->shading.xray_alpha = 0.5f;
+						}
+					}
+				}
+			}
+		}
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "char", "matcap[256]")) {
+			StudioLight *default_matcap = BKE_studiolight_find_first(STUDIOLIGHT_ORIENTATION_VIEWNORMAL);
+			/* when loading the internal file is loaded before the matcaps */
+			if (default_matcap) {
+				for (bScreen *screen = main->screen.first; screen; screen = screen->id.next) {
+					for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+						for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+							if (sl->spacetype == SPACE_VIEW3D) {
+								View3D *v3d = (View3D *)sl;
+								BLI_strncpy(v3d->shading.matcap, default_matcap->name, FILE_MAXFILE);
+							}
 						}
 					}
 				}
