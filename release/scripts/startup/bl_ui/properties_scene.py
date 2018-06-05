@@ -490,8 +490,11 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         scene = context.scene
         lanpr = scene.lanpr
 
+        layout.prop(lanpr, "master_mode")
+
         if lanpr.master_mode == "DPIX":
             layout.label(text="DPIX:")
+            layout.prop(lanpr, "reloaded")
             split = layout.split()
             col = split.column()
             col.prop(lanpr, "background_color")

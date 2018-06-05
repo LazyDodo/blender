@@ -1470,6 +1470,11 @@ typedef struct SceneLANPR{
 	float line_color[4];
 	float background_color[4];
 
+	/* states (needs optimization) */
+
+	int   InitComplete;
+	int   reloaded;
+
 } SceneLANPR;
 
 /* *************************************************************** */

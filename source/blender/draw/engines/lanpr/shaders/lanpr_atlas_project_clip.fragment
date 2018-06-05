@@ -331,8 +331,10 @@ bool testProfileEdge( ivec2 texcoord, vec3 world_position )
 {
     // This should really be the inverse transpose of the modelview matrix, but
     // that only matters if the camera has a weird anisotropic scale or skew.
-    vec3 face_normal_0 = mat3(ModelMatrix) * texelFetch(face_normal0_tex, texcoord, 0).xyz;
-    vec3 face_normal_1 = mat3(ModelMatrix) * texelFetch(face_normal1_tex, texcoord, 0).xyz;
+
+    mat3 nm = mat3(transpose(inverse(ModelMatrix)));
+    vec3 face_normal_0 = mat3(nm) * texelFetch(face_normal0_tex, texcoord, 0).xyz;
+    vec3 face_normal_1 = mat3(nm) * texelFetch(face_normal1_tex, texcoord, 0).xyz;
     vec3 camera_to_line = world_position - view_pos;//modelview * vec4(world_position, 1.0);
 
     float dot0 = dot(camera_to_line.xyz, vec3(face_normal_0.xyz));

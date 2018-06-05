@@ -133,6 +133,7 @@ typedef struct LANPR_PrivateData {
 	int           dpix_is_perspective;
 	float         dpix_viewport[4];
     int           dpix_buffer_width;
+	float         dpix_depth_offset;
 
 	// drawing
 

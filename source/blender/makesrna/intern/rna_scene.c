@@ -6176,6 +6176,12 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	static const EnumPropertyItem DEBUG_rna_enum_lanpr_reload[] = {
+	    {0, "IDLE", ICON_MESH_CUBE, "Idle", "Idle"},
+        {1, "RELOAD", ICON_MESH_CUBE, "RELOAD", "Force reload the scene"},
+	    {0, NULL, 0, NULL, NULL}
+    };
+
 	static const EnumPropertyItem rna_enum_lanpr_master_mode[] = {
 	    {LANPR_MASTER_MODE_DPIX, "DPIX", ICON_MESH_CUBE, "DPIX", "DPIX GPU edge calculation"},
         {LANPR_MASTER_MODE_SNAKE, "SNAKE", ICON_MESH_CUBE, "Snake", "Image filter and GPU tracing method"},
@@ -6210,6 +6216,15 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "SceneLANPR");
 	RNA_def_struct_ui_text(srna, "Scene LANPR Config", "LANPR global config");
 
+
+    prop = RNA_def_property(srna, "reloaded", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, DEBUG_rna_enum_lanpr_reload);
+	RNA_def_property_enum_default(prop, 0);
+	RNA_def_property_ui_text(prop, "Reload", "Reload the scene");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+
 	prop = RNA_def_property(srna, "master_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rna_enum_lanpr_master_mode);
 	RNA_def_property_enum_default(prop, LANPR_MASTER_MODE_DPIX);
@@ -6232,7 +6247,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
 	prop = RNA_def_property(srna, "depth_clamp", PROP_FLOAT, PROP_PERCENTAGE);
-	RNA_def_property_float_default(prop, 0.1f);
+	RNA_def_property_float_default(prop, 0.001f);
 	RNA_def_property_ui_text(prop, "Depth Clamp", "Depth clamp value for edge extraction");
 	RNA_def_property_ui_range(prop, 0.0, 0.01, 0.0001, 5);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
@@ -6255,7 +6270,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "normal_strength", PROP_FLOAT, PROP_PERCENTAGE);
 	RNA_def_property_float_default(prop, 10);
 	RNA_def_property_ui_text(prop, "Normal Strength", "Normal strength value for edge extraction");
-	RNA_def_property_ui_range(prop, 0, 5, 1, 2);
+	RNA_def_property_ui_range(prop, 0, 20, 1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 

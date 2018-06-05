@@ -83,17 +83,21 @@ void lanpr_init_atlas_inputs(void *ved){
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	SceneLANPR* lanpr=&draw_ctx->scene->lanpr;
+
+	if(lanpr->reloaded){
+		DRW_texture_ensure_2D(&txl->dpix_in_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+		DRW_texture_ensure_2D(&txl->dpix_in_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+		DRW_texture_ensure_2D(&txl->dpix_in_nl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+		DRW_texture_ensure_2D(&txl->dpix_in_nr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+
+		DRW_texture_ensure_2D(&txl->dpix_out_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+		DRW_texture_ensure_2D(&txl->dpix_out_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+		DRW_texture_ensure_2D(&txl->dpix_out_length, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+	}
 
 
 	/* Main Buffer */
-	DRW_texture_ensure_2D(&txl->dpix_in_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
-	DRW_texture_ensure_2D(&txl->dpix_in_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
-	DRW_texture_ensure_2D(&txl->dpix_in_nl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
-	DRW_texture_ensure_2D(&txl->dpix_in_nr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
-
-	DRW_texture_ensure_2D(&txl->dpix_out_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
-	DRW_texture_ensure_2D(&txl->dpix_out_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
-	DRW_texture_ensure_2D(&txl->dpix_out_length, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 
 	GPU_framebuffer_ensure_config(&fbl->dpix_transform, {
 		GPU_ATTACHMENT_LEAVE,
@@ -160,10 +164,10 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 	Object* ob, int BeginIndex) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 
-	if (!DRW_object_is_renderable(ob)) return;
+	if (!DRW_object_is_renderable(ob)) return BeginIndex;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	if (ob == draw_ctx->object_edit) return;
-	if(ob->type != OB_MESH) return;
+	if (ob == draw_ctx->object_edit) return BeginIndex;
+	if(ob->type != OB_MESH) return BeginIndex;
 
 	Mesh* me = ob->data;
 	BMesh* bm;
@@ -268,12 +272,12 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 }
 
 void lanpr_dpix_index_to_coord(int index, float* x,float* y){
-    (*x) = tnsLinearItp(-1,1,(float)(index % TNS_DPIX_TEXTURE_SIZE)/(float)TNS_DPIX_TEXTURE_SIZE);
-	(*y) = tnsLinearItp(-1,1,(float)(index / TNS_DPIX_TEXTURE_SIZE)/(float)TNS_DPIX_TEXTURE_SIZE);
+    (*x) = tnsLinearItp(-1,1,(float)(index % TNS_DPIX_TEXTURE_SIZE+0.5)/(float)TNS_DPIX_TEXTURE_SIZE);
+	(*y) = tnsLinearItp(-1,1,(float)(index / TNS_DPIX_TEXTURE_SIZE+0.5)/(float)TNS_DPIX_TEXTURE_SIZE);
 }
 void lanpr_dpix_index_to_coord_absolute(int index, float* x,float* y){
-	(*x) = (float)(index % TNS_DPIX_TEXTURE_SIZE);
-    (*y) = (float)(index / TNS_DPIX_TEXTURE_SIZE);
+	(*x) = (float)(index % TNS_DPIX_TEXTURE_SIZE)+0.5;
+    (*y) = (float)(index / TNS_DPIX_TEXTURE_SIZE)+0.5;
 }
 
 void lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex) {
@@ -281,7 +285,7 @@ void lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginInd
 	LANPR_PrivateData* pd = stl->g_data;
 	Mesh* me = ob->data;
 	if (ob->type != OB_MESH) return;
-	int vert_count = me->totedge;
+	int edge_count = me->totedge;
 	int i;
 	float co[2];
 
@@ -299,10 +303,10 @@ void lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginInd
 
 	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
 	Gwn_VertBuf *vbo2 = GWN_vertbuf_create_with_format(&format2);
-	GWN_vertbuf_data_alloc(vbo, vert_count);
-	GWN_vertbuf_data_alloc(vbo2, vert_count);
+	GWN_vertbuf_data_alloc(vbo, edge_count);
+	GWN_vertbuf_data_alloc(vbo2, edge_count);
 
-	for(i=0;i<vert_count;i++){
+	for(i=0;i<edge_count;i++){
         lanpr_dpix_index_to_coord(i+BeginIndex,&co[0],&co[1]);
 		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, co);
 		lanpr_dpix_index_to_coord_absolute(i+BeginIndex,&co[0],&co[1]);
@@ -529,6 +533,33 @@ static void lanpr_engine_init(void *ved){
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	SceneLANPR* lanpr = &draw_ctx->scene->lanpr;
+
+	if (!lanpr->InitComplete) {
+		lanpr->depth_clamp = 0.01;
+		lanpr->depth_strength = 800;
+		lanpr->normal_clamp = 2;
+		lanpr->normal_strength = 10;
+		lanpr->line_thickness = 2;
+		lanpr->taper_left_distance = 20;
+		lanpr->taper_left_strength = 0.9;
+		lanpr->taper_right_distance = 20;
+		lanpr->taper_right_strength = 0.9;
+
+		lanpr->line_color[0] = 0.22;
+		lanpr->line_color[1] = 0.29;
+		lanpr->line_color[2] = 0.53;
+		lanpr->line_color[3] = 1;
+
+		lanpr->background_color[0] = 0.59;
+		lanpr->background_color[1] = 0.90;
+		lanpr->background_color[2] = 0.51;
+		lanpr->background_color[3] = 1;
+
+		lanpr->reloaded = 1;
+
+		lanpr->InitComplete=1;
+	}
 
 
 	/* Main Buffer */
@@ -697,13 +728,14 @@ static void lanpr_cache_init(void *vedata){
 	View3D *v3d = draw_ctx->v3d;
 	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 
-	psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR);
+	psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR|DRW_STATE_WRITE_DEPTH|DRW_STATE_DEPTH_LESS_EQUAL);
 	stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
 	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert0_tex", &txl->dpix_out_pl);
 	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert1_tex", &txl->dpix_out_pr);
 	DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "viewport", stl->g_data->dpix_viewport, 4);
-	DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", &lanpr->line_color, 4);
-
+	DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", lanpr->line_color, 4);
+    DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_offset", &stl->g_data->dpix_depth_offset, 1);
+	
 	pd->begin_index = 0;
 	int tsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE*TNS_DPIX_TEXTURE_SIZE;
 	if (!pd->atlas_pl) {
@@ -712,22 +744,26 @@ static void lanpr_cache_init(void *vedata){
 		pd->atlas_nl = MEM_callocN(tsize, "atlas_normal_l");
 		pd->atlas_nr = MEM_callocN(tsize, "atlas_normal_l");
 	}
-	memset(pd->atlas_pl, 0, tsize);
-	memset(pd->atlas_pr, 0, tsize);
-	memset(pd->atlas_nl, 0, tsize);
-	memset(pd->atlas_nr, 0, tsize);
+	if(lanpr->reloaded){
+	    memset(pd->atlas_pl, 0, tsize);
+	    memset(pd->atlas_pr, 0, tsize);
+	    memset(pd->atlas_nl, 0, tsize);
+	    memset(pd->atlas_nr, 0, tsize);
+	}
 }
 
 static void lanpr_cache_populate(void *vedata, Object *ob){
     
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PrivateData* pd = stl->g_data;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
+	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 	
 	if (!DRW_object_is_renderable(ob)) {
 		return;
 	}
 
-	const DRWContextState *draw_ctx = DRW_context_state_get();
 	if (ob == draw_ctx->object_edit) {
 		return;
 	}
@@ -737,28 +773,34 @@ static void lanpr_cache_populate(void *vedata, Object *ob){
         DRW_shgroup_call_object_add(stl->g_data->multipass_shgrp, geom, ob);
 	}
 
-	int idx = pd->begin_index;
-
-	pd->begin_index = lanpr_feed_atlas_data_obj(vedata,pd->atlas_pl,pd->atlas_pr,pd->atlas_nl,pd->atlas_nr,ob,idx);
-
-	lanpr_feed_atlas_trigger_preview_obj(vedata,ob,idx);
+	if(lanpr->reloaded){
+		int idx = pd->begin_index;
+		pd->begin_index = lanpr_feed_atlas_data_obj(vedata,pd->atlas_pl,pd->atlas_pr,pd->atlas_nl,pd->atlas_nr,ob,idx);
+		lanpr_feed_atlas_trigger_preview_obj(vedata,ob,idx);
+	}
 }
 
 static void lanpr_cache_finish(void *vedata){
     LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PrivateData* pd = stl->g_data;
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
+	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 
-	GPU_texture_update(txl->dpix_in_pl,pd->atlas_pl);
-    GPU_texture_update(txl->dpix_in_pr,pd->atlas_pr);
-	GPU_texture_update(txl->dpix_in_nl,pd->atlas_nl);
-    GPU_texture_update(txl->dpix_in_nr,pd->atlas_nr);
+	if(lanpr->reloaded){
+		GPU_texture_update(txl->dpix_in_pl,pd->atlas_pl);
+		GPU_texture_update(txl->dpix_in_pr,pd->atlas_pr);
+		GPU_texture_update(txl->dpix_in_nl,pd->atlas_nl);
+		GPU_texture_update(txl->dpix_in_nr,pd->atlas_nr);
 
-	MEM_freeN(pd->atlas_pl);
-	MEM_freeN(pd->atlas_pr);
-	MEM_freeN(pd->atlas_nl);
-	MEM_freeN(pd->atlas_nr);
-	pd->atlas_pl = 0;
+		MEM_freeN(pd->atlas_pl);
+		MEM_freeN(pd->atlas_pr);
+		MEM_freeN(pd->atlas_nl);
+		MEM_freeN(pd->atlas_nr);
+		pd->atlas_pl = 0;
+		lanpr->reloaded = 0;
+	}
 }
 
 int _TNS_ColOffsets[] = { -1,0,1,1,1,0,-1,-1 };
@@ -1073,16 +1115,23 @@ static void lanpr_draw_scene(void *vedata)
 		stl->g_data->dpix_is_perspective = 1;
 		stl->g_data->dpix_sample_step = 1;
 		stl->g_data->dpix_buffer_width = TNS_DPIX_TEXTURE_SIZE;
+		stl->g_data->dpix_depth_offset=0.0001;
 
-        
+        glPointSize(1);
+		glLineWidth(2);
 		GPU_framebuffer_bind(fbl->dpix_transform);
-		GPU_disable_program_point_size();
+		//GPU_disable_program_point_size();
 		DRW_draw_pass(psl->dpix_transform_pass);
 
+		GPU_framebuffer_bind(dfbl->default_fb);
+		DRW_draw_pass(psl->edge_intermediate);// use depth
+
 		GPU_framebuffer_bind(fbl->dpix_preview);
+		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->dpix_preview_pass);
 
 		GPU_framebuffer_bind(dfbl->default_fb);
+		//DRW_transform_to_display(txl->dpix_out_pl);
 		DRW_transform_to_display(txl->color);
 		
 	}else{//snake
