@@ -1125,10 +1125,11 @@ static void lanpr_draw_scene(void *vedata)
 		//GPU_disable_program_point_size();
 		DRW_draw_pass(psl->dpix_transform_pass);
 
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(fbl->edge_intermediate);
 		DRW_draw_pass(psl->edge_intermediate);// use depth
 
 		GPU_framebuffer_bind(fbl->dpix_preview);
+		GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
 		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->dpix_preview_pass);
 
