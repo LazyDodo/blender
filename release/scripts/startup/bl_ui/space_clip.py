@@ -1017,9 +1017,11 @@ class CLIP_PT_proxy(CLIP_PT_clip_view_panel, Panel):
         if clip.use_proxy_custom_directory:
             col.prop(clip.proxy, "directory")
 
-        col.operator("clip.rebuild_proxy",
-                     text="Build Proxy / Timecode" if clip.source == 'MOVIE'
-                                                   else "Build Proxy")
+        col.operator(
+            "clip.rebuild_proxy",
+            text="Build Proxy / Timecode" if clip.source == 'MOVIE'
+            else "Build Proxy"
+        )
 
         if clip.source == 'MOVIE':
             col2 = col.column()
@@ -1187,6 +1189,7 @@ class CLIP_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
 class CLIP_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
     bl_region_type = 'TOOLS'
+
 
 class CLIP_MT_view(Menu):
     bl_label = "View"
