@@ -619,6 +619,7 @@ public:
 
 	float3 normal;
 	float surface_mix_weight;
+	float random;
 	NodePrincipledHairParametrization parametrization;
 };
 

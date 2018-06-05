@@ -741,8 +741,9 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			float eumelanin = (stack_valid(eumelanin_ofs)) ? stack_load_float(stack, eumelanin_ofs) : __uint_as_float(data_node2.z);
 			float pheomelanin = (stack_valid(pheomelanin_ofs)) ? stack_load_float(stack, pheomelanin_ofs) : __uint_as_float(data_node2.w);
 			
-			uint tint_ofs;
-			decode_node_uchar4(data_node3.x, &tint_ofs, NULL, NULL, NULL);
+			uint tint_ofs, random_ofs;
+			decode_node_uchar4(data_node3.x, &tint_ofs, &random_ofs, NULL, NULL);
+			float random = (stack_valid(random_ofs)) ? stack_load_float(stack, random_ofs) : data_node3.y;
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
@@ -757,6 +758,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				bsdf->m0_roughness = m0_roughness;
 				bsdf->alpha = alpha;
 				bsdf->eta = ior;
+				bsdf->random = random;
 				bsdf->extra = extra;
 
 				float3 color = stack_load_float3(stack, color_ofs);

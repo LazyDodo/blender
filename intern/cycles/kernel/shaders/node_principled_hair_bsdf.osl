@@ -33,6 +33,7 @@ shader node_principled_hair_bsdf(
 	float RoughnessV = 0.3,
 	float PrimaryReflectionRoughness = 1.0,
 	float IOR = 1.55,
+	float Random = 0.0,
 
 	output closure color BSDF = 0)
 {
@@ -62,7 +63,7 @@ shader node_principled_hair_bsdf(
 		Sigma = 0.0*color(0.419, 0.697, 1.37) + 1.3*color(0.187, 0.4, 1.05);
 	}
 
-	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, Scale deviation %f, IOR %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, Sigma, RoughnessU, RoughnessV, Offset, IOR);
+	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, Scale deviation %f, IOR %f, random value %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, Sigma, RoughnessU, RoughnessV, Offset, IOR, Random);
 
-	BSDF = principled_hair(Normal, Sigma, RoughnessU, RoughnessV, PrimaryReflectionRoughness, Offset, IOR);
+	BSDF = principled_hair(Normal, Sigma, RoughnessU, RoughnessV, PrimaryReflectionRoughness, Offset, IOR, Random);
 }

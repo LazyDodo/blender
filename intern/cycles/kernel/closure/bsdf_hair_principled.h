@@ -36,6 +36,7 @@ typedef ccl_addr_space struct PrincipledHairBSDF {
 	float alpha;
 	float eta;
 	float m0_roughness;
+	float random;
 
 	PrincipledHairExtra *extra;
 } PrincipledHairBSDF;

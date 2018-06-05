@@ -234,6 +234,7 @@ static ClosureParam *bsdf_principled_hair_params()
 		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.m0_roughness),
 		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.alpha),
 		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.eta),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.random),
 		CLOSURE_STRING_KEYPARAM(PrincipledHairClosure, label, "label"),
 		CLOSURE_FINISH_PARAM(PrincipledHairClosure)
 	};

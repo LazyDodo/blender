@@ -3063,6 +3063,8 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(primary_reflection_roughness, "Primary Reflection Roughness", 1.0f);
 	SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
 
+	SOCKET_IN_FLOAT(random, "Random", 0.0f);
+
 	SOCKET_OUT_CLOSURE(BSDF, "BSDF");
 
 	return type;
@@ -3089,6 +3091,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	int color_ofs = compiler.stack_assign(input("Color"));
 	int tint_ofs = compiler.stack_assign(input("Tint"));
 	int absorption_coefficient_ofs = compiler.stack_assign(input("Absorption Coefficient"));
+
+	ShaderInput *random_in = input("Random");
 
 	compiler.add_node(NODE_CLOSURE_BSDF,
 		compiler.encode_uchar4(closure,
@@ -3120,10 +3124,10 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	compiler.add_node(
 		compiler.encode_uchar4(
 			tint_ofs,
-			SVM_STACK_INVALID,
+			compiler.stack_assign_if_linked(random_in),
 			SVM_STACK_INVALID,
 			SVM_STACK_INVALID),
-		SVM_STACK_INVALID,
+		__float_as_int(random),
 		SVM_STACK_INVALID,
 		SVM_STACK_INVALID);
 }
