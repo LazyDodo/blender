@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -87,7 +87,7 @@ struct GPUMaterial {
 
 	const void *engine_type;   /* attached engine type */
 	int options;    /* to identify shader variations (shadow, probe, world background...) */
-	
+
 	/* for creating the material */
 	ListBase nodes;
 	GPUNodeLink *outlink;
@@ -670,6 +670,6 @@ void GPU_materials_free(void)
 
 	for (wo = G.main->world.first; wo; wo = wo->id.next)
 		GPU_material_free(&wo->gpumaterial);
-	
+
 	GPU_material_free(&defmaterial.gpumaterial);
 }

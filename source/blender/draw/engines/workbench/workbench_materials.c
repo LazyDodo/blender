@@ -7,14 +7,18 @@
 #define HSV_SATURATION 0.5
 #define HSV_VALUE 0.9
 
-void workbench_material_get_solid_color(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, float *color)
+void workbench_material_update_data(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, WORKBENCH_MaterialData *data)
 {
 	/* When in OB_TEXTURE always uyse V3D_SHADING_MATERIAL_COLOR as fallback when no texture could be determined */
 	int color_type = wpd->drawtype == OB_SOLID ? wpd->shading.color_type : V3D_SHADING_MATERIAL_COLOR;
-	static float default_color[] = {0.8f, 0.8f, 0.8f, 1.0f};
-	color[3] = 1.0f;
+	static float default_diffuse_color[] = {0.8f, 0.8f, 0.8f, 1.0f};
+	static float default_specular_color[] = {1.0f, 1.0f, 1.0f, 1.0f};
+	copy_v4_v4(data->material_data.diffuse_color, default_diffuse_color);
+	copy_v4_v4(data->material_data.specular_color, default_specular_color);
+	data->material_data.roughness = 0.25f;
+
 	if (DRW_object_is_paint_mode(ob) || color_type == V3D_SHADING_SINGLE_COLOR) {
-		copy_v3_v3(color, wpd->shading.single_color);
+		copy_v3_v3(data->material_data.diffuse_color, wpd->shading.single_color);
 	}
 	else if (color_type == V3D_SHADING_RANDOM_COLOR) {
 		uint hash = BLI_ghashutil_strhash_p_murmur(ob->id.name);
@@ -24,23 +28,19 @@ void workbench_material_get_solid_color(WORKBENCH_PrivateData *wpd, Object *ob, 
 		float offset = fmodf((hash / 100000.0) * M_GOLDEN_RATION_CONJUGATE, 1.0);
 
 		float hsv[3] = {offset, HSV_SATURATION, HSV_VALUE};
-		hsv_to_rgb_v(hsv, color);
-	}
-	else if (color_type == V3D_SHADING_OBJECT_COLOR) {
-		copy_v3_v3(color, ob->col);
+		hsv_to_rgb_v(hsv, data->material_data.diffuse_color);
 	}
 	else {
 		/* V3D_SHADING_MATERIAL_COLOR */
 		if (mat) {
-			copy_v3_v3(color, &mat->r);
-		}
-		else {
-			copy_v3_v3(color, default_color);
+			copy_v3_v3(data->material_data.diffuse_color, &mat->r);
+			copy_v3_v3(data->material_data.specular_color, &mat->specr);
+			data->material_data.roughness = mat->roughness;
 		}
 	}
 }
 
-char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype)
+char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair)
 {
 	char *str = NULL;
 
@@ -51,6 +51,9 @@ char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype)
 	}
 	if (wpd->shading.flag & V3D_SHADING_SHADOW) {
 		BLI_dynstr_appendf(ds, "#define V3D_SHADING_SHADOW\n");
+	}
+	if (wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT) {
+		BLI_dynstr_appendf(ds, "#define V3D_SHADING_SPECULAR_HIGHLIGHT\n");
 	}
 	if (wpd->shading.light & V3D_LIGHTING_STUDIO) {
 		BLI_dynstr_appendf(ds, "#define V3D_LIGHTING_STUDIO\n");
@@ -76,6 +79,9 @@ char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype)
 	if (NORMAL_ENCODING_ENABLED()) {
 		BLI_dynstr_appendf(ds, "#define WORKBENCH_ENCODE_NORMALS\n");
 	}
+	if (is_hair) {
+		BLI_dynstr_appendf(ds, "#define HAIR_SHADER\n");
+	}
 
 #ifdef WORKBENCH_REVEALAGE_ENABLED
 	BLI_dynstr_appendf(ds, "#define WORKBENCH_REVEALAGE_ENABLED\n");
@@ -91,12 +97,19 @@ uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template)
 	/* TODO: make a C-string with settings and hash the string */
 	uint input[4];
 	uint result;
-	float *color = material_template->color;
+	float *color = material_template->material_data.diffuse_color;
 	input[0] = (uint)(color[0] * 512);
 	input[1] = (uint)(color[1] * 512);
 	input[2] = (uint)(color[2] * 512);
 	input[3] = material_template->object_id;
 	result = BLI_ghashutil_uinthash_v4_murmur(input);
+
+	color = material_template->material_data.specular_color;
+	input[0] = (uint)(color[0] * 512);
+	input[1] = (uint)(color[1] * 512);
+	input[2] = (uint)(color[2] * 512);
+	input[3] = (uint)(material_template->material_data.roughness * 512);
+	result += BLI_ghashutil_uinthash_v4_murmur(input);
 
 	if (material_template->drawtype == OB_TEXTURE) {
 		/* add texture reference */
@@ -105,12 +118,13 @@ uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template)
 	return result;
 }
 
-int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype)
+int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair)
 {
-	const int DRAWOPTIONS_MASK = V3D_SHADING_OBJECT_OUTLINE | V3D_SHADING_SHADOW;
+	/* NOTE: change MAX_SHADERS accordingly when modifying this function. */
+	const int DRAWOPTIONS_MASK = V3D_SHADING_OBJECT_OUTLINE | V3D_SHADING_SHADOW | V3D_SHADING_SPECULAR_HIGHLIGHT;
 	int index = (wpd->shading.flag & DRAWOPTIONS_MASK);
 	index = (index << 2) + wpd->shading.light;
-	index = (index << 2);
+	index = (index << 3);
 	/* set the drawtype flag
 	0 = OB_SOLID,
 	1 = OB_TEXTURE
@@ -118,6 +132,7 @@ int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype
 	*/
 	SET_FLAG_FROM_TEST(index, wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD, 2);
 	SET_FLAG_FROM_TEST(index, drawtype == OB_TEXTURE, 1);
+	SET_FLAG_FROM_TEST(index, is_hair, 4);
 	return index;
 }
 

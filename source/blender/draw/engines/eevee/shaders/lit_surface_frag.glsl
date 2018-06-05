@@ -21,6 +21,16 @@ in vec3 worldNormal;
 in vec3 viewNormal;
 #endif
 
+#ifdef HAIR_SHADER
+in vec3 hairTangent; /* world space */
+in float hairThickTime;
+in float hairThickness;
+in float hairTime;
+flat in int hairStrandID;
+
+uniform int hairThicknessRes = 1;
+#endif
+
 #endif /* LIT_SURFACE_UNIFORM */
 
 /** AUTO CONFIG
@@ -167,24 +177,6 @@ void CLOSURE_NAME(
 	vec3 V = cameraVec;
 
 	vec4 rand = texelFetch(utilTex, ivec3(ivec2(gl_FragCoord.xy) % LUT_SIZE, 2.0), 0);
-
-#ifdef HAIR_SHADER
-	/* Random normal distribution on the hair surface. */
-	vec3 T = normalize(worldNormal); /* meh, TODO fix worldNormal misnaming. */
-	vec3 B = normalize(cross(V, T));
-	N = cross(T, B); /* Normal facing view */
-	/* We want a cosine distribution. */
-	float cos_theta = rand.x * 2.0 - 1.0;
-	float sin_theta = sqrt(max(0.0, 1.0f - cos_theta*cos_theta));;
-	N = N * sin_theta + B * cos_theta;
-
-#  ifdef CLOSURE_GLOSSY
-	/* Hair random normal does not work with SSR :(.
-	 * It just create self reflection feedback (which is beautifful btw)
-	 * but not correct. */
-	ssr_id = NO_SSR; /* Force bypass */
-#  endif
-#endif
 
 	/* ---------------------------------------------------------------- */
 	/* -------------------- SCENE LAMPS LIGHTING ---------------------- */
@@ -392,12 +384,6 @@ void CLOSURE_NAME(
 	}
 
 	out_spec += spec_accum.rgb * ssr_spec * spec_occlu * float(specToggle);
-
-#  ifdef HAIR_SHADER
-	/* Hack: Overide spec color so that ssr will not be computed
-	 * even if ssr_id match the active ssr. */
-	ssr_spec = vec3(0.0);
-#  endif
 #endif
 
 #ifdef CLOSURE_REFRACTION

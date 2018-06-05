@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * The Original Code is Copyright (C) 2007 Blender Foundation but based 
+ * The Original Code is Copyright (C) 2007 Blender Foundation but based
  * on ghostwinlay.c (C) 2001-2002 by NaN Holding BV
  * All rights reserved.
  *
@@ -85,6 +85,7 @@
 #include "GPU_framebuffer.h"
 #include "GPU_init_exit.h"
 #include "GPU_immediate.h"
+#include "GPU_texture.h"
 #include "BLF_api.h"
 
 #include "UI_resources.h"
@@ -692,7 +693,6 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 		//GHOST_SetWindowState(ghostwin, GHOST_kWindowStateModified);
 		
 		/* standard state vars for window */
-		glEnable(GL_SCISSOR_TEST);
 		GPU_state_init();
 	}
 }
@@ -2024,13 +2024,8 @@ void wm_window_raise(wmWindow *win)
 
 void wm_window_swap_buffers(wmWindow *win)
 {
-#ifdef WIN32
-	glDisable(GL_SCISSOR_TEST);
+	GPU_texture_delete_orphans(); /* XXX should be done elsewhere. */
 	GHOST_SwapWindowBuffers(win->ghostwin);
-	glEnable(GL_SCISSOR_TEST);
-#else
-	GHOST_SwapWindowBuffers(win->ghostwin);
-#endif
 }
 
 void wm_window_set_swap_interval (wmWindow *win, int interval)

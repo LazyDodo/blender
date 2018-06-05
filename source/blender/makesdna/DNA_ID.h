@@ -229,7 +229,7 @@ typedef struct ID {
 	/* Only set for datablocks which are coming from copy-on-write, points to
 	 * the original version of it.
 	 */
-	void *orig_id;
+	struct ID *orig_id;
 
 	void *py_instance;
 } ID;
@@ -468,8 +468,8 @@ enum {
 	LIB_TAG_PRE_EXISTING    = 1 << 11,
 
 	/* The datablock is a copy-on-write/localized version. */
-	LIB_TAG_COPY_ON_WRITE   = 1 << 12,
-	LIB_TAG_COPY_ON_WRITE_EVAL = 1 << 13,
+	LIB_TAG_COPIED_ON_WRITE               = 1 << 12,
+	LIB_TAG_COPIED_ON_WRITE_EVAL_RESULT   = 1 << 13,
 	LIB_TAG_LOCALIZED = 1 << 14,
 
 	/* RESET_NEVER tag datablock for freeing etc. behavior (usually set when copying real one into temp/runtime one). */
@@ -492,9 +492,7 @@ enum {
 	ID_RECALC_DRAW_CACHE  = 1 << 3,
 	ID_RECALC_GEOMETRY    = 1 << 4,
 	ID_RECALC_TRANSFORM   = 1 << 5,
-	ID_RECALC_COLLECTIONS = 1 << 6,
-	ID_RECALC_COPY_ON_WRITE = 1 << 7,
-	ID_RECALC_TIME          = 1 << 8,
+	ID_RECALC_COPY_ON_WRITE = 1 << 6,
 	/* Special flag to check if SOMETHING was changed. */
 	ID_RECALC_ALL   = (~(int)0),
 };

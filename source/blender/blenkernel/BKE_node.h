@@ -87,7 +87,7 @@ struct bNodeInstanceHash;
 
 /** Compact definition of a node socket.
  * Can be used to quickly define a list of static sockets for a node,
- * which are added to each new node of that type. 
+ * which are added to each new node of that type.
  *
  * \deprecated This struct is used by C nodes to define templates as simple
  * static struct lists. These are converted to the new template collections
@@ -345,7 +345,7 @@ void              ntreeUserIncrefID(struct bNodeTree *ntree);
 void              ntreeUserDecrefID(struct bNodeTree *ntree);
 
 
-struct bNodeTree *ntreeFromID(struct ID *id);
+struct bNodeTree *ntreeFromID(const struct ID *id);
 
 void              ntreeMakeLocal(struct Main *bmain, struct bNodeTree *ntree, bool id_in_mainlist, const bool lib_local);
 struct bNode     *ntreeFindType(const struct bNodeTree *ntree, int type);
@@ -796,6 +796,7 @@ void BKE_nodetree_remove_layer_n(struct bNodeTree *ntree, struct Scene *scene, c
 #define SH_NODE_UVALONGSTROKE			191
 #define SH_NODE_TEX_POINTDENSITY		192
 #define SH_NODE_BSDF_PRINCIPLED         193
+#define SH_NODE_TEX_IES                 194
 #define SH_NODE_EEVEE_SPECULAR			195
 #define SH_NODE_BEVEL                   197
 #define SH_NODE_DISPLACEMENT            198

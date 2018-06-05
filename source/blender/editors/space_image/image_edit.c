@@ -41,6 +41,7 @@
 #include "BKE_image.h"
 #include "BKE_editmesh.h"
 #include "BKE_library.h"
+#include "BKE_main.h"
 
 #include "IMB_imbuf_types.h"
 
@@ -322,7 +323,7 @@ void ED_space_image_scopes_update(const struct bContext *C, struct SpaceImage *s
 {
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
-	
+
 	/* scope update can be expensive, don't update during paint modes */
 	if (sima->mode == SI_MODE_PAINT)
 		return;
@@ -338,7 +339,7 @@ void ED_space_image_scopes_update(const struct bContext *C, struct SpaceImage *s
 			return;
 		}
 	}
-	
+
 	scopes_update(&sima->scopes, ibuf, use_view_settings ? &scene->view_settings : NULL, &scene->display_settings);
 }
 

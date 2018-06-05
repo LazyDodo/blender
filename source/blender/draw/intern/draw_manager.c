@@ -152,7 +152,7 @@ bool DRW_object_is_renderable(Object *ob)
 	BLI_assert(BKE_object_is_visible(ob, OB_VISIBILITY_CHECK_UNKNOWN_RENDER_MODE));
 
 	if (ob->type == OB_MESH) {
-		if (ob == DST.draw_ctx.object_edit) {
+		if ((ob == DST.draw_ctx.object_edit) || BKE_object_is_in_editmode(ob)) {
 			View3D *v3d = DST.draw_ctx.v3d;
 			const int mask = (V3D_OVERLAY_EDIT_OCCLUDE_WIRE | V3D_OVERLAY_EDIT_WEIGHT);
 
@@ -581,7 +581,7 @@ static void drw_viewport_var_init(void)
 
 	DST.clipping.updated = false;
 
-	memset(DST.common_instance_data, 0x0, sizeof(DST.common_instance_data));
+	memset(DST.object_instance_data, 0x0, sizeof(DST.object_instance_data));
 }
 
 void DRW_viewport_matrix_get(float mat[4][4], DRWViewportMatrixType type)
@@ -764,10 +764,10 @@ ObjectEngineData *DRW_object_engine_data_ensure(
 		const size_t t = sizeof(float) - 1;
 		size = (size + t) & ~t;
 		size_t fsize = size / sizeof(float);
-		if (DST.common_instance_data[fsize] == NULL) {
-			DST.common_instance_data[fsize] = DRW_instance_data_request(DST.idatalist, fsize, 16);
+		if (DST.object_instance_data[fsize] == NULL) {
+			DST.object_instance_data[fsize] = DRW_instance_data_request(DST.idatalist, fsize);
 		}
-		oed = (ObjectEngineData *)DRW_instance_data_next(DST.common_instance_data[fsize]);
+		oed = (ObjectEngineData *)DRW_instance_data_next(DST.object_instance_data[fsize]);
 		memset(oed, 0, size);
 	}
 	else {
@@ -1051,6 +1051,8 @@ static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int dr
 static void drw_engines_enable_from_object_mode(void)
 {
 	use_drw_engine(&draw_engine_object_type);
+	/* TODO(fclem) remove this, it does not belong to it's own engine. */
+	use_drw_engine(&draw_engine_motion_path_type);
 }
 
 static void drw_engines_enable_from_mode(int mode)
@@ -1233,6 +1235,7 @@ void DRW_draw_view(const bContext *C)
 
 	/* Reset before using it. */
 	drw_state_prepare_clean_for_draw(&DST);
+	DST.options.draw_text = (v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) != 0;
 	DRW_draw_render_loop_ex(depsgraph, engine_type, ar, v3d, viewport, C);
 }
 
@@ -1279,6 +1282,7 @@ void DRW_draw_render_loop_ex(
 	DRW_globals_update();
 
 	drw_debug_init();
+	DRW_hair_init();
 
 	/* No framebuffer allowed before drawing. */
 	BLI_assert(GPU_framebuffer_current_get() == 0);
@@ -1308,6 +1312,7 @@ void DRW_draw_render_loop_ex(
 	}
 
 	DRW_stats_begin();
+	DRW_hair_update();
 
 	GPU_framebuffer_bind(DST.default_framebuffer);
 
@@ -1349,7 +1354,9 @@ void DRW_draw_render_loop_ex(
 
 	drw_debug_draw();
 
+	glDisable(GL_DEPTH_TEST);
 	drw_engines_draw_text();
+	glEnable(GL_DEPTH_TEST);
 
 	if (DST.draw_ctx.evil_C) {
 		/* needed so manipulator isn't obscured */
@@ -1538,12 +1545,16 @@ void DRW_render_object_iter(
 	void *vedata, RenderEngine *engine, struct Depsgraph *depsgraph,
 	void (*callback)(void *vedata, Object *ob, RenderEngine *engine, struct Depsgraph *depsgraph))
 {
+	DRW_hair_init();
+
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
 	{
 		DST.ob_state = NULL;
 		callback(vedata, ob, engine, depsgraph);
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
+
+	DRW_hair_update();
 }
 
 static struct DRWSelectBuffer {
@@ -1620,8 +1631,8 @@ void DRW_draw_select_loop(
 			obedit_mode = CTX_MODE_EDIT_ARMATURE;
 		}
 	}
-	if (v3d->overlay.flag &= V3D_OVERLAY_BONE_SELECTION) {
-		if (!(v3d->flag2 &= V3D_RENDER_OVERRIDE)) {
+	if (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECTION) {
+		if (!(v3d->flag2 & V3D_RENDER_OVERRIDE)) {
 			Object *obpose = OBPOSE_FROM_OBACT(obact);
 			if (obpose) {
 				use_obedit = true;
@@ -1664,6 +1675,7 @@ void DRW_draw_select_loop(
 
 	/* Init engines */
 	drw_engines_init();
+	DRW_hair_init();
 
 	{
 		drw_engines_cache_init();
@@ -1697,6 +1709,8 @@ void DRW_draw_select_loop(
 
 		DRW_render_instance_buffer_finish();
 	}
+
+	DRW_hair_update();
 
 	/* Setup framebuffer */
 	draw_select_framebuffer_setup(rect);
@@ -1837,6 +1851,7 @@ void DRW_draw_depth_loop(
 
 	/* Init engines */
 	drw_engines_init();
+	DRW_hair_init();
 
 	/* TODO : tag to refresh by the dependency graph */
 	/* ideally only refresh when objects are added/removed */
@@ -1854,6 +1869,8 @@ void DRW_draw_depth_loop(
 
 		DRW_render_instance_buffer_finish();
 	}
+
+	DRW_hair_update();
 
 	/* Start Drawing */
 	DRW_state_reset();
@@ -1972,7 +1989,8 @@ bool DRW_state_show_text(void)
 {
 	return (DST.options.is_select) == 0 &&
 	       (DST.options.is_depth) == 0 &&
-	       (DST.options.is_scene_render) == 0;
+	       (DST.options.is_scene_render) == 0 &&
+	       (DST.options.draw_text) == 0;
 }
 
 /**
@@ -2049,6 +2067,7 @@ void DRW_engines_register(void)
 	DRW_engine_register(&draw_engine_edit_metaball_type);
 	DRW_engine_register(&draw_engine_edit_surface_type);
 	DRW_engine_register(&draw_engine_edit_text_type);
+	DRW_engine_register(&draw_engine_motion_path_type);
 	DRW_engine_register(&draw_engine_overlay_type);
 	DRW_engine_register(&draw_engine_paint_texture_type);
 	DRW_engine_register(&draw_engine_paint_vertex_type);
@@ -2114,6 +2133,7 @@ void DRW_engines_free(void)
 	DRW_TEXTURE_FREE_SAFE(g_select_buffer.texture_depth);
 	GPU_FRAMEBUFFER_FREE_SAFE(g_select_buffer.framebuffer);
 
+	DRW_hair_free();
 	DRW_shape_cache_free();
 	DRW_stats_free();
 	DRW_globals_free();

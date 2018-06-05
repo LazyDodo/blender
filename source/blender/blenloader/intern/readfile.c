@@ -2718,7 +2718,7 @@ static void lib_link_nladata(FileData *fd, ID *id, ListBase *list)
 }
 
 /* This handles Animato NLA-Strips linking 
- * NOTE: this assumes that link_list has already been called on the list 
+ * NOTE: this assumes that link_list has already been called on the list
  */
 static void direct_link_nladata_strips(FileData *fd, ListBase *list)
 {
@@ -2821,6 +2821,7 @@ static void direct_link_animdata(FileData *fd, AnimData *adt)
 	/* link drivers */
 	link_list(fd, &adt->drivers);
 	direct_link_fcurves(fd, &adt->drivers);
+	adt->driver_array = NULL;
 	
 	/* link overrides */
 	// TODO...
@@ -2966,6 +2967,10 @@ static void direct_link_motionpath(FileData *fd, bMotionPath *mpath)
 	
 	/* relink points cache */
 	mpath->points = newdataadr(fd, mpath->points);
+
+	mpath->points_vbo = NULL;
+	mpath->batch_line = NULL;
+	mpath->batch_points = NULL;
 }
 
 /* ************ READ NODE TREE *************** */
@@ -5554,6 +5559,7 @@ static void direct_link_object(FileData *fd, Object *ob)
 	ob->bb = NULL;
 	ob->derivedDeform = NULL;
 	ob->derivedFinal = NULL;
+	BKE_object_runtime_reset(ob);
 	BLI_listbase_clear(&ob->gpulamp);
 	BLI_listbase_clear(&ob->drawdata);
 	link_list(fd, &ob->pc_ids);
@@ -6421,19 +6427,24 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 
 /* *********** READ AREA **************** */
 
-static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
+static void direct_link_panel_list(FileData *fd, ListBase *lb)
 {
-	Panel *pa;
-	uiList *ui_list;
+	link_list(fd, lb);
 
-	link_list(fd, &ar->panels);
-
-	for (pa = ar->panels.first; pa; pa = pa->next) {
+	for (Panel *pa = lb->first; pa; pa = pa->next) {
 		pa->paneltab = newdataadr(fd, pa->paneltab);
 		pa->runtime_flag = 0;
 		pa->activedata = NULL;
 		pa->type = NULL;
+		direct_link_panel_list(fd, &pa->children);
 	}
+}
+
+static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
+{
+	uiList *ui_list;
+
+	direct_link_panel_list(fd, &ar->panels);
 
 	link_list(fd, &ar->panels_category_active);
 
@@ -8352,7 +8363,7 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 		}
 		else {
 			DEBUG_PRINTF("... in %s (%s): ", main->curlib ? main->curlib->id.name : "<NULL>", main->curlib ? main->curlib->name : "<NULL>");
-			if ((id = BKE_libblock_find_name_ex(main, GS(idname), idname + 2))) {
+			if ((id = BKE_libblock_find_name(main, GS(idname), idname + 2))) {
 				DEBUG_PRINTF("FOUND!\n");
 				/* Even though we found our linked ID, there is no guarantee its address is still the same... */
 				if (id != bhead->old) {

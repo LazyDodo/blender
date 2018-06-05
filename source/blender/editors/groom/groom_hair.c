@@ -63,7 +63,7 @@
 static int groom_object_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
-	return ob->type == OB_GROOM;
+	return ob && ob->type == OB_GROOM;
 }
 
 /* GROOM_OT_hair_distribute */

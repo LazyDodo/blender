@@ -30,12 +30,17 @@ struct Mesh;
 struct DRWPass;
 struct DRWShadingGroup;
 struct Gwn_Batch;
+struct GPUMaterial;
+struct GPUShader;
 struct GPUTexture;
 struct HairDrawSettings;
 struct HairSystem;
 struct Object;
 struct Scene;
 struct ViewLayer;
+struct ModifierData;
+struct ParticleSystem;
+struct PTCacheEdit;
 
 /* Used as ubo but colors can be directly referenced as well */
 /* Keep in sync with: common_globals_lib.glsl (globalsBlock) */
@@ -88,6 +93,10 @@ typedef struct GlobalsUboStorage {
 	float colorNurbSelUline[4];
 	float colorActiveSpline[4];
 
+	float colorBonePose[4];
+
+	float colorCurrentFrame[4];
+
 	float colorGrid[4];
 	float colorGridEmphasise[4];
 	float colorGridAxisX[4];
@@ -132,6 +141,9 @@ struct DRWShadingGroup *shgroup_instance_bone_sphere_outline(struct DRWPass *pas
 struct DRWShadingGroup *shgroup_instance_bone_sphere_solid(struct DRWPass *pass);
 struct DRWShadingGroup *shgroup_instance_bone_stick(struct DRWPass *pass);
 
+struct GPUShader *mpath_line_shader_get(void);
+struct GPUShader *mpath_points_shader_get(void);
+
 int DRW_object_wire_theme_get(
         struct Object *ob, struct ViewLayer *view_layer, float **r_color);
 float *DRW_color_background_blend_get(int theme_id);
@@ -150,6 +162,24 @@ void DRW_shgroup_armature_object(struct Object *ob, struct ViewLayer *view_layer
 void DRW_shgroup_armature_pose(struct Object *ob, struct DRWArmaturePasses passes);
 void DRW_shgroup_armature_edit(struct Object *ob, struct DRWArmaturePasses passes);
 
+/* draw_hair.c */
+
+/* This creates a shading group with display hairs.
+ * The draw call is already added by this function, just add additional uniforms. */
+struct DRWShadingGroup *DRW_shgroup_hair_create(
+        struct Object *object, struct ParticleSystem *psys, struct ModifierData *md,
+        struct DRWPass *hair_pass,
+        struct GPUShader *shader);
+
+struct DRWShadingGroup *DRW_shgroup_material_hair_create(
+        struct Object *object, struct ParticleSystem *psys, struct ModifierData *md,
+        struct DRWPass *hair_pass,
+        struct GPUMaterial *material);
+
+void DRW_hair_init(void);
+void DRW_hair_update(void);
+void DRW_hair_free(void);
+
 /* pose_mode.c */
 bool DRW_pose_mode_armature(
     struct Object *ob, struct Object *active_ob);
@@ -166,8 +196,21 @@ typedef struct DRWHairFiberTextureBuffer {
 
 const char* DRW_hair_shader_defines(void);
 
-void DRW_hair_shader_uniforms(struct DRWShadingGroup *shgrp, struct Scene *scene,
-                              struct GPUTexture **fibertex, const struct DRWHairFiberTextureBuffer *texbuffer);
+struct DRWShadingGroup *DRW_shgroup_hair_fibers_create(
+        struct Scene *scene,
+        struct Object *object,
+        struct HairSystem *hsys,
+        struct Mesh *scalp,
+        struct DRWPass *hair_pass,
+        struct GPUShader *shader);
+
+struct DRWShadingGroup *DRW_shgroup_material_hair_fibers_create(
+        struct Scene *scene,
+        struct Object *object,
+        struct HairSystem *hsys,
+        struct Mesh *scalp,
+        struct DRWPass *hair_pass,
+        struct GPUMaterial *material);
 
 void DRW_shgroup_hair(
         struct Object *ob,

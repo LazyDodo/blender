@@ -812,13 +812,18 @@ int count_set_pose_transflags(int *out_mode, short around, Object *ob)
 		}
 	}
 
-	/* if there are no translatable bones, do rotation */
-	if (mode == TFM_TRANSLATION && !has_translation) {
-		if (has_rotation) {
-			*out_mode = TFM_ROTATION;
-		}
-		else {
-			*out_mode = TFM_RESIZE;
+	/* only modify transform mode if there are bones here that do something...
+	 * otherwise we get problems when multiple objects are selected
+	 */
+	if (total) {
+		/* if there are no translatable bones, do rotation */
+		if (mode == TFM_TRANSLATION && !has_translation) {
+			if (has_rotation) {
+				*out_mode = TFM_ROTATION;
+			}
+			else {
+				*out_mode = TFM_RESIZE;
+			}
 		}
 	}
 
@@ -1173,15 +1178,9 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 
 		/* use pose channels to fill trans data */
 		td = tc->data;
-		Object *ob_eval = DEG_get_evaluated_object(CTX_data_depsgraph(t->context), ob);
-		bPoseChannel *pchan, *pchan_eval;
-		for (pchan = ob->pose->chanbase.first, pchan_eval = ob_eval->pose->chanbase.first;
-		     pchan && pchan_eval;
-		     pchan = pchan->next, pchan_eval = pchan_eval->next)
-		{
-			BLI_assert(pchan == pchan_eval || STREQ(pchan->bone->name, pchan_eval->bone->name));
+		for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 			if (pchan->bone->flag & BONE_TRANSFORM) {
-				add_pose_transdata(t, ob, pchan, ob_eval, pchan_eval, tc, td);
+				add_pose_transdata(t, ob, pchan, ob, pchan, tc, td);
 				td++;
 			}
 		}
@@ -5863,7 +5862,6 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 {
 	Depsgraph *depsgraph = t->depsgraph;
 	Scene *scene = t->scene;
-	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	bool constinv;
 	bool skip_invert = false;
 
@@ -5875,27 +5873,27 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 		// XXX: This needs fixing for COW. May need rigidbody_world from scene
 		if (BKE_rigidbody_check_sim_running(scene->rigidbody_world, ctime)) {
 			/* save original object transform */
-			copy_v3_v3(td->ext->oloc, ob_eval->loc);
+			copy_v3_v3(td->ext->oloc, ob->loc);
 
 			if (ob->rotmode > 0) {
-				copy_v3_v3(td->ext->orot, ob_eval->rot);
+				copy_v3_v3(td->ext->orot, ob->rot);
 			}
 			else if (ob->rotmode == ROT_MODE_AXISANGLE) {
-				td->ext->orotAngle = ob_eval->rotAngle;
-				copy_v3_v3(td->ext->orotAxis, ob_eval->rotAxis);
+				td->ext->orotAngle = ob->rotAngle;
+				copy_v3_v3(td->ext->orotAxis, ob->rotAxis);
 			}
 			else {
-				copy_qt_qt(td->ext->oquat, ob_eval->quat);
+				copy_qt_qt(td->ext->oquat, ob->quat);
 			}
 			/* update object's loc/rot to get current rigid body transform */
-			mat4_to_loc_rot_size(ob->loc, rot, scale, ob_eval->obmat);
-			sub_v3_v3(ob->loc, ob_eval->dloc);
+			mat4_to_loc_rot_size(ob->loc, rot, scale, ob->obmat);
+			sub_v3_v3(ob->loc, ob->dloc);
 			BKE_object_mat3_to_rot(ob, rot, false); /* drot is already corrected here */
 		}
 	}
 
 	/* axismtx has the real orientation */
-	copy_m3_m4(td->axismtx, ob_eval->obmat);
+	copy_m3_m4(td->axismtx, ob->obmat);
 	normalize_m3(td->axismtx);
 
 	td->con = ob->constraints.first;
@@ -5912,18 +5910,22 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 	if (t->mode == TFM_DUMMY)
 		skip_invert = true;
 
+	Scene *scene_eval = DEG_get_evaluated_scene(t->depsgraph);
 	if (skip_invert == false && constinv == false) {
-		ob->transflag |= OB_NO_CONSTRAINTS;  /* BKE_object_where_is_calc_time checks this */
-		BKE_object_where_is_calc(t->depsgraph, t->scene, ob);
-		ob->transflag &= ~OB_NO_CONSTRAINTS;
+		Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+		ob_eval->transflag |= OB_NO_CONSTRAINTS;  /* BKE_object_where_is_calc_time checks this */
+		BKE_object_where_is_calc(t->depsgraph, scene_eval, ob_eval);
+		ob_eval->transflag &= ~OB_NO_CONSTRAINTS;
 	}
-	else
-		BKE_object_where_is_calc(t->depsgraph, t->scene, ob);
+	else {
+		Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+		BKE_object_where_is_calc(t->depsgraph, scene_eval, ob_eval);
+	}
 
 	td->ob = ob;
 
 	td->loc = ob->loc;
-	copy_v3_v3(td->iloc, ob_eval->loc);
+	copy_v3_v3(td->iloc, ob->loc);
 
 	if (ob->rotmode > 0) {
 		td->ext->rot = ob->rot;
@@ -5931,8 +5933,8 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 		td->ext->rotAngle = NULL;
 		td->ext->quat = NULL;
 
-		copy_v3_v3(td->ext->irot, ob_eval->rot);
-		copy_v3_v3(td->ext->drot, ob_eval->drot);
+		copy_v3_v3(td->ext->irot, ob->rot);
+		copy_v3_v3(td->ext->drot, ob->drot);
 	}
 	else if (ob->rotmode == ROT_MODE_AXISANGLE) {
 		td->ext->rot = NULL;
@@ -5940,10 +5942,10 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 		td->ext->rotAngle = &ob->rotAngle;
 		td->ext->quat = NULL;
 
-		td->ext->irotAngle = ob_eval->rotAngle;
-		copy_v3_v3(td->ext->irotAxis, ob_eval->rotAxis);
-		// td->ext->drotAngle = ob_eval->drotAngle;			// XXX, not implemented
-		// copy_v3_v3(td->ext->drotAxis, ob_eval->drotAxis);	// XXX, not implemented
+		td->ext->irotAngle = ob->rotAngle;
+		copy_v3_v3(td->ext->irotAxis, ob->rotAxis);
+		// td->ext->drotAngle = ob->drotAngle;			// XXX, not implemented
+		// copy_v3_v3(td->ext->drotAxis, ob->drotAxis);	// XXX, not implemented
 	}
 	else {
 		td->ext->rot = NULL;
@@ -5951,18 +5953,18 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 		td->ext->rotAngle = NULL;
 		td->ext->quat = ob->quat;
 
-		copy_qt_qt(td->ext->iquat, ob_eval->quat);
-		copy_qt_qt(td->ext->dquat, ob_eval->dquat);
+		copy_qt_qt(td->ext->iquat, ob->quat);
+		copy_qt_qt(td->ext->dquat, ob->dquat);
 	}
-	td->ext->rotOrder = ob_eval->rotmode;
+	td->ext->rotOrder = ob->rotmode;
 
 	td->ext->size = ob->size;
-	copy_v3_v3(td->ext->isize, ob_eval->size);
-	copy_v3_v3(td->ext->dscale, ob_eval->dscale);
+	copy_v3_v3(td->ext->isize, ob->size);
+	copy_v3_v3(td->ext->dscale, ob->dscale);
 
-	copy_v3_v3(td->center, ob_eval->obmat[3]);
+	copy_v3_v3(td->center, ob->obmat[3]);
 
-	copy_m4_m4(td->ext->obmat, ob_eval->obmat);
+	copy_m4_m4(td->ext->obmat, ob->obmat);
 
 	/* is there a need to set the global<->data space conversion matrices? */
 	if (ob->parent || constinv) {
@@ -5972,8 +5974,8 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 		 * NOTE: some Constraints, and also Tracking should never get this
 		 *		done, as it doesn't work well.
 		 */
-		BKE_object_to_mat3(ob_eval, obmtx);
-		copy_m3_m4(totmat, ob_eval->obmat);
+		BKE_object_to_mat3(ob, obmtx);
+		copy_m3_m4(totmat, ob->obmat);
 		invert_m3_m3(obinv, totmat);
 		mul_m3_m3m3(td->smtx, obmtx, obinv);
 		invert_m3_m3(td->mtx, td->smtx);
