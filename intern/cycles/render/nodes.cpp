@@ -3118,14 +3118,14 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		__float_as_int(pheomelanin));
 	
 	compiler.add_node(
-	  compiler.encode_uchar4(
-		 tint_ofs,
-		 SVM_STACK_INVALID,
-		 SVM_STACK_INVALID,
-		 SVM_STACK_INVALID),
-	  SVM_STACK_INVALID,
-	  SVM_STACK_INVALID,
-	  SVM_STACK_INVALID);
+		compiler.encode_uchar4(
+			tint_ofs,
+			SVM_STACK_INVALID,
+			SVM_STACK_INVALID,
+			SVM_STACK_INVALID),
+		SVM_STACK_INVALID,
+		SVM_STACK_INVALID,
+		SVM_STACK_INVALID);
 }
 
 void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)

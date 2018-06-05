@@ -772,7 +772,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION: {
 						float3 melanin_sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
 						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
-						float3 tint_sigma =  log3(tint)/roughness_fac;
+						float3 tint_sigma = log3(tint)/roughness_fac;
 						tint_sigma *= tint_sigma;
 						bsdf->sigma = melanin_sigma + tint_sigma;
 						break;
