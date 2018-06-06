@@ -1553,7 +1553,8 @@ static void material_hair(
 		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, psl->depth_pass, e_data.default_prepass_hair_fiber_sh);
 	}
 	{
-		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, psl->depth_pass_clip, e_data.default_prepass_hair_fiber_clip_sh);
+		DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, psl->depth_pass_clip, e_data.default_prepass_hair_fiber_clip_sh);
+		DRW_shgroup_uniform_block(shgrp, "clip_block", sldata->clip_ubo);
 	}
 	
 	{

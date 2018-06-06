@@ -2,6 +2,8 @@
 uniform mat4 ModelViewProjectionMatrix;
 uniform mat4 ModelMatrix;
 uniform mat4 ModelViewMatrix;
+uniform mat4 ModelViewMatrixInverse;
+uniform mat4 ProjectionMatrix;
 
 /* keep in sync with DRWManager.view_data */
 layout(std140) uniform clip_block {
@@ -22,19 +24,24 @@ in vec3 pos;
 void main()
 {
 #ifdef HAIR_SHADER
+	bool is_persp = (ProjectionMatrix[3][3] == 0.0);
 
 #ifdef HAIR_SHADER_FIBERS
-	vec3 pos;
-	vec3 nor;
-	vec2 view_offset;
-	hair_fiber_get_vertex(fiber_index, curve_param, ModelViewMatrix, pos, nor, view_offset);
+	float time, thick_time, thickness;
+	vec3 pos, tang, binor;
+	hair_fiber_get_vertex(
+	        fiber_index, curve_param,
+	        is_persp, ModelViewMatrixInverse[3].xyz, ModelViewMatrixInverse[2].xyz,
+	        pos, tang, binor,
+	        time, thickness, thick_time);
+
 	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
-	gl_Position.xy += view_offset * gl_Position.w;
+	vec4 worldPosition = ModelMatrix * vec4(pos, 1.0);
 #else
 	float time, thick_time, thickness;
 	vec3 pos, tan, binor;
 	hair_get_pos_tan_binor_time(
-	        (ProjectionMatrix[3][3] == 0.0),
+	        is_persp,
 	        ViewMatrixInverse[3].xyz, ViewMatrixInverse[2].xyz,
 	        pos, tan, binor, time, thickness, thick_time);
 
