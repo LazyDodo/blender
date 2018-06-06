@@ -608,6 +608,7 @@ public:
 
 	float roughness_u;
 	float roughness_v;
+	float roughness_randomization;
 	float primary_reflection_roughness;
 	float ior;
 	float offset;
@@ -615,6 +616,7 @@ public:
 	float eumelanin;
 	float pheomelanin;
 	float3 tint;
+	float color_randomization;
 	float3 absorption_coefficient;
 
 	float3 normal;

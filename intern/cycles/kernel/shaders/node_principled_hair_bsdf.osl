@@ -24,6 +24,7 @@ shader node_principled_hair_bsdf(
 	color Color = 0.8,
 	float Melanin = 0.0,
 	float MelaninRedness = 1.3,
+	float ColorRandomization = 0.0,
 	color Tint = 1.0,
 	color AbsorptionCoefficient = color(0.245531, 0.52, 1.365),
 	normal Normal = Ng,
@@ -31,6 +32,7 @@ shader node_principled_hair_bsdf(
 	float Offset = radians(2),
 	float RoughnessU = 0.3,
 	float RoughnessV = 0.3,
+	float RoughnessRandomization = 0.0,
 	float PrimaryReflectionRoughness = 1.0,
 	float IOR = 1.55,
 	float Random = 0.0,
@@ -39,6 +41,12 @@ shader node_principled_hair_bsdf(
 {
 	color Sigma;
 
+	float factor_random_color = linearstep(1.0-ColorRandomization, 1.0, Random);
+	float factor_random_roughness = linearstep(1.0-RoughnessRandomization, 1.0, Random);
+
+	float AdjustedRoughnessU = RoughnessU*factor_random_roughness;
+	float AdjustedRoughnessV = RoughnessV*factor_random_roughness;
+
 	if (parametrization == "Absorption coefficient") {
 		Sigma = AbsorptionCoefficient;
 	}
@@ -46,7 +54,7 @@ shader node_principled_hair_bsdf(
 		Sigma = -log3(max(AbsorptionCoefficient, 1e-5));
 	}
 	else if (parametrization == "Melanin concentration") {
-		color Melanin_Sigma = Melanin*color(0.419, 0.697, 1.37) + MelaninRedness*color(0.187, 0.4, 1.05);
+		color Melanin_Sigma = Melanin * factor_random_color * color(0.419, 0.697, 1.37) + MelaninRedness * factor_random_color * color(0.187, 0.4, 1.05);
 		float roughness_fac = (((((0.245*RoughnessU) + 5.574)*RoughnessU - 10.73)*RoughnessU + 2.532)*RoughnessU - 0.215)*RoughnessU + 5.969;
 		color Tint_Sigma = log3(Tint)/roughness_fac;
 		Tint_Sigma *= Tint_Sigma;
@@ -63,7 +71,7 @@ shader node_principled_hair_bsdf(
 		Sigma = 0.0*color(0.419, 0.697, 1.37) + 1.3*color(0.187, 0.4, 1.05);
 	}
 
-	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, Scale deviation %f, IOR %f, random value %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, Sigma, RoughnessU, RoughnessV, Offset, IOR, Random);
+	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming color range %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, roughness range %f, Scale deviation %f, IOR %f, random value %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, Sigma, ColorRandomization, RoughnessU, RoughnessV, RoughnessRandomization, Offset, IOR, Random);
 
-	BSDF = principled_hair(Normal, Sigma, RoughnessU, RoughnessV, PrimaryReflectionRoughness, Offset, IOR, Random);
+	BSDF = principled_hair(Normal, Sigma, AdjustedRoughnessU, AdjustedRoughnessV, PrimaryReflectionRoughness, Offset, IOR, Random);
 }

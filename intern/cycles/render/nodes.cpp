@@ -3046,6 +3046,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(eumelanin, "Melanin", 0.0f);
 	SOCKET_IN_FLOAT(pheomelanin, "Melanin Redness", 1.3f);
 	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));
+	SOCKET_IN_FLOAT(color_randomization, "Color Randomization", 0.0f);
 	SOCKET_IN_VECTOR(absorption_coefficient, "Absorption Coefficient", make_float3(0.245531f, 0.52f, 1.365f), SocketType::VECTOR);
 	SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
 	SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
@@ -3060,6 +3061,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(offset, "Offset", 2.f*M_PI/180.f);
 	SOCKET_IN_FLOAT(roughness_u, "RoughnessU", 0.3f);
 	SOCKET_IN_FLOAT(roughness_v, "RoughnessV", 0.3f);
+	SOCKET_IN_FLOAT(roughness_randomization, "Roughness Randomization", 0.0f);
 	SOCKET_IN_FLOAT(primary_reflection_roughness, "Primary Reflection Roughness", 1.0f);
 	SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
 
@@ -3082,11 +3084,13 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 
 	ShaderInput *roughness_u_in = input("RoughnessU");
 	ShaderInput *roughness_v_in = input("RoughnessV");
+	ShaderInput *roughness_randomization_in = input("Roughness Randomization");
 	ShaderInput *offset_in = input("Offset");
 	ShaderInput *primary_reflection_roughness_in = input("Primary Reflection Roughness");
 	ShaderInput *ior_in = input("IOR");
 	ShaderInput *eumelanin_in =  input("Melanin");
 	ShaderInput *pheomelanin_in = input("Melanin Redness");
+	ShaderInput *color_randomization_in = input("Color Randomization");
 
 	int color_ofs = compiler.stack_assign(input("Color"));
 	int tint_ofs = compiler.stack_assign(input("Tint"));
@@ -3125,11 +3129,11 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		compiler.encode_uchar4(
 			tint_ofs,
 			compiler.stack_assign_if_linked(random_in),
-			SVM_STACK_INVALID,
-			SVM_STACK_INVALID),
+			compiler.stack_assign_if_linked(color_randomization_in),
+			compiler.stack_assign_if_linked(roughness_randomization_in)),
 		__float_as_int(random),
-		SVM_STACK_INVALID,
-		SVM_STACK_INVALID);
+		__float_as_int(color_randomization),
+		__float_as_int(roughness_randomization));
 }
 
 void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)

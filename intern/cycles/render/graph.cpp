@@ -1073,7 +1073,7 @@ int ShaderGraph::get_num_closures()
 			num_closures += VOLUME_STACK_SIZE;
 		}
 		else if(closure_type == CLOSURE_BSDF_HAIR_PRINCIPLED_ID) {
-			num_closures += 3;
+			num_closures += 4;
 		}
 		else {
 			++num_closures;
