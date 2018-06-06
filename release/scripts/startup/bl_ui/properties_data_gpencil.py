@@ -232,36 +232,30 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         ob = context.object
 
         gpd = context.gpencil_data
         gpl = context.active_gpencil_layer
 
-
         layout.prop(gpd, "xray_mode", text="Depth Ordering")
+        layout.prop(gpd, "show_edit_lines", text="Show Edit Lines")
+        layout.prop(gpd, "edit_line_color", text="Edit Line Color")
         layout.prop(ob, "empty_draw_size", text="Marker Size")
-
-        layout.separator()
-
-        if gpl:
-            col = layout.column(align=True)
-            col.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
-
-        layout.separator()
 
         col = layout.column(align=True)
         col.prop(gpd, "show_constant_thickness")
         sub = col.column()
         sub.active = not gpd.show_constant_thickness
-        sub.prop(gpd, "pixfactor", text="Scale")
-
-        layout.separator()
+        sub.prop(gpd, "pixfactor", text="Thickness Scale")
 
         col = layout.column()
-        col.prop(gpd, "show_edit_lines", text="Show Edit Lines")
-        col.prop(gpd, "edit_line_color", text="")
-        col.prop(gpd, "show_multiedit_line_only", text="Only Lines in MultiEdit")
+        col.prop(gpd, "show_multiedit_line_only", text="Show Only Lines in Multiedit")
+
+        if gpl:
+            col = layout.column(align=True)
+            col.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
 
 
 ###############################
