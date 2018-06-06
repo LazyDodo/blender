@@ -262,7 +262,7 @@ class DATA_PT_gpencil_infopanel(DataButtonsPanel, Panel):
 
 
 class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
-    bl_label = "Display"
+    bl_label = "Viewport Display"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
