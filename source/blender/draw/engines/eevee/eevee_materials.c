@@ -611,6 +611,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		        "#define CLIP_PLANES\n");
 
 		char *hair_fiber_vert_str = BLI_string_joinN(
+		        datatoc_common_hair_lib_glsl,
 		        datatoc_hair_lib_glsl,
 		        datatoc_prepass_vert_glsl);
 

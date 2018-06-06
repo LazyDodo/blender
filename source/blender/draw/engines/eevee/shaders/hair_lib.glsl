@@ -147,16 +147,11 @@ void deform_fiber(DeformParams params,
 /*===================================*/
 /* Hair Interpolation */
 
-#define FIBER_RIBBON
-
 uniform sampler2D fiber_data;
 
 uniform int fiber_start;
 uniform int strand_map_start;
 uniform int strand_vertex_start;
-
-uniform float ribbon_width;
-uniform vec2 viewport_size;
 
 #define INDEX_INVALID -1
 
@@ -220,7 +215,7 @@ void get_fiber_data(int fiber_index, out ivec4 parent_index, out vec4 parent_wei
 	pos = vec3(e.rg, f.r);
 }
 
-void interpolate_parent_curve_full(int index, float curve_param, out vec3 co, out vec3 nor, out vec3 tang, out vec3 rootco)
+void interpolate_parent_curve(int index, float curve_param, out vec3 co, out vec3 nor, out vec3 tang, out vec3 rootco)
 {
 	int start, count;
 	get_strand_data(index, start, count);
@@ -249,13 +244,6 @@ void interpolate_parent_curve_full(int index, float curve_param, out vec3 co, ou
 	tang = mix(tang0, tang1, lerpfac);
 }
 
-void interpolate_parent_curve(int index, float curve_param, out vec3 co, out vec3 tang)
-{
-	vec3 nor;
-	vec3 rootco;
-	interpolate_parent_curve_full(index, curve_param, co, nor, tang, rootco);
-}
-
 void interpolate_vertex(int fiber_index, float curve_param,
 	                    out vec3 co, out vec3 tang,
 	                    out mat4 target_matrix)
@@ -271,27 +259,27 @@ void interpolate_vertex(int fiber_index, float curve_param,
 
 	if (parent_index.x != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
-		interpolate_parent_curve_full(parent_index.x, curve_param, pco, pnor, ptang, prootco);
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
 		co += parent_weight.x * pco;
 		tang += parent_weight.x * normalize(ptang);
 
 		target_matrix = mat4_from_vectors(pnor, ptang, pco + prootco);
 	}
 	if (parent_index.y != INDEX_INVALID) {
-		vec3 pco, ptang;
-		interpolate_parent_curve(parent_index.y, curve_param, pco, ptang);
+		vec3 pco, pnor, ptang, prootco;
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
 		co += parent_weight.y * pco;
 		tang += parent_weight.y * normalize(ptang);
 	}
 	if (parent_index.z != INDEX_INVALID) {
-		vec3 pco, ptang;
-		interpolate_parent_curve(parent_index.z, curve_param, pco, ptang);
+		vec3 pco, pnor, ptang, prootco;
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
 		co += parent_weight.z * pco;
 		tang += parent_weight.z * normalize(ptang);
 	}
 	if (parent_index.w != INDEX_INVALID) {
-		vec3 pco, ptang;
-		interpolate_parent_curve(parent_index.w, curve_param, pco, ptang);
+		vec3 pco, pnor, ptang, prootco;
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
 		co += parent_weight.w * pco;
 		tang += parent_weight.w * normalize(ptang);
 	}
@@ -300,33 +288,37 @@ void interpolate_vertex(int fiber_index, float curve_param,
 	tang = normalize(tang);
 }
 
-void hair_fiber_get_vertex(int fiber_index, float curve_param, mat4 ModelViewMatrix, out vec3 pos, out vec3 nor, out vec2 view_offset)
+void hair_fiber_get_vertex(
+        int fiber_index, float curve_param,
+        bool is_persp, vec3 camera_pos, vec3 camera_z,
+        out vec3 pos, out vec3 tang, out vec3 binor,
+        out float time, out float thickness, out float thick_time)
 {
-	vec3 target_loc;
 	mat4 target_matrix;
-	interpolate_vertex(fiber_index, curve_param, pos, nor, target_matrix);
-	
+	interpolate_vertex(fiber_index, curve_param, pos, tang, target_matrix);
+
+	vec3 camera_vec = (is_persp) ? pos - camera_pos : -camera_z;
+	binor = normalize(cross(camera_vec, tang));
+
 	DeformParams deform_params;
 	deform_params.taper = 2.0;
 	deform_params.clump.thickness = 0.15;
 	deform_params.curl.radius = 0.1;
 	deform_params.curl.angle = 0.2;
 	// TODO define proper curve scale, independent of subdivision!
-	//deform_fiber(deform_params, curve_param, 1.0, target_matrix, pos, nor);
+	//deform_fiber(deform_params, curve_param, 1.0, target_matrix, pos, tang);
 
-#ifdef FIBER_RIBBON
-	float ribbon_side = (float(gl_VertexID % 2) - 0.5) * ribbon_width;
-	{
-		vec4 view_nor = ModelViewMatrix * vec4(nor, 0.0);
-		view_offset = vec2(view_nor.y, -view_nor.x);
-		float L = length(view_offset);
-		if (L > 0.0) {
-			view_offset *= ribbon_side / (L * viewport_size);
-		}
+	time = curve_param;
+	thickness = hair_shaperadius(hairRadShape, hairRadRoot, hairRadTip, time);
+
+	// TODO use the uniform for hairThicknessRes
+	int hairThicknessRes = 2;
+	if (hairThicknessRes > 1) {
+		thick_time = float(gl_VertexID % hairThicknessRes) / float(hairThicknessRes - 1);
+		thick_time = thickness * (thick_time * 2.0 - 1.0);
+
+		pos += binor * thick_time;
 	}
-#else
-	view_offset = vec2(0.0);
-#endif
 }
 
 #endif /*HAIR_SHADER_FIBERS*/
