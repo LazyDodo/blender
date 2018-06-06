@@ -144,6 +144,8 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         ma = context.object.active_material
         if (ma is not None) and (ma.grease_pencil):
             gpcolor = ma.grease_pencil
@@ -154,23 +156,24 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
             col = split.column(align=True)
             row = col.row(align=True)
             row.enabled = not gpcolor.lock
-            row.prop(gpcolor, "mode", expand=True)
+            row.prop(gpcolor, "mode")
             col.separator()
 
             col.enabled = not gpcolor.lock
-            col.prop(gpcolor, "stroke_style", text="")
+            col.prop(gpcolor, "stroke_style", text="Style")
 
             if gpcolor.stroke_style == 'TEXTURE':
                 row = layout.row()
                 row.enabled = not gpcolor.lock
                 col = row.column(align=True)
                 col.template_ID(gpcolor, "stroke_image", open="image.open")
-                col.prop(gpcolor, "use_pattern", text="Use as Pattern")
+                col.prop(gpcolor, "pixel_size", text="UV Factor")
+                col.prop(gpcolor, "use_pattern", text="Use As Pattern")
 
             if gpcolor.stroke_style == 'SOLID' or gpcolor.use_pattern is True:
                 row = layout.row()
                 col = row.column(align=True)
-                col.prop(gpcolor, "color", text="")
+                col.prop(gpcolor, "color", text="Color")
                 col.prop(gpcolor, "alpha", slider=True)
 
             # Options
@@ -178,8 +181,6 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
             row.active = not gpcolor.lock
             col = row.column(align=True)
             col.prop(gpcolor, "pass_index")
-            if gpcolor.stroke_style == 'TEXTURE':
-                col.prop(gpcolor, "pixel_size", text="UV Factor")
 
 
 class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
