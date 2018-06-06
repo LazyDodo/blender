@@ -189,6 +189,8 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         ma = context.object.active_material
         if (ma is not None) and (ma.grease_pencil):
             gpcolor = ma.grease_pencil
@@ -200,13 +202,13 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
             row = layout.row()
             col = row.column(align=True)
             col.enabled = not gpcolor.lock
-            col.prop(gpcolor, "fill_style", text="")
+            col.prop(gpcolor, "fill_style", text="Style")
 
             row = layout.row()
             col = row.column(align=True)
 
             if gpcolor.fill_style != 'TEXTURE':
-                col.prop(gpcolor, "fill_color", text="")
+                col.prop(gpcolor, "fill_color", text="Color")
                 col.prop(gpcolor, "fill_alpha", text="Opacity", slider=True)
                 col.separator()
                 if gpcolor.texture_mix is True or gpcolor.fill_style in ('GRADIENT', 'RADIAL'):
@@ -214,7 +216,7 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
 
             if gpcolor.fill_style in ('GRADIENT', 'RADIAL', 'CHESSBOARD'):
                 if gpcolor.texture_mix is False or gpcolor.fill_style == 'CHESSBOARD':
-                    col.prop(gpcolor, "mix_color", text="")
+                    col.prop(gpcolor, "mix_color", text="Mix Color")
                 split = col.split(percentage=0.5)
                 subcol = split.column(align=True)
                 subcol.prop(gpcolor, "pattern_shift", text="Location")
