@@ -952,33 +952,32 @@ class GreasePencilDataPanel:
 class GreasePencilOnionPanel:
     @staticmethod
     def draw_settings(layout, gp):
-        col = layout.column(align=False)
-        col.row().prop(gp, "onion_mode", expand=True)
+        col = layout.column()
+
+        row = col.row(align=True)
+        row.prop(gp, "onion_mode")
+        icon = 'RESTRICT_RENDER_OFF' if gp.use_ghosts_always else 'RESTRICT_RENDER_ON'
+        row.prop(gp, "use_ghosts_always", text="", icon=icon)
+        row.prop(gp, "use_ghost_custom_colors", text="", icon='COLOR')
 
         row = col.row()
         row.prop(gp, "onion_factor", text="Opacity", slider=True)
-        sub = row.row(align=True)
-        icon = 'RESTRICT_RENDER_OFF' if gp.use_ghosts_always else 'RESTRICT_RENDER_ON'
-        sub.prop(gp, "use_ghosts_always", text="", icon=icon)
-        sub.prop(gp, "use_ghost_custom_colors", text="", icon='COLOR')
-
-        split = layout.split(percentage=0.5)
 
         # - Before Frames
-        sub = split.column(align=True)
+        sub = layout.column(align=True)
         row = sub.row(align=True)
         row.active = gp.use_ghost_custom_colors
-        row.prop(gp, "before_color", text="")
+        row.prop(gp, "before_color", text="Color Before")
 
-        row = sub.row(align=True)
+        row = layout.row(align=True)
         row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
         row.prop(gp, "ghost_before_range", text="Before")
 
         # - After Frames
-        sub = split.column(align=True)
+        sub = layout.column(align=True)
         row = sub.row(align=True)
         row.active = gp.use_ghost_custom_colors
-        row.prop(gp, "after_color", text="")
+        row.prop(gp, "after_color", text="Color After")
 
         row = sub.row(align=True)
         row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
@@ -989,7 +988,7 @@ class GreasePencilOnionPanel:
         row.active = gp.use_onion_skinning
         row.prop(gp, "use_onion_fade", text="Fade")
         if hasattr(gp, "use_onion_loop"): # XXX
-            subrow = row.row()
+            subrow = layout.row()
             subrow.active = gp.onion_mode in ('RELATIVE', 'SELECTED')
             subrow.prop(gp, "use_onion_loop", text="Loop")
 

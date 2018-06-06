@@ -123,6 +123,7 @@ class DATA_PT_gpencil_onionpanel(Panel):
         gpd = context.gpencil_data
 
         layout = self.layout
+        layout.use_property_split = True
         layout.enabled = gpd.use_onion_skinning
 
         GreasePencilOnionPanel.draw_settings(layout, gpd)
@@ -147,6 +148,7 @@ class DATA_PT_gpencil_layer_onionpanel(Panel):
         gpl = context.active_gpencil_layer
 
         layout = self.layout
+        layout.use_property_split = True
         layout.enabled = gpd.use_onion_skinning and gpl.override_onion
 
         GreasePencilOnionPanel.draw_settings(layout, gpl)
@@ -161,20 +163,17 @@ class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
+        layout.use_property_split = True
+
         gpl = context.active_gpencil_layer
-        row = layout.row()
-
-        col = row.column(align=True)
+        col = layout.column(align=True)
         col.active = not gpl.lock
-        col.label(text="Parent:")
-        col.prop(gpl, "parent", text="")
-
-        sub = col.column()
-        sub.prop(gpl, "parent_type", text="")
+        col.prop(gpl, "parent", text="Parent")
+        col.prop(gpl, "parent_type", text="Parent Type")
         parent = gpl.parent
+
         if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
-            sub.prop_search(gpl, "parent_bone", parent.data, "bones", text="")
+            col.prop_search(gpl, "parent_bone", parent.data, "bones", text="Bone")
 
 
 class GPENCIL_UL_vgroups(UIList):
