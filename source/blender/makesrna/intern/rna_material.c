@@ -382,29 +382,16 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_range(prop, 0.0, 1.0);
 	RNA_def_property_float_sdna(prop, NULL, "stroke_rgba");
-	RNA_def_property_array(prop, 3);
+	RNA_def_property_array(prop, 4);
 	RNA_def_property_ui_text(prop, "Color", "");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
-
-	prop = RNA_def_property(srna, "alpha", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "stroke_rgba[3]");
-	RNA_def_property_range(prop, 0.0, 1.0f);
-	RNA_def_property_ui_text(prop, "Opacity", "Color Opacity");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Fill Drawing Color */
 	prop = RNA_def_property(srna, "fill_color", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_float_sdna(prop, NULL, "fill_rgba");
-	RNA_def_property_array(prop, 3);
+	RNA_def_property_array(prop, 4);
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Fill Color", "Color for filling region bounded by each stroke");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
-
-	/* Fill alpha */
-	prop = RNA_def_property(srna, "fill_alpha", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "fill_rgba[3]");
-	RNA_def_property_range(prop, 0.0, 1.0f);
-	RNA_def_property_ui_text(prop, "Fill Opacity", "Opacity for filling region bounded by each stroke");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Secondary Drawing Color */

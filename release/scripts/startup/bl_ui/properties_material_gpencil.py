@@ -147,23 +147,18 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
         layout.use_property_split = True
 
         ma = context.object.active_material
-        if (ma is not None) and (ma.grease_pencil):
+        if ma is not None and ma.grease_pencil is not None:
             gpcolor = ma.grease_pencil
 
-            split = layout.split(percentage=1.0)
-            split.active = not gpcolor.lock
+            col = layout.column()
+            col.active = not gpcolor.lock
 
-            col = split.column(align=True)
-            row = col.row(align=True)
-            row.enabled = not gpcolor.lock
-            row.prop(gpcolor, "mode")
-            col.separator()
+            col.prop(gpcolor, "mode")
 
-            col.enabled = not gpcolor.lock
             col.prop(gpcolor, "stroke_style", text="Style")
 
             if gpcolor.stroke_style == 'TEXTURE':
-                row = layout.row()
+                row = col.row()
                 row.enabled = not gpcolor.lock
                 col = row.column(align=True)
                 col.template_ID(gpcolor, "stroke_image", open="image.open")
@@ -171,15 +166,9 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
                 col.prop(gpcolor, "use_pattern", text="Use As Pattern")
 
             if gpcolor.stroke_style == 'SOLID' or gpcolor.use_pattern is True:
-                row = layout.row()
-                col = row.column(align=True)
                 col.prop(gpcolor, "color", text="Color")
-                col.prop(gpcolor, "alpha", slider=True)
 
             # Options
-            row = layout.row()
-            row.active = not gpcolor.lock
-            col = row.column(align=True)
             col.prop(gpcolor, "pass_index")
 
 
@@ -209,7 +198,6 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
 
             if gpcolor.fill_style != 'TEXTURE':
                 col.prop(gpcolor, "fill_color", text="Color")
-                col.prop(gpcolor, "fill_alpha", text="Opacity", slider=True)
                 col.separator()
                 if gpcolor.texture_mix is True or gpcolor.fill_style in ('GRADIENT', 'RADIAL'):
                     col.prop(gpcolor, "mix_factor", text="Mix", slider=True)
