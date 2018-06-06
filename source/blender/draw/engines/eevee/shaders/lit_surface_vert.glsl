@@ -2,10 +2,10 @@
 uniform mat4 ModelViewProjectionMatrix;
 uniform mat4 ModelMatrix;
 uniform mat4 ModelViewMatrix;
+uniform mat4 ModelViewMatrixInverse;
 uniform mat3 WorldNormalMatrix;
 #ifndef ATTRIB
 uniform mat3 NormalMatrix;
-uniform mat4 ModelMatrixInverse;
 #endif
 
 #ifdef HAIR_SHADER
@@ -48,25 +48,28 @@ flat out int hairStrandID;
 void main()
 {
 #ifdef HAIR_SHADER
+	bool is_persp = (ProjectionMatrix[3][3] == 0.0);
 
 #ifdef HAIR_SHADER_FIBERS
-	vec3 pos;
-	vec3 nor;
-	vec2 view_offset;
-	hair_fiber_get_vertex(fiber_index, curve_param, ModelViewMatrix, pos, nor, view_offset);
-	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
-	gl_Position.xy += view_offset * gl_Position.w;
+	vec3 pos, tang, binor;
+	hair_fiber_get_vertex(
+	        fiber_index, curve_param,
+	        is_persp, ModelViewMatrixInverse[3].xyz, ModelViewMatrixInverse[2].xyz,
+	        pos, tang, binor,
+	        hairTime, hairThickness, hairThickTime);
+	vec3 nor = cross(binor, tang);
 
+	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
 	viewPosition = (ModelViewMatrix * vec4(pos, 1.0)).xyz;
 	worldPosition = (ModelMatrix * vec4(pos, 1.0)).xyz;
-	viewNormal = normalize(NormalMatrix * nor);
-	worldNormal = normalize(WorldNormalMatrix * nor);
+	hairTangent = (ModelMatrix * vec4(tang, 0.0)).xyz;
+	worldNormal = (ModelMatrix * vec4(nor, 0.0)).xyz;
+	viewNormal = normalize(mat3(ViewMatrix) * worldNormal);
 #else
 	hairStrandID = hair_get_strand_id();
 	vec3 pos, binor;
 	hair_get_pos_tan_binor_time(
-	        (ProjectionMatrix[3][3] == 0.0),
-	        ViewMatrixInverse[3].xyz, ViewMatrixInverse[2].xyz,
+	        is_persp, ViewMatrixInverse[3].xyz, ViewMatrixInverse[2].xyz,
 	        pos, hairTangent, binor, hairTime, hairThickness, hairThickTime);
 
 	gl_Position = ViewProjectionMatrix * vec4(pos, 1.0);

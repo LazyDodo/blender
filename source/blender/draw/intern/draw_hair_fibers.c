@@ -74,11 +74,6 @@ static DRWShadingGroup *drw_shgroup_create_hair_fibers_ex(
 		BLI_assert(0);
 	}
 
-	DRW_shgroup_uniform_vec2(shgrp, "viewport_size", DRW_viewport_size_get(), 1);
-	//DRW_shgroup_uniform_float(shgrp, "ribbon_width", &tsettings->hair_draw_size, 1);
-	static float test = 2.5f;
-	DRW_shgroup_uniform_float(shgrp, "ribbon_width", &test, 1);
-	
 	if (!hsys->draw_texture_cache) {
 		hsys->draw_texture_cache = DRW_texture_create_2D(fiber_buffer->width, fiber_buffer->height,
 		                                                 GPU_RG32F, 0, fiber_buffer->data);
