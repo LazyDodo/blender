@@ -3058,7 +3058,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	parametrization_enum.insert("Melanin concentration", NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION);
 	SOCKET_ENUM(parametrization, "Parametrization", parametrization_enum, NODE_PRINCIPLED_HAIR_REFLECTANCE);
 
-	SOCKET_IN_FLOAT(offset, "Offset", 2.f*M_PI/180.f);
+	SOCKET_IN_FLOAT(offset, "Offset", 2.f*((float)M_PI)/180.f);
 	SOCKET_IN_FLOAT(roughness_u, "RoughnessU", 0.3f);
 	SOCKET_IN_FLOAT(roughness_v, "RoughnessV", 0.3f);
 	SOCKET_IN_FLOAT(roughness_randomization, "Roughness Randomization", 0.0f);
