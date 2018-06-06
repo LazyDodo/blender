@@ -1010,7 +1010,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		{
 			/* Grease pencil sculpt and paint cursors */
 			if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "weighttype")) {
-				for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 					/* sculpt brushes */
 					GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
 					if (gset) {
@@ -1026,7 +1026,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				ARRAY_SET_ITEMS(curcolor_sub, 0.6f, 0.6f, 1.0f);
 				GP_EditBrush_Data *gp_brush;
 
-				for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 					ToolSettings *ts = scene->toolsettings;
 					/* sculpt brushes */
 					GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
@@ -1041,21 +1041,21 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 			/* Init grease pencil edit line color */
 			if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "float", "line_color[4]")) {
-				for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
+				for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 					ARRAY_SET_ITEMS(gpd->line_color, 0.6f, 0.6f, 0.6f, 0.5f);
 				}
 			}
 
 			/* Init grease pencil pixel size factor */
 			if (!DNA_struct_elem_find(fd->filesdna, "bGPDdata", "int", "pixfactor")) {
-				for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
+				for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 					gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 				}
 			}
 
 			/* Grease pencil multiframe falloff curve */
 			if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "CurveMapping", "cur_falloff")) {
-				for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 					/* sculpt brushes */
 					GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
 					if ((gset) && (gset->cur_falloff == NULL)) {
@@ -1085,7 +1085,10 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				do_version_view_layer_visibility(group->view_layer);
 			}
 		}
+	}
 #endif
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 3)) {
 		/* init grease pencil grids and paper */
 		if (!DNA_struct_elem_find(fd->filesdna, "gp_paper_opacity", "float", "gpencil_paper_color[3]")) {
 			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
