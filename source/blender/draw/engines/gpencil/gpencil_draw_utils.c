@@ -270,7 +270,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 
 	DRW_shgroup_uniform_vec4(grp, "color2", gp_style->mix_rgba, 1);
 
-	/* set styilñe type */
+	/* set style type */
 	switch (gp_style->fill_style) {
 		case GP_STYLE_FILL_STYLE_SOLID:
 			stl->shgroups[id].fill_style = SOLID;
