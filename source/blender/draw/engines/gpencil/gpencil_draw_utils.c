@@ -53,6 +53,14 @@
 
 #include "gpencil_engine.h"
 
+/* fill type to communicate to shader */
+#define SOLID 0
+#define GRADIENT 1
+#define RADIAL 2
+#define CHESS 3
+#define TEXTURE 4
+#define PATTERN 5
+
 /* Helper for doing all the checks on whether a stroke can be drawn */
 static bool gpencil_can_draw_stroke(struct MaterialGPencilStyle *gp_style, const bGPDstroke *gps, const bool onion)
 {
@@ -261,8 +269,37 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 	DRWShadingGroup *grp = DRW_shgroup_create(shader, pass);
 
 	DRW_shgroup_uniform_vec4(grp, "color2", gp_style->mix_rgba, 1);
-	stl->shgroups[id].fill_style = gp_style->fill_style;
+
+	/* set styilñe type */
+	switch (gp_style->fill_style) {
+		case GP_STYLE_FILL_STYLE_SOLID:
+			stl->shgroups[id].fill_style = SOLID;
+			break;
+		case GP_STYLE_FILL_STYLE_GRADIENT:
+			if (gp_style->gradient_type == GP_STYLE_GRADIENT_LINEAR) {
+				stl->shgroups[id].fill_style = GRADIENT;
+			}
+			else {
+				stl->shgroups[id].fill_style = RADIAL;
+			}
+			break;
+		case GP_STYLE_FILL_STYLE_CHESSBOARD:
+			stl->shgroups[id].fill_style = CHESS;
+			break;
+		case GP_STYLE_FILL_STYLE_TEXTURE:
+			if (gp_style->flag & GP_STYLE_FILL_PATTERN) {
+				stl->shgroups[id].fill_style = PATTERN;
+			}
+			else {
+				stl->shgroups[id].fill_style = TEXTURE;
+			}
+			break;
+		default:
+			stl->shgroups[id].fill_style = GP_STYLE_FILL_STYLE_SOLID;
+			break;
+	}
 	DRW_shgroup_uniform_int(grp, "fill_type", &stl->shgroups[id].fill_style, 1);
+
 	DRW_shgroup_uniform_float(grp, "mix_factor", &gp_style->mix_factor, 1);
 
 	DRW_shgroup_uniform_float(grp, "gradient_angle", &gp_style->gradient_angle, 1);
@@ -285,7 +322,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 	DRW_shgroup_uniform_int(grp, "xraymode", (const int *) &gpd->xray_mode, 1);
 	/* image texture */
 	if ((gp_style->flag & GP_STYLE_COLOR_TEX_MIX) ||
-	    ELEM(gp_style->fill_style, GP_STYLE_FILL_STYLE_TEXTURE, GP_STYLE_FILL_STYLE_PATTERN))
+	    (gp_style->fill_style & GP_STYLE_FILL_STYLE_TEXTURE))
 	{
 		ImBuf *ibuf;
 		Image *image = gp_style->ima;
@@ -351,7 +388,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 		stl->shgroups[id].color_type = GPENCIL_COLOR_SOLID;
 		if ((gp_style->stroke_style == GP_STYLE_STROKE_STYLE_TEXTURE) && (!onion)) {
 			stl->shgroups[id].color_type = GPENCIL_COLOR_TEXTURE;
-			if (gp_style->flag & GP_STYLE_COLOR_PATTERN) {
+			if (gp_style->flag & GP_STYLE_STROKE_PATTERN) {
 				stl->shgroups[id].color_type = GPENCIL_COLOR_PATTERN;
 			}
 		}
@@ -442,7 +479,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 		stl->shgroups[id].color_type = GPENCIL_COLOR_SOLID;
 		if ((gp_style->stroke_style == GP_STYLE_STROKE_STYLE_TEXTURE) && (!onion)) {
 			stl->shgroups[id].color_type = GPENCIL_COLOR_TEXTURE;
-			if (gp_style->flag & GP_STYLE_COLOR_PATTERN) {
+			if (gp_style->flag & GP_STYLE_STROKE_PATTERN) {
 				stl->shgroups[id].color_type = GPENCIL_COLOR_PATTERN;
 			}
 		}

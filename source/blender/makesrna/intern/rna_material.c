@@ -367,10 +367,14 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	static EnumPropertyItem fill_style_items[] = {
 		{ GP_STYLE_FILL_STYLE_SOLID, "SOLID", 0, "Solid", "Fill area with solid color" },
 		{ GP_STYLE_FILL_STYLE_GRADIENT, "GRADIENT", 0, "Gradient", "Fill area with gradient color" },
-		{ GP_STYLE_FILL_STYLE_RADIAL, "RADIAL", 0, "Radial", "Fill area with radial gradient" },
 		{ GP_STYLE_FILL_STYLE_CHESSBOARD, "CHESSBOARD", 0, "Checker Board", "Fill area with chessboard pattern" },
 		{ GP_STYLE_FILL_STYLE_TEXTURE, "TEXTURE", 0, "Texture", "Fill area with image texture" },
-		{ GP_STYLE_FILL_STYLE_PATTERN, "PATTERN", 0, "Pattern", "Fill area with color but use image texture as pattern to distribute color" },
+		{ 0, NULL, 0, NULL, NULL }
+	};
+
+	static EnumPropertyItem fill_gradient_items[] = {
+		{ GP_STYLE_GRADIENT_LINEAR, "LINEAR", 0, "Linear", "Fill area with gradient color" },
+		{ GP_STYLE_GRADIENT_RADIAL, "RADIAL", 0, "Radial", "Fill area with radial gradient" },
 		{ 0, NULL, 0, NULL, NULL }
 	};
 
@@ -511,9 +515,14 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Flip", "Flip filling colors");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
-	prop = RNA_def_property(srna, "use_pattern", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_PATTERN);
-	RNA_def_property_ui_text(prop, "Pattern", "Texture is a pattern to apply color");
+	prop = RNA_def_property(srna, "use_stroke_pattern", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_STROKE_PATTERN);
+	RNA_def_property_ui_text(prop, "Pattern", "Use Stroke Texture as a pattern to apply color");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+
+	prop = RNA_def_property(srna, "use_fill_pattern", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_FILL_PATTERN);
+	RNA_def_property_ui_text(prop, "Pattern", "Use Fill Texture as a pattern to apply color");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* pass index for future compositing and editing tools */
@@ -549,6 +558,13 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "fill_style");
 	RNA_def_property_enum_items(prop, fill_style_items);
 	RNA_def_property_ui_text(prop, "Fill Style", "Select style used to fill strokes");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+
+	/* gradient type */
+	prop = RNA_def_property(srna, "gradient_type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_bitflag_sdna(prop, NULL, "gradient_type");
+	RNA_def_property_enum_items(prop, fill_gradient_items);
+	RNA_def_property_ui_text(prop, "Gradient Type", "Select type of gradient used to fill strokes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* fill image texture */

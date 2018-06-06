@@ -86,10 +86,15 @@ typedef struct MaterialGPencilStyle {
 	float texture_opacity;   /* texture opacity */
 	float texture_pixsize;   /* pixel size for uv along the stroke */
 	int mode;                /* drawing mode (line or dots) */
+
+	int gradient_type;       /* type of gradient */
+	char pad[4];
 } MaterialGPencilStyle;
 
 /* MaterialGPencilStyle->flag */
 typedef enum eMaterialGPencilStyle_Flag {
+	/* Fill Texture is a pattern */
+	GP_STYLE_FILL_PATTERN = (1 << 0),
 	/* don't display color */
 	GP_STYLE_COLOR_HIDE = (1 << 1),
 	/* protected from further editing */
@@ -102,8 +107,8 @@ typedef enum eMaterialGPencilStyle_Flag {
 	GP_STYLE_COLOR_TEX_MIX = (1 << 5),
 	/* Flip fill colors */
 	GP_STYLE_COLOR_FLIP_FILL = (1 << 6),
-	/* Texture is a pattern */
-	GP_STYLE_COLOR_PATTERN = (1 << 7)
+	/* Stroke Texture is a pattern */
+	GP_STYLE_STROKE_PATTERN = (1 << 7)
 } eMaterialGPencilStyle_Flag;
 
 typedef enum eMaterialGPencilStyle_Mode {
@@ -300,10 +305,14 @@ enum {
 enum {
 	GP_STYLE_FILL_STYLE_SOLID = 0,
 	GP_STYLE_FILL_STYLE_GRADIENT,
-	GP_STYLE_FILL_STYLE_RADIAL,
 	GP_STYLE_FILL_STYLE_CHESSBOARD,
-	GP_STYLE_FILL_STYLE_TEXTURE,
-	GP_STYLE_FILL_STYLE_PATTERN,
+	GP_STYLE_FILL_STYLE_TEXTURE
+};
+
+/* Grease Pencil Gradient Types */
+enum {
+	GP_STYLE_GRADIENT_LINEAR = 0,
+	GP_STYLE_GRADIENT_RADIAL
 };
 
 #endif

@@ -312,7 +312,7 @@ void GPENCIL_cache_init(void *vedata)
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
 			if (gp_style->stroke_style == GP_STYLE_STROKE_STYLE_TEXTURE) {
 				stl->storage->color_type = GPENCIL_COLOR_TEXTURE;
-				if (gp_style->flag & GP_STYLE_COLOR_PATTERN) {
+				if (gp_style->flag & GP_STYLE_STROKE_PATTERN) {
 					stl->storage->color_type = GPENCIL_COLOR_PATTERN;
 				}
 			}

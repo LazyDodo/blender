@@ -163,9 +163,9 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
                 col = row.column(align=True)
                 col.template_ID(gpcolor, "stroke_image", open="image.open")
                 col.prop(gpcolor, "pixel_size", text="UV Factor")
-                col.prop(gpcolor, "use_pattern", text="Use As Pattern")
+                col.prop(gpcolor, "use_stroke_pattern", text="Use As Pattern")
 
-            if gpcolor.stroke_style == 'SOLID' or gpcolor.use_pattern is True:
+            if gpcolor.stroke_style == 'SOLID' or gpcolor.use_stroke_pattern is True:
                 col.prop(gpcolor, "color", text="Color")
 
             # Options
@@ -185,60 +185,50 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
             gpcolor = ma.grease_pencil
 
             # color settings
-            split = layout.split(percentage=1.0)
-            split.active = not gpcolor.lock
-
-            row = layout.row()
-            col = row.column(align=True)
-            col.enabled = not gpcolor.lock
+            col = layout.column()
+            col.active = not gpcolor.lock
             col.prop(gpcolor, "fill_style", text="Style")
-
-            row = layout.row()
-            col = row.column(align=True)
+            if gpcolor.fill_style == 'GRADIENT':
+                col.prop(gpcolor, "gradient_type")
 
             if gpcolor.fill_style != 'TEXTURE':
                 col.prop(gpcolor, "fill_color", text="Color")
-                col.separator()
-                if gpcolor.texture_mix is True or gpcolor.fill_style in ('GRADIENT', 'RADIAL'):
+                if gpcolor.texture_mix is True or gpcolor.fill_style == 'GRADIENT':
                     col.prop(gpcolor, "mix_factor", text="Mix", slider=True)
 
-            if gpcolor.fill_style in ('GRADIENT', 'RADIAL', 'CHESSBOARD'):
+            if gpcolor.fill_style in ('GRADIENT', 'CHESSBOARD'):
                 if gpcolor.texture_mix is False or gpcolor.fill_style == 'CHESSBOARD':
                     col.prop(gpcolor, "mix_color", text="Mix Color")
-                split = col.split(percentage=0.5)
-                subcol = split.column(align=True)
-                subcol.prop(gpcolor, "pattern_shift", text="Location")
-                subrow = subcol.row(align=True)
-                if gpcolor.fill_style == 'RADIAL':
+                col.prop(gpcolor, "flip", text="Flip Colors")
+
+                col.prop(gpcolor, "pattern_shift", text="Location")
+
+                subrow = col.row(align=True)
+                if gpcolor.gradient_type == 'RADIAL':
                     subrow.enabled = False
                 subrow.prop(gpcolor, "pattern_angle", text="Angle")
-                subcol.prop(gpcolor, "flip", text="Flip")
 
-                subcol = split.column(align=True)
-                subcol.prop(gpcolor, "pattern_scale", text="Scale")
-                subrow = subcol.row(align=True)
-                if gpcolor.fill_style != 'RADIAL':
-                    subrow.enabled = False
-                subrow.prop(gpcolor, "pattern_radius", text="Radius")
-                subrow = subcol.row(align=True)
+                col.prop(gpcolor, "pattern_scale", text="Scale")
+                if gpcolor.gradient_type != 'RADIAL':
+                    col.prop(gpcolor, "pattern_radius", text="Radius")
+
+                subrow = col.row(align=True)
                 if gpcolor.fill_style != 'CHESSBOARD':
                     subrow.enabled = False
                 subrow.prop(gpcolor, "pattern_boxsize", text="Box")
 
-            col.separator()
-            col.label("Texture")
-            if gpcolor.fill_style not in ('TEXTURE', 'PATTERN'):
+            if gpcolor.fill_style == 'SOLID':
                 col.prop(gpcolor, "texture_mix", text="Mix Texture")
-            if gpcolor.fill_style in ('TEXTURE', 'PATTERN') or gpcolor.texture_mix is True:
+
+            if gpcolor.fill_style == 'TEXTURE' or gpcolor.texture_mix is True:
                 col.template_ID(gpcolor, "fill_image", open="image.open")
-                split = col.split(percentage=0.5)
-                subcol = split.column(align=True)
-                subcol.prop(gpcolor, "texture_offset", text="Offset")
-                subcol.prop(gpcolor, "texture_angle")
-                subcol.prop(gpcolor, "texture_clamp", text="Clip Image")
-                subcol = split.column(align=True)
-                subcol.prop(gpcolor, "texture_scale", text="Scale")
-                subcol.prop(gpcolor, "texture_opacity")
+                col.prop(gpcolor, "use_fill_pattern", text="Use As Pattern")
+
+                col.prop(gpcolor, "texture_offset", text="Offset")
+                col.prop(gpcolor, "texture_scale", text="Scale")
+                col.prop(gpcolor, "texture_angle")
+                col.prop(gpcolor, "texture_opacity")
+                col.prop(gpcolor, "texture_clamp", text="Clip Image")
 
 
 classes = (
