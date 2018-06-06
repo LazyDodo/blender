@@ -939,11 +939,7 @@ class GreasePencilOnionPanel:
     def draw_settings(layout, gp):
         col = layout.column()
 
-        row = col.row(align=True)
-        row.prop(gp, "onion_mode")
-        icon = 'RESTRICT_RENDER_OFF' if gp.use_ghosts_always else 'RESTRICT_RENDER_ON'
-        row.prop(gp, "use_ghosts_always", text="", icon=icon)
-        row.prop(gp, "use_ghost_custom_colors", text="", icon='COLOR')
+        col.prop(gp, "onion_mode")
 
         row = col.row()
         row.prop(gp, "onion_factor", text="Opacity", slider=True)
@@ -954,9 +950,9 @@ class GreasePencilOnionPanel:
         row.active = gp.use_ghost_custom_colors
         row.prop(gp, "before_color", text="Color Before")
 
-        row = layout.row(align=True)
+        row = sub.row(align=True)
         row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
-        row.prop(gp, "ghost_before_range", text="Before")
+        row.prop(gp, "ghost_before_range", text="Frames Before")
 
         # - After Frames
         sub = layout.column(align=True)
@@ -966,7 +962,10 @@ class GreasePencilOnionPanel:
 
         row = sub.row(align=True)
         row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
-        row.prop(gp, "ghost_after_range", text="After")
+        row.prop(gp, "ghost_after_range", text="Frames After")
+
+        layout.prop(gp, "use_ghost_custom_colors", text="Use Custom Color")
+        layout.prop(gp, "use_ghosts_always", text="Use In Render")
 
         # - fade and loop
         row = layout.row()
