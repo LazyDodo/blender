@@ -1483,26 +1483,6 @@ class CYCLES_MATERIAL_PT_settings_surface(CyclesButtonsPanel, Panel):
         col = layout.column()
         col.prop(cmat, "sample_as_light", text="Multiple Importance")
         col.prop(cmat, "use_transparent_shadow")
-
-
-class CYCLES_MATERIAL_PT_settings_geometry(CyclesButtonsPanel, Panel):
-    bl_label = "Geometry"
-    bl_parent_id = "CYCLES_MATERIAL_PT_settings"
-    bl_context = "material"
-
-    @classmethod
-    def poll(cls, context):
-        return context.material and CyclesButtonsPanel.poll(context)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        mat = context.material
-        cmat = mat.cycles
-
-        col = layout.column()
-
         col.prop(cmat, "displacement_method", text="Displacement Method")
 
 
@@ -1677,29 +1657,7 @@ class CYCLES_SCENE_PT_simplify(CyclesButtonsPanel, Panel):
         self.layout.prop(rd, "use_simplify", text="")
 
     def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        scene = context.scene
-        rd = scene.render
-        cscene = scene.cycles
-
-        layout.active = rd.use_simplify
-
-        col = layout.column()
-        col.prop(cscene, "use_camera_cull")
-        sub = col.column()
-        sub.active = cscene.use_camera_cull
-        sub.prop(cscene, "camera_cull_margin")
-
-        layout.separator()
-
-        col = layout.column()
-
-        col.prop(cscene, "use_distance_cull")
-        sub = col.column()
-        sub.active = cscene.use_distance_cull
-        sub.prop(cscene, "distance_cull_margin", text="Distance")
+        pass
 
 
 class CYCLES_SCENE_PT_simplify_viewport(CyclesButtonsPanel, Panel):
@@ -1747,6 +1705,36 @@ class CYCLES_SCENE_PT_simplify_render(CyclesButtonsPanel, Panel):
         col.prop(rd, "simplify_child_particles_render", text="Child Particles")
         col.prop(cscene, "texture_limit_render", text="Texture Limit")
         col.prop(cscene, "ao_bounces_render", text="AO Bounces")
+
+
+class CYCLES_SCENE_PT_simplify_culling(CyclesButtonsPanel, Panel):
+    bl_label = "Culling"
+    bl_context = "scene"
+    bl_parent_id = "CYCLES_SCENE_PT_simplify"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'CYCLES'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        scene = context.scene
+        rd = scene.render
+        cscene = scene.cycles
+
+        layout.active = rd.use_simplify
+
+        col = layout.column()
+        col.prop(cscene, "use_camera_cull")
+        sub = col.column()
+        sub.active = cscene.use_camera_cull
+        sub.prop(cscene, "camera_cull_margin")
+
+        col = layout.column()
+        col.prop(cscene, "use_distance_cull")
+        sub = col.column()
+        sub.active = cscene.use_distance_cull
+        sub.prop(cscene, "distance_cull_margin", text="Distance")
 
 
 def draw_device(self, context):
@@ -1850,13 +1838,13 @@ classes = (
     CYCLES_MATERIAL_PT_displacement,
     CYCLES_MATERIAL_PT_settings,
     CYCLES_MATERIAL_PT_settings_surface,
-    CYCLES_MATERIAL_PT_settings_geometry,
     CYCLES_MATERIAL_PT_settings_volume,
     CYCLES_RENDER_PT_bake,
     CYCLES_RENDER_PT_debug,
     CYCLES_SCENE_PT_simplify,
     CYCLES_SCENE_PT_simplify_viewport,
     CYCLES_SCENE_PT_simplify_render,
+    CYCLES_SCENE_PT_simplify_culling,
 )
 
 

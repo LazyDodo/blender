@@ -384,11 +384,26 @@ void DepsgraphNodeBuilder::build_id(ID* id) {
 		return;
 	}
 	switch (GS(id->name)) {
+		case ID_AR:
+			build_armature((bArmature *)id);
+			break;
+		case ID_CA:
+			build_camera((Camera *)id);
+			break;
 		case ID_GR:
 			build_collection((Collection *)id);
 			break;
 		case ID_OB:
 			build_object(-1, (Object *)id, DEG_ID_LINKED_INDIRECTLY);
+			break;
+		case ID_KE:
+			build_shapekeys((Key *)id);
+			break;
+		case ID_LA:
+			build_lamp((Lamp *)id);
+			break;
+		case ID_LP:
+			build_lightprobe((LightProbe *)id);
 			break;
 		case ID_NT:
 			build_nodetree((bNodeTree *)id);
@@ -411,8 +426,16 @@ void DepsgraphNodeBuilder::build_id(ID* id) {
 		case ID_MC:
 			build_movieclip((MovieClip *)id);
 			break;
+		case ID_ME:
+		case ID_CU:
+		case ID_MB:
+		case ID_LT:
+			build_object_data_geometry_datablock(id);
+			break;
 		default:
 			fprintf(stderr, "Unhandled ID %s\n", id->name);
+			BLI_assert(!"Should never happen");
+			break;
 	}
 }
 
@@ -547,7 +570,7 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 		case OB_MBALL:
 		case OB_LATTICE:
 		case OB_GPENCIL:
-			build_obdata_geom(object);
+			build_object_data_geometry(object);
 			/* TODO(sergey): Only for until we support granular
 			 * update of curves.
 			 */
@@ -567,13 +590,13 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 			}
 			break;
 		case OB_LAMP:
-			build_lamp(object);
+			build_object_data_lamp(object);
 			break;
 		case OB_CAMERA:
-			build_camera(object);
+			build_object_data_camera(object);
 			break;
 		case OB_LIGHTPROBE:
-			build_lightprobe(object);
+			build_object_data_lightprobe(object);
 			break;
 		default:
 		{
@@ -584,6 +607,28 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 			break;
 		}
 	}
+}
+
+void DepsgraphNodeBuilder::build_object_data_camera(Object *object)
+{
+	Camera *camera = (Camera *)object->data;
+	build_camera(camera);
+}
+
+void DepsgraphNodeBuilder::build_object_data_lamp(Object *object)
+{
+	Lamp *lamp = (Lamp *)object->data;
+	build_lamp(lamp);
+}
+
+void DepsgraphNodeBuilder::build_object_data_lightprobe(Object *object)
+{
+	LightProbe *probe = (LightProbe *)object->data;
+	build_lightprobe(probe);
+	add_operation_node(&object->id,
+	                   DEG_NODE_TYPE_PARAMETERS,
+	                   NULL,
+	                   DEG_OPCODE_LIGHT_PROBE_EVAL);
 }
 
 void DepsgraphNodeBuilder::build_object_transform(Object *object)
@@ -966,6 +1011,9 @@ void DepsgraphNodeBuilder::build_cloth(Object *object)
 /* Shapekeys */
 void DepsgraphNodeBuilder::build_shapekeys(Key *key)
 {
+	if (built_map_.checkIsBuiltAndTag(key)) {
+		return;
+	}
 	build_animdata(&key->id);
 	add_operation_node(&key->id,
 	                   DEG_NODE_TYPE_GEOMETRY,
@@ -975,12 +1023,11 @@ void DepsgraphNodeBuilder::build_shapekeys(Key *key)
 
 /* ObData Geometry Evaluation */
 // XXX: what happens if the datablock is shared!
-void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
+void DepsgraphNodeBuilder::build_object_data_geometry(Object *object)
 {
 	OperationDepsNode *op_node;
 	Scene *scene_cow = get_cow_datablock(scene_);
 	Object *object_cow = get_cow_datablock(object);
-
 	/* Temporary uber-update node, which does everything.
 	 * It is for the being we're porting old dependencies into the new system.
 	 * We'll get rid of this node as soon as all the granular update functions
@@ -1003,17 +1050,14 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 	                             DEG_OPCODE_PLACEHOLDER,
 	                             "Eval Init");
 	op_node->set_as_entry();
-
 	// TODO: "Done" operation
-
 	/* Cloth modifier. */
 	LISTBASE_FOREACH (ModifierData *, md, &object->modifiers) {
 		if (md->type == eModifierType_Cloth) {
 			build_cloth(object);
 		}
 	}
-
-	/* materials */
+	/* Materials. */
 	if (object->totcol != 0) {
 		if (object->type == OB_MESH) {
 			add_operation_node(&object->id,
@@ -1031,37 +1075,36 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 			}
 		}
 	}
-
-	/* geometry collision */
+	/* Geometry collision. */
 	if (ELEM(object->type, OB_MESH, OB_CURVE, OB_LATTICE)) {
 		// add geometry collider relations
 	}
+	build_object_data_geometry_datablock((ID *)object->data);
+}
 
-	ID *obdata = (ID *)object->data;
+void DepsgraphNodeBuilder::build_object_data_geometry_datablock(ID *obdata)
+{
 	if (built_map_.checkIsBuiltAndTag(obdata)) {
 		return;
 	}
+	OperationDepsNode *op_node;
 	/* Make sure we've got an ID node before requesting CoW pointer. */
 	(void) add_id_node((ID *)obdata);
 	ID *obdata_cow = get_cow_id(obdata);
-
+	/* Animation. */
+	build_animdata(obdata);
 	/* ShapeKeys */
-	Key *key = BKE_key_from_object(object);
+	Key *key = BKE_key_from_id(obdata);
 	if (key) {
 		build_shapekeys(key);
 	}
-
-	build_animdata(obdata);
-
 	/* Nodes for result of obdata's evaluation, and geometry
 	 * evaluation on object.
 	 */
-	switch (object->type) {
-		case OB_MESH:
+	const ID_Type id_type = GS(obdata->name);
+	switch (id_type) {
+		case ID_ME:
 		{
-			//Mesh *me = (Mesh *)object->data;
-
-			/* evaluation operations */
 			op_node = add_operation_node(obdata,
 			                             DEG_NODE_TYPE_GEOMETRY,
 			                             function_bind(BKE_mesh_eval_geometry,
@@ -1072,41 +1115,18 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 			op_node->set_as_entry();
 			break;
 		}
-
-		case OB_MBALL:
+		case ID_MB:
 		{
-			Object *mom = BKE_mball_basis_find(scene_, object);
-			/* NOTE: Only the motherball gets evaluated, it's children are
-			 * having empty placeholders for the correct relations being built.
-			 */
-			if (mom == object) {
-				/* metaball evaluation operations */
-				op_node = add_operation_node(obdata,
-				                             DEG_NODE_TYPE_GEOMETRY,
-				                             function_bind(
-				                                     BKE_mball_eval_geometry,
-				                                     _1,
-				                                     (MetaBall *)obdata_cow),
-				                             DEG_OPCODE_PLACEHOLDER,
-				                             "Geometry Eval");
-			}
-			else {
-				op_node = add_operation_node(obdata,
-				                             DEG_NODE_TYPE_GEOMETRY,
-				                             NULL,
-				                             DEG_OPCODE_PLACEHOLDER,
-				                             "Geometry Eval");
-				op_node->set_as_entry();
-			}
+			op_node = add_operation_node(obdata,
+			                             DEG_NODE_TYPE_GEOMETRY,
+			                             NULL,
+			                             DEG_OPCODE_PLACEHOLDER,
+			                             "Geometry Eval");
+			op_node->set_as_entry();
 			break;
 		}
-
-		case OB_CURVE:
-		case OB_SURF:
-		case OB_FONT:
+		case ID_CU:
 		{
-			/* Curve/nurms evaluation operations. */
-			/* - calculate curve geometry (including path) */
 			op_node = add_operation_node(obdata,
 			                             DEG_NODE_TYPE_GEOMETRY,
 			                             function_bind(BKE_curve_eval_geometry,
@@ -1125,15 +1145,13 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 			if (cu->taperobj != NULL) {
 				build_object(-1, cu->taperobj, DEG_ID_LINKED_INDIRECTLY);
 			}
-			if (object->type == OB_FONT && cu->textoncurve != NULL) {
+			if (cu->textoncurve != NULL) {
 				build_object(-1, cu->textoncurve, DEG_ID_LINKED_INDIRECTLY);
 			}
 			break;
 		}
-
-		case OB_LATTICE:
+		case ID_LT:
 		{
-			/* Lattice evaluation operations. */
 			op_node = add_operation_node(obdata,
 			                             DEG_NODE_TYPE_GEOMETRY,
 			                             function_bind(BKE_lattice_eval_geometry,
@@ -1145,34 +1163,31 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 			break;
 		}
 		
-		case OB_GPENCIL:
+		case ID_GD:
 		{
 			/* GPencil evaluation operations. */
-			bGPdata *gpd = (bGPdata *)obdata;
-			ID *gpd_id = &gpd->id; /* No COW for now, as GP uses its own cache system. See gpencil_engine.c */
-			
-			op_node = add_operation_node(gpd_id, 
+			op_node = add_operation_node(obdata, 
 			                             DEG_NODE_TYPE_GEOMETRY,
 			                             function_bind(BKE_gpencil_eval_geometry,
 			                                           _1,
-			                                           gpd),
-			                                           DEG_OPCODE_PLACEHOLDER,
+													   (bGPdata *)obdata_cow),
+													   DEG_OPCODE_PLACEHOLDER,
 			                                           "Geometry Eval");
 			op_node->set_as_entry();
 			break;
 		}
+		default:
+			BLI_assert(!"Should not happen");
+			break;
 	}
-
 	op_node = add_operation_node(obdata, DEG_NODE_TYPE_GEOMETRY, NULL,
 	                             DEG_OPCODE_PLACEHOLDER, "Eval Done");
 	op_node->set_as_exit();
-
 	/* Parameters for driver sources. */
 	add_operation_node(obdata,
 	                   DEG_NODE_TYPE_PARAMETERS,
 	                   NULL,
 	                   DEG_OPCODE_PARAMETERS_EVAL);
-
 	/* Batch cache. */
 	add_operation_node(obdata,
 	                   DEG_NODE_TYPE_BATCH_CACHE,
@@ -1182,12 +1197,22 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 	                   DEG_OPCODE_GEOMETRY_SELECT_UPDATE);
 }
 
-/* Cameras */
-void DepsgraphNodeBuilder::build_camera(Object *object)
+void DepsgraphNodeBuilder::build_armature(bArmature *armature)
 {
-	/* Object data. */
-	/* TODO: Link scene-camera links in somehow... */
-	Camera *camera = (Camera *)object->data;
+	if (built_map_.checkIsBuiltAndTag(armature)) {
+		return;
+	}
+	build_animdata(&armature->id);
+	/* Make sure pose is up-to-date with armature updates. */
+	add_operation_node(&armature->id,
+	                   DEG_NODE_TYPE_PARAMETERS,
+	                   NULL,
+	                   DEG_OPCODE_PLACEHOLDER,
+	                   "Armature Eval");
+}
+
+void DepsgraphNodeBuilder::build_camera(Camera *camera)
+{
 	if (built_map_.checkIsBuiltAndTag(camera)) {
 		return;
 	}
@@ -1198,11 +1223,8 @@ void DepsgraphNodeBuilder::build_camera(Object *object)
 	                   DEG_OPCODE_PARAMETERS_EVAL);
 }
 
-/* Lamps */
-void DepsgraphNodeBuilder::build_lamp(Object *object)
+void DepsgraphNodeBuilder::build_lamp(Lamp *lamp)
 {
-	/* Object data. */
-	Lamp *lamp = (Lamp *)object->data;
 	if (built_map_.checkIsBuiltAndTag(lamp)) {
 		return;
 	}
@@ -1420,9 +1442,8 @@ void DepsgraphNodeBuilder::build_movieclip(MovieClip *clip)
 	                   DEG_OPCODE_MOVIECLIP_EVAL);
 }
 
-void DepsgraphNodeBuilder::build_lightprobe(Object *object)
+void DepsgraphNodeBuilder::build_lightprobe(LightProbe *probe)
 {
-	LightProbe *probe = (LightProbe *)object->data;
 	if (built_map_.checkIsBuiltAndTag(probe)) {
 		return;
 	}
@@ -1430,13 +1451,7 @@ void DepsgraphNodeBuilder::build_lightprobe(Object *object)
 	add_operation_node(&probe->id,
 	                   DEG_NODE_TYPE_PARAMETERS,
 	                   NULL,
-	                   DEG_OPCODE_PLACEHOLDER,
-	                   "LightProbe Eval");
-	add_operation_node(&object->id,
-	                   DEG_NODE_TYPE_PARAMETERS,
-	                   NULL,
-	                   DEG_OPCODE_PLACEHOLDER,
-	                   "LightProbe Eval");
+	                   DEG_OPCODE_LIGHT_PROBE_EVAL);
 
 	build_animdata(&probe->id);
 }

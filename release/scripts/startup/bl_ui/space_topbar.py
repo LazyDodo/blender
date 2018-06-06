@@ -158,7 +158,7 @@ class TOPBAR_HT_lower_bar(Header):
         elif mode == 'POSE':
             pass
         elif mode == 'PARTICLE':
-            pass
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
         elif mode == 'GPENCIL_PAINT':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
         elif mode == 'GPENCIL_EDIT':

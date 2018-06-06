@@ -36,7 +36,9 @@
 #include "DEG_depsgraph.h"
 
 struct Base;
+struct bArmature;
 struct CacheFile;
+struct Camera;
 struct bGPdata;
 struct Palette;
 struct ListBase;
@@ -46,7 +48,9 @@ struct Image;
 struct FCurve;
 struct Collection;
 struct Key;
+struct Lamp;
 struct LayerCollection;
+struct LightProbe;
 struct Main;
 struct Material;
 struct Mask;
@@ -166,6 +170,11 @@ struct DepsgraphNodeBuilder {
 	                        Object *object,
 	                        eDepsNode_LinkedState_Type linked_state);
 	void build_object_data(Object *object);
+	void build_object_data_camera(Object *object);
+	void build_object_data_geometry(Object *object);
+	void build_object_data_geometry_datablock(ID *obdata);
+	void build_object_data_lamp(Object *object);
+	void build_object_data_lightprobe(Object *object);
 	void build_object_transform(Object *object);
 	void build_object_constraints(Object *object);
 	void build_pose_constraints(Object *object, bPoseChannel *pchan, int pchan_index);
@@ -185,10 +194,10 @@ struct DepsgraphNodeBuilder {
 	                         bConstraint *con);
 	void build_rig(Object *object);
 	void build_proxy_rig(Object *object);
+	void build_armature(bArmature *armature);
 	void build_shapekeys(Key *key);
-	void build_obdata_geom(Object *object);
-	void build_camera(Object *object);
-	void build_lamp(Object *object);
+	void build_camera(Camera *camera);
+	void build_lamp(Lamp *lamp);
 	void build_nodetree(bNodeTree *ntree);
 	void build_material(Material *ma);
 	void build_texture(Tex *tex);
@@ -199,7 +208,7 @@ struct DepsgraphNodeBuilder {
 	void build_cachefile(CacheFile *cache_file);
 	void build_mask(Mask *mask);
 	void build_movieclip(MovieClip *clip);
-	void build_lightprobe(Object *object);
+	void build_lightprobe(LightProbe *probe);
 
 protected:
 	struct SavedEntryTag {
