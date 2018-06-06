@@ -129,31 +129,6 @@ class DATA_PT_gpencil_onionpanel(Panel):
         GreasePencilOnionPanel.draw_settings(layout, gpd)
 
 
-class DATA_PT_gpencil_layer_onionpanel(Panel):
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "data"
-    bl_label = "Onion Skinning (Layer Override)"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        return bool(context.active_gpencil_layer)
-
-    def draw_header(self, context):
-        self.layout.prop(context.active_gpencil_layer, "override_onion", text="")
-
-    def draw(self, context):
-        gpd = context.gpencil_data
-        gpl = context.active_gpencil_layer
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.enabled = gpd.use_onion_skinning and gpl.override_onion
-
-        GreasePencilOnionPanel.draw_settings(layout, gpl)
-
-
 class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -296,7 +271,6 @@ classes = (
     DATA_PT_gpencil,
     DATA_PT_gpencil_datapanel,
     DATA_PT_gpencil_onionpanel,
-    DATA_PT_gpencil_layer_onionpanel,
     DATA_PT_gpencil_layer_optionpanel,
     DATA_PT_gpencil_parentpanel,
     DATA_PT_gpencil_vertexpanel,
