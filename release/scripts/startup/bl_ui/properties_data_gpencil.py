@@ -281,7 +281,6 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
 
         if gpl:
             col = layout.column(align=True)
-            col.prop(gpl, "show_points")
             col.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
 
         layout.separator()
