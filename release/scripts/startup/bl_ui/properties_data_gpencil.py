@@ -85,13 +85,8 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         gpl = context.active_gpencil_layer
-        ts = context.scene.tool_settings
 
         # Layer options
-        split = layout.split(percentage=0.5)
-        split.active = not gpl.lock
-        split.prop(gpl, "show_points")
-
         split = layout.split(percentage=0.5)
         split.active = not gpl.lock
 
