@@ -41,7 +41,7 @@ const char* DRW_hair_shader_defines(void)
 {
 	static char str[256];
 	
-	BLI_snprintf(str, sizeof(str), "#define HAIR_SHADER_FIBERS\n#define HAIR_SHADER_TEX_WIDTH %d\n",
+	BLI_snprintf(str, sizeof(str), "#define HAIR_SHADER\n#define HAIR_SHADER_FIBERS\n#define HAIR_SHADER_TEX_WIDTH %d\n",
 	             GPU_max_texture_size());
 	
 	return str;
