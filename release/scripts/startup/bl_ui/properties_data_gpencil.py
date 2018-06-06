@@ -80,6 +80,7 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_label = "Layer Adjustments"
+    bl_parent_id = 'DATA_PT_gpencil_datapanel'
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -101,6 +102,29 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
         col.prop(gpl, "line_change", text="Thickness")
 
         layout.prop(gpl, "use_stroke_location", text="Draw On Stroke Location")
+
+class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "data"
+    bl_label = "Layer Relations"
+    bl_parent_id = 'DATA_PT_gpencil_datapanel'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        gpl = context.active_gpencil_layer
+        col = layout.column(align=True)
+        col.active = not gpl.lock
+        col.prop(gpl, "parent", text="Parent")
+        col.prop(gpl, "parent_type", text="Parent Type")
+        parent = gpl.parent
+
+        if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
+            col.prop_search(gpl, "parent_bone", parent.data, "bones", text="Bone")
+
 
 
 class DATA_PT_gpencil_onionpanel(Panel):
@@ -126,28 +150,6 @@ class DATA_PT_gpencil_onionpanel(Panel):
         layout.enabled = gpd.use_onion_skinning
 
         GreasePencilOnionPanel.draw_settings(layout, gpd)
-
-
-class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "data"
-    bl_label = "Layer Relations"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        gpl = context.active_gpencil_layer
-        col = layout.column(align=True)
-        col.active = not gpl.lock
-        col.prop(gpl, "parent", text="Parent")
-        col.prop(gpl, "parent_type", text="Parent Type")
-        parent = gpl.parent
-
-        if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
-            col.prop_search(gpl, "parent_bone", parent.data, "bones", text="Bone")
 
 
 class GPENCIL_UL_vgroups(UIList):
