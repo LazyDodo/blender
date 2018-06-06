@@ -758,9 +758,14 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				if (!extra)
 					break;
 
+				param1 *= factor_random_roughness;
+				param2 *= factor_random_roughness;
+				eumelanin *= factor_random_color;
+				pheomelanin *= factor_random_color;
+				
 				bsdf->N = N;
-				bsdf->v = param1*factor_random_roughness;
-				bsdf->s = param2*factor_random_roughness;
+				bsdf->v = param1;
+				bsdf->s = param2;
 				bsdf->m0_roughness = m0_roughness;
 				bsdf->alpha = alpha;
 				bsdf->eta = ior;
@@ -778,7 +783,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 						bsdf->sigma = -log3(max(absorption_coefficient, make_float3(1e-5f, 1e-5f, 1e-5f)));
 						break;
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION: {
-						float3 melanin_sigma = eumelanin*factor_random_color*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*factor_random_color*make_float3(0.187f, 0.4f, 1.05f);
+						float3 melanin_sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
 						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
 						float3 tint_sigma = log3(tint)/roughness_fac;
 						tint_sigma *= tint_sigma;

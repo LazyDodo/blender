@@ -46,6 +46,8 @@ shader node_principled_hair_bsdf(
 
 	float AdjustedRoughnessU = RoughnessU*factor_random_roughness;
 	float AdjustedRoughnessV = RoughnessV*factor_random_roughness;
+	float AdjustedMelanin = Melanin*factor_random_color;
+	float AdjustedMelaninRedness = MelaninRedness*factor_random_color;
 
 	if (parametrization == "Absorption coefficient") {
 		Sigma = AbsorptionCoefficient;
@@ -54,14 +56,14 @@ shader node_principled_hair_bsdf(
 		Sigma = -log3(max(AbsorptionCoefficient, 1e-5));
 	}
 	else if (parametrization == "Melanin concentration") {
-		color Melanin_Sigma = Melanin*factor_random_color*color(0.419, 0.697, 1.37) + MelaninRedness*factor_random_color*color(0.187, 0.4, 1.05);
-		float roughness_fac = (((((0.245*RoughnessU) + 5.574)*RoughnessU - 10.73)*RoughnessU + 2.532)*RoughnessU - 0.215)*RoughnessU + 5.969;
+		color Melanin_Sigma = AdjustedMelanin*color(0.419, 0.697, 1.37) + AdjustedMelaninRedness*color(0.187, 0.4, 1.05);
+		float roughness_fac = (((((0.245*AdjustedRoughnessU) + 5.574)*AdjustedRoughnessU - 10.73)*AdjustedRoughnessU + 2.532)*AdjustedRoughnessU - 0.215)*AdjustedRoughnessU + 5.969;
 		color Tint_Sigma = log3(Tint)/roughness_fac;
 		Tint_Sigma *= Tint_Sigma;
 		Sigma = Melanin_Sigma + Tint_Sigma;
 	}
 	else if (parametrization == "Direct coloring"){
-		float roughness_fac = (((((0.245*RoughnessU) + 5.574)*RoughnessU - 10.73)*RoughnessU + 2.532)*RoughnessU - 0.215)*RoughnessU + 5.969;
+		float roughness_fac = (((((0.245*RoughnessU) + 5.574)*AdjustedRoughnessU - 10.73)*AdjustedRoughnessU + 2.532)*AdjustedRoughnessU - 0.215)*AdjustedRoughnessU + 5.969;
 		Sigma = log3(Color)/roughness_fac;
 		Sigma *= Sigma;
 	}
