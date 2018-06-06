@@ -188,39 +188,40 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
             col = layout.column()
             col.active = not gpcolor.lock
             col.prop(gpcolor, "fill_style", text="Style")
+
             if gpcolor.fill_style == 'GRADIENT':
                 col.prop(gpcolor, "gradient_type")
 
             if gpcolor.fill_style != 'TEXTURE':
                 col.prop(gpcolor, "fill_color", text="Color")
+
+                if gpcolor.fill_style in ('GRADIENT', 'CHESSBOARD'):
+                    col.prop(gpcolor, "mix_color", text="Secondary Color")
+
                 if gpcolor.texture_mix is True or gpcolor.fill_style == 'GRADIENT':
-                    col.prop(gpcolor, "mix_factor", text="Mix", slider=True)
+                    col.prop(gpcolor, "mix_factor", text="Mix Factor", slider=True)
 
-            if gpcolor.fill_style in ('GRADIENT', 'CHESSBOARD'):
-                if gpcolor.texture_mix is False or gpcolor.fill_style == 'CHESSBOARD':
-                    col.prop(gpcolor, "mix_color", text="Mix Color")
-                col.prop(gpcolor, "flip", text="Flip Colors")
+                if gpcolor.fill_style in ('GRADIENT', 'CHESSBOARD'):
+                    col.prop(gpcolor, "flip", text="Flip Colors")
 
-                col.prop(gpcolor, "pattern_shift", text="Location")
+                    col.prop(gpcolor, "pattern_shift", text="Location")
+                    col.prop(gpcolor, "pattern_scale", text="Scale")
 
-                subrow = col.row(align=True)
-                if gpcolor.gradient_type == 'RADIAL':
-                    subrow.enabled = False
-                subrow.prop(gpcolor, "pattern_angle", text="Angle")
-
-                col.prop(gpcolor, "pattern_scale", text="Scale")
-                if gpcolor.gradient_type != 'RADIAL':
+                if gpcolor.gradient_type == 'RADIAL' and gpcolor.fill_style not in ('SOLID', 'CHESSBOARD'):
                     col.prop(gpcolor, "pattern_radius", text="Radius")
+                else:
+                    if gpcolor.fill_style != 'SOLID':
+                        col.prop(gpcolor, "pattern_angle", text="Angle")
 
-                subrow = col.row(align=True)
-                if gpcolor.fill_style != 'CHESSBOARD':
-                    subrow.enabled = False
-                subrow.prop(gpcolor, "pattern_boxsize", text="Box")
+                if gpcolor.fill_style == 'CHESSBOARD':
+                    col.prop(gpcolor, "pattern_boxsize", text="Box")
 
+            # Solid
             if gpcolor.fill_style == 'SOLID':
-                col.prop(gpcolor, "texture_mix", text="Mix Texture")
+                col.prop(gpcolor, "texture_mix", text="Mix With Texture")
 
-            if gpcolor.fill_style == 'TEXTURE' or gpcolor.texture_mix is True:
+            # Texture
+            if gpcolor.fill_style == 'TEXTURE' or (gpcolor.texture_mix is True and gpcolor.fill_style == 'SOLID'):
                 col.template_ID(gpcolor, "fill_image", open="image.open")
                 col.prop(gpcolor, "use_fill_pattern", text="Use As Pattern")
 
