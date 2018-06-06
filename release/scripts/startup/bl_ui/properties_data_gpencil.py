@@ -97,9 +97,8 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
         col.prop(gpl, "tint_factor", slider=True)
 
         # Offsets - Thickness
-        row = layout.row(align=True)
-        row.prop(gpl, "line_change", text="Thickness")
-        row.operator("gpencil.stroke_apply_thickness", icon='STYLUS_PRESSURE', text="")
+        col = layout.row(align=True)
+        col.prop(gpl, "line_change", text="Thickness")
 
         layout.prop(gpl, "use_stroke_location", text="Draw On Stroke Location")
 
