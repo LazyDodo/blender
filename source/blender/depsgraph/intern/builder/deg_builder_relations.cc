@@ -1846,16 +1846,16 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 	}
 	/* Link object data evaluation node to exit operation. */
 	OperationKey obdata_geom_eval_key(obdata,
-	                                  DEG_NODE_TYPE_GEOMETRY,
-	                                  DEG_OPCODE_PLACEHOLDER,
-	                                  "Geometry Eval");
+		DEG_NODE_TYPE_GEOMETRY,
+		DEG_OPCODE_PLACEHOLDER,
+		"Geometry Eval");
 	OperationKey obdata_geom_done_key(obdata,
-	                                  DEG_NODE_TYPE_GEOMETRY,
-	                                  DEG_OPCODE_PLACEHOLDER,
-	                                  "Eval Done");
+		DEG_NODE_TYPE_GEOMETRY,
+		DEG_OPCODE_PLACEHOLDER,
+		"Eval Done");
 	add_relation(obdata_geom_eval_key,
-	             obdata_geom_done_key,
-				 "ObData Geom Eval Done");
+		obdata_geom_done_key,
+		"ObData Geom Eval Done");
 	/* Type-specific links. */
 	const ID_Type id_type = GS(obdata->name);
 	switch (id_type) {
@@ -1868,29 +1868,29 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 			Curve *cu = (Curve *)obdata;
 			if (cu->bevobj != NULL) {
 				ComponentKey bevob_geom_key(&cu->bevobj->id,
-				                            DEG_NODE_TYPE_GEOMETRY);
+					DEG_NODE_TYPE_GEOMETRY);
 				add_relation(bevob_geom_key,
-				             obdata_geom_eval_key,
-				             "Curve Bevel Geometry");
+					obdata_geom_eval_key,
+					"Curve Bevel Geometry");
 				ComponentKey bevob_key(&cu->bevobj->id,
-				                       DEG_NODE_TYPE_TRANSFORM);
+					DEG_NODE_TYPE_TRANSFORM);
 				add_relation(bevob_key,
-				             obdata_geom_eval_key,
-				             "Curve Bevel Transform");
+					obdata_geom_eval_key,
+					"Curve Bevel Transform");
 				build_object(NULL, cu->bevobj);
 			}
 			if (cu->taperobj != NULL) {
 				ComponentKey taperob_key(&cu->taperobj->id,
-				                         DEG_NODE_TYPE_GEOMETRY);
+					DEG_NODE_TYPE_GEOMETRY);
 				add_relation(taperob_key, obdata_geom_eval_key, "Curve Taper");
 				build_object(NULL, cu->taperobj);
 			}
 			if (cu->textoncurve != NULL) {
 				ComponentKey textoncurve_key(&cu->textoncurve->id,
-				                             DEG_NODE_TYPE_GEOMETRY);
+					DEG_NODE_TYPE_GEOMETRY);
 				add_relation(textoncurve_key,
-				             obdata_geom_eval_key,
-				             "Text on Curve");
+					obdata_geom_eval_key,
+					"Text on Curve");
 				build_object(NULL, cu->textoncurve);
 			}
 			break;
@@ -1898,6 +1898,7 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 		case ID_LT:
 			break;
 		case ID_GD: /* Grease Pencil */
+		{
 			bGPdata *gpd = (bGPdata *)obdata;
 
 			/* Geometry cache needs to be recalculated on frame change
@@ -1923,9 +1924,12 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 				}
 			}
 			break;
+		}
 		default:
 			BLI_assert(!"Should not happen");
 			break;
+	}
+}
 
 void DepsgraphRelationBuilder::build_armature(bArmature *armature)
 {
