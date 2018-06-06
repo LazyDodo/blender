@@ -1306,7 +1306,7 @@ void DRW_draw_render_loop_ex(
 		PROFILE_START(stime);
 		drw_engines_cache_init();
 
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
+		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
 			drw_engines_cache_populate(ob);
 		}
@@ -1656,7 +1656,7 @@ void DRW_render_object_iter(
 {
 	DRW_hair_init();
 
-	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
+	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
 		DST.ob_state = NULL;
 		callback(vedata, ob, engine, depsgraph);
@@ -1801,7 +1801,7 @@ void DRW_draw_select_loop(
 		}
 		else {
 			DEG_OBJECT_ITER_BEGIN(
-			        depsgraph, ob, DRW_iterator_mode_get(),
+			        depsgraph, ob,
 			        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
 			        DEG_ITER_OBJECT_FLAG_VISIBLE |
 			        DEG_ITER_OBJECT_FLAG_DUPLI)
@@ -1972,7 +1972,7 @@ void DRW_draw_depth_loop(
 	if (cache_is_dirty) {
 		drw_engines_cache_init();
 
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
+		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
 			drw_engines_cache_populate(ob);
 		}
@@ -2084,15 +2084,6 @@ bool DRW_state_is_scene_render(void)
 bool DRW_state_is_opengl_render(void)
 {
 	return DST.options.is_image_render && !DST.options.is_scene_render;
-}
-
-/**
- * Gives you the iterator mode to use for depsgraph.
- */
-eDepsObjectIteratorMode DRW_iterator_mode_get(void)
-{
-	return DRW_state_is_scene_render() ? DEG_ITER_OBJECT_MODE_RENDER :
-	                                     DEG_ITER_OBJECT_MODE_VIEWPORT;
 }
 
 /**

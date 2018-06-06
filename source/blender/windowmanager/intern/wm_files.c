@@ -215,6 +215,7 @@ static void wm_window_match_keep_current_wm(
         const bool load_ui,
         ListBase *r_new_wm_list)
 {
+	Main *bmain = CTX_data_main(C);
 	wmWindowManager *wm = current_wm_list->first;
 	bScreen *screen = NULL;
 
@@ -236,7 +237,7 @@ static void wm_window_match_keep_current_wm(
 			}
 			else {
 				WorkSpaceLayout *layout_old = WM_window_get_active_layout(win);
-				WorkSpaceLayout *layout_new = ED_workspace_layout_duplicate(workspace, layout_old, win);
+				WorkSpaceLayout *layout_new = ED_workspace_layout_duplicate(bmain, workspace, layout_old, win);
 
 				WM_window_set_active_layout(win, workspace, layout_new);
 			}
@@ -572,7 +573,6 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 	
 	/* we didn't succeed, now try to read Blender file */
 	if (retval == BKE_READ_EXOTIC_OK_BLEND) {
-		Main *bmain = CTX_data_main(C);
 		int G_f = G.f;
 		ListBase wmbase;
 
@@ -583,6 +583,10 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 		/* confusing this global... */
 		G.relbase_valid = 1;
 		retval = BKE_blendfile_read(C, filepath, reports, 0);
+
+		/* BKE_file_read sets new Main into context. */
+		Main *bmain = CTX_data_main(C);
+
 		/* when loading startup.blend's, we can be left with a blank path */
 		if (BKE_main_blendfile_path(bmain)) {
 			G.save_over = 1;
@@ -600,12 +604,12 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 		}
 
 		/* match the read WM with current WM */
-		wm_window_match_do(C, &wmbase, &G.main->wm, &G.main->wm);
+		wm_window_match_do(C, &wmbase, &bmain->wm, &bmain->wm);
 		WM_check(C); /* opens window(s), checks keymaps */
 
 		if (retval == BKE_BLENDFILE_READ_OK_USERPREFS) {
 			/* in case a userdef is read from regular .blend */
-			wm_init_userdef(G.main, false);
+			wm_init_userdef(bmain, false);
 		}
 		
 		if (retval != BKE_BLENDFILE_READ_FAIL) {
