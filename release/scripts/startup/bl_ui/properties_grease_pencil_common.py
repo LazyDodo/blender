@@ -933,21 +933,6 @@ class GreasePencilDataPanel:
         if gpl:
             row.prop(gpl, "opacity", text="Opacity", slider=True)
 
-        layout.separator()
-
-        # Full-Row - Frame Locking (and Delete Frame)
-        row = layout.row(align=True)
-        if gpl:
-            row.active = not gpl.lock
-
-            if gpl.active_frame:
-                lock_status = iface_("Locked") if gpl.lock_frame else iface_("Unlocked")
-                lock_label = iface_("Frame: %d (%s)") % (gpl.active_frame.frame_number, lock_status)
-            else:
-                lock_label = iface_("Lock Frame")
-            row.prop(gpl, "lock_frame", text=lock_label, icon='UNLOCKED')
-            row.operator("gpencil.active_frame_delete", text="", icon='X')
-
 
 class GreasePencilOnionPanel:
     @staticmethod
