@@ -748,8 +748,8 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			color_randomization = clamp(color_randomization, 0.0f, 1.0f);
 			float roughness_randomization = (stack_valid(roughness_randomization_ofs)) ? stack_load_float(stack, roughness_randomization_ofs) : __uint_as_float(data_node3.w);
 
-			float factor_random_color = lerp(1.0f-color_randomization, 1.0f, random);
-			float factor_random_roughness = lerp(1.0f-roughness_randomization, 1.0f, random);
+			float factor_random_color = (1.0f-color_randomization)+random*color_randomization;
+			float factor_random_roughness = (1.0f - roughness_randomization) + random*roughness_randomization;
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
@@ -782,7 +782,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
 						float3 tint_sigma = log3(tint)/roughness_fac;
 						tint_sigma *= tint_sigma;
-						bsdf->sigma = melanin_sigma + tint_sigma;
+						bsdf->sigma = melanin_sigma+tint_sigma;
 						break;
 					}
 					case NODE_PRINCIPLED_HAIR_REFLECTANCE: {
