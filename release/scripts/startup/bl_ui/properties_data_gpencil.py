@@ -84,27 +84,24 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         gpl = context.active_gpencil_layer
+        layout.active = not gpl.lock
 
         # Layer options
-        split = layout.split(percentage=0.5)
-        split.active = not gpl.lock
-
         # Offsets - Color Tint
-        col = split.column()
-        subcol = col.column(align=True)
-        subcol.enabled = not gpl.lock
-        subcol.prop(gpl, "tint_color", text="")
-        subcol.prop(gpl, "tint_factor", text="Factor", slider=True)
+        layout.enabled = not gpl.lock
+        col = layout.column(align=True)
+        col.prop(gpl, "tint_color")
+        col.prop(gpl, "tint_factor", slider=True)
 
         # Offsets - Thickness
-        col = split.column(align=True)
-        row = col.row(align=True)
-        row.prop(gpl, "line_change", text="Thickness Change")
+        row = layout.row(align=True)
+        row.prop(gpl, "line_change", text="Thickness")
         row.operator("gpencil.stroke_apply_thickness", icon='STYLUS_PRESSURE', text="")
 
-        row = layout.row(align=True)
-        row.prop(gpl, "use_stroke_location", text="Draw on Stroke Location")
+        layout.prop(gpl, "use_stroke_location", text="Draw On Stroke Location")
 
 
 class DATA_PT_gpencil_onionpanel(Panel):
