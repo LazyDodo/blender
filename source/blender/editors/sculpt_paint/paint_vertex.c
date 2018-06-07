@@ -1108,6 +1108,9 @@ static void ed_vwpaintmode_enter_generic(
 	}
 
 	vertex_paint_init_session(depsgraph, scene, ob);
+
+	/* Flush object mode. */
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 }
 
 void ED_object_vpaintmode_enter_ex(
@@ -1189,6 +1192,7 @@ static void ed_vwpaintmode_exit_generic(
 		ED_mesh_mirror_topo_table(NULL, NULL, 'e');
 	}
 
+	/* Flush object mode. */
 	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 }
 
@@ -3138,6 +3142,10 @@ static void vpaint_stroke_update_step(bContext *C, struct PaintStroke *stroke, P
 		/* recalculate modifier stack to get new colors, slow,
 		 * avoid this if we can! */
 		DEG_id_tag_update(ob->data, 0);
+	}
+	else {
+		/* Flush changes through DEG. */
+		DEG_id_tag_update(ob->data, DEG_TAG_COPY_ON_WRITE);
 	}
 }
 

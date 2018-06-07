@@ -5,12 +5,17 @@ uniform sampler2D colorBuffer;
 uniform sampler2D specularBuffer;
 uniform sampler2D normalBuffer;
 /* normalBuffer contains viewport normals */
+uniform sampler2D cavityBuffer;
+
 uniform vec2 invertedViewportSize;
 uniform float shadowMultiplier;
 uniform float lightMultiplier;
 uniform float shadowShift = 0.1;
 uniform mat3 normalWorldMatrix;
 
+#ifdef STUDIOLIGHT_ORIENTATION_VIEWNORMAL
+uniform sampler2D matcapImage;
+#endif
 
 layout(std140) uniform world_block {
 	WorldData world_data;
@@ -43,16 +48,21 @@ void main()
 #endif /* !V3D_SHADING_OBJECT_OUTLINE */
 
 	vec4 diffuse_color = texelFetch(colorBuffer, texel, 0);
+
 /* Do we need normals */
 #ifdef NORMAL_VIEWPORT_PASS_ENABLED
-#ifdef WORKBENCH_ENCODE_NORMALS
+#  ifdef WORKBENCH_ENCODE_NORMALS
 	vec3 normal_viewport = normal_decode(texelFetch(normalBuffer, texel, 0).rg);
 	if (diffuse_color.a == 0.0) {
 		normal_viewport = -normal_viewport;
 	}
-#else /* WORKBENCH_ENCODE_NORMALS */
+#  else /* WORKBENCH_ENCODE_NORMALS */
 	vec3 normal_viewport = texelFetch(normalBuffer, texel, 0).rgb;
-#endif /* WORKBENCH_ENCODE_NORMALS */
+#  endif /* WORKBENCH_ENCODE_NORMALS */
+#endif
+
+#ifdef STUDIOLIGHT_ORIENTATION_VIEWNORMAL
+	diffuse_color = texture(matcapImage, normal_viewport.xy / 2.0 + 0.5);
 #endif
 
 #ifdef V3D_SHADING_SPECULAR_HIGHLIGHT
@@ -64,21 +74,31 @@ void main()
 	vec3 specular_color = vec3(0.0);
 #endif
 
-#ifdef V3D_LIGHTING_STUDIO
-  #ifdef STUDIOLIGHT_ORIENTATION_CAMERA
-	vec3 diffuse_light = get_camera_diffuse_light(world_data, normal_viewport);
-  #endif
+#ifdef V3D_LIGHTING_FLAT
+	vec3 diffuse_light = vec3(1.0);
+#endif
 
-  #ifdef STUDIOLIGHT_ORIENTATION_WORLD
+#ifdef V3D_LIGHTING_MATCAP
+	vec3 diffuse_light = texelFetch(specularBuffer, texel, 0).rgb;
+#endif
+
+#ifdef V3D_LIGHTING_STUDIO
+#  ifdef STUDIOLIGHT_ORIENTATION_CAMERA
+	vec3 diffuse_light = get_camera_diffuse_light(world_data, normal_viewport);
+#  endif
+
+#  ifdef STUDIOLIGHT_ORIENTATION_WORLD
 	vec3 normal_world = normalWorldMatrix * normal_viewport;
 	vec3 diffuse_light = get_world_diffuse_light(world_data, normal_world);
-  #endif
+#  endif
+#endif
 	vec3 shaded_color = diffuse_light * diffuse_color.rgb + specular_color;
 
-#else /* V3D_LIGHTING_STUDIO */
-	vec3 shaded_color = diffuse_color.rgb + specular_color;
-
-#endif /* V3D_LIGHTING_STUDIO */
+#ifdef V3D_SHADING_CAVITY
+	vec2 cavity = texelFetch(cavityBuffer, texel, 0).rg;
+	shaded_color *= 1.0 - cavity.x;
+	shaded_color *= 1.0 + cavity.y;
+#endif
 
 #ifdef V3D_SHADING_SHADOW
 	float light_factor = -dot(normal_viewport, world_data.light_direction_vs.xyz);

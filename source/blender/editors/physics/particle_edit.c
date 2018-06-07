@@ -57,9 +57,11 @@
 #include "BKE_object.h"
 #include "BKE_library.h"
 #include "BKE_mesh.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_modifier.h"
 #include "BKE_particle.h"
 #include "BKE_report.h"
+#include "BKE_scene.h"
 #include "BKE_bvhutils.h"
 #include "BKE_pointcache.h"
 
@@ -4505,7 +4507,16 @@ static int particle_edit_toggle_exec(bContext *C, wmOperator *op)
 	if (!is_mode_set) {
 		PTCacheEdit *edit;
 
+		/* Particle edit mode requires original object to have all strands
+		 * cached. A bit annoying to do update here, but is simpler than
+		 * rewriting the while edit mode code.
+		 */
+		ob->id.recalc |= (ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+		BKE_scene_graph_update_tagged(depsgraph, CTX_data_main(C));
+		BKE_object_eval_transform_all(depsgraph, scene, ob);
+		BKE_object_handle_data_update(depsgraph, scene, ob);
 		ob->mode |= mode_flag;
+
 		edit= PE_create_current(depsgraph, scene, ob);
 
 		/* mesh may have changed since last entering editmode.

@@ -765,6 +765,7 @@ ObjectEngineData *DRW_object_engine_data_ensure(
 		const size_t t = sizeof(float) - 1;
 		size = (size + t) & ~t;
 		size_t fsize = size / sizeof(float);
+		BLI_assert(fsize < MAX_INSTANCE_DATA_SIZE);
 		if (DST.object_instance_data[fsize] == NULL) {
 			DST.object_instance_data[fsize] = DRW_instance_data_request(DST.idatalist, fsize);
 		}
@@ -1233,7 +1234,9 @@ void DRW_draw_view(const bContext *C)
 
 	/* Reset before using it. */
 	drw_state_prepare_clean_for_draw(&DST);
-	DST.options.draw_text = (v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) != 0;
+	DST.options.draw_text = (
+	        (v3d->flag2 & V3D_RENDER_OVERRIDE) == 0 &&
+	        (v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) != 0);
 	DRW_draw_render_loop_ex(depsgraph, engine_type, ar, v3d, viewport, C);
 }
 
@@ -1293,7 +1296,7 @@ void DRW_draw_render_loop_ex(
 		PROFILE_START(stime);
 		drw_engines_cache_init();
 
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
+		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
 			drw_engines_cache_populate(ob);
 		}
@@ -1545,7 +1548,7 @@ void DRW_render_object_iter(
 {
 	DRW_hair_init();
 
-	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
+	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
 		DST.ob_state = NULL;
 		callback(vedata, ob, engine, depsgraph);
@@ -1690,13 +1693,17 @@ void DRW_draw_select_loop(
 		}
 		else {
 			DEG_OBJECT_ITER_BEGIN(
-			        depsgraph, ob, DRW_iterator_mode_get(),
+			        depsgraph, ob,
 			        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
 			        DEG_ITER_OBJECT_FLAG_VISIBLE |
 			        DEG_ITER_OBJECT_FLAG_DUPLI)
 			{
 				if ((ob->base_flag & BASE_SELECTABLED) != 0) {
-					DRW_select_load_id(ob->select_color);
+					/* This relies on dupli instances being after their instancing object. */
+					if ((ob->base_flag & BASE_FROMDUPLI) == 0) {
+						Object *ob_orig = DEG_get_original_object(ob);
+						DRW_select_load_id(ob_orig->select_color);
+					}
 					drw_engines_cache_populate(ob);
 				}
 			}
@@ -1857,7 +1864,7 @@ void DRW_draw_depth_loop(
 	if (cache_is_dirty) {
 		drw_engines_cache_init();
 
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob, DRW_iterator_mode_get())
+		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
 			drw_engines_cache_populate(ob);
 		}
@@ -1969,15 +1976,6 @@ bool DRW_state_is_scene_render(void)
 bool DRW_state_is_opengl_render(void)
 {
 	return DST.options.is_image_render && !DST.options.is_scene_render;
-}
-
-/**
- * Gives you the iterator mode to use for depsgraph.
- */
-eDepsObjectIteratorMode DRW_iterator_mode_get(void)
-{
-	return DRW_state_is_scene_render() ? DEG_ITER_OBJECT_MODE_RENDER :
-	                                     DEG_ITER_OBJECT_MODE_VIEWPORT;
 }
 
 /**
