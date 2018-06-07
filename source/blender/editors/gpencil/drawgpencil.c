@@ -1354,6 +1354,7 @@ static void gp_draw_strokes_edit(
 
 /* ----- General Drawing ------ */
 
+#if 0 /* GPXX: This must be disabled for annotations */
 /* draw onion-skinning for a layer */
 static void gp_draw_onionskins(tGPDdraw *tgpw)
 {
@@ -1451,7 +1452,7 @@ static void gp_draw_onionskins(tGPDdraw *tgpw)
 		/* don't draw - disabled */
 	}
 }
-
+#endif
 /* draw interpolate strokes (used only while operator is running) */
 void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const int type)
 {
@@ -1640,6 +1641,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 		 *   - The per-layer "always show" flag however overrides the playback/render restriction,
 		 *     allowing artists to selectively turn onionskins on/off during playback
 		 */
+#if 0 /* GPXX: This must be disabled for annotations */
 		if ((gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
 		    ((dflag & GP_DRAWDATA_NO_ONIONS) == 0 || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
 		{
@@ -1648,7 +1650,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 			 */
 			gp_draw_onionskins(&tgpw);
 		}
-
+#endif
 		/* draw the strokes already in active frame */
 		gp_draw_strokes(&tgpw);
 
