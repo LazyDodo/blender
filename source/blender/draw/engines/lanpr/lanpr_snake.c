@@ -438,12 +438,10 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
     psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR);
     pd->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
-    //DRW_shgroup_uniform_float(pd->snake_shgrp, "TotalLength", &ls->total_length, 1);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLDist", tld, 1);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLStrength", tls, 1);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRDist", lanpr->use_same_taper?tld:trd, 1);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRStrength", lanpr->use_same_taper?tls:trs, 1);
-    //lanpr->line_color[0] = lanpr->line_color[1] =lanpr->line_color[2] = lanpr->line_color[3] =1;
     DRW_shgroup_uniform_vec4(pd->snake_shgrp, "LineColor", lanpr->line_color, 1);
 
     DRW_shgroup_call_add(pd->snake_shgrp, snake_batch, NULL);
