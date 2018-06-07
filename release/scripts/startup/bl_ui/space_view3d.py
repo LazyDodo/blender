@@ -3394,6 +3394,45 @@ class VIEW3D_MT_edit_gpencil_interpolate(Menu):
         layout.operator("gpencil.interpolate_sequence", text="Sequence")
 
 
+class VIEW3D_PIE_object_mode(Menu):
+    bl_label = "Mode"
+
+    def draw(self, context):
+        layout = self.layout
+
+        pie = layout.menu_pie()
+        pie.operator_enum("OBJECT_OT_mode_set", "mode")
+
+
+class VIEW3D_PIE_view(Menu):
+    bl_label = "View"
+    bl_idname = "VIEW3D_PIE_view_of"
+
+    def draw(self, context):
+        layout = self.layout
+
+        pie = layout.menu_pie()
+        pie.operator_enum("VIEW3D_OT_viewnumpad", "type")
+        pie.operator("view3d.view_selected", text="View Selected", icon='ZOOM_SELECTED')
+
+
+class VIEW3D_PIE_view_more(Menu):
+    bl_label = "More"
+
+    def draw(self, context):
+        layout = self.layout
+
+        pie = layout.menu_pie()
+        pie.operator("VIEW3D_OT_view_persportho", text="Persp/Ortho", icon='RESTRICT_VIEW_OFF')
+        pie.operator("VIEW3D_OT_camera_to_view")
+        pie.operator("VIEW3D_OT_view_selected")
+        pie.operator("VIEW3D_OT_view_all")
+        pie.operator("VIEW3D_OT_localview")
+        pie.operator("SCREEN_OT_region_quadview")
+
+
+
+
 # ********** Panel **********
 
 
@@ -4009,6 +4048,8 @@ classes = (
     VIEW3D_MT_edit_armature_delete,
     VIEW3D_MT_edit_gpencil_transform,
     VIEW3D_MT_edit_gpencil_interpolate,
+    VIEW3D_PIE_object_mode,
+    VIEW3D_PIE_view,
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_grease_pencil_palettecolor,
     VIEW3D_PT_view3d_properties,

@@ -2403,43 +2403,6 @@ class WM_OT_toolbar(Operator):
         return {'FINISHED'}
 
 
-class VIEW3D_PIE_object_mode_of(Menu):
-    bl_label = "Mode"
-
-    def draw(self, context):
-        layout = self.layout
-
-        pie = layout.menu_pie()
-        pie.operator_enum("OBJECT_OT_mode_set", "mode")
-
-
-class VIEW3D_PIE_view_of(Menu):
-    bl_label = "View"
-    bl_idname = "VIEW3D_PIE_view_of"
-
-    def draw(self, context):
-        layout = self.layout
-
-        pie = layout.menu_pie()
-        pie.operator_enum("VIEW3D_OT_viewnumpad", "type")
-        pie.operator("view3d.view_selected", text="View Selected", icon='ZOOM_SELECTED')
-
-
-class VIEW3D_PIE_view_more_of(Menu):
-    bl_label = "More"
-
-    def draw(self, context):
-        layout = self.layout
-
-        pie = layout.menu_pie()
-        pie.operator("VIEW3D_OT_view_persportho", text="Persp/Ortho", icon='RESTRICT_VIEW_OFF')
-        pie.operator("VIEW3D_OT_camera_to_view")
-        pie.operator("VIEW3D_OT_view_selected")
-        pie.operator("VIEW3D_OT_view_all")
-        pie.operator("VIEW3D_OT_localview")
-        pie.operator("SCREEN_OT_region_quadview")
-
-
 classes = (
     BRUSH_OT_active_index_set,
     WM_OT_addon_disable,
@@ -2496,8 +2459,4 @@ classes = (
     WM_OT_url_open,
     WM_OT_tool_set_by_name,
     WM_OT_toolbar,
-
-    VIEW3D_PIE_object_mode_of,
-    VIEW3D_PIE_view_of,
-    VIEW3D_PIE_view_more_of,
 )
