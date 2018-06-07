@@ -99,7 +99,7 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
 
         # Offsets - Thickness
         col = layout.row(align=True)
-        col.prop(gpl, "line_change", text="Thickness")
+        col.prop(gpl, "line_change", text="Stroke Thickness")
 
         layout.prop(gpl, "use_stroke_location", text="Draw On Stroke Location")
 
