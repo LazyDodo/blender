@@ -965,7 +965,7 @@ class GreasePencilOnionPanel:
         row.prop(gp, "ghost_after_range", text="Frames After")
 
         layout.prop(gp, "use_ghost_custom_colors", text="Use Custom Color")
-        layout.prop(gp, "use_ghosts_always", text="Use In Render")
+        layout.prop(gp, "use_ghosts_always", text="View In Render")
 
         # - fade and loop
         row = layout.row()
