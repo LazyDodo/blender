@@ -243,6 +243,7 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
 
         layout.prop(gpd, "xray_mode", text="Depth Ordering")
         layout.prop(gpd, "show_edit_lines", text="Show Edit Lines")
+        layout.prop(gpd, "show_multiedit_line_only", text="Display Only Edit Line In Multiframe")
         layout.prop(gpd, "edit_line_color", text="Edit Line Color")
         layout.prop(ob, "empty_draw_size", text="Marker Size")
 
@@ -252,12 +253,9 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         sub.active = not gpd.show_constant_thickness
         sub.prop(gpd, "pixfactor", text="Thickness Scale")
 
-        col = layout.column()
-        col.prop(gpd, "show_multiedit_line_only", text="Show Only Lines in Multiedit")
 
         if gpl:
-            col = layout.column(align=True)
-            col.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
+            layout.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
 
 
 ###############################
