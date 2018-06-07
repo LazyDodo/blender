@@ -596,53 +596,6 @@ static void rna_GPencil_clear(bGPdata *gpd)
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 }
 
-/* info functions */
-static int rna_GPencil_info_total_layers(PointerRNA *ptr)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-
-	return BLI_listbase_count(&gpd->layers);
-}
-
-static int rna_GPencil_info_total_frames(PointerRNA *ptr)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	int tot = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		tot += BLI_listbase_count(&gpl->frames);
-	}
-
-	return tot;
-}
-
-static int rna_GPencil_info_total_strokes(PointerRNA *ptr)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	int tot = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			tot += BLI_listbase_count(&gpf->strokes);
-		}
-	}
-
-	return tot;
-}
-
-static int rna_GPencil_info_total_points(PointerRNA *ptr)
-{
-	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	int tot = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				tot += gps->totpoints;
-			}
-		}
-	}
-
-	return tot;
-}
-
 static void rna_GpencilVertex_groups_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
 {
 	bGPDstroke *gps = ptr->data;
@@ -1311,27 +1264,6 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_MULTIEDIT_LINES);
 	RNA_def_property_ui_text(prop, "Lines Only", "Show only edit lines for additional frames");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	/* info properties */
-	prop = RNA_def_property(srna, "info_total_layers", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_int_funcs(prop, "rna_GPencil_info_total_layers", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Total Layers", "Number of Layers");
-
-	prop = RNA_def_property(srna, "info_total_frames", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_int_funcs(prop, "rna_GPencil_info_total_frames", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Total Frames", "Number of Frames");
-
-	prop = RNA_def_property(srna, "info_total_strokes", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_int_funcs(prop, "rna_GPencil_info_total_strokes", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Total Strokes", "Number of Strokes");
-
-	prop = RNA_def_property(srna, "info_total_points", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_int_funcs(prop, "rna_GPencil_info_total_points", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Total Points", "Number of Points");
 
 	/* onion skinning */
 	prop = RNA_def_property(srna, "ghost_before_range", PROP_INT, PROP_NONE);

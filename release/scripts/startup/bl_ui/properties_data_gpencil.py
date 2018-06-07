@@ -202,32 +202,6 @@ class DATA_PT_gpencil_vertexpanel(DataButtonsPanel, Panel):
             layout.prop(context.tool_settings, "vertex_group_weight", text="Weight")
 
 
-class DATA_PT_gpencil_infopanel(DataButtonsPanel, Panel):
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "data"
-    bl_label = "Information"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        gpd = context.gpencil_data
-
-        split = layout.split(percentage=0.5)
-
-        col = split.column(align=True)
-        col.label("Layers:", icon="LAYER_ACTIVE")
-        col.label("Frames:", icon="LAYER_ACTIVE")
-        col.label("Strokes:", icon="LAYER_ACTIVE")
-        col.label("Points:", icon="LAYER_ACTIVE")
-
-        col = split.column(align=True)
-        col.label(str(gpd.info_total_layers))
-        col.label(str(gpd.info_total_frames))
-        col.label(str(gpd.info_total_strokes))
-        col.label(str(gpd.info_total_points))
-
-
 class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
     bl_label = "Viewport Display"
     bl_options = {'DEFAULT_CLOSED'}
@@ -253,7 +227,6 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         sub.active = not gpd.show_constant_thickness
         sub.prop(gpd, "pixfactor", text="Thickness Scale")
 
-
         if gpl:
             layout.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
 
@@ -268,7 +241,6 @@ classes = (
     DATA_PT_gpencil_parentpanel,
     DATA_PT_gpencil_vertexpanel,
     DATA_PT_gpencil_display,
-    DATA_PT_gpencil_infopanel,
 
     GPENCIL_UL_vgroups,
 )

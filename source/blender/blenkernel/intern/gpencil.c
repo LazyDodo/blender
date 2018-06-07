@@ -1606,3 +1606,46 @@ void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, 
 #undef MAT_NR_REMAP
 
 }
+
+/* statistics functions */
+int BKE_gpencil_stats_total_layers(bGPdata *gpd)
+{
+	return BLI_listbase_count(&gpd->layers);
+}
+
+int BKE_gpencil_stats_total_frames(bGPdata *gpd)
+{
+	int tot = 0;
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		tot += BLI_listbase_count(&gpl->frames);
+	}
+
+	return tot;
+}
+
+int BKE_gpencil_stats_total_strokes(bGPdata *gpd)
+{
+	int tot = 0;
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+			tot += BLI_listbase_count(&gpf->strokes);
+		}
+	}
+
+	return tot;
+}
+
+int BKE_gpencil_stats_total_points(bGPdata *gpd)
+{
+	int tot = 0;
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+				tot += gps->totpoints;
+			}
+		}
+	}
+
+	return tot;
+}
+
