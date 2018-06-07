@@ -19,7 +19,7 @@ uniform int xraymode;
 uniform sampler2D myTexture;
 uniform int texture_clamp;
 
-/* keep this list synchronized with list in DNA_brush_types.h */
+/* keep this list synchronized with list in gpencil_draw_utils.c */
 #define SOLID 0
 #define GRADIENT 1
 #define RADIAL 2
