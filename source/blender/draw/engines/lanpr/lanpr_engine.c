@@ -321,7 +321,7 @@ static void lanpr_cache_finish(void *vedata){
 	    DRW_shgroup_call_add(pd->dpix_preview_shgrp,bi->dpix_preview_batch,0);
 	}
 
-	if(lanpr->reloaded){
+	if(lanpr->reloaded && lanpr->master_mode == LANPR_MASTER_MODE_DPIX){
 		GPU_texture_update(txl->dpix_in_pl,pd->atlas_pl);
 		GPU_texture_update(txl->dpix_in_pr,pd->atlas_pr);
 		GPU_texture_update(txl->dpix_in_nl,pd->atlas_nl);
