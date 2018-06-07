@@ -1211,12 +1211,6 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 		"Display onion keyframes with a fade in color transparency");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
-	prop = RNA_def_property(srna, "override_onion", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "onion_flag", GP_LAYER_ONION_OVERRIDE);
-	RNA_def_property_ui_text(prop, "Override",
-		"Override onion settings with layer settings");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
 	prop = RNA_def_property(srna, "onion_factor", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "onion_factor");
 	RNA_def_property_float_default(prop, 0.5f);

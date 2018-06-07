@@ -306,9 +306,6 @@ typedef enum eGPDlayer_OnionFlag {
 	GP_LAYER_GHOST_ALWAYS = (1 << 3),
 	/* use fade color in onion skin */
 	GP_LAYER_ONION_FADE = (1 << 4),
-	
-	/* override datablock onion skinning settings   */
-	GP_LAYER_ONION_OVERRIDE = (1 << 15),
 } eGPDlayer_OnionFlag;
 
 /* ***************************************** */
