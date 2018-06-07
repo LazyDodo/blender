@@ -51,6 +51,8 @@ void ED_groom_editgroom_load(struct Object *obedit);
 void ED_groom_editgroom_make(struct Object *obedit);
 void ED_groom_editgroom_free(struct Object *obedit);
 
+int ED_groom_object_poll(struct bContext *C);
+
 /* editgroom_select.c */
 bool ED_groom_select_check_regions(const struct EditGroom *edit);
 bool ED_groom_select_check_curves(const struct EditGroom *edit);

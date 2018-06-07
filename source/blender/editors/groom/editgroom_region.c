@@ -110,9 +110,11 @@ static GroomRegion* groom_add_region(float mat[4][4])
 
 static int region_add_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Object *obedit = ED_object_context(C);
 	Groom *groom = obedit->data;
-	EditGroom *editgroom = groom->editgroom;
+	char scalp_facemap_name[MAX_VGROUP_NAME];
+	RNA_string_get(op->ptr, "scalp_facemap_name", scalp_facemap_name);
 
 	WM_operator_view3d_unit_defaults(C, op);
 
@@ -124,8 +126,27 @@ static int region_add_exec(bContext *C, wmOperator *op)
 	float mat[4][4];
 	ED_object_new_primitive_matrix(C, obedit, loc, rot, mat);
 
-	GroomRegion *region = groom_add_region(mat);
-	BLI_addtail(&editgroom->regions, region);
+	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
+	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
+	BLI_addtail(regions, region);
+
+	float scalp_loc[3];
+	float scalp_rot[3][3];
+	zero_v3(scalp_loc);
+	unit_m3(scalp_rot);
+	
+	if (scalp_facemap_name[0] != '\0')
+	{
+		if (BKE_groom_set_region_scalp_facemap(groom, region, scalp_facemap_name))
+		{
+			const struct Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+			BLI_assert(scalp != NULL);
+			
+			BKE_groom_region_bind(depsgraph, groom, region, true);
+			
+			BKE_groom_calc_region_transform_on_scalp(region, scalp, scalp_loc, scalp_rot);
+		}
+	}
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, obedit);
 	DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
@@ -142,12 +163,13 @@ void GROOM_OT_region_add(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->exec = region_add_exec;
-	ot->poll = ED_operator_editgroom;
+	ot->poll = ED_groom_object_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	ED_object_add_generic_props(ot, false);
+	RNA_def_string(ot->srna, "scalp_facemap_name", NULL, MAX_VGROUP_NAME, "Scalp Facemap Name", "Facemap to which to bind the new region");
 }
 
 /* GROOM_OT_region_bind */
@@ -171,6 +193,7 @@ static int region_bind_poll(bContext *C)
 
 static int region_bind_exec(bContext *C, wmOperator *op)
 {
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *ob = ED_object_context(C);
 	Groom *groom = ob->data;
 	const bool force_rebind = RNA_boolean_get(op->ptr, "force_rebind");
@@ -185,7 +208,7 @@ static int region_bind_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	BKE_groom_region_bind(groom, region, force_rebind);
+	BKE_groom_region_bind(depsgraph, groom, region, force_rebind);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);

@@ -2199,7 +2199,9 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 				DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(stl, theme_id, stl->g_data->wire);
 				DRW_shgroup_call_add(shgroup, geom, ob->obmat);
 				
-				DRW_shgroup_hair(ob, groom->hair_system, groom->hair_draw_settings, BKE_groom_get_scalp(groom), stl->g_data->hair_verts, stl->g_data->hair_edges);
+				Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
+				DRW_shgroup_hair(ob, groom->hair_system, groom->hair_draw_settings, scalp,
+				                 stl->g_data->hair_verts, stl->g_data->hair_edges);
 			}
 			break;
 		}

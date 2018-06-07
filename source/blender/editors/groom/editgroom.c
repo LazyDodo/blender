@@ -163,3 +163,9 @@ void ED_groom_editgroom_free(Object *ob)
 		groom->editgroom = NULL;
 	}
 }
+
+int ED_groom_object_poll(bContext *C)
+{
+	Object *ob = ED_object_context(C);
+	return ob && ob->type == OB_GROOM;
+}

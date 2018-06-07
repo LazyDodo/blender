@@ -60,32 +60,42 @@ struct BoundBox *BKE_groom_boundbox_get(struct Object *ob);
 
 /* === Curve cache === */
 
-void BKE_groom_curve_cache_update(struct Groom *groom, const struct Mesh *scalp);
+void BKE_groom_curve_cache_update(const struct Depsgraph *depsgraph, struct Groom *groom);
 void BKE_groom_curve_cache_clear(struct Groom *groom);
 
 
 /* === Scalp regions === */
 
-/* Try to bind bundles to their scalp regions */
-void BKE_groom_bind_scalp_regions(struct Groom *groom, bool force_rebind);
+struct Mesh* BKE_groom_get_scalp(const struct Depsgraph *depsgraph, struct Groom *groom);
 
-bool BKE_groom_region_bind(struct Groom *groom, struct GroomRegion *region, bool force_rebind);
+/* Set the region's facemap name.
+ * Returns false if no facemap of that name can be found in the scalp object.
+ */
+bool BKE_groom_set_region_scalp_facemap(struct Groom *groom, struct GroomRegion *region, const char *facemap_name);
+
+/* Try to bind bundles to their scalp regions */
+void BKE_groom_bind_scalp_regions(const struct Depsgraph *depsgraph, struct Groom *groom, bool force_rebind);
+
+bool BKE_groom_region_bind(const struct Depsgraph *depsgraph, struct Groom *groom, struct GroomRegion *region, bool force_rebind);
 void BKE_groom_region_unbind(struct GroomRegion *region);
+
+/* Calculates the scalp orientation at the root of the region */
+bool BKE_groom_calc_region_transform_on_scalp(const struct GroomRegion *region, const struct Mesh *scalp, float r_loc[3], float r_rot[3][3]);
 
 
 /* === Constraints === */
 
 /* Apply constraints on groom geometry */
-void BKE_groom_apply_constraints(struct Groom *groom, struct Mesh *scalp);
+void BKE_groom_apply_constraints(const struct Depsgraph *depsgraph, struct Groom *groom);
 
 
 /* === Hair System === */
 
 /* Create follicles on the scalp surface for hair fiber rendering */
-void BKE_groom_hair_distribute(struct Groom *groom, unsigned int seed, int hair_count);
+void BKE_groom_hair_distribute(const struct Depsgraph *depsgraph, struct Groom *groom, unsigned int seed, int hair_count);
 
 /* Calculate guide curve shapes based on groom bundle deformation */
-void BKE_groom_hair_update_guide_curves(struct Groom *groom);
+void BKE_groom_hair_update_guide_curves(const struct Depsgraph *depsgraph, struct Groom *groom);
 
 
 /* === Depsgraph evaluation === */
@@ -127,8 +137,5 @@ typedef struct GroomIterator
 		for (iter.isectionvertex = 0; \
 		     iter.isectionvertex < (bundle)->numloopverts; \
 		     ++iter.isectionvertex, ++iter.vertex)
-
-/* === Utility functions === */
-struct Mesh* BKE_groom_get_scalp(struct Groom *groom);
 
 #endif /*  __BKE_GROOM_H__ */

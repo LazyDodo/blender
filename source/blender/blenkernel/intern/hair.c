@@ -411,7 +411,7 @@ static void hair_fiber_find_closest_strand(
 	hair_fiber_sort_weights(follicle);
 }
 
-void BKE_hair_bind_follicles(HairSystem *hsys, Mesh *scalp)
+void BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 {
 	if (!(hsys->flag & HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING))
 	{

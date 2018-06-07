@@ -1831,7 +1831,8 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 		
 		Material *material = give_current_material(ob, groom->material_index);
 		
-		material_hair(vedata, sldata, ob, groom->hair_system, material, BKE_groom_get_scalp(groom));
+		struct Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
+		material_hair(vedata, sldata, ob, groom->hair_system, material, scalp);
 	}
 }
 

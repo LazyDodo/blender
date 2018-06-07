@@ -60,16 +60,11 @@
 
 #include "groom_intern.h"
 
-static int groom_object_poll(bContext *C)
-{
-	Object *ob = ED_object_context(C);
-	return ob && ob->type == OB_GROOM;
-}
-
 /* GROOM_OT_hair_distribute */
 
 static int hair_distribute_exec(bContext *C, wmOperator *op)
 {
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *ob = ED_object_context(C);
 	Groom *groom = ob->data;
 	int hair_count = RNA_int_get(op->ptr, "hair_count");
@@ -81,7 +76,7 @@ static int hair_distribute_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	BKE_groom_hair_distribute(groom, seed, hair_count);
+	BKE_groom_hair_distribute(depsgraph, groom, seed, hair_count);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
@@ -99,7 +94,7 @@ void GROOM_OT_hair_distribute(wmOperatorType *ot)
 	/* api callbacks */
 	ot->invoke = WM_operator_props_popup_confirm;
 	ot->exec = hair_distribute_exec;
-	ot->poll = groom_object_poll;
+	ot->poll = ED_groom_object_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;

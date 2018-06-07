@@ -57,6 +57,7 @@
 
 #include "WM_api.h"
 
+#include "BKE_context.h"
 #include "BKE_groom.h"
 #include "BKE_material.h"
 #include "BKE_object_facemap.h"
@@ -85,21 +86,20 @@ static void rna_GroomRegion_scalp_facemap_name_set(PointerRNA *ptr, const char *
 	Groom *groom = (Groom *)ptr->id.data;
 	GroomRegion *region = (GroomRegion *)ptr->data;
 	
-	if (groom->scalp_object)
-	{
-		bFaceMap *fm = BKE_object_facemap_find_name(groom->scalp_object, value);
-		if (fm) {
-			/* no need for BLI_strncpy_utf8, since this matches an existing facemap */
-			BLI_strncpy(region->scalp_facemap_name, value, sizeof(region->scalp_facemap_name));
-			/* Bind to the region right away */
-			BKE_groom_region_bind(groom, region, true);
-			return;
-		}
-	}
+	BKE_groom_set_region_scalp_facemap(groom, region, value);
+}
+
+static void rna_GroomRegion_scalp_facemap_name_update(bContext *C, PointerRNA *ptr)
+{
+	Groom *groom = (Groom *)ptr->id.data;
+	GroomRegion *region = (GroomRegion *)ptr->data;
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	
-	region->scalp_facemap_name[0] = '\0';
-	/* Unbind from region */
-	BKE_groom_region_unbind(region);
+	/* Bind to the region right away */
+	BKE_groom_region_bind(depsgraph, groom, region, true);
+	
+	DEG_id_tag_update(ptr->id.data, 0);
+	WM_main_add_notifier(NC_GROOM | ND_DATA, ptr->id.data);
 }
 
 static PointerRNA rna_Groom_active_region_get(PointerRNA *ptr)
@@ -212,10 +212,10 @@ static void rna_def_groom_region(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "scalp_facemap", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "scalp_facemap_name");
-	RNA_def_property_flag(prop, PROP_NEVER_UNLINK);
+	RNA_def_property_flag(prop, PROP_NEVER_UNLINK | PROP_CONTEXT_UPDATE);
 	RNA_def_property_ui_text(prop, "Scalp Vertex Group", "Face map name of the scalp region");
 	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_GroomRegion_scalp_facemap_name_set");
-	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
+	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_GroomRegion_scalp_facemap_name_update");
 	
 	prop = RNA_def_property(srna, "bundle", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "bundle");

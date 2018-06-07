@@ -295,26 +295,57 @@ void BKE_groom_boundbox_calc(Groom *groom)
 
 /* === Scalp regions === */
 
-void BKE_groom_bind_scalp_regions(Groom *groom, bool force_rebind)
+Mesh* BKE_groom_get_scalp(const Depsgraph *depsgraph, Groom *groom)
+{
+	if (groom->scalp_object)
+	{
+		BLI_assert(groom->scalp_object->type == OB_MESH);
+		return (Mesh *)DEG_get_evaluated_id(depsgraph, groom->scalp_object->data);
+	}
+	return NULL;
+}
+
+/* Set the region's facemap name.
+ * Returns false if no facemap of that name can be found in the scalp object.
+ */
+bool BKE_groom_set_region_scalp_facemap(Groom *groom, GroomRegion *region, const char *facemap_name)
+{
+	if (groom->scalp_object && facemap_name)
+	{
+		bFaceMap *fm = BKE_object_facemap_find_name(groom->scalp_object, facemap_name);
+		if (fm) {
+			/* no need for BLI_strncpy_utf8, since this matches an existing facemap */
+			BLI_strncpy(region->scalp_facemap_name, facemap_name, sizeof(region->scalp_facemap_name));
+			return true;
+		}
+	}
+	
+	region->scalp_facemap_name[0] = '\0';
+	/* Unbind the region */
+	BKE_groom_region_unbind(region);
+	return false;
+}
+
+void BKE_groom_bind_scalp_regions(const Depsgraph *depsgraph, Groom *groom, bool force_rebind)
 {
 	if (groom->editgroom)
 	{
 		for (GroomRegion *region = groom->editgroom->regions.first; region; region = region->next)
 		{
-			BKE_groom_region_bind(groom, region, force_rebind);
+			BKE_groom_region_bind(depsgraph, groom, region, force_rebind);
 		}
 	}
 	else
 	{
 		for (GroomRegion *region = groom->regions.first; region; region = region->next)
 		{
-			BKE_groom_region_bind(groom, region, force_rebind);
+			BKE_groom_region_bind(depsgraph, groom, region, force_rebind);
 		}
 	}
 }
 
-/* Returns the transform at the root of the bundle */
-static bool groom_get_region_transform_on_scalp(const GroomRegion *region, const Mesh *scalp, float r_loc[3], float r_rot[3][3])
+/* Calculates the scalp orientation at the root of the region */
+bool BKE_groom_calc_region_transform_on_scalp(const GroomRegion *region, const Mesh *scalp, float r_loc[3], float r_rot[3][3])
 {
 	const int numverts = region->numverts;
 	if (numverts == 0 || region->scalp_samples == NULL)
@@ -338,21 +369,18 @@ static bool groom_get_region_transform_on_scalp(const GroomRegion *region, const
 	}
 }
 
-static bool groom_shape_rebuild(GroomRegion *region, Object *scalp_ob)
+static bool groom_shape_rebuild(GroomRegion *region, const Mesh *scalp)
 {
 	GroomBundle *bundle = &region->bundle;
 	BLI_assert(region->scalp_samples != NULL);
-	BLI_assert(scalp_ob->type == OB_MESH);
 	const int numshapeverts = region->numverts;
 	
 	bool result = true;
 	float (*shape)[2] = MEM_mallocN(sizeof(*shape) * numshapeverts, "groom section shape");
 	
-	Mesh *me = scalp_ob->data;
-	
 	float center_loc[3];
 	float center_mat[3][3];
-	if (!groom_get_region_transform_on_scalp(region, me, center_loc, center_mat))
+	if (!BKE_groom_calc_region_transform_on_scalp(region, scalp, center_loc, center_mat))
 	{
 		result = false;
 		goto cleanup;
@@ -364,7 +392,7 @@ static bool groom_shape_rebuild(GroomRegion *region, Object *scalp_ob)
 	{
 		/* 3D position of the shape vertex origin on the mesh */
 		float co[3], nor[3], tang[3];
-		if (!BKE_mesh_sample_eval(me, sample, co, nor, tang))
+		if (!BKE_mesh_sample_eval(scalp, sample, co, nor, tang))
 		{
 			result = false;
 			goto cleanup;
@@ -412,21 +440,24 @@ static BMesh *groom_create_scalp_bmesh(Mesh *me)
 	return bm;
 }
 
-static bool groom_region_from_mesh_fmap(GroomRegion *region, Object *scalp_ob)
+static bool groom_region_from_mesh_fmap(const Depsgraph *depsgraph, Groom *groom, GroomRegion *region)
 {
-	BLI_assert(scalp_ob->type == OB_MESH);
+	Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+	if (!scalp)
+	{
+		return false;
+	}
 	
 	BKE_groom_bundle_curve_cache_clear(&region->bundle);
 	
-	Mesh *me = scalp_ob->data;
-	const int scalp_fmap_nr = BKE_object_facemap_name_index(scalp_ob, region->scalp_facemap_name);
-	const int cd_fmap_offset = CustomData_get_offset(&me->pdata, CD_FACEMAP);
+	const int scalp_fmap_nr = BKE_object_facemap_name_index(groom->scalp_object, region->scalp_facemap_name);
+	const int cd_fmap_offset = CustomData_get_offset(&scalp->pdata, CD_FACEMAP);
 	if (scalp_fmap_nr < 0 || cd_fmap_offset < 0)
 	{
 		return false;
 	}
 	
-	BMesh *bm = groom_create_scalp_bmesh(me);
+	BMesh *bm = groom_create_scalp_bmesh(scalp);
 	bool result = true;
 	
 	/* Tag faces in the face map for the BMO walker */
@@ -481,7 +512,7 @@ static bool groom_region_from_mesh_fmap(GroomRegion *region, Object *scalp_ob)
 	{
 		/* BVH tree for binding the region center location */
 		BVHTreeFromMesh bvhtree;
-		BKE_bvhtree_from_mesh_get(&bvhtree, me, BVHTREE_FROM_LOOPTRI, 2);
+		BKE_bvhtree_from_mesh_get(&bvhtree, scalp, BVHTREE_FROM_LOOPTRI, 2);
 		if (bvhtree.tree != NULL) {
 			BVHTreeNearest nearest;
 			nearest.index = -1;
@@ -492,7 +523,7 @@ static bool groom_region_from_mesh_fmap(GroomRegion *region, Object *scalp_ob)
 			{
 				/* last sample is the center position */
 				MeshSample *center_sample = &region->scalp_samples[numverts];
-				BKE_mesh_sample_weights_from_loc(center_sample, me, nearest.index, nearest.co);
+				BKE_mesh_sample_weights_from_loc(center_sample, scalp, nearest.index, nearest.co);
 				BLI_assert(BKE_mesh_sample_is_valid(center_sample));
 			}
 		}
@@ -507,7 +538,7 @@ static bool groom_region_from_mesh_fmap(GroomRegion *region, Object *scalp_ob)
 finalize:
 	if (result == true)
 	{
-		groom_shape_rebuild(region, scalp_ob);
+		groom_shape_rebuild(region, scalp);
 	}
 	else
 	{
@@ -524,27 +555,24 @@ finalize:
 	return result;
 }
 
-bool BKE_groom_region_bind(Groom *groom, GroomRegion *region, bool force_rebind)
+bool BKE_groom_region_bind(const Depsgraph *depsgraph, Groom *groom, GroomRegion *region, bool force_rebind)
 {
-	if (region->scalp_samples && !force_rebind)
+	bool has_facemap = (groom->scalp_object &&
+	                    BKE_object_facemap_find_name(groom->scalp_object, region->scalp_facemap_name));
+	
+	if (has_facemap && region->scalp_samples && !force_rebind)
 	{
 		return true;
 	}
 	
 	BKE_groom_region_unbind(region);
-	if (!groom->scalp_object)
-	{
-		return false;
-	}
-	if (!BKE_object_facemap_find_name(groom->scalp_object, region->scalp_facemap_name))
+	
+	if (!has_facemap)
 	{
 		return false;
 	}
 	
-	if (groom->scalp_object->type == OB_MESH)
-	{
-		groom_region_from_mesh_fmap(region, groom->scalp_object);
-	}
+	groom_region_from_mesh_fmap(depsgraph, groom, region);
 	
 	return (region->scalp_samples != NULL);
 }
@@ -562,8 +590,10 @@ void BKE_groom_region_unbind(GroomRegion *region)
 /* === Constraints === */
 
 /* Apply constraints on groom geometry */
-void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
+void BKE_groom_apply_constraints(const Depsgraph *depsgraph, Groom *groom)
 {
+	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+	
 	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
 	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
@@ -576,7 +606,7 @@ void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
 			if (scalp)
 			{
 				/* For bound regions the bundle should be attached to the scalp */
-				groom_get_region_transform_on_scalp(region, scalp, section->center, section->mat);
+				BKE_groom_calc_region_transform_on_scalp(region, scalp, section->center, section->mat);
 			}
 			else
 			{
@@ -603,11 +633,10 @@ void BKE_groom_apply_constraints(Groom *groom, Mesh *scalp)
 /* === Hair System === */
 
 /* Set loop weights for all faces covered by the bundle region */
-static bool groom_add_region_loop_weights(const Groom *groom, const GroomRegion *region,
+static bool groom_add_region_loop_weights(const Groom *groom, const GroomRegion *region, const Mesh *scalp,
                                           float *loop_weights)
 {
-	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
-	const Mesh *scalp = groom->scalp_object->data;
+	BLI_assert(groom->scalp_object);
 	
 	const int fmap_nr = BKE_object_facemap_name_index(groom->scalp_object, region->scalp_facemap_name);
 	if (fmap_nr < 0)
@@ -645,12 +674,12 @@ static bool groom_add_region_loop_weights(const Groom *groom, const GroomRegion 
 }
 
 /* Set loop weights for all faces covered */
-static void groom_add_all_loop_weights(const Groom *groom,
+static void groom_add_all_loop_weights(const Groom *groom, const Mesh *scalp,
                                        float *loop_weights)
 {
 	for (GroomRegion* region = groom->regions.first; region; region = region->next)
 	{
-		groom_add_region_loop_weights(groom, region, loop_weights);
+		groom_add_region_loop_weights(groom, region, scalp, loop_weights);
 	}
 }
 
@@ -672,7 +701,7 @@ static void groom_generate_guides(
 		
 		/* Mask for the scalp region */
 		memset(loop_weights, 0, loop_weights_size);
-		groom_add_region_loop_weights(groom, region, loop_weights);
+		groom_add_region_loop_weights(groom, region, scalp, loop_weights);
 		
 		{
 			const int count = bundle->guides_count;
@@ -738,17 +767,19 @@ static void groom_generate_guides(
 	MEM_freeN(loop_weights);
 }
 
-void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count)
+void BKE_groom_hair_distribute(const Depsgraph *depsgraph, Groom *groom, unsigned int seed, int hair_count)
 {
+	Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+	if (!scalp)
+	{
+		return;
+	}
+	
 	struct HairSystem *hsys = groom->hair_system;
-	
-	BLI_assert(groom->scalp_object && groom->scalp_object->type == OB_MESH);
-	Mesh *scalp = groom->scalp_object->data;
-	
 	{
 		/* Per-loop weights for limiting follicles to covered faces */
 		float *loop_weights = MEM_callocN(sizeof(float) * scalp->totloop, "groom scalp loop weights");
-		groom_add_all_loop_weights(groom, loop_weights);
+		groom_add_all_loop_weights(groom, scalp, loop_weights);
 		
 		unsigned int hair_seed = BLI_ghashutil_combine_hash(seed, BLI_ghashutil_strhash("groom hair follicles"));
 		BKE_hair_generate_follicles_ex(hsys, scalp, hair_seed, hair_count, loop_weights);
@@ -762,7 +793,7 @@ void BKE_groom_hair_distribute(Groom *groom, unsigned int seed, int hair_count)
 	}
 }
 
-void BKE_groom_hair_update_guide_curves(Groom *groom)
+void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom)
 {
 	struct HairSystem *hsys = groom->hair_system;
 	const ListBase *regions = groom->editgroom ? &groom->editgroom->regions : &groom->regions;
@@ -815,10 +846,9 @@ void BKE_groom_hair_update_guide_curves(Groom *groom)
 		}
 	}
 	
-	if (groom->scalp_object)
+	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+	if (scalp)
 	{
-		BLI_assert(groom->scalp_object->type == OB_MESH);
-		Mesh *scalp = groom->scalp_object->data;
 		BKE_hair_bind_follicles(hsys, scalp);
 	}
 }
@@ -908,7 +938,7 @@ static void groom_eval_center_curve_section(
 
 static void groom_eval_shape_vertex(const GroomRegion *region, const Mesh *scalp, int vertex_idx, int section_idx, float r_co[3])
 {
-	if (section_idx == 0 && region->scalp_samples != NULL)
+	if (section_idx == 0 && scalp && region->scalp_samples != NULL)
 	{
 		/* For bound regions use location on the scalp */
 		const MeshSample *bound_loc = &region->scalp_samples[vertex_idx];
@@ -1019,8 +1049,9 @@ static void groom_eval_section_mats(GroomRegion *region, int curve_res)
 	copy_m3_m3(section->mat, mat);
 }
 
-void BKE_groom_curve_cache_update(Groom *groom, const Mesh *scalp)
+void BKE_groom_curve_cache_update(const Depsgraph *depsgraph, Groom *groom)
 {
+	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
 	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
 	
 	for (GroomRegion *region = regions->first; region; region = region->next)
@@ -1084,22 +1115,20 @@ void BKE_groom_curve_cache_clear(Groom *groom)
 
 /* === Depsgraph evaluation === */
 
-void BKE_groom_eval_geometry(const struct Depsgraph *depsgraph, Groom *groom)
+void BKE_groom_eval_geometry(const Depsgraph *depsgraph, Groom *groom)
 {
 	if (G.debug & G_DEBUG_DEPSGRAPH) {
 		printf("%s on %s\n", __func__, groom->id.name);
 	}
 	
 	/* Apply constraints from scalp mesh to the groom geometry */
-	Mesh *scalp = groom->scalp_object ? groom->scalp_object->data : NULL;
-	Mesh *scalp_eval = (Mesh *)DEG_get_evaluated_id(depsgraph, &scalp->id);
-	BKE_groom_apply_constraints(groom, scalp_eval);
+	BKE_groom_apply_constraints(depsgraph, groom);
 	
 	/* calculate curves for interpolating shapes */
-	BKE_groom_curve_cache_update(groom, scalp_eval);
+	BKE_groom_curve_cache_update(depsgraph, groom);
 	
 	/* generate actual guide curves for hair */
-	BKE_groom_hair_update_guide_curves(groom);
+	BKE_groom_hair_update_guide_curves(depsgraph, groom);
 	
 	if (groom->bb == NULL || (groom->bb->flag & BOUNDBOX_DIRTY)) {
 		BKE_groom_boundbox_calc(groom);
@@ -1126,11 +1155,4 @@ void BKE_groom_batch_cache_free(Groom *groom)
 	{
 		BKE_groom_batch_cache_free_cb(groom);
 	}
-}
-
-/* === Utility functions === */
-
-struct Mesh* BKE_groom_get_scalp(struct Groom *groom)
-{
-	return groom->scalp_object ? groom->scalp_object->data : NULL;
 }
