@@ -223,7 +223,11 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
             # Texture
             if gpcolor.fill_style == 'TEXTURE' or (gpcolor.texture_mix is True and gpcolor.fill_style == 'SOLID'):
                 col.template_ID(gpcolor, "fill_image", open="image.open")
-                col.prop(gpcolor, "use_fill_pattern", text="Use As Pattern")
+
+                if gpcolor.fill_style == 'TEXTURE':
+                    col.prop(gpcolor, "use_fill_pattern", text="Use As Pattern")
+                    if gpcolor.use_fill_pattern is True:
+                        col.prop(gpcolor, "fill_color", text="Color")
 
                 col.prop(gpcolor, "texture_offset", text="Offset")
                 col.prop(gpcolor, "texture_scale", text="Scale")
