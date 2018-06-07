@@ -341,7 +341,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
 			stl->shgroups[id].texture_clamp = gp_style->flag & GP_STYLE_COLOR_TEX_CLAMP ? 1 : 0;
-			DRW_shgroup_uniform_int(grp, "t_clamp", &stl->shgroups[id].texture_clamp, 1);
+			DRW_shgroup_uniform_int(grp, "texture_clamp", &stl->shgroups[id].texture_clamp, 1);
 
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
