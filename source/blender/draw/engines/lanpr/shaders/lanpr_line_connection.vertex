@@ -1,7 +1,7 @@
 in vec2 pos;
-in float uvs;
+in vec2 uvs;
 
-out float gOffset;
+out vec2 gOffset;
 
 void main(){
     gl_Position = vec4(pos, 0.0, 1.0);

@@ -1,10 +1,9 @@
 layout (lines_adjacency) in;
 layout (triangle_strip, max_vertices = 6) out;
 
-in float gOffset[];
+in vec2 gOffset[];
 
 uniform float LineWidth;
-uniform float TotalLength;
 uniform float TaperLDist;
 uniform float TaperRDist;
 uniform float TaperLStrength;
@@ -20,8 +19,8 @@ vec4 MakeLeftTaperLinear(vec4 L, vec4 a, float offset){
 }
 
 vec4 MakeRightTaperLinear(vec4 R, vec4 c, float offset){
-    if((TotalLength-offset) >= TaperRDist) return c;
-	c = mix(mix(c,R,TaperRStrength),c,(TotalLength-offset)/TaperRDist);
+    if(offset >= TaperRDist) return c;
+	c = mix(mix(c,R,TaperRStrength),c,offset/TaperRDist);
 	return c;
 }
 
@@ -34,8 +33,10 @@ void main() {
 		 R  = gl_in[2].gl_Position,
 		 RR = gl_in[3].gl_Position;
 
-	float OffsetL = gOffset[1];
-	float OffsetR = gOffset[2];
+	float OffsetL = gOffset[1].x;
+	float OffsetR = gOffset[2].x;
+	float OffsetL2 = gOffset[1].y;
+	float OffsetR2 = gOffset[2].y;
 
 	if(L==R || L==LL || R == RR || LL==RR || L==RR || R==LL) return;
 
@@ -51,32 +52,9 @@ void main() {
 	c = R - LineWidth * Normal*0.001;
 	d = R + LineWidth * Normal*0.001;
 
-    //gl_Position = a;
-	//EmitVertex();
-	//gl_Position = b ;
-	//EmitVertex();
-	//gl_Position = c;
-	//EmitVertex();
-	//EndPrimitive();
-	//
-	//gl_Position = c;
-	//EmitVertex();
-	//gl_Position = d;
-	//EmitVertex();
-	//gl_Position = b;
-	//EmitVertex();
-    //EndPrimitive();
-	//
-	//
-	//return;
-
 	float lim = LineWidth*0.002;
 
-
-    if(LL == L){
-		a = L - LineWidth * Normal*0.001;
-		b = L + LineWidth * Normal*0.001;
-	}else{
+    {
 	    vec4 Tangent = normalize( normalize(L-LL)+normalize(R-L));
 	    vec4 Minter = normalize(vec4(-Tangent.y,Tangent.x,0,0));
 	    float length = LineWidth/(dot(Minter,Normal))*0.001;
@@ -85,10 +63,7 @@ void main() {
 		if(distance(a,b)>2*lim){ a =  L - lim*Minter; b=L+lim*Minter;}
 	}
 
-	if (R == RR){
-		c = R - LineWidth * Normal*0.001;
-		d = R + LineWidth * Normal*0.001;
-	}else{
+	{
 	    vec4 Tangent = normalize( normalize(RR-R)+normalize(R-L));
 	    vec4 Minter = normalize(vec4(-Tangent.y,Tangent.x,0,0));
 	    float length = LineWidth/(dot(Minter,Normal))*0.001;
@@ -97,17 +72,15 @@ void main() {
 		if(distance(c,d)>2*lim){ c =  R - lim*Minter; d=R+lim*Minter;}
 	}
 
-
-
 	a = MakeLeftTaperLinear(L,a,OffsetL);
 	b = MakeLeftTaperLinear(L,b,OffsetL);
 	c = MakeLeftTaperLinear(R,c,OffsetR);
 	d = MakeLeftTaperLinear(R,d,OffsetR);
 
-	a = MakeRightTaperLinear(L,a,OffsetL);
-	b = MakeRightTaperLinear(L,b,OffsetL);
-	c = MakeRightTaperLinear(R,c,OffsetR);
-	d = MakeRightTaperLinear(R,d,OffsetR);
+	a = MakeRightTaperLinear(L,a,OffsetL2);
+	b = MakeRightTaperLinear(L,b,OffsetL2);
+	c = MakeRightTaperLinear(R,c,OffsetR2);
+	d = MakeRightTaperLinear(R,d,OffsetR2);
 
 	gl_Position = a;
 	EmitVertex();

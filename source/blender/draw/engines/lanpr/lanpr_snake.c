@@ -241,7 +241,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 
 	//Index_adjacent = MEM_callocN(sizeof(unsigned int) * e_count, "Index_adjacent buffer pre alloc");
 	Verts = MEM_callocN(sizeof(float) * v_count * 2, "Verts buffer pre alloc");
-	Lengths = MEM_callocN(sizeof(float)* v_count, "Length buffer pre alloc");
+	Lengths = MEM_callocN(sizeof(float)* v_count * 2, "Length buffer pre alloc");
 
 	Gwn_IndexBufBuilder elb;
 	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, e_count, v_count, true);
@@ -261,17 +261,26 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 
 		i = 0;
 		float xf,yf;
+		TotalLength=0;
 		for (lsp = (LANPR_LineStripPoint *)(ls->points.first); lsp; lsp = (LANPR_LineStripPoint *)(lsp->Item.next)) {
 			lanpr_texture_to_ndc(lsp->P[0],lsp->P[1],pd->width, pd->height, &xf,&yf);
 			Verts[vert_offset*2 + i * 2 + 0] = xf;
 			Verts[vert_offset*2 + i * 2 + 1] = yf;
 			if (plsp = (LANPR_LineStripPoint *)(lsp->Item.prev)) {
 				TotalLength += tMatDist2v(plsp->P, lsp->P);
-				Lengths[vert_offset + i] = TotalLength;
+				Lengths[(vert_offset + i) * 2] = TotalLength;
 			}
 			i++;
 		}
+
 		ls->total_length = TotalLength;
+        i = 0;
+		for (lsp = (LANPR_LineStripPoint *)(ls->points.first); lsp; lsp = (LANPR_LineStripPoint *)(lsp->Item.next)) {
+			if (plsp = (LANPR_LineStripPoint *)(lsp->Item.prev)) {
+				Lengths[(vert_offset + i) * 2 + 1] = ls->total_length - Lengths[(vert_offset + i) * 2];
+			}
+			i++;
+		}
 
 		vert_offset+=(ls->point_count);
 	}
@@ -280,7 +289,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 	static struct { uint pos, uvs; } attr_id;
 	if (format.attrib_ct == 0) {
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		attr_id.uvs = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
+		attr_id.uvs = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	}
 
 	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
@@ -288,7 +297,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 
 	for (int i = 0; i < v_count; ++i) {
 		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &Verts[i*2]);
-		GWN_vertbuf_attr_set(vbo, attr_id.uvs, i, &Lengths[i]);
+		GWN_vertbuf_attr_set(vbo, attr_id.uvs, i, &Lengths[i*2]);
 	}
 
 	MEM_freeN(Verts);
@@ -429,7 +438,7 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
     psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR);
     pd->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
-    DRW_shgroup_uniform_float(pd->snake_shgrp, "TotalLength", &ls->total_length, 1);
+    //DRW_shgroup_uniform_float(pd->snake_shgrp, "TotalLength", &ls->total_length, 1);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLDist", tld, 1);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLStrength", tls, 1);
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRDist", lanpr->use_same_taper?tld:trd, 1);
