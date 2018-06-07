@@ -52,6 +52,8 @@ extern "C" {
 
 #include "bmesh.h"
 #include "bmesh_tools.h"
+
+#include "DEG_depsgraph_query.h"
 }
 
 using Alembic::Abc::FloatArraySample;
@@ -286,13 +288,11 @@ static ModifierData *get_liquid_sim_modifier(Scene *scene, Object *ob)
 
 /* ************************************************************************** */
 
-AbcMeshWriter::AbcMeshWriter(Depsgraph *depsgraph,
-                             Scene *scene,
-                             Object *ob,
+AbcMeshWriter::AbcMeshWriter(Object *ob,
                              AbcTransformWriter *parent,
                              uint32_t time_sampling,
                              ExportSettings &settings)
-    : AbcObjectWriter(depsgraph, scene, ob, time_sampling, settings, parent)
+    : AbcObjectWriter(ob, time_sampling, settings, parent)
 {
 	m_is_animated = isAnimated();
 	m_subsurf_mod = NULL;
@@ -304,11 +304,11 @@ AbcMeshWriter::AbcMeshWriter(Depsgraph *depsgraph,
 	}
 
 	if (!m_settings.apply_subdiv) {
-		m_subsurf_mod = get_subsurf_modifier(m_scene, m_object);
+		m_subsurf_mod = get_subsurf_modifier(m_settings.scene, m_object);
 		m_is_subd = (m_subsurf_mod != NULL);
 	}
 
-	m_is_liquid = (get_liquid_sim_modifier(m_scene, m_object) != NULL);
+	m_is_liquid = (get_liquid_sim_modifier(m_settings.scene, m_object) != NULL);
 
 	while (parent->alembicXform().getChildHeader(m_name)) {
 		m_name.append("_");
@@ -526,7 +526,9 @@ Mesh *AbcMeshWriter::getFinalMesh(bool &r_needsfree)
 		m_subsurf_mod->mode |= eModifierMode_DisableTemporary;
 	}
 
-	struct Mesh *mesh = mesh_get_eval_final(m_depsgraph, m_scene, m_object, CD_MASK_MESH);
+	Scene *scene = DEG_get_evaluated_scene(m_settings.depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(m_settings.depsgraph, m_object);
+	struct Mesh *mesh = mesh_get_eval_final(m_settings.depsgraph, scene, ob_eval, CD_MASK_MESH);
 	r_needsfree = false;
 
 	if (m_subsurf_mod) {
@@ -586,7 +588,7 @@ void AbcMeshWriter::getVelocities(struct Mesh *mesh, std::vector<Imath::V3f> &ve
 	vels.clear();
 	vels.resize(totverts);
 
-	ModifierData *md = get_liquid_sim_modifier(m_scene, m_object);
+	ModifierData *md = get_liquid_sim_modifier(m_settings.scene, m_object);
 	FluidsimModifierData *fmd = reinterpret_cast<FluidsimModifierData *>(md);
 	FluidsimSettings *fss = fmd->fss;
 
@@ -1064,7 +1066,19 @@ Mesh *AbcMeshReader::read_mesh(Mesh *existing_mesh,
                                int read_flag,
                                const char **err_str)
 {
-	const IPolyMeshSchema::Sample sample = m_schema.getValue(sample_sel);
+	IPolyMeshSchema::Sample sample;
+	try {
+		sample = m_schema.getValue(sample_sel);
+	}
+	catch(Alembic::Util::Exception &ex) {
+		*err_str = "Error reading mesh sample; more detail on the console";
+		printf("Alembic: error reading mesh sample for '%s/%s' at time %f: %s\n",
+			   m_iobject.getFullName().c_str(),
+			   m_schema.getName().c_str(),
+			   sample_sel.getRequestedTime(),
+			   ex.what());
+		return existing_mesh;
+	}
 
 	const P3fArraySamplePtr &positions = sample.getPositions();
 	const Alembic::Abc::Int32ArraySamplePtr &face_indices = sample.getFaceIndices();
@@ -1302,7 +1316,19 @@ void AbcSubDReader::readObjectData(Main *bmain, const Alembic::Abc::ISampleSelec
 	Mesh *read_mesh = this->read_mesh(mesh, sample_sel, MOD_MESHSEQ_READ_ALL, NULL);
 	BKE_mesh_nomain_to_mesh(read_mesh, mesh, m_object, CD_MASK_MESH, true);
 
-	const ISubDSchema::Sample sample = m_schema.getValue(sample_sel);
+	ISubDSchema::Sample sample;
+	try {
+		sample = m_schema.getValue(sample_sel);
+	}
+	catch(Alembic::Util::Exception &ex) {
+		printf("Alembic: error reading mesh sample for '%s/%s' at time %f: %s\n",
+			   m_iobject.getFullName().c_str(),
+			   m_schema.getName().c_str(),
+			   sample_sel.getRequestedTime(),
+			   ex.what());
+		return;
+	}
+
 	Int32ArraySamplePtr indices = sample.getCreaseIndices();
 	Alembic::Abc::FloatArraySamplePtr sharpnesses = sample.getCreaseSharpnesses();
 
@@ -1337,7 +1363,19 @@ Mesh *AbcSubDReader::read_mesh(Mesh *existing_mesh,
                                int read_flag,
                                const char **err_str)
 {
-	const ISubDSchema::Sample sample = m_schema.getValue(sample_sel);
+	ISubDSchema::Sample sample;
+	try {
+		sample = m_schema.getValue(sample_sel);
+	}
+	catch(Alembic::Util::Exception &ex) {
+		*err_str = "Error reading mesh sample; more detail on the console";
+		printf("Alembic: error reading mesh sample for '%s/%s' at time %f: %s\n",
+			   m_iobject.getFullName().c_str(),
+			   m_schema.getName().c_str(),
+			   sample_sel.getRequestedTime(),
+			   ex.what());
+		return existing_mesh;
+	}
 
 	const P3fArraySamplePtr &positions = sample.getPositions();
 	const Alembic::Abc::Int32ArraySamplePtr &face_indices = sample.getFaceIndices();

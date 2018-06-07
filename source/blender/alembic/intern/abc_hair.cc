@@ -53,14 +53,12 @@ using Alembic::AbcGeom::OV2fGeomParam;
 
 /* ************************************************************************** */
 
-AbcHairWriter::AbcHairWriter(Depsgraph *depsgraph,
-                             Scene *scene,
-                             Object *ob,
+AbcHairWriter::AbcHairWriter(Object *ob,
                              AbcTransformWriter *parent,
                              uint32_t time_sampling,
                              ExportSettings &settings,
                              ParticleSystem *psys)
-    : AbcObjectWriter(depsgraph, scene, ob, time_sampling, settings, parent)
+    : AbcObjectWriter(ob, time_sampling, settings, parent)
     , m_uv_warning_shown(false)
 {
 	m_psys = psys;
@@ -74,14 +72,7 @@ void AbcHairWriter::do_write()
 	if (!m_psys) {
 		return;
 	}
-
-	ParticleSystemModifierData *psmd = psys_get_modifier(m_object, m_psys);
-
-	if (!psmd->mesh_final) {
-		return;
-	}
-
-	Mesh *mesh = mesh_get_eval_final(m_depsgraph, m_scene, m_object, CD_MASK_MESH);
+	Mesh *mesh = mesh_get_eval_final(m_settings.depsgraph, m_settings.scene, m_object, CD_MASK_MESH);
 	BKE_mesh_tessface_ensure(mesh);
 
 	std::vector<Imath::V3f> verts;
@@ -98,8 +89,6 @@ void AbcHairWriter::do_write()
 			write_hair_child_sample(mesh, part, verts, norm_values, uv_values, hvertices);
 		}
 	}
-
-	BKE_id_free(NULL, mesh);
 
 	Alembic::Abc::P3fArraySample iPos(verts);
 	m_sample = OCurvesSchema::Sample(iPos, hvertices);
