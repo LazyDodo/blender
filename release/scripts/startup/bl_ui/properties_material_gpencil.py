@@ -188,7 +188,7 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
         layout.use_property_split = True
 
         ma = context.object.active_material
-        if (ma is not None) and (ma.grease_pencil):
+        if ma is not None and ma.grease_pencil:
             gpcolor = ma.grease_pencil
 
             # color settings
@@ -205,7 +205,7 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
                 if gpcolor.fill_style in ('GRADIENT', 'CHESSBOARD'):
                     col.prop(gpcolor, "mix_color", text="Secondary Color")
 
-                if gpcolor.texture_mix is True or gpcolor.fill_style == 'GRADIENT':
+                if gpcolor.fill_style == 'GRADIENT':
                     col.prop(gpcolor, "mix_factor", text="Mix Factor", slider=True)
 
                 if gpcolor.fill_style in ('GRADIENT', 'CHESSBOARD'):
@@ -223,10 +223,6 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
                 if gpcolor.fill_style == 'CHESSBOARD':
                     col.prop(gpcolor, "pattern_boxsize", text="Box")
 
-            # Solid
-            if gpcolor.fill_style == 'SOLID':
-                col.prop(gpcolor, "texture_mix", text="Mix With Texture")
-
             # Texture
             if gpcolor.fill_style == 'TEXTURE' or (gpcolor.texture_mix is True and gpcolor.fill_style == 'SOLID'):
                 col.template_ID(gpcolor, "fill_image", open="image.open")
@@ -241,6 +237,13 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
                 col.prop(gpcolor, "texture_angle")
                 col.prop(gpcolor, "texture_opacity")
                 col.prop(gpcolor, "texture_clamp", text="Clip Image")
+
+                if gpcolor.use_fill_pattern is False:
+                    col.prop(gpcolor, "texture_mix", text="Mix With Color")
+
+                    if gpcolor.texture_mix is True:
+                        col.prop(gpcolor, "fill_color", text="Mix Color")
+                        col.prop(gpcolor, "mix_factor", text="Mix Factor", slider=True)
 
 
 class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):

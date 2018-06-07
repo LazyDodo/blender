@@ -80,7 +80,7 @@ void main()
 
 	/* solid fill */
 	if (fill_type == SOLID) {
-		fragColor = (texture_mix == 1) ? mix(finalColor, text_color, mix_factor) : finalColor;
+		fragColor = finalColor;
 	}
 	else {
 		vec2 center = vec2(0.5, 0.5) + gradient_shift;
@@ -118,7 +118,7 @@ void main()
 		}
 		/* texture */
 		if (fill_type == TEXTURE) {
-			fragColor = text_color;
+			fragColor = (texture_mix == 1) ? mix(text_color, finalColor, mix_factor) : text_color;
 		}
 		/* pattern */
 		if (fill_type == PATTERN) {
