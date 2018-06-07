@@ -168,9 +168,6 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
             if gpcolor.stroke_style == 'SOLID' or gpcolor.use_stroke_pattern is True:
                 col.prop(gpcolor, "color", text="Color")
 
-            # Options
-            col.prop(gpcolor, "pass_index")
-
 
 class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
     bl_label = "Fill"
@@ -236,11 +233,27 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
                 col.prop(gpcolor, "texture_clamp", text="Clip Image")
 
 
+class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):
+    bl_label = "Options"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        ma = context.object.active_material
+        if ma is not None and ma.grease_pencil is not None:
+            gpcolor = ma.grease_pencil
+            layout.prop(gpcolor, "pass_index")
+
+
 classes = (
     GPENCIL_UL_matslots,
     MATERIAL_PT_gpencil_slots,
     MATERIAL_PT_gpencil_strokecolor,
     MATERIAL_PT_gpencil_fillcolor,
+    MATERIAL_PT_gpencil_options,
 )
 
 if __name__ == "__main__":  # only for live edit.
