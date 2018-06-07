@@ -137,9 +137,18 @@ class MATERIAL_PT_gpencil_slots(Panel):
             split.template_ID(space, "pin_id")
             split.separator()
 
+class MATERIAL_PT_gpencil_surface(GPMaterialButtonsPanel, Panel):
+    bl_label = "Surface"
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
 
 class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
     bl_label = "Stroke"
+    bl_parent_id = 'MATERIAL_PT_gpencil_surface'
 
     @staticmethod
     def draw(self, context):
@@ -171,6 +180,7 @@ class MATERIAL_PT_gpencil_strokecolor(GPMaterialButtonsPanel, Panel):
 
 class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
     bl_label = "Fill"
+    bl_parent_id = 'MATERIAL_PT_gpencil_surface'
 
     @staticmethod
     def draw(self, context):
@@ -251,6 +261,7 @@ class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):
 classes = (
     GPENCIL_UL_matslots,
     MATERIAL_PT_gpencil_slots,
+    MATERIAL_PT_gpencil_surface,
     MATERIAL_PT_gpencil_strokecolor,
     MATERIAL_PT_gpencil_fillcolor,
     MATERIAL_PT_gpencil_options,
