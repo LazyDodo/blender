@@ -121,8 +121,11 @@ set(SRC
 	#engines/lanpr/NUL_TNS_Kernel.c
 	#engines/lanpr/NUL_Util.c
 	#engines/lanpr/NUL_TNS_SoftwareRender.c
-    engines/lanpr/NUL_TNS_EdgeRendering.c
+    #engines/lanpr/NUL_TNS_EdgeRendering.c
     #engines/lanpr/NUL_TNS_Mesh.c
+	engines/lanpr/lanpr_dpix.c
+	engines/lanpr/lanpr_engine.c
+	engines/lanpr/lanpr_snake.c
 
 	DRW_engine.h
 	intern/DRW_render.h
@@ -145,8 +148,9 @@ set(SRC
 	engines/eevee/eevee_private.h
 	engines/external/external_engine.h
 
-	engines/lanpr/NUL_TNS.h
+	#engines/lanpr/NUL_TNS.h
 	engines/lanpr/NUL_Util.h
+	engines/lanpr/lanpr_all.h
 )
 
 if(WITH_CLAY_ENGINE)

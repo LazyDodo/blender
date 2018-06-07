@@ -17,6 +17,36 @@
 #define deg(r) r/TNS_PI*180.0
 #define rad(d) d*TNS_PI/180.0
 
+#define tMatDist2v(p1,p2)\
+    sqrt(((p1)[0]-(p2)[0])*((p1)[0]-(p2)[0]) + ((p1)[1]-(p2)[1])*((p1)[1]-(p2)[1]))
+
+#define tnsLinearItp(L,R,T)\
+((L)*(1.0f - (T)) + (R)*(T))
+
+
+typedef struct LANPROneTimeInit{
+    
+	/* Snake */
+
+	GPUShader* multichannel_shader;
+	GPUShader* edge_detect_shader;
+	GPUShader* edge_thinning_shader;
+	GPUShader* snake_connection_shader;
+
+	/* DPIX */
+
+	GPUShader* dpix_transform_shader;
+	GPUShader* dpix_preview_shader;
+
+	void* ved;
+
+
+    /* for default value assignment */
+
+    int        InitComplete;
+    
+} LANPROneTimeInit;
+
 
 #define TNS_DPIX_TEXTURE_SIZE 2048
 
@@ -237,7 +267,6 @@ a=a<Min?Min:(a>Max?Max:a)
 (((a)+0.0000001)>=(b) && ((a)-0.0000001)<=(b))
 
 
-
 #define TNS_FRAMEBUFFER_PIXEL(FrameBuffer,Row,Column)\
 &((FrameBuffer)->Pixels[Row*FrameBuffer->TileSizeW*FrameBuffer->W*FrameBuffer->SubPixelSample + Column*FrameBuffer->H*FrameBuffer->TileSizeH*FrameBuffer->SubPixelSample])
 
@@ -247,12 +276,26 @@ a=a<Min?Min:(a>Max?Max:a)
 #define TNS_IN_TILE_Y(RenderTile,Fy)\
 (RenderTile->FY<=Fy && RenderTile->FYLim>=Fy)
 
-
 #define TNS_IN_TILE(RenderTile,Fx,Fy)\
 (TNS_IN_TILE_X(RenderTile,Fx) && TNS_IN_TILE_Y(RenderTile,Fy))
 
 
-void tnsClearAll();
-void tnsClearColorv(real* rgba);
-void tnsClearColor(real r, real g, real b, real a);
-void tnsSwitchToCurrentWindowContext(void* wnd);
+
+// functions 
+
+// dpix
+
+void lanpr_init_atlas_inputs(void *ved);
+void lanpr_destroy_atlas(void *ved);
+int lanpr_feed_atlas_data_obj(void* vedata,
+	float* AtlasPointsL, float* AtlasPointsR,
+	float* AtlasFaceNormalL, float* AtlasFaceNormalR,
+	Object* ob, int BeginIndex);
+void lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex);
+
+void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr);
+
+
+//snake
+
+void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr);
