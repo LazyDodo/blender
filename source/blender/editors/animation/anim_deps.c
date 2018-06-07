@@ -436,11 +436,12 @@ void ANIM_animdata_update(bAnimContext *ac, ListBase *anim_data)
 			}
 		}
 		else if (ale->update) {
+#if 0
 			if (G.debug & G_DEBUG) {
 				printf("%s: Unhandled animchannel updates (%d) for type=%d (%p)\n",
 				       __func__, ale->update, ale->type, ale->data);
 			}
-
+#endif
 			/* Prevent crashes in cases where it can't be handled */
 			ale->update = 0;
 		}
