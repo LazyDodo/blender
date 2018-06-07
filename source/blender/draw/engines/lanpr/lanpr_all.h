@@ -145,6 +145,7 @@ typedef struct LANPR_PrivateData {
 	BLI_mempool*  mp_sample;
 	BLI_mempool*  mp_line_strip;
 	BLI_mempool*  mp_line_strip_point;
+	BLI_mempool*  mp_batch_list;
 	
 	ListBase      pending_samples;
 	ListBase      erased_samples;
@@ -174,11 +175,20 @@ typedef struct LANPR_PrivateData {
 	Gwn_VertFormat   snake_gwn_format;
 	Gwn_Batch*       snake_batch;
 
+	ListBase         dpix_batch_list;
+
 } LANPR_PrivateData;
 
 typedef struct LANPR_StorageList {
 	LANPR_PrivateData *g_data;
 } LANPR_StorageList;
+
+typedef struct LANPR_BatchItem {
+	Link             Item;
+	Gwn_Batch*       dpix_transform_batch;
+	Gwn_Batch*       dpix_preview_batch;
+	Object*          ob;
+} LANPR_BatchItem;
 
 typedef struct LANPR_Data {
 	void *engine_type;
@@ -291,7 +301,7 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 	float* AtlasPointsL, float* AtlasPointsR,
 	float* AtlasFaceNormalL, float* AtlasFaceNormalR,
 	Object* ob, int BeginIndex);
-void lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex);
+int lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex);
 
 void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr);
 

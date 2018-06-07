@@ -303,7 +303,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 	MEM_freeN(Verts);
 	MEM_freeN(Lengths);
 	
-	return GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_STREAM);
+	return GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_STATIC|GWN_BATCH_OWNS_VBO);
 }
 
 void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr){
@@ -444,8 +444,17 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
     DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRStrength", lanpr->use_same_taper?tls:trs, 1);
     DRW_shgroup_uniform_vec4(pd->snake_shgrp, "LineColor", lanpr->line_color, 1);
 
+	glEnable(GL_POLYGON_SMOOTH);
+	glHint(GL_POLYGON_SMOOTH, GL_NICEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	
     DRW_shgroup_call_add(pd->snake_shgrp, snake_batch, NULL);
     DRW_draw_pass(psl->snake_pass);
+	GWN_batch_discard(snake_batch);
+
+	glDisable(GL_POLYGON_SMOOTH);
+	glDisable(GL_BLEND);
     
 
     BLI_mempool_clear(pd->mp_sample);

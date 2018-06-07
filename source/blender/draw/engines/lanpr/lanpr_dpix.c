@@ -45,7 +45,7 @@ void lanpr_init_atlas_inputs(void *ved){
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
 	SceneLANPR* lanpr=&draw_ctx->scene->lanpr;
 
-	if(lanpr->reloaded){
+	if(lanpr->reloaded || !txl->dpix_in_pl){
 		DRW_texture_ensure_2D(&txl->dpix_in_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_nl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
@@ -192,6 +192,8 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 		}
 
 	}
+
+	BM_mesh_free(bm);
 	
 	return BeginIndex + edge_count;
 }
@@ -205,11 +207,11 @@ void lanpr_dpix_index_to_coord_absolute(int index, float* x,float* y){
     (*y) = (float)(index / TNS_DPIX_TEXTURE_SIZE)+0.5;
 }
 
-void lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex) {
+int lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PrivateData* pd = stl->g_data;
 	Mesh* me = ob->data;
-	if (ob->type != OB_MESH) return;
+	if (ob->type != OB_MESH) return BeginIndex;
 	int edge_count = me->totedge;
 	int i;
 	float co[2];
@@ -238,10 +240,16 @@ void lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginInd
 		GWN_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
 	}
 	
-	Gwn_Batch* gb = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, 0, GWN_USAGE_STREAM);
-    Gwn_Batch* gb2 = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo2, 0, GWN_USAGE_STREAM);
-    DRW_shgroup_call_add(pd->dpix_transform_shgrp,gb,ob->obmat);
-	DRW_shgroup_call_add(pd->dpix_preview_shgrp,gb2,0);
+	Gwn_Batch* gb = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, 0, GWN_USAGE_STATIC|GWN_BATCH_OWNS_VBO);
+    Gwn_Batch* gb2 = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo2, 0, GWN_USAGE_STATIC|GWN_BATCH_OWNS_VBO);
+
+	LANPR_BatchItem *bi = BLI_mempool_alloc(pd->mp_batch_list);
+	BLI_addtail(&pd->dpix_batch_list,bi);
+	bi->dpix_transform_batch = gb;
+	bi->dpix_preview_batch = gb2;
+	bi->ob = ob;
+
+	return BeginIndex + edge_count;
 }
 
 
@@ -269,13 +277,21 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 		//GPU_disable_program_point_size();
 		DRW_draw_pass(psl->dpix_transform_pass);
 
-		GPU_framebuffer_bind(fbl->edge_intermediate);
-		DRW_draw_pass(psl->edge_intermediate);// use depth
+		//GPU_framebuffer_bind(fbl->edge_intermediate);
+		//DRW_draw_pass(psl->color_pass);// use depth
+
+		glEnable(GL_LINE_SMOOTH);
+        glHint(GL_LINE_SMOOTH, GL_NICEST);
+	    glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		GPU_framebuffer_bind(fbl->dpix_preview);
 		GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
 		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->dpix_preview_pass);
+
+		glDisable(GL_LINE_SMOOTH);
+		glDisable(GL_BLEND);
 
 		GPU_framebuffer_bind(dfbl->default_fb);
 		//DRW_transform_to_display(txl->dpix_out_pl);

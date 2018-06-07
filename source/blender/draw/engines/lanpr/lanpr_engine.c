@@ -54,7 +54,7 @@ static void lanpr_engine_init(void *ved){
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
 	SceneLANPR* lanpr = &draw_ctx->scene->lanpr;
 
-	lanpr->reloaded = 1;
+	//lanpr->reloaded = 1;
 
 	if (!OneTime.InitComplete) {
 		lanpr->depth_clamp = 0.01;
@@ -177,10 +177,14 @@ static void lanpr_engine_free(void){
 	BLI_mempool_destroy(stl->g_data->mp_line_strip);
 	BLI_mempool_destroy(stl->g_data->mp_line_strip_point);
 	BLI_mempool_destroy(stl->g_data->mp_sample);
+	BLI_mempool_destroy(stl->g_data->mp_batch_list);
 
 	MEM_freeN(stl->g_data->line_result_8bit);
 	MEM_freeN(stl->g_data->line_result);
 	MEM_freeN(stl->g_data);
+
+	lanpr_destroy_atlas(vedata);
+
 	stl->g_data=0;
 }
 
@@ -196,81 +200,84 @@ static void lanpr_cache_init(void *vedata){
 		stl->g_data->mp_sample = BLI_mempool_create(sizeof(LANPR_TextureSample), 0, 512, BLI_MEMPOOL_NOP);
 		stl->g_data->mp_line_strip = BLI_mempool_create(sizeof(LANPR_LineStrip), 0, 512, BLI_MEMPOOL_NOP);
 		stl->g_data->mp_line_strip_point = BLI_mempool_create(sizeof(LANPR_LineStripPoint), 0, 1024, BLI_MEMPOOL_NOP);
+		stl->g_data->mp_batch_list = BLI_mempool_create(sizeof(LANPR_BatchItem), 0, 128, BLI_MEMPOOL_NOP);
 	}
 
 	LANPR_PrivateData* pd = stl->g_data;
-
-	psl->color_pass = DRW_pass_create("Color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
-	stl->g_data->multipass_shgrp = DRW_shgroup_create(OneTime.multichannel_shader, psl->color_pass);
-
-
-	struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
-
-
-	psl->edge_intermediate = DRW_pass_create("Edge Detection", DRW_STATE_WRITE_COLOR);
-	stl->g_data->edge_detect_shgrp = DRW_shgroup_create(OneTime.edge_detect_shader, psl->edge_intermediate);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample0", &txl->depth);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample1", &txl->color);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample2", &txl->normal);
-
-	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zNear", &stl->g_data->znear, 1);
-    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zfFar", &stl->g_data->zfar, 1);
-
-	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue0", &stl->g_data->normal_clamp, 1);// normal clamp
-    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue1", &stl->g_data->normal_strength, 1);// normal strength
-    DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue2", &stl->g_data->depth_clamp, 1);// depth clamp
-	DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue3", &stl->g_data->depth_strength, 1);// depth strength
-	DRW_shgroup_call_add(stl->g_data->edge_detect_shgrp, quad, NULL);
-
-	psl->edge_thinning = DRW_pass_create("Edge Thinning Stage 1", DRW_STATE_WRITE_COLOR);
-	stl->g_data->edge_thinning_shgrp = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "TexSample0", &txl->edge_intermediate);
-	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "Stage", &stl->g_data->stage, 1);
-	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
-
-	psl->edge_thinning_2 = DRW_pass_create("Edge Thinning Stage 2", DRW_STATE_WRITE_COLOR);
-	stl->g_data->edge_thinning_shgrp_2 = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning_2);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp_2, "TexSample0", &txl->color);
-	DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp_2, "Stage", &stl->g_data->stage, 1);
-	DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp_2, quad, NULL);
-
-	psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
-	stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert0_tex", &txl->dpix_in_pl);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert1_tex", &txl->dpix_in_pr);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "face_normal0_tex", &txl->dpix_in_nl);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "face_normal1_tex", &txl->dpix_in_nr);
-    DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "sample_step", &stl->g_data->dpix_sample_step, 1);
-	DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "is_perspective", &stl->g_data->dpix_is_perspective, 1);
-	DRW_shgroup_uniform_vec4(stl->g_data->dpix_transform_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
-    DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "buffer_width", &stl->g_data->dpix_buffer_width, 1);
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 
-	psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR|DRW_STATE_WRITE_DEPTH|DRW_STATE_DEPTH_LESS_EQUAL);
-	stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert0_tex", &txl->dpix_out_pl);
-	DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert1_tex", &txl->dpix_out_pr);
-	DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
-	DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", lanpr->line_color, 1);
-    DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_offset", &stl->g_data->dpix_depth_offset, 1);
+	psl->color_pass = DRW_pass_create("Color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
+	stl->g_data->multipass_shgrp = DRW_shgroup_create(OneTime.multichannel_shader, psl->color_pass);
+
+
+	if(lanpr->master_mode == LANPR_MASTER_MODE_SNAKE){
+		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
+
+		psl->edge_intermediate = DRW_pass_create("Edge Detection", DRW_STATE_WRITE_COLOR);
+		stl->g_data->edge_detect_shgrp = DRW_shgroup_create(OneTime.edge_detect_shader, psl->edge_intermediate);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample0", &txl->depth);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample1", &txl->color);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample2", &txl->normal);
+
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zNear", &stl->g_data->znear, 1);
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zfFar", &stl->g_data->zfar, 1);
+
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue0", &stl->g_data->normal_clamp, 1);// normal clamp
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue1", &stl->g_data->normal_strength, 1);// normal strength
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue2", &stl->g_data->depth_clamp, 1);// depth clamp
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue3", &stl->g_data->depth_strength, 1);// depth strength
+		DRW_shgroup_call_add(stl->g_data->edge_detect_shgrp, quad, NULL);
+
+		psl->edge_thinning = DRW_pass_create("Edge Thinning Stage 1", DRW_STATE_WRITE_COLOR);
+		stl->g_data->edge_thinning_shgrp = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "TexSample0", &txl->edge_intermediate);
+		DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "Stage", &stl->g_data->stage, 1);
+		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
+
+		psl->edge_thinning_2 = DRW_pass_create("Edge Thinning Stage 2", DRW_STATE_WRITE_COLOR);
+		stl->g_data->edge_thinning_shgrp_2 = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning_2);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp_2, "TexSample0", &txl->color);
+		DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp_2, "Stage", &stl->g_data->stage, 1);
+		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp_2, quad, NULL);
+	}else{
+        psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
+		stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert0_tex", &txl->dpix_in_pl);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert1_tex", &txl->dpix_in_pr);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "face_normal0_tex", &txl->dpix_in_nl);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "face_normal1_tex", &txl->dpix_in_nr);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "sample_step", &stl->g_data->dpix_sample_step, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "is_perspective", &stl->g_data->dpix_is_perspective, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_transform_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "buffer_width", &stl->g_data->dpix_buffer_width, 1);
+
+		psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR|DRW_STATE_WRITE_DEPTH|DRW_STATE_DEPTH_LESS_EQUAL);
+		stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert0_tex", &txl->dpix_out_pl);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert1_tex", &txl->dpix_out_pr);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", lanpr->line_color, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_offset", &stl->g_data->dpix_depth_offset, 1);
+
+		pd->begin_index = 0;
+		int tsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE*TNS_DPIX_TEXTURE_SIZE;
+
+		if (lanpr->reloaded) {
+			pd->atlas_pl = MEM_callocN(tsize, "atlas_point_l");
+			pd->atlas_pr = MEM_callocN(tsize, "atlas_point_r");
+			pd->atlas_nl = MEM_callocN(tsize, "atlas_normal_l");
+			pd->atlas_nr = MEM_callocN(tsize, "atlas_normal_l");
+
+			pd->dpix_batch_list.first = pd->dpix_batch_list.last = 0;
+			BLI_mempool_clear(pd->mp_batch_list);
+		}
+	}
 	
-	pd->begin_index = 0;
-	int tsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE*TNS_DPIX_TEXTURE_SIZE;
-	if (!pd->atlas_pl) {
-		pd->atlas_pl = MEM_callocN(tsize, "atlas_point_l");
-		pd->atlas_pr = MEM_callocN(tsize, "atlas_point_r");
-		pd->atlas_nl = MEM_callocN(tsize, "atlas_normal_l");
-		pd->atlas_nr = MEM_callocN(tsize, "atlas_normal_l");
-	}
-	if(lanpr->reloaded){
-	    memset(pd->atlas_pl, 0, tsize);
-	    memset(pd->atlas_pr, 0, tsize);
-	    memset(pd->atlas_nl, 0, tsize);
-	    memset(pd->atlas_nr, 0, tsize);
-	}
+	
+
 }
 
 static void lanpr_cache_populate(void *vedata, Object *ob){
@@ -281,23 +288,22 @@ static void lanpr_cache_populate(void *vedata, Object *ob){
 	View3D *v3d = draw_ctx->v3d;
 	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 	
-	if (!DRW_object_is_renderable(ob)) {
-		return;
-	}
-
-	if (ob == draw_ctx->object_edit) {
-		return;
-	}
+	if (!DRW_object_is_renderable(ob))	return;
+	if (ob == draw_ctx->object_edit) return;
+	if (ob->type != OB_MESH) return;
 
 	struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
 	if (geom) {
-        DRW_shgroup_call_object_add(stl->g_data->multipass_shgrp, geom, ob);
+		DRW_shgroup_call_object_add(stl->g_data->multipass_shgrp, geom, ob);
 	}
-
-	if(lanpr->reloaded){
+	
+	if(lanpr->master_mode == LANPR_MASTER_MODE_DPIX){
 		int idx = pd->begin_index;
-		pd->begin_index = lanpr_feed_atlas_data_obj(vedata,pd->atlas_pl,pd->atlas_pr,pd->atlas_nl,pd->atlas_nr,ob,idx);
-		lanpr_feed_atlas_trigger_preview_obj(vedata,ob,idx);
+		if(lanpr->reloaded){
+			pd->begin_index = lanpr_feed_atlas_data_obj(vedata,pd->atlas_pl,pd->atlas_pr,pd->atlas_nl,pd->atlas_nr,ob,idx);
+			lanpr_feed_atlas_trigger_preview_obj(vedata, ob, idx);
+		}
+
 	}
 }
 
@@ -308,6 +314,12 @@ static void lanpr_cache_finish(void *vedata){
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
+			
+	LANPR_BatchItem* bi;
+	for(bi = pd->dpix_batch_list.first;bi;bi=(void*)bi->Item.next){
+		DRW_shgroup_call_add(pd->dpix_transform_shgrp,bi->dpix_transform_batch,bi->ob->obmat);
+	    DRW_shgroup_call_add(pd->dpix_preview_shgrp,bi->dpix_preview_batch,0);
+	}
 
 	if(lanpr->reloaded){
 		GPU_texture_update(txl->dpix_in_pl,pd->atlas_pl);
