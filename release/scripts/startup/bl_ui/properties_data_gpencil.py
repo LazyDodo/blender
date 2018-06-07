@@ -79,7 +79,7 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
-    bl_label = "Layer Adjustments"
+    bl_label = "Adjustments"
     bl_parent_id = 'DATA_PT_gpencil_datapanel'
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -107,7 +107,7 @@ class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
-    bl_label = "Layer Relations"
+    bl_label = "Relations"
     bl_parent_id = 'DATA_PT_gpencil_datapanel'
     bl_options = {'DEFAULT_CLOSED'}
 
