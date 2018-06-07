@@ -3406,7 +3406,7 @@ class VIEW3D_PIE_object_mode(Menu):
 
 class VIEW3D_PIE_view(Menu):
     bl_label = "View"
-    bl_idname = "VIEW3D_PIE_view_of"
+    bl_idname = "VIEW3D_PIE_view"
 
     def draw(self, context):
         layout = self.layout
