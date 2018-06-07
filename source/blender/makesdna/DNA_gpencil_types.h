@@ -244,28 +244,21 @@ typedef struct bGPDlayer {
 	short flag;				/* settings for layer */
 	short thickness;		/* current thickness to apply to strokes */
 
-	short gstep;            /* Ghosts Before: max number of ghost frames to show between active frame and the one before it (0 = only the ghost itself) */
-	short gstep_next;       /* Ghosts After:  max number of ghost frames to show after active frame and the following it    (0 = only the ghost itself) */
-
-	float gcolor_prev[3];   /* optional color for ghosts before the active frame */
-	float gcolor_next[3];   /* optional color for ghosts after the active frame */
-
 	float color[4];			/* Color for strokes in layers (replaced by palettecolor). Only used for ruler (which uses GPencil internally) */
 	float fill[4];			/* Fill color for strokes in layers.  Not used and replaced by palettecolor fill */
 	
 	char info[128];			/* optional reference info about this layer (i.e. "director's comments, 12/3")
 							 * this is used for the name of the layer  too and kept unique. */
 	
+	char pad_1[4];
 	struct Object *parent;  /* parent object */
 	float inverse[4][4];    /* inverse matrix (only used if parented) */
 	char parsubstr[64];     /* String describing subobject info, MAX_ID_NAME-2 */
 	short partype;
 	
-	short onion_mode;       /* onion skinning mode (eGP_OnionModes) */
+	short onion_flag;        /* Per-layer onion-skinning flags (eGPDlayer_OnionFlag) */
 	float tintcolor[4];     /* Color used to tint layer, alpha value is used as factor */
 	float opacity;          /* Opacity of the layer */
-	int onion_flag;         /* Per-layer onion-skinning flags, to overide datablock settings (eGPDlayer_OnionFlag) */
-	float onion_factor;     /* onion alpha factor change */
 	
 	bGPDlayer_runtime runtime;
 } bGPDlayer;
@@ -298,14 +291,6 @@ typedef enum eGPDlayer_Flag {
 typedef enum eGPDlayer_OnionFlag {
 	/* do onion skinning */
 	GP_LAYER_ONIONSKIN = (1 << 0),
-	/* use custom color for ghosts before current frame */
-	GP_LAYER_GHOST_PREVCOL = (1 << 1),
-	/* use custom color for ghosts after current frame */
-	GP_LAYER_GHOST_NEXTCOL = (1 << 2),
-	/* always show onion skins (i.e. even during renders/animation playback) */
-	GP_LAYER_GHOST_ALWAYS = (1 << 3),
-	/* use fade color in onion skin */
-	GP_LAYER_ONION_FADE = (1 << 4),
 } eGPDlayer_OnionFlag;
 
 /* ***************************************** */
