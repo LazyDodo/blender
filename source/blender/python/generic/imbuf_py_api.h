@@ -15,49 +15,16 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor(s): Chingiz Dyussenov, Arystanbek Dyussenov.
- *
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file collada.h
- *  \ingroup collada
+#ifndef __IMBUF_PY_API_H__
+#define __IMBUF_PY_API_H__
+
+/** \file blender/python/generic/imbuf_py_api.h
+ *  \ingroup pygen
  */
 
-#ifndef __COLLADA_H__
-#define __COLLADA_H__
+PyObject *BPyInit_imbuf(void);
 
-#include <stdlib.h>
-
-#include "ImportSettings.h"
-#include "ExportSettings.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "BLI_linklist.h"
-#include "BLI_path_util.h"
-#include "RNA_types.h"
-
-struct bContext;
-struct Depsgraph;
-struct Scene;
-struct ViewLayer;
-
-/*
- * both return 1 on success, 0 on error
- */
-int collada_import(struct bContext *C,
-				   ImportSettings *import_settings);
-
-int collada_export(struct bContext *C,
-                   struct Depsgraph *depsgraph,
-                   struct Scene *sce,
-                   ExportSettings *export_settings);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+#endif  /* __IMBUF_PY_API_H__ */

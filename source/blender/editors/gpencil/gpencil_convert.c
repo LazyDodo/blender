@@ -65,6 +65,7 @@
 #include "BKE_gpencil.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
+#include "BKE_main.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
@@ -452,6 +453,7 @@ static void gp_stroke_path_animation_add_keyframes(Depsgraph *depsgraph, ReportL
 static void gp_stroke_path_animation(bContext *C, ReportList *reports, Curve *cu, tGpTimingData *gtd)
 {
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	bAction *act;
 	FCurve *fcu;
@@ -475,7 +477,7 @@ static void gp_stroke_path_animation(bContext *C, ReportList *reports, Curve *cu
 	prop = RNA_struct_find_property(&ptr, "eval_time");
 
 	/* Ensure we have an F-Curve to add keyframes to */
-	act = verify_adt_action((ID *)cu, true);
+	act = verify_adt_action(bmain, (ID *)cu, true);
 	fcu = verify_fcurve(act, NULL, &ptr, "eval_time", 0, true);
 
 	if (G.debug & G_DEBUG) {
