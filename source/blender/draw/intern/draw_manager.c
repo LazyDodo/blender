@@ -78,7 +78,7 @@
 #include "draw_mode_engines.h"
 #include "engines/clay/clay_engine.h"
 #include "engines/eevee/eevee_engine.h"
-#include "engines/lanpr/NUL_TNS.h"
+#include "engines/lanpr/lanpr_all.h"
 #include "engines/basic/basic_engine.h"
 #include "engines/workbench/workbench_engine.h"
 #include "engines/external/external_engine.h"
