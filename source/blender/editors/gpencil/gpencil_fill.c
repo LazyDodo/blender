@@ -1053,7 +1053,7 @@ static void gpencil_fill_exit(bContext *C, wmOperator *op)
 				}
 			}
 		}
-
+		
 		/* finally, free memory used by temp data */
 		MEM_freeN(tgpf);
 	}
@@ -1146,20 +1146,19 @@ static int gpencil_fill_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			if ((tgpf->oldkey != -1) || ((tgpf->flag & GP_BRUSH_FILL_SHOW_HELPLINES) == 0)) {
 				ARegion *ar = BKE_area_find_region_xy(CTX_wm_area(C), RGN_TYPE_ANY, event->x, event->y);
 				if (ar) {
-					rcti region_rect;
 					bool in_bounds = false;
 
 					/* Perform bounds check */
-					ED_region_visible_rect(ar, &region_rect);
-					in_bounds = BLI_rcti_isect_pt_v(&region_rect, event->mval);
+					in_bounds = BLI_rcti_isect_pt(&ar->winrct, event->x, event->y);
 
 					if ((in_bounds) && (ar->regiontype == RGN_TYPE_WINDOW)) {
+						/* TODO GPXX: Verify the mouse click is right for any window size */
 						tgpf->center[0] = event->mval[0];
 						tgpf->center[1] = event->mval[1];
 
-						/* save size (do not sub minsize data to get right mouse click position) */
-						tgpf->sizex = region_rect.xmax;
-						tgpf->sizey = region_rect.ymax;
+						/* save size */
+						tgpf->sizex = ar->winx;
+						tgpf->sizey = ar->winy;
 
 						/* render screen to temp image */
 						gp_render_offscreen(tgpf);
