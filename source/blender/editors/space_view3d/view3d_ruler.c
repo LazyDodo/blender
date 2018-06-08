@@ -42,6 +42,7 @@
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 #include "BKE_unit.h"
 
 #include "BIF_gl.h"
