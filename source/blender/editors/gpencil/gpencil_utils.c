@@ -49,6 +49,7 @@
 #include "DNA_space_types.h"
 #include "DNA_view3d_types.h"
 
+#include "BKE_action.h"
 #include "BKE_main.h"
 #include "BKE_brush.h"
 #include "BKE_context.h"
@@ -57,8 +58,6 @@
 #include "BKE_paint.h"
 #include "BKE_material.h"
 #include "BKE_tracking.h"
-#include "BKE_action.h"
-#include "BKE_screen.h"
 
 #include "WM_api.h"
 

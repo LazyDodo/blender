@@ -253,13 +253,18 @@ void GPU_material_free(struct ListBase *gpumaterial);
 
 void GPU_materials_free(void);
 
+void GPU_material_orphans_init(void);
+void GPU_material_orphans_exit(void);
+/* This has to be called from a thread with an ogl context bound. */
+void GPU_material_orphans_delete(void);
+
 struct Scene *GPU_material_scene(GPUMaterial *material);
 GPUMatType GPU_Material_get_type(GPUMaterial *material);
 struct GPUPass *GPU_material_get_pass(GPUMaterial *material);
 struct ListBase *GPU_material_get_inputs(GPUMaterial *material);
 GPUMaterialStatus GPU_material_status(GPUMaterial *mat);
 
-struct GPUUniformBuffer *GPU_material_get_uniform_buffer(GPUMaterial *material);
+struct GPUUniformBuffer *GPU_material_uniform_buffer_get(GPUMaterial *material);
 void GPU_material_uniform_buffer_create(GPUMaterial *material, ListBase *inputs);
 
 void GPU_material_vertex_attributes(GPUMaterial *material,

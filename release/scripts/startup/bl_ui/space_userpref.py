@@ -72,6 +72,10 @@ class USERPREF_HT_header(Header):
             layout.operator("wm.addon_install", icon='FILESEL')
             layout.operator("wm.addon_refresh", icon='FILE_REFRESH')
             layout.menu("USERPREF_MT_addons_online_resources")
+        elif userpref.active_section == 'LIGHTS':
+            layout.operator('wm.studiolight_install', text="Install MatCap").orientation='MATCAP'
+            layout.operator('wm.studiolight_install', text="Install World HDRI").orientation='WORLD'
+            layout.operator('wm.studiolight_install', text="Install Camera HDRI").orientation='CAMERA'
         elif userpref.active_section == 'THEMES':
             layout.operator("ui.reset_default_theme")
             layout.operator("wm.theme_install")
@@ -1571,48 +1575,58 @@ class USERPREF_PT_addons(Panel):
                 row.label(text=module_name, translate=False)
 
 
-class USERPREF_PT_studiolight(Panel):
+class StudioLightPanelMixin():
     bl_space_type = 'USER_PREFERENCES'
-    bl_label = "Lights"
     bl_region_type = 'WINDOW'
-    bl_options = {'HIDE_HEADER'}
 
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
         return (userpref.active_section == 'LIGHTS')
 
-    def draw_studio_light(self, layout, studio_light):
-        box = layout.box()
-        row = box.row()
+    def _get_lights(self, userpref):
+        return [light for light in userpref.studio_lights if light.is_user_defined and light.orientation == self.sl_orientation]
 
-        op = row.operator('wm.studiolight_expand', emboss=False, text="", icon='TRIA_DOWN' if studio_light.show_expanded else 'TRIA_RIGHT')
-        op.index = studio_light.index
-
-        row.label(text=studio_light.name, icon_value=studio_light.radiance_icon_id)
-        op = row.operator('wm.studiolight_uninstall', text="", icon='ZOOMOUT')
-        op.index = studio_light.index
-
-        if studio_light.show_expanded:
-            box.label(studio_light.path)
-
+    def draw_header(self, context):
+        layout = self.layout
+        row = layout.row()
+        userpref = context.user_preferences
+        lights = self._get_lights(userpref)
+        row.label("({})".format(len(lights)))
 
     def draw(self, context):
         layout = self.layout
         userpref = context.user_preferences
-        lights = [light for light in userpref.studio_lights if light.is_user_defined]
-        layout.label("MatCaps")
-        for studio_light in filter(lambda x: x.orientation=='MATCAP', lights):
-            self.draw_studio_light(layout, studio_light)
-        layout.operator('wm.studiolight_install', text="Install Custom MatCap").orientation='MATCAP'
-        layout.label("World HDRI")
-        for studio_light in filter(lambda x: x.orientation=='WORLD', lights):
-            self.draw_studio_light(layout, studio_light)
-        layout.operator('wm.studiolight_install', text="Install Custom HDRI").orientation='WORLD'
-        layout.label("Camera HDRI")
-        for studio_light in filter(lambda x: x.orientation=='CAMERA', lights):
-            self.draw_studio_light(layout, studio_light)
-        layout.operator('wm.studiolight_install', text="Install Custom Camera HDRI").orientation='CAMERA'
+        lights = self._get_lights(userpref)
+        if lights:
+            flow = layout.column_flow(4)
+            for studio_light in lights:
+                self.draw_studio_light(flow, studio_light)
+        else:
+            layout.label("No custom {} configured".format(self.bl_label))
+
+    def draw_studio_light(self, layout, studio_light):
+        box = layout.box()
+        row = box.row()
+
+        row.template_icon_view(studio_light, "icon_id")
+        op = row.operator('wm.studiolight_uninstall', text="", icon='ZOOMOUT')
+        op.index = studio_light.index
+
+
+class USERPREF_PT_studiolight_matcaps(Panel, StudioLightPanelMixin):
+    bl_label = "MatCaps"
+    sl_orientation = 'MATCAP'
+
+
+class USERPREF_PT_studiolight_world(Panel, StudioLightPanelMixin):
+    bl_label = "World HDRI"
+    sl_orientation = 'WORLD'
+
+
+class USERPREF_PT_studiolight_camera(Panel, StudioLightPanelMixin):
+    bl_label = "Camera HDRI"
+    sl_orientation = 'CAMERA'
 
 
 classes = (
@@ -1635,7 +1649,9 @@ classes = (
     USERPREF_PT_input,
     USERPREF_MT_addons_online_resources,
     USERPREF_PT_addons,
-    USERPREF_PT_studiolight,
+    USERPREF_PT_studiolight_matcaps,
+    USERPREF_PT_studiolight_world,
+    USERPREF_PT_studiolight_camera,
 )
 
 if __name__ == "__main__":  # only for live edit.

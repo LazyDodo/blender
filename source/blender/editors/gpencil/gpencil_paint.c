@@ -46,6 +46,7 @@
 
 #include "PIL_time.h"
 
+#include "BKE_colortools.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -60,13 +61,14 @@
 #include "BKE_gpencil.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_gpencil.h"
+#include "BKE_main.h"
+#include "BKE_paint.h"
 #include "BKE_report.h"
 #include "BKE_layer.h"
 #include "BKE_material.h"
 #include "BKE_screen.h"
 #include "BKE_tracking.h"
-#include "BKE_colortools.h"
-#include "BKE_workspace.h"
 
 #include "UI_view2d.h"
 
