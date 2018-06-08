@@ -105,7 +105,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Color Randomization")) {
-			if ((parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION) || (parametrization == SHD_PRINCIPLED_HAIR_REFLECTANCE)){
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
