@@ -1608,44 +1608,23 @@ void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, 
 }
 
 /* statistics functions */
-int BKE_gpencil_stats_total_layers(bGPdata *gpd)
+void BKE_gpencil_stats_update(bGPdata *gpd)
 {
-	return BLI_listbase_count(&gpd->layers);
-}
+	gpd->totlayer = 0;
+	gpd->totframe = 0;
+	gpd->totstroke = 0;
+	gpd->totpoint = 0;
 
-int BKE_gpencil_stats_total_frames(bGPdata *gpd)
-{
-	int tot = 0;
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		tot += BLI_listbase_count(&gpl->frames);
-	}
-
-	return tot;
-}
-
-int BKE_gpencil_stats_total_strokes(bGPdata *gpd)
-{
-	int tot = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		gpd->totlayer++;
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-			tot += BLI_listbase_count(&gpf->strokes);
-		}
-	}
-
-	return tot;
-}
-
-int BKE_gpencil_stats_total_points(bGPdata *gpd)
-{
-	int tot = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
+			gpd->totframe++;
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				tot += gps->totpoints;
+				gpd->totstroke++;
+				gpd->totpoint += gps->totpoints;
 			}
 		}
 	}
 
-	return tot;
 }
 

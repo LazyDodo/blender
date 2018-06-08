@@ -50,13 +50,13 @@
 #include "BKE_curve.h"
 #include "BKE_displist.h"
 #include "BKE_DerivedMesh.h"
-#include "BKE_gpencil.h"
 #include "BKE_key.h"
 #include "BKE_layer.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_editmesh.h"
 #include "BKE_object.h"
+#include "BKE_gpencil.h"
 
 #include "ED_info.h"
 #include "ED_armature.h"
@@ -152,10 +152,15 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 		case OB_GPENCIL:
 		{
 			bGPdata *gpd = (bGPdata *)ob->data;
-			stats->totgplayer = BKE_gpencil_stats_total_layers(gpd);
-			stats->totgpframe = BKE_gpencil_stats_total_frames(gpd);
-			stats->totgpstroke = BKE_gpencil_stats_total_strokes(gpd);
-			stats->totgppoint = BKE_gpencil_stats_total_points(gpd);
+			/* GPXX Review if we can move to other place when object change 
+			 * maybe to depsgraph evaluation 
+			 */
+			BKE_gpencil_stats_update(gpd);
+
+			stats->totgplayer = gpd->totlayer;
+			stats->totgpframe = gpd->totframe;
+			stats->totgpstroke = gpd->totstroke;
+			stats->totgppoint = gpd->totpoint;
 			break;
 		}
 	}

@@ -33,8 +33,6 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_view3d_types.h"
 
-#include "DEG_depsgraph_query.h"
-
 #include "draw_mode_engines.h"
 
 #include "UI_resources.h"
@@ -403,11 +401,11 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 
 	/* object datablock (this is not draw now) */
 	if (ob->type == OB_GPENCIL && ob->data) {
+		bGPdata *gpd = (bGPdata *)ob->data;
 		if ((stl->g_data->session_flag & GP_DRW_PAINT_READY) == 0) {
 
 			/* if render set as dirty */
 			if (stl->storage->is_render == true) {
-				bGPdata *gpd = (bGPdata *)ob->data;
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
 

@@ -347,6 +347,12 @@ typedef struct bGPdata {
 	char pad[4];
 	struct Material **mat;      /* materials array */
 	short totcol;               /* total materials */
+
+	/* stats */
+	short totlayer;
+	short totframe;
+	short totstroke;
+	short totpoint;
 	char pad2[6];
 } bGPdata;
 

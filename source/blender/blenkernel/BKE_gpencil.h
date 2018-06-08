@@ -95,10 +95,7 @@ void BKE_gpencil_material_index_remove(struct bGPdata *gpd, int index);
 void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, unsigned int remap_len);
 
 /* statistics functions */
-int BKE_gpencil_stats_total_layers(struct bGPdata *gpd);
-int BKE_gpencil_stats_total_frames(struct bGPdata *gpd);
-int BKE_gpencil_stats_total_strokes(struct bGPdata *gpd);
-int BKE_gpencil_stats_total_points(struct bGPdata *gpd);
+void BKE_gpencil_stats_update(struct bGPdata *gpd);
 
 /* Utilities for creating and populating GP strokes */
 /* - Number of values defining each point in the built-in data 
