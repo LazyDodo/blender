@@ -3797,8 +3797,9 @@ static void cached_step(ParticleSimulationData *sim, float cfra)
 	}
 }
 
-static void particles_fluid_step(Main *bmain, ParticleSimulationData *sim, int UNUSED(cfra), const bool use_render_params)
-{	
+static void particles_fluid_step(
+        Main *bmain, ParticleSimulationData *sim, int UNUSED(cfra), const bool use_render_params)
+{
 	ParticleSystem *psys = sim->psys;
 	if (psys->particles) {
 		MEM_freeN(psys->particles);
@@ -3902,7 +3903,7 @@ static void particles_fluid_step(Main *bmain, ParticleSimulationData *sim, int U
 		} // fluid sim particles done
 	}
 #else
-	UNUSED_VARS(use_render_params);
+	UNUSED_VARS(bmain, use_render_params);
 #endif // WITH_MOD_FLUID
 }
 
@@ -4139,7 +4140,7 @@ void psys_check_boid_data(ParticleSystem *psys)
 		}
 }
 
-static void fluid_default_settings(ParticleSettings *part)
+void BKE_particlesettings_fluid_default_settings(ParticleSettings *part)
 {
 	SPHFluidSettings *fluid = part->fluid;
 
@@ -4171,24 +4172,12 @@ static void psys_prepare_physics(ParticleSimulationData *sim)
 		sim->psys->flag &= ~PSYS_KEYED;
 	}
 
-	if (part->phystype == PART_PHYS_BOIDS && part->boids == NULL) {
-		BoidState *state;
-
-		part->boids = MEM_callocN(sizeof(BoidSettings), "Boid Settings");
-		boid_default_settings(part->boids);
-
-		state = boid_new_state(part->boids);
-		BLI_addtail(&state->rules, boid_new_rule(eBoidRuleType_Separate));
-		BLI_addtail(&state->rules, boid_new_rule(eBoidRuleType_Flock));
-
-		((BoidRule*)state->rules.first)->flag |= BOIDRULE_CURRENT;
-
-		state->flag |= BOIDSTATE_CURRENT;
-		BLI_addtail(&part->boids->states, state);
+	/* RNA Update must ensure this is true. */
+	if (part->phystype == PART_PHYS_BOIDS) {
+		BLI_assert(part->boids != NULL);
 	}
-	else if (part->phystype == PART_PHYS_FLUID && part->fluid == NULL) {
-		part->fluid = MEM_callocN(sizeof(SPHFluidSettings), "SPH Fluid Settings");
-		fluid_default_settings(part);
+	else if (part->phystype == PART_PHYS_FLUID) {
+		BLI_assert(part->fluid != NULL);
 	}
 
 	psys_check_boid_data(sim->psys);
