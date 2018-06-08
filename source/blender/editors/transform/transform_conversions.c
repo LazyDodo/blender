@@ -8493,6 +8493,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_ACTION) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
 
 		createTransActionData(C, t);
 		countAndCleanTransDataContainer(t);
@@ -8505,17 +8506,23 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_NLA) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		createTransNlaData(C, t);
 		countAndCleanTransDataContainer(t);
 	}
 	else if (t->spacetype == SPACE_SEQ) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		t->num.flag |= NUM_NO_FRACTION; /* sequencer has no use for floating point transformations */
 		createTransSeqData(C, t);
 		countAndCleanTransDataContainer(t);
 	}
 	else if (t->spacetype == SPACE_IPO) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		createTransGraphEditData(C, t);
 		countAndCleanTransDataContainer(t);
 
@@ -8527,6 +8534,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_NODE) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
 
 		createTransNodeData(C, t);
 		countAndCleanTransDataContainer(t);
@@ -8539,6 +8547,8 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_CLIP) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		if (t->options & CTX_MOVIECLIP) {
 			createTransTrackingData(C, t);
 			countAndCleanTransDataContainer(t);

@@ -672,7 +672,7 @@ static int codegen_process_uniforms_functions(GPUMaterial *material, DynStr *ds,
 
 	/* Handle the UBO block separately. */
 	if ((material != NULL) && !BLI_listbase_is_empty(&ubo_inputs)) {
-		GPU_material_create_uniform_buffer(material, &ubo_inputs);
+		GPU_material_uniform_buffer_create(material, &ubo_inputs);
 
 		/* Inputs are sorted */
 		BLI_dynstr_appendf(ds, "\nlayout (std140) uniform %s {\n", GPU_UBO_BLOCK_NAME);
@@ -1162,8 +1162,12 @@ void GPU_nodes_extract_dynamic_inputs(GPUShader *shader, ListBase *inputs, ListB
 				if (input->bindtex)
 					extract = 1;
 			}
-			else if (input->dynamicvec)
+			else if (input->dynamictype == GPU_DYNAMIC_UBO) {
+				/* Don't extract UBOs */
+			}
+			else if (input->dynamicvec) {
 				extract = 1;
+			}
 
 			if (extract)
 				input->shaderloc = GPU_shader_get_uniform(shader, input->shadername);
