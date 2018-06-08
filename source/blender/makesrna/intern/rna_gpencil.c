@@ -939,8 +939,6 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	FunctionRNA *func;
-	static float onion_dft1[3] = { 0.145098f, 0.419608f, 0.137255f }; /* green */
-	static float onion_dft2[3] = { 0.125490f, 0.082353f, 0.529412f }; /* blue */
 
 	srna = RNA_def_struct(brna, "GPencilLayer", NULL);
 	RNA_def_struct_sdna(srna, "bGPDlayer");
