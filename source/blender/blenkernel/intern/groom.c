@@ -295,7 +295,7 @@ void BKE_groom_boundbox_calc(Groom *groom)
 
 /* === Scalp regions === */
 
-Mesh* BKE_groom_get_scalp(const Depsgraph *depsgraph, Groom *groom)
+Mesh* BKE_groom_get_scalp(const Depsgraph *depsgraph, const Groom *groom)
 {
 	if (groom->scalp_object)
 	{
@@ -369,8 +369,9 @@ bool BKE_groom_calc_region_transform_on_scalp(const GroomRegion *region, const M
 	}
 }
 
-static bool groom_shape_rebuild(GroomRegion *region, const Mesh *scalp)
+bool BKE_groom_region_reset_shape(const Depsgraph *depsgraph, const Groom *groom, GroomRegion *region)
 {
+	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
 	GroomBundle *bundle = &region->bundle;
 	BLI_assert(region->scalp_samples != NULL);
 	const int numshapeverts = region->numverts;
@@ -485,6 +486,19 @@ static bool groom_region_from_mesh_fmap(const Depsgraph *depsgraph, Groom *groom
 	const int numverts = region->numverts = BMO_slot_buffer_count(op.slots_out, "boundary");
 	region->scalp_samples = MEM_callocN(sizeof(*region->scalp_samples) * (numverts + 1), "groom bundle scalp region");
 	
+	/* Clear verts since they depend on region.numverts
+	 * TODO this is error-prone, make it more robust!
+	 */
+	{
+		GroomBundle *bundle = &region->bundle;
+		bundle->totverts = 0;
+		if (bundle->verts)
+		{
+			MEM_freeN(bundle->verts);
+			bundle->verts = NULL;
+		}
+	}
+	
 	float center_co[3]; /* average vertex location for placing the center */
 	{
 		BMLoop *l;
@@ -538,7 +552,7 @@ static bool groom_region_from_mesh_fmap(const Depsgraph *depsgraph, Groom *groom
 finalize:
 	if (result == true)
 	{
-		groom_shape_rebuild(region, scalp);
+		BKE_groom_region_reset_shape(depsgraph, groom, region);
 	}
 	else
 	{

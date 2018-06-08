@@ -66,7 +66,7 @@ void BKE_groom_curve_cache_clear(struct Groom *groom);
 
 /* === Scalp regions === */
 
-struct Mesh* BKE_groom_get_scalp(const struct Depsgraph *depsgraph, struct Groom *groom);
+struct Mesh* BKE_groom_get_scalp(const struct Depsgraph *depsgraph, const struct Groom *groom);
 
 /* Set the region's facemap name.
  * Returns false if no facemap of that name can be found in the scalp object.
@@ -78,6 +78,8 @@ void BKE_groom_bind_scalp_regions(const struct Depsgraph *depsgraph, struct Groo
 
 bool BKE_groom_region_bind(const struct Depsgraph *depsgraph, struct Groom *groom, struct GroomRegion *region, bool force_rebind);
 void BKE_groom_region_unbind(struct GroomRegion *region);
+
+bool BKE_groom_region_reset_shape(const struct Depsgraph *depsgraph, const struct Groom *groom, struct GroomRegion *region);
 
 /* Calculates the scalp orientation at the root of the region */
 bool BKE_groom_calc_region_transform_on_scalp(const struct GroomRegion *region, const struct Mesh *scalp, float r_loc[3], float r_rot[3][3]);

@@ -93,9 +93,16 @@ class DATA_PT_groom_regions(DataButtonsPanel, Panel):
         groom = context.groom
         region = context.groom.regions.active
 
-        layout.template_list("GROOM_UL_regions", "regions",
-                             groom, "regions",
-                             groom.regions, "active_index")
+        row = layout.row()
+
+        row.template_list("GROOM_UL_regions", "regions",
+                          groom, "regions",
+                          groom.regions, "active_index")
+
+        col = row.column(align=True)
+        col.operator("groom.region_add", icon='ZOOMIN', text="")
+        #col.operator("object.material_slot_remove", icon='ZOOMOUT', text="")
+
         if region:
             col = layout.column()
             if groom.scalp_object:

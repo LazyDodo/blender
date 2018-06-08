@@ -43,6 +43,7 @@
 #include "BKE_context.h"
 #include "BKE_groom.h"
 #include "BKE_library.h"
+#include "BKE_object_facemap.h"
 
 #include "DEG_depsgraph.h"
 
@@ -58,63 +59,49 @@
 #include "ED_view3d.h"
 #include "ED_groom.h"
 
+#include "UI_resources.h"
+#include "UI_interface.h"
+
 #include "groom_intern.h"
 
 /* GROOM_OT_region_add */
 
-static void groom_bundle_section_init(
-        GroomSection *section,
-        GroomSectionVertex *verts,
-        int numverts,
-        float mat[4][4],
-        float x,
-        float y,
-        float z)
+static void region_add_set_bundle_curve(GroomRegion *region, const float loc[3], const float rot[3][3], float length)
 {
-	section->center[0] = x;
-	section->center[1] = y;
-	section->center[2] = z;
-	mul_m4_v3(mat, section->center);
-	
-	{
-		const float radius = 0.5f;
-		GroomSectionVertex *vertex = verts;
-		for (int i = 0; i < numverts; ++i, ++vertex)
-		{
-			float angle = 2*M_PI * (float)i / (float)numverts;
-			vertex->co[0] = cos(angle) * radius;
-			vertex->co[1] = sin(angle) * radius;
-		}
-	}
-}
-
-static GroomRegion* groom_add_region(float mat[4][4])
-{
-	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
 	GroomBundle *bundle = &region->bundle;
 	
-	region->numverts = 6;
-	bundle->totsections = 4;
-	bundle->totverts = region->numverts * bundle->totsections;
-	bundle->sections = MEM_mallocN(sizeof(GroomSection) * bundle->totsections, "groom bundle sections");
-	bundle->verts = MEM_mallocN(sizeof(GroomSectionVertex) * bundle->totverts, "groom bundle vertices");
+	bundle->totsections = 2;
+	bundle->sections = MEM_callocN(sizeof(GroomSection) * bundle->totsections, "groom bundle sections");
 	
-	int numverts = region->numverts;
-	groom_bundle_section_init(&bundle->sections[0], &bundle->verts[numverts * 0], numverts, mat, 0.0, 0.0, 0.0);
-	groom_bundle_section_init(&bundle->sections[1], &bundle->verts[numverts * 1], numverts, mat, 0.0, 0.0, 1.0);
-	groom_bundle_section_init(&bundle->sections[2], &bundle->verts[numverts * 2], numverts, mat, 0.4, -0.2, 1.2);
-	groom_bundle_section_init(&bundle->sections[3], &bundle->verts[numverts * 3], numverts, mat, 0.01, 0.7, 1.6);
+	madd_v3_v3v3fl(bundle->sections[0].center, loc, rot[2], 0.0f);
+	madd_v3_v3v3fl(bundle->sections[1].center, loc, rot[2], length);
+}
+
+static int region_add_poll(bContext *C)
+{
+	if (!ED_groom_object_poll(C))
+	{
+		return false;
+	}
 	
-	return region;
+	/* We want a scalp object to make this useful */
+	Object *ob = ED_object_context(C);
+	Groom *groom = ob->data;
+	return groom->scalp_object != NULL;
 }
 
 static int region_add_exec(bContext *C, wmOperator *op)
 {
 	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	Object *obedit = ED_object_context(C);
-	Groom *groom = obedit->data;
+	Object *ob = ED_object_context(C);
+	Groom *groom = ob->data;
 	char scalp_facemap_name[MAX_VGROUP_NAME];
-	RNA_string_get(op->ptr, "scalp_facemap_name", scalp_facemap_name);
+	RNA_string_get(op->ptr, "scalp_facemap", scalp_facemap_name);
+	if (scalp_facemap_name[0] == '\0' ||
+	    !BKE_object_facemap_find_name(groom->scalp_object, scalp_facemap_name))
+	{
+		return OPERATOR_CANCELLED;
+	}
 
 	WM_operator_view3d_unit_defaults(C, op);
 
@@ -124,7 +111,7 @@ static int region_add_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	float mat[4][4];
-	ED_object_new_primitive_matrix(C, obedit, loc, rot, mat);
+	ED_object_new_primitive_matrix(C, ob, loc, rot, mat);
 
 	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
 	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
@@ -135,23 +122,42 @@ static int region_add_exec(bContext *C, wmOperator *op)
 	zero_v3(scalp_loc);
 	unit_m3(scalp_rot);
 	
-	if (scalp_facemap_name[0] != '\0')
+	if (BKE_groom_set_region_scalp_facemap(groom, region, scalp_facemap_name))
 	{
-		if (BKE_groom_set_region_scalp_facemap(groom, region, scalp_facemap_name))
+		const struct Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+		BLI_assert(scalp != NULL);
+		
+		if (BKE_groom_region_bind(depsgraph, groom, region, true))
 		{
-			const struct Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
-			BLI_assert(scalp != NULL);
-			
-			BKE_groom_region_bind(depsgraph, groom, region, true);
-			
 			BKE_groom_calc_region_transform_on_scalp(region, scalp, scalp_loc, scalp_rot);
 		}
 	}
-
-	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, obedit);
-	DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+	
+	region_add_set_bundle_curve(region, scalp_loc, scalp_rot, 1.0f);
+	BKE_groom_region_reset_shape(depsgraph, groom, region);
+	
+	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 
 	return OPERATOR_FINISHED;
+}
+
+static void region_add_draw(bContext *C, wmOperator *op)
+{
+	uiLayout *layout = op->layout;
+	Object *ob = ED_object_context(C);
+	Groom *groom = ob->data;
+	PointerRNA scalp_ob_ptr;
+	RNA_id_pointer_create(&groom->scalp_object->id, &scalp_ob_ptr);
+
+	if (groom->scalp_object)
+	{
+		uiItemPointerR(layout, op->ptr, "scalp_facemap", &scalp_ob_ptr, "face_maps", NULL, ICON_NONE);
+	}
+	else
+	{
+		uiItemR(layout, op->ptr, "scalp_facemap", 0, NULL, ICON_NONE);
+	}
 }
 
 void GROOM_OT_region_add(wmOperatorType *ot)
@@ -163,13 +169,15 @@ void GROOM_OT_region_add(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->exec = region_add_exec;
-	ot->poll = ED_groom_object_poll;
+	ot->poll = region_add_poll;
+	ot->invoke = WM_operator_props_popup_confirm;
+	ot->ui = region_add_draw;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	ED_object_add_generic_props(ot, false);
-	RNA_def_string(ot->srna, "scalp_facemap_name", NULL, MAX_VGROUP_NAME, "Scalp Facemap Name", "Facemap to which to bind the new region");
+	RNA_def_string(ot->srna, "scalp_facemap", NULL, MAX_VGROUP_NAME, "Scalp Facemap Name", "Facemap to which to bind the new region");
 }
 
 /* GROOM_OT_region_bind */
