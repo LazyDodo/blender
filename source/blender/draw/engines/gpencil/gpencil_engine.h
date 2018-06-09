@@ -27,7 +27,6 @@
 #define __GPENCIL_ENGINE_H__
 
 #include "GPU_batch.h"
-#include "GPU_framebuffer.h"
 
 struct tGPspoint;
 struct bGPDstroke;
