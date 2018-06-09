@@ -163,7 +163,7 @@ static char *workbench_build_forward_composite_frag(void)
 static void workbench_init_object_data(ObjectEngineData *engine_data)
 {
 	WORKBENCH_ObjectData *data = (WORKBENCH_ObjectData *)engine_data;
-	data->object_id = e_data.next_object_id++;
+	data->object_id = ((e_data.next_object_id++) & 0xff) + 1;
 }
 
 static WORKBENCH_MaterialData *get_or_create_material_data(
@@ -180,7 +180,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 
 	/* Solid */
 	workbench_material_update_data(wpd, ob, mat, &material_template);
-	material_template.object_id = engine_object_data->object_id;
+	material_template.object_id = OBJECT_ID_PASS_ENABLED(wpd) ? engine_object_data->object_id : 1;
 	material_template.drawtype = drawtype;
 	material_template.ima = ima;
 	uint hash = workbench_material_get_hash(&material_template);
@@ -202,7 +202,13 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 		material->material_data.roughness = material_template.material_data.roughness;
 		switch (drawtype) {
 			case OB_SOLID:
+			{
+				if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
+					BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
+					DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+				}
 				break;
+			}
 
 			case OB_TEXTURE:
 			{
@@ -451,7 +457,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			continue;
 		}
 		if (!DRW_check_psys_visible_within_active_context(ob, psys)) {
-			return;
+			continue;
 		}
 		ParticleSettings *part = psys->part;
 		const int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
@@ -511,6 +517,11 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 	if (ob->type == OB_MESH) {
 		workbench_forward_cache_populate_particles(vedata, ob);
 	}
+
+	if (!DRW_check_object_visible_within_active_context(ob)) {
+		return;
+	}
+
 	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		const bool is_active = (ob == draw_ctx->obact);

@@ -1500,7 +1500,7 @@ class VIEW3D_MT_object_clear(Menu):
 
 
 class VIEW3D_MT_object_specials(Menu):
-    bl_label = "Context Menu"
+    bl_label = "Object Context Menu"
 
     @classmethod
     def poll(cls, context):
@@ -2130,7 +2130,7 @@ class VIEW3D_MT_particle(Menu):
 
 
 class VIEW3D_MT_particle_specials(Menu):
-    bl_label = "Context Menu"
+    bl_label = "Particle Context Menu"
 
     def draw(self, context):
         layout = self.layout
@@ -2380,7 +2380,7 @@ class VIEW3D_MT_pose_apply(Menu):
 
 
 class VIEW3D_MT_pose_specials(Menu):
-    bl_label = "Context Menu"
+    bl_label = "Pose Context Menu"
 
     def draw(self, context):
         layout = self.layout
@@ -2513,7 +2513,7 @@ class VIEW3D_MT_edit_mesh(Menu):
 
 
 class VIEW3D_MT_edit_mesh_specials(Menu):
-    bl_label = "Context Menu"
+    bl_label = "Mesh Context Menu"
 
     def draw(self, context):
         layout = self.layout
@@ -3047,7 +3047,7 @@ class VIEW3D_MT_edit_curve_clean(Menu):
 
 
 class VIEW3D_MT_edit_curve_specials(Menu):
-    bl_label = "Context Menu"
+    bl_label = "Curve Context Menu"
 
     def draw(self, context):
         layout = self.layout
@@ -3283,7 +3283,7 @@ class VIEW3D_MT_edit_armature(Menu):
 
 
 class VIEW3D_MT_armature_specials(Menu):
-    bl_label = "Context Menu"
+    bl_label = "Armature Context Menu"
 
     def draw(self, context):
         layout = self.layout
@@ -3433,6 +3433,28 @@ class VIEW3D_MT_edit_gpencil_interpolate(Menu):
         layout.operator("gpencil.interpolate_sequence", text="Sequence")
 
 
+class VIEW3D_PIE_object_mode(Menu):
+    bl_label = "Mode"
+
+    def draw(self, context):
+        layout = self.layout
+
+        pie = layout.menu_pie()
+        pie.operator_enum("OBJECT_OT_mode_set", "mode")
+
+
+class VIEW3D_PIE_view(Menu):
+    bl_label = "View"
+    bl_idname = "VIEW3D_PIE_view"
+
+    def draw(self, context):
+        layout = self.layout
+
+        pie = layout.menu_pie()
+        pie.operator_enum("VIEW3D_OT_viewnumpad", "type")
+        pie.operator("view3d.view_selected", text="View Selected", icon='ZOOM_SELECTED')
+
+
 # ********** Panel **********
 
 
@@ -3515,31 +3537,6 @@ class VIEW3D_PT_view3d_cursor(Panel):
         layout.column().prop(view, "cursor_location", text="Location")
 
 
-class VIEW3D_PT_view3d_name(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_label = "Item"
-
-    @classmethod
-    def poll(cls, context):
-        return (context.space_data and context.active_object)
-
-    def draw(self, context):
-        layout = self.layout
-
-        ob = context.active_object
-        row = layout.row()
-        row.label(text="", icon='OBJECT_DATA')
-        row.prop(ob, "name", text="")
-
-        if ob.type == 'ARMATURE' and ob.mode in {'EDIT', 'POSE'}:
-            bone = context.active_bone
-            if bone:
-                row = layout.row()
-                row.label(text="", icon='BONE_DATA')
-                row.prop(bone, "name", text="")
-
-
 class VIEW3D_PT_shading(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
@@ -3556,48 +3553,72 @@ class VIEW3D_PT_shading(Panel):
         shading = view.shading
 
         col = layout.column()
+        col.row().label("Lighting")
+        if shading.type in ('SOLID', 'TEXTURED'):
+            col.row().prop(shading, "light", expand=True)
+            if shading.light == 'STUDIO':
+                row = col.row()
+                row.template_icon_view(shading, "studio_light")
+                row.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='ZOOMIN')
+                if shading.studio_light_orientation == 'WORLD':
+                    col.row().prop(shading, "studiolight_rot_z")
+
+            elif shading.light == 'MATCAP':
+                row = col.row()
+                row.template_icon_view(shading, "matcap")
+                sub = row.column()
+                sub.operator('VIEW3D_OT_toggle_matcap_flip', emboss=False, text="", icon='ARROW_LEFTRIGHT')
+                sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='ZOOMIN')
 
         if shading.type == 'SOLID':
+            col.separator()
+            col.row().label("Color")
             col.row().prop(shading, "color_type", expand=True)
 
             if shading.color_type == 'SINGLE':
                 col.row().prop(shading, "single_color", text="")
 
         if shading.type in ('SOLID', 'TEXTURED'):
-            col.row().prop(shading, "light", expand=True)
-            if shading.light == 'STUDIO':
-                col.row().template_icon_view(shading, "studio_light")
-                if shading.studio_light_orientation == 'WORLD':
-                    col.row().prop(shading, "studiolight_rot_z")
-
-            row = col.row()
-            row.prop(shading, "show_specular_highlight")
-
             col.separator()
 
-            row = col.row()
-            row.prop(shading, "show_xray")
-            sub = row.row()
-            sub.active = shading.show_xray
-            sub.prop(shading, "xray_alpha", text="")
+            if not shading.light == 'MATCAP':
+                row = col.row()
+                row.prop(shading, "show_specular_highlight")
 
-            row = col.row()
-            row.active = not shading.show_xray
-            row.prop(shading, "show_shadows")
-            sub = row.row()
-            sub.active = shading.show_shadows and not shading.show_xray
-            sub.prop(shading, "shadow_intensity", text="")
+            if shading.type in ('SOLID', 'TEXTURED'):
+                row = col.split(0.4)
+                row.prop(shading, "show_xray")
+                sub = row.row()
+                sub.active = shading.show_xray
+                sub.prop(shading, "xray_alpha", text="")
 
-            row = col.row()
-            row.prop(shading, "show_object_outline")
-            sub = row.row()
-            sub.active = shading.show_object_outline
-            sub.prop(shading, "object_outline_color", text="")
+                row = col.split(0.4)
+                row.active = not shading.show_xray
+                row.prop(shading, "show_shadows")
+                sub = row.row()
+                sub.active = shading.show_shadows and not shading.show_xray
+                sub.prop(shading, "shadow_intensity", text="")
 
-            col.prop(view, "show_world")
+                row = col.split(0.4)
+                row.active = not shading.show_xray
+                row.prop(shading, "show_cavity")
+                sub = row.column(align=True)
+                sub.active = not shading.show_xray and shading.show_cavity
+                sub.prop(shading, "cavity_ridge_factor")
+                sub.prop(shading, "cavity_valley_factor")
+
+                row = col.split(0.4)
+                row.prop(shading, "show_object_outline")
+                sub = row.row()
+                sub.active = shading.show_object_outline
+                sub.prop(shading, "object_outline_color", text="")
+
+                col.prop(view, "show_world")
 
         elif shading.type in ('MATERIAL'):
-            col.row().template_icon_view(shading, "studio_light")
+            row = col.row()
+            row.template_icon_view(shading, "studio_light")
+            op = row.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='ZOOMIN')
             if shading.studio_light_orientation == 'WORLD':
                 col.row().prop(shading, "studiolight_rot_z")
                 col.row().prop(shading, "studiolight_background")
@@ -3619,7 +3640,6 @@ class VIEW3D_PT_overlay(Panel):
         view = context.space_data
         shading = view.shading
         overlay = view.overlay
-        scene = context.scene
         toolsettings = context.tool_settings
         display_all = overlay.show_overlays
 
@@ -3635,7 +3655,13 @@ class VIEW3D_PT_overlay(Panel):
         col.prop(overlay, "show_relationship_lines")
         col.prop(overlay, "show_motion_paths")
         col.prop(overlay, "show_face_orientation")
-        col.prop(overlay, "show_wireframes")
+
+        row = col.row()
+        row.prop(overlay, "show_wireframes")
+        sub = row.row()
+        sub.active = overlay.show_wireframes
+        sub.prop(overlay, "wireframe_threshold", text="")
+
         col.prop(overlay, "show_backface_culling")
 
         if shading.type == "MATERIAL":
@@ -3655,12 +3681,27 @@ class VIEW3D_PT_overlay(Panel):
         sub.active = bool(overlay.show_floor or view.region_quadviews or not view.region_3d.is_perspective)
         subsub = sub.column(align=True)
         subsub.active = overlay.show_floor
-        sub.prop(overlay, "grid_scale", text="Scale")
-        sub.prop(overlay, "grid_subdivisions", text="Subdivisions")
+        subsub.prop(overlay, "grid_scale", text="Scale")
+        subsub.prop(overlay, "grid_subdivisions", text="Subdivisions")
+
+        col.prop(view, "show_reconstruction", text="Motion Tracking")
+        sub = col.column(align=True)
+
+        sub.active = view.show_reconstruction
+        sub.prop(view, "show_camera_path", text="Camera Path")
+        sub.prop(view, "show_bundle_names", text="3D Marker Names")
+        sub.label(text="Track Type and Size:")
+        row = sub.row(align=True)
+        row.prop(view, "tracks_draw_type", text="")
+        row.prop(view, "tracks_draw_size", text="")
+        col.separator()
 
         if context.mode == 'EDIT_MESH':
+            data = context.active_object.data
+            statvis = context.tool_settings.statvis
+            with_freestyle = bpy.app.build_options.freestyle
             col.separator()
-            col.label(text="Edit Mode:")
+            col.label(text="Edit Mesh:")
 
             col.prop(overlay, "show_occlude_wire")
 
@@ -3679,6 +3720,72 @@ class VIEW3D_PT_overlay(Panel):
             sub.active = overlay.show_vertex_normals or overlay.show_face_normals or overlay.show_split_normals
             sub.prop(overlay, "normals_length", text="Size")
 
+            split = col.split()
+
+            sub = split.column()
+            sub.prop(data, "show_faces", text="Faces")
+            sub.prop(data, "show_edges", text="Edges")
+            sub.prop(data, "show_edge_crease", text="Creases")
+
+            if with_freestyle:
+                sub.prop(data, "show_edge_seams", text="Seams")
+
+            sub = split.column()
+            if not with_freestyle:
+                sub.prop(data, "show_edge_seams", text="Seams")
+            sub.prop(data, "show_edge_sharp", text="Sharp", text_ctxt=i18n_contexts.plural)
+            col.prop(data, "show_edge_bevel_weight", text="Bevel")
+            if with_freestyle:
+                sub.prop(data, "show_freestyle_edge_marks", text="Edge Marks")
+                sub.prop(data, "show_freestyle_face_marks", text="Face Marks")
+
+            col.separator()
+            split = col.split()
+            sub = split.column()
+            sub.label(text="Edge Info:")
+            sub.prop(data, "show_extra_edge_length", text="Length")
+            sub.prop(data, "show_extra_edge_angle", text="Angle")
+            sub = split.column()
+            sub.label(text="Face Info:")
+            sub.prop(data, "show_extra_face_area", text="Area")
+            sub.prop(data, "show_extra_face_angle", text="Angle")
+            if bpy.app.debug:
+                sub.prop(data, "show_extra_indices", text="Indices")
+
+            col.prop(data, "show_statvis", text="Mesh Analysis")
+            sub = col.column()
+            sub.active = data.show_statvis
+            sub.prop(statvis, "type")
+            statvis_type = statvis.type
+            if statvis_type == 'OVERHANG':
+                row = sub.row(align=True)
+                row.prop(statvis, "overhang_min", text="")
+                row.prop(statvis, "overhang_max", text="")
+                layout.row().prop(statvis, "overhang_axis", expand=True)
+            elif statvis_type == 'THICKNESS':
+                row = sub.row(align=True)
+                row.prop(statvis, "thickness_min", text="")
+                row.prop(statvis, "thickness_max", text="")
+                layout.prop(statvis, "thickness_samples")
+            elif statvis_type == 'INTERSECT':
+                pass
+            elif statvis_type == 'DISTORT':
+                row = sub.row(align=True)
+                row.prop(statvis, "distort_min", text="")
+                row.prop(statvis, "distort_max", text="")
+            elif statvis_type == 'SHARP':
+                row = sub.row(align=True)
+                row.prop(statvis, "sharp_min", text="")
+                row.prop(statvis, "sharp_max", text="")
+
+        elif context.mode == 'EDIT_CURVE':
+            data = context.active_object.data
+            col.separator()
+            col.label(text="Edit Curve:")
+            row = col.row()
+            row.prop(data, "show_handles", text="Handles")
+            row.prop(data, "show_normal_face", text="Normals")
+
         elif context.mode == 'POSE':
             col.separator()
             col.label(text="Pose Mode:")
@@ -3686,7 +3793,11 @@ class VIEW3D_PT_overlay(Panel):
             col = layout.column()
             col.active = display_all
             col.prop(overlay, "show_transparent_bones")
-            col.prop(overlay, "show_bone_selection")
+            row = col.split(0.65)
+            row.prop(overlay, "show_bone_selection")
+            sub = row.column()
+            sub.active = display_all and overlay.show_bone_selection
+            sub.prop(overlay, "bone_selection_alpha", text="")
 
         elif context.mode == 'EDIT_ARMATURE':
             col.separator()
@@ -3771,157 +3882,6 @@ class VIEW3D_PT_view3d_stereo(Panel):
         split.prop(view, "show_stereo_3d_volume")
         split = row.split()
         split.prop(view, "stereo_3d_volume_alpha", text="Alpha")
-
-
-class VIEW3D_PT_view3d_motion_tracking(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_label = "Motion Tracking"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        view = context.space_data
-        return (view)
-
-    def draw_header(self, context):
-        view = context.space_data
-
-        self.layout.prop(view, "show_reconstruction", text="")
-
-    def draw(self, context):
-        layout = self.layout
-
-        view = context.space_data
-
-        col = layout.column()
-        col.active = view.show_reconstruction
-        col.prop(view, "show_camera_path", text="Camera Path")
-        col.prop(view, "show_bundle_names", text="3D Marker Names")
-        col.label(text="Track Type and Size:")
-        row = col.row(align=True)
-        row.prop(view, "tracks_draw_type", text="")
-        row.prop(view, "tracks_draw_size", text="")
-
-
-class VIEW3D_PT_view3d_meshdisplay(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_label = "Mesh Display"
-
-    @classmethod
-    def poll(cls, context):
-        # The active object check is needed because of local-mode
-        return (context.active_object and (context.mode == 'EDIT_MESH'))
-
-    def draw(self, context):
-        layout = self.layout
-        with_freestyle = bpy.app.build_options.freestyle
-
-        mesh = context.active_object.data
-        scene = context.scene
-
-        split = layout.split()
-
-        col = split.column()
-        col.label(text="Overlays:")
-        col.prop(mesh, "show_faces", text="Faces")
-        col.prop(mesh, "show_edges", text="Edges")
-        col.prop(mesh, "show_edge_crease", text="Creases")
-        if with_freestyle:
-            col.prop(mesh, "show_edge_seams", text="Seams")
-
-        col = split.column()
-        col.label()
-        if not with_freestyle:
-            col.prop(mesh, "show_edge_seams", text="Seams")
-        col.prop(mesh, "show_edge_sharp", text="Sharp", text_ctxt=i18n_contexts.plural)
-        col.prop(mesh, "show_edge_bevel_weight", text="Bevel")
-        if with_freestyle:
-            col.prop(mesh, "show_freestyle_edge_marks", text="Edge Marks")
-            col.prop(mesh, "show_freestyle_face_marks", text="Face Marks")
-
-        col = layout.column()
-
-        col.separator()
-        split = layout.split()
-        col = split.column()
-        col.label(text="Edge Info:")
-        col.prop(mesh, "show_extra_edge_length", text="Length")
-        col.prop(mesh, "show_extra_edge_angle", text="Angle")
-        col = split.column()
-        col.label(text="Face Info:")
-        col.prop(mesh, "show_extra_face_area", text="Area")
-        col.prop(mesh, "show_extra_face_angle", text="Angle")
-        if bpy.app.debug:
-            layout.prop(mesh, "show_extra_indices", text="Indices")
-
-
-class VIEW3D_PT_view3d_meshstatvis(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_label = "Mesh Analysis"
-
-    @classmethod
-    def poll(cls, context):
-        # The active object check is needed because of local-mode
-        return (context.active_object and (context.mode == 'EDIT_MESH'))
-
-    def draw_header(self, context):
-        mesh = context.active_object.data
-
-        self.layout.prop(mesh, "show_statvis", text="")
-
-    def draw(self, context):
-        layout = self.layout
-
-        mesh = context.active_object.data
-        statvis = context.tool_settings.statvis
-        layout.active = mesh.show_statvis
-
-        layout.prop(statvis, "type")
-        statvis_type = statvis.type
-        if statvis_type == 'OVERHANG':
-            row = layout.row(align=True)
-            row.prop(statvis, "overhang_min", text="")
-            row.prop(statvis, "overhang_max", text="")
-            layout.row().prop(statvis, "overhang_axis", expand=True)
-        elif statvis_type == 'THICKNESS':
-            row = layout.row(align=True)
-            row.prop(statvis, "thickness_min", text="")
-            row.prop(statvis, "thickness_max", text="")
-            layout.prop(statvis, "thickness_samples")
-        elif statvis_type == 'INTERSECT':
-            pass
-        elif statvis_type == 'DISTORT':
-            row = layout.row(align=True)
-            row.prop(statvis, "distort_min", text="")
-            row.prop(statvis, "distort_max", text="")
-        elif statvis_type == 'SHARP':
-            row = layout.row(align=True)
-            row.prop(statvis, "sharp_min", text="")
-            row.prop(statvis, "sharp_max", text="")
-
-
-class VIEW3D_PT_view3d_curvedisplay(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_label = "Curve Display"
-
-    @classmethod
-    def poll(cls, context):
-        editmesh = context.mode == 'EDIT_CURVE'
-        return (editmesh)
-
-    def draw(self, context):
-        layout = self.layout
-
-        curve = context.active_object.data
-
-        col = layout.column()
-        row = col.row()
-        row.prop(curve, "show_handles", text="Handles")
-        row.prop(curve, "show_normal_face", text="Normals")
 
 
 class VIEW3D_PT_transform_orientations(Panel):
@@ -4120,17 +4080,14 @@ classes = (
     VIEW3D_MT_edit_armature_delete,
     VIEW3D_MT_edit_gpencil_transform,
     VIEW3D_MT_edit_gpencil_interpolate,
+    VIEW3D_PIE_object_mode,
+    VIEW3D_PIE_view,
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_grease_pencil_palettecolor,
     VIEW3D_PT_view3d_properties,
     VIEW3D_PT_view3d_cursor,
-    VIEW3D_PT_view3d_name,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
-    VIEW3D_PT_view3d_motion_tracking,
-    VIEW3D_PT_view3d_meshdisplay,
-    VIEW3D_PT_view3d_meshstatvis,
-    VIEW3D_PT_view3d_curvedisplay,
     VIEW3D_PT_shading,
     VIEW3D_PT_overlay,
     VIEW3D_PT_transform_orientations,
