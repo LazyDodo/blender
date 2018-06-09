@@ -49,6 +49,7 @@
 
 #include "RNA_access.h"
 #include "RNA_define.h"
+#include "RNA_enum_types.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -90,28 +91,63 @@ static int region_add_poll(bContext *C)
 	return groom->scalp_object != NULL;
 }
 
+
+static const EnumPropertyItem *region_add_facemap_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	if (C == NULL) {
+		return DummyRNA_NULL_items;
+	}
+	Object *ob = ED_object_context(C);
+	if (!ob || ob->type != OB_GROOM)
+	{
+		return DummyRNA_NULL_items;
+	}
+	Groom *groom = ob->data;
+	Object *scalp_ob = groom->scalp_object;
+	if (!scalp_ob)
+	{
+		return DummyRNA_NULL_items;
+	}
+
+	EnumPropertyItem *item = NULL, item_tmp = {0};
+	int totitem = 0;
+
+	int i = 0;
+	for (bFaceMap *fmap = scalp_ob->fmaps.first; fmap; fmap = fmap->next, ++i)
+	{
+		item_tmp.identifier = fmap->name;
+		item_tmp.name = fmap->name;
+		item_tmp.description = "";
+		item_tmp.value = i;
+		RNA_enum_item_add(&item, &totitem, &item_tmp);
+	}
+
+	RNA_enum_item_end(&item, &totitem);
+	*r_free = true;
+
+	return item;
+}
+
 static int region_add_exec(bContext *C, wmOperator *op)
 {
 	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *ob = ED_object_context(C);
 	Groom *groom = ob->data;
-	char scalp_facemap_name[MAX_VGROUP_NAME];
-	RNA_string_get(op->ptr, "scalp_facemap", scalp_facemap_name);
-	if (scalp_facemap_name[0] == '\0' ||
-	    !BKE_object_facemap_find_name(groom->scalp_object, scalp_facemap_name))
+	if (!groom->scalp_object)
 	{
 		return OPERATOR_CANCELLED;
 	}
 
-	WM_operator_view3d_unit_defaults(C, op);
-
-	float loc[3], rot[3];
-	unsigned int layer;
-	if (!ED_object_add_generic_get_opts(C, op, 'Z', loc, rot, NULL, &layer, NULL))
+	char scalp_facemap_name[MAX_VGROUP_NAME];
+	int fmap_index = RNA_enum_get(op->ptr, "scalp_facemap");
+	bFaceMap *fmap = BLI_findlink(&groom->scalp_object->fmaps, fmap_index);
+	if (!fmap)
+	{
 		return OPERATOR_CANCELLED;
+	}
+	BLI_strncpy(scalp_facemap_name, fmap->name, sizeof(scalp_facemap_name));
 
-	float mat[4][4];
-	ED_object_new_primitive_matrix(C, ob, loc, rot, mat);
+	WM_operator_view3d_unit_defaults(C, op);
 
 	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
 	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
@@ -142,26 +178,10 @@ static int region_add_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static void region_add_draw(bContext *C, wmOperator *op)
-{
-	uiLayout *layout = op->layout;
-	Object *ob = ED_object_context(C);
-	Groom *groom = ob->data;
-	PointerRNA scalp_ob_ptr;
-	RNA_id_pointer_create(&groom->scalp_object->id, &scalp_ob_ptr);
-
-	if (groom->scalp_object)
-	{
-		uiItemPointerR(layout, op->ptr, "scalp_facemap", &scalp_ob_ptr, "face_maps", NULL, ICON_NONE);
-	}
-	else
-	{
-		uiItemR(layout, op->ptr, "scalp_facemap", 0, NULL, ICON_NONE);
-	}
-}
-
 void GROOM_OT_region_add(wmOperatorType *ot)
 {
+	PropertyRNA *prop;
+
 	/* identifiers */
 	ot->name = "Add Region";
 	ot->description = "Add a new region to the groom object";
@@ -170,14 +190,15 @@ void GROOM_OT_region_add(wmOperatorType *ot)
 	/* api callbacks */
 	ot->exec = region_add_exec;
 	ot->poll = region_add_poll;
-	ot->invoke = WM_operator_props_popup_confirm;
-	ot->ui = region_add_draw;
+	ot->invoke = WM_enum_search_invoke;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_generic_props(ot, false);
-	RNA_def_string(ot->srna, "scalp_facemap", NULL, MAX_VGROUP_NAME, "Scalp Facemap Name", "Facemap to which to bind the new region");
+	prop = RNA_def_enum(ot->srna, "scalp_facemap", DummyRNA_NULL_items, 0, "Scalp Facemap", "Facemap to which to bind the new region");
+	RNA_def_enum_funcs(prop, region_add_facemap_itemf);
+	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
+	ot->prop = prop;
 }
 
 /* GROOM_OT_region_bind */
