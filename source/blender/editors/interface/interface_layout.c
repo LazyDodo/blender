@@ -154,6 +154,7 @@ struct uiLayout {
 	bool enabled;
 	bool redalert;
 	bool keepaspect;
+	bool variable;  /* For layouts inside gridflow, they and their items shall never have a fixed maximal size. */
 	char alignment;
 	char emboss;
 };
@@ -255,6 +256,13 @@ static int ui_layout_vary_direction(uiLayout *layout)
 	        UI_ITEM_VARY_X : UI_ITEM_VARY_Y);
 }
 
+static bool ui_layout_variable_size(uiLayout *layout)
+{
+	/* Note that this code is probably a bit flacky, we'd probably want to know whether it's variable in X and/or Y,
+	 * etc. But for now it mimics previous one, with addition of variable flag set for children of gridflow layouts. */
+	return ui_layout_vary_direction(layout) == UI_ITEM_VARY_X || layout->variable;
+}
+
 /* estimated size of text + icon */
 static int ui_text_icon_width(uiLayout *layout, const char *name, int icon, bool compact)
 {
@@ -264,7 +272,7 @@ static int ui_text_icon_width(uiLayout *layout, const char *name, int icon, bool
 	if (icon && !name[0])
 		return unit_x;  /* icon only */
 
-	variable = (ui_layout_vary_direction(layout) == UI_ITEM_VARY_X || true); /* XXX HACK, not to be committed! */
+	variable = ui_layout_variable_size(layout);
 
 	if (variable) {
 		if (layout->alignment != UI_LAYOUT_ALIGN_EXPAND) {
@@ -732,7 +740,7 @@ static uiBut *ui_item_with_label(
 			w_label = (int)((w_hint * 2) * UI_ITEM_PROP_SEP_DIVIDE);
 		}
 		else {
-			if (ui_layout_vary_direction(layout) == UI_ITEM_VARY_X) {
+			if (ui_layout_variable_size(layout)) {
 				/* w_hint is width for label in this case. Use a default width for property button(s) */
 				prop_but_width = UI_UNIT_X * 5;
 				w_label = w_hint;
@@ -1445,7 +1453,7 @@ static void ui_item_rna_size(
 		else
 			h += len * UI_UNIT_Y;
 	}
-	else if (ui_layout_vary_direction(layout) == UI_ITEM_VARY_X || true) {  /* XXX HACK! No to be committed! */
+	else if (ui_layout_variable_size(layout)) {
 		if (type == PROP_BOOLEAN && name[0])
 			w += UI_UNIT_X / 5;
 		else if (type == PROP_ENUM && !icon_only)
@@ -3375,6 +3383,8 @@ static void ui_litem_init_from_parent(uiLayout *litem, uiLayout *layout, int ali
 {
 	litem->root = layout->root;
 	litem->align = align;
+	/* Children of gridflow layout shall never have "ideal big size" returned as estimated size. */
+	litem->variable = layout->variable || layout->item.type == ITEM_LAYOUT_GRID_FLOW;
 	litem->active = true;
 	litem->enabled = true;
 	litem->context = layout->context;
@@ -3439,19 +3449,13 @@ uiLayout *uiLayoutGridFlow(
 
 	flow = MEM_callocN(sizeof(uiLayoutItemGridFlow), __func__);
 	flow->litem.item.type = ITEM_LAYOUT_GRID_FLOW;
-	flow->litem.root = layout->root;
-	flow->litem.align = align;
-	flow->litem.active = true;
-	flow->litem.enabled = true;
-	flow->litem.context = layout->context;
+	ui_litem_init_from_parent(&flow->litem, layout, align);
+
 	flow->litem.space = (flow->litem.align) ? 0 : layout->root->style->columnspace;
-	flow->litem.redalert = layout->redalert;
-	flow->litem.w = layout->w;
 	flow->row_major = row_major;
 	flow->num_columns = num_columns;
 	flow->even_columns = even_columns;
 	flow->even_rows = even_rows;
-	BLI_addtail(&layout->items, flow);
 
 	UI_block_layout_set_current(layout->root->block, &flow->litem);
 
