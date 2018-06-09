@@ -60,8 +60,6 @@ HairSystem* BKE_hair_new(void)
 	
 	hair->pattern = MEM_callocN(sizeof(HairPattern), "hair pattern");
 	
-	hair->material_index = 1;
-	
 	return hair;
 }
 
@@ -413,7 +411,7 @@ static void hair_fiber_find_closest_strand(
 	hair_fiber_sort_weights(follicle);
 }
 
-bool BKE_hair_bind_follicles(HairSystem *hsys, Mesh *scalp)
+bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 {
 	if (!(hsys->flag & HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING))
 	{

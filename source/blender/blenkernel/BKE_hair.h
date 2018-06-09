@@ -117,7 +117,7 @@ void BKE_hair_generate_follicles_ex(
         int count,
         const float *loop_weights);
 
-bool BKE_hair_bind_follicles(struct HairSystem *hsys, struct Mesh *scalp);
+bool BKE_hair_bind_follicles(struct HairSystem *hsys, const struct Mesh *scalp);
 
 /* === Draw Settings === */
 

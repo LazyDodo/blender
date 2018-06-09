@@ -296,20 +296,20 @@ static void ObtainCacheVColFromParticleSystem(BL::Mesh *b_mesh,
 	}
 }
 
-static void ObtainCacheDataFromHairSystem(Mesh *mesh,
-                                          BL::Object *b_ob,
+static void ObtainCacheDataFromHairSystem(BL::Object *b_ob,
                                           BL::HairSystem *b_hsys,
-                                          ParticleCurveData *CData,
+                                          BL::Mesh *b_scalp,
+                                          int shader,
                                           bool /*background*/,
+                                          ParticleCurveData *CData,
                                           int *curvenum,
                                           int *keyno)
 {
 	Transform tfm = get_transform(b_ob->matrix_world());
 	Transform itfm = transform_quick_inverse(tfm);
 	
-	BL::Mesh b_mesh(b_ob->data());
 	void *hair_cache = BKE_hair_export_cache_new();
-	BKE_hair_export_cache_update(hair_cache, b_hsys->ptr.data, 0, b_mesh.ptr.data, 0xFFFFFFFF);
+	BKE_hair_export_cache_update(hair_cache, b_hsys->ptr.data, 0, b_scalp->ptr.data, 0xFFFFFFFF);
 	
 	int totcurves, totverts;
 	BKE_hair_render_get_buffer_size(hair_cache, &totcurves, &totverts);
@@ -323,11 +323,8 @@ static void ObtainCacheDataFromHairSystem(Mesh *mesh,
 	CData->psys_firstcurve.push_back_slow(*curvenum);
 	CData->psys_curvenum.push_back_slow(totcurves);
 	
-	{
-		// Material
-		int shader = clamp(b_hsys->material_index()-1, 0, mesh->used_shaders.size()-1);
-		CData->psys_shader.push_back_slow(shader);
-	}
+	// Material
+	CData->psys_shader.push_back_slow(shader);
 	
 	{
 		// Cycles settings
@@ -408,7 +405,6 @@ static void ObtainCacheDataFromHairSystem(Mesh *mesh,
 }
 
 static bool ObtainCacheDataFromObject(Mesh *mesh,
-                                      BL::Mesh *b_mesh,
                                       BL::Object *b_ob,
                                       ParticleCurveData *CData,
                                       bool background)
@@ -416,7 +412,7 @@ static bool ObtainCacheDataFromObject(Mesh *mesh,
 	int curvenum = 0;
 	int keyno = 0;
 
-	if(!(mesh && b_mesh && b_ob && CData))
+	if(!(mesh && b_ob && CData))
 		return false;
 
 	BL::Object::modifiers_iterator b_mod;
@@ -436,11 +432,18 @@ static bool ObtainCacheDataFromObject(Mesh *mesh,
 			if((b_mod->type() == b_mod->type_FUR)) {
 				BL::FurModifier b_fmd((const PointerRNA)b_mod->ptr);
 				BL::HairSystem b_hsys = b_fmd.hair_system();
-				ObtainCacheDataFromHairSystem(mesh,
-				                              b_ob,
+				
+				const int material_index = 1; /* TODO */
+				int shader = clamp(material_index - 1, 0, mesh->used_shaders.size()-1);
+				
+				BL::Mesh b_scalp(b_ob->data());
+				
+				ObtainCacheDataFromHairSystem(b_ob,
 				                              &b_hsys,
-				                              CData,
+				                              &b_scalp,
+				                              shader,
 				                              background,
+				                              CData,
 				                              &curvenum,
 				                              &keyno);
 			}
@@ -1084,7 +1087,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 	ParticleCurveData CData;
 
-	ObtainCacheDataFromObject(mesh, &b_mesh, &b_ob, &CData, !preview);
+	ObtainCacheDataFromObject(mesh, &b_ob, &CData, !preview);
 
 	/* add hair geometry to mesh */
 	if(primitive == CURVE_TRIANGLES) {
@@ -1120,7 +1123,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 	/* generated coordinates from first key. we should ideally get this from
 	 * blender to handle deforming objects */
-	if(!motion) {
+	if(b_mesh && !motion) {
 		if(mesh->need_attribute(scene, ATTR_STD_GENERATED)) {
 			float3 loc, size;
 			mesh_texture_space(b_mesh, loc, size);
@@ -1145,7 +1148,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 	}
 
 	/* create vertex color attributes */
-	if(!motion) {
+	if(b_mesh && !motion) {
 		BL::Mesh::tessface_vertex_colors_iterator l;
 		int vcol_num = 0;
 
@@ -1181,7 +1184,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 	}
 
 	/* create UV attributes */
-	if(!motion) {
+	if(b_mesh && !motion) {
 		BL::Mesh::tessface_uv_textures_iterator l;
 		int uv_num = 0;
 
