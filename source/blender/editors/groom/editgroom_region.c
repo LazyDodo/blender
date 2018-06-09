@@ -147,11 +147,7 @@ static int region_add_exec(bContext *C, wmOperator *op)
 	}
 	BLI_strncpy(scalp_facemap_name, fmap->name, sizeof(scalp_facemap_name));
 
-	WM_operator_view3d_unit_defaults(C, op);
-
-	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
-	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
-	BLI_addtail(regions, region);
+	GroomRegion *region = BKE_groom_region_add(groom);
 
 	float scalp_loc[3];
 	float scalp_rot[3][3];
@@ -199,6 +195,47 @@ void GROOM_OT_region_add(wmOperatorType *ot)
 	RNA_def_enum_funcs(prop, region_add_facemap_itemf);
 	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
 	ot->prop = prop;
+}
+
+/* GROOM_OT_region_remove */
+
+static int region_remove_exec(bContext *C, wmOperator *op)
+{
+	Object *ob = ED_object_context(C);
+	Groom *groom = ob->data;
+
+	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
+	GroomRegion *region = CTX_data_pointer_get_type(C, "groom_region", &RNA_GroomRegion).data;
+	if (region == NULL)
+	{
+		region = BLI_findlink(regions, groom->active_region);
+		if (region == NULL)
+		{
+			return OPERATOR_CANCELLED;
+		}
+	}
+	
+	BKE_groom_region_remove(groom, region);
+	
+	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	
+	return OPERATOR_FINISHED;
+}
+
+void GROOM_OT_region_remove(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Remove Region";
+	ot->description = "Remove a region from the groom object";
+	ot->idname = "GROOM_OT_region_remove";
+
+	/* api callbacks */
+	ot->exec = region_remove_exec;
+	ot->poll = ED_groom_object_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
 /* GROOM_OT_region_bind */

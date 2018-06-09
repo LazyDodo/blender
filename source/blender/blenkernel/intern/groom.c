@@ -102,35 +102,41 @@ void BKE_groom_bundle_curve_cache_clear(GroomBundle *bundle)
 	}
 }
 
+/* Note: Only frees content, does not free region itself */
+static void groom_region_free_data(GroomRegion *region)
+{
+	if (region->scalp_samples)
+	{
+		MEM_freeN(region->scalp_samples);
+	}
+	
+	GroomBundle *bundle = &region->bundle;
+	
+	BKE_groom_bundle_curve_cache_clear(bundle);
+	
+	if (bundle->sections)
+	{
+		MEM_freeN(bundle->sections);
+	}
+	if (bundle->verts)
+	{
+		MEM_freeN(bundle->verts);
+	}
+	if (bundle->guides)
+	{
+		MEM_freeN(bundle->guides);
+	}
+	if (bundle->guide_shape_weights)
+	{
+		MEM_freeN(bundle->guide_shape_weights);
+	}
+}
+
 static void groom_regions_free(ListBase *regions)
 {
 	for (GroomRegion *region = regions->first; region; region = region->next)
 	{
-		if (region->scalp_samples)
-		{
-			MEM_freeN(region->scalp_samples);
-		}
-		
-		GroomBundle *bundle = &region->bundle;
-		
-		BKE_groom_bundle_curve_cache_clear(bundle);
-		
-		if (bundle->sections)
-		{
-			MEM_freeN(bundle->sections);
-		}
-		if (bundle->verts)
-		{
-			MEM_freeN(bundle->verts);
-		}
-		if (bundle->guides)
-		{
-			MEM_freeN(bundle->guides);
-		}
-		if (bundle->guide_shape_weights)
-		{
-			MEM_freeN(bundle->guide_shape_weights);
-		}
+		groom_region_free_data(region);
 	}
 	BLI_freelistN(regions);
 }
@@ -294,6 +300,25 @@ void BKE_groom_boundbox_calc(Groom *groom)
 
 
 /* === Scalp regions === */
+
+GroomRegion* BKE_groom_region_add(Groom *groom)
+{
+	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
+	
+	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
+	BLI_addtail(regions, region);
+	
+	return region;
+}
+
+void BKE_groom_region_remove(Groom *groom, GroomRegion *region)
+{
+	ListBase *regions = (groom->editgroom ? &groom->editgroom->regions : &groom->regions);
+	
+	BLI_remlink(regions, region);
+	groom_region_free_data(region);
+	MEM_freeN(region);
+}
 
 Mesh* BKE_groom_get_scalp(const Depsgraph *depsgraph, const Groom *groom)
 {

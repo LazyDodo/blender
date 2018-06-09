@@ -66,6 +66,9 @@ void BKE_groom_curve_cache_clear(struct Groom *groom);
 
 /* === Scalp regions === */
 
+struct GroomRegion* BKE_groom_region_add(struct Groom *groom);
+void BKE_groom_region_remove(struct Groom *groom, struct GroomRegion *region);
+
 struct Mesh* BKE_groom_get_scalp(const struct Depsgraph *depsgraph, const struct Groom *groom);
 
 /* Set the region's facemap name.

@@ -102,7 +102,7 @@ class DATA_PT_groom_regions(DataButtonsPanel, Panel):
 
         col = row.column(align=True)
         col.operator("groom.region_add", icon='ZOOMIN', text="")
-        #col.operator("object.material_slot_remove", icon='ZOOMOUT', text="")
+        col.operator("groom.region_remove", icon='ZOOMOUT', text="")
 
         if region:
             col = layout.column()
