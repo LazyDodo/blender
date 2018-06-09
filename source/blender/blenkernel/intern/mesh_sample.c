@@ -43,6 +43,7 @@
 #include "BKE_customdata.h"
 #include "BKE_mesh_sample.h"
 #include "BKE_mesh.h"
+#include "BKE_mesh_runtime.h"
 
 #include "BLI_strict_flags.h"
 
