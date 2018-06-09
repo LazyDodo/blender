@@ -1171,8 +1171,7 @@ void DepsgraphNodeBuilder::build_object_data_geometry_datablock(ID *obdata)
 			op_node->set_as_entry();
 			break;
 		}
-
-		case OB_GROOM:
+		case ID_GM:
 		{
 			/* Groom evaluation operations. */
 			op_node = add_operation_node(obdata, DEG_NODE_TYPE_GEOMETRY,

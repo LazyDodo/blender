@@ -1908,12 +1908,7 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 		}
 		case ID_LT:
 			break;
-		default:
-			BLI_assert(!"Should not happen");
-			break;
-		}
-
-		case OB_GROOM: /* Groom */
+		case ID_GM: /* Groom */
 		{
 			Groom *groom = (Groom *)obdata;
 			ComponentKey geometry_key(&groom->id, DEG_NODE_TYPE_GEOMETRY);
@@ -1923,6 +1918,10 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 				ID *scalp_id = &groom->scalp_object->id;
 				add_relation(ComponentKey(scalp_id, DEG_NODE_TYPE_GEOMETRY), geometry_key, "Scalp Object -> Groom");
 			}
+			break;
+		}
+		default:
+			BLI_assert(!"Should not happen");
 			break;
 	}
 }
