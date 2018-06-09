@@ -518,6 +518,19 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_function_return(func, parm);
 	RNA_def_boolean(func, "align", false, "", "Align buttons to each other");
 
+	func = RNA_def_function(srna, "grid_flow", "uiLayoutGridFlow");
+	RNA_def_boolean(func, "row_major", false, "", "Fill row by row, instead of column by column");
+	RNA_def_int(func, "num_columns", 0, INT_MIN, INT_MAX, "",
+	            "Number of columns, positive are absolute fixed numbers, 0 is automatic, negative are "
+	            "automatic multiple numbers along major axis (e.g. -2 will only produce 2, 4, 6 etc. "
+	            "columns for row major layout, and 2, 4, 6 etc. rows for column major layout)",
+	            INT_MIN, INT_MAX);
+	RNA_def_boolean(func, "even_columns", false, "", "All columns will have the same width");
+	RNA_def_boolean(func, "even_rows", false, "", "All rows will have the same height");
+	RNA_def_boolean(func, "align", false, "", "Align buttons to each other");
+	parm = RNA_def_pointer(func, "layout", "UILayout", "", "Sub-layout to put items in");
+	RNA_def_function_return(func, parm);
+
 	/* box layout */
 	func = RNA_def_function(srna, "box", "uiLayoutBox");
 	parm = RNA_def_pointer(func, "layout", "UILayout", "", "Sub-layout to put items in");
@@ -1030,10 +1043,6 @@ void RNA_api_ui_layout(StructRNA *srna)
 	parm = RNA_def_string(func, "property", NULL, 0, "", "Identifier of property in data");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	RNA_def_string(func, "name", NULL, 0, "", "");
-
-	func = RNA_def_function(srna, "introspect", "uiLayoutIntrospect");
-	parm = RNA_def_string(func, "string", NULL, 1024 * 1024, "Descr", "DESCR");
-	RNA_def_function_return(func, parm);
 
 	/* color management templates */
 	func = RNA_def_function(srna, "template_colorspace_settings", "uiTemplateColorspaceSettings");
