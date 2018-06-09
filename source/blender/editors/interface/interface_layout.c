@@ -154,7 +154,7 @@ struct uiLayout {
 	bool enabled;
 	bool redalert;
 	bool keepaspect;
-	bool variable;  /* For layouts inside gridflow, they and their items shall never have a fixed maximal size. */
+	bool variable_size;  /* For layouts inside gridflow, they and their items shall never have a fixed maximal size. */
 	char alignment;
 	char emboss;
 };
@@ -260,7 +260,7 @@ static bool ui_layout_variable_size(uiLayout *layout)
 {
 	/* Note that this code is probably a bit flacky, we'd probably want to know whether it's variable in X and/or Y,
 	 * etc. But for now it mimics previous one, with addition of variable flag set for children of gridflow layouts. */
-	return ui_layout_vary_direction(layout) == UI_ITEM_VARY_X || layout->variable;
+	return ui_layout_vary_direction(layout) == UI_ITEM_VARY_X || layout->variable_size;
 }
 
 /* estimated size of text + icon */
@@ -3384,7 +3384,7 @@ static void ui_litem_init_from_parent(uiLayout *litem, uiLayout *layout, int ali
 	litem->root = layout->root;
 	litem->align = align;
 	/* Children of gridflow layout shall never have "ideal big size" returned as estimated size. */
-	litem->variable = layout->variable || layout->item.type == ITEM_LAYOUT_GRID_FLOW;
+	litem->variable_size = layout->variable_size || layout->item.type == ITEM_LAYOUT_GRID_FLOW;
 	litem->active = true;
 	litem->enabled = true;
 	litem->context = layout->context;
