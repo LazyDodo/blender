@@ -413,46 +413,72 @@ static void hair_fiber_find_closest_strand(
 	hair_fiber_sort_weights(follicle);
 }
 
-void BKE_hair_bind_follicles(HairSystem *hsys, Mesh *scalp)
+bool BKE_hair_bind_follicles(HairSystem *hsys, Mesh *scalp)
 {
 	if (!(hsys->flag & HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING))
 	{
-		return;
+		return true;
 	}
 	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	
 	HairPattern *pattern = hsys->pattern;
+	if (!pattern)
+	{
+		return true;
+	}
+	
 	const int num_strands = hsys->guides.totcurves;
-	if (num_strands == 0 || !pattern)
-		return;
+	/* Need at least one guide curve for binding */
+	if (num_strands == 0)
+	{
+		HairFollicle *follicle = pattern->follicles;
+		for (int i = 0; i < pattern->num_follicles; ++i, ++follicle)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				follicle->parent_index[k] = HAIR_STRAND_INDEX_NONE;
+				follicle->parent_weight[k] = 0.0f;
+			}
+		}
+		return false;
+	}
 	
 	float (*strandloc)[3] = MEM_mallocN(sizeof(float) * 3 * num_strands, "strand locations");
 	{
-		for (int i = 0; i < num_strands; ++i) {
+		for (int i = 0; i < num_strands; ++i)
+		{
 			float nor[3], tang[3];
-			if (!BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang)) {
+			if (!BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang))
+			{
 				zero_v3(strandloc[i]);
 			}
 		}
 	}
 	
 	KDTree *tree = BLI_kdtree_new(num_strands);
-	for (int c = 0; c < num_strands; ++c) {
+	for (int c = 0; c < num_strands; ++c)
+	{
 		BLI_kdtree_insert(tree, c, strandloc[c]);
 	}
 	BLI_kdtree_balance(tree);
 	
-	HairFollicle *follicle = pattern->follicles;
-	for (int i = 0; i < pattern->num_follicles; ++i, ++follicle) {
-		float loc[3], nor[3], tang[3];
-		if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang)) {
-			hair_fiber_find_closest_strand(follicle, loc, tree, strandloc);
-			hair_fiber_verify_weights(follicle);
+	{
+		HairFollicle *follicle = pattern->follicles;
+		for (int i = 0; i < pattern->num_follicles; ++i, ++follicle)
+		{
+			float loc[3], nor[3], tang[3];
+			if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang))
+			{
+				hair_fiber_find_closest_strand(follicle, loc, tree, strandloc);
+				hair_fiber_verify_weights(follicle);
+			}
 		}
 	}
 	
 	BLI_kdtree_free(tree);
 	MEM_freeN(strandloc);
+	
+	return true;
 }
 
 /* === Export === */
