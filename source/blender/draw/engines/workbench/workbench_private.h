@@ -40,20 +40,28 @@
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
 #define MAX_SHADERS (1 << 10)
 
-
-#define OBJECT_ID_PASS_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE)
+#define OB_SOLID_ENABLED(wpd) (wpd->drawtype & OB_SOLID)
+#define OB_TEXTURE_ENABLED(wpd) (wpd->drawtype & OB_TEXTURE)
+#define FLAT_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_FLAT)
+#define STUDIOLIGHT_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_STUDIO)
+#define MATCAP_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_MATCAP && OB_SOLID_ENABLED(wpd))
+#define STUDIOLIGHT_ORIENTATION_WORLD_ENABLED(wpd) (STUDIOLIGHT_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD))
+#define STUDIOLIGHT_ORIENTATION_CAMERA_ENABLED(wpd) (STUDIOLIGHT_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_CAMERA))
+#define STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd) (MATCAP_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL))
+#define CAVITY_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_CAVITY)
 #define SHADOW_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_SHADOW)
-#define SPECULAR_HIGHLIGHT_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT)
-#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (wpd->shading.light & V3D_LIGHTING_STUDIO || SHADOW_ENABLED(wpd) || SPECULAR_HIGHLIGHT_ENABLED	(wpd))
+#define SPECULAR_HIGHLIGHT_ENABLED(wpd) ((wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT) && (!STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)))
+#define OBJECT_ID_PASS_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE)
+#define NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) (MATCAP_ENABLED(wpd) || STUDIOLIGHT_ENABLED(wpd) || SHADOW_ENABLED(wpd) || SPECULAR_HIGHLIGHT_ENABLED(wpd))
+#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) || CAVITY_ENABLED(wpd))
 #define NORMAL_ENCODING_ENABLED() (true)
 #define WORKBENCH_REVEALAGE_ENABLED
-#define STUDIOLIGHT_ORIENTATION_WORLD_ENABLED(wpd) (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD)
-#define STUDIOLIGHT_ORIENTATION_CAMERA_ENABLED(wpd) (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_CAMERA)
 
 
 typedef struct WORKBENCH_FramebufferList {
 	/* Deferred render buffers */
 	struct GPUFrameBuffer *prepass_fb;
+	struct GPUFrameBuffer *cavity_fb;
 	struct GPUFrameBuffer *composite_fb;
 
 	/* Forward render buffers */
@@ -73,6 +81,7 @@ typedef struct WORKBENCH_PassList {
 	/* deferred rendering */
 	struct DRWPass *prepass_pass;
 	struct DRWPass *prepass_hair_pass;
+	struct DRWPass *cavity_pass;
 	struct DRWPass *shadow_depth_pass_pass;
 	struct DRWPass *shadow_depth_pass_mani_pass;
 	struct DRWPass *shadow_depth_fail_pass;
@@ -119,7 +128,8 @@ typedef struct WORKBENCH_UBO_World {
 	float light_direction_vs[4];
 	WORKBENCH_UBO_Light lights[3];
 	int num_lights;
-	int pad[3];
+	int matcap_orientation;
+	int pad[2];
 } WORKBENCH_UBO_World;
 BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_World, 16)
 
@@ -162,6 +172,12 @@ typedef struct WORKBENCH_PrivateData {
 	float shadow_near_max[3];
 	float shadow_near_sides[2][4]; /* This is a parallelogram, so only 2 normal and distance to the edges. */
 	bool shadow_changed;
+
+	/* Ssao */
+	float winmat[4][4];
+	float viewvecs[3][4];
+	float ssao_params[4];
+	float ssao_settings[4];
 } WORKBENCH_PrivateData; /* Transient data */
 
 typedef struct WORKBENCH_MaterialData {
