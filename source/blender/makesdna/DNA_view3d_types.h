@@ -140,6 +140,7 @@ typedef struct View3DShading {
 	short light;
 	char pad[2];
 	char studio_light[256]; /* FILE_MAXFILE */
+	char matcap[256]; /* FILE_MAXFILE */
 
 	float shadow_intensity;
 	float single_color[3];
@@ -149,6 +150,9 @@ typedef struct View3DShading {
 
 	float object_outline_color[3];
 	float xray_alpha;
+
+	float cavity_valley_factor;
+	float cavity_ridge_factor;
 } View3DShading;
 
 /* 3D Viewport Overlay setings */
@@ -165,15 +169,20 @@ typedef struct View3DOverlay {
 
 	/* Armature edit/pose mode settings */
 	int arm_flag;
+	float bone_selection_alpha;
+
+	/* Other settings */
+	float wireframe_threshold;
 } View3DOverlay;
 
 /* 3D ViewPort Struct */
 typedef struct View3D {
 	struct SpaceLink *next, *prev;
 	ListBase regionbase;		/* storage of regions for inactive spaces */
-	int spacetype;
-	float blockscale;
-	short blockhandler[8];
+	char spacetype;
+	char link_flag;
+	char _pad0[6];
+	/* End 'SpaceLink' header. */
 
 	float viewquat[4]  DNA_DEPRECATED;
 	float dist         DNA_DEPRECATED;
@@ -199,7 +208,7 @@ typedef struct View3D {
 	int layact;
 	
 	short ob_centre_cursor;		/* optional bool for 3d cursor to define center */
-	short scenelock, _pad0;
+	short scenelock, _pad1;
 	short flag, flag2, pad2;
 	
 	float lens, grid;
@@ -332,7 +341,7 @@ typedef struct View3D {
 enum {
 	V3D_LIGHTING_FLAT   = 0,
 	V3D_LIGHTING_STUDIO = 1,
-	V3D_LIGHTING_SCENE  = 2
+	V3D_LIGHTING_MATCAP = 2,
 };
 
 /* View3DShading->flag */
@@ -342,6 +351,8 @@ enum {
 	V3D_SHADING_SHADOW              = (1 << 2),
 	V3D_SHADING_SCENE_LIGHT         = (1 << 3),
 	V3D_SHADING_SPECULAR_HIGHLIGHT  = (1 << 4),
+	V3D_SHADING_CAVITY              = (1 << 5),
+	V3D_SHADING_MATCAP_FLIP_X       = (1 << 6),
 };
 
 /* View3DShading->single_color_type */

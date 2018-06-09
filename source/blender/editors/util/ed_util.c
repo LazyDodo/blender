@@ -227,7 +227,7 @@ void apply_keyb_grid(int shift, int ctrl, float *val, float fac1, float fac2, fl
 	/* fac1 is for 'nothing', fac2 for CTRL, fac3 for SHIFT */
 	if (invert)
 		ctrl = !ctrl;
-	
+
 	if (ctrl && shift) {
 		if (fac3 != 0.0f) *val = fac3 * floorf(*val / fac3 + 0.5f);
 	}
@@ -263,7 +263,7 @@ void unpack_menu(bContext *C, const char *opname, const char *id_name, const cha
 		BLI_split_file_part(abs_name, fi, sizeof(fi));
 		BLI_snprintf(local_name, sizeof(local_name), "//%s/%s", folder, fi);
 		if (!STREQ(abs_name, local_name)) {
-			switch (checkPackedFile(bmain->name, local_name, pf)) {
+			switch (checkPackedFile(BKE_main_blendfile_path(bmain), local_name, pf)) {
 				case PF_NOFILE:
 					BLI_snprintf(line, sizeof(line), IFACE_("Create %s"), local_name);
 					uiItemFullO_ptr(layout, ot, line, ICON_NONE, NULL, WM_OP_EXEC_DEFAULT, 0, &props_ptr);
@@ -296,7 +296,7 @@ void unpack_menu(bContext *C, const char *opname, const char *id_name, const cha
 		}
 	}
 
-	switch (checkPackedFile(bmain->name, abs_name, pf)) {
+	switch (checkPackedFile(BKE_main_blendfile_path(bmain), abs_name, pf)) {
 		case PF_NOFILE:
 			BLI_snprintf(line, sizeof(line), IFACE_("Create %s"), abs_name);
 			//uiItemEnumO_ptr(layout, ot, line, 0, "method", PF_WRITE_ORIGINAL);

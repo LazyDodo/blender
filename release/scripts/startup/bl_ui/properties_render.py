@@ -152,7 +152,7 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
         sub.prop(rd, "use_crop_to_border", text="Crop")
 
         col = layout.column(align=True)
-        col.prop(scene, "frame_start", text="Frame Range Start")
+        col.prop(scene, "frame_start", text="Frame Start")
         col.prop(scene, "frame_end", text="End")
         col.prop(scene, "frame_step", text="Step")
 
@@ -161,8 +161,21 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
         col.label(text="Frame Rate")
         self.draw_framerate(col, rd)
 
+
+class RENDER_PT_frame_remapping(RenderButtonsPanel, Panel):
+    bl_label = "Time Remapping"
+    bl_parent_id = "RENDER_PT_dimensions"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        rd = context.scene.render
+
         col = layout.column(align=True)
-        col.prop(rd, "frame_map_old", text="Time Remapping Old")
+        col.prop(rd, "frame_map_old", text="Old")
         col.prop(rd, "frame_map_new", text="New")
 
 
@@ -222,11 +235,25 @@ class RENDER_PT_stamp(RenderButtonsPanel, Panel):
         sub.active = rd.use_stamp_note
         sub.prop(rd, "stamp_note_text", text="")
 
+
+class RENDER_PT_stamp_burn(RenderButtonsPanel, Panel):
+    bl_label = "Burn Into Image"
+    bl_parent_id = "RENDER_PT_stamp"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+
+    def draw_header(self, context):
+        rd = context.scene.render
+
+        self.layout.prop(rd, "use_stamp", text="")
+
+    def draw(self, context):
+        layout = self.layout
+
+        rd = context.scene.render
+
         layout.use_property_split = True
 
-        layout.separator()
-
-        layout.prop(rd, "use_stamp", text="Burn Into Image")
         col = layout.column()
         col.active = rd.use_stamp
         col.prop(rd, "stamp_font_size", text="Font Size")
@@ -750,6 +777,7 @@ class RENDER_PT_hair(RenderButtonsPanel, Panel):
         row = layout.row()
         row.prop(rd, "hair_type", expand=True)
 
+        layout.use_property_split = True
         layout.prop(rd, "hair_subdiv")
 
 
@@ -759,10 +787,12 @@ classes = (
     RENDER_MT_framerate_presets,
     RENDER_PT_context,
     RENDER_PT_dimensions,
+    RENDER_PT_frame_remapping,
     RENDER_PT_post_processing,
     RENDER_PT_output,
     RENDER_PT_encoding,
     RENDER_PT_stamp,
+    RENDER_PT_stamp_burn,
     RENDER_UL_renderviews,
     RENDER_PT_stereoscopy,
     RENDER_PT_hair,

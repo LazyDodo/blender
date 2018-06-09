@@ -491,8 +491,6 @@ void UI_blocklist_update_window_matrix(const struct bContext *C, const struct Li
 void UI_blocklist_draw(const struct bContext *C, const struct ListBase *lb);
 void UI_block_update_from_old(const struct bContext *C, struct uiBlock *block);
 
-uiBlock *UI_block_find_in_region(const char *name, struct ARegion *ar);
-
 void UI_block_emboss_set(uiBlock *block, char dt);
 
 void UI_block_free(const struct bContext *C, uiBlock *block);
@@ -581,7 +579,7 @@ bool UI_but_online_manual_id_from_active(
  * - R: RNA
  * - O: operator */
 
-uiBut *uiDefBut(uiBlock *block, 
+uiBut *uiDefBut(uiBlock *block,
                 int type, int retval, const char *str,
                 int x1, int y1,
                 short x2, short y2,
@@ -601,7 +599,7 @@ uiBut *uiDefButR_prop(uiBlock *block, int type, int retval, const char *str, int
 uiBut *uiDefButO(uiBlock *block, int type, const char *opname, int opcontext, const char *str, int x, int y, short width, short height, const char *tip);
 uiBut *uiDefButO_ptr(uiBlock *block, int type, struct wmOperatorType *ot, int opcontext, const char *str, int x, int y, short width, short height, const char *tip);
 
-uiBut *uiDefIconBut(uiBlock *block, 
+uiBut *uiDefIconBut(uiBlock *block,
                     int type, int retval, int icon,
                     int x1, int y1,
                     short x2, short y2,
@@ -665,7 +663,7 @@ enum {
 typedef struct uiStringInfo {
 	int type;
 	char *strinfo;
-} uiStringInfo; 
+} uiStringInfo;
 
 /* Note: Expects pointers to uiStringInfo structs as parameters.
  *       Will fill them with translated strings, when possible.
@@ -824,11 +822,13 @@ void UI_panels_begin(const struct bContext *C, struct ARegion *ar);
 void UI_panels_end(const struct bContext *C, struct ARegion *ar, int *x, int *y);
 void UI_panels_draw(const struct bContext *C, struct ARegion *ar);
 
-struct Panel *UI_panel_find_by_type(struct ARegion *ar, struct PanelType *pt);
-struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, uiBlock *block,
-                             struct PanelType *pt, struct Panel *pa, bool *r_open);
+struct Panel *UI_panel_find_by_type(struct ListBase *lb, struct PanelType *pt);
+struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, struct ListBase *lb,
+                             uiBlock *block, struct PanelType *pt, struct Panel *pa,
+                             bool *r_open);
 void UI_panel_end(uiBlock *block, int width, int height);
 void UI_panels_scale(struct ARegion *ar, float new_width);
+void UI_panel_label_offset(struct uiBlock *block, int *x, int *y);
 
 bool                       UI_panel_category_is_visible(struct ARegion *ar);
 void                       UI_panel_category_add(struct ARegion *ar, const char *name);
@@ -860,7 +860,7 @@ void UI_popup_handlers_remove_all(struct bContext *C, struct ListBase *handlers)
  * be used to reinitialize some internal state if user preferences change. */
 
 void UI_init(void);
-void UI_init_userdef(void);
+void UI_init_userdef(struct Main *bmain);
 void UI_reinit_font(void);
 void UI_exit(void);
 
@@ -1006,7 +1006,7 @@ void uiTemplateIDTabs(
         PointerRNA *ptr, const char *propname,
         const char *newop, const char *openop, const char *unlinkop,
         int filter);
-void uiTemplateAnyID(uiLayout *layout, struct PointerRNA *ptr, const char *propname, 
+void uiTemplateAnyID(uiLayout *layout, struct PointerRNA *ptr, const char *propname,
                      const char *proptypename, const char *text);
 void uiTemplateSearch(
         uiLayout *layout, struct bContext *C,
@@ -1019,7 +1019,7 @@ void uiTemplateSearchPreview(
         struct PointerRNA *searchptr, const char *searchpropname,
         const char *newop, const char *unlinkop,
         const int rows, const int cols);
-void uiTemplatePathBuilder(uiLayout *layout, struct PointerRNA *ptr, const char *propname, 
+void uiTemplatePathBuilder(uiLayout *layout, struct PointerRNA *ptr, const char *propname,
                            struct PointerRNA *root_ptr, const char *text);
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 
@@ -1247,10 +1247,10 @@ void UI_widgetbase_draw_cache_flush(void);
 void UI_widgetbase_draw_cache_end(void);
 
 /* Special drawing for toolbar, mainly workarounds for inflexible icon sizing. */
-#define USE_TOOLBAR_HACK
+#define USE_UI_TOOLBAR_HACK
 
 /* Support click-drag motion which presses the button and closes a popover (like a menu). */
-#define USE_POPOVER_ONCE
+#define USE_UI_POPOVER_ONCE
 
 bool UI_but_is_tool(const uiBut *but);
 

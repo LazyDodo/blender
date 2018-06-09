@@ -59,6 +59,7 @@
 #include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
+#include "BKE_object.h"
 #include "BKE_object_deform.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
@@ -974,7 +975,7 @@ static void vertex_paint_init_session(Depsgraph *depsgraph, Scene *scene, Object
 
 	if (ob->sculpt == NULL) {
 		ob->sculpt = MEM_callocN(sizeof(SculptSession), "sculpt session");
-		BKE_sculpt_update_mesh_elements(depsgraph, scene, scene->toolsettings->sculpt, ob, 0, false);
+		BKE_sculpt_update_mesh_elements(depsgraph, scene, scene->toolsettings->sculpt, ob, false, false);
 	}
 }
 
@@ -1067,6 +1068,11 @@ static void ed_vwpaintmode_enter_generic(
 	ob->mode |= mode_flag;
 	Mesh *me = BKE_mesh_from_object(ob);
 
+	/* Same as sculpt mode, make sure we don't have cached derived mesh which
+	 * points to freed arrays.
+	 */
+	BKE_object_free_derived_caches(ob);
+
 	if (mode_flag == OB_MODE_VERTEX_PAINT) {
 		const ePaintMode paint_mode = ePaintVertex;
 		ED_mesh_color_ensure(me, NULL);
@@ -1108,6 +1114,9 @@ static void ed_vwpaintmode_enter_generic(
 	}
 
 	vertex_paint_init_session(depsgraph, scene, ob);
+
+	/* Flush object mode. */
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 }
 
 void ED_object_vpaintmode_enter_ex(
@@ -1189,6 +1198,10 @@ static void ed_vwpaintmode_exit_generic(
 		ED_mesh_mirror_topo_table(NULL, NULL, 'e');
 	}
 
+	/* Never leave derived meshes behind. */
+	BKE_object_free_derived_caches(ob);
+
+	/* Flush object mode. */
 	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 }
 
@@ -2604,7 +2617,7 @@ static float tex_color_alpha_ubyte(
 }
 
 static void do_vpaint_brush_draw_task_cb_ex(
-        void *__restrict userdata, 
+        void *__restrict userdata,
         const int n,
         const ParallelRangeTLS *__restrict UNUSED(tls))
 {
@@ -3138,6 +3151,10 @@ static void vpaint_stroke_update_step(bContext *C, struct PaintStroke *stroke, P
 		/* recalculate modifier stack to get new colors, slow,
 		 * avoid this if we can! */
 		DEG_id_tag_update(ob->data, 0);
+	}
+	else {
+		/* Flush changes through DEG. */
+		DEG_id_tag_update(ob->data, DEG_TAG_COPY_ON_WRITE);
 	}
 }
 

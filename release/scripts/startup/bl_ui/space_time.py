@@ -117,6 +117,7 @@ class TIME_MT_editor_menus(Menu):
                        panel_type="TIME_PT_keyframing_settings",
                        text="Keying")
 
+
 class TIME_MT_marker(Menu):
     bl_label = "Marker"
 
@@ -217,6 +218,7 @@ def marker_menu_generic(layout):
 
 ###################################
 
+
 class TimelinePanelButtons:
     bl_space_type = 'DOPESHEET_EDITOR'
     bl_region_type = 'UI'
@@ -292,7 +294,7 @@ class TIME_PT_keyframing_settings(TimelinePanelButtons, Panel):
         col = layout.column(align=True)
         col.label("New Keyframe Type:")
         col.prop(toolsettings, "keyframe_type", text="")
-        
+
         col = layout.column(align=True)
         col.label("Auto Keyframing:")
         row = col.row()

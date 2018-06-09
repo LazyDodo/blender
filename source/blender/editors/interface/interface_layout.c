@@ -720,6 +720,7 @@ static uiBut *ui_item_with_label(
 	PropertyType type;
 	PropertySubType subtype;
 	int prop_but_width = w_hint;
+	const bool use_prop_sep = ((layout->item.flag & UI_ITEM_PROP_SEP) != 0);
 
 	sub = uiLayoutRow(layout, layout->align);
 	UI_block_layout_set_current(block, sub);
@@ -727,15 +728,25 @@ static uiBut *ui_item_with_label(
 	if (name[0]) {
 		int w_label;
 
-		if (ui_layout_vary_direction(layout) == UI_ITEM_VARY_X) {
-			/* w_hint is width for label in this case. Use a default width for property button(s) */
-			prop_but_width = UI_UNIT_X * 5;
-			w_label = w_hint;
+		if (use_prop_sep) {
+			w_label = (int)((w_hint * 2) * UI_ITEM_PROP_SEP_DIVIDE);
 		}
 		else {
-			w_label = w_hint / 3;
+			if (ui_layout_vary_direction(layout) == UI_ITEM_VARY_X) {
+				/* w_hint is width for label in this case. Use a default width for property button(s) */
+				prop_but_width = UI_UNIT_X * 5;
+				w_label = w_hint;
+			}
+			else {
+				w_label = w_hint / 3;
+			}
 		}
-		uiDefBut(block, UI_BTYPE_LABEL, 0, name, x, y, w_label, h, NULL, 0.0, 0.0, 0, 0, "");
+
+		uiBut *but_label = uiDefBut(block, UI_BTYPE_LABEL, 0, name, x, y, w_label, h, NULL, 0.0, 0.0, 0, 0, "");
+		if (use_prop_sep) {
+			but_label->drawflag |= UI_BUT_TEXT_RIGHT;
+			but_label->drawflag &= ~UI_BUT_TEXT_LEFT;
+		}
 	}
 
 	type = RNA_property_type(prop);
@@ -1870,6 +1881,7 @@ void uiItemPointerR(uiLayout *layout, struct PointerRNA *ptr, const char *propna
 	StructRNA *icontype;
 	int w, h;
 	char namestr[UI_MAX_NAME_STR];
+	const bool use_prop_sep = ((layout->item.flag & UI_ITEM_PROP_SEP) != 0);
 
 	/* validate arguments */
 	prop = RNA_struct_find_property(ptr, propname);
@@ -1912,7 +1924,9 @@ void uiItemPointerR(uiLayout *layout, struct PointerRNA *ptr, const char *propna
 	if (!name)
 		name = RNA_property_ui_name(prop);
 
-	name = ui_item_name_add_colon(name, namestr);
+	if (use_prop_sep == false) {
+		name = ui_item_name_add_colon(name, namestr);
+	}
 
 	/* create button */
 	block = uiLayoutGetBlock(layout);
@@ -2080,10 +2094,12 @@ void uiItemPopoverPanelFromGroup(
 
 	for (PanelType *pt = art->paneltypes.first; pt; pt = pt->next) {
 		/* Causes too many panels, check context. */
-		if (/* (*context == '\0') || */ STREQ(pt->context, context)) {
-			if ((*category == '\0') || STREQ(pt->category, category)) {
-				if (pt->poll == NULL || pt->poll(C, pt)) {
-					uiItemPopoverPanel_ptr(layout, C, pt, NULL, ICON_NONE);
+		if (pt->parent_id[0] == '\0') {
+			if (/* (*context == '\0') || */ STREQ(pt->context, context)) {
+				if ((*category == '\0') || STREQ(pt->category, category)) {
+					if (pt->poll == NULL || pt->poll(C, pt)) {
+						uiItemPopoverPanel_ptr(layout, C, pt, NULL, ICON_NONE);
+					}
 				}
 			}
 		}
@@ -4215,18 +4231,11 @@ void UI_menutype_draw(bContext *C, MenuType *mt, struct uiLayout *layout)
 	}
 }
 
-/**
- * Used for popup panels only.
- */
-void UI_paneltype_draw(bContext *C, PanelType *pt, uiLayout *layout)
+
+static void ui_paneltype_draw_impl(bContext *C, PanelType *pt, uiLayout *layout)
 {
 	Panel *panel = MEM_callocN(sizeof(Panel), "popover panel");
 	panel->type = pt;
-
-	if (layout->context) {
-		CTX_store_set(C, layout->context);
-	}
-
 	if (pt->draw_header) {
 		panel->layout = uiLayoutRow(layout, false);
 		pt->draw_header(C, panel);
@@ -4237,9 +4246,36 @@ void UI_paneltype_draw(bContext *C, PanelType *pt, uiLayout *layout)
 	pt->draw(C, panel);
 	panel->layout = NULL;
 
+	MEM_freeN(panel);
+
+	PanelType *pt_iter = pt;
+	while (pt_iter->prev) {
+		pt_iter = pt_iter->prev;
+	}
+	do {
+		if (pt_iter != pt && STREQ(pt_iter->parent_id, pt->idname)) {
+			if (pt_iter->poll == NULL || pt_iter->poll(C, pt_iter)) {
+				uiItemS(layout);
+				uiItemL(layout, pt_iter->label, ICON_NONE);
+				ui_paneltype_draw_impl(C, pt_iter, layout);
+			}
+		}
+	} while ((pt_iter = pt_iter->next));
+}
+
+/**
+ * Used for popup panels only.
+ */
+void UI_paneltype_draw(bContext *C, PanelType *pt, uiLayout *layout)
+{
+	if (layout->context) {
+		CTX_store_set(C, layout->context);
+	}
+
+	ui_paneltype_draw_impl(C, pt, layout);
+
 	if (layout->context) {
 		CTX_store_set(C, NULL);
 	}
 
-	MEM_freeN(panel);
 }

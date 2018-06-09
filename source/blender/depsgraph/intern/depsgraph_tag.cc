@@ -449,17 +449,7 @@ void deg_graph_node_tag_zero(Main *bmain, Depsgraph *graph, IDDepsNode *id_node)
 	GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, id_node->components)
 	{
 		if (comp_node->type == DEG_NODE_TYPE_ANIMATION) {
-			AnimData *adt = BKE_animdata_from_id(id);
-			/* NOTE: Animation data might be null if relations are tagged
-			 * for update.
-			 */
-			if (adt == NULL || (adt->recalc & ADT_RECALC_ANIM) == 0) {
-				/* If there is no animation, or animation is not tagged for
-				 * update yet, we don't force animation channel to be evaluated.
-				 */
-				continue;
-			}
-			id->recalc |= ID_RECALC_ANIMATION;
+			continue;
 		}
 		comp_node->tag_update(graph);
 	}
@@ -520,7 +510,7 @@ void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 	/* Make sure objects are up to date. */
 	foreach (DEG::IDDepsNode *id_node, graph->id_nodes) {
 		const ID_Type id_type = GS(id_node->id_orig->name);
-		int flag = DEG_TAG_TIME | DEG_TAG_COPY_ON_WRITE;
+		int flag = DEG_TAG_COPY_ON_WRITE;
 		/* We only tag components which needs an update. Tagging everything is
 		 * not a good idea because that might reset particles cache (or any
 		 * other type of cache).

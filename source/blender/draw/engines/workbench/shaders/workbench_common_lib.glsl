@@ -71,3 +71,24 @@ vec4 calculate_transparent_accum(vec4 premultiplied) {
 	float w = clamp(a * a * a * 1e8 * b * b * b, 1e-2, 3e2);
 	return premultiplied * w;
 }
+
+vec3 view_vector_from_screen_uv(vec2 uv, vec4 viewvecs[3], mat4 proj_mat)
+{
+	return (proj_mat[3][3] == 0.0)
+	             ? normalize(viewvecs[0].xyz + vec3(uv, 0.0) * viewvecs[1].xyz)
+	             : vec3(0.0, 0.0, 1.0);
+}
+
+vec2 matcap_uv_compute(vec3 I, vec3 N, bool flipped)
+{
+	/* Quick creation of an orthonormal basis */
+	float a = 1.0 / (1.0 + I.z);
+	float b = -I.x * I.y * a;
+	vec3 b1 = vec3(1.0 - I.x * I.x * a, b, -I.x);
+	vec3 b2 = vec3(b, 1.0 - I.y * I.y * a, -I.y);
+	vec2 matcap_uv = vec2(dot(b1, N), dot(b2, N));
+	if (flipped) {
+		matcap_uv.x = -matcap_uv.x;
+	}
+	return matcap_uv * 0.496 + 0.5;
+}

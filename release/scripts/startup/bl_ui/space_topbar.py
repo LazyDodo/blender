@@ -141,7 +141,7 @@ class TOPBAR_HT_lower_bar(Header):
         elif mode == 'POSE':
             pass
         elif mode == 'PARTICLE':
-            pass
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
 
     def draw_right(self, context):
         layout = self.layout
@@ -607,6 +607,11 @@ class INFO_MT_edit(Menu):
         layout.separator()
 
         layout.operator("ed.undo_history")
+
+        layout.separator()
+
+        layout.operator("screen.repeat_last")
+        layout.operator("screen.repeat_history")
 
         layout.separator()
 
