@@ -54,11 +54,12 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
+#include "ED_groom.h"
 #include "ED_object.h"
 #include "ED_screen.h"
+#include "ED_transform.h"
 #include "ED_util.h"
 #include "ED_view3d.h"
-#include "ED_groom.h"
 
 #include "UI_resources.h"
 #include "UI_interface.h"
@@ -199,7 +200,7 @@ void GROOM_OT_region_add(wmOperatorType *ot)
 
 /* GROOM_OT_region_remove */
 
-static int region_remove_exec(bContext *C, wmOperator *op)
+static int region_remove_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Object *ob = ED_object_context(C);
 	Groom *groom = ob->data;
@@ -298,4 +299,101 @@ void GROOM_OT_region_bind(wmOperatorType *ot)
 
 	RNA_def_boolean(ot->srna, "force_rebind", true, "Force Rebind",
 	                "Force rebinding of the groom region even if a binding already exists");
+}
+
+/* GROOM_OT_extrude_bundle */
+
+static void groom_bundle_extrude(const Depsgraph *depsgraph, const Groom *groom, GroomRegion *region)
+{
+	GroomBundle *bundle = &region->bundle;
+	const int numverts = region->numverts;
+	
+	bundle->totsections += 1;
+	bundle->sections = MEM_reallocN_id(bundle->sections, sizeof(GroomSection) * bundle->totsections, "groom bundle sections");
+	
+	GroomSection *new_section = &bundle->sections[bundle->totsections - 1];
+	if (bundle->totsections > 1)
+	{
+		/* Initialize by copying from the last section */
+		const GroomSection *prev_section = &bundle->sections[bundle->totsections - 2];
+		memcpy(new_section, prev_section, sizeof(GroomSection));
+		
+		bundle->totverts += numverts;
+		bundle->verts = MEM_reallocN_id(bundle->verts, sizeof(GroomSectionVertex) * bundle->totverts, "groom bundle vertices");
+		
+		GroomSectionVertex *new_verts = &bundle->verts[bundle->totverts - numverts];
+		const GroomSectionVertex *prev_verts = &bundle->verts[bundle->totverts - 2*numverts];
+		memcpy(new_verts, prev_verts, sizeof(GroomSectionVertex) * numverts);
+	}
+	else
+	{
+		const struct Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+		BKE_groom_calc_region_transform_on_scalp(region, scalp, new_section->center, new_section->mat);
+		
+		BKE_groom_region_reset_shape(depsgraph, groom, region);
+	}
+
+	{
+		/* Select the last section */
+		GroomSection *section = region->bundle.sections;
+		for (int i = 0; i < bundle->totsections - 1; ++i, ++section)
+		{
+			section->flag &= ~GM_SECTION_SELECT;
+		}
+		bundle->sections[bundle->totsections - 1].flag |= GM_SECTION_SELECT;
+	}
+}
+
+static int groom_extrude_bundle_poll(bContext *C)
+{
+	if (!ED_operator_editgroom(C))
+	{
+		return false;
+	}
+	
+	Scene *scene = CTX_data_scene(C);
+	if (scene->toolsettings->groom_edit_settings.mode != GM_EDIT_MODE_CURVES)
+	{
+		return false;
+	}
+	
+	return true;
+}
+
+static int groom_extrude_bundle_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Object *ob = ED_object_context(C);
+	Groom *groom = ob->data;
+	EditGroom *edit = groom->editgroom;
+	
+	for (GroomRegion *region = edit->regions.first; region; region = region->next)
+	{
+		if (region->flag & GM_REGION_SELECT)
+		{
+			groom_bundle_extrude(depsgraph, groom, region);
+		}
+	}
+	
+	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+
+	return OPERATOR_FINISHED;
+}
+
+void GROOM_OT_extrude_bundle(struct wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Extrude Bundle";
+	ot->idname = "GROOM_OT_extrude_bundle";
+	ot->description = "Extrude hair bundle";
+
+	/* api callbacks */
+	ot->exec = groom_extrude_bundle_exec;
+	ot->poll = groom_extrude_bundle_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	Transform_Properties(ot, P_NO_DEFAULTS);
 }

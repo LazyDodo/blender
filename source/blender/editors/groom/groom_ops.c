@@ -55,7 +55,9 @@ void ED_operatortypes_groom(void)
 	WM_operatortype_append(GROOM_OT_region_add);
 	WM_operatortype_append(GROOM_OT_region_remove);
 	WM_operatortype_append(GROOM_OT_region_bind);
-
+	
+	WM_operatortype_append(GROOM_OT_extrude_bundle);
+	
 	WM_operatortype_append(GROOM_OT_select_all);
 	
 	WM_operatortype_append(GROOM_OT_hair_distribute);
@@ -65,8 +67,13 @@ void ED_operatormacros_groom(void)
 {
 	wmOperatorType *ot;
 	wmOperatorTypeMacro *otmacro;
-
-	UNUSED_VARS(ot, otmacro);
+	
+	ot = WM_operatortype_append_macro("GROOM_OT_extrude_bundle_move", "Extrude Bundle and Move",
+	                                  "Extrude bundle and move result", OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "GROOM_OT_extrude_bundle");
+	otmacro = WM_operatortype_macro_define(ot, "TRANSFORM_OT_translate");
+	
+	UNUSED_VARS(otmacro);
 }
 
 void ED_keymap_groom(wmKeyConfig *keyconf)
@@ -81,6 +88,8 @@ void ED_keymap_groom(wmKeyConfig *keyconf)
 	RNA_enum_set(kmi->ptr, "action", SEL_TOGGLE);
 	kmi = WM_keymap_add_item(keymap, "GROOM_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	
+	kmi = WM_keymap_add_item(keymap, "GROOM_OT_extrude_bundle_move", EKEY, KM_PRESS, 0, 0);
 	
 	ED_keymap_proportional_cycle(keyconf, keymap);
 	ED_keymap_proportional_editmode(keyconf, keymap, true);
