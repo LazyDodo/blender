@@ -27,6 +27,7 @@
 #define __GPENCIL_ENGINE_H__
 
 #include "GPU_batch.h"
+#include "GPU_framebuffer.h"
 
 struct tGPspoint;
 struct bGPDstroke;
@@ -136,6 +137,8 @@ typedef struct GPENCIL_FramebufferList {
 	struct GPUFrameBuffer *main;
 	struct GPUFrameBuffer *temp_fb_a;
 	struct GPUFrameBuffer *painting_fb;
+
+	struct GPUFrameBuffer *multisample_fb;
 } GPENCIL_FramebufferList;
 
 typedef struct GPENCIL_TextureList {
@@ -199,8 +202,12 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *painting_depth_tx;
 	struct GPUTexture *painting_color_tx;
 
-	struct GPUTexture *gpencil_blank_texture;
+	/* multisample textures */
+	struct GPUTexture *multisample_color;
+	struct GPUTexture *multisample_depth;
 
+	struct GPUTexture *gpencil_blank_texture;
+	
 	/* runtime pointers texture */
 	struct GPUTexture *input_depth_tx;
 	struct GPUTexture *input_color_tx;
@@ -240,6 +247,8 @@ void DRW_gpencil_populate_buffer_strokes(struct GPENCIL_e_data *e_data, void *ve
 void DRW_gpencil_populate_multiedit(struct GPENCIL_e_data *e_data, void *vedata, struct Scene *scene, struct Object *ob, struct bGPdata *gpd);
 void DRW_gpencil_triangulate_stroke_fill(struct bGPDstroke *gps);
 
+void DRW_gpencil_multisample_ensure(struct GPENCIL_Data *vedata, int rect_w, int rect_h);
+
 /* create geometry functions */
 struct Gwn_Batch *DRW_gpencil_get_point_geom(struct bGPDstroke *gps, short thickness, const float ink[4]);
 struct Gwn_Batch *DRW_gpencil_get_stroke_geom(struct bGPDframe *gpf, struct bGPDstroke *gps, short thickness, const float ink[4]);
@@ -271,5 +280,25 @@ void GPENCIL_draw_scene(void *vedata);
 /* render */
 void GPENCIL_render_init(struct GPENCIL_Data *ved, struct RenderEngine *engine, struct Depsgraph *depsgraph);
 void GPENCIL_render_to_image(void *vedata, struct RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect);
+
+/* Use of multisample framebuffers. */
+#define MULTISAMPLE_GP_SYNC_ENABLE(lvl, fbl) { \
+	if ((lvl > 0) && (fbl->multisample_fb != NULL)) { \
+		DRW_stats_query_start("GP Multisample Blit"); \
+		GPU_framebuffer_bind(fbl->multisample_fb); \
+		/* TODO clear only depth but need to do alpha to coverage for transparencies. */ \
+		GPU_framebuffer_clear_color_depth(fbl->multisample_fb, (const float[4]){0.0f}, 1.0f); \
+		DRW_stats_query_end(); \
+	} \
+}
+
+#define MULTISAMPLE_GP_SYNC_DISABLE(lvl, fbl, fb, e_data) { \
+	if ((lvl > 0) && (fbl->multisample_fb != NULL)) { \
+		DRW_stats_query_start("GP Multisample Resolve"); \
+		GPU_framebuffer_bind(fb); \
+		DRW_multisamples_resolve(e_data.multisample_depth, e_data.multisample_color); \
+		DRW_stats_query_end(); \
+	} \
+}
 
 #endif /* __GPENCIL_ENGINE_H__ */

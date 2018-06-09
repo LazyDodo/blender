@@ -8630,6 +8630,11 @@ static void do_versions_userdef(FileData *fd, BlendFileData *bfd)
 		user->walk_navigation.jump_height = 0.4f;      /* m */
 		user->walk_navigation.teleport_time = 0.2f; /* s */
 	}
+
+	/* grease pencil multisamples */
+	if (!DNA_struct_elem_find(fd->filesdna, "UserDef", "short", "gpencil_multisamples")) {
+		user->gpencil_multisamples = 4;
+	}
 }
 
 static void do_versions(FileData *fd, Library *lib, Main *main)

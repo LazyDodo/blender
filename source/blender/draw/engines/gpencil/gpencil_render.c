@@ -39,28 +39,6 @@
 
 #include "gpencil_engine.h"
 
- /* create a multisample buffer if not present */
-static void DRW_framebuffer_multisample_ensure(DefaultFramebufferList *dfbl, DefaultTextureList *dtxl, int rect_w, int rect_h)
-{
-	if (U.ogl_multisamples > 0) {
-		if (!dfbl->multisample_fb) {
-			dfbl->multisample_fb = GPU_framebuffer_create();
-			if (dfbl->multisample_fb) {
-				dtxl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA8, NULL, U.ogl_multisamples, NULL);
-				dtxl->multisample_depth = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_DEPTH24_STENCIL8, NULL, U.ogl_multisamples, NULL);
-				GPU_framebuffer_ensure_config(&dfbl->multisample_fb, {
-					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_depth),
-					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_color)
-					});
-				if (!GPU_framebuffer_check_valid(dfbl->multisample_fb, NULL)) {
-					GPU_framebuffer_free(dfbl->multisample_fb);
-				}
-			}
-		}
-	}
-}
-
-
 /* Get pixel size for render
 * This function uses the same calculation used for viewport, because if use
 * camera pixelsize, the result is not correct.
@@ -99,14 +77,11 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 	* because there is no viewport. So we need to manually create one
 	* NOTE : use 32 bit format for precision in render mode.
 	*/
-	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
-	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-
 	/* create multiframe framebuffer for AA */
-	if (U.ogl_multisamples > 0) {
+	if (U.gpencil_multisamples > 0) {
 		int rect_w = (int)viewport_size[0];
 		int rect_h = (int)viewport_size[1];
-		DRW_framebuffer_multisample_ensure(dfbl, dtxl, rect_w, rect_h);
+		DRW_gpencil_multisample_ensure(vedata, rect_w, rect_h);
 	}
 
 	vedata->render_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
