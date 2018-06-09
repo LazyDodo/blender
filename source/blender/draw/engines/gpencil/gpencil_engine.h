@@ -206,7 +206,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *multisample_depth;
 
 	struct GPUTexture *gpencil_blank_texture;
-	
+
 	/* runtime pointers texture */
 	struct GPUTexture *input_depth_tx;
 	struct GPUTexture *input_color_tx;

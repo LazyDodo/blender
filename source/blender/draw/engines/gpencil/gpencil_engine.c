@@ -556,7 +556,9 @@ void GPENCIL_draw_scene(void *ved)
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+#if 0
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+#endif
 
 	int init_grp, end_grp;
 	tGPencilObjectCache *cache;

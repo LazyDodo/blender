@@ -1053,7 +1053,7 @@ static void gpencil_fill_exit(bContext *C, wmOperator *op)
 				}
 			}
 		}
-		
+
 		/* finally, free memory used by temp data */
 		MEM_freeN(tgpf);
 	}
