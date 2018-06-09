@@ -76,6 +76,7 @@ class DATA_PT_groom(DataButtonsPanel, Panel):
         split = layout.split()
 
         col = split.column()
+        col.alert = (groom.scalp_object is None)
         col.label("Scalp Object:")
         col.prop(groom, "scalp_object", "")
 
