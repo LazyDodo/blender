@@ -3,7 +3,6 @@ uniform mat4 ModelViewProjectionMatrix;
 uniform mat4 ModelMatrix;
 uniform mat4 ModelViewMatrix;
 uniform mat4 ModelViewMatrixInverse;
-uniform mat4 ProjectionMatrix;
 
 /* keep in sync with DRWManager.view_data */
 layout(std140) uniform clip_block {
