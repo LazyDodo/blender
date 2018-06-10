@@ -628,6 +628,20 @@ void BKE_groom_region_unbind(GroomRegion *region)
 
 /* === Constraints === */
 
+static void groom_eval_curve_step(float mat[3][3], const float mat_prev[3][3], const float co0[3], const float co1[3])
+{
+	float dir[3];
+	sub_v3_v3v3(dir, co1, co0);
+	normalize_v3(dir);
+	
+	float dir_prev[3];
+	normalize_v3_v3(dir_prev, mat_prev[2]);
+	float rot[3][3];
+	rotation_between_vecs_to_mat3(rot, dir_prev, dir);
+	
+	mul_m3_m3m3(mat, rot, mat_prev);
+}
+
 /* Apply constraints on groom geometry */
 void BKE_groom_apply_constraints(const Depsgraph *depsgraph, Groom *groom)
 {
@@ -642,6 +656,7 @@ void BKE_groom_apply_constraints(const Depsgraph *depsgraph, Groom *groom)
 		{
 			GroomSection *section = &bundle->sections[0];
 			
+			/* Calculate orientation of the first section */
 			if (scalp)
 			{
 				/* For bound regions the bundle should be attached to the scalp */
@@ -664,6 +679,18 @@ void BKE_groom_apply_constraints(const Depsgraph *depsgraph, Groom *groom)
 					unit_m3(section->mat);
 				}
 			}
+			++section;
+			
+			/* Calculate orientation for remaining sections */
+			for (int i = 1; i < bundle->totsections - 1; ++i)
+			{
+				/* Align interior points to average of prev and next segment */
+				groom_eval_curve_step(section->mat, section[-1].mat, section[-1].center, section[+1].center);
+				++section;
+			}
+			
+			/* align to last segment */
+			groom_eval_curve_step(section->mat, section[-1].mat, section[-1].center, section[0].center);
 		}
 	}
 }
@@ -1038,56 +1065,6 @@ static void groom_eval_shape_curves(
 	}
 }
 
-static void groom_eval_curve_step(float mat[3][3], const float mat_prev[3][3], const float co0[3], const float co1[3])
-{
-	float dir[3];
-	sub_v3_v3v3(dir, co1, co0);
-	normalize_v3(dir);
-	
-	float dir_prev[3];
-	normalize_v3_v3(dir_prev, mat_prev[2]);
-	float rot[3][3];
-	rotation_between_vecs_to_mat3(rot, dir_prev, dir);
-	
-	mul_m3_m3m3(mat, rot, mat_prev);
-}
-
-/* Computes rotation matrices for all but the first segment of a bundle */
-static void groom_eval_section_mats(GroomRegion *region, int curve_res)
-{
-	GroomBundle *bundle = &region->bundle;
-	const int curvesize = bundle->curvesize;
-	const int numshapeverts = region->numverts;
-	
-	GroomSection *section = bundle->sections;
-	/* last curve cache is center curve */
-	const GroomCurveCache *cache = bundle->curvecache + bundle->curvesize * numshapeverts;
-	
-	float mat[3][3];
-	/* initialize matrix */
-	copy_m3_m3(mat, section->mat);
-	++cache;
-	++section;
-	
-	for (int i = 1; i < curvesize - 1; ++i, ++cache)
-	{
-		/* align interior points to average of prev and next segment */
-		groom_eval_curve_step(mat, mat, cache[-1].co, cache[+1].co);
-		
-		if (i % curve_res == 0)
-		{
-			/* set section matrix */
-			copy_m3_m3(section->mat, mat);
-			++section;
-		}
-	}
-	
-	/* align to last segment */
-	groom_eval_curve_step(mat, mat, cache[-1].co, cache[0].co);
-	/* last section is not handled in the loop */
-	copy_m3_m3(section->mat, mat);
-}
-
 void BKE_groom_curve_cache_update(const Depsgraph *depsgraph, Groom *groom)
 {
 	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
@@ -1127,9 +1104,6 @@ void BKE_groom_curve_cache_update(const Depsgraph *depsgraph, Groom *groom)
 		
 		/* Calculate center curve */
 		groom_eval_center_curve_section(region, curve_res);
-		
-		/* Calculate coordinate frames for sections */
-		groom_eval_section_mats(region, curve_res);
 		
 		/* Calculate shape curves */
 		groom_eval_shape_curves(region, scalp, curve_res);
