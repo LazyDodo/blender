@@ -951,7 +951,7 @@ static const EnumPropertyItem *rna_SpaceImageEditor_draw_channels_itemf(
 	void *lock;
 	int zbuf, alpha, totitem = 0;
 
-	ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
 	alpha = ibuf && (ibuf->channels == 4);
 	zbuf = ibuf && (ibuf->zbuf || ibuf->zbuf_float || (ibuf->channels == 1));
@@ -1056,7 +1056,8 @@ static void rna_SpaceImageEditor_scopes_update(struct bContext *C, struct Pointe
 	ImBuf *ibuf;
 	void *lock;
 
-	ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	/* TODO(lukas): Support tiles in scopes? */
+	ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 	if (ibuf) {
 		ED_space_image_scopes_update(C, sima, ibuf, true);
 		WM_main_add_notifier(NC_IMAGE, sima->image);

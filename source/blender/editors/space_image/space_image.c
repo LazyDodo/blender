@@ -926,7 +926,8 @@ static void image_tools_region_draw(const bContext *C, ARegion *ar)
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Scene *scene = CTX_data_scene(C);
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	/* TODO(lukas): Support tiles in scopes? */
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 	/* XXX performance regression if name of scopes category changes! */
 	PanelCategoryStack *category = UI_panel_category_active_find(ar, "Scopes");
 

@@ -104,7 +104,7 @@ void ED_space_image_set_mask(bContext *C, SpaceImage *sima, Mask *mask)
 	}
 }
 
-ImBuf *ED_space_image_acquire_buffer(SpaceImage *sima, void **r_lock)
+ImBuf *ED_space_image_acquire_buffer(SpaceImage *sima, void **r_lock, int tile)
 {
 	ImBuf *ibuf;
 
@@ -114,7 +114,9 @@ ImBuf *ED_space_image_acquire_buffer(SpaceImage *sima, void **r_lock)
 			return BIF_render_spare_imbuf();
 		else
 #endif
+		sima->iuser.tile = tile;
 		ibuf = BKE_image_acquire_ibuf(sima->image, &sima->iuser, r_lock);
+		sima->iuser.tile = 0;
 
 		if (ibuf) {
 			if (ibuf->rect || ibuf->rect_float)
@@ -141,7 +143,7 @@ bool ED_space_image_has_buffer(SpaceImage *sima)
 	void *lock;
 	bool has_buffer;
 
-	ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 	has_buffer = (ibuf != NULL);
 	ED_space_image_release_buffer(sima, ibuf, lock);
 
@@ -154,7 +156,8 @@ void ED_space_image_get_size(SpaceImage *sima, int *width, int *height)
 	ImBuf *ibuf;
 	void *lock;
 
-	ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	/* TODO(lukas): Support UDIMs with different sizes */
+	ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
 	if (ibuf && ibuf->x > 0 && ibuf->y > 0) {
 		*width = ibuf->x;

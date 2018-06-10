@@ -226,7 +226,8 @@ static int space_image_file_exists_poll(bContext *C)
 		bool ret = false;
 		char name[FILE_MAX];
 
-		ibuf = ED_space_image_acquire_buffer(sima, &lock);
+		/* TODO(lukas): Saving UDIMs */
+		ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 		if (ibuf) {
 			BLI_strncpy(name, ibuf->name, FILE_MAX);
 			BLI_path_abs(name, BKE_main_blendfile_path(bmain));
@@ -1695,7 +1696,8 @@ static int save_image_options_init(Main *bmain, SaveImageOptions *simopts, Space
                                    const bool guess_path, const bool save_as_render)
 {
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	/* TODO(lukas): Saving UDIMs */
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
 	if (ibuf) {
 		Image *ima = sima->image;
@@ -1880,7 +1882,8 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 {
 	Image *ima = ED_space_image(sima);
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	/* TODO(lukas): Saving UDIMs */
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 	Scene *scene;
 	RenderResult *rr = NULL;
 	bool ok = false;
@@ -2979,20 +2982,40 @@ static void image_sample_draw(const bContext *C, ARegion *ar, void *arg_info)
 	}
 }
 
+static int image_get_position(SpaceImage *sima, ARegion *ar, const int mval[2], float *fx, float *fy)
+{
+	UI_view2d_region_to_view(&ar->v2d, mval[0], mval[1], fx, fy);
+
+	/* If the image has tiles, shift the positions accordingly. */
+
+	Image *image = ED_space_image(sima);
+	if (!image || image->source != IMA_SRC_UDIM) {
+		return 0;
+	}
+
+	/* Determine the tile in which the sample lies. */
+	int ix = (int) *fx, iy = max_ii(0, (int) *fy);
+	CLAMP(ix, 0, 9);
+
+	*fx -= ix;
+	*fy -= iy;
+	return 10*iy + ix;
+}
+
 /* Returns color in linear space, matching ED_space_node_color_sample(). */
 bool ED_space_image_color_sample(SpaceImage *sima, ARegion *ar, int mval[2], float r_col[3])
 {
-	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
 	float fx, fy;
+	int tile = image_get_position(sima, ar, mval, &fx, &fy);
+
+	void *lock;
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
 	bool ret = false;
 
 	if (ibuf == NULL) {
 		ED_space_image_release_buffer(sima, ibuf, lock);
 		return false;
 	}
-
-	UI_view2d_region_to_view(&ar->v2d, mval[0], mval[1], &fx, &fy);
 
 	if (fx >= 0.0f && fy >= 0.0f && fx < 1.0f && fy < 1.0f) {
 		const float *fp;
@@ -3023,10 +3046,14 @@ static void image_sample_apply(bContext *C, wmOperator *op, const wmEvent *event
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	ARegion *ar = CTX_wm_region(C);
-	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
-	ImageSampleInfo *info = op->customdata;
+	Image *image = ED_space_image(sima);
+
 	float fx, fy;
+	int tile = image_get_position(sima, ar, event->mval, &fx, &fy);
+
+	void *lock;
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
+	ImageSampleInfo *info = op->customdata;
 	Scene *scene = CTX_data_scene(C);
 	CurveMapping *curve_mapping = scene->view_settings.curve_mapping;
 
@@ -3036,13 +3063,10 @@ static void image_sample_apply(bContext *C, wmOperator *op, const wmEvent *event
 		return;
 	}
 
-	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &fx, &fy);
-
 	if (fx >= 0.0f && fy >= 0.0f && fx < 1.0f && fy < 1.0f) {
 		const float *fp;
 		unsigned char *cp;
 		int x = (int)(fx * ibuf->x), y = (int)(fy * ibuf->y);
-		Image *image = ED_space_image(sima);
 
 		CLAMP(x, 0, ibuf->x - 1);
 		CLAMP(y, 0, ibuf->y - 1);
@@ -3250,11 +3274,28 @@ static int image_sample_line_exec(bContext *C, wmOperator *op)
 	int x_end = RNA_int_get(op->ptr, "xend");
 	int y_end = RNA_int_get(op->ptr, "yend");
 
-	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
-	Histogram *hist = &sima->sample_line_hist;
-
 	float x1f, y1f, x2f, y2f;
+	UI_view2d_region_to_view(&ar->v2d, x_start, y_start, &x1f, &y1f);
+	UI_view2d_region_to_view(&ar->v2d, x_end, y_end, &x2f, &y2f);
+
+	/* If the image has tiles, shift the positions accordingly. */
+	Image *image = ED_space_image(sima);
+	int tile = 0, ix = 0, iy = 0;
+	if (image && image->source == IMA_SRC_UDIM) {
+		ix = (int) x1f;
+		iy = (int) y1f;
+		CLAMP(ix, 0, 9);
+
+		x1f -= ix;
+		x2f -= ix;
+		y1f -= iy;
+		y2f -= iy;
+		tile = 10*iy + ix;
+	}
+
+	void *lock;
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
+	Histogram *hist = &sima->sample_line_hist;
 
 	if (ibuf == NULL) {
 		ED_space_image_release_buffer(sima, ibuf, lock);
@@ -3266,13 +3307,12 @@ static int image_sample_line_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	UI_view2d_region_to_view(&ar->v2d, x_start, y_start, &x1f, &y1f);
-	UI_view2d_region_to_view(&ar->v2d, x_end, y_end, &x2f, &y2f);
-
 	hist->co[0][0] = x1f;
 	hist->co[0][1] = y1f;
 	hist->co[1][0] = x2f;
 	hist->co[1][1] = y2f;
+	hist->draw_offset[0] = ix;
+	hist->draw_offset[1] = iy;
 
 	/* enable line drawing */
 	hist->flag |= HISTO_FLAG_SAMPLELINE;

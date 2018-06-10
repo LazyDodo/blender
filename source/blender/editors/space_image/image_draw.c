@@ -585,9 +585,13 @@ void draw_image_sample_line(SpaceImage *sima)
 		immUniformArray4fv("colors", (float *)(float[][4]){{1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 1.0f}}, 2);
 		immUniform1f("dash_width", 2.0f);
 
+		float co[2][2];
+		add_v2_v2v2(co[0], hist->co[0], hist->draw_offset);
+		add_v2_v2v2(co[1], hist->co[1], hist->draw_offset);
+
 		immBegin(GWN_PRIM_LINES, 2);
-		immVertex2fv(shdr_dashed_pos, hist->co[0]);
-		immVertex2fv(shdr_dashed_pos, hist->co[1]);
+		immVertex2fv(shdr_dashed_pos, co[0]);
+		immVertex2fv(shdr_dashed_pos, co[1]);
 		immEnd();
 
 		immUnbindProgram();
@@ -766,7 +770,7 @@ void draw_image_main(const bContext *C, ARegion *ar)
 			BKE_image_multiview_index(ima, &sima->iuser);
 	}
 
-	ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
 	/* draw the image or grid */
 	if (ibuf == NULL) {
@@ -795,9 +799,7 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	if (ima && ima->source == IMA_SRC_UDIM) {
 		for (int t = 1; t < ima->num_tiles; t++) {
-			sima->iuser.tile = t;
-
-			ibuf = ED_space_image_acquire_buffer(sima, &lock);
+			ibuf = ED_space_image_acquire_buffer(sima, &lock, t);
 			if (ibuf) {
 				int x_pos = t%10;
 				int y_pos = t/10;
@@ -805,7 +807,6 @@ void draw_image_main(const bContext *C, ARegion *ar)
 			}
 			ED_space_image_release_buffer(sima, ibuf, lock);
 		}
-		sima->iuser.tile = 0;
 		draw_image_udim_grid(ar, sima, zoomx, zoomy, false);
 	}
 
