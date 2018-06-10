@@ -632,6 +632,81 @@ static void draw_image_paint_helpers(const bContext *C, ARegion *ar, Scene *scen
 	}
 }
 
+static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, float zoomy, bool draw_tilegrids)
+{
+    Image *ima = ED_space_image(sima);
+
+	int num_col = max_ii(ima->num_tiles, 10);
+	int num_row = 1 + (ima->num_tiles / 10);
+
+    const int xmin = MAX2(floor(ar->v2d.cur.xmin), 0);
+    const int ymin = MAX2(floor(ar->v2d.cur.ymin), 0);
+    const int xmax = MIN2(ceil(ar->v2d.cur.xmax), num_col);
+    const int ymax = MIN2(ceil(ar->v2d.cur.ymax), num_row);
+
+    float stepx = BLI_rcti_size_x(&ar->v2d.mask) / BLI_rctf_size_x(&ar->v2d.cur);
+    float stepy = BLI_rcti_size_y(&ar->v2d.mask) / BLI_rctf_size_y(&ar->v2d.cur);
+
+    float x1, y1;
+    UI_view2d_view_to_region_fl(&ar->v2d, 0.0f, 0.0f, &x1, &y1);
+
+    if (draw_tilegrids) {
+        for (int y = ymin; y < ymax; y++) {
+            for (int x = xmin; x < xmax; x++) {
+                ED_region_grid_draw(ar, zoomx, zoomy, x, y);
+            }
+        }
+    }
+
+	Gwn_VertFormat *format = immVertexFormat();
+	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	unsigned color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+
+	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
+	immBegin(GWN_PRIM_LINES, 4 * (xmax - xmin + 1) + 4 * (ymax - ymin + 1));
+	float theme_color[3];
+	UI_GetThemeColorShade3fv(TH_BACK, 20.0f, theme_color);
+
+    for (int x = xmin; x <= xmax; x++) {
+		immAttrib3fv(color, theme_color);
+		immVertex2f(pos, x1 + x*stepx, y1 + ymin*stepy);
+		immAttrib3fv(color, theme_color);
+		immVertex2f(pos, x1 + x*stepx, y1 + ymax*stepy);
+    }
+    for (int y = ymin; y <= ymax; y++) {
+		immAttrib3fv(color, theme_color);
+		immVertex2f(pos, x1 + xmin*stepx, y1 + y*stepy);
+		immAttrib3fv(color, theme_color);
+		immVertex2f(pos, x1 + xmax*stepx, y1 + y*stepy);
+    }
+
+	immEnd();
+	immUnbindProgram();
+
+	glEnable(GL_BLEND);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    BLF_size(blf_mono_font, 25 * U.pixelsize, U.dpi);
+
+    char id[256];
+    for (int y = ymin; y < ymax; y++) {
+        for (int x = xmin; x < xmax; x++) {
+            BLI_snprintf(id, sizeof(id), "%d", 1001 + y*10 + x);
+            int textwidth = BLF_width(blf_mono_font, id, sizeof(id)) + 10;
+            float opacity;
+            if (textwidth < 0.5f*(stepx - 10)) opacity = 1.0f;
+            else if (textwidth < (stepx - 10)) opacity = 2.0f - 2.0f*(textwidth / (stepx - 10));
+            else opacity = 0.0f;
+			BLF_color4ub(blf_mono_font, 220, 220, 220, 150*opacity);
+            BLF_position(blf_mono_font, (int) (x1 + x*stepx + 10), (int) (y1 + y*stepy + 10), 0);
+            BLF_draw_ascii(blf_mono_font, id, sizeof(id));
+        }
+    }
+
+	glDisable(GL_BLEND);
+
+    return true;
+}
+
 /* draw main image region */
 
 void draw_image_main(const bContext *C, ARegion *ar)
@@ -695,7 +770,12 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	/* draw the image or grid */
 	if (ibuf == NULL) {
-		ED_region_grid_draw(ar, zoomx, zoomy);
+		if (ima && ima->source == IMA_SRC_UDIM) {
+			draw_image_udim_grid(ar, sima, zoomx, zoomy, true);
+		}
+		else {
+			ED_region_grid_draw(ar, zoomx, zoomy, 0.0f, 0.0f);
+		}
 	}
 	else {
 		draw_image_buffer(C, sima, ar, scene, ibuf, 0.0f, 0.0f, zoomx, zoomy);
@@ -726,6 +806,7 @@ void draw_image_main(const bContext *C, ARegion *ar)
 			ED_space_image_release_buffer(sima, ibuf, lock);
 		}
 		sima->iuser.tile = 0;
+		draw_image_udim_grid(ar, sima, zoomx, zoomy, false);
 	}
 
 	/* paint helpers */
