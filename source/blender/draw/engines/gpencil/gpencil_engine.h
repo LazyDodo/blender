@@ -103,6 +103,7 @@ typedef struct GPENCIL_Storage {
 	const float *pixsize;
 	float render_pixsize;
 	int tonemapping;
+	short multisamples;
 
 	/* simplify settings*/
 	bool simplify_fill;
@@ -285,7 +286,6 @@ void GPENCIL_render_to_image(void *vedata, struct RenderEngine *engine, struct R
 	if ((lvl > 0) && (fbl->multisample_fb != NULL)) { \
 		DRW_stats_query_start("GP Multisample Blit"); \
 		GPU_framebuffer_bind(fbl->multisample_fb); \
-		/* TODO clear only depth but need to do alpha to coverage for transparencies. */ \
 		GPU_framebuffer_clear_color_depth(fbl->multisample_fb, (const float[4]){0.0f}, 1.0f); \
 		DRW_stats_query_end(); \
 	} \
