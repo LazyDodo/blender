@@ -183,7 +183,7 @@ void BKE_hair_batch_cache_free(HairSystem* hsys)
 /* === Fiber Curve Interpolation === */
 
 /* NOTE: Keep this code in sync with the GLSL version!
- * see hair_lib.glsl
+ * see common_hair_guides_lib.glsl
  */
 
 static void interpolate_parent_curve(

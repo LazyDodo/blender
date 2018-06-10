@@ -60,6 +60,7 @@ static GPUShader *g_refine_shaders[PART_REFINE_MAX_SHADER] = {NULL};
 static DRWPass *g_tf_pass; /* XXX can be a problem with mulitple DRWManager in the future */
 
 extern char datatoc_common_hair_lib_glsl[];
+extern char datatoc_common_hair_guides_lib_glsl[];
 extern char datatoc_common_hair_refine_vert_glsl[];
 
 static GPUShader *hair_refine_shader_get(ParticleRefineShader sh)

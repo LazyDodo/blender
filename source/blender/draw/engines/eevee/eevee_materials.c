@@ -94,6 +94,7 @@ extern char datatoc_bsdf_direct_lib_glsl[];
 extern char datatoc_bsdf_sampling_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
 extern char datatoc_common_hair_lib_glsl[];
+extern char datatoc_common_hair_guides_lib_glsl[];
 extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_irradiance_lib_glsl[];
 extern char datatoc_octahedron_lib_glsl[];
@@ -110,7 +111,6 @@ extern char datatoc_volumetric_vert_glsl[];
 extern char datatoc_volumetric_geom_glsl[];
 extern char datatoc_volumetric_frag_glsl[];
 extern char datatoc_volumetric_lib_glsl[];
-extern char datatoc_hair_lib_glsl[];
 
 extern char datatoc_gpu_shader_uniform_color_frag_glsl[];
 
@@ -593,7 +593,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		e_data.vert_shader_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_hair_lib_glsl,
-		        datatoc_hair_lib_glsl,
+		        datatoc_common_hair_guides_lib_glsl,
 		        datatoc_lit_surface_vert_glsl);
 
 		e_data.default_background = DRW_shader_create(
@@ -615,7 +615,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		char *hair_fiber_vert_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_hair_lib_glsl,
-		        datatoc_hair_lib_glsl,
+		        datatoc_common_hair_guides_lib_glsl,
 		        datatoc_prepass_vert_glsl);
 
 		e_data.default_prepass_hair_fiber_sh = DRW_shader_create(
