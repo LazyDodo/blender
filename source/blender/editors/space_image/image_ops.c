@@ -45,6 +45,8 @@
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
 #include "BLI_string_utf8.h"
+#include "BLI_fileops.h"
+#include "BLI_fileops_types.h"
 
 #include "BLT_translation.h"
 
@@ -1151,6 +1153,50 @@ static int image_cmp_frame(const void *a, const void *b)
 	return 0;
 }
 
+static int image_get_udim(const char *filepath)
+{
+	if (strstr(filepath, "1001") == NULL) {
+		return 0;
+	}
+
+	char filename[FILE_MAX], dirname[FILE_MAXDIR];
+	BLI_split_dirfile(filepath, dirname, filename, sizeof(dirname), sizeof(filename));
+
+	bool is_udim = true;
+	int max_udim = 0;
+
+	unsigned short digits;
+	char base_head[FILE_MAX], base_tail[FILE_MAX];
+	int id = BLI_stringdec(filename, base_head, base_tail, &digits);
+	if (id == 1001) {
+		struct direntry *dir;
+		uint totfile = BLI_filelist_dir_contents(dirname, &dir);
+		for (int i = 0; i < totfile; i++) {
+			if (!(dir[i].type & S_IFREG)) {
+				continue;
+			}
+			char head[FILE_MAX], tail[FILE_MAX];
+			id = BLI_stringdec(dir[i].relname, head, tail, &digits);
+
+			if (digits > 4 ||
+				!(STREQLEN(base_head, head, FILE_MAX)) ||
+				!(STREQLEN(base_tail, tail, FILE_MAX))) {
+				continue;
+			}
+
+			if (id < 1001 || id >= 2000) {
+				is_udim = false;
+				break;
+			}
+			max_udim = max_ii(max_udim, id);
+		}
+
+		BLI_filelist_free(dir, totfile);
+	}
+
+	return is_udim? (max_udim - 1001) : 0;
+}
+
 /**
  * Return the start (offset) and the length of the sequence of continuous frames in the list of frames
  *
@@ -1158,21 +1204,27 @@ static int image_cmp_frame(const void *a, const void *b)
  * \param ofs: [out] offset the first frame number in the sequence.
  * \return the number of contiguous frames in the sequence
  */
-static int image_sequence_get_len(ListBase *frames, int *ofs)
+static int image_sequence_get_len(ImageFrameRange *frame_range, int *ofs, bool do_udim)
 {
 	ImageFrame *frame;
 
-	BLI_listbase_sort(frames, image_cmp_frame);
+	BLI_listbase_sort(&frame_range->frames, image_cmp_frame);
 
-	frame = frames->first;
+	frame = frame_range->frames.first;
 	if (frame) {
 		int frame_curr = frame->framenr;
 		(*ofs) = frame_curr;
-		while (frame && (frame->framenr == frame_curr)) {
-			frame_curr++;
-			frame = frame->next;
+
+		if (do_udim && (frame_curr == 1001)) {
+			return 1 + image_get_udim(frame_range->filepath);
 		}
-		return frame_curr - (*ofs);
+		else {
+			while (frame && (frame->framenr == frame_curr)) {
+				frame_curr++;
+				frame = frame->next;
+			}
+			return frame_curr - (*ofs);
+		}
 	}
 	*ofs = 0;
 	return 0;
@@ -1246,6 +1298,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 
 	const bool is_relative_path = RNA_boolean_get(op->ptr, "relative_path");
 	const bool use_multiview    = RNA_boolean_get(op->ptr, "use_multiview");
+	const bool use_udim         = RNA_boolean_get(op->ptr, "use_udim");
 
 	if (!op->customdata)
 		image_open_init(C, op);
@@ -1262,7 +1315,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		image_sequence_get_frame_ranges(op->ptr, &frame_ranges_all);
 		for (ImageFrameRange *frame_range = frame_ranges_all.first; frame_range; frame_range = frame_range->next) {
 			int frame_range_ofs;
-			int frame_range_seq_len = image_sequence_get_len(&frame_range->frames, &frame_range_ofs);
+			int frame_range_seq_len = image_sequence_get_len(frame_range, &frame_range_ofs, use_udim);
 			BLI_freelistN(&frame_range->frames);
 
 			char filepath_range[FILE_MAX];
@@ -1286,10 +1339,14 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		BLI_freelistN(&frame_ranges_all);
 	}
 	else {
+		int sequence_len = 1;
+		if (use_udim) {
+			sequence_len = image_get_udim(filepath);
+		}
 		/* for drag & drop etc. */
 		ima = image_open_single(
 		        op, filepath, BKE_main_blendfile_path(bmain),
-		        is_relative_path, use_multiview, 1, 0);
+		        is_relative_path, use_multiview, 1, sequence_len);
 	}
 
 	if (ima == NULL) {
@@ -1472,6 +1529,7 @@ void IMAGE_OT_open(wmOperatorType *ot)
 
 	RNA_def_boolean(ot->srna, "use_sequence_detection", true, "Detect Sequences",
 	                "Automatically detect animated sequences in selected images (based on file names)");
+	RNA_def_boolean(ot->srna, "use_udim", true, "Detect UDIMs", "Detect selected UDIM files and load all matching tiles");
 }
 
 /******************** Match movie length operator ********************/
