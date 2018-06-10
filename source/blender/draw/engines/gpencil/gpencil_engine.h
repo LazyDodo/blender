@@ -143,6 +143,11 @@ typedef struct GPENCIL_FramebufferList {
 
 typedef struct GPENCIL_TextureList {
 	struct GPUTexture *texture;
+
+	/* multisample textures */
+	struct GPUTexture *multisample_color;
+	struct GPUTexture *multisample_depth;
+
 } GPENCIL_TextureList;
 
 typedef struct GPENCIL_Data {
@@ -201,10 +206,6 @@ typedef struct GPENCIL_e_data {
 	/* textures */
 	struct GPUTexture *painting_depth_tx;
 	struct GPUTexture *painting_color_tx;
-
-	/* multisample textures */
-	struct GPUTexture *multisample_color;
-	struct GPUTexture *multisample_depth;
 
 	struct GPUTexture *gpencil_blank_texture;
 
@@ -291,11 +292,11 @@ void GPENCIL_render_to_image(void *vedata, struct RenderEngine *engine, struct R
 	} \
 }
 
-#define MULTISAMPLE_GP_SYNC_DISABLE(lvl, fbl, fb, e_data) { \
+#define MULTISAMPLE_GP_SYNC_DISABLE(lvl, fbl, fb, dtxl) { \
 	if ((lvl > 0) && (fbl->multisample_fb != NULL)) { \
 		DRW_stats_query_start("GP Multisample Resolve"); \
 		GPU_framebuffer_bind(fb); \
-		DRW_multisamples_resolve(e_data.multisample_depth, e_data.multisample_color); \
+		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color); \
 		DRW_stats_query_end(); \
 	} \
 }
