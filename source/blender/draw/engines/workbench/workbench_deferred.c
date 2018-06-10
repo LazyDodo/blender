@@ -32,9 +32,11 @@
 #include "BLI_utildefines.h"
 #include "BLI_rand.h"
 
+#include "BKE_groom.h"
 #include "BKE_node.h"
 #include "BKE_particle.h"
 
+#include "DNA_groom_types.h"
 #include "DNA_image_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
@@ -85,6 +87,7 @@ static struct {
 
 /* Shaders */
 extern char datatoc_common_hair_lib_glsl[];
+extern char datatoc_hair_lib_glsl[];
 
 extern char datatoc_workbench_prepass_vert_glsl[];
 extern char datatoc_workbench_prepass_frag_glsl[];
@@ -149,6 +152,7 @@ static char *workbench_build_prepass_vert(void)
 	DynStr *ds = BLI_dynstr_new();
 
 	BLI_dynstr_append(ds, datatoc_common_hair_lib_glsl);
+	BLI_dynstr_append(ds, datatoc_hair_lib_glsl);
 	BLI_dynstr_append(ds, datatoc_workbench_prepass_vert_glsl);
 
 	str = BLI_dynstr_get_cstring(ds);
@@ -171,17 +175,17 @@ static char *workbench_build_cavity_frag(void)
 	return str;
 }
 
-static void ensure_deferred_shaders(WORKBENCH_PrivateData *wpd, int index, int drawtype, bool is_hair)
+static void ensure_deferred_shaders(WORKBENCH_PrivateData *wpd, int index, int drawtype, DRWShaderHairType hair_type)
 {
 	if (e_data.prepass_sh_cache[index] == NULL) {
-		char *defines = workbench_material_build_defines(wpd, drawtype, is_hair);
+		char *defines = workbench_material_build_defines(wpd, drawtype, hair_type);
 		char *composite_frag = workbench_build_composite_frag(wpd);
 		char *prepass_vert = workbench_build_prepass_vert();
 		char *prepass_frag = workbench_build_prepass_frag();
 		e_data.prepass_sh_cache[index] = DRW_shader_create(
 		        prepass_vert, NULL,
 		        prepass_frag, defines);
-		if (drawtype == OB_SOLID && !is_hair) {
+		if (drawtype == OB_SOLID && hair_type == DRW_SHADER_HAIR_NONE) {
 			e_data.composite_sh_cache[index] = DRW_shader_create_fullscreen(composite_frag, defines);
 		}
 		MEM_freeN(prepass_vert);
@@ -193,20 +197,26 @@ static void ensure_deferred_shaders(WORKBENCH_PrivateData *wpd, int index, int d
 
 static void select_deferred_shaders(WORKBENCH_PrivateData *wpd)
 {
-	int index_solid = workbench_material_get_shader_index(wpd, OB_SOLID, false);
-	int index_solid_hair = workbench_material_get_shader_index(wpd, OB_SOLID, true);
-	int index_texture = workbench_material_get_shader_index(wpd, OB_TEXTURE, false);
-	int index_texture_hair = workbench_material_get_shader_index(wpd, OB_TEXTURE, true);
+	int index_solid = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_NONE);
+	int index_solid_hair = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_PARTICLES);
+	int index_solid_hair_fibers = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_FIBERS);
+	int index_texture = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_NONE);
+	int index_texture_hair = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_PARTICLES);
+	int index_texture_hair_fibers = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_FIBERS);
 
-	ensure_deferred_shaders(wpd, index_solid, OB_SOLID, false);
-	ensure_deferred_shaders(wpd, index_solid_hair, OB_SOLID, true);
-	ensure_deferred_shaders(wpd, index_texture, OB_TEXTURE, false);
-	ensure_deferred_shaders(wpd, index_texture_hair, OB_TEXTURE, true);
+	ensure_deferred_shaders(wpd, index_solid, OB_SOLID, DRW_SHADER_HAIR_NONE);
+	ensure_deferred_shaders(wpd, index_solid_hair, OB_SOLID, DRW_SHADER_HAIR_PARTICLES);
+	ensure_deferred_shaders(wpd, index_solid_hair_fibers, OB_SOLID, DRW_SHADER_HAIR_FIBERS);
+	ensure_deferred_shaders(wpd, index_texture, OB_TEXTURE, DRW_SHADER_HAIR_NONE);
+	ensure_deferred_shaders(wpd, index_texture_hair, OB_TEXTURE, DRW_SHADER_HAIR_PARTICLES);
+	ensure_deferred_shaders(wpd, index_texture_hair_fibers, OB_TEXTURE, DRW_SHADER_HAIR_FIBERS);
 
 	wpd->prepass_solid_sh = e_data.prepass_sh_cache[index_solid];
 	wpd->prepass_solid_hair_sh = e_data.prepass_sh_cache[index_solid_hair];
+	wpd->prepass_solid_hair_fibers_sh = e_data.prepass_sh_cache[index_solid_hair_fibers];
 	wpd->prepass_texture_sh = e_data.prepass_sh_cache[index_texture];
 	wpd->prepass_texture_hair_sh = e_data.prepass_sh_cache[index_texture_hair];
+	wpd->prepass_texture_hair_fibers_sh = e_data.prepass_sh_cache[index_texture_hair_fibers];
 	wpd->composite_sh = e_data.composite_sh_cache[index_solid];
 }
 
@@ -656,6 +666,47 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 	}
 }
 
+static void workbench_cache_populate_groom(WORKBENCH_Data *vedata, Object *ob)
+{
+	const Groom *groom = ob->data;
+	WORKBENCH_StorageList *stl = vedata->stl;
+	WORKBENCH_PassList *psl = vedata->psl;
+	WORKBENCH_PrivateData *wpd = stl->g_data;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	
+	Image *image = NULL;
+	Material *mat = give_current_material(ob, groom->material_index);
+	int mat_drawtype = OB_SOLID;
+
+	if (wpd->drawtype == OB_TEXTURE) {
+		ED_object_get_active_image(ob, groom->material_index, &image, NULL, NULL, NULL);
+		/* use OB_SOLID when no texture could be determined */
+		if (image) {
+			mat_drawtype = OB_TEXTURE;
+		}
+	}
+	
+	WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, mat_drawtype);
+	struct GPUShader *shader = (mat_drawtype == OB_SOLID)
+	                           ? wpd->prepass_solid_hair_fibers_sh
+	                           : wpd->prepass_texture_hair_fibers_sh;
+
+	struct Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
+
+	DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(
+	                             draw_ctx->scene, ob, groom->hair_system, scalp,
+	                             psl->prepass_hair_pass,
+	                             shader);
+
+	DRW_shgroup_stencil_mask(shgrp, 0xFF);
+	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
+	DRW_shgroup_uniform_block(shgrp, "material_block", material->material_ubo);
+	if (image) {
+		GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, false, false);
+		DRW_shgroup_uniform_texture(shgrp, "image", tex);
+	}
+}
+
 void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 {
 	WORKBENCH_StorageList *stl = vedata->stl;
@@ -666,6 +717,9 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 
 	if (ob->type == OB_MESH) {
 		workbench_cache_populate_particles(vedata, ob);
+	}
+	if (ob->type == OB_GROOM) {
+		workbench_cache_populate_groom(vedata, ob);
 	}
 
 	if (!DRW_check_object_visible_within_active_context(ob)) {

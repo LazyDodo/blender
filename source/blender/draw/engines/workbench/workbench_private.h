@@ -38,7 +38,7 @@
 
 #define WORKBENCH_ENGINE "BLENDER_WORKBENCH"
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
-#define MAX_SHADERS (1 << 10)
+#define MAX_SHADERS (1 << 11)
 
 #define OB_SOLID_ENABLED(wpd) (wpd->drawtype & OB_SOLID)
 #define OB_TEXTURE_ENABLED(wpd) (wpd->drawtype & OB_TEXTURE)
@@ -145,13 +145,17 @@ typedef struct WORKBENCH_PrivateData {
 	struct GHash *material_hash;
 	struct GPUShader *prepass_solid_sh;
 	struct GPUShader *prepass_solid_hair_sh;
+	struct GPUShader *prepass_solid_hair_fibers_sh;
 	struct GPUShader *prepass_texture_sh;
 	struct GPUShader *prepass_texture_hair_sh;
+	struct GPUShader *prepass_texture_hair_fibers_sh;
 	struct GPUShader *composite_sh;
 	struct GPUShader *transparent_accum_sh;
 	struct GPUShader *transparent_accum_hair_sh;
+	struct GPUShader *transparent_accum_hair_fibers_sh;
 	struct GPUShader *transparent_accum_texture_sh;
 	struct GPUShader *transparent_accum_texture_hair_sh;
+	struct GPUShader *transparent_accum_texture_hair_fibers_sh;
 	View3DShading shading;
 	StudioLight *studio_light;
 	int drawtype;
@@ -238,10 +242,17 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob);
 void workbench_forward_cache_finish(WORKBENCH_Data *vedata);
 
 /* workbench_materials.c */
-char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair);
+typedef enum DRWShaderHairType
+{
+	DRW_SHADER_HAIR_NONE = 0,
+	DRW_SHADER_HAIR_PARTICLES = 1,
+	DRW_SHADER_HAIR_FIBERS = 2,
+} DRWShaderHairType;
+
+char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype, DRWShaderHairType hair_type);
 void workbench_material_update_data(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, WORKBENCH_MaterialData *data);
 uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template);
-int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair);
+int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype, DRWShaderHairType hair_type);
 void workbench_material_set_normal_world_matrix(
         DRWShadingGroup *grp, WORKBENCH_PrivateData *wpd, float persistent_matrix[3][3]);
 
