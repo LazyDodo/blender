@@ -1180,7 +1180,7 @@ static int image_sequence_get_len(ListBase *frames, int *ofs)
 
 static Image *image_open_single(
         wmOperator *op, const char *filepath, const char *relbase,
-        bool is_relative_path, bool use_multiview, int frame_seq_len)
+        bool is_relative_path, bool use_multiview, int frame_seq_len, int frame_seq_ofs)
 {
 	bool exists = false;
 	Image *ima = NULL;
@@ -1216,7 +1216,13 @@ static Image *image_open_single(
 		}
 
 		if ((frame_seq_len > 1) && (ima->source == IMA_SRC_FILE)) {
-			ima->source = IMA_SRC_SEQUENCE;
+			if (frame_seq_ofs == 1001) {
+				ima->source = IMA_SRC_UDIM;
+				ima->num_tiles = frame_seq_len;
+			}
+			else {
+				ima->source = IMA_SRC_SEQUENCE;
+			}
 		}
 	}
 
@@ -1268,7 +1274,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 
 			Image *ima_range = image_open_single(
 			         op, filepath_range, BKE_main_blendfile_path(bmain),
-			         is_relative_path, use_multiview, frame_range_seq_len);
+			         is_relative_path, use_multiview, frame_range_seq_len, frame_range_ofs);
 
 			/* take the first image */
 			if ((ima == NULL) && ima_range) {
@@ -1283,7 +1289,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		/* for drag & drop etc. */
 		ima = image_open_single(
 		        op, filepath, BKE_main_blendfile_path(bmain),
-		        is_relative_path, use_multiview, 1);
+		        is_relative_path, use_multiview, 1, 0);
 	}
 
 	if (ima == NULL) {
@@ -1332,7 +1338,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 
 	/* initialize because of new image */
 	if (iuser) {
-		iuser->frames = frame_seq_len;
+		iuser->frames = (ima->source == IMA_SRC_SEQUENCE)? frame_seq_len : 1;
 		iuser->sfra = 1;
 		iuser->framenr = 1;
 		if (ima->source == IMA_SRC_MOVIE) {
@@ -2258,7 +2264,7 @@ static int image_save_sequence_exec(bContext *C, wmOperator *op)
 	if (sima->image == NULL)
 		return OPERATOR_CANCELLED;
 
-	if (sima->image->source != IMA_SRC_SEQUENCE) {
+	if (ELEM(sima->image->source, IMA_SRC_SEQUENCE, IMA_SRC_UDIM)) {
 		BKE_report(op->reports, RPT_ERROR, "Can only save sequence on image sequences");
 		return OPERATOR_CANCELLED;
 	}
@@ -2719,7 +2725,7 @@ static bool image_pack_test(bContext *C, wmOperator *op)
 	if (!as_png && BKE_image_has_packedfile(ima))
 		return 0;
 
-	if (ima->source == IMA_SRC_SEQUENCE || ima->source == IMA_SRC_MOVIE) {
+	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_UDIM)) {
 		BKE_report(op->reports, RPT_ERROR, "Packing movies or image sequences not supported");
 		return 0;
 	}
@@ -2820,7 +2826,7 @@ static int image_unpack_exec(bContext *C, wmOperator *op)
 	if (!ima || !BKE_image_has_packedfile(ima))
 		return OPERATOR_CANCELLED;
 
-	if (ima->source == IMA_SRC_SEQUENCE || ima->source == IMA_SRC_MOVIE) {
+	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_UDIM)) {
 		BKE_report(op->reports, RPT_ERROR, "Unpacking movies or image sequences not supported");
 		return OPERATOR_CANCELLED;
 	}
@@ -2848,7 +2854,7 @@ static int image_unpack_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 	if (!ima || !BKE_image_has_packedfile(ima))
 		return OPERATOR_CANCELLED;
 
-	if (ima->source == IMA_SRC_SEQUENCE || ima->source == IMA_SRC_MOVIE) {
+	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_UDIM)) {
 		BKE_report(op->reports, RPT_ERROR, "Unpacking movies or image sequences not supported");
 		return OPERATOR_CANCELLED;
 	}

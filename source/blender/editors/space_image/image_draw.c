@@ -713,6 +713,21 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	ED_space_image_release_buffer(sima, ibuf, lock);
 
+	if (ima && ima->source == IMA_SRC_UDIM) {
+		for (int t = 1; t < ima->num_tiles; t++) {
+			sima->iuser.tile = t;
+
+			ibuf = ED_space_image_acquire_buffer(sima, &lock);
+			if (ibuf) {
+				int x_pos = t%10;
+				int y_pos = t/10;
+				draw_image_buffer(C, sima, ar, scene, ibuf, x_pos, y_pos, zoomx, zoomy);
+			}
+			ED_space_image_release_buffer(sima, ibuf, lock);
+		}
+		sima->iuser.tile = 0;
+	}
+
 	/* paint helpers */
 	if (show_paint)
 		draw_image_paint_helpers(C, ar, scene, zoomx, zoomy);

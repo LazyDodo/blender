@@ -136,6 +136,7 @@ struct RenderResult;
 #define IMA_SRC_MOVIE       3
 #define IMA_SRC_GENERATED   4
 #define IMA_SRC_VIEWER      5
+#define IMA_SRC_UDIM        6
 
 /* ima->type, how to handle/generate it */
 #define IMA_TYPE_IMAGE      0
@@ -291,6 +292,7 @@ int BKE_image_sequence_guess_offset(struct Image *image);
 bool BKE_image_has_anim(struct Image *image);
 bool BKE_image_has_packedfile(struct Image *image);
 bool BKE_image_is_animated(struct Image *image);
+bool BKE_image_has_multiple(struct Image *image);
 bool BKE_image_is_dirty(struct Image *image);
 void BKE_image_file_format_set(struct Image *image, int ftype, const struct ImbFormatOptions *options);
 bool BKE_image_has_loaded_ibuf(struct Image *image);

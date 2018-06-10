@@ -112,7 +112,7 @@ static void image_info(Scene *scene, ImageUser *iuser, Image *ima, ImBuf *ibuf, 
 		if (ibuf->zbuf || ibuf->zbuf_float)
 			ofs += BLI_strncpy_rlen(str + ofs, IFACE_(" + Z"), len - ofs);
 
-		if (ima->source == IMA_SRC_SEQUENCE) {
+		if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_UDIM)) {
 			const char *file = BLI_last_slash(ibuf->name);
 			if (file == NULL)
 				file = ibuf->name;

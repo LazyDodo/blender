@@ -58,6 +58,9 @@ typedef struct ImageUser {
 	short pass;
 	short pad;
 
+	int tile;		/* current tile (for internal use) */
+	int pad2;
+
 	short multi_index, view, layer;	 /* listbase indices, for menu browsing or retrieve buffer */
 	short flag;
 } ImageUser;
@@ -117,7 +120,7 @@ typedef struct Image {
 
 	/* texture page */
 	short tpageflag;
-	short pad2;
+	short num_tiles;
 	unsigned int bindcode[2]; /* only for current image... 2 = TEXTARGET_COUNT */
 	unsigned int pad3;
 

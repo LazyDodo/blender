@@ -59,6 +59,7 @@ static const EnumPropertyItem image_source_items[] = {
 	{IMA_SRC_MOVIE, "MOVIE", 0, "Movie", "Movie file"},
 	{IMA_SRC_GENERATED, "GENERATED", 0, "Generated", "Generated image"},
 	{IMA_SRC_VIEWER, "VIEWER", 0, "Viewer", "Compositing node viewer"},
+	{IMA_SRC_UDIM, "UDIM", 0, "UDIM", "UDIM image texture"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -209,6 +210,7 @@ static const EnumPropertyItem *rna_Image_source_itemf(bContext *UNUSED(C), Point
 		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_SEQUENCE);
 		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_MOVIE);
 		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_GENERATED);
+		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_UDIM);
 	}
 
 	RNA_enum_item_end(&item, &totitem);
