@@ -166,6 +166,9 @@ typedef struct LANPR_PrivateData {
     int           dpix_buffer_width;
 	float         dpix_depth_offset;
 
+	float         dpix_znear;
+	float         dpix_zfar;
+
 	// drawing
 
 	unsigned        v_buf;

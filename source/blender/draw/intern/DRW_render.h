@@ -206,7 +206,7 @@ void DRW_texture_ensure_2D(
         struct GPUTexture **tex, int w, int h, GPUTextureFormat format, DRWTextureFlag flags);
 
 void DRW_texture_ensure_fullscreen_2D_multisample(
-        struct GPUTexture **tex, GPUTextureFormat format, int samples DRWTextureFlag flags);
+        struct GPUTexture **tex, GPUTextureFormat format, int samples, DRWTextureFlag flags);
 void DRW_texture_ensure_2D_multisample(
         struct GPUTexture **tex, int w, int h, GPUTextureFormat format, int samples, DRWTextureFlag flags);
 

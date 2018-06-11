@@ -77,6 +77,8 @@ static void lanpr_engine_init(void *ved){
 		lanpr->background_color[2] = 0.51;
 		lanpr->background_color[3] = 1;
 
+		lanpr->depth_influence = 0.3;
+
 		lanpr->reloaded = 1;
 
 		OneTime.InitComplete=1;
@@ -261,6 +263,11 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", lanpr->line_color, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_offset", &stl->g_data->dpix_depth_offset, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_influence", &lanpr->depth_influence, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_curve", &lanpr->depth_curve, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness", &lanpr->line_thickness, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zNear", &stl->g_data->dpix_znear, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zFar", &stl->g_data->dpix_zfar, 1);
 
 		pd->begin_index = 0;
 		int tsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE*TNS_DPIX_TEXTURE_SIZE;

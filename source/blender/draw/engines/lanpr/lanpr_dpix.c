@@ -263,6 +263,11 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 
         int texw = GPU_texture_width(txl->edge_intermediate) ,texh = GPU_texture_height(txl->edge_intermediate);;
 	    int tsize = texw*texh;
+
+		const DRWContextState *draw_ctx = DRW_context_state_get();
+		View3D *v3d = draw_ctx->v3d;
+	    RegionView3D *rv3d = draw_ctx->rv3d;
+	    Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
         
         pd->dpix_viewport[2] = texw;
 		pd->dpix_viewport[3] = texh;
@@ -270,6 +275,8 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 		pd->dpix_sample_step = 1;
 		pd->dpix_buffer_width = TNS_DPIX_TEXTURE_SIZE;
 		pd->dpix_depth_offset=0.0001;
+		pd->dpix_znear = camera?((Camera*)camera->data)->clipsta:v3d->near;
+		pd->dpix_zfar = camera?((Camera*)camera->data)->clipend:v3d->far;
 
         glPointSize(1);
 		glLineWidth(2);
@@ -280,18 +287,18 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 		//GPU_framebuffer_bind(fbl->edge_intermediate);
 		//DRW_draw_pass(psl->color_pass);// use depth
 
-		glEnable(GL_LINE_SMOOTH);
-        glHint(GL_LINE_SMOOTH, GL_NICEST);
-	    glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		//glEnable(GL_POLYGON_SMOOTH);
+        //glHint(GL_POLYGON_SMOOTH, GL_NICEST);
+	    //glEnable(GL_BLEND);
+        //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		GPU_framebuffer_bind(fbl->dpix_preview);
 		GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
 		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->dpix_preview_pass);
 
-		glDisable(GL_LINE_SMOOTH);
-		glDisable(GL_BLEND);
+		//glDisable(GL_POLYGON_SMOOTH);
+		//glDisable(GL_BLEND);
 
 		GPU_framebuffer_bind(dfbl->default_fb);
 		//DRW_transform_to_display(txl->dpix_out_pl);

@@ -1,8 +1,5 @@
 layout (points) in;
-layout (line_strip, max_vertices = 2) out;
-
-//in vec4 gColor[];
-//out vec4 fColor;
+layout (triangle_strip, max_vertices = 6) out;
 
 uniform sampler2D vert0_tex;//L
 uniform sampler2D vert1_tex;//R
@@ -10,21 +7,59 @@ uniform sampler2D vert1_tex;//R
 uniform vec4 viewport; // viewport
 uniform float depth_offset;
 
+// these are for depth related thickness control;
+uniform float line_thickness;
+uniform float depth_influence;
+uniform float depth_curve;
+uniform float zNear;
+uniform float zFar;
+
+float get_linear_depth(float z){
+	float ze = 2.0 * zNear * zFar / (zFar + zNear - z * (zFar - zNear));
+	return (ze-zNear)/(zFar-zNear);
+}
+
+float exp_depth(float z,float factor){
+	return pow(z,1-factor); // factor is -inf~1-eps
+}
+
+vec4 apply_depth_scale(vec4 center, vec4 a){
+	float depth_factor = mix(0,exp_depth(get_linear_depth(center.z),depth_curve),depth_influence);
+    return  mix(a,center,depth_factor);
+}
+
+void draw_line(vec4 p1, vec4 p2){
+
+    vec4 Line = p2-p1;
+	vec4 Normal = normalize(vec4(-Line.y,Line.x,0,0));
+    
+	vec4 a,b,c,d;
+    
+	vec4 offset = Normal*line_thickness*0.001;
+	a = p1 + offset;
+    b = p1 - offset;
+	c = p2 + offset;
+    d = p2 - offset;
+
+	a = apply_depth_scale(p1,a);
+	b = apply_depth_scale(p1,b);
+	c = apply_depth_scale(p2,c);
+	d = apply_depth_scale(p2,d);
+
+	gl_Position = vec4(a.xy,a.z-depth_offset,a.w); EmitVertex();
+	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); EmitVertex();
+    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); EmitVertex();
+
+	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); EmitVertex();
+    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); EmitVertex();
+	gl_Position = vec4(d.xy,d.z-depth_offset,d.w); EmitVertex();
+
+    EndPrimitive();
+}
+
 void main() {
-    //fColor = gColor[0];
-	
 	vec4 p1 = texelFetch(vert0_tex, ivec2(gl_in[0].gl_Position.xy), 0);
 	vec4 p2 = texelFetch(vert1_tex, ivec2(gl_in[0].gl_Position.xy), 0);
-
-	//gl_Position = vec4(1,0,0.5,1);
-	gl_Position = vec4(p1.x,p1.y,p1.z-depth_offset,p1.w);
-    EmitVertex();
-
-	//fColor = gColor[0];
-	
-	//gl_Position = vec4(0,0,0.5,1);
-	gl_Position = vec4(p2.x,p2.y,p2.z-depth_offset,p2.w);
-    EmitVertex();
     
-    EndPrimitive();
+	draw_line(p1,p2);
 }

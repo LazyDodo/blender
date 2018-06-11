@@ -493,11 +493,20 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         if lanpr.master_mode == "DPIX":
             layout.label(text="DPIX:")
             layout.prop(lanpr, "reloaded")
+            
             split = layout.split()
             col = split.column()
             col.prop(lanpr, "background_color")
             col = split.column()
             col.prop(lanpr, "line_color")
+
+            layout.label(text="Effect Settings:")
+            layout.prop(lanpr, "line_thickness")
+            split = layout.split()
+            col = split.column()
+            col.prop(lanpr, "depth_influence")
+            col = split.column()
+            col.prop(lanpr, "depth_curve")
             
         else:
             layout.label(text="Snake:")
@@ -523,6 +532,12 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
                 layout.prop(lanpr, "line_thickness")
 
                 layout.label(text="Effect Settings:")
+
+                split = layout.split()
+                col = split.column()
+                col.prop(lanpr, "depth_influence")
+                col = split.column()
+                col.prop(lanpr, "depth_curve")
 
                 layout.prop(lanpr, "use_same_taper")
 
