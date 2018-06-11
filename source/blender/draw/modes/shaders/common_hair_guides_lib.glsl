@@ -90,12 +90,8 @@ struct CurlParams
 
 struct DeformParams
 {
-	/* Strand tapering with distance from the root.
-	 * < 1.0 : Taper is concave (recommended)
-	 * = 1.0 : Taper is linear
-	 * > 1.0 : Taper is convex (not recommended)
-	 */
-	float taper;
+	/* Length where strand reaches final thickness */
+	float taper_length;
 
 	ClumpParams clump;
 	CurlParams curl;
@@ -103,8 +99,16 @@ struct DeformParams
 
 void deform_taper(DeformParams params, float t, out float taper, out float dtaper)
 {
-	taper = pow(t, params.taper);
-	dtaper = (t > 0.0) ? taper * params.taper / t : 0.0;
+	/* Uses the right half of the smoothstep function */
+	float x = (t + params.taper_length) / params.taper_length;
+	float dx = 1.0 / params.taper_length;
+	if (x > 2.0)
+	{
+		x = 2.0;
+		dx = 0.0;
+	}
+	taper = 0.5 * x * x * (3 - x) - 1.0;
+	dtaper = 1.5 * x * (2.0 - x) * dx;
 }
 
 void deform_clump(DeformParams params,
@@ -140,7 +144,7 @@ void deform_fiber(DeformParams params,
                   float t, float tscale, mat4 target_matrix,
                   inout vec3 loc, inout vec3 tang)
 {
-	deform_curl(params, t, tscale, target_matrix);
+	//deform_curl(params, t, tscale, target_matrix);
 	deform_clump(params, t, tscale, target_matrix, loc, tang);
 }
 
@@ -301,12 +305,12 @@ void hair_fiber_get_vertex(
 	binor = normalize(cross(camera_vec, tang));
 
 	DeformParams deform_params;
-	deform_params.taper = 2.0;
+	deform_params.taper_length = 0.08;
 	deform_params.clump.thickness = 0.15;
 	deform_params.curl.radius = 0.1;
 	deform_params.curl.angle = 0.2;
 	// TODO define proper curve scale, independent of subdivision!
-	//deform_fiber(deform_params, curve_param, 1.0, target_matrix, pos, tang);
+	deform_fiber(deform_params, curve_param, 1.0, target_matrix, pos, tang);
 
 	time = curve_param;
 	thickness = hair_shaperadius(hairRadShape, hairRadRoot, hairRadTip, time);
