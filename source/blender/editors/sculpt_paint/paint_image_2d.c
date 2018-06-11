@@ -145,7 +145,7 @@ typedef struct ImagePaintState {
 
 	bool need_redraw;
 
-	int tile;
+	ImageUser iuser;
 	float uv_ofs[2];
 
 	BlurKernel *blurkernel;
@@ -1192,10 +1192,7 @@ static int paint_2d_op(void *state, ImBuf *ibufb, unsigned short *curveb, unsign
 
 static int paint_2d_canvas_set(ImagePaintState *s, Image *ima)
 {
-	if (s->sima) {
-		s->sima->iuser.tile = s->tile;
-	}
-	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, s->sima ? &s->sima->iuser : NULL, NULL);
+	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, &s->iuser, NULL);
 
 	/* verify that we can paint and set canvas */
 	if (ima == NULL) {
@@ -1218,10 +1215,7 @@ static int paint_2d_canvas_set(ImagePaintState *s, Image *ima)
 	/* set clone canvas */
 	if (s->tool == PAINT_TOOL_CLONE) {
 		ima = s->brush->clone.image;
-		if (s->sima) {
-			s->sima->iuser.tile = s->tile;
-		}
-		ibuf = BKE_image_acquire_ibuf(ima, s->sima ? &s->sima->iuser : NULL, NULL);
+		ibuf = BKE_image_acquire_ibuf(ima, &s->iuser, NULL);
 
 		if (!ima || !ibuf || !(ibuf->rect || ibuf->rect_float)) {
 			BKE_image_release_ibuf(ima, ibuf, NULL);
@@ -1269,10 +1263,7 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 	float newuv[2], olduv[2];
 	ImagePaintState *s = ps;
 	BrushPainter *painter = s->painter;
-	if (s->sima) {
-		s->sima->iuser.tile = s->tile;
-	}
-	ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, s->sima ? &s->sima->iuser : NULL, NULL);
+	ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, &s->iuser, NULL);
 	const bool is_data = (ibuf && ibuf->colormanage_flag & IMB_COLORMANAGE_IS_DATA);
 
 	if (!ibuf)
@@ -1341,10 +1332,10 @@ void *paint_2d_new_stroke(bContext *C, wmOperator *op, const float mouse[2], int
 	s->image = s->sima->image;
 	s->symmetry = settings->imapaint.paint.symmetry_flags;
 
+	s->iuser = s->sima->iuser;
 	float uv[2];
 	paint_2d_transform_mouse(s, mouse, uv);
-	s->tile = BKE_image_get_tile_from_pos(s->image, uv, uv, s->uv_ofs);
-	//negate_v2(s->uv_ofs);
+	s->iuser.tile = BKE_image_get_tile_from_pos(s->image, uv, uv, s->uv_ofs);
 
 	if (!paint_2d_canvas_set(s, s->image)) {
 		if (s->warnmultifile)
@@ -1373,10 +1364,7 @@ void paint_2d_redraw(const bContext *C, void *ps, bool final)
 	ImagePaintState *s = ps;
 
 	if (s->need_redraw) {
-		if (s->sima) {
-			s->sima->iuser.tile = s->tile;
-		}
-		ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, s->sima ? &s->sima->iuser : NULL, NULL);
+		ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, &s->iuser, NULL);
 
 		imapaint_image_update(s->sima, s->image, ibuf, false);
 		ED_imapaint_clear_partial_redraw();
@@ -1480,8 +1468,7 @@ void paint_2d_bucket_fill(
 	if (!ima)
 		return;
 
-	sima->iuser.tile = s->tile;
-	ibuf = BKE_image_acquire_ibuf(ima, &sima->iuser, NULL);
+	ibuf = BKE_image_acquire_ibuf(ima, &s->iuser, NULL);
 
 	if (!ibuf)
 		return;
@@ -1659,8 +1646,7 @@ void paint_2d_gradient_fill(
 	if (!ima)
 		return;
 
-	sima->iuser.tile = s->tile;
-	ibuf = BKE_image_acquire_ibuf(ima, &sima->iuser, NULL);
+	ibuf = BKE_image_acquire_ibuf(ima, &s->iuser, NULL);
 
 	if (!ibuf)
 		return;
