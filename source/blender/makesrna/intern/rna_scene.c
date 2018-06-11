@@ -548,7 +548,7 @@ static void rna_GPencilInterpolateSettings_type_set(PointerRNA *ptr, int value)
 
 static void rna_SpaceImageEditor_uv_sculpt_update(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
 {
-	ED_space_image_uv_sculpt_update(bmain->wm.first, scene);
+	ED_space_image_uv_sculpt_update(bmain, bmain->wm.first, scene);
 }
 
 

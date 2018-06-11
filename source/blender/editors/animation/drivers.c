@@ -427,7 +427,7 @@ int ANIM_add_driver(ReportList *reports, ID *id, const char rna_path[], int arra
 			if (type == DRIVER_TYPE_PYTHON) {
 				PropertyType proptype = RNA_property_type(prop);
 				int array = RNA_property_array_length(&ptr, prop);
-				char *dvar_prefix = (flag & CREATEDRIVER_WITH_DEFAULT_DVAR) ? "var + " : "";
+				const char *dvar_prefix = (flag & CREATEDRIVER_WITH_DEFAULT_DVAR) ? "var + " : "";
 				char *expression = driver->expression;
 				int val, maxlen = sizeof(driver->expression);
 				float fval;
@@ -900,7 +900,7 @@ static int add_driver_button_menu_invoke(bContext *C, wmOperator *op, const wmEv
 	}
 }
 
-void ANIM_OT_driver_button_add_menu(wmOperatorType *ot)
+static void UNUSED_FUNCTION(ANIM_OT_driver_button_add_menu)(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Add Driver Menu";
@@ -1035,13 +1035,9 @@ static int edit_driver_button_exec(bContext *C, wmOperator *op)
 	PointerRNA ptr = {{NULL}};
 	PropertyRNA *prop = NULL;
 	int index;
-	const bool all = 0; // RNA_boolean_get(op->ptr, "all");
 
 	/* try to find driver using property retrieved from UI */
 	UI_context_active_but_prop_get(C, &ptr, &prop, &index);
-
-	if (all)
-		index = -1;
 
 	if (ptr.id.data && ptr.data && prop) {
 		UI_popover_panel_invoke(C, SPACE_IPO, RGN_TYPE_UI, "GRAPH_PT_drivers_popover", true, op->reports);
@@ -1063,9 +1059,6 @@ void ANIM_OT_driver_button_edit(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag = OPTYPE_UNDO | OPTYPE_INTERNAL;
-
-	/* properties */
-	//RNA_def_boolean(ot->srna, "all", 1, "All", "Edit drivers for all elements of the array");
 }
 
 /* Copy Driver Button Operator ------------------------ */
