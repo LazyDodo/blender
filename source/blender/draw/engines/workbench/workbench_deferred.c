@@ -669,6 +669,7 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 static void workbench_cache_populate_groom(WORKBENCH_Data *vedata, Object *ob)
 {
 	const Groom *groom = ob->data;
+	const struct HairDrawSettings *draw_set = groom->hair_draw_settings;
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
@@ -695,7 +696,7 @@ static void workbench_cache_populate_groom(WORKBENCH_Data *vedata, Object *ob)
 
 	DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(
 	                             draw_ctx->scene, ob, groom->hair_system, scalp,
-	                             psl->prepass_hair_pass,
+	                             draw_set, psl->prepass_hair_pass,
 	                             shader);
 
 	DRW_shgroup_stencil_mask(shgrp, 0xFF);

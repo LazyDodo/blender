@@ -107,7 +107,13 @@ typedef struct HairDrawSettings
 {
 	short follicle_mode;
 	short guide_mode;
-	int pad;
+	short shape_flag;
+	short pad;
+	
+	float shape;
+	float root_radius;
+	float tip_radius;
+	float radius_scale;
 } HairDrawSettings;
 
 typedef enum eHairDrawFollicleMode
@@ -121,6 +127,10 @@ typedef enum eHairDrawGuideMode
 	HAIR_DRAW_GUIDE_NONE        = 0,
 	HAIR_DRAW_GUIDE_CURVES      = 1,
 } eHairDrawGuideMode;
+
+typedef enum eHairDrawShapeFlag {
+	HAIR_DRAW_CLOSE_TIP         = (1<<0),
+} eHairDrawShapeFlag;
 
 #ifdef __cplusplus
 }

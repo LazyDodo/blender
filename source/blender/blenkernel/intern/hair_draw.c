@@ -48,7 +48,13 @@ HairDrawSettings* BKE_hair_draw_settings_new(void)
 {
 	HairDrawSettings *draw_settings = MEM_callocN(sizeof(HairDrawSettings), "hair draw settings");
 	
-	draw_settings->follicle_mode = HAIR_DRAW_FOLLICLE_NONE;
+	draw_settings->follicle_mode = HAIR_DRAW_FOLLICLE_POINTS;
+	draw_settings->guide_mode = HAIR_DRAW_GUIDE_CURVES;
+	draw_settings->shape_flag = HAIR_DRAW_CLOSE_TIP;
+	draw_settings->shape = 0.0f;
+	draw_settings->root_radius = 1.0f;
+	draw_settings->tip_radius = 0.0f;
+	draw_settings->radius_scale = 0.01f;
 	
 	return draw_settings;
 }

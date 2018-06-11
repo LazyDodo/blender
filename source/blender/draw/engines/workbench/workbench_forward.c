@@ -530,6 +530,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 static void workbench_forward_cache_populate_groom(WORKBENCH_Data *vedata, Object *ob)
 {
 	const Groom *groom = ob->data;
+	const struct HairDrawSettings *draw_set = groom->hair_draw_settings;
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
@@ -557,7 +558,7 @@ static void workbench_forward_cache_populate_groom(WORKBENCH_Data *vedata, Objec
 
 	DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(
 	                             draw_ctx->scene, ob, groom->hair_system, scalp,
-	                             psl->transparent_accum_pass,
+	                             draw_set, psl->transparent_accum_pass,
 	                             shader);
 	workbench_material_set_normal_world_matrix(shgrp, wpd, e_data.normal_world_matrix);
 	DRW_shgroup_uniform_block(shgrp, "world_block", wpd->world_ubo);
@@ -570,13 +571,13 @@ static void workbench_forward_cache_populate_groom(WORKBENCH_Data *vedata, Objec
 #ifdef WORKBENCH_REVEALAGE_ENABLED
 	shgrp = DRW_shgroup_hair_fibers_create(
 	            draw_ctx->scene, ob, groom->hair_system, scalp,
-	            psl->transparent_revealage_pass,
+	            draw_set, psl->transparent_revealage_pass,
 	            e_data.transparent_revealage_hair_sh);
 	DRW_shgroup_uniform_float(shgrp, "alpha", &wpd->shading.xray_alpha, 1);
 #endif
 	shgrp = DRW_shgroup_hair_fibers_create(
 	            draw_ctx->scene, ob, groom->hair_system, scalp,
-	            vedata->psl->object_outline_pass,
+	            draw_set, vedata->psl->object_outline_pass,
 	            e_data.object_outline_hair_sh);
 	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
 }

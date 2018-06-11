@@ -1535,6 +1535,7 @@ static void material_hair(
         EEVEE_ViewLayerData *sldata,
         Object *ob,
         HairSystem *hsys,
+        const HairDrawSettings *draw_set,
         Material *ma,
         struct Mesh *scalp)
 {
@@ -1551,10 +1552,10 @@ static void material_hair(
 	}
 	
 	{
-		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, psl->depth_pass, e_data.default_prepass_hair_fiber_sh);
+		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, draw_set, psl->depth_pass, e_data.default_prepass_hair_fiber_sh);
 	}
 	{
-		DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, psl->depth_pass_clip, e_data.default_prepass_hair_fiber_clip_sh);
+		DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, draw_set, psl->depth_pass_clip, e_data.default_prepass_hair_fiber_clip_sh);
 		DRW_shgroup_uniform_block(shgrp, "clip_block", sldata->clip_ubo);
 	}
 	
@@ -1578,7 +1579,7 @@ static void material_hair(
 				{
 					shgrp = DRW_shgroup_material_hair_fibers_create(
 					        scene, ob, hsys, scalp,
-					        psl->material_pass,
+					        draw_set, psl->material_pass,
 					        gpumat);
 					add_standard_uniforms(shgrp, sldata, vedata, &ssr_id, NULL, false, false);
 					break;
@@ -1614,7 +1615,7 @@ static void material_hair(
 	/* Shadows */
 	DRW_shgroup_hair_fibers_create(
 	        scene, ob, hsys, scalp,
-	        psl->shadow_pass,
+	        draw_set, psl->shadow_pass,
 	        e_data.default_prepass_hair_fiber_sh);
 }
 
@@ -1822,7 +1823,7 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 					const int material_index = 1; /* TODO */
 					Material *material = give_current_material(ob, material_index);
 					
-					material_hair(vedata, sldata, ob, fmd->hair_system, material, ob->data);
+					material_hair(vedata, sldata, ob, fmd->hair_system, fmd->draw_settings, material, ob->data);
 				}
 			}
 		}
@@ -1833,7 +1834,7 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 		Material *material = give_current_material(ob, groom->material_index);
 		
 		struct Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
-		material_hair(vedata, sldata, ob, groom->hair_system, material, scalp);
+		material_hair(vedata, sldata, ob, groom->hair_system, groom->hair_draw_settings, material, scalp);
 	}
 }
 

@@ -134,15 +134,23 @@ class DATA_PT_groom_draw_settings(DataButtonsPanel, Panel):
 
         layout.prop(groom, "material_slot")
 
-        split = layout.split()
-
-        col = split.column()
+        col = layout.column(align=True)
         col.label("Follicles:")
         col.prop(ds, "follicle_mode", expand=True)
 
-        col = split.column()
+        col = layout.column(align=True)
         col.label("Guide Curves:")
         col.prop(ds, "guide_mode", expand=True)
+
+        layout.prop(ds, "shape")
+
+        col = layout.column(align=True)
+        col.prop(ds, "root_radius")
+        col.prop(ds, "tip_radius")
+
+        col = layout.column()
+        col.prop(ds, "radius_scale")
+        col.prop(ds, "use_close_tip")
 
 
 class DATA_PT_custom_props_groom(DataButtonsPanel, PropertyPanel, Panel):

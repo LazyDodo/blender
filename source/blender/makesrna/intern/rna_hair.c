@@ -61,6 +61,20 @@ static void UNUSED_FUNCTION(rna_HairSystem_update)(Main *UNUSED(bmain), Scene *U
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
 }
 
+static void rna_HairDrawSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+{
+#if 0
+	/* XXX Only need to update render engines
+	 * However, that requires finding all hair systems using these draw settings,
+	 * then flagging the cache as dirty.
+	 */
+	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
+#else
+	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+#endif
+	WM_main_add_notifier(NC_OBJECT | ND_DATA | NA_EDITED, ptr->id.data);
+}
+
 static void rna_HairSystem_generate_follicles(
         HairSystem *hsys,
         struct bContext *C,
@@ -160,10 +174,41 @@ static void rna_def_hair_draw_settings(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "follicle_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, follicle_mode_items);
 	RNA_def_property_ui_text(prop, "Follicle Mode", "Draw follicles on the scalp surface");
+	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
 	
 	prop = RNA_def_property(srna, "guide_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, guide_mode_items);
 	RNA_def_property_ui_text(prop, "Guide Mode", "Draw guide curves");
+	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
+	
+	/* hair shape */
+	prop = RNA_def_property(srna, "use_close_tip", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "shape_flag", HAIR_DRAW_CLOSE_TIP);
+	RNA_def_property_ui_text(prop, "Close Tip", "Set tip radius to zero");
+	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
+
+	prop = RNA_def_property(srna, "shape", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_range(prop, -1.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Shape", "Strand shape parameter");
+	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
+
+	prop = RNA_def_property(srna, "root_radius", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_ui_range(prop, 0.0f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_text(prop, "Root", "Strand width at the root");
+	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
+
+	prop = RNA_def_property(srna, "tip_radius", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_ui_range(prop, 0.0f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_text(prop, "Tip", "Strand width at the tip");
+	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
+
+	prop = RNA_def_property(srna, "radius_scale", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_ui_range(prop, 0.0f, 10.0f, 0.1, 2);
+	RNA_def_property_ui_text(prop, "Scaling", "Multiplier of radius properties");
+	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
 }
 
 void RNA_def_hair(BlenderRNA *brna)

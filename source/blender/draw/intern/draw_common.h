@@ -201,6 +201,7 @@ struct DRWShadingGroup *DRW_shgroup_hair_fibers_create(
         struct Object *object,
         struct HairSystem *hsys,
         struct Mesh *scalp,
+        const struct HairDrawSettings *draw_set,
         struct DRWPass *hair_pass,
         struct GPUShader *shader);
 
@@ -209,6 +210,7 @@ struct DRWShadingGroup *DRW_shgroup_material_hair_fibers_create(
         struct Object *object,
         struct HairSystem *hsys,
         struct Mesh *scalp,
+        const struct HairDrawSettings *draw_set,
         struct DRWPass *hair_pass,
         struct GPUMaterial *material);
 
