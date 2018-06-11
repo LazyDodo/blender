@@ -389,9 +389,9 @@ struct ListBase *get_constraint_lb(struct Object *ob, struct bConstraint *con, s
 bool ED_space_image_show_uvedit(struct SpaceImage *sima, struct Object *obedit) RET_ZERO
 bool ED_space_image_show_render(struct SpaceImage *sima) RET_ZERO
 bool ED_space_image_show_paint(struct SpaceImage *sima) RET_ZERO
-void ED_space_image_paint_update(struct wmWindowManager *wm, struct Scene *scene) RET_NONE
+void ED_space_image_paint_update(struct Main *bmain, struct wmWindowManager *wm, struct Scene *scene) RET_NONE
 void ED_space_image_set(struct Main *bmain, struct SpaceImage *sima, struct Scene *scene, struct Object *obedit, struct Image *ima) RET_NONE
-void ED_space_image_uv_sculpt_update(struct wmWindowManager *wm, struct Scene *scene) RET_NONE
+void ED_space_image_uv_sculpt_update(struct Main *bmain, struct wmWindowManager *wm, struct Scene *scene) RET_NONE
 void ED_space_image_scopes_update(const struct bContext *C, struct SpaceImage *sima, struct ImBuf *ibuf, bool use_view_settings) RET_NONE
 
 void ED_uvedit_get_aspect(struct Scene *scene, struct Object *ob, struct BMesh *em, float *aspx, float *aspy) RET_NONE
@@ -595,7 +595,6 @@ void uiItemM(uiLayout *layout, struct bContext *C, const char *menuname, const c
 void uiItemS(struct uiLayout *layout) RET_NONE
 void uiItemFullR(uiLayout *layout, struct PointerRNA *ptr, struct PropertyRNA *prop, int index, int value, int flag, const char *name, int icon) RET_NONE
 void uiLayoutSetContextPointer(uiLayout *layout, const char *name, struct PointerRNA *ptr) RET_NONE
-const char *uiLayoutIntrospect(uiLayout *layout) RET_NULL
 void UI_reinit_font(void) RET_NONE
 int UI_rnaptr_icon_get(struct bContext *C, struct PointerRNA *ptr, int rnaicon, const bool big) RET_ZERO
 struct bTheme *UI_GetTheme(void) RET_NULL
