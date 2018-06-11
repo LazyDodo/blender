@@ -86,6 +86,7 @@
 
 /* Temporary fill operation data (op->customdata) */
 typedef struct tGPDfill {
+	struct Main *bmain;
 	struct Depsgraph *depsgraph;
 	struct wmWindow *win;               /* window where painting originated */
 	struct Scene *scene;                /* current scene from context */
@@ -341,7 +342,7 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 		IMB_rect_from_float(ibuf);
 	}
 
-	tgpf->ima = BKE_image_add_from_imbuf(ibuf, "GP_fill");
+	tgpf->ima = BKE_image_add_from_imbuf(tgpf->bmain, ibuf, "GP_fill");
 	tgpf->ima->id.tag |= LIB_TAG_DOIT;
 
 	BKE_image_release_ibuf(tgpf->ima, ibuf, NULL);
@@ -969,6 +970,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 
 	/* set current scene and window info */
+	tgpf->bmain = CTX_data_main(C);
 	tgpf->scene = CTX_data_scene(C);
 	tgpf->ob = CTX_data_active_object(C);
 	tgpf->sa = CTX_wm_area(C);
