@@ -1891,13 +1891,16 @@ static void ed_panel_draw(const bContext *C,
  * Matching against any of these strings will draw the panel.
  * Can be NULL to skip context checks.
  */
-void ED_region_panels(const bContext *C, ARegion *ar, const char *contexts[], int contextnr, const bool vertical)
+void ED_region_panels_layout_ex(
+        const bContext *C, ARegion *ar,
+        const char *contexts[], int contextnr, const bool vertical)
 {
+	ar->runtime.category = NULL;
+
 	const WorkSpace *workspace = CTX_wm_workspace(C);
 	ScrArea *sa = CTX_wm_area(C);
 	PanelType *pt;
 	View2D *v2d = &ar->v2d;
-	View2DScrollers *scrollers;
 	int x, y, w, em;
 	bool is_context_new = 0;
 	int scroll;
@@ -2059,6 +2062,15 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *contexts[], in
 #endif
 	}
 
+	if (use_category_tabs) {
+		ar->runtime.category = category;
+	}
+}
+
+void ED_region_panels_draw(const bContext *C, ARegion *ar)
+{
+	View2D *v2d = &ar->v2d;
+
 	region_clear_color(C, ar, (ar->type->regionid == RGN_TYPE_PREVIEW) ? TH_PREVIEW_BACK : TH_BACK);
 
 	/* reset line width for drawing tabs */
@@ -2073,14 +2085,32 @@ void ED_region_panels(const bContext *C, ARegion *ar, const char *contexts[], in
 	/* restore view matrix */
 	UI_view2d_view_restore(C);
 
-	if (use_category_tabs) {
-		UI_panel_category_draw_all(ar, category);
+	/* Set in layout. */
+	if (ar->runtime.category) {
+		UI_panel_category_draw_all(ar, ar->runtime.category);
 	}
 
 	/* scrollers */
-	scrollers = UI_view2d_scrollers_calc(C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
+	View2DScrollers *scrollers = UI_view2d_scrollers_calc(
+	        C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
+}
+
+void ED_region_panels_ex(
+        const bContext *C, ARegion *ar,
+        const char *contexts[], int contextnr, const bool vertical)
+{
+	/* TODO: remove? */
+	ED_region_panels_layout_ex(C, ar, contexts, contextnr, vertical);
+	ED_region_panels_draw(C, ar);
+}
+
+void ED_region_panels(const bContext *C, ARegion *ar)
+{
+	/* TODO: remove? */
+	ED_region_panels_layout_ex(C, ar, NULL, -1, true);
+	ED_region_panels_draw(C, ar);
 }
 
 void ED_region_panels_init(wmWindowManager *wm, ARegion *ar)
@@ -2102,7 +2132,7 @@ void ED_region_header_layout(const bContext *C, ARegion *ar)
 	Header header = {NULL};
 	int maxco, xco, yco;
 	int headery = ED_area_headersize();
-	const int start_ofs = 0.4f * UI_UNIT_X;
+	const int start_ofs = UI_HEADER_OFFSET_START;
 	bool region_layout_based = ar->flag & RGN_FLAG_DYNAMIC_SIZE;
 
 	/* set view2d view matrix for scrolling (without scrollers) */

@@ -768,7 +768,7 @@ void RE_InitState(Render *re, Render *source, RenderData *rd,
 	/* if preview render, we try to keep old result */
 	BLI_rw_mutex_lock(&re->resultmutex, THREAD_LOCK_WRITE);
 
-	if (re->r.scemode & (R_BUTS_PREVIEW|R_VIEWPORT_PREVIEW)) {
+	if (re->r.scemode & R_BUTS_PREVIEW) {
 		if (had_freestyle || (re->r.mode & R_EDGE_FRS)) {
 			/* freestyle manipulates render layers so always have to free */
 			render_result_free(re->result);
@@ -805,10 +805,6 @@ void RE_InitState(Render *re, Render *source, RenderData *rd,
 		re->result->recty = re->recty;
 		render_result_view_new(re->result, "");
 	}
-
-	eEvaluationMode mode = (re->r.scemode & R_VIEWPORT_PREVIEW) ? DAG_EVAL_PREVIEW : DAG_EVAL_RENDER;
-	/* This mode should have been set in the Depsgraph immediately when it was created. */
-	(void)mode;
 
 	/* ensure renderdatabase can use part settings correct */
 	RE_parts_clamp(re);
@@ -1338,12 +1334,11 @@ static void tag_dependend_object_for_render(Scene *scene, Object *object)
 							break;
 						case PART_DRAW_GR:
 							if (part->dup_group != NULL) {
-								FOREACH_COLLECTION_BASE_RECURSIVE_BEGIN(part->dup_group, base)
+								FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(part->dup_group, ob)
 								{
-									Object *ob = base->object;
 									DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 								}
-								FOREACH_COLLECTION_BASE_RECURSIVE_END
+								FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 							}
 							break;
 					}
@@ -1835,7 +1830,7 @@ static void do_render_all_options(Render *re)
 	re->i.starttime = PIL_check_seconds_timer();
 
 	/* ensure no images are in memory from previous animated sequences */
-	BKE_image_all_free_anim_ibufs(re->r.cfra);
+	BKE_image_all_free_anim_ibufs(re->main, re->r.cfra);
 	BKE_sequencer_all_free_anim_ibufs(re->r.cfra);
 
 	if (RE_engine_render(re, 1)) {

@@ -98,7 +98,9 @@ typedef struct DupliGenerator {
 static const DupliGenerator *get_dupli_generator(const DupliContext *ctx);
 
 /* create initial context for root object */
-static void init_context(DupliContext *r_ctx, Depsgraph *depsgraph, Scene *scene, Object *ob, float space_mat[4][4])
+static void init_context(
+        DupliContext *r_ctx, Depsgraph *depsgraph,
+        Scene *scene, Object *ob, float space_mat[4][4])
 {
 	r_ctx->depsgraph = depsgraph;
 	r_ctx->scene = scene;
@@ -496,7 +498,7 @@ static void make_duplis_verts(const DupliContext *ctx)
 {
 	Scene *scene = ctx->scene;
 	Object *parent = ctx->object;
-	bool use_texcoords = ELEM(DEG_get_mode(ctx->depsgraph), DAG_EVAL_RENDER, DAG_EVAL_PREVIEW);
+	bool use_texcoords = (DEG_get_mode(ctx->depsgraph) == DAG_EVAL_RENDER);
 	VertexDupliData vdd;
 
 	vdd.ctx = ctx;
@@ -700,7 +702,7 @@ static void make_child_duplis_faces(const DupliContext *ctx, void *userdata, Obj
 	float (*orco)[3] = fdd->orco;
 	MLoopUV *mloopuv = fdd->mloopuv;
 	int a, totface = fdd->totface;
-	bool use_texcoords = ELEM(DEG_get_mode(ctx->depsgraph), DAG_EVAL_RENDER, DAG_EVAL_PREVIEW);
+	bool use_texcoords = (DEG_get_mode(ctx->depsgraph) == DAG_EVAL_RENDER);
 	float child_imat[4][4];
 	DupliObject *dob;
 
@@ -766,7 +768,7 @@ static void make_duplis_faces(const DupliContext *ctx)
 {
 	Scene *scene = ctx->scene;
 	Object *parent = ctx->object;
-	bool use_texcoords = ELEM(DEG_get_mode(ctx->depsgraph), DAG_EVAL_RENDER, DAG_EVAL_PREVIEW);
+	bool use_texcoords = (DEG_get_mode(ctx->depsgraph) == DAG_EVAL_RENDER);
 	FaceDupliData fdd;
 
 	fdd.use_scale = ((parent->transflag & OB_DUPLIFACES_SCALE) != 0);
@@ -819,7 +821,7 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 	Scene *scene = ctx->scene;
 	Object *par = ctx->object;
 	bool for_render = DEG_get_mode(ctx->depsgraph) == DAG_EVAL_RENDER;
-	bool use_texcoords = ELEM(DEG_get_mode(ctx->depsgraph), DAG_EVAL_RENDER, DAG_EVAL_PREVIEW);
+	bool use_texcoords = for_render;
 
 	Object *ob = NULL, **oblist = NULL, obcopy, *obcopylist = NULL;
 	DupliObject *dob;
