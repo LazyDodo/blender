@@ -4480,7 +4480,7 @@ void BKE_image_get_aspect(Image *image, float *aspx, float *aspy)
 		*aspy = 1.0f;
 }
 
-unsigned char *BKE_image_get_pixels_for_frame(struct Image *image, int frame)
+unsigned char *BKE_image_get_pixels_for_frame(struct Image *image, int frame, int tile)
 {
 	ImageUser iuser = {NULL};
 	void *lock;
@@ -4488,6 +4488,7 @@ unsigned char *BKE_image_get_pixels_for_frame(struct Image *image, int frame)
 	unsigned char *pixels = NULL;
 
 	iuser.framenr = frame;
+	iuser.tile = tile;
 	iuser.ok = true;
 
 	ibuf = BKE_image_acquire_ibuf(image, &iuser, &lock);
@@ -4507,7 +4508,7 @@ unsigned char *BKE_image_get_pixels_for_frame(struct Image *image, int frame)
 	return pixels;
 }
 
-float *BKE_image_get_float_pixels_for_frame(struct Image *image, int frame)
+float *BKE_image_get_float_pixels_for_frame(struct Image *image, int frame, int tile)
 {
 	ImageUser iuser = {NULL};
 	void *lock;
@@ -4515,6 +4516,7 @@ float *BKE_image_get_float_pixels_for_frame(struct Image *image, int frame)
 	float *pixels = NULL;
 
 	iuser.framenr = frame;
+	iuser.tile = tile;
 	iuser.ok = true;
 
 	ibuf = BKE_image_acquire_ibuf(image, &iuser, &lock);

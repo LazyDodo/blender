@@ -74,7 +74,7 @@ public:
 	explicit ImageSlotTextureNode(const NodeType *node_type) : TextureNode(node_type) {
 		special_type = SHADER_SPECIAL_TYPE_IMAGE_SLOT;
 	}
-	int slot;
+	vector<int> slots;
 };
 
 class ImageTextureNode : public ImageSlotTextureNode {
@@ -86,7 +86,7 @@ public:
 	bool has_attribute_dependency() { return true; }
 
 	ImageManager *image_manager;
-	int is_float;
+	bool is_float;
 	bool is_linear;
 	bool use_alpha;
 	ustring filename;
@@ -98,6 +98,7 @@ public:
 	float projection_blend;
 	bool animated;
 	float3 vector;
+	int num_tiles;
 
 	virtual bool equals(const ShaderNode& other)
 	{
@@ -118,7 +119,7 @@ public:
 	virtual int get_group() { return NODE_GROUP_LEVEL_2; }
 
 	ImageManager *image_manager;
-	int is_float;
+	bool is_float;
 	bool is_linear;
 	bool use_alpha;
 	ustring filename;

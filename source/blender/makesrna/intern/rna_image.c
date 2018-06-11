@@ -564,6 +564,11 @@ static void rna_def_imageuser(BlenderRNA *brna)
 	RNA_def_property_int_sdna(prop, NULL, "view");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE); /* image_multi_cb */
 	RNA_def_property_ui_text(prop, "View", "View in multilayer image");
+
+	prop = RNA_def_property(srna, "tile", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_int_sdna(prop, NULL, "tile");
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "Tile", "Tile in tiled image");
 }
 
 /* image.packed_files */
@@ -884,6 +889,11 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_struct_type(prop, "Stereo3dFormat");
 	RNA_def_property_ui_text(prop, "Stereo 3D Format", "Settings for stereo 3d");
+
+	prop = RNA_def_property(srna, "num_tiles", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_int_sdna(prop, NULL, "num_tiles");
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "Tile Number", "Amount of tiles in the image");
 
 	RNA_api_image(srna);
 }

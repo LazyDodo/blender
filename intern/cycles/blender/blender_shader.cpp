@@ -658,6 +658,7 @@ static ShaderNode *add_node(Scene *scene,
 
 			image->animated = b_image_node.image_user().use_auto_refresh();
 			image->use_alpha = b_image.use_alpha();
+			image->num_tiles = b_image.num_tiles();
 
 			/* TODO: restore */
 			/* TODO(sergey): Does not work properly when we change builtin type. */
@@ -869,6 +870,7 @@ static ShaderNode *add_node(Scene *scene,
 			scene->image_manager->tag_reload_image(
 			        point_density->filename.string(),
 			        point_density->builtin_data,
+			        0,
 			        point_density->interpolation,
 			        EXTENSION_CLIP,
 			        true);

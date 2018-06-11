@@ -242,12 +242,14 @@ string ImageManager::name_from_type(int type)
 static bool image_equals(ImageManager::Image *image,
                          const string& filename,
                          void *builtin_data,
+                         int tile,
                          InterpolationType interpolation,
                          ExtensionType extension,
                          bool use_alpha)
 {
 	return image->filename == filename &&
 	       image->builtin_data == builtin_data &&
+	       image->tile == tile &&
 	       image->interpolation == interpolation &&
 	       image->extension == extension &&
 	       image->use_alpha == use_alpha;
@@ -256,6 +258,7 @@ static bool image_equals(ImageManager::Image *image,
 int ImageManager::add_image(const string& filename,
                             void *builtin_data,
                             bool animated,
+                            int tile,
                             float frame,
                             InterpolationType interpolation,
                             ExtensionType extension,
@@ -286,6 +289,7 @@ int ImageManager::add_image(const string& filename,
 		if(img && image_equals(img,
 		                       filename,
 		                       builtin_data,
+		                       tile,
 		                       interpolation,
 		                       extension,
 		                       use_alpha))
@@ -332,6 +336,7 @@ int ImageManager::add_image(const string& filename,
 	img->builtin_free_cache = metadata.builtin_free_cache;
 	img->need_load = true;
 	img->animated = animated;
+	img->tile = tile;
 	img->frame = frame;
 	img->interpolation = interpolation;
 	img->extension = extension;
@@ -368,6 +373,7 @@ void ImageManager::remove_image(int flat_slot)
 
 void ImageManager::remove_image(const string& filename,
                                 void *builtin_data,
+                                int tile,
                                 InterpolationType interpolation,
                                 ExtensionType extension,
                                 bool use_alpha)
@@ -379,6 +385,7 @@ void ImageManager::remove_image(const string& filename,
 			if(images[type][slot] && image_equals(images[type][slot],
 			                                      filename,
 			                                      builtin_data,
+			                                      tile,
 			                                      interpolation,
 			                                      extension,
 			                                      use_alpha))
@@ -396,6 +403,7 @@ void ImageManager::remove_image(const string& filename,
  */
 void ImageManager::tag_reload_image(const string& filename,
                                     void *builtin_data,
+                                    int tile,
                                     InterpolationType interpolation,
                                     ExtensionType extension,
                                     bool use_alpha)
@@ -405,6 +413,7 @@ void ImageManager::tag_reload_image(const string& filename,
 			if(images[type][slot] && image_equals(images[type][slot],
 			                                      filename,
 			                                      builtin_data,
+			                                      tile,
 			                                      interpolation,
 			                                      extension,
 			                                      use_alpha))
@@ -555,6 +564,7 @@ bool ImageManager::file_load_image(Image *img,
 		if(FileFormat == TypeDesc::FLOAT) {
 			builtin_image_float_pixels_cb(img->filename,
 			                              img->builtin_data,
+			                              img->tile,
 			                              (float*)&pixels[0],
 			                              num_pixels * components,
 			                              img->builtin_free_cache);
@@ -562,6 +572,7 @@ bool ImageManager::file_load_image(Image *img,
 		else if(FileFormat == TypeDesc::UINT8) {
 			builtin_image_pixels_cb(img->filename,
 			                        img->builtin_data,
+			                        img->tile,
 			                        (uchar*)&pixels[0],
 			                        num_pixels * components,
 			                        img->builtin_free_cache);
