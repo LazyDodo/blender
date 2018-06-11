@@ -93,6 +93,7 @@ struct GPUNodeLink {
 	int texturesize;
 
 	void *ptr1, *ptr2;
+	int val1;
 
 	bool dynamic;
 	GPUDynamicType dynamictype;
@@ -137,6 +138,7 @@ typedef struct GPUInput {
 
 	struct Image *ima;           /* image */
 	struct ImageUser *iuser;     /* image user */
+	int image_tile;              /* image tile */
 	struct PreviewImage *prv;    /* preview images & icons */
 	bool image_isdata;           /* image does not contain color data */
 	float *dynamicvec;           /* vector data in case it is dynamic */

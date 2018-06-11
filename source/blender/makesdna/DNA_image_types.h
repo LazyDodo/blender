@@ -105,7 +105,7 @@ typedef struct Image {
 	char name[1024];			/* file path, 1024 = FILE_MAX */
 	
 	struct MovieCache *cache;	/* not written in file */
-	struct GPUTexture *gputexture[2]; /* not written in file 2 = TEXTARGET_COUNT */
+	struct GPUTexture **gputexture; /* not written in file 2 = TEXTARGET_COUNT */
 	
 	/* sources from: */
 	ListBase anims;
@@ -121,8 +121,8 @@ typedef struct Image {
 	/* texture page */
 	short tpageflag;
 	short num_tiles;
-	unsigned int bindcode[2]; /* only for current image... 2 = TEXTARGET_COUNT */
-	unsigned int pad3;
+	int pad2;
+	unsigned int *bindcode; /* only for current image... 2 = TEXTARGET_COUNT */
 
 	struct PackedFile *packedfile DNA_DEPRECATED; /* deprecated */
 	struct ListBase packedfiles;

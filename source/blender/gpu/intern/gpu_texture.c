@@ -36,6 +36,7 @@
 #include "BLI_threads.h"
 
 #include "BKE_global.h"
+#include "BKE_image.h"
 
 #include "GPU_batch.h"
 #include "GPU_debug.h"
@@ -688,13 +689,16 @@ GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget
 	else
 		gputt = TEXTARGET_TEXTURE_CUBE_MAP;
 
-	if (ima->gputexture[gputt]) {
-		ima->gputexture[gputt]->bindcode = bindcode;
+	int tile = BKE_image_get_tile_index(ima, iuser);
+	GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, gputt);
+
+	if (tex) {
+		tex->bindcode = bindcode;
 		glBindTexture(textarget, 0);
-		return ima->gputexture[gputt];
+		return tex;
 	}
 
-	GPUTexture *tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
+	tex = MEM_callocN(sizeof(GPUTexture), "GPUTexture");
 	tex->bindcode = bindcode;
 	tex->number = -1;
 	tex->refcount = 1;
@@ -705,7 +709,7 @@ GPUTexture *GPU_texture_from_blender(Image *ima, ImageUser *iuser, int textarget
 	tex->components = -1;
 	tex->samples = 0;
 
-	ima->gputexture[gputt] = tex;
+	BKE_image_set_gpu_texture(ima, tile, gputt, tex);
 
 	if (!glIsTexture(tex->bindcode)) {
 		GPU_print_error_debug("Blender Texture Not Loaded");

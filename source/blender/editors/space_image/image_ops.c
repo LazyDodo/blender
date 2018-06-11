@@ -1271,7 +1271,7 @@ static Image *image_open_single(
 		if ((frame_seq_len > 1) && (ima->source == IMA_SRC_FILE)) {
 			if (frame_seq_ofs == 1001) {
 				ima->source = IMA_SRC_TILED;
-				ima->num_tiles = frame_seq_len;
+				BKE_image_set_num_tiles(ima, frame_seq_len);
 			}
 			else {
 				ima->source = IMA_SRC_SEQUENCE;

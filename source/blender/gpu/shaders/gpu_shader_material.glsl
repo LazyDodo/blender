@@ -1792,6 +1792,29 @@ void node_tex_environment_empty(vec3 co, out vec4 color)
 	color = vec4(1.0, 0.0, 1.0, 1.0);
 }
 
+void node_tex_image_tiled_map(vec3 co, out vec4 color, out vec3 map)
+{
+	float tx = floor(co.x);
+	float ty = floor(co.y);
+
+	if (tx < 0 || ty < 0 || tx >= 10)
+		map = vec3(0, 0, -1);
+	else
+		map = vec3(co.x - tx, co.y - ty, 10*ty + tx);
+
+	color = vec4(0.0);
+}
+
+void node_tex_image_tile(vec3 map, float tile_id, sampler2D ima, vec4 in_color, out vec4 color, out float alpha)
+{
+	if (map.z == tile_id)
+		color = texture(ima, map.xy);
+	else
+		color = in_color;
+	
+	alpha = color.a;
+}
+
 void node_tex_image(vec3 co, sampler2D ima, out vec4 color, out float alpha)
 {
 	color = texture(ima, co.xy);

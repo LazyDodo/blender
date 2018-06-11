@@ -274,6 +274,17 @@ bool BKE_image_has_alpha(struct Image *image);
 /* check if texture has gpu texture code */
 bool BKE_image_has_bindcode(struct Image *ima);
 
+/* get tile index for tiled images */
+int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser);
+
+unsigned int BKE_image_get_bindcode(struct Image *ima, int tile, int type);
+void BKE_image_set_bindcode(struct Image *ima, int tile, int type, unsigned int bindcode);
+
+struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type);
+void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex);
+
+void BKE_image_set_num_tiles(struct Image *ima, int num_tiles);
+
 void BKE_image_get_size(struct Image *image, struct ImageUser *iuser, int *width, int *height);
 void BKE_image_get_size_fl(struct Image *image, struct ImageUser *iuser, float size[2]);
 void BKE_image_get_aspect(struct Image *image, float *aspx, float *aspy);

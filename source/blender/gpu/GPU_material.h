@@ -220,7 +220,7 @@ GPUNodeLink *GPU_attribute(CustomDataType type, const char *name);
 GPUNodeLink *GPU_uniform(float *num);
 GPUNodeLink *GPU_dynamic_uniform(float *num, GPUDynamicType dynamictype, void *data);
 GPUNodeLink *GPU_uniform_buffer(float *num, GPUType gputype);
-GPUNodeLink *GPU_image(struct Image *ima, struct ImageUser *iuser, bool is_data);
+GPUNodeLink *GPU_image(struct Image *ima, struct ImageUser *iuser, bool is_data, int tile);
 GPUNodeLink *GPU_cube_map(struct Image *ima, struct ImageUser *iuser, bool is_data);
 GPUNodeLink *GPU_image_preview(struct PreviewImage *prv);
 GPUNodeLink *GPU_texture(int size, float *pixels);

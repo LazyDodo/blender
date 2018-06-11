@@ -227,18 +227,6 @@ float GPU_get_anisotropic(void)
 
 /* Set OpenGL state for an MTFace */
 
-static unsigned int *gpu_get_image_bindcode(Image *ima, GLenum textarget)
-{
-	unsigned int *bind = 0;
-
-	if (textarget == GL_TEXTURE_2D)
-		bind = &ima->bindcode[TEXTARGET_TEXTURE_2D];
-	else if (textarget == GL_TEXTURE_CUBE_MAP)
-		bind = &ima->bindcode[TEXTARGET_TEXTURE_CUBE_MAP];
-
-	return bind;
-}
-
 typedef struct VerifyThreadData {
 	ImBuf *ibuf;
 	float *srgb_frect;
@@ -293,7 +281,6 @@ int GPU_verify_image(
         Image *ima, ImageUser *iuser,
         int textarget, bool compare, bool mipmap, bool is_data)
 {
-	unsigned int *bind = NULL;
 	int tpx = 0, tpy = 0;
 	unsigned int *rect = NULL;
 	float *frect = NULL;
@@ -343,11 +330,15 @@ int GPU_verify_image(
 		ima->tpageflag &= ~IMA_TPAGE_REFRESH;
 	}
 
+	unsigned int bind;
+	int type = (textarget == GL_TEXTURE_CUBE_MAP)? TEXTARGET_TEXTURE_CUBE_MAP : TEXTARGET_TEXTURE_2D;
+	int tile = BKE_image_get_tile_index(ima, iuser);
+
 	{
 		/* regular image mode */
-		bind = gpu_get_image_bindcode(ima, textarget);
+		bind = BKE_image_get_bindcode(ima, tile, type);
 
-		if (*bind == 0) {
+		if (bind == 0) {
 			tpx = ibuf->x;
 			tpy = ibuf->y;
 			rect = ibuf->rect;
@@ -362,11 +353,11 @@ int GPU_verify_image(
 		}
 	}
 
-	if (*bind != 0) {
+	if (bind != 0) {
 		/* enable opengl drawing with textures */
-		glBindTexture(textarget, *bind);
+		glBindTexture(textarget, bind);
 		BKE_image_release_ibuf(ima, ibuf, NULL);
-		return *bind;
+		return bind;
 	}
 
 	const int rectw = tpx;
@@ -374,17 +365,18 @@ int GPU_verify_image(
 
 #ifdef WITH_DDS
 	if (ibuf->ftype == IMB_FTYPE_DDS)
-		GPU_create_gl_tex_compressed(bind, rect, rectw, recth, textarget, mipmap, ima, ibuf);
+		GPU_create_gl_tex_compressed(&bind, rect, rectw, recth, textarget, mipmap, ima, ibuf);
 	else
 #endif
-		GPU_create_gl_tex(bind, rect, frect, rectw, recth, textarget, mipmap, use_high_bit_depth, ima);
+		GPU_create_gl_tex(&bind, rect, frect, rectw, recth, textarget, mipmap, use_high_bit_depth, ima);
 
 	/* mark as non-color data texture */
-	if (*bind) {
+	if (bind) {
 		if (is_data)
 			ima->tpageflag |= IMA_GLBIND_IS_DATA;
 		else
 			ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
+		BKE_image_set_bindcode(ima, tile, type, bind);
 	}
 
 	/* clean up */
@@ -393,7 +385,7 @@ int GPU_verify_image(
 
 	BKE_image_release_ibuf(ima, ibuf, NULL);
 
-	return *bind;
+	return bind;
 }
 
 static void **gpu_gen_cube_map(unsigned int *rect, float *frect, int rectw, int recth, bool use_high_bit_depth)
@@ -696,15 +688,19 @@ void GPU_paint_set_mipmap(bool mipmap)
 
 	if (mipmap) {
 		for (Image *ima = G.main->image.first; ima; ima = ima->id.next) {
-			if (BKE_image_has_bindcode(ima)) {
+			bool has_bindcode = false;
+			int num_tiles = (ima->source == IMA_SRC_TILED)? ima->num_tiles : 1;
+			for (int t = 0; t < num_tiles; t++) {
 				if (ima->tpageflag & IMA_MIPMAP_COMPLETE) {
-					if (ima->bindcode[TEXTARGET_TEXTURE_2D]) {
-						glBindTexture(GL_TEXTURE_2D, ima->bindcode[TEXTARGET_TEXTURE_2D]);
+					if (BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_2D)) {
+						has_bindcode = true;
+						glBindTexture(GL_TEXTURE_2D, BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_2D));
 						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gpu_get_mipmap_filter(0));
 						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gpu_get_mipmap_filter(1));
 					}
-					if (ima->bindcode[TEXTARGET_TEXTURE_CUBE_MAP]) {
-						glBindTexture(GL_TEXTURE_CUBE_MAP, ima->bindcode[TEXTARGET_TEXTURE_CUBE_MAP]);
+					if (BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_CUBE_MAP)) {
+						has_bindcode = true;
+						glBindTexture(GL_TEXTURE_CUBE_MAP, BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_CUBE_MAP));
 						glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, gpu_get_mipmap_filter(0));
 						glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, gpu_get_mipmap_filter(1));
 					}
@@ -712,26 +708,30 @@ void GPU_paint_set_mipmap(bool mipmap)
 				else
 					GPU_free_image(ima);
 			}
-			else
+			if (!has_bindcode)
 				ima->tpageflag &= ~IMA_MIPMAP_COMPLETE;
 		}
 
 	}
 	else {
 		for (Image *ima = G.main->image.first; ima; ima = ima->id.next) {
-			if (BKE_image_has_bindcode(ima)) {
-				if (ima->bindcode[TEXTARGET_TEXTURE_2D]) {
-					glBindTexture(GL_TEXTURE_2D, ima->bindcode[TEXTARGET_TEXTURE_2D]);
+			bool has_bindcode = false;
+			int num_tiles = (ima->source == IMA_SRC_TILED)? ima->num_tiles : 1;
+			for (int t = 0; t < num_tiles; t++) {
+				if (BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_2D)) {
+					has_bindcode = true;
+					glBindTexture(GL_TEXTURE_2D, BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_2D));
 					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gpu_get_mipmap_filter(1));
 				}
-				if (ima->bindcode[TEXTARGET_TEXTURE_CUBE_MAP]) {
-					glBindTexture(GL_TEXTURE_CUBE_MAP, ima->bindcode[TEXTARGET_TEXTURE_CUBE_MAP]);
+				if (BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_CUBE_MAP)) {
+					has_bindcode = true;
+					glBindTexture(GL_TEXTURE_CUBE_MAP, BKE_image_get_bindcode(ima, t, TEXTARGET_TEXTURE_CUBE_MAP));
 					glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, gpu_get_mipmap_filter(1));
 				}
 			}
-			else
+			if (!has_bindcode)
 				ima->tpageflag &= ~IMA_MIPMAP_COMPLETE;
 		}
 	}
@@ -739,7 +739,7 @@ void GPU_paint_set_mipmap(bool mipmap)
 
 
 /* check if image has been downscaled and do scaled partial update */
-static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x, int y, int w, int h)
+static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, int tile, float *frect, int x, int y, int w, int h)
 {
 	if (is_over_resolution_limit(GL_TEXTURE_2D, ibuf->x, ibuf->y)) {
 		int x_limit = smaller_power_of_2_limit(ibuf->x);
@@ -766,7 +766,7 @@ static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x,
 			ImBuf *ibuf_scale = IMB_allocFromBuffer(NULL, frect, w, h);
 			IMB_scaleImBuf(ibuf_scale, rectw, recth);
 
-			glBindTexture(GL_TEXTURE_2D, ima->bindcode[TEXTARGET_TEXTURE_2D]);
+			glBindTexture(GL_TEXTURE_2D, BKE_image_get_bindcode(ima, tile, TEXTARGET_TEXTURE_2D));
 			glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, rectw, recth, GL_RGBA,
 			                GL_FLOAT, ibuf_scale->rect_float);
 
@@ -786,7 +786,7 @@ static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x,
 					bilinear_interpolation_color_wrap(ibuf, (unsigned char *)(p + i + j * (rectw)), NULL, u, v);
 				}
 			}
-			glBindTexture(GL_TEXTURE_2D, ima->bindcode[TEXTARGET_TEXTURE_2D]);
+			glBindTexture(GL_TEXTURE_2D, BKE_image_get_bindcode(ima, tile, TEXTARGET_TEXTURE_2D));
 			glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, rectw, recth, GL_RGBA,
 			                GL_UNSIGNED_BYTE, scalerect);
 
@@ -809,9 +809,10 @@ static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x,
 void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, int h)
 {
 	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, iuser, NULL);
+	int tile = BKE_image_get_tile_index(ima, iuser);
 
 	if ((!GTS.gpu_mipmap && GPU_get_mipmap()) ||
-	    (ima->bindcode[TEXTARGET_TEXTURE_2D] == 0) ||
+	    (BKE_image_get_bindcode(ima, tile, TEXTARGET_TEXTURE_2D) == 0) ||
 	    (ibuf == NULL) ||
 	    (w == 0) || (h == 0))
 	{
@@ -829,13 +830,13 @@ void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, i
 			bool is_data = (ima->tpageflag & IMA_GLBIND_IS_DATA) != 0;
 			IMB_partial_rect_from_float(ibuf, buffer, x, y, w, h, is_data);
 
-			if (gpu_check_scaled_image(ibuf, ima, buffer, x, y, w, h)) {
+			if (gpu_check_scaled_image(ibuf, ima, tile, buffer, x, y, w, h)) {
 				MEM_freeN(buffer);
 				BKE_image_release_ibuf(ima, ibuf, NULL);
 				return;
 			}
 
-			glBindTexture(GL_TEXTURE_2D, ima->bindcode[TEXTARGET_TEXTURE_2D]);
+			glBindTexture(GL_TEXTURE_2D, BKE_image_get_bindcode(ima, tile, TEXTARGET_TEXTURE_2D));
 			glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_FLOAT, buffer);
 
 			MEM_freeN(buffer);
@@ -853,12 +854,12 @@ void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, i
 			return;
 		}
 
-		if (gpu_check_scaled_image(ibuf, ima, NULL, x, y, w, h)) {
+		if (gpu_check_scaled_image(ibuf, ima, tile, NULL, x, y, w, h)) {
 			BKE_image_release_ibuf(ima, ibuf, NULL);
 			return;
 		}
 
-		glBindTexture(GL_TEXTURE_2D, ima->bindcode[TEXTARGET_TEXTURE_2D]);
+		glBindTexture(GL_TEXTURE_2D, BKE_image_get_bindcode(ima, tile, TEXTARGET_TEXTURE_2D));
 
 		glGetIntegerv(GL_UNPACK_ROW_LENGTH, &row_length);
 		glGetIntegerv(GL_UNPACK_SKIP_PIXELS, &skip_pixels);
@@ -1015,16 +1016,19 @@ void GPU_free_image(Image *ima)
 		return;
 	}
 
-	for (int i = 0; i < TEXTARGET_COUNT; i++) {
-		/* free regular image binding */
-		if (ima->bindcode[i]) {
-			glDeleteTextures(1, (GLuint *)&ima->bindcode[i]);
-			ima->bindcode[i] = 0;
-		}
-		/* free glsl image binding */
-		if (ima->gputexture[i]) {
-			GPU_texture_free(ima->gputexture[i]);
-			ima->gputexture[i] = NULL;
+	for (int tile = 0; tile < ima->num_tiles; tile++) {
+		for (int i = 0; i < TEXTARGET_COUNT; i++) {
+			GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, i);
+			if (tex) {
+				GPU_texture_free(tex);
+				BKE_image_set_gpu_texture(ima, tile, i, NULL);
+			}
+
+			unsigned int bindcode = BKE_image_get_bindcode(ima, tile, i);
+			if (bindcode) {
+				glDeleteTextures(1, (GLuint *) (&bindcode));
+				BKE_image_set_bindcode(ima, tile, i, 0);
+			}
 		}
 	}
 
