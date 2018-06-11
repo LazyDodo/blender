@@ -3103,8 +3103,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 			compiler.stack_assign_if_linked(roughness_u_in),
 			compiler.stack_assign_if_linked(roughness_v_in),
 			compiler.closure_mix_weight_offset()),
-		__float_as_int(roughness_u),
-		__float_as_int(roughness_v));
+		__float_as_uint(roughness_u),
+		__float_as_uint(roughness_v));
 
 	compiler.add_node(compiler.stack_assign_if_linked(input("Normal")),
 		compiler.encode_uchar4(
@@ -3112,8 +3112,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 			compiler.stack_assign_if_linked(ior_in),
 			color_ofs,
 			parametrization),
-		__float_as_int(offset),
-		__float_as_int(ior));
+		__float_as_uint(offset),
+		__float_as_uint(ior));
 
 	compiler.add_node(
 		compiler.encode_uchar4(
@@ -3121,9 +3121,9 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 			compiler.stack_assign_if_linked(eumelanin_in),
 			compiler.stack_assign_if_linked(pheomelanin_in),
 			absorption_coefficient_ofs),
-		__float_as_int(primary_reflection_roughness),
-		__float_as_int(eumelanin),
-		__float_as_int(pheomelanin));
+		__float_as_uint(primary_reflection_roughness),
+		__float_as_uint(eumelanin),
+		__float_as_uint(pheomelanin));
 	
 	compiler.add_node(
 		compiler.encode_uchar4(
@@ -3131,9 +3131,9 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 			compiler.stack_assign_if_linked(random_in),
 			compiler.stack_assign_if_linked(color_randomization_in),
 			compiler.stack_assign_if_linked(roughness_randomization_in)),
-		__float_as_int(random),
-		__float_as_int(color_randomization),
-		__float_as_int(roughness_randomization));
+		__float_as_uint(random),
+		__float_as_uint(color_randomization),
+		__float_as_uint(roughness_randomization));
 }
 
 void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)
