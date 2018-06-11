@@ -1,7 +1,7 @@
 in vec4 uvcoordsvar;
-uniform sampler2D TexSample0;//depth
-uniform sampler2D TexSample1;//color
-uniform sampler2D TexSample2;//normal
+uniform sampler2DMS TexSample0;//depth
+uniform sampler2DMS TexSample1;//color
+uniform sampler2DMS TexSample2;//normal
 uniform float uValue0;//normal clamp
 uniform float uValue1;//normal strength
 uniform float uValue2;//depth clamp
@@ -34,29 +34,30 @@ float linearDepth(float depthSample){
 	return zLinear;
 }
 
-vec4 DetectEdge(sampler2D tex, float clamp, float strength){
+vec4 DetectEdge(sampler2DMS tex, float clamp, float strength){
 	mat3 I = mat3(0); 
     mat3 J = mat3(0); 
     mat3 K = mat3(0); 
 
-    ivec2 texSize = textureSize(tex, 0);
+    ivec2 texSize = textureSize(tex);
     ivec2 sp = ivec2(uvcoordsvar.xy * texSize);
     vec4 cs=vec4(0);
 
-    
-    //for(int s=0;s<4;s++){
+    //sample hardcoded (8) now
+    for(int s=0;s<8;s++){
  	     for (int i = 0; i<3; i++) {
  		     for (int j = 0; j<3; j++) {
- 		 	     vec3 sample1 = vec3((texelFetch(tex, sp + ivec2(i - 1, j - 1), 0).r));
-				 vec3 sample2 = vec3((texelFetch(tex, sp + ivec2(i - 1, j - 1), 0).g));
- 		 	     vec3 sample3 = vec3((texelFetch(tex, sp + ivec2(i - 1, j - 1), 0).b));
-		 	     I[i][j] += length(sample1); // 4; 
-		 	     J[i][j] += length(sample2); // 4; 
-		 	     K[i][j] += length(sample3); // 4; 
+				 vec4 col = texelFetch(tex, sp + ivec2(i - 1, j - 1), s);
+ 		 	     vec3 sample1 = vec3((col.r));
+				 vec3 sample2 = vec3((col.g));
+ 		 	     vec3 sample3 = vec3((col.b));
+		 	     I[i][j] += length(sample1) / 8; 
+		 	     J[i][j] += length(sample2) / 8; 
+		 	     K[i][j] += length(sample3) / 8; 
  		     }
  	     }
-        cs += texelFetch(TexSample1, sp, 0);//4;
-    //}
+        cs += texelFetch(TexSample1, sp, s)/8;
+    }
 
 	 float gx1 = dot(sx[0], I[0]) + dot(sx[1], I[1]) + dot(sx[2], I[2]); 
  	 float gy1 = dot(sy[0], I[0]) + dot(sy[1], I[1]) + dot(sy[2], I[2]); 

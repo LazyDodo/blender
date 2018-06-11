@@ -75,7 +75,6 @@ typedef struct LANPR_PassList {
 	struct DRWPass *normal_pass;
 	struct DRWPass *edge_intermediate;
 	struct DRWPass *edge_thinning;
-	struct DRWPass *edge_thinning_2;
 	struct DRWPass *snake_pass;
 
 	/* DPIX */
@@ -119,7 +118,6 @@ typedef struct LANPR_PrivateData {
 	DRWShadingGroup *multipass_shgrp;
 	DRWShadingGroup *edge_detect_shgrp;
 	DRWShadingGroup *edge_thinning_shgrp;
-	DRWShadingGroup *edge_thinning_shgrp_2;
     DRWShadingGroup *snake_shgrp;
 	
 	DRWShadingGroup *dpix_transform_shgrp;

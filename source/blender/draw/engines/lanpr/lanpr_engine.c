@@ -86,10 +86,10 @@ static void lanpr_engine_init(void *ved){
 
 
 	/* Main Buffer */
-	DRW_texture_ensure_fullscreen_2D(&txl->depth, GPU_DEPTH_COMPONENT32F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
-	DRW_texture_ensure_fullscreen_2D(&txl->color, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
-	DRW_texture_ensure_fullscreen_2D(&txl->normal, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
-    DRW_texture_ensure_fullscreen_2D(&txl->edge_intermediate, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
+	DRW_texture_ensure_fullscreen_2D_multisample(&txl->depth, GPU_DEPTH_COMPONENT32F, 8, 0);
+	DRW_texture_ensure_fullscreen_2D_multisample(&txl->color, GPU_RGBA32F, 8, 0);
+	DRW_texture_ensure_fullscreen_2D_multisample(&txl->normal, GPU_RGBA32F, 8, 0);
+    DRW_texture_ensure_fullscreen_2D_multisample(&txl->edge_intermediate, GPU_RGBA32F, 8, 0);
 	
 	GPU_framebuffer_ensure_config(&fbl->passes, {
 		GPU_ATTACHMENT_TEXTURE(txl->depth),
@@ -112,7 +112,8 @@ static void lanpr_engine_init(void *ved){
 	});
 
 	GPU_framebuffer_ensure_config(&fbl->edge_thinning, {
-		GPU_ATTACHMENT_TEXTURE(txl->depth),
+		GPU_ATTACHMENT_LEAVE,
+		//GPU_ATTACHMENT_TEXTURE(txl->depth),
 		GPU_ATTACHMENT_TEXTURE(txl->color),
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
@@ -195,6 +196,8 @@ static void lanpr_cache_init(void *vedata){
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
+
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 	
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
@@ -235,15 +238,10 @@ static void lanpr_cache_init(void *vedata){
 
 		psl->edge_thinning = DRW_pass_create("Edge Thinning Stage 1", DRW_STATE_WRITE_COLOR);
 		stl->g_data->edge_thinning_shgrp = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "TexSample0", &txl->edge_intermediate);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "TexSample0", &dtxl->color);
 		DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "Stage", &stl->g_data->stage, 1);
 		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
 
-		psl->edge_thinning_2 = DRW_pass_create("Edge Thinning Stage 2", DRW_STATE_WRITE_COLOR);
-		stl->g_data->edge_thinning_shgrp_2 = DRW_shgroup_create(OneTime.edge_thinning_shader, psl->edge_thinning_2);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp_2, "TexSample0", &txl->color);
-		DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp_2, "Stage", &stl->g_data->stage, 1);
-		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp_2, quad, NULL);
 	}else{
         psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
 		stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);

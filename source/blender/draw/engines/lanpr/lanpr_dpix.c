@@ -50,7 +50,6 @@ void lanpr_init_atlas_inputs(void *ved){
 		DRW_texture_ensure_2D(&txl->dpix_in_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_nl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_nr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
-
 		DRW_texture_ensure_2D(&txl->dpix_out_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_out_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_out_length, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
@@ -286,16 +285,17 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 		//GPU_framebuffer_bind(fbl->edge_intermediate);
 		//DRW_draw_pass(psl->color_pass);// use depth
 
-	    //glEnable(GL_BLEND);
-        //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_MULTISAMPLE);
 
 		GPU_framebuffer_bind(fbl->dpix_preview);
 		GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
 		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->dpix_preview_pass);
 
-		//glDisable(GL_BLEND);
+		glDisable(GL_MULTISAMPLE);
 
 		GPU_framebuffer_bind(dfbl->default_fb);
-		DRW_transform_to_display(txl->color);
+		GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+		DRW_multisamples_resolve(txl->depth,txl->color);  
+		//DRW_transform_to_display(txl->color);
 }

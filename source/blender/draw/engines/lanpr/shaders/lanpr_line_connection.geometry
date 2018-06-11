@@ -81,10 +81,15 @@ void main() {
 	b = MakeRightTaperLinear(L,b,OffsetL2);
 	c = MakeRightTaperLinear(R,c,OffsetR2);
 	d = MakeRightTaperLinear(R,d,OffsetR2);
-
+	
+	a.w=1;
+	b.w=1;
+	c.w=1;
+	d.w=1;
+	
 	gl_Position = a;
 	EmitVertex();
-	gl_Position = b ;
+	gl_Position = b;
 	EmitVertex();
 	gl_Position = c;
 	EmitVertex();
