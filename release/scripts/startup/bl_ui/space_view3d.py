@@ -54,20 +54,6 @@ class VIEW3D_HT_header(Header):
         shading_type = view.shading.type
         shading_item = bpy.types.View3DShading.bl_rna.properties['type'].enum_items[shading_type]
 
-        row = layout.row(align=True)
-        row.prop(shading, "type", text="", expand=True)
-
-        sub = row.row(align=True)
-        sub.enabled = shading.type != 'RENDERED'
-        sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_shading")
-
-        row = layout.row(align=True)
-        row.prop(overlay, "show_overlays", icon="WIRE", text="")
-
-        sub = row.row(align=True)
-        sub.active = overlay.show_overlays
-        sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_overlay")
-
         if obj:
             # Set above:
             # mode = obj.mode
@@ -133,6 +119,23 @@ class VIEW3D_HT_header(Header):
                 row.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
 
         VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
+
+        layout.separator_spacer()
+
+        row = layout.row(align=True)
+        row.prop(shading, "type", text="", expand=True)
+
+        sub = row.row(align=True)
+        sub.enabled = shading.type != 'RENDERED'
+        sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_shading")
+
+        row = layout.row(align=True)
+        row.prop(overlay, "show_overlays", icon="WIRE", text="")
+
+        sub = row.row(align=True)
+        sub.active = overlay.show_overlays
+        sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_overlay")
+
 
 class VIEW3D_MT_editor_menus(Menu):
     bl_space_type = 'VIEW3D_MT_editor_menus'
@@ -3538,12 +3541,12 @@ class VIEW3D_PT_shading(Panel):
                 row.template_icon_view(shading, "studio_light")
                 sub = row.column()
                 sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
-                if shading.studio_light_orientation == 'WORLD':
+                if shading.selected_studio_light.orientation == 'WORLD':
                     col.row().prop(shading, "studiolight_rot_z")
 
             elif shading.light == 'MATCAP':
                 row = col.row()
-                row.template_icon_view(shading, "matcap")
+                row.template_icon_view(shading, "studio_light")
                 sub = row.column()
                 sub.operator('VIEW3D_OT_toggle_matcap_flip', emboss=False, text="", icon='ARROW_LEFTRIGHT')
                 sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
@@ -3598,7 +3601,7 @@ class VIEW3D_PT_shading(Panel):
             row.template_icon_view(shading, "studio_light")
             sub = row.column()
             sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
-            if shading.studio_light_orientation == 'WORLD':
+            if shading.selected_studio_light.orientation == 'WORLD':
                 col.row().prop(shading, "studiolight_rot_z")
                 col.row().prop(shading, "studiolight_background")
             col.prop(shading, "use_scene_light")
