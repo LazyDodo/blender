@@ -1502,6 +1502,7 @@ void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph
 	RenderData *r = &scene->r;
 	Render *render = engine->re;
 	/* Changing Context */
+	/* GPXX Review this context */
 	DRW_opengl_context_enable();
 	/* Reset before using it. */
 	drw_state_prepare_clean_for_draw(&DST);
@@ -1554,6 +1555,7 @@ void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph
 	GPU_framebuffer_restore();
 
 	/* Changing Context */
+	/* GPXX Review this context */
 	DRW_opengl_context_disable();
 
 	DST.buffer_finish_called = false;
