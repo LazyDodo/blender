@@ -61,6 +61,7 @@
 #include "BKE_modifier.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_mesh_tangent.h"
 #include "BKE_object.h"
 #include "BKE_object_deform.h"
@@ -94,7 +95,6 @@
 static ThreadRWMutex loops_cache_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 
-static void add_shapekey_layers(DerivedMesh *dm, Mesh *me, Object *ob);
 static void shapekey_layers_to_keyblocks(DerivedMesh *dm, Mesh *me, int actshape_uid);
 
 static void mesh_init_origspace(Mesh *mesh);
@@ -1157,6 +1157,8 @@ DerivedMesh *mesh_create_derived(Mesh *me, float (*vertCos)[3])
 	return dm;
 }
 
+/* XXX2.8(Sybren): can be removed once DerivedMesh port is done */
+#ifdef WITH_DERIVEDMESH_DEPRECATED_FUNCS
 DerivedMesh *mesh_create_derived_for_modifier(
         struct Depsgraph *depsgraph, Scene *scene, Object *ob,
         ModifierData *md, int build_shapekey_layers)
@@ -1207,6 +1209,7 @@ DerivedMesh *mesh_create_derived_for_modifier(
 
 	return dm;
 }
+#endif
 
 static float (*get_editbmesh_orco_verts(BMEditMesh *em))[3]
 {
@@ -1920,7 +1923,7 @@ static void shapekey_layers_to_keyblocks(DerivedMesh *dm, Mesh *me, int actshape
 	}
 }
 
-static void add_shapekey_layers(DerivedMesh *dm, Mesh *me, Object *UNUSED(ob))
+static void UNUSED_FUNCTION(add_shapekey_layers)(DerivedMesh *dm, Mesh *me, Object *UNUSED(ob))
 {
 	KeyBlock *kb;
 	Key *key = me->key;
@@ -2790,7 +2793,7 @@ static void editbmesh_calc_modifiers(
 			}
 			else {
 				struct Mesh *mesh = ob->data;
-				if (mesh->id.tag & LIB_TAG_COPY_ON_WRITE) {
+				if (mesh->id.tag & LIB_TAG_COPIED_ON_WRITE) {
 					BKE_mesh_runtime_ensure_edit_data(mesh);
 					mesh->runtime.edit_data->vertexCos = MEM_dupallocN(deformedVerts);
 				}
@@ -2832,7 +2835,7 @@ static void editbmesh_calc_modifiers(
 	else {
 		/* this is just a copy of the editmesh, no need to calc normals */
 		struct Mesh *mesh = ob->data;
-		if (mesh->id.tag & LIB_TAG_COPY_ON_WRITE) {
+		if (mesh->id.tag & LIB_TAG_COPIED_ON_WRITE) {
 			BKE_mesh_runtime_ensure_edit_data(mesh);
 			if (mesh->runtime.edit_data->vertexCos != NULL)
 				MEM_freeN((void *)mesh->runtime.edit_data->vertexCos);
@@ -2943,18 +2946,14 @@ static void mesh_finalize_eval(Object *object)
 	if (mesh_eval->mat != NULL) {
 		MEM_freeN(mesh_eval->mat);
 	}
+	/* Set flag which makes it easier to see what's going on in a debugger. */
+	mesh_eval->id.tag |= LIB_TAG_COPIED_ON_WRITE_EVAL_RESULT;
 	mesh_eval->mat = MEM_dupallocN(mesh->mat);
 	mesh_eval->totcol = mesh->totcol;
 	/* Make evaluated mesh to share same edit mesh pointer as original
 	 * and copied meshes.
 	 */
 	mesh_eval->edit_btmesh = mesh->edit_btmesh;
-	/* Special flags to help debugging and also to allow copy-on-write core
-	 * to understand that on re-evaluation this mesh is to be preserved and
-	 * to be remapped back to copied original mesh when used as object data.
-	 */
-	mesh_eval->id.tag |= LIB_TAG_COPY_ON_WRITE_EVAL;
-	mesh_eval->id.orig_id = &mesh->id;
 	/* Copy autosmooth settings from original mesh.
 	 * This is not done by BKE_mesh_new_nomain_from_template(), so need to take
 	 * extra care here.
@@ -2970,7 +2969,7 @@ static void mesh_finalize_eval(Object *object)
 
 	/* Object is sometimes not evaluated!
 	 * TODO(sergey): BAD TEMPORARY HACK FOR UNTIL WE ARE SMARTER */
-	if(object->id.tag & LIB_TAG_COPY_ON_WRITE) {
+	if (object->id.tag & LIB_TAG_COPIED_ON_WRITE) {
 		object->data = mesh_eval;
 	}
 	else {
@@ -3108,6 +3107,7 @@ void makeDerivedMesh(
 
 /***/
 
+#ifdef USE_DERIVEDMESH
 /* Deprecated DM, use: 'mesh_get_eval_final'. */
 DerivedMesh *mesh_get_derived_final(
         struct Depsgraph *depsgraph, Scene *scene, Object *ob, CustomDataMask dataMask)
@@ -3128,6 +3128,7 @@ DerivedMesh *mesh_get_derived_final(
 	if (ob->derivedFinal) { BLI_assert(!(ob->derivedFinal->dirty & DM_DIRTY_NORMALS)); }
 	return ob->derivedFinal;
 }
+#endif
 Mesh *mesh_get_eval_final(
         struct Depsgraph *depsgraph, Scene *scene, Object *ob, CustomDataMask dataMask)
 {
@@ -3137,7 +3138,7 @@ Mesh *mesh_get_eval_final(
 	bool need_mapping;
 	dataMask |= object_get_datamask(depsgraph, ob, &need_mapping);
 
-	if (!ob->derivedFinal ||
+	if (!ob->runtime.mesh_eval ||
 	    ((dataMask & ob->lastDataMask) != dataMask) ||
 	    (need_mapping != ob->lastNeedMapping))
 	{
@@ -3148,6 +3149,7 @@ Mesh *mesh_get_eval_final(
 	return ob->runtime.mesh_eval;
 }
 
+#ifdef USE_DERIVEDMESH
 /* Deprecated DM, use: 'mesh_get_eval_deform' instead. */
 DerivedMesh *mesh_get_derived_deform(struct Depsgraph *depsgraph, Scene *scene, Object *ob, CustomDataMask dataMask)
 {
@@ -3167,6 +3169,7 @@ DerivedMesh *mesh_get_derived_deform(struct Depsgraph *depsgraph, Scene *scene, 
 
 	return ob->derivedDeform;
 }
+#endif
 Mesh *mesh_get_eval_deform(struct Depsgraph *depsgraph, Scene *scene, Object *ob, CustomDataMask dataMask)
 {
 	/* if there's no derived mesh or the last data mask used doesn't include
