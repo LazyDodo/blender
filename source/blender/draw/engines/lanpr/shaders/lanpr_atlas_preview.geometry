@@ -9,23 +9,37 @@ uniform float depth_offset;
 
 // these are for depth related thickness control;
 uniform float line_thickness;
-uniform float depth_influence;
-uniform float depth_curve;
+uniform float depth_width_influence;
+uniform float depth_width_curve;
+uniform float depth_alpha_influence;
+uniform float depth_alpha_curve;
 uniform float zNear;
 uniform float zFar;
+
+uniform vec4 color;
+uniform vec4 background_color;
+out vec4 out_color;
 
 float get_linear_depth(float z){
 	float ze = 2.0 * zNear * zFar / (zFar + zNear - z * (zFar - zNear));
 	return (ze-zNear)/(zFar-zNear);
 }
 
-float exp_depth(float z,float factor){
+float curve_01(float z,float factor){
 	return pow(z,1-factor); // factor is -inf~1-eps
 }
 
-vec4 apply_depth_scale(vec4 center, vec4 a){
-	float depth_factor = mix(0,exp_depth(get_linear_depth(center.z),depth_curve),depth_influence);
-    return  mix(a,center,depth_factor);
+vec4 apply_scale(vec4 center, vec4 a){
+	float lz = get_linear_depth(center.z);
+	float depth_factor = mix(0,curve_01(lz,depth_width_curve),depth_width_influence);
+
+    return mix(a,center,depth_factor);
+}
+
+void emit_alpha_pre_mul(vec4 a){
+	float lz = get_linear_depth(a.z);
+	float alpha_factor = mix(0,curve_01(lz,depth_alpha_curve),depth_alpha_influence);
+	out_color = mix(color,background_color,alpha_factor);
 }
 
 void draw_line(vec4 p1, vec4 p2){
@@ -41,18 +55,18 @@ void draw_line(vec4 p1, vec4 p2){
 	c = p2 + offset;
     d = p2 - offset;
 
-	a = apply_depth_scale(p1,a);
-	b = apply_depth_scale(p1,b);
-	c = apply_depth_scale(p2,c);
-	d = apply_depth_scale(p2,d);
+	a = apply_scale(p1,a);
+	b = apply_scale(p1,b);
+	c = apply_scale(p2,c);
+	d = apply_scale(p2,d);
 
-	gl_Position = vec4(a.xy,a.z-depth_offset,a.w); EmitVertex();
-	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); EmitVertex();
-    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); EmitVertex();
+	gl_Position = vec4(a.xy,a.z-depth_offset,a.w); emit_alpha_pre_mul(a); EmitVertex();
+	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); emit_alpha_pre_mul(b); EmitVertex();
+    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); emit_alpha_pre_mul(c); EmitVertex();
 
-	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); EmitVertex();
-    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); EmitVertex();
-	gl_Position = vec4(d.xy,d.z-depth_offset,d.w); EmitVertex();
+	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); emit_alpha_pre_mul(b); EmitVertex();
+    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); emit_alpha_pre_mul(c); EmitVertex();
+	gl_Position = vec4(d.xy,d.z-depth_offset,d.w); emit_alpha_pre_mul(d); EmitVertex();
 
     EndPrimitive();
 }

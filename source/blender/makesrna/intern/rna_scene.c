@@ -6281,16 +6281,30 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "depth_influence", PROP_FLOAT, PROP_PERCENTAGE);
+	prop = RNA_def_property(srna, "depth_width_influence", PROP_FLOAT, PROP_PERCENTAGE);
 	RNA_def_property_float_default(prop, 0.3f);
-	RNA_def_property_ui_text(prop, "Depth Influence", "Use camera distance to control line width.");
+	RNA_def_property_ui_text(prop, "Width Influence", "Use camera distance to control line width.");
 	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.05, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop = RNA_def_property(srna, "depth_curve", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "depth_width_curve", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_default(prop, 0.3f);
-	RNA_def_property_ui_text(prop, "Depth Curve", "Depth curve");
+	RNA_def_property_ui_text(prop, "Width Curve", "Width curve");
+	RNA_def_property_ui_range(prop, -5.0f, 0.90f, 0.1, 1);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "depth_alpha_influence", PROP_FLOAT, PROP_PERCENTAGE);
+	RNA_def_property_float_default(prop, 0.3f);
+	RNA_def_property_ui_text(prop, "Alpha Influence", "Use camera distance to control line alpha.");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.05, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "depth_alpha_curve", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 0.3f);
+	RNA_def_property_ui_text(prop, "Alpha Curve", "alpha curve");
 	RNA_def_property_ui_range(prop, -5.0f, 0.90f, 0.1, 1);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);

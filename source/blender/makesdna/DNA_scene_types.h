@@ -1472,8 +1472,8 @@ typedef struct SceneLANPR{
 
 	float depth_width_influence;
 	float depth_width_curve;
-	//float depth_alpha_influence;
-	//float depth_alpha_curve;
+	float depth_alpha_influence;
+	float depth_alpha_curve;
 	//int   still_some_size_compensation;
 
 	/* states (needs optimization) */

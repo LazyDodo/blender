@@ -281,14 +281,11 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
         glPointSize(1);
 		glLineWidth(2);
 		GPU_framebuffer_bind(fbl->dpix_transform);
-		//GPU_disable_program_point_size();
 		DRW_draw_pass(psl->dpix_transform_pass);
 
 		//GPU_framebuffer_bind(fbl->edge_intermediate);
 		//DRW_draw_pass(psl->color_pass);// use depth
 
-		//glEnable(GL_POLYGON_SMOOTH);
-        //glHint(GL_POLYGON_SMOOTH, GL_NICEST);
 	    //glEnable(GL_BLEND);
         //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -297,10 +294,8 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->dpix_preview_pass);
 
-		//glDisable(GL_POLYGON_SMOOTH);
 		//glDisable(GL_BLEND);
 
 		GPU_framebuffer_bind(dfbl->default_fb);
-		//DRW_transform_to_display(txl->dpix_out_pl);
 		DRW_transform_to_display(txl->color);
 }

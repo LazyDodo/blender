@@ -504,9 +504,11 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
             layout.prop(lanpr, "line_thickness")
             split = layout.split()
             col = split.column()
-            col.prop(lanpr, "depth_influence")
+            col.prop(lanpr, "depth_width_influence")
+            col.prop(lanpr, "depth_alpha_influence")
             col = split.column()
-            col.prop(lanpr, "depth_curve")
+            col.prop(lanpr, "depth_width_curve")
+            col.prop(lanpr, "depth_alpha_curve")
             
         else:
             layout.label(text="Snake:")
@@ -535,10 +537,12 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
 
                 split = layout.split()
                 col = split.column()
-                col.prop(lanpr, "depth_influence")
+                col.prop(lanpr, "depth_width_influence")
+                col.prop(lanpr, "depth_alpha_influence")
                 col = split.column()
-                col.prop(lanpr, "depth_curve")
-
+                col.prop(lanpr, "depth_width_curve")
+                col.prop(lanpr, "depth_alpha_curve")
+                
                 layout.prop(lanpr, "use_same_taper")
 
                 if lanpr.use_same_taper == "DISABLED":
