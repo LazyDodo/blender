@@ -169,9 +169,10 @@ typedef struct View3DOverlay {
 
 	/* Armature edit/pose mode settings */
 	int arm_flag;
+	float bone_selection_alpha;
 
 	/* Other settings */
-	float wireframe_threshold, pad;
+	float wireframe_threshold;
 } View3DOverlay;
 
 /* 3D ViewPort Struct */
@@ -351,6 +352,7 @@ enum {
 	V3D_SHADING_SCENE_LIGHT         = (1 << 3),
 	V3D_SHADING_SPECULAR_HIGHLIGHT  = (1 << 4),
 	V3D_SHADING_CAVITY              = (1 << 5),
+	V3D_SHADING_MATCAP_FLIP_X       = (1 << 6),
 };
 
 /* View3DShading->single_color_type */

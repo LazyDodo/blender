@@ -114,13 +114,6 @@ const EnumPropertyItem rna_enum_space_image_mode_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-/* Expanded into the Space.ui_type enum. */
-const EnumPropertyItem rna_enum_space_button_mode_items[] = {
-	{SB_SUBTYPE_DATA, "DATA_PROPERTIES", ICON_BUTS, "Data Properties", "Edit properties of active object and related data-blocks"},
-	{SB_SUBTYPE_TOOL, "TOOL_PROPERTIES", ICON_PREFERENCES, "Tool Properties", "Edit tool settings"},
-	{0, NULL, 0, NULL, NULL}
-};
-
 #define V3D_S3D_CAMERA_LEFT        {STEREO_LEFT_ID, "LEFT", ICON_RESTRICT_RENDER_OFF, "Left", ""},
 #define V3D_S3D_CAMERA_RIGHT       {STEREO_RIGHT_ID, "RIGHT", ICON_RESTRICT_RENDER_OFF, "Right", ""},
 #define V3D_S3D_CAMERA_S3D         {STEREO_3D_ID, "S3D", ICON_CAMERA_STEREO, "3D", ""},
@@ -218,6 +211,7 @@ const EnumPropertyItem rna_enum_clip_editor_mode_items[] = {
 
 /* Actually populated dynamically trough a function, but helps for context-less access (e.g. doc, i18n...). */
 static const EnumPropertyItem buttons_context_items[] = {
+	{BCONTEXT_TOOL, "TOOL", ICON_PREFERENCES, "Tool", "Tool settings"},
 	{BCONTEXT_SCENE, "SCENE", ICON_SCENE_DATA, "Scene", "Scene"},
 	{BCONTEXT_RENDER, "RENDER", ICON_SCENE, "Render", "Render"},
 	{BCONTEXT_VIEW_LAYER, "VIEW_LAYER", ICON_RENDER_RESULT, "View Layer", "View layer"},
@@ -1182,6 +1176,10 @@ static const EnumPropertyItem *rna_SpaceProperties_context_itemf(
 	EnumPropertyItem *item = NULL;
 	int totitem = 0;
 
+	if (sbuts->pathflag & (1 << BCONTEXT_TOOL)) {
+		RNA_enum_items_add_value(&item, &totitem, buttons_context_items, BCONTEXT_TOOL);
+	}
+
 	if (sbuts->pathflag & (1 << BCONTEXT_RENDER)) {
 		RNA_enum_items_add_value(&item, &totitem, buttons_context_items, BCONTEXT_RENDER);
 	}
@@ -1449,12 +1447,12 @@ static void rna_SpaceDopeSheetEditor_mode_update(bContext *C, PointerRNA *ptr)
 		else
 			saction->action = NULL;
 	}
-	
+
 	/* Collapse summary channel and hide channel list for timeline */
 	if (saction->mode == SACTCONT_TIMELINE) {
 		saction->ads.flag |= ADS_FLAG_SUMMARY_COLLAPSED;
 	}
-	
+
 	if (sa && sa->spacedata.first == saction) {
 		ARegion *channels_region = BKE_area_find_region_type(sa, RGN_TYPE_CHANNELS);
 		if (channels_region) {
@@ -1467,7 +1465,7 @@ static void rna_SpaceDopeSheetEditor_mode_update(bContext *C, PointerRNA *ptr)
 			ED_region_visibility_change_update(C, channels_region);
 		}
 	}
-	
+
 	/* recalculate extents of channel list */
 	saction->flag |= SACTION_TEMP_NEEDCHANSYNC;
 }
@@ -2571,6 +2569,14 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Bone Selection", "Show the Bone Selection Overlay");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
+	prop = RNA_def_property(srna, "bone_selection_alpha", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "overlay.bone_selection_alpha");
+	RNA_def_property_float_default(prop, 0.5f);
+	RNA_def_property_ui_text(prop, "Opacity", "Opacity to use for bone selection");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
 	prop = RNA_def_property(srna, "show_motion_paths", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "overlay.flag", V3D_OVERLAY_HIDE_MOTION_PATHS);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
@@ -3067,13 +3073,6 @@ static void rna_def_space_buttons(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "SpaceProperties", "Space");
 	RNA_def_struct_sdna(srna, "SpaceButs");
 	RNA_def_struct_ui_text(srna, "Properties Space", "Properties space data");
-
-	/* Not exposed to the UI (access via space-type selector). */
-	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "space_subtype");
-	RNA_def_property_enum_items(prop, rna_enum_space_button_mode_items);
-	RNA_def_property_ui_text(prop, "Mode", "Arrangement of the panels");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_PROPERTIES, NULL);
 
 	prop = RNA_def_property(srna, "context", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "mainb");
@@ -3638,7 +3637,7 @@ static void rna_def_space_dopesheet(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, autosnap_items);
 	RNA_def_property_ui_text(prop, "Auto Snap", "Automatic time snapping settings for transformations");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_DOPESHEET, NULL);
-	
+
 	/* displaying cache status */
 	prop = RNA_def_property(srna, "show_cache", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "cache_display", TIME_CACHE_DISPLAY);

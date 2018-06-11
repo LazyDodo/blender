@@ -282,7 +282,7 @@ typedef enum {
 	DRW_STATE_BLEND_PREMUL  = (1 << 21), /* Use that if color is already premult by alpha. */
 	DRW_STATE_WIRE_SMOOTH   = (1 << 22),
 	DRW_STATE_TRANS_FEEDBACK = (1 << 23),
-	DRW_STATE_TRANSPARENT_REVEALAGE = (1 << 24),
+	DRW_STATE_BLEND_OIT     = (1 << 24),
 
 	DRW_STATE_WRITE_STENCIL          = (1 << 27),
 	DRW_STATE_WRITE_STENCIL_SHADOW_PASS   = (1 << 28),
@@ -349,6 +349,7 @@ void DRW_shgroup_call_range_add(
 void DRW_shgroup_call_procedural_points_add(DRWShadingGroup *shgroup, unsigned int point_count, float (*obmat)[4]);
 void DRW_shgroup_call_procedural_lines_add(DRWShadingGroup *shgroup, unsigned int line_count, float (*obmat)[4]);
 void DRW_shgroup_call_procedural_triangles_add(DRWShadingGroup *shgroup, unsigned int tria_count, float (*obmat)[4]);
+void DRW_shgroup_call_object_procedural_triangles_culled_add(DRWShadingGroup *shgroup, uint tria_count, struct Object *ob);
 void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob, bool bypass_culling);
 #define DRW_shgroup_call_object_add(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, false)
 #define DRW_shgroup_call_object_add_no_cull(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, true)

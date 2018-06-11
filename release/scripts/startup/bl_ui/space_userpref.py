@@ -22,6 +22,7 @@ from bpy.types import (
     Header,
     Menu,
     Panel,
+    Operator,
 )
 from bpy.app.translations import pgettext_iface as iface_
 from bpy.app.translations import contexts as i18n_contexts
@@ -71,6 +72,10 @@ class USERPREF_HT_header(Header):
             layout.operator("wm.addon_install", icon='FILESEL')
             layout.operator("wm.addon_refresh", icon='FILE_REFRESH')
             layout.menu("USERPREF_MT_addons_online_resources")
+        elif userpref.active_section == 'LIGHTS':
+            layout.operator('wm.studiolight_install', text="Install MatCap").orientation='MATCAP'
+            layout.operator('wm.studiolight_install', text="Install World HDRI").orientation='WORLD'
+            layout.operator('wm.studiolight_install', text="Install Camera HDRI").orientation='CAMERA'
         elif userpref.active_section == 'THEMES':
             layout.operator("ui.reset_default_theme")
             layout.operator("wm.theme_install")
@@ -1570,6 +1575,60 @@ class USERPREF_PT_addons(Panel):
                 row.label(text=module_name, translate=False)
 
 
+class StudioLightPanelMixin():
+    bl_space_type = 'USER_PREFERENCES'
+    bl_region_type = 'WINDOW'
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'LIGHTS')
+
+    def _get_lights(self, userpref):
+        return [light for light in userpref.studio_lights if light.is_user_defined and light.orientation == self.sl_orientation]
+
+    def draw_header(self, context):
+        layout = self.layout
+        row = layout.row()
+        userpref = context.user_preferences
+        lights = self._get_lights(userpref)
+        row.label("({})".format(len(lights)))
+
+    def draw(self, context):
+        layout = self.layout
+        userpref = context.user_preferences
+        lights = self._get_lights(userpref)
+        if lights:
+            flow = layout.column_flow(4)
+            for studio_light in lights:
+                self.draw_studio_light(flow, studio_light)
+        else:
+            layout.label("No custom {} configured".format(self.bl_label))
+
+    def draw_studio_light(self, layout, studio_light):
+        box = layout.box()
+        row = box.row()
+
+        row.template_icon_view(studio_light, "icon_id")
+        op = row.operator('wm.studiolight_uninstall', text="", icon='ZOOMOUT')
+        op.index = studio_light.index
+
+
+class USERPREF_PT_studiolight_matcaps(Panel, StudioLightPanelMixin):
+    bl_label = "MatCaps"
+    sl_orientation = 'MATCAP'
+
+
+class USERPREF_PT_studiolight_world(Panel, StudioLightPanelMixin):
+    bl_label = "World HDRI"
+    sl_orientation = 'WORLD'
+
+
+class USERPREF_PT_studiolight_camera(Panel, StudioLightPanelMixin):
+    bl_label = "Camera HDRI"
+    sl_orientation = 'CAMERA'
+
+
 classes = (
     USERPREF_HT_header,
     USERPREF_PT_tabs,
@@ -1590,6 +1649,9 @@ classes = (
     USERPREF_PT_input,
     USERPREF_MT_addons_online_resources,
     USERPREF_PT_addons,
+    USERPREF_PT_studiolight_matcaps,
+    USERPREF_PT_studiolight_world,
+    USERPREF_PT_studiolight_camera,
 )
 
 if __name__ == "__main__":  # only for live edit.

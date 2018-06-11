@@ -439,32 +439,14 @@ static void workbench_composite_uniforms(WORKBENCH_PrivateData *wpd, DRWShadingG
 	}
 	if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 		DRW_shgroup_uniform_texture_ref(grp, "specularBuffer", &e_data.specular_buffer_tx);
-
-#if 0
-		float invwinmat[4][4];
-		DRW_viewport_matrix_get(invwinmat, DRW_MAT_WININV);
-
-		copy_v4_fl4(e_data.screenvecs[0],  1.0f, -1.0f, 0.0f, 1.0f);
-		copy_v4_fl4(e_data.screenvecs[1], -1.0f,  1.0f, 0.0f, 1.0f);
-		copy_v4_fl4(e_data.screenvecs[2], -1.0f, -1.0f, 0.0f, 1.0f);
-		for (int i = 0; i < 3; i++) {
-			mul_m4_v4(invwinmat, e_data.screenvecs[i]);
-			e_data.screenvecs[i][0] /= e_data.screenvecs[i][3]; /* perspective divide */
-			e_data.screenvecs[i][1] /= e_data.screenvecs[i][3]; /* perspective divide */
-			e_data.screenvecs[i][2] /= e_data.screenvecs[i][3]; /* perspective divide */
-			e_data.screenvecs[i][3] = 1.0f;
-		}
-		sub_v3_v3(e_data.screenvecs[0], e_data.screenvecs[2]);
-		sub_v3_v3(e_data.screenvecs[1], e_data.screenvecs[2]);
-		DRW_shgroup_uniform_vec4(grp, "screenvecs[0]", e_data.screenvecs[0], 3);
-#endif
+		DRW_shgroup_uniform_vec4(grp, "viewvecs[0]", (float *)wpd->viewvecs, 3);
 	}
 	DRW_shgroup_uniform_block(grp, "world_block", wpd->world_ubo);
 	DRW_shgroup_uniform_vec2(grp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
 
 	if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
 		BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
-		DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+		DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);		DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
 	}
 
 	workbench_material_set_normal_world_matrix(grp, wpd, e_data.normal_world_matrix);
@@ -618,7 +600,7 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 			continue;
 		}
 		if (!DRW_check_psys_visible_within_active_context(ob, psys)) {
-			return;
+			continue;
 		}
 		ParticleSettings *part = psys->part;
 		const int draw_as = (part->draw_as == PART_DRAW_REND) ? part->ren_as : part->draw_as;
@@ -661,12 +643,15 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
-
 	if (!DRW_object_is_renderable(ob))
 		return;
 
 	if (ob->type == OB_MESH) {
 		workbench_cache_populate_particles(vedata, ob);
+	}
+
+	if (!DRW_check_object_visible_within_active_context(ob)) {
+		return;
 	}
 
 	WORKBENCH_MaterialData *material;

@@ -55,8 +55,6 @@
 #define NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) (MATCAP_ENABLED(wpd) || STUDIOLIGHT_ENABLED(wpd) || SHADOW_ENABLED(wpd) || SPECULAR_HIGHLIGHT_ENABLED(wpd))
 #define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) || CAVITY_ENABLED(wpd))
 #define NORMAL_ENCODING_ENABLED() (true)
-#define WORKBENCH_REVEALAGE_ENABLED
-
 
 typedef struct WORKBENCH_FramebufferList {
 	/* Deferred render buffers */
@@ -67,10 +65,7 @@ typedef struct WORKBENCH_FramebufferList {
 	/* Forward render buffers */
 	struct GPUFrameBuffer *object_outline_fb;
 	struct GPUFrameBuffer *transparent_accum_fb;
-
-#ifdef WORKBENCH_REVEALAGE_ENABLED
 	struct GPUFrameBuffer *transparent_revealage_fb;
-#endif
 } WORKBENCH_FramebufferList;
 
 typedef struct WORKBENCH_StorageList {
@@ -93,9 +88,6 @@ typedef struct WORKBENCH_PassList {
 
 	/* forward rendering */
 	struct DRWPass *transparent_accum_pass;
-#ifdef WORKBENCH_REVEALAGE_ENABLED
-	struct DRWPass *transparent_revealage_pass;
-#endif
 	struct DRWPass *object_outline_pass;
 	struct DRWPass *depth_pass;
 	struct DRWPass *checker_depth_pass;
@@ -128,7 +120,8 @@ typedef struct WORKBENCH_UBO_World {
 	float light_direction_vs[4];
 	WORKBENCH_UBO_Light lights[3];
 	int num_lights;
-	int pad[3];
+	int matcap_orientation;
+	int pad[2];
 } WORKBENCH_UBO_World;
 BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_World, 16)
 
@@ -136,8 +129,7 @@ typedef struct WORKBENCH_UBO_Material {
 	float diffuse_color[4];
 	float specular_color[4];
 	float roughness;
-	int matcap_texture_index;
-	float pad[2];
+	float pad[3];
 } WORKBENCH_UBO_Material;
 BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_Material, 16)
 
@@ -158,9 +150,6 @@ typedef struct WORKBENCH_PrivateData {
 	struct GPUUniformBuffer *world_ubo;
 	struct DRWShadingGroup *shadow_shgrp;
 	struct DRWShadingGroup *depth_shgrp;
-#ifdef WORKBENCH_REVEALAGE_ENABLED
-	struct DRWShadingGroup *transparent_revealage_shgrp;
-#endif
 	WORKBENCH_UBO_World world_data;
 	float shadow_multiplier;
 	float cached_shadow_direction[3];

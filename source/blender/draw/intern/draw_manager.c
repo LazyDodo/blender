@@ -1554,8 +1554,6 @@ void DRW_render_object_iter(
 		callback(vedata, ob, engine, depsgraph);
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
-
-	DRW_hair_update();
 }
 
 static struct DRWSelectBuffer {
