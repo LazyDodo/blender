@@ -1802,7 +1802,7 @@ void node_tex_image_tiled_map(vec3 co, out vec4 color, out vec3 map)
 	else
 		map = vec3(co.x - tx, co.y - ty, 10*ty + tx);
 
-	color = vec4(0.0);
+	color = vec4(1.0, 0.0, 1.0, 1.0);
 }
 
 void node_tex_image_tile(vec3 map, float tile_id, sampler2D ima, vec4 in_color, out vec4 color, out float alpha)
