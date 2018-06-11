@@ -556,6 +556,29 @@ bool BKE_image_has_bindcode(Image *ima)
 	return has_bindcode;
 }
 
+int BKE_image_get_tile_from_pos(struct Image *ima, float uv[2], float new_uv[2], float ofs[2])
+{
+	copy_v2_v2(new_uv, uv);
+	zero_v2(ofs);
+
+	if ((ima->source != IMA_SRC_TILED) || uv[0] < 0.0f || uv[1] < 0.0f || uv[0] >= 10.0f) {
+		return 0;
+	}
+
+	int ix = (int) uv[0];
+	int iy = (int) uv[1];
+	int tile = 10*iy + ix;
+
+	if (tile >= ima->num_tiles) {
+		return 0;
+	}
+
+	ofs[0] = ix;
+	ofs[1] = iy;
+	sub_v2_v2(new_uv, ofs);
+	return tile;
+}
+
 static void image_init_color_management(Image *ima)
 {
 	ImBuf *ibuf;

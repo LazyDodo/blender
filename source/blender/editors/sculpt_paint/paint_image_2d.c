@@ -145,6 +145,9 @@ typedef struct ImagePaintState {
 
 	bool need_redraw;
 
+	int tile;
+	float uv_ofs[2];
+
 	BlurKernel *blurkernel;
 } ImagePaintState;
 
@@ -1189,6 +1192,9 @@ static int paint_2d_op(void *state, ImBuf *ibufb, unsigned short *curveb, unsign
 
 static int paint_2d_canvas_set(ImagePaintState *s, Image *ima)
 {
+	if (s->sima) {
+		s->sima->iuser.tile = s->tile;
+	}
 	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, s->sima ? &s->sima->iuser : NULL, NULL);
 
 	/* verify that we can paint and set canvas */
@@ -1212,6 +1218,9 @@ static int paint_2d_canvas_set(ImagePaintState *s, Image *ima)
 	/* set clone canvas */
 	if (s->tool == PAINT_TOOL_CLONE) {
 		ima = s->brush->clone.image;
+		if (s->sima) {
+			s->sima->iuser.tile = s->tile;
+		}
 		ibuf = BKE_image_acquire_ibuf(ima, s->sima ? &s->sima->iuser : NULL, NULL);
 
 		if (!ima || !ibuf || !(ibuf->rect || ibuf->rect_float)) {
@@ -1249,11 +1258,20 @@ static void paint_2d_canvas_free(ImagePaintState *s)
 	image_undo_remove_masks();
 }
 
+static void paint_2d_transform_mouse(ImagePaintState *s, const float in[2], float out[2])
+{
+	UI_view2d_region_to_view(s->v2d, in[0], in[1], &out[0], &out[1]);
+	sub_v2_v2(out, s->uv_ofs);
+}
+
 void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], const bool eraser, float pressure, float distance, float size)
 {
 	float newuv[2], olduv[2];
 	ImagePaintState *s = ps;
 	BrushPainter *painter = s->painter;
+	if (s->sima) {
+		s->sima->iuser.tile = s->tile;
+	}
 	ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, s->sima ? &s->sima->iuser : NULL, NULL);
 	const bool is_data = (ibuf && ibuf->colormanage_flag & IMB_COLORMANAGE_IS_DATA);
 
@@ -1264,8 +1282,8 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 	if (eraser)
 		s->blend = IMB_BLEND_ERASE_ALPHA;
 
-	UI_view2d_region_to_view(s->v2d, mval[0], mval[1], &newuv[0], &newuv[1]);
-	UI_view2d_region_to_view(s->v2d, prev_mval[0], prev_mval[1], &olduv[0], &olduv[1]);
+	paint_2d_transform_mouse(s, mval, newuv);
+	paint_2d_transform_mouse(s, prev_mval, olduv);
 
 	newuv[0] *= ibuf->x;
 	newuv[1] *= ibuf->y;
@@ -1276,7 +1294,8 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 	if (painter->firsttouch) {
 		float startuv[2];
 
-		UI_view2d_region_to_view(s->v2d, 0, 0, &startuv[0], &startuv[1]);
+		zero_v2(startuv);
+		paint_2d_transform_mouse(s, startuv, startuv);
 
 		/* paint exactly once on first touch */
 		painter->startpaintpos[0] = startuv[0] * ibuf->x;
@@ -1302,7 +1321,7 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 	BKE_image_release_ibuf(s->image, ibuf, NULL);
 }
 
-void *paint_2d_new_stroke(bContext *C, wmOperator *op, int mode)
+void *paint_2d_new_stroke(bContext *C, wmOperator *op, const float mouse[2], int mode)
 {
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *settings = scene->toolsettings;
@@ -1321,6 +1340,11 @@ void *paint_2d_new_stroke(bContext *C, wmOperator *op, int mode)
 
 	s->image = s->sima->image;
 	s->symmetry = settings->imapaint.paint.symmetry_flags;
+
+	float uv[2];
+	paint_2d_transform_mouse(s, mouse, uv);
+	s->tile = BKE_image_get_tile_from_pos(s->image, uv, uv, s->uv_ofs);
+	//negate_v2(s->uv_ofs);
 
 	if (!paint_2d_canvas_set(s, s->image)) {
 		if (s->warnmultifile)
@@ -1349,6 +1373,9 @@ void paint_2d_redraw(const bContext *C, void *ps, bool final)
 	ImagePaintState *s = ps;
 
 	if (s->need_redraw) {
+		if (s->sima) {
+			s->sima->iuser.tile = s->tile;
+		}
 		ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, s->sima ? &s->sima->iuser : NULL, NULL);
 
 		imapaint_image_update(s->sima, s->image, ibuf, false);
@@ -1453,6 +1480,7 @@ void paint_2d_bucket_fill(
 	if (!ima)
 		return;
 
+	sima->iuser.tile = s->tile;
 	ibuf = BKE_image_acquire_ibuf(ima, &sima->iuser, NULL);
 
 	if (!ibuf)
@@ -1505,7 +1533,7 @@ void paint_2d_bucket_fill(
 		/* We are comparing to sum of three squared values (assumed in range [0,1]), so need to multiply... */
 		float threshold_sq = br->fill_threshold * br->fill_threshold * 3;
 
-		UI_view2d_region_to_view(s->v2d, mouse_init[0], mouse_init[1], &image_init[0], &image_init[1]);
+		paint_2d_transform_mouse(s, mouse_init, image_init);
 
 		x_px = image_init[0] * ibuf->x;
 		y_px = image_init[1] * ibuf->y;
@@ -1631,13 +1659,14 @@ void paint_2d_gradient_fill(
 	if (!ima)
 		return;
 
+	sima->iuser.tile = s->tile;
 	ibuf = BKE_image_acquire_ibuf(ima, &sima->iuser, NULL);
 
 	if (!ibuf)
 		return;
 
-	UI_view2d_region_to_view(s->v2d, mouse_final[0], mouse_final[1], &image_final[0], &image_final[1]);
-	UI_view2d_region_to_view(s->v2d, mouse_init[0], mouse_init[1], &image_init[0], &image_init[1]);
+	paint_2d_transform_mouse(s, mouse_final, image_final);
+	paint_2d_transform_mouse(s, mouse_init, image_init);
 
 	image_final[0] *= ibuf->x;
 	image_final[1] *= ibuf->y;

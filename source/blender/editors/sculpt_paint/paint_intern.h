@@ -185,7 +185,7 @@ struct ImagePaintPartialRedraw *get_imapaintpartial(void);
 void set_imapaintpartial(struct ImagePaintPartialRedraw *ippr);
 void imapaint_region_tiles(struct ImBuf *ibuf, int x, int y, int w, int h, int *tx, int *ty, int *tw, int *th);
 int get_imapaint_zoom(struct bContext *C, float *zoomx, float *zoomy);
-void *paint_2d_new_stroke(struct bContext *, struct wmOperator *, int mode);
+void *paint_2d_new_stroke(struct bContext *, struct wmOperator *, const float mouse[2], int mode);
 void paint_2d_redraw(const struct bContext *C, void *ps, bool final);
 void paint_2d_stroke_done(void *ps);
 void paint_2d_stroke(

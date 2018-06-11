@@ -283,6 +283,8 @@ void BKE_image_set_bindcode(struct Image *ima, int tile, int type, unsigned int 
 struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type);
 void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex);
 
+int BKE_image_get_tile_from_pos(struct Image *ima, float uv[2], float new_uv[2], float ofs[2]);
+
 void BKE_image_set_num_tiles(struct Image *ima, int num_tiles);
 
 void BKE_image_get_size(struct Image *image, struct ImageUser *iuser, int *width, int *height);

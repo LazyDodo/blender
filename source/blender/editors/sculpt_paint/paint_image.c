@@ -472,7 +472,7 @@ static PaintOperation *texture_paint_init(bContext *C, wmOperator *op, const flo
 	}
 	else {
 		pop->mode = PAINT_MODE_2D;
-		pop->custom_paint = paint_2d_new_stroke(C, op, mode);
+		pop->custom_paint = paint_2d_new_stroke(C, op, mouse, mode);
 	}
 
 	if (!pop->custom_paint) {
