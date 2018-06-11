@@ -156,7 +156,7 @@ void ED_space_image_get_size(SpaceImage *sima, int *width, int *height)
 	ImBuf *ibuf;
 	void *lock;
 
-	/* TODO(lukas): Support UDIMs with different sizes */
+	/* TODO(lukas): Support tiled images with different sizes */
 	ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
 	if (ibuf && ibuf->x > 0 && ibuf->y > 0) {

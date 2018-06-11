@@ -136,7 +136,7 @@ struct RenderResult;
 #define IMA_SRC_MOVIE       3
 #define IMA_SRC_GENERATED   4
 #define IMA_SRC_VIEWER      5
-#define IMA_SRC_UDIM        6
+#define IMA_SRC_TILED       6
 
 /* ima->type, how to handle/generate it */
 #define IMA_TYPE_IMAGE      0

@@ -226,7 +226,7 @@ static int space_image_file_exists_poll(bContext *C)
 		bool ret = false;
 		char name[FILE_MAX];
 
-		/* TODO(lukas): Saving UDIMs */
+		/* TODO(lukas): Saving tiled images */
 		ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 		if (ibuf) {
 			BLI_strncpy(name, ibuf->name, FILE_MAX);
@@ -1270,7 +1270,7 @@ static Image *image_open_single(
 
 		if ((frame_seq_len > 1) && (ima->source == IMA_SRC_FILE)) {
 			if (frame_seq_ofs == 1001) {
-				ima->source = IMA_SRC_UDIM;
+				ima->source = IMA_SRC_TILED;
 				ima->num_tiles = frame_seq_len;
 			}
 			else {
@@ -1696,7 +1696,7 @@ static int save_image_options_init(Main *bmain, SaveImageOptions *simopts, Space
                                    const bool guess_path, const bool save_as_render)
 {
 	void *lock;
-	/* TODO(lukas): Saving UDIMs */
+	/* TODO(lukas): Saving tiled images */
 	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
 	if (ibuf) {
@@ -1882,7 +1882,7 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 {
 	Image *ima = ED_space_image(sima);
 	void *lock;
-	/* TODO(lukas): Saving UDIMs */
+	/* TODO(lukas): Saving tiled images */
 	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 	Scene *scene;
 	RenderResult *rr = NULL;
@@ -2325,7 +2325,7 @@ static int image_save_sequence_exec(bContext *C, wmOperator *op)
 	if (sima->image == NULL)
 		return OPERATOR_CANCELLED;
 
-	if (ELEM(sima->image->source, IMA_SRC_SEQUENCE, IMA_SRC_UDIM)) {
+	if (ELEM(sima->image->source, IMA_SRC_SEQUENCE, IMA_SRC_TILED)) {
 		BKE_report(op->reports, RPT_ERROR, "Can only save sequence on image sequences");
 		return OPERATOR_CANCELLED;
 	}
@@ -2786,7 +2786,7 @@ static bool image_pack_test(bContext *C, wmOperator *op)
 	if (!as_png && BKE_image_has_packedfile(ima))
 		return 0;
 
-	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_UDIM)) {
+	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_TILED)) {
 		BKE_report(op->reports, RPT_ERROR, "Packing movies or image sequences not supported");
 		return 0;
 	}
@@ -2887,7 +2887,7 @@ static int image_unpack_exec(bContext *C, wmOperator *op)
 	if (!ima || !BKE_image_has_packedfile(ima))
 		return OPERATOR_CANCELLED;
 
-	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_UDIM)) {
+	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_TILED)) {
 		BKE_report(op->reports, RPT_ERROR, "Unpacking movies or image sequences not supported");
 		return OPERATOR_CANCELLED;
 	}
@@ -2915,7 +2915,7 @@ static int image_unpack_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 	if (!ima || !BKE_image_has_packedfile(ima))
 		return OPERATOR_CANCELLED;
 
-	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_UDIM)) {
+	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_TILED)) {
 		BKE_report(op->reports, RPT_ERROR, "Unpacking movies or image sequences not supported");
 		return OPERATOR_CANCELLED;
 	}
@@ -2989,7 +2989,7 @@ static int image_get_position(SpaceImage *sima, ARegion *ar, const int mval[2], 
 	/* If the image has tiles, shift the positions accordingly. */
 
 	Image *image = ED_space_image(sima);
-	if (!image || image->source != IMA_SRC_UDIM) {
+	if (!image || image->source != IMA_SRC_TILED) {
 		return 0;
 	}
 
@@ -3281,7 +3281,7 @@ static int image_sample_line_exec(bContext *C, wmOperator *op)
 	/* If the image has tiles, shift the positions accordingly. */
 	Image *image = ED_space_image(sima);
 	int tile = 0, ix = 0, iy = 0;
-	if (image && image->source == IMA_SRC_UDIM) {
+	if (image && image->source == IMA_SRC_TILED) {
 		ix = (int) x1f;
 		iy = (int) y1f;
 		CLAMP(ix, 0, 9);

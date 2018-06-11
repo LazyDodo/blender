@@ -2818,7 +2818,7 @@ void BKE_image_signal(Image *ima, ImageUser *iuser, int signal)
 		case IMA_SIGNAL_USER_NEW_IMAGE:
 			if (iuser) {
 				iuser->ok = 1;
-				if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_SEQUENCE, IMA_SRC_UDIM)) {
+				if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_SEQUENCE, IMA_SRC_TILED)) {
 					if (ima->type == IMA_TYPE_MULTILAYER) {
 						image_init_imageuser(ima, iuser);
 					}
@@ -2951,7 +2951,7 @@ void BKE_image_multiview_index(Image *ima, ImageUser *iuser)
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
 bool BKE_image_is_multilayer(Image *ima)
 {
-	if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_SEQUENCE, IMA_SRC_UDIM)) {
+	if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_SEQUENCE, IMA_SRC_TILED)) {
 		if (ima->type == IMA_TYPE_MULTILAYER) {
 			return true;
 		}
@@ -3039,7 +3039,7 @@ void BKE_image_release_renderresult(Scene *scene, Image *ima)
 bool BKE_image_is_openexr(struct Image *ima)
 {
 #ifdef WITH_OPENEXR
-	if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_SEQUENCE, IMA_SRC_UDIM)) {
+	if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_SEQUENCE, IMA_SRC_TILED)) {
 		return BLI_testextensie(ima->name, ".exr");
 	}
 #else
@@ -3887,7 +3887,7 @@ static void image_get_entry_and_index(Image *ima, ImageUser *iuser, int *r_entry
 			entry = iuser ? iuser->framenr : ima->lastframe;
 		}
 	}
-	else if (ima->source == IMA_SRC_UDIM) {
+	else if (ima->source == IMA_SRC_TILED) {
 		entry = iuser? iuser->tile : 0;
 	}
 
@@ -3941,7 +3941,7 @@ static ImBuf *image_get_cached_ibuf(Image *ima, ImageUser *iuser, int *r_entry, 
 			ibuf = image_get_cached_ibuf_for_index_entry(ima, index, entry);
 		}
 	}
-	else if (ima->source == IMA_SRC_UDIM) {
+	else if (ima->source == IMA_SRC_TILED) {
 		if (ELEM(ima->type, IMA_TYPE_IMAGE, IMA_TYPE_MULTILAYER)) {
 			entry = iuser? iuser->tile : 0;
 			ibuf = image_get_cached_ibuf_for_index_entry(ima, index, entry);
@@ -4028,7 +4028,7 @@ static ImBuf *image_acquire_ibuf(Image *ima, ImageUser *iuser, void **r_lock)
 				ibuf = image_load_sequence_multilayer(ima, iuser, entry, entry);
 			}
 		}
-		else if (ima->source == IMA_SRC_UDIM) {
+		else if (ima->source == IMA_SRC_TILED) {
 			if (ima->type == IMA_TYPE_IMAGE) {
 				/* regular files, ibufs in flipbook, allows saving */
 				ibuf = image_load_sequence_file(ima, iuser, entry, 0);
@@ -4390,7 +4390,7 @@ void BKE_image_user_file_path(ImageUser *iuser, Image *ima, char *filepath)
 		BLI_strncpy(filepath, ima->name, FILE_MAX);
 	}
 
-	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_UDIM)) {
+	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_TILED)) {
 		char head[FILE_MAX], tail[FILE_MAX];
 		unsigned short numlen;
 
@@ -4562,7 +4562,7 @@ bool BKE_image_is_animated(Image *image)
 /* Checks whether the image consists of multiple buffers. */
 bool BKE_image_has_multiple(Image *image)
 {
-	return ELEM(image->source, IMA_SRC_MOVIE, IMA_SRC_SEQUENCE, IMA_SRC_UDIM);
+	return ELEM(image->source, IMA_SRC_MOVIE, IMA_SRC_SEQUENCE, IMA_SRC_TILED);
 }
 
 bool BKE_image_is_dirty(Image *image)

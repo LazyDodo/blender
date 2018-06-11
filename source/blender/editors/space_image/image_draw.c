@@ -774,7 +774,7 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	/* draw the image or grid */
 	if (ibuf == NULL) {
-		if (ima && ima->source == IMA_SRC_UDIM) {
+		if (ima && ima->source == IMA_SRC_TILED) {
 			draw_image_udim_grid(ar, sima, zoomx, zoomy, true);
 		}
 		else {
@@ -797,7 +797,7 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	ED_space_image_release_buffer(sima, ibuf, lock);
 
-	if (ima && ima->source == IMA_SRC_UDIM) {
+	if (ima && ima->source == IMA_SRC_TILED) {
 		for (int t = 1; t < ima->num_tiles; t++) {
 			ibuf = ED_space_image_acquire_buffer(sima, &lock, t);
 			if (ibuf) {
