@@ -1499,18 +1499,17 @@ void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	RenderEngineType *engine_type = engine->type;
-	// DrawEngineType *draw_engine_type = engine_type->draw_engine;
 	RenderData *r = &scene->r;
 	Render *render = engine->re;
 	/* Changing Context */
 	DRW_opengl_context_enable();
 	/* Reset before using it. */
-	memset(&DST, 0x0, offsetof(DRWManager, ogl_context));
+	drw_state_prepare_clean_for_draw(&DST);
 	DST.options.is_image_render = true;
 	DST.options.is_scene_render = true;
 	DST.options.draw_background = scene->r.alphamode == R_ADDSKY;
 	DST.buffer_finish_called = true;
-
+	
 	DST.draw_ctx = (DRWContextState) {
 		.scene = scene, .view_layer = view_layer,
 		.engine_type = engine_type,
