@@ -226,7 +226,6 @@ static int space_image_file_exists_poll(bContext *C)
 		bool ret = false;
 		char name[FILE_MAX];
 
-		/* TODO(lukas): Saving tiled images */
 		ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 		if (ibuf) {
 			BLI_strncpy(name, ibuf->name, FILE_MAX);
@@ -1697,7 +1696,6 @@ static int save_image_options_init(Main *bmain, SaveImageOptions *simopts, Space
                                    const bool guess_path, const bool save_as_render)
 {
 	void *lock;
-	/* TODO(lukas): Saving tiled images */
 	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
 	if (ibuf) {
@@ -1879,18 +1877,15 @@ static void save_imbuf_post(ImBuf *ibuf, ImBuf *colormanaged_ibuf)
  * \note ``ima->name`` and ``ibuf->name`` should end up the same.
  * \note for multiview the first ``ibuf`` is important to get the settings.
  */
-static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, bool do_newpath)
+static bool save_image_single(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, bool do_newpath, int tile)
 {
 	Main *bmain = CTX_data_main(C);
 	Image *ima = ED_space_image(sima);
 	void *lock;
-	/* TODO(lukas): Saving tiled images */
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
 	Scene *scene;
 	RenderResult *rr = NULL;
 	bool ok = false;
-
-	WM_cursor_wait(1);
 
 	if (ibuf) {
 		ImBuf *colormanaged_ibuf = NULL;
@@ -2105,9 +2100,36 @@ cleanup:
 		BKE_image_release_renderresult(scene, ima);
 	}
 
-	WM_cursor_wait(0);
-
 	return ok;
+}
+
+static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, bool do_newpath)
+{
+	Image *ima = ED_space_image(sima);
+
+	WM_cursor_wait(1);
+
+	if (!save_image_single(C, sima, op, simopts, do_newpath, 0)) {
+		WM_cursor_wait(0);
+		return false;
+	}
+
+	if (ima->source == IMA_SRC_TILED) {
+		char filepath[FILE_MAX];
+		BLI_strncpy(filepath, simopts->filepath, sizeof(filepath));
+		for (int tile = 1; tile < ima->num_tiles; tile++) {
+			char head[FILE_MAX], tail[FILE_MAX];
+			unsigned short numlen;
+			BLI_stringdec(filepath, head, tail, &numlen);
+			BLI_stringenc(simopts->filepath, head, tail, numlen, 1001 + tile);
+
+			save_image_single(C, sima, op, simopts, do_newpath, tile);
+		}
+		BLI_strncpy(simopts->filepath, filepath, sizeof(simopts->filepath));
+	}
+
+	WM_cursor_wait(0);
+	return true;
 }
 
 static void image_save_as_free(wmOperator *op)
