@@ -347,8 +347,30 @@ static void studiolight_calculate_diffuse_light(StudioLight *sl)
 	sl->flag |= STUDIOLIGHT_DIFFUSE_LIGHT_CALCULATED;
 }
 
+static float area_element(float x, float y )
+{
+	return atan2f(x * y, sqrt(x * x + y * y + 1));
+}
+
+static float texel_coord_solid_angle(float a_U, float a_V, int a_Size)
+{
+	//scale up to [-1, 1] range (inclusive), offset by 0.5 to point to texel center.
+	float u = (2.0f * ((float)a_U + 0.5f) / (float)a_Size ) - 1.0f;
+	float v = (2.0f * ((float)a_V + 0.5f) / (float)a_Size ) - 1.0f;
+
+	float resolution_inv = 1.0f / a_Size;
+
+	// U and V are the -1..1 texture coordinate on the current face.
+	// Get projected area for this texel
+	float x0 = u - resolution_inv;
+	float y0 = v - resolution_inv;
+	float x1 = u + resolution_inv;
+	float y1 = v + resolution_inv;
+	return area_element(x0, y0) - area_element(x0, y1) - area_element(x1, y0) + area_element(x1, y1);
+}
+
 BLI_INLINE void studiolight_evaluate_specular_radiance_buffer(
-        ImBuf *radiance_buffer, const float specular, const float normal[3], float color[3], int *hits,
+        ImBuf *radiance_buffer, const float normal[3], float color[3], 
         int xoffset, int yoffset, int zoffset, float zvalue)
 {
 	if (radiance_buffer == NULL) {
@@ -360,13 +382,14 @@ BLI_INLINE void studiolight_evaluate_specular_radiance_buffer(
 	for (int y = 0; y < STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE; y ++) {
 		for (int x = 0; x < STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE; x ++) {
 			// calculate light direction;
+			float u = (x / (float)STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE) - 0.5f;
+			float v = (y / (float)STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE) - 0.5f;
 			direction[zoffset] = zvalue;
-			direction[xoffset] = (x / (float)STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE) - 0.5f;
-			direction[yoffset] = (y / (float)STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE) - 0.5f;
+			direction[xoffset] = u;
+			direction[yoffset] = v;
 			normalize_v3(direction);
-			angle = pow(fmax(0.0f, dot_v3v3(direction, normal)), specular);
+			angle = fmax(0.0f, dot_v3v3(direction, normal)) * texel_coord_solid_angle(x, y, STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE);
 			madd_v3_v3fl(color, radiance_color, angle);
-			(*hits) ++;
 			radiance_color += 4;
 		}
 	}
@@ -375,41 +398,35 @@ BLI_INLINE void studiolight_evaluate_specular_radiance_buffer(
 
 static void studiolight_calculate_specular_irradiance(StudioLight *sl, float color[3], const float normal[3])
 {
-	const float specular = 4.0f;
-	int hits = 0;
 	copy_v3_fl(color, 0.0f);
 
 	/* back */
 	studiolight_evaluate_specular_radiance_buffer(
-	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Y_POS], specular, normal, color, &hits, 0, 2, 1, 0.5);
+	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Y_POS], normal, color, 0, 2, 1, 0.5);
 	/* front */
 	studiolight_evaluate_specular_radiance_buffer(
-	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Y_NEG], specular, normal, color, &hits, 0, 2, 1, -0.5);
+	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Y_NEG], normal, color, 0, 2, 1, -0.5);
 
 	/* left */
 	studiolight_evaluate_specular_radiance_buffer(
-	        sl->radiance_cubemap_buffers[STUDIOLIGHT_X_POS], specular, normal, color, &hits, 1, 2, 0, 0.5);
+	        sl->radiance_cubemap_buffers[STUDIOLIGHT_X_POS], normal, color, 1, 2, 0, 0.5);
 	/* right */
 	studiolight_evaluate_specular_radiance_buffer(
-	        sl->radiance_cubemap_buffers[STUDIOLIGHT_X_NEG], specular, normal, color, &hits, 1, 2, 0, -0.5);
+	        sl->radiance_cubemap_buffers[STUDIOLIGHT_X_NEG], normal, color, 1, 2, 0, -0.5);
 
 	/* top */
 	studiolight_evaluate_specular_radiance_buffer(
-	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Z_POS], specular, normal, color, &hits, 0, 1, 2, 0.5);
+	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Z_POS], normal, color, 0, 1, 2, 0.5);
 	/* bottom */
 	studiolight_evaluate_specular_radiance_buffer(
-	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Z_NEG], specular, normal, color, &hits, 0, 1, 2, -0.5);
+	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Z_NEG], normal, color, 0, 1, 2, -0.5);
 
-	if (hits) {
-		mul_v3_fl(color, specular / hits);
-	}
-	else {
-		copy_v3_fl3(color, 1.0, 0.0, 1.0);
-	}
+	mul_v3_fl(color, 1.0/ M_PI);
 }
 
 static bool studiolight_load_irradiance_equirectangular_image(StudioLight *sl)
 {
+#if 1
 	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
 		ImBuf *ibuf = NULL;
 		ibuf = IMB_loadiffname(sl->path_irr, 0, NULL);
@@ -420,6 +437,7 @@ static bool studiolight_load_irradiance_equirectangular_image(StudioLight *sl)
 			return true;
 		}
 	}
+#endif
 	return false;
 }
 
@@ -748,12 +766,12 @@ void BKE_studiolight_init(void)
 	sl = studiolight_create();
 	BLI_strncpy(sl->name, "INTERNAL_01", FILE_MAXFILE);
 	sl->flag = STUDIOLIGHT_INTERNAL | STUDIOLIGHT_DIFFUSE_LIGHT_CALCULATED | STUDIOLIGHT_ORIENTATION_CAMERA;
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_X_POS], 0.0f);
+	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_X_POS], 1.5f);
 	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_X_NEG], 0.0f);
 	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Y_POS], 0.8f);
 	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Y_NEG], 0.05f);
 	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Z_POS], 0.2f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Z_NEG], 0.1f);
+	copy_v3_fl3(sl->diffuse_light[STUDIOLIGHT_Z_NEG], 0.1f, 0.0f, 0.0f);
 	BLI_addtail(&studiolights, sl);
 
 	studiolight_add_files_from_datafolder(BLENDER_SYSTEM_DATAFILES, STUDIOLIGHT_CAMERA_FOLDER, STUDIOLIGHT_ORIENTATION_CAMERA);
