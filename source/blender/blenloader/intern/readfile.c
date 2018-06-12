@@ -1634,7 +1634,7 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 {
 	Image *ima = oldmain->image.first;
 	Scene *sce = oldmain->scene.first;
-	int a;
+	int a, b;
 	
 	fd->imamap = oldnewmap_new();
 	
@@ -1646,11 +1646,10 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 		for (a=0; a < IMA_MAX_RENDER_SLOT; a++)
 			if (ima->renders[a])
 				oldnewmap_insert(fd->imamap, ima->renders[a], ima->renders[a], 0);
-		if (ima->gputexture) {
-			oldnewmap_insert(fd->imamap, ima->gputexture, ima->gputexture, 0);
-			for (a = 0; a < max_ii(1, ima->num_tiles)*TEXTARGET_COUNT; a++) {
-				if (ima->gputexture[a]) {
-					oldnewmap_insert(fd->imamap, ima->gputexture[a], ima->gputexture[a], 0);
+		for (a = 0; a < ima->num_tiles; a++) {
+			for (b = 0; b < TEXTARGET_COUNT; b++) {
+				if (ima->tiles[a].gputexture[b]) {
+					oldnewmap_insert(fd->imamap, ima->tiles[a].gputexture[b], ima->tiles[a].gputexture[b], 0);
 				}
 			}
 		}
@@ -1686,15 +1685,17 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 		if (ima->cache == NULL) {
 			ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
 			ima->rr = NULL;
-			MEM_SAFE_FREE(ima->gputexture);
+			for (i = 0; i < ima->num_tiles; i++) {
+				for (int j = 0; j < TEXTARGET_COUNT; j++) {
+					ima->tiles[i].gputexture[j] = NULL;
+				}
+			}
 		}
 		for (i = 0; i < IMA_MAX_RENDER_SLOT; i++)
 			ima->renders[i] = newimaadr(fd, ima->renders[i]);
-		
-		ima->gputexture = newimaadr(fd, ima->gputexture);
-		if (ima->gputexture) {
-			for (i = 0; i < max_ii(1, ima->num_tiles)*TEXTARGET_COUNT; i++) {
-				ima->gputexture[i] = newimaadr(fd, ima->gputexture[i]);
+		for (i = 0; i < ima->num_tiles; i++) {
+			for (int j = 0; j < TEXTARGET_COUNT; j++) {
+				ima->tiles[i].gputexture[j] = newimaadr(fd, ima->tiles[i].gputexture[j]);
 			}
 		}
 
@@ -3925,10 +3926,16 @@ static void direct_link_image(FileData *fd, Image *ima)
 	/* if not restored, we keep the binded opengl index */
 	if (!ima->cache) {
 		ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
-		ima->gputexture = NULL;
+		if (ima->tiles) {
+			for (a = 0; a < ima->num_tiles; a++) {
+				for (int i = 0; i < TEXTARGET_COUNT; i++) {
+					ima->tiles[a].gputexture[i] = NULL;
+				}
+			}
+		}
 		ima->rr = NULL;
 	}
-	
+
 	/* undo system, try to restore render buffers */
 	if (fd->imamap) {
 		for (a = 0; a < IMA_MAX_RENDER_SLOT; a++)

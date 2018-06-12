@@ -452,12 +452,6 @@ static void copy_image_packedfiles(ListBase *lb_dst, const ListBase *lb_src)
 	}
 }
 
-static void image_alloc_gputexture(Image *ima)
-{
-	int len = TEXTARGET_COUNT * max_ii(1, ima->num_tiles);
-	ima->gputexture = MEM_recallocN(ima->gputexture, sizeof(struct GPUTexture*) * len);
-}
-
 /**
  * Only copy internal data of Image ID from source to already allocated/initialized destination.
  * You probably nerver want to use that directly, use id_copy or BKE_id_copy_ex for typical needs.
@@ -483,7 +477,11 @@ void BKE_image_copy_data(Main *UNUSED(bmain), Image *ima_dst, const Image *ima_s
 	}
 
 	BLI_listbase_clear(&ima_dst->anims);
-	ima_dst->gputexture = NULL;
+	for (int i = 0; i < ima_dst->num_tiles; i++) {
+		for (int j = 0; j < TEXTARGET_COUNT; j++) {
+			ima_dst->tiles[i].gputexture[j] = NULL;
+		}
+	}
 
 	if ((flag & LIB_ID_COPY_NO_PREVIEW) == 0) {
 		BKE_previewimg_id_copy(&ima_dst->id, &ima_src->id);
@@ -548,9 +546,11 @@ bool BKE_image_scale(Image *image, int width, int height)
 
 bool BKE_image_has_opengl_texture(Image *ima)
 {
-	for (int i = 0; i < max_ii(1, ima->num_tiles)*TEXTARGET_COUNT; i++) {
-		if (ima->gputexture[i]) {
-			return true;
+	for (int i = 0; i < ima->num_tiles; i++) {
+		for (int j = 0; j < TEXTARGET_COUNT; j++) {
+			if (ima->tiles[i].gputexture[j]) {
+				return true;
+			}
 		}
 	}
 	return false;
@@ -2978,31 +2978,6 @@ int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser)
 	return iuser->tile;
 }
 
-struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type)
-{
-	if (!ima->gputexture) {
-		image_alloc_gputexture(ima);
-	}
-
-	return ima->gputexture[tile*TEXTARGET_COUNT + type];
-}
-
-void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex)
-{
-	if (!ima->gputexture) {
-		image_alloc_gputexture(ima);
-	}
-
-	ima->gputexture[tile*TEXTARGET_COUNT + type] = tex;
-}
-
-void BKE_image_set_num_tiles(struct Image *ima, int num_tiles)
-{
-	BLI_assert(ima->source == IMA_SRC_TILED);
-	ima->num_tiles = num_tiles;
-	image_alloc_gputexture(ima);
-}
-
 bool BKE_image_make_tiled(struct Image *ima, int num_tiles)
 {
 	if (ima->source != IMA_SRC_FILE) {
@@ -3018,6 +2993,20 @@ bool BKE_image_make_tiled(struct Image *ima, int num_tiles)
 		ima->tiles[i].ok = 1;
 
 	return true;
+}
+
+struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type)
+{
+	BLI_assert(tile < ima->num_tiles);
+
+	return ima->tiles[tile].gputexture[type];
+}
+
+void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex)
+{
+	BLI_assert(tile < ima->num_tiles);
+
+	ima->tiles[tile].gputexture[type] = tex;
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
