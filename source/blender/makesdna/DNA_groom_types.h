@@ -114,6 +114,10 @@ typedef struct GroomRegion
 	char scalp_facemap_name[64];            /* Scalp face map to use as region, MAX_VGROUP_NAME */
 	
 	GroomBundle bundle;                     /* Curve with sections for creating hair bundle */
+	
+	/* Shape parameters */
+	float taper_length;                     /* Distance at which final thickness is reached */
+	float taper_thickness;                  /* Relative thickness of the strand */
 } GroomRegion;
 
 typedef enum GroomRegionFlag

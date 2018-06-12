@@ -91,6 +91,10 @@ BLI_STATIC_ASSERT_ALIGN(HairStrandVertexTextureBuffer, 8)
 typedef struct HairStrandMapTextureBuffer {
 	unsigned int vertex_start;
 	unsigned int vertex_count;
+	
+	/* Shape attributes */
+	float taper_length;         /* Distance at which final thickness is reached */
+	float taper_thickness;      /* Relative thickness of the strand */
 } HairStrandMapTextureBuffer;
 BLI_STATIC_ASSERT_ALIGN(HairStrandMapTextureBuffer, 8)
 
@@ -109,6 +113,8 @@ static void hair_get_strand_buffer(
 		
 		smap->vertex_start = curve->vertstart;
 		smap->vertex_count = curve->numverts;
+		smap->taper_length = curve->taper_length;
+		smap->taper_thickness = curve->taper_thickness;
 		
 		for (int j = 0; j < curve->numverts; ++j)
 		{

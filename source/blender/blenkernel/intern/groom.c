@@ -880,7 +880,12 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 		const int curvesize = bundle->curvesize;
 		for (int i = 0; i < bundle->totguides; ++i)
 		{
-			BKE_hair_set_guide_curve(hsys, i, &bundle->guides[i].root, curvesize);
+			/* TODO implement optional factors using scalp textures/vgroups */
+			float taper_length = region->taper_length;
+			float taper_thickness = region->taper_thickness;
+			
+			BKE_hair_set_guide_curve(hsys, i, &bundle->guides[i].root, curvesize,
+			                         taper_length, taper_thickness);
 		}
 	}
 	BKE_hair_guide_curves_end(hsys);

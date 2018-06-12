@@ -1236,7 +1236,7 @@ static void rna_Fur_guide_curves_apply(ID *id, FurModifierData *fmd, bContext *C
 	i = 0;
 	for (FurModifierGuideCurve *curve = fmd->guide_curves.first; curve; curve = curve->next, ++i)
 	{
-		BKE_hair_set_guide_curve(fmd->hair_system, i, &msample, curve->numverts);
+		BKE_hair_set_guide_curve(fmd->hair_system, i, &msample, curve->numverts, 0.1, 1.0);
 	}
 	BKE_hair_guide_curves_end(fmd->hair_system);
 	

@@ -228,13 +228,16 @@ void BKE_hair_guide_curves_begin(HairSystem *hsys, int totcurves)
 	}
 }
 
-void BKE_hair_set_guide_curve(HairSystem *hsys, int index, const MeshSample *mesh_sample, int numverts)
+void BKE_hair_set_guide_curve(HairSystem *hsys, int index, const MeshSample *mesh_sample, int numverts,
+                              float taper_length, float taper_thickness)
 {
 	BLI_assert(index <= hsys->guides.totcurves);
 	
 	HairGuideCurve *curve = &hsys->guides.curves[index];
 	memcpy(&curve->mesh_sample, mesh_sample, sizeof(MeshSample));
 	curve->numverts = numverts;
+	curve->taper_length = taper_length;
+	curve->taper_thickness = taper_thickness;
 	
 	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
@@ -672,7 +675,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 			const HairGuideCurve *curve_orig = &hsys->guides.curves[i];
 			HairGuideCurve *curve = &cache->guide_curves[i];
 			
-			memcpy(&curve->mesh_sample, &curve_orig->mesh_sample, sizeof(MeshSample));
+			memcpy(curve, curve_orig, sizeof(HairGuideCurve));
 			curve->numverts = hair_get_strand_subdiv_length(curve_orig->numverts, subdiv);
 			curve->vertstart = totguideverts;
 			

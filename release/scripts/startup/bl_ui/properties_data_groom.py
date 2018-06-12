@@ -113,6 +113,10 @@ class DATA_PT_groom_regions(DataButtonsPanel, Panel):
 
             col.prop(region.bundle, "guides_count")
 
+            sub = col.column(align=True)
+            sub.prop(region, "taper_length")
+            sub.prop(region, "taper_thickness")
+
 
 class DATA_PT_groom_hair(DataButtonsPanel, Panel):
     bl_label = "Hair"

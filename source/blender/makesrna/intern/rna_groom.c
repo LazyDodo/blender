@@ -222,6 +222,18 @@ static void rna_def_groom_region(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "GroomBundle");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Bundle", "Bundle geometry");
+	
+	prop = RNA_def_property(srna, "taper_length", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 1.0e-6f, 1.0e6f);
+	RNA_def_property_ui_range(prop, 0.01, 1.0, 0.01, 3);
+	RNA_def_property_ui_text(prop, "Taper Length", "Distance at which final thickness is reached");
+	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
+	
+	prop = RNA_def_property(srna, "taper_thickness", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 1.0e-6f, 1.0e6f);
+	RNA_def_property_ui_range(prop, 0.01, 1.0, 0.1, 3);
+	RNA_def_property_ui_text(prop, "Taper Thickness", "Relative thickness of the strand");
+	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
 }
 
 /* groom.regions */

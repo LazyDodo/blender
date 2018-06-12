@@ -55,12 +55,13 @@ typedef struct HairPattern {
 } HairPattern;
 
 typedef struct HairGuideCurve {
-	/* Sample on the scalp mesh for the root vertex */
-	MeshSample mesh_sample;
-	/* Offset in the vertex array where the curve starts */
-	int vertstart;
-	/* Number of vertices in the curve */
-	int numverts;
+	MeshSample mesh_sample;             /* Sample on the scalp mesh for the root vertex */
+	int vertstart;                      /* Offset in the vertex array where the curve starts */
+	int numverts;                       /* Number of vertices in the curve */
+
+	/* Shape */
+	float taper_length;                 /* Distance at which final thickness is reached */
+	float taper_thickness;              /* Relative thickness of the strand */
 } HairGuideCurve;
 
 typedef struct HairGuideVertex {

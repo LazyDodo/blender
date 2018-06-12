@@ -57,44 +57,27 @@ mat4 rotateZ(float angle)
  * https://developer.nvidia.com/gpugems/GPUGems/gpugems_ch42.html
  */
 
-/* Hairs tend to stick together and run in parallel.
- * The effect increases with distance from the root,
- * as the stresses pulling fibers apart decrease.
- */
-struct ClumpParams
+struct DeformParams
 {
+	/* Length where strand reaches final thickness */
+	float taper_length;
 	/* Relative strand thickness at the tip.
 	 * (0.0, 1.0]
 	 * 0.0 : Strand clumps into a single line
 	 * 1.0 : Strand does not clump at all
 	 * (> 1.0 is possible but not recommended)
 	 */
-	float thickness;
-};
+	float taper_thickness;
 
-/* Hairs often don't have a circular cross section, but are somewhat flattened.
- * This creates the local bending which results in the typical curly hair geometry.
- */ 
-struct CurlParams
-{
 	/* Radius of the curls.
 	 * >= 0.0
 	 */
-	float radius;
+	float curl_radius;
 	/* Steepness of curls
 	 * < 0.0 : Clockwise curls
 	 * > 0.0 : Anti-clockwise curls
 	 */
-	float angle;
-};
-
-struct DeformParams
-{
-	/* Length where strand reaches final thickness */
-	float taper_length;
-
-	ClumpParams clump;
-	CurlParams curl;
+	float curl_angle;
 };
 
 void deform_taper(DeformParams params, float t, out float taper, out float dtaper)
@@ -111,14 +94,18 @@ void deform_taper(DeformParams params, float t, out float taper, out float dtape
 	dtaper = 1.5 * x * (2.0 - x) * dx;
 }
 
+/* Hairs tend to stick together and run in parallel.
+ * The effect increases with distance from the root,
+ * as the stresses pulling fibers apart decrease.
+ */
 void deform_clump(DeformParams params,
                   float t, float tscale, mat4 target_matrix,
                   inout vec3 co, inout vec3 tang)
 {
 	float taper, dtaper;
 	deform_taper(params, t, taper, dtaper);
-	float factor = (1.0 - params.clump.thickness) * taper;
-	float dfactor = (1.0 - params.clump.thickness) * dtaper;
+	float factor = (1.0 - params.taper_thickness) * taper;
+	float dfactor = (1.0 - params.taper_thickness) * dtaper;
 	
 	vec3 target_co = target_matrix[3].xyz;
 	vec3 target_tang = target_matrix[0].xyz;
@@ -129,14 +116,17 @@ void deform_clump(DeformParams params,
 	tang = ntang;
 }
 
+/* Hairs often don't have a circular cross section, but are somewhat flattened.
+ * This creates the local bending which results in the typical curly hair geometry.
+ */
 void deform_curl(DeformParams params,
                  float t, float tscale,
                  inout mat4 target_matrix)
 {
-	float pitch = 2.0*M_PI * params.curl.radius * tan(params.curl.angle);
-	float turns = tscale / (params.curl.radius * tan(params.curl.angle));
+	float pitch = 2.0*M_PI * params.curl_radius * tan(params.curl_angle);
+	float turns = tscale / (params.curl_radius * tan(params.curl_angle));
 	float angle = t * turns;
-	mat4 local_mat = rotateX(angle) * translate(vec3(0.0, params.curl.radius, 0.0)) * rotateY(params.curl.angle);
+	mat4 local_mat = rotateX(angle) * translate(vec3(0.0, params.curl_radius, 0.0)) * rotateY(params.curl_angle);
 	target_matrix = target_matrix * local_mat;
 }
 
@@ -172,13 +162,19 @@ mat4 mat4_from_vectors(vec3 nor, vec3 tang, vec3 co)
 	return mat4(vec4(tang, 0.0), vec4(xnor, 0.0), vec4(cross(tang, xnor), 0.0), vec4(co, 1.0));
 }
 
-void get_strand_data(int index, out int start, out int count)
+void get_strand_data(int index, out int start, out int count, out DeformParams deform_params)
 {
 	int offset = strand_map_start + index;
 	vec2 a = read_texdata(offset);
+	vec2 b = read_texdata(offset + 1);
 
 	start = floatBitsToInt(a.r);
 	count = floatBitsToInt(a.g);
+
+	deform_params.taper_length = b.r;
+	deform_params.taper_thickness = b.g;
+	deform_params.curl_radius = 0.1;
+	deform_params.curl_angle = 0.2;
 }
 
 void get_strand_vertex(int index, out vec3 co, out vec3 nor, out vec3 tang)
@@ -219,10 +215,10 @@ void get_fiber_data(int fiber_index, out ivec4 parent_index, out vec4 parent_wei
 	pos = vec3(e.rg, f.r);
 }
 
-void interpolate_parent_curve(int index, float curve_param, out vec3 co, out vec3 nor, out vec3 tang, out vec3 rootco)
+void interpolate_parent_curve(int index, float curve_param, out vec3 co, out vec3 nor, out vec3 tang, out vec3 rootco, out DeformParams deform_params)
 {
 	int start, count;
-	get_strand_data(index, start, count);
+	get_strand_data(index, start, count, deform_params);
 	
 	get_strand_root(start, rootco);
 	
@@ -250,7 +246,7 @@ void interpolate_parent_curve(int index, float curve_param, out vec3 co, out vec
 
 void interpolate_vertex(int fiber_index, float curve_param,
 	                    out vec3 co, out vec3 tang,
-	                    out mat4 target_matrix)
+	                    out mat4 target_matrix, out DeformParams deform_params)
 {
 	co = vec3(0.0);
 	tang = vec3(0.0);
@@ -263,7 +259,7 @@ void interpolate_vertex(int fiber_index, float curve_param,
 
 	if (parent_index.x != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, deform_params);
 		co += parent_weight.x * pco;
 		tang += parent_weight.x * normalize(ptang);
 
@@ -271,19 +267,22 @@ void interpolate_vertex(int fiber_index, float curve_param,
 	}
 	if (parent_index.y != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
+		DeformParams pdeform_params;
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, pdeform_params);
 		co += parent_weight.y * pco;
 		tang += parent_weight.y * normalize(ptang);
 	}
 	if (parent_index.z != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
+		DeformParams pdeform_params;
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, pdeform_params);
 		co += parent_weight.z * pco;
 		tang += parent_weight.z * normalize(ptang);
 	}
 	if (parent_index.w != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco);
+		DeformParams pdeform_params;
+		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, pdeform_params);
 		co += parent_weight.w * pco;
 		tang += parent_weight.w * normalize(ptang);
 	}
@@ -299,16 +298,12 @@ void hair_fiber_get_vertex(
         out float time, out float thickness, out float thick_time)
 {
 	mat4 target_matrix;
-	interpolate_vertex(fiber_index, curve_param, pos, tang, target_matrix);
+	DeformParams deform_params;
+	interpolate_vertex(fiber_index, curve_param, pos, tang, target_matrix, deform_params);
 
 	vec3 camera_vec = (is_persp) ? pos - camera_pos : -camera_z;
 	binor = normalize(cross(camera_vec, tang));
 
-	DeformParams deform_params;
-	deform_params.taper_length = 0.08;
-	deform_params.clump.thickness = 0.15;
-	deform_params.curl.radius = 0.1;
-	deform_params.curl.angle = 0.2;
 	// TODO define proper curve scale, independent of subdivision!
 	deform_fiber(deform_params, curve_param, 1.0, target_matrix, pos, tang);
 
