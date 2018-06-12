@@ -288,6 +288,7 @@ static void image_operatortypes(void)
 
 	WM_operatortype_append(IMAGE_OT_add_tile);
 	WM_operatortype_append(IMAGE_OT_remove_tile);
+	WM_operatortype_append(IMAGE_OT_generate_tile);
 }
 
 static void image_keymap(struct wmKeyConfig *keyconf)

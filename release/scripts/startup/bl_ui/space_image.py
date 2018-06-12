@@ -753,6 +753,7 @@ class IMAGE_PT_tile_properties(Panel):
         layout.prop(sima, "current_tile")
         tile = ima.tiles[sima.current_tile]
         layout.prop(tile, "label")
+        layout.operator("image.generate_tile")
 
 
 class IMAGE_PT_tools_transform_uvs(Panel, UVToolsPanel):

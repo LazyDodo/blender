@@ -96,6 +96,7 @@ void IMAGE_OT_clear_render_border(struct wmOperatorType *ot);
 
 void IMAGE_OT_add_tile(struct wmOperatorType *ot);
 void IMAGE_OT_remove_tile(struct wmOperatorType *ot);
+void IMAGE_OT_generate_tile(struct wmOperatorType *ot);
 
 /* image_panels.c */
 struct ImageUser *ntree_get_active_iuser(struct bNodeTree *ntree);

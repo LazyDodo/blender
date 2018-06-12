@@ -3932,3 +3932,81 @@ void IMAGE_OT_remove_tile(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
+
+/* ********************* Generate tile operator ****************** */
+
+static int generate_tile_poll(bContext *C)
+{
+	Image *ima = CTX_data_edit_image(C);
+	SpaceImage *sima = CTX_wm_space_image(C);
+
+	return (ima && ima->source == IMA_SRC_TILED && sima->curtile >= 0 && sima->curtile < ima->num_tiles);
+}
+
+static int generate_tile_exec(bContext *C, wmOperator *op)
+{
+	SpaceImage *sima = CTX_wm_space_image(C);
+	Image *ima = ED_space_image(sima);
+
+	float color[4];
+	RNA_float_get_array(op->ptr, "color", color);
+	int gen_type = RNA_enum_get(op->ptr, "generated_type");
+
+	if (!BKE_image_generate_tile(ima, sima->curtile, color, gen_type))
+		return OPERATOR_CANCELLED;
+
+	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+static int generate_tile_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	return WM_operator_props_dialog_popup(C, op, 15 * UI_UNIT_X, 5 * UI_UNIT_Y);
+}
+
+static void generate_tile_draw(bContext *UNUSED(C), wmOperator *op)
+{
+	uiLayout *split, *col[2];
+	uiLayout *layout = op->layout;
+	PointerRNA ptr;
+
+	RNA_pointer_create(NULL, op->type->srna, op->properties, &ptr);
+
+	/* copy of WM_operator_props_dialog_popup() layout */
+
+	split = uiLayoutSplit(layout, 0.5f, false);
+	col[0] = uiLayoutColumn(split, false);
+	col[1] = uiLayoutColumn(split, false);
+
+	uiItemL(col[0], IFACE_("Color"), ICON_NONE);
+	uiItemR(col[1], &ptr, "color", 0, "", ICON_NONE);
+
+	uiItemL(col[0], IFACE_("Generated Type"), ICON_NONE);
+	uiItemR(col[1], &ptr, "generated_type", 0, "", ICON_NONE);
+}
+
+void IMAGE_OT_generate_tile(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Generate tile";
+	ot->description = "Generates an image in the current tile";
+	ot->idname = "IMAGE_OT_generate_tile";
+
+	/* api callbacks */
+	ot->poll = generate_tile_poll;
+	ot->exec = generate_tile_exec;
+	ot->invoke = generate_tile_invoke;
+	ot->ui = generate_tile_draw;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	PropertyRNA *prop;
+	static float default_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+	prop = RNA_def_float_color(ot->srna, "color", 4, NULL, 0.0f, FLT_MAX, "Color", "Default fill color", 0.0f, 1.0f);
+	RNA_def_property_subtype(prop, PROP_COLOR_GAMMA);
+	RNA_def_property_float_array_default(prop, default_color);
+	RNA_def_enum(ot->srna, "generated_type", rna_enum_image_generated_type_items, IMA_GENTYPE_BLANK,
+	             "Generated Type", "Fill the image with a grid for UV map testing");
+}

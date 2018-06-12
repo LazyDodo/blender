@@ -3104,6 +3104,37 @@ void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPU
 	ima->tiles[tile].gputexture[type] = tex;
 }
 
+bool BKE_image_generate_tile(struct Image *ima, int tile, const float color[4], int gen_type)
+{
+	if (!ima || ima->source != IMA_SRC_TILED || tile < 0 || tile >= ima->num_tiles) {
+		return false;
+	}
+
+	image_free_tile(ima, tile);
+
+	ImageUser iuser = {NULL};
+	iuser.ok = true;
+	ImBuf *main_ibuf = image_acquire_ibuf(ima, &iuser, NULL);
+	if (!main_ibuf) {
+		return false;
+	}
+	int x = main_ibuf->x;
+	int y = main_ibuf->y;
+	int planes = main_ibuf->planes;
+	bool is_float = (main_ibuf->rect_float != NULL);
+	BKE_image_release_ibuf(ima, main_ibuf, NULL);
+
+	ImBuf *tile_ibuf = add_ibuf_size(x, y, ima->name, planes, is_float, gen_type, color, &ima->colorspace_settings);
+
+	if (tile_ibuf) {
+		image_assign_ibuf(ima, tile_ibuf, 0, tile);
+		BKE_image_release_ibuf(ima, tile_ibuf, NULL);
+		ima->tiles[tile].ok = 1;
+		return true;
+	}
+	return false;
+}
+
 /* if layer or pass changes, we need an index for the imbufs list */
 /* note it is called for rendered results, but it doesnt use the index! */
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
