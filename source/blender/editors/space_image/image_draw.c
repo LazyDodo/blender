@@ -478,7 +478,7 @@ static void sima_draw_zbuffloat_pixels(Scene *scene, float x1, float y1, int rec
 	MEM_freeN(rectf);
 }
 
-static void draw_image_buffer(const bContext *C, SpaceImage *sima, ARegion *ar, Scene *scene, ImBuf *ibuf, float fx, float fy, float zoomx, float zoomy)
+static void draw_image_buffer(const bContext *C, SpaceImage *sima, ARegion *ar, Scene *scene, ImBuf *ibuf, float fx, float fy, float zoomx, float zoomy, const char *label)
 {
 	int x, y;
 
@@ -545,6 +545,24 @@ static void draw_image_buffer(const bContext *C, SpaceImage *sima, ARegion *ar, 
 
 		if (sima->flag & SI_USE_ALPHA)
 			glDisable(GL_BLEND);
+	}
+
+	if (label && label[0]) {
+		glEnable(GL_BLEND);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		BLF_size(blf_mono_font, 25 * U.pixelsize, U.dpi);
+
+		int textwidth = BLF_width(blf_mono_font, label, strlen(label)) + 10;
+		float opacity;
+		float stepx = BLI_rcti_size_x(&ar->v2d.mask) / BLI_rctf_size_x(&ar->v2d.cur);
+		if (textwidth < 0.5f*(stepx - 10)) opacity = 1.0f;
+		else if (textwidth < (stepx - 10)) opacity = 2.0f - 2.0f*(textwidth / (stepx - 10));
+		else opacity = 0.0f;
+		BLF_color4ub(blf_mono_font, 220, 220, 220, 150*opacity);
+		BLF_position(blf_mono_font, (int) (x + 10), (int) (y + 10), 0);
+		BLF_draw_ascii(blf_mono_font, label, strlen(label));
+
+		glDisable(GL_BLEND);
 	}
 }
 
@@ -687,27 +705,6 @@ static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, flo
 	immEnd();
 	immUnbindProgram();
 
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    BLF_size(blf_mono_font, 25 * U.pixelsize, U.dpi);
-
-    char id[256];
-    for (int y = ymin; y < ymax; y++) {
-        for (int x = xmin; x < xmax; x++) {
-            BLI_snprintf(id, sizeof(id), "%d", 1001 + y*10 + x);
-            int textwidth = BLF_width(blf_mono_font, id, sizeof(id)) + 10;
-            float opacity;
-            if (textwidth < 0.5f*(stepx - 10)) opacity = 1.0f;
-            else if (textwidth < (stepx - 10)) opacity = 2.0f - 2.0f*(textwidth / (stepx - 10));
-            else opacity = 0.0f;
-			BLF_color4ub(blf_mono_font, 220, 220, 220, 150*opacity);
-            BLF_position(blf_mono_font, (int) (x1 + x*stepx + 10), (int) (y1 + y*stepy + 10), 0);
-            BLF_draw_ascii(blf_mono_font, id, sizeof(id));
-        }
-    }
-
-	glDisable(GL_BLEND);
-
     return true;
 }
 
@@ -782,7 +779,9 @@ void draw_image_main(const bContext *C, ARegion *ar)
 		}
 	}
 	else {
-		draw_image_buffer(C, sima, ar, scene, ibuf, 0.0f, 0.0f, zoomx, zoomy);
+		char label[64];
+		BKE_image_get_tile_label(ima, 0, label, sizeof(label));
+		draw_image_buffer(C, sima, ar, scene, ibuf, 0.0f, 0.0f, zoomx, zoomy, label);
 
 		if (sima->flag & SI_DRAW_METADATA) {
 			int x, y;
@@ -803,7 +802,9 @@ void draw_image_main(const bContext *C, ARegion *ar)
 			if (ibuf) {
 				int x_pos = t%10;
 				int y_pos = t/10;
-				draw_image_buffer(C, sima, ar, scene, ibuf, x_pos, y_pos, zoomx, zoomy);
+				char label[64];
+				BKE_image_get_tile_label(ima, t, label, sizeof(label));
+				draw_image_buffer(C, sima, ar, scene, ibuf, x_pos, y_pos, zoomx, zoomy, label);
 			}
 			ED_space_image_release_buffer(sima, ibuf, lock);
 		}

@@ -96,6 +96,7 @@ typedef struct ImageTile {
 	struct GPUTexture *gputexture[2]; /* TEXTARGET_COUNT */
 	char ok;
 	char pad[7];
+	char label[64];
 } ImageTile;
 
 /* iuser->flag */

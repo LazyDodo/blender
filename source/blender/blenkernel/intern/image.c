@@ -3024,7 +3024,20 @@ int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser)
 	return iuser->tile;
 }
 
-ImageTile *BKE_image_add_tile(struct Image *ima)
+void BKE_image_get_tile_label(Image *ima, int tile, char *label, int len_label)
+{
+	label[0] = '\0';
+	if (!ima || ima->source != IMA_SRC_TILED || tile >= ima->num_tiles) {
+		return;
+	}
+
+	if (ima->tiles[tile].label[0])
+		BLI_strncpy(label, ima->tiles[tile].label, len_label);
+	else
+		BLI_snprintf(label, len_label, "%d", 1001 + tile);
+}
+
+ImageTile *BKE_image_add_tile(struct Image *ima, const char *label)
 {
 	if (ima->source != IMA_SRC_TILED) {
 		return NULL;
@@ -3034,6 +3047,10 @@ ImageTile *BKE_image_add_tile(struct Image *ima)
 	ima->num_tiles++;
 	ima->tiles = MEM_recallocN(ima->tiles, sizeof(ImageTile)*ima->num_tiles);
 	ima->tiles[tile_id].ok = 1;
+
+	if (label) {
+		BLI_strncpy(ima->tiles[tile_id].label, label, sizeof(ima->tiles[tile_id].label));
+	}
 
 	return &ima->tiles[tile_id];
 }

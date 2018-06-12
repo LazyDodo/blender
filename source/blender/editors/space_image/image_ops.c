@@ -3873,7 +3873,7 @@ static int add_tile_exec(bContext *C, wmOperator *UNUSED(op))
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = ED_space_image(sima);
 
-	if (BKE_image_add_tile(ima) == NULL)
+	if (BKE_image_add_tile(ima, NULL) == NULL)
 		return OPERATOR_CANCELLED;
 
 	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);

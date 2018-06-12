@@ -276,8 +276,9 @@ bool BKE_image_has_opengl_texture(struct Image *ima);
 
 /* get tile index for tiled images */
 int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser);
+void BKE_image_get_tile_label(struct Image *ima, int tile, char *label, int len_label);
 
-struct ImageTile *BKE_image_add_tile(struct Image *ima);
+struct ImageTile *BKE_image_add_tile(struct Image *ima, const char *label);
 bool BKE_image_remove_tile(struct Image *ima);
 bool BKE_image_make_tiled(struct Image *ima, int num_tiles);
 
