@@ -494,6 +494,34 @@ static void rna_render_slots_active_index_set(PointerRNA *ptr, int value)
 	CLAMP(image->render_slot, 0, IMA_MAX_RENDER_SLOT - 1);
 }
 
+static void rna_Image_tiles_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
+{
+	Image *image = (Image *)ptr->id.data;
+	rna_iterator_array_begin(iter, (void *)image->tiles, sizeof(ImageTile), image->num_tiles, 0, NULL);
+}
+
+static ImageTile *rna_ImageTile_new(Image *image, const char *label)
+{
+	ImageTile *tile = BKE_image_add_tile(image, label);
+
+	WM_main_add_notifier(NC_IMAGE | ND_DRAW, NULL);
+
+	return tile;
+}
+
+static void rna_ImageTile_remove_last(Image *image)
+{
+	BKE_image_remove_tile(image);
+	WM_main_add_notifier(NC_IMAGE | ND_DRAW, NULL);
+}
+
+static int rna_ImageTile_index_get(PointerRNA *ptr)
+{
+	Image *image = (Image *)ptr->id.data;
+	ImageTile *tile = (ImageTile *)ptr->data;
+	return CLAMPIS(tile - image->tiles, 0, image->num_tiles);
+}
+
 #else
 
 static void rna_def_imageuser(BlenderRNA *brna)
@@ -630,6 +658,45 @@ static void rna_def_render_slots(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_ui_text(prop, "Active Index", "Index of an active render slot of the image");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
+}
+
+static void rna_def_image_tile(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+	srna = RNA_def_struct(brna, "ImageTile", NULL);
+	RNA_def_struct_ui_text(srna, "Image Tile", "Properties of the image tile");
+
+	prop = RNA_def_property(srna, "label", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "label");
+	RNA_def_property_ui_text(prop, "Label", "Tile label");
+	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
+
+	prop = RNA_def_property(srna, "index", PROP_INT, PROP_NONE);
+	RNA_def_property_int_funcs(prop, "rna_ImageTile_index_get", NULL, NULL);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Index", "Tile index");
+}
+
+static void rna_def_image_tiles(BlenderRNA *brna, PropertyRNA *cprop)
+{
+	StructRNA *srna;
+	FunctionRNA *func;
+	PropertyRNA *parm;
+
+	RNA_def_property_srna(cprop, "ImageTiles");
+	srna = RNA_def_struct(brna, "ImageTiles", NULL);
+	RNA_def_struct_sdna(srna, "Image");
+	RNA_def_struct_ui_text(srna, "Image Tiles", "Collection of the image tiles");
+
+	func = RNA_def_function(srna, "new", "rna_ImageTile_new");
+	RNA_def_function_ui_description(func, "Add a tile to the image");
+	parm = RNA_def_string(func, "label", NULL, 0, "", "Optional label for the tile");
+	parm = RNA_def_pointer(func, "result", "ImageTile", "", "Newly created image tile");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "remove_last", "rna_ImageTile_remove_last");
+	RNA_def_function_ui_description(func, "Remove the last image tile");
 }
 
 static void rna_def_image(BlenderRNA *brna)
@@ -810,6 +877,13 @@ static void rna_def_image(BlenderRNA *brna)
 	                                  "rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
 	RNA_def_property_srna(prop, "RenderSlots");
 
+	prop = RNA_def_property(srna, "tiles", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_struct_type(prop, "ImageTile");
+	RNA_def_property_ui_text(prop, "Image Tiles", "Tiles of the image");
+	RNA_def_property_collection_funcs(prop, "rna_Image_tiles_begin", "rna_iterator_array_next",
+	                                  "rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
+	rna_def_image_tiles(brna, prop);
+
 	/*
 	 * Image.has_data and Image.depth are temporary,
 	 * Update import_obj.py when they are replaced (Arystan)
@@ -897,6 +971,7 @@ void RNA_def_image(BlenderRNA *brna)
 {
 	rna_def_render_slot(brna);
 	rna_def_render_slots(brna);
+	rna_def_image_tile(brna);
 	rna_def_image(brna);
 	rna_def_imageuser(brna);
 	rna_def_image_packed_files(brna);

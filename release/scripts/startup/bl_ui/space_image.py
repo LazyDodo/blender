@@ -750,6 +750,10 @@ class IMAGE_PT_tile_properties(Panel):
         row.operator("image.add_tile")
         row.operator("image.remove_tile")
 
+        layout.prop(sima, "current_tile")
+        tile = ima.tiles[sima.current_tile]
+        layout.prop(tile, "label")
+
 
 class IMAGE_PT_tools_transform_uvs(Panel, UVToolsPanel):
     bl_label = "Transform"
