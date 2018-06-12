@@ -48,8 +48,9 @@
 #include "BKE_lattice.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
- 
+
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 /* *************************************************** */
 /* Geometry Utilities */
@@ -417,13 +418,36 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 
 /* *************************************************** */
 
-void BKE_gpencil_eval_geometry(const Depsgraph *UNUSED(depsgraph),
-                               bGPdata *UNUSED(gpd))
+void BKE_gpencil_eval_geometry(Depsgraph *depsgraph,
+                               bGPdata *gpd)
 {
+	DEG_debug_print_eval(depsgraph, __func__, gpd->id.name, gpd);
+	int ctime = (int)DEG_get_ctime(depsgraph);
+
+	/* update active frame */
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		gpl->actframe = BKE_gpencil_layer_getframe(gpl, ctime, GP_GETFRAME_USE_PREV);
+	}
+
 	/* TODO: Move "derived_gpf" logic here from DRW_gpencil_populate_datablock()?
-	 * This way, we wouldn't have to mess around trying to figure out how to pass
-	 * an EvaluationContext to each of the modifiers.
+	 * This would be better than inventing our own logic for this stuff...
 	 */
+
+	/* TODO: Move the following code to "BKE_gpencil_eval_done()" (marked as an exit node)
+	 * later when there's more happening here. For now, let's just keep this in here to avoid
+	 * needing to have one more node slowing down evaluation...
+	 */
+	if (DEG_is_active(depsgraph)) {
+		bGPdata *gpd_orig = (bGPdata *)DEG_get_original_id(&gpd->id);
+
+		/* sync "actframe" changes back to main-db too,
+		 * so that editing tools work with copy-on-write
+		 * when the current frame changes
+		 */
+		for (bGPDlayer *gpl = gpd_orig->layers.first; gpl; gpl = gpl->next) {
+			gpl->actframe = BKE_gpencil_layer_getframe(gpl, ctime, GP_GETFRAME_USE_PREV);
+		}
+	}
 }
 
 
