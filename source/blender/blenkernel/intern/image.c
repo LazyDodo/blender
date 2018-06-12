@@ -380,6 +380,8 @@ static void image_init(Image *ima, short source, short type)
 	if (source == IMA_SRC_VIEWER)
 		ima->flag |= IMA_VIEW_AS_RENDER;
 
+	ima->num_tiles = 1;
+
 	BKE_color_managed_colorspace_settings_init(&ima->colorspace_settings);
 	ima->stereo3d_format = MEM_callocN(sizeof(Stereo3dFormat), "Image Stereo Format");
 }
@@ -450,7 +452,6 @@ static void image_alloc_gputexture(Image *ima)
 {
 	int len = TEXTARGET_COUNT * max_ii(1, ima->num_tiles);
 	ima->gputexture = MEM_recallocN(ima->gputexture, sizeof(struct GPUTexture*) * len);
-	ima->bindcode = MEM_recallocN(ima->bindcode, sizeof(unsigned int) * len);
 }
 
 /**
@@ -478,10 +479,7 @@ void BKE_image_copy_data(Main *UNUSED(bmain), Image *ima_dst, const Image *ima_s
 	}
 
 	BLI_listbase_clear(&ima_dst->anims);
-
 	ima_dst->gputexture = NULL;
-	ima_dst->bindcode = NULL;
-	image_alloc_gputexture(ima_dst);
 
 	if ((flag & LIB_ID_COPY_NO_PREVIEW) == 0) {
 		BKE_previewimg_id_copy(&ima_dst->id, &ima_src->id);
@@ -544,16 +542,14 @@ bool BKE_image_scale(Image *image, int width, int height)
 	return (ibuf != NULL);
 }
 
-bool BKE_image_has_bindcode(Image *ima)
+bool BKE_image_has_opengl_texture(Image *ima)
 {
-	bool has_bindcode = false;
-	for (int i = 0; i < TEXTARGET_COUNT; i++) {
-		if (ima->bindcode[i]) {
-			has_bindcode = true;
-			break;
+	for (int i = 0; i < max_ii(1, ima->num_tiles)*TEXTARGET_COUNT; i++) {
+		if (ima->gputexture[i]) {
+			return true;
 		}
 	}
-	return has_bindcode;
+	return false;
 }
 
 int BKE_image_get_tile_from_pos(struct Image *ima, float uv[2], float new_uv[2], float ofs[2])
@@ -958,21 +954,6 @@ void BKE_image_tag_time(Image *ima)
 {
 	ima->lastused = PIL_check_seconds_timer_i();
 }
-
-#if 0
-static void tag_all_images_time(Main *bmain)
-{
-	Image *ima;
-	int ctime = PIL_check_seconds_timer_i();
-
-	ima = bmain->image.first;
-	while (ima) {
-		if (ima->bindcode || ima->repbind || ima->ibufs.first) {
-			ima->lastused = ctime;
-		}
-	}
-}
-#endif
 
 static uintptr_t image_mem_size(Image *image)
 {
@@ -2984,24 +2965,6 @@ int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser)
 	BLI_assert(iuser->tile < ima->num_tiles);
 
 	return iuser->tile;
-}
-
-unsigned int BKE_image_get_bindcode(struct Image *ima, int tile, int type)
-{
-	if (!ima->bindcode) {
-		image_alloc_gputexture(ima);
-	}
-
-	return ima->bindcode[tile*TEXTARGET_COUNT + type];
-}
-
-void BKE_image_set_bindcode(struct Image *ima, int tile, int type, unsigned int bindcode)
-{
-	if (!ima->bindcode) {
-		image_alloc_gputexture(ima);
-	}
-
-	ima->bindcode[tile*TEXTARGET_COUNT + type] = bindcode;
 }
 
 struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type)

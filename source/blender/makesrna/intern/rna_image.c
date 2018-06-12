@@ -68,6 +68,7 @@ static const EnumPropertyItem image_source_items[] = {
 #include "BKE_global.h"
 
 #include "GPU_draw.h"
+#include "GPU_texture.h"
 
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
@@ -800,12 +801,6 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.1f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 0.1f, 5000.f, 1, 2);
 	RNA_def_property_ui_text(prop, "Display Aspect", "Display Aspect for this image, does not affect rendering");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
-
-	prop = RNA_def_property(srna, "bindcode", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_int_sdna(prop, NULL, "bindcode");
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Bindcode", "OpenGL bindcode");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
 	prop = RNA_def_property(srna, "render_slots", PROP_COLLECTION, PROP_NONE);

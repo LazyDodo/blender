@@ -122,7 +122,6 @@ typedef struct Image {
 	short tpageflag;
 	short num_tiles;
 	int pad2;
-	unsigned int *bindcode; /* only for current image... 2 = TEXTARGET_COUNT */
 
 	struct PackedFile *packedfile DNA_DEPRECATED; /* deprecated */
 	struct ListBase packedfiles;

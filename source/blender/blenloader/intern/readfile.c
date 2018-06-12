@@ -1646,9 +1646,6 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 		for (a=0; a < IMA_MAX_RENDER_SLOT; a++)
 			if (ima->renders[a])
 				oldnewmap_insert(fd->imamap, ima->renders[a], ima->renders[a], 0);
-		if (ima->bindcode) {
-			oldnewmap_insert(fd->imamap, ima->bindcode, ima->bindcode, 0);
-		}
 		if (ima->gputexture) {
 			oldnewmap_insert(fd->imamap, ima->gputexture, ima->gputexture, 0);
 			for (a = 0; a < max_ii(1, ima->num_tiles)*TEXTARGET_COUNT; a++) {
@@ -1690,12 +1687,10 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 			ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
 			ima->rr = NULL;
 			MEM_SAFE_FREE(ima->gputexture);
-			MEM_SAFE_FREE(ima->bindcode);
 		}
 		for (i = 0; i < IMA_MAX_RENDER_SLOT; i++)
 			ima->renders[i] = newimaadr(fd, ima->renders[i]);
 		
-		ima->bindcode = newimaadr(fd, ima->bindcode);
 		ima->gputexture = newimaadr(fd, ima->gputexture);
 		if (ima->gputexture) {
 			for (i = 0; i < max_ii(1, ima->num_tiles)*TEXTARGET_COUNT; i++) {
@@ -3927,9 +3922,7 @@ static void direct_link_image(FileData *fd, Image *ima)
 	/* if not restored, we keep the binded opengl index */
 	if (!ima->cache) {
 		ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
-
 		ima->gputexture = NULL;
-		ima->bindcode = NULL;
 		ima->rr = NULL;
 	}
 	
