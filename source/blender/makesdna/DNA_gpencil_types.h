@@ -283,8 +283,6 @@ typedef enum eGPDlayer_Flag {
 	GP_LAYER_VOLUMETRIC		= (1 << 10),
 	/* Unlock color */
 	GP_LAYER_UNLOCK_COLOR 	= (1 << 12),
-	/* draw new strokes using last stroke location (only in 3d view) */
-	GP_LAYER_USE_LOCATION = (1 << 14),
 } eGPDlayer_Flag;
 
 /* bGPDlayer->onion_flag */

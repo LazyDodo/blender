@@ -782,20 +782,6 @@ void ED_gp_get_drawing_reference(View3D *v3d, Scene *scene, Object *ob, bGPDlaye
 	/* if using a gpencil object at cursor mode, can use the location of the object */
 	if (align_flag & GP_PROJECT_VIEWSPACE) {
 		if (ob && (ob->type == OB_GPENCIL)) {
-			/* use last stroke position for layer */
-			if (gpl && gpl->flag & GP_LAYER_USE_LOCATION) {
-				if (gpl->actframe) {
-					bGPDframe *gpf = gpl->actframe;
-					if (gpf->strokes.last) {
-						bGPDstroke *gps = gpf->strokes.last;
-						if (gps->totpoints > 0) {
-							copy_v3_v3(r_vec, &gps->points[gps->totpoints - 1].x);
-							mul_m4_v3(ob->obmat, r_vec);
-							return;
-						}
-					}
-				}
-			}
 			/* fallback (no strokes) - use cursor or object location */
 			if (align_flag & GP_PROJECT_CURSOR) {
 				/* use 3D-cursor */
