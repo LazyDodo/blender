@@ -648,7 +648,7 @@ static void gp_draw_stroke_fill(
 
 	immUniform1f("gradient_angle", gp_style->gradient_angle);
 	immUniform1f("gradient_radius", gp_style->gradient_radius);
-	immUniform1f("gradient_boxsize", gp_style->gradient_boxsize);
+	immUniform1f("pattern_gridsize", gp_style->pattern_gridsize);
 	immUniform2fv("gradient_scale", gp_style->gradient_scale);
 	immUniform2fv("gradient_shift", gp_style->gradient_shift);
 

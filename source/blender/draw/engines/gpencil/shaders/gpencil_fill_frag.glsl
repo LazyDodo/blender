@@ -4,7 +4,7 @@ uniform float mix_factor;
 
 uniform float gradient_angle;
 uniform float gradient_radius;
-uniform float gradient_boxsize;
+uniform float pattern_gridsize;
 uniform vec2 gradient_scale;
 uniform vec2 gradient_shift;
 
@@ -106,7 +106,7 @@ void main()
 		}
 		/* chessboard */
 		if (fill_type == CHESS) {
-			vec2 pos = rot / gradient_boxsize;
+			vec2 pos = rot / pattern_gridsize;
 			if ((fract(pos.x) < 0.5 && fract(pos.y) < 0.5) || (fract(pos.x) > 0.5 && fract(pos.y) > 0.5)) {
 			    chesscolor = (texture_flip == 0) ? finalColor : color2;
 			}

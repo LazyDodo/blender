@@ -441,8 +441,8 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
 
 	/* Box size */
-	prop = RNA_def_property(srna, "pattern_boxsize", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "gradient_boxsize");
+	prop = RNA_def_property(srna, "pattern_gridsize", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "pattern_gridsize");
 	RNA_def_property_range(prop, 0.0001f, 10.0f);
 	RNA_def_property_ui_text(prop, "Size", "Box Size");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");

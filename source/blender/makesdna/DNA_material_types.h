@@ -67,7 +67,7 @@ typedef struct MaterialGPencilStyle {
 	float mix_factor;        /* factor used to define shader behavior (several uses) */
 	float gradient_angle;    /* angle used for gradients orientation */
 	float gradient_radius;   /* radius for radial gradients */
-	float gradient_boxsize;  /* cheesboard size */
+	float pattern_gridsize;  /* cheesboard size */
 	float gradient_scale[2]; /* uv coordinates scale */
 	float gradient_shift[2]; /* factor to shift filling in 2d space */
 	float texture_angle;     /* angle used for texture orientation */

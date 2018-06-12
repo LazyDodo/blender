@@ -304,7 +304,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 
 	DRW_shgroup_uniform_float(grp, "gradient_angle", &gp_style->gradient_angle, 1);
 	DRW_shgroup_uniform_float(grp, "gradient_radius", &gp_style->gradient_radius, 1);
-	DRW_shgroup_uniform_float(grp, "gradient_boxsize", &gp_style->gradient_boxsize, 1);
+	DRW_shgroup_uniform_float(grp, "pattern_gridsize", &gp_style->pattern_gridsize, 1);
 	DRW_shgroup_uniform_vec2(grp, "gradient_scale", gp_style->gradient_scale, 1);
 	DRW_shgroup_uniform_vec2(grp, "gradient_shift", gp_style->gradient_shift, 1);
 
