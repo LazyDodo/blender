@@ -140,6 +140,15 @@ class MATERIAL_PT_gpencil_slots(Panel):
 class MATERIAL_PT_gpencil_surface(GPMaterialButtonsPanel, Panel):
     bl_label = "Surface"
 
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        ma = context.object.active_material
+        if ma is None or ma.grease_pencil is None:
+            return False
+
+        return ob and ob.type == 'GPENCIL'
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
