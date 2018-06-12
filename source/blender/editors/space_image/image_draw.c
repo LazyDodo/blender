@@ -640,7 +640,7 @@ static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, flo
 {
     Image *ima = ED_space_image(sima);
 
-	int num_col = max_ii(ima->num_tiles, 10);
+	int num_col = min_ii(ima->num_tiles, 10);
 	int num_row = 1 + (ima->num_tiles / 10);
 
     const int xmin = MAX2(floor(ar->v2d.cur.xmin), 0);
