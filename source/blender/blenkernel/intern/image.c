@@ -91,6 +91,7 @@
 #include "RE_pipeline.h"
 
 #include "GPU_draw.h"
+#include "GPU_texture.h"
 
 #include "BLI_sys_types.h" // for intptr_t support
 
@@ -163,6 +164,16 @@ static void imagecache_put(Image *image, int index, ImBuf *ibuf)
 	key.index = index;
 
 	IMB_moviecache_put(image->cache, &key, ibuf);
+}
+
+static void imagecache_remove(Image *image, int index)
+{
+	if (!image->cache)
+		return;
+	
+	ImageCacheKey key;
+	key.index = index;
+	IMB_moviecache_remove(image->cache, &key);
 }
 
 static struct ImBuf *imagecache_get(Image *image, int index)
@@ -434,6 +445,13 @@ static void image_assign_ibuf(Image *ima, ImBuf *ibuf, int index, int entry)
 
 		imagecache_put(ima, index, ibuf);
 	}
+}
+
+static void image_remove_ibuf(Image *ima, int index, int entry)
+{
+	if (index != IMA_NO_INDEX)
+		index = IMA_MAKE_INDEX(entry, index);
+	imagecache_remove(ima, index);
 }
 
 static void copy_image_packedfiles(ListBase *lb_dst, const ListBase *lb_src)
@@ -2726,6 +2744,24 @@ void BKE_image_init_imageuser(Image *ima, ImageUser *iuser)
 	image_init_imageuser(ima, iuser);
 }
 
+static void image_free_tile(Image *ima, int tile)
+{
+	for (int t = 0; t < TEXTARGET_COUNT; t++) {
+		if (ima->tiles[t].gputexture[t]) {
+			GPU_texture_free(ima->tiles[t].gputexture[t]);
+			ima->tiles[t].gputexture[t] = NULL;
+		}
+	}
+
+	if (BKE_image_is_multiview(ima)) {
+		const int totviews = BLI_listbase_count(&ima->views);
+		for (int i = 0; i < totviews; i++) {
+			image_remove_ibuf(ima, i, tile);
+		}
+	}
+	else image_remove_ibuf(ima, 0, tile);
+}
+
 void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 {
 	if (ima == NULL)
@@ -2767,6 +2803,16 @@ void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 				 * generated image.
 				 */
 				ima->name[0] = '\0';
+			}
+
+			if (ima->source != IMA_SRC_TILED) {
+				if (ima->num_tiles > 1) {
+					for (int i = 1; i < ima->num_tiles; i++) {
+						image_free_tile(ima, i);
+					}
+					ima->tiles = MEM_reallocN(ima->tiles, sizeof(ImageTile));
+					ima->num_tiles = 1;
+				}
 			}
 
 #if 0
