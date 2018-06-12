@@ -869,7 +869,7 @@ static void image_buttons_region_init(wmWindowManager *wm, ARegion *ar)
 
 static void image_buttons_region_draw(const bContext *C, ARegion *ar)
 {
-	ED_region_panels(C, ar, NULL, -1, true);
+	ED_region_panels(C, ar);
 }
 
 static void image_buttons_region_listener(
@@ -944,7 +944,7 @@ static void image_tools_region_draw(const bContext *C, ARegion *ar)
 	}
 	ED_space_image_release_buffer(sima, ibuf, lock);
 
-	ED_region_panels(C, ar, NULL, -1, true);
+	ED_region_panels(C, ar);
 }
 
 static void image_tools_region_listener(
@@ -1096,7 +1096,6 @@ void ED_spacetype_image(void)
 	art->init = image_main_region_init;
 	art->draw = image_main_region_draw;
 	art->listener = image_main_region_listener;
-
 	BLI_addhead(&st->regiontypes, art);
 
 	/* regions: listview/buttons */
@@ -1132,6 +1131,10 @@ void ED_spacetype_image(void)
 	art->init = image_header_region_init;
 	art->draw = image_header_region_draw;
 
+	BLI_addhead(&st->regiontypes, art);
+
+	/* regions: hud */
+	art = ED_area_type_hud(st->spaceid);
 	BLI_addhead(&st->regiontypes, art);
 
 	BKE_spacetype_register(st);
