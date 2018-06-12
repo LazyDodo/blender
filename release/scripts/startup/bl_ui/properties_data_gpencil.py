@@ -104,6 +104,7 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
 
         layout.prop(gpl, "use_stroke_location", text="Draw On Stroke Location")
 
+
 class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -125,7 +126,6 @@ class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
 
         if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
             col.prop_search(gpl, "parent_bone", parent.data, "bones", text="Bone")
-
 
 
 class DATA_PT_gpencil_onionpanel(Panel):
