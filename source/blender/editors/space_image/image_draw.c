@@ -667,7 +667,7 @@ static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, flo
 	unsigned color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBegin(GWN_PRIM_LINES, 4 * (xmax - xmin + 1) + 4 * (ymax - ymin + 1));
+	immBegin(GWN_PRIM_LINES, 2 * (xmax - xmin + 1) + 2 * (ymax - ymin + 1));
 	float theme_color[3];
 	UI_GetThemeColorShade3fv(TH_BACK, 20.0f, theme_color);
 
