@@ -730,6 +730,27 @@ class IMAGE_PT_view_properties(Panel):
             layout.prop(render_slot, "name", text="Slot Name")
 
 
+class IMAGE_PT_tile_properties(Panel):
+    bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'UI'
+    bl_label = "Tiles"
+
+    @classmethod
+    def poll(cls, context):
+        sima = context.space_data
+        return (sima and sima.image and sima.image.source == 'TILED')
+
+    def draw(self, context):
+        layout = self.layout
+
+        sima = context.space_data
+        ima = sima.image
+
+        row = layout.row(align=True)
+        row.operator("image.add_tile")
+        row.operator("image.remove_tile")
+
+
 class IMAGE_PT_tools_transform_uvs(Panel, UVToolsPanel):
     bl_label = "Transform"
 
@@ -1362,6 +1383,7 @@ classes = (
     IMAGE_PT_active_mask_point,
     IMAGE_PT_image_properties,
     IMAGE_PT_view_properties,
+    IMAGE_PT_tile_properties,
     IMAGE_PT_tools_transform_uvs,
     IMAGE_PT_tools_align_uvs,
     IMAGE_PT_tools_uvs,

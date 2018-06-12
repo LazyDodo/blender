@@ -3024,6 +3024,38 @@ int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser)
 	return iuser->tile;
 }
 
+ImageTile *BKE_image_add_tile(struct Image *ima)
+{
+	if (ima->source != IMA_SRC_TILED) {
+		return NULL;
+	}
+
+	int tile_id = ima->num_tiles;
+	ima->num_tiles++;
+	ima->tiles = MEM_recallocN(ima->tiles, sizeof(ImageTile)*ima->num_tiles);
+	ima->tiles[tile_id].ok = 1;
+
+	return &ima->tiles[tile_id];
+}
+
+bool BKE_image_remove_tile(struct Image *ima)
+{
+	if (ima->source != IMA_SRC_TILED) {
+		return false;
+	}
+
+	if (ima->num_tiles == 1) {
+		return false;
+	}
+
+	image_free_tile(ima, ima->num_tiles-1);
+
+	ima->num_tiles--;
+	ima->tiles = MEM_reallocN(ima->tiles, sizeof(ImageTile)*ima->num_tiles);
+
+	return true;
+}
+
 bool BKE_image_make_tiled(struct Image *ima, int num_tiles)
 {
 	if (ima->source != IMA_SRC_FILE) {

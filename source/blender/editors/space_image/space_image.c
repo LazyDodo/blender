@@ -285,6 +285,9 @@ static void image_operatortypes(void)
 	WM_operatortype_append(IMAGE_OT_read_viewlayers);
 	WM_operatortype_append(IMAGE_OT_render_border);
 	WM_operatortype_append(IMAGE_OT_clear_render_border);
+
+	WM_operatortype_append(IMAGE_OT_add_tile);
+	WM_operatortype_append(IMAGE_OT_remove_tile);
 }
 
 static void image_keymap(struct wmKeyConfig *keyconf)

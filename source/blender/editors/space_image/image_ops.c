@@ -3858,3 +3858,77 @@ void IMAGE_OT_clear_render_border(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
+
+/* ********************* Add tile operator ****************** */
+
+static int add_tile_poll(bContext *C)
+{
+	Image *ima = CTX_data_edit_image(C);
+
+	return (ima && ima->source == IMA_SRC_TILED);
+}
+
+static int add_tile_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	SpaceImage *sima = CTX_wm_space_image(C);
+	Image *ima = ED_space_image(sima);
+
+	if (BKE_image_add_tile(ima) == NULL)
+		return OPERATOR_CANCELLED;
+
+	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void IMAGE_OT_add_tile(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Add tile";
+	ot->description = "Adds a tile to the image";
+	ot->idname = "IMAGE_OT_add_tile";
+
+	/* api callbacks */
+	ot->poll = add_tile_poll;
+	ot->exec = add_tile_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+/* ********************* Remove tile operator ****************** */
+
+static int remove_tile_poll(bContext *C)
+{
+	Image *ima = CTX_data_edit_image(C);
+
+	return (ima && ima->source == IMA_SRC_TILED && ima->num_tiles > 1);
+}
+
+static int remove_tile_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	SpaceImage *sima = CTX_wm_space_image(C);
+	Image *ima = ED_space_image(sima);
+
+	if (BKE_image_remove_tile(ima))
+		return OPERATOR_CANCELLED;
+
+	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void IMAGE_OT_remove_tile(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Remove tile";
+	ot->description = "Removes a tile from the image";
+	ot->idname = "IMAGE_OT_remove_tile";
+
+	/* api callbacks */
+	ot->poll = remove_tile_poll;
+	ot->exec = remove_tile_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
