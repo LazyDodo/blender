@@ -583,6 +583,7 @@ static void gp_add_filldata_tobuffer(
 	immVertex3fv(pos, fpt); /* position */
 }
 
+#if 0 /* GPXX disabled, not used in annotations */
 /* assign image texture for filling stroke */
 static int gp_set_filling_texture(Image *image, short flag)
 {
@@ -618,6 +619,7 @@ static int gp_set_filling_texture(Image *image, short flag)
 
 	return error;
 }
+#endif
 
 /* draw fills for shapes */
 static void gp_draw_stroke_fill(
@@ -656,11 +658,12 @@ static void gp_draw_stroke_fill(
 	immUniform1f("texture_opacity", gp_style->texture_opacity);
 	immUniform1i("t_mix", gp_style->flag & GP_STYLE_COLOR_TEX_MIX ? 1 : 0);
 	immUniform1i("t_flip", gp_style->flag & GP_STYLE_COLOR_FLIP_FILL ? 1 : 0);
+#if 0 /* GPXX disabled, not used in annotations */
 	/* image texture */
 	if ((gp_style->fill_style == GP_STYLE_FILL_STYLE_TEXTURE) || (gp_style->flag & GP_STYLE_COLOR_TEX_MIX)) {
 		gp_set_filling_texture(gp_style->ima, gp_style->flag);
 	}
-
+#endif
 	/* Draw all triangles for filling the polygon (cache must be calculated before) */
 	immBegin(GWN_PRIM_TRIS, gps->tot_triangles * 3);
 	/* TODO: use batch instead of immediate mode, to share vertices */

@@ -1152,7 +1152,7 @@ void BKE_animdata_main_cb(Main *bmain, ID_AnimData_Edit_Callback func, void *use
 	ANIMDATA_IDS_CB(bmain->gpencil.first);
 
 	/* palettes */
-	ANIMDATA_IDS_CB(mainptr->palettes.first);
+	ANIMDATA_IDS_CB(bmain->palettes.first);
 
 	/* cache files */
 	ANIMDATA_IDS_CB(bmain->cachefiles.first);
@@ -1248,7 +1248,7 @@ void BKE_animdata_fix_paths_rename_all(ID *ref_id, const char *prefix, const cha
 	RENAMEFIX_ANIM_IDS(bmain->gpencil.first);
 
 	/* palettes */
-	RENAMEFIX_ANIM_IDS(mainptr->palettes.first);
+	RENAMEFIX_ANIM_IDS(bmain->palettes.first);
 
 	/* cache files */
 	RENAMEFIX_ANIM_IDS(bmain->cachefiles.first);

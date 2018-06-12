@@ -1926,7 +1926,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 					}
 					else {
 						/* merge in data - we'll fix the drivers manually */
-						BKE_animdata_merge_copy(&obact->id, &base->object->id, ADT_MERGECOPY_KEEP_DST, false);
+						BKE_animdata_merge_copy(bmain, &obact->id, &base->object->id, ADT_MERGECOPY_KEEP_DST, false);
 					}
 				}
 
@@ -1937,7 +1937,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 					}
 					else {
 						/* merge in data - we'll fix the drivers manually */
-						BKE_animdata_merge_copy(&gpd_dst->id, &gpd_src->id, ADT_MERGECOPY_KEEP_DST, false);
+						BKE_animdata_merge_copy(bmain, &gpd_dst->id, &gpd_src->id, ADT_MERGECOPY_KEEP_DST, false);
 					}
 				}
 			}
