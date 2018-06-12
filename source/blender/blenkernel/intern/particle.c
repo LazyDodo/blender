@@ -100,19 +100,19 @@ float PSYS_FRAND_BASE[PSYS_FRAND_COUNT];
 
 void psys_init_rng(void)
 {
-	int i;
-	BLI_srandom(5831); /* arbitrary */
-	for (i = 0; i < PSYS_FRAND_COUNT; ++i) {
-		PSYS_FRAND_BASE[i] = BLI_frand();
-		PSYS_FRAND_SEED_OFFSET[i] = (unsigned int)BLI_rand();
-		PSYS_FRAND_SEED_MULTIPLIER[i] = (unsigned int)BLI_rand();
+	RNG *rng = BLI_rng_new_srandom(5831); /* arbitrary */
+	for (int i = 0; i < PSYS_FRAND_COUNT; ++i) {
+		PSYS_FRAND_BASE[i] = BLI_rng_get_float(rng);
+		PSYS_FRAND_SEED_OFFSET[i] = (unsigned int)BLI_rng_get_int(rng);
+		PSYS_FRAND_SEED_MULTIPLIER[i] = (unsigned int)BLI_rng_get_int(rng);
 	}
+	BLI_rng_free(rng);
 }
 
 static void get_child_modifier_parameters(ParticleSettings *part, ParticleThreadContext *ctx,
                                           ChildParticle *cpa, short cpa_from, int cpa_num, float *cpa_fuv, float *orco, ParticleTexture *ptex);
 static void get_cpa_texture(Mesh *mesh, ParticleSystem *psys, ParticleSettings *part, ParticleData *par,
-							int child_index, int face_index, const float fw[4], float *orco, ParticleTexture *ptex, int event, float cfra);
+                            int child_index, int face_index, const float fw[4], float *orco, ParticleTexture *ptex, int event, float cfra);
 
 /* few helpers for countall etc. */
 int count_particles(ParticleSystem *psys)
