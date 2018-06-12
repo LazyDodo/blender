@@ -327,7 +327,9 @@ void BKE_image_free_buffers_ex(Image *ima, bool do_lock)
 		GPU_free_image(ima);
 	}
 
-	ima->ok = IMA_OK;
+	for (int i = 0; i < ima->num_tiles; i++) {
+		ima->tiles[i].ok = IMA_OK;
+	}
 
 	if (do_lock) {
 		BLI_spin_unlock(&image_spin);
@@ -361,14 +363,14 @@ void BKE_image_free(Image *ima)
 
 	BKE_icon_id_delete(&ima->id);
 	BKE_previewimg_free(&ima->preview);
+
+	MEM_freeN(ima->tiles);
 }
 
 /* only image block itself */
 static void image_init(Image *ima, short source, short type)
 {
 	BLI_assert(MEMCMP_STRUCT_OFS_IS_ZERO(ima, id));
-
-	ima->ok = IMA_OK;
 
 	ima->aspx = ima->aspy = 1.0;
 	ima->gen_x = 1024; ima->gen_y = 1024;
@@ -381,6 +383,8 @@ static void image_init(Image *ima, short source, short type)
 		ima->flag |= IMA_VIEW_AS_RENDER;
 
 	ima->num_tiles = 1;
+	ima->tiles = MEM_callocN(sizeof(ImageTile), "Image Tiles");
+	ima->tiles[0].ok = IMA_OK;
 
 	BKE_color_managed_colorspace_settings_init(&ima->colorspace_settings);
 	ima->stereo3d_format = MEM_callocN(sizeof(Stereo3dFormat), "Image Stereo Format");
@@ -659,8 +663,10 @@ Image *BKE_image_load_exists_ex(Main *bmain, const char *filepath, bool *r_exist
 				    (ima->id.us == 0))
 				{
 					id_us_plus(&ima->id);  /* officially should not, it doesn't link here! */
-					if (ima->ok == 0)
-						ima->ok = IMA_OK;
+					for (int i = 0; i < ima->num_tiles; i++) {
+						if (ima->tiles[i].ok == 0)
+							ima->tiles[i].ok = IMA_OK;
+					}
 					if (r_exists)
 						*r_exists = true;
 					return ima;
@@ -769,7 +775,7 @@ Image *BKE_image_add_generated(
 			image_add_view(ima, names[view_id], "");
 		}
 
-		ima->ok = IMA_OK_LOADED;
+		ima->tiles[0].ok = IMA_OK_LOADED;
 	}
 
 	return ima;
@@ -792,7 +798,7 @@ Image *BKE_image_add_from_imbuf(Main *bmain, ImBuf *ibuf, const char *name)
 	if (ima) {
 		STRNCPY(ima->name, ibuf->name);
 		image_assign_ibuf(ima, ibuf, IMA_NO_INDEX, 0);
-		ima->ok = IMA_OK_LOADED;
+		ima->tiles[0].ok = IMA_OK_LOADED;
 	}
 
 	return ima;
@@ -2778,7 +2784,10 @@ void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 			BKE_image_free_buffers(ima);
 #endif
 
-			ima->ok = 1;
+			for (int i = 0; i < ima->num_tiles; i++) {
+				ima->tiles[i].ok = 1;
+			}
+
 			if (iuser)
 				iuser->ok = 1;
 
@@ -2838,7 +2847,9 @@ void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 		case IMA_SIGNAL_COLORMANAGE:
 			BKE_image_free_buffers(ima);
 
-			ima->ok = 1;
+			for (int i = 0; i < ima->num_tiles; i++) {
+				ima->tiles[i].ok = 1;
+			}
 
 			if (iuser)
 				iuser->ok = 1;
@@ -2990,6 +3001,23 @@ void BKE_image_set_num_tiles(struct Image *ima, int num_tiles)
 	BLI_assert(ima->source == IMA_SRC_TILED);
 	ima->num_tiles = num_tiles;
 	image_alloc_gputexture(ima);
+}
+
+bool BKE_image_make_tiled(struct Image *ima, int num_tiles)
+{
+	if (ima->source != IMA_SRC_FILE) {
+		return false;
+	}
+
+	BKE_image_free_buffers(ima);
+
+	ima->source = IMA_SRC_TILED;
+	ima->num_tiles = num_tiles;
+	ima->tiles = MEM_recallocN(ima->tiles, sizeof(ImageTile)*num_tiles);
+	for (int i = 0; i < num_tiles; i++)
+		ima->tiles[i].ok = 1;
+
+	return true;
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
@@ -3175,7 +3203,7 @@ static void image_create_multilayer(Image *ima, ImBuf *ibuf, int framenr)
 #endif  /* WITH_OPENEXR */
 
 /* common stuff to do with images after loading */
-static void image_initialize_after_load(Image *ima, ImBuf *ibuf)
+static void image_initialize_after_load(Image *ima, ImageUser *iuser, ImBuf *ibuf)
 {
 	/* Preview is NULL when it has never been used as an icon before.
 	 * Never handle previews/icons outside of main thread. */
@@ -3191,7 +3219,8 @@ static void image_initialize_after_load(Image *ima, ImBuf *ibuf)
 	/* timer */
 	BKE_image_tag_time(ima);
 
-	ima->ok = IMA_OK_LOADED;
+	int tile = BKE_image_get_tile_index(ima, iuser);
+	ima->tiles[tile].ok = IMA_OK_LOADED;
 
 }
 
@@ -3230,6 +3259,7 @@ static ImBuf *load_sequence_single(Image *ima, ImageUser *iuser, int frame, cons
 	char name[FILE_MAX];
 	int flag;
 	ImageUser iuser_t = {0};
+	int tile = BKE_image_get_tile_index(ima, iuser);
 
 	/* XXX temp stuff? */
 	if (ima->lastframe != frame)
@@ -3275,14 +3305,16 @@ static ImBuf *load_sequence_single(Image *ima, ImageUser *iuser, int frame, cons
 			}
 		}
 		else {
-			image_initialize_after_load(ima, ibuf);
+			image_initialize_after_load(ima, iuser, ibuf);
 			*r_assign = true;
 		}
 #else
-		image_initialize_after_load(ima, ibuf);
+		image_initialize_after_load(ima, iuser, ibuf);
 		*r_assign = true;
 #endif
 	}
+	else
+		ima->tiles[tile].ok = 0;
 
 	return ibuf;
 }
@@ -3339,6 +3371,7 @@ static ImBuf *image_load_sequence_file(Image *ima, ImageUser *iuser, int entry, 
 static ImBuf *image_load_sequence_multilayer(Image *ima, ImageUser *iuser, int entry, int frame)
 {
 	struct ImBuf *ibuf = NULL;
+	int tile = BKE_image_get_tile_index(ima, iuser);
 
 	/* either we load from RenderResult, or we have to load a new one */
 
@@ -3373,17 +3406,17 @@ static ImBuf *image_load_sequence_multilayer(Image *ima, ImageUser *iuser, int e
 			ibuf->mall = IB_rectfloat;
 			ibuf->channels = rpass->channels;
 
-			image_initialize_after_load(ima, ibuf);
+			image_initialize_after_load(ima, iuser, ibuf);
 			image_assign_ibuf(ima, ibuf, iuser ? iuser->multi_index : 0, entry);
 
 		}
 		// else printf("pass not found\n");
 	}
 	else
-		ima->ok = 0;
+		ima->tiles[tile].ok = 0;
 
 	if (iuser)
-		iuser->ok = ima->ok;
+		iuser->ok = ima->tiles[tile].ok;
 
 	return ibuf;
 }
@@ -3433,13 +3466,13 @@ static ImBuf *load_movie_single(Image *ima, ImageUser *iuser, int frame, const i
 		                      IMB_PROXY_NONE));
 
 		if (ibuf) {
-			image_initialize_after_load(ima, ibuf);
+			image_initialize_after_load(ima, iuser, ibuf);
 		}
 		else
-			ima->ok = 0;
+			ima->tiles[0].ok = 0;
 	}
 	else
-		ima->ok = 0;
+		ima->tiles[0].ok = 0;
 
 	return ibuf;
 }
@@ -3483,7 +3516,7 @@ static ImBuf *image_load_movie_file(Image *ima, ImageUser *iuser, int frame)
 				image_assign_ibuf(ima, ibuf_arr[i], i, frame);
 			}
 			else {
-				ima->ok = 0;
+				ima->tiles[0].ok = 0;
 			}
 		}
 
@@ -3502,7 +3535,7 @@ static ImBuf *image_load_movie_file(Image *ima, ImageUser *iuser, int frame)
 	}
 
 	if (iuser)
-		iuser->ok = ima->ok;
+		iuser->ok = ima->tiles[0].ok;
 
 	return ibuf;
 }
@@ -3568,7 +3601,7 @@ static ImBuf *load_image_single(
 		else
 #endif
 		{
-			image_initialize_after_load(ima, ibuf);
+			image_initialize_after_load(ima, iuser, ibuf);
 			*r_assign = true;
 
 			/* check if the image is a font image... */
@@ -3585,7 +3618,7 @@ static ImBuf *load_image_single(
 		}
 	}
 	else {
-		ima->ok = 0;
+		ima->tiles[BKE_image_get_tile_index(ima, iuser)].ok = 0;
 	}
 
 	return ibuf;
@@ -3659,7 +3692,7 @@ static ImBuf *image_load_image_file(Image *ima, ImageUser *iuser, int cfra)
 	}
 
 	if (iuser)
-		iuser->ok = ima->ok;
+		iuser->ok = ima->tiles[0].ok;
 
 	return ibuf;
 }
@@ -3681,7 +3714,7 @@ static ImBuf *image_get_ibuf_multilayer(Image *ima, ImageUser *iuser)
 		if (rpass) {
 			ibuf = IMB_allocImBuf(ima->rr->rectx, ima->rr->recty, 32, 0);
 
-			image_initialize_after_load(ima, ibuf);
+			image_initialize_after_load(ima, iuser, ibuf);
 
 			ibuf->rect_float = rpass->rect;
 			ibuf->flags |= IB_rectfloat;
@@ -3692,9 +3725,9 @@ static ImBuf *image_get_ibuf_multilayer(Image *ima, ImageUser *iuser)
 	}
 
 	if (ibuf == NULL)
-		ima->ok = 0;
+		ima->tiles[0].ok = 0;
 	if (iuser)
-		iuser->ok = ima->ok;
+		iuser->ok = ima->tiles[0].ok;
 
 	return ibuf;
 }
@@ -3890,7 +3923,7 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **r_loc
 
 	ibuf->dither = dither;
 
-	ima->ok = IMA_OK_LOADED;
+	ima->tiles[0].ok = IMA_OK_LOADED;
 
 	return ibuf;
 }
@@ -3976,10 +4009,10 @@ static ImBuf *image_get_cached_ibuf(Image *ima, ImageUser *iuser, int *r_entry, 
 			 * that is not in the cache (through image_acquire_ibuf for instance),
 			 * yet we have valid frames in the cache loaded */
 			if (ibuf) {
-				ima->ok = IMA_OK_LOADED;
+				ima->tiles[0].ok = IMA_OK_LOADED;
 
 				if (iuser)
-					iuser->ok = ima->ok;
+					iuser->ok = ima->tiles[0].ok;
 			}
 		}
 		else if (ima->type == IMA_TYPE_MULTILAYER) {
@@ -3993,10 +4026,11 @@ static ImBuf *image_get_cached_ibuf(Image *ima, ImageUser *iuser, int *r_entry, 
 			ibuf = image_get_cached_ibuf_for_index_entry(ima, index, entry);
 
 			if ((ima->type == IMA_TYPE_IMAGE) && ibuf) {
-				ima->ok = IMA_OK_LOADED;
+				ima->tiles[entry].ok = IMA_OK_LOADED;
 
+				/* iuser->ok is useless for tiled images because iuser->tile changes all the time. */
 				if (iuser)
-					iuser->ok = ima->ok;
+					iuser->ok = 1;
 			}
 		}
 	}
@@ -4032,8 +4066,12 @@ BLI_INLINE bool image_quick_test(Image *ima, ImageUser *iuser)
 	if (iuser) {
 		if (iuser->ok == 0)
 			return false;
+		if (ima->source == IMA_SRC_TILED) {
+			if (ima->tiles[iuser->tile].ok == 0)
+				return false;
+		}
 	}
-	else if (ima->ok == 0)
+	else if (ima->tiles[0].ok == 0)
 		return false;
 
 	return true;
@@ -4103,7 +4141,7 @@ static ImBuf *image_acquire_ibuf(Image *ima, ImageUser *iuser, void **r_lock)
 			ibuf = add_ibuf_size(ima->gen_x, ima->gen_y, ima->name, ima->gen_depth, (ima->gen_flag & IMA_GEN_FLOAT) != 0, ima->gen_type,
 			                     ima->gen_color, &ima->colorspace_settings);
 			image_assign_ibuf(ima, ibuf, index, 0);
-			ima->ok = IMA_OK_LOADED;
+			ima->tiles[0].ok = IMA_OK_LOADED;
 		}
 		else if (ima->source == IMA_SRC_VIEWER) {
 			if (ima->type == IMA_TYPE_R_RESULT) {

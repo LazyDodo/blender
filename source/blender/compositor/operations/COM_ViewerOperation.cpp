@@ -155,7 +155,7 @@ void ViewerOperation::initImage()
 		/* zero size can happen if no image buffers exist to define a sensible resolution */
 		if (ibuf->x > 0 && ibuf->y > 0)
 			imb_addrectfloatImBuf(ibuf);
-		ima->ok = IMA_OK_LOADED;
+		ima->tiles[0].ok = IMA_OK_LOADED;
 
 		ibuf->userflags |= IB_DISPLAY_BUFFER_INVALID;
 	}

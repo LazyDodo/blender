@@ -297,7 +297,7 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
 	/* Check if we have a valid image. If not, we return a dummy
 	 * texture with zero bindcode so we don't keep trying. */
 	unsigned int bindcode = 0;
-	if (ima->ok == 0) {
+	if (ima->tiles[tile].ok == 0) {
 		tex = GPU_texture_from_bindcode(textarget, bindcode);
 		BKE_image_set_gpu_texture(ima, tile, gputex_type, tex);
 		return tex;

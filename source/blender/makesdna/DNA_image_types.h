@@ -86,6 +86,11 @@ typedef struct RenderSlot {
 	char name[64];  /* 64 = MAX_NAME */
 } RenderSlot;
 
+typedef struct ImageTile {
+	char ok;
+	char pad[7];
+} ImageTile;
+
 /* iuser->flag */
 #define	IMA_ANIM_ALWAYS		1
 #define IMA_ANIM_REFRESHED	2
@@ -121,16 +126,17 @@ typedef struct Image {
 	/* texture page */
 	short tpageflag;
 	short num_tiles;
-	int pad2;
+
+	int lastused;
+
+	ImageTile *tiles;
 
 	struct PackedFile *packedfile DNA_DEPRECATED; /* deprecated */
 	struct ListBase packedfiles;
 	struct PreviewImage *preview;
 
-	int lastused;
-	short ok;
-	short pad4[3];
-	
+	int pad2;
+
 	/* for generated images */
 	int gen_x, gen_y;
 	char gen_type, gen_flag;

@@ -3912,12 +3912,15 @@ static void lib_link_image(FileData *fd, Main *main)
 static void direct_link_image(FileData *fd, Image *ima)
 {
 	ImagePackedFile *imapf;
+	int a;
 
 	/* for undo system, pointers could be restored */
 	if (fd->imamap)
 		ima->cache = newimaadr(fd, ima->cache);
 	else
 		ima->cache = NULL;
+
+	ima->tiles = newdataadr(fd, ima->tiles);
 
 	/* if not restored, we keep the binded opengl index */
 	if (!ima->cache) {
@@ -3928,8 +3931,6 @@ static void direct_link_image(FileData *fd, Image *ima)
 	
 	/* undo system, try to restore render buffers */
 	if (fd->imamap) {
-		int a;
-		
 		for (a = 0; a < IMA_MAX_RENDER_SLOT; a++)
 			ima->renders[a] = newimaadr(fd, ima->renders[a]);
 	}
@@ -3954,7 +3955,10 @@ static void direct_link_image(FileData *fd, Image *ima)
 	BLI_listbase_clear(&ima->anims);
 	ima->preview = direct_link_preview_image(fd, ima->preview);
 	ima->stereo3d_format = newdataadr(fd, ima->stereo3d_format);
-	ima->ok = 1;
+
+	for (a = 0; a < ima->num_tiles; a++) {
+		ima->tiles[a].ok = 1;
+	}
 }
 
 

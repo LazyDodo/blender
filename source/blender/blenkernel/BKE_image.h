@@ -277,12 +277,12 @@ bool BKE_image_has_opengl_texture(struct Image *ima);
 /* get tile index for tiled images */
 int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser);
 
+bool BKE_image_make_tiled(struct Image *ima, int num_tiles);
+
 struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type);
 void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex);
 
 int BKE_image_get_tile_from_pos(struct Image *ima, float uv[2], float new_uv[2], float ofs[2]);
-
-void BKE_image_set_num_tiles(struct Image *ima, int num_tiles);
 
 void BKE_image_get_size(struct Image *image, struct ImageUser *iuser, int *width, int *height);
 void BKE_image_get_size_fl(struct Image *image, struct ImageUser *iuser, float size[2]);

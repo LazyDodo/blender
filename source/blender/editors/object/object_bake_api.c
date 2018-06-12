@@ -274,9 +274,12 @@ static void refresh_images(BakeImages *bake_images)
 	int i;
 	for (i = 0; i < bake_images->size; i++) {
 		Image *ima = bake_images->data[i].image;
-		if (ima->ok == IMA_OK_LOADED) {
-			GPU_free_image(ima);
-			DEG_id_tag_update(&ima->id, 0);
+		for (int tile = 0; tile < ima->num_tiles; tile++) {
+			if (ima->tiles[tile].ok == IMA_OK_LOADED) {
+				GPU_free_image(ima);
+				DEG_id_tag_update(&ima->id, 0);
+				break;
+			}
 		}
 	}
 }

@@ -2259,6 +2259,8 @@ static void write_image(WriteData *wd, Image *ima)
 		}
 		writestruct(wd, DATA, Stereo3dFormat, 1, ima->stereo3d_format);
 
+		writestruct(wd, DATA, ImageTile, ima->num_tiles, ima->tiles);
+
 		ima->packedfile = NULL;
 	}
 }
