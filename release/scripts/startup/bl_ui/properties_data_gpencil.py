@@ -19,6 +19,7 @@
 # <pep8 compliant>
 import bpy
 from bpy.types import Panel, UIList
+from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
         GreasePencilDataPanel,
         GreasePencilOnionPanel,
@@ -231,6 +232,10 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
             layout.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
 
 
+class DATA_PT_custom_props_gpencil(DataButtonsPanel, PropertyPanel, Panel):
+    _context_path = "object.data"
+    _property_type = bpy.types.GreasePencil
+
 ###############################
 
 classes = (
@@ -241,6 +246,7 @@ classes = (
     DATA_PT_gpencil_parentpanel,
     DATA_PT_gpencil_vertexpanel,
     DATA_PT_gpencil_display,
+    DATA_PT_custom_props_gpencil,
 
     GPENCIL_UL_vgroups,
 )
