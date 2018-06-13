@@ -50,6 +50,7 @@ void lanpr_init_atlas_inputs(void *ved){
 		DRW_texture_ensure_2D(&txl->dpix_in_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_nl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_nr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
+		DRW_texture_ensure_2D(&txl->dpix_in_edge_mask, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA8, 0);
 		DRW_texture_ensure_2D(&txl->dpix_out_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_out_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_out_length, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
@@ -113,6 +114,7 @@ void lanpr_destroy_atlas(void *ved){
 	DRW_texture_free(txl->dpix_in_pr);
 	DRW_texture_free(txl->dpix_in_nl);
 	DRW_texture_free(txl->dpix_in_nr);
+	DRW_texture_free(txl->dpix_in_edge_mask);
 	DRW_texture_free(txl->dpix_out_pl);
 	DRW_texture_free(txl->dpix_out_pr);
 }
@@ -120,6 +122,7 @@ void lanpr_destroy_atlas(void *ved){
 int lanpr_feed_atlas_data_obj(void* vedata,
 	float* AtlasPointsL, float* AtlasPointsR,
 	float* AtlasFaceNormalL, float* AtlasFaceNormalR,
+	float* AtlasEdgeMask,
 	Object* ob, int BeginIndex) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 
@@ -183,6 +186,9 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 			AtlasFaceNormalR[idx + 1] = f2->no[1];
 			AtlasFaceNormalR[idx + 2] = f2->no[2];
 			AtlasFaceNormalR[idx + 3] = 1;
+
+			if(f2->mat_nr!=f1->mat_nr) AtlasEdgeMask[idx] = 1; // channel R
+
 		}else{
 			AtlasFaceNormalR[idx + 0] = 0;
 			AtlasFaceNormalR[idx + 1] = 0;
@@ -282,20 +288,12 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 		GPU_framebuffer_bind(fbl->dpix_transform);
 		DRW_draw_pass(psl->dpix_transform_pass);
 
-		//GPU_framebuffer_bind(fbl->edge_intermediate);
-		//DRW_draw_pass(psl->color_pass);// use depth
-
-        glEnable(GL_MULTISAMPLE);
-
 		GPU_framebuffer_bind(fbl->dpix_preview);
 		GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
 		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->dpix_preview_pass);
 
-		glDisable(GL_MULTISAMPLE);
-
 		GPU_framebuffer_bind(dfbl->default_fb);
 		GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_multisamples_resolve(txl->depth,txl->color);  
-		//DRW_transform_to_display(txl->color);
 }

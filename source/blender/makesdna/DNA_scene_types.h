@@ -1459,6 +1459,8 @@ typedef struct SceneLANPR{
 
 	/* shared */
 
+	float crease_threshold; /* 0-1 range for cosine angle */
+
 	float line_color[4];
 	float background_color[4];
 
@@ -1466,7 +1468,15 @@ typedef struct SceneLANPR{
 	float depth_width_curve;
 	float depth_alpha_influence;
 	float depth_alpha_curve;
-	//int   still_some_size_compensation;
+
+    /* line components */
+
+	int   size_compensation;
+	
+	int   enable_crease;
+	int   enable_edge_mark;
+	int   enable_material_seperate;
+	int   enable_intersection;
 
 	/* states (needs optimization) */
 

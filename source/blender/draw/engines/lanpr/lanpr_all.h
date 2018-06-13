@@ -107,6 +107,7 @@ typedef struct LANPR_TextureList {
 	struct GPUTexture *dpix_in_pr;/* point R */
 	struct GPUTexture *dpix_in_nl;/* normal L */
 	struct GPUTexture *dpix_in_nr;/* normal R */
+	struct GPUTexture *dpix_in_edge_mask;/* RGBA, R:Material, GBA:Reserved for future usage */
 	
 	struct GPUTexture *dpix_out_pl;
 	struct GPUTexture *dpix_out_pr;
@@ -154,7 +155,8 @@ typedef struct LANPR_PrivateData {
 	void*         atlas_pl;
 	void*         atlas_pr;
 	void*         atlas_nl;
-	void*         atlas_nr;	
+	void*         atlas_nr;
+	void*         atlas_edge_mask;
 
 	int           begin_index;
 
@@ -301,6 +303,7 @@ void lanpr_destroy_atlas(void *ved);
 int lanpr_feed_atlas_data_obj(void* vedata,
 	float* AtlasPointsL, float* AtlasPointsR,
 	float* AtlasFaceNormalL, float* AtlasFaceNormalR,
+	float* AtlasEdgeMask,
 	Object* ob, int BeginIndex);
 int lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex);
 

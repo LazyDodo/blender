@@ -1,16 +1,19 @@
-//#extension GL_ARB_texture_rectangle : enable
-
 uniform mat4 ModelMatrix;
 uniform mat4 ViewMatrix;
 uniform mat4 ViewMatrixInverse;
 uniform mat4 ProjectionMatrix;
 uniform mat4 ProjectionMatrixInverse;
 
-uniform int is_perspective; // persp and orth use different feature determin method
 
-uniform float sample_step; // length calculation unused now.
+uniform int enable_crease;    // we have all edge mask data in textures, so this is just a switch.
+uniform int enable_material;  // so this prevents scene reload.
 
-uniform int buffer_width;
+uniform float crease_threshold;
+
+uniform int is_perspective; // persp and orth use different crease line determin method
+
+//uniform float sample_step; // length calculation unused now.
+//uniform int buffer_width;
 
 uniform vec4 viewport;
 
@@ -18,6 +21,7 @@ uniform sampler2D vert0_tex;
 uniform sampler2D vert1_tex;
 uniform sampler2D face_normal0_tex;
 uniform sampler2D face_normal1_tex;
+uniform sampler2D edge_mask_tex;
 
 //uniform sampler2D TexSample4;
 //#define path_start_end_ptrs TexSample4 // edge adjacent data
@@ -33,10 +37,10 @@ vec3 view_dir;
 #define inverse_projection ProjectionMatrixInverse
 
 
-ivec2 getTexturePix(vec2 fb_coord){
-    vec2 n = ((fb_coord+vec2(1,1))/2).xy;
-    return ivec2(n.x*buffer_width,n.y*buffer_width);
-}
+//ivec2 getTexturePix(vec2 fb_coord){
+//    vec2 n = ((fb_coord+vec2(1,1))/2).xy;
+//    return ivec2(n.x*buffer_width,n.y*buffer_width);
+//}
 
 
 
@@ -336,12 +340,18 @@ bool testProfileEdge( ivec2 texcoord, vec3 world_position )
     vec3 face_normal_1 = mat3(nm) * texelFetch(face_normal1_tex, texcoord, 0).xyz;
     vec3 camera_to_line = world_position - view_pos;//modelview * vec4(world_position, 1.0);
 
+    vec4 edge_mask = texelFetch(edge_mask_tex, texcoord, 0);
+
     float dot0 = dot(camera_to_line.xyz, vec3(face_normal_0.xyz));
     float dot1 = dot(camera_to_line.xyz, vec3(face_normal_1.xyz));
 	float dot2 = dot(vec3(face_normal_0.xyz), vec3(face_normal_1.xyz));
 
 
-    return (dot0 >= 0.0 && dot1 <= 0.0) || (dot0 <= 0.0 && dot1 >= 0.0) || dot2<0.5;
+    return (dot0 >= 0.0 && dot1 <= 0.0) ||
+           (dot0 <= 0.0 && dot1 >= 0.0) ||
+           ((enable_crease>0) && (dot2<crease_threshold)) ||
+           ((enable_material>0) && (edge_mask.r>0)) ||
+           false;
 }
 
 void main(){
@@ -455,8 +465,8 @@ void main(){
     float segment_screen_length = length(v0_screen - v1_screen);
 
     // scale the length by sample_step to get the number of samples
-    float num_samples = segment_screen_length / sample_step;
-    num_samples = ceil(num_samples);
+    //float num_samples = segment_screen_length / sample_step;
+    //num_samples = ceil(num_samples);
 
     // Unproject and reproject the final clipped positions
     // so that interpolation is perspective correct later on.
@@ -481,8 +491,8 @@ void main(){
 
     gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);//v0_clipped_pre_div;
     gl_FragData[1] = vec4(v1_clipped_pre_div.xyz,1);//v1_clipped_pre_div;
-    gl_FragData[2] = packOffsetTexel(num_samples, segment_screen_length,
-	                                 num_samples, segment_screen_length);
+    //gl_FragData[2] = packOffsetTexel(num_samples, segment_screen_length,
+	                                 //num_samples, segment_screen_length);
                                      //num_samples + total_padding, segment_screen_length);
 }
 

@@ -502,13 +502,27 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
 
             layout.label(text="Effect Settings:")
             layout.prop(lanpr, "line_thickness")
-            split = layout.split()
-            col = split.column()
-            col.prop(lanpr, "depth_width_influence")
-            col.prop(lanpr, "depth_alpha_influence")
-            col = split.column()
-            col.prop(lanpr, "depth_width_curve")
-            col.prop(lanpr, "depth_alpha_curve")
+
+            if lanpr.line_thickness > 0.01:
+                col = layout.column()
+                col.label(text="Enable:")
+                row = col.row(align=True)
+                row.prop(lanpr, "enable_crease", text="Crease", toggle=True)
+                row.prop(lanpr, "enable_edge_mark", text="Mark", toggle=True)
+                row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
+                row.prop(lanpr, "enable_intersection", text="Intersection", toggle=True)
+
+                layout.label(text="ONLY Crease and Material effective")
+
+                layout.prop(lanpr, "crease_threshold")
+
+                split = layout.split()
+                col = split.column()
+                col.prop(lanpr, "depth_width_influence")
+                col.prop(lanpr, "depth_alpha_influence")
+                col = split.column()
+                col.prop(lanpr, "depth_width_curve")
+                col.prop(lanpr, "depth_alpha_curve")
             
         else:
             layout.label(text="Snake:")
@@ -521,6 +535,14 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
             layout.prop(lanpr, "depth_strength")
             layout.prop(lanpr, "normal_clamp")
             layout.prop(lanpr, "normal_strength")
+
+            col = layout.column()
+            col.label(text="Enable:")
+            row = col.row(align=True)
+            row.prop(lanpr, "enable_edge_mark", text="Mark", toggle=True)
+            row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
+
+            layout.label(text="ONLY Crease and Material effective")
 
             if lanpr.enable_vector_trace == "ENABLED":
 

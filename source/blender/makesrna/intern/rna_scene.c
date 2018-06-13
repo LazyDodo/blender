@@ -6300,6 +6300,25 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 0.1, 2);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "crease_threshold", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 0.5f);
+	RNA_def_property_ui_text(prop, "Crease Threshold", "cosine value of face angle");
+	RNA_def_property_ui_range(prop, -1.0f, 1.0f, 0.01, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+	prop = RNA_def_property(srna, "enable_crease", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable Crease", "Draw crease lines");
+
+	prop = RNA_def_property(srna, "enable_edge_mark", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable Edge Mark", "Draw edge marks");
+
+	prop = RNA_def_property(srna, "enable_material_seperate", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable Material Lines", "Draw material seperators");
+
+	prop = RNA_def_property(srna, "enable_intersection", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable intersection Lines", "Draw intersection lines");
 }
 
 void RNA_def_scene(BlenderRNA *brna)

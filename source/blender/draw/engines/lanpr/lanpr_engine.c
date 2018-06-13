@@ -249,11 +249,15 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert1_tex", &txl->dpix_in_pr);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "face_normal0_tex", &txl->dpix_in_nl);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "face_normal1_tex", &txl->dpix_in_nr);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "edge_mask_tex", &txl->dpix_in_edge_mask);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "sample_step", &stl->g_data->dpix_sample_step, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "is_perspective", &stl->g_data->dpix_is_perspective, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_transform_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "buffer_width", &stl->g_data->dpix_buffer_width, 1);
-
+		DRW_shgroup_uniform_float(stl->g_data->dpix_transform_shgrp, "crease_threshold", &lanpr->crease_threshold, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_crease", &lanpr->enable_crease, 1);
+        DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_material", &lanpr->enable_material_seperate, 1);
+		
 		psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR|DRW_STATE_WRITE_DEPTH|DRW_STATE_DEPTH_LESS_EQUAL);
 		stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert0_tex", &txl->dpix_out_pl);
@@ -272,13 +276,14 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zFar", &stl->g_data->dpix_zfar, 1);
 
 		pd->begin_index = 0;
-		int tsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE*TNS_DPIX_TEXTURE_SIZE;
+		int fsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE*TNS_DPIX_TEXTURE_SIZE;
 
 		if (lanpr->reloaded) {
-			pd->atlas_pl = MEM_callocN(tsize, "atlas_point_l");
-			pd->atlas_pr = MEM_callocN(tsize, "atlas_point_r");
-			pd->atlas_nl = MEM_callocN(tsize, "atlas_normal_l");
-			pd->atlas_nr = MEM_callocN(tsize, "atlas_normal_l");
+			pd->atlas_pl = MEM_callocN(fsize, "atlas_point_l");
+			pd->atlas_pr = MEM_callocN(fsize, "atlas_point_r");
+			pd->atlas_nl = MEM_callocN(fsize, "atlas_normal_l");
+			pd->atlas_nr = MEM_callocN(fsize, "atlas_normal_l");
+			pd->atlas_edge_mask = MEM_callocN(fsize, "atlas_edge_mask"); // should always be float
 
 			pd->dpix_batch_list.first = pd->dpix_batch_list.last = 0;
 			BLI_mempool_clear(pd->mp_batch_list);
@@ -309,7 +314,7 @@ static void lanpr_cache_populate(void *vedata, Object *ob){
 	if(lanpr->master_mode == LANPR_MASTER_MODE_DPIX){
 		int idx = pd->begin_index;
 		if(lanpr->reloaded){
-			pd->begin_index = lanpr_feed_atlas_data_obj(vedata,pd->atlas_pl,pd->atlas_pr,pd->atlas_nl,pd->atlas_nr,ob,idx);
+			pd->begin_index = lanpr_feed_atlas_data_obj(vedata,pd->atlas_pl,pd->atlas_pr,pd->atlas_nl,pd->atlas_nr,pd->atlas_edge_mask,ob,idx);
 			lanpr_feed_atlas_trigger_preview_obj(vedata, ob, idx);
 		}
 
@@ -335,11 +340,13 @@ static void lanpr_cache_finish(void *vedata){
 		GPU_texture_update(txl->dpix_in_pr,pd->atlas_pr);
 		GPU_texture_update(txl->dpix_in_nl,pd->atlas_nl);
 		GPU_texture_update(txl->dpix_in_nr,pd->atlas_nr);
+		GPU_texture_update(txl->dpix_in_edge_mask,pd->atlas_edge_mask);
 
 		MEM_freeN(pd->atlas_pl);
 		MEM_freeN(pd->atlas_pr);
 		MEM_freeN(pd->atlas_nl);
 		MEM_freeN(pd->atlas_nr);
+		MEM_freeN(pd->atlas_edge_mask);
 		pd->atlas_pl = 0;
 		lanpr->reloaded = 0;
 	}
