@@ -263,8 +263,12 @@ static void lanpr_cache_init(void *vedata){
 		stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert0_tex", &txl->dpix_out_pl);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert1_tex", &txl->dpix_out_pr);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "edge_mask_tex", &txl->dpix_in_edge_mask);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", lanpr->line_color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "crease_color", lanpr->crease_color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "material_color", lanpr->material_color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "edge_mark_color", lanpr->edge_mark_color, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "background_color", lanpr->background_color, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "background_color", lanpr->line_color, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_offset", &stl->g_data->dpix_depth_offset, 1);

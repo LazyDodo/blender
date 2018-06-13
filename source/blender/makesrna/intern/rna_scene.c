@@ -6308,6 +6308,8 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
+	/* these shall go into LANPR_LineStyle layer */
+
 	prop = RNA_def_property(srna, "enable_crease", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Enable Crease", "Draw crease lines");
 
@@ -6319,6 +6321,26 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "enable_intersection", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Enable intersection Lines", "Draw intersection lines");
+
+    /* these are also demonstrating purpose */
+    
+	prop = RNA_def_property(srna, "crease_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Crease Color", "Drawing crease lines using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+	prop = RNA_def_property(srna, "material_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Material Line Color", "Drawing material seperate lines using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+	prop = RNA_def_property(srna, "edge_mark_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Edge Mark Color", "Drawing edge marks using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
 }
 
 void RNA_def_scene(BlenderRNA *brna)

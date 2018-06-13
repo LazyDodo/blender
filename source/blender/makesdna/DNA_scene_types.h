@@ -1464,6 +1464,10 @@ typedef struct SceneLANPR{
 	float line_color[4];
 	float background_color[4];
 
+	float crease_color[4];    /* these should go into LANPR_LineStyle layer, */
+    float material_color[4];  /* currently are just here for demonstrating purpose */
+    float edge_mark_color[4]; /* furthur design needed */
+
 	float depth_width_influence;
 	float depth_width_curve;
 	float depth_alpha_influence;

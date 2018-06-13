@@ -3,6 +3,8 @@ layout (triangle_strip, max_vertices = 6) out;
 
 uniform sampler2D vert0_tex;//L
 uniform sampler2D vert1_tex;//R
+uniform sampler2D edge_mask_tex;
+
 //uniform float uValue0; // buffer_w
 uniform vec4 viewport; // viewport
 uniform float depth_offset;
@@ -18,7 +20,14 @@ uniform float zFar;
 
 uniform vec4 color;
 uniform vec4 background_color;
+
+uniform vec4 crease_color;
+uniform vec4 material_color;
+uniform vec4 edge_mark_color;
+
 out vec4 out_color;
+
+vec4 use_color;
 
 float get_linear_depth(float z){
 	float ze = 2.0 * zNear * zFar / (zFar + zNear - z * (zFar - zNear));
@@ -39,7 +48,7 @@ vec4 apply_scale(vec4 center, vec4 a){
 void emit_alpha_pre_mul(vec4 a){
 	float lz = get_linear_depth(a.z);
 	float alpha_factor = mix(0,curve_01(lz,depth_alpha_curve),depth_alpha_influence);
-	out_color = mix(color,background_color,alpha_factor);
+	out_color = mix(use_color,background_color,alpha_factor);
 }
 
 void draw_line(vec4 p1, vec4 p2){
@@ -60,13 +69,13 @@ void draw_line(vec4 p1, vec4 p2){
 	c = apply_scale(p2,c);
 	d = apply_scale(p2,d);
 
-	gl_Position = vec4(a.xy,a.z-depth_offset,a.w); emit_alpha_pre_mul(a); EmitVertex();
-	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); emit_alpha_pre_mul(b); EmitVertex();
-    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); emit_alpha_pre_mul(c); EmitVertex();
+	gl_Position = vec4(a.xy,a.z-depth_offset,1); emit_alpha_pre_mul(a); EmitVertex();
+	gl_Position = vec4(b.xy,b.z-depth_offset,1); emit_alpha_pre_mul(b); EmitVertex();
+    gl_Position = vec4(c.xy,c.z-depth_offset,1); emit_alpha_pre_mul(c); EmitVertex();
 
-	gl_Position = vec4(b.xy,b.z-depth_offset,b.w); emit_alpha_pre_mul(b); EmitVertex();
-    gl_Position = vec4(c.xy,c.z-depth_offset,c.w); emit_alpha_pre_mul(c); EmitVertex();
-	gl_Position = vec4(d.xy,d.z-depth_offset,d.w); emit_alpha_pre_mul(d); EmitVertex();
+	gl_Position = vec4(b.xy,b.z-depth_offset,1); emit_alpha_pre_mul(b); EmitVertex();
+    gl_Position = vec4(c.xy,c.z-depth_offset,1); emit_alpha_pre_mul(c); EmitVertex();
+	gl_Position = vec4(d.xy,d.z-depth_offset,1); emit_alpha_pre_mul(d); EmitVertex();
 
     EndPrimitive();
 }
@@ -74,6 +83,15 @@ void draw_line(vec4 p1, vec4 p2){
 void main() {
 	vec4 p1 = texelFetch(vert0_tex, ivec2(gl_in[0].gl_Position.xy), 0);
 	vec4 p2 = texelFetch(vert1_tex, ivec2(gl_in[0].gl_Position.xy), 0);
-    
+
+	if(p1.w==0 && p2.w==0) return;
+
+	vec4 edge_mask = texelFetch(edge_mask_tex, ivec2(gl_in[0].gl_Position.xy), 0);
+
+	if(edge_mask.g>0) use_color = edge_mark_color;
+	else if(edge_mask.r>0) use_color = material_color;
+    else if(p1.w!=p2.w) use_color = crease_color;
+	else use_color = color;
+
 	draw_line(p1,p2);
 }

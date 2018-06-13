@@ -512,7 +512,11 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
                 row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
                 row.prop(lanpr, "enable_intersection", text="Intersection", toggle=True)
 
-                layout.label(text="ONLY Crease and Material effective")
+                row = col.row(align=True)
+                row.prop(lanpr, "crease_color", text="")
+                row.prop(lanpr, "edge_mark_color", text="")
+                row.prop(lanpr, "material_color", text="")
+                row.label(text="INOP")
 
                 layout.prop(lanpr, "crease_threshold")
 
@@ -541,8 +545,6 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
             row = col.row(align=True)
             row.prop(lanpr, "enable_edge_mark", text="Mark", toggle=True)
             row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
-
-            layout.label(text="ONLY Crease and Material effective")
 
             if lanpr.enable_vector_trace == "ENABLED":
 
