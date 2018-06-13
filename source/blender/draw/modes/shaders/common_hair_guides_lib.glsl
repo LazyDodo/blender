@@ -164,7 +164,7 @@ mat4 mat4_from_vectors(vec3 nor, vec3 tang, vec3 co)
 
 void get_strand_data(int index, out int start, out int count, out DeformParams deform_params)
 {
-	int offset = strand_map_start + index;
+	int offset = strand_map_start + index * 2;
 	vec2 a = read_texdata(offset);
 	vec2 b = read_texdata(offset + 1);
 
