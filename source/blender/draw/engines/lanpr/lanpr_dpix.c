@@ -11,6 +11,8 @@
 #include "GPU_immediate_util.h"
 #include "GPU_framebuffer.h"
 #include "DNA_lanpr_types.h"
+#include "DNA_meshdata_types.h"
+#include "BKE_customdata.h"
 #include "GPU_draw.h"
 
 #include "GPU_batch.h"
@@ -137,6 +139,9 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 	struct BMVert *v1,*v2;
 	struct BMEdge *e;
 	struct BMLoop *l1,*l2;
+	//struct MEdge* ome;
+	FreestyleEdge *fe;
+	int CanFindFreestyle=0;
     int vert_count = me->totvert, edge_count = me->totedge, face_count = me->totface;
 	int i,idx;
 
@@ -145,6 +150,10 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 			            &((struct BMeshCreateParams){.use_toolflags = true,}));
 	BM_mesh_bm_from_me(bm, me, &((struct BMeshFromMeshParams){.calc_face_normal = true,}));
 	BM_mesh_elem_table_ensure(bm,BM_VERT|BM_EDGE|BM_FACE);
+
+	if (CustomData_has_layer(&bm->edata, CD_FREESTYLE_EDGE)) {
+		CanFindFreestyle=1;
+	}
 	
 	for(i=0; i<edge_count; i++){
 		f1=0;
@@ -168,6 +177,11 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 		AtlasPointsR[idx + 1] = v2->co[1];
 		AtlasPointsR[idx + 2] = v2->co[2];
 		AtlasPointsR[idx + 3] = 1;
+
+		if(CanFindFreestyle){
+			fe = CustomData_bmesh_get(&bm->edata, e->head.data, CD_FREESTYLE_EDGE);
+			if(fe->flag & FREESTYLE_EDGE_MARK) AtlasEdgeMask[idx + 1] = 1; // channel G
+		}
 
 		if(f1){
 			AtlasFaceNormalL[idx + 0] = f1->no[0];

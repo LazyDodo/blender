@@ -107,7 +107,7 @@ typedef struct LANPR_TextureList {
 	struct GPUTexture *dpix_in_pr;/* point R */
 	struct GPUTexture *dpix_in_nl;/* normal L */
 	struct GPUTexture *dpix_in_nr;/* normal R */
-	struct GPUTexture *dpix_in_edge_mask;/* RGBA, R:Material, GBA:Reserved for future usage */
+	struct GPUTexture *dpix_in_edge_mask;/* RGBA, R:Material, G: Freestyle Edge Mark, BA:Reserved for future usage */
 	
 	struct GPUTexture *dpix_out_pl;
 	struct GPUTexture *dpix_out_pr;

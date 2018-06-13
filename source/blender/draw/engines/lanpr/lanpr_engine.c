@@ -257,7 +257,8 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_float(stl->g_data->dpix_transform_shgrp, "crease_threshold", &lanpr->crease_threshold, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_crease", &lanpr->enable_crease, 1);
         DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_material", &lanpr->enable_material_seperate, 1);
-		
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_edge_mark", &lanpr->enable_edge_mark, 1);
+
 		psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR|DRW_STATE_WRITE_DEPTH|DRW_STATE_DEPTH_LESS_EQUAL);
 		stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert0_tex", &txl->dpix_out_pl);

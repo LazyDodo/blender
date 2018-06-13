@@ -7,6 +7,7 @@ uniform mat4 ProjectionMatrixInverse;
 
 uniform int enable_crease;    // we have all edge mask data in textures, so this is just a switch.
 uniform int enable_material;  // so this prevents scene reload.
+uniform int enable_edge_mark;
 
 uniform float crease_threshold;
 
@@ -351,6 +352,7 @@ bool testProfileEdge( ivec2 texcoord, vec3 world_position )
            (dot0 <= 0.0 && dot1 >= 0.0) ||
            ((enable_crease>0) && (dot2<crease_threshold)) ||
            ((enable_material>0) && (edge_mask.r>0)) ||
+           ((enable_edge_mark>0) && (edge_mask.g>0)) ||
            false;
 }
 
