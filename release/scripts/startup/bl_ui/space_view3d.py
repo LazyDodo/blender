@@ -74,24 +74,50 @@ class VIEW3D_HT_header(Header):
             row.operator("pose.paste", text="", icon='PASTEFLIPDOWN').flipped = True
 
         # Grease Pencil
+        # GPXX this is a hack while we merge to keep all running
         if context.active_object and context.gpencil_data and context.active_object.type == 'GPENCIL':
             ob = context.active_object
             gpd = context.gpencil_data
 
             if gpd.is_stroke_paint_mode:
-                row.separator()
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint",
+                                 category="")
+            elif gpd.use_stroke_edit_mode:
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_edit",
+                                 category="")
+            elif gpd.is_stroke_sculpt_mode:
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_sculpt",
+                                 category="")
+            elif gpd.is_stroke_weight_mode:
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_weight",
+                                 category="")
+
+            if gpd.is_stroke_paint_mode:
+                row = layout.row()
                 row.prop(toolsettings, "gpencil_stroke_placement_view3d", text='')
                 if toolsettings.gpencil_stroke_placement_view3d in('ORIGIN', 'CURSOR'):
-                    row.separator()
                     row.prop(toolsettings.gpencil_sculpt, "lockaxis", text='')
 
                 if toolsettings.gpencil_stroke_placement_view3d in ('SURFACE', 'STROKE'):
                     row.prop(toolsettings, "use_gpencil_stroke_endpoints")
 
+            if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode or gpd.is_stroke_weight_mode:
+                row = layout.row(align=True)
+                row.prop(gpd, "use_multiedit", text="", icon="FORCE_HARMONIC")
+
+                sub = row.row(align=True)
+                sub.active = gpd.use_multiedit
+                sub.popover(
+                    space_type='VIEW_3D',
+                    region_type='HEADER',
+                    panel_type="VIEW3D_PT_GreasePencilMultiFrame",
+                    text="Multiframe"
+                )
+
             if gpd.is_stroke_sculpt_mode:
                 settings = context.tool_settings.gpencil_sculpt
                 if settings.tool in ('GRAB', 'PUSH', 'TWIST', 'PINCH', 'RANDOMIZE'):
-                    row.separator()
+                    row = layout.row()
                     row.prop(toolsettings.gpencil_sculpt, "lockaxis", text='')
 
             if gpd.use_stroke_edit_mode:
@@ -4150,6 +4176,28 @@ class VIEW3D_PT_context_properties(Panel):
             rna_prop_ui.draw(self.layout, context, member, object, False)
 
 
+# Grease Pencil multiframe falloff tools
+class VIEW3D_PT_GreasePencilMultiFrame(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Multi Frame"
+
+    @staticmethod
+    def draw(self, context):
+        gpd = context.gpencil_data
+        settings = context.tool_settings.gpencil_sculpt
+
+        layout = self.layout
+        col = layout.column(align=True)
+        col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
+        col.prop(settings, "use_multiframe_falloff")
+
+        # Falloff curve
+        if gpd.use_multiedit and settings.use_multiframe_falloff:
+            layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
+
+
+
 classes = (
     VIEW3D_HT_header,
     VIEW3D_MT_editor_menus,
@@ -4294,6 +4342,7 @@ classes = (
     VIEW3D_PT_overlay_paint,
     VIEW3D_PT_overlay_sculpt,
     VIEW3D_PT_transform_orientations,
+    VIEW3D_PT_GreasePencilMultiFrame,
     VIEW3D_PT_context_properties,
 )
 
