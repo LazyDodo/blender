@@ -453,6 +453,12 @@ void DRW_render_object_iter(
 	void (*callback)(void *vedata, struct Object *ob, struct RenderEngine *engine, struct Depsgraph *depsgraph));
 void DRW_render_instance_buffer_finish(void);
 
+void DRW_custom_pipeline(
+        DrawEngineType *draw_engine_type,
+        struct Depsgraph *depsgraph,
+        void (*callback)(void *vedata, void *user_data),
+        void *user_data);
+
 /* ViewLayers */
 void *DRW_view_layer_engine_data_get(DrawEngineType *engine_type);
 void **DRW_view_layer_engine_data_ensure_ex(

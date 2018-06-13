@@ -763,6 +763,38 @@ typedef struct EEVEE_ObjectEngineData {
 	uint shadow_caster_id;
 } EEVEE_ObjectEngineData;
 
+/* ************ Light Cache ********** */
+
+typedef struct EEVEE_LightCache {
+	int flag;
+	int refcount;                    /* Light cache can be shared across scenes. Use refcount to know when to free. */
+
+	/* only a single cache for now */
+	int cube_count, grid_count;      /* Number of probes to use for rendering. */
+	/* We bake to and render with the same textures.
+	 * This prevent concurent use of it. In the future,
+	 * we could create a bigger texture containing multiple
+	 * caches (for animation) and interpolate between the caches
+	 * overtime to another texture. */
+	GPUTexture *grid_tex;
+	GPUTexture *cube_tex;
+	/* All lightprobes data contained in the cache. */
+	EEVEE_LightProbe *cube_data;
+	EEVEE_LightGrid  *grid_data;
+} EEVEE_LightCache;
+
+/* EEVEE_LightCache->flag */
+enum {
+	LIGHTCACHE_BAKED            = (1 << 0),
+	LIGHTCACHE_BAKING           = (1 << 1),
+	LIGHTCACHE_CUBE_READY       = (1 << 2),
+	LIGHTCACHE_GRID_READY       = (1 << 3),
+	/* Update tagging */
+	LIGHTCACHE_UPDATE_CUBE      = (1 << 4),
+	LIGHTCACHE_UPDATE_GRID      = (1 << 5),
+	LIGHTCACHE_UPDATE_WORLD     = (1 << 6),
+};
+
 /* *********************************** */
 
 typedef struct EEVEE_Data {
@@ -852,8 +884,8 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl);
 void EEVEE_lights_free(void);
 
 /* eevee_lightcache.c */
-struct EEVEE_LightCache *EEVEE_lightcache_ensure(EEVEE_ViewLayerData *sldata);
-void EEVEE_lightcache_add_reference(EEVEE_ViewLayerData *sldata, struct EEVEE_LightCache *lcache);
+EEVEE_LightCache *EEVEE_lightcache_ensure(EEVEE_ViewLayerData *sldata);
+void EEVEE_lightcache_add_reference(EEVEE_ViewLayerData *sldata, EEVEE_LightCache *lcache);
 void EEVEE_lightcache_free(struct EEVEE_LightCache *lcache);
 
 /* eevee_lightprobes.c */
@@ -864,6 +896,7 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, Object *ob);
 void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
+void EEVEE_lightprobes_refresh_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_free(void);
 

@@ -1483,7 +1483,7 @@ static void lightprobe_cell_world_location_get(EEVEE_LightGrid *egrid, float loc
 	add_v3_v3(r_pos, tmp);
 }
 
-static void lightprobes_refresh_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
+void EEVEE_lightprobes_refresh_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 {
 	EEVEE_CommonUniformBuffer *common_data = &sldata->common_data;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
@@ -1835,10 +1835,7 @@ void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 	/* Render world in priority */
 	if (pinfo->update_world) {
-		lightprobes_refresh_world(sldata, vedata);
-	}
-	else if (EEVEE_lightprobes_all_probes_ready(sldata, vedata) == false && pinfo->all_materials_updated) {
-		lightprobes_refresh_all_no_world(sldata, vedata);
+		EEVEE_lightprobes_refresh_world(sldata, vedata);
 	}
 
 	/* Restore */

@@ -714,7 +714,7 @@ static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
 	G.is_break = false;
 
 	/* TODO abort if selected engine is not eevee. */
-	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene);
+	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene, false);
 	short stop = 0, do_update; float progress; /* Not actually used. */
 	EEVEE_lightcache_bake_job(rj, &stop, &do_update, &progress);
 	EEVEE_lightcache_job_data_free(rj);
@@ -739,7 +739,7 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 		return OPERATOR_CANCELLED;
 
 	/* TODO abort if selected engine is not eevee. */
-	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene);
+	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene, true);
 
 	if (rj == NULL) {
 		/* TODO display reason of faillure Blabla */

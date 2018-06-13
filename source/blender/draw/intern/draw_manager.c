@@ -1469,14 +1469,10 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 
 	/* Changing Context */
 	if (re_gl_context != NULL) {
-		/* TODO get rid of the blocking. Only here because of the static global DST. */
-		BLI_mutex_lock(&DST.gl_context_mutex);
-		WM_opengl_context_activate(re_gl_context);
+		DRW_opengl_render_context_enable(re_gl_context);
+		/* We need to query gwn context after a gl context has been bound. */
 		re_gwn_context = RE_gwn_context_get(render);
-		if (GWN_context_active_get() == NULL) {
-			GWN_context_active_set(re_gwn_context);
-		}
-		DRW_shape_cache_reset(); /* XXX fix that too. */
+		DRW_opengl_render_context_enable(re_gwn_context);
 	}
 	else {
 		DRW_opengl_context_enable();
@@ -1550,12 +1546,8 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 
 	/* Changing Context */
 	if (re_gl_context != NULL) {
-		DRW_shape_cache_reset(); /* XXX fix that too. */
-		glFlush();
-		GWN_context_active_set(NULL);
-		WM_opengl_context_release(re_gl_context);
-		/* TODO get rid of the blocking. */
-		BLI_mutex_unlock(&DST.gl_context_mutex);
+		DRW_gawain_render_context_disable(re_gl_context);
+		DRW_opengl_render_context_disable(re_gwn_context);
 	}
 	else {
 		DRW_opengl_context_disable();
@@ -1579,6 +1571,53 @@ void DRW_render_object_iter(
 		callback(vedata, ob, engine, depsgraph);
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
+}
+
+/* Assume a valid gl context is bound (and that the gl_context_mutex has been aquired).
+ * This function only setup DST and execute the given function.
+ * Warning: similar to DRW_render_to_image you cannot use default lists (dfbl & dtxl). */
+void DRW_custom_pipeline(
+        DrawEngineType *draw_engine_type,
+        struct Depsgraph *depsgraph,
+        void (*callback)(void *vedata, void *user_data),
+        void *user_data)
+{
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
+	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
+
+	/* Reset before using it. */
+	drw_state_prepare_clean_for_draw(&DST);
+	DST.options.is_image_render = true;
+	DST.options.is_scene_render = true;
+	DST.options.draw_background = false;
+
+	DST.draw_ctx = (DRWContextState){
+	    .scene = scene,
+	    .view_layer = view_layer,
+	    .engine_type = NULL,
+	    .depsgraph = depsgraph,
+	    .object_mode = OB_MODE_OBJECT,
+	};
+	drw_context_state_init();
+
+	DST.viewport = GPU_viewport_create();
+	const int size[2] = {1, 1};
+	GPU_viewport_size_set(DST.viewport, size);
+
+	drw_viewport_var_init();
+
+	ViewportEngineData *data = drw_viewport_engine_data_ensure(draw_engine_type);
+
+	/* Execute the callback */
+	callback(data, user_data);
+
+	GPU_viewport_free(DST.viewport);
+	GPU_framebuffer_restore();
+
+#ifdef DEBUG
+	/* Avoid accidental reuse. */
+	drw_state_ensure_not_reused(&DST);
+#endif
 }
 
 static struct DRWSelectBuffer {
@@ -2253,6 +2292,41 @@ void DRW_opengl_context_disable(void)
 
 		BLI_mutex_unlock(&DST.gl_context_mutex);
 	}
+}
+
+void DRW_opengl_render_context_enable(void *re_gl_context)
+{
+	/* If thread is main you should use DRW_opengl_context_enable(). */
+	BLI_assert(!BLI_thread_is_main());
+
+	/* TODO get rid of the blocking. Only here because of the static global DST. */
+	BLI_mutex_lock(&DST.gl_context_mutex);
+	WM_opengl_context_activate(re_gl_context);
+}
+
+void DRW_opengl_render_context_disable(void *re_gl_context)
+{
+	glFlush();
+	WM_opengl_context_release(re_gl_context);
+	/* TODO get rid of the blocking. */
+	BLI_mutex_unlock(&DST.gl_context_mutex);
+}
+
+/* Needs to be called AFTER DRW_opengl_render_context_enable() */
+void DRW_gawain_render_context_enable(void *re_gwn_context)
+{
+	/* If thread is main you should use DRW_opengl_context_enable(). */
+	BLI_assert(!BLI_thread_is_main());
+
+	GWN_context_active_set(re_gwn_context);
+	DRW_shape_cache_reset(); /* XXX fix that too. */
+}
+
+/* Needs to be called BEFORE DRW_opengl_render_context_disable() */
+void DRW_gawain_render_context_disable(void *UNUSED(re_gwn_context))
+{
+	DRW_shape_cache_reset(); /* XXX fix that too. */
+	GWN_context_active_set(NULL);
 }
 
 /** \} */
