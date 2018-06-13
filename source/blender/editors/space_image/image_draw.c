@@ -769,6 +769,9 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
 
+	int main_w = 0;
+	int main_h = 0;
+
 	/* draw the image or grid */
 	if (ibuf == NULL) {
 		if (ima && ima->source == IMA_SRC_TILED) {
@@ -779,6 +782,9 @@ void draw_image_main(const bContext *C, ARegion *ar)
 		}
 	}
 	else {
+		main_w = ibuf->x;
+		main_h = ibuf->y;
+
 		char label[64];
 		BKE_image_get_tile_label(ima, 0, label, sizeof(label));
 		draw_image_buffer(C, sima, ar, scene, ibuf, 0.0f, 0.0f, zoomx, zoomy, label);
@@ -804,7 +810,10 @@ void draw_image_main(const bContext *C, ARegion *ar)
 				int y_pos = t/10;
 				char label[64];
 				BKE_image_get_tile_label(ima, t, label, sizeof(label));
-				draw_image_buffer(C, sima, ar, scene, ibuf, x_pos, y_pos, zoomx, zoomy, label);
+
+				float tile_zoomx = (zoomx * main_w) / ibuf->x;
+				float tile_zoomy = (zoomy * main_h) / ibuf->y;
+				draw_image_buffer(C, sima, ar, scene, ibuf, x_pos, y_pos, tile_zoomx, tile_zoomy, label);
 			}
 			ED_space_image_release_buffer(sima, ibuf, lock);
 		}
