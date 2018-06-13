@@ -458,9 +458,6 @@ void BKE_scene_free(Scene *sce)
 
 	BKE_animdata_free((ID *)sce, false);
 
-	/* check all sequences */
-	BKE_sequencer_clear_scene_in_allseqs(G.main, sce);
-
 	sce->basact = NULL;
 	BLI_freelistN(&sce->base);
 	BKE_sequencer_editing_free(sce, false);
@@ -1830,7 +1827,7 @@ static void prepare_mesh_for_viewport_render(Main *bmain, Scene *scene)
 			if (check_rendered_viewport_visible(bmain)) {
 				BMesh *bm = mesh->edit_btmesh->bm;
 				BM_mesh_bm_to_me(
-				        bm, mesh,
+				        bmain, bm, mesh,
 				        (&(struct BMeshToMeshParams){
 				            .calc_object_remap = true,
 				        }));

@@ -2880,7 +2880,7 @@ static void do_render_all_options(Render *re)
 
 	/* ensure no images are in memory from previous animated sequences */
 	BKE_image_all_free_anim_ibufs(re->main, re->r.cfra);
-	BKE_sequencer_all_free_anim_ibufs(re->r.cfra);
+	BKE_sequencer_all_free_anim_ibufs(re->main, re->r.cfra);
 
 	if (RE_engine_render(re, 1)) {
 		/* in this case external render overrides all */
@@ -3190,7 +3190,7 @@ static void update_physics_cache(Render *re, Scene *scene, int UNUSED(anim_init)
 	PTCacheBaker baker;
 
 	memset(&baker, 0, sizeof(baker));
-	baker.main = re->main;
+	baker.bmain = re->main;
 	baker.scene = scene;
 	baker.bake = 0;
 	baker.render = 1;

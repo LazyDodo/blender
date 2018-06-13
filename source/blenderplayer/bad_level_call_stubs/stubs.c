@@ -223,7 +223,7 @@ bool BPY_string_is_keyword(const char *str) { return false; }
 
 /*new render funcs */
 void EDBM_selectmode_set(struct BMEditMesh *em) RET_NONE
-void EDBM_mesh_load(struct Object *ob) RET_NONE
+void EDBM_mesh_load(struct Main *bmain, struct Object *ob) RET_NONE
 void EDBM_mesh_make(struct Object *ob, const int select_mode, const bool use_key_index) RET_NONE
 void EDBM_mesh_normals_update(struct BMEditMesh *em) RET_NONE
 void *g_system;
@@ -417,8 +417,8 @@ void ED_fsmenu_entry_set_path(struct FSMenuEntry *fsentry, const char *name) RET
 char *ED_fsmenu_entry_get_name(struct FSMenuEntry *fsentry) RET_NULL
 void ED_fsmenu_entry_set_name(struct FSMenuEntry *fsentry, const char *name) RET_NONE
 
-struct PTCacheEdit *PE_get_current(struct Scene *scene, struct Object *ob) RET_NULL
-void PE_current_changed(struct Scene *scene, struct Object *ob) RET_NONE
+struct PTCacheEdit *PE_get_current(struct Main *bmain, struct Scene *scene, struct Object *ob) RET_NULL
+void PE_current_changed(struct Main *bmain, struct Scene *scene, struct Object *ob) RET_NONE
 
 /* rna keymap */
 struct wmKeyMap *WM_keymap_active(struct wmWindowManager *wm, struct wmKeyMap *keymap) RET_NULL

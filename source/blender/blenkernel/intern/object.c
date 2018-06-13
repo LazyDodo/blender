@@ -2816,7 +2816,7 @@ void BKE_object_delete_ptcache(Object *ob, int index)
 /* shape key utility function */
 
 /************************* Mesh ************************/
-static KeyBlock *insert_meshkey(Object *ob, const char *name, const bool from_mix)
+static KeyBlock *insert_meshkey(Main *bmain, Object *ob, const char *name, const bool from_mix)
 {
 	Mesh *me = ob->data;
 	Key *key = me->key;
@@ -2824,7 +2824,7 @@ static KeyBlock *insert_meshkey(Object *ob, const char *name, const bool from_mi
 	int newkey = 0;
 
 	if (key == NULL) {
-		key = me->key = BKE_key_add((ID *)me);
+		key = me->key = BKE_key_add(bmain, (ID *)me);
 		key->type = KEY_RELATIVE;
 		newkey = 1;
 	}
@@ -2848,7 +2848,7 @@ static KeyBlock *insert_meshkey(Object *ob, const char *name, const bool from_mi
 	return kb;
 }
 /************************* Lattice ************************/
-static KeyBlock *insert_lattkey(Object *ob, const char *name, const bool from_mix)
+static KeyBlock *insert_lattkey(Main *bmain, Object *ob, const char *name, const bool from_mix)
 {
 	Lattice *lt = ob->data;
 	Key *key = lt->key;
@@ -2856,7 +2856,7 @@ static KeyBlock *insert_lattkey(Object *ob, const char *name, const bool from_mi
 	int newkey = 0;
 
 	if (key == NULL) {
-		key = lt->key = BKE_key_add((ID *)lt);
+		key = lt->key = BKE_key_add(bmain, (ID *)lt);
 		key->type = KEY_RELATIVE;
 		newkey = 1;
 	}
@@ -2886,7 +2886,7 @@ static KeyBlock *insert_lattkey(Object *ob, const char *name, const bool from_mi
 	return kb;
 }
 /************************* Curve ************************/
-static KeyBlock *insert_curvekey(Object *ob, const char *name, const bool from_mix)
+static KeyBlock *insert_curvekey(Main *bmain, Object *ob, const char *name, const bool from_mix)
 {
 	Curve *cu = ob->data;
 	Key *key = cu->key;
@@ -2895,7 +2895,7 @@ static KeyBlock *insert_curvekey(Object *ob, const char *name, const bool from_m
 	int newkey = 0;
 
 	if (key == NULL) {
-		key = cu->key = BKE_key_add((ID *)cu);
+		key = cu->key = BKE_key_add(bmain, (ID *)cu);
 		key->type = KEY_RELATIVE;
 		newkey = 1;
 	}
@@ -2926,16 +2926,16 @@ static KeyBlock *insert_curvekey(Object *ob, const char *name, const bool from_m
 	return kb;
 }
 
-KeyBlock *BKE_object_shapekey_insert(Object *ob, const char *name, const bool from_mix)
+KeyBlock *BKE_object_shapekey_insert(Main *bmain, Object *ob, const char *name, const bool from_mix)
 {	
 	switch (ob->type) {
 		case OB_MESH:
-			return insert_meshkey(ob, name, from_mix);
+			return insert_meshkey(bmain, ob, name, from_mix);
 		case OB_CURVE:
 		case OB_SURF:
-			return insert_curvekey(ob, name, from_mix);
+			return insert_curvekey(bmain, ob, name, from_mix);
 		case OB_LATTICE:
-			return insert_lattkey(ob, name, from_mix);
+			return insert_lattkey(bmain, ob, name, from_mix);
 		default:
 			return NULL;
 	}
@@ -3384,18 +3384,18 @@ LinkNode *BKE_object_relational_superset(struct Scene *scene, eObjectSet objectS
 /**
  * return all groups this object is apart of, caller must free.
  */
-struct LinkNode *BKE_object_groups(Object *ob)
+struct LinkNode *BKE_object_groups(Main *bmain, Object *ob)
 {
 	LinkNode *group_linknode = NULL;
 	Group *group = NULL;
-	while ((group = BKE_group_object_find(group, ob))) {
+	while ((group = BKE_group_object_find(bmain, group, ob))) {
 		BLI_linklist_prepend(&group_linknode, group);
 	}
 
 	return group_linknode;
 }
 
-void BKE_object_groups_clear(Scene *scene, Base *base, Object *object)
+void BKE_object_groups_clear(Main *bmain, Scene *scene, Base *base, Object *object)
 {
 	Group *group = NULL;
 
@@ -3405,8 +3405,8 @@ void BKE_object_groups_clear(Scene *scene, Base *base, Object *object)
 		base = BKE_scene_base_find(scene, object);
 	}
 
-	while ((group = BKE_group_object_find(group, base->object))) {
-		BKE_group_object_unlink(group, object, scene, base);
+	while ((group = BKE_group_object_find(bmain, group, base->object))) {
+		BKE_group_object_unlink(bmain, group, object, scene, base);
 	}
 }
 
@@ -3586,11 +3586,11 @@ bool BKE_object_modifier_use_time(Object *ob, ModifierData *md)
 }
 
 /* set "ignore cache" flag for all caches on this object */
-static void object_cacheIgnoreClear(Object *ob, int state)
+static void object_cacheIgnoreClear(Main *bmain, Object *ob, int state)
 {
 	ListBase pidlist;
 	PTCacheID *pid;
-	BKE_ptcache_ids_from_object(&pidlist, ob, NULL, 0);
+	BKE_ptcache_ids_from_object(bmain, &pidlist, ob, NULL, 0);
 
 	for (pid = pidlist.first; pid; pid = pid->next) {
 		if (pid->cache) {
@@ -3667,9 +3667,9 @@ bool BKE_object_modifier_update_subframe(
 	if (update_mesh) {
 		/* ignore cache clear during subframe updates
 		 *  to not mess up cache validity */
-		object_cacheIgnoreClear(ob, 1);
+		object_cacheIgnoreClear(bmain, ob, 1);
 		BKE_object_handle_update(bmain, eval_ctx, scene, ob);
-		object_cacheIgnoreClear(ob, 0);
+		object_cacheIgnoreClear(bmain, ob, 0);
 	}
 	else
 		BKE_object_where_is_calc_time(scene, ob, frame);
