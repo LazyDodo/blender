@@ -303,7 +303,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
 
 	bGPDlayer *gpl;

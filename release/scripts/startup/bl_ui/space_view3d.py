@@ -94,12 +94,12 @@ class VIEW3D_HT_header(Header):
 
             if gpd.is_stroke_paint_mode:
                 row = layout.row()
-                row.prop(toolsettings, "gpencil_stroke_placement_view3d", text='')
-                if toolsettings.gpencil_stroke_placement_view3d in('ORIGIN', 'CURSOR'):
-                    row.prop(toolsettings.gpencil_sculpt, "lockaxis", text='')
+                row.prop(tool_settings, "gpencil_stroke_placement_view3d", text='')
+                if tool_settings.gpencil_stroke_placement_view3d in('ORIGIN', 'CURSOR'):
+                    row.prop(tool_settings.gpencil_sculpt, "lockaxis", text='')
 
-                if toolsettings.gpencil_stroke_placement_view3d in ('SURFACE', 'STROKE'):
-                    row.prop(toolsettings, "use_gpencil_stroke_endpoints")
+                if tool_settings.gpencil_stroke_placement_view3d in ('SURFACE', 'STROKE'):
+                    row.prop(tool_settings, "use_gpencil_stroke_endpoints")
 
             if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode or gpd.is_stroke_weight_mode:
                 row = layout.row(align=True)
@@ -118,7 +118,7 @@ class VIEW3D_HT_header(Header):
                 settings = context.tool_settings.gpencil_sculpt
                 if settings.tool in ('GRAB', 'PUSH', 'TWIST', 'PINCH', 'RANDOMIZE'):
                     row = layout.row()
-                    row.prop(toolsettings.gpencil_sculpt, "lockaxis", text='')
+                    row.prop(tool_settings.gpencil_sculpt, "lockaxis", text='')
 
             if gpd.use_stroke_edit_mode:
                 row = layout.row(align=True)
