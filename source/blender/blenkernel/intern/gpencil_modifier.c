@@ -354,7 +354,7 @@ void BKE_gpencil_lattice_clear(Object *ob)
 /* *************************************************** */
 /* Modifier Methods - Evaluation Loops, etc. */
 
-/* verify if exist geometry modifiers */
+/* check if exist geometry modifiers */
 bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 {
 	ModifierData *md;

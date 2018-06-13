@@ -1382,14 +1382,10 @@ bool BKE_gpencil_smooth_stroke(bGPDstroke *gps, int i, float inf)
 }
 
 /**
- * Apply smooth for strength to stroke point
- * \param gps              Stroke to smooth
- * \param i                Point index
- * \param inf              Amount of smoothing to apply
- */
-bool BKE_gpencil_smooth_stroke_strength(bGPDstroke *gps, int i, float inf)
+ * Apply smooth for strength to stroke point */
+bool BKE_gpencil_smooth_stroke_strength(bGPDstroke *gps, int point_index, float influence)
 {
-	bGPDspoint *ptb = &gps->points[i];
+	bGPDspoint *ptb = &gps->points[point_index];
 
 	/* Do nothing if not enough points */
 	if (gps->totpoints <= 2) {
@@ -1398,8 +1394,8 @@ bool BKE_gpencil_smooth_stroke_strength(bGPDstroke *gps, int i, float inf)
 
 	/* Compute theoretical optimal value using distances */
 	bGPDspoint *pta, *ptc;
-	int before = i - 1;
-	int after = i + 1;
+	int before = point_index - 1;
+	int after = point_index + 1;
 
 	CLAMP_MIN(before, 0);
 	CLAMP_MAX(after, gps->totpoints - 1);
@@ -1414,20 +1410,16 @@ bool BKE_gpencil_smooth_stroke_strength(bGPDstroke *gps, int i, float inf)
 	const float optimal = (1.0f - fac) * pta->strength + fac * ptc->strength;
 
 	/* Based on influence factor, blend between original and optimal */
-	ptb->strength = (1.0f - inf) * ptb->strength + inf * optimal;
+	ptb->strength = (1.0f - influence) * ptb->strength + influence * optimal;
 
 	return true;
 }
 
 /**
- * Apply smooth for thickness to stroke point (use pressure)
- * \param gps              Stroke to smooth
- * \param i                Point index
- * \param inf              Amount of smoothing to apply
- */
-bool BKE_gpencil_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf)
+ * Apply smooth for thickness to stroke point (use pressure) */
+bool BKE_gpencil_smooth_stroke_thickness(bGPDstroke *gps, int point_index, float influence)
 {
-	bGPDspoint *ptb = &gps->points[i];
+	bGPDspoint *ptb = &gps->points[point_index];
 
 	/* Do nothing if not enough points */
 	if (gps->totpoints <= 2) {
@@ -1436,8 +1428,8 @@ bool BKE_gpencil_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf)
 
 	/* Compute theoretical optimal value using distances */
 	bGPDspoint *pta, *ptc;
-	int before = i - 1;
-	int after = i + 1;
+	int before = point_index - 1;
+	int after = point_index + 1;
 
 	CLAMP_MIN(before, 0);
 	CLAMP_MAX(after, gps->totpoints - 1);
@@ -1452,20 +1444,16 @@ bool BKE_gpencil_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf)
 	float optimal = interpf(ptc->pressure, pta->pressure, fac);
 
 	/* Based on influence factor, blend between original and optimal */
-	ptb->pressure = interpf(optimal, ptb->pressure, inf);
+	ptb->pressure = interpf(optimal, ptb->pressure, influence);
 
 	return true;
 }
 
 /**
-* Apply smooth for UV rotation to stroke point (use pressure)
-* \param gps              Stroke to smooth
-* \param i                Point index
-* \param inf              Amount of smoothing to apply
-*/
-bool BKE_gpencil_smooth_stroke_uv(bGPDstroke *gps, int i, float inf)
+* Apply smooth for UV rotation to stroke point (use pressure) */
+bool BKE_gpencil_smooth_stroke_uv(bGPDstroke *gps, int point_index, float influence)
 {
-	bGPDspoint *ptb = &gps->points[i];
+	bGPDspoint *ptb = &gps->points[point_index];
 
 	/* Do nothing if not enough points */
 	if (gps->totpoints <= 2) {
@@ -1474,8 +1462,8 @@ bool BKE_gpencil_smooth_stroke_uv(bGPDstroke *gps, int i, float inf)
 
 	/* Compute theoretical optimal value */
 	bGPDspoint *pta, *ptc;
-	int before = i - 1;
-	int after = i + 1;
+	int before = point_index - 1;
+	int after = point_index + 1;
 
 	CLAMP_MIN(before, 0);
 	CLAMP_MAX(after, gps->totpoints - 1);
@@ -1490,7 +1478,7 @@ bool BKE_gpencil_smooth_stroke_uv(bGPDstroke *gps, int i, float inf)
 	float optimal = interpf(ptc->uv_rot, pta->uv_rot, fac);
 
 	/* Based on influence factor, blend between original and optimal */
-	ptb->uv_rot = interpf(optimal, ptb->uv_rot, inf);
+	ptb->uv_rot = interpf(optimal, ptb->uv_rot, influence);
 	CLAMP(ptb->uv_rot, -M_PI_2, M_PI_2);
 
 	return true;
