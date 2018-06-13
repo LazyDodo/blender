@@ -84,7 +84,7 @@ typedef struct HairStrandVertexTextureBuffer {
 	float co[3];
 	float nor[3];
 	float tang[3];
-	int pad;
+	float len;
 } HairStrandVertexTextureBuffer;
 BLI_STATIC_ASSERT_ALIGN(HairStrandVertexTextureBuffer, 8)
 
@@ -116,11 +116,18 @@ static void hair_get_strand_buffer(
 		smap->taper_length = curve->taper_length;
 		smap->taper_thickness = curve->taper_thickness;
 		
+		float len = 0.0f;
 		for (int j = 0; j < curve->numverts; ++j)
 		{
 			copy_v3_v3(svert[j].co, verts[j].co);
 			copy_v3_v3(svert[j].tang, tangents[j]);
 			copy_v3_v3(svert[j].nor, normals[j]);
+			
+			if (j > 0)
+			{
+				len += len_v3v3(verts[j-1].co, verts[j].co);
+			}
+			svert[j].len = len;
 		}
 	}
 }
