@@ -51,7 +51,6 @@
 struct Base;
 struct bArmature;
 struct bGPdata;
-struct Palette;
 struct CacheFile;
 struct Camera;
 struct ListBase;

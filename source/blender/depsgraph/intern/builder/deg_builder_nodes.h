@@ -40,7 +40,6 @@ struct bArmature;
 struct CacheFile;
 struct Camera;
 struct bGPdata;
-struct Palette;
 struct ListBase;
 struct GHash;
 struct ID;
