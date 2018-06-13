@@ -1909,7 +1909,9 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 			*/
 			TimeSourceKey time_key;
 			ComponentKey geometry_key(obdata, DEG_NODE_TYPE_GEOMETRY);
-			add_relation(time_key, geometry_key, "GP Frame Change");
+			add_relation(time_key, 
+						 geometry_key, 
+						 "GP Frame Change");
 
 			/* Geometry cache also needs to be recalculated when Material
 			* settings change (e.g. when fill.opacity changes on/off,
@@ -1917,11 +1919,13 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 			*/
 			for (int i = 0; i < gpd->totcol; i++) {
 				Material *ma = gpd->mat[i];
-				if ((ma) && (ma->gp_style)) {
+				if ((ma != NULL) && (ma->gp_style != NULL)) {
 					OperationKey material_key(&ma->id,
-						DEG_NODE_TYPE_SHADING,
-						DEG_OPCODE_MATERIAL_UPDATE);
-					add_relation(material_key, geometry_key, "Material -> GP Data");
+											  DEG_NODE_TYPE_SHADING,
+						                      DEG_OPCODE_MATERIAL_UPDATE);
+					add_relation(material_key, 
+								 geometry_key, 
+								 "Material -> GP Data");
 				}
 			}
 			break;

@@ -228,23 +228,24 @@ void BKE_object_modifier_hook_reset(Object *ob, HookModifierData *hmd)
 
 void BKE_object_modifier_gpencil_hook_reset(Object *ob, HookGpencilModifierData *hmd)
 {
+	if (hmd->object == NULL) {
+		return;
+	}
 	/* reset functionality */
-	if (hmd->object) {
-		bPoseChannel *pchan = BKE_pose_channel_find_name(hmd->object->pose, hmd->subtarget);
+	bPoseChannel *pchan = BKE_pose_channel_find_name(hmd->object->pose, hmd->subtarget);
 
-		if (hmd->subtarget[0] && pchan) {
-			float imat[4][4], mat[4][4];
+	if (hmd->subtarget[0] && pchan) {
+		float imat[4][4], mat[4][4];
 
-			/* calculate the world-space matrix for the pose-channel target first, then carry on as usual */
-			mul_m4_m4m4(mat, hmd->object->obmat, pchan->pose_mat);
+		/* calculate the world-space matrix for the pose-channel target first, then carry on as usual */
+		mul_m4_m4m4(mat, hmd->object->obmat, pchan->pose_mat);
 
-			invert_m4_m4(imat, mat);
-			mul_m4_m4m4(hmd->parentinv, imat, ob->obmat);
-		}
-		else {
-			invert_m4_m4(hmd->object->imat, hmd->object->obmat);
-			mul_m4_m4m4(hmd->parentinv, hmd->object->imat, ob->obmat);
-		}
+		invert_m4_m4(imat, mat);
+		mul_m4_m4m4(hmd->parentinv, imat, ob->obmat);
+	}
+	else {
+		invert_m4_m4(hmd->object->imat, hmd->object->obmat);
+		mul_m4_m4m4(hmd->parentinv, hmd->object->imat, ob->obmat);
 	}
 }
 
@@ -867,12 +868,12 @@ Object *BKE_object_add_from(
  *
  * \param data The datablock to assign as ob->data for the new object.
  *             This is assumed to be of the correct type.
- * \param add_user If true, id_us_plus() will be called on data when
+ * \param do_id_user If true, id_us_plus() will be called on data when
  *                 assigning it to the object.
  */
 Object *BKE_object_add_for_data(
         Main *bmain, ViewLayer *view_layer,
-        int type, const char *name, ID *data, bool add_user)
+        int type, const char *name, ID *data, bool do_id_user)
 {
 	Object *ob;
 	Base *base;
@@ -881,7 +882,7 @@ Object *BKE_object_add_for_data(
 	/* same as object_add_common, except we don't create new ob->data */
 	ob = BKE_object_add_only_object(bmain, type, name);
 	ob->data = data;
-	if (add_user) id_us_plus(data);
+	if (do_id_user) id_us_plus(data);
 	
 	BKE_view_layer_base_deselect_all(view_layer);
 	DEG_id_tag_update_ex(bmain, &ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
