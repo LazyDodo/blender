@@ -215,12 +215,28 @@ void get_fiber_data(int fiber_index, out ivec4 parent_index, out vec4 parent_wei
 	pos = vec3(e.rg, f.r);
 }
 
-void interpolate_parent_curve(int index, float curve_param, out vec3 co, out vec3 nor, out vec3 tang, out vec3 rootco, out DeformParams deform_params)
+struct ParentCurveResult
 {
+	vec3 co;
+	vec3 nor;
+	vec3 tang;
+
+	// Only needed for the primary parent curve
+	vec3 rootco;
+	DeformParams deform_params;
+};
+
+bool interpolate_parent_curve(int index, float curve_param, out ParentCurveResult result)
+{
+	if (index == INDEX_INVALID)
+	{
+		return false;
+	}
+
 	int start, count;
-	get_strand_data(index, start, count, deform_params);
-	
-	get_strand_root(start, rootco);
+	get_strand_data(index, start, count, result.deform_params);
+
+	get_strand_root(start, result.rootco);
 	
 #if 0 // Don't have to worry about out-of-bounds segment here, as long as lerpfac becomes 0.0 when curve_param==1.0
 	float maxlen = float(count - 1);
@@ -239,9 +255,11 @@ void interpolate_parent_curve(int index, float curve_param, out vec3 co, out vec
 	get_strand_vertex(start + segment, co0, nor0, tang0);
 	get_strand_vertex(start + segment + 1, co1, nor1, tang1);
 	
-	co = mix(co0, co1, lerpfac) - rootco;
-	nor = mix(nor0, nor1, lerpfac);
-	tang = mix(tang0, tang1, lerpfac);
+	result.co = mix(co0, co1, lerpfac) - result.rootco;
+	result.nor = mix(nor0, nor1, lerpfac);
+	result.tang = mix(tang0, tang1, lerpfac);
+
+	return true;
 }
 
 void interpolate_vertex(int fiber_index, float curve_param,
@@ -257,38 +275,32 @@ void interpolate_vertex(int fiber_index, float curve_param,
 	vec3 rootco;
 	get_fiber_data(fiber_index, parent_index, parent_weight, rootco);
 
-	if (parent_index.x != INDEX_INVALID) {
-		vec3 pco, pnor, ptang, prootco;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, deform_params);
-		co += parent_weight.x * pco;
-		tang += parent_weight.x * normalize(ptang);
-
-		target_matrix = mat4_from_vectors(pnor, ptang, pco + prootco);
+	ParentCurveResult p1, p2, p3, p4;
+	if (interpolate_parent_curve(parent_index.x, curve_param, p1))
+	{
+		co += parent_weight.x * p1.co;
+		tang += parent_weight.x * normalize(p1.tang);
 	}
-	if (parent_index.y != INDEX_INVALID) {
-		vec3 pco, pnor, ptang, prootco;
-		DeformParams pdeform_params;
-		interpolate_parent_curve(parent_index.y, curve_param, pco, pnor, ptang, prootco, pdeform_params);
-		co += parent_weight.y * pco;
-		tang += parent_weight.y * normalize(ptang);
+	if (interpolate_parent_curve(parent_index.y, curve_param, p2))
+	{
+		co += parent_weight.y * p2.co;
+		tang += parent_weight.y * normalize(p2.tang);
 	}
-	if (parent_index.z != INDEX_INVALID) {
-		vec3 pco, pnor, ptang, prootco;
-		DeformParams pdeform_params;
-		interpolate_parent_curve(parent_index.z, curve_param, pco, pnor, ptang, prootco, pdeform_params);
-		co += parent_weight.z * pco;
-		tang += parent_weight.z * normalize(ptang);
+	if (interpolate_parent_curve(parent_index.z, curve_param, p3))
+	{
+		co += parent_weight.z * p3.co;
+		tang += parent_weight.z * normalize(p3.tang);
 	}
-	if (parent_index.w != INDEX_INVALID) {
-		vec3 pco, pnor, ptang, prootco;
-		DeformParams pdeform_params;
-		interpolate_parent_curve(parent_index.w, curve_param, pco, pnor, ptang, prootco, pdeform_params);
-		co += parent_weight.w * pco;
-		tang += parent_weight.w * normalize(ptang);
+	if (interpolate_parent_curve(parent_index.w, curve_param, p4))
+	{
+		co += parent_weight.w * p4.co;
+		tang += parent_weight.w * normalize(p4.tang);
 	}
 	
 	co += rootco;
 	tang = normalize(tang);
+	target_matrix = mat4_from_vectors(p1.nor, p1.tang, p1.co + p1.rootco);
+	deform_params = p1.deform_params;
 }
 
 void hair_fiber_get_vertex(
