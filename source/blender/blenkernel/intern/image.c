@@ -576,6 +576,10 @@ bool BKE_image_has_opengl_texture(Image *ima)
 
 int BKE_image_get_tile_from_pos(struct Image *ima, float uv[2], float new_uv[2], float ofs[2])
 {
+	float local_ofs[2];
+	if (!ofs)
+		ofs = local_ofs;
+
 	copy_v2_v2(new_uv, uv);
 	zero_v2(ofs);
 

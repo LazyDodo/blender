@@ -480,11 +480,16 @@ void paint_sample_color(bContext *C, ARegion *ar, int x, int y, bool texpaint_pr
 						image = imapaint->canvas;
 
 					if (image) {
-						ImBuf *ibuf = BKE_image_acquire_ibuf(image, NULL, NULL);
+						float uv[2];
+						float u, v;
+						imapaint_pick_uv(me_eval, scene, ob_eval, faceindex, mval, uv);
+
+						ImageUser iuser = {NULL};
+						iuser.ok = true;
+						iuser.tile = BKE_image_get_tile_from_pos(image, uv, uv, NULL);
+
+						ImBuf *ibuf = BKE_image_acquire_ibuf(image, &iuser, NULL);
 						if (ibuf && ibuf->rect) {
-							float uv[2];
-							float u, v;
-							imapaint_pick_uv(me_eval, scene, ob_eval, faceindex, mval, uv);
 							sample_success = true;
 
 							u = fmodf(uv[0], 1.0f);
