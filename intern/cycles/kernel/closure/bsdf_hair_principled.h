@@ -357,7 +357,8 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 
 	float2 u[2];
 	u[0] = make_float2(randu, randv);
-	u[1] = make_float2(lcg_step_float_addrspace(&sd->lcg_state), lcg_step_float_addrspace(&sd->lcg_state));
+	u[1].x = lcg_step_float_addrspace(&sd->lcg_state);
+	u[1].y = lcg_step_float_addrspace(&sd->lcg_state);
 	//printf("Enter sample data: ");
 	//scanf("%d %d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->extra->geom.w, &u[0].x, &u[0].y, &u[1].x, &u[1].y);
 
