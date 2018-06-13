@@ -3797,7 +3797,6 @@ static int brush_edit_init(bContext *C, wmOperator *op)
 
 static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
 {
-	Main *bmain = CTX_data_main(C);
 	BrushEdit *bedit= op->customdata;
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene= bedit->scene;
@@ -4079,8 +4078,11 @@ static int brush_edit_modal(bContext *C, wmOperator *op, const wmEvent *event)
 		case LEFTMOUSE:
 		case MIDDLEMOUSE:
 		case RIGHTMOUSE: // XXX hardcoded
-			brush_edit_exit(op);
-			return OPERATOR_FINISHED;
+			if (event->val == KM_RELEASE) {
+				brush_edit_exit(op);
+				return OPERATOR_FINISHED;
+			}
+			break;
 		case MOUSEMOVE:
 			brush_edit_apply_event(C, op, event);
 			break;
