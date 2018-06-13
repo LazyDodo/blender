@@ -147,6 +147,7 @@ typedef struct ImagePaintState {
 
 	ImageUser iuser;
 	float uv_ofs[2];
+	float radius_fac;
 
 	BlurKernel *blurkernel;
 } ImagePaintState;
@@ -1273,6 +1274,8 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 	if (eraser)
 		s->blend = IMB_BLEND_ERASE_ALPHA;
 
+	size *= s->radius_fac;
+
 	paint_2d_transform_mouse(s, mval, newuv);
 	paint_2d_transform_mouse(s, prev_mval, olduv);
 
@@ -1336,6 +1339,25 @@ void *paint_2d_new_stroke(bContext *C, wmOperator *op, const float mouse[2], int
 	float uv[2];
 	paint_2d_transform_mouse(s, mouse, uv);
 	s->iuser.tile = BKE_image_get_tile_from_pos(s->image, uv, uv, s->uv_ofs);
+
+	/* Calculate radius factor to compensate for resolution difference between tiles. */
+	s->radius_fac = 1.0f;
+	if (s->iuser.tile > 0) {
+		ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, NULL, NULL);
+		if (ibuf) {
+			float main_x = ibuf->x;
+			float main_y = ibuf->y;
+			BKE_image_release_ibuf(s->image, ibuf, NULL);
+			ibuf = BKE_image_acquire_ibuf(s->image, &s->iuser, NULL);
+			if (ibuf) {
+				float fac_x = ibuf->x / main_x;
+				float fac_y = ibuf->y / main_y;
+				/* TODO(lukas): Support difference in aspect ratio. */
+				s->radius_fac = sqrtf(fac_x*fac_y);
+				BKE_image_release_ibuf(s->image, ibuf, NULL);
+			}
+		}
+	}
 
 	if (!paint_2d_canvas_set(s, s->image)) {
 		if (s->warnmultifile)
