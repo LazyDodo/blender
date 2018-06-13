@@ -810,6 +810,8 @@ static void adjustVerts(MVert **mvert, FractureModifierData *fmd, Object *o, Der
 	}
 }
 
+/* this packs all DMs of objects in a group into "our" FM derivedmesh; used for Subobject group; was attempt to combine object to only use inner constraints;
+ * later "external" constraints were implemented too... for connecting shards across different objects */
 static void collect_derivedmeshes(FractureModifierData* fmd, Object *ob, MVert** mvert, MLoop** mloop, MPoly **mpoly, DerivedMesh* result, GHash** mat_index_map)
 {
 	int vertstart = 0, polystart = 0, loopstart = 0;
@@ -1563,6 +1565,7 @@ static short do_materials(FractureModifierData *fmd, Object* obj)
 	return mat_index;
 }
 
+/* reverts temporary splinter transforms */
 static void cleanup_splinters(FractureModifierData *fmd, float mat[4][4], Shard *s, DerivedMesh *dm)
 {
 	if ((fmd->splinter_axis & MOD_FRACTURE_SPLINTER_X) ||
@@ -1603,6 +1606,9 @@ static Shard* find_shard(ListBase *shards, ShardID id)
 
 	return NULL;
 }
+
+/* shards seem to be centered at 0, 0, 0, so add the centroid here to each vert to arrange them in a way
+ * they form the whole object again */
 
 static void arrange_shard(FractureModifierData *fmd, ShardID id, bool do_verts, float cent[3])
 {
@@ -3048,6 +3054,7 @@ static void fill_vgroup(FractureModifierData *rmd, DerivedMesh *dm, MDeformVert 
 	}
 }
 
+/* sets up meshisland's cached vertices from cached DM. This was for the regular case where we dont do split shards to islands. */
 static void do_cache_regular(FractureModifierData* fmd, MeshIsland *mi, int thresh_defgrp_index,
                              int ground_defgrp_index, MVert** verts, MDeformVert** dvert, int *vertstart)
 {
@@ -3079,6 +3086,7 @@ static void do_cache_regular(FractureModifierData* fmd, MeshIsland *mi, int thre
 	(*vertstart) += mi->vertex_count;
 }
 
+/* sets up meshisland's cached vertices from cached DM. I think this was for the "halving" case */
 static void do_cache_split_islands(FractureModifierData* fmd, MeshIsland *mi, int thresh_defgrp_index,
                                    int ground_defgrp_index, MVert** verts, MDeformVert** dvert)
 {
@@ -3114,6 +3122,7 @@ static void do_cache_split_islands(FractureModifierData* fmd, MeshIsland *mi, in
 	}
 }
 
+/* a yuck-ish function which is rather old and attempted to "handle" atleast parts of the internal FM mesh caching */
 static DerivedMesh *createCache(FractureModifierData *fmd, Object *ob, DerivedMesh *origdm)
 {
 	MeshIsland *mi;
@@ -3187,6 +3196,8 @@ static DerivedMesh *createCache(FractureModifierData *fmd, Object *ob, DerivedMe
 	return dm;
 }
 
+/*old hack for BI render, it could happen MTEXPOLY texture images got lost somehow at file reading */
+/*since MTEXTPOLY is deprecated now, should be irrelevant */
 static void refresh_customdata_image(Mesh *me, CustomData *pdata, int totface)
 {
 	int i;
@@ -3236,6 +3247,7 @@ static void DM_face_calc_center_mean(DerivedMesh *dm, MPoly *mp, float r_cent[3]
 	mul_v3_fl(r_cent, 1.0f / (float) mp->totloop);
 }
 
+/* attempt to average vertex normals out between adjacent(?) polys, check caller */
 static void do_match_normals(MPoly *mp, MPoly *other_mp, MVert *mvert, MLoop *mloop)
 {
 	MLoop ml, ml2;
@@ -3442,6 +3454,7 @@ static void reset_automerge(FractureModifierData *fmd)
 	}
 }
 
+/* attempt to calculate the difference between shared coordinate (here names as "rest" coordinate) and the one at "tearing" time point */
 static void calc_delta(SharedVert* sv, BMVert *v)
 {
 	//apply deltas
@@ -3457,6 +3470,7 @@ static void calc_delta(SharedVert* sv, BMVert *v)
 	copy_v3_v3(v->co, co);
 }
 
+/* attempt to avoid excessive "peaks" when applying distortion / delta information */
 static void clamp_delta(SharedVert *sv, FractureModifierData *fmd)
 {
 	float factor = (fmd->automerge_dist * fmd->automerge_dist) / len_squared_v3(sv->delta);
@@ -3466,6 +3480,8 @@ static void clamp_delta(SharedVert *sv, FractureModifierData *fmd)
 	}
 }
 
+/* keep shared vertex coordinates the same unless difference between original and shared / merged coordinate exceeds a certain distance
+ * also set an inner crease in order to get "crisp" tearing edges even if the mesh is smooth shaded */
 static void handle_vertex(FractureModifierData *fmd, BMesh* bm, SharedVert *sv, float co[3], float no[3],
                           int cd_edge_crease_offset)
 {
@@ -3516,6 +3532,9 @@ static void handle_vertex(FractureModifierData *fmd, BMesh* bm, SharedVert *sv, 
 	}
 }
 
+/* move "shared" vertices which are very close at all, to the same "shared" location */
+/* this is important for better welding later (with low distance, so the mesh topology is not accidentally destroyed
+ * by merging with too high distances */
 static void prepare_automerge(FractureModifierData *fmd, BMesh *bm)
 {
 	SharedVert *sv;
@@ -3565,6 +3584,8 @@ static void prepare_automerge(FractureModifierData *fmd, BMesh *bm)
 	}
 }
 
+/* remove those sharedVertGroups which remained intact / unchanged during the simulation; only keep the changing ones
+ * in order to save some memory */
 static void optimize_automerge(FractureModifierData *fmd)
 {
 	SharedVertGroup *vg = fmd->shared_verts.first, *next = NULL;
@@ -3650,6 +3671,11 @@ static DerivedMesh* centroids_to_verts(FractureModifierData* fmd, BMesh* bm, Obj
 	return dm;
 }
 
+/* autohide works by checking the distance between face pairs (which are determined beforehand and pair adjacent faces together,
+ * if there is an adjacent face (of a neighbor shard). Is the distance exceeded, the face will no longer be deleted and show up, else it will
+ * be deleted from the DM each frame, like if it was not there at all. It is necessary this way because the amount of shown shard faces will grow over
+ * time, as the mesh breaks apart. You cant easily undelete faces, but you need to delete less faces each frame. Thats why always only the necessary faces
+ * from the original mesh are deleted */
 static DerivedMesh *do_autoHide(FractureModifierData *fmd, DerivedMesh *dm, Object *ob)
 {
 	int totpoly = dm->getNumPolys(dm);
@@ -3790,6 +3816,9 @@ static DerivedMesh *do_autoHide(FractureModifierData *fmd, DerivedMesh *dm, Obje
 	return result;
 }
 
+/* create the physics mesh aka bullet shape from the shard which this meshisland is related (mostly the one with the same ID) */
+/* also fix normals by finding closest original normals on the original mesh and copying them over to the fractured mesh. (per KDTree) */
+/* Works best if the original mesh has some regular subdivision. */
 static void do_fix_normals_physics_mesh(FractureModifierData *fmd, Shard* s, MeshIsland* mi, int i, DerivedMesh* orig_dm)
 {
 	MVert *mv, *verts;
@@ -3837,6 +3866,9 @@ static void do_fix_normals_physics_mesh(FractureModifierData *fmd, Shard* s, Mes
 	}
 }
 
+/* determine meshisland threshold and passive weights (called ground weight here) from the vertex weights
+ * assigned to the meshisland's vertices. Those weights influence the breaking threshold or determine whether certain islands
+ * may remain passive during simulation. Just summing up vertex weights and dividing by vertex count here. */
 static void do_verts_weights(FractureModifierData *fmd, Shard *s, MeshIsland *mi, int vertstart,
                              int thresh_defgrp_index, int ground_defgrp_index)
 {
@@ -3874,7 +3906,8 @@ static void do_verts_weights(FractureModifierData *fmd, Shard *s, MeshIsland *mi
 #define OUT4(name,id, co) printf("%s : %d -> (%.2f, %.2f, %.2f, %.2f) \n", (name), (id), (co)[0], (co)[1], (co)[2], (co)[3]);
 
 
-
+/* this is for dynamic fracture, it will place the resulting child shards in a way they form the former parent shard, and also invalidate/remove the
+ * parent shard itself. Necessary to let the dynamic fracture look "natural". */
 static void do_handle_parent_mi(FractureModifierData *fmd, MeshIsland *mi, MeshIsland *par, Object* ob, int frame, bool is_parent)
 {
 	frame -= par->start_frame;
@@ -3952,6 +3985,8 @@ void set_rigidbody_type(FractureModifierData *fmd, Shard *s, MeshIsland *mi)
 }
 #endif
 
+/* convert shards to meshislands, in order to create the data necessary for the simulation from the fracture result
+ * TODO consider keeping only the shard structure in the future */
 static void do_island_from_shard(FractureModifierData *fmd, Object *ob, Shard* s, DerivedMesh *orig_dm,
                                  int i, int thresh_defgrp_index, int ground_defgrp_index, int vertstart)
 {
@@ -4140,6 +4175,9 @@ static void do_island_from_shard(FractureModifierData *fmd, Object *ob, Shard* s
 	}
 }
 
+/* convert all shards to islands here, also copy the "Inner vertex group" here (vgroup which attempts to mark the inner
+ * faces, but there might be conflict on verts which are also part of the outer "shell", better have something like
+ * facemaps here ? TODO */
 static MDeformVert* do_islands_from_shards(FractureModifierData* fmd, Object* ob, DerivedMesh *orig_dm)
 {
 	/* can be created without shards even, when using fracturemethod = NONE (re-using islands)*/
@@ -4235,6 +4273,8 @@ static DerivedMesh *output_dm(FractureModifierData* fmd, DerivedMesh *dm, Object
 	return dm;
 }
 
+/*everything what happens during a frame in the FM after the meshislands have been created; hmm this "function layout"
+ * is result of an earlier refactor, not the best one, but before it was even worse */
 static void do_post_island_creation(FractureModifierData *fmd, Object *ob, DerivedMesh *dm)
 {
 	double start;
@@ -4303,6 +4343,8 @@ static void do_post_island_creation(FractureModifierData *fmd, Object *ob, Deriv
 
 }
 
+/* determine which shards form clusters (around cluster cores) and create constraints based on the given control
+ * parameters like search radius, limit per island, breaking threshold etc */
 static void do_refresh_constraints(FractureModifierData *fmd, Object *ob)
 {
 	double start = PIL_check_seconds_timer();
@@ -4331,6 +4373,9 @@ static void do_refresh_constraints(FractureModifierData *fmd, Object *ob)
 	printf("Constraints: %d\n", BLI_listbase_count(&fmd->meshConstraints));
 }
 
+/* find very close / nearby other vertices for each not yet "visited" vertex, necessary for welding only very close
+ * vertices and keep them logically together, until a certain distance between vertex and other nearby vertices (part of the same
+ * shared vert group) is exceeded */
 static void make_shared_vert_groups(FractureModifierData* fmd, DerivedMesh* dm, ListBase *shared_verts)
 {
 	/* make kdtree of all verts of dm, then find closest(rangesearch) verts for each vert*/
@@ -4340,7 +4385,6 @@ static void make_shared_vert_groups(FractureModifierData* fmd, DerivedMesh* dm, 
 	GHash* visit = BLI_ghash_int_new("visited_verts");
 	int i = 0;
 
-	//printf("Make Face Pairs\n");
 	int groups = 0;
 
 	for (i = 0, mv = mvert; i < totvert; mv++, i++) {
@@ -4514,6 +4558,9 @@ static void do_clear(FractureModifierData* fmd)
 	}
 }
 
+/* attempt to speed up mesh_separate_loose by recursively halving the amount of to-be-processed vertices and let mesh_separate_loose run
+ * on 500-element chunks; for this BMesh operations are necessary. Mesh separate loose is used to decompose the mesh into their "real" islands, no multi-island
+ * shards allowed there. */
 static void do_halving(FractureModifierData *fmd, Object* ob, DerivedMesh *dm, DerivedMesh *orig_dm, bool is_prehalving, ShardID id)
 {
 	double start;
@@ -4534,6 +4581,8 @@ static void do_halving(FractureModifierData *fmd, Object* ob, DerivedMesh *dm, D
 	printf("Splitting to islands done, %g \n"/*  Steps: %d \n"*/, PIL_check_seconds_timer() - start);//, fmd->frac_mesh->progress_counter);
 }
 
+/* this will actually initiatte a refracture in the modifier, usually only for dynamic fracture events or the initial prefracture;
+ * most of the time this call will be suppressed */
 static void do_refresh(FractureModifierData *fmd, Object *ob, DerivedMesh* dm, DerivedMesh *orig_dm, DerivedMesh *old_cached)
 {
 	double start = 0.0;
@@ -4585,6 +4634,10 @@ static void do_refresh(FractureModifierData *fmd, Object *ob, DerivedMesh* dm, D
 	}
 }
 
+/* build a reverse vertex index to island lookup map here; necessary for vertex-based constraints; there distances between vertices of
+ * different shards are taken into account, to only connect adjacent islands, and not ones further apart as well. This might be desireable in order
+ * to save some constraints or together with point constraints, allow cloth-like movement of rigidbody objects consisting of several shards and
+ * constraints */
 static void do_island_index_map(FractureModifierData *fmd, Object* ob)
 {
 	MeshIsland *mi;
@@ -4660,7 +4713,9 @@ static void do_reset_automerge(FractureModifierData* fmd)
 }
 #endif
 
-
+/* unlucky naming decision here, actually this should depict the part of the modifier which will actually be run in each frame
+ * looking closer, from here for example the modifier might be freed (complex freeing logic involved ); constraints, autohide facepairs and shared
+ * vertexgroups might be regenerated from here too, if conditions are met */
 static DerivedMesh *doSimulate(FractureModifierData *fmd, Object *ob, DerivedMesh *dm, DerivedMesh *orig_dm,
                                char names [][66], int count)
 {
@@ -4937,6 +4992,8 @@ static void foreachObjectLink(
 	}
 }
 
+/* for dynamic fracture, after a fracture event happens, create a new set of shards which contain all old unchanged shards
+ * again (bad, those should be stored only once) and new children shards instead of the fractured older shards */
 static ShardSequence* shard_sequence_add(FractureModifierData* fmd, float frame, DerivedMesh* dm, Object *ob)
 {
 	ShardSequence *ssq = MEM_mallocN(sizeof(ShardSequence), "shard_sequence_add");
@@ -4988,6 +5045,8 @@ static ShardSequence* shard_sequence_add(FractureModifierData* fmd, float frame,
 	return ssq;
 }
 
+/* after a dynamic fracture event happened, we also need a new set of Meshislands to reflect the new state, but note it is
+ * wrong to duplicate existing islands due to waste of memory */
 static MeshIslandSequence* meshisland_sequence_add(FractureModifierData* fmd, float frame, Object *ob, DerivedMesh *dm)
 {
 	MeshIslandSequence *msq = MEM_mallocN(sizeof(MeshIslandSequence), "meshisland_sequence_add");
@@ -5015,6 +5074,8 @@ static MeshIslandSequence* meshisland_sequence_add(FractureModifierData* fmd, fl
 	return msq;
 }
 
+/* call to create both kinds of new "entries", a new shard sequence and meshisland sequence
+ * updating the "current pointer" to them, so the FM can quickly access it */
 static void add_new_entries(FractureModifierData* fmd, DerivedMesh *dm, Object* ob)
 {
 	int frame = (int)BKE_scene_frame_get(fmd->modifier.scene);
@@ -5041,6 +5102,7 @@ static void add_new_entries(FractureModifierData* fmd, DerivedMesh *dm, Object* 
 	fmd->meshIslands = fmd->current_mi_entry->meshIslands;
 }
 
+/* handles both prefractured and dynamic operation modes */
 static int do_modifier(FractureModifierData *fmd, Object *ob, DerivedMesh *dm, char (**names)[66])
 {
 	/*TODO_1 refresh, move to BKE and just call from operator for prefractured case*/

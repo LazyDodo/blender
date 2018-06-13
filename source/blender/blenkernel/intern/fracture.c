@@ -95,6 +95,9 @@ static void parse_cell_neighbors(cell c, int *neighbors, int totpoly);
 static void fracture_collect_layers(Shard *shard, DerivedMesh *result, int vertstart, int polystart, int loopstart, int edgestart);
 static void remove_participants(RigidBodyShardCon *con, MeshIsland *mi);
 
+/* Append the given shard to the end of the shardmap. Shard Map should contain a list of the resulting shards of a fracture
+ * operation. Transform all vertices and centroid with the matrix parameter, e.g. to get to local space or world space
+ * (TODO need to check callers where what applies */
 static void add_shard(FracMesh *fm, Shard *s, float mat[4][4])
 {
 	MVert *mv;
@@ -112,6 +115,8 @@ static void add_shard(FracMesh *fm, Shard *s, float mat[4][4])
 	fm->shard_count++;
 }
 
+/* Convert the given Shard via DerivedMesh to BMesh. Used for splitting loose islands via the faster recursive halving
+ * mechanism. This executes split_loose in each recursion step only on smaller mesh portions TODO, check callers */
 static BMesh *shard_to_bmesh(Shard *s)
 {
 	DerivedMesh *dm_parent;
@@ -136,6 +141,7 @@ static BMesh *shard_to_bmesh(Shard *s)
 	return bm_parent;
 }
 
+/* Copied from mesh boundbox calculation, perform operation on shard */
 static void shard_boundbox(Shard *s, float r_loc[3], float r_size[3])
 {
 	float min[3], max[3];
@@ -159,6 +165,8 @@ static void shard_boundbox(Shard *s, float r_loc[3], float r_size[3])
 	r_size[2] = (max[2] - min[2]) / 2.0f;
 }
 
+/* Sort shards by distance of their centroids. Shards closer to each other will be processed first / earlier
+ * Again, TODO Check Caller for context */
 static int shard_sortdist(const void *s1, const void *s2, void* context)
 {
 	Shard **sh1 = (Shard **)s1;
@@ -180,6 +188,7 @@ static int shard_sortdist(const void *s1, const void *s2, void* context)
 	return 0;
 }
 
+/* Sort shards by squared diameter of their bbox as size approximation */
 static int shard_sortsize(const void *s1, const void *s2, void* UNUSED(context))
 {
 	Shard **sh1 = (Shard **)s1;
@@ -205,6 +214,7 @@ static int shard_sortsize(const void *s1, const void *s2, void* UNUSED(context))
 	return 0;
 }
 
+/* Checks for missing custom data layers and adds them, if missing */
 void* check_add_layer(CustomData *src, CustomData *dst, int type, int totelem, const char* name)
 {
 	void *layer =  CustomData_get_layer_named(dst, type, name);
@@ -228,6 +238,7 @@ void* check_add_layer(CustomData *src, CustomData *dst, int type, int totelem, c
 	}
 }
 
+/* Copy over customdata layers from DerivedMesh to Shard, additionally add velocity vertex (float) layers (for motionblur (TODO, check Caller ))*/
 Shard *BKE_custom_data_to_shard(Shard *s, DerivedMesh *dm)
 {
 	CustomData_reset(&s->vertData);
@@ -467,6 +478,9 @@ float BKE_shard_calc_minmax(Shard *shard)
 	return len_v3(diff);
 }
 
+/* Turns the entire initial mesh into the first shard, covering everything of the mesh.
+ * flag marks this as intact shard (still valid in sim, FRACTURED would be a shard if replaced by its children, about to be
+ * deleted or already deleted, TODO check caller */
 Shard* BKE_create_initial_shard(DerivedMesh *dm)
 {
 	/* create temporary shard covering the entire mesh */
@@ -478,6 +492,7 @@ Shard* BKE_create_initial_shard(DerivedMesh *dm)
 	return s;
 }
 
+/* Deep copy of shard, including customdata layers */
 Shard* BKE_fracture_shard_copy(Shard *s)
 {
 	Shard *t = BKE_create_fracture_shard(s->mvert, s->mpoly, s->mloop, s->medge, s->totvert, s->totpoly, s->totloop, s->totedge, true);
@@ -537,6 +552,7 @@ Shard *BKE_shard_by_id(FracMesh *mesh, ShardID id, DerivedMesh *dm) {
 	return NULL;
 }
 
+/* gets the min and max if shard exists, if it was the intial shard, delete it here (why, check caller, TODO */
 bool BKE_get_shard_minmax(FracMesh *mesh, ShardID id, float min_r[3], float max_r[3], DerivedMesh *dm)
 {
 	Shard *shard = BKE_shard_by_id(mesh, id, dm);
@@ -555,6 +571,8 @@ bool BKE_get_shard_minmax(FracMesh *mesh, ShardID id, float min_r[3], float max_
 	return false;
 }
 
+/* Create a shard from Mesh / DerivedMesh elements, in most cases copy is true, means it will duplicate everything
+ * TODO is there a case with copy = false still at all ? */
 Shard *BKE_create_fracture_shard(MVert *mvert, MPoly *mpoly, MLoop *mloop, MEdge* medge,  int totvert, int totpoly,
                                  int totloop, int totedge, bool copy)
 {
@@ -601,6 +619,7 @@ Shard *BKE_create_fracture_shard(MVert *mvert, MPoly *mpoly, MLoop *mloop, MEdge
 	return shard;
 }
 
+/* create the FracMesh container where the shards live */
 FracMesh *BKE_create_fracture_container(void)
 {
 	FracMesh *fmesh;
@@ -609,8 +628,8 @@ FracMesh *BKE_create_fracture_container(void)
 	fmesh->shard_map.first = NULL;
 	fmesh->shard_map.last = NULL;
 	fmesh->shard_count = 0;
-	fmesh->cancel = 0;
-	fmesh->running = 0;
+	fmesh->cancel = 0; // remainder of threading attempt with Job system, to be able to cancel long running fractures
+	fmesh->running = 0; // remainder of threading attempt with Job system
 	fmesh->progress_counter = 0;
 	fmesh->last_shards = NULL;
 	fmesh->last_shard_tree = NULL;
@@ -619,6 +638,8 @@ FracMesh *BKE_create_fracture_container(void)
 	return fmesh;
 }
 
+/* Fast bisect is a method which just uses one random face of a voronoi cell as cutter plane; this will cut the mesh in two halves;
+ * and keep both halves if the cut was successful; eg the mesh was not missed etc */
 static void handle_fast_bisect(FracMesh *fm, int expected_shards, int algorithm, BMesh** bm_parent, float obmat[4][4],
                                float centroid[3], short inner_material_index, int parent_id, Shard **tempshards, Shard ***tempresults,
                                char uv_layer[64], cell* cells, float fac, Shard* parent)
@@ -665,6 +686,7 @@ static void handle_fast_bisect(FracMesh *fm, int expected_shards, int algorithm,
 		vec[2] = BLI_frand() * 2 - 1;
 
 		//multiply two minor dimensions with a factor to emphasize the max dimension
+		/* This is an attempt to actually get axial cuts, means 90 degree "straight" cuts, not angled */
 		max_axis = axis_dominant_v3_single(dim);
 		switch (max_axis) {
 			case 0:
@@ -716,6 +738,8 @@ static void handle_fast_bisect(FracMesh *fm, int expected_shards, int algorithm,
 			(*tempresults)[i + 1] = s2;
 
 			//BLI_qsort_r(*tempresults, i + 1, sizeof(Shard *), shard_sortdist, &(cells[i]));
+
+			/*prefer bigger shards for cutting here, so sort bigger ones to the front of the array */
 			BLI_qsort_r(*tempresults, i + 1, sizeof(Shard *), shard_sortsize, &(cells[i]));
 
 			while ((*tempresults)[j] == NULL && j < (i + 1)) {
@@ -737,6 +761,10 @@ static void handle_fast_bisect(FracMesh *fm, int expected_shards, int algorithm,
 	}
 }
 
+/* Fractal boolean, this works with Quad Grids as cutter planes, the higher the num_cuts, the more smaller quads (the slower)
+ * Grid subdivision is supposed to subdivide the inner faces of resulting geometry. Cutting happens plane-based, so halve, halve the halves and so on.
+ * Actually the cutter planes are already subdivided, and can have fractal displacement on them. They will cut the geometry into 2 matching displaced halves.
+ * (using boolean cuts). Note: has still issues with proper autohide etc, TODO */
 static void handle_boolean_fractal(Shard* p, Shard* t, int expected_shards, DerivedMesh* dm_parent, Object *obj, short inner_material_index,
                                    int num_cuts, float fractal, int num_levels, bool smooth,int parent_id, int* i, Shard ***tempresults,
                                    DerivedMesh **dm_p, char uv_layer[64], int thresh, float fac)
@@ -782,6 +810,7 @@ static void handle_boolean_fractal(Shard* p, Shard* t, int expected_shards, Deri
 		vec[2] = BLI_frand() * 2 - 1;
 
 		//multiply two minor dimensions with a factor to emphasize the max dimension
+		/* same idea as with fast bisect, try to get 90 degree angles between the cutter planes */
 		max_axis = axis_dominant_v3_single(size);
 		switch (max_axis) {
 			case 0:
@@ -829,6 +858,7 @@ static void handle_boolean_fractal(Shard* p, Shard* t, int expected_shards, Deri
 		s2->flag = SHARD_INTACT;
 		(*tempresults)[*i] = s2;
 
+		/* and also prefer bigger shards first */
 		BLI_qsort_r(*tempresults, (*i) + 1, sizeof(Shard *), shard_sortsize, i);
 		while ((*tempresults)[j] == NULL && j < ((*i) + 1)) {
 			/* ignore invalid shards */
@@ -856,6 +886,8 @@ static void handle_boolean_fractal(Shard* p, Shard* t, int expected_shards, Deri
 	}
 }
 
+/* Use bisect instead of boolean cuts for intersecting with the original geometry, to allow also nonmanifold geometry. Note, filling methods
+ * might be less reliable than with boolean cuts. This method also handles boolean cuts, should better be properly split up TODO*/
 static bool handle_boolean_bisect(FracMesh *fm, Object *obj, int expected_shards, int algorithm, int parent_id, Shard **tempshards,
                                   DerivedMesh *dm_parent, BMesh* bm_parent, float obmat[4][4], short inner_material_index, int num_cuts,
                                   int num_levels, float fractal, int *i, bool smooth, Shard*** tempresults, DerivedMesh **dm_p, char uv_layer[64],
@@ -909,6 +941,12 @@ static bool handle_boolean_bisect(FracMesh *fm, Object *obj, int expected_shards
 	return false;
 }
 
+/* Here attempts are made to keep track of unchanged raw cells which potentially will lead to unchanged intersected cells, avoiding expensive
+ * boolean or bisect cuts. Mainly should be used together with "Mouse based" fracture, which interactively fractures on mouse click / drag (done via the addon)
+ * TODO, better comment ?)
+ * To determine shards being the same, their centroid positions and volumes are compared as approximation. Then skip and deletemaps to determine which shards dont
+ * refractures respectively which shards need to be removed are created */
+
 static void do_prepare_cells(FracMesh *fm, cell *cells, int expected_shards, int algorithm, Shard *p, float (*centroid)[3],
                              DerivedMesh **dm_parent, BMesh** bm_parent, Shard ***tempshards, Shard ***tempresults, int override_count,
                              FractureModifierData *fmd)
@@ -918,6 +956,7 @@ static void do_prepare_cells(FracMesh *fm, cell *cells, int expected_shards, int
 	int *skipmap = MEM_callocN(sizeof(int) * expected_shards, "skipmap");
 	int *deletemap = MEM_callocN(sizeof(int) * fm->shard_count, "deletemap");
 
+	/* again, multiple variants are handled here, split up ?, TODO */
 	if ((algorithm == MOD_FRACTURE_BOOLEAN) || (algorithm == MOD_FRACTURE_BOOLEAN_FRACTAL)) {
 		MPoly *mpoly, *mp;
 		int totpoly, po;
@@ -1060,7 +1099,7 @@ static void do_prepare_cells(FracMesh *fm, cell *cells, int expected_shards, int
 			}
 		}
 	}
-	//BLI_unlock_thread(LOCK_CUSTOM1);
+	//BLI_unlock_thread(LOCK_CUSTOM1); //yuck what was that ? old attempt of what ?
 
 	fm->last_expected_shards = expected_shards;
 
@@ -1070,6 +1109,10 @@ static void do_prepare_cells(FracMesh *fm, cell *cells, int expected_shards, int
 
 
 /* parse the voro++ cell data */
+/* voronoi cell data is just vertex positions, and face index arrays. This allows to construct ngon-faced raw cells out of
+ * the returned data from voro++. Shard tree was used (?) to keep track of last positions of shards in KDTree (to find it quickly)
+ * TODO, need to split this very long and clunky function */
+
 //static ThreadMutex prep_lock = BLI_MUTEX_INITIALIZER;
 static void parse_cells(cell *cells, int expected_shards, ShardID parent_id, FracMesh *fm, int algorithm, Object *obj, DerivedMesh *dm,
                         short inner_material_index, float mat[4][4], int num_cuts, float fractal, bool smooth, int num_levels, int mode,
@@ -1366,6 +1409,7 @@ static Shard *parse_cell(cell c)
 
 	copy_v3_v3(centr, c.centroid);
 
+	/* HERE we take ownership of the generated Vert, Loop, Polydata in the shards, no copy */
 	s = BKE_create_fracture_shard(mvert, mpoly, mloop, NULL, totvert, totpoly, totloop, 0, false);
 
 	//s->flag &= ~(SHARD_SKIP | SHARD_DELETE);
@@ -1439,6 +1483,8 @@ static void parse_cell_neighbors(cell c, int *neighbors, int totpoly)
 	}
 }
 
+/* This is necessary for line based greasepencil fracture. Worked only half, subject to major overhaul in 2.8
+ * Can be probably added later or left out. Basically it turns a gp stroke into a mesh cutter plane. */
 static void stroke_to_faces(FractureModifierData *fmd, BMesh** bm, bGPDstroke *gps, int inner_material_index)
 {
 	BMVert *lastv1 = NULL;
@@ -1523,6 +1569,7 @@ static void stroke_to_faces(FractureModifierData *fmd, BMesh** bm, bGPDstroke *g
 	}
 }
 
+/* add inner (?) vgroup ? or vgroup in general during fracture ? TODO, check caller) */
 static void add_vgroup(Shard *s, Object *ob, const char* name)
 {
 	int index = 0, i = 0;
@@ -1541,6 +1588,7 @@ static void add_vgroup(Shard *s, Object *ob, const char* name)
 	}
 }
 
+/* same as with vgroups, but with materials, see above */
 static void add_material(Shard* s, Object *ob, short mat_ofs) {
 
 	/* only use material offsets if we have 3 or more materials; since FM material handling still is a bit odd  */
@@ -1564,6 +1612,7 @@ static void add_material(Shard* s, Object *ob, short mat_ofs) {
 	}
 }
 
+/* Used with cuttergroups, works not really properly as well, Leave off / fix later ? */
 static void do_intersect(FractureModifierData *fmd, Object* ob, Shard *t, short inner_mat_index,
                          bool is_zero, float mat[4][4], int **shard_counts, int* count,
                          int k, DerivedMesh **dm_parent, bool keep_other_shard, float thresh)
@@ -1639,7 +1688,7 @@ static void do_intersect(FractureModifierData *fmd, Object* ob, Shard *t, short 
 }
 
 
-
+/* Also used by cutter groups feature, to intersect each shard individually by the given DM */
 static void intersect_shards_by_dm(FractureModifierData *fmd, DerivedMesh *d, Object *ob, Object *ob2, short inner_mat_index, float mat[4][4],
                                    bool keep_other_shard, float thresh)
 {
@@ -1732,6 +1781,7 @@ static void reset_shards(FractureModifierData *fmd)
 	}
 }
 
+/* main function of GP based fracture, by lines / cutter planes */
 void BKE_fracture_shard_by_greasepencil(FractureModifierData *fmd, Object *obj, short inner_material_index, float mat[4][4])
 {
 	bGPDlayer *gpl;
@@ -1777,6 +1827,7 @@ void BKE_fracture_shard_by_greasepencil(FractureModifierData *fmd, Object *obj, 
 	}
 }
 
+/* main function of cuttergroup fracture */
 void BKE_fracture_shard_by_planes(FractureModifierData *fmd, Object *obj, short inner_material_index, float mat[4][4])
 {
 	if (fmd->cutter_group != NULL && obj->type == OB_MESH)
@@ -1862,6 +1913,7 @@ void BKE_fracture_shard_by_planes(FractureModifierData *fmd, Object *obj, short 
 	}
 }
 
+/* this should really be passed around here everywhere !!! TODO*/
 typedef struct FractureData {
 	cell *voro_cells;
 	FracMesh *fmesh;
@@ -1934,6 +1986,7 @@ static FractureData segment_cells(cell *voro_cells, int startcell, int totcells,
 	return fd;
 }
 
+/* main function for pointcloud based fracture */
 void BKE_fracture_shard_by_points(FracMesh *fmesh, ShardID id, FracPointCloud *pointcloud, int algorithm, Object *obj, DerivedMesh *dm, short
                                   inner_material_index, float mat[4][4], int num_cuts, float fractal, bool smooth, int num_levels, int mode,
                                   bool reset, int active_setting, int num_settings, char uv_layer[64], bool threaded,
@@ -2146,7 +2199,7 @@ void BKE_fracmesh_free(FracMesh *fm, bool doCustomData)
 	}
 }
 
-
+/* marking ? what is being marked ? ah sharp for edges which are being created by cutting etc... */
 static void do_marking(FractureModifierData *fmd, DerivedMesh *result)
 {
 	MEdge *medge = result->getEdgeArray(result);
@@ -2186,6 +2239,7 @@ static void do_marking(FractureModifierData *fmd, DerivedMesh *result)
 	}
 }
 
+/* create a Derivedmesh from a collection of Shards of an FM */
 static DerivedMesh* do_create(FractureModifierData *fmd, int num_verts, int num_loops, int num_polys, int num_edges,
                               bool doCustomData, bool use_packed)
 {
@@ -2316,7 +2370,7 @@ static DerivedMesh* do_create(FractureModifierData *fmd, int num_verts, int num_
 	return result;
 }
 
-/* DerivedMesh */
+/* main function of creating DerivedMesh from shards */
 static DerivedMesh *create_dm(FractureModifierData *fmd, bool doCustomData, bool use_packed)
 {
 	Shard *s;
@@ -2369,6 +2423,7 @@ static DerivedMesh *create_dm(FractureModifierData *fmd, bool doCustomData, bool
 	return result;
 }
 
+/*well... HERE is the main function TODO */
 DerivedMesh* BKE_fracture_create_dm(FractureModifierData *fmd, bool doCustomData, bool use_packed)
 {
 	DerivedMesh *dm_final = NULL;
@@ -2400,6 +2455,7 @@ void BKE_copy_customdata_layers(CustomData* dest, CustomData *src, int type, int
 	}
 }
 
+/* create a DerivedMesh from a single Shard */
 DerivedMesh *BKE_shard_create_dm(Shard *s, bool doCustomData)
 {
 	DerivedMesh *dm;
@@ -2480,6 +2536,7 @@ void BKE_get_prev_entries(FractureModifierData *fmd)
 	}
 }
 
+/* find the correct current mesh state according to whether the current frame is in its frame range */
 bool BKE_lookup_mesh_state(FractureModifierData *fmd, int frame, int do_lookup)
 {
 	bool changed = false;
@@ -2677,6 +2734,7 @@ void BKE_free_constraints(FractureModifierData *fmd)
 	fmd->meshConstraints.last = NULL;
 }
 
+/*currently unused, was attempt to have different settings for different parts of the mesh */
 void BKE_fracture_load_settings(FractureModifierData *fmd, FractureSetting *fs)
 {
 	/*copy settings values to FM itself....*/
@@ -3245,6 +3303,7 @@ short BKE_fracture_collect_materials(Object* o, Object* ob, int matstart, GHash*
 	return (*totcolp);
 }
 
+/* was attempt to carry over packed shards from external mode to other modes like prefracture or dynamic */
 void pack_storage_add(FractureModifierData *fmd, Shard* s)
 {
 	Shard *t = BKE_fracture_shard_copy(s);
@@ -3291,6 +3350,7 @@ void fracture_collect_layers(Shard* s, DerivedMesh *dm, int vertstart, int polys
 	fracture_collect_layer(&s->vertData, &dm->vertData, totvert, CD_PROP_FLT, vertstart, s->totvert);
 }
 
+/* for "external" mode ! basically this packs an object into the FM mesh */
 MeshIsland* BKE_fracture_mesh_island_add(FractureModifierData *fmd, Object* own, Object *target)
 {
 	MeshIsland *mi;
