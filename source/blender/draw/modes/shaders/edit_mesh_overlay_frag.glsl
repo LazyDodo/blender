@@ -10,7 +10,6 @@
  * TODO Refine the range to only affect GPUs. */
 
 uniform float faceAlphaMod;
-
 flat in vec3 edgesCrease;
 flat in vec3 edgesBweight;
 flat in vec4 faceColor;
@@ -76,13 +75,6 @@ const ivec3 clipPointIdx[6] = ivec3[6](
 	ivec3(2, 1, 0)
 );
 
-const vec4 stipple_matrix[4] = vec4[4](
-	vec4(1.0, 0.0, 0.0, 0.0),
-	vec4(0.0, 0.0, 0.0, 0.0),
-	vec4(0.0, 0.0, 1.0, 0.0),
-	vec4(0.0, 0.0, 0.0, 0.0)
-);
-
 void colorDist(vec4 color, float dist)
 {
 	FragColor = (dist < 0) ? color : FragColor;
@@ -146,15 +138,7 @@ void main()
 
 	/* First */
 	FragColor = faceColor;
-
-	if ((flag[0] & FACE_ACTIVE) != 0) {
-		int x = int(gl_FragCoord.x) & 0x3; /* mod 4 */
-		int y = int(gl_FragCoord.y) & 0x3; /* mod 4 */
-		FragColor *= stipple_matrix[x][y];
-	}
-	else {
-		FragColor.a *= faceAlphaMod;
-	}
+	FragColor.a *= faceAlphaMod;
 
 	/* Edges */
 	for (int v = 0; v < 3; ++v) {
@@ -181,10 +165,13 @@ void main()
 #ifdef VERTEX_SELECTION
 			colorDistEdge(vec4(vertexColor, 1.0), innerEdge);
 #else
+#  ifdef EDGE_SELECTION
 			vec4 inner_edge_color = colorWireEdit;
 			inner_edge_color = ((flag[v] & EDGE_SELECTED) != 0) ? colorEdgeSelect : inner_edge_color;
 			inner_edge_color = ((flag[v] & EDGE_ACTIVE) != 0) ? vec4(colorEditMeshActive.xyz, 1.0) : inner_edge_color;
-
+#  else
+			vec4 inner_edge_color = colorWireInactive;
+#  endif
 			colorDistEdge(inner_edge_color, innerEdge);
 #endif
 		}
