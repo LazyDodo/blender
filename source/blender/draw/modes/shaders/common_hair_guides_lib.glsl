@@ -268,21 +268,21 @@ void interpolate_vertex(int fiber_index, float curve_param,
 	if (parent_index.y != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
 		DeformParams pdeform_params;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, pdeform_params);
+		interpolate_parent_curve(parent_index.y, curve_param, pco, pnor, ptang, prootco, pdeform_params);
 		co += parent_weight.y * pco;
 		tang += parent_weight.y * normalize(ptang);
 	}
 	if (parent_index.z != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
 		DeformParams pdeform_params;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, pdeform_params);
+		interpolate_parent_curve(parent_index.z, curve_param, pco, pnor, ptang, prootco, pdeform_params);
 		co += parent_weight.z * pco;
 		tang += parent_weight.z * normalize(ptang);
 	}
 	if (parent_index.w != INDEX_INVALID) {
 		vec3 pco, pnor, ptang, prootco;
 		DeformParams pdeform_params;
-		interpolate_parent_curve(parent_index.x, curve_param, pco, pnor, ptang, prootco, pdeform_params);
+		interpolate_parent_curve(parent_index.w, curve_param, pco, pnor, ptang, prootco, pdeform_params);
 		co += parent_weight.w * pco;
 		tang += parent_weight.w * normalize(ptang);
 	}
