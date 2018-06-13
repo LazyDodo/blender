@@ -73,7 +73,9 @@ static bool last_redo_poll(const bContext *C)
 		return false;
 	}
 	bool success = false;
-	if (!WM_operator_check_ui_empty(op->type)) {
+	if (WM_operator_repeat_check(C, op) &&
+	    WM_operator_check_ui_empty(op->type) == false)
+	{
 		success = WM_operator_poll((bContext *)C, op->type);
 	}
 	return success;
@@ -147,7 +149,7 @@ static void hud_region_layout(const bContext *C, ARegion *ar)
 
 	int size_y = ar->sizey;
 
-	ED_region_panels_layout_ex(C, ar, NULL, -1, true);
+	ED_region_panels_layout(C, ar);
 
 	if (ar->panels.first && (ar->sizey != size_y)) {
 		View2D *v2d = &ar->v2d;

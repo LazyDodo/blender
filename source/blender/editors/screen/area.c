@@ -1099,8 +1099,8 @@ static void region_rect_recursive(wmWindow *win, ScrArea *sa, ARegion *ar, rcti 
 		        max_ii(0, BLI_rcti_size_y(overlap_remainder) - UI_UNIT_Y / 2));
 		ar->winrct.xmin = overlap_remainder_margin.xmin;
 		ar->winrct.ymin = overlap_remainder_margin.ymin;
-		ar->winrct.xmax = ar->winrct.xmin + ar->sizex;
-		ar->winrct.ymax = ar->winrct.ymin + ar->sizey;
+		ar->winrct.xmax = ar->winrct.xmin + ar->sizex - 1;
+		ar->winrct.ymax = ar->winrct.ymin + ar->sizey - 1;
 
 		BLI_rcti_isect(&ar->winrct, &overlap_remainder_margin, &ar->winrct);
 		if (BLI_rcti_size_x(&ar->winrct) < UI_UNIT_X ||
@@ -2077,7 +2077,7 @@ void ED_region_panels_layout_ex(
 		Panel *panel = ar->panels.last;
 		if (panel != NULL) {
 			int size_dyn[2] = {
-				UI_UNIT_X * 12,
+				UI_UNIT_X * ((panel->flag & PNL_CLOSED) ? 8 : 14),
 				UI_panel_size_y(panel),
 			};
 			/* region size is layout based and needs to be updated */
@@ -2135,6 +2135,10 @@ void ED_region_panels_layout_ex(
 		ar->runtime.category = category;
 	}
 }
+void ED_region_panels_layout(const bContext *C, ARegion *ar)
+{
+	ED_region_panels_layout_ex(C, ar, NULL, -1, true);
+}
 
 void ED_region_panels_draw(const bContext *C, ARegion *ar)
 {
@@ -2180,7 +2184,7 @@ void ED_region_panels_ex(
 void ED_region_panels(const bContext *C, ARegion *ar)
 {
 	/* TODO: remove? */
-	ED_region_panels_layout_ex(C, ar, NULL, -1, true);
+	ED_region_panels_layout(C, ar);
 	ED_region_panels_draw(C, ar);
 }
 
