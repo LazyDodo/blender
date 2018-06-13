@@ -1366,7 +1366,7 @@ void paint_2d_redraw(const bContext *C, void *ps, bool final)
 	if (s->need_redraw) {
 		ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, &s->iuser, NULL);
 
-		imapaint_image_update(s->sima, s->image, ibuf, false);
+		imapaint_image_update(s->sima, s->image, ibuf, &s->iuser, false);
 		ED_imapaint_clear_partial_redraw();
 
 		BKE_image_release_ibuf(s->image, ibuf, NULL);
@@ -1616,7 +1616,7 @@ void paint_2d_bucket_fill(
 		BLI_stack_free(stack);
 	}
 
-	imapaint_image_update(sima, ima, ibuf, false);
+	imapaint_image_update(sima, ima, ibuf, &s->iuser, false);
 	ED_imapaint_clear_partial_redraw();
 
 	BKE_image_release_ibuf(ima, ibuf, NULL);
@@ -1731,7 +1731,7 @@ void paint_2d_gradient_fill(
 		}
 	}
 
-	imapaint_image_update(sima, ima, ibuf, false);
+	imapaint_image_update(sima, ima, ibuf, &s->iuser, false);
 	ED_imapaint_clear_partial_redraw();
 
 	BKE_image_release_ibuf(ima, ibuf, NULL);

@@ -180,7 +180,7 @@ typedef struct ImagePaintPartialRedraw {
 #define IMAPAINT_TILE_NUMBER(size)  (((size) + IMAPAINT_TILE_SIZE - 1) >> IMAPAINT_TILE_BITS)
 
 int image_texture_paint_poll(struct bContext *C);
-void imapaint_image_update(struct SpaceImage *sima, struct Image *image, struct ImBuf *ibuf, short texpaint);
+void imapaint_image_update(struct SpaceImage *sima, struct Image *image, struct ImBuf *ibuf, struct ImageUser *iuser, short texpaint);
 struct ImagePaintPartialRedraw *get_imapaintpartial(void);
 void set_imapaintpartial(struct ImagePaintPartialRedraw *ippr);
 void imapaint_region_tiles(struct ImBuf *ibuf, int x, int y, int w, int h, int *tx, int *ty, int *tw, int *th);

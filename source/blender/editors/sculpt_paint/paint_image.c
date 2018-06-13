@@ -161,7 +161,7 @@ void ED_imapaint_dirty_region(Image *ima, ImBuf *ibuf, int x, int y, int w, int 
 		IMB_freeImBuf(tmpibuf);
 }
 
-void imapaint_image_update(SpaceImage *sima, Image *image, ImBuf *ibuf, short texpaint)
+void imapaint_image_update(SpaceImage *sima, Image *image, ImBuf *ibuf, ImageUser *iuser, short texpaint)
 {
 	if (imapaintpartial.x1 != imapaintpartial.x2 &&
 	    imapaintpartial.y1 != imapaintpartial.y2)
@@ -179,7 +179,7 @@ void imapaint_image_update(SpaceImage *sima, Image *image, ImBuf *ibuf, short te
 		int h = imapaintpartial.y2 - imapaintpartial.y1;
 		if (w && h) {
 			/* Testing with partial update in uv editor too */
-			GPU_paint_update_image(image, (sima ? &sima->iuser : NULL), imapaintpartial.x1, imapaintpartial.y1, w, h);
+			GPU_paint_update_image(image, iuser, imapaintpartial.x1, imapaintpartial.y1, w, h);
 		}
 	}
 }

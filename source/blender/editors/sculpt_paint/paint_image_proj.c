@@ -194,6 +194,7 @@ BLI_INLINE unsigned char f_to_char(const float val)
 typedef struct ProjPaintImage {
 	Image *ima;
 	ImBuf *ibuf;
+	ImageUser iuser;
 	ImagePaintPartialRedraw *partRedrawRect;
 	volatile void **undoRect; /* only used to build undo tiles during painting */
 	unsigned short **maskRect; /* the mask accumulation must happen on canvas, not on space screen bucket.
@@ -3684,14 +3685,13 @@ static void project_paint_build_proj_ima(
 
 	for (node = image_LinkList, i = 0; node; node = node->next, i++, projIma++) {
 		float local_uv[2];
-		ImageUser iuser = {NULL};
-		iuser.ok = true;
-		iuser.tile = BKE_image_get_tile_from_pos(node->link, uv, local_uv, projIma->uv_ofs);
-
+		memset(&projIma->iuser, 0, sizeof(projIma->iuser));
+		projIma->iuser.ok = true;
+		projIma->iuser.tile = BKE_image_get_tile_from_pos(node->link, uv, local_uv, projIma->uv_ofs);
 		int size;
 		projIma->ima = node->link;
 		projIma->touch = 0;
-		projIma->ibuf = BKE_image_acquire_ibuf(projIma->ima, &iuser, NULL);
+		projIma->ibuf = BKE_image_acquire_ibuf(projIma->ima, &projIma->iuser, NULL);
 		size = sizeof(void **) * IMAPAINT_TILE_NUMBER(projIma->ibuf->x) * IMAPAINT_TILE_NUMBER(projIma->ibuf->y);
 		projIma->partRedrawRect =  BLI_memarena_alloc(arena, sizeof(ImagePaintPartialRedraw) * PROJ_BOUNDBOX_SQUARED);
 		partial_redraw_array_init(projIma->partRedrawRect);
@@ -4105,7 +4105,7 @@ static bool project_image_refresh_tagged(ProjPaintState *ps)
 				pr = &(projIma->partRedrawRect[i]);
 				if (pr->x2 != -1) { /* TODO - use 'enabled' ? */
 					set_imapaintpartial(pr);
-					imapaint_image_update(NULL, projIma->ima, projIma->ibuf, true);
+					imapaint_image_update(NULL, projIma->ima, projIma->ibuf, &projIma->iuser, true);
 					redraw = 1;
 				}
 
