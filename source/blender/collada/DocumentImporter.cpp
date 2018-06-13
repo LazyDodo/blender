@@ -244,7 +244,7 @@ void DocumentImporter::finish()
 
 	armature_importer.set_tags_map(this->uid_tags_map);
 	armature_importer.make_armatures(mContext, *objects_to_scale);
-	armature_importer.make_shape_keys();
+	armature_importer.make_shape_keys(mContext);
 	DEG_relations_tag_update(bmain);
 
 #if 0
@@ -1085,7 +1085,7 @@ bool DocumentImporter::writeImage(const COLLADAFW::Image *image)
 		workpath = imagepath.c_str();
 	}
 
-	Image *ima = BKE_image_load_exists(workpath);
+	Image *ima = BKE_image_load_exists(CTX_data_main(mContext), workpath);
 	if (!ima) {
 		fprintf(stderr, "Cannot create image: %s\n", workpath);
 		return true;

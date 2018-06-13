@@ -332,8 +332,8 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 	G.is_break = false;
 	RE_test_break_cb(re, NULL, render_break);
 
-	ima = BKE_image_verify_viewer(IMA_TYPE_R_RESULT, "Render Result");
-	BKE_image_signal(ima, NULL, IMA_SIGNAL_FREE);
+	ima = BKE_image_verify_viewer(mainp, IMA_TYPE_R_RESULT, "Render Result");
+	BKE_image_signal(mainp, ima, NULL, IMA_SIGNAL_FREE);
 	BKE_image_backup_render(scene, ima, true);
 
 	/* cleanup sequencer caches before starting user triggered render.
@@ -570,7 +570,7 @@ static void image_rect_update(void *rjv, RenderResult *rr, volatile rcti *renrec
 	else if (rj->image_outdated) {
 		/* update entire render */
 		rj->image_outdated = false;
-		BKE_image_signal(ima, NULL, IMA_SIGNAL_COLORMANAGE);
+		BKE_image_signal(rj->main, ima, NULL, IMA_SIGNAL_COLORMANAGE);
 		*(rj->do_update) = true;
 		return;
 	}
@@ -1002,8 +1002,8 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	WM_jobs_callbacks(wm_job, render_startjob, NULL, NULL, render_endjob);
 
 	/* get a render result image, and make sure it is empty */
-	ima = BKE_image_verify_viewer(IMA_TYPE_R_RESULT, "Render Result");
-	BKE_image_signal(ima, NULL, IMA_SIGNAL_FREE);
+	ima = BKE_image_verify_viewer(bmain, IMA_TYPE_R_RESULT, "Render Result");
+	BKE_image_signal(rj->main, ima, NULL, IMA_SIGNAL_FREE);
 	BKE_image_backup_render(rj->scene, ima, true);
 	rj->image = ima;
 
@@ -1015,6 +1015,7 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	RE_current_scene_update_cb(re, rj, current_scene_update);
 	RE_stats_draw_cb(re, rj, image_renderinfo_cb);
 	RE_progress_cb(re, rj, render_progress_update);
+	RE_gl_context_create(re);
 
 	rj->re = re;
 	G.is_break = false;

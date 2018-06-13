@@ -1232,7 +1232,7 @@ static void view3d_buttons_region_init(wmWindowManager *wm, ARegion *ar)
 
 static void view3d_buttons_region_draw(const bContext *C, ARegion *ar)
 {
-	ED_region_panels(C, ar, NULL, -1, true);
+	ED_region_panels(C, ar);
 }
 
 static void view3d_buttons_region_listener(
@@ -1361,7 +1361,7 @@ static void view3d_tools_region_init(wmWindowManager *wm, ARegion *ar)
 
 static void view3d_tools_region_draw(const bContext *C, ARegion *ar)
 {
-	ED_region_panels(C, ar, (const char * []){CTX_data_mode_string(C), NULL}, -1, true);
+	ED_region_panels_ex(C, ar, (const char * []){CTX_data_mode_string(C), NULL}, -1, true);
 }
 
 /* area (not region) level listener */
@@ -1563,6 +1563,10 @@ void ED_spacetype_view3d(void)
 	art->init = view3d_header_region_init;
 	art->draw = view3d_header_region_draw;
 	art->message_subscribe = view3d_header_region_message_subscribe;
+	BLI_addhead(&st->regiontypes, art);
+
+	/* regions: hud */
+	art = ED_area_type_hud(st->spaceid);
 	BLI_addhead(&st->regiontypes, art);
 
 	BKE_spacetype_register(st);
