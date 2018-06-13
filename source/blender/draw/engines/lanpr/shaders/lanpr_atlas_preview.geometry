@@ -25,9 +25,15 @@ uniform vec4 crease_color;
 uniform vec4 material_color;
 uniform vec4 edge_mark_color;
 
+uniform float line_thickness_crease;
+uniform float line_thickness_material;
+uniform float line_thickness_edge_mark;
+
+float use_thickness = line_thickness;
+
 out vec4 out_color;
 
-vec4 use_color;
+vec4 use_color = color;
 
 float get_linear_depth(float z){
 	float ze = 2.0 * zNear * zFar / (zFar + zNear - z * (zFar - zNear));
@@ -58,7 +64,7 @@ void draw_line(vec4 p1, vec4 p2){
     
 	vec4 a,b,c,d;
     
-	vec4 offset = Normal*line_thickness*0.001;
+	vec4 offset = Normal*use_thickness*0.001;
 	a = p1 + offset;
     b = p1 - offset;
 	c = p2 + offset;
@@ -88,10 +94,9 @@ void main() {
 
 	vec4 edge_mask = texelFetch(edge_mask_tex, ivec2(gl_in[0].gl_Position.xy), 0);
 
-	if(edge_mask.g>0) use_color = edge_mark_color;
-	else if(edge_mask.r>0) use_color = material_color;
-    else if(p1.w!=p2.w) use_color = crease_color;
-	else use_color = color;
+	if(edge_mask.g>0)      { use_color = edge_mark_color; use_thickness = line_thickness*line_thickness_edge_mark; }
+	else if(edge_mask.r>0) { use_color = material_color;  use_thickness = line_thickness*line_thickness_material;  }
+    else if(p1.w!=p2.w)    { use_color = crease_color;    use_thickness = line_thickness*line_thickness_crease;    }
 
 	draw_line(p1,p2);
 }

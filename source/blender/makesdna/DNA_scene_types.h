@@ -1444,7 +1444,12 @@ typedef struct SceneLANPR{
 	float normal_strength;
 
 	float line_thickness;
-	
+
+	/*line style layer*/
+	float line_thickness_crease;
+	float line_thickness_material;
+	float line_thickness_edge_mark;
+
 	int   use_same_taper;
 	float taper_left_distance;
 	float taper_left_strength;
@@ -1474,8 +1479,6 @@ typedef struct SceneLANPR{
 	float depth_alpha_curve;
 
     /* line components */
-
-	int   size_compensation;
 	
 	int   enable_crease;
 	int   enable_edge_mark;

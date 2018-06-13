@@ -513,9 +513,39 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
                 row.prop(lanpr, "enable_intersection", text="Intersection", toggle=True)
 
                 row = col.row(align=True)
-                row.prop(lanpr, "crease_color", text="")
-                row.prop(lanpr, "edge_mark_color", text="")
-                row.prop(lanpr, "material_color", text="")
+                if lanpr.enable_crease:
+                    row.prop(lanpr, "crease_color", text="")
+                else:
+                    row.label(text="OFF")
+                
+                if lanpr.enable_edge_mark:
+                    row.prop(lanpr, "edge_mark_color", text="")
+                else:
+                    row.label(text="OFF")
+
+                if lanpr.enable_material_seperate:
+                    row.prop(lanpr, "material_color", text="")
+                else:
+                    row.label(text="OFF")
+
+                row.label(text="INOP")
+
+                row = col.row(align=True)
+                if lanpr.enable_crease:
+                    row.prop(lanpr, "line_thickness_crease", text="")
+                else:
+                    row.label(text="OFF")
+                
+                if lanpr.enable_edge_mark:
+                    row.prop(lanpr, "line_thickness_edge_mark", text="")
+                else:
+                    row.label(text="OFF")
+
+                if lanpr.enable_material_seperate:
+                    row.prop(lanpr, "line_thickness_material", text="")
+                else:
+                    row.label(text="OFF")
+
                 row.label(text="INOP")
 
                 layout.prop(lanpr, "crease_threshold")

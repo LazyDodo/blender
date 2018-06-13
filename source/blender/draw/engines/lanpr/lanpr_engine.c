@@ -277,6 +277,9 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_alpha_influence", &lanpr->depth_alpha_influence, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_alpha_curve", &lanpr->depth_alpha_curve, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness", &lanpr->line_thickness, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_crease", &lanpr->line_thickness_crease, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_material", &lanpr->line_thickness_material, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_edge_mark", &lanpr->line_thickness_edge_mark, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zNear", &stl->g_data->dpix_znear, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zFar", &stl->g_data->dpix_zfar, 1);
 

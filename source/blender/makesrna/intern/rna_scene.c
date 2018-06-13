@@ -6341,6 +6341,22 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_array(prop, 4);
 	RNA_def_property_ui_text(prop, "Edge Mark Color", "Drawing edge marks using this color");
 	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+	prop = RNA_def_property(srna, "line_thickness_crease", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Line Thickness", "Thickness of crease line");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
+
+	prop = RNA_def_property(srna, "line_thickness_material", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Line Thickness", "Thickness of material line");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
+
+	prop = RNA_def_property(srna, "line_thickness_edge_mark", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Line Thickness", "Thickness of edge mark line");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
+
 }
 
 void RNA_def_scene(BlenderRNA *brna)
