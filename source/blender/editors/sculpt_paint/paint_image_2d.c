@@ -82,7 +82,7 @@ typedef struct BrushPainterCache {
 	bool is_texbrush;
 	bool is_maskbrush;
 
-	int lastdiameter;
+	int lastdiameter[2];
 	float last_tex_rotation;
 	float last_mask_rotation;
 	float last_pressure;
@@ -147,7 +147,7 @@ typedef struct ImagePaintState {
 
 	ImageUser iuser;
 	float uv_ofs[2];
-	float radius_fac;
+	float radius_fac[2];
 
 	BlurKernel *blurkernel;
 } ImagePaintState;
@@ -160,7 +160,7 @@ static BrushPainter *brush_painter_2d_new(Scene *scene, Brush *brush, bool inver
 	painter->brush = brush;
 	painter->scene = scene;
 	painter->firsttouch = 1;
-	painter->cache.lastdiameter = -1; /* force ibuf create in refresh */
+	painter->cache.lastdiameter[0] = -1; /* force ibuf create in refresh */
 	painter->cache.invert = invert;
 
 	return painter;
@@ -179,7 +179,7 @@ static void brush_painter_2d_require_imbuf(BrushPainter *painter, bool use_float
 		painter->cache.ibuf = NULL;
 		painter->cache.curve_mask = NULL;
 		painter->cache.tex_mask = NULL;
-		painter->cache.lastdiameter = -1; /* force ibuf create in refresh */
+		painter->cache.lastdiameter[0] = -1; /* force ibuf create in refresh */
 	}
 
 	painter->cache.use_float = use_float;
@@ -206,7 +206,7 @@ static void brush_imbuf_tex_co(rctf *mapping, int x, int y, float texco[3])
 }
 
 /* create a mask with the mask texture */
-static unsigned short *brush_painter_mask_ibuf_new(BrushPainter *painter, int size)
+static unsigned short *brush_painter_mask_ibuf_new(BrushPainter *painter, const int size[2])
 {
 	Scene *scene = painter->scene;
 	Brush *brush = painter->brush;
@@ -217,11 +217,11 @@ static unsigned short *brush_painter_mask_ibuf_new(BrushPainter *painter, int si
 	unsigned short *mask, *m;
 	int x, y, thread = 0;
 
-	mask = MEM_mallocN(sizeof(unsigned short) * size * size, "brush_painter_mask");
+	mask = MEM_mallocN(sizeof(unsigned short) * size[0] * size[1], "brush_painter_mask");
 	m = mask;
 
-	for (y = 0; y < size; y++) {
-		for (x = 0; x < size; x++, m++) {
+	for (y = 0; y < size[1]; y++) {
+		for (x = 0; x < size[0]; x++, m++) {
 			float res;
 			brush_imbuf_tex_co(&mask_mapping, x, y, texco);
 			res = BKE_brush_sample_masktex(scene, brush, texco, thread, pool);
@@ -235,7 +235,7 @@ static unsigned short *brush_painter_mask_ibuf_new(BrushPainter *painter, int si
 /* update rectangular section of the brush image */
 static void brush_painter_mask_imbuf_update(
         BrushPainter *painter, unsigned short *tex_mask_old,
-        int origx, int origy, int w, int h, int xt, int yt, int diameter)
+        int origx, int origy, int w, int h, int xt, int yt, const int diameter[2])
 {
 	Scene *scene = painter->scene;
 	Brush *brush = painter->brush;
@@ -257,8 +257,8 @@ static void brush_painter_mask_imbuf_update(
 			float texco[3];
 
 			/* handle byte pixel */
-			unsigned short *b = tex_mask + (y * diameter + x);
-			unsigned short *t = tex_mask_cur + (y * diameter + x);
+			unsigned short *b = tex_mask + (y * diameter[0] + x);
+			unsigned short *t = tex_mask_cur + (y * diameter[0] + x);
 
 			if (!use_texture_old) {
 				brush_imbuf_tex_co(&tex_mapping, x, y, texco);
@@ -284,7 +284,7 @@ static void brush_painter_mask_imbuf_update(
  * This can be considerably faster for brushes that change size due to pressure or
  * textures that stick to the surface where only part of the pixels are new
  */
-static void brush_painter_mask_imbuf_partial_update(BrushPainter *painter, const float pos[2], int diameter)
+static void brush_painter_mask_imbuf_partial_update(BrushPainter *painter, const float pos[2], const int diameter[2])
 {
 	BrushPainterCache *cache = &painter->cache;
 	unsigned short *tex_mask_old;
@@ -292,24 +292,25 @@ static void brush_painter_mask_imbuf_partial_update(BrushPainter *painter, const
 
 	/* create brush image buffer if it didn't exist yet */
 	if (!cache->tex_mask)
-		cache->tex_mask = MEM_mallocN(sizeof(unsigned short) * diameter * diameter, "brush_painter_mask");
+		cache->tex_mask = MEM_mallocN(sizeof(unsigned short) * diameter[0] * diameter[1], "brush_painter_mask");
 
 	/* create new texture image buffer with coordinates relative to old */
 	tex_mask_old = cache->tex_mask_old;
-	cache->tex_mask_old = MEM_mallocN(sizeof(unsigned short) * diameter * diameter, "brush_painter_mask");
+	cache->tex_mask_old = MEM_mallocN(sizeof(unsigned short) * diameter[0] * diameter[1], "brush_painter_mask");
 
 	if (tex_mask_old) {
 		ImBuf maskibuf;
 		ImBuf maskibuf_old;
-		maskibuf.x = maskibuf.y = diameter;
+		maskibuf.x = diameter[0];
+		maskibuf.y = diameter[1];
 		maskibuf_old.x = cache->tex_mask_old_w;
 		maskibuf_old.y = cache->tex_mask_old_h;
 
 		srcx = srcy = 0;
 		w = cache->tex_mask_old_w;
 		h = cache->tex_mask_old_h;
-		destx = (int)floorf(painter->lastpaintpos[0]) - (int)floorf(pos[0])  + (diameter / 2 - w / 2);
-		desty = (int)floorf(painter->lastpaintpos[1]) - (int)floorf(pos[1])  + (diameter / 2 - h / 2);
+		destx = (int)floorf(painter->lastpaintpos[0]) - (int)floorf(pos[0])  + (diameter[0] / 2 - w / 2);
+		desty = (int)floorf(painter->lastpaintpos[1]) - (int)floorf(pos[1])  + (diameter[1] / 2 - h / 2);
 
 		/* hack, use temporary rects so that clipping works */
 		IMB_rectclip(&maskibuf, &maskibuf_old, &destx, &desty, &srcx, &srcy, &w, &h);
@@ -320,10 +321,10 @@ static void brush_painter_mask_imbuf_partial_update(BrushPainter *painter, const
 		w = h = 0;
 	}
 
-	x1 = min_ii(destx, diameter);
-	y1 = min_ii(desty, diameter);
-	x2 = min_ii(destx + w, diameter);
-	y2 = min_ii(desty + h, diameter);
+	x1 = min_ii(destx, diameter[0]);
+	y1 = min_ii(desty, diameter[1]);
+	x2 = min_ii(destx + w, diameter[0]);
+	y2 = min_ii(desty + h, diameter[1]);
 
 	/* blend existing texture in new position */
 	if ((x1 < x2) && (y1 < y2))
@@ -333,40 +334,42 @@ static void brush_painter_mask_imbuf_partial_update(BrushPainter *painter, const
 		MEM_freeN(tex_mask_old);
 
 	/* sample texture in new areas */
-	if ((0 < x1) && (0 < diameter))
-		brush_painter_mask_imbuf_update(painter, NULL, 0, 0, x1, diameter, 0, 0, diameter);
-	if ((x2 < diameter) && (0 < diameter))
-		brush_painter_mask_imbuf_update(painter, NULL, x2, 0, diameter, diameter, 0, 0, diameter);
+	if ((0 < x1) && (0 < diameter[1]))
+		brush_painter_mask_imbuf_update(painter, NULL, 0, 0, x1, diameter[1], 0, 0, diameter);
+	if ((x2 < diameter[0]) && (0 < diameter[1]))
+		brush_painter_mask_imbuf_update(painter, NULL, x2, 0, diameter[0], diameter[1], 0, 0, diameter);
 	if ((x1 < x2) && (0 < y1))
 		brush_painter_mask_imbuf_update(painter, NULL, x1, 0, x2, y1, 0, 0, diameter);
-	if ((x1 < x2) && (y2 < diameter))
-		brush_painter_mask_imbuf_update(painter, NULL, x1, y2, x2, diameter, 0, 0, diameter);
+	if ((x1 < x2) && (y2 < diameter[1]))
+		brush_painter_mask_imbuf_update(painter, NULL, x1, y2, x2, diameter[1], 0, 0, diameter);
 
 	/* through with sampling, now update sizes */
-	cache->tex_mask_old_w = diameter;
-	cache->tex_mask_old_h = diameter;
+	cache->tex_mask_old_w = diameter[0];
+	cache->tex_mask_old_h = diameter[1];
 }
 
 /* create a mask with the falloff strength */
-static unsigned short *brush_painter_curve_mask_new(BrushPainter *painter, int diameter, float radius)
+static unsigned short *brush_painter_curve_mask_new(BrushPainter *painter, const int diameter[2], const float radius[2])
 {
 	Brush *brush = painter->brush;
 
-	int xoff = -radius;
-	int yoff = -radius;
 
 	unsigned short *mask, *m;
 	int x, y;
 
-	mask = MEM_mallocN(sizeof(unsigned short) * diameter * diameter, "brush_painter_mask");
+	mask = MEM_mallocN(sizeof(unsigned short) * diameter[0] * diameter[1], "brush_painter_mask");
 	m = mask;
 
-	for (y = 0; y < diameter; y++) {
-		for (x = 0; x < diameter; x++, m++) {
-			float xy[2] = {x + xoff, y + yoff};
+	float max_radius = max_ff(radius[0], radius[1]);
+	float xfac = max_radius/radius[0];
+	float yfac = max_radius/radius[1];
+
+	for (y = 0; y < diameter[1]; y++) {
+		for (x = 0; x < diameter[0]; x++, m++) {
+			float xy[2] = {x*xfac - max_radius, y*yfac - max_radius};
 			float len = len_v2(xy);
 
-			*m = (unsigned short)(65535.0f * BKE_brush_curve_strength_clamped(brush, len, radius));
+			*m = (unsigned short)(65535.0f * BKE_brush_curve_strength_clamped(brush, len, max_radius));
 		}
 	}
 
@@ -375,7 +378,7 @@ static unsigned short *brush_painter_curve_mask_new(BrushPainter *painter, int d
 
 
 /* create imbuf with brush color */
-static ImBuf *brush_painter_imbuf_new(BrushPainter *painter, int size, float pressure, float distance)
+static ImBuf *brush_painter_imbuf_new(BrushPainter *painter, const int size[2], float pressure, float distance)
 {
 	Scene *scene = painter->scene;
 	Brush *brush = painter->brush;
@@ -394,7 +397,7 @@ static ImBuf *brush_painter_imbuf_new(BrushPainter *painter, int size, float pre
 	float brush_rgb[3];
 
 	/* allocate image buffer */
-	ImBuf *ibuf = IMB_allocImBuf(size, size, 32, (use_float) ? IB_rectfloat : IB_rect);
+	ImBuf *ibuf = IMB_allocImBuf(size[0], size[1], 32, (use_float) ? IB_rectfloat : IB_rect);
 
 	/* get brush color */
 	if (brush->imagepaint_tool == PAINT_TOOL_DRAW) {
@@ -407,8 +410,8 @@ static ImBuf *brush_painter_imbuf_new(BrushPainter *painter, int size, float pre
 	}
 
 	/* fill image buffer */
-	for (y = 0; y < size; y++) {
-		for (x = 0; x < size; x++) {
+	for (y = 0; y < size[1]; y++) {
+		for (x = 0; x < size[0]; x++) {
 			/* sample texture and multiply with brush color */
 			float texco[3], rgba[4];
 
@@ -428,13 +431,13 @@ static ImBuf *brush_painter_imbuf_new(BrushPainter *painter, int size, float pre
 
 			if (use_float) {
 				/* write to float pixel */
-				float *dstf = ibuf->rect_float + (y * size + x) * 4;
+				float *dstf = ibuf->rect_float + (y * size[0] + x) * 4;
 				mul_v3_v3fl(dstf, rgba, rgba[3]); /* premultiply */
 				dstf[3] = rgba[3];
 			}
 			else {
 				/* write to byte pixel */
-				unsigned char *dst = (unsigned char *)ibuf->rect + (y * size + x) * 4;
+				unsigned char *dst = (unsigned char *)ibuf->rect + (y * size[0] + x) * 4;
 
 				rgb_float_to_uchar(dst, rgba);
 				dst[3] = unit_float_to_uchar_clamp(rgba[3]);
@@ -556,7 +559,7 @@ static void brush_painter_imbuf_update(BrushPainter *painter, ImBuf *oldtexibuf,
 /* update the brush image by trying to reuse the cached texture result. this
  * can be considerably faster for brushes that change size due to pressure or
  * textures that stick to the surface where only part of the pixels are new */
-static void brush_painter_imbuf_partial_update(BrushPainter *painter, const float pos[2], int diameter)
+static void brush_painter_imbuf_partial_update(BrushPainter *painter, const float pos[2], const int diameter[2])
 {
 	BrushPainterCache *cache = &painter->cache;
 	ImBuf *oldtexibuf, *ibuf;
@@ -565,19 +568,19 @@ static void brush_painter_imbuf_partial_update(BrushPainter *painter, const floa
 	/* create brush image buffer if it didn't exist yet */
 	imbflag = (cache->use_float) ? IB_rectfloat : IB_rect;
 	if (!cache->ibuf)
-		cache->ibuf = IMB_allocImBuf(diameter, diameter, 32, imbflag);
+		cache->ibuf = IMB_allocImBuf(diameter[0], diameter[1], 32, imbflag);
 	ibuf = cache->ibuf;
 
 	/* create new texture image buffer with coordinates relative to old */
 	oldtexibuf = cache->texibuf;
-	cache->texibuf = IMB_allocImBuf(diameter, diameter, 32, imbflag);
+	cache->texibuf = IMB_allocImBuf(diameter[0], diameter[1], 32, imbflag);
 
 	if (oldtexibuf) {
 		srcx = srcy = 0;
 		w = oldtexibuf->x;
 		h = oldtexibuf->y;
-		destx = (int)floorf(painter->lastpaintpos[0]) - (int)floorf(pos[0]) + (diameter / 2 - w / 2);
-		desty = (int)floorf(painter->lastpaintpos[1]) - (int)floorf(pos[1]) + (diameter / 2 - h / 2);
+		destx = (int)floorf(painter->lastpaintpos[0]) - (int)floorf(pos[0]) + (diameter[0] / 2 - w / 2);
+		desty = (int)floorf(painter->lastpaintpos[1]) - (int)floorf(pos[1]) + (diameter[1] / 2 - h / 2);
 
 		IMB_rectclip(cache->texibuf, oldtexibuf, &destx, &desty, &srcx, &srcy, &w, &h);
 	}
@@ -610,7 +613,7 @@ static void brush_painter_imbuf_partial_update(BrushPainter *painter, const floa
 		brush_painter_imbuf_update(painter, NULL, x1, y2, x2, ibuf->y, 0, 0);
 }
 
-static void brush_painter_2d_tex_mapping(ImagePaintState *s, int diameter, const float startpos[2], const float pos[2], const float mouse[2], int mapmode, rctf *mapping)
+static void brush_painter_2d_tex_mapping(ImagePaintState *s, const int diameter[2], const float startpos[2], const float pos[2], const float mouse[2], int mapmode, rctf *mapping)
 {
 	float invw = 1.0f / (float)s->canvas->x;
 	float invh = 1.0f / (float)s->canvas->y;
@@ -618,19 +621,19 @@ static void brush_painter_2d_tex_mapping(ImagePaintState *s, int diameter, const
 	int ipos[2];
 
 	/* find start coordinate of brush in canvas */
-	ipos[0] = (int)floorf((pos[0] - diameter / 2) + 1.0f);
-	ipos[1] = (int)floorf((pos[1] - diameter / 2) + 1.0f);
+	ipos[0] = (int)floorf((pos[0] - diameter[0] / 2) + 1.0f);
+	ipos[1] = (int)floorf((pos[1] - diameter[1] / 2) + 1.0f);
 
 	if (mapmode == MTEX_MAP_MODE_STENCIL) {
 		/* map from view coordinates of brush to region coordinates */
 		UI_view2d_view_to_region(s->v2d, ipos[0] * invw, ipos[1] * invh, &xmin, &ymin);
-		UI_view2d_view_to_region(s->v2d, (ipos[0] + diameter) * invw, (ipos[1] + diameter) * invh, &xmax, &ymax);
+		UI_view2d_view_to_region(s->v2d, (ipos[0] + diameter[0]) * invw, (ipos[1] + diameter[1]) * invh, &xmax, &ymax);
 
 		/* output mapping from brush ibuf x/y to region coordinates */
 		mapping->xmin = xmin;
 		mapping->ymin = ymin;
-		mapping->xmax = (xmax - xmin) / (float)diameter;
-		mapping->ymax = (ymax - ymin) / (float)diameter;
+		mapping->xmax = (xmax - xmin) / (float)diameter[0];
+		mapping->ymax = (ymax - ymin) / (float)diameter[1];
 	}
 	else if (mapmode == MTEX_MAP_MODE_3D) {
 		/* 3D mapping, just mapping to canvas 0..1  */
@@ -641,26 +644,26 @@ static void brush_painter_2d_tex_mapping(ImagePaintState *s, int diameter, const
 	}
 	else if (ELEM(mapmode, MTEX_MAP_MODE_VIEW, MTEX_MAP_MODE_RANDOM)) {
 		/* view mapping */
-		mapping->xmin = mouse[0] - diameter * 0.5f + 0.5f;
-		mapping->ymin = mouse[1] - diameter * 0.5f + 0.5f;
+		mapping->xmin = mouse[0] - diameter[0] * 0.5f + 0.5f;
+		mapping->ymin = mouse[1] - diameter[1] * 0.5f + 0.5f;
 		mapping->xmax = 1.0f;
 		mapping->ymax = 1.0f;
 	}
 	else /* if (mapmode == MTEX_MAP_MODE_TILED) */ {
-		mapping->xmin = (int)(-diameter * 0.5) + (int)floorf(pos[0]) - (int)floorf(startpos[0]);
-		mapping->ymin = (int)(-diameter * 0.5) + (int)floorf(pos[1]) - (int)floorf(startpos[1]);
+		mapping->xmin = (int)(-diameter[0] * 0.5) + (int)floorf(pos[0]) - (int)floorf(startpos[0]);
+		mapping->ymin = (int)(-diameter[1] * 0.5) + (int)floorf(pos[1]) - (int)floorf(startpos[1]);
 		mapping->xmax = 1.0f;
 		mapping->ymax = 1.0f;
 	}
 }
 
-static void brush_painter_2d_refresh_cache(ImagePaintState *s, BrushPainter *painter, const float pos[2], const float mouse[2], float pressure, float distance, float size)
+static void brush_painter_2d_refresh_cache(ImagePaintState *s, BrushPainter *painter, const float pos[2], const float mouse[2], float pressure, float distance, const float size[2])
 {
 	const Scene *scene = painter->scene;
 	UnifiedPaintSettings *ups = &scene->toolsettings->unified_paint_settings;
 	Brush *brush = painter->brush;
 	BrushPainterCache *cache = &painter->cache;
-	const int diameter = 2 * size;
+	const int diameter[2] = {2 * size[0], 2 * size[1]};
 
 	bool do_random = false;
 	bool do_partial_update = false;
@@ -708,7 +711,7 @@ static void brush_painter_2d_refresh_cache(ImagePaintState *s, BrushPainter *pai
 			renew_maxmask = true;
 		}
 
-		if ((diameter != cache->lastdiameter) ||
+		if (!equals_v2v2_int(diameter, cache->lastdiameter) ||
 		    (mask_rotation != cache->last_mask_rotation) ||
 		    renew_maxmask)
 		{
@@ -729,7 +732,7 @@ static void brush_painter_2d_refresh_cache(ImagePaintState *s, BrushPainter *pai
 	}
 
 	/* curve mask can only change if the size changes */
-	if (diameter != cache->lastdiameter) {
+	if (!equals_v2v2_int(diameter, cache->lastdiameter)) {
 		if (cache->curve_mask) {
 			MEM_freeN(cache->curve_mask);
 			cache->curve_mask = NULL;
@@ -739,7 +742,7 @@ static void brush_painter_2d_refresh_cache(ImagePaintState *s, BrushPainter *pai
 	}
 
 	/* detect if we need to recreate image brush buffer */
-	if ((diameter != cache->lastdiameter) ||
+	if ((!equals_v2v2_int(diameter, cache->lastdiameter)) ||
 	    (tex_rotation != cache->last_tex_rotation) ||
 	    do_random ||
 	    update_color)
@@ -758,7 +761,7 @@ static void brush_painter_2d_refresh_cache(ImagePaintState *s, BrushPainter *pai
 			cache->ibuf = brush_painter_imbuf_new(painter, diameter, pressure, distance);
 		}
 
-		cache->lastdiameter = diameter;
+		copy_v2_v2_int(cache->lastdiameter, diameter);
 		cache->last_tex_rotation = tex_rotation;
 		cache->last_pressure = pressure;
 	}
@@ -1259,7 +1262,7 @@ static void paint_2d_transform_mouse(ImagePaintState *s, const float in[2], floa
 	sub_v2_v2(out, s->uv_ofs);
 }
 
-void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], const bool eraser, float pressure, float distance, float size)
+void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], const bool eraser, float pressure, float distance, float base_size)
 {
 	float newuv[2], olduv[2];
 	ImagePaintState *s = ps;
@@ -1274,7 +1277,8 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 	if (eraser)
 		s->blend = IMB_BLEND_ERASE_ALPHA;
 
-	size *= s->radius_fac;
+	float size[2];
+	mul_v2_v2fl(size, s->radius_fac, base_size);
 
 	paint_2d_transform_mouse(s, mval, newuv);
 	paint_2d_transform_mouse(s, prev_mval, olduv);
@@ -1341,7 +1345,7 @@ void *paint_2d_new_stroke(bContext *C, wmOperator *op, const float mouse[2], int
 	s->iuser.tile = BKE_image_get_tile_from_pos(s->image, uv, uv, s->uv_ofs);
 
 	/* Calculate radius factor to compensate for resolution difference between tiles. */
-	s->radius_fac = 1.0f;
+	copy_v2_fl(s->radius_fac, 1.0f);
 	if (s->iuser.tile > 0) {
 		ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, NULL, NULL);
 		if (ibuf) {
@@ -1350,10 +1354,8 @@ void *paint_2d_new_stroke(bContext *C, wmOperator *op, const float mouse[2], int
 			BKE_image_release_ibuf(s->image, ibuf, NULL);
 			ibuf = BKE_image_acquire_ibuf(s->image, &s->iuser, NULL);
 			if (ibuf) {
-				float fac_x = ibuf->x / main_x;
-				float fac_y = ibuf->y / main_y;
-				/* TODO(lukas): Support difference in aspect ratio. */
-				s->radius_fac = sqrtf(fac_x*fac_y);
+				s->radius_fac[0] = ibuf->x / main_x;
+				s->radius_fac[1] = ibuf->y / main_y;
 				BKE_image_release_ibuf(s->image, ibuf, NULL);
 			}
 		}
