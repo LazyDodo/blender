@@ -373,15 +373,14 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 {
 	ModifierData *md;
 	bGPdata *gpd = ob->data;
-	bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
+	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
 	
 	for (md = ob->modifiers.first; md; md = md->next) {
-		if (((md->mode & eModifierMode_Realtime) && (is_render == false)) ||
-		    ((md->mode & eModifierMode_Render) && (is_render == true)))
+		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
 		{
 			const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 			
-			if (((md->mode & eModifierMode_Editmode) == 0) && (is_edit)) {
+			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
 				continue;
 			}
 			
@@ -397,15 +396,14 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 {
 	ModifierData *md;
 	bGPdata *gpd = ob->data;
-	bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
+	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
 
 	for (md = ob->modifiers.first; md; md = md->next) {
-		if (((md->mode & eModifierMode_Realtime) && (is_render == false)) ||
-		    ((md->mode & eModifierMode_Render) && (is_render == true)))
+		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
 		{
 			const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 			
-			if (((md->mode & eModifierMode_Editmode) == 0) && (is_edit)) {
+			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
 				continue;
 			}
 

@@ -114,6 +114,10 @@ struct bGPDstroke *BKE_gpencil_add_stroke(struct bGPDframe *gpf, int mat_idx, in
 #define GPENCIL_ALPHA_OPACITY_THRESH 0.001f
 #define GPENCIL_STRENGTH_MIN 0.003f
 
+#define GPENCIL_MODIFIER_ACTIVE(_md, _is_render) (((_md->mode & eModifierMode_Realtime) && (_is_render == false)) || \
+												  ((_md->mode & eModifierMode_Render) && (_is_render == true))) 
+#define GPENCIL_MODIFIER_EDIT(_md, _is_edit) (((_md->mode & eModifierMode_Editmode) == 0) && (_is_edit))
+
 bool gpencil_layer_is_editable(const struct bGPDlayer *gpl);
 
 /* How gpencil_layer_getframe() should behave when there
