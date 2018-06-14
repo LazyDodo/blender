@@ -212,8 +212,9 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 	const char *contexts[3] = {NULL};
 
 	const WorkSpace *workspace = CTX_wm_workspace(C);
+	const int mode = CTX_data_mode_enum(C);
+
 	if (workspace->tools_space_type == SPACE_VIEW3D) {
-		const int mode = CTX_data_mode_enum(C);
 		switch (mode) {
 			case CTX_MODE_EDIT_MESH:
 				ARRAY_SET_ITEMS(contexts, ".mesh_edit");
@@ -257,22 +258,28 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 			case CTX_MODE_OBJECT:
 				ARRAY_SET_ITEMS(contexts, ".todo");
 				break;
-			case CTX_MODE_GPENCIL_PAINT:
-				ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
-				break;
-			case CTX_MODE_GPENCIL_EDIT:
-				ARRAY_SET_ITEMS(contexts, ".greasepencil_edit");
-				break;
-			case CTX_MODE_GPENCIL_SCULPT:
-				ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
-				break;
-			case CTX_MODE_GPENCIL_WEIGHT:
-				ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
-				break;
 		}
 	}
 	else if (workspace->tools_space_type == SPACE_IMAGE) {
 		/* TODO */
+	}
+
+	/* for grease pencil we don't use tool system yet, so we need check outside
+	 * workspace->tools_space_type because this value is not available 
+	 */
+	switch (mode) {
+		case CTX_MODE_GPENCIL_PAINT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
+			break;
+		case CTX_MODE_GPENCIL_EDIT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_edit");
+			break;
+		case CTX_MODE_GPENCIL_SCULPT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
+			break;
+		case CTX_MODE_GPENCIL_WEIGHT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
+			break;
 	}
 
 	ED_region_panels_layout_ex(C, ar, contexts, -1, vertical);
