@@ -74,11 +74,11 @@ void EEVEE_lookdev_cache_init(
 			    ((pinfo->studiolight_index != sl->index) ||
 			     (pinfo->studiolight_rot_z != v3d->shading.studiolight_rot_z)))
 			{
-				pinfo->update_world |= PROBE_UPDATE_ALL;
-				pinfo->studiolight_index = sl->index;
-				pinfo->studiolight_rot_z = v3d->shading.studiolight_rot_z;
-				pinfo->prev_wo_sh_compiled = false;
-				pinfo->prev_world = NULL;
+				// pinfo->update_world |= PROBE_UPDATE_ALL;
+				// pinfo->studiolight_index = sl->index;
+				// pinfo->studiolight_rot_z = v3d->shading.studiolight_rot_z;
+				// pinfo->prev_wo_sh_compiled = false;
+				// pinfo->prev_world = NULL;
 			}
 		}
 	}

@@ -44,6 +44,24 @@
 
 #include "WM_api.h"
 
+/* Rounded to nearest PowerOfTwo */
+#if defined(IRRADIANCE_SH_L2)
+#define IRRADIANCE_SAMPLE_SIZE_X 4 /* 3 in reality */
+#define IRRADIANCE_SAMPLE_SIZE_Y 4 /* 3 in reality */
+#elif defined(IRRADIANCE_CUBEMAP)
+#define IRRADIANCE_SAMPLE_SIZE_X 8
+#define IRRADIANCE_SAMPLE_SIZE_Y 8
+#elif defined(IRRADIANCE_HL2)
+#define IRRADIANCE_SAMPLE_SIZE_X 4 /* 3 in reality */
+#define IRRADIANCE_SAMPLE_SIZE_Y 2
+#endif
+
+#define IRRADIANCE_MAX_POOL_LAYER 256 /* OpenGL 3.3 core requirement, can be extended but it's already very big */
+#define IRRADIANCE_MAX_POOL_SIZE 1024
+#define MAX_IRRADIANCE_SAMPLES \
+        (IRRADIANCE_MAX_POOL_SIZE / IRRADIANCE_SAMPLE_SIZE_X) * \
+        (IRRADIANCE_MAX_POOL_SIZE / IRRADIANCE_SAMPLE_SIZE_Y)
+
 /* TODO should be replace by a more elegant alternative. */
 extern void DRW_opengl_context_enable(void);
 extern void DRW_opengl_context_disable(void);
@@ -125,6 +143,21 @@ void EEVEE_lightcache_job_data_free(void *custom_data)
 	MEM_freeN(lbake);
 }
 
+static void eevee_irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3])
+{
+	/* Compute how many irradiance samples we can store per visibility sample. */
+	int irr_per_vis = (visibility_size / IRRADIANCE_SAMPLE_SIZE_X) *
+	                  (visibility_size / IRRADIANCE_SAMPLE_SIZE_Y);
+
+	/* The irradiance itself take one layer, hence the +1 */
+	int layer_ct = MIN2(irr_per_vis + 1, IRRADIANCE_MAX_POOL_LAYER);
+
+	int texel_ct = (int)ceilf((float)total_samples / (float)(layer_ct - 1));
+	r_size[0] = visibility_size * max_ii(1, min_ii(texel_ct, (IRRADIANCE_MAX_POOL_SIZE / visibility_size)));
+	r_size[1] = visibility_size * max_ii(1, (texel_ct / (IRRADIANCE_MAX_POOL_SIZE / visibility_size)));
+	r_size[2] = layer_ct;
+}
+
 static void eevee_lightcache_create_resources(const SceneEEVEE *eevee, EEVEE_LightBake *lbake, EEVEE_LightCache *lcache)
 {
 	lbake->bounce_count = eevee->gi_diffuse_bounces;
@@ -158,7 +191,7 @@ static void eevee_lightcache_create_resources(const SceneEEVEE *eevee, EEVEE_Lig
 	}
 
 	int irr_size[3];
-	EEVEE_irradiance_pool_size_get(lbake->vis_res, lbake->total_irr_samples, irr_size);
+	eevee_irradiance_pool_size_get(lbake->vis_res, lbake->total_irr_samples, irr_size);
 
 #ifdef IRRADIANCE_SH_L2
 	/* we need a signed format for Spherical Harmonics */
@@ -166,10 +199,15 @@ static void eevee_lightcache_create_resources(const SceneEEVEE *eevee, EEVEE_Lig
 #else
 	int irradiance_format = GPU_RGBA8;
 #endif
-
 	lbake->grid_prev = DRW_texture_create_2D_array(irr_size[0], irr_size[1], irr_size[2], irradiance_format, DRW_TEX_FILTER, NULL);
-	lcache->grid_tex = DRW_texture_create_2D_array(irr_size[0], irr_size[1], irr_size[2], irradiance_format, DRW_TEX_FILTER, NULL);
-	lcache->cube_tex = DRW_texture_create_2D_array(lbake->ref_cube_res, lbake->ref_cube_res, lcache->cube_count, GPU_RGBA8, DRW_TEX_FILTER, NULL);
+	// lcache->grid_tx = DRW_texture_create_2D_array(irr_size[0], irr_size[1], irr_size[2], irradiance_format, DRW_TEX_FILTER, NULL);
+	// lcache->cube_tx = DRW_texture_create_2D_array(lbake->ref_cube_res, lbake->ref_cube_res, lcache->cube_count, GPU_RGBA8, DRW_TEX_FILTER, NULL);
+	/* XXX */
+	float rgba[4] = {1.5f, 0.5f, 0.5f, 0.5f};
+	lcache->grid_tx = DRW_texture_create_2D_array(1, 1, 1, irradiance_format, DRW_TEX_FILTER, rgba);
+	lcache->cube_tx = DRW_texture_create_2D_array(1, 1, 1, GPU_RGBA8, DRW_TEX_FILTER, rgba);
+	DRW_TEXTURE_FREE_SAFE(lcache->cube_tx);
+	DRW_TEXTURE_FREE_SAFE(lcache->grid_tx);
 
 	if (lbake->gl_context) {
 		DRW_opengl_render_context_disable(lbake->gl_context);
@@ -193,6 +231,9 @@ static void eevee_lightcache_delete_resources(EEVEE_LightBake *lbake)
 	DRW_TEXTURE_FREE_SAFE(lbake->rt_depth);
 	DRW_TEXTURE_FREE_SAFE(lbake->rt_color);
 	DRW_TEXTURE_FREE_SAFE(lbake->grid_prev);
+	for (int i = 0; i < 6; ++i) {
+		GPU_FRAMEBUFFER_FREE_SAFE(lbake->rt_fb[i]);
+	}
 
 	if (lbake->gl_context) {
 		/* Delete the baking context. */
@@ -280,8 +321,10 @@ static void eevee_lightcache_gather_probes(EEVEE_LightBake *lbake, EEVEE_LightCa
 
 	/* First convert all lightprobes to tight UBO data from all lightprobes in the scene.
 	 * This allows a large number of probe to be precomputed. */
-	lcache->cube_data = MEM_callocN(1, "EEVEE Cube Data Cache");
-	lcache->grid_data = MEM_callocN(1, "EEVEE Grid Data Cache");
+	if (lcache->cube_data == NULL) {
+		lcache->cube_data = MEM_callocN(1, "EEVEE Cube Data Cache");
+		lcache->grid_data = MEM_callocN(1, "EEVEE Grid Data Cache");
+	}
 	lbake->cube_prb = MEM_callocN(sizeof(LightProbe *), "EEVEE Cube visgroup ptr");
 	lbake->grid_prb = MEM_callocN(sizeof(LightProbe *), "EEVEE Grid visgroup ptr");
 
@@ -346,6 +389,7 @@ void EEVEE_lightcache_bake_job(void *custom_data, short *UNUSED(stop), short *UN
 	if (lcache->flag & LIGHTCACHE_UPDATE_WORLD) {
 		eevee_lightcache_context_enable(lbake);
 		DRW_custom_pipeline(&draw_engine_eevee_type, depsgraph, eevee_lightcache_render_world, lbake);
+		DEG_id_tag_update(&lbake->scene->id, DEG_TAG_COPY_ON_WRITE);
 		eevee_lightcache_context_disable(lbake);
 	}
 
@@ -413,8 +457,8 @@ void EEVEE_lightcache_free(EEVEE_LightCache *lcache)
 	lcache->refcount--;
 
 	if (lcache->refcount == 0) {
-		DRW_TEXTURE_FREE_SAFE(lcache->cube_tex);
-		DRW_TEXTURE_FREE_SAFE(lcache->grid_tex);
+		DRW_TEXTURE_FREE_SAFE(lcache->cube_tx);
+		DRW_TEXTURE_FREE_SAFE(lcache->grid_tx);
 
 		MEM_SAFE_FREE(lcache->cube_data);
 		MEM_SAFE_FREE(lcache->grid_data);

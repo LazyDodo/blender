@@ -362,6 +362,8 @@ static void add_standard_uniforms(
         DRWShadingGroup *shgrp, EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
         int *ssr_id, float *refract_depth, bool use_ssrefraction, bool use_alpha_blend)
 {
+	EEVEE_LightCache *lcache = vedata->stl->g_data->light_cache;
+
 	if (ssr_id == NULL) {
 		static int no_ssr = -1.0f;
 		ssr_id = &no_ssr;
@@ -393,12 +395,12 @@ static void add_standard_uniforms(
 
 	/* TODO if diffuse bsdf */
 	if (true) {
-		DRW_shgroup_uniform_texture_ref(shgrp, "irradianceGrid", &sldata->irradiance_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "irradianceGrid", &lcache->grid_tx);
 	}
 
 	/* TODO if glossy bsdf */
 	if (true) {
-		DRW_shgroup_uniform_texture_ref(shgrp, "probeCubes", &sldata->probe_pool);
+		DRW_shgroup_uniform_texture_ref(shgrp, "probeCubes", &lcache->cube_tx);
 		DRW_shgroup_uniform_texture_ref(shgrp, "probePlanars", &vedata->txl->planar_pool);
 		DRW_shgroup_uniform_int(shgrp, "outputSsrId", ssr_id, 1);
 	}
@@ -971,7 +973,6 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 						DRW_shgroup_call_add(grp, geom, NULL);
 						break;
 					case GPU_MAT_QUEUED:
-						sldata->probes->all_materials_updated = false;
 						/* TODO Bypass probe compilation. */
 						col = compile_col;
 						break;
@@ -1076,9 +1077,6 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	} \
 	else { \
 		if (oedata) { \
-			DRW_shgroup_call_object_add_with_callback(shgrp, geom, ob, EEVEE_lightprobes_obj_visibility_cb, oedata); \
-		} \
-		else { \
 			DRW_shgroup_call_object_add(shgrp, geom, ob); \
 		} \
 	} \
@@ -1228,7 +1226,6 @@ static void material_opaque(
 			}
 			case GPU_MAT_QUEUED:
 			{
-				sldata->probes->all_materials_updated = false;
 				/* TODO Bypass probe compilation. */
 				color_p = compile_col;
 				metal_p = spec_p = rough_p = &half;
@@ -1315,7 +1312,6 @@ static void material_transparent(
 			}
 			case GPU_MAT_QUEUED:
 			{
-				sldata->probes->all_materials_updated = false;
 				/* TODO Bypass probe compilation. */
 				color_p = compile_col;
 				metal_p = spec_p = rough_p = &half;
@@ -1645,7 +1641,6 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 						}
 						case GPU_MAT_QUEUED:
 						{
-							sldata->probes->all_materials_updated = false;
 							color_p = compile_col;
 							metal_p = spec_p = rough_p = &half;
 							break;

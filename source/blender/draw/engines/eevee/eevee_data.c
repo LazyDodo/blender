@@ -69,11 +69,6 @@ static void eevee_view_layer_data_free(void *storage)
 	for (int i = 0; i < 6; ++i) {
 		GPU_FRAMEBUFFER_FREE_SAFE(sldata->probe_face_fb[i]);
 	}
-	DRW_TEXTURE_FREE_SAFE(sldata->probe_rt);
-	DRW_TEXTURE_FREE_SAFE(sldata->probe_depth_rt);
-	DRW_TEXTURE_FREE_SAFE(sldata->probe_pool);
-	DRW_TEXTURE_FREE_SAFE(sldata->irradiance_pool);
-	DRW_TEXTURE_FREE_SAFE(sldata->irradiance_rt);
 }
 
 EEVEE_ViewLayerData *EEVEE_view_layer_data_get(void)

@@ -675,12 +675,6 @@ typedef struct EEVEE_ViewLayerData {
 	struct GPUFrameBuffer *probe_filter_fb;
 	struct GPUFrameBuffer *probe_face_fb[6];
 
-	struct GPUTexture *probe_rt;
-	struct GPUTexture *probe_depth_rt;
-	struct GPUTexture *probe_pool;
-	struct GPUTexture *irradiance_pool;
-	struct GPUTexture *irradiance_rt;
-
 	struct EEVEE_LightCache *light_cache;
 
 	/* Common Uniform Buffer */
@@ -776,8 +770,8 @@ typedef struct EEVEE_LightCache {
 	 * we could create a bigger texture containing multiple
 	 * caches (for animation) and interpolate between the caches
 	 * overtime to another texture. */
-	GPUTexture *grid_tex;
-	GPUTexture *cube_tex;
+	GPUTexture *grid_tx;
+	GPUTexture *cube_tx;
 	/* All lightprobes data contained in the cache. */
 	EEVEE_LightProbe *cube_data;
 	EEVEE_LightGrid  *grid_data;
@@ -819,6 +813,8 @@ typedef struct EEVEE_PrivateData {
 	struct DRWShadingGroup *planar_display_shgrp;
 	struct GHash *material_hash;
 	float background_alpha; /* TODO find a better place for this. */
+	/* Chosen lightcache: can come from Lookdev or the viewlayer. */
+	struct EEVEE_LightCache *light_cache;
 	/* For planar probes */
 	float planar_texel_size[2];
 	/* For double buffering */
