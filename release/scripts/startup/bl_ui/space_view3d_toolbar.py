@@ -1356,7 +1356,6 @@ class VIEW3D_PT_tools_particlemode(View3DPanel, Panel):
 # Grease Pencil drawing brushes
 class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
-    bl_category = "Tools"
     bl_label = "Drawing Brushes"
 
     @classmethod
@@ -1443,7 +1442,6 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
 # Grease Pencil drawing brushes options
 class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
-    bl_category = "Tools"
     bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -1509,7 +1507,6 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
 # Grease Pencil drawingcurves
 class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
-    bl_category = "Tools"
     bl_label = "Brush Curves"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -1667,19 +1664,16 @@ class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
 # Grease Pencil Brush Appeareance (one for each mode)
 class VIEW3D_PT_tools_grease_pencil_paint_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
-    bl_category = "Tools"
     bl_label = "Brush Appearance"
 
 
 class VIEW3D_PT_tools_grease_pencil_sculpt_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_sculpt"
-    bl_category = "Tools"
     bl_label = "Brush Appearance"
 
 
 class VIEW3D_PT_tools_grease_pencil_weight_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_weight"
-    bl_category = "Tools"
     bl_label = "Brush Appearance"
 
 # Grease Pencil Animation Tools

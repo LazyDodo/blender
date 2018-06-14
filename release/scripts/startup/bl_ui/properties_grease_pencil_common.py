@@ -294,6 +294,7 @@ class GreasePencilStrokeSculptPanel:
 
 class GreasePencilAppearancePanel:
     bl_label = "Brush Appearance"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):

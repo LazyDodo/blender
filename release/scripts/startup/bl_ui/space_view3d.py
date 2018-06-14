@@ -80,19 +80,6 @@ class VIEW3D_HT_header(Header):
             gpd = context.gpencil_data
 
             if gpd.is_stroke_paint_mode:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint",
-                                 category="")
-            elif gpd.use_stroke_edit_mode:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_edit",
-                                 category="")
-            elif gpd.is_stroke_sculpt_mode:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_sculpt",
-                                 category="")
-            elif gpd.is_stroke_weight_mode:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_weight",
-                                 category="")
-
-            if gpd.is_stroke_paint_mode:
                 row = layout.row()
                 row.prop(tool_settings, "gpencil_stroke_placement_view3d", text='')
                 if tool_settings.gpencil_stroke_placement_view3d in('ORIGIN', 'CURSOR'):
