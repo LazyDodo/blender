@@ -1634,7 +1634,6 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 {
 	Image *ima = oldmain->image.first;
 	Scene *sce = oldmain->scene.first;
-	int a, b;
 	
 	fd->imamap = oldnewmap_new();
 	
@@ -1643,11 +1642,11 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 			oldnewmap_insert(fd->imamap, ima->cache, ima->cache, 0);
 		if (ima->rr)
 			oldnewmap_insert(fd->imamap, ima->rr, ima->rr, 0);
-		for (a=0; a < IMA_MAX_RENDER_SLOT; a++)
+		for (int a = 0; a < IMA_MAX_RENDER_SLOT; a++)
 			if (ima->renders[a])
 				oldnewmap_insert(fd->imamap, ima->renders[a], ima->renders[a], 0);
-		for (a = 0; a < ima->num_tiles; a++) {
-			for (b = 0; b < TEXTARGET_COUNT; b++) {
+		for (int a = 0; a < ima->num_tiles; a++) {
+			for (int b = 0; b < TEXTARGET_COUNT; b++) {
 				if (ima->tiles[a].gputexture[b]) {
 					oldnewmap_insert(fd->imamap, ima->tiles[a].gputexture[b], ima->tiles[a].gputexture[b], 0);
 				}
@@ -1672,10 +1671,9 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 	OldNew *entry = fd->imamap->entries;
 	Image *ima = oldmain->image.first;
 	Scene *sce = oldmain->scene.first;
-	int i;
 	
 	/* used entries were restored, so we put them to zero */
-	for (i = 0; i < fd->imamap->nentries; i++, entry++) {
+	for (int i = 0; i < fd->imamap->nentries; i++, entry++) {
 		if (entry->nr > 0)
 			entry->newp = NULL;
 	}
@@ -1685,15 +1683,17 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 		if (ima->cache == NULL) {
 			ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
 			ima->rr = NULL;
-			for (i = 0; i < ima->num_tiles; i++) {
+			for (int i = 0; i < ima->num_tiles; i++) {
 				for (int j = 0; j < TEXTARGET_COUNT; j++) {
 					ima->tiles[i].gputexture[j] = NULL;
 				}
 			}
 		}
-		for (i = 0; i < IMA_MAX_RENDER_SLOT; i++)
+
+		for (int i = 0; i < IMA_MAX_RENDER_SLOT; i++)
 			ima->renders[i] = newimaadr(fd, ima->renders[i]);
-		for (i = 0; i < ima->num_tiles; i++) {
+
+		for (int i = 0; i < ima->num_tiles; i++) {
 			for (int j = 0; j < TEXTARGET_COUNT; j++) {
 				ima->tiles[i].gputexture[j] = newimaadr(fd, ima->tiles[i].gputexture[j]);
 			}

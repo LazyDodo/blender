@@ -1586,6 +1586,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
+
 		if (!DNA_struct_elem_find(fd->filesdna, "Image", "short", "num_tiles")) {
 			for (Image *ima = bmain->image.first; ima; ima = ima->id.next) {
 				ima->num_tiles = 1;

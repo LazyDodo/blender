@@ -574,11 +574,12 @@ bool BKE_image_has_opengl_texture(Image *ima)
 	return false;
 }
 
-int BKE_image_get_tile_from_pos(struct Image *ima, float uv[2], float new_uv[2], float ofs[2])
+int BKE_image_get_tile_from_pos(struct Image *ima, const float uv[2], float new_uv[2], float ofs[2])
 {
 	float local_ofs[2];
-	if (!ofs)
+	if (!ofs) {
 		ofs = local_ofs;
+	}
 
 	copy_v2_v2(new_uv, uv);
 	zero_v2(ofs);
@@ -1086,7 +1087,6 @@ void BKE_image_free_all_textures(Main *bmain)
 #endif
 }
 
-/* TODO(lukas): What does this do? */
 static bool imagecache_check_free_anim(ImBuf *ibuf, void *UNUSED(userkey), void *userdata)
 {
 	int except_frame = *(int *)userdata;
@@ -1107,6 +1107,8 @@ void BKE_image_free_anim_ibufs(Image *ima, int except_frame)
 
 void BKE_image_all_free_anim_ibufs(Main *bmain, int cfra)
 {
+	/* Free all image buffers from frames other than cfra, for movies
+	 * and image sequences. */
 	Image *ima;
 
 	for (ima = bmain->image.first; ima; ima = ima->id.next)
@@ -2763,7 +2765,9 @@ static void image_free_tile(Image *ima, int tile)
 			image_remove_ibuf(ima, i, tile);
 		}
 	}
-	else image_remove_ibuf(ima, 0, tile);
+	else {
+		image_remove_ibuf(ima, 0, tile);
+	}
 }
 
 void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
@@ -4051,7 +4055,7 @@ static int image_get_multiview_index(Image *ima, ImageUser *iuser)
 {
 	const bool is_multilayer = BKE_image_is_multilayer(ima);
 	const bool is_backdrop = (ima->source == IMA_SRC_VIEWER) && (ima->type ==  IMA_TYPE_COMPOSITE) && (iuser == NULL);
-	int index = BKE_image_has_multiple(ima) ? 0 : IMA_NO_INDEX;
+	int index = BKE_image_has_multiple_ibufs(ima) ? 0 : IMA_NO_INDEX;
 
 	if (is_multilayer) {
 		return iuser ? iuser->multi_index : index;
@@ -4765,7 +4769,7 @@ bool BKE_image_is_animated(Image *image)
 }
 
 /* Checks whether the image consists of multiple buffers. */
-bool BKE_image_has_multiple(Image *image)
+bool BKE_image_has_multiple_ibufs(Image *image)
 {
 	return ELEM(image->source, IMA_SRC_MOVIE, IMA_SRC_SEQUENCE, IMA_SRC_TILED);
 }

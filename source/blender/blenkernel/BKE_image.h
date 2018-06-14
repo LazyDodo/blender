@@ -287,7 +287,7 @@ bool BKE_image_generate_tile(struct Image *ima, int tile, const float color[4], 
 struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type);
 void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex);
 
-int BKE_image_get_tile_from_pos(struct Image *ima, float uv[2], float new_uv[2], float ofs[2]);
+int BKE_image_get_tile_from_pos(struct Image *ima, const float uv[2], float new_uv[2], float ofs[2]);
 
 void BKE_image_get_size(struct Image *image, struct ImageUser *iuser, int *width, int *height);
 void BKE_image_get_size_fl(struct Image *image, struct ImageUser *iuser, float size[2]);
@@ -307,7 +307,7 @@ int BKE_image_sequence_guess_offset(struct Image *image);
 bool BKE_image_has_anim(struct Image *image);
 bool BKE_image_has_packedfile(struct Image *image);
 bool BKE_image_is_animated(struct Image *image);
-bool BKE_image_has_multiple(struct Image *image);
+bool BKE_image_has_multiple_ibufs(struct Image *image);
 bool BKE_image_is_dirty(struct Image *image);
 void BKE_image_file_format_set(struct Image *image, int ftype, const struct ImbFormatOptions *options);
 bool BKE_image_has_loaded_ibuf(struct Image *image);

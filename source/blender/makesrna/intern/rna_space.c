@@ -1086,6 +1086,9 @@ static void rna_SpaceImageEditor_current_tile_range(PointerRNA *ptr, int *min, i
 	else {
 		*max = 0;
 	}
+
+	*softmin = *min;
+	*softmax = *max;
 }
 
 /* Space Text Editor */
