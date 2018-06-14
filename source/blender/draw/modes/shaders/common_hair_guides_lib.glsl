@@ -2,46 +2,6 @@
 
 #ifdef HAIR_SHADER_FIBERS
 
-#define M_PI 3.1415926535897932384626433832795
-
-mat4 translate(vec3 co)
-{
-	return mat4(1.0, 0.0, 0.0, 0.0,
-	            0.0, 1.0, 0.0, 0.0,
-	            0.0, 0.0, 1.0, 0.0,
-	            co.x, co.y, co.z, 1.0);
-}
-
-mat4 rotateX(float angle)
-{
-	float ca = cos(angle);
-	float sa = sin(angle);
-	return mat4(1.0, 0.0, 0.0, 0.0,
-	            0.0, ca,   sa, 0.0,
-	            0.0, -sa,  ca, 0.0,
-	            0.0, 0.0, 0.0, 1.0);
-}
-
-mat4 rotateY(float angle)
-{
-	float ca = cos(angle);
-	float sa = sin(angle);
-	return mat4(ca,  0.0,  sa, 0.0,
-	            0.0, 1.0, 0.0, 0.0,
-	            -sa, 0.0,  ca, 0.0,
-	            0.0, 0.0, 0.0, 1.0);
-}
-
-mat4 rotateZ(float angle)
-{
-	float ca = cos(angle);
-	float sa = sin(angle);
-	return mat4(ca,  sa,  0.0, 0.0,
-	            -sa, ca,  0.0, 0.0,
-	            0.0, 0.0, 1.0, 0.0,
-	            0.0, 0.0, 0.0, 1.0);
-}
-
 /* Hair Displacement */
 
 /* Note: The deformer functions below calculate a new location vector
@@ -56,6 +16,20 @@ mat4 rotateZ(float angle)
  * Some more information can be found here:
  * https://developer.nvidia.com/gpugems/GPUGems/gpugems_ch42.html
  */
+
+/* Float with single derivative */
+struct DualFloat
+{
+	float v;
+	float dv;
+};
+
+/* Vector with single derivative */
+struct DualVec3
+{
+	vec3 v;
+	vec3 dv;
+};
 
 struct DeformParams
 {
@@ -80,7 +54,7 @@ struct DeformParams
 	float curl_angle;
 };
 
-void deform_taper(DeformParams params, float t, out float taper, out float dtaper)
+void calc_taper_factor(DeformParams params, float t, out DualFloat taper)
 {
 	/* Uses the right half of the smoothstep function */
 	float x = (t + params.taper_length) / params.taper_length;
@@ -90,49 +64,30 @@ void deform_taper(DeformParams params, float t, out float taper, out float dtape
 		x = 2.0;
 		dx = 0.0;
 	}
-	taper = 0.5 * x * x * (3 - x) - 1.0;
-	dtaper = 1.5 * x * (2.0 - x) * dx;
+
+	taper.v = 0.5 * x * x * (3 - x) - 1.0;
+	taper.dv = 1.5 * x * (2.0 - x) * dx;
 }
 
 /* Hairs tend to stick together and run in parallel.
  * The effect increases with distance from the root,
  * as the stresses pulling fibers apart decrease.
  */
-void deform_clump(DeformParams params, float t, mat4 target_matrix,
-                  inout vec3 co, inout vec3 tang)
+void deform_clump(DualFloat taper, DualVec3 target, float thickness, inout vec3 co, inout vec3 tang)
 {
-	float taper, dtaper;
-	deform_taper(params, t, taper, dtaper);
-	float factor = (1.0 - params.taper_thickness) * taper;
-	float dfactor = (1.0 - params.taper_thickness) * dtaper;
-	
-	vec3 target_co = target_matrix[3].xyz;
-	vec3 target_tang = target_matrix[0].xyz;
-	vec3 nco = co + (target_co - co) * factor;
-	vec3 ntang = normalize(tang + (target_tang - tang) * factor + (target_co - co) * dfactor);
+	DualFloat factor;
+	factor.v = taper.v * thickness;
+	factor.dv = taper.dv * thickness;
+
+	vec3 nco;
+	vec3 ntang;
+	nco = co + (target.v - co) * factor.v;
+	ntang = normalize(tang
+	                  + (target.dv - tang) * factor.v
+	                  + (target.v - co) * factor.dv);
 
 	co = nco;
 	tang = ntang;
-}
-
-/* Hairs often don't have a circular cross section, but are somewhat flattened.
- * This creates the local bending which results in the typical curly hair geometry.
- */
-void deform_curl(DeformParams params, float t,
-                 inout mat4 target_matrix)
-{
-	float pitch = 2.0*M_PI * params.curl_radius * tan(params.curl_angle);
-	float angle = t / (params.curl_radius * tan(params.curl_angle));
-	mat4 local_mat = rotateX(angle) * translate(vec3(0.0, params.curl_radius, 0.0)) * rotateY(params.curl_angle);
-	target_matrix = target_matrix * local_mat;
-}
-
-void deform_fiber(DeformParams params,
-                  float t, mat4 target_matrix,
-                  inout vec3 loc, inout vec3 tang)
-{
-	//deform_curl(params, t, target_matrix);
-	deform_clump(params, t, target_matrix, loc, tang);
 }
 
 /*===================================*/
@@ -150,13 +105,6 @@ vec2 read_texdata(int offset)
 {
 	ivec2 offset2 = ivec2(offset % HAIR_SHADER_TEX_WIDTH, offset / HAIR_SHADER_TEX_WIDTH);
 	return texelFetch(fiber_data, offset2, 0).rg;
-}
-
-mat4 mat4_from_vectors(vec3 nor, vec3 tang, vec3 co)
-{
-	tang = normalize(tang);
-	vec3 xnor = normalize(cross(nor, tang));
-	return mat4(vec4(tang, 0.0), vec4(xnor, 0.0), vec4(cross(tang, xnor), 0.0), vec4(co, 1.0));
 }
 
 void get_strand_data(int index, out int start, out int count, out DeformParams deform_params)
@@ -257,16 +205,15 @@ bool interpolate_parent_curve(int index, float curve_param, out ParentCurveResul
 	get_strand_vertex(start + segment + 1, co1, nor1, tang1, len1);
 
 	result.co = mix(co0, co1, lerpfac) - result.rootco;
-	result.nor = mix(nor0, nor1, lerpfac);
-	result.tang = mix(tang0, tang1, lerpfac);
+	result.nor = normalize(mix(nor0, nor1, lerpfac));
+	result.tang = normalize(mix(tang0, tang1, lerpfac));
 	result.len = mix(len0, len1, lerpfac);
 
 	return true;
 }
 
 void interpolate_vertex(int fiber_index, float curve_param,
-	                    out vec3 co, out vec3 tang, out float len,
-	                    out mat4 target_matrix, out DeformParams deform_params)
+	                    out vec3 co, out vec3 tang)
 {
 	ivec4 parent_index;
 	vec4 parent_weight;
@@ -275,39 +222,51 @@ void interpolate_vertex(int fiber_index, float curve_param,
 
 	co = vec3(0.0);
 	tang = vec3(0.0);
-	len = 0.0;
-	target_matrix = mat4(1.0);
 
 	ParentCurveResult p1, p2, p3, p4;
 	if (interpolate_parent_curve(parent_index.x, curve_param, p1))
 	{
-		co += parent_weight.x * p1.co;
-		tang += parent_weight.x * normalize(p1.tang);
-		len += parent_weight.x * p1.len;
+		vec3 defco = p1.co + rootco;
+		vec3 deftang = p1.tang;
+
+		DualFloat taper;
+		calc_taper_factor(p1.deform_params, p1.len, taper);
+		if (taper.v > 0.0)
+		{
+			DualVec3 target;
+			target.v = p1.co + p1.rootco;
+			target.dv = p1.tang;
+
+			deform_clump(taper, target, p1.deform_params.taper_thickness, defco, deftang);
+
+			/* Modulate weights by taper factor,
+			 * so influence of the parent increases with taper
+			 */
+			parent_weight.x   = parent_weight.x   * (1.0 - taper.v) + taper.v;
+			parent_weight.yzw = parent_weight.yzw * (1.0 - taper.v);
+		}
+
+		co += parent_weight.x * (defco - rootco);
+		tang += parent_weight.x * normalize(deftang);
 	}
 	if (interpolate_parent_curve(parent_index.y, curve_param, p2))
 	{
 		co += parent_weight.y * p2.co;
-		tang += parent_weight.y * normalize(p2.tang);
-		len += parent_weight.y * p2.len;
+		tang += parent_weight.y * p2.tang;
 	}
 	if (interpolate_parent_curve(parent_index.z, curve_param, p3))
 	{
 		co += parent_weight.z * p3.co;
-		tang += parent_weight.z * normalize(p3.tang);
-		len += parent_weight.z * p3.len;
+		tang += parent_weight.z * p3.tang;
 	}
 	if (interpolate_parent_curve(parent_index.w, curve_param, p4))
 	{
 		co += parent_weight.w * p4.co;
-		tang += parent_weight.w * normalize(p4.tang);
-		len += parent_weight.w * p4.len;
+		tang += parent_weight.w * p4.tang;
 	}
 	
 	co += rootco;
 	tang = normalize(tang);
-	target_matrix = mat4_from_vectors(p1.nor, p1.tang, p1.co + p1.rootco);
-	deform_params = p1.deform_params;
 }
 
 void hair_fiber_get_vertex(
@@ -316,15 +275,10 @@ void hair_fiber_get_vertex(
         out vec3 pos, out vec3 tang, out vec3 binor,
         out float time, out float thickness, out float thick_time)
 {
-	float len;
-	mat4 target_matrix;
-	DeformParams deform_params;
-	interpolate_vertex(fiber_index, curve_param, pos, tang, len, target_matrix, deform_params);
+	interpolate_vertex(fiber_index, curve_param, pos, tang);
 
 	vec3 camera_vec = (is_persp) ? pos - camera_pos : -camera_z;
 	binor = normalize(cross(camera_vec, tang));
-
-	deform_fiber(deform_params, len, target_matrix, pos, tang);
 
 	time = curve_param;
 	thickness = hair_shaperadius(hairRadShape, hairRadRoot, hairRadTip, time);
