@@ -72,7 +72,7 @@ static void rna_HairDrawSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene
 #else
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
 #endif
-	WM_main_add_notifier(NC_OBJECT | ND_DATA | NA_EDITED, ptr->id.data);
+	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ptr->id.data);
 }
 
 static void rna_HairSystem_generate_follicles(
