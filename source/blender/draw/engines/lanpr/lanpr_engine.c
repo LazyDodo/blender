@@ -255,6 +255,7 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_transform_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "buffer_width", &stl->g_data->dpix_buffer_width, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_transform_shgrp, "crease_threshold", &lanpr->crease_threshold, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_transform_shgrp, "crease_fade_threshold", &lanpr->crease_fade_threshold, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_crease", &lanpr->enable_crease, 1);
         DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_material", &lanpr->enable_material_seperate, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_edge_mark", &lanpr->enable_edge_mark, 1);
@@ -415,7 +416,7 @@ RenderEngineType DRW_engine_viewport_lanpr_type = {
 	NULL, NULL,
 	LANPR_ENGINE, N_("LANPR"), RE_INTERNAL,
 	NULL,// update
-	NULL,// render to img
+	&DRW_render_to_image,// render to img
 	NULL,// bake
 	NULL,// view update
 	NULL,// render to view

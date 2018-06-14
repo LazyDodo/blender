@@ -47,7 +47,6 @@ typedef struct LANPROneTimeInit{
     
 } LANPROneTimeInit;
 
-
 #define TNS_DPIX_TEXTURE_SIZE 2048
 
 typedef struct LANPR_TextureSample {

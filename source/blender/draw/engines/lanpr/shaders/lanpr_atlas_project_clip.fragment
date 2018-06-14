@@ -10,6 +10,7 @@ uniform int enable_material;
 uniform int enable_edge_mark;
 
 uniform float crease_threshold;
+uniform float crease_fade_threshold;
 
 uniform int is_perspective; // persp and orth use different crease line determin method
 
@@ -34,6 +35,8 @@ vec3 view_dir;
 
 int is_crease; // we calculate crease in GPU because it's faster and we have normal data anyway.
                // and we need to indicate crease test success result using p1.w==1 && p2.w==0
+
+float crease_strength;
 
 // these are for adapting argument names...
 #define modelview (ViewMatrix*ModelMatrix)
@@ -351,7 +354,11 @@ bool testProfileEdge( ivec2 texcoord, vec3 world_position )
 	float dot2 = dot(vec3(face_normal_0.xyz), vec3(face_normal_1.xyz));
 
     bool contour = (dot0 >= 0.0 && dot1 <= 0.0) || (dot0 <= 0.0 && dot1 >= 0.0);
-    is_crease = ((!contour)&&(dot2<crease_threshold))?1:0;
+    is_crease = ((!contour)&&((dot2<crease_threshold)||(dot2<crease_fade_threshold)))?1:0;
+
+    crease_strength = (is_crease>0&&dot2>crease_threshold) ?
+                      ((dot2 - crease_threshold) / (crease_fade_threshold - crease_threshold) / 2) : 0;
+                      // use 0 to 0.5 to repesent the range, because 1 will represent another meaning
 
     return contour ||
            ((enable_crease>0) && (is_crease>0)) ||
@@ -496,7 +503,7 @@ void main(){
 
 
     gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);//v0_clipped_pre_div;
-    gl_FragData[1] = vec4(v1_clipped_pre_div.xyz,is_crease>0?0:1);//v1_clipped_pre_div;
+    gl_FragData[1] = vec4(v1_clipped_pre_div.xyz,is_crease>0?crease_strength:1);//v1_clipped_pre_div;
     //gl_FragData[2] = packOffsetTexel(num_samples, segment_screen_length,
 	                                 //num_samples, segment_screen_length);
                                      //num_samples + total_padding, segment_screen_length);

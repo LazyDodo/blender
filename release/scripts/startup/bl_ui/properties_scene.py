@@ -487,7 +487,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         scene = context.scene
         lanpr = scene.lanpr
 
-        layout.prop(lanpr, "master_mode")
+        layout.prop(lanpr, "master_mode", expand=True)
 
         if lanpr.master_mode == "DPIX":
             layout.label(text="DPIX:")
@@ -548,6 +548,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
                 row.label(text="INOP")
 
                 layout.prop(lanpr, "crease_threshold")
+                layout.prop(lanpr, "crease_fade_threshold")
 
                 split = layout.split()
                 col = split.column()

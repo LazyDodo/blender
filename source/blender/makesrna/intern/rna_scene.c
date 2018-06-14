@@ -6308,6 +6308,14 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
+	prop = RNA_def_property(srna, "crease_fade_threshold", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 0.5f);
+	RNA_def_property_ui_text(prop, "Crease Fade", "cosine value of face angle");
+	RNA_def_property_ui_range(prop, -1.0f, 1.0f, 0.01, 2);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_update(prop, NC_SCENE, NULL);
+
+
 	/* these shall go into LANPR_LineStyle layer */
 
 	prop = RNA_def_property(srna, "enable_crease", PROP_BOOLEAN, PROP_NONE);
