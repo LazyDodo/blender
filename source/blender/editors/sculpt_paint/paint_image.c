@@ -472,7 +472,7 @@ static PaintOperation *texture_paint_init(bContext *C, wmOperator *op, const flo
 	}
 	else {
 		pop->mode = PAINT_MODE_2D;
-		pop->custom_paint = paint_2d_new_stroke(C, op, mouse, mode);
+		pop->custom_paint = paint_2d_new_stroke(C, op, mode);
 	}
 
 	if (!pop->custom_paint) {
@@ -582,7 +582,7 @@ static void paint_stroke_done(const bContext *C, struct PaintStroke *stroke)
 				float color[3];
 
 				srgb_to_linearrgb_v3_v3(color, BKE_brush_color_get(scene, brush));
-				paint_2d_bucket_fill(C, color, brush, pop->prevmouse, pop->custom_paint);
+				paint_2d_bucket_fill(C, color, brush, pop->startmouse, pop->prevmouse, pop->custom_paint);
 			}
 			else {
 				paint_proj_stroke(C, pop->custom_paint, pop->startmouse, pop->prevmouse, paint_stroke_flipped(stroke),
@@ -1213,7 +1213,7 @@ void PAINT_OT_brush_colors_flip(wmOperatorType *ot)
 }
 
 
-void ED_imapaint_bucket_fill(struct bContext *C, float color[3], wmOperator *op)
+void ED_imapaint_bucket_fill(struct bContext *C, float color[3], wmOperator *op, const int mouse[2])
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
 	SpaceImage *sima = CTX_wm_space_image(C);
@@ -1223,7 +1223,8 @@ void ED_imapaint_bucket_fill(struct bContext *C, float color[3], wmOperator *op)
 
 	ED_image_undo_push_begin(op->type->name);
 
-	paint_2d_bucket_fill(C, color, NULL, NULL, NULL);
+	float mouse_init[2] = {mouse[0], mouse[1]};
+	paint_2d_bucket_fill(C, color, NULL, mouse_init, NULL, NULL);
 
 	BKE_undosys_step_push(wm->undo_stack, C, op->type->name);
 
