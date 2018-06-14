@@ -322,9 +322,6 @@ class GreasePencilAppearancePanel:
             col.label("Brush Type:")
             col.prop(gp_settings, "gpencil_brush_type", text="")
 
-            layout.separator()
-            layout.separator()
-
             col = layout.column(align=True)
             col.label("Icon:")
             sub = col.column(align=True)
@@ -336,9 +333,6 @@ class GreasePencilAppearancePanel:
             sub = col.column()
             sub.active = brush.use_custom_icon
             sub.prop(brush, "icon_filepath", text="")
-
-            layout.separator()
-            layout.separator()
 
             col = layout.column(align=True)
             col.prop(gp_settings, "use_cursor", text="Show Brush")
