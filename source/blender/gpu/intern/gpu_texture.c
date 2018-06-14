@@ -444,9 +444,9 @@ static GPUTexture *GPU_texture_create_nD(
 
 	if (!tex->bindcode) {
 		if (err_out)
-			BLI_snprintf(err_out, 256, "GPUTexture: texture create failed");
+			BLI_snprintf(err_out, 256, "GPUTexture: texture create failed\n");
 		else
-			fprintf(stderr, "GPUTexture: texture create failed");
+			fprintf(stderr, "GPUTexture: texture create failed\n");
 		GPU_texture_free(tex);
 		return NULL;
 	}
@@ -577,9 +577,9 @@ static GPUTexture *GPU_texture_cube_create(
 
 	if (!tex->bindcode) {
 		if (err_out)
-			BLI_snprintf(err_out, 256, "GPUTexture: texture create failed");
+			BLI_snprintf(err_out, 256, "GPUTexture: texture create failed\n");
 		else
-			fprintf(stderr, "GPUTexture: texture create failed");
+			fprintf(stderr, "GPUTexture: texture create failed\n");
 		GPU_texture_free(tex);
 		return NULL;
 	}
@@ -650,7 +650,7 @@ GPUTexture *GPU_texture_create_buffer(GPUTextureFormat data_type, const GLuint b
 	      ELEM(data_type, GPU_RGBA8I, GPU_RGBA16I, GPU_RGBA32I) ||
 	      ELEM(data_type, GPU_RGBA8UI, GPU_RGBA16UI, GPU_RGBA32UI)))
 	{
-		fprintf(stderr, "GPUTexture: invalid format for texture buffer");
+		fprintf(stderr, "GPUTexture: invalid format for texture buffer\n");
 		GPU_texture_free(tex);
 		return NULL;
 	}
@@ -659,9 +659,9 @@ GPUTexture *GPU_texture_create_buffer(GPUTextureFormat data_type, const GLuint b
 	glGenTextures(1, &tex->bindcode);
 
 	if (!tex->bindcode) {
-		fprintf(stderr, "GPUTexture: texture create failed");
+		fprintf(stderr, "GPUTexture: texture create failed\n");
 		GPU_texture_free(tex);
-		BLI_assert(0 && "glGenTextures failled: Are you sure a valid OGL context is active on this thread?");
+		BLI_assert(0 && "glGenTextures failled: Are you sure a valid OGL context is active on this thread?\n");
 		return NULL;
 	}
 
