@@ -337,7 +337,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
 		else {
-			GPUTexture *texture = GPU_texture_from_blender(gp_style->ima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
+			GPUTexture *texture = GPU_texture_from_blender(gp_style->ima, &iuser, GL_TEXTURE_2D, true, 0.0);
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
 			stl->shgroups[id].texture_clamp = gp_style->flag & GP_STYLE_COLOR_TEX_CLAMP ? 1 : 0;
@@ -433,7 +433,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
 		else {
-			GPUTexture *texture = GPU_texture_from_blender(gp_style->sima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
+			GPUTexture *texture = GPU_texture_from_blender(gp_style->sima, &iuser, GL_TEXTURE_2D, true, 0.0f);
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
 			BKE_image_release_ibuf(image, ibuf, NULL);
@@ -527,7 +527,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 			BKE_image_release_ibuf(image, ibuf, NULL);
 		}
 		else {
-			GPUTexture *texture = GPU_texture_from_blender(gp_style->sima, &iuser, GL_TEXTURE_2D, true, 0.0, 0);
+			GPUTexture *texture = GPU_texture_from_blender(gp_style->sima, &iuser, GL_TEXTURE_2D, true, 0.0f);
 			DRW_shgroup_uniform_texture(grp, "myTexture", texture);
 
 			BKE_image_release_ibuf(image, ibuf, NULL);
@@ -952,7 +952,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 }
 
 /* get alpha factor for onion strokes */
-static void gpencil_get_onion_alpha(float color[4], bGPdata *gpd, bGPDlayer *gpl)
+static void gpencil_get_onion_alpha(float color[4], bGPdata *gpd, bGPDlayer *UNUSED(gpl))
 {
 #define MIN_ALPHA_VALUE 0.01f
 
