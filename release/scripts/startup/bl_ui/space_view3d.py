@@ -38,14 +38,14 @@ class VIEW3D_HT_header(Header):
         # mode_string = context.mode
         obj = context.active_object
         overlay = view.overlay
-        toolsettings = context.tool_settings
+        tool_settings = context.tool_settings
 
         row = layout.row(align=True)
         row.template_header()
 
         mode = 'OBJECT' if obj is None else obj.mode
 
-        act_mode_item = bpy.types.Object.bl_rna.properties['mode'].enum_items[mode]
+        act_mode_item = bpy.types.Object.bl_rna.properties["mode"].enum_items[mode]
         layout.operator_menu_enum("object.mode_set", "mode", text=act_mode_item.name, icon=act_mode_item.icon)
         del act_mode_item
 
@@ -53,7 +53,7 @@ class VIEW3D_HT_header(Header):
 
         # Contains buttons like Mode, Pivot, Manipulator, Layer, Mesh Select Mode...
         shading_type = view.shading.type
-        shading_item = bpy.types.View3DShading.bl_rna.properties['type'].enum_items[shading_type]
+        shading_item = bpy.types.View3DShading.bl_rna.properties["type"].enum_items[shading_type]
 
         if obj:
             # Set above:
@@ -62,7 +62,7 @@ class VIEW3D_HT_header(Header):
             # Particle edit
             if mode == 'PARTICLE_EDIT':
                 row = layout.row()
-                row.prop(toolsettings.particle_edit, "select_mode", text="", expand=True)
+                row.prop(tool_settings.particle_edit, "select_mode", text="", expand=True)
 
             # Occlude geometry
             if ((shading.type not in {'BOUNDBOX', 'WIREFRAME'} and (mode == 'PARTICLE_EDIT' or (mode == 'EDIT' and obj.type == 'MESH'))) or
@@ -87,8 +87,8 @@ class VIEW3D_HT_header(Header):
             layout.prop(context.gpencil_data, "use_onion_skinning", text="Onion Skins", icon='PARTICLE_PATH')
 
             row = layout.row(align=True)
-            row.prop(context.tool_settings.gpencil_sculpt, "use_select_mask")
-            row.prop(context.tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
+            row.prop(tool_settings.gpencil_sculpt, "use_select_mask")
+            row.prop(tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
 
         VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
 
@@ -98,41 +98,52 @@ class VIEW3D_HT_header(Header):
         object_mode = 'OBJECT' if obj is None else obj.mode
         scene = context.scene
 
-        # Pivot & Orientation
-        pivot_point = context.tool_settings.transform_pivot_point
-        act_pivot_point = bpy.types.ToolSettings.bl_rna.properties['transform_pivot_point'].enum_items[pivot_point]
+        # Orientation & Pivot
+        if object_mode in {'OBJECT', 'EDIT', 'POSE'}:
+            layout.prop(scene, "transform_orientation", text="")
+
+            pivot_point = tool_settings.transform_pivot_point
+            act_pivot_point = bpy.types.ToolSettings.bl_rna.properties["transform_pivot_point"].enum_items[pivot_point]
+            row = layout.row(align=True)
+            row.popover(
+                space_type='TOPBAR',
+                region_type='HEADER',
+                panel_type="TOPBAR_PT_pivot_point",
+                icon=act_pivot_point.icon,
+                text="",
+            )
 
         if obj:
             # Proportional editing
             if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
                 row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
+                row.prop(tool_settings, "proportional_edit", icon_only=True)
 
                 sub = row.row(align=True)
-                sub.active = toolsettings.proportional_edit != 'DISABLED'
-                sub.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
+                sub.active = tool_settings.proportional_edit != 'DISABLED'
+                sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
 
             elif object_mode in {'EDIT', 'PARTICLE_EDIT'}:
                 row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
+                row.prop(tool_settings, "proportional_edit", icon_only=True)
                 sub = row.row(align=True)
-                sub.active = toolsettings.proportional_edit != 'DISABLED'
-                sub.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
+                sub.active = tool_settings.proportional_edit != 'DISABLED'
+                sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
 
             elif object_mode == 'OBJECT':
                 row = layout.row(align=True)
-                row.prop(toolsettings, "use_proportional_edit_objects", icon_only=True)
+                row.prop(tool_settings, "use_proportional_edit_objects", icon_only=True)
                 sub = row.row(align=True)
-                sub.active = toolsettings.use_proportional_edit_objects
-                sub.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
+                sub.active = tool_settings.use_proportional_edit_objects
+                sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
         else:
             # Proportional editing
             if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
                 row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
+                row.prop(tool_settings, "proportional_edit", icon_only=True)
                 sub = row.row(align=True)
-                sub.active = toolsettings.proportional_edit != 'DISABLED'
-                sub.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
+                sub.active = tool_settings.proportional_edit != 'DISABLED'
+                sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
 
         # Snap
         show_snap = False
@@ -153,7 +164,7 @@ class VIEW3D_HT_header(Header):
 
         if show_snap:
             snap_items = bpy.types.ToolSettings.bl_rna.properties['snap_elements'].enum_items
-            for elem in toolsettings.snap_elements:
+            for elem in tool_settings.snap_elements:
                 # TODO: Display multiple icons.
                 # (Currently only one of the enabled modes icons is displayed)
                 icon = snap_items[elem].icon
@@ -162,7 +173,7 @@ class VIEW3D_HT_header(Header):
                 icon = 'NONE'
 
             row = layout.row(align=True)
-            row.prop(toolsettings, "use_snap", text="")
+            row.prop(tool_settings, "use_snap", text="")
 
             sub = row.row(align=True)
             sub.popover(
@@ -173,10 +184,7 @@ class VIEW3D_HT_header(Header):
                 text=""
             )
 
-        if mode in {'OBJECT', 'EDIT', 'POSE'}:
-            layout.prop(scene, "transform_orientation", text="")
-
-        layout.separator()
+        layout.separator_spacer()
 
         # Viewport Settings
         row = layout.row(align=True)
@@ -480,12 +488,12 @@ class VIEW3D_MT_edit_proportional(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.props_enum(context.tool_settings, "proportional_edit")
+        layout.props_enum(tool_settings, "proportional_edit")
 
         layout.separator()
 
         layout.label("Falloff:")
-        layout.props_enum(context.tool_settings, "proportional_edit_falloff")
+        layout.props_enum(tool_settings, "proportional_edit_falloff")
 
 
 # ********** View menus **********
@@ -839,7 +847,8 @@ class VIEW3D_MT_edit_mesh_select_by_trait(Menu):
 
     def draw(self, context):
         layout = self.layout
-        if context.scene.tool_settings.mesh_select_mode[2] is False:
+        tool_settings = context.tool_settings
+        if tool_settings.mesh_select_mode[2] is False:
             layout.operator("mesh.select_non_manifold", text="Non Manifold")
         layout.operator("mesh.select_loose", text="Loose Geometry")
         layout.operator("mesh.select_interior_faces", text="Interior Faces")
@@ -1920,10 +1929,11 @@ class VIEW3D_MT_brush(Menu):
     def draw(self, context):
         layout = self.layout
 
+        tool_settings = context.tool_settings
         settings = UnifiedPaintPanel.paint_settings(context)
         brush = getattr(settings, "brush", None)
 
-        ups = context.tool_settings.unified_paint_settings
+        ups = tool_settings.unified_paint_settings
         layout.prop(ups, "use_unified_size", text="Unified Size")
         layout.prop(ups, "use_unified_strength", text="Unified Strength")
         if context.image_paint_object or context.vertex_paint_object:
@@ -2106,8 +2116,8 @@ class VIEW3D_MT_sculpt(Menu):
     def draw(self, context):
         layout = self.layout
 
-        toolsettings = context.tool_settings
-        sculpt = toolsettings.sculpt
+        tool_settings = context.tool_settings
+        sculpt = tool_settings.sculpt
 
         layout.prop(sculpt, "use_symmetry_x")
         layout.prop(sculpt, "use_symmetry_y")
@@ -2173,8 +2183,9 @@ class VIEW3D_MT_particle(Menu):
 
     def draw(self, context):
         layout = self.layout
+        tool_settings = context.tool_settings
 
-        particle_edit = context.tool_settings.particle_edit
+        particle_edit = tool_settings.particle_edit
 
         layout.operator("particle.mirror")
 
@@ -2203,8 +2214,9 @@ class VIEW3D_MT_particle_specials(Menu):
 
     def draw(self, context):
         layout = self.layout
+        tool_settings = context.tool_settings
 
-        particle_edit = context.tool_settings.particle_edit
+        particle_edit = tool_settings.particle_edit
 
         layout.operator("particle.rekey")
 
@@ -2539,9 +2551,9 @@ class VIEW3D_MT_edit_mesh(Menu):
 
     def draw(self, context):
         layout = self.layout
+        tool_settings = context.tool_settings
 
         with_bullet = bpy.app.build_options.bullet
-        toolsettings = context.tool_settings
 
         layout.menu("VIEW3D_MT_transform")
         layout.menu("VIEW3D_MT_mirror")
@@ -2702,8 +2714,9 @@ class VIEW3D_MT_edit_mesh_extrude(Menu):
 
     @staticmethod
     def extrude_options(context):
+        tool_settings = context.tool_settings
+        select_mode = tool_settings.mesh_select_mode
         mesh = context.object.data
-        select_mode = context.tool_settings.mesh_select_mode
 
         menu = []
         if mesh.total_face_sel:
@@ -3394,7 +3407,7 @@ class VIEW3D_MT_edit_gpencil(Menu):
     bl_label = "GPencil"
 
     def draw(self, context):
-        toolsettings = context.tool_settings
+        tool_settings = context.tool_settings
 
         layout = self.layout
 
@@ -3405,7 +3418,7 @@ class VIEW3D_MT_edit_gpencil(Menu):
         layout.separator()
 
         layout.operator("gpencil.brush_paint", text="Sculpt Strokes").wait_for_input = True
-        layout.prop_menu_enum(toolsettings.gpencil_sculpt, "tool", text="Sculpt Brush")
+        layout.prop_menu_enum(tool_settings.gpencil_sculpt, "tool", text="Sculpt Brush")
 
         layout.separator()
 
@@ -3689,7 +3702,6 @@ class VIEW3D_PT_overlay(Panel):
         view = context.space_data
         shading = view.shading
         overlay = view.overlay
-        toolsettings = context.tool_settings
         display_all = overlay.show_overlays
 
         col = layout.column()
@@ -3765,10 +3777,10 @@ class VIEW3D_PT_overlay_edit_mesh(Panel):
         view = context.space_data
         shading = view.shading
         overlay = view.overlay
-        toolsettings = context.tool_settings
+        tool_settings = context.tool_settings
         display_all = overlay.show_overlays
         data = context.active_object.data
-        statvis = context.tool_settings.statvis
+        statvis = tool_settings.statvis
         with_freestyle = bpy.app.build_options.freestyle
 
         col = layout.column()
@@ -3816,7 +3828,7 @@ class VIEW3D_PT_overlay_edit_mesh(Panel):
         col.prop(overlay, "show_weight")
         if overlay.show_weight:
             col.label("Show Zero Weights:")
-            col.row().prop(toolsettings, "vertex_group_user", expand=True)
+            col.row().prop(tool_settings, "vertex_group_user", expand=True)
 
         col.prop(data, "show_statvis", text="Mesh Analysis")
         if data.show_statvis:
@@ -3887,8 +3899,8 @@ class VIEW3D_PT_overlay_sculpt(Panel):
 
     def draw(self, context):
         layout = self.layout
-        toolsettings = context.tool_settings
-        sculpt = toolsettings.sculpt
+        tool_settings = context.tool_settings
+        sculpt = tool_settings.sculpt
 
         layout.prop(sculpt, "show_diffuse_color")
         layout.prop(sculpt, "show_mask")

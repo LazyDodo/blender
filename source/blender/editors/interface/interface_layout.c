@@ -1985,12 +1985,15 @@ static uiBut *ui_item_menu(
 	h = UI_UNIT_Y;
 
 	if (layout->root->type == UI_LAYOUT_HEADER) { /* ugly .. */
-		if (force_menu) {
-			w += UI_UNIT_Y;
+		if (icon == ICON_NONE && force_menu) {
+			/* pass */
+		}
+		else if (force_menu) {
+			w += UI_UNIT_X;
 		}
 		else {
 			if (name[0]) {
-				w -= UI_UNIT_Y / 2;
+				w -= UI_UNIT_X / 2;
 			}
 		}
 	}

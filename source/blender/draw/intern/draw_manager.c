@@ -1312,12 +1312,13 @@ void DRW_draw_render_loop_ex(
 	}
 
 	DRW_stats_begin();
-	DRW_hair_update();
 
 	GPU_framebuffer_bind(DST.default_framebuffer);
 
 	/* Start Drawing */
 	DRW_state_reset();
+
+	DRW_hair_update();
 
 	drw_engines_draw_background();
 
@@ -1738,8 +1739,6 @@ void DRW_draw_select_loop(
 		DRW_render_instance_buffer_finish();
 	}
 
-	DRW_hair_update();
-
 	/* Setup framebuffer */
 	draw_select_framebuffer_setup(rect);
 	GPU_framebuffer_bind(g_select_buffer.framebuffer);
@@ -1748,6 +1747,8 @@ void DRW_draw_select_loop(
 	/* Start Drawing */
 	DRW_state_reset();
 	DRW_draw_callbacks_pre_scene();
+
+	DRW_hair_update();
 
 	DRW_state_lock(
 	        DRW_STATE_WRITE_DEPTH |
@@ -1898,10 +1899,11 @@ void DRW_draw_depth_loop(
 		DRW_render_instance_buffer_finish();
 	}
 
-	DRW_hair_update();
-
 	/* Start Drawing */
 	DRW_state_reset();
+
+	DRW_hair_update();
+
 	DRW_draw_callbacks_pre_scene();
 	drw_engines_draw_scene();
 	DRW_draw_callbacks_post_scene();

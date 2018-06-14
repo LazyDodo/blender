@@ -500,6 +500,7 @@ static void template_id_cb(bContext *C, void *arg_litem, void *arg_event)
 					Main *bmain = CTX_data_main(C);
 					Scene *scene = CTX_data_scene(C);
 					ED_object_single_user(bmain, scene, (struct Object *)id);
+					DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 					WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 					DEG_relations_tag_update(bmain);
 				}
@@ -1578,12 +1579,16 @@ void uiTemplateOperatorRedoProperties(uiLayout *layout, const bContext *C)
 #endif
 
 	if (WM_operator_repeat_check(C, op)) {
+		int layout_flags = 0;
+		if (block->panel == NULL) {
+			layout_flags = UI_TEMPLATE_OP_PROPS_SHOW_TITLE;
+		}
 #if 0
 		bool has_advanced = false;
 #endif
 
 		UI_block_func_set(block, ED_undo_operator_repeat_cb, op, NULL);
-		template_operator_redo_property_buts_draw(C, op, layout, UI_TEMPLATE_OP_PROPS_COMPACT, NULL /* &has_advanced */ );
+		template_operator_redo_property_buts_draw(C, op, layout, layout_flags, NULL /* &has_advanced */ );
 		UI_block_func_set(block, NULL, NULL, NULL); /* may want to reset to old state instead of NULLing all */
 
 #if 0
@@ -3951,6 +3956,8 @@ eAutoPropButsReturn uiTemplateOperatorPropertyButs(
 		PointerRNA ptr;
 
 		RNA_pointer_create(&wm->id, op->type->srna, op->properties, &ptr);
+
+		uiLayoutSetPropSep(layout, true);
 
 		/* main draw call */
 		return_info = uiDefAutoButsRNA(layout, &ptr, check_prop, label_align, (flag & UI_TEMPLATE_OP_PROPS_COMPACT));
