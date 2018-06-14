@@ -1681,7 +1681,6 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 		if (ima->cache == NULL) {
 			ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
 			for (i = 0; i < TEXTARGET_COUNT; i++) {
-				ima->bindcode[i] = 0;
 				ima->gputexture[i] = NULL;
 			}
 			ima->rr = NULL;
@@ -3916,7 +3915,6 @@ static void direct_link_image(FileData *fd, Image *ima)
 	if (!ima->cache) {
 		ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
 		for (int i = 0; i < TEXTARGET_COUNT; i++) {
-			ima->bindcode[i] = 0;
 			ima->gputexture[i] = NULL;
 		}
 		ima->rr = NULL;
@@ -4533,12 +4531,12 @@ static void lib_link_mesh(FileData *fd, Main *main)
 			if (me->totface && !me->totpoly) {
 				/* temporarily switch main so that reading from
 				 * external CustomData works */
-				Main *gmain = G.main;
-				G.main = main;
+				Main *gmain = G_MAIN;
+				G_MAIN = main;
 				
 				BKE_mesh_do_versions_convert_mfaces_to_mpolys(me);
 				
-				G.main = gmain;
+				G_MAIN = gmain;
 			}
 
 			/*
@@ -10002,13 +10000,15 @@ static void add_loose_objects_to_scene(
 		if ((ob->id.tag & LIB_TAG_INDIRECT) && (ob->id.tag & LIB_TAG_PRE_EXISTING) == 0) {
 			bool do_it = false;
 
-			if (ob->id.us == 0) {
-				do_it = true;
-			}
-			else if (!is_link && (ob->id.lib == lib) && (object_in_any_scene(bmain, ob) == 0)) {
-				/* When appending, make sure any indirectly loaded objects get a base, else they cant be accessed at all
-				 * (see T27437). */
-				do_it = true;
+			if (!is_link) {
+				if (ob->id.us == 0) {
+					do_it = true;
+				}
+				else if ((ob->id.lib == lib) && (object_in_any_scene(bmain, ob) == 0)) {
+					/* When appending, make sure any indirectly loaded objects get a base, else they cant be accessed at all
+					 * (see T27437). */
+					do_it = true;
+				}
 			}
 
 			if (do_it) {
@@ -10336,7 +10336,7 @@ static Main *library_link_begin(Main *mainvar, FileData **fd, const char *filepa
 /**
  * Initialize the BlendHandle for linking library data.
  *
- * \param mainvar The current main database, e.g. G.main or CTX_data_main(C).
+ * \param mainvar The current main database, e.g. G_MAIN or CTX_data_main(C).
  * \param bh A blender file handle as returned by \a BLO_blendhandle_from_file or \a BLO_blendhandle_from_memory.
  * \param filepath Used for relative linking, copied to the \a lib->name.
  * \return the library Main, to be passed to \a BLO_library_append_named_part as \a mainl.

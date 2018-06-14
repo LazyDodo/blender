@@ -830,6 +830,7 @@ struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, struct List
 void UI_panel_end(uiBlock *block, int width, int height);
 void UI_panels_scale(struct ARegion *ar, float new_width);
 void UI_panel_label_offset(struct uiBlock *block, int *x, int *y);
+int UI_panel_size_y(const struct Panel *pa);
 
 bool                       UI_panel_category_is_visible(struct ARegion *ar);
 void                       UI_panel_category_add(struct ARegion *ar, const char *name);
@@ -905,7 +906,7 @@ void UI_exit(void);
 #define UI_ITEM_O_DEPRESS       (1 << 9)
 #define UI_ITEM_R_COMPACT       (1 << 10)
 
-#define UI_HEADER_OFFSET_START ((void)0, 0.4f * UI_UNIT_X)
+#define UI_HEADER_OFFSET ((void)0, 0.2f * UI_UNIT_X)
 
 /* uiLayoutOperatorButs flags */
 enum {

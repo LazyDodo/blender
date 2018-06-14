@@ -1255,7 +1255,7 @@ static void createTransArmatureVerts(TransInfo *t)
 		bool mirror = ((arm->flag & ARM_MIRROR_EDIT) != 0);
 		int total_mirrored = 0, i;
 		int oldtot;
-		BoneInitData *bid;
+		BoneInitData *bid = NULL;
 
 		tc->data_len = 0;
 		for (ebo = edbo->first; ebo; ebo = ebo->next) {
@@ -2120,7 +2120,6 @@ static void createTransParticleVerts(bContext *C, TransInfo *t)
 void flushTransParticles(TransInfo *t)
 {
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-
 		Scene *scene = t->scene;
 		ViewLayer *view_layer = t->view_layer;
 		Object *ob = OBACT(view_layer);
