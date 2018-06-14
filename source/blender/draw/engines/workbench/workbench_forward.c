@@ -193,7 +193,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 
 			case OB_TEXTURE:
 			{
-				GPUTexture *tex = GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, false, false);
+				GPUTexture *tex = GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, 0.0f);
 				DRW_shgroup_uniform_texture(grp, "image", tex);
 				break;
 			}
@@ -427,7 +427,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			float hair_alpha = wpd->shading.xray_alpha * 0.33f;
 			DRW_shgroup_uniform_float_copy(shgrp, "alpha", hair_alpha);
 			if (image) {
-				GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, false, false);
+				GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, 0.0f);
 				DRW_shgroup_uniform_texture(shgrp, "image", tex);
 			}
 			if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
@@ -499,7 +499,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 
 		/* Fallback from not drawn OB_TEXTURE mode or just OB_SOLID mode */
 		if (!is_drawn) {
-			if ((wpd->shading.color_type != V3D_SHADING_MATERIAL_COLOR) || is_sculpt_mode) {
+			if ((wpd->shading.color_type != V3D_SHADING_MATERIAL_COLOR)) {
 				/* No material split needed */
 				struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
 				if (geom) {
@@ -530,8 +530,15 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 
 						Material *mat = give_current_material(ob, i + 1);
 						material = get_or_create_material_data(vedata, ob, mat, NULL, OB_SOLID);
-						DRW_shgroup_call_object_add(material->shgrp_object_outline, mat_geom[i], ob);
-						DRW_shgroup_call_object_add(material->shgrp, mat_geom[i], ob);
+						if (is_sculpt_mode)
+						{
+							DRW_shgroup_call_sculpt_add(material->shgrp_object_outline, ob, ob->obmat);
+							DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
+						}
+						else {
+							DRW_shgroup_call_object_add(material->shgrp_object_outline, mat_geom[i], ob);
+							DRW_shgroup_call_object_add(material->shgrp, mat_geom[i], ob);
+						}
 					}
 				}
 			}

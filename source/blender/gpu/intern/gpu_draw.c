@@ -278,8 +278,7 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
                                      ImageUser *iuser,
                                      int textarget,
                                      bool is_data,
-                                     double UNUSED(time),
-                                     int mipmap)
+                                     double UNUSED(time))
 {
 	if (ima == NULL) {
 		return NULL;
@@ -355,6 +354,8 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
 			frect = ibuf->rect_float;
 		}
 	}
+
+	const bool mipmap = GPU_get_mipmap();
 
 #ifdef WITH_DDS
 	if (ibuf->ftype == IMB_FTYPE_DDS)
