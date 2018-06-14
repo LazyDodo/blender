@@ -1373,6 +1373,8 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         ts = context.scene.tool_settings
         settings = ts.gpencil_paint
 
@@ -1448,6 +1450,8 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         brush = context.active_gpencil_brush
         gp_settings = brush.gpencil_settings
 
@@ -1459,9 +1463,8 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
             col.prop(gp_settings, "active_smooth_factor")
             col.separator()
 
-            row = col.row(align=True)
-            row.prop(gp_settings, "angle", slider=True)
-            row.prop(gp_settings, "angle_factor", text="Factor", slider=True)
+            col.prop(gp_settings, "angle", slider=True)
+            col.prop(gp_settings, "angle_factor", text="Factor", slider=True)
             col.separator()
 
             if gp_settings.gpencil_brush_type == 'DRAW':
@@ -1513,6 +1516,8 @@ class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         brush = context.active_gpencil_brush
         gp_settings = brush.gpencil_settings
 
@@ -1542,6 +1547,7 @@ class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         col = layout.column(align=True)
         col.operator("gpencil.primitive", text="Line", icon='IPO_CONSTANT').type = 'LINE'
@@ -1620,6 +1626,8 @@ class VIEW3D_PT_tools_grease_pencil_weight_paint(View3DPanel, Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         gpd = context.gpencil_data
         settings = context.tool_settings.gpencil_sculpt
         tool = settings.tool
@@ -1656,6 +1664,8 @@ class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         col = layout.column()
         col.operator("gpencil.vertex_group_invert", text="Invert")
         col.operator("gpencil.vertex_group_smooth", text="Smooth")

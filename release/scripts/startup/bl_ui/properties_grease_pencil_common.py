@@ -249,6 +249,8 @@ class GreasePencilStrokeSculptPanel:
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         gpd = context.gpencil_data
         settings = context.tool_settings.gpencil_sculpt
         tool = settings.tool
@@ -313,6 +315,8 @@ class GreasePencilAppearancePanel:
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+
         workspace = context.workspace
 
         if context.active_object.mode == 'GPENCIL_PAINT':
@@ -320,16 +324,12 @@ class GreasePencilAppearancePanel:
             gp_settings = brush.gpencil_settings
 
             col = layout.column(align=True)
-            col.label("Brush Type:")
-            col.prop(gp_settings, "gpencil_brush_type", text="")
+            col.prop(gp_settings, "gpencil_brush_type", text="Brush Type")
 
-            col = layout.column(align=True)
-            col.label("Icon:")
             sub = col.column(align=True)
             sub.enabled = not brush.use_custom_icon
-            sub.prop(gp_settings, "gp_icon", text="")
+            sub.prop(gp_settings, "gp_icon", text="Icon")
 
-            col.separator()
             col.prop(brush, "use_custom_icon")
             sub = col.column()
             sub.active = brush.use_custom_icon
@@ -366,6 +366,7 @@ class GreasePencilAnimationPanel:
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         col = layout.column(align=True)
         col.operator("gpencil.blank_frame_add", icon='NEW')
