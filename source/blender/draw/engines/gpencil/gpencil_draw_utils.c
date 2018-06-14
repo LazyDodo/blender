@@ -952,7 +952,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 }
 
 /* get alpha factor for onion strokes */
-static void gpencil_get_onion_alpha(float color[4], bGPdata *gpd, bGPDlayer *UNUSED(gpl))
+static void gpencil_get_onion_alpha(float color[4], bGPdata *gpd)
 {
 #define MIN_ALPHA_VALUE 0.01f
 
@@ -1042,7 +1042,7 @@ static void gpencil_draw_onionskins(
 			gpf_loop = gf;
 		}
 
-		gpencil_get_onion_alpha(color, gpd, gpl);
+		gpencil_get_onion_alpha(color, gpd);
 		gpencil_draw_onion_strokes(cache, e_data, vedata, ob, gpd, gpl, gf, color[3], color, colflag);
 	}
 	/* -------------------------------
@@ -1094,7 +1094,7 @@ static void gpencil_draw_onionskins(
 			color[3] = fac;
 		}
 
-		gpencil_get_onion_alpha(color, gpd, gpl);
+		gpencil_get_onion_alpha(color, gpd);
 		gpencil_draw_onion_strokes(cache, e_data, vedata, ob, gpd, gpl, gf, color[3], color, colflag);
 		if (last < gf->framenum) {
 			last = gf->framenum;
