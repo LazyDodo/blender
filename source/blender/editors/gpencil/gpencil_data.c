@@ -102,7 +102,6 @@
 /* add new datablock - wrapper around API */
 static int gp_data_add_exec(bContext *C, wmOperator *op)
 {
-	Main *bmain = CTX_data_main(C);
 	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers(C, NULL);
 
 	if (gpd_ptr == NULL) {
@@ -198,7 +197,6 @@ void GPENCIL_OT_data_unlink(wmOperatorType *ot)
 /* add new layer - wrapper around API */
 static int gp_layer_add_exec(bContext *C, wmOperator *op)
 {
-	Main *bmain = CTX_data_main(C);
 	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers(C, NULL);
 
 	/* if there's no existing Grease-Pencil data there, add some */
@@ -207,7 +205,8 @@ static int gp_layer_add_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 	if (*gpd_ptr == NULL) {
-		*gpd_ptr = BKE_gpencil_data_addnew(CTX_data_main(C), DATA_("GPencil"));
+		Main *bmain = CTX_data_main(C);
+		*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("GPencil"));
 	}
 
 	/* add default sets of colors and brushes */
