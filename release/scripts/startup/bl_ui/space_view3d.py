@@ -150,7 +150,7 @@ class VIEW3D_HT_header(Header):
         scene = context.scene
 
         # Orientation & Pivot
-        if object_mode in {'OBJECT', 'EDIT', 'POSE'}:
+        if object_mode in {'OBJECT', 'EDIT', 'POSE', 'GPENCIL_EDIT', 'GPENCIL_SCULPT'}:
             layout.prop(scene, "transform_orientation", text="")
 
             pivot_point = tool_settings.transform_pivot_point
