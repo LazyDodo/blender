@@ -1104,7 +1104,7 @@ static void gpencil_draw_onionskins(
 	/* Draw first frame in blue for loop mode */
 	if ((gpd->onion_flag & GP_ONION_LOOP) && (gpf_loop != NULL)) {
 		if ((last == gpf->framenum) || (gpf->next == NULL)) {
-			gpencil_get_onion_alpha(color, gpd, gpl);
+			gpencil_get_onion_alpha(color, gpd);
 			gpencil_draw_onion_strokes(
 				cache, e_data, vedata, ob, gpd, gpl,
 				gpf_loop, color[3], color, colflag);
