@@ -70,38 +70,36 @@ ccl_device void svm_node_tex_image(KernelGlobals *kg, ShaderData *sd, float *sta
 		tex_co = make_float2(co.x, co.y);
 	}
 
-	uint num_nodes = divide_up(node.y, 4);
-	int next_offset = (*offset) + num_nodes;
-
 	int id = -1;
-	if(node.y > 1) {
+	if(node.y > 0) {
+		uint num_nodes = node.y;
+		int next_offset = (*offset) + num_nodes;
 		if(tex_co.x >= 0.0f && tex_co.y < 10.0f && tex_co.y >= 0.0f) {
 			int tx = (int) tex_co.x;
 			int ty = (int) tex_co.y;
 			int tile = ty*10 + tx;
-
-			uint num_nodes = divide_up(node.y, 4);
-			if(tile < node.y) {
-				uint node_num = tile/4;
-				(*offset) += node_num;
-				uint4 slot_node = read_node(kg, offset);
-				switch(tile % 4) {
-					case 0: id = slot_node.x; break;
-					case 1: id = slot_node.y; break;
-					case 2: id = slot_node.z; break;
-					case 3: id = slot_node.w; break;
+			for(int i = 0; i < num_nodes; i++) {
+				uint4 node = read_node(kg, offset);
+				if(node.x == tile) {
+					id = node.y;
+					break;
 				}
+				if(node.z == tile) {
+					id = node.w;
+					break;
+				}
+			}
 
+			if(id != -1) {
 				tex_co.x -= tx;
 				tex_co.y -= ty;
 			}
 		}
+		*offset = next_offset;
 	}
 	else {
-		id = read_node(kg, offset).x;
+		id = read_node(kg, offset).y;
 	}
-
-	*offset = next_offset;
 
 	float4 f = svm_image_texture(kg, id, tex_co.x, tex_co.y, srgb, use_alpha);
 

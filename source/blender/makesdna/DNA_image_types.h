@@ -95,9 +95,11 @@ enum {
 };
 
 typedef struct ImageTile {
+	struct ImageTile *next, *prev;
 	struct GPUTexture *gputexture[2]; /* TEXTARGET_COUNT */
 	char ok;
-	char pad[7];
+	char pad[3];
+	int tile_number;
 	char label[64];
 } ImageTile;
 
@@ -129,11 +131,11 @@ typedef struct Image {
 
 	/* texture page */
 	short tpageflag;
-	short num_tiles;
+	short pad3;
 
 	int lastused;
 
-	ImageTile *tiles;
+	ListBase tiles;
 
 	struct PackedFile *packedfile DNA_DEPRECATED; /* deprecated */
 	struct ListBase packedfiles;

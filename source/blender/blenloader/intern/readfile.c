@@ -1642,10 +1642,10 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 			oldnewmap_insert(fd->imamap, ima->cache, ima->cache, 0);
 		if (ima->rr)
 			oldnewmap_insert(fd->imamap, ima->rr, ima->rr, 0);
-		for (int a = 0; a < ima->num_tiles; a++) {
-			for (int b = 0; b < TEXTARGET_COUNT; b++) {
-				if (ima->tiles[a].gputexture[b]) {
-					oldnewmap_insert(fd->imamap, ima->tiles[a].gputexture[b], ima->tiles[a].gputexture[b], 0);
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			for (int a = 0; a < TEXTARGET_COUNT; a++) {
+				if (tile->gputexture[a]) {
+					oldnewmap_insert(fd->imamap, tile->gputexture[a], tile->gputexture[a], 0);
 				}
 			}
 		}
@@ -1683,9 +1683,9 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 		if (ima->cache == NULL) {
 			ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
 			ima->rr = NULL;
-			for (int i = 0; i < ima->num_tiles; i++) {
+			LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
 				for (int j = 0; j < TEXTARGET_COUNT; j++) {
-					ima->tiles[i].gputexture[j] = NULL;
+					tile->gputexture[j] = NULL;
 				}
 			}
 		}
@@ -1693,9 +1693,9 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
 			slot->render = newimaadr(fd, slot->render);
 
-		for (int i = 0; i < ima->num_tiles; i++) {
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
 			for (int j = 0; j < TEXTARGET_COUNT; j++) {
-				ima->tiles[i].gputexture[j] = newimaadr(fd, ima->tiles[i].gputexture[j]);
+				tile->gputexture[j] = newimaadr(fd, tile->gputexture[j]);
 			}
 		}
 
@@ -3913,7 +3913,6 @@ static void lib_link_image(FileData *fd, Main *main)
 static void direct_link_image(FileData *fd, Image *ima)
 {
 	ImagePackedFile *imapf;
-	int a;
 
 	/* for undo system, pointers could be restored */
 	if (fd->imamap)
@@ -3921,16 +3920,14 @@ static void direct_link_image(FileData *fd, Image *ima)
 	else
 		ima->cache = NULL;
 
-	ima->tiles = newdataadr(fd, ima->tiles);
+	link_list(fd, &(ima->tiles));
 
 	/* if not restored, we keep the binded opengl index */
 	if (!ima->cache) {
 		ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
-		if (ima->tiles) {
-			for (a = 0; a < ima->num_tiles; a++) {
-				for (int i = 0; i < TEXTARGET_COUNT; i++) {
-					ima->tiles[a].gputexture[i] = NULL;
-				}
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			for (int i = 0; i < TEXTARGET_COUNT; i++) {
+				tile->gputexture[i] = NULL;
 			}
 		}
 		ima->rr = NULL;
@@ -3966,8 +3963,8 @@ static void direct_link_image(FileData *fd, Image *ima)
 	ima->preview = direct_link_preview_image(fd, ima->preview);
 	ima->stereo3d_format = newdataadr(fd, ima->stereo3d_format);
 
-	for (a = 0; a < ima->num_tiles; a++) {
-		ima->tiles[a].ok = 1;
+	LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+		tile->ok = 1;
 	}
 }
 

@@ -658,7 +658,12 @@ static ShaderNode *add_node(Scene *scene,
 
 			image->animated = b_image_node.image_user().use_auto_refresh();
 			image->use_alpha = b_image.use_alpha();
-			image->num_tiles = b_image.num_tiles();
+
+			image->tiles.clear();
+			BL::Image::tiles_iterator b_iter;
+			for(b_image.tiles.begin(b_iter); b_iter != b_image.tiles.end(); ++b_iter) {
+				image->tiles.push_back(b_iter->tile_number());
+			}
 
 			/* TODO: restore */
 			/* TODO(sergey): Does not work properly when we change builtin type. */

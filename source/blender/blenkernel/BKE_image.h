@@ -45,6 +45,7 @@ struct Scene;
 struct Object;
 struct ImageFormatData;
 struct ImagePool;
+struct ImageTile;
 struct Main;
 struct ReportList;
 struct RenderResult;
@@ -275,17 +276,15 @@ bool BKE_image_has_alpha(struct Image *image);
 bool BKE_image_has_opengl_texture(struct Image *ima);
 
 /* get tile index for tiled images */
-int BKE_image_get_tile_index(struct Image *ima, struct ImageUser *iuser);
-void BKE_image_get_tile_label(struct Image *ima, int tile, char *label, int len_label);
+void BKE_image_get_tile_label(struct Image *ima, struct ImageTile *tile, char *label, int len_label);
 
-struct ImageTile *BKE_image_add_tile(struct Image *ima, const char *label);
-bool BKE_image_remove_tile(struct Image *ima);
-bool BKE_image_make_tiled(struct Image *ima, int num_tiles);
+struct ImageTile *BKE_image_add_tile(struct Image *ima, int tile_number, const char *label);
+bool BKE_image_remove_tile(struct Image *ima, struct ImageTile *tile);
 
-bool BKE_image_generate_tile(struct Image *ima, int tile, int width, int height, const float color[4], int gen_type);
+bool BKE_image_generate_tile(struct Image *ima, struct ImageTile *tile, int width, int height, const float color[4], int gen_type);
 
-struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type);
-void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex);
+struct ImageTile *BKE_image_get_tile(struct Image *ima, int tile_number);
+struct ImageTile *BKE_image_get_tile_from_iuser(struct Image *ima, struct ImageUser *iuser);
 
 int BKE_image_get_tile_from_pos(struct Image *ima, const float uv[2], float new_uv[2], float ofs[2]);
 

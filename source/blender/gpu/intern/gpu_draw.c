@@ -285,10 +285,10 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
 	}
 	
 	int gputex_type = (textarget == GL_TEXTURE_CUBE_MAP)? TEXTARGET_TEXTURE_CUBE_MAP : TEXTARGET_TEXTURE_2D;
-    int tile = BKE_image_get_tile_index(ima, iuser);
+	ImageTile *tile = BKE_image_get_tile_from_iuser(ima, iuser);
 
 	/* Test if we already have a texture. */
-	GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, gputex_type);
+	GPUTexture *tex = tile->gputexture[gputex_type];
 	if (tex) {
 		return tex;
 	}
@@ -296,9 +296,9 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
 	/* Check if we have a valid image. If not, we return a dummy
 	 * texture with zero bindcode so we don't keep trying. */
 	unsigned int bindcode = 0;
-	if (ima->tiles[tile].ok == 0) {
+	if (tile->ok == 0) {
 		tex = GPU_texture_from_bindcode(textarget, bindcode);
-		BKE_image_set_gpu_texture(ima, tile, gputex_type, tex);
+		tile->gputexture[gputex_type] = tex;
 		return tex;
 	}
 
@@ -312,7 +312,7 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
 	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, iuser, NULL);
 	if (ibuf == NULL) {
 		tex = GPU_texture_from_bindcode(textarget, bindcode);
-		BKE_image_set_gpu_texture(ima, tile, gputex_type, tex);
+		tile->gputexture[gputex_type] = tex;
 		return tex;
 	}
 
@@ -379,7 +379,7 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
 	BKE_image_release_ibuf(ima, ibuf, NULL);
 
 	tex = GPU_texture_from_bindcode(textarget, bindcode);
-	BKE_image_set_gpu_texture(ima, tile, gputex_type, tex);
+	tile->gputexture[gputex_type] = tex;
 	return tex;
 }
 
@@ -688,9 +688,9 @@ void GPU_paint_set_mipmap(bool mipmap)
 	if (mipmap) {
 		for (Image *ima = G.main->image.first; ima; ima = ima->id.next) {
 			bool has_gputexture = false;
-			for (int tile = 0; tile < ima->num_tiles; tile++) {
+			LISTBASE_FOREACH(ImageTile *, tile, &ima->tiles) {
 				if (ima->tpageflag & IMA_MIPMAP_COMPLETE) {
-					GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, TEXTARGET_TEXTURE_2D);
+					GPUTexture *tex = tile->gputexture[TEXTARGET_TEXTURE_2D];
 					if (tex) {
 						GPU_texture_bind(tex, 0);
 						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gpu_get_mipmap_filter(0));
@@ -704,8 +704,8 @@ void GPU_paint_set_mipmap(bool mipmap)
 	}
 	else {
 		for (Image *ima = G.main->image.first; ima; ima = ima->id.next) {
-			for (int tile = 0; tile < ima->num_tiles; tile++) {
-				GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, TEXTARGET_TEXTURE_2D);
+			LISTBASE_FOREACH(ImageTile *, tile, &ima->tiles) {
+				GPUTexture *tex = tile->gputexture[TEXTARGET_TEXTURE_2D];
 				if (tex) {
 					GPU_texture_bind(tex, 0);
 					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -719,10 +719,10 @@ void GPU_paint_set_mipmap(bool mipmap)
 
 
 /* check if image has been downscaled and do scaled partial update */
-static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, int tile, float *frect, int x, int y, int w, int h)
+static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, ImageTile *tile, float *frect, int x, int y, int w, int h)
 {
 	if (is_over_resolution_limit(GL_TEXTURE_2D, ibuf->x, ibuf->y)) {
-		GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, TEXTARGET_TEXTURE_2D);
+		GPUTexture *tex = tile->gputexture[TEXTARGET_TEXTURE_2D];
 
 		int x_limit = smaller_power_of_2_limit(ibuf->x);
 		int y_limit = smaller_power_of_2_limit(ibuf->y);
@@ -794,9 +794,9 @@ static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, int tile, float *fre
 void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, int h)
 {
 	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, iuser, NULL);
-	int tile = BKE_image_get_tile_index(ima, iuser);
+	ImageTile *tile = BKE_image_get_tile_from_iuser(ima, iuser);
 
-	GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, TEXTARGET_TEXTURE_2D);
+	GPUTexture *tex = tile->gputexture[TEXTARGET_TEXTURE_2D];
 	if ((!GTS.gpu_mipmap && GPU_get_mipmap()) ||
 	    (tex == NULL) ||
 	    (ibuf == NULL) ||
@@ -1006,13 +1006,13 @@ void GPU_free_image(Image *ima)
 		return;
 	}
 
-	for (int tile = 0; tile < ima->num_tiles; tile++) {
+	LISTBASE_FOREACH(ImageTile *, tile, &ima->tiles) {
 		for (int i = 0; i < TEXTARGET_COUNT; i++) {
 			/* free glsl image binding */
-			GPUTexture *tex = BKE_image_get_gpu_texture(ima, tile, i);
+			GPUTexture *tex = tile->gputexture[i];
 			if (tex) {
 				GPU_texture_free(tex);
-				BKE_image_set_gpu_texture(ima, tile, i, NULL);
+				tile->gputexture[i] = NULL;
 			}
 		}
 	}

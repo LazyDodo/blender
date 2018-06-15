@@ -506,32 +506,21 @@ static void rna_render_slots_active_index_range(PointerRNA *ptr, int *min, int *
 	*max = max_ii(0, BLI_listbase_count(&image->renderslots) - 1);
 }
 
-static void rna_Image_tiles_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
+static ImageTile *rna_ImageTile_new(Image *image, int tile_number, const char *label)
 {
-	Image *image = (Image *)ptr->id.data;
-	rna_iterator_array_begin(iter, (void *)image->tiles, sizeof(ImageTile), image->num_tiles, 0, NULL);
-}
-
-static ImageTile *rna_ImageTile_new(Image *image, const char *label)
-{
-	ImageTile *tile = BKE_image_add_tile(image, label);
+	ImageTile *tile = BKE_image_add_tile(image, tile_number, label);
 
 	WM_main_add_notifier(NC_IMAGE | ND_DRAW, NULL);
 
 	return tile;
 }
 
-static void rna_ImageTile_remove_last(Image *image)
+static void rna_ImageTile_remove(ID *id, ImageTile *tile)
 {
-	BKE_image_remove_tile(image);
-	WM_main_add_notifier(NC_IMAGE | ND_DRAW, NULL);
-}
+	Image *image = (Image *)id;
+	BKE_image_remove_tile(image, tile);
 
-static int rna_ImageTile_index_get(PointerRNA *ptr)
-{
-	Image *image = (Image *)ptr->id.data;
-	ImageTile *tile = (ImageTile *)ptr->data;
-	return CLAMPIS(tile - image->tiles, 0, image->num_tiles);
+	WM_main_add_notifier(NC_IMAGE | ND_DRAW, NULL);
 }
 
 #else
@@ -690,6 +679,7 @@ static void rna_def_render_slots(BlenderRNA *brna, PropertyRNA *cprop)
 static void rna_def_image_tile(BlenderRNA *brna)
 {
 	StructRNA *srna;
+	FunctionRNA *func;
 	PropertyRNA *prop;
 	srna = RNA_def_struct(brna, "ImageTile", NULL);
 	RNA_def_struct_ui_text(srna, "Image Tile", "Properties of the image tile");
@@ -699,10 +689,14 @@ static void rna_def_image_tile(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Label", "Tile label");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
-	prop = RNA_def_property(srna, "index", PROP_INT, PROP_NONE);
-	RNA_def_property_int_funcs(prop, "rna_ImageTile_index_get", NULL, NULL);
+	prop = RNA_def_property(srna, "tile_number", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "tile_number");
+	RNA_def_property_ui_text(prop, "Tile Number", "Number of the position that this tile covers");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Index", "Tile index");
+
+	func = RNA_def_function(srna, "remove", "rna_ImageTile_remove");
+	RNA_def_function_ui_description(func, "Remove this tile from the image");
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID);
 }
 
 static void rna_def_image_tiles(BlenderRNA *brna, PropertyRNA *cprop)
@@ -718,12 +712,18 @@ static void rna_def_image_tiles(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "new", "rna_ImageTile_new");
 	RNA_def_function_ui_description(func, "Add a tile to the image");
+	parm = RNA_def_int(func, "tile_number", 1, 1, INT_MAX, "", "Number of the newly created tile", 1, 100);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_string(func, "label", NULL, 0, "", "Optional label for the tile");
 	parm = RNA_def_pointer(func, "result", "ImageTile", "", "Newly created image tile");
 	RNA_def_function_return(func, parm);
 
-	func = RNA_def_function(srna, "remove_last", "rna_ImageTile_remove_last");
-	RNA_def_function_ui_description(func, "Remove the last image tile");
+	func = RNA_def_function(srna, "get", "BKE_image_get_tile");
+	RNA_def_function_ui_description(func, "Get a tile based on its tile number");
+	parm = RNA_def_int(func, "tile_number", 1, 1, INT_MAX, "", "Number of the tile", 1, 100);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	parm = RNA_def_pointer(func, "result", "ImageTile", "", "The tile");
+	RNA_def_function_return(func, parm);
 }
 
 static void rna_def_image(BlenderRNA *brna)
@@ -905,9 +905,10 @@ static void rna_def_image(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "tiles", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_struct_type(prop, "ImageTile");
+	RNA_def_property_collection_sdna(prop, NULL, "tiles", NULL);
 	RNA_def_property_ui_text(prop, "Image Tiles", "Tiles of the image");
-	RNA_def_property_collection_funcs(prop, "rna_Image_tiles_begin", "rna_iterator_array_next",
-	                                  "rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
+	//RNA_def_property_collection_funcs(prop, "rna_Image_tiles_begin", "rna_iterator_array_next",
+	//                                  "rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
 	rna_def_image_tiles(brna, prop);
 
 	/*
@@ -984,11 +985,6 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_struct_type(prop, "Stereo3dFormat");
 	RNA_def_property_ui_text(prop, "Stereo 3D Format", "Settings for stereo 3d");
-
-	prop = RNA_def_property(srna, "num_tiles", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_int_sdna(prop, NULL, "num_tiles");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_ui_text(prop, "Tile Number", "Amount of tiles in the image");
 
 	RNA_api_image(srna);
 }

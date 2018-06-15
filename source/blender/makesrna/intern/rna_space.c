@@ -1075,22 +1075,6 @@ static const EnumPropertyItem *rna_SpaceImageEditor_pivot_itemf(
 		return pivot_items;
 }
 
-static void rna_SpaceImageEditor_current_tile_range(PointerRNA *ptr, int *min, int *max, int *softmin, int *softmax)
-{
-	SpaceImage *sima = (SpaceImage *)ptr->data;
-
-	*min = 0;
-	if (sima->image && sima->image->source == IMA_SRC_TILED) {
-		*max = sima->image->num_tiles - 1;
-	}
-	else {
-		*max = 0;
-	}
-
-	*softmin = *min;
-	*softmax = *max;
-}
-
 /* Space Text Editor */
 
 static void rna_SpaceTextEditor_word_wrap_set(PointerRNA *ptr, int value)
@@ -3154,7 +3138,6 @@ static void rna_def_space_image(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "current_tile", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "curtile");
-	RNA_def_property_int_funcs(prop, NULL, NULL, "rna_SpaceImageEditor_current_tile_range");
 	RNA_def_property_ui_text(prop, "Current Tile", "The currently selected tile");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
 

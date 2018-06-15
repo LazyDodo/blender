@@ -76,9 +76,9 @@ static int node_shader_gpu_tex_image(GPUMaterial *mat, bNode *node, bNodeExecDat
 	if (ima->source == IMA_SRC_TILED) {
 		GPUNodeLink *map;
 		GPU_link(mat, "node_tex_image_tiled_map", in[0].link, &out[0].link, &map);
-		for(int tile = 0; tile < ima->num_tiles; tile++) {
-			float ftile = tile;
-			GPU_link(mat, "node_tex_image_tile", map, GPU_uniform(&ftile), GPU_image(ima, iuser, isdata, tile),
+		LISTBASE_FOREACH(ImageTile *, tile, &ima->tiles) {
+			float tile_number = tile->tile_number;
+			GPU_link(mat, "node_tex_image_tile", map, GPU_uniform(&tile_number), GPU_image(ima, iuser, isdata, tile->tile_number),
 			         out[0].link, &out[0].link, &out[1].link);
 		}
 	}

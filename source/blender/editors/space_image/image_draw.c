@@ -49,6 +49,7 @@
 #include "BLI_threads.h"
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
+#include "BLI_listbase.h"
 
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
@@ -658,8 +659,13 @@ static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, flo
 {
     Image *ima = ED_space_image(sima);
 
-	int num_col = min_ii(ima->num_tiles, 10);
-	int num_row = 1 + (ima->num_tiles / 10);
+	int num_col = 0, num_row = 0;
+	LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+		num_col = max_ii(num_col, tile->tile_number % 10);
+		num_row = max_ii(num_row, tile->tile_number / 10);
+	}
+	num_col++;
+	num_row++;
 
     const int xmin = MAX2(floor(ar->v2d.cur.xmin), 0);
     const int ymin = MAX2(floor(ar->v2d.cur.ymin), 0);
@@ -803,13 +809,13 @@ void draw_image_main(const bContext *C, ARegion *ar)
 	ED_space_image_release_buffer(sima, ibuf, lock);
 
 	if (ima && ima->source == IMA_SRC_TILED) {
-		for (int t = 1; t < ima->num_tiles; t++) {
-			ibuf = ED_space_image_acquire_buffer(sima, &lock, t);
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			ibuf = ED_space_image_acquire_buffer(sima, &lock, tile->tile_number);
 			if (ibuf) {
-				int x_pos = t%10;
-				int y_pos = t/10;
+				int x_pos = tile->tile_number % 10;
+				int y_pos = tile->tile_number / 10;
 				char label[64];
-				BKE_image_get_tile_label(ima, t, label, sizeof(label));
+				BKE_image_get_tile_label(ima, tile, label, sizeof(label));
 
 				float tile_zoomx = (zoomx * main_w) / ibuf->x;
 				float tile_zoomy = (zoomy * main_h) / ibuf->y;

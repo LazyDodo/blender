@@ -1269,7 +1269,10 @@ static Image *image_open_single(
 
 		if ((frame_seq_len > 1) && (ima->source == IMA_SRC_FILE)) {
 			if (frame_seq_ofs == 1001) {
-				BKE_image_make_tiled(ima, frame_seq_len);
+				ima->source = IMA_SRC_TILED;
+				for (int i = 1; i < frame_seq_len; i++) {
+					BKE_image_add_tile(ima, i, NULL);
+				}
 			}
 			else {
 				ima->source = IMA_SRC_SEQUENCE;
@@ -2116,13 +2119,13 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 	if (ima->source == IMA_SRC_TILED) {
 		char filepath[FILE_MAX];
 		BLI_strncpy(filepath, simopts->filepath, sizeof(filepath));
-		for (int tile = 1; tile < ima->num_tiles; tile++) {
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
 			char head[FILE_MAX], tail[FILE_MAX];
 			unsigned short numlen;
 			BLI_stringdec(filepath, head, tail, &numlen);
-			BLI_stringenc(simopts->filepath, head, tail, numlen, 1001 + tile);
+			BLI_stringenc(simopts->filepath, head, tail, numlen, 1001 + tile->tile_number);
 
-			save_image_single(C, sima, op, simopts, do_newpath, tile);
+			save_image_single(C, sima, op, simopts, do_newpath, tile->tile_number);
 		}
 		BLI_strncpy(simopts->filepath, filepath, sizeof(simopts->filepath));
 	}
@@ -3936,9 +3939,10 @@ void IMAGE_OT_clear_render_border(wmOperatorType *ot)
 
 static int add_tile_poll(bContext *C)
 {
+	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = CTX_data_edit_image(C);
 
-	return (ima && ima->source == IMA_SRC_TILED);
+	return (ima && ima->source == IMA_SRC_TILED && (BKE_image_get_tile(ima, sima->curtile) == NULL));
 }
 
 static int add_tile_exec(bContext *C, wmOperator *UNUSED(op))
@@ -3946,7 +3950,7 @@ static int add_tile_exec(bContext *C, wmOperator *UNUSED(op))
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = ED_space_image(sima);
 
-	if (BKE_image_add_tile(ima, NULL) == NULL)
+	if (BKE_image_add_tile(ima, sima->curtile, NULL) == NULL)
 		return OPERATOR_CANCELLED;
 
 	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
@@ -3973,9 +3977,10 @@ void IMAGE_OT_add_tile(wmOperatorType *ot)
 
 static int remove_tile_poll(bContext *C)
 {
+	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = CTX_data_edit_image(C);
 
-	return (ima && ima->source == IMA_SRC_TILED && ima->num_tiles > 1);
+	return (ima && ima->source == IMA_SRC_TILED && BKE_image_get_tile(ima, sima->curtile));
 }
 
 static int remove_tile_exec(bContext *C, wmOperator *UNUSED(op))
@@ -3983,7 +3988,8 @@ static int remove_tile_exec(bContext *C, wmOperator *UNUSED(op))
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = ED_space_image(sima);
 
-	if (BKE_image_remove_tile(ima))
+	ImageTile *tile = BKE_image_get_tile(ima, sima->curtile);
+	if (!BKE_image_remove_tile(ima, tile))
 		return OPERATOR_CANCELLED;
 
 	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
@@ -4013,7 +4019,7 @@ static int generate_tile_poll(bContext *C)
 	Image *ima = CTX_data_edit_image(C);
 	SpaceImage *sima = CTX_wm_space_image(C);
 
-	return (ima && ima->source == IMA_SRC_TILED && sima->curtile >= 0 && sima->curtile < ima->num_tiles);
+	return (ima && ima->source == IMA_SRC_TILED && BKE_image_get_tile(ima, sima->curtile));
 }
 
 static int generate_tile_exec(bContext *C, wmOperator *op)
@@ -4027,7 +4033,8 @@ static int generate_tile_exec(bContext *C, wmOperator *op)
 	int width = RNA_int_get(op->ptr, "width");
 	int height = RNA_int_get(op->ptr, "height");
 
-	if (!BKE_image_generate_tile(ima, sima->curtile, width, height, color, gen_type))
+	ImageTile *tile = BKE_image_get_tile(ima, sima->curtile);
+	if (!BKE_image_generate_tile(ima, tile, width, height, color, gen_type))
 		return OPERATOR_CANCELLED;
 
 	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);

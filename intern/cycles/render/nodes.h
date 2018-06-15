@@ -98,7 +98,7 @@ public:
 	float projection_blend;
 	bool animated;
 	float3 vector;
-	int num_tiles;
+	ccl::vector<int> tiles;
 
 	virtual bool equals(const ShaderNode& other)
 	{

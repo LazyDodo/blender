@@ -43,6 +43,7 @@
 #include "BLI_stack.h"
 #include "BLI_bitmap.h"
 #include "BLI_task.h"
+#include "BLI_listbase.h"
 
 #include "BKE_colorband.h"
 #include "BKE_context.h"
@@ -125,7 +126,6 @@ typedef enum ImagePaintTileState {
 
 typedef struct ImagePaintTile {
 	ImageUser iuser;
-	int cache_idx;
 	ImBuf *canvas;
 	float radius_fac[2];
 	int size[2];
@@ -162,6 +162,7 @@ typedef struct ImagePaintState {
 	int symmetry;
 
 	ImagePaintTile *tiles;
+	int num_tiles;
 
 	BlurKernel *blurkernel;
 } ImagePaintState;
@@ -797,9 +798,9 @@ static bool paint_2d_check_tile(ImagePaintState *s, int i)
 {
 	if (i == 0)
 		return true;
-	if (i >= s->image->num_tiles)
+	if (i >= s->num_tiles)
 		return false;
-	
+
 	if (s->tiles[i].state == PAINT2D_TILE_READY)
 		return true;
 	if (s->tiles[i].state == PAINT2D_TILE_FAILED)
@@ -808,7 +809,6 @@ static bool paint_2d_check_tile(ImagePaintState *s, int i)
 	s->tiles[i].cache.lastdiameter[0] = -1;
 
 	s->tiles[i].iuser.ok = true;
-	s->tiles[i].iuser.tile = i;
 
 	ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, &s->tiles[i].iuser, NULL);
 	if (ibuf) {
@@ -1285,7 +1285,7 @@ static int paint_2d_canvas_set(ImagePaintState *s)
 
 static void paint_2d_canvas_free(ImagePaintState *s)
 {
-	for (int i = 0; i < s->image->num_tiles; i++) {
+	for (int i = 0; i < s->num_tiles; i++) {
 		BKE_image_release_ibuf(s->image, s->tiles[i].canvas, NULL);
 	}
 	BKE_image_release_ibuf(s->brush->clone.image, s->clonecanvas, NULL);
@@ -1342,7 +1342,7 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 
 	float uv_brush_size[2] = {base_size / s->tiles[0].size[0], base_size / s->tiles[0].size[1]};
 
-	for (int i = 0; i < s->image->num_tiles; i++) {
+	for (int i = 0; i < s->num_tiles; i++) {
 		ImagePaintTile *tile = &s->tiles[i];
 
 		/* First test: Project brush into UV space, clip against tile. */
@@ -1418,8 +1418,8 @@ void *paint_2d_new_stroke(bContext *C, wmOperator *op, int mode)
 		return 0;
 	}
 
-	s->tiles = MEM_callocN(sizeof(ImagePaintTile) * s->image->num_tiles, "ImagePaintTile");
-	s->tiles[0].cache_idx = -1;
+	s->num_tiles = BLI_listbase_count(&s->image->tiles);
+	s->tiles = MEM_callocN(sizeof(ImagePaintTile) * s->num_tiles, "ImagePaintTile");
 	s->tiles[0].iuser.ok = true;
 
 	zero_v2(s->tiles[0].uv_ofs);
@@ -1446,9 +1446,11 @@ void *paint_2d_new_stroke(bContext *C, wmOperator *op, int mode)
 	s->tiles[0].state = PAINT2D_TILE_READY;
 
 	/* Initialize offsets here, they're needed for the uv space clip test before lazy-loading the tile properly. */
-	for (int i = 0; i < s->image->num_tiles; i++) {
-		s->tiles[i].uv_ofs[0] = (i % 10);
-		s->tiles[i].uv_ofs[1] = (i / 10);
+	ImageTile *tile = BKE_image_get_tile(s->image, 0)->next;
+	for (int tile_idx = 1; tile; tile = tile->next, tile_idx++) {
+		s->tiles[tile_idx].iuser.tile = tile->tile_number;
+		s->tiles[tile_idx].uv_ofs[0] = (tile->tile_number % 10);
+		s->tiles[tile_idx].uv_ofs[1] = (tile->tile_number / 10);
 	}
 
 	if (!paint_2d_canvas_set(s)) {
@@ -1474,7 +1476,7 @@ void paint_2d_redraw(const bContext *C, void *ps, bool final)
 	ImagePaintState *s = ps;
 
 	bool had_redraw = false;
-	for (int i = 0; i < s->image->num_tiles; i++) {
+	for (int i = 0; i < s->num_tiles; i++) {
 		if (s->tiles[i].need_redraw) {
 			ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, &s->tiles[i].iuser, NULL);
 
@@ -1510,7 +1512,7 @@ void paint_2d_stroke_done(void *ps)
 	ImagePaintState *s = ps;
 
 	paint_2d_canvas_free(s);
-	for (int i = 0; i < s->image->num_tiles; i++) {
+	for (int i = 0; i < s->num_tiles; i++) {
 		brush_painter_cache_2d_free(&s->tiles[i].cache);
 	}
 	paint_brush_exit_tex(s->brush);

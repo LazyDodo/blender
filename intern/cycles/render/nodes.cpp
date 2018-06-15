@@ -253,7 +253,7 @@ ImageTextureNode::ImageTextureNode()
 	is_linear = false;
 	builtin_data = NULL;
 	animated = false;
-	num_tiles = 1;
+	tiles.push_back(0);
 }
 
 ImageTextureNode::~ImageTextureNode()
@@ -297,26 +297,26 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 	ShaderOutput *alpha_out = output("Alpha");
 
 	image_manager = compiler.image_manager;
-	if(slots.size() < num_tiles) {
-		slots.resize(num_tiles);
-		for(int tile = 0; tile < num_tiles; tile++) {
+	if(slots.size() < tiles.size()) {
+		slots.clear();
+		foreach(int tile, tiles) {
 			string tile_name;
-			if(num_tiles == 1) {
+			if(tiles.size() == 1) {
 				tile_name = filename.string();
 			}
 			else {
 				tile_name = string_printf(filename.c_str(), 1001 + tile);
 			}
 			ImageMetaData metadata;
-			slots[tile] = image_manager->add_image(tile_name,
-			                                       builtin_data,
-			                                       animated,
-			                                       tile,
-			                                       0,
-			                                       interpolation,
-			                                       extension,
-			                                       use_alpha,
-			                                       metadata);
+			slots.push_back(image_manager->add_image(tile_name,
+			                                         builtin_data,
+			                                         animated,
+			                                         tile,
+			                                         0,
+			                                         interpolation,
+			                                         extension,
+			                                         use_alpha,
+			                                         metadata));
 			if(tile == 0) {
 				is_float = metadata.is_float;
 				is_linear = metadata.is_linear;
@@ -333,6 +333,7 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 	}
 
 	if(has_image) {
+		int num_nodes = divide_up(slots.size(), 2);
 		int srgb = (is_linear || color_space != NODE_COLOR_SPACE_COLOR)? 0: 1;
 		int vector_offset = tex_mapping.compile_begin(compiler, vector_in);
 
@@ -340,7 +341,7 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 
 		if(projection != NODE_IMAGE_PROJ_BOX) {
 			compiler.add_node(NODE_TEX_IMAGE,
-				slots.size(),
+				num_nodes,
 				compiler.encode_uchar4(
 					vector_offset,
 					compiler.stack_assign_if_linked(color_out),
@@ -350,7 +351,7 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 		}
 		else {
 			compiler.add_node(NODE_TEX_IMAGE_BOX,
-				slots.size(),
+				num_nodes,
 				compiler.encode_uchar4(
 					vector_offset,
 					compiler.stack_assign_if_linked(color_out),
@@ -359,11 +360,17 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 				__float_as_int(projection_blend));
 		}
 
-		for(int i = 0; i < divide_up(slots.size(), 4); i++) {
+		for(int i = 0; i < num_nodes; i++) {
 			int4 node;
-			for(int j = 0; j < 4; j++) {
-				int idx = 4*i + j;
-				node[j] = (idx < slots.size())? slots[idx] : -1;
+			node.x = tiles[2*i];
+			node.y = slots[2*i];
+			if(2*i+1 < slots.size()) {
+				node.z = tiles[2*i+1];
+				node.w = slots[2*i+1];
+			}
+			else {
+				node.z = -1;
+				node.w = -1;
 			}
 			compiler.add_node(node.x, node.y, node.z, node.w);
 		}
