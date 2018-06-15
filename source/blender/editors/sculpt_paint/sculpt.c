@@ -5666,7 +5666,7 @@ void ED_object_sculptmode_enter_ex(
 	/* Make sure derived final from original object does not reference possibly
 	 * freed memory.
 	 */
-	BKE_object_free_derived_mesh_caches(ob);
+	BKE_object_free_derived_caches(ob);
 
 	sculpt_init_session(depsgraph, scene, ob);
 
@@ -5687,7 +5687,7 @@ void ED_object_sculptmode_enter_ex(
 	}
 
 	Paint *paint = BKE_paint_get_active_from_paintmode(scene, ePaintSculpt);
-	BKE_paint_init(scene, ePaintSculpt, PAINT_CURSOR_SCULPT);
+	BKE_paint_init(bmain, scene, ePaintSculpt, PAINT_CURSOR_SCULPT);
 
 	paint_cursor_start_explicit(paint, bmain->wm.first, sculpt_poll_view3d);
 
@@ -5796,7 +5796,7 @@ void ED_object_sculptmode_exit_ex(
 	paint_cursor_delete_textures();
 
 	/* Never leave derived meshes behind. */
-	BKE_object_free_derived_mesh_caches(ob);
+	BKE_object_free_derived_caches(ob);
 
 	/* Flush object mode. */
 	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);

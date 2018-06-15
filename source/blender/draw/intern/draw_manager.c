@@ -76,7 +76,6 @@
 #include "draw_cache_impl.h"
 
 #include "draw_mode_engines.h"
-#include "engines/clay/clay_engine.h"
 #include "engines/eevee/eevee_engine.h"
 #include "engines/basic/basic_engine.h"
 #include "engines/workbench/workbench_engine.h"
@@ -100,7 +99,7 @@ extern struct GPUUniformBuffer *view_ubo; /* draw_manager_exec.c */
 
 static void drw_state_prepare_clean_for_draw(DRWManager *dst)
 {
-	memset(dst, 0x0, offsetof(DRWManager, ogl_context));
+	memset(dst, 0x0, offsetof(DRWManager, gl_context));
 }
 
 /* This function is used to reset draw manager to a state
@@ -110,7 +109,7 @@ static void drw_state_prepare_clean_for_draw(DRWManager *dst)
 #ifdef DEBUG
 static void drw_state_ensure_not_reused(DRWManager *dst)
 {
-	memset(dst, 0xff, offsetof(DRWManager, ogl_context));
+	memset(dst, 0xff, offsetof(DRWManager, gl_context));
 }
 #endif
 
@@ -1183,7 +1182,7 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 		/* XXX Really nasty locking. But else this could
 		 * be executed by the material previews thread
 		 * while rendering a viewport. */
-		BLI_mutex_lock(&DST.ogl_context_mutex);
+		BLI_mutex_lock(&DST.gl_context_mutex);
 
 		/* Reset before using it. */
 		drw_state_prepare_clean_for_draw(&DST);
@@ -1211,7 +1210,7 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 
 		drw_engines_disable();
 
-		BLI_mutex_unlock(&DST.ogl_context_mutex);
+		BLI_mutex_unlock(&DST.gl_context_mutex);
 	}
 }
 
@@ -1315,12 +1314,13 @@ void DRW_draw_render_loop_ex(
 	}
 
 	DRW_stats_begin();
-	DRW_hair_update();
 
 	GPU_framebuffer_bind(DST.default_framebuffer);
 
 	/* Start Drawing */
 	DRW_state_reset();
+
+	DRW_hair_update();
 
 	drw_engines_draw_background();
 
@@ -1463,12 +1463,28 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 	RenderData *r = &scene->r;
 	Render *render = engine->re;
 
-	if (G.background && DST.ogl_context == NULL) {
+	if (G.background && DST.gl_context == NULL) {
 		WM_init_opengl();
 	}
 
+	void *re_gl_context = RE_gl_context_get(render);
+	void *re_gwn_context = NULL;
+
 	/* Changing Context */
-	DRW_opengl_context_enable();
+	if (re_gl_context != NULL) {
+		/* TODO get rid of the blocking. Only here because of the static global DST. */
+		BLI_mutex_lock(&DST.gl_context_mutex);
+		WM_opengl_context_activate(re_gl_context);
+		re_gwn_context = RE_gwn_context_get(render);
+		if (GWN_context_active_get() == NULL) {
+			GWN_context_active_set(re_gwn_context);
+		}
+		DRW_shape_cache_reset(); /* XXX fix that too. */
+	}
+	else {
+		DRW_opengl_context_enable();
+	}
+
 	/* IMPORTANT: We dont support immediate mode in render mode!
 	 * This shall remain in effect until immediate mode supports
 	 * multiple threads. */
@@ -1535,13 +1551,23 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 	GPU_viewport_free(DST.viewport);
 	GPU_framebuffer_restore();
 
-	/* Changing Context */
-	DRW_opengl_context_disable();
-
 #ifdef DEBUG
 	/* Avoid accidental reuse. */
 	drw_state_ensure_not_reused(&DST);
 #endif
+
+	/* Changing Context */
+	if (re_gl_context != NULL) {
+		DRW_shape_cache_reset(); /* XXX fix that too. */
+		glFlush();
+		GWN_context_active_set(NULL);
+		WM_opengl_context_release(re_gl_context);
+		/* TODO get rid of the blocking. */
+		BLI_mutex_unlock(&DST.gl_context_mutex);
+	}
+	else {
+		DRW_opengl_context_disable();
+	}
 }
 
 void DRW_render_object_iter(
@@ -1715,8 +1741,6 @@ void DRW_draw_select_loop(
 		DRW_render_instance_buffer_finish();
 	}
 
-	DRW_hair_update();
-
 	/* Setup framebuffer */
 	draw_select_framebuffer_setup(rect);
 	GPU_framebuffer_bind(g_select_buffer.framebuffer);
@@ -1725,6 +1749,8 @@ void DRW_draw_select_loop(
 	/* Start Drawing */
 	DRW_state_reset();
 	DRW_draw_callbacks_pre_scene();
+
+	DRW_hair_update();
 
 	DRW_state_lock(
 	        DRW_STATE_WRITE_DEPTH |
@@ -1875,10 +1901,11 @@ void DRW_draw_depth_loop(
 		DRW_render_instance_buffer_finish();
 	}
 
-	DRW_hair_update();
-
 	/* Start Drawing */
 	DRW_state_reset();
+
+	DRW_hair_update();
+
 	DRW_draw_callbacks_pre_scene();
 	drw_engines_draw_scene();
 	DRW_draw_callbacks_post_scene();
@@ -2045,9 +2072,6 @@ void DRW_engine_register(DrawEngineType *draw_engine_type)
 
 void DRW_engines_register(void)
 {
-#ifdef WITH_CLAY_ENGINE
-	RE_engines_register(&DRW_engine_viewport_clay_type);
-#endif
 	RE_engines_register(&DRW_engine_viewport_eevee_type);
 	RE_engines_register(&DRW_engine_viewport_workbench_type);
 
@@ -2155,10 +2179,6 @@ void DRW_engines_free(void)
 	MEM_SAFE_FREE(DST.RST.bound_ubo_slots);
 
 	DRW_opengl_context_disable();
-
-#ifdef WITH_CLAY_ENGINE
-	BLI_remlink(&R_engines, &DRW_engine_viewport_clay_type);
-#endif
 }
 
 /** \} */
@@ -2168,14 +2188,16 @@ void DRW_engines_free(void)
 
 void DRW_opengl_context_create(void)
 {
-	BLI_assert(DST.ogl_context == NULL); /* Ensure it's called once */
+	BLI_assert(DST.gl_context == NULL); /* Ensure it's called once */
 
-	BLI_mutex_init(&DST.ogl_context_mutex);
+	BLI_mutex_init(&DST.gl_context_mutex);
 	if (!G.background) {
 		immDeactivate();
 	}
 	/* This changes the active context. */
-	DST.ogl_context = WM_opengl_context_create();
+	DST.gl_context = WM_opengl_context_create();
+	/* Make the context active for this thread (main thread) */
+	WM_opengl_context_activate(DST.gl_context);
 	/* Be sure to create gawain.context too. */
 	DST.gwn_context = GWN_context_create();
 	if (!G.background) {
@@ -2190,28 +2212,28 @@ void DRW_opengl_context_create(void)
 void DRW_opengl_context_destroy(void)
 {
 	BLI_assert(BLI_thread_is_main());
-	if (DST.ogl_context != NULL) {
-		WM_opengl_context_activate(DST.ogl_context);
+	if (DST.gl_context != NULL) {
+		WM_opengl_context_activate(DST.gl_context);
 		GWN_context_active_set(DST.gwn_context);
 		GWN_context_discard(DST.gwn_context);
-		WM_opengl_context_dispose(DST.ogl_context);
-		BLI_mutex_end(&DST.ogl_context_mutex);
+		WM_opengl_context_dispose(DST.gl_context);
+		BLI_mutex_end(&DST.gl_context_mutex);
 	}
 }
 
 void DRW_opengl_context_enable(void)
 {
-	if (DST.ogl_context != NULL) {
+	if (DST.gl_context != NULL) {
 		/* IMPORTANT: We dont support immediate mode in render mode!
 		 * This shall remain in effect until immediate mode supports
 		 * multiple threads. */
-		BLI_mutex_lock(&DST.ogl_context_mutex);
+		BLI_mutex_lock(&DST.gl_context_mutex);
 		if (BLI_thread_is_main()) {
 			if (!G.background) {
 				immDeactivate();
 			}
 		}
-		WM_opengl_context_activate(DST.ogl_context);
+		WM_opengl_context_activate(DST.gl_context);
 		GWN_context_active_set(DST.gwn_context);
 		if (BLI_thread_is_main()) {
 			if (!G.background) {
@@ -2224,7 +2246,7 @@ void DRW_opengl_context_enable(void)
 
 void DRW_opengl_context_disable(void)
 {
-	if (DST.ogl_context != NULL) {
+	if (DST.gl_context != NULL) {
 #ifdef __APPLE__
 		/* Need to flush before disabling draw context, otherwise it does not
 		 * always finish drawing and viewport can be empty or partially drawn */
@@ -2235,11 +2257,11 @@ void DRW_opengl_context_disable(void)
 			wm_window_reset_drawable();
 		}
 		else {
-			WM_opengl_context_release(DST.ogl_context);
+			WM_opengl_context_release(DST.gl_context);
 			GWN_context_active_set(NULL);
 		}
 
-		BLI_mutex_unlock(&DST.ogl_context_mutex);
+		BLI_mutex_unlock(&DST.gl_context_mutex);
 	}
 }
 

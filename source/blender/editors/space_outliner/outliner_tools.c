@@ -899,6 +899,7 @@ static void object_delete_hierarchy_cb(
 #endif
 	}
 
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 }
 
@@ -953,6 +954,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 		}
 
 		str = "Select Objects";
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_SELECT_HIERARCHY) {
@@ -962,11 +964,13 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 			WM_window_change_active_scene(bmain, C, win, sce);
 		}
 		str = "Select Object Hierarchy";
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_DESELECT) {
 		outliner_do_object_operation(C, op->reports, scene, soops, &soops->tree, object_deselect_cb);
 		str = "Deselect Objects";
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_DELETE) {
@@ -981,6 +985,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 
 		DEG_relations_tag_update(bmain);
 		str = "Delete Objects";
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else if (event == OL_OP_DELETE_HIERARCHY) {
@@ -991,6 +996,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 
 		DEG_relations_tag_update(bmain);
 		str = "Delete Object Hierarchy";
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else if (event == OL_OP_REMAP) {

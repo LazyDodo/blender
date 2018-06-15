@@ -137,11 +137,11 @@ bool ED_object_editmode_calc_active_center(struct Object *obedit, const bool sel
 
 
 void ED_object_vpaintmode_enter_ex(
-        struct Depsgraph *depsgraph, struct wmWindowManager *wm,
+        struct Main *bmain, struct Depsgraph *depsgraph, struct wmWindowManager *wm,
         struct Scene *scene, struct Object *ob);
 void ED_object_vpaintmode_enter(struct bContext *C);
 void ED_object_wpaintmode_enter_ex(
-        struct Depsgraph *depsgraph, struct wmWindowManager *wm,
+        struct Main *bmain, struct Depsgraph *depsgraph, struct wmWindowManager *wm,
         struct Scene *scene, struct Object *ob);
 void ED_object_wpaintmode_enter(struct bContext *C);
 
@@ -245,7 +245,7 @@ int ED_object_modifier_convert(
         struct ReportList *reports, struct Main *bmain, struct Scene *scene,
         struct ViewLayer *view_layer, struct Object *ob, struct ModifierData *md);
 int ED_object_modifier_apply(
-        struct ReportList *reports, struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Main *bmain, struct ReportList *reports, struct Depsgraph *depsgraph, struct Scene *scene,
         struct Object *ob, struct ModifierData *md, int mode);
 int ED_object_modifier_copy(struct ReportList *reports, struct Object *ob, struct ModifierData *md);
 

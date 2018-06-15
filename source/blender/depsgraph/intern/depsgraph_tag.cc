@@ -143,7 +143,7 @@ void depsgraph_select_tag_to_component_opcode(
 		*operation_code = DEG_OPCODE_VIEW_LAYER_EVAL;
 	}
 	else if (id_type == ID_OB) {
-		*component_type = DEG_NODE_TYPE_LAYER_COLLECTIONS;
+		*component_type = DEG_NODE_TYPE_OBJECT_FROM_LAYER;
 		*operation_code = DEG_OPCODE_OBJECT_BASE_FLAGS;
 	}
 	else {
@@ -163,7 +163,7 @@ void depsgraph_base_flags_tag_to_component_opcode(
 		*operation_code = DEG_OPCODE_VIEW_LAYER_EVAL;
 	}
 	else if (id_type == ID_OB) {
-		*component_type = DEG_NODE_TYPE_LAYER_COLLECTIONS;
+		*component_type = DEG_NODE_TYPE_OBJECT_FROM_LAYER;
 		*operation_code = DEG_OPCODE_OBJECT_BASE_FLAGS;
 	}
 }
@@ -285,7 +285,7 @@ void depsgraph_tag_component(Depsgraph *graph,
 		}
 	}
 	/* If component depends on copy-on-write, tag it as well. */
-	if (component_node->depends_on_cow()) {
+	if (component_node->need_tag_cow_before_update()) {
 		ComponentDepsNode *cow_comp =
 		        id_node->find_component(DEG_NODE_TYPE_COPY_ON_WRITE);
 		cow_comp->tag_update(graph);

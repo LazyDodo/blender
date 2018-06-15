@@ -37,6 +37,7 @@ struct HairExportCache;
 struct DRWHairFiberTextureBuffer;
 
 void DRW_shape_cache_free(void);
+void DRW_shape_cache_reset(void);
 
 /* 3D cursor */
 struct Gwn_Batch *DRW_cache_cursor_get(bool crosshair_lines);
@@ -202,5 +203,6 @@ struct Gwn_Batch *DRW_cache_hair_get_guide_curve_edges(struct HairSystem *hsys, 
 
 /* Metaball */
 struct Gwn_Batch *DRW_cache_mball_surface_get(struct Object *ob);
+struct Gwn_Batch **DRW_cache_mball_surface_shaded_get(struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len);
 
 #endif /* __DRAW_CACHE_H__ */
