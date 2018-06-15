@@ -783,8 +783,9 @@ class IMAGE_PT_tile_properties(Panel):
 
         tile = ima.tiles.get(sima.current_tile)
         if tile:
-            layout.prop(tile, "label")
-            layout.operator("image.generate_tile")
+            col = layout.column(align=True)
+            col.operator("image.fill_tile")
+            col.prop(tile, "label")
 
 
 class IMAGE_PT_tools_transform_uvs(Panel, UVToolsPanel):

@@ -281,7 +281,7 @@ void BKE_image_get_tile_label(struct Image *ima, struct ImageTile *tile, char *l
 struct ImageTile *BKE_image_add_tile(struct Image *ima, int tile_number, const char *label);
 bool BKE_image_remove_tile(struct Image *ima, struct ImageTile *tile);
 
-bool BKE_image_generate_tile(struct Image *ima, struct ImageTile *tile, int width, int height, const float color[4], int gen_type);
+bool BKE_image_fill_tile(struct Image *ima, struct ImageTile *tile, int width, int height, const float color[4], int gen_type);
 
 struct ImageTile *BKE_image_get_tile(struct Image *ima, int tile_number);
 struct ImageTile *BKE_image_get_tile_from_iuser(struct Image *ima, struct ImageUser *iuser);

@@ -3111,7 +3111,7 @@ bool BKE_image_remove_tile(struct Image *ima, ImageTile *tile)
 	return true;
 }
 
-bool BKE_image_generate_tile(struct Image *ima, ImageTile *tile, int width, int height, const float color[4], int gen_type)
+bool BKE_image_fill_tile(struct Image *ima, ImageTile *tile, int width, int height, const float color[4], int gen_type)
 {
 	if (!ima || !tile || ima->source != IMA_SRC_TILED) {
 		return false;

@@ -4012,9 +4012,9 @@ void IMAGE_OT_remove_tile(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/* ********************* Generate tile operator ****************** */
+/* ********************* Fill tile operator ****************** */
 
-static int generate_tile_poll(bContext *C)
+static int fill_tile_poll(bContext *C)
 {
 	Image *ima = CTX_data_edit_image(C);
 	SpaceImage *sima = CTX_wm_space_image(C);
@@ -4022,7 +4022,7 @@ static int generate_tile_poll(bContext *C)
 	return (ima && ima->source == IMA_SRC_TILED && BKE_image_get_tile(ima, sima->curtile));
 }
 
-static int generate_tile_exec(bContext *C, wmOperator *op)
+static int fill_tile_exec(bContext *C, wmOperator *op)
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = ED_space_image(sima);
@@ -4034,7 +4034,7 @@ static int generate_tile_exec(bContext *C, wmOperator *op)
 	int height = RNA_int_get(op->ptr, "height");
 
 	ImageTile *tile = BKE_image_get_tile(ima, sima->curtile);
-	if (!BKE_image_generate_tile(ima, tile, width, height, color, gen_type))
+	if (!BKE_image_fill_tile(ima, tile, width, height, color, gen_type))
 		return OPERATOR_CANCELLED;
 
 	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
@@ -4042,7 +4042,7 @@ static int generate_tile_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static int generate_tile_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+static int fill_tile_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = ED_space_image(sima);
@@ -4055,7 +4055,7 @@ static int generate_tile_invoke(bContext *C, wmOperator *op, const wmEvent *UNUS
 	return WM_operator_props_dialog_popup(C, op, 15 * UI_UNIT_X, 5 * UI_UNIT_Y);
 }
 
-static void generate_tile_draw(bContext *UNUSED(C), wmOperator *op)
+static void fill_tile_draw(bContext *UNUSED(C), wmOperator *op)
 {
 	uiLayout *split, *col[2];
 	uiLayout *layout = op->layout;
@@ -4082,18 +4082,18 @@ static void generate_tile_draw(bContext *UNUSED(C), wmOperator *op)
 	uiItemR(col[1], &ptr, "generated_type", 0, "", ICON_NONE);
 }
 
-void IMAGE_OT_generate_tile(wmOperatorType *ot)
+void IMAGE_OT_fill_tile(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Generate tile";
-	ot->description = "Generates an image in the current tile";
-	ot->idname = "IMAGE_OT_generate_tile";
+	ot->name = "Fill tile";
+	ot->description = "Fill the current tile with a generated image";
+	ot->idname = "IMAGE_OT_fill_tile";
 
 	/* api callbacks */
-	ot->poll = generate_tile_poll;
-	ot->exec = generate_tile_exec;
-	ot->invoke = generate_tile_invoke;
-	ot->ui = generate_tile_draw;
+	ot->poll = fill_tile_poll;
+	ot->exec = fill_tile_exec;
+	ot->invoke = fill_tile_invoke;
+	ot->ui = fill_tile_draw;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
