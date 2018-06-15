@@ -40,7 +40,7 @@ void workbench_material_update_data(WORKBENCH_PrivateData *wpd, Object *ob, Mate
 	}
 }
 
-char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair)
+char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype, DRWShaderHairType hair_type)
 {
 	char *str = NULL;
 
@@ -91,8 +91,16 @@ char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, int drawtype,
 	if (NORMAL_ENCODING_ENABLED()) {
 		BLI_dynstr_appendf(ds, "#define WORKBENCH_ENCODE_NORMALS\n");
 	}
-	if (is_hair) {
-		BLI_dynstr_appendf(ds, "#define HAIR_SHADER\n");
+
+	switch (hair_type) {
+		case DRW_SHADER_HAIR_NONE:
+			break;
+		case DRW_SHADER_HAIR_PARTICLES:
+			BLI_dynstr_appendf(ds, "#define HAIR_SHADER\n");
+			break;
+		case DRW_SHADER_HAIR_FIBERS:
+			BLI_dynstr_append(ds, DRW_hair_shader_defines());
+			break;
 	}
 
 #ifdef WORKBENCH_REVEALAGE_ENABLED
@@ -129,7 +137,7 @@ uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template)
 	return result;
 }
 
-int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype, bool is_hair)
+int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype, DRWShaderHairType hair_type)
 {
 	/* NOTE: change MAX_SHADERS accordingly when modifying this function. */
 	int index = 0;
@@ -145,8 +153,8 @@ int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, int drawtype
 	/* 2 bits STUDIOLIGHT_ORIENTATION */
 	SET_FLAG_FROM_TEST(index, wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD, 1 << 7);
 	SET_FLAG_FROM_TEST(index, wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL, 1 << 8);
-	/* 1 bit for hair */
-	SET_FLAG_FROM_TEST(index, is_hair, 1 << 9);
+	/* 2 bits for hair */
+	SET_FLAG_FROM_TEST(index, hair_type, hair_type << 9);
 	return index;
 }
 

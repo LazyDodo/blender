@@ -55,12 +55,13 @@ typedef struct HairPattern {
 } HairPattern;
 
 typedef struct HairGuideCurve {
-	/* Sample on the scalp mesh for the root vertex */
-	MeshSample mesh_sample;
-	/* Offset in the vertex array where the curve starts */
-	int vertstart;
-	/* Number of vertices in the curve */
-	int numverts;
+	MeshSample mesh_sample;             /* Sample on the scalp mesh for the root vertex */
+	int vertstart;                      /* Offset in the vertex array where the curve starts */
+	int numverts;                       /* Number of vertices in the curve */
+
+	/* Shape */
+	float taper_length;                 /* Distance at which final thickness is reached */
+	float taper_thickness;              /* Relative thickness of the strand */
 } HairGuideCurve;
 
 typedef struct HairGuideVertex {
@@ -91,10 +92,6 @@ typedef struct HairSystem {
 	/* Guide curve data */
 	HairGuideData guides;
 	
-	/* Material used for drawing and rendering hair fibers */
-	int material_index;
-	int pad2;
-	
 	/* Data buffers for drawing */
 	void *draw_batch_cache;
 	/* Texture buffer for drawing */
@@ -111,7 +108,13 @@ typedef struct HairDrawSettings
 {
 	short follicle_mode;
 	short guide_mode;
-	int pad;
+	short shape_flag;
+	short pad;
+	
+	float shape;
+	float root_radius;
+	float tip_radius;
+	float radius_scale;
 } HairDrawSettings;
 
 typedef enum eHairDrawFollicleMode
@@ -125,6 +128,10 @@ typedef enum eHairDrawGuideMode
 	HAIR_DRAW_GUIDE_NONE        = 0,
 	HAIR_DRAW_GUIDE_CURVES      = 1,
 } eHairDrawGuideMode;
+
+typedef enum eHairDrawShapeFlag {
+	HAIR_DRAW_CLOSE_TIP         = (1<<0),
+} eHairDrawShapeFlag;
 
 #ifdef __cplusplus
 }

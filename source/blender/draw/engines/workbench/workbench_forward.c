@@ -52,8 +52,10 @@ static struct {
 	struct GPUShader *transparent_accum_sh_cache[MAX_SHADERS];
 	struct GPUShader *transparent_revealage_sh;
 	struct GPUShader *transparent_revealage_hair_sh;
+	struct GPUShader *transparent_revealage_hair_fibers_sh;
 	struct GPUShader *object_outline_sh;
 	struct GPUShader *object_outline_hair_sh;
+	struct GPUShader *object_outline_hair_fibers_sh;
 	struct GPUShader *checker_depth_sh;
 
 	struct GPUTexture *object_id_tx; /* ref only, not alloced */
@@ -68,6 +70,7 @@ static struct {
 
 /* Shaders */
 extern char datatoc_common_hair_lib_glsl[];
+extern char datatoc_common_hair_guides_lib_glsl[];
 extern char datatoc_workbench_forward_composite_frag_glsl[];
 extern char datatoc_workbench_forward_depth_frag_glsl[];
 extern char datatoc_workbench_forward_transparent_accum_frag_glsl[];
@@ -104,6 +107,7 @@ static char *workbench_build_forward_vert(void)
 	DynStr *ds = BLI_dynstr_new();
 
 	BLI_dynstr_append(ds, datatoc_common_hair_lib_glsl);
+	BLI_dynstr_append(ds, datatoc_common_hair_guides_lib_glsl);
 	BLI_dynstr_append(ds, datatoc_workbench_prepass_vert_glsl);
 
 	str = BLI_dynstr_get_cstring(ds);
@@ -230,10 +234,10 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 	return material;
 }
 
-static void ensure_forward_shaders(WORKBENCH_PrivateData *wpd, int index, int drawtype, bool is_hair)
+static void ensure_forward_shaders(WORKBENCH_PrivateData *wpd, int index, int drawtype, DRWShaderHairType hair_type)
 {
-	if (e_data.composite_sh_cache[index] == NULL && drawtype == OB_SOLID && !is_hair) {
-		char *defines = workbench_material_build_defines(wpd, drawtype, is_hair);
+	if (e_data.composite_sh_cache[index] == NULL && drawtype == OB_SOLID && hair_type == DRW_SHADER_HAIR_NONE) {
+		char *defines = workbench_material_build_defines(wpd, drawtype, hair_type);
 		char *composite_frag = workbench_build_forward_composite_frag();
 		e_data.composite_sh_cache[index] = DRW_shader_create_fullscreen(composite_frag, defines);
 		MEM_freeN(composite_frag);
@@ -241,7 +245,7 @@ static void ensure_forward_shaders(WORKBENCH_PrivateData *wpd, int index, int dr
 	}
 
 	if (e_data.transparent_accum_sh_cache[index] == NULL) {
-		char *defines = workbench_material_build_defines(wpd, drawtype, is_hair);
+		char *defines = workbench_material_build_defines(wpd, drawtype, hair_type);
 		char *transparent_accum_vert = workbench_build_forward_vert();
 		char *transparent_accum_frag = workbench_build_forward_transparent_accum_frag();
 		e_data.transparent_accum_sh_cache[index] = DRW_shader_create(
@@ -255,21 +259,27 @@ static void ensure_forward_shaders(WORKBENCH_PrivateData *wpd, int index, int dr
 
 static void select_forward_shaders(WORKBENCH_PrivateData *wpd)
 {
-	int index_solid = workbench_material_get_shader_index(wpd, OB_SOLID, false);
-	int index_solid_hair = workbench_material_get_shader_index(wpd, OB_SOLID, true);
-	int index_texture = workbench_material_get_shader_index(wpd, OB_TEXTURE, false);
-	int index_texture_hair = workbench_material_get_shader_index(wpd, OB_TEXTURE, true);
+	int index_solid = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_NONE);
+	int index_solid_hair = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_PARTICLES);
+	int index_solid_hair_fibers = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_FIBERS);
+	int index_texture = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_NONE);
+	int index_texture_hair = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_PARTICLES);
+	int index_texture_hair_fibers = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_FIBERS);
 
-	ensure_forward_shaders(wpd, index_solid, OB_SOLID, false);
-	ensure_forward_shaders(wpd, index_solid_hair, OB_SOLID, true);
-	ensure_forward_shaders(wpd, index_texture, OB_TEXTURE, false);
-	ensure_forward_shaders(wpd, index_texture_hair, OB_TEXTURE, true);
+	ensure_forward_shaders(wpd, index_solid, OB_SOLID, DRW_SHADER_HAIR_NONE);
+	ensure_forward_shaders(wpd, index_solid_hair, OB_SOLID, DRW_SHADER_HAIR_PARTICLES);
+	ensure_forward_shaders(wpd, index_solid_hair_fibers, OB_SOLID, DRW_SHADER_HAIR_FIBERS);
+	ensure_forward_shaders(wpd, index_texture, OB_TEXTURE, DRW_SHADER_HAIR_NONE);
+	ensure_forward_shaders(wpd, index_texture_hair, OB_TEXTURE, DRW_SHADER_HAIR_PARTICLES);
+	ensure_forward_shaders(wpd, index_texture_hair_fibers, OB_TEXTURE, DRW_SHADER_HAIR_FIBERS);
 
 	wpd->composite_sh = e_data.composite_sh_cache[index_solid];
 	wpd->transparent_accum_sh = e_data.transparent_accum_sh_cache[index_solid];
 	wpd->transparent_accum_hair_sh = e_data.transparent_accum_sh_cache[index_solid_hair];
+	wpd->transparent_accum_hair_fibers_sh = e_data.transparent_accum_sh_cache[index_solid_hair_fibers];
 	wpd->transparent_accum_texture_sh = e_data.transparent_accum_sh_cache[index_texture];
 	wpd->transparent_accum_texture_hair_sh = e_data.transparent_accum_sh_cache[index_texture_hair];
+	wpd->transparent_accum_texture_hair_fibers_sh = e_data.transparent_accum_sh_cache[index_texture_hair_fibers];
 }
 
 /* public functions */
@@ -295,8 +305,9 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		memset(e_data.composite_sh_cache, 0x00, sizeof(struct GPUShader *) * MAX_SHADERS);
 		memset(e_data.transparent_accum_sh_cache, 0x00, sizeof(struct GPUShader *) * MAX_SHADERS);
 
-		char *defines = workbench_material_build_defines(wpd, OB_SOLID, false);
-		char *defines_hair = workbench_material_build_defines(wpd, OB_SOLID, true);
+		char *defines = workbench_material_build_defines(wpd, OB_SOLID, DRW_SHADER_HAIR_NONE);
+		char *defines_hair = workbench_material_build_defines(wpd, OB_SOLID, DRW_SHADER_HAIR_PARTICLES);
+		char *defines_hair_fibers = workbench_material_build_defines(wpd, OB_SOLID, DRW_SHADER_HAIR_FIBERS);
 		char *forward_vert = workbench_build_forward_vert();
 		char *forward_depth_frag = workbench_build_forward_depth_frag();
 		e_data.object_outline_sh = DRW_shader_create(
@@ -305,6 +316,9 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		e_data.object_outline_hair_sh = DRW_shader_create(
 		        forward_vert, NULL,
 		        forward_depth_frag, defines_hair);
+		e_data.object_outline_hair_fibers_sh = DRW_shader_create(
+		        forward_vert, NULL,
+		        forward_depth_frag, defines_hair_fibers);
 
 #ifdef WORKBENCH_REVEALAGE_ENABLED
 		char *forward_transparent_revealage_frag = workbench_build_forward_transparent_revealage_frag();
@@ -314,6 +328,9 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		e_data.transparent_revealage_hair_sh = DRW_shader_create(
 		        forward_vert, NULL,
 		        forward_transparent_revealage_frag, defines_hair);
+		e_data.transparent_revealage_hair_fibers_sh = DRW_shader_create(
+		        forward_vert, NULL,
+		        forward_transparent_revealage_frag, defines_hair_fibers);
 		MEM_freeN(forward_transparent_revealage_frag);
 #endif
 
@@ -428,9 +445,11 @@ void workbench_forward_engine_free()
 #ifdef WORKBENCH_REVEALAGE_ENABLED
 	DRW_SHADER_FREE_SAFE(e_data.transparent_revealage_sh);
 	DRW_SHADER_FREE_SAFE(e_data.transparent_revealage_hair_sh);
+	DRW_SHADER_FREE_SAFE(e_data.transparent_revealage_hair_fibers_sh);
 #endif
 	DRW_SHADER_FREE_SAFE(e_data.object_outline_sh);
 	DRW_SHADER_FREE_SAFE(e_data.object_outline_hair_sh);
+	DRW_SHADER_FREE_SAFE(e_data.object_outline_hair_fibers_sh);
 	DRW_SHADER_FREE_SAFE(e_data.checker_depth_sh);
 }
 

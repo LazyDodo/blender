@@ -85,6 +85,7 @@ static struct {
 
 /* Shaders */
 extern char datatoc_common_hair_lib_glsl[];
+extern char datatoc_common_hair_guides_lib_glsl[];
 
 extern char datatoc_workbench_prepass_vert_glsl[];
 extern char datatoc_workbench_prepass_frag_glsl[];
@@ -149,6 +150,7 @@ static char *workbench_build_prepass_vert(void)
 	DynStr *ds = BLI_dynstr_new();
 
 	BLI_dynstr_append(ds, datatoc_common_hair_lib_glsl);
+	BLI_dynstr_append(ds, datatoc_common_hair_guides_lib_glsl);
 	BLI_dynstr_append(ds, datatoc_workbench_prepass_vert_glsl);
 
 	str = BLI_dynstr_get_cstring(ds);
@@ -171,17 +173,17 @@ static char *workbench_build_cavity_frag(void)
 	return str;
 }
 
-static void ensure_deferred_shaders(WORKBENCH_PrivateData *wpd, int index, int drawtype, bool is_hair)
+static void ensure_deferred_shaders(WORKBENCH_PrivateData *wpd, int index, int drawtype, DRWShaderHairType hair_type)
 {
 	if (e_data.prepass_sh_cache[index] == NULL) {
-		char *defines = workbench_material_build_defines(wpd, drawtype, is_hair);
+		char *defines = workbench_material_build_defines(wpd, drawtype, hair_type);
 		char *composite_frag = workbench_build_composite_frag(wpd);
 		char *prepass_vert = workbench_build_prepass_vert();
 		char *prepass_frag = workbench_build_prepass_frag();
 		e_data.prepass_sh_cache[index] = DRW_shader_create(
 		        prepass_vert, NULL,
 		        prepass_frag, defines);
-		if (drawtype == OB_SOLID && !is_hair) {
+		if (drawtype == OB_SOLID && hair_type == DRW_SHADER_HAIR_NONE) {
 			e_data.composite_sh_cache[index] = DRW_shader_create_fullscreen(composite_frag, defines);
 		}
 		MEM_freeN(prepass_vert);
@@ -193,20 +195,26 @@ static void ensure_deferred_shaders(WORKBENCH_PrivateData *wpd, int index, int d
 
 static void select_deferred_shaders(WORKBENCH_PrivateData *wpd)
 {
-	int index_solid = workbench_material_get_shader_index(wpd, OB_SOLID, false);
-	int index_solid_hair = workbench_material_get_shader_index(wpd, OB_SOLID, true);
-	int index_texture = workbench_material_get_shader_index(wpd, OB_TEXTURE, false);
-	int index_texture_hair = workbench_material_get_shader_index(wpd, OB_TEXTURE, true);
+	int index_solid = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_NONE);
+	int index_solid_hair = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_PARTICLES);
+	int index_solid_hair_fibers = workbench_material_get_shader_index(wpd, OB_SOLID, DRW_SHADER_HAIR_FIBERS);
+	int index_texture = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_NONE);
+	int index_texture_hair = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_PARTICLES);
+	int index_texture_hair_fibers = workbench_material_get_shader_index(wpd, OB_TEXTURE, DRW_SHADER_HAIR_FIBERS);
 
-	ensure_deferred_shaders(wpd, index_solid, OB_SOLID, false);
-	ensure_deferred_shaders(wpd, index_solid_hair, OB_SOLID, true);
-	ensure_deferred_shaders(wpd, index_texture, OB_TEXTURE, false);
-	ensure_deferred_shaders(wpd, index_texture_hair, OB_TEXTURE, true);
+	ensure_deferred_shaders(wpd, index_solid, OB_SOLID, DRW_SHADER_HAIR_NONE);
+	ensure_deferred_shaders(wpd, index_solid_hair, OB_SOLID, DRW_SHADER_HAIR_PARTICLES);
+	ensure_deferred_shaders(wpd, index_solid_hair_fibers, OB_SOLID, DRW_SHADER_HAIR_FIBERS);
+	ensure_deferred_shaders(wpd, index_texture, OB_TEXTURE, DRW_SHADER_HAIR_NONE);
+	ensure_deferred_shaders(wpd, index_texture_hair, OB_TEXTURE, DRW_SHADER_HAIR_PARTICLES);
+	ensure_deferred_shaders(wpd, index_texture_hair_fibers, OB_TEXTURE, DRW_SHADER_HAIR_FIBERS);
 
 	wpd->prepass_solid_sh = e_data.prepass_sh_cache[index_solid];
 	wpd->prepass_solid_hair_sh = e_data.prepass_sh_cache[index_solid_hair];
+	wpd->prepass_solid_hair_fibers_sh = e_data.prepass_sh_cache[index_solid_hair_fibers];
 	wpd->prepass_texture_sh = e_data.prepass_sh_cache[index_texture];
 	wpd->prepass_texture_hair_sh = e_data.prepass_sh_cache[index_texture_hair];
+	wpd->prepass_texture_hair_fibers_sh = e_data.prepass_sh_cache[index_texture_hair_fibers];
 	wpd->composite_sh = e_data.composite_sh_cache[index_solid];
 }
 

@@ -65,7 +65,8 @@ void BKE_hair_guide_curves_begin(struct HairSystem *hsys, int totcurves);
  * \param mesh_sample Origin of the guide curve on the scalp mesh.
  * \param numverts Number of vertices in this guide curve
  */
-void BKE_hair_set_guide_curve(struct HairSystem *hsys, int index, const struct MeshSample *mesh_sample, int numverts);
+void BKE_hair_set_guide_curve(struct HairSystem *hsys, int index, const struct MeshSample *mesh_sample, int numverts,
+                              float taper_length, float taper_thickness);
 
 /* Finalize guide curve update */
 void BKE_hair_guide_curves_end(struct HairSystem *hsys);
@@ -130,13 +131,17 @@ void BKE_hair_draw_settings_free(struct HairDrawSettings *draw_settings);
 /* Intermediate data for export */
 typedef struct HairExportCache
 {
+	/* Per guide curve data */
 	int totguidecurves;
-	int totguideverts;
 	struct HairGuideCurve *guide_curves;
+	
+	/* Per guide vertex data */
+	int totguideverts;
 	struct HairGuideVertex *guide_verts;
 	float (*guide_tangents)[3];             /* Tangent vectors on guide curves */
 	float (*guide_normals)[3];              /* Normal vectors on guide curves */
 	
+	/* Per fiber data */
 	int totfibercurves;
 	int totfiberverts;
 	int *fiber_numverts;                    /* Number of vertices in each fiber */

@@ -92,6 +92,7 @@ extern char datatoc_bsdf_direct_lib_glsl[];
 extern char datatoc_bsdf_sampling_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
 extern char datatoc_common_hair_lib_glsl[];
+extern char datatoc_common_hair_guides_lib_glsl[];
 extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_irradiance_lib_glsl[];
 extern char datatoc_octahedron_lib_glsl[];
@@ -108,7 +109,6 @@ extern char datatoc_volumetric_vert_glsl[];
 extern char datatoc_volumetric_geom_glsl[];
 extern char datatoc_volumetric_frag_glsl[];
 extern char datatoc_volumetric_lib_glsl[];
-extern char datatoc_hair_lib_glsl[];
 
 extern char datatoc_gpu_shader_uniform_color_frag_glsl[];
 
@@ -591,7 +591,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		e_data.vert_shader_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_hair_lib_glsl,
-		        datatoc_hair_lib_glsl,
+		        datatoc_common_hair_guides_lib_glsl,
 		        datatoc_lit_surface_vert_glsl);
 
 		e_data.default_background = DRW_shader_create(
@@ -613,7 +613,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		char *hair_fiber_vert_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_hair_lib_glsl,
-		        datatoc_hair_lib_glsl,
+		        datatoc_common_hair_guides_lib_glsl,
 		        datatoc_prepass_vert_glsl);
 
 		e_data.default_prepass_hair_fiber_sh = DRW_shader_create(
@@ -1533,6 +1533,8 @@ static void material_hair(
         EEVEE_ViewLayerData *sldata,
         Object *ob,
         HairSystem *hsys,
+        const HairDrawSettings *draw_set,
+        Material *ma,
         struct Mesh *scalp)
 {
 	EEVEE_PassList *psl = ((EEVEE_Data *)vedata)->psl;
@@ -1543,16 +1545,15 @@ static void material_hair(
 	float mat[4][4];
 	copy_m4_m4(mat, ob->obmat);
 	
-	Material *ma = give_current_material(ob, hsys->material_index);
 	if (ma == NULL) {
 		ma = &defmaterial;
 	}
 	
 	{
-		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, psl->depth_pass, e_data.default_prepass_hair_fiber_sh);
+		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, draw_set, psl->depth_pass, e_data.default_prepass_hair_fiber_sh);
 	}
 	{
-		DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, psl->depth_pass_clip, e_data.default_prepass_hair_fiber_clip_sh);
+		DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, draw_set, psl->depth_pass_clip, e_data.default_prepass_hair_fiber_clip_sh);
 		DRW_shgroup_uniform_block(shgrp, "clip_block", sldata->clip_ubo);
 	}
 	
@@ -1576,7 +1577,7 @@ static void material_hair(
 				{
 					shgrp = DRW_shgroup_material_hair_fibers_create(
 					        scene, ob, hsys, scalp,
-					        psl->material_pass,
+					        draw_set, psl->material_pass,
 					        gpumat);
 					add_standard_uniforms(shgrp, sldata, vedata, &ssr_id, NULL, false, false);
 					break;
@@ -1612,7 +1613,7 @@ static void material_hair(
 	/* Shadows */
 	DRW_shgroup_hair_fibers_create(
 	        scene, ob, hsys, scalp,
-	        psl->shadow_pass,
+	        draw_set, psl->shadow_pass,
 	        e_data.default_prepass_hair_fiber_sh);
 }
 
@@ -1816,7 +1817,11 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 				}
 				else if (md->type == eModifierType_Fur) {
 					FurModifierData *fmd = (FurModifierData *)md;
-					material_hair(vedata, sldata, ob, fmd->hair_system, ob->data);
+					
+					const int material_index = 1; /* TODO */
+					Material *material = give_current_material(ob, material_index);
+					
+					material_hair(vedata, sldata, ob, fmd->hair_system, fmd->draw_settings, material, ob->data);
 				}
 			}
 		}

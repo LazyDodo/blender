@@ -49,7 +49,7 @@ const char* DRW_hair_shader_defines(void)
 
 static DRWShadingGroup *drw_shgroup_create_hair_fibers_ex(
         Scene *UNUSED(scene), Object *object, HairSystem *hsys, struct Mesh *scalp,
-        DRWPass *hair_pass,
+        const HairDrawSettings *draw_set, DRWPass *hair_pass,
         struct GPUMaterial *gpu_mat, GPUShader *gpu_shader)
 {
 	/* TODO */
@@ -85,6 +85,11 @@ static DRWShadingGroup *drw_shgroup_create_hair_fibers_ex(
 	DRW_shgroup_uniform_int(shgrp, "strand_vertex_start", &fiber_buffer->strand_vertex_start, 1);
 	DRW_shgroup_uniform_int(shgrp, "fiber_start", &fiber_buffer->fiber_start, 1);
 
+	DRW_shgroup_uniform_float(shgrp, "hairRadShape", &draw_set->shape, 1);
+	DRW_shgroup_uniform_float_copy(shgrp, "hairRadRoot", draw_set->root_radius * draw_set->radius_scale* 0.5f);
+	DRW_shgroup_uniform_float_copy(shgrp, "hairRadTip", draw_set->tip_radius * draw_set->radius_scale * 0.5f);
+	DRW_shgroup_uniform_bool_copy(shgrp, "hairCloseTip", (draw_set->shape_flag & HAIR_DRAW_CLOSE_TIP) != 0);
+
 	/* TODO(fclem): Until we have a better way to cull the hair and render with orco, bypass culling test. */
 	DRW_shgroup_call_object_add_no_cull(shgrp, hair_geom, object);
 
@@ -93,18 +98,18 @@ static DRWShadingGroup *drw_shgroup_create_hair_fibers_ex(
 
 DRWShadingGroup *DRW_shgroup_hair_fibers_create(
         Scene *scene, Object *object, HairSystem *hsys, struct Mesh *scalp,
-        DRWPass *hair_pass,
+        const HairDrawSettings *draw_set, DRWPass *hair_pass,
         GPUShader *shader)
 {
-	return drw_shgroup_create_hair_fibers_ex(scene, object, hsys, scalp, hair_pass, NULL, shader);
+	return drw_shgroup_create_hair_fibers_ex(scene, object, hsys, scalp, draw_set, hair_pass, NULL, shader);
 }
 
 DRWShadingGroup *DRW_shgroup_material_hair_fibers_create(
         Scene *scene, Object *object, HairSystem *hsys, struct Mesh *scalp,
-        DRWPass *hair_pass,
+        const HairDrawSettings *draw_set, DRWPass *hair_pass,
         struct GPUMaterial *material)
 {
-	return drw_shgroup_create_hair_fibers_ex(scene, object, hsys, scalp, hair_pass, material, NULL);
+	return drw_shgroup_create_hair_fibers_ex(scene, object, hsys, scalp, draw_set, hair_pass, material, NULL);
 }
 
 void DRW_shgroup_hair(

@@ -8,16 +8,14 @@ uniform mat3 WorldNormalMatrix;
 uniform mat3 NormalMatrix;
 #endif
 
-#ifdef HAIR_SHADER
-
+#ifndef HAIR_SHADER
+in vec3 pos;
+in vec3 nor;
+#else
 #ifdef HAIR_SHADER_FIBERS
 in int fiber_index;
 in float curve_param;
 #endif
-
-#else
-in vec3 pos;
-in vec3 nor;
 #endif
 
 out vec3 worldPosition;
@@ -50,7 +48,7 @@ void main()
 #ifdef HAIR_SHADER
 	bool is_persp = (ProjectionMatrix[3][3] == 0.0);
 
-#ifdef HAIR_SHADER_FIBERS
+#  ifdef HAIR_SHADER_FIBERS
 	vec3 pos, tang, binor;
 	hair_fiber_get_vertex(
 	        fiber_index, curve_param,
@@ -65,7 +63,7 @@ void main()
 	hairTangent = (ModelMatrix * vec4(tang, 0.0)).xyz;
 	worldNormal = (ModelMatrix * vec4(nor, 0.0)).xyz;
 	viewNormal = normalize(mat3(ViewMatrix) * worldNormal);
-#else
+#  else
 	hairStrandID = hair_get_strand_id();
 	vec3 pos, binor;
 	hair_get_pos_tan_binor_time(
@@ -78,15 +76,15 @@ void main()
 	hairTangent = normalize(hairTangent);
 	worldNormal = cross(binor, hairTangent);
 	viewNormal = normalize(mat3(ViewMatrix) * worldNormal);
-#endif
+#  endif
 
-#else
+#else /* HAIR_SHADER */
 	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
 	viewPosition = (ModelViewMatrix * vec4(pos, 1.0)).xyz;
 	worldPosition = (ModelMatrix * vec4(pos, 1.0)).xyz;
 	worldNormal = normalize(WorldNormalMatrix * nor);
 	viewNormal = normalize(NormalMatrix * nor);
-#endif
+#endif /* HAIR_SHADER */
 
 	/* Used for planar reflections */
 	gl_ClipDistance[0] = dot(vec4(worldPosition, 1.0), ClipPlanes[0]);

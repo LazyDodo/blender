@@ -1203,14 +1203,16 @@ Mesh *BlenderSync::sync_mesh(BL::Depsgraph& b_depsgraph,
 
 				create_mesh_volume_attributes(scene, b_ob, mesh, b_scene.frame_current());
 			}
+		}
 
-			if(view_layer.use_hair && mesh->subdivision_type == Mesh::SUBDIVISION_NONE)
-				sync_curves(mesh, b_mesh, b_ob, false);
+		if(view_layer.use_hair && mesh->subdivision_type == Mesh::SUBDIVISION_NONE)
+			sync_curves(mesh, b_mesh, b_ob, false);
 
-			if(can_free_caches) {
-				b_ob.cache_release();
-			}
+		if(can_free_caches) {
+			b_ob.cache_release();
+		}
 
+		if(b_mesh) {
 			/* free derived mesh */
 			b_data.meshes.remove(b_mesh, false, true, false);
 		}
