@@ -823,7 +823,7 @@ static bool paint_2d_check_tile(ImagePaintState *s, int i)
 			s->tiles[i].size[0] = ibuf->x;
 			s->tiles[i].size[1] = ibuf->y;
 			s->tiles[i].radius_fac[0] = ((float) ibuf->x) / s->tiles[0].size[0];
-			s->tiles[i].radius_fac[1] = ((float) ibuf->x) / s->tiles[0].size[1];
+			s->tiles[i].radius_fac[1] = ((float) ibuf->y) / s->tiles[0].size[1];
 			s->tiles[i].state = PAINT2D_TILE_READY;
 		}
 	}
