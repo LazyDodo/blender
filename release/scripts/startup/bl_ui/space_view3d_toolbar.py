@@ -1467,37 +1467,6 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
             col.prop(gp_settings, "angle_factor", text="Factor", slider=True)
             col.separator()
 
-            col.prop(gp_settings, "enable_random", text="Random Settings")
-            if gp_settings.enable_random is True:
-                col.label(text="Settings:")
-                col.prop(gp_settings, "random_pressure", text="Pressure", slider=True)
-                col.separator()
-
-                col.prop(gp_settings, "random_strength", text="Strength", slider=True)
-                col.separator()
-
-                col.prop(gp_settings, "uv_random", text="UV", slider=True)
-                col.separator()
-
-                row = col.row(align=True)
-                row.prop(gp_settings, "pen_jitter", slider=True)
-                row.prop(gp_settings, "use_jitter_pressure", text="", icon='STYLUS_PRESSURE')
-                col.separator()
-
-            col.prop(gp_settings, "enable_settings", text="Post-processing Settings")
-            if gp_settings.enable_settings is True:
-                col.label(text="Stroke Quality:")
-                col.prop(gp_settings, "pen_smooth_factor")
-                col.prop(gp_settings, "pen_smooth_steps")
-
-                col.label(text="Thickness:")
-                col.prop(gp_settings, "pen_thick_smooth_factor")
-                col.prop(gp_settings, "pen_thick_smooth_steps")
-
-                col.label(text="Subdivide:")
-                col.prop(gp_settings, "pen_subdivision_steps")
-                col.prop(gp_settings, "random_subdiv", text="Randomness", slider=True)
-
 
 class VIEW3D_PT_tools_grease_pencil_brush_stabilizer(View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
@@ -1528,6 +1497,77 @@ class VIEW3D_PT_tools_grease_pencil_brush_stabilizer(View3DPanel, Panel):
 
         layout.prop(brush, "smooth_stroke_radius", text="Radius", slider=True)
         layout.prop(brush, "smooth_stroke_factor", text="Factor", slider=True)
+
+
+class VIEW3D_PT_tools_grease_pencil_brush_settings(View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
+    bl_parent_id = 'VIEW3D_PT_tools_grease_pencil_brush_option'
+    bl_label = "Post-processing Settings"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        brush = context.active_gpencil_brush
+
+        return brush is not None
+
+    def draw_header(self, context):
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+        self.layout.prop(gp_settings, "enable_settings", text="")
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+        layout.active = gp_settings.enable_settings
+
+        layout.prop(gp_settings, "pen_smooth_factor")
+        layout.prop(gp_settings, "pen_smooth_steps")
+
+        layout.prop(gp_settings, "pen_thick_smooth_factor")
+        layout.prop(gp_settings, "pen_thick_smooth_steps")
+
+        layout.prop(gp_settings, "pen_subdivision_steps")
+        layout.prop(gp_settings, "random_subdiv", text="Randomness", slider=True)
+
+
+class VIEW3D_PT_tools_grease_pencil_brush_random(View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
+    bl_parent_id = 'VIEW3D_PT_tools_grease_pencil_brush_option'
+    bl_label = "Random Settings"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        brush = context.active_gpencil_brush
+
+        return brush is not None
+
+    def draw_header(self, context):
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+        self.layout.prop(gp_settings, "enable_random", text="")
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+        layout.active = gp_settings.enable_random
+
+        layout.prop(gp_settings, "random_pressure", text="Pressure", slider=True)
+        layout.prop(gp_settings, "random_strength", text="Strength", slider=True)
+        layout.prop(gp_settings, "uv_random", text="UV", slider=True)
+
+        row = layout.row(align=True)
+        row.prop(gp_settings, "pen_jitter", slider=True)
+        row.prop(gp_settings, "use_jitter_pressure", text="", icon='STYLUS_PRESSURE')
 
 
 # Grease Pencil drawingcurves
@@ -1750,7 +1790,9 @@ classes = (
     # some panels have been moved to toolbar already
     VIEW3D_PT_tools_grease_pencil_brush,
     VIEW3D_PT_tools_grease_pencil_brush_option,
+    VIEW3D_PT_tools_grease_pencil_brush_settings,
     VIEW3D_PT_tools_grease_pencil_brush_stabilizer,
+    VIEW3D_PT_tools_grease_pencil_brush_random,
     VIEW3D_PT_tools_grease_pencil_brushcurves,
     VIEW3D_PT_tools_grease_pencil_shapes,
     VIEW3D_PT_tools_grease_pencil_edit,
