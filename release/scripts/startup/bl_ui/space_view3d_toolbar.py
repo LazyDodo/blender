@@ -1408,7 +1408,6 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
                 col.prop(brush, "size", text="Thickness")
                 col.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
 
-
                 col = layout.row(align=True)
                 col.template_ID(gp_settings, "material")
 
@@ -1434,11 +1433,6 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
 
                 row = layout.row(align=True)
                 row.template_ID(gp_settings, "material")
-
-            if gp_settings.gpencil_brush_type != 'ERASE':
-                layout.separator()
-                layout.prop(context.tool_settings, "use_gpencil_draw_onback", text="Draw on Back")
-
 
 
 # Grease Pencil drawing brushes options
