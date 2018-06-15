@@ -282,7 +282,7 @@ struct ImageTile *BKE_image_add_tile(struct Image *ima, const char *label);
 bool BKE_image_remove_tile(struct Image *ima);
 bool BKE_image_make_tiled(struct Image *ima, int num_tiles);
 
-bool BKE_image_generate_tile(struct Image *ima, int tile, const float color[4], int gen_type);
+bool BKE_image_generate_tile(struct Image *ima, int tile, int width, int height, const float color[4], int gen_type);
 
 struct GPUTexture *BKE_image_get_gpu_texture(struct Image *ima, int tile, int type);
 void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPUTexture *tex);

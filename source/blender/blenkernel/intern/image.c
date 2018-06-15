@@ -3112,7 +3112,7 @@ void BKE_image_set_gpu_texture(struct Image *ima, int tile, int type, struct GPU
 	ima->tiles[tile].gputexture[type] = tex;
 }
 
-bool BKE_image_generate_tile(struct Image *ima, int tile, const float color[4], int gen_type)
+bool BKE_image_generate_tile(struct Image *ima, int tile, int width, int height, const float color[4], int gen_type)
 {
 	if (!ima || ima->source != IMA_SRC_TILED || tile < 0 || tile >= ima->num_tiles) {
 		return false;
@@ -3126,13 +3126,11 @@ bool BKE_image_generate_tile(struct Image *ima, int tile, const float color[4], 
 	if (!main_ibuf) {
 		return false;
 	}
-	int x = main_ibuf->x;
-	int y = main_ibuf->y;
 	int planes = main_ibuf->planes;
 	bool is_float = (main_ibuf->rect_float != NULL);
 	BKE_image_release_ibuf(ima, main_ibuf, NULL);
 
-	ImBuf *tile_ibuf = add_ibuf_size(x, y, ima->name, planes, is_float, gen_type, color, &ima->colorspace_settings);
+	ImBuf *tile_ibuf = add_ibuf_size(width, height, ima->name, planes, is_float, gen_type, color, &ima->colorspace_settings);
 
 	if (tile_ibuf) {
 		image_assign_ibuf(ima, tile_ibuf, 0, tile);

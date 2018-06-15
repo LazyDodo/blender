@@ -3951,8 +3951,10 @@ static int generate_tile_exec(bContext *C, wmOperator *op)
 	float color[4];
 	RNA_float_get_array(op->ptr, "color", color);
 	int gen_type = RNA_enum_get(op->ptr, "generated_type");
+	int width = RNA_int_get(op->ptr, "width");
+	int height = RNA_int_get(op->ptr, "height");
 
-	if (!BKE_image_generate_tile(ima, sima->curtile, color, gen_type))
+	if (!BKE_image_generate_tile(ima, sima->curtile, width, height, color, gen_type))
 		return OPERATOR_CANCELLED;
 
 	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
@@ -3962,6 +3964,14 @@ static int generate_tile_exec(bContext *C, wmOperator *op)
 
 static int generate_tile_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
+	SpaceImage *sima = CTX_wm_space_image(C);
+	Image *ima = ED_space_image(sima);
+	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, NULL, NULL);
+	if (ibuf) {
+		RNA_int_set(op->ptr, "width", ibuf->x);
+		RNA_int_set(op->ptr, "height", ibuf->y);
+		BKE_image_release_ibuf(ima, ibuf, NULL);
+	}
 	return WM_operator_props_dialog_popup(C, op, 15 * UI_UNIT_X, 5 * UI_UNIT_Y);
 }
 
@@ -3981,6 +3991,12 @@ static void generate_tile_draw(bContext *UNUSED(C), wmOperator *op)
 
 	uiItemL(col[0], IFACE_("Color"), ICON_NONE);
 	uiItemR(col[1], &ptr, "color", 0, "", ICON_NONE);
+
+	uiItemL(col[0], IFACE_("Width"), ICON_NONE);
+	uiItemR(col[1], &ptr, "width", 0, "", ICON_NONE);
+
+	uiItemL(col[0], IFACE_("Height"), ICON_NONE);
+	uiItemR(col[1], &ptr, "height", 0, "", ICON_NONE);
 
 	uiItemL(col[0], IFACE_("Generated Type"), ICON_NONE);
 	uiItemR(col[1], &ptr, "generated_type", 0, "", ICON_NONE);
@@ -4009,4 +4025,8 @@ void IMAGE_OT_generate_tile(wmOperatorType *ot)
 	RNA_def_property_float_array_default(prop, default_color);
 	RNA_def_enum(ot->srna, "generated_type", rna_enum_image_generated_type_items, IMA_GENTYPE_BLANK,
 	             "Generated Type", "Fill the image with a grid for UV map testing");
+	prop = RNA_def_int(ot->srna, "width", 1024, 1, INT_MAX, "Width", "Image width", 1, 16384);
+	RNA_def_property_subtype(prop, PROP_PIXEL);
+	prop = RNA_def_int(ot->srna, "height", 1024, 1, INT_MAX, "Height", "Image height", 1, 16384);
+	RNA_def_property_subtype(prop, PROP_PIXEL);
 }
