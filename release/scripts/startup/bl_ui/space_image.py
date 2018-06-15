@@ -781,7 +781,6 @@ class IMAGE_PT_tile_properties(Panel):
         row.operator("image.add_tile")
         row.operator("image.remove_tile")
 
-        layout.prop(sima, "current_tile")
         tile = ima.tiles.get(sima.current_tile)
         if tile:
             layout.prop(tile, "label")

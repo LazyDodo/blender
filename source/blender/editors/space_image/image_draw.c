@@ -655,6 +655,23 @@ static void draw_image_paint_helpers(const bContext *C, ARegion *ar, Scene *scen
 	}
 }
 
+static void draw_udim_tile_grid(unsigned int pos_attr, unsigned int color_attr,
+                                ARegion *ar, int tile_number,
+                                float stepx, float stepy, const float color[3])
+{
+	int x = tile_number % 10;
+	int y = tile_number / 10;
+	float x1, y1;
+	UI_view2d_view_to_region_fl(&ar->v2d, x, y, &x1, &y1);
+	int gridpos[5][2] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}, {0, 0}};
+	for(int i = 0; i < 4; i++) {
+		immAttrib3fv(color_attr, color);
+		immVertex2f(pos_attr, x1 + gridpos[i][0]*stepx, y1 + gridpos[i][1]*stepy);
+		immAttrib3fv(color_attr, color);
+		immVertex2f(pos_attr, x1 + gridpos[i+1][0]*stepx, y1 + gridpos[i+1][1]*stepy);
+	}
+}
+
 static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, float zoomy, bool draw_tilegrids)
 {
     Image *ima = ED_space_image(sima);
@@ -676,23 +693,16 @@ static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, flo
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 	int num_tiles = BLI_listbase_count(&ima->tiles);
-	immBegin(GWN_PRIM_LINES, 8*num_tiles);
-	float theme_color[3];
+	immBegin(GWN_PRIM_LINES, 8*(num_tiles + 1));
+
+	float theme_color[3], selected_color[3];
 	UI_GetThemeColorShade3fv(TH_BACK, 20.0f, theme_color);
+	UI_GetThemeColor3fv(TH_FACE_SELECT, selected_color);
 
 	LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
-		int x = tile->tile_number % 10;
-		int y = tile->tile_number / 10;
-		float x1, y1;
-		UI_view2d_view_to_region_fl(&ar->v2d, x, y, &x1, &y1);
-		int gridpos[5][2] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}, {0, 0}};
-		for(int i = 0; i < 4; i++) {
-			immAttrib3fv(color, theme_color);
-			immVertex2f(pos, x1 + gridpos[i][0]*stepx, y1 + gridpos[i][1]*stepy);
-			immAttrib3fv(color, theme_color);
-			immVertex2f(pos, x1 + gridpos[i+1][0]*stepx, y1 + gridpos[i+1][1]*stepy);
-		}
+		draw_udim_tile_grid(pos, color, ar, tile->tile_number, stepx, stepy, theme_color);
     }
+	draw_udim_tile_grid(pos, color, ar, sima->curtile, stepx, stepy, selected_color);
 
 	immEnd();
 	immUnbindProgram();
