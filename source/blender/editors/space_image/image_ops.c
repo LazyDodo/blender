@@ -47,6 +47,7 @@
 #include "BLI_string_utf8.h"
 #include "BLI_fileops.h"
 #include "BLI_fileops_types.h"
+#include "BLI_linklist.h"
 
 #include "BLT_translation.h"
 
@@ -1153,7 +1154,7 @@ static int image_cmp_frame(const void *a, const void *b)
 	return 0;
 }
 
-static int image_get_udim(const char *filepath)
+static int image_get_udim(const char *filepath, LinkNodePair *udim_tiles)
 {
 	if (strstr(filepath, "1001") == NULL) {
 		return 0;
@@ -1188,6 +1189,8 @@ static int image_get_udim(const char *filepath)
 				is_udim = false;
 				break;
 			}
+
+			BLI_linklist_append(udim_tiles, SET_INT_IN_POINTER(id - 1001));
 			max_udim = max_ii(max_udim, id);
 		}
 
@@ -1204,7 +1207,7 @@ static int image_get_udim(const char *filepath)
  * \param ofs: [out] offset the first frame number in the sequence.
  * \return the number of contiguous frames in the sequence
  */
-static int image_sequence_get_len(ImageFrameRange *frame_range, int *ofs, bool do_udim)
+static int image_sequence_get_len(ImageFrameRange *frame_range, int *ofs, LinkNodePair *udim_tiles)
 {
 	ImageFrame *frame;
 
@@ -1215,8 +1218,8 @@ static int image_sequence_get_len(ImageFrameRange *frame_range, int *ofs, bool d
 		int frame_curr = frame->framenr;
 		(*ofs) = frame_curr;
 
-		if (do_udim && (frame_curr == 1001)) {
-			return 1 + image_get_udim(frame_range->filepath);
+		if (udim_tiles && (frame_curr == 1001)) {
+			return 1 + image_get_udim(frame_range->filepath, udim_tiles);
 		}
 		else {
 			while (frame && (frame->framenr == frame_curr)) {
@@ -1232,7 +1235,8 @@ static int image_sequence_get_len(ImageFrameRange *frame_range, int *ofs, bool d
 
 static Image *image_open_single(
         Main *bmain, wmOperator *op, const char *filepath, const char *relbase,
-        bool is_relative_path, bool use_multiview, int frame_seq_len, int frame_seq_ofs)
+        bool is_relative_path, bool use_multiview, int frame_seq_len,
+        int frame_seq_ofs, LinkNodePair *udim_tiles)
 {
 	bool exists = false;
 	Image *ima = NULL;
@@ -1268,10 +1272,10 @@ static Image *image_open_single(
 		}
 
 		if ((frame_seq_len > 1) && (ima->source == IMA_SRC_FILE)) {
-			if (frame_seq_ofs == 1001) {
+			if (udim_tiles && frame_seq_ofs == 1001) {
 				ima->source = IMA_SRC_TILED;
-				for (int i = 1; i < frame_seq_len; i++) {
-					BKE_image_add_tile(ima, i, NULL);
+				for (LinkNode *node = udim_tiles->list; node; node = node->next) {
+					BKE_image_add_tile(ima, GET_INT_FROM_POINTER(node->link), NULL);
 				}
 			}
 			else {
@@ -1317,7 +1321,9 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		image_sequence_get_frame_ranges(op->ptr, &frame_ranges_all);
 		for (ImageFrameRange *frame_range = frame_ranges_all.first; frame_range; frame_range = frame_range->next) {
 			int frame_range_ofs;
-			int frame_range_seq_len = image_sequence_get_len(frame_range, &frame_range_ofs, use_udim);
+			LinkNodePair udim_tiles = {NULL};
+			int frame_range_seq_len = image_sequence_get_len(frame_range, &frame_range_ofs,
+			                                                 use_udim? &udim_tiles : NULL);
 			BLI_freelistN(&frame_range->frames);
 
 			char filepath_range[FILE_MAX];
@@ -1329,7 +1335,10 @@ static int image_open_exec(bContext *C, wmOperator *op)
 
 			Image *ima_range = image_open_single(
 			         bmain, op, filepath_range, BKE_main_blendfile_path(bmain),
-			         is_relative_path, use_multiview, frame_range_seq_len, frame_range_ofs);
+			         is_relative_path, use_multiview, frame_range_seq_len, frame_range_ofs,
+			         use_udim? &udim_tiles : NULL);
+
+			BLI_linklist_free(udim_tiles.list, NULL);
 
 			/* take the first image */
 			if ((ima == NULL) && ima_range) {
@@ -1342,13 +1351,16 @@ static int image_open_exec(bContext *C, wmOperator *op)
 	}
 	else {
 		int sequence_len = 1;
+		LinkNodePair udim_tiles = {NULL};
 		if (use_udim) {
-			sequence_len = image_get_udim(filepath);
+			sequence_len = image_get_udim(filepath, &udim_tiles);
 		}
 		/* for drag & drop etc. */
 		ima = image_open_single(
 		        bmain, op, filepath, BKE_main_blendfile_path(bmain),
-		        is_relative_path, use_multiview, 1, sequence_len);
+		        is_relative_path, use_multiview, 1, sequence_len, &udim_tiles);
+
+		BLI_linklist_free(udim_tiles.list, NULL);
 	}
 
 	if (ima == NULL) {
