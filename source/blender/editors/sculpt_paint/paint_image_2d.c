@@ -1515,6 +1515,8 @@ void paint_2d_stroke_done(void *ps)
 	for (int i = 0; i < s->num_tiles; i++) {
 		brush_painter_cache_2d_free(&s->tiles[i].cache);
 	}
+	MEM_freeN(s->painter);
+	MEM_freeN(s->tiles);
 	paint_brush_exit_tex(s->brush);
 
 	MEM_freeN(s);
