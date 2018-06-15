@@ -114,7 +114,7 @@ static char *workbench_build_composite_frag(WORKBENCH_PrivateData *wpd)
 	BLI_dynstr_append(ds, datatoc_workbench_common_lib_glsl);
 	BLI_dynstr_append(ds, datatoc_workbench_background_lib_glsl);
 
-	if ((wpd->shading.light & V3D_LIGHTING_STUDIO) || (wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT)) {
+	if ((wpd->shading.light & V3D_LIGHTING_MATCAP) || (wpd->shading.light & V3D_LIGHTING_STUDIO) || (wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT)) {
 		BLI_dynstr_append(ds, datatoc_workbench_world_light_lib_glsl);
 	}
 	if (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE) {
@@ -447,32 +447,14 @@ static void workbench_composite_uniforms(WORKBENCH_PrivateData *wpd, DRWShadingG
 	}
 	if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 		DRW_shgroup_uniform_texture_ref(grp, "specularBuffer", &e_data.specular_buffer_tx);
-
-#if 0
-		float invwinmat[4][4];
-		DRW_viewport_matrix_get(invwinmat, DRW_MAT_WININV);
-
-		copy_v4_fl4(e_data.screenvecs[0],  1.0f, -1.0f, 0.0f, 1.0f);
-		copy_v4_fl4(e_data.screenvecs[1], -1.0f,  1.0f, 0.0f, 1.0f);
-		copy_v4_fl4(e_data.screenvecs[2], -1.0f, -1.0f, 0.0f, 1.0f);
-		for (int i = 0; i < 3; i++) {
-			mul_m4_v4(invwinmat, e_data.screenvecs[i]);
-			e_data.screenvecs[i][0] /= e_data.screenvecs[i][3]; /* perspective divide */
-			e_data.screenvecs[i][1] /= e_data.screenvecs[i][3]; /* perspective divide */
-			e_data.screenvecs[i][2] /= e_data.screenvecs[i][3]; /* perspective divide */
-			e_data.screenvecs[i][3] = 1.0f;
-		}
-		sub_v3_v3(e_data.screenvecs[0], e_data.screenvecs[2]);
-		sub_v3_v3(e_data.screenvecs[1], e_data.screenvecs[2]);
-		DRW_shgroup_uniform_vec4(grp, "screenvecs[0]", e_data.screenvecs[0], 3);
-#endif
+		DRW_shgroup_uniform_vec4(grp, "viewvecs[0]", (float *)wpd->viewvecs, 3);
 	}
 	DRW_shgroup_uniform_block(grp, "world_block", wpd->world_ubo);
 	DRW_shgroup_uniform_vec2(grp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
 
 	if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
 		BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
-		DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);		DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+		DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
 	}
 
 	workbench_material_set_normal_world_matrix(grp, wpd, e_data.normal_world_matrix);
@@ -594,7 +576,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 
 			case OB_TEXTURE:
 			{
-				GPUTexture *tex = GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, false, false);
+				GPUTexture *tex = GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, 0.0);
 				DRW_shgroup_uniform_texture(material->shgrp, "image", tex);
 				break;
 			}
@@ -657,7 +639,7 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 			DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
 			DRW_shgroup_uniform_block(shgrp, "material_block", material->material_ubo);
 			if (image) {
-				GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, false, false);
+				GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, 0.0f);
 				DRW_shgroup_uniform_texture(shgrp, "image", tex);
 			}
 		}
@@ -681,12 +663,12 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 	}
 
 	WORKBENCH_MaterialData *material;
-	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT)) {
+	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		const bool is_active = (ob == draw_ctx->obact);
 		const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;
 		bool is_drawn = false;
-		if (!is_sculpt_mode && wpd->drawtype == OB_TEXTURE && ob->type == OB_MESH) {
+		if (!is_sculpt_mode && wpd->drawtype == OB_TEXTURE && ELEM(ob->type, OB_MESH)) {
 			const Mesh *me = ob->data;
 			if (me->mloopuv) {
 				const int materials_len = MAX2(1, (is_sculpt_mode ? 1 : ob->totcol));
@@ -694,6 +676,10 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 				struct Gwn_Batch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
 				if (materials_len > 0 && geom_array) {
 					for (int i = 0; i < materials_len; i++) {
+						if (geom_array[i] == NULL) {
+							continue;
+						}
+
 						Material *mat = give_current_material(ob, i + 1);
 						Image *image;
 						ED_object_get_active_image(ob, i + 1, &image, NULL, NULL, NULL);
@@ -712,7 +698,7 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 
 		/* Fallback from not drawn OB_TEXTURE mode or just OB_SOLID mode */
 		if (!is_drawn) {
-			if ((wpd->shading.color_type != V3D_SHADING_MATERIAL_COLOR) || is_sculpt_mode) {
+			if ((wpd->shading.color_type != V3D_SHADING_MATERIAL_COLOR)) {
 				/* No material split needed */
 				struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
 				if (geom) {
@@ -736,9 +722,18 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 				        ob, gpumat_array, materials_len, NULL, NULL, NULL);
 				if (mat_geom) {
 					for (int i = 0; i < materials_len; ++i) {
+						if (mat_geom[i] == NULL) {
+							continue;
+						}
+
 						Material *mat = give_current_material(ob, i + 1);
 						material = get_or_create_material_data(vedata, ob, mat, NULL, OB_SOLID);
-						DRW_shgroup_call_object_add(material->shgrp, mat_geom[i], ob);
+						if (is_sculpt_mode) {
+							DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
+						}
+						else {
+							DRW_shgroup_call_object_add(material->shgrp, mat_geom[i], ob);
+						}
 					}
 				}
 			}

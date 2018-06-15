@@ -67,6 +67,7 @@ static const EnumPropertyItem image_source_items[] = {
 #include "BKE_global.h"
 
 #include "GPU_draw.h"
+#include "GPU_texture.h"
 
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
@@ -92,12 +93,12 @@ static void rna_Image_source_set(PointerRNA *ptr, int value)
 
 	if (value != ima->source) {
 		ima->source = value;
-		BKE_image_signal(ima, NULL, IMA_SIGNAL_SRC_CHANGE);
+		BKE_image_signal(G.main, ima, NULL, IMA_SIGNAL_SRC_CHANGE);
 		DEG_id_tag_update(&ima->id, 0);
 	}
 }
 
-static void rna_Image_fields_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+static void rna_Image_fields_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Image *ima = ptr->id.data;
 	ImBuf *ibuf;
@@ -112,36 +113,36 @@ static void rna_Image_fields_update(Main *UNUSED(bmain), Scene *UNUSED(scene), P
 		if ((ima->flag & IMA_FIELDS) && !(ibuf->flags & IB_fields)) nr = 1;
 
 		if (nr)
-			BKE_image_signal(ima, NULL, IMA_SIGNAL_FREE);
+			BKE_image_signal(bmain, ima, NULL, IMA_SIGNAL_FREE);
 	}
 
 	BKE_image_release_ibuf(ima, ibuf, lock);
 }
 
-static void rna_Image_reload_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+static void rna_Image_reload_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Image *ima = ptr->id.data;
-	BKE_image_signal(ima, NULL, IMA_SIGNAL_RELOAD);
+	BKE_image_signal(bmain, ima, NULL, IMA_SIGNAL_RELOAD);
 	WM_main_add_notifier(NC_IMAGE | NA_EDITED, &ima->id);
 	DEG_id_tag_update(&ima->id, 0);
 }
 
-static void rna_Image_generated_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+static void rna_Image_generated_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Image *ima = ptr->id.data;
-	BKE_image_signal(ima, NULL, IMA_SIGNAL_FREE);
+	BKE_image_signal(bmain, ima, NULL, IMA_SIGNAL_FREE);
 }
 
-static void rna_Image_colormanage_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+static void rna_Image_colormanage_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Image *ima = ptr->id.data;
-	BKE_image_signal(ima, NULL, IMA_SIGNAL_COLORMANAGE);
+	BKE_image_signal(bmain, ima, NULL, IMA_SIGNAL_COLORMANAGE);
 	DEG_id_tag_update(&ima->id, 0);
 	WM_main_add_notifier(NC_IMAGE | ND_DISPLAY, &ima->id);
 	WM_main_add_notifier(NC_IMAGE | NA_EDITED, &ima->id);
 }
 
-static void rna_Image_views_format_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
+static void rna_Image_views_format_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	Image *ima = ptr->id.data;
 	ImBuf *ibuf;
@@ -152,7 +153,7 @@ static void rna_Image_views_format_update(Main *UNUSED(bmain), Scene *scene, Poi
 	if (ibuf) {
 		ImageUser iuser = {NULL};
 		iuser.scene = scene;
-		BKE_image_signal(ima, &iuser, IMA_SIGNAL_FREE);
+		BKE_image_signal(bmain, ima, &iuser, IMA_SIGNAL_FREE);
 	}
 
 	BKE_image_release_ibuf(ima, ibuf, lock);
@@ -175,7 +176,7 @@ static char *rna_ImageUser_path(PointerRNA *ptr)
 {
 	if (ptr->id.data) {
 		/* ImageUser *iuser = ptr->data; */
-		
+
 		switch (GS(((ID *)ptr->id.data)->name)) {
 			case ID_OB:
 			case ID_TE:
@@ -190,7 +191,7 @@ static char *rna_ImageUser_path(PointerRNA *ptr)
 				break;
 		}
 	}
-	
+
 	return BLI_strdup("");
 }
 
@@ -200,7 +201,7 @@ static const EnumPropertyItem *rna_Image_source_itemf(bContext *UNUSED(C), Point
 	Image *ima = (Image *)ptr->data;
 	EnumPropertyItem *item = NULL;
 	int totitem = 0;
-	
+
 	if (ima->source == IMA_SRC_VIEWER) {
 		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_VIEWER);
 	}
@@ -298,13 +299,20 @@ static void rna_Image_resolution_set(PointerRNA *ptr, const float *values)
 	BKE_image_release_ibuf(im, ibuf, lock);
 }
 
+static int rna_Image_bindcode_get(PointerRNA *ptr)
+{
+	Image *ima = (Image *)ptr->data;
+	GPUTexture *tex = ima->gputexture[TEXTARGET_TEXTURE_2D];
+	return (tex) ? GPU_texture_opengl_bindcode(tex) : 0;
+}
+
 static int rna_Image_depth_get(PointerRNA *ptr)
 {
 	Image *im = (Image *)ptr->data;
 	ImBuf *ibuf;
 	void *lock;
 	int planes;
-	
+
 	ibuf = BKE_image_acquire_ibuf(im, NULL, &lock);
 
 	if (!ibuf)
@@ -454,16 +462,19 @@ static PointerRNA rna_Image_packed_file_get(PointerRNA *ptr)
 	}
 }
 
-static void rna_Image_render_slots_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
+static void rna_RenderSlot_clear(ID *id, RenderSlot *slot, ImageUser *iuser)
 {
-	Image *image = (Image *)ptr->id.data;
-	rna_iterator_array_begin(iter, (void *)image->render_slots, sizeof(RenderSlot), IMA_MAX_RENDER_SLOT, 0, NULL);
+	Image *image = (Image *) id;
+	int index = BLI_findindex(&image->renderslots, slot);
+	BKE_image_clear_renderslot(image, iuser, index);
+
+	WM_main_add_notifier(NC_IMAGE | ND_DISPLAY, image);
 }
 
 static PointerRNA rna_render_slots_active_get(PointerRNA *ptr)
 {
 	Image *image = (Image *)ptr->id.data;
-	RenderSlot *render_slot = &image->render_slots[image->render_slot];
+	RenderSlot *render_slot = BKE_image_get_renderslot(image, image->render_slot);
 
 	return rna_pointer_inherit_refine(ptr, &RNA_RenderSlot, render_slot);
 }
@@ -472,9 +483,9 @@ static void rna_render_slots_active_set(PointerRNA *ptr, PointerRNA value)
 {
 	Image *image = (Image *)ptr->id.data;
 	if (value.id.data == image) {
-		RenderSlot *render_slot = (RenderSlot *)value.data;
-		int index = render_slot - image->render_slots;
-		image->render_slot = CLAMPIS(index, 0, IMA_MAX_RENDER_SLOT - 1);
+		RenderSlot *slot = (RenderSlot *)value.data;
+		int index = BLI_findindex(&image->renderslots, slot);
+		if (index != -1) image->render_slot = index;
 	}
 }
 
@@ -487,8 +498,17 @@ static int rna_render_slots_active_index_get(PointerRNA *ptr)
 static void rna_render_slots_active_index_set(PointerRNA *ptr, int value)
 {
 	Image *image = (Image *)ptr->id.data;
+	int num_slots = BLI_listbase_count(&image->renderslots);
 	image->render_slot = value;
-	CLAMP(image->render_slot, 0, IMA_MAX_RENDER_SLOT - 1);
+	CLAMP(image->render_slot, 0, num_slots - 1);
+}
+
+static void rna_render_slots_active_index_range(PointerRNA *ptr, int *min, int *max,
+                                                int *UNUSED(softmin), int *UNUSED(softmax))
+{
+	Image *image = (Image *)ptr->id.data;
+	*min = 0;
+	*max = max_ii(0, BLI_listbase_count(&image->renderslots) - 1);
 }
 
 #else
@@ -588,7 +608,9 @@ static void rna_def_image_packed_files(BlenderRNA *brna)
 static void rna_def_render_slot(BlenderRNA *brna)
 {
 	StructRNA *srna;
-	PropertyRNA *prop;
+	PropertyRNA *prop, *parm;
+	FunctionRNA *func;
+
 	srna = RNA_def_struct(brna, "RenderSlot", NULL);
 	RNA_def_struct_ui_text(srna, "Render Slot", "Parameters defining the render slot");
 
@@ -596,32 +618,45 @@ static void rna_def_render_slot(BlenderRNA *brna)
 	RNA_def_property_string_sdna(prop, NULL, "name");
 	RNA_def_property_ui_text(prop, "Name", "Render slot name");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
+
+	func = RNA_def_function(srna, "clear", "rna_RenderSlot_clear");
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+	RNA_def_function_ui_description(func, "Clear the render slot");
+	parm = RNA_def_pointer(func, "iuser", "ImageUser", "ImageUser", "");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 }
 
-static void rna_def_render_slots(BlenderRNA *brna)
+static void rna_def_render_slots(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
-	PropertyRNA *prop;
+	FunctionRNA *func;
+	PropertyRNA *prop, *parm;
 
+	RNA_def_property_srna(cprop, "RenderSlots");
 	srna = RNA_def_struct(brna, "RenderSlots", NULL);
-	RNA_def_struct_sdna(srna, "RenderSlot");
-	RNA_def_struct_ui_text(srna, "Render Slots", "Collection of the render slots");
+	RNA_def_struct_sdna(srna, "Image");
+	RNA_def_struct_ui_text(srna, "Render Layers", "Collection of render layers");
+
+	prop = RNA_def_property(srna, "active_index", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_int_sdna(prop, NULL, "render_slot");
+	RNA_def_property_int_funcs(prop, "rna_render_slots_active_index_get",
+	                           "rna_render_slots_active_index_set",
+	                           "rna_render_slots_active_index_range");
+	RNA_def_property_ui_text(prop, "Active", "Active render slot of the image");
+	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
 	prop = RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "RenderSlot");
 	RNA_def_property_pointer_funcs(prop, "rna_render_slots_active_get", "rna_render_slots_active_set", NULL, NULL);
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_UNLINK);
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_NULL);
 	RNA_def_property_ui_text(prop, "Active", "Active render slot of the image");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
-	prop = RNA_def_property(srna, "active_index", PROP_INT, PROP_NONE);
-	RNA_def_property_int_funcs(prop, "rna_render_slots_active_index_get",
-	                           "rna_render_slots_active_index_set",
-	                           NULL);
-	RNA_def_property_range(prop, 0, IMA_MAX_RENDER_SLOT);
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_ui_text(prop, "Active Index", "Index of an active render slot of the image");
-	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
+	func = RNA_def_function(srna, "new", "BKE_image_add_renderslot");
+	RNA_def_function_ui_description(func, "Add a render slot to the image");
+	parm = RNA_def_string(func, "name", NULL, 0, "Name", "New name for the render slot");
+	parm = RNA_def_pointer(func, "result", "RenderSlot", "", "Newly created render layer");
+	RNA_def_function_return(func, parm);
 }
 
 static void rna_def_image(BlenderRNA *brna)
@@ -705,7 +740,7 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Fields", "Use fields of the image");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_fields_update");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	
+
 
 	prop = RNA_def_property(srna, "use_view_as_render", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
@@ -756,7 +791,7 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Generated Type", "Generated image type");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_generated_update");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	
+
 	prop = RNA_def_property(srna, "generated_width", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "gen_x");
 	RNA_def_property_flag(prop, PROP_PROPORTIONAL);
@@ -764,7 +799,7 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Generated Width", "Generated image width");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_generated_update");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	
+
 	prop = RNA_def_property(srna, "generated_height", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "gen_y");
 	RNA_def_property_flag(prop, PROP_PROPORTIONAL);
@@ -772,7 +807,7 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Generated Height", "Generated image height");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_generated_update");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	
+
 	prop = RNA_def_property(srna, "use_generated_float", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gen_flag", IMA_GEN_FLOAT);
 	RNA_def_property_ui_text(prop, "Float Buffer", "Generate floating point buffer");
@@ -796,17 +831,16 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
 	prop = RNA_def_property(srna, "bindcode", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_int_sdna(prop, NULL, "bindcode");
+	RNA_def_property_int_funcs(prop, "rna_Image_bindcode_get", NULL, NULL);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Bindcode", "OpenGL bindcode");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 
 	prop = RNA_def_property(srna, "render_slots", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_struct_type(prop, "RenderSlot");
+	RNA_def_property_collection_sdna(prop, NULL, "renderslots", NULL);
 	RNA_def_property_ui_text(prop, "Render Slots", "Render slots of the image");
-	RNA_def_property_collection_funcs(prop, "rna_Image_render_slots_begin", "rna_iterator_array_next",
-	                                  "rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
-	RNA_def_property_srna(prop, "RenderSlots");
+	rna_def_render_slots(brna, prop);
 
 	/*
 	 * Image.has_data and Image.depth are temporary,
@@ -889,7 +923,6 @@ static void rna_def_image(BlenderRNA *brna)
 void RNA_def_image(BlenderRNA *brna)
 {
 	rna_def_render_slot(brna);
-	rna_def_render_slots(brna);
 	rna_def_image(brna);
 	rna_def_imageuser(brna);
 	rna_def_image_packed_files(brna);

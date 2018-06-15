@@ -305,7 +305,8 @@ typedef enum {
 	UI_BTYPE_NODE_SOCKET            = (53 << 9),
 	UI_BTYPE_SEPR                   = (54 << 9),
 	UI_BTYPE_SEPR_LINE              = (55 << 9),
-	UI_BTYPE_GRIP                   = (56 << 9),  /* resize handle (resize uilist) */
+	UI_BTYPE_SEPR_SPACER            = (56 << 9),  /* Dynamically fill available space. */
+	UI_BTYPE_GRIP                   = (57 << 9),  /* resize handle (resize uilist) */
 } eButType;
 
 #define BUTTYPE     (63 << 9)
@@ -829,6 +830,7 @@ struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, struct List
 void UI_panel_end(uiBlock *block, int width, int height);
 void UI_panels_scale(struct ARegion *ar, float new_width);
 void UI_panel_label_offset(struct uiBlock *block, int *x, int *y);
+int UI_panel_size_y(const struct Panel *pa);
 
 bool                       UI_panel_category_is_visible(struct ARegion *ar);
 void                       UI_panel_category_add(struct ARegion *ar, const char *name);
@@ -904,6 +906,7 @@ void UI_exit(void);
 #define UI_ITEM_O_DEPRESS       (1 << 9)
 #define UI_ITEM_R_COMPACT       (1 << 10)
 
+#define UI_HEADER_OFFSET ((void)0, 0.2f * UI_UNIT_X)
 
 /* uiLayoutOperatorButs flags */
 enum {
@@ -943,7 +946,6 @@ uiBlock *uiLayoutGetBlock(uiLayout *layout);
 void uiLayoutSetFunc(uiLayout *layout, uiMenuHandleFunc handlefunc, void *argv);
 void uiLayoutSetContextPointer(uiLayout *layout, const char *name, struct PointerRNA *ptr);
 void uiLayoutContextCopy(uiLayout *layout, struct bContextStore *context);
-const char *uiLayoutIntrospect(uiLayout *layout); // XXX - testing
 struct MenuType *UI_but_menutype_get(uiBut *but);
 struct PanelType *UI_but_paneltype_get(uiBut *but);
 void UI_menutype_draw(struct bContext *C, struct MenuType *mt, struct uiLayout *layout);
@@ -979,6 +981,8 @@ bool uiLayoutGetPropSep(uiLayout *layout);
 uiLayout *uiLayoutRow(uiLayout *layout, int align);
 uiLayout *uiLayoutColumn(uiLayout *layout, int align);
 uiLayout *uiLayoutColumnFlow(uiLayout *layout, int number, int align);
+uiLayout *uiLayoutGridFlow(
+        uiLayout *layout, int row_major, int num_columns, int even_columns, int even_rows, int align);
 uiLayout *uiLayoutBox(uiLayout *layout);
 uiLayout *uiLayoutListBox(uiLayout *layout, struct uiList *ui_list, struct PointerRNA *ptr, struct PropertyRNA *prop,
                           struct PointerRNA *actptr, struct PropertyRNA *actprop);
@@ -1027,6 +1031,7 @@ uiLayout *uiTemplateConstraint(uiLayout *layout, struct PointerRNA *ptr);
 void uiTemplatePreview(uiLayout *layout, struct bContext *C, struct ID *id, int show_buttons, struct ID *parent,
                        struct MTex *slot, const char *preview_id);
 void uiTemplateColorRamp(uiLayout *layout, struct PointerRNA *ptr, const char *propname, int expand);
+void uiTemplateIcon(uiLayout *layout, int icon_value, float icon_scale);
 void uiTemplateIconView(uiLayout *layout, struct PointerRNA *ptr, const char *propname, int show_labels, float icon_scale);
 void uiTemplateHistogram(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
 void uiTemplateWaveform(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
@@ -1125,6 +1130,7 @@ void uiItemLDrag(uiLayout *layout, struct PointerRNA *ptr, const char *name, int
 void uiItemM(uiLayout *layout, struct bContext *C, const char *menuname, const char *name, int icon); /* menu */
 void uiItemV(uiLayout *layout, const char *name, int icon, int argval); /* value */
 void uiItemS(uiLayout *layout); /* separator */
+void uiItemSpacer(uiLayout *layout); /* Special separator. */
 
 void uiItemPopoverPanel_ptr(
         uiLayout *layout, struct bContext *C,

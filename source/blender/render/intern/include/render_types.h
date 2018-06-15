@@ -157,6 +157,11 @@ struct Render {
 
 	void **movie_ctx_arr;
 	char viewname[MAX_NAME];
+
+	/* TODO replace by a whole draw manager. */
+	void *gl_context;
+	void *gwn_context;
+	bool gl_context_ownership;
 };
 
 /* **************** defines ********************* */

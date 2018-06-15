@@ -931,6 +931,7 @@ static int empty_drop_named_image_invoke(bContext *C, wmOperator *op, const wmEv
 	/* if empty under cursor, then set object */
 	if (base && base->object->type == OB_EMPTY) {
 		ob = base->object;
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else {
@@ -1098,6 +1099,7 @@ static int collection_instance_add_exec(bContext *C, wmOperator *op)
 		DEG_relations_tag_update(bmain);
 		DEG_id_tag_update(&collection->id, 0);
 
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 
 		return OPERATOR_FINISHED;
@@ -1294,6 +1296,7 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 
 			DEG_relations_tag_update(bmain);
 
+			DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 			WM_event_add_notifier(C, NC_SCENE | ND_LAYER_CONTENT, scene);
 		}
@@ -1635,10 +1638,10 @@ static void convert_ensure_curve_cache(Depsgraph *depsgraph, Scene *scene, Objec
 	}
 }
 
-static void curvetomesh(Depsgraph *depsgraph, Scene *scene, Object *ob)
+static void curvetomesh(Main *bmain, Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
 	convert_ensure_curve_cache(depsgraph, scene, ob);
-	BKE_mesh_from_nurbs(ob); /* also does users */
+	BKE_mesh_from_nurbs(bmain, ob); /* also does users */
 
 	if (ob->type == OB_MESH) {
 		BKE_object_free_modifiers(ob, 0);
@@ -1785,7 +1788,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 				newob = ob;
 			}
 
-			BKE_mesh_to_curve(depsgraph, scene, newob);
+			BKE_mesh_to_curve(bmain, depsgraph, scene, newob);
 
 			if (newob->type == OB_CURVE) {
 				BKE_object_free_modifiers(newob, 0);   /* after derivedmesh calls! */
@@ -1846,7 +1849,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			 *               datablock, but for until we've got granular update
 			 *               lets take care by selves.
 			 */
-			BKE_vfont_to_curve(bmain, newob, FO_EDIT);
+			BKE_vfont_to_curve(newob, FO_EDIT);
 
 			newob->type = OB_CURVE;
 			cu->type = OB_CURVE;
@@ -1887,7 +1890,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			BKE_curve_curve_dimension_update(cu);
 
 			if (target == OB_MESH) {
-				curvetomesh(depsgraph, scene, newob);
+				curvetomesh(bmain, depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -1911,7 +1914,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 					newob = ob;
 				}
 
-				curvetomesh(depsgraph, scene, newob);
+				curvetomesh(bmain, depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -2018,6 +2021,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	}
 
 	DEG_relations_tag_update(bmain);
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
@@ -2098,7 +2102,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 
 		/* duplicates using userflags */
 		if (dupflag & USER_DUP_ACT) {
-			BKE_animdata_copy_id_action(&obn->id, true);
+			BKE_animdata_copy_id_action(bmain, &obn->id, true);
 		}
 
 		if (dupflag & USER_DUP_MAT) {
@@ -2112,7 +2116,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					id_us_min(id);
 
 					if (dupflag & USER_DUP_ACT) {
-						BKE_animdata_copy_id_action(&obn->mat[a]->id, true);
+						BKE_animdata_copy_id_action(bmain, &obn->mat[a]->id, true);
 					}
 				}
 			}
@@ -2128,7 +2132,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					}
 
 					if (dupflag & USER_DUP_ACT) {
-						BKE_animdata_copy_id_action(&psys->part->id, true);
+						BKE_animdata_copy_id_action(bmain, &psys->part->id, true);
 					}
 
 					id_us_min(id);
@@ -2256,9 +2260,9 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 			}
 
 			if (dupflag & USER_DUP_ACT) {
-				BKE_animdata_copy_id_action((ID *)obn->data, true);
+				BKE_animdata_copy_id_action(bmain, (ID *)obn->data, true);
 				if (key) {
-					BKE_animdata_copy_id_action((ID *)key, true);
+					BKE_animdata_copy_id_action(bmain, (ID *)key, true);
 				}
 			}
 
@@ -2353,8 +2357,7 @@ static int duplicate_exec(bContext *C, wmOperator *op)
 	BKE_main_id_clear_newpoins(bmain);
 
 	DEG_relations_tag_update(bmain);
-	/* TODO(sergey): Use proper flag for tagging here. */
-	DEG_id_tag_update(&scene->id, 0);
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_SELECT_UPDATE);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
@@ -2436,6 +2439,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 	/* TODO(sergey): Only update relations for the current scene. */
 	DEG_relations_tag_update(bmain);
 
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 
