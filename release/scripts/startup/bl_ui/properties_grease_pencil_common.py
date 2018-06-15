@@ -246,49 +246,48 @@ class GreasePencilStrokeSculptPanel:
     bl_label = "Sculpt Strokes"
     bl_category = "Tools"
 
+    @classmethod
+    def get_icon(cls, brush, direction):
+        if brush.direction == direction:
+            return 'CHECKBOX_HLT'
+        else:
+            return 'CHECKBOX_DEHLT'
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
 
-        gpd = context.gpencil_data
         settings = context.tool_settings.gpencil_sculpt
         tool = settings.tool
         brush = settings.brush
 
         layout.template_icon_view(settings, "tool", show_labels=True)
 
-        col = layout.column()
-        col.prop(brush, "size", slider=True)
-        row = col.row(align=True)
+        layout.prop(brush, "size", slider=True)
+        row = layout.row(align=True)
         row.prop(brush, "strength", slider=True)
         row.prop(brush, "use_pressure_strength", text="")
-        col.prop(brush, "use_falloff")
+        layout.prop(brush, "use_falloff")
 
         if tool in {'SMOOTH', 'RANDOMIZE'}:
-            row = layout.row(align=True)
-            row.prop(settings, "affect_position", text="Position", icon='MESH_DATA', toggle=True)
-            row.prop(settings, "affect_strength", text="Strength", icon='COLOR', toggle=True)
-            row.prop(settings, "affect_thickness", text="Thickness", icon='LINE_DATA', toggle=True)
-            row.prop(settings, "affect_uv", text="UV", icon='MOD_UVPROJECT', toggle=True)
-
-        layout.separator()
+            layout.prop(settings, "affect_position", text="Position", icon='MESH_DATA', toggle=True)
+            layout.prop(settings, "affect_strength", text="Strength", icon='COLOR', toggle=True)
+            layout.prop(settings, "affect_thickness", text="Thickness", icon='LINE_DATA', toggle=True)
+            layout.prop(settings, "affect_uv", text="UV", icon='MOD_UVPROJECT', toggle=True)
 
         if tool == 'THICKNESS':
-            layout.row().prop(brush, "direction", expand=True)
+            layout.prop_enum(brush, "direction", 'ADD', text="Increase", icon=self.get_icon(brush, 'ADD'))
+            layout.prop_enum(brush, "direction", 'SUBTRACT', text="Decrease", icon=self.get_icon(brush, 'SUBTRACT'))
         elif tool == 'PINCH':
-            row = layout.row(align=True)
-            row.prop_enum(brush, "direction", 'ADD', text="Pinch")
-            row.prop_enum(brush, "direction", 'SUBTRACT', text="Inflate")
+            layout.prop_enum(brush, "direction", 'ADD', text="Pinch", icon=self.get_icon(brush, 'ADD'))
+            layout.prop_enum(brush, "direction", 'SUBTRACT', text="Inflate", icon=self.get_icon(brush, 'SUBTRACT'))
         elif settings.tool == 'TWIST':
-            row = layout.row(align=True)
-            row.prop_enum(brush, "direction", 'SUBTRACT', text="CW")
-            row.prop_enum(brush, "direction", 'ADD', text="CCW")
+            layout.prop_enum(brush, "direction", 'SUBTRACT', text="Clockwise", icon=self.get_icon(brush, 'SUBTRACT'))
+            layout.prop_enum(brush, "direction", 'ADD', text="Counterclockwise", icon=self.get_icon(brush, 'ADD'))
 
-        row = layout.row(align=True)
-        row.prop(settings, "use_select_mask")
-        row = layout.row(align=True)
-        row.prop(settings, "selection_alpha", slider=True)
+        layout.prop(settings, "use_select_mask")
+        layout.prop(settings, "selection_alpha", slider=True)
 
         if tool == 'SMOOTH':
             layout.prop(brush, "affect_pressure")
