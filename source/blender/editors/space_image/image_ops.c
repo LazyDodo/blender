@@ -3006,31 +3006,12 @@ static void image_sample_draw(const bContext *C, ARegion *ar, void *arg_info)
 	}
 }
 
-static int image_get_position(SpaceImage *sima, ARegion *ar, const int mval[2], float *fx, float *fy)
-{
-	UI_view2d_region_to_view(&ar->v2d, mval[0], mval[1], fx, fy);
-
-	/* If the image has tiles, shift the positions accordingly. */
-
-	Image *image = ED_space_image(sima);
-	if (!image || image->source != IMA_SRC_TILED) {
-		return 0;
-	}
-
-	/* Determine the tile in which the sample lies. */
-	int ix = (int) *fx, iy = max_ii(0, (int) *fy);
-	CLAMP(ix, 0, 9);
-
-	*fx -= ix;
-	*fy -= iy;
-	return 10*iy + ix;
-}
-
 /* Returns color in linear space, matching ED_space_node_color_sample(). */
 bool ED_space_image_color_sample(SpaceImage *sima, ARegion *ar, int mval[2], float r_col[3])
 {
-	float fx, fy;
-	int tile = image_get_position(sima, ar, mval, &fx, &fy);
+	float uv[2];
+	UI_view2d_region_to_view(&ar->v2d, mval[0], mval[1], &uv[0], &uv[1]);
+	int tile = BKE_image_get_tile_from_pos(sima->image, uv, uv, NULL);
 
 	void *lock;
 	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
@@ -3041,10 +3022,10 @@ bool ED_space_image_color_sample(SpaceImage *sima, ARegion *ar, int mval[2], flo
 		return false;
 	}
 
-	if (fx >= 0.0f && fy >= 0.0f && fx < 1.0f && fy < 1.0f) {
+	if (uv[0] >= 0.0f && uv[1] >= 0.0f && uv[0] < 1.0f && uv[1] < 1.0f) {
 		const float *fp;
 		unsigned char *cp;
-		int x = (int)(fx * ibuf->x), y = (int)(fy * ibuf->y);
+		int x = (int)(uv[0] * ibuf->x), y = (int)(uv[1] * ibuf->y);
 
 		CLAMP(x, 0, ibuf->x - 1);
 		CLAMP(y, 0, ibuf->y - 1);
@@ -3072,8 +3053,9 @@ static void image_sample_apply(bContext *C, wmOperator *op, const wmEvent *event
 	ARegion *ar = CTX_wm_region(C);
 	Image *image = ED_space_image(sima);
 
-	float fx, fy;
-	int tile = image_get_position(sima, ar, event->mval, &fx, &fy);
+	float uv[2];
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &uv[0], &uv[1]);
+	int tile = BKE_image_get_tile_from_pos(sima->image, uv, uv, NULL);
 
 	void *lock;
 	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
@@ -3087,10 +3069,10 @@ static void image_sample_apply(bContext *C, wmOperator *op, const wmEvent *event
 		return;
 	}
 
-	if (fx >= 0.0f && fy >= 0.0f && fx < 1.0f && fy < 1.0f) {
+	if (uv[0] >= 0.0f && uv[1] >= 0.0f && uv[0] < 1.0f && uv[1] < 1.0f) {
 		const float *fp;
 		unsigned char *cp;
-		int x = (int)(fx * ibuf->x), y = (int)(fy * ibuf->y);
+		int x = (int)(uv[0] * ibuf->x), y = (int)(uv[1] * ibuf->y);
 
 		CLAMP(x, 0, ibuf->x - 1);
 		CLAMP(y, 0, ibuf->y - 1);
