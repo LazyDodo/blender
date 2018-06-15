@@ -292,6 +292,7 @@ static void image_operatortypes(void)
 	WM_operatortype_append(IMAGE_OT_add_tile);
 	WM_operatortype_append(IMAGE_OT_remove_tile);
 	WM_operatortype_append(IMAGE_OT_generate_tile);
+	WM_operatortype_append(IMAGE_OT_select_tile);
 }
 
 static void image_keymap(struct wmKeyConfig *keyconf)
@@ -358,6 +359,7 @@ static void image_keymap(struct wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "IMAGE_OT_sample", ACTIONMOUSE, KM_PRESS, 0, 0);
 	RNA_enum_set(WM_keymap_add_item(keymap, "IMAGE_OT_curves_point_set", ACTIONMOUSE, KM_PRESS, KM_CTRL, 0)->ptr, "point", 0);
 	RNA_enum_set(WM_keymap_add_item(keymap, "IMAGE_OT_curves_point_set", ACTIONMOUSE, KM_PRESS, KM_SHIFT, 0)->ptr, "point", 1);
+	WM_keymap_add_item(keymap, "IMAGE_OT_select_tile", ACTIONMOUSE, KM_PRESS, KM_ALT, 0);
 
 	/* toggle editmode is handy to have while UV unwrapping */
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_mode_set", TABKEY, KM_PRESS, 0, 0);

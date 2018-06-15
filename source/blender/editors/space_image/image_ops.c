@@ -4110,3 +4110,45 @@ void IMAGE_OT_generate_tile(wmOperatorType *ot)
 	prop = RNA_def_int(ot->srna, "height", 1024, 1, INT_MAX, "Height", "Image height", 1, 16384);
 	RNA_def_property_subtype(prop, PROP_PIXEL);
 }
+
+/* ********************* Select tile operator ****************** */
+
+static int image_select_tile_poll(bContext *C)
+{
+	Image *ima = CTX_data_edit_image(C);
+
+	return (ima && ima->source == IMA_SRC_TILED);
+}
+
+static int image_select_tile_invoke(bContext *C, wmOperator *UNUSED(op), const wmEvent *event)
+{
+	SpaceImage *sima = CTX_wm_space_image(C);
+	ARegion *ar = CTX_wm_region(C);
+
+	float uv[2];
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &uv[0], &uv[1]);
+
+	if (uv[0] >= 0.0f && uv[1] >= 0.0f && uv[0] < 10.0f) {
+		int tx = (int) uv[0];
+		int ty = (int) uv[1];
+
+		sima->curtile = 10*ty + tx;
+
+		WM_event_add_notifier(C, NC_WINDOW, NULL);
+		return OPERATOR_FINISHED;
+	}
+
+	return OPERATOR_CANCELLED;
+}
+
+void IMAGE_OT_select_tile(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Select tile";
+	ot->idname = "IMAGE_OT_select_tile";
+	ot->description = "Use mouse to select a tile of the image";
+
+	/* api callbacks */
+	ot->invoke = image_select_tile_invoke;
+	ot->poll = image_select_tile_poll;
+}
