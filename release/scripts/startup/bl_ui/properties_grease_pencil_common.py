@@ -298,20 +298,6 @@ class GreasePencilAppearancePanel:
     bl_label = "Brush Appearance"
     bl_options = {'DEFAULT_CLOSED'}
 
-    @classmethod
-    def poll(cls, context):
-        return True
-
-        # if context.gpencil_data is None:
-        #     return False
-        #
-        # workspace = context.workspace
-        # if context.active_object:
-        #     brush = context.active_gpencil_brush
-        #     return context.active_object.mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
-        #
-        # return False
-
     @staticmethod
     def draw(self, context):
         layout = self.layout
@@ -323,24 +309,21 @@ class GreasePencilAppearancePanel:
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
 
-            col = layout.column(align=True)
-            col.prop(gp_settings, "gpencil_brush_type", text="Brush Type")
+            layout.prop(gp_settings, "gpencil_brush_type", text="Brush Type")
 
-            sub = col.column(align=True)
+            sub = layout.column(align=True)
             sub.enabled = not brush.use_custom_icon
             sub.prop(gp_settings, "gp_icon", text="Icon")
 
-            col.prop(brush, "use_custom_icon")
-            sub = col.column()
+            layout.prop(brush, "use_custom_icon")
+            sub = layout.column()
             sub.active = brush.use_custom_icon
             sub.prop(brush, "icon_filepath", text="")
 
-            col = layout.column(align=True)
-            col.prop(gp_settings, "use_cursor", text="Show Brush")
+            layout.prop(gp_settings, "use_cursor", text="Show Brush")
 
             if gp_settings.gpencil_brush_type == 'FILL':
-                row = col.row(align=True)
-                row.prop(brush, "cursor_color_add", text="Color")
+                layout.prop(brush, "cursor_color_add", text="Color")
 
         elif context.active_object.mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
             settings = context.tool_settings.gpencil_sculpt
@@ -350,6 +333,7 @@ class GreasePencilAppearancePanel:
             col.prop(brush, "use_cursor", text="Show Brush")
             col.row().prop(brush, "cursor_color_add", text="Add")
             col.row().prop(brush, "cursor_color_sub", text="Subtract")
+
 
 class GreasePencilAnimationPanel:
     bl_label = "Animation"
