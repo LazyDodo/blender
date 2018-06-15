@@ -659,53 +659,39 @@ static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, flo
 {
     Image *ima = ED_space_image(sima);
 
-	int num_col = 0, num_row = 0;
-	LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
-		num_col = max_ii(num_col, tile->tile_number % 10);
-		num_row = max_ii(num_row, tile->tile_number / 10);
-	}
-	num_col++;
-	num_row++;
-
-    const int xmin = MAX2(floor(ar->v2d.cur.xmin), 0);
-    const int ymin = MAX2(floor(ar->v2d.cur.ymin), 0);
-    const int xmax = MIN2(ceil(ar->v2d.cur.xmax), num_col);
-    const int ymax = MIN2(ceil(ar->v2d.cur.ymax), num_row);
-
     float stepx = BLI_rcti_size_x(&ar->v2d.mask) / BLI_rctf_size_x(&ar->v2d.cur);
     float stepy = BLI_rcti_size_y(&ar->v2d.mask) / BLI_rctf_size_y(&ar->v2d.cur);
 
-    float x1, y1;
-    UI_view2d_view_to_region_fl(&ar->v2d, 0.0f, 0.0f, &x1, &y1);
-
-    if (draw_tilegrids) {
-        for (int y = ymin; y < ymax; y++) {
-            for (int x = xmin; x < xmax; x++) {
-                ED_region_grid_draw(ar, zoomx, zoomy, x, y);
-            }
-        }
-    }
+	if (draw_tilegrids) {
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			int x = tile->tile_number % 10;
+			int y = tile->tile_number / 10;
+			ED_region_grid_draw(ar, zoomx, zoomy, x, y);
+		}
+	}
 
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	unsigned color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBegin(GWN_PRIM_LINES, 2 * (xmax - xmin + 1) + 2 * (ymax - ymin + 1));
+	int num_tiles = BLI_listbase_count(&ima->tiles);
+	immBegin(GWN_PRIM_LINES, 8*num_tiles);
 	float theme_color[3];
 	UI_GetThemeColorShade3fv(TH_BACK, 20.0f, theme_color);
 
-    for (int x = xmin; x <= xmax; x++) {
-		immAttrib3fv(color, theme_color);
-		immVertex2f(pos, x1 + x*stepx, y1 + ymin*stepy);
-		immAttrib3fv(color, theme_color);
-		immVertex2f(pos, x1 + x*stepx, y1 + ymax*stepy);
-    }
-    for (int y = ymin; y <= ymax; y++) {
-		immAttrib3fv(color, theme_color);
-		immVertex2f(pos, x1 + xmin*stepx, y1 + y*stepy);
-		immAttrib3fv(color, theme_color);
-		immVertex2f(pos, x1 + xmax*stepx, y1 + y*stepy);
+	LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+		int x = tile->tile_number % 10;
+		int y = tile->tile_number / 10;
+		float x1, y1;
+		UI_view2d_view_to_region_fl(&ar->v2d, x, y, &x1, &y1);
+		int gridpos[5][2] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}, {0, 0}};
+		for(int i = 0; i < 4; i++) {
+			immAttrib3fv(color, theme_color);
+			immVertex2f(pos, x1 + gridpos[i][0]*stepx, y1 + gridpos[i][1]*stepy);
+			immAttrib3fv(color, theme_color);
+			immVertex2f(pos, x1 + gridpos[i+1][0]*stepx, y1 + gridpos[i+1][1]*stepy);
+		}
     }
 
 	immEnd();
