@@ -18,6 +18,8 @@
 #include <fenv.h>
 #endif
 
+#include "kernel/kernel_color.h"
+
 #ifndef __BSDF_HAIR_PRINCIPLED_H__
 #define __BSDF_HAIR_PRINCIPLED_H__
 
@@ -149,9 +151,9 @@ ccl_device_inline float longitudinal_scattering(float sin_theta_i, float cos_the
 	}
 }
 
-ccl_device_inline float4 combine_with_energy(float3 c)
+ccl_device_inline float4 combine_with_energy(KernelGlobals *kg, float3 c)
 {
-	return make_float4(c.x, c.y, c.z, linear_rgb_to_gray(c));
+	return make_float4(c.x, c.y, c.z, linear_rgb_to_gray(kg, c));
 }
 
 #ifdef __HAIR__
@@ -211,22 +213,22 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 
 #endif /* __HAIR__ */
 
-ccl_device_inline void hair_ap(float f, float3 T, float4 *Ap)
+ccl_device_inline void hair_ap(KernelGlobals *kg, float f, float3 T, float4 *Ap)
 {
 	/* Primary specular (R). */
 	Ap[0] = make_float4(f, f, f, f);
 
 	/* Transmission (TT). */
 	float3 col = sqr(1.0f - f) * T;
-	Ap[1] = combine_with_energy(col);
+	Ap[1] = combine_with_energy(kg, col);
 
 	/* Secondary specular (TRT). */
 	col *= T*f;
-	Ap[2] = combine_with_energy(col);
+	Ap[2] = combine_with_energy(kg, col);
 
 	/* Residual component. */
 	col *= safe_divide_color(T*f, make_float3(1.0f, 1.0f, 1.0f) - T*f);
-	Ap[3] = combine_with_energy(col);
+	Ap[3] = combine_with_energy(kg, col);
 
 	/* Normalize sampling weights. */
 	float totweight = Ap[0].w + Ap[1].w + Ap[2].w + Ap[3].w;
@@ -255,7 +257,7 @@ ccl_device_inline void hair_alpha_angles(float sin_theta_i, float cos_theta_i, f
 	angles[5] = fabsf(cos_theta_i*cos_4alpha + sin_theta_i*sin_4alpha);
 }
 
-ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
+ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg, const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
 {
 	//*pdf = 0.0f;
 	//return make_float3(0.0f, 0.0f, 0.0f);
@@ -291,7 +293,7 @@ ccl_device float3 bsdf_principled_hair_eval(const ShaderData *sd, const ShaderCl
 
 	float3 T = exp3(-bsdf->sigma * (2.0f * cos_gamma_t / cos_theta_t));
 	float4 Ap[4];
-	hair_ap(fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->eta), T, Ap);
+	hair_ap(kg, fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->eta), T, Ap);
 
 	//printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n", (double)Ap[0].x, (double)Ap[0].y, (double)Ap[0].z, (double)Ap[0].w, (double)Ap[1].x, (double)Ap[1].y, (double)Ap[1].z, (double)Ap[1].w, (double)Ap[2].x, (double)Ap[2].y, (double)Ap[2].z, (double)Ap[2].w, (double)Ap[3].x, (double)Ap[3].y, (double)Ap[3].z, (double)Ap[3].w);
 
@@ -379,7 +381,7 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 
 	float3 T = exp3(-bsdf->sigma * (2.0f * cos_gamma_t / cos_theta_t));
 	float4 Ap[4];
-	hair_ap(fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->eta), T, Ap);
+	hair_ap(kg, fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->eta), T, Ap);
 
 	//printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n", (double)Ap[0].x, (double)Ap[0].y, (double)Ap[0].z, (double)Ap[0].w, (double)Ap[1].x, (double)Ap[1].y, (double)Ap[1].z, (double)Ap[1].w, (double)Ap[2].x, (double)Ap[2].y, (double)Ap[2].z, (double)Ap[2].w, (double)Ap[3].x, (double)Ap[3].y, (double)Ap[3].z, (double)Ap[3].w);
 
