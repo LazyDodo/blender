@@ -3138,6 +3138,7 @@ static void rna_def_space_image(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "current_tile", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "curtile");
+	RNA_def_property_range(prop, 0, 1000);
 	RNA_def_property_ui_text(prop, "Current Tile", "The currently selected tile");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
 
