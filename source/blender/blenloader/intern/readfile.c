@@ -1642,9 +1642,6 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 			oldnewmap_insert(fd->imamap, ima->cache, ima->cache, 0);
 		if (ima->rr)
 			oldnewmap_insert(fd->imamap, ima->rr, ima->rr, 0);
-		for (int a = 0; a < IMA_MAX_RENDER_SLOT; a++)
-			if (ima->renders[a])
-				oldnewmap_insert(fd->imamap, ima->renders[a], ima->renders[a], 0);
 		for (int a = 0; a < ima->num_tiles; a++) {
 			for (int b = 0; b < TEXTARGET_COUNT; b++) {
 				if (ima->tiles[a].gputexture[b]) {
@@ -1652,6 +1649,9 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 				}
 			}
 		}
+		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
+			if (slot->render)
+				oldnewmap_insert(fd->imamap, slot->render, slot->render, 0);
 	}
 	for (; sce; sce = sce->id.next) {
 		if (sce->nodetree && sce->nodetree->previews) {
@@ -1690,8 +1690,8 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 			}
 		}
 
-		for (int i = 0; i < IMA_MAX_RENDER_SLOT; i++)
-			ima->renders[i] = newimaadr(fd, ima->renders[i]);
+		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
+			slot->render = newimaadr(fd, slot->render);
 
 		for (int i = 0; i < ima->num_tiles; i++) {
 			for (int j = 0; j < TEXTARGET_COUNT; j++) {
@@ -3937,12 +3937,15 @@ static void direct_link_image(FileData *fd, Image *ima)
 	}
 
 	/* undo system, try to restore render buffers */
+	link_list(fd, &(ima->renderslots));
 	if (fd->imamap) {
-		for (a = 0; a < IMA_MAX_RENDER_SLOT; a++)
-			ima->renders[a] = newimaadr(fd, ima->renders[a]);
+		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots) {
+			slot->render = newimaadr(fd, slot->render);
+		}
 	}
 	else {
-		memset(ima->renders, 0, sizeof(ima->renders));
+		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
+			slot->render = NULL;
 		ima->last_render_slot = ima->render_slot;
 	}
 
@@ -6448,6 +6451,10 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 		/* unkown space type, don't leak regiondata */
 		ar->regiondata = NULL;
 	}
+	else if (ar->flag & RGN_FLAG_TEMP_REGIONDATA) {
+		/* Runtime data, don't use. */
+		ar->regiondata = NULL;
+	}
 	else {
 		ar->regiondata = newdataadr(fd, ar->regiondata);
 		if (ar->regiondata) {
@@ -7230,11 +7237,12 @@ static void lib_link_workspace_layout_restore(struct IDNameLib_Map *id_map, Main
 
 					/* free render engines for now */
 					for (ar = sa->regionbase.first; ar; ar = ar->next) {
-						RegionView3D *rv3d= ar->regiondata;
-						
-						if (rv3d && rv3d->render_engine) {
-							RE_engine_free(rv3d->render_engine);
-							rv3d->render_engine = NULL;
+						if (ar->regiontype == RGN_TYPE_WINDOW) {
+							RegionView3D *rv3d = ar->regiondata;
+							if (rv3d && rv3d->render_engine) {
+								RE_engine_free(rv3d->render_engine);
+								rv3d->render_engine = NULL;
+							}
 						}
 					}
 				}

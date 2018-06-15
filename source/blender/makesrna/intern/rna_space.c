@@ -719,7 +719,7 @@ static const EnumPropertyItem *rna_View3DShading_light_itemf(
 static int rna_View3DShading_studio_light_get(PointerRNA *ptr)
 {
 	View3D *v3d = (View3D *)ptr->data;
-	char* dna_storage = v3d->shading.studio_light;
+	char *dna_storage = v3d->shading.studio_light;
 
 	int flag = STUDIOLIGHT_ORIENTATIONS_SOLID;
 	if (v3d->drawtype == OB_SOLID && v3d->shading.light == V3D_LIGHTING_MATCAP) {
@@ -737,7 +737,7 @@ static int rna_View3DShading_studio_light_get(PointerRNA *ptr)
 static void rna_View3DShading_studio_light_set(PointerRNA *ptr, int value)
 {
 	View3D *v3d = (View3D *)ptr->data;
-	char* dna_storage = v3d->shading.studio_light;
+	char *dna_storage = v3d->shading.studio_light;
 
 	int flag = STUDIOLIGHT_ORIENTATIONS_SOLID;
 	if (v3d->drawtype == OB_SOLID && v3d->shading.light == V3D_LIGHTING_MATCAP) {
@@ -2361,6 +2361,12 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, 250.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 2.5f, 1, 3);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "show_anti_aliasing", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "shading.flag", V3D_SHADING_EFFECT_FXAA);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "Anti Alias", "Draw the view using FXAA");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "selected_studio_light", PROP_POINTER, PROP_NONE);

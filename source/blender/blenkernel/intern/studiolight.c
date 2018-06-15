@@ -96,6 +96,10 @@ static void studiolight_free(struct StudioLight *sl)
 		MEM_freeN(sl->path_irr);
 		sl->path_irr = NULL;
 	}
+	if (sl->gpu_matcap_3components) {
+		MEM_freeN(sl->gpu_matcap_3components);
+		sl->gpu_matcap_3components = NULL;
+	}
 	MEM_freeN(sl);
 }
 
@@ -107,8 +111,7 @@ static struct StudioLight *studiolight_create(int flag)
 	sl->path_irr = NULL;
 	sl->flag = flag;
 	sl->index = BLI_listbase_count(&studiolights);
-	if (flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL)
-	{
+	if (flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL) {
 		sl->icon_id_matcap = BKE_icon_ensure_studio_light(sl, STUDIOLIGHT_ICON_ID_TYPE_MATCAP);
 		sl->icon_id_matcap_flipped = BKE_icon_ensure_studio_light(sl, STUDIOLIGHT_ICON_ID_TYPE_MATCAP_FLIPPED);
 	}
@@ -189,12 +192,28 @@ static void studiolight_create_equierectangular_radiance_gputexture(StudioLight 
 		char error[256];
 		BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_EXTERNAL_IMAGE_LOADED);
 		ImBuf *ibuf = sl->equirectangular_radiance_buffer;
-		sl->equirectangular_radiance_gputexture = GPU_texture_create_2D(ibuf->x, ibuf->y, GPU_RGBA16F, ibuf->rect_float, error);
-		GPUTexture *tex = sl->equirectangular_radiance_gputexture;
-		GPU_texture_bind(tex, 0);
-		GPU_texture_filter_mode(tex, true);
-		GPU_texture_wrap_mode(tex, true);
-		GPU_texture_unbind(tex);
+
+		if (sl->flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL) {
+			sl->gpu_matcap_3components = MEM_callocN(sizeof(float) * ibuf->x * ibuf->y * 3, __func__);
+			
+			float* offset4 = ibuf->rect_float;
+			float* offset3 = sl->gpu_matcap_3components;
+			for (int i = 0 ; i < ibuf->x * ibuf->y; i ++)
+			{
+				copy_v3_v3(offset3, offset4);
+				offset3 += 3;
+				offset4 += 4;
+			}
+			sl->equirectangular_radiance_gputexture = GPU_texture_create_2D(ibuf->x, ibuf->y, GPU_R11F_G11F_B10F, sl->gpu_matcap_3components, error);
+		}
+		else {
+			sl->equirectangular_radiance_gputexture = GPU_texture_create_2D(ibuf->x, ibuf->y, GPU_RGBA16F, ibuf->rect_float, error);
+			GPUTexture *tex = sl->equirectangular_radiance_gputexture;
+			GPU_texture_bind(tex, 0);
+			GPU_texture_filter_mode(tex, true);
+			GPU_texture_wrap_mode(tex, true);
+			GPU_texture_unbind(tex);
+		}
 	}
 	sl->flag |= STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE;
 }
@@ -428,7 +447,7 @@ static void studiolight_calculate_specular_irradiance(StudioLight *sl, float col
 	studiolight_evaluate_specular_radiance_buffer(
 	        sl->radiance_cubemap_buffers[STUDIOLIGHT_Z_NEG], normal, color, 0, 1, 2, -0.5);
 
-	mul_v3_fl(color, 1.0/ M_PI);
+	mul_v3_fl(color, 1.0 / M_PI);
 }
 
 static bool studiolight_load_irradiance_equirectangular_image(StudioLight *sl)
@@ -640,17 +659,17 @@ static uint *studiolight_matcap_preview(StudioLight *sl, int icon_size, bool fli
 	for (int y = 0; y < icon_size; y++) {
 		fy = y * ibuf->y / icon_size;
 		for (int x = 0; x < icon_size; x++) {
-			if (flipped)
-			{
+			if (flipped) {
 				fx = ibuf->x - (x * ibuf->x / icon_size) - 1;
 			}
 			else {
 				fx = x * ibuf->x / icon_size;
 			}
 			nearest_interpolation_color(ibuf, NULL, color, fx, fy);
-			rect[offset++] = rgb_to_cpack(linearrgb_to_srgb(color[0]),
-			                              linearrgb_to_srgb(color[1]),
-			                              linearrgb_to_srgb(color[2])) | alphamask;
+			rect[offset++] = rgb_to_cpack(
+			        linearrgb_to_srgb(color[0]),
+			        linearrgb_to_srgb(color[1]),
+			        linearrgb_to_srgb(color[2])) | alphamask;
 		}
 	}
 	return rect;
@@ -850,8 +869,7 @@ struct ListBase *BKE_studiolight_listbase(void)
 
 uint *BKE_studiolight_preview(StudioLight *sl, int icon_size, int icon_id_type)
 {
-	switch(icon_id_type)
-	{
+	switch (icon_id_type) {
 		case STUDIOLIGHT_ICON_ID_TYPE_RADIANCE:
 		default:
 			return studiolight_radiance_preview(sl, icon_size);

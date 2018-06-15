@@ -306,7 +306,7 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 	e_data.transparent_revealage_tx = DRW_texture_pool_query_2D(
 	        size[0], size[1], GPU_R16F, &draw_engine_workbench_transparent);
 	e_data.composite_buffer_tx = DRW_texture_pool_query_2D(
-	        size[0], size[1], GPU_RGBA16F, &draw_engine_workbench_transparent);
+	        size[0], size[1], GPU_R11F_G11F_B10F, &draw_engine_workbench_transparent);
 
 	GPU_framebuffer_ensure_config(&fbl->object_outline_fb, {
 		GPU_ATTACHMENT_TEXTURE(dtxl->depth),
@@ -476,7 +476,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 				struct Gwn_Batch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
 				if (materials_len > 0 && geom_array) {
 					for (int i = 0; i < materials_len; i++) {
-						if(geom_array[i] == NULL) {
+						if (geom_array[i] == NULL) {
 							continue;
 						}
 
@@ -524,14 +524,13 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 				        ob, gpumat_array, materials_len, NULL, NULL, NULL);
 				if (mat_geom) {
 					for (int i = 0; i < materials_len; ++i) {
-						if(mat_geom[i] == NULL) {
+						if (mat_geom[i] == NULL) {
 							continue;
 						}
 
 						Material *mat = give_current_material(ob, i + 1);
 						material = get_or_create_material_data(vedata, ob, mat, NULL, OB_SOLID);
-						if (is_sculpt_mode)
-						{
+						if (is_sculpt_mode) {
 							DRW_shgroup_call_sculpt_add(material->shgrp_object_outline, ob, ob->obmat);
 							DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
 						}
