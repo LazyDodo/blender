@@ -1472,7 +1472,7 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 		DRW_opengl_render_context_enable(re_gl_context);
 		/* We need to query gwn context after a gl context has been bound. */
 		re_gwn_context = RE_gwn_context_get(render);
-		DRW_opengl_render_context_enable(re_gwn_context);
+		DRW_gawain_render_context_enable(re_gwn_context);
 	}
 	else {
 		DRW_opengl_context_enable();
@@ -1551,8 +1551,8 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 
 	/* Changing Context */
 	if (re_gl_context != NULL) {
-		DRW_gawain_render_context_disable(re_gl_context);
-		DRW_opengl_render_context_disable(re_gwn_context);
+		DRW_gawain_render_context_disable(re_gwn_context);
+		DRW_opengl_render_context_disable(re_gl_context);
 	}
 	else {
 		DRW_opengl_context_disable();
