@@ -1544,6 +1544,11 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 	GPU_viewport_free(DST.viewport);
 	GPU_framebuffer_restore();
 
+#ifdef DEBUG
+	/* Avoid accidental reuse. */
+	drw_state_ensure_not_reused(&DST);
+#endif
+
 	/* Changing Context */
 	if (re_gl_context != NULL) {
 		DRW_gawain_render_context_disable(re_gl_context);
@@ -1552,11 +1557,6 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 	else {
 		DRW_opengl_context_disable();
 	}
-
-#ifdef DEBUG
-	/* Avoid accidental reuse. */
-	drw_state_ensure_not_reused(&DST);
-#endif
 }
 
 void DRW_render_object_iter(
