@@ -111,6 +111,9 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	EEVEE_TextureList *txl = vedata->txl;
 	EEVEE_StorageList *stl = vedata->stl;
 
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+
 	/* XXX TODO remove only for testing */
 	if (e_data.dummy_cache.grid_tx == NULL) {
 #ifdef IRRADIANCE_SH_L2
@@ -119,11 +122,13 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 #else
 		int irradiance_format = GPU_RGBA8;
 #endif
-		float rgba[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+		float rgba[4] = {0.0f, 1.0f, 0.0f, 0.0f};
 		e_data.dummy_cache.grid_tx = DRW_texture_create_2D_array(1, 1, 1, irradiance_format, DRW_TEX_FILTER, rgba);
 		e_data.dummy_cache.cube_tx = DRW_texture_create_2D_array(1, 1, 1, GPU_RGBA8, DRW_TEX_FILTER, rgba);
-		e_data.dummy_cache.cube_data = MEM_callocN(1, "EEVEE Cube Data Cache");
-		e_data.dummy_cache.grid_data = MEM_callocN(1, "EEVEE Grid Data Cache");
+		e_data.dummy_cache.cube_data = MEM_callocN(sizeof(EEVEE_LightProbe), "EEVEE Cube Data Cache");
+		e_data.dummy_cache.grid_data = MEM_callocN(sizeof(EEVEE_LightGrid), "EEVEE Grid Data Cache");
+		e_data.dummy_cache.cube_count = 1;
+		e_data.dummy_cache.grid_count = 1;
 	}
 
 	if (!sldata->probes) {
@@ -133,8 +138,8 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		sldata->planar_ubo = DRW_uniformbuffer_create(sizeof(EEVEE_PlanarReflection) * MAX_PLANAR, NULL);
 	}
 
-	if (sldata->light_cache) {
-		stl->g_data->light_cache = sldata->light_cache;
+	if (scene_eval->eevee.light_cache) {
+		stl->g_data->light_cache = scene_eval->eevee.light_cache;
 	}
 	else {
 		stl->g_data->light_cache = &e_data.dummy_cache;
@@ -253,12 +258,12 @@ void EEVEE_lightprobes_cube_data_from_object(Object *ob, EEVEE_LightProbe *eprob
 	invert_m4(eprobe->parallaxmat);
 }
 
-void EEVEE_lightprobes_extract_from_cache(EEVEE_LightProbesInfo *pinfo, EEVEE_LightCache *lcache)
+static void eevee_lightprobes_extract_from_cache(EEVEE_LightProbesInfo *pinfo, EEVEE_LightCache *lcache)
 {
 	/* copy the entire cache for now (up to MAX_PROBE) */
 	memcpy(pinfo->probe_data, lcache->cube_data, sizeof(EEVEE_LightProbe) * min_ii(lcache->cube_count, MAX_PROBE));
 	/* TODO compute the max number of grid based on sample count. */
-	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * lcache->grid_count);
+	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * min_ii(lcache->grid_count, MAX_GRID));
 }
 
 void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
@@ -274,7 +279,7 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 {
 	EEVEE_StorageList *stl = vedata->stl;
 
-	EEVEE_lightprobes_extract_from_cache(sldata->probes, stl->g_data->light_cache);
+	eevee_lightprobes_extract_from_cache(sldata->probes, stl->g_data->light_cache);
 
 	DRW_uniformbuffer_update(sldata->probe_ubo, &sldata->probes->probe_data);
 	DRW_uniformbuffer_update(sldata->grid_ubo, &sldata->probes->grid_data);

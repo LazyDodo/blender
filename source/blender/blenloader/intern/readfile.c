@@ -1338,6 +1338,8 @@ void blo_freefiledata(FileData *fd)
 			oldnewmap_free(fd->imamap);
 		if (fd->movieclipmap)
 			oldnewmap_free(fd->movieclipmap);
+		if (fd->scenemap)
+			oldnewmap_free(fd->scenemap);
 		if (fd->soundmap)
 			oldnewmap_free(fd->soundmap);
 		if (fd->packedmap)
@@ -1525,6 +1527,13 @@ static void *newimaadr(FileData *fd, const void *adr)		    /* used to restore im
 	return NULL;
 }
 
+static void *newsceadr(FileData *fd, const void *adr)		    /* used to restore scene data after undo */
+{
+	if (fd->scenemap && adr)
+		return oldnewmap_lookup_and_inc(fd->scenemap, adr, true);
+	return NULL;
+}
+
 static void *newmclipadr(FileData *fd, const void *adr)      /* used to restore movie clip data after undo */
 {
 	if (fd->movieclipmap && adr)
@@ -1627,6 +1636,37 @@ void blo_clear_proxy_pointers_from_lib(Main *oldmain)
 	for (; ob; ob= ob->id.next) {
 		if (ob->id.lib)
 			ob->proxy_from = NULL;
+	}
+}
+
+void blo_make_scene_pointer_map(FileData *fd, Main *oldmain)
+{
+	Scene *sce = oldmain->scene.first;
+
+	fd->scenemap = oldnewmap_new();
+
+	for (; sce; sce = sce->id.next) {
+		if (sce->eevee.light_cache) {
+			struct EEVEE_LightCache *light_cache = sce->eevee.light_cache;
+			oldnewmap_insert(fd->scenemap, light_cache, light_cache, 0);
+		}
+	}
+}
+
+void blo_end_scene_pointer_map(FileData *fd, Main *oldmain)
+{
+	OldNew *entry = fd->scenemap->entries;
+	Scene *sce = oldmain->scene.first;
+	int i;
+
+	/* used entries were restored, so we put them to zero */
+	for (i = 0; i < fd->scenemap->nentries; i++, entry++) {
+		if (entry->nr > 0)
+			entry->newp = NULL;
+	}
+
+	for (; sce; sce = sce->id.next) {
+		sce->eevee.light_cache = newsceadr(fd, sce->eevee.light_cache);
 	}
 }
 
@@ -6323,6 +6363,9 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	for (view_layer = sce->view_layers.first; view_layer; view_layer = view_layer->next) {
 		direct_link_view_layer(fd, view_layer);
 	}
+
+	if (fd->scenemap) sce->eevee.light_cache = newsceadr(fd, sce->eevee.light_cache);
+	else sce->eevee.light_cache = NULL;
 
 	sce->layer_properties = newdataadr(fd, sce->layer_properties);
 	IDP_DirectLinkGroup_OrFree(&sce->layer_properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);

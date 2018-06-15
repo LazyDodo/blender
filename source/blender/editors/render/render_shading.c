@@ -715,10 +715,10 @@ static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
 	G.is_break = false;
 
 	/* TODO abort if selected engine is not eevee. */
-	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene, false);
+	void *rj = EEVEE_lightbake_job_data_alloc(bmain, view_layer, scene, false);
 	short stop = 0, do_update; float progress; /* Not actually used. */
-	EEVEE_lightcache_bake_job(rj, &stop, &do_update, &progress);
-	EEVEE_lightcache_job_data_free(rj);
+	EEVEE_lightbake_job(rj, &stop, &do_update, &progress);
+	EEVEE_lightbake_job_data_free(rj);
 
 	// no redraw needed, we leave state as we entered it
 	ED_update_for_newframe(bmain, CTX_data_depsgraph(C));
@@ -740,7 +740,7 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 		return OPERATOR_CANCELLED;
 
 	/* TODO abort if selected engine is not eevee. */
-	void *rj = EEVEE_lightcache_job_data_alloc(bmain, view_layer, scene, true);
+	void *rj = EEVEE_lightbake_job_data_alloc(bmain, view_layer, scene, true);
 
 	if (rj == NULL) {
 		/* TODO display reason of faillure Blabla */
@@ -749,9 +749,9 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 
 	wmJob *wm_job = WM_jobs_get(wm, CTX_wm_window(C), scene, "Bake Lighting",
 	                            WM_JOB_EXCL_RENDER | WM_JOB_PRIORITY | WM_JOB_PROGRESS, WM_JOB_TYPE_RENDER);
-	WM_jobs_customdata_set(wm_job, rj, EEVEE_lightcache_job_data_free);
-	WM_jobs_timer(wm_job, 0.2, NC_SCENE | ND_RENDER_RESULT, 0);
-	WM_jobs_callbacks(wm_job, EEVEE_lightcache_bake_job, NULL, NULL, NULL);
+	WM_jobs_customdata_set(wm_job, rj, EEVEE_lightbake_job_data_free);
+	WM_jobs_timer(wm_job, 0.4, NC_OBJECT | ND_DRAW, 0);
+	WM_jobs_callbacks(wm_job, EEVEE_lightbake_job, NULL, EEVEE_lightbake_update, NULL);
 
 	/* add modal handler for ESC */
 	WM_event_add_modal_handler(C, op);
@@ -784,7 +784,7 @@ void SCENE_OT_light_cache_bake(wmOperatorType *ot)
 	ot->exec = light_cache_bake_exec;
 
 	/* flags */
-	ot->flag = OPTYPE_REGISTER;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
 /********************** render view operators *********************/

@@ -675,8 +675,6 @@ typedef struct EEVEE_ViewLayerData {
 	struct GPUFrameBuffer *probe_filter_fb;
 	struct GPUFrameBuffer *probe_face_fb[6];
 
-	struct EEVEE_LightCache *light_cache;
-
 	/* Common Uniform Buffer */
 	struct EEVEE_CommonUniformBuffer common_data;
 	struct GPUUniformBuffer *common_ubo;
@@ -879,10 +877,6 @@ void EEVEE_lights_update(EEVEE_ViewLayerData *sldata);
 void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl);
 void EEVEE_lights_free(void);
 
-/* eevee_lightcache.c */
-EEVEE_LightCache *EEVEE_lightcache_ensure(EEVEE_ViewLayerData *sldata);
-void EEVEE_lightcache_add_reference(EEVEE_ViewLayerData *sldata, EEVEE_LightCache *lcache);
-void EEVEE_lightcache_free(struct EEVEE_LightCache *lcache);
 
 /* eevee_lightprobes.c */
 bool EEVEE_lightprobes_obj_visibility_cb(bool vis_in, void *user_data);

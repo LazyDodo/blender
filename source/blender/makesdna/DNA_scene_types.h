@@ -1424,6 +1424,8 @@ typedef struct SceneEEVEE {
 	int shadow_method;
 	int shadow_cube_size;
 	int shadow_cascade_size;
+
+	struct EEVEE_LightCache *light_cache;
 } SceneEEVEE;
 
 /* *************************************************************** */

@@ -30,9 +30,16 @@
 
 struct ViewLayer;
 struct Scene;
+struct EEVEE_LightCache;
 
-void *EEVEE_lightcache_job_data_alloc(struct Main *bmain, struct ViewLayer *viewlayer, struct Scene *scene, bool run_as_job);
-void EEVEE_lightcache_job_data_free(void *custom_data);
-void EEVEE_lightcache_bake_job(void *custom_data, short *stop, short *do_update, float *progress);
+/* Light Bake */
+void *EEVEE_lightbake_job_data_alloc(struct Main *bmain, struct ViewLayer *viewlayer, struct Scene *scene, bool run_as_job);
+void EEVEE_lightbake_job_data_free(void *custom_data);
+void EEVEE_lightbake_update(void *custom_data);
+void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float *progress);
+
+/* Light Cache */
+struct EEVEE_LightCache *EEVEE_lightcache_create(const SceneEEVEE *eevee, const int cube_count, const int irr_samples);
+void EEVEE_lightcache_free(struct EEVEE_LightCache *lcache);
 
 #endif /* __EEVEE_LIGHTCACHE_H__ */

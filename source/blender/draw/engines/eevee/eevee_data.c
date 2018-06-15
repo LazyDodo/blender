@@ -53,11 +53,6 @@ static void eevee_view_layer_data_free(void *storage)
 	MEM_SAFE_FREE(sldata->shcasters_buffers[1].shadow_casters);
 	MEM_SAFE_FREE(sldata->shcasters_buffers[1].flags);
 
-	if (sldata->light_cache != NULL) {
-		EEVEE_lightcache_free(sldata->light_cache);
-		sldata->light_cache = NULL;
-	}
-
 	/* Probes */
 	MEM_SAFE_FREE(sldata->probes);
 	DRW_UBO_FREE_SAFE(sldata->probe_ubo);

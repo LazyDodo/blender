@@ -102,6 +102,9 @@
 #include "DEG_depsgraph_query.h"
 
 #include "RE_engine.h"
+#include "RE_engine.h"
+
+#include "engines/eevee/eevee_lightcache.h"
 
 #include "PIL_time.h"
 
@@ -316,6 +319,9 @@ void BKE_scene_copy_data(Main *bmain, Scene *sce_dst, const Scene *sce_src, cons
 	else {
 		sce_dst->preview = NULL;
 	}
+
+	sce_dst->eevee.light_cache = NULL;
+	/* TODO Copy the cache. */
 }
 
 Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
@@ -510,6 +516,11 @@ void BKE_scene_free_ex(Scene *sce, const bool do_id_user)
 		BKE_collection_free(sce->master_collection);
 		MEM_freeN(sce->master_collection);
 		sce->master_collection = NULL;
+	}
+
+	if (sce->eevee.light_cache) {
+		EEVEE_lightcache_free(sce->eevee.light_cache);
+		sce->eevee.light_cache = NULL;
 	}
 
 	/* These are freed on doversion. */
@@ -853,6 +864,8 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.shadow_method = SHADOW_ESM;
 	sce->eevee.shadow_cube_size = 512;
 	sce->eevee.shadow_cascade_size = 1024;
+
+	sce->eevee.light_cache = NULL;
 
 	sce->eevee.flag =
 	        SCE_EEVEE_VOLUMETRIC_LIGHTS |
