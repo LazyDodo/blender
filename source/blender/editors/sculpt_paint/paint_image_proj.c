@@ -193,15 +193,15 @@ BLI_INLINE unsigned char f_to_char(const float val)
  * because 'partRedrawRect' and 'touch' values would not be thread safe */
 typedef struct ProjPaintImage {
 	Image *ima;
-	ImBuf *ibuf;
+	int tile;
 	ImageUser iuser;
+	ImBuf *ibuf;
 	ImagePaintPartialRedraw *partRedrawRect;
 	volatile void **undoRect; /* only used to build undo tiles during painting */
 	unsigned short **maskRect; /* the mask accumulation must happen on canvas, not on space screen bucket.
 	                            * Here we store the mask rectangle */
 	bool **valid; /* store flag to enforce validation of undo rectangle */
 	bool touch;
-	float uv_ofs[2];
 } ProjPaintImage;
 
 /**
@@ -468,6 +468,16 @@ BLI_INLINE const MPoly *ps_tri_index_to_mpoly(const ProjPaintState *ps, int tri_
 
 /* Finish projection painting structs */
 
+static int project_paint_face_paint_tile(Image *ima, const float *uv)
+{
+	if (!ima || ima->source != IMA_SRC_TILED)
+		return 0;
+	/* Currently, faces are assumed to belong to one tile, so checking the first loop is enough. */
+	int tx = (int) uv[0];
+	int ty = (int) uv[1];
+	return 10*ty + tx;
+}
+
 static TexPaintSlot *project_paint_face_paint_slot(const ProjPaintState *ps, int tri_index)
 {
 	const MPoly *mp = ps_tri_index_to_mpoly(ps, tri_index);
@@ -664,8 +674,18 @@ static bool project_paint_PickColor(
 	interp_v2_v2v2v2(uv, UNPACK3(lt_tri_uv), w);
 
 	ima = project_paint_face_paint_image(ps, tri_index);
-	ibuf = BKE_image_get_first_ibuf(ima); /* we must have got the imbuf before getting here */ /* TODO */
-	if (!ibuf) return 0;
+	int tile_number = project_paint_face_paint_tile(ima, lt_tri_uv[0]);
+	ImageUser iuser = {NULL};
+	iuser.ok = 1;
+	iuser.tile = tile_number;
+	ibuf = BKE_image_acquire_ibuf(ima, &iuser, NULL);
+	if (!ibuf) {
+		iuser.tile = 0;
+		ibuf = BKE_image_acquire_ibuf(ima, &iuser, NULL);
+		if (!ibuf) {
+			return 0;
+		}
+	}
 
 	if (interp) {
 		float x, y;
@@ -1052,6 +1072,8 @@ static bool check_seam(
 				const float *lt_tri_uv[3] = { PS_LOOPTRI_AS_UV_3(ps->dm_mloopuv, lt) };
 				Image *tpage = project_paint_face_paint_image(ps, tri_index);
 				Image *orig_tpage = project_paint_face_paint_image(ps, orig_face);
+				int tile = project_paint_face_paint_tile(tpage, lt_tri_uv[0]);
+				int orig_tile = project_paint_face_paint_tile(orig_tpage, orig_lt_tri_uv[0]);
 
 				BLI_assert(i1_fidx != -1);
 
@@ -1069,6 +1091,7 @@ static bool check_seam(
 
 				/* first test if they have the same image */
 				if ((orig_tpage == tpage) &&
+				    (orig_tile == tile) &&
 				    cmp_uv(orig_lt_tri_uv[orig_i1_fidx], lt_tri_uv[i1_fidx]) &&
 				    cmp_uv(orig_lt_tri_uv[orig_i2_fidx], lt_tri_uv[i2_fidx]))
 				{
@@ -1317,40 +1340,25 @@ static float screen_px_line_point_factor_v2_persp(
 	return line_point_factor_v2(zero, v1_proj, v2_proj);
 }
 
-static bool project_face_pixel(
-        const float *lt_tri_uv[3], Image *ima_other, const float w[3],
-        unsigned char rgba_ub[4], float rgba_f[4], bool *is_float)
-{
-	if (!ima_other)
-		return false;
 
+static void project_face_pixel(
+        const float *lt_tri_uv[3], ImBuf *ibuf_other, const float w[3],
+        unsigned char rgba_ub[4], float rgba_f[4])
+{
 	float uv_other[2], x, y;
 
 	interp_v2_v2v2v2(uv_other, UNPACK3(lt_tri_uv), w);
-
-	ImageUser iuser = {NULL};
-	iuser.ok = true;
-	iuser.tile = BKE_image_get_tile_from_pos(ima_other, uv_other, uv_other, NULL);
-	ImBuf *ibuf_other = BKE_image_acquire_ibuf(ima_other, &iuser, NULL);
-
-	if (!ibuf_other)
-		return false;
 
 	/* use */
 	uvco_to_wrapped_pxco(uv_other, ibuf_other->x, ibuf_other->y, &x, &y);
 
 	if (ibuf_other->rect_float) { /* from float to float */
-		*is_float = true;
 		bilinear_interpolation_color_wrap(ibuf_other, NULL, rgba_f, x, y);
 	}
 	else { /* from char to float */
-		*is_float = false;
 		bilinear_interpolation_color_wrap(ibuf_other, rgba_ub, NULL, x, y);
 	}
 
-	BKE_image_release_ibuf(ima_other, ibuf_other, NULL);
-
-	return true;
 }
 
 /* run this outside project_paint_uvpixel_init since pixels with mask 0 don't need init */
@@ -1364,21 +1372,27 @@ static float project_paint_uvpixel_mask(
 	/* Image Mask */
 	if (ps->do_layer_stencil) {
 		/* another UV maps image is masking this one's */
+		ImBuf *ibuf_other;
 		Image *other_tpage = ps->stencil_ima;
-		const MLoopTri *lt_other = &ps->dm_mlooptri[tri_index];
-		const float *lt_other_tri_uv[3] = { PS_LOOPTRI_AS_UV_3(ps->dm_mloopuv, lt_other) };
 
-		unsigned char rgba_ub[4];
-		float rgba_f[4];
-		bool is_float;
-		/* BKE_image_acquire_ibuf - TODO - this may be slow */
-		if (project_face_pixel(lt_other_tri_uv, other_tpage, w, rgba_ub, rgba_f, &is_float)) {
-			if (is_float) { /* from float to float */
+		if (other_tpage && (ibuf_other = BKE_image_acquire_ibuf(other_tpage, NULL, NULL))) {
+			const MLoopTri *lt_other = &ps->dm_mlooptri[tri_index];
+			const float *lt_other_tri_uv[3] = { PS_LOOPTRI_AS_UV_3(ps->dm_mloopuv, lt_other) };
+
+			/* BKE_image_acquire_ibuf - TODO - this may be slow */
+			unsigned char rgba_ub[4];
+			float rgba_f[4];
+
+			project_face_pixel(lt_other_tri_uv, ibuf_other, w, rgba_ub, rgba_f);
+
+			if (ibuf_other->rect_float) { /* from float to float */
 				mask = ((rgba_f[0] + rgba_f[1] + rgba_f[2]) * (1.0f / 3.0f)) * rgba_f[3];
 			}
 			else { /* from char to float */
 				mask = ((rgba_ub[0] + rgba_ub[1] + rgba_ub[2]) * (1.0f / (255.0f * 3.0f))) * (rgba_ub[3] * (1.0f / 255.0f));
 			}
+
+			BKE_image_release_ibuf(other_tpage, ibuf_other, NULL);
 
 			if (!ps->do_layer_stencil_inv) /* matching the gimps layer mask black/white rules, white==full opacity */
 				mask = (1.0f - mask);
@@ -1564,15 +1578,8 @@ static ProjPixel *project_paint_uvpixel_init(
 	ImBuf *ibuf = projima->ibuf;
 	/* wrap pixel location */
 
-	if (projima->ima->source == IMA_SRC_TILED) {
-		if (x_px < 0 || y_px < 0 || x_px >= ibuf->x || y_px >= ibuf->y) {
-			return NULL;
-		}
-	}
-	else {
-		x_px = mod_i(x_px, ibuf->x);
-		y_px = mod_i(y_px, ibuf->y);
-	}
+	x_px = mod_i(x_px, ibuf->x);
+	y_px = mod_i(y_px, ibuf->y);
 
 	BLI_assert(ps->pixel_sizeof == project_paint_pixel_sizeof(ps->tool));
 	projPixel = BLI_memarena_alloc(arena, ps->pixel_sizeof);
@@ -1632,20 +1639,23 @@ static ProjPixel *project_paint_uvpixel_init(
 	/* done with view3d_project_float inline */
 	if (ps->tool == PAINT_TOOL_CLONE) {
 		if (ps->dm_mloopuv_clone) {
+			ImBuf *ibuf_other;
 			Image *other_tpage = project_paint_face_clone_image(ps, tri_index);
-			const MLoopTri *lt_other = &ps->dm_mlooptri[tri_index];
-			const float *lt_other_tri_uv[3] = { PS_LOOPTRI_AS_UV_3(ps->dm_mloopuv_clone, lt_other) };
 
-			unsigned char rgba_ub[4];
-			float rgba[4];
-			bool is_float;
-			/* BKE_image_acquire_ibuf - TODO - this may be slow */
-			if (project_face_pixel(lt_other_tri_uv, other_tpage, w, rgba_ub, rgba, &is_float)) {
+			if (other_tpage && (ibuf_other = BKE_image_acquire_ibuf(other_tpage, NULL, NULL))) {
+				const MLoopTri *lt_other = &ps->dm_mlooptri[tri_index];
+				const float *lt_other_tri_uv[3] = { PS_LOOPTRI_AS_UV_3(ps->dm_mloopuv_clone, lt_other) };
+
+				/* BKE_image_acquire_ibuf - TODO - this may be slow */
+
 				if (ibuf->rect_float) {
-					if (is_float) { /* from float to float */
-						copy_v4_v4(((ProjPixelClone *)projPixel)->clonepx.f, rgba);
+					if (ibuf_other->rect_float) { /* from float to float */
+						project_face_pixel(lt_other_tri_uv, ibuf_other, w, NULL, ((ProjPixelClone *)projPixel)->clonepx.f);
 					}
 					else { /* from char to float */
+						unsigned char rgba_ub[4];
+						float rgba[4];
+						project_face_pixel(lt_other_tri_uv, ibuf_other, w, rgba_ub, NULL);
 						if (ps->use_colormanagement) {
 							srgb_to_linearrgb_uchar4(rgba, rgba_ub);
 						}
@@ -1656,7 +1666,9 @@ static ProjPixel *project_paint_uvpixel_init(
 					}
 				}
 				else {
-					if (is_float) { /* float to char */
+					if (ibuf_other->rect_float) { /* float to char */
+						float rgba[4];
+						project_face_pixel(lt_other_tri_uv, ibuf_other, w, NULL, rgba);
 						premul_to_straight_v4(rgba);
 						if (ps->use_colormanagement) {
 							linearrgb_to_srgb_uchar3(((ProjPixelClone *)projPixel)->clonepx.ch, rgba);
@@ -1667,9 +1679,11 @@ static ProjPixel *project_paint_uvpixel_init(
 						((ProjPixelClone *)projPixel)->clonepx.ch[3] =  rgba[3] * 255;
 					}
 					else { /* char to char */
-						copy_v4_v4_uchar(((ProjPixelClone *)projPixel)->clonepx.ch, rgba_ub);
+						project_face_pixel(lt_other_tri_uv, ibuf_other, w, ((ProjPixelClone *)projPixel)->clonepx.ch, NULL);
 					}
 				}
+
+				BKE_image_release_ibuf(other_tpage, ibuf_other, NULL);
 			}
 			else {
 				if (ibuf->rect_float) {
@@ -2505,7 +2519,7 @@ static bool IsectPoly2Df_twoside(const float pt[2], float uv[][2], const int tot
 static void project_paint_face_init(
         const ProjPaintState *ps,
         const int thread_index, const int bucket_index, const int tri_index, const int image_index,
-        const rctf *clip_rect, const rctf *bucket_bounds, ImBuf *ibuf, ImBuf **tmpibuf, float uv_ofs[2])
+        const rctf *clip_rect, const rctf *bucket_bounds, ImBuf *ibuf, ImBuf **tmpibuf)
 {
 	/* Projection vars, to get the 3D locations into screen space  */
 	MemArena *arena = ps->arena_mt[thread_index];
@@ -2537,7 +2551,7 @@ static void project_paint_face_init(
 
 	float w[3], wco[3];
 
-	float uv1co[2], uv2co[2], uv3co[3];
+	float *uv1co, *uv2co, *uv3co; /* for convenience only, these will be assigned to lt_tri_uv[0],1,2 or lt_tri_uv[0],2,3 */
 	float pixelScreenCo[4];
 	bool do_3d_mapping = ps->brush->mtex.brush_map_mode == MTEX_MAP_MODE_3D;
 
@@ -2587,9 +2601,9 @@ static void project_paint_face_init(
 	lt_uv_pxoffset[2][1] = lt_tri_uv[2][1] - yhalfpx;
 
 	{
-		sub_v2_v2v2(uv1co, lt_uv_pxoffset[0], uv_ofs);
-		sub_v2_v2v2(uv2co, lt_uv_pxoffset[1], uv_ofs);
-		sub_v2_v2v2(uv3co, lt_uv_pxoffset[2], uv_ofs);
+		uv1co = lt_uv_pxoffset[0]; // was lt_tri_uv[i1];
+		uv2co = lt_uv_pxoffset[1]; // was lt_tri_uv[i2];
+		uv3co = lt_uv_pxoffset[2]; // was lt_tri_uv[i3];
 
 		v1coSS = ps->screenCoords[lt_vtri[0]];
 		v2coSS = ps->screenCoords[lt_vtri[1]];
@@ -2661,16 +2675,12 @@ static void project_paint_face_init(
 							mask = project_paint_uvpixel_mask(ps, tri_index, w);
 
 							if (mask > 0.0f) {
-								ProjPixel *pixel;
-								pixel = project_paint_uvpixel_init(ps, arena, &tinf, x, y, mask, tri_index,
-								                                   pixelScreenCo, wco, w);
-								if (pixel) {
-									BLI_linklist_prepend_arena(
-											bucketPixelNodes,
-											pixel,
-											arena
-											);
-								}
+								BLI_linklist_prepend_arena(
+								        bucketPixelNodes,
+								        project_paint_uvpixel_init(ps, arena, &tinf, x, y, mask, tri_index,
+								                                   pixelScreenCo, wco, w),
+								        arena
+								        );
 							}
 						}
 
@@ -2780,9 +2790,6 @@ static void project_paint_face_init(
 						interp_v2_v2v2(seam_subsection[2], outset_uv[fidx1], outset_uv[fidx2], fac2);
 						interp_v2_v2v2(seam_subsection[3], outset_uv[fidx1], outset_uv[fidx2], fac1);
 
-						for(int i = 0; i < 4; i++)
-							sub_v2_v2(seam_subsection[i], uv_ofs);
-
 						/* if the bucket_clip_edges values Z values was kept we could avoid this
 						 * Inset needs to be added so occlusion tests wont hit adjacent faces */
 						interp_v3_v3v3(edge_verts_inset_clip[0], insetCos[fidx1], insetCos[fidx2], fac1);
@@ -2860,16 +2867,12 @@ static void project_paint_face_init(
 											mask = project_paint_uvpixel_mask(ps, tri_index, w);
 
 											if (mask > 0.0f) {
-												ProjPixel *pixel;
-												pixel = project_paint_uvpixel_init(ps, arena, &tinf, x, y, mask, tri_index,
-																				pixelScreenCo, wco, w);
-												if (pixel) {
-													BLI_linklist_prepend_arena(
-															bucketPixelNodes,
-															pixel,
-															arena
-															);
-												}
+												BLI_linklist_prepend_arena(
+												        bucketPixelNodes,
+												        project_paint_uvpixel_init(ps, arena, &tinf, x, y, mask, tri_index,
+												        pixelScreenCo, wco, w),
+												        arena
+												        );
 											}
 
 										}
@@ -2940,6 +2943,7 @@ static void project_bucket_init(
 	ImBuf *ibuf = NULL;
 	Image *tpage_last = NULL, *tpage;
 	ImBuf *tmpibuf = NULL;
+	int tile_last = 0;
 
 	if (ps->image_tot == 1) {
 		/* Simple loop, no context switching */
@@ -2948,7 +2952,7 @@ static void project_bucket_init(
 		for (node = ps->bucketFaces[bucket_index]; node; node = node->next) {
 			project_paint_face_init(
 			        ps, thread_index, bucket_index, GET_INT_FROM_POINTER(node->link), 0,
-			        clip_rect, bucket_bounds, ibuf, &tmpibuf, ps->projImages[0].uv_ofs);
+			        clip_rect, bucket_bounds, ibuf, &tmpibuf);
 		}
 	}
 	else {
@@ -2956,18 +2960,32 @@ static void project_bucket_init(
 		/* More complicated loop, switch between images */
 		for (node = ps->bucketFaces[bucket_index]; node; node = node->next) {
 			tri_index = GET_INT_FROM_POINTER(node->link);
-			float uv_ofs[2];
+
+			const MLoopTri *lt = &ps->dm_mlooptri[tri_index];
+			const float *lt_tri_uv[3] = { PS_LOOPTRI_AS_UV_3(ps->dm_mloopuv, lt) };
 
 			/* Image context switching */
 			tpage = project_paint_face_paint_image(ps, tri_index);
-			if (tpage_last != tpage) {
+			int tile = project_paint_face_paint_tile(tpage, lt_tri_uv[0]);
+			if (tpage_last != tpage || tile_last != tile) {
 				tpage_last = tpage;
+				tile_last = tile;
 
 				for (image_index = 0; image_index < ps->image_tot; image_index++) {
-					if (ps->projImages[image_index].ima == tpage_last) {
-						ibuf = ps->projImages[image_index].ibuf;
-						copy_v2_v2(uv_ofs, ps->projImages[image_index].uv_ofs);
+					ProjPaintImage *projIma = &ps->projImages[image_index];
+					if ((projIma->ima == tpage) && (projIma->tile == tile)) {
+						ibuf = projIma->ibuf;
 						break;
+					}
+				}
+				if (ibuf == NULL) {
+					/* Failed to find the specific tile, fall back to the primary tile. */
+					for (image_index = 0; image_index < ps->image_tot; image_index++) {
+						ProjPaintImage *projIma = &ps->projImages[image_index];
+						if ((projIma->ima == tpage) && (projIma->tile == 0)) {
+							ibuf = projIma->ibuf;
+							break;
+						}
 					}
 				}
 			}
@@ -2975,7 +2993,7 @@ static void project_bucket_init(
 
 			project_paint_face_init(
 			        ps, thread_index, bucket_index, tri_index, image_index,
-			        clip_rect, bucket_bounds, ibuf, &tmpibuf, uv_ofs);
+			        clip_rect, bucket_bounds, ibuf, &tmpibuf);
 		}
 	}
 
@@ -3658,40 +3676,36 @@ static bool project_paint_winclip(
 #endif //PROJ_DEBUG_WINCLIP
 
 
+typedef struct PrepareImageEntry {
+	struct PrepareImageEntry *next, *prev;
+	Image *ima;
+	int tile;
+} PrepareImageEntry;
+
 static void project_paint_build_proj_ima(
         ProjPaintState *ps, MemArena *arena,
-        LinkNode *image_LinkList,
-		const float mouse[2])
+        ListBase *used_images)
 {
 	ProjPaintImage *projIma;
-	LinkNode *node;
+	PrepareImageEntry *entry;
 	int i;
-
-	float uv[2];
-	zero_v2(uv);
-	if (mouse) {
-		float w[3];
-		int tri_index = project_paint_PickFace(ps, mouse, w);
-		if (tri_index >= 0) {
-			const MLoopTri *lt = &ps->dm_mlooptri[tri_index];
-			const float *lt_tri_uv[3];
-			PS_LOOPTRI_ASSIGN_UV_3(lt_tri_uv, ps->dm_mloopuv, lt);
-			interp_v2_v2v2v2(uv, UNPACK3(lt_tri_uv), w);
-		}
-	}
 
 	/* build an array of images we use */
 	projIma = ps->projImages = BLI_memarena_alloc(arena, sizeof(ProjPaintImage) * ps->image_tot);
 
-	for (node = image_LinkList, i = 0; node; node = node->next, i++, projIma++) {
-		float local_uv[2];
-		memset(&projIma->iuser, 0, sizeof(projIma->iuser));
-		projIma->iuser.ok = true;
-		projIma->iuser.tile = BKE_image_get_tile_from_pos(node->link, uv, local_uv, projIma->uv_ofs);
+	for (entry = used_images->first, i = 0; entry; entry = entry->next, i++, projIma++) {
+		memset(&projIma->iuser, 0, sizeof(ImageUser));
+		projIma->iuser.ok = 1;
+		projIma->iuser.tile = entry->tile;
 		int size;
-		projIma->ima = node->link;
+		projIma->ima = entry->ima;
+		projIma->tile = entry->tile;
 		projIma->touch = 0;
 		projIma->ibuf = BKE_image_acquire_ibuf(projIma->ima, &projIma->iuser, NULL);
+		if (!projIma->ibuf) {
+			projIma->iuser.tile = 0;
+			projIma->ibuf = BKE_image_acquire_ibuf(projIma->ima, &projIma->iuser, NULL);
+		}
 		size = sizeof(void **) * IMAPAINT_TILE_NUMBER(projIma->ibuf->x) * IMAPAINT_TILE_NUMBER(projIma->ibuf->y);
 		projIma->partRedrawRect =  BLI_memarena_alloc(arena, sizeof(ImagePaintPartialRedraw) * PROJ_BOUNDBOX_SQUARED);
 		partial_redraw_array_init(projIma->partRedrawRect);
@@ -3709,18 +3723,20 @@ static void project_paint_prepare_all_faces(
         const ProjPaintFaceLookup *face_lookup,
         ProjPaintLayerClone *layer_clone,
         const MLoopUV *mloopuv_base,
-        const bool is_multi_view,
-		const float mouse[2])
+        const bool is_multi_view)
 {
 	/* Image Vars - keep track of images we have used */
-	LinkNodePair image_LinkList = {NULL, NULL};
+	ListBase used_images = {NULL};
 
 	Image *tpage_last = NULL, *tpage;
 	TexPaintSlot *slot_last = NULL;
 	TexPaintSlot *slot = NULL;
+	int tile_last = -1, tile;
 	const MLoopTri *lt;
 	int image_index = -1, tri_index;
 	int prev_poly = -1;
+
+	BLI_assert(ps->image_tot == 0);
 
 	for (tri_index = 0, lt = ps->dm_mlooptri; tri_index < ps->dm_totlooptri; tri_index++, lt++) {
 		bool is_face_sel;
@@ -3761,6 +3777,8 @@ static void project_paint_prepare_all_faces(
 		}
 
 		ps->dm_mloopuv[lt->poly] = mloopuv_base;
+
+		tile = project_paint_face_paint_tile(tpage, mloopuv_base[lt->tri[0]].uv);
 
 		if (project_paint_clone_face_skip(ps, layer_clone, slot, tri_index)) {
 			continue;
@@ -3819,17 +3837,24 @@ static void project_paint_prepare_all_faces(
 				}
 			}
 
-			if (tpage_last != tpage) {
+			if (tpage_last != tpage || tile_last != tile) {
+				image_index = 0;
+				for (PrepareImageEntry *e = used_images.first; e; e = e->next, image_index++) {
+					if (e->ima == tpage && e->tile == tile) {
+						break;
+					}
+				}
 
-				image_index = BLI_linklist_index(image_LinkList.list, tpage);
-
-				if (image_index == -1 && BKE_image_has_ibuf(tpage, NULL)) { /* MemArena dosnt have an append func */
-					BLI_linklist_append(&image_LinkList, tpage);
-					image_index = ps->image_tot;
+				if (image_index == ps->image_tot) {
+					PrepareImageEntry *e = MEM_callocN(sizeof(PrepareImageEntry), "PrepareImageEntry");
+					e->ima = tpage;
+					e->tile = tile;
+					BLI_addtail(&used_images, e);
 					ps->image_tot++;
 				}
 
 				tpage_last = tpage;
+				tile_last = tile;
 			}
 
 			if (image_index != -1) {
@@ -3842,18 +3867,17 @@ static void project_paint_prepare_all_faces(
 
 	/* build an array of images we use*/
 	if (ps->is_shared_user == false) {
-		project_paint_build_proj_ima(ps, arena, image_LinkList.list, mouse);
+		project_paint_build_proj_ima(ps, arena, &used_images);
 	}
 
 	/* we have built the array, discard the linked list */
-	BLI_linklist_free(image_LinkList.list, NULL);
+	BLI_freelistN(&used_images);
 }
 
 /* run once per stroke before projection painting */
 static void project_paint_begin(
         const bContext *C, ProjPaintState *ps,
-        const bool is_multi_view, const char symmetry_flag,
-		const float mouse[2])
+        const bool is_multi_view, const char symmetry_flag)
 {
 	ProjPaintLayerClone layer_clone;
 	ProjPaintFaceLookup face_lookup;
@@ -3944,7 +3968,7 @@ static void project_paint_begin(
 
 	proj_paint_state_vert_flags_init(ps);
 
-	project_paint_prepare_all_faces(ps, arena, &face_lookup, &layer_clone, mloopuv_base, is_multi_view, mouse);
+	project_paint_prepare_all_faces(ps, arena, &face_lookup, &layer_clone, mloopuv_base, is_multi_view);
 }
 
 static void paint_proj_begin_clone(ProjPaintState *ps, const float mouse[2])
@@ -5271,7 +5295,7 @@ void *paint_proj_new_stroke(bContext *C, Object *ob, const float mouse[2], int m
 			PROJ_PAINT_STATE_SHARED_MEMCPY(ps, ps_handle->ps_views[0]);
 		}
 
-		project_paint_begin(C, ps, is_multi_view, symmetry_flag_views[i], mouse);
+		project_paint_begin(C, ps, is_multi_view, symmetry_flag_views[i]);
 
 		paint_proj_begin_clone(ps, mouse);
 
@@ -5424,7 +5448,7 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
 	ED_image_undo_push_begin(op->type->name);
 
 	/* allocate and initialize spatial data structures */
-	project_paint_begin(C, &ps, false, 0, NULL);
+	project_paint_begin(C, &ps, false, 0);
 
 	if (ps.dm == NULL) {
 		BKE_brush_size_set(scene, ps.brush, orig_brush_size);
