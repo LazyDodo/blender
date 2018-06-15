@@ -1467,14 +1467,6 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
             col.prop(gp_settings, "angle_factor", text="Factor", slider=True)
             col.separator()
 
-            if gp_settings.gpencil_brush_type == 'DRAW':
-                col.prop(gp_settings, "use_stabilizer", text="Stabilizer")
-                if gp_settings.use_stabilizer:
-                    col.separator()
-                    col.prop(brush, "smooth_stroke_radius", text="Radius", slider=True)
-                    col.prop(brush, "smooth_stroke_factor", text="Factor", slider=True)
-                    col.separator()
-
             col.prop(gp_settings, "enable_random", text="Random Settings")
             if gp_settings.enable_random is True:
                 col.label(text="Settings:")
@@ -1505,6 +1497,37 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
                 col.label(text="Subdivide:")
                 col.prop(gp_settings, "pen_subdivision_steps")
                 col.prop(gp_settings, "random_subdiv", text="Randomness", slider=True)
+
+
+class VIEW3D_PT_tools_grease_pencil_brush_stabilizer(View3DPanel, Panel):
+    bl_context = ".greasepencil_paint"
+    bl_parent_id = 'VIEW3D_PT_tools_grease_pencil_brush_option'
+    bl_label = "Stabilizer"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+
+        return brush is not None and gp_settings.gpencil_brush_type == 'DRAW'
+
+    def draw_header(self, context):
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+        self.layout.prop(gp_settings, "use_stabilizer", text="")
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+        layout.active = gp_settings.use_stabilizer
+
+        layout.prop(brush, "smooth_stroke_radius", text="Radius", slider=True)
+        layout.prop(brush, "smooth_stroke_factor", text="Factor", slider=True)
 
 
 # Grease Pencil drawingcurves
@@ -1727,6 +1750,7 @@ classes = (
     # some panels have been moved to toolbar already
     VIEW3D_PT_tools_grease_pencil_brush,
     VIEW3D_PT_tools_grease_pencil_brush_option,
+    VIEW3D_PT_tools_grease_pencil_brush_stabilizer,
     VIEW3D_PT_tools_grease_pencil_brushcurves,
     VIEW3D_PT_tools_grease_pencil_shapes,
     VIEW3D_PT_tools_grease_pencil_edit,
