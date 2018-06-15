@@ -12,6 +12,9 @@
 #include "GPU_framebuffer.h"
 #include "DNA_lanpr_types.h"
 #include "GPU_draw.h"
+#include "DEG_depsgraph_query.h"
+#include "RE_pipeline.h"
+#include "BLI_rect.h"
 
 #include "GPU_batch.h"
 #include "GPU_framebuffer.h"
@@ -43,18 +46,19 @@ static void lanpr_engine_init(void *ved){
 	LANPR_TextureList *txl = vedata->txl;
 	LANPR_FramebufferList *fbl = vedata->fbl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
-	//LANPR_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
-	//if(!stl->g_data) stl->g_data = MEM_callocN(sizeof(*stl->g_data), __func__);
-
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
-	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	SceneLANPR* lanpr = &draw_ctx->scene->lanpr;
-
-	//lanpr->reloaded = 1;
+	Object *camera;
+	if (v3d) {
+		RegionView3D *rv3d = draw_ctx->rv3d;
+		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	}else {
+		camera = scene->camera;
+	}
 
 	if (!OneTime.InitComplete) {
 		lanpr->depth_clamp = 0.01;
@@ -77,15 +81,11 @@ static void lanpr_engine_init(void *ved){
 		lanpr->background_color[2] = 0.51;
 		lanpr->background_color[3] = 1;
 
-		//lanpr->depth_influence = 0.3;
-
 		lanpr->reloaded = 1;
 
 		OneTime.InitComplete=1;
 	}
 
-
-	/* Main Buffer */
 	DRW_texture_ensure_fullscreen_2D_multisample(&txl->depth, GPU_DEPTH_COMPONENT32F, 8, 0);
 	DRW_texture_ensure_fullscreen_2D_multisample(&txl->color, GPU_RGBA32F, 8, 0);
 	DRW_texture_ensure_fullscreen_2D_multisample(&txl->normal, GPU_RGBA32F, 8, 0);
@@ -113,7 +113,6 @@ static void lanpr_engine_init(void *ved){
 
 	GPU_framebuffer_ensure_config(&fbl->edge_thinning, {
 		GPU_ATTACHMENT_LEAVE,
-		//GPU_ATTACHMENT_TEXTURE(txl->depth),
 		GPU_ATTACHMENT_TEXTURE(txl->color),
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
@@ -162,7 +161,6 @@ static void lanpr_engine_free(void){
 	LANPR_TextureList *txl = vedata->txl;
 	LANPR_FramebufferList *fbl = vedata->fbl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
-	//LANPR_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
     LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 
 	DRW_pass_free(psl->color_pass);
@@ -211,8 +209,17 @@ static void lanpr_cache_init(void *vedata){
 	LANPR_PrivateData* pd = stl->g_data;
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
-	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
+	Object *camera;
+	if (v3d) {
+		RegionView3D *rv3d = draw_ctx->rv3d;
+		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	}
+	else {
+		camera = scene->camera;
+	}
 
 	psl->color_pass = DRW_pass_create("Color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
 	stl->g_data->multipass_shgrp = DRW_shgroup_create(OneTime.multichannel_shader, psl->color_pass);
@@ -361,8 +368,7 @@ static void lanpr_cache_finish(void *vedata){
 	}
 }
 
-static void lanpr_draw_scene(void *vedata)
-{
+static void lanpr_draw_scene(void *vedata){
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
@@ -382,10 +388,16 @@ static void lanpr_draw_scene(void *vedata)
     DRW_draw_pass(psl->color_pass);
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
-	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	Object *camera;
+	if(v3d){
+		RegionView3D *rv3d = draw_ctx->rv3d;
+	    camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	}else{
+		camera = scene->camera;
+	}
 
 	if(lanpr->master_mode == LANPR_MASTER_MODE_DPIX){
 		lanpr_dpix_draw_scene(txl,fbl,psl,stl->g_data,lanpr);
@@ -394,22 +406,112 @@ static void lanpr_draw_scene(void *vedata)
 	}
 }
 
+void LANPR_render_cache(
+        void *vedata, struct Object *ob,
+        struct RenderEngine *engine, struct Depsgraph *UNUSED(depsgraph)){
+    
+	lanpr_cache_populate(vedata,ob);
+
+}
+
+static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect){
+	LANPR_StorageList *stl = vedata->stl;
+	LANPR_TextureList *txl = vedata->txl;
+	LANPR_FramebufferList *fbl = vedata->fbl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+
+	/* refered to eevee's code */
+
+	/* Init default FB and render targets:
+	 * In render mode the default framebuffer is not generated
+	 * because there is no viewport. So we need to manually create it or
+	 * not use it. For code clarity we just allocate it make use of it. */
+	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+
+	/* TODO 32 bit depth */
+	DRW_texture_ensure_fullscreen_2D(&dtxl->depth, GPU_DEPTH_COMPONENT32F, 0);
+	DRW_texture_ensure_fullscreen_2D(&dtxl->color, GPU_RGBA32F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
+
+	GPU_framebuffer_ensure_config(&dfbl->default_fb, {
+		GPU_ATTACHMENT_TEXTURE(dtxl->depth),
+		GPU_ATTACHMENT_TEXTURE(dtxl->color),
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE
+	});
+
+	scene->lanpr.reloaded=1;
+
+	lanpr_engine_init(vedata);
+	lanpr_cache_init(vedata);
+	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, LANPR_render_cache);
+	lanpr_cache_finish(vedata);
+
+	lanpr_draw_scene(vedata);
+
+
+    // read it back so we can again display and save it.
+	const char *viewname = RE_GetActiveRenderView(engine->re);
+	RenderPass *rp = RE_pass_find_by_name(render_layer, RE_PASSNAME_COMBINED, viewname);
+	GPU_framebuffer_bind(dfbl->default_fb);
+	GPU_framebuffer_read_color(dfbl->default_fb,
+	                           rect->xmin, rect->ymin,
+	                           BLI_rcti_size_x(rect), BLI_rcti_size_y(rect),
+	                           4, 0, rp->rect);
+
+}
+
+static void lanpr_view_update(void *vedata){
+	//LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
+	//if (stl->g_data) {
+	//	stl->g_data->view_updated = true;
+	//}
+
+	//our update flag is in SceneLANPR.
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+    SceneLANPR *lanpr = &DEG_get_evaluated_scene(draw_ctx->depsgraph)->lanpr;
+	lanpr->reloaded = 1; // very bad solution, this will slow down animation.
+}
+
+//static void lanpr_id_update(void *vedata, ID *id){	
+//	const DRWContextState *draw_ctx = DRW_context_state_get();
+//    SceneLANPR *lanpr = &DEG_get_evaluated_scene(draw_ctx->depsgraph)->lanpr;
+//
+//	/* look at eevee_engine.c */
+//	switch (GS(id->name)) {
+//		case ID_OB:
+//		    //seems doesn't need this one currently...
+//			//eevee_id_object_update(vedata, (Object *)id);
+//			lanpr->reloaded = 1;
+//			break;
+//		case ID_ME:
+//		    lanpr->reloaded=1;
+//			break;
+//		default:
+//			/* pass */
+//			break;
+//	}
+//}
+
+
 static const DrawEngineDataSize lanpr_data_size = DRW_VIEWPORT_DATA_SIZE(LANPR_Data);
 
 DrawEngineType draw_engine_lanpr_type = {
 	NULL, NULL,
 	N_("LANPR"),
-	&lanpr_data_size,
+	&lanpr_data_size, // why should we have the "&" ?
 	&lanpr_engine_init,
 	&lanpr_engine_free,
 	&lanpr_cache_init,
 	&lanpr_cache_populate,
 	&lanpr_cache_finish,
 	NULL,//draw background
-	lanpr_draw_scene,//draw scene, looks like that not much difference except a camera overlay image.
-	NULL,
-	NULL,
-	NULL,
+	&lanpr_draw_scene,//draw scene, looks like that not much difference except a camera overlay image.
+	&lanpr_view_update,
+	NULL, //&lanpr_id_update, wait till I figure out how to do this.
+	&lanpr_render_to_image,
 };
 
 RenderEngineType DRW_engine_viewport_lanpr_type = {
@@ -418,7 +520,7 @@ RenderEngineType DRW_engine_viewport_lanpr_type = {
 	NULL,// update
 	&DRW_render_to_image,// render to img
 	NULL,// bake
-	NULL,// view update
+	NULL,// doesn't seem to be what I thought it was... &lanpr_view_update,// view update
 	NULL,// render to view
 	NULL,// update in script
 	NULL,// update in render pass

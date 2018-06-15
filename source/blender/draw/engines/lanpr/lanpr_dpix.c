@@ -13,6 +13,7 @@
 #include "DNA_lanpr_types.h"
 #include "DNA_meshdata_types.h"
 #include "BKE_customdata.h"
+#include "DEG_depsgraph_query.h"
 #include "GPU_draw.h"
 
 #include "GPU_batch.h"
@@ -36,10 +37,7 @@ void lanpr_init_atlas_inputs(void *ved){
 	LANPR_TextureList *txl = vedata->txl;
 	LANPR_FramebufferList *fbl = vedata->fbl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
-	//LANPR_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-
-	//txl->dpix_in_pl = 
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
@@ -57,9 +55,6 @@ void lanpr_init_atlas_inputs(void *ved){
 		DRW_texture_ensure_2D(&txl->dpix_out_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_out_length, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 	}
-
-
-	/* Main Buffer */
 
 	GPU_framebuffer_ensure_config(&fbl->dpix_transform, {
 		GPU_ATTACHMENT_LEAVE,
@@ -94,7 +89,6 @@ void lanpr_init_atlas_inputs(void *ved){
 		    datatoc_lanpr_atlas_project_passthrough_vertex,
 			datatoc_lanpr_atlas_preview_fragment,
 			datatoc_lanpr_atlas_preview_geometry,
-			//NULL,
 			NULL,NULL);
     }
 }
@@ -139,7 +133,6 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 	struct BMVert *v1,*v2;
 	struct BMEdge *e;
 	struct BMLoop *l1,*l2;
-	//struct MEdge* ome;
 	FreestyleEdge *fe;
 	int CanFindFreestyle=0;
     int vert_count = me->totvert, edge_count = me->totedge, face_count = me->totface;
@@ -221,6 +214,7 @@ void lanpr_dpix_index_to_coord(int index, float* x,float* y){
     (*x) = tnsLinearItp(-1,1,(float)(index % TNS_DPIX_TEXTURE_SIZE+0.5)/(float)TNS_DPIX_TEXTURE_SIZE);
 	(*y) = tnsLinearItp(-1,1,(float)(index / TNS_DPIX_TEXTURE_SIZE+0.5)/(float)TNS_DPIX_TEXTURE_SIZE);
 }
+
 void lanpr_dpix_index_to_coord_absolute(int index, float* x,float* y){
 	(*x) = (float)(index % TNS_DPIX_TEXTURE_SIZE)+0.5;
     (*y) = (float)(index / TNS_DPIX_TEXTURE_SIZE)+0.5;
@@ -273,41 +267,47 @@ int lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginInde
 
 
 void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr){
-    	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-	    float clear_depth = 1.0f;
-	    uint clear_stencil = 0xFF;
+	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	float clear_depth = 1.0f;
+	uint clear_stencil = 0xFF;
 
-        DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-	    DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
-        int texw = GPU_texture_width(txl->edge_intermediate) ,texh = GPU_texture_height(txl->edge_intermediate);;
-	    int tsize = texw*texh;
+	int texw = GPU_texture_width(txl->edge_intermediate) ,texh = GPU_texture_height(txl->edge_intermediate);;
+	int tsize = texw*texh;
 
-		const DRWContextState *draw_ctx = DRW_context_state_get();
-		View3D *v3d = draw_ctx->v3d;
-	    RegionView3D *rv3d = draw_ctx->rv3d;
-	    Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-        
-        pd->dpix_viewport[2] = texw;
-		pd->dpix_viewport[3] = texh;
-		pd->dpix_is_perspective = 1;
-		pd->dpix_sample_step = 1;
-		pd->dpix_buffer_width = TNS_DPIX_TEXTURE_SIZE;
-		pd->dpix_depth_offset=0.0001;
-		pd->dpix_znear = camera?((Camera*)camera->data)->clipsta:v3d->near;
-		pd->dpix_zfar = camera?((Camera*)camera->data)->clipend:v3d->far;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+	View3D *v3d = draw_ctx->v3d;
+	Object *camera;
+	if(v3d){
+		RegionView3D *rv3d = draw_ctx->rv3d;
+		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	}else{
+		camera = scene->camera;
+	}
+		
+	pd->dpix_viewport[2] = texw;
+	pd->dpix_viewport[3] = texh;
+	pd->dpix_is_perspective = 1;
+	pd->dpix_sample_step = 1;
+	pd->dpix_buffer_width = TNS_DPIX_TEXTURE_SIZE;
+	pd->dpix_depth_offset=0.0001;
+	pd->dpix_znear = camera?((Camera*)camera->data)->clipsta:v3d->near;
+	pd->dpix_zfar = camera?((Camera*)camera->data)->clipend:v3d->far;
 
-        glPointSize(1);
-		glLineWidth(2);
-		GPU_framebuffer_bind(fbl->dpix_transform);
-		DRW_draw_pass(psl->dpix_transform_pass);
+	glPointSize(1);
+	glLineWidth(2);
+	GPU_framebuffer_bind(fbl->dpix_transform);
+	DRW_draw_pass(psl->dpix_transform_pass);
 
-		GPU_framebuffer_bind(fbl->dpix_preview);
-		GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
-		GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
-		DRW_draw_pass(psl->dpix_preview_pass);
+	GPU_framebuffer_bind(fbl->dpix_preview);
+	GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
+	GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+	DRW_draw_pass(psl->dpix_preview_pass);
 
-		GPU_framebuffer_bind(dfbl->default_fb);
-		GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
-		DRW_multisamples_resolve(txl->depth,txl->color);  
+	GPU_framebuffer_bind(dfbl->default_fb);
+	GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+	DRW_multisamples_resolve(txl->depth,txl->color);  
 }

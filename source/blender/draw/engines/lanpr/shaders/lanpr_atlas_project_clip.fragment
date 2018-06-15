@@ -351,7 +351,7 @@ bool testProfileEdge( ivec2 texcoord, vec3 world_position )
 
     float dot0 = dot(camera_to_line.xyz, vec3(face_normal_0.xyz));
     float dot1 = dot(camera_to_line.xyz, vec3(face_normal_1.xyz));
-	float dot2 = dot(vec3(face_normal_0.xyz), vec3(face_normal_1.xyz));
+	float dot2 = dot(normalize(vec3(face_normal_0.xyz)), normalize(vec3(face_normal_1.xyz)));
 
     bool contour = (dot0 >= 0.0 && dot1 <= 0.0) || (dot0 <= 0.0 && dot1 >= 0.0);
     is_crease = ((!contour)&&((dot2<crease_threshold)||(dot2<crease_fade_threshold)))?1:0;

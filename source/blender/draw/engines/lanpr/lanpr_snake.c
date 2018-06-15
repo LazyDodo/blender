@@ -11,8 +11,8 @@
 #include "GPU_immediate_util.h"
 #include "GPU_framebuffer.h"
 #include "DNA_lanpr_types.h"
+#include "DEG_depsgraph_query.h"
 #include "GPU_draw.h"
-
 #include "GPU_batch.h"
 #include "GPU_framebuffer.h"
 #include "GPU_shader.h"
@@ -103,11 +103,6 @@ LANPR_LineStripPoint* lanpr_push_point(LANPR_PrivateData* pd, LANPR_LineStrip* l
 
 	return lsp;
 }
-
-//void lanpr_remove_point(LANPR_LineStrip* ls,tnsLineStripPoint* lsp) {
-//	lstRemoveItem(&ls->Points, lsp);
-//	FreeMem(lsp);
-//}
 
 void lanpr_destroy_line_strip(LANPR_PrivateData* pd, LANPR_LineStrip* ls) {
 	LANPR_LineStripPoint* lsp;
@@ -231,7 +226,6 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 	LANPR_LineStrip* ls;
 	LANPR_LineStripPoint* lsp, *plsp;
 	int i;
-	//u32bit *Index_adjacent;
 	float* Verts;
 	float* Lengths;
 	float TotalLength=0;
@@ -239,7 +233,6 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData* pd){
 
 	lanpr_count_drawing_elements(pd,&v_count,&e_count);
 
-	//Index_adjacent = MEM_callocN(sizeof(unsigned int) * e_count, "Index_adjacent buffer pre alloc");
 	Verts = MEM_callocN(sizeof(float) * v_count * 2, "Verts buffer pre alloc");
 	Lengths = MEM_callocN(sizeof(float)* v_count * 2, "Length buffer pre alloc");
 
@@ -316,9 +309,15 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
     const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	View3D *v3d = draw_ctx->v3d;
-	RegionView3D *rv3d = draw_ctx->rv3d;
-	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	Object *camera;
+	if(v3d){
+		RegionView3D *rv3d = draw_ctx->rv3d;
+	    camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	}else{
+		camera = scene->camera;
+	}
     
     pd->znear = camera? ((Camera*)camera->data)->clipsta:0.1;
     pd->zfar = camera? ((Camera*)camera->data)->clipend:100;
@@ -365,11 +364,7 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
 		GPU_framebuffer_bind(dfbl->default_fb);
         DRW_multisamples_resolve(txl->depth, txl->color);
 
-        if(!lanpr->enable_vector_trace){
-            //GPU_framebuffer_bind(dfbl->default_fb);
-			//DRW_multisamples_resolve(txl->depth,txl->color);  
-            return;
-        }
+        if(!lanpr->enable_vector_trace) return;
     }
     
     int texw = GPU_texture_width(txl->edge_intermediate) ,texh = GPU_texture_height(txl->edge_intermediate);;
@@ -392,7 +387,6 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
     }
     
 	GPU_framebuffer_bind(dfbl->default_fb);
-	//DRW_multisamples_resolve(txl->depth,txl->edge_intermediate);  
     GPU_framebuffer_read_color(dfbl->default_fb,0,0,texw, texh,1,0, pd->line_result);
 
     float sample;
@@ -432,8 +426,6 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
 
             lanpr_grow_snake_l(pd, ls, lsp, lanpr_reverse_direction(Direction));
         }
-
-        //count++;
     }
 
 	GPU_framebuffer_bind(dfbl->default_fb);
@@ -459,10 +451,9 @@ void lanpr_snake_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl,
 
     DRW_shgroup_call_add(pd->snake_shgrp, snake_batch, NULL);
 	GPU_framebuffer_bind(fbl->edge_intermediate);
-	//glDisable(GL_DEPTH_TEST);
+
     DRW_draw_pass(psl->snake_pass);
 	GWN_batch_discard(snake_batch);
-    
 
     BLI_mempool_clear(pd->mp_sample);
     BLI_mempool_clear(pd->mp_line_strip);
