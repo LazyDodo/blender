@@ -132,6 +132,7 @@ typedef struct ImagePaintTile {
 	float uv_ofs[2];
 	bool need_redraw;
 	BrushPainterCache cache;
+	int tile_number;
 
 	ImagePaintTileState state;
 
@@ -1589,13 +1590,23 @@ void paint_2d_bucket_fill(
 	float uv_ofs[2];
 	float image_init[2], image_final[2];
 	paint_2d_transform_mouse(s, mouse_init, image_init);
-	int tile = BKE_image_get_tile_from_pos(ima, image_init, image_init, uv_ofs);
+	int tile_number = BKE_image_get_tile_from_pos(ima, image_init, image_init, uv_ofs);
 	if (mouse_final) {
 		paint_2d_transform_mouse(s, mouse_final, image_final);
 		sub_v2_v2(image_final, uv_ofs);
 	}
 
-	ibuf = BKE_image_acquire_ibuf(ima, &s->tiles[tile].iuser, NULL);
+	ImageUser *iuser = &s->tiles[0].iuser;
+	for (int i = 0; i < s->num_tiles; i++) {
+		if (s->tiles[i].iuser.tile == tile_number) {
+			if (!paint_2d_check_tile(s, i))
+				return;
+			iuser = &s->tiles[i].iuser;
+			break;
+		}
+	}
+
+	ibuf = BKE_image_acquire_ibuf(ima, iuser, NULL);
 
 	if (!ibuf)
 		return;
@@ -1740,7 +1751,7 @@ void paint_2d_bucket_fill(
 		BLI_stack_free(stack);
 	}
 
-	imapaint_image_update(sima, ima, ibuf, &s->tiles[tile].iuser, false);
+	imapaint_image_update(sima, ima, ibuf, iuser, false);
 	ED_imapaint_clear_partial_redraw();
 
 	BKE_image_release_ibuf(ima, ibuf, NULL);
@@ -1774,11 +1785,21 @@ void paint_2d_gradient_fill(
 	paint_2d_transform_mouse(s, mouse_init, image_init);
 
 	float uv_ofs[2];
-	int tile = BKE_image_get_tile_from_pos(ima, image_init, image_init, uv_ofs);
+	int tile_number = BKE_image_get_tile_from_pos(ima, image_init, image_init, uv_ofs);
 	sub_v2_v2(image_init, uv_ofs);
 	sub_v2_v2(image_final, uv_ofs);
 
-	ibuf = BKE_image_acquire_ibuf(ima, &s->tiles[tile].iuser, NULL);
+	ImageUser *iuser = &s->tiles[0].iuser;
+	for (int i = 0; i < s->num_tiles; i++) {
+		if (s->tiles[i].iuser.tile == tile_number) {
+			if (!paint_2d_check_tile(s, i))
+				return;
+			iuser = &s->tiles[i].iuser;
+			break;
+		}
+	}
+
+	ibuf = BKE_image_acquire_ibuf(ima, iuser, NULL);
 
 	if (!ibuf)
 		return;
@@ -1861,7 +1882,7 @@ void paint_2d_gradient_fill(
 		}
 	}
 
-	imapaint_image_update(sima, ima, ibuf, &s->tiles[tile].iuser, false);
+	imapaint_image_update(sima, ima, ibuf, iuser, false);
 	ED_imapaint_clear_partial_redraw();
 
 	BKE_image_release_ibuf(ima, ibuf, NULL);
