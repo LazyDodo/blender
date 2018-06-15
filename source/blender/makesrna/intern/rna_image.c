@@ -720,7 +720,7 @@ static void rna_def_image_tiles(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "get", "BKE_image_get_tile");
 	RNA_def_function_ui_description(func, "Get a tile based on its tile number");
-	parm = RNA_def_int(func, "tile_number", 1, 1, INT_MAX, "", "Number of the tile", 1, 100);
+	parm = RNA_def_int(func, "tile_number", 0, 0, INT_MAX, "", "Number of the tile", 1, 100);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "result", "ImageTile", "", "The tile");
 	RNA_def_function_return(func, parm);
