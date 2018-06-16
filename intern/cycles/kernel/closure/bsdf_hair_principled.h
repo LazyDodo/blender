@@ -72,7 +72,8 @@ ccl_device_inline float logistic(float x, float s)
 ccl_device_inline float logistic_cdf(float x, float s)
 {
 	float arg = -x/s;
-	if(arg > 100.0f) return 0.0f;
+	// exp overflows if arg >= 89.0f
+	if(arg > 88.0f) return 0.0f;
 	return 1.0f / (1.0f + expf(arg));
 }
 
@@ -114,7 +115,7 @@ ccl_device_inline float trimmed_logistic(float x, float s)
 	 * Therefore, logistic_cdf(x, s)-logistic_cdf(-x, s) = 1 - 2*logistic_cdf(-x, s) */
 	float scaling_fac = 1.0f - 2.0f*logistic_cdf(-M_PI_F, s);
 	float val = logistic(x, s);
-	return val / scaling_fac;
+	return safe_divide(val, scaling_fac);
 }
 
 ccl_device_inline float sample_trimmed_logistic(float u, float s)
