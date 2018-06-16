@@ -985,7 +985,7 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
  * \param gps           Stroke data
  * \param brush         Brush data
  */
-void gp_randomize_stroke(bGPDstroke *gps, Brush *brush)
+void gp_randomize_stroke(bGPDstroke *gps, Brush *brush, RNG *rng)
 {
 	bGPDspoint *pt1, *pt2, *pt3;
 	float v1[3];

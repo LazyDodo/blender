@@ -247,7 +247,7 @@ bool gp_smooth_stroke(bGPDstroke *gps, int i, float inf, bool affect_pressure);
 bool gp_smooth_stroke_strength(bGPDstroke *gps, int i, float inf);
 bool gp_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf);
 void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide);
-void gp_randomize_stroke(bGPDstroke *gps, Brush *brush);
+void gp_randomize_stroke(bGPDstroke *gps, Brush *brush, struct RNG *rng);
 
 /* Layers Enums -------------------------------------- */
 

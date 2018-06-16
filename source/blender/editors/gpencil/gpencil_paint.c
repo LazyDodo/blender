@@ -425,7 +425,7 @@ static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3]
 }
 
 /* apply jitter to stroke */
-static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int mval[2], int r_mval[2])
+static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int mval[2], int r_mval[2], RNG *rng)
 {
 	float pressure = pt->pressure;
 	float tmp_pressure = pt->pressure;
@@ -1129,7 +1129,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
 		    (brush->gpencil_settings->draw_random_sub > 0.0f))
 		{
-			gp_randomize_stroke(gps, brush);
+			gp_randomize_stroke(gps, brush, p->rng);
 		}
 
 		/* smooth stroke after subdiv - only if there's something to do
