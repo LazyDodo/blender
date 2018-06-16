@@ -52,9 +52,6 @@ shader node_principled_hair_bsdf(
 	if (parametrization == "Absorption coefficient") {
 		Sigma = AbsorptionCoefficient;
 	}
-	else if (parametrization == "physical") {
-		Sigma = -log3(max(AbsorptionCoefficient, 1e-5));
-	}
 	else if (parametrization == "Melanin concentration") {
 		color Melanin_Sigma = AdjustedMelanin*color(0.419, 0.697, 1.37) + AdjustedMelaninRedness*color(0.187, 0.4, 1.05);
 		float roughness_fac = (((((0.245*AdjustedRoughnessU) + 5.574)*AdjustedRoughnessU - 10.73)*AdjustedRoughnessU + 2.532)*AdjustedRoughnessU - 0.215)*AdjustedRoughnessU + 5.969;

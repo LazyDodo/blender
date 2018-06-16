@@ -65,7 +65,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 	
 	for (sock = node->inputs.first; sock; sock = sock->next) {
 		if (STREQ(sock->name, "Color")) {
-			if (parametrization == SHD_PRINCIPLED_HAIR_REFLECTANCE){
+			if (parametrization == SHD_PRINCIPLED_HAIR_REFLECTANCE) {
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
@@ -73,7 +73,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Melanin")) {
-			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION) {
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
@@ -81,7 +81,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Melanin Redness")) {
-			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION) {
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
@@ -89,7 +89,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Tint")) {
-			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION) {
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
@@ -97,7 +97,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Absorption Coefficient")) {
-			if ((parametrization == SHD_PRINCIPLED_HAIR_PHYSICAL) || (parametrization == SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION)){
+			if (parametrization == SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION) {
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
@@ -105,7 +105,7 @@ static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *
 			}
 		}
 		else if (STREQ(sock->name, "Color Randomization")) {
-			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION){
+			if (parametrization == SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION) {
 				sock->flag &= ~SOCK_UNAVAIL;
 			}
 			else {
