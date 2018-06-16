@@ -709,9 +709,11 @@ bGPdata *BKE_gpencil_data_duplicate(Main *bmain, const bGPdata *gpd_src, bool in
 		gpd_dst = MEM_dupallocN(gpd_src);
 	}
 	else {
-		/* make a copy when others use this */
-		gpd_dst = BKE_libblock_copy(bmain, &gpd_src->id);
-		gpd_dst->runtime.batch_cache_data = NULL;
+		BLI_assert(bmain != NULL);
+		bGPdata *gpd_copy;
+		BKE_id_copy_ex(bmain, &gpd_src->id, (ID **)&gpd_copy, 0, false);
+		gpd_copy->runtime.batch_cache_data = NULL;
+		return gpd_copy;
 	}
 	
 	/* Copy internal data (layers, etc.) */

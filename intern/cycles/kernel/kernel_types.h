@@ -881,8 +881,6 @@ enum ShaderDataFlag {
 	SD_EXTINCTION      = (1 << 6),
 	/* Shader has have volume phase (scatter) closure. */
 	SD_SCATTER         = (1 << 7),
-	/* Shader has AO closure. */
-	SD_AO              = (1 << 8),
 	/* Shader has transparent closure. */
 	SD_TRANSPARENT     = (1 << 9),
 	/* BSDF requires LCG for evaluation. */
@@ -895,7 +893,6 @@ enum ShaderDataFlag {
 	                    SD_HOLDOUT |
 	                    SD_EXTINCTION |
 	                    SD_SCATTER |
-	                    SD_AO |
 	                    SD_BSDF_NEEDS_LCG),
 
 	/* Shader flags. */
@@ -1272,12 +1269,14 @@ typedef struct KernelFilm {
 	int pass_denoising_clean;
 	int denoising_flags;
 
-	float3 xyz_to_r;
-	float3 xyz_to_g;
-	float3 xyz_to_b;
-	float3 rgb_to_y;
-
 	int pad1, pad2, pad3;
+
+	/* XYZ to rendering color space transform. float4 instead of float3 to
+	 * ensure consistent padding/alignment across devices. */
+	float4 xyz_to_r;
+	float4 xyz_to_g;
+	float4 xyz_to_b;
+	float4 rgb_to_y;
 
 #ifdef __KERNEL_DEBUG__
 	int pass_bvh_traversed_nodes;
