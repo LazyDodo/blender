@@ -45,6 +45,7 @@ struct tGPspoint;
 struct Material;
 
 struct GHash;
+struct RNG;
 
 struct Brush;
 struct Scene;

@@ -1021,7 +1021,7 @@ void gp_randomize_stroke(bGPDstroke *gps, Brush *brush)
 		const float fac = BLI_frand() * (brush->gpencil_settings->draw_random_sub / 10.0f);
 		float svec[3];
 		copy_v3_v3(svec, ortho);
-		if (BLI_frand() > 0.5f) {
+		if (BLI_rng_get_float(rng) > 0.5f) {
 			mul_v3_fl(svec, -fac);
 		}
 		else {

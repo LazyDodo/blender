@@ -187,6 +187,8 @@ typedef struct tGPsdata {
 	int lock_axis;       /* lock drawing to one axis */
 	bool disable_fill;   /* the stroke is no fill mode */
 
+	RNG *rng;
+
 	short keymodifier;   /* key used for invoking the operator */
 	short shift;         /* shift modifier flag */
 
@@ -449,7 +451,7 @@ static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int
 	svec[0] = -mvec[1];
 	svec[1] = mvec[0];
 	/* scale the displacement by the random, and apply */
-	if (BLI_frand() > 0.5f) {
+	if (BLI_rng_get_float(rng) > 0.5f) {
 		mul_v2_fl(svec, -fac);
 	}
 	else {
@@ -631,7 +633,7 @@ static short gp_stroke_addpoint(
 		/* Apply jitter to position */
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) && (brush->gpencil_settings->draw_jitter > 0.0f)) {
 			int r_mval[2];
-			gp_brush_jitter(gpd, brush, pt, mval, r_mval);
+			gp_brush_jitter(gpd, brush, pt, mval, r_mval, p->rng);
 			copy_v2_v2_int(&pt->x, r_mval);
 		}
 		else {
@@ -1882,6 +1884,11 @@ static tGPsdata *gp_session_initpaint(bContext *C, wmOperator *op)
 	p->radius = U.gp_eraser;
 #endif
 
+	/* Random generator, only init once. */
+	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
+	rng_seed ^= GET_UINT_FROM_POINTER(p);
+	p->rng = BLI_rng_new(rng_seed);
+
 	/* return context data for running paint operator */
 	return p;
 }
@@ -1907,6 +1914,14 @@ static void gp_session_cleanup(tGPsdata *p)
 	gpd->sbuffer_sflag = 0;
 	p->inittime = 0.0;
 }
+
+static void gp_session_free(tGPsdata *p) {
+	if (p->rng != NULL) {
+		BLI_rng_free(p->rng);
+	}
+	MEM_freeN(p);
+}
+
 
 /* init new stroke */
 static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Depsgraph *depsgraph)
