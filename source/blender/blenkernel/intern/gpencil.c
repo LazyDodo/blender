@@ -710,10 +710,8 @@ bGPdata *BKE_gpencil_data_duplicate(Main *bmain, const bGPdata *gpd_src, bool in
 	}
 	else {
 		BLI_assert(bmain != NULL);
-		bGPdata *gpd_copy;
-		BKE_id_copy_ex(bmain, &gpd_src->id, (ID **)&gpd_copy, 0, false);
-		gpd_copy->runtime.batch_cache_data = NULL;
-		return gpd_copy;
+		BKE_id_copy_ex(bmain, &gpd_src->id, (ID **)&gpd_dst, 0, false);
+		gpd_dst->runtime.batch_cache_data = NULL;
 	}
 	
 	/* Copy internal data (layers, etc.) */
