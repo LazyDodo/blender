@@ -907,8 +907,6 @@ static void rna_def_image(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "ImageTile");
 	RNA_def_property_collection_sdna(prop, NULL, "tiles", NULL);
 	RNA_def_property_ui_text(prop, "Image Tiles", "Tiles of the image");
-	//RNA_def_property_collection_funcs(prop, "rna_Image_tiles_begin", "rna_iterator_array_next",
-	//                                  "rna_iterator_array_end", "rna_iterator_array_get", NULL, NULL, NULL, NULL);
 	rna_def_image_tiles(brna, prop);
 
 	/*
