@@ -748,8 +748,8 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			color_randomization = clamp(color_randomization, 0.0f, 1.0f);
 			float roughness_randomization = (stack_valid(roughness_randomization_ofs)) ? stack_load_float(stack, roughness_randomization_ofs) : __uint_as_float(data_node3.w);
 
-			float factor_random_color = (1.0f-color_randomization)+random*color_randomization;
-			float factor_random_roughness = (1.0f - roughness_randomization) + random*roughness_randomization;
+			float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*color_randomization;
+			float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*roughness_randomization;
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
