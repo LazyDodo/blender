@@ -3062,10 +3062,10 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_ENUM(parametrization, "Parametrization", parametrization_enum, NODE_PRINCIPLED_HAIR_REFLECTANCE);
 
 	SOCKET_IN_FLOAT(offset, "Offset", 2.f*M_PI_F/180.f);
-	SOCKET_IN_FLOAT(roughness_u, "RoughnessU", 0.3f);
-	SOCKET_IN_FLOAT(roughness_v, "RoughnessV", 0.3f);
+	SOCKET_IN_FLOAT(roughness_u, "Roughness", 0.3f);
+	SOCKET_IN_FLOAT(roughness_v, "Radial Roughness", 0.3f);
 	SOCKET_IN_FLOAT(roughness_randomization, "Roughness Randomization", 0.0f);
-	SOCKET_IN_FLOAT(primary_reflection_roughness, "Primary Reflection Roughness", 1.0f);
+	SOCKET_IN_FLOAT(primary_reflection_roughness, "Undercoat Roughness", 1.0f);
 	SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
 
 	SOCKET_IN_FLOAT(random, "Random", 0.0f);
@@ -3085,11 +3085,11 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 {
 	compiler.add_node(NODE_CLOSURE_SET_WEIGHT, make_float3(1.0f, 1.0f, 1.0f));
 
-	ShaderInput *roughness_u_in = input("RoughnessU");
-	ShaderInput *roughness_v_in = input("RoughnessV");
+	ShaderInput *roughness_u_in = input("Roughness");
+	ShaderInput *roughness_v_in = input("Radial Roughness");
 	ShaderInput *roughness_randomization_in = input("Roughness Randomization");
 	ShaderInput *offset_in = input("Offset");
-	ShaderInput *primary_reflection_roughness_in = input("Primary Reflection Roughness");
+	ShaderInput *primary_reflection_roughness_in = input("Undercoat Roughness");
 	ShaderInput *ior_in = input("IOR");
 	ShaderInput *eumelanin_in =  input("Melanin");
 	ShaderInput *pheomelanin_in = input("Melanin Redness");
