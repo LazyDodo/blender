@@ -18,6 +18,7 @@
 #include "render/image.h"
 #include "render/integrator.h"
 #include "render/light.h"
+#include "render/mesh.h"
 #include "render/nodes.h"
 #include "render/scene.h"
 #include "render/svm.h"
@@ -275,6 +276,49 @@ ShaderNode *ImageTextureNode::clone() const
 	return node;
 }
 
+void ImageTextureNode::simplify_settings(Scene *scene, Shader *shader)
+{
+	if(!scene->params.background) {
+		/* During interactive renders, all tiles are loaded.
+		 * While we could support updating this when UVs change, that could lead
+		 * to annoying interruptions when loading images while editing UVs. */
+		return;
+	}
+
+	ShaderInput *vector_in = input("Vector");
+	ustring attribute;
+	if(vector_in->link) {
+		ShaderNode *node = vector_in->link->parent;
+		if(node->type == UVMapNode::node_type) {
+			UVMapNode *uvmap = (UVMapNode*) node;
+			attribute = uvmap->attribute;
+		}
+		else if(node->type == TextureCoordinateNode::node_type) {
+			if(vector_in->link != node->output("UV")) {
+				return;
+			}
+		}
+		else {
+			return;
+		}
+	}
+
+	ccl::vector<bool> used_tiles;
+	foreach(Mesh *mesh, scene->meshes) {
+		if(std::find(mesh->used_shaders.begin(), mesh->used_shaders.end(), shader) != mesh->used_shaders.end()) {
+			mesh->get_uv_tiles(attribute, used_tiles);
+		}
+	}
+
+	ccl::vector<int> new_tiles;
+	foreach(int tile, tiles) {
+		if (tile < used_tiles.size() && used_tiles[tile]) {
+			new_tiles.push_back(tile);
+		}
+	}
+	tiles.swap(new_tiles);
+}
+
 void ImageTextureNode::attributes(Shader *shader, AttributeRequestSet *attributes)
 {
 #ifdef WITH_PTEX
@@ -307,6 +351,7 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 			else {
 				tile_name = string_printf(filename.c_str(), 1001 + tile);
 			}
+			printf("Loading %s\n", tile_name.c_str());
 			ImageMetaData metadata;
 			slots.push_back(image_manager->add_image(tile_name,
 			                                         builtin_data,
@@ -2057,7 +2102,7 @@ GlossyBsdfNode::GlossyBsdfNode()
 	distribution_orig = NBUILTIN_CLOSURES;
 }
 
-void GlossyBsdfNode::simplify_settings(Scene *scene)
+void GlossyBsdfNode::simplify_settings(Scene *scene, Shader * /*shader*/)
 {
 	if(distribution_orig == NBUILTIN_CLOSURES) {
 		roughness_orig = roughness;
@@ -2152,7 +2197,7 @@ GlassBsdfNode::GlassBsdfNode()
 	distribution_orig = NBUILTIN_CLOSURES;
 }
 
-void GlassBsdfNode::simplify_settings(Scene *scene)
+void GlassBsdfNode::simplify_settings(Scene *scene, Shader * /*shader*/)
 {
 	if(distribution_orig == NBUILTIN_CLOSURES) {
 		roughness_orig = roughness;
@@ -2247,7 +2292,7 @@ RefractionBsdfNode::RefractionBsdfNode()
 	distribution_orig = NBUILTIN_CLOSURES;
 }
 
-void RefractionBsdfNode::simplify_settings(Scene *scene)
+void RefractionBsdfNode::simplify_settings(Scene *scene, Shader * /*shader*/)
 {
 	if(distribution_orig == NBUILTIN_CLOSURES) {
 		roughness_orig = roughness;

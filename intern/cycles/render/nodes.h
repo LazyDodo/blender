@@ -84,6 +84,7 @@ public:
 	ShaderNode *clone() const;
 	void attributes(Shader *shader, AttributeRequestSet *attributes);
 	bool has_attribute_dependency() { return true; }
+	void simplify_settings(Scene *scene, Shader *shader);
 
 	ImageManager *image_manager;
 	bool is_float;
@@ -449,7 +450,7 @@ class GlossyBsdfNode : public BsdfNode {
 public:
 	SHADER_NODE_CLASS(GlossyBsdfNode)
 
-	void simplify_settings(Scene *scene);
+	void simplify_settings(Scene *scene, Shader *shader);
 	bool has_integrator_dependency();
 	ClosureType get_closure_type() { return distribution; }
 
@@ -461,7 +462,7 @@ class GlassBsdfNode : public BsdfNode {
 public:
 	SHADER_NODE_CLASS(GlassBsdfNode)
 
-	void simplify_settings(Scene *scene);
+	void simplify_settings(Scene *scene, Shader *shader);
 	bool has_integrator_dependency();
 	ClosureType get_closure_type() { return distribution; }
 
@@ -473,7 +474,7 @@ class RefractionBsdfNode : public BsdfNode {
 public:
 	SHADER_NODE_CLASS(RefractionBsdfNode)
 
-	void simplify_settings(Scene *scene);
+	void simplify_settings(Scene *scene, Shader *shader);
 	bool has_integrator_dependency();
 	ClosureType get_closure_type() { return distribution; }
 

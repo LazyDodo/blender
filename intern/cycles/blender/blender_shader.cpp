@@ -1269,7 +1269,7 @@ void BlenderSync::sync_materials(BL::Depsgraph& b_depsgraph, bool update_all)
 
 		/* test if we need to sync */
 		if(shader_map.sync(&shader, b_mat) || shader->need_sync_object || update_all) {
-			ShaderGraph *graph = new ShaderGraph();
+			ShaderGraph *graph = new ShaderGraph(shader);
 
 			shader->name = b_mat.name().c_str();
 			shader->pass_id = b_mat.pass_index();
@@ -1344,7 +1344,7 @@ void BlenderSync::sync_world(BL::Depsgraph& b_depsgraph, bool update_all)
 
 	if(world_recalc || update_all || b_world.ptr.data != world_map) {
 		Shader *shader = scene->default_background;
-		ShaderGraph *graph = new ShaderGraph();
+		ShaderGraph *graph = new ShaderGraph(shader);
 
 		/* create nodes */
 		if(b_world && b_world.use_nodes() && b_world.node_tree()) {
@@ -1442,7 +1442,7 @@ void BlenderSync::sync_lamps(BL::Depsgraph& b_depsgraph, bool update_all)
 
 		/* test if we need to sync */
 		if(shader_map.sync(&shader, b_lamp) || update_all) {
-			ShaderGraph *graph = new ShaderGraph();
+			ShaderGraph *graph = new ShaderGraph(shader);
 
 			/* create nodes */
 			if(b_lamp.use_nodes() && b_lamp.node_tree()) {

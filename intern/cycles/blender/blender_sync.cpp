@@ -611,6 +611,8 @@ SceneParams BlenderSync::get_scene_params(BL::Scene& b_scene,
 
 	params.bvh_layout = DebugFlags().cpu.bvh_layout;
 
+	params.background = background;
+
 	return params;
 }
 
