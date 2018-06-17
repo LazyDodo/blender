@@ -91,9 +91,6 @@ class TOPBAR_HT_lower_bar(Header):
 
     def draw_left(self, context):
         layout = self.layout
-
-    def draw_center(self, context):
-        layout = self.layout
         mode = context.mode
 
         # Active Tool
