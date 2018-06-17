@@ -80,7 +80,7 @@ static void gp_deformStroke(
 	{
 		return;
 	}
-	
+
 	copy_v3_v3(factor, mmd->hsv);
 	add_v3_fl(factor, -1.0f);
 

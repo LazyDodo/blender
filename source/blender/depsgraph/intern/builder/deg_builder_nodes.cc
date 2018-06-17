@@ -1167,11 +1167,11 @@ void DepsgraphNodeBuilder::build_object_data_geometry_datablock(ID *obdata)
 			op_node->set_as_entry();
 			break;
 		}
-		
+
 		case ID_GD:
 		{
 			/* GPencil evaluation operations. */
-			op_node = add_operation_node(obdata, 
+			op_node = add_operation_node(obdata,
 			                             DEG_NODE_TYPE_GEOMETRY,
 			                             function_bind(BKE_gpencil_eval_geometry,
 			                                           _1,

@@ -265,7 +265,7 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 	}
 
 	/* for grease pencil we don't use tool system yet, so we need check outside
-	 * workspace->tools_space_type because this value is not available 
+	 * workspace->tools_space_type because this value is not available
 	 */
 	switch (mode) {
 		case CTX_MODE_GPENCIL_PAINT:

@@ -71,7 +71,7 @@ static void gp_deformStroke(
 {
 	OffsetGpencilModifierData *mmd = (OffsetGpencilModifierData *)md;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
-	
+
 	float mat[4][4];
 	float loc[3], rot[3], scale[3];
 

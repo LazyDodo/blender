@@ -78,7 +78,7 @@ static void gp_deformStroke(
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 	float weight = 1.0f;
 
-	if (!is_stroke_affected_by_modifier(ob, 
+	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
 	        mmd->flag & GP_LATTICE_INVERT_LAYER, mmd->flag & GP_LATTICE_INVERT_PASS))
 	{
@@ -126,17 +126,17 @@ static void gp_bakeModifier(
 			 */
 			CFRA = gpf->framenum;
 			BKE_scene_graph_update_for_newframe(depsgraph, bmain);
-			
+
 			/* recalculate lattice data */
 			BKE_gpencil_lattice_init(ob);
-			
+
 			/* compute lattice effects on this frame */
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
-	
+
 	/* free lingering data */
 	ldata = (struct LatticeDeformData *)mmd->cache_data;
 	if (ldata) {
@@ -166,7 +166,7 @@ static bool isDisabled(ModifierData *md, int UNUSED(userRenderParams))
 	return !mmd->object;
 }
 
-static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx) 
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	LatticeGpencilModifierData *lmd = (LatticeGpencilModifierData *)md;
 	if (lmd->object != NULL) {

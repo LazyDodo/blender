@@ -29,7 +29,7 @@
  */
 
 #include <stdio.h>
- 
+
 #include "MEM_guardedalloc.h"
 
 #include "DNA_scene_types.h"
@@ -75,7 +75,7 @@ static void initData(ModifierData *md)
 	gpmd->rnd_size = 0.5f;
 	gpmd->lock_axis |= GP_LOCKAXIS_X;
 	gpmd->flag |= GP_INSTANCE_MAKE_OBJECTS;
-	
+
 	/* fill random values */
 	BLI_array_frand(gpmd->rnd, 20, 1);
 	gpmd->rnd[0] = 1;
@@ -94,11 +94,11 @@ void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd
 	float offset[3], rot[3], scale[3];
 	int ri = mmd->rnd[0];
 	float factor;
-	
+
 	offset[0] = mmd->offset[0] * elem_idx[0];
 	offset[1] = mmd->offset[1] * elem_idx[1];
 	offset[2] = mmd->offset[2] * elem_idx[2];
-	
+
 	/* rotation */
 	if (mmd->flag & GP_INSTANCE_RANDOM_ROT) {
 		factor = mmd->rnd_rot * mmd->rnd[ri];
@@ -108,7 +108,7 @@ void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd
 	else {
 		copy_v3_v3(rot, mmd->rot);
 	}
-	
+
 	/* scale */
 	if (mmd->flag & GP_INSTANCE_RANDOM_SIZE) {
 		factor = mmd->rnd_size * mmd->rnd[ri];
@@ -118,13 +118,13 @@ void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd
 	else {
 		copy_v3_v3(scale, mmd->scale);
 	}
-	
+
 	/* advance random index */
 	mmd->rnd[0]++;
 	if (mmd->rnd[0] > 19) {
 		mmd->rnd[0] = 1;
 	}
-	
+
 	/* calculate matrix */
 	loc_eul_size_to_mat4(r_mat, offset, rot, scale);
 }
@@ -141,15 +141,15 @@ static void generate_geometry(
 	ListBase stroke_cache = {NULL, NULL};
 	bGPDstroke *gps;
 	int idx;
-	
+
 	/* Check which strokes we can use once, and store those results in an array
 	 * for quicker checking of what's valid (since string comparisons are expensive)
 	 */
 	const int num_strokes = BLI_listbase_count(&gpf->strokes);
 	int num_valid = 0;
-	
+
 	bool *valid_strokes = MEM_callocN(sizeof(bool) * num_strokes, "GP ArrayMod valid_strokes");
-	
+
 	for (gps = gpf->strokes.first, idx = 0; gps; gps = gps->next, idx++) {
 		/* Record whether this stroke can be used
 		 * ATTENTION: The logic here is the inverse of what's used everywhere else!
@@ -162,18 +162,18 @@ static void generate_geometry(
 			num_valid++;
 		}
 	}
-	
+
 	/* Early exit if no strokes can be copied */
 	if (num_valid == 0) {
 		if (G.debug & G_DEBUG) {
 			printf("GP Array Mod - No strokes to be included\n");
 		}
-		
+
 		MEM_SAFE_FREE(valid_strokes);
 		return;
 	}
-	
-	
+
+
 	/* Generate new instances of all existing strokes,
 	 * keeping each instance together so they maintain
 	 * the correct ordering relative to each other
@@ -185,13 +185,13 @@ static void generate_geometry(
 				if ((x == 0) && (y == 0) && (z == 0)) {
 					continue;
 				}
-				
+
 				/* Compute transforms for this instance */
 				const int elem_idx[3] = {x, y, z};
 				float mat[4][4];
-				
+
 				BKE_gpencil_instance_modifier_instance_tfm(mmd, elem_idx, mat);
-				
+
 				/* apply shift */
 				int sh = x;
 				if (mmd->lock_axis == GP_LOCKAXIS_Y) {
@@ -201,7 +201,7 @@ static void generate_geometry(
 					sh = z;
 				}
 				madd_v3_v3fl(mat[3], mmd->shift, sh);
-				
+
 				/* Duplicate original strokes to create this instance */
 				for (gps = gpf->strokes.first, idx = 0; gps; gps = gps->next, idx++) {
 					/* check if stroke can be duplicated */
@@ -211,15 +211,15 @@ static void generate_geometry(
 						gps_dst->points = MEM_dupallocN(gps->points);
 						gps_dst->dvert = MEM_dupallocN(gps->dvert);
 						BKE_gpencil_stroke_weights_duplicate(gps, gps_dst);
-						
+
 						gps_dst->triangles = MEM_dupallocN(gps->triangles);
-						
+
 						/* Move points */
 						for (int i = 0; i < gps->totpoints; i++) {
 							bGPDspoint *pt = &gps_dst->points[i];
 							mul_m4_v3(mat, &pt->x);
 						}
-						
+
 						/* Add new stroke to cache, to be added to the frame once
 						 * all duplicates have been made
 						 */
@@ -229,10 +229,10 @@ static void generate_geometry(
 			}
 		}
 	}
-		
+
 	/* merge newly created stroke instances back into the main stroke list */
 	BLI_movelisttolist(&gpf->strokes, &stroke_cache);
-	
+
 	/* free temp data */
 	MEM_SAFE_FREE(valid_strokes);
 }
@@ -243,7 +243,7 @@ static void bakeModifierGP_strokes(
         ModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
-	
+
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			generate_geometry(md, depsgraph, ob, gpl, gpf);
@@ -257,17 +257,17 @@ static void bakeModifierGP_strokes(
 static Object *array_instance_add_ob_copy(Main *bmain, Scene *scene, Object *from_ob)
 {
 	Object *ob;
-	
+
 	ob = BKE_object_copy(bmain, from_ob);
 	BKE_collection_object_add_from(bmain, scene, from_ob, ob);
-	
+
 	zero_v3(ob->loc);
 	zero_v3(ob->rot);
-	
+
 	DEG_id_type_tag(bmain, ID_OB);
 	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&scene->id, 0);
-	
+
 	return ob;
 }
 
@@ -278,27 +278,27 @@ static void bakeModifierGP_objects(Main *bmain, ModifierData *md, Object *ob)
 	Scene *scene = md->scene;
 	/* reset random */
 	mmd->rnd[0] = 1;
-	
+
 	/* generate instances as objects */
 	for (int x = 0; x < mmd->count[0]; x++) {
 		for (int y = 0; y < mmd->count[1]; y++) {
 			for (int z = 0; z < mmd->count[2]; z++) {
 				Object *newob;
 				ModifierData *fmd;
-				
+
 				const int elem_idx[3] = {x, y, z};
 				float mat[4][4], finalmat[4][4];
 				int sh;
-				
+
 				/* original strokes are at index = 0,0,0 */
 				if ((x == 0) && (y == 0) && (z == 0)) {
 					continue;
 				}
-				
+
 				/* compute transform for instance */
 				BKE_gpencil_instance_modifier_instance_tfm(mmd, elem_idx, mat);
 				mul_m4_m4m4(finalmat, ob->obmat, mat);
-				
+
 				/* moves to new origin */
 				sh = x;
 				if (mmd->lock_axis == GP_LOCKAXIS_Y) {
@@ -317,17 +317,17 @@ static void bakeModifierGP_objects(Main *bmain, ModifierData *md, Object *ob)
 				 * much extra memory usage.
 				 */
 				newob = array_instance_add_ob_copy(bmain, scene, ob);
-				
+
 				/* remove array on destination object */
 				fmd = (ModifierData *)BLI_findstring(&newob->modifiers, md->name, offsetof(ModifierData, name));
 				if (fmd) {
 					BLI_remlink(&newob->modifiers, fmd);
 					modifier_free(fmd);
 				}
-				
+
 				/* copy transforms to destination object */
 				copy_m4_m4(newob->obmat, finalmat);
-				
+
 				copy_v3_v3(newob->loc, finalmat[3]);
 				mat4_to_eul(newob->rot, finalmat);
 				mat4_to_size(newob->size, finalmat);
@@ -344,8 +344,8 @@ static void gp_generateStrokes(
         Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-	
-	/* When the "make_objects" flag is set, this modifier is handled as part of the 
+
+	/* When the "make_objects" flag is set, this modifier is handled as part of the
 	 * draw engine instead. The main benefit is that the instances won't suffer from
 	 * z-ordering problems.
 	 *
@@ -364,7 +364,7 @@ static void gp_bakeModifier(
         ModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-	
+
 	/* Create new objects or add all to current datablock.
 	 * Sometimes it's useful to have the option to do either of these...
 	 */

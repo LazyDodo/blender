@@ -50,8 +50,8 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BLI_math.h"		
-#include "BLI_listbase.h"		
+#include "BLI_math.h"
+#include "BLI_listbase.h"
 #include "BLI_utildefines.h"
 #include "BLI_string.h"
 #include "BLI_array_utils.h"
@@ -92,10 +92,10 @@ void init_def_material(void)
 void BKE_material_free(Material *ma)
 {
 	BKE_animdata_free((ID *)ma, false);
-	
+
 	/* Free gpu material before the ntree */
 	GPU_material_free(&ma->gpumaterial);
-	
+
 	/* is no lib link block, but material extension */
 	if (ma->nodetree) {
 		ntreeFreeTree(ma->nodetree);
@@ -139,7 +139,7 @@ void BKE_material_init(Material *ma)
 	ma->spec = 0.5;
 
 	ma->roughness = 0.25f;
-	
+
 	ma->pr_lamp = 3;         /* two lamps, is bits */
 	ma->pr_type = MA_SPHERE;
 
@@ -154,9 +154,9 @@ Material *BKE_material_add(Main *bmain, const char *name)
 	Material *ma;
 
 	ma = BKE_libblock_alloc(bmain, ID_MA, name, 0);
-	
+
 	BKE_material_init(ma);
-	
+
 	return ma;
 }
 
@@ -469,7 +469,7 @@ Material *BKE_material_pop_id(Main *bmain, ID *id, int index_i, bool update_data
 			DEG_relations_tag_update(bmain);
 		}
 	}
-	
+
 	return ret;
 }
 
@@ -503,7 +503,7 @@ Material *give_current_material(Object *ob, short act)
 	const short *totcolp;
 
 	if (ob == NULL) return NULL;
-	
+
 	/* if object cannot have material, (totcolp == NULL) */
 	totcolp = give_totcolp(ob);
 	if (totcolp == NULL || ob->totcol == 0) return NULL;
@@ -529,12 +529,12 @@ Material *give_current_material(Object *ob, short act)
 		if (act > ob->totcol) act = ob->totcol;
 
 		matarar = give_matarar(ob);
-		
+
 		if (matarar && *matarar) ma = (*matarar)[act - 1];
 		else ma = NULL;
-		
+
 	}
-	
+
 	return ma;
 }
 
@@ -692,18 +692,18 @@ void assign_material(Main *bmain, Object *ob, Material *ma, short act, int assig
 
 	if (act > MAXMAT) return;
 	if (act < 1) act = 1;
-	
+
 	/* prevent crashing when using accidentally */
 	BLI_assert(!ID_IS_LINKED(ob));
 	if (ID_IS_LINKED(ob)) return;
-	
+
 	/* test arraylens */
-	
+
 	totcolp = give_totcolp(ob);
 	matarar = give_matarar(ob);
-	
+
 	if (totcolp == NULL || matarar == NULL) return;
-	
+
 	if (act > *totcolp) {
 		matar = MEM_callocN(sizeof(void *) * act, "matarray1");
 
@@ -747,7 +747,7 @@ void assign_material(Main *bmain, Object *ob, Material *ma, short act, int assig
 				break;
 		}
 	}
-	
+
 	/* do it */
 
 	ob->matbits[act - 1] = bit;
@@ -885,14 +885,14 @@ short BKE_object_material_slot_find_index(Object *ob, Material *ma)
 {
 	Material ***matarar;
 	short a, *totcolp;
-	
+
 	if (ma == NULL) return 0;
-	
+
 	totcolp = give_totcolp(ob);
 	matarar = give_matarar(ob);
-	
+
 	if (totcolp == NULL || matarar == NULL) return 0;
-	
+
 	for (a = 0; a < *totcolp; a++)
 		if ((*matarar)[a] == ma)
 			break;
@@ -905,7 +905,7 @@ bool BKE_object_material_slot_add(Main *bmain, Object *ob)
 {
 	if (ob == NULL) return false;
 	if (ob->totcol >= MAXMAT) return false;
-	
+
 	assign_material(bmain, ob, NULL, ob->totcol + 1, BKE_MAT_ASSIGN_USERPREF);
 	ob->actcol = ob->totcol;
 	return true;
@@ -918,7 +918,7 @@ bool BKE_object_material_slot_remove(Main *bmain, Object *ob)
 	Material *mao, ***matarar;
 	short *totcolp;
 	short a, actcol;
-	
+
 	if (ob == NULL || ob->totcol == 0) {
 		return false;
 	}
@@ -932,10 +932,10 @@ bool BKE_object_material_slot_remove(Main *bmain, Object *ob)
 
 	/* take a mesh/curve/mball as starting point, remove 1 index,
 	 * AND with all objects that share the ob->data
-	 * 
+	 *
 	 * after that check indices in mesh/curve/mball!!!
 	 */
-	
+
 	totcolp = give_totcolp(ob);
 	matarar = give_matarar(ob);
 
@@ -947,21 +947,21 @@ bool BKE_object_material_slot_remove(Main *bmain, Object *ob)
 	if (ob->actcol > ob->totcol) {
 		ob->actcol = ob->totcol;
 	}
-	
+
 	/* we delete the actcol */
 	mao = (*matarar)[ob->actcol - 1];
 	if (mao)
 		id_us_min(&mao->id);
-	
+
 	for (a = ob->actcol; a < ob->totcol; a++)
 		(*matarar)[a - 1] = (*matarar)[a];
 	(*totcolp)--;
-	
+
 	if (*totcolp == 0) {
 		MEM_freeN(*matarar);
 		*matarar = NULL;
 	}
-	
+
 	actcol = ob->actcol;
 
 	for (Object *obt = bmain->object.first; obt; obt = obt->id.next) {
@@ -974,14 +974,14 @@ bool BKE_object_material_slot_remove(Main *bmain, Object *ob)
 			mao = obt->mat[actcol - 1];
 			if (mao)
 				id_us_min(&mao->id);
-		
+
 			for (a = actcol; a < obt->totcol; a++) {
 				obt->mat[a - 1] = obt->mat[a];
 				obt->matbits[a - 1] = obt->matbits[a];
 			}
 			obt->totcol--;
 			if (obt->actcol > obt->totcol) obt->actcol = obt->totcol;
-			
+
 			if (obt->totcol == 0) {
 				MEM_freeN(obt->mat);
 				MEM_freeN(obt->matbits);
@@ -1006,7 +1006,7 @@ static bNode *nodetree_uv_node_recursive(bNode *node)
 {
 	bNode *inode;
 	bNodeSocket *sock;
-	
+
 	for (sock = node->inputs.first; sock; sock = sock->next) {
 		if (sock->link) {
 			inode = sock->link->fromnode;
@@ -1018,7 +1018,7 @@ static bNode *nodetree_uv_node_recursive(bNode *node)
 			}
 		}
 	}
-	
+
 	return NULL;
 }
 
@@ -1041,7 +1041,7 @@ void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 		ma->paint_clone_slot = 0;
 		return;
 	}
-	
+
 	bNode *node, *active_node;
 
 	if (!(ma->nodetree)) {
@@ -1069,10 +1069,10 @@ void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 			if (active_node == node)
 				ma->paint_active_slot = index;
 			ma->texpaintslot[index].ima = (Image *)node->id;
-			
+
 			/* for new renderer, we need to traverse the treeback in search of a UV node */
 			bNode *uvnode = nodetree_uv_node_recursive(node);
-			
+
 			if (uvnode) {
 				NodeShaderUVMap *storage = (NodeShaderUVMap *)uvnode->storage;
 				ma->texpaintslot[index].uvname = storage->uv_map;
@@ -1088,8 +1088,8 @@ void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 	}
 
 	ma->tot_slots = count;
-	
-	
+
+
 	if (ma->paint_active_slot >= count) {
 		ma->paint_active_slot = count - 1;
 	}
@@ -1116,7 +1116,7 @@ void BKE_texpaint_slots_refresh_object(Scene *scene, struct Object *ob)
 void ramp_blend(int type, float r_col[3], const float fac, const float col[3])
 {
 	float tmp, facm = 1.0f - fac;
-	
+
 	switch (type) {
 		case MA_RAMP_BLEND:
 			r_col[0] = facm * (r_col[0]) + fac * col[0];

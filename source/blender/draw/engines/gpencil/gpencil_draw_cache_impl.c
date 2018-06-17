@@ -561,8 +561,8 @@ Gwn_Batch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED
 	/* Draw all the stroke lines (selected or not) */
 	bGPDspoint *pt = gps->points;
 
-	/* GPXX: for some converted files, this struct could be null 
-	 * maybe we can remove this and move to versioning code after 
+	/* GPXX: for some converted files, this struct could be null
+	 * maybe we can remove this and move to versioning code after
 	 * merge */
 	if (gps->dvert == NULL) {
 		gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");

@@ -27,7 +27,7 @@
  *  \ingroup bke
  */
 
- 
+
 #include <stdio.h>
 
 #include "MEM_guardedalloc.h"
@@ -360,7 +360,7 @@ bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 	ModifierData *md;
 	for (md = ob->modifiers.first; md; md = md->next) {
 		const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-		
+
 		if (mti && mti->gp_generateStrokes) {
 			return true;
 		}
@@ -374,16 +374,16 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 	ModifierData *md;
 	bGPdata *gpd = ob->data;
 	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
-	
+
 	for (md = ob->modifiers.first; md; md = md->next) {
 		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
 		{
 			const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-			
+
 			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
 				continue;
 			}
-			
+
 			if (mti && mti->gp_deformStroke) {
 				mti->gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
@@ -402,7 +402,7 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
 		{
 			const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-			
+
 			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
 				continue;
 			}

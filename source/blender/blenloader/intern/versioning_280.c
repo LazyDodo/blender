@@ -868,7 +868,7 @@ void do_versions_after_linking_280(Main *bmain)
 		}
 	}
 #endif
-	
+
 }
 
 void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
@@ -1010,7 +1010,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 #endif
-	
+
 		{
 			/* Grease pencil sculpt and paint cursors */
 			if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "weighttype")) {

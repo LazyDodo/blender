@@ -148,7 +148,7 @@ static void gp_deformStroke(
 		if (mmd->flag & GP_NOISE_USE_RANDOM) {
 			sc_diff = abs(mmd->scene_frame - sc_frame);
 			/* only recalc if the gp frame change or the number of scene frames is bigger than step */
-			if ((!gpl->actframe) || (mmd->gp_frame != gpl->actframe->framenum) || 
+			if ((!gpl->actframe) || (mmd->gp_frame != gpl->actframe->framenum) ||
 			    (sc_diff >= mmd->step))
 			{
 				vran = mmd->vrand1 = BLI_frand();

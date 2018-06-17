@@ -36,7 +36,7 @@
 #include "DNA_vec_types.h"
 
 #include "BLI_utildefines.h"
- 
+
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 
@@ -64,14 +64,14 @@ static void gp_deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SimplifyGpencilModifierData *mmd = (SimplifyGpencilModifierData *)md;
-	
+
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 4, gpl, gps,
 	        mmd->flag & GP_SIMPLIFY_INVERT_LAYER, mmd->flag & GP_SIMPLIFY_INVERT_PASS))
 	{
 		return;
 	}
-	
+
 	if (mmd->mode == GP_SIMPLIFY_FIXED) {
 		for (int i = 0; i < mmd->step; i++) {
 			BKE_gpencil_simplify_fixed(gps);

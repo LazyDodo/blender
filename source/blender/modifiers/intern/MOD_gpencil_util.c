@@ -27,7 +27,7 @@
  *  \ingroup bke
  */
 
- 
+
 #include <stdio.h>
 
 #include "MEM_guardedalloc.h"

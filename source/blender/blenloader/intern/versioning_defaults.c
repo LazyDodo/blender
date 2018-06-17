@@ -149,7 +149,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 				sculpt->flags |= SCULPT_DYNTOPO_COLLAPSE;
 				sculpt->detail_size = 12;
 			}
-			
+
 			if (ts->vpaint) {
 				VPaint *vp = ts->vpaint;
 				vp->radial_symm[0] = vp->radial_symm[1] = vp->radial_symm[2] = 1;
@@ -237,7 +237,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 				copy_v3_v3(brush->curcolor_add, curcolor_add);
 				copy_v3_v3(brush->curcolor_sub, curcolor_sub);
 			}
-			
+
 			ts->gpencil_v3d_align = GP_PROJECT_VIEWSPACE;
 			ts->gpencil_v2d_align = GP_PROJECT_VIEWSPACE;
 			ts->gpencil_seq_align = GP_PROJECT_VIEWSPACE;
@@ -252,7 +252,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		}
 
 		scene->r.ffcodecdata.audio_mixrate = 48000;
-		
+
 		/* set av sync by default */
 		scene->audio.flag |= AUDIO_SYNC;
 		scene->flag &= ~SCE_FRAME_DROP;

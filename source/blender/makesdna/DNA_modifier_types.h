@@ -196,7 +196,7 @@ typedef struct BuildModifierData {
 
 	float start, length;
 	short flag;
-	
+
 	short randomize;      /* (bool) whether order of vertices is randomized - legacy files (for readfile conversion) */
 	int seed;             /* (int) random seed */
 } BuildModifierData;
@@ -633,7 +633,7 @@ typedef struct ClothModifierData {
 	float hair_grid_max[3];
 	int hair_grid_res[3];
 	float hair_grid_cellsize;
-	
+
 	struct ClothSolverResult *solver_result;
 } ClothModifierData;
 
@@ -981,7 +981,7 @@ typedef struct OceanModifierData {
 
 	struct Ocean *ocean;
 	struct OceanCache *oceancache;
-	
+
 	int resolution;
 	int spatial_size;
 
@@ -1771,7 +1771,7 @@ typedef struct InstanceGpencilModifierData {
 	float scale[3];              /* Scale changes */
 	float rnd[20];               /* (first element is the index) random values */
 	int  lock_axis;              /* lock shift to one axis */
-	
+
 	int pass_index;              /* custom index for passes */
 	char layername[64];          /* layer name */
 } InstanceGpencilModifierData;
@@ -1786,23 +1786,23 @@ typedef enum eInstanceGpencil_Flag {
 
 typedef struct BuildGpencilModifierData {
 	ModifierData modifier;
-	
+
 	char layername[64];   /* if set, restrict modifier to operating on this layer */
 	int pass_index;
-	
+
 	int pad;
-	
+
 	float start_frame;    /* If GP_BUILD_RESTRICT_TIME is set, the defines the frame range where GP frames are considered */
 	float end_frame;
-	
+
 	float start_delay;    /* For each pair of gp keys, number of frames before strokes start appearing */
 	float length;         /* For each pair of gp keys, number of frames that build effect must be completed within */
-	
+
 	short flag;           /* (eGpencilBuild_Flag) Options for controlling modifier behaviour */
-	
+
 	short mode;           /* (eGpencilBuild_Mode) How are strokes ordered */
 	short transition;     /* (eGpencilBuild_Transition) In what order do stroke points appear/disappear */
-	
+
 	short time_alignment; /* (eGpencilBuild_TimeAlignment) For the "Concurrent" mode, when should "shorter" strips start/end */
 } BuildGpencilModifierData;
 
@@ -1827,7 +1827,7 @@ typedef enum eBuildGpencil_TimeAlignment {
 	GP_BUILD_TIMEALIGN_START = 0,
 	/* All strokes end at same time */
 	GP_BUILD_TIMEALIGN_END   = 1,
-	
+
 	/* TODO: Random Offsets, Stretch-to-Fill */
 } eBuildGpencil_TimeAlignment;
 
@@ -1835,7 +1835,7 @@ typedef enum eBuildGpencil_Flag {
 	/* Restrict modifier to particular layer/passes? */
 	GP_BUILD_INVERT_LAYER  = (1 << 0),
 	GP_BUILD_INVERT_PASS   = (1 << 1),
-	
+
 	/* Restrict modifier to only operating between the nominated frames */
 	GP_BUILD_RESTRICT_TIME  = (1 << 2),
 } eBuildGpencil_Flag;
@@ -1903,7 +1903,7 @@ typedef struct SimplifyGpencilModifierData {
 	int flag;                    /* flags */
 	float factor;                /* factor of simplify */
 	short mode;                  /* type of simplify */
-	short step;                  /* every n vertex to keep */ 
+	short step;                  /* every n vertex to keep */
 } SimplifyGpencilModifierData;
 
 typedef enum eSimplifyGpencil_Flag {

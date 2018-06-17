@@ -1510,7 +1510,7 @@ void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph
 	DST.options.is_scene_render = true;
 	DST.options.draw_background = scene->r.alphamode == R_ADDSKY;
 	DST.buffer_finish_called = true;
-	
+
 	DST.draw_ctx = (DRWContextState) {
 		.scene = scene, .view_layer = view_layer,
 		.engine_type = engine_type,

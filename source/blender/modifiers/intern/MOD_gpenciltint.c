@@ -91,7 +91,7 @@ static void gp_deformStroke(
 
 	CLAMP4(gps->runtime.tmp_stroke_rgba, 0.0f, 1.0f);
 	CLAMP4(gps->runtime.tmp_fill_rgba, 0.0f, 1.0f);
-	
+
 	/* if factor > 1.0, affect the strength of the stroke */
 	if (mmd->factor > 1.0f) {
 		for (int i = 0; i < gps->totpoints; i++) {

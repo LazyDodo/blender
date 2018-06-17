@@ -226,7 +226,7 @@ static void gp_deformStroke(
 		mul_v3_m3v3(tData.cent, tData.mat_uniform, mmd->cent);
 	}
 	else {
-		unit_m3(tData.mat_uniform);  
+		unit_m3(tData.mat_uniform);
 		copy_v3_v3(tData.cent, mmd->cent);
 	}
 
@@ -278,14 +278,14 @@ static void gp_bakeModifier(
 			 */
 			CFRA = gpf->framenum;
 			BKE_scene_graph_update_for_newframe(depsgraph, bmain);
-			
+
 			/* compute hook effects on this frame */
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 				gp_deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
-	
+
 	/* return frame state and DB to original state */
 	CFRA = oldframe;
 	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
