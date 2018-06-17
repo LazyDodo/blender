@@ -909,6 +909,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "draw_sensitivity");
 	RNA_def_property_range(prop, 0.1f, 3.0f);
 	RNA_def_property_ui_text(prop, "Sensitivity", "Pressure sensitivity factor for new strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Strength factor for new strokes */
@@ -916,6 +917,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "draw_strength");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Strength", "Color strength for new strokes (affect alpha factor of color)");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Jitter factor for new strokes */
@@ -923,6 +925,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "draw_jitter");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Jitter", "Jitter factor for new strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Randomnes factor for pressure */
@@ -930,6 +933,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "draw_random_press");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Pressure Randomness", "Randomness factor for pressure in new strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Randomnes factor for strength */
@@ -937,6 +941,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "draw_random_strength");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Strength Randomness", "Randomness factor strength in new strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Randomnes factor for subdivision */
@@ -944,6 +949,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "draw_random_sub");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Random Subdivision", "Randomness factor for new strokes after subdivision");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Angle when brush is full size */
@@ -953,6 +959,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Angle",
 		"Direction of the stroke at which brush gives maximal thickness "
 		"(0° for horizontal)");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Factor to change brush size depending of angle */
@@ -961,6 +968,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Angle Factor",
 		"Reduce brush thickness by this factor when stroke is perpendicular to 'Angle' direction");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Smoothing factor for new strokes */
@@ -969,6 +977,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0, 2.0f);
 	RNA_def_property_ui_text(prop, "Smooth",
 		"Amount of smoothing to apply after finish newly created strokes, to reduce jitter/noise");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Iterations of the Smoothing factor */
@@ -977,6 +986,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 1, 3);
 	RNA_def_property_ui_text(prop, "Iterations",
 		"Number of times to smooth newly created strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Thickness smoothing factor for new strokes */
@@ -985,6 +995,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0, 2.0f);
 	RNA_def_property_ui_text(prop, "Smooth Thickness",
 		"Amount of thickness smoothing to apply after finish newly created strokes, to reduce jitter/noise");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Thickness iterations of the Smoothing factor */
@@ -993,6 +1004,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 1, 3);
 	RNA_def_property_ui_text(prop, "Iterations Thickness",
 		"Number of times to smooth thickness for newly created strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Subdivision level for new strokes */
@@ -1001,6 +1013,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0, 3);
 	RNA_def_property_ui_text(prop, "Subdivision Steps",
 		"Number of times to subdivide newly created strokes, for less jagged strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Curves for pressure */
@@ -1008,18 +1021,21 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_pointer_sdna(prop, NULL, "curve_sensitivity");
 	RNA_def_property_struct_type(prop, "CurveMapping");
 	RNA_def_property_ui_text(prop, "Curve Sensitivity", "Curve used for the sensitivity");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "curve_strength", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "curve_strength");
 	RNA_def_property_struct_type(prop, "CurveMapping");
 	RNA_def_property_ui_text(prop, "Curve Strength", "Curve used for the strength");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "curve_jitter", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "curve_jitter");
 	RNA_def_property_struct_type(prop, "CurveMapping");
 	RNA_def_property_ui_text(prop, "Curve Jitter", "Curve used for the jitter effect");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* fill threshold for transparence */
@@ -1028,6 +1044,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Threshold",
 		"Threshold to consider color transparent for filling");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* fill leak size */
@@ -1036,6 +1053,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0, 100);
 	RNA_def_property_ui_text(prop, "Leak Size",
 		"Size in pixels to consider the leak closed");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* fill simplify steps */
@@ -1044,18 +1062,21 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0, 10);
 	RNA_def_property_ui_text(prop, "Simplify",
 		"Number of simplify steps (large values reduce fill accuracy)");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "uv_random", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "uv_random");
 	RNA_def_property_range(prop, 0.0, 1.0);
 	RNA_def_property_ui_text(prop, "UV Random", "Random factor for autogenerated UV rotation");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "input_samples", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "input_samples");
 	RNA_def_property_range(prop, 0, GP_MAX_INPUT_SAMPLES);
 	RNA_def_property_ui_text(prop, "Input Samples", "Generate intermediate points for very fast mouse movements. Set to 0 to disable");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* active smooth factor while drawing */
@@ -1064,12 +1085,14 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Active Smooth",
 		"Amount of smoothing while drawing ");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* brush standard icon */
 	prop = RNA_def_property(srna, "gp_icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "icon_id");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_icons_items);
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_ui_text(prop, "Grease Pencil Icon", "");
 
 	/* Flags */
@@ -1077,18 +1100,21 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_USE_PRESSURE);
 	RNA_def_property_ui_icon(prop, ICON_STYLUS_PRESSURE, 0);
 	RNA_def_property_ui_text(prop, "Use Pressure", "Use tablet pressure");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "use_strength_pressure", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_USE_STENGTH_PRESSURE);
 	RNA_def_property_ui_icon(prop, ICON_STYLUS_PRESSURE, 0);
 	RNA_def_property_ui_text(prop, "Use Pressure Strength", "Use tablet pressure for color strength");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "use_jitter_pressure", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_USE_JITTER_PRESSURE);
 	RNA_def_property_ui_icon(prop, ICON_STYLUS_PRESSURE, 0);
 	RNA_def_property_ui_text(prop, "Use Pressure Jitter", "Use tablet pressure for jitter");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "use_stabilizer", PROP_BOOLEAN, PROP_NONE);
@@ -1096,60 +1122,70 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_text(prop, "Stabilizer",
 		"Draw lines with a delay to allow smooth strokes. Press Shift key to override while drawing");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	prop = RNA_def_property(srna, "use_cursor", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_ENABLE_CURSOR);
 	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_text(prop, "Enable Cursor", "Enable cursor on screen");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	prop = RNA_def_property(srna, "gpencil_brush_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "brush_type");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_types_items);
 	RNA_def_property_ui_text(prop, "Type", "Category of the brush");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	prop = RNA_def_property(srna, "eraser_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "eraser_mode");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_eraser_modes_items);
 	RNA_def_property_ui_text(prop, "Mode", "Eraser Mode");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_brush_gpencil_eraser_mode");
 
 	prop = RNA_def_property(srna, "gpencil_fill_draw_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "fill_draw_mode");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_fill_draw_modes_items);
 	RNA_def_property_ui_text(prop, "Mode", "Mode to draw boundary limits");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	/* Material */
 	prop = RNA_def_property(srna, "material", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Material");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
 	RNA_def_property_ui_text(prop, "Material", "Material used when enable this brush");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_fill_show_boundary", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_FILL_SHOW_HELPLINES);
 	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_text(prop, "Show Lines", "Show help lines for filling to see boundaries");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	prop = RNA_def_property(srna, "gpencil_fill_hide", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_FILL_HIDE);
 	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_text(prop, "Hide", "Hide transparent lines to use as boundary for filling");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	prop = RNA_def_property(srna, "default_eraser", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_DEFAULT_ERASER);
 	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_icon(prop, ICON_UNPINNED, 1);
 	RNA_def_property_ui_text(prop, "Default Eraser", "Use this brush when enable eraser with fast switch key");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_brush_gpencil_default_eraser");
 
 	prop = RNA_def_property(srna, "enable_settings", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_GROUP_SETTINGS);
 	RNA_def_property_ui_text(prop, "Settings", "Enable additional post processing options for new strokes");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	prop = RNA_def_property(srna, "enable_random", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_GROUP_RANDOM);
 	RNA_def_property_ui_text(prop, "Random Settings", "Enable random settings for brush");
-
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 }
 
 static void rna_def_brush(BlenderRNA *brna)
