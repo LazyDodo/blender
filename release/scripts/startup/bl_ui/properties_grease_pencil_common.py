@@ -246,13 +246,6 @@ class GreasePencilStrokeSculptPanel:
     bl_label = "Sculpt Strokes"
     bl_category = "Tools"
 
-    @classmethod
-    def get_icon(cls, brush, direction):
-        if brush.direction == direction:
-            return 'CHECKBOX_HLT'
-        else:
-            return 'CHECKBOX_DEHLT'
-
     @staticmethod
     def draw(self, context):
         layout = self.layout
@@ -271,26 +264,18 @@ class GreasePencilStrokeSculptPanel:
         layout.prop(brush, "use_falloff")
 
         if tool in {'SMOOTH', 'RANDOMIZE'}:
-            layout.prop(settings, "affect_position", text="Position", icon='MESH_DATA', toggle=True)
-            layout.prop(settings, "affect_strength", text="Strength", icon='COLOR', toggle=True)
-            layout.prop(settings, "affect_thickness", text="Thickness", icon='LINE_DATA', toggle=True)
-            layout.prop(settings, "affect_uv", text="UV", icon='MOD_UVPROJECT', toggle=True)
+            layout.prop(settings, "affect_position", text="Affect Position")
+            layout.prop(settings, "affect_strength", text="Affect Strength")
+            layout.prop(settings, "affect_thickness", text="Affect Thickness")
 
-        if tool == 'THICKNESS':
-            layout.prop_enum(brush, "direction", 'ADD', text="Increase", icon=self.get_icon(brush, 'ADD'))
-            layout.prop_enum(brush, "direction", 'SUBTRACT', text="Decrease", icon=self.get_icon(brush, 'SUBTRACT'))
-        elif tool == 'PINCH':
-            layout.prop_enum(brush, "direction", 'ADD', text="Pinch", icon=self.get_icon(brush, 'ADD'))
-            layout.prop_enum(brush, "direction", 'SUBTRACT', text="Inflate", icon=self.get_icon(brush, 'SUBTRACT'))
-        elif settings.tool == 'TWIST':
-            layout.prop_enum(brush, "direction", 'SUBTRACT', text="Clockwise", icon=self.get_icon(brush, 'SUBTRACT'))
-            layout.prop_enum(brush, "direction", 'ADD', text="Counterclockwise", icon=self.get_icon(brush, 'ADD'))
+            if tool == 'SMOOTH':
+                layout.prop(brush, "affect_pressure")
 
-        layout.prop(settings, "use_select_mask")
-        layout.prop(settings, "selection_alpha", slider=True)
+            layout.prop(settings, "affect_uv", text="Affect UV")
 
-        if tool == 'SMOOTH':
-            layout.prop(brush, "affect_pressure")
+        if tool in {'THICKNESS', 'PINCH', 'TWIST'}:
+            layout.prop(brush, "direction")  # FIXME: Expand enable not supported yet
+
 
 
 class GreasePencilAppearancePanel:
