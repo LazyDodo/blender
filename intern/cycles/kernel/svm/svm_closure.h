@@ -734,12 +734,12 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			float alpha = (stack_valid(offset_ofs))? stack_load_float(stack, offset_ofs): __uint_as_float(data_node.z);
 			float ior = (stack_valid(ior_ofs))? stack_load_float(stack, ior_ofs): __uint_as_float(data_node.w);
 
-			uint primary_reflection_roughness_ofs, eumelanin_ofs, pheomelanin_ofs, absorption_coefficient_ofs;
-			decode_node_uchar4(data_node2.x, &primary_reflection_roughness_ofs, &eumelanin_ofs, &pheomelanin_ofs, &absorption_coefficient_ofs);
+			uint primary_reflection_roughness_ofs, melanin_qty_ofs, melanin_ratio_ofs, absorption_coefficient_ofs;
+			decode_node_uchar4(data_node2.x, &primary_reflection_roughness_ofs, &melanin_qty_ofs, &melanin_ratio_ofs, &absorption_coefficient_ofs);
 
 			float m0_roughness = (stack_valid(primary_reflection_roughness_ofs))? stack_load_float(stack, primary_reflection_roughness_ofs): __uint_as_float(data_node2.y);
-			float eumelanin = (stack_valid(eumelanin_ofs)) ? stack_load_float(stack, eumelanin_ofs) : __uint_as_float(data_node2.z);
-			float pheomelanin = (stack_valid(pheomelanin_ofs)) ? stack_load_float(stack, pheomelanin_ofs) : __uint_as_float(data_node2.w);
+			float melanin_qty = (stack_valid(melanin_qty_ofs)) ? stack_load_float(stack, melanin_qty_ofs) : __uint_as_float(data_node2.z);
+			float melanin_ratio = (stack_valid(melanin_ratio_ofs)) ? stack_load_float(stack, melanin_ratio_ofs) : __uint_as_float(data_node2.w);
 			
 			uint tint_ofs, random_ofs, color_randomization_ofs, roughness_randomization_ofs;
 			decode_node_uchar4(data_node3.x, &tint_ofs, &random_ofs, &color_randomization_ofs, &roughness_randomization_ofs);
@@ -760,9 +760,12 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 
 				param1 *= factor_random_roughness;
 				param2 *= factor_random_roughness;
+
+				float eumelanin = melanin_qty*(1.0f-melanin_ratio);
+				float pheomelanin = melanin_qty*melanin_ratio;
 				eumelanin *= factor_random_color;
 				pheomelanin *= factor_random_color;
-				
+
 				bsdf->N = N;
 				bsdf->v = param1;
 				bsdf->s = param2;

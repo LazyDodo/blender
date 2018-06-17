@@ -3046,8 +3046,8 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	NodeType* type = NodeType::add("principled_hair_bsdf", create, NodeType::SHADER);
 
 	SOCKET_IN_COLOR(color, "Color", make_float3(0.8f, 0.8f, 0.8f));
-	SOCKET_IN_FLOAT(eumelanin, "Melanin", 0.0f);
-	SOCKET_IN_FLOAT(pheomelanin, "Melanin Redness", 1.3f);
+	SOCKET_IN_FLOAT(eumelanin, "Melanin", 1.3f);
+	SOCKET_IN_FLOAT(pheomelanin, "Melanin Redness", 1.0f);
 	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));
 	SOCKET_IN_FLOAT(color_randomization, "Color Randomization", 0.0f);
 	SOCKET_IN_VECTOR(absorption_coefficient, "Absorption Coefficient", make_float3(0.245531f, 0.52f, 1.365f), SocketType::VECTOR);
