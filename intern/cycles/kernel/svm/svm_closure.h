@@ -725,6 +725,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID: {
 			uint4 data_node2 = read_node(kg, offset);
 			uint4 data_node3 = read_node(kg, offset);
+			uint4 data_node4 = read_node(kg, offset);
 
 			float3 weight = sd->svm_closure_weight * mix_weight;
 
@@ -743,10 +744,18 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			
 			uint tint_ofs, random_ofs, color_randomization_ofs, roughness_randomization_ofs;
 			decode_node_uchar4(data_node3.x, &tint_ofs, &random_ofs, &color_randomization_ofs, &roughness_randomization_ofs);
-			float random = (stack_valid(random_ofs)) ? stack_load_float(stack, random_ofs) : __uint_as_float(data_node3.y);
 			float color_randomization = (stack_valid(color_randomization_ofs)) ? stack_load_float(stack, color_randomization_ofs) : __uint_as_float(data_node3.z);
 			color_randomization = clamp(color_randomization, 0.0f, 1.0f);
 			float roughness_randomization = (stack_valid(roughness_randomization_ofs)) ? stack_load_float(stack, roughness_randomization_ofs) : __uint_as_float(data_node3.w);
+
+			const AttributeDescriptor attr_descr_random = find_attribute(kg, sd, data_node4.y);
+			float random = 0.0f;
+			if (attr_descr_random.offset != ATTR_STD_NOT_FOUND) {
+				random = primitive_attribute_float(kg, sd, attr_descr_random, NULL, NULL);
+			}
+			else {
+				random = (stack_valid(random_ofs)) ? stack_load_float(stack, random_ofs) : __uint_as_float(data_node3.y);
+			}
 
 			float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*color_randomization;
 			float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*roughness_randomization;

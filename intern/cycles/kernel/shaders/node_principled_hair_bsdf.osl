@@ -35,14 +35,26 @@ shader node_principled_hair_bsdf(
 	float RoughnessRandomization = 0.0,
 	float UndercoatRoughness = 1.0,
 	float IOR = 1.55,
+	string AttrRandom = "none",
 	float Random = 0.0,
 
 	output closure color BSDF = 0)
 {
 	color Sigma;
 
-	float factor_random_color = (1.0-ColorRandomization) + Random*ColorRandomization;
-	float factor_random_roughness = (1.0-RoughnessRandomization) + Random*RoughnessRandomization;
+	float RandomValue = 0.0;
+	printf("Attribute: %s\n", AttrRandom);
+
+	if (AttrRandom != "none") {
+		printf("asdasd");
+		getattribute(AttrRandom, RandomValue);
+	}
+	else {
+		RandomValue = Random;
+	}
+
+	float factor_random_color = 1.0 + 2.0*(RandomValue - 0.5)*ColorRandomization;
+	float factor_random_roughness = 1.0 + 2.0*(RandomValue - 0.5)*RoughnessRandomization;
 
 	float AdjustedRoughness = Roughness*factor_random_roughness;
 	float AdjustedRadialRoughness = RadialRoughness*factor_random_roughness;

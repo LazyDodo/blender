@@ -605,6 +605,7 @@ public:
 class PrincipledHairBsdfNode : public BsdfBaseNode {
 public:
 	SHADER_NODE_CLASS(PrincipledHairBsdfNode)
+	void attributes(Shader *shader, AttributeRequestSet *attributes);
 
 	float roughness_u;
 	float roughness_v;
@@ -622,6 +623,7 @@ public:
 	float3 normal;
 	float surface_mix_weight;
 	float random;
+	bool socketedRandomSource;
 	NodePrincipledHairParametrization parametrization;
 };
 

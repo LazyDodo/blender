@@ -3080,6 +3080,15 @@ PrincipledHairBsdfNode::PrincipledHairBsdfNode()
 	closure = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 }
 
+void PrincipledHairBsdfNode::attributes(Shader *shader, AttributeRequestSet *attributes)
+{
+	socketedRandomSource = input("Random")->link;
+	if(!socketedRandomSource) {
+		attributes->add(ATTR_STD_CURVE_RANDOM);
+	}
+	ShaderNode::attributes(shader, attributes);
+}
+
 void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 {
 	compiler.add_node(NODE_CLOSURE_SET_WEIGHT, make_float3(1.0f, 1.0f, 1.0f));
@@ -3099,6 +3108,7 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	int absorption_coefficient_ofs = compiler.stack_assign(input("Absorption Coefficient"));
 
 	ShaderInput *random_in = input("Random");
+	int attr_random = socketedRandomSource ? SVM_STACK_INVALID : compiler.attribute(ATTR_STD_CURVE_RANDOM);
 
 	compiler.add_node(NODE_CLOSURE_BSDF,
 		compiler.encode_uchar4(closure,
@@ -3126,7 +3136,7 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		__float_as_uint(primary_reflection_roughness),
 		__float_as_uint(eumelanin),
 		__float_as_uint(pheomelanin));
-	
+
 	compiler.add_node(
 		compiler.encode_uchar4(
 			tint_ofs,
@@ -3136,10 +3146,23 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		__float_as_uint(random),
 		__float_as_uint(color_randomization),
 		__float_as_uint(roughness_randomization));
+
+	compiler.add_node(
+		compiler.encode_uchar4(
+			SVM_STACK_INVALID,
+			SVM_STACK_INVALID,
+			SVM_STACK_INVALID,
+			SVM_STACK_INVALID),
+		attr_random,
+		SVM_STACK_INVALID,
+		SVM_STACK_INVALID);
 }
 
 void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)
 {
+	if (!socketedRandomSource) {
+		compiler.parameter("AttrRandom", "geom:curve_random");
+	}
 	compiler.parameter(this, "parametrization");
 	compiler.add(this, "node_principled_hair_bsdf");
 }
