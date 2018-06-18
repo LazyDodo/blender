@@ -1146,6 +1146,11 @@ int GPU_texture_height(const GPUTexture *tex)
 	return tex->h;
 }
 
+int GPU_texture_layers(const GPUTexture *tex)
+{
+	return tex->d;
+}
+
 GPUTextureFormat GPU_texture_format(const GPUTexture *tex)
 {
 	return tex->format;
