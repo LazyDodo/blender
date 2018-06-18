@@ -274,7 +274,7 @@ class GreasePencilStrokeSculptPanel:
             layout.prop(settings, "affect_uv", text="Affect UV")
 
         if tool in {'THICKNESS', 'PINCH', 'TWIST'}:
-            layout.prop(brush, "direction")  # FIXME: Expand enable not supported yet
+            layout.prop(brush, "direction", expand=True)
 
 
 
