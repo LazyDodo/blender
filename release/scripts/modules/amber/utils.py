@@ -38,7 +38,7 @@ AMBER_PREVIEW_STORAGE = "PREVIEWS"
 
 BLENDER_TYPES_TO_PATH = {
     bpy.types.Object: "Object",
-    bpy.types.Group: "Group",
+    bpy.types.Collection: "Collection",
     bpy.types.Material: "Material",
     bpy.types.Texture: "Texture",
     # TODO complete this!
@@ -46,7 +46,7 @@ BLENDER_TYPES_TO_PATH = {
 
 BLENDER_TYPES_TO_ENUMVAL = {
     bpy.types.Object: 'OBJECT',
-    bpy.types.Group: 'GROUP',
+    bpy.types.Collection: 'COLLECTION',
     bpy.types.Material: 'MATERIAL',
     bpy.types.Texture: 'TEXTURE',
     # TODO complete this!
