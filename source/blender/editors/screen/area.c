@@ -1840,15 +1840,16 @@ BLI_INLINE bool streq_array_any(const char *s, const char *arr[])
 	return false;
 }
 
-static void ed_panel_draw(const bContext *C,
-                          ScrArea *sa,
-                          ARegion *ar,
-                          ListBase *lb,
-                          PanelType *pt,
-                          Panel *panel,
-                          int w,
-                          int em,
-                          bool vertical)
+static void ed_panel_draw(
+        const bContext *C,
+        ScrArea *sa,
+        ARegion *ar,
+        ListBase *lb,
+        PanelType *pt,
+        Panel *panel,
+        int w,
+        int em,
+        bool vertical)
 {
 	uiStyle *style = UI_style_get_dpi();
 
@@ -2089,6 +2090,7 @@ void ED_region_panels_layout_ex(
 				ar->sizey = size_dyn[1];
 				sa->flag |= AREA_FLAG_REGION_SIZE_UPDATE;
 			}
+			y = ABS(ar->sizey - 1);
 		}
 	}
 	else if (vertical) {

@@ -210,7 +210,7 @@ void WM_event_add_notifier(const bContext *C, unsigned int type, void *reference
 
 void WM_main_add_notifier(unsigned int type, void *reference)
 {
-	Main *bmain = G.main;
+	Main *bmain = G_MAIN;
 	wmWindowManager *wm = bmain->wm.first;
 	wmNotifier *note;
 
@@ -235,7 +235,7 @@ void WM_main_add_notifier(unsigned int type, void *reference)
  */
 void WM_main_remove_notifier_reference(const void *reference)
 {
-	Main *bmain = G.main;
+	Main *bmain = G_MAIN;
 	wmWindowManager *wm = bmain->wm.first;
 
 	if (wm) {
@@ -263,7 +263,7 @@ void WM_main_remove_notifier_reference(const void *reference)
 
 void WM_main_remap_editor_id_reference(ID *old_id, ID *new_id)
 {
-	Main *bmain = G.main;
+	Main *bmain = G_MAIN;
 	bScreen *sc;
 
 	for (sc = bmain->screen.first; sc; sc = sc->id.next) {
@@ -714,7 +714,7 @@ void WM_event_print(const wmEvent *event)
  */
 void WM_report_banner_show(void)
 {
-	wmWindowManager *wm = G.main->wm.first;
+	wmWindowManager *wm = G_MAIN->wm.first;
 	ReportList *wm_reports = &wm->reports;
 	ReportTimerInfo *rti;
 
@@ -749,7 +749,7 @@ static void wm_add_reports(ReportList *reports)
 {
 	/* if the caller owns them, handle this */
 	if (reports->list.first && (reports->flag & RPT_OP_HOLD) == 0) {
-		wmWindowManager *wm = G.main->wm.first;
+		wmWindowManager *wm = G_MAIN->wm.first;
 
 		/* add reports to the global list, otherwise they are not seen */
 		BLI_movelisttolist(&wm->reports.list, &reports->list);
@@ -1007,14 +1007,7 @@ int WM_operator_call_notest(bContext *C, wmOperator *op)
  */
 int WM_operator_repeat(bContext *C, wmOperator *op)
 {
-	const OperatorRepeatContextHandle *context_info;
-	int retval;
-
-	context_info = ED_operator_repeat_prepare_context(C, op);
-	retval = wm_operator_exec(C, op, true, true);
-	ED_operator_repeat_reset_context(C, context_info);
-
-	return retval;
+	return wm_operator_exec(C, op, true, true);
 }
 /**
  * \return true if #WM_operator_repeat can run
@@ -2554,24 +2547,34 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 		return action;
 
 	if (ELEM(event->type, MOUSEMOVE, INBETWEEN_MOUSEMOVE)) {
-		if (event->check_drag) {
+
+		/* Test for CLICK_DRAG events. */
+		if (wm_action_not_handled(action)) {
+			if (event->check_drag) {
+				wmWindow *win = CTX_wm_window(C);
+				if ((abs(event->x - win->eventstate->prevclickx)) >= U.tweak_threshold ||
+				    (abs(event->y - win->eventstate->prevclicky)) >= U.tweak_threshold)
+				{
+					short val = event->val;
+					short type = event->type;
+					event->val = KM_CLICK_DRAG;
+					event->type = win->eventstate->type;
+
+					CLOG_INFO(WM_LOG_HANDLERS, 1, "handling PRESS_DRAG");
+
+					action |= wm_handlers_do_intern(C, event, handlers);
+
+					event->val = val;
+					event->type = type;
+
+					win->eventstate->check_click = 0;
+					win->eventstate->check_drag = 0;
+				}
+			}
+		}
+		else {
 			wmWindow *win = CTX_wm_window(C);
-			if ((abs(event->x - win->eventstate->prevclickx)) >= U.tweak_threshold ||
-			    (abs(event->y - win->eventstate->prevclicky)) >= U.tweak_threshold)
-			{
-				short val = event->val;
-				short type = event->type;
-				event->val = KM_CLICK_DRAG;
-				event->type = win->eventstate->type;
-
-				CLOG_INFO(WM_LOG_HANDLERS, 1, "handling PRESS_DRAG");
-
-				action |= wm_handlers_do_intern(C, event, handlers);
-
-				event->val = val;
-				event->type = type;
-
-				win->eventstate->check_click = 0;
+			if (win) {
 				win->eventstate->check_drag = 0;
 			}
 		}
@@ -2579,7 +2582,7 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 	else if (ISMOUSE_BUTTON(event->type) || ISKEYBOARD(event->type)) {
 		/* All events that don't set wmEvent.prevtype must be ignored. */
 
-		/* test for CLICK events */
+		/* Test for CLICK events. */
 		if (wm_action_not_handled(action)) {
 			wmWindow *win = CTX_wm_window(C);
 
@@ -2631,9 +2634,9 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 		}
 		else {
 			wmWindow *win = CTX_wm_window(C);
-
-			if (win)
+			if (win) {
 				win->eventstate->check_click = 0;
+			}
 		}
 	}
 

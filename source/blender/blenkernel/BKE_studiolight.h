@@ -51,8 +51,11 @@
 #define STUDIOLIGHT_Y_NEG 3
 #define STUDIOLIGHT_Z_POS 4
 #define STUDIOLIGHT_Z_NEG 5
-#define STUDIOLIGHT_ICON_ID_TYPE_RADIANCE 0
-#define STUDIOLIGHT_ICON_ID_TYPE_IRRADIANCE 1
+
+#define STUDIOLIGHT_ICON_ID_TYPE_RADIANCE       0
+#define STUDIOLIGHT_ICON_ID_TYPE_IRRADIANCE     1
+#define STUDIOLIGHT_ICON_ID_TYPE_MATCAP         2
+#define STUDIOLIGHT_ICON_ID_TYPE_MATCAP_FLIPPED 3
 
 struct GPUTexture;
 
@@ -83,8 +86,10 @@ typedef struct StudioLight {
 	char name[FILE_MAXFILE];
 	char path[FILE_MAX];
 	char *path_irr;
-	int irradiance_icon_id;
-	int radiance_icon_id;
+	int icon_id_irradiance;
+	int icon_id_radiance;
+	int icon_id_matcap;
+	int icon_id_matcap_flipped;
 	int index;
 	float diffuse_light[6][3];
 	float light_direction[3];
@@ -93,6 +98,7 @@ typedef struct StudioLight {
 	ImBuf *radiance_cubemap_buffers[6];
 	struct GPUTexture *equirectangular_radiance_gputexture;
 	struct GPUTexture *equirectangular_irradiance_gputexture;
+	float *gpu_matcap_3components; /* 3 channel buffer for GPU_R11F_G11F_B10F */
 } StudioLight;
 
 void BKE_studiolight_init(void);

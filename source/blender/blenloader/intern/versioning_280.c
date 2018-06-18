@@ -60,6 +60,7 @@
 #include "BKE_customdata.h"
 #include "BKE_freestyle.h"
 #include "BKE_idprop.h"
+#include "BKE_image.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
@@ -113,7 +114,7 @@ static void do_version_workspaces_create_from_screens(Main *bmain)
 		else {
 			workspace = BKE_workspace_add(bmain, screen->id.name + 2);
 		}
-		BKE_workspace_layout_add(workspace, screen, screen->id.name + 2);
+		BKE_workspace_layout_add(bmain, workspace, screen, screen->id.name + 2);
 		BKE_workspace_view_layer_set(workspace, layer, scene);
 	}
 }
@@ -1492,7 +1493,8 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		}
 
 	}
-	{
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 18)) {
 		if (!DNA_struct_elem_find(fd->filesdna, "Material", "float", "roughness")) {
 			for (Material *mat = bmain->mat.first; mat; mat = mat->id.next) {
 				if (mat->use_nodes) {
@@ -1582,6 +1584,17 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 							View3D *v3d = (View3D *)sl;
 							v3d->overlay.bone_selection_alpha = 0.5f;
 						}
+					}
+				}
+			}
+		}
+		if (!DNA_struct_elem_find(fd->filesdna, "Image", "ListBase", "renderslot")) {
+			for (Image *ima = bmain->image.first; ima; ima = ima->id.next) {
+				if (ima->type == IMA_TYPE_R_RESULT) {
+					for (int i = 0; i < 8; i++) {
+						RenderSlot *slot = MEM_callocN(sizeof(RenderSlot), "Image Render Slot Init");
+						BLI_snprintf(slot->name, sizeof(slot->name), "Slot %d", i + 1);
+						BLI_addtail(&ima->renderslots, slot);
 					}
 				}
 			}

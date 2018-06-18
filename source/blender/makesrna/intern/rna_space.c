@@ -719,7 +719,7 @@ static const EnumPropertyItem *rna_View3DShading_light_itemf(
 static int rna_View3DShading_studio_light_get(PointerRNA *ptr)
 {
 	View3D *v3d = (View3D *)ptr->data;
-	char* dna_storage = v3d->shading.studio_light;
+	char *dna_storage = v3d->shading.studio_light;
 
 	int flag = STUDIOLIGHT_ORIENTATIONS_SOLID;
 	if (v3d->drawtype == OB_SOLID && v3d->shading.light == V3D_LIGHTING_MATCAP) {
@@ -737,7 +737,7 @@ static int rna_View3DShading_studio_light_get(PointerRNA *ptr)
 static void rna_View3DShading_studio_light_set(PointerRNA *ptr, int value)
 {
 	View3D *v3d = (View3D *)ptr->data;
-	char* dna_storage = v3d->shading.studio_light;
+	char *dna_storage = v3d->shading.studio_light;
 
 	int flag = STUDIOLIGHT_ORIENTATIONS_SOLID;
 	if (v3d->drawtype == OB_SOLID && v3d->shading.light == V3D_LIGHTING_MATCAP) {
@@ -763,7 +763,7 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 		const int flags = (STUDIOLIGHT_EXTERNAL_FILE | STUDIOLIGHT_ORIENTATION_VIEWNORMAL);
 
 		LISTBASE_FOREACH(StudioLight *, sl, BKE_studiolight_listbase()) {
-			int icon_id = sl->irradiance_icon_id;
+			int icon_id = (v3d->shading.flag & V3D_SHADING_MATCAP_FLIP_X) ? sl->icon_id_matcap_flipped: sl->icon_id_matcap;
 			if ((sl->flag & flags) == flags) {
 				EnumPropertyItem tmp = {sl->index, sl->name, icon_id, sl->name, ""};
 				RNA_enum_item_add(&item, &totitem, &tmp);
@@ -772,7 +772,7 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 	}
 	else {
 		LISTBASE_FOREACH(StudioLight *, sl, BKE_studiolight_listbase()) {
-			int icon_id = sl->irradiance_icon_id;
+			int icon_id = sl->icon_id_irradiance;
 			bool show_studiolight = false;
 
 			if ((sl->flag & STUDIOLIGHT_INTERNAL)) {
@@ -788,7 +788,7 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 
 					case OB_MATERIAL:
 						show_studiolight = (sl->flag & STUDIOLIGHT_ORIENTATION_WORLD) > 0;
-						icon_id = sl->radiance_icon_id;
+						icon_id = sl->icon_id_radiance;
 						break;
 				}
 			}
@@ -2344,6 +2344,12 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, 250.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 2.5f, 1, 3);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "show_anti_aliasing", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "shading.flag", V3D_SHADING_EFFECT_FXAA);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "Anti Alias", "Draw the view using FXAA");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "selected_studio_light", PROP_POINTER, PROP_NONE);

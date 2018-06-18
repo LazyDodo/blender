@@ -552,7 +552,7 @@ void DepsgraphNodeBuilder::build_object_flags(
 	const bool is_from_set = (linked_state == DEG_ID_LINKED_VIA_SET);
 	/* TODO(sergey): Is this really best component to be used? */
 	add_operation_node(&object->id,
-	                   DEG_NODE_TYPE_LAYER_COLLECTIONS,
+	                   DEG_NODE_TYPE_OBJECT_FROM_LAYER,
 	                   function_bind(BKE_object_eval_flush_base_flags,
 	                                 _1,
 	                                 scene_cow,
@@ -897,6 +897,8 @@ void DepsgraphNodeBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
+		build_collection(DEG_COLLECTION_OWNER_OBJECT, rbw->group);
+
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 		{
 			if (object->type != OB_MESH)

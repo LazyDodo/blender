@@ -330,6 +330,14 @@ RenderResult *RE_AcquireResultWrite(Render *re)
 	return NULL;
 }
 
+void RE_ClearResult(Render *re)
+{
+	if (re) {
+		render_result_free(re->result);
+		re->result = NULL;
+	}
+}
+
 void RE_SwapResult(Render *re, RenderResult **rr)
 {
 	/* for keeping render buffers */
@@ -1021,10 +1029,13 @@ void RE_test_break_cb(Render *re, void *handle, int (*f)(void *handle))
 
 /* ********* GL Context ******** */
 
+/* Create the gl context of the Render.
+ * It will be free by the render itself. */
 void RE_gl_context_create(Render *re)
 {
 	/* Needs to be created in the main ogl thread. */
 	re->gl_context = WM_opengl_context_create();
+	re->gl_context_ownership = true;
 }
 
 void RE_gl_context_destroy(Render *re)
@@ -1036,9 +1047,20 @@ void RE_gl_context_destroy(Render *re)
 		re->gwn_context = NULL;
 	}
 	if (re->gl_context) {
-		WM_opengl_context_dispose(re->gl_context);
+		if (re->gl_context_ownership) {
+			WM_opengl_context_dispose(re->gl_context);
+		}
 		re->gl_context = NULL;
 	}
+}
+
+/* Manually set the gl context of the Render.
+ * It won't be free by the render itself. */
+void RE_gl_context_set(Render *re, void *gl_context)
+{
+	BLI_assert(gl_context); /* Cannot set NULL */
+	re->gl_context = gl_context;
+	re->gl_context_ownership = false;
 }
 
 void *RE_gl_context_get(Render *re)
@@ -2135,7 +2157,7 @@ bool RE_WriteRenderViewsImage(ReportList *reports, RenderResult *rr, Scene *scen
 					ImageFormatData imf = rd->im_format;
 					imf.imtype = R_IMF_IMTYPE_JPEG90;
 
-					if (BLI_testextensie(name, ".exr"))
+					if (BLI_path_extension_check(name, ".exr"))
 						name[strlen(name) - 4] = 0;
 					BKE_image_path_ensure_ext_from_imformat(name, &imf);
 
@@ -2190,7 +2212,7 @@ bool RE_WriteRenderViewsImage(ReportList *reports, RenderResult *rr, Scene *scen
 				ImageFormatData imf = rd->im_format;
 				imf.imtype = R_IMF_IMTYPE_JPEG90;
 
-				if (BLI_testextensie(name, ".exr"))
+				if (BLI_path_extension_check(name, ".exr"))
 					name[strlen(name) - 4] = 0;
 
 				BKE_image_path_ensure_ext_from_imformat(name, &imf);
@@ -2303,7 +2325,7 @@ static int do_write_image_or_movie(Render *re, Main *bmain, Scene *scene, bMovie
 	/* Flush stdout to be sure python callbacks are printing stuff after blender. */
 	fflush(stdout);
 
-	BLI_callback_exec(G.main, NULL, BLI_CB_EVT_RENDER_STATS);
+	BLI_callback_exec(re->main, NULL, BLI_CB_EVT_RENDER_STATS);
 
 	BLI_timecode_string_from_time_simple(name, sizeof(name), re->i.lastframetime - render_time);
 	printf(" (Saving: %s)\n", name);
@@ -2622,6 +2644,9 @@ void RE_PreviewRender(Render *re, Main *bmain, Scene *sce)
 	RE_SetCamera(re, camera);
 
 	do_render_3d(re);
+
+	/* Destroy the opengl context in the correct thread. */
+	RE_gl_context_destroy(re);
 }
 
 /* note; repeated win/disprect calc... solve that nicer, also in compo */
