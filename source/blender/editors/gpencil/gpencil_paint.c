@@ -3271,7 +3271,7 @@ void GPENCIL_OT_draw(wmOperatorType *ot)
 
 	/* NOTE: wait for input is enabled by default, so that all UI code can work properly without needing users to know about this */
 	prop = RNA_def_boolean(ot->srna, "wait_for_input", true, "Wait for Input", "Wait for first click instead of painting immediately");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 
 	prop = RNA_def_boolean(ot->srna, "disable_straight", false, "No Straight lines", "Disable key for straight lines");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);

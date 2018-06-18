@@ -161,6 +161,8 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 
 void GPENCIL_OT_editmode_toggle(wmOperatorType *ot)
 {
+	PropertyRNA *prop;
+
 	/* identifiers */
 	ot->name = "Strokes Edit Mode Toggle";
 	ot->idname = "GPENCIL_OT_editmode_toggle";
@@ -174,7 +176,8 @@ void GPENCIL_OT_editmode_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 
 	/* properties */
-	RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	prop = RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /* Stroke Paint Mode Management */
@@ -247,6 +250,8 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 
 void GPENCIL_OT_paintmode_toggle(wmOperatorType *ot)
 {
+	PropertyRNA *prop;
+
 	/* identifiers */
 	ot->name = "Strokes Paint Mode Toggle";
 	ot->idname = "GPENCIL_OT_paintmode_toggle";
@@ -260,7 +265,8 @@ void GPENCIL_OT_paintmode_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 
 	/* properties */
-	RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	prop = RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /* Stroke Sculpt Mode Management */
@@ -324,6 +330,8 @@ static int gpencil_sculptmode_toggle_exec(bContext *C, wmOperator *op)
 
 void GPENCIL_OT_sculptmode_toggle(wmOperatorType *ot)
 {
+	PropertyRNA *prop;
+
 	/* identifiers */
 	ot->name = "Strokes Sculpt Mode Toggle";
 	ot->idname = "GPENCIL_OT_sculptmode_toggle";
@@ -337,7 +345,8 @@ void GPENCIL_OT_sculptmode_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 
 	/* properties */
-	RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	prop = RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /* Stroke Weight Paint Mode Management */
@@ -401,6 +410,8 @@ static int gpencil_weightmode_toggle_exec(bContext *C, wmOperator *op)
 
 void GPENCIL_OT_weightmode_toggle(wmOperatorType *ot)
 {
+	PropertyRNA *prop;
+
 	/* identifiers */
 	ot->name = "Strokes Weight Mode Toggle";
 	ot->idname = "GPENCIL_OT_weightmode_toggle";
@@ -414,7 +425,8 @@ void GPENCIL_OT_weightmode_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 
 	/* properties */
-	RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	prop = RNA_def_boolean(ot->srna, "back", 0, "Return to Previous Mode", "Return to previous mode");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /* ************************************************ */
