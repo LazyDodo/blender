@@ -31,6 +31,7 @@ struct EEVEE_BoundSphere;
 struct EEVEE_ShadowCasterBuffer;
 struct RenderLayer;
 struct RenderResult;
+struct GPUFrameBuffer;
 
 extern struct DrawEngineType draw_engine_eevee_type;
 
@@ -96,6 +97,9 @@ extern struct DrawEngineType draw_engine_eevee_type;
 #define LOOK_DEV_MODE_ENABLED(v3d) ((v3d) && (v3d->drawtype == OB_MATERIAL))
 #define LOOK_DEV_OVERLAY_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && OVERLAY_ENABLED(v3d) && ((v3d->overlay.flag & V3D_OVERLAY_LOOK_DEV) > 0))
 #define USE_SCENE_LIGHT(v3d) ((!v3d) || (!LOOK_DEV_MODE_ENABLED(v3d)) || ((LOOK_DEV_MODE_ENABLED(v3d) && (v3d->shading.flag & V3D_SHADING_SCENE_LIGHT))))
+
+#define OCTAHEDRAL_SIZE_FROM_CUBESIZE(cube_size) ((int)ceilf(sqrtf((cube_size * cube_size) * 6.0f)))
+#define MIN_CUBE_LOD_LEVEL 3
 
 /* World shader variations */
 enum {
@@ -439,7 +443,6 @@ typedef struct EEVEE_LightProbesInfo {
 	int updated_bounce;
 	int num_bounce;
 	int cubemap_res;
-	int target_size;
 	int grid_initialized;
 	struct World *prev_world;
 	int update_world;
@@ -672,9 +675,6 @@ typedef struct EEVEE_ViewLayerData {
 	struct GPUUniformBuffer *grid_ubo;
 	struct GPUUniformBuffer *planar_ubo;
 
-	struct GPUFrameBuffer *probe_filter_fb;
-	struct GPUFrameBuffer *probe_face_fb[6];
-
 	/* Common Uniform Buffer */
 	struct EEVEE_CommonUniformBuffer common_data;
 	struct GPUUniformBuffer *common_ubo;
@@ -886,11 +886,18 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, Object *ob);
 void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
-void EEVEE_lightprobes_refresh_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_free(void);
 
-void EEVEE_irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3]);
+void EEVEE_lightbake_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, GPUTexture *rt_color, GPUTexture *rt_depth);
+void EEVEE_lightbake_render_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUFrameBuffer *face_fb[6]);
+void EEVEE_lightbake_filter_glossy(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_color, struct GPUFrameBuffer *fb, int probe_idx, float intensity);
+void EEVEE_lightbake_filter_diffuse(
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
+        int grid_offset, float intensity);
+void EEVEE_lightbake_filter_visibility(
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_depth, struct GPUFrameBuffer *fb,
+        float clipsta, float clipend, float vis_range, float vis_blur, int vis_size, int grid_offset);
 void EEVEE_lightprobes_grid_data_from_object(Object *ob, EEVEE_LightGrid *prb_data, int *offset);
 void EEVEE_lightprobes_cube_data_from_object(Object *ob, EEVEE_LightProbe *prb_data);
 

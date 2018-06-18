@@ -39,7 +39,7 @@ void EEVEE_lightbake_update(void *custom_data);
 void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float *progress);
 
 /* Light Cache */
-struct EEVEE_LightCache *EEVEE_lightcache_create(const SceneEEVEE *eevee, const int cube_count, const int irr_samples);
+struct EEVEE_LightCache *EEVEE_lightcache_create(const int cube_count, const int cube_size, const int irr_size[3]);
 void EEVEE_lightcache_free(struct EEVEE_LightCache *lcache);
 
 #endif /* __EEVEE_LIGHTCACHE_H__ */

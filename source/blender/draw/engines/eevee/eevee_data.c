@@ -60,10 +60,6 @@ static void eevee_view_layer_data_free(void *storage)
 	DRW_UBO_FREE_SAFE(sldata->planar_ubo);
 	DRW_UBO_FREE_SAFE(sldata->common_ubo);
 	DRW_UBO_FREE_SAFE(sldata->clip_ubo);
-	GPU_FRAMEBUFFER_FREE_SAFE(sldata->probe_filter_fb);
-	for (int i = 0; i < 6; ++i) {
-		GPU_FRAMEBUFFER_FREE_SAFE(sldata->probe_face_fb[i]);
-	}
 }
 
 EEVEE_ViewLayerData *EEVEE_view_layer_data_get(void)

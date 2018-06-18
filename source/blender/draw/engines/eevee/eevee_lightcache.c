@@ -100,6 +100,7 @@ typedef struct EEVEE_LightBake {
 
 	/* Irradiance grid */
 	int irr_cube_res;                /* Target cubemap at MIP 0. */
+	int irr_size[3];                 /* Size of the irradiance texture. */
 	int total_irr_samples;           /* Total for all grids */
 	int bounce_curr, bounce_count;   /* The current light bounce being evaluated. */
 	float vis_range, vis_blur;       /* Sample Visibility compression and bluring. */
@@ -126,35 +127,52 @@ typedef struct EEVEE_LightBake {
 /** \name Light Cache
  * \{ */
 
+static void irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3])
+{
+	/* Compute how many irradiance samples we can store per visibility sample. */
+	int irr_per_vis = (visibility_size / IRRADIANCE_SAMPLE_SIZE_X) *
+	                  (visibility_size / IRRADIANCE_SAMPLE_SIZE_Y);
+
+	/* The irradiance itself take one layer, hence the +1 */
+	int layer_ct = MIN2(irr_per_vis + 1, IRRADIANCE_MAX_POOL_LAYER);
+
+	int texel_ct = (int)ceilf((float)total_samples / (float)(layer_ct - 1));
+	r_size[0] = visibility_size * max_ii(1, min_ii(texel_ct, (IRRADIANCE_MAX_POOL_SIZE / visibility_size)));
+	r_size[1] = visibility_size * max_ii(1, (texel_ct / (IRRADIANCE_MAX_POOL_SIZE / visibility_size)));
+	r_size[2] = layer_ct;
+}
+
 static bool EEVEE_lightcache_validate(
         const EEVEE_LightCache *light_cache,
-        const SceneEEVEE *UNUSED(eevee),
-        const int UNUSED(cube_count),
-        const int UNUSED(irr_samples))
+        const int cube_count,
+        const int cube_res,
+        const int irr_size[3])
 {
 	if (light_cache) {
-		/* TODO if settings and probe count matches... */
-		return true;
+		/* See if we need the same amount of texture space. */
+		if ((irr_size[0] == GPU_texture_width(light_cache->grid_tx)) &&
+		    (irr_size[1] == GPU_texture_height(light_cache->grid_tx)) &&
+		    (irr_size[2] == GPU_texture_layers(light_cache->grid_tx)))
+		{
+			if ((cube_res == GPU_texture_width(light_cache->cube_tx)) &&
+			    (cube_count == GPU_texture_layers(light_cache->cube_tx))) {
+				return true;
+			}
+		}
 	}
 	return false;
 }
 
 EEVEE_LightCache *EEVEE_lightcache_create(
-        const SceneEEVEE *UNUSED(eevee),
-        const int UNUSED(cube_count),
-        const int UNUSED(irr_samples))
+        const int cube_count,
+        const int cube_size,
+        const int irr_size[3])
 {
 	EEVEE_LightCache *light_cache = MEM_callocN(sizeof(EEVEE_LightCache), "EEVEE_LightCache");
 
-	float rgba[4] = {1.0f, 0.0f, 0.0f, 1.0f};
-	light_cache->grid_tx = DRW_texture_create_2D_array(1, 1, 1, IRRADIANCE_FORMAT, DRW_TEX_FILTER, rgba);
-	light_cache->cube_tx = DRW_texture_create_2D_array(1, 1, 1, GPU_RGBA8, DRW_TEX_FILTER, rgba);
-
-	// int irr_size[3];
-	// irradiance_pool_size_get(lbake->vis_res, lbake->total_irr_samples, irr_size);
-
-	// light_cache->grid_tx = DRW_texture_create_2D_array(irr_size[0], irr_size[1], irr_size[2], IRRADIANCE_FORMAT, DRW_TEX_FILTER, NULL);
-	// light_cache->cube_tx = DRW_texture_create_2D_array(lbake->ref_cube_res, lbake->ref_cube_res, lcache->cube_count, GPU_RGBA8, DRW_TEX_FILTER, NULL);
+	light_cache->grid_tx = DRW_texture_create_2D_array(irr_size[0], irr_size[1], irr_size[2], IRRADIANCE_FORMAT, DRW_TEX_FILTER, NULL);
+	light_cache->cube_tx = DRW_texture_create_2D_array(cube_size, cube_size, cube_count, GPU_R11F_G11F_B10F, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
+	light_cache->flag = LIGHTCACHE_UPDATE_WORLD | LIGHTCACHE_UPDATE_CUBE | LIGHTCACHE_UPDATE_GRID;
 
 	return light_cache;
 }
@@ -191,6 +209,9 @@ void *EEVEE_lightbake_job_data_alloc(struct Main *bmain, struct ViewLayer *view_
 
     DEG_graph_relations_update(lbake->depsgraph, bmain, scene, view_layer);
 
+	int frame = 0; /* TODO make it user param. */
+	DEG_evaluate_on_framechange(lbake->bmain, lbake->depsgraph, frame);
+
 	return lbake;
 }
 
@@ -206,21 +227,6 @@ void EEVEE_lightbake_job_data_free(void *custom_data)
 	MEM_freeN(lbake);
 }
 
-static void irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3])
-{
-	/* Compute how many irradiance samples we can store per visibility sample. */
-	int irr_per_vis = (visibility_size / IRRADIANCE_SAMPLE_SIZE_X) *
-	                  (visibility_size / IRRADIANCE_SAMPLE_SIZE_Y);
-
-	/* The irradiance itself take one layer, hence the +1 */
-	int layer_ct = MIN2(irr_per_vis + 1, IRRADIANCE_MAX_POOL_LAYER);
-
-	int texel_ct = (int)ceilf((float)total_samples / (float)(layer_ct - 1));
-	r_size[0] = visibility_size * max_ii(1, min_ii(texel_ct, (IRRADIANCE_MAX_POOL_SIZE / visibility_size)));
-	r_size[1] = visibility_size * max_ii(1, (texel_ct / (IRRADIANCE_MAX_POOL_SIZE / visibility_size)));
-	r_size[2] = layer_ct;
-}
-
 static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 {
 	Scene *scene_eval = DEG_get_evaluated_scene(lbake->depsgraph);
@@ -231,8 +237,7 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 	lbake->vis_res      = eevee->gi_visibility_resolution;
 	lbake->rt_res       = eevee->gi_cubemap_resolution;
 
-	//lbake->ref_cube_res = octahedral_from_cubemap();
-	lbake->ref_cube_res = lbake->rt_res;
+	lbake->ref_cube_res = OCTAHEDRAL_SIZE_FROM_CUBESIZE(lbake->rt_res);
 
 	lbake->cube_prb = MEM_callocN(sizeof(LightProbe *) * lbake->cube_count, "EEVEE Cube visgroup ptr");
 	lbake->grid_prb = MEM_callocN(sizeof(LightProbe *) * lbake->grid_count, "EEVEE Grid visgroup ptr");
@@ -248,24 +253,31 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 		});
 	}
 
-	int irr_size[3];
-	irradiance_pool_size_get(lbake->vis_res, lbake->total_irr_samples, irr_size);
+	GPU_framebuffer_ensure_config(&lbake->store_fb, {
+		GPU_ATTACHMENT_NONE,
+		GPU_ATTACHMENT_NONE
+	});
 
-	lbake->grid_prev = DRW_texture_create_2D_array(irr_size[0], irr_size[1], irr_size[2], IRRADIANCE_FORMAT, DRW_TEX_FILTER, NULL);
+	irradiance_pool_size_get(lbake->vis_res, lbake->total_irr_samples, lbake->irr_size);
+
+	lbake->grid_prev = DRW_texture_create_2D_array(lbake->irr_size[0], lbake->irr_size[1], lbake->irr_size[2],
+	                                               IRRADIANCE_FORMAT, DRW_TEX_FILTER, NULL);
 
 	/* Ensure Light Cache is ready to accept new data. If not recreate one.
 	 * WARNING: All the following must be threadsafe. It's currently protected
 	 * by the DRW mutex. */
 	EEVEE_LightCache *lcache = scene_orig->eevee.light_cache;
-	SceneEEVEE *sce_eevee = &scene_orig->eevee;
 
-	if (lcache != NULL && !EEVEE_lightcache_validate(lcache, sce_eevee, lbake->cube_count, lbake->total_irr_samples)) {
+	/* TODO validate irradiance and reflection cache independantly... */
+	if (lcache != NULL &&
+	    !EEVEE_lightcache_validate(lcache, lbake->cube_count, lbake->ref_cube_res, lbake->irr_size))
+	{
 		EEVEE_lightcache_free(lcache);
 		scene_orig->eevee.light_cache = lcache = NULL;
 	}
 
 	if (lcache == NULL) {
-		lcache = EEVEE_lightcache_create(sce_eevee, lbake->cube_count, lbake->total_irr_samples);
+		lcache = EEVEE_lightcache_create(lbake->cube_count, lbake->ref_cube_res, lbake->irr_size);
 		scene_orig->eevee.light_cache = lcache;
 	}
 
@@ -287,6 +299,7 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 	DRW_TEXTURE_FREE_SAFE(lbake->rt_depth);
 	DRW_TEXTURE_FREE_SAFE(lbake->rt_color);
 	DRW_TEXTURE_FREE_SAFE(lbake->grid_prev);
+	GPU_FRAMEBUFFER_FREE_SAFE(lbake->store_fb);
 	for (int i = 0; i < 6; ++i) {
 		GPU_FRAMEBUFFER_FREE_SAFE(lbake->rt_fb[i]);
 	}
@@ -331,20 +344,47 @@ static void eevee_lightbake_context_disable(EEVEE_LightBake *lbake)
 	}
 }
 
-static void eevee_lightbake_render_world(void *ved, void *UNUSED(user_data))
+static void eevee_lightbake_render_world(void *ved, void *user_data)
 {
 	EEVEE_Data *vedata = (EEVEE_Data *)ved;
 	EEVEE_StorageList *stl = vedata->stl;
 	EEVEE_FramebufferList *fbl = vedata->fbl;
-	// EEVEE_LightBake *lbake = user_data;
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
+	EEVEE_LightBake *lbake = (EEVEE_LightBake *)user_data;
+	Scene *scene_eval = DEG_get_evaluated_scene(lbake->depsgraph);
+	/* Disable all effects BUT high bitdepth shadows. */
+	scene_eval->eevee.flag &= SCE_EEVEE_SHADOW_HIGH_BITDEPTH;
+	scene_eval->eevee.taa_samples = 1;
 
+	stl->g_data = MEM_callocN(sizeof(*stl->g_data), __func__);
+	stl->g_data->background_alpha = 1.0f;
+
+	/* XXX TODO remove this. This is in order to make the init functions work. */
+	DRWMatrixState dummy_mats = {{{{0}}}};
+	DRW_viewport_matrix_override_set_all(&dummy_mats);
+
+	if (sldata->common_ubo == NULL) {
+		sldata->common_ubo = DRW_uniformbuffer_create(sizeof(sldata->common_data), &sldata->common_data);
+	}
+	if (sldata->clip_ubo == NULL) {
+		sldata->clip_ubo = DRW_uniformbuffer_create(sizeof(sldata->clip_data), &sldata->clip_data);
+	}
+
+	EEVEE_effects_init(sldata, vedata, NULL);
 	EEVEE_materials_init(sldata, stl, fbl);
 	EEVEE_lights_init(sldata);
 	EEVEE_lightprobes_init(sldata, vedata);
 
+	EEVEE_effects_cache_init(sldata, vedata);
+	EEVEE_lightbake_cache_init(sldata, vedata, lbake->rt_color, lbake->rt_depth);
 	EEVEE_lightprobes_cache_init(sldata, vedata);
-	EEVEE_lightprobes_refresh_world(sldata, vedata);
+	EEVEE_lightprobes_cache_finish(sldata, vedata);
+
+	DRW_render_instance_buffer_finish();
+
+	EEVEE_lightbake_render_world(sldata, vedata, lbake->rt_fb);
+	EEVEE_lightbake_filter_glossy(sldata, vedata, lbake->rt_color, lbake->store_fb, 0, 1.0);
+	EEVEE_lightbake_filter_diffuse(sldata, vedata, lbake->rt_color, lbake->store_fb, 0, 1.0);
 }
 
 static void eevee_lightbake_render_probe(void *ved, void *UNUSED(user_data))
@@ -371,7 +411,7 @@ static void eevee_lightbake_render_probe(void *ved, void *UNUSED(user_data))
 	// common_data->ao_settings = 0.0f;
 	// common_data->ao_dist = 0.0f;
 
-	EEVEE_lightprobes_refresh_world(sldata, vedata);
+	// EEVEE_lightprobes_refresh_world(sldata, vedata, lbake->rt_fb);
 }
 
 static void eevee_lightbake_count_probes(EEVEE_LightBake *lbake)
@@ -442,9 +482,6 @@ void EEVEE_lightbake_job(void *custom_data, short *UNUSED(stop), short *do_updat
 {
 	EEVEE_LightBake *lbake = (EEVEE_LightBake *)custom_data;
 	Depsgraph *depsgraph = lbake->depsgraph;
-
-	int frame = 0; /* TODO make it user param. */
-	DEG_evaluate_on_framechange(lbake->bmain, depsgraph, frame);
 
 	lbake->view_layer = DEG_get_evaluated_view_layer(depsgraph);
 
