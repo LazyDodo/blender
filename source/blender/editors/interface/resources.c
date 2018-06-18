@@ -56,6 +56,8 @@
 
 #include "BLF_api.h"
 
+#include "ED_screen.h"
+
 #include "UI_interface.h"
 #include "UI_interface_icons.h"
 
@@ -96,6 +98,7 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 	static char error[4] = {240, 0, 240, 255};
 	static char alert[4] = {240, 60, 60, 255};
 	static char headerdesel[4] = {0, 0, 0, 255};
+	static char back[4] = {0, 0, 0, 255};
 	static char setting = 0;
 	const char *cp = error;
 
@@ -183,6 +186,12 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 						cp = ts->header;
 					else
 						cp = ts->button;
+
+					copy_v4_v4_char(back, cp);
+					if (!ED_region_is_overlap(spacetype, theme_regionid)) {
+						back[3] = 255;
+					}
+					cp = back;
 					break;
 				case TH_LOW_GRAD:
 					cp = ts->gradients.gradient;
@@ -245,6 +254,8 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 					cp = ts->panelcolors.header; break;
 				case TH_PANEL_BACK:
 					cp = ts->panelcolors.back; break;
+				case TH_PANEL_SUB_BACK:
+					cp = ts->panelcolors.sub_back; break;
 				case TH_PANEL_SHOW_HEADER:
 					cp = &setting;
 					setting = ts->panelcolors.show_header;
@@ -287,6 +298,8 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 					cp = ts->syntaxr; break;
 				case TH_WIRE_EDIT:
 					cp = ts->wire_edit; break;
+				case TH_WIRE_INACTIVE:
+					cp = ts->wire_inactive; break;
 				case TH_LAMP:
 					cp = ts->lamp; break;
 				case TH_SPEAKER:
@@ -812,6 +825,7 @@ static void ui_theme_init_new_do(ThemeSpace *ts)
 	ts->panelcolors.show_header = false;
 	rgba_char_args_set(ts->panelcolors.back,   114, 114, 114, 128);
 	rgba_char_args_set(ts->panelcolors.header, 0, 0, 0, 25);
+	rgba_char_args_set(ts->panelcolors.sub_back, 0, 0, 0, 25);
 
 	rgba_char_args_set(ts->button,         145, 145, 145, 245);
 	rgba_char_args_set(ts->button_title,   0, 0, 0, 255);
@@ -922,6 +936,7 @@ void ui_theme_init_default(void)
 	rgba_char_args_set(btheme->tv3d.view_overlay, 0, 0, 0, 255);
 	rgba_char_args_set(btheme->tv3d.wire,       0x0, 0x0, 0x0, 255);
 	rgba_char_args_set(btheme->tv3d.wire_edit,  0x0, 0x0, 0x0, 255);
+	rgba_char_args_set(btheme->tv3d.wire_inactive, 32, 32, 32, 255);
 	rgba_char_args_set(btheme->tv3d.lamp,       0, 0, 0, 40);
 	rgba_char_args_set(btheme->tv3d.speaker,    0, 0, 0, 255);
 	rgba_char_args_set(btheme->tv3d.camera,    0, 0, 0, 255);
@@ -1806,10 +1821,8 @@ void UI_make_axis_color(const unsigned char src_col[3], unsigned char dst_col[3]
 /* ************************************************************* */
 
 /* patching UserDef struct and Themes */
-void init_userdef_do_versions(void)
+void init_userdef_do_versions(Main *bmain)
 {
-	Main *bmain = G.main;
-
 #define USER_VERSION_ATLEAST(ver, subver) MAIN_VERSION_ATLEAST(bmain, ver, subver)
 
 	/* the UserDef struct is not corrected with do_versions() .... ugh! */
@@ -3013,6 +3026,17 @@ void init_userdef_do_versions(void)
 		}
 	}
 
+	if (!USER_VERSION_ATLEAST(280, 17)) {
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			ThemeSpace *ts;
+
+			for (ts = UI_THEMESPACE_START(btheme); ts != UI_THEMESPACE_END(btheme); ts++) {
+				rgba_char_args_set(ts->panelcolors.sub_back, 0, 0, 0, 25);
+			}
+		}
+		U.gpu_viewport_antialias = USER_AA_FXAA;
+	}
+
 	/**
 	 * Include next version bump.
 	 */
@@ -3025,6 +3049,17 @@ void init_userdef_do_versions(void)
 			ui_theme_space_init_manipulator_colors(btheme);
 		}
 	}
+
+	for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+		ThemeSpace *ts;
+
+		for (ts = UI_THEMESPACE_START(btheme); ts != UI_THEMESPACE_END(btheme); ts++) {
+			if (btheme->tv3d.wire_inactive[3] == 0) {
+				rgba_char_args_set(btheme->tv3d.wire_inactive,  32, 32, 32, 255);
+			}
+		}
+	}
+
 
 	if (U.pixelsize == 0.0f)
 		U.pixelsize = 1.0f;

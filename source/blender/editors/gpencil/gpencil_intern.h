@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -41,6 +41,7 @@ struct bGPDstroke;
 struct bGPDspoint;
 
 struct GHash;
+struct RNG;
 
 struct ARegion;
 struct View2D;
@@ -117,7 +118,7 @@ bool gp_smooth_stroke(bGPDstroke *gps, int i, float inf, bool affect_pressure);
 bool gp_smooth_stroke_strength(bGPDstroke *gps, int i, float inf);
 bool gp_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf);
 void gp_subdivide_stroke(bGPDstroke *gps, const int new_totpoints);
-void gp_randomize_stroke(bGPDstroke *gps, bGPDbrush *brush);
+void gp_randomize_stroke(bGPDstroke *gps, bGPDbrush *brush, struct RNG *rng);
 
 /* Layers Enums -------------------------------------- */
 

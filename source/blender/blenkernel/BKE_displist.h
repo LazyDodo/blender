@@ -1,4 +1,4 @@
-/* 
+/*
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
@@ -57,11 +57,12 @@ enum {
 
 /* prototypes */
 
-struct Scene;
-struct Object;
-struct ListBase;
 struct Depsgraph;
 struct DerivedMesh;
+struct ListBase;
+struct Main;
+struct Object;
+struct Scene;
 
 /* used for curves, nurbs, mball, importing */
 typedef struct DispList {

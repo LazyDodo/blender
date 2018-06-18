@@ -188,10 +188,6 @@ if(WITH_PYTHON)
 	)
 endif()
 
-if(WITH_CLAY_ENGINE)
-	add_definitions(-DWITH_CLAY_ENGINE)
-endif()
-
 if(WITH_IMAGE_OPENEXR)
 	add_definitions(-DWITH_OPENEXR)
 endif()
@@ -353,6 +349,7 @@ blender_include_dirs_sys(
 )
 
 add_cc_flags_custom_test(makesrna)
+setup_platform_linker_flags()
 
 add_executable(makesrna ${SRC} ${SRC_RNA_INC} ${SRC_DNA_INC})
 

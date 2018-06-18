@@ -1,7 +1,4 @@
-#define ssao_distance		matcaps_param[mat_id].ssao_params_var.x
-#define ssao_factor_cavity	matcaps_param[mat_id].ssao_params_var.y
-#define ssao_factor_edge	matcaps_param[mat_id].ssao_params_var.z
-#define ssao_attenuation	matcaps_param[mat_id].ssao_params_var.w
+
 
 /*  from The Alchemy screen-space ambient obscurance algorithm
  * http://graphics.cs.williams.edu/papers/AlchemyHPG11/VV11AlchemyAO.pdf */
@@ -46,7 +43,7 @@ void ssao_factors(
 		if (uvcoords.x > 1.0 || uvcoords.x < 0.0 || uvcoords.y > 1.0 || uvcoords.y < 0.0)
 			continue;
 
-		float depth_new = texture(depthtex, uvcoords).r;
+		float depth_new = texture(depthBuffer, uvcoords).r;
 
 		/* Handle Background case */
 		bool is_background = (depth_new == 1.0);

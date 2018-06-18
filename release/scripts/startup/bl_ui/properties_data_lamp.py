@@ -22,14 +22,6 @@ from bpy.types import Menu, Panel
 from rna_prop_ui import PropertyPanel
 
 
-class LAMP_MT_sunsky_presets(Menu):
-    bl_label = "Sun & Sky Presets"
-    preset_subdir = "sunsky"
-    preset_operator = "script.execute_preset"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
-    draw = Menu.draw_preset
-
-
 class DataButtonsPanel:
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -44,7 +36,7 @@ class DataButtonsPanel:
 class DATA_PT_context_lamp(DataButtonsPanel, Panel):
     bl_label = ""
     bl_options = {'HIDE_HEADER'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
@@ -63,7 +55,7 @@ class DATA_PT_context_lamp(DataButtonsPanel, Panel):
 
 class DATA_PT_preview(DataButtonsPanel, Panel):
     bl_label = "Preview"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw(self, context):
         self.layout.template_preview(context.lamp)
@@ -71,7 +63,7 @@ class DATA_PT_preview(DataButtonsPanel, Panel):
 
 class DATA_PT_lamp(DataButtonsPanel, Panel):
     bl_label = "Lamp"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER'}
 
     def draw(self, context):
         layout = self.layout
@@ -80,27 +72,27 @@ class DATA_PT_lamp(DataButtonsPanel, Panel):
 
         layout.row().prop(lamp, "type", expand=True)
 
-        split = layout.split()
+        layout.use_property_split = True
 
-        col = split.column()
-        sub = col.column()
-        sub.prop(lamp, "color", text="")
-        sub.prop(lamp, "energy")
+        col = col.column()
+        col.prop(lamp, "color")
+        col.prop(lamp, "energy")
 
         if lamp.type in {'POINT', 'SPOT'}:
-            sub.label(text="Falloff:")
-            sub.prop(lamp, "falloff_type", text="")
-            sub.prop(lamp, "distance")
-            sub.prop(lamp, "shadow_soft_size", text="Radius")
+
+            col = col.column()
+            col.label(text="Falloff")
+            col.prop(lamp, "falloff_type")
+            col.prop(lamp, "distance")
+            col.prop(lamp, "shadow_soft_size")
 
             if lamp.falloff_type == 'LINEAR_QUADRATIC_WEIGHTED':
-                col.label(text="Attenuation Factors:")
                 sub = col.column(align=True)
                 sub.prop(lamp, "linear_attenuation", slider=True, text="Linear")
                 sub.prop(lamp, "quadratic_attenuation", slider=True, text="Quadratic")
 
             elif lamp.falloff_type == 'INVERSE_COEFFICIENTS':
-                col.label(text="Inverse Coefficients:")
+                col.label(text="Inverse Coefficients")
                 sub = col.column(align=True)
                 sub.prop(lamp, "constant_coefficient", text="Constant")
                 sub.prop(lamp, "linear_coefficient", text="Linear")
@@ -119,31 +111,31 @@ class DATA_PT_EEVEE_lamp(DataButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
-
         lamp = context.lamp
 
         layout.row().prop(lamp, "type", expand=True)
 
-        split = layout.split()
+        layout.use_property_split = True
 
-        col = split.column()
-        sub = col.column()
-        sub.prop(lamp, "color", text="")
-        sub.prop(lamp, "energy")
+        col = layout.column()
+        col.prop(lamp, "color")
+        col.prop(lamp, "energy")
+        col.prop(lamp, "specular_factor", text="Specular")
+
+        col.separator()
 
         if lamp.type in {'POINT', 'SPOT', 'SUN'}:
-            sub.prop(lamp, "shadow_soft_size", text="Radius")
+            col.prop(lamp, "shadow_soft_size", text="Radius")
         elif lamp.type == 'AREA':
-            sub = sub.column(align=True)
-            sub.prop(lamp, "shape", text="")
-            if lamp.shape  in {'SQUARE', 'DISK'}:
+            col.prop(lamp, "shape")
+
+            sub = col.column(align=True)
+
+            if lamp.shape in {'SQUARE', 'DISK'}:
                 sub.prop(lamp, "size")
             elif lamp.shape in {'RECTANGLE', 'ELLIPSE'}:
                 sub.prop(lamp, "size", text="Size X")
-                sub.prop(lamp, "size_y", text="Size Y")
-
-        col = split.column()
-        col.prop(lamp, "specular_factor", text="Specular")
+                sub.prop(lamp, "size_y", text="Y")
 
 
 class DATA_PT_EEVEE_shadow(DataButtonsPanel, Panel):
@@ -162,56 +154,88 @@ class DATA_PT_EEVEE_shadow(DataButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         lamp = context.lamp
 
-        split = layout.split()
-        split.active = lamp.use_shadow
+        layout.active = lamp.use_shadow
 
-        sub = split.column()
-        col = sub.column(align=True)
-        col.prop(lamp, "shadow_buffer_clip_start", text="Clip Start")
-        col.prop(lamp, "shadow_buffer_clip_end", text="Clip End")
-        col = sub.column()
-        col.prop(lamp, "shadow_buffer_soft", text="Soft")
+        col = layout.column()
+        sub = col.column(align=True)
+        sub.prop(lamp, "shadow_buffer_clip_start", text="Clip Start")
+        sub.prop(lamp, "shadow_buffer_clip_end", text="End")
 
-        col = split.column(align=True)
+        col.prop(lamp, "shadow_buffer_soft", text="Softness")
+
+        col.separator()
+
         col.prop(lamp, "shadow_buffer_bias", text="Bias")
         col.prop(lamp, "shadow_buffer_exp", text="Exponent")
         col.prop(lamp, "shadow_buffer_bleed_bias", text="Bleed Bias")
 
-        if lamp.type == 'SUN':
-            col = layout.column()
-            col.active = lamp.use_shadow
-            col.label("Cascaded Shadow Map:")
 
-            split = col.split()
+class DATA_PT_EEVEE_shadow_cascaded_shadow_map(DataButtonsPanel, Panel):
+    bl_label = "Cascaded Shadow Map"
+    bl_parent_id = "DATA_PT_EEVEE_shadow"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
-            sub = split.column()
-            sub.prop(lamp, "shadow_cascade_count", text="Count")
-            sub.prop(lamp, "shadow_cascade_fade", text="Fade")
+    @classmethod
+    def poll(cls, context):
+        lamp = context.lamp
+        engine = context.engine
 
-            sub = split.column()
-            sub.prop(lamp, "shadow_cascade_max_distance", text="Max Distance")
-            sub.prop(lamp, "shadow_cascade_exponent", text="Distribution")
+        return (lamp and lamp.type == 'SUN') and (engine in cls.COMPAT_ENGINES)
 
-        layout.separator()
+    def draw(self, context):
+        layout = self.layout
+        lamp = context.lamp
+        layout.use_property_split = True
 
-        layout.prop(lamp, "use_contact_shadow")
-        split = layout.split()
-        split.active = lamp.use_contact_shadow
-        col = split.column()
+        col = layout.column()
+
+        col.prop(lamp, "shadow_cascade_count", text="Count")
+        col.prop(lamp, "shadow_cascade_fade", text="Fade")
+
+        col.prop(lamp, "shadow_cascade_max_distance", text="Max Distance")
+        col.prop(lamp, "shadow_cascade_exponent", text="Distribution")
+
+
+class DATA_PT_EEVEE_shadow_contact(DataButtonsPanel, Panel):
+    bl_label = "Contact Shadows"
+    bl_parent_id = "DATA_PT_EEVEE_shadow"
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+
+    @classmethod
+    def poll(cls, context):
+        lamp = context.lamp
+        engine = context.engine
+        return (lamp and lamp.type in {'POINT', 'SUN', 'SPOT', 'AREA'}) and (engine in cls.COMPAT_ENGINES)
+
+    def draw_header(self, context):
+        lamp = context.lamp
+
+        layout = self.layout
+        layout.active = lamp.use_shadow
+        layout.prop(lamp, "use_contact_shadow", text="")
+
+    def draw(self, context):
+        layout = self.layout
+        lamp = context.lamp
+        layout.use_property_split = True
+
+        col = layout.column()
+        col.active = lamp.use_shadow and lamp.use_contact_shadow
+
         col.prop(lamp, "contact_shadow_distance", text="Distance")
-        col.prop(lamp, "contact_shadow_soft_size", text="Soft")
-
-        col = split.column()
+        col.prop(lamp, "contact_shadow_soft_size", text="Softness")
         col.prop(lamp, "contact_shadow_bias", text="Bias")
         col.prop(lamp, "contact_shadow_thickness", text="Thickness")
 
 
 class DATA_PT_area(DataButtonsPanel, Panel):
     bl_label = "Area Shape"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER'}
 
     @classmethod
     def poll(cls, context):
@@ -237,7 +261,7 @@ class DATA_PT_area(DataButtonsPanel, Panel):
 
 class DATA_PT_spot(DataButtonsPanel, Panel):
     bl_label = "Spot Shape"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER'}
 
     @classmethod
     def poll(cls, context):
@@ -272,6 +296,7 @@ class DATA_PT_spot(DataButtonsPanel, Panel):
 
 class DATA_PT_spot(DataButtonsPanel, Panel):
     bl_label = "Spot Shape"
+    bl_parent_id = "DATA_PT_EEVEE_lamp"
     COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     @classmethod
@@ -282,23 +307,22 @@ class DATA_PT_spot(DataButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         lamp = context.lamp
 
-        split = layout.split()
+        col = layout.column()
 
-        col = split.column()
-        sub = col.column()
-        sub.prop(lamp, "spot_size", text="Size")
-        sub.prop(lamp, "spot_blend", text="Blend", slider=True)
-        col = split.column()
+        col.prop(lamp, "spot_size", text="Size")
+        col.prop(lamp, "spot_blend", text="Blend", slider=True)
+
         col.prop(lamp, "show_cone")
 
 
 class DATA_PT_falloff_curve(DataButtonsPanel, Panel):
     bl_label = "Falloff Curve"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
@@ -314,18 +338,19 @@ class DATA_PT_falloff_curve(DataButtonsPanel, Panel):
 
 
 class DATA_PT_custom_props_lamp(DataButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
     _context_path = "object.data"
     _property_type = bpy.types.Lamp
 
 
 classes = (
-    LAMP_MT_sunsky_presets,
     DATA_PT_context_lamp,
     DATA_PT_preview,
     DATA_PT_lamp,
     DATA_PT_EEVEE_lamp,
     DATA_PT_EEVEE_shadow,
+    DATA_PT_EEVEE_shadow_contact,
+    DATA_PT_EEVEE_shadow_cascaded_shadow_map,
     DATA_PT_area,
     DATA_PT_spot,
     DATA_PT_falloff_curve,

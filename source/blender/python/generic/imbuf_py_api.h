@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, Blender Foundation.
+ * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,22 +15,16 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor(s): Blender Institute
- *
+ * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file clay_engine.h
- *  \ingroup draw_engine
+#ifndef __IMBUF_PY_API_H__
+#define __IMBUF_PY_API_H__
+
+/** \file blender/python/generic/imbuf_py_api.h
+ *  \ingroup pygen
  */
 
-#ifndef __CLAY_ENGINE_H__
-#define __CLAY_ENGINE_H__
+PyObject *BPyInit_imbuf(void);
 
-extern DrawEngineType draw_engine_clay_type;
-extern RenderEngineType DRW_engine_viewport_clay_type;
-
-struct IDProperty;
-
-struct IDProperty *CLAY_render_settings_create(void);
-
-#endif /* __CLAY_ENGINE_H__ */
+#endif  /* __IMBUF_PY_API_H__ */

@@ -202,7 +202,7 @@ typedef struct ModifierTypeInfo {
 	 *
 	 * The derivedData argument should always be non-NULL; the modifier
 	 * should read the object data from the derived object instead of the
-	 * actual object data. 
+	 * actual object data.
 	 *
 	 * The modifier may reuse the derivedData argument (i.e. return it in
 	 * modified form), but must not release it.
@@ -212,7 +212,7 @@ typedef struct ModifierTypeInfo {
 
 	/* Like applyModifier but called during editmode (for supporting
 	 * modifiers).
-	 * 
+	 *
 	 * The derived object that is returned must support the operations that
 	 * are expected from editmode objects. The same qualifications regarding
 	 * derivedData apply as for applyModifier.
@@ -253,7 +253,7 @@ typedef struct ModifierTypeInfo {
 	 *
 	 * The mesh argument should always be non-NULL; the modifier
 	 * should read the object data from the mesh object instead of the
-	 * actual object data. 
+	 * actual object data.
 	 *
 	 * The modifier may reuse the mesh argument (i.e. return it in
 	 * modified form), but must not release it.
@@ -263,7 +263,7 @@ typedef struct ModifierTypeInfo {
 
 	/* Like applyModifier but called during editmode (for supporting
 	 * modifiers).
-	 * 
+	 *
 	 * The mesh object that is returned must support the operations that
 	 * are expected from editmode objects. The same qualifications regarding
 	 * mesh apply as for applyModifier.
@@ -277,7 +277,7 @@ typedef struct ModifierTypeInfo {
 
 	/* Initialize new instance data for this modifier type, this function
 	 * should set modifier variables to their default values.
-	 * 
+	 *
 	 * This function is optional.
 	 */
 	void (*initData)(struct ModifierData *md);
@@ -323,7 +323,7 @@ typedef struct ModifierTypeInfo {
 	 */
 	void (*updateDepsgraph)(struct ModifierData *md,
 	                        const ModifierUpdateDepsgraphContext *ctx);
- 
+
 	/* Should return true if the modifier needs to be recalculated on time
 	 * changes.
 	 *
@@ -335,7 +335,7 @@ typedef struct ModifierTypeInfo {
 	/* True when a deform modifier uses normals, the requiredDataMask
 	 * cant be used here because that refers to a normal layer where as
 	 * in this case we need to know if the deform modifier uses normals.
-	 * 
+	 *
 	 * this is needed because applying 2 deform modifiers will give the
 	 * second modifier bogus normals.
 	 * */
@@ -467,8 +467,8 @@ void test_object_modifiers(struct Object *ob);
 void modifier_mdef_compact_influences(struct ModifierData *md);
 
 void        modifier_path_init(char *path, int path_maxlen, const char *name);
-const char *modifier_path_relbase(struct Object *ob);
-
+const char *modifier_path_relbase(struct Main *bmain, struct Object *ob);
+const char *modifier_path_relbase_from_global(struct Object *ob);
 
 /* wrappers for modifier callbacks that ensure valid normals */
 
@@ -557,9 +557,8 @@ struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(
         struct ModifierData *md, const struct ModifierEvalContext *ctx,
         struct BMEditMesh *editData, struct DerivedMesh *dm);
 
-struct Mesh *BKE_modifier_get_evaluated_mesh_from_object(
-        const struct ModifierEvalContext *ctx,
-        struct Object *ob);
+struct Mesh *BKE_modifier_get_evaluated_mesh_from_evaluated_object(
+        struct Object *ob_eval, bool *r_free_mesh);
 
 #endif
 

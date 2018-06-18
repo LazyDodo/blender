@@ -59,7 +59,7 @@
 
 static bool collection_child_add(Collection *parent, Collection *collection, int flag, const bool add_us);
 static bool collection_child_remove(Collection *parent, Collection *collection);
-static bool collection_object_add(Collection *collection, Object *ob, int flag, const bool add_us);
+static bool collection_object_add(Main *bmain, Collection *collection, Object *ob, int flag, const bool add_us);
 static bool collection_object_remove(Main *bmain, Collection *collection, Object *ob, const bool free_us);
 
 static CollectionChild *collection_find_child(Collection *parent, Collection *collection);
@@ -163,7 +163,7 @@ bool BKE_collection_delete(Main *bmain, Collection *collection, bool hierarchy)
 			/* Link child object into parent collections. */
 			for (CollectionParent *cparent = collection->parents.first; cparent; cparent = cparent->next) {
 				Collection *parent = cparent->collection;
-				collection_object_add(parent, cob->ob, 0, true);
+				collection_object_add(bmain, parent, cob->ob, 0, true);
 			}
 
 			/* Remove child object. */
@@ -190,7 +190,7 @@ bool BKE_collection_delete(Main *bmain, Collection *collection, bool hierarchy)
  * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_collection_copy_data(
-        Main *UNUSED(bmain), Collection *collection_dst, const Collection *collection_src, const int flag)
+        Main *bmain, Collection *collection_dst, const Collection *collection_src, const int flag)
 {
 	/* Do not copy collection's preview (same behavior as for objects). */
 	if ((flag & LIB_ID_COPY_NO_PREVIEW) == 0 && false) {  /* XXX TODO temp hack */
@@ -211,7 +211,7 @@ void BKE_collection_copy_data(
 		collection_child_add(collection_dst, child->collection, flag, false);
 	}
 	for (CollectionObject *cob = collection_src->gobject.first; cob; cob = cob->next) {
-		collection_object_add(collection_dst, cob->ob, flag, false);
+		collection_object_add(bmain, collection_dst, cob->ob, flag, false);
 	}
 }
 
@@ -297,37 +297,6 @@ void BKE_collection_new_name_get(Collection *collection_parent, char *rname)
 	MEM_freeN(name);
 }
 
-/************************* Dependencies ****************************/
-
-bool BKE_collection_is_animated(Collection *collection, Object *UNUSED(parent))
-{
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, object)
-	{
-		if (object->proxy) {
-			return true;
-		}
-	}
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
-	return false;
-}
-
-/* puts all collection members in local timing system, after this call
- * you can draw everything, leaves tags in objects to signal it needs further updating */
-
-/* note: does not work for derivedmesh and render... it recreates all again in convertblender.c */
-void BKE_collection_handle_recalc_and_update(
-        struct Depsgraph *depsgraph, Scene *scene, Object *UNUSED(parent), Collection *collection)
-{
-	/* only do existing tags, as set by regular depsgraph */
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, object)
-	{
-		if (object->id.recalc & ID_RECALC_ALL) {
-			BKE_object_handle_update(depsgraph, scene, object);
-		}
-	}
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
-}
-
 /* **************** Object List Cache *******************/
 
 static void collection_object_cache_fill(ListBase *lb, Collection *collection, int parent_restrict)
@@ -342,13 +311,8 @@ static void collection_object_cache_fill(ListBase *lb, Collection *collection, i
 			base->object = cob->ob;
 
 			if ((child_restrict & COLLECTION_RESTRICT_VIEW) == 0) {
-				base->flag |= BASE_VISIBLED | BASE_VISIBLE_VIEWPORT;
-
-				if ((child_restrict & COLLECTION_RESTRICT_SELECT) == 0) {
-					base->flag |= BASE_SELECTABLED;
-				}
+				base->flag |= BASE_VISIBLE_VIEWPORT;
 			}
-
 			if ((child_restrict & COLLECTION_RESTRICT_RENDER) == 0) {
 				base->flag |= BASE_VISIBLE_RENDER;
 			}
@@ -367,12 +331,12 @@ ListBase BKE_collection_object_cache_get(Collection *collection)
 	if (!(collection->flag & COLLECTION_HAS_OBJECT_CACHE)) {
 		static ThreadMutex cache_lock = BLI_MUTEX_INITIALIZER;
 
+		BLI_mutex_lock(&cache_lock);
 		if (!(collection->flag & COLLECTION_HAS_OBJECT_CACHE)) {
-			BLI_mutex_lock(&cache_lock);
 			collection_object_cache_fill(&collection->object_cache, collection, 0);
 			collection->flag |= COLLECTION_HAS_OBJECT_CACHE;
-			BLI_mutex_unlock(&cache_lock);
 		}
+		BLI_mutex_unlock(&cache_lock);
 	}
 
 	return collection->object_cache;
@@ -394,7 +358,7 @@ void BKE_collection_object_cache_free(Collection *collection)
 	collection_object_cache_free(collection);
 }
 
-Base *BKE_collection_or_layer_objects(Depsgraph *depsgraph,
+Base *BKE_collection_or_layer_objects(const Depsgraph *depsgraph,
                                       const Scene *scene,
                                       const ViewLayer *view_layer,
                                       Collection *collection)
@@ -522,7 +486,7 @@ Collection *BKE_collection_object_find(Main *bmain, Collection *collection, Obje
 
 /********************** Collection Objects *********************/
 
-static bool collection_object_add(Collection *collection, Object *ob, int flag, const bool add_us)
+static bool collection_object_add(Main *bmain, Collection *collection, Object *ob, int flag, const bool add_us)
 {
 	if (ob->dup_group) {
 		/* Cyclic dependency check. */
@@ -545,6 +509,10 @@ static bool collection_object_add(Collection *collection, Object *ob, int flag, 
 		id_us_plus(&ob->id);
 	}
 
+	if ((flag & LIB_ID_CREATE_NO_MAIN) == 0) {
+		DEG_id_tag_update_ex(bmain, &collection->id, DEG_TAG_COPY_ON_WRITE);
+	}
+
 	return true;
 }
 
@@ -565,6 +533,8 @@ static bool collection_object_remove(Main *bmain, Collection *collection, Object
 		id_us_min(&ob->id);
 	}
 
+	DEG_id_tag_update_ex(bmain, &collection->id, DEG_TAG_COPY_ON_WRITE);
+
 	return true;
 }
 
@@ -577,7 +547,7 @@ bool BKE_collection_object_add(Main *bmain, Collection *collection, Object *ob)
 		return false;
 	}
 
-	if (!collection_object_add(collection, ob, 0, true)) {
+	if (!collection_object_add(bmain, collection, ob, 0, true)) {
 		return false;
 	}
 
@@ -597,7 +567,7 @@ void BKE_collection_object_add_from(Main *bmain, Scene *scene, Object *ob_src, O
 	FOREACH_SCENE_COLLECTION_BEGIN(scene, collection)
 	{
 		if (BKE_collection_has_object(collection, ob_src)) {
-			collection_object_add(collection, ob_dst, 0, true);
+			collection_object_add(bmain, collection, ob_dst, 0, true);
 		}
 	}
 	FOREACH_SCENE_COLLECTION_END;

@@ -49,8 +49,8 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BLI_math.h"		
-#include "BLI_listbase.h"		
+#include "BLI_math.h"
+#include "BLI_listbase.h"
 #include "BLI_utildefines.h"
 #include "BLI_string.h"
 #include "BLI_array_utils.h"
@@ -90,10 +90,10 @@ void init_def_material(void)
 void BKE_material_free(Material *ma)
 {
 	BKE_animdata_free((ID *)ma, false);
-	
+
 	/* Free gpu material before the ntree */
 	GPU_material_free(&ma->gpumaterial);
-	
+
 	/* is no lib link block, but material extension */
 	if (ma->nodetree) {
 		ntreeFreeTree(ma->nodetree);
@@ -113,11 +113,11 @@ void BKE_material_init(Material *ma)
 
 	ma->r = ma->g = ma->b = 0.8;
 	ma->specr = ma->specg = ma->specb = 1.0;
-	ma->alpha = 1.0;
+	// ma->alpha = 1.0;  /* DEPRECATED */
 	ma->spec = 0.5;
 
-	ma->gloss_mir = 1.0;
-	
+	ma->roughness = 0.25f;
+
 	ma->pr_lamp = 3;         /* two lamps, is bits */
 	ma->pr_type = MA_SPHERE;
 
@@ -131,9 +131,9 @@ Material *BKE_material_add(Main *bmain, const char *name)
 	Material *ma;
 
 	ma = BKE_libblock_alloc(bmain, ID_MA, name, 0);
-	
+
 	BKE_material_init(ma);
-	
+
 	return ma;
 }
 
@@ -218,7 +218,7 @@ Material ***give_matarar(Object *ob)
 	Mesh *me;
 	Curve *cu;
 	MetaBall *mb;
-	
+
 	if (ob->type == OB_MESH) {
 		me = ob->data;
 		return &(me->mat);
@@ -239,7 +239,7 @@ short *give_totcolp(Object *ob)
 	Mesh *me;
 	Curve *cu;
 	MetaBall *mb;
-	
+
 	if (ob->type == OB_MESH) {
 		me = ob->data;
 		return &(me->totcol);
@@ -402,7 +402,7 @@ Material *BKE_material_pop_id(Main *bmain, ID *id, int index_i, bool update_data
 
 				(*totcol)--;
 				*matar = MEM_reallocN(*matar, sizeof(void *) * (*totcol));
-				test_all_objects_materials(G.main, id);
+				test_all_objects_materials(bmain, id);
 			}
 
 			if (update_data) {
@@ -413,7 +413,7 @@ Material *BKE_material_pop_id(Main *bmain, ID *id, int index_i, bool update_data
 			DEG_relations_tag_update(bmain);
 		}
 	}
-	
+
 	return ret;
 }
 
@@ -447,7 +447,7 @@ Material *give_current_material(Object *ob, short act)
 	const short *totcolp;
 
 	if (ob == NULL) return NULL;
-	
+
 	/* if object cannot have material, (totcolp == NULL) */
 	totcolp = give_totcolp(ob);
 	if (totcolp == NULL || ob->totcol == 0) return NULL;
@@ -473,12 +473,12 @@ Material *give_current_material(Object *ob, short act)
 		if (act > ob->totcol) act = ob->totcol;
 
 		matarar = give_matarar(ob);
-		
+
 		if (matarar && *matarar) ma = (*matarar)[act - 1];
 		else ma = NULL;
-		
+
 	}
-	
+
 	return ma;
 }
 
@@ -535,7 +535,7 @@ void BKE_material_resize_object(Main *bmain, Object *ob, const short totcol, boo
 	DEG_relations_tag_update(bmain);
 }
 
-void test_object_materials(Object *ob, ID *id)
+void test_object_materials(Main *bmain, Object *ob, ID *id)
 {
 	/* make the ob mat-array same size as 'ob->data' mat-array */
 	const short *totcol;
@@ -544,7 +544,7 @@ void test_object_materials(Object *ob, ID *id)
 		return;
 	}
 
-	BKE_material_resize_object(G.main, ob, *totcol, false);
+	BKE_material_resize_object(bmain, ob, *totcol, false);
 }
 
 void test_all_objects_materials(Main *bmain, ID *id)
@@ -566,7 +566,7 @@ void test_all_objects_materials(Main *bmain, ID *id)
 	BKE_main_unlock(bmain);
 }
 
-void assign_material_id(ID *id, Material *ma, short act)
+void assign_material_id(Main *bmain, ID *id, Material *ma, short act)
 {
 	Material *mao, **matar, ***matarar;
 	short *totcolp;
@@ -610,10 +610,10 @@ void assign_material_id(ID *id, Material *ma, short act)
 	if (ma)
 		id_us_plus(&ma->id);
 
-	test_all_objects_materials(G.main, id);
+	test_all_objects_materials(bmain, id);
 }
 
-void assign_material(Object *ob, Material *ma, short act, int assign_type)
+void assign_material(Main *bmain, Object *ob, Material *ma, short act, int assign_type)
 {
 	Material *mao, **matar, ***matarar;
 	short *totcolp;
@@ -621,18 +621,18 @@ void assign_material(Object *ob, Material *ma, short act, int assign_type)
 
 	if (act > MAXMAT) return;
 	if (act < 1) act = 1;
-	
+
 	/* prevent crashing when using accidentally */
 	BLI_assert(!ID_IS_LINKED(ob));
 	if (ID_IS_LINKED(ob)) return;
-	
+
 	/* test arraylens */
-	
+
 	totcolp = give_totcolp(ob);
 	matarar = give_matarar(ob);
-	
+
 	if (totcolp == NULL || matarar == NULL) return;
-	
+
 	if (act > *totcolp) {
 		matar = MEM_callocN(sizeof(void *) * act, "matarray1");
 
@@ -676,7 +676,7 @@ void assign_material(Object *ob, Material *ma, short act, int assign_type)
 				break;
 		}
 	}
-	
+
 	/* do it */
 
 	ob->matbits[act - 1] = bit;
@@ -685,14 +685,14 @@ void assign_material(Object *ob, Material *ma, short act, int assign_type)
 		if (mao)
 			id_us_min(&mao->id);
 		ob->mat[act - 1] = ma;
-		test_object_materials(ob, ob->data);
+		test_object_materials(bmain, ob, ob->data);
 	}
 	else {  /* in data */
 		mao = (*matarar)[act - 1];
 		if (mao)
 			id_us_min(&mao->id);
 		(*matarar)[act - 1] = ma;
-		test_all_objects_materials(G.main, ob->data);  /* Data may be used by several objects... */
+		test_all_objects_materials(bmain, ob->data);  /* Data may be used by several objects... */
 	}
 
 	if (ma)
@@ -785,20 +785,20 @@ void BKE_material_remap_object_calc(
 
 
 /* XXX - this calls many more update calls per object then are needed, could be optimized */
-void assign_matarar(struct Object *ob, struct Material ***matar, short totcol)
+void assign_matarar(Main *bmain, struct Object *ob, struct Material ***matar, short totcol)
 {
 	int actcol_orig = ob->actcol;
 	short i;
 
 	while ((ob->totcol > totcol) &&
-	       BKE_object_material_slot_remove(ob))
+	       BKE_object_material_slot_remove(bmain, ob))
 	{
 		/* pass */
 	}
 
 	/* now we have the right number of slots */
 	for (i = 0; i < totcol; i++)
-		assign_material(ob, (*matar)[i], i + 1, BKE_MAT_ASSIGN_USERPREF);
+		assign_material(bmain, ob, (*matar)[i], i + 1, BKE_MAT_ASSIGN_USERPREF);
 
 	if (actcol_orig > ob->totcol)
 		actcol_orig = ob->totcol;
@@ -811,14 +811,14 @@ short BKE_object_material_slot_find_index(Object *ob, Material *ma)
 {
 	Material ***matarar;
 	short a, *totcolp;
-	
+
 	if (ma == NULL) return 0;
-	
+
 	totcolp = give_totcolp(ob);
 	matarar = give_matarar(ob);
-	
+
 	if (totcolp == NULL || matarar == NULL) return 0;
-	
+
 	for (a = 0; a < *totcolp; a++)
 		if ((*matarar)[a] == ma)
 			break;
@@ -827,24 +827,24 @@ short BKE_object_material_slot_find_index(Object *ob, Material *ma)
 	return 0;
 }
 
-bool BKE_object_material_slot_add(Object *ob)
+bool BKE_object_material_slot_add(Main *bmain, Object *ob)
 {
 	if (ob == NULL) return false;
 	if (ob->totcol >= MAXMAT) return false;
-	
-	assign_material(ob, NULL, ob->totcol + 1, BKE_MAT_ASSIGN_USERPREF);
+
+	assign_material(bmain, ob, NULL, ob->totcol + 1, BKE_MAT_ASSIGN_USERPREF);
 	ob->actcol = ob->totcol;
 	return true;
 }
 
 /* ****************** */
 
-bool BKE_object_material_slot_remove(Object *ob)
+bool BKE_object_material_slot_remove(Main *bmain, Object *ob)
 {
 	Material *mao, ***matarar;
 	short *totcolp;
 	short a, actcol;
-	
+
 	if (ob == NULL || ob->totcol == 0) {
 		return false;
 	}
@@ -858,10 +858,10 @@ bool BKE_object_material_slot_remove(Object *ob)
 
 	/* take a mesh/curve/mball as starting point, remove 1 index,
 	 * AND with all objects that share the ob->data
-	 * 
+	 *
 	 * after that check indices in mesh/curve/mball!!!
 	 */
-	
+
 	totcolp = give_totcolp(ob);
 	matarar = give_matarar(ob);
 
@@ -873,24 +873,24 @@ bool BKE_object_material_slot_remove(Object *ob)
 	if (ob->actcol > ob->totcol) {
 		ob->actcol = ob->totcol;
 	}
-	
+
 	/* we delete the actcol */
 	mao = (*matarar)[ob->actcol - 1];
 	if (mao)
 		id_us_min(&mao->id);
-	
+
 	for (a = ob->actcol; a < ob->totcol; a++)
 		(*matarar)[a - 1] = (*matarar)[a];
 	(*totcolp)--;
-	
+
 	if (*totcolp == 0) {
 		MEM_freeN(*matarar);
 		*matarar = NULL;
 	}
-	
+
 	actcol = ob->actcol;
 
-	for (Object *obt = G.main->object.first; obt; obt = obt->id.next) {
+	for (Object *obt = bmain->object.first; obt; obt = obt->id.next) {
 		if (obt->data == ob->data) {
 			/* Can happen when object material lists are used, see: T52953 */
 			if (actcol > obt->totcol) {
@@ -900,14 +900,14 @@ bool BKE_object_material_slot_remove(Object *ob)
 			mao = obt->mat[actcol - 1];
 			if (mao)
 				id_us_min(&mao->id);
-		
+
 			for (a = actcol; a < obt->totcol; a++) {
 				obt->mat[a - 1] = obt->mat[a];
 				obt->matbits[a - 1] = obt->matbits[a];
 			}
 			obt->totcol--;
 			if (obt->actcol > obt->totcol) obt->actcol = obt->totcol;
-			
+
 			if (obt->totcol == 0) {
 				MEM_freeN(obt->mat);
 				MEM_freeN(obt->matbits);
@@ -932,7 +932,7 @@ static bNode *nodetree_uv_node_recursive(bNode *node)
 {
 	bNode *inode;
 	bNodeSocket *sock;
-	
+
 	for (sock = node->inputs.first; sock; sock = sock->next) {
 		if (sock->link) {
 			inode = sock->link->fromnode;
@@ -944,7 +944,7 @@ static bNode *nodetree_uv_node_recursive(bNode *node)
 			}
 		}
 	}
-	
+
 	return NULL;
 }
 
@@ -967,7 +967,7 @@ void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 		ma->paint_clone_slot = 0;
 		return;
 	}
-	
+
 	bNode *node, *active_node;
 
 	if (!(ma->nodetree)) {
@@ -995,10 +995,10 @@ void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 			if (active_node == node)
 				ma->paint_active_slot = index;
 			ma->texpaintslot[index].ima = (Image *)node->id;
-			
+
 			/* for new renderer, we need to traverse the treeback in search of a UV node */
 			bNode *uvnode = nodetree_uv_node_recursive(node);
-			
+
 			if (uvnode) {
 				NodeShaderUVMap *storage = (NodeShaderUVMap *)uvnode->storage;
 				ma->texpaintslot[index].uvname = storage->uv_map;
@@ -1014,8 +1014,8 @@ void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 	}
 
 	ma->tot_slots = count;
-	
-	
+
+
 	if (ma->paint_active_slot >= count) {
 		ma->paint_active_slot = count - 1;
 	}
@@ -1042,7 +1042,7 @@ void BKE_texpaint_slots_refresh_object(Scene *scene, struct Object *ob)
 void ramp_blend(int type, float r_col[3], const float fac, const float col[3])
 {
 	float tmp, facm = 1.0f - fac;
-	
+
 	switch (type) {
 		case MA_RAMP_BLEND:
 			r_col[0] = facm * (r_col[0]) + fac * col[0];
@@ -1276,21 +1276,21 @@ void free_matcopybuf(void)
 	matcopied = 0;
 }
 
-void copy_matcopybuf(Material *ma)
+void copy_matcopybuf(Main *bmain, Material *ma)
 {
 	if (matcopied)
 		free_matcopybuf();
 
 	memcpy(&matcopybuf, ma, sizeof(Material));
 
-	matcopybuf.nodetree = ntreeCopyTree_ex(ma->nodetree, G.main, false);
+	matcopybuf.nodetree = ntreeCopyTree_ex(ma->nodetree, bmain, false);
 	matcopybuf.preview = NULL;
 	BLI_listbase_clear(&matcopybuf.gpumaterial);
 	/* TODO Duplicate Engine Settings and set runtime to NULL */
 	matcopied = 1;
 }
 
-void paste_matcopybuf(Material *ma)
+void paste_matcopybuf(Main *bmain, Material *ma)
 {
 	ID id;
 
@@ -1309,13 +1309,11 @@ void paste_matcopybuf(Material *ma)
 	memcpy(ma, &matcopybuf, sizeof(Material));
 	(ma->id) = id;
 
-	ma->nodetree = ntreeCopyTree_ex(matcopybuf.nodetree, G.main, false);
+	ma->nodetree = ntreeCopyTree_ex(matcopybuf.nodetree, bmain, false);
 }
 
 void BKE_material_eval(struct Depsgraph *depsgraph, Material *material)
 {
 	DEG_debug_print_eval(depsgraph, __func__, material->id.name, material);
-	if ((BLI_listbase_is_empty(&material->gpumaterial) == false)) {
-		GPU_material_uniform_buffer_tag_dirty(&material->gpumaterial);
-	}
+	GPU_material_free(&material->gpumaterial);
 }

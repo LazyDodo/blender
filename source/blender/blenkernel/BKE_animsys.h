@@ -33,6 +33,8 @@
 
 struct AnimData;
 struct AnimMapper;
+struct ChannelDriver;
+struct Depsgraph;
 struct FCurve;
 struct ID;
 struct KS_Path;
@@ -74,21 +76,23 @@ struct AnimData *BKE_animdata_copy(struct Main *bmain, struct AnimData *adt, con
 bool BKE_animdata_copy_id(struct Main *bmain, struct ID *id_to, struct ID *id_from, const bool do_action, const bool do_id_user);
 
 /* Copy AnimData Actions */
-void BKE_animdata_copy_id_action(struct ID *id, const bool set_newid);
+void BKE_animdata_copy_id_action(struct Main *bmain, struct ID *id, const bool set_newid);
 
 /* Merge copies of data from source AnimData block */
 typedef enum eAnimData_MergeCopy_Modes {
 	/* Keep destination action */
 	ADT_MERGECOPY_KEEP_DST = 0,
-	
+
 	/* Use src action (make a new copy) */
 	ADT_MERGECOPY_SRC_COPY = 1,
-	
+
 	/* Use src action (but just reference the existing version) */
 	ADT_MERGECOPY_SRC_REF  = 2
 } eAnimData_MergeCopy_Modes;
 
-void BKE_animdata_merge_copy(struct ID *dst_id, struct ID *src_id, eAnimData_MergeCopy_Modes action_mode, bool fix_drivers);
+void BKE_animdata_merge_copy(
+        struct Main *bmain, struct ID *dst_id, struct ID *src_id,
+        eAnimData_MergeCopy_Modes action_mode, bool fix_drivers);
 
 /* ************************************* */
 /* KeyingSets API */
@@ -139,7 +143,8 @@ void BKE_animdata_fix_paths_remove(struct ID *id, const char *path);
 /* -------------------------------------- */
 
 /* Move animation data from src to destination if it's paths are based on basepaths */
-void BKE_animdata_separate_by_basepath(struct ID *srcID, struct ID *dstID, struct ListBase *basepaths);
+void BKE_animdata_separate_by_basepath(
+        struct Main *bmain, struct ID *srcID, struct ID *dstID, struct ListBase *basepaths);
 
 /* Move F-Curves from src to destination if it's path is based on basepath */
 void action_move_fcurves_by_basepath(struct bAction *srcAct, struct bAction *dstAct, const char basepath[]);
@@ -173,24 +178,24 @@ void BKE_fcurves_main_cb(struct Main *bmain, ID_FCurve_Edit_Callback func, void 
 /* In general, these ones should be called to do all animation evaluation */
 
 /* Evaluation loop for evaluating animation data  */
-void BKE_animsys_evaluate_animdata(struct Scene *scene, struct ID *id, struct AnimData *adt, float ctime, short recalc);
+void BKE_animsys_evaluate_animdata(struct Depsgraph *depsgraph, struct Scene *scene, struct ID *id, struct AnimData *adt, float ctime, short recalc);
 
 /* Evaluation of all ID-blocks with Animation Data blocks - Animation Data Only */
-void BKE_animsys_evaluate_all_animation(struct Main *main, struct Scene *scene, float ctime);
+void BKE_animsys_evaluate_all_animation(struct Main *main, struct Depsgraph *depsgraph, struct Scene *scene, float ctime);
 
 /* TODO(sergey): This is mainly a temp public function. */
 bool BKE_animsys_execute_fcurve(struct PointerRNA *ptr, struct AnimMapper *remap, struct FCurve *fcu, float curval);
 
 /* ------------ Specialized API --------------- */
 /* There are a few special tools which require these following functions. They are NOT to be used
- * for standard animation evaluation UNDER ANY CIRCUMSTANCES! 
+ * for standard animation evaluation UNDER ANY CIRCUMSTANCES!
  *
- * i.e. Pose Library (PoseLib) uses some of these for selectively applying poses, but 
+ * i.e. Pose Library (PoseLib) uses some of these for selectively applying poses, but
  *	    Particles/Sequencer performing funky time manipulation is not ok.
  */
 
 /* Evaluate Action (F-Curve Bag) */
-void animsys_evaluate_action(struct PointerRNA *ptr, struct bAction *act, struct AnimMapper *remap, float ctime);
+void animsys_evaluate_action(struct Depsgraph *depsgraph, struct PointerRNA *ptr, struct bAction *act, struct AnimMapper *remap, float ctime);
 
 /* Evaluate Action Group */
 void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, struct bActionGroup *agrp, struct AnimMapper *remap, float ctime);
@@ -202,7 +207,9 @@ void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, 
 struct Depsgraph;
 
 void BKE_animsys_eval_animdata(struct Depsgraph *depsgraph, struct ID *id);
-void BKE_animsys_eval_driver(struct Depsgraph *depsgraph, struct ID *id, struct FCurve *fcurve);
+void BKE_animsys_eval_driver(struct Depsgraph *depsgraph, struct ID *id, int driver_index, struct ChannelDriver *driver_orig);
+
+void BKE_animsys_update_driver_array(struct ID *id);
 
 /* ************************************* */
 

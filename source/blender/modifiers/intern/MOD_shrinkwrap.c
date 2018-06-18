@@ -111,7 +111,7 @@ static void deformVerts(
 
 	BLI_assert(mesh_src->totvert == numVerts);
 
-	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts, ctx);
+	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
 }
 
 static void deformVertsEM(
@@ -127,7 +127,7 @@ static void deformVertsEM(
 
 	BLI_assert(mesh_src->totvert == numVerts);
 
-	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts, ctx);
+	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
 
 	if (!mesh) {
 		BKE_id_free(NULL, mesh_src);
@@ -153,7 +153,7 @@ static bool dependsOnNormals(ModifierData *md)
 
 	if (smd->target && smd->shrinkType == MOD_SHRINKWRAP_PROJECT)
 		return (smd->projAxis == MOD_SHRINKWRAP_PROJECT_OVER_NORMAL);
-	
+
 	return false;
 }
 

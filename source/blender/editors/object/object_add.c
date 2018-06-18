@@ -82,6 +82,7 @@
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_nla.h"
 #include "BKE_object.h"
 #include "BKE_particle.h"
@@ -930,6 +931,7 @@ static int empty_drop_named_image_invoke(bContext *C, wmOperator *op, const wmEv
 	/* if empty under cursor, then set object */
 	if (base && base->object->type == OB_EMPTY) {
 		ob = base->object;
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else {
@@ -1051,16 +1053,17 @@ void OBJECT_OT_lamp_add(wmOperatorType *ot)
 
 static int collection_instance_add_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	Collection *collection;
 	unsigned int layer;
 	float loc[3], rot[3];
-	
+
 	if (RNA_struct_property_is_set(op->ptr, "name")) {
 		char name[MAX_ID_NAME - 2];
-		
+
 		RNA_string_get(op->ptr, "name", name);
-		collection = (Collection *)BKE_libblock_find_name(ID_GR, name);
-		
+		collection = (Collection *)BKE_libblock_find_name(bmain, ID_GR, name);
+
 		if (0 == RNA_struct_property_is_set(op->ptr, "location")) {
 			const wmEvent *event = CTX_wm_window(C)->eventstate;
 			ARegion *ar = CTX_wm_region(C);
@@ -1078,7 +1081,6 @@ static int collection_instance_add_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	if (collection) {
-		Main *bmain = CTX_data_main(C);
 		Scene *scene = CTX_data_scene(C);
 		ViewLayer *view_layer = CTX_data_view_layer(C);
 
@@ -1097,6 +1099,7 @@ static int collection_instance_add_exec(bContext *C, wmOperator *op)
 		DEG_relations_tag_update(bmain);
 		DEG_id_tag_update(&collection->id, 0);
 
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 
 		return OPERATOR_FINISHED;
@@ -1216,7 +1219,7 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 	const bool use_global = RNA_boolean_get(op->ptr, "use_global");
 	bool changed = false;
 
-	if (CTX_data_edit_object(C)) 
+	if (CTX_data_edit_object(C))
 		return OPERATOR_CANCELLED;
 
 	CTX_DATA_BEGIN (C, Object *, ob, selected_objects)
@@ -1290,9 +1293,10 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 
 		if (scene->id.tag & LIB_TAG_DOIT) {
 			scene->id.tag &= ~LIB_TAG_DOIT;
-			
+
 			DEG_relations_tag_update(bmain);
 
+			DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 			WM_event_add_notifier(C, NC_SCENE | ND_LAYER_CONTENT, scene);
 		}
@@ -1634,10 +1638,10 @@ static void convert_ensure_curve_cache(Depsgraph *depsgraph, Scene *scene, Objec
 	}
 }
 
-static void curvetomesh(Depsgraph *depsgraph, Scene *scene, Object *ob)
+static void curvetomesh(Main *bmain, Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
 	convert_ensure_curve_cache(depsgraph, scene, ob);
-	BKE_mesh_from_nurbs(ob); /* also does users */
+	BKE_mesh_from_nurbs(bmain, ob); /* also does users */
 
 	if (ob->type == OB_MESH) {
 		BKE_object_free_modifiers(ob, 0);
@@ -1784,7 +1788,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 				newob = ob;
 			}
 
-			BKE_mesh_to_curve(depsgraph, scene, newob);
+			BKE_mesh_to_curve(bmain, depsgraph, scene, newob);
 
 			if (newob->type == OB_CURVE) {
 				BKE_object_free_modifiers(newob, 0);   /* after derivedmesh calls! */
@@ -1845,7 +1849,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			 *               datablock, but for until we've got granular update
 			 *               lets take care by selves.
 			 */
-			BKE_vfont_to_curve(bmain, newob, FO_EDIT);
+			BKE_vfont_to_curve(newob, FO_EDIT);
 
 			newob->type = OB_CURVE;
 			cu->type = OB_CURVE;
@@ -1886,7 +1890,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			BKE_curve_curve_dimension_update(cu);
 
 			if (target == OB_MESH) {
-				curvetomesh(depsgraph, scene, newob);
+				curvetomesh(bmain, depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -1910,7 +1914,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 					newob = ob;
 				}
 
-				curvetomesh(depsgraph, scene, newob);
+				curvetomesh(bmain, depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -2017,6 +2021,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	}
 
 	DEG_relations_tag_update(bmain);
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
@@ -2046,7 +2051,7 @@ void OBJECT_OT_convert(wmOperatorType *ot)
 
 /**************************** Duplicate ************************/
 
-/* 
+/*
  * dupflag: a flag made from constants declared in DNA_userdef_types.h
  * The flag tells adduplicate() whether to copy data linked to the object, or to reference the existing data.
  * U.dupflag for default operations or you can construct a flag as python does
@@ -2071,7 +2076,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 	}
 	else {
 		obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
-		DEG_id_tag_update(&obn->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+		DEG_id_tag_update(&obn->id, OB_RECALC_OB | OB_RECALC_DATA);
 
 		base = BKE_view_layer_base_find(view_layer, ob);
 		if ((base != NULL) && (base->flag & BASE_VISIBLED)) {
@@ -2097,7 +2102,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 
 		/* duplicates using userflags */
 		if (dupflag & USER_DUP_ACT) {
-			BKE_animdata_copy_id_action(&obn->id, true);
+			BKE_animdata_copy_id_action(bmain, &obn->id, true);
 		}
 
 		if (dupflag & USER_DUP_MAT) {
@@ -2111,7 +2116,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					id_us_min(id);
 
 					if (dupflag & USER_DUP_ACT) {
-						BKE_animdata_copy_id_action(&obn->mat[a]->id, true);
+						BKE_animdata_copy_id_action(bmain, &obn->mat[a]->id, true);
 					}
 				}
 			}
@@ -2127,7 +2132,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					}
 
 					if (dupflag & USER_DUP_ACT) {
-						BKE_animdata_copy_id_action(&psys->part->id, true);
+						BKE_animdata_copy_id_action(bmain, &psys->part->id, true);
 					}
 
 					id_us_min(id);
@@ -2255,9 +2260,9 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 			}
 
 			if (dupflag & USER_DUP_ACT) {
-				BKE_animdata_copy_id_action((ID *)obn->data, true);
+				BKE_animdata_copy_id_action(bmain, (ID *)obn->data, true);
 				if (key) {
-					BKE_animdata_copy_id_action((ID *)key, true);
+					BKE_animdata_copy_id_action(bmain, (ID *)key, true);
 				}
 			}
 
@@ -2352,8 +2357,7 @@ static int duplicate_exec(bContext *C, wmOperator *op)
 	BKE_main_id_clear_newpoins(bmain);
 
 	DEG_relations_tag_update(bmain);
-	/* TODO(sergey): Use proper flag for tagging here. */
-	DEG_id_tag_update(&CTX_data_scene(C)->id, 0);
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_SELECT_UPDATE);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
@@ -2399,7 +2403,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 
 	/* find object, create fake base */
 	RNA_string_get(op->ptr, "name", name);
-	ob = (Object *)BKE_libblock_find_name(ID_OB, name);
+	ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, name);
 
 	if (ob == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "Object not found");
@@ -2424,7 +2428,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 		ED_object_location_from_view(C, basen->object->loc);
 		ED_view3d_cursor3d_position(C, basen->object->loc, mval);
 	}
-	
+
 	ED_object_base_select(basen, BA_SELECT);
 	ED_object_base_activate(C, basen);
 
@@ -2435,6 +2439,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 	/* TODO(sergey): Only update relations for the current scene. */
 	DEG_relations_tag_update(bmain);
 
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 

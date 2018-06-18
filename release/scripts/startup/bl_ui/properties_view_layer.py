@@ -34,7 +34,7 @@ class ViewLayerButtonsPanel:
 
 class VIEWLAYER_PT_layer(ViewLayerButtonsPanel, Panel):
     bl_label = "View Layer"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
@@ -43,7 +43,7 @@ class VIEWLAYER_PT_layer(ViewLayerButtonsPanel, Panel):
         rd = scene.render
         layer = bpy.context.view_layer
 
-        layout.prop(layer, "use", text="Use for Rendering");
+        layout.prop(layer, "use", text="Use for Rendering")
         layout.prop(rd, "use_single_layer", text="Render Single Layer")
 
 

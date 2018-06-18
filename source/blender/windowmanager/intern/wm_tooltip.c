@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -41,6 +41,8 @@ void WM_tooltip_timer_init(
         bContext *C, wmWindow *win, ARegion *ar,
         wmTooltipInitFn init)
 {
+	WM_tooltip_timer_clear(C, win);
+
 	bScreen *screen = WM_window_get_active_screen(win);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	if (screen->tool_tip == NULL) {

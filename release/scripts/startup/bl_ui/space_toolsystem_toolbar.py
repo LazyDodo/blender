@@ -91,24 +91,25 @@ class _defs_view3d_generic:
                 ("transform.translate",
                  dict(release_confirm=True, cursor_transform=True),
                  dict(type='EVT_TWEAK_A', value='ANY'),
-                ),
+                 ),
             ),
         )
 
     @ToolDef.from_fn
     def cursor_click():
         return dict(
-            text="Cursor Click",
+            text="None",
             icon="ops.generic.cursor",
             keymap=(
-                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK')),
+                # This is a dummy keymap entry, until particle system is properly working with toolsystem.
+                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK', ctrl=True, alt=True, shift=True)),
             ),
         )
 
     @ToolDef.from_fn
     def ruler():
         return dict(
-            text="Ruler/Protractor",
+            text="Ruler",
             icon="ops.view3d.ruler",
             widget="VIEW3D_WGT_ruler",
             keymap=(
@@ -291,7 +292,6 @@ class _defs_edit_armature:
 
 
 class _defs_edit_mesh:
-
 
     @ToolDef.from_fn
     def cube_add():

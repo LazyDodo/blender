@@ -164,8 +164,8 @@ typedef struct MLoop {
  *     MEdge *ed = &medge[mloop[lt->tri[j]].e];
  *     unsigned int tri_edge[2]  = {mloop[lt->tri[j]].v, mloop[lt->tri[j_next]].v};
  *
- *     if (((ed->v1 == tri_edge[0]) && (ed->v1 == tri_edge[1])) ||
- *         ((ed->v1 == tri_edge[1]) && (ed->v1 == tri_edge[0])))
+ *     if (((ed->v1 == tri_edge[0]) && (ed->v2 == tri_edge[1])) ||
+ *         ((ed->v1 == tri_edge[1]) && (ed->v2 == tri_edge[0])))
  *     {
  *         printf("real edge found %u %u\n", tri_edge[0], tri_edge[1]);
  *     }
@@ -421,7 +421,7 @@ enum {
 enum {
 	ME_SMOOTH   = (1 << 0),
 	ME_FACE_SEL = (1 << 1),
-/*	ME_HIDE     = (1 << 4), */ 
+/*	ME_HIDE     = (1 << 4), */
 };
 
 #define ME_POLY_LOOP_PREV(mloop, mp, i)  (&(mloop)[(mp)->loopstart + (((i) + (mp)->totloop - 1) % (mp)->totloop)])

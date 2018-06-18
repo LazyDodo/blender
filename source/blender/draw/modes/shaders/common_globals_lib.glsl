@@ -2,6 +2,7 @@
 /* keep in sync with GlobalsUboStorage */
 layout(std140) uniform globalsBlock {
 	vec4 colorWire;
+	vec4 colorWireInactive;
 	vec4 colorWireEdit;
 	vec4 colorActive;
 	vec4 colorSelect;
@@ -47,6 +48,10 @@ layout(std140) uniform globalsBlock {
 	vec4 colorNurbUline;
 	vec4 colorNurbSelUline;
 	vec4 colorActiveSpline;
+
+	vec4 colorBonePose;
+
+	vec4 colorCurrentFrame;
 
 	vec4 colorGrid;
 	vec4 colorGridEmphasise;

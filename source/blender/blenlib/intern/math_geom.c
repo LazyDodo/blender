@@ -979,7 +979,7 @@ float dist_squared_to_projected_aabb_simple(
 
 /* Adapted from "Real-Time Collision Detection" by Christer Ericson,
  * published by Morgan Kaufmann Publishers, copyright 2005 Elsevier Inc.
- * 
+ *
  * Set 'r' to the point in triangle (a, b, c) closest to point 'p' */
 void closest_on_tri_to_point_v3(float r[3], const float p[3],
                                 const float a[3], const float b[3], const float c[3])
@@ -3953,11 +3953,11 @@ void resolve_quad_uv_v2_deriv(float r_uv[2], float r_deriv[2][2],
 
 	if (r_deriv) {
 		float tmp1[2], tmp2[2], s[2], t[2];
-		
+
 		/* clear outputs */
 		zero_v2(r_deriv[0]);
 		zero_v2(r_deriv[1]);
-		
+
 		sub_v2_v2v2(tmp1, st1, st0);
 		sub_v2_v2v2(tmp2, st2, st3);
 		interp_v2_v2v2(s, tmp1, tmp2, r_uv[1]);
@@ -5246,7 +5246,7 @@ float cubic_tangent_factor_circle_v3(const float tan_l[3], const float tan_r[3])
 
 	/* -7f causes instability/glitches with Bendy Bones + Custom Refs  */
 	const float eps = 1e-5f;
-	
+
 	const float tan_dot = dot_v3v3(tan_l, tan_r);
 	if (tan_dot > 1.0f - eps) {
 		/* no angle difference (use fallback, length wont make any difference) */

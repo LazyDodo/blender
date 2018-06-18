@@ -73,6 +73,7 @@
 #include "BKE_deform.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_effect.h"
+#include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
@@ -1811,7 +1812,7 @@ static void adjustDomainResolution(SmokeDomainSettings *sds, int new_shift[3], E
 				int zn = z - new_shift[2];
 				int index;
 				float max_den;
-				
+
 				/* skip if cell already belongs to new area */
 				if (xn >= min[0] && xn <= max[0] && yn >= min[1] && yn <= max[1] && zn >= min[2] && zn <= max[2])
 					continue;
@@ -2107,7 +2108,8 @@ BLI_INLINE void apply_inflow_fields(SmokeFlowSettings *sfs, float emission_value
 	}
 }
 
-static void update_flowsfluids(struct Depsgraph *depsgraph, Scene *scene, Object *ob, SmokeDomainSettings *sds, float dt)
+static void update_flowsfluids(
+        struct Depsgraph *depsgraph, Scene *scene, Object *ob, SmokeDomainSettings *sds, float dt)
 {
 	Object **flowobjs = NULL;
 	EmissionMap *emaps = NULL;
@@ -2561,7 +2563,9 @@ static void update_effectors(struct Depsgraph *depsgraph, Scene *scene, Object *
 	pdEndEffectors(&effectors);
 }
 
-static void step(struct Depsgraph *depsgraph, Scene *scene, Object *ob, SmokeModifierData *smd, DerivedMesh *domain_dm, float fps)
+static void step(
+        Depsgraph *depsgraph,
+        Scene *scene, Object *ob, SmokeModifierData *smd, DerivedMesh *domain_dm, float fps)
 {
 	SmokeDomainSettings *sds = smd->domain;
 	/* stability values copied from wturbulence.cpp */

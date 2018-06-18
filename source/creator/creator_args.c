@@ -397,7 +397,7 @@ static void arg_py_context_restore(
 	/* script may load a file, check old data is valid before using */
 	if (c_py->has_win) {
 		if ((c_py->win == NULL) ||
-		    ((BLI_findindex(&G.main->wm, c_py->wm) != -1) &&
+		    ((BLI_findindex(&G_MAIN->wm, c_py->wm) != -1) &&
 		     (BLI_findindex(&c_py->wm->windows, c_py->win) != -1)))
 		{
 			CTX_wm_window_set(C, c_py->win);
@@ -405,7 +405,7 @@ static void arg_py_context_restore(
 	}
 
 	if ((c_py->scene == NULL) ||
-	    BLI_findindex(&G.main->scene, c_py->scene) != -1)
+	    BLI_findindex(&G_MAIN->scene, c_py->scene) != -1)
 	{
 		CTX_data_scene_set(C, c_py->scene);
 	}
@@ -586,9 +586,8 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 
 	BLI_argsPrintArgDoc(ba, "--");
 
-	printf("\n");
-	printf("Experimental Features:\n");
-	BLI_argsPrintArgDoc(ba, "--disable-copy-on-write");
+	//printf("\n");
+	//printf("Experimental Features:\n");
 
 	/* Other options _must_ be last (anything not handled will show here) */
 	printf("\n");
@@ -1289,16 +1288,6 @@ static int arg_handle_threads_set(int argc, const char **argv, void *UNUSED(data
 	}
 }
 
-static const char arg_handle_use_copy_on_write_doc[] =
-"\n\tUse new dependency graph"
-;
-static int arg_handle_use_copy_on_write(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
-{
-	printf("Disabling copy on write. Only use for testing whether something else is at fault\n");
-	DEG_depsgraph_disable_copy_on_write();
-	return 0;
-}
-
 static const char arg_handle_verbosity_set_doc[] =
 "<verbose>\n"
 "\tSet logging verbosity level."
@@ -1604,8 +1593,9 @@ static int arg_handle_python_text_run(int argc, const char **argv, void *data)
 
 	/* workaround for scripts not getting a bpy.context.scene, causes internal errors elsewhere */
 	if (argc > 1) {
+		Main *bmain = CTX_data_main(C);
 		/* Make the path absolute because its needed for relative linked blends to be found */
-		struct Text *text = (struct Text *)BKE_libblock_find_name(ID_TXT, argv[1]);
+		struct Text *text = (struct Text *)BKE_libblock_find_name(bmain, ID_TXT, argv[1]);
 		bool ok;
 
 		if (text) {
@@ -1784,7 +1774,7 @@ static int arg_handle_load_file(int UNUSED(argc), const char **argv, void *data)
 
 		if (BLO_has_bfile_extension(filename)) {
 			/* Just pretend a file was loaded, so the user can press Save and it'll save at the filename from the CLI. */
-			BLI_strncpy(G.main->name, filename, FILE_MAX);
+			BLI_strncpy(G_MAIN->name, filename, FILE_MAX);
 			G.relbase_valid = true;
 			G.save_over = true;
 			printf("... opened default scene instead; saving will write to: %s\n", filename);
@@ -1895,8 +1885,6 @@ void main_args_setup(bContext *C, bArgs *ba)
 	            CB_EX(arg_handle_debug_mode_generic_set, gpumem), (void *)G_DEBUG_GPU_MEM);
 	BLI_argsAdd(ba, 1, NULL, "--debug-gpu-shaders",
 	            CB_EX(arg_handle_debug_mode_generic_set, gpumem), (void *)G_DEBUG_GPU_SHADERS);
-
-	BLI_argsAdd(ba, 1, NULL, "--disable-copy-on-write", CB(arg_handle_use_copy_on_write), NULL);
 
 	BLI_argsAdd(ba, 1, NULL, "--verbose", CB(arg_handle_verbosity_set), NULL);
 

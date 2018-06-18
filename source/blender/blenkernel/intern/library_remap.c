@@ -395,8 +395,7 @@ static void libblock_remap_data_postprocess_collection_update(Main *bmain, Colle
 	}
 }
 
-
-static void libblock_remap_data_postprocess_obdata_relink(Main *UNUSED(bmain), Object *ob, ID *new_id)
+static void libblock_remap_data_postprocess_obdata_relink(Main *bmain, Object *ob, ID *new_id)
 {
 	if (ob->data == new_id) {
 		switch (GS(new_id->name)) {
@@ -410,7 +409,7 @@ static void libblock_remap_data_postprocess_obdata_relink(Main *UNUSED(bmain), O
 				break;
 		}
 		test_object_modifiers(ob);
-		test_object_materials(ob, new_id);
+		test_object_materials(bmain, ob, new_id);
 	}
 }
 
@@ -1020,7 +1019,7 @@ void BKE_libblock_free(Main *bmain, void *idv)
 void BKE_libblock_free_us(Main *bmain, void *idv)      /* test users */
 {
 	ID *id = idv;
-	
+
 	id_us_min(id);
 
 	/* XXX This is a temp (2.77) hack so that we keep same behavior as in 2.76 regarding collections when deleting an object.
@@ -1036,7 +1035,7 @@ void BKE_libblock_free_us(Main *bmain, void *idv)      /* test users */
 
 	if (id->us == 0) {
 		BKE_libblock_unlink(bmain, id, false, false);
-		
+
 		BKE_libblock_free(bmain, id);
 	}
 }

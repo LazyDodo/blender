@@ -268,24 +268,21 @@ void BLI_rng_skip(RNG *rng, int n)
 /* initialize with some non-zero seed */
 static RNG theBLI_rng = {611330372042337130};
 
-void BLI_srandom(unsigned int seed)
+static void ensure_rng_thread_safe(void)
 {
-	BLI_rng_srandom(&theBLI_rng, seed);
-}
-
-int BLI_rand(void)
-{
-	return BLI_rng_get_int(&theBLI_rng);
+	/* TODO(sergey): Ideally we will get rid of all rng functions which
+	 * are using global generator. But for until then we need some way to
+	 * catch "bad" calls at runtime.
+	 *
+	 * NOTE: Lots of areas are not ported, so we keep check disabled for now.
+	 */
+	// BLI_assert(BLI_thread_is_main());
 }
 
 float BLI_frand(void)
 {
+	ensure_rng_thread_safe();
 	return BLI_rng_get_float(&theBLI_rng);
-}
-
-void BLI_frand_unit_v3(float v[3])
-{
-	BLI_rng_get_float_unit_v3(&theBLI_rng, v);
 }
 
 float BLI_hash_frand(unsigned int seed)
@@ -312,7 +309,7 @@ void BLI_thread_srandom(int thread, unsigned int seed)
 {
 	if (thread >= BLENDER_MAX_THREADS)
 		thread = 0;
-	
+
 	BLI_rng_seed(&rng_tab[thread], seed + hash[seed & 255]);
 	seed = BLI_rng_get_uint(&rng_tab[thread]);
 	BLI_rng_seed(&rng_tab[thread], seed + hash[seed & 255]);
@@ -338,11 +335,11 @@ RNG_THREAD_ARRAY *BLI_rng_threaded_new(void)
 {
 	unsigned int i;
 	RNG_THREAD_ARRAY *rngarr = MEM_mallocN(sizeof(RNG_THREAD_ARRAY), "random_array");
-	
+
 	for (i = 0; i < BLENDER_MAX_THREADS; i++) {
 		BLI_rng_srandom(&rngarr->rng_tab[i], (unsigned int)clock());
 	}
-	
+
 	return rngarr;
 }
 

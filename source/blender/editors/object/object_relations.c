@@ -145,7 +145,7 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 		Mesh *me = obedit->data;
 		BMEditMesh *em;
 
-		EDBM_mesh_load(obedit);
+		EDBM_mesh_load(bmain, obedit);
 		EDBM_mesh_make(obedit, scene->toolsettings->selectmode, true);
 
 		DEG_id_tag_update(obedit->data, 0);
@@ -640,7 +640,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 			/* if follow, add F-Curve for ctime (i.e. "eval_time") so that path-follow works */
 			if (partype == PAR_FOLLOW) {
 				/* get or create F-Curve */
-				bAction *act = verify_adt_action(&cu->id, 1);
+				bAction *act = verify_adt_action(bmain, &cu->id, 1);
 				FCurve *fcu = verify_fcurve(act, NULL, NULL, "eval_time", 0, 1);
 
 				/* setup dummy 'generator' modifier here to get 1-1 correspondence still working */
@@ -1454,7 +1454,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						ob_dst->data = obdata_id;
 
 						/* if amount of material indices changed: */
-						test_object_materials(ob_dst, ob_dst->data);
+						test_object_materials(bmain, ob_dst, ob_dst->data);
 
 						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
 						break;
@@ -1462,7 +1462,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						/* new approach, using functions from kernel */
 						for (a = 0; a < ob_src->totcol; a++) {
 							Material *ma = give_current_material(ob_src, a + 1);
-							assign_material(ob_dst, ma, a + 1, BKE_MAT_ASSIGN_USERPREF); /* also works with ma==NULL */
+							assign_material(bmain, ob_dst, ma, a + 1, BKE_MAT_ASSIGN_USERPREF); /* also works with ma==NULL */
 						}
 						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
 						break;
@@ -1786,7 +1786,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 						/* Needed to remap texcomesh below. */
 						me = ob->data = ID_NEW_SET(ob->data, BKE_mesh_copy(bmain, ob->data));
 						if (me->key)  /* We do not need to set me->key->id.newid here... */
-							BKE_animdata_copy_id_action((ID *)me->key, false);
+							BKE_animdata_copy_id_action(bmain, (ID *)me->key, false);
 						break;
 					case OB_MBALL:
 						ob->data = ID_NEW_SET(ob->data, BKE_mball_copy(bmain, ob->data));
@@ -1798,12 +1798,12 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 						ID_NEW_REMAP(cu->bevobj);
 						ID_NEW_REMAP(cu->taperobj);
 						if (cu->key)  /* We do not need to set cu->key->id.newid here... */
-							BKE_animdata_copy_id_action((ID *)cu->key, false);
+							BKE_animdata_copy_id_action(bmain, (ID *)cu->key, false);
 						break;
 					case OB_LATTICE:
 						ob->data = lat = ID_NEW_SET(ob->data, BKE_lattice_copy(bmain, ob->data));
 						if (lat->key)  /* We do not need to set lat->key->id.newid here... */
-							BKE_animdata_copy_id_action((ID *)lat->key, false);
+							BKE_animdata_copy_id_action(bmain, (ID *)lat->key, false);
 						break;
 					case OB_ARMATURE:
 						DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
@@ -1830,7 +1830,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 				 * AnimData structure, which is not what we want.
 				 *                                             (sergey)
 				 */
-				BKE_animdata_copy_id_action((ID *)ob->data, false);
+				BKE_animdata_copy_id_action(bmain, (ID *)ob->data, false);
 
 				id_us_min(id);
 			}
@@ -1845,13 +1845,13 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 	}
 }
 
-static void single_object_action_users(Scene *scene, ViewLayer *view_layer, const int flag)
+static void single_object_action_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag)
 {
 	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
 	{
 		if (!ID_IS_LINKED(ob)) {
 			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-			BKE_animdata_copy_id_action(&ob->id, false);
+			BKE_animdata_copy_id_action(bmain, &ob->id, false);
 		}
 	}
 	FOREACH_OBJECT_FLAG_END;
@@ -1872,10 +1872,10 @@ static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, c
 
 					if (ma->id.us > 1) {
 						man = BKE_material_copy(bmain, ma);
-						BKE_animdata_copy_id_action(&man->id, false);
+						BKE_animdata_copy_id_action(bmain, &man->id, false);
 
 						man->id.us = 0;
-						assign_material(ob, man, a, BKE_MAT_ASSIGN_USERPREF);
+						assign_material(bmain, ob, man, a, BKE_MAT_ASSIGN_USERPREF);
 					}
 				}
 			}
@@ -1916,7 +1916,7 @@ void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bo
 
 	if (full) {
 		single_obdata_users(bmain, scene, NULL, 0);
-		single_object_action_users(scene, NULL, 0);
+		single_object_action_users(bmain, scene, NULL, 0);
 		single_mat_users_expand(bmain);
 	}
 
@@ -2304,7 +2304,7 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 
-		/* Then, we make static override of the whole set of objects in the collection. */
+		/* Then, we remove (untag) bone shape objects, you shall never want to override those (hopefully)... */
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)
 		{
 			if (ob->type == OB_ARMATURE && ob->pose != NULL) {
@@ -2325,18 +2325,16 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		Collection *new_collection = (Collection *)collection->id.newid;
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(new_collection, new_ob)
 		{
-			if (new_ob != NULL &&
-			    new_ob->id.override_static != NULL &&
-			    (base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL)
-			{
-				BKE_collection_object_add_from(bmain, scene, obcollection, new_ob);
-				DEG_id_tag_update_ex(bmain, &new_ob->id, OB_RECALC_OB | DEG_TAG_BASE_FLAGS_UPDATE);
+			if (new_ob != NULL && new_ob->id.override_static != NULL) {
+				if ((base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL) {
+					BKE_collection_object_add_from(bmain, scene, obcollection, new_ob);
+					DEG_id_tag_update_ex(bmain, &new_ob->id, DEG_TAG_TRANSFORM | DEG_TAG_BASE_FLAGS_UPDATE);
+				}
 				/* parent to 'collection' empty */
 				if (new_ob->parent == NULL) {
 					new_ob->parent = obcollection;
 				}
 				if (new_ob == (Object *)obact->id.newid) {
-					base = BKE_view_layer_base_find(view_layer, new_ob);
 					BKE_view_layer_base_select(view_layer, base);
 				}
 				else {
@@ -2459,7 +2457,7 @@ static int make_single_user_exec(bContext *C, wmOperator *op)
 	}
 
 	if (RNA_boolean_get(op->ptr, "animation")) {
-		single_object_action_users(scene, view_layer, flag);
+		single_object_action_users(bmain, scene, view_layer, flag);
 	}
 
 	BKE_main_id_clear_newpoins(bmain);
@@ -2504,16 +2502,17 @@ void OBJECT_OT_make_single_user(wmOperatorType *ot)
 
 static int drop_named_material_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
+	Main *bmain = CTX_data_main(C);
 	Base *base = ED_view3d_give_base_under_cursor(C, event->mval);
 	Material *ma;
 	char name[MAX_ID_NAME - 2];
 
 	RNA_string_get(op->ptr, "name", name);
-	ma = (Material *)BKE_libblock_find_name(ID_MA, name);
+	ma = (Material *)BKE_libblock_find_name(bmain, ID_MA, name);
 	if (base == NULL || ma == NULL)
 		return OPERATOR_CANCELLED;
 
-	assign_material(base->object, ma, 1, BKE_MAT_ASSIGN_USERPREF);
+	assign_material(CTX_data_main(C), base->object, ma, 1, BKE_MAT_ASSIGN_USERPREF);
 
 	DEG_id_tag_update(&base->object->id, OB_RECALC_OB);
 

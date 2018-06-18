@@ -57,6 +57,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -106,7 +107,6 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 	CLOG_INFO(&LOG, 1, "name='%s', step=%d", undoname, step);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
-	// Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 
 	/* undo during jobs are running can easily lead to freeing data using by jobs,
@@ -135,6 +135,9 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 	WM_event_add_notifier(C, NC_WINDOW, NULL);
 	WM_event_add_notifier(C, NC_WM | ND_UNDO, NULL);
 
+	Main *bmain = CTX_data_main(C);
+	WM_toolsystem_refresh_screen_all(bmain);
+
 	if (win) {
 		win->addmousemove = true;
 	}
@@ -145,15 +148,10 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 void ED_undo_grouped_push(bContext *C, const char *str)
 {
 	/* do nothing if previous undo task is the same as this one (or from the same undo group) */
-	{
-		wmWindowManager *wm = CTX_wm_manager(C);
-		if (wm->undo_stack->steps.last) {
-			const UndoStep *us = wm->undo_stack->steps.last;
-			if (STREQ(str, us->name)) {
-				return;
-			}
-		}
-
+	wmWindowManager *wm = CTX_wm_manager(C);
+	const UndoStep *us = wm->undo_stack->step_active;
+	if (us && STREQ(str, us->name)) {
+		BKE_undosys_stack_clear_active(wm->undo_stack);
 	}
 
 	/* push as usual */
@@ -207,7 +205,7 @@ bool ED_undo_is_valid(const bContext *C, const char *undoname)
  */
 UndoStack *ED_undo_stack_get(void)
 {
-	wmWindowManager *wm = G.main->wm.first;
+	wmWindowManager *wm = G_MAIN->wm.first;
 	return wm->undo_stack;
 }
 
@@ -304,36 +302,6 @@ void ED_OT_undo_redo(wmOperatorType *ot)
 
 /** \} */
 
-struct OperatorRepeatContextHandle {
-	ScrArea *restore_area;
-	ARegion *restore_region;
-};
-
-/**
- * Resets the context to the state \a op was executed in (or at least, was in when registering).
- * #ED_operator_repeat_reset_context should be called when done repeating!
- */
-const OperatorRepeatContextHandle *ED_operator_repeat_prepare_context(bContext *C, wmOperator *op)
-{
-	static OperatorRepeatContextHandle context_info;
-
-	context_info.restore_area = CTX_wm_area(C);
-	context_info.restore_region = CTX_wm_region(C);
-
-	CTX_wm_area_set(C, op->execution_area);
-	CTX_wm_region_set(C, op->execution_region);
-
-	return &context_info;
-}
-/**
- * Resets context to the old state from before #ED_operator_repeat_prepare_context was called.
- */
-void ED_operator_repeat_reset_context(bContext *C, const OperatorRepeatContextHandle *context_info)
-{
-	CTX_wm_area_set(C, context_info->restore_area);
-	CTX_wm_region_set(C, context_info->restore_region);
-}
-
 /* -------------------------------------------------------------------- */
 /** \name Operator Repeat
  * \{ */
@@ -348,8 +316,13 @@ int ED_undo_operator_repeat(bContext *C, wmOperator *op)
 		wmWindowManager *wm = CTX_wm_manager(C);
 		struct Scene *scene = CTX_data_scene(C);
 
-		const OperatorRepeatContextHandle *context_info;
-		context_info = ED_operator_repeat_prepare_context(C, op);
+		/* keep in sync with logic in view3d_panel_operator_redo() */
+		ARegion *ar_orig = CTX_wm_region(C);
+		ARegion *ar_win = BKE_area_find_region_active_win(CTX_wm_area(C));
+
+		if (ar_win) {
+			CTX_wm_region_set(C, ar_win);
+		}
 
 		if ((WM_operator_repeat_check(C, op)) &&
 		    (WM_operator_poll(C, op->type)) &&
@@ -395,7 +368,8 @@ int ED_undo_operator_repeat(bContext *C, wmOperator *op)
 			}
 		}
 
-		ED_operator_repeat_reset_context(C, context_info);
+		/* set region back */
+		CTX_wm_region_set(C, ar_orig);
 	}
 	else {
 		CLOG_WARN(&LOG, "called with NULL 'op'");

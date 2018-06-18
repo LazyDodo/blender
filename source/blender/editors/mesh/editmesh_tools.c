@@ -98,13 +98,13 @@ static int edbm_subdivide_exec(bContext *C, wmOperator *op)
 	const float fractal = RNA_float_get(op->ptr, "fractal") / 2.5f;
 	const float along_normal = RNA_float_get(op->ptr, "fractal_along_normal");
 
-	if (RNA_boolean_get(op->ptr, "quadtri") &&
+	if (RNA_boolean_get(op->ptr, "ngon") &&
 	    RNA_enum_get(op->ptr, "quadcorner") == SUBD_CORNER_STRAIGHT_CUT)
 	{
 		RNA_enum_set(op->ptr, "quadcorner", SUBD_CORNER_INNERVERT);
 	}
 	const int quad_corner_type = RNA_enum_get(op->ptr, "quadcorner");
-	const bool use_quad_tri = RNA_boolean_get(op->ptr, "quadtri");
+	const bool use_quad_tri = !RNA_boolean_get(op->ptr, "ngon");
 	const int seed = RNA_int_get(op->ptr, "seed");
 
 	ViewLayer *view_layer = CTX_data_view_layer(C);
@@ -170,7 +170,7 @@ void MESH_OT_subdivide(wmOperatorType *ot)
 
 	WM_operatortype_props_advanced_begin(ot);
 
-	RNA_def_boolean(ot->srna, "quadtri", 0, "Quad/Tri Mode", "Tries to prevent ngons");
+	RNA_def_boolean(ot->srna, "ngon", true, "Create N-Gons", "When disabled, newly created faces are limited to 3-4 sided faces");
 	RNA_def_enum(ot->srna, "quadcorner", prop_mesh_cornervert_types, SUBD_CORNER_STRAIGHT_CUT,
 	             "Quad Corner Type", "How to subdivide quad corners (anything other than Straight Cut will prevent ngons)");
 
@@ -359,6 +359,7 @@ void MESH_OT_unsubdivide(wmOperatorType *ot)
 
 void EMBM_project_snap_verts(bContext *C, ARegion *ar, BMEditMesh *em)
 {
+	Main *bmain = CTX_data_main(C);
 	Object *obedit = em->ob;
 	BMIter iter;
 	BMVert *eve;
@@ -366,7 +367,7 @@ void EMBM_project_snap_verts(bContext *C, ARegion *ar, BMEditMesh *em)
 	ED_view3d_init_mats_rv3d(obedit, ar->regiondata);
 
 	struct SnapObjectContext *snap_context = ED_transform_snap_object_context_create_view3d(
-	        CTX_data_scene(C), CTX_data_depsgraph(C), 0,
+	        bmain, CTX_data_scene(C), CTX_data_depsgraph(C), 0,
 	        ar, CTX_wm_view3d(C));
 
 	BM_ITER_MESH (eve, &iter, em->bm, BM_VERTS_OF_MESH) {
@@ -511,6 +512,7 @@ void MESH_OT_delete(wmOperatorType *ot)
 	/* props */
 	ot->prop = RNA_def_enum(ot->srna, "type", prop_mesh_delete_types, MESH_DELETE_VERT,
 	                        "Type", "Method used for deleting mesh data");
+	RNA_def_property_flag(ot->prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /** \} */
@@ -1029,7 +1031,7 @@ void MESH_OT_mark_seam(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	prop = RNA_def_boolean(ot->srna, "clear", 0, "Clear", "");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 
 	WM_operatortype_props_advanced_begin(ot);
 }
@@ -1102,7 +1104,7 @@ void MESH_OT_mark_sharp(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	prop = RNA_def_boolean(ot->srna, "clear", false, "Clear", "");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 	prop = RNA_def_boolean(ot->srna, "use_verts", false, "Vertices",
 	                       "Consider vertices instead of edges to select which edges to (un)tag as sharp");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
@@ -3624,7 +3626,7 @@ static Base *mesh_separate_tagged(Main *bmain, Scene *scene, ViewLayer *view_lay
 
 	base_new = ED_object_add_duplicate(bmain, scene, view_layer, base_old, USER_DUP_MESH);
 	/* DAG_relations_tag_update(bmain); */ /* normally would call directly after but in this case delay recalc */
-	assign_matarar(base_new->object, give_matarar(obedit), *give_totcolp(obedit)); /* new in 2.5 */
+	assign_matarar(bmain, base_new->object, give_matarar(obedit), *give_totcolp(obedit)); /* new in 2.5 */
 
 	ED_object_base_select(base_new, BA_SELECT);
 
@@ -3640,7 +3642,7 @@ static Base *mesh_separate_tagged(Main *bmain, Scene *scene, ViewLayer *view_lay
 
 	BM_mesh_normals_update(bm_new);
 
-	BM_mesh_bm_to_me(bm_new, base_new->object->data, (&(struct BMeshToMeshParams){0}));
+	BM_mesh_bm_to_me(bmain, bm_new, base_new->object->data, (&(struct BMeshToMeshParams){0}));
 
 	BM_mesh_free(bm_new);
 	((Mesh *)base_new->object->data)->edit_btmesh = NULL;
@@ -3953,7 +3955,7 @@ static int edbm_separate_exec(bContext *C, wmOperator *op)
 
 					if (retval_iter) {
 						BM_mesh_bm_to_me(
-						        bm_old, me,
+						        bmain, bm_old, me,
 						        (&(struct BMeshToMeshParams){
 						            .calc_object_remap = true,
 						        }));
@@ -5310,7 +5312,7 @@ static int edbm_dissolve_degenerate_exec(bContext *C, wmOperator *op)
 	} /* objects */
 
 	const float thresh = RNA_float_get(op->ptr, "threshold");
-	
+
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
@@ -6828,7 +6830,7 @@ void MESH_OT_mark_freestyle_edge(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	prop = RNA_def_boolean(ot->srna, "clear", false, "Clear", "");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /** \} */
@@ -6911,7 +6913,7 @@ void MESH_OT_mark_freestyle_face(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	prop = RNA_def_boolean(ot->srna, "clear", false, "Clear", "");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /** \} */

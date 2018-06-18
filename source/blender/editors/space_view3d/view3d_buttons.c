@@ -835,7 +835,7 @@ static void view3d_panel_vgroup(const bContext *C, Panel *pa)
 
 		bcol = uiLayoutColumn(pa->layout, true);
 		row = uiLayoutRow(bcol, true); /* The filter button row */
-		
+
 		RNA_pointer_create(NULL, &RNA_ToolSettings, ts, &tools_ptr);
 		uiItemR(row, &tools_ptr, "vertex_group_subset", UI_ITEM_R_EXPAND, NULL, ICON_NONE);
 
@@ -864,7 +864,7 @@ static void view3d_panel_vgroup(const bContext *C, Panel *pa)
 						UI_but_flag_enable(but, UI_BUT_INACTIVE);
 					}
 					xco += x;
-					
+
 					row = uiLayoutRow(split, true);
 					uiLayoutSetEnabled(row, !locked);
 
@@ -1197,7 +1197,7 @@ static int view3d_properties_toggle_exec(bContext *C, wmOperator *UNUSED(op))
 
 void VIEW3D_OT_properties(wmOperatorType *ot)
 {
-	ot->name = "Properties";
+	ot->name = "Toggle Sidebar";
 	ot->description = "Toggle the properties region visibility";
 	ot->idname = "VIEW3D_OT_properties";
 

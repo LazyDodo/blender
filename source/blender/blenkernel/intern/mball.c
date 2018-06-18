@@ -89,7 +89,7 @@ void BKE_mball_init(MetaBall *mb)
 
 	mb->size[0] = mb->size[1] = mb->size[2] = 1.0;
 	mb->texflag = MB_AUTOSPACE;
-	
+
 	mb->wiresize = 0.4f;
 	mb->rendersize = 0.2f;
 	mb->thresh = 0.6f;
@@ -201,7 +201,7 @@ void BKE_mball_texspace_calc(Object *ob)
 
 	if (ob->bb == NULL) ob->bb = MEM_callocN(sizeof(BoundBox), "mb boundbox");
 	bb = ob->bb;
-	
+
 	/* Weird one, this. */
 /*      INIT_MINMAX(min, max); */
 	(min)[0] = (min)[1] = (min)[2] = 1.0e30f;
@@ -277,7 +277,7 @@ float *BKE_mball_make_orco(Object *ob, ListBase *dispbase)
  * This really needs a rewrite/refactor its totally broken in anything other then basic cases
  * Multiple Scenes + Set Scenes & mixing mball basis SHOULD work but fails to update the depsgraph on rename
  * and linking into scenes or removal of basis mball. so take care when changing this code.
- * 
+ *
  * Main idiot thing here is that the system returns find_basis_mball() objects which fail a is_basis_mball() test.
  *
  * Not only that but the depsgraph and their areas depend on this behavior!, so making small fixes here isn't worth it.
@@ -562,11 +562,6 @@ void BKE_mball_select_swap(struct MetaBall *mb)
 }
 
 /* **** Depsgraph evaluation **** */
-
-void BKE_mball_eval_geometry(struct Depsgraph *UNUSED(depsgraph),
-                             MetaBall *UNUSED(mball))
-{
-}
 
 /* Draw Engine */
 

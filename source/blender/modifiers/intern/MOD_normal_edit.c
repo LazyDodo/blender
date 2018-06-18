@@ -201,6 +201,7 @@ static void normalEditModifier_do_radial(
         MVert *mvert, const int num_verts, MEdge *medge, const int num_edges,
         MLoop *mloop, const int num_loops, MPoly *mpoly, const int num_polys)
 {
+	const bool do_polynors_fix = (enmd->flag & MOD_NORMALEDIT_NO_POLYNORS_FIX) == 0;
 	int i;
 
 	float (*cos)[3] = MEM_malloc_arrayN((size_t)num_verts, sizeof(*cos), __func__);
@@ -278,7 +279,7 @@ static void normalEditModifier_do_radial(
 		            mix_limit, mix_mode, num_verts, mloop, loopnors, nos, num_loops);
 	}
 
-	if (polygons_check_flip(mloop, nos, &mesh->ldata, mpoly, polynors, num_polys)) {
+	if (do_polynors_fix && polygons_check_flip(mloop, nos, &mesh->ldata, mpoly, polynors, num_polys)) {
 		/* XXX TODO is this still needed? */
 		// mesh->dirty |= DM_DIRTY_TESS_CDLAYERS;
 		/* We need to recompute vertex normals! */
@@ -301,6 +302,7 @@ static void normalEditModifier_do_directional(
         MVert *mvert, const int num_verts, MEdge *medge, const int num_edges,
         MLoop *mloop, const int num_loops, MPoly *mpoly, const int num_polys)
 {
+	const bool do_polynors_fix = (enmd->flag & MOD_NORMALEDIT_NO_POLYNORS_FIX) == 0;
 	const bool use_parallel_normals = (enmd->flag & MOD_NORMALEDIT_USE_DIRECTION_PARALLEL) != 0;
 
 	float (*nos)[3] = MEM_malloc_arrayN((size_t)num_loops, sizeof(*nos), __func__);
@@ -357,7 +359,7 @@ static void normalEditModifier_do_directional(
 		            mix_limit, mix_mode, num_verts, mloop, loopnors, nos, num_loops);
 	}
 
-	if (polygons_check_flip(mloop, nos, &mesh->ldata, mpoly, polynors, num_polys)) {
+	if (do_polynors_fix && polygons_check_flip(mloop, nos, &mesh->ldata, mpoly, polynors, num_polys)) {
 		mesh->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
 	}
 
@@ -405,13 +407,20 @@ static Mesh *normalEditModifier_do(NormalEditModifierData *enmd, Object *ob, Mes
 	}
 
 	Mesh *result;
-	BKE_id_copy_ex(
-	        NULL, &mesh->id, (ID **)&result,
-	        LIB_ID_CREATE_NO_MAIN |
-	        LIB_ID_CREATE_NO_USER_REFCOUNT |
-	        LIB_ID_CREATE_NO_DEG_TAG |
-	        LIB_ID_COPY_NO_PREVIEW,
-	        false);
+	if (mesh->medge == ((Mesh *)ob->data)->medge) {
+		/* We need to duplicate data here, otherwise setting custom normals (which may also affect sharp edges) could
+		 * modify org mesh, see T43671. */
+		BKE_id_copy_ex(
+		        NULL, &mesh->id, (ID **)&result,
+		        LIB_ID_CREATE_NO_MAIN |
+		        LIB_ID_CREATE_NO_USER_REFCOUNT |
+		        LIB_ID_CREATE_NO_DEG_TAG |
+		        LIB_ID_COPY_NO_PREVIEW,
+		        false);
+	}
+	else {
+		result = mesh;
+	}
 
 	const int num_verts = result->totvert;
 	const int num_edges = result->totedge;
@@ -450,7 +459,7 @@ static Mesh *normalEditModifier_do(NormalEditModifierData *enmd, Object *ob, Mes
 	result->runtime.cd_dirty_vert &= ~CD_MASK_NORMAL;
 
 	if (use_current_clnors) {
-		clnors = CustomData_get_layer(ldata, CD_CUSTOMLOOPNORMAL);
+		clnors = CustomData_duplicate_referenced_layer(ldata, CD_CUSTOMLOOPNORMAL, num_loops);
 
 		BKE_mesh_normals_loop_split(mvert, num_verts, medge, num_edges, mloop, loopnors, num_loops,
 		                            mpoly, (const float (*)[3])polynors, num_polys,

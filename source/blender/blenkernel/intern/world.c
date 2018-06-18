@@ -53,6 +53,8 @@
 #include "BKE_node.h"
 #include "BKE_world.h"
 
+#include "DEG_depsgraph.h"
+
 #include "GPU_material.h"
 
 /** Free (or release) any data used by this world (does not free the world itself). */
@@ -68,7 +70,7 @@ void BKE_world_free(World *wrld)
 	}
 
 	GPU_material_free(&wrld->gpumaterial);
-	
+
 	BKE_icon_id_delete((struct ID *)wrld);
 	BKE_previewimg_free(&wrld->preview);
 }
@@ -83,7 +85,7 @@ void BKE_world_init(World *wrld)
 
 	wrld->aodist = 10.0f;
 	wrld->aoenergy = 1.0f;
-	
+
 	wrld->preview = NULL;
 	wrld->miststa = 5.0f;
 	wrld->mistdist = 25.0f;
@@ -143,16 +145,16 @@ World *BKE_world_localize(World *wrld)
 	 * ... Once f*** nodes are fully converted to that too :( */
 
 	World *wrldn;
-	
+
 	wrldn = BKE_libblock_copy_nolib(&wrld->id, false);
-	
+
 	if (wrld->nodetree)
 		wrldn->nodetree = ntreeLocalize(wrld->nodetree);
-	
+
 	wrldn->preview = NULL;
-	
+
 	BLI_listbase_clear(&wrldn->gpumaterial);
-	
+
 	return wrldn;
 }
 
@@ -161,13 +163,10 @@ void BKE_world_make_local(Main *bmain, World *wrld, const bool lib_local)
 	BKE_id_make_local_generic(bmain, &wrld->id, true, lib_local);
 }
 
-void BKE_world_eval(struct Depsgraph *UNUSED(depsgraph), World *world)
+void BKE_world_eval(struct Depsgraph *depsgraph, World *world)
 {
-	if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) {
-		printf("%s on %s (%p)\n", __func__, world->id.name, world);
-	}
+	DEG_debug_print_eval(depsgraph, __func__, world->id.name, world);
 	if (!BLI_listbase_is_empty(&world->gpumaterial)) {
 		world->update_flag = 1;
-		GPU_material_uniform_buffer_tag_dirty(&world->gpumaterial);
 	}
 }

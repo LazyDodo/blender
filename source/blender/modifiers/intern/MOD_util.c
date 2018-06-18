@@ -276,7 +276,7 @@ DerivedMesh *get_dm(
 			CDDM_apply_vert_coords(dm, vertexCos);
 			dm->dirty |= DM_DIRTY_NORMALS;
 		}
-		
+
 		if (use_orco) {
 			DM_add_vert_layer(dm, CD_ORCO, CD_ASSIGN, BKE_mesh_orco_verts_get(ob));
 		}
@@ -311,10 +311,11 @@ Mesh *get_mesh(
 			 * we really need a copy here. Maybe the CoW ob->data can be directly used. */
 			BKE_id_copy_ex(
 			        NULL, ob->data, (ID **)&mesh,
-			        LIB_ID_CREATE_NO_MAIN |
-			        LIB_ID_CREATE_NO_USER_REFCOUNT |
-			        LIB_ID_CREATE_NO_DEG_TAG |
-			        LIB_ID_COPY_NO_PREVIEW,
+			        (LIB_ID_CREATE_NO_MAIN |
+			         LIB_ID_CREATE_NO_USER_REFCOUNT |
+			         LIB_ID_CREATE_NO_DEG_TAG |
+			         LIB_ID_COPY_NO_PREVIEW |
+			         LIB_ID_COPY_CD_REFERENCE),
 			        false);
 			mesh->runtime.deformed_only = 1;
 		}
