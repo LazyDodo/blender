@@ -563,6 +563,8 @@ Gwn_Batch *DRW_cache_object_surface_get(Object *ob)
 			return DRW_cache_text_surface_get(ob);
 		case OB_MBALL:
 			return DRW_cache_mball_surface_get(ob);
+		case OB_GROOM:
+			return DRW_cache_groom_surface_get(ob);
 		default:
 			return NULL;
 	}
@@ -590,6 +592,8 @@ Gwn_Batch **DRW_cache_object_surface_material_get(
 			return DRW_cache_text_surface_shaded_get(ob, gpumat_array, gpumat_array_len);
 		case OB_MBALL:
 			return DRW_cache_mball_surface_shaded_get(ob, gpumat_array, gpumat_array_len);
+		case OB_GROOM:
+			return DRW_cache_groom_surface_shaded_get(ob, gpumat_array, gpumat_array_len);
 		default:
 			return NULL;
 	}
@@ -2959,6 +2963,23 @@ Gwn_Batch *DRW_cache_groom_wire_get(Object *ob)
 
 	struct Groom *groom = ob->data;
 	return DRW_groom_batch_cache_get_all_edges(groom);
+}
+
+Gwn_Batch *DRW_cache_groom_surface_get(Object *ob)
+{
+	BLI_assert(ob->type == OB_GROOM);
+
+	struct Groom *groom = ob->data;
+	return DRW_groom_batch_cache_get_all_triangles(groom);
+}
+
+Gwn_Batch **DRW_cache_groom_surface_shaded_get(
+        Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len)
+{
+	BLI_assert(ob->type == OB_GROOM);
+
+	struct Groom *groom = ob->data;
+	return DRW_groom_batch_cache_get_surface_shaded(groom, gpumat_array, gpumat_array_len);
 }
 
 Gwn_Batch *DRW_cache_groom_vert_overlay_get(Object *ob, int mode)

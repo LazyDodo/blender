@@ -2222,12 +2222,14 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		{
 			if (ob != draw_ctx->object_edit) {
 				Groom *groom = ob->data;
-				struct Gwn_Batch *geom = DRW_cache_groom_wire_get(ob);
-				if (theme_id == TH_UNDEFINED) {
-					theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
+				{
+					struct Gwn_Batch *geom = DRW_cache_groom_wire_get(ob);
+					if (theme_id == TH_UNDEFINED) {
+						theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
+					}
+					DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(stl, theme_id, stl->g_data->wire);
+					DRW_shgroup_call_add(shgroup, geom, ob->obmat);
 				}
-				DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(stl, theme_id, stl->g_data->wire);
-				DRW_shgroup_call_add(shgroup, geom, ob->obmat);
 				
 				Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
 				DRW_shgroup_hair(ob, groom->hair_system, groom->hair_draw_settings, scalp,

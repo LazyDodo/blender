@@ -180,6 +180,9 @@ struct Gwn_Batch *DRW_cache_lattice_vert_overlay_get(struct Object *ob);
 /* Groom */
 struct Gwn_Batch *DRW_cache_groom_verts_get(struct Object *ob);
 struct Gwn_Batch *DRW_cache_groom_wire_get(struct Object *ob);
+struct Gwn_Batch *DRW_cache_groom_surface_get(struct Object *ob);
+struct Gwn_Batch **DRW_cache_groom_surface_shaded_get(
+        struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len);
 struct Gwn_Batch *DRW_cache_groom_vert_overlay_get(struct Object *ob, int mode);
 
 /* Particles */
