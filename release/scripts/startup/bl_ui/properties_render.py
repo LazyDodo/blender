@@ -68,6 +68,7 @@ class RENDER_PT_context(Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         scene = context.scene
         rd = scene.render
@@ -269,6 +270,7 @@ class RENDER_PT_output(RenderButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = False
+        layout.use_property_decorate = False  # No animation.
 
         rd = context.scene.render
         image_settings = rd.image_settings
