@@ -724,6 +724,7 @@ static void foreach_mouse_hit_key(PEData *data, ForKeyMatFunc func, int selected
 
 	KeyIterData iter_data;
 	iter_data.data = data;
+	iter_data.edit = edit;
 	iter_data.psmd = psmd;
 	iter_data.selected = selected;
 	iter_data.func = func;
@@ -4668,9 +4669,14 @@ void PE_create_particle_edit(
 			psys = NULL;
 		}
 
+		/* Causes assert on startup. */
+#if 0
 		UI_GetThemeColor3ubv(TH_EDGE_SELECT, edit->sel_col);
 		UI_GetThemeColor3ubv(TH_WIRE, edit->nosel_col);
-
+#else
+		memset(edit->sel_col,   0xff, sizeof(edit->sel_col));
+		memset(edit->nosel_col, 0x00, sizeof(edit->nosel_col));
+#endif
 		recalc_lengths(edit);
 		if (psys && !cache)
 			recalc_emitter_field(depsgraph, ob, psys);
