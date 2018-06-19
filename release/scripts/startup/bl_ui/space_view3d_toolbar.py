@@ -1374,6 +1374,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         ts = context.scene.tool_settings
         settings = ts.gpencil_paint

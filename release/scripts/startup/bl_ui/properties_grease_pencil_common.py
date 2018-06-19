@@ -250,6 +250,7 @@ class GreasePencilStrokeSculptPanel:
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         settings = context.tool_settings.gpencil_sculpt
         tool = settings.tool
@@ -261,6 +262,7 @@ class GreasePencilStrokeSculptPanel:
         row = layout.row(align=True)
         row.prop(brush, "strength", slider=True)
         row.prop(brush, "use_pressure_strength", text="")
+
         layout.prop(brush, "use_falloff")
 
         if tool in {'SMOOTH', 'RANDOMIZE'}:
@@ -843,6 +845,7 @@ class GreasePencilDataPanel:
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         # owner of Grease Pencil data
         gpd_owner = context.gpencil_data_owner
