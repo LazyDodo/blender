@@ -43,10 +43,8 @@ shader node_principled_hair_bsdf(
 	color Sigma;
 
 	float RandomValue = 0.0;
-	printf("Attribute: %s\n", AttrRandom);
 
 	if (AttrRandom != "none") {
-		printf("asdasd");
 		getattribute(AttrRandom, RandomValue);
 	}
 	else {
