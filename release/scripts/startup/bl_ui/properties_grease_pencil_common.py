@@ -842,6 +842,7 @@ class GreasePencilDataPanel:
     @staticmethod
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         # owner of Grease Pencil data
         gpd_owner = context.gpencil_data_owner
