@@ -766,6 +766,9 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 		const int flags = (STUDIOLIGHT_EXTERNAL_FILE | STUDIOLIGHT_ORIENTATION_VIEWNORMAL);
 
 		LISTBASE_FOREACH(StudioLight *, sl, BKE_studiolight_listbase()) {
+			if ((sl->flag & STUDIOLIGHT_DISABLED)){
+				continue;
+			}
 			int icon_id = (v3d->shading.flag & V3D_SHADING_MATCAP_FLIP_X) ? sl->icon_id_matcap_flipped: sl->icon_id_matcap;
 			if ((sl->flag & flags) == flags) {
 				EnumPropertyItem tmp = {sl->index, sl->name, icon_id, sl->name, ""};
@@ -775,10 +778,13 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 	}
 	else {
 		LISTBASE_FOREACH(StudioLight *, sl, BKE_studiolight_listbase()) {
+			if ((sl->flag & STUDIOLIGHT_DISABLED)){
+				continue;
+			}
 			int icon_id = sl->icon_id_irradiance;
 			bool show_studiolight = false;
 
-			if ((sl->flag & STUDIOLIGHT_INTERNAL)) {
+			if (sl->flag & STUDIOLIGHT_INTERNAL) {
 				/* always show internal lights */
 				show_studiolight = true;
 			}
@@ -2436,10 +2442,10 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
-	prop = RNA_def_property(srna, "studiolight_background", PROP_FLOAT, PROP_FACTOR);
+	prop = RNA_def_property(srna, "studiolight_background_alpha", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "shading.studiolight_background");
 	RNA_def_property_float_default(prop, 0.0);
-	RNA_def_property_ui_text(prop, "Show Background", "Show the studiolight in the background");
+	RNA_def_property_ui_text(prop, "Background", "Show the studiolight in the background");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 1.0f, 1, 3);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
