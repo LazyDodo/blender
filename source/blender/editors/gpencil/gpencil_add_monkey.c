@@ -1557,6 +1557,10 @@ void ED_gpencil_create_monkey(bContext *C, float mat[4][4])
 
 	gps = BKE_gpencil_add_stroke(frameLines, color_Black, 261, 3);
 	BKE_gpencil_stroke_add_points(gps, data35, 261, mat);
+
+	/* update depsgraph */
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 }
 
 
