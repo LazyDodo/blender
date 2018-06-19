@@ -1412,10 +1412,8 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
                 col = layout.row(align=True)
                 col.template_ID(gp_settings, "material")
 
-                col = layout.column(align=True)
-                col.label(text="Boundary Draw Mode:")
-                row = col.row(align=True)
-                row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
+                row = layout.row(align=True)
+                row.prop(gp_settings, "gpencil_fill_draw_mode", text="Boundary Draw Mode")
                 row.prop(gp_settings, "gpencil_fill_show_boundary", text="", icon='GRID')
 
                 col = layout.column(align=True)
@@ -1446,6 +1444,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         brush = context.active_gpencil_brush
         gp_settings = brush.gpencil_settings
@@ -1485,6 +1484,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_stabilizer(View3DPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         brush = context.active_gpencil_brush
         gp_settings = brush.gpencil_settings
@@ -1515,6 +1515,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_settings(View3DPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         brush = context.active_gpencil_brush
         gp_settings = brush.gpencil_settings
@@ -1551,6 +1552,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_random(View3DPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         brush = context.active_gpencil_brush
         gp_settings = brush.gpencil_settings
@@ -1699,7 +1701,7 @@ class VIEW3D_PT_tools_grease_pencil_weight_paint(View3DPanel, Panel):
         row = col.row(align=True)
         row.prop(brush, "strength", slider=True)
         row.prop(brush, "use_pressure_strength", text="")
-        
+
         col.prop(brush, "use_falloff")
 
 

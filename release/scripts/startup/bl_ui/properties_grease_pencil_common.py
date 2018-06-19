@@ -288,8 +288,7 @@ class GreasePencilAppearancePanel:
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-
-        workspace = context.workspace
+        layout.use_property_decorate = False
 
         if context.active_object.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
