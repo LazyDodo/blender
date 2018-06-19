@@ -2328,6 +2328,7 @@ static bool merge_target(
 	if (use_cursor) {
 		vco = ED_view3d_cursor3d_get(scene, v3d);
 		copy_v3_v3(co, vco);
+		invert_m4_m4(ob->imat, ob->obmat);
 		mul_m4_v3(ob->imat, co);
 	}
 	else {
@@ -3206,7 +3207,7 @@ static Base *mesh_separate_tagged(Main *bmain, Scene *scene, Base *base_old, BMe
 
 	base_new = ED_object_add_duplicate(bmain, scene, base_old, USER_DUP_MESH);
 	/* DAG_relations_tag_update(bmain); */ /* normally would call directly after but in this case delay recalc */
-	assign_matarar(base_new->object, give_matarar(obedit), *give_totcolp(obedit)); /* new in 2.5 */
+	assign_matarar(bmain, base_new->object, give_matarar(obedit), *give_totcolp(obedit)); /* new in 2.5 */
 
 	ED_base_object_select(base_new, BA_SELECT);
 
@@ -3222,7 +3223,7 @@ static Base *mesh_separate_tagged(Main *bmain, Scene *scene, Base *base_old, BMe
 
 	BM_mesh_normals_update(bm_new);
 
-	BM_mesh_bm_to_me(bm_new, base_new->object->data, (&(struct BMeshToMeshParams){0}));
+	BM_mesh_bm_to_me(bmain, bm_new, base_new->object->data, (&(struct BMeshToMeshParams){0}));
 
 	BM_mesh_free(bm_new);
 	((Mesh *)base_new->object->data)->edit_btmesh = NULL;
@@ -3525,7 +3526,7 @@ static int edbm_separate_exec(bContext *C, wmOperator *op)
 
 					if (retval_iter) {
 						BM_mesh_bm_to_me(
-						        bm_old, me,
+						        bmain, bm_old, me,
 						        (&(struct BMeshToMeshParams){
 						            .calc_object_remap = true,
 						        }));
