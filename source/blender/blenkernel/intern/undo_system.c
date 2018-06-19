@@ -234,6 +234,23 @@ void BKE_undosys_stack_clear(UndoStack *ustack)
 	ustack->step_active = NULL;
 }
 
+void BKE_undosys_stack_clear_active(UndoStack *ustack)
+{
+	/* Remove active and all following undos. */
+	UndoStep *us = ustack->step_active;
+
+	if (us) {
+		ustack->step_active = us->prev;
+		bool is_not_empty = ustack->step_active != NULL;
+
+		while (ustack->steps.last != ustack->step_active) {
+			UndoStep *us_iter = ustack->steps.last;
+			undosys_step_free_and_unlink(ustack, us_iter);
+			undosys_stack_validate(ustack, is_not_empty);
+		}
+	}
+}
+
 static bool undosys_stack_push_main(UndoStack *ustack, const char *name, struct Main *bmain)
 {
 	UNDO_NESTED_ASSERT(false);
@@ -249,6 +266,15 @@ void BKE_undosys_stack_init_from_main(UndoStack *ustack, struct Main *bmain)
 {
 	UNDO_NESTED_ASSERT(false);
 	undosys_stack_push_main(ustack, "original", bmain);
+}
+
+/* called after 'BKE_undosys_stack_init_from_main' */
+void BKE_undosys_stack_init_from_context(UndoStack *ustack, bContext *C)
+{
+	const UndoType *ut = BKE_undosys_type_from_context(C);
+	if ((ut != NULL) && (ut != BKE_UNDOSYS_TYPE_MEMFILE) && (ut->mode == BKE_UNDOTYPE_MODE_STORE)) {
+		BKE_undosys_step_push_with_type(ustack, C, "original mode", ut);
+	}
 }
 
 /* name optional */
@@ -366,7 +392,7 @@ UndoStep *BKE_undosys_step_push_init_with_type(UndoStack *ustack, bContext *C, c
 		us->type = ut;
 		ustack->step_init = us;
 		ut->step_encode_init(C, us);
-		undosys_stack_validate(ustack, true);
+		undosys_stack_validate(ustack, false);
 		return us;
 	}
 	else {
@@ -498,6 +524,16 @@ UndoStep *BKE_undosys_step_find_by_name_with_type(UndoStack *ustack, const char 
 UndoStep *BKE_undosys_step_find_by_name(UndoStack *ustack, const char *name)
 {
 	return BLI_rfindstring(&ustack->steps, name, offsetof(UndoStep, name));
+}
+
+UndoStep *BKE_undosys_step_find_by_type(UndoStack *ustack, const UndoType *ut)
+{
+	for (UndoStep *us = ustack->steps.last; us; us = us->prev) {
+		if (us->type == ut) {
+			return us;
+		}
+	}
+	return NULL;
 }
 
 bool BKE_undosys_step_undo_with_data_ex(

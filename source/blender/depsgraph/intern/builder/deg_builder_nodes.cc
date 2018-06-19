@@ -264,6 +264,47 @@ OperationDepsNode *DepsgraphNodeBuilder::find_operation_node(
 void DepsgraphNodeBuilder::begin_build() {
 }
 
+void DepsgraphNodeBuilder::build_id(ID* id) {
+	if (id == NULL) {
+		return;
+	}
+	switch (GS(id->name)) {
+		case ID_SCE:
+			build_scene((Scene *)id);
+			break;
+		case ID_GR:
+			build_group(NULL, (Group *)id);
+			break;
+		case ID_OB:
+			build_object(NULL, (Object *)id);
+			break;
+		case ID_NT:
+			build_nodetree((bNodeTree *)id);
+			break;
+		case ID_MA:
+			build_material((Material *)id);
+			break;
+		case ID_TE:
+			build_texture((Tex *)id);
+			break;
+		case ID_IM:
+			build_image((Image *)id);
+			break;
+		case ID_WO:
+			build_world((World *)id);
+			break;
+		case ID_MSK:
+			build_mask((Mask *)id);
+			break;
+		case ID_MC:
+			build_movieclip((MovieClip *)id);
+			break;
+		default:
+			/* fprintf(stderr, "Unhandled ID %s\n", id->name); */
+			break;
+	}
+}
+
 void DepsgraphNodeBuilder::build_group(Base *base, Group *group)
 {
 	if (built_map_.checkIsBuiltAndTag(group)) {
@@ -522,6 +563,7 @@ void DepsgraphNodeBuilder::build_driver_variables(ID * id, FCurve *fcurve)
 	LISTBASE_FOREACH (DriverVar *, dvar, &fcurve->driver->variables) {
 		DRIVER_TARGETS_USED_LOOPER(dvar)
 		{
+			build_id(dtar->id);
 			build_driver_id_property(dtar->id, dtar->rna_path);
 		}
 		DRIVER_TARGETS_LOOPER_END
@@ -727,6 +769,7 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 	op_node = add_operation_node(&object->id,
 	                             DEG_NODE_TYPE_GEOMETRY,
 	                             function_bind(BKE_object_eval_uber_data,
+	                                           bmain_,
 	                                           _1,
 	                                           scene_,
 	                                           object),
@@ -796,7 +839,7 @@ void DepsgraphNodeBuilder::build_obdata_geom(Object *object)
 
 		case OB_MBALL:
 		{
-			Object *mom = BKE_mball_basis_find(scene_, object);
+			Object *mom = BKE_mball_basis_find(bmain_, bmain_->eval_ctx, scene_, object);
 			/* NOTE: Only the motherball gets evaluated, it's children are
 			 * having empty placeholders for the correct relations being built.
 			 */

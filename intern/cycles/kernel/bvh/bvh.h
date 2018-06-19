@@ -219,7 +219,7 @@ ccl_device_intersect bool scene_intersect(KernelGlobals *kg,
 
 #ifdef __BVH_LOCAL__
 /* Note: ray is passed by value to work around a possible CUDA compiler bug. */
-ccl_device_intersect void scene_intersect_local(KernelGlobals *kg,
+ccl_device_intersect bool scene_intersect_local(KernelGlobals *kg,
                                                 const Ray ray,
                                                 LocalIntersection *local_isect,
                                                 int local_object,
@@ -235,7 +235,7 @@ ccl_device_intersect void scene_intersect_local(KernelGlobals *kg,
 		local_isect->num_hits = 0;
 		rtc_ray.sss_object_id = local_object;
 		rtcOccluded(kernel_data.bvh.scene, rtc_ray);
-		return;
+		return rtc_ray.primID != RTC_INVALID_GEOMETRY_ID;
 	}
 #endif /* __EMBREE__ */
 #ifdef __OBJECT_MOTION__

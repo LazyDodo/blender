@@ -101,6 +101,10 @@ void rtc_filter_func(void*, RTCRay& ray_)
 		return;
 	}
 	else if(ray.type == CCLRay::RAY_SSS) {
+		/* No intersection information requested, just return a hit. */
+		if(ray.ss_isect->num_hits == 0) {
+			return;
+		}
 		/* Only accept hits from the same object and triangles. */
 		if(ray.instID/2 != ray.sss_object_id || ray.geomID & 1) {
 			/* This tells Embree to continue tracing. */
