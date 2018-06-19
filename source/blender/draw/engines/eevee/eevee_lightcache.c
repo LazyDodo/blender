@@ -28,6 +28,7 @@
 #include "DRW_render.h"
 
 #include "BKE_global.h"
+#include "BKE_blender.h"
 
 #include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
@@ -84,7 +85,7 @@ typedef struct EEVEE_LightBake {
 	Scene *scene;
 	struct Main *bmain;
 
-	Object *probe;                   /* Current probe being rendered. */
+	LightProbe **probe;              /* Current probe being rendered. */
 	GPUTexture *rt_color;            /* Target cube color texture. */
 	GPUTexture *rt_depth;            /* Target cube depth texture. */
 	GPUFrameBuffer *rt_fb[6];        /* Target cube framebuffers. */
@@ -99,6 +100,7 @@ typedef struct EEVEE_LightBake {
 	int cube_count, grid_count;      /* Number of probes to render + world probe. */
 
 	/* Irradiance grid */
+	EEVEE_LightGrid *grid;           /* Current probe being rendered (UBO data). */
 	int irr_cube_res;                /* Target cubemap at MIP 0. */
 	int irr_size[3];                 /* Size of the irradiance texture. */
 	int total_irr_samples;           /* Total for all grids */
@@ -109,6 +111,7 @@ typedef struct EEVEE_LightBake {
 	LightProbe **grid_prb;           /* Pointer to the id.data of the probe object. */
 
 	/* Reflection probe */
+	EEVEE_LightProbe *cube;          /* Current probe being rendered (UBO data). */
 	int ref_cube_res;                /* Target cubemap at MIP 0. */
 	float probemat[6][4][4];         /* ViewProjection matrix for each cube face. */
 	float texel_size, padding_size;  /* Texel and padding size for the final octahedral map. */
@@ -118,6 +121,10 @@ typedef struct EEVEE_LightBake {
 	/* Dummy Textures */
 	struct GPUTexture *dummy_color, *dummy_depth;
 	struct GPUTexture *dummy_layer_color;
+
+	int total, done; /* to compute progress */
+	short *stop, *do_update;
+	float *progress;
 
 	void *gl_context, *gwn_context;  /* If running in parallel (in a separate thread), use this context. */
 } EEVEE_LightBake;
@@ -485,7 +492,7 @@ static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 	int total_irr_samples = 1;
 
 	/* Convert all lightprobes to tight UBO data from all lightprobes in the scene.
-	 * This allows a large number of probe to be precomputed. */
+	 * This allows a large number of probe to be precomputed (even dupli ones). */
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
 		if (ob->type == OB_LIGHTPROBE) {
@@ -497,13 +504,16 @@ static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 				EEVEE_lightprobes_grid_data_from_object(ob, egrid, &total_irr_samples);
 			}
 			else if (prb->type == LIGHTPROBE_TYPE_CUBE) {
-				lbake->grid_prb[cube_count] = prb;
+				lbake->cube_prb[cube_count] = prb;
 				EEVEE_LightProbe *eprobe = &lcache->cube_data[cube_count++];
 				EEVEE_lightprobes_cube_data_from_object(ob, eprobe);
 			}
 		}
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
+
+	lbake->total = lbake->total_irr_samples * lbake->bounce_count + lbake->cube_count;
+	lbake->done = 0;
 }
 
 void EEVEE_lightbake_update(void *custom_data)
@@ -514,10 +524,22 @@ void EEVEE_lightbake_update(void *custom_data)
 	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 }
 
-static float lightbake_progress_get(EEVEE_LightBake *UNUSED(lbake))
+static bool lightbake_do_sample(EEVEE_LightBake *lbake, void (*render_callback)(void *ved, void *user_data))
 {
-	/* TODO */
-	return 0.5f;
+	if (G.is_break == true) {
+		return false;
+	}
+
+	Depsgraph *depsgraph = lbake->depsgraph;
+
+	eevee_lightbake_context_enable(lbake);
+	DRW_custom_pipeline(&draw_engine_eevee_type, depsgraph, render_callback, lbake);
+	lbake->done += 1;
+	*lbake->progress = lbake->done / (float)lbake->total; /* TODO */
+	*lbake->do_update = 1;
+	eevee_lightbake_context_disable(lbake);
+
+	return true;
 }
 
 void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float *progress)
@@ -526,6 +548,9 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 	Depsgraph *depsgraph = lbake->depsgraph;
 
 	lbake->view_layer = DEG_get_evaluated_view_layer(depsgraph);
+	lbake->stop = stop;
+	lbake->do_update = do_update;
+	lbake->progress = progress;
 
 	/* Count lightprobes */
 	eevee_lightbake_count_probes(lbake);
@@ -544,45 +569,36 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 
 	/* Render world irradiance and reflection first */
 	if (lcache->flag & LIGHTCACHE_UPDATE_WORLD) {
-		eevee_lightbake_context_enable(lbake);
-		DRW_custom_pipeline(&draw_engine_eevee_type, depsgraph, eevee_lightbake_render_world, lbake);
-		*progress = lightbake_progress_get(lbake);
-		*do_update = 1;
-		eevee_lightbake_context_disable(lbake);
+		lightbake_do_sample(lbake, eevee_lightbake_render_world);
 	}
 
 	/* Render irradiance grids */
 	lbake->bounce_curr = 0;
-	lbake->bounce_count = 1; /* TODO REMOVE */
 	while (lbake->bounce_curr < lbake->bounce_count) {
 		/* Bypass world, start at 1. */
-		for (int p = 1; p < lbake->grid_count; ++p) {
+		lbake->probe = lbake->grid_prb + 1;
+		lbake->grid = lcache->grid_data + 1;
+		for (int p = 1; p < lbake->grid_count; ++p, lbake->probe++, lbake->grid++) {
 			/* TODO: make DRW manager instanciable (and only lock on drawing) */
-			const int grid_sample_count = 1;
+			LightProbe *prb = *lbake->probe;
+			const int grid_sample_count = prb->grid_resolution_x *
+			                              prb->grid_resolution_y *
+			                              prb->grid_resolution_z;
 			for (int s = 0; s < grid_sample_count; ++s) {
-				if (*stop != 0) {
-					break;
-				}
-				eevee_lightbake_context_enable(lbake);
-				DRW_custom_pipeline(&draw_engine_eevee_type, depsgraph, eevee_lightbake_render_grid_sample, lbake);
-				*progress = lightbake_progress_get(lbake);
-				*do_update = 1;
-				eevee_lightbake_context_disable(lbake);
+				lightbake_do_sample(lbake, eevee_lightbake_render_grid_sample);
 			}
 		}
 		lbake->bounce_curr += 1;
 	}
 
 	/* Render reflections */
-	for (int s = 0; s < lbake->cube_count; ++s) {
-		if (*stop != 0) {
-			break;
+	{
+		/* Bypass world, start at 1. */
+		lbake->probe = lbake->cube_prb + 1;
+		lbake->cube = lcache->cube_data + 1;
+		for (int p = 1; p < lbake->cube_count; ++p, lbake->probe++, lbake->grid++) {
+			lightbake_do_sample(lbake, eevee_lightbake_render_probe);
 		}
-		eevee_lightbake_context_enable(lbake);
-		DRW_custom_pipeline(&draw_engine_eevee_type, depsgraph, eevee_lightbake_render_probe, lbake);
-		*progress = lightbake_progress_get(lbake);
-		*do_update = 1;
-		eevee_lightbake_context_disable(lbake);
 	}
 
 	eevee_lightbake_delete_resources(lbake);

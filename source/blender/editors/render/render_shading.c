@@ -711,7 +711,6 @@ static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 
-
 	G.is_break = false;
 
 	/* TODO abort if selected engine is not eevee. */
@@ -761,6 +760,8 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 	 * several layers from compositor [#31800]
 	 */
 	op->customdata = scene;
+
+	G.is_break = false;
 
 	WM_jobs_start(CTX_wm_manager(C), wm_job);
 
