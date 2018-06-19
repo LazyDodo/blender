@@ -581,6 +581,7 @@ void EEVEE_lightprobes_cube_data_from_object(Object *ob, EEVEE_LightProbe *eprob
 static void eevee_lightprobes_extract_from_cache(EEVEE_LightProbesInfo *pinfo, EEVEE_LightCache *lcache)
 {
 	/* copy the entire cache for now (up to MAX_PROBE) */
+	/* TODO Frutum cull to only add visible probes. */
 	memcpy(pinfo->probe_data, lcache->cube_data, sizeof(EEVEE_LightProbe) * min_ii(lcache->cube_count, MAX_PROBE));
 	/* TODO compute the max number of grid based on sample count. */
 	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * min_ii(lcache->grid_count, MAX_GRID));
@@ -598,20 +599,35 @@ bool EEVEE_lightprobes_all_probes_ready(EEVEE_ViewLayerData *sldata, EEVEE_Data 
 void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 {
 	EEVEE_StorageList *stl = vedata->stl;
+	EEVEE_LightCache *light_cache = stl->g_data->light_cache;
 
-	eevee_lightprobes_extract_from_cache(sldata->probes, stl->g_data->light_cache);
+	eevee_lightprobes_extract_from_cache(sldata->probes, light_cache);
 
 	DRW_uniformbuffer_update(sldata->probe_ubo, &sldata->probes->probe_data);
 	DRW_uniformbuffer_update(sldata->grid_ubo, &sldata->probes->grid_data);
 
 	/* For shading, save max level of the octahedron map */
-	int mipsize = GPU_texture_width(stl->g_data->light_cache->cube_tx);
+	int mipsize = GPU_texture_width(light_cache->cube_tx);
 	sldata->common_data.prb_lod_cube_max = (float)(floorf(log2f(mipsize)) - MIN_CUBE_LOD_LEVEL) - 1.0f;
+	sldata->common_data.prb_num_render_cube = light_cache->cube_count;
+	sldata->common_data.prb_num_render_grid = light_cache->grid_count;
 }
 
-void EEVEE_lightbake_render_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUFrameBuffer *face_fb[6])
+/* -------------------------------------------------------------------- */
+
+/** \name Rendering
+ * \{ */
+
+typedef struct EEVEE_CubeFaceBake{
+	EEVEE_Data *vedata;
+	EEVEE_ViewLayerData *sldata;
+	struct GPUFrameBuffer **face_fb; /* should contain 6 framebuffer */
+} EEVEE_CubeFaceBake;
+
+static void render_cubemap(
+        void (*callback)(int face, EEVEE_CubeFaceBake *user_data), EEVEE_CubeFaceBake *user_data,
+        const float pos[3], float clipsta, float clipend)
 {
-	EEVEE_PassList *psl = vedata->psl;
 	DRWMatrixState matstate;
 	float (*viewmat)[4] = matstate.mat[DRW_MAT_VIEW];
 	float (*viewinv)[4] = matstate.mat[DRW_MAT_VIEWINV];
@@ -620,23 +636,93 @@ void EEVEE_lightbake_render_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 	float (*winmat)[4] = matstate.mat[DRW_MAT_WIN];
 	float (*wininv)[4] = matstate.mat[DRW_MAT_WININV];
 
-	perspective_m4(winmat, -0.1f, 0.1f, -0.1f, 0.1f, 0.1f, 1.0f);
+	/* Move to capture position */
+	float posmat[4][4];
+	unit_m4(posmat);
+	negate_v3_v3(posmat[3], pos);
+
+	perspective_m4(winmat, -clipsta, clipsta, -clipsta, clipsta, clipsta, clipend);
 	invert_m4_m4(wininv, winmat);
 
+	/* 1 - Render to each cubeface individually.
+	 * We do this instead of using geometry shader because a) it's faster,
+	 * b) it's easier than fixing the nodetree shaders (for view dependant effects). */
 	for (int i = 0; i < 6; ++i) {
 		/* Setup custom matrices */
-		copy_m4_m4(viewmat, cubefacemat[i]);
+		mul_m4_m4m4(viewmat, cubefacemat[i], posmat);
 		mul_m4_m4m4(persmat, winmat, viewmat);
 		invert_m4_m4(persinv, persmat);
 		invert_m4_m4(viewinv, viewmat);
+		invert_m4_m4(wininv, winmat);
+
 		DRW_viewport_matrix_override_set_all(&matstate);
 
-		GPU_framebuffer_bind(face_fb[i]);
-		/* For world probe, we don't need to clear since we render the background directly. */
-		GPU_framebuffer_clear_depth(face_fb[i], 1.0f);
-		DRW_draw_pass(psl->probe_background);
+		callback(i, user_data);
 	}
 }
+
+static void lightbake_render_world_face(int face, EEVEE_CubeFaceBake *user_data)
+{
+	EEVEE_PassList *psl = user_data->vedata->psl;
+	struct GPUFrameBuffer **face_fb = user_data->face_fb;
+
+	/* For world probe, we don't need to clear the color buffer
+	 * since we render the background directly. */
+	GPU_framebuffer_bind(face_fb[face]);
+	GPU_framebuffer_clear_depth(face_fb[face], 1.0f);
+	DRW_draw_pass(psl->probe_background);
+}
+
+void EEVEE_lightbake_render_world(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *vedata, struct GPUFrameBuffer *face_fb[6])
+{
+	EEVEE_CubeFaceBake cfbake = {
+		.vedata = vedata,
+		.face_fb = face_fb
+	};
+
+	render_cubemap(lightbake_render_world_face, &cfbake, (float[3]){0.0f}, 1.0f, 10.0f);
+}
+
+static void lightbake_render_scene_face(int face, EEVEE_CubeFaceBake *user_data)
+{
+	EEVEE_ViewLayerData *sldata = user_data->sldata;
+	EEVEE_PassList *psl = user_data->vedata->psl;
+	struct GPUFrameBuffer **face_fb = user_data->face_fb;
+
+	/* Be sure that cascaded shadow maps are updated. */
+	EEVEE_draw_shadows(sldata, psl);
+
+	GPU_framebuffer_bind(face_fb[face]);
+	GPU_framebuffer_clear_depth(face_fb[face], 1.0f);
+
+	DRW_draw_pass(psl->depth_pass);
+	DRW_draw_pass(psl->depth_pass_cull);
+	DRW_draw_pass(psl->probe_background);
+	DRW_draw_pass(psl->material_pass);
+	DRW_draw_pass(psl->sss_pass); /* Only output standard pass */
+	EEVEE_draw_default_passes(psl);
+}
+
+/* Render the scene to the probe_rt texture. */
+void EEVEE_lightbake_render_scene(
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUFrameBuffer *face_fb[6],
+        const float pos[3], float near_clip, float far_clip)
+{
+	EEVEE_CubeFaceBake cfbake = {
+		.vedata = vedata,
+		.sldata = sldata,
+		.face_fb = face_fb
+	};
+
+	render_cubemap(lightbake_render_scene_face, &cfbake, pos, near_clip, far_clip);
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+
+/** \name Filtering
+ * \{ */
 
 /* Glossy filter rt_color to light_cache->cube_tx at index probe_idx */
 void EEVEE_lightbake_filter_glossy(
@@ -783,9 +869,8 @@ void EEVEE_lightbake_filter_diffuse(
 void EEVEE_lightbake_filter_visibility(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
         struct GPUTexture *UNUSED(rt_depth), struct GPUFrameBuffer *fb,
-        float clipsta, float clipend,
-        float vis_range, float vis_blur, int vis_size,
-        int grid_offset)
+        int grid_offset, float clipsta, float clipend,
+        float vis_range, float vis_blur, int vis_size)
 {
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
@@ -814,6 +899,8 @@ void EEVEE_lightbake_filter_visibility(
 	GPU_framebuffer_viewport_set(fb, x, y, vis_size, vis_size);
 	DRW_draw_pass(psl->probe_visibility_compute);
 }
+
+/** \} */
 
 void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 {

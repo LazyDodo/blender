@@ -1071,20 +1071,18 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	}
 }
 
-#define ADD_SHGROUP_CALL(shgrp, ob, geom, oedata) do { \
+#define ADD_SHGROUP_CALL(shgrp, ob, geom) do { \
 	if (is_sculpt_mode_draw) { \
 		DRW_shgroup_call_sculpt_add(shgrp, ob, ob->obmat); \
 	} \
 	else { \
-		if (oedata) { \
-			DRW_shgroup_call_object_add(shgrp, geom, ob); \
-		} \
+		DRW_shgroup_call_object_add(shgrp, geom, ob); \
 	} \
 } while (0)
 
-#define ADD_SHGROUP_CALL_SAFE(shgrp, ob, geom, oedata) do { \
+#define ADD_SHGROUP_CALL_SAFE(shgrp, ob, geom) do { \
 	if (shgrp) { \
-		ADD_SHGROUP_CALL(shgrp, ob, geom, oedata); \
+		ADD_SHGROUP_CALL(shgrp, ob, geom); \
 	} \
 } while (0)
 
@@ -1497,20 +1495,12 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 					continue;
 				}
 
-				/* XXX TODO rewrite this to include the dupli objects.
-				 * This means we cannot exclude dupli objects from reflections!!! */
-				if ((ob->base_flag & BASE_FROMDUPLI) == 0) {
-					oedata = EEVEE_object_data_ensure(ob);
-					oedata->ob = ob;
-					oedata->test_data = &sldata->probes->vis_data;
-				}
-
 				/* Shading pass */
-				ADD_SHGROUP_CALL(shgrp_array[i], ob, mat_geom[i], oedata);
+				ADD_SHGROUP_CALL(shgrp_array[i], ob, mat_geom[i]);
 
 				/* Depth Prepass */
-				ADD_SHGROUP_CALL_SAFE(shgrp_depth_array[i], ob, mat_geom[i], oedata);
-				ADD_SHGROUP_CALL_SAFE(shgrp_depth_clip_array[i], ob, mat_geom[i], oedata);
+				ADD_SHGROUP_CALL_SAFE(shgrp_depth_array[i], ob, mat_geom[i]);
+				ADD_SHGROUP_CALL_SAFE(shgrp_depth_clip_array[i], ob, mat_geom[i]);
 
 				char *name = auto_layer_names;
 				for (int j = 0; j < auto_layer_count; ++j) {

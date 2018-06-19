@@ -427,12 +427,6 @@ typedef struct EEVEE_PlanarReflection {
 
 /* ************ PROBE DATA ************* */
 
-typedef struct EEVEE_LightProbeVisTest {
-	bool invert;
-	bool cached; /* Reuse last test results */
-	struct Collection *collection; /* Skip test if NULL */
-} EEVEE_LightProbeVisTest;
-
 typedef struct EEVEE_LightProbesInfo {
 	int num_cube, cache_num_cube;
 	int num_grid, cache_num_grid;
@@ -476,8 +470,6 @@ typedef struct EEVEE_LightProbesInfo {
 	struct EEVEE_LightProbe probe_data[MAX_PROBE];
 	struct EEVEE_LightGrid grid_data[MAX_GRID];
 	struct EEVEE_PlanarReflection planar_data[MAX_PLANAR];
-	/* Probe Visibility Collection */
-	EEVEE_LightProbeVisTest vis_data;
 } EEVEE_LightProbesInfo;
 
 /* EEVEE_LightProbesInfo->update_flag */
@@ -748,7 +740,6 @@ typedef struct EEVEE_ObjectEngineData {
 	ObjectEngineData engine_data;
 
 	Object *ob; /* self reference */
-	EEVEE_LightProbeVisTest *test_data;
 	bool ob_vis, ob_vis_dirty;
 
 	bool need_update;
@@ -890,14 +881,21 @@ void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *v
 void EEVEE_lightprobes_free(void);
 
 void EEVEE_lightbake_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, GPUTexture *rt_color, GPUTexture *rt_depth);
-void EEVEE_lightbake_render_world(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUFrameBuffer *face_fb[6]);
-void EEVEE_lightbake_filter_glossy(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_color, struct GPUFrameBuffer *fb, int probe_idx, float intensity);
+void EEVEE_lightbake_render_world(
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUFrameBuffer *face_fb[6]);
+void EEVEE_lightbake_render_scene(
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUFrameBuffer *face_fb[6],
+        const float pos[3], float near_clip, float far_clip);
+void EEVEE_lightbake_filter_glossy(
+        EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
+        int probe_idx, float intensity);
 void EEVEE_lightbake_filter_diffuse(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
         int grid_offset, float intensity);
 void EEVEE_lightbake_filter_visibility(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_depth, struct GPUFrameBuffer *fb,
-        float clipsta, float clipend, float vis_range, float vis_blur, int vis_size, int grid_offset);
+        int grid_offset, float clipsta, float clipend, float vis_range, float vis_blur, int vis_size);
+
 void EEVEE_lightprobes_grid_data_from_object(Object *ob, EEVEE_LightGrid *prb_data, int *offset);
 void EEVEE_lightprobes_cube_data_from_object(Object *ob, EEVEE_LightProbe *prb_data);
 

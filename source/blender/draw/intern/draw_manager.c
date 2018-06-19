@@ -1616,6 +1616,7 @@ void DRW_custom_pipeline(
 
 	/* Execute the callback */
 	callback(data, user_data);
+	DST.buffer_finish_called = false;
 
 	GPU_viewport_free(DST.viewport);
 	GPU_framebuffer_restore();
