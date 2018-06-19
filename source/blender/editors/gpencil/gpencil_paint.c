@@ -2259,7 +2259,7 @@ static void gpencil_draw_exit(bContext *C, wmOperator *op)
 		ED_gpencil_toggle_brush_cursor(C, true, NULL);
 
 		/* finally, free the temp data */
-		MEM_freeN(p);
+		gp_session_free(p);
 	}
 
 	op->customdata = NULL;
