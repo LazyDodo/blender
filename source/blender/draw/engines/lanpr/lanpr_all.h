@@ -222,9 +222,108 @@ typedef struct tnsRenderTaskInfo {
 
 } tnsRenderTaskInfo;
 
+/* Below ported from NUL_TNS.h */
+
+struct LANPR_RenderBuffer {
+	LANPR_RenderBuffer *prev, *next;
+
+	nSafeString*       Name;
+
+	tnsFrameBuffer*    FrameBuffer;
+
+	tnsBoundingArea*   InitialBoundingAreas;
+	//u32bit             BoundingAreaCount;
+	//u32bit             BaVBO;
+	//u32bit           BaFillVBO;
+
+	ListBase           VertexBufferPointers;
+	ListBase           TriangleBufferPointers;
+	
+	ListBase           AllRenderLines;
+
+	//nListHandle     IntersectingVertexBuffer;
+
+    /* BLI_xx equ? */
+	nStaticMemoryPool  RenderDataPool;
+
+	//render status
+
+	real            ViewVector[3];
+
+	int             TriangleSize;
+
+	u32bit          ContourCount;
+	u32bit          ContourProcessed;
+	nListItemPointer* ContourManaged;
+	ListBase        Contours;
+
+	u32bit          IntersectionCount;
+	u32bit          IntersectionProcessed;
+	nListItemPointer* IntersectionManaged;
+	ListBase        IntersectionLines;
+
+	u32bit          CreaseCount;
+	u32bit          CreaseProcessed;
+	nListItemPointer* CreaseManaged;
+	ListBase        CreaseLines;
+
+	u32bit          MaterialLineCount;
+	u32bit          MaterialProcessed;
+	nListItemPointer* MaterialManaged;
+	ListBase        MaterialLines;
+
+	//CRITICAL_SECTION csInfo;
+	//CRITICAL_SECTION csData;
+	//CRITICAL_SECTION csManagement;
+
+	//settings
+
+	//int             OutputTransparent;
+	//real            BackgroundColor[4];
+
+	int             MaxOccludeLevel;
+	real            CreaseAngle;
+	real            CreaseCos;
+	int             CreaseAllowOverride;
+	int             ThreadCount;
+	
+	real            OverallProgress;
+	int             CalculationStatus;
+
+	int             DrawMaterialPreview;
+	real            MaterialTransparency;
+
+	int             ShowLine;
+	int             ShowFast;
+	int             ShowMaterial;
+	int             OverrideDisplay;
+
+	ListBase        DrawCommands;
+
+	//tnsRenderBufferPreviewNode RenderPreview[32];
+
+	Scene*          Scene;
+	//tnsCamera* Camera;
+
+	//tnsRenderTriangles are in mesh object.
+}LANPR_RenderBuffer;
+
 
 extern RenderEngineType DRW_engine_viewport_lanpr_type;
 
+
+
+#define LANPR_MASTER_MODE_DPIX         0
+#define LANPR_MASTER_MODE_SNAKE        1
+
+#define LANPR_POST_PROCESSING_DISABLED 0
+#define LANPR_POST_PROCESSING_ENABLED  1
+
+#define LANPR_USE_DIFFERENT_TAPER      0
+#define LANPR_USE_SAME_TAPER           1
+
+#define LANPR_DISABLE_TIP_EXTEND       0
+#define LANPR_ENABLE_TIP_EXTEND        1
 
 
 

@@ -35,29 +35,39 @@
 //#include "DNA_listBase.h"
 //#include "DNA_ID.h"
 
-#define LANPR_MASTER_MODE_DPIX         0
-#define LANPR_MASTER_MODE_SNAKE        1
+struct Object;
+struct Material;
+struct Collection;
 
-#define LANPR_POST_PROCESSING_DISABLED 0
-#define LANPR_POST_PROCESSING_ENABLED  1
+typedef struct LANPR_LineStyleComponent{
+    struct LANPR_LineStyle *next, *prev;
 
-#define LANPR_USE_DIFFERENT_TAPER      0
-#define LANPR_USE_SAME_TAPER           1
+    struct Object     object_select;
+    struct Material   material_select;
+    struct Collection collection_select;
 
-#define LANPR_DISABLE_TIP_EXTEND       0
-#define LANPR_ENABLE_TIP_EXTEND        1
+}LANPR_LineStyleComponent;
 
-typedef struct LANPRLineStyle{
-	struct LANPRLineStyle *next, *prev;
+typedef struct LANPR_LineStyle{
+	struct LANPR_LineStyle *next, *prev;
 
-    float thickness;
-    float color[4];
-    
-    int use_camera_distance;
-    float camera_distance_influence;
-    float camera_distance_exp;
+    int      qi_begin;
+    int      qi_end;   /* these are for QI Range thing... just occlusion levels */
 
-} LANPRLineStyle;
+    float    thickness;
+    float    line_thickness_crease;
+	float    line_thickness_material;
+	float    line_thickness_edge_mark;
+
+    float    color[4];
+    float    crease_color[4];
+    float    material_color[4];
+    float    edge_mark_color[4];
+
+    int      logic_mode; /* for component evaluation */
+    ListBase components;
+
+}LANPR_LineStyle;
 
 
 

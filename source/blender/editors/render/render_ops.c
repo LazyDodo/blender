@@ -82,6 +82,9 @@ void ED_operatortypes_render(void)
 	WM_operatortype_append(SCENE_OT_freestyle_stroke_material_create);
 #endif
 
+    /* lanpr:  */
+    WM_operatortype_append(SCENE_OT_lanpr_calculate_feature_lines);
+
 	WM_operatortype_append(TEXTURE_OT_slot_copy);
 	WM_operatortype_append(TEXTURE_OT_slot_paste);
 	WM_operatortype_append(TEXTURE_OT_slot_move);

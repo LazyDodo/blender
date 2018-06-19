@@ -1429,6 +1429,8 @@ typedef struct SceneEEVEE {
 
 /* LANPR Global Config */
 
+typedef struct LANPR_RenderBuffer;
+
 typedef struct SceneLANPR{
 
 	int master_mode;
@@ -1491,6 +1493,10 @@ typedef struct SceneLANPR{
 
 	int   InitComplete;
 	int   reloaded;
+
+	/* offline render */
+
+	LANPR_RenderBuffer *render_buffer;// created when needed.
 
 } SceneLANPR;
 
