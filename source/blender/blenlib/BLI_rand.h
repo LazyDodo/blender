@@ -64,10 +64,6 @@ void        BLI_rng_shuffle_array(struct RNG *rng, void *data, unsigned int elem
 /** Note that skipping is as slow as generating n numbers! */
 void        BLI_rng_skip(struct RNG *rng, int n) ATTR_NONNULL(1);
 
-/** Return a pseudo-random number N where 0.0f<=N<1.0f */
-/* !!!!! NOTE: DO NOT USE IT IN NEW CODE !!!!! */
-float   BLI_frand(void) ATTR_WARN_UNUSED_RESULT;
-
 /* fill an array with random numbers */
 void    BLI_array_frand(float *ar, int count, unsigned int seed);
 

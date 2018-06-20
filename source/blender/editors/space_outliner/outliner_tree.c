@@ -1467,6 +1467,10 @@ static void outliner_add_layer_collection_objects(
 		Base *base = BKE_view_layer_base_find(layer, cob->ob);
 		TreeElement *te_object = outliner_add_element(soops, tree, base->object, ten, 0, 0);
 		te_object->directdata = base;
+
+		if (!(base->flag & BASE_VISIBLED)) {
+			te_object->flag |= TE_DISABLED;
+		}
 	}
 }
 
@@ -1485,7 +1489,9 @@ static void outliner_add_layer_collections_recursive(
 		ten->reinsert_poll = outliner_collections_reorder_poll;
 
 		const bool exclude = (lc->flag & LAYER_COLLECTION_EXCLUDE) != 0;
-		if (exclude) {
+		if (exclude ||
+		    ((layer->runtime_flag & VIEW_LAYER_HAS_HIDE) &&
+		     !(lc->runtime_flag & LAYER_COLLECTION_HAS_VISIBLE_OBJECTS))) {
 			ten->flag |= TE_DISABLED;
 		}
 

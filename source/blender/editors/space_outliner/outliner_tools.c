@@ -911,6 +911,8 @@ enum {
 	OL_OP_TOGSEL,
 	OL_OP_TOGREN,
 	OL_OP_RENAME,
+	OL_OP_OBJECT_MODE_ENTER,
+	OL_OP_OBJECT_MODE_EXIT,
 };
 
 static const EnumPropertyItem prop_object_op_types[] = {
@@ -922,6 +924,8 @@ static const EnumPropertyItem prop_object_op_types[] = {
 	{OL_OP_REMAP, "REMAP",   0, "Remap Users",
 	 "Make all users of selected data-blocks to use instead a new chosen one"},
 	{OL_OP_RENAME, "RENAME", 0, "Rename", ""},
+	{OL_OP_OBJECT_MODE_ENTER, "OBJECT_MODE_ENTER", 0, "Enter Mode", ""},
+	{OL_OP_OBJECT_MODE_EXIT, "OBJECT_MODE_EXIT", 0, "Exit Mode", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -1004,6 +1008,14 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 	else if (event == OL_OP_RENAME) {
 		outliner_do_object_operation(C, op->reports, scene, soops, &soops->tree, item_rename_cb);
 		str = "Rename Object";
+	}
+	else if (event == OL_OP_OBJECT_MODE_ENTER) {
+		outliner_do_object_operation(C, op->reports, scene, soops, &soops->tree, item_object_mode_enter_cb);
+		str = "Enter Current Mode";
+	}
+	else if (event == OL_OP_OBJECT_MODE_EXIT) {
+		outliner_do_object_operation(C, op->reports, scene, soops, &soops->tree, item_object_mode_exit_cb);
+		str = "Exit Current Mode";
 	}
 	else {
 		BLI_assert(0);
@@ -1574,8 +1586,8 @@ void OUTLINER_OT_animdata_operation(wmOperatorType *ot)
 /* **************************************** */
 
 static const EnumPropertyItem prop_constraint_op_types[] = {
-	{OL_CONSTRAINTOP_ENABLE, "ENABLE", ICON_RESTRICT_VIEW_OFF, "Enable", ""},
-	{OL_CONSTRAINTOP_DISABLE, "DISABLE", ICON_RESTRICT_VIEW_ON, "Disable", ""},
+	{OL_CONSTRAINTOP_ENABLE, "ENABLE", ICON_HIDE_OFF, "Enable", ""},
+	{OL_CONSTRAINTOP_DISABLE, "DISABLE", ICON_HIDE_ON, "Disable", ""},
 	{OL_CONSTRAINTOP_DELETE, "DELETE", ICON_X, "Delete", ""},
 	{0, NULL, 0, NULL, NULL}
 };

@@ -279,6 +279,44 @@ static void restrictbutton_id_user_toggle(bContext *UNUSED(C), void *poin, void 
 	}
 }
 
+static void hidebutton_base_flag_cb(bContext *C, void *poin, void *poin2)
+{
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = poin;
+	Base *base = poin2;
+	bool extend = (CTX_wm_window(C)->eventstate->ctrl == 0);
+
+	/* Undo button toggle, let function do it. */
+	base->flag ^= BASE_HIDE;
+
+	BKE_base_set_visible(scene, view_layer, base, extend);
+
+	if (!extend && (base->flag & BASE_VISIBLED)) {
+		/* Auto select solo-ed object. */
+		ED_object_base_select(base, BA_SELECT);
+		view_layer->basact = base;
+	}
+
+	DEG_id_tag_update(&scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
+}
+
+static void hidebutton_layer_collection_flag_cb(bContext *C, void *poin, void *poin2)
+{
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = poin;
+	LayerCollection *lc = poin2;
+	bool extend = (CTX_wm_window(C)->eventstate->ctrl == 0);
+
+	/* Undo button toggle, let function do it. */
+	lc->runtime_flag ^= LAYER_COLLECTION_HAS_VISIBLE_OBJECTS;
+
+	BKE_layer_collection_set_visible(scene, view_layer, lc, extend);
+
+	DEG_id_tag_update(&scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
+}
+
 static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 {
 	Main *bmain = CTX_data_main(C);
@@ -440,18 +478,25 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 }
 
 static void outliner_draw_restrictbuts(
-        uiBlock *block, Scene *scene, ARegion *ar, SpaceOops *soops, ListBase *lb)
+        uiBlock *block, Scene *scene, ViewLayer *view_layer, ARegion *ar, SpaceOops *soops, ListBase *lb)
 {
 	uiBut *bt;
 
 	/* get RNA properties (once for speed) */
-	PropertyRNA *collection_prop_hide_viewport;
-	PropertyRNA *collection_prop_hide_select;
-	PropertyRNA *collection_prop_hide_render;
+	PropertyRNA *object_prop_hide_viewport, *object_prop_hide_select, *object_prop_hide_render;
+	PropertyRNA *collection_prop_hide_viewport, *collection_prop_hide_select, *collection_prop_hide_render;
+
+	object_prop_hide_viewport = RNA_struct_type_find_property(&RNA_Object, "hide_viewport");
+	object_prop_hide_select = RNA_struct_type_find_property(&RNA_Object, "hide_select");
+	object_prop_hide_render = RNA_struct_type_find_property(&RNA_Object, "hide_render");
 	collection_prop_hide_select = RNA_struct_type_find_property(&RNA_Collection, "hide_select");
 	collection_prop_hide_viewport = RNA_struct_type_find_property(&RNA_Collection, "hide_viewport");
 	collection_prop_hide_render = RNA_struct_type_find_property(&RNA_Collection, "hide_render");
-	BLI_assert(collection_prop_hide_viewport &&
+
+	BLI_assert(object_prop_hide_viewport &&
+	           object_prop_hide_select &&
+	           object_prop_hide_render &&
+	           collection_prop_hide_viewport &&
 	           collection_prop_hide_select &&
 	           collection_prop_hide_render);
 
@@ -460,14 +505,50 @@ static void outliner_draw_restrictbuts(
 		if (te->ys + 2 * UI_UNIT_Y >= ar->v2d.cur.ymin && te->ys <= ar->v2d.cur.ymax) {
 			if (tselem->type == TSE_R_LAYER && (soops->outlinevis == SO_SCENES)) {
 				/* View layer render toggle. */
-				ViewLayer *view_layer = te->directdata;
+				ViewLayer *layer = te->directdata;
 
 				bt = uiDefIconButBitS(
 				        block, UI_BTYPE_ICON_TOGGLE_N, VIEW_LAYER_RENDER, 0, ICON_RESTRICT_RENDER_OFF,
 				        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_RENDERX), te->ys, UI_UNIT_X,
-				        UI_UNIT_Y, &view_layer->flag, 0, 0, 0, 0, TIP_("Use view layer for rendering"));
+				        UI_UNIT_Y, &layer->flag, 0, 0, 0, 0, TIP_("Use view layer for rendering"));
 				UI_but_func_set(bt, restrictbutton_r_lay_cb, tselem->id, NULL);
 				UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
+			}
+			else if (tselem->type == 0 && te->idcode == ID_OB) {
+				Object *ob = (Object *)tselem->id;
+				Base *base = BKE_view_layer_base_find(view_layer, ob);
+
+				if (base) {
+					bt = uiDefIconButBitS(
+					        block, UI_BTYPE_ICON_TOGGLE, BASE_HIDE, 0, ICON_HIDE_OFF,
+					        (int)(ar->v2d.cur.xmax - OL_TOG_HIDEX), te->ys, UI_UNIT_X,
+					        UI_UNIT_Y, &base->flag, 0, 0, 0, 0,
+					        TIP_("Hide object in viewport (Ctrl to isolate)"));
+					UI_but_func_set(bt, hidebutton_base_flag_cb, view_layer, base);
+					UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
+				}
+
+				PointerRNA ptr;
+				RNA_pointer_create((ID *)ob, &RNA_Object, ob, &ptr);
+
+				bt = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0, ICON_RESTRICT_VIEW_OFF,
+				                        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), te->ys, UI_UNIT_X, UI_UNIT_Y,
+				                        &ptr, object_prop_hide_viewport, -1, 0, 0, -1, -1,
+				                        TIP_("Restrict viewport visibility"));
+				UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
+
+				bt = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0, ICON_RESTRICT_SELECT_OFF,
+				                        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_SELECTX), te->ys, UI_UNIT_X, UI_UNIT_Y,
+				                        &ptr, object_prop_hide_select, -1, 0, 0, -1, -1,
+				                        TIP_("Restrict viewport selection"));
+				UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
+
+				bt = uiDefIconButR_prop(block, UI_BTYPE_ICON_TOGGLE, 0, ICON_RESTRICT_RENDER_OFF,
+				                        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_RENDERX), te->ys, UI_UNIT_X, UI_UNIT_Y,
+				                        &ptr, object_prop_hide_render, -1, 0, 0, -1, -1,
+				                        TIP_("Restrict render visibility"));
+				UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
+
 			}
 			else if (tselem->type == TSE_MODIFIER) {
 				ModifierData *md = (ModifierData *)te->directdata;
@@ -494,7 +575,7 @@ static void outliner_draw_restrictbuts(
 				Object *ob = (Object *)tselem->id;
 
 				bt = uiDefIconButBitI(
-				        block, UI_BTYPE_ICON_TOGGLE, BONE_HIDDEN_P, 0, ICON_RESTRICT_VIEW_OFF,
+				        block, UI_BTYPE_ICON_TOGGLE, BONE_HIDDEN_P, 0, ICON_HIDE_OFF,
 				        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), te->ys, UI_UNIT_X,
 				        UI_UNIT_Y, &(bone->flag), 0, 0, 0, 0,
 				        TIP_("Restrict/Allow visibility in the 3D View"));
@@ -532,7 +613,7 @@ static void outliner_draw_restrictbuts(
 				bGPDlayer *gpl = (bGPDlayer *)te->directdata;
 
 				bt = uiDefIconButBitS(
-				        block, UI_BTYPE_ICON_TOGGLE, GP_LAYER_HIDE, 0, ICON_RESTRICT_VIEW_OFF,
+				        block, UI_BTYPE_ICON_TOGGLE, GP_LAYER_HIDE, 0, ICON_HIDE_OFF,
 				        (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), te->ys, UI_UNIT_X,
 				        UI_UNIT_Y, &gpl->flag, 0, 0, 0, 0,
 				        TIP_("Restrict/Allow visibility in the 3D View"));
@@ -556,6 +637,16 @@ static void outliner_draw_restrictbuts(
 				if ((!lc || !(lc->flag & LAYER_COLLECTION_EXCLUDE)) &&
 				    !(collection->flag & COLLECTION_IS_MASTER))
 				{
+					if (lc && (lc->runtime_flag & LAYER_COLLECTION_HAS_ENABLED_OBJECTS)) {
+						bt = uiDefIconButBitS(
+						        block, UI_BTYPE_ICON_TOGGLE_N, LAYER_COLLECTION_HAS_VISIBLE_OBJECTS, 0, ICON_HIDE_OFF,
+						        (int)(ar->v2d.cur.xmax - OL_TOG_HIDEX), te->ys, UI_UNIT_X,
+						        UI_UNIT_Y, &lc->runtime_flag, 0, 0, 0, 0,
+						        TIP_("Hide collection in viewport (Ctrl to isolate)"));
+						UI_but_func_set(bt, hidebutton_layer_collection_flag_cb, view_layer, lc);
+						UI_but_flag_enable(bt, UI_BUT_DRAG_LOCK);
+					}
+
 					PointerRNA collection_ptr;
 					RNA_id_pointer_create(&collection->id, &collection_ptr);
 
@@ -581,7 +672,7 @@ static void outliner_draw_restrictbuts(
 		}
 
 		if (TSELEM_OPEN(tselem, soops)) {
-			outliner_draw_restrictbuts(block, scene, ar, soops, &te->subtree);
+			outliner_draw_restrictbuts(block, scene, view_layer, ar, soops, &te->subtree);
 		}
 	}
 }
@@ -1917,7 +2008,10 @@ static void outliner_draw_restrictcols(ARegion *ar)
 	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShadeAlpha(TH_BACK, -15, -200);
-	immBegin(GWN_PRIM_LINES, 6);
+	immBegin(GWN_PRIM_LINES, 8);
+
+	immVertex2i(pos, (int)(ar->v2d.cur.xmax - OL_TOG_HIDEX), (int)ar->v2d.cur.ymax);
+	immVertex2i(pos, (int)(ar->v2d.cur.xmax - OL_TOG_HIDEX), (int)ar->v2d.cur.ymin);
 
 	immVertex2i(pos, (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), (int)ar->v2d.cur.ymax);
 	immVertex2i(pos, (int)(ar->v2d.cur.xmax - OL_TOG_RESTRICT_VIEWX), (int)ar->v2d.cur.ymin);
@@ -2023,7 +2117,7 @@ void draw_outliner(const bContext *C)
 		/* draw restriction columns */
 		outliner_draw_restrictcols(ar);
 
-		outliner_draw_restrictbuts(block, scene, ar, soops, &soops->tree);
+		outliner_draw_restrictbuts(block, scene, view_layer, ar, soops, &soops->tree);
 	}
 
 	/* draw edit buttons if nessecery */

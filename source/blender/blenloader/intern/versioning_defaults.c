@@ -141,6 +141,8 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		if (scene->toolsettings) {
 			ToolSettings *ts = scene->toolsettings;
 
+			ts->object_flag |= SCE_OBJECT_MODE_LOCK;
+
 			ts->uvcalc_flag |= UVCALC_TRANSFORM_CORRECT;
 
 			if (ts->sculpt) {
@@ -435,4 +437,3 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		}
 	}
 }
-
