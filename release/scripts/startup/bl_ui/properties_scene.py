@@ -478,8 +478,11 @@ class LANPR_linesets(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         lineset = item
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.prop(lineset, "thickness", text="", emboss=False, icon_value=icon)
-            #layout.prop(lineset, "show_render", text="", index=index)
+            split = layout.split(percentage=0.6)
+            split.label(text="Layer")
+            row = split.row(align=True)
+            row.prop(lineset, "color", text="", icon_value=icon)
+            row.prop(lineset, "thickness", text="", icon_value=icon)
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
             layout.label("", icon_value=icon)
@@ -496,12 +499,14 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         layout = self.layout
         scene = context.scene
         lanpr = scene.lanpr
+        active_layer = lanpr.layer.active_layer #this is alwas none.
 
-        layout.prop(lanpr, "master_mode", expand=True)
+        layout.prop(lanpr, "master_mode", expand=True) 
 
         if lanpr.master_mode == "DPIX":
             layout.label(text="DPIX:")
             layout.prop(lanpr, "reloaded")
+            layout.label(text="Effect Settings:")
             
             split = layout.split()
             col = split.column()
@@ -509,64 +514,81 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
             col = split.column()
             col.prop(lanpr, "line_color")
 
-            layout.label(text="Effect Settings:")
-            layout.prop(lanpr, "line_thickness")
-
-            if lanpr.line_thickness > 0.01:
-                col = layout.column()
-                col.label(text="Enable:")
-                row = col.row(align=True)
-                row.prop(lanpr, "enable_crease", text="Crease", toggle=True)
-                row.prop(lanpr, "enable_edge_mark", text="Mark", toggle=True)
-                row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
-                row.prop(lanpr, "enable_intersection", text="Intersection", toggle=True)
-
-                row = col.row(align=True)
-                if lanpr.enable_crease:
-                    row.prop(lanpr, "crease_color", text="")
-                else:
-                    row.label(text="OFF")
-                
-                if lanpr.enable_edge_mark:
-                    row.prop(lanpr, "edge_mark_color", text="")
-                else:
-                    row.label(text="OFF")
-
-                if lanpr.enable_material_seperate:
-                    row.prop(lanpr, "material_color", text="")
-                else:
-                    row.label(text="OFF")
-
-                row.label(text="INOP")
-
-                row = col.row(align=True)
-                if lanpr.enable_crease:
-                    row.prop(lanpr, "line_thickness_crease", text="")
-                else:
-                    row.label(text="OFF")
-                
-                if lanpr.enable_edge_mark:
-                    row.prop(lanpr, "line_thickness_edge_mark", text="")
-                else:
-                    row.label(text="OFF")
-
-                if lanpr.enable_material_seperate:
-                    row.prop(lanpr, "line_thickness_material", text="")
-                else:
-                    row.label(text="OFF")
-
-                row.label(text="INOP")
-
-                layout.prop(lanpr, "crease_threshold")
-                layout.prop(lanpr, "crease_fade_threshold")
+            layout.label(text="Layer Composition:")
+            row = layout.row()
+            rows = 4
+            layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=rows)
+            layout.operator("scene.lanpr_add_line_layer")
+            
+            if active_layer:
 
                 split = layout.split()
                 col = split.column()
-                col.prop(lanpr, "depth_width_influence")
-                col.prop(lanpr, "depth_alpha_influence")
+                col.prop(active_layer, "color")
                 col = split.column()
-                col.prop(lanpr, "depth_width_curve")
-                col.prop(lanpr, "depth_alpha_curve")
+                layout.prop(active_layer, "thickness")
+
+                if lanpr.line_thickness > 0.01:
+                    col = layout.column()
+                    col.label(text="Enable:")
+                    row = col.row(align=True)
+                    row.prop(active_layer, "enable_crease", text="Crease", toggle=True)
+                    row.prop(active_layer, "enable_edge_mark", text="Mark", toggle=True)
+                    row.prop(active_layer, "enable_material_seperate", text="Material", toggle=True)
+                    row.prop(active_layer, "enable_intersection", text="Intersection", toggle=True)
+
+                    row = col.row(align=True)
+                    if lanpr.enable_crease:
+                        row.prop(active_layer, "crease_color", text="")
+                    else:
+                        row.label(text="OFF")
+                    
+                    if lanpr.enable_edge_mark:
+                        row.prop(active_layer, "edge_mark_color", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    if lanpr.enable_material_seperate:
+                        row.prop(active_layer, "material_color", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    if lanpr.enable_intersection:
+                        row.prop(active_layer, "intersection_color", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    row = col.row(align=True)
+                    if lanpr.enable_crease:
+                        row.prop(active_layer, "line_thickness_crease", text="")
+                    else:
+                        row.label(text="OFF")
+                    
+                    if lanpr.enable_edge_mark:
+                        row.prop(active_layer, "line_thickness_edge_mark", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    if lanpr.enable_material_seperate:
+                        row.prop(active_layer, "line_thickness_material", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    if lanpr.enable_intersection:
+                        row.prop(active_layer, "intersection_material", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    layout.prop(lanpr, "crease_threshold")
+                    layout.prop(lanpr, "crease_fade_threshold")
+
+                    split = layout.split()
+                    col = split.column()
+                    col.prop(lanpr, "depth_width_influence")
+                    col.prop(lanpr, "depth_alpha_influence")
+                    col = split.column()
+                    col.prop(lanpr, "depth_width_curve")
+                    col.prop(lanpr, "depth_alpha_curve")
             
         else:
             layout.label(text="Snake:")
@@ -630,10 +652,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
             else: #disabled vectorization
                 layout.label(text="Adjust values to avoid large pure white regions!")
 
-        row = layout.row()
-        rows = 4 if lineset else 2
-        layout.LANPR_linesets("RENDERLAYER_UL_linesets", "", lanpr, "layers", lanpr.layers, "active_index", rows=rows)
-                
+             
 
 
 
@@ -680,6 +699,8 @@ classes = (
     SCENE_PT_simplify,
     SCENE_PT_lanpr,
     SCENE_PT_custom_props,
+
+    LANPR_linesets,
 )
 
 if __name__ == "__main__":  # only for live edit.

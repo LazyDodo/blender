@@ -120,7 +120,7 @@ set(SRC
 	engines/lanpr/lanpr_dpix.c
 	engines/lanpr/lanpr_engine.c
 	engines/lanpr/lanpr_snake.c
-	engines/lanpr/lanpr_software_render.c
+	engines/lanpr/lanpr_ops.c
 
 	DRW_engine.h
 	intern/DRW_render.h

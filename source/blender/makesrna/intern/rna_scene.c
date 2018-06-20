@@ -2097,6 +2097,50 @@ const EnumPropertyItem *rna_TransformOrientation_itemf(
 }
 
 
+/* lanpr */
+
+void rna_lanpr_active_line_layer_index_range(
+        PointerRNA *ptr, int *min, int *max, int *UNUSED(softmin), int *UNUSED(softmax))
+{
+	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
+	*min = 0;
+	*max = max_ii(0, BLI_listbase_count(&lanpr->line_style_layers) - 1);
+}
+
+int rna_lanpr_active_line_layer_index_get(PointerRNA *ptr)
+{
+	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
+    LANPR_LineStyle* ls;
+    int i=0;
+    for(ls = lanpr->line_style_layers.first;ls;ls=ls->next){
+        if(ls == lanpr->active_layer) return i;
+        i++;
+    }
+    return 0;
+}
+
+void rna_lanpr_active_line_layer_index_set(PointerRNA *ptr, int value)
+{
+	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
+    LANPR_LineStyle* ls;
+    int i=0;
+    for(ls = lanpr->line_style_layers.first;ls;ls=ls->next){
+        if(i==value){
+            lanpr->active_layer=ls;
+            return;
+        }
+        i++;
+    }
+    lanpr->active_layer=0;
+}
+
+PointerRNA rna_lanpr_active_line_layer_get(PointerRNA *ptr)
+{
+	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
+	LANPR_LineStyle *ls = lanpr->active_layer;
+	return rna_pointer_inherit_refine(ptr, &RNA_LANPR_LineStyle, ls);
+}
+
 #else
 
 /* Grease Pencil Interpolation tool settings */
@@ -6378,10 +6422,32 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Line Thickness", "Thickness of edge mark line");
 	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
 
+	/* here's the collection stuff.... */
+
 	prop = RNA_def_property(srna, "layers", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, "SceneLANPR", "line_style_layers", NULL);
 	RNA_def_property_struct_type(prop, "LANPR_LineStyle");
 	RNA_def_property_ui_text(prop, "Line Layers", "LANPR Line Layers");
+
+    /* this part I refered to gpencil's and freestyle's and it seems that there's no difference */
+	RNA_def_property_srna(prop, "LineLayers");
+	srna = RNA_def_struct(brna, "LineLayers", NULL);
+	RNA_def_struct_sdna(srna, "SceneLANPR");
+	RNA_def_struct_ui_text(srna, "LANPR Line Style", "");
+
+    /* this part when accessing in python using lanpr.layers.active_layer always return None */
+	prop = RNA_def_property(srna, "active_layer", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "LANPR_LineStyle");
+	RNA_def_property_pointer_funcs(prop, "rna_lanpr_active_line_layer_get", NULL, NULL, NULL);
+	RNA_def_property_ui_text(prop, "Active Line Layer", "Active line layer being displayed");
+	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
+
+	prop = RNA_def_property(srna, "active_layer_index", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_int_funcs(prop, "rna_lanpr_active_line_layer_index_get",
+	                           "rna_lanpr_active_line_layer_index_set",
+	                           "rna_lanpr_active_line_layer_index_range");
+	RNA_def_property_ui_text(prop, "Active Line Layer Index", "Index of active line layer slot");
+	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 }
 
 void RNA_def_scene(BlenderRNA *brna)

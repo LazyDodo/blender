@@ -66,3 +66,49 @@ void SCENE_OT_lanpr_calculate_feature_lines(struct wmOperatorType* ot){
 	ot->cancel = lanpr_compute_feature_lines_cancel;
 	ot->exec = lanpr_compute_feature_lines_exec;
 }
+
+
+/* internal */
+
+LANPR_LineStyle* lanpr_new_line_layer(SceneLANPR* lanpr){
+    LANPR_LineStyle* ls = MEM_callocN(sizeof(LANPR_LineStyle),"Line Style");
+	BLI_addtail(&lanpr->line_style_layers,ls);
+	lanpr->active_layer = ls;
+	return ls;
+}
+
+static int lanpr_add_line_layer_exec(struct bContext *C, struct wmOperator *op){
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR* lanpr = &scene->lanpr;
+
+    lanpr_new_line_layer(lanpr);
+
+	return OPERATOR_FINISHED;
+}
+
+
+void SCENE_OT_lanpr_add_line_layer(struct wmOperatorType* ot){
+	
+	ot->name = "Add line layer";
+	ot->description = "Add a new line layer";
+	ot->idname = "SCENE_OT_lanpr_add_line_layer";
+
+	ot->exec = lanpr_add_line_layer_exec;
+
+}
+
+static int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op){
+
+	return OPERATOR_FINISHED;
+}
+
+
+void SCENE_OT_lanpr_delete_line_layer(struct wmOperatorType* ot){
+	
+	ot->name = "Delete line layer";
+	ot->description = "Delete selected line layer";
+	ot->idname = "SCENE_OT_lanpr_delete_line_layer";
+
+	ot->exec = lanpr_delete_line_layer_exec;
+	
+}

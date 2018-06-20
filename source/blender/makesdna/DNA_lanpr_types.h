@@ -62,29 +62,41 @@ struct Collection;
 typedef struct LANPR_LineStyleComponent{
     struct LANPR_LineStyleComponent *next, *prev;
 
-    int               component_mode;
-
     struct Object     *object_select;
     struct Material   *material_select;
     struct Collection *collection_select;
 
+    int               component_mode;
+    int               what;
+
 }LANPR_LineStyleComponent;
 
 typedef struct LANPR_LineStyle{
-	struct LANPR_LineStyle *next, *prev;
+    struct LANPR_LineStyle *next, *prev;
     
+    int      use_qi_range;
+
     int      qi_begin;
     int      qi_end;   /* these are for QI Range thing... just occlusion levels */
-    
-    float    thickness;
-    float    line_thickness_crease;
-	float    line_thickness_material;
-	float    line_thickness_edge_mark;
 
-    float    color[4];
+    int      use_differnt_style;
+
+    int      enable_crease;
+	int      enable_edge_mark;
+	int      enable_material_seperate;
+	int      enable_intersection;
+    
+    float    thickness; /* default is for contour */
+    float    thickness_crease;
+    float    thickness_material;
+    float    thickness_edge_mark;
+    float    thickness_intersection;
+
+    float    color[4]; /* default is for contour */
     float    crease_color[4];
     float    material_color[4];
     float    edge_mark_color[4];
+    float    intersection_color[4];
 
     int      logic_mode; /* for component evaluation */
 

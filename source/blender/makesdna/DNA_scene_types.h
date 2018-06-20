@@ -1431,6 +1431,7 @@ typedef struct SceneEEVEE {
 /* LANPR Global Config */
 
 struct LANPR_RenderBuffer;
+struct LANPR_LineStyle;
 
 typedef struct SceneLANPR{
 
@@ -1500,6 +1501,7 @@ typedef struct SceneLANPR{
 
 	struct LANPR_RenderBuffer *render_buffer;// created when needed.
 	ListBase                   line_style_layers; /* now here!!! */
+	struct LANPR_LineStyle    *active_layer;
 
 } SceneLANPR;
 

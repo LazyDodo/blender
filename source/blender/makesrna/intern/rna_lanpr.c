@@ -42,6 +42,12 @@
 #include "WM_types.h"
 #include "WM_api.h"
 
+#ifdef RNA_RUNTIME
+
+
+
+#else
+
 void RNA_def_lanpr(BlenderRNA *brna){
 
     StructRNA* srna;
@@ -52,7 +58,7 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	static const EnumPropertyItem lanpr_line_component_modes[] = {
 	    {0, "NORMAL", 0, "Normal", "Normal, display all selected lines"},
         {1, "OBJECT", 0, "Object", "Display lines for selected object"},
-		{2, "MATERIAL", 0, "Material", "Display lines that touches specifi material"},
+		{2, "MATERIAL", 0, "Material", "Display lines that touches specific material"},
         {3, "COLLECTION", 0, "Collection", "Display lines in specific collections"},
 	    {0, NULL, 0, NULL, NULL}
     };
@@ -61,23 +67,110 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	RNA_def_struct_sdna(srna, "LANPR_LineStyleComponent");
 	RNA_def_struct_ui_text(srna, "Line Style Component", "LANPR_LineStyleComponent");
 
-//	prop = RNA_def_property(srna, "component_mode", PROP_ENUM, PROP_NONE);
-//	RNA_def_property_enum_items(prop, lanpr_line_component_modes);
-//	RNA_def_property_enum_default(prop, 0);
-//	RNA_def_property_ui_text(prop, "Mode", "Limit the range of displayed lines");
-//
+	prop = RNA_def_property(srna, "component_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, lanpr_line_component_modes);
+	RNA_def_property_enum_default(prop, 0);
+	RNA_def_property_ui_text(prop, "Mode", "Limit the range of displayed lines");
+
+    prop = RNA_def_property(srna, "object_select", PROP_POINTER, PROP_NONE);
+    RNA_def_property_struct_type(prop, "Object");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Object", "Display lines for selected object");
+
+    prop = RNA_def_property(srna, "material_select", PROP_POINTER, PROP_NONE);
+    RNA_def_property_struct_type(prop, "Material");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Material", "Display lines that touches specific material");
+
+    prop = RNA_def_property(srna, "collection_select", PROP_POINTER, PROP_NONE);
+    RNA_def_property_struct_type(prop, "Collection");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Collection", "Display lines in specific collections");
+    
+
+
 	srna = RNA_def_struct(brna, "LANPR_LineStyle", NULL);
 	RNA_def_struct_sdna(srna, "LANPR_LineStyle");
 	RNA_def_struct_ui_text(srna, "Line Style", "LANPR_LineStyle layer");
-//
-//	prop = RNA_def_property(srna, "line_thickness", PROP_FLOAT, PROP_FACTOR);
-//	RNA_def_property_float_default(prop, 1.0f);
-//	RNA_def_property_ui_text(prop, "Thickness", "Master Thickness");
-//	RNA_def_property_ui_range(prop, 0.0f, 30.0f, 0.01, 2);
-//
-	prop = RNA_def_property(srna, "comp", PROP_COLLECTION, PROP_NONE);
+
+    prop = RNA_def_property(srna, "use_differnt_style", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Different Style", "Use different line styles for differnt line types");
+
+    prop = RNA_def_property(srna, "use_qi_range", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "QI Range", "Use QI Range (occlusion levels) to select lines");
+
+    prop = RNA_def_property(srna, "enable_crease", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable Crease", "Draw crease lines");
+
+	prop = RNA_def_property(srna, "enable_edge_mark", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable Edge Mark", "Draw edge marks");
+
+	prop = RNA_def_property(srna, "enable_material_seperate", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable Material Lines", "Draw material seperators");
+
+	prop = RNA_def_property(srna, "enable_intersection", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable intersection Lines", "Draw intersection lines");
+
+	prop = RNA_def_property(srna, "thickness", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Thickness", "Master Thickness");
+	RNA_def_property_ui_range(prop, 0.0f, 30.0f, 0.01, 2);
+
+    prop = RNA_def_property(srna, "thickness_crease", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Thickness", "Crease Thickness");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
+
+    prop = RNA_def_property(srna, "thickness_material", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Thickness", "Material Thickness");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
+
+    prop = RNA_def_property(srna, "thickness_edge_mark", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Thickness", "Edge Mark Thickness");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
+
+    prop = RNA_def_property(srna, "thickness_intersection", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Thickness", "Edge Mark Thickness");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
+
+    prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Color", "Master Color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+    prop = RNA_def_property(srna, "crease_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Crease Color", "Drawing crease lines using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+	prop = RNA_def_property(srna, "material_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Material Line Color", "Drawing material seperate lines using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+	prop = RNA_def_property(srna, "edge_mark_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Edge Mark Color", "Drawing edge marks using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+    prop = RNA_def_property(srna, "intersection_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Edge Mark Color", "Drawing edge marks using this color");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1, 2);
+
+	prop = RNA_def_property(srna, "components", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "components", NULL);
 	RNA_def_property_struct_type(prop, "LANPR_LineStyleComponent");
 	RNA_def_property_ui_text(prop, "Components", "Line Layer Components");
 
 }
+
+#endif
