@@ -87,6 +87,7 @@
 #include "BKE_displist.h"
 #include "BKE_effect.h"
 #include "BKE_fcurve.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_icons.h"
 #include "BKE_key.h"
 #include "BKE_lamp.h"
@@ -190,11 +191,17 @@ void BKE_object_free_curve_cache(Object *ob)
 void BKE_object_free_modifiers(Object *ob, const int flag)
 {
 	ModifierData *md;
+	GpencilModifierData *gp_md;
 
 	while ((md = BLI_pophead(&ob->modifiers))) {
 		modifier_free_ex(md, flag);
 	}
-
+#if 0	/* FIXME */
+	/* grease pencil */
+	while ((gp_md = BLI_pophead(&ob->greasepencil_modifiers))) {
+		BKE_gpencil_modifier_free_ex(gp_md, flag);
+	}
+#endif
 	/* particle modifiers were freed, so free the particlesystems as well */
 	BKE_object_free_particlesystems(ob);
 
