@@ -224,14 +224,14 @@ typedef struct tnsRenderTaskInfo {
 
 /* Below ported from NUL_TNS.h */
 
-struct LANPR_RenderBuffer {
-	LANPR_RenderBuffer *prev, *next;
+typedef struct LANPR_RenderBuffer {
+	struct LANPR_RenderBuffer *prev, *next;
 
-	nSafeString*       Name;
+	//nSafeString*       Name;
 
-	tnsFrameBuffer*    FrameBuffer;
+	//tnsFrameBuffer*    FrameBuffer;
 
-	tnsBoundingArea*   InitialBoundingAreas;
+	//tnsBoundingArea*   InitialBoundingAreas;
 	//u32bit             BoundingAreaCount;
 	//u32bit             BaVBO;
 	//u32bit           BaFillVBO;
@@ -244,7 +244,7 @@ struct LANPR_RenderBuffer {
 	//nListHandle     IntersectingVertexBuffer;
 
     /* BLI_xx equ? */
-	nStaticMemoryPool  RenderDataPool;
+	//nStaticMemoryPool  RenderDataPool;
 
 	//render status
 
@@ -254,22 +254,22 @@ struct LANPR_RenderBuffer {
 
 	u32bit          ContourCount;
 	u32bit          ContourProcessed;
-	nListItemPointer* ContourManaged;
+	//nListItemPointer* ContourManaged;
 	ListBase        Contours;
 
 	u32bit          IntersectionCount;
 	u32bit          IntersectionProcessed;
-	nListItemPointer* IntersectionManaged;
+	//nListItemPointer* IntersectionManaged;
 	ListBase        IntersectionLines;
 
 	u32bit          CreaseCount;
 	u32bit          CreaseProcessed;
-	nListItemPointer* CreaseManaged;
+	//nListItemPointer* CreaseManaged;
 	ListBase        CreaseLines;
 
 	u32bit          MaterialLineCount;
 	u32bit          MaterialProcessed;
-	nListItemPointer* MaterialManaged;
+	//nListItemPointer* MaterialManaged;
 	ListBase        MaterialLines;
 
 	//CRITICAL_SECTION csInfo;
@@ -307,6 +307,101 @@ struct LANPR_RenderBuffer {
 
 	//tnsRenderTriangles are in mesh object.
 }LANPR_RenderBuffer;
+
+
+#define TNS_CULL_DISCARD 2
+#define TNS_CULL_USED    1
+
+typedef struct LANPR_RenderTriangle {
+	Link              Item;
+	struct LANPR_RenderVert* V[3];
+	struct LANPR_RenderLine* RL[3];
+	real              GN[3];
+	real              GC[3];
+	struct BMFace*           F;
+	ListBase          IntersectingVerts;
+	char              CullStatus;
+	struct LANPR_RenderLine* Testing;	//Should Be tRT** Testing[NumOfThreads]
+}LANPR_RenderTriangle;
+
+typedef struct LANPR_RenderTriangleThread {
+	struct LANPR_RenderTriangle Base;
+	struct LANPR_RenderLine*    Testing[128]; //max thread support;
+}LANPR_RenderTriangleThread;
+
+typedef struct LANPR_RenderElementLinkNode {
+	Link      Item;
+	void*     Pointer;
+	int       ElementCount;
+	void*     ObjectRef;
+	char      Additional;
+}LANPR_RenderElementLinkNode;
+
+typedef struct LANPR_tnsRenderLineSegment {
+	Link      Item;
+	//real     Begin, End;  // 0->At[L] 1->At[R]
+	real      at;
+	u8bit     OccludeLevel;//after
+	int       PreviewIndex;
+}LANPR_tnsRenderLineSegment;
+
+struct LANPR_RenderVert{
+	Link   Item;
+	real GLocation[4];
+	real FrameBufferCoord[4];
+	int FrameBufferCoordi[2];
+	struct BMVert*    V;           //Used As R When Intersecting
+	struct LANPR_RenderLine*     IntersectingLine;
+	struct LANPR_RenderVert*     IntersectintLine2;
+	struct LANPR_RenderTriangle* IntersectWith;     //   Positive 1         Negative 0
+	//tnsRenderTriangle* IntersectingOnFace;       //         <|               |>
+	char        Positive;             //                 L---->|----->R	 L---->|----->R
+	char        EdgeUsed;             //                      <|		       |>
+}LANPR_RenderVert;
+
+typedef struct LANPR_RenderLine {
+	Link            Item;
+	struct LANPR_RenderVert *L, *R;
+	struct LANPR_RenderTriangle *TL, *TR;
+	ListBase        Segments;
+	//tnsEdge*       Edge;//should be edge material
+	//tnsRenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
+	char            MinOcclude;
+	struct Object*         ObjectRef;
+	//char            IgnoreConnectedFace;
+	//char            CullStatus;
+}LANPR_RenderLine;
+
+typedef struct LANPR_BoundingArea {
+	real        L, R, U, B;
+	real        CX, CY;
+	
+	struct LANPR_BoundingArea* Child;//1,2,3,4 quadrant
+
+	ListBase    LP;
+	ListBase    RP;
+	ListBase    UP;
+	ListBase    BP;
+
+	int         TriangleCount;
+	ListBase    AssociatedTriangles;
+}LANPR_BoundingArea;
+
+typedef struct LANPR_RenderSubPixel {
+	real                  Depth;
+	struct LANPR_RenderTriangle* BelongTo;
+	real                  Weight[3];  //belongto->vp 1 2 3
+}LANPR_RenderSubPixel;
+
+typedef struct LANPR_RenderTile {
+	int                Row, Column;
+	int                SubX, SubY, SubXLim, SubYLim;//lower Left Corner As 0
+	real               FX, FY, FXLim, FYLim;  //ratio;
+	//LANPR_RenderSubPixel* FirstPixel;            //lower Left Corner As 0
+	ListBase           AssociatedTriangles;   //lstptrs
+	ListBase           AssociatedLines;       //lstptrs
+	char               Rendered;
+}LANPR_RenderTile;
 
 
 extern RenderEngineType DRW_engine_viewport_lanpr_type;

@@ -6378,6 +6378,10 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Line Thickness", "Thickness of edge mark line");
 	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01, 2);
 
+	prop = RNA_def_property(srna, "layers", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, "SceneLANPR", "line_style_layers", NULL);
+	RNA_def_property_struct_type(prop, "LANPR_LineStyle");
+	RNA_def_property_ui_text(prop, "Line Layers", "LANPR Line Layers");
 }
 
 void RNA_def_scene(BlenderRNA *brna)

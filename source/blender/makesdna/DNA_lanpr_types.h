@@ -28,32 +28,54 @@
 #ifndef __DNA_LANPR_TYPES_H__
 #define __DNA_LANPR_TYPES_H__
 
-/** \file DNA_npr_types.h
+/** \file DNA_lanpr_types.h
  *  \ingroup DNA
  */
 
-//#include "DNA_listBase.h"
-//#include "DNA_ID.h"
+#include "DNA_listBase.h"
+#include "DNA_ID.h"
 
 struct Object;
 struct Material;
 struct Collection;
 
-typedef struct LANPR_LineStyleComponent{
-    struct LANPR_LineStyle *next, *prev;
+#define LANPR_MASTER_MODE_DPIX         0
+#define LANPR_MASTER_MODE_SNAKE        1
 
-    struct Object     object_select;
-    struct Material   material_select;
-    struct Collection collection_select;
+#define LANPR_POST_PROCESSING_DISABLED 0
+#define LANPR_POST_PROCESSING_ENABLED  1
+
+#define LANPR_USE_DIFFERENT_TAPER      0
+#define LANPR_USE_SAME_TAPER           1
+
+#define LANPR_DISABLE_TIP_EXTEND       0
+#define LANPR_ENABLE_TIP_EXTEND        1
+
+#define LANPR_COMPONENT_MODE_ALL          0
+#define LANPR_COMPONENT_MODE_OBJECT       1
+#define LANPR_COMPONENT_MODE_MATERIAL     2
+#define LANPR_COMPONENT_MODE_COLLECTION   3
+
+#define LANPR_COMPONENT_INCLUSIVE         0
+#define LANPR_COMPONENT_EXCLUSIVE         1
+
+typedef struct LANPR_LineStyleComponent{
+    struct LANPR_LineStyleComponent *next, *prev;
+
+    int               component_mode;
+
+    struct Object     *object_select;
+    struct Material   *material_select;
+    struct Collection *collection_select;
 
 }LANPR_LineStyleComponent;
 
 typedef struct LANPR_LineStyle{
 	struct LANPR_LineStyle *next, *prev;
-
+    
     int      qi_begin;
     int      qi_end;   /* these are for QI Range thing... just occlusion levels */
-
+    
     float    thickness;
     float    line_thickness_crease;
 	float    line_thickness_material;
@@ -65,11 +87,9 @@ typedef struct LANPR_LineStyle{
     float    edge_mark_color[4];
 
     int      logic_mode; /* for component evaluation */
+
     ListBase components;
 
 }LANPR_LineStyle;
-
-
-
 
 #endif

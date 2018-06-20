@@ -1430,7 +1430,7 @@ typedef struct SceneEEVEE {
 
 /* LANPR Global Config */
 
-typedef struct LANPR_RenderBuffer;
+struct LANPR_RenderBuffer;
 
 typedef struct SceneLANPR{
 
@@ -1448,7 +1448,8 @@ typedef struct SceneLANPR{
 
 	float line_thickness;
 
-	/*line style layer*/
+    /* these are deprecated */
+	/* line style layer */
 	float line_thickness_crease;
 	float line_thickness_material;
 	float line_thickness_edge_mark;
@@ -1497,7 +1498,8 @@ typedef struct SceneLANPR{
 
 	/* offline render */
 
-	LANPR_RenderBuffer *render_buffer;// created when needed.
+	struct LANPR_RenderBuffer *render_buffer;// created when needed.
+	ListBase                   line_style_layers; /* now here!!! */
 
 } SceneLANPR;
 

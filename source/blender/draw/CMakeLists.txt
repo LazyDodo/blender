@@ -117,14 +117,10 @@ set(SRC
 	engines/workbench/solid_mode.c
 	engines/workbench/transparent_mode.c
 	engines/external/external_engine.c
-	#engines/lanpr/NUL_TNS_Kernel.c
-	#engines/lanpr/NUL_Util.c
-	#engines/lanpr/NUL_TNS_SoftwareRender.c
-    #engines/lanpr/NUL_TNS_EdgeRendering.c
-    #engines/lanpr/NUL_TNS_Mesh.c
 	engines/lanpr/lanpr_dpix.c
 	engines/lanpr/lanpr_engine.c
 	engines/lanpr/lanpr_snake.c
+	engines/lanpr/lanpr_software_render.c
 
 	DRW_engine.h
 	intern/DRW_render.h

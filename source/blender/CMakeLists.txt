@@ -92,6 +92,7 @@ set(SRC_DNA_INC
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_movieclip_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_tracking_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_mask_types.h
+	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_lanpr_types.h
 )
 
 add_subdirectory(datatoc)

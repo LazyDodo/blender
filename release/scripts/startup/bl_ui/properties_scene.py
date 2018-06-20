@@ -474,6 +474,16 @@ class SCENE_PT_viewport_display(SceneButtonsPanel, Panel):
         col.prop(scene.display, "light_direction")
         col.prop(scene.display, "shadow_shift")
 
+class LANPR_linesets(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        lineset = item
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.prop(lineset, "thickness", text="", emboss=False, icon_value=icon)
+            #layout.prop(lineset, "show_render", text="", index=index)
+        elif self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+            layout.label("", icon_value=icon)
+
 class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_CLAY'}
     bl_label = "LANPR AHOY"
@@ -619,6 +629,10 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
             
             else: #disabled vectorization
                 layout.label(text="Adjust values to avoid large pure white regions!")
+
+        row = layout.row()
+        rows = 4 if lineset else 2
+        layout.LANPR_linesets("RENDERLAYER_UL_linesets", "", lanpr, "layers", lanpr.layers, "active_index", rows=rows)
                 
 
 
