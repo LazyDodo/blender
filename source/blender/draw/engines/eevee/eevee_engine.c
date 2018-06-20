@@ -123,7 +123,7 @@ static void eevee_cache_init(void *vedata)
 	EEVEE_volumes_cache_init(sldata, vedata);
 }
 
-static void eevee_cache_populate(void *vedata, Object *ob)
+void EEVEE_cache_populate(void *vedata, Object *ob)
 {
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 
@@ -440,7 +440,7 @@ DrawEngineType draw_engine_eevee_type = {
 	&eevee_engine_init,
 	&eevee_engine_free,
 	&eevee_cache_init,
-	&eevee_cache_populate,
+	&EEVEE_cache_populate,
 	&eevee_cache_finish,
 	&eevee_draw_background,
 	NULL, /* Everything is drawn in the background pass (see comment on function) */

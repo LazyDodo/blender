@@ -114,6 +114,7 @@ typedef struct EEVEE_LightBake {
 	/* Reflection probe */
 	EEVEE_LightProbe *cube;          /* Current probe being rendered (UBO data). */
 	int ref_cube_res;                /* Target cubemap at MIP 0. */
+	int cube_offset;                 /* Index of the current cube. */
 	float probemat[6][4][4];         /* ViewProjection matrix for each cube face. */
 	float texel_size, padding_size;  /* Texel and padding size for the final octahedral map. */
 	float roughness;                 /* Roughness level of the current mipmap. */
@@ -432,13 +433,19 @@ static void eevee_lightbake_cache_create(EEVEE_Data *vedata, EEVEE_LightBake *lb
 
 	EEVEE_effects_cache_init(sldata, vedata);
 	EEVEE_materials_cache_init(sldata, vedata);
-	EEVEE_lightbake_cache_init(sldata, vedata, lbake->rt_color, lbake->rt_depth);
+	EEVEE_lights_cache_init(sldata, vedata);
 	EEVEE_lightprobes_cache_init(sldata, vedata);
 
+	EEVEE_lightbake_cache_init(sldata, vedata, lbake->rt_color, lbake->rt_depth);
+
+	DRW_render_object_iter(vedata, NULL, lbake->depsgraph, EEVEE_render_cache);
+
 	EEVEE_materials_cache_finish(vedata);
+	EEVEE_lights_cache_finish(sldata);
 	EEVEE_lightprobes_cache_finish(sldata, vedata);
 
 	DRW_render_instance_buffer_finish();
+	DRW_hair_update();
 }
 
 static void eevee_lightbake_render_world(void *ved, void *user_data)
@@ -467,6 +474,22 @@ static void eevee_lightbake_render_world(void *ved, void *user_data)
 	lcache->flag &= ~LIGHTCACHE_UPDATE_WORLD;
 }
 
+static void cell_id_to_grid_loc(EEVEE_LightGrid *egrid, int cell_idx, int r_local_cell[3])
+{
+	/* Keep in sync with lightprobe_grid_display_vert */
+	r_local_cell[2] = cell_idx % egrid->resolution[2];
+	r_local_cell[1] = (cell_idx / egrid->resolution[2]) % egrid->resolution[1];
+	r_local_cell[0] = cell_idx / (egrid->resolution[2] * egrid->resolution[1]);
+}
+
+static void grid_loc_to_world_loc(EEVEE_LightGrid *egrid, int local_cell[3], float r_pos[3])
+{
+	copy_v3_v3(r_pos, egrid->corner);
+	madd_v3_v3fl(r_pos, egrid->increment_x, local_cell[0]);
+	madd_v3_v3fl(r_pos, egrid->increment_y, local_cell[1]);
+	madd_v3_v3fl(r_pos, egrid->increment_z, local_cell[2]);
+}
+
 static void eevee_lightbake_render_grid_sample(void *ved, void *user_data)
 {
 	EEVEE_Data *vedata = (EEVEE_Data *)ved;
@@ -480,17 +503,17 @@ static void eevee_lightbake_render_grid_sample(void *ved, void *user_data)
 	eevee_lightbake_cache_create(vedata, lbake);
 
 	/* Compute sample position */
+	int grid_loc[3];
 	float pos[3];
-	copy_v3_v3(pos, egrid->corner);
-	madd_v3_v3fl(pos, egrid->increment_x, lbake->grid_sample % prb->grid_resolution_x);
-	madd_v3_v3fl(pos, egrid->increment_y, lbake->grid_sample / prb->grid_resolution_x);
-	madd_v3_v3fl(pos, egrid->increment_z, lbake->grid_sample / (prb->grid_resolution_x * prb->grid_resolution_y));
+	cell_id_to_grid_loc(egrid, lbake->grid_sample, grid_loc);
+	grid_loc_to_world_loc(egrid, grid_loc, pos);
 
 	/* Disable specular lighting when rendering probes to avoid feedback loops (looks bad). */
 	common_data->spec_toggle = false;
 	common_data->prb_num_planar = 0;
 	common_data->prb_num_render_cube = 0;
 	common_data->prb_num_render_grid = 0;
+	egrid->level_bias = 1.0f; /* No bias */
 	DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
 
 	int sample_offset = egrid->offset + lbake->grid_sample;
@@ -507,6 +530,8 @@ static void eevee_lightbake_render_probe(void *ved, void *user_data)
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 	EEVEE_CommonUniformBuffer *common_data = &sldata->common_data;
 	EEVEE_LightBake *lbake = (EEVEE_LightBake *)user_data;
+	EEVEE_LightProbe *eprobe = lbake->cube;
+	LightProbe *prb = *lbake->probe;
 
 	/* TODO do this once for the whole bake when we have independant DRWManagers. */
 	eevee_lightbake_cache_create(vedata, lbake);
@@ -517,8 +542,8 @@ static void eevee_lightbake_render_probe(void *ved, void *user_data)
 	common_data->prb_num_render_cube = 0;
 	DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
 
-	EEVEE_lightbake_render_scene(sldata, vedata, lbake->rt_fb, (float[3]){0.0f}, 1.0f, 10.0f);
-	EEVEE_lightbake_filter_glossy(sldata, vedata, lbake->rt_color, lbake->store_fb, 0, 1.0);
+	EEVEE_lightbake_render_scene(sldata, vedata, lbake->rt_fb, eprobe->position, prb->clipsta, prb->clipend);
+	EEVEE_lightbake_filter_glossy(sldata, vedata, lbake->rt_color, lbake->store_fb, lbake->cube_offset, prb->intensity);
 }
 
 static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
@@ -603,8 +628,7 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 	}
 
 	/* Render irradiance grids */
-	lbake->bounce_curr = 0;
-	while (lbake->bounce_curr < lbake->bounce_count) {
+	for (lbake->bounce_curr = 0; lbake->bounce_curr < lbake->bounce_count; ++lbake->bounce_curr) {
 		lcache->grid_count = 1; /* TODO Remove */
 		/* Bypass world, start at 1. */
 		lbake->probe = lbake->grid_prb + 1;
@@ -620,7 +644,6 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 			}
 			lcache->grid_count += 1;
 		}
-		lbake->bounce_curr += 1;
 	}
 
 	/* Render reflections */
@@ -629,7 +652,7 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 		/* Bypass world, start at 1. */
 		lbake->probe = lbake->cube_prb + 1;
 		lbake->cube = lcache->cube_data + 1;
-		for (int p = 1; p < lbake->cube_count; ++p, lbake->probe++, lbake->grid++) {
+		for (lbake->cube_offset = 1; lbake->cube_offset < lbake->cube_count; ++lbake->cube_offset, lbake->probe++, lbake->cube++) {
 			lightbake_do_sample(lbake, eevee_lightbake_render_probe);
 			lcache->cube_count += 1;
 		}

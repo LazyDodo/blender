@@ -987,6 +987,9 @@ void EEVEE_render_update_passes(struct RenderEngine *engine, struct Scene *scene
 void EEVEE_lookdev_cache_init(EEVEE_Data *vedata, DRWShadingGroup **grp, GPUShader *shader, DRWPass *pass, struct World *world, EEVEE_LightProbesInfo *pinfo);
 void EEVEE_lookdev_draw_background(EEVEE_Data *vedata);
 
+/** eevee_engine.c */
+void EEVEE_cache_populate(void *vedata, Object *ob);
+
 /* Shadow Matrix */
 static const float texcomat[4][4] = { /* From NDC to TexCo */
 	{0.5f, 0.0f, 0.0f, 0.0f},

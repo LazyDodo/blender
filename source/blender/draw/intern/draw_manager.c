@@ -1612,6 +1612,8 @@ void DRW_custom_pipeline(
 
 	drw_viewport_var_init();
 
+	DRW_hair_init();
+
 	ViewportEngineData *data = drw_viewport_engine_data_ensure(draw_engine_type);
 
 	/* Execute the callback */

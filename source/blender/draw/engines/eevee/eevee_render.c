@@ -134,16 +134,19 @@ void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *
 	EEVEE_volumes_cache_init(sldata, vedata);
 }
 
+/* Used by light cache. in this case engine is NULL. */
 void EEVEE_render_cache(
         void *vedata, struct Object *ob,
         struct RenderEngine *engine, struct Depsgraph *UNUSED(depsgraph))
 {
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
-
-	char info[42];
-	BLI_snprintf(info, sizeof(info), "Syncing %s", ob->id.name + 2);
-	RE_engine_update_stats(engine, NULL, info);
 	bool cast_shadow = false;
+
+	if (engine) {
+		char info[42];
+		BLI_snprintf(info, sizeof(info), "Syncing %s", ob->id.name + 2);
+		RE_engine_update_stats(engine, NULL, info);
+	}
 
 	if (ob->base_flag & BASE_VISIBLED) {
 		EEVEE_hair_cache_populate(vedata, sldata, ob, &cast_shadow);
