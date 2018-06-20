@@ -499,7 +499,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         layout = self.layout
         scene = context.scene
         lanpr = scene.lanpr
-        active_layer = lanpr.layer.active_layer #this is alwas none.
+        active_layer = lanpr.layers.active_layer #this is alwas none.
 
         layout.prop(lanpr, "master_mode", expand=True) 
 

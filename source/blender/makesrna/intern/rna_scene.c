@@ -2141,6 +2141,12 @@ PointerRNA rna_lanpr_active_line_layer_get(PointerRNA *ptr)
 	return rna_pointer_inherit_refine(ptr, &RNA_LANPR_LineStyle, ls);
 }
 
+void rna_lanpr_active_line_layer_set(PointerRNA *ptr, PointerRNA value)
+{
+	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
+	lanpr->active_layer = value.data;
+}
+
 #else
 
 /* Grease Pencil Interpolation tool settings */
@@ -6438,7 +6444,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
     /* this part when accessing in python using lanpr.layers.active_layer always return None */
 	prop = RNA_def_property(srna, "active_layer", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "LANPR_LineStyle");
-	RNA_def_property_pointer_funcs(prop, "rna_lanpr_active_line_layer_get", NULL, NULL, NULL);
+	RNA_def_property_pointer_funcs(prop, "rna_lanpr_active_line_layer_get", "rna_lanpr_active_line_layer_set", NULL, NULL);
 	RNA_def_property_ui_text(prop, "Active Line Layer", "Active line layer being displayed");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 
