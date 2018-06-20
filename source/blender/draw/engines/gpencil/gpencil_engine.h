@@ -200,7 +200,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_drawing_fill_sh;
 	struct GPUShader *gpencil_fullscreen_sh;
 	struct GPUShader *gpencil_simple_fullscreen_sh;
-	struct GPUShader *gpencil_painting_sh;
+	struct GPUShader *gpencil_background_sh;
 	struct GPUShader *gpencil_paper_sh;
 
 	/* textures */

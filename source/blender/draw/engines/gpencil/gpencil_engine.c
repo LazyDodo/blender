@@ -194,8 +194,8 @@ static void GPENCIL_create_shaders(void)
 	}
 
 	/* shaders for use when drawing */
-	if (!e_data.gpencil_painting_sh) {
-		e_data.gpencil_painting_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
+	if (!e_data.gpencil_background_sh) {
+		e_data.gpencil_background_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
 	}
 	if (!e_data.gpencil_paper_sh) {
 		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
@@ -237,7 +237,7 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_edit_point_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_fullscreen_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_simple_fullscreen_sh);
-	DRW_SHADER_FREE_SAFE(e_data.gpencil_painting_sh);
+	DRW_SHADER_FREE_SAFE(e_data.gpencil_background_sh);
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_paper_sh);
 
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
@@ -392,11 +392,11 @@ void GPENCIL_cache_init(void *vedata)
 		 * In this way, the previous strokes don't need to be redraw and the drawing process
 		 * is far to agile.
 		 */
-		psl->background_pass = DRW_pass_create("GPencil Painting Session Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		DRWShadingGroup *painting_shgrp = DRW_shgroup_create(e_data.gpencil_painting_sh, psl->background_pass);
-		DRW_shgroup_call_add(painting_shgrp, quad, NULL);
-		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeColor", &e_data.background_color_tx);
-		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeDepth", &e_data.background_depth_tx);
+		psl->background_pass = DRW_pass_create("GPencil Background Painting Session Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		DRWShadingGroup *background_shgrp = DRW_shgroup_create(e_data.gpencil_background_sh, psl->background_pass);
+		DRW_shgroup_call_add(background_shgrp, quad, NULL);
+		DRW_shgroup_uniform_texture_ref(background_shgrp, "strokeColor", &e_data.background_color_tx);
+		DRW_shgroup_uniform_texture_ref(background_shgrp, "strokeDepth", &e_data.background_depth_tx);
 
 		/* pass for drawing paper (only if viewport)
 		 * In render, the v3d is null
