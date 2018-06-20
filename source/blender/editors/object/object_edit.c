@@ -211,8 +211,23 @@ static int object_hide_view_set_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	const bool unselected = RNA_boolean_get(op->ptr, "unselected");
-	bool changed = false;
 
+	/* Do nothing if no objects was selected. */
+	bool have_selected = false;
+	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+		if (base->flag & BASE_VISIBLED) {
+			if (base->flag & BASE_SELECTED) {
+				have_selected = true;
+				break;
+			}
+		}
+	}
+
+	if (!have_selected) {
+		return OPERATOR_CANCELLED;
+	}
+
+	/* Hide selected or unselected objects. */
 	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
 		if (!(base->flag & BASE_VISIBLED)) {
 			continue;
@@ -222,20 +237,14 @@ static int object_hide_view_set_exec(bContext *C, wmOperator *op)
 			if (base->flag & BASE_SELECTED) {
 				ED_object_base_select(base, BA_DESELECT);
 				base->flag |= BASE_HIDE;
-				changed = true;
 			}
 		}
 		else {
 			if (!(base->flag & BASE_SELECTED)) {
 				ED_object_base_select(base, BA_DESELECT);
 				base->flag |= BASE_HIDE;
-				changed = true;
 			}
 		}
-	}
-
-	if (!changed) {
-		return OPERATOR_CANCELLED;
 	}
 
 	BKE_layer_collection_sync(scene, view_layer);
@@ -877,7 +886,6 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, short ev
 	Base *base;
 	Curve *cu, *cu1;
 	Nurb *nu;
-	bool do_depgraph_update = false;
 
 	if (ID_IS_LINKED(scene)) return;
 
@@ -1034,8 +1042,8 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, short ev
 				else if (event == 22) {
 					/* Copy the constraint channels over */
 					BKE_constraints_copy(&base->object->constraints, &ob->constraints, true);
-
-					do_depgraph_update = true;
+					DEG_id_tag_update(&base->object->id, DEG_TAG_COPY_ON_WRITE);
+					DEG_relations_tag_update(bmain);
 				}
 				else if (event == 23) {
 					base->object->softflag = ob->softflag;
@@ -1046,6 +1054,9 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, short ev
 					if (!modifiers_findByType(base->object, eModifierType_Softbody)) {
 						BLI_addhead(&base->object->modifiers, modifier_new(eModifierType_Softbody));
 					}
+
+					DEG_id_tag_update(&base->object->id, DEG_TAG_COPY_ON_WRITE);
+					DEG_relations_tag_update(bmain);
 				}
 				else if (event == 26) {
 #if 0 // XXX old animation system
@@ -1086,9 +1097,6 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, short ev
 			}
 		}
 	}
-
-	if (do_depgraph_update)
-		DEG_relations_tag_update(bmain);
 }
 
 static void UNUSED_FUNCTION(copy_attr_menu) (Main *bmain, Scene *scene, ViewLayer *view_layer, Object *obedit)
@@ -1854,7 +1862,7 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	            is_link ? "linked" : "moved",
 	            collection->id.name + 2);
 
-	DEG_relations_tag_update(CTX_data_main(C));
+	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_SELECT_UPDATE);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_LAYER, scene);

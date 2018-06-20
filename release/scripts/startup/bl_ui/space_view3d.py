@@ -61,9 +61,11 @@ class VIEW3D_HT_header(Header):
                 row.prop(tool_settings.particle_edit, "select_mode", text="", expand=True)
 
             # Occlude geometry
-            if ((((shading.type not in {'SOLID', 'TEXTURED'}) or not shading.show_xray) and
-                (object_mode == 'PARTICLE_EDIT' or (object_mode == 'EDIT' and obj.type == 'MESH'))) or
-                (object_mode in {'WEIGHT_PAINT', 'VERTEX_PAINT'})):
+            if (
+                    (((shading.type not in {'SOLID', 'TEXTURED'}) or not shading.show_xray) and
+                     (object_mode == 'PARTICLE_EDIT' or (object_mode == 'EDIT' and obj.type == 'MESH'))) or
+                    (object_mode in {'WEIGHT_PAINT', 'VERTEX_PAINT'})
+            ):
                 row = layout.row()
                 row.prop(view, "use_occlude_geometry", text="")
 
@@ -242,7 +244,7 @@ class VIEW3D_HT_header(Header):
         sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_shading")
 
         row = layout.row(align=True)
-        row.prop(overlay, "show_overlays", icon="WIRE", text="")
+        row.prop(overlay, "show_overlays", icon='WIRE', text="")
 
         sub = row.row(align=True)
         sub.active = overlay.show_overlays
@@ -3564,7 +3566,7 @@ class VIEW3D_MT_edit_gpencil_interpolate(Menu):
         layout.operator("gpencil.interpolate_sequence", text="Sequence")
 
 
-class VIEW3D_PIE_object_mode(Menu):
+class VIEW3D_MT_object_mode_pie(Menu):
     bl_label = "Mode"
 
     def draw(self, context):
@@ -3574,9 +3576,9 @@ class VIEW3D_PIE_object_mode(Menu):
         pie.operator_enum("OBJECT_OT_mode_set", "mode")
 
 
-class VIEW3D_PIE_view(Menu):
+class VIEW3D_MT_view_pie(Menu):
     bl_label = "View"
-    bl_idname = "VIEW3D_PIE_view"
+    bl_idname = "VIEW3D_MT_view_pie"
 
     def draw(self, context):
         layout = self.layout
@@ -4397,8 +4399,8 @@ classes = (
     VIEW3D_MT_edit_armature_delete,
     VIEW3D_MT_edit_gpencil_transform,
     VIEW3D_MT_edit_gpencil_interpolate,
-    VIEW3D_PIE_object_mode,
-    VIEW3D_PIE_view,
+    VIEW3D_MT_object_mode_pie,
+    VIEW3D_MT_view_pie,
     VIEW3D_PT_view3d_properties,
     VIEW3D_PT_view3d_cursor,
     VIEW3D_PT_gp_paper,
