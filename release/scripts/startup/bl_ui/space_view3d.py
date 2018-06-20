@@ -158,13 +158,14 @@ class VIEW3D_HT_header(Header):
 
         if obj:
             # Proportional editing
-            if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.prop(tool_settings, "proportional_edit", icon_only=True)
+            if gpd is not None:
+                if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
+                    row = layout.row(align=True)
+                    row.prop(tool_settings, "proportional_edit", icon_only=True)
 
-                sub = row.row(align=True)
-                sub.active = tool_settings.proportional_edit != 'DISABLED'
-                sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
+                    sub = row.row(align=True)
+                    sub.active = tool_settings.proportional_edit != 'DISABLED'
+                    sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
 
             elif object_mode in {'EDIT', 'PARTICLE_EDIT'}:
                 row = layout.row(align=True)
@@ -181,12 +182,14 @@ class VIEW3D_HT_header(Header):
                 sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
         else:
             # Proportional editing
-            if context.gpencil_data and context.gpencil_data.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.prop(tool_settings, "proportional_edit", icon_only=True)
-                sub = row.row(align=True)
-                sub.active = tool_settings.proportional_edit != 'DISABLED'
-                sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
+            if gpd is not None:
+                gpd = context.gpencil_data
+                if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
+                    row = layout.row(align=True)
+                    row.prop(tool_settings, "proportional_edit", icon_only=True)
+                    sub = row.row(align=True)
+                    sub.active = tool_settings.proportional_edit != 'DISABLED'
+                    sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
 
         # Snap
         show_snap = False
