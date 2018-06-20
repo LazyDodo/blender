@@ -43,9 +43,9 @@ class VIEW3D_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
-        mode = 'OBJECT' if obj is None else obj.mode
+        object_mode = 'OBJECT' if obj is None else obj.mode
 
-        act_mode_item = bpy.types.Object.bl_rna.properties["mode"].enum_items[mode]
+        act_mode_item = bpy.types.Object.bl_rna.properties["mode"].enum_items[object_mode]
         layout.operator_menu_enum("object.mode_set", "mode", text=act_mode_item.name, icon=act_mode_item.icon)
         del act_mode_item
 
@@ -57,21 +57,22 @@ class VIEW3D_HT_header(Header):
 
         if obj:
             # Set above:
-            # mode = obj.mode
+            # object_mode = obj.mode
 
             # Particle edit
-            if mode == 'PARTICLE_EDIT':
+            if object_mode == 'PARTICLE_EDIT':
                 row = layout.row()
                 row.prop(tool_settings.particle_edit, "select_mode", text="", expand=True)
 
             # Occlude geometry
-            if ((shading.type not in {'BOUNDBOX', 'WIREFRAME'} and (mode == 'PARTICLE_EDIT' or (mode == 'EDIT' and obj.type == 'MESH'))) or
-                    (mode in {'WEIGHT_PAINT', 'VERTEX_PAINT'})):
+            if ((((shading.type not in {'SOLID', 'TEXTURED'}) or not shading.show_xray) and
+                (object_mode == 'PARTICLE_EDIT' or (object_mode == 'EDIT' and obj.type == 'MESH'))) or
+                (object_mode in {'WEIGHT_PAINT', 'VERTEX_PAINT'})):
                 row = layout.row()
                 row.prop(view, "use_occlude_geometry", text="")
 
         # Pose
-        if obj and mode == 'POSE':
+        if obj and object_mode == 'POSE':
             row = layout.row(align=True)
             row.operator("pose.copy", text="", icon='COPYDOWN')
             row.operator("pose.paste", text="", icon='PASTEDOWN').flipped = False
@@ -95,7 +96,6 @@ class VIEW3D_HT_header(Header):
         layout.separator_spacer()
 
         # Mode & Transform Settings
-        object_mode = 'OBJECT' if obj is None else obj.mode
         scene = context.scene
 
         # Orientation & Pivot
@@ -3607,87 +3607,128 @@ class VIEW3D_PT_shading(Panel):
         return True
 
     def draw(self, context):
+        pass
+
+
+class VIEW3D_PT_shading_lighting(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Lighting"
+    bl_parent_id = 'VIEW3D_PT_shading'
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def draw(self, context):
         layout = self.layout
 
         view = context.space_data
         shading = view.shading
 
-        col = layout.column()
-        col.row().label("Lighting")
         if shading.type in ('SOLID', 'TEXTURED'):
-            col.row().prop(shading, "light", expand=True)
+            layout.row().prop(shading, "light", expand=True)
             if shading.light == 'STUDIO':
-                row = col.row()
-                row.template_icon_view(shading, "studio_light")
+                row = layout.row()
+                row.template_icon_view(shading, "studio_light", show_labels=True)
                 sub = row.column()
                 sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
                 if shading.selected_studio_light.orientation == 'WORLD':
-                    col.row().prop(shading, "studiolight_rot_z")
+                    layout.row().prop(shading, "studiolight_rot_z")
 
             elif shading.light == 'MATCAP':
-                row = col.row()
-                row.template_icon_view(shading, "studio_light")
+                row = layout.row()
+                row.template_icon_view(shading, "studio_light", show_labels=True)
                 sub = row.column()
                 sub.operator('VIEW3D_OT_toggle_matcap_flip', emboss=False, text="", icon='ARROW_LEFTRIGHT')
                 sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
 
-        if shading.type == 'SOLID':
-            col.separator()
-            col.row().label("Color")
-            col.row().prop(shading, "color_type", expand=True)
-
-            if shading.color_type == 'SINGLE':
-                col.row().prop(shading, "single_color", text="")
-
-        if shading.type in ('SOLID', 'TEXTURED'):
-            col.separator()
-
-            if not shading.light == 'MATCAP':
-                row = col.row()
-                row.prop(shading, "show_specular_highlight")
-
-            if shading.type in ('SOLID', 'TEXTURED'):
-                row = col.split(0.4)
-                row.prop(shading, "show_xray")
-                sub = row.row()
-                sub.active = shading.show_xray
-                sub.prop(shading, "xray_alpha", text="")
-
-                row = col.split(0.4)
-                row.active = not shading.show_xray
-                row.prop(shading, "show_shadows")
-                sub = row.row()
-                sub.active = shading.show_shadows and not shading.show_xray
-                sub.prop(shading, "shadow_intensity", text="")
-
-                row = col.split(0.4)
-                row.active = not shading.show_xray
-                row.prop(shading, "show_cavity")
-                sub = row.column(align=True)
-                sub.active = not shading.show_xray and shading.show_cavity
-                sub.prop(shading, "cavity_ridge_factor")
-                sub.prop(shading, "cavity_valley_factor")
-
-                row = col.split(0.4)
-                row.prop(shading, "show_object_outline")
-                sub = row.row()
-                sub.active = shading.show_object_outline
-                sub.prop(shading, "object_outline_color", text="")
-
-                col.prop(view, "show_world")
-                row = col.split(0.4)
-                row.active = not shading.show_xray
-                row.prop(shading, "show_anti_aliasing")
-
         elif shading.type in ('MATERIAL'):
-            row = col.row()
-            row.template_icon_view(shading, "studio_light")
+            row = layout.row()
+            row.template_icon_view(shading, "studio_light", show_labels=True)
             sub = row.column()
             sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
             if shading.selected_studio_light.orientation == 'WORLD':
-                col.row().prop(shading, "studiolight_rot_z")
-                col.row().prop(shading, "studiolight_background")
-            col.prop(shading, "use_scene_light")
+                layout.row().prop(shading, "studiolight_rot_z")
+                layout.row().prop(shading, "studiolight_background_alpha")
+            layout.prop(shading, "use_scene_light")
+
+
+class VIEW3D_PT_shading_color(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Color"
+    bl_parent_id = 'VIEW3D_PT_shading'
+
+    @classmethod
+    def poll(cls, context):
+        view = context.space_data
+        shading = view.shading
+        return shading.type in ['SOLID']
+
+    def draw(self, context):
+        layout = self.layout
+
+        view = context.space_data
+        shading = view.shading
+
+        layout.row().prop(shading, "color_type", expand=True)
+
+        if shading.color_type == 'SINGLE':
+            layout.row().prop(shading, "single_color", text="")
+
+
+class VIEW3D_PT_shading_options(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Options"
+    bl_parent_id = 'VIEW3D_PT_shading'
+
+    @classmethod
+    def poll(cls, context):
+        view = context.space_data
+        shading = view.shading
+        return shading.type in ['SOLID', 'TEXTURED']
+
+    def draw(self, context):
+        layout = self.layout
+
+        view = context.space_data
+        shading = view.shading
+
+        if not shading.light == 'MATCAP':
+            row = layout.row()
+            row.prop(shading, "show_specular_highlight")
+
+        if shading.type in ('SOLID', 'TEXTURED'):
+            row = layout.split(0.4)
+            row.prop(shading, "show_xray")
+            sub = row.row()
+            sub.active = shading.show_xray
+            sub.prop(shading, "xray_alpha", text="")
+
+            row = layout.split(0.4)
+            row.active = not shading.show_xray
+            row.prop(shading, "show_shadows")
+            sub = row.row()
+            sub.active = shading.show_shadows and not shading.show_xray
+            sub.prop(shading, "shadow_intensity", text="")
+
+            row = layout.split(0.4)
+            row.active = not shading.show_xray
+            row.prop(shading, "show_cavity")
+            sub = row.column(align=True)
+            sub.active = not shading.show_xray and shading.show_cavity
+            sub.prop(shading, "cavity_ridge_factor")
+            sub.prop(shading, "cavity_valley_factor")
+
+            row = layout.split(0.4)
+            row.prop(shading, "show_object_outline")
+            sub = row.row()
+            sub.active = shading.show_object_outline
+            sub.prop(shading, "object_outline_color", text="")
+
+            layout.prop(view, "show_world")
 
 
 class VIEW3D_PT_overlay(Panel):
@@ -4084,10 +4125,10 @@ class VIEW3D_PT_context_properties(Panel):
     def _active_context_member(context):
         obj = context.object
         if obj:
-            mode = obj.mode
-            if mode == 'POSE':
+            object_mode = obj.mode
+            if object_mode == 'POSE':
                 return "active_pose_bone"
-            elif mode == 'EDIT' and obj.type == 'ARMATURE':
+            elif object_mode == 'EDIT' and obj.type == 'ARMATURE':
                 return "active_bone"
             else:
                 return "object"
@@ -4251,6 +4292,9 @@ classes = (
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
     VIEW3D_PT_shading,
+    VIEW3D_PT_shading_lighting,
+    VIEW3D_PT_shading_color,
+    VIEW3D_PT_shading_options,
     VIEW3D_PT_overlay,
     VIEW3D_PT_overlay_edit_mesh,
     VIEW3D_PT_overlay_edit_curve,

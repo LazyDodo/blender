@@ -2262,6 +2262,8 @@ static void write_image(WriteData *wd, Image *ima)
 		writelist(wd, DATA, ImageTile, &ima->tiles);
 
 		ima->packedfile = NULL;
+
+		writelist(wd, DATA, RenderSlot, &ima->renderslots);
 	}
 }
 

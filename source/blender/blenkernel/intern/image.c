@@ -657,7 +657,7 @@ static void image_init_color_management(Image *ima)
 
 char BKE_image_alpha_mode_from_extension_ex(const char *filepath)
 {
-	if (BLI_testextensie_n(filepath, ".exr", ".cin", ".dpx", ".hdr", NULL)) {
+	if (BLI_path_extension_check_n(filepath, ".exr", ".cin", ".dpx", ".hdr", NULL)) {
 		return IMA_ALPHA_PREMUL;
 	}
 	else {
@@ -688,7 +688,7 @@ Image *BKE_image_load(Main *bmain, const char *filepath)
 	ima = image_alloc(bmain, BLI_path_basename(filepath), IMA_SRC_FILE, IMA_TYPE_IMAGE);
 	STRNCPY(ima->name, filepath);
 
-	if (BLI_testextensie_array(filepath, imb_ext_movie))
+	if (BLI_path_extension_check_array(filepath, imb_ext_movie))
 		ima->source = IMA_SRC_MOVIE;
 
 	image_init_color_management(ima);
@@ -1439,63 +1439,63 @@ static bool do_add_image_extension(char *string, const char imtype, const ImageF
 	(void)im_format;  /* may be unused, depends on build options */
 
 	if (imtype == R_IMF_IMTYPE_IRIS) {
-		if (!BLI_testextensie(string, extension_test = ".rgb"))
+		if (!BLI_path_extension_check(string, extension_test = ".rgb"))
 			extension = extension_test;
 	}
 	else if (imtype == R_IMF_IMTYPE_IRIZ) {
-		if (!BLI_testextensie(string, extension_test = ".rgb"))
+		if (!BLI_path_extension_check(string, extension_test = ".rgb"))
 			extension = extension_test;
 	}
 #ifdef WITH_HDR
 	else if (imtype == R_IMF_IMTYPE_RADHDR) {
-		if (!BLI_testextensie(string, extension_test = ".hdr"))
+		if (!BLI_path_extension_check(string, extension_test = ".hdr"))
 			extension = extension_test;
 	}
 #endif
 	else if (ELEM(imtype, R_IMF_IMTYPE_PNG, R_IMF_IMTYPE_FFMPEG, R_IMF_IMTYPE_H264, R_IMF_IMTYPE_THEORA, R_IMF_IMTYPE_XVID)) {
-		if (!BLI_testextensie(string, extension_test = ".png"))
+		if (!BLI_path_extension_check(string, extension_test = ".png"))
 			extension = extension_test;
 	}
 #ifdef WITH_DDS
 	else if (imtype == R_IMF_IMTYPE_DDS) {
-		if (!BLI_testextensie(string, extension_test = ".dds"))
+		if (!BLI_path_extension_check(string, extension_test = ".dds"))
 			extension = extension_test;
 	}
 #endif
 	else if (ELEM(imtype, R_IMF_IMTYPE_TARGA, R_IMF_IMTYPE_RAWTGA)) {
-		if (!BLI_testextensie(string, extension_test = ".tga"))
+		if (!BLI_path_extension_check(string, extension_test = ".tga"))
 			extension = extension_test;
 	}
 	else if (imtype == R_IMF_IMTYPE_BMP) {
-		if (!BLI_testextensie(string, extension_test = ".bmp"))
+		if (!BLI_path_extension_check(string, extension_test = ".bmp"))
 			extension = extension_test;
 	}
 #ifdef WITH_TIFF
 	else if (imtype == R_IMF_IMTYPE_TIFF) {
-		if (!BLI_testextensie_n(string, extension_test = ".tif", ".tiff", NULL)) {
+		if (!BLI_path_extension_check_n(string, extension_test = ".tif", ".tiff", NULL)) {
 			extension = extension_test;
 		}
 	}
 #endif
 #ifdef WITH_OPENIMAGEIO
 	else if (imtype == R_IMF_IMTYPE_PSD) {
-		if (!BLI_testextensie(string, extension_test = ".psd"))
+		if (!BLI_path_extension_check(string, extension_test = ".psd"))
 			extension = extension_test;
 	}
 #endif
 #ifdef WITH_OPENEXR
 	else if (imtype == R_IMF_IMTYPE_OPENEXR || imtype == R_IMF_IMTYPE_MULTILAYER) {
-		if (!BLI_testextensie(string, extension_test = ".exr"))
+		if (!BLI_path_extension_check(string, extension_test = ".exr"))
 			extension = extension_test;
 	}
 #endif
 #ifdef WITH_CINEON
 	else if (imtype == R_IMF_IMTYPE_CINEON) {
-		if (!BLI_testextensie(string, extension_test = ".cin"))
+		if (!BLI_path_extension_check(string, extension_test = ".cin"))
 			extension = extension_test;
 	}
 	else if (imtype == R_IMF_IMTYPE_DPX) {
-		if (!BLI_testextensie(string, extension_test = ".dpx"))
+		if (!BLI_path_extension_check(string, extension_test = ".dpx"))
 			extension = extension_test;
 	}
 #endif
@@ -1503,35 +1503,35 @@ static bool do_add_image_extension(char *string, const char imtype, const ImageF
 	else if (imtype == R_IMF_IMTYPE_JP2) {
 		if (im_format) {
 			if (im_format->jp2_codec == R_IMF_JP2_CODEC_JP2) {
-				if (!BLI_testextensie(string, extension_test = ".jp2"))
+				if (!BLI_path_extension_check(string, extension_test = ".jp2"))
 					extension = extension_test;
 			}
 			else if (im_format->jp2_codec == R_IMF_JP2_CODEC_J2K) {
-				if (!BLI_testextensie(string, extension_test = ".j2c"))
+				if (!BLI_path_extension_check(string, extension_test = ".j2c"))
 					extension = extension_test;
 			}
 			else
 				BLI_assert(!"Unsupported jp2 codec was specified in im_format->jp2_codec");
 		}
 		else {
-			if (!BLI_testextensie(string, extension_test = ".jp2"))
+			if (!BLI_path_extension_check(string, extension_test = ".jp2"))
 				extension = extension_test;
 		}
 	}
 #endif
 	else { //   R_IMF_IMTYPE_AVIRAW, R_IMF_IMTYPE_AVIJPEG, R_IMF_IMTYPE_JPEG90 etc
-		if (!(BLI_testextensie_n(string, extension_test = ".jpg", ".jpeg", NULL)))
+		if (!(BLI_path_extension_check_n(string, extension_test = ".jpg", ".jpeg", NULL)))
 			extension = extension_test;
 	}
 
 	if (extension) {
 		/* prefer this in many cases to avoid .png.tga, but in certain cases it breaks */
 		/* remove any other known image extension */
-		if (BLI_testextensie_array(string, imb_ext_image)) {
-			return BLI_replace_extension(string, FILE_MAX, extension);
+		if (BLI_path_extension_check_array(string, imb_ext_image)) {
+			return BLI_path_extension_replace(string, FILE_MAX, extension);
 		}
 		else {
-			return BLI_ensure_extension(string, FILE_MAX, extension);
+			return BLI_path_extension_ensure(string, FILE_MAX, extension);
 		}
 
 	}
@@ -3234,7 +3234,7 @@ bool BKE_image_is_openexr(struct Image *ima)
 {
 #ifdef WITH_OPENEXR
 	if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_SEQUENCE, IMA_SRC_TILED)) {
-		return BLI_testextensie(ima->name, ".exr");
+		return BLI_path_extension_check(ima->name, ".exr");
 	}
 #else
 	UNUSED_VARS(ima);
@@ -3247,17 +3247,28 @@ void BKE_image_backup_render(Scene *scene, Image *ima, bool free_current_slot)
 	/* called right before rendering, ima->renderslots contains render
 	 * result pointers for everything but the current render */
 	Render *re = RE_GetSceneRender(scene);
-	int slot = ima->render_slot, last = ima->last_render_slot;
 
-	if (slot != last) {
-		RenderSlot *last_slot = BKE_image_get_renderslot(ima, last);
+	/* Ensure we always have a valid render slot. */
+	if (!ima->renderslots.first) {
+		BKE_image_add_renderslot(ima, NULL);
+		ima->render_slot = 0;
+		ima->last_render_slot = 0;
+	}
+	else if (ima->render_slot >= BLI_listbase_count(&ima->renderslots)) {
+		ima->render_slot = 0;
+		ima->last_render_slot = 0;
+	}
+
+	RenderSlot *last_slot = BKE_image_get_renderslot(ima, ima->last_render_slot);
+	RenderSlot *cur_slot = BKE_image_get_renderslot(ima, ima->render_slot);
+
+	if (last_slot && ima->render_slot != ima->last_render_slot) {
 		last_slot->render = NULL;
 		RE_SwapResult(re, &last_slot->render);
 
-		RenderSlot *cur_slot = BKE_image_get_renderslot(ima, slot);
 		if (cur_slot->render) {
 			if (free_current_slot) {
-				BKE_image_clear_renderslot(ima, NULL, slot);
+				BKE_image_clear_renderslot(ima, NULL, ima->render_slot);
 			}
 			else {
 				RE_SwapResult(re, &cur_slot->render);
@@ -3265,7 +3276,7 @@ void BKE_image_backup_render(Scene *scene, Image *ima, bool free_current_slot)
 		}
 	}
 
-	ima->last_render_slot = slot;
+	ima->last_render_slot = ima->render_slot;
 }
 
 /**************************** multiview load openexr *********************************/
@@ -4984,6 +4995,8 @@ static void image_update_views_format(Image *ima, ImageUser *iuser)
 	}
 }
 
+/**************************** Render Slots ***************************/
+
 RenderSlot *BKE_image_add_renderslot(Image *ima, const char *name)
 {
 	RenderSlot *slot = MEM_callocN(sizeof(RenderSlot), "Image new Render Slot");
@@ -5072,7 +5085,6 @@ bool BKE_image_clear_renderslot(Image *ima, ImageUser *iuser, int index)
 
 RenderSlot *BKE_image_get_renderslot(Image *ima, int index)
 {
-	RenderSlot *slot = BLI_findlink(&ima->renderslots, index);
-	BLI_assert(slot);
-	return slot;
+	/* Can be NULL for images without render slots. */
+	return BLI_findlink(&ima->renderslots, index);
 }

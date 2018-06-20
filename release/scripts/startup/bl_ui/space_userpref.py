@@ -545,6 +545,10 @@ class USERPREF_PT_system(Panel):
         col.prop(system, "use_region_overlap")
 
         col.separator()
+        col.label(text="Max Viewport Anti-aliasing Method")
+        col.prop(system, "max_anti_alias_method", text="")
+
+        col.separator()
 
         col.label(text="Text Draw Options:")
         col.prop(system, "use_text_antialiasing")
@@ -1612,6 +1616,8 @@ class StudioLightPanelMixin():
         row.template_icon(layout.icon(studio_light), scale=6.0)
         op = row.operator('wm.studiolight_uninstall', text="", icon='ZOOMOUT')
         op.index = studio_light.index
+
+        box.label(text=studio_light.name)
 
 
 class USERPREF_PT_studiolight_matcaps(Panel, StudioLightPanelMixin):

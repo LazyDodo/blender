@@ -56,8 +56,8 @@
 
 /* Statics */
 static ListBase studiolights;
-#define STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE 16
-#define STUDIOLIGHT_IRRADIANCE_EQUIRECTANGULAR_HEIGHT 64
+#define STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE 128
+#define STUDIOLIGHT_IRRADIANCE_EQUIRECTANGULAR_HEIGHT 32
 #define STUDIOLIGHT_IRRADIANCE_EQUIRECTANGULAR_WIDTH (STUDIOLIGHT_IRRADIANCE_EQUIRECTANGULAR_HEIGHT * 2)
 
 static const char *STUDIOLIGHT_CAMERA_FOLDER = "studiolights/camera/";
@@ -65,42 +65,33 @@ static const char *STUDIOLIGHT_WORLD_FOLDER = "studiolights/world/";
 static const char *STUDIOLIGHT_MATCAP_FOLDER = "studiolights/matcap/";
 
 /* FUNCTIONS */
+#define IMB_SAFE_FREE(p) do { \
+if (p) {                      \
+	IMB_freeImBuf(p);         \
+	p = NULL;                 \
+}                             \
+} while (0)
+
+#define GPU_TEXTURE_SAFE_FREE(p) do { \
+if (p) {                              \
+	GPU_texture_free(p);              \
+	p = NULL;                         \
+}                                     \
+} while (0)
+
 static void studiolight_free(struct StudioLight *sl)
 {
 	for (int index = 0 ; index < 6 ; index ++) {
-		if (sl->radiance_cubemap_buffers[index] != NULL) {
-			IMB_freeImBuf(sl->radiance_cubemap_buffers[index]);
-			sl->radiance_cubemap_buffers[index] = NULL;
-		}
+		IMB_SAFE_FREE(sl->radiance_cubemap_buffers[index]);
 	}
-	if (sl->equirectangular_radiance_gputexture) {
-		GPU_texture_free(sl->equirectangular_radiance_gputexture);
-		sl->equirectangular_radiance_gputexture = NULL;
-	}
-	
-	if (sl->equirectangular_irradiance_gputexture) {
-		GPU_texture_free(sl->equirectangular_irradiance_gputexture);
-		sl->equirectangular_irradiance_gputexture = NULL;
-	}
-	
-	if (sl->equirectangular_radiance_buffer) {
-		IMB_freeImBuf(sl->equirectangular_radiance_buffer);
-		sl->equirectangular_radiance_buffer = NULL;
-	}
-	
-	if (sl->equirectangular_irradiance_buffer) {
-		IMB_freeImBuf(sl->equirectangular_irradiance_buffer);
-		sl->equirectangular_irradiance_buffer = NULL;
-	}
-	if (sl->path_irr) {
-		MEM_freeN(sl->path_irr);
-		sl->path_irr = NULL;
-	}
-	if (sl->gpu_matcap_3components) {
-		MEM_freeN(sl->gpu_matcap_3components);
-		sl->gpu_matcap_3components = NULL;
-	}
-	MEM_freeN(sl);
+	GPU_TEXTURE_SAFE_FREE(sl->equirectangular_radiance_gputexture);
+	GPU_TEXTURE_SAFE_FREE(sl->equirectangular_irradiance_gputexture);
+	IMB_SAFE_FREE(sl->equirectangular_radiance_buffer);
+	IMB_SAFE_FREE(sl->equirectangular_irradiance_buffer);
+	MEM_SAFE_FREE(sl->path_irr_cache);
+	MEM_SAFE_FREE(sl->path_sh2_cache);
+	MEM_SAFE_FREE(sl->gpu_matcap_3components);
+	MEM_SAFE_FREE(sl);
 }
 
 static struct StudioLight *studiolight_create(int flag)
@@ -108,7 +99,8 @@ static struct StudioLight *studiolight_create(int flag)
 	struct StudioLight *sl = MEM_callocN(sizeof(*sl), __func__);
 	sl->path[0] = 0x00;
 	sl->name[0] = 0x00;
-	sl->path_irr = NULL;
+	sl->path_irr_cache = NULL;
+	sl->path_sh2_cache = NULL;
 	sl->flag = flag;
 	sl->index = BLI_listbase_count(&studiolights);
 	if (flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL) {
@@ -123,6 +115,7 @@ static struct StudioLight *studiolight_create(int flag)
 	for (int index = 0 ; index < 6 ; index ++) {
 		sl->radiance_cubemap_buffers[index] = NULL;
 	}
+
 	return sl;
 }
 
@@ -173,7 +166,7 @@ static void studiolight_calculate_radiance_buffer(
 	}
 }
 
-static void studiolight_load_equierectangular_image(StudioLight *sl)
+static void studiolight_load_equirectangular_image(StudioLight *sl)
 {
 	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
 		ImBuf *ibuf = NULL;
@@ -186,7 +179,7 @@ static void studiolight_load_equierectangular_image(StudioLight *sl)
 	sl->flag |= STUDIOLIGHT_EXTERNAL_IMAGE_LOADED;
 }
 
-static void studiolight_create_equierectangular_radiance_gputexture(StudioLight *sl)
+static void studiolight_create_equirectangular_radiance_gputexture(StudioLight *sl)
 {
 	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
 		char error[256];
@@ -219,7 +212,7 @@ static void studiolight_create_equierectangular_radiance_gputexture(StudioLight 
 	sl->flag |= STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE;
 }
 
-static void studiolight_create_equierectangular_irradiance_gputexture(StudioLight *sl)
+static void studiolight_create_equirectangular_irradiance_gputexture(StudioLight *sl)
 {
 	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
 		char error[256];
@@ -316,63 +309,167 @@ BLI_INLINE void studiolight_evaluate_radiance_buffer(
 
 }
 
-static void studiolight_calculate_irradiance(StudioLight *sl, float color[3], const float normal[3])
+BLI_INLINE float studiolight_area_element(float x, float y)
 {
-	int hits = 0;
-	copy_v3_fl(color, 0.0f);
+	return atan2(x * y, sqrtf(x * x + y * y + 1));
+}
 
-	/* back */
-	studiolight_evaluate_radiance_buffer(sl->radiance_cubemap_buffers[STUDIOLIGHT_Y_POS], normal, color, &hits, 0, 2, 1, 0.5);
-	/* front */
-	studiolight_evaluate_radiance_buffer(sl->radiance_cubemap_buffers[STUDIOLIGHT_Y_NEG], normal, color, &hits, 0, 2, 1, -0.5);
+BLI_INLINE float studiolight_texel_solid_angle(float x, float y, float halfpix)
+{
+	float v1x = (x - halfpix) * 2.0f - 1.0f;
+	float v1y = (y - halfpix) * 2.0f - 1.0f;
+	float v2x = (x + halfpix) * 2.0f - 1.0f;
+	float v2y = (y + halfpix) * 2.0f - 1.0f;
 
-	/* left */
-	studiolight_evaluate_radiance_buffer(sl->radiance_cubemap_buffers[STUDIOLIGHT_X_POS], normal, color, &hits, 1, 2, 0, 0.5);
-	/* right */
-	studiolight_evaluate_radiance_buffer(sl->radiance_cubemap_buffers[STUDIOLIGHT_X_NEG], normal, color, &hits, 1, 2, 0, -0.5);
+	return studiolight_area_element(v1x, v1y) - studiolight_area_element(v1x, v2y) - studiolight_area_element(v2x, v1y) + studiolight_area_element(v2x, v2y);
+}
 
-	/* top */
-	studiolight_evaluate_radiance_buffer(sl->radiance_cubemap_buffers[STUDIOLIGHT_Z_POS], normal, color, &hits, 0, 1, 2, 0.5);
-	/* bottom */
-	studiolight_evaluate_radiance_buffer(sl->radiance_cubemap_buffers[STUDIOLIGHT_Z_NEG], normal, color, &hits, 0, 1, 2, -0.5);
+static void studiolight_calculate_cubemap_vector_weight(float normal[3], float *weight, int face, float x, float y)
+{
+	copy_v3_fl3(normal, x * 2.0f - 1.0f, y * 2.0f - 1.0f, 1.0f);
+	const float conversion_matrices[6][3][3] = {
+		{
+			{0.0f, 0.0f, -1.0f},
+			{0.0f, -1.0f, 0.0f},
+			{-1.0f, 0.0f, 0.0f},
+		},
+		{
+			{0.0f, 0.0f, -1.0f},
+			{0.0f, -1.0f, 0.0f},
+			{-1.0f, 0.0f, 0.0f},
+		},
+		{
+			{1.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, 1.0f},
+			{0.0f, -1.0f, 0.0f},
+		},
+		{
+			{1.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, -1.0f},
+			{0.0f, 1.0f, 0.0f},
+		},
+		{
+			{1.0f, 0.0f, 0.0f},
+			{0.0f, -1.0f, 0.0f},
+			{0.0f, 0.0f, -1.0f},
+		},
+		{
+			{-1.0f, 0.0f, 0.0f},
+			{0.0f, -1.0f, 0.0f},
+			{0.0f, 0.0f, 1.0f},
+		}
+	};
+	mul_m3_v3(conversion_matrices[face], normal);
+	normalize_v3(normal);
+	const float halfpix = 1.0f / (2.0f * STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE);
+	*weight = studiolight_texel_solid_angle(x + halfpix, y + halfpix, halfpix);
+}
 
-	if (hits) {
-		mul_v3_fl(color, 3.0 / hits);
+static void studiolight_calculate_spherical_harmonics_coefficient(StudioLight *sl, int sh_component)
+{
+	const float M_4PI = M_PI * 4.0f;
+
+	float weight_accum = 0.0f;
+	float sh[3] = {0.0f, 0.0f, 0.0f};
+	for (int face = 0; face < 6; face++) {
+		float *color;
+		color = sl->radiance_cubemap_buffers[face]->rect_float;
+		for (int y = 0; y < STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE; y++) {
+			float yf = y / (float)STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE;
+			for (int x = 0; x < STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE; x++) {
+				float xf = x / (float)STUDIOLIGHT_RADIANCE_CUBEMAP_SIZE;
+				float weight, coef;
+				float cubevec[3];
+				studiolight_calculate_cubemap_vector_weight(cubevec, &weight, face, xf, yf);
+
+				switch (sh_component) {
+					case 0:
+					{
+						coef = 0.2822095f;
+						break;
+					}
+
+					case 1:
+					{
+						coef = -0.488603f * cubevec[2] * 2.0f / 3.0f;
+						break;
+					}
+					case 2:
+					{
+						coef = 0.488603f * cubevec[1] * 2.0f / 3.0f;
+						break;
+					}
+					case 3:
+					{
+						coef = -0.488603f * cubevec[0] * 2.0f / 3.0f;
+						break;
+					}
+
+					case 4:
+					{
+						coef = 1.092548f * cubevec[0] * cubevec[2] * 1.0f / 4.0f;
+						break;
+					}
+					case 5:
+					{
+						coef = -1.092548f * cubevec[2] * cubevec[1] * 1.0f / 4.0f;
+						break;
+					}
+					case 6:
+					{
+						coef = 0.315392f * (3.0f * cubevec[2] * cubevec[2] - 1.0f) * 1.0f / 4.0f;
+						break;
+					}
+					case 7:
+					{
+						coef = 1.092548f * cubevec[0] * cubevec[1] * 1.0f / 4.0f;
+						break;
+					}
+					case 8:
+					{
+						coef = 0.546274f * (cubevec[0] * cubevec[0] - cubevec[2] * cubevec[2]) * 1.0f / 4.0f;
+						break;
+					}
+
+					default:
+					{
+						coef = 0.0f;
+					}
+				}
+
+				madd_v3_v3fl(sh, color, coef * weight);
+				weight_accum += weight;
+				color += 4;
+			}
+		}
 	}
-	else {
-		copy_v3_fl3(color, 1.0, 0.0, 1.0);
-	}
+
+	mul_v3_fl(sh, M_4PI / weight_accum);
+	copy_v3_v3(sl->spherical_harmonics_coefs[sh_component], sh);
 }
 
 
 static void studiolight_calculate_diffuse_light(StudioLight *sl)
 {
 	/* init light to black */
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_X_POS], 0.0f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_X_NEG], 0.0f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Y_POS], 0.0f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Y_NEG], 0.0f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Z_POS], 0.0f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Z_NEG], 0.0f);
-
 	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
-		const float normal_x_neg[3] = {-1.0f,  0.0f,  0.0f};
-		const float normal_x_pos[3] = { 1.0f,  0.0f,  0.0f};
-		const float normal_y_neg[3] = { 0.0f,  1.0f,  0.0f};
-		const float normal_y_pos[3] = { 0.0f, -1.0f,  0.0f};
-		const float normal_z_neg[3] = { 0.0f,  0.0f, -1.0f};
-		const float normal_z_pos[3] = { 0.0f,  0.0f,  1.0f};
-
 		BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_RADIANCE_BUFFERS_CALCULATED);
 
-		studiolight_calculate_irradiance(sl, sl->diffuse_light[STUDIOLIGHT_X_POS], normal_x_pos);
-		studiolight_calculate_irradiance(sl, sl->diffuse_light[STUDIOLIGHT_X_NEG], normal_x_neg);
-		studiolight_calculate_irradiance(sl, sl->diffuse_light[STUDIOLIGHT_Y_POS], normal_y_pos);
-		studiolight_calculate_irradiance(sl, sl->diffuse_light[STUDIOLIGHT_Y_NEG], normal_y_neg);
-		studiolight_calculate_irradiance(sl, sl->diffuse_light[STUDIOLIGHT_Z_POS], normal_z_pos);
-		studiolight_calculate_irradiance(sl, sl->diffuse_light[STUDIOLIGHT_Z_NEG], normal_z_neg);
+		for (int comp = 0; comp < 9; comp ++) {
+			studiolight_calculate_spherical_harmonics_coefficient(sl, comp);
+#if 0
+			print_v3("SH2", sl->spherical_harmonics_coefs[comp]);
+#endif
+		}
+		if (sl->flag & STUDIOLIGHT_USER_DEFINED) {
+			FILE *fp = BLI_fopen(sl->path_sh2_cache, "wb");
+			if (fp) {
+				fwrite(sl->spherical_harmonics_coefs, sizeof(sl->spherical_harmonics_coefs), 1, fp);
+				fclose(fp);
+			}
+		}
 	}
-	sl->flag |= STUDIOLIGHT_DIFFUSE_LIGHT_CALCULATED;
+	sl->flag |= STUDIOLIGHT_SPHERICAL_HARMONICS_COEFFICIENTS_CALCULATED;
 }
 
 static float area_element(float x, float y )
@@ -398,7 +495,7 @@ static float texel_coord_solid_angle(float a_U, float a_V, int a_Size)
 }
 
 BLI_INLINE void studiolight_evaluate_specular_radiance_buffer(
-        ImBuf *radiance_buffer, const float normal[3], float color[3], 
+        ImBuf *radiance_buffer, const float normal[3], float color[3],
         int xoffset, int yoffset, int zoffset, float zvalue)
 {
 	if (radiance_buffer == NULL) {
@@ -454,10 +551,9 @@ static void studiolight_calculate_specular_irradiance(StudioLight *sl, float col
 
 static bool studiolight_load_irradiance_equirectangular_image(StudioLight *sl)
 {
-#if 1
 	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
 		ImBuf *ibuf = NULL;
-		ibuf = IMB_loadiffname(sl->path_irr, 0, NULL);
+		ibuf = IMB_loadiffname(sl->path_irr_cache, 0, NULL);
 		if (ibuf) {
 			IMB_float_from_rect(ibuf);
 			sl->equirectangular_irradiance_buffer = ibuf;
@@ -465,7 +561,23 @@ static bool studiolight_load_irradiance_equirectangular_image(StudioLight *sl)
 			return true;
 		}
 	}
-#endif
+	return false;
+}
+
+static bool studiolight_load_spherical_harmonics_coefficients(StudioLight *sl)
+{
+	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
+		FILE *fp = BLI_fopen(sl->path_sh2_cache, "rb");
+		if (fp) {
+			if (fread((void*)(sl->spherical_harmonics_coefs), sizeof(sl->spherical_harmonics_coefs), 1, fp))
+			{
+				sl->flag |= STUDIOLIGHT_SPHERICAL_HARMONICS_COEFFICIENTS_CALCULATED;
+                fclose(fp);
+				return true;
+			}
+			fclose(fp);
+		}
+	}
 	return false;
 }
 
@@ -473,7 +585,7 @@ static void studiolight_calculate_irradiance_equirectangular_image(StudioLight *
 {
 	if (sl->flag & STUDIOLIGHT_EXTERNAL_FILE) {
 		/* check for cached irr file */
-		
+
 		BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_RADIANCE_BUFFERS_CALCULATED);
 
 		float *colbuf = MEM_mallocN(STUDIOLIGHT_IRRADIANCE_EQUIRECTANGULAR_WIDTH * STUDIOLIGHT_IRRADIANCE_EQUIRECTANGULAR_HEIGHT * sizeof(float[4]), __func__);
@@ -496,8 +608,8 @@ static void studiolight_calculate_irradiance_equirectangular_image(StudioLight *
 		        STUDIOLIGHT_IRRADIANCE_EQUIRECTANGULAR_HEIGHT);
 		MEM_freeN(colbuf);
 
-		if (sl->flag | STUDIOLIGHT_USER_DEFINED) {
-			IMB_saveiff(sl->equirectangular_irradiance_buffer, sl->path_irr, IB_rectfloat);
+		if (sl->flag & STUDIOLIGHT_USER_DEFINED) {
+			IMB_saveiff(sl->equirectangular_irradiance_buffer, sl->path_irr_cache, IB_rectfloat);
 		}
 	}
 	sl->flag |= STUDIOLIGHT_EQUIRECTANGULAR_IRRADIANCE_IMAGE_CALCULATED;
@@ -549,11 +661,12 @@ static void studiolight_add_files_from_datafolder(const int folder_id, const cha
 			if ((dir[i].type & S_IFREG)) {
 				const char *filename = dir[i].relname;
 				const char *path = dir[i].path;
-				if (BLI_testextensie_array(filename, imb_ext_image)) {
+				if (BLI_path_extension_check_array(filename, imb_ext_image)) {
 					sl = studiolight_create(STUDIOLIGHT_EXTERNAL_FILE | flag);
 					BLI_strncpy(sl->name, filename, FILE_MAXFILE);
 					BLI_strncpy(sl->path, path, FILE_MAXFILE);
-					sl->path_irr = BLI_string_joinN(path, ".irr");
+					sl->path_irr_cache = BLI_string_joinN(path, ".irr");
+					sl->path_sh2_cache = BLI_string_joinN(path, ".sh2");
 					BLI_addtail(&studiolights, sl);
 				}
 			}
@@ -561,7 +674,6 @@ static void studiolight_add_files_from_datafolder(const int folder_id, const cha
 		BLI_filelist_free(dir, totfile);
 		dir = NULL;
 	}
-
 }
 
 static int studiolight_flag_cmp_order(const StudioLight *sl)
@@ -593,45 +705,53 @@ static int studiolight_cmp(const void *a, const void *b)
 }
 
 /* icons */
-static uint *studiolight_radiance_preview(StudioLight *sl, int icon_size)
+
+/* Takes normalized uvs as parameter (range from 0 to 1).
+ * inner_edge and outer_edge are distances (from the center)
+ * in uv space for the alpha mask falloff. */
+static uint alpha_circle_mask(float u, float v, float inner_edge, float outer_edge)
+{
+	/* Coords from center. */
+	float co[2] = {u - 0.5f, v - 0.5f};
+	float dist = len_v2(co);
+	float alpha = 1.0f + (inner_edge - dist) / (outer_edge - inner_edge);
+	uint mask = (uint)floorf(255.0f * min_ff(max_ff(alpha, 0.0f), 1.0f));
+	return mask << 24;
+}
+
+#define STUDIOLIGHT_DIAMETER 0.95f
+
+static void studiolight_radiance_preview(uint* icon_buffer, StudioLight *sl)
 {
 	BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_EXTERNAL_IMAGE_LOADED);
 
-	uint *rect = MEM_mallocN(icon_size * icon_size * sizeof(uint), __func__);
-	int icon_center = icon_size / 2;
-	float sphere_radius = icon_center * 0.9;
+	float pixel_size = 1.0f / (float)STUDIOLIGHT_ICON_SIZE;
 
 	int offset = 0;
-	for (int y = 0; y < icon_size; y++) {
-		float dy = y - icon_center;
-		for (int x = 0; x < icon_size; x++) {
-			float dx = x - icon_center;
-			/* calculate aliasing */
-			float alias = 0;
-			const float alias_step = 0.333;
-			for (float ay = dy - 0.5; ay < dy + 0.5; ay += alias_step) {
-				for (float ax = dx - 0.5; ax < dx + 0.5; ax += alias_step) {
-					if (sqrt(ay * ay + ax * ax) < sphere_radius) {
-						alias += alias_step * alias_step;
-					}
-				}
-			}
+	for (int y = 0; y < STUDIOLIGHT_ICON_SIZE; y++) {
+		float dy = (y + 0.5f) / (float)STUDIOLIGHT_ICON_SIZE;
+		dy = dy / STUDIOLIGHT_DIAMETER - (1.0f - STUDIOLIGHT_DIAMETER) / 2.0f;
+		for (int x = 0; x < STUDIOLIGHT_ICON_SIZE; x++) {
+			float dx = (x + 0.5f) / (float)STUDIOLIGHT_ICON_SIZE;
+			dx = dx / STUDIOLIGHT_DIAMETER - (1.0f - STUDIOLIGHT_DIAMETER) / 2.0f;
+
 			uint pixelresult = 0x0;
-			uint alias_i = clamp_i(alias * 256, 0, 255);
-			if (alias_i != 0) {
-				/* calculate normal */
-				uint alias_mask = alias_i << 24;
-				float incoming[3];
-				copy_v3_fl3(incoming, 0.0, 1.0, 0.0);
+			uint alphamask = alpha_circle_mask(dx, dy, 0.5f - pixel_size, 0.5f);
+			if (alphamask != 0) {
+				float incoming[3] = {0.0f, 0.0f, -1.0f};
 
 				float normal[3];
-				normal[0] = dx / sphere_radius;
-				normal[2] = dy / sphere_radius;
-				normal[1] = -sqrt(-(normal[0] * normal[0]) - (normal[2] * normal[2]) + 1);
-				normalize_v3(normal);
+				normal[0] = dx * 2.0f - 1.0f;
+				normal[1] = dy * 2.0f - 1.0f;
+				float dist = len_v2(normal);
+				normal[2] = sqrtf(1.0f - SQUARE(dist));
 
 				float direction[3];
 				reflect_v3_v3v3(direction, incoming, normal);
+
+				/* We want to see horizon not poles. */
+				SWAP(float, direction[1], direction[2]);
+				direction[1] = -direction[1];
 
 				float color[4];
 				studiolight_calculate_radiance(sl->equirectangular_radiance_buffer, color, direction);
@@ -639,154 +759,92 @@ static uint *studiolight_radiance_preview(StudioLight *sl, int icon_size)
 				pixelresult = rgb_to_cpack(
 				        linearrgb_to_srgb(color[0]),
 				        linearrgb_to_srgb(color[1]),
-				        linearrgb_to_srgb(color[2])) | alias_mask;
+				        linearrgb_to_srgb(color[2])) | alphamask;
 			}
-			rect[offset++] = pixelresult;
+			icon_buffer[offset++] = pixelresult;
 		}
 	}
-	return rect;
 }
 
-static uint *studiolight_matcap_preview(StudioLight *sl, int icon_size, bool flipped)
+static void studiolight_matcap_preview(uint* icon_buffer, StudioLight *sl, bool flipped)
 {
 	BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_EXTERNAL_IMAGE_LOADED);
 
-	uint *rect = MEM_mallocN(icon_size * icon_size * sizeof(uint), __func__);
-	const uint alphamask = 0xff000000;
 	float color[4];
 	float fx, fy;
+	float pixel_size = 1.0f / (float)STUDIOLIGHT_ICON_SIZE;
 	int offset = 0;
 	ImBuf *ibuf = sl->equirectangular_radiance_buffer;
 
-	for (int y = 0; y < icon_size; y++) {
-		fy = y * ibuf->y / icon_size;
-		for (int x = 0; x < icon_size; x++) {
+	for (int y = 0; y < STUDIOLIGHT_ICON_SIZE; y++) {
+		fy = (y + 0.5f) / (float)STUDIOLIGHT_ICON_SIZE;
+		fy = fy / STUDIOLIGHT_DIAMETER - (1.0f - STUDIOLIGHT_DIAMETER) / 2.0f;
+		for (int x = 0; x < STUDIOLIGHT_ICON_SIZE; x++) {
+			fx = (x + 0.5f) / (float)STUDIOLIGHT_ICON_SIZE;
+			fx = fx / STUDIOLIGHT_DIAMETER - (1.0f - STUDIOLIGHT_DIAMETER) / 2.0f;
 			if (flipped) {
-				fx = ibuf->x - (x * ibuf->x / icon_size) - 1;
+				fx = 1.0f - fx;
 			}
-			else {
-				fx = x * ibuf->x / icon_size;
-			}
-			nearest_interpolation_color(ibuf, NULL, color, fx, fy);
-			rect[offset++] = rgb_to_cpack(
+			nearest_interpolation_color(ibuf, NULL, color, fx * ibuf->x, fy * ibuf->y);
+
+			uint alphamask = alpha_circle_mask(fx, fy, 0.5f - pixel_size, 0.5f);
+
+			icon_buffer[offset++] = rgb_to_cpack(
 			        linearrgb_to_srgb(color[0]),
 			        linearrgb_to_srgb(color[1]),
 			        linearrgb_to_srgb(color[2])) | alphamask;
 		}
 	}
-	return rect;
 }
 
-static uint *studiolight_irradiance_preview(StudioLight *sl, int icon_size)
+static void studiolight_irradiance_preview(uint* icon_buffer, StudioLight *sl)
 {
-#if 0
-	if (!(sl->flag & STUDIOLIGHT_EXTERNAL_FILE))
-#endif
-	{
+	BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_SPHERICAL_HARMONICS_COEFFICIENTS_CALCULATED);
 
-		BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_DIFFUSE_LIGHT_CALCULATED);
+	float pixel_size = 1.0f / (float)STUDIOLIGHT_ICON_SIZE;
 
-		uint *rect = MEM_mallocN(icon_size * icon_size * sizeof(uint), __func__);
-		int icon_center = icon_size / 2;
-		float sphere_radius = icon_center * 0.9;
+	int offset = 0;
+	for (int y = 0; y < STUDIOLIGHT_ICON_SIZE; y++) {
+		float dy = (y + 0.5f) / (float)STUDIOLIGHT_ICON_SIZE;
+		dy = dy / STUDIOLIGHT_DIAMETER - (1.0f - STUDIOLIGHT_DIAMETER) / 2.0f;
+		for (int x = 0; x < STUDIOLIGHT_ICON_SIZE; x++) {
+			float dx = (x + 0.5f) / (float)STUDIOLIGHT_ICON_SIZE;
+			dx = dx / STUDIOLIGHT_DIAMETER - (1.0f - STUDIOLIGHT_DIAMETER) / 2.0f;
 
-		int offset = 0;
-		for (int y = 0; y < icon_size; y++) {
-			float dy = y - icon_center;
-			for (int x = 0; x < icon_size; x++) {
-				float dx = x - icon_center;
-				/* calculate aliasing */
-				float alias = 0;
-				const float alias_step = 0.333;
-				for (float ay = dy - 0.5; ay < dy + 0.5; ay += alias_step) {
-					for (float ax = dx - 0.5; ax < dx + 0.5; ax += alias_step) {
-						if (sqrt(ay * ay + ax * ax) < sphere_radius) {
-							alias += alias_step * alias_step;
-						}
-					}
-				}
-				uint pixelresult = 0x0;
-				uint alias_i = clamp_i(alias * 256, 0, 255);
-				if (alias_i != 0) {
-					/* calculate normal */
-					uint alias_mask = alias_i << 24;
-					float normal[3];
-					normal[0] = dx / sphere_radius;
-					normal[1] = dy / sphere_radius;
-					normal[2] = sqrt(-(normal[0] * normal[0]) - (normal[1] * normal[1]) + 1);
-					normalize_v3(normal);
+			uint pixelresult = 0x0;
+			uint alphamask = alpha_circle_mask(dx, dy, 0.5f - pixel_size, 0.5f);
+			if (alphamask != 0) {
+				/* calculate normal */
+				float normal[3];
+				normal[0] = dx * 2.0f - 1.0f;
+				normal[1] = -(dy * 2.0f - 1.0f);
+				float dist = len_v2(normal);
+				normal[2] = -sqrtf(1.0f - SQUARE(dist));
+				SWAP(float, normal[1], normal[2]);
 
-					float color[3];
-					mul_v3_v3fl(color, sl->diffuse_light[STUDIOLIGHT_X_POS], clamp_f(normal[0], 0.0, 1.0));
-					interp_v3_v3v3(color, color, sl->diffuse_light[STUDIOLIGHT_X_NEG], clamp_f(-normal[0], 0.0, 1.0));
-					interp_v3_v3v3(color, color, sl->diffuse_light[STUDIOLIGHT_Z_POS], clamp_f(normal[1], 0.0, 1.0));
-					interp_v3_v3v3(color, color, sl->diffuse_light[STUDIOLIGHT_Z_NEG], clamp_f(-normal[1], 0.0, 1.0));
-					interp_v3_v3v3(color, color, sl->diffuse_light[STUDIOLIGHT_Y_POS], clamp_f(normal[2], 0.0, 1.0));
+				float color[3] = {0.0f, 0.0f, 0.0f};
+				/* Spherical Harmonics L0 */
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[0], 0.282095f);
 
-					pixelresult = rgb_to_cpack(
-					        linearrgb_to_srgb(color[0]),
-					        linearrgb_to_srgb(color[1]),
-					        linearrgb_to_srgb(color[2])) | alias_mask;
-				}
-				rect[offset++] = pixelresult;
+				/* Spherical Harmonics L1 */
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[1], -0.488603f * normal[2]);
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[2],  0.488603f * normal[1]);
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[3], -0.488603f * normal[0]);
+
+				/* Spherical Harmonics L1 */
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[4], 1.092548f * normal[0] * normal[2]);
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[5], -1.092548f * normal[2] * normal[1]);
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[6], 0.315392f * (3.0f * normal[1] * normal[1] - 1.0f));
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[7], -1.092548 * normal[0] * normal[1]);
+				madd_v3_v3fl(color, sl->spherical_harmonics_coefs[8], 0.546274 * (normal[0] * normal[0] - normal[2] * normal[2]));
+				pixelresult = rgb_to_cpack(
+				        linearrgb_to_srgb(color[0]),
+				        linearrgb_to_srgb(color[1]),
+				        linearrgb_to_srgb(color[2])) | alphamask;
 			}
+			icon_buffer[offset++] = pixelresult;
 		}
-		return rect;
 	}
-#if 0
-	else {
-		BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_EQUIRECTANGULAR_IRRADIANCE_IMAGE_CALCULATED);
-
-		uint *rect = MEM_mallocN(icon_size * icon_size * sizeof(uint), __func__);
-		int icon_center = icon_size / 2;
-		float sphere_radius = icon_center * 0.9;
-
-		int offset = 0;
-		for (int y = 0; y < icon_size; y++) {
-			float dy = y - icon_center;
-			for (int x = 0; x < icon_size; x++) {
-				float dx = x - icon_center;
-				/* calculate aliasing */
-				float alias = 0;
-				const float alias_step = 0.333;
-				for (float ay = dy - 0.5; ay < dy + 0.5; ay += alias_step) {
-					for (float ax = dx - 0.5; ax < dx + 0.5; ax += alias_step) {
-						if (sqrt(ay * ay + ax * ax) < sphere_radius) {
-							alias += alias_step * alias_step;
-						}
-					}
-				}
-				uint pixelresult = 0x0;
-				uint alias_i = clamp_i(alias * 256, 0, 255);
-				if (alias_i != 0) {
-					/* calculate normal */
-					uint alias_mask = alias_i << 24;
-					float incoming[3];
-					copy_v3_fl3(incoming, 0.0, 1.0, 0.0);
-
-					float normal[3];
-					normal[0] = dx / sphere_radius;
-					normal[2] = dy / sphere_radius;
-					normal[1] = -sqrt(-(normal[0] * normal[0]) - (normal[2] * normal[2]) + 1);
-					normalize_v3(normal);
-
-					float direction[3];
-					reflect_v3_v3v3(direction, incoming, normal);
-
-					float color[4];
-					studiolight_calculate_radiance(sl->equirectangular_irradiance_buffer, color, direction);
-
-					pixelresult = rgb_to_cpack(
-					        linearrgb_to_srgb(color[0]),
-					        linearrgb_to_srgb(color[1]),
-					        linearrgb_to_srgb(color[2])) | alias_mask;
-				}
-				rect[offset++] = pixelresult;
-			}
-		}
-		return rect;
-	}
-#endif
 }
 
 /* API */
@@ -797,14 +855,19 @@ void BKE_studiolight_init(void)
 	/* order studio lights by name */
 	/* Also reserve icon space for it. */
 	/* Add default studio light */
-	sl = studiolight_create(STUDIOLIGHT_INTERNAL | STUDIOLIGHT_DIFFUSE_LIGHT_CALCULATED | STUDIOLIGHT_ORIENTATION_CAMERA);
-	BLI_strncpy(sl->name, "INTERNAL_01", FILE_MAXFILE);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_X_POS], 1.5f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_X_NEG], 0.0f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Y_POS], 0.8f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Y_NEG], 0.05f);
-	copy_v3_fl(sl->diffuse_light[STUDIOLIGHT_Z_POS], 0.2f);
-	copy_v3_fl3(sl->diffuse_light[STUDIOLIGHT_Z_NEG], 0.1f, 0.0f, 0.0f);
+	sl = studiolight_create(STUDIOLIGHT_INTERNAL | STUDIOLIGHT_SPHERICAL_HARMONICS_COEFFICIENTS_CALCULATED | STUDIOLIGHT_ORIENTATION_CAMERA);
+	BLI_strncpy(sl->name, "Default", FILE_MAXFILE);
+
+	copy_v3_fl3(sl->spherical_harmonics_coefs[0], 1.03271556f, 1.07163882f, 1.11193657f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[1], -0.00480952f, 0.05290511f, 0.16394117f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[2], -0.29686999f, -0.27378261f, -0.24797194f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[3], 0.47932500f, 0.48242140f, 0.47190312f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[4], -0.00576984f, 0.00504886f, 0.01640534f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[5], 0.15500379f, 0.15415503f, 0.16244425f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[6], -0.02483751f, -0.02245096f, -0.00536885f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[7], 0.11155496f, 0.11005443f, 0.10839636f);
+	copy_v3_fl3(sl->spherical_harmonics_coefs[8], 0.01363425f, 0.01278363f, -0.00159006f);
+
 	BLI_addtail(&studiolights, sl);
 
 	studiolight_add_files_from_datafolder(BLENDER_SYSTEM_DATAFILES, STUDIOLIGHT_CAMERA_FOLDER, STUDIOLIGHT_ORIENTATION_CAMERA);
@@ -829,7 +892,7 @@ void BKE_studiolight_free(void)
 struct StudioLight *BKE_studiolight_find_first(int flag)
 {
 	LISTBASE_FOREACH(StudioLight *, sl, &studiolights) {
-		if ((sl->flag & flag)) {
+		if ((sl->flag & flag) && (sl->flag & STUDIOLIGHT_DISABLED) == 0) {
 			return sl;
 		}
 	}
@@ -840,7 +903,7 @@ struct StudioLight *BKE_studiolight_find(const char *name, int flag)
 {
 	LISTBASE_FOREACH(StudioLight *, sl, &studiolights) {
 		if (STREQLEN(sl->name, name, FILE_MAXFILE)) {
-			if ((sl->flag & flag)) {
+			if ((sl->flag & flag) && (sl->flag & STUDIOLIGHT_DISABLED) == 0) {
 				return sl;
 			}
 			else {
@@ -856,7 +919,7 @@ struct StudioLight *BKE_studiolight_find(const char *name, int flag)
 struct StudioLight *BKE_studiolight_findindex(int index, int flag)
 {
 	LISTBASE_FOREACH(StudioLight *, sl, &studiolights) {
-		if (sl->index == index) {
+		if (sl->index == index  && (sl->flag & STUDIOLIGHT_DISABLED) == 0) {
 			return sl;
 		}
 	}
@@ -869,21 +932,34 @@ struct ListBase *BKE_studiolight_listbase(void)
 	return &studiolights;
 }
 
-uint *BKE_studiolight_preview(StudioLight *sl, int icon_size, int icon_id_type)
+void BKE_studiolight_preview(uint* icon_buffer, StudioLight *sl, int icon_id_type)
 {
 	switch (icon_id_type) {
 		case STUDIOLIGHT_ICON_ID_TYPE_RADIANCE:
 		default:
-			return studiolight_radiance_preview(sl, icon_size);
+		{
+			studiolight_radiance_preview(icon_buffer, sl);
+			break;
+		}
 		case STUDIOLIGHT_ICON_ID_TYPE_IRRADIANCE:
-			return studiolight_irradiance_preview(sl, icon_size);
+		{
+			studiolight_irradiance_preview(icon_buffer, sl);
+			break;
+		}
 		case STUDIOLIGHT_ICON_ID_TYPE_MATCAP:
-			return studiolight_matcap_preview(sl, icon_size, false);
+		{
+			studiolight_matcap_preview(icon_buffer, sl, false);
+			break;
+		}
 		case STUDIOLIGHT_ICON_ID_TYPE_MATCAP_FLIPPED:
-			return studiolight_matcap_preview(sl, icon_size, true);
+		{
+			studiolight_matcap_preview(icon_buffer, sl, true);
+			break;
+		}
 	}
 }
 
+/* Ensure state of Studiolights */
 void BKE_studiolight_ensure_flag(StudioLight *sl, int flag)
 {
 	if ((sl->flag & flag) == flag) {
@@ -891,22 +967,24 @@ void BKE_studiolight_ensure_flag(StudioLight *sl, int flag)
 	}
 
 	if ((flag & STUDIOLIGHT_EXTERNAL_IMAGE_LOADED)) {
-		studiolight_load_equierectangular_image(sl);
+		studiolight_load_equirectangular_image(sl);
 	}
 	if ((flag & STUDIOLIGHT_RADIANCE_BUFFERS_CALCULATED)) {
 		studiolight_calculate_radiance_cubemap_buffers(sl);
 	}
-	if ((flag & STUDIOLIGHT_DIFFUSE_LIGHT_CALCULATED)) {
-		studiolight_calculate_diffuse_light(sl);
+	if ((flag & STUDIOLIGHT_SPHERICAL_HARMONICS_COEFFICIENTS_CALCULATED)) {
+		if (!studiolight_load_spherical_harmonics_coefficients(sl)) {
+			studiolight_calculate_diffuse_light(sl);
+		}
 	}
 	if ((flag & STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE)) {
-		studiolight_create_equierectangular_radiance_gputexture(sl);
+		studiolight_create_equirectangular_radiance_gputexture(sl);
 	}
 	if ((flag & STUDIOLIGHT_LIGHT_DIRECTION_CALCULATED)) {
 		studiolight_calculate_light_direction(sl);
 	}
 	if ((flag & STUDIOLIGHT_EQUIRECTANGULAR_IRRADIANCE_GPUTEXTURE)) {
-		studiolight_create_equierectangular_irradiance_gputexture(sl);
+		studiolight_create_equirectangular_irradiance_gputexture(sl);
 	}
 	if ((flag & STUDIOLIGHT_EQUIRECTANGULAR_IRRADIANCE_IMAGE_CALCULATED)) {
 		if (!studiolight_load_irradiance_equirectangular_image(sl)) {
@@ -917,6 +995,8 @@ void BKE_studiolight_ensure_flag(StudioLight *sl, int flag)
 
 void BKE_studiolight_refresh(void)
 {
-	BKE_studiolight_free();
+	LISTBASE_FOREACH(StudioLight *, sl, &studiolights) {
+		sl->flag |= STUDIOLIGHT_DISABLED;
+	}
 	BKE_studiolight_init();
 }

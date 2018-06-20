@@ -1588,15 +1588,9 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
+	}
 
-		if (!DNA_struct_elem_find(fd->filesdna, "Image", "short", "num_tiles")) {
-			for (Image *ima = bmain->image.first; ima; ima = ima->id.next) {
-				ImageTile *tile = MEM_callocN(sizeof(ImageTile), "Image Tiles");
-				tile->ok = 1;
-				BLI_addtail(&ima->tiles, tile);
-			}
-		}
-
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 19)) {
 		if (!DNA_struct_elem_find(fd->filesdna, "Image", "ListBase", "renderslot")) {
 			for (Image *ima = bmain->image.first; ima; ima = ima->id.next) {
 				if (ima->type == IMA_TYPE_R_RESULT) {
@@ -1608,5 +1602,14 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "Image", "short", "num_tiles")) {
+			for (Image *ima = bmain->image.first; ima; ima = ima->id.next) {
+				ImageTile *tile = MEM_callocN(sizeof(ImageTile), "Image Tiles");
+				tile->ok = 1;
+				BLI_addtail(&ima->tiles, tile);
+			}
+		}
 	}
+	
 }

@@ -61,7 +61,7 @@ struct LinkNode;
 struct KDTree;
 struct RNG;
 struct BVHTreeRay;
-struct BVHTreeRayHit; 
+struct BVHTreeRayHit;
 struct EdgeHash;
 struct Depsgraph;
 struct ViewLayer;
@@ -198,7 +198,7 @@ typedef struct ParticleCollisionElement {
 
 	/* values interpolated from original data*/
 	float x0[3], x1[3], x2[3], p[3];
-	
+
 	/* results for found intersection point */
 	float nor[3], vel[3], uv[2];
 
@@ -317,6 +317,9 @@ void BKE_particlesettings_fluid_default_settings(struct ParticleSettings *part);
 void BKE_particlesettings_free(struct ParticleSettings *part);
 void psys_free_path_cache(struct ParticleSystem *psys, struct PTCacheEdit *edit);
 void psys_free(struct Object *ob, struct ParticleSystem *psys);
+
+/* Copy. */
+void psys_copy_particles(struct ParticleSystem *psys_dst, struct ParticleSystem *psys_src);
 
 bool psys_render_simplify_params(struct ParticleSystem *psys, struct ChildParticle *cpa, float *params);
 
