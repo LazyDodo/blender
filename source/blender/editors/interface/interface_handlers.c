@@ -58,6 +58,7 @@
 
 #include "PIL_time.h"
 
+#include "BKE_addon.h"
 #include "BKE_colorband.h"
 #include "BKE_blender_undo.h"
 #include "BKE_brush.h"
@@ -4333,10 +4334,14 @@ static int ui_do_but_NUM(
 			retval = WM_UI_HANDLER_BREAK; /* allow accumulating values, otherwise scrolling gets preference */
 		else if (type == WHEELDOWNMOUSE && event->ctrl) {
 			mx = but->rect.xmin;
+			but->drawflag &= ~UI_BUT_ACTIVE_RIGHT;
+			but->drawflag |= UI_BUT_ACTIVE_LEFT;
 			click = 1;
 		}
 		else if (type == WHEELUPMOUSE && event->ctrl) {
 			mx = but->rect.xmax;
+			but->drawflag &= ~UI_BUT_ACTIVE_LEFT;
+			but->drawflag |= UI_BUT_ACTIVE_RIGHT;
 			click = 1;
 		}
 		else if (event->val == KM_PRESS) {
@@ -7066,7 +7071,10 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 	if (ui_block_is_menu(but->block) == false) {
 		uiItemFullO(layout, "UI_OT_editsource", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
 	}
-	uiItemFullO(layout, "UI_OT_edittranslation_init", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
+
+	if (BKE_addon_find(&U.addons, "ui_translate")) {
+		uiItemFullO(layout, "UI_OT_edittranslation_init", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
+	}
 
 	mt = WM_menutype_find("WM_MT_button_context", true);
 	if (mt) {
