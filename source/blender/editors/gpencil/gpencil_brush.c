@@ -843,7 +843,7 @@ static bool gp_brush_randomize_apply(
 	}
 	/* apply random to UV (use pressure) */
 	if (gso->settings->flag & GP_BRUSHEDIT_FLAG_APPLY_UV) {
-		if (BLI_frand() > 0.5f) {
+		if (BLI_rng_get_float(gso->rng) > 0.5f) {
 			pt->uv_rot += fac;
 		}
 		else {

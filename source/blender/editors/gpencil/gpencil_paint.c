@@ -434,7 +434,7 @@ static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int
 		tmp_pressure = curvef * brush->gpencil_settings->draw_sensitivity;
 	}
 	const float exfactor = (brush->gpencil_settings->draw_jitter + 2.0f) * (brush->gpencil_settings->draw_jitter + 2.0f); /* exponential value */
-	const float fac = BLI_frand() * exfactor * tmp_pressure;
+	const float fac = BLI_rng_get_float(rng) * exfactor * tmp_pressure;
 	/* Jitter is applied perpendicular to the mouse movement vector (2D space) */
 	float mvec[2], svec[2];
 	/* mouse movement in ints -> floats */
@@ -645,22 +645,22 @@ static short gp_stroke_addpoint(
 		{
 			float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_sensitivity, 0, pressure);
 			float tmp_pressure = curvef * brush->gpencil_settings->draw_sensitivity;
-			if (BLI_frand() > 0.5f) {
-				pt->pressure -= tmp_pressure * brush->gpencil_settings->draw_random_press * BLI_frand();
+			if (BLI_rng_get_float(p->rng) > 0.5f) {
+				pt->pressure -= tmp_pressure * brush->gpencil_settings->draw_random_press * BLI_rng_get_float(p->rng);
 			}
 			else {
-				pt->pressure += tmp_pressure * brush->gpencil_settings->draw_random_press * BLI_frand();
+				pt->pressure += tmp_pressure * brush->gpencil_settings->draw_random_press * BLI_rng_get_float(p->rng);
 			}
 			CLAMP(pt->pressure, GPENCIL_STRENGTH_MIN, 1.0f);
 		}
 
 		/* apply randomness to uv texture rotation */
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) && (brush->gpencil_settings->uv_random > 0.0f)) {
-			if (BLI_frand() > 0.5f) {
-				pt->uv_rot = (BLI_frand() * M_PI * -1) * brush->gpencil_settings->uv_random;
+			if (BLI_rng_get_float(p->rng) > 0.5f) {
+				pt->uv_rot = (BLI_rng_get_float(p->rng) * M_PI * -1) * brush->gpencil_settings->uv_random;
 			}
 			else {
-				pt->uv_rot = (BLI_frand() * M_PI) * brush->gpencil_settings->uv_random;
+				pt->uv_rot = (BLI_rng_get_float(p->rng) * M_PI) * brush->gpencil_settings->uv_random;
 			}
 			CLAMP(pt->uv_rot, -M_PI_2, M_PI_2);
 		}
@@ -691,11 +691,11 @@ static short gp_stroke_addpoint(
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
 			(brush->gpencil_settings->draw_random_strength > 0.0f))
 		{
-			if (BLI_frand() > 0.5f) {
-				pt->strength -= pt->strength * brush->gpencil_settings->draw_random_strength * BLI_frand();
+			if (BLI_rng_get_float(p->rng) > 0.5f) {
+				pt->strength -= pt->strength * brush->gpencil_settings->draw_random_strength * BLI_rng_get_float(p->rng);
 			}
 			else {
-				pt->strength += pt->strength * brush->gpencil_settings->draw_random_strength * BLI_frand();
+				pt->strength += pt->strength * brush->gpencil_settings->draw_random_strength * BLI_rng_get_float(p->rng);
 			}
 			CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 		}

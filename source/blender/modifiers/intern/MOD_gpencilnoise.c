@@ -35,6 +35,8 @@
 #include "BLI_math_vector.h"
 #include "BLI_rand.h"
 
+#include "PIL_time.h"
+
 #include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
@@ -66,8 +68,23 @@ static void initData(ModifierData *md)
 	gpmd->step = 1;
 	gpmd->scene_frame = -999999;
 	gpmd->gp_frame = -999999;
+
+	/* Random generator, only init once. */
+	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
+	rng_seed ^= GET_UINT_FROM_POINTER(gpmd);
+	gpmd->rng = BLI_rng_new(rng_seed);
+
 	gpmd->vrand1 = 1.0;
 	gpmd->vrand2 = 1.0;
+}
+
+static void freeData(ModifierData *md)
+{
+	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
+
+	if (mmd->rng) {
+		BLI_rng_free(mmd->rng);
+	}
 }
 
 static void copyData(const ModifierData *md, ModifierData *target)
@@ -151,8 +168,8 @@ static void gp_deformStroke(
 			if ((!gpl->actframe) || (mmd->gp_frame != gpl->actframe->framenum) ||
 			    (sc_diff >= mmd->step))
 			{
-				vran = mmd->vrand1 = BLI_frand();
-				vdir = mmd->vrand2 = BLI_frand();
+				vran = mmd->vrand1 = BLI_rng_get_float(mmd->rng);
+				vdir = mmd->vrand2 = BLI_rng_get_float(mmd->rng);
 				mmd->gp_frame = gpl->actframe->framenum;
 				mmd->scene_frame = sc_frame;
 			}
@@ -269,7 +286,7 @@ ModifierTypeInfo modifierType_Gpencil_Noise = {
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
-	/* freeData */          NULL,
+	/* freeData */          freeData,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     dependsOnTime,

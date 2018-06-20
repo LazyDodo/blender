@@ -1018,7 +1018,7 @@ void gp_randomize_stroke(bGPDstroke *gps, Brush *brush, RNG *rng)
 	for (int i = 1; i < gps->totpoints - 1; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		/* get vector with shift (apply a division because random is too sensitive */
-		const float fac = BLI_frand() * (brush->gpencil_settings->draw_random_sub / 10.0f);
+		const float fac = BLI_rng_get_float(rng) * (brush->gpencil_settings->draw_random_sub / 10.0f);
 		float svec[3];
 		copy_v3_v3(svec, ortho);
 		if (BLI_rng_get_float(rng) > 0.5f) {

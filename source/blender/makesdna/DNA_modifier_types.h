@@ -33,6 +33,7 @@
  */
 
 struct Mesh;
+struct RNG;
 
 typedef enum ModifierType {
 	eModifierType_None              = 0,
@@ -1664,6 +1665,7 @@ typedef struct NoiseGpencilModifierData {
 	int gp_frame;                /* last gp frame used */
 	int scene_frame;             /* last scene frame used */
 	float vrand1, vrand2;        /* random values */
+	struct RNG *rng;
 } NoiseGpencilModifierData;
 
 typedef enum eNoiseGpencil_Flag {
