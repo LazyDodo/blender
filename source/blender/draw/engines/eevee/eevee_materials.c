@@ -1481,7 +1481,6 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sld
 				if (mat_geom[i] == NULL) {
 					continue;
 				}
-				EEVEE_ObjectEngineData *oedata = NULL;
 				Material *ma = give_current_material(ob, i + 1);
 
 				if (ma == NULL)
