@@ -236,6 +236,7 @@ struct GpencilModifierData *BKE_gpencil_modifiers_findByType(struct Object *ob, 
 struct GpencilModifierData *BKE_gpencil_modifiers_findByName(struct Object *ob, const char *name);
 void BKE_gpencil_modifier_copyData_generic(const struct GpencilModifierData *md_src, struct GpencilModifierData *md_dst);
 void BKE_gpencil_modifier_copyData(struct GpencilModifierData *md, struct GpencilModifierData *target);
+void BKE_gpencil_modifier_copyData_ex(struct GpencilModifierData *md, struct GpencilModifierData *target, const int flag);
 
 bool BKE_gpencil_has_geometry_modifiers(struct Object *ob);
 

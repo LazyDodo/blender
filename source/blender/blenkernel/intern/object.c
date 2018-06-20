@@ -196,12 +196,10 @@ void BKE_object_free_modifiers(Object *ob, const int flag)
 	while ((md = BLI_pophead(&ob->modifiers))) {
 		modifier_free_ex(md, flag);
 	}
-#if 0	/* FIXME */
-	/* grease pencil */
+
 	while ((gp_md = BLI_pophead(&ob->greasepencil_modifiers))) {
 		BKE_gpencil_modifier_free_ex(gp_md, flag);
 	}
-#endif
 	/* particle modifiers were freed, so free the particlesystems as well */
 	BKE_object_free_particlesystems(ob);
 
@@ -1220,6 +1218,7 @@ void BKE_object_transform_copy(Object *ob_tar, const Object *ob_src)
 void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_src, const int flag)
 {
 	ModifierData *md;
+	GpencilModifierData *gmd;
 
 	/* We never handle usercount here for own data. */
 	const int flag_subdata = flag | LIB_ID_CREATE_NO_USER_REFCOUNT;
@@ -1241,6 +1240,15 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 		BLI_strncpy(nmd->name, md->name, sizeof(nmd->name));
 		modifier_copyData_ex(md, nmd, flag_subdata);
 		BLI_addtail(&ob_dst->modifiers, nmd);
+	}
+
+	BLI_listbase_clear(&ob_dst->greasepencil_modifiers);
+
+	for (gmd = ob_src->greasepencil_modifiers.first; gmd; gmd = gmd->next) {
+		GpencilModifierData *nmd = BKE_gpencil_modifier_new(gmd->type);
+		BLI_strncpy(nmd->name, gmd->name, sizeof(nmd->name));
+		BKE_gpencil_modifier_copyData_ex(gmd, nmd, flag_subdata);
+		BLI_addtail(&ob_dst->greasepencil_modifiers, nmd);
 	}
 
 	if (ob_src->pose) {
