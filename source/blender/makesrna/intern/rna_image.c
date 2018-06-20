@@ -211,7 +211,9 @@ static const EnumPropertyItem *rna_Image_source_itemf(bContext *UNUSED(C), Point
 		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_SEQUENCE);
 		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_MOVIE);
 		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_GENERATED);
-		RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_TILED);
+		if (BLI_stringdec(ima->name, NULL, NULL, NULL) == 1001) {
+			RNA_enum_items_add_value(&item, &totitem, image_source_items, IMA_SRC_TILED);
+		}
 	}
 
 	RNA_enum_item_end(&item, &totitem);
