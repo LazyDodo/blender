@@ -60,7 +60,7 @@ extern char datatoc_gpencil_pixel_frag_glsl[];
 extern char datatoc_gpencil_swirl_frag_glsl[];
 extern char datatoc_gpencil_flip_frag_glsl[];
 extern char datatoc_gpencil_light_frag_glsl[];
-extern char datatoc_gpencil_painting_frag_glsl[];
+extern char datatoc_gpencil_background_frag_glsl[];
 extern char datatoc_gpencil_paper_frag_glsl[];
 extern char datatoc_gpencil_edit_point_vert_glsl[];
 extern char datatoc_gpencil_edit_point_geom_glsl[];
@@ -129,7 +129,7 @@ static void GPENCIL_create_framebuffers(void *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_a)
 			});
 
-		/* painting framebuffer to speed up drawing process (always 16 bits) */
+		/* background framebuffer to speed up drawing process (always 16 bits) */
 		e_data.background_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_object_type);
 		e_data.background_color_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA16F,
@@ -195,7 +195,7 @@ static void GPENCIL_create_shaders(void)
 
 	/* shaders for use when drawing */
 	if (!e_data.gpencil_background_sh) {
-		e_data.gpencil_background_sh = DRW_shader_create_fullscreen(datatoc_gpencil_painting_frag_glsl, NULL);
+		e_data.gpencil_background_sh = DRW_shader_create_fullscreen(datatoc_gpencil_background_frag_glsl, NULL);
 	}
 	if (!e_data.gpencil_paper_sh) {
 		e_data.gpencil_paper_sh = DRW_shader_create_fullscreen(datatoc_gpencil_paper_frag_glsl, NULL);
