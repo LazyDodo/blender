@@ -913,6 +913,26 @@ void GPU_texture_update(GPUTexture *tex, const float *pixels)
 	glBindTexture(tex->target, 0);
 }
 
+void *GPU_texture_read(GPUTexture *tex, int miplvl)
+{
+	glBindTexture(tex->target, tex->bindcode);
+
+	size_t buf_size = gpu_texture_memory_footprint_compute(tex);
+	/* We want floats (or ints) */
+	buf_size = tex->components * sizeof(float) * (buf_size / tex->bytesize);
+	void *buf = MEM_mallocN(buf_size, "GPU_texture_read");
+
+	GLenum format, data_format;
+	gpu_texture_get_format(tex->components, tex->format, &format, &data_format,
+	                       &tex->format_flag, &tex->bytesize);
+
+	glGetTexImage(tex->target, miplvl, format, data_format, buf);
+
+	glBindTexture(tex->target, 0);
+
+	return buf;
+}
+
 void GPU_invalid_tex_init(void)
 {
 	memory_usage = 0;

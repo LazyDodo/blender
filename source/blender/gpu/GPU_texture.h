@@ -168,6 +168,8 @@ GPUTexture *GPU_texture_from_preview(struct PreviewImage *prv, int mipmap);
 
 void GPU_texture_update(GPUTexture *tex, const float *pixels);
 
+void *GPU_texture_read(GPUTexture *tex, int miplvl);
+
 void GPU_invalid_tex_init(void);
 void GPU_invalid_tex_bind(int mode);
 void GPU_invalid_tex_free(void);
